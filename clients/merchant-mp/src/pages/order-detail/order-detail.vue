@@ -141,7 +141,7 @@ import {
   orderStatusLabel,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
-import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -213,7 +213,7 @@ onLoad((opt) => {
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 async function load() {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }

@@ -180,6 +180,12 @@
       </view>
     </view>
   </view>
+  <PrivacyConsentModal
+    :visible="showPrivacy"
+    policy-url="/pages/policy/detail?type=privacy"
+    @accepted="onPrivacyAccepted"
+    @declined="onPrivacyDeclined"
+  />
 </template>
 
 <script setup lang="ts">
@@ -188,6 +194,8 @@ import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref, watch } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
+import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';
 import {
   consumerApi,
   consumerPasswordLogin,
@@ -202,6 +210,9 @@ import {
 import { eventInputValue, readDomFieldValue, readDomPassword } from '@/utils/form-bind';
 import { showDevTools } from '@/utils/runtime-flags';
 import loginBgUrl from '@/static/bg-cooler.jpg';
+
+const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } =
+  usePrivacyConsentModal();
 
 const redirect = ref('/pages/index/index');
 // H5 无法微信静默授权，默认展开手机号，减少多点一次
@@ -280,6 +291,7 @@ onLoad((opts) => {
 
 /** 已登录时不应停留在 login URL（IMP-004） */
 onShow(async () => {
+  refreshPrivacyGate();
   if (!isConsumerLoggedIn()) return;
   try {
     const ok = await ensureConsumerAuth();

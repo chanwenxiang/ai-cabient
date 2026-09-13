@@ -171,12 +171,10 @@
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
-import {
-  clearSession,
+import { clearSession,
   hasPerm,
   merchantApi,
-  type MerchantProfileUpdate
-} from '@/utils/merchant-api';
+  type MerchantProfileUpdate, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
   hasSubscribeTemplates,
   MERCHANT_ALERT_TYPES,
@@ -290,14 +288,14 @@ async function loadNotifyPrefs() {
 }
 
 onShow(async () => {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
   try {
     await refreshMe();
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return;
+    if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
   }
   seedMerchantMeDisplayCache(me);

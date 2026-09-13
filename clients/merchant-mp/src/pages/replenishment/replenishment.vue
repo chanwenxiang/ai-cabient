@@ -562,52 +562,18 @@
       </view>
 
       <!-- H5 可访问确认框：替代 uni.showModal，便于自动化与读屏点击 -->
-      <view
-        v-if="confirmDialog.visible"
-        class="confirm-mask"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="confirmDialog.title"
-        data-testid="confirm-dialog"
-        @click.self="resolveConfirm(false)"
-        @touchmove.stop.prevent
-      >
-        <view role="button" class="confirm-card" @click.stop>
-          <text class="confirm-title">{{ confirmDialog.title }}</text>
-          <text class="confirm-body">{{ confirmDialog.content }}</text>
-          <view
-            v-if="confirmDialog.rememberLabel"
-            class="confirm-remember"
-            role="checkbox"
-            :aria-checked="confirmDialog.rememberChecked"
-            data-testid="confirm-remember"
-            @click.stop="confirmDialog.rememberChecked = !confirmDialog.rememberChecked"
-          >
-            <text class="remember-box">{{ confirmDialog.rememberChecked ? '☑' : '☐' }}</text>
-            <text>{{ confirmDialog.rememberLabel }}</text>
-          </view>
-          <view class="confirm-actions">
-            <button
-              type="button"
-              class="confirm-btn cancel"
-              :aria-label="confirmDialog.cancelText"
-              data-testid="confirm-cancel"
-              @click.stop="resolveConfirm(false)"
-            >
-              {{ confirmDialog.cancelText }}
-            </button>
-            <button
-              type="button"
-              class="confirm-btn ok"
-              :aria-label="confirmDialog.confirmText"
-              data-testid="confirm-ok"
-              @click.stop="resolveConfirm(true)"
-            >
-              {{ confirmDialog.confirmText }}
-            </button>
-          </view>
-        </view>
-      </view>
+      <AppConfirmDialog
+        :visible="confirmDialog.visible"
+        :title="confirmDialog.title"
+        :content="confirmDialog.content"
+        :confirm-text="confirmDialog.confirmText"
+        :cancel-text="confirmDialog.cancelText"
+        :remember-label="confirmDialog.rememberLabel"
+        :remember-checked="confirmDialog.rememberChecked"
+        @update:remember-checked="(v) => (confirmDialog.rememberChecked = v)"
+        @confirm="resolveConfirm(true)"
+        @cancel="resolveConfirm(false)"
+      />
     </view>
   </view>
 </template>
@@ -621,8 +587,10 @@ import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format'
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import EmptyState from '@/components/empty-state.vue';
+import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import {
   hasPerm,
+  isMerchantLoggedIn,
   merchantApi,
   type DeviceLowStockItem,
   type MerchantReplenishmentEfficiency
@@ -1149,7 +1117,7 @@ async function ensureReplenishmentMe(seq: number): Promise<boolean> {
   try {
     await refreshMe();
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return false;
+    if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return false;
@@ -1213,7 +1181,7 @@ async function handleDeepLinkAfterLoad(open: Task | undefined, wantedTaskId: num
 }
 
 async function load() {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
@@ -3072,80 +3040,6 @@ onPullDownRefresh(load);
   background: var(--brand-soft, #dcfce7);
   text-align: center;
   font-size: var(--font-size-caption);
-}
-.confirm-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 10050;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48rpx;
-  background: rgba(15, 23, 42, 0.62);
-  box-sizing: border-box;
-  pointer-events: auto;
-}
-.confirm-card {
-  width: 100%;
-  max-width: 620rpx;
-  padding: 36rpx 32rpx 28rpx;
-  border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
-  box-shadow: 0 24rpx 48rpx rgba(15, 23, 42, 0.18);
-}
-.confirm-title {
-  display: block;
-  color: var(--text-primary, #0f172a);
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-}
-.confirm-body {
-  display: block;
-  margin-top: 16rpx;
-  color: var(--text-muted, #475569);
-  font-size: var(--font-size-body);
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-.confirm-remember {
-  display: flex;
-  align-items: flex-start;
-  gap: 12rpx;
-  margin-top: 20rpx;
-  padding: 16rpx 14rpx;
-  border-radius: var(--radius-control);
-  background: var(--page-bg, #f8fafc);
-  color: var(--text-muted, #334155);
-  font-size: var(--font-size-caption);
-  line-height: 1.45;
-}
-.remember-box {
-  flex-shrink: 0;
-  color: var(--brand);
-  font-size: var(--font-size-md);
-}
-.confirm-actions {
-  display: flex;
-  gap: 16rpx;
-  margin-top: 32rpx;
-}
-.confirm-btn {
-  flex: 1;
-  margin: 0;
-  border: none;
-  border-radius: var(--radius-control);
-  font-size: var(--font-size-md);
-  font-weight: 600;
-  line-height: 1.2;
-  padding: 22rpx 12rpx;
-}
-.confirm-btn.cancel {
-  color: var(--text-muted, #334155);
-  background: var(--color-border-subtle, #f1f5f9);
-}
-.confirm-btn.ok {
-  color: var(--white);
-  background: linear-gradient(135deg, var(--brand), var(--brand));
 }
 button[disabled] {
   opacity: 0.45;

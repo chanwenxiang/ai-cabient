@@ -454,6 +454,12 @@
       @done="onPrepDone"
       @cancel="onPrepCancel"
     />
+    <PrivacyConsentModal
+      :visible="showPrivacy"
+      policy-url="/pages/policy/detail?type=privacy"
+      @accepted="onPrivacyAccepted"
+      @declined="onPrivacyDeclined"
+    />
   </view>
 </template>
 
@@ -463,6 +469,8 @@ import { computed, ref, watch } from 'vue';
 import OpenPrepDrawer from '@/components/open-prep-drawer.vue';
 import DeviceAdBanner from '@/components/device-ad-banner.vue';
 import LiveCartSheet, { type LiveCartSheetLine } from '@/components/live-cart-sheet.vue';
+import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
+import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';
 import {
   clearOpenAttempt,
   consumerApi,
@@ -506,6 +514,9 @@ import type {
   DisputeTicketDto,
   SessionDto
 } from '@aicabinet/shared-types';
+
+const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } =
+  usePrivacyConsentModal();
 
 /** 真机：标题从微信胶囊下方起排，避免顶穿状态栏 */
 const landingHeadStyle = ref({
@@ -855,6 +866,7 @@ async function onAuthenticatedShow() {
 }
 
 onShow(async () => {
+  refreshPrivacyGate();
   syncLandingTabBar();
   refreshLandingPad();
   lastDeviceId.value = uni.getStorageSync('last_device_id') || '';

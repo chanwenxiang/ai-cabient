@@ -82,13 +82,27 @@
       </view>
     </view>
   </view>
+  <PrivacyConsentModal
+    :visible="showPrivacy"
+    policy-url="/pages/policy/privacy"
+    @accepted="onPrivacyAccepted"
+    @declined="onPrivacyDeclined"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import { merchantLogin, merchantApi } from '@/utils/merchant-api';
 import { showDevTools } from '@/utils/runtime-flags';
+import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
+import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';
 import loginBgUrl from '@/static/bg-vending-night.jpg';
+
+const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } =
+  usePrivacyConsentModal();
+
+onShow(refreshPrivacyGate);
 
 const PHONE_KEY = 'merchant_login_phone';
 const PW_STORE_KEY = 'merchant_login_password';

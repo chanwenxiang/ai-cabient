@@ -165,7 +165,7 @@
 import { computed, reactive, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe, MerchantTeamRoleDto, MerchantUserDto } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -201,7 +201,7 @@ const form = reactive({
 });
 
 onShow(() => {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
@@ -265,7 +265,7 @@ async function load() {
       }
     }
   } catch (e) {
-    if (!uni.getStorageSync('merchant_token')) return;
+    if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
     if (!list.value.length) {
       list.value = [];

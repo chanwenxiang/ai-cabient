@@ -10,9 +10,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 仅 mock 开启时可用：模拟微信支付成功（须登录；userId 取自登录态，禁止参数伪造）。 */
+/**
+ * Dev/mock 专用：模拟微信支付成功。
+ * 路由刻意挂在 {@code /api/v2/dev/payment/**}，与正式 {@link PaymentController} 隔离；
+ * 仅 {@code aicabinet.security.mock-enabled=true} 时注册，prod/staging 启动校验会拒绝该开关。
+ */
 @RestController
-@RequestMapping("/api/v2/payment/wechat")
+@RequestMapping("/api/v2/dev/payment/wechat")
 @ConditionalOnProperty(name = "aicabinet.security.mock-enabled", havingValue = "true")
 public class DevMockPaymentController {
 

@@ -140,7 +140,7 @@ import {
 import EmptyState from '@/components/empty-state.vue';
 import {
   merchantApi,
-  getToken,
+  isMerchantLoggedIn,
   handleUnauthorized,
   type LineWalletOverview,
   type WalletOverview
@@ -237,7 +237,7 @@ function ledgerRef(l: { refId?: string; refType?: string }) {
 }
 
 async function load() {
-  if (!getToken()) {
+  if (!isMerchantLoggedIn()) {
     handleUnauthorized();
     return;
   }

@@ -168,7 +168,7 @@ import {
 } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import EmptyState from '@/components/empty-state.vue';
-import { hasPerm, merchantApi, downloadAuthedFile, openExportedFile } from '@/utils/merchant-api';
+import { hasPerm, merchantApi, downloadAuthedFile, openExportedFile, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe, OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
 import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
@@ -324,7 +324,7 @@ async function ensureOrdersMerchantMe(seq: number): Promise<boolean> {
   try {
     await refreshMe();
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return false;
+    if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return false;
@@ -362,7 +362,7 @@ async function fetchOrdersPage(seq: number) {
 }
 
 async function load() {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
