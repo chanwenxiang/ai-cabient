@@ -219,7 +219,7 @@
               </template>
             </el-table-column>
             <el-table-column
-            align="center"
+              align="center"
               label="处理时限"
               min-width="168"
               class-name="col-status"
@@ -859,7 +859,8 @@ function emptyRefLabel(row: OpsException) {
 
 function emptyRefHint(row: OpsException) {
   if (isDeviceScopedException(row)) return '设备类异常无关联会话/订单/用户';
-  if (isOrderPendingSettle(row)) return '识别/争议会话尚未生成订单；按调整明细落账或免单后退回后才会有订单号';
+  if (isOrderPendingSettle(row))
+    return '识别/争议会话尚未生成订单；按调整明细落账或免单后退回后才会有订单号';
   return '暂无关联数据';
 }
 

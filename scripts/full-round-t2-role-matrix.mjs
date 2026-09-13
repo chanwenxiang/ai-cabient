@@ -23,7 +23,12 @@ async function login(phone) {
   const res = await fetch(`${BASE}/api/v2/auth/admin-password-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phoneNumber: phone, password: '123456', captchaId: id, captchaCode: code })
+    body: JSON.stringify({
+      phoneNumber: phone,
+      password: '123456',
+      captchaId: id,
+      captchaCode: code
+    })
   });
   const data = await res.json();
   if (data.code !== 0) throw new Error(`login ${phone}: ${JSON.stringify(data)}`);
@@ -61,7 +66,11 @@ function isOk(r) {
 async function ensureAccount(adminTok, phone, name, roleKey, roles) {
   const role = roles.find((r) => r.roleKey === roleKey);
   if (!role?.roleId) throw new Error(`missing role ${roleKey}`);
-  const list = await api(adminTok, 'GET', `/api/v2/ops/admin/rbac/operators?page=0&size=50&phone=${phone}`);
+  const list = await api(
+    adminTok,
+    'GET',
+    `/api/v2/ops/admin/rbac/operators?page=0&size=50&phone=${phone}`
+  );
   const items = list.data?.data?.items || list.data?.data?.list || list.data?.data || [];
   const arr = Array.isArray(items) ? items : [];
   let user = arr.find((u) => String(u.phoneNumber) === phone);
@@ -153,7 +162,10 @@ pushCase(
   !financePN.perms.includes('ops:rbac:role') && !financePN.perms.includes('ops:admin')
     ? 'PASS'
     : 'FAIL',
-  { hasRole: financePN.perms.includes('ops:rbac:role'), hasAdmin: financePN.perms.includes('ops:admin') }
+  {
+    hasRole: financePN.perms.includes('ops:rbac:role'),
+    hasAdmin: financePN.perms.includes('ops:admin')
+  }
 );
 pushCase(
   'T2-operator-has-order-dispute',
@@ -207,11 +219,15 @@ pushCase(
 }
 {
   const r = await api(finance.token, 'GET', '/api/v2/ops/admin/rbac/roles');
-  pushCase('T2-finance-roles-denied-or-empty', isDenied(r) || !(r.data?.data || []).length ? 'PASS' : 'FAIL', {
-    code: r.data?.code,
-    status: r.status,
-    n: Array.isArray(r.data?.data) ? r.data.data.length : null
-  });
+  pushCase(
+    'T2-finance-roles-denied-or-empty',
+    isDenied(r) || !(r.data?.data || []).length ? 'PASS' : 'FAIL',
+    {
+      code: r.data?.code,
+      status: r.status,
+      n: Array.isArray(r.data?.data) ? r.data.data.length : null
+    }
+  );
 }
 {
   const r = await api(operator.token, 'GET', '/api/v2/ops/admin/finance/stats');
@@ -319,5 +335,11 @@ report.permCounts = {
 
 fs.writeFileSync(`${OUT}/full-round-t2-role-matrix.json`, JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report.summary, null, 2));
-console.log(JSON.stringify(report.cases.map((c) => `${c.status} ${c.id}`), null, 2));
+console.log(
+  JSON.stringify(
+    report.cases.map((c) => `${c.status} ${c.id}`),
+    null,
+    2
+  )
+);
 if (fail > 0) process.exit(1);

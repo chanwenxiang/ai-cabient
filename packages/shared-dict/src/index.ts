@@ -745,13 +745,12 @@ export function formatConsistencyValue(
 
   if (checkType === 'CROSS_LINK' && checkKey) {
     if (checkKey.startsWith('DSP|')) {
-      if (role === 'expected') return displayLabel('consistency_diag_code', 'LINKED', '应有关联订单');
+      if (role === 'expected')
+        return displayLabel('consistency_diag_code', 'LINKED', '应有关联订单');
       const [ticket, order] = v.split('/', 2);
       const ticketLabel = displayLabel('dispute_status', ticket, ticket === 'null' ? '无' : ticket);
       const orderLabel =
-        order === 'null' || order === ''
-          ? '无订单'
-          : displayLabel('order_status', order, order);
+        order === 'null' || order === '' ? '无订单' : displayLabel('order_status', order, order);
       return `争议 ${ticketLabel} / 订单 ${orderLabel}`;
     }
     if (checkKey.startsWith('ODV|')) {

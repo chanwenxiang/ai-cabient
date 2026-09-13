@@ -88,11 +88,7 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="详情"
-                min-width="160"
-                class-name="col-text"
-              >
+              <el-table-column label="详情" min-width="160" class-name="col-text">
                 <template #default="{ row }">{{ formatRiskEventDetail(row.detail) }}</template>
               </el-table-column>
               <el-table-column
@@ -130,8 +126,12 @@
                 <template #default="{ row }">{{ row.dispositionNote || '暂无' }}</template>
               </el-table-column>
               <el-table-column
-            align="center" label="处置时间" width="150" class-name="col-status"
-            label-class-name="col-status">
+                align="center"
+                label="处置时间"
+                width="150"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span v-if="row.dispositionAt" class="cell-datetime">{{
                     formatDateTime(row.dispositionAt)
@@ -200,11 +200,7 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="原因"
-                min-width="180"
-                class-name="col-text"
-              >
+              <el-table-column label="原因" min-width="180" class-name="col-text">
                 <template #default="{ row }">{{ row.reason || '无' }}</template>
               </el-table-column>
               <el-table-column
@@ -225,8 +221,12 @@
                 </template>
               </el-table-column>
               <el-table-column
-            align="center" label="加入时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+                align="center"
+                label="加入时间"
+                width="168"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>

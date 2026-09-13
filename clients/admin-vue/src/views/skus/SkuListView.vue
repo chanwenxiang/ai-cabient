@@ -158,12 +158,7 @@
               <div v-else class="sku-thumb sku-thumb--empty">无图</div>
             </template>
           </el-table-column>
-          <el-table-column
-            prop="barcode"
-            label="条码"
-            min-width="80"
-            class-name="col-text"
-          >
+          <el-table-column prop="barcode" label="条码" min-width="80" class-name="col-text">
             <template #default="{ row }">{{ row.barcode || '无' }}</template>
           </el-table-column>
           <el-table-column label="名称" min-width="96" class-name="col-text">
@@ -177,20 +172,10 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column
-            prop="brand"
-            label="品牌"
-            min-width="72"
-            class-name="col-text"
-          >
+          <el-table-column prop="brand" label="品牌" min-width="72" class-name="col-text">
             <template #default="{ row }">{{ row.brand || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            prop="spec"
-            label="规格"
-            min-width="72"
-            class-name="col-text"
-          >
+          <el-table-column prop="spec" label="规格" min-width="72" class-name="col-text">
             <template #default="{ row }">{{ row.spec || '无' }}</template>
           </el-table-column>
           <el-table-column
@@ -215,12 +200,7 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column
-            prop="category"
-            label="类目"
-            min-width="88"
-            class-name="col-text"
-          >
+          <el-table-column prop="category" label="类目" min-width="88" class-name="col-text">
             <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
           </el-table-column>
           <el-table-column
@@ -237,8 +217,12 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="添加时间" width="96" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="添加时间"
+            width="96"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>

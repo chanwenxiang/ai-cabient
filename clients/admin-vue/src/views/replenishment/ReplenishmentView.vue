@@ -322,11 +322,7 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="路线"
-                min-width="140"
-                class-name="col-text"
-              >
+              <el-table-column label="路线" min-width="140" class-name="col-text">
                 <template #default="{ row }">{{ row.routeName || '无' }}</template>
               </el-table-column>
               <el-table-column
@@ -350,12 +346,12 @@
                 <template #default="{ row }">{{ row.tasks?.length || 0 }}</template>
               </el-table-column>
               <el-table-column
-            align="center"
+                align="center"
                 prop="plannedDate"
                 label="计划日期"
                 width="120"
                 class-name="col-status"
-            label-class-name="col-status"
+                label-class-name="col-status"
               />
               <el-table-column
                 label="状态"
@@ -465,31 +461,19 @@
                   <span class="cell-id">{{ row.taskId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="设备" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
                     {{ deviceName(row.deviceId, row.deviceName) }}
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备ID"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="设备ID" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="路线"
-                min-width="140"
-                class-name="col-text"
-              >
+              <el-table-column label="路线" min-width="140" class-name="col-text">
                 <template #default="{ row }">{{ row.routeName || row.routeId || '无' }}</template>
               </el-table-column>
               <el-table-column
@@ -559,8 +543,12 @@
                 <template #default="{ row }">{{ formatTaskDuration(row) }}</template>
               </el-table-column>
               <el-table-column
-            align="center" label="完成时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+                align="center"
+                label="完成时间"
+                width="168"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span class="cell-datetime">{{
                     row.completedAt ? formatDateTime(row.completedAt) : '无'
@@ -675,31 +663,19 @@
                 min-width="160"
                 class-name="col-text"
               />
-              <el-table-column
-                label="目标设备"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="目标设备" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
                     {{ deviceName(row.deviceId, row.deviceName) }}
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备ID"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="设备ID" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="明细"
-                min-width="220"
-                class-name="col-text"
-              >
+              <el-table-column label="明细" min-width="220" class-name="col-text">
                 <template #default="{ row }">
                   <span>{{ formatRequestLines(row) }}</span>
                 </template>
@@ -717,11 +693,7 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="审核人"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="审核人" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <span v-if="row.reviewerName || row.reviewerId">{{
                     row.reviewerName || row.reviewerId
@@ -730,8 +702,12 @@
                 </template>
               </el-table-column>
               <el-table-column
-            align="center" label="审核时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+                align="center"
+                label="审核时间"
+                width="168"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span v-if="row.reviewedAt" class="cell-datetime">{{
                     formatDateTime(row.reviewedAt)
@@ -739,11 +715,7 @@
                   <span v-else class="muted">—</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="驳回原因"
-                min-width="160"
-                class-name="col-text"
-              >
+              <el-table-column label="驳回原因" min-width="160" class-name="col-text">
                 <template #default="{ row }">
                   <span v-if="row.rejectReason" class="reject-reason">{{ row.rejectReason }}</span>
                   <span v-else class="muted">无</span>
@@ -762,8 +734,12 @@
                 </template>
               </el-table-column>
               <el-table-column
-            align="center" label="提交时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+                align="center"
+                label="提交时间"
+                width="168"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span class="cell-datetime">{{
                     formatDateTime(row.submittedAt || row.createdAt)
@@ -832,22 +808,14 @@
                 class-name="col-status"
                 label-class-name="col-status"
               />
-              <el-table-column
-                label="设备"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="设备" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
                     {{ deviceName(row.deviceId, row.deviceName) }}
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备ID"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="设备ID" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
@@ -954,22 +922,14 @@
                 class-name="col-status"
                 label-class-name="col-status"
               />
-              <el-table-column
-                label="设备"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="设备" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
                     {{ deviceName(row.deviceId, row.deviceName) }}
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备ID"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="设备ID" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
@@ -980,18 +940,8 @@
                 min-width="140"
                 class-name="col-text"
               />
-              <el-table-column
-                prop="batchNo"
-                label="批次"
-                min-width="120"
-                class-name="col-text"
-              />
-              <el-table-column
-                prop="lotId"
-                label="批次 ID"
-                min-width="120"
-                class-name="col-text"
-              />
+              <el-table-column prop="batchNo" label="批次" min-width="120" class-name="col-text" />
+              <el-table-column prop="lotId" label="批次 ID" min-width="120" class-name="col-text" />
               <el-table-column
                 prop="quantity"
                 label="数量"
@@ -1000,11 +950,7 @@
                 class-name="col-status"
                 label-class-name="col-status"
               />
-              <el-table-column
-                label="原因"
-                min-width="160"
-                class-name="col-text"
-              >
+              <el-table-column label="原因" min-width="160" class-name="col-text">
                 <template #default="{ row }">{{
                   displayLabel('pull_off_reason', row.reason, '临期')
                 }}</template>
@@ -1023,8 +969,12 @@
                 </template>
               </el-table-column>
               <el-table-column
-            align="center" label="创建时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+                align="center"
+                label="创建时间"
+                width="168"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>

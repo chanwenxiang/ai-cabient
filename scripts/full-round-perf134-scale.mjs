@@ -311,7 +311,8 @@ console.log('login ok');
     };
     console.log('JMETER', report.jmeter.status, report.jmeter.stdout?.slice(-200));
   } else {
-    report.jmeter.note = 'skipped (set RUN_JMETER=1 to try justb4/jmeter); node scale is primary evidence';
+    report.jmeter.note =
+      'skipped (set RUN_JMETER=1 to try justb4/jmeter); node scale is primary evidence';
   }
 }
 
@@ -325,4 +326,6 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(`${OUT}/full-round-perf134-scale.json`, JSON.stringify(report, null, 2));
 console.log('WROTE', `${OUT}/full-round-perf134-scale.json`);
 console.log('SUMMARY', JSON.stringify(report.summary));
-process.exit(report.summary.perf1Pass && report.summary.perf3Pass && report.summary.perf4Pass ? 0 : 1);
+process.exit(
+  report.summary.perf1Pass && report.summary.perf3Pass && report.summary.perf4Pass ? 0 : 1
+);

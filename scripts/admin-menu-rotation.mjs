@@ -82,8 +82,21 @@ for (const p of menuPaths) {
 
 const pass = results.filter((r) => r.ok).length;
 const fail = results.filter((r) => !r.ok);
-const report = { total: results.length, pass, failCount: fail.length, fail, results, at: new Date().toISOString() };
+const report = {
+  total: results.length,
+  pass,
+  failCount: fail.length,
+  fail,
+  results,
+  at: new Date().toISOString()
+};
 fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
-console.log(JSON.stringify({ total: report.total, pass, failCount: fail.length, fails: fail.map((f) => f.path) }, null, 2));
+console.log(
+  JSON.stringify(
+    { total: report.total, pass, failCount: fail.length, fails: fail.map((f) => f.path) },
+    null,
+    2
+  )
+);
 await browser.close();
 process.exit(fail.length ? 1 : 0);

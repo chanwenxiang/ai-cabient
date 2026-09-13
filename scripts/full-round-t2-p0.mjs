@@ -12,13 +12,21 @@ const UI = `${OUT}/browser-ui`;
 async function login(phone) {
   const cap = await fetch(`${BASE}/api/v2/auth/captcha`).then((r) => r.json());
   const id = cap.data.captchaId;
-  const code = execSync(`docker exec ai-cabinet-redis-1 redis-cli --raw GET aicabinet:captcha:${id}`, {
-    encoding: 'utf8'
-  }).trim();
+  const code = execSync(
+    `docker exec ai-cabinet-redis-1 redis-cli --raw GET aicabinet:captcha:${id}`,
+    {
+      encoding: 'utf8'
+    }
+  ).trim();
   const res = await fetch(`${BASE}/api/v2/auth/admin-password-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phoneNumber: phone, password: '123456', captchaId: id, captchaCode: code })
+    body: JSON.stringify({
+      phoneNumber: phone,
+      password: '123456',
+      captchaId: id,
+      captchaCode: code
+    })
   });
   const data = await res.json();
   if (data.code !== 0) throw new Error(`login ${phone}: ${JSON.stringify(data)}`);
@@ -73,8 +81,18 @@ const mchBTok = await login('13800138003');
 
 // --- API: viewer write denied ---
 for (const [id, method, path, body] of [
-  ['T2-viewer-device-create', 'POST', '/api/v2/ops/admin/devices', { deviceName: 'x', merchantId: 'MCH-DEFAULT' }],
-  ['T2-viewer-withdraw-list', 'GET', '/api/v2/ops/admin/merchant-withdrawals?page=0&size=5', undefined],
+  [
+    'T2-viewer-device-create',
+    'POST',
+    '/api/v2/ops/admin/devices',
+    { deviceName: 'x', merchantId: 'MCH-DEFAULT' }
+  ],
+  [
+    'T2-viewer-withdraw-list',
+    'GET',
+    '/api/v2/ops/admin/merchant-withdrawals?page=0&size=5',
+    undefined
+  ],
   ['T2-viewer-roles', 'GET', '/api/v2/ops/admin/rbac/roles', undefined]
 ]) {
   const r = await api(viewerTok, method, path, body);
@@ -86,19 +104,20 @@ for (const [id, method, path, body] of [
   // withdraw list might be 403 or empty allowed readonly - check
   report.cases.push({
     id,
-    status: method === 'GET' && id.includes('withdraw')
-      ? code === 403 || code === 0
-        ? code === 403
-          ? 'PASS'
-          : 'PASS'
-        : 'FAIL'
-      : method === 'POST'
-        ? code === 403 || r.status === 403
-          ? 'PASS'
+    status:
+      method === 'GET' && id.includes('withdraw')
+        ? code === 403 || code === 0
+          ? code === 403
+            ? 'PASS'
+            : 'PASS'
           : 'FAIL'
-        : ok
-          ? 'PASS'
-          : 'FAIL',
+        : method === 'POST'
+          ? code === 403 || r.status === 403
+            ? 'PASS'
+            : 'FAIL'
+          : ok
+            ? 'PASS'
+            : 'FAIL',
     note: { http: r.status, code, message: r.data?.message }
   });
 }
@@ -137,7 +156,9 @@ await page.goto('http://localhost/admin/disputes', { waitUntil: 'networkidle' })
 await page.waitForTimeout(800);
 const disputeUi = await page.evaluate(() => {
   const text = (document.body.innerText || '').replace(/\s+/g, ' ');
-  const writeish = [...document.querySelectorAll('button')].map((b) => (b.textContent || '').trim()).filter(Boolean);
+  const writeish = [...document.querySelectorAll('button')]
+    .map((b) => (b.textContent || '').trim())
+    .filter(Boolean);
   return {
     url: location.pathname,
     forbidden: location.pathname.includes('forbidden'),
@@ -148,7 +169,12 @@ const disputeUi = await page.evaluate(() => {
 await page.screenshot({ path: `${UI}/t2-viewer-disputes.png` });
 report.cases.push({
   id: 'UI-A06-viewer-disputes',
-  status: disputeUi.writeish.length === 0 && !disputeUi.forbidden ? 'PASS' : disputeUi.forbidden ? 'BLOCK' : 'FAIL',
+  status:
+    disputeUi.writeish.length === 0 && !disputeUi.forbidden
+      ? 'PASS'
+      : disputeUi.forbidden
+        ? 'BLOCK'
+        : 'FAIL',
   note: disputeUi
 });
 
@@ -157,7 +183,9 @@ await page.waitForTimeout(800);
 const withdrawUi = await page.evaluate(() => ({
   url: location.pathname + location.search,
   title: document.title,
-  forbidden: /forbidden|无权限|403/.test(location.pathname + document.title + (document.body.innerText || '').slice(0, 80))
+  forbidden: /forbidden|无权限|403/.test(
+    location.pathname + document.title + (document.body.innerText || '').slice(0, 80)
+  )
 }));
 await page.screenshot({ path: `${UI}/t2-viewer-withdraw.png` });
 report.cases.push({
@@ -170,11 +198,17 @@ report.cases.push({
 await page.goto('http://127.0.0.1:3001/', { waitUntil: 'networkidle' });
 await page.locator('input').nth(0).fill('13800138001');
 await page.locator('input').nth(1).fill('123456');
-await page.locator('uni-button, button').filter({ hasText: /^登录$/ }).first().click();
+await page
+  .locator('uni-button, button')
+  .filter({ hasText: /^登录$/ })
+  .first()
+  .click();
 await page.waitForTimeout(2000);
 await page.goto('http://127.0.0.1:3001/pages/wallet/wallet', { waitUntil: 'networkidle' });
 await page.waitForTimeout(1000);
-const walletBefore = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 250));
+const walletBefore = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 250)
+);
 await page.screenshot({ path: `${UI}/p0-withdraw-before.png` });
 
 // try fill withdraw amount 0.01 or min
@@ -193,12 +227,21 @@ if (await submit.count()) {
   if (await ok.count()) await ok.click().catch(() => {});
   await page.waitForTimeout(1500);
 }
-const walletAfter = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 300));
+const walletAfter = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 300)
+);
 await page.screenshot({ path: `${UI}/p0-withdraw-after.png` });
 report.cases.push({
   id: 'P0-05-withdraw',
-  status: /提交成功|已提交|审核|冻结|最低|不足|成功/.test(walletAfter) || withdrawClicked ? 'PASS' : 'BLOCK',
-  note: { clicked: withdrawClicked, before: walletBefore.slice(0, 120), after: walletAfter.slice(0, 160) }
+  status:
+    /提交成功|已提交|审核|冻结|最低|不足|成功/.test(walletAfter) || withdrawClicked
+      ? 'PASS'
+      : 'BLOCK',
+  note: {
+    clicked: withdrawClicked,
+    before: walletBefore.slice(0, 120),
+    after: walletAfter.slice(0, 160)
+  }
 });
 
 // --- Super admin create coupon ---
@@ -219,14 +262,21 @@ if (couponRes.data?.code !== 0) {
 report.cases.push({
   id: 'P0-06-coupon-create',
   status: couponRes.data?.code === 0 ? 'PASS' : 'BLOCK',
-  note: { status: couponRes.status, code: couponRes.data?.code, message: couponRes.data?.message, data: couponRes.data?.data }
+  note: {
+    status: couponRes.status,
+    code: couponRes.data?.code,
+    message: couponRes.data?.message,
+    data: couponRes.data?.data
+  }
 });
 
 // browser coupons page
 await injectAdmin(page, superTok);
 await page.goto('http://localhost/admin/coupons', { waitUntil: 'networkidle' });
 await page.waitForTimeout(800);
-const couponPage = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 200));
+const couponPage = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 200)
+);
 await page.screenshot({ path: `${UI}/p0-coupons-page.png` });
 report.cases.push({
   id: 'P0-06-coupons-ui',
@@ -243,11 +293,17 @@ await page.evaluate(() => {
 await page.goto('http://127.0.0.1:3001/', { waitUntil: 'networkidle' });
 await page.locator('input').nth(0).fill('13800138003');
 await page.locator('input').nth(1).fill('123456');
-await page.locator('uni-button, button').filter({ hasText: /^登录$/ }).first().click();
+await page
+  .locator('uni-button, button')
+  .filter({ hasText: /^登录$/ })
+  .first()
+  .click();
 await page.waitForTimeout(2000);
 await page.goto('http://127.0.0.1:3001/pages/devices/devices', { waitUntil: 'networkidle' });
 await page.waitForTimeout(800);
-const mchBDevices = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 250));
+const mchBDevices = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 250)
+);
 await page.screenshot({ path: `${UI}/t2-mchB-devices.png` });
 report.cases.push({
   id: 'T2-mchB-devices-ui',

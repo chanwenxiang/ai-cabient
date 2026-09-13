@@ -181,11 +181,7 @@
                   <span class="cell-id">{{ row.skuId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="商品"
-                min-width="140"
-                class-name="col-text"
-              >
+              <el-table-column label="商品" min-width="140" class-name="col-text">
                 <template #default="{ row }">{{ row.skuName || '无' }}</template>
               </el-table-column>
               <el-table-column

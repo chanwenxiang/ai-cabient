@@ -270,25 +270,11 @@
             >
               <template #default="{ row }">{{ typeLabel(row.type) }}</template>
             </el-table-column>
-            <el-table-column
-              prop="title"
-              label="标题"
-              min-width="140"
-              class-name="col-text"
-            />
-            <el-table-column
-              label="关联"
-              min-width="160"
-              class-name="col-text"
-            >
+            <el-table-column prop="title" label="标题" min-width="140" class-name="col-text" />
+            <el-table-column label="关联" min-width="160" class-name="col-text">
               <template #default="{ row }">{{ contextLabel(row) }}</template>
             </el-table-column>
-            <el-table-column
-              prop="detail"
-              label="详情"
-              min-width="220"
-              class-name="col-text"
-            />
+            <el-table-column prop="detail" label="详情" min-width="220" class-name="col-text" />
             <el-table-column
               label="操作"
               width="88"

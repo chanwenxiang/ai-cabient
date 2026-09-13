@@ -10,9 +10,12 @@ const BASE = process.env.API_BASE || 'http://127.0.0.1';
 async function adminLogin() {
   const cap = await fetch(`${BASE}/api/v2/auth/captcha`).then((r) => r.json());
   const id = cap.data.captchaId;
-  const code = execSync(`docker exec ai-cabinet-redis-1 redis-cli --raw GET aicabinet:captcha:${id}`, {
-    encoding: 'utf8'
-  }).trim();
+  const code = execSync(
+    `docker exec ai-cabinet-redis-1 redis-cli --raw GET aicabinet:captcha:${id}`,
+    {
+      encoding: 'utf8'
+    }
+  ).trim();
   const res = await fetch(`${BASE}/api/v2/auth/admin-password-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -53,7 +56,11 @@ async function api(token, method, path, body) {
 }
 
 async function findOperator(token, phone) {
-  const r = await api(token, 'GET', `/api/v2/ops/admin/rbac/operators?page=0&size=50&phone=${phone}`);
+  const r = await api(
+    token,
+    'GET',
+    `/api/v2/ops/admin/rbac/operators?page=0&size=50&phone=${phone}`
+  );
   const list = r.data?.data?.list || r.data?.data?.records || r.data?.data || [];
   const arr = Array.isArray(list) ? list : [];
   return arr.find((u) => String(u.phoneNumber || u.phone) === phone) || null;
@@ -99,7 +106,9 @@ async function main() {
     out.steps.push({ createViewer: created.status, body: created.data });
     viewerUser = created.data?.data || (await findOperator(token, '13900000005'));
   } else {
-    await api(token, 'PUT', `/api/v2/ops/admin/rbac/users/${viewerUser.userId}/roles`, [viewer.roleId]);
+    await api(token, 'PUT', `/api/v2/ops/admin/rbac/users/${viewerUser.userId}/roles`, [
+      viewer.roleId
+    ]);
     out.steps.push({ createViewer: 'exists', userId: viewerUser.userId });
   }
 
@@ -119,26 +128,44 @@ async function main() {
     out.steps.push({ createMchAdmin: 'exists', userId: mchAdmin.userId });
   }
   if (mchAdmin?.userId) {
-    const rolesPut = await api(token, 'PUT', `/api/v2/ops/admin/rbac/users/${mchAdmin.userId}/roles`, [
-      merchant.roleId
-    ]);
-    const mchPut = await api(token, 'PUT', `/api/v2/ops/admin/rbac/users/${mchAdmin.userId}/merchants`, [
-      'MCH-OTHER'
-    ]);
-    out.steps.push({ bindRoles: rolesPut.status, bindMerchants: mchPut.status, userId: mchAdmin.userId });
+    const rolesPut = await api(
+      token,
+      'PUT',
+      `/api/v2/ops/admin/rbac/users/${mchAdmin.userId}/roles`,
+      [merchant.roleId]
+    );
+    const mchPut = await api(
+      token,
+      'PUT',
+      `/api/v2/ops/admin/rbac/users/${mchAdmin.userId}/merchants`,
+      ['MCH-OTHER']
+    );
+    out.steps.push({
+      bindRoles: rolesPut.status,
+      bindMerchants: mchPut.status,
+      userId: mchAdmin.userId
+    });
   }
 
   // verify logins
   async function tryLogin(phone) {
     const cap = await fetch(`${BASE}/api/v2/auth/captcha`).then((r) => r.json());
     const id = cap.data.captchaId;
-    const code = execSync(`docker exec ai-cabinet-redis-1 redis-cli --raw GET aicabinet:captcha:${id}`, {
-      encoding: 'utf8'
-    }).trim();
+    const code = execSync(
+      `docker exec ai-cabinet-redis-1 redis-cli --raw GET aicabinet:captcha:${id}`,
+      {
+        encoding: 'utf8'
+      }
+    ).trim();
     const res = await fetch(`${BASE}/api/v2/auth/admin-password-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phoneNumber: phone, password: '123456', captchaId: id, captchaCode: code })
+      body: JSON.stringify({
+        phoneNumber: phone,
+        password: '123456',
+        captchaId: id,
+        captchaCode: code
+      })
     });
     const data = await res.json();
     return { phone, code: data.code, userId: data.data?.userId, message: data.message };
@@ -148,7 +175,10 @@ async function main() {
     mchB: await tryLogin('13800138003')
   };
 
-  fs.writeFileSync('docs/uat-screenshots/2026-09-12/rebuild-accounts.json', JSON.stringify(out, null, 2));
+  fs.writeFileSync(
+    'docs/uat-screenshots/2026-09-12/rebuild-accounts.json',
+    JSON.stringify(out, null, 2)
+  );
   console.log(JSON.stringify(out, null, 2));
 }
 

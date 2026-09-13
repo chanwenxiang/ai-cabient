@@ -142,11 +142,7 @@
                   <span class="cell-id">{{ row.merchantId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="商户"
-                min-width="140"
-                class-name="col-text"
-              >
+              <el-table-column label="商户" min-width="140" class-name="col-text">
                 <template #default="{ row }">{{ row.merchantName || '无' }}</template>
               </el-table-column>
               <el-table-column
@@ -548,11 +544,7 @@
                   ><span class="cell-id">{{ displayBizNo(row.splitId) }}</span></template
                 >
               </el-table-column>
-              <el-table-column
-                label="订单"
-                min-width="130"
-                class-name="col-text"
-              >
+              <el-table-column label="订单" min-width="130" class-name="col-text">
                 <template #default="{ row }">
                   <button
                     v-if="row.orderId"
@@ -565,11 +557,7 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="商户"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="商户" min-width="120" class-name="col-text">
                 <template #default="{ row }">{{
                   row.merchantName || row.merchantId || '无'
                 }}</template>
@@ -613,23 +601,27 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="失败原因"
-                min-width="140"
-                class-name="col-text"
-              >
+              <el-table-column label="失败原因" min-width="140" class-name="col-text">
                 <template #default="{ row }">{{ row.failureReason || '无' }}</template>
               </el-table-column>
               <el-table-column
-            align="center" label="创建时间" width="150" class-name="col-status"
-            label-class-name="col-status">
+                align="center"
+                label="创建时间"
+                width="150"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
               </el-table-column>
               <el-table-column
-            align="center" label="结算时间" width="150" class-name="col-status"
-            label-class-name="col-status">
+                align="center"
+                label="结算时间"
+                width="150"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span v-if="row.settledAt" class="cell-datetime">{{
                     formatDateTime(row.settledAt)

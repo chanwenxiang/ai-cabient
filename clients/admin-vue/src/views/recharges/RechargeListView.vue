@@ -103,11 +103,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="外部单号"
-            min-width="140"
-            class-name="col-text"
-          >
+          <el-table-column label="外部单号" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span class="mono">{{
                 displayBizNo(row.wxTransactionId || row.alipayTradeNo || row.wxPrepayId, '无')
@@ -128,15 +124,23 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="创建时间" width="150" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="创建时间"
+            width="150"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(String(row.createdAt || '')) }}</span>
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="支付时间" width="150" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="支付时间"
+            width="150"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span v-if="row.paidAt" class="cell-datetime">{{
                 formatDateTime(String(row.paidAt))
@@ -145,8 +149,12 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="退款时间" width="150" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="退款时间"
+            width="150"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span v-if="row.refundedAt" class="cell-datetime">{{
                 formatDateTime(String(row.refundedAt))

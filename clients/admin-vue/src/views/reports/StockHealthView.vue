@@ -171,11 +171,7 @@
           <el-table-column label="设备" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ row.deviceName || row.deviceId || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="设备ID"
-            min-width="120"
-            class-name="col-text"
-          >
+          <el-table-column label="设备ID" min-width="120" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.deviceId || '无' }}</span>
             </template>
@@ -189,11 +185,7 @@
           <el-table-column label="SKU" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="SKU ID"
-            min-width="120"
-            class-name="col-text"
-          >
+          <el-table-column label="SKU ID" min-width="120" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.skuId || '无' }}</span>
             </template>

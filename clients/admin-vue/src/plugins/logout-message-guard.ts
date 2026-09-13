@@ -20,9 +20,8 @@ function shouldSuppressAuthToast(args: MessageArgs): boolean {
 export function installLogoutMessageGuard() {
   const rawError = ElMessage.error.bind(ElMessage);
   ElMessage.error = ((...args: MessageArgs) => {
-    if (shouldSuppressAuthToast(args)) return { close: () => undefined } as ReturnType<
-      typeof ElMessage.error
-    >;
+    if (shouldSuppressAuthToast(args))
+      return { close: () => undefined } as ReturnType<typeof ElMessage.error>;
     return rawError(...args);
   }) as typeof ElMessage.error;
 }

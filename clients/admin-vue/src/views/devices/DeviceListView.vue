@@ -317,8 +317,12 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="固件" width="88" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="固件"
+            width="88"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.firmwareVersion || ''">{{
                 row.firmwareVersion || '暂无'
@@ -335,11 +339,7 @@
           <el-table-column label="IMEI" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ row.imei || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="资产方"
-            min-width="100"
-            class-name="col-text"
-          >
+          <el-table-column label="资产方" min-width="100" class-name="col-text">
             <template #default="{ row }">{{ row.assetOwner || '无' }}</template>
           </el-table-column>
           <el-table-column label="路线" width="90" class-name="col-text">
@@ -365,11 +365,7 @@
               <span v-if="!row.refundPolicy" class="inherit-hint">全局默认</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="最近会话"
-            min-width="140"
-            class-name="col-text"
-          >
+          <el-table-column label="最近会话" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span v-if="row.activeSessionId" class="mono">{{
                 displayBizNo(row.activeSessionId)

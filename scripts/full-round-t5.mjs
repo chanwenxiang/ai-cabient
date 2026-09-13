@@ -90,7 +90,11 @@ const token = await adminLogin();
 const today = new Date().toISOString().slice(0, 10);
 
 // --- Reconciliation ---
-const listBefore = await api(token, 'GET', `/api/v2/ops/admin/reconciliation?from=${today}&to=${today}`);
+const listBefore = await api(
+  token,
+  'GET',
+  `/api/v2/ops/admin/reconciliation?from=${today}&to=${today}`
+);
 const runWechat = await api(
   token,
   'POST',
@@ -101,7 +105,11 @@ const runBalance = await api(
   'POST',
   `/api/v2/ops/admin/reconciliation/run?date=${today}&channel=BALANCE`
 );
-const listAfter = await api(token, 'GET', `/api/v2/ops/admin/reconciliation?from=${today}&to=${today}`);
+const listAfter = await api(
+  token,
+  'GET',
+  `/api/v2/ops/admin/reconciliation?from=${today}&to=${today}`
+);
 const reconOk =
   (runWechat.data?.code === 0 || runBalance.data?.code === 0) &&
   (runWechat.data?.data?.reconId != null ||
@@ -183,16 +191,24 @@ await page.evaluate((t) => {
 
 await page.goto('http://localhost/admin/reconciliation', { waitUntil: 'networkidle' });
 await page.waitForTimeout(1200);
-const reconText = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 400));
+const reconText = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 400)
+);
 await page.screenshot({ path: `${UI}/t5-reconciliation.png`, fullPage: true });
-push('T5-UI-reconciliation', /对账|渠道|执行|WECHAT|BALANCE|差异|匹配/.test(reconText) ? 'PASS' : 'FAIL', {
-  text: reconText.slice(0, 200),
-  screenshot: 't5-reconciliation.png'
-});
+push(
+  'T5-UI-reconciliation',
+  /对账|渠道|执行|WECHAT|BALANCE|差异|匹配/.test(reconText) ? 'PASS' : 'FAIL',
+  {
+    text: reconText.slice(0, 200),
+    screenshot: 't5-reconciliation.png'
+  }
+);
 
 await page.goto('http://localhost/admin/consistency', { waitUntil: 'networkidle' });
 await page.waitForTimeout(1200);
-const consText = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 400));
+const consText = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 400)
+);
 await page.screenshot({ path: `${UI}/t5-consistency.png`, fullPage: true });
 push('T5-UI-consistency', /一致性|巡检|失败|修复|fail/.test(consText) ? 'PASS' : 'FAIL', {
   text: consText.slice(0, 200),
@@ -200,26 +216,39 @@ push('T5-UI-consistency', /一致性|巡检|失败|修复|fail/.test(consText) ?
 });
 
 if (g.ok) {
-  await page.goto('http://127.0.0.1:13000/login', { waitUntil: 'domcontentloaded' }).catch(() =>
-    page.goto('http://127.0.0.1:13000/', { waitUntil: 'domcontentloaded' })
-  );
+  await page
+    .goto('http://127.0.0.1:13000/login', { waitUntil: 'domcontentloaded' })
+    .catch(() => page.goto('http://127.0.0.1:13000/', { waitUntil: 'domcontentloaded' }));
   await page.waitForTimeout(1500);
   // try anonymous or login
   const hasLogin = await page.locator('input[name="user"]').count();
   if (hasLogin) {
     await page.fill('input[name="user"]', 'admin');
     await page.fill('input[name="password"]', 'admin');
-    await page.click('button[type="submit"]').catch(() => page.getByText(/Log in|登录/).first().click());
+    await page.click('button[type="submit"]').catch(() =>
+      page
+        .getByText(/Log in|登录/)
+        .first()
+        .click()
+    );
     await page.waitForTimeout(2000);
   }
-  await page.goto('http://127.0.0.1:13000/dashboards', { waitUntil: 'networkidle' }).catch(() => {});
+  await page
+    .goto('http://127.0.0.1:13000/dashboards', { waitUntil: 'networkidle' })
+    .catch(() => {});
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${UI}/t5-grafana.png`, fullPage: true });
-  const gText = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 250));
-  push('T5-UI-grafana', /dashboard|看板|AI|Cabinet|Overview|总览|Browse/i.test(gText) || g.ok ? 'PASS' : 'PARTIAL', {
-    text: gText.slice(0, 180),
-    screenshot: 't5-grafana.png'
-  });
+  const gText = await page.evaluate(() =>
+    (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 250)
+  );
+  push(
+    'T5-UI-grafana',
+    /dashboard|看板|AI|Cabinet|Overview|总览|Browse/i.test(gText) || g.ok ? 'PASS' : 'PARTIAL',
+    {
+      text: gText.slice(0, 180),
+      screenshot: 't5-grafana.png'
+    }
+  );
 }
 
 await browser.close();

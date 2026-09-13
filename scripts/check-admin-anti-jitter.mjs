@@ -26,7 +26,9 @@ const mainCss = stripComments(read('clients/admin-vue/src/styles/main.css'));
 const drawerTs = read('clients/admin-vue/src/composables/useResizableDrawer.ts');
 const drawerTsCode = stripComments(drawerTs);
 const drawerVue = stripComments(read('clients/admin-vue/src/components/ResizableDrawer.vue'));
-const exceptionVue = stripComments(read('clients/admin-vue/src/views/exceptions/ExceptionListView.vue'));
+const exceptionVue = stripComments(
+  read('clients/admin-vue/src/views/exceptions/ExceptionListView.vue')
+);
 const disputeVue = stripComments(read('clients/admin-vue/src/views/disputes/DisputeListView.vue'));
 
 function ruleHas(selNeedles, bodyRe) {
@@ -110,7 +112,10 @@ if (!/nextTick/.test(drawerTs)) {
 if (!/\.is-resizing/.test(drawerVue)) {
   fail('C: ResizableDrawer.vue 缺少 .is-resizing');
 }
-if (!/scrollbar-gutter\s*:\s*stable/.test(drawerVue) && !/scrollbar-gutter\s*:\s*stable/.test(mainCss)) {
+if (
+  !/scrollbar-gutter\s*:\s*stable/.test(drawerVue) &&
+  !/scrollbar-gutter\s*:\s*stable/.test(mainCss)
+) {
   fail('D: 抽屉 body 须 scrollbar-gutter: stable');
 }
 
@@ -191,7 +196,9 @@ for (const [name, src] of [
   for (const abs of walkVue(adminSrc)) {
     const code = stripComments(fs.readFileSync(abs, 'utf8'));
     if (/show-overflow-tooltip/.test(code)) {
-      fail(`H: ${path.relative(root, abs)} 禁止 show-overflow-tooltip（用原生 title / installTableCellNativeTitle）`);
+      fail(
+        `H: ${path.relative(root, abs)} 禁止 show-overflow-tooltip（用原生 title / installTableCellNativeTitle）`
+      );
     }
   }
   const nativeTitle = read('clients/admin-vue/src/utils/table-cell-native-title.ts');

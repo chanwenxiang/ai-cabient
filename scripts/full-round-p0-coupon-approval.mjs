@@ -14,7 +14,9 @@ const DEVICE = '777740024057';
 fs.mkdirSync(UI, { recursive: true });
 
 function redisGet(key) {
-  return execSync(`docker exec ai-cabinet-redis-1 redis-cli --raw GET ${key}`, { encoding: 'utf8' }).trim();
+  return execSync(`docker exec ai-cabinet-redis-1 redis-cli --raw GET ${key}`, {
+    encoding: 'utf8'
+  }).trim();
 }
 
 async function adminLogin() {
@@ -24,7 +26,12 @@ async function adminLogin() {
   const res = await fetch(`${BASE}/api/v2/auth/admin-password-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phoneNumber: '13900000001', password: '123456', captchaId: id, captchaCode: code })
+    body: JSON.stringify({
+      phoneNumber: '13900000001',
+      password: '123456',
+      captchaId: id,
+      captchaCode: code
+    })
   });
   const data = await res.json();
   if (data.code !== 0) throw new Error(JSON.stringify(data));
@@ -95,9 +102,18 @@ if (!requestId) {
 } else {
   const pending = await api(opsTok, 'GET', '/api/v2/ops/admin/approvals/tasks?limit=20');
   const tasks = Array.isArray(pending.data?.data) ? pending.data.data : [];
-  const hit = tasks.find((t) => String(t.bizId) === String(requestId) || String(t.title || '').includes(String(requestId)));
-  const accepted = await api(opsTok, 'POST', `/api/v2/ops/admin/replenishment/requests/${requestId}/accept`);
-  const ok = accepted.data?.code === 0 && String(accepted.data?.data?.status || '').toUpperCase() === 'ACCEPTED';
+  const hit = tasks.find(
+    (t) =>
+      String(t.bizId) === String(requestId) || String(t.title || '').includes(String(requestId))
+  );
+  const accepted = await api(
+    opsTok,
+    'POST',
+    `/api/v2/ops/admin/replenishment/requests/${requestId}/accept`
+  );
+  const ok =
+    accepted.data?.code === 0 &&
+    String(accepted.data?.data?.status || '').toUpperCase() === 'ACCEPTED';
   push('P0-09-approval', ok ? 'PASS' : 'FAIL', {
     requestId,
     pendingBefore: tasks.length,
@@ -124,7 +140,10 @@ if (consumer?.token) {
   let list = Array.isArray(coupons.data?.data) ? coupons.data.data : [];
   let couponId = list[0]?.couponId;
   if (!couponId) {
-    const issued = await api(opsTok, 'POST', '/api/v2/coupons/issue', { userId: consumer.userId, couponDefId: 1 });
+    const issued = await api(opsTok, 'POST', '/api/v2/coupons/issue', {
+      userId: consumer.userId,
+      couponDefId: 1
+    });
     couponId = issued.data?.data?.couponId;
   }
 
@@ -154,7 +173,9 @@ if (consumer?.token) {
     const orders = await api(consumer.token, 'GET', '/api/v2/orders?page=0&size=10');
     const items = orders.data?.data?.items || orders.data?.data || [];
     const arr = Array.isArray(items) ? items : [];
-    const eligible = arr.find((o) => ['DISPUTED', 'UNPAID', 'PENDING', 'CREATED'].includes(String(o.status || '').toUpperCase()));
+    const eligible = arr.find((o) =>
+      ['DISPUTED', 'UNPAID', 'PENDING', 'CREATED'].includes(String(o.status || '').toUpperCase())
+    );
     if (eligible) {
       orderId = eligible.orderId;
       orderStatus = eligible.status;
@@ -163,18 +184,29 @@ if (consumer?.token) {
   }
 
   if (!couponId || !orderId) {
-    push('P0-06-coupon-redeem', 'BLOCK', { couponId, orderId, orderStatus, shopNote: shopNote.slice(0, 500) });
+    push('P0-06-coupon-redeem', 'BLOCK', {
+      couponId,
+      orderId,
+      orderStatus,
+      shopNote: shopNote.slice(0, 500)
+    });
   } else {
     // If order already PAID, cannot redeem — mark BLOCK with reason
     if (['PAID', 'COMPLETED', 'REFUNDED'].includes(String(orderStatus || '').toUpperCase())) {
-      push('P0-06-coupon-redeem', 'BLOCK', { couponId, orderId, orderStatus, reason: 'order not eligible' });
+      push('P0-06-coupon-redeem', 'BLOCK', {
+        couponId,
+        orderId,
+        orderStatus,
+        reason: 'order not eligible'
+      });
     } else {
       const used = await api(
         consumer.token,
         'POST',
         `/api/v2/coupons/use?couponId=${couponId}&orderId=${encodeURIComponent(orderId)}&deviceId=${DEVICE}`
       );
-      const ok = used.data?.code === 0 && String(used.data?.data?.status || '').toUpperCase() === 'USED';
+      const ok =
+        used.data?.code === 0 && String(used.data?.data?.status || '').toUpperCase() === 'USED';
       push('P0-06-coupon-redeem', ok ? 'PASS' : 'FAIL', {
         couponId,
         orderId,
@@ -208,7 +240,9 @@ await page.evaluate((t) => {
   localStorage.setItem('admin_token', t);
   localStorage.setItem('admin_token_expires', String(Date.now() + 1_700_000));
 }, opsTok);
-await page.goto('http://localhost/admin/replenishment', { waitUntil: 'networkidle' }).catch(() => {});
+await page
+  .goto('http://localhost/admin/replenishment', { waitUntil: 'networkidle' })
+  .catch(() => {});
 await page.waitForTimeout(1000);
 await page.screenshot({ path: `${UI}/p0-approval-replen-request.png`, fullPage: true });
 await page.goto('http://localhost/admin/coupons', { waitUntil: 'networkidle' }).catch(() => {});

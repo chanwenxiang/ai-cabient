@@ -139,11 +139,7 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="对象路径"
-            min-width="180"
-            class-name="col-text"
-          >
+          <el-table-column label="对象路径" min-width="180" class-name="col-text">
             <template #default="{ row }">
               <span v-if="objectKey(row.videoUri)" class="cell-id">{{
                 objectKey(row.videoUri)
@@ -164,18 +160,18 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="等待原因"
-            min-width="200"
-            class-name="col-text"
-          >
+          <el-table-column label="等待原因" min-width="200" class-name="col-text">
             <template #default="{ row }">
               <span>{{ waitReason(row) }}</span>
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="滞留 / 时限" width="150" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="滞留 / 时限"
+            width="150"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <div class="sla-cell">
                 <template v-if="isStuck(row)">
@@ -210,15 +206,23 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="关门时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="关门时间"
+            width="168"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.closeTime) }}</span>
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="更新时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="更新时间"
+            width="168"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>

@@ -341,11 +341,7 @@
                     <span class="cell-id">{{ row.warehouseId }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column
-                  label="仓库"
-                  min-width="140"
-                  class-name="col-text"
-                >
+                <el-table-column label="仓库" min-width="140" class-name="col-text">
                   <template #default="{ row }">{{ row.warehouseName || '无' }}</template>
                 </el-table-column>
                 <el-table-column
@@ -408,11 +404,7 @@
                     description="暂无调拨单"
                   />
                 </template>
-                <el-table-column
-                  prop="transferNo"
-                  label="调拨单号"
-                  min-width="160"
-                />
+                <el-table-column prop="transferNo" label="调拨单号" min-width="160" />
                 <el-table-column label="调出仓" min-width="120">
                   <template #default="{ row }">{{
                     warehouseName(row.fromWarehouseId) || row.fromWarehouseId
@@ -567,11 +559,7 @@
                     <span class="cell-id">{{ row.supplierId }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column
-                  label="供应商"
-                  min-width="140"
-                  class-name="col-text"
-                >
+                <el-table-column label="供应商" min-width="140" class-name="col-text">
                   <template #default="{ row }">{{ row.supplierName || '无' }}</template>
                 </el-table-column>
                 <el-table-column
@@ -1885,8 +1873,12 @@
                   </template>
                 </el-table-column>
                 <el-table-column
-            align="center" label="在途 / 时限" min-width="160" class-name="col-status"
-            label-class-name="col-status">
+                  align="center"
+                  label="在途 / 时限"
+                  min-width="160"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
                   <template #default="{ row }">
                     <div class="sla-cell">
                       <template v-if="isTransitOverdue(row)">

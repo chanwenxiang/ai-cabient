@@ -136,6 +136,10 @@ const out = {
 
 fs.writeFileSync(OUT, JSON.stringify(out, null, 2));
 console.log(JSON.stringify(out, null, 2));
-if (!out.verdict.deviceStatusP95Ok || !out.verdict.sequentialIdempotent || !out.verdict.busyReject) {
+if (
+  !out.verdict.deviceStatusP95Ok ||
+  !out.verdict.sequentialIdempotent ||
+  !out.verdict.busyReject
+) {
   process.exit(1);
 }

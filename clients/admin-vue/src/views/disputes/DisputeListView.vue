@@ -296,15 +296,23 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="创建时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="创建时间"
+            width="168"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="结案时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="结案时间"
+            width="168"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '无' }}</span>
             </template>
@@ -492,7 +500,11 @@
                   </el-tag>
                 </div>
               </el-descriptions-item>
-              <el-descriptions-item v-if="selected.detectedClasses?.length" label="检出类" :span="2">
+              <el-descriptions-item
+                v-if="selected.detectedClasses?.length"
+                label="检出类"
+                :span="2"
+              >
                 <div class="detected-classes">
                   {{ selected.detectedClasses.join('、') }}
                   <el-button
@@ -572,7 +584,13 @@
 
         <section v-if="selected.suggestedItems?.length" class="workbench-suggest">
           <div class="items-title">识别建议（只读）</div>
-          <el-table :data="selected.suggestedItems" size="small" stripe border class="suggest-table">
+          <el-table
+            :data="selected.suggestedItems"
+            size="small"
+            stripe
+            border
+            class="suggest-table"
+          >
             <el-table-column prop="skuName" label="商品" min-width="110" class-name="col-text" />
             <el-table-column prop="skuId" label="SKU" min-width="110" class-name="col-text">
               <template #default="{ row }">
@@ -638,7 +656,12 @@
                     :value="sku.skuId"
                   />
                 </el-select>
-                <el-input-number v-model="line.quantity" :min="1" :max="99" controls-position="right" />
+                <el-input-number
+                  v-model="line.quantity"
+                  :min="1"
+                  :max="99"
+                  controls-position="right"
+                />
                 <el-button type="danger" link @click="removeDraftLine(index)">删除</el-button>
               </div>
               <div class="manual-line-toolbar">

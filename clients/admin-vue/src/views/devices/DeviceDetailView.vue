@@ -713,18 +713,8 @@
         size="small"
         class="repair-mini-table"
       >
-        <el-table-column
-          prop="ticketId"
-          label="单号"
-          width="70"
-          class-name="col-text"
-        />
-        <el-table-column
-          prop="title"
-          label="标题"
-          min-width="140"
-          class-name="col-text"
-        />
+        <el-table-column prop="ticketId" label="单号" width="70" class-name="col-text" />
+        <el-table-column prop="title" label="标题" min-width="140" class-name="col-text" />
         <el-table-column
           prop="status"
           label="状态"
@@ -1001,11 +991,7 @@
                 <template #empty
                   ><el-empty v-if="relatedHydrated" description="暂无会话" :image-size="48"
                 /></template>
-                <el-table-column
-                  label="会话"
-                  min-width="160"
-                  class-name="col-text"
-                >
+                <el-table-column label="会话" min-width="160" class-name="col-text">
                   <template #default="{ row }">
                     <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
                   </template>
@@ -1051,7 +1037,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column
-            align="center"
+                  align="center"
                   label="录像"
                   width="72"
                   class-name="col-status"
@@ -1061,20 +1047,12 @@
                     {{ row.videoUri || row.uploadStatus === 'UPLOADED' ? '有' : '无' }}
                   </template>
                 </el-table-column>
-                <el-table-column
-                  label="订单"
-                  min-width="120"
-                  class-name="col-text"
-                >
+                <el-table-column label="订单" min-width="120" class-name="col-text">
                   <template #default="{ row }">
                     <span class="cell-id">{{ displayBizNo(row.orderId, '无') }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column
-                  label="失败原因"
-                  min-width="120"
-                  class-name="col-text"
-                >
+                <el-table-column label="失败原因" min-width="120" class-name="col-text">
                   <template #default="{ row }">
                     {{ row.failReason || row.failureReason || '暂无' }}
                   </template>
@@ -1131,11 +1109,7 @@
                 <template #empty
                   ><el-empty v-if="relatedHydrated" description="暂无订单" :image-size="48"
                 /></template>
-                <el-table-column
-                  label="订单"
-                  min-width="160"
-                  class-name="col-text"
-                >
+                <el-table-column label="订单" min-width="160" class-name="col-text">
                   <template #default="{ row }">
                     <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
                   </template>

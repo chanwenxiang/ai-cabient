@@ -151,11 +151,7 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column
-            label="流水号"
-            min-width="110"
-            class-name="col-text"
-          >
+          <el-table-column label="流水号" min-width="110" class-name="col-text">
             <template #default="{ row }">
               <span class="mono">{{
                 displayBizNo(row.payTradeNo || row.paymentOperationId, '无')
