@@ -193,7 +193,7 @@ async function load() {
           .then((r) => r.items || []),
         api.request<Row[]>(AdminEndpoints.devicesRef, 'GET').catch(() => []),
         api
-          .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+          .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
           .catch(() => ({ items: [] as Row[] }))
           .then((r) => r.items || [])
       ]);
@@ -213,7 +213,7 @@ async function load() {
           .catch(() => ({ items: [] as Row[] }))
           .then((r) => r.items || []),
         api
-          .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+          .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
           .catch(() => ({ items: [] as Row[] }))
           .then((r) => r.items || [])
       ]);
@@ -231,7 +231,7 @@ async function load() {
       const rows =
         (
           await api
-            .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+            .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
             .catch(() => ({ items: [] as Row[] }))
         ).items || [];
       labels.value = rows.filter((r) => ids.has(String(r.skuId)));

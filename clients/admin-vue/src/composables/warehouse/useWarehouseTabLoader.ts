@@ -67,7 +67,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
       deps.skus.value =
         (
           await api
-            .request<{ items: WarehouseTabRow[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+            .request<{ items: WarehouseTabRow[] }>(AdminEndpoints.skusCatalogPage, 'GET')
             .catch(() => ({ items: [] as WarehouseTabRow[] }))
         ).items || [];
     }

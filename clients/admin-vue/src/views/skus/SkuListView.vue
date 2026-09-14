@@ -370,6 +370,7 @@ import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { api, authFetch } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
@@ -518,7 +519,7 @@ async function onImageUpload(options: UploadRequestOptions) {
       (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const formData = new FormData();
     formData.append('file', file);
-    const res = await authFetch(`${base}/api/v2/ops/admin/skus/image`, {
+    const res = await authFetch(`${base}${AdminEndpoints.skusImage}`, {
       method: 'POST',
       body: formData
     });
@@ -610,7 +611,7 @@ async function batchDelist() {
     for (const row of targets) {
       try {
         await api.request(
-          `/api/v2/ops/admin/skus/${encodeURIComponent(row.skuId)}`,
+          AdminEndpoints.sku(row.skuId),
           'PUT',
           toUpsertBody(row, 'INACTIVE')
         );
@@ -708,12 +709,12 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         };
         if (existing) {
           await api.request(
-            `/api/v2/ops/admin/skus/${encodeURIComponent(existing.skuId)}`,
+            AdminEndpoints.sku(existing.skuId),
             'PUT',
             body
           );
         } else {
-          await api.request('/api/v2/ops/admin/skus', 'POST', body);
+          await api.request(AdminEndpoints.skus, 'POST', body);
         }
         ok++;
       }
@@ -866,12 +867,12 @@ async function saveEdit() {
     let updated: SkuCatalog;
     if (form.existing) {
       updated = await api.request<SkuCatalog>(
-        `/api/v2/ops/admin/skus/${encodeURIComponent(form.skuId)}`,
+        AdminEndpoints.sku(form.skuId),
         'PUT',
         body
       );
     } else {
-      updated = await api.request<SkuCatalog>('/api/v2/ops/admin/skus', 'POST', body);
+      updated = await api.request<SkuCatalog>(AdminEndpoints.skus, 'POST', body);
     }
     const idx = items.value.findIndex((i) => i.skuId === updated.skuId);
     if (idx >= 0) items.value[idx] = updated;
@@ -955,7 +956,7 @@ async function load() {
   loading.value = true;
   try {
     const data = await api.request<{ items: SkuCatalog[]; total: number }>(
-      `/api/v2/ops/admin/skus?${skuQueryParams()}`,
+      AdminEndpoints.skusList(skuQueryParams()),
       'GET'
     );
     if (!loadSeq.isCurrent(seq)) return;

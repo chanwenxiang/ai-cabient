@@ -545,6 +545,7 @@ import { EditPen, Refresh, Upload, CircleCheck, ArrowRight } from '@element-plus
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
@@ -727,7 +728,7 @@ async function batchDelist() {
     for (const row of targets) {
       try {
         await api.request(
-          `/api/v2/ops/admin/skus/${encodeURIComponent(row.skuId)}`,
+          AdminEndpoints.sku(row.skuId),
           'PUT',
           toUpsertBody(row, 'INACTIVE')
         );
@@ -1332,7 +1333,7 @@ async function onImageUpload(options: UploadRequestOptions) {
   }
   imageUploading.value = true;
   try {
-    const uploaded = await uploadMultipart<FileAttachmentDto>('/api/v2/ops/admin/skus/image', {
+    const uploaded = await uploadMultipart<FileAttachmentDto>(AdminEndpoints.skusImage, {
       file
     });
     if (!uploaded?.url) {
