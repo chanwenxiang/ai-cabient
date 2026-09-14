@@ -534,14 +534,16 @@ async function load() {
       .catch(() => null),
     api
       .request<{ items: DeviceRank[]; total: number }>(
-        '/api/v2/ops/admin/reports/devices?page=0&size=20',
+        AdminEndpoints.reportsDevicesList('page=0&size=20'),
         'GET'
       )
       .then((r) => r?.items ?? [])
       .catch(() => null),
     api
       .request<{ items: ProductRank[]; total: number }>(
-        `/api/v2/ops/admin/sales-reports?dim=PRODUCT&fromDate=${today}&toDate=${today}&page=0&size=20`,
+        AdminEndpoints.salesReportsList(
+          `dim=PRODUCT&fromDate=${today}&toDate=${today}&page=0&size=20`
+        ),
         'GET'
       )
       .then((r) => r?.items ?? [])

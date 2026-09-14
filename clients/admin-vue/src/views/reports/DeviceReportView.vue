@@ -525,7 +525,7 @@ async function loadOfflineTotal() {
   try {
     const q = new URLSearchParams({ online: 'OFFLINE', page: '0', size: '1' });
     const data = await api.request<{ total?: number }>(
-      `/api/v2/ops/admin/reports/devices?${q}`,
+      AdminEndpoints.reportsDevicesList(q),
       'GET'
     );
     offlineTotal.value = Number(data.total) || 0;
@@ -539,7 +539,7 @@ async function load() {
   loading.value = true;
   try {
     const data = await api.request<{ items: DeviceReportRow[]; total: number }>(
-      `/api/v2/ops/admin/reports/devices?${queryParams()}`,
+      AdminEndpoints.reportsDevicesList(queryParams()),
       'GET'
     );
     rows.value = sortById(data.items || [], 'deviceId');

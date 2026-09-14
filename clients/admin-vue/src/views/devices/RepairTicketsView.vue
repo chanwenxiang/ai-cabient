@@ -448,6 +448,7 @@ import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -562,7 +563,7 @@ async function submitAssign() {
   assignSaving.value = true;
   try {
     const count = await api.request<number>(
-      '/api/v2/ops/admin/repair-tickets/batch-assign',
+      AdminEndpoints.repairTicketsBatchAssign,
       'POST',
       {
         ticketIds: selectedRows.value.map((r) => r.ticketId),
@@ -634,7 +635,7 @@ async function load() {
     if (priority.value) q.set('priority', priority.value);
     if (faultType.value) q.set('faultType', faultType.value);
     const res = await api.request<{ items: Ticket[]; total: number }>(
-      `/api/v2/ops/admin/repair-tickets?${q}`,
+      AdminEndpoints.repairTicketsList(q),
       'GET'
     );
     rows.value = res.items || [];
@@ -677,7 +678,7 @@ async function create() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/repair-tickets', 'POST', { ...form });
+    await api.request(AdminEndpoints.repairTickets, 'POST', { ...form });
     ElMessage.success('已创建');
     createVisible.value = false;
     await load();
@@ -697,7 +698,7 @@ async function openDetail(row: Ticket) {
   detailVisible.value = true;
   try {
     detail.value = await api.request<Detail>(
-      `/api/v2/ops/admin/repair-tickets/${row.ticketId}`,
+      AdminEndpoints.repairTicket(row.ticketId),
       'GET'
     );
   } catch (e) {
@@ -770,7 +771,7 @@ async function transition(row: Ticket, next: string) {
       if (otherRemark === null) return;
       remark = otherRemark;
     }
-    await api.request(`/api/v2/ops/admin/repair-tickets/${row.ticketId}/transition`, 'POST', {
+    await api.request(AdminEndpoints.repairTicketTransition(row.ticketId), 'POST', {
       status: next,
       remark,
       unlockDevice: unlockDevice ? 'true' : 'false'

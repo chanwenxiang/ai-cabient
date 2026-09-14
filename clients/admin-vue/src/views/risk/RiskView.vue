@@ -292,6 +292,7 @@ import { useRoute } from 'vue-router';
 import { Delete, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -401,7 +402,7 @@ async function onExport() {
       return;
     }
     try {
-      await downloadAuthFile('/api/v2/ops/admin/risk/blacklist/export', csvFileName('黑名单'));
+      await downloadAuthFile(AdminEndpoints.riskBlacklistExport, csvFileName('黑名单'));
       ElMessage.success('已导出');
     } catch (e) {
       ElMessage.error(e instanceof Error ? e.message : '导出失败');
@@ -414,7 +415,7 @@ async function onExport() {
     return;
   }
   try {
-    await downloadAuthFile('/api/v2/ops/admin/risk/events/export', csvFileName('风险事件'));
+    await downloadAuthFile(AdminEndpoints.riskEventsExport, csvFileName('风险事件'));
     ElMessage.success('已导出');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');
@@ -446,7 +447,7 @@ async function loadEvents() {
       size: String(eventSize.value)
     });
     const ev = await api.request<PageResult<Row> | Row[]>(
-      `/api/v2/ops/admin/risk/events?${q}`,
+      AdminEndpoints.riskEventsList(q),
       'GET'
     );
     const pageData = normalizeListPage(ev);
@@ -484,7 +485,7 @@ async function loadBlacklist() {
       size: String(blacklistSize.value)
     });
     const data = await api.request<PageResult<Row> | Row[]>(
-      `/api/v2/ops/admin/risk/blacklist?${q}`,
+      AdminEndpoints.riskBlacklistList(q),
       'GET'
     );
     const pageData = normalizeListPage(data);
@@ -533,7 +534,7 @@ async function saveBlacklist() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/risk/blacklist', 'POST', {
+    await api.request(AdminEndpoints.riskBlacklist, 'POST', {
       userId: addForm.userId,
       reason: addForm.reason.trim()
     });
@@ -553,7 +554,7 @@ async function removeBlacklist(row: Row) {
     await ElMessageBox.confirm(`确认将用户 ${row.userId} 移出黑名单？`, '移出黑名单', {
       type: 'warning'
     });
-    await api.request(`/api/v2/ops/admin/risk/blacklist/${row.userId}`, 'DELETE');
+    await api.request(AdminEndpoints.riskBlacklistUser(row.userId), 'DELETE');
     ElMessage.success('已移出');
     await loadBlacklist();
   } catch (e: unknown) {

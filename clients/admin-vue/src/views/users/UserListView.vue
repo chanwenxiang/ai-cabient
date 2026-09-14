@@ -250,6 +250,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { CircleCheck, Refresh, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -329,7 +330,7 @@ async function verifyUser(row: UserRow) {
         inputValue: row.name || ''
       }
     );
-    await api.request(`/api/v2/ops/admin/users/${row.userId}/verify`, 'POST', {
+    await api.request(AdminEndpoints.userVerify(row.userId), 'POST', {
       verified: true,
       realName: (value || '').trim() || undefined
     });
@@ -406,7 +407,7 @@ function classifyKeyword(raw: string): { phone?: string; name?: string; userId?:
 
 async function findUserById(userId: string): Promise<UserRow | null> {
   const q = new URLSearchParams({ page: '0', size: '1', userId });
-  const data = await api.request<PageResult<UserRow>>(`/api/v2/ops/admin/users?${q}`, 'GET');
+  const data = await api.request<PageResult<UserRow>>(AdminEndpoints.usersList(q), 'GET');
   const hit = (data.items || []).find((u) => String(u.userId) === userId);
   return hit ?? null;
 }
@@ -425,7 +426,7 @@ async function load() {
       const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
       if (classified.phone) q.set('phone', classified.phone);
       if (classified.name) q.set('name', classified.name);
-      const data = await api.request<PageResult<UserRow>>(`/api/v2/ops/admin/users?${q}`, 'GET');
+      const data = await api.request<PageResult<UserRow>>(AdminEndpoints.usersList(q), 'GET');
       if (!loadSeq.isCurrent(seq)) return;
       items.value = sortById(data.items || []);
       total.value = data.total || 0;
@@ -491,7 +492,7 @@ async function submitAdjust() {
   }
   adjustSaving.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/users/${adjustRow.value.userId}/balance`, 'POST', {
+    await api.request(AdminEndpoints.userBalance(adjustRow.value.userId), 'POST', {
       deltaCents,
       reason: adjustForm.value.reason.trim(),
       idempotencyKey: adjustIdempotencyKey.value || `admin-${adjustRow.value.userId}-${deltaCents}`

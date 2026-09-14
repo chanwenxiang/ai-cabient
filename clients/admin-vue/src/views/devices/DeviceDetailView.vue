@@ -1690,7 +1690,7 @@ async function loadRepairTickets() {
   try {
     repairTickets.value = await api
       .request<Array<{ ticketId: number; title: string; status: string; createdAt?: string }>>(
-        `/api/v2/ops/admin/repair-tickets/by-device/${encodeURIComponent(deviceId)}?limit=5`,
+        AdminEndpoints.repairTicketsByDevice(deviceId),
         'GET'
       )
       .catch(() => []);
@@ -1713,7 +1713,7 @@ async function createRepair() {
       inputValidator: (v) => !!String(v || '').trim() || '标题必填',
       confirmButtonText: '创建'
     });
-    await api.request('/api/v2/ops/admin/repair-tickets', 'POST', {
+    await api.request(AdminEndpoints.repairTickets, 'POST', {
       deviceId,
       title: String(title).trim(),
       priority: 'NORMAL'
@@ -1850,7 +1850,7 @@ async function resolveAddress() {
       longitude: number;
       latitude: number;
       formattedAddress?: string;
-    }>(`/api/v2/ops/admin/geo/geocode?address=${encodeURIComponent(address)}`, 'GET');
+    }>(AdminEndpoints.geoGeocode(address), 'GET');
     asset.longitude = data.longitude;
     asset.latitude = data.latitude;
     if (data.formattedAddress) {
@@ -1870,7 +1870,7 @@ async function loadGeoStatus() {
     return;
   }
   try {
-    const data = await api.request<{ configured: boolean }>('/api/v2/ops/admin/geo/status', 'GET');
+    const data = await api.request<{ configured: boolean }>(AdminEndpoints.geoStatus, 'GET');
     geoConfigured.value = !!data.configured;
   } catch {
     geoConfigured.value = false;

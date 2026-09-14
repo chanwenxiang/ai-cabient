@@ -206,7 +206,7 @@ async function searchRecords(q: string) {
     ),
     take<{ phoneNumber?: string; userId?: string | number }>(
       'ops:user:list',
-      `/api/v2/ops/admin/users?page=0&size=5&phone=${encodeURIComponent(q)}`,
+      AdminEndpoints.usersSearchByPhone(q),
       (items) =>
         items.map((u) => ({
           type: 'user',

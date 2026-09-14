@@ -969,7 +969,7 @@ async function loadContracts() {
       size: String(contractSize.value)
     });
     const data = await api.request<{ items: SiteContractDto[]; total: number }>(
-      `/api/v2/ops/admin/site-contracts?${q}`,
+      AdminEndpoints.siteContractsList(q),
       'GET'
     );
     contracts.value = data.items || [];
@@ -1017,7 +1017,7 @@ async function batchDeleteContracts() {
   contractBatchLoading.value = true;
   const results = await Promise.allSettled(
     targets.map((row) =>
-      api.request(`/api/v2/ops/admin/site-contracts/${row.contractId}`, 'DELETE')
+      api.request(AdminEndpoints.siteContract(row.contractId), 'DELETE')
     )
   );
   contractBatchLoading.value = false;
@@ -1164,7 +1164,7 @@ async function saveContract() {
   saving.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/site-contracts/${encodeURIComponent(contractForm.value.deviceId)}`,
+      AdminEndpoints.siteContract(contractForm.value.deviceId),
       'PUT',
       {
         siteName: contractForm.value.siteName.trim(),
@@ -1196,7 +1196,7 @@ async function removeContract(row: SiteContractDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/site-contracts/${row.contractId}`, 'DELETE');
+    await api.request(AdminEndpoints.siteContract(row.contractId), 'DELETE');
     ElMessage.success('已删除');
     await loadAll();
   } catch (e) {
@@ -1219,7 +1219,7 @@ async function openRentSplit(row: SiteContractDto) {
         effectiveTo?: string;
         status?: string;
       }[]
-    >(`/api/v2/ops/admin/site-contracts/${row.contractId}/rent-split-rules`, 'GET');
+    >(AdminEndpoints.siteContractRentSplitRules(row.contractId), 'GET');
     rentRules.value = (rules || []).map((r) =>
       emptyRentRule({
         partyType: r.partyType,
@@ -1251,7 +1251,7 @@ async function saveRentSplit() {
   saving.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/site-contracts/${rentSplitContractId.value}/rent-split-rules`,
+      AdminEndpoints.siteContractRentSplitRules(rentSplitContractId.value),
       'PUT',
       {
         rules: rentRules.value.map((r) => ({
@@ -1321,7 +1321,7 @@ async function loadBills() {
     if (billStatusFilter.value) q.set('status', billStatusFilter.value);
     if (feeBillKind.value === FEE_KIND_DATA) {
       const data = await api.request<{ items: DeviceDataFeeBillDto[]; total: number }>(
-        `/api/v2/ops/admin/device-data-fee-bills?${q}`,
+        AdminEndpoints.deviceDataFeeBillsList(q),
         'GET'
       );
       dataFeeBills.value = data?.items || [];
@@ -1329,7 +1329,7 @@ async function loadBills() {
       billTotal.value = Number(data?.total) || 0;
     } else {
       const data = await api.request<{ items: SiteRentBillDto[]; total: number }>(
-        `/api/v2/ops/admin/site-rent-bills?${q}`,
+        AdminEndpoints.siteRentBillsList(q),
         'GET'
       );
       rentBills.value = data?.items || [];
@@ -1365,15 +1365,15 @@ async function submitGenerateBills() {
   try {
     const body = { billMonth: generateMonth.value || null };
     if (feeBillKind.value === FEE_KIND_DATA) {
-      await api.request('/api/v2/ops/admin/device-data-fee-bills/generate', 'POST', body);
+      await api.request(AdminEndpoints.deviceDataFeeBillsGenerate, 'POST', body);
     } else if (generateContractId.value != null) {
       await api.request(
-        `/api/v2/ops/admin/site-contracts/${generateContractId.value}/rent-bills/generate`,
+        AdminEndpoints.siteContractRentBillsGenerate(generateContractId.value),
         'POST',
         body
       );
     } else {
-      await api.request('/api/v2/ops/admin/site-rent-bills/generate', 'POST', body);
+      await api.request(AdminEndpoints.siteRentBillsGenerate, 'POST', body);
     }
     ElMessage.success('账单已生成');
     generateVisible.value = false;
@@ -1400,7 +1400,7 @@ async function markBillPaid(row: SiteRentBillDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/site-rent-bills/${row.billId}/pay`, 'POST');
+    await api.request(AdminEndpoints.siteRentBillPay(row.billId), 'POST');
     ElMessage.success('已标记已付');
     await loadBills();
   } catch (e) {
@@ -1415,7 +1415,7 @@ async function voidBill(row: SiteRentBillDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/site-rent-bills/${row.billId}/void`, 'POST');
+    await api.request(AdminEndpoints.siteRentBillVoid(row.billId), 'POST');
     ElMessage.success('已作废');
     await loadBills();
   } catch (e) {
@@ -1434,7 +1434,7 @@ async function markDataFeePaid(row: DeviceDataFeeBillDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/device-data-fee-bills/${row.billId}/pay`, 'POST');
+    await api.request(AdminEndpoints.deviceDataFeeBillPay(row.billId), 'POST');
     ElMessage.success('已标记已付');
     await loadBills();
   } catch (e) {
@@ -1449,7 +1449,7 @@ async function voidDataFeeBill(row: DeviceDataFeeBillDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/device-data-fee-bills/${row.billId}/void`, 'POST');
+    await api.request(AdminEndpoints.deviceDataFeeBillVoid(row.billId), 'POST');
     ElMessage.success('已作废');
     await loadBills();
   } catch (e) {
