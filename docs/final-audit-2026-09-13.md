@@ -175,7 +175,7 @@
 | M-P2-10 | 中 | 多页 | ~~页内自建 `.retry` 与 `error-state` 重叠~~ → 全页错误统一 `error-state`；删除死 `.retry` CSS（横幅 `banner-retry` 保留） |
 | M-P2-11 | 中 | `merchant-api.ts` | ~~API 内吞错 + 重复上传 try/catch~~ → `softFallback` 留给页面；上传抽 `uploadMerchantAuthedFile`；`openExceptions` 双侧失败才抛 |
 | M-P2-12 | 中 | `confirmEvidenceIfNeeded` | ~~拍完仍 return false~~ → await 上传后有凭证则继续完成 |
-| M-P2-13 | 低 | `home.vue` | 工作台页聚合 KPI/扫码/公告/快捷入口/营收趋势，体量偏大 |
+| M-P2-13 | 低 | `home.vue` | ~~工作台页体量偏大~~ → 抽出 `useHomeWorkbench`（KPI/待办/补货预览/扫码/跳转）；页面保留模板与样式 |
 | M-P2-14 | 中 | `mine.vue` / consumer 消息 | ~~H5 仍展示绑定/订阅入口~~ → 绑定按钮仅 mp；H5 不调订阅授权；consumer 订阅条仅 mp |
 
 ### 3.2 核心业务链路
@@ -483,6 +483,7 @@
 - [x] V-P2-3：识别结果透传 `sessionId`/`traceId`（HTTP + Kafka）；同步勾选已落地的 V-P2-1/4、C-P2-3、M-P2-4、A-P2-001~004/007 表格行
 - [x] V-P2-2：本地视频缓存 TTL 清理 + MinIO 桶 lifecycle（可配置天数/桶名）
 - [x] V-P2-5：补 fusion / frame_extract / deepseek 离线单测；修复 `fetch_catalog_classes` 导入断裂
+- [x] M-P2-13：`home.vue` 抽出 `useHomeWorkbench`（数据加载 + 导航），页面仅模板/样式
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

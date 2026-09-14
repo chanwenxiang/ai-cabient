@@ -75,6 +75,7 @@
 | 68 | vision 关联 | 识别结果难串 session/日志 | 缺 sessionId/traceId 字段 | `RecognitionOutput` + `attach_correlation`；HTTP/Kafka 带出 | `types.py`、`main.py`、`kafka_worker.py` |
 | 69 | vision 存储 | 缓存/对象无限增长 | 无 TTL/lifecycle | 本地 `VIDEO_CACHE_TTL_HOURS` 清理；MinIO lifecycle 天；OSS 无权限时控制台补配 | `storage.py` |
 | 70 | vision 测试 | fusion/frame/deepseek 无单测 | 仅 mock 冒烟 | 补离线单测；缺符号导致 import 失败先修 | `tests/test_*.py` |
+| 71 | merchant 工作台 | home.vue 千行难维护 | KPI/扫码/公告/导航全堆一页 script | 数据与跳转进 `useHomeWorkbench`；页面只留模板/样式 | `useHomeWorkbench.ts`、`home.vue` |
 
 ## 追加模板
 
