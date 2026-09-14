@@ -71,6 +71,7 @@
 | 64 | merchant 错误态 | 多页自建 `.retry` 与 error-state 并存 | 迁移半截留死 CSS | 全页失败用 `error-state`；禁止页内再写 `.retry`；横幅重试用 `banner-retry` | merchant-mp pages |
 | 65 | merchant API | API 方法内 `.catch(()=>[])` 吞错 | 调用方误以为空数据 | API 抛错；并行可选用 `softFallback`；上传共用一处解析 | `merchant-api.ts` |
 | 66 | 小程序 H5 | H5 展示「绑定微信/开启订阅」 | 非 mp 无 login/subscribe 能力 | 入口 `v-if=isMpWeixin`；H5 保存偏好勿调订阅授权 | `mine.vue`、`messages.vue` |
+| 67 | consumer 附近 | 定位失败仍按上海坐标列柜机 | 默认 lat/lng 硬编码 | 无定位禁止 nearbyDevices；提示开权限刷新 | `nearby.vue` |
 
 ## 追加模板
 
