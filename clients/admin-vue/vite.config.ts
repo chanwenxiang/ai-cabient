@@ -59,9 +59,9 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
-    // 生产包剔除 console.log/debug，保留 warn/error 便于排障（权限/库存等关键路径）
+    // 生产包剔除 console.log/debug/info；warn/error 仅允许 DEV 或显式安全告警（见 admin-dev-log）
     esbuild: {
-      pure: mode === 'production' ? ['console.log', 'console.debug'] : []
+      pure: mode === 'production' ? ['console.log', 'console.debug', 'console.info'] : []
     },
     build: {
       outDir: OUT_DIR,

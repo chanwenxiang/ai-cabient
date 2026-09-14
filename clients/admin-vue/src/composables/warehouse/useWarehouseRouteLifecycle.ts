@@ -1,6 +1,7 @@
 import { onActivated, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import type { RouteLocationNormalizedLoaded, Router } from 'vue-router';
 import { onPurchaseOrderReviewed } from '@/utils/purchase-order-sync';
+import { adminDevWarn } from '@/utils/admin-dev-log';
 
 /** 仓储多 Tab 共用行（字段随业务表变化） */
 export type WarehouseRouteRow = Record<string, any>;
@@ -135,7 +136,7 @@ export function useWarehouseRouteLifecycle(deps: UseWarehouseRouteLifecycleDeps)
       if (deps.tab.value === 'purchase') {
         deps.loadedTabs.value.delete('purchase');
         deps.loadTab('purchase', true).catch((err) => {
-          console.warn('[warehouse] 采购单更新后刷新列表失败', err);
+          adminDevWarn('[warehouse] 采购单更新后刷新列表失败', err);
         });
       }
     });

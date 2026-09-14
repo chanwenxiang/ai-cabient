@@ -77,6 +77,7 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { searchNavItems } from '@/config/menu';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
+import { adminDevWarn } from '@/utils/admin-dev-log';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -147,7 +148,7 @@ async function searchRecords(q: string) {
         hits.push(...pick(items));
       })
       .catch((err) => {
-        console.warn('[admin] 全局搜索单路失败', err);
+        adminDevWarn('[admin] 全局搜索单路失败', err);
       });
     // 单路超时不拖垮整次搜索；慢接口被丢弃
     return Promise.race([
