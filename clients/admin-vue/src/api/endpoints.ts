@@ -7,6 +7,11 @@ export const API_PREFIX = '/api/v2' as const;
 
 const ops = `${API_PREFIX}/ops/admin` as const;
 
+/** 鉴权相关（与 AdminEndpoints 并列，供 client 与门禁使用）。 */
+export const AuthEndpoints = {
+  logout: `${API_PREFIX}/auth/logout`
+} as const;
+
 export const AdminEndpoints = {
   /** 工作台 KPI */
   stats: `${ops}/stats`,

@@ -59,7 +59,7 @@
 | A-P2-003 | P2 | 启动性能 | `App.vue` + `router/index.ts` | `App.onMounted` 与 `beforeEach` 都可能调 `auth.restore()`，首屏 `/rbac/me/*` 双拉风险 |
 | A-P2-004 | P2 | RBAC 防御 | `stores/auth.ts:249-251` | `isNavMenuActive` 在 `!activeNavLoaded` 时返回 true（菜单高亮窗口）；路由守卫另有 fail-closed 路径 |
 | A-P2-005 | P2 | API 抽象 | 全部视图 | ~~无集中 endpoint~~ → 试点 `AdminEndpoints`（工作台/趋势/SLA/设备参照等）+ `check:admin-endpoints`；其余业务路径仍待迁 |
-| A-P2-006 | P2 | 安全配置 | `api/client.ts` | 非 Cookie 模式 token 落 `localStorage`，XSS 暴露面扩大 |
+| A-P2-006 | P2 | 安全配置 | `api/client.ts` | ~~非 Cookie JWT 落 localStorage~~ → Cookie 优先；dev 仅 `sessionStorage`；生产 cookieEnabled=false fail-closed；`check:admin-token-storage` |
 | A-P2-007 | P2 | 残留日志 | 多文件 | 多处 `console.warn/error` 残留（生产仍输出） |
 | A-P2-008 | P2 | 无障碍 / i18n | 多视图 | ~~缺 dialog/drawer 命名门禁~~ → 已用 `check:admin-dialog-a11y` + `ResizableDrawer` 强制 title；i18n 框架仍不强制（前台中文约定） |
 
@@ -466,6 +466,7 @@
 - [x] S-P2-10：`ApiVersions`（当前 v2）+ 拦截器响应头 / 未支持版本 410；`shared-api` 导出 `API_VERSION`/`API_PREFIX` 并带请求头；破坏性变更开 v3 灰度（未开路由）
 - [x] 防回归门禁：`check:scheduled-zone`（cron 必带 zone）、`check:cache-names`（禁止裸 cache prefix）；汇总 `pnpm check:audit-gates`（含 dialog-a11y）
 - [x] A-P2-005（试点）：`AdminEndpoints` 收敛工作台/趋势/SLA/财务统计/设备参照；`check:admin-endpoints` 禁 views/composables 再散落试点字面量；已并入 `check:audit-gates`
+- [x] A-P2-006：`auth-storage` — Cookie 不落 JWT；非 Cookie 仅 `sessionStorage`；生产 `cookieEnabled=false` 拒绝持久化；遗留 localStorage JWT 自动迁移删除；`check:admin-token-storage` 并入 `check:audit-gates`
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

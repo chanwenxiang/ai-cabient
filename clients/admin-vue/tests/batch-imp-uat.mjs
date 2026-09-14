@@ -93,7 +93,10 @@ async function loginAdmin(page) {
   await page.locator('button.submit-btn, button:has-text("登录")').first().click();
   await page.waitForTimeout(2500);
   let token = await page.evaluate(
-    () => localStorage.getItem('admin_token') || localStorage.getItem('admin_cookie_auth')
+    () =>
+      sessionStorage.getItem('admin_token') ||
+      localStorage.getItem('admin_cookie_auth') ||
+      localStorage.getItem('admin_token')
   );
   if (!token) {
     const cap2 = await captchaForPage(page);
@@ -101,7 +104,10 @@ async function loginAdmin(page) {
     await page.locator('button.submit-btn, button:has-text("登录")').first().click();
     await page.waitForTimeout(2500);
     token = await page.evaluate(
-      () => localStorage.getItem('admin_token') || localStorage.getItem('admin_cookie_auth')
+      () =>
+        sessionStorage.getItem('admin_token') ||
+        localStorage.getItem('admin_cookie_auth') ||
+        localStorage.getItem('admin_token')
     );
   }
   return !!token || !page.url().includes('/login');

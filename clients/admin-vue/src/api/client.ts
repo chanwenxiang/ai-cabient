@@ -1,9 +1,20 @@
 import { ApiClient } from '@aicabinet/shared-api';
+import {
+  applyLoginSessionStorage,
+  clearAuthStorage,
+  clearBearerToken,
+  getBearerToken,
+  getStoredUserId as readStoredUserId,
+  isCookieAuthMode,
+  isLoggedIn as readIsLoggedIn,
+  isSessionSoftExpired as readIsSessionSoftExpired,
+  migrateLegacyTokenStorage,
+  setBearerToken,
+  setStoredUserMeta
+} from './auth-storage';
+import { AuthEndpoints } from './endpoints';
 
-const TOKEN_KEY = 'admin_token';
-const USER_KEY = 'admin_userId';
-const EXPIRES_KEY = 'admin_token_expires';
-const COOKIE_AUTH_KEY = 'admin_cookie_auth';
+migrateLegacyTokenStorage();
 
 /** 主动退出中：抑制在途请求 401 触发的「请先登录」提示与重复跳转。 */
 let loggingOut = false;
@@ -34,12 +45,7 @@ function getBaseUrl() {
 }
 
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(EXPIRES_KEY);
-  localStorage.removeItem(COOKIE_AUTH_KEY);
-  localStorage.removeItem('admin_permissions');
-  localStorage.removeItem('admin_active_nav');
+  clearAuthStorage();
 }
 
 /** Cookie 会话或 Bearer：统一鉴权头（写操作必须带 X-Requested-With）。 */
@@ -48,7 +54,7 @@ export function authHeaders(extra: Record<string, string> = {}): Record<string, 
     'X-Requested-With': 'XMLHttpRequest',
     ...extra
   };
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getBearerToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -70,18 +76,25 @@ export function authFetch(input: string, init: RequestInit = {}): Promise<Respon
 
 export const api = new ApiClient({
   baseUrl: getBaseUrl(),
-  getToken: () => localStorage.getItem(TOKEN_KEY),
+  getToken: () => getBearerToken(),
   hasSession: isLoggedIn,
   setToken: (token: string, userId: string, expiresInSeconds?: number) => {
-    // HttpOnly Cookie 模式下 refresh 也不要把 JWT 写回 localStorage。
-    if (localStorage.getItem(COOKIE_AUTH_KEY) === '1') {
-      localStorage.removeItem(TOKEN_KEY);
-    } else {
-      localStorage.setItem(TOKEN_KEY, token);
+    // HttpOnly Cookie：refresh 也不要把 JWT 写入任何 Storage。
+    if (isCookieAuthMode()) {
+      clearBearerToken();
+      setStoredUserMeta(userId, expiresInSeconds);
+      return;
     }
-    localStorage.setItem(USER_KEY, userId);
-    const ms = (expiresInSeconds ?? 1800) * 1000;
-    localStorage.setItem(EXPIRES_KEY, String(Date.now() + ms));
+    // A-P2-006：生产构建禁止 Bearer 回退持久化
+    if (import.meta.env.PROD) {
+      console.error(
+        '[auth] production build requires cookie session; refusing to persist JWT on refresh. Check AUTH_COOKIE_ENABLED.'
+      );
+      clearAuthStorage();
+      return;
+    }
+    setBearerToken(token);
+    setStoredUserMeta(userId, expiresInSeconds);
   },
   clearSession,
   onUnauthorized: () => {
@@ -93,51 +106,40 @@ export const api = new ApiClient({
 });
 
 export function getStoredUserId() {
-  return localStorage.getItem(USER_KEY) || '';
+  return readStoredUserId();
 }
 
+/**
+ * 应用登录会话。生产且 cookieEnabled=false 时抛错（fail-closed）。
+ * Cookie 模式不落 JWT；dev 非 Cookie 仅用 sessionStorage。
+ */
 export function applyLoginSession(data: {
   token: string;
   userId: string;
   expiresInSeconds?: number;
   cookieEnabled?: boolean;
 }) {
-  if (data.cookieEnabled) {
-    // 服务端已写入 HttpOnly Cookie：token 不再落 localStorage，缩小 XSS 暴露面。
-    // 请求凭 Cookie 自动携带，getToken() 返回空即不拼 Authorization 头。
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.setItem(COOKIE_AUTH_KEY, '1');
-  } else {
-    // prod/staging 由 ProductionStartupValidator 强制 cookieEnabled=true；此处仅本地/dev 回退 Bearer。
-    if (import.meta.env.PROD) {
-      console.warn(
-        '[auth] cookieEnabled=false in production build; JWT would fall back to localStorage. Check AUTH_COOKIE_ENABLED.'
-      );
-    }
-    localStorage.setItem(TOKEN_KEY, data.token);
-    localStorage.removeItem(COOKIE_AUTH_KEY);
+  const ok = applyLoginSessionStorage(data);
+  if (!ok) {
+    throw new Error('生产环境必须启用 Cookie 会话（AUTH_COOKIE_ENABLED），无法持久化 JWT');
   }
-  localStorage.setItem(USER_KEY, data.userId);
-  const ms = (data.expiresInSeconds ?? 1800) * 1000;
-  localStorage.setItem(EXPIRES_KEY, String(Date.now() + ms));
 }
 
-/** 登录态判定：本地 token 或 HttpOnly Cookie 会话标记任一存在即视为已登录。 */
+/** 登录态判定：sessionStorage Bearer 或 HttpOnly Cookie 会话标记。 */
 export function isLoggedIn() {
-  return Boolean(localStorage.getItem(TOKEN_KEY)) || localStorage.getItem(COOKIE_AUTH_KEY) === '1';
+  return readIsLoggedIn();
 }
 
 /** True when a local expiry was recorded and has passed (soft-expired; refresh may still work). */
 export function isSessionSoftExpired() {
-  const expiresAt = Number(localStorage.getItem(EXPIRES_KEY) || 0);
-  return expiresAt > 0 && Date.now() >= expiresAt;
+  return readIsSessionSoftExpired();
 }
 
 /** 登出：先通知服务端清除会话 Cookie，再清理本地状态（服务端调用失败不阻塞）。 */
 export async function logoutSession() {
   beginLogout();
   try {
-    await api.request<unknown>('/api/v2/auth/logout', 'POST', undefined, false);
+    await api.request<unknown>(AuthEndpoints.logout, 'POST', undefined, false);
   } catch {
     // 网络异常时 Cookie 仍会随过期时间失效；本地会话照常清理。
   } finally {

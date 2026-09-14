@@ -118,14 +118,26 @@ async function loginAdmin(page) {
   await page.locator('button.submit-btn, button:has-text("登录")').first().click();
   await page.waitForTimeout(2500);
   let text = await bodyText(page);
-  let token = await page.evaluate(() => localStorage.getItem('admin_token') || '');
+  let token = await page.evaluate(
+    () =>
+      sessionStorage.getItem('admin_token') ||
+      localStorage.getItem('admin_cookie_auth') ||
+      localStorage.getItem('admin_token') ||
+      ''
+  );
   if (!token && /验证码错误|验证码/i.test(text)) {
     const cap2 = await captchaForPage(page);
     await fillElInput(page, '图形验证码…', cap2.captchaCode);
     await page.locator('button.submit-btn, button:has-text("登录")').first().click();
     await page.waitForTimeout(2500);
     text = await bodyText(page);
-    token = await page.evaluate(() => localStorage.getItem('admin_token') || '');
+    token = await page.evaluate(
+      () =>
+        sessionStorage.getItem('admin_token') ||
+        localStorage.getItem('admin_cookie_auth') ||
+        localStorage.getItem('admin_token') ||
+        ''
+    );
   }
   return { text, token, captchaId: cap.captchaId };
 }
