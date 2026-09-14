@@ -1016,9 +1016,7 @@ async function batchDeleteContracts() {
   }
   contractBatchLoading.value = true;
   const results = await Promise.allSettled(
-    targets.map((row) =>
-      api.request(AdminEndpoints.siteContract(row.contractId), 'DELETE')
-    )
+    targets.map((row) => api.request(AdminEndpoints.siteContract(row.contractId), 'DELETE'))
   );
   contractBatchLoading.value = false;
   const ok = results.filter((r) => r.status === 'fulfilled').length;
@@ -1107,10 +1105,7 @@ async function saveNode() {
 
 async function toggleNode(node: OrgNodeDto) {
   try {
-    await api.request(
-      AdminEndpoints.orgNodeToggle(node.nodeId, !node.enabled),
-      'POST'
-    );
+    await api.request(AdminEndpoints.orgNodeToggle(node.nodeId, !node.enabled), 'POST');
     await loadAll();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
@@ -1163,20 +1158,16 @@ async function saveContract() {
   }
   saving.value = true;
   try {
-    await api.request(
-      AdminEndpoints.siteContract(contractForm.value.deviceId),
-      'PUT',
-      {
-        siteName: contractForm.value.siteName.trim(),
-        address: contractForm.value.address,
-        landlordName: contractForm.value.landlordName,
-        landlordPhone: contractForm.value.landlordPhone,
-        startDate: contractForm.value.startDate || null,
-        endDate: contractForm.value.endDate || null,
-        monthlyFeeCents: yuanToCents(contractForm.value.monthlyFeeYuan) ?? 0,
-        remark: contractForm.value.remark
-      }
-    );
+    await api.request(AdminEndpoints.siteContract(contractForm.value.deviceId), 'PUT', {
+      siteName: contractForm.value.siteName.trim(),
+      address: contractForm.value.address,
+      landlordName: contractForm.value.landlordName,
+      landlordPhone: contractForm.value.landlordPhone,
+      startDate: contractForm.value.startDate || null,
+      endDate: contractForm.value.endDate || null,
+      monthlyFeeCents: yuanToCents(contractForm.value.monthlyFeeYuan) ?? 0,
+      remark: contractForm.value.remark
+    });
     ElMessage.success('合同已保存');
     contractVisible.value = false;
     await loadAll();
@@ -1250,21 +1241,17 @@ async function saveRentSplit() {
   }
   saving.value = true;
   try {
-    await api.request(
-      AdminEndpoints.siteContractRentSplitRules(rentSplitContractId.value),
-      'PUT',
-      {
-        rules: rentRules.value.map((r) => ({
-          partyType: r.partyType,
-          partyId: r.partyId || null,
-          shareBps: Math.round((Number(r.sharePct) || 0) * 100),
-          fixedCents: yuanToCents(r.fixedYuan) ?? 0,
-          status: r.status || 'ACTIVE',
-          effectiveFrom: r.effectiveFrom || null,
-          effectiveTo: r.effectiveTo || null
-        }))
-      }
-    );
+    await api.request(AdminEndpoints.siteContractRentSplitRules(rentSplitContractId.value), 'PUT', {
+      rules: rentRules.value.map((r) => ({
+        partyType: r.partyType,
+        partyId: r.partyId || null,
+        shareBps: Math.round((Number(r.sharePct) || 0) * 100),
+        fixedCents: yuanToCents(r.fixedYuan) ?? 0,
+        status: r.status || 'ACTIVE',
+        effectiveFrom: r.effectiveFrom || null,
+        effectiveTo: r.effectiveTo || null
+      }))
+    });
     ElMessage.success('租金分账已保存');
     rentSplitVisible.value = false;
   } catch (e) {

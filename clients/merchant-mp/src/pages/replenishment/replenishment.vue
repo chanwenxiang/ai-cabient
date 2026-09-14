@@ -175,143 +175,141 @@
       </view>
 
       <ReplenishDetailSheet :visible="detailVisible" @close="closeDetail">
-          <view class="sheet-head">
-            <view>
-              <text class="sheet-title">{{
-                deviceName(selected?.deviceId, selected?.deviceName)
-              }}</text>
-              <text class="device-code"
-                >任务 #{{ selected?.taskId }} · {{ selected?.deviceId }}</text
-              >
-              <text
-                v-if="selected && (selected.routeName || selected.routeId || selected.plannedDate)"
-                class="device-code"
-                >{{ routeLabel(selected)
-                }}{{
-                  selected.plannedDate ? ` · 计划 ${formatDateOnly(selected.plannedDate)}` : ''
-                }}</text
-              >
-            </view>
-            <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
-          </view>
-
-          <ReplenishCabinetCard
-            :device-id="selected?.deviceId"
-            :address-line="selected?.deviceId ? deviceAddressLine(selected.deviceId) : ''"
-            @copy="copyDeviceId(selected?.deviceId)"
-            @navigate="navigateToDevice(selected?.deviceId)"
-            @verify-scan="verifyCabinetScan"
-          />
-
-          <ReplenishStepBar
-            :current-step="currentStep()"
-            :completed="selected?.status === 'COMPLETED'"
-            :checked-in="!!selected?.checkInAt"
-            :door-opened="doorOpened"
-            :lines-confirmed="linesConfirmed"
-            :pull-off="detailIsPullOff"
-          />
-
-          <view
-            v-if="
-              canSkipLocation &&
-              requireReplenishmentCheckInLocation &&
-              canRequest &&
-              selected?.status !== 'COMPLETED' &&
-              !selected?.checkInAt
-            "
-            class="skip-loc-row"
-            role="switch"
-            :aria-checked="skipLocationCheck"
-            data-testid="skip-location-toggle"
-            @click="toggleSkipLocation"
-          >
-            <view class="skip-loc-copy">
-              <text class="skip-loc-label">跳过定位验证</text>
-              <text class="skip-loc-hint">室内定位不准时可暂关；仍可能要求在柜前签到</text>
-            </view>
-            <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
-              skipLocationCheck ? '开' : '关'
+        <view class="sheet-head">
+          <view>
+            <text class="sheet-title">{{
+              deviceName(selected?.deviceId, selected?.deviceName)
             }}</text>
+            <text class="device-code">任务 #{{ selected?.taskId }} · {{ selected?.deviceId }}</text>
+            <text
+              v-if="selected && (selected.routeName || selected.routeId || selected.plannedDate)"
+              class="device-code"
+              >{{ routeLabel(selected)
+              }}{{
+                selected.plannedDate ? ` · 计划 ${formatDateOnly(selected.plannedDate)}` : ''
+              }}</text
+            >
           </view>
-          <text
-            v-if="
-              !requireReplenishmentCheckInLocation &&
-              canRequest &&
-              selected?.status !== 'COMPLETED' &&
-              !selected?.checkInAt
-            "
-            class="door-tip"
-          >
-            本柜可不校验定位签到{{
-              checkInMaxDistanceM > 0 ? `（若上报坐标，须在柜前 ${checkInMaxDistanceM} 米内）` : ''
-            }}
-          </text>
+          <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
+        </view>
 
-          <app-button
-            v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
-            data-testid="replenish-checkin"
-            :disabled="submitting"
-            label="现场签到"
-            @click="checkIn"
-          />
-          <app-button
-            v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
-            data-testid="replenish-open-door"
-            :disabled="submitting"
-            :label="doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门'"
-            @click="openDoor"
-          />
-          <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
-            只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
-          </text>
-          <text v-if="doorOpened && openSessionId" class="door-tip">
-            已开门，关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
-          </text>
+        <ReplenishCabinetCard
+          :device-id="selected?.deviceId"
+          :address-line="selected?.deviceId ? deviceAddressLine(selected.deviceId) : ''"
+          @copy="copyDeviceId(selected?.deviceId)"
+          @navigate="navigateToDevice(selected?.deviceId)"
+          @verify-scan="verifyCabinetScan"
+        />
 
-          <ReplenishEvidenceSection
-            :items="evidenceItems"
-            :checked-in="!!selected?.checkInAt"
-            :completed="selected?.status === 'COMPLETED'"
-            :can-interact="canRequest"
-            :require-evidence="requireReplenishmentEvidence"
-            @preview="previewEvidence"
-            @add="addEvidence"
-          />
+        <ReplenishStepBar
+          :current-step="currentStep()"
+          :completed="selected?.status === 'COMPLETED'"
+          :checked-in="!!selected?.checkInAt"
+          :door-opened="doorOpened"
+          :lines-confirmed="linesConfirmed"
+          :pull-off="detailIsPullOff"
+        />
 
-          <ReplenishLinesSection
-            :lines="lines"
-            :detail-loading="detailLoading"
-            :pull-off="detailIsPullOff"
-            :outbound-id="selected?.outboundId"
-            :can-edit="canRequest && !linesConfirmed"
-            :completed="selected?.status === 'COMPLETED'"
-            :scanning="scanning"
-            :sku-name="skuName"
-            :sku-thumb="skuThumb"
-            :product-glyph="productGlyph"
-            :line-type-label="lineTypeLabel"
-            :line-status-label="lineStatusLabel"
-            :stock-delta-text="stockDeltaText"
-            :is-pull-off-type="isPullOffType"
-            :slot-options-for="slotOptionsFor"
-            :slot-hint="slotHint"
-            :slot-headroom="slotHeadroom"
-            @adjust-qty="adjustQty"
-            @scan-product="scanProduct"
-            @assign-slot="assignSlot"
-          />
+        <view
+          v-if="
+            canSkipLocation &&
+            requireReplenishmentCheckInLocation &&
+            canRequest &&
+            selected?.status !== 'COMPLETED' &&
+            !selected?.checkInAt
+          "
+          class="skip-loc-row"
+          role="switch"
+          :aria-checked="skipLocationCheck"
+          data-testid="skip-location-toggle"
+          @click="toggleSkipLocation"
+        >
+          <view class="skip-loc-copy">
+            <text class="skip-loc-label">跳过定位验证</text>
+            <text class="skip-loc-hint">室内定位不准时可暂关；仍可能要求在柜前签到</text>
+          </view>
+          <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
+            skipLocationCheck ? '开' : '关'
+          }}</text>
+        </view>
+        <text
+          v-if="
+            !requireReplenishmentCheckInLocation &&
+            canRequest &&
+            selected?.status !== 'COMPLETED' &&
+            !selected?.checkInAt
+          "
+          class="door-tip"
+        >
+          本柜可不校验定位签到{{
+            checkInMaxDistanceM > 0 ? `（若上报坐标，须在柜前 ${checkInMaxDistanceM} 米内）` : ''
+          }}
+        </text>
 
-          <ReplenishActionDock
-            :show-dock="canRequest && selected?.status !== 'COMPLETED' && !!selected?.checkInAt"
-            :completed="selected?.status === 'COMPLETED'"
-            :lines-confirmed="linesConfirmed"
-            :has-lines="!!lines.length"
-            :submitting="submitting"
-            :pull-off="detailIsPullOff"
-            @confirm-lines="confirmLines"
-            @complete="completeTask"
-          />
+        <app-button
+          v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
+          data-testid="replenish-checkin"
+          :disabled="submitting"
+          label="现场签到"
+          @click="checkIn"
+        />
+        <app-button
+          v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
+          data-testid="replenish-open-door"
+          :disabled="submitting"
+          :label="doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门'"
+          @click="openDoor"
+        />
+        <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
+          只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
+        </text>
+        <text v-if="doorOpened && openSessionId" class="door-tip">
+          已开门，关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
+        </text>
+
+        <ReplenishEvidenceSection
+          :items="evidenceItems"
+          :checked-in="!!selected?.checkInAt"
+          :completed="selected?.status === 'COMPLETED'"
+          :can-interact="canRequest"
+          :require-evidence="requireReplenishmentEvidence"
+          @preview="previewEvidence"
+          @add="addEvidence"
+        />
+
+        <ReplenishLinesSection
+          :lines="lines"
+          :detail-loading="detailLoading"
+          :pull-off="detailIsPullOff"
+          :outbound-id="selected?.outboundId"
+          :can-edit="canRequest && !linesConfirmed"
+          :completed="selected?.status === 'COMPLETED'"
+          :scanning="scanning"
+          :sku-name="skuName"
+          :sku-thumb="skuThumb"
+          :product-glyph="productGlyph"
+          :line-type-label="lineTypeLabel"
+          :line-status-label="lineStatusLabel"
+          :stock-delta-text="stockDeltaText"
+          :is-pull-off-type="isPullOffType"
+          :slot-options-for="slotOptionsFor"
+          :slot-hint="slotHint"
+          :slot-headroom="slotHeadroom"
+          @adjust-qty="adjustQty"
+          @scan-product="scanProduct"
+          @assign-slot="assignSlot"
+        />
+
+        <ReplenishActionDock
+          :show-dock="canRequest && selected?.status !== 'COMPLETED' && !!selected?.checkInAt"
+          :completed="selected?.status === 'COMPLETED'"
+          :lines-confirmed="linesConfirmed"
+          :has-lines="!!lines.length"
+          :submitting="submitting"
+          :pull-off="detailIsPullOff"
+          @confirm-lines="confirmLines"
+          @complete="completeTask"
+        />
       </ReplenishDetailSheet>
 
       <!-- H5 可访问确认框：替代 uni.showModal，便于自动化与读屏点击 -->
@@ -344,9 +342,7 @@ import ReplenishDetailSheet from '@/components/ReplenishDetailSheet.vue';
 import ReplenishEvidenceSection from '@/components/ReplenishEvidenceSection.vue';
 import ReplenishLinesSection from '@/components/ReplenishLinesSection.vue';
 import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
-import {
-  hasPerm
-} from '@/utils/merchant-api';
+import { hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import { useReplenishmentDoorState } from '@/composables/useReplenishmentDoorState';

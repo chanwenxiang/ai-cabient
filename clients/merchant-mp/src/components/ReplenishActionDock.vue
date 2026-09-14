@@ -17,11 +17,7 @@
       />
     </view>
     <view v-if="completed" class="complete-banner">
-      {{
-        pullOff
-          ? '任务已完成，下架库存已同步更新'
-          : '任务已完成，商品库存和在途状态已同步更新'
-      }}
+      {{ pullOff ? '任务已完成，下架库存已同步更新' : '任务已完成，商品库存和在途状态已同步更新' }}
     </view>
   </view>
 </template>

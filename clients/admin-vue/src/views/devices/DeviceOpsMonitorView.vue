@@ -223,10 +223,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
-import {
-  ADMIN_LIST_PAGE_SIZES,
-  clampAdminPageSize
-} from '@/utils/admin-list-pager';
+import { ADMIN_LIST_PAGE_SIZES, clampAdminPageSize } from '@/utils/admin-list-pager';
 
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 

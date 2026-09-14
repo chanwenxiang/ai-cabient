@@ -1890,10 +1890,7 @@ const { onExport: exportExpiry } = useListCsv({
 
 async function exportRequestsFull() {
   try {
-    await downloadAuthFile(
-      AdminEndpoints.replenishmentRequestsExport,
-      csvFileName('商户要货')
-    );
+    await downloadAuthFile(AdminEndpoints.replenishmentRequestsExport, csvFileName('商户要货'));
     ElMessage.success('已导出');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');
@@ -1902,10 +1899,7 @@ async function exportRequestsFull() {
 
 async function exportRoutesFull() {
   try {
-    await downloadAuthFile(
-      AdminEndpoints.replenishmentRoutesExport,
-      csvFileName('补货路线')
-    );
+    await downloadAuthFile(AdminEndpoints.replenishmentRoutesExport, csvFileName('补货路线'));
     ElMessage.success('已导出');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');
@@ -2523,10 +2517,7 @@ async function openTaskLines(task: Row) {
         .catch(() => []),
       task.deviceId
         ? api
-            .request<Row[]>(
-              AdminEndpoints.deviceSlots(String(task.deviceId)),
-              'GET'
-            )
+            .request<Row[]>(AdminEndpoints.deviceSlots(String(task.deviceId)), 'GET')
             .catch(() => [])
         : Promise.resolve([])
     ]);

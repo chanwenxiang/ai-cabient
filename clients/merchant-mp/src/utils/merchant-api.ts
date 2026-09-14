@@ -501,13 +501,9 @@ export const merchantApi = {
     // M-P2-11：允许单侧失败保留另一侧；双侧失败向上抛，由页面 softFallback/展示错误
     const settled = await Promise.allSettled([mergePages('OPEN'), mergePages('PROCESSING')]);
     const open =
-      settled[0].status === 'fulfilled'
-        ? settled[0].value
-        : { items: [] as ExRow[], total: 0 };
+      settled[0].status === 'fulfilled' ? settled[0].value : { items: [] as ExRow[], total: 0 };
     const processing =
-      settled[1].status === 'fulfilled'
-        ? settled[1].value
-        : { items: [] as ExRow[], total: 0 };
+      settled[1].status === 'fulfilled' ? settled[1].value : { items: [] as ExRow[], total: 0 };
     if (settled[0].status === 'rejected' && settled[1].status === 'rejected') {
       const reason = settled[0].reason;
       throw reason instanceof Error ? reason : new Error('异常列表加载失败');

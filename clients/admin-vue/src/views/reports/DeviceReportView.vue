@@ -524,10 +524,7 @@ async function loadDeviceOptions() {
 async function loadOfflineTotal() {
   try {
     const q = new URLSearchParams({ online: 'OFFLINE', page: '0', size: '1' });
-    const data = await api.request<{ total?: number }>(
-      AdminEndpoints.reportsDevicesList(q),
-      'GET'
-    );
+    const data = await api.request<{ total?: number }>(AdminEndpoints.reportsDevicesList(q), 'GET');
     offlineTotal.value = Number(data.total) || 0;
   } catch {
     offlineTotal.value = 0;

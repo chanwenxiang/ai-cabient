@@ -448,11 +448,9 @@ async function save() {
 async function toggleStatus(row: RedeemItem) {
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
   try {
-    await api.request<RedeemItem>(
-      AdminEndpoints.growthPointsRedeemStatus(row.itemId),
-      'POST',
-      { status: next }
-    );
+    await api.request<RedeemItem>(AdminEndpoints.growthPointsRedeemStatus(row.itemId), 'POST', {
+      status: next
+    });
     ElMessage.success(next === 'ACTIVE' ? '已启用' : '已停用');
     await load();
   } catch (e) {

@@ -18,9 +18,7 @@
       {{ outboundConfirm.message }}
     </p>
     <template #footer>
-      <el-button data-testid="outbound-confirm-cancel" @click="emit('cancel')"
-        >取消</el-button
-      >
+      <el-button data-testid="outbound-confirm-cancel" @click="emit('cancel')">取消</el-button>
       <el-button
         type="primary"
         :loading="outboundConfirm.saving"

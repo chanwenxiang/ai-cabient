@@ -51,13 +51,9 @@
           <text v-if="s.wechatOutOrderNo" class="meta">外部单 {{ s.wechatOutOrderNo }}</text>
           <text v-if="s.failureReason" class="fail">失败原因：{{ s.failureReason }}</text>
         </view>
-        <view
-          v-if="hasMore && !focusOrderId"
-          class="load-more"
-          role="button"
-          @click="loadMore"
-          >{{ loadingMore ? UI_COPY.loading : loadMoreLabel }}</view
-        >
+        <view v-if="hasMore && !focusOrderId" class="load-more" role="button" @click="loadMore">{{
+          loadingMore ? UI_COPY.loading : loadMoreLabel
+        }}</view>
         <text v-else-if="list.length && !focusOrderId" class="trunc-hint">{{ doneHint }}</text>
       </view>
     </view></view
@@ -320,7 +316,9 @@ async function loadMore() {
     pageIndex.value = next;
     if (total > 0) listTotal.value = total;
     hasMore.value =
-      pageFull && appended.length > 0 && (listTotal.value <= 0 || list.value.length < listTotal.value);
+      pageFull &&
+      appended.length > 0 &&
+      (listTotal.value <= 0 || list.value.length < listTotal.value);
   } catch (e) {
     if (seq !== loadSeq) return;
     showError(e instanceof Error ? e.message : '加载失败');

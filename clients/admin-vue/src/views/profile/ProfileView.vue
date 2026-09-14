@@ -248,10 +248,7 @@ onMounted(() => {
 
 async function loadTwoFactorStatus() {
   try {
-    const s = await api.request<TwoFactorStatus>(
-      AdminEndpoints.rbacMeTwoFactorStatus,
-      'GET'
-    );
+    const s = await api.request<TwoFactorStatus>(AdminEndpoints.rbacMeTwoFactorStatus, 'GET');
     twoFactorEnabled.value = !!s?.enabled;
   } catch {
     // 软失败：保持默认未启用展示

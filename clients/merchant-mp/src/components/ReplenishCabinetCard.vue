@@ -1,8 +1,6 @@
 <template>
   <view v-if="deviceId" class="cabinet-card">
-    <text class="cabinet-addr">{{
-      addressLine || '暂无点位地址，请对照编号或扫码核对柜机'
-    }}</text>
+    <text class="cabinet-addr">{{ addressLine || '暂无点位地址，请对照编号或扫码核对柜机' }}</text>
     <view class="cabinet-actions">
       <view
         class="cabinet-chip"

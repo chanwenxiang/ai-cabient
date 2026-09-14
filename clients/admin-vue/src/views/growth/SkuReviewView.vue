@@ -322,10 +322,7 @@ function onSizeChange() {
 async function run() {
   running.value = true;
   try {
-    await api.request<ReviewRow[]>(
-      AdminEndpoints.growthSkuReviewRun(days.value),
-      'POST'
-    );
+    await api.request<ReviewRow[]>(AdminEndpoints.growthSkuReviewRun(days.value), 'POST');
     page.value = 1;
     await load();
     ElMessage.success('诊断完成');
@@ -338,11 +335,9 @@ async function run() {
 
 async function decide(row: ReviewRow, action: string) {
   try {
-    await api.request<ReviewRow>(
-      AdminEndpoints.growthSkuReviewDecide(row.skuId),
-      'POST',
-      { action }
-    );
+    await api.request<ReviewRow>(AdminEndpoints.growthSkuReviewDecide(row.skuId), 'POST', {
+      action
+    });
     ElMessage.success(action === 'KEEP' ? '已保留' : '已建议下架');
     await load();
   } catch (e) {
@@ -362,11 +357,11 @@ async function confirmDelist(row: ReviewRow) {
   ).catch(() => ({ value: undefined as string | undefined }));
   if (value === undefined) return;
   try {
-    await api.request<ReviewRow>(
-      AdminEndpoints.growthSkuReviewDecide(row.skuId),
-      'POST',
-      { action: 'DELIST', reason: '选品诊断确认下架', replaceSkuId: value.trim() || undefined }
-    );
+    await api.request<ReviewRow>(AdminEndpoints.growthSkuReviewDecide(row.skuId), 'POST', {
+      action: 'DELIST',
+      reason: '选品诊断确认下架',
+      replaceSkuId: value.trim() || undefined
+    });
     ElMessage.success('已下架');
     await load();
   } catch (e) {
@@ -407,15 +402,11 @@ async function batchDecide(action: 'DELIST' | 'KEEP') {
   try {
     const results = await Promise.allSettled(
       targets.map((row) =>
-        api.request<ReviewRow>(
-          AdminEndpoints.growthSkuReviewDecide(row.skuId),
-          'POST',
-          {
-            action,
-            reason,
-            replaceSkuId: action === 'DELIST' ? replaceSkuId : undefined
-          }
-        )
+        api.request<ReviewRow>(AdminEndpoints.growthSkuReviewDecide(row.skuId), 'POST', {
+          action,
+          reason,
+          replaceSkuId: action === 'DELIST' ? replaceSkuId : undefined
+        })
       )
     );
     const ok = results.filter((r) => r.status === 'fulfilled').length;

@@ -201,10 +201,7 @@ import {
   yuanToCents
 } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
-import type {
-  RechargeOrderDto,
-  BalanceRefundRequestDto
-} from '@aicabinet/shared-types';
+import type { RechargeOrderDto, BalanceRefundRequestDto } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   resolveMockEnabled,

@@ -921,8 +921,8 @@ async function ensureSkusLoaded() {
   if (skus.value.length) return;
   try {
     skus.value =
-      (await api.request<{ items: SkuOption[] }>(AdminEndpoints.skusCatalogPage, 'GET'))
-        .items || [];
+      (await api.request<{ items: SkuOption[] }>(AdminEndpoints.skusCatalogPage, 'GET')).items ||
+      [];
   } catch {
     skus.value = [];
   }

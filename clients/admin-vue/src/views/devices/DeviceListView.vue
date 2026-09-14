@@ -541,10 +541,7 @@ import type {
 } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
-import {
-  ADMIN_LIST_PAGE_SIZES,
-  clampAdminPageSize
-} from '@/utils/admin-list-pager';
+import { ADMIN_LIST_PAGE_SIZES, clampAdminPageSize } from '@/utils/admin-list-pager';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'CAN_BUY' | 'ON_SALE' | 'LOCKED';
@@ -765,11 +762,10 @@ async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
   try {
     for (const row of targets) {
       try {
-        await api.request(
-          AdminEndpoints.deviceLifecycle(row.deviceId ?? ''),
-          'POST',
-          { action, remark: `batch-${action.toLowerCase()}` }
-        );
+        await api.request(AdminEndpoints.deviceLifecycle(row.deviceId ?? ''), 'POST', {
+          action,
+          remark: `batch-${action.toLowerCase()}`
+        });
         ok += 1;
       } catch {
         fail += 1;
@@ -818,11 +814,10 @@ async function batchRetire() {
   try {
     for (const row of targets) {
       try {
-        await api.request(
-          AdminEndpoints.deviceLifecycle(row.deviceId ?? ''),
-          'POST',
-          { action: 'RETIRE', remark }
-        );
+        await api.request(AdminEndpoints.deviceLifecycle(row.deviceId ?? ''), 'POST', {
+          action: 'RETIRE',
+          remark
+        });
         ok += 1;
       } catch {
         fail += 1;

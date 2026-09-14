@@ -517,9 +517,7 @@ async function batchStop() {
   }
   batchLoading.value = 'stop';
   const results = await Promise.allSettled(
-    targets.map((row) =>
-      api.request(AdminEndpoints.adCampaignStop(row.campaignId), 'POST')
-    )
+    targets.map((row) => api.request(AdminEndpoints.adCampaignStop(row.campaignId), 'POST'))
   );
   batchLoading.value = '';
   const ok = results.filter((r) => r.status === 'fulfilled').length;

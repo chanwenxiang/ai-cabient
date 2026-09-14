@@ -562,14 +562,10 @@ async function submitAssign() {
   }
   assignSaving.value = true;
   try {
-    const count = await api.request<number>(
-      AdminEndpoints.repairTicketsBatchAssign,
-      'POST',
-      {
-        ticketIds: selectedRows.value.map((r) => r.ticketId),
-        assignee: name
-      }
-    );
+    const count = await api.request<number>(AdminEndpoints.repairTicketsBatchAssign, 'POST', {
+      ticketIds: selectedRows.value.map((r) => r.ticketId),
+      assignee: name
+    });
     ElMessage.success(`已指派 ${count} 张工单`);
     assignVisible.value = false;
     selectedRows.value = [];
@@ -697,10 +693,7 @@ async function openDetail(row: Ticket) {
   }
   detailVisible.value = true;
   try {
-    detail.value = await api.request<Detail>(
-      AdminEndpoints.repairTicket(row.ticketId),
-      'GET'
-    );
+    detail.value = await api.request<Detail>(AdminEndpoints.repairTicket(row.ticketId), 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载详情失败');
     if (!detailHydrated.value) detail.value = null;

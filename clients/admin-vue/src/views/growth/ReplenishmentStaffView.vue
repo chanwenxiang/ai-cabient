@@ -193,9 +193,7 @@ onMounted(load);
 async function load() {
   loading.value = true;
   try {
-    list.value = await api.request<StaffRow[]>(
-      AdminEndpoints.replenishmentReportStaff(days.value)
-    );
+    list.value = await api.request<StaffRow[]>(AdminEndpoints.replenishmentReportStaff(days.value));
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');

@@ -727,11 +727,7 @@ async function batchDelist() {
   try {
     for (const row of targets) {
       try {
-        await api.request(
-          AdminEndpoints.sku(row.skuId),
-          'PUT',
-          toUpsertBody(row, 'INACTIVE')
-        );
+        await api.request(AdminEndpoints.sku(row.skuId), 'PUT', toUpsertBody(row, 'INACTIVE'));
         const idx = items.value.findIndex((x) => x.skuId === row.skuId);
         if (idx >= 0) items.value[idx] = { ...items.value[idx], status: 'INACTIVE' };
         ok += 1;
@@ -1195,11 +1191,7 @@ async function saveEnroll() {
       referenceImageUrlsJson,
       mappingSource: 'EDGE_CLASS'
     };
-    const updated = await api.request<SkuCatalog>(
-      AdminEndpoints.skuVisionEnroll,
-      'POST',
-      body
-    );
+    const updated = await api.request<SkuCatalog>(AdminEndpoints.skuVisionEnroll, 'POST', body);
     const idx = items.value.findIndex((i) => i.skuId === updated.skuId);
     if (idx >= 0) items.value[idx] = updated;
     else items.value.push(updated);

@@ -161,11 +161,7 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
     purchaseDialog.value = true;
     deps.dialogBootLoading.value = true;
     try {
-      await Promise.all([
-        deps.loadSuppliersSoft(),
-        deps.loadWarehousesSoft(),
-        deps.ensureMeta()
-      ]);
+      await Promise.all([deps.loadSuppliersSoft(), deps.loadWarehousesSoft(), deps.ensureMeta()]);
       purchaseForm.supplierId = deps.activeSuppliers.value[0]?.supplierId || '';
       purchaseForm.warehouseId = deps.activeWarehouses.value[0]?.warehouseId || '';
     } finally {
@@ -206,11 +202,7 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
     purchaseDialog.value = true;
     deps.dialogBootLoading.value = true;
     try {
-      await Promise.all([
-        deps.loadSuppliersSoft(),
-        deps.loadWarehousesSoft(),
-        deps.ensureMeta()
-      ]);
+      await Promise.all([deps.loadSuppliersSoft(), deps.loadWarehousesSoft(), deps.ensureMeta()]);
       purchaseForm.supplierId = deps.activeSuppliers.value[0]?.supplierId || '';
       if (!purchaseForm.warehouseId) {
         purchaseForm.warehouseId = deps.activeWarehouses.value[0]?.warehouseId || '';
@@ -325,15 +317,11 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
         type: 'warning',
         appendTo: document.body
       });
-      await api.request(
-        AdminEndpoints.purchaseOrderReceive(receiveForm.purchaseOrderId),
-        'POST',
-        {
-          lines: receiveForm.lines,
-          notes: receiveForm.notes,
-          receiveWarehouseId: receiveForm.receiveWarehouseId || undefined
-        }
-      );
+      await api.request(AdminEndpoints.purchaseOrderReceive(receiveForm.purchaseOrderId), 'POST', {
+        lines: receiveForm.lines,
+        notes: receiveForm.notes,
+        receiveWarehouseId: receiveForm.receiveWarehouseId || undefined
+      });
       receiveDialog.value = false;
       ElMessage.success('收货完成');
       deps.loadedTabs.value.delete('purchase');

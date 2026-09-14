@@ -61,10 +61,13 @@ const slots = useSlots();
 const attrsClass = computed(() => attrs.class);
 const resolvedAriaLabel = computed(() => props.ariaLabel || props.title);
 const drawerAttrs = computed(() => {
-  const { class: _c, title: _t, ariaLabel: _a, 'aria-label': _al, ...rest } = attrs as Record<
-    string,
-    unknown
-  >;
+  const {
+    class: _c,
+    title: _t,
+    ariaLabel: _a,
+    'aria-label': _al,
+    ...rest
+  } = attrs as Record<string, unknown>;
   return rest;
 });
 

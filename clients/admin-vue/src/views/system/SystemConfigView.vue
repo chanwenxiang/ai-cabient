@@ -345,10 +345,7 @@ async function onDelete(row: SystemConfigRow) {
       '删除参数',
       { type: 'warning' }
     );
-    await api.request(
-      AdminEndpoints.systemConfig(row.configKey),
-      'DELETE'
-    );
+    await api.request(AdminEndpoints.systemConfig(row.configKey), 'DELETE');
     ElMessage.success('已删除');
     await load();
   } catch (e: unknown) {

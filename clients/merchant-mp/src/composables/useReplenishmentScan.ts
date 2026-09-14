@@ -169,7 +169,12 @@ export function useReplenishmentScan(opts: {
 
   /** 扫商品条码自动匹配任务明细并 +1；浏览器无法调起扫码时手输条码 */
   async function scanProduct(line: Line) {
-    if (!opts.canRequest.value || opts.linesConfirmed.value || line.applied || opts.scanning.value) {
+    if (
+      !opts.canRequest.value ||
+      opts.linesConfirmed.value ||
+      line.applied ||
+      opts.scanning.value
+    ) {
       return;
     }
     opts.scanning.value = true;

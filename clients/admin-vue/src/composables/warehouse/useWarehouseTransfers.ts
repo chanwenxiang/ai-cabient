@@ -45,7 +45,11 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
   }
 
   async function saveTransfer() {
-    if (!transferForm.fromWarehouseId || !transferForm.toWarehouseId || !transferForm.skuId.trim()) {
+    if (
+      !transferForm.fromWarehouseId ||
+      !transferForm.toWarehouseId ||
+      !transferForm.skuId.trim()
+    ) {
       ElMessage.warning('请填写调出/调入仓与 SKU');
       return;
     }

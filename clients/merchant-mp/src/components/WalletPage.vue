@@ -138,11 +138,7 @@ import {
   yuanToCents
 } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
-import {
-  merchantApi,
-  isMerchantLoggedIn,
-  handleUnauthorized
-} from '@/utils/merchant-api';
+import { merchantApi, isMerchantLoggedIn, handleUnauthorized } from '@/utils/merchant-api';
 import type {
   OpenApiLineWalletOverviewDto,
   OpenApiMerchantWalletOverviewDto

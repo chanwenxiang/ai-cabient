@@ -555,16 +555,10 @@ async function load(opts?: { resetSeries?: boolean }) {
     // 财务等角色可能缺 ops 趋势权限；各块独立降级，避免整页空白
     const [s, t, o, f, c] = await Promise.all([
       api.request<AdminStats>(AdminEndpoints.stats, 'GET').catch(() => null),
-      api
-        .request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(d), 'GET')
-        .catch(() => null),
-      api
-        .request<{ last7Days: OpsDaily[] }>(AdminEndpoints.trendOps(d), 'GET')
-        .catch(() => null),
+      api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(d), 'GET').catch(() => null),
+      api.request<{ last7Days: OpsDaily[] }>(AdminEndpoints.trendOps(d), 'GET').catch(() => null),
       api.request<FinanceStats>(AdminEndpoints.financeStats, 'GET').catch(() => null),
-      api
-        .request<ChannelBreakdown>(AdminEndpoints.trendChannels(d), 'GET')
-        .catch(() => ({}))
+      api.request<ChannelBreakdown>(AdminEndpoints.trendChannels(d), 'GET').catch(() => ({}))
     ]);
     if (!s && !t && !o && !f) {
       loadFailed.value = true;

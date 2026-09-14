@@ -12,9 +12,7 @@ const scanRoots = [
 ];
 
 const text = fs.readFileSync(endpointsFile, 'utf8');
-const listMatch = text.match(
-  /ADMIN_ENDPOINT_PILOT_LITERALS\s*=\s*\[([\s\S]*?)\]\s*as\s*const/
-);
+const listMatch = text.match(/ADMIN_ENDPOINT_PILOT_LITERALS\s*=\s*\[([\s\S]*?)\]\s*as\s*const/);
 if (!listMatch) {
   console.error('check-admin-endpoints: ADMIN_ENDPOINT_PILOT_LITERALS not found');
   process.exit(1);

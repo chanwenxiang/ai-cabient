@@ -798,11 +798,10 @@ async function submitAdjust() {
   }
   adjustSaving.value = true;
   try {
-    await api.request(
-      AdminEndpoints.merchantWalletAdjust(adjustTarget.value.merchantId),
-      'POST',
-      { amountCents, remark: adjustForm.value.remark.trim() || '运营调账' }
-    );
+    await api.request(AdminEndpoints.merchantWalletAdjust(adjustTarget.value.merchantId), 'POST', {
+      amountCents,
+      remark: adjustForm.value.remark.trim() || '运营调账'
+    });
     ElMessage.success('已调账');
     adjustVisible.value = false;
     await loadWallets();

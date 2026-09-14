@@ -99,15 +99,11 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     }
     deps.saving.value = true;
     try {
-      await api.request(
-        AdminEndpoints.warehouseItem(warehouseForm.warehouseId.trim()),
-        'PUT',
-        {
-          warehouseName: warehouseForm.warehouseName.trim(),
-          address: warehouseForm.address,
-          status: warehouseForm.status
-        }
-      );
+      await api.request(AdminEndpoints.warehouseItem(warehouseForm.warehouseId.trim()), 'PUT', {
+        warehouseName: warehouseForm.warehouseName.trim(),
+        address: warehouseForm.address,
+        status: warehouseForm.status
+      });
       warehouseDialog.value = false;
       ElMessage.success('仓库已保存');
       deps.loadedTabs.value.delete('warehouses');
@@ -139,19 +135,15 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     }
     deps.saving.value = true;
     try {
-      await api.request(
-        AdminEndpoints.supplier(supplierForm.supplierId.trim()),
-        'PUT',
-        {
-          supplierId: supplierForm.supplierId.trim(),
-          supplierName: supplierForm.supplierName.trim(),
-          contactName: supplierForm.contactName,
-          contactPhone: supplierForm.contactPhone,
-          paymentTermsDays: Number(supplierForm.paymentTermsDays) || 30,
-          creditLimitCents: yuanToCents(supplierForm.creditLimitYuan) ?? 0,
-          status: supplierForm.status
-        }
-      );
+      await api.request(AdminEndpoints.supplier(supplierForm.supplierId.trim()), 'PUT', {
+        supplierId: supplierForm.supplierId.trim(),
+        supplierName: supplierForm.supplierName.trim(),
+        contactName: supplierForm.contactName,
+        contactPhone: supplierForm.contactPhone,
+        paymentTermsDays: Number(supplierForm.paymentTermsDays) || 30,
+        creditLimitCents: yuanToCents(supplierForm.creditLimitYuan) ?? 0,
+        status: supplierForm.status
+      });
       supplierDialog.value = false;
       ElMessage.success('供应商已保存');
       deps.loadedTabs.value.delete('suppliers');

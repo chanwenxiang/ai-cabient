@@ -248,11 +248,7 @@ export function useHomeWorkbench() {
 
   async function fetchHomeDashboardBundle() {
     return Promise.all([
-      softErr(
-        merchantApi.stats(),
-        {} as OpenApiMerchantDashboardStatsDto,
-        '统计加载失败'
-      ),
+      softErr(merchantApi.stats(), {} as OpenApiMerchantDashboardStatsDto, '统计加载失败'),
       fetchHomeTrend(),
       fetchHomeWorkbench(),
       fetchHomeExceptions(),
@@ -345,8 +341,17 @@ export function useHomeWorkbench() {
     profile: MerchantMe,
     bundle: Awaited<ReturnType<typeof fetchHomeDashboardBundle>>
   ) {
-    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks, announcements, analytics] =
-      bundle;
+    const [
+      s,
+      trend,
+      workbench,
+      exceptionPage,
+      expiryRows,
+      devices,
+      tasks,
+      announcements,
+      analytics
+    ] = bundle;
     meName.value = profile.displayName || profile.phoneNumber || '同事';
     merchantNames.value = formatMerchantNames(profile.merchants);
     latestAnnouncement.value = announcements?.[0] || null;

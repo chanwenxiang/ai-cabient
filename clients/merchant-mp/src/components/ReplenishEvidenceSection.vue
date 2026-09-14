@@ -77,8 +77,7 @@ const countWarn = computed(
 );
 
 const canAdd = computed(
-  () =>
-    props.canInteract && !props.completed && props.checkedIn && props.items.length < 5
+  () => props.canInteract && !props.completed && props.checkedIn && props.items.length < 5
 );
 
 const emptyTip = computed(() => {

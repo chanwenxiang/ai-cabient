@@ -446,10 +446,7 @@ async function loadEvents() {
       page: String(Math.max(0, eventPage.value - 1)),
       size: String(eventSize.value)
     });
-    const ev = await api.request<PageResult<Row> | Row[]>(
-      AdminEndpoints.riskEventsList(q),
-      'GET'
-    );
+    const ev = await api.request<PageResult<Row> | Row[]>(AdminEndpoints.riskEventsList(q), 'GET');
     const pageData = normalizeListPage(ev);
     events.value = pageData.items;
     eventTotal.value = pageData.total;

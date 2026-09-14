@@ -45,12 +45,8 @@
       <el-form-item label="供应商名称"
         ><el-input v-model="supplierForm.supplierName"
       /></el-form-item>
-      <el-form-item label="联系人"
-        ><el-input v-model="supplierForm.contactName"
-      /></el-form-item>
-      <el-form-item label="联系电话"
-        ><el-input v-model="supplierForm.contactPhone"
-      /></el-form-item>
+      <el-form-item label="联系人"><el-input v-model="supplierForm.contactName" /></el-form-item>
+      <el-form-item label="联系电话"><el-input v-model="supplierForm.contactPhone" /></el-form-item>
       <el-form-item label="账期(天)"
         ><el-input-number
           v-model="supplierForm.paymentTermsDays"
@@ -175,8 +171,7 @@
             ><input v-model="line.productionDate" class="native-date" type="date"
           /></label>
           <label class="line-field"
-            ><span>到期日期</span
-            ><input v-model="line.expiryDate" class="native-date" type="date"
+            ><span>到期日期</span><input v-model="line.expiryDate" class="native-date" type="date"
           /></label>
         </div>
       </div>
@@ -210,7 +205,6 @@ defineProps<{
   activeWarehouses: WarehouseEntityRow[];
   skus: WarehouseEntityRow[];
 }>();
-
 
 const warehouseForm = defineModel<WarehouseEntityRow>('warehouseForm', { required: true });
 const supplierForm = defineModel<WarehouseEntityRow>('supplierForm', { required: true });

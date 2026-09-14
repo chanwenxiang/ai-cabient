@@ -224,7 +224,9 @@
     />
     <template #footer>
       <el-button @click="emit('update:receiveDialog', false)">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="emit('receivePurchase')">确认收货</el-button>
+      <el-button type="primary" :loading="saving" @click="emit('receivePurchase')"
+        >确认收货</el-button
+      >
     </template>
   </el-dialog>
 
@@ -363,12 +365,11 @@ defineProps<{
   skuName: (id?: string) => string;
 }>();
 
-
 const purchaseForm = defineModel<WarehousePurchaseRow>('purchaseForm', { required: true });
 const purchaseFieldErrors = defineModel<{
-    supplierId: boolean;
-    lineErrors: Array<{ skuId?: boolean; batchNo?: boolean; expiryDate?: boolean }>;
-  }>('purchaseFieldErrors', { required: true });
+  supplierId: boolean;
+  lineErrors: Array<{ skuId?: boolean; batchNo?: boolean; expiryDate?: boolean }>;
+}>('purchaseFieldErrors', { required: true });
 const receiveForm = defineModel<WarehousePurchaseRow>('receiveForm', { required: true });
 const returnForm = defineModel<WarehousePurchaseRow>('returnForm', { required: true });
 const emit = defineEmits<{

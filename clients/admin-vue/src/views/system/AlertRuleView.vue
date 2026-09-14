@@ -391,10 +391,7 @@ async function batchDelete() {
   batchLoading.value = true;
   const results = await Promise.allSettled(
     targets.map(async (row) => {
-      await api.request(
-        AdminEndpoints.systemConfig(row.configKey),
-        'DELETE'
-      );
+      await api.request(AdminEndpoints.systemConfig(row.configKey), 'DELETE');
       if (customGroupMap.value[row.configKey]) {
         const next = { ...customGroupMap.value };
         delete next[row.configKey];
@@ -530,10 +527,7 @@ async function onDelete(row: RuleRow) {
       '删除告警规则',
       { type: 'warning' }
     );
-    await api.request(
-      AdminEndpoints.systemConfig(row.configKey),
-      'DELETE'
-    );
+    await api.request(AdminEndpoints.systemConfig(row.configKey), 'DELETE');
     if (customGroupMap.value[row.configKey]) {
       const next = { ...customGroupMap.value };
       delete next[row.configKey];

@@ -539,10 +539,7 @@ async function scanWaitingPages(
       state: 'WAITING_UPLOAD'
     });
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
-    const data = await api.request<PageResult<SessionRow>>(
-      AdminEndpoints.sessionsList(q),
-      'GET'
-    );
+    const data = await api.request<PageResult<SessionRow>>(AdminEndpoints.sessionsList(q), 'GET');
     const batch = data.items || [];
     serverTotal = data.total ?? batch.length;
     for (const row of batch) {
@@ -591,10 +588,7 @@ async function load() {
       q.set('stuckOnly', 'true');
       q.set('stuckMinutes', String(SLA_MINUTES));
     }
-    const data = await api.request<PageResult<SessionRow>>(
-      AdminEndpoints.sessionsList(q),
-      'GET'
-    );
+    const data = await api.request<PageResult<SessionRow>>(AdminEndpoints.sessionsList(q), 'GET');
     items.value = data.items || [];
     total.value = data.total ?? 0;
     const sid = focusSessionId.value.trim();

@@ -280,10 +280,7 @@ async function load() {
     if (mineOnly.value) q.set('mine', 'true');
     if (actionFilter.value) q.set('action', actionFilter.value);
     if (targetFilter.value) q.set('target', targetFilter.value);
-    const data = await api.request<PageResult<AuditRow>>(
-      AdminEndpoints.auditLogsList(q),
-      'GET'
-    );
+    const data = await api.request<PageResult<AuditRow>>(AdminEndpoints.auditLogsList(q), 'GET');
     items.value = data.items || [];
     total.value = data.total || 0;
     clearSelection();

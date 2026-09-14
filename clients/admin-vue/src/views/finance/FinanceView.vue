@@ -487,10 +487,7 @@ async function load(opts?: { resetSeries?: boolean }) {
     topSkus.value = [];
   }
   try {
-    const data = await api.request<FinanceReport>(
-      AdminEndpoints.financeReport(days.value),
-      'GET'
-    );
+    const data = await api.request<FinanceReport>(AdminEndpoints.financeReport(days.value), 'GET');
     stats.value = data.summary || {};
     daily.value = data.daily || [];
     topSkus.value = data.topSkus || [];

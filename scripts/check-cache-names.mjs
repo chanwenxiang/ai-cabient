@@ -6,16 +6,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const roots = [
-  path.resolve('services/trade-service/src/main/java')
-];
+const roots = [path.resolve('services/trade-service/src/main/java')];
 
 /** 定义 CacheNames 常量的文件本身可含字面量。 */
 const SKIP_FILES = new Set([
-  path.resolve('services/trade-service/src/main/java/com/aicabinet/trade/support/CacheNames.java').replace(
-    /\\/g,
-    '/'
-  )
+  path
+    .resolve('services/trade-service/src/main/java/com/aicabinet/trade/support/CacheNames.java')
+    .replace(/\\/g, '/')
 ]);
 
 const offenders = [];

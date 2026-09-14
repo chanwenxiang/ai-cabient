@@ -542,10 +542,7 @@ async function deleteAliyun(row: AliyunMappingRow) {
     return;
   }
   try {
-    await api.request(
-      AdminEndpoints.visionMappingAliyun(row.categoryId),
-      'DELETE'
-    );
+    await api.request(AdminEndpoints.visionMappingAliyun(row.categoryId), 'DELETE');
     ElMessage.success('已删除');
     await load();
   } catch (e) {
@@ -584,10 +581,7 @@ async function onDelete(row: YoloMappingRow) {
     await ElMessageBox.confirm(`确认删除映射「${className}」？`, '删除识别映射', {
       type: 'warning'
     });
-    await api.request(
-      AdminEndpoints.visionMappingYolo(className),
-      'DELETE'
-    );
+    await api.request(AdminEndpoints.visionMappingYolo(className), 'DELETE');
     ElMessage.success('已删除');
     await load();
   } catch (e: unknown) {

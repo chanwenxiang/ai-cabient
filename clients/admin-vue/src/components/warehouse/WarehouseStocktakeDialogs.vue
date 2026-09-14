@@ -171,7 +171,6 @@ defineProps<{
   stocktakeLineStatusType: (code: string) => string;
 }>();
 
-
 const stocktakeForm = defineModel<WarehouseStocktakeRow>('stocktakeForm', { required: true });
 const emit = defineEmits<{
   'update:stocktakeDialog': [value: boolean];
