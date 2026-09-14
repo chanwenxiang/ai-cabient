@@ -444,7 +444,7 @@
       v-model:current-page="page"
       v-model:page-size="size"
       :total="total"
-      :page-sizes="[10, 20, 50]"
+      :page-sizes="ADMIN_LIST_PAGE_SIZES"
       layout="total, sizes, prev, pager, next, jumper"
       background
       @current-change="load"
@@ -793,6 +793,10 @@ import type {
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
+import {
+  ADMIN_LIST_PAGE_SIZES,
+  clampAdminPageSize
+} from '@/utils/admin-list-pager';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
@@ -1445,7 +1449,7 @@ async function load() {
   try {
     const q = new URLSearchParams({
       page: String(page.value - 1),
-      size: String(size.value)
+      size: String(clampAdminPageSize(size.value))
     });
     appendOrderFilters(q);
     if (overdueOnly.value && statusTab.value === 'PENDING') {
@@ -1493,6 +1497,7 @@ function reset() {
   load();
 }
 function onSizeChange() {
+  size.value = clampAdminPageSize(size.value);
   page.value = 1;
   load();
 }

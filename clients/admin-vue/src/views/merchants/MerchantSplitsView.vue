@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -296,7 +296,7 @@
           v-model:current-page="merchantPage"
           v-model:page-size="merchantSize"
           :total="merchantTotal"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next"
           background
           @current-change="onMerchantPageChange"
@@ -654,7 +654,7 @@
           v-model:current-page="splitPage"
           v-model:page-size="splitSize"
           :total="splitTotal"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next, jumper"
           background
           @current-change="loadSplits"

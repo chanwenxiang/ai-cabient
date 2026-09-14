@@ -446,7 +446,7 @@
 ### 7.4 上线后必须跟进项
 
 - [x] A-P1-001 路由守卫 fail-closed（未知路径 deny；明细仍靠 findNavByPath）
-- [x] A-P1-002 / A-P1-003：pageSize 上限收紧至 50；A-P1-003 keep-alive 已修（虚拟化仍可后续）
+- [x] A-P1-002 / A-P1-003：pageSize 上限收紧至 50 + `check:admin-page-size` 门禁；`AdminVirtualTable`（el-table-v2）在设备运维试点；订单/设备列表接入 `ADMIN_LIST_PAGE_SIZES`；A-P1-003 keep-alive 已修（其余大列表可按试点复制）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

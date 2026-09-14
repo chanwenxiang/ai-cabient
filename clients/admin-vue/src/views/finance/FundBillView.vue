@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -188,7 +188,7 @@
           v-model:current-page="billPage"
           v-model:page-size="billSize"
           :total="billTotal"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next"
           background
           @current-change="loadBills"
@@ -340,7 +340,7 @@
           v-model:current-page="ledgerPage"
           v-model:page-size="ledgerSize"
           :total="ledgerTotal"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next"
           background
           @current-change="loadLedger"

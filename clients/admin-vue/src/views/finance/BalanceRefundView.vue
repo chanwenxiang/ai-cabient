@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, Refresh } from '@element-plus/icons-vue';
@@ -401,7 +401,7 @@ onMounted(load);
       v-model:current-page="page"
       v-model:page-size="size"
       :total="total"
-      :page-sizes="[10, 20, 50, 100]"
+      :page-sizes="[10, 20, 50]"
       layout="total, sizes, prev, pager, next"
       background
       @current-change="load"
