@@ -253,7 +253,6 @@ import { Fold, Expand, Brush, FullScreen } from '@element-plus/icons-vue';
 import { buildSidebarTree, sidebarOpenKeysForPath } from '@/config/sidebar';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
-import { beginLogout, endLogout } from '@/api/client';
 import { useBrandStore } from '@/stores/brand';
 import { dictRuntimeEpoch } from '@/stores/dict-runtime';
 import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
@@ -644,14 +643,13 @@ async function onUserCommand(cmd: string) {
     } catch {
       return;
     }
-    beginLogout();
     try {
       await auth.logout();
       ElMessage.closeAll();
       await router.replace('/login');
-    } finally {
-      // 给在途请求一点收尾时间，再放开 Toast 抑制
-      window.setTimeout(() => endLogout(), 2500);
+    } catch {
+      // logoutSession 已清理本地态；导航失败时仍落到登录页
+      await router.replace('/login').catch(() => undefined);
     }
   }
 }
@@ -697,9 +695,7 @@ onMounted(() => {
   ) {
     userExpandedInCompact.value = true;
   }
-  auth.refreshPermissions().catch((err) => {
-    console.warn('[admin] 启动时刷新权限失败', err);
-  });
+  // A-P2-003：首屏 RBAC 已由 router.beforeEach → restore 拉取；此处不再 refresh 避免双拉
   observeTableScrollFit(document.getElementById('main-content') as HTMLElement);
   globalThis.addEventListener('click', hideTagMenu);
   globalThis.addEventListener('scroll', hideTagMenu, true);

@@ -7,13 +7,22 @@ const COOKIE_AUTH_KEY = 'admin_cookie_auth';
 
 /** 主动退出中：抑制在途请求 401 触发的「请先登录」提示与重复跳转。 */
 let loggingOut = false;
+let endLogoutTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function beginLogout() {
   loggingOut = true;
+  if (endLogoutTimer !== undefined) {
+    clearTimeout(endLogoutTimer);
+    endLogoutTimer = undefined;
+  }
 }
 
 export function endLogout() {
   loggingOut = false;
+  if (endLogoutTimer !== undefined) {
+    clearTimeout(endLogoutTimer);
+    endLogoutTimer = undefined;
+  }
 }
 
 export function isLoggingOut() {
@@ -126,13 +135,20 @@ export function isSessionSoftExpired() {
 
 /** 登出：先通知服务端清除会话 Cookie，再清理本地状态（服务端调用失败不阻塞）。 */
 export async function logoutSession() {
-  loggingOut = true;
+  beginLogout();
   try {
     await api.request<unknown>('/api/v2/auth/logout', 'POST', undefined, false);
   } catch {
     // 网络异常时 Cookie 仍会随过期时间失效；本地会话照常清理。
   } finally {
     clearSession();
+    // A-P2-001：无论从哪条路径 logout，都必须在收尾窗口后放开抑制，避免长期吞 401 Toast
+    if (typeof window !== 'undefined') {
+      if (endLogoutTimer !== undefined) clearTimeout(endLogoutTimer);
+      endLogoutTimer = setTimeout(() => endLogout(), 2500);
+    } else {
+      endLogout();
+    }
   }
 }
 

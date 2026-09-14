@@ -40,6 +40,8 @@
 | 33 | admin 列表性能 | 单页拉 100+ 行卡顿回潮；虚拟表缺位 | `page-sizes` 含 100 且无门禁；多数页仍用普通 el-table | 列表 `:page-sizes` 不得超过 50；用 `ADMIN_LIST_PAGE_SIZES` + `clampAdminPageSize`；大数据试点用 `AdminVirtualTable`；合入前 `pnpm check:admin-page-size` | `admin-list-pager.ts`、`AdminVirtualTable.vue`、`check-admin-page-size.mjs` |
 | 34 | Flyway | trade 启动报 duplicate version 270 | 两份 `V270__*.sql` 同号合入 | 新迁移必须用下一空号（已有 V270 则用 V274+）；合入前 `ls db/migration/V*.sql` 查重 | `V274__device_sku_price_version.sql` |
 | 35 | vision | 容器 uvicorn SyntaxError 起不来 | `if (` 缺右括号 | Python 改条件后本地 `python -m py_compile app/main.py` 再打镜像 | `vision-service/app/main.py` |
+| 36 | admin 鉴权 | 首屏 `/rbac/me/*` 打两遍 | App + router restore 且 Layout `onMounted` 再 `refreshPermissions` | 首屏只走 `beforeEach → restore`（inflight 去重）；Layout 仅 window `focus` 刷新 | `App.vue`、`auth.ts`、`AdminLayout.vue` |
+| 37 | admin 退出 | 非 Layout 路径 logout 后长期吞 401 Toast | `logoutSession` 置 `loggingOut=true` 却无 `endLogout` | 退出生命周期收进 `logoutSession`（begin + 定时 end） | `api/client.ts` |
 
 ## 追加模板
 
