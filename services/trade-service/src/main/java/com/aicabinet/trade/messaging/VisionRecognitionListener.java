@@ -16,6 +16,12 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 异步视觉识别结果消费者（S-P2-5）。
+ * <p>失败策略：吞异常并写入 {@link KafkaTopics#VISION_RECOGNIZE_RESULT_DLT}，
+ * 不再抛出让容器无限重试；offset 随 listener 正常返回提交。
+ * 瞬时失败由上游 vision 侧重试/人工回放 DLT，不在此做指数退避重投。
+ */
 @Component
 @ConditionalOnProperty(prefix = "aicabinet.vision-async", name = "enabled", havingValue = "true")
 public class VisionRecognitionListener {
@@ -71,6 +77,18 @@ public class VisionRecognitionListener {
             ObjectNode envelope = objectMapper.createObjectNode();
             envelope.put("error", error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
             envelope.put("payload", payload);
+            envelope.put("failedAt", System.currentTimeMillis());
+            try {
+                JsonNode node = objectMapper.readTree(payload);
+                if (node.hasNonNull("sessionId")) {
+                    envelope.put("sessionId", node.path("sessionId").asText());
+                }
+                if (node.hasNonNull("taskId")) {
+                    envelope.put("taskId", node.path("taskId").asText());
+                }
+            } catch (Exception ignored) {
+                // payload 可能非法 JSON；保留原始字符串即可
+            }
             kafkaTemplate.send(KafkaTopics.VISION_RECOGNIZE_RESULT_DLT, envelope.toString());
         } catch (Exception dltError) {
             log.error("failed to publish vision result DLT payload={}", payload, dltError);

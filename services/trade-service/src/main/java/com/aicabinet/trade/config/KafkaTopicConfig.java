@@ -21,4 +21,14 @@ public class KafkaTopicConfig {
     NewTopic visionRecognizeResultTopic() {
         return TopicBuilder.name(KafkaTopics.VISION_RECOGNIZE_RESULT).partitions(3).replicas(1).build();
     }
+
+    @Bean
+    NewTopic visionRecognizeResultDltTopic() {
+        return TopicBuilder.name(KafkaTopics.VISION_RECOGNIZE_RESULT_DLT).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    NewTopic visionRecognizeRequestDltTopic() {
+        return TopicBuilder.name(KafkaTopics.VISION_RECOGNIZE_REQUEST_DLT).partitions(3).replicas(1).build();
+    }
 }
