@@ -759,6 +759,8 @@ export const consumerApi = {
     request<
       import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').OrderSummary>
     >(`/api/v2/orders?page=${page}&size=${size}`),
+  /** C-P2-9：待补缴角标，勿拉整页订单再 filter。 */
+  pendingOrderCount: () => request<{ count: number }>('/api/v2/orders/pending-count'),
   getOrder: (orderId: string) =>
     request<import('@aicabinet/shared-types').OrderDetailDto>(`/api/v2/orders/${orderId}`),
   payOrder: (orderId: string) =>

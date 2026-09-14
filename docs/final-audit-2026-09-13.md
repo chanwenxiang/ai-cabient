@@ -108,10 +108,10 @@
 | C-P2-4 | 低 | 架构一致性 | `recharge.vue` | ~~裸 `get('/api/v2/payment/recharges')`~~ → `consumerApi.listRecharges` |
 | C-P2-5 | 中 | 体验 | `nearby.vue:98-99,160-163` | 定位失败静默回退到**硬编码上海坐标** `(31.2304,121.4737)`；未授权展示异地柜机 |
 | C-P2-6 | 低 | 安全配置 | `manifest.json:18` `urlCheck:false` | 生产构建应开启 `urlCheck` |
-| C-P2-7 | 低 | 健壮性 | `index.vue onShow` | `onShow` 流程无全局重入锁；快速多 tab 切换可能并发拉取 |
+| C-P2-7 | 低 | 健壮性 | `index.vue onShow` | ~~无重入锁~~ → `showSeq` 丢弃过期 onShow |
 | C-P2-8 | 中 | 业务逻辑 | `messages.vue` vs `coupons.vue` | ~~误以为应 claimCampaign~~ → COUPON 消息 bizId=已持有券；点击设优先券 + 跳转 UNUSED 券包置顶高亮（营销领券走 CAMPAIGN/`claimCampaign`） |
-| C-P2-9 | 低 | 性能 | `messages.vue:189-194` | 每次 `onShow` 额外拉 50 条订单只为算 `pendingCount` |
-| C-P2-10 | 低 | 竞态 | `index.vue:1810` | `finishSession` DISPUTED 分支 `setTimeout 600ms navigateTo` 与 `onShow` 重新 `resumeReopenDeviceFlow` 可能竞争 |
+| C-P2-9 | 低 | 性能 | `messages.vue` | ~~每次 onShow 拉 50 单算 pending~~ → `GET /orders/pending-count` |
+| C-P2-10 | 低 | 竞态 | `index.vue finishSession` | ~~DISPUTED 600ms 定时器与 onShow 竞态~~ → 导航在 `finishingSession` 内完成；onShow 遇 finishing 直接 return |
 
 ### 2.2 核心业务链路
 
@@ -174,7 +174,7 @@
 | M-P2-9 | 中 | `business.vue` `load` | 列表加载额外拉 `merchantApi.pricing()` 仅为取 SKU 缩略图映射 |
 | M-P2-10 | 中 | 多页 | 页内自建 `.retry` 按钮样式与 `error-state` 组件重叠 |
 | M-P2-11 | 中 | `merchant-api.ts` | `merchantApi` 聚合对象内大量重复 try/catch + `.catch(()=>[])` 兜底 |
-| M-P2-12 | 中 | `replenishment.vue` `confirmEvidenceIfNeeded` | 「去拍照」分支 `addEvidence()` 未 await 即 `return false`，complete 中止；用户需重新点完成 |
+| M-P2-12 | 中 | `confirmEvidenceIfNeeded` | ~~拍完仍 return false~~ → await 上传后有凭证则继续完成 |
 | M-P2-13 | 低 | `home.vue` | 工作台页聚合 KPI/扫码/公告/快捷入口/营收趋势，体量偏大 |
 | M-P2-14 | 中 | `mine.vue` `onBindWx` | 源码经 `wxLoginCode()`（`packages/shared-uni/src/notify.ts`）用 `uni.login`，H5 **不会**抛 `wx is undefined`，而是 reject「仅微信小程序可绑定提醒」；入口仍展示，体验不佳 | 建议 H5 隐藏绑定入口 |
 
@@ -469,6 +469,8 @@
 - [x] A-P2-006：`auth-storage` — Cookie 不落 JWT；非 Cookie 仅 `sessionStorage`；生产 `cookieEnabled=false` 拒绝持久化；遗留 localStorage JWT 自动迁移删除；`check:admin-token-storage` 并入 `check:audit-gates`
 - [x] C-P2-8：消息 COUPON 按「已持有券优先使用」收口（禁误调 claimCampaign）；深链 UNUSED + 置顶高亮；C-P2-2 成功 toast 改 showSuccess
 - [x] C-P2-4：充值记录 `consumerApi.listRecharges`；M-P2-2：分账页深链 `orderId` 置顶高亮（失败 Tab 未命中回退全部）
+- [x] M-P2-5：`clearMerchantMe` + session clear hook（登出/401 清内存 me）；M-P2-12：补货缺凭证拍照 await 后继续完成
+- [x] C-P2-9：`/api/v2/orders/pending-count` + 消息中心改用之；C-P2-7 index/messages onShow/load 序号门闩；C-P2-10 DISPUTED 导航纳入 finishingSession
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

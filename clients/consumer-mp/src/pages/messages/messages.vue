@@ -183,29 +183,31 @@ onShow(async () => {
   await load();
 });
 
+let loadSeq = 0;
+
 async function load() {
+  const seq = ++loadSeq;
   if (!list.value.length) loading.value = true;
   try {
-    const [rows, count, prefList, cfg, orders] = await Promise.all([
+    const [rows, count, prefList, cfg, pending] = await Promise.all([
       consumerApi.notifications(100),
       consumerApi.notificationUnreadCount(),
       consumerApi.notifyPrefs(),
       consumerApi.consumerPublicConfig(),
-      consumerApi.listOrders(0, 50).catch(() => null)
+      consumerApi.pendingOrderCount().catch(() => ({ count: 0 }))
     ]);
+    if (seq !== loadSeq) return;
     list.value = rows;
     unread.value = Number(count?.count || 0);
     prefs.value = prefList;
     subscribeEnabled.value = cfg?.wechatSubscribeEnabled === 'true';
     subscribeTemplateId.value = String(cfg?.wechatSubscribeTemplateId || '');
-    const items = orders?.items || orders?.content || [];
-    pendingCount.value = items.filter(
-      (o: { status?: string }) => o.status === 'PENDING' || o.status === 'UNPAID'
-    ).length;
+    pendingCount.value = Math.max(0, Number(pending?.count || 0));
   } catch (e) {
+    if (seq !== loadSeq) return;
     showError(e instanceof Error ? e.message : '加载失败');
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 

@@ -62,6 +62,13 @@ public class OrderService {
         );
     }
 
+    /** 待支付/处理中订单数（消息中心角标）。 */
+    @Transactional(readOnly = true)
+    public long countMyPendingOrders(Long userId) {
+        return orderRepository.countByUserIdAndStatusIn(
+                userId, java.util.List.of("PENDING", "PROCESSING", "UNPAID"));
+    }
+
     @Transactional(readOnly = true)
     public OrderReadModel getMyOrder(Long userId, String orderId) {
         CabinetOrder order = orderRepository.findById(orderId)
