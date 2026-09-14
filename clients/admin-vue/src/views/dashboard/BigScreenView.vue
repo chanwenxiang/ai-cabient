@@ -321,6 +321,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { displayBizNo } from '@aicabinet/shared-uni/format';
 
@@ -520,19 +521,16 @@ async function load() {
   loading.value = true;
   const today = todayStr();
   const [s, w, sl, f, k, ch, t, dr, pr, scope] = await Promise.all([
-    api.request<AdminStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
-    api.request<Workbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
-    api.request<SlaMetrics>('/api/v2/ops/admin/sla', 'GET').catch(() => null),
-    api.request<FinanceStats>('/api/v2/ops/admin/finance/stats', 'GET').catch(() => null),
-    api.request<Kpi>('/api/v2/ops/admin/device-availability-kpi', 'GET').catch(() => null),
+    api.request<AdminStats>(AdminEndpoints.stats, 'GET').catch(() => null),
+    api.request<Workbench>(AdminEndpoints.workbench, 'GET').catch(() => null),
+    api.request<SlaMetrics>(AdminEndpoints.sla, 'GET').catch(() => null),
+    api.request<FinanceStats>(AdminEndpoints.financeStats, 'GET').catch(() => null),
+    api.request<Kpi>(AdminEndpoints.deviceAvailabilityKpi, 'GET').catch(() => null),
     api
-      .request<{ orderPayChannels: ChannelStat[] }>(
-        '/api/v2/ops/admin/trend/channels?days=7',
-        'GET'
-      )
+      .request<{ orderPayChannels: ChannelStat[] }>(AdminEndpoints.trendChannels(7), 'GET')
       .catch(() => null),
     api
-      .request<{ last7Days: DailyStat[] }>('/api/v2/ops/admin/trend?days=7', 'GET')
+      .request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(7), 'GET')
       .catch(() => null),
     api
       .request<{ items: DeviceRank[]; total: number }>(
@@ -549,7 +547,7 @@ async function load() {
       .then((r) => r?.items ?? [])
       .catch(() => null),
     api
-      .request<{ demoData?: boolean; label?: string }>('/api/v2/ops/admin/data-scope', 'GET')
+      .request<{ demoData?: boolean; label?: string }>(AdminEndpoints.dataScope, 'GET')
       .catch(() => null)
   ]);
   stats.value = s;

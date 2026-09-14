@@ -355,6 +355,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -553,16 +554,16 @@ async function load(opts?: { resetSeries?: boolean }) {
     const d = days.value;
     // 财务等角色可能缺 ops 趋势权限；各块独立降级，避免整页空白
     const [s, t, o, f, c] = await Promise.all([
-      api.request<AdminStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
+      api.request<AdminStats>(AdminEndpoints.stats, 'GET').catch(() => null),
       api
-        .request<{ last7Days: DailyStat[] }>(`/api/v2/ops/admin/trend?days=${d}`, 'GET')
+        .request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(d), 'GET')
         .catch(() => null),
       api
-        .request<{ last7Days: OpsDaily[] }>(`/api/v2/ops/admin/trend/ops?days=${d}`, 'GET')
+        .request<{ last7Days: OpsDaily[] }>(AdminEndpoints.trendOps(d), 'GET')
         .catch(() => null),
-      api.request<FinanceStats>('/api/v2/ops/admin/finance/stats', 'GET').catch(() => null),
+      api.request<FinanceStats>(AdminEndpoints.financeStats, 'GET').catch(() => null),
       api
-        .request<ChannelBreakdown>(`/api/v2/ops/admin/trend/channels?days=${d}`, 'GET')
+        .request<ChannelBreakdown>(AdminEndpoints.trendChannels(d), 'GET')
         .catch(() => ({}))
     ]);
     if (!s && !t && !o && !f) {

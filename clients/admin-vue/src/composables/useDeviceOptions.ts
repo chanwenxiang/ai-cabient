@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 
 export interface DeviceOption {
   deviceId: string;
@@ -25,7 +26,7 @@ export function useDeviceOptions() {
     deviceOptionsLoading.value = true;
     try {
       deviceOptions.value = await api.request<DeviceOption[]>(
-        '/api/v2/ops/admin/devices/ref',
+        AdminEndpoints.devicesRef,
         'GET'
       );
     } catch {

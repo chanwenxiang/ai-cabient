@@ -741,6 +741,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
@@ -1030,7 +1031,7 @@ async function loadDevices() {
   try {
     deviceOptions.value =
       (await api.request<{ deviceId: string; deviceName?: string }[]>(
-        '/api/v2/ops/admin/devices/ref',
+        AdminEndpoints.devicesRef,
         'GET'
       )) || [];
   } catch {

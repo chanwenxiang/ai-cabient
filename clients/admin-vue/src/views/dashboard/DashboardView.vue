@@ -313,6 +313,7 @@ import PagePager from '@/components/PagePager.vue';
 import { Refresh, Right } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -698,7 +699,7 @@ async function fetchWorkbenchBundle() {
       stats: OpsStats;
       workbench: OpsWorkbench;
       openExceptionCount: number;
-    }>('/api/v2/ops/admin/workbench-bundle', 'GET');
+    }>(AdminEndpoints.workbenchBundle, 'GET');
     return {
       s: bundle.stats || null,
       wb: bundle.workbench || null,
@@ -707,8 +708,8 @@ async function fetchWorkbenchBundle() {
   } catch {
     // 兼容降级：窄权限角色可能对 stats/workbench 403；勿互相拖垮
     const [s, wb, ex] = await Promise.all([
-      api.request<OpsStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
-      api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
+      api.request<OpsStats>(AdminEndpoints.stats, 'GET').catch(() => null),
+      api.request<OpsWorkbench>(AdminEndpoints.workbench, 'GET').catch(() => null),
       canAccessPath('/exceptions')
         ? api
             .request<PageResult<{ exceptionId: string }>>(

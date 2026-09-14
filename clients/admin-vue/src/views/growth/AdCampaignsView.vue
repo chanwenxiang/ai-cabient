@@ -258,6 +258,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Delete, EditPen, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
@@ -417,7 +418,7 @@ async function loadDevices() {
   try {
     deviceOptions.value =
       (await api.request<{ deviceId: string; deviceName?: string }[]>(
-        '/api/v2/ops/admin/devices/ref',
+        AdminEndpoints.devicesRef,
         'GET'
       )) || [];
   } catch {

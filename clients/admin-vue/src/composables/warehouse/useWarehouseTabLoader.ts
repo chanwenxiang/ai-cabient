@@ -1,6 +1,7 @@
 import { type Ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import { adminDevWarn } from '@/utils/admin-dev-log';
 import type { createLoadSeq } from '@/composables/createLoadSeq';
@@ -58,7 +59,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
         deps.devices.value = [];
       } else {
         deps.devices.value = await api
-          .request<WarehouseTabRow[]>('/api/v2/ops/admin/devices/ref', 'GET')
+          .request<WarehouseTabRow[]>(AdminEndpoints.devicesRef, 'GET')
           .catch(() => []);
       }
     }
