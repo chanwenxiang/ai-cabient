@@ -406,7 +406,8 @@ const {
   emptyHintForDeviceFilter,
   emptyHintForStatusFilter,
   fetchList,
-  isLatestLoad
+  isLatestLoad,
+  ensureSkuCatalog
 } = useReplenishmentList({ preferredId });
 
 const detailLoading = ref(false);
@@ -468,7 +469,8 @@ const {
   status,
   canRequest,
   restoreDoorState,
-  syncDoorStateFromServer
+  syncDoorStateFromServer,
+  ensureSkuCatalog
 });
 
 const {
@@ -581,7 +583,8 @@ const { verifyCabinetScan, onScan, scanProduct } = useReplenishmentScan({
   canRequest,
   askConfirm,
   openTask,
-  adjustQty
+  adjustQty,
+  ensureSkuCatalog
 });
 
 onLoad((opts) => {

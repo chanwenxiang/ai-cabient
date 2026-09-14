@@ -171,7 +171,7 @@
 | M-P2-6 | 中 | `splits.vue` | ~~一次拉 100 无分页~~ → `PAGE_SIZE=20` + 加载更多 / onReachBottom；深链仍扫描定位 |
 | M-P2-7 | 中 | `replenishment.vue` 模板 | ~~`hero-orb` 死装饰~~ → 已删除模板节点与 `display:none` 样式 |
 | M-P2-8 | 中 | `merchant-api.ts` | ~~`@deprecated` 类型别名残留~~ → 调用方改 `shared-types`；仅保留争议视图投影类型 |
-| M-P2-9 | 中 | `business.vue` `load` | 列表加载额外拉 `merchantApi.pricing()` 仅为取 SKU 缩略图映射 |
+| M-P2-9 | 中 | 补货列表 `useReplenishmentList` | ~~列表 onShow 全量 `pricing()` 仅为缩略图/条码~~ → 详情/扫码懒加载 `ensureSkuCatalog`（`business.vue` 本无此调用） |
 | M-P2-10 | 中 | 多页 | 页内自建 `.retry` 按钮样式与 `error-state` 组件重叠 |
 | M-P2-11 | 中 | `merchant-api.ts` | `merchantApi` 聚合对象内大量重复 try/catch + `.catch(()=>[])` 兜底 |
 | M-P2-12 | 中 | `confirmEvidenceIfNeeded` | ~~拍完仍 return false~~ → await 上传后有凭证则继续完成 |
@@ -474,6 +474,7 @@
 - [x] M-P2-6：分账明细分页（20/页）+ 加载更多/触底；失败 Tab 双状态同页合并；深链 orderId 多页扫描
 - [x] M-P2-7：补货页删除 `hero-orb` 死装饰节点与样式
 - [x] M-P2-8：清除 merchant-api `@deprecated` 别名，页面改引 `shared-types`（争议视图类型保留）
+- [x] M-P2-9：补货列表去掉全量 pricing；打开详情/扫码再 `ensureSkuCatalog`
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

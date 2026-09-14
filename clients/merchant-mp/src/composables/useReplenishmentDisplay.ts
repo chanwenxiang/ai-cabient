@@ -1,5 +1,5 @@
 import type { Ref } from 'vue';
-import type { DeviceSlot } from '@aicabinet/shared-types';
+import type { DeviceSlot, MerchantSkuPricing } from '@aicabinet/shared-types';
 import { API_BASE_URL } from '@/config/api';
 
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
@@ -31,17 +31,17 @@ export function isPullOffType(type?: string) {
  * 补货详情展示：SKU 名/图、货道余量、行摘要。
  */
 export function useReplenishmentDisplay(opts: {
-  skus: Ref<Record<string, unknown>[]>;
+  skus: Ref<MerchantSkuPricing[]>;
   slotCaps: Ref<Record<string, { maxLevel: number; bookQty: number }>>;
   deviceSlotsList: Ref<DeviceSlot[]>;
 }) {
   function skuName(id: string) {
-    const s = opts.skus.value.find((item) => item.skuId === id) as { skuName?: string } | undefined;
+    const s = opts.skus.value.find((item) => item.skuId === id);
     return s?.skuName || id;
   }
 
   function skuThumb(id: string) {
-    const s = opts.skus.value.find((item) => item.skuId === id) as { imageUrl?: string } | undefined;
+    const s = opts.skus.value.find((item) => item.skuId === id);
     return absoluteImageUrl(s?.imageUrl) || LOCAL_SKU_THUMBS[id] || '';
   }
 

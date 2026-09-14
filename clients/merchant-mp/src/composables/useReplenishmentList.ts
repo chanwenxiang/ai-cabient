@@ -6,6 +6,7 @@ import {
   merchantApi
 } from '@/utils/merchant-api';
 import type {
+  MerchantSkuPricing,
   OpenApiDeviceInventoryDto,
   OpenApiMerchantReplenishmentEfficiencyDto
 } from '@aicabinet/shared-types';
@@ -60,7 +61,10 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
   const evidenceCountMap = ref<Record<number, number>>({});
   const lineSummaryMap = ref<Record<number, string>>({});
   const devices = ref<Record<string, unknown>[]>([]);
-  const skus = ref<Record<string, unknown>[]>([]);
+  /** SKU 目录（缩略图/条码）按需懒加载，禁止列表 onShow 全量拉 pricing。 */
+  const skus = ref<MerchantSkuPricing[]>([]);
+  let skuCatalogPromise: Promise<void> | null = null;
+  let skuCatalogLoaded = false;
   const efficiency = ref<OpenApiMerchantReplenishmentEfficiencyDto | null>(null);
   const lowStockList = ref<{ deviceId: string; skuCount: number; shortageQty: number }[]>([]);
   const status = ref('');
@@ -127,16 +131,36 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
   function applyReplenishmentListData(
     taskRows: Task[],
     deviceRows: Record<string, unknown>[],
-    skuRows: Record<string, unknown>[],
     eff: OpenApiMerchantReplenishmentEfficiencyDto | null,
     lowStockRows: OpenApiDeviceInventoryDto[]
   ) {
     allTasks.value = taskRows || [];
     devices.value = deviceRows;
-    skus.value = (skuRows || []) as Record<string, unknown>[];
     efficiency.value = eff;
     lowStockList.value = aggregateLowStock(lowStockRows || []);
     seedListAggregates(allTasks.value);
+  }
+
+  /**
+   * M-P2-9：详情/扫码才需要 SKU 图与条码；列表页不预拉整表 pricing。
+   */
+  async function ensureSkuCatalog(force = false) {
+    if (skuCatalogLoaded && !force) return;
+    if (skuCatalogPromise) {
+      await skuCatalogPromise;
+      return;
+    }
+    skuCatalogPromise = (async () => {
+      try {
+        skus.value = (await merchantApi.pricing()) || [];
+      } catch {
+        skus.value = [];
+      } finally {
+        skuCatalogLoaded = true;
+        skuCatalogPromise = null;
+      }
+    })();
+    await skuCatalogPromise;
   }
 
   function syncTaskInList(task: Task) {
@@ -191,21 +215,14 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     }
     if (!allTasks.value.length) loading.value = true;
     try {
-      const [taskRows, deviceRows, skuRows, eff, lowStockRows] = await Promise.all([
+      const [taskRows, deviceRows, eff, lowStockRows] = await Promise.all([
         merchantApi.replenishmentTasks().catch(() => [] as Task[]),
         merchantApi.devices().catch(() => [] as Record<string, unknown>[]),
-        merchantApi.pricing().catch(() => [] as Record<string, unknown>[]),
         merchantApi.myReplenishmentEfficiency().catch(() => null),
         merchantApi.lowStockDevices().catch(() => [] as OpenApiDeviceInventoryDto[])
       ]);
       if (seq !== loadSeq) return { seq, aborted: true };
-      applyReplenishmentListData(
-        taskRows,
-        deviceRows,
-        skuRows as Record<string, unknown>[],
-        eff,
-        lowStockRows
-      );
+      applyReplenishmentListData(taskRows, deviceRows, eff, lowStockRows);
       return { seq, aborted: false };
     } catch (error) {
       if (seq !== loadSeq) return { seq, aborted: true };
@@ -241,6 +258,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     lineSummaryOf,
     seedListAggregates,
     applyReplenishmentListData,
+    ensureSkuCatalog,
     syncTaskInList,
     changeStatus,
     clearDeviceFilter,
