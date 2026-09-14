@@ -121,15 +121,31 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
     return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery().in(OrderRevenueSplit::getMerchantId, merchantIds).gt(OrderRevenueSplit::getCreatedAt, since));
     }
 
-        List<OrderRevenueSplit> searchByMerchantsAll(@org.springframework.data.repository.query.Param("merchantIds") Collection<String> merchantIds, @org.springframework.data.repository.query.Param("status") String status, @org.springframework.data.repository.query.Param("from") java.time.Instant from, @org.springframework.data.repository.query.Param("to") java.time.Instant to);
-
-
-    default Page<OrderRevenueSplit> searchByMerchants( @org.springframework.data.repository.query.Param("merchantIds") Collection<String> merchantIds, @org.springframework.data.repository.query.Param("status") String status, @org.springframework.data.repository.query.Param("from") java.time.Instant from, @org.springframework.data.repository.query.Param("to") java.time.Instant to, Pageable pageable) {
-    var all = searchByMerchantsAll(merchantIds, status, from, to);
-    int start = (int) pageable.getOffset();
-    int end = Math.min(start + pageable.getPageSize(), all.size());
-    var slice = start >= all.size() ? java.util.List.<OrderRevenueSplit>of() : all.subList(start, end);
-    return new org.springframework.data.domain.PageImpl<>(slice, pageable, all.size());
+    /**
+     * 商户分账列表：DB 侧 LIMIT/OFFSET（禁止先全表再 subList）。
+     * {@code status} 为空串时不过滤状态。
+     */
+    default Page<OrderRevenueSplit> searchByMerchants(
+            Collection<String> merchantIds,
+            String status,
+            java.time.Instant from,
+            java.time.Instant to,
+            Pageable pageable) {
+        if (merchantIds == null || merchantIds.isEmpty()) {
+            return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
+        }
+        boolean filterStatus = status != null && !status.isBlank();
+        var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<OrderRevenueSplit>(
+                pageable.getPageNumber() + 1L, pageable.getPageSize());
+        var result = selectPage(
+                mpPage,
+                Wrappers.<OrderRevenueSplit>lambdaQuery()
+                        .in(OrderRevenueSplit::getMerchantId, merchantIds)
+                        .ge(OrderRevenueSplit::getCreatedAt, from)
+                        .lt(OrderRevenueSplit::getCreatedAt, to)
+                        .eq(filterStatus, OrderRevenueSplit::getStatus, status)
+                        .orderByDesc(OrderRevenueSplit::getCreatedAt));
+        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
         long sumMerchantCentsByMerchantIdInAndStatusIn( @org.springframework.data.repository.query.Param("merchantIds") Collection<String> merchantIds, @org.springframework.data.repository.query.Param("statuses") Collection<String> statuses);
