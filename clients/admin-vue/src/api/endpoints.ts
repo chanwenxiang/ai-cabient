@@ -166,7 +166,23 @@ export const AdminEndpoints = {
     typeof query === 'string' ? `${ops}/skus?${query}` : `${ops}/skus?${query.toString()}`,
   skusCatalogPage: `${ops}/skus?page=0&size=500`,
   sku: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}`,
-  skusImage: `${ops}/skus/image`
+  skusImage: `${ops}/skus/image`,
+
+  /** SKU 视觉建档 */
+  skuVisionRows: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/sku-vision/rows?${query}`
+      : `${ops}/sku-vision/rows?${query.toString()}`,
+  skuVisionRowsAll: `${ops}/sku-vision/rows?status=ALL&page=0&size=500`,
+  skuVisionEnroll: `${ops}/sku-vision/enroll`,
+  skuVisionPipeline: `${ops}/sku-vision/pipeline`,
+  skuVisionSuggestClass: `${ops}/sku-vision/suggest-class`,
+  skuVisionSuggestClassName: (skuName: string) =>
+    `${ops}/sku-vision/suggest-class-name?skuName=${encodeURIComponent(skuName)}`,
+  skuVisionAdvance: (skuId: string) =>
+    `${ops}/sku-vision/${encodeURIComponent(skuId)}/advance`,
+  skuVisionStatus: (skuId: string, status: string) =>
+    `${ops}/sku-vision/${encodeURIComponent(skuId)}/status?status=${encodeURIComponent(status)}`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -185,5 +201,6 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/sessions',
   '/api/v2/ops/admin/merchants',
   '/api/v2/ops/admin/merchant-onboarding',
-  '/api/v2/ops/admin/skus'
+  '/api/v2/ops/admin/skus',
+  '/api/v2/ops/admin/sku-vision'
 ] as const;

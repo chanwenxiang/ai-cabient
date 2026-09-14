@@ -648,7 +648,7 @@ function onSizeChange() {
 async function loadCatalogOptions() {
   try {
     const data = await api.request<{ items: SkuVisionEnrollmentRow[] }>(
-      '/api/v2/ops/admin/sku-vision/rows?status=ALL&page=0&size=500',
+      AdminEndpoints.skuVisionRowsAll,
       'GET'
     );
     catalogOptions.value = (data.items || []).map((r) => r.sku);
@@ -856,7 +856,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
           ),
           mappingSource: 'EDGE_CLASS'
         };
-        await api.request<SkuCatalog>('/api/v2/ops/admin/sku-vision/enroll', 'POST', body);
+        await api.request<SkuCatalog>(AdminEndpoints.skuVisionEnroll, 'POST', body);
         ok++;
       }
       clearSelection();
@@ -1091,7 +1091,7 @@ async function suggestClassName(forceReplace: boolean) {
   suggestingClass.value = true;
   try {
     const data = await api.request<{ yoloClassName: string }>(
-      `/api/v2/ops/admin/sku-vision/suggest-class-name?skuName=${encodeURIComponent(enrollForm.skuName)}`,
+      AdminEndpoints.skuVisionSuggestClassName(enrollForm.skuName),
       'GET'
     );
     if (!forceReplace && enrollForm.yoloClassName.trim()) return;
@@ -1119,7 +1119,7 @@ async function onClassImagePick(ev: Event) {
   classSuggestHint.value = '';
   try {
     const result = await uploadMultipart<{ yoloClassName?: string; reason?: string }>(
-      '/api/v2/ops/admin/sku-vision/suggest-class',
+      AdminEndpoints.skuVisionSuggestClass,
       { skuName: enrollForm.skuName, image: file }
     );
     if (result.yoloClassName) {
@@ -1196,7 +1196,7 @@ async function saveEnroll() {
       mappingSource: 'EDGE_CLASS'
     };
     const updated = await api.request<SkuCatalog>(
-      '/api/v2/ops/admin/sku-vision/enroll',
+      AdminEndpoints.skuVisionEnroll,
       'POST',
       body
     );
@@ -1238,7 +1238,7 @@ async function advanceRow(row: SkuCatalog) {
     }
     advancing.value = true;
     const updated = await api.request<SkuVisionEnrollmentRow>(
-      `/api/v2/ops/admin/sku-vision/${encodeURIComponent(row.skuId)}/advance`,
+      AdminEndpoints.skuVisionAdvance(row.skuId),
       'POST'
     );
     await applyRowUpdate(updated);
@@ -1263,7 +1263,7 @@ async function markProduction(row: SkuCatalog) {
       { type: 'warning', confirmButtonText: '确认转生产' }
     );
     const updated = await api.request<SkuCatalog>(
-      `/api/v2/ops/admin/sku-vision/${encodeURIComponent(row.skuId)}/status?status=PRODUCTION`,
+      AdminEndpoints.skuVisionStatus(row.skuId, 'PRODUCTION'),
       'PATCH'
     );
     const idx = items.value.findIndex((i) => i.skuId === row.skuId);
@@ -1286,7 +1286,7 @@ async function markTestedFromPreview() {
   advancing.value = true;
   try {
     const updated = await api.request<SkuCatalog>(
-      `/api/v2/ops/admin/sku-vision/${encodeURIComponent(testForm.skuId)}/status?status=TESTED`,
+      AdminEndpoints.skuVisionStatus(testForm.skuId, 'TESTED'),
       'PATCH'
     );
     const idx = items.value.findIndex((i) => i.skuId === updated.skuId);
@@ -1420,11 +1420,11 @@ async function load() {
   try {
     const [rowsRes, pipeline] = await Promise.all([
       api.request<{ items: SkuVisionEnrollmentRow[]; total: number }>(
-        `/api/v2/ops/admin/sku-vision/rows?${queryParams()}`,
+        AdminEndpoints.skuVisionRows(queryParams()),
         'GET'
       ),
       api
-        .request<SkuVisionEnrollmentPipeline>('/api/v2/ops/admin/sku-vision/pipeline', 'GET')
+        .request<SkuVisionEnrollmentPipeline>(AdminEndpoints.skuVisionPipeline, 'GET')
         .catch(() => null)
     ]);
     items.value = (rowsRes.items || []).map((r) => r.sku);
