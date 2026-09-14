@@ -87,7 +87,44 @@ export const AdminEndpoints = {
   sessionCancel: (sessionId: string) =>
     `${ops}/sessions/${encodeURIComponent(sessionId)}/cancel`,
   sessionVideo: (sessionId: string) =>
-    `${ops}/sessions/${encodeURIComponent(sessionId)}/video`
+    `${ops}/sessions/${encodeURIComponent(sessionId)}/video`,
+
+  /** 柜机中心（list / detail / 生命周期 / 指令 / 货道 / 温控） */
+  devices: `${ops}/devices`,
+  devicesList: (query: URLSearchParams | string) =>
+    typeof query === 'string' ? `${ops}/devices?${query}` : `${ops}/devices?${query.toString()}`,
+  devicesMapPoints: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/devices/map-points?${query}`
+      : `${ops}/devices/map-points?${query.toString()}`,
+  device: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}`,
+  deviceDetail: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/detail`,
+  devicePolicy: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/policy`,
+  deviceLifecycle: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/lifecycle`,
+  deviceLifecycleEvents: (deviceId: string, limit = 40) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/lifecycle-events?limit=${limit}`,
+  deviceCommands: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/commands`,
+  deviceQrLink: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/qr-link`,
+  deviceQrPng: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/qr.png`,
+  deviceTempPlan: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/temp-plan`,
+  deviceTempPlanApply: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/temp-plan/apply`,
+  deviceEnvReadings: (deviceId: string, query: URLSearchParams | string = 'hours=24&limit=200') =>
+    typeof query === 'string'
+      ? `${ops}/devices/${encodeURIComponent(deviceId)}/env-readings?${query}`
+      : `${ops}/devices/${encodeURIComponent(deviceId)}/env-readings?${query.toString()}`,
+  deviceResetHardwareBinding: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/reset-hardware-binding`,
+  deviceRegenerateId: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/regenerate-id`,
+  deviceSlots: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/slots`,
+  deviceSlotsApplyTemplate: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/slots/apply-template`,
+  deviceSlotsStocktake: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/slots/stocktake`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -100,6 +137,7 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/finance/stats',
   '/api/v2/ops/admin/device-availability-kpi',
   '/api/v2/ops/admin/devices/ref',
+  '/api/v2/ops/admin/devices',
   '/api/v2/ops/admin/exceptions',
   '/api/v2/ops/admin/orders',
   '/api/v2/ops/admin/sessions'

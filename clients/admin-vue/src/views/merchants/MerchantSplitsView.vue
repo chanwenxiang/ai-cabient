@@ -807,6 +807,7 @@ import { CircleCheck, Refresh, RefreshRight, Upload } from '@element-plus/icons-
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -968,7 +969,7 @@ function assignDeviceLabel(d: {
 
 async function postDeviceLifecycle(deviceId: string, action: string, merchantId?: string) {
   return api.request(
-    `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle`,
+    AdminEndpoints.deviceLifecycle(deviceId),
     'POST',
     {
       action,
@@ -1575,7 +1576,7 @@ async function openAssignDevices(row: MerchantDto) {
     }
     if (!allDevices.value.length) {
       const page = await api.request<PageResult<AssignDeviceRow> | AssignDeviceRow[]>(
-        '/api/v2/ops/admin/devices?page=0&size=200',
+        AdminEndpoints.devicesList('page=0&size=200'),
         'GET'
       );
       allDevices.value = Array.isArray(page) ? page : page?.items || [];

@@ -113,6 +113,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useSettingsStore } from '@/stores/settings';
@@ -205,7 +206,7 @@ async function load() {
     const q = new URLSearchParams();
     if (lifecycleStatus.value) q.set('lifecycleStatus', lifecycleStatus.value);
     points.value = await api.request<MapPoint[]>(
-      `/api/v2/ops/admin/devices/map-points?${q}`,
+      AdminEndpoints.devicesMapPoints(q),
       'GET'
     );
     await nextTick();

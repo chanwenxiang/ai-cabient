@@ -528,6 +528,7 @@ import { Refresh, Setting, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -765,7 +766,7 @@ async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
     for (const row of targets) {
       try {
         await api.request(
-          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId ?? '')}/lifecycle`,
+          AdminEndpoints.deviceLifecycle(row.deviceId ?? ''),
           'POST',
           { action, remark: `batch-${action.toLowerCase()}` }
         );
@@ -818,7 +819,7 @@ async function batchRetire() {
     for (const row of targets) {
       try {
         await api.request(
-          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId ?? '')}/lifecycle`,
+          AdminEndpoints.deviceLifecycle(row.deviceId ?? ''),
           'POST',
           { action: 'RETIRE', remark }
         );
@@ -865,7 +866,7 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
     for (const row of targets) {
       try {
         const result = await api.request<{ salesLocked?: boolean }>(
-          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId ?? '')}/commands`,
+          AdminEndpoints.deviceCommands(row.deviceId ?? ''),
           'POST',
           { command, reason: `batch-${command.toLowerCase()}` }
         );
@@ -938,7 +939,7 @@ async function savePolicy() {
   policySaving.value = true;
   try {
     const updated = await api.request<OpenApiAdminDeviceDto>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(policyForm.deviceId)}`,
+      AdminEndpoints.device(policyForm.deviceId),
       'PATCH',
       { refundPolicy: policyForm.refundPolicy }
     );
@@ -989,7 +990,7 @@ async function refreshBoardCounts() {
           if (spec.online) q.set('online', spec.online);
           if (spec.salesLocked) q.set('salesLocked', spec.salesLocked);
           const data = await api.request<OpenApiPageResultAdminDeviceDto>(
-            `/api/v2/ops/admin/devices?${q}`,
+            AdminEndpoints.devicesList(q),
             'GET'
           );
           boardCounts[spec.key] = data.total || 0;
@@ -1007,7 +1008,7 @@ async function refreshBoardCounts() {
           });
           if (keyword.value.trim()) q.set('q', keyword.value.trim());
           const data = await api.request<OpenApiPageResultAdminDeviceDto>(
-            `/api/v2/ops/admin/devices?${q}`,
+            AdminEndpoints.devicesList(q),
             'GET'
           );
           attentionOverlap.value = data.total || 0;
@@ -1052,7 +1053,7 @@ async function load(showToast = false) {
     if (filters.online) q.set('online', filters.online);
     if (filters.salesLocked) q.set('salesLocked', filters.salesLocked);
     const data = await api.request<OpenApiPageResultAdminDeviceDto>(
-      `/api/v2/ops/admin/devices?${q}`,
+      AdminEndpoints.devicesList(q),
       'GET'
     );
     if (!loadSeq.isCurrent(seq)) return;
@@ -1105,7 +1106,7 @@ async function saveCreate() {
   }
   createSaving.value = true;
   try {
-    const created = await api.request<{ deviceId: string }>('/api/v2/ops/admin/devices', 'POST', {
+    const created = await api.request<{ deviceId: string }>(AdminEndpoints.devices, 'POST', {
       deviceName: createForm.deviceName.trim() || undefined,
       deviceType: createForm.deviceType || undefined,
       merchantId: createForm.merchantId || undefined

@@ -1369,7 +1369,7 @@ function addTempPlanEntry() {
 async function loadTempPlan() {
   try {
     const dto = await api.request<DeviceTempPlan>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/temp-plan`,
+      AdminEndpoints.deviceTempPlan(deviceId),
       'GET'
     );
     tempPlanEnabled.value = !!dto?.enabled;
@@ -1386,7 +1386,7 @@ async function saveTempPlan() {
   tempPlanSaving.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/temp-plan`,
+      AdminEndpoints.deviceTempPlan(deviceId),
       'PUT',
       {
         enabled: tempPlanEnabled.value,
@@ -1409,7 +1409,7 @@ async function applyTempPlanNow() {
   tempPlanSaving.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/temp-plan/apply`,
+      AdminEndpoints.deviceTempPlanApply(deviceId),
       'POST'
     );
     ElMessage.success('已按当前时段下发目标温度');
@@ -1424,7 +1424,7 @@ async function loadEnvReadings() {
   try {
     envRows.value =
       (await api.request<DeviceEnvReading[]>(
-        `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/env-readings?hours=24&limit=200`,
+        AdminEndpoints.deviceEnvReadings(deviceId),
         'GET'
       )) || [];
   } catch {
@@ -1580,13 +1580,13 @@ async function loadQr() {
   qrLoading.value = true;
   try {
     const link = await api.request<{ deviceId: string; url: string }>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr-link`,
+      AdminEndpoints.deviceQrLink(deviceId),
       'GET'
     );
     qrUrl.value = link.url || '';
     revokeQrPreview();
     const res = await authFetch(
-      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin}/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`
+      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin}${AdminEndpoints.deviceQrPng(deviceId)}`
     );
     if (!res.ok) throw new Error('二维码图片加载失败');
     const blob = await res.blob();
@@ -1616,7 +1616,7 @@ async function downloadQr() {
   qrDownloading.value = true;
   try {
     await downloadAuthFile(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`,
+      AdminEndpoints.deviceQrPng(deviceId),
       `${deviceId}-qr.png`
     );
   } catch (e) {
@@ -1658,7 +1658,7 @@ const editForm = reactive({
 
 async function loadAsset() {
   const row = await api.request<OpenApiAdminDeviceDto>(
-    `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
+    AdminEndpoints.device(deviceId),
     'GET'
   );
   fillAsset(row);
@@ -1677,7 +1677,7 @@ async function loadLifecycleEvents() {
   try {
     lifecycleEvents.value = await api
       .request<LifecycleEventRow[]>(
-        `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle-events?limit=40`,
+        AdminEndpoints.deviceLifecycleEvents(deviceId),
         'GET'
       )
       .catch(() => []);
@@ -1729,7 +1729,7 @@ async function createRepair() {
 
 async function loadDetail() {
   const detail = await api.request<DeviceDetail>(
-    `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/detail`,
+    AdminEndpoints.deviceDetail(deviceId),
     'GET'
   );
   device.value = detail.device;
@@ -1746,7 +1746,7 @@ async function loadDetail() {
   ]);
   try {
     policy.value = await api.request(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/policy`,
+      AdminEndpoints.devicePolicy(deviceId),
       'GET'
     );
   } catch {
@@ -1783,7 +1783,7 @@ async function saveRefundPolicy() {
   refundPolicySaving.value = true;
   try {
     const updated = await api.request<OpenApiAdminDeviceDto>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
+      AdminEndpoints.device(deviceId),
       'PATCH',
       { refundPolicy: refundPolicyDraft.value }
     );
@@ -1810,7 +1810,7 @@ async function saveAsset() {
   assetSaving.value = true;
   try {
     const row = await api.request<OpenApiAdminDeviceDto>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
+      AdminEndpoints.device(deviceId),
       'PATCH',
       {
         assetOwner: asset.assetOwner || null,
@@ -1997,7 +1997,7 @@ async function runLifecycle(action: string, requireRemark = false, merchantId?: 
     }
     lifeLoading.value = action;
     const row = await api.request<OpenApiAdminDeviceDto>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle`,
+      AdminEndpoints.deviceLifecycle(deviceId),
       'POST',
       { action, merchantId, remark: remark || undefined }
     );
@@ -2027,7 +2027,7 @@ async function resetHardwareBinding() {
   hardwareResetLoading.value = true;
   try {
     const row = await api.request<OpenApiAdminDeviceDto>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/reset-hardware-binding`,
+      AdminEndpoints.deviceResetHardwareBinding(deviceId),
       'POST'
     );
     fillAsset(row);
@@ -2064,7 +2064,7 @@ async function regenerateDeviceId() {
   regenerateIdLoading.value = true;
   try {
     const row = await api.request<OpenApiAdminDeviceDto>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/regenerate-id`,
+      AdminEndpoints.deviceRegenerateId(deviceId),
       'POST'
     );
     const newId = row.deviceId ?? '';
@@ -2081,7 +2081,7 @@ async function savePolicy() {
   if (!policy.value || !canEditDevice.value) return;
   try {
     policy.value = await api.request(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/policy`,
+      AdminEndpoints.devicePolicy(deviceId),
       'PUT',
       policy.value
     );
@@ -2172,7 +2172,7 @@ async function sendCommand(command: string) {
     });
     cmdLoading.value = command;
     const result = await api.request<{ message?: string; salesLocked?: boolean }>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/commands`,
+      AdminEndpoints.deviceCommands(deviceId),
       'POST',
       { command, reason: reason }
     );
@@ -2204,7 +2204,7 @@ async function setTargetTemp() {
     );
     cmdLoading.value = 'SET_TEMP';
     const result = await api.request<{ message?: string }>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/commands`,
+      AdminEndpoints.deviceCommands(deviceId),
       'POST',
       { command: 'SET_TEMP', reason, targetTempC: tempDraft.value }
     );
@@ -2235,7 +2235,7 @@ async function applyTemplate() {
   applying.value = true;
   try {
     const n = await api.request<number>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/slots/apply-template`,
+      AdminEndpoints.deviceSlotsApplyTemplate(deviceId),
       'POST'
     );
     ElMessage.success(`已套用模板，新增 ${n} 个货道`);
@@ -2287,7 +2287,7 @@ async function runStocktake(adjustBookQty: boolean) {
   stocktaking.value = true;
   try {
     const updated = await api.request<DeviceSlot>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/slots/stocktake`,
+      AdminEndpoints.deviceSlotsStocktake(deviceId),
       'POST',
       {
         slotCode: editForm.slotCode,
@@ -2330,7 +2330,7 @@ async function saveSlot() {
   ];
   try {
     slots.value = await api.request<DeviceSlot[]>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/slots`,
+      AdminEndpoints.deviceSlots(deviceId),
       'PUT',
       body
     );
