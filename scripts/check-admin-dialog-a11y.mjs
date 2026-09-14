@@ -41,7 +41,11 @@ for (const file of roots.flatMap((r) => walk(r))) {
   let m;
   while ((m = tagRe.exec(text))) {
     const attrs = m[2];
-    if (/title\s*=/.test(attrs) || /aria-label\s*=/.test(attrs) || /aria-labelledby\s*=/.test(attrs)) {
+    if (
+      /title\s*=/.test(attrs) ||
+      /aria-label\s*=/.test(attrs) ||
+      /aria-labelledby\s*=/.test(attrs)
+    ) {
       continue;
     }
     const line = text.slice(0, m.index).split(/\n/).length;

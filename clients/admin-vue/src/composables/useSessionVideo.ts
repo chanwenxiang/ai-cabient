@@ -14,9 +14,7 @@ async function fetchSessionVideoBlob(sessionId?: string | null): Promise<Session
   if (!id) {
     throw new Error('无关联会话，无法播放录像');
   }
-  const res = await authFetch(
-    `${globalThis.location.origin}${AdminEndpoints.sessionVideo(id)}`
-  );
+  const res = await authFetch(`${globalThis.location.origin}${AdminEndpoints.sessionVideo(id)}`);
   if (!res.ok) {
     if (res.status === 404) throw new Error('录像尚未上传或不存在');
     if (res.status === 403) throw new Error('无录像查看权限');

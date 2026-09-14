@@ -26,9 +26,7 @@ const emptyState = (): AppConfirmDialogState => ({
  * H5 可访问确认框状态（替代 uni.showModal）。
  * onRemember 在用户勾选「记住」并点确认时回调（如跳过定位）。
  */
-export function useAppConfirmDialog(options?: {
-  onRemember?: () => void;
-}) {
+export function useAppConfirmDialog(options?: { onRemember?: () => void }) {
   const confirmDialog = ref<AppConfirmDialogState>(emptyState());
 
   function askConfirm(opts: {

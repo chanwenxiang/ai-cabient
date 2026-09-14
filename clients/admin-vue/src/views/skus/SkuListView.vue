@@ -610,11 +610,7 @@ async function batchDelist() {
   try {
     for (const row of targets) {
       try {
-        await api.request(
-          AdminEndpoints.sku(row.skuId),
-          'PUT',
-          toUpsertBody(row, 'INACTIVE')
-        );
+        await api.request(AdminEndpoints.sku(row.skuId), 'PUT', toUpsertBody(row, 'INACTIVE'));
         const idx = items.value.findIndex((x) => x.skuId === row.skuId);
         if (idx >= 0) items.value[idx] = { ...items.value[idx], status: 'INACTIVE' };
         ok += 1;
@@ -708,11 +704,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
           referenceImageUrlsJson: existing?.referenceImageUrlsJson
         };
         if (existing) {
-          await api.request(
-            AdminEndpoints.sku(existing.skuId),
-            'PUT',
-            body
-          );
+          await api.request(AdminEndpoints.sku(existing.skuId), 'PUT', body);
         } else {
           await api.request(AdminEndpoints.skus, 'POST', body);
         }
@@ -866,11 +858,7 @@ async function saveEdit() {
     };
     let updated: SkuCatalog;
     if (form.existing) {
-      updated = await api.request<SkuCatalog>(
-        AdminEndpoints.sku(form.skuId),
-        'PUT',
-        body
-      );
+      updated = await api.request<SkuCatalog>(AdminEndpoints.sku(form.skuId), 'PUT', body);
     } else {
       updated = await api.request<SkuCatalog>(AdminEndpoints.skus, 'POST', body);
     }

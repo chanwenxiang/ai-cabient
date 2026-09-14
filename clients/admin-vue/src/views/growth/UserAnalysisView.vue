@@ -292,9 +292,7 @@ type CouponDef = {
 async function load() {
   loading.value = true;
   try {
-    s.value = await api.request<Summary>(
-      AdminEndpoints.growthUserAnalysis(days.value)
-    );
+    s.value = await api.request<Summary>(AdminEndpoints.growthUserAnalysis(days.value));
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {

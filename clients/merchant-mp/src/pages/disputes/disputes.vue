@@ -259,10 +259,13 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
 import EmptyState from '@/components/empty-state.vue';
-import { hasPerm,
+import {
+  hasPerm,
   merchantApi,
   type MerchantDisputeTicket,
-  type MerchantDisputeDetailView, isMerchantLoggedIn } from '@/utils/merchant-api';
+  type MerchantDisputeDetailView,
+  isMerchantLoggedIn
+} from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { promptText } from '@/utils/text-prompt';
 import type { MerchantMe } from '@aicabinet/shared-types';

@@ -991,19 +991,15 @@ async function saveForm() {
       formDlg.value = false;
       await loadOperators();
     } else {
-      const created = await api.request<{ userId: number }>(
-        AdminEndpoints.rbacOperators,
-        'POST',
-        {
-          name: f.name.trim(),
-          phoneNumber: f.phoneNumber.trim(),
-          password: f.password,
-          status: f.status,
-          roleIds: f.roleIds,
-          deptIds: f.deptIds,
-          primaryDeptId: f.primaryDeptId
-        }
-      );
+      const created = await api.request<{ userId: number }>(AdminEndpoints.rbacOperators, 'POST', {
+        name: f.name.trim(),
+        phoneNumber: f.phoneNumber.trim(),
+        password: f.password,
+        status: f.status,
+        roleIds: f.roleIds,
+        deptIds: f.deptIds,
+        primaryDeptId: f.primaryDeptId
+      });
       ElMessage.success('已创建');
       formDlg.value = false;
       await loadOperators();
@@ -1069,9 +1065,7 @@ async function saveRoles() {
   }
   saving.value = true;
   try {
-    await api.request(AdminEndpoints.rbacUserRoles(currentUserId.value), 'PUT', [
-      ...selected
-    ]);
+    await api.request(AdminEndpoints.rbacUserRoles(currentUserId.value), 'PUT', [...selected]);
     ElMessage.success('角色已更新');
     roleDlg.value = false;
     const tasks: Promise<unknown>[] = [loadOperators()];

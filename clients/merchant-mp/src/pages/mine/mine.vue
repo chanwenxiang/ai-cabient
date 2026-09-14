@@ -171,9 +171,7 @@
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
-import { clearSession,
-  hasPerm,
-  merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
+import { clearSession, hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
   hasSubscribeTemplates,
   MERCHANT_ALERT_TYPES,

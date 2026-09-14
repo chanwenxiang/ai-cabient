@@ -376,7 +376,11 @@
             >
               刷新状态
             </button>
-            <button class="cart-help-btn ghost" hover-class="btn-hover" @click.stop="onLiveNeedHelp">
+            <button
+              class="cart-help-btn ghost"
+              hover-class="btn-hover"
+              @click.stop="onLiveNeedHelp"
+            >
               未出账单？
             </button>
           </view>

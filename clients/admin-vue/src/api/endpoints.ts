@@ -38,8 +38,7 @@ export const AdminEndpoints = {
       ? `${ops}/exceptions?${query}`
       : `${ops}/exceptions?${query.toString()}`,
   exceptionsOpenCount: `${ops}/exceptions?status=OPEN&page=0&size=1`,
-  exception: (exceptionId: string) =>
-    `${ops}/exceptions/${encodeURIComponent(exceptionId)}`,
+  exception: (exceptionId: string) => `${ops}/exceptions/${encodeURIComponent(exceptionId)}`,
   exceptionArchive: (exceptionId: string) =>
     `${ops}/exceptions/${encodeURIComponent(exceptionId)}/archive`,
   exceptionUnarchive: (exceptionId: string) =>
@@ -84,10 +83,8 @@ export const AdminEndpoints = {
     const qs = typeof query === 'string' ? query : query.toString();
     return qs ? `${ops}/sessions/export?${qs}` : `${ops}/sessions/export`;
   },
-  sessionCancel: (sessionId: string) =>
-    `${ops}/sessions/${encodeURIComponent(sessionId)}/cancel`,
-  sessionVideo: (sessionId: string) =>
-    `${ops}/sessions/${encodeURIComponent(sessionId)}/video`,
+  sessionCancel: (sessionId: string) => `${ops}/sessions/${encodeURIComponent(sessionId)}/cancel`,
+  sessionVideo: (sessionId: string) => `${ops}/sessions/${encodeURIComponent(sessionId)}/video`,
 
   /** 柜机中心（list / detail / 生命周期 / 指令 / 货道 / 温控） */
   devices: `${ops}/devices`,
@@ -100,16 +97,13 @@ export const AdminEndpoints = {
   device: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}`,
   deviceDetail: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/detail`,
   devicePolicy: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/policy`,
-  deviceLifecycle: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/lifecycle`,
+  deviceLifecycle: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/lifecycle`,
   deviceLifecycleEvents: (deviceId: string, limit = 40) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/lifecycle-events?limit=${limit}`,
-  deviceCommands: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/commands`,
+  deviceCommands: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/commands`,
   deviceQrLink: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/qr-link`,
   deviceQrPng: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/qr.png`,
-  deviceTempPlan: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/temp-plan`,
+  deviceTempPlan: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/temp-plan`,
   deviceTempPlanApply: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/temp-plan/apply`,
   deviceEnvReadings: (deviceId: string, query: URLSearchParams | string = 'hours=24&limit=200') =>
@@ -179,8 +173,7 @@ export const AdminEndpoints = {
   skuVisionSuggestClass: `${ops}/sku-vision/suggest-class`,
   skuVisionSuggestClassName: (skuName: string) =>
     `${ops}/sku-vision/suggest-class-name?skuName=${encodeURIComponent(skuName)}`,
-  skuVisionAdvance: (skuId: string) =>
-    `${ops}/sku-vision/${encodeURIComponent(skuId)}/advance`,
+  skuVisionAdvance: (skuId: string) => `${ops}/sku-vision/${encodeURIComponent(skuId)}/advance`,
   skuVisionStatus: (skuId: string, status: string) =>
     `${ops}/sku-vision/${encodeURIComponent(skuId)}/status?status=${encodeURIComponent(status)}`,
 
@@ -241,10 +234,8 @@ export const AdminEndpoints = {
       ? `${ops}/warehouse/list?${query}`
       : `${ops}/warehouse/list?${query.toString()}`,
   warehouseListAll: `${ops}/warehouse/list?page=0&size=500`,
-  warehouseItem: (warehouseId: string) =>
-    `${ops}/warehouse/${encodeURIComponent(warehouseId)}`,
-  warehouseExport: (tab: string) =>
-    `${ops}/warehouse/export?tab=${encodeURIComponent(tab)}`,
+  warehouseItem: (warehouseId: string) => `${ops}/warehouse/${encodeURIComponent(warehouseId)}`,
+  warehouseExport: (tab: string) => `${ops}/warehouse/export?tab=${encodeURIComponent(tab)}`,
   warehouseInbound: `${ops}/warehouse/inbound`,
   warehouseOutbounds: (query: URLSearchParams | string) =>
     typeof query === 'string'
@@ -361,9 +352,7 @@ export const AdminEndpoints = {
   balanceRefundReview: (requestId: string | number) =>
     `${ops}/balance-refunds/${encodeURIComponent(String(requestId))}/review`,
   invoicesList: (query: URLSearchParams | string) =>
-    typeof query === 'string'
-      ? `${ops}/invoices?${query}`
-      : `${ops}/invoices?${query.toString()}`,
+    typeof query === 'string' ? `${ops}/invoices?${query}` : `${ops}/invoices?${query.toString()}`,
   invoiceIssue: (invoiceId: string | number) =>
     `${ops}/invoices/${encodeURIComponent(String(invoiceId))}/issue`,
   invoiceReject: (invoiceId: string | number) =>
@@ -419,8 +408,7 @@ export const AdminEndpoints = {
 
   /** RBAC / 部门 */
   rbacRoles: `${ops}/rbac/roles`,
-  rbacRole: (roleId: string | number) =>
-    `${ops}/rbac/roles/${encodeURIComponent(String(roleId))}`,
+  rbacRole: (roleId: string | number) => `${ops}/rbac/roles/${encodeURIComponent(String(roleId))}`,
   rbacRolePermissions: (roleId: string | number) =>
     `${ops}/rbac/roles/${encodeURIComponent(String(roleId))}/permissions`,
   rbacPermissions: `${ops}/rbac/permissions`,
@@ -432,8 +420,7 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/rbac/operators?${query}`
       : `${ops}/rbac/operators?${query.toString()}`,
-  rbacOperatorsPage: (page = 0, size = 200) =>
-    `${ops}/rbac/operators?page=${page}&size=${size}`,
+  rbacOperatorsPage: (page = 0, size = 200) => `${ops}/rbac/operators?page=${page}&size=${size}`,
   rbacOperator: (userId: string | number) =>
     `${ops}/rbac/operators/${encodeURIComponent(String(userId))}`,
   rbacOperatorResetPassword: (userId: string | number) =>
@@ -461,22 +448,18 @@ export const AdminEndpoints = {
 
   /** 系统配置 / 字典 / 定时任务 / 审批 / 组织 / DevOps / 审计 */
   systemConfigs: `${ops}/system-configs`,
-  systemConfig: (configKey: string) =>
-    `${ops}/system-configs/${encodeURIComponent(configKey)}`,
+  systemConfig: (configKey: string) => `${ops}/system-configs/${encodeURIComponent(configKey)}`,
   systemConfigBrandLogo: `${ops}/system-configs/brand-logo`,
   dicts: `${ops}/dicts`,
   dictTypes: `${ops}/dicts/types`,
-  dictType: (dictType: string) =>
-    `${ops}/dicts/types/${encodeURIComponent(dictType)}`,
-  dictItems: (dictType: string) =>
-    `${ops}/dicts/${encodeURIComponent(dictType)}/items`,
+  dictType: (dictType: string) => `${ops}/dicts/types/${encodeURIComponent(dictType)}`,
+  dictItems: (dictType: string) => `${ops}/dicts/${encodeURIComponent(dictType)}/items`,
   dictItem: (dictType: string, dictDataId: string | number) =>
     `${ops}/dicts/${encodeURIComponent(dictType)}/items/${encodeURIComponent(String(dictDataId))}`,
   dictItemById: (dictDataId: string | number) =>
     `${ops}/dicts/items/${encodeURIComponent(String(dictDataId))}`,
   scheduledTasks: `${ops}/scheduled-tasks`,
-  scheduledTask: (taskKey: string) =>
-    `${ops}/scheduled-tasks/${encodeURIComponent(taskKey)}`,
+  scheduledTask: (taskKey: string) => `${ops}/scheduled-tasks/${encodeURIComponent(taskKey)}`,
   scheduledTaskEnabled: (taskKey: string) =>
     `${ops}/scheduled-tasks/${encodeURIComponent(taskKey)}/enabled`,
   scheduledTaskRun: (taskKey: string) =>
@@ -491,8 +474,7 @@ export const AdminEndpoints = {
     `${ops}/approvals/messages/${encodeURIComponent(String(messageId))}/read`,
   orgTree: `${ops}/org/tree`,
   orgNodes: `${ops}/org/nodes`,
-  orgNode: (nodeId: string | number) =>
-    `${ops}/org/nodes/${encodeURIComponent(String(nodeId))}`,
+  orgNode: (nodeId: string | number) => `${ops}/org/nodes/${encodeURIComponent(String(nodeId))}`,
   orgNodeToggle: (nodeId: string | number, enabled: boolean) =>
     `${ops}/org/nodes/${encodeURIComponent(String(nodeId))}/toggle?enabled=${enabled}`,
   orgNodeDevices: (nodeId: string | number) =>
@@ -534,8 +516,7 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/ad/assets?${query}`
       : `${ops}/ad/assets?${query.toString()}`,
-  adAsset: (assetId: string | number) =>
-    `${ops}/ad/assets/${encodeURIComponent(String(assetId))}`,
+  adAsset: (assetId: string | number) => `${ops}/ad/assets/${encodeURIComponent(String(assetId))}`,
   adCampaigns: `${ops}/ad/campaigns`,
   adCampaignsList: (query: URLSearchParams | string) =>
     typeof query === 'string'
@@ -673,8 +654,7 @@ export const AdminEndpoints = {
   analyticsFootfall: (days: number) => `${ops}/analytics/footfall?days=${days}`,
   analyticsFootfallSlots: (deviceId: string, days: number) =>
     `${ops}/analytics/footfall/slots?deviceId=${encodeURIComponent(deviceId)}&days=${days}`,
-  geoGeocode: (address: string) =>
-    `${ops}/geo/geocode?address=${encodeURIComponent(address)}`,
+  geoGeocode: (address: string) => `${ops}/geo/geocode?address=${encodeURIComponent(address)}`,
   geoStatus: `${ops}/geo/status`,
   deviceOpsEventsList: (query: URLSearchParams | string) =>
     typeof query === 'string'
@@ -684,8 +664,7 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/recharges?${query}`
       : `${ops}/recharges?${query.toString()}`,
-  rechargeRefund: (orderId: string) =>
-    `${ops}/recharge/${encodeURIComponent(orderId)}/refund`
+  rechargeRefund: (orderId: string) => `${ops}/recharge/${encodeURIComponent(orderId)}/refund`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */

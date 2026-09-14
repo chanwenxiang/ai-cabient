@@ -453,10 +453,7 @@ const { onExport } = useListCsv({
 async function load() {
   loading.value = true;
   try {
-    const flat = await api.request<PermRow[]>(
-      AdminEndpoints.rbacPermissionsIncludeInactive,
-      'GET'
-    );
+    const flat = await api.request<PermRow[]>(AdminEndpoints.rbacPermissionsIncludeInactive, 'GET');
     tree.value = buildPermTree(flat);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');

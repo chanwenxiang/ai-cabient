@@ -698,10 +698,7 @@ async function removeType(row: DictTypeRow) {
     return;
   }
   try {
-    await api.request(
-      AdminEndpoints.dictType(row.dictType),
-      'DELETE'
-    );
+    await api.request(AdminEndpoints.dictType(row.dictType), 'DELETE');
     ElMessage.success('已删除');
     if (selected.value?.dictType === row.dictType) {
       selected.value = null;

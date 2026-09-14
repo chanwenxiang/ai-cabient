@@ -1021,13 +1021,9 @@ async function confirmBind() {
   }
   saving.value = true;
   try {
-    await api.request(
-      AdminEndpoints.lineManagerDevices(bindTarget.value.managerId),
-      'POST',
-      {
-        deviceId: bindDeviceId.value
-      }
-    );
+    await api.request(AdminEndpoints.lineManagerDevices(bindTarget.value.managerId), 'POST', {
+      deviceId: bindDeviceId.value
+    });
     ElMessage.success('已绑定');
     bindVisible.value = false;
     await loadManagers();
@@ -1087,10 +1083,7 @@ async function showKpi(row: Manager) {
   kpiVisible.value = true;
   kpiHydrated.value = false;
   try {
-    kpi.value = await api.request<ManagerKpi>(
-      AdminEndpoints.lineManagerKpi(row.managerId),
-      'GET'
-    );
+    kpi.value = await api.request<ManagerKpi>(AdminEndpoints.lineManagerKpi(row.managerId), 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载 KPI 失败');
   } finally {

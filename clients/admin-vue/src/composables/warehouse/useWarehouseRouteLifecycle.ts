@@ -55,8 +55,7 @@ export function useWarehouseRouteLifecycle(deps: UseWarehouseRouteLifecycleDeps)
     if (qOverdue !== deps.overdueOnly.value) {
       deps.overdueOnly.value = qOverdue;
     }
-    const qDevice =
-      typeof deps.route.query.deviceId === 'string' ? deps.route.query.deviceId : '';
+    const qDevice = typeof deps.route.query.deviceId === 'string' ? deps.route.query.deviceId : '';
     if (qDevice !== deps.focusDeviceId.value) {
       deps.focusDeviceId.value = qDevice;
     }
@@ -64,8 +63,7 @@ export function useWarehouseRouteLifecycle(deps: UseWarehouseRouteLifecycleDeps)
 
   function applyTabFromQuery() {
     const qTab = typeof deps.route.query.tab === 'string' ? deps.route.query.tab : '';
-    const qDevice =
-      typeof deps.route.query.deviceId === 'string' ? deps.route.query.deviceId : '';
+    const qDevice = typeof deps.route.query.deviceId === 'string' ? deps.route.query.deviceId : '';
     const allowed = [
       'warehouses',
       'transfers',
@@ -154,8 +152,7 @@ export function useWarehouseRouteLifecycle(deps: UseWarehouseRouteLifecycleDeps)
   });
 
   watch(
-    () =>
-      [deps.route.query.tab, deps.route.query.overdue, deps.route.query.deviceId] as const,
+    () => [deps.route.query.tab, deps.route.query.overdue, deps.route.query.deviceId] as const,
     () => {
       applyTabFromQuery();
       void deps.loadTab(deps.tab.value, true);

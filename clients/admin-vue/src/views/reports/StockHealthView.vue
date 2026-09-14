@@ -428,16 +428,12 @@ async function createPullOff(row: StockHealthRow) {
     return;
   }
   try {
-    const task = await api.request<{ taskId: number }>(
-      AdminEndpoints.expiryAlertsEnsure,
-      'POST',
-      { lotId: row.lotId }
-    );
-    await api.request(
-      AdminEndpoints.expiryAlertCreateReplenishment(task.taskId),
-      'POST',
-      { lineType: 'PULL_OFF' }
-    );
+    const task = await api.request<{ taskId: number }>(AdminEndpoints.expiryAlertsEnsure, 'POST', {
+      lotId: row.lotId
+    });
+    await api.request(AdminEndpoints.expiryAlertCreateReplenishment(task.taskId), 'POST', {
+      lineType: 'PULL_OFF'
+    });
     ElMessage.success('已生成临期下架补货任务');
     goPath('/replenishment', { tab: 'expiry', deviceId: row.deviceId });
   } catch (e) {

@@ -107,7 +107,9 @@
     </el-form>
     <template #footer>
       <el-button @click="emit('update:binInboundDialog', false)">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="emit('saveBinInbound')">确认入库</el-button>
+      <el-button type="primary" :loading="saving" @click="emit('saveBinInbound')"
+        >确认入库</el-button
+      >
     </template>
   </el-dialog>
 
@@ -126,22 +128,12 @@
           style="width: 100%"
           @change="emit('binMoveSourceChange')"
         >
-          <el-option
-            v-for="b in allBins"
-            :key="b.binId"
-            :label="binLabel(b)"
-            :value="b.binId"
-          />
+          <el-option v-for="b in allBins" :key="b.binId" :label="binLabel(b)" :value="b.binId" />
         </el-select>
       </el-form-item>
       <el-form-item label="目标货位" required>
         <el-select v-model="binMoveForm.toBinId" filterable style="width: 100%">
-          <el-option
-            v-for="b in allBins"
-            :key="b.binId"
-            :label="binLabel(b)"
-            :value="b.binId"
-          />
+          <el-option v-for="b in allBins" :key="b.binId" :label="binLabel(b)" :value="b.binId" />
         </el-select>
       </el-form-item>
       <el-form-item label="商品" required>
@@ -190,7 +182,6 @@ defineProps<{
   activeBinsFor: (warehouseId: string) => WarehouseBinRow[];
   binLabel: (b: WarehouseBinRow) => string;
 }>();
-
 
 const binForm = defineModel<WarehouseBinRow>('binForm', { required: true });
 const binInboundForm = defineModel<WarehouseBinRow>('binInboundForm', { required: true });

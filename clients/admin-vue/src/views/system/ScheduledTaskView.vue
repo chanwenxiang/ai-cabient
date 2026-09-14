@@ -426,11 +426,7 @@ async function batchToggle(enabled: boolean) {
   batchLoading.value = enabled ? 'enable' : 'disable';
   const results = await Promise.allSettled(
     targets.map((row) =>
-      api.request(
-        AdminEndpoints.scheduledTaskEnabled(row.taskKey),
-        'PUT',
-        { enabled }
-      )
+      api.request(AdminEndpoints.scheduledTaskEnabled(row.taskKey), 'PUT', { enabled })
     )
   );
   batchLoading.value = '';
@@ -454,12 +450,7 @@ async function batchRun() {
   }
   batchLoading.value = 'run';
   const results = await Promise.allSettled(
-    targets.map((row) =>
-      api.request(
-        AdminEndpoints.scheduledTaskRun(row.taskKey),
-        'POST'
-      )
-    )
+    targets.map((row) => api.request(AdminEndpoints.scheduledTaskRun(row.taskKey), 'POST'))
   );
   batchLoading.value = '';
   const ok = results.filter((r) => r.status === 'fulfilled').length;
@@ -470,11 +461,7 @@ async function batchRun() {
 async function onToggle(row: ScheduledTaskRow, enabled: boolean) {
   togglingKey.value = row.taskKey;
   try {
-    await api.request(
-      AdminEndpoints.scheduledTaskEnabled(row.taskKey),
-      'PUT',
-      { enabled }
-    );
+    await api.request(AdminEndpoints.scheduledTaskEnabled(row.taskKey), 'PUT', { enabled });
     row.enabled = enabled;
     ElMessage.success(enabled ? `已启用「${row.taskName}」` : `已停用「${row.taskName}」`);
   } catch (e: unknown) {
@@ -557,16 +544,12 @@ async function saveEdit() {
       });
       ElMessage.success('已新增');
     } else {
-      await api.request(
-        AdminEndpoints.scheduledTask(editForm.taskKey),
-        'PUT',
-        {
-          taskName: editForm.taskName.trim(),
-          taskGroup: editForm.taskGroup.trim(),
-          scheduleDesc: editForm.scheduleDesc.trim() || null,
-          remark: editForm.remark.trim() || null
-        }
-      );
+      await api.request(AdminEndpoints.scheduledTask(editForm.taskKey), 'PUT', {
+        taskName: editForm.taskName.trim(),
+        taskGroup: editForm.taskGroup.trim(),
+        scheduleDesc: editForm.scheduleDesc.trim() || null,
+        remark: editForm.remark.trim() || null
+      });
       ElMessage.success('已保存');
     }
     editVisible.value = false;
@@ -587,10 +570,7 @@ async function onDelete(row: ScheduledTaskRow) {
     return;
   }
   try {
-    await api.request(
-      AdminEndpoints.scheduledTask(row.taskKey),
-      'DELETE'
-    );
+    await api.request(AdminEndpoints.scheduledTask(row.taskKey), 'DELETE');
     ElMessage.success('已删除');
     await load();
   } catch (e: unknown) {

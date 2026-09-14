@@ -1190,10 +1190,7 @@ async function openDetail(row: OpsException) {
   drawer.value = true;
   detailLoading.value = true;
   try {
-    detail.value = await api.request<OpsDetail>(
-      AdminEndpoints.exception(row.exceptionId),
-      'GET'
-    );
+    detail.value = await api.request<OpsDetail>(AdminEndpoints.exception(row.exceptionId), 'GET');
     if (
       canManualSettle.value &&
       detail.value?.exception &&
@@ -1201,8 +1198,7 @@ async function openDetail(row: OpsException) {
       !skus.value.length
     ) {
       skus.value =
-        (await api.request<{ items: Sku[] }>(AdminEndpoints.skusCatalogPage, 'GET'))
-          .items || [];
+        (await api.request<{ items: Sku[] }>(AdminEndpoints.skusCatalogPage, 'GET')).items || [];
     }
     const sid = detail.value?.exception?.sessionId;
     if (sid && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
@@ -1223,11 +1219,9 @@ async function addNote() {
     const { value } = await ElMessageBox.prompt('请输入处理备注', '添加备注', {
       inputValidator: (v) => !!String(v || '').trim() || '备注不能为空'
     });
-    await api.request(
-      AdminEndpoints.exceptionNotes(detail.value.exception.exceptionId),
-      'POST',
-      { note: value }
-    );
+    await api.request(AdminEndpoints.exceptionNotes(detail.value.exception.exceptionId), 'POST', {
+      note: value
+    });
     ElMessage.success('备注已记录');
     await refreshDetail();
   } catch (e: unknown) {
@@ -1309,13 +1303,9 @@ async function resolveWithRepairRow(row: OpsException): Promise<boolean> {
         type: 'warning'
       }
     );
-    await api.request(
-      AdminEndpoints.exceptionResolveWithRepair(row.exceptionId),
-      'POST',
-      {
-        resolution: String(value).trim()
-      }
-    );
+    await api.request(AdminEndpoints.exceptionResolveWithRepair(row.exceptionId), 'POST', {
+      resolution: String(value).trim()
+    });
     ElMessage.success('已建维修工单并结案');
     await load();
     return true;

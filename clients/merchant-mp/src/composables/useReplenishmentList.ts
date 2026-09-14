@@ -1,11 +1,7 @@
 import { computed, ref, type Ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { displayLabel } from '@aicabinet/shared-dict';
-import {
-  isMerchantLoggedIn,
-  merchantApi,
-  softFallback
-} from '@/utils/merchant-api';
+import { isMerchantLoggedIn, merchantApi, softFallback } from '@/utils/merchant-api';
 import type {
   MerchantSkuPricing,
   OpenApiDeviceInventoryDto,

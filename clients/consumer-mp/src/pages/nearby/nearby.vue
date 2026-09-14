@@ -112,7 +112,12 @@ function formatDist(m: number) {
 
 function setRadius(r: number) {
   radiusKm.value = r;
-  if (usingFallbackLoc.value || lat.value == null || lng.value == null || error.value.includes('定位'))
+  if (
+    usingFallbackLoc.value ||
+    lat.value == null ||
+    lng.value == null ||
+    error.value.includes('定位')
+  )
     return;
   void loadList();
 }

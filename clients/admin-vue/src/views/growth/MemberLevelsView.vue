@@ -361,11 +361,9 @@ async function save() {
 async function toggleStatus(row: LevelRule) {
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
   try {
-    await api.request<LevelRule>(
-      AdminEndpoints.growthMemberLevelStatus(row.id),
-      'POST',
-      { status: next }
-    );
+    await api.request<LevelRule>(AdminEndpoints.growthMemberLevelStatus(row.id), 'POST', {
+      status: next
+    });
     ElMessage.success(next === 'ACTIVE' ? '已启用' : '已停用');
     await load();
   } catch (e) {
@@ -396,11 +394,9 @@ async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
   }
   try {
     for (const row of targets) {
-      await api.request<LevelRule>(
-        AdminEndpoints.growthMemberLevelStatus(row.id),
-        'POST',
-        { status: next }
-      );
+      await api.request<LevelRule>(AdminEndpoints.growthMemberLevelStatus(row.id), 'POST', {
+        status: next
+      });
     }
     ElMessage.success(`已批量${action} ${targets.length} 条`);
     await load();

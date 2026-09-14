@@ -205,10 +205,7 @@ async function load() {
   try {
     const q = new URLSearchParams();
     if (lifecycleStatus.value) q.set('lifecycleStatus', lifecycleStatus.value);
-    points.value = await api.request<MapPoint[]>(
-      AdminEndpoints.devicesMapPoints(q),
-      'GET'
-    );
+    points.value = await api.request<MapPoint[]>(AdminEndpoints.devicesMapPoints(q), 'GET');
     await nextTick();
     renderMarkers();
   } catch (e) {

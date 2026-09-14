@@ -179,10 +179,7 @@ async function triggerSonarScan() {
   }
   sonarScanning.value = true;
   try {
-    const result = await api.request<SonarScanResult>(
-      AdminEndpoints.devopsSonarScan,
-      'POST'
-    );
+    const result = await api.request<SonarScanResult>(AdminEndpoints.devopsSonarScan, 'POST');
     ElMessage.success(
       result.accepted
         ? `已提交 GitHub Actions「${result.jobName || 'sonar.yml'}」，完成后可在 SonarQube 查看`

@@ -55,7 +55,6 @@ defineProps<{
   warehouses: WarehouseTransferRow[];
 }>();
 
-
 const transferForm = defineModel<WarehouseTransferRow>('transferForm', { required: true });
 const emit = defineEmits<{
   'update:transferDialog': [value: boolean];

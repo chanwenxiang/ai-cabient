@@ -566,14 +566,10 @@ async function batchReview(approve: boolean) {
   try {
     for (const row of targets) {
       try {
-        await api.request(
-          AdminEndpoints.merchantOnboardingReview(row.onboardingId),
-          'POST',
-          {
-            approve,
-            remark: approve ? '批量审批通过' : '批量审批驳回'
-          }
-        );
+        await api.request(AdminEndpoints.merchantOnboardingReview(row.onboardingId), 'POST', {
+          approve,
+          remark: approve ? '批量审批通过' : '批量审批驳回'
+        });
         ok += 1;
       } catch {
         fail += 1;

@@ -402,7 +402,8 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
           loadSuppliersSoft(),
           loadWarehousesSoft()
         ]),
-      suggestions: () => Promise.all([loadSuggestions(), loadWarehousesSoft(), loadSuppliersSoft()]),
+      suggestions: () =>
+        Promise.all([loadSuggestions(), loadWarehousesSoft(), loadSuppliersSoft()]),
       payables: () => Promise.all([loadPayables(), loadPayableSummary(), loadSuppliersSoft()]),
       stocktakes: () => Promise.all([loadStocktakes(), loadWarehousesSoft()]),
       bins: () => Promise.all([loadBins(), loadBinStock(), loadWarehousesSoft()]),

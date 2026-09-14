@@ -933,10 +933,7 @@ async function load() {
   try {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
     appendSessionFilters(q);
-    const data = await api.request<PageResult<SessionRow>>(
-      AdminEndpoints.sessionsList(q),
-      'GET'
-    );
+    const data = await api.request<PageResult<SessionRow>>(AdminEndpoints.sessionsList(q), 'GET');
     if (!loadSeq.isCurrent(seq)) return;
     items.value = data.items || [];
     total.value = data.total ?? 0;

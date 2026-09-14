@@ -24,8 +24,7 @@ function walk(dir, out = []) {
 const offenders = [];
 const setLocalToken =
   /localStorage\.setItem\(\s*(['"`])admin_token\1|localStorage\.setItem\(\s*TOKEN_KEY\s*,/;
-const getLocalTokenOnlyInClient =
-  /localStorage\.getItem\(\s*(['"`])admin_token\1/;
+const getLocalTokenOnlyInClient = /localStorage\.getItem\(\s*(['"`])admin_token\1/;
 
 for (const file of walk(srcRoot)) {
   const rel = path.relative(process.cwd(), file).replace(/\\/g, '/');

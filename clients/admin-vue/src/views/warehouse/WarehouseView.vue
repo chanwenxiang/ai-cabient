@@ -2766,50 +2766,45 @@ function outboundSecondaryActions(row: Row): TableAction[] {
   return acts;
 }
 
-const {
-  ensureMeta,
-  loadWarehousesSoft,
-  loadSuppliersSoft,
-  loadPurchase,
-  loadTab
-} = useWarehouseTabLoader({
-  loadSeq,
-  hasDeviceListPerm: () => auth.hasPerm('ops:device:list') || auth.hasPerm('ops:device:ref'),
-  page,
-  size,
-  keyword,
-  filterWarehouseId,
-  hideTestPurchaseOrders,
-  focusDeviceId,
-  suggestionLeadTimeDays,
-  suggestionCoverageDays,
-  payableStatusFilter,
-  payableOverdueOnly,
-  stocktakeStatusFilter,
-  filterBinId,
-  warehouses,
-  suppliers,
-  purchaseOrders,
-  returnablePurchaseOrders,
-  purchaseReturns,
-  outbounds,
-  inTransit,
-  inventory,
-  movements,
-  suggestions,
-  payables,
-  payableSummary,
-  stocktakes,
-  bins,
-  binStock,
-  transfers,
-  devices,
-  skus,
-  tabTotals,
-  loadedTabs,
-  loadingTabs,
-  hydratedTabs
-});
+const { ensureMeta, loadWarehousesSoft, loadSuppliersSoft, loadPurchase, loadTab } =
+  useWarehouseTabLoader({
+    loadSeq,
+    hasDeviceListPerm: () => auth.hasPerm('ops:device:list') || auth.hasPerm('ops:device:ref'),
+    page,
+    size,
+    keyword,
+    filterWarehouseId,
+    hideTestPurchaseOrders,
+    focusDeviceId,
+    suggestionLeadTimeDays,
+    suggestionCoverageDays,
+    payableStatusFilter,
+    payableOverdueOnly,
+    stocktakeStatusFilter,
+    filterBinId,
+    warehouses,
+    suppliers,
+    purchaseOrders,
+    returnablePurchaseOrders,
+    purchaseReturns,
+    outbounds,
+    inTransit,
+    inventory,
+    movements,
+    suggestions,
+    payables,
+    payableSummary,
+    stocktakes,
+    bins,
+    binStock,
+    transfers,
+    devices,
+    skus,
+    tabTotals,
+    loadedTabs,
+    loadingTabs,
+    hydratedTabs
+  });
 loadTabHolder.fn = loadTab;
 
 const {
@@ -2854,27 +2849,22 @@ const {
   ensureMeta
 });
 
-const {
-  syncRouteQuery,
-  onPagerChange,
-  onPagerSizeChange,
-  onTabChange,
-  reloadCurrent
-} = useWarehouseRouteLifecycle({
-  route,
-  router,
-  tab,
-  tabGroup,
-  page,
-  overdueOnly,
-  focusDeviceId,
-  loadedTabs,
-  serverPaginatedTabs: SERVER_PAGINATED_TABS,
-  syncTabGroupFromTab,
-  tabGroupFor,
-  loadTab,
-  patchPurchaseOrderRow
-});
+const { syncRouteQuery, onPagerChange, onPagerSizeChange, onTabChange, reloadCurrent } =
+  useWarehouseRouteLifecycle({
+    route,
+    router,
+    tab,
+    tabGroup,
+    page,
+    overdueOnly,
+    focusDeviceId,
+    loadedTabs,
+    serverPaginatedTabs: SERVER_PAGINATED_TABS,
+    syncTabGroupFromTab,
+    tabGroupFor,
+    loadTab,
+    patchPurchaseOrderRow
+  });
 syncRouteQueryHolder.fn = syncRouteQuery;
 
 const {
@@ -2994,7 +2984,6 @@ const {
   loadWarehousesSoft,
   ensureMeta
 });
-
 </script>
 
 <style scoped>

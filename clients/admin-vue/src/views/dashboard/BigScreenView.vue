@@ -529,9 +529,7 @@ async function load() {
     api
       .request<{ orderPayChannels: ChannelStat[] }>(AdminEndpoints.trendChannels(7), 'GET')
       .catch(() => null),
-    api
-      .request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(7), 'GET')
-      .catch(() => null),
+    api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(7), 'GET').catch(() => null),
     api
       .request<{ items: DeviceRank[]; total: number }>(
         AdminEndpoints.reportsDevicesList('page=0&size=20'),

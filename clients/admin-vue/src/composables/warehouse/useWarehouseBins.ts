@@ -124,7 +124,8 @@ export function useWarehouseBins(deps: UseWarehouseBinsDeps) {
 
   async function openBinInbound() {
     Object.assign(binInboundForm, {
-      warehouseId: deps.filterWarehouseId.value || deps.activeWarehouses.value[0]?.warehouseId || '',
+      warehouseId:
+        deps.filterWarehouseId.value || deps.activeWarehouses.value[0]?.warehouseId || '',
       binCode: '',
       skuId: deps.skus.value[0]?.skuId || '',
       batchNo: '',

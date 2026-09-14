@@ -968,15 +968,11 @@ function assignDeviceLabel(d: {
 }
 
 async function postDeviceLifecycle(deviceId: string, action: string, merchantId?: string) {
-  return api.request(
-    AdminEndpoints.deviceLifecycle(deviceId),
-    'POST',
-    {
-      action,
-      merchantId,
-      remark: action === 'UNBIND' ? '商户页卸载货柜' : '商户页挂载货柜'
-    }
-  );
+  return api.request(AdminEndpoints.deviceLifecycle(deviceId), 'POST', {
+    action,
+    merchantId,
+    remark: action === 'UNBIND' ? '商户页卸载货柜' : '商户页挂载货柜'
+  });
 }
 
 type OrgNode = MerchantDto & { label: string; children: OrgNode[] };
@@ -1143,10 +1139,7 @@ async function fetchAllMerchants(): Promise<MerchantDto[]> {
   let serverTotal = Number.POSITIVE_INFINITY;
   while (all.length < serverTotal) {
     const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
-    const data = await api.request<PageResult<MerchantDto>>(
-      AdminEndpoints.merchantsList(q),
-      'GET'
-    );
+    const data = await api.request<PageResult<MerchantDto>>(AdminEndpoints.merchantsList(q), 'GET');
     const batch = data.items || [];
     serverTotal = data.total ?? batch.length;
     all.push(...batch);
@@ -1165,10 +1158,7 @@ async function loadMerchantsTab() {
       size: String(merchantSize.value)
     });
     if (merchantKeyword.value.trim()) q.set('q', merchantKeyword.value.trim());
-    const data = await api.request<PageResult<MerchantDto>>(
-      AdminEndpoints.merchantsList(q),
-      'GET'
-    );
+    const data = await api.request<PageResult<MerchantDto>>(AdminEndpoints.merchantsList(q), 'GET');
     merchantTabItems.value = sortById(data.items || [], 'merchantId');
     merchantTotal.value = data.total ?? 0;
     clearMerchantsSelection();
@@ -1379,11 +1369,9 @@ async function confirmLedger(row: RevenueSplit) {
       }
     );
     acting.value = true;
-    await api.request(
-      AdminEndpoints.merchantRevenueSplitConfirmLedger(row.splitId),
-      'POST',
-      { reason: String(value).trim() }
-    );
+    await api.request(AdminEndpoints.merchantRevenueSplitConfirmLedger(row.splitId), 'POST', {
+      reason: String(value).trim()
+    });
     ElMessage.success('已确认完结');
     await loadSplits();
   } catch (e: unknown) {
@@ -1412,11 +1400,9 @@ async function batchConfirmLedger() {
   let ok = 0;
   try {
     for (const row of rows) {
-      await api.request(
-        AdminEndpoints.merchantRevenueSplitConfirmLedger(row.splitId),
-        'POST',
-        { reason: '批量确认仅记账完结' }
-      );
+      await api.request(AdminEndpoints.merchantRevenueSplitConfirmLedger(row.splitId), 'POST', {
+        reason: '批量确认仅记账完结'
+      });
       ok += 1;
     }
     ElMessage.success(`已确认完结 ${ok} 笔`);
@@ -1457,10 +1443,7 @@ async function confirmSubmit() {
 async function doRefresh(row: RevenueSplit) {
   acting.value = true;
   try {
-    await api.request(
-      AdminEndpoints.merchantRevenueSplitWechatRefresh(row.splitId),
-      'POST'
-    );
+    await api.request(AdminEndpoints.merchantRevenueSplitWechatRefresh(row.splitId), 'POST');
     ElMessage.success('已刷新状态');
     await loadSplits();
   } catch (e) {

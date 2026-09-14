@@ -54,12 +54,14 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
     filePrefix: '仓库概览',
     headers: ['仓库名称', '仓库编号', '地址', '状态'],
     toRows: () =>
-      deps.pickSelected(deps.warehouses.value).map((row) => [
-        row.warehouseName || row.warehouseId,
-        row.warehouseId,
-        row.address || '',
-        dictLabel('warehouse_status', row.status || 'ACTIVE')
-      ]),
+      deps
+        .pickSelected(deps.warehouses.value)
+        .map((row) => [
+          row.warehouseName || row.warehouseId,
+          row.warehouseId,
+          row.address || '',
+          dictLabel('warehouse_status', row.status || 'ACTIVE')
+        ]),
     onImportRows: async (rows) => {
       let ok = 0;
       for (const row of rows) {
@@ -90,13 +92,15 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
     filePrefix: '供应商',
     headers: ['供应商', '供应商编号', '联系人', '联系电话', '状态'],
     toRows: () =>
-      deps.pickSelected(deps.filteredSuppliers.value).map((row) => [
-        row.supplierName || row.supplierId,
-        row.supplierId,
-        row.contactName || '',
-        row.contactPhone || '',
-        dictLabel('supplier_status', row.status)
-      ]),
+      deps
+        .pickSelected(deps.filteredSuppliers.value)
+        .map((row) => [
+          row.supplierName || row.supplierId,
+          row.supplierId,
+          row.contactName || '',
+          row.contactPhone || '',
+          dictLabel('supplier_status', row.status)
+        ]),
     onImportRows: async (rows) => {
       let ok = 0;
       for (const row of rows) {
@@ -148,40 +152,46 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
     filePrefix: '采购单',
     headers: ['采购单', '外部单号', '供应商', '入库仓库', '状态'],
     toRows: () =>
-      deps.pickSelected(deps.filteredPurchaseOrders.value).map((row) => [
-        row.purchaseOrderId,
-        row.refNo || '未填写',
-        deps.supplierName(row.supplierId),
-        deps.warehouseName(row.warehouseId),
-        dictLabel('purchase_order_status', row.status)
-      ])
+      deps
+        .pickSelected(deps.filteredPurchaseOrders.value)
+        .map((row) => [
+          row.purchaseOrderId,
+          row.refNo || '未填写',
+          deps.supplierName(row.supplierId),
+          deps.warehouseName(row.warehouseId),
+          dictLabel('purchase_order_status', row.status)
+        ])
   });
 
   const { onExport: exportReturns } = useListCsv({
     filePrefix: '采购退货',
     headers: ['退货单', '采购单', '供应商', '仓库', '状态', '创建时间'],
     toRows: () =>
-      deps.pickSelected(deps.filteredPurchaseReturns.value).map((row) => [
-        row.returnId,
-        row.purchaseOrderId,
-        deps.supplierName(row.supplierId),
-        deps.warehouseName(row.warehouseId),
-        deps.returnStatusLabel(row.status),
-        formatDateTime(row.createdAt)
-      ])
+      deps
+        .pickSelected(deps.filteredPurchaseReturns.value)
+        .map((row) => [
+          row.returnId,
+          row.purchaseOrderId,
+          deps.supplierName(row.supplierId),
+          deps.warehouseName(row.warehouseId),
+          deps.returnStatusLabel(row.status),
+          formatDateTime(row.createdAt)
+        ])
   });
 
   const { onExport: exportOutbounds } = useListCsv({
     filePrefix: '出库单',
     headers: ['出库单', '路线', '出库仓库', '状态', '创建时间'],
     toRows: () =>
-      deps.pickSelected(deps.filteredOutbounds.value).map((row) => [
-        row.outboundId,
-        row.routeId || '',
-        deps.warehouseName(row.warehouseId),
-        dictLabel('warehouse_outbound_status', row.status),
-        formatDateTime(row.createdAt)
-      ])
+      deps
+        .pickSelected(deps.filteredOutbounds.value)
+        .map((row) => [
+          row.outboundId,
+          row.routeId || '',
+          deps.warehouseName(row.warehouseId),
+          dictLabel('warehouse_outbound_status', row.status),
+          formatDateTime(row.createdAt)
+        ])
   });
 
   const { onExport: exportTransit } = useListCsv({
@@ -198,48 +208,54 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
       '发运时间'
     ],
     toRows: () =>
-      deps.pickSelected(deps.filteredInTransit.value).map((row) => [
-        row.outboundId,
-        deps.deviceName(row.deviceId, row.deviceName),
-        deps.skuName(row.skuId),
-        row.batchNo || '',
-        row.quantity,
-        dictLabel('in_transit_status', row.status),
-        deps.formatAge(deps.transitAgeMs(row)),
-        deps.isTransitOverdue(row) ? '是' : '否',
-        formatDateTime(row.createdAt)
-      ])
+      deps
+        .pickSelected(deps.filteredInTransit.value)
+        .map((row) => [
+          row.outboundId,
+          deps.deviceName(row.deviceId, row.deviceName),
+          deps.skuName(row.skuId),
+          row.batchNo || '',
+          row.quantity,
+          dictLabel('in_transit_status', row.status),
+          deps.formatAge(deps.transitAgeMs(row)),
+          deps.isTransitOverdue(row) ? '是' : '否',
+          formatDateTime(row.createdAt)
+        ])
   });
 
   const { onExport: exportInventory } = useListCsv({
     filePrefix: '批次库存',
     headers: ['仓库', '商品', '批次', '生产日期', '到期日期', '库存', '效期'],
     toRows: () =>
-      deps.pickSelected(deps.inventory.value).map((row) => [
-        deps.warehouseName(row.warehouseId),
-        deps.skuName(row.skuId),
-        row.batchNo || '',
-        row.productionDate || '',
-        row.expiryDate || '',
-        row.quantity,
-        deps.expiryText(row.expiryDate)
-      ])
+      deps
+        .pickSelected(deps.inventory.value)
+        .map((row) => [
+          deps.warehouseName(row.warehouseId),
+          deps.skuName(row.skuId),
+          row.batchNo || '',
+          row.productionDate || '',
+          row.expiryDate || '',
+          row.quantity,
+          deps.expiryText(row.expiryDate)
+        ])
   });
 
   const { onExport: exportMovements } = useListCsv({
     filePrefix: '库存流水',
     headers: ['流水', '类型', '商品', '批次', '变动', '关联业务', '关联单号', '时间'],
     toRows: () =>
-      deps.pickSelected(deps.movements.value).map((row) => [
-        row.movementId,
-        dictLabel('warehouse_movement_type', row.movementType),
-        deps.skuName(row.skuId),
-        row.batchNo || '',
-        row.deltaQty,
-        dictLabel('business_reference_type', row.refType),
-        row.refId || '',
-        formatDateTime(row.createdAt)
-      ])
+      deps
+        .pickSelected(deps.movements.value)
+        .map((row) => [
+          row.movementId,
+          dictLabel('warehouse_movement_type', row.movementType),
+          deps.skuName(row.skuId),
+          row.batchNo || '',
+          row.deltaQty,
+          dictLabel('business_reference_type', row.refType),
+          row.refId || '',
+          formatDateTime(row.createdAt)
+        ])
   });
 
   async function onExport() {
@@ -271,8 +287,7 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
       }
     })();
     const partial =
-      deps.selectedKeys.value.length > 0 &&
-      deps.selectedKeys.value.length < currentRows.length;
+      deps.selectedKeys.value.length > 0 && deps.selectedKeys.value.length < currentRows.length;
     if (partial || !serverTabs.has(deps.tab.value)) {
       const exporters: Record<string, () => void> = {
         warehouses: exportWarehouses,

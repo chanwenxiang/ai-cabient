@@ -58,11 +58,11 @@ const FILTER_BAR_TABS = [
  */
 export function useWarehouseListFilters(deps: UseWarehouseListFiltersDeps) {
   /** 仅真正有筛选项的 Tab 才挂 filter-bar，避免空条占位像「中间少了字」 */
-  const showFilterBar = computed(() => FILTER_BAR_TABS.includes(deps.tab.value as (typeof FILTER_BAR_TABS)[number]));
-
-  const activeSuppliers = computed(() =>
-    deps.suppliers.value.filter((s) => s.status === 'ACTIVE')
+  const showFilterBar = computed(() =>
+    FILTER_BAR_TABS.includes(deps.tab.value as (typeof FILTER_BAR_TABS)[number])
   );
+
+  const activeSuppliers = computed(() => deps.suppliers.value.filter((s) => s.status === 'ACTIVE'));
   const activeWarehouses = computed(() =>
     deps.warehouses.value.filter((w) => (w.status || 'ACTIVE') === 'ACTIVE')
   );
