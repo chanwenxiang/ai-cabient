@@ -1763,7 +1763,7 @@ async function loadDetail() {
 async function loadGlobalRefundPolicy() {
   try {
     const rows = await api.request<Array<{ configKey: string; configValue?: string }>>(
-      '/api/v2/ops/admin/system-configs',
+      AdminEndpoints.systemConfigs,
       'GET'
     );
     const hit = rows.find((r) => r.configKey === 'refund.default_policy');

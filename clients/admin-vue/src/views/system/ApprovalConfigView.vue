@@ -428,7 +428,7 @@ async function load() {
   loading.value = true;
   try {
     const [defs, depts] = await Promise.all([
-      api.request<ApprovalDef[]>('/api/v2/ops/admin/approvals/definitions', 'GET'),
+      api.request<ApprovalDef[]>(AdminEndpoints.approvalsDefinitions, 'GET'),
       api.request<DeptRow[]>(AdminEndpoints.departments, 'GET').catch(() => [])
     ]);
     rows.value = defs || [];
@@ -485,7 +485,7 @@ async function saveMeta() {
   metaSaving.value = true;
   try {
     if (creating.value) {
-      await api.request('/api/v2/ops/admin/approvals/definitions', 'POST', {
+      await api.request(AdminEndpoints.approvalsDefinitions, 'POST', {
         bizType: metaForm.bizType.trim().toUpperCase(),
         defName: metaForm.defName.trim(),
         enabled: metaForm.enabled,
@@ -493,7 +493,7 @@ async function saveMeta() {
       });
       ElMessage.success('已新增，可继续编辑流程图');
     } else {
-      await api.request(`/api/v2/ops/admin/approvals/definitions/${metaForm.defId}`, 'PUT', {
+      await api.request(AdminEndpoints.approvalsDefinition(metaForm.defId), 'PUT', {
         defName: metaForm.defName.trim(),
         enabled: metaForm.enabled,
         remark: metaForm.remark.trim() || null
@@ -520,7 +520,7 @@ async function onDelete(row: ApprovalDef) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/approvals/definitions/${row.defId}`, 'DELETE');
+    await api.request(AdminEndpoints.approvalsDefinition(row.defId), 'DELETE');
     ElMessage.success('已删除');
     await load();
   } catch (e) {
@@ -580,7 +580,7 @@ async function save() {
   saving.value = true;
   try {
     reseq();
-    await api.request(`/api/v2/ops/admin/approvals/definitions/${editForm.defId}`, 'PUT', {
+    await api.request(AdminEndpoints.approvalsDefinition(editForm.defId), 'PUT', {
       defName: editForm.defName,
       enabled: editForm.enabled,
       remark: editForm.remark,

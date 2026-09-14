@@ -194,7 +194,7 @@ async function loadInbox() {
   if (!visible.value || !isLoggedIn()) return;
   loading.value = true;
   try {
-    const data = await api.request<InboxDto>('/api/v2/ops/admin/approvals/inbox?limit=15', 'GET');
+    const data = await api.request<InboxDto>(AdminEndpoints.approvalsInbox(15), 'GET');
     pendingTaskCount.value = Number(data?.pendingTaskCount ?? 0);
     unreadMessageCount.value = Number(data?.unreadMessageCount ?? 0);
     tasks.value = data?.pendingTasks ?? [];
@@ -223,7 +223,7 @@ async function markVisibleAsRead() {
     jobs.push(
       (async () => {
         try {
-          await api.request(`/api/v2/ops/admin/approvals/tasks/${task.taskId}/read`, 'POST');
+          await api.request(AdminEndpoints.approvalsTaskRead(task.taskId), 'POST');
           task.readAt = new Date().toISOString();
         } catch {
           /* 忽略单条失败，仍继续 */
@@ -236,7 +236,7 @@ async function markVisibleAsRead() {
     jobs.push(
       (async () => {
         try {
-          await api.request(`/api/v2/ops/admin/approvals/messages/${msg.id}/read`, 'POST');
+          await api.request(AdminEndpoints.approvalsMessageRead(msg.id), 'POST');
           msg.read = true;
         } catch {
           /* 忽略单条失败，仍继续 */
@@ -379,7 +379,7 @@ async function inlineReview(task: ApprovalTask, approve: boolean) {
 
 async function openTask(task: ApprovalTask) {
   try {
-    await api.request(`/api/v2/ops/admin/approvals/tasks/${task.taskId}/read`, 'POST');
+    await api.request(AdminEndpoints.approvalsTaskRead(task.taskId), 'POST');
     // 仅标记已读样式；待审批数量仍按 PENDING 任务计，不因点开而减少
     task.readAt = new Date().toISOString();
   } catch {
@@ -398,7 +398,7 @@ async function openTask(task: ApprovalTask) {
 
 async function openMessage(msg: InboxMessage) {
   try {
-    await api.request(`/api/v2/ops/admin/approvals/messages/${msg.id}/read`, 'POST');
+    await api.request(AdminEndpoints.approvalsMessageRead(msg.id), 'POST');
     if (!msg.read) unreadMessageCount.value = Math.max(0, unreadMessageCount.value - 1);
     msg.read = true;
   } catch {

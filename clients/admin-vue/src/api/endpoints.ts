@@ -457,7 +457,52 @@ export const AdminEndpoints = {
   department: (deptId: string | number) =>
     `${ops}/departments/${encodeURIComponent(String(deptId))}`,
   departmentMembers: (deptId: string | number) =>
-    `${ops}/departments/${encodeURIComponent(String(deptId))}/members`
+    `${ops}/departments/${encodeURIComponent(String(deptId))}/members`,
+
+  /** 系统配置 / 字典 / 定时任务 / 审批 / 组织 / DevOps / 审计 */
+  systemConfigs: `${ops}/system-configs`,
+  systemConfig: (configKey: string) =>
+    `${ops}/system-configs/${encodeURIComponent(configKey)}`,
+  systemConfigBrandLogo: `${ops}/system-configs/brand-logo`,
+  dicts: `${ops}/dicts`,
+  dictTypes: `${ops}/dicts/types`,
+  dictType: (dictType: string) =>
+    `${ops}/dicts/types/${encodeURIComponent(dictType)}`,
+  dictItems: (dictType: string) =>
+    `${ops}/dicts/${encodeURIComponent(dictType)}/items`,
+  dictItem: (dictType: string, dictDataId: string | number) =>
+    `${ops}/dicts/${encodeURIComponent(dictType)}/items/${encodeURIComponent(String(dictDataId))}`,
+  dictItemById: (dictDataId: string | number) =>
+    `${ops}/dicts/items/${encodeURIComponent(String(dictDataId))}`,
+  scheduledTasks: `${ops}/scheduled-tasks`,
+  scheduledTask: (taskKey: string) =>
+    `${ops}/scheduled-tasks/${encodeURIComponent(taskKey)}`,
+  scheduledTaskEnabled: (taskKey: string) =>
+    `${ops}/scheduled-tasks/${encodeURIComponent(taskKey)}/enabled`,
+  scheduledTaskRun: (taskKey: string) =>
+    `${ops}/scheduled-tasks/${encodeURIComponent(taskKey)}/run`,
+  approvalsDefinitions: `${ops}/approvals/definitions`,
+  approvalsDefinition: (defId: string | number) =>
+    `${ops}/approvals/definitions/${encodeURIComponent(String(defId))}`,
+  approvalsInbox: (limit = 15) => `${ops}/approvals/inbox?limit=${limit}`,
+  approvalsTaskRead: (taskId: string | number) =>
+    `${ops}/approvals/tasks/${encodeURIComponent(String(taskId))}/read`,
+  approvalsMessageRead: (messageId: string | number) =>
+    `${ops}/approvals/messages/${encodeURIComponent(String(messageId))}/read`,
+  orgTree: `${ops}/org/tree`,
+  orgNodes: `${ops}/org/nodes`,
+  orgNode: (nodeId: string | number) =>
+    `${ops}/org/nodes/${encodeURIComponent(String(nodeId))}`,
+  orgNodeToggle: (nodeId: string | number, enabled: boolean) =>
+    `${ops}/org/nodes/${encodeURIComponent(String(nodeId))}/toggle?enabled=${enabled}`,
+  orgNodeDevices: (nodeId: string | number) =>
+    `${ops}/org/nodes/${encodeURIComponent(String(nodeId))}/devices`,
+  devopsHub: `${ops}/devops/hub`,
+  devopsSonarScan: `${ops}/devops/sonar/scan`,
+  auditLogsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/audit-logs?${query}`
+      : `${ops}/audit-logs?${query.toString()}`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -496,5 +541,12 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/merchant-wallets',
   '/api/v2/ops/admin/merchant-withdraws',
   '/api/v2/ops/admin/rbac',
-  '/api/v2/ops/admin/departments'
+  '/api/v2/ops/admin/departments',
+  '/api/v2/ops/admin/system-configs',
+  '/api/v2/ops/admin/dicts',
+  '/api/v2/ops/admin/scheduled-tasks',
+  '/api/v2/ops/admin/approvals',
+  '/api/v2/ops/admin/org',
+  '/api/v2/ops/admin/devops',
+  '/api/v2/ops/admin/audit-logs'
 ] as const;

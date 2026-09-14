@@ -946,7 +946,7 @@ async function loadAll() {
   const seq = loadSeq.begin('loadAll');
   loading.value = true;
   try {
-    orgTree.value = (await api.request<OrgNodeDto[]>('/api/v2/ops/admin/org/tree', 'GET')) || [];
+    orgTree.value = (await api.request<OrgNodeDto[]>(AdminEndpoints.orgTree, 'GET')) || [];
     await loadContracts();
     if (tab.value === 'bills') {
       await loadBills();
@@ -1073,7 +1073,7 @@ async function removeNode(node: OrgNodeDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/org/nodes/${node.nodeId}`, 'DELETE');
+    await api.request(AdminEndpoints.orgNode(node.nodeId), 'DELETE');
     ElMessage.success('已删除');
     await loadAll();
   } catch (e) {
@@ -1088,7 +1088,7 @@ async function saveNode() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/org/nodes', 'PUT', {
+    await api.request(AdminEndpoints.orgNodes, 'PUT', {
       nodeId: nodeForm.value.nodeId,
       parentId: nodeForm.value.parentId,
       name: nodeForm.value.name.trim(),
@@ -1108,7 +1108,7 @@ async function saveNode() {
 async function toggleNode(node: OrgNodeDto) {
   try {
     await api.request(
-      `/api/v2/ops/admin/org/nodes/${node.nodeId}/toggle?enabled=${!node.enabled}`,
+      AdminEndpoints.orgNodeToggle(node.nodeId, !node.enabled),
       'POST'
     );
     await loadAll();
@@ -1127,7 +1127,7 @@ async function saveAssign() {
   if (!assignNode.value) return;
   saving.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/org/nodes/${assignNode.value.nodeId}/devices`, 'PUT', {
+    await api.request(AdminEndpoints.orgNodeDevices(assignNode.value.nodeId), 'PUT', {
       deviceIds: assignDeviceIds.value
     });
     ElMessage.success('设备归属已更新');

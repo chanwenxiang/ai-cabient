@@ -231,6 +231,7 @@ import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { UploadRequestOptions } from 'element-plus';
 import { api, authFetch } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -345,7 +346,7 @@ async function onDelete(row: SystemConfigRow) {
       { type: 'warning' }
     );
     await api.request(
-      `/api/v2/ops/admin/system-configs/${encodeURIComponent(row.configKey)}`,
+      AdminEndpoints.systemConfig(row.configKey),
       'DELETE'
     );
     ElMessage.success('已删除');
@@ -379,7 +380,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const configKey = (row['配置键'] || row.configKey || '').trim();
         const configValue = (row['配置值'] || row.configValue || '').trim();
         if (!configKey) continue;
-        await api.request('/api/v2/ops/admin/system-configs', 'PUT', {
+        await api.request(AdminEndpoints.systemConfigs, 'PUT', {
           configKey,
           configValue,
           description: (row['说明'] || row.description || '').trim()
@@ -410,7 +411,7 @@ async function load() {
   const seq = loadSeq.begin();
   loading.value = true;
   try {
-    items.value = await api.request<SystemConfigRow[]>('/api/v2/ops/admin/system-configs', 'GET');
+    items.value = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');
     syncBrandFormFromItems();
     clearSelection();
   } catch (e) {
@@ -435,7 +436,7 @@ function syncBrandFormFromItems() {
 }
 
 async function upsertBrandKey(configKey: string, configValue: string, description: string) {
-  await api.request('/api/v2/ops/admin/system-configs', 'PUT', {
+  await api.request(AdminEndpoints.systemConfigs, 'PUT', {
     configKey,
     configValue: configValue ?? '',
     description
@@ -495,7 +496,7 @@ async function uploadBrandLogo(options: UploadRequestOptions) {
       (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const formData = new FormData();
     formData.append('file', file);
-    const res = await authFetch(`${base}/api/v2/ops/admin/system-configs/brand-logo`, {
+    const res = await authFetch(`${base}${AdminEndpoints.systemConfigBrandLogo}`, {
       method: 'POST',
       body: formData
     });
@@ -550,7 +551,7 @@ async function save() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/system-configs', 'PUT', {
+    await api.request(AdminEndpoints.systemConfigs, 'PUT', {
       configKey: form.configKey.trim(),
       configValue: form.configValue.trim(),
       description: form.description.trim()
