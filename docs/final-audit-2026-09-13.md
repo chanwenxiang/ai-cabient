@@ -176,7 +176,7 @@
 | M-P2-11 | 中 | `merchant-api.ts` | ~~API 内吞错 + 重复上传 try/catch~~ → `softFallback` 留给页面；上传抽 `uploadMerchantAuthedFile`；`openExceptions` 双侧失败才抛 |
 | M-P2-12 | 中 | `confirmEvidenceIfNeeded` | ~~拍完仍 return false~~ → await 上传后有凭证则继续完成 |
 | M-P2-13 | 低 | `home.vue` | 工作台页聚合 KPI/扫码/公告/快捷入口/营收趋势，体量偏大 |
-| M-P2-14 | 中 | `mine.vue` `onBindWx` | 源码经 `wxLoginCode()`（`packages/shared-uni/src/notify.ts`）用 `uni.login`，H5 **不会**抛 `wx is undefined`，而是 reject「仅微信小程序可绑定提醒」；入口仍展示，体验不佳 | 建议 H5 隐藏绑定入口 |
+| M-P2-14 | 中 | `mine.vue` / consumer 消息 | ~~H5 仍展示绑定/订阅入口~~ → 绑定按钮仅 mp；H5 不调订阅授权；consumer 订阅条仅 mp |
 
 ### 3.2 核心业务链路
 
@@ -477,6 +477,7 @@
 - [x] M-P2-9：补货列表去掉全量 pricing；打开详情/扫码再 `ensureSkuCatalog`
 - [x] M-P2-10：全页错误态统一 `error-state`，清理死 `.retry` 样式
 - [x] M-P2-11：merchantApi 禁吞错；`softFallback` + 上传去重；openExceptions 双侧失败才抛
+- [x] M-P2-14：H5 隐藏微信绑定/订阅入口；保存偏好不调订阅授权；consumer 消息条仅 mp
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

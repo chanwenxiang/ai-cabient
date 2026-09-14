@@ -120,7 +120,7 @@
         </button>
         <text v-else class="bind-h5-hint">请在微信小程序中开启</text>
       </view>
-      <view v-if="!subscribeReady" class="notify-warn"
+      <view v-if="isMpWeixin && !subscribeReady" class="notify-warn"
         >未配置订阅消息模板，当前仅可保存偏好，无法向微信申请推送授权。</view
       >
       <view class="notify-types">
@@ -347,7 +347,8 @@ async function onBindWx() {
 async function onSaveSubscribe() {
   notifyBusy.value = true;
   try {
-    if (subscribeReady) {
+    // M-P2-14：H5 无订阅授权能力，仅保存偏好，不调 requestSubscribeMessage
+    if (isMpWeixin && subscribeReady) {
       const sub = await requestMerchantSubscribe();
       if (sub === 'failed') {
         showError('微信授权未完成，偏好仍会保存');
@@ -355,7 +356,11 @@ async function onSaveSubscribe() {
     }
     const prefs = await merchantApi.notifySubscribe(enabledTypes.value);
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
-    showSuccess(subscribeReady ? '提醒偏好已保存' : '偏好已保存（未配置推送模板）');
+    if (!isMpWeixin) {
+      showSuccess('偏好已保存（推送请在微信小程序开启）');
+    } else {
+      showSuccess(subscribeReady ? '提醒偏好已保存' : '偏好已保存（未配置推送模板）');
+    }
   } catch (e) {
     showError(e instanceof Error ? e.message : '保存失败');
   } finally {

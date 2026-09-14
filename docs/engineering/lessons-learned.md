@@ -70,6 +70,7 @@
 | 63 | merchant 补货 | 列表 onShow 全量拉 pricing | 仅为详情缩略图/扫码条码却预拉整表 | 列表禁 pricing；详情/扫码 `ensureSkuCatalog` 懒加载 | `useReplenishmentList.ts` |
 | 64 | merchant 错误态 | 多页自建 `.retry` 与 error-state 并存 | 迁移半截留死 CSS | 全页失败用 `error-state`；禁止页内再写 `.retry`；横幅重试用 `banner-retry` | merchant-mp pages |
 | 65 | merchant API | API 方法内 `.catch(()=>[])` 吞错 | 调用方误以为空数据 | API 抛错；并行可选用 `softFallback`；上传共用一处解析 | `merchant-api.ts` |
+| 66 | 小程序 H5 | H5 展示「绑定微信/开启订阅」 | 非 mp 无 login/subscribe 能力 | 入口 `v-if=isMpWeixin`；H5 保存偏好勿调订阅授权 | `mine.vue`、`messages.vue` |
 
 ## 追加模板
 
