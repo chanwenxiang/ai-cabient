@@ -243,7 +243,7 @@
 | S-P2-4 | 中 | 多 Service | ~~缓存 name/TTL 散落~~ → 已建 `CacheNames` + 仪表盘入口统一；业务侧禁止裸前缀/裸毫秒 |
 | S-P2-5 | 中 | `VisionRecognitionListener.java` | Kafka 消费失败重试策略未显式（DLT topic？指数退避？） |
 | S-P2-6 | 中 | `service/DisputeService.java` | 纠纷状态机（OPEN → RESOLVED → CLOSED）转移缺单元测试覆盖 |
-| S-P2-7 | 中 | `ScheduledTaskXxlJobHandler` | XXL-JOB 任务注册在 `XxlJobManagedTasks`，但调度时区与 cron 表达式散落 |
+| S-P2-7 | 中 | `ScheduledTaskXxlJobHandler` | ~~时区/cron 散落~~ → `ScheduleZones` + `aicabinet.schedule.zone`；缺 zone 的 `@Scheduled(cron)` 已补；XXL 种子 cron 表对齐 |
 | S-P2-8 | 中 | `kafka` 配置 | `auto-offset-reset: earliest` + 无显式 max.poll.records；高吞吐下有 rebalance 风险 |
 | S-P2-9 | 中 | 日志 | 部分关键 Service 仅 `log.info`，缺结构化字段（sessionId、userId、deviceId） |
 | S-P2-10 | 中 | API 版本 | URL 强绑定 `/api/v2/...`，无版本兼容策略（v2 ↔ v3 灰度） |
@@ -462,6 +462,7 @@
 - [x] S-P2-3（续）：用户行为分析改 `aggregatePaidOrdersByUser`（GROUP BY），禁止 `cabinet_order.findAll()`；对账/温湿度窗口扫描仍待跟进
 - [x] S-P2-3（再续）：温湿度历史 `LIMIT`（按小时×30，硬顶 5000）；争议/反馈/发票/库存流水列表加上限；对账日窗全量 ID 仍按日口径保留
 - [x] S-P2-4：`CacheNames` 统一前缀与 TTL 档位；`AdminDashboardController` 读写均走常量；`CacheService` 默认 TTL 对齐 `TTL_DEFAULT_MS`
+- [x] S-P2-7：`ScheduleZones`（Asia/Shanghai）+ `aicabinet.schedule.zone`；对账/券/SLA/KPI/佣金/毛利 cron 显式 zone；XXL 推荐 cron 与 seed 对齐；运营台 scheduleDesc 带时区
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

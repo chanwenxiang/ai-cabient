@@ -49,8 +49,8 @@ public class DeviceAvailabilityJobScheduler {
         }
     }
 
-    /** 设备可用性 KPI 日快照兜底：每日 1:10 统计前一天。 */
-    @Scheduled(cron = "0 10 1 * * *")
+    /** 设备可用性 KPI 日快照兜底：每日 1:10（Asia/Shanghai）统计前一天。 */
+    @Scheduled(cron = "0 10 1 * * *", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     public void kpiSnapshotFallback() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(KPI_SNAPSHOT, 600)) {

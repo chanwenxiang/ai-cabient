@@ -10,6 +10,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SlaDailySnapshotMapper;
+import com.aicabinet.trade.support.ScheduleZones;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -96,7 +97,7 @@ public class SlaMetricsService {
                 ));
     }
 
-    @Scheduled(cron = "0 5 0 * * *")
+    @Scheduled(cron = "0 5 0 * * *", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     @Transactional
     public void snapshotDaily() {
         long start = System.nanoTime();
@@ -106,7 +107,7 @@ public class SlaMetricsService {
         boolean failed = false;
         String summary = "本次无 SLA 快照";
         try {
-            LocalDate yesterday = LocalDate.now().minusDays(1);
+            LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
             SlaDailySnapshot snap = self.buildSnapshot(yesterday);
             persistSnapshot(yesterday, snap);
             summary = "已写入 " + yesterday + " SLA 快照，开门成功 "
@@ -124,7 +125,7 @@ public class SlaMetricsService {
 
     @Transactional
     public SlaDailySnapshot buildSnapshot(LocalDate date) {
-        ZoneId zone = ZoneId.systemDefault();
+        ZoneId zone = ScheduleZones.ZONE;
         Instant start = date.atStartOfDay(zone).toInstant();
         Instant end = date.plusDays(1).atStartOfDay(zone).toInstant();
 

@@ -1,5 +1,7 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.support.ScheduleZones;
+
 import java.util.Set;
 
 /**
@@ -7,6 +9,8 @@ import java.util.Set;
  * <p>开启 {@code aicabinet.xxljob.enabled=true} 后：内置 {@code @Scheduled} 经
  * {@link ScheduledTaskService#tryBegin} 自动让位；调度中心按 JobHandler 触发同一套业务。</p>
  * <p>高频会话/设备巡检等不在此集合，仍由 Spring + 分布式锁执行。</p>
+ * <p>调度时区统一 {@link ScheduleZones#ZONE_ID}；推荐 cron 见 {@link ScheduleZones#XXL_CRON_BY_TASK}
+ *（与 {@code infra/xxl-job/seed_aicabinet_jobs.sql} 一致）。</p>
  */
 public final class XxlJobManagedTasks {
 
@@ -30,5 +34,10 @@ public final class XxlJobManagedTasks {
 
     public static boolean isManaged(String taskKey) {
         return taskKey != null && KEYS.contains(taskKey);
+    }
+
+    /** XXL 推荐 cron；未知 key 返回 null。 */
+    public static String recommendedXxlCron(String taskKey) {
+        return ScheduleZones.XXL_CRON_BY_TASK.get(taskKey);
     }
 }

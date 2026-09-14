@@ -1,12 +1,12 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.support.ScheduleZones;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 
 /** 每日凌晨固化前一日毛利快照（改成本不回溯）。 */
 @Component
@@ -15,7 +15,6 @@ public class FinanceMarginLockScheduler {
 
 
     private static final Logger log = LoggerFactory.getLogger(FinanceMarginLockScheduler.class);
-    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     private final FundBillService fundBillService;
     private final ScheduledTaskService taskService;
@@ -26,7 +25,7 @@ public class FinanceMarginLockScheduler {
         this.taskService = taskService;
     }
 
-    @Scheduled(cron = "0 5 0 * * *", zone = "Asia/Shanghai")
+    @Scheduled(cron = "0 5 0 * * *", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     public void solidifyYesterday() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(FINANCE_MARGIN, 1800)) {
@@ -35,7 +34,7 @@ public class FinanceMarginLockScheduler {
         boolean failed = false;
         String summary = "本次未固化毛利快照";
         try {
-            LocalDate yesterday = LocalDate.now(ZONE).minusDays(1);
+            LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
             var dto = fundBillService.solidifyMargin(null, yesterday);
             summary = "已固化 " + yesterday + " 毛利快照，订单 " + dto.orderCount() + " 笔";
             log.info("finance margin solidified for {}", yesterday);

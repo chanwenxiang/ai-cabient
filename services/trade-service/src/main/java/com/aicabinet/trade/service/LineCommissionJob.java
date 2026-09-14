@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.LineCommissionDailyMapper;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
+import com.aicabinet.trade.support.ScheduleZones;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -16,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 
@@ -26,7 +26,6 @@ public class LineCommissionJob {
 
 
     private static final Logger log = LoggerFactory.getLogger(LineCommissionJob.class);
-    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final Set<String> PAID_STATUSES = Set.of("PAID", "COMPLETED");
 
     private final LineManagerMapper managerMapper;
@@ -53,7 +52,7 @@ public class LineCommissionJob {
         this.taskService = taskService;
     }
 
-    @Scheduled(cron = "0 20 0 * * *", zone = "Asia/Shanghai")
+    @Scheduled(cron = "0 20 0 * * *", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     @Transactional
     public void postDailyCommission() {
         long taskStart = System.nanoTime();
@@ -63,9 +62,9 @@ public class LineCommissionJob {
         boolean failed = false;
         String summary = "本次无线长佣金入账";
         try {
-            LocalDate bizDate = LocalDate.now(ZONE).minusDays(1);
-            Instant start = bizDate.atStartOfDay(ZONE).toInstant();
-            Instant end = bizDate.plusDays(1).atStartOfDay(ZONE).toInstant();
+            LocalDate bizDate = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
+            Instant start = bizDate.atStartOfDay(ScheduleZones.ZONE).toInstant();
+            Instant end = bizDate.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
             List<LineDevice> bindings = deviceMapper.findByStatus(LineManagerService.STATUS_ACTIVE);
             int posted = 0;
             for (LineDevice binding : bindings) {
