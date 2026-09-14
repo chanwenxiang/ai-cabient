@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -7,7 +7,7 @@
             <span class="title">设备运维</span>
             <span class="hint"
               >与交易异常分流：离线 / 禁售 / 锁机等设备侧事件；事件 ID
-              默认升序，点击表头可切换</span
+              默认升序，可在筛选栏切换；列表使用虚拟滚动</span
             >
           </div>
         </div>
@@ -72,135 +72,33 @@
       <el-form-item label="关键词">
         <el-input v-model="keyword" clearable placeholder="事件 ID / 详情" style="width: 180px" />
       </el-form-item>
+      <el-form-item label="事件ID排序">
+        <el-select v-model="sortDir" style="width: 120px" @change="search">
+          <el-option label="升序" value="asc" />
+          <el-option label="降序" value="desc" />
+        </el-select>
+      </el-form-item>
     </el-form>
 
-    <div class="table-scroll">
-      <el-table
-        ref="tableRef"
-        v-loading="loading"
+    <div v-loading="loading" class="table-scroll">
+      <AdminVirtualTable
+        :columns="virtualColumns"
         :data="displayItems"
-        stripe
-        border
-        class="report-table"
         row-key="eventId"
-        :default-sort="{ prop: 'eventId', order: 'ascending' }"
-        @sort-change="onSortChange"
-        @selection-change="onSelectionChange"
-        empty-text=" "
-      >
-        <template #empty
-          ><el-empty v-if="listHydrated && !loading" description="暂无运维事件"
-        /></template>
-        <el-table-column
-          type="selection"
-          width="48"
-          align="center"
-          class-name="col-status"
-          label-class-name="col-status"
-        />
-        <el-table-column
-          prop="eventId"
-          label="事件ID"
-          width="110"
-          align="center"
-          sortable="custom"
-          class-name="col-status"
-          label-class-name="col-status"
-        >
-          <template #default="{ row }">
-            <span class="cell-id">{{ row.eventId }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="eventType"
-          label="类型"
-          width="120"
-          align="center"
-          class-name="col-status"
-          label-class-name="col-status"
-        >
-          <template #default="{ row }">{{ eventTypeLabel(row.eventType) }}</template>
-        </el-table-column>
-        <el-table-column
-          label="级别"
-          width="100"
-          align="center"
-          class-name="col-status"
-          label-class-name="col-status"
-        >
-          <template #default="{ row }">
-            <el-tag
-              :type="
-                row.severity === 'CRITICAL'
-                  ? 'danger'
-                  : row.severity === 'WARN'
-                    ? 'warning'
-                    : 'info'
-              "
-              size="small"
-            >
-              {{ severityLabel(row.severity) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column
-          label="设备名称"
-          min-width="140"
-          class-name="col-text"
-          label-class-name="col-text"
-        >
-          <template #default="{ row }">{{ row.deviceName || '无' }}</template>
-        </el-table-column>
-        <el-table-column
-          prop="deviceId"
-          label="设备编号"
-          min-width="120"
-          align="center"
-          class-name="col-status"
-          label-class-name="col-status"
-        />
-        <el-table-column
-          prop="title"
-          label="标题"
-          min-width="140"
-          class-name="col-text"
-          label-class-name="col-text"
-        />
-        <el-table-column
-          prop="detail"
-          label="详情"
-          min-width="200"
-          class-name="col-text"
-          label-class-name="col-text"
-        >
-          <template #default="{ row }">{{ formatEventDetail(row.detail) }}</template>
-        </el-table-column>
-        <el-table-column
-          label="账龄"
-          width="100"
-          align="center"
-          class-name="col-status"
-          label-class-name="col-status"
-        >
-          <template #default="{ row }">{{ eventAge(row.createdAt) }}</template>
-        </el-table-column>
-        <el-table-column
-          label="时间"
-          width="170"
-          align="center"
-          class-name="col-status"
-          label-class-name="col-status"
-        >
-          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-        </el-table-column>
-      </el-table>
+        height="min(560px, calc(100svh - 320px))"
+      />
+      <el-empty
+        v-if="listHydrated && !loading && !displayItems.length"
+        class="virtual-empty"
+        description="暂无运维事件"
+      />
     </div>
     <PagePager
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
       :total="total"
-      :page-sizes="[10, 20, 50, 100]"
+      :page-sizes="ADMIN_LIST_PAGE_SIZES"
       layout="total, sizes, prev, pager, next"
       background
       @current-change="load"
@@ -210,10 +108,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, h, onMounted, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
+import AdminVirtualTable from '@/components/AdminVirtualTable.vue';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage, type Sort } from 'element-plus';
+import { ElMessage, ElTag, type Column } from 'element-plus';
 import { api } from '@/api/client';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -222,6 +121,10 @@ import { useListCsv } from '@/composables/useListCsv';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
+import {
+  ADMIN_LIST_PAGE_SIZES,
+  clampAdminPageSize
+} from '@/utils/admin-list-pager';
 
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 
@@ -244,9 +147,9 @@ const severity = ref('');
 const deviceFilter = ref('');
 const items = ref<OpsEvent[]>([]);
 const page = ref(1);
-const size = ref(50);
+const size = ref(clampAdminPageSize(50));
 const total = ref(0);
-/** 默认升序；点击「事件ID」表头切换 */
+/** 默认升序；筛选栏可切换 */
 const sortDir = ref<'asc' | 'desc'>('asc');
 
 const eventTypeOptions = useDictOptions('device_ops_event');
@@ -255,15 +158,8 @@ const severityOptions = computed(() =>
   riskSeverityDict.value.filter((o) => ['INFO', 'WARN', 'CRITICAL', 'HIGH'].includes(o.value))
 );
 
-const {
-  tableRef,
-  keyword,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection,
-  filterByKeyword
-} = useAdminListTable<OpsEvent>((r) => r.eventId);
+const { keyword, pickSelected, exportButtonLabel, clearSelection, filterByKeyword } =
+  useAdminListTable<OpsEvent>((r) => r.eventId);
 
 const displayItems = computed(() =>
   filterByKeyword(items.value, (row, kw) => {
@@ -274,6 +170,89 @@ const displayItems = computed(() =>
     return idMatch || detailMatch;
   })
 );
+
+const virtualColumns = computed((): Column<OpsEvent>[] => [
+  {
+    key: 'eventId',
+    dataKey: 'eventId',
+    title: '事件ID',
+    width: 110,
+    align: 'center',
+    cellRenderer: ({ rowData }) => h('span', { class: 'cell-id' }, String(rowData.eventId))
+  },
+  {
+    key: 'eventType',
+    dataKey: 'eventType',
+    title: '类型',
+    width: 120,
+    align: 'center',
+    cellRenderer: ({ rowData }) => eventTypeLabel(rowData.eventType)
+  },
+  {
+    key: 'severity',
+    dataKey: 'severity',
+    title: '级别',
+    width: 100,
+    align: 'center',
+    cellRenderer: ({ rowData }) =>
+      h(
+        ElTag,
+        {
+          type:
+            rowData.severity === 'CRITICAL'
+              ? 'danger'
+              : rowData.severity === 'WARN'
+                ? 'warning'
+                : 'info',
+          size: 'small'
+        },
+        () => severityLabel(rowData.severity)
+      )
+  },
+  {
+    key: 'deviceName',
+    dataKey: 'deviceName',
+    title: '设备名称',
+    width: 160,
+    cellRenderer: ({ rowData }) => rowData.deviceName || '无'
+  },
+  {
+    key: 'deviceId',
+    dataKey: 'deviceId',
+    title: '设备编号',
+    width: 140,
+    align: 'center'
+  },
+  {
+    key: 'title',
+    dataKey: 'title',
+    title: '标题',
+    width: 160
+  },
+  {
+    key: 'detail',
+    dataKey: 'detail',
+    title: '详情',
+    width: 240,
+    cellRenderer: ({ rowData }) => formatEventDetail(rowData.detail)
+  },
+  {
+    key: 'age',
+    dataKey: 'createdAt',
+    title: '账龄',
+    width: 100,
+    align: 'center',
+    cellRenderer: ({ rowData }) => eventAge(rowData.createdAt)
+  },
+  {
+    key: 'createdAt',
+    dataKey: 'createdAt',
+    title: '时间',
+    width: 170,
+    align: 'center',
+    cellRenderer: ({ rowData }) => formatDateTime(rowData.createdAt)
+  }
+] as Column<OpsEvent>[]);
 
 const { onExport } = useListCsv({
   filePrefix: '设备运维事件',
@@ -343,21 +322,13 @@ function eventAge(createdAt?: string) {
   return `${Math.floor(h / 24)} 天前`;
 }
 
-function onSortChange(payload: Sort) {
-  if (payload.prop !== 'eventId') return;
-  if (payload.order === 'descending') sortDir.value = 'desc';
-  else sortDir.value = 'asc'; // ascending 或取消排序都回默认升序
-  page.value = 1;
-  load();
-}
-
 async function load() {
   const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
       page: String(page.value - 1),
-      size: String(size.value),
+      size: String(clampAdminPageSize(size.value)),
       sortDir: sortDir.value
     });
     if (eventType.value) q.set('eventType', eventType.value);
@@ -386,6 +357,7 @@ function search() {
 }
 
 function onSizeChange() {
+  size.value = clampAdminPageSize(size.value);
   page.value = 1;
   void load();
 }
@@ -417,10 +389,14 @@ onMounted(async () => {
   font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
-.page-pager {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
+.table-scroll {
+  position: relative;
+  min-height: 240px;
+}
+.virtual-empty {
+  position: absolute;
+  inset: 48px 0 0;
+  pointer-events: none;
 }
 .cell-id {
   font-variant-numeric: tabular-nums;

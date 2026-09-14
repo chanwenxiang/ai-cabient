@@ -420,7 +420,7 @@
       v-model:current-page="page"
       v-model:page-size="size"
       :total="total"
-      :page-sizes="[10, 20, 50]"
+      :page-sizes="ADMIN_LIST_PAGE_SIZES"
       layout="total, sizes, prev, pager, next"
       background
       @current-change="() => load(false)"
@@ -540,6 +540,10 @@ import type {
 } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import {
+  ADMIN_LIST_PAGE_SIZES,
+  clampAdminPageSize
+} from '@/utils/admin-list-pager';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'CAN_BUY' | 'ON_SALE' | 'LOCKED';
@@ -1038,7 +1042,7 @@ async function load(showToast = false) {
   try {
     const q = new URLSearchParams({
       page: String(page.value - 1),
-      size: String(size.value)
+      size: String(clampAdminPageSize(size.value))
     });
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     if (lifecycleFilter.value) q.set('lifecycleStatus', lifecycleFilter.value);
@@ -1132,6 +1136,7 @@ function reset() {
   load(false);
 }
 function onSizeChange() {
+  size.value = clampAdminPageSize(size.value);
   page.value = 1;
   load(false);
 }

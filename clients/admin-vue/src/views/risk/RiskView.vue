@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -158,7 +158,7 @@
           v-model:current-page="eventPage"
           v-model:page-size="eventSize"
           :total="eventTotal"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next"
           background
           @current-change="loadEvents"
@@ -254,7 +254,7 @@
           v-model:current-page="blacklistPage"
           v-model:page-size="blacklistSize"
           :total="blacklistTotal"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next"
           background
           @current-change="loadBlacklist"

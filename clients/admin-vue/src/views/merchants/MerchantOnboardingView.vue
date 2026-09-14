@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card shadow="never" class="page-card">
     <template #header>
       <div class="page-card-head">
@@ -187,7 +187,7 @@
       v-model:current-page="page"
       v-model:page-size="pageSize"
       :total="total"
-      :page-sizes="[10, 20, 50, 100]"
+      :page-sizes="[10, 20, 50]"
       layout="total, sizes, prev, pager, next, jumper"
       background
       @current-change="load"
