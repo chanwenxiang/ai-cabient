@@ -304,6 +304,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowDown, ArrowUp, Delete, EditPen, Refresh, Share } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
@@ -428,7 +429,7 @@ async function load() {
   try {
     const [defs, depts] = await Promise.all([
       api.request<ApprovalDef[]>('/api/v2/ops/admin/approvals/definitions', 'GET'),
-      api.request<DeptRow[]>('/api/v2/ops/admin/departments', 'GET').catch(() => [])
+      api.request<DeptRow[]>(AdminEndpoints.departments, 'GET').catch(() => [])
     ]);
     rows.value = defs || [];
     departments.value = depts || [];

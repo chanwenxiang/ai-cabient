@@ -215,6 +215,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { displayLabel } from '@aicabinet/shared-dict';
 
 interface DeptRow {
@@ -291,7 +292,7 @@ function onSelectionChange(list: DeptRow[]) {
 async function load() {
   loading.value = true;
   try {
-    rows.value = (await api.request<DeptRow[]>('/api/v2/ops/admin/departments', 'GET')) || [];
+    rows.value = (await api.request<DeptRow[]>(AdminEndpoints.departments, 'GET')) || [];
     selected.value = [];
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -330,9 +331,9 @@ async function saveDept() {
       remark: deptForm.remark
     };
     if (deptForm.deptId) {
-      await api.request(`/api/v2/ops/admin/departments/${deptForm.deptId}`, 'PUT', body);
+      await api.request(AdminEndpoints.department(deptForm.deptId), 'PUT', body);
     } else {
-      await api.request('/api/v2/ops/admin/departments', 'POST', body);
+      await api.request(AdminEndpoints.departments, 'POST', body);
     }
     ElMessage.success('已保存');
     deptDlg.value = false;
@@ -357,7 +358,7 @@ async function batchSetStatus(status: 'ACTIVE' | 'INACTIVE') {
   }
   try {
     for (const row of selected.value) {
-      await api.request(`/api/v2/ops/admin/departments/${row.deptId}`, 'PUT', {
+      await api.request(AdminEndpoints.department(row.deptId), 'PUT', {
         deptKey: row.deptKey,
         deptName: row.deptName,
         parentId: row.parentId ?? null,
@@ -377,7 +378,7 @@ async function loadAllOperators() {
   operatorLoading.value = true;
   try {
     const page = await api.request<{ items?: OperatorRow[]; content?: OperatorRow[] }>(
-      '/api/v2/ops/admin/rbac/operators?page=0&size=200',
+      AdminEndpoints.rbacOperatorsPage(0, 200),
       'GET'
     );
     const list = page?.items || page?.content || [];
@@ -401,7 +402,7 @@ async function openMembers(row: DeptRow) {
   try {
     const [data] = await Promise.all([
       api.request<{ userIds: number[]; userNames: string[] }>(
-        `/api/v2/ops/admin/departments/${row.deptId}/members`,
+        AdminEndpoints.departmentMembers(row.deptId),
         'GET'
       ),
       loadAllOperators()
@@ -427,7 +428,7 @@ async function saveMembers() {
   if (!memberDept.value) return;
   savingMembers.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/departments/${memberDept.value.deptId}/members`, 'PUT', {
+    await api.request(AdminEndpoints.departmentMembers(memberDept.value.deptId), 'PUT', {
       userIds: memberUserIds.value
     });
     ElMessage.success('成员已更新');

@@ -713,7 +713,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
               .map((n) => roleByName.get(n))
               .filter((id): id is number => id != null)
           : [];
-        await api.request('/api/v2/ops/admin/rbac/operators', 'POST', {
+        await api.request(AdminEndpoints.rbacOperators, 'POST', {
           name,
           phoneNumber,
           password,
@@ -805,7 +805,7 @@ async function loadDepartments() {
   const seq = loadSeq.begin('loadDepartments');
   try {
     departments.value =
-      (await api.request<DeptRow[]>('/api/v2/ops/admin/departments', 'GET').catch(() => [])) || [];
+      (await api.request<DeptRow[]>(AdminEndpoints.departments, 'GET').catch(() => [])) || [];
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadDepartments')) return;
     departments.value = [];
@@ -815,7 +815,7 @@ async function loadDepartments() {
 async function loadRoles() {
   const seq = loadSeq.begin('loadRoles');
   try {
-    roles.value = await api.request<RoleRow[]>('/api/v2/ops/admin/rbac/roles', 'GET');
+    roles.value = await api.request<RoleRow[]>(AdminEndpoints.rbacRoles, 'GET');
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadRoles')) return;
     roles.value = [];
@@ -844,7 +844,7 @@ async function loadOperators() {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
     if (phone.value.trim()) q.set('phone', phone.value.trim());
     const data = await api.request<PageResult<OperatorRow>>(
-      `/api/v2/ops/admin/rbac/operators?${q}`,
+      AdminEndpoints.rbacOperatorsList(q),
       'GET'
     );
     operators.value = sortById(data.items || [], 'userId');
@@ -943,7 +943,7 @@ async function submitResetPassword() {
   if (pwd !== confirm) return ElMessage.warning('两次输入的密码不一致');
   resetPwdSaving.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/rbac/operators/${target.userId}/reset-password`, 'POST', {
+    await api.request(AdminEndpoints.rbacOperatorResetPassword(target.userId), 'POST', {
       password: pwd
     });
     ElMessage.success('密码已重置');
@@ -980,7 +980,7 @@ async function saveForm() {
   saving.value = true;
   try {
     if (f.userId) {
-      await api.request(`/api/v2/ops/admin/rbac/operators/${f.userId}`, 'PUT', {
+      await api.request(AdminEndpoints.rbacOperator(f.userId), 'PUT', {
         name: f.name.trim(),
         phoneNumber: f.phoneNumber.trim(),
         status: f.status,
@@ -992,7 +992,7 @@ async function saveForm() {
       await loadOperators();
     } else {
       const created = await api.request<{ userId: number }>(
-        '/api/v2/ops/admin/rbac/operators',
+        AdminEndpoints.rbacOperators,
         'POST',
         {
           name: f.name.trim(),
@@ -1025,7 +1025,7 @@ async function onDisable(row: OperatorRow) {
     await ElMessageBox.confirm(`确认停用账号「${row.name || row.phoneNumber}」？`, '停用账号', {
       type: 'warning'
     });
-    await api.request(`/api/v2/ops/admin/rbac/operators/${row.userId}`, 'DELETE');
+    await api.request(AdminEndpoints.rbacOperator(row.userId), 'DELETE');
     ElMessage.success('已停用');
     await loadOperators();
   } catch (e: unknown) {
@@ -1069,7 +1069,7 @@ async function saveRoles() {
   }
   saving.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/rbac/users/${currentUserId.value}/roles`, 'PUT', [
+    await api.request(AdminEndpoints.rbacUserRoles(currentUserId.value), 'PUT', [
       ...selected
     ]);
     ElMessage.success('角色已更新');
@@ -1101,7 +1101,7 @@ async function openMerchants(row: OperatorRow) {
   try {
     if (!merchants.value.length) await loadMerchants();
     const data = await api.request<{ merchantIds: string[] }>(
-      `/api/v2/ops/admin/rbac/users/${row.userId}/merchants`,
+      AdminEndpoints.rbacUserMerchants(row.userId),
       'GET'
     );
     merchantIds.value = [...(data.merchantIds || [])];
@@ -1117,7 +1117,7 @@ async function saveMerchants() {
   saving.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/rbac/users/${currentUserId.value}/merchants`,
+      AdminEndpoints.rbacUserMerchants(currentUserId.value),
       'PUT',
       merchantIds.value
     );
@@ -1163,7 +1163,7 @@ async function openDevices(row: OperatorRow) {
       scopeMode: string;
       deviceIds: string[];
       routeCodes?: string[];
-    }>(`/api/v2/ops/admin/rbac/users/${row.userId}/devices`, 'GET');
+    }>(AdminEndpoints.rbacUserDevices(row.userId), 'GET');
     let mode = data.scopeMode || 'ALL';
     if (mode === 'PARTIAL') mode = 'DEVICE_IDS';
     deviceScopeMode.value = mode;
@@ -1180,7 +1180,7 @@ async function saveDevices() {
   if (currentUserId.value == null) return;
   saving.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/rbac/users/${currentUserId.value}/devices`, 'PUT', {
+    await api.request(AdminEndpoints.rbacUserDevices(currentUserId.value), 'PUT', {
       userId: currentUserId.value,
       scopeMode: deviceScopeMode.value,
       deviceIds: deviceScopeMode.value === 'DEVICE_IDS' ? deviceIds.value : [],

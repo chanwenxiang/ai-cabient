@@ -415,7 +415,49 @@ export const AdminEndpoints = {
   merchantWithdrawPayout: (requestId: string | number) =>
     `${ops}/merchant-withdraws/${encodeURIComponent(String(requestId))}/payout`,
   merchantWithdrawCancel: (requestId: string | number) =>
-    `${ops}/merchant-withdraws/${encodeURIComponent(String(requestId))}/cancel`
+    `${ops}/merchant-withdraws/${encodeURIComponent(String(requestId))}/cancel`,
+
+  /** RBAC / 部门 */
+  rbacRoles: `${ops}/rbac/roles`,
+  rbacRole: (roleId: string | number) =>
+    `${ops}/rbac/roles/${encodeURIComponent(String(roleId))}`,
+  rbacRolePermissions: (roleId: string | number) =>
+    `${ops}/rbac/roles/${encodeURIComponent(String(roleId))}/permissions`,
+  rbacPermissions: `${ops}/rbac/permissions`,
+  rbacPermissionsIncludeInactive: `${ops}/rbac/permissions?includeInactive=true`,
+  rbacPermission: (permissionId: string | number) =>
+    `${ops}/rbac/permissions/${encodeURIComponent(String(permissionId))}`,
+  rbacOperators: `${ops}/rbac/operators`,
+  rbacOperatorsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/rbac/operators?${query}`
+      : `${ops}/rbac/operators?${query.toString()}`,
+  rbacOperatorsPage: (page = 0, size = 200) =>
+    `${ops}/rbac/operators?page=${page}&size=${size}`,
+  rbacOperator: (userId: string | number) =>
+    `${ops}/rbac/operators/${encodeURIComponent(String(userId))}`,
+  rbacOperatorResetPassword: (userId: string | number) =>
+    `${ops}/rbac/operators/${encodeURIComponent(String(userId))}/reset-password`,
+  rbacUserRoles: (userId: string | number) =>
+    `${ops}/rbac/users/${encodeURIComponent(String(userId))}/roles`,
+  rbacUserMerchants: (userId: string | number) =>
+    `${ops}/rbac/users/${encodeURIComponent(String(userId))}/merchants`,
+  rbacUserDevices: (userId: string | number) =>
+    `${ops}/rbac/users/${encodeURIComponent(String(userId))}/devices`,
+  rbacMe: `${ops}/rbac/me`,
+  rbacMePermissions: `${ops}/rbac/me/permissions`,
+  rbacMeNav: `${ops}/rbac/me/nav`,
+  rbacMePassword: `${ops}/rbac/me/password`,
+  rbacMeAvatar: `${ops}/rbac/me/avatar`,
+  rbacMeTwoFactorStatus: `${ops}/rbac/me/two-factor/status`,
+  rbacMeTwoFactorEnroll: `${ops}/rbac/me/two-factor/enroll`,
+  rbacMeTwoFactorConfirm: `${ops}/rbac/me/two-factor/confirm`,
+  rbacMeTwoFactorDisable: `${ops}/rbac/me/two-factor/disable`,
+  departments: `${ops}/departments`,
+  department: (deptId: string | number) =>
+    `${ops}/departments/${encodeURIComponent(String(deptId))}`,
+  departmentMembers: (deptId: string | number) =>
+    `${ops}/departments/${encodeURIComponent(String(deptId))}/members`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -452,5 +494,7 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/line-withdraws',
   '/api/v2/ops/admin/line-promo-tasks',
   '/api/v2/ops/admin/merchant-wallets',
-  '/api/v2/ops/admin/merchant-withdraws'
+  '/api/v2/ops/admin/merchant-withdraws',
+  '/api/v2/ops/admin/rbac',
+  '/api/v2/ops/admin/departments'
 ] as const;

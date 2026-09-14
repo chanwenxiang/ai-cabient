@@ -271,6 +271,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Key, Refresh, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type ElTree } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -342,7 +343,7 @@ async function onToggleStatus(row: RoleRow) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/rbac/roles/${row.roleId}`, 'PUT', {
+    await api.request(AdminEndpoints.rbacRole(row.roleId), 'PUT', {
       roleName: row.roleName,
       remark: row.remark,
       status: next
@@ -427,7 +428,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const roleKey = (row['权限字符'] || row.roleKey || '').trim();
         const roleName = (row['角色名称'] || row.roleName || '').trim();
         if (!roleKey || !roleName) continue;
-        await api.request('/api/v2/ops/admin/rbac/roles', 'POST', {
+        await api.request(AdminEndpoints.rbacRoles, 'POST', {
           roleKey,
           roleName,
           remark: (row['备注'] || row.remark || '').trim(),
@@ -444,7 +445,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
 async function loadRoles() {
   loading.value = true;
   try {
-    roles.value = await api.request<RoleRow[]>('/api/v2/ops/admin/rbac/roles', 'GET');
+    roles.value = await api.request<RoleRow[]>(AdminEndpoints.rbacRoles, 'GET');
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载角色失败');
@@ -455,7 +456,7 @@ async function loadRoles() {
 }
 
 async function loadPermTree() {
-  const flat = await api.request<PermRow[]>('/api/v2/ops/admin/rbac/permissions', 'GET');
+  const flat = await api.request<PermRow[]>(AdminEndpoints.rbacPermissions, 'GET');
   permTree.value = buildPermTree(flat);
 }
 
@@ -482,14 +483,14 @@ async function saveRole() {
   saving.value = true;
   try {
     if (f.roleId) {
-      await api.request(`/api/v2/ops/admin/rbac/roles/${f.roleId}`, 'PUT', {
+      await api.request(AdminEndpoints.rbacRole(f.roleId), 'PUT', {
         roleName: f.roleName.trim(),
         remark: f.remark,
         status: f.status
       });
       ElMessage.success('角色已更新');
     } else {
-      await api.request('/api/v2/ops/admin/rbac/roles', 'POST', {
+      await api.request(AdminEndpoints.rbacRoles, 'POST', {
         roleKey: f.roleKey.trim(),
         roleName: f.roleName.trim(),
         remark: f.remark,
@@ -557,7 +558,7 @@ async function openPerms(row: RoleRow) {
   try {
     if (!permTree.value.length) await loadPermTree();
     const data = await api.request<{ permissionIds: number[] }>(
-      `/api/v2/ops/admin/rbac/roles/${row.roleId}/permissions`,
+      AdminEndpoints.rbacRolePermissions(row.roleId),
       'GET'
     );
     await nextTick();
@@ -579,7 +580,7 @@ async function savePerms() {
     const checked = (tree.getCheckedKeys(false) || []) as number[];
     const half =
       permCheckMode.value === 'cascade' ? ((tree.getHalfCheckedKeys() || []) as number[]) : [];
-    await api.request(`/api/v2/ops/admin/rbac/roles/${permRole.value.roleId}/permissions`, 'PUT', [
+    await api.request(AdminEndpoints.rbacRolePermissions(permRole.value.roleId), 'PUT', [
       ...new Set([...checked, ...half])
     ]);
     ElMessage.success('权限已保存');
