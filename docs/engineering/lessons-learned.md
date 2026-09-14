@@ -67,6 +67,7 @@
 | 60 | merchant 分账 | 分账一次拉 100 卡顿/截断 | 无分页只取首页 | PAGE_SIZE≤20 + loadMore/onReachBottom；深链可多页扫描 | `splits.vue` |
 | 61 | merchant 补货 | 模板留 display:none 装饰球 | 视觉迭代后未删节点 | 禁用仅隐藏的死 DOM/CSS，直接删除 | `replenishment.vue` |
 | 62 | merchant 类型 | `@deprecated` 别名散布各页 | API 层二次命名与 OpenAPI 脱节 | 页面直接用 `shared-types`；仅允许带前端投影字段的视图类型 | `merchant-api.ts` |
+| 63 | merchant 补货 | 列表 onShow 全量拉 pricing | 仅为详情缩略图/扫码条码却预拉整表 | 列表禁 pricing；详情/扫码 `ensureSkuCatalog` 懒加载 | `useReplenishmentList.ts` |
 
 ## 追加模板
 

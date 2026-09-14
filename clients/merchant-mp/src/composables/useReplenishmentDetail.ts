@@ -42,6 +42,8 @@ export function useReplenishmentDetail(opts: {
   canRequest: ComputedRef<boolean>;
   restoreDoorState: (taskId: number) => void;
   syncDoorStateFromServer: (taskId: number) => Promise<void>;
+  /** 打开详情时再拉 SKU 图/条码目录（勿在列表 onShow 全量 pricing）。 */
+  ensureSkuCatalog?: () => Promise<void>;
 }) {
   /** Deep-link query applied once; cleared so onShow/load won't reopen the same task. */
   let pendingDeepLink = false;
@@ -179,8 +181,13 @@ export function useReplenishmentDetail(opts: {
       opts.sheetCloseArmed.value = true;
     }, 280);
     try {
-      await refreshSelectedTask(task);
-      await loadTaskDetailResources(task);
+      await Promise.all([
+        opts.ensureSkuCatalog?.() ?? Promise.resolve(),
+        (async () => {
+          await refreshSelectedTask(task);
+          await loadTaskDetailResources(task);
+        })()
+      ]);
     } catch (error) {
       showError(error instanceof Error ? error.message : '明细加载失败');
     } finally {

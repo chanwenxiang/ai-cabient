@@ -3,6 +3,7 @@ import { showError, showSuccess } from '@/utils/notify';
 import { merchantApi } from '@/utils/merchant-api';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { promptText } from '@/utils/text-prompt';
+import type { MerchantSkuPricing } from '@aicabinet/shared-types';
 
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
@@ -23,7 +24,7 @@ type AskConfirm = (opts: {
  */
 export function useReplenishmentScan(opts: {
   devices: Ref<Record<string, unknown>[]>;
-  skus: Ref<Record<string, unknown>[]>;
+  skus: Ref<MerchantSkuPricing[]>;
   allTasks: Ref<Task[]>;
   selected: Ref<Task | null>;
   lines: Ref<Line[]>;
@@ -35,6 +36,7 @@ export function useReplenishmentScan(opts: {
   askConfirm: AskConfirm;
   openTask: (task: Task) => Promise<void>;
   adjustQty: (line: Line, delta: number) => void;
+  ensureSkuCatalog?: () => Promise<void>;
 }) {
   async function assertScannedDeviceAllowed(deviceId: string): Promise<boolean> {
     const id = String(deviceId || '')
@@ -150,13 +152,13 @@ export function useReplenishmentScan(opts: {
     const key = code.trim().toUpperCase();
     return opts.skus.value.find(
       (s) =>
-        String((s as { barcode?: string }).barcode || '')
+        String(s.barcode || '')
           .trim()
           .toUpperCase() === key ||
-        String((s as { skuId?: string }).skuId || '')
+        String(s.skuId || '')
           .trim()
           .toUpperCase() === key
-    ) as { skuId?: string; skuName?: string } | undefined;
+    );
   }
 
   function findMatchingTaskLine(skuId: string): Line | undefined {
@@ -172,6 +174,7 @@ export function useReplenishmentScan(opts: {
     }
     opts.scanning.value = true;
     try {
+      await opts.ensureSkuCatalog?.();
       const code = await readProductBarcode();
       if (!code) return;
       const sku = findSkuByBarcode(code);
