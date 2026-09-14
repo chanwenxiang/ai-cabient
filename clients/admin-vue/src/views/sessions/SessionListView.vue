@@ -441,6 +441,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
@@ -606,10 +607,7 @@ async function onExport() {
     const q = new URLSearchParams();
     appendSessionFilters(q);
     const qs = q.toString();
-    const exportPath = qs
-      ? `/api/v2/ops/admin/sessions/export?${qs}`
-      : '/api/v2/ops/admin/sessions/export';
-    await downloadAuthFile(exportPath, csvFileName('开门记录'));
+    await downloadAuthFile(AdminEndpoints.sessionsExport(qs), csvFileName('开门记录'));
     ElMessage.success('已导出');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');
@@ -936,7 +934,7 @@ async function load() {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
     appendSessionFilters(q);
     const data = await api.request<PageResult<SessionRow>>(
-      `/api/v2/ops/admin/sessions?${q}`,
+      AdminEndpoints.sessionsList(q),
       'GET'
     );
     if (!loadSeq.isCurrent(seq)) return;
@@ -949,7 +947,7 @@ async function load() {
       if (keyword.value.trim()) focusQ.set('q', keyword.value.trim());
       if (stateFilter.value) focusQ.set('state', stateFilter.value);
       const focusData = await api.request<PageResult<SessionRow>>(
-        `/api/v2/ops/admin/sessions?${focusQ}`,
+        AdminEndpoints.sessionsList(focusQ),
         'GET'
       );
       if (!loadSeq.isCurrent(seq)) return;
@@ -1008,7 +1006,7 @@ function onSizeChange() {
 async function cancelSession(sessionId: string) {
   try {
     await ElMessageBox.confirm('确认取消该会话？', '取消会话');
-    await api.request(`/api/v2/ops/admin/sessions/${encodeURIComponent(sessionId)}/cancel`, 'POST');
+    await api.request(AdminEndpoints.sessionCancel(sessionId), 'POST');
     ElMessage.success('已取消');
     load();
   } catch (e: unknown) {

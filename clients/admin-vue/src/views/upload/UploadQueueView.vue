@@ -253,6 +253,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useListCsv } from '@/composables/useListCsv';
@@ -539,7 +540,7 @@ async function scanWaitingPages(
     });
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     const data = await api.request<PageResult<SessionRow>>(
-      `/api/v2/ops/admin/sessions?${q}`,
+      AdminEndpoints.sessionsList(q),
       'GET'
     );
     const batch = data.items || [];
@@ -591,7 +592,7 @@ async function load() {
       q.set('stuckMinutes', String(SLA_MINUTES));
     }
     const data = await api.request<PageResult<SessionRow>>(
-      `/api/v2/ops/admin/sessions?${q}`,
+      AdminEndpoints.sessionsList(q),
       'GET'
     );
     items.value = data.items || [];

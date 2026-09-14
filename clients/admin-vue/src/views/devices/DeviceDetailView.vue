@@ -2097,7 +2097,9 @@ async function loadRelated() {
     const [sess, ord] = await Promise.all([
       api
         .request<PageResult<SessionDto>>(
-          `/api/v2/ops/admin/sessions?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
+          AdminEndpoints.sessionsList(
+            `page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`
+          ),
           'GET'
         )
         .catch(() => ({ items: [] })),
