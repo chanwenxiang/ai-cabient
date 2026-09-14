@@ -6,6 +6,7 @@ import com.aicabinet.trade.config.SessionExpireProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
+import com.aicabinet.trade.support.SessionLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -229,7 +230,7 @@ public class SessionExpireService {
             upgradeConsumerRecognizingTimeout(session);
             return true;
         } catch (Exception e) {
-            log.warn("识别超时升级失败 session={}", session.getSessionId(), e);
+            log.warn("识别超时升级失败 {}", SessionLogContext.of(session), e);
             return false;
         }
     }
@@ -243,7 +244,7 @@ public class SessionExpireService {
             try {
                 disputeService.createTimeoutTicket(session, failReason);
             } catch (Exception ticketEx) {
-                log.warn("超时争议单创建失败 session={}", session.getSessionId(), ticketEx);
+                log.warn("超时争议单创建失败 {}", SessionLogContext.of(session), ticketEx);
             }
         } else if (from.canTransitionTo(SessionState.FAILED)) {
             session.setFailReason("识别超时");
@@ -255,8 +256,8 @@ public class SessionExpireService {
             cabinetMetrics.recordSessionState(SessionState.FAILED);
         }
         opsExceptionService.report("RECOGNITION_TIMEOUT", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别超时", "关门后超过10分钟未完成识别结算");
-        log.warn("识别超时会话已升级 session={} from={} to={}",
-                session.getSessionId(), from, session.getState());
+        log.warn("识别超时会话已升级 {} from={} to={}",
+                SessionLogContext.of(session), from, session.getState());
     }
 
     private void closeStaleRestockRecognizing(ShoppingSession session) {
@@ -267,14 +268,13 @@ public class SessionExpireService {
         try {
             restockSnapshotService.applySnapshot(session);
         } catch (Exception e) {
-            log.warn("补货超时快照失败 session={}，仍关闭会话", session.getSessionId(), e);
+            log.warn("补货超时快照失败 {}，仍关闭会话", SessionLogContext.of(session), e);
         }
         session.setState(SessionState.COMPLETED);
         repository.save(session);
         cabinetMetrics.recordSessionState(SessionState.COMPLETED);
         opsExceptionService.report("RESTOCK_RECOGNITION_TIMEOUT", "MEDIUM", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "补货识别超时", "补货关门后超过10分钟未完成货道快照");
-        log.warn("restock recognizing session expired session={} device={}",
-                session.getSessionId(), session.getDeviceId());
+        log.warn("restock recognizing session expired {}", SessionLogContext.of(session));
     }
 
     /**
@@ -308,7 +308,7 @@ public class SessionExpireService {
                             locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
                     "开门超时",
                     "开门命令在90秒内未得到设备响应");
-            log.warn("opening session expired session={} device={}", locked.getSessionId(), locked.getDeviceId());
+            log.warn("opening session expired {}", SessionLogContext.of(locked));
             return true;
         } finally {
             distributedLockService.unlock(SessionService.sessionLifeLockKey(sessionId));
@@ -348,8 +348,7 @@ public class SessionExpireService {
                             locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
                     "补货会话超时",
                     "补货开门后超过" + sessionExpireProperties.restockShoppingMinutes() + "分钟未结束");
-            log.warn("restock shopping session expired session={} device={}",
-                    locked.getSessionId(), locked.getDeviceId());
+            log.warn("restock shopping session expired {}", SessionLogContext.of(locked));
             return true;
         } finally {
             distributedLockService.unlock(SessionService.sessionLifeLockKey(sessionId));
@@ -397,8 +396,7 @@ public class SessionExpireService {
                     "DOOR_OPEN_TOO_LONG",
                     locked.getSessionId(),
                     "开门超时已自动关闭会话并释放设备");
-            log.warn("consumer shopping session expired session={} device={}",
-                    locked.getSessionId(), locked.getDeviceId());
+            log.warn("consumer shopping session expired {}", SessionLogContext.of(locked));
             return true;
         } finally {
             distributedLockService.unlock(SessionService.sessionLifeLockKey(sessionId));
