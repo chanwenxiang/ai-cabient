@@ -1,4 +1,6 @@
 -- AI Cabinet：资金 / 对账类任务种子（XXL-JOB 3.4.x）
+-- 时区约定：Asia/Shanghai（与 aicabinet.schedule.zone / ScheduleZones 一致；
+--   admin MySQL URL 已带 serverTimezone=Asia/Shanghai）
 -- 首次初始化：挂到 xxl-job-mysql 的 docker-entrypoint-initdb.d（见 docker-compose.xxljob.yml）
 -- 已有库可手动：
 --   docker exec -i <xxl-mysql> mysql -uroot -pxxljob xxl_job < infra/xxl-job/seed_aicabinet_jobs.sql

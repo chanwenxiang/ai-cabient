@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.support.ScheduleZones;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -93,25 +94,25 @@ public class ScheduledTaskRegistry {
                 profitSharingRetryScheduler::retryFailedSplits);
         register("expiry-alert", "库存临期预警", "WAREHOUSE", "每 60 分钟", 600,
                 expiryAlertScheduler::scanExpiry);
-        register("reconciliation", "每日对账", FINANCE, "每日 01:30", 1800,
+        register("reconciliation", "每日对账", FINANCE, ScheduleZones.desc("每日 01:30"), 1800,
                 reconciliationScheduler::runDailyReconciliation);
-        register("line-commission", "线长佣金入账", FINANCE, "每日 00:20", 1800,
+        register("line-commission", "线长佣金入账", FINANCE, ScheduleZones.desc("每日 00:20"), 1800,
                 lineCommissionJob::postDailyCommission);
-        register("finance-margin", "财务保证金固化", FINANCE, "每日 00:05", 1800,
+        register("finance-margin", "财务保证金固化", FINANCE, ScheduleZones.desc("每日 00:05"), 1800,
                 financeMarginLockScheduler::solidifyYesterday);
-        register("coupon-expire", "优惠券过期处理", MARKETING, "每日 02:00", 600,
+        register("coupon-expire", "优惠券过期处理", MARKETING, ScheduleZones.desc("每日 02:00"), 600,
                 couponService::expireOverdueCoupons);
-        register("points-expiry", "积分过期管理", MARKETING, "每 6 小时", 600,
+        register("points-expiry", "积分过期管理", MARKETING, ScheduleZones.desc("每 6 小时"), 600,
                 pointsExpiryScheduler::scan);
-        register("coupon-expiry-remind", "优惠券临期提醒", MARKETING, "每 6 小时", 600,
+        register("coupon-expiry-remind", "优惠券临期提醒", MARKETING, ScheduleZones.desc("每 6 小时"), 600,
                 couponExpiryReminderScheduler::scan);
-        register("growth-log-archive", "增长日志归档", SYSTEM, "每日 03:00", 600,
+        register("growth-log-archive", "增长日志归档", SYSTEM, ScheduleZones.desc("每日 03:00"), 600,
                 growthLogArchiveScheduler::archive);
-        register("sku-review-daily", "选品诊断每日刷新", MARKETING, "每日 04:00", 600,
+        register("sku-review-daily", "选品诊断每日刷新", MARKETING, ScheduleZones.desc("每日 04:00"), 600,
                 skuReviewScheduler::scan);
-        register("sla-snapshot", "SLA 日快照", "OPS", "每日 00:05", 600,
+        register("sla-snapshot", "SLA 日快照", "OPS", ScheduleZones.desc("每日 00:05"), 600,
                 slaMetricsService::snapshotDaily);
-        register("kpi-snapshot", "设备可用性 KPI 快照", "OPS", "每日 01:10", 600,
+        register("kpi-snapshot", "设备可用性 KPI 快照", "OPS", ScheduleZones.desc("每日 01:10"), 600,
                 deviceAvailabilityJobScheduler::kpiSnapshotFallback);
         register("risk-auto-disposition", "风控事件自动处置", "OPS", "每 15 分钟", 600,
                 riskAutoDispositionService::runScheduled);

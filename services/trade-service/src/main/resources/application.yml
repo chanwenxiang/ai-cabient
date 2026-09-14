@@ -146,6 +146,9 @@ aicabinet:
     wechat-bill-type: ${WECHAT_BILL_TYPE:ALL}
     scheduled-enabled: ${RECON_SCHEDULED_ENABLED:false}
     scheduled-cron: ${RECON_SCHEDULED_CRON:0 30 1 * * *}
+  # 业务日界 / @Scheduled(cron) / XXL 种子统一时区（S-P2-7）
+  schedule:
+    zone: ${AICABINET_SCHEDULE_ZONE:Asia/Shanghai}
   risk:
     enabled: ${RISK_CONTROL_ENABLED:true}
     max-opens-per-hour: ${RISK_MAX_OPENS_PER_HOUR:5}

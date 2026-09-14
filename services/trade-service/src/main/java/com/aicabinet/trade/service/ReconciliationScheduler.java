@@ -1,19 +1,17 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.ReconciliationProperties;
+import com.aicabinet.trade.support.ScheduleZones;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 
 @Component
 public class ReconciliationScheduler {
     private static final String RECONCILIATION = "reconciliation";
-    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
-
 
     private static final Logger log = LoggerFactory.getLogger(ReconciliationScheduler.class);
 
@@ -29,7 +27,9 @@ public class ReconciliationScheduler {
         this.taskService = taskService;
     }
 
-    @Scheduled(cron = "${aicabinet.reconciliation.scheduled-cron:0 30 1 * * *}")
+    @Scheduled(
+            cron = "${aicabinet.reconciliation.scheduled-cron:0 30 1 * * *}",
+            zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     public void runDailyReconciliation() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(RECONCILIATION, 1800)) {
@@ -42,7 +42,7 @@ public class ReconciliationScheduler {
                 summary = "对账调度未启用";
                 return;
             }
-            LocalDate yesterday = LocalDate.now(ZONE).minusDays(1);
+            LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
             var dto = reconciliationService.runDaily(null, yesterday, "WECHAT");
             summary = "对账 " + yesterday + " 完成，匹配 " + dto.matchedCount()
                     + " 笔，未匹配 " + dto.unmatchedCount() + " 笔，状态 " + dto.status();

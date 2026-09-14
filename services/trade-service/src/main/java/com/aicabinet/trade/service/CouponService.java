@@ -571,7 +571,7 @@ public class CouponService {
 
     // ── 定时任务：过期处理 ──────────────────────────────
 
-    @Scheduled(cron = "0 0 2 * * *")
+    @Scheduled(cron = "0 0 2 * * *", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     @Transactional
     public void expireOverdueCoupons() {
         long start = System.nanoTime();
