@@ -95,10 +95,11 @@ const radiusKm = ref(5);
 const loading = ref(true);
 const error = ref('');
 const list = ref<NearbyDevice[]>([]);
-const lat = ref(31.2304);
-const lng = ref(121.4737);
+/** C-P2-5：禁止默认上海坐标；未定位成功不得请求附近柜机。 */
+const lat = ref<number | null>(null);
+const lng = ref<number | null>(null);
 const locHint = computed(() =>
-  usingFallbackLoc.value
+  usingFallbackLoc.value || lat.value == null || lng.value == null
     ? '未获取定位，请开启权限后刷新'
     : `已定位 · 半径 ${radiusKm.value}km`
 );
@@ -111,8 +112,9 @@ function formatDist(m: number) {
 
 function setRadius(r: number) {
   radiusKm.value = r;
-  if (usingFallbackLoc.value || error.value.includes('定位')) return;
-  loadList();
+  if (usingFallbackLoc.value || lat.value == null || lng.value == null || error.value.includes('定位'))
+    return;
+  void loadList();
 }
 
 function goBack() {
@@ -158,6 +160,8 @@ function locate(): Promise<void> {
         resolve();
       },
       fail: () => {
+        lat.value = null;
+        lng.value = null;
         usingFallbackLoc.value = true;
         resolve();
       }
@@ -166,6 +170,12 @@ function locate(): Promise<void> {
 }
 
 async function loadList() {
+  if (lat.value == null || lng.value == null) {
+    list.value = [];
+    error.value = '未获取到定位，已停止按默认城市展示。请开启定位权限后点刷新。';
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   error.value = '';
   try {
@@ -187,7 +197,7 @@ async function reload() {
   loading.value = true;
   error.value = '';
   await locate();
-  if (usingFallbackLoc.value) {
+  if (usingFallbackLoc.value || lat.value == null || lng.value == null) {
     loading.value = false;
     list.value = [];
     error.value = '未获取到定位，已停止按默认城市展示。请开启定位权限后点刷新。';

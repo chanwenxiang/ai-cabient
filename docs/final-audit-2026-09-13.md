@@ -102,11 +102,11 @@
 
 | 编号 | 严重度 | 模块 | 文件:行 | 简述 |
 |------|--------|------|---------|------|
-| C-P2-1 | 中 | 性能/资源 | `index.vue:856-860` `onHide` | 切 tab 仅 `stopDevicePoll` + `showTabBar`，**未停止 `pollTimer`/`recognitionTimer`**；后台每 2s 仍 `getSession` |
+| C-P2-1 | 中 | 性能/资源 | `index.vue` `onHide` | ~~切 tab 未停 poll/recognition~~ → `onHide` 调 `stopPoll` + `stopRecognitionTimer` + `stopDevicePoll` |
 | C-P2-2 | 中 | UI/UX | coupons / dispute / index / messages | ~~成功态误用 showError~~ → 复制/刷新成功改 `showSuccess`（剩余真实错误仍用 showError） |
 | C-P2-3 | 中 | 性能 | `src/pages.json` | 24 个页面全部主包、无 `subPackages` |
 | C-P2-4 | 低 | 架构一致性 | `recharge.vue` | ~~裸 `get('/api/v2/payment/recharges')`~~ → `consumerApi.listRecharges` |
-| C-P2-5 | 中 | 体验 | `nearby.vue:98-99,160-163` | 定位失败静默回退到**硬编码上海坐标** `(31.2304,121.4737)`；未授权展示异地柜机 |
+| C-P2-5 | 中 | 体验 | `nearby.vue` | ~~定位失败静默回退上海坐标~~ → 无定位不请求；清空 lat/lng；提示开权限后刷新 |
 | C-P2-6 | 低 | 安全配置 | `manifest.json:18` `urlCheck:false` | 生产构建应开启 `urlCheck` |
 | C-P2-7 | 低 | 健壮性 | `index.vue onShow` | ~~无重入锁~~ → `showSeq` 丢弃过期 onShow |
 | C-P2-8 | 中 | 业务逻辑 | `messages.vue` vs `coupons.vue` | ~~误以为应 claimCampaign~~ → COUPON 消息 bizId=已持有券；点击设优先券 + 跳转 UNUSED 券包置顶高亮（营销领券走 CAMPAIGN/`claimCampaign`） |
@@ -163,7 +163,7 @@
 
 | 编号 | 严重度 | 模块 | 简述 |
 |------|--------|------|------|
-| M-P2-1 | 中 | `video.vue` `copyUrl` | 复制成功用 `showError('视频链接已复制')`，把成功/中性信息用错误 toast 表达 |
+| M-P2-1 | 中 | `video.vue` `copyUrl` | ~~复制成功用 showError~~ → `showSuccess('视频链接已复制')` |
 | M-P2-2 | 中 | `messages.vue` → `splits.vue` | ~~深链 orderId 未读~~ → `onLoad` 读 orderId 置顶高亮；失败 Tab 未命中回退全部 |
 | M-P2-3 | 中 | `manifest.json` | `mp-weixin.appid` 空、`urlCheck:false`（与 consumer 同类发布配置问题） |
 | M-P2-4 | 中 | 隐私合规 | 定位采集仅依赖微信授权弹窗；H5 无隐私政策/首次同意弹窗 |
@@ -478,6 +478,8 @@
 - [x] M-P2-10：全页错误态统一 `error-state`，清理死 `.retry` 样式
 - [x] M-P2-11：merchantApi 禁吞错；`softFallback` + 上传去重；openExceptions 双侧失败才抛
 - [x] M-P2-14：H5 隐藏微信绑定/订阅入口；保存偏好不调订阅授权；consumer 消息条仅 mp
+- [x] M-P2-1：视频复制成功 toast 改 `showSuccess`；C-P2-1：首页 onHide 停 poll/recognition
+- [x] C-P2-5：附近柜机无定位不请求、去掉默认上海坐标
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）
