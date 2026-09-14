@@ -222,6 +222,7 @@
           "style": {
             "navigationBarTitleText": "分账明细",
             "enablePullDownRefresh": true,
+            "onReachBottomDistance": 80,
             "navigationStyle": "custom"
           }
         }
