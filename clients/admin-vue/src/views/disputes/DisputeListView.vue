@@ -750,6 +750,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
@@ -920,7 +921,7 @@ async function ensureSkusLoaded() {
   if (skus.value.length) return;
   try {
     skus.value =
-      (await api.request<{ items: SkuOption[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET'))
+      (await api.request<{ items: SkuOption[] }>(AdminEndpoints.skusCatalogPage, 'GET'))
         .items || [];
   } catch {
     skus.value = [];

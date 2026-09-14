@@ -2125,7 +2125,7 @@ async function loadSkus() {
   skus.value =
     (
       await api
-        .request<{ items: SkuCatalog[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+        .request<{ items: SkuCatalog[] }>(AdminEndpoints.skusCatalogPage, 'GET')
         .catch(() => ({ items: [] as SkuCatalog[] }))
     ).items || [];
 }

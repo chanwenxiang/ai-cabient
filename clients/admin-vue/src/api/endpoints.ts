@@ -158,7 +158,15 @@ export const AdminEndpoints = {
   merchantOnboardingItem: (onboardingId: string | number) =>
     `${ops}/merchant-onboarding/${encodeURIComponent(String(onboardingId))}`,
   merchantOnboardingReview: (onboardingId: string | number) =>
-    `${ops}/merchant-onboarding/${encodeURIComponent(String(onboardingId))}/review`
+    `${ops}/merchant-onboarding/${encodeURIComponent(String(onboardingId))}/review`,
+
+  /** SKU 目录 */
+  skus: `${ops}/skus`,
+  skusList: (query: URLSearchParams | string) =>
+    typeof query === 'string' ? `${ops}/skus?${query}` : `${ops}/skus?${query.toString()}`,
+  skusCatalogPage: `${ops}/skus?page=0&size=500`,
+  sku: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}`,
+  skusImage: `${ops}/skus/image`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -176,5 +184,6 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/orders',
   '/api/v2/ops/admin/sessions',
   '/api/v2/ops/admin/merchants',
-  '/api/v2/ops/admin/merchant-onboarding'
+  '/api/v2/ops/admin/merchant-onboarding',
+  '/api/v2/ops/admin/skus'
 ] as const;

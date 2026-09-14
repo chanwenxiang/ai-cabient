@@ -1201,7 +1201,7 @@ async function openDetail(row: OpsException) {
       !skus.value.length
     ) {
       skus.value =
-        (await api.request<{ items: Sku[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET'))
+        (await api.request<{ items: Sku[] }>(AdminEndpoints.skusCatalogPage, 'GET'))
           .items || [];
     }
     const sid = detail.value?.exception?.sessionId;

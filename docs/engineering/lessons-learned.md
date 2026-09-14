@@ -83,6 +83,7 @@
 | 76 | admin 端点 | 柜机详情/列表散落 `/devices` 字面量 | 详情页 20+ 动作路径易漂移 | 柜机域迁入 AdminEndpoints；门禁加 `/devices`（含 ref） | `DeviceDetailView.vue`、`DeviceListView.vue` |
 | 77 | admin 端点 | 商户/分账散落 `/merchants` 字面量 | 分账动作路径多处拷贝 | 商户与分账动作迁入 AdminEndpoints；门禁加 `/merchants` | `MerchantSplitsView.vue` |
 | 78 | admin 端点 | 入驻页散落 `/merchant-onboarding` | 列表/审批与 Dashboard 计数各写一份 | 入驻域迁入 AdminEndpoints；门禁加基路径 | `MerchantOnboardingView.vue` |
+| 79 | admin 端点 | SKU 目录散落 `/skus` 字面量 | 多页共用 `page=0&size=500` 拷贝 | SKU CRUD/图片迁入 AdminEndpoints；门禁加 `/skus` | `SkuListView.vue` |
 
 ## 追加模板
 

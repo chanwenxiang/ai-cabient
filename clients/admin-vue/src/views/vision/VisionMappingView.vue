@@ -296,6 +296,7 @@ import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -433,7 +434,7 @@ function onSizeChange() {
 async function loadSkus() {
   try {
     const data = await api.request<SkuOption[] | { items?: SkuOption[] }>(
-      '/api/v2/ops/admin/skus?page=0&size=500',
+      AdminEndpoints.skusCatalogPage,
       'GET'
     );
     skuOptions.value = Array.isArray(data) ? data : data.items || [];
