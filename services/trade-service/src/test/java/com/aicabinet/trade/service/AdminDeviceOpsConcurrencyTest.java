@@ -34,7 +34,7 @@ class AdminDeviceOpsConcurrencyTest {
     void setUp() {
         service = new AdminDeviceOpsService(deviceRepository, sessionRepository, deviceValidationService,
                 salesLockService, null, merchantScopeService, permissionService, auditService, distributedLockService,
-                null);
+                null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

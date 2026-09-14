@@ -60,6 +60,7 @@ class AdminDeviceOpsServiceLockMessageTest {
                 permissionService,
                 auditService,
                 distributedLockService,
+                null,
                 null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }

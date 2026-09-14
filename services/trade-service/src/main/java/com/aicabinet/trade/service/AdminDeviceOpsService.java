@@ -31,6 +31,7 @@ public class AdminDeviceOpsService {
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
     private final AdminDeviceOpsService self;
+    private final SessionService sessionService;
 
     public AdminDeviceOpsService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -41,7 +42,8 @@ public class AdminDeviceOpsService {
                                  PermissionService permissionService,
                                  AdminAuditService auditService,
                                  DistributedLockService distributedLockService,
-                                 @Lazy AdminDeviceOpsService self) {
+                                 @Lazy AdminDeviceOpsService self,
+                                 @Lazy SessionService sessionService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.deviceValidationService = deviceValidationService;
@@ -52,6 +54,7 @@ public class AdminDeviceOpsService {
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
         this.self = self;
+        this.sessionService = sessionService;
     }
 
     /** 无外层长事务：落库短事务与 device-service MQTT 指令分离。 */
@@ -119,9 +122,13 @@ public class AdminDeviceOpsService {
         if (session == null) {
             return;
         }
-        session.setState(SessionState.FAILED);
+        if (session.getState() == SessionState.FAILED
+                || session.getState() == SessionState.CANCELLED
+                || session.getState() == SessionState.COMPLETED) {
+            return;
+        }
         session.setFailReason(failReason);
-        sessionRepository.save(session);
+        sessionService.transition(session, SessionState.FAILED);
     }
 
     private <T> T runWithDeviceOpenLock(String deviceId, java.util.function.Supplier<T> action) {

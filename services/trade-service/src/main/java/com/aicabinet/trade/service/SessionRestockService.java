@@ -135,9 +135,7 @@ public class SessionRestockService {
                 log.warn("restock auto-close snapshot failed session={} task={}",
                         session.getSessionId(), taskId, e);
             }
-            session.setState(SessionState.COMPLETED);
-            repository.save(session);
-            cabinetMetrics.recordSessionState(SessionState.COMPLETED);
+            sessionService.transition(session, SessionState.COMPLETED);
             domainEventPublisher.publish("RestockSessionAutoClosed", session.getSessionId(),
                     Map.of(DEVICEID, session.getDeviceId(), "taskId", String.valueOf(taskId),
                             "reason", failReason));

@@ -18,7 +18,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
@@ -58,16 +57,24 @@ class DisputeOrderRefundTest {
     @Mock VideoArchiveService videoArchiveService;
     @Mock OrderPaymentService orderPaymentService;
     @Mock DistributedLockService distributedLockService;
+    @Mock SessionService sessionService;
 
     private DisputeService service;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().doAnswer(inv -> {
+            ShoppingSession s = inv.getArgument(0);
+            SessionState t = inv.getArgument(1);
+            s.setState(t);
+            return null;
+        }).when(sessionService).transition(any(), any());
         service = new DisputeService(disputeRepository, disputeMessageRepository, sessionRepository, orderRepository,
                 settlementService, new ObjectMapper(), minioVideoService, auditService, riskControlService,
                 permissionService, merchantScopeService, merchantFeaturePackService, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
-                fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService, null, null);
+                fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService, null, null,
+                sessionService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);
@@ -107,7 +114,6 @@ class DisputeOrderRefundTest {
             return 500;
         });
         when(disputeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var first = service.refundByOperator(10001L, "O-FULL-1",
                 new OrderRefundRequest("误识别多扣款", null, false, null));
@@ -150,7 +156,6 @@ class DisputeOrderRefundTest {
         when(sessionRepository.findById("S-PART-1")).thenReturn(Optional.of(session));
         when(settlementService.partialRefund(eq(order), anyList(), eq(false), eq("剩余行全退")))
                 .thenReturn(new SettlementService.PartialRefundResult(200, "REFUNDED", true));
-        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var result = service.refundByOperator(10001L, "O-PART-1",
                 new OrderRefundRequest(
@@ -162,10 +167,7 @@ class DisputeOrderRefundTest {
         assertEquals("REFUNDED", result.status());
         assertEquals(200, result.refundedCents());
         assertEquals(SessionState.COMPLETED, session.getState());
-
-        ArgumentCaptor<ShoppingSession> sessionCaptor = ArgumentCaptor.forClass(ShoppingSession.class);
-        verify(sessionRepository).save(sessionCaptor.capture());
-        assertEquals(SessionState.COMPLETED, sessionCaptor.getValue().getState());
+        verify(sessionService).transition(session, SessionState.COMPLETED);
         verify(settlementService, never()).waiveAndRefund(any(), anyBoolean());
     }
 }

@@ -33,13 +33,21 @@ class OpsExceptionManualResolveTest {
     @Mock DisputeService disputeService;
     @Mock RepairTicketService repairTicketService;
     @Mock DistributedLockService distributedLockService;
+    @Mock SessionService sessionService;
 
     private OpsExceptionService service;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().doAnswer(inv -> {
+            ShoppingSession s = inv.getArgument(0);
+            SessionState t = inv.getArgument(1);
+            s.setState(t);
+            return null;
+        }).when(sessionService).transition(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         OpsExceptionServiceSupport support = new OpsExceptionServiceSupport(
-                auditService, auditRepository, sessionRepository, settlementService, disputeService, repairTicketService);
+                auditService, auditRepository, sessionRepository, settlementService, disputeService, repairTicketService,
+                sessionService);
         service = new OpsExceptionService(repository, permissionService, merchantScopeService, support,
                 distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);

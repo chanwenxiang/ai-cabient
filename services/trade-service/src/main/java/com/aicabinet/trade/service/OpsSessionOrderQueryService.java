@@ -59,24 +59,26 @@ public class OpsSessionOrderQueryService {
     private final PaymentService paymentService;
     private final RefundPolicyService refundPolicyService;
     private final OrderViewAssembler orderViewAssembler;
+    private final SessionService sessionService;
 
     public OpsSessionOrderQueryService(PermissionService permissionService,
                                        MerchantScopeService merchantScopeService,
                                        ShoppingSessionMapper sessionRepository,
                                        CabinetOrderMapper orderRepository,
-                                       CabinetOrderLineMapper orderLineRepository,
+                                       CabinetOrderLineMapper orderLineMapper,
                                        OrderRevenueSplitMapper splitRepository,
                                        SettlementService settlementService,
                                        AdminAuditService auditService,
                                        MinioVideoService minioVideoService,
                                        PaymentService paymentService,
                                        RefundPolicyService refundPolicyService,
-                                       OrderViewAssembler orderViewAssembler) {
+                                       OrderViewAssembler orderViewAssembler,
+                                       SessionService sessionService) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
-        this.orderLineRepository = orderLineRepository;
+        this.orderLineRepository = orderLineMapper;
         this.splitRepository = splitRepository;
         this.settlementService = settlementService;
         this.auditService = auditService;
@@ -84,6 +86,7 @@ public class OpsSessionOrderQueryService {
         this.paymentService = paymentService;
         this.refundPolicyService = refundPolicyService;
         this.orderViewAssembler = orderViewAssembler;
+        this.sessionService = sessionService;
     }
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
@@ -210,8 +213,7 @@ public class OpsSessionOrderQueryService {
                     "识别/结算中的会话请到异常中心处理，不可直接取消");
         }
         SessionState previous = session.getState();
-        session.setState(SessionState.CANCELLED);
-        sessionRepository.save(session);
+        sessionService.transition(session, SessionState.CANCELLED);
         auditService.appendLog(operatorId, "SESSION_CANCEL", "SESSION", sessionId,
                 "device=" + session.getDeviceId() + " previous=" + previous);
         return toSessionDto(session);

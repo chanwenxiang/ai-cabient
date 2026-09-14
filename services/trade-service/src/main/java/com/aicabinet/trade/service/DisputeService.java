@@ -98,6 +98,7 @@ public class DisputeService {
     private final VideoArchiveService videoArchiveService;
     private final OrderPaymentService orderPaymentService;
     private final DistributedLockService distributedLockService;
+    private final SessionService sessionService;
 
     public DisputeService(DisputeTicketMapper disputeRepository,
                           DisputeMessageMapper disputeMessageRepository,
@@ -122,7 +123,8 @@ public class DisputeService {
                           OrderPaymentService orderPaymentService,
                           DistributedLockService distributedLockService,
                           SystemConfigService systemConfigService,
-                          @Lazy DisputeService self) {
+                          @Lazy DisputeService self,
+                          @Lazy SessionService sessionService) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
@@ -147,6 +149,7 @@ public class DisputeService {
         this.distributedLockService = distributedLockService;
         this.systemConfigService = systemConfigService;
         this.self = self;
+        this.sessionService = sessionService;
     }
 
     @Transactional
@@ -213,8 +216,7 @@ public class DisputeService {
         // 用户事后申诉：在原始录像仍保留期间立即归档，避免过期后无法回放
         videoArchiveService.archiveSession(session);
         fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
-        session.setState(SessionState.DISPUTED);
-        sessionRepository.save(session);
+        sessionService.transition(session, SessionState.DISPUTED);
         orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
             if ("PAID".equals(order.getStatus()) || STATUS_COMPLETED.equals(order.getStatus())) {
                 order.setStatus(CabinetConstants.ORDER_STATUS_DISPUTED);
@@ -281,8 +283,7 @@ public class DisputeService {
         var outcome = settlementService.partialRefund(order, request.lines(), defaultRestore, reason);
         ShoppingSession session = sessionRepository.findById(order.getSessionId()).orElse(null);
         if (session != null && CabinetConstants.ORDER_STATUS_REFUNDED.equals(outcome.status())) {
-            session.setState(SessionState.COMPLETED);
-            sessionRepository.save(session);
+            sessionService.transition(session, SessionState.COMPLETED);
         }
         auditService.appendLog(actorId,
                 operator ? "ORDER_PARTIAL_REFUND_OPS" : "ORDER_PARTIAL_REFUND_CONSUMER",
@@ -328,8 +329,7 @@ public class DisputeService {
         int refunded = settlementService.waiveAndRefund(session, restoreInventory);
         finalizeFullRefundTicket(ticket, operator, reason, restoreInventory);
         disputeRepository.save(ticket);
-        session.setState(SessionState.COMPLETED);
-        sessionRepository.save(session);
+        sessionService.transition(session, SessionState.COMPLETED);
         auditService.appendLog(actorId, operator ? "ORDER_REFUND_OPS" : "ORDER_REFUND_CONSUMER",
                 "ORDER", order.getOrderId(),
                 "ticket=" + ticket.getTicketId() + "; refund=" + refunded
@@ -590,8 +590,7 @@ public class DisputeService {
         opsExceptionService.resolveOpenForSession(operatorId, session.getSessionId(),
                 "争议结案(" + resolutionType + ")同步关闭异常");
 
-        session.setState(SessionState.COMPLETED);
-        sessionRepository.save(session);
+        sessionService.transition(session, SessionState.COMPLETED);
         // 三端一致：结案后订单不得再挂 DISPUTED
         // WAIVE → REFUNDED（免单兜底）；KEEP/CONFIRM/ADJUST → PAID
         final String resolvedType = resolutionType;
@@ -706,8 +705,7 @@ public class DisputeService {
                 systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS, disputeSlaProperties.hours()),
                 ChronoUnit.HOURS));
         }
-        session.setState(SessionState.DISPUTED);
-        sessionRepository.save(session);
+        sessionService.transition(session, SessionState.DISPUTED);
         // 三端一致：重开争议时订单也应回到 DISPUTED（与消费者申诉 fileByConsumer 对齐）
         orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
             if ("PAID".equals(order.getStatus()) || STATUS_COMPLETED.equals(order.getStatus())) {
@@ -958,8 +956,7 @@ public class DisputeService {
         };
         opsExceptionService.resolveOpenForSession(userId, session.getSessionId(),
                 "商户争议结案(" + resolutionType + ")同步关闭异常");
-        session.setState(SessionState.COMPLETED);
-        sessionRepository.save(session);
+        sessionService.transition(session, SessionState.COMPLETED);
         final String resolvedType = resolutionType;
         orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
                 alignOrderStatusAfterDisputeResolve(order, resolvedType));

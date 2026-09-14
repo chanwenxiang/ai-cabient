@@ -87,9 +87,8 @@ public class SessionOpenService {
                 || session.getState() == SessionState.COMPLETED) {
             return;
         }
-        session.setState(SessionState.FAILED);
         session.setFailReason(failReason);
-        repository.save(session);
+        sessionService.transition(session, SessionState.FAILED);
         try {
             consumerPreauthService.releaseIfFrozen(session);
         } catch (Exception e) {

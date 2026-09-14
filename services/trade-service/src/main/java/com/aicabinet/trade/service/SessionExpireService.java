@@ -251,9 +251,7 @@ public class SessionExpireService {
             sessionService.transition(session, SessionState.FAILED);
         } else {
             session.setFailReason("识别超时");
-            session.setState(SessionState.FAILED);
-            repository.save(session);
-            cabinetMetrics.recordSessionState(SessionState.FAILED);
+            sessionService.transition(session, SessionState.FAILED);
         }
         opsExceptionService.report("RECOGNITION_TIMEOUT", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别超时", "关门后超过10分钟未完成识别结算");
         log.warn("识别超时会话已升级 {} from={} to={}",
@@ -270,9 +268,7 @@ public class SessionExpireService {
         } catch (Exception e) {
             log.warn("补货超时快照失败 {}，仍关闭会话", SessionLogContext.of(session), e);
         }
-        session.setState(SessionState.COMPLETED);
-        repository.save(session);
-        cabinetMetrics.recordSessionState(SessionState.COMPLETED);
+        sessionService.transition(session, SessionState.COMPLETED);
         opsExceptionService.report("RESTOCK_RECOGNITION_TIMEOUT", "MEDIUM", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "补货识别超时", "补货关门后超过10分钟未完成货道快照");
         log.warn("restock recognizing session expired {}", SessionLogContext.of(session));
     }
@@ -298,9 +294,7 @@ public class SessionExpireService {
                 return false;
             }
             consumerPreauthService.releaseIfFrozen(locked);
-            locked.setState(SessionState.CANCELLED);
-            repository.save(locked);
-            cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+            sessionService.transition(locked, SessionState.CANCELLED);
             opsExceptionService.report(
                     "OPEN_TIMEOUT",
                     "HIGH",
@@ -338,9 +332,7 @@ public class SessionExpireService {
             if (locked.getCloseTime() == null) {
                 locked.setCloseTime(Instant.now());
             }
-            locked.setState(SessionState.CANCELLED);
-            repository.save(locked);
-            cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+            sessionService.transition(locked, SessionState.CANCELLED);
             opsExceptionService.report(
                     "RESTOCK_SESSION_TIMEOUT",
                     "MEDIUM",
@@ -382,9 +374,7 @@ public class SessionExpireService {
             if (locked.getCloseTime() == null) {
                 locked.setCloseTime(Instant.now());
             }
-            locked.setState(SessionState.CANCELLED);
-            repository.save(locked);
-            cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+            sessionService.transition(locked, SessionState.CANCELLED);
             opsExceptionService.report(
                     "DOOR_OPEN_TOO_LONG",
                     "CRITICAL",
