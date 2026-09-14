@@ -65,6 +65,7 @@
 | 58 | merchant 会话/补货 | 登出闪旧 me；缺凭证拍完仍要再点完成 | 模块单例 me 未随 clearSession；拍完固定 return false | clearSession 挂钩 clearMerchantMe；await 上传后有图则继续 complete | `useMerchantMe`、`useReplenishmentFulfillment` |
 | 59 | consumer 消息/首页 | 消息页为角标拉 50 单；DISPUTED 跳转与 onShow 抢跑 | 无 pending-count；setTimeout 后才 navigate 且 finishing 已放开 | 用 count API；导航在 finishingSession 内完成；onShow 序号门闩 | `OrderController`、`messages.vue`、`index.vue` |
 | 60 | merchant 分账 | 分账一次拉 100 卡顿/截断 | 无分页只取首页 | PAGE_SIZE≤20 + loadMore/onReachBottom；深链可多页扫描 | `splits.vue` |
+| 61 | merchant 补货 | 模板留 display:none 装饰球 | 视觉迭代后未删节点 | 禁用仅隐藏的死 DOM/CSS，直接删除 | `replenishment.vue` |
 
 ## 追加模板
 

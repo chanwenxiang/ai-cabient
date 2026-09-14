@@ -3,7 +3,6 @@
     <app-nav-bar title="补货任务" />
     <view class="page-body">
       <view class="hero">
-        <view class="hero-orb orb-one" /><view class="hero-orb orb-two" />
         <view class="hero-head">
           <text class="eyebrow">现场补货</text>
           <text class="title">补货任务</text>
@@ -616,13 +615,6 @@ onPullDownRefresh(load);
   border: 1rpx solid var(--brand-soft, #d1fae5);
   box-shadow: none;
   text-align: center;
-}
-.hero-orb {
-  display: none;
-}
-.orb-one,
-.orb-two {
-  display: none;
 }
 .hero-head {
   position: relative;

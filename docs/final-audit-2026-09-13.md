@@ -169,7 +169,7 @@
 | M-P2-4 | 中 | 隐私合规 | 定位采集仅依赖微信授权弹窗；H5 无隐私政策/首次同意弹窗 |
 | M-P2-5 | 中 | `useMerchantMe` 模块单例 | ~~登出不清内存态~~ → `clearMerchantMe` + `registerMerchantSessionClearHook`，App 启动注册 |
 | M-P2-6 | 中 | `splits.vue` | ~~一次拉 100 无分页~~ → `PAGE_SIZE=20` + 加载更多 / onReachBottom；深链仍扫描定位 |
-| M-P2-7 | 中 | `replenishment.vue` 模板 | `hero-orb / orb-one / orb-two` 装饰元素仅 `display:none`，为死代码 |
+| M-P2-7 | 中 | `replenishment.vue` 模板 | ~~`hero-orb` 死装饰~~ → 已删除模板节点与 `display:none` 样式 |
 | M-P2-8 | 中 | `merchant-api.ts` | 多处 `@deprecated` 类型别名残留 |
 | M-P2-9 | 中 | `business.vue` `load` | 列表加载额外拉 `merchantApi.pricing()` 仅为取 SKU 缩略图映射 |
 | M-P2-10 | 中 | 多页 | 页内自建 `.retry` 按钮样式与 `error-state` 组件重叠 |
@@ -472,6 +472,7 @@
 - [x] M-P2-5：`clearMerchantMe` + session clear hook（登出/401 清内存 me）；M-P2-12：补货缺凭证拍照 await 后继续完成
 - [x] C-P2-9：`/api/v2/orders/pending-count` + 消息中心改用之；C-P2-7 index/messages onShow/load 序号门闩；C-P2-10 DISPUTED 导航纳入 finishingSession
 - [x] M-P2-6：分账明细分页（20/页）+ 加载更多/触底；失败 Tab 双状态同页合并；深链 orderId 多页扫描
+- [x] M-P2-7：补货页删除 `hero-orb` 死装饰节点与样式
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）
