@@ -5,10 +5,7 @@
       <view v-if="loading && !order" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
       >
-      <view v-else-if="error && !order" class="empty">
-        <text class="err">{{ error }}</text>
-        <app-button label="重试" @click="load" />
-      </view>
+      <error-state v-else-if="error && !order" :title="error" @retry="load" />
       <view v-else-if="order">
         <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
           <text class="status-title">{{ statusText(order.status) }}</text>
@@ -322,17 +319,11 @@ function playVideo() {
 
   box-sizing: border-box;
 }
-.loading,
-.empty {
+.loading {
   text-align: center;
   padding: 80rpx 24rpx;
   color: var(--text-muted);
   font-size: var(--font-size-md);
-}
-.err {
-  color: var(--color-danger);
-  display: block;
-  margin-bottom: 20rpx;
 }
 .status-bar {
   background: linear-gradient(135deg, var(--brand-soft), var(--white));

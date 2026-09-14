@@ -21,10 +21,7 @@
       </view>
 
       <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
-      <view v-else-if="error && !list.length" class="card state">
-        <text class="err">{{ error }}</text>
-        <app-button label="重试" @click="retryLoad" />
-      </view>
+      <error-state v-else-if="error && !list.length" :title="error" @retry="retryLoad" />
       <empty-state
         v-else-if="!list.length"
         icon="/static/menu/splits.png"
@@ -397,9 +394,6 @@ async function loadMore() {
   align-items: center;
   gap: 16rpx;
   color: var(--text-muted);
-}
-.err {
-  color: var(--color-danger);
 }
 .head {
   display: flex;

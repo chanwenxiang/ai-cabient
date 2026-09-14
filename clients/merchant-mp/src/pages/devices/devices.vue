@@ -566,20 +566,4 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .meta.stock-warn {
   color: var(--warning, #b45309);
 }
-.err {
-  color: var(--color-danger);
-  display: block;
-}
-.retry {
-  margin-top: 16rpx;
-  background: linear-gradient(135deg, var(--brand-deep, #134e4a), var(--brand, #0f766e));
-  color: var(--white);
-  border-radius: var(--radius-pill);
-  font-weight: 600;
-  border: none;
-  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
-}
-.retry::after {
-  border: none;
-}
 </style>

@@ -3,10 +3,7 @@
     <app-nav-bar title="通知公告" />
     <view class="page-body">
       <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
-      <view v-else-if="error && !list.length" class="card state">
-        <text class="err">{{ error }}</text>
-        <app-button label="重试" @click="load" />
-      </view>
+      <error-state v-else-if="error && !list.length" :title="error" @retry="load" />
       <empty-state
         v-else-if="!list.length"
         icon="/static/menu/notice.png"
@@ -97,15 +94,6 @@ onPullDownRefresh(async () => {
   align-items: center;
   gap: 16rpx;
   color: var(--text-muted);
-}
-.err {
-  color: var(--color-danger);
-  text-align: center;
-}
-.retry {
-  background: var(--brand);
-  color: var(--white);
-  border: none;
 }
 .item-hover {
   opacity: 0.92;
