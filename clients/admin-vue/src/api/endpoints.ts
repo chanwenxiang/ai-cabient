@@ -145,7 +145,20 @@ export const AdminEndpoints = {
     `${ops}/merchants/revenue-splits/${encodeURIComponent(splitId)}/wechat-submit`,
   merchantRevenueSplitWechatRefresh: (splitId: string) =>
     `${ops}/merchants/revenue-splits/${encodeURIComponent(splitId)}/wechat-refresh`,
-  merchantRoleTemplates: `${ops}/merchant-role-templates`
+  merchantRoleTemplates: `${ops}/merchant-role-templates`,
+
+  /** 商户入驻 */
+  merchantOnboarding: `${ops}/merchant-onboarding`,
+  merchantOnboardingList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/merchant-onboarding?${query}`
+      : `${ops}/merchant-onboarding?${query.toString()}`,
+  merchantOnboardingSubmittedCount: `${ops}/merchant-onboarding?status=SUBMITTED&page=0&size=1`,
+  merchantOnboardingLiveHints: `${ops}/merchant-onboarding/live-hints`,
+  merchantOnboardingItem: (onboardingId: string | number) =>
+    `${ops}/merchant-onboarding/${encodeURIComponent(String(onboardingId))}`,
+  merchantOnboardingReview: (onboardingId: string | number) =>
+    `${ops}/merchant-onboarding/${encodeURIComponent(String(onboardingId))}/review`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -162,5 +175,6 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/exceptions',
   '/api/v2/ops/admin/orders',
   '/api/v2/ops/admin/sessions',
-  '/api/v2/ops/admin/merchants'
+  '/api/v2/ops/admin/merchants',
+  '/api/v2/ops/admin/merchant-onboarding'
 ] as const;
