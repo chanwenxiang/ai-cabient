@@ -54,10 +54,13 @@ class SessionDoorClosedIdempotencyTest {
     @BeforeEach
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
-                settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, null, null, null, null, opsExceptionService, userInfoRepository, orderRepository,
+                settlementService, cabinetMetrics, domainEventPublisher,
+                gravityHelper, null, null, null, null, null, userInfoRepository, orderRepository,
                 null, consumerPreauthService, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        SessionSettleService settleService = new SessionSettleService(
+                repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, service);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
         doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
                 cabinetMetrics, domainEventPublisher, service, null);
         org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);

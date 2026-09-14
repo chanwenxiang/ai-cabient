@@ -47,10 +47,13 @@ class BalanceInsufficientSettlementTest {
     @BeforeEach
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
-                settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, null, null, null, null, opsExceptionService, null, orderRepository,
+                settlementService, cabinetMetrics, domainEventPublisher,
+                gravityHelper, null, null, null, null, null, null, orderRepository,
                 null, null, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        SessionSettleService settleService = new SessionSettleService(
+                repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, service);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
