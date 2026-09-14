@@ -453,14 +453,14 @@ async function load() {
     });
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     const yoloPage = await api.request<{ items?: YoloMappingRow[]; total?: number }>(
-      `/api/v2/ops/admin/vision-mappings/yolo?${q}`,
+      AdminEndpoints.visionMappingsYoloList(q),
       'GET'
     );
     yoloMappings.value = yoloPage.items || [];
     total.value = yoloPage.total ?? 0;
 
     const all = await api.request<{ aliyun?: AliyunMappingRow[] }>(
-      '/api/v2/ops/admin/vision-mappings',
+      AdminEndpoints.visionMappings,
       'GET'
     );
     aliyunMappings.value = all.aliyun || [];
@@ -517,7 +517,7 @@ async function saveAliyun() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/vision-mappings/aliyun', 'POST', {
+    await api.request(AdminEndpoints.visionMappingsAliyun, 'POST', {
       categoryId: aliyunForm.value.categoryId.trim(),
       categoryName: aliyunForm.value.categoryName || undefined,
       skuId: aliyunForm.value.skuId,
@@ -543,7 +543,7 @@ async function deleteAliyun(row: AliyunMappingRow) {
   }
   try {
     await api.request(
-      `/api/v2/ops/admin/vision-mappings/aliyun/${encodeURIComponent(row.categoryId)}`,
+      AdminEndpoints.visionMappingAliyun(row.categoryId),
       'DELETE'
     );
     ElMessage.success('已删除');
@@ -561,7 +561,7 @@ async function saveEdit() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/vision-mappings/yolo', 'POST', {
+    await api.request(AdminEndpoints.visionMappingsYolo, 'POST', {
       className,
       skuId: editForm.skuId,
       minConfidence: editForm.minConfidence,
@@ -585,7 +585,7 @@ async function onDelete(row: YoloMappingRow) {
       type: 'warning'
     });
     await api.request(
-      `/api/v2/ops/admin/vision-mappings/yolo/${encodeURIComponent(className)}`,
+      AdminEndpoints.visionMappingYolo(className),
       'DELETE'
     );
     ElMessage.success('已删除');

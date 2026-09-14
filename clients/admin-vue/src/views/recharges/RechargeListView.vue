@@ -203,6 +203,7 @@ import { Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -273,7 +274,7 @@ async function refundRecharge(row: Record<string, unknown>) {
       cancelButtonText: '取消',
       inputPlaceholder: '退款原因'
     });
-    await api.request(`/api/v2/ops/admin/recharge/${encodeURIComponent(orderId)}/refund`, 'POST', {
+    await api.request(AdminEndpoints.rechargeRefund(orderId), 'POST', {
       reason: (value || '').trim() || undefined
     });
     ElMessage.success('已发起退款');
@@ -310,7 +311,7 @@ async function load() {
     const userId = parseUserIdFilter(keyword.value);
     if (userId != null) q.set('userId', String(userId));
     const data = await api.request<PageResult<Record<string, unknown>>>(
-      `/api/v2/ops/admin/recharges?${q}`,
+      AdminEndpoints.rechargesList(q),
       'GET'
     );
     items.value = data.items || [];

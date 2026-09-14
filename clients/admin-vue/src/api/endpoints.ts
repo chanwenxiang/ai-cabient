@@ -546,7 +546,146 @@ export const AdminEndpoints = {
   adCampaignLaunch: (campaignId: string | number) =>
     `${ops}/ad/campaigns/${encodeURIComponent(String(campaignId))}/launch`,
   adCampaignStop: (campaignId: string | number) =>
-    `${ops}/ad/campaigns/${encodeURIComponent(String(campaignId))}/stop`
+    `${ops}/ad/campaigns/${encodeURIComponent(String(campaignId))}/stop`,
+
+  /** 用户 / 风控 / OTA / 报修 / 场地账单 / 报表 / 对账 / 视觉映射 / 其它 */
+  usersList: (query: URLSearchParams | string) =>
+    typeof query === 'string' ? `${ops}/users?${query}` : `${ops}/users?${query.toString()}`,
+  usersSearchByPhone: (phone: string, page = 0, size = 5) =>
+    `${ops}/users?page=${page}&size=${size}&phone=${encodeURIComponent(phone)}`,
+  userVerify: (userId: string | number) =>
+    `${ops}/users/${encodeURIComponent(String(userId))}/verify`,
+  userBalance: (userId: string | number) =>
+    `${ops}/users/${encodeURIComponent(String(userId))}/balance`,
+  phoneVerifyLogsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/phone-verify/logs?${query}`
+      : `${ops}/phone-verify/logs?${query.toString()}`,
+  phoneVerifyLogs: `${ops}/phone-verify/logs`,
+  phoneVerifyLog: (logId: string | number) =>
+    `${ops}/phone-verify/logs/${encodeURIComponent(String(logId))}`,
+  riskEventsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/risk/events?${query}`
+      : `${ops}/risk/events?${query.toString()}`,
+  riskEventsExport: `${ops}/risk/events/export`,
+  riskBlacklist: `${ops}/risk/blacklist`,
+  riskBlacklistList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/risk/blacklist?${query}`
+      : `${ops}/risk/blacklist?${query.toString()}`,
+  riskBlacklistExport: `${ops}/risk/blacklist/export`,
+  riskBlacklistUser: (userId: string | number) =>
+    `${ops}/risk/blacklist/${encodeURIComponent(String(userId))}`,
+  otaReleases: `${ops}/ota/releases`,
+  otaReleasesList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/ota/releases?${query}`
+      : `${ops}/ota/releases?${query.toString()}`,
+  otaReleaseUnpublish: (releaseId: string | number) =>
+    `${ops}/ota/releases/${encodeURIComponent(String(releaseId))}/unpublish`,
+  repairTickets: `${ops}/repair-tickets`,
+  repairTicketsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/repair-tickets?${query}`
+      : `${ops}/repair-tickets?${query.toString()}`,
+  repairTicketsBatchAssign: `${ops}/repair-tickets/batch-assign`,
+  repairTicketsByDevice: (deviceId: string, limit = 5) =>
+    `${ops}/repair-tickets/by-device/${encodeURIComponent(deviceId)}?limit=${limit}`,
+  repairTicket: (ticketId: string | number) =>
+    `${ops}/repair-tickets/${encodeURIComponent(String(ticketId))}`,
+  repairTicketTransition: (ticketId: string | number) =>
+    `${ops}/repair-tickets/${encodeURIComponent(String(ticketId))}/transition`,
+  siteContractsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/site-contracts?${query}`
+      : `${ops}/site-contracts?${query.toString()}`,
+  siteContract: (contractOrDeviceId: string | number) =>
+    `${ops}/site-contracts/${encodeURIComponent(String(contractOrDeviceId))}`,
+  siteContractRentSplitRules: (contractId: string | number) =>
+    `${ops}/site-contracts/${encodeURIComponent(String(contractId))}/rent-split-rules`,
+  siteContractRentBillsGenerate: (contractId: string | number) =>
+    `${ops}/site-contracts/${encodeURIComponent(String(contractId))}/rent-bills/generate`,
+  siteRentBillsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/site-rent-bills?${query}`
+      : `${ops}/site-rent-bills?${query.toString()}`,
+  siteRentBillsGenerate: `${ops}/site-rent-bills/generate`,
+  siteRentBillPay: (billId: string | number) =>
+    `${ops}/site-rent-bills/${encodeURIComponent(String(billId))}/pay`,
+  siteRentBillVoid: (billId: string | number) =>
+    `${ops}/site-rent-bills/${encodeURIComponent(String(billId))}/void`,
+  deviceDataFeeBillsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/device-data-fee-bills?${query}`
+      : `${ops}/device-data-fee-bills?${query.toString()}`,
+  deviceDataFeeBillsGenerate: `${ops}/device-data-fee-bills/generate`,
+  deviceDataFeeBillPay: (billId: string | number) =>
+    `${ops}/device-data-fee-bills/${encodeURIComponent(String(billId))}/pay`,
+  deviceDataFeeBillVoid: (billId: string | number) =>
+    `${ops}/device-data-fee-bills/${encodeURIComponent(String(billId))}/void`,
+  reportsDevicesList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/reports/devices?${query}`
+      : `${ops}/reports/devices?${query.toString()}`,
+  reportsStockHealthList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/reports/stock-health?${query}`
+      : `${ops}/reports/stock-health?${query.toString()}`,
+  reportsStockHealthExport: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/reports/stock-health/export?${query}`
+      : `${ops}/reports/stock-health/export?${query.toString()}`,
+  inventoryWriteOff: `${ops}/inventory/write-off`,
+  salesReportsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/sales-reports?${query}`
+      : `${ops}/sales-reports?${query.toString()}`,
+  salesReportsExport: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/sales-reports/export?${query}`
+      : `${ops}/sales-reports/export?${query.toString()}`,
+  reconciliationList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/reconciliation?${query}`
+      : `${ops}/reconciliation?${query.toString()}`,
+  reconciliationRun: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/reconciliation/run?${query}`
+      : `${ops}/reconciliation/run?${query.toString()}`,
+  reconciliation: (reconId: string | number) =>
+    `${ops}/reconciliation/${encodeURIComponent(String(reconId))}`,
+  consistencyFailures: `${ops}/consistency/failures`,
+  consistencyRun: `${ops}/consistency/run`,
+  consistencyFix: (failureId: string | number) =>
+    `${ops}/consistency/${encodeURIComponent(String(failureId))}/fix`,
+  visionMappings: `${ops}/vision-mappings`,
+  visionMappingsAliyun: `${ops}/vision-mappings/aliyun`,
+  visionMappingAliyun: (categoryId: string) =>
+    `${ops}/vision-mappings/aliyun/${encodeURIComponent(categoryId)}`,
+  visionMappingsYolo: `${ops}/vision-mappings/yolo`,
+  visionMappingsYoloList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/vision-mappings/yolo?${query}`
+      : `${ops}/vision-mappings/yolo?${query.toString()}`,
+  visionMappingYolo: (className: string) =>
+    `${ops}/vision-mappings/yolo/${encodeURIComponent(className)}`,
+  analyticsFootfall: (days: number) => `${ops}/analytics/footfall?days=${days}`,
+  analyticsFootfallSlots: (deviceId: string, days: number) =>
+    `${ops}/analytics/footfall/slots?deviceId=${encodeURIComponent(deviceId)}&days=${days}`,
+  geoGeocode: (address: string) =>
+    `${ops}/geo/geocode?address=${encodeURIComponent(address)}`,
+  geoStatus: `${ops}/geo/status`,
+  deviceOpsEventsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/device-ops/events?${query}`
+      : `${ops}/device-ops/events?${query.toString()}`,
+  rechargesList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/recharges?${query}`
+      : `${ops}/recharges?${query.toString()}`,
+  rechargeRefund: (orderId: string) =>
+    `${ops}/recharge/${encodeURIComponent(orderId)}/refund`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -594,5 +733,24 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/devops',
   '/api/v2/ops/admin/audit-logs',
   '/api/v2/ops/admin/growth',
-  '/api/v2/ops/admin/ad'
+  '/api/v2/ops/admin/ad',
+  '/api/v2/ops/admin/users',
+  '/api/v2/ops/admin/phone-verify',
+  '/api/v2/ops/admin/risk',
+  '/api/v2/ops/admin/ota',
+  '/api/v2/ops/admin/repair-tickets',
+  '/api/v2/ops/admin/site-contracts',
+  '/api/v2/ops/admin/site-rent-bills',
+  '/api/v2/ops/admin/device-data-fee-bills',
+  '/api/v2/ops/admin/reports',
+  '/api/v2/ops/admin/inventory',
+  '/api/v2/ops/admin/sales-reports',
+  '/api/v2/ops/admin/reconciliation',
+  '/api/v2/ops/admin/consistency',
+  '/api/v2/ops/admin/vision-mappings',
+  '/api/v2/ops/admin/analytics',
+  '/api/v2/ops/admin/geo',
+  '/api/v2/ops/admin/device-ops',
+  '/api/v2/ops/admin/recharges',
+  '/api/v2/ops/admin/recharge'
 ] as const;

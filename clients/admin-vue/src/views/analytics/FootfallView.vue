@@ -221,6 +221,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import type { FootfallAnalytics, SlotHeat } from '@aicabinet/shared-types';
 
 const loading = ref(false);
@@ -241,7 +242,7 @@ async function load() {
   loading.value = true;
   try {
     data.value = await api.request<FootfallAnalytics>(
-      `/api/v2/ops/admin/analytics/footfall?days=${days.value}`,
+      AdminEndpoints.analyticsFootfall(days.value),
       'GET'
     );
     if (data.value?.devices?.length && !slotDeviceId.value) {
@@ -260,7 +261,7 @@ async function loadSlotHeat() {
   try {
     slotHeat.value =
       (await api.request<SlotHeat[]>(
-        `/api/v2/ops/admin/analytics/footfall/slots?deviceId=${encodeURIComponent(slotDeviceId.value)}&days=${days.value}`,
+        AdminEndpoints.analyticsFootfallSlots(slotDeviceId.value, days.value),
         'GET'
       )) || [];
   } catch {

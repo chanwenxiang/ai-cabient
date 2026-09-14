@@ -222,6 +222,7 @@ import { useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictOptions, displayLabel, formatConsistencyValue } from '@aicabinet/shared-dict';
@@ -570,7 +571,7 @@ async function load() {
   const seq = loadSeq.begin();
   loading.value = true;
   try {
-    items.value = (await api.request<Row[]>('/api/v2/ops/admin/consistency/failures', 'GET')) || [];
+    items.value = (await api.request<Row[]>(AdminEndpoints.consistencyFailures, 'GET')) || [];
   } catch (e) {
     if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -584,7 +585,7 @@ async function load() {
 async function runCheck() {
   running.value = true;
   try {
-    const res = await api.request<RunResult>('/api/v2/ops/admin/consistency/run', 'POST');
+    const res = await api.request<RunResult>(AdminEndpoints.consistencyRun, 'POST');
     items.value = res?.failures || [];
     lastRunAt.value = formatDateTime(new Date().toISOString());
     page.value = 1;
@@ -611,7 +612,7 @@ async function fixRow(row: Row) {
   }
   fixingId.value = row.id;
   try {
-    const res = await api.request<FixResult>(`/api/v2/ops/admin/consistency/${row.id}/fix`, 'POST');
+    const res = await api.request<FixResult>(AdminEndpoints.consistencyFix(row.id), 'POST');
     if (res?.fixed) {
       ElMessage.success(res.message || '已修复');
       await load();

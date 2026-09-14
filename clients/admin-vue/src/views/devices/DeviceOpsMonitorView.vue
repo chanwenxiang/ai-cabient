@@ -215,6 +215,7 @@ import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, type Sort } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
@@ -368,7 +369,7 @@ async function load() {
     if (severity.value) q.set('severity', severity.value);
     if (deviceFilter.value) q.set('deviceId', deviceFilter.value);
     const data = await api.request<{ items: OpsEvent[]; total?: number }>(
-      `/api/v2/ops/admin/device-ops/events?${q}`,
+      AdminEndpoints.deviceOpsEventsList(q),
       'GET'
     );
     items.value = data.items || [];

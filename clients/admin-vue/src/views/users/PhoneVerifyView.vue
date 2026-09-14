@@ -177,6 +177,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -254,7 +255,7 @@ async function load() {
     if (phone.value) q.set('phone', phone.value);
     if (channel.value) q.set('channel', channel.value);
     const data = await api.request<{ items: PhoneVerifyRow[]; total: number }>(
-      `/api/v2/ops/admin/phone-verify/logs?${q}`,
+      AdminEndpoints.phoneVerifyLogsList(q),
       'GET'
     );
     items.value = data.items || [];
@@ -307,10 +308,10 @@ async function save() {
       merchantId: form.merchantId || null
     };
     if (editingId.value) {
-      await api.request(`/api/v2/ops/admin/phone-verify/logs/${editingId.value}`, 'PUT', body);
+      await api.request(AdminEndpoints.phoneVerifyLog(editingId.value), 'PUT', body);
       ElMessage.success('已更新');
     } else {
-      await api.request('/api/v2/ops/admin/phone-verify/logs', 'POST', body);
+      await api.request(AdminEndpoints.phoneVerifyLogs, 'POST', body);
       ElMessage.success('已登记');
     }
     dlg.value = false;
@@ -331,7 +332,7 @@ async function removeRow(row: PhoneVerifyRow) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/phone-verify/logs/${row.logId}`, 'DELETE');
+    await api.request(AdminEndpoints.phoneVerifyLog(row.logId), 'DELETE');
     ElMessage.success('已删除');
     await load();
   } catch (e) {

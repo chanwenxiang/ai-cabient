@@ -373,6 +373,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
@@ -477,7 +478,7 @@ async function load() {
     if (statusFilter.value) q.set('status', statusFilter.value);
     if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
     const data = await api.request<Row[] | { items: Row[]; total: number }>(
-      `/api/v2/ops/admin/reconciliation?${q}`,
+      AdminEndpoints.reconciliationList(q),
       'GET'
     );
     const pageData = normalizeListPage(data);
@@ -529,7 +530,7 @@ async function runRecon() {
       date: runForm.date,
       channel: runForm.channel || 'WECHAT'
     });
-    await api.request(`/api/v2/ops/admin/reconciliation/run?${q}`, 'POST');
+    await api.request(AdminEndpoints.reconciliationRun(q), 'POST');
     runDialog.value = false;
     ElMessage.success('对账已执行');
     await load();
@@ -547,7 +548,7 @@ async function openDetail(row: Row) {
   }
   detailOpen.value = true;
   try {
-    detail.value = await api.request<Row>(`/api/v2/ops/admin/reconciliation/${row.reconId}`, 'GET');
+    detail.value = await api.request<Row>(AdminEndpoints.reconciliation(row.reconId), 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '详情加载失败');
     if (!detailHydrated.value) detail.value = null;

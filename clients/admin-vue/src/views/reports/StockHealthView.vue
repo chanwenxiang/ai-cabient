@@ -457,7 +457,7 @@ async function writeOffLot(row: StockHealthRow) {
       '临期报损',
       { type: 'warning' }
     );
-    await api.request('/api/v2/ops/admin/inventory/write-off', 'POST', {
+    await api.request(AdminEndpoints.inventoryWriteOff, 'POST', {
       deviceId: row.deviceId,
       skuId: row.skuId,
       batchNo: row.batchNo || undefined,
@@ -532,7 +532,7 @@ async function load() {
       nearExpiryCount: number;
       deviceCount: number;
       planDeviceIds: string[];
-    }>(`/api/v2/ops/admin/reports/stock-health?${queryString(true)}`, 'GET');
+    }>(AdminEndpoints.reportsStockHealthList(queryString(true)), 'GET');
     rows.value = (data.items || []).map((r) => ({ ...r, rowKey: stockRowKey(r) }));
     total.value = Number(data.total) || 0;
     stockoutCount.value = Number(data.stockoutCount) || 0;
@@ -568,7 +568,7 @@ async function onExport() {
   }
   try {
     await downloadAuthFile(
-      `/api/v2/ops/admin/reports/stock-health/export?${queryString()}`,
+      AdminEndpoints.reportsStockHealthExport(queryString()),
       csvFileName('库存健康')
     );
   } catch (e) {

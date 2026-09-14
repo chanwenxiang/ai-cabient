@@ -299,6 +299,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import type { TableColumnCtx } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -567,7 +568,7 @@ async function load() {
       items: SalesRow[];
       total: number;
       summary?: SalesSummary;
-    }>(`/api/v2/ops/admin/sales-reports?${queryParams()}`, 'GET');
+    }>(AdminEndpoints.salesReportsList(queryParams()), 'GET');
     rows.value = data.items || [];
     total.value = Number(data.total) || 0;
     summary.value = data.summary || null;
@@ -626,7 +627,7 @@ async function onExport() {
   }
   try {
     await downloadAuthFile(
-      `/api/v2/ops/admin/sales-reports/export?${queryParams(false)}`,
+      AdminEndpoints.salesReportsExport(queryParams(false)),
       csvFileName(`销售报表-${dim.value}`)
     );
   } catch (e) {

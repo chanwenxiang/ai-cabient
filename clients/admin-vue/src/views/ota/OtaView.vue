@@ -209,6 +209,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -336,7 +337,7 @@ async function load() {
       size: String(size.value)
     });
     const data = await api.request<OtaRelease[] | { items: OtaRelease[]; total: number }>(
-      `/api/v2/ops/admin/ota/releases?${q}`,
+      AdminEndpoints.otaReleasesList(q),
       'GET'
     );
     const pageData = normalizeListPage(data);
@@ -379,7 +380,7 @@ async function publish() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/ota/releases', 'POST', {
+    await api.request(AdminEndpoints.otaReleases, 'POST', {
       appVersion: form.appVersion.trim(),
       channel: form.channel.trim() || 'stable',
       downloadUrl: form.downloadUrl.trim(),
@@ -416,7 +417,7 @@ async function unpublish(row: OtaRelease) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/ota/releases/${row.releaseId}/unpublish`, 'POST', {});
+    await api.request(AdminEndpoints.otaReleaseUnpublish(row.releaseId), 'POST', {});
     ElMessage.success('已下架');
     await load();
   } catch (e) {
@@ -452,7 +453,7 @@ async function batchUnpublish() {
   try {
     for (const row of targets) {
       try {
-        await api.request(`/api/v2/ops/admin/ota/releases/${row.releaseId}/unpublish`, 'POST', {});
+        await api.request(AdminEndpoints.otaReleaseUnpublish(row.releaseId), 'POST', {});
         ok += 1;
       } catch {
         fail += 1;
