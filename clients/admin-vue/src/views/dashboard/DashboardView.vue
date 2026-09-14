@@ -713,7 +713,7 @@ async function fetchWorkbenchBundle() {
       canAccessPath('/exceptions')
         ? api
             .request<PageResult<{ exceptionId: string }>>(
-              '/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1',
+              AdminEndpoints.exceptionsOpenCount,
               'GET'
             )
             .catch(() => null)

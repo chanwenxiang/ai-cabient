@@ -619,6 +619,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
@@ -932,7 +933,7 @@ async function archiveRow(row: OpsException) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/archive`, 'POST');
+    await api.request(AdminEndpoints.exceptionArchive(row.exceptionId), 'POST');
     ElMessage.success('归档成功');
     await load();
   } catch (e: unknown) {
@@ -953,7 +954,7 @@ async function unarchiveRow(row: OpsException) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/unarchive`, 'POST');
+    await api.request(AdminEndpoints.exceptionUnarchive(row.exceptionId), 'POST');
     ElMessage.success('已取消归档');
     await load();
   } catch (e: unknown) {
@@ -1068,7 +1069,7 @@ async function refreshStatusCounts() {
         const q = new URLSearchParams({ page: '0', size: '1', status: key });
         if (severity.value) q.set('severity', severity.value);
         const data = await api.request<PageResult<OpsException>>(
-          `/api/v2/ops/admin/exceptions?${q}`,
+          AdminEndpoints.exceptionsList(q),
           'GET'
         );
         statusCounts[key] = data.total || 0;
@@ -1080,7 +1081,7 @@ async function refreshStatusCounts() {
   try {
     const q = new URLSearchParams({ page: '0', size: '1', archived: 'true' });
     const data = await api.request<PageResult<OpsException>>(
-      `/api/v2/ops/admin/exceptions?${q}`,
+      AdminEndpoints.exceptionsList(q),
       'GET'
     );
     statusCounts.ARCHIVED = data.total || 0;
@@ -1107,7 +1108,7 @@ async function load() {
     if (severity.value) q.set('severity', severity.value);
     if (overdueOnly.value) q.set('overdue', '1');
     const data = await api.request<PageResult<OpsException>>(
-      `/api/v2/ops/admin/exceptions?${q}`,
+      AdminEndpoints.exceptionsList(q),
       'GET'
     );
     items.value = data.items || [];
@@ -1151,7 +1152,7 @@ function onSizeChange() {
 
 async function claim(row: OpsException) {
   try {
-    await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/claim`, 'POST');
+    await api.request(AdminEndpoints.exceptionClaim(row.exceptionId), 'POST');
     ElMessage.success('已领取');
     await load();
   } catch (e: unknown) {
@@ -1167,7 +1168,7 @@ async function resolve(row: OpsException) {
       confirmButtonText: '确认解决',
       cancelButtonText: '取消'
     });
-    await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/resolve`, 'POST', {
+    await api.request(AdminEndpoints.exceptionResolve(row.exceptionId), 'POST', {
       resolution: value
     });
     ElMessage.success('异常已解决');
@@ -1190,7 +1191,7 @@ async function openDetail(row: OpsException) {
   detailLoading.value = true;
   try {
     detail.value = await api.request<OpsDetail>(
-      `/api/v2/ops/admin/exceptions/${row.exceptionId}`,
+      AdminEndpoints.exception(row.exceptionId),
       'GET'
     );
     if (
@@ -1223,7 +1224,7 @@ async function addNote() {
       inputValidator: (v) => !!String(v || '').trim() || '备注不能为空'
     });
     await api.request(
-      `/api/v2/ops/admin/exceptions/${detail.value.exception.exceptionId}/notes`,
+      AdminEndpoints.exceptionNotes(detail.value.exception.exceptionId),
       'POST',
       { note: value }
     );
@@ -1243,7 +1244,7 @@ async function transfer() {
       inputErrorMessage: '请输入有效用户 ID'
     });
     await api.request(
-      `/api/v2/ops/admin/exceptions/${detail.value.exception.exceptionId}/transfer`,
+      AdminEndpoints.exceptionTransfer(detail.value.exception.exceptionId),
       'POST',
       {
         assigneeUserId: Number(value),
@@ -1272,7 +1273,7 @@ async function cancelSession() {
         inputValidator: (v) => !!String(v || '').trim() || '必须填写原因'
       }
     );
-    await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/cancel-session`, 'POST', {
+    await api.request(AdminEndpoints.exceptionCancelSession(item.exceptionId), 'POST', {
       reason: value,
       idempotencyKey: `ops-cancel-${item.exceptionId}`
     });
@@ -1309,7 +1310,7 @@ async function resolveWithRepairRow(row: OpsException): Promise<boolean> {
       }
     );
     await api.request(
-      `/api/v2/ops/admin/exceptions/${row.exceptionId}/resolve-with-repair`,
+      AdminEndpoints.exceptionResolveWithRepair(row.exceptionId),
       'POST',
       {
         resolution: String(value).trim()
@@ -1350,7 +1351,7 @@ async function retryException() {
         confirmButtonText: '开始重试'
       }
     );
-    await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/retry`, 'POST', {
+    await api.request(AdminEndpoints.exceptionRetry(item.exceptionId), 'POST', {
       reason: '运营人工触发重试',
       // Intentional new key per explicit retry click (not auto double-submit).
       idempotencyKey: `ops-retry-${item.exceptionId}-${crypto.randomUUID?.() ?? Date.now()}`
@@ -1402,7 +1403,7 @@ async function submitManualResolve() {
   manualSubmitting.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/exceptions/${detail.value.exception.exceptionId}/manual-resolve`,
+      AdminEndpoints.exceptionManualResolve(detail.value.exception.exceptionId),
       'POST',
       {
         resolutionType: 'CONFIRM',
@@ -1442,7 +1443,7 @@ async function waiveOrder() {
   }
   manualSubmitting.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/manual-resolve`, 'POST', {
+    await api.request(AdminEndpoints.exceptionManualResolve(item.exceptionId), 'POST', {
       resolutionType: 'WAIVE',
       items: [],
       reason,
