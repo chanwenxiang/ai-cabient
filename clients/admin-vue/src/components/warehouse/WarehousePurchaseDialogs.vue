@@ -353,13 +353,6 @@ defineProps<{
   returnDialog: boolean;
   dialogBootLoading: boolean;
   saving: boolean;
-  purchaseForm: WarehousePurchaseRow;
-  purchaseFieldErrors: {
-    supplierId: boolean;
-    lineErrors: Array<{ skuId?: boolean; batchNo?: boolean; expiryDate?: boolean }>;
-  };
-  receiveForm: WarehousePurchaseRow;
-  returnForm: WarehousePurchaseRow;
   activeSuppliers: WarehousePurchaseRow[];
   activeWarehouses: WarehousePurchaseRow[];
   warehouses: WarehousePurchaseRow[];
@@ -370,6 +363,14 @@ defineProps<{
   skuName: (id?: string) => string;
 }>();
 
+
+const purchaseForm = defineModel<WarehousePurchaseRow>('purchaseForm', { required: true });
+const purchaseFieldErrors = defineModel<{
+    supplierId: boolean;
+    lineErrors: Array<{ skuId?: boolean; batchNo?: boolean; expiryDate?: boolean }>;
+  }>('purchaseFieldErrors', { required: true });
+const receiveForm = defineModel<WarehousePurchaseRow>('receiveForm', { required: true });
+const returnForm = defineModel<WarehousePurchaseRow>('returnForm', { required: true });
 const emit = defineEmits<{
   'update:purchaseDialog': [value: boolean];
   'update:receiveDialog': [value: boolean];

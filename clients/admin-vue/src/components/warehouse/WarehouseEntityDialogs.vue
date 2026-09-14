@@ -205,16 +205,17 @@ defineProps<{
   inboundDialog: boolean;
   saving: boolean;
   dialogBootLoading: boolean;
-  warehouseForm: WarehouseEntityRow;
-  supplierForm: WarehouseEntityRow;
-  paymentForm: WarehouseEntityRow;
   payTarget: WarehouseEntityRow;
-  inboundForm: WarehouseEntityRow;
   payMaxYuan: number;
   activeWarehouses: WarehouseEntityRow[];
   skus: WarehouseEntityRow[];
 }>();
 
+
+const warehouseForm = defineModel<WarehouseEntityRow>('warehouseForm', { required: true });
+const supplierForm = defineModel<WarehouseEntityRow>('supplierForm', { required: true });
+const paymentForm = defineModel<WarehouseEntityRow>('paymentForm', { required: true });
+const inboundForm = defineModel<WarehouseEntityRow>('inboundForm', { required: true });
 const emit = defineEmits<{
   'update:warehouseDialog': [value: boolean];
   'update:supplierDialog': [value: boolean];
