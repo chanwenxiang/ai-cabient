@@ -105,7 +105,7 @@
 | C-P2-1 | 中 | 性能/资源 | `index.vue:856-860` `onHide` | 切 tab 仅 `stopDevicePoll` + `showTabBar`，**未停止 `pollTimer`/`recognitionTimer`**；后台每 2s 仍 `getSession` |
 | C-P2-2 | 中 | UI/UX | coupons / dispute / index / messages | ~~成功态误用 showError~~ → 复制/刷新成功改 `showSuccess`（剩余真实错误仍用 showError） |
 | C-P2-3 | 中 | 性能 | `src/pages.json` | 24 个页面全部主包、无 `subPackages` |
-| C-P2-4 | 低 | 架构一致性 | `recharge.vue:428` | 充值记录用裸 `get('/api/v2/payment/recharges')`，绕过 `consumerApi` |
+| C-P2-4 | 低 | 架构一致性 | `recharge.vue` | ~~裸 `get('/api/v2/payment/recharges')`~~ → `consumerApi.listRecharges` |
 | C-P2-5 | 中 | 体验 | `nearby.vue:98-99,160-163` | 定位失败静默回退到**硬编码上海坐标** `(31.2304,121.4737)`；未授权展示异地柜机 |
 | C-P2-6 | 低 | 安全配置 | `manifest.json:18` `urlCheck:false` | 生产构建应开启 `urlCheck` |
 | C-P2-7 | 低 | 健壮性 | `index.vue onShow` | `onShow` 流程无全局重入锁；快速多 tab 切换可能并发拉取 |
@@ -164,7 +164,7 @@
 | 编号 | 严重度 | 模块 | 简述 |
 |------|--------|------|------|
 | M-P2-1 | 中 | `video.vue` `copyUrl` | 复制成功用 `showError('视频链接已复制')`，把成功/中性信息用错误 toast 表达 |
-| M-P2-2 | 中 | `messages.vue` `navigateSettlement` → `splits` | 通知深链携带 `orderId`，但 `splits.vue` `onLoad` 仅读 `status`，深链失效 |
+| M-P2-2 | 中 | `messages.vue` → `splits.vue` | ~~深链 orderId 未读~~ → `onLoad` 读 orderId 置顶高亮；失败 Tab 未命中回退全部 |
 | M-P2-3 | 中 | `manifest.json` | `mp-weixin.appid` 空、`urlCheck:false`（与 consumer 同类发布配置问题） |
 | M-P2-4 | 中 | 隐私合规 | 定位采集仅依赖微信授权弹窗；H5 无隐私政策/首次同意弹窗 |
 | M-P2-5 | 中 | `useMerchantMe` 模块单例 | 登出 `clearSession`+`reLaunch` 不清内存态；H5 SPA 下重登前短暂显示旧 `me` |
@@ -468,6 +468,7 @@
 - [x] A-P2-005（试点）：`AdminEndpoints` 收敛工作台/趋势/SLA/财务统计/设备参照；`check:admin-endpoints` 禁 views/composables 再散落试点字面量；已并入 `check:audit-gates`
 - [x] A-P2-006：`auth-storage` — Cookie 不落 JWT；非 Cookie 仅 `sessionStorage`；生产 `cookieEnabled=false` 拒绝持久化；遗留 localStorage JWT 自动迁移删除；`check:admin-token-storage` 并入 `check:audit-gates`
 - [x] C-P2-8：消息 COUPON 按「已持有券优先使用」收口（禁误调 claimCampaign）；深链 UNUSED + 置顶高亮；C-P2-2 成功 toast 改 showSuccess
+- [x] C-P2-4：充值记录 `consumerApi.listRecharges`；M-P2-2：分账页深链 `orderId` 置顶高亮（失败 Tab 未命中回退全部）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

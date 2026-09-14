@@ -15,6 +15,11 @@
         >
       </view>
 
+      <view v-if="focusOrderId" class="focus-banner">
+        <text class="focus-text">已定位订单 {{ displayBizNo(focusOrderId) }}</text>
+        <text role="button" class="focus-clear" @click="clearFocusOrder">清除</text>
+      </view>
+
       <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
       <view v-else-if="error && !list.length" class="card state">
         <text class="err">{{ error }}</text>
@@ -23,11 +28,16 @@
       <empty-state
         v-else-if="!list.length"
         icon="/static/menu/splits.png"
-        :title="tab === 'FAILED' ? '暂无分账异常' : '暂无分账记录'"
-        hint="订单分账后会出现在这里；失败单请核对微信收款账户"
+        :title="emptyTitle"
+        :hint="emptyHint"
       />
       <view v-else>
-        <view v-for="s in list" :key="s.splitId" class="card item">
+        <view
+          v-for="s in list"
+          :key="s.splitId"
+          class="card item"
+          :class="{ focus: focusOrderId && String(s.orderId) === focusOrderId }"
+        >
           <view class="head">
             <text class="tag" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</text>
             <text class="time">{{ formatTime(s.createdAt) }}</text>
@@ -50,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
@@ -64,11 +74,23 @@ const loading = ref(true);
 const error = ref('');
 const tab = ref<'FAILED' | 'ALL'>('FAILED');
 const list = ref<RevenueSplit[]>([]);
+/** M-P2-2：消息深链携带的订单号，用于置顶高亮。 */
+const focusOrderId = ref('');
+
+const emptyTitle = computed(() => {
+  if (focusOrderId.value) return '未找到该订单的分账';
+  return tab.value === 'FAILED' ? '暂无分账异常' : '暂无分账记录';
+});
+const emptyHint = computed(() => {
+  if (focusOrderId.value) return '可清除定位后查看全部，或核对订单是否已分账';
+  return '订单分账后会出现在这里；失败单请核对微信收款账户';
+});
 
 onLoad((query) => {
   const status = String(query?.status || '').toUpperCase();
   if (status === 'ALL') tab.value = 'ALL';
   else tab.value = 'FAILED';
+  focusOrderId.value = String(query?.orderId || query?.id || '').trim();
 });
 
 onShow(() => {
@@ -93,6 +115,11 @@ function switchTab(next: 'FAILED' | 'ALL') {
   void load();
 }
 
+function clearFocusOrder() {
+  focusOrderId.value = '';
+  void load();
+}
+
 function money(cents = 0) {
   return ((Number(cents) || 0) / 100).toFixed(2);
 }
@@ -113,6 +140,18 @@ function statusClass(status?: string) {
   return 'warn';
 }
 
+function applyFocusOrder(rows: RevenueSplit[]): RevenueSplit[] {
+  const oid = focusOrderId.value;
+  if (!oid) return rows;
+  const matched = rows.filter((x) => String(x.orderId || '') === oid);
+  if (matched.length) {
+    const rest = rows.filter((x) => String(x.orderId || '') !== oid);
+    return [...matched, ...rest];
+  }
+  // 深链未命中：空列表走 empty-state，避免展示无关分账
+  return [];
+}
+
 async function load() {
   if (!list.value.length) loading.value = true;
   error.value = '';
@@ -123,9 +162,10 @@ async function load() {
       list.value = [];
       return;
     }
+    let rows: RevenueSplit[] = [];
     if (tab.value === 'ALL') {
       const res = await merchantApi.revenueSplits(0, 100);
-      list.value = res?.items || [];
+      rows = res?.items || [];
     } else {
       const [a, b] = await Promise.all([
         merchantApi.revenueSplits(0, 50, 'WECHAT_FAILED'),
@@ -133,7 +173,7 @@ async function load() {
       ]);
       const merged = [...(a?.items || []), ...(b?.items || [])];
       const seen = new Set<string>();
-      list.value = merged
+      rows = merged
         .filter((x) => {
           if (!x?.splitId || seen.has(x.splitId)) return false;
           seen.add(x.splitId);
@@ -141,6 +181,19 @@ async function load() {
         })
         .sort((x, y) => String(y.createdAt || '').localeCompare(String(x.createdAt || '')));
     }
+    // 深链失败 Tab 未命中时，回退拉「全部」再定位一次
+    if (focusOrderId.value && tab.value === 'FAILED') {
+      const hit = rows.some((x) => String(x.orderId || '') === focusOrderId.value);
+      if (!hit) {
+        const res = await merchantApi.revenueSplits(0, 100);
+        const all = res?.items || [];
+        if (all.some((x) => String(x.orderId || '') === focusOrderId.value)) {
+          tab.value = 'ALL';
+          rows = all;
+        }
+      }
+    }
+    list.value = applyFocusOrder(rows);
   } catch (e) {
     if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
@@ -177,12 +230,38 @@ async function load() {
   border-color: var(--brand);
   font-weight: 650;
 }
+.focus-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+  padding: 16rpx 20rpx;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--brand);
+}
+.focus-text {
+  flex: 1;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
+  font-weight: 600;
+}
+.focus-clear {
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
+  padding: 4rpx 8rpx;
+}
 .card {
   background: var(--card-bg, #fff);
   border-radius: var(--radius-card);
   padding: 28rpx;
   margin-bottom: 16rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
+  border: 2rpx solid transparent;
+}
+.card.item.focus {
+  border-color: var(--brand);
 }
 .state {
   display: flex;

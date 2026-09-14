@@ -191,7 +191,7 @@
 import { computed, ref } from 'vue';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
-import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
+import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { secureRandomToken } from '@/utils/secure-id';
 import {
@@ -202,7 +202,6 @@ import {
 } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type {
-  PageResult,
   RechargeOrderDto,
   BalanceRefundRequestDto
 } from '@aicabinet/shared-types';
@@ -425,11 +424,8 @@ async function loadBalance() {
 async function loadRecords() {
   recordsLoading.value = true;
   try {
-    const res = await get<PageResult<RechargeOrderDto> | RechargeOrderDto[]>(
-      '/api/v2/payment/recharges'
-    );
-    const data = res.data;
-    records.value = Array.isArray(data) ? data : (data?.items ?? []);
+    const data = await consumerApi.listRecharges(0, 20);
+    records.value = data?.items ?? [];
   } catch {
     records.value = [];
   } finally {
