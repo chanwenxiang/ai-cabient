@@ -55,8 +55,8 @@
 | 48 | 线长日佣 | 按日全量订单再 filter 柜机 | `findByCreatedAtBetween` + Java filter | 必须按 `deviceId`+时间窗查 | `CabinetOrderMapper`、`LineCommissionJob` |
 | 49 | 用户行为分析 | 堆 OOM / 慢 | `orderRepository.findAll()` 物化全表 | 必须 `GROUP BY user_id` 聚合；禁止分析路径 `findAll` | `UserBehaviorAnalyticsService`、`CabinetOrderMapper` |
 | 50 | 温湿度/用户列表 | 长窗口或历史无界拖垮接口 | `findByDeviceIdSince` / `findByUserId*` 无 LIMIT | 历史必须 LIMIT（温湿度硬顶）；用户侧列表默认 ≤100 | `DeviceTemperatureReadingMapper`、`DisputeTicketMapper` 等 |
-| 51 | 业务缓存 | TTL/前缀散落难治理 | 裸 `"dashboard:*"` + `30_000L` | 必须 `CacheNames` 常量；新缓存禁止魔法串 | `CacheNames.java`、`AdminDashboardController` |
-| 52 | 定时任务 | 日界错一天 / cron 无 zone | `@Scheduled(cron)` 缺 `zone` 或用系统默认时区 | 统一 `ScheduleZones` / `aicabinet.schedule.zone=Asia/Shanghai`；XXL 用种子 cron 表 | `ScheduleZones.java`、各 *Scheduler |
+| 51 | 业务缓存 | TTL/前缀散落难治理 | 裸 `"dashboard:*"` + `30_000L` | 必须 `CacheNames` 常量；新缓存禁止魔法串；门禁 `pnpm check:cache-names` | `CacheNames.java`、`check-cache-names.mjs` |
+| 52 | 定时任务 | 日界错一天 / cron 无 zone | `@Scheduled(cron)` 缺 `zone` 或用系统默认时区 | 统一 `ScheduleZones` / `aicabinet.schedule.zone`；门禁 `pnpm check:scheduled-zone` | `ScheduleZones.java`、`check-scheduled-zone.mjs` |
 | 53 | API 版本 | 无法灰度 / 客户端不知版本 | 仅路径硬编码 `/api/v2` | 契约常量 `ApiVersions`；响应 `X-Api-Version`；未支持主版本 410；破坏性开 v3 | `ApiVersions.java`、`ApiVersionInterceptor` |
 
 ## 追加模板
