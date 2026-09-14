@@ -227,6 +227,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useTableSelection } from '@/composables/useTableSelection';
 
@@ -282,7 +283,7 @@ onMounted(load);
 async function load() {
   loading.value = true;
   try {
-    list.value = await api.request<LevelRule[]>('/api/v2/ops/admin/growth/member-levels');
+    list.value = await api.request<LevelRule[]>(AdminEndpoints.growthMemberLevels);
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -340,9 +341,9 @@ async function save() {
       maxPoints: form.maxPoints == null ? undefined : form.maxPoints
     };
     if (editing.value && form.id != null) {
-      await api.request<LevelRule>('/api/v2/ops/admin/growth/member-levels', 'PUT', body);
+      await api.request<LevelRule>(AdminEndpoints.growthMemberLevels, 'PUT', body);
     } else {
-      await api.request<LevelRule>('/api/v2/ops/admin/growth/member-levels', 'POST', {
+      await api.request<LevelRule>(AdminEndpoints.growthMemberLevels, 'POST', {
         ...body,
         id: undefined
       });
@@ -361,7 +362,7 @@ async function toggleStatus(row: LevelRule) {
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
   try {
     await api.request<LevelRule>(
-      `/api/v2/ops/admin/growth/member-levels/${row.id}/status`,
+      AdminEndpoints.growthMemberLevelStatus(row.id),
       'POST',
       { status: next }
     );
@@ -396,7 +397,7 @@ async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
   try {
     for (const row of targets) {
       await api.request<LevelRule>(
-        `/api/v2/ops/admin/growth/member-levels/${row.id}/status`,
+        AdminEndpoints.growthMemberLevelStatus(row.id),
         'POST',
         { status: next }
       );

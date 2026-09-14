@@ -502,7 +502,51 @@ export const AdminEndpoints = {
   auditLogsList: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/audit-logs?${query}`
-      : `${ops}/audit-logs?${query.toString()}`
+      : `${ops}/audit-logs?${query.toString()}`,
+
+  /** 增长运营 / 广告 */
+  growthNotificationsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/growth/notifications?${query}`
+      : `${ops}/growth/notifications?${query.toString()}`,
+  growthNotificationsSend: `${ops}/growth/notifications/send`,
+  growthNotificationsBatchDelete: `${ops}/growth/notifications/batch-delete`,
+  growthNotification: (notificationId: string | number) =>
+    `${ops}/growth/notifications/${encodeURIComponent(String(notificationId))}`,
+  growthMemberLevels: `${ops}/growth/member-levels`,
+  growthMemberLevelStatus: (levelId: string | number) =>
+    `${ops}/growth/member-levels/${encodeURIComponent(String(levelId))}/status`,
+  growthPointsRedeem: `${ops}/growth/points-redeem`,
+  growthPointsRedeemStatus: (itemId: string | number) =>
+    `${ops}/growth/points-redeem/${encodeURIComponent(String(itemId))}/status`,
+  growthSkuReviewList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/growth/sku-review?${query}`
+      : `${ops}/growth/sku-review?${query.toString()}`,
+  growthSkuReviewRun: (days: number) => `${ops}/growth/sku-review/run?days=${days}`,
+  growthSkuReviewDecide: (skuId: string) =>
+    `${ops}/growth/sku-review/${encodeURIComponent(skuId)}/decide`,
+  growthUserAnalysis: (days: number) => `${ops}/growth/user-analysis?days=${days}`,
+  growthUserRecall: `${ops}/growth/user-recall`,
+  growthMarketingRoi: (days: number) => `${ops}/growth/marketing-roi?days=${days}`,
+  adAssets: `${ops}/ad/assets`,
+  adAssetsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/ad/assets?${query}`
+      : `${ops}/ad/assets?${query.toString()}`,
+  adAsset: (assetId: string | number) =>
+    `${ops}/ad/assets/${encodeURIComponent(String(assetId))}`,
+  adCampaigns: `${ops}/ad/campaigns`,
+  adCampaignsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/ad/campaigns?${query}`
+      : `${ops}/ad/campaigns?${query.toString()}`,
+  adCampaign: (campaignId: string | number) =>
+    `${ops}/ad/campaigns/${encodeURIComponent(String(campaignId))}`,
+  adCampaignLaunch: (campaignId: string | number) =>
+    `${ops}/ad/campaigns/${encodeURIComponent(String(campaignId))}/launch`,
+  adCampaignStop: (campaignId: string | number) =>
+    `${ops}/ad/campaigns/${encodeURIComponent(String(campaignId))}/stop`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -548,5 +592,7 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/approvals',
   '/api/v2/ops/admin/org',
   '/api/v2/ops/admin/devops',
-  '/api/v2/ops/admin/audit-logs'
+  '/api/v2/ops/admin/audit-logs',
+  '/api/v2/ops/admin/growth',
+  '/api/v2/ops/admin/ad'
 ] as const;

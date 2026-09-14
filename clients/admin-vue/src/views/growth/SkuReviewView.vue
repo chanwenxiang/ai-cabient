@@ -185,6 +185,7 @@ import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -287,7 +288,7 @@ async function load() {
       size: String(size.value)
     });
     const data = await api.request<{ items: ReviewRow[]; total: number }>(
-      `/api/v2/ops/admin/growth/sku-review?${q}`
+      AdminEndpoints.growthSkuReviewList(q)
     );
     list.value = data.items || [];
     total.value = Number(data.total) || 0;
@@ -322,7 +323,7 @@ async function run() {
   running.value = true;
   try {
     await api.request<ReviewRow[]>(
-      `/api/v2/ops/admin/growth/sku-review/run?days=${days.value}`,
+      AdminEndpoints.growthSkuReviewRun(days.value),
       'POST'
     );
     page.value = 1;
@@ -338,7 +339,7 @@ async function run() {
 async function decide(row: ReviewRow, action: string) {
   try {
     await api.request<ReviewRow>(
-      `/api/v2/ops/admin/growth/sku-review/${encodeURIComponent(row.skuId)}/decide`,
+      AdminEndpoints.growthSkuReviewDecide(row.skuId),
       'POST',
       { action }
     );
@@ -362,7 +363,7 @@ async function confirmDelist(row: ReviewRow) {
   if (value === undefined) return;
   try {
     await api.request<ReviewRow>(
-      `/api/v2/ops/admin/growth/sku-review/${encodeURIComponent(row.skuId)}/decide`,
+      AdminEndpoints.growthSkuReviewDecide(row.skuId),
       'POST',
       { action: 'DELIST', reason: '选品诊断确认下架', replaceSkuId: value.trim() || undefined }
     );
@@ -407,7 +408,7 @@ async function batchDecide(action: 'DELIST' | 'KEEP') {
     const results = await Promise.allSettled(
       targets.map((row) =>
         api.request<ReviewRow>(
-          `/api/v2/ops/admin/growth/sku-review/${encodeURIComponent(row.skuId)}/decide`,
+          AdminEndpoints.growthSkuReviewDecide(row.skuId),
           'POST',
           {
             action,

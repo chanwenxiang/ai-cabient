@@ -202,6 +202,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import { displayBizNo, rewriteBizNosInText } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -277,7 +278,7 @@ async function load() {
       size: String(size.value)
     });
     const data = await api.request<{ items: NotificationRow[]; total: number }>(
-      `/api/v2/ops/admin/growth/notifications?${q}`
+      AdminEndpoints.growthNotificationsList(q)
     );
     list.value = data.items || [];
     total.value = Number(data.total) || 0;
@@ -327,7 +328,7 @@ async function doSend() {
   }
   sending.value = true;
   try {
-    await api.request('/api/v2/ops/admin/growth/notifications/send', 'POST', {
+    await api.request(AdminEndpoints.growthNotificationsSend, 'POST', {
       audience: sendForm.audience,
       userId: sendForm.audience === 'CONSUMER' ? Number(sendForm.userId) : null,
       merchantId: sendForm.audience === 'MERCHANT' ? sendForm.merchantId.trim() : null,
@@ -351,7 +352,7 @@ async function doSaveEdit() {
   }
   saving.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/growth/notifications/${editForm.id}`, 'PUT', {
+    await api.request(AdminEndpoints.growthNotification(editForm.id), 'PUT', {
       title: editForm.title.trim(),
       body: editForm.body.trim()
     });
@@ -372,7 +373,7 @@ async function removeRow(row: NotificationRow) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/growth/notifications/${row.id}`, 'DELETE');
+    await api.request(AdminEndpoints.growthNotification(row.id), 'DELETE');
     ElMessage.success('已删除');
     await load();
   } catch (e) {
@@ -393,7 +394,7 @@ async function batchRemove() {
   batchDeleting.value = true;
   try {
     const res = await api.request<{ deleted: number }>(
-      '/api/v2/ops/admin/growth/notifications/batch-delete',
+      AdminEndpoints.growthNotificationsBatchDelete,
       'POST',
       { ids }
     );

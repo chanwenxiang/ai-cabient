@@ -90,6 +90,7 @@
 | 83 | admin 端点 | 财务多页散落 fund/提现/发票路径 | 同业务多基路径 | 财务资金域一并迁入；门禁用 `/finance/` 避免与 stats 混淆 | `views/finance/*` |
 | 84 | admin 端点 | RBAC/部门散落字面量 | 运营员与角色权限多页拷贝 | rbac+departments 迁入 AdminEndpoints；auth store 一并收敛 | `OperatorManageView.vue`、`auth.ts` |
 | 85 | admin 端点 | 系统运维多页散落 configs/dicts/tasks | 审批 inbox 在 components 也散落 | system 运维域一并迁入；门禁覆盖 views；components 同步改 | `SystemConfigView.vue`、`OpsApprovalInbox.vue` |
+| 86 | admin 端点 | 增长/广告页散落 growth/ad 字面量 | 运营活动多页拷贝基路径 | growth+ad 迁入 AdminEndpoints；门禁 +`/growth`、`/ad` | `views/growth/*` |
 
 ## 追加模板
 
