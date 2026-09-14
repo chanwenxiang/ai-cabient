@@ -9,7 +9,7 @@ import {
   logoutSession
 } from '@/api/client';
 import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
-import { permissionsAfterSoftFail } from '@/utils/rbac-cache-policy';
+import { isNavMenuActiveFor, permissionsAfterSoftFail } from '@/utils/rbac-cache-policy';
 
 const PERM_KEY = 'admin_permissions';
 const NAV_KEY = 'admin_active_nav';
@@ -245,11 +245,9 @@ export const useAuthStore = defineStore('auth', () => {
     return matchPermission(permissions.value, code);
   }
 
-  /** 菜单是否在系统中启用（ACTIVE）。超管也不能绕过停用菜单。 */
+  /** 菜单是否在系统中启用（ACTIVE）。超管也不能绕过停用菜单；未加载前 fail-closed。 */
   function isNavMenuActive(perm?: string | null) {
-    if (!perm) return true;
-    if (!activeNavLoaded.value) return true;
-    return activeNavPerms.value.includes(perm);
+    return isNavMenuActiveFor(perm, activeNavLoaded.value, activeNavPerms.value);
   }
 
   function canAccessNav(item: { perm?: string } | null | undefined) {

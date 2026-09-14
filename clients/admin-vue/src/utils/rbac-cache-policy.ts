@@ -10,3 +10,17 @@ export function permissionsAfterSoftFail(
   if (alreadyHydratedFromServer) return currentInMemory;
   return [];
 }
+
+/**
+ * 菜单是否在系统中启用（ACTIVE）。
+ * ACTIVE 列表未从服务端加载完成前 fail-closed，避免停用菜单在首屏窗口被短暂展示（A-P2-004）。
+ */
+export function isNavMenuActiveFor(
+  perm: string | null | undefined,
+  activeNavLoaded: boolean,
+  activeNavPerms: readonly string[]
+): boolean {
+  if (!perm) return true;
+  if (!activeNavLoaded) return false;
+  return activeNavPerms.includes(perm);
+}
