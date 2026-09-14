@@ -25,7 +25,7 @@ object OtaChecker {
     fun checkOnStartup(context: Context) {
         val tradeUrl = EdgeRuntimeConfig.tradeServiceUrl(context).trimEnd('/')
         val apiKey = EdgeRuntimeConfig.internalApiKey(context)
-        val deviceId = EdgeRuntimeConfig.deviceId(context)
+        val deviceId = EdgeRuntimeConfig.ensureDeviceId(context)
         val url = "$tradeUrl/internal/v1/devices/$deviceId/ota/check" +
                 "?currentVersion=${com.aicabinet.edge.BuildConfig.VERSION_NAME}&channel=stable"
         try {

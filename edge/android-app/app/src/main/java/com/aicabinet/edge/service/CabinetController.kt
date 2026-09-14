@@ -33,7 +33,7 @@ class CabinetController(
     } else {
         ChzhLockDriver(EdgeRuntimeConfig.serialPortPath(appContext))
     }
-    private val minioUploader = MinioUploader()
+    private val minioUploader = MinioUploader(appContext)
     private val offlineQueue = OfflineUploadQueue(appContext, minioUploader)
     private lateinit var mqtt: MqttDeviceClient
     /** 近期已处理的开门 commandId，防 MQTT 重投重复开锁 */
@@ -147,7 +147,7 @@ class CabinetController(
 
     private fun finishShoppingClose(recording: RecordingResult, userId: Long) {
         val sessionId = recording.sessionId
-        val deviceId = EdgeRuntimeConfig.deviceId(appContext)
+        val deviceId = EdgeRuntimeConfig.ensureDeviceId(appContext)
         val files = recording.clips.associate { it.camera to it.file }
         if (files.values.none { it.exists() }) {
             mqtt.publishDoorEvent(sessionId, DoorState.CLOSED.name, uploadStatus = "UPLOADED")

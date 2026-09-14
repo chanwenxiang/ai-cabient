@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderConfig() {
         binding.tvConfig.text = buildString {
-            appendLine("设备 ID: ${EdgeRuntimeConfig.deviceId(this@MainActivity)}")
+            appendLine("设备 ID: ${EdgeRuntimeConfig.ensureDeviceId(this@MainActivity)}")
             appendLine("Trade: ${EdgeRuntimeConfig.tradeServiceUrl(this@MainActivity)}")
             appendLine("录像上传: 预签名 (trade-service)")
             appendLine("驱动: ${if (EdgeRuntimeConfig.useMockDriver(this@MainActivity)) "Mock" else "串口"}")

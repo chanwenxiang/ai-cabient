@@ -367,18 +367,18 @@
 
 | 编号 | 严重度 | 模块 | 简述 |
 |------|--------|------|------|
-| E-P2-1 | 中 | `service/CabinetService.kt` | 长时间运行 Service 未使用 Foreground Service；Android 8+ 后台被杀风险 |
-| E-P2-2 | 中 | `hal/DoorCloseWatcher.kt` | 关门检测仅依赖 GPIO 中断，无兜底轮询；硬件故障无信号 |
-| E-P2-3 | 中 | `video/SessionVideoRecorder.kt` | 视频分段硬编码 30s；无动态调整 |
-| E-P2-4 | 中 | `config/EdgeRuntimeConfig.kt` | 设备 ID 从 SharedPreferences 取，首次启动未设备注册 |
-| E-P2-5 | 中 | `mqtt/OutboundMqttQueue.kt` | MAX_ITEMS=500 / MAX_ATTEMPTS=200 硬编码；满后丢最早 → 关键开门事件可能丢失 |
-| E-P2-6 | 中 | `upload/MinioUploader.kt` | MinIO endpoint 从配置读，无断路器；MinIO 长时间不可用会耗尽队列 |
+| E-P2-1 | 中 | `service/CabinetService.kt` | ~~未用 Foreground~~ → 已 `startForeground` + `CabinetForegroundService` |
+| E-P2-2 | 中 | `hal/DoorCloseWatcher.kt` | ~~仅 GPIO 中断~~ → 已轮询 `waitUntilClosed`（pollMs 默认 250） |
+| E-P2-3 | 中 | `video/SessionVideoRecorder.kt` | ~~30s 分段硬编码~~ → 现行按会话启停连续录制；`videoMaxRecordMs` 可配置软上限（日志） |
+| E-P2-4 | 中 | `config/EdgeRuntimeConfig.kt` | ~~仅 SharedPreferences 默认 CAB-001~~ → `ensureDeviceId`：真机占位自动生成 `EDGE-*` 并持久化；mock 保留 CAB-001 |
+| E-P2-5 | 中 | `mqtt/OutboundMqttQueue.kt` | ~~MAX 硬编码满后丢最早~~ → 容量/重试可配置；满时优先丢非 door/session 关键 topic |
+| E-P2-6 | 中 | `upload/MinioUploader.kt` | ~~无断路器~~ → 连续失败阈值 + 冷却开路，避免打满离线队列 |
 
 ### 6.3 edge 小结
 
-- **问题总数**：P0: 0，P1: 2，P2: 6（合计 8）
-- **正向亮点**：MQTT 自动重连 + 持久化队列；`publish`/`publishNow` 失败已入队 `OutboundMqttQueue`（原稿「publish 失败无入队」为误报，已剔除）；HAL 可插拔；离线视频上传队列
-- **核心建议**：E-P1-1 设备证书 + TLS；E-P1-2 统一队列抽象
+- **问题总数**：P0: 0，P1: 2（证书/统一队列仍待现场），P2: 6 已软修/勘误收口
+- **正向亮点**：Foreground Service；关门轮询；MQTT TLS 可配；出站队列关键 topic 优先保留；MinIO 断路器；真机 `ensureDeviceId`
+- **核心建议**：E-P1-1 现场签发设备证书；E-P1-2 统一队列抽象（SQLite）仍可后续做
 
 ---
 
@@ -500,6 +500,7 @@
 - [x] V-P2-2：本地视频缓存 TTL 清理 + MinIO 桶 lifecycle（可配置天数/桶名）
 - [x] V-P2-5：补 fusion / frame_extract / deepseek 离线单测；修复 `fetch_catalog_classes` 导入断裂
 - [x] M-P2-13：`home.vue` 抽出 `useHomeWorkbench`（数据加载 + 导航），页面仅模板/样式
+- [x] E-P2-1~6：Foreground/关门轮询已到位；`ensureDeviceId`；MQTT 队列可配+关键优先；MinIO 断路器；录像软上限配置项
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

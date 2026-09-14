@@ -75,7 +75,7 @@ object TradeVideoClient {
         val tradeUrl = EdgeRuntimeConfig.tradeServiceUrl(ctx).trimEnd('/')
         val body = JSONObject().apply {
             put("sessionId", sessionId)
-            put("deviceId", EdgeRuntimeConfig.deviceId(ctx))
+            put("deviceId", EdgeRuntimeConfig.ensureDeviceId(ctx))
             put("videoUri", videoUri)
             put("uploadStatus", "UPLOADED")
             put("cameraFusionMode", cameraFusionMode)
