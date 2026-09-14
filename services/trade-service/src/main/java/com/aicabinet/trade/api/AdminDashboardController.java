@@ -8,6 +8,7 @@ import com.aicabinet.trade.api.support.AdminDashboardControllerSupport;
 import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.OpsDeviceAdminService;
 import com.aicabinet.trade.service.OpsSessionOrderQueryService;
+import com.aicabinet.trade.support.CacheNames;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -24,8 +25,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v2/ops/admin")
 public class AdminDashboardController {
-    private static final String ADMIN_SKUS = "admin:skus";
-
 
     private final AdminDashboardService adminService;
     private final AdminDashboardControllerSupport support;
@@ -40,7 +39,9 @@ public class AdminDashboardController {
     @GetMapping("/stats")
     public ApiResponse<AdminStatsDto> stats(HttpServletRequest request) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(support.cacheService().get("dashboard:stats", String.valueOf(opId), 30_000L, () -> adminService.stats(opId)));
+        return ApiResponse.ok(support.cacheService().get(
+                CacheNames.DASHBOARD_STATS, String.valueOf(opId), CacheNames.TTL_SHORT_MS,
+                () -> adminService.stats(opId)));
     }
 
     /** 大屏/分析：演示数据口径提示（mock 且配置开启时）。 */
@@ -60,7 +61,9 @@ public class AdminDashboardController {
     @GetMapping("/workbench")
     public ApiResponse<OpsWorkbenchDto> workbench(HttpServletRequest request) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(support.cacheService().get("dashboard:workbench", String.valueOf(opId), 30_000L, () -> adminService.workbench(opId)));
+        return ApiResponse.ok(support.cacheService().get(
+                CacheNames.DASHBOARD_WORKBENCH, String.valueOf(opId), CacheNames.TTL_SHORT_MS,
+                () -> adminService.workbench(opId)));
     }
 
     /** 工作台聚合：stats + workbench + 待处理异常数，一次请求。 */
@@ -77,7 +80,9 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @RequestParam(name = "days", defaultValue = "7") int days) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(support.cacheService().get("dashboard:trend", opId + ":" + days, 60_000L, () -> adminService.orderTrend(opId, days)));
+        return ApiResponse.ok(support.cacheService().get(
+                CacheNames.DASHBOARD_TREND, opId + ":" + days, CacheNames.TTL_MEDIUM_MS,
+                () -> adminService.orderTrend(opId, days)));
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
@@ -95,9 +100,9 @@ public class AdminDashboardController {
             @RequestParam(name = "days", defaultValue = "7") int days) {
         Long opId = operatorId(request);
         return ApiResponse.ok(support.cacheService().get(
-                "dashboard:channels",
+                CacheNames.DASHBOARD_CHANNELS,
                 opId + ":" + days,
-                60_000L,
+                CacheNames.TTL_MEDIUM_MS,
                 () -> adminService.channelBreakdown(opId, days)));
     }
 
@@ -448,9 +453,9 @@ public class AdminDashboardController {
     public ApiResponse<List<DeviceRefDto>> deviceRefs(HttpServletRequest request) {
         Long opId = operatorId(request);
         return ApiResponse.ok(support.cacheService().get(
-                "admin:devices:ref",
+                CacheNames.ADMIN_DEVICES_REF,
                 String.valueOf(opId),
-                60_000L,
+                CacheNames.TTL_MEDIUM_MS,
                 () -> adminService.listDeviceRefs(opId)));
     }
 
@@ -460,7 +465,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @Valid @RequestBody UpsertSkuRequest body) {
         SkuCatalogDto created = adminService.createSku(operatorId(request), body);
-        support.cacheService().evict(ADMIN_SKUS);
+        support.cacheService().evict(CacheNames.ADMIN_SKUS);
         return ApiResponse.ok(created);
     }
 
@@ -471,7 +476,7 @@ public class AdminDashboardController {
             @PathVariable("skuId") String skuId,
             @Valid @RequestBody UpsertSkuRequest body) {
         SkuCatalogDto updated = adminService.updateSku(operatorId(request), skuId, body);
-        support.cacheService().evict(ADMIN_SKUS);
+        support.cacheService().evict(CacheNames.ADMIN_SKUS);
         return ApiResponse.ok(updated);
     }
 
