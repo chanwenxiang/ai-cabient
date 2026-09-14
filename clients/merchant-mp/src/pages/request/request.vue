@@ -178,12 +178,16 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import { hasPerm,
-  merchantApi,
-  type MerchantReplenishmentRequest,
-  type MerchantReplenishmentSuggest, isMerchantLoggedIn } from '@/utils/merchant-api';
+  merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
-import type { DeviceInfo, DeviceSlot, MerchantMe } from '@aicabinet/shared-types';
+import type {
+  DeviceInfo,
+  DeviceSlot,
+  MerchantMe,
+  OpenApiMerchantReplenishmentRequestDto,
+  OpenApiReplenishmentSuggestDto
+} from '@aicabinet/shared-types';
 import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 
 type DraftLine = {
@@ -232,7 +236,7 @@ const statusTabs = [
 ];
 const listStatus = ref('');
 const listError = ref('');
-const requests = ref<MerchantReplenishmentRequest[]>([]);
+const requests = ref<OpenApiMerchantReplenishmentRequestDto[]>([]);
 
 const selectedCount = computed(
   () => draftLines.value.filter((l) => l.selected && l.qty > 0).length
@@ -325,8 +329,8 @@ function changeListStatus(status: string) {
   void loadRequests();
 }
 
-function buildSuggestMap(items: MerchantReplenishmentSuggest[]) {
-  const suggestMap = new Map<string, MerchantReplenishmentSuggest>();
+function buildSuggestMap(items: OpenApiReplenishmentSuggestDto[]) {
+  const suggestMap = new Map<string, OpenApiReplenishmentSuggestDto>();
   for (const s of items || []) {
     if (!s?.skuId) continue;
     const prev = suggestMap.get(s.skuId);
@@ -338,7 +342,7 @@ function buildSuggestMap(items: MerchantReplenishmentSuggest[]) {
 function mergeSlotDraftLine(
   bySku: Map<string, DraftLine>,
   slot: DeviceSlot,
-  sug: MerchantReplenishmentSuggest | undefined
+  sug: OpenApiReplenishmentSuggestDto | undefined
 ) {
   const skuId = String(slot.assignedSkuId || '').trim();
   if (!skuId) return;
@@ -373,7 +377,7 @@ function mergeSlotDraftLine(
 
 function appendOrphanSuggestions(
   bySku: Map<string, DraftLine>,
-  suggestMap: Map<string, MerchantReplenishmentSuggest>
+  suggestMap: Map<string, OpenApiReplenishmentSuggestDto>
 ) {
   for (const [skuId, sug] of suggestMap) {
     if (bySku.has(skuId)) continue;
@@ -405,7 +409,7 @@ async function loadDraft() {
     const [suggest, slots] = await Promise.all([
       merchantApi
         .replenishmentSuggestions(deviceId)
-        .catch(() => [] as MerchantReplenishmentSuggest[]),
+        .catch(() => [] as OpenApiReplenishmentSuggestDto[]),
       merchantApi.deviceSlots(deviceId).catch(() => [] as DeviceSlot[])
     ]);
     if (seq !== draftSeq) return;
@@ -543,16 +547,16 @@ function formatTime(value?: string) {
   return formatDateTimeShort(value, '暂无');
 }
 
-function canGoReplenish(req: MerchantReplenishmentRequest) {
+function canGoReplenish(req: OpenApiMerchantReplenishmentRequestDto) {
   return req.status === 'ACCEPTED' && !!req.replenishmentTaskId;
 }
 
-function onRequestCard(req: MerchantReplenishmentRequest) {
+function onRequestCard(req: OpenApiMerchantReplenishmentRequestDto) {
   if (!canGoReplenish(req)) return;
   goReplenish(req);
 }
 
-function goReplenish(req: MerchantReplenishmentRequest) {
+function goReplenish(req: OpenApiMerchantReplenishmentRequestDto) {
   if (!req.replenishmentTaskId) return;
   uni.navigateTo({
     url: `/pages/replenishment/replenishment?taskId=${req.replenishmentTaskId}`

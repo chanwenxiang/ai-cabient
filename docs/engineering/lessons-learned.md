@@ -66,6 +66,7 @@
 | 59 | consumer 消息/首页 | 消息页为角标拉 50 单；DISPUTED 跳转与 onShow 抢跑 | 无 pending-count；setTimeout 后才 navigate 且 finishing 已放开 | 用 count API；导航在 finishingSession 内完成；onShow 序号门闩 | `OrderController`、`messages.vue`、`index.vue` |
 | 60 | merchant 分账 | 分账一次拉 100 卡顿/截断 | 无分页只取首页 | PAGE_SIZE≤20 + loadMore/onReachBottom；深链可多页扫描 | `splits.vue` |
 | 61 | merchant 补货 | 模板留 display:none 装饰球 | 视觉迭代后未删节点 | 禁用仅隐藏的死 DOM/CSS，直接删除 | `replenishment.vue` |
+| 62 | merchant 类型 | `@deprecated` 别名散布各页 | API 层二次命名与 OpenAPI 脱节 | 页面直接用 `shared-types`；仅允许带前端投影字段的视图类型 | `merchant-api.ts` |
 
 ## 追加模板
 

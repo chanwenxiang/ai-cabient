@@ -91,13 +91,12 @@ import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
-import type { MerchantSlotDiscrepancy } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { promptText } from '@/utils/text-prompt';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
-import type { MerchantMe } from '@aicabinet/shared-types';
+import type { MerchantMe, OpenApiSlotDiscrepancyAlertDto } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -109,7 +108,7 @@ const error = ref('');
 const preferredId = ref('');
 const onlyPreferred = ref(false);
 const counts = ref({ disputes: 0, offline: 0, lowStock: 0, expiry: 0 });
-const slotDiscrepancies = ref<MerchantSlotDiscrepancy[]>([]);
+const slotDiscrepancies = ref<OpenApiSlotDiscrepancyAlertDto[]>([]);
 const items = ref<
   {
     type: string;
@@ -220,7 +219,7 @@ async function load() {
       })),
       merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 })),
       merchantApi.expiryAlerts().catch(() => []),
-      merchantApi.slotDiscrepancies().catch(() => [] as MerchantSlotDiscrepancy[])
+      merchantApi.slotDiscrepancies().catch(() => [] as OpenApiSlotDiscrepancyAlertDto[])
     ]);
     if (seq !== loadSeq) return;
     const deduped = mergeTodoItems({

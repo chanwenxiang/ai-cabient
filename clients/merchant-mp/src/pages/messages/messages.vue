@@ -56,7 +56,8 @@
 import { computed, ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { merchantApi, type MerchantNotificationDto } from '@/utils/merchant-api';
+import { merchantApi } from '@/utils/merchant-api';
+import type { OpenApiNotificationDto } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   displayBizNo,
@@ -66,7 +67,7 @@ import {
 } from '@aicabinet/shared-uni/format';
 
 const loading = ref(false);
-const list = ref<MerchantNotificationDto[]>([]);
+const list = ref<OpenApiNotificationDto[]>([]);
 type MsgFilter =
   'all' | 'unread' | 'REPLENISHMENT' | 'DISPUTE' | 'ORDER' | 'SETTLEMENT' | 'WALLET' | 'OTHER';
 const filter = ref<MsgFilter>('all');
@@ -81,7 +82,7 @@ const filters: Array<{ key: MsgFilter; label: string }> = [
   { key: 'OTHER', label: '其他' }
 ];
 
-function matchBizFilter(m: MerchantNotificationDto, key: MsgFilter) {
+function matchBizFilter(m: OpenApiNotificationDto, key: MsgFilter) {
   const t = String(m.bizType || '').toUpperCase();
   if (key === 'REPLENISHMENT') return t === 'REPLENISHMENT';
   if (key === 'DISPUTE') return t === 'DISPUTE';
@@ -172,7 +173,7 @@ function bizTypeLabel(type?: string) {
   return '';
 }
 
-async function markNotificationReadIfNeeded(m: MerchantNotificationDto) {
+async function markNotificationReadIfNeeded(m: OpenApiNotificationDto) {
   if (m.read) return;
   try {
     await merchantApi.markNotificationRead(m.id);
@@ -239,7 +240,7 @@ function navigateForNotification(type: string, id: string) {
   NOTIFICATION_NAVIGATORS[type]?.(id);
 }
 
-async function onOpen(m: MerchantNotificationDto) {
+async function onOpen(m: OpenApiNotificationDto) {
   await markNotificationReadIfNeeded(m);
   const id = m.bizId ? encodeURIComponent(m.bizId) : '';
   navigateForNotification(String(m.bizType || '').toUpperCase(), id);
