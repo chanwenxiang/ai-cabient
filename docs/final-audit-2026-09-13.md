@@ -327,7 +327,7 @@
 | V-P2-2 | 中 | `app/storage.py` | ~~无 lifecycle~~ → 本地缓存 TTL 清理 + MinIO `set_bucket_lifecycle`（`OBJECT_STORAGE_LIFECYCLE_*`） |
 | V-P2-3 | 中 | `app/recognition/types.py` | ~~缺 sessionId/traceId~~ → `RecognitionOutput` + HTTP/Kafka 透传 `attach_correlation` |
 | V-P2-4 | 中 | `app/main.py` | ~~docs 策略不清~~ → 仅 prod/`VISION_DISABLE_DOCS` 关 docs/redoc；staging 保留 |
-| V-P2-5 | 中 | `tests/test_mock_recognizer.py` | 单元测试覆盖 < 30%（未覆盖 fusion、frame_extract、deepseek_recognizer） |
+| V-P2-5 | 中 | `tests/` | ~~覆盖 < 30%~~ → 增补 fusion / frame_extract / deepseek 离线单测（+ `fetch_catalog_classes` 修复导入） |
 
 ### 5.3 vision-service 小结
 
@@ -482,6 +482,7 @@
 - [x] C-P2-5：附近柜机无定位不请求、去掉默认上海坐标
 - [x] V-P2-3：识别结果透传 `sessionId`/`traceId`（HTTP + Kafka）；同步勾选已落地的 V-P2-1/4、C-P2-3、M-P2-4、A-P2-001~004/007 表格行
 - [x] V-P2-2：本地视频缓存 TTL 清理 + MinIO 桶 lifecycle（可配置天数/桶名）
+- [x] V-P2-5：补 fusion / frame_extract / deepseek 离线单测；修复 `fetch_catalog_classes` 导入断裂
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）
