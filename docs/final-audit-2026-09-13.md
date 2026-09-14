@@ -450,7 +450,9 @@
 - [x] A-P2-001：`logoutSession` 内统一 `beginLogout` + 2.5s 后 `endLogout`；不依赖 AdminLayout 收尾
 - [x] A-P2-003：去掉 App/`AdminLayout` 首屏重复 RBAC；仅 `router.beforeEach → restore`（含 inflight 去重）；窗口 focus 仍可 refresh
 - [x] A-P2-007：软路径 `console.warn/error` 改 `adminDevWarn/Error`（仅 DEV）；生产仍保留 cookie 误配置告警
+- [x] A-P2-004：`isNavMenuActive` 在 ACTIVE 菜单未加载时 fail-closed（`isNavMenuActiveFor`）；避免停用菜单首屏闪现
 - [x] S-P2-2：`GlobalExceptionHandler` 通用异常日志带 `traceId/spanId/sessionId`；500 响应 `X-Trace-Id` + 短追踪号文案
+- [x] S-P2-9（试点）：`SessionLogContext` 统一 sessionId/deviceId/userId；`SessionDoorService` 门事件日志已接入
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

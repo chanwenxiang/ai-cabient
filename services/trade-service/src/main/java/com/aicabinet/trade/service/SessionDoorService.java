@@ -9,6 +9,7 @@ import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.SessionLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -117,7 +118,7 @@ public class SessionDoorService {
             cabinetMetrics.recordDoorOpen(true);
             domainEventPublisher.publish("DoorOpened", session.getSessionId(),
                     Map.of(DEVICEID, session.getDeviceId(), "userId", session.getUserId()));
-            log.info("door opened session={}", session.getSessionId());
+            log.info("door opened {}", SessionLogContext.of(session));
         }
         return sessionService.toDto(session);
     }
@@ -126,7 +127,7 @@ public class SessionDoorService {
         if (session.getState() == SessionState.OPENING) {
             session.setOpenTime(Instant.now());
             sessionService.transition(session, SessionState.SHOPPING);
-            log.warn("door closed while opening, treat as shopping session={}", session.getSessionId());
+            log.warn("door closed while opening, treat as shopping {}", SessionLogContext.of(session));
         }
         if (session.getState() != SessionState.SHOPPING) {
             return sessionService.toDto(session);
@@ -140,14 +141,14 @@ public class SessionDoorService {
         if (DeviceValidationService.isOpsRemoteSession(session)) {
             // 运维开门：关门即完成，不识别、不结算；有录像则保留供审计
             sessionService.transition(session, SessionState.COMPLETED);
-            log.info("ops remote door closed session={} device={}", session.getSessionId(), session.getDeviceId());
+            log.info("ops remote door closed {}", SessionLogContext.of(session));
             return sessionService.toDto(session);
         }
 
         if (DeviceValidationService.isRestockSession(session)) {
             if (isWaitingForUpload(session)) {
                 sessionService.transition(session, SessionState.WAITING_UPLOAD);
-                log.info("restock door closed, waiting upload session={}", session.getSessionId());
+                log.info("restock door closed, waiting upload {}", SessionLogContext.of(session));
                 return sessionService.toDto(session);
             }
             boolean hasVideo = session.getVideoUri() != null && !session.getVideoUri().isBlank();
@@ -155,24 +156,24 @@ public class SessionDoorService {
                     gravityHelper.parse(session.getGravityDeltas()));
             if (hasVideo && !hasSlotGravity) {
                 sessionService.transition(session, SessionState.RECOGNIZING);
-                log.info("restock door closed, recognizing for snapshot session={}", session.getSessionId());
+                log.info("restock door closed, recognizing for snapshot {}", SessionLogContext.of(session));
                 return sessionService.toDto(session);
             }
             restockSnapshotService.applySnapshot(session);
             sessionService.transition(session, SessionState.COMPLETED);
-            log.info("restock door closed with gravity snapshot session={}", session.getSessionId());
+            log.info("restock door closed with gravity snapshot {}", SessionLogContext.of(session));
             return sessionService.toDto(session);
         }
 
         if (isWaitingForUpload(session)) {
             sessionService.transition(session, SessionState.WAITING_UPLOAD);
-            log.info("door closed, waiting upload session={} uploadStatus={}",
-                    session.getSessionId(), session.getUploadStatus());
+            log.info("door closed, waiting upload {} uploadStatus={}",
+                    SessionLogContext.of(session), session.getUploadStatus());
             return sessionService.toDto(session);
         }
 
         sessionService.transition(session, SessionState.RECOGNIZING);
-        log.info("door closed, recognizing session={} video={}", session.getSessionId(), session.getVideoUri());
+        log.info("door closed, recognizing {} video={}", SessionLogContext.of(session), session.getVideoUri());
         return sessionService.toDto(session);
     }
 

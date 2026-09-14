@@ -45,6 +45,8 @@
 | 38 | admin 列表 | 设备运维改 el-table-v2 后表头/多选/拖列宽与其它页不一致 | v2 无原生拖列宽且样式体系不同 | 常规运营列表优先标准 `el-table`（`border`+`type=selection`）；性能靠 pageSize≤50；虚拟表仅极端大数据页 | `DeviceOpsMonitorView.vue` |
 | 39 | trade 异常 | 500 日志难对齐网关请求 | 通用 handler 未写 MDC traceId | `log.error(..., RequestCorrelation.summary(), ex)`；响应头 `X-Trace-Id` + 文案短追踪号 | `GlobalExceptionHandler`、`RequestCorrelation` |
 | 40 | admin 生产 | 线上控制台仍有 warn 噪音 | 软失败路径裸 `console.warn` | 软路径用 `adminDevWarn`（仅 DEV）；生产安全告警可保留 | `admin-dev-log.ts` |
+| 41 | admin RBAC | 停用菜单首屏短暂可见 | `isNavMenuActive` 在 `!activeNavLoaded` 时 true | ACTIVE 未加载必须 fail-closed（`isNavMenuActiveFor`） | `rbac-cache-policy.ts` |
+| 42 | trade 日志 | 门事件日志难按用户/柜机检索 | 多数只打 sessionId | 关键路径用 `SessionLogContext.of(session)` | `SessionDoorService` |
 
 ## 追加模板
 
