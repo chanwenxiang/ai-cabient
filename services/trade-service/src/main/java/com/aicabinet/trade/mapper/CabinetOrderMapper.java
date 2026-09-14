@@ -73,6 +73,17 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
+    /** C-P2-9：消息中心待补缴角标，避免拉全页订单再 filter。 */
+    default long countByUserIdAndStatusIn(Long userId, java.util.Collection<String> statuses) {
+        if (userId == null || statuses == null || statuses.isEmpty()) {
+            return 0L;
+        }
+        Long c = selectCount(Wrappers.<CabinetOrder>lambdaQuery()
+                .eq(CabinetOrder::getUserId, userId)
+                .in(CabinetOrder::getStatus, statuses));
+        return c == null ? 0L : c;
+    }
+
     default java.util.List<CabinetOrder> findByCreatedAtAfter(Instant since) {
     return selectList(Wrappers.<CabinetOrder>lambdaQuery().gt(CabinetOrder::getCreatedAt, since));
     }

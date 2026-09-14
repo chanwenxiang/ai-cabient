@@ -51,6 +51,13 @@ public class OrderController {
         return ApiResponse.ok(orderService.listMyOrders(userId, page, size));
     }
 
+    /** C-P2-9：待补缴角标，须声明在 /{orderId} 之前。 */
+    @GetMapping("/pending-count")
+    public ApiResponse<java.util.Map<String, Long>> pendingCount(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(java.util.Map.of("count", orderService.countMyPendingOrders(userId)));
+    }
+
     @JsonView(OrderViews.Consumer.class)
     @GetMapping("/{orderId}")
     public ApiResponse<OrderReadModel> get(

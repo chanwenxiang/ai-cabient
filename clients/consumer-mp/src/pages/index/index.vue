@@ -857,6 +857,8 @@ async function resumeBrowseDeviceFlow() {
 }
 
 async function onAuthenticatedShow() {
+  // C-P2-10：结算跳转争议页期间禁止 reopen/restore 抢导航
+  if (finishingSession.value) return;
   await resumePendingRechargeIfAny();
   await refreshReviewState();
   if (scanned.value && deviceId.value) refreshDeviceStatus();
@@ -865,17 +867,23 @@ async function onAuthenticatedShow() {
   restoreActiveSession();
 }
 
+let showSeq = 0;
+
 onShow(async () => {
+  const seq = ++showSeq;
   refreshPrivacyGate();
   syncLandingTabBar();
   refreshLandingPad();
   lastDeviceId.value = uni.getStorageSync('last_device_id') || '';
   lastDeviceName.value = uni.getStorageSync('last_device_name') || '';
   await loadConsumerConfig();
+  if (seq !== showSeq) return;
   await ensureConsumerAuth();
+  if (seq !== showSeq) return;
   if (isConsumerLoggedIn()) {
     await onAuthenticatedShow();
   }
+  if (seq !== showSeq) return;
   startDevicePoll();
 });
 
@@ -1857,15 +1865,15 @@ async function finishSession(sessionState: string, sid: string) {
       void refreshReviewState();
       void requestDisputeSubscribe();
       showError('识别完成，账单待人工确认');
-      // 无订单时直接进审核详情，避免只停在首页提示卡
-      setTimeout(() => {
+      // C-P2-10：在 finishingSession 仍为 true 时完成导航，避免 onShow 与 600ms 定时器竞态
+      await delay(400);
+      await new Promise<void>((resolve) => {
         uni.navigateTo({
           url: `/pages/dispute/detail?sessionId=${encodeURIComponent(sid)}`,
-          fail: () => {
-            /* 首页审核卡仍可点 */
-          }
+          complete: () => resolve(),
+          fail: () => resolve()
         });
-      }, 600);
+      });
     }
   } finally {
     finishingSession.value = false;
