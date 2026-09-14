@@ -74,6 +74,7 @@
 | 67 | consumer 附近 | 定位失败仍按上海坐标列柜机 | 默认 lat/lng 硬编码 | 无定位禁止 nearbyDevices；提示开权限刷新 | `nearby.vue` |
 | 68 | vision 关联 | 识别结果难串 session/日志 | 缺 sessionId/traceId 字段 | `RecognitionOutput` + `attach_correlation`；HTTP/Kafka 带出 | `types.py`、`main.py`、`kafka_worker.py` |
 | 69 | vision 存储 | 缓存/对象无限增长 | 无 TTL/lifecycle | 本地 `VIDEO_CACHE_TTL_HOURS` 清理；MinIO lifecycle 天；OSS 无权限时控制台补配 | `storage.py` |
+| 70 | vision 测试 | fusion/frame/deepseek 无单测 | 仅 mock 冒烟 | 补离线单测；缺符号导致 import 失败先修 | `tests/test_*.py` |
 
 ## 追加模板
 

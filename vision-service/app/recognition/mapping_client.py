@@ -54,6 +54,18 @@ def _refresh_if_needed() -> None:
         _cache_at = time.time()
 
 
+def fetch_catalog_classes() -> list[tuple[str, str, str]]:
+    """全量类名目录：(skuId, className, skuName)。DeepSeek 兜底 prompt 用。"""
+    _refresh_if_needed()
+    rows: list[tuple[str, str, str]] = []
+    for class_name, (sku_id, _min_conf, _src) in (_class_cache or {}).items():
+        if not sku_id:
+            continue
+        # mapping 接口当前无独立 skuName 时，用 className 占位
+        rows.append((sku_id, class_name, class_name))
+    return rows
+
+
 def fetch_device_vision_context(device_id: str | None) -> list[dict[str, Any]]:
     """柜机在售 SKU 白名单，供 DeepSeek constrained prompt。"""
     if not device_id:
