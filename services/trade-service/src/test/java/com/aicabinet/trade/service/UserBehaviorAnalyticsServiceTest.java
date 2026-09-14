@@ -15,6 +15,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,15 +51,17 @@ class UserBehaviorAnalyticsServiceTest {
                 order(2L, 1500, now, "PAID"),
                 order(2L, 500, now, "PENDING") // 待支付不计入
         );
-        // 全量订单：含老用户与沉睡/长期未动
-        List<CabinetOrder> all = new java.util.ArrayList<>(window);
-        all.add(order(2L, 800, d60, "PAID"));
-        all.add(order(2L, 700, d60.minus(1, ChronoUnit.DAYS), "PAID"));
-        all.add(order(3L, 600, d45, "PAID"));
-        all.add(order(4L, 400, d100, "PAID"));
+
+        // 按用户聚合（替代 findAll）：userId, orderCount, revenue, firstAt, lastAt
+        List<Object[]> userAgg = List.of(
+                new Object[]{1L, 3L, 6000L, now.minus(2, ChronoUnit.DAYS), now},
+                new Object[]{2L, 3L, 3000L, d60.minus(1, ChronoUnit.DAYS), now},
+                new Object[]{3L, 1L, 600L, d45, d45},
+                new Object[]{4L, 1L, 400L, d100, d100}
+        );
 
         when(orderRepository.findByCreatedAtAfter(any())).thenReturn(window);
-        when(orderRepository.findAll()).thenReturn(all);
+        when(orderRepository.aggregatePaidOrdersByUser()).thenReturn(userAgg);
 
         UserBehaviorSummaryDto s = service.summary(30);
 
@@ -72,5 +76,6 @@ class UserBehaviorAnalyticsServiceTest {
         assertEquals(4, s.totalOrders());     // 窗口有效订单 3 + 1
         assertEquals(7500, s.totalRevenueCents());
         assertEquals(1875.0, s.avgOrderValueCents(), 0.001);
+        verify(orderRepository, never()).findAll();
     }
 }

@@ -47,6 +47,21 @@
     ]]>
   </select>
 
+  <!-- S-P2-3：用户行为分析用按用户聚合，禁止 findAll 拉全表实体 -->
+  <select id="selectUserPaidOrderAgg" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT o.user_id AS c0,
+           CAST(COUNT(*) AS bigint) AS c1,
+           CAST(COALESCE(SUM(o.total_amount_cents), 0) AS bigint) AS c2,
+           MIN(o.created_at) AS c3,
+           MAX(o.created_at) AS c4
+    FROM cabinet_order o
+    WHERE o.user_id IS NOT NULL
+      AND o.status <> 'PENDING'
+    GROUP BY o.user_id
+    ]]>
+  </select>
+
   <select id="sumTotalAmountByDeviceIdIn" resultType="long">
     SELECT COALESCE(SUM(o.total_amount_cents), 0) FROM cabinet_order o
     WHERE o.device_id IN
