@@ -1,5 +1,6 @@
 import { ElMessage } from 'element-plus';
 import { authFetch } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 
 export type SessionVideoLoadResult = {
   url: string;
@@ -14,7 +15,7 @@ async function fetchSessionVideoBlob(sessionId?: string | null): Promise<Session
     throw new Error('无关联会话，无法播放录像');
   }
   const res = await authFetch(
-    `${globalThis.location.origin}/api/v2/ops/admin/sessions/${encodeURIComponent(id)}/video`
+    `${globalThis.location.origin}${AdminEndpoints.sessionVideo(id)}`
   );
   if (!res.ok) {
     if (res.status === 404) throw new Error('录像尚未上传或不存在');

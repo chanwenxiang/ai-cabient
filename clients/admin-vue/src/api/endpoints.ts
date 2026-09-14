@@ -73,7 +73,21 @@ export const AdminEndpoints = {
   orderRefund: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}/refund`,
   orderRemind: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}/remind`,
   orderCollect: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}/collect`,
-  orderCancel: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}/cancel`
+  orderCancel: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}/cancel`,
+
+  /** 开门会话 */
+  sessions: `${ops}/sessions`,
+  sessionsList: (query: URLSearchParams | string) =>
+    typeof query === 'string' ? `${ops}/sessions?${query}` : `${ops}/sessions?${query.toString()}`,
+  sessionsExport: (query?: URLSearchParams | string) => {
+    if (query == null || query === '') return `${ops}/sessions/export`;
+    const qs = typeof query === 'string' ? query : query.toString();
+    return qs ? `${ops}/sessions/export?${qs}` : `${ops}/sessions/export`;
+  },
+  sessionCancel: (sessionId: string) =>
+    `${ops}/sessions/${encodeURIComponent(sessionId)}/cancel`,
+  sessionVideo: (sessionId: string) =>
+    `${ops}/sessions/${encodeURIComponent(sessionId)}/video`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -87,5 +101,6 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/device-availability-kpi',
   '/api/v2/ops/admin/devices/ref',
   '/api/v2/ops/admin/exceptions',
-  '/api/v2/ops/admin/orders'
+  '/api/v2/ops/admin/orders',
+  '/api/v2/ops/admin/sessions'
 ] as const;

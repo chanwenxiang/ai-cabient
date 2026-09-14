@@ -192,7 +192,7 @@ async function searchRecords(q: string) {
     ),
     take<{ sessionId?: string; deviceId?: string; state?: string }>(
       'ops:session:list',
-      `/api/v2/ops/admin/sessions?page=0&size=5&q=${encodeURIComponent(q)}`,
+      AdminEndpoints.sessionsList(`page=0&size=5&q=${encodeURIComponent(q)}`),
       (items) =>
         items.map((s) => ({
           type: 'session',
