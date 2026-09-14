@@ -261,8 +261,7 @@ import {
   hasPerm,
   merchantApi,
   downloadAuthedFile,
-  openExportedFile,
-  type MerchantDeviceReport
+  openExportedFile
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type {
@@ -271,7 +270,8 @@ import type {
   MerchantSettlementOverview,
   MerchantSkuSales,
   MerchantAiInsight,
-  MerchantExpirySummary
+  MerchantExpirySummary,
+  OpenApiMerchantDeviceReportDto
 } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -364,7 +364,7 @@ const settlement = ref<MerchantSettlementOverview>({
 });
 const aiInsight = ref<MerchantAiInsight | null>(null);
 const expirySummary = ref<MerchantExpirySummary | null>(null);
-const deviceReports = ref<MerchantDeviceReport[]>([]);
+const deviceReports = ref<OpenApiMerchantDeviceReportDto[]>([]);
 const reportDims = [
   { value: 'PRODUCT', label: '商品' },
   { value: 'CABINET', label: '货柜' },
@@ -452,7 +452,7 @@ async function load(soft = false) {
       merchantApi.settlements().catch(() => null),
       merchantApi.aiInsight(days.value).catch(() => null),
       merchantApi.expirySummary().catch(() => null),
-      merchantApi.deviceReports().catch(() => [] as MerchantDeviceReport[])
+      merchantApi.deviceReports().catch(() => [] as OpenApiMerchantDeviceReportDto[])
     ]);
     if (seq !== loadSeq) return;
     if (!a && !s) {

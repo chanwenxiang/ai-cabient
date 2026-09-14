@@ -173,8 +173,7 @@ import { computed, ref } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { clearSession,
   hasPerm,
-  merchantApi,
-  type MerchantProfileUpdate, isMerchantLoggedIn } from '@/utils/merchant-api';
+  merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
   hasSubscribeTemplates,
   MERCHANT_ALERT_TYPES,
@@ -189,13 +188,13 @@ import {
   useMerchantMe,
   seedMerchantMeDisplayCache
 } from '@/composables/useMerchantMe';
+import type { MerchantMe, OpenApiUpdateMerchantProfileRequest } from '@aicabinet/shared-types';
 import {
   MERCHANT_BIZ_NAV,
   MERCHANT_FIELD_NAV,
   MERCHANT_TEAM_NAV,
   type MerchantNavItem
 } from '@/config/merchant-nav';
-import type { MerchantMe } from '@aicabinet/shared-types';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
 
@@ -210,7 +209,7 @@ const phone = ref('');
 const canEditProfile = computed(() => hasPerm(me.value, 'merchant:profile:edit'));
 const profileEditVisible = ref(false);
 const profileSaving = ref(false);
-const profileForm = ref<MerchantProfileUpdate>({});
+const profileForm = ref<OpenApiUpdateMerchantProfileRequest>({});
 const avatarText = computed(() => (meName.value || '商').slice(0, 1));
 const notifyBusy = ref(false);
 const wxBound = ref(false);

@@ -3,10 +3,12 @@ import { showError } from '@/utils/notify';
 import { displayLabel } from '@aicabinet/shared-dict';
 import {
   isMerchantLoggedIn,
-  merchantApi,
-  type DeviceLowStockItem,
-  type MerchantReplenishmentEfficiency
+  merchantApi
 } from '@/utils/merchant-api';
+import type {
+  OpenApiDeviceInventoryDto,
+  OpenApiMerchantReplenishmentEfficiencyDto
+} from '@aicabinet/shared-types';
 
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 
@@ -29,7 +31,7 @@ function sortTasksByPreferred(rows: Task[], preferred: string) {
 }
 
 /** 按柜聚合低库存明细：缺货 SKU 数 + 缺口件数，按严重度排序取前 5。 */
-export function aggregateLowStock(items: DeviceLowStockItem[]) {
+export function aggregateLowStock(items: OpenApiDeviceInventoryDto[]) {
   const map = new Map<string, { skuCount: number; shortageQty: number }>();
   for (const row of items || []) {
     const key = String(row.deviceId || '')
@@ -59,7 +61,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
   const lineSummaryMap = ref<Record<number, string>>({});
   const devices = ref<Record<string, unknown>[]>([]);
   const skus = ref<Record<string, unknown>[]>([]);
-  const efficiency = ref<MerchantReplenishmentEfficiency | null>(null);
+  const efficiency = ref<OpenApiMerchantReplenishmentEfficiencyDto | null>(null);
   const lowStockList = ref<{ deviceId: string; skuCount: number; shortageQty: number }[]>([]);
   const status = ref('');
   const filterDeviceId = ref('');
@@ -126,8 +128,8 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     taskRows: Task[],
     deviceRows: Record<string, unknown>[],
     skuRows: Record<string, unknown>[],
-    eff: MerchantReplenishmentEfficiency | null,
-    lowStockRows: DeviceLowStockItem[]
+    eff: OpenApiMerchantReplenishmentEfficiencyDto | null,
+    lowStockRows: OpenApiDeviceInventoryDto[]
   ) {
     allTasks.value = taskRows || [];
     devices.value = deviceRows;
@@ -194,7 +196,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
         merchantApi.devices().catch(() => [] as Record<string, unknown>[]),
         merchantApi.pricing().catch(() => [] as Record<string, unknown>[]),
         merchantApi.myReplenishmentEfficiency().catch(() => null),
-        merchantApi.lowStockDevices().catch(() => [] as DeviceLowStockItem[])
+        merchantApi.lowStockDevices().catch(() => [] as OpenApiDeviceInventoryDto[])
       ]);
       if (seq !== loadSeq) return { seq, aborted: true };
       applyReplenishmentListData(

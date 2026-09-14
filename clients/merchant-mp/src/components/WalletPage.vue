@@ -141,10 +141,12 @@ import EmptyState from '@/components/empty-state.vue';
 import {
   merchantApi,
   isMerchantLoggedIn,
-  handleUnauthorized,
-  type LineWalletOverview,
-  type WalletOverview
+  handleUnauthorized
 } from '@/utils/merchant-api';
+import type {
+  OpenApiLineWalletOverviewDto,
+  OpenApiMerchantWalletOverviewDto
+} from '@aicabinet/shared-types';
 import { secureRandomToken } from '@/utils/secure-id';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -152,7 +154,7 @@ export type WalletPageRole = 'merchant' | 'line';
 
 const props = defineProps<{ role: WalletPageRole }>();
 
-type Overview = WalletOverview | LineWalletOverview;
+type Overview = OpenApiMerchantWalletOverviewDto | OpenApiLineWalletOverviewDto;
 
 const cfg = computed(() =>
   props.role === 'merchant'
@@ -197,10 +199,10 @@ const displayName = computed(() => {
   const o = overview.value;
   if (!o) return '';
   if (props.role === 'merchant') {
-    const m = o as WalletOverview;
+    const m = o as OpenApiMerchantWalletOverviewDto;
     return `${emptyDisplay(m.merchantName, 'text')} · ${emptyDisplay(m.merchantId, 'text')}`;
   }
-  const l = o as LineWalletOverview;
+  const l = o as OpenApiLineWalletOverviewDto;
   return `${emptyDisplay(l.managerName, 'text')} · ${emptyDisplay(l.phone, 'text')}`;
 });
 
