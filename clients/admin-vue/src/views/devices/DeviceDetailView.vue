@@ -1949,7 +1949,7 @@ async function openBindDialog() {
   try {
     const data = await api.request<{
       items?: Array<{ merchantId: string; merchantName?: string }>;
-    }>('/api/v2/ops/admin/merchants?page=0&size=500', 'GET');
+    }>(AdminEndpoints.merchantsList('page=0&size=500'), 'GET');
     bindMerchantOptions.value = data.items || [];
   } catch (e) {
     bindMerchantOptions.value = [];
