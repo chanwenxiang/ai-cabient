@@ -182,7 +182,58 @@ export const AdminEndpoints = {
   skuVisionAdvance: (skuId: string) =>
     `${ops}/sku-vision/${encodeURIComponent(skuId)}/advance`,
   skuVisionStatus: (skuId: string, status: string) =>
-    `${ops}/sku-vision/${encodeURIComponent(skuId)}/status?status=${encodeURIComponent(status)}`
+    `${ops}/sku-vision/${encodeURIComponent(skuId)}/status?status=${encodeURIComponent(status)}`,
+
+  /** 补货 / 效期 */
+  replenishmentSummary: `${ops}/replenishment/summary`,
+  replenishmentPlan: `${ops}/replenishment/plan`,
+  replenishmentRequestsExport: `${ops}/replenishment/requests/export`,
+  replenishmentRoutesExport: `${ops}/replenishment/routes/export`,
+  replenishmentRoutes: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/replenishment/routes?${query}`
+      : `${ops}/replenishment/routes?${query.toString()}`,
+  replenishmentFulfillmentTasks: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/replenishment/fulfillment-tasks?${query}`
+      : `${ops}/replenishment/fulfillment-tasks?${query.toString()}`,
+  replenishmentRequests: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/replenishment/requests?${query}`
+      : `${ops}/replenishment/requests?${query.toString()}`,
+  replenishmentShortage: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/replenishment/shortage?${query}`
+      : `${ops}/replenishment/shortage?${query.toString()}`,
+  replenishmentTaskLines: (taskId: string | number) =>
+    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/lines`,
+  replenishmentTaskEvidence: (taskId: string | number) =>
+    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence`,
+  replenishmentTaskEvidenceFile: (taskId: string | number, fileId: string | number) =>
+    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence/${encodeURIComponent(String(fileId))}`,
+  replenishmentTaskCheckIn: (taskId: string | number) =>
+    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/check-in`,
+  replenishmentTaskComplete: (taskId: string | number) =>
+    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/complete`,
+  replenishmentRouteCancelEmpty: (routeId: string | number) =>
+    `${ops}/replenishment/routes/${encodeURIComponent(String(routeId))}/cancel-empty`,
+  replenishmentRequestAccept: (requestId: string | number) =>
+    `${ops}/replenishment/requests/${encodeURIComponent(String(requestId))}/accept`,
+  replenishmentRequestReject: (requestId: string | number) =>
+    `${ops}/replenishment/requests/${encodeURIComponent(String(requestId))}/reject`,
+  replenishmentRequestEvidence: (requestId: string | number) =>
+    `${ops}/replenishment/requests/${encodeURIComponent(String(requestId))}/evidence`,
+  replenishmentRequestEvidenceFile: (requestId: string | number, fileId: string | number) =>
+    `${ops}/replenishment/requests/${encodeURIComponent(String(requestId))}/evidence/${encodeURIComponent(String(fileId))}`,
+  replenishmentReportStaff: (days: number | string) =>
+    `${ops}/replenishment-report/staff?days=${encodeURIComponent(String(days))}`,
+  expiryAlerts: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/expiry/alerts?${query}`
+      : `${ops}/expiry/alerts?${query.toString()}`,
+  expiryAlertsEnsure: `${ops}/expiry/alerts/ensure`,
+  expiryAlertCreateReplenishment: (taskId: string | number) =>
+    `${ops}/expiry/alerts/${encodeURIComponent(String(taskId))}/create-replenishment`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -202,5 +253,8 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/merchants',
   '/api/v2/ops/admin/merchant-onboarding',
   '/api/v2/ops/admin/skus',
-  '/api/v2/ops/admin/sku-vision'
+  '/api/v2/ops/admin/sku-vision',
+  '/api/v2/ops/admin/replenishment/',
+  '/api/v2/ops/admin/replenishment-report',
+  '/api/v2/ops/admin/expiry'
 ] as const;

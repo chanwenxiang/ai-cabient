@@ -85,6 +85,7 @@
 | 78 | admin 端点 | 入驻页散落 `/merchant-onboarding` | 列表/审批与 Dashboard 计数各写一份 | 入驻域迁入 AdminEndpoints；门禁加基路径 | `MerchantOnboardingView.vue` |
 | 79 | admin 端点 | SKU 目录散落 `/skus` 字面量 | 多页共用 `page=0&size=500` 拷贝 | SKU CRUD/图片迁入 AdminEndpoints；门禁加 `/skus` | `SkuListView.vue` |
 | 80 | admin 端点 | 视觉建档散落 `/sku-vision` | 建档流水线路径集中在一页仍易漂移 | sku-vision 动作迁入 AdminEndpoints；门禁加基路径 | `SkuVisionEnrollView.vue` |
+| 81 | admin 端点 | 补货/效期散落字面量 | 任务凭证下载与列表导出路径多 | replenishment+expiry 迁入 AdminEndpoints；门禁用 `/replenishment/` 避免误伤 report | `ReplenishmentView.vue` |
 
 ## 追加模板
 

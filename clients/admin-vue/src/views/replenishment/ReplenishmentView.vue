@@ -1891,7 +1891,7 @@ const { onExport: exportExpiry } = useListCsv({
 async function exportRequestsFull() {
   try {
     await downloadAuthFile(
-      '/api/v2/ops/admin/replenishment/requests/export',
+      AdminEndpoints.replenishmentRequestsExport,
       csvFileName('商户要货')
     );
     ElMessage.success('已导出');
@@ -1903,7 +1903,7 @@ async function exportRequestsFull() {
 async function exportRoutesFull() {
   try {
     await downloadAuthFile(
-      '/api/v2/ops/admin/replenishment/routes/export',
+      AdminEndpoints.replenishmentRoutesExport,
       csvFileName('补货路线')
     );
     ElMessage.success('已导出');
@@ -2121,7 +2121,7 @@ async function loadSummary() {
       fulfilledTaskCount: number;
       plannedRouteCount: number;
       pendingRequestCount: number;
-    }>('/api/v2/ops/admin/replenishment/summary', 'GET');
+    }>(AdminEndpoints.replenishmentSummary, 'GET');
     summary.value = {
       pendingTaskCount: Number(data.pendingTaskCount) || 0,
       fulfilledTaskCount: Number(data.fulfilledTaskCount) || 0,
@@ -2139,7 +2139,7 @@ async function loadRoutes() {
   const extra: Record<string, string> = {};
   if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
   const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/replenishment/routes?${replenishmentListParams(extra)}`,
+    AdminEndpoints.replenishmentRoutes(replenishmentListParams(extra)),
     'GET'
   );
   routes.value = data.items || [];
@@ -2153,7 +2153,7 @@ async function loadFulfillment() {
   if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
   if (fulfillmentStatus.value) extra.status = fulfillmentStatus.value;
   const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/replenishment/fulfillment-tasks?${replenishmentListParams(extra)}`,
+    AdminEndpoints.replenishmentFulfillmentTasks(replenishmentListParams(extra)),
     'GET'
   );
   fulfillmentTasksList.value = data.items || [];
@@ -2166,7 +2166,7 @@ async function loadRequests() {
   const seq = loadSeq.begin('loadRequests');
   const status = requestStatusFilter.value || 'ALL';
   const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/replenishment/requests?${replenishmentListParams({ status })}`,
+    AdminEndpoints.replenishmentRequests(replenishmentListParams({ status })),
     'GET'
   );
   allRequests.value = data.items || [];
@@ -2193,7 +2193,7 @@ async function loadShortages() {
     items: Row[];
     total: number;
     shortageDeviceIds: string[];
-  }>(`/api/v2/ops/admin/replenishment/shortage?${replenishmentListParams(extra)}`, 'GET');
+  }>(AdminEndpoints.replenishmentShortage(replenishmentListParams(extra)), 'GET');
   shortages.value = (data.items || []).map((row) => ({
     ...row,
     slotKey: row.slotKey || `${row.deviceId}:${row.slotCode || row.skuId || ''}`
@@ -2321,7 +2321,7 @@ async function loadExpiryAlerts() {
   expiryLoading.value = true;
   try {
     const data = await api.request<{ items: Row[]; total: number }>(
-      `/api/v2/ops/admin/expiry/alerts?${replenishmentListParams()}`,
+      AdminEndpoints.expiryAlerts(replenishmentListParams()),
       'GET'
     );
     let rows = data.items || [];
@@ -2484,7 +2484,7 @@ async function createFromExpiry(row: Row, lineType: 'PULL_OFF' | 'RESTOCK') {
   expiryActingId.value = Number(row.taskId);
   try {
     const route = await api.request<{ routeId?: number; tasks?: { taskId?: number }[] }>(
-      `/api/v2/ops/admin/expiry/alerts/${row.taskId}/create-replenishment`,
+      AdminEndpoints.expiryAlertCreateReplenishment(row.taskId),
       'POST',
       { lineType }
     );
@@ -2514,10 +2514,10 @@ async function openTaskLines(task: Row) {
   linesLoading.value = true;
   try {
     const [lines, evidence, slots] = await Promise.all([
-      api.request<Row[]>(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/lines`, 'GET'),
+      api.request<Row[]>(AdminEndpoints.replenishmentTaskLines(task.taskId), 'GET'),
       api
         .request<{ fileId: number; fileName?: string; fileSize?: number; contentType?: string }[]>(
-          `/api/v2/ops/admin/replenishment/tasks/${task.taskId}/evidence`,
+          AdminEndpoints.replenishmentTaskEvidence(task.taskId),
           'GET'
         )
         .catch(() => []),
@@ -2565,7 +2565,7 @@ async function saveTaskSlots() {
   slotSaving.value = true;
   try {
     const saved = await api.request<Row[]>(
-      `/api/v2/ops/admin/replenishment/tasks/${linesTask.value.taskId}/lines`,
+      AdminEndpoints.replenishmentTaskLines(linesTask.value.taskId),
       'POST',
       {
         lines: pending.map((l) => ({
@@ -2625,7 +2625,7 @@ async function loadEvidencePreviews(
     if (looksImage) {
       try {
         const res = await authFetch(
-          `${base}/api/v2/ops/admin/replenishment/tasks/${taskId}/evidence/${f.fileId}`
+          `${base}${AdminEndpoints.replenishmentTaskEvidenceFile(taskId, f.fileId)}`
         );
         if (res.ok) {
           const blob = await res.blob();
@@ -2694,7 +2694,7 @@ async function checkInRestockTask(task: Row) {
   }
   checkInLoading.value = task.taskId;
   try {
-    await api.request(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/check-in`, 'POST', {});
+    await api.request(AdminEndpoints.replenishmentTaskCheckIn(task.taskId), 'POST', {});
     ElMessage.success(`任务 ${task.taskId} 已签到，可补货开门`);
     await loadTab(tab.value, true);
   } catch (error) {
@@ -2737,7 +2737,7 @@ async function cancelEmptyRoute(row: Row) {
   }
   cancelRouteLoading.value = row.routeId;
   try {
-    await api.request(`/api/v2/ops/admin/replenishment/routes/${row.routeId}/cancel-empty`, 'POST');
+    await api.request(AdminEndpoints.replenishmentRouteCancelEmpty(row.routeId), 'POST');
     ElMessage.success(
       orphanCleanup ? `路线 ${row.routeId} 脏出库已收口` : `路线 ${row.routeId} 已取消`
     );
@@ -2810,7 +2810,7 @@ async function completeRestockTask(task: Row) {
   }
   completeLoading.value = task.taskId;
   try {
-    await api.request(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/complete`, 'POST');
+    await api.request(AdminEndpoints.replenishmentTaskComplete(task.taskId), 'POST');
     ElMessage.success(`任务 ${task.taskId} 已完成上架`);
     await loadTab(tab.value, true);
   } catch (error) {
@@ -2826,7 +2826,7 @@ async function createPlan() {
   if (!planForm.deviceIds.length) return ElMessage.warning('请至少选择一台设备');
   saving.value = true;
   try {
-    const route = await api.request<Row>('/api/v2/ops/admin/replenishment/plan', 'POST', {
+    const route = await api.request<Row>(AdminEndpoints.replenishmentPlan, 'POST', {
       ...planForm,
       startLatitude: null,
       startLongitude: null
@@ -2878,7 +2878,7 @@ async function acceptReplenishmentRequest(row: Row) {
     reviewerName?: string;
     reviewedAt?: string;
     status?: string;
-  }>(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/accept`, 'POST');
+  }>(AdminEndpoints.replenishmentRequestAccept(row.requestId), 'POST');
   if (accepted?.outboundId) {
     ElMessage.success(
       `已接单，出库 ${accepted.outboundId}，补货任务 ${accepted.replenishmentTaskId ?? '无'}`
@@ -2896,7 +2896,7 @@ async function rejectReplenishmentRequest(row: Row) {
     confirmButtonText: '确认驳回',
     type: 'warning'
   });
-  await api.request(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/reject`, 'POST', {
+  await api.request(AdminEndpoints.replenishmentRequestReject(row.requestId), 'POST', {
     reason: value
   });
   ElMessage.success(displayLabel('replenishment_request_status', 'REJECTED'));
@@ -3052,7 +3052,7 @@ async function loadRequestEvidence(row: Row) {
   try {
     const files = await api.request<
       { fileId: number; fileName?: string; fileSize?: number; contentType?: string; url?: string }[]
-    >(`/api/v2/ops/admin/replenishment/requests/${requestId}/evidence`, 'GET');
+    >(AdminEndpoints.replenishmentRequestEvidence(requestId), 'GET');
     if (!loadSeq.isCurrent(seq, 'loadRequestEvidence')) return;
     if (!files?.length) return;
     const base = globalThis.location.origin;
@@ -3067,7 +3067,7 @@ async function loadRequestEvidence(row: Row) {
         if (looksImage) {
           try {
             const res = await authFetch(
-              `${base}/api/v2/ops/admin/replenishment/requests/${requestId}/evidence/${fileId}`
+              `${base}${AdminEndpoints.replenishmentRequestEvidenceFile(requestId, fileId)}`
             );
             if (res.ok) {
               const blob = await res.blob();
@@ -3109,7 +3109,7 @@ async function prefetchUnassignedHints() {
         const taskId = Number(task.taskId);
         try {
           const lines = await api.request<Row[]>(
-            `/api/v2/ops/admin/replenishment/tasks/${taskId}/lines`,
+            AdminEndpoints.replenishmentTaskLines(taskId),
             'GET'
           );
           next[taskId] = (lines || []).some(
