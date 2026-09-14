@@ -2,6 +2,7 @@ import { type Ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { errorMessage } from '@/utils/error-message';
+import { adminDevWarn } from '@/utils/admin-dev-log';
 import type { createLoadSeq } from '@/composables/createLoadSeq';
 
 /** 仓储多 Tab 共用行（字段随业务表变化） */
@@ -395,7 +396,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
           loadReturns(),
           loadReturnablePurchaseOrders(),
           loadPurchase().catch((err) => {
-            console.warn('[warehouse] 退货弹窗预载采购单失败', err);
+            adminDevWarn('[warehouse] 退货弹窗预载采购单失败', err);
           }),
           loadSuppliersSoft(),
           loadWarehousesSoft()

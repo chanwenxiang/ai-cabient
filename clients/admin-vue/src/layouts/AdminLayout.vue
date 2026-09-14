@@ -262,6 +262,7 @@ import {
   syncTableScrollFit
 } from '@/utils/table-scroll-fit';
 import { dismissPageOverlays } from '@/utils/dismiss-page-overlays';
+import { adminDevWarn } from '@/utils/admin-dev-log';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
 import GlobalSearch from '@/components/GlobalSearch.vue';
 import OpsApprovalInbox from '@/components/OpsApprovalInbox.vue';
@@ -679,7 +680,7 @@ function pinLayoutViewportHeight() {
 
 function onWindowFocus() {
   auth.refreshPermissions().catch((err) => {
-    console.warn('[admin] 窗口聚焦时刷新权限失败', err);
+    adminDevWarn('[admin] 窗口聚焦时刷新权限失败', err);
   });
 }
 

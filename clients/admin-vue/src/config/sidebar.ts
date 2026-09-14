@@ -127,7 +127,7 @@ function resolveGroupKey(group: string | undefined | null): string {
   if (!raw) return 'other';
   const mapped = GROUP_KEY[raw];
   if (mapped) return mapped;
-  if (typeof console !== 'undefined' && console.warn) {
+  if (typeof console !== 'undefined' && console.warn && import.meta.env.DEV) {
     console.warn(`[侧栏] 未知菜单分组「${raw}」，已归入「其他」`);
   }
   return 'other';

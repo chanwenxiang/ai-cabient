@@ -43,6 +43,8 @@
 | 36 | admin 鉴权 | 首屏 `/rbac/me/*` 打两遍 | App + router restore 且 Layout `onMounted` 再 `refreshPermissions` | 首屏只走 `beforeEach → restore`（inflight 去重）；Layout 仅 window `focus` 刷新 | `App.vue`、`auth.ts`、`AdminLayout.vue` |
 | 37 | admin 退出 | 非 Layout 路径 logout 后长期吞 401 Toast | `logoutSession` 置 `loggingOut=true` 却无 `endLogout` | 退出生命周期收进 `logoutSession`（begin + 定时 end） | `api/client.ts` |
 | 38 | admin 列表 | 设备运维改 el-table-v2 后表头/多选/拖列宽与其它页不一致 | v2 无原生拖列宽且样式体系不同 | 常规运营列表优先标准 `el-table`（`border`+`type=selection`）；性能靠 pageSize≤50；虚拟表仅极端大数据页 | `DeviceOpsMonitorView.vue` |
+| 39 | trade 异常 | 500 日志难对齐网关请求 | 通用 handler 未写 MDC traceId | `log.error(..., RequestCorrelation.summary(), ex)`；响应头 `X-Trace-Id` + 文案短追踪号 | `GlobalExceptionHandler`、`RequestCorrelation` |
+| 40 | admin 生产 | 线上控制台仍有 warn 噪音 | 软失败路径裸 `console.warn` | 软路径用 `adminDevWarn`（仅 DEV）；生产安全告警可保留 | `admin-dev-log.ts` |
 
 ## 追加模板
 

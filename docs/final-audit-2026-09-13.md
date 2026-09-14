@@ -449,6 +449,8 @@
 - [x] A-P1-002 / A-P1-003：pageSize 上限收紧至 50 + `check:admin-page-size` 门禁；订单/设备列表接入 `ADMIN_LIST_PAGE_SIZES`；设备运维仍用标准 `el-table`（与其它列表同款多选/表头/拖列宽；`AdminVirtualTable` 组件保留备选）；A-P1-003 keep-alive 已修
 - [x] A-P2-001：`logoutSession` 内统一 `beginLogout` + 2.5s 后 `endLogout`；不依赖 AdminLayout 收尾
 - [x] A-P2-003：去掉 App/`AdminLayout` 首屏重复 RBAC；仅 `router.beforeEach → restore`（含 inflight 去重）；窗口 focus 仍可 refresh
+- [x] A-P2-007：软路径 `console.warn/error` 改 `adminDevWarn/Error`（仅 DEV）；生产仍保留 cookie 误配置告警
+- [x] S-P2-2：`GlobalExceptionHandler` 通用异常日志带 `traceId/spanId/sessionId`；500 响应 `X-Trace-Id` + 短追踪号文案
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

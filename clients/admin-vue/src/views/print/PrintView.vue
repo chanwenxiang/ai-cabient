@@ -129,6 +129,7 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { adminDevError } from '@/utils/admin-dev-log';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type Row = Record<string, any>;
@@ -236,7 +237,7 @@ async function load() {
     }
     ok = hasPrintableData();
   } catch (e) {
-    console.error('打印数据加载失败', e);
+    adminDevError('打印数据加载失败', e);
   } finally {
     loading.value = false;
     if (ok) scheduleAutoPrint();

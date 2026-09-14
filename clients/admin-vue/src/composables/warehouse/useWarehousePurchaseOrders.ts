@@ -3,6 +3,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { yuanToCents } from '@/utils/display';
 import { errorMessage } from '@/utils/error-message';
+import { adminDevWarn } from '@/utils/admin-dev-log';
 import {
   emitPurchaseOrderReviewed,
   showPurchaseReviewToast,
@@ -355,7 +356,7 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
     try {
       await Promise.all([
         deps.loadPurchase().catch((err) => {
-          console.warn('[warehouse] 弹窗启动预载采购单失败', err);
+          adminDevWarn('[warehouse] 弹窗启动预载采购单失败', err);
         }),
         deps.loadSuppliersSoft(),
         deps.loadWarehousesSoft(),
