@@ -241,7 +241,7 @@
 | S-P2-2 | 中 | `config/GlobalExceptionHandler.java` | 通用 `Exception.class` 处理器仅记 log.error；缺少 traceId、用户上下文、链路追踪 |
 | S-P2-3 | 中 | `mapper/**.xml` | ~~假分页 / `findAll` / 无界列表~~ → 已修分账、线长、用户行为聚合、温湿度/争议等 LIMIT；对账日窗仍按日全量（故意） |
 | S-P2-4 | 中 | 多 Service | ~~缓存 name/TTL 散落~~ → 已建 `CacheNames` + 仪表盘入口统一；业务侧禁止裸前缀/裸毫秒 |
-| S-P2-5 | 中 | `VisionRecognitionListener.java` | Kafka 消费失败重试策略未显式（DLT topic？指数退避？） |
+| S-P2-5 | 中 | `VisionRecognitionListener.java` | ~~Kafka 失败策略未显式~~ → 失败入 `VISION_RECOGNIZE_RESULT_DLT` 后 ack；request/result DLT topic 由 `KafkaTopicConfig` 创建；不做容器侧无限重试 |
 | S-P2-6 | 中 | `service/DisputeService.java` | 纠纷状态机（OPEN → RESOLVED → CLOSED）转移缺单元测试覆盖 |
 | S-P2-7 | 中 | `ScheduledTaskXxlJobHandler` | ~~时区/cron 散落~~ → `ScheduleZones` + `aicabinet.schedule.zone`；缺 zone 的 `@Scheduled(cron)` 已补；XXL 种子 cron 表对齐 |
 | S-P2-8 | 中 | `kafka` 配置 | `auto-offset-reset: earliest` + 无显式 max.poll.records；高吞吐下有 rebalance 风险 |
@@ -457,6 +457,7 @@
 - [x] S-P2-6：`DisputeTicketTransitions` 收口 OPEN→RESOLVED→CLOSED（含重开）；单测覆盖；`DisputeService` 守卫改走状态机
 - [x] S-P2-1：扩展 `SessionState.canTransitionTo`（超时/运维/重试/申诉边）；已有实体写路径统一 `SessionService.transition`（新建赋初态除外）
 - [x] S-P2-8：trade `max-poll-records` + poll/session 超时显式化；vision worker 同步 `max_poll_records` / interval / session（环境变量可调）
+- [x] S-P2-5：识别结果消费失败写入 result DLT 后正常 ack；`KafkaTopicConfig` 注册 request/result DLT topic；DLT 信封带 sessionId/taskId/failedAt
 - [x] A-P2-008（门禁）：`ResizableDrawer` 强制 `title`→`aria-label`；`check:admin-dialog-a11y` 校验 dialog/drawer 命名；全局搜索 dialog 补 `aria-label`（i18n 框架仍按项目约定前台中文，不强制）
 - [x] S-P2-3（首批）：`OrderRevenueSplitMapper.searchByMerchants` 改为 MyBatis-Plus `selectPage`（去掉全表+subList）；线长日佣改为 `findByDeviceIdAndCreatedAtBetween`（其余大表窗口扫描仍待跟进）
 - [x] S-P2-3（续）：用户行为分析改 `aggregatePaidOrdersByUser`（GROUP BY），禁止 `cabinet_order.findAll()`；对账/温湿度窗口扫描仍待跟进
