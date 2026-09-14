@@ -27,7 +27,8 @@ public interface InvoiceRequestMapper extends BaseTradeMapper<InvoiceRequest> {
     default List<InvoiceRequest> findByUserIdOrderByCreatedAtDesc(Long userId) {
         return selectList(Wrappers.<InvoiceRequest>lambdaQuery()
                 .eq(InvoiceRequest::getUserId, userId)
-                .orderByDesc(InvoiceRequest::getCreatedAt));
+                .orderByDesc(InvoiceRequest::getCreatedAt)
+                .last("LIMIT 100"));
     }
 
     default Optional<InvoiceRequest> findActiveByOrderId(String orderId) {

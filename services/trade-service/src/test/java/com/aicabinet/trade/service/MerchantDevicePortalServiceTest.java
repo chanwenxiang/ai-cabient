@@ -18,6 +18,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -74,6 +76,23 @@ class MerchantDevicePortalServiceTest {
                         new UpdateMerchantDeviceSettingsRequest("name", null, null, null, null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void getTemperatureHistory_clampsHoursAndPassesPointLimit() {
+        when(temperatureReadingRepository.findByDeviceIdSince(
+                org.mockito.ArgumentMatchers.eq("CAB-T"),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(5000)))
+                .thenReturn(List.of());
+
+        var rows = service.getTemperatureHistory(1L, "CAB-T", 999);
+
+        assertTrue(rows.isEmpty());
+        org.mockito.Mockito.verify(temperatureReadingRepository).findByDeviceIdSince(
+                org.mockito.ArgumentMatchers.eq("CAB-T"),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(5000));
     }
 
     @Test

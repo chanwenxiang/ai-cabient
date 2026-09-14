@@ -9,7 +9,10 @@ import org.apache.ibatis.annotations.Mapper;
 public interface InventoryMovementMapper extends BaseTradeMapper<InventoryMovement> {
 
     default List<InventoryMovement> findByDeviceIdOrderByCreatedAtDesc(String deviceId) {
-    return selectList(Wrappers.<InventoryMovement>lambdaQuery().eq(InventoryMovement::getDeviceId, deviceId).orderByDesc(InventoryMovement::getCreatedAt));
+        return selectList(Wrappers.<InventoryMovement>lambdaQuery()
+                .eq(InventoryMovement::getDeviceId, deviceId)
+                .orderByDesc(InventoryMovement::getCreatedAt)
+                .last("LIMIT 200"));
     }
 
 }

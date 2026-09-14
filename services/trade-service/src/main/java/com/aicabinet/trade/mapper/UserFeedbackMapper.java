@@ -39,6 +39,7 @@ public interface UserFeedbackMapper extends BaseTradeMapper<UserFeedback> {
     default List<UserFeedback> findByUserIdOrderByCreatedAtDesc(Long userId) {
         return selectList(Wrappers.<UserFeedback>lambdaQuery()
                 .eq(UserFeedback::getUserId, userId)
-                .orderByDesc(UserFeedback::getCreatedAt));
+                .orderByDesc(UserFeedback::getCreatedAt)
+                .last("LIMIT 100"));
     }
 }

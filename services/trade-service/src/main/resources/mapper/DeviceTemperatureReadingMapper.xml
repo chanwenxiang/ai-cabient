@@ -5,9 +5,13 @@
 
   <select id="findByDeviceIdSince" resultType="com.aicabinet.trade.domain.DeviceTemperatureReading">
     <![CDATA[
-    SELECT r.* FROM device_temperature_reading r
-                        WHERE r.device_id = #{deviceId} AND r.reported_at >= #{since}
-                        ORDER BY r.reported_at ASC
+    SELECT * FROM (
+      SELECT r.* FROM device_temperature_reading r
+      WHERE r.device_id = #{deviceId} AND r.reported_at >= #{since}
+      ORDER BY r.reported_at DESC
+      LIMIT #{limit}
+    ) recent
+    ORDER BY recent.reported_at ASC
     ]]>
   </select>
 </mapper>

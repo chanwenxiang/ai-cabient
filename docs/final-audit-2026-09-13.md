@@ -239,7 +239,7 @@
 |------|--------|------|------|
 | S-P2-1 | 中 | `SessionState` / `SessionService` | `SessionState.canTransitionTo` **已在 domain 枚举**；service 层仍可能散落额外判断，需统一只走 `canTransitionTo` |
 | S-P2-2 | 中 | `config/GlobalExceptionHandler.java` | 通用 `Exception.class` 处理器仅记 log.error；缺少 traceId、用户上下文、链路追踪 |
-| S-P2-3 | 中 | `mapper/**.xml` | ~~假分页 / `findAll` 全表~~ → 已修分账真分页、线长按柜机、用户行为按用户聚合；对账/温湿度窗口扫描仍待跟进 |
+| S-P2-3 | 中 | `mapper/**.xml` | ~~假分页 / `findAll` / 无界列表~~ → 已修分账、线长、用户行为聚合、温湿度/争议等 LIMIT；对账日窗仍按日全量（故意） |
 | S-P2-4 | 中 | 多 Service | 缓存（`@Cacheable`/`@CacheEvict`）使用零散，未做统一 cache name / TTL 配置 |
 | S-P2-5 | 中 | `VisionRecognitionListener.java` | Kafka 消费失败重试策略未显式（DLT topic？指数退避？） |
 | S-P2-6 | 中 | `service/DisputeService.java` | 纠纷状态机（OPEN → RESOLVED → CLOSED）转移缺单元测试覆盖 |
@@ -460,6 +460,7 @@
 - [x] A-P2-008（门禁）：`ResizableDrawer` 强制 `title`→`aria-label`；`check:admin-dialog-a11y` 校验 dialog/drawer 命名；全局搜索 dialog 补 `aria-label`（i18n 框架仍按项目约定前台中文，不强制）
 - [x] S-P2-3（首批）：`OrderRevenueSplitMapper.searchByMerchants` 改为 MyBatis-Plus `selectPage`（去掉全表+subList）；线长日佣改为 `findByDeviceIdAndCreatedAtBetween`（其余大表窗口扫描仍待跟进）
 - [x] S-P2-3（续）：用户行为分析改 `aggregatePaidOrdersByUser`（GROUP BY），禁止 `cabinet_order.findAll()`；对账/温湿度窗口扫描仍待跟进
+- [x] S-P2-3（再续）：温湿度历史 `LIMIT`（按小时×30，硬顶 5000）；争议/反馈/发票/库存流水列表加上限；对账日窗全量 ID 仍按日口径保留
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）
