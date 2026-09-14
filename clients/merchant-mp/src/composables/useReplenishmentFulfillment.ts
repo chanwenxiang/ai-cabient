@@ -393,10 +393,15 @@ export function useReplenishmentFulfillment(opts: {
       confirmText: '去拍照',
       cancelText: '关闭'
     });
-    if (goPhoto) {
-      if (opts.selected.value?.checkInAt) await opts.addEvidence();
-      else showError('请先签到再拍照');
+    if (!goPhoto) return false;
+    if (!opts.selected.value?.checkInAt) {
+      showError('请先签到再拍照');
+      return false;
     }
+    // M-P2-12：必须 await 拍照上传；上传成功后继续完成，避免用户再点一次
+    await opts.addEvidence();
+    if (opts.evidenceItems.value.length > 0) return true;
+    showError('请至少上传 1 张现场照片');
     return false;
   }
 

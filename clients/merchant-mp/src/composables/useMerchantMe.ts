@@ -1,6 +1,11 @@
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { isMerchantLoggedIn, merchantApi, hasPerm } from '@/utils/merchant-api';
+import {
+  isMerchantLoggedIn,
+  merchantApi,
+  hasPerm,
+  registerMerchantSessionClearHook
+} from '@/utils/merchant-api';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import type { MerchantNavItem, MerchantPack } from '@/config/merchant-nav';
 
@@ -9,6 +14,16 @@ const loadingRef = ref(false);
 
 let meSeq = 0;
 let inflight: Promise<MerchantMe> | null = null;
+
+/** M-P2-5：登出/401 必须清内存态，避免 H5 SPA 重登前闪旧账号资料。 */
+export function clearMerchantMe(): void {
+  meSeq += 1;
+  inflight = null;
+  meRef.value = null;
+  loadingRef.value = false;
+}
+
+registerMerchantSessionClearHook(clearMerchantMe);
 
 /** 去掉授权字段，仅保留展示信息，避免 storage 篡改抬权 */
 export function stripMerchantGrants(me: MerchantMe): MerchantMe {
@@ -80,7 +95,8 @@ export function useMerchantMe() {
   return {
     me: meRef,
     loading: loadingRef,
-    refresh: refreshMerchantMe
+    refresh: refreshMerchantMe,
+    clear: clearMerchantMe
   };
 }
 
