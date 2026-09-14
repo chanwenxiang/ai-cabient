@@ -1274,6 +1274,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -2102,7 +2103,9 @@ async function loadRelated() {
         .catch(() => ({ items: [] })),
       api
         .request<PageResult<OrderReadModel>>(
-          `/api/v2/ops/admin/orders?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
+          AdminEndpoints.ordersList(
+            `page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`
+          ),
           'GET'
         )
         .catch(() => ({ items: [] }))

@@ -78,6 +78,7 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { searchNavItems } from '@/config/menu';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { adminDevWarn } from '@/utils/admin-dev-log';
 
 const router = useRouter();
@@ -173,7 +174,7 @@ async function searchRecords(q: string) {
     ),
     take<{ orderId?: string; payChannel?: string; channel?: string; status?: string }>(
       'ops:order:list',
-      `/api/v2/ops/admin/orders?page=0&size=5&orderId=${encodeURIComponent(q)}`,
+      AdminEndpoints.ordersList(`page=0&size=5&orderId=${encodeURIComponent(q)}`),
       (items) =>
         items.map((o) => ({
           type: 'order',

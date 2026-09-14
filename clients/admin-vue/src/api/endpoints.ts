@@ -59,7 +59,21 @@ export const AdminEndpoints = {
   exceptionRetry: (exceptionId: string) =>
     `${ops}/exceptions/${encodeURIComponent(exceptionId)}/retry`,
   exceptionManualResolve: (exceptionId: string) =>
-    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/manual-resolve`
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/manual-resolve`,
+
+  /** 订单中心 */
+  orders: `${ops}/orders`,
+  ordersList: (query: URLSearchParams | string) =>
+    typeof query === 'string' ? `${ops}/orders?${query}` : `${ops}/orders?${query.toString()}`,
+  ordersExport: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/orders/export?${query}`
+      : `${ops}/orders/export?${query.toString()}`,
+  order: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}`,
+  orderRefund: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}/refund`,
+  orderRemind: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}/remind`,
+  orderCollect: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}/collect`,
+  orderCancel: (orderId: string) => `${ops}/orders/${encodeURIComponent(orderId)}/cancel`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -72,5 +86,6 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/finance/stats',
   '/api/v2/ops/admin/device-availability-kpi',
   '/api/v2/ops/admin/devices/ref',
-  '/api/v2/ops/admin/exceptions'
+  '/api/v2/ops/admin/exceptions',
+  '/api/v2/ops/admin/orders'
 ] as const;
