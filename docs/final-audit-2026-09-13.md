@@ -61,7 +61,7 @@
 | A-P2-005 | P2 | API 抽象 | 全部视图 | 业务层裸字符串端点 `/api/v2/...`，无集中 endpoint + 类型层 |
 | A-P2-006 | P2 | 安全配置 | `api/client.ts` | 非 Cookie 模式 token 落 `localStorage`，XSS 暴露面扩大 |
 | A-P2-007 | P2 | 残留日志 | 多文件 | 多处 `console.warn/error` 残留（生产仍输出） |
-| A-P2-008 | P2 | 无障碍 / i18n | 多视图 | 部分 `el-dialog`/`el-drawer` 缺 `aria-label`；硬编码中文（无 i18n 框架；项目约定前台中文，此项仅指缺 i18n 框架） |
+| A-P2-008 | P2 | 无障碍 / i18n | 多视图 | ~~缺 dialog/drawer 命名门禁~~ → 已用 `check:admin-dialog-a11y` + `ResizableDrawer` 强制 title；i18n 框架仍不强制（前台中文约定） |
 
 ### 1.2 架构评估
 
@@ -457,6 +457,7 @@
 - [x] S-P2-6：`DisputeTicketTransitions` 收口 OPEN→RESOLVED→CLOSED（含重开）；单测覆盖；`DisputeService` 守卫改走状态机
 - [x] S-P2-1：扩展 `SessionState.canTransitionTo`（超时/运维/重试/申诉边）；已有实体写路径统一 `SessionService.transition`（新建赋初态除外）
 - [x] S-P2-8：trade `max-poll-records` + poll/session 超时显式化；vision worker 同步 `max_poll_records` / interval / session（环境变量可调）
+- [x] A-P2-008（门禁）：`ResizableDrawer` 强制 `title`→`aria-label`；`check:admin-dialog-a11y` 校验 dialog/drawer 命名；全局搜索 dialog 补 `aria-label`（i18n 框架仍按项目约定前台中文，不强制）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）
