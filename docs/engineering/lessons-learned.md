@@ -77,6 +77,7 @@
 | 70 | vision 测试 | fusion/frame/deepseek 无单测 | 仅 mock 冒烟 | 补离线单测；缺符号导致 import 失败先修 | `tests/test_*.py` |
 | 71 | merchant 工作台 | home.vue 千行难维护 | KPI/扫码/公告/导航全堆一页 script | 数据与跳转进 `useHomeWorkbench`；页面只留模板/样式 | `useHomeWorkbench.ts`、`home.vue` |
 | 72 | admin 端点 | 异常页散落 `/exceptions` 字面量 | 仅试点 KPI 进 AdminEndpoints | 异常列表/动作一并迁入；门禁加 `/exceptions` 基路径 | `endpoints.ts`、`ExceptionListView.vue` |
+| 73 | admin 端点 | 订单页散落 `/orders` 字面量 | 同域多文件拷贝易漂移 | 订单 CRUD/动作迁入 AdminEndpoints；搜索/设备详情同步 | `OrderListView.vue`、`GlobalSearch.vue` |
 
 ## 追加模板
 

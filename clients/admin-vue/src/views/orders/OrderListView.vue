@@ -774,6 +774,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
@@ -966,7 +967,7 @@ async function onExportMode(mode: string) {
     q.set('mode', mode === 'lines' ? 'lines' : 'orders');
     const qs = q.toString();
     await downloadAuthFile(
-      `/api/v2/ops/admin/orders/export?${qs}`,
+      AdminEndpoints.ordersExport(qs),
       csvFileName(mode === 'lines' ? '订单商品行' : '订单')
     );
     ElMessage.success('已导出');
@@ -1174,7 +1175,7 @@ async function openDetail(row: OrderSummary) {
   if (detail.value?.orderId !== row.orderId) detail.value = null;
   try {
     detail.value = (await api.request<OpenApiOrderReadModelAdmin>(
-      `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}`,
+      AdminEndpoints.order(row.orderId),
       'GET'
     )) as OrderReadModel;
   } catch (e) {
@@ -1232,7 +1233,7 @@ async function refundOrder(row: { orderId: string; status?: string }) {
       message?: string;
       refundedCents?: number;
       inventoryRestored?: boolean;
-    }>(`/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/refund`, 'POST', {
+    }>(AdminEndpoints.orderRefund(row.orderId), 'POST', {
       reason,
       restoreInventory
     });
@@ -1314,7 +1315,7 @@ async function submitPartialRefund() {
   try {
     refundingId.value = partialOrderId.value;
     const result = await api.request<{ message?: string }>(
-      `/api/v2/ops/admin/orders/${encodeURIComponent(partialOrderId.value)}/refund`,
+      AdminEndpoints.orderRefund(partialOrderId.value),
       'POST',
       { reason, lines }
     );
@@ -1338,7 +1339,7 @@ async function remindOrder(row: { orderId: string }) {
       type: 'warning'
     });
     const result = await api.request<{ message?: string; notified?: boolean }>(
-      `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/remind`,
+      AdminEndpoints.orderRemind(row.orderId),
       'POST'
     );
     ElMessage.success(result.message || '催付已处理');
@@ -1356,10 +1357,7 @@ async function collectUnpaid(row: { orderId: string }) {
       '补扣收款',
       { confirmButtonText: '确认补扣', type: 'warning' }
     );
-    await api.request(
-      `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/collect`,
-      'POST'
-    );
+    await api.request(AdminEndpoints.orderCollect(row.orderId), 'POST');
     ElMessage.success('补扣成功');
     if (detailOpen.value && detail.value?.orderId === row.orderId) {
       await openDetail(row as OrderSummary);
@@ -1398,7 +1396,7 @@ async function cancelUnpaid(row: { orderId: string }) {
       if (error_ !== 'cancel' && error_ !== 'close') throw error_;
     }
     const result = await api.request<{ message?: string }>(
-      `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/cancel`,
+      AdminEndpoints.orderCancel(row.orderId),
       'POST',
       { reason: String(value).trim(), blacklist }
     );
@@ -1459,7 +1457,7 @@ async function load() {
       q.set('status', status.value);
     }
     const data = await api.request<PageResult<OpenApiOrderReadModelAdmin>>(
-      `/api/v2/ops/admin/orders?${q}`,
+      AdminEndpoints.ordersList(q),
       'GET'
     );
     if (!loadSeq.isCurrent(seq)) return;
@@ -1610,7 +1608,7 @@ async function maybeOpenFocusedOrder() {
     detailOpen.value = true;
     detailLoading.value = true;
     if (detail.value?.orderId !== oid) detail.value = null;
-    detail.value = await api.request(`/api/v2/ops/admin/orders/${encodeURIComponent(oid)}`, 'GET');
+    detail.value = await api.request(AdminEndpoints.order(oid), 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '订单详情加载失败');
     detailOpen.value = false;
