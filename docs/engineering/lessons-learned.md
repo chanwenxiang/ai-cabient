@@ -36,7 +36,7 @@
 | 29 | merchant 分包 | 主包过大冷启动慢 | 业务页全进主包 | tab+登录留主包；其余 `subPackages` + `preloadRule` | `merchant-mp/src/pages.json` |
 | 30 | merchant 补货 | 开门缓存/确认框/列表逻辑与页耦合难测 | 状态机散落在 3k 行页内 | 开门缓存进 `useReplenishmentDoorState`；确认框进 `useAppConfirmDialog`；列表进 `useReplenishmentList`；签到/开门/核对/完成进 `useReplenishmentFulfillment`；深链/详情/凭证进 `useReplenishmentDetail`；扫柜/扫商品进 `useReplenishmentScan`；SKU/货道/任务文案进 `useReplenishmentDisplay`；Hero/导航/加载/步骤进 `useReplenishmentShell`；UI 块继续拆子组件 | `composables/`、`Replenish*.vue` |
 | 31 | Session 拆分 | 改 expire/开门/补货/门事件/结算易牵动整类回归 | 调度与短事务混在上帝类 | expire→`SessionExpireService`；开门短事务→`SessionOpenService`；补货快照短事务→`SessionRestockService`；门事件/关门路径→`SessionDoorService`；关门后 settle/异步识别/演示零元/开发上传→`SessionSettleService`；状态变更仍走 `SessionService.transition` | `SessionExpireService`、`SessionOpenService`、`SessionRestockService`、`SessionDoorService`、`SessionSettleService` |
-| 32 | admin 仓库页 | 改一域弹窗易误伤其它域 | 单文件 5k+ 行多业务混杂 | 采购/盘点/货位/出库/调拨写流分别进 composable+Dialogs；仓库/供应商/付款/其它入库进 `useWarehouseEntityDialogs`；tab 加载进 `useWarehouseTabLoader`；筛选/在途时效进 `useWarehouseListFilters`；CSV 导入导出进 `useWarehouseCsv` | `WarehouseView.vue` |
+| 32 | admin 仓库页 | 改一域弹窗易误伤其它域 | 单文件 5k+ 行多业务混杂 | 采购/盘点/货位/出库/调拨写流分别进 composable+Dialogs；仓库/供应商/付款/其它入库进 `useWarehouseEntityDialogs`；tab 加载进 `useWarehouseTabLoader`；筛选/在途时效进 `useWarehouseListFilters`；CSV 导入导出进 `useWarehouseCsv`；展示文案进 `useWarehouseLabels`；路由深链/分页/keep-alive 进 `useWarehouseRouteLifecycle` | `WarehouseView.vue` |
 
 ## 追加模板
 

@@ -2241,7 +2241,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -2257,19 +2257,23 @@ import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useWarehouseBins } from '@/composables/warehouse/useWarehouseBins';
 import { useWarehouseCsv } from '@/composables/warehouse/useWarehouseCsv';
 import { useWarehouseEntityDialogs } from '@/composables/warehouse/useWarehouseEntityDialogs';
+import { useWarehouseLabels } from '@/composables/warehouse/useWarehouseLabels';
 import {
   TRANSIT_OVERDUE_HOURS,
   useWarehouseListFilters
 } from '@/composables/warehouse/useWarehouseListFilters';
 import { useWarehouseOutbounds } from '@/composables/warehouse/useWarehouseOutbounds';
 import { useWarehousePurchaseOrders } from '@/composables/warehouse/useWarehousePurchaseOrders';
+import {
+  useWarehouseRouteLifecycle,
+  type WarehouseTabGroup
+} from '@/composables/warehouse/useWarehouseRouteLifecycle';
 import { useWarehouseStocktakes } from '@/composables/warehouse/useWarehouseStocktakes';
 import { useWarehouseTabLoader } from '@/composables/warehouse/useWarehouseTabLoader';
 import { useWarehouseTransfers } from '@/composables/warehouse/useWarehouseTransfers';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
-import { onPurchaseOrderReviewed } from '@/utils/purchase-order-sync';
 
 const loadSeq = createLoadSeq();
 
@@ -2383,7 +2387,13 @@ function isTabLoading(name: string) {
 const saving = ref(false);
 const tab = ref('warehouses');
 
-type WarehouseTabGroup = 'overview' | 'procurement' | 'inventory' | 'fulfillment';
+/** loadTab / syncRouteQuery 在 loader、route lifecycle 之后赋值 */
+const loadTabHolder: { fn: (name: string, force?: boolean) => Promise<void> } = {
+  fn: async () => undefined
+};
+const syncRouteQueryHolder: { fn: (nextTab?: string) => void } = {
+  fn: () => undefined
+};
 
 const TAB_GROUP_MAP: Record<string, WarehouseTabGroup> = {
   warehouses: 'overview',
@@ -2470,8 +2480,8 @@ function onTabGroupChange(group: WarehouseTabGroup) {
     overdueOnly.value = false;
     focusDeviceId.value = '';
   }
-  syncRouteQuery(next);
-  loadTab(next);
+  syncRouteQueryHolder.fn(next);
+  loadTabHolder.fn(next);
 }
 const SERVER_PAGINATED_TABS = new Set([
   'warehouses',
@@ -2537,10 +2547,32 @@ const loadedTabs = ref(new Set<string>(['warehouses']));
 
 const dialogBootLoading = ref(false);
 
-/** loadTab 在 tabLoader 之后赋值；筛选项/CSV 导入通过桥接调用 */
-const loadTabHolder: { fn: (name: string, force?: boolean) => Promise<void> } = {
-  fn: async () => undefined
-};
+const {
+  returnStatusLabel,
+  supplierName,
+  warehouseName,
+  transferStatusLabel,
+  deviceName,
+  skuName,
+  suggestionReasonText,
+  payableStatusText,
+  payableStatusType,
+  stocktakeModeText,
+  stocktakeStatusText,
+  stocktakeStatusType,
+  stocktakeLineStatusText,
+  stocktakeLineStatusType,
+  money,
+  openPrint,
+  expiryText,
+  expiryType
+} = useWarehouseLabels({
+  suppliers,
+  warehouses,
+  devices,
+  skus,
+  router
+});
 
 const pageHint = computed(() => {
   if (tab.value === 'transit') {
@@ -2596,7 +2628,7 @@ const {
   inTransit,
   hideTestPurchaseOrders,
   hideTestPoKey: HIDE_TEST_PO_KEY,
-  syncRouteQuery,
+  syncRouteQuery: (next) => syncRouteQueryHolder.fn(next),
   loadTab: (name, force) => loadTabHolder.fn(name, force),
   loadedTabs,
   serverPaginatedTabs: SERVER_PAGINATED_TABS,
@@ -2715,106 +2747,6 @@ const {
   isTransitOverdue
 });
 
-function returnStatusLabel(status?: string) {
-  const code = (status || 'COMPLETED').toUpperCase();
-  if (code === 'COMPLETED') return displayLabel('order_status', 'COMPLETED');
-  if (code === 'CANCELLED') return displayLabel('order_status', 'CANCELLED');
-  return status || displayLabel('order_status', 'COMPLETED');
-}
-function supplierName(id: string) {
-  return suppliers.value.find((s) => s.supplierId === id)?.supplierName || id || '无';
-}
-function warehouseName(id: string) {
-  return warehouses.value.find((w) => w.warehouseId === id)?.warehouseName || id || '无';
-}
-function transferStatusLabel(status?: string) {
-  if (!status) return '';
-  const code = String(status).toUpperCase();
-  if (code === 'DRAFT') return displayLabel('stocktake_status', 'DRAFT');
-  if (code === 'SHIPPED') return displayLabel('warehouse_outbound_status', 'SHIPPED');
-  if (code === 'RECEIVED') return displayLabel('purchase_order_status', 'RECEIVED');
-  if (code === 'CANCELLED') return displayLabel('order_status', 'CANCELLED');
-  return status;
-}
-function deviceName(id?: string, snapshot?: string | null) {
-  const snap = snapshot != null ? String(snapshot).trim() : '';
-  if (snap) return snap;
-  const deviceId = id != null ? String(id) : '';
-  if (!deviceId) return '无';
-  return devices.value.find((d) => d.deviceId === deviceId)?.deviceName || deviceId;
-}
-function skuName(id?: string) {
-  const skuId = id != null ? String(id) : '';
-  if (!skuId) return '无';
-  return skus.value.find((s) => s.skuId === skuId)?.skuName || skuId;
-}
-function suggestionReasonText(code: string) {
-  return displayLabel('purchase_suggestion_reason', code, '暂无');
-}
-function payableStatusText(code: string) {
-  return displayLabel('supplier_payable_status', code, '暂无');
-}
-function payableStatusType(code: string) {
-  const map: Record<string, string> = {
-    UNPAID: 'warning',
-    PARTIAL: 'primary',
-    PAID: 'success',
-    CLOSED: 'info'
-  };
-  return map[code] || 'info';
-}
-function stocktakeModeText(mode: string) {
-  return displayLabel('stocktake_mode', mode, '未知');
-}
-function stocktakeStatusText(code: string) {
-  return displayLabel('stocktake_status', code, '暂无');
-}
-function stocktakeStatusType(code: string) {
-  const map: Record<string, string> = {
-    DRAFT: 'info',
-    IN_PROGRESS: 'warning',
-    COMPLETED: 'success',
-    ADJUSTED: 'primary',
-    CANCELLED: 'info'
-  };
-  return map[code] || 'info';
-}
-function stocktakeLineStatusText(code: string) {
-  return displayLabel('stocktake_line_status', code, '暂无');
-}
-function stocktakeLineStatusType(code: string) {
-  const map: Record<string, string> = {
-    PENDING: 'info',
-    MATCHED: 'success',
-    DIFF: 'danger',
-    ADJUSTED: 'primary'
-  };
-  return map[code] || 'info';
-}
-
-function money(cents: number) {
-  return ((Number(cents) || 0) / 100).toFixed(2);
-}
-function openPrint(type: string, query: Record<string, string | number>) {
-  const url = router.resolve({ name: 'print', query: { type, ...query } }).href;
-  globalThis.open(url, '_blank');
-}
-function expiryDays(value: string) {
-  return Math.ceil((new Date(value).getTime() - Date.now()) / 86400000);
-}
-function expiryText(value: string) {
-  const days = expiryDays(value);
-  if (days < 0) return '已过期';
-  if (days <= 7) return '临期';
-  return `${days} 天`;
-}
-function expiryType(value: string) {
-  const days = expiryDays(value);
-  if (days < 0) return 'danger';
-  if (days <= 7) return 'warning';
-  return 'success';
-}
-
 function outboundSecondaryActions(row: Row): TableAction[] {
   const acts: TableAction[] = [];
   const hasLines = (row.lines?.length || 0) > 0;
@@ -2880,35 +2812,6 @@ const {
 });
 loadTabHolder.fn = loadTab;
 
-function onPagerChange() {
-  if (SERVER_PAGINATED_TABS.has(tab.value)) {
-    loadTab(tab.value, true);
-  }
-}
-
-function onPagerSizeChange() {
-  page.value = 1;
-  if (SERVER_PAGINATED_TABS.has(tab.value)) {
-    loadTab(tab.value, true);
-  }
-}
-
-function onTabChange(name: string | number) {
-  page.value = 1;
-  const next = String(name);
-  tabGroup.value = tabGroupFor(next);
-  if (next !== 'transit') {
-    overdueOnly.value = false;
-    focusDeviceId.value = '';
-  }
-  syncRouteQuery(next);
-  loadTab(next);
-}
-function reloadCurrent() {
-  loadedTabs.value.delete(tab.value);
-  loadTab(tab.value, true);
-}
-
 const {
   purchaseDialog,
   receiveDialog,
@@ -2950,6 +2853,29 @@ const {
   loadPurchase,
   ensureMeta
 });
+
+const {
+  syncRouteQuery,
+  onPagerChange,
+  onPagerSizeChange,
+  onTabChange,
+  reloadCurrent
+} = useWarehouseRouteLifecycle({
+  route,
+  router,
+  tab,
+  tabGroup,
+  page,
+  overdueOnly,
+  focusDeviceId,
+  loadedTabs,
+  serverPaginatedTabs: SERVER_PAGINATED_TABS,
+  syncTabGroupFromTab,
+  tabGroupFor,
+  loadTab,
+  patchPurchaseOrderRow
+});
+syncRouteQueryHolder.fn = syncRouteQuery;
 
 const {
   stocktakeDialog,
@@ -3069,106 +2995,6 @@ const {
   ensureMeta
 });
 
-function syncRouteQuery(nextTab = tab.value) {
-  const query: Record<string, string> = {
-    ...Object.fromEntries(
-      Object.entries(route.query)
-        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-        .filter(([k]) => !['tab', 'overdue', 'deviceId'].includes(k))
-    )
-  };
-  if (nextTab && nextTab !== 'warehouses') query.tab = nextTab;
-  if (nextTab === 'transit') {
-    if (overdueOnly.value) query.overdue = '1';
-    if (focusDeviceId.value) query.deviceId = focusDeviceId.value;
-  }
-  const same =
-    String(route.query.tab || '') === String(query.tab || '') &&
-    String(route.query.overdue || '') === String(query.overdue || '') &&
-    String(route.query.deviceId || '') === String(query.deviceId || '');
-  if (!same) {
-    router.replace({ query });
-  }
-}
-
-function applyQueryFilters() {
-  const qOverdue = route.query.overdue === '1' || route.query.overdue === 'true';
-  if (qOverdue !== overdueOnly.value) {
-    overdueOnly.value = qOverdue;
-  }
-  const qDevice = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
-  if (qDevice !== focusDeviceId.value) {
-    focusDeviceId.value = qDevice;
-  }
-}
-
-function applyTabFromQuery() {
-  const qTab = typeof route.query.tab === 'string' ? route.query.tab : '';
-  const qDevice = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
-  const allowed = [
-    'warehouses',
-    'transfers',
-    'suppliers',
-    'purchase',
-    'returns',
-    'suggestions',
-    'payables',
-    'stocktakes',
-    'bins',
-    'outbounds',
-    'transit',
-    'inventory',
-    'movements'
-  ];
-  if (allowed.includes(qTab) && tab.value !== qTab) {
-    tab.value = qTab;
-  } else if (!qTab && qDevice) {
-    // deviceId deep-link without tab → in-transit (replenishment / dashboard)
-    if (tab.value !== 'transit') tab.value = 'transit';
-  } else if (!qTab && tab.value !== 'warehouses' && !qDevice) {
-    // keep current tab when user switched locally; only reset when query fully cleared
-  }
-  syncTabGroupFromTab(tab.value);
-  if (tab.value === 'transit') {
-    applyQueryFilters();
-  } else {
-    overdueOnly.value = false;
-    focusDeviceId.value = '';
-  }
-}
-
-let offPurchaseReviewed: (() => void) | undefined;
-
-onMounted(async () => {
-  offPurchaseReviewed = onPurchaseOrderReviewed((updated) => {
-    patchPurchaseOrderRow(updated as Row);
-    if (tab.value === 'purchase') {
-      loadedTabs.value.delete('purchase');
-      loadTab('purchase', true).catch((err) => {
-        console.warn('[warehouse] 采购单更新后刷新列表失败', err);
-      });
-    }
-  });
-  applyTabFromQuery();
-  await loadTab(tab.value, true);
-});
-
-onUnmounted(() => {
-  offPurchaseReviewed?.();
-});
-
-onActivated(() => {
-  applyTabFromQuery();
-  loadTab(tab.value, true);
-});
-
-watch(
-  () => [route.query.tab, route.query.overdue, route.query.deviceId] as const,
-  () => {
-    applyTabFromQuery();
-    loadTab(tab.value, true);
-  }
-);
 </script>
 
 <style scoped>
