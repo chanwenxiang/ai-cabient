@@ -43,7 +43,7 @@ if _IS_PROD and MOCK_ENABLED:
     raise RuntimeError("production forbids MOCK_ENABLED=true")
 if _IS_PROD and VISION_API_KEY == DEV_VISION_KEY:
     raise RuntimeError("production forbids default VISION_API_KEY")
-if (VISION_API_KEY == DEV_VISION_KEY and not MOCK_ENABLED:
+if VISION_API_KEY == DEV_VISION_KEY and not MOCK_ENABLED:
     raise RuntimeError("MOCK_ENABLED=false requires a strong VISION_API_KEY (not dev default)")
 if (not MOCK_ENABLED or VISION_FORCE_REAL) and not getattr(recognizer, "available", False):
     raise RuntimeError(

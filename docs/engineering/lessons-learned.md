@@ -38,6 +38,8 @@
 | 31 | Session 拆分 | 改 expire/开门/补货/门事件/结算易牵动整类回归 | 调度与短事务混在上帝类 | expire→`SessionExpireService`；开门短事务→`SessionOpenService`；补货快照短事务→`SessionRestockService`；门事件/关门路径→`SessionDoorService`；关门后 settle/异步识别/演示零元/开发上传→`SessionSettleService`；状态变更仍走 `SessionService.transition` | `SessionExpireService`、`SessionOpenService`、`SessionRestockService`、`SessionDoorService`、`SessionSettleService` |
 | 32 | admin 仓库页 | 改一域弹窗易误伤其它域 | 单文件 5k+ 行多业务混杂 | 采购/盘点/货位/出库/调拨写流分别进 composable+Dialogs；仓库/供应商/付款/其它入库进 `useWarehouseEntityDialogs`；tab 加载进 `useWarehouseTabLoader`；筛选/在途时效进 `useWarehouseListFilters`；CSV 导入导出进 `useWarehouseCsv`；展示文案进 `useWarehouseLabels`；路由深链/分页/keep-alive 进 `useWarehouseRouteLifecycle` | `WarehouseView.vue` |
 | 33 | admin 列表性能 | 单页拉 100+ 行卡顿回潮；虚拟表缺位 | `page-sizes` 含 100 且无门禁；多数页仍用普通 el-table | 列表 `:page-sizes` 不得超过 50；用 `ADMIN_LIST_PAGE_SIZES` + `clampAdminPageSize`；大数据试点用 `AdminVirtualTable`；合入前 `pnpm check:admin-page-size` | `admin-list-pager.ts`、`AdminVirtualTable.vue`、`check-admin-page-size.mjs` |
+| 34 | Flyway | trade 启动报 duplicate version 270 | 两份 `V270__*.sql` 同号合入 | 新迁移必须用下一空号（已有 V270 则用 V274+）；合入前 `ls db/migration/V*.sql` 查重 | `V274__device_sku_price_version.sql` |
+| 35 | vision | 容器 uvicorn SyntaxError 起不来 | `if (` 缺右括号 | Python 改条件后本地 `python -m py_compile app/main.py` 再打镜像 | `vision-service/app/main.py` |
 
 ## 追加模板
 
