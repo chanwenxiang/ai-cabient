@@ -42,6 +42,7 @@
 | 35 | vision | 容器 uvicorn SyntaxError 起不来 | `if (` 缺右括号 | Python 改条件后本地 `python -m py_compile app/main.py` 再打镜像 | `vision-service/app/main.py` |
 | 36 | admin 鉴权 | 首屏 `/rbac/me/*` 打两遍 | App + router restore 且 Layout `onMounted` 再 `refreshPermissions` | 首屏只走 `beforeEach → restore`（inflight 去重）；Layout 仅 window `focus` 刷新 | `App.vue`、`auth.ts`、`AdminLayout.vue` |
 | 37 | admin 退出 | 非 Layout 路径 logout 后长期吞 401 Toast | `logoutSession` 置 `loggingOut=true` 却无 `endLogout` | 退出生命周期收进 `logoutSession`（begin + 定时 end） | `api/client.ts` |
+| 38 | admin 列表 | 设备运维改 el-table-v2 后表头/多选/拖列宽与其它页不一致 | v2 无原生拖列宽且样式体系不同 | 常规运营列表优先标准 `el-table`（`border`+`type=selection`）；性能靠 pageSize≤50；虚拟表仅极端大数据页 | `DeviceOpsMonitorView.vue` |
 
 ## 追加模板
 
