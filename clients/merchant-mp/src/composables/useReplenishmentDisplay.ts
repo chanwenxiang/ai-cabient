@@ -123,6 +123,60 @@ export function useReplenishmentDisplay(opts: {
     return `账面 ${cap.bookQty} → 补后 ${after}${capacityHint}`;
   }
 
+  function lineTypeLabel(type?: string) {
+    return isPullOffType(type) ? '下架' : '上架';
+  }
+
+  function lineStatusLabel(line: Line) {
+    if (line.applied) return isPullOffType(line.lineType) ? '已下架' : '已入柜';
+    return isPullOffType(line.lineType) ? '待下架' : '待上架';
+  }
+
+  type TaskLike = { status?: string; notes?: string; checkInAt?: string };
+
+  function taskLooksPullOff(task: TaskLike) {
+    return /from-expiry|PULL_OFF|下架|临期/i.test(String(task.notes || ''));
+  }
+
+  function knownTaskNoteLabel(raw: string): string {
+    if (/from-expiry|NEAR_EXPIRY/i.test(raw)) return '临期商品下架';
+    if (/PULL_OFF/i.test(raw) && !/[\u4e00-\u9fff]/.test(raw)) return '下架任务';
+    return '';
+  }
+
+  function stripMachineTaskNoteTokens(raw: string): string {
+    return raw
+      .replaceAll(/from-expiry:\d+/gi, '')
+      .replaceAll(/\bNEAR_EXPIRY\b/gi, '')
+      .replaceAll(/\bPULL_OFF\b/gi, '')
+      .replaceAll(/\bseq=\d+\b/gi, '')
+      .replaceAll(/\bdist=\d+m?\b/gi, '')
+      .replaceAll(/[|;,]+/g, ' ')
+      .trim();
+  }
+
+  function isOpaqueMachineNote(cleaned: string): boolean {
+    return !/[\u4e00-\u9fff]/.test(cleaned) && /^[\w:=\-.\s]+$/.test(cleaned);
+  }
+
+  /** 机器备注转可读文案；seq=/dist= 等内部字段不展示 */
+  function displayTaskNotes(notes?: string): string {
+    const raw = String(notes || '').trim();
+    if (!raw) return '';
+    const known = knownTaskNoteLabel(raw);
+    if (known) return known;
+    const cleaned = stripMachineTaskNoteTokens(raw);
+    if (!cleaned || isOpaqueMachineNote(cleaned)) return '';
+    return cleaned;
+  }
+
+  function taskActionLabel(task: TaskLike) {
+    if (task.status === 'COMPLETED') return '查看完成明细';
+    const pull = taskLooksPullOff(task);
+    if (task.checkInAt) return pull ? '继续下架' : '继续补货';
+    return pull ? '开始下架' : '开始补货';
+  }
+
   return {
     skuName,
     skuThumb,
@@ -132,6 +186,10 @@ export function useReplenishmentDisplay(opts: {
     slotHint,
     formatLineSummary,
     stockDeltaText,
-    isPullOffType
+    isPullOffType,
+    lineTypeLabel,
+    lineStatusLabel,
+    displayTaskNotes,
+    taskActionLabel
   };
 }
