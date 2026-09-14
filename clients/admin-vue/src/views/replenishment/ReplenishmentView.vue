@@ -2838,7 +2838,7 @@ async function createPlan() {
     const outbounds =
       (
         await api
-          .request<{ items: Row[] }>('/api/v2/ops/admin/warehouse/outbounds?page=0&size=500', 'GET')
+          .request<{ items: Row[] }>(AdminEndpoints.warehouseOutboundsAll, 'GET')
           .catch(() => ({ items: [] as Row[] }))
       ).items || [];
     const linked = (outbounds || []).filter((o) => o.routeId === route?.routeId);

@@ -111,6 +111,7 @@ import { Bell } from '@element-plus/icons-vue';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api, isLoggedIn } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
 import {
@@ -359,7 +360,7 @@ async function inlineReview(task: ApprovalTask, approve: boolean) {
   reviewingTaskId.value = task.taskId;
   try {
     const updated = await api.request<PurchaseOrderPatch>(
-      `/api/v2/ops/admin/purchase-orders/${task.bizId}/review`,
+      AdminEndpoints.purchaseOrderReview(task.bizId),
       'POST',
       {
         approve,

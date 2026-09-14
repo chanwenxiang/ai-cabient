@@ -1,6 +1,7 @@
 import { reactive, ref, type Ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 
 /** 仓储多 Tab 共用行（字段随业务表变化） */
@@ -67,7 +68,7 @@ export function useWarehouseOutbounds(deps: UseWarehouseOutboundsDeps) {
     }
     outboundConfirm.saving = true;
     try {
-      await api.request(`/api/v2/ops/admin/warehouse/outbounds/${outboundId}/${action}`, 'POST');
+      await api.request(AdminEndpoints.warehouseOutboundAction(outboundId, action), 'POST');
       outboundConfirm.visible = false;
       let okMsg: string;
       if (action === 'pick') okMsg = '拣货完成';
@@ -104,7 +105,7 @@ export function useWarehouseOutbounds(deps: UseWarehouseOutboundsDeps) {
         cancelledOrphanShipped?: number;
         skipped?: number;
         cancelledOutboundIds?: number[];
-      }>('/api/v2/ops/admin/warehouse/outbounds/cleanup-stale', 'POST');
+      }>(AdminEndpoints.warehouseOutboundsCleanupStale, 'POST');
       const total =
         (result?.cancelledEmptyDrafts || 0) +
         (result?.cancelledTerminalDrafts || 0) +

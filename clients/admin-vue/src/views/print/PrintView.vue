@@ -186,9 +186,9 @@ async function load() {
   try {
     if (mode.value === 'picking') {
       const [ob, whs, devs, skuRows] = await Promise.all([
-        api.request<Row>(`/api/v2/ops/admin/warehouse/outbounds/${route.query.outboundId}`, 'GET'),
+        api.request<Row>(AdminEndpoints.warehouseOutbound(route.query.outboundId), 'GET'),
         api
-          .request<{ items: Row[] }>('/api/v2/ops/admin/warehouse/list?page=0&size=500', 'GET')
+          .request<{ items: Row[] }>(AdminEndpoints.warehouseListAll, 'GET')
           .catch(() => ({ items: [] as Row[] }))
           .then((r) => r.items || []),
         api.request<Row[]>(AdminEndpoints.devicesRef, 'GET').catch(() => []),
@@ -203,13 +203,13 @@ async function load() {
       skus.value = skuRows;
     } else if (mode.value === 'purchase') {
       const [po, sups, whs, skuRows] = await Promise.all([
-        api.request<Row>(`/api/v2/ops/admin/purchase-orders/${route.query.purchaseOrderId}`, 'GET'),
+        api.request<Row>(AdminEndpoints.purchaseOrder(route.query.purchaseOrderId), 'GET'),
         api
-          .request<{ items: Row[] }>('/api/v2/ops/admin/suppliers?page=0&size=500', 'GET')
+          .request<{ items: Row[] }>(AdminEndpoints.suppliersListAll, 'GET')
           .catch(() => ({ items: [] as Row[] }))
           .then((r) => r.items || []),
         api
-          .request<{ items: Row[] }>('/api/v2/ops/admin/warehouse/list?page=0&size=500', 'GET')
+          .request<{ items: Row[] }>(AdminEndpoints.warehouseListAll, 'GET')
           .catch(() => ({ items: [] as Row[] }))
           .then((r) => r.items || []),
         api
