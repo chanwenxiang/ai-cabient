@@ -73,6 +73,7 @@
 | 66 | 小程序 H5 | H5 展示「绑定微信/开启订阅」 | 非 mp 无 login/subscribe 能力 | 入口 `v-if=isMpWeixin`；H5 保存偏好勿调订阅授权 | `mine.vue`、`messages.vue` |
 | 67 | consumer 附近 | 定位失败仍按上海坐标列柜机 | 默认 lat/lng 硬编码 | 无定位禁止 nearbyDevices；提示开权限刷新 | `nearby.vue` |
 | 68 | vision 关联 | 识别结果难串 session/日志 | 缺 sessionId/traceId 字段 | `RecognitionOutput` + `attach_correlation`；HTTP/Kafka 带出 | `types.py`、`main.py`、`kafka_worker.py` |
+| 69 | vision 存储 | 缓存/对象无限增长 | 无 TTL/lifecycle | 本地 `VIDEO_CACHE_TTL_HOURS` 清理；MinIO lifecycle 天；OSS 无权限时控制台补配 | `storage.py` |
 
 ## 追加模板
 

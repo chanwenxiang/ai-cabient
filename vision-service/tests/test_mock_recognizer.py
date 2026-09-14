@@ -46,6 +46,27 @@ def test_file_uri_outside_cache_rejected(tmp_path, monkeypatch):
     assert storage.resolve_video_path(f"file://{inside}") == str(inside.resolve())
 
 
+def test_purge_expired_local_cache(tmp_path, monkeypatch):
+    cache = tmp_path / "videos"
+    uploads = cache / "uploads"
+    uploads.mkdir(parents=True)
+    import app.storage as storage
+    import time
+
+    monkeypatch.setattr(storage, "VIDEO_CACHE_DIR", str(cache))
+    old = uploads / "old.bin"
+    fresh = uploads / "fresh.bin"
+    old.write_bytes(b"old")
+    fresh.write_bytes(b"new")
+    old_mtime = time.time() - 100 * 3600
+    os_utime = __import__("os").utime
+    os_utime(old, (old_mtime, old_mtime))
+    deleted = storage.purge_expired_local_cache(ttl_hours=72)
+    assert deleted >= 1
+    assert not old.exists()
+    assert fresh.exists()
+
+
 def test_quectel_stub_returns_need_review_not_raise():
     rec = QuectelRecognizer()
     out = rec.recognize("S-Q", None, recognition_mode="NORMAL")

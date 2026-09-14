@@ -14,7 +14,7 @@ from app.kafka_worker import start_kafka_worker
 from app.recognition.mock_recognizer import get_force_need_review, set_force_need_review
 from app.recognition.types import RecognitionOutput, attach_correlation, new_trace_id
 from app.recognizer import get_recognizer
-from app.storage import OBJECT_STORAGE_ENDPOINT
+from app.storage import OBJECT_STORAGE_ENDPOINT, start_cache_maintenance
 
 API_KEY_HEADER = "X-Internal-Api-Key"
 VISION_API_KEY = os.getenv("VISION_API_KEY", "dev-vision-key-change-me")
@@ -35,6 +35,7 @@ app = FastAPI(
 )
 recognizer = get_recognizer()
 start_kafka_worker(recognizer)
+start_cache_maintenance()
 
 MOCK_ENABLED = os.getenv("MOCK_ENABLED", "true").lower() == "true"
 VISION_FORCE_REAL = os.getenv("VISION_FORCE_REAL", "false").lower() == "true"
