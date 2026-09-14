@@ -6,7 +6,7 @@
       </template>
     </app-nav-bar>
     <view class="page-body">
-      <view v-if="subscribeEnabled" class="subscribe-banner">
+      <view v-if="showSubscribeBanner" class="subscribe-banner">
         <view class="subscribe-copy">
           <text class="subscribe-title">开启微信消息提醒</text>
           <text class="subscribe-sub">订单支付、充值到账、优惠券与积分提醒及时送达</text>
@@ -108,6 +108,18 @@ const subscribeEnabled = ref(false);
 const subscribeTemplateId = ref('');
 const subscribing = ref(false);
 const pendingCount = ref(0);
+/** H5 无 requestSubscribeMessage，勿展示「去开启」入口（同 M-P2-14）。 */
+const isMpWeixin = (() => {
+  try {
+    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
+    return info.uniPlatform === 'mp-weixin';
+  } catch {
+    return false;
+  }
+})();
+const showSubscribeBanner = computed(
+  () => isMpWeixin && subscribeEnabled.value && !!subscribeTemplateId.value
+);
 type MsgFilter =
   'all' | 'unread' | 'ORDER' | 'DISPUTE' | 'COUPON' | 'POINTS' | 'RECHARGE' | 'OTHER';
 const filter = ref<MsgFilter>('all');
@@ -216,6 +228,10 @@ function goPendingOrders() {
 }
 
 function onSubscribe() {
+  if (!isMpWeixin) {
+    showError('请在微信小程序中开启提醒');
+    return;
+  }
   if (!subscribeTemplateId.value) return;
   subscribing.value = true;
   uni.requestSubscribeMessage({
