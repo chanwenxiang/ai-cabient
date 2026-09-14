@@ -359,6 +359,7 @@ import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { displayBizNo } from '@aicabinet/shared-uni/format';
 import { api, downloadAuthFile } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useListCsv } from '@/composables/useListCsv';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -578,7 +579,7 @@ async function loadBills() {
     q.set('size', String(billSize.value));
     if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
     const data = await api.request<{ items: BillRow[]; total: number }>(
-      `/api/v2/ops/admin/fund/daily-bills?${q}`,
+      AdminEndpoints.fundDailyBills(q),
       'GET'
     );
     bills.value = (data.items || []).map((r) => ({
@@ -609,7 +610,7 @@ async function loadLedger() {
     q.set('page', String(Math.max(0, ledgerPage.value - 1)));
     q.set('size', String(ledgerSize.value));
     const data = await api.request<{ items: LedgerRow[]; total: number }>(
-      `/api/v2/ops/admin/fund/ledger?${q}`,
+      AdminEndpoints.fundLedger(q),
       'GET'
     );
     ledger.value = data.items || [];
@@ -641,7 +642,7 @@ async function exportCsv() {
   const prefix =
     from && to ? `资金日账单_${from.replaceAll('-', '')}-${to.replaceAll('-', '')}` : '资金日账单';
   try {
-    await downloadAuthFile(`/api/v2/ops/admin/fund/daily-bills/export?${q}`, csvFileName(prefix));
+    await downloadAuthFile(AdminEndpoints.fundDailyBillsExport(q), csvFileName(prefix));
     ElMessage.success('已导出日账单');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');

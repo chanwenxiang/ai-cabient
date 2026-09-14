@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -146,7 +147,7 @@ async function load() {
     });
     if (statusTab.value && statusTab.value !== 'ALL') q.set('status', statusTab.value);
     const res = await api.request<PageResult<BalanceRefundRequestDto>>(
-      `/api/v2/ops/admin/balance-refunds?${q}`
+      AdminEndpoints.balanceRefundsList(q)
     );
     rows.value = res?.items || [];
     total.value = Number(res?.total || 0);
@@ -178,7 +179,7 @@ async function review(row: BalanceRefundRequestDto, approve: boolean) {
         inputValue: ''
       }
     );
-    await api.request(`/api/v2/ops/admin/balance-refunds/${row.requestId}/review`, 'POST', {
+    await api.request(AdminEndpoints.balanceRefundReview(row.requestId), 'POST', {
       approve,
       remark: value || undefined
     });
@@ -213,7 +214,7 @@ async function batchReviewAll(approve: boolean) {
     batchLoading.value = approve ? 'approve' : 'reject';
     const results = await Promise.allSettled(
       targets.map((row) =>
-        api.request(`/api/v2/ops/admin/balance-refunds/${row.requestId}/review`, 'POST', {
+        api.request(AdminEndpoints.balanceRefundReview(row.requestId), 'POST', {
           approve,
           remark: value || undefined
         })

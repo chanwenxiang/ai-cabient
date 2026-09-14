@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -131,7 +132,7 @@ async function onRowAction(key: string, row: InvoiceRow) {
         `确认将订单 ${displayBizNo(row.orderId)} 标记为已开具？\n（仅改状态，不生成税控 PDF / 不发邮件）`,
         '开具发票（仅状态）'
       );
-      await api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/issue`, 'POST');
+      await api.request(AdminEndpoints.invoiceIssue(row.invoiceId), 'POST');
       ElMessage.success('已标记为已开具（未对接税控）');
       await load();
       return;
@@ -141,7 +142,7 @@ async function onRowAction(key: string, row: InvoiceRow) {
         inputPlaceholder: '不符合开票条件',
         confirmButtonText: '驳回'
       });
-      await api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/reject`, 'POST', {
+      await api.request(AdminEndpoints.invoiceReject(row.invoiceId), 'POST', {
         reason: value || '不符合开票条件'
       });
       ElMessage.success('已驳回');
@@ -172,7 +173,7 @@ async function batchIssue() {
   batchLoading.value = 'issue';
   try {
     const results = await Promise.allSettled(
-      targets.map((row) => api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/issue`, 'POST'))
+      targets.map((row) => api.request(AdminEndpoints.invoiceIssue(row.invoiceId), 'POST'))
     );
     const ok = results.filter((r) => r.status === 'fulfilled').length;
     const fail = results.length - ok;
@@ -210,7 +211,7 @@ async function batchReject() {
   try {
     const results = await Promise.allSettled(
       targets.map((row) =>
-        api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/reject`, 'POST', { reason })
+        api.request(AdminEndpoints.invoiceReject(row.invoiceId), 'POST', { reason })
       )
     );
     const ok = results.filter((r) => r.status === 'fulfilled').length;
@@ -234,7 +235,7 @@ async function load() {
     });
     if (statusTab.value) q.set('status', statusTab.value);
     const data = await api.request<{ items: InvoiceRow[]; total: number }>(
-      `/api/v2/ops/admin/invoices?${q}`
+      AdminEndpoints.invoicesList(q)
     );
     rows.value = data.items || [];
     total.value = Number(data.total) || 0;
