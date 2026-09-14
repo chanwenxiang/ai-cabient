@@ -452,7 +452,7 @@
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display composables；页内剩余导航/文案壳）
 - [x] S-P1-1 SettlementService 拆分（VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator / OrderSupport；主类为薄 Facade + 锁）
 - [x] S-P1-2 Session 拆分（`SessionExpireService` / `SessionOpenService` / `SessionRestockService` / `SessionDoorService` / `SessionSettleService`；主类为 Facade + 锁/DTO/购物车）
-- [x] A-P2-002 WarehouseView 拆分（采购/盘点/货位/出库/调拨写流 + 实体弹窗 + `useWarehouseTabLoader`；页约 3.7k 行，CSV/筛选壳可继续瘦）
+- [x] A-P2-002 WarehouseView 拆分（采购/盘点/货位/出库/调拨写流 + 实体弹窗 + `useWarehouseTabLoader` + `useWarehouseListFilters` / `useWarehouseCsv`；页约 3.1k 行）
 - [x] S-P1-5 / M-P1-5 定价乐观锁（`device_sku_price.version`；库存此前已有）
 - [x] H5 隐私政策首屏弹窗（C-P2-5 / M-P2-4）— `privacy-consent-modal` + 两端入口页
 - [x] 24 页分包（C-P2-3）— consumer `pages.json` 主包 6 + `subPackages` + `preloadRule`
