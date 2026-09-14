@@ -92,6 +92,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 
+import { AdminEndpoints } from '@/api/endpoints';
 interface DevOpsTool {
   id: string;
   name: string;
@@ -160,7 +161,7 @@ function displayName(tool: DevOpsTool) {
 async function load() {
   loading.value = true;
   try {
-    hub.value = await api.request<DevOpsHub>('/api/v2/ops/admin/devops/hub', 'GET');
+    hub.value = await api.request<DevOpsHub>(AdminEndpoints.devopsHub, 'GET');
   } finally {
     loading.value = false;
   }
@@ -179,7 +180,7 @@ async function triggerSonarScan() {
   sonarScanning.value = true;
   try {
     const result = await api.request<SonarScanResult>(
-      '/api/v2/ops/admin/devops/sonar/scan',
+      AdminEndpoints.devopsSonarScan,
       'POST'
     );
     ElMessage.success(

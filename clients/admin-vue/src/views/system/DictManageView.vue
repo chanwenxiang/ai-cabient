@@ -330,6 +330,7 @@ import {
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -467,7 +468,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const dictLabel = (row['标签'] || row.dictLabel || '').trim();
         if (!dictValue || !dictLabel) continue;
         const sortRaw = (row['排序'] || row.sortOrder || '0').trim();
-        await api.request(`/api/v2/ops/admin/dicts/${t}/items`, 'POST', {
+        await api.request(AdminEndpoints.dictItems(t), 'POST', {
           dictValue,
           dictLabel,
           sortOrder: Number(sortRaw) || 0,
@@ -487,7 +488,7 @@ async function loadTypes() {
   const keepType = selected.value?.dictType;
   suppressTypeClear = true;
   try {
-    types.value = await api.request<DictTypeRow[]>('/api/v2/ops/admin/dicts', 'GET');
+    types.value = await api.request<DictTypeRow[]>(AdminEndpoints.dicts, 'GET');
     if (keepType) {
       const hit = types.value.find((t) => t.dictType === keepType) || null;
       selected.value = hit;
@@ -514,7 +515,7 @@ async function loadItems() {
   loadingItems.value = true;
   try {
     items.value = await api.request<DictItemRow[]>(
-      `/api/v2/ops/admin/dicts/${encodeURIComponent(selected.value.dictType)}/items`,
+      AdminEndpoints.dictItems(selected.value.dictType),
       'GET'
     );
   } catch (e) {
@@ -627,7 +628,7 @@ function resetItemFormForContinue() {
 async function saveType() {
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/dicts/types', 'POST', { ...typeForm });
+    await api.request(AdminEndpoints.dictTypes, 'POST', { ...typeForm });
     ElMessage.success('已保存');
     typeDlg.value = false;
     await loadTypes();
@@ -653,9 +654,9 @@ async function saveItem(continueAdd = false) {
     const t = encodeURIComponent(selected.value.dictType);
     const isEdit = !!itemForm.dictDataId;
     if (isEdit) {
-      await api.request(`/api/v2/ops/admin/dicts/${t}/items/${itemForm.dictDataId}`, 'PUT', body);
+      await api.request(AdminEndpoints.dictItem(t, itemForm.dictDataId), 'PUT', body);
     } else {
-      await api.request(`/api/v2/ops/admin/dicts/${t}/items`, 'POST', body);
+      await api.request(AdminEndpoints.dictItems(t), 'POST', body);
     }
     ElMessage.success('已保存');
     await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
@@ -675,7 +676,7 @@ async function saveItem(continueAdd = false) {
 async function removeItem(row: DictItemRow) {
   try {
     await ElMessageBox.confirm(`确认删除字典项「${row.dictLabel}」？`, '删除确认');
-    await api.request(`/api/v2/ops/admin/dicts/items/${row.dictDataId}`, 'DELETE');
+    await api.request(AdminEndpoints.dictItemById(row.dictDataId), 'DELETE');
     ElMessage.success('已删除');
     await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
   } catch (e: unknown) {
@@ -698,7 +699,7 @@ async function removeType(row: DictTypeRow) {
   }
   try {
     await api.request(
-      `/api/v2/ops/admin/dicts/types/${encodeURIComponent(row.dictType)}`,
+      AdminEndpoints.dictType(row.dictType),
       'DELETE'
     );
     ElMessage.success('已删除');

@@ -192,6 +192,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
@@ -391,7 +392,7 @@ async function batchDelete() {
   const results = await Promise.allSettled(
     targets.map(async (row) => {
       await api.request(
-        `/api/v2/ops/admin/system-configs/${encodeURIComponent(row.configKey)}`,
+        AdminEndpoints.systemConfig(row.configKey),
         'DELETE'
       );
       if (customGroupMap.value[row.configKey]) {
@@ -414,7 +415,7 @@ async function onRowAction(key: string, row: RuleRow) {
 
 async function persistCustomGroups(next: Record<string, string>) {
   customGroupMap.value = next;
-  await api.request('/api/v2/ops/admin/system-configs', 'PUT', {
+  await api.request(AdminEndpoints.systemConfigs, 'PUT', {
     configKey: GROUP_META_KEY,
     configValue: JSON.stringify(next),
     description: '告警规则页自定义分组映射（内部）'
@@ -424,7 +425,7 @@ async function persistCustomGroups(next: Record<string, string>) {
 async function load() {
   loading.value = true;
   try {
-    const all = await api.request<SystemConfigRow[]>('/api/v2/ops/admin/system-configs', 'GET');
+    const all = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');
     const byKey = new Map(all.map((r) => [r.configKey, r]));
     const meta = byKey.get(GROUP_META_KEY);
     let map: Record<string, string> = {};
@@ -507,7 +508,7 @@ async function save() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/system-configs', 'PUT', {
+    await api.request(AdminEndpoints.systemConfigs, 'PUT', {
       configKey,
       configValue: value || (configKey.endsWith('_enabled') ? 'false' : ''),
       description: form.description.trim()
@@ -530,7 +531,7 @@ async function onDelete(row: RuleRow) {
       { type: 'warning' }
     );
     await api.request(
-      `/api/v2/ops/admin/system-configs/${encodeURIComponent(row.configKey)}`,
+      AdminEndpoints.systemConfig(row.configKey),
       'DELETE'
     );
     if (customGroupMap.value[row.configKey]) {

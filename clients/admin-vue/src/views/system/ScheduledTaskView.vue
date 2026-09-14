@@ -247,6 +247,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { Delete, EditPen, Refresh, VideoPlay } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
@@ -393,7 +394,7 @@ async function load() {
   const seq = loadSeq.begin();
   loading.value = true;
   try {
-    items.value = await api.request<ScheduledTaskRow[]>('/api/v2/ops/admin/scheduled-tasks', 'GET');
+    items.value = await api.request<ScheduledTaskRow[]>(AdminEndpoints.scheduledTasks, 'GET');
     if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     clearSelection();
@@ -426,7 +427,7 @@ async function batchToggle(enabled: boolean) {
   const results = await Promise.allSettled(
     targets.map((row) =>
       api.request(
-        `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/enabled`,
+        AdminEndpoints.scheduledTaskEnabled(row.taskKey),
         'PUT',
         { enabled }
       )
@@ -455,7 +456,7 @@ async function batchRun() {
   const results = await Promise.allSettled(
     targets.map((row) =>
       api.request(
-        `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`,
+        AdminEndpoints.scheduledTaskRun(row.taskKey),
         'POST'
       )
     )
@@ -470,7 +471,7 @@ async function onToggle(row: ScheduledTaskRow, enabled: boolean) {
   togglingKey.value = row.taskKey;
   try {
     await api.request(
-      `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/enabled`,
+      AdminEndpoints.scheduledTaskEnabled(row.taskKey),
       'PUT',
       { enabled }
     );
@@ -498,7 +499,7 @@ async function onRun(row: ScheduledTaskRow) {
       message: string;
       lastMessage?: string;
       lastDurationMs?: number;
-    }>(`/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`, 'POST');
+    }>(AdminEndpoints.scheduledTaskRun(row.taskKey), 'POST');
     if (res?.result === 'SKIPPED') {
       ElMessage.warning(res.message || '任务已跳过');
     } else {
@@ -546,7 +547,7 @@ async function saveEdit() {
   editSaving.value = true;
   try {
     if (creating.value) {
-      await api.request('/api/v2/ops/admin/scheduled-tasks', 'POST', {
+      await api.request(AdminEndpoints.scheduledTasks, 'POST', {
         taskKey: editForm.taskKey.trim(),
         taskName: editForm.taskName.trim(),
         taskGroup: editForm.taskGroup.trim(),
@@ -557,7 +558,7 @@ async function saveEdit() {
       ElMessage.success('已新增');
     } else {
       await api.request(
-        `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(editForm.taskKey)}`,
+        AdminEndpoints.scheduledTask(editForm.taskKey),
         'PUT',
         {
           taskName: editForm.taskName.trim(),
@@ -587,7 +588,7 @@ async function onDelete(row: ScheduledTaskRow) {
   }
   try {
     await api.request(
-      `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}`,
+      AdminEndpoints.scheduledTask(row.taskKey),
       'DELETE'
     );
     ElMessage.success('已删除');

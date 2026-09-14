@@ -89,6 +89,7 @@
 | 82 | admin 端点 | 仓配 composable 散落 warehouse/采购路径 | 多 composable 各写一份 | 仓配采购域迁入 AdminEndpoints；encodeURIComponent 含 `.trim()` 须整段替换 | warehouse composables |
 | 83 | admin 端点 | 财务多页散落 fund/提现/发票路径 | 同业务多基路径 | 财务资金域一并迁入；门禁用 `/finance/` 避免与 stats 混淆 | `views/finance/*` |
 | 84 | admin 端点 | RBAC/部门散落字面量 | 运营员与角色权限多页拷贝 | rbac+departments 迁入 AdminEndpoints；auth store 一并收敛 | `OperatorManageView.vue`、`auth.ts` |
+| 85 | admin 端点 | 系统运维多页散落 configs/dicts/tasks | 审批 inbox 在 components 也散落 | system 运维域一并迁入；门禁覆盖 views；components 同步改 | `SystemConfigView.vue`、`OpsApprovalInbox.vue` |
 
 ## 追加模板
 

@@ -168,6 +168,7 @@ import {
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useListCsv } from '@/composables/useListCsv';
@@ -280,7 +281,7 @@ async function load() {
     if (actionFilter.value) q.set('action', actionFilter.value);
     if (targetFilter.value) q.set('target', targetFilter.value);
     const data = await api.request<PageResult<AuditRow>>(
-      `/api/v2/ops/admin/audit-logs?${q}`,
+      AdminEndpoints.auditLogsList(q),
       'GET'
     );
     items.value = data.items || [];
