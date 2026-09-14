@@ -15,7 +15,6 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.client.VisionServiceClient;
-import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
@@ -32,7 +31,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -44,9 +42,7 @@ import java.util.List;
 import java.util.Map;
 @Service
 public class SessionService {
-    private static final String BALANCE_INSUFFICIENT = "BALANCE_INSUFFICIENT";
     private static final String DEVICEID = "deviceId";
-    private static final String LITERAL = "结算余额不足";
 
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);
 
@@ -59,15 +55,14 @@ public class SessionService {
     private final UserValidationService userValidationService;
     private final DeviceValidationService deviceValidationService;
     private final SettlementService settlementService;
-    private final VisionAsyncProperties visionAsyncProperties;
     private final CabinetMetrics cabinetMetrics;
     private final DomainEventPublisher domainEventPublisher;
     private final GravitySettlementHelper gravityHelper;
     private final SessionOpenService sessionOpenService;
     private final SessionRestockService sessionRestockService;
     private final SessionDoorService sessionDoorService;
+    private final SessionSettleService sessionSettleService;
     private final SessionService self;
-    private final OpsExceptionService opsExceptionService;
     private final UserInfoMapper userInfoRepository;
     private final CabinetOrderMapper orderRepository;
     private final InventoryLotService inventoryLotService;
@@ -82,15 +77,14 @@ public class SessionService {
                           UserValidationService userValidationService,
                           DeviceValidationService deviceValidationService,
                           SettlementService settlementService,
-                          VisionAsyncProperties visionAsyncProperties,
                           CabinetMetrics cabinetMetrics,
                           DomainEventPublisher domainEventPublisher,
                           GravitySettlementHelper gravityHelper,
                           SessionOpenService sessionOpenService,
                           SessionRestockService sessionRestockService,
                           SessionDoorService sessionDoorService,
+                          SessionSettleService sessionSettleService,
                           @Lazy SessionService self,
-                          OpsExceptionService opsExceptionService,
                           UserInfoMapper userInfoRepository,
                           CabinetOrderMapper orderRepository,
                           InventoryLotService inventoryLotService,
@@ -104,15 +98,14 @@ public class SessionService {
         this.userValidationService = userValidationService;
         this.deviceValidationService = deviceValidationService;
         this.settlementService = settlementService;
-        this.visionAsyncProperties = visionAsyncProperties;
         this.cabinetMetrics = cabinetMetrics;
         this.domainEventPublisher = domainEventPublisher;
         this.gravityHelper = gravityHelper;
         this.sessionOpenService = sessionOpenService;
         this.sessionRestockService = sessionRestockService;
         this.sessionDoorService = sessionDoorService;
+        this.sessionSettleService = sessionSettleService;
         this.self = self;
-        this.opsExceptionService = opsExceptionService;
         this.userInfoRepository = userInfoRepository;
         this.orderRepository = orderRepository;
         this.inventoryLotService = inventoryLotService;
@@ -209,50 +202,10 @@ public class SessionService {
         return toDto(session);
     }
 
-    /** 开发上传识别：用真实 vision 结果结算，不走 mock 兜底。无外层长事务。 */
+    /** 开发上传识别：用真实 vision 结果结算，不走 mock 兜底。见 {@link SessionSettleService}。 */
     public SessionDto completeDevUploadRecognition(String sessionId,
                                                    VisionServiceClient.RecognitionResult recognition) {
-        return runWithSessionLifeLock(sessionId, () -> doCompleteDevUploadRecognition(sessionId, recognition));
-    }
-
-    private SessionDto doCompleteDevUploadRecognition(String sessionId,
-                                                      VisionServiceClient.RecognitionResult recognition) {
-        ShoppingSession session = repository.findById(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        if (session.getState() == SessionState.SHOPPING) {
-            transition(session, SessionState.RECOGNIZING);
-        }
-        if (session.getState() == SessionState.RECOGNIZING) {
-            transition(session, SessionState.SETTLING);
-        }
-        try {
-            OrderReadModel order = settlementService.processRecognitionResult(session, recognition, false);
-            session.setOrderId(order.orderId());
-            transition(session, SessionState.COMPLETED);
-            log.info("dev upload session completed session={} order={}", sessionId, order.orderId());
-        } catch (DisputeRequiredException e) {
-            transition(session, SessionState.DISPUTED);
-            log.warn("dev upload session disputed session={}", sessionId);
-        } catch (ResponseStatusException e) {
-            if (e.getStatusCode() == HttpStatus.CONFLICT) {
-                transition(session, SessionState.DISPUTED);
-                log.warn("session disputed session={} reason={}", session.getSessionId(), e.getReason());
-            cabinetMetrics.recordSettlementFailure();
-                return toDto(session);
-            }
-            session.setFailReason(e.getReason());
-            transition(session, SessionState.FAILED);
-            repository.save(session);
-            log.warn("dev upload session failed session={} reason={}", sessionId, e.getReason());
-        } catch (RuntimeException e) {
-            session.setFailReason(ApiMessages.INTERNAL_ERROR);
-            if (session.getState().canTransitionTo(SessionState.FAILED)) {
-                transition(session, SessionState.FAILED);
-            }
-            repository.save(session);
-            log.error("dev upload settle failed session={}", sessionId, e);
-        }
-        return toDto(session);
+        return sessionSettleService.completeDevUploadRecognition(sessionId, recognition);
     }
 
     /** 门事件入口；关门落库与结算编排见 {@link SessionDoorService}。 */
@@ -282,7 +235,7 @@ public class SessionService {
         }
         // 未点选：直接零元完成，禁止视觉 mock 注入商品进入争议/扣款
         if (gravityHelper.toRecognizedItems(session.getGravityDeltas()).isEmpty()) {
-            return self.completeDemoZeroSettle(userId, sessionId);
+            return sessionSettleService.completeDemoZeroSettle(userId, sessionId);
         }
         return sessionDoorService.handleDoorEvent(new DoorEventRequest(
                 session.getSessionId(),
@@ -297,28 +250,10 @@ public class SessionService {
     }
 
     /**
-     * 演示关门且购物车为空：零元订单并完结会话（与文案「未选则不扣款」一致）。
+     * 演示关门且购物车为空：零元订单并完结会话。见 {@link SessionSettleService}。
      */
-    @Transactional
     public SessionDto completeDemoZeroSettle(Long userId, String sessionId) {
-        return runWithSessionLifeLock(sessionId, () -> {
-            ShoppingSession session = repository.findByIdForUpdate(sessionId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-            if (!session.getUserId().equals(userId)) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND);
-            }
-            if (session.getState() != SessionState.SHOPPING) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不可关门结算");
-            }
-            log.info("demo-close zero-settle session={} device={}", sessionId, session.getDeviceId());
-            transition(session, SessionState.RECOGNIZING);
-            transition(session, SessionState.SETTLING);
-            OrderReadModel order = settlementService.settleManual(session, List.of());
-            session.setOrderId(order.orderId());
-            transition(session, SessionState.COMPLETED);
-            cabinetMetrics.recordSettlementSuccess();
-            return toDto(session);
-        });
+        return sessionSettleService.completeDemoZeroSettle(userId, sessionId);
     }
 
     /**
@@ -338,7 +273,7 @@ public class SessionService {
             if (isRestockSession(session)) {
                 return sessionRestockService.finishRestockSnapshot(session.getSessionId());
             }
-            return settleSession(session);
+            return sessionSettleService.settleSession(session);
         });
     }
 
@@ -571,139 +506,17 @@ public class SessionService {
     }
 
     /**
-     * 关门事务提交后再结算，避免 vision/扣款失败把「已关门」回滚掉。
-     * 无外层长事务：分布式锁内调用 settle / 异步投递。
+     * 关门事务提交后再结算。见 {@link SessionSettleService}。
      */
     public SessionDto settleAfterClose(String sessionId) {
-        return runWithSessionLifeLock(sessionId, () -> {
-            ShoppingSession session = repository.findById(sessionId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-            if (session.getState() != SessionState.RECOGNIZING) {
-                return toDto(session);
-            }
-            return settleSession(session);
-        });
-    }
-
-    private SessionDto settleSession(ShoppingSession session) {
-        if (session.getState() == SessionState.COMPLETED) {
-            return toDto(session);
-        }
-        if (session.getState() == SessionState.RECOGNIZING) {
-            if (visionAsyncProperties.enabled()) {
-                settlementService.submitAsyncRecognition(session);
-                return toDto(session);
-            }
-            transition(session, SessionState.SETTLING);
-        }
-        try {
-            OrderReadModel order = settlementService.settle(session);
-            session.setOrderId(order.orderId());
-            transition(session, SessionState.COMPLETED);
-            log.info("session completed session={} order={}", session.getSessionId(), order.orderId());
-            cabinetMetrics.recordSettlementSuccess();
-            if ("PENDING".equalsIgnoreCase(order.status())) {
-                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), order.orderId(), session.getUserId()), "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
-            }
-        } catch (DisputeRequiredException e) {
-            transition(session, SessionState.DISPUTED);
-            opsExceptionService.report("RECOGNITION_FAILED", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别结果需人工审核", e.getMessage());
-            log.warn("session disputed session={}", session.getSessionId());
-            cabinetMetrics.recordSettlementFailure();
-            return toDto(session);
-        } catch (BalanceInsufficientException e) {
-            // 兼容旧路径：若结算仍抛余额不足且未落单，则进争议
-            session.setFailReason(e.getMessage());
-            transition(session, SessionState.DISPUTED);
-            opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), LITERAL, e.getMessage());
-            log.warn("session balance insufficient session={}", session.getSessionId());
-            cabinetMetrics.recordSettlementFailure();
-            return toDto(session);
-        } catch (ResponseStatusException e) {
-            if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
-                session.setFailReason(e.getReason());
-                transition(session, SessionState.DISPUTED);
-                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), LITERAL, e.getReason());
-                return toDto(session);
-            }
-            session.setFailReason(e.getReason());
-            transition(session, SessionState.FAILED);
-            repository.save(session);
-            log.warn("session failed session={} reason={}", session.getSessionId(), e.getReason());
-            cabinetMetrics.recordSettlementFailure();
-            return toDto(session);
-        } catch (RestClientException e) {
-            log.error("vision/settle remote call failed session={}", session.getSessionId(), e);
-            opsExceptionService.report("RECOGNITION_UNAVAILABLE", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别或结算服务不可用", e.getMessage());
-            transition(session, SessionState.FAILED);
-            return toDto(session);
-        } catch (RuntimeException e) {
-            log.error("settle failed session={}", session.getSessionId(), e);
-            cabinetMetrics.recordSettlementFailure();
-            opsExceptionService.report("SETTLEMENT_FAILED", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "订单结算失败", e.getMessage());
-            session.setFailReason(ApiMessages.INTERNAL_ERROR);
-            if (session.getState().canTransitionTo(SessionState.FAILED)) {
-                transition(session, SessionState.FAILED);
-            }
-            repository.save(session);
-            return toDto(session);
-        }
-        return toDto(session);
+        return sessionSettleService.settleAfterClose(sessionId);
     }
 
     /**
-     * 异步识别结果回调：无外层长事务；会话态短事务与结算短事务分离（扣款已 NOT_SUPPORTED）。
+     * 异步识别结果回调。见 {@link SessionSettleService}。
      */
     public void completeAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
-        runWithSessionLifeLock(sessionId, () -> {
-            doCompleteAsyncRecognition(sessionId, recognition);
-            return null;
-        });
-    }
-
-    private void doCompleteAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
-        ShoppingSession session = repository.findById(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        if (session.getState() != SessionState.RECOGNIZING) {
-            log.warn("ignore async recognition session={} state={}", sessionId, session.getState());
-            return;
-        }
-        transition(session, SessionState.SETTLING);
-        try {
-            OrderReadModel order = settlementService.processRecognitionResult(session, recognition);
-            session.setOrderId(order.orderId());
-            transition(session, SessionState.COMPLETED);
-            log.info("async session completed session={} order={}", sessionId, order.orderId());
-            if ("PENDING".equalsIgnoreCase(order.status())) {
-                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), order.orderId(), session.getUserId()), "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
-            }
-        } catch (DisputeRequiredException e) {
-            transition(session, SessionState.DISPUTED);
-            opsExceptionService.report("RECOGNITION_FAILED", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别结果需人工审核", e.getMessage());
-            log.warn("async session disputed session={}", sessionId);
-        } catch (BalanceInsufficientException e) {
-            session.setFailReason(e.getMessage());
-            transition(session, SessionState.DISPUTED);
-            opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), LITERAL, e.getMessage());
-            log.warn("async session balance insufficient session={}", sessionId);
-        } catch (ResponseStatusException e) {
-            if (e.getStatusCode() == HttpStatus.CONFLICT) {
-                transition(session, SessionState.DISPUTED);
-                log.warn("async session disputed session={}", sessionId);
-                return;
-            }
-            if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
-                session.setFailReason(e.getReason());
-                transition(session, SessionState.DISPUTED);
-                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), LITERAL, e.getReason());
-                log.warn("async session balance insufficient session={}", sessionId);
-                return;
-            }
-            session.setFailReason(e.getReason());
-            transition(session, SessionState.FAILED);
-            repository.save(session);
-            log.warn("async session failed session={} reason={}", sessionId, e.getReason());
-        }
+        sessionSettleService.completeAsyncRecognition(sessionId, recognition);
     }
 
     private void applyVideoMetadata(ShoppingSession session, String uploadStatus,
@@ -803,7 +616,7 @@ public class SessionService {
             self.resetSessionForRetry(sessionId);
             ShoppingSession session = repository.findById(sessionId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-            return settleSession(session);
+            return sessionSettleService.settleSession(session);
         });
     }
 

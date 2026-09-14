@@ -52,10 +52,13 @@ class SessionServiceRecoveryTest {
     @BeforeEach
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
-                settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, null, null, null, null, opsExceptionService, userInfoRepository, orderRepository,
+                settlementService, cabinetMetrics, domainEventPublisher,
+                gravityHelper, null, null, null, null, null, userInfoRepository, orderRepository,
                 null, consumerPreauthService, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        SessionSettleService settleService = new SessionSettleService(
+                repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, service);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
         expireService = new SessionExpireService(
                 repository,
                 com.aicabinet.trade.config.SessionExpireProperties.defaults(),
