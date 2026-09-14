@@ -2524,7 +2524,7 @@ async function openTaskLines(task: Row) {
       task.deviceId
         ? api
             .request<Row[]>(
-              `/api/v2/ops/admin/devices/${encodeURIComponent(String(task.deviceId))}/slots`,
+              AdminEndpoints.deviceSlots(String(task.deviceId)),
               'GET'
             )
             .catch(() => [])

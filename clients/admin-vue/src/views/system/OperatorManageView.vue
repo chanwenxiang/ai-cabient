@@ -541,6 +541,7 @@ import {
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -1149,7 +1150,7 @@ async function openDevices(row: OperatorRow) {
     if (!allDevices.value.length) {
       type DeviceListItem = { deviceId: string; deviceName?: string; routeCode?: string };
       const list = await api.request<{ items?: DeviceListItem[] }>(
-        '/api/v2/ops/admin/devices?page=0&size=200',
+        AdminEndpoints.devicesList('page=0&size=200'),
         'GET'
       );
       allDevices.value = (list.items || []).map((d) => ({

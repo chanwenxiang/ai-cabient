@@ -80,6 +80,7 @@
 | 73 | admin 端点 | 订单页散落 `/orders` 字面量 | 同域多文件拷贝易漂移 | 订单 CRUD/动作迁入 AdminEndpoints；搜索/设备详情同步 | `OrderListView.vue`、`GlobalSearch.vue` |
 | 74 | admin 端点 | 会话/录像/上传队列散落 `/sessions` | 列表导出取消与视频路径各写一份 | 会话域迁入 AdminEndpoints；composable 也走同一 helper | `SessionListView.vue`、`useSessionVideo.ts` |
 | 75 | Kafka 视觉 | 消费失败无限重试或 DLT topic 不存在 | 仅应用内 catch，未建 topic Bean | 失败入 DLT 后 ack；`KafkaTopicConfig` 必须注册 request/result DLT | `VisionRecognitionListener`、`KafkaTopicConfig` |
+| 76 | admin 端点 | 柜机详情/列表散落 `/devices` 字面量 | 详情页 20+ 动作路径易漂移 | 柜机域迁入 AdminEndpoints；门禁加 `/devices`（含 ref） | `DeviceDetailView.vue`、`DeviceListView.vue` |
 
 ## 追加模板
 

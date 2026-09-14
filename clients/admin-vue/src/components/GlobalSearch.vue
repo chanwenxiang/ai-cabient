@@ -163,7 +163,7 @@ async function searchRecords(q: string) {
   await Promise.all([
     take<{ deviceId: string; deviceName?: string; onlineStatus?: string }>(
       'ops:device:list',
-      `/api/v2/ops/admin/devices?page=0&size=5&q=${encodeURIComponent(q)}`,
+      AdminEndpoints.devicesList(`page=0&size=5&q=${encodeURIComponent(q)}`),
       (items) =>
         items.map((d) => ({
           type: 'device',
