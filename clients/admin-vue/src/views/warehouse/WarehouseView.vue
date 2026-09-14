@@ -2244,9 +2244,6 @@
 import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
-import { errorMessage } from '@/utils/error-message';
-import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import WarehouseBinDialogs from '@/components/warehouse/WarehouseBinDialogs.vue';
@@ -2255,18 +2252,21 @@ import WarehouseOutboundDialogs from '@/components/warehouse/WarehouseOutboundDi
 import WarehousePurchaseDialogs from '@/components/warehouse/WarehousePurchaseDialogs.vue';
 import WarehouseStocktakeDialogs from '@/components/warehouse/WarehouseStocktakeDialogs.vue';
 import WarehouseTransferDialogs from '@/components/warehouse/WarehouseTransferDialogs.vue';
-import { useListCsv } from '@/composables/useListCsv';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useWarehouseBins } from '@/composables/warehouse/useWarehouseBins';
+import { useWarehouseCsv } from '@/composables/warehouse/useWarehouseCsv';
 import { useWarehouseEntityDialogs } from '@/composables/warehouse/useWarehouseEntityDialogs';
+import {
+  TRANSIT_OVERDUE_HOURS,
+  useWarehouseListFilters
+} from '@/composables/warehouse/useWarehouseListFilters';
 import { useWarehouseOutbounds } from '@/composables/warehouse/useWarehouseOutbounds';
 import { useWarehousePurchaseOrders } from '@/composables/warehouse/useWarehousePurchaseOrders';
 import { useWarehouseStocktakes } from '@/composables/warehouse/useWarehouseStocktakes';
 import { useWarehouseTabLoader } from '@/composables/warehouse/useWarehouseTabLoader';
 import { useWarehouseTransfers } from '@/composables/warehouse/useWarehouseTransfers';
 import { useAuthStore } from '@/stores/auth';
-import { csvFileName } from '@/utils/csv';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { onPurchaseOrderReviewed } from '@/utils/purchase-order-sync';
@@ -2497,10 +2497,6 @@ const hideTestPurchaseOrders = ref(localStorage.getItem(HIDE_TEST_PO_KEY) !== '0
 const filterWarehouseId = ref('');
 /** 默认「待处理」：有明细的 DRAFT + PICKED，避免历史草稿淹没操作列 */
 const filterOutboundStatus = ref<string>('actionable');
-/** Matches AdminDashboardService.IN_TRANSIT_OVERDUE_HOURS */
-const TRANSIT_OVERDUE_HOURS = 24;
-const TRANSIT_OVERDUE_MS = TRANSIT_OVERDUE_HOURS * 3600 * 1000;
-const TRANSIT_DUE_SOON_MS = 4 * 3600 * 1000;
 const overdueOnly = ref(false);
 const focusDeviceId = ref('');
 const warehouses = ref<Row[]>([]);
@@ -2541,6 +2537,11 @@ const loadedTabs = ref(new Set<string>(['warehouses']));
 
 const dialogBootLoading = ref(false);
 
+/** loadTab 在 tabLoader 之后赋值；筛选项/CSV 导入通过桥接调用 */
+const loadTabHolder: { fn: (name: string, force?: boolean) => Promise<void> } = {
+  fn: async () => undefined
+};
+
 const pageHint = computed(() => {
   if (tab.value === 'transit') {
     return `仓→柜在途：补货完成才从本列表消失；时限 ${TRANSIT_OVERDUE_HOURS} 小时，超时标红`;
@@ -2548,188 +2549,61 @@ const pageHint = computed(() => {
   return '仓库 / 供应商 / 库存 / 采购与退货';
 });
 
-/** 仅真正有筛选项的 Tab 才挂 filter-bar，避免空条占位像「中间少了字」 */
-const showFilterBar = computed(() =>
-  [
-    'suppliers',
-    'purchase',
-    'returns',
-    'suggestions',
-    'payables',
-    'stocktakes',
-    'bins',
-    'inventory',
-    'movements',
-    'outbounds',
-    'transit'
-  ].includes(tab.value)
-);
-const activeSuppliers = computed(() => suppliers.value.filter((s) => s.status === 'ACTIVE'));
-const activeWarehouses = computed(() =>
-  warehouses.value.filter((w) => (w.status || 'ACTIVE') === 'ACTIVE')
-);
-const filteredSuppliers = computed(() => suppliers.value);
-const filteredPurchaseOrders = computed(() => purchaseOrders.value);
-const filteredPurchaseReturns = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  let list = purchaseReturns.value;
-  if (filterWarehouseId.value) list = list.filter((r) => r.warehouseId === filterWarehouseId.value);
-  if (!q) return list;
-  return list.filter((r) =>
-    [r.returnId, r.purchaseOrderId, r.supplierId, supplierName(r.supplierId)]
-      .join(' ')
-      .toLowerCase()
-      .includes(q)
-  );
+const {
+  showFilterBar,
+  activeSuppliers,
+  activeWarehouses,
+  filteredSuppliers,
+  filteredPurchaseOrders,
+  filteredPurchaseReturns,
+  filteredOutbounds,
+  outboundRowClassName,
+  onOutboundStatusFilter,
+  transitAgeMs,
+  transitRemainMs,
+  transitOverdueMs,
+  isTransitOverdue,
+  isTransitDueSoon,
+  formatAge,
+  transitRowClassName,
+  filteredInTransit,
+  overdueTransitCount,
+  transitEmptyHint,
+  onOverdueToggle,
+  clearFocusDevice,
+  pagedOutbounds,
+  pagedInTransit,
+  onWarehouseFilter,
+  onPurchaseFilterChange,
+  onSuggestionParamsChange,
+  onPayableFilter,
+  onStocktakeFilter,
+  onBinFilter
+} = useWarehouseListFilters({
+  tab,
+  page,
+  selectedKeys,
+  keyword,
+  filterWarehouseId,
+  filterOutboundStatus,
+  overdueOnly,
+  focusDeviceId,
+  suppliers,
+  warehouses,
+  purchaseOrders,
+  purchaseReturns,
+  outbounds,
+  inTransit,
+  hideTestPurchaseOrders,
+  hideTestPoKey: HIDE_TEST_PO_KEY,
+  syncRouteQuery,
+  loadTab: (name, force) => loadTabHolder.fn(name, force),
+  loadedTabs,
+  serverPaginatedTabs: SERVER_PAGINATED_TABS,
+  supplierName
 });
+
 const returnablePurchaseOrders = ref<Row[]>([]);
-const OUTBOUND_STATUS_RANK: Record<string, number> = {
-  PICKED: 0,
-  DRAFT: 1,
-  SHIPPED: 2,
-  CANCELLED: 3
-};
-
-function isOutboundActionable(row: Row) {
-  const hasLines = (row.lines?.length || 0) > 0;
-  return (row.status === 'DRAFT' && hasLines) || (row.status === 'PICKED' && hasLines);
-}
-
-const filteredOutbounds = computed(() => {
-  let list = outbounds.value;
-  const st = filterOutboundStatus.value;
-  if (st === 'actionable') {
-    list = list.filter((o) => isOutboundActionable(o));
-  } else if (st) {
-    list = list.filter((o) => o.status === st);
-  }
-  return [...list].sort((a, b) => {
-    const ra = OUTBOUND_STATUS_RANK[String(a.status)] ?? 9;
-    const rb = OUTBOUND_STATUS_RANK[String(b.status)] ?? 9;
-    if (ra !== rb) return ra - rb;
-    return Number(b.outboundId) - Number(a.outboundId);
-  });
-});
-
-function outboundRowClassName({ row }: { row: Row }) {
-  const parts = [`outbound-tr-${row.outboundId}`];
-  if (isOutboundActionable(row)) parts.push('outbound-row--actionable');
-  return parts.join(' ');
-}
-
-function onOutboundStatusFilter() {
-  page.value = 1;
-  selectedKeys.value = [];
-}
-
-function parseTs(value: unknown) {
-  if (value == null || value === '') return Number.NaN;
-  if (typeof value === 'number') return value;
-  const t = Date.parse(String(value));
-  return Number.isNaN(t) ? Number.NaN : t;
-}
-
-function transitCreatedMs(row: Row) {
-  return parseTs(row.createdAt);
-}
-
-function transitAgeMs(row: Row) {
-  const t = transitCreatedMs(row);
-  return Number.isNaN(t) ? 0 : Math.max(0, Date.now() - t);
-}
-
-function transitRemainMs(row: Row) {
-  const t = transitCreatedMs(row);
-  if (Number.isNaN(t)) return TRANSIT_OVERDUE_MS;
-  return Math.max(0, t + TRANSIT_OVERDUE_MS - Date.now());
-}
-
-function transitOverdueMs(row: Row) {
-  const t = transitCreatedMs(row);
-  if (Number.isNaN(t)) return 0;
-  return Math.max(0, Date.now() - (t + TRANSIT_OVERDUE_MS));
-}
-
-function isTransitOverdue(row: Row) {
-  const t = transitCreatedMs(row);
-  if (Number.isNaN(t)) return false;
-  return Date.now() - t >= TRANSIT_OVERDUE_MS;
-}
-
-function isTransitDueSoon(row: Row) {
-  if (isTransitOverdue(row)) return false;
-  const left = transitRemainMs(row);
-  return left > 0 && left <= TRANSIT_DUE_SOON_MS;
-}
-
-function formatAge(ms: number) {
-  const abs = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(abs / 3600);
-  const m = Math.floor((abs % 3600) / 60);
-  if (h >= 48) return `${Math.floor(h / 24)} 天`;
-  if (h > 0) return `${h} 小时 ${m} 分`;
-  if (m > 0) return `${m} 分钟`;
-  return '不到 1 分钟';
-}
-
-function transitRowClassName({ row }: { row: Row }) {
-  const classes: string[] = [];
-  if (isTransitOverdue(row)) classes.push('is-overdue');
-  else if (isTransitDueSoon(row)) classes.push('is-due-soon');
-  if (focusDeviceId.value && row.deviceId === focusDeviceId.value) classes.push('is-focus');
-  return classes.join(' ');
-}
-
-const filteredInTransit = computed(() => {
-  let list = [...inTransit.value];
-  if (focusDeviceId.value) {
-    list = list.filter((r) => r.deviceId === focusDeviceId.value);
-  }
-  if (overdueOnly.value) {
-    list = list.filter((r) => isTransitOverdue(r));
-  }
-  return list.sort((a, b) => {
-    const ao = isTransitOverdue(a) ? 0 : 1;
-    const bo = isTransitOverdue(b) ? 0 : 1;
-    if (ao !== bo) return ao - bo;
-    const at = transitCreatedMs(a);
-    const bt = transitCreatedMs(b);
-    if (Number.isNaN(at) && Number.isNaN(bt)) return 0;
-    if (Number.isNaN(at)) return 1;
-    if (Number.isNaN(bt)) return -1;
-    return at - bt;
-  });
-});
-
-const overdueTransitCount = computed(() => {
-  let list = inTransit.value;
-  if (focusDeviceId.value) {
-    list = list.filter((r) => r.deviceId === focusDeviceId.value);
-  }
-  return list.filter((r) => isTransitOverdue(r)).length;
-});
-
-const transitEmptyHint = computed(() => {
-  if (overdueOnly.value) {
-    return focusDeviceId.value
-      ? `设备 ${focusDeviceId.value} 无超过 ${TRANSIT_OVERDUE_HOURS} 小时的到柜超时`
-      : `当前无超过 ${TRANSIT_OVERDUE_HOURS} 小时的到柜超时`;
-  }
-  if (focusDeviceId.value) return `设备 ${focusDeviceId.value} 暂无在途（已到柜签收或不在发运中）`;
-  return '暂无在途（发运后出现于此；补货员到柜完成任务后自动消失）';
-});
-
-function onOverdueToggle() {
-  page.value = 1;
-  selectedKeys.value = [];
-  syncRouteQuery();
-}
-
-function clearFocusDevice() {
-  focusDeviceId.value = '';
-  page.value = 1;
-  syncRouteQuery();
-}
 
 const tabSource = computed(() => {
   switch (tab.value) {
@@ -2777,8 +2651,6 @@ const pagedSuggestions = computed(() => suggestions.value);
 const pagedPayables = computed(() => payables.value);
 const pagedStocktakes = computed(() => stocktakes.value);
 const pagedBinStock = computed(() => binStock.value);
-const pagedOutbounds = computed(() => filteredOutbounds.value);
-const pagedInTransit = computed(() => filteredInTransit.value);
 const pagedInventory = computed(() => inventory.value);
 const pagedMovements = computed(() => movements.value);
 const payableSummaryText = computed(() => {
@@ -2797,7 +2669,7 @@ watch([keyword, filterWarehouseId, focusDeviceId], () => {
   page.value = 1;
   if (SERVER_PAGINATED_TABS.has(tab.value)) {
     loadedTabs.value.delete(tab.value);
-    loadTab(tab.value, true);
+    loadTabHolder.fn(tab.value, true);
   }
 });
 watch(overdueOnly, () => {
@@ -2805,266 +2677,43 @@ watch(overdueOnly, () => {
 });
 
 const {
-  onExport: exportWarehouses,
-  importing: importingWarehouses,
-  importInput: warehouseImportInput,
-  onDownloadTemplate: downloadWarehouseTemplate,
-  triggerImport: triggerWarehouseImport,
-  onImportFile: onWarehouseImportFile
-} = useListCsv({
-  filePrefix: '仓库概览',
-  headers: ['仓库名称', '仓库编号', '地址', '状态'],
-  toRows: () =>
-    pickSelected(warehouses.value).map((row) => [
-      row.warehouseName || row.warehouseId,
-      row.warehouseId,
-      row.address || '',
-      dictLabel('warehouse_status', row.status || 'ACTIVE')
-    ]),
-  onImportRows: async (rows) => {
-    let ok = 0;
-    for (const row of rows) {
-      const warehouseId = (row['仓库编号'] || row.warehouseId || '').trim();
-      const warehouseName = (row['仓库名称'] || row.warehouseName || '').trim();
-      if (!warehouseId || !warehouseName) continue;
-      await api.request(`/api/v2/ops/admin/warehouse/${encodeURIComponent(warehouseId)}`, 'PUT', {
-        warehouseName,
-        address: (row['地址'] || row.address || '').trim(),
-        status: statusCode(row['状态'] || row.status)
-      });
-      ok++;
-    }
-    loadedTabs.value.delete('warehouses');
-    await loadTab('warehouses', true);
-    return ok;
-  }
+  importing,
+  warehouseImportInput,
+  supplierImportInput,
+  onWarehouseImportFile,
+  onSupplierImportFile,
+  onDownloadImportTemplate,
+  triggerImport,
+  onExport
+} = useWarehouseCsv({
+  tab,
+  selectedKeys,
+  loadedTabs,
+  loadTab: (name, force) => loadTabHolder.fn(name, force),
+  warehouses,
+  suppliers,
+  purchaseOrders,
+  purchaseReturns,
+  outbounds,
+  inventory,
+  movements,
+  filteredSuppliers,
+  filteredPurchaseOrders,
+  filteredPurchaseReturns,
+  filteredOutbounds,
+  filteredInTransit,
+  pickSelected,
+  statusCode,
+  supplierName,
+  warehouseName,
+  deviceName,
+  skuName,
+  returnStatusLabel,
+  expiryText,
+  formatAge,
+  transitAgeMs,
+  isTransitOverdue
 });
-
-const {
-  onExport: exportSuppliers,
-  importing: importingSuppliers,
-  importInput: supplierImportInput,
-  onDownloadTemplate: downloadSupplierTemplate,
-  triggerImport: triggerSupplierImport,
-  onImportFile: onSupplierImportFile
-} = useListCsv({
-  filePrefix: '供应商',
-  headers: ['供应商', '供应商编号', '联系人', '联系电话', '状态'],
-  toRows: () =>
-    pickSelected(filteredSuppliers.value).map((row) => [
-      row.supplierName || row.supplierId,
-      row.supplierId,
-      row.contactName || '',
-      row.contactPhone || '',
-      dictLabel('supplier_status', row.status)
-    ]),
-  onImportRows: async (rows) => {
-    let ok = 0;
-    for (const row of rows) {
-      const supplierId = (row['供应商编号'] || row.supplierId || '').trim();
-      const supplierName = (row['供应商'] || row.supplierName || '').trim();
-      if (!supplierId || !supplierName) continue;
-      await api.request(`/api/v2/ops/admin/suppliers/${encodeURIComponent(supplierId)}`, 'PUT', {
-        supplierId,
-        supplierName,
-        contactName: (row['联系人'] || row.contactName || '').trim(),
-        contactPhone: (row['联系电话'] || row.contactPhone || '').trim(),
-        status: statusCode(row['状态'] || row.status)
-      });
-      ok++;
-    }
-    loadedTabs.value.delete('suppliers');
-    await loadTab('suppliers', true);
-    return ok;
-  }
-});
-
-const importing = computed(() => importingWarehouses.value || importingSuppliers.value);
-
-function onDownloadImportTemplate() {
-  if (tab.value === 'warehouses') {
-    downloadWarehouseTemplate([
-      '示例中心仓',
-      'WH-DEMO-001',
-      '上海市示例路 1 号',
-      displayLabel('warehouse_status', 'ACTIVE')
-    ]);
-  } else if (tab.value === 'suppliers') {
-    downloadSupplierTemplate([
-      '示例饮品供应商',
-      'SUP-DEMO-001',
-      '张三',
-      '13800000000',
-      displayLabel('supplier_status', 'ACTIVE')
-    ]);
-  }
-}
-
-function triggerImport() {
-  if (tab.value === 'warehouses') triggerWarehouseImport();
-  else if (tab.value === 'suppliers') triggerSupplierImport();
-}
-
-const { onExport: exportPurchase } = useListCsv({
-  filePrefix: '采购单',
-  headers: ['采购单', '外部单号', '供应商', '入库仓库', '状态'],
-  toRows: () =>
-    pickSelected(filteredPurchaseOrders.value).map((row) => [
-      row.purchaseOrderId,
-      row.refNo || '未填写',
-      supplierName(row.supplierId),
-      warehouseName(row.warehouseId),
-      dictLabel('purchase_order_status', row.status)
-    ])
-});
-
-const { onExport: exportReturns } = useListCsv({
-  filePrefix: '采购退货',
-  headers: ['退货单', '采购单', '供应商', '仓库', '状态', '创建时间'],
-  toRows: () =>
-    pickSelected(filteredPurchaseReturns.value).map((row) => [
-      row.returnId,
-      row.purchaseOrderId,
-      supplierName(row.supplierId),
-      warehouseName(row.warehouseId),
-      returnStatusLabel(row.status),
-      formatDateTime(row.createdAt)
-    ])
-});
-
-const { onExport: exportOutbounds } = useListCsv({
-  filePrefix: '出库单',
-  headers: ['出库单', '路线', '出库仓库', '状态', '创建时间'],
-  toRows: () =>
-    pickSelected(filteredOutbounds.value).map((row) => [
-      row.outboundId,
-      row.routeId || '',
-      warehouseName(row.warehouseId),
-      dictLabel('warehouse_outbound_status', row.status),
-      formatDateTime(row.createdAt)
-    ])
-});
-
-const { onExport: exportTransit } = useListCsv({
-  filePrefix: '在途',
-  headers: [
-    '出库单',
-    '目标设备',
-    '商品',
-    '批次',
-    '数量',
-    '状态',
-    '在途时长',
-    '是否超时',
-    '发运时间'
-  ],
-  toRows: () =>
-    pickSelected(filteredInTransit.value).map((row) => [
-      row.outboundId,
-      deviceName(row.deviceId, row.deviceName),
-      skuName(row.skuId),
-      row.batchNo || '',
-      row.quantity,
-      dictLabel('in_transit_status', row.status),
-      formatAge(transitAgeMs(row)),
-      isTransitOverdue(row) ? '是' : '否',
-      formatDateTime(row.createdAt)
-    ])
-});
-
-const { onExport: exportInventory } = useListCsv({
-  filePrefix: '批次库存',
-  headers: ['仓库', '商品', '批次', '生产日期', '到期日期', '库存', '效期'],
-  toRows: () =>
-    pickSelected(inventory.value).map((row) => [
-      warehouseName(row.warehouseId),
-      skuName(row.skuId),
-      row.batchNo || '',
-      row.productionDate || '',
-      row.expiryDate || '',
-      row.quantity,
-      expiryText(row.expiryDate)
-    ])
-});
-
-const { onExport: exportMovements } = useListCsv({
-  filePrefix: '库存流水',
-  headers: ['流水', '类型', '商品', '批次', '变动', '关联业务', '关联单号', '时间'],
-  toRows: () =>
-    pickSelected(movements.value).map((row) => [
-      row.movementId,
-      dictLabel('warehouse_movement_type', row.movementType),
-      skuName(row.skuId),
-      row.batchNo || '',
-      row.deltaQty,
-      dictLabel('business_reference_type', row.refType),
-      row.refId || '',
-      formatDateTime(row.createdAt)
-    ])
-});
-
-async function onExport() {
-  const serverTabs = new Set([
-    'warehouses',
-    'suppliers',
-    'purchase',
-    'returns',
-    'inventory',
-    'outbounds',
-    'movements'
-  ]);
-  const currentRows = (() => {
-    switch (tab.value) {
-      case 'warehouses':
-        return warehouses.value;
-      case 'suppliers':
-        return suppliers.value;
-      case 'purchase':
-        return purchaseOrders.value;
-      case 'returns':
-        return purchaseReturns.value;
-      case 'inventory':
-        return inventory.value;
-      case 'outbounds':
-        return outbounds.value;
-      default:
-        return [];
-    }
-  })();
-  const partial = selectedKeys.value.length > 0 && selectedKeys.value.length < currentRows.length;
-  if (partial || !serverTabs.has(tab.value)) {
-    const exporters: Record<string, () => void> = {
-      warehouses: exportWarehouses,
-      suppliers: exportSuppliers,
-      purchase: exportPurchase,
-      returns: exportReturns,
-      outbounds: exportOutbounds,
-      transit: exportTransit,
-      inventory: exportInventory,
-      movements: exportMovements
-    };
-    exporters[tab.value]?.();
-    return;
-  }
-  const labels: Record<string, string> = {
-    warehouses: '仓库',
-    suppliers: '供应商',
-    purchase: '采购单',
-    returns: '采购退货',
-    inventory: '仓库库存',
-    outbounds: '出库单',
-    movements: '库存流水'
-  };
-  try {
-    await downloadAuthFile(
-      `/api/v2/ops/admin/warehouse/export?tab=${encodeURIComponent(tab.value)}`,
-      csvFileName(labels[tab.value] || '仓库')
-    );
-    ElMessage.success('已导出');
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '导出失败'));
-  }
-}
 
 function returnStatusLabel(status?: string) {
   const code = (status || 'COMPLETED').toUpperCase();
@@ -3229,6 +2878,7 @@ const {
   loadingTabs,
   hydratedTabs
 });
+loadTabHolder.fn = loadTab;
 
 function onPagerChange() {
   if (SERVER_PAGINATED_TABS.has(tab.value)) {
@@ -3257,39 +2907,6 @@ function onTabChange(name: string | number) {
 function reloadCurrent() {
   loadedTabs.value.delete(tab.value);
   loadTab(tab.value, true);
-}
-function onWarehouseFilter() {
-  page.value = 1;
-  if (SERVER_PAGINATED_TABS.has(tab.value)) {
-    loadedTabs.value.delete(tab.value);
-    loadTab(tab.value, true);
-  }
-}
-function onPurchaseFilterChange() {
-  localStorage.setItem(HIDE_TEST_PO_KEY, hideTestPurchaseOrders.value ? '1' : '0');
-  page.value = 1;
-  loadedTabs.value.delete('purchase');
-  loadTab('purchase', true);
-}
-function onSuggestionParamsChange() {
-  page.value = 1;
-  loadedTabs.value.delete('suggestions');
-  loadTab('suggestions', true);
-}
-function onPayableFilter() {
-  page.value = 1;
-  loadedTabs.value.delete('payables');
-  loadTab('payables', true);
-}
-function onStocktakeFilter() {
-  page.value = 1;
-  loadedTabs.value.delete('stocktakes');
-  loadTab('stocktakes', true);
-}
-function onBinFilter() {
-  page.value = 1;
-  loadedTabs.value.delete('bins');
-  loadTab('bins', true);
 }
 
 const {
