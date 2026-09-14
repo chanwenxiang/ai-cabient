@@ -293,11 +293,15 @@ function goByBiz(m: NotificationDto) {
       });
       break;
     case 'COUPON':
-      // C-13：仅接受正整数券 id，避免脏 bizId 污染 preferred_coupon_id
+      // C-P2-8：后端 COUPON 消息 bizId=已持有的 user_coupon.couponId（如 coupon_expiring），
+      // 不是营销活动 id。禁止误调 claimCampaign；正确动作是设优先券并打开券包。
       if (/^\d+$/.test(rawId)) {
         uni.setStorageSync('preferred_coupon_id', Number(rawId));
+        showSuccess('已选中该券，下次开门优先使用');
+        uni.navigateTo({ url: '/pages/coupons/coupons?tab=UNUSED&fromMsg=1' });
+      } else {
+        uni.navigateTo({ url: '/pages/coupons/coupons' });
       }
-      uni.navigateTo({ url: '/pages/coupons/coupons' });
       break;
     case 'POINTS':
       uni.navigateTo({

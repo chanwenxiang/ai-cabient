@@ -60,6 +60,7 @@
 | 53 | API 版本 | 无法灰度 / 客户端不知版本 | 仅路径硬编码 `/api/v2` | 契约常量 `ApiVersions`；响应 `X-Api-Version`；未支持主版本 410；破坏性开 v3 | `ApiVersions.java`、`ApiVersionInterceptor` |
 | 54 | admin 端点 | 同路径多处拷贝易漂移 | views 裸 `/api/v2/ops/admin/...` | 高频路径进 `AdminEndpoints`；试点字面量门禁 `check:admin-endpoints` | `api/endpoints.ts`、`check-admin-endpoints.mjs` |
 | 55 | admin JWT | XSS 可读长期 JWT | 非 Cookie 把 `admin_token` 写 localStorage | Cookie 优先；dev 仅 sessionStorage；生产无 Cookie 则 fail-closed；禁 `localStorage.setItem(admin_token)` | `auth-storage.ts`、`check-admin-token-storage.mjs` |
+| 56 | consumer 消息券 | 点优惠券消息以为要领券却应设优先 | 审计误把 COUPON bizId 当活动 id；`claimCampaign` 要 activityId | COUPON=`user_coupon.id`→设 preferred；营销领券走 CAMPAIGN/`claimCampaign`；成功提示用 `showSuccess` | `messages.vue`、`coupons.vue` |
 
 ## 追加模板
 

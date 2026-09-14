@@ -1810,7 +1810,7 @@ function stopRecognitionTimer() {
 
 function deferRecognitionWait() {
   recognitionDeferred.value = true;
-  showError('可稍后在订单页查看');
+  showSuccess('可稍后在订单页查看');
 }
 
 async function finishSession(sessionState: string, sid: string) {
@@ -1977,7 +1977,7 @@ async function refreshSessionNow() {
   try {
     await tickPoll();
     if (!pollError.value) {
-      showError('状态已更新');
+      showSuccess('状态已更新');
     }
   } finally {
     pollRefreshing.value = false;

@@ -103,13 +103,13 @@
 | 编号 | 严重度 | 模块 | 文件:行 | 简述 |
 |------|--------|------|---------|------|
 | C-P2-1 | 中 | 性能/资源 | `index.vue:856-860` `onHide` | 切 tab 仅 `stopDevicePoll` + `showTabBar`，**未停止 `pollTimer`/`recognitionTimer`**；后台每 2s 仍 `getSession` |
-| C-P2-2 | 中 | UI/UX | coupons.vue (×3)、dispute/detail.vue:467、index.vue、messages.vue:344 | 成功态误用 `showError`（其 `icon:'none'`），与真实错误混栈 |
+| C-P2-2 | 中 | UI/UX | coupons / dispute / index / messages | ~~成功态误用 showError~~ → 复制/刷新成功改 `showSuccess`（剩余真实错误仍用 showError） |
 | C-P2-3 | 中 | 性能 | `src/pages.json` | 24 个页面全部主包、无 `subPackages` |
 | C-P2-4 | 低 | 架构一致性 | `recharge.vue:428` | 充值记录用裸 `get('/api/v2/payment/recharges')`，绕过 `consumerApi` |
 | C-P2-5 | 中 | 体验 | `nearby.vue:98-99,160-163` | 定位失败静默回退到**硬编码上海坐标** `(31.2304,121.4737)`；未授权展示异地柜机 |
 | C-P2-6 | 低 | 安全配置 | `manifest.json:18` `urlCheck:false` | 生产构建应开启 `urlCheck` |
 | C-P2-7 | 低 | 健壮性 | `index.vue onShow` | `onShow` 流程无全局重入锁；快速多 tab 切换可能并发拉取 |
-| C-P2-8 | 中 | 业务逻辑 | `messages.vue:297-300` vs `coupons.vue` | 消息 COUPON 点击仅 `setStorageSync('preferred_coupon_id')` 即"视作领取"，未调 `claimCampaign` |
+| C-P2-8 | 中 | 业务逻辑 | `messages.vue` vs `coupons.vue` | ~~误以为应 claimCampaign~~ → COUPON 消息 bizId=已持有券；点击设优先券 + 跳转 UNUSED 券包置顶高亮（营销领券走 CAMPAIGN/`claimCampaign`） |
 | C-P2-9 | 低 | 性能 | `messages.vue:189-194` | 每次 `onShow` 额外拉 50 条订单只为算 `pendingCount` |
 | C-P2-10 | 低 | 竞态 | `index.vue:1810` | `finishSession` DISPUTED 分支 `setTimeout 600ms navigateTo` 与 `onShow` 重新 `resumeReopenDeviceFlow` 可能竞争 |
 
@@ -467,6 +467,7 @@
 - [x] 防回归门禁：`check:scheduled-zone`（cron 必带 zone）、`check:cache-names`（禁止裸 cache prefix）；汇总 `pnpm check:audit-gates`（含 dialog-a11y）
 - [x] A-P2-005（试点）：`AdminEndpoints` 收敛工作台/趋势/SLA/财务统计/设备参照；`check:admin-endpoints` 禁 views/composables 再散落试点字面量；已并入 `check:audit-gates`
 - [x] A-P2-006：`auth-storage` — Cookie 不落 JWT；非 Cookie 仅 `sessionStorage`；生产 `cookieEnabled=false` 拒绝持久化；遗留 localStorage JWT 自动迁移删除；`check:admin-token-storage` 并入 `check:audit-gates`
+- [x] C-P2-8：消息 COUPON 按「已持有券优先使用」收口（禁误调 claimCampaign）；深链 UNUSED + 置顶高亮；C-P2-2 成功 toast 改 showSuccess
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）
