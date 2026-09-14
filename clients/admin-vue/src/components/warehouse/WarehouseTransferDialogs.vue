@@ -52,10 +52,11 @@ import type { WarehouseTransferRow } from '@/composables/warehouse/useWarehouseT
 defineProps<{
   transferDialog: boolean;
   saving: boolean;
-  transferForm: WarehouseTransferRow;
   warehouses: WarehouseTransferRow[];
 }>();
 
+
+const transferForm = defineModel<WarehouseTransferRow>('transferForm', { required: true });
 const emit = defineEmits<{
   'update:transferDialog': [value: boolean];
   saveTransfer: [];

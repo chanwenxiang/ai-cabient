@@ -162,7 +162,6 @@ defineProps<{
   stocktakeDetailDialog: boolean;
   saving: boolean;
   scanningPhoto: boolean;
-  stocktakeForm: WarehouseStocktakeRow;
   stocktakeDetail: WarehouseStocktakeRow;
   activeWarehouses: WarehouseStocktakeRow[];
   stocktakeModeText: (mode: string) => string;
@@ -172,6 +171,8 @@ defineProps<{
   stocktakeLineStatusType: (code: string) => string;
 }>();
 
+
+const stocktakeForm = defineModel<WarehouseStocktakeRow>('stocktakeForm', { required: true });
 const emit = defineEmits<{
   'update:stocktakeDialog': [value: boolean];
   'update:stocktakeDetailDialog': [value: boolean];

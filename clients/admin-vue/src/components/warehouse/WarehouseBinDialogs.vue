@@ -182,9 +182,6 @@ defineProps<{
   binInboundDialog: boolean;
   binMoveDialog: boolean;
   saving: boolean;
-  binForm: WarehouseBinRow;
-  binInboundForm: WarehouseBinRow;
-  binMoveForm: WarehouseBinRow;
   activeWarehouses: WarehouseBinRow[];
   skus: WarehouseBinRow[];
   allBins: WarehouseBinRow[];
@@ -194,6 +191,10 @@ defineProps<{
   binLabel: (b: WarehouseBinRow) => string;
 }>();
 
+
+const binForm = defineModel<WarehouseBinRow>('binForm', { required: true });
+const binInboundForm = defineModel<WarehouseBinRow>('binInboundForm', { required: true });
+const binMoveForm = defineModel<WarehouseBinRow>('binMoveForm', { required: true });
 const emit = defineEmits<{
   'update:binDialog': [value: boolean];
   'update:binInboundDialog': [value: boolean];
