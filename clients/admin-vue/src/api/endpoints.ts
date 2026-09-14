@@ -233,7 +233,110 @@ export const AdminEndpoints = {
       : `${ops}/expiry/alerts?${query.toString()}`,
   expiryAlertsEnsure: `${ops}/expiry/alerts/ensure`,
   expiryAlertCreateReplenishment: (taskId: string | number) =>
-    `${ops}/expiry/alerts/${encodeURIComponent(String(taskId))}/create-replenishment`
+    `${ops}/expiry/alerts/${encodeURIComponent(String(taskId))}/create-replenishment`,
+
+  /** 仓配 / 供应商 / 采购 */
+  warehouseList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/list?${query}`
+      : `${ops}/warehouse/list?${query.toString()}`,
+  warehouseListAll: `${ops}/warehouse/list?page=0&size=500`,
+  warehouseItem: (warehouseId: string) =>
+    `${ops}/warehouse/${encodeURIComponent(warehouseId)}`,
+  warehouseExport: (tab: string) =>
+    `${ops}/warehouse/export?tab=${encodeURIComponent(tab)}`,
+  warehouseInbound: `${ops}/warehouse/inbound`,
+  warehouseOutbounds: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/outbounds?${query}`
+      : `${ops}/warehouse/outbounds?${query.toString()}`,
+  warehouseOutboundsAll: `${ops}/warehouse/outbounds?page=0&size=500`,
+  warehouseOutbound: (outboundId: string | number) =>
+    `${ops}/warehouse/outbounds/${encodeURIComponent(String(outboundId))}`,
+  warehouseOutboundAction: (outboundId: string | number, action: string) =>
+    `${ops}/warehouse/outbounds/${encodeURIComponent(String(outboundId))}/${encodeURIComponent(action)}`,
+  warehouseOutboundsCleanupStale: `${ops}/warehouse/outbounds/cleanup-stale`,
+  warehouseInTransit: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/in-transit?${query}`
+      : `${ops}/warehouse/in-transit?${query.toString()}`,
+  warehouseInventory: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/inventory?${query}`
+      : `${ops}/warehouse/inventory?${query.toString()}`,
+  warehouseMovements: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/movements?${query}`
+      : `${ops}/warehouse/movements?${query.toString()}`,
+  warehouseStocktakes: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/stocktakes?${query}`
+      : `${ops}/warehouse/stocktakes?${query.toString()}`,
+  warehouseStocktakesCreate: `${ops}/warehouse/stocktakes`,
+  warehouseStocktake: (stocktakeId: string | number) =>
+    `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}`,
+  warehouseStocktakeScanPhoto: (stocktakeId: string | number) =>
+    `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/scan-photo`,
+  warehouseStocktakeLine: (stocktakeId: string | number, lineId: string | number) =>
+    `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/lines/${encodeURIComponent(String(lineId))}`,
+  warehouseStocktakeComplete: (stocktakeId: string | number) =>
+    `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/complete`,
+  warehouseStocktakeAdjust: (stocktakeId: string | number) =>
+    `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/adjust`,
+  warehouseStocktakeCancel: (stocktakeId: string | number) =>
+    `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/cancel`,
+  warehouseBins: `${ops}/warehouse/bins`,
+  warehouseBinsStock: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/bins/stock?${query}`
+      : `${ops}/warehouse/bins/stock?${query.toString()}`,
+  warehouseBinsStockInbound: `${ops}/warehouse/bins/stock/inbound`,
+  warehouseBinsStockMove: `${ops}/warehouse/bins/stock/move`,
+  warehouseTransfers: (query?: URLSearchParams | string) => {
+    if (query == null || query === '') return `${ops}/warehouse/transfers`;
+    const qs = typeof query === 'string' ? query : query.toString();
+    return qs ? `${ops}/warehouse/transfers?${qs}` : `${ops}/warehouse/transfers`;
+  },
+  warehouseTransferShip: (transferId: string | number) =>
+    `${ops}/warehouse/transfers/${encodeURIComponent(String(transferId))}/ship`,
+  warehouseTransferReceive: (transferId: string | number) =>
+    `${ops}/warehouse/transfers/${encodeURIComponent(String(transferId))}/receive`,
+  warehouseTransferCancel: (transferId: string | number) =>
+    `${ops}/warehouse/transfers/${encodeURIComponent(String(transferId))}/cancel`,
+  suppliersList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/suppliers?${query}`
+      : `${ops}/suppliers?${query.toString()}`,
+  suppliersListAll: `${ops}/suppliers?page=0&size=500`,
+  supplier: (supplierId: string) => `${ops}/suppliers/${encodeURIComponent(supplierId)}`,
+  suppliersPayables: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/suppliers/payables?${query}`
+      : `${ops}/suppliers/payables?${query.toString()}`,
+  suppliersPayablesSummary: `${ops}/suppliers/payables/summary`,
+  suppliersPayablePay: (payableId: string | number) =>
+    `${ops}/suppliers/payables/${encodeURIComponent(String(payableId))}/pay`,
+  purchaseOrders: `${ops}/purchase-orders`,
+  purchaseOrdersList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/purchase-orders?${query}`
+      : `${ops}/purchase-orders?${query.toString()}`,
+  purchaseOrdersReturnable: `${ops}/purchase-orders?returnableOnly=true&page=0&size=500`,
+  purchaseOrder: (purchaseOrderId: string | number) =>
+    `${ops}/purchase-orders/${encodeURIComponent(String(purchaseOrderId))}`,
+  purchaseOrderReview: (purchaseOrderId: string | number) =>
+    `${ops}/purchase-orders/${encodeURIComponent(String(purchaseOrderId))}/review`,
+  purchaseOrderReceive: (purchaseOrderId: string | number) =>
+    `${ops}/purchase-orders/${encodeURIComponent(String(purchaseOrderId))}/receive`,
+  purchaseReturns: `${ops}/purchase-returns`,
+  purchaseReturnsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/purchase-returns?${query}`
+      : `${ops}/purchase-returns?${query.toString()}`,
+  procurementSuggestions: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/procurement/suggestions?${query}`
+      : `${ops}/procurement/suggestions?${query.toString()}`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -256,5 +359,10 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/sku-vision',
   '/api/v2/ops/admin/replenishment/',
   '/api/v2/ops/admin/replenishment-report',
-  '/api/v2/ops/admin/expiry'
+  '/api/v2/ops/admin/expiry',
+  '/api/v2/ops/admin/warehouse',
+  '/api/v2/ops/admin/suppliers',
+  '/api/v2/ops/admin/purchase-orders',
+  '/api/v2/ops/admin/purchase-returns',
+  '/api/v2/ops/admin/procurement'
 ] as const;

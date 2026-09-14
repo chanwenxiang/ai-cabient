@@ -1,6 +1,7 @@
 import { reactive, ref, type Ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import { displayLabel } from '@aicabinet/shared-dict';
 
@@ -50,7 +51,7 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
     }
     deps.saving.value = true;
     try {
-      await api.request('/api/v2/ops/admin/warehouse/transfers', 'POST', {
+      await api.request(AdminEndpoints.warehouseTransfers(), 'POST', {
         fromWarehouseId: transferForm.fromWarehouseId,
         toWarehouseId: transferForm.toWarehouseId,
         notes: transferForm.notes,
@@ -74,21 +75,21 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
   }
 
   async function shipTransfer(row: WarehouseTransferRow) {
-    await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/ship`, 'POST');
+    await api.request(AdminEndpoints.warehouseTransferShip(row.transferId), 'POST');
     ElMessage.success('已发运');
     deps.loadedTabs.value.delete('transfers');
     await deps.loadTab('transfers', true);
   }
 
   async function receiveTransfer(row: WarehouseTransferRow) {
-    await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/receive`, 'POST');
+    await api.request(AdminEndpoints.warehouseTransferReceive(row.transferId), 'POST');
     ElMessage.success('已收货入库');
     deps.loadedTabs.value.delete('transfers');
     await deps.loadTab('transfers', true);
   }
 
   async function cancelTransfer(row: WarehouseTransferRow) {
-    await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/cancel`, 'POST');
+    await api.request(AdminEndpoints.warehouseTransferCancel(row.transferId), 'POST');
     ElMessage.success(displayLabel('order_status', 'CANCELLED'));
     deps.loadedTabs.value.delete('transfers');
     await deps.loadTab('transfers', true);

@@ -1,6 +1,7 @@
 import { computed, type Ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useListCsv } from '@/composables/useListCsv';
 import { csvFileName } from '@/utils/csv';
 import { errorMessage } from '@/utils/error-message';
@@ -65,7 +66,7 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
         const warehouseId = (row['仓库编号'] || row.warehouseId || '').trim();
         const warehouseName = (row['仓库名称'] || row.warehouseName || '').trim();
         if (!warehouseId || !warehouseName) continue;
-        await api.request(`/api/v2/ops/admin/warehouse/${encodeURIComponent(warehouseId)}`, 'PUT', {
+        await api.request(AdminEndpoints.warehouseItem(warehouseId), 'PUT', {
           warehouseName,
           address: (row['地址'] || row.address || '').trim(),
           status: deps.statusCode(row['状态'] || row.status)
@@ -102,7 +103,7 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
         const supplierId = (row['供应商编号'] || row.supplierId || '').trim();
         const supplierName = (row['供应商'] || row.supplierName || '').trim();
         if (!supplierId || !supplierName) continue;
-        await api.request(`/api/v2/ops/admin/suppliers/${encodeURIComponent(supplierId)}`, 'PUT', {
+        await api.request(AdminEndpoints.supplier(supplierId), 'PUT', {
           supplierId,
           supplierName,
           contactName: (row['联系人'] || row.contactName || '').trim(),
@@ -297,7 +298,7 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
     };
     try {
       await downloadAuthFile(
-        `/api/v2/ops/admin/warehouse/export?tab=${encodeURIComponent(deps.tab.value)}`,
+        AdminEndpoints.warehouseExport(deps.tab.value),
         csvFileName(labels[deps.tab.value] || '仓库')
       );
       ElMessage.success('已导出');

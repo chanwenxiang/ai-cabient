@@ -1,6 +1,7 @@
 import { computed, reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
 import { errorMessage } from '@/utils/error-message';
 
@@ -99,7 +100,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     deps.saving.value = true;
     try {
       await api.request(
-        `/api/v2/ops/admin/warehouse/${encodeURIComponent(warehouseForm.warehouseId.trim())}`,
+        AdminEndpoints.warehouseItem(warehouseForm.warehouseId.trim()),
         'PUT',
         {
           warehouseName: warehouseForm.warehouseName.trim(),
@@ -139,7 +140,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     deps.saving.value = true;
     try {
       await api.request(
-        `/api/v2/ops/admin/suppliers/${encodeURIComponent(supplierForm.supplierId.trim())}`,
+        AdminEndpoints.supplier(supplierForm.supplierId.trim()),
         'PUT',
         {
           supplierId: supplierForm.supplierId.trim(),
@@ -176,7 +177,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     if (amountCents == null || amountCents <= 0) return ElMessage.warning('请输入付款金额');
     deps.saving.value = true;
     try {
-      await api.request(`/api/v2/ops/admin/suppliers/payables/${paymentForm.payableId}/pay`, 'POST', {
+      await api.request(AdminEndpoints.suppliersPayablePay(paymentForm.payableId), 'POST', {
         amountCents,
         notes: paymentForm.notes
       });
@@ -236,7 +237,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     }
     deps.saving.value = true;
     try {
-      await api.request('/api/v2/ops/admin/warehouse/inbound', 'POST', {
+      await api.request(AdminEndpoints.warehouseInbound, 'POST', {
         warehouseId: inboundForm.warehouseId,
         refNo: inboundForm.refNo,
         notes: inboundForm.notes,

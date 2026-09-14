@@ -1,6 +1,7 @@
 import { computed, reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 
 /** 仓储多 Tab 共用行（字段随业务表变化） */
@@ -99,7 +100,7 @@ export function useWarehouseBins(deps: UseWarehouseBinsDeps) {
     }
     deps.saving.value = true;
     try {
-      await api.request('/api/v2/ops/admin/warehouse/bins', 'PUT', {
+      await api.request(AdminEndpoints.warehouseBins, 'PUT', {
         warehouseId: binForm.warehouseId,
         binCode: binForm.binCode.trim(),
         binName: binForm.binName,
@@ -152,7 +153,7 @@ export function useWarehouseBins(deps: UseWarehouseBinsDeps) {
     }
     deps.saving.value = true;
     try {
-      await api.request('/api/v2/ops/admin/warehouse/bins/stock/inbound', 'POST', {
+      await api.request(AdminEndpoints.warehouseBinsStockInbound, 'POST', {
         warehouseId: binInboundForm.warehouseId,
         binCode: binInboundForm.binCode,
         skuId: binInboundForm.skuId,
@@ -202,7 +203,7 @@ export function useWarehouseBins(deps: UseWarehouseBinsDeps) {
     }
     deps.saving.value = true;
     try {
-      await api.request('/api/v2/ops/admin/warehouse/bins/stock/move', 'POST', {
+      await api.request(AdminEndpoints.warehouseBinsStockMove, 'POST', {
         fromBinId: binMoveForm.fromBinId,
         toBinId: binMoveForm.toBinId,
         skuId: binMoveForm.skuId,

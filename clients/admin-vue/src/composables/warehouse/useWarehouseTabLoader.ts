@@ -91,7 +91,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     });
     if (deps.keyword.value.trim()) q.set('q', deps.keyword.value.trim());
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/warehouse/list?${q}`,
+      AdminEndpoints.warehouseList(q),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadWarehouses')) return;
@@ -106,7 +106,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     const seq = deps.loadSeq.begin('loadWarehousesSoft');
     try {
       const data = await api.request<{ items: WarehouseTabRow[] }>(
-        '/api/v2/ops/admin/warehouse/list?page=0&size=500',
+        AdminEndpoints.warehouseListAll,
         'GET'
       );
       if (!deps.loadSeq.isCurrent(seq, 'loadWarehousesSoft')) return;
@@ -125,7 +125,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     });
     if (deps.keyword.value.trim()) q.set('q', deps.keyword.value.trim());
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/suppliers?${q}`,
+      AdminEndpoints.suppliersList(q),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadSuppliers')) return;
@@ -140,7 +140,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     const seq = deps.loadSeq.begin('loadSuppliersSoft');
     try {
       const data = await api.request<{ items: WarehouseTabRow[] }>(
-        '/api/v2/ops/admin/suppliers?page=0&size=500',
+        AdminEndpoints.suppliersListAll,
         'GET'
       );
       if (!deps.loadSeq.isCurrent(seq, 'loadSuppliersSoft')) return;
@@ -156,7 +156,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     const q = warehouseListParams();
     if (deps.hideTestPurchaseOrders.value) q.set('excludeTestRef', 'true');
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/purchase-orders?${q}`,
+      AdminEndpoints.purchaseOrdersList(q),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadPurchase')) return;
@@ -173,7 +173,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
       const items =
         (
           await api.request<{ items: WarehouseTabRow[] }>(
-            '/api/v2/ops/admin/purchase-orders?returnableOnly=true&page=0&size=500',
+            AdminEndpoints.purchaseOrdersReturnable,
             'GET'
           )
         ).items || [];
@@ -194,7 +194,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     if (deps.keyword.value.trim()) q.set('q', deps.keyword.value.trim());
     if (deps.filterWarehouseId.value) q.set('warehouseId', deps.filterWarehouseId.value);
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/purchase-returns?${q}`,
+      AdminEndpoints.purchaseReturnsList(q),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadReturns')) return;
@@ -208,7 +208,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
   async function loadOutbounds() {
     const seq = deps.loadSeq.begin('loadOutbounds');
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/warehouse/outbounds?${warehouseListParams()}`,
+      AdminEndpoints.warehouseOutbounds(warehouseListParams()),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadOutbounds')) return;
@@ -227,7 +227,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     });
     if (deps.focusDeviceId.value) q.set('deviceId', deps.focusDeviceId.value);
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/warehouse/in-transit?${q}`,
+      AdminEndpoints.warehouseInTransit(q),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadTransit')) return;
@@ -241,7 +241,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
   async function loadInventory() {
     const seq = deps.loadSeq.begin('loadInventory');
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/warehouse/inventory?${warehouseListParams()}`,
+      AdminEndpoints.warehouseInventory(warehouseListParams()),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadInventory')) return;
@@ -255,7 +255,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
   async function loadMovements() {
     const seq = deps.loadSeq.begin('loadMovements');
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/warehouse/movements?${warehouseListParams()}`,
+      AdminEndpoints.warehouseMovements(warehouseListParams()),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadMovements')) return;
@@ -282,7 +282,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
       params.set('warehouseId', deps.filterWarehouseId.value);
     }
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/procurement/suggestions?${params}`,
+      AdminEndpoints.procurementSuggestions(params),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadSuggestions')) return;
@@ -302,7 +302,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     if (deps.payableStatusFilter.value) params.set('status', deps.payableStatusFilter.value);
     if (deps.payableOverdueOnly.value) params.set('overdueOnly', 'true');
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/suppliers/payables?${params}`,
+      AdminEndpoints.suppliersPayables(params),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadPayables')) return;
@@ -316,7 +316,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
   async function loadPayableSummary() {
     const seq = deps.loadSeq.begin('loadPayableSummary');
     const rows = await api
-      .request<WarehouseTabRow[]>('/api/v2/ops/admin/suppliers/payables/summary', 'GET')
+      .request<WarehouseTabRow[]>(AdminEndpoints.suppliersPayablesSummary, 'GET')
       .catch(() => []);
     if (!deps.loadSeq.isCurrent(seq, 'loadPayableSummary')) return;
     deps.payableSummary.value = rows;
@@ -331,7 +331,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     if (deps.stocktakeStatusFilter.value) params.set('status', deps.stocktakeStatusFilter.value);
     if (deps.filterWarehouseId.value) params.set('warehouseId', deps.filterWarehouseId.value);
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/warehouse/stocktakes?${params}`,
+      AdminEndpoints.warehouseStocktakes(params),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadStocktakes')) return;
@@ -344,7 +344,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
 
   async function loadBins() {
     const seq = deps.loadSeq.begin('loadBins');
-    const rows = await api.request<WarehouseTabRow[]>('/api/v2/ops/admin/warehouse/bins', 'GET');
+    const rows = await api.request<WarehouseTabRow[]>(AdminEndpoints.warehouseBins, 'GET');
     if (!deps.loadSeq.isCurrent(seq, 'loadBins')) return;
     deps.bins.value = rows;
   }
@@ -358,7 +358,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     if (deps.filterWarehouseId.value) params.set('warehouseId', deps.filterWarehouseId.value);
     if (deps.filterBinId.value != null) params.set('binId', String(deps.filterBinId.value));
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/warehouse/bins/stock?${params}`,
+      AdminEndpoints.warehouseBinsStock(params),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadBinStock')) return;
@@ -376,7 +376,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
       size: String(deps.size.value)
     });
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      `/api/v2/ops/admin/warehouse/transfers?${q}`,
+      AdminEndpoints.warehouseTransfers(q),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadTransfers')) return;

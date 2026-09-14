@@ -1,6 +1,7 @@
 import { reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api, authFetch } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 
 /** 仓储多 Tab 共用行（字段随业务表变化） */
@@ -44,7 +45,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     if (!stocktakeForm.warehouseId) return ElMessage.warning('请选择仓库');
     deps.saving.value = true;
     try {
-      await api.request('/api/v2/ops/admin/warehouse/stocktakes', 'POST', {
+      await api.request(AdminEndpoints.warehouseStocktakesCreate, 'POST', {
         warehouseId: stocktakeForm.warehouseId,
         mode: stocktakeForm.mode,
         notes: stocktakeForm.notes
@@ -63,7 +64,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
   async function openStocktakeDetail(row: WarehouseStocktakeRow) {
     try {
       stocktakeDetail.value = await api.request<WarehouseStocktakeRow>(
-        `/api/v2/ops/admin/warehouse/stocktakes/${row.stocktakeId}`,
+        AdminEndpoints.warehouseStocktake(row.stocktakeId),
         'GET'
       );
       stocktakeDetailDialog.value = true;
@@ -88,7 +89,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
       const form = new FormData();
       form.append('file', file);
       const res = await authFetch(
-        `${base}/api/v2/ops/admin/warehouse/stocktakes/${stocktakeDetail.value.stocktakeId}/scan-photo`,
+        `${base}${AdminEndpoints.warehouseStocktakeScanPhoto(stocktakeDetail.value.stocktakeId)}`,
         {
           method: 'POST',
           body: form
@@ -113,7 +114,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     const id = stocktakeDetail.value.stocktakeId;
     if (!id) return;
     stocktakeDetail.value = await api.request<WarehouseStocktakeRow>(
-      `/api/v2/ops/admin/warehouse/stocktakes/${id}`,
+      AdminEndpoints.warehouseStocktake(id),
       'GET'
     );
     deps.loadedTabs.value.delete('stocktakes');
@@ -129,7 +130,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
         lines
           .filter((l) => l.countedQty != null)
           .map((l) =>
-            api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/lines/${l.lineId}`, 'PUT', {
+            api.request(AdminEndpoints.warehouseStocktakeLine(id, l.lineId), 'PUT', {
               countedQty: l.countedQty,
               notes: l.notes
             })
@@ -148,7 +149,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     const id = stocktakeDetail.value.stocktakeId;
     deps.saving.value = true;
     try {
-      await api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/complete`, 'POST');
+      await api.request(AdminEndpoints.warehouseStocktakeComplete(id), 'POST');
       ElMessage.success('盘点已完成');
       await reloadStocktakeDetail();
     } catch (e) {
@@ -162,7 +163,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     const id = stocktakeDetail.value.stocktakeId;
     deps.saving.value = true;
     try {
-      await api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/adjust`, 'POST', {});
+      await api.request(AdminEndpoints.warehouseStocktakeAdjust(id), 'POST', {});
       ElMessage.success('差异已调整入库');
       await reloadStocktakeDetail();
     } catch (e) {
@@ -176,7 +177,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     const id = stocktakeDetail.value.stocktakeId;
     deps.saving.value = true;
     try {
-      await api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/cancel`, 'POST');
+      await api.request(AdminEndpoints.warehouseStocktakeCancel(id), 'POST');
       ElMessage.success('盘点单已取消');
       await reloadStocktakeDetail();
     } catch (e) {

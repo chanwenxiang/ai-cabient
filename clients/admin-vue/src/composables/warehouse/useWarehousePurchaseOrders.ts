@@ -1,6 +1,7 @@
 import { nextTick, reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
 import { errorMessage } from '@/utils/error-message';
 import { adminDevWarn } from '@/utils/admin-dev-log';
@@ -258,7 +259,7 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
           unitCostCents: yuanToCents(l.unitCostYuan) ?? 0
         }))
       };
-      await api.request('/api/v2/ops/admin/purchase-orders', 'POST', body);
+      await api.request(AdminEndpoints.purchaseOrders, 'POST', body);
       purchaseDialog.value = false;
       deps.tab.value = 'purchase';
       ElMessage.success('采购单已提交审批');
@@ -284,7 +285,7 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
     }
     try {
       const updated = await api.request<WarehousePurchaseRow>(
-        `/api/v2/ops/admin/purchase-orders/${row.purchaseOrderId}/review`,
+        AdminEndpoints.purchaseOrderReview(row.purchaseOrderId),
         'POST',
         {
           approve,
@@ -325,7 +326,7 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
         appendTo: document.body
       });
       await api.request(
-        `/api/v2/ops/admin/purchase-orders/${receiveForm.purchaseOrderId}/receive`,
+        AdminEndpoints.purchaseOrderReceive(receiveForm.purchaseOrderId),
         'POST',
         {
           lines: receiveForm.lines,
@@ -407,7 +408,7 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
         type: 'warning',
         appendTo: document.body
       });
-      await api.request('/api/v2/ops/admin/purchase-returns', 'POST', {
+      await api.request(AdminEndpoints.purchaseReturns, 'POST', {
         purchaseOrderId: returnForm.purchaseOrderId,
         notes: returnForm.notes,
         lines: lines.map((l: WarehousePurchaseRow) => ({
