@@ -1144,7 +1144,7 @@ async function fetchAllMerchants(): Promise<MerchantDto[]> {
   while (all.length < serverTotal) {
     const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
     const data = await api.request<PageResult<MerchantDto>>(
-      `/api/v2/ops/admin/merchants?${q}`,
+      AdminEndpoints.merchantsList(q),
       'GET'
     );
     const batch = data.items || [];
@@ -1166,7 +1166,7 @@ async function loadMerchantsTab() {
     });
     if (merchantKeyword.value.trim()) q.set('q', merchantKeyword.value.trim());
     const data = await api.request<PageResult<MerchantDto>>(
-      `/api/v2/ops/admin/merchants?${q}`,
+      AdminEndpoints.merchantsList(q),
       'GET'
     );
     merchantTabItems.value = sortById(data.items || [], 'merchantId');
@@ -1204,7 +1204,7 @@ async function loadStatus() {
   loadingStatus.value = true;
   try {
     psStatus.value = await api.request<ProfitSharingStatus>(
-      '/api/v2/ops/admin/merchants/profit-sharing/status',
+      AdminEndpoints.merchantsProfitSharingStatus,
       'GET'
     );
   } catch {
@@ -1233,7 +1233,7 @@ async function loadSplits() {
     if (status.value) q.set('status', status.value);
     if (splitMerchantId.value.trim()) q.set('merchantId', splitMerchantId.value.trim());
     const data = await api.request<PageResult<RevenueSplit>>(
-      `/api/v2/ops/admin/merchants/revenue-splits?${q}`,
+      AdminEndpoints.merchantsRevenueSplits(q),
       'GET'
     );
     splits.value = data.items || [];
@@ -1292,7 +1292,7 @@ async function loadRoleTemplates() {
   const seq = loadSeq.begin('loadRoleTemplates');
   try {
     roleTemplates.value = await api.request<MerchantRoleTemplate[]>(
-      '/api/v2/ops/admin/merchant-role-templates',
+      AdminEndpoints.merchantRoleTemplates,
       'GET'
     );
   } catch {
@@ -1311,7 +1311,7 @@ async function loadOpsConfig() {
   opsConfigLoading.value = true;
   try {
     opsConfig.value = await api.request<MerchantOpsConfig>(
-      `/api/v2/ops/admin/merchants/${encodeURIComponent(opsConfigMerchantId.value)}/ops-config`,
+      AdminEndpoints.merchantOpsConfig(opsConfigMerchantId.value),
       'GET'
     );
   } catch (e) {
@@ -1328,7 +1328,7 @@ async function saveOpsConfig() {
   savingOpsConfig.value = true;
   try {
     opsConfig.value = await api.request<MerchantOpsConfig>(
-      `/api/v2/ops/admin/merchants/${encodeURIComponent(opsConfigMerchantId.value)}/ops-config`,
+      AdminEndpoints.merchantOpsConfig(opsConfigMerchantId.value),
       'PUT',
       opsConfig.value
     );
@@ -1380,7 +1380,7 @@ async function confirmLedger(row: RevenueSplit) {
     );
     acting.value = true;
     await api.request(
-      `/api/v2/ops/admin/merchants/revenue-splits/${encodeURIComponent(row.splitId)}/confirm-ledger`,
+      AdminEndpoints.merchantRevenueSplitConfirmLedger(row.splitId),
       'POST',
       { reason: String(value).trim() }
     );
@@ -1413,7 +1413,7 @@ async function batchConfirmLedger() {
   try {
     for (const row of rows) {
       await api.request(
-        `/api/v2/ops/admin/merchants/revenue-splits/${encodeURIComponent(row.splitId)}/confirm-ledger`,
+        AdminEndpoints.merchantRevenueSplitConfirmLedger(row.splitId),
         'POST',
         { reason: '批量确认仅记账完结' }
       );
@@ -1440,7 +1440,7 @@ async function confirmSubmit() {
       ? { wxTransactionId: wxTransactionId.value.trim() }
       : {};
     await api.request(
-      `/api/v2/ops/admin/merchants/revenue-splits/${encodeURIComponent(current.value.splitId)}/wechat-submit`,
+      AdminEndpoints.merchantRevenueSplitWechatSubmit(current.value.splitId),
       'POST',
       body
     );
@@ -1458,7 +1458,7 @@ async function doRefresh(row: RevenueSplit) {
   acting.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/merchants/revenue-splits/${encodeURIComponent(row.splitId)}/wechat-refresh`,
+      AdminEndpoints.merchantRevenueSplitWechatRefresh(row.splitId),
       'POST'
     );
     ElMessage.success('已刷新状态');
@@ -1477,7 +1477,7 @@ async function toggleFlag(
 ) {
   if (!canEdit.value) return;
   try {
-    await api.request('/api/v2/ops/admin/merchants', 'POST', {
+    await api.request(AdminEndpoints.merchants, 'POST', {
       merchantId: row.merchantId,
       merchantName: row.merchantName,
       contactPhone: row.contactPhone,
@@ -1537,7 +1537,7 @@ async function saveOrg() {
   orgSaving.value = true;
   try {
     const existing = merchants.value.find((m) => m.merchantId === f.merchantId.trim());
-    await api.request('/api/v2/ops/admin/merchants', 'POST', {
+    await api.request(AdminEndpoints.merchants, 'POST', {
       merchantId: f.merchantId.trim(),
       merchantName: f.merchantName.trim(),
       contactPhone: f.contactPhone.trim() || null,

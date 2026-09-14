@@ -1078,7 +1078,7 @@ async function load(showToast = false) {
 async function loadMerchants() {
   try {
     const data = await api.request<{ items?: MerchantOption[] }>(
-      '/api/v2/ops/admin/merchants?page=0&size=500',
+      AdminEndpoints.merchantsList('page=0&size=500'),
       'GET'
     );
     merchantOptions.value = data.items || [];

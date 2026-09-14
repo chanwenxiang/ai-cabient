@@ -827,7 +827,7 @@ async function loadMerchants() {
   const seq = loadSeq.begin('loadMerchants');
   try {
     const data = await api.request<{ items?: MerchantRow[] }>(
-      '/api/v2/ops/admin/merchants?page=0&size=500',
+      AdminEndpoints.merchantsList('page=0&size=500'),
       'GET'
     );
     merchants.value = data.items || [];

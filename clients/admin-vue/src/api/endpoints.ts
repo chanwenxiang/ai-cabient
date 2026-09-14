@@ -124,7 +124,28 @@ export const AdminEndpoints = {
   deviceSlotsApplyTemplate: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/slots/apply-template`,
   deviceSlotsStocktake: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/slots/stocktake`
+    `${ops}/devices/${encodeURIComponent(deviceId)}/slots/stocktake`,
+
+  /** 商户 / 分账 */
+  merchants: `${ops}/merchants`,
+  merchantsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/merchants?${query}`
+      : `${ops}/merchants?${query.toString()}`,
+  merchantsProfitSharingStatus: `${ops}/merchants/profit-sharing/status`,
+  merchantsRevenueSplits: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/merchants/revenue-splits?${query}`
+      : `${ops}/merchants/revenue-splits?${query.toString()}`,
+  merchantOpsConfig: (merchantId: string) =>
+    `${ops}/merchants/${encodeURIComponent(merchantId)}/ops-config`,
+  merchantRevenueSplitConfirmLedger: (splitId: string) =>
+    `${ops}/merchants/revenue-splits/${encodeURIComponent(splitId)}/confirm-ledger`,
+  merchantRevenueSplitWechatSubmit: (splitId: string) =>
+    `${ops}/merchants/revenue-splits/${encodeURIComponent(splitId)}/wechat-submit`,
+  merchantRevenueSplitWechatRefresh: (splitId: string) =>
+    `${ops}/merchants/revenue-splits/${encodeURIComponent(splitId)}/wechat-refresh`,
+  merchantRoleTemplates: `${ops}/merchant-role-templates`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -140,5 +161,6 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/devices',
   '/api/v2/ops/admin/exceptions',
   '/api/v2/ops/admin/orders',
-  '/api/v2/ops/admin/sessions'
+  '/api/v2/ops/admin/sessions',
+  '/api/v2/ops/admin/merchants'
 ] as const;

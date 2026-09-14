@@ -218,7 +218,7 @@ async function searchRecords(q: string) {
     ),
     take<{ merchantId?: string; merchantName?: string }>(
       'ops:merchant:list',
-      `/api/v2/ops/admin/merchants?page=0&size=5&q=${encodeURIComponent(q)}`,
+      AdminEndpoints.merchantsList(`page=0&size=5&q=${encodeURIComponent(q)}`),
       (items) =>
         items.slice(0, 5).map((m) => ({
           type: 'merchant',
