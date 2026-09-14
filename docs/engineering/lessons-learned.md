@@ -49,6 +49,7 @@
 | 42 | trade 日志 | 门事件日志难按用户/柜机检索 | 多数只打 sessionId | 关键路径用 `SessionLogContext.of(session)` | `SessionDoorService` |
 | 43 | trade 纠纷 | 工单状态守卫散落字符串易漂移 | OPEN/RESOLVED/CLOSED 比较分散 | 统一 `DisputeTicketTransitions` + 单测 | `DisputeService` |
 | 44 | trade 会话 | 超时/运维直接 `setState` 绕过状态机 | `canTransitionTo` 边不全 + 旁路写 | 扩合法边；已有实体只走 `SessionService.transition` | `SessionState`、`Session*Service` |
+| 45 | Kafka 消费 | 高峰易 rebalance / 一次拉太多 | 未限 `max.poll.records` | trade/vision 显式 `max-poll-records`（默认 50/20）+ poll/session 超时 | `application.yml`、`kafka_worker.py` |
 
 ## 追加模板
 

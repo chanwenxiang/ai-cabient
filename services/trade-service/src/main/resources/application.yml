@@ -31,7 +31,13 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
     consumer:
       group-id: trade-service
+      # 新消费组从最早可读位点开始，便于本地/灾备重建后重放未处理结果；已有组仍按提交偏移续读
       auto-offset-reset: earliest
+      # S-P2-8：限制单次 poll 批量，避免处理过慢触发 rebalance
+      max-poll-records: ${KAFKA_MAX_POLL_RECORDS:50}
+      properties:
+        max.poll.interval.ms: ${KAFKA_MAX_POLL_INTERVAL_MS:300000}
+        session.timeout.ms: ${KAFKA_SESSION_TIMEOUT_MS:45000}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer

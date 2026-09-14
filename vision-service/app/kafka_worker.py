@@ -17,6 +17,9 @@ REQUEST_DLT_TOPIC = os.getenv(
 )
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
 RECOGNIZE_TIMEOUT_MS = int(os.getenv("RECOGNIZE_TIMEOUT_MS", "30000"))
+MAX_POLL_RECORDS = int(os.getenv("KAFKA_MAX_POLL_RECORDS", "20"))
+MAX_POLL_INTERVAL_MS = int(os.getenv("KAFKA_MAX_POLL_INTERVAL_MS", "300000"))
+SESSION_TIMEOUT_MS = int(os.getenv("KAFKA_SESSION_TIMEOUT_MS", "45000"))
 
 
 def _need_review_payload(session_id: str, task_id: str, reason: str) -> dict:
@@ -91,6 +94,9 @@ def start_kafka_worker(recognizer) -> threading.Thread | None:
             group_id="vision-service",
             auto_offset_reset="earliest",
             enable_auto_commit=False,
+            max_poll_records=max(1, MAX_POLL_RECORDS),
+            max_poll_interval_ms=max(1000, MAX_POLL_INTERVAL_MS),
+            session_timeout_ms=max(1000, SESSION_TIMEOUT_MS),
             value_deserializer=_decode,
         )
         producer = KafkaProducer(
@@ -98,12 +104,13 @@ def start_kafka_worker(recognizer) -> threading.Thread | None:
             value_serializer=_encode,
         )
         log.info(
-            "kafka worker started bootstrap=%s request=%s result=%s dlt=%s timeoutMs=%s",
+            "kafka worker started bootstrap=%s request=%s result=%s dlt=%s timeoutMs=%s maxPollRecords=%s",
             BOOTSTRAP,
             REQUEST_TOPIC,
             RESULT_TOPIC,
             REQUEST_DLT_TOPIC,
             RECOGNIZE_TIMEOUT_MS,
+            MAX_POLL_RECORDS,
         )
 
         for message in consumer:
