@@ -243,6 +243,7 @@ import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -414,11 +415,11 @@ async function load() {
     if (status.value) q.set('status', status.value);
     const [list, h] = await Promise.all([
       api.request<OnboardRow[] | { items: OnboardRow[]; total: number }>(
-        `/api/v2/ops/admin/merchant-onboarding?${q}`,
+        AdminEndpoints.merchantOnboardingList(q),
         'GET'
       ),
       api
-        .request<Record<string, any>>('/api/v2/ops/admin/merchant-onboarding/live-hints', 'GET')
+        .request<Record<string, any>>(AdminEndpoints.merchantOnboardingLiveHints, 'GET')
         .catch(() => null)
     ]);
     const pageData = normalizeListPage(list);
@@ -500,9 +501,9 @@ async function save() {
       note: form.note
     };
     if (form.onboardingId) {
-      await api.request(`/api/v2/ops/admin/merchant-onboarding/${form.onboardingId}`, 'PUT', body);
+      await api.request(AdminEndpoints.merchantOnboardingItem(form.onboardingId), 'PUT', body);
     } else {
-      await api.request('/api/v2/ops/admin/merchant-onboarding', 'POST', body);
+      await api.request(AdminEndpoints.merchantOnboarding, 'POST', body);
     }
     ElMessage.success(form.status === 'SUBMITTED' ? '已提交审批' : '已保存');
     dlg.value = false;
@@ -527,7 +528,7 @@ async function review(row: OnboardRow, approve: boolean) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/merchant-onboarding/${row.onboardingId}/review`, 'POST', {
+    await api.request(AdminEndpoints.merchantOnboardingReview(row.onboardingId), 'POST', {
       approve,
       remark: approve ? '审批通过' : '审批驳回'
     });
@@ -566,7 +567,7 @@ async function batchReview(approve: boolean) {
     for (const row of targets) {
       try {
         await api.request(
-          `/api/v2/ops/admin/merchant-onboarding/${row.onboardingId}/review`,
+          AdminEndpoints.merchantOnboardingReview(row.onboardingId),
           'POST',
           {
             approve,

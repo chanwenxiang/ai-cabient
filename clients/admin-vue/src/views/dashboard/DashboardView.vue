@@ -731,7 +731,7 @@ async function loadOnboardPending() {
   try {
     const data = await api.request<
       { status?: string }[] | { items?: { status?: string }[]; total?: number }
-    >('/api/v2/ops/admin/merchant-onboarding?status=SUBMITTED&page=0&size=1', 'GET');
+    >(AdminEndpoints.merchantOnboardingSubmittedCount, 'GET');
     const pageData = normalizeListPage(data);
     onboardPending.value = pageData.total;
   } catch {
