@@ -121,7 +121,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { showError } from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { consumerApi, isConsumerLoggedIn, requireConsumerAuth } from '@/utils/consumer-api';
 import {
@@ -463,7 +463,7 @@ function copySupportEmail() {
   if (!email) return;
   uni.setClipboardData({
     data: email,
-    success: () => showError('邮箱已复制'),
+    success: () => showSuccess('邮箱已复制'),
     fail: () => showError(email)
   });
 }

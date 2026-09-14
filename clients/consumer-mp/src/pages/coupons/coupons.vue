@@ -36,10 +36,14 @@
       </empty-state>
       <view v-else>
         <view
-          v-for="c in list"
+          v-for="c in displayList"
           :key="c.couponId"
           class="coupon-card"
-          :class="{ expired: c.status === 'EXPIRED', used: c.status === 'USED' }"
+          :class="{
+            expired: c.status === 'EXPIRED',
+            used: c.status === 'USED',
+            preferred: preferredId === c.couponId
+          }"
         >
           <view class="coupon-left">
             <text class="coupon-amount">{{ fmtMoney(c.denominationCents) }}</text>
@@ -78,7 +82,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth, type CouponDto } from '@/utils/consumer-api';
 import { formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
@@ -96,6 +100,19 @@ const loading = ref(false);
 const loadError = ref('');
 const list = ref<CouponDto[]>([]);
 const preferredId = ref<number | null>(null);
+/** 消息中心深链：进入后高亮优先券 */
+const fromMsg = ref(false);
+
+onLoad((opts) => {
+  const q = (opts || {}) as Record<string, string | undefined>;
+  const tab = String(q.tab || '')
+    .trim()
+    .toUpperCase();
+  if (tab === 'UNUSED' || tab === 'USED' || tab === 'EXPIRED') {
+    activeTab.value = tab;
+  }
+  fromMsg.value = q.fromMsg === '1' || q.fromMsg === 'true';
+});
 
 const emptyTitle = computed(() => {
   if (activeTab.value === 'UNUSED') return '暂无未使用优惠券';
@@ -109,6 +126,19 @@ const emptyHint = computed(() =>
     : '可先去逛逛热门活动，或扫码购物后领取优惠券'
 );
 
+/** 优先券置顶，便于消息深链落地即看见 */
+const displayList = computed(() => {
+  const rows = list.value.slice();
+  const pid = preferredId.value;
+  if (!pid) return rows;
+  rows.sort((a, b) => {
+    if (a.couponId === pid) return -1;
+    if (b.couponId === pid) return 1;
+    return 0;
+  });
+  return rows;
+});
+
 onShow(async () => {
   const raw = uni.getStorageSync('preferred_coupon_id');
   const n = Number(raw);
@@ -120,6 +150,9 @@ onShow(async () => {
     return;
   }
   await load();
+  if (fromMsg.value && preferredId.value) {
+    fromMsg.value = false;
+  }
 });
 watch(activeTab, () => load());
 
@@ -207,7 +240,11 @@ function pickForNextOpen(c: CouponDto) {
   border-radius: var(--radius-panel);
   margin-bottom: 16rpx;
   overflow: hidden;
+  border: 2rpx solid transparent;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+}
+.coupon-card.preferred {
+  border-color: var(--brand, #0f766e);
 }
 .coupon-card.expired,
 .coupon-card.used {
