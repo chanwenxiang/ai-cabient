@@ -1,4 +1,7 @@
 import type { LoginResponse } from '@aicabinet/shared-types';
+/** 当前对外 HTTP API 主版本（与后端 ApiVersions.CURRENT 对齐）。 */
+export declare const API_VERSION: "v2";
+export declare const API_PREFIX: "/api/v2";
 export type HttpAdapter = (input: {
     url: string;
     method: string;

@@ -246,7 +246,7 @@
 | S-P2-7 | 中 | `ScheduledTaskXxlJobHandler` | ~~时区/cron 散落~~ → `ScheduleZones` + `aicabinet.schedule.zone`；缺 zone 的 `@Scheduled(cron)` 已补；XXL 种子 cron 表对齐 |
 | S-P2-8 | 中 | `kafka` 配置 | `auto-offset-reset: earliest` + 无显式 max.poll.records；高吞吐下有 rebalance 风险 |
 | S-P2-9 | 中 | 日志 | 部分关键 Service 仅 `log.info`，缺结构化字段（sessionId、userId、deviceId） |
-| S-P2-10 | 中 | API 版本 | URL 强绑定 `/api/v2/...`，无版本兼容策略（v2 ↔ v3 灰度） |
+| S-P2-10 | 中 | API 版本 | ~~无版本策略~~ → `ApiVersions` + `ApiVersionInterceptor`（响应 `X-Api-Version`；未支持主版本 410）；shared-api 导出 `API_VERSION` |
 | S-P2-11 | 中 | `ProductionStartupValidator` | **已实现** prod/staging 拒绝默认 JWT/INTERNAL/VISION key、mock 支付等；残余风险是误用非严格 profile 或漏挂该 Bean 的环境 | 部署门禁必须强制 `prod`/`staging` profile |
 
 ### 4.3 核心业务链路：开门 → 识别 → 扣款 → 订单 → 结算
@@ -463,6 +463,7 @@
 - [x] S-P2-3（再续）：温湿度历史 `LIMIT`（按小时×30，硬顶 5000）；争议/反馈/发票/库存流水列表加上限；对账日窗全量 ID 仍按日口径保留
 - [x] S-P2-4：`CacheNames` 统一前缀与 TTL 档位；`AdminDashboardController` 读写均走常量；`CacheService` 默认 TTL 对齐 `TTL_DEFAULT_MS`
 - [x] S-P2-7：`ScheduleZones`（Asia/Shanghai）+ `aicabinet.schedule.zone`；对账/券/SLA/KPI/佣金/毛利 cron 显式 zone；XXL 推荐 cron 与 seed 对齐；运营台 scheduleDesc 带时区
+- [x] S-P2-10：`ApiVersions`（当前 v2）+ 拦截器响应头 / 未支持版本 410；`shared-api` 导出 `API_VERSION`/`API_PREFIX` 并带请求头；破坏性变更开 v3 灰度（未开路由）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）
