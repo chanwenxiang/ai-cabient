@@ -126,6 +126,7 @@ import { computed, onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -193,7 +194,7 @@ async function load() {
   loading.value = true;
   try {
     list.value = await api.request<StaffRow[]>(
-      `/api/v2/ops/admin/replenishment-report/staff?days=${days.value}`
+      AdminEndpoints.replenishmentReportStaff(days.value)
     );
     clearSelection();
   } catch (e) {

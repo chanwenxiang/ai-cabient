@@ -276,6 +276,7 @@ import { Box, Delete, Refresh, Remove, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
@@ -428,12 +429,12 @@ async function createPullOff(row: StockHealthRow) {
   }
   try {
     const task = await api.request<{ taskId: number }>(
-      '/api/v2/ops/admin/expiry/alerts/ensure',
+      AdminEndpoints.expiryAlertsEnsure,
       'POST',
       { lotId: row.lotId }
     );
     await api.request(
-      `/api/v2/ops/admin/expiry/alerts/${task.taskId}/create-replenishment`,
+      AdminEndpoints.expiryAlertCreateReplenishment(task.taskId),
       'POST',
       { lineType: 'PULL_OFF' }
     );
