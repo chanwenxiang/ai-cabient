@@ -29,7 +29,37 @@ export const AdminEndpoints = {
   devicesRef: `${ops}/devices/ref`,
   trend: (days: number) => `${ops}/trend?days=${days}`,
   trendOps: (days: number) => `${ops}/trend/ops?days=${days}`,
-  trendChannels: (days: number) => `${ops}/trend/channels?days=${days}`
+  trendChannels: (days: number) => `${ops}/trend/channels?days=${days}`,
+
+  /** 异常中心（列表 / 详情 / 动作） */
+  exceptions: `${ops}/exceptions`,
+  exceptionsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/exceptions?${query}`
+      : `${ops}/exceptions?${query.toString()}`,
+  exceptionsOpenCount: `${ops}/exceptions?status=OPEN&page=0&size=1`,
+  exception: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}`,
+  exceptionArchive: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/archive`,
+  exceptionUnarchive: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/unarchive`,
+  exceptionClaim: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/claim`,
+  exceptionResolve: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/resolve`,
+  exceptionNotes: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/notes`,
+  exceptionTransfer: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/transfer`,
+  exceptionCancelSession: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/cancel-session`,
+  exceptionResolveWithRepair: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/resolve-with-repair`,
+  exceptionRetry: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/retry`,
+  exceptionManualResolve: (exceptionId: string) =>
+    `${ops}/exceptions/${encodeURIComponent(exceptionId)}/manual-resolve`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -41,5 +71,6 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/sla',
   '/api/v2/ops/admin/finance/stats',
   '/api/v2/ops/admin/device-availability-kpi',
-  '/api/v2/ops/admin/devices/ref'
+  '/api/v2/ops/admin/devices/ref',
+  '/api/v2/ops/admin/exceptions'
 ] as const;
