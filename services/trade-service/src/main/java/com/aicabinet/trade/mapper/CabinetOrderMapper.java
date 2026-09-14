@@ -110,6 +110,20 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
         java.util.List<CabinetOrder> findByCreatedAtBetween(@Param("start") Instant start, @Param("end") Instant end);
 
+    /**
+     * 按柜机 + 时间窗拉订单（线长日佣等）；禁止在 Java 侧对全日全量订单再 filter deviceId。
+     */
+    default List<CabinetOrder> findByDeviceIdAndCreatedAtBetween(
+            String deviceId, Instant start, Instant end) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<CabinetOrder>lambdaQuery()
+                .eq(CabinetOrder::getDeviceId, deviceId)
+                .ge(CabinetOrder::getCreatedAt, start)
+                .lt(CabinetOrder::getCreatedAt, end));
+    }
+
 
     default Page<CabinetOrder> findByDeviceIdInOrderByCreatedAtDesc(Collection<String> deviceIds, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(

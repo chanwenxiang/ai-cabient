@@ -16,16 +16,6 @@
     <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
   </select>
 
-  <select id="searchByMerchantsAll" resultType="com.aicabinet.trade.domain.OrderRevenueSplit">
-    SELECT s.* FROM order_revenue_split s
-    WHERE s.merchant_id IN
-    <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
-    AND s.created_at &gt;= #{from}
-    AND s.created_at &lt; #{to}
-    AND (#{status} = '' OR s.status = #{status})
-    ORDER BY s.created_at DESC
-  </select>
-
   <select id="sumMerchantCentsByMerchantIdInAndStatusIn" resultType="long">
     SELECT COALESCE(SUM(s.merchant_cents), 0) FROM order_revenue_split s
     WHERE s.merchant_id IN

@@ -239,7 +239,7 @@
 |------|--------|------|------|
 | S-P2-1 | 中 | `SessionState` / `SessionService` | `SessionState.canTransitionTo` **已在 domain 枚举**；service 层仍可能散落额外判断，需统一只走 `canTransitionTo` |
 | S-P2-2 | 中 | `config/GlobalExceptionHandler.java` | 通用 `Exception.class` 处理器仅记 log.error；缺少 traceId、用户上下文、链路追踪 |
-| S-P2-3 | 中 | `mapper/**.xml` | 部分 mapper 缺分页/排序参数 → 大表全表扫描风险 |
+| S-P2-3 | 中 | `mapper/**.xml` | ~~部分 mapper 假分页/无界列表~~ → 已修分账 `searchByMerchants` + 线长日佣按 deviceId 拉单；复盘/温湿度等窗口扫描仍待跟进 |
 | S-P2-4 | 中 | 多 Service | 缓存（`@Cacheable`/`@CacheEvict`）使用零散，未做统一 cache name / TTL 配置 |
 | S-P2-5 | 中 | `VisionRecognitionListener.java` | Kafka 消费失败重试策略未显式（DLT topic？指数退避？） |
 | S-P2-6 | 中 | `service/DisputeService.java` | 纠纷状态机（OPEN → RESOLVED → CLOSED）转移缺单元测试覆盖 |
@@ -458,6 +458,7 @@
 - [x] S-P2-1：扩展 `SessionState.canTransitionTo`（超时/运维/重试/申诉边）；已有实体写路径统一 `SessionService.transition`（新建赋初态除外）
 - [x] S-P2-8：trade `max-poll-records` + poll/session 超时显式化；vision worker 同步 `max_poll_records` / interval / session（环境变量可调）
 - [x] A-P2-008（门禁）：`ResizableDrawer` 强制 `title`→`aria-label`；`check:admin-dialog-a11y` 校验 dialog/drawer 命名；全局搜索 dialog 补 `aria-label`（i18n 框架仍按项目约定前台中文，不强制）
+- [x] S-P2-3（首批）：`OrderRevenueSplitMapper.searchByMerchants` 改为 MyBatis-Plus `selectPage`（去掉全表+subList）；线长日佣改为 `findByDeviceIdAndCreatedAtBetween`（其余大表窗口扫描仍待跟进）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

@@ -112,8 +112,9 @@ public class LineCommissionJob {
                     manager.getManagerId(), bizDate, binding.getDeviceId()).isPresent()) {
                 return false;
             }
-            List<CabinetOrder> orders = orderMapper.findByCreatedAtBetween(start, end).stream()
-                    .filter(o -> binding.getDeviceId().equals(o.getDeviceId()))
+            List<CabinetOrder> orders = orderMapper
+                    .findByDeviceIdAndCreatedAtBetween(binding.getDeviceId(), start, end)
+                    .stream()
                     .filter(o -> o.getStatus() != null && PAID_STATUSES.contains(o.getStatus().toUpperCase()))
                     .toList();
             if (orders.isEmpty()) {
