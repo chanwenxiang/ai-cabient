@@ -234,6 +234,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
@@ -338,7 +339,7 @@ async function load() {
       size: String(size.value)
     });
     const data = await api.request<{ items: MediaAssetDto[]; total: number }>(
-      `/api/v2/ops/admin/ad/assets?${q}`,
+      AdminEndpoints.adAssetsList(q),
       'GET'
     );
     rows.value = data.items || [];
@@ -395,7 +396,7 @@ async function doUploadFile(file: File) {
     fd.append('title', uploadForm.value.title.trim());
     fd.append('assetType', uploadForm.value.assetType);
     fd.append('durationSeconds', String(uploadForm.value.durationSeconds || 0));
-    const res = await authFetch(`${base}/api/v2/ops/admin/ad/assets`, {
+    const res = await authFetch(`${base}${AdminEndpoints.adAssets}`, {
       method: 'POST',
       body: fd
     });
@@ -427,7 +428,7 @@ function openEdit(row: MediaAssetDto) {
 async function saveEdit() {
   saving.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/ad/assets/${editForm.value.assetId}`, 'PUT', {
+    await api.request(AdminEndpoints.adAsset(editForm.value.assetId), 'PUT', {
       title: editForm.value.title.trim(),
       durationSeconds: editForm.value.durationSeconds,
       status: editForm.value.active ? 'ACTIVE' : 'INACTIVE'
@@ -453,7 +454,7 @@ async function removeAsset(row: MediaAssetDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/ad/assets/${row.assetId}`, 'DELETE');
+    await api.request(AdminEndpoints.adAsset(row.assetId), 'DELETE');
     ElMessage.success('已删除');
     await load();
   } catch (e) {
@@ -476,7 +477,7 @@ async function batchDelete() {
   }
   batchLoading.value = 'delete';
   const results = await Promise.allSettled(
-    targets.map((row) => api.request(`/api/v2/ops/admin/ad/assets/${row.assetId}`, 'DELETE'))
+    targets.map((row) => api.request(AdminEndpoints.adAsset(row.assetId), 'DELETE'))
   );
   batchLoading.value = '';
   const ok = results.filter((r) => r.status === 'fulfilled').length;
@@ -493,7 +494,7 @@ async function batchDeactivate() {
   batchLoading.value = 'deactivate';
   const results = await Promise.allSettled(
     targets.map((row) =>
-      api.request(`/api/v2/ops/admin/ad/assets/${row.assetId}`, 'PUT', {
+      api.request(AdminEndpoints.adAsset(row.assetId), 'PUT', {
         title: row.title,
         durationSeconds: row.durationSeconds,
         status: 'INACTIVE'

@@ -380,7 +380,7 @@ async function load() {
       size: String(size.value)
     });
     const data = await api.request<{ items: AdCampaignDto[]; total: number }>(
-      `/api/v2/ops/admin/ad/campaigns?${q}`,
+      AdminEndpoints.adCampaignsList(q),
       'GET'
     );
     rows.value = data.items || [];
@@ -405,7 +405,7 @@ async function loadAssets() {
   try {
     const q = new URLSearchParams({ page: '0', size: '500' });
     const data = await api.request<{ items: MediaAssetDto[] }>(
-      `/api/v2/ops/admin/ad/assets?${q}`,
+      AdminEndpoints.adAssetsList(q),
       'GET'
     );
     assets.value = data.items || [];
@@ -468,9 +468,9 @@ async function save() {
       deviceIds: form.value.deviceScope === 'SPECIFIC' ? form.value.deviceIds : []
     };
     if (editingId.value) {
-      await api.request(`/api/v2/ops/admin/ad/campaigns/${editingId.value}`, 'PUT', body);
+      await api.request(AdminEndpoints.adCampaign(editingId.value), 'PUT', body);
     } else {
-      await api.request('/api/v2/ops/admin/ad/campaigns', 'POST', body);
+      await api.request(AdminEndpoints.adCampaigns, 'POST', body);
     }
     ElMessage.success('已保存');
     dialogVisible.value = false;
@@ -484,7 +484,7 @@ async function save() {
 
 async function launch(row: AdCampaignDto) {
   try {
-    await api.request(`/api/v2/ops/admin/ad/campaigns/${row.campaignId}/launch`, 'POST');
+    await api.request(AdminEndpoints.adCampaignLaunch(row.campaignId), 'POST');
     ElMessage.success('已上线');
     await load();
   } catch (e) {
@@ -494,7 +494,7 @@ async function launch(row: AdCampaignDto) {
 
 async function stop(row: AdCampaignDto) {
   try {
-    await api.request(`/api/v2/ops/admin/ad/campaigns/${row.campaignId}/stop`, 'POST');
+    await api.request(AdminEndpoints.adCampaignStop(row.campaignId), 'POST');
     ElMessage.success('已停止');
     await load();
   } catch (e) {
@@ -518,7 +518,7 @@ async function batchStop() {
   batchLoading.value = 'stop';
   const results = await Promise.allSettled(
     targets.map((row) =>
-      api.request(`/api/v2/ops/admin/ad/campaigns/${row.campaignId}/stop`, 'POST')
+      api.request(AdminEndpoints.adCampaignStop(row.campaignId), 'POST')
     )
   );
   batchLoading.value = '';
@@ -537,7 +537,7 @@ async function removeCampaign(row: AdCampaignDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/ad/campaigns/${row.campaignId}`, 'DELETE');
+    await api.request(AdminEndpoints.adCampaign(row.campaignId), 'DELETE');
     ElMessage.success('已删除');
     await load();
   } catch (e) {

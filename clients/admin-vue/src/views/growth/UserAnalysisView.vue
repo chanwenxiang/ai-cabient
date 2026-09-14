@@ -211,6 +211,7 @@ import { computed, onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useListCsv } from '@/composables/useListCsv';
 
@@ -292,7 +293,7 @@ async function load() {
   loading.value = true;
   try {
     s.value = await api.request<Summary>(
-      `/api/v2/ops/admin/growth/user-analysis?days=${days.value}`
+      AdminEndpoints.growthUserAnalysis(days.value)
     );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -325,7 +326,7 @@ async function doRecall() {
   recalling.value = true;
   try {
     const result = await api.request<{ issuedCount: number; notifiedCount: number }>(
-      '/api/v2/ops/admin/growth/user-recall',
+      AdminEndpoints.growthUserRecall,
       'POST',
       { couponDefId: recallCouponDefId.value, days: days.value }
     );

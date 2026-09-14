@@ -238,6 +238,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
@@ -368,7 +369,7 @@ function onRowAction(key: string, row: RedeemItem) {
 async function load() {
   loading.value = true;
   try {
-    list.value = await api.request<RedeemItem[]>('/api/v2/ops/admin/growth/points-redeem');
+    list.value = await api.request<RedeemItem[]>(AdminEndpoints.growthPointsRedeem);
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -430,7 +431,7 @@ async function save() {
   }
   saving.value = true;
   try {
-    await api.request<RedeemItem>('/api/v2/ops/admin/growth/points-redeem', 'PUT', {
+    await api.request<RedeemItem>(AdminEndpoints.growthPointsRedeem, 'PUT', {
       ...form,
       itemId: form.itemId ?? undefined
     });
@@ -448,7 +449,7 @@ async function toggleStatus(row: RedeemItem) {
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
   try {
     await api.request<RedeemItem>(
-      `/api/v2/ops/admin/growth/points-redeem/${row.itemId}/status`,
+      AdminEndpoints.growthPointsRedeemStatus(row.itemId),
       'POST',
       { status: next }
     );
@@ -479,7 +480,7 @@ async function batchToggle(status: 'ACTIVE' | 'INACTIVE') {
   batchLoading.value = status === 'ACTIVE' ? 'enable' : 'disable';
   const results = await Promise.allSettled(
     targets.map((row) =>
-      api.request(`/api/v2/ops/admin/growth/points-redeem/${row.itemId}/status`, 'POST', {
+      api.request(AdminEndpoints.growthPointsRedeemStatus(row.itemId), 'POST', {
         status
       })
     )

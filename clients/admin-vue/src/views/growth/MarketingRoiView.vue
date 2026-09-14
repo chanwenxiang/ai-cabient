@@ -158,6 +158,7 @@ import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
 
@@ -231,7 +232,7 @@ async function load() {
   loading.value = true;
   try {
     list.value = await api.request<RoiRow[]>(
-      `/api/v2/ops/admin/growth/marketing-roi?days=${days.value}`
+      AdminEndpoints.growthMarketingRoi(days.value)
     );
     clearSelection();
   } catch (e) {
