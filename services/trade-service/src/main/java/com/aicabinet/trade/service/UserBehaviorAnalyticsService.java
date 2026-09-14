@@ -10,8 +10,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -45,7 +47,8 @@ public class UserBehaviorAnalyticsService {
         Instant dormantFloor = LocalDate.now(ZONE).minusDays(90).atStartOfDay(ZONE).toInstant();
 
         List<CabinetOrder> windowOrders = paid(orderRepository.findByCreatedAtAfter(since));
-        Map<Long, UserAgg> agg = aggregateUsers(paid(orderRepository.findAll()));
+        // S-P2-3：按用户 SQL 聚合，禁止 findAll 拉全表订单实体
+        Map<Long, UserAgg> agg = loadUserAggFromDb();
         WindowMetrics windowMetrics = computeWindowMetrics(windowOrders, agg, since, since30);
         List<UserBehaviorRowDto> dormant = findDormantUsers(agg, dormantCutoff, dormantFloor);
         int dormantTotal = dormant.size();
@@ -83,23 +86,19 @@ public class UserBehaviorAnalyticsService {
         );
     }
 
-    private static Map<Long, UserAgg> aggregateUsers(List<CabinetOrder> allOrders) {
+    private Map<Long, UserAgg> loadUserAggFromDb() {
         Map<Long, UserAgg> agg = new HashMap<>();
-        for (CabinetOrder o : allOrders) {
-            if (o.getUserId() == null) {
+        for (Object[] row : orderRepository.aggregatePaidOrdersByUser()) {
+            Long userId = toLongObj(row[0]);
+            if (userId == null) {
                 continue;
             }
-            UserAgg u = agg.computeIfAbsent(o.getUserId(), k -> new UserAgg());
-            u.totalOrders++;
-            u.totalRevenue += o.getTotalAmountCents();
-            if (o.getCreatedAt() != null) {
-                if (u.firstOrderAt == null || o.getCreatedAt().isBefore(u.firstOrderAt)) {
-                    u.firstOrderAt = o.getCreatedAt();
-                }
-                if (u.lastOrderAt == null || o.getCreatedAt().isAfter(u.lastOrderAt)) {
-                    u.lastOrderAt = o.getCreatedAt();
-                }
-            }
+            UserAgg u = new UserAgg();
+            u.totalOrders = toLong(row[1]);
+            u.totalRevenue = toLong(row[2]);
+            u.firstOrderAt = toInstant(row[3]);
+            u.lastOrderAt = toInstant(row[4]);
+            agg.put(userId, u);
         }
         return agg;
     }
@@ -180,6 +179,33 @@ public class UserBehaviorAnalyticsService {
             }
         }
         return out;
+    }
+
+    private static long toLong(Object value) {
+        return value instanceof Number n ? n.longValue() : 0L;
+    }
+
+    private static Long toLongObj(Object value) {
+        return value instanceof Number n ? n.longValue() : null;
+    }
+
+    private static Instant toInstant(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Instant i) {
+            return i;
+        }
+        if (value instanceof OffsetDateTime odt) {
+            return odt.toInstant();
+        }
+        if (value instanceof Timestamp ts) {
+            return ts.toInstant();
+        }
+        if (value instanceof java.util.Date d) {
+            return d.toInstant();
+        }
+        return null;
     }
 
     private static final class UserAgg {

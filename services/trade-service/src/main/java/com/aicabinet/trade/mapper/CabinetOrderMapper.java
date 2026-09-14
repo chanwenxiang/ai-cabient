@@ -124,6 +124,16 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
                 .lt(CabinetOrder::getCreatedAt, end));
     }
 
+    /**
+     * 已支付（非 PENDING）订单按用户聚合：userId / orderCount / revenueCents / firstAt / lastAt。
+     * 供用户行为分析；禁止用 {@link #findAll()} 物化全表。
+     */
+    java.util.List<java.util.LinkedHashMap<String, Object>> selectUserPaidOrderAgg();
+
+    default List<Object[]> aggregatePaidOrdersByUser() {
+        return ColumnMapRows.toObjectRows(selectUserPaidOrderAgg(), 5);
+    }
+
 
     default Page<CabinetOrder> findByDeviceIdInOrderByCreatedAtDesc(Collection<String> deviceIds, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(

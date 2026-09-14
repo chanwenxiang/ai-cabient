@@ -53,6 +53,7 @@
 | 46 | admin a11y | 抽屉/对话框读屏无名 | 部分组件只转发 attrs、无强制 title | `ResizableDrawer` 必填 title；`check:admin-dialog-a11y` 门禁 | `ResizableDrawer.vue`、`check-admin-dialog-a11y.mjs` |
 | 47 | mapper 分页 | 分账列表假分页拖垮堆 | `searchByMerchantsAll` 全量再 subList | 必须 `selectPage`；禁止内存切片冒充分页 | `OrderRevenueSplitMapper` |
 | 48 | 线长日佣 | 按日全量订单再 filter 柜机 | `findByCreatedAtBetween` + Java filter | 必须按 `deviceId`+时间窗查 | `CabinetOrderMapper`、`LineCommissionJob` |
+| 49 | 用户行为分析 | 堆 OOM / 慢 | `orderRepository.findAll()` 物化全表 | 必须 `GROUP BY user_id` 聚合；禁止分析路径 `findAll` | `UserBehaviorAnalyticsService`、`CabinetOrderMapper` |
 
 ## 追加模板
 
