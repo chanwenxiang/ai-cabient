@@ -188,7 +188,9 @@ public class MerchantDevicePortalService {
         merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         int clampedHours = Math.min(Math.max(hours, 1), 168);
         Instant since = Instant.now().minus(clampedHours, ChronoUnit.HOURS);
-        return temperatureReadingRepository.findByDeviceIdSince(deviceId, since).stream()
+        // 按小时放大上限，硬顶 5000，避免长窗口 + 高频上报拖垮接口
+        int pointLimit = Math.min(5000, Math.max(DeviceTemperatureReadingMapper.DEFAULT_HISTORY_LIMIT, clampedHours * 30));
+        return temperatureReadingRepository.findByDeviceIdSince(deviceId, since, pointLimit).stream()
                 .map(r -> new DeviceTemperatureReadingDto(r.getDeviceId(), r.getTempC(), r.getReportedAt()))
                 .toList();
     }

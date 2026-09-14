@@ -88,7 +88,13 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
-    List<DisputeTicket> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+    List<DisputeTicket> findByUserIdOrderByCreatedAtDesc(
+            @Param("userId") Long userId,
+            @Param("limit") int limit);
+
+    default List<DisputeTicket> findByUserIdOrderByCreatedAtDesc(Long userId) {
+        return findByUserIdOrderByCreatedAtDesc(userId, 100);
+    }
 
     default Page<DisputeTicket> searchByDeviceIds(
             @Param("status") String status,

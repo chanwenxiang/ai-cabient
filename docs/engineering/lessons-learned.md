@@ -54,6 +54,7 @@
 | 47 | mapper 分页 | 分账列表假分页拖垮堆 | `searchByMerchantsAll` 全量再 subList | 必须 `selectPage`；禁止内存切片冒充分页 | `OrderRevenueSplitMapper` |
 | 48 | 线长日佣 | 按日全量订单再 filter 柜机 | `findByCreatedAtBetween` + Java filter | 必须按 `deviceId`+时间窗查 | `CabinetOrderMapper`、`LineCommissionJob` |
 | 49 | 用户行为分析 | 堆 OOM / 慢 | `orderRepository.findAll()` 物化全表 | 必须 `GROUP BY user_id` 聚合；禁止分析路径 `findAll` | `UserBehaviorAnalyticsService`、`CabinetOrderMapper` |
+| 50 | 温湿度/用户列表 | 长窗口或历史无界拖垮接口 | `findByDeviceIdSince` / `findByUserId*` 无 LIMIT | 历史必须 LIMIT（温湿度硬顶）；用户侧列表默认 ≤100 | `DeviceTemperatureReadingMapper`、`DisputeTicketMapper` 等 |
 
 ## 追加模板
 
