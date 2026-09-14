@@ -260,17 +260,29 @@ export const useAuthStore = defineStore('auth', () => {
     return isNavMenuActive(item.perm);
   }
 
+  /** 并发 restore 共用一个 Promise，避免 App/路由竞态双拉 RBAC */
+  let restoreInflight: Promise<boolean> | null = null;
+
   async function restore() {
     if (!isLoggedIn()) return false;
-    if (isSessionSoftExpired()) {
-      const ok = await api.refreshSilently();
-      if (!ok) {
-        logout();
-        return false;
-      }
+    if (rbacHydrated.value && activeNavLoaded.value && profileHydrated.value) {
+      return true;
     }
-    await Promise.all([loadPermissions(), loadActiveNav(), loadProfile(), loadRuntimeDict()]);
-    return true;
+    if (restoreInflight) return restoreInflight;
+    restoreInflight = (async () => {
+      if (isSessionSoftExpired()) {
+        const ok = await api.refreshSilently();
+        if (!ok) {
+          logout();
+          return false;
+        }
+      }
+      await Promise.all([loadPermissions(), loadActiveNav(), loadProfile(), loadRuntimeDict()]);
+      return true;
+    })().finally(() => {
+      restoreInflight = null;
+    });
+    return restoreInflight;
   }
 
   return {
