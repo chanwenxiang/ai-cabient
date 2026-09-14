@@ -1,4 +1,7 @@
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
+/** 当前对外 HTTP API 主版本（与后端 ApiVersions.CURRENT 对齐）。 */
+export const API_VERSION = 'v2';
+export const API_PREFIX = `/api/${API_VERSION}`;
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -43,7 +46,8 @@ export class ApiClient {
         // X-Requested-With：Cookie 会话的写请求需携带同源标记（后端 CSRF 双保险校验）
         const headers = {
             'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-Api-Version': API_VERSION
         };
         if (auth) {
             const token = this.getToken();

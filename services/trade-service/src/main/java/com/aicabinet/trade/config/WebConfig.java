@@ -12,18 +12,24 @@ public class WebConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
     private final InternalApiAuthInterceptor internalApiAuthInterceptor;
+    private final ApiVersionInterceptor apiVersionInterceptor;
     private final CorsProperties corsProperties;
 
     public WebConfig(AuthInterceptor authInterceptor,
                      InternalApiAuthInterceptor internalApiAuthInterceptor,
+                     ApiVersionInterceptor apiVersionInterceptor,
                      CorsProperties corsProperties) {
         this.authInterceptor = authInterceptor;
         this.internalApiAuthInterceptor = internalApiAuthInterceptor;
+        this.apiVersionInterceptor = apiVersionInterceptor;
         this.corsProperties = corsProperties;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(apiVersionInterceptor)
+                .addPathPatterns("/api/**");
+
         registry.addInterceptor(internalApiAuthInterceptor)
                 .addPathPatterns("/internal/**");
 
