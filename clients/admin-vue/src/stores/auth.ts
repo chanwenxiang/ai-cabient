@@ -8,6 +8,7 @@ import {
   isSessionSoftExpired,
   logoutSession
 } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
 import { isNavMenuActiveFor, permissionsAfterSoftFail } from '@/utils/rbac-cache-policy';
 
@@ -98,7 +99,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loadPermissions() {
     try {
-      const perms = await api.request<string[]>('/api/v2/ops/admin/rbac/me/permissions', 'GET');
+      const perms = await api.request<string[]>(AdminEndpoints.rbacMePermissions, 'GET');
       permissions.value = perms || [];
       rbacHydrated.value = true;
       localStorage.setItem(PERM_KEY, JSON.stringify(permissions.value));
@@ -117,7 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loadActiveNav() {
     try {
-      const codes = await api.request<string[]>('/api/v2/ops/admin/rbac/me/nav', 'GET');
+      const codes = await api.request<string[]>(AdminEndpoints.rbacMeNav, 'GET');
       activeNavPerms.value = codes || [];
       activeNavLoaded.value = true;
       localStorage.setItem(NAV_KEY, JSON.stringify(activeNavPerms.value));
@@ -157,7 +158,7 @@ export const useAuthStore = defineStore('auth', () => {
         globalDataScope?: boolean;
         merchantIds?: string[];
         merchantNames?: string[];
-      }>('/api/v2/ops/admin/rbac/me', 'GET');
+      }>(AdminEndpoints.rbacMe, 'GET');
       profile.value = {
         userId: String(me.userId),
         phoneNumber: me.phoneNumber,
@@ -200,7 +201,7 @@ export const useAuthStore = defineStore('auth', () => {
       globalDataScope?: boolean;
       merchantIds?: string[];
       merchantNames?: string[];
-    }>('/api/v2/ops/admin/rbac/me', 'PUT', {
+    }>(AdminEndpoints.rbacMe, 'PUT', {
       name: payload.name,
       phoneNumber: payload.phoneNumber,
       email: payload.email || null,

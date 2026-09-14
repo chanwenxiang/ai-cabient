@@ -222,6 +222,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Delete, EditPen, Plus, Refresh, CircleCheck } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -453,7 +454,7 @@ async function load() {
   loading.value = true;
   try {
     const flat = await api.request<PermRow[]>(
-      '/api/v2/ops/admin/rbac/permissions?includeInactive=true',
+      AdminEndpoints.rbacPermissionsIncludeInactive,
       'GET'
     );
     tree.value = buildPermTree(flat);
@@ -503,7 +504,7 @@ async function save() {
   saving.value = true;
   try {
     if (f.permissionId) {
-      await api.request(`/api/v2/ops/admin/rbac/permissions/${f.permissionId}`, 'PUT', {
+      await api.request(AdminEndpoints.rbacPermission(f.permissionId), 'PUT', {
         parentId: f.parentId || 0,
         permName: f.permName.trim(),
         permType: f.permType,
@@ -513,7 +514,7 @@ async function save() {
       });
       ElMessage.success('已更新');
     } else {
-      await api.request('/api/v2/ops/admin/rbac/permissions', 'POST', {
+      await api.request(AdminEndpoints.rbacPermissions, 'POST', {
         parentId: f.parentId || 0,
         permCode: f.permCode.trim(),
         permName: f.permName.trim(),
@@ -541,7 +542,7 @@ async function onRemove(row: PermRow) {
       '停用菜单',
       { type: 'warning' }
     );
-    await api.request(`/api/v2/ops/admin/rbac/permissions/${row.permissionId}`, 'DELETE');
+    await api.request(AdminEndpoints.rbacPermission(row.permissionId), 'DELETE');
     ElMessage.success('已停用（勾选「含停用」可查看并启用）');
     showInactive.value = true;
     syncRouteQuery();
@@ -555,7 +556,7 @@ async function onRemove(row: PermRow) {
 async function onEnable(row: PermRow) {
   try {
     await ElMessageBox.confirm(`确认启用「${row.permName}」？`, '启用菜单', { type: 'info' });
-    await api.request(`/api/v2/ops/admin/rbac/permissions/${row.permissionId}`, 'PUT', {
+    await api.request(AdminEndpoints.rbacPermission(row.permissionId), 'PUT', {
       parentId: row.parentId || 0,
       permName: row.permName,
       permType: row.permType,

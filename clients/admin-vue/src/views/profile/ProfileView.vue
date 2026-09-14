@@ -207,6 +207,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import type { UploadRequestOptions } from 'element-plus';
 import { api, authFetch } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 import type { TwoFactorEnroll, TwoFactorStatus } from '@aicabinet/shared-types';
@@ -248,7 +249,7 @@ onMounted(() => {
 async function loadTwoFactorStatus() {
   try {
     const s = await api.request<TwoFactorStatus>(
-      '/api/v2/ops/admin/rbac/me/two-factor/status',
+      AdminEndpoints.rbacMeTwoFactorStatus,
       'GET'
     );
     twoFactorEnabled.value = !!s?.enabled;
@@ -261,7 +262,7 @@ async function enroll() {
   twoFactorLoading.value = true;
   try {
     enrollData.value = await api.request<TwoFactorEnroll>(
-      '/api/v2/ops/admin/rbac/me/two-factor/enroll',
+      AdminEndpoints.rbacMeTwoFactorEnroll,
       'GET'
     );
   } catch (e) {
@@ -279,7 +280,7 @@ async function confirm() {
   }
   twoFactorLoading.value = true;
   try {
-    await api.request('/api/v2/ops/admin/rbac/me/two-factor/confirm', 'POST', { code });
+    await api.request(AdminEndpoints.rbacMeTwoFactorConfirm, 'POST', { code });
     twoFactorEnabled.value = true;
     enrollData.value = null;
     confirmCode.value = '';
@@ -299,7 +300,7 @@ async function disable() {
   }
   twoFactorLoading.value = true;
   try {
-    await api.request('/api/v2/ops/admin/rbac/me/two-factor/disable', 'POST', { code });
+    await api.request(AdminEndpoints.rbacMeTwoFactorDisable, 'POST', { code });
     twoFactorEnabled.value = false;
     disableCode.value = '';
     ElMessage.success('已关闭双因子认证');
@@ -339,7 +340,7 @@ async function uploadAvatar(options: UploadRequestOptions) {
       (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const form = new FormData();
     form.append('file', file);
-    const res = await authFetch(`${base}/api/v2/ops/admin/rbac/me/avatar`, {
+    const res = await authFetch(`${base}${AdminEndpoints.rbacMeAvatar}`, {
       method: 'POST',
       body: form
     });
@@ -417,7 +418,7 @@ async function submitPassword() {
   }
   pwdSaving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/rbac/me/password', 'PUT', {
+    await api.request(AdminEndpoints.rbacMePassword, 'PUT', {
       oldPassword: f.oldPassword,
       newPassword: f.newPassword
     });

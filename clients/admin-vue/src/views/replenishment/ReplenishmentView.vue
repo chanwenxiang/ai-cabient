@@ -1981,7 +1981,7 @@ async function loadAssignees() {
   assigneeLoading.value = true;
   try {
     const data = await api.request<PageResult<AssigneeOption>>(
-      '/api/v2/ops/admin/rbac/operators?page=0&size=100',
+      AdminEndpoints.rbacOperatorsPage(0, 100),
       'GET'
     );
     const items = (data.items || []).filter((item) => !item.status || item.status === 'ACTIVE');
