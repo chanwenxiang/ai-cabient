@@ -58,7 +58,7 @@
 | A-P2-002 | P2 | 架构 | `WarehouseView.vue` | ~~5600+ 行~~ → 已拆写流/弹窗/composables（约 3.2k） |
 | A-P2-003 | P2 | 启动性能 | `router/index.ts` | ~~App+beforeEach 双 restore~~ → 仅 router `restore`（inflight 去重） |
 | A-P2-004 | P2 | RBAC 防御 | `stores/auth.ts` | ~~未加载时菜单全放行~~ → `isNavMenuActiveFor` fail-closed |
-| A-P2-005 | P2 | API 抽象 | 全部视图 | ~~无集中 endpoint~~ → 试点 `AdminEndpoints` + `check:admin-endpoints`；已扩异常/订单/会话/柜机/商户/入驻/SKU/视觉建档/补货效期/仓配采购；其余业务路径仍待迁 |
+| A-P2-005 | P2 | API 抽象 | 全部视图 | ~~无集中 endpoint~~ → 试点 `AdminEndpoints` + `check:admin-endpoints`；已扩异常/订单/会话/柜机/商户/入驻/SKU/视觉建档/补货效期/仓配采购/财务资金；其余业务路径仍待迁 |
 | A-P2-006 | P2 | 安全配置 | `api/client.ts` | ~~非 Cookie JWT 落 localStorage~~ → Cookie 优先；dev 仅 `sessionStorage`；生产 cookieEnabled=false fail-closed；`check:admin-token-storage` |
 | A-P2-007 | P2 | 残留日志 | 多文件 | ~~生产 console.warn/error~~ → `adminDevWarn/Error`（仅 DEV）；cookie 误配置告警保留 |
 | A-P2-008 | P2 | 无障碍 / i18n | 多视图 | ~~缺 dialog/drawer 命名门禁~~ → 已用 `check:admin-dialog-a11y` + `ResizableDrawer` 强制 title；i18n 框架仍不强制（前台中文约定） |
@@ -477,6 +477,7 @@
 - [x] A-P2-005（续8）：SKU 视觉建档 rows/enroll/pipeline/suggest/advance/status 迁入 `AdminEndpoints`；门禁 +`/sku-vision`
 - [x] A-P2-005（续9）：补货任务/路线/要货/缺货/凭证与效期告警迁入 `AdminEndpoints`；人员报表与库存健康同步；门禁 +`/replenishment/`、`/replenishment-report`、`/expiry`
 - [x] A-P2-005（续10）：仓配/供应商/采购/退货/采购建议迁入 `AdminEndpoints`；打印与审批收件箱同步；门禁 +`/warehouse`、`/suppliers`、`/purchase-orders`、`/purchase-returns`、`/procurement`
+- [x] A-P2-005（续11）：财务报表/资金账单/余额退款/发票/线长/商户提现迁入 `AdminEndpoints`；门禁 +`/finance/`、`/fund`、`/balance-refunds`、`/invoices`、`/line-*`、`/merchant-wallets`、`/merchant-withdraws`
 - [x] A-P2-006：`auth-storage` — Cookie 不落 JWT；非 Cookie 仅 `sessionStorage`；生产 `cookieEnabled=false` 拒绝持久化；遗留 localStorage JWT 自动迁移删除；`check:admin-token-storage` 并入 `check:audit-gates`
 - [x] C-P2-8：消息 COUPON 按「已持有券优先使用」收口（禁误调 claimCampaign）；深链 UNUSED + 置顶高亮；C-P2-2 成功 toast 改 showSuccess
 - [x] C-P2-4：充值记录 `consumerApi.listRecharges`；M-P2-2：分账页深链 `orderId` 置顶高亮（失败 Tab 未命中回退全部）

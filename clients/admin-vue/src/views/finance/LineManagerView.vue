@@ -698,6 +698,7 @@ import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -896,7 +897,7 @@ async function loadManagers() {
     if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
     if (mStatus.value) q.set('status', mStatus.value);
     const res = await api.request<{ items: Manager[]; total: number }>(
-      `/api/v2/ops/admin/line-managers?${q}`,
+      AdminEndpoints.lineManagersList(q),
       'GET'
     );
     managers.value = sortById(res.items || []);
@@ -918,7 +919,7 @@ async function loadWithdraws() {
     const q = new URLSearchParams({ page: String(wPage.value - 1), size: String(wSize.value) });
     if (wStatus.value) q.set('status', wStatus.value);
     const res = await api.request<{ items: Withdraw[]; total: number }>(
-      `/api/v2/ops/admin/line-withdraws?${q}`,
+      AdminEndpoints.lineWithdrawsList(q),
       'GET'
     );
     withdraws.value = res.items || [];
@@ -963,7 +964,7 @@ function reload() {
 async function loadPayoutMode() {
   const seq = loadSeq.begin('loadPayoutMode');
   try {
-    payoutMode.value = await api.request('/api/v2/ops/admin/line-withdraws/payout-mode', 'GET');
+    payoutMode.value = await api.request(AdminEndpoints.lineWithdrawsPayoutMode, 'GET');
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = {
@@ -987,7 +988,7 @@ function openCreate() {
 async function create() {
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/line-managers', 'POST', {
+    await api.request(AdminEndpoints.lineManagers, 'POST', {
       managerName: form.managerName,
       phone: form.phone,
       orgName: form.orgName || null,
@@ -1021,7 +1022,7 @@ async function confirmBind() {
   saving.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/line-managers/${bindTarget.value.managerId}/devices`,
+      AdminEndpoints.lineManagerDevices(bindTarget.value.managerId),
       'POST',
       {
         deviceId: bindDeviceId.value
@@ -1053,7 +1054,7 @@ async function adjust(row: Manager) {
       '调账二次确认',
       { type: 'warning', confirmButtonText: '确认调账', cancelButtonText: '取消' }
     );
-    await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/adjust`, 'POST', {
+    await api.request(AdminEndpoints.lineManagerAdjust(row.managerId), 'POST', {
       amountCents,
       remark: '运营调账'
     });
@@ -1069,7 +1070,7 @@ async function showLedgers(row: Manager) {
   ledgerVisible.value = true;
   try {
     ledgers.value = await api.request<LedgerRow[]>(
-      `/api/v2/ops/admin/line-managers/${row.managerId}/ledgers?limit=50`,
+      AdminEndpoints.lineManagerLedgers(row.managerId),
       'GET'
     );
   } catch (e) {
@@ -1087,7 +1088,7 @@ async function showKpi(row: Manager) {
   kpiHydrated.value = false;
   try {
     kpi.value = await api.request<ManagerKpi>(
-      `/api/v2/ops/admin/line-managers/${row.managerId}/kpi`,
+      AdminEndpoints.lineManagerKpi(row.managerId),
       'GET'
     );
   } catch (e) {
@@ -1101,7 +1102,7 @@ async function loadPromoTasks() {
   const seq = loadSeq.begin('loadPromoTasks');
   promoLoading.value = true;
   try {
-    promoTasks.value = await api.request<PromoTask[]>('/api/v2/ops/admin/line-promo-tasks', 'GET');
+    promoTasks.value = await api.request<PromoTask[]>(AdminEndpoints.linePromoTasks, 'GET');
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadPromoTasks')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载地推任务失败');
@@ -1135,7 +1136,7 @@ async function savePromo() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/line-promo-tasks', 'POST', { ...promoForm });
+    await api.request(AdminEndpoints.linePromoTasks, 'POST', { ...promoForm });
     ElMessage.success('已创建');
     promoVisible.value = false;
     await loadPromoTasks();
@@ -1162,7 +1163,7 @@ async function proxyWithdraw(row: Manager) {
       '代提现二次确认',
       { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
     );
-    await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/withdraw`, 'POST', {
+    await api.request(AdminEndpoints.lineManagerWithdraw(row.managerId), 'POST', {
       amountCents
     });
     ElMessage.success('已提交提现');
@@ -1181,7 +1182,7 @@ async function review(row: Withdraw, approve: boolean) {
       approve ? '通过并打款' : '驳回申请',
       { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
     );
-    await api.request(`/api/v2/ops/admin/line-withdraws/${row.requestId}/review`, 'POST', {
+    await api.request(AdminEndpoints.lineWithdrawReview(row.requestId), 'POST', {
       approve,
       remark: approve ? '审核通过' : '审核驳回'
     });
@@ -1215,7 +1216,7 @@ async function batchReviewWithdraws(approve: boolean) {
   try {
     const results = await Promise.allSettled(
       targets.map((row) =>
-        api.request(`/api/v2/ops/admin/line-withdraws/${row.requestId}/review`, 'POST', {
+        api.request(AdminEndpoints.lineWithdrawReview(row.requestId), 'POST', {
           approve,
           remark: approve ? '批量审核通过' : '批量审核驳回'
         })
@@ -1239,7 +1240,7 @@ async function payout(row: Withdraw) {
       '重试打款',
       { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
     );
-    await api.request(`/api/v2/ops/admin/line-withdraws/${row.requestId}/payout`, 'POST', {});
+    await api.request(AdminEndpoints.lineWithdrawPayout(row.requestId), 'POST', {});
     ElMessage.success('已触发打款');
     await loadWithdraws();
   } catch (e) {
@@ -1256,7 +1257,7 @@ async function cancelFailed(row: Withdraw) {
       '取消解冻',
       { type: 'warning', confirmButtonText: '确定解冻', cancelButtonText: '返回' }
     );
-    await api.request(`/api/v2/ops/admin/line-withdraws/${row.requestId}/cancel`, 'POST', {
+    await api.request(AdminEndpoints.lineWithdrawCancel(row.requestId), 'POST', {
       remark: '运营取消解冻'
     });
     ElMessage.success('已取消并解冻');

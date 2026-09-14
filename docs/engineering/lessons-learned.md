@@ -87,6 +87,7 @@
 | 80 | admin 端点 | 视觉建档散落 `/sku-vision` | 建档流水线路径集中在一页仍易漂移 | sku-vision 动作迁入 AdminEndpoints；门禁加基路径 | `SkuVisionEnrollView.vue` |
 | 81 | admin 端点 | 补货/效期散落字面量 | 任务凭证下载与列表导出路径多 | replenishment+expiry 迁入 AdminEndpoints；门禁用 `/replenishment/` 避免误伤 report | `ReplenishmentView.vue` |
 | 82 | admin 端点 | 仓配 composable 散落 warehouse/采购路径 | 多 composable 各写一份 | 仓配采购域迁入 AdminEndpoints；encodeURIComponent 含 `.trim()` 须整段替换 | warehouse composables |
+| 83 | admin 端点 | 财务多页散落 fund/提现/发票路径 | 同业务多基路径 | 财务资金域一并迁入；门禁用 `/finance/` 避免与 stats 混淆 | `views/finance/*` |
 
 ## 追加模板
 

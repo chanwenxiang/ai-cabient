@@ -336,7 +336,86 @@ export const AdminEndpoints = {
   procurementSuggestions: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/procurement/suggestions?${query}`
-      : `${ops}/procurement/suggestions?${query.toString()}`
+      : `${ops}/procurement/suggestions?${query.toString()}`,
+
+  /** 财务 / 资金 / 提现 / 发票 / 线长 */
+  financeReport: (days: number | string) =>
+    `${ops}/finance/report?days=${encodeURIComponent(String(days))}`,
+  financeMarginLocksSolidify: `${ops}/finance/margin-locks/solidify`,
+  fundDailyBills: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/fund/daily-bills?${query}`
+      : `${ops}/fund/daily-bills?${query.toString()}`,
+  fundDailyBillsExport: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/fund/daily-bills/export?${query}`
+      : `${ops}/fund/daily-bills/export?${query.toString()}`,
+  fundLedger: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/fund/ledger?${query}`
+      : `${ops}/fund/ledger?${query.toString()}`,
+  balanceRefundsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/balance-refunds?${query}`
+      : `${ops}/balance-refunds?${query.toString()}`,
+  balanceRefundReview: (requestId: string | number) =>
+    `${ops}/balance-refunds/${encodeURIComponent(String(requestId))}/review`,
+  invoicesList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/invoices?${query}`
+      : `${ops}/invoices?${query.toString()}`,
+  invoiceIssue: (invoiceId: string | number) =>
+    `${ops}/invoices/${encodeURIComponent(String(invoiceId))}/issue`,
+  invoiceReject: (invoiceId: string | number) =>
+    `${ops}/invoices/${encodeURIComponent(String(invoiceId))}/reject`,
+  lineManagers: `${ops}/line-managers`,
+  lineManagersList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/line-managers?${query}`
+      : `${ops}/line-managers?${query.toString()}`,
+  lineManagerDevices: (managerId: string | number) =>
+    `${ops}/line-managers/${encodeURIComponent(String(managerId))}/devices`,
+  lineManagerAdjust: (managerId: string | number) =>
+    `${ops}/line-managers/${encodeURIComponent(String(managerId))}/adjust`,
+  lineManagerLedgers: (managerId: string | number, limit = 50) =>
+    `${ops}/line-managers/${encodeURIComponent(String(managerId))}/ledgers?limit=${limit}`,
+  lineManagerKpi: (managerId: string | number) =>
+    `${ops}/line-managers/${encodeURIComponent(String(managerId))}/kpi`,
+  lineManagerWithdraw: (managerId: string | number) =>
+    `${ops}/line-managers/${encodeURIComponent(String(managerId))}/withdraw`,
+  lineWithdrawsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/line-withdraws?${query}`
+      : `${ops}/line-withdraws?${query.toString()}`,
+  lineWithdrawsPayoutMode: `${ops}/line-withdraws/payout-mode`,
+  lineWithdrawReview: (requestId: string | number) =>
+    `${ops}/line-withdraws/${encodeURIComponent(String(requestId))}/review`,
+  lineWithdrawPayout: (requestId: string | number) =>
+    `${ops}/line-withdraws/${encodeURIComponent(String(requestId))}/payout`,
+  lineWithdrawCancel: (requestId: string | number) =>
+    `${ops}/line-withdraws/${encodeURIComponent(String(requestId))}/cancel`,
+  linePromoTasks: `${ops}/line-promo-tasks`,
+  merchantWalletsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/merchant-wallets?${query}`
+      : `${ops}/merchant-wallets?${query.toString()}`,
+  merchantWalletAdjust: (merchantId: string) =>
+    `${ops}/merchant-wallets/${encodeURIComponent(merchantId)}/adjust`,
+  merchantWalletLedgers: (merchantId: string, limit = 50) =>
+    `${ops}/merchant-wallets/${encodeURIComponent(merchantId)}/ledgers?limit=${limit}`,
+  merchantWalletWithdraw: (merchantId: string) =>
+    `${ops}/merchant-wallets/${encodeURIComponent(merchantId)}/withdraw`,
+  merchantWithdrawsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/merchant-withdraws?${query}`
+      : `${ops}/merchant-withdraws?${query.toString()}`,
+  merchantWithdrawsPayoutMode: `${ops}/merchant-withdraws/payout-mode`,
+  merchantWithdrawReview: (requestId: string | number) =>
+    `${ops}/merchant-withdraws/${encodeURIComponent(String(requestId))}/review`,
+  merchantWithdrawPayout: (requestId: string | number) =>
+    `${ops}/merchant-withdraws/${encodeURIComponent(String(requestId))}/payout`,
+  merchantWithdrawCancel: (requestId: string | number) =>
+    `${ops}/merchant-withdraws/${encodeURIComponent(String(requestId))}/cancel`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -347,6 +426,7 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/data-scope',
   '/api/v2/ops/admin/sla',
   '/api/v2/ops/admin/finance/stats',
+  '/api/v2/ops/admin/finance/',
   '/api/v2/ops/admin/device-availability-kpi',
   '/api/v2/ops/admin/devices/ref',
   '/api/v2/ops/admin/devices',
@@ -364,5 +444,13 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/suppliers',
   '/api/v2/ops/admin/purchase-orders',
   '/api/v2/ops/admin/purchase-returns',
-  '/api/v2/ops/admin/procurement'
+  '/api/v2/ops/admin/procurement',
+  '/api/v2/ops/admin/fund',
+  '/api/v2/ops/admin/balance-refunds',
+  '/api/v2/ops/admin/invoices',
+  '/api/v2/ops/admin/line-managers',
+  '/api/v2/ops/admin/line-withdraws',
+  '/api/v2/ops/admin/line-promo-tasks',
+  '/api/v2/ops/admin/merchant-wallets',
+  '/api/v2/ops/admin/merchant-withdraws'
 ] as const;

@@ -267,6 +267,7 @@ import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -487,7 +488,7 @@ async function load(opts?: { resetSeries?: boolean }) {
   }
   try {
     const data = await api.request<FinanceReport>(
-      `/api/v2/ops/admin/finance/report?days=${days.value}`,
+      AdminEndpoints.financeReport(days.value),
       'GET'
     );
     stats.value = data.summary || {};
@@ -507,7 +508,7 @@ async function load(opts?: { resetSeries?: boolean }) {
 async function solidifyYesterday() {
   solidifying.value = true;
   try {
-    await api.request('/api/v2/ops/admin/finance/margin-locks/solidify', 'POST');
+    await api.request(AdminEndpoints.financeMarginLocksSolidify, 'POST');
     ElMessage.success('昨日毛利已固化');
     await load();
   } catch (e) {

@@ -554,6 +554,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -691,7 +692,7 @@ function reload() {
 async function loadPayoutMode() {
   const seq = loadSeq.begin('loadPayoutMode');
   try {
-    payoutMode.value = await api.request('/api/v2/ops/admin/merchant-withdraws/payout-mode', 'GET');
+    payoutMode.value = await api.request(AdminEndpoints.merchantWithdrawsPayoutMode, 'GET');
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = {
@@ -731,7 +732,7 @@ async function loadWallets() {
     });
     if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
     const res = await api.request<{ items: WalletRow[]; total: number }>(
-      `/api/v2/ops/admin/merchant-wallets?${q}`,
+      AdminEndpoints.merchantWalletsList(q),
       'GET'
     );
     wallets.value = res.items || [];
@@ -757,7 +758,7 @@ async function loadWithdraws() {
     });
     if (wdStatus.value) q.set('status', wdStatus.value);
     const res = await api.request<{ items: Withdraw[]; total: number }>(
-      `/api/v2/ops/admin/merchant-withdraws?${q}`,
+      AdminEndpoints.merchantWithdrawsList(q),
       'GET'
     );
     withdraws.value = res.items || [];
@@ -798,7 +799,7 @@ async function submitAdjust() {
   adjustSaving.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(adjustTarget.value.merchantId)}/adjust`,
+      AdminEndpoints.merchantWalletAdjust(adjustTarget.value.merchantId),
       'POST',
       { amountCents, remark: adjustForm.value.remark.trim() || '运营调账' }
     );
@@ -817,7 +818,7 @@ async function showLedgers(row: WalletRow) {
   ledgerVisible.value = true;
   try {
     ledgers.value = await api.request<LedgerRow[]>(
-      `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/ledgers?limit=50`,
+      AdminEndpoints.merchantWalletLedgers(row.merchantId),
       'GET'
     );
   } catch (e) {
@@ -853,7 +854,7 @@ async function submitWithdraw() {
   withdrawSaving.value = true;
   try {
     await api.request(
-      `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(withdrawTarget.value.merchantId)}/withdraw`,
+      AdminEndpoints.merchantWalletWithdraw(withdrawTarget.value.merchantId),
       'POST',
       { amountCents }
     );
@@ -875,7 +876,7 @@ async function review(row: Withdraw, approve: boolean) {
       approve ? '通过并打款' : '驳回申请',
       { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
     );
-    await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/review`, 'POST', {
+    await api.request(AdminEndpoints.merchantWithdrawReview(row.requestId), 'POST', {
       approve,
       remark: approve ? '审核通过' : '审核驳回'
     });
@@ -910,7 +911,7 @@ async function batchReviewWithdraws(approve: boolean) {
   try {
     const results = await Promise.allSettled(
       targets.map((row) =>
-        api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/review`, 'POST', {
+        api.request(AdminEndpoints.merchantWithdrawReview(row.requestId), 'POST', {
           approve,
           remark: approve ? '批量审核通过' : '批量审核驳回'
         })
@@ -938,7 +939,7 @@ async function payout(row: Withdraw) {
         cancelButtonText: '取消'
       }
     );
-    await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/payout`, 'POST', {});
+    await api.request(AdminEndpoints.merchantWithdrawPayout(row.requestId), 'POST', {});
     ElMessage.success('已重试打款');
     await loadWithdraws();
   } catch (e: unknown) {
@@ -959,7 +960,7 @@ async function cancelFailed(row: Withdraw) {
         cancelButtonText: '返回'
       }
     );
-    await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/cancel`, 'POST', {
+    await api.request(AdminEndpoints.merchantWithdrawCancel(row.requestId), 'POST', {
       remark: '运营取消解冻'
     });
     ElMessage.success('已取消并解冻');
