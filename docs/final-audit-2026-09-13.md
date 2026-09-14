@@ -167,7 +167,7 @@
 | M-P2-2 | 中 | `messages.vue` → `splits.vue` | ~~深链 orderId 未读~~ → `onLoad` 读 orderId 置顶高亮；失败 Tab 未命中回退全部 |
 | M-P2-3 | 中 | `manifest.json` | `mp-weixin.appid` 空、`urlCheck:false`（与 consumer 同类发布配置问题） |
 | M-P2-4 | 中 | 隐私合规 | 定位采集仅依赖微信授权弹窗；H5 无隐私政策/首次同意弹窗 |
-| M-P2-5 | 中 | `useMerchantMe` 模块单例 | 登出 `clearSession`+`reLaunch` 不清内存态；H5 SPA 下重登前短暂显示旧 `me` |
+| M-P2-5 | 中 | `useMerchantMe` 模块单例 | ~~登出不清内存态~~ → `clearMerchantMe` + `registerMerchantSessionClearHook`，App 启动注册 |
 | M-P2-6 | 中 | `splits.vue` | `revenueSplits(0, 100)` 取前 100 笔，失败 Tab 两批各 50 笔，无分页/滚动加载 |
 | M-P2-7 | 中 | `replenishment.vue` 模板 | `hero-orb / orb-one / orb-two` 装饰元素仅 `display:none`，为死代码 |
 | M-P2-8 | 中 | `merchant-api.ts` | 多处 `@deprecated` 类型别名残留 |

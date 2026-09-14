@@ -117,6 +117,21 @@ export function clearSession() {
   uni.removeStorageSync(COOKIE_AUTH_KEY);
   uni.removeStorageSync('merchant_me');
   clearDictOverrides();
+  // M-P2-5：运行时挂钩清 useMerchantMe 内存（避免与 composable 循环依赖）
+  sessionClearHooks.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      /* ignore hook errors */
+    }
+  });
+}
+
+const sessionClearHooks = new Set<() => void>();
+
+/** 注册登出/401 时的额外清理（如模块单例 me）。 */
+export function registerMerchantSessionClearHook(fn: () => void): void {
+  sessionClearHooks.add(fn);
 }
 
 let unauthorizedHandling = false;

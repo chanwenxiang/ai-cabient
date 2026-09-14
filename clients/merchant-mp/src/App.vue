@@ -6,6 +6,8 @@ import {
   isMerchantLoginPath,
   isMerchantLoggedIn
 } from '@/utils/merchant-api';
+// M-P2-5：尽早注册 session clear hook（登出/401 清 me 内存态）
+import '@/composables/useMerchantMe';
 
 /** H5 / 微信小程序通用：当前是否登录页（避免无 token 深链先闪业务页）。 */
 function isLoginLaunch(options?: { path?: string }): boolean {
