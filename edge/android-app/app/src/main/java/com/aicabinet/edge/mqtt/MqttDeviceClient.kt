@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit
 
 class MqttDeviceClient(
     context: Context,
-    private val deviceId: String = EdgeRuntimeConfig.deviceId(context),
+    private val deviceId: String = EdgeRuntimeConfig.ensureDeviceId(context),
     private val broker: String = EdgeRuntimeConfig.mqttBroker(context),
     private val onOpenDoor: (OpenDoorCommand) -> Unit
 ) : MqttCallbackExtended {

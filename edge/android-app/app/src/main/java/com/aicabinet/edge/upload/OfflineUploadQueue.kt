@@ -2,6 +2,7 @@ package com.aicabinet.edge.upload
 
 import android.content.Context
 import android.util.Log
+import com.aicabinet.edge.config.EdgeRuntimeConfig
 import com.aicabinet.edge.video.VideoClipJson
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -35,7 +36,7 @@ data class PendingUpload(
  */
 class OfflineUploadQueue(
     private val context: Context,
-    private val minioUploader: MinioUploader = MinioUploader()
+    private val minioUploader: MinioUploader = MinioUploader(context)
 ) {
     private val mapper = jacksonObjectMapper()
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -81,7 +82,7 @@ class OfflineUploadQueue(
                 Log.i(TAG, "offline upload completed session=${item.sessionId}")
             } catch (e: Exception) {
                 Log.w(TAG, "offline upload retry session=${item.sessionId} attempt=${item.attempts + 1}: ${e.message}")
-                if (item.attempts < MAX_ATTEMPTS) {
+                if (item.attempts < EdgeRuntimeConfig.offlineUploadMaxAttempts(context)) {
                     remaining.add(item.copy(attempts = item.attempts + 1))
                 } else {
                     Log.e(TAG, "offline upload abandoned session=${item.sessionId}")
@@ -119,6 +120,5 @@ class OfflineUploadQueue(
         private const val TAG = "OfflineUploadQueue"
         private const val PREFS = "offline_upload_queue"
         private const val KEY_QUEUE = "pending"
-        private const val MAX_ATTEMPTS = 20
     }
 }
