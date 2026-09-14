@@ -174,7 +174,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
-import { merchantApi, hasPerm, isMerchantLoggedIn } from '@/utils/merchant-api';
+import { merchantApi, hasPerm, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
   useMerchantMe,
   canEditPlanogramForMerchant,
@@ -355,11 +355,12 @@ function syncPreferredFlag() {
 
 async function loadDeviceExtras(seq: number) {
   const [list, temps, vel] = await Promise.all([
-    merchantApi.deviceSlots(deviceId.value).catch(() => [] as DeviceSlot[]),
-    merchantApi
-      .deviceTemperatureHistory(deviceId.value, 24)
-      .catch(() => [] as DeviceTemperatureReading[]),
-    merchantApi.skuVelocity(deviceId.value).catch(() => [] as MerchantSkuVelocity[])
+    softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[]),
+    softFallback(
+      merchantApi.deviceTemperatureHistory(deviceId.value, 24),
+      [] as DeviceTemperatureReading[]
+    ),
+    softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[])
   ]);
   if (seq !== loadSeq) return;
   slots.value = list;

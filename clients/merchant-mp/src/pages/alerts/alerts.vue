@@ -90,7 +90,7 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
-import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
+import { hasPerm, merchantApi, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { promptText } from '@/utils/text-prompt';
@@ -202,7 +202,7 @@ async function load() {
   error.value = '';
   try {
     const [wb, exceptionPage, expiryRows, slotRows] = await Promise.all([
-      merchantApi.workbench().catch(() => ({
+      softFallback(merchantApi.workbench(), {
         offlineDevices: 0,
         openDisputes: 0,
         lowStockItems: 0,
@@ -216,10 +216,10 @@ async function load() {
           ticketId?: string;
           exceptionId?: string;
         }[]
-      })),
-      merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 })),
-      merchantApi.expiryAlerts().catch(() => []),
-      merchantApi.slotDiscrepancies().catch(() => [] as OpenApiSlotDiscrepancyAlertDto[])
+      }),
+      softFallback(merchantApi.openExceptions(100), { items: [], total: 0 }),
+      softFallback(merchantApi.expiryAlerts(), []),
+      softFallback(merchantApi.slotDiscrepancies(), [] as OpenApiSlotDiscrepancyAlertDto[])
     ]);
     if (seq !== loadSeq) return;
     const deduped = mergeTodoItems({

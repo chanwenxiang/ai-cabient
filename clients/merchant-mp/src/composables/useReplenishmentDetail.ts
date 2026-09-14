@@ -1,6 +1,6 @@
 import { nextTick, type ComputedRef, type Ref } from 'vue';
 import { showError } from '@/utils/notify';
-import { merchantApi } from '@/utils/merchant-api';
+import { merchantApi, softFallback } from '@/utils/merchant-api';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import type { DeviceSlot } from '@aicabinet/shared-types';
 
@@ -159,8 +159,8 @@ export function useReplenishmentDetail(opts: {
     if (typeof taskId !== 'number') return;
     const [taskLines, slots, evidence] = await Promise.all([
       merchantApi.replenishmentTaskLines(taskId) as Promise<Line[]>,
-      merchantApi.deviceSlots(task.deviceId!).catch(() => [] as DeviceSlot[]),
-      merchantApi.listReplenishmentEvidence(taskId).catch(() => [])
+      softFallback(merchantApi.deviceSlots(task.deviceId!), [] as DeviceSlot[]),
+      softFallback(merchantApi.listReplenishmentEvidence(taskId), [])
     ]);
     opts.lines.value = taskLines;
     opts.deviceSlotsList.value = (slots || []) as DeviceSlot[];
