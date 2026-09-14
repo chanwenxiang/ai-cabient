@@ -137,10 +137,10 @@ public class CacheService {
     }
 
     /**
-     * 默认 TTL 5 分钟。
+     * 默认 TTL：{@link CacheNames#TTL_DEFAULT_MS}。
      */
     public <T> T get(String prefix, String key, Supplier<T> loader) {
-        return get(prefix, key, 300_000L, loader);
+        return get(prefix, key, CacheNames.TTL_DEFAULT_MS, loader);
     }
 
     /**
