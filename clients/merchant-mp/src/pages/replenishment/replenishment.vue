@@ -334,11 +334,9 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
+import { displayLabel } from '@aicabinet/shared-dict';
 import EmptyState from '@/components/empty-state.vue';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import ReplenishActionDock from '@/components/ReplenishActionDock.vue';
@@ -348,17 +346,17 @@ import ReplenishEvidenceSection from '@/components/ReplenishEvidenceSection.vue'
 import ReplenishLinesSection from '@/components/ReplenishLinesSection.vue';
 import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
 import {
-  hasPerm,
-  isMerchantLoggedIn
+  hasPerm
 } from '@/utils/merchant-api';
-import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import { useMerchantMe } from '@/composables/useMerchantMe';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import { useReplenishmentDoorState } from '@/composables/useReplenishmentDoorState';
 import { useReplenishmentDetail } from '@/composables/useReplenishmentDetail';
-import { useReplenishmentDisplay, isPullOffType } from '@/composables/useReplenishmentDisplay';
+import { useReplenishmentDisplay } from '@/composables/useReplenishmentDisplay';
 import { useReplenishmentFulfillment } from '@/composables/useReplenishmentFulfillment';
 import { useReplenishmentList } from '@/composables/useReplenishmentList';
 import { useReplenishmentScan } from '@/composables/useReplenishmentScan';
+import { useReplenishmentShell } from '@/composables/useReplenishmentShell';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { getSkipCheckInLocation, setSkipCheckInLocation } from '@/utils/checkin-location-pref';
 import { showDevTools } from '@/utils/runtime-flags';
@@ -482,32 +480,63 @@ const {
   slotHeadroom,
   slotHint,
   formatLineSummary,
-  stockDeltaText
+  stockDeltaText,
+  isPullOffType,
+  lineTypeLabel,
+  lineStatusLabel,
+  displayTaskNotes,
+  taskActionLabel
 } = useReplenishmentDisplay({
   skus,
   slotCaps,
   deviceSlotsList
 });
 
-type DeviceMeta = {
-  deviceId?: string;
-  deviceName?: string;
-  address?: string;
-  routeCode?: string;
-  latitude?: number;
-  longitude?: number;
-};
-
-const heroSubtitle = computed(() => '扫码到柜 → 签到 → 开门 → 核对履约');
-const efficiencyRateText = computed(() =>
-  efficiency.value ? `${efficiency.value.completionRatePercent}%` : '暂无'
-);
-const detailIsPullOff = computed(() => {
-  if (!lines.value.length) {
-    const notes = String(selected.value?.notes || '');
-    return /from-expiry|PULL_OFF|下架/i.test(notes);
-  }
-  return lines.value.every((l) => isPullOffType(l.lineType));
+const {
+  heroSubtitle,
+  efficiencyRateText,
+  detailIsPullOff,
+  statusOptions,
+  emptyHint,
+  usePreferredDevice,
+  goRequest,
+  goRequestForDevice,
+  deviceName,
+  deviceAddressLine,
+  toggleSkipLocation,
+  copyDeviceId,
+  navigateToDevice,
+  formatTime,
+  formatDateOnly,
+  routeLabel,
+  load,
+  clearDeviceFilter,
+  currentStep,
+  assignSlot
+} = useReplenishmentShell({
+  me,
+  preferredId,
+  filterDeviceId,
+  status,
+  selected,
+  lines,
+  linesConfirmed,
+  doorOpened,
+  skipLocationCheck,
+  focusTaskId,
+  canSkipLocation,
+  canReplenish,
+  devices,
+  efficiency,
+  emptyHintForDeviceFilter,
+  emptyHintForStatusFilter,
+  clearListDeviceFilter,
+  clearDeepLinkQuery,
+  fetchList,
+  isLatestLoad,
+  refreshMe,
+  resolveDeepLinkOpenTask,
+  handleDeepLinkAfterLoad
 });
 
 const { checkIn, openDoor, adjustQty, confirmLines, completeTask } = useReplenishmentFulfillment({
@@ -556,220 +585,10 @@ const { verifyCabinetScan, onScan, scanProduct } = useReplenishmentScan({
   adjustQty
 });
 
-function lineTypeLabel(type?: string) {
-  return isPullOffType(type) ? '下架' : '上架';
-}
-
-function lineStatusLabel(line: Line) {
-  if (line.applied) return isPullOffType(line.lineType) ? '已下架' : '已入柜';
-  return isPullOffType(line.lineType) ? '待下架' : '待上架';
-}
-
-function taskLooksPullOff(task: Task) {
-  return /from-expiry|PULL_OFF|下架|临期/i.test(String(task.notes || ''));
-}
-
-function knownTaskNoteLabel(raw: string): string {
-  if (/from-expiry|NEAR_EXPIRY/i.test(raw)) return '临期商品下架';
-  if (/PULL_OFF/i.test(raw) && !/[\u4e00-\u9fff]/.test(raw)) return '下架任务';
-  return '';
-}
-
-function stripMachineTaskNoteTokens(raw: string): string {
-  return raw
-    .replaceAll(/from-expiry:\d+/gi, '')
-    .replaceAll(/\bNEAR_EXPIRY\b/gi, '')
-    .replaceAll(/\bPULL_OFF\b/gi, '')
-    .replaceAll(/\bseq=\d+\b/gi, '')
-    .replaceAll(/\bdist=\d+m?\b/gi, '')
-    .replaceAll(/[|;,]+/g, ' ')
-    .trim();
-}
-
-function isOpaqueMachineNote(cleaned: string): boolean {
-  return !/[\u4e00-\u9fff]/.test(cleaned) && /^[\w:=\-.\s]+$/.test(cleaned);
-}
-
-/** 机器备注转可读文案；seq=/dist= 等内部字段不展示 */
-function displayTaskNotes(notes?: string): string {
-  const raw = String(notes || '').trim();
-  if (!raw) return '';
-  const known = knownTaskNoteLabel(raw);
-  if (known) return known;
-  const cleaned = stripMachineTaskNoteTokens(raw);
-  if (!cleaned || isOpaqueMachineNote(cleaned)) return '';
-  return cleaned;
-}
-
-function taskActionLabel(task: Task) {
-  if (task.status === 'COMPLETED') return '查看完成明细';
-  const pull = taskLooksPullOff(task);
-  if (task.checkInAt) return pull ? '继续下架' : '继续补货';
-  return pull ? '开始下架' : '开始补货';
-}
-
-const statusOptions = computed(() => [
-  { value: '', label: '全部' },
-  ...dictOptions('replenishment_task_status').filter((item) =>
-    ['PENDING', 'IN_PROGRESS', 'COMPLETED'].includes(item.value)
-  )
-]);
-
-const emptyHint = computed(() => {
-  if (filterDeviceId.value) return emptyHintForDeviceFilter();
-  return emptyHintForStatusFilter();
-});
-
-function usePreferredDevice() {
-  const id = preferredId.value;
-  if (!id) return;
-  filterDeviceId.value = id.trim().toUpperCase();
-  status.value = '';
-  void load();
-}
-
-function goRequest() {
-  const q = filterDeviceId.value ? `?deviceId=${encodeURIComponent(filterDeviceId.value)}` : '';
-  uni.navigateTo({ url: `/pages/request/request${q}` });
-}
-
-function goRequestForDevice(deviceId: string) {
-  uni.navigateTo({
-    url: `/pages/request/request?deviceId=${encodeURIComponent(deviceId)}`
-  });
-}
-
 onLoad((opts) => {
   applyRouteQuery(opts as Record<string, string | undefined>);
   preferredId.value = getPreferredDeviceId();
 });
-
-function deviceName(id?: string, snapshot?: string) {
-  if (snapshot) return snapshot;
-  const d = deviceMeta(id);
-  return d?.deviceName || emptyDisplay(id, 'device');
-}
-
-function deviceMeta(id?: string): DeviceMeta | undefined {
-  if (!id) return undefined;
-  return devices.value.find((item) => item.deviceId === id) as DeviceMeta | undefined;
-}
-
-function deviceAddressLine(id?: string): string {
-  const m = deviceMeta(id);
-  if (!m) return '';
-  const parts = [m.address, m.routeCode ? `线路 ${m.routeCode}` : ''].filter(Boolean);
-  return parts.join(' · ');
-}
-
-function toggleSkipLocation() {
-  if (!canSkipLocation) return;
-  skipLocationCheck.value = !skipLocationCheck.value;
-  setSkipCheckInLocation(skipLocationCheck.value);
-}
-
-function copyDeviceId(id?: string) {
-  const code = String(id || selected.value?.deviceId || '').trim();
-  if (!code) return;
-  uni.setClipboardData({
-    data: code,
-    success: () => showSuccess('已复制柜机编号')
-  });
-}
-
-function navigateToDevice(id?: string) {
-  const m = deviceMeta(id || selected.value?.deviceId);
-  if (!m?.latitude || !m?.longitude) {
-    showError('暂无坐标，请按地址或编号找柜');
-    return;
-  }
-  const name = encodeURIComponent(m.deviceName || m.deviceId || '柜机');
-  // #ifdef H5
-  if (typeof window !== 'undefined') {
-    window.open(
-      `https://uri.amap.com/marker?position=${m.longitude},${m.latitude}&name=${name}`,
-      '_blank'
-    );
-    return;
-  }
-  // #endif
-  uni.openLocation({
-    latitude: Number(m.latitude),
-    longitude: Number(m.longitude),
-    name: m.deviceName || m.deviceId || '柜机',
-    address: m.address || ''
-  });
-}
-
-function formatTime(value?: string) {
-  return formatDateTimeShort(value, '暂无');
-}
-
-function formatDateOnly(value?: string) {
-  if (!value) return '';
-  const raw = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-  return formatDateTimeShort(raw, raw).slice(0, 10);
-}
-
-function routeLabel(task: { routeId?: number; routeName?: string }) {
-  if (task.routeName && String(task.routeName).trim()) {
-    return String(task.routeName).trim();
-  }
-  return task.routeId != null ? `线路 #${task.routeId}` : '';
-}
-
-async function ensureReplenishmentMe(seq: number): Promise<boolean> {
-  try {
-    await refreshMe();
-  } catch {
-    if (!isMerchantLoggedIn()) return false;
-    seedMerchantMeDisplayCache(me);
-  }
-  if (!isLatestLoad(seq)) return false;
-  if (!me.value) {
-    seedMerchantMeDisplayCache(me);
-  }
-  return true;
-}
-
-async function load() {
-  const result = await fetchList({
-    ensureMe: ensureReplenishmentMe,
-    canReplenish: canReplenish.value
-  });
-  if (!result || result.aborted) return;
-  const wantedTaskId = focusTaskId.value;
-  const open = resolveDeepLinkOpenTask();
-  await handleDeepLinkAfterLoad(open, wantedTaskId);
-}
-
-function clearDeviceFilter() {
-  clearListDeviceFilter();
-  clearDeepLinkQuery();
-}
-
-function currentStep(): number {
-  if (!selected.value) return 1;
-  if (selected.value.status === 'COMPLETED') return 5;
-  if (linesConfirmed.value) return 4;
-  if (doorOpened.value) return 3;
-  if (selected.value.checkInAt) return 2;
-  return 1;
-}
-
-function assignSlot(line: Line, opt: { slotCode: string; room: number }) {
-  if (!opt.slotCode) return;
-  if (opt.room <= 0) {
-    showError('该货道已满');
-    return;
-  }
-  line.slotId = opt.slotCode;
-  if ((Number(line.quantity) || 0) > opt.room) {
-    line.quantity = opt.room;
-  }
-  linesConfirmed.value = false;
-}
 
 onShow(() => {
   preferredId.value = getPreferredDeviceId();
