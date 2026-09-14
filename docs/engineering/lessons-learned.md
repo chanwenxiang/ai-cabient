@@ -50,6 +50,7 @@
 | 43 | trade 纠纷 | 工单状态守卫散落字符串易漂移 | OPEN/RESOLVED/CLOSED 比较分散 | 统一 `DisputeTicketTransitions` + 单测 | `DisputeService` |
 | 44 | trade 会话 | 超时/运维直接 `setState` 绕过状态机 | `canTransitionTo` 边不全 + 旁路写 | 扩合法边；已有实体只走 `SessionService.transition` | `SessionState`、`Session*Service` |
 | 45 | Kafka 消费 | 高峰易 rebalance / 一次拉太多 | 未限 `max.poll.records` | trade/vision 显式 `max-poll-records`（默认 50/20）+ poll/session 超时 | `application.yml`、`kafka_worker.py` |
+| 46 | admin a11y | 抽屉/对话框读屏无名 | 部分组件只转发 attrs、无强制 title | `ResizableDrawer` 必填 title；`check:admin-dialog-a11y` 门禁 | `ResizableDrawer.vue`、`check-admin-dialog-a11y.mjs` |
 
 ## 追加模板
 

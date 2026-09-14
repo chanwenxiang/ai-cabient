@@ -17,6 +17,7 @@
     <el-dialog
       v-model="open"
       title="全局搜索"
+      aria-label="全局搜索"
       append-to-body
       destroy-on-close
       :close-on-click-modal="true"

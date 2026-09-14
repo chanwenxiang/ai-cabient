@@ -2,6 +2,8 @@
   <el-drawer
     v-model="open"
     append-to-body
+    :title="title"
+    :aria-label="resolvedAriaLabel"
     :size="`${width}px`"
     :class="['resizable-drawer-panel', attrsClass]"
     v-bind="drawerAttrs"
@@ -37,6 +39,10 @@ const props = withDefaults(
   defineProps<{
     /** sessionStorage 键 */
     storageKey: string;
+    /** 抽屉标题（无障碍必填，会映射到 el-drawer title / aria-label） */
+    title: string;
+    /** 可选覆盖无障碍名称；默认等于 title */
+    ariaLabel?: string;
     defaultWidth?: number;
     minWidth?: number;
     maxWidth?: number;
@@ -53,8 +59,12 @@ const open = defineModel<boolean>({ default: false });
 const attrs = useAttrs();
 const slots = useSlots();
 const attrsClass = computed(() => attrs.class);
+const resolvedAriaLabel = computed(() => props.ariaLabel || props.title);
 const drawerAttrs = computed(() => {
-  const { class: _c, ...rest } = attrs as Record<string, unknown>;
+  const { class: _c, title: _t, ariaLabel: _a, 'aria-label': _al, ...rest } = attrs as Record<
+    string,
+    unknown
+  >;
   return rest;
 });
 
