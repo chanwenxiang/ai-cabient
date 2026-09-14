@@ -3,9 +3,7 @@
     <view v-if="loading && !meName" class="card"
       ><text>{{ UI_COPY.loading }}</text></view
     >
-    <view v-else-if="error && !meName" class="card"
-      ><text class="err">{{ error }}</text></view
-    >
+    <error-state v-else-if="error && !meName" :title="error" @retry="load" />
     <view v-else>
       <view v-if="error" class="banner-err"
         ><text>{{ error }}</text

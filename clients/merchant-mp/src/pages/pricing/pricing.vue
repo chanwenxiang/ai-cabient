@@ -17,9 +17,7 @@
         </view>
 
         <view v-if="loading && !rows.length" class="card">{{ UI_COPY.loading }}</view>
-        <view v-else-if="error && !rows.length" class="card"
-          ><text class="err">{{ error }}</text></view
-        >
+        <error-state v-else-if="error && !rows.length" :title="error" @retry="() => load(false)" />
         <view v-else>
           <view v-if="error" class="banner-err">
             <text>{{ error }}</text>

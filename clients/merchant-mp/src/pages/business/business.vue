@@ -14,10 +14,11 @@
         >
       </view>
       <view v-if="loading && !analytics.topSkus?.length" class="state">正在汇总经营数据…</view>
-      <view v-else-if="error && !analytics.topSkus?.length" class="state">
-        <text class="error">{{ error }}</text>
-        <app-button label="重试" @click="() => load()" />
-      </view>
+      <error-state
+        v-else-if="error && !analytics.topSkus?.length"
+        :title="error"
+        @retry="() => load()"
+      />
       <template v-else>
         <view class="hero">
           <text class="hero-label">经营毛利</text
@@ -650,25 +651,6 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   background: var(--card-bg, #fff);
   border-radius: var(--radius-card);
   color: var(--text-muted);
-}
-.error {
-  display: block;
-  color: var(--color-danger);
-}
-.retry {
-  margin-top: 24rpx;
-  width: 220rpx;
-  height: 72rpx;
-  line-height: 72rpx;
-  background: linear-gradient(135deg, var(--brand-deep), var(--brand));
-  color: var(--white);
-  border-radius: var(--radius-pill);
-  font-weight: 600;
-  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
-  border: none;
-}
-.retry::after {
-  border: none;
 }
 .hero {
   margin: 12rpx 24rpx;

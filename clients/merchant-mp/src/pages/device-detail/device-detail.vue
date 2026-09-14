@@ -4,9 +4,7 @@
     <view class="page-body">
       <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
       <view v-else-if="loading && !deviceName" class="card">{{ UI_COPY.loading }}</view>
-      <view v-else-if="error && !deviceName" class="card"
-        ><text class="err">{{ error }}</text></view
-      >
+      <error-state v-else-if="error && !deviceName" :title="error" @retry="loadDetail" />
       <view v-else-if="deviceName || !loading">
         <view class="card">
           <image
