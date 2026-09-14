@@ -576,6 +576,13 @@ export const consumerApi = {
       `/api/v2/payment/recharge/${encodeURIComponent(orderId)}/cancel`,
       'POST'
     ),
+  /** C-P2-4：充值记录统一走 consumerApi，禁止页面裸 get 路径。 */
+  listRecharges: (page = 0, size = 20) =>
+    request<
+      import('@aicabinet/shared-types').PageResult<
+        import('@aicabinet/shared-types').RechargeOrderDto
+      >
+    >(`/api/v2/payment/recharges?page=${page}&size=${size}`),
   balanceTransactions: (page = 0, size = 20) =>
     request<
       import('@aicabinet/shared-types').PageResult<
