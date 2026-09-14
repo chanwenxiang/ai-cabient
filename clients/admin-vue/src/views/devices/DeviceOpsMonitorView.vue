@@ -82,10 +82,14 @@
 
     <div v-loading="loading" class="table-scroll">
       <AdminVirtualTable
+        selectable
+        bordered
+        v-model:selected-keys="selectedKeys"
         :columns="virtualColumns"
         :data="displayItems"
         row-key="eventId"
         height="min(560px, calc(100svh - 320px))"
+        @selection-change="onSelectionChange"
       />
       <el-empty
         v-if="listHydrated && !loading && !displayItems.length"
@@ -158,7 +162,7 @@ const severityOptions = computed(() =>
   riskSeverityDict.value.filter((o) => ['INFO', 'WARN', 'CRITICAL', 'HIGH'].includes(o.value))
 );
 
-const { keyword, pickSelected, exportButtonLabel, clearSelection, filterByKeyword } =
+const { keyword, selectedKeys, onSelectionChange, pickSelected, exportButtonLabel, clearSelection, filterByKeyword } =
   useAdminListTable<OpsEvent>((r) => r.eventId);
 
 const displayItems = computed(() =>
@@ -214,6 +218,7 @@ const virtualColumns = computed((): Column<OpsEvent>[] => [
     dataKey: 'deviceName',
     title: '设备名称',
     width: 160,
+    align: 'center',
     cellRenderer: ({ rowData }) => rowData.deviceName || '无'
   },
   {
@@ -227,13 +232,15 @@ const virtualColumns = computed((): Column<OpsEvent>[] => [
     key: 'title',
     dataKey: 'title',
     title: '标题',
-    width: 160
+    width: 160,
+    align: 'center'
   },
   {
     key: 'detail',
     dataKey: 'detail',
     title: '详情',
     width: 240,
+    align: 'center',
     cellRenderer: ({ rowData }) => formatEventDetail(rowData.detail)
   },
   {
