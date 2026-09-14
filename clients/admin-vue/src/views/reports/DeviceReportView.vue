@@ -311,6 +311,7 @@ import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -512,7 +513,7 @@ async function loadDeviceOptions() {
   try {
     deviceOptions.value =
       (await api.request<{ deviceId: string; deviceName?: string }[]>(
-        '/api/v2/ops/admin/devices/ref',
+        AdminEndpoints.devicesRef,
         'GET'
       )) || [];
   } catch {

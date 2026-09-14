@@ -328,6 +328,7 @@ import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -467,7 +468,7 @@ async function loadDevices() {
   try {
     deviceOptions.value =
       (await api.request<{ deviceId: string; deviceName?: string }[]>(
-        '/api/v2/ops/admin/devices/ref',
+        AdminEndpoints.devicesRef,
         'GET'
       )) || [];
   } catch {

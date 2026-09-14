@@ -68,6 +68,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface SlaRealtime {
@@ -130,7 +131,7 @@ async function load() {
   const seq = ++loadSeq;
   loading.value = true;
   try {
-    const next = await api.request<SlaMetrics>('/api/v2/ops/admin/sla', 'GET');
+    const next = await api.request<SlaMetrics>(AdminEndpoints.sla, 'GET');
     if (seq !== loadSeq) return;
     data.value = next;
   } catch (e) {

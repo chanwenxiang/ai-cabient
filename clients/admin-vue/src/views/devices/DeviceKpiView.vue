@@ -68,6 +68,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { countText, hoursText, rateText } from '@/utils/display';
 
 interface DeviceKpiRow {
@@ -108,9 +109,8 @@ const interventionRateText = computed(() => {
 async function load() {
   loading.value = true;
   try {
-    const q = date.value ? `?date=${encodeURIComponent(date.value)}` : '';
     row.value = await api.request<DeviceKpiRow>(
-      `/api/v2/ops/admin/device-availability-kpi${q}`,
+      AdminEndpoints.deviceAvailabilityKpiOn(date.value || undefined),
       'GET'
     );
   } catch (e: unknown) {

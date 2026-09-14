@@ -1431,6 +1431,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Check, Close, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
@@ -2177,7 +2178,7 @@ async function loadDeviceRefs() {
   const seq = loadSeq.begin('loadDeviceRefs');
   if (devices.value.length) return;
   try {
-    devices.value = await api.request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET');
+    devices.value = await api.request<Row[]>(AdminEndpoints.devicesRef, 'GET');
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadDeviceRefs')) return;
     devices.value = [];

@@ -58,6 +58,7 @@
 | 51 | 业务缓存 | TTL/前缀散落难治理 | 裸 `"dashboard:*"` + `30_000L` | 必须 `CacheNames` 常量；新缓存禁止魔法串；门禁 `pnpm check:cache-names` | `CacheNames.java`、`check-cache-names.mjs` |
 | 52 | 定时任务 | 日界错一天 / cron 无 zone | `@Scheduled(cron)` 缺 `zone` 或用系统默认时区 | 统一 `ScheduleZones` / `aicabinet.schedule.zone`；门禁 `pnpm check:scheduled-zone` | `ScheduleZones.java`、`check-scheduled-zone.mjs` |
 | 53 | API 版本 | 无法灰度 / 客户端不知版本 | 仅路径硬编码 `/api/v2` | 契约常量 `ApiVersions`；响应 `X-Api-Version`；未支持主版本 410；破坏性开 v3 | `ApiVersions.java`、`ApiVersionInterceptor` |
+| 54 | admin 端点 | 同路径多处拷贝易漂移 | views 裸 `/api/v2/ops/admin/...` | 高频路径进 `AdminEndpoints`；试点字面量门禁 `check:admin-endpoints` | `api/endpoints.ts`、`check-admin-endpoints.mjs` |
 
 ## 追加模板
 

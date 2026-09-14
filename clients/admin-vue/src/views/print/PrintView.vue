@@ -129,6 +129,7 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { adminDevError } from '@/utils/admin-dev-log';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -190,7 +191,7 @@ async function load() {
           .request<{ items: Row[] }>('/api/v2/ops/admin/warehouse/list?page=0&size=500', 'GET')
           .catch(() => ({ items: [] as Row[] }))
           .then((r) => r.items || []),
-        api.request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET').catch(() => []),
+        api.request<Row[]>(AdminEndpoints.devicesRef, 'GET').catch(() => []),
         api
           .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
           .catch(() => ({ items: [] as Row[] }))
