@@ -600,9 +600,7 @@ public class SessionService {
         if (!ACTIVE_STATES.contains(session.getState())) return toDto(session);
         consumerPreauthService.releaseIfFrozen(session);
         session.setFailReason(reason == null ? "运营终止会话" : reason.trim());
-        session.setState(SessionState.CANCELLED);
-        repository.save(session);
-        cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+        transition(session, SessionState.CANCELLED);
         domainEventPublisher.publish("SessionForceCancelled", sessionId,
                 Map.of(DEVICEID, session.getDeviceId(), "reason", session.getFailReason()));
         log.warn("operations force cancelled session={} device={} reason={}",
@@ -637,9 +635,7 @@ public class SessionService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "会话缺少视频或重力数据，不能自动重试");
         }
         session.setFailReason(null);
-        session.setState(SessionState.RECOGNIZING);
-        repository.save(session);
-        cabinetMetrics.recordSessionState(SessionState.RECOGNIZING);
+        transition(session, SessionState.RECOGNIZING);
     }
 
     @Transactional(readOnly = true)
@@ -667,6 +663,9 @@ public class SessionService {
     }
 
     void transition(ShoppingSession session, SessionState target) {
+        if (session.getState() == target) {
+            return;
+        }
         if (!session.getState().canTransitionTo(target)) {
             cabinetMetrics.recordDoorOpen(false);
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);

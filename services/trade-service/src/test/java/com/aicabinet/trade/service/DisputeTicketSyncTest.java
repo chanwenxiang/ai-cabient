@@ -54,16 +54,24 @@ class DisputeTicketSyncTest {
     @Mock VideoArchiveService videoArchiveService;
     @Mock OrderPaymentService orderPaymentService;
     @Mock DistributedLockService distributedLockService;
+    @Mock SessionService sessionService;
 
     private DisputeService service;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().doAnswer(inv -> {
+            ShoppingSession s = inv.getArgument(0);
+            SessionState t = inv.getArgument(1);
+            s.setState(t);
+            return null;
+        }).when(sessionService).transition(any(), any());
         service = new DisputeService(disputeRepository, disputeMessageRepository, sessionRepository, orderRepository,
                 settlementService, new ObjectMapper(), minioVideoService, auditService, riskControlService,
                 permissionService, merchantScopeService, merchantFeaturePackService, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
-                fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService, null, null);
+                fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService, null, null,
+                sessionService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);
@@ -138,7 +146,6 @@ class DisputeTicketSyncTest {
         when(orderRepository.findBySessionId("S-KEEP-1")).thenReturn(Optional.of(order));
         when(orderPaymentService.netCompletedCents("O-KEEP-1")).thenReturn(0);
         when(disputeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var result = service.resolveTicket(10001L, "D-KEEP-1",

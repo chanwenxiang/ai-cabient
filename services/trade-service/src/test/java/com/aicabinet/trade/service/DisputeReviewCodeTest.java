@@ -65,7 +65,7 @@ class DisputeReviewCodeTest {
                 permissionService, merchantScopeService, null, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
                 fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService,
-                systemConfigService, null);
+                systemConfigService, null, null);
         lenient().when(systemConfigService.getInt(anyString(), anyInt())).thenAnswer(i -> i.getArgument(1));
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }

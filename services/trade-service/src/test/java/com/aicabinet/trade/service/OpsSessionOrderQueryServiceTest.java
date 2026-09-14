@@ -50,7 +50,7 @@ class OpsSessionOrderQueryServiceTest {
         service = new OpsSessionOrderQueryService(
                 permissionService, merchantScopeService, sessionRepository, orderRepository,
                 orderLineRepository, splitRepository, settlementService, auditService,
-                minioVideoService, paymentService, refundPolicyService, new OrderViewAssembler());
+                minioVideoService, paymentService, refundPolicyService, new OrderViewAssembler(), null);
     }
 
     @Test

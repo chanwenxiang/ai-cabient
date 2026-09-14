@@ -492,9 +492,8 @@ public class OpsExceptionService {
     }
 
     private void finalizeManualResolve(ManualResolveFinalization ctx) {
-        ctx.session().setState(SessionState.COMPLETED);
         ctx.session().setFailReason(null);
-        support.sessionRepository().save(ctx.session());
+        support.sessionService().transition(ctx.session(), SessionState.COMPLETED);
         support.disputeService().closeOpenTicketForSession(
                 ctx.operatorId(), ctx.session().getSessionId(),
                 ctx.outcome().resolutionType(), ctx.outcome().lines());

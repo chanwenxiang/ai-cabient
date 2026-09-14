@@ -123,9 +123,8 @@ public class OpsService {
                 || session.getState() == com.aicabinet.common.enums.SessionState.COMPLETED) {
             return;
         }
-        session.setState(com.aicabinet.common.enums.SessionState.FAILED);
         session.setFailReason(failReason);
-        sessionRepository.save(session);
+        sessionService.transition(session, com.aicabinet.common.enums.SessionState.FAILED);
     }
 
     private <T> T runWithReplenishmentLock(Long taskId, java.util.function.Supplier<T> action) {

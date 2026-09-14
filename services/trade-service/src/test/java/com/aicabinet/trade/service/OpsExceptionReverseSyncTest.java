@@ -33,13 +33,15 @@ class OpsExceptionReverseSyncTest {
     @Mock DisputeService disputeService;
     @Mock RepairTicketService repairTicketService;
     @Mock DistributedLockService distributedLockService;
+    @Mock SessionService sessionService;
 
     private OpsExceptionService service;
 
     @BeforeEach
     void setUp() {
         OpsExceptionServiceSupport support = new OpsExceptionServiceSupport(
-                auditService, auditRepository, sessionRepository, settlementService, disputeService, repairTicketService);
+                auditService, auditRepository, sessionRepository, settlementService, disputeService, repairTicketService,
+                sessionService);
         service = new OpsExceptionService(repository, permissionService, merchantScopeService, support,
                 distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
