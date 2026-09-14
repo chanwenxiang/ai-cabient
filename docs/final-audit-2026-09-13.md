@@ -464,6 +464,7 @@
 - [x] S-P2-4：`CacheNames` 统一前缀与 TTL 档位；`AdminDashboardController` 读写均走常量；`CacheService` 默认 TTL 对齐 `TTL_DEFAULT_MS`
 - [x] S-P2-7：`ScheduleZones`（Asia/Shanghai）+ `aicabinet.schedule.zone`；对账/券/SLA/KPI/佣金/毛利 cron 显式 zone；XXL 推荐 cron 与 seed 对齐；运营台 scheduleDesc 带时区
 - [x] S-P2-10：`ApiVersions`（当前 v2）+ 拦截器响应头 / 未支持版本 410；`shared-api` 导出 `API_VERSION`/`API_PREFIX` 并带请求头；破坏性变更开 v3 灰度（未开路由）
+- [x] 防回归门禁：`check:scheduled-zone`（cron 必带 zone）、`check:cache-names`（禁止裸 cache prefix）；汇总 `pnpm check:audit-gates`（含 dialog-a11y）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）
