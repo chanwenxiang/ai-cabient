@@ -3,7 +3,8 @@ import { showError } from '@/utils/notify';
 import { displayLabel } from '@aicabinet/shared-dict';
 import {
   isMerchantLoggedIn,
-  merchantApi
+  merchantApi,
+  softFallback
 } from '@/utils/merchant-api';
 import type {
   MerchantSkuPricing,
@@ -216,10 +217,10 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     if (!allTasks.value.length) loading.value = true;
     try {
       const [taskRows, deviceRows, eff, lowStockRows] = await Promise.all([
-        merchantApi.replenishmentTasks().catch(() => [] as Task[]),
-        merchantApi.devices().catch(() => [] as Record<string, unknown>[]),
-        merchantApi.myReplenishmentEfficiency().catch(() => null),
-        merchantApi.lowStockDevices().catch(() => [] as OpenApiDeviceInventoryDto[])
+        softFallback(merchantApi.replenishmentTasks(), [] as Task[]),
+        softFallback(merchantApi.devices(), [] as Record<string, unknown>[]),
+        softFallback(merchantApi.myReplenishmentEfficiency(), null),
+        softFallback(merchantApi.lowStockDevices(), [] as OpenApiDeviceInventoryDto[])
       ]);
       if (seq !== loadSeq) return { seq, aborted: true };
       applyReplenishmentListData(taskRows, deviceRows, eff, lowStockRows);

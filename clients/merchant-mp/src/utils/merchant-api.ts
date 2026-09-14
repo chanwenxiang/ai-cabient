@@ -281,8 +281,16 @@ function parseFileAttachmentDto(
   return out;
 }
 
-export function uploadReplenishmentEvidenceFile(
-  taskId: number,
+/**
+ * M-P2-11：并行可选依赖软失败放在页面/composable；禁止在 merchantApi 方法体内吞错回 [].
+ */
+export function softFallback<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  return promise.catch(() => fallback);
+}
+
+/** 鉴权 multipart 上传；两处凭证上传共用，避免重复 try/catch 解析。 */
+function uploadMerchantAuthedFile(
+  url: string,
   filePath: string
 ): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
   return new Promise((resolve, reject) => {
@@ -296,7 +304,7 @@ export function uploadReplenishmentEvidenceFile(
     const token = getToken();
     if (token) header.Authorization = 'Bearer ' + token;
     uni.uploadFile({
-      url: `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence`,
+      url,
       filePath,
       name: 'file',
       header,
@@ -332,54 +340,23 @@ export function uploadReplenishmentEvidenceFile(
   });
 }
 
+export function uploadReplenishmentEvidenceFile(
+  taskId: number,
+  filePath: string
+): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
+  return uploadMerchantAuthedFile(
+    `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence`,
+    filePath
+  );
+}
+
 export function uploadReplenishmentRequestEvidenceFile(
   filePath: string
 ): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
-  return new Promise((resolve, reject) => {
-    if (!isMerchantLoggedIn()) {
-      reject(new Error('请先登录'));
-      return;
-    }
-    const header: Record<string, string> = {
-      'X-Requested-With': 'XMLHttpRequest'
-    };
-    const token = getToken();
-    if (token) header.Authorization = 'Bearer ' + token;
-    uni.uploadFile({
-      url: `${API_BASE_URL}/api/v2/merchant/replenishment/requests/evidence`,
-      filePath,
-      name: 'file',
-      header,
-      // #ifdef H5
-      withCredentials: true,
-      // #endif
-      timeout: 30_000,
-      success(res) {
-        if (res.statusCode === 401) {
-          reject(handleUnauthorized());
-          return;
-        }
-        try {
-          const body = JSON.parse(String(res.data || '{}')) as {
-            code?: number;
-            message?: string;
-            data?: unknown;
-          };
-          const attachment = parseFileAttachmentDto(body?.data);
-          if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0 && attachment) {
-            resolve(attachment);
-            return;
-          }
-          reject(new Error(localizeApiMessage(body?.message, `上传失败 (${res.statusCode})`)));
-        } catch {
-          reject(new Error('上传响应解析失败'));
-        }
-      },
-      fail(err) {
-        reject(new Error(err.errMsg || '网络错误'));
-      }
-    });
-  });
+  return uploadMerchantAuthedFile(
+    `${API_BASE_URL}/api/v2/merchant/replenishment/requests/evidence`,
+    filePath
+  );
 }
 
 /** Auth-aware download for evidence stream URLs (image tags cannot send Bearer). */
@@ -521,10 +498,20 @@ export const merchantApi = {
       }
       return { items, total };
     };
-    const [open, processing] = await Promise.all([
-      mergePages('OPEN').catch(() => ({ items: [] as ExRow[], total: 0 })),
-      mergePages('PROCESSING').catch(() => ({ items: [] as ExRow[], total: 0 }))
-    ]);
+    // M-P2-11：允许单侧失败保留另一侧；双侧失败向上抛，由页面 softFallback/展示错误
+    const settled = await Promise.allSettled([mergePages('OPEN'), mergePages('PROCESSING')]);
+    const open =
+      settled[0].status === 'fulfilled'
+        ? settled[0].value
+        : { items: [] as ExRow[], total: 0 };
+    const processing =
+      settled[1].status === 'fulfilled'
+        ? settled[1].value
+        : { items: [] as ExRow[], total: 0 };
+    if (settled[0].status === 'rejected' && settled[1].status === 'rejected') {
+      const reason = settled[0].reason;
+      throw reason instanceof Error ? reason : new Error('异常列表加载失败');
+    }
     const byId = new Map<string, ExRow>();
     for (const row of [...open.items, ...processing.items]) {
       if (row?.exceptionId) byId.set(row.exceptionId, row);

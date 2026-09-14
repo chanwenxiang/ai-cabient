@@ -178,7 +178,7 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import { hasPerm,
-  merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
+  merchantApi, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import type {
@@ -407,10 +407,11 @@ async function loadDraft() {
   draftLoading.value = true;
   try {
     const [suggest, slots] = await Promise.all([
-      merchantApi
-        .replenishmentSuggestions(deviceId)
-        .catch(() => [] as OpenApiReplenishmentSuggestDto[]),
-      merchantApi.deviceSlots(deviceId).catch(() => [] as DeviceSlot[])
+      softFallback(
+        merchantApi.replenishmentSuggestions(deviceId),
+        [] as OpenApiReplenishmentSuggestDto[]
+      ),
+      softFallback(merchantApi.deviceSlots(deviceId), [] as DeviceSlot[])
     ]);
     if (seq !== draftSeq) return;
     const suggestMap = buildSuggestMap(suggest);

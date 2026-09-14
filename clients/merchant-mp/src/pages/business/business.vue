@@ -261,6 +261,7 @@ import {
   isMerchantLoggedIn,
   hasPerm,
   merchantApi,
+  softFallback,
   downloadAuthedFile,
   openExportedFile
 } from '@/utils/merchant-api';
@@ -449,11 +450,11 @@ async function load(soft = false) {
   error.value = '';
   try {
     const [a, s, ai, ex, reports] = await Promise.all([
-      merchantApi.analytics(days.value).catch(() => null),
-      merchantApi.settlements().catch(() => null),
-      merchantApi.aiInsight(days.value).catch(() => null),
-      merchantApi.expirySummary().catch(() => null),
-      merchantApi.deviceReports().catch(() => [] as OpenApiMerchantDeviceReportDto[])
+      softFallback(merchantApi.analytics(days.value), null),
+      softFallback(merchantApi.settlements(), null),
+      softFallback(merchantApi.aiInsight(days.value), null),
+      softFallback(merchantApi.expirySummary(), null),
+      softFallback(merchantApi.deviceReports(), [] as OpenApiMerchantDeviceReportDto[])
     ]);
     if (seq !== loadSeq) return;
     if (!a && !s) {
