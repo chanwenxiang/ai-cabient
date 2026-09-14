@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.recognition.types import RecognizedItem, RecognitionOutput
+from app.recognition.types import RecognizedItem, RecognitionOutput, attach_correlation
 
 
 def fuse_outputs(outputs: list[RecognitionOutput], fusion_mode: str = "MULTI") -> RecognitionOutput:
@@ -22,6 +22,8 @@ def fuse_outputs(outputs: list[RecognitionOutput], fusion_mode: str = "MULTI") -
     detected: set[str] = set()
     model_versions: list[str] = []
     need_review = False
+    session_id = next((o.session_id for o in outputs if o.session_id), None)
+    trace_id = next((o.trace_id for o in outputs if o.trace_id), None)
 
     for out in outputs:
         model_versions.append(out.model_version)
@@ -46,10 +48,14 @@ def fuse_outputs(outputs: list[RecognitionOutput], fusion_mode: str = "MULTI") -
     if not items:
         need_review = True
 
-    return RecognitionOutput(
-        items=items,
-        overall_confidence=round(overall, 3),
-        model_version="fusion:" + "+".join(sorted(set(model_versions))),
-        need_review=need_review,
-        detected_classes=sorted(detected) if detected else None,
+    return attach_correlation(
+        RecognitionOutput(
+            items=items,
+            overall_confidence=round(overall, 3),
+            model_version="fusion:" + "+".join(sorted(set(model_versions))),
+            need_review=need_review,
+            detected_classes=sorted(detected) if detected else None,
+        ),
+        session_id,
+        trace_id,
     )

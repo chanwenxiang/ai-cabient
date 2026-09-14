@@ -54,13 +54,13 @@
 
 | 编号 | 严重度 | 模块 | 文件:行 | 简述 |
 |------|--------|------|---------|------|
-| A-P2-001 | P2 | 会话 / 401 跳转 | `api/client.ts` vs `AdminLayout.vue` | `loggingOut` 标志依赖布局收尾；非 AdminLayout 入口调用后可能长时间抑制 401 |
-| A-P2-002 | P2 | 架构 | `views/warehouse/WarehouseView.vue` | 单文件约 **5600+** 行，承载采购/退货/库存多业务 |
-| A-P2-003 | P2 | 启动性能 | `App.vue` + `router/index.ts` | `App.onMounted` 与 `beforeEach` 都可能调 `auth.restore()`，首屏 `/rbac/me/*` 双拉风险 |
-| A-P2-004 | P2 | RBAC 防御 | `stores/auth.ts:249-251` | `isNavMenuActive` 在 `!activeNavLoaded` 时返回 true（菜单高亮窗口）；路由守卫另有 fail-closed 路径 |
-| A-P2-005 | P2 | API 抽象 | 全部视图 | ~~无集中 endpoint~~ → 试点 `AdminEndpoints`（工作台/趋势/SLA/设备参照等）+ `check:admin-endpoints`；其余业务路径仍待迁 |
+| A-P2-001 | P2 | 会话 / 401 跳转 | `api/client.ts` | ~~loggingOut 依赖布局~~ → `logoutSession` 内 `beginLogout` + 2.5s `endLogout` |
+| A-P2-002 | P2 | 架构 | `WarehouseView.vue` | ~~5600+ 行~~ → 已拆写流/弹窗/composables（约 3.2k） |
+| A-P2-003 | P2 | 启动性能 | `router/index.ts` | ~~App+beforeEach 双 restore~~ → 仅 router `restore`（inflight 去重） |
+| A-P2-004 | P2 | RBAC 防御 | `stores/auth.ts` | ~~未加载时菜单全放行~~ → `isNavMenuActiveFor` fail-closed |
+| A-P2-005 | P2 | API 抽象 | 全部视图 | ~~无集中 endpoint~~ → 试点 `AdminEndpoints` + `check:admin-endpoints`；其余业务路径仍待迁 |
 | A-P2-006 | P2 | 安全配置 | `api/client.ts` | ~~非 Cookie JWT 落 localStorage~~ → Cookie 优先；dev 仅 `sessionStorage`；生产 cookieEnabled=false fail-closed；`check:admin-token-storage` |
-| A-P2-007 | P2 | 残留日志 | 多文件 | 多处 `console.warn/error` 残留（生产仍输出） |
+| A-P2-007 | P2 | 残留日志 | 多文件 | ~~生产 console.warn/error~~ → `adminDevWarn/Error`（仅 DEV）；cookie 误配置告警保留 |
 | A-P2-008 | P2 | 无障碍 / i18n | 多视图 | ~~缺 dialog/drawer 命名门禁~~ → 已用 `check:admin-dialog-a11y` + `ResizableDrawer` 强制 title；i18n 框架仍不强制（前台中文约定） |
 
 ### 1.2 架构评估
@@ -104,7 +104,7 @@
 |------|--------|------|---------|------|
 | C-P2-1 | 中 | 性能/资源 | `index.vue` `onHide` | ~~切 tab 未停 poll/recognition~~ → `onHide` 调 `stopPoll` + `stopRecognitionTimer` + `stopDevicePoll` |
 | C-P2-2 | 中 | UI/UX | coupons / dispute / index / messages | ~~成功态误用 showError~~ → 复制/刷新成功改 `showSuccess`（剩余真实错误仍用 showError） |
-| C-P2-3 | 中 | 性能 | `src/pages.json` | 24 个页面全部主包、无 `subPackages` |
+| C-P2-3 | 中 | 性能 | `src/pages.json` | ~~24 页全主包~~ → 主包 6 + `subPackages` + `preloadRule` |
 | C-P2-4 | 低 | 架构一致性 | `recharge.vue` | ~~裸 `get('/api/v2/payment/recharges')`~~ → `consumerApi.listRecharges` |
 | C-P2-5 | 中 | 体验 | `nearby.vue` | ~~定位失败静默回退上海坐标~~ → 无定位不请求；清空 lat/lng；提示开权限后刷新 |
 | C-P2-6 | 低 | 安全配置 | `manifest.json:18` `urlCheck:false` | 生产构建应开启 `urlCheck` |
@@ -131,7 +131,7 @@
 | 导航 | `uni.openLocation`（MP）/ `window.open(amap)`（H5） | OK |
 | 订阅消息 | `requestSubscribeMessage` 仅微信；H5 静默跳过 | OK |
 | 登录态 | `wx.login`（MP）/ 公众号 OAuth / 支付宝回跳（H5） | 分端处理；`refreshTokenSilently` 单飞 |
-| 隐私/地理授权 | `nearby` 用 `getLocation`，失败静默回退 | **C-P2-5 回退到硬编码坐标需改** |
+| 隐私/地理授权 | `nearby` 用 `getLocation`；失败不请求 | **C-P2-5 已禁默认上海坐标** |
 
 ### 2.4 consumer-mp 小结
 
@@ -166,7 +166,7 @@
 | M-P2-1 | 中 | `video.vue` `copyUrl` | ~~复制成功用 showError~~ → `showSuccess('视频链接已复制')` |
 | M-P2-2 | 中 | `messages.vue` → `splits.vue` | ~~深链 orderId 未读~~ → `onLoad` 读 orderId 置顶高亮；失败 Tab 未命中回退全部 |
 | M-P2-3 | 中 | `manifest.json` | `mp-weixin.appid` 空、`urlCheck:false`（与 consumer 同类发布配置问题） |
-| M-P2-4 | 中 | 隐私合规 | 定位采集仅依赖微信授权弹窗；H5 无隐私政策/首次同意弹窗 |
+| M-P2-4 | 中 | 隐私合规 | ~~H5 无隐私首屏弹窗~~ → `privacy-consent-modal` + login/home 入口 |
 | M-P2-5 | 中 | `useMerchantMe` 模块单例 | ~~登出不清内存态~~ → `clearMerchantMe` + `registerMerchantSessionClearHook`，App 启动注册 |
 | M-P2-6 | 中 | `splits.vue` | ~~一次拉 100 无分页~~ → `PAGE_SIZE=20` + 加载更多 / onReachBottom；深链仍扫描定位 |
 | M-P2-7 | 中 | `replenishment.vue` 模板 | ~~`hero-orb` 死装饰~~ → 已删除模板节点与 `display:none` 样式 |
@@ -323,10 +323,10 @@
 
 | 编号 | 严重度 | 模块 | 简述 |
 |------|--------|------|------|
-| V-P2-1 | 中 | `app/recognition/deepseek_recognizer.py` | 第三方 SDK 调用无超时配置；冷启动阻塞主线程 |
+| V-P2-1 | 中 | `deepseek_recognizer.py` | ~~无超时~~ → `DEEPSEEK_TIMEOUT_MS` + `httpx.Client(timeout=…)`；外层 `RECOGNIZE_TIMEOUT_MS` |
 | V-P2-2 | 中 | `app/storage.py` | 上传对象无 lifecycle 策略；过期图片/视频无限增长 |
-| V-P2-3 | 中 | `app/recognition/types.py` | 识别结果缺 `traceId` / `sessionId` 透传字段 |
-| V-P2-4 | 中 | `app/main.py` | FastAPI `docs_url=None` 仅 prod 关闭；staging 应保留 `redoc_url` 便于排查 |
+| V-P2-3 | 中 | `app/recognition/types.py` | ~~缺 sessionId/traceId~~ → `RecognitionOutput` + HTTP/Kafka 透传 `attach_correlation` |
+| V-P2-4 | 中 | `app/main.py` | ~~docs 策略不清~~ → 仅 prod/`VISION_DISABLE_DOCS` 关 docs/redoc；staging 保留 |
 | V-P2-5 | 中 | `tests/test_mock_recognizer.py` | 单元测试覆盖 < 30%（未覆盖 fusion、frame_extract、deepseek_recognizer） |
 
 ### 5.3 vision-service 小结
@@ -480,6 +480,7 @@
 - [x] M-P2-14：H5 隐藏微信绑定/订阅入口；保存偏好不调订阅授权；consumer 消息条仅 mp
 - [x] M-P2-1：视频复制成功 toast 改 `showSuccess`；C-P2-1：首页 onHide 停 poll/recognition
 - [x] C-P2-5：附近柜机无定位不请求、去掉默认上海坐标
+- [x] V-P2-3：识别结果透传 `sessionId`/`traceId`（HTTP + Kafka）；同步勾选已落地的 V-P2-1/4、C-P2-3、M-P2-4、A-P2-001~004/007 表格行
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

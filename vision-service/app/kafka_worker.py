@@ -8,6 +8,8 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
+from app.recognition.types import attach_correlation, new_trace_id
+
 log = logging.getLogger(__name__)
 
 REQUEST_TOPIC = "aicabinet.vision.recognize.request"
@@ -22,10 +24,11 @@ MAX_POLL_INTERVAL_MS = int(os.getenv("KAFKA_MAX_POLL_INTERVAL_MS", "300000"))
 SESSION_TIMEOUT_MS = int(os.getenv("KAFKA_SESSION_TIMEOUT_MS", "45000"))
 
 
-def _need_review_payload(session_id: str, task_id: str, reason: str) -> dict:
+def _need_review_payload(session_id: str, task_id: str, reason: str, trace_id: str | None = None) -> dict:
     return {
         "sessionId": session_id,
         "taskId": task_id,
+        "traceId": trace_id or new_trace_id(),
         "overallConfidence": 0.0,
         "needReview": True,
         "items": [],
@@ -66,7 +69,8 @@ def _recognize_with_timeout(recognizer, req: dict):
     timeout_s = max(1, RECOGNIZE_TIMEOUT_MS) / 1000.0
     with ThreadPoolExecutor(max_workers=1) as pool:
         fut = pool.submit(_recognize, recognizer, req)
-        return fut.result(timeout=timeout_s)
+        out = fut.result(timeout=timeout_s)
+    return attach_correlation(out, req.get("sessionId"), req.get("traceId"))
 
 
 def start_kafka_worker(recognizer) -> threading.Thread | None:
@@ -126,8 +130,11 @@ def start_kafka_worker(recognizer) -> threading.Thread | None:
                     result = {
                         "sessionId": session_id,
                         "taskId": task_id,
+                        "traceId": out.trace_id,
                         "overallConfidence": out.overall_confidence,
                         "needReview": out.need_review,
+                        "modelVersion": out.model_version,
+                        "detectedClasses": out.detected_classes,
                         "items": [
                             {
                                 "skuId": i.sku_id,
@@ -160,8 +167,9 @@ def start_kafka_worker(recognizer) -> threading.Thread | None:
                 producer.flush()
                 consumer.commit()
                 log.info(
-                    "vision result published session=%s needReview=%s",
+                    "vision result published session=%s traceId=%s needReview=%s",
                     session_id,
+                    result.get("traceId"),
                     result.get("needReview"),
                 )
             except Exception as exc:

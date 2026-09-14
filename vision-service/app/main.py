@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.kafka_worker import start_kafka_worker
 from app.recognition.mock_recognizer import get_force_need_review, set_force_need_review
-from app.recognition.types import RecognitionOutput
+from app.recognition.types import RecognitionOutput, attach_correlation, new_trace_id
 from app.recognizer import get_recognizer
 from app.storage import OBJECT_STORAGE_ENDPOINT
 
@@ -111,21 +111,24 @@ class RecognizeResponse(BaseModel):
     need_review: bool = False
     video_uri: str | None = None
     detected_classes: list[str] | None = None
+    trace_id: str | None = None
 
 
 def _to_response(session_id: str, video_uri: str | None, out) -> RecognizeResponse:
+    stamped = attach_correlation(out, session_id)
     return RecognizeResponse(
         task_id=f"T-{session_id}",
         session_id=session_id,
         items=[
             LineItem(sku_id=i.sku_id, quantity=i.quantity, confidence=i.confidence)
-            for i in out.items
+            for i in stamped.items
         ],
-        overall_confidence=out.overall_confidence,
-        model_version=out.model_version,
-        need_review=out.need_review,
+        overall_confidence=stamped.overall_confidence,
+        model_version=stamped.model_version,
+        need_review=stamped.need_review,
         video_uri=video_uri,
-        detected_classes=out.detected_classes,
+        detected_classes=stamped.detected_classes,
+        trace_id=stamped.trace_id,
     )
 
 
@@ -179,12 +182,16 @@ RECOGNIZE_TIMEOUT_MS = int(os.getenv("RECOGNIZE_TIMEOUT_MS", "30000"))
 
 
 def _empty_need_review(session_id: str, reason: str) -> RecognitionOutput:
-    return RecognitionOutput(
-        items=[],
-        overall_confidence=0.0,
-        model_version=reason,
-        need_review=True,
-        detected_classes=[reason],
+    return attach_correlation(
+        RecognitionOutput(
+            items=[],
+            overall_confidence=0.0,
+            model_version=reason,
+            need_review=True,
+            detected_classes=[reason],
+        ),
+        session_id,
+        new_trace_id(),
     )
 
 
@@ -205,7 +212,8 @@ def _run_recognize(
                 device_id,
                 recognition_mode=recognition_mode or None,
             )
-            return fut.result(timeout=max(1, RECOGNIZE_TIMEOUT_MS) / 1000.0)
+            out = fut.result(timeout=max(1, RECOGNIZE_TIMEOUT_MS) / 1000.0)
+            return attach_correlation(out, session_id)
     except FuturesTimeout:
         log.warning("recognize timeout session=%s ms=%s", session_id, RECOGNIZE_TIMEOUT_MS)
         return _empty_need_review(session_id, "recognize-timeout")
@@ -275,6 +283,7 @@ async def recognize_upload(
             out = upload(session_id, data, filename, device_id=device_id or None)  # type: ignore[call-arg]
         except TypeError:
             out = upload(session_id, data, filename)
+        out = attach_correlation(out, session_id)
     except Exception:
         log.exception("recognize_upload failed session=%s", session_id)
         out = _empty_need_review(session_id, "upload-error")
