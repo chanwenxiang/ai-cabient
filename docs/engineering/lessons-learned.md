@@ -47,6 +47,7 @@
 | 40 | admin 生产 | 线上控制台仍有 warn 噪音 | 软失败路径裸 `console.warn` | 软路径用 `adminDevWarn`（仅 DEV）；生产安全告警可保留 | `admin-dev-log.ts` |
 | 41 | admin RBAC | 停用菜单首屏短暂可见 | `isNavMenuActive` 在 `!activeNavLoaded` 时 true | ACTIVE 未加载必须 fail-closed（`isNavMenuActiveFor`） | `rbac-cache-policy.ts` |
 | 42 | trade 日志 | 门事件日志难按用户/柜机检索 | 多数只打 sessionId | 关键路径用 `SessionLogContext.of(session)` | `SessionDoorService` |
+| 43 | trade 纠纷 | 工单状态守卫散落字符串易漂移 | OPEN/RESOLVED/CLOSED 比较分散 | 统一 `DisputeTicketTransitions` + 单测 | `DisputeService` |
 
 ## 追加模板
 

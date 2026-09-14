@@ -30,6 +30,7 @@ import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.DisputeTicketTransitions;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,13 +63,13 @@ public class DisputeService {
     private static final String USER_APPEAL = "USER_APPEAL";
     private static final String PERM_OPS_DISPUTE = "ops:dispute";
     private static final String STATUS_COMPLETED = "COMPLETED";
-    private static final String STATUS_RESOLVED = "RESOLVED";
+    private static final String STATUS_RESOLVED = DisputeTicketTransitions.RESOLVED;
     private static final String SESSION = "session=";
     private static final String CONFIRM = "CONFIRM";
     private static final String DISPUTE = "DISPUTE";
     private static final String ADJUST = "ADJUST";
     private static final String STATUS_NORMAL = "NORMAL";
-    private static final String STATUS_CLOSED = "CLOSED";
+    private static final String STATUS_CLOSED = DisputeTicketTransitions.CLOSED;
     private static final String WAIVE = "WAIVE";
 
 
@@ -201,7 +202,7 @@ public class DisputeService {
         var existing = disputeRepository.findBySessionId(session.getSessionId());
         if (existing.isPresent()) {
             String st = existing.get().getStatus();
-            if (STATUS_RESOLVED.equalsIgnoreCase(st) || STATUS_CLOSED.equalsIgnoreCase(st)) {
+            if (DisputeTicketTransitions.blocksConsumerFile(st)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DISPUTE_APPEAL_CLOSED);
             }
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DISPUTE_ALREADY_EXISTS);
@@ -363,10 +364,10 @@ public class DisputeService {
                     null));
             return disputeRepository.findById(created.ticketId()).orElseThrow();
         }
-        if (STATUS_RESOLVED.equals(ticket.getStatus()) || STATUS_CLOSED.equals(ticket.getStatus())) {
+        if (DisputeTicketTransitions.canReopenForRefundFlow(ticket.getStatus())) {
             // 识别争议「维持原账单」等结案后订单仍 PAID：允许规则内自助/运营退款，重开同会话工单承载退款流水。
             // 已退款订单在 executeFullRefund 入口已拦截，避免重复退款。
-            ticket.setStatus("OPEN");
+            ticket.setStatus(DisputeTicketTransitions.OPEN);
             ticket.setClosedAt(null);
             ticket.setResolvedAt(null);
             ticket.setReopenedAt(Instant.now());
@@ -527,7 +528,7 @@ public class DisputeService {
     private DisputeTicketDto doClaimTicket(Long actorId, String ticketId, boolean ops) {
         DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
-        if (!"OPEN".equals(ticket.getStatus())) {
+        if (!DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
         }
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
@@ -561,7 +562,7 @@ public class DisputeService {
     private ResolveDisputeResultDto doResolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
         DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
-        if (!"OPEN".equals(ticket.getStatus())) {
+        if (!DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
         }
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
@@ -631,7 +632,7 @@ public class DisputeService {
     public void closeOpenTicketForSession(Long operatorId, String sessionId, String resolutionType,
                                           List<ResolveDisputeRequest.ManualLineItem> lines) {
         disputeRepository.findBySessionId(sessionId).ifPresent(ticket -> {
-            if (!"OPEN".equals(ticket.getStatus())) {
+            if (!DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())) {
                 return;
             }
             String type = normalizeResolutionType(resolutionType);
@@ -663,7 +664,7 @@ public class DisputeService {
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
-        if (!STATUS_RESOLVED.equals(ticket.getStatus())) {
+        if (!DisputeTicketTransitions.canClose(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only resolved disputes can be closed");
         }
         ticket.setStatus(STATUS_CLOSED);
@@ -683,10 +684,10 @@ public class DisputeService {
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
-        if ("OPEN".equals(ticket.getStatus())) {
+        if (DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())) {
             return toDto(ticket);
         }
-        if (!STATUS_RESOLVED.equals(ticket.getStatus()) && !STATUS_CLOSED.equals(ticket.getStatus())) {
+        if (!DisputeTicketTransitions.canReopen(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
         }
         orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
@@ -695,7 +696,7 @@ public class DisputeService {
                         "已退款订单不可重新打开争议，避免重复退款");
             }
         });
-        ticket.setStatus("OPEN");
+        ticket.setStatus(DisputeTicketTransitions.OPEN);
         ticket.setPriority(normalizePriority(request != null ? request.priority() : ticket.getPriority()));
         ticket.setOperatorNote(trimToNull(request != null ? request.note() : null));
         ticket.setClosedAt(null);
@@ -856,11 +857,11 @@ public class DisputeService {
         int couponDiscount = orderOpt.map(o -> o.getCouponDiscountCents()).orElse(0);
         String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
         Instant now = Instant.now();
-        boolean slaOverdue = "OPEN".equals(ticket.getStatus())
+        boolean slaOverdue = DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
                 && !ticket.getSlaDueAt().isAfter(now);
         Long slaHoursRemaining = null;
-        if ("OPEN".equals(ticket.getStatus()) && ticket.getSlaDueAt() != null && !slaOverdue) {
+        if (DisputeTicketTransitions.canActWhileOpen(ticket.getStatus()) && ticket.getSlaDueAt() != null && !slaOverdue) {
             slaHoursRemaining = ChronoUnit.HOURS.between(now, ticket.getSlaDueAt());
         }
         String reviewCode = resolveReviewCode(ticket);
@@ -900,9 +901,9 @@ public class DisputeService {
         requireTicketDeviceAccess(userId, ticket);
         DisputeTicketDto dto = toMerchantDto(ticket);
         List<DisputeMessageDto> messages = loadMessages(ticket.getTicketId());
-        boolean canReply = "OPEN".equals(ticket.getStatus())
+        boolean canReply = DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())
                 && permissionService.hasPermission(userId, "merchant:disputes:reply");
-        boolean canResolve = "OPEN".equals(ticket.getStatus())
+        boolean canResolve = DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())
                 && permissionService.hasPermission(userId, "merchant:disputes:resolve");
         return new MerchantDisputeDetailDto(dto, messages, canReply, canResolve);
     }
@@ -921,7 +922,7 @@ public class DisputeService {
         DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
         requireTicketDeviceAccess(userId, ticket);
-        if (!"OPEN".equals(ticket.getStatus())) {
+        if (!DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
         }
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
@@ -974,7 +975,7 @@ public class DisputeService {
         merchantPortalGuard.requireAccess(userId);
         DisputeTicket ticket = requireTicket(ticketId);
         requireTicketDeviceAccess(userId, ticket);
-        if (!"OPEN".equals(ticket.getStatus())) {
+        if (!DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待处理工单可回复");
         }
         String body = request != null && request.body() != null ? request.body().trim() : "";
@@ -1010,11 +1011,11 @@ public class DisputeService {
         int memberDiscount = orderOpt.map(o -> o.getMemberDiscountCents()).orElse(0);
         int couponDiscount = orderOpt.map(o -> o.getCouponDiscountCents()).orElse(0);
         Instant now = Instant.now();
-        boolean slaOverdue = "OPEN".equals(ticket.getStatus())
+        boolean slaOverdue = DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
                 && !ticket.getSlaDueAt().isAfter(now);
         Long slaHoursRemaining = null;
-        if ("OPEN".equals(ticket.getStatus()) && ticket.getSlaDueAt() != null && !slaOverdue) {
+        if (DisputeTicketTransitions.canActWhileOpen(ticket.getStatus()) && ticket.getSlaDueAt() != null && !slaOverdue) {
             slaHoursRemaining = ChronoUnit.HOURS.between(now, ticket.getSlaDueAt());
         }
         String reviewCode = resolveReviewCode(ticket);

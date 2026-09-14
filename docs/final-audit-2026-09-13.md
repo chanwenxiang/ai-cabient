@@ -453,6 +453,8 @@
 - [x] A-P2-004：`isNavMenuActive` 在 ACTIVE 菜单未加载时 fail-closed（`isNavMenuActiveFor`）；避免停用菜单首屏闪现
 - [x] S-P2-2：`GlobalExceptionHandler` 通用异常日志带 `traceId/spanId/sessionId`；500 响应 `X-Trace-Id` + 短追踪号文案
 - [x] S-P2-9（试点）：`SessionLogContext` 统一 sessionId/deviceId/userId；`SessionDoorService` 门事件日志已接入
+- [x] S-P2-9（扩展）：`SessionSettleService` / `SessionExpireService` 关键日志接入 `SessionLogContext`
+- [x] S-P2-6：`DisputeTicketTransitions` 收口 OPEN→RESOLVED→CLOSED（含重开）；单测覆盖；`DisputeService` 守卫改走状态机
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）

@@ -9,6 +9,7 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.SessionLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -81,7 +82,7 @@ public class SessionSettleService {
             OrderReadModel order = settlementService.settle(session);
             session.setOrderId(order.orderId());
             sessionService.transition(session, SessionState.COMPLETED);
-            log.info("session completed session={} order={}", session.getSessionId(), order.orderId());
+            log.info("session completed {} order={}", SessionLogContext.of(session), order.orderId());
             cabinetMetrics.recordSettlementSuccess();
             if ("PENDING".equalsIgnoreCase(order.status())) {
                 opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH",
@@ -95,7 +96,7 @@ public class SessionSettleService {
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()),
                     "识别结果需人工审核", e.getMessage());
-            log.warn("session disputed session={}", session.getSessionId());
+            log.warn("session disputed {}", SessionLogContext.of(session));
             cabinetMetrics.recordSettlementFailure();
             return sessionService.toDto(session);
         } catch (BalanceInsufficientException e) {
@@ -106,7 +107,7 @@ public class SessionSettleService {
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()),
                     LITERAL, e.getMessage());
-            log.warn("session balance insufficient session={}", session.getSessionId());
+            log.warn("session balance insufficient {}", SessionLogContext.of(session));
             cabinetMetrics.recordSettlementFailure();
             return sessionService.toDto(session);
         } catch (ResponseStatusException e) {
@@ -122,11 +123,11 @@ public class SessionSettleService {
             session.setFailReason(e.getReason());
             sessionService.transition(session, SessionState.FAILED);
             repository.save(session);
-            log.warn("session failed session={} reason={}", session.getSessionId(), e.getReason());
+            log.warn("session failed {} reason={}", SessionLogContext.of(session), e.getReason());
             cabinetMetrics.recordSettlementFailure();
             return sessionService.toDto(session);
         } catch (RestClientException e) {
-            log.error("vision/settle remote call failed session={}", session.getSessionId(), e);
+            log.error("vision/settle remote call failed {}", SessionLogContext.of(session), e);
             opsExceptionService.report("RECOGNITION_UNAVAILABLE", "HIGH",
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()),
@@ -134,7 +135,7 @@ public class SessionSettleService {
             sessionService.transition(session, SessionState.FAILED);
             return sessionService.toDto(session);
         } catch (RuntimeException e) {
-            log.error("settle failed session={}", session.getSessionId(), e);
+            log.error("settle failed {}", SessionLogContext.of(session), e);
             cabinetMetrics.recordSettlementFailure();
             opsExceptionService.report("SETTLEMENT_FAILED", "HIGH",
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
@@ -164,7 +165,7 @@ public class SessionSettleService {
         ShoppingSession session = repository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() != SessionState.RECOGNIZING) {
-            log.warn("ignore async recognition session={} state={}", sessionId, session.getState());
+            log.warn("ignore async recognition {} state={}", SessionLogContext.of(session), session.getState());
             return;
         }
         sessionService.transition(session, SessionState.SETTLING);
@@ -172,7 +173,7 @@ public class SessionSettleService {
             OrderReadModel order = settlementService.processRecognitionResult(session, recognition);
             session.setOrderId(order.orderId());
             sessionService.transition(session, SessionState.COMPLETED);
-            log.info("async session completed session={} order={}", sessionId, order.orderId());
+            log.info("async session completed {} order={}", SessionLogContext.of(session), order.orderId());
             if ("PENDING".equalsIgnoreCase(order.status())) {
                 opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH",
                         new OpsExceptionService.ExceptionReport.ExceptionRefs(
@@ -185,7 +186,7 @@ public class SessionSettleService {
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()),
                     "识别结果需人工审核", e.getMessage());
-            log.warn("async session disputed session={}", sessionId);
+            log.warn("async session disputed {}", SessionLogContext.of(session));
         } catch (BalanceInsufficientException e) {
             session.setFailReason(e.getMessage());
             sessionService.transition(session, SessionState.DISPUTED);
@@ -193,11 +194,11 @@ public class SessionSettleService {
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()),
                     LITERAL, e.getMessage());
-            log.warn("async session balance insufficient session={}", sessionId);
+            log.warn("async session balance insufficient {}", SessionLogContext.of(session));
         } catch (ResponseStatusException e) {
             if (e.getStatusCode() == HttpStatus.CONFLICT) {
                 sessionService.transition(session, SessionState.DISPUTED);
-                log.warn("async session disputed session={}", sessionId);
+                log.warn("async session disputed {}", SessionLogContext.of(session));
                 return;
             }
             if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
@@ -207,13 +208,13 @@ public class SessionSettleService {
                         new OpsExceptionService.ExceptionReport.ExceptionRefs(
                                 session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()),
                         LITERAL, e.getReason());
-                log.warn("async session balance insufficient session={}", sessionId);
+                log.warn("async session balance insufficient {}", SessionLogContext.of(session));
                 return;
             }
             session.setFailReason(e.getReason());
             sessionService.transition(session, SessionState.FAILED);
             repository.save(session);
-            log.warn("async session failed session={} reason={}", sessionId, e.getReason());
+            log.warn("async session failed {} reason={}", SessionLogContext.of(session), e.getReason());
         }
     }
 
@@ -238,28 +239,28 @@ public class SessionSettleService {
             OrderReadModel order = settlementService.processRecognitionResult(session, recognition, false);
             session.setOrderId(order.orderId());
             sessionService.transition(session, SessionState.COMPLETED);
-            log.info("dev upload session completed session={} order={}", sessionId, order.orderId());
+            log.info("dev upload session completed {} order={}", SessionLogContext.of(session), order.orderId());
         } catch (DisputeRequiredException e) {
             sessionService.transition(session, SessionState.DISPUTED);
-            log.warn("dev upload session disputed session={}", sessionId);
+            log.warn("dev upload session disputed {}", SessionLogContext.of(session));
         } catch (ResponseStatusException e) {
             if (e.getStatusCode() == HttpStatus.CONFLICT) {
                 sessionService.transition(session, SessionState.DISPUTED);
-                log.warn("session disputed session={} reason={}", session.getSessionId(), e.getReason());
+                log.warn("session disputed {} reason={}", SessionLogContext.of(session), e.getReason());
                 cabinetMetrics.recordSettlementFailure();
                 return sessionService.toDto(session);
             }
             session.setFailReason(e.getReason());
             sessionService.transition(session, SessionState.FAILED);
             repository.save(session);
-            log.warn("dev upload session failed session={} reason={}", sessionId, e.getReason());
+            log.warn("dev upload session failed {} reason={}", SessionLogContext.of(session), e.getReason());
         } catch (RuntimeException e) {
             session.setFailReason(ApiMessages.INTERNAL_ERROR);
             if (session.getState().canTransitionTo(SessionState.FAILED)) {
                 sessionService.transition(session, SessionState.FAILED);
             }
             repository.save(session);
-            log.error("dev upload settle failed session={}", sessionId, e);
+            log.error("dev upload settle failed {}", SessionLogContext.of(session), e);
         }
         return sessionService.toDto(session);
     }
@@ -278,7 +279,7 @@ public class SessionSettleService {
             if (session.getState() != SessionState.SHOPPING) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不可关门结算");
             }
-            log.info("demo-close zero-settle session={} device={}", sessionId, session.getDeviceId());
+            log.info("demo-close zero-settle {}", SessionLogContext.of(session));
             sessionService.transition(session, SessionState.RECOGNIZING);
             sessionService.transition(session, SessionState.SETTLING);
             OrderReadModel order = settlementService.settleManual(session, List.of());
