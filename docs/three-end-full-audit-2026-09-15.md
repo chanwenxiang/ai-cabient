@@ -1147,6 +1147,8 @@ Error: 图形验证码接口未返回
 
 ### 11.6 本轮之后仍未闭环
 
+> **本节第 1、2 条已在第 13 章闭环**（见 §13.2）。以下保留原始记录，不做改写。
+
 1. **E-1 未解决**：仓库内 `static/admin` 产物仍是 09-13 版；6 处 TS 错误仍在 HEAD。本轮复测用的是**工作区里 `--skip-typecheck` 重建**的产物（**未提交**）。正确修法：先修 3 处类型错误（`row.id`/`row.releaseId` 加存在性校验、PrintView 用 `String(route.query.x ?? '')`），再让 `mvn verify` 正常重建并提交产物；同时按 10.2 把类型检查拆成独立 CI 步骤。
 2. **W-1 的修复尚未纳入 CI**：UAT 现在能跑了，但 `ci.yml` 仍不调用 `test:mp`。不改 CI，这次修复的收益进不了流水线。
 3. **W-6**：consumer UAT 的验证码获取需加退避重试，否则套件仍可能中途中断。
@@ -1239,6 +1241,8 @@ POST /api/v2/auth/password-login → 200 {"code":0,...}
 
 ### 12.7 本轮之后仍未闭环
 
+> **本节第 1、2 条已在第 13 章闭环**（见 §13.2 / §13.7）。以下保留原始记录，不做改写。
+
 1. **E-1 未解决**（继承 11.6）：`static/admin` 仍是 09-13 版；6 处 TS 错误仍在 HEAD；工作区仍有未提交的 `--skip-typecheck` 重建产物。
 2. **`T-1` 的 CI 侧未闭环**：`ci.yml` 仍不调用 `test:mp`，本轮修好的 4 个套件**进不了流水线**。
 3. **`edge` 零测试资产** —— Android 边缘端（`PrefsJsonQueue.mutate()` 曾疑有主线程阻塞风险）没有任何自动化保护。
@@ -1248,4 +1252,75 @@ POST /api/v2/auth/password-login → 200 {"code":0,...}
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复。所有 `文件:行` 证据可在当前工作区复现；`.tmp/` 下产物（`mvn-test.log`、`r5-*.log`、`*.json`）可逐条核验。*
+## 13. 第六轮 · 闭环落地（CI 接入 / E-1 修复 / 工作区收口）
+
+### 13.1 本轮动机与范围
+
+按 §12.7 的优先级建议执行三件事，顺序即优先级：**接 CI → 修 6 处 TS 错误并正经重建产物 → 清工作区**。由 §12.7 第 1、2 条与 §10.2 可见，这三件事互为前提：E-1 不修，产物门禁永远执行不到；CI 不接，T-1 的修复收益进不了流水线；工作区不清，无法判断产物差异归属。
+
+**本轮仍未改任何业务源码。** 6 处 TS 修复属客户端类型收窄（空值守卫 + 类型谓词），不改变任何运行时分支语义。
+
+### 13.2 已闭环项（对 §11.6 / §12.7 的更正）
+
+| 编号 | 原状态 | 现状 | 证据 |
+| --- | --- | --- | --- |
+| E-1 | 6 处 TS2345 在 HEAD，产物门禁 `ci.yml:127` 永远执行不到 | **已修复并重建产物入库** | `vue-tsc --noEmit` exit=0；`static/admin` 178 文件与 HEAD 一致（`git status` 无差异）；提交 `9ea49284` |
+| N-1 / W-1 / T-1 的 CI 侧 | `ci.yml` 从不调用任何行为测试 | **已接入** | 新增 `e2e-h5` job；`mini-programs` job 接入 admin vitest；提交 `3b26f93b` |
+
+E-1 的修复方式（逐条对应 §10.2 建议）：
+
+- `MemberLevelsView.vue`：`toggleStatus` 加 `if (!row.id) return` 守卫；batch targets 用类型谓词收窄（过滤 `r.status !== next`）。
+- `OtaView.vue`：`unpublish` 加 `if (!row.releaseId) return` 守卫。
+- `PrintView.vue`：mode 用 `String(route.query.type || '')` 归一化；两处 id 参数加空值守卫。
+
+产物重建走 `node scripts/build-admin.mjs`（**不带** `--skip-typecheck`），exit=0，178 文件 / 168 assets，`index.html` 引用自洽。
+
+### 13.3 CI 接入的具体内容，以及接入时新发现的一个坑
+
+新增 `e2e-h5` job（ubuntu，`postgres:16-alpine` + `redis:7-alpine` 两个 service）：
+
+- 后端以 `-Pskip-admin-ui` 打包并直跑 `:8080`（**CI 无 nginx 网关**，故两个 H5 dev server 的 `/api` 经 `VITE_DEV_PROXY` 直指后端）；轮询 `Started TradeServiceApplication` 最多 240s；
+- 两个 H5 dev server 起在 `:3002` / `:3001`，各自轮询 `/` 最多 180s；
+- 跑 4 套 UAT：`consumer-h5-uat`、`merchant-h5-uat`、`three-end-business-uat`（判红）、`three-end-dispute-ui-uat`（`continue-on-error`——其前置种子缺失时脚本以 exit 2 退出，属**环境未就绪**，不应计为产品回归）；
+- 证据（各端 `output/playwright/` 与三个日志）以 artifact 上传。
+
+**接入过程中发现并修掉的一个坑（不修则该 job 必红）**：三类脚本解析到的 Playwright 版本**不同** —— admin 侧脚本走仓库根依赖 `playwright@1.55.0`，两端小程序走各自 `package.json` 的 `1.62.1`（已用 `require.resolve` 逐端实测）。两个版本绑定的 chromium revision 不同，而原写法 `pnpm exec playwright install chromium --with-deps` 只装根版本，**两端 UAT 会以 `Executable doesn't exist` 失败**。已改为按版本各装一次。
+
+配套改动：
+
+- 新增 `scripts/lib/redis-captcha.mjs`：用 `node:net` 实现最小 RESP 客户端。CI 走 `REDIS_HOST` / `REDIS_PORT` 直连（不依赖 `docker exec` 与容器名），本地保留回退路径。consumer / merchant / business 三套脚本改为 import 该模块，**原先各自内联的验证码读取实现已删除**（此前同一种逻辑存在三份独立副本，是 §12.3「短信登录缺图形验证码」根因的重复载体）。
+- 4 个 UAT 脚本登录判定补 `consumer_cookie_auth` / `merchant_cookie_auth` 分支 —— 这是 §12.3 根因之一，Cookie 会话改造后旧 `*_token` 判定恒为假。
+- 跨端脚本补 `dismissPrivacyConsent()`；3 个脚本接入 `UAT_MAX_FAIL` 基线（ratchet）。
+
+### 13.4 §10.2 建议 4 未采纳的理由
+
+建议是「把 `vue-tsc` 拆成独立 CI 步骤，与 `mvn verify` 解耦」。本轮**未采纳**：E-1 的根因是 6 处真实类型错误，修掉后 `mvn verify` 不再失败，产物门禁 `ci.yml:127` 自然可达；再加一层与主构建并行的类型检查属重复门禁，只增加 CI 时长、不增加保护面。**若后续再出现「主构建失败导致其后门禁失效」，正确修法是给该门禁加 `if: always()`，而不是另起一步。**
+
+### 13.5 工作区收口（对应 §8.1 第 1 项 / [S-1]）
+
+- `git status` 干净；`static/admin` 差异随提交消除（178 文件与 HEAD 一致）。
+- **[S-1] 建议 1 的「删除 3 个凭据残留文件」已完成**：`.tmp-admin-token.txt`（265 B，含完整超管 bearer）、`clients/admin-vue/eyJ...`（两个，文件名本身即 JWT，`sub=1000000001` / `1000000010`）。三者**均未入库**（`.gitignore:154` / `:163` 命中，`git ls-files` 复核无 `eyJ` 文件名），但位于 OneDrive 同步目录。已备份至 `%TEMP%\aicabinet-stale-creds\` 后从工程目录移除。
+- **[S-1] 建议 1 的另两项未完成**，必须显式记账而不是当作已闭环：① 服务器侧**吊销超管会话未执行**（这些 token 的 `exp` 已于 2026-09-14 过期，但吊销动作本身没做）；② `.gitignore` 的通用化收口**未执行** —— 把 `:163` 的「单条路径补丁式规则」升级为 `**/*eyJ*` / `**/token*.txt` 这类通用规则（[S-1] 建议 2）。
+- **补充一条事实，以免下次误判**：在 `scripts/` / `clients/` / `packages/` 中全文检索 `.tmp-admin-token` **无命中** —— 这两批凭据来自临时命令，**不是项目脚本的习惯性产物**，因此不存在「需要改造的落盘脚本」。
+
+### 13.6 本轮之后仍未闭环
+
+1. **`e2e-h5` 的基线从未在 CI 上实测过**。`UAT_MAX_FAIL_*` 取本地实机值（consumer 5 / merchant 2 / business 3 / dispute 2）。CI 用 playwright 自带 chromium 而非系统 Chrome、且数据库是全新 Flyway 种子，失败数可能与本地不一致。**校准规则：只允许下调（修复）或按环境差异平级调整，不允许为变绿而上调。** 首次 CI 运行后须据实记录并回填本节。
+2. `W-3` / `W-4`（空表单建设备、余额流水 89% 零金额两个 P0）、`W-6`、`W-8` **代码未改**（继承 §12.6 / §12.7）。
+3. `D-A04` 类消耗性用例仍缺 setup/teardown 重置，UAT 仍不可重复执行。
+4. `edge`（Android 边缘端）**零测试资产**。
+5. 窄视口表格仅测 1100px 一档，未覆盖 768 / 1280 断点。
+6. `clients/{consumer-mp,merchant-mp}/src/manifest.json` 的 `appid` 仍为空 —— 真机/发布硬阻塞（R1~R6 均未处理）。
+7. **CI 的 secret scan 仍只扫 `git ls-files`**（[S-1] 建议 4 未采纳）：对未跟踪文件无感知——§13.5 的两处残留、以及 `.gitignore` 的通用化收口，都属这一类尚未关上的口子。
+
+### 13.7 本轮提交
+
+| commit | 内容 |
+| --- | --- |
+| `9ea49284` | `fix(admin)`: 修复可空 id 拼入端点的 6 处 TS2345 并重建产物 |
+| `3b26f93b` | `test(e2e)`: UAT 套件接入 CI，修复登录判定/隐私弹窗导致的整轮中断 |
+| `425b833a` | `docs(audit)`: 本报告第 1~12 章入库 |
+
+---
+
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地。所有 `文件:行` 证据可在当前工作区复现；`.tmp/` 下产物（`mvn-test.log`、`r5-*.log`、`*.json`）可逐条核验。§13.6 第 1 条是唯一一条「已改但无法在本机验证」的结论，须以首次 CI 运行结果为准。*
