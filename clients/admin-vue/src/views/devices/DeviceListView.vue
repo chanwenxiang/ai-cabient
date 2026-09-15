@@ -1099,6 +1099,24 @@ async function saveCreate() {
     ElMessage.warning('无新建设备权限');
     return;
   }
+  // 设备名称允许留空（后端会回退为系统自动分配的 12 位编号），但设备名是运维识别柜机的
+  // 主要依据，直接落库会产出以编号命名的设备。故空名称时先与用户确认，避免误点即建。
+  if (!createForm.deviceName.trim()) {
+    try {
+      await ElMessageBox.confirm(
+        '未填写设备名称，将使用系统自动分配的 12 位编号作为设备名称。是否继续创建？',
+        '确认新建设备',
+        {
+          type: 'warning',
+          confirmButtonText: '继续创建',
+          cancelButtonText: '返回填写',
+          appendTo: 'body'
+        }
+      );
+    } catch {
+      return;
+    }
+  }
   createSaving.value = true;
   try {
     const created = await api.request<{ deviceId: string }>(AdminEndpoints.devices, 'POST', {
