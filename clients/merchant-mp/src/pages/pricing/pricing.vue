@@ -317,9 +317,10 @@ async function savePrice(p: MerchantSkuPricing) {
     showSuccess('已更新');
   } catch (e) {
     draft.value[key] = prev;
-    const msg = e instanceof Error ? e.message : '保存失败';
-    showError(msg);
-    if (msg.includes('他人修改') || msg.includes('冲突') || msg.includes('409')) {
+    const err = e as { status?: number; message?: string };
+    const isConflict = err?.status === 409;
+    showError(isConflict ? '他人已修改，请刷新' : e instanceof Error ? e.message : '保存失败');
+    if (isConflict) {
       void load(false);
     }
   } finally {

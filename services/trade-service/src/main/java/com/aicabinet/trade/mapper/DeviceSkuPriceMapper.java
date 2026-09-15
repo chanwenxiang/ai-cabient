@@ -75,8 +75,7 @@ public interface DeviceSkuPriceMapper extends BaseTradeMapper<DeviceSkuPrice> {
                 entity.setVersion(expected);
                 throw new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.CONFLICT,
-                        "价格已被他人修改，请刷新后重试 device=" + entity.getDeviceId()
-                                + " sku=" + entity.getSkuId());
+                        com.aicabinet.trade.support.ApiMessages.OPTIMISTIC_LOCK_CONFLICT);
             }
         }
         return entity;

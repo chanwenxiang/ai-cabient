@@ -9211,6 +9211,8 @@ export interface components {
             lowThreshold?: number;
             /** Format: date-time */
             updatedAt?: string;
+            /** Format: int64 */
+            inventoryVersion?: number;
         };
         ApiResponseDeviceInventoryDto: {
             /** Format: int32 */
@@ -11360,6 +11362,8 @@ export interface components {
             countedQuantity: number;
             note?: string;
             photoEvidenceUrl?: string;
+            /** Format: int64 */
+            expectedVersion?: number;
         };
         ApiResponseUserRecallResult: {
             /** Format: int32 */

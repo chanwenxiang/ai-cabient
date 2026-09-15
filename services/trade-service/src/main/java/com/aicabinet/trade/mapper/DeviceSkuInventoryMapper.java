@@ -81,7 +81,7 @@ public interface DeviceSkuInventoryMapper extends BaseTradeMapper<DeviceSkuInven
                 entity.setVersion(expected);
                 throw new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.CONFLICT,
-                        "库存并发冲突，请重试 device=" + entity.getDeviceId() + " sku=" + entity.getSkuId());
+                        com.aicabinet.trade.support.ApiMessages.OPTIMISTIC_LOCK_CONFLICT);
             }
         }
         return entity;

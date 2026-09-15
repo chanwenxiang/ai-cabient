@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.aicabinet.trade.support.OptimisticLocking;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
@@ -214,6 +215,10 @@ public class MerchantSkuPricingService {
         Optional<DeviceSkuPrice> existing = priceRepository.findByDeviceIdAndSkuIdForUpdate(deviceId, skuId);
         Integer oldOverride = existing.map(DeviceSkuPrice::getPriceCents).orElse(null);
 
+        if (existing.isPresent()) {
+            requireMatchingExpectedVersion(request.expectedVersion(), existing.get().getVersion());
+        }
+
         if (newPrice == null) {
             existing.ifPresent(priceRepository::delete);
             auditService.appendLog(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
@@ -222,13 +227,9 @@ public class MerchantSkuPricingService {
             validatePrice(sku, newPrice);
             DeviceSkuPrice row = existing.orElseGet(DeviceSkuPrice::new);
             row.setId(priceId);
-            if (existing.isPresent() && request.expectedVersion() != null
-                    && request.expectedVersion() != row.getVersion()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "价格已被他人修改，请刷新后重试");
-            }
             if (existing.isEmpty()) {
                 row.setVersion(0);
-            } else if (request.expectedVersion() != null) {
+            } else {
                 row.setVersion(request.expectedVersion());
             }
             row.setPriceCents(newPrice);
@@ -291,6 +292,13 @@ public class MerchantSkuPricingService {
                     return new MerchantSkuPriceChangeDto(dev, sku, l.getDetail(), l.getCreatedAt());
                 })
                 .toList();
+    }
+
+    /**
+     * 覆盖价已存在时必须带 expectedVersion，且与当前行一致，否则 409。
+     */
+    static void requireMatchingExpectedVersion(Long expectedVersion, long actualVersion) {
+        OptimisticLocking.requireMatchingExpectedVersion(expectedVersion, actualVersion);
     }
 
     static boolean priceHistoryTargetMatches(String targetId,

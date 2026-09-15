@@ -16,7 +16,7 @@
 | **整改质量** | **良**。重构为干净机械抽取（无行为漂移），单测真实可跑（后端 26 pass / vision 23 pass） |
 | **文档诚实度** | **高**。78 ✅ / 2 ❌，未完成项（appid、urlCheck）与局限项（E-P1-1 设备证书、E-P1-2 队列、M-P1-4 AppSheet）均如实标注未夸大 |
 | **最大风险** | ✅ **已修复**：`pnpm check:audit-gates`（含 page-size / anti-jitter / table-align / mp-a11y）已接入 CI `mini-programs` job |
-| **部分完成** | 3 项：M-P1-5/S-P1-5 乐观锁（前端缺位）、E-P1-1（无设备证书）、S-P1-2（主类仍 755 行） |
+| **部分完成** | 1 项：E-P1-1（无设备证书/自定义 truststore）；S-P1-2 主类仍偏大属质量债 |
 
 ---
 
@@ -38,35 +38,33 @@
 | M-P1-2 | ✅ | **✅ 真实（优秀）** | `components/WalletPage.vue` 443 行 + `wallet.vue`/`line-wallet.vue` 各 **7 行壳**，教科书级复用 |
 | M-P1-3 | ✅ | **✅ 真实** | `replenishment.vue` **1129 行**（原 ~3000+），拆出 Detail/Scan/Display/Shell 等 composable |
 | M-P1-4 | ❌ | **❌ 未落地（文档未勾选，诚实）** | 仅 `AppConfirmDialog.vue` + `useAppConfirmDialog.ts`；**无统一 `AppSheet`**，多页 bottom-sheet 仍各自实现 |
-| M-P1-5 | ✅ | **⚠️ 部分** | 见 §二 乐观锁分析 |
+| M-P1-5 | ✅ | **✅ 已补齐闭环** | 已有覆盖价强制 `expectedVersion`（含 reset）；冲突「他人已修改，请刷新」；商户页 `status===409` |
 | S-P1-1 | ✅ | **✅ 真实** | `SettlementService.java` **238 行**（原上帝类），依赖 **30→10**；拆出 9 个类（VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator / OrderSupport / Confidence） |
 | S-P1-2 | ✅ | **✅ 真实（主类偏重）** | 拆出 4 个 `Session*Service`（Expire/Open/Restock/Door/Settle）；但 `SessionService.java` 仍 **755 行 / 21 个 `private final`** |
 | S-P1-3 | ✅ | **✅ 真实** | `aicabinet.session-expire` 配置化 |
 | S-P1-4 | ✅ | **✅ 真实** | mock 迁至 `/api/v2/dev/payment/**`，与真实路由隔离 |
-| S-P1-5 | ✅ | **⚠️ 部分** | 同 M-P1-5 |
+| S-P1-5 | ✅ | **✅ 库存契约补齐** | `DeviceInventoryDto.inventoryVersion`；盘点/upsert 已有行校验 version；Mapper 文案统一 |
 | V-P1-1 | ✅ | **✅ 真实** | `main.py:49-53` — mock 关闭且 recognizer `available=false` 时 `raise RuntimeError` |
 | V-P1-2 | ✅ | **✅ 真实** | `RECOGNIZE_TIMEOUT_MS` 超时 → 回退 `need_review=true` |
 | V-P1-3 | ✅ | **✅ 真实** | `kafka_worker.py:100` `enable_auto_commit=False`；`:178-191` 失败写 `...request.DLT` 后再 commit |
 | E-P1-1 | ✅ | **⚠️ 部分** | 见 §三 E-P1-1 分析 |
 | E-P1-2 | ❌ | **❌ 未做（文档诚实标注"后续做"）** | 仍是 `OutboundMqttQueue.kt` + `OfflineUploadQueue.kt` 双队列 |
 
-**小计**：✅ 真实 19 项 ／ ⚠️ 部分 3 项 ／ ❌ 未落地 3 项（其中 2 项文档已诚实标注）
+**小计**：✅ 真实/已闭环 21 项 ／ ⚠️ 部分 1 项（E-P1-1）／ ❌ 未落地 3 项（其中 2 项文档已诚实标注）
 
 ---
 
-## 二、乐观锁专项（M-P1-5 / S-P1-5）
+## 二、乐观锁专项（M-P1-5 / S-P1-5）— 2026-09-15 已补齐
 
-**已落地部分**
-- DB：`V260__device_sku_inventory_version.sql`、`V274__device_sku_price_version.sql` 均加 `version BIGINT NOT NULL DEFAULT 0`
-- 实体：`DeviceSkuPrice.java:32` `private long version`
-- 写入：`DeviceSkuPriceMapper.java:63-75` 手动 CAS（读期望值 → `expected+1` → 冲突回写），**未用 MyBatis-Plus `@Version`**（因复合主键，选择合理）
+**已落地**
+- DB：`V260` / `V274` version 列；Mapper 手动 CAS → HTTP 409 +「他人已修改，请刷新」
+- 改价：已有覆盖价（含 reset）**强制** `expectedVersion`；商户页已传 `priceVersion` → `expectedVersion`，按 `status===409` 刷新
+- 库存：`DeviceInventoryDto.inventoryVersion`；`StocktakeAdjustRequest.expectedVersion`；upsert/盘点已有行比对
 
-**缺口**
-1. 全仓 `@Version` 注解 **0 处**，乐观锁完全靠 Mapper 手写 SQL 维护，一致性依赖人工纪律
-2. **前端不发 version**：`clients/merchant-mp/src/pages/pricing/*.vue` 无 version 字段。原审计建议「前端带 etag 重试」未实现
-3. 实际并发保护靠 `分布式锁`（代码注释自认"与改价分布式锁并存"），version 目前主要承担审计/版本号语义
-
-**风险**：并发写场景下，客户端无冲突感知 → 无法给用户「他人已修改，请刷新」的交互；冲突后被静默覆盖（锁外路径）。
+**残留（可接受）**
+- 未用 MyBatis-Plus `@Version`（复合主键，手写 CAS）
+- 补货履约主路径仍以服务端加载 version + CAS 为主（非 UI 陈旧写）
+- 无 ETag（与 body `expectedVersion` 约定一致，不必双轨）
 
 ---
 
@@ -111,7 +109,7 @@
 | 重构性质 | 字面量 → 类型化 endpoint 函数，`encodeURIComponent` 内聚 | 无行为漂移 |
 | props 变异修复 | 改用 `defineModel` | 正确写法（非 hack） |
 
-**死代码**：`components/AdminVirtualTable.vue`（**323 行**）已**零引用** —— A-P1-002 最终把设备运维改回标准 `el-table`，该组件文档称"保留备选"，实为死代码。
+**死代码**：~~`AdminVirtualTable.vue`~~ 已于 2026-09-15 删除（零引用）。
 
 **大文件残留（>1500 行）**
 
@@ -169,9 +167,9 @@
 | 优先级 | 问题 | 建议 |
 |--------|------|------|
 | **P0** | ~~10 个门禁 0 接入 CI~~ | ✅ 已接入 `ci.yml` + 扩展 `check:audit-gates` |
-| **P1** | 乐观锁前端缺位 | 前端带 `version`/ETag，冲突返回 409 并提示刷新 |
+| **P1** | ~~乐观锁前端缺位~~ | ✅ 强制 expectedVersion + 409 文案 + 商户页按 status 刷新 |
 | **P1** | E-P1-1 TLS 仅默认信任库 | 现场签发设备证书 + 自定义 truststore；否则勿开 TLS |
-| **P2** | `AdminVirtualTable.vue` 323 行死代码 | 删除或标注保留截止时间 |
+| **P2** | ~~`AdminVirtualTable.vue` 死代码~~ | ✅ 已删除 |
 | **P2** | `SessionService.java` 仍 755 行 / 21 依赖 | 二次拆分（购物车/DTO/锁分离） |
 | **P2** | 4 个 >2600 行巨型视图 | 继续 composable 化 |
 | **P2** | M-P1-4 统一 AppSheet 未做 | 按原建议抽 `AppSheet` 组件 |

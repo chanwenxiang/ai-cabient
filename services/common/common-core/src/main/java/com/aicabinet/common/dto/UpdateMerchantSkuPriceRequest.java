@@ -3,7 +3,7 @@ package com.aicabinet.common.dto;
 public record UpdateMerchantSkuPriceRequest(
         String deviceId,
         Integer priceCents,
-        /** 客户端看到的改价版本；空则仅依赖服务端行锁/当前行版本。 */
+        /** 已有覆盖价时必填；与列表 priceVersion 一致，冲突 HTTP 409。 */
         Long expectedVersion
 ) {
     public UpdateMerchantSkuPriceRequest(String deviceId, Integer priceCents) {

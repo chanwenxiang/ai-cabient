@@ -10,11 +10,13 @@ import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.support.OptimisticLocking;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -108,7 +110,8 @@ public class InventoryOpsService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "sku not found"));
 
         DeviceSkuInventoryId id = new DeviceSkuInventoryId(request.deviceId(), request.skuId());
-        DeviceSkuInventory inv = inventoryRepository.findById(id).orElseGet(() -> {
+        Optional<DeviceSkuInventory> existing = inventoryRepository.findById(id);
+        DeviceSkuInventory inv = existing.orElseGet(() -> {
             DeviceSkuInventory created = new DeviceSkuInventory();
             created.setId(id);
             created.setCapacity(20);
@@ -116,6 +119,9 @@ public class InventoryOpsService {
             created.setQuantity(0);
             return created;
         });
+        if (existing.isPresent()) {
+            OptimisticLocking.requireMatchingExpectedVersion(request.expectedVersion(), inv.getVersion());
+        }
 
         // 有批次账本时以可售为基准；即使 delta=0 也 sync，避免汇总表虚库存残留
         int current = lotService.deviceUsesLotLedger(request.deviceId())

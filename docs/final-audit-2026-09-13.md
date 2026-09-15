@@ -446,7 +446,7 @@
 ### 7.4 上线后必须跟进项
 
 - [x] A-P1-001 路由守卫 fail-closed（未知路径 deny；明细仍靠 findNavByPath）
-- [x] A-P1-002 / A-P1-003：pageSize 上限收紧至 50 + `check:admin-page-size` 门禁；订单/设备列表接入 `ADMIN_LIST_PAGE_SIZES`；设备运维仍用标准 `el-table`（与其它列表同款多选/表头/拖列宽；`AdminVirtualTable` 组件保留备选）；A-P1-003 keep-alive 已修
+- [x] A-P1-002 / A-P1-003：pageSize 上限收紧至 50 + `check:admin-page-size` 门禁；订单/设备列表接入 `ADMIN_LIST_PAGE_SIZES`；设备运维用标准 `el-table`（已删除未接线的 `AdminVirtualTable`）；A-P1-003 keep-alive 已修
 - [x] A-P2-001：`logoutSession` 内统一 `beginLogout` + 2.5s 后 `endLogout`；不依赖 AdminLayout 收尾
 - [x] A-P2-003：去掉 App/`AdminLayout` 首屏重复 RBAC；仅 `router.beforeEach → restore`（含 inflight 去重）；窗口 focus 仍可 refresh
 - [x] A-P2-007：软路径 `console.warn/error` 改 `adminDevWarn/Error`（仅 DEV）；生产仍保留 cookie 误配置告警
@@ -507,7 +507,7 @@
 - [x] S-P1-1 SettlementService 拆分（VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator / OrderSupport；主类为薄 Facade + 锁）
 - [x] S-P1-2 Session 拆分（`SessionExpireService` / `SessionOpenService` / `SessionRestockService` / `SessionDoorService` / `SessionSettleService`；主类为 Facade + 锁/DTO/购物车）
 - [x] A-P2-002 WarehouseView 拆分（采购/盘点/货位/出库/调拨写流 + 实体弹窗 + `useWarehouseTabLoader` + `useWarehouseListFilters` / `useWarehouseCsv` + `useWarehouseLabels` / `useWarehouseRouteLifecycle`；页约 3.2k 行）
-- [x] S-P1-5 / M-P1-5 定价乐观锁（`device_sku_price.version`；库存此前已有）
+- [x] S-P1-5 / M-P1-5 定价/库存乐观锁：已有行强制 `expectedVersion`（含 reset）；冲突统一「他人已修改，请刷新」+ HTTP 409；库存 DTO 透出 `inventoryVersion`；商户改价页按 `status===409` 刷新
 - [x] H5 隐私政策首屏弹窗（C-P2-5 / M-P2-4）— `privacy-consent-modal` + 两端入口页
 - [x] 24 页分包（C-P2-3）— consumer `pages.json` 主包 6 + `subPackages` + `preloadRule`
 - [x] merchant H5 Cookie 优先（对齐 consumer；`aicabinet_admin_session`）
