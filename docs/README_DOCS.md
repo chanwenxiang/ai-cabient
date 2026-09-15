@@ -39,7 +39,7 @@
 | [GO_LIVE_EXECUTION_PLAN.md](GO_LIVE_EXECUTION_PLAN.md) | 2026-07 上线主计划（**含过时 YOLO 叙述**，文首有勘误） |
 | [CODE_FIX_CHECKLIST.md](CODE_FIX_CHECKLIST.md) | 代码修复清单 |
 | [production-launch-checklist.md](production-launch-checklist.md) | 上线门禁清单 |
-| [final-audit-2026-09-13.md](final-audit-2026-09-13.md) | 2026-09-13 全仓代码审计最终版（开发期） |
+| [three-end-full-audit-2026-09-15.md](three-end-full-audit-2026-09-15.md) | **2026-09-15 三端全面审查（现行审计真源，13 章）** |
 
 ### 历史 P0（2026-07 快照，供对照）
 
@@ -73,9 +73,13 @@
 - `TEST_REPORT_2026-08-13.md`、`THREE_END_DATA_VALIDATION_REPORT.md`（点状验收报告）
 - `superpowers/`（设计会话）
 - `uat-screenshots/`（旧截图证据）
+- **2026-09-15 归档的迭代稿**（同主题多轮修订，仅保留末版结论，正文交叉引用组内自洽）：
+  - `final-audit-2026-09-13.md`（被 `three-end-full-audit-2026-09-15.md` 取代）
+  - `ui-audit-2026-09-12{,-r2}.md`、`ui-audit-r3-2026-09-12.md`、`ui-audit-r3-verify-2026-09-12.md`、`ui-audit-merged-2026-09-12.md`（UI 五轮审计 5 份）
+  - `audit-fix-verification-2026-09-15.md`、`audit-fix-verification-{r2,r3,r4}-2026-09-15.md`（整改核验 R1~R4 共 4 份）
 
 **已删除（勿再引用）**：`OPEN_CABINET_DATA_COLLECTION.md`、`VISION_SKU_MODEL.md`、`VISION_YOLO_TEST.md`、`scripts/verify-vision-model.ps1` 及一批一次性 Sonar/编码修复脚本。
 
 ---
 
-**索引更新日期**: 2026-09-12
+**索引更新日期**: 2026-09-15

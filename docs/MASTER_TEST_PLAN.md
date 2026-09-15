@@ -77,7 +77,7 @@
 
 ## 2. UI 测试（三端）
 
-> UI 债务 2026-09-12 五轮审计收口至 P3 并关闭（真源 `ui-audit-r3-verify-2026-09-12.md`）。本章 = 防回归基线 + 代码对照手工用例 + 原生专项。
+> UI 债务 2026-09-12 五轮审计收口至 P3 并关闭（真源 `archive/ui-audit-r3-verify-2026-09-12.md`）。本章 = 防回归基线 + 代码对照手工用例 + 原生专项。
 
 ### 2.1 页面清单基线（代码实测 2026-09-12，防页面漂移）
 
@@ -482,7 +482,7 @@ P0: __/10 · 快速回归: 绿/红 · UI 门禁: 绿/红 · 包体积: OK/超
 | `BUSINESS_FULL_TEST_MATRIX.md` v1.2 | 三端页面矩阵 + 历史执行证据（注意其消费者页数 23 已过时，现为 24）；**按钮级明细继续留分册，不再上收** | §3 明细分册 |
 | `BROWSER_MIN_UAT.md` / `BROWSER_FULL_UAT_PLAN.md` | 浏览器 UAT 步骤级脚本（其「Cursor Browser MCP」工具表述已被 §7.3 取代） | 步骤细化 |
 | `pass-notes/PASS_3A~3F` | 资金/争议/MQTT/库存/钱包/运营深分支 | 深分支真源 |
-| `ui-audit-r3-verify-2026-09-12.md` 等 5 份 | UI 五轮审计收口记录（已关闭） | §2 依据 |
+| `archive/ui-audit-*-2026-09-12.md` 等 5 份 | UI 五轮审计收口记录（已关闭，2026-09-15 移入 `archive/`） | §2 依据 |
 | `CODEBASE_FOUNDATION.md` §10/§11 | 复杂度热点 / 验证矩阵雏形（已上收为本文 §7.0/§3.6） | 上游底稿 |
 | `SECURITY_BEST_PRACTICES_REPORT.md` | 安全扫描基线 | §5 依据 |
 | `PERFORMANCE_TESTING.md` | JMeter 脚本 | §6 依据 |
