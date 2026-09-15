@@ -1,0 +1,1251 @@
+# 三端全量代码审查报告
+
+> 审查对象：`clients/admin-vue`、`clients/consumer-mp`、`clients/merchant-mp` 及共享层 `packages/*`
+> 审查日期：2026-09-15
+> 审查方式：**源码级逐文件阅读 + 关键结论实机复核**，不采信文档勾选标记
+> 项目阶段声明：本项目**仍处于开发阶段，未接入真实硬件与真实支付通道**。本报告所有风险描述基于该前提；凡涉及「资损」「越权」的条目，其危害在当前阶段体现为**契约缺陷与数据可信性缺口**，上线接入真实通道后将转化为真实损失。
+
+---
+
+## 0. 报告说明
+
+### 0.1 证据等级
+
+| 等级 | 含义 | 本报告标记 |
+|---|---|---|
+| A | 审查者本人打开文件、读取该行、确认语义 | 标注 `（已亲验）` |
+| B | 全仓检索/构建脚本输出直接支撑 | 标注检索命令或输出 |
+| C | 子模块深审结论，含 `文件:行`，未二次亲验 | 正常标注 `文件:行` |
+| D | 合理怀疑但未取证 | 归入「待确认」，**不写为结论** |
+
+### 0.2 分级定义
+
+- **P0**：安全漏洞 / 资损路径 / 核心业务流程功能性失效 / 上线合规硬阻塞
+- **P1**：功能缺陷 / 业务逻辑错误 / 明显体验与数据口径问题
+- **P2**：可维护性 / UI 细节 / 性能 / 工程规范
+
+### 0.3 本次审查的局限
+
+本报告为**静态代码审查**。以下须另行验证，不构成本报告结论：
+1. 后端是否对每个 `ops:*` 接口做真实权限校验（前端只能证明「隐藏菜单」，不能证明「拦截请求」）。
+2. 数据库层的唯一约束 / 幂等表 / 状态机约束是否足以兜底前端缺陷。
+3. 视觉服务 `vision-service` 的识别准确率与 `edge` 端 MQTT 时序（不在本次三端范围内）。
+
+---
+
+## 1. 执行摘要
+
+### 1.1 总体结论
+
+**三端代码的整体工程质量明显高于其自评文档所暗示的水平，但存在两类系统性偏差：**
+
+**偏差一：门禁与校验大面积「前端化」。** 三端都存在同一个模式——**关键的准入判断建立在客户端本地状态之上**，而服务端只做「覆盖」而非「否决」。具体表现：
+- admin 的登录判定可由 `localStorage` 单键伪造（`auth-storage.ts:56-58`）；
+- consumer 的「是否有进行中会话」在本地实现却未在二次开门时使用（`index.vue:1078-1089`）；
+- merchant 的「是否真的开过柜门」是本地缓存，且**存了时间戳却不校验**（`useReplenishmentDoorState.ts:19-21` vs `:76`）。
+
+这个模式在开发阶段不会暴露（本地测试永远是干净状态），但它是**上线后数据不可信的总根源**。
+
+**偏差二：E2E 与单测写了但没接进 CI。** 三端共 7 个 UAT 脚本（含 `consumer-h5-uat.mjs` 58KB、`merchant-h5-uat.mjs` 31KB）和 admin 的 6 个 vitest 用例，**在 `.github/workflows/ci.yml` 中一次都没有被调用**（已亲验，见 [N-1]）。CI 实际只做 `type-check` + `lint` + `H5 build`。这解释了为什么本报告中的 P0 能长期存活——它们全部是「编译通过、类型正确、构建成功」的错误。
+
+### 1.2 问题计数
+
+| 端 | P0 | P1 | P2 | 小计 |
+|---|---|---|---|---|
+| admin-vue（运营后台） | 1 | 8 | 8 | 17 |
+| consumer-mp（消费者端） | 3 | 9 | 9 | 21 |
+| merchant-mp（商家端） | 3 | 6 | 8 | 17 |
+| 共享层 `packages/*` | 0 | 2 | 5 | 7 |
+| 工程/流水线/仓库卫生 | 2 | 2 | 3 | 7 |
+| **合计** | **9** | **27** | **33** | **69** |
+
+### 1.3 上线前必修（不可协商的 9 条）
+
+| # | 编号 | 一句话 |
+|---|---|---|
+| 1 | [S-1] | 仓库内存在**超管 bearer token 明文文件**与 JWT 命名的残留文件 |
+| 2 | [S-2] | 两端小程序 `appid` 为空，且消费者端**无隐私授权声明** → 提审必被驳回 |
+| 3 | [A-1] | admin 登录页的演示口令**绕过了测试工具开关**，可进生产包 |
+| 4 | [C-1] | consumer 会话轮询在 `onShow` 后**永久停摆**，关门不再被识别 |
+| 5 | [C-2] | consumer 开门超时竞态可产生**「幽灵会话」**：柜门已开、订单可能已产生、客户端无感知 |
+| 6 | [C-3] | consumer 有进行中会话时**未校验即可再次开门** |
+| 7 | [M-1] | merchant 补货「已开门」门禁**纯本地、无 TTL**，履约结果可伪造 |
+| 8 | [M-2] | merchant 到柜校验（扫码/定位）**整条可跳过**，错柜履约零拦截 |
+| 9 | [M-3] | merchant 正式包**定位失败即补货链路完全不可用** |
+
+### 1.4 第 9~12 章的增量与更正（先看这里）
+
+第 1~8 章是**静态源码审查**。后续四轮实机/产物/全资产复核的结果按章分布如下，**结论以靠后的章节为准**：
+
+| 章 | 轮次 | 内容 | 净增量 |
+|---|---|---|---|
+| 9 | 第二轮 · 真实浏览器渲染 | U-1 ~ U-11 | +11 项；4 条一轮结论被修正 |
+| 10 | 第三轮 · 环境与产物链 | E-1（admin 产物落后 HEAD + 门禁失效）、E-2（XXL-JOB 注册 404） | +2 项 |
+| 11 | 第四轮 · 行为测试与产物复测 | W-1 ~ W-8；补齐第 9 章 9.5 全部 6 项遗留 | +8 项；**U-4 撤回**，U-6 降级，2 条商家 UAT 失败被证为测试假失败 |
+| 12 | 第五轮 · 全资产实跑 | T-1（测试资产 6 种独立根因）；补齐后端 889 个 Java 测试、5 个 admin UAT、vision、infra 的实跑 | +1 项 P0；4 个 UAT 套件被修好并跑通 |
+
+**已被更正/撤回的前文结论（勿再引用）**：
+- **U-4**（admin 首屏重复请求）→ 撤回，新产物实测零重复（A-P2-003 已修）
+- **U-6**（a11y 只做一半）→ 降级为「待全量复测」，新产物抽样全部合规
+- 商家 `M-10d 争议抽屉打不开` → 假失败，详情正常渲染，是 UAT 断言选择器写错
+- 商家 `M-10c 柜机详情无权限`（09-12 的 `uat-report.md`）→ 已 PASS，该 md 为陈旧快照
+- `apps/staging/ha` compose「依赖未定义」→ 假问题，是我用了错误的叠加基底，已撤回
+
+**最严重的一条**：第 12 章 **T-1** —— 8 个 UAT 脚本**没有一个能在未修改的情况下跑完全部用例**，根因共 6 种且相互独立（弹窗遮挡 / 登录判定用废弃 storage key / 短信登录缺图形验证码 / 缺前置种子 / 消耗性用例不可重复 / 依赖不存在的数据）。其中登录判定一条最隐蔽：两端登录**实际全部成功**，却因断言查 `*_token`（真实键已是 `*_cookie_auth`）而被记为失败，**影响 5 个文件 13 处**。叠加 CI 从不调用它们（[N-1]），业务自动化保护的长期状态是**不可信**而非"零"。本轮已修好 4 个套件并跑通（consumer 12→32 PASS）。
+
+---
+
+## 2. 三端代码画像
+
+### 2.1 体量与结构
+
+| 项 | admin-vue | consumer-mp | merchant-mp |
+|---|---|---|---|
+| 技术栈 | Vue3 + Vite6 + Element Plus + Pinia | uni-app (Vue3) + Vite5，构建 mp-weixin + H5 | uni-app (Vue3) + Vite5，同左 |
+| 源文件数（src 下） | ~155 | ~45 | ~72 |
+| 最大单文件 | `views/replenishment/ReplenishmentView.vue` **118.6 KB** | `pages/index/index.vue` **95.6 KB** | `pages/replenishment/replenishment.vue` 31.4 KB |
+| >50 KB 单文件 | **10 个** | 1 个 | 0 个 |
+| 单元测试 | 6 个 vitest（**未接 CI**） | 0 | 0 |
+| E2E 脚本 | 5 个 `.mjs`（**未接 CI**） | 2 个 `.mjs`（**未接 CI**） | 1 个 `.mjs`（**未接 CI**） |
+| `console.log` 残留（src） | 0 | 0 | 0 |
+| `TODO/FIXME`（src） | 0 | 0 | 0 |
+| `any` 使用 | 仓储模块 ~13 个文件全量 `Record<string, any>` | 3 处 | 1 处 |
+
+**结论**：`console.log`、`TODO`、`mock 数据` 在 src 层已被彻底清理，这是很好的纪律。真正的问题不是「脏」而是「**大**」——admin 有 10 个超过 50KB 的单文件，其中两个超过 110KB。
+
+### 2.2 共享层复用情况
+
+`packages/shared-uni` 承载了请求层、格式化、隐私、导航、上传限制等横切能力，**且质量很高**（见 6.1）。但三端对其复用不均衡：
+
+| 共享能力 | admin-vue | consumer-mp | merchant-mp |
+|---|---|---|---|
+| 请求层 `request.ts` | 未用（自建 `api/client.ts`） | 用 | 用 |
+| `fmtMoney` 金额格式化 | **基本未用**（20+ 处内联 `cents/100`） | 部分用 | 部分用 |
+| `parseDate` 日期解析 | 未用 | **未用**（4 处各自 `new Date(str)`） | 未用 |
+| `privacy-consent` | 不适用 | 用（但仅 H5 生效） | 用 |
+| 组件 `app-button` 等 | 不适用 | **复制而非复用**（见 [X-1]） | **复制而非复用**（见 [X-1]） |
+
+---
+
+## 3. 仓库级与工程面（S / N 系列）
+
+### P0
+
+#### [S-1] 仓库内存在超管 bearer token 明文文件与 JWT 命名的残留文件（已亲验）
+
+**证据：**
+- `clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMDAwMDAwMDEi...YTIk`（57 B）——**文件名本身是 JWT**，payload 解码后 `sub=1000000001`，即**超管账号**；文件内容是另一条路径字符串。
+- `clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMDAwMDAwMTAi...huk`（58 B）——同构，`sub=1000000010`。
+- `.tmp-admin-token.txt`（265 B）——**内容是完整可用的 JWT bearer token**，payload 含 `sub:"1000000001"`、`act:"OPERATOR"`、`scope:"session"`、`exp` 字段。（本报告不复现该 token 值。）
+- `.gitignore:163` 与 `.gitignore:154` 分别忽略上述两类文件。`git check-ignore -v` 确认命中；`git ls-files | Select-String eyJ` 仅命中一个 bundle 哈希（`sort-by-pk-DNYOLeYj.js`），**说明这些文件确实未被提交**。
+
+**问题：** 虽然当前**未进入版本库**，但仓库工作区（且位于 OneDrive 同步目录）中躺着**超管会话凭据的明文副本**，命名规则还是「把 token 当文件名」这种极易被误提交的形式。
+**影响：** ① 任何一次 `git add -A` 在 `.gitignore` 被改动或使用 `--force` 时会连带提交凭据；② OneDrive 会把该文件同步到其它设备/共享目录；③ 说明有本地脚本在把凭据落盘到工程目录，这个习惯本身就是风险源。
+**建议：**
+1. 立即删除这 3 个文件，并对超管账号做一次会话吊销。
+2. 把 `.gitignore` 中针对单条路径的补丁式规则（`:163`）升级为通用规则：`.tmp-*`、`**/*eyJ*`、`**/token*.txt`。
+3. 修改本地脚本，凭据一律写入 `%TEMP%` 或 `os.tmpdir()`，**且永不落入仓库目录**。
+4. CI 增加「工作区疑似凭据」检查（当前 secret scan 只扫 `git ls-files`，对未跟踪文件无感知——`ci.yml:43-58` 明确写了 `tracked files only`）。
+
+#### [S-2] 两端小程序 appid 为空；消费者端缺失隐私授权声明（已亲验）
+
+**证据：**
+- `clients/consumer-mp/src/manifest.json:15` → `"appid": ""`，且该文件**无 `permission` / `requiredPrivateInfos` 字段**（对照 `clients/merchant-mp/src/manifest.json:26-31` 有 `scope.userLocation` 与 `requiredPrivateInfos: ["getLocation"]`）。
+- `clients/merchant-mp/src/manifest.json:15` → `"appid": ""`（同样为空），但商家端至少有 `requiredPrivateInfos`。
+- `clients/consumer-mp/project.config.json:2` → `"appid": "wx5a5bc7b541b62a13"`；`clients/merchant-mp/project.config.json:2` → `"appid": ""`。
+- `scripts/validate-miniapp-env.mjs:60-82`：`effectiveAppId = manifestAppId || projectAppId`——因为 `project.config.json` 提供了值，**空 manifest 只触发 `console.warn`（:70-72）而不阻断**；只有两者都为空才 `exit(1)`（:77-82）。
+- 消费者端使用隐私接口但未声明：`uni.scanCode`（`pages/index/index.vue:1359`）、`uni.getLocation`（`pages/nearby/nearby.vue:159`）、`uni.chooseImage`（`utils/dispute-evidence.ts:29`）。
+- H5 优先的隐私弹窗在**小程序端永不生效**：`packages/shared-uni/src/privacy-consent.ts:26-28` → `shouldShowPrivacyConsent()` 要求 `isH5PrivacyRuntime()`（已亲验）。
+
+**问题：** 消费者端存在「**用隐私接口但不声明、不弹隐私窗**」的组合，这在微信正式版会被直接拦截；`appid` 为空则构建产物的小程序账号取决于开发者工具的本地配置（`project.private.config.json`），**有发到错误账号的实际风险**。
+**影响：** 提审驳回 + 上线后隐私接口调用失败（`scanCode` 是消费者端开门主入口，一旦被拦，核心业务流程不可用）。
+**建议：**
+1. 两个 `manifest.json` 的 `mp-weixin.appid` 填入真实 appid，并与 `project.config.json` 保持一致。
+2. 消费者端补 `requiredPrivateInfos`（`getLocation`、`chooseMedia`/`scanCode` 对应项）、`permission.scope.userLocation.desc`、以及隐私协议配置。
+3. `privacy-consent.ts` 的 `shouldShowPrivacyConsent()` 增加小程序分支（`__usePrivacyCheck__` 情形下同样需要弹窗）。
+4. `validate-miniapp-env.mjs:69-73` 的 `console.warn` 升级为 `exit(1)`；appid 也纳入 `check:audit-gates`。
+
+### P1
+
+#### [N-1] 三端全部单测与 E2E 脚本均未接入 CI（已亲验）
+
+**证据：** 对 `.github/workflows/ci.yml` 全文检索 `vitest|test:uat|test:mp` → **0 命中**。
+- 已存在但从未被 CI 调用的资产：
+  - `clients/admin-vue/src/composables/createLoadSeq.test.ts`、`utils/admin-utils.test.ts`、`utils/list-and-redirect.test.ts`、`utils/rbac-cache-policy.test.ts`、`utils/upload-validate.test.ts`、`utils/admin-hash-history.test.ts`（`package.json:11` 有 `test: vitest run`）
+  - `clients/consumer-mp/tests/consumer-h5-uat.mjs`（58 KB）、`tests/imp-dispute-copy-uat.mjs`
+  - `clients/merchant-mp/tests/merchant-h5-uat.mjs`（31 KB）
+  - `clients/admin-vue/tests/*.mjs` ×5
+  - 根 `package.json:17` 定义了 `test:mp`，但无人调用。
+- CI 实际执行的是：`pnpm lint`（:256）、`format:check`（:259）、consumer/merchant `type-check`（:262/265）、H5 build（:268/271）。
+
+**问题：** 「编译器能过」被当成了「行为正确」。本报告 9 条 P0 无一是类型错误——它们全部能通过 `tsc`、`eslint`、`prettier` 与构建。
+**影响：** 任何回归都无法被自动发现；现有 UAT 脚本的投入（合计 100+ KB）基本被浪费。
+**建议：** 在 `mini-programs` job 中增加三步：`pnpm --filter @aicabinet/admin-vue test`、`pnpm --filter @aicabinet/consumer-mp run test:uat`、`pnpm --filter @aicabinet/merchant-mp run test:uat`（Playwright 已在该 job 安装 Chromium，:237-238）。若担心时长，先只接 `consumer-h5-uat` 与 `merchant-h5-uat`——它们覆盖的正是 [C-1][C-2][C-3][M-1] 所在链路。
+
+#### [N-2] 生产构建门禁当前不可通过（已亲验）
+
+**证据：** `scripts/validate-miniapp-env.mjs:84-99` 要求 `mp-weixin.setting.urlCheck === true`，否则 `exit(1)`；而 `clients/consumer-mp/src/manifest.json:18` 与 `clients/merchant-mp/src/manifest.json:18` 均为 `"urlCheck": false`，`project.config.json:20` 同样是 `false`。
+**问题：** `pnpm build:consumer-mp` / `build:merchant-mp`（即 `build:mp-weixin`，其脚本首步就是 `validate-miniapp-env.mjs`）当前会**直接失败**，除非设置 `AICABINET_ALLOW_URL_CHECK_OFF=1`（:95-97）。
+**影响：** 门禁设计意图正确，但当前处于「要么修不通过、要么用绕过开关」的二选一状态，实际上等于门禁被常关。
+**建议：** 在 `manifest.json` 与 `project.config.json` 中把 `urlCheck` 置为 `true`（开发期若确需关闭，改为在 `dev` 脚本中覆盖，而非在 manifest 里长期写死 `false`）。
+
+### P2
+
+- **[N-3] 根目录 2.9 MB `jmeter.log`**（已亲验 `jmeter.log | 2955503`）——虽被 `*.log` 忽略，但位于 OneDrive 同步目录，纯属同步负担。建议移出仓库或加入清理脚本。
+- **[N-4] `clients/admin-vue/eyJ...` 之外的「路径即文件名」模式**——`clients/admin-vue/.playwright-cli/`、`output/playwright/` 等目录含 100+ 张截图与日志（已被忽略），仓库工作区持续膨胀；建议把本地验证产物统一收口到 `docs/uat-screenshots/`（`.gitignore:182-195` 已为该目录预留规则，说明规范已存在但未被执行）。
+- **[N-5] `endpoints.ts` 集中定义被架空**（归属于 admin，见 [A-8]）。
+
+---
+
+## 4. admin-vue（运营管理后台）详审
+
+> 定位：管钱、管分账、管提现审核、管库存的**权限中心**。因此本端任何「能进入」或「能重复提交」的问题都被上调一级。
+
+### P0
+
+#### [A-1] 登录页演示口令绕过测试工具开关，可进入生产包（已亲验）
+
+**证据：**
+```
+src/views/LoginView.vue:198   const DEMO_LOGIN_PASSWORD = '123456';
+src/views/LoginView.vue:199-201  function isDemoPhone(p) { return /^1390000000[1-5]$/.test(p.trim()); }
+src/views/LoginView.vue:186   phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
+src/views/LoginView.vue:204   const password = ref(ENABLE_TEST_TOOLS || isDemoPhone(phone.value) ? DEMO_LOGIN_PASSWORD : '');
+src/views/LoginView.vue:141-145  测试账号提示块（**这一块正确地被 ENABLE_TEST_TOOLS 门控**）
+src/config/feature-flags.ts:2-4  ENABLE_TEST_TOOLS 在 DEV 下默认开启，生产默认关闭
+```
+**问题：** 第 141-145 行的账号提示是规范门控的，但第 204 行的**口令预填**用的是 `ENABLE_TEST_TOOLS || isDemoPhone(...)`。只要 `localStorage.admin_phone` 是 `13900000001~05`（开发期写过一次就永久留存），**生产构建同样会把密码预填成 `123456`**。门控只关了一半。
+**影响：** 内置可用口令的资金后台。若后端演示账号未同步清理，等同公开的运维入口（可调账、审核提现）。
+**建议：** 删除 `DEMO_LOGIN_PASSWORD` 与整个 `isDemoPhone` 分支；测试账号只保留在后端 seed；CI 增加门禁：生产 bundle 中不得出现 `DEMO_LOGIN_PASSWORD` / `123456` 字面量。
+
+### P1
+
+#### [A-2] 全站零表单校验规则（已亲验）
+
+**证据：** 检索 `clients/admin-vue/src` 的 `:rules=` → **0 命中**；而 `<el-form` 出现于 **57 个视图**。
+**问题：** Element Plus 的 `rules` / `formRef.validate()` 能力完全未被使用，必填、长度、边界、非法字符全部靠零散 `if + ElMessage` 手写（例：`views/orders/OrderListView.vue:1308-1311`、`views/merchants/MerchantSplitsView.vue:1516-1517`）。
+**影响：** 校验分散易漏（见 [A-3]），且无法统一收集错误、无法统一禁用提交。
+**建议：** 建立统一 `el-form :model :rules` + `formRef.validate()` 模板，优先覆盖全部**写操作**弹窗；可加 ESLint 规则禁止 `<el-form>` 缺少 `:rules`。
+
+#### [A-3] 线长创建接口无任何前端校验
+
+**证据：** `views/finance/LineManagerView.vue:988-1000` `create()` 直接提交 `managerName`/`phone`/…，无任何 `if`；同文件 `savePromo()`（`:1126-1129`）却做了校验。`commissionRateBps` 在 `:861` 默认 200 且静默生效。
+**影响：** 手机号/名称可为空或任意字符串即发起 POST → 脏数据入库；佣金默认值易被误认为用户输入。
+**建议：** 补手机号正则、名称非空、费率区间校验，并在表单上显式标注默认值来源。
+
+#### [A-4] 提现审核 / 重试打款 / 取消解冻无在途保护、无幂等键
+
+**证据：** `views/finance/LineManagerView.vue:1171-1188`（`review`）、`:1229-1244`（`payout`）、`:1246-1263`（`cancelFailed`）三个函数内**均无 loading 标志**、按钮不禁用；仅批量操作有 `wdBatchLoading`（`:1208`）。请求体（`:1178-1181`）仅 `{approve, remark}`，无幂等键。`views/finance/MerchantWithdrawView.vue` 同构。
+**问题：** 单条「通过并打款」无 in-flight 守卫，双击或弱网重复确认会发出重复 POST。
+**影响：** 若后端非严格幂等 → **重复打款 / 重复解冻**。当前未接真实通道，是补齐幂等契约成本最低的时刻。
+**建议：** 增加 `reviewing = ref('')` 按 `requestId` 禁用按钮；请求体携带 `requestNo` 幂等键；后端以状态机 + 唯一约束兜底。
+
+#### [A-5] 订单「时间范围」筛选不进 URL，刷新即静默失效
+
+**证据：**
+- 请求侧**带了**：`views/orders/OrderListView.vue:945-950`（`from`/`to`）
+- URL 侧**没带**：`:1410-1419` `syncRouteQuery()` 只同步 keyword / payChannel / status / overdue / excludeZero / orderId
+- 恢复侧**没带**：`:1585-1592` `applyRouteQuery()` 无 createdRange
+**问题：** 时间筛选是一次性内存状态；刷新、分享链接、`onActivated` 回页全部丢失，而 `reset()`（`:1483`）会清掉它。
+**影响：** 运营核对某时段账目后刷新页面，看到的是**全量数据**——列表口径静默变化，最典型的「看起来正确的错误数据」。
+**建议：** 把 `from/to` 纳入 `syncRouteQuery` 与 `applyRouteQuery`，统一走一套 query ↔ state 双向同步工具。
+
+#### [A-6] 前端本地态即可伪造「已登录」，路由守卫形同虚设
+
+**证据：**
+```
+src/api/auth-storage.ts:99    isLoggedIn() { return Boolean(getBearerToken()) || isCookieAuthMode(); }
+src/api/auth-storage.ts:56-58 isCookieAuthMode() = localStorage.getItem('admin_cookie_auth') === '1'
+src/router/index.ts:478       if (!isLoggedIn()) return { name:'login', ... }
+src/stores/auth.ts:34-35      权限不从 localStorage 初始化（**这一点做对了**）
+```
+**问题：** 执行 `localStorage.admin_cookie_auth='1'` 即可通过 `beforeEach` 进入 App 外壳。
+**影响：** 因 `auth.ts:257` 的 `canAccessNav` 要求 `rbacHydrated`、菜单仍全空、数据接口全 401，**实际影响有限**。但必须明确一点：本端的鉴权**只是隐藏菜单**，所有越权拦截**必须**由后端承担。
+**建议：** `isLoggedIn()` 只认服务端可验证的会话探测；增加 `/me` 探活作为唯一登录判据并缓存其结论。
+
+#### [A-7] 优惠券编辑回填对「折扣型券」显示错误面值
+
+**证据：** `views/promotions/CouponsView.vue:677`
+```js
+denominationYuan: Number(((Number(row.denominationCents) || 0) / 100).toFixed(2)) || 1
+```
+配合 `:737` 折扣型券 `denominationCents: 0`。
+**问题：** `Number('0.00') || 1` → `1`。折扣型券打开编辑时面值被填成 **1 元**。
+**影响：** 运营误以为该券面值 1 元，可能误改配置。
+**建议：** 去掉 `|| 1`；按券类型显隐字段（`:724-739` 已有 `isPercent` 分支，模板未同步）。
+
+#### [A-8] `endpoints.ts` 形同虚设：43 处硬编码 `/api/v2/...`
+
+**证据：** `src/api/endpoints.ts` 共 735 行（38.8 KB）集中定义端点；但视图内硬编码 **43 处**，例：`views/promotions/CouponsView.vue:435,449,499,586,605,694,746,749,778,818,839`；`views/disputes/DisputeListView.vue:1096,1112,1359,1377,1493,1515,1655`；`views/announcements/AnnouncementsView.vue:415,425,494,585,605,608,629,640`；`views/replenishment/ReplenishmentView.vue:2768`；`views/feedback/FeedbackView.vue:290,358,371`。
+**影响：** API 版本升级（`v2`→`v3`）或路径重构需全仓搜索替换，与「集中管理」的设计意图直接冲突。
+**建议：** 迁移剩余字面量至 `AdminEndpoints`，并加 lint 规则禁止 `views/**` 出现 `/api/` 字面量。注意：`scripts/check-admin-endpoints.mjs` 门禁已存在，**但它显然没覆盖这 43 处**——门禁本身需要加强。
+
+### P2
+
+- **[A-9] 金额格式化在 20+ 文件内联，而安全实现早已就绪。** `packages/shared-uni/src/format.ts:89-97` 的 `fmtMoney`（整数拆分）与 `src/utils/display.ts:82-91` 的 `yuanText` 都是正确实现（已亲验 `format.ts:89-97`），但视图仍在重复：`OrderListView.vue:977`、`LineManagerView.vue:876-878`（自建 `yuan()`）、`FundBillView.vue:527`、`BalanceRefundView.vue:82`、`InvoiceListView.vue:82`、`DisputeListView.vue:966`、`ReconciliationView.vue:431-435`、`CouponsView.vue:618`、`MarketingRoiView.vue:247`、`AnalyticsView.vue:514` 等。**同一语义至少三种写法**（`((c||0)/100).toFixed(2)` / `(c/100).toFixed(2)` / `Number(c)/100`），`ReconciliationView.vue:435` 还自建了一套 float 版 `formatCents`——对账页对精度最敏感，却用了最不可靠的实现。**建议：** 全量替换为 `fmtMoney`/`yuanText`，并加 ESLint 规则禁止 `Cents / 100` 字面量。
+- **[A-10] 10 个 >50 KB 的单文件应拆分。** 按体积：`replenishment/ReplenishmentView.vue` 118.6 KB、`warehouse/WarehouseView.vue` 111.8 KB、`devices/DeviceDetailView.vue` 85.3 KB、`styles/main.css` 74.8 KB、`disputes/DisputeListView.vue` 61.2 KB、`merchants/MerchantSplitsView.vue` 59.4 KB、`orders/OrderListView.vue` 56.8 KB、`exceptions/ExceptionListView.vue` 54.7 KB、`skus/SkuVisionEnrollView.vue` 53.5 KB、`system/OrgSitesView.vue` 50.9 KB。**`WarehouseView.vue` 已经是正确范式**（逻辑抽到 `composables/warehouse/*` 共 14 个文件），`ReplenishmentView.vue` 直接照抄该范式即可。`main.css`（2597 行）建议按 `base / element-override / table / layout` 拆分。
+- **[A-11] 仓储类型体系全部 `Record<string, any>`，与 shared-types 脱节。** `composables/warehouse/` 下 useWarehouseBins.ts:8、useWarehouseEntityDialogs.ts:9、useWarehouseLabels.ts:6、useWarehouseListFilters.ts:4、useWarehouseOutbounds.ts:8、useWarehousePurchaseOrders.ts:15、useWarehouseRouteLifecycle.ts:7、useWarehouseStocktakes.ts:8、useWarehouseTabLoader.ts:10、useWarehouseTransfers.ts:9 均为 `export type XxxRow = Record<string, any>`；另有 `FeedbackView.vue:221`、`PrintView.vue:136`、`ReconciliationView.vue:388`。**影响：** 仓储模块完全不参与类型检查，后端字段改名不会被 `vue-tsc` 捕获。**建议：** 换用 `shared-types` 的 DTO。
+- **[A-12] 列宽/滚动布局靠 333 行「对齐 hack」维持。** `src/utils/table-scroll-fit.ts` 全文 333 行，文件头注释自陈需处理正反馈撑宽、EP hover-row 抖动、断 Observer、浏览器缩放亚像素回滞，并明确禁止监听 `visualViewport`。**问题：** 一个纯展示问题演化为含 MutationObserver + RAF 节流 + 浮动 dock 同步横滑条的复杂子系统。**建议：** 优先用 CSS（`table-layout: fixed` + `min-width` + 容器 `overflow-x:auto`）替代；确需保留则独立成包并补可视化回归测试。
+- **[A-13] 仓储多 Tab 切换触发重复请求。** `composables/warehouse/useWarehouseRouteLifecycle.ts:112-122` 的 `onTabChange()` 内 `syncRouteQuery(next)` 后 `loadTab(next)`；同文件 `:154-160` 的 `watch` 监听 query 变化后再次 `loadTab(..., force=true)` → **每次切 Tab 发 2 次列表请求**。**建议：** watch 内先比对上一值，或用单一入口驱动加载。
+- **[A-14] 后端状态接口失败时默认宣称「记账打款」。** `views/finance/LineManagerView.vue:964-975` catch 分支设 `payoutMode = { mockEnabled: true, note: '无法读取打款模式；当前可能为记账打款…' }`；`MerchantWithdrawView.vue:40-47` 同理。**问题：** 把「接口故障」与「确认为 mock」混为一谈；未来接入真实通道后若该接口短暂 500，运维会看到「记账打款」而放松警惕。**建议：** 失败态显示「打款模式未知（读取失败）」，并对打款按钮加阻断或强提示。
+- **[A-15] `admin_permissions` 是只写不读的死状态。** `stores/auth.ts:105/112/242` 写入 `admin_permissions`，`api/auth-storage.ts:76` 清理它，但 `auth.ts:33-35` 明确不从 localStorage 初始化权限，**全仓无读取点**。**建议：** 删除该键的读写，减少无用攻击面。
+- **[A-16] 生产路径残留 `console.error`。** `utils/admin-dev-log.ts:1-12` 明确约定「避免生产包残留 console」，但 `api/client.ts:90-92` 与 `api/auth-storage.ts:119-121` 在生产路径直接 `console.error`。**建议：** 若为有意保留的安全日志，应显式说明或新增 `adminSecurityLog` 区分，避免与约定冲突。
+
+### admin-vue 待确认（不构成本报告结论）
+
+1. **部分退款的服务端数量校验**：客户端有 `:max="row.maxQty"`（`OrderListView.vue:735`），但 `submitPartialRefund()`（`:1295-1302`）只过滤 `qty>0`，未再比对 `maxQty`。需确认后端对「退款数量 ≤ 已购数量、累计退款 ≤ 订单金额」有强校验。
+2. **订单 `from/to` 时区**：`OrderListView.vue:948-949` 用 `new Date(ms).toISOString()` 发 UTC；需确认后端解析口径，否则筛选区间可能错 8 小时。
+3. **`localStorage.admin_userId` 参与身份判定**：`ReplenishmentView.vue:1948` 用 `auth.userId || localStorage.getItem('admin_userId')` 兜底；若用于「我的任务」过滤而服务端不校验，则可伪造。
+4. **`ChartBox.vue:78-88` 的 `tpl.innerHTML = html`**（已亲验）：该文件 `:61` 有 `sanitizeChartSvg` 预处理，`chartSvg` 由本端生成而非后端返回，**风险较低**；但 sanitize 实现不在该文件内，建议确认其覆盖 `<script>`、`on*` 事件属性、`<foreignObject>`。
+
+---
+
+## 5. consumer-mp（消费者端）详审
+
+> 定位：**资金链路的最前端**。用户在这里「拿货」并「被扣款」，因此任何状态丢失都直接等价于扣款不可解释。
+
+### P0
+
+#### [C-1] 会话轮询在 `onShow` 后永久停摆，关门不再被识别（已亲验）
+
+**证据：**
+```
+pages/index/index.vue:894-897   onHide → { stopDevicePoll(); stopPoll(); stopRecognitionTimer(); ... }
+pages/index/index.vue:876-892   onShow → refreshPrivacyGate/syncLandingTabBar/loadConsumerConfig/
+                                        ensureConsumerAuth/onAuthenticatedShow/startDevicePoll
+                                        **全程没有 startPoll()**
+pages/index/index.vue:863-872   onAuthenticatedShow() → ... → restoreActiveSession()  （:871）
+pages/index/index.vue:1932-1934 restoreActiveSession() { const saved = ...; if (sessionId.value) return; ... }
+pages/index/index.vue:1966-1973 startPoll() 定义
+                :1954          startPoll() 位于 restoreActiveSession 内部、且在上面的 return 之后
+```
+`startPoll()` 全仓仅有 4 个调用点：`handleSessionOpenResult:1054`、`adoptOrphanSession:1175`、`closeDoorDemo:1798`、`restoreActiveSession:1954`。
+
+**问题：** 用户在 SHOPPING 期间点任意 `navigateTo`（报修/帮助/附近/优惠券）或切 tab → `onHide` 杀掉 `pollTimer`；返回时 `sessionId.value` 仍有值 → `restoreActiveSession()` 在第 1934 行**直接 return** → 没有任何路径重启轮询。
+**影响：** 用户关门后 App **永远不会**发现状态变化：不弹账单、不跳结果页、`state` 永久停留在 `SHOPPING`。用户以为没结算，会重复开门。这是资金主流程的功能性失效。
+**建议：** `onShow` 中在 `sessionId` 非空时显式调用 `startPoll()`（`startPoll` 本身已 `stopPoll()` 幂等）；进一步把「是否应轮询」抽成 `sessionActive` 的 `watch` 统一管理，避免再漏点。
+
+#### [C-2] 开门超时竞态可产生「幽灵会话」：柜门已开、订单可能已产生、客户端毫无感知（已亲验 `withTimeout`）
+
+**证据：**
+```
+pages/index/index.vue:1199-1213  withTimeout() 只 reject(new Error(...))，**不取消底层 promise**
+pages/index/index.vue:1113-1126  Promise.allSettled + 20s 超时
+pages/index/index.vue:1156-1183  adoptOrphanSession()：查 /sessions/active 后立即判定，**无退避重试**
+```
+**问题：** `createSession` 超时（20s）时请求**仍在途**。随即 `adoptOrphanSession` 查 `/sessions/active` 存在竞态：若服务端尚未落库 → 返回 null → `markOpenFailed` → 清空 `scanned`/`deviceId`，用户回到落地页。此后请求成功、会话被推进到 OPENING/SHOPPING，**柜门真实打开**，而客户端既无轮询也无任何提示，只能等下次 `onShow` 的 `restoreActiveSession`——而 [C-1] 决定它不会重启轮询。
+**影响：** 「柜门已开却无购物引导」；用户取货关门后产生账单、免密扣款，而客户端的「取消开门」按钮因 `sessionId` 为空而不可用。这是唯一可能造成**「用户不知情地被扣款」**的路径。
+**建议：** 超时后先**退避轮询** `activeSession`（如 1s/2s/4s 三次）再判失败；失败时**不要立刻清 `scanned`/`deviceId`**，保留「检查开门结果」入口；`withTimeout` 改传 `AbortController`，或标记 `pendingCreateSession` 以便后续接管。
+
+#### [C-3] 已有进行中会话时未做校验即可再次开门（已亲验）
+
+**证据：**
+```
+pages/index/index.vue:1078-1089  beginCabinetEntry() { if (!cabinetId || opening.value || enteringFlow.value) return false; ... }
+                                                  **不检查 sessionActive**
+pages/index/index.vue:830-838    onLoad 拿到 launch.deviceId 时，微信端直接 await startShoppingFlow(...)
+pages/index/index.vue:639-645    sessionActive 已定义但此处未使用
+```
+**问题：** A 柜 SHOPPING（门开着）时扫 B 柜二维码、或从「附近柜机」点去开门 → 带着设备 B 重走完整开门流程。前端不阻止，只依赖服务端是否允许并发会话。
+**影响：** 若服务端允许 → 双开柜；若服务端拒绝 → 失败错误展示在 B 的落地页，而本地 `sessionId` / `ACTIVE_SESSION_KEY` 已被覆盖或丢失，**A 柜的轮询彻底失联**（叠加 [C-1] 后不可自愈），A 柜账单只能靠订单页事后发现。
+**建议：** `beginCabinetEntry` 增加 `if (sessionActive.value && cabinetId !== deviceId.value)` → 提示「当前有未完成的购物单，请先完成/取消」并提供跳转；`onLoad` 深链先 `restoreActiveSession()` 再决定是否进门。
+
+### P1
+
+#### [C-4] 手机号与图形验证码明文拼接进 URL query
+
+**证据：** `utils/consumer-api.ts:516-522` → `new URLSearchParams({ phoneNumber, captchaId, captchaCode })` 拼到 `POST /api/v2/auth/sms-code?phoneNumber=...&captchaCode=...`。
+**问题：** 虽是 POST，但敏感 PII 走 query，会进入 H5 浏览器历史、`Referer`、网关/Nginx access log、CDN 日志，以及 `request:fail` 错误文案链路。
+**建议：** 改为 POST body；或改为服务端一次性 `captchaToken`，替代明文 phone + captchaCode。
+
+#### [C-5] 退款 / 申诉 / 开票全程无幂等键
+
+**证据：** `utils/consumer-api.ts:771-772`（`fileDispute`）、`:786-791`（`refundOrder`）、`:792-797`（`applyInvoice`）均无幂等键；**对照** `:660-716` `createSession` **明确带 `idempotencyKey``——说明项目内已有正确范式，只是未推广**。失败后立即复位 loading：`pages/result/result.vue:562-566` + `:575`、`pages/order-detail/order-detail.vue:827-832` + `:841`。
+**问题：** 首次请求实际成功但响应超时 → 用户立即再点 → 再发一笔退款请求。
+**建议：** 写操作统一用 `secureRandomToken` 生成幂等键；超时后提供「查询结果」而非「重试提交」。
+
+#### [C-6] 微信小程序无隐私授权链路
+
+**证据：** `packages/shared-uni/src/privacy-consent.ts:26-28`（已亲验）→ `shouldShowPrivacyConsent()` 要求 `isH5PrivacyRuntime()`，**小程序永不弹隐私窗**；`clients/consumer-mp/src/manifest.json:14-26` 无 `requiredPrivateInfos` / 无 `permission`。
+**建议：** 复用现有 `usePrivacyConsentModal` 并改为双端生效；补 `requiredPrivateInfos`。（与 [S-2] 同源，修复时应一并处理。）
+
+#### [C-7] 会员中心使用 `Intl.NumberFormat`，与项目自身结论冲突
+
+**证据：** `pages/member/index.vue:174-181` → `new Intl.NumberFormat('zh-CN', ...)`；**对照** `packages/shared-uni/src/format.ts:44` 的注释明确写着：「微信小程序（尤其真机/低版本基础库）没有 Intl，不能用 DateTimeFormat」。
+**问题：** `formatYuan` 在 `computed`（`spentText`、`benefits`）与模板中多处调用，`Intl` 缺失即抛 `ReferenceError`。
+**影响：** iOS / 低版本基础库真机**整页渲染异常**；同一工程两个格式化口径并存。
+**建议：** 改用 `fmtMoney`（分→元）+ 手写千分位。
+
+#### [C-8] order-detail 直接调用 `globalThis.addEventListener`，微信端会抛错
+
+**证据：** `pages/order-detail/order-detail.vue:452-462` → `onMounted` / `onUnmounted` 中 `if (typeof globalThis !== 'undefined') { globalThis.addEventListener('hashchange', onHashChange) }`，**无 `#ifdef H5`，也无 `typeof addEventListener === 'function'` 判断**；项目其它同类逻辑（`pages/result/result.vue:363-380`、`pages/dispute/detail.vue:241-258`）都用 `#ifdef H5` 包住了。
+**问题：** 小程序运行时 `globalThis` 存在但无 `addEventListener` → 挂载钩子直接 `TypeError`。
+**建议：** 加 `// #ifdef H5`，或改为函数存在性守卫。
+
+#### [C-9] 证据上传：无类型校验、大小校验 best-effort、失败留孤儿文件、上传不走统一 401 处理
+
+**证据：**
+- `utils/dispute-evidence.ts:18-27` 仅按 `maxCount` 限制数量；`:44-50` 只调 `assertLocalImageSize`。
+- `packages/shared-uni/src/upload-limits.ts:11-16`：`getFileInfo` fail 时 `resolve(null)` → **取不到大小即放行**。
+- `utils/consumer-api.ts:202-245` `uploadDisputeEvidenceFile` 仅判 `statusCode>=200 && code===0`，**401 不触发 `clearConsumerSession` / 跳登录**。
+- 取消申诉后无清理：`pages/result/result.vue:471-475`、`pages/order-detail/order-detail.vue:716-720`。
+**建议：** 客户端显式白名单 `jpg/png/webp` 并二次校验；上传失败走 `mpRequest` 统一 401 分支；取消申诉时调用删除附件接口。
+
+#### [C-10] 日期解析分散使用 `new Date(string)`，iOS/微信可能 `Invalid Date`
+
+**证据：** `pages/coupons/coupons.vue:186-192`（`expireSoon`）、`pages/member/index.vue:203-210`、`pages/orders/orders.vue:325-334`（`matchesTimeRange`）、`pages/index/index.vue:1809-1815`（`new Date(since).getTime()`）。而 `packages/shared-uni/src/format.ts:33-37` 有健壮的私有 `parseDate`，**但未导出**。后端时间字段在类型上只是 `string`（`packages/shared-types/src/generated/openapi.ts:8504`、`:8566`）。
+**影响：** 若返回 `YYYY-MM-DD HH:mm:ss` 形式，iOS 直接 `Invalid Date` → 「券即将过期」永不提示；`index.vue:1811` 的 `started=NaN` 会让识别超时兜底（`recognitionSlow`，`:633-637`）恒为 false；时间筛选结果为空。
+**建议：** 导出统一 `parseDateFlexible`（兼容空格分隔 / 无时区 / 时间戳），全端替换。
+
+#### [C-11] H5 微信登录分支硬编码 mock code，且缺编译期闸门
+
+**证据：** `pages/login/login.vue:359-366` → 当 `cfg?.wechatH5OauthEnabled === 'true'` 时执行 `consumerWxH5Login('dev-mock-web-code')`，**无 `isDevBuild` 判断**；对照 `utils/runtime-flags.ts:19-22` 对 mock 有强校验、`utils/consumer-api.ts:436-444` 也有 `if (!isDevBuild) return false`。
+**问题：** 是否走 mock 完全由**服务端返回的配置**决定，生产包没有编译期闸门。
+**建议：** 该分支加 `if (!isDevBuild) return false`，或直接删除 mock code 路径。
+
+#### [C-12] 领取活动存在并发竞态（`claimingId` 置位晚于 await）
+
+**证据：** `pages/marketing/index.vue:195-197` → `if (claimingId.value === c.id) return;` → `await requireConsumerAuth(...)` → `claimingId.value = c.id`。**赋值在异步之后**，连点两次会同时通过检查。
+**建议：** 把 `claimingId.value = c.id` 提到 `await` 之前，`finally` 复位。
+
+### P2
+
+- **[C-13] `error-state.vue` 零引用。** `src/components/error-state.vue` 已在 `src/pages.json:314` 注册 easycom，但全仓检索仅命中注册处与自身；`pages/result/result.vue:7-11`、`pages/order-detail/order-detail.vue:8-11`、`pages/orders/orders.vue:7-15` 都自写错误态。建议统一，否则加载/错误态会持续漂移。
+- **[C-14] 充值金额校验仅前端。** `pages/recharge/recharge.vue:376-380`（`>5000` 拦截）、`:290-294`（退款 `>5000` 拦截）均为纯客户端；`amounts[].text`（`:215-221`）字段在模板中从未使用（死字段）；`onRecharge`（`:490-509`）走 mock 充值**无二次确认**，与 `components/open-prep-drawer.vue:344-348` 的确认交互不一致。
+- **[C-15] 余额口径跨页不一致。** `pages/recharge/recharge.vue:415` 用 `acc.balanceCents`（**含冻结**），而 `pages/balance/balance.vue:81`、`pages/mine/mine.vue`、`pages/verify/verify.vue:152`、`utils/account.ts:48-61` 用 `availableCents`（扣冻结）。同一用户在两页看到不同余额。
+- **[C-16] 结果页零元文案误判。** `pages/result/result.vue:25` 在 `totalAmountCents <= 0` 时显示「本次未取走商品，未产生扣款」；若订单被券全额抵扣（`originalAmountCents>0`、`totalAmountCents=0`），用户明明拿了货却被告知「未取走商品」。应改为判定 `order.lines?.length`。
+- **[C-17] 硬编码默认客服电话。** `pages/index/index.vue:603`、`pages/order-detail/order-detail.vue:375-376`、`pages/dispute/detail.vue:150` 三处写死 `400-888-0018`，仅靠 `consumerPublicConfig` 异步覆盖；配置接口失败时展示假号码。
+- **[C-18] 深色模式未适配。** `src/manifest.json` 无 `darkmode` / `darkmodeType`，全仓无 `prefers-color-scheme`（仅有 `prefers-reduced-motion`）。系统深色下会出现深底 + 深字。
+- **[C-19] 时间筛选口径混用。** `pages/orders/orders.vue:330`（今天用东八区 `startOfTodayShanghaiMs`）与 `:331-332`（7/30 天用本地 `now - ms`）口径不一致，跨时区用户会出现「今天」与「近 7 天」区间矛盾。
+- **[C-20] 金额格式化绕过 `fmtMoney`。** `packages/shared-uni/src/notify.ts:119` `showBillToast` 用 `(cents/100).toFixed(2)`。
+- **[C-21] `tsconfig.json:22` 未 include `tests/`**，`npm run type-check` 不覆盖 UAT 脚本（与 [N-1] 叠加：UAT 既不跑也不检查类型）。
+
+### consumer-mp 已核实无问题（避免误报）
+
+- **XSS**：全仓无 `v-html` / `innerHTML` / `document.write` / `eval`（已用 Grep 全端检索确认，仅 admin 的 `ChartBox.vue` 有受控使用）。`utils/recharge.ts:77-123` 解析支付宝表单时显式禁止 `innerHTML`，并做了 action 域名白名单（`:39-59`）与 input 名/长度过滤。**此前「登录 XSS」截图的结论成立。**
+- **openid / 手机号进 URL（除 [C-4] 的验证码接口外）**：未发现；`utils/dispute-evidence.ts:113-114` 已移除「token 拼 URL」的旧回退。
+- **`console.log` / 硬编码测试地址**：src 下 0 命中（已亲验 Grep）；仅 `vite.config.ts:41` 的开发代理指向 localhost。
+- **分/元换算**：`packages/shared-uni/src/format.ts:89-97` `fmtMoney`（整数拆分）与 `:103-115` `yuanToCents`（`toFixed(2)` 后再拆位，含 `MAX_SAFE_INTEGER` 校验）**实现正确**（已亲验）。
+- **重复点击「开门」**：`beginCabinetEntry`（`index.vue:1079`）已用 `opening || enteringFlow` 拦截，扫描按钮也 `:disabled`；`createSession` 带 `idempotencyKey` 且首次失败后 600ms 同键重试（`utils/consumer-api.ts:698-715`）——**设计正确**，是本端做得最好的部分。
+
+---
+
+## 6. merchant-mp（商家端）详审
+
+> 定位：**数据可信性的源头**。补货履约的结果直接决定库存与在途账实。
+
+### P0
+
+#### [M-1] 「已开门」门禁纯本地、缓存存了时间戳却不校验（已亲验）
+
+**证据：**
+```
+composables/useReplenishmentDoorState.ts:75-77  persistDoorState() → uni.setStorageSync(key, { sessionId, at: Date.now() })
+composables/useReplenishmentDoorState.ts:9-22   parseDoorCache()   → **只取 sessionId，丢弃 at**，无 TTL
+composables/useReplenishmentDoorState.ts:40-57  restoreDoorState() → 直接 doorOpened.value = true
+composables/useReplenishmentFulfillment.ts:369-371
+      confirmDoorOpenedIfNeeded() { if (!opts.requireReplenishmentDoor.value) return true;
+                                    if (opts.doorOpened.value || opts.openSessionId.value) return true; ... }
+composables/useReplenishmentDoorState.ts:70-72  syncDoorStateFromServer catch → 「网络失败时保留本地乐观状态」
+utils/merchant-api.ts:676-680                  completeReplenishmentTask() 裸 POST /complete，**不携带开门会话**
+```
+**问题：** 完成任务的唯一门禁是「本地 ref + 本地 storage」；服务端会话仅用于**覆盖**本地态，且网络失败时明确保留本地乐观态。同设备上任意一次历史开门会**永久**写入缓存。
+**影响：** 补货员可以不到柜、不开门，直接点「确认全部上架」→ 库存与在途被签收，**账实不符且无审计依据**。这是当前商家端最大的数据可信性缺口。
+**建议：** `/complete` 请求体强制携带 `openSessionId`，由服务端校验会话有效、未过期、属本任务本柜；`persistDoorState` 写入的 `at` 在 `restoreDoorState` 中校验有效期（如 2 小时），过期即清。
+
+#### [M-2] 扫码「柜机核对」与商品扫码均为软提示，校验链可整条跳过（已亲验）
+
+**证据：**
+```
+composables/useReplenishmentScan.ts:46-52   命中本地 devices 列表 → **直接 return true**（不做服务端归属校验）
+composables/useReplenishmentScan.ts:74-82   扫到不符只弹 askConfirm，随后 `return`，**无阻断**
+composables/useReplenishmentScan.ts:53-55   仅当**不在**本地列表时才调 assertReplenishmentDeviceAccess
+composables/useReplenishmentFulfillment.ts:147-171   checkIn 不要求先扫码
+composables/useReplenishmentScan.ts:171-200  scanProduct 仅用于 +1，不扫也能手改数量
+```
+**问题：** 扫码是**可选项**——从列表点开任务即可签到、开门、完成。客户端的「管辖校验」只需要设备出现在已加载列表里。
+**影响：** 无法证明「人到柜、货对柜」，错柜履约 / 错商品上架零拦截、零留痕；后台抽检只能靠照片。
+**建议：** 柜机扫码结果写回后端校验接口（服务端判定管辖 + 与任务柜机一致），不符时**硬阻断签到**；关键行要求扫码匹配 `skuId` 才能置为已上架。
+
+#### [M-3] 「跳过定位验证」在正式包恒为关，定位失败即完全阻塞履约链路（已亲验）
+
+**证据：**
+```
+pages/replenishment/replenishment.vue:375-378  const canSkipLocation = showDevTools();
+                                               if (!canSkipLocation) setSkipCheckInLocation(false);
+packages/shared-uni/src/runtime-flags.ts:10-16 isDevBuild = DEV || MODE==='development'
+composables/useReplenishmentFulfillment.ts:89-95  canSkipLocation 为假时完全无法跳过
+composables/useReplenishmentFulfillment.ts:102-122 两次定位失败 → return null，签到终止
+pages/replenishment/replenishment.vue:249-262  操作按钮渲染门槛全为 selected?.checkInAt
+```
+**问题：** 无定位 → 无法签到 → 签到按钮不渲染 → 开门、核对、完成**一并不可达**。而柜机多位于地下/室内，`getLocation` 失败是常态。
+**影响：** 一线在弱信号点位**完全无法完成补货**，只能绕过 App（电话要货），数据链路断裂。这是**上线即会命中的业务中断**。
+**建议：** 把「跳过定位」交**服务端系统参数**控制（与 `requireReplenishmentCheckInLocation` 同源），而非构建标志；跳过时记录客户端标记，由后端标注「无定位签到」以便事后抽检。
+
+### P1
+
+#### [M-4] 步骤状态机允许跳步：核对清单不要求已开门
+
+**证据：** `composables/useReplenishmentFulfillment.ts:335-345`（`confirmLines` 只校验 `taskId`、`submitting`、`canRequest`，**无 `checkInAt` / `doorOpened` 判定**）；`pages/replenishment/replenishment.vue:304`（操作栏仅要求 `!!selected?.checkInAt`）；`components/ReplenishStepBar.vue:32-38`（步骤 3 勾选仅依赖 `linesConfirmed`）。
+**影响：** 签到后即可「确认商品与数量」进入第 3 步，跳开「开门」，步骤条还显示 3 已完成 → 对账无法还原「先确认后开门」还是相反。
+**建议：** `confirmLines` 增加门状态前置校验（或明确允许并记录），步骤条以服务端状态序列为准。
+
+#### [M-5] 提现无手续费预览、无二次确认，到账金额被静默钳到 0
+
+**证据：** `components/WalletPage.vue:254-284` 直接提交，仅校验 `>0` 且 `≤ available`，**无 `showConfirm`、无最低金额**；`:66-76` 手续费与到账仅在**历史记录**里展示，`到账 = max(0, amount - fee)`；`:23-28` `availableCents` 与 `balanceCents - frozenCents` 之间**无任何勾稽校验**。
+**问题：** 提交前看不到手续费与预计到账；若后端返回 `feeCents > amountCents`，页面显示「到账 ¥0.00」**掩盖异常**。
+**建议：** 提交前展示手续费与预计到账并要求二次确认；对 `fee > amount` 或 `available > balance - frozen` 显示**显式告警而非钳零**；最低提现金额由服务端参数下发。
+
+#### [M-6] 税务资料接口的商家 ID 由前端传入
+
+**证据：** `utils/merchant-api.ts:595-604`（`getTaxProfile(merchantId)` 拼进 query，`saveTaxProfile` 请求体带 `merchantId`）；`pages/business/business.vue:285`、`:298`、`:323-329`。**这是全仓唯一把 `merchantId` 放进请求的位置**（其余接口均靠 token）。
+**问题：** 若后端按入参取数，改包/改请求即可读写他商税号。
+**影响：** 越权读改企业开票资料的合规风险。
+**建议：** **后端必须忽略入参、一律以会话所属商家为准**；前端改为无参接口。（前端行为已确认，后端是否强制需另行核实。）
+
+#### [M-7] 订单导出忽略当前筛选条件
+
+**证据：** `pages/orders/orders.vue:188-205` → `merchantApi.exportOrdersUrl()` **无参调用**；而 `utils/merchant-api.ts:586-589` 该函数**支持 `deviceId` 参数**。
+**影响：** 页面筛选了柜机/状态，导出却是全量，对账数字与页面不一致且无提示。
+**建议：** 导出携带当前 `orderParams()` 的全部筛选，或在按钮文案上明示「导出全部」。
+
+#### [M-8] 写操作普遍缺幂等键，仅提现有 `requestNo`
+
+**证据：** `utils/merchant-api.ts:652-680`（签到/开门/确认清单/完成任务均为无幂等标识的 POST）；**对照** `components/WalletPage.vue:266-270`（提现带 `requestNo`）——同样是「正确范式已存在但未推广」。GET 有自动重试（`packages/shared-uni/src/request.ts:172-193`），POST 不自动重试，但用户手动重试无保护。
+**建议：** 四类履约写接口统一带客户端生成的操作号，服务端去重。
+
+#### [M-9] `--mode development` 构建的生产包会内联演示凭据并自动填入登录框
+
+**证据：** `pages/login/login.vue:130-139`（`isDev = showDevTools()`，为真时用 `VITE_DEMO_PHONE/PASSWORD` 预填并展示提示）；`packages/shared-uni/src/runtime-flags.ts:10-11`（`isDevBuild` 认 `MODE==='development'`）。**已亲验 `runtime-flags.ts`:10-11 全文。**
+**问题：** `uni build --mode development` 的产物 `import.meta.env.DEV` 仍为 false，但 `MODE==='development'` 成立 → `isDevBuild=true` → 演示凭据进包且自动预填。该模式在 `clients/consumer-mp/package.json:8` 有对应脚本（`build:mp-weixin:dev`），merchant 端同理。
+**建议：** 演示预填改为仅 `import.meta.env.DEV`，并加运行时域名白名单。
+
+### P2
+
+- **[M-10] 空壳页面判断不成立（澄清）。** `pages/line-wallet/line-wallet.vue:1-7` 与 `pages/wallet/wallet.vue:1-7` 是薄壳，分别以 `role="line"` / `role="merchant"` 委托给 `components/WalletPage.vue`（444 行，功能完整：余额/冻结/流水/提现/空态/重试/安全区）。**不是未完成占位**；真正的问题是 [M-5]。
+- **[M-11] 组件为复制而非复用共享包，且已出现漂移。** `components/app-button.vue:1-4` 自述「Canonical 在 packages/shared-uni，请同步拷贝到两端」；已漂移：本地 `:118` 用 `var(--brand-alipay, #1677ff)`，而 `packages/shared-uni/src/components/app-button.vue:114` **无回退值**。`components/app-nav-bar.vue:1-4` 同理由。**建议：** 改为构建期同步 + 哈希校验，禁止手工拷贝。
+- **[M-12] 补货页导航绕开统一安全封装。** `composables/useReplenishmentShell.ts:134-156` 自行拼 `uri.amap.com` 并 `window.open`，未做坐标范围校验、未二次确认、`longitude/latitude` 未 `encodeURIComponent`；而校验完善且有确认框的实现是 `utils/open-device-navigation.ts:200-218`（已校验经纬度上下界）。**建议：** 统一走后者。
+- **[M-13] 争议 SLA 无客户端倒计时；详情抽屉滚动布局失效。** `pages/disputes/disputes.vue:46-54`、`:142-154` 直接展示服务端 `slaHoursRemaining`/`slaOverdue`，仅在 `onShow`/下拉刷新时重取（`:307-308`），长开页面时限信息过期。`disputes.vue:757-761` 的 `.detail-scroll{flex:1;min-height:0}` 位于 `components/AppSheet.vue:42-54`（`display:block`）内，flex 不生效 → 实际由 `.app-sheet{overflow-y:auto}` 整体滚动，**底部「认领/回复/结案」按钮会随内容滚走**。**建议：** 改 `overflow:visible` 并给 `scroll-view` 固定高度。
+- **[M-14] 结算摘要混用两个数据源且到账口径文案不一致。** `pages/settlements/settlements.vue:329-343`（营收/抽成/客单来自 `dailySettlements` 求和，待分账/本月已结来自 `settlements()`）→ 日汇总失败时会出现「区间营收 ¥0.00 / 待分账 ¥x」；`:83-86` 硬编码「T+1 结算」，而 `components/WalletPage.vue:163` 写「大额需运营审核，到账以回执为准」，两处口径无共同配置来源。
+- **[M-15] 分账比例：前端不存在计算逻辑（如实说明）。** `pages/splits/splits.vue:42-52` 仅展示 `merchantCents/platformCents/grossCents` 三个独立字段，全仓检索无比例运算。因此「比例 >100% 或为负」**不会在本端被算出，也无法被发现**——页面没有 `merchant + platform == gross` 的勾稽校验。**建议：** 前端加轻量勾稽提示（不一致时高亮），真实约束仍需后端。
+- **[M-16] 其他代码质量项。** `composables/useReplenishmentShell.ts:53` 使用了仓内唯一一处 `any`（`handleDeepLinkAfterLoad(open: any, ...)`）；`utils/todo-badge.ts:1-13` 把 `alerts` 的 tabBar 下标**硬编码为 `2`**，与 `src/pages.json:288-318` 的顺序隐式耦合，调整顺序即失效；`utils/merchant-api.ts:701-706` `updateMerchantProfile` 返回类型声明为 `OpenApiMerchantDto[]`，与语义不符。
+- **[M-17] `manifest.json:15` appid 为空**（与 [S-2] 同源，已亲验）。
+
+### merchant-mp 已核实无问题
+
+- **src 下无 `console.*`、无 `TODO/FIXME`、无 mock 分支**（已亲验 Grep）。
+- **API 基址统一**由 `packages/shared-uni/src/api-base.ts` 注入，**生产缺省为空**（已亲验 `:15-17`），符合「不把字面量写进生产包」的注释意图；域名字面量仅 `uri.amap.com` 两处。
+- **401 静默刷新重试设计完整**：`packages/shared-uni/src/request.ts:110-157`（单飞 `refreshInFlight`）+ `:236-247`（401 重试一次后走 `handleUnauthorized`），并对 GET/HEAD 做指数退避重试（`:172-193`）——**这是全仓最成熟的一段代码**。
+- **storage 篡改防抬权**：`composables/useMerchantMe.ts:29-51` 读缓存时剥离 `permissions`/`enabledPacks`；各业务页在 `refreshMe` 后二次校验 `hasPerm`（`settlements.vue:364`、`orders.vue:377`、`disputes.vue:403`、`pricing.vue:242`）。**菜单隐藏不只是前端装饰**（但服务端是否强制仍无法从前端证实）。
+
+---
+
+## 7. 共享层 `packages/*` 详审
+
+### 7.1 做得好的部分（应作为全仓范式推广）
+
+| 能力 | 位置 | 评价 |
+|---|---|---|
+| 统一请求层 | `shared-uni/src/request.ts`（269 行） | **优秀**：单飞刷新、401 重试一次、403 与网络错误本地化、GET/HEAD 指数退避、写操作不重试、`X-Requested-With` CSRF 双保险、区分 `miniProgram` UA 做 H5 Cookie 判定 |
+| 金额精度 | `shared-uni/src/format.ts:89-115` | **正确**：`fmtMoney` 整数拆分；`yuanToCents` 先 `toFixed(2)` 再拆位并校验 `MAX_SAFE_INTEGER`，规避 `0.29*100` 浮点误差 |
+| API 基址防护 | `shared-uni/src/api-base.ts:7-17` | **正确**：H5 开发走同源代理、生产缺省为空、由 `validate-miniapp-env.mjs` 强制 HTTPS |
+| 上传限制 | `shared-uni/src/upload-limits.ts` | 方向正确，但 `:11-16` 的 fail→放行 需收紧（见 [C-9]） |
+| 隐私同意存储 | `shared-uni/src/privacy-consent.ts` | 运行时探测而非条件编译（思路正确），但仅 H5 生效（见 [C-6]） |
+
+### 7.2 P1
+
+- **[X-1] 组件在三个位置各存一份，靠「记得同步拷贝」维持。** `packages/shared-uni/src/components/` 有 `app-button.vue`(3115 B)、`app-nav-bar.vue`(3684 B)、`empty-state.vue`(5224 B)、`error-state.vue`(2117 B)；而 `clients/consumer-mp/src/components/` 有 `app-button.vue`(**3302 B**)、`app-nav-bar.vue`(**3891 B**)、`empty-state.vue`(**5224 B**)、`error-state.vue`(**2236 B**)；`clients/merchant-mp/src/components/` 同样有 `app-button.vue`(**3302 B**)。**注意 `empty-state.vue` 三方均为 5224 B（完全一致），而 `app-button.vue` 为 3115 / 3302 / 3302（已漂移）**——文件注释也自陈「请同步拷贝到两端」。**建议：** 删除两端本地副本，改为从 `shared-uni` 导入；若因 easycom 路径限制必须保留，则写构建期同步脚本 + 哈希断言，并把该断言纳入 `check:audit-gates`。
+- **[X-2] `shared-types` 的 812 KB 生成文件被手工维护风险与 `Record<string, any>` 逃逸并存。** `packages/shared-types/src/generated/openapi.ts` 达 **812,723 B**（合理，因为是生成物，且有 `DO NOT EDIT` 约束与 CI 重生成比对）；但 admin 仓储模块 13 个 composable 全部 `Record<string, any>`（[A-11]）、consumer/merchant 多处以裸对象接收。**结果**：契约层存在，但三端合计约 16 个文件**主动退出**了契约校验。**建议：** 把 `Record<string, any>` 纳入 ESLint `no-restricted-syntax` 禁用于 `clients/**`。
+
+### 7.3 P2
+
+- **[X-3] `parseDate` 已实现但未导出**（`format.ts:33-37`），是 [C-10] 的根因。建议导出并强制使用。
+- **[X-4] `shared-dict/src/index.ts` 37 KB 单文件**（字典枚举全量内联）。建议按域拆分或改为构建期生成。
+- **[X-5] `shared-api/src/index.ts` 7.3 KB 与 admin 端自建 `api/client.ts`（6.6 KB）+ `endpoints.ts`（39 KB）职责重叠**，admin 未使用 `shared-api`（见 2.2 表）。建议评估统一，否则同一套鉴权/错误语义存在两套实现。
+- **[X-6] `shared-rbac/src/index.ts` 仅 3.6 KB 但含 `match-permission.spec.ts`**——是全仓唯一有单测的包，且已在 CI 运行（`ci.yml:247`）。可作为其它包补测的模板。
+- **[X-7] `shared-uni/src/theme.css` 7.4 KB 与 `admin-vue/src/styles/main.css` 74.8 KB 存在主题变量双份维护**，drift 风险同 [X-1]。
+
+---
+
+## 8. 优化建议
+
+### 8.1 上线前必修（P0，建议 1 个迭代内完成）
+
+| 顺序 | 编号 | 动作 | 验证方式 |
+|---|---|---|---|
+| 1 | [S-1] | 删除 3 个凭据残留文件 + 吊销超管会话 + 收口 .gitignore | `git status` 干净；工作区检索无 `eyJ` 文件名 |
+| 2 | [S-2] | 两端 `manifest.json` 填 appid、补 `requiredPrivateInfos`/`permission`；`validate-miniapp-env.mjs:69-73` 的 warn 改 `exit(1)` | `pnpm build:consumer-mp` 通过；开发者工具不报隐私接口错 |
+| 3 | [A-1] | 删除 `DEMO_LOGIN_PASSWORD` 与 `isDemoPhone` 整个分支 | 生产 bundle 检索无 `123456` / `DEMO_LOGIN_PASSWORD` |
+| 4 | [C-1] | `onShow` 中 `sessionId` 非空时显式 `startPoll()`；抽 `sessionActive` watcher | 手测：SHOPPING 中跳「帮助」再返回 → 关门能弹账单 |
+| 5 | [C-2] | `withTimeout` 支持取消 + 孤儿会话认领加退避重试 + 保留「检查开门结果」入口 | 断网/限速模拟：20s 超时后不丢 `scanned`/`deviceId` |
+| 6 | [C-3] | `beginCabinetEntry` 增加 `sessionActive` 冲突拦截 | 双端手测：A 柜购物中扫 B 柜 → 提示而非进入 |
+| 7 | [M-1] | `/complete` 携带 `openSessionId` 并由服务端校验；`restoreDoorState` 校验 `at` 有效期 | 清缓存/隔夜后开门态应失效；服务端拒绝无会话的 complete |
+| 8 | [M-2] | 柜机扫码结果交服务端判定，不符**硬阻断签到**；关键行要求扫 `skuId` | 用非管辖柜机扫码 → 无法签到 |
+| 9 | [M-3] | 「跳过定位」改由服务端系统参数控制 | 关闭定位权限仍可完成补货，且后端留「无定位签到」标记 |
+
+### 8.2 短期（P1，建议 2~3 个迭代）
+
+**统一契约与幂等（跨端，最高性价比）**
+1. 抽 `withIdempotencyKey()` 高阶封装，覆盖：admin 提现审核/打款/解冻；consumer 退款/申诉/开票；merchant 签到/开门/确认/完成。**依据**：`createSession`（`consumer-api.ts:660-716`）与提现（`WalletPage.vue:266-270`）已验证可行，只是未推广。
+2. 「本地状态不得作为放行依据」纳入代码评审 checklist：凡 `if (localFlag) return true` 必须能指出服务端对应的否决点。
+
+**补齐 CI（[N-1]）**——这是让上面所有修复不退化的唯一手段：
+3. 接入 `vitest`（admin 6 个用例）+ `consumer-h5-uat` + `merchant-h5-uat`。
+4. 新增门禁：`manifest.json` appid 非空；生产 bundle 无演示口令/mock 码；`clients/**` 禁止 `Record<string, any>`；`views/**` 禁止 `/api/` 字面量（补强现有 `check-admin-endpoints`）。
+
+**UI/体验统一**
+5. admin：统一 `el-form :rules`（[A-2]）；金额一律走 `fmtMoney`/`yuanText`（[A-9]）；订单时间筛选进 URL（[A-5]）。
+6. consumer：`parseDateFlexible` 全端替换（[C-10]）；余额统一用 `availableCents` 并显式标注「可用/含冻结」（[C-15]）；结果页零元文案改判 `lines.length`（[C-16]）。
+7. merchant：提现前展示手续费与预计到账 + 二次确认（[M-5]）；导出携带筛选（[M-7]）。
+8. 组件去重（[X-1]）：删除两端本地副本或加构建期同步断言。
+
+### 8.3 中期（P2，随迭代消化）
+
+9. **拆分 10 个 >50 KB 的 admin 单文件**，以 `WarehouseView` + `composables/warehouse/*` 为范式；`main.css` 按域拆分。
+10. `ReplenishmentView.vue`（118 KB）与 `consumer-mp/pages/index/index.vue`（95 KB）应优先处理——它们分别承载 merchant 与 consumer 的核心链路，是缺陷密度最高的区域。
+11. 用 CSS 取代 `table-scroll-fit.ts`（333 行 hack）。
+12. 导出 `parseDate`、把 `shared-uni` 组件设为唯一来源、评估 admin 改用 `shared-api`。
+13. 清理 `.playwright-cli/`、`output/playwright/`、`jmeter.log`(2.9 MB) 等本地验证产物，统一收口到 `docs/uat-screenshots/`。
+
+### 8.4 一条结构性建议
+
+本报告 9 条 P0 中，有 **6 条**属于同一模式：**客户端本地状态被当作放行依据**。建议在架构层明确一条不可协商的规则：
+
+> **任何涉及资金、库存、履约、权限的「允许/完成」判定，客户端只能做「提前告知」，不能做「最终裁决」。服务端必须能独立复现该判定所需的全部输入。**
+
+这条规则一旦写入设计评审 checklist，本报告中的 [C-1][C-2][C-3][M-1][M-2][M-3] 这类问题在评审阶段就会被拦下，而不必等到上线前审计。
+
+---
+
+## 9. 实机浏览器审查（第二轮 · 真实渲染）
+
+> 第 3~8 章是**静态源码审查**。本章是**用真实浏览器把三端跑起来看**的结果，用来验证、修正、补充前文结论。凡本章列为「已确认」的，都有截图或请求日志佐证。
+
+### 9.1 方法与运行环境
+
+| 项 | 内容 |
+|---|---|
+| 浏览器 | 真实 Chrome（Playwright `channel: 'chrome'`），带真实渲染、真实网络、真实 localStorage |
+| admin | `http://localhost/admin/index.html`（trade-service jar 直托管静态资源，见 `scripts/start-local.ps1:61`） |
+| consumer H5 | `http://127.0.0.1:3002`（uni-app dev server） |
+| merchant H5 | `http://127.0.0.1:3001`（uni-app dev server） |
+| 前置 | 容器 Postgres(`:15433`)/Redis/MinIO/nginx 已起；后端 `java -jar trade-service-*.jar --server.port=8080` |
+| 登录账号 | admin `13900000001 / 123456`；consumer/merchant 用库内演示账号（登录均真实成功） |
+| 产物 | `.tmp/ui-verify/shots/`（142 张截图）、`admin-sweep.json`、`admin-deep*.json`、`mp-{consumer,merchant}.json`、`mp-probe.json` |
+
+`.tmp/` 位于 `.gitignore` 内，不随仓库提交；截图仅供复核。
+
+> **⚠️ 事后校正（见第 10 章 E-1）**：本章 admin 部分所测的 `http://localhost/admin/index.html`，来自仓库中**被 git 跟踪的构建产物** `services/trade-service/src/main/resources/static/admin`。该产物最后一次提交是 `9ae39054`（2026-09-13 15:00），**落后 HEAD 约 2 天**。
+> 因此：**本章 admin 侧的「已确认」结论，描述的是 09-13 那版后台的行为，不等于 HEAD 源码的行为**（典型如 U-4 的 RBAC 重复请求、A-P2-006 的 token 存储，源码侧已在 09-15 修过）。
+> consumer / merchant 两章不受影响 —— 两端跑的是 vite dev server 直出源码，与 HEAD 同源。
+
+### 9.2 覆盖矩阵
+
+| 方面 | 本轮状态 |
+|---|---|
+| admin 全部 71 个路由实机渲染 | ✅ 全部成功，**零空白页、零 console 错误** |
+| admin 请求层（首屏去重、接口路径） | ✅ 已测 |
+| admin 表单校验（空提交） | ✅ 已测（见 U-1） |
+| admin a11y（dialog/input/button/img/标题层级） | ✅ 已测（见 U-6） |
+| admin 表格横向滚动 DOM 结构 | ✅ 已测（见 U-7） |
+| consumer H5 全部 24 页页面级渲染 | ✅ 已测（见 U-2、U-8） |
+| merchant H5 全部 24 页页面级渲染 | ✅ 已测（见 U-3、U-10） |
+| merchant 补货页冷启动深链 | ✅ 已测（见 U-11） |
+| merchant 补货页热路径对照 | ⚠️ **未完成**（机器重启中断） |
+| consumer/merchant 交互级（点击/提交/校验） | ❌ 未做 |
+| 提现表单校验、表格横向溢出实测 | ❌ 未做 |
+| 单测 / 门禁脚本实跑 | ❌ 本轮未跑 |
+
+### 9.3 本轮新确认的缺陷
+
+#### U-1 [P0] admin「新建设备」空表单提交真的落库，且后端自动发号
+
+- **证据（截图）**：`.tmp/ui-verify/shots/r3-devices-emptysubmit.png` —— 右上角绿色 toast「设备已创建，编号 299991462828」，列表「全部设备」计数同步 +1
+- **证据（DOM/请求）**：`.tmp/ui-verify/admin-deep2.json → r3_devices`
+  - `formInfo.requiredMarks: 0` —— 4 个表单项（设备编号/设备名称/设备类型/商户）**没有任何必填标记**
+  - `submit.errors: []` —— 前端**零校验错误**
+  - `submit.apiCalls[0]: "POST ops/admin/devices"` —— 请求真的发出去了
+- **证据（数据库）**：实测产生 2 台设备（`299991462828`、`829177619057`），已核对并清理（`device_info` 2 行 + 级联 `device_slot` 16 行）
+- **影响**：运营一次误点即污染设备台账；设备编号由后端自动生成（演示库里那台「浏览器自动发号柜 777740024057」就是这样来的），前端不给编号也照样建
+- **对照（同仓库内策略不一致）**：同一后台的审批流模块空提交会提示「请填写名称」（`admin-deep2.json → r4_approvals`），说明团队知道该怎么做，只是没在设备模块做
+- **建议**：前端补 `:rules` + `required`；后端对 `deviceName`/`deviceType`/`merchantId` 做非空与枚举校验；关闭或收敛「无编号自动发号」
+
+#### U-2 [P0] 消费者「余额明细」：4 类流水金额恒为 `¥0.00`，类型恒为「余额变动」
+
+- **证据（截图）**：`consumer-p-pages_balance_balance.png` —— 每一条都是「余额变动 …**¥0.00**」，但同页「余额」列却从 `¥93.50` 跳到 `¥500.00`（同一时刻还有多条重复）
+- **根因链（后端）**：
+  - `services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceLedgerService.java:169-180` `toDto()`：`signedAmount = balanceAfterCents - balanceBeforeCents`
+  - `BalanceLedgerService.java:86-96` `recordFreezeOnly()` 的注释明写「余额字段仅作审计快照；冻结额变更由调用方完成」→ `before == after` → **差值为 0**
+  - `services/common/common-core/src/main/java/com/aicabinet/common/dto/BalanceTransactionDto.java:5-15` —— **DTO 里没有冻结额变动字段**，该变化对客户端完全不可见
+- **根因链（前端）**：`clients/consumer-mp/src/pages/balance/balance.vue:121-127` `transactionLabel()` 只映射 `CHARGE / REFUND / ADMIN_ADJUST / ADJUST_CHARGE / RECHARGE`，其余落到兜底「余额变动」
+- **后端实际会产生、但前端没映射的类型**：`PREAUTH_FREEZE`(`ConsumerPreauthService.java:147`)、`PREAUTH_RELEASE`(`:202`、`:271`)、`BALANCE_REFUND_FREEZE`(`BalanceRefundService.java:118`)、`BALANCE_REFUND_RELEASE`(`:307`)
+- **影响**：用户看到「可用 ¥480.00 / 冻结 ¥20.00」，却无法从流水得知那 20 元是何时、因何被冻结。**资金不可解释**，一旦用户投诉，客服也拿不到可读流水
+- **建议**：DTO 增 `frozenDeltaCents`（或 `frozenBeforeCents/frozenAfterCents`）；前端补齐 4 类文案与图标；冻结/解冻类流水用独立样式并与余额变化区分
+
+#### U-3 [P1] 错误态系统性误导：不可重试的错误一律渲染「重试」，且归因错误
+
+四个不同场景，同一病灶：
+
+| 场景 | 页面实际文案 | 问题 |
+|---|---|---|
+| `merchant-p-pages_wallet_wallet.png` | 整页「无权限执行此操作」+**重试** | 权限不足，重试永远不会成功 |
+| `merchant-p-pages_line-wallet_line-wallet.png` | 整页「无权限执行此操作」+**重试** | 同上 |
+| `merchant-p-pages_device-detail_device-detail.png` | 「柜机不存在 / **请检查网络后重试**」 | 参数缺失被归因成**网络问题** |
+| `consumer-p-pages_order-detail_order-detail.png` | 「缺少订单编号」+**重试** | 重试不可能成功 |
+
+- **文案源头**：`services/trade-service/src/main/java/com/aicabinet/trade/support/ApiMessages.java:28` `PERMISSION_DENIED = "无权限执行此操作"`，被原样透传到 UI，前端未做二次解释
+- **同一模式的复发证据**：`clients/merchant-mp/src/config/merchant-nav.ts:126-127` 留着一条注释——「入口权限与页面实际接口对齐，**避免"能进但内容全 403"**」，说明团队修过一次同类问题；`clients/merchant-mp/output/playwright/uat-report.md:45` 至今仍记着 `M-10c 柜机详情 | FAIL | 无权限执行此操作`（2026-09-12），**未闭环**
+- **建议**：错误态按 `errorCode` 分支渲染（403 / 404 / 参数缺失 / 网络超时）；403 走专属无权限页并**明示所需权限码**；不可重试的场景不渲染「重试」，改为「返回」
+
+#### U-4 [P1] admin 首屏请求重复：19 个请求只有 9 个唯一
+
+- **证据**：`.tmp/ui-verify/admin-deep2.json → r1_dup`
+  - `GET ops/admin/rbac/me/permissions` **×3**、`GET ops/admin/rbac/me/nav` **×3**、`GET ops/admin/rbac/me` **×3**
+  - `GET dicts/runtime` ×2、`GET ops/admin/devices/ref` ×2、`GET ops/admin/skus` ×2、`GET ops/admin/warehouse/list` ×2
+  - 空表单建设备之后，`GET ops/admin/devices` 连续刷了 **8 次**
+- **影响**：RBAC 三件套在**每个页面**都要多打 2 次；弱网/移动端首屏明显变慢，且放大后端压力
+- **建议**：RBAC 与字典做**请求级去重 + 内存缓存**（仓库已有 `src/utils/rbac-cache-policy.ts`，显然未覆盖首屏并发写入）；列表刷新做防抖合并
+
+#### U-5 [P1] 商家端补货页：冷启动深链被误拒，并伴随一条 `GET undefined`
+
+- **证据**：`.tmp/ui-verify/repl.raw`
+  ```
+  === 冷启动深链 ===
+    login -> http://127.0.0.1:3001/pages/home/home
+    最终 url=http://127.0.0.1:3001/pages/home/home
+    捕获到的 toast: ["无补货权限 | 无补货权限"]
+    补货相关请求: ["GET undefined","GET merchant/replenishment/tasks"]
+  ```
+- **该账号确实有权限**：`.tmp/ui-verify/mp-perms.log.txt:30` `replenishment:view = true`（22 项权限含 `merchant:replenishment:view`）
+- **两个独立问题**：
+  1. 冷启动直接深链补货页 → 被踢回首页 + toast「无补货权限」。怀疑 `canReplenish` 在 `me` 水合完成**之前**被快照（竞态）。**热路径对照实验因机器重启中断，尚未完成**
+  2. `GET undefined` —— 有一处 API 调用路径变量为 `undefined`，属明确的编码缺陷，需定位
+- **建议**：`canReplenish` 改为对 `me` 的 `computed`；深链时先等 `me` 就绪再判定；排查 `GET undefined` 的来源
+
+#### U-6 [P2] a11y 不一致（不是全无，是"做了一半"）
+
+- **dialog**：`admin-deep2.json → r6_dialogAttrs` 共 7 个 overlay，只有 3 个带 `role="dialog"` + `aria-modal="true"` + `aria-label`（「全局搜索」「新建设备」「设置退款方式」），其余 4 个三项全为 `null`
+- **表单控件**：`admin-deep.json → a11y` 显示 `inputTotal: 3`、**`inputNoLabelCount: 3`**（3 个输入框全部无 label 关联）；`admin-deep2.json → r7_inputs` 显示 checkbox/radio 的原始 `input` 均 `id=""`、`aria: null`
+- **标题层级**：`h1Count: 0`（页面无 h1）
+- **做对的部分**：`btnNoTextCount: 0`（无纯图标按钮）、`lang="zh-CN"` ✅
+- **建议**：把 `el-dialog` 的 `title` 设为强制项（仓库已有 `admin-dialog-a11y` 门禁，说明有机制但未覆盖全部弹窗）；表单控件补 `label`/`aria-label`
+
+#### U-7 [P2] 表格横向滚动仍依赖 hack，原生滚动被破坏
+
+- **证据**：`admin-deep.json → tableDiag`
+  - `dockOverflowX: "auto"`、`dockScrollable: true`（外层 dock 能横向滚）
+  - `wrapOverflowX: "visible"`、`bodyClientW == bodyScrollW == 2182`、**`canScrollH: false`** —— Element Plus 原生的 `.el-table__body-wrapper` **已丧失横向滚动能力**
+  - `innerH: 156.5`
+- **对应实现**：`src/utils/table-scroll-fit.ts`（约 11KB 的尺寸同步 hack）+ `table-scroll--h` 类
+- **建议**：改用 Element Plus 原生 `height`/`max-height` 或直接让 `.el-scrollbar__wrap` 承担滚动，**删掉这 11KB hack**；同步移除依赖它的对齐逻辑
+
+#### U-8 [P2] 消费者订单页：「需要关注」与 Tab 计数口径不一致
+
+- **证据**：`consumer-p-pages_orders_orders.png` —— 顶部「需要关注」列出 **3 条**「账单待人工确认」（09/13 13:00、09/13 11:07、09/12 22:26），但下方 Tab 显示「全部 **2** / 已完成 2」
+- **影响**：用户无法判断自己到底有 2 单还是 3 单待处理
+- **附带**：底部 Tab 行最右侧被截断（「已退款 0 已…」），无滚动提示
+- **建议**：明确「需要关注」是否受筛选联动，统一口径或加说明文案；Tab 行改为可横滚或换行
+
+#### U-9 [P2] admin「打印单据」整页路由只渲染一张空卡片
+
+- **证据**：`admin-page-print.png` —— 整屏只有居中的一小块「暂无打印内容」+「打印 / 关闭」，其余全空白；无内容时「打印」仍可点击
+- **建议**：改为弹窗/抽屉，或给空态加引导（"请先在订单页选择单据"）
+
+#### U-10 [P2] 商家结算页标签歧义（但数据本身自洽）
+
+- **证据**：`merchant-p-pages_settlements_settlements.png`
+  - 「**区间客单** ¥3.25」实际是**客单价**（¥6.50 ÷ 2 单），标签易误读为"客单量"
+  - 「按日汇总」的金额列实为**商户所得**，未标注含义
+  - 缺少「**已分账**」行，用户需自行用「商户所得 − 待分账」相减
+- **已核实自洽**：区间营收 ¥6.50 / 抽成 -¥0.65 / 商户所得 ¥5.85（= 按日汇总 2.70+3.15 ✅）；抽成率 10% 与 `platformRateBps=1000` 一致；优惠券按**实收**计费（09/13 券减 0.50 后 ¥3.00 × 10% = ¥0.30 ✅）
+- **做得好的地方**：「平台分账未启用：余额支付默认『仅记账』(LEDGER_ONLY)…」这段披露文案**透明度高**，值得保留
+
+#### U-11 [P2] `分账明细` tab 无计数徽标
+
+- `merchant-p-pages_splits_splits.png`：「失败 / 全部」两个 tab 都没有数量徽标，用户不知道"失败"里到底有没有东西
+- 空态文案本身写得不错（「暂无分账异常 / 订单分账后会出现在这里；失败单请核对微信收款账户」）✅
+
+### 9.4 对第一轮结论的修正（重要）
+
+审查要能自我纠错，以下第一轮结论在本轮被**证伪或降级**：
+
+| 第一轮结论 | 本轮实测结果 |
+|---|---|
+| 仓储页「切 Tab 触发双请求」 | **未复现**。`admin-deep.json → r2_tabs` 在仓储页只发现「仓库概览」一个 tab，切换无任何请求 |
+| 「提现无在途保护」 | **未证实**。`/merchant-withdraw` 实测只有「调账 / 流水 / 代提现」按钮，页面无「新建类」按钮，该假设不成立 |
+| 优惠券折扣型面值 `|| 1` | 静态证据成立，但演示库只有满减券 → **实机不可复现**，降级为「待确认」 |
+| 「设备投放地图整页空白」 | 归因修正：**高德瓦片 `webrd0*.is.autonavi.com` 被本机网络拦掉（21 个网络错误）**，属环境问题而非代码缺陷。但由此暴露一个真实需求：离线/内网部署时地图应降级为列表 |
+| 自动关键词扫描出的 23 条信号 | **绝大多数是误报**（「异常中心」「结算失败率」等业务词命中了「异常/失败」规则）。**未计入缺陷数**，仅作线索 |
+
+### 9.5 尚未完成（被环境阻塞）
+
+> ✅ **本清单已在第四轮全部执行完毕**，逐条结果见 **11.2**；由此发现的新缺陷见 11.3（W-1 ~ W-8）。
+
+以下项需要 Docker 栈在线才能继续，本轮因机器重启 + Docker Desktop 未自启而中断：
+
+1. **补货页热路径对照实验** —— 坐实 U-5 的竞态判断（需要 H5 + 后端）
+2. **提现表单校验实测**（零金额 / 超额）
+3. **表格横向溢出**在窄视口下的实际表现
+4. **admin 表单空提交**在其余模块（用户/角色/优惠券）的横向对照
+5. **consumer / merchant 交互级**测试（目前只到「页面能渲染」）
+6. **单测与门禁脚本实跑**（`pnpm check:audit-gates`、admin vitest、两套 H5 UAT）
+
+---
+
+## 10. 环境链与产物链核查（第三轮 · 为实机验证开道）
+
+> 本章是**为了做第二轮实机验证而先把环境跑通**时顺带查出来的问题。它们本身不在三端源码内，但**会直接决定前文结论是否可信**，因此单列一章。
+
+### 10.1 运行环境现状（已跑通）
+
+用整栈容器替代「裸 jar」，admin 由 nginx 托管、Kafka/MQTT 齐全：
+
+```bash
+cd infra && docker compose --env-file .env \
+  -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d --build \
+  postgres redis emqx minio minio-init redpanda vision-service \
+  xxl-job-mysql xxl-job-admin trade-service device-service device-simulator gateway
+```
+
+| 服务 | 端口 | 实测 |
+|---|---|---|
+| nginx 网关（唯一入口） | `:80` | `/actuator/health` → `{"status":"UP"}` |
+| trade-service | `:18080` | `/actuator/health` → UP |
+| device-service | `:18081` | UP |
+| vision-service | `:18082` | `{"status":"ok"}` |
+| device-simulator | `:18089` | 关门测试页 200 |
+| xxl-job-admin | `:18090` | 控制台 200（但路径不对，见 E-2） |
+| postgres / redis / emqx / minio / redpanda | `15433 / 6379 / 11883·18883·28083 / 19000·19001 / 19092` | 全部 Up |
+
+**注意**：`docker-up.ps1` 不能直接用 —— 其第 52 行 `exit $LASTEXITCODE` 会终止整个 PowerShell 宿主，导致 `Out-File` 管道来不及落盘，日志 0 字节且看不到真实错误（本轮已实测踩到）。
+**devops 需显式排除**：显式列服务名即可；且 Docker Desktop 会把 `prometheus` 自动恢复成 Up，事后必须手动 `docker stop`。
+
+### 10.2 E-1 [P0] 仓库提交的 admin 构建产物落后 HEAD 约 2 天，且校验它的 CI 门禁永远执行不到
+
+这是本轮最重的一条：**对外提供的运营后台，不是 HEAD 源码构建出来的。**
+
+| 环节 | 证据 |
+|---|---|
+| 产物是被跟踪的 | `git ls-files services/trade-service/src/main/resources/static/admin` → **177 个文件** |
+| 产物定格时间 | `git log -1 -- static/admin` → **`9ae39054` / 2026-09-13 15:00**；而 HEAD `d28b37ca` 是 **2026-09-15 12:38** |
+| 与源码无共同文件 | 重建后 **150 个旧产物被替换 + 151 个新产物**（带 hash 的文件名几乎全变） |
+| 构建链已断 | `clients/admin-vue/package.json` 的 `build` = **`vue-tsc --noEmit && vite build`**，而当前源码 **6 处 TS2345**（见下） |
+| CI 走不到门禁 | `ci.yml:101` `mvn verify -DskipITs -pl services/trade-service -am`（**未加 `-Pskip-admin-ui`**）会先跑 `pnpm run build` 而失败 → `ci.yml:127` 的 `git diff --exit-code -- static/admin` **永远执行不到** |
+
+**6 处类型错误**（`vue-tsc --noEmit`，EXIT=2，本地稳定复现）：
+
+| 位置 | 错误 | 说明 |
+|---|---|---|
+| `MemberLevelsView.vue:364,397` | `number \| undefined` 不可赋给 `string \| number` | `AdminEndpoints.growthMemberLevelStatus(row.id)` 直接传可空的 `row.id` |
+| `OtaView.vue:420,456` | 同上 | `AdminEndpoints.otaReleaseUnpublish(row.releaseId)` |
+| `PrintView.vue:189,206` | `LocationQueryValue \| LocationQueryValue[]` 不可赋给 `string \| number` | `route.query.outboundId / purchaseOrderId` 可能为 `null` |
+
+引入提交：`AdminEndpoints` 重构系列 **A-P2-005**（`0c0304cf` 09-14 12:00 → `e0de8074` 09-15 00:42）。
+
+**影响**：
+1. **运营后台自 09-13 起就没更新过**。09-14/09-15 的 admin 侧整改（A-P2-003 双拉 RBAC、A-P2-005 端点收口、A-P2-006 JWT 禁止落 localStorage、A-P2-008 弹窗 aria）**全部没有出厂**。
+2. 第 9 章 admin 部分的一切实机证据，描述的是 09-13 那版行为 —— **不能当作 HEAD 的结论**（已在 9.1 加校正说明）。
+3. `PrintView.vue:189` 这处类型错误**正好解释了 U-8**：查询参数缺失时 `null` 会被拼进路径，请求 `.../outbound/undefined` → 打印页整屏空卡片。**类型错误与运行时症状对上了**。
+4. 更值得警惕的是**门禁失效的模式**：`ci.yml:125` 的注释写明该门禁就是为了「前端改了没同步产物」，但因为它排在会失败的构建步骤**之后**，它的保护能力是**零**。这与 R1 发现的「新门禁脚本没接 CI = 等于没有」是同一类失效。
+
+**建议**：
+- 立刻补 `pnpm --filter @aicabinet/admin-vue run type-check` 为**独立 CI 步骤**，与 `mvn verify` 解耦（否则一处 TS 错误会连带掩盖产物门禁）。
+- 把产物校验门禁**前移**到构建之前（比对 `static/admin` 与上次提交），或在 `mvn verify` 上显式加 `-Pskip-admin-ui` 并**单独跑**前端构建 + `git diff` 校验，让两个失败原因互不遮蔽。
+- 类型错误本身按 3 处修：给 `row.id` / `row.releaseId` 加存在性校验（`if (row.id == null) return`），PrintView 用 `String(route.query.x ?? '')` 并在为空时走空态而非发请求。
+
+### 10.3 E-2 [P1] XXL-JOB 执行器注册被 404，资金/对账定时任务不会执行
+
+| 项 | 证据 |
+|---|---|
+| 控制台真实路径 | `http://localhost:18090/` → **302 → `/auth/login`**（200，标题「分布式任务调度平台｜XXL-JOB」） |
+| 配置里的路径 | `infra/docker-compose.full.yml` `XXL_JOB_ADMIN_ADDRESSES=http://xxl-job-admin:8080/xxl-job-admin`；`docker-up.ps1:91` 也打印该路径 |
+| 实际报错 | 容器日志 `No endpoint POST /xxl-job-admin/api/registry` / `No mapping for GET /xxl-job-admin/` |
+
+即：`xuxueli/xxl-job-admin:3.4.2` 的上下文路径是 **`/`**，不是 `/xxl-job-admin`。执行器按配置去 `/xxl-job-admin` 注册 → 404 → **调度中心里看不到执行器 → 所有 xxl-job 调度的定时任务都不会执行**。
+
+而 `docker-compose.full.yml:166` 注释明确写「**资金/对账类定时任务由 XXL-JOB 调度**」，`XXL_JOB_ENABLED` 默认 `true`。
+**影响**：资金对账、分账重试、超时关闭等**依赖定时的资金链路任务，在本栈下静默不执行**（不报错、不告警，只是不跑）。
+
+**建议**：把 `XXL_JOB_ADMIN_ADDRESSES` 改为 `http://xxl-job-admin:8080`，同步修正 `docker-up.ps1:91` 打印的地址；并在健康检查里加一条「执行器已注册」的断言，避免这类静默失效。
+
+### 10.4 对第 9 章一处结论的自我纠正
+
+第 9 章 U-5 曾记录补货页深链伴随一条 `GET undefined`。**该记录有误，撤回**：
+它是**我自己脚本的假象** —— 脚本用 `r.url().split('/api/v2/')[1]` 取路径，而 H5 dev server 的模块请求（如 `/src/pages/replenishment/replenishment.vue`）同样命中 `/replenishment/` 但**不含 `/api/v2/` 段**，取出来即 `undefined`。**并非真实发出的请求。**
+
+（U-5 的**主结论仍然成立**：补货页冷启动深链被误拒「无补货权限」而该账号 `replenishment:view = true`。）
+
+### 10.5 本章结论对前文的影响
+
+| 前文 | 影响 |
+|---|---|
+| 第 3~8 章（静态源码审查） | **不受影响** —— 直接读的是 HEAD 源码 |
+| 第 9 章 consumer / merchant 部分 | **不受影响** —— H5 跑源码 |
+| 第 9 章 admin 部分 | **需按 HEAD 产物重核**（E-1）。本轮已用 `build-admin.mjs --skip-typecheck` 重建，网关 bind mount 立即生效，可直接复测 |
+| 第 9 章 U-5 的 `GET undefined` | **撤回**（10.4） |
+
+---
+
+## 附录 A：证据索引（按文件聚合）
+
+| 文件 | 涉及条目 |
+|---|---|
+| `clients/admin-vue/src/views/LoginView.vue:141-145,186,198-204` | A-1 |
+| `clients/admin-vue/src/config/feature-flags.ts:2-4` | A-1 |
+| `clients/admin-vue/src/api/auth-storage.ts:56-58,76,99,119-121` | A-6, A-15, A-16 |
+| `clients/admin-vue/src/router/index.ts:478` | A-6 |
+| `clients/admin-vue/src/views/orders/OrderListView.vue:735,945-950,1295-1302,1308-1311,1410-1419,1483,1585-1592` | A-5, 待确认 1/2 |
+| `clients/admin-vue/src/views/finance/LineManagerView.vue:861,964-975,988-1000,1126-1129,1171-1188,1229-1244,1246-1263` | A-3, A-4, A-14 |
+| `clients/admin-vue/src/views/finance/MerchantWithdrawView.vue:40-47` | A-14 |
+| `clients/admin-vue/src/views/promotions/CouponsView.vue:435…839,677,724-739` | A-7, A-8 |
+| `clients/admin-vue/src/utils/table-scroll-fit.ts`（全文 333 行） | A-12 |
+| `clients/admin-vue/src/composables/warehouse/useWarehouseRouteLifecycle.ts:112-122,154-160` | A-13 |
+| `clients/admin-vue/src/components/ChartBox.vue:61,78-88` | 待确认 4 |
+| `clients/consumer-mp/src/pages/index/index.vue:603,639-645,830-838,863-892,894-897,1054,1078-1089,1113-1126,1156-1183,1175,1199-1213,1798,1809-1815,1932-1934,1954,1966-1973` | C-1, C-2, C-3, C-17, C-10 |
+| `clients/consumer-mp/src/pages/member/index.vue:174-181,203-210` | C-7, C-10 |
+| `clients/consumer-mp/src/pages/order-detail/order-detail.vue:264,375-376,452-462,716-720,827-832,841` | C-8, C-9, C-17 |
+| `clients/consumer-mp/src/utils/consumer-api.ts:202-245,436-444,516-522,660-716,771-772,786-797` | C-4, C-5, C-9, C-11 |
+| `clients/consumer-mp/src/pages/marketing/index.vue:195-197` | C-12 |
+| `clients/consumer-mp/src/pages/orders/orders.vue:325-334` | C-10, C-19 |
+| `clients/consumer-mp/src/pages/coupons/coupons.vue:186-192` | C-10 |
+| `clients/consumer-mp/src/pages/recharge/recharge.vue:215-221,290-294,376-380,415,490-509` | C-14, C-15 |
+| `clients/consumer-mp/src/pages/result/result.vue:25,363-380,471-475,562-566,575` | C-5, C-9, C-16 |
+| `clients/merchant-mp/src/composables/useReplenishmentDoorState.ts:9-22,40-57,70-72,75-77` | M-1 |
+| `clients/merchant-mp/src/composables/useReplenishmentFulfillment.ts:89-95,102-122,147-171,335-345,369-371` | M-1, M-2, M-3, M-4 |
+| `clients/merchant-mp/src/composables/useReplenishmentScan.ts:41-60,62-87,171-200` | M-2 |
+| `clients/merchant-mp/src/pages/replenishment/replenishment.vue:249-262,304,375-378` | M-3, M-4 |
+| `clients/merchant-mp/src/components/WalletPage.vue:23-28,66-76,163,254-284` | M-5, M-13 |
+| `clients/merchant-mp/src/utils/merchant-api.ts:586-589,595-604,652-680,701-706` | M-6, M-7, M-8, M-16 |
+| `clients/merchant-mp/src/pages/orders/orders.vue:188-205` | M-7 |
+| `clients/merchant-mp/src/pages/login/login.vue:130-139` | M-9 |
+| `clients/merchant-mp/src/composables/useReplenishmentShell.ts:53,134-156` | M-12, M-16 |
+| `clients/merchant-mp/src/pages/disputes/disputes.vue:46-54,142-154,307-308,757-761` | M-13 |
+| `clients/merchant-mp/src/pages/settlements/settlements.vue:83-86,329-343` | M-14 |
+| `clients/merchant-mp/src/pages/splits/splits.vue:42-52` | M-15 |
+| `packages/shared-uni/src/request.ts`（全文 269 行） | 7.1 |
+| `packages/shared-uni/src/format.ts:33-37,44,89-115` | C-7, C-10, X-3 |
+| `packages/shared-uni/src/privacy-consent.ts:26-28` | C-6 |
+| `packages/shared-uni/src/runtime-flags.ts:10-16,19-28` | M-3, M-9 |
+| `packages/shared-uni/src/api-base.ts:7-17` | 7.1 |
+| `packages/shared-uni/src/upload-limits.ts:11-16` | C-9 |
+| `clients/{consumer-mp,merchant-mp}/src/manifest.json:15` | S-2, M-17 |
+| `clients/{consumer-mp,merchant-mp}/project.config.json:2,20` | S-2, N-2 |
+| `.github/workflows/ci.yml:43-58,237-271` | N-1 |
+| `scripts/validate-miniapp-env.mjs:60-99` | S-2, N-2 |
+| `.gitignore:154,163` | S-1 |
+| `clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*`、`.tmp-admin-token.txt` | S-1 |
+
+## 附录 B：本次审查中「看似问题但已核实无问题」的项
+
+为避免后续重复排查，以下项经取证后**不构成问题**：
+
+1. **consumer/merchant 的 XSS**：全端无 `v-html`/`innerHTML`/`eval`（Grep 确认）；`utils/recharge.ts` 的支付宝表单解析有域名白名单 + 禁止 `innerHTML`。
+2. **`console.log` / `TODO` / mock 数据残留**：三端 src 层全部为 0（Grep 确认）。
+3. **金额精度**：`fmtMoney` 与 `yuanToCents` 实现正确，无浮点误差。
+4. **重复点击「开门」**：`beginCabinetEntry` 已有 `opening||enteringFlow` 拦截，`createSession` 有幂等键 + 同键重试。
+5. **merchant 的 401 刷新与 GET 重试**：`shared-uni/src/request.ts` 实现完整且正确。
+6. **merchant 的 storage 篡改防抬权**：`useMerchantMe.ts:29-51` 剥离敏感字段。
+7. **`wallet.vue` / `line-wallet.vue` 是空壳**：实为薄壳委托给 `WalletPage.vue`，功能完整。
+8. **`chartSvg` 的 `innerHTML`**：有 `sanitizeChartSvg` 预处理，且内容由本端生成，非后端返回。
+9. **仓库凭据是否已入库**：`git ls-files` + `git check-ignore -v` 确认，`eyJ*` 与 `.tmp-*` **未进入版本库**（但工作区存在，见 [S-1]）。
+10. **CI 的 secret scan / 生产模板门禁 / 迁移安全 / RBAC E2E 防静默跳过 / admin 产物新鲜度 / bundle 预算 / OpenAPI 重生成比对**：均真实存在且已启用（`ci.yml:43-79,94-131,134-170`），设计质量高——**CI 的问题不是「门禁少」，而是「行为测试全在 CI 之外」**。
+
+---
+
+## 11. 第四轮 · 行为测试与产物复测（9.5 遗留项收口）
+
+> 第 9 章 9.5 列出的 6 项「被环境阻塞」待办，本轮**全部执行**。本章是跑出来的结果，并对前文若干结论做了更正。
+
+### 11.1 方法与环境
+
+| 项 | 内容 |
+|---|---|
+| 栈 | 容器全栈在线：gateway(`:80`) → trade-service(`:18080`) / postgres(`:15433`) / redis / emqx / minio / redpanda / vision(`:18082`) / xxl-job-admin(`:18090`)；devops（prometheus/grafana/sonarqube）保持停止 |
+| admin | `http://localhost/admin/` —— gateway 把工作区 `static/admin` **bind mount 为只读根**（`infra/docker-compose.full.yml:272`），重建产物即时生效 |
+| H5 | consumer `:3002`、merchant `:3001`（uni-app dev server，直出 HEAD 源码；`/api` 代理到 gateway） |
+| 关键手段 | ① **写请求拦截并中止**（`page.route` + `abort`）—— 能判定「前端是否真的发写请求」又**不污染演示库**；② 图形验证码从 Redis 直读（`aicabinet:captcha:<id>`，见 `CaptchaService.java:29`）；③ 消费者端走 `POST /api/v2/auth/password-login`（该端点**不要求**图形验证码）取 token 后**直打接口看原始 DTO**，比截图更能定位根因 |
+| 账号 | admin `13900000001`、merchant `13800138001`、consumer `13800138000`（均 `123456`） |
+
+### 11.2 9.5 六项待办的执行结果
+
+| # | 待办 | 结果 |
+|---|---|---|
+| 1 | 补货页热路径对照实验 | ✅ **U-5 稳定复现，并定位到精确根因**（11.3 W-2） |
+| 2 | 提现表单校验（零金额/超额） | ✅ 前端拦截 **+ 后端三重校验**（11.2.1） |
+| 3 | 表格横向溢出（窄视口） | ✅ **U-7 复现**（11.3 W-5） |
+| 4 | admin 空提交横向对照（用户/角色/优惠券） | ✅ 角色/优惠券/会员等级**都有校验**，**只有设备模块没有**（11.3 W-3） |
+| 5 | consumer / merchant 交互级 | ✅ 两套 UAT 修好后跑通（11.3 W-1） |
+| 6 | 单测与门禁脚本实跑 | ✅ 全量明细见 11.5 |
+
+#### 11.2.1 提现校验：前后端都做了（澄清 9.4 的「未证实」）
+
+- **前端**：UAT `M-10e` PASS —— 零金额、超额提交**均不发请求**（`zero请求=0 over请求=0`）。
+- **后端**：`services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWithdrawService.java:442-457` `validateAmount()` 三重校验齐全：
+  - `:443` 低于 `minAmountCents` → `400 最低提现 X 元`
+  - `:448-451` `可用 = balance − frozen < amount` → `412 可用余额不足`
+  - `:452-456` 当日累计 `used + amount > dailyLimitCents` → `412 超过单日提现限额`
+- 结论：该链路**校验完整**。9.4 的降级成立，且可进一步升级为「已核实正确」。
+
+### 11.3 本轮新确认 / 复现的缺陷
+
+（W-x 为第四轮编号，不复用前文编号）
+
+#### W-1 [P0] 两套 H5 UAT 一到登录就中断 —— 63 条声明用例实际只跑 6 条
+
+**症状（修复前实跑）**：`node tests/consumer-h5-uat.mjs` 跑完 5 条即 `TC-RUNNER UAT 执行异常`；`merchant-h5-uat.mjs` 跑完 1 条即异常。
+
+**根因（实测错误栈原文）**：首屏隐私同意弹窗是覆盖整页的模态遮罩，**拦截全部指针事件**：
+```
+- <uni-view class="privacy-actions">…</uni-view> from <uni-view role="dialog"
+  aria-modal="true" aria-label="隐私政策提示" class="privacy-mask"
+  data-testid="privacy-consent-dialog">…</uni-view> subtree intercepts pointer events
+```
+消费者端中断于 `fillPlaceholder`（填手机号，`consumer-h5-uat.mjs:203`），商家端中断于 `clearInputs`（点输入框）。两套脚本都**没有先关掉这个弹窗**（该弹窗本身是合规正确行为，见 `packages/shared-uni/src/privacy-consent.ts:26-28`）。
+
+**影响（量化）**：
+
+| 套件 | 声明用例 | 修复前实际执行 | 覆盖率 |
+|---|---|---|---|
+| consumer-h5-uat | 44 | 5 | 11% |
+| merchant-h5-uat | 19 | 1 | 5% |
+
+叠加「CI 从不运行行为测试」（第 10 章），等于**登录之后的全部业务逻辑零自动化保护**。
+
+**已修复**：两套脚本各新增 `dismissPrivacyConsent(page)` 并在 `gotoPath()` 中调用（消费者端另在 `loginViaSms()` 入口调用）。**未改任何业务源码**。修复后：
+
+| 套件 | 结果 |
+|---|---|
+| consumer | 12 pass / 4 fail / 2 skip（跑到第 18 条才因另一原因中断，见 W-6） |
+| merchant | 26 pass / 3 fail / 2 skip / 1 info（**整轮跑完**） |
+
+#### W-2 [P1·已定位根因] 商家补货页冷启动深链被误拒 —— 竞态快照，精确到两行
+
+**实测（第三轮被中断的冷热对照，本轮完成）**：
+```
+=== 冷启动深链 ===                      （清空 merchant_me 后直链补货页）
+  最终 url=http://127.0.0.1:3001/pages/home/home        ← 被打回首页
+  捕获到的 toast: ["无补货权限"]
+=== 热路径（首页 -> 去补货）===
+  点击后 url=.../pages/replenishment/replenishment?deviceId=777740024057&taskId=2
+  文本=补货任务 | 现场补货 | … | 测试柜-001 | CAB-001 | 4 个 SKU 缺货    ← 正常渲染
+```
+**根因链（精确到行）**：
+1. `clients/merchant-mp/src/pages/replenishment/replenishment.vue:361`
+   `const canReplenish = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));`
+2. `clients/merchant-mp/src/composables/useReplenishmentShell.ts:190-194`
+   ```js
+   const result = await opts.fetchList({
+     ensureMe: ensureReplenishmentMe,
+     canReplenish: opts.canReplenish.value      // ← 同步求值，装箱成布尔快照
+   });
+   ```
+3. `clients/merchant-mp/src/composables/useReplenishmentList.ts:207-212`
+   ```js
+   if (!(await hooks.ensureMe(seq))) return null;   // 这里才异步拉 me（并成功）
+   if (!hooks.canReplenish) { showError('无补货权限'); uni.switchTab(...); }  // 用的却是旧快照
+   ```
+   → `canReplenish.value` 在 **`await ensureMe()` 之前**就已求值；冷启动时 `me` 为空 → 快照 `false`，即便随后 `refreshMe()` 成功拿回权限，判定仍按 `false` 走。
+
+**修法**：`useReplenishmentShell.ts:193` 传 getter（`canReplenish: () => opts.canReplenish.value`），在 `fetchList` 里 **`await ensureMe` 之后**才求值；类型由 `boolean` 改 `() => boolean`。
+
+**顺带澄清**：第三轮撤回的 `GET undefined` 本轮再次出现（`补货相关请求: ["GET undefined", …]`），**再次确认是脚本用 `url.split('/api/v2/')[1]` 取名的假象**（该请求不含 `/api/v2/` 段）。10.4 的撤回正确，**不建议再排查**。
+
+#### W-3 [P0 维持] admin「新建设备」空表单仍会发写请求（新产物复现）
+
+**实测（写请求已中止，因此库未被污染）**：
+```
+点击「新建设备」→ 弹窗「新建设备」，4 个表单项：
+  设备编号（创建后由系统自动分配 12 位数字编号…）/ 设备名称 / 设备类型（可选）/ 商户（可选）
+  requiredMarks: 0          ← 零必填标记
+直接点「创建」→ writeIssued: ["POST ops/admin/devices body={}"]    ← 写请求真的发出
+  validationErrors: []      ← 前端零校验
+```
+**横向对照（同轮实测、同一后台）**：
+
+| 模块 | 弹窗表单项 | 必填标记 | 空提交后 |
+|---|---|---|---|
+| **新建设备** | 4 | **0** | **发出 `POST ops/admin/devices body={}`** |
+| 新增角色 | 4 | 2 | 被拦，提示「请填写角色名称」 |
+| 新建优惠券 | 8 | 3 | 被拦，提示「请填写名称」 |
+| 新建等级 | 10 | 2 | 被拦，提示「请填写等级编码与名称」 |
+
+→ **U-1 结论在新产物上完整成立**，且第 9 章「同仓库内策略不一致」这条被四模块实测坐实。修复方向不变：前端补 `:rules`，后端对 `deviceName` 做非空校验。
+
+#### W-4 [P0 维持·已量化] 消费者余额流水 89% 条目是「余额变动 ¥0.00」
+
+**原始 DTO 证据**（`GET /api/v2/account/transactions`，consumer token）：
+```json
+{ "businessType": "PREAUTH_FREEZE", "amountCents": 0,
+  "balanceBeforeCents": 50000, "balanceAfterCents": 50000, "businessId": null,
+  "reason": "开门预授权冻结 #1789275650858947757" }
+```
+**量化（该账号 19 条流水）**：
+
+| 指标 | 值 |
+|---|---|
+| 总条数 | 19 |
+| `PREAUTH_FREEZE` | 11 |
+| `PREAUTH_RELEASE` | 6 |
+| `CHARGE` | 2 |
+| **`amountCents == 0`** | **17（89%）** |
+| **前端 `transactionLabel()` 无映射（落兜底「余额变动」）** | **17（89%）** |
+
+→ 用户打开余额明细，看到的是**一屏 89% 都是「余额变动 ¥0.00」**。冻结/解冻的金额在 DTO 里**根本不存在**（无 `frozenBefore/After/Delta` 字段），`reason` 虽含中文说明但金额为 0。**U-2 维持 P0**，根因链（`BalanceLedgerService.java:169-180` + `BalanceTransactionDto.java:5-15` + `clients/consumer-mp/src/pages/balance/balance.vue:121-127`）全部成立。
+
+#### W-5 [P2 维持] admin 表格横向滚动仍靠 hack（新产物复现，窄视口 1100px）
+
+```json
+{ "found": true, "bodyClientW": 2436, "bodyScrollW": 2436, "canScrollH": false,
+  "overflowX": "visible", "dockClass": "table-scroll table-scroll--h",
+  "dockOverflowX": "auto", "dockScrollable": true }
+```
+`dockScrollable: true` 但**原生 `.el-table__body-wrapper` 的 `canScrollH: false`** —— 与第三轮一致。**U-7 维持**。
+
+#### W-6 [P1 新] consumer UAT 仍会中途中断：图形验证码接口 12s 未返回
+
+修好隐私弹窗后，consumer 套件跑到第 18 条时再次 `TC-RUNNER UAT 执行异常`：
+```
+Error: 图形验证码接口未返回
+  at loginViaSms (clients/consumer-mp/tests/consumer-h5-uat.mjs:258)
+```
+即多次登录后 `/api/v2/auth/captcha` 不再返回。属**测试脆弱性**（无重试、无退避，且用例间反复重登）。建议登录助手加退避重试，或让用例统一走已有的 `ensureLoggedIn`（会话复用）。
+
+#### W-7 [P2 新] admin 单测 39 例全是纯函数，零组件/表单覆盖
+
+`vitest run` → 6 文件 39 用例全绿，但内容为 `list-and-redirect / upload-validate / admin-utils / createLoadSeq / rbac-cache-policy / admin-hash-history` —— **全是 utils/composable 的纯函数测试**，无一渲染组件或提交表单。这正是 W-3（空表单发写请求）长期逃逸的结构性原因。
+
+#### W-8 [P2 新] 商家争议列表把工单号截断为 12 位，与详情页不一致
+
+```
+列表：    #178927565155              ← 12 位
+详情：    单号 1789223205860291679    ← 完整 19 位
+库内真值：1789275651558623883
+```
+客服/用户凭列表号查不到。建议统一为完整号，或明确「短号」语义并给查询入口。
+
+### 11.4 对前文结论的更正
+
+| 前文结论 | 第四轮实测结果 |
+|---|---|
+| **U-4** admin 首屏请求重复（19 请求 / 9 唯一，RBAC 三件套各 ×3） | ❌ **不成立（新产物）**。实测 dashboard 首屏 **total 8 / unique 8，零重复**；`rbac/me`、`rbac/me/permissions`、`rbac/me/nav` **各恰好 1 次**。U-4 是 09-13 那版产物的行为，**A-P2-003「双拉 RBAC」已修**。**本项撤回** |
+| **U-6** a11y 只做一半（7 overlay 仅 3 带 aria） | ⚠️ **部分改善**。新产物实测打开的 3 个 overlay **全部**带 `role=dialog` + `aria-modal` + `aria-label`（全局搜索 / 新建设备 / 设置退款方式）；`inputNoLabel: 0`。样本与第三轮不同，**降级为「待全量复测」** |
+| 商家 `M-10d 争议详情抽屉`（本轮 UAT 又报 `drawer=false`） | ❌ **测试假失败**。定点复测：点行 → `200 GET merchant/disputes/1789223205860291679`，详情（单号/状态/柜机/建议金额/差额说明）**完整渲染**。UAT 的断言用 `.uni-drawer/.uni-popup--show`，而详情是**自定义 sheet**（无该 class）。功能正常，**断言该修** |
+| 商家 `M-10c 柜机详情` = 无权限（`clients/merchant-mp/output/playwright/uat-report.md:45`，09-12） | ❌ **已过期**。本轮 `M-10c` **PASS**：柜机详情正常展示（测试柜-001 / CAB-001 / 离线停售 / 缺货 8 个货道）。该 md 是陈旧快照 |
+| 争议类 404 /「争议工单不存在」 | ❌ **测试数据过期，非产品缺陷**。UAT 硬编码 `DEMO_DISPUTE_TICKET_BILLED='1788252219672817302'`，`select ticket_id from dispute_ticket` **0 行命中**；库内真实工单为 `1789275651558623883` 等 |
+| **U-3** 错误态「重试」误导 | ✅ **维持**。consumer 争议详情对「工单不存在」（**不可重试**）仍渲染「重试」：`TC-IMP-025` / `TC-IMP-025b` 两例 FAIL，文案 `争议工单不存在 \| 重试` |
+
+### 11.5 门禁与单测实跑（9.5 第 6 项，全量明细）
+
+| 资产 | 结果 |
+|---|---|
+| `check:audit-gates` 聚合的 9 个门禁（admin-dialog-a11y / scheduled-zone / cache-names / admin-endpoints / admin-token-storage / admin-page-size / admin-anti-jitter / admin-table-align / mp-a11y） | **9/9 PASS** |
+| 另 4 个门禁（nav-perms / merchant-nav-guard / migration-safety / admin-bundle-budget） | **4/4 PASS**（bundle：ui-vendor 1047.5KB ≤1200、index 100.3KB ≤120、总 JS 2578.7KB ≤3200） |
+| admin vitest | 6 文件 **39/39 PASS**（但见 W-7：全是纯函数） |
+| consumer-h5-uat | **12 PASS / 4 FAIL / 2 SKIP**（修复前 5 PASS / 1 FAIL） |
+| merchant-h5-uat | **26 PASS / 3 FAIL / 2 SKIP / 1 INFO**（修复前 1 PASS / 1 FAIL） |
+| admin `vue-tsc --noEmit` | **6 处 TS2345，exit=2** —— E-1 的类型错误在 HEAD 上**依旧存在**（MemberLevels / Ota / Print 三文件） |
+
+### 11.6 本轮之后仍未闭环
+
+1. **E-1 未解决**：仓库内 `static/admin` 产物仍是 09-13 版；6 处 TS 错误仍在 HEAD。本轮复测用的是**工作区里 `--skip-typecheck` 重建**的产物（**未提交**）。正确修法：先修 3 处类型错误（`row.id`/`row.releaseId` 加存在性校验、PrintView 用 `String(route.query.x ?? '')`），再让 `mvn verify` 正常重建并提交产物；同时按 10.2 把类型检查拆成独立 CI 步骤。
+2. **W-1 的修复尚未纳入 CI**：UAT 现在能跑了，但 `ci.yml` 仍不调用 `test:mp`。不改 CI，这次修复的收益进不了流水线。
+3. **W-6**：consumer UAT 的验证码获取需加退避重试，否则套件仍可能中途中断。
+4. **W-3 / W-4**：两个 P0（空表单建设备、余额流水 89% 零金额）**代码未改**，本轮仅完成复现与定位。
+5. 窄视口表格仅测 1100px 一档，未覆盖 768 / 1280 等断点。
+
+## 12. 第五轮 · 全资产实跑与「测试可信度」修复
+
+### 12.1 本轮动机
+
+第 11 章只修好了**一个**根因（隐私弹窗），且遗漏了一个事实：**后端 889 个 Java `@Test` 在本轮之前从未被执行过一次**。本轮把仓库里**所有可执行资产**逐类跑一遍，并逐个定位「跑不起来」或「跑起来必红」的真实原因。
+
+### 12.2 全量覆盖矩阵（按资产，非按页面）
+
+| 层 | 资产规模 | 本轮执行 | 结果 |
+|---|---|---|---|
+| **后端 trade-service** | 252 测试类 / 871 `@Test` | ✅ `mvn -pl services/trade-service -am test` | **874 run / 0 fail / 0 error / 0 skip，BUILD SUCCESS** |
+| **后端 device-service** | 6 测试类 / 18 `@Test` | ✅ 同法 | **16 run / 0 fail，BUILD SUCCESS** |
+| **vision-service** | 4 测试文件 | ✅ pytest | **23 passed** |
+| **admin 单测** | 6 文件 | ✅ vitest | **39 passed** |
+| **防回归门禁** | 13 个 node 脚本 | ✅ 逐个实跑 | **13/13 PASS** |
+| **admin UAT ×5** | 1944 行 | ✅ 逐个实跑 | admin-uat 10P/0F；role-regression 19P/2F；batch-imp 5P/1F；three-end-business 7P/3F；three-end-dispute 7P/2F |
+| **consumer H5 UAT** | 44 声明用例 | ✅ 实跑 | **32 PASS / 5 FAIL / 7 SKIP / 1 INFO** |
+| **merchant H5 UAT** | 19 声明用例 | ✅ 实跑 | **27 PASS / 2 FAIL / 2 SKIP / 1 INFO** |
+| **infra compose** | 9 个 compose / 6 组合 | ✅ `docker compose config` | 全部 OK（含 ha / staging / apps / xxljob / devops 叠加） |
+| **edge（Android）** | 0 测试 | ❌ 无测试资产 | **无法测** |
+| **真实硬件 / 真实支付** | — | ❌ 未接入 | **不可测**（见 0.3） |
+
+> **infra 说明**：`staging` / `ha` / `apps` 是 overlay 文件，**必须按各自文件头注释指定的基底叠加**（`docker-compose.yml + apps.yml --profile apps` 等）。我最初用 `full + apps` 的错误组合得到「depends on undefined service」报错，**属调用错误，已撤回，不是项目缺陷**。`production.yml` 的 10 个 `${VAR:?}` 必填变量在 `.env.production.example` 中均有模板。
+
+### 12.3 本轮最大发现：`T-1 [P0]` 测试资产系统性失效，共 6 种独立根因
+
+上一章说「测试资产是坏的」，本轮证明其**规模远大于此**：8 个 UAT 脚本中，**没有一个能在未被修改的情况下跑完全部用例**。
+
+| # | 根因 | 影响面 | 表现 |
+|---|---|---|---|
+| a | **首屏隐私弹窗遮挡**（`[data-testid=privacy-consent-dialog]` 是覆盖整页的模态遮罩，拦截全部指针事件） | 4 个脚本 | 点击超时，**整轮在登录步中断** |
+| b | **登录判定用废弃 storage key** —— 断言 `localStorage.getItem('consumer_token'\|'merchant_token')`，但项目已改为 Cookie 会话，真实键是 `*_cookie_auth`（`clients/consumer-mp/src/utils/consumer-api.ts:28`、`clients/merchant-mp/src/utils/merchant-api.ts:28`） | **5 文件 13 处** | 登录**实际成功**却判为失败（假失败） |
+| c | **consumer 短信登录未处理图形验证码** —— 需拦截 `/api/v2/auth/captcha` 响应取 `captchaId` 再从 Redis 读码 | 4 处登录函数 | 用例名写着「无图形码」，与产品实际（`login.vue` 确有 captcha 字段）不符 |
+| d | **缺前置种子文件** —— `three-end-dispute-ui-uat.mjs` 要求先跑 `scripts/create-open-dispute.ps1` 生成 `.tmp/open-dispute.json` | 1 个脚本 | **0 用例执行**，只打一行提示就退出 |
+| e | **消耗性用例不可重复** —— `D-A04 运营 UI 免单结案` 会真的结案 | 1 个用例 | 首跑 ✓、再跑 ✗（种子单已被自己结掉：`dispute_ticket` OPEN 4→3 / RESOLVED 2→3） |
+| f | **依赖不存在的种子数据** | 2 个脚本 | 库中 `purchase_order` **0 行** → `F-03 / F-07` 必然红 |
+
+**证据（b 的确凿性）**：探针实测两端登录**完全成功** ——
+
+```
+POST /api/v2/auth/merchant-password-login → 200 {"code":0,"data":{"token":"eyJ..."}}
+  → 跳转 /pages/home/home，渲染「你好，默认商户管理员」「待补货 11」
+  → localStorage: merchant_cookie_auth, merchant_user_id, merchant_me   ← 无 merchant_token
+
+POST /api/v2/auth/password-login → 200 {"code":0,...}
+  → localStorage: consumer_cookie_auth, consumer_user_id, ...           ← 无 consumer_token
+```
+
+**影响判定**：密码登录这条路**产品侧是好的**，坏的是测试断言。这正是 `A-P2-006`（token 改走 Cookie）整改后**测试没跟着改**留下的债。
+
+### 12.4 本轮修复清单（**只改测试驱动，未改任何业务源码**）
+
+| 文件 | 改动 |
+|---|---|
+| `clients/consumer-mp/tests/consumer-h5-uat.mjs` | 加 `dismissPrivacyConsent()`；4 处登录判定补 `consumer_cookie_auth` |
+| `clients/merchant-mp/tests/merchant-h5-uat.mjs` | 加 `dismissPrivacyConsent()`；2 处判定补 `merchant_cookie_auth` |
+| `clients/admin-vue/tests/three-end-business-uat.mjs` | 加 `dismissPrivacyConsent()` 并在 2 个登录函数调用；2 处判定补 cookie 分支 |
+| `clients/admin-vue/tests/three-end-dispute-ui-uat.mjs` | 同上（2 函数 + 2 判定） |
+| `clients/consumer-mp/tests/imp-dispute-copy-uat.mjs` | 2 处判定补 cookie 分支 |
+| `.tmp/open-dispute.json` | 运行 `scripts/create-open-dispute.ps1` 生成种子（`ticketId=1789459658301361828`） |
+
+5 个改动文件均通过 `node --check`，且已确认全仓**无残留**旧式判定。
+
+### 12.5 修复后效果（同一环境、同一账号、同一命令）
+
+| 套件 | 修复前 | 修复后 |
+|---|---|---|
+| consumer-h5-uat | 12P / 4F / 2S（声明 44） | **32P / 5F / 7S / 1I** |
+| merchant-h5-uat | 26P / 3F / 2S / 1I | **27P / 2F / 2S / 1I** |
+| three-end-business-uat | 崩溃于 `consumerLogin`，有效用例 0 | **7P / 3F**（`T-M01 商户登录` 转 ✓） |
+| three-end-dispute-ui-uat | **0 执行**（缺种子） | **7P / 2F**（`D-M01 商户登录` 转 ✓） |
+
+### 12.6 剩余失败项归因（逐条，不含糊）
+
+| 用例 | 归因 | 定性 |
+|---|---|---|
+| `T-C03` / `T-M03` 购物视频 | `readyState=0 btn=false` | 无录像订单（需 `scripts/seed-demo-shopping-video.ps1`） |
+| `TC-BAL-001` 余额明细分页 | `rows=0` | **与 `W-4/U-2` 同源**（89% 流水零金额、类型未映射）→ 真实缺陷 |
+| `M-10d` / `TC-IMP-032` 争议抽屉 | `drawer=false` | **断言选择器写错**（实测详情可正常打开）→ 测试缺陷 |
+| `T-C01` / `D-C01` consumer 短信登录 | 未处理图形验证码 | 测试缺陷（用例名与产品实际不符） |
+| `D-A04` 免单结案 | 种子已被自己结案 | 测试缺陷（无幂等/无 setup 重置） |
+| `F-03` / `F-07` 财务采购待审 | `purchase_order` 0 行 | 缺种子数据 |
+| `B-05` 全局搜索只读触发器 | `readonly=null placeholder=""` | **待复核**，疑似只读账号仍可用全局搜索 |
+
+### 12.7 本轮之后仍未闭环
+
+1. **E-1 未解决**（继承 11.6）：`static/admin` 仍是 09-13 版；6 处 TS 错误仍在 HEAD；工作区仍有未提交的 `--skip-typecheck` 重建产物。
+2. **`T-1` 的 CI 侧未闭环**：`ci.yml` 仍不调用 `test:mp`，本轮修好的 4 个套件**进不了流水线**。
+3. **`edge` 零测试资产** —— Android 边缘端（`PrefsJsonQueue.mutate()` 曾疑有主线程阻塞风险）没有任何自动化保护。
+4. **`W-3` / `W-4` 两个 P0 代码未改**（空表单建设备、余额流水 89% 零金额）。
+5. **`D-A04` 类消耗性用例需要 setup/teardown 重置**，否则 UAT 不可重复执行。
+6. 窄视口表格仅测 1100px 一档，未覆盖 768 / 1280 断点。
+
+---
+
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复。所有 `文件:行` 证据可在当前工作区复现；`.tmp/` 下产物（`mvn-test.log`、`r5-*.log`、`*.json`）可逐条核验。*
