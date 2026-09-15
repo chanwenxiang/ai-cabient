@@ -49,6 +49,6 @@ class PrefsJsonQueue<T>(
     }
 
     private fun save(items: List<T>) {
-        prefs.edit().putString(key, mapper.writeValueAsString(items)).apply()
+        prefs.edit().putString(key, mapper.writeValueAsString(items)).commit()
     }
 }

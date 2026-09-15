@@ -14,7 +14,7 @@
 |------|------|
 | **整改真实性** | **高**。抽查 23 项 P1，21 项代码层面确认真实落地，无「文档改了代码没改」的虚报 |
 | **整改质量** | **良**。重构为干净机械抽取（无行为漂移），单测真实可跑（后端 26 pass / vision 23 pass） |
-| **文档诚实度** | **高**。78 ✅ / 2 ❌，未完成项（appid、urlCheck）与局限项（E-P1-1 设备证书、E-P1-2 队列、M-P1-4 AppSheet）均如实标注未夸大 |
+| **文档诚实度** | **高**（R2 后已清洗自相矛盾行）。未完成项仅剩 appid / 现场证书 |
 | **最大风险** | ✅ **已修复**：`pnpm check:audit-gates`（含 page-size / anti-jitter / table-align / mp-a11y）已接入 CI `mini-programs` job |
 | **部分完成** | E-P1-1：代码已支持 truststore/mTLS + strict fail-fast；**现场证书仍待签发下发** |
 
@@ -27,7 +27,7 @@
 | 编号 | 声称 | 核验 | 证据（文件:行） |
 |------|------|------|-----------------|
 | A-P1-001 | ✅ | **✅ 真实** | `router/index.ts:493-504` — `if (!nav && !metaPerm) → forbidden`，fail-closed 成立 |
-| A-P1-002 | ✅ | **⚠️ 真实但门禁未接线** | `check-admin-page-size` 实跑通过；但该门禁 **CI 未执行** |
+| A-P1-002 | ✅ | **✅ 真实且门禁已接线** | `check:admin-page-size` 已并入 `check:audit-gates`，CI `mini-programs` 执行 |
 | A-P1-003 | ✅ | **✅ 真实** | `DeviceReportView.vue:601/606/613/616` — `onMounted`+`onActivated` 绑、`onDeactivated`+`onUnmounted` 解，keep-alive 场景已覆盖 |
 | C-P1-1 | ❌ | **❌ 仍未落地** | 两端 `manifest.json:15` `"appid": ""` 依旧为空，真机/发布硬阻塞 |
 | C-P1-2 | ✅ | **✅ 真实** | `consumer-api.ts:155-163` — H5+cookieEnabled 时 `removeStorageSync(TOKEN_KEY)` + Cookie 标记，且校验 `expiresInSeconds` 有效性 |
@@ -37,7 +37,7 @@
 | M-P1-1 | ✅ | **✅ 真实** | `MerchantInventoryPortalService.java:187` `loadLineSummariesByTaskIds(taskIds)` — 批量聚合，N+1 已消 |
 | M-P1-2 | ✅ | **✅ 真实（优秀）** | `components/WalletPage.vue` 443 行 + `wallet.vue`/`line-wallet.vue` 各 **7 行壳**，教科书级复用 |
 | M-P1-3 | ✅ | **✅ 真实** | `replenishment.vue` **1129 行**（原 ~3000+），拆出 Detail/Scan/Display/Shell 等 composable |
-| M-P1-4 | ❌ | **✅ 已落地** | `AppSheet`/`AppDialog`/`AppConfirmDialog`；replenishment/disputes/pricing/team/mine 迁入 |
+| M-P1-4 | ❌ | **✅ 已落地** | `AppSheet` + `AppConfirmDialog`；replenishment/disputes/pricing/team/mine 迁入 AppSheet（曾引入未用的 AppDialog 已删） |
 | M-P1-5 | ✅ | **✅ 已补齐闭环** | 已有覆盖价强制 `expectedVersion`（含 reset）；冲突「他人已修改，请刷新」；商户页 `status===409` |
 | S-P1-1 | ✅ | **✅ 真实** | `SettlementService.java` **238 行**（原上帝类），依赖 **30→10**；拆出 9 个类（VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator / OrderSupport / Confidence） |
 | S-P1-2 | ✅ | **✅ 续拆 LiveCart** | 已拆出 `SessionLiveCartService`；主类约 **590 行** / 依赖约 20 |
@@ -48,10 +48,9 @@
 | V-P1-2 | ✅ | **✅ 真实** | `RECOGNIZE_TIMEOUT_MS` 超时 → 回退 `need_review=true` |
 | V-P1-3 | ✅ | **✅ 真实** | `kafka_worker.py:100` `enable_auto_commit=False`；`:178-191` 失败写 `...request.DLT` 后再 commit |
 | E-P1-1 | ✅ | **✅ 配置闭环（证书待现场）** | `MqttSslSocketFactories` + truststore/keystore + `MQTT_TLS_STRICT` fail-fast；证书文件仍需现场签发 |
-| E-P1-2 | ❌ | **✅ Prefs 存储统一** | `PrefsJsonQueue`；MQTT/离线上传共用；SQLite 仍可选 |
-| E-P1-2 | ❌ | **❌ 未做（文档诚实标注"后续做"）** | 仍是 `OutboundMqttQueue.kt` + `OfflineUploadQueue.kt` 双队列 |
+| E-P1-2 | ❌ | **✅ Prefs 存储统一** | `PrefsJsonQueue`（`commit` 同步落盘）；MQTT/离线上传共用；SQLite 仍可选 |
 
-**小计**：软件侧 P1 基本闭环；E-P1-1 剩现场证书；未落地仍为 appid / E-P1-2 队列 / M-P1-4 AppSheet
+**小计**：软件侧 P1/P2 软修基本闭环；未落地仅剩 **appid**（需密钥）与 **现场 TLS 证书下发**
 
 ---
 
@@ -162,7 +161,7 @@
 ### 做得好的
 1. **重构纪律优秀**：A-P2-005 跨 15 个提交，75 个调用方收敛、0 裸字面量残留，纯机械抽取无行为漂移
 2. **单测真实有效**：新增 9 个后端测试 + 3 个 vision 测试全部通过（26 + 23），且覆盖的是状态机/时区/缓存名/追踪 ID 等真实边界
-3. **文档诚实**：78 ✅ / 2 ❌，局限如实标注（E-P1-1 设备证书待签发、E-P1-2 后续做、M-P1-4 未做），未虚报
+3. **文档诚实**：局限如实标注；R2 后已清洗就地追加造成的矛盾行
 4. **修复方式正当**：props 变异用 `defineModel` 而非 `eslint-disable`；H5 token 用 Cookie 而非"缩短 TTL"敷衍
 5. **门禁设计合理**：端点字面量清单 + 定向目录扫描，能真实拦截回归
 
@@ -172,9 +171,9 @@
 | **P0** | ~~10 个门禁 0 接入 CI~~ | ✅ 已接入 `ci.yml` + 扩展 `check:audit-gates` |
 | **P1** | ~~乐观锁前端缺位~~ | ✅ 强制 expectedVersion + 409 文案 + 商户页按 status 刷新 |
 | **P1** | ~~E-P1-1 TLS 仅默认信任库~~ | ✅ 代码支持 truststore/mTLS + strict；**证书文件仍待现场** |
-| **P2** | ~~`SessionService` 755 行~~ | ✅ 再拆 `SessionLiveCartService`，主类约 590 行 |
+| **P2** | ~~`SessionService` 755 行~~ | ✅ 再拆 `SessionLiveCartService`，主类约 582 行 |
 | **P2** | 4 个 >2600 行巨型视图 | 继续 composable 化 |
-| **P2** | ~~M-P1-4 统一 AppSheet~~ | ✅ `AppSheet`/`AppDialog` + 多页迁移 |
+| **P2** | ~~M-P1-4 统一 AppSheet~~ | ✅ `AppSheet` + `AppConfirmDialog`（已删未用的 AppDialog） |
 | **—** | C-P1-1 appid 为空 | 上线前必须填（真机硬阻塞） |
 
 ---
