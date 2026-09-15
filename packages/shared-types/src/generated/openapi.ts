@@ -11355,16 +11355,24 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        /** @description 库存盘点调整请求 */
         StocktakeAdjustRequest: {
+            /** @description 设备 ID */
             deviceId: string;
+            /** @description SKU ID */
             skuId: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description 盘点后数量
+             */
             countedQuantity: number;
+            /** @description 备注 */
             note?: string;
+            /** @description 盘点照片凭证 URL；商户开启 photoStocktake 时必填 */
             photoEvidenceUrl?: string;
             /**
              * Format: int64
-             * ??????????? 400??? 409????????
+             * @description 客户端看到的库存版本。已有库存行时必填：缺失返回 400，版本冲突返回 409。新建库存行时可省略。
              */
             expectedVersion?: number;
         };
