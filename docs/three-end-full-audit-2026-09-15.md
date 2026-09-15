@@ -1433,7 +1433,7 @@ scripts/patch-uni-mp-workspace.mjs
 
 ### 14.7 本轮之后仍未闭环
 
-1. **`W-3` / `W-4` 两个 P0 业务代码未改**（空表单建设备、余额流水 89% 零金额）—— 自第四轮发现至今，跨三轮未动。
+1. ~~**`W-3` / `W-4` 两个 P0 业务代码未改**（空表单建设备、余额流水 89% 零金额）—— 自第四轮发现至今，跨三轮未动。~~ → **已于 §15 修复**；其中 `W-3` 经复核**定级由 P0 下调为 P1**，理由见 §15.2。
 2. `W-6`（验证码无退避重试）、`W-8`（争议单号截断 12 位）未改。
 3. ~~**其余 CI job 未验证**~~ → **已于 §14.2.1 关闭**（第二轮三 job 全绿，两端 MP type-check 与 H5 build 首次真正执行并通过）。
 4. `edge` 零测试资产；两端 `appid` 仍为空；`D-A04` 缺 setup/teardown；窄视口仅测 1100px。
@@ -1447,4 +1447,115 @@ scripts/patch-uni-mp-workspace.mjs
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭。*
+## 15. 第八轮 · 两个 P0 业务缺陷落地（W-4 修复 / W-3 定级更正）
+
+前七轮改动集中在「测试基建 + 仓库卫生 + 类型收窄」，**零业务逻辑变更**。本轮首次动业务代码。
+
+### 15.1 W-4 [P0] 已修复：余额流水金额语义错误
+
+#### 根因更正（§11.3 的描述不准确）
+
+§11.3 写的是「冻结/解冻的金额在 DTO 里**根本不存在**（无 `frozenBefore/After/Delta` 字段）」。**逐行复核后更正**：
+
+金额**在库中存在且有值**——`payment_operation.amount_cents` 由 `BalanceLedgerService.doRecordFreezeOnly` 写入 `command.amountCents()`（`BalanceLedgerService.java:110`），而该值被 `> 0` 守卫，恒为正的真实冻结额。
+
+真正的根因是 **`toDto` 把它丢掉了**（`BalanceLedgerService.java:169-180` 原实现）：
+
+```java
+int signedAmount = before != null && after != null
+        ? after - before                       // ← 冻结/释放不改可用余额 ⇒ 恒为 0
+        : switch (operationType) { ... };
+return new BalanceTransactionDto(..., signedAmount, ...);   // ← 塞进 DTO 的 amountCents 字段
+```
+
+即：**不是「没有金额」，而是「用错了算法，输出了 0」**。`before == after` 时该表达式恒为 0，QED。
+
+#### 修复
+
+**后端** `BalanceLedgerService.resolveSignedAmount`（新增，替换原内联表达式）：
+
+1. `before != after` → 取余额差。覆盖购物扣款、退款、充值、预授权冲抵等所有**真正动用可用余额**的操作。
+2. `before == after` 且类型属**纯冻结/释放** → 取 `operation.getAmountCents()` 并按业务方向取符号：`PREAUTH_FREEZE` / `BALANCE_REFUND_FREEZE` 为流出（负），`PREAUTH_RELEASE` / `BALANCE_REFUND_RELEASE` 为流入（正）。
+3. `before == after` 且类型未知 → 维持 0，**不臆测方向**。
+4. 缺失余额快照（`before`/`after` 为 null，仅极老迁移数据）→ 沿用原 `CHARGE`/`ADJUST_CHARGE` 兜底。
+
+**一致性依据（本修复成立的关键）**：`doRecordFreezeOnly` 的全部 6 个调用点中，只有 `PREAUTH_CAPTURE`（`ConsumerPreauthService.java:264`）与 `BALANCE_REFUND`（`BalanceRefundService.java:292`）会改动可用余额，而两者都在 `capture > 0` / `release > 0` 时才落库，故 **「余额差为 0」与「纯冻结/释放」严格等价**，不会把真实扣款误判成冻结。
+
+**前端** `clients/consumer-mp/src/pages/balance/balance.vue`：
+
+- `transactionLabel()` 补 6 个映射（`开门预授权冻结 / 释放 / 冲抵`、`退款申请冻结 / 冻结释放`、`余额退款`），不再落兜底「余额变动」。
+- 新增 `isHoldType()`；冻结/释放类**不带正负号**展示，方向由标题表达。否则会出现「开门预授权冻结 `-¥50.00`」与并列的「余额 `¥500.00`」互相矛盾（可用余额其实没变）。
+
+#### 为什么没有修改 `BalanceTransactionDto`
+
+§11.3 把 `BalanceTransactionDto.java:5-15` 也列为根因链一环（「无 frozen 字段」）。复核后**判定不需要新增字段**：`businessType` 已完整承载类型语义，前端据此即可正确渲染；再补 `frozenDeltaCents` 属冗余，且会改动公共 record 与 OpenAPI 契约。故本轮保持 DTO 不变——`check-openapi-types` 结构校验通过、spec 未变即为证。
+
+#### 验证
+
+| 项 | 结果 |
+| --- | --- |
+| `BalanceLedgerServiceTest` | **12 / 12 通过**（原 3 + 新增 9，含 4 类冻结/释放、余额差优先、未知类型不臆测方向、缺快照兜底） |
+| `clients/consumer-mp` `tsc --noEmit` | exit 0 |
+| `clients/consumer-mp` `uni build`（H5，真正编译模板） | exit 0 |
+| `check-openapi-types` | `structural OK`（契约未受影响） |
+
+### 15.2 W-3 [P0 → **P1** 定级更正] 空表单建设备
+
+#### 复核发现：后端存在**有意的**兜底设计
+
+`OpsDeviceAdminService.createDevice`（`OpsDeviceAdminService.java:336`）：
+
+```java
+device.setDeviceName(request.deviceName() != null ? request.deviceName().trim() : deviceId);
+```
+
+设备名为空时**回退为系统自动分配的 12 位编号**。因此 §11.3 / §9 的核心指控「空表单会建出**无名设备**」**不成立**——设备一定有名，即其编号。
+
+佐证「名称可空」是设计意图而非疏漏：前端 placeholder 明写「可选…」；`UpsertDeviceRequest` 无任何校验注解；`deviceName` 缺失不产生任何业务不可用状态（与角色名、券名、等级编码不同）。
+
+→ **结论：这不是「同仓库内策略不一致」的 P0 缺陷**，`W-3` 定级下调为 **P1**。§11.3 的横向对照表结论（「只有设备模块没有校验」）在事实层仍然成立，但把它判为 P0 属于**过判**。
+
+#### 真正的问题与修复
+
+保留下来的是一个**缺少反馈**的问题：用户空表单点「创建」，会无任何提示地建出一台以编号命名的设备，事后方才发现。
+
+修复（**不改后端，尊重既有兜底设计**）：前端 `saveCreate()` 在 `deviceName` 为空时先弹 `ElMessageBox.confirm`，明确告知「将使用系统自动分配的 12 位编号作为设备名称」，确认后才发请求。
+
+这样既消除了「误点即建」，又不破坏「名称可空、编号兜底」的设计，也避免了强行必填会与前端的「可选…」提示自相矛盾。
+
+### 15.3 新增门禁：两端冻结类型集合一致性
+
+W-4 的修复建立了一个**跨语言隐式契约**——Java `holdSignedAmount` 与 TS `isHoldType` 的类型集合必须一致。漂移会以两种形式复发：
+
+- 后端新增、前端漏加 → 前端不带符号，后端金额却为 0 → **又回到「¥0.00」**（W-4 原样复发）
+- 前端新增、后端漏加 → 前端隐藏符号，后端金额本应带方向 → 方向丢失
+
+→ 新增 `scripts/check-balance-hold-types.mjs`，从两个真源文件中各自解析类型集合做集合比对，并已接入 `check:audit-gates` 聚合链（故 CI 的 `Audit regression gates` 步骤自动覆盖，无需另加步骤）。
+
+**门禁自身有效性已双向验证**（只测「通过」等于没测）：
+
+| 场景 | 结果 |
+| --- | --- |
+| 当前代码 | `OK (4 types: BALANCE_REFUND_FREEZE, BALANCE_REFUND_RELEASE, PREAUTH_FREEZE, PREAUTH_RELEASE)` |
+| 故意将前端 `PREAUTH_RELEASE` 改名 | **FAIL**，并精确指出「前端缺少: PREAUTH_RELEASE / 后端缺少: PREAUTH_RELEASE_X」 |
+| 还原后 | `OK` |
+
+锚点缺失（方法被重命名/搬迁）时门禁**显式失败**而非静默放过，避免门禁本身失效后无人察觉。
+
+### 15.4 本轮之后仍未闭环
+
+1. `W-6`（consumer UAT 验证码无退避重试）、`W-8`（商家争议单号截断 12 位）**未改**。
+2. **W-4 的前端展示未经实机验证**：后端金额语义有单测覆盖，前端仅到「类型检查 + H5 构建通过」一级；标签与符号的真实观感需起三端环境复看。
+3. `edge` 零测试资产；两端 `appid` 仍为空（真机/发布硬阻塞）；`D-A04` 缺 setup/teardown；窄视口仅测 1100px。
+4. [S-1] 剩余两项（吊销超管会话、`.gitignore` 通用化）未做；secret scan 只扫 `git ls-files` 的建议（§14.5 已用 3 个实例佐证）**仍未采纳**。
+5. `BalanceTransactionDto` 字段缺少 `@Schema(description)`（OpenAPI 里 `amountCents` 语义现在更微妙，值得文档化）—— 因补充描述需起 jar 重拉 spec，本轮未做。
+
+### 15.5 本轮提交
+
+| commit | 内容 |
+| --- | --- |
+| （见 git log） | `fix(balance)`: 修正冻结/释放流水金额语义（W-4）；`fix(admin)`: 新建设备空名称二次确认（W-3）；`test(gate)`: 新增冻结类型一致性门禁 |
+
+---
+
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭。*
