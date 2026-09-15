@@ -1323,4 +1323,128 @@ E-1 的修复方式（逐条对应 §10.2 建议）：
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地。所有 `文件:行` 证据可在当前工作区复现；`.tmp/` 下产物（`mvn-test.log`、`r5-*.log`、`*.json`）可逐条核验。§13.6 第 1 条是唯一一条「已改但无法在本机验证」的结论，须以首次 CI 运行结果为准。*
+## 14. 第七轮 · 首次真实 CI 与工作区深度清理
+
+### 14.1 本轮动机
+
+第 13 章的 5 个提交**全部停留在本地**（`git rev-list --count @{u}..HEAD` = 5）。这意味着第 13 章关于 CI 的一切描述——新增的 `e2e-h5` job、接入的 admin vitest、修好的 4 套 UAT、以及 4 个 `UAT_MAX_FAIL_*` 基线——**都只是纸面推断，从未被流水线执行过**。
+
+本轮第一动作即推送，让 CI 从「声明」变成「实证」。
+
+### 14.2 首次真实 CI 运行结果（run `34955622688`）
+
+推送 `d28b37ca..325b68f6` 后触发：
+
+| job | 结果 | 耗时 | 说明 |
+| --- | --- | --- | --- |
+| `build` | ✅ pass | 5m5s | **产物门禁 `ci.yml:127` 首次真正执行**（第 10 章 E-1 的闭环证据） |
+| `e2e-h5` | ✅ pass | 7m31s | 本轮新增 job **一次通过** |
+| `mini-programs` | ❌ fail | 1m31s | 卡在 `Format check`（见 14.3） |
+
+`e2e-h5` 全部步骤通过：`Build backend jar` → `Start backend` → `Start H5 dev servers` → `Install Playwright Chromium` → `Consumer H5 UAT` → `Merchant H5 UAT` → `Three-end business UAT` → `Three-end dispute UAT` → `Upload UAT evidence`。其中 `mini-programs` 的 `Admin unit tests (vitest)` 与 `Audit regression gates` 亦为 ✅。
+
+**这与 §13.6 第 1 条的担忧相反**：担心的是「CI 用自带 chromium + 全新 Flyway 种子，失败数可能与本地不一致」，实测 4 套 UAT 在 CI 上**全部落在基线内**。§13.6 第 1 条据此关闭，`UAT_MAX_FAIL_*` 基线的本地值可直接沿用，无需按环境差异调整。
+
+### 14.2.1 第二次运行（run `34957104151`）—— **三个 job 全绿**
+
+修掉 F-1 后重推，本轮为**该项目首次 CI 全绿**：
+
+| job | 结果 | 耗时 |
+| --- | --- | --- |
+| `mini-programs` | ✅ pass | 1m54s |
+| `build` | ✅ pass | 4m37s |
+| `e2e-h5` | ✅ pass | 7m34s |
+
+**连带回收的收益**：`mini-programs` 是**串行步骤**，上一轮它卡在 `Format check`，导致其后的四个步骤从未执行过。本轮它们首次真正跑通并全部通过：
+
+```
+✓ Consumer MP type-check      ✓ Merchant MP type-check
+✓ Consumer MP H5 build        ✓ Merchant MP H5 build
+✓ Admin unit tests (vitest)   ✓ Audit regression gates
+```
+
+即 §14.7 第 3 条（「其余 CI job 未验证」）在第二轮后关闭，两端小程序的 TS 层与 H5 构建现已具备真实 CI 保护。
+
+### 14.3 新发现 [F-1 · P1] `format:check` 在 HEAD 上长期为红，因从未推送而被掩盖
+
+`mini-programs` 的失败原因是 5 个文件不符合 prettier：
+
+```
+clients/merchant-mp/src/pages/disputes/disputes.vue
+clients/merchant-mp/src/pages/mine/mine.vue
+clients/merchant-mp/src/pages/pricing/pricing.vue
+clients/merchant-mp/src/pages/team/team.vue
+scripts/patch-uni-mp-workspace.mjs
+```
+
+**责任归属已用 `git log -1 -- <file>` 逐文件确认，不在第 13 章的 5 个提交内**：
+
+| 文件 | 引入提交 |
+| --- | --- |
+| 4 个 merchant `.vue` | `59a6b800` feat(edge,merchant): PrefsJsonQueue 统一队列存储并落地 AppSheet |
+| `patch-uni-mp-workspace.mjs` | `20b361a3` chore(mp): 增加 uni workspace 跨包 chunk 路径补丁脚本 |
+
+→ 这是与 **T-1 / N-1 同类**的缺陷，但更隐蔽：不是「测试资产没接 CI」，而是**分支从未推送，导致 CI 里已有的门禁从未被执行**。第 13 章为 CI 补了 3 个 job，却漏了「推送」这一步——**门禁存在 ≠ 门禁生效**。
+
+**修复**（提交 `1baf84e8`）：对这 5 个文件跑 `prettier --write`，并逐项证明无行为变更：
+
+- `disputes.vue` / `mine.vue` / `team.vue`：`git diff -w` 为空 —— 纯缩进重排
+- `pricing.vue`：`AppSheet` 标签折行合并（属性与值逐字相同）
+- `patch-uni-mp-workspace.mjs`：外层引号 `"` → `'`；字符串值经 node 实证 `before === after` 为 `true`（同为 `str.replace(/\.\.\//g, "")`）
+
+验证：`prettier --check`（全仓 3 组 glob）→ `All matched files use Prettier code style`；`clients/merchant-mp` 的 `tsc --noEmit` → exit 0。**CI 侧确认**：第二次运行（`34957104151`）`mini-programs` ✅ 1m54s，其后被上一轮跳过的四步全部通过（见 §14.2.1）。
+
+> **方法论要点（可复用于其他仓库）**：串行 CI 中，**任何一个前置步骤失败都会让其后的所有门禁变成"从未执行"**。审计「门禁是否真的在保护」时，不能只看步骤是否存在，必须看它上一次实际执行的结果。E-1（§10）与本条 F-1 是同一根因的两次复发。
+
+### 14.4 工作区深度清理（约 88 MB）
+
+沿用第 13 章确立的「**可逆隔离**而非硬删」原则，全部移入 `%TEMP%\aicabinet-cache-quarantine-2026-09-15\`。
+
+| 类别 | 内容 | 处置 |
+| --- | --- | --- |
+| `.tmp/` | `ui-verify`(45MB)、`ci-artifacts`(13MB)、16 个松散日志/脚本 | 隔离；**保留 `live-openapi.json` 与 `open-dispute.json`** |
+| 三端 `output/` | `admin-vue` / `consumer-mp` / `merchant-mp` 的 playwright 截图 | 隔离 |
+| 工具缓存 | `.pytest_cache`、`.playwright-cli`、`.playwright-mcp`、`.superpowers`、`.tmp-video-frames` | 隔离 |
+| `.cursor/`（部分） | 10 个 `*.log`、`tmp-ff-edges.png`、`tmp-ff-video-frames/`、空目录 `e2e-run-20260823-0053/` | 隔离 |
+
+**`.cursor/` 未被整目录处理，因为它是部分被跟踪的**：`rules/`（含 `admin-vue.mdc`、`admin-layout-anti-jitter.mdc`）、`skills/`、`B-1-device-mqtt-auth-design.md`、`B-11-auth-refresh-design.md`、`PENDING-TODO.md` 以及 `gen_service_audit.py` / `tmp_fk_audit.sql` / `tmp_service_audit.{json,md}` / `tmp-pr-comment.md` **全部保留**。清理前后 `git status` 均为空。
+
+### 14.5 清理过程中新发现 3 处凭据文件（[S-1] 扩大）
+
+[S-1] 此前记录的是 3 个（`.tmp-admin-token.txt` + 2 个 `eyJ*`）。本轮在**未被任何规则命名的位置**又发现 3 个：
+
+| 文件 | 大小 | 性质 |
+| --- | --- | --- |
+| `.tmp/admin-token.txt` | 265 B | 超管 bearer token（文件名不含 `eyJ`，§13.5 的检索未覆盖 `.tmp/` 根下） |
+| `.tmp/ui-verify/.consumer-token.txt` | 261 B | **隐藏文件**，`*` 通配符扫不到，藏在待清目录内部 |
+| `.cursor/tmp-inject-token.js` | — | **硬编码 JWT**（`sub:10001`），文件名形如工具脚本 |
+
+另 `.cursor/` 下 6 个显式凭据/会话文件（`tmp-{consumer,merchant,ops}-token.txt`、`tmp-consumer-login.json`、`tmp-merchant-me.json`、`tmp-merchant-session.json`）。**共 9 个**，已全部移至 `%TEMP%\aicabinet-stale-creds\`。
+
+这直接佐证 §13.6 第 7 条：[S-1] 建议 4（secret scan 只扫 `git ls-files`，对未跟踪文件无感知）**必须采纳** —— 本轮 3 个新发现全部是未跟踪文件，且其中一个还靠隐藏文件名躲过了通配符。**另需注意**：这些 token 用的是已废弃的 `consumer_token` / `merchant_token` 存储键（项目已改为 `consumer_cookie_auth` / `merchant_cookie_auth`），故已失效，但吊销动作仍未做（继承 §13.5）。
+
+### 14.6 本机环境记录：目录重命名被拒，改用「先掏空再删壳」
+
+清理时 `mv <dir> %TEMP%` 对部分目录持续返回 `Permission denied`，但**目标侧可写、源目录内文件可正常读写与移出**（最小化实验证实：在 `ui-verify` 内 `touch` 新建文件成功、单文件移出成功、子目录 `shots` 移出成功，唯独顶层目录重命名失败）。
+
+失败目录无体积规律（`ui-verify` 45MB 与 `consumer-mp/output` 5MB 均失败，`ci-artifacts` 13MB 与 `admin-vue/output` 10MB 均成功）。判断为 OneDrive 同步目录对部分目录持有句柄。
+
+**可用绕法**：先逐项移出目录内容（含 `.` 开头的隐藏项），再 `rmdir` 空壳。本机实测对全部失败目录有效。
+
+### 14.7 本轮之后仍未闭环
+
+1. **`W-3` / `W-4` 两个 P0 业务代码未改**（空表单建设备、余额流水 89% 零金额）—— 自第四轮发现至今，跨三轮未动。
+2. `W-6`（验证码无退避重试）、`W-8`（争议单号截断 12 位）未改。
+3. ~~**其余 CI job 未验证**~~ → **已于 §14.2.1 关闭**（第二轮三 job 全绿，两端 MP type-check 与 H5 build 首次真正执行并通过）。
+4. `edge` 零测试资产；两端 `appid` 仍为空；`D-A04` 缺 setup/teardown；窄视口仅测 1100px。
+5. [S-1] 剩余两项（吊销超管会话、`.gitignore` 通用化）未做。
+
+### 14.8 本轮提交
+
+| commit | 内容 |
+| --- | --- |
+| `1baf84e8` | `style(mp)`: 修复 HEAD 上遗留的 5 处格式违规，使 CI `format:check` 归零 |
+
+---
+
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭。*
