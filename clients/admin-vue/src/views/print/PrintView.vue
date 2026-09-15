@@ -145,6 +145,12 @@ const devices = ref<Row[]>([]);
 const skus = ref<Row[]>([]);
 const suppliers = ref<Row[]>([]);
 
+/** route.query 的值可能是 string | string[] | null，统一归一为单个字符串。 */
+function queryString(v: unknown): string {
+  if (Array.isArray(v)) return v.length ? String(v[0] ?? '') : '';
+  return v == null ? '' : String(v);
+}
+
 const mode = computed(() => String(route.query.type || ''));
 const pageTitle = computed(() => {
   if (mode.value === 'picking') return '拣货单打印';
@@ -185,8 +191,10 @@ async function load() {
   let ok = false;
   try {
     if (mode.value === 'picking') {
+      const outboundId = queryString(route.query.outboundId);
+      if (!outboundId) throw new Error('缺少出库单 ID');
       const [ob, whs, devs, skuRows] = await Promise.all([
-        api.request<Row>(AdminEndpoints.warehouseOutbound(route.query.outboundId), 'GET'),
+        api.request<Row>(AdminEndpoints.warehouseOutbound(outboundId), 'GET'),
         api
           .request<{ items: Row[] }>(AdminEndpoints.warehouseListAll, 'GET')
           .catch(() => ({ items: [] as Row[] }))
@@ -202,8 +210,10 @@ async function load() {
       devices.value = devs;
       skus.value = skuRows;
     } else if (mode.value === 'purchase') {
+      const purchaseOrderId = queryString(route.query.purchaseOrderId);
+      if (!purchaseOrderId) throw new Error('缺少采购单 ID');
       const [po, sups, whs, skuRows] = await Promise.all([
-        api.request<Row>(AdminEndpoints.purchaseOrder(route.query.purchaseOrderId), 'GET'),
+        api.request<Row>(AdminEndpoints.purchaseOrder(purchaseOrderId), 'GET'),
         api
           .request<{ items: Row[] }>(AdminEndpoints.suppliersListAll, 'GET')
           .catch(() => ({ items: [] as Row[] }))

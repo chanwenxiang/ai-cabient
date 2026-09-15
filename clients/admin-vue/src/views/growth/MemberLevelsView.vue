@@ -359,6 +359,10 @@ async function save() {
 }
 
 async function toggleStatus(row: LevelRule) {
+  if (row.id == null) {
+    ElMessage.error('该等级规则缺少 ID，无法操作');
+    return;
+  }
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
   try {
     await api.request<LevelRule>(AdminEndpoints.growthMemberLevelStatus(row.id), 'POST', {
@@ -375,7 +379,9 @@ async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
   const selected = list.value.filter((r) =>
     selectedIds.value.map(String).includes(String(r.id ?? r.levelCode))
   );
-  const targets = selected.filter((r) => r.status !== next);
+  const targets = selected.filter(
+    (r): r is LevelRule & { id: number } => r.status !== next && r.id != null
+  );
   if (!targets.length) {
     ElMessage.info(next === 'ACTIVE' ? '选中项均已启用' : '选中项均已停用');
     return;

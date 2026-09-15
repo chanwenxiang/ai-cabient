@@ -295,7 +295,9 @@ const {
 /** 勾选中可下架的已发布版本；未勾选时为空。 */
 const unpublishableSelected = computed(() => {
   if (!hasSelection.value) return [];
-  return pickSelected(items.value).filter((r) => r.status === 'PUBLISHED' && r.releaseId != null);
+  return pickSelected(items.value).filter(
+    (r): r is OtaRelease & { releaseId: number } => r.status === 'PUBLISHED' && r.releaseId != null
+  );
 });
 const hasUnpublishableSelection = computed(() => unpublishableSelected.value.length > 0);
 
@@ -403,6 +405,10 @@ async function publish() {
 }
 
 async function unpublish(row: OtaRelease) {
+  if (row.releaseId == null) {
+    ElMessage.error('该版本缺少 ID，无法下架');
+    return;
+  }
   try {
     await ElMessageBox.confirm(
       `确认下架版本 ${row.appVersion}？设备端将停止收到该版本。`,
