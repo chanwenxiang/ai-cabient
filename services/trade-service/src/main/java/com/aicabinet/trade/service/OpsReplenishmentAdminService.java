@@ -190,7 +190,8 @@ public class OpsReplenishmentAdminService {
                 inv.getQuantity(),
                 inv.getCapacity(),
                 inv.getLowThreshold(),
-                inv.getUpdatedAt()
+                inv.getUpdatedAt(),
+                inv.getVersion()
         );
     }
 

@@ -225,7 +225,8 @@ public class ReplenishmentService {
 
         DeviceSkuInventoryId id = new DeviceSkuInventoryId(body.deviceId(), body.skuId());
 
-        DeviceSkuInventory inv = inventoryRepository.findById(id).orElseGet(() -> {
+        var existing = inventoryRepository.findById(id);
+        DeviceSkuInventory inv = existing.orElseGet(() -> {
 
             DeviceSkuInventory n = new DeviceSkuInventory();
 
@@ -234,6 +235,10 @@ public class ReplenishmentService {
             return n;
 
         });
+        if (existing.isPresent()) {
+            com.aicabinet.trade.support.OptimisticLocking.requireMatchingInventoryVersion(
+                    body.inventoryVersion(), inv.getVersion());
+        }
 
         // 有批次账本时 quantity 只能由 lot 汇总同步，禁止手改汇总表造成虚库存
         if (inventoryLotService.deviceUsesLotLedger(body.deviceId())) {
@@ -1420,7 +1425,8 @@ public class ReplenishmentService {
         }
         return new DeviceInventoryDto(
                 deviceId, skuId,
-                qty, inv.getCapacity(), inv.getLowThreshold(), inv.getUpdatedAt()
+                qty, inv.getCapacity(), inv.getLowThreshold(), inv.getUpdatedAt(),
+                inv.getVersion()
         );
     }
 

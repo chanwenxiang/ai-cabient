@@ -184,7 +184,7 @@ export function localizeApiMessage(
     return '未找到相关数据';
   }
   if (/conflict|already exists|duplicate/i.test(msg)) {
-    return '操作冲突，请刷新后重试';
+    return '他人已修改，请刷新';
   }
   if (/too many|rate limit|429/i.test(msg)) {
     return '操作过于频繁，请稍后再试';

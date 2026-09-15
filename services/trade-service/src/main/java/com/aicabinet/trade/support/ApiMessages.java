@@ -144,6 +144,9 @@ public final class ApiMessages {
     // 通用
     public static final String INTERNAL_ERROR = "系统繁忙，请稍后重试";
     public static final String INVALID_REQUEST = "请求参数无效";
+    /** 乐观锁 / 并发写冲突（HTTP 409）。 */
+    public static final String OPTIMISTIC_LOCK_CONFLICT = "他人已修改，请刷新";
+    public static final String EXPECTED_VERSION_REQUIRED = "请提供版本号后重试";
 
     private static final Pattern BALANCE_MIN_PATTERN = Pattern.compile(
             "balance below minimum (\\d+) cents", Pattern.CASE_INSENSITIVE);

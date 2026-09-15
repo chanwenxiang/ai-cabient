@@ -37,7 +37,7 @@
 | 30 | merchant 补货 | 开门缓存/确认框/列表逻辑与页耦合难测 | 状态机散落在 3k 行页内 | 开门缓存进 `useReplenishmentDoorState`；确认框进 `useAppConfirmDialog`；列表进 `useReplenishmentList`；签到/开门/核对/完成进 `useReplenishmentFulfillment`；深链/详情/凭证进 `useReplenishmentDetail`；扫柜/扫商品进 `useReplenishmentScan`；SKU/货道/任务文案进 `useReplenishmentDisplay`；Hero/导航/加载/步骤进 `useReplenishmentShell`；UI 块继续拆子组件 | `composables/`、`Replenish*.vue` |
 | 31 | Session 拆分 | 改 expire/开门/补货/门事件/结算易牵动整类回归 | 调度与短事务混在上帝类 | expire→`SessionExpireService`；开门短事务→`SessionOpenService`；补货快照短事务→`SessionRestockService`；门事件/关门路径→`SessionDoorService`；关门后 settle/异步识别/演示零元/开发上传→`SessionSettleService`；状态变更仍走 `SessionService.transition` | `SessionExpireService`、`SessionOpenService`、`SessionRestockService`、`SessionDoorService`、`SessionSettleService` |
 | 32 | admin 仓库页 | 改一域弹窗易误伤其它域 | 单文件 5k+ 行多业务混杂 | 采购/盘点/货位/出库/调拨写流分别进 composable+Dialogs；仓库/供应商/付款/其它入库进 `useWarehouseEntityDialogs`；tab 加载进 `useWarehouseTabLoader`；筛选/在途时效进 `useWarehouseListFilters`；CSV 导入导出进 `useWarehouseCsv`；展示文案进 `useWarehouseLabels`；路由深链/分页/keep-alive 进 `useWarehouseRouteLifecycle` | `WarehouseView.vue` |
-| 33 | admin 列表性能 | 单页拉 100+ 行卡顿回潮；虚拟表缺位 | `page-sizes` 含 100 且无门禁；多数页仍用普通 el-table | 列表 `:page-sizes` 不得超过 50；用 `ADMIN_LIST_PAGE_SIZES` + `clampAdminPageSize`；大数据试点用 `AdminVirtualTable`；合入前 `pnpm check:admin-page-size` | `admin-list-pager.ts`、`AdminVirtualTable.vue`、`check-admin-page-size.mjs` |
+| 33 | admin 列表性能 | 单页拉 100+ 行卡顿回潮；虚拟表缺位 | `page-sizes` 含 100 且无门禁；多数页仍用普通 el-table | 列表 `:page-sizes` 不得超过 50；用 `ADMIN_LIST_PAGE_SIZES` + `clampAdminPageSize`；大数据场景优先分页+筛选，勿再引入未接线虚拟表 | `admin-list-pager.ts`、`check-admin-page-size.mjs` |
 | 34 | Flyway | trade 启动报 duplicate version 270 | 两份 `V270__*.sql` 同号合入 | 新迁移必须用下一空号（已有 V270 则用 V274+）；合入前 `ls db/migration/V*.sql` 查重 | `V274__device_sku_price_version.sql` |
 | 35 | vision | 容器 uvicorn SyntaxError 起不来 | `if (` 缺右括号 | Python 改条件后本地 `python -m py_compile app/main.py` 再打镜像 | `vision-service/app/main.py` |
 | 36 | admin 鉴权 | 首屏 `/rbac/me/*` 打两遍 | App + router restore 且 Layout `onMounted` 再 `refreshPermissions` | 首屏只走 `beforeEach → restore`（inflight 去重）；Layout 仅 window `focus` 刷新 | `App.vue`、`auth.ts`、`AdminLayout.vue` |
@@ -94,6 +94,7 @@
 | 87 | admin 端点 | 剩余业务域仍散落字面量 | A-P2-005 分批未收口 | 用户/风控/OTA/报修/场地/报表/对账等一并迁入；门禁扩至 63 条；views/composables 清零 | `check-admin-endpoints.mjs` |
 | 88 | edge 队列 | MQTT 满队列丢最早可能丢开门事件 | 固定 MAX + FIFO 丢头 | 容量/重试进 EdgeRuntimeConfig；满时优先丢非 door/session topic | `OutboundMqttQueue.kt` |
 | 89 | CI 门禁 | 本地审计门禁全绿但回归仍可合入 | `check:audit-gates` 等仅本地、未进 workflow | 新建防回归脚本必须同步接入 `ci.yml`；聚合进 `pnpm check:audit-gates` | `.github/workflows/ci.yml`、`package.json` |
+| 90 | 乐观锁 | 改价/库存并发写可静默覆盖 | `expectedVersion` 可选；冲突文案不统一；前端靠 message includes | 已有行强制 version；冲突文案统一「他人已修改，请刷新」；前端用 HTTP 409 | `OptimisticLocking`、`pricing.vue` |
 
 ## 追加模板
 
