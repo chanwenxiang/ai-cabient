@@ -15,10 +15,10 @@
  * - uni-app H5 输入框 placeholder 渲染在独立 div 上，填值需兼容 uni-input 包装
  */
 import { chromium } from 'playwright';
-import { execSync } from 'node:child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { captchaFromRedis } from '../../../scripts/lib/redis-captcha.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.CONSUMER_H5_URL || 'http://127.0.0.1:3002';
@@ -26,11 +26,15 @@ const CHANNEL = process.env.PW_CHANNEL || 'chrome';
 const HEADED = process.env.PW_HEADED === '1';
 /** PW_MUTATE=1 时执行会产生数据的用例（充值到账/申诉/退款/领券），默认跳过 */
 const MUTATE = process.env.PW_MUTATE === '1';
+/**
+ * 已知失败基线（ratchet）：用例级失败数 ≤ 该值不算回归，超出则 exit 1。
+ * 目的是让 CI 抓住「整轮崩溃」与「新增失败」；已知缺陷修复后请下调此值。
+ */
+const UAT_MAX_FAIL = Number(process.env.UAT_MAX_FAIL ?? 0);
 const OUT = path.resolve(__dirname, '../output/playwright');
 const DEMO_PHONE = '13800138000';
 const DEMO_SMS = '123456';
 const DEVICE_ID = 'CAB-001';
-const REDIS_CONTAINER = process.env.REDIS_CONTAINER || 'ai-cabinet-redis-1';
 const DEMO_DISPUTE_TICKET_BILLED = process.env.DEMO_DISPUTE_TICKET_BILLED || '1788252219672817302';
 const DEMO_DISPUTE_TICKET_REFUND = process.env.DEMO_DISPUTE_TICKET_REFUND || '1788247248295553600';
 
@@ -208,16 +212,7 @@ async function fillPlaceholder(page, placeholder, value) {
   return (await input.inputValue()) === value;
 }
 
-function captchaFromRedis(captchaId) {
-  const raw = execSync(
-    `docker exec ${REDIS_CONTAINER} redis-cli GET aicabinet:captcha:${captchaId}`,
-    {
-      encoding: 'utf8'
-    }
-  ).trim();
-  if (!raw || /nil|ERR/i.test(raw)) throw new Error(`captcha missing in redis: ${captchaId}`);
-  return raw.toLowerCase();
-}
+/** 图形验证码读取已抽到共享模块 scripts/lib/redis-captcha.mjs（支持 REDIS_HOST 直连）。 */
 
 /** 从 captcha API 响应体取出 captchaId（兼容 ApiResponse 包装） */
 function pickCaptchaId(body) {
@@ -230,6 +225,7 @@ function pickCaptchaId(body) {
  * 须在切 Tab 前挂上 waitForResponse，否则可能错过首次自动加载。
  */
 async function loginViaSms(page, phone = DEMO_PHONE, sms = DEMO_SMS) {
+  await dismissPrivacyConsent(page);
   const waitCaptcha = () =>
     page.waitForResponse((r) => /\/api\/v2\/auth\/captcha(?:\?|$)/.test(r.url()) && r.ok(), {
       timeout: 12000
@@ -259,7 +255,7 @@ async function loginViaSms(page, phone = DEMO_PHONE, sms = DEMO_SMS) {
   const body = await resp.json().catch(() => null);
   const captchaId = pickCaptchaId(body);
   if (!captchaId) throw new Error(`captchaId 缺失: ${JSON.stringify(body)?.slice(0, 200)}`);
-  const graphicCode = captchaFromRedis(captchaId);
+  const graphicCode = (await captchaFromRedis(captchaId)).toLowerCase();
 
   await fillPlaceholder(page, '请输入11位手机号', phone);
   const filledCaptcha = await fillPlaceholder(page, '图形验证码', graphicCode);
@@ -272,13 +268,21 @@ async function loginViaSms(page, phone = DEMO_PHONE, sms = DEMO_SMS) {
   await page.waitForTimeout(3500);
 
   return !!(await page.evaluate(
-    () => localStorage.getItem('consumer_token') || sessionStorage.getItem('consumer_token') || ''
+    () =>
+      localStorage.getItem('consumer_token') ||
+      sessionStorage.getItem('consumer_token') ||
+      localStorage.getItem('consumer_cookie_auth') ||
+      ''
   ));
 }
 
 async function hasConsumerToken(page) {
   return !!(await page.evaluate(
-    () => localStorage.getItem('consumer_token') || sessionStorage.getItem('consumer_token') || ''
+    () =>
+      localStorage.getItem('consumer_token') ||
+      sessionStorage.getItem('consumer_token') ||
+      localStorage.getItem('consumer_cookie_auth') ||
+      ''
   ));
 }
 
@@ -350,9 +354,50 @@ async function fillTextarea(page, value) {
 }
 
 /** uni-app history 路由：直接访问页面路径 */
+/**
+ * 首屏隐私同意弹窗（[data-testid=privacy-consent-dialog]）是覆盖整页的模态遮罩，
+ * 会拦截全部指针事件。不先关掉它，登录表单完全无法点击 —— 旧版脚本正是在
+ * 「填手机号」这一步 15s 超时，导致整套 UAT 中断（仅 5/44 条用例有机会执行）。
+ */
+async function dismissPrivacyConsent(page) {
+  const dialog = page.locator('[data-testid="privacy-consent-dialog"]');
+  if ((await dialog.count()) === 0) return false;
+  if (
+    !(await dialog
+      .first()
+      .isVisible()
+      .catch(() => false))
+  )
+    return false;
+  await page
+    .evaluate(() => {
+      const d = document.querySelector('[data-testid="privacy-consent-dialog"]');
+      if (!d) return;
+      const btn = [...d.querySelectorAll('uni-button, button, uni-view, uni-text, span, div')].find(
+        (e) => (e.innerText || '').trim() === '同意并继续'
+      );
+      if (btn) btn.click();
+    })
+    .catch(() => {});
+  await page.waitForTimeout(700);
+  if (
+    !(await dialog
+      .first()
+      .isVisible()
+      .catch(() => false))
+  )
+    return true;
+  // 兜底：直接落同意标记并重载（存储键与 packages/shared-uni/src/privacy-consent.ts 一致）
+  await page.evaluate(() => localStorage.setItem('aicabinet_privacy_consent_v1', '1'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1200);
+  return true;
+}
+
 async function gotoPath(page, pathname, wait = 1500) {
   await page.goto(BASE + pathname, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(wait);
+  await dismissPrivacyConsent(page);
 }
 
 /** 关闭 vision mock 强制人工审核，避免 UAT 开门后秒进争议页 */
@@ -381,7 +426,10 @@ async function disableVisionForceNeedReview() {
 
 /** 清理上次运行遗留的活动会话，保证开门用例可重复执行 */
 async function cancelActiveSession(page) {
-  const token = await page.evaluate(() => localStorage.getItem('consumer_token') || '');
+  const token = await page.evaluate(
+    () =>
+      localStorage.getItem('consumer_token') || localStorage.getItem('consumer_cookie_auth') || ''
+  );
   if (!token) return false;
   return page.evaluate(async (tok) => {
     const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
@@ -597,7 +645,11 @@ async function main() {
     }
     text = await bodyText(page);
     const token = await page.evaluate(
-      () => localStorage.getItem('consumer_token') || sessionStorage.getItem('consumer_token') || ''
+      () =>
+        localStorage.getItem('consumer_token') ||
+        sessionStorage.getItem('consumer_token') ||
+        localStorage.getItem('consumer_cookie_auth') ||
+        ''
     );
     const e8 = await shot(page, '08-login-success');
     record(
@@ -1466,7 +1518,11 @@ async function main() {
       reloginErr = e instanceof Error ? e.message : String(e);
     }
     const tokenAfter = await page.evaluate(
-      () => localStorage.getItem('consumer_token') || sessionStorage.getItem('consumer_token') || ''
+      () =>
+        localStorage.getItem('consumer_token') ||
+        sessionStorage.getItem('consumer_token') ||
+        localStorage.getItem('consumer_cookie_auth') ||
+        ''
     );
     const e20b = await shot(page, '20b-relogin');
     record(
@@ -1581,7 +1637,10 @@ async function main() {
       )
     );
     await browser.close();
-    process.exit(summary.fail > 0 ? 1 : 0);
+    if (summary.fail > UAT_MAX_FAIL) {
+      console.error(`\n[uat] 失败 ${summary.fail} 条，超出基线 ${UAT_MAX_FAIL}`);
+    }
+    process.exit(summary.fail > UAT_MAX_FAIL ? 1 : 0);
   }
 }
 

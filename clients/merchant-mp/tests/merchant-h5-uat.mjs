@@ -29,6 +29,11 @@ const DEMO_PASSWORD = process.env.MERCHANT_PASSWORD || '123456';
 /** 本地 demo 栈常见含录像订单（可通过 MERCHANT_DEMO_ORDER_ID 覆盖） */
 const DEMO_ORDER_WITH_VIDEO = process.env.MERCHANT_DEMO_ORDER_ID || '1788233752744411094';
 const DEMO_DISPUTE_TICKET_BILLED = process.env.DEMO_DISPUTE_TICKET_BILLED || '1788252219672817302';
+/**
+ * 已知失败基线（ratchet）：用例级失败数 ≤ 该值不算回归，超出则 exit 1。
+ * 目的是让 CI 抓住「整轮崩溃」与「新增失败」；已知缺陷修复后请下调此值。
+ */
+const UAT_MAX_FAIL = Number(process.env.UAT_MAX_FAIL ?? 0);
 
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -193,10 +198,51 @@ async function clearInputs(page) {
   return n;
 }
 
+/**
+ * 首屏隐私同意弹窗（[data-testid=privacy-consent-dialog]）是覆盖整页的模态遮罩，
+ * 会拦截全部指针事件。不先关掉它，登录表单完全无法点击 —— 旧版脚本正是在
+ * 「清空输入框」这一步 15s 超时，导致整套 UAT 中断（仅 1/19 条用例有机会执行）。
+ */
+async function dismissPrivacyConsent(page) {
+  const dialog = page.locator('[data-testid="privacy-consent-dialog"]');
+  if ((await dialog.count()) === 0) return false;
+  if (
+    !(await dialog
+      .first()
+      .isVisible()
+      .catch(() => false))
+  )
+    return false;
+  await page
+    .evaluate(() => {
+      const d = document.querySelector('[data-testid="privacy-consent-dialog"]');
+      if (!d) return;
+      const btn = [...d.querySelectorAll('uni-button, button, uni-view, uni-text, span, div')].find(
+        (e) => (e.innerText || '').trim() === '同意并继续'
+      );
+      if (btn) btn.click();
+    })
+    .catch(() => {});
+  await page.waitForTimeout(700);
+  if (
+    !(await dialog
+      .first()
+      .isVisible()
+      .catch(() => false))
+  )
+    return true;
+  // 兜底：直接落同意标记并重载（存储键与 packages/shared-uni/src/privacy-consent.ts 一致）
+  await page.evaluate(() => localStorage.setItem('aicabinet_privacy_consent_v1', '1'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1200);
+  return true;
+}
+
 /** uni-app history 路由：直接访问页面路径 */
 async function gotoPath(page, pathname, wait = 1500) {
   await page.goto(BASE + pathname, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(wait);
+  await dismissPrivacyConsent(page);
 }
 
 /** 点击 uni.showModal 主按钮 */
@@ -312,7 +358,10 @@ async function main() {
     await clickByTestId(page, 'login-submit');
     await page.waitForTimeout(3500);
     text = await bodyText(page);
-    const token = await page.evaluate(() => localStorage.getItem('merchant_token') || '');
+    const token = await page.evaluate(
+      () =>
+        localStorage.getItem('merchant_token') || localStorage.getItem('merchant_cookie_auth') || ''
+    );
     const e4 = await shot(page, '04-login-success');
     record(
       'M-04',
@@ -504,7 +553,8 @@ async function main() {
     // —— M-10v 订单购物视频（Bearer 鉴权拉流，禁止假地址冒充通过）——
     const videoOrderHint = DEMO_ORDER_WITH_VIDEO;
     const videoOrderId = await page.evaluate(async (hint) => {
-      const token = localStorage.getItem('merchant_token');
+      const token =
+        localStorage.getItem('merchant_token') || localStorage.getItem('merchant_cookie_auth');
       if (!token) return '';
       const probe = async (oid) => {
         if (!oid) return false;
@@ -841,7 +891,10 @@ async function main() {
       )
     );
     await browser.close();
-    process.exit(summary.fail > 0 ? 1 : 0);
+    if (summary.fail > UAT_MAX_FAIL) {
+      console.error(`\n[uat] 失败 ${summary.fail} 条，超出基线 ${UAT_MAX_FAIL}`);
+    }
+    process.exit(summary.fail > UAT_MAX_FAIL ? 1 : 0);
   }
 }
 

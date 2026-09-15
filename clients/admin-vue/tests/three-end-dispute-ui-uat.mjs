@@ -10,10 +10,10 @@
  * 说明：图形验证码仅「运营后台」登录需要；商户端无图形验证码。
  */
 import { chromium } from 'playwright';
-import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captchaFromRedis } from '../../../scripts/lib/redis-captcha.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../../..');
@@ -23,7 +23,11 @@ const ADMIN = (process.env.ADMIN_URL || 'http://localhost/admin').replace(/\/$/,
 const CHANNEL = process.env.PW_CHANNEL || 'chrome';
 const HEADED = process.env.PW_HEADED === '1';
 const OUT = path.resolve(__dirname, '../output/playwright/dispute-flow');
-const REDIS = process.env.REDIS_CONTAINER || 'ai-cabinet-redis-1';
+/**
+ * 已知失败基线（ratchet）：用例级失败数 ≤ 该值不算回归，超出则 exit 1。
+ * 目的是让 CI 抓住「整轮崩溃」与「新增失败」；已知缺陷修复后请下调此值。
+ */
+const UAT_MAX_FAIL = Number(process.env.UAT_MAX_FAIL ?? 0);
 const DISPUTE_FILE = process.env.OPEN_DISPUTE_JSON || path.join(ROOT, '.tmp/open-dispute.json');
 
 fs.mkdirSync(OUT, { recursive: true });
@@ -53,13 +57,7 @@ async function bodyText(page) {
   return page.evaluate(() => document.body?.innerText || '');
 }
 
-function captchaCode(captchaId) {
-  const raw = execSync(`docker exec ${REDIS} redis-cli GET aicabinet:captcha:${captchaId}`, {
-    encoding: 'utf8'
-  }).trim();
-  if (!raw || /nil|ERR/i.test(raw)) throw new Error(`captcha missing ${captchaId}`);
-  return raw.toUpperCase();
-}
+/** 图形验证码读取已抽到共享模块 scripts/lib/redis-captcha.mjs（支持 REDIS_HOST 直连）。 */
 
 async function adminLogin(page) {
   await page.goto(`${ADMIN}/login`, { waitUntil: 'domcontentloaded' });
@@ -71,7 +69,7 @@ async function adminLogin(page) {
         .first()
         .getAttribute('data-captcha-id');
       if (!capId) throw new Error('no captcha');
-      const code = captchaCode(capId);
+      const code = (await captchaFromRedis(capId)).toUpperCase();
       await page.locator('.el-input input[placeholder="请输入11位手机号…"]').fill('13900000001');
       await page.locator('.el-input input[placeholder="请输入登录密码…"]').fill('123456');
       await page.locator('.el-input input[placeholder="图形验证码…"]').fill(code);
@@ -96,10 +94,51 @@ async function adminLogin(page) {
   return false;
 }
 
+/**
+ * 首屏隐私同意弹窗是覆盖整页的模态遮罩（role=dialog + aria-modal），
+ * 会拦截全部指针事件。不先关掉它，登录表单完全无法点击 —— 旧版脚本正是在
+ * 「填手机号」这一步超时，导致整套 UAT 中断。
+ */
+async function dismissPrivacyConsent(page) {
+  const dialog = page.locator('[data-testid="privacy-consent-dialog"]');
+  if ((await dialog.count()) === 0) return false;
+  if (
+    !(await dialog
+      .first()
+      .isVisible()
+      .catch(() => false))
+  )
+    return false;
+  await page
+    .evaluate(() => {
+      const d = document.querySelector('[data-testid="privacy-consent-dialog"]');
+      if (!d) return;
+      const btn = [...d.querySelectorAll('uni-button, button, uni-view, uni-text, span, div')].find(
+        (e) => (e.innerText || '').trim() === '同意并继续'
+      );
+      if (btn) btn.click();
+    })
+    .catch(() => {});
+  await page.waitForTimeout(700);
+  if (
+    !(await dialog
+      .first()
+      .isVisible()
+      .catch(() => false))
+  )
+    return true;
+  // 兜底：直接落同意标记并重载（存储键与 packages/shared-uni/src/privacy-consent.ts 一致）
+  await page.evaluate(() => localStorage.setItem('aicabinet_privacy_consent_v1', '1'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1200);
+  return true;
+}
+
 async function merchantLogin(page) {
   // 商户端：密码登录，无图形验证码
   await page.goto(`${MERCHANT}/pages/login/login`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
+  await dismissPrivacyConsent(page);
   const phone = page
     .locator('[data-testid="login-phone"] input, [data-testid="login-phone"] .uni-input-input')
     .first();
@@ -116,12 +155,16 @@ async function merchantLogin(page) {
   await page.keyboard.type('123456', { delay: 20 });
   await page.locator('[data-testid="login-submit"]').first().click();
   await page.waitForTimeout(2200);
-  return !!(await page.evaluate(() => localStorage.getItem('merchant_token') || ''));
+  return !!(await page.evaluate(
+    () =>
+      localStorage.getItem('merchant_token') || localStorage.getItem('merchant_cookie_auth') || ''
+  ));
 }
 
 async function consumerLogin(page) {
   await page.goto(`${CONSUMER}/pages/login/login`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
+  await dismissPrivacyConsent(page);
   const smsTab = page.getByText('验证码', { exact: true });
   if ((await smsTab.count()) > 0) await smsTab.first().click();
   await page.waitForTimeout(200);
@@ -139,7 +182,10 @@ async function consumerLogin(page) {
     .first()
     .click();
   await page.waitForTimeout(2200);
-  return !!(await page.evaluate(() => localStorage.getItem('consumer_token') || ''));
+  return !!(await page.evaluate(
+    () =>
+      localStorage.getItem('consumer_token') || localStorage.getItem('consumer_cookie_auth') || ''
+  ));
 }
 
 async function checkCheckboxByLabel(page, label) {
@@ -338,7 +384,10 @@ async function main() {
   fs.writeFileSync(summary.report, JSON.stringify({ summary, results }, null, 2));
   console.log('\n=== DISPUTE UI FLOW ===');
   console.log(JSON.stringify(summary, null, 2));
-  process.exit(fail > 0 ? 1 : 0);
+  if (fail > UAT_MAX_FAIL) {
+    console.error(`[uat] 失败 ${fail} 条，超出基线 ${UAT_MAX_FAIL}`);
+  }
+  process.exit(fail > UAT_MAX_FAIL ? 1 : 0);
 }
 
 main().catch((e) => {
