@@ -11362,7 +11362,10 @@ export interface components {
             countedQuantity: number;
             note?: string;
             photoEvidenceUrl?: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * ??????????? 400??? 409????????
+             */
             expectedVersion?: number;
         };
         ApiResponseUserRecallResult: {

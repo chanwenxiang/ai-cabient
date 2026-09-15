@@ -100,13 +100,13 @@ mp-a11y:          clickables with role/aria 381/381 (100%) / icons 37/37 (100%) 
 
 | 优先级 | 事项 | 说明 |
 |--------|------|------|
-| **P0** | 两端 `manifest.json:15` `mp-weixin.appid` 仍为空 | 真机/发布硬阻塞（非本轮范围，持续挂着） |
-| P2 | 删除 `AppDialog.vue` 或补迁移 | 新引入死代码 |
-| P2 | 修 `audit-fix-verification-2026-09-15.md` 4 处矛盾/陈旧 | 文档可信度 |
-| P2 | `inventory/stocktake` 契约变更记入 changelog + 删便捷构造器 | 避免外部调用方 400 |
-| P2 | `PrefsJsonQueue` 落盘改 `commit()`（或说明取舍） | 队列可靠性 |
-| P2 | 巨型视图（ReplenishmentView 3482 / consumer index 3300 / WarehouseView 3218） | 持续 composable 化 |
-| P2 | `SessionService` 582 行继续拆 | 20 依赖 |
+| **P0** | 两端 `manifest.json` `mp-weixin.appid` 仍为空 | 真机/发布硬阻塞（需密钥） |
+| ~~P2~~ | ~~删除 `AppDialog.vue`~~ | ✅ 已删 |
+| ~~P2~~ | ~~修报告文档矛盾~~ | ✅ 已清洗 |
+| ~~P2~~ | ~~stocktake 契约 + 删便捷构造器~~ | ✅ Javadoc 标明；便捷构造器已删 |
+| ~~P2~~ | ~~`PrefsJsonQueue` 改 `commit()`~~ | ✅ 同步落盘 |
+| P2 | 巨型视图继续 composable 化 | ReplenishmentView / consumer index / WarehouseView |
+| P2 | `SessionService` 582 行可再拆 | 非紧急 |
 
 ---
 
