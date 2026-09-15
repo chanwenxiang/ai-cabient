@@ -93,6 +93,7 @@
 | 86 | admin 端点 | 增长/广告页散落 growth/ad 字面量 | 运营活动多页拷贝基路径 | growth+ad 迁入 AdminEndpoints；门禁 +`/growth`、`/ad` | `views/growth/*` |
 | 87 | admin 端点 | 剩余业务域仍散落字面量 | A-P2-005 分批未收口 | 用户/风控/OTA/报修/场地/报表/对账等一并迁入；门禁扩至 63 条；views/composables 清零 | `check-admin-endpoints.mjs` |
 | 88 | edge 队列 | MQTT 满队列丢最早可能丢开门事件 | 固定 MAX + FIFO 丢头 | 容量/重试进 EdgeRuntimeConfig；满时优先丢非 door/session topic | `OutboundMqttQueue.kt` |
+| 89 | CI 门禁 | 本地审计门禁全绿但回归仍可合入 | `check:audit-gates` 等仅本地、未进 workflow | 新建防回归脚本必须同步接入 `ci.yml`；聚合进 `pnpm check:audit-gates` | `.github/workflows/ci.yml`、`package.json` |
 
 ## 追加模板
 

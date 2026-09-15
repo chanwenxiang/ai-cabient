@@ -230,6 +230,10 @@ jobs:
       - name: Merchant nav-guard path helpers
         run: pnpm check:merchant-nav-guard
 
+      # 审计防回归：端点字面量 / pageSize / token 存储 / cron zone / cache 名 / dialog a11y / 布局防抖 / 表列语义 / 小程序 a11y
+      - name: Audit regression gates
+        run: pnpm check:audit-gates
+
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium --with-deps
 

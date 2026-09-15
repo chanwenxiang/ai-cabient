@@ -465,7 +465,7 @@
 - [x] S-P2-4：`CacheNames` 统一前缀与 TTL 档位；`AdminDashboardController` 读写均走常量；`CacheService` 默认 TTL 对齐 `TTL_DEFAULT_MS`
 - [x] S-P2-7：`ScheduleZones`（Asia/Shanghai）+ `aicabinet.schedule.zone`；对账/券/SLA/KPI/佣金/毛利 cron 显式 zone；XXL 推荐 cron 与 seed 对齐；运营台 scheduleDesc 带时区
 - [x] S-P2-10：`ApiVersions`（当前 v2）+ 拦截器响应头 / 未支持版本 410；`shared-api` 导出 `API_VERSION`/`API_PREFIX` 并带请求头；破坏性变更开 v3 灰度（未开路由）
-- [x] 防回归门禁：`check:scheduled-zone`（cron 必带 zone）、`check:cache-names`（禁止裸 cache prefix）；汇总 `pnpm check:audit-gates`（含 dialog-a11y）
+- [x] 防回归门禁：`check:scheduled-zone`（cron 必带 zone）、`check:cache-names`（禁止裸 cache prefix）；汇总 `pnpm check:audit-gates`（含 dialog-a11y / page-size / anti-jitter / table-align / mp-a11y）；**已接入 CI** `mini-programs` job
 - [x] A-P2-005（试点）：`AdminEndpoints` 收敛工作台/趋势/SLA/财务统计/设备参照；`check:admin-endpoints` 禁 views/composables 再散落试点字面量；已并入 `check:audit-gates`
 - [x] A-P2-005（续）：异常中心列表/详情/动作迁入 `AdminEndpoints`；Dashboard OPEN 计数改用 `exceptionsOpenCount`；门禁字面量 +`/exceptions`
 - [x] A-P2-005（续2）：订单列表/导出/详情/退款/催付/补扣/关单迁入 `AdminEndpoints`；设备详情与全局搜索同步；门禁 +`/orders`
