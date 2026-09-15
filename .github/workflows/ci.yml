@@ -246,6 +246,10 @@ jobs:
       - name: Shared RBAC unit tests
         run: pnpm --filter @aicabinet/shared-rbac test
 
+      # admin 单测此前从不被 CI 调用（与 test:mp 同一类覆盖缺口）
+      - name: Admin unit tests (vitest)
+        run: pnpm --filter @aicabinet/admin-vue test
+
       - name: Nav-permission alignment check
         run: pnpm check:nav-perms
 
@@ -269,4 +273,177 @@ jobs:
 
       - name: Merchant MP H5 build
         run: pnpm --filter @aicabinet/merchant-mp run build:h5
+
+  # 行为级端到端：真实浏览器跑三端 H5 UAT。
+  #
+  # 背景（详见 docs/three-end-full-audit-2026-09-15.md 第 11/12 章）：
+  #   - 这些套件此前从不被 CI 调用，修复等于白修；
+  #   - 且它们长期在登录步就整轮中断（首屏隐私弹窗遮挡 + 登录判定查废弃 token key），
+  #     44/19 条声明用例实际只跑成 5/1 条。
+  # 因此本条流水线的首要价值是：让「整轮崩溃」和「新增失败」不再静默通过。
+  # 已知缺陷（余额流水 ¥0.00 等）用 UAT_MAX_FAIL 基线显式记录，修复后请下调。
+  e2e-h5:
+    runs-on: ubuntu-latest
+    env:
+      npm_config_script_shell: /bin/bash
+      # H5 dev server 的 /api 代理指向直跑的后端（CI 无 nginx 网关）
+      VITE_DEV_PROXY: http://127.0.0.1:8080
+      # runner 无系统 Chrome，使用 Playwright 自带 chromium
+      PW_CHANNEL: chromium
+      # 图形验证码改走 TCP 直连 Redis（不依赖 docker 容器名）
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      CONSUMER_H5_URL: http://127.0.0.1:3002
+      MERCHANT_H5_URL: http://127.0.0.1:3001
+      ADMIN_URL: http://127.0.0.1:8080/admin
+      API_BASE: http://127.0.0.1:8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:15433/aicabinet
+      SPRING_DATASOURCE_USERNAME: aicabinet
+      SPRING_DATASOURCE_PASSWORD: aicabinet
+      AICABINET_MOCK_ENABLED: "true"
+      JWT_SECRET: ci-e2e-jwt-secret-32bytes-minimum
+      INTERNAL_API_KEY: ci-e2e-internal-api-key
+      # 已知失败基线（ratchet）。首次接入取本地实测值；若 CI 数据导致偏差请据实校准，
+      # 但只允许下调（修复）或平级调整（环境差异），不允许为了变绿而上调。
+      UAT_MAX_FAIL_CONSUMER: "5"
+      UAT_MAX_FAIL_MERCHANT: "2"
+      UAT_MAX_FAIL_BUSINESS: "3"
+      UAT_MAX_FAIL_DISPUTE: "2"
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: aicabinet
+          POSTGRES_USER: aicabinet
+          POSTGRES_PASSWORD: aicabinet
+        ports:
+          - 15433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24.18.0'
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          CI: true
+
+      # -Pskip-admin-ui：admin 产物已提交在 static/admin，无需在 e2e 里重建
+      - name: Build backend jar
+        run: mvn -B -DskipTests -Pskip-admin-ui package -pl services/trade-service -am
+
+      # Flyway 迁移含 demo 种子（V222/V253 等），空库可自动就绪
+      - name: Start backend
+        run: |
+          set -euo pipefail
+          JAR=$(ls services/trade-service/target/trade-service-*.jar | grep -v original | head -1)
+          test -n "$JAR"
+          nohup java -jar "$JAR" --server.port=8080 > backend-e2e.log 2>&1 &
+          for i in $(seq 1 120); do
+            if grep -q "Started TradeServiceApplication" backend-e2e.log; then
+              echo "backend started after ~$((i * 2))s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend failed to start"
+          tail -n 100 backend-e2e.log
+          exit 1
+
+      - name: Start H5 dev servers
+        run: |
+          set -euo pipefail
+          (cd clients/consumer-mp && nohup node ./node_modules/@dcloudio/vite-plugin-uni/bin/uni.js > "$GITHUB_WORKSPACE/h5-3002.log" 2>&1 &)
+          (cd clients/merchant-mp && nohup node ./node_modules/@dcloudio/vite-plugin-uni/bin/uni.js > "$GITHUB_WORKSPACE/h5-3001.log" 2>&1 &)
+          for port in 3002 3001; do
+            ok=0
+            for i in $(seq 1 90); do
+              if curl -sf "http://127.0.0.1:${port}/" -o /dev/null; then
+                echo "h5 :${port} ready after ~$((i * 2))s"
+                ok=1
+                break
+              fi
+              sleep 2
+            done
+            if [ "$ok" != "1" ]; then
+              echo "h5 :${port} failed to start"
+              tail -n 60 "$GITHUB_WORKSPACE/h5-${port}.log" 2>/dev/null || true
+              exit 1
+            fi
+          done
+
+      # 三类脚本解析到的 playwright 版本不同：admin 侧脚本走仓库根依赖（1.55.0），
+      # 两端小程序走各自 package.json（1.62.1）。两版本绑定的 chromium revision 不同，
+      # 只装一次会让另一批脚本报 "Executable doesn't exist"。必须按版本各装一次。
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          pnpm exec playwright install --with-deps chromium
+          (cd clients/consumer-mp && pnpm exec playwright install chromium)
+          (cd clients/merchant-mp && pnpm exec playwright install chromium)
+
+      # 三个 admin 侧脚本（admin-uat / role-regression / batch-imp）依赖采购单等业务数据，
+      # 暂不纳入；待其种子脚本补齐后按同样方式接入。
+      - name: Consumer H5 UAT
+        run: UAT_MAX_FAIL="$UAT_MAX_FAIL_CONSUMER" node tests/consumer-h5-uat.mjs
+        working-directory: clients/consumer-mp
+
+      - name: Merchant H5 UAT
+        run: UAT_MAX_FAIL="$UAT_MAX_FAIL_MERCHANT" node tests/merchant-h5-uat.mjs
+        working-directory: clients/merchant-mp
+
+      - name: Three-end business UAT
+        run: UAT_MAX_FAIL="$UAT_MAX_FAIL_BUSINESS" node tests/three-end-business-uat.mjs
+        working-directory: clients/admin-vue
+
+      # 前置：scripts/create-open-dispute.ps1 生成种子；Linux 下等价地由后端接口建单，
+      # 若种子缺失脚本会以 exit 2 退出——那属于环境未就绪，不应视为产品回归。
+      - name: Three-end dispute UAT
+        continue-on-error: true
+        run: UAT_MAX_FAIL="$UAT_MAX_FAIL_DISPUTE" node tests/three-end-dispute-ui-uat.mjs
+        working-directory: clients/admin-vue
+
+      - name: Upload UAT evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: h5-uat-evidence
+          path: |
+            clients/consumer-mp/output/playwright/
+            clients/merchant-mp/output/playwright/
+            clients/admin-vue/output/playwright/
+            backend-e2e.log
+            h5-3001.log
+            h5-3002.log
+          if-no-files-found: ignore
 

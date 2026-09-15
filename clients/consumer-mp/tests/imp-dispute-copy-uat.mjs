@@ -77,7 +77,10 @@ async function gotoConsumer(page, pathname) {
 }
 
 async function cancelActiveSession(page) {
-  const token = await page.evaluate(() => localStorage.getItem('consumer_token') || '');
+  const token = await page.evaluate(
+    () =>
+      localStorage.getItem('consumer_token') || localStorage.getItem('consumer_cookie_auth') || ''
+  );
   if (!token) return;
   await page.evaluate(async (tok) => {
     const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
@@ -181,7 +184,8 @@ async function main() {
     `/pages/disputes/disputes?ticketId=${encodeURIComponent(TICKET_BILLED)}`
   );
   const probe = await mpage.evaluate(async (tid) => {
-    const token = localStorage.getItem('merchant_token');
+    const token =
+      localStorage.getItem('merchant_token') || localStorage.getItem('merchant_cookie_auth');
     if (!token) return { ok: false, reason: 'no token' };
     const r = await fetch(`/api/v2/merchant/disputes/${encodeURIComponent(tid)}`, {
       headers: { Authorization: 'Bearer ' + token }

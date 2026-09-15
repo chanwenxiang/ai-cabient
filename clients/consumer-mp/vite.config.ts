@@ -38,14 +38,15 @@ export default defineConfig({
     port: 3002,
     proxy: {
       '/api': {
-        target: 'http://localhost',
+        // Prefer gateway (:80); VITE_DEV_PROXY lets CI point at a directly-run trade-service
+        target: process.env.VITE_DEV_PROXY || 'http://localhost',
         changeOrigin: true,
         configure(proxy) {
           proxy.on('proxyReq', (request) => request.removeHeader('origin'));
         }
       },
       '/admin': {
-        target: 'http://localhost',
+        target: process.env.VITE_DEV_PROXY || 'http://localhost',
         changeOrigin: true
       }
     }
