@@ -32,7 +32,8 @@ class PrefsJsonQueue<T>(
     }
 
     /**
-     * 原子读写：在锁内变换队列并写回。
+     * 原子读写：在锁内变换队列并 [commit] 写回。
+     * 调用方须在后台线程（MQTT 回调 / 心跳池 / offline-upload 池等）；勿在主线程大批量调用，以免 ANR。
      */
     @Synchronized
     fun mutate(block: (MutableList<T>) -> Unit) {
