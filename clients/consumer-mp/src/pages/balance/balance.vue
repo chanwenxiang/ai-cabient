@@ -32,9 +32,11 @@
                 >余额 {{ fmtMoney(item.balanceAfterCents) }}</text
               >
             </view>
-            <text class="log-amount" :class="{ income: item.amountCents > 0 }">{{
-              formatTransactionAmount(item.amountCents)
-            }}</text>
+            <text
+              class="log-amount"
+              :class="{ income: !isHoldType(item.businessType) && item.amountCents > 0 }"
+              >{{ formatTransactionAmount(item.businessType, item.amountCents) }}</text
+            >
           </view>
           <view v-if="hasMore" class="more" role="button" @click="loadTransactions(false)">
             {{ loading ? UI_COPY.loading : `加载更多（已显示 ${transactions.length} 条）` }}
@@ -118,12 +120,33 @@ function loadTransactions(reset = true): Promise<void> {
     });
 }
 
-function transactionLabel(type: string) {
+/**
+ * 纯冻结/释放类流水：只调整账户冻结额，可用余额前后不变。
+ * 这类流水不带正负号展示（方向由标题表达），否则会出现
+ * 「开门预授权冻结 -¥50.00」与并列的「余额 ¥500.00」互相矛盾的观感。
+ * 需与后端 BalanceLedgerService#holdSignedAmount 的类型集合保持一致。
+ */
+function isHoldType(type?: string) {
+  return (
+    type === 'PREAUTH_FREEZE' ||
+    type === 'PREAUTH_RELEASE' ||
+    type === 'BALANCE_REFUND_FREEZE' ||
+    type === 'BALANCE_REFUND_RELEASE'
+  );
+}
+
+function transactionLabel(type?: string) {
   if (type === 'CHARGE') return '购物扣款';
   if (type === 'REFUND') return '订单退款';
   if (type === 'ADMIN_ADJUST') return '运营调整';
   if (type === 'ADJUST_CHARGE') return '订单补扣';
   if (type === 'RECHARGE') return '余额充值';
+  if (type === 'PREAUTH_FREEZE') return '开门预授权冻结';
+  if (type === 'PREAUTH_RELEASE') return '开门预授权释放';
+  if (type === 'PREAUTH_CAPTURE') return '开门预授权冲抵';
+  if (type === 'BALANCE_REFUND_FREEZE') return '退款申请冻结';
+  if (type === 'BALANCE_REFUND_RELEASE') return '退款冻结释放';
+  if (type === 'BALANCE_REFUND') return '余额退款';
   return '余额变动';
 }
 
@@ -131,12 +154,13 @@ function formatTransactionTime(value?: string) {
   return formatDateTimeShort(value);
 }
 
-function formatTransactionAmount(cents: number) {
-  const signed = fmtMoney(Math.abs(cents || 0));
-  let sign = '';
-  if (cents > 0) sign = '+';
-  else if (cents < 0) sign = '-';
-  return `${sign}${signed}`;
+function formatTransactionAmount(type?: string, cents?: number) {
+  const amount = cents || 0;
+  const signed = fmtMoney(Math.abs(amount));
+  if (isHoldType(type)) return signed;
+  if (amount > 0) return `+${signed}`;
+  if (amount < 0) return `-${signed}`;
+  return signed;
 }
 
 function goRecharge() {
