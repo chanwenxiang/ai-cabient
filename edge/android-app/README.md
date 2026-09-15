@@ -23,6 +23,8 @@ MQTT OPEN_DOOR
 | `hal/chzh/ChzhLockDriver` | 创智辉串口协议（参考旧 `ChzhDevice8`） |
 | `hal/DoorCloseWatcher` | 轮询等待真实关门（替代固定 3 秒延时） |
 | `mqtt/MqttDeviceClient` | MQTT 指令收发 + 心跳 |
+| `mqtt/OutboundMqttQueue` | MQTT 出站持久化队列 |
+| `queue/PrefsJsonQueue` | E-P1-2：MQTT/离线上传共用 Prefs JSON 存储 |
 | `video/SessionVideoRecorder` | 单摄/双摄 CameraX 录像 |
 | `video/VideoClipJson` | MULTI 模式 clips JSON |
 | `hal/serial/ChzhSerialPort` | 串口 19200（licheedev） |

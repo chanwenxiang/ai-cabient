@@ -37,7 +37,7 @@
 | M-P1-1 | ✅ | **✅ 真实** | `MerchantInventoryPortalService.java:187` `loadLineSummariesByTaskIds(taskIds)` — 批量聚合，N+1 已消 |
 | M-P1-2 | ✅ | **✅ 真实（优秀）** | `components/WalletPage.vue` 443 行 + `wallet.vue`/`line-wallet.vue` 各 **7 行壳**，教科书级复用 |
 | M-P1-3 | ✅ | **✅ 真实** | `replenishment.vue` **1129 行**（原 ~3000+），拆出 Detail/Scan/Display/Shell 等 composable |
-| M-P1-4 | ❌ | **❌ 未落地（文档未勾选，诚实）** | 仅 `AppConfirmDialog.vue` + `useAppConfirmDialog.ts`；**无统一 `AppSheet`**，多页 bottom-sheet 仍各自实现 |
+| M-P1-4 | ❌ | **✅ 已落地** | `AppSheet`/`AppDialog`/`AppConfirmDialog`；replenishment/disputes/pricing/team/mine 迁入 |
 | M-P1-5 | ✅ | **✅ 已补齐闭环** | 已有覆盖价强制 `expectedVersion`（含 reset）；冲突「他人已修改，请刷新」；商户页 `status===409` |
 | S-P1-1 | ✅ | **✅ 真实** | `SettlementService.java` **238 行**（原上帝类），依赖 **30→10**；拆出 9 个类（VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator / OrderSupport / Confidence） |
 | S-P1-2 | ✅ | **✅ 续拆 LiveCart** | 已拆出 `SessionLiveCartService`；主类约 **590 行** / 依赖约 20 |
@@ -48,6 +48,7 @@
 | V-P1-2 | ✅ | **✅ 真实** | `RECOGNIZE_TIMEOUT_MS` 超时 → 回退 `need_review=true` |
 | V-P1-3 | ✅ | **✅ 真实** | `kafka_worker.py:100` `enable_auto_commit=False`；`:178-191` 失败写 `...request.DLT` 后再 commit |
 | E-P1-1 | ✅ | **✅ 配置闭环（证书待现场）** | `MqttSslSocketFactories` + truststore/keystore + `MQTT_TLS_STRICT` fail-fast；证书文件仍需现场签发 |
+| E-P1-2 | ❌ | **✅ Prefs 存储统一** | `PrefsJsonQueue`；MQTT/离线上传共用；SQLite 仍可选 |
 | E-P1-2 | ❌ | **❌ 未做（文档诚实标注"后续做"）** | 仍是 `OutboundMqttQueue.kt` + `OfflineUploadQueue.kt` 双队列 |
 
 **小计**：软件侧 P1 基本闭环；E-P1-1 剩现场证书；未落地仍为 appid / E-P1-2 队列 / M-P1-4 AppSheet

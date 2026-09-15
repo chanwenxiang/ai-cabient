@@ -49,14 +49,7 @@
         </view>
       </view>
 
-      <view
-        v-if="inviteVisible"
-        role="button"
-        aria-label="关闭"
-        class="mask"
-        @click="inviteVisible = false"
-      >
-        <view role="button" class="dialog" @click.stop>
+      <AppSheet :visible="inviteVisible" aria-label="邀请成员" @close="inviteVisible = false">
           <text class="dialog-title">邀请成员</text>
           <input
             class="input"
@@ -94,21 +87,17 @@
             <button class="btn ghost" @click="inviteVisible = false">取消</button>
             <button class="btn" :loading="saving" @click="onInvite">确认邀请</button>
           </view>
-        </view>
-      </view>
+      </AppSheet>
 
-      <view
-        v-if="manageVisible && manageUser"
-        role="button"
-        aria-label="关闭"
-        class="mask"
-        @click="manageVisible = false"
+      <AppSheet
+        :visible="!!(manageVisible && manageUser)"
+        aria-label="成员管理"
+        @close="manageVisible = false"
       >
-        <view role="button" class="dialog" @click.stop>
-          <text class="dialog-title">{{ manageUser.displayName || manageUser.phoneNumber }}</text>
+          <text class="dialog-title">{{ manageUser?.displayName || manageUser?.phoneNumber }}</text>
           <text class="hint"
-            >{{ manageUser.phoneNumber }} ·
-            {{ manageUser.roleName || roleLabel(manageUser.roleKey) }}</text
+            >{{ manageUser?.phoneNumber }} ·
+            {{ manageUser?.roleName || roleLabel(manageUser?.roleKey) }}</text
           >
 
           <view v-if="canEdit" class="section">
@@ -139,7 +128,7 @@
             <button class="btn block" :loading="saving" @click="onResetPassword">确认重置</button>
           </view>
 
-          <view v-if="canDisable && !manageUser.self" class="section">
+          <view v-if="canDisable && manageUser && !manageUser.self" class="section">
             <button
               v-if="manageUser.status !== 'INACTIVE'"
               class="btn danger block"
@@ -152,8 +141,7 @@
           </view>
 
           <button class="btn ghost block" @click="manageVisible = false">关闭</button>
-        </view>
-      </view>
+      </AppSheet>
     </view></view
   >
 </template>
@@ -163,6 +151,7 @@ import { computed, reactive, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
+import AppSheet from '@/components/AppSheet.vue';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe, MerchantTeamRoleDto, MerchantUserDto } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -455,22 +444,6 @@ async function onEnable() {
   min-width: 88rpx;
   text-align: center;
   box-sizing: border-box;
-}
-.mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: flex-end;
-  z-index: 20;
-}
-.dialog {
-  width: 100%;
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-card) 28rpx 0 0;
-  padding: 32rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
-  max-height: 85vh;
-  overflow-y: auto;
 }
 .dialog-title {
   display: block;

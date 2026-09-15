@@ -378,7 +378,7 @@
 
 - **问题总数**：P0: 0，P1: 2（证书/统一队列仍待现场），P2: 6 已软修/勘误收口
 - **正向亮点**：Foreground Service；关门轮询；MQTT TLS 可配；出站队列关键 topic 优先保留；MinIO 断路器；真机 `ensureDeviceId`
-- **核心建议**：E-P1-1 现场签发设备证书；E-P1-2 统一队列抽象（SQLite）仍可后续做
+- **核心建议**：E-P1-1 现场签发设备证书；E-P1-2 Prefs 存储已统一（SQLite 可选增强）
 
 ---
 
@@ -438,6 +438,8 @@
 - [x] **vision-service 强制识别后端可用检查**（V-P1-1）— mock 关闭且 recognizer 不可用时启动失败
 - [x] **Kafka DLT topic + 显式 ack**（V-P1-3 / S-P2-5）— vision request DLT + trade result DLT
 - [x] **edge MQTT TLS/账号配置化**（E-P1-1）— BuildConfig/Prefs：TLS + user/pass；`MqttSslSocketFactories` 支持 truststore/keystore（mTLS）；`MQTT_TLS_STRICT` 自签未配 truststore 时 fail-fast；现场证书仍需签发下发
+- [x] E-P1-2：`PrefsJsonQueue` 统一 MQTT/离线上传 Prefs 存储（SQLite 仍可后续增强）
+- [x] M-P1-4：`AppSheet` / `AppDialog` + `AppConfirmDialog`；补货/争议/改价/团队/我的迁入 AppSheet
 - [x] **Session 超时配置化**（S-P1-3）— `aicabinet.session-expire`
 - [x] **vision 识别超时 need_review fallback**（V-P1-2）— HTTP/Kafka `RECOGNIZE_TIMEOUT_MS`
 
