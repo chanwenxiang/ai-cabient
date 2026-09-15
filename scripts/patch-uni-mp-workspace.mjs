@@ -17,7 +17,7 @@ try {
 
 const marker = "str.replace(/\\.\\.\\//g, '')";
 let src = fs.readFileSync(utilsPath, 'utf8');
-if (src.includes(marker) || src.includes("str.replace(/\\.\\.\\//g, \"\")")) {
+if (src.includes(marker) || src.includes('str.replace(/\\.\\.\\//g, "")')) {
   console.log('[patch-uni-mp-workspace] already patched');
   process.exit(0);
 }
