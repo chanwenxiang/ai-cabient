@@ -16,7 +16,7 @@
 | **整改质量** | **良**。重构为干净机械抽取（无行为漂移），单测真实可跑（后端 26 pass / vision 23 pass） |
 | **文档诚实度** | **高**。78 ✅ / 2 ❌，未完成项（appid、urlCheck）与局限项（E-P1-1 设备证书、E-P1-2 队列、M-P1-4 AppSheet）均如实标注未夸大 |
 | **最大风险** | ✅ **已修复**：`pnpm check:audit-gates`（含 page-size / anti-jitter / table-align / mp-a11y）已接入 CI `mini-programs` job |
-| **部分完成** | 1 项：E-P1-1（无设备证书/自定义 truststore）；S-P1-2 主类仍偏大属质量债 |
+| **部分完成** | E-P1-1：代码已支持 truststore/mTLS + strict fail-fast；**现场证书仍待签发下发** |
 
 ---
 
@@ -40,17 +40,17 @@
 | M-P1-4 | ❌ | **❌ 未落地（文档未勾选，诚实）** | 仅 `AppConfirmDialog.vue` + `useAppConfirmDialog.ts`；**无统一 `AppSheet`**，多页 bottom-sheet 仍各自实现 |
 | M-P1-5 | ✅ | **✅ 已补齐闭环** | 已有覆盖价强制 `expectedVersion`（含 reset）；冲突「他人已修改，请刷新」；商户页 `status===409` |
 | S-P1-1 | ✅ | **✅ 真实** | `SettlementService.java` **238 行**（原上帝类），依赖 **30→10**；拆出 9 个类（VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator / OrderSupport / Confidence） |
-| S-P1-2 | ✅ | **✅ 真实（主类偏重）** | 拆出 4 个 `Session*Service`（Expire/Open/Restock/Door/Settle）；但 `SessionService.java` 仍 **755 行 / 21 个 `private final`** |
+| S-P1-2 | ✅ | **✅ 续拆 LiveCart** | 已拆出 `SessionLiveCartService`；主类约 **590 行** / 依赖约 20 |
 | S-P1-3 | ✅ | **✅ 真实** | `aicabinet.session-expire` 配置化 |
 | S-P1-4 | ✅ | **✅ 真实** | mock 迁至 `/api/v2/dev/payment/**`，与真实路由隔离 |
 | S-P1-5 | ✅ | **✅ 库存契约补齐** | `DeviceInventoryDto.inventoryVersion`；盘点/upsert 已有行校验 version；Mapper 文案统一 |
 | V-P1-1 | ✅ | **✅ 真实** | `main.py:49-53` — mock 关闭且 recognizer `available=false` 时 `raise RuntimeError` |
 | V-P1-2 | ✅ | **✅ 真实** | `RECOGNIZE_TIMEOUT_MS` 超时 → 回退 `need_review=true` |
 | V-P1-3 | ✅ | **✅ 真实** | `kafka_worker.py:100` `enable_auto_commit=False`；`:178-191` 失败写 `...request.DLT` 后再 commit |
-| E-P1-1 | ✅ | **⚠️ 部分** | 见 §三 E-P1-1 分析 |
+| E-P1-1 | ✅ | **✅ 配置闭环（证书待现场）** | `MqttSslSocketFactories` + truststore/keystore + `MQTT_TLS_STRICT` fail-fast；证书文件仍需现场签发 |
 | E-P1-2 | ❌ | **❌ 未做（文档诚实标注"后续做"）** | 仍是 `OutboundMqttQueue.kt` + `OfflineUploadQueue.kt` 双队列 |
 
-**小计**：✅ 真实/已闭环 21 项 ／ ⚠️ 部分 1 项（E-P1-1）／ ❌ 未落地 3 项（其中 2 项文档已诚实标注）
+**小计**：软件侧 P1 基本闭环；E-P1-1 剩现场证书；未落地仍为 appid / E-P1-2 队列 / M-P1-4 AppSheet
 
 ---
 
@@ -68,16 +68,18 @@
 
 ---
 
-## 三、边缘端专项（E-P1-1）
+## 三、边缘端专项（E-P1-1）— 2026-09-15 配置闭环
 
-**已落地**：`EdgeRuntimeConfig` 中 TLS / username / password 可配；`MqttDeviceClient.kt:49-51` 按配置注入 `socketFactory`、`:42-48` 注入账号密码；`normalizeBroker` 处理 `tcp://`→`ssl://`。
+**已落地**
+- Prefs/BuildConfig：TLS、账号密码、`MQTT_TLS_STRICT`、truststore/keystore 路径与类型
+- `MqttSslSocketFactories`：自定义信任库 / 可选 mTLS；strict 且未配 truststore → **拒绝连接**（明确中文错误）
+- README 现场规则：公有 CA vs 自签 vs mTLS
 
-**缺口（真实安全风险）**
-1. **仅 `SSLSocketFactory.getDefault()`** —— 使用系统默认信任库。生产 broker 若为自签 / 私有 CA 证书，**连接会直接失败**；若为绕过而放宽信任，则等同无 TLS 校验
-2. **无客户端证书（mTLS）** —— 设备身份仅靠 userName/password（可被复制），文档自认「设备证书仍待现场签发」
-3. 无证书固定（pinning）、无自定义 `TrustManager`
+**仍待现场**
+- 实际 PKCS12/JKS 文件签发与下发到工控机路径
+- 生产 broker 是否强制客户端证书
 
-**结论**：E-P1-1 宜表述为「**TLS/账号配置化完成，设备认证未闭环**」。当前状态下，生产启用 TLS 反而可能因信任库不匹配导致设备集体掉线，需现场签发证书 + 配置 truststore 后才可开启。
+**结论**：软件侧可安全开 TLS（strict + truststore）；**未下发证书前勿对自签 broker 开 TLS**。
 
 ---
 
@@ -168,9 +170,8 @@
 |--------|------|------|
 | **P0** | ~~10 个门禁 0 接入 CI~~ | ✅ 已接入 `ci.yml` + 扩展 `check:audit-gates` |
 | **P1** | ~~乐观锁前端缺位~~ | ✅ 强制 expectedVersion + 409 文案 + 商户页按 status 刷新 |
-| **P1** | E-P1-1 TLS 仅默认信任库 | 现场签发设备证书 + 自定义 truststore；否则勿开 TLS |
-| **P2** | ~~`AdminVirtualTable.vue` 死代码~~ | ✅ 已删除 |
-| **P2** | `SessionService.java` 仍 755 行 / 21 依赖 | 二次拆分（购物车/DTO/锁分离） |
+| **P1** | ~~E-P1-1 TLS 仅默认信任库~~ | ✅ 代码支持 truststore/mTLS + strict；**证书文件仍待现场** |
+| **P2** | ~~`SessionService` 755 行~~ | ✅ 再拆 `SessionLiveCartService`，主类约 590 行 |
 | **P2** | 4 个 >2600 行巨型视图 | 继续 composable 化 |
 | **P2** | M-P1-4 统一 AppSheet 未做 | 按原建议抽 `AppSheet` 组件 |
 | **—** | C-P1-1 appid 为空 | 上线前必须填（真机硬阻塞） |

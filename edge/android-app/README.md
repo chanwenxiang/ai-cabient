@@ -93,6 +93,23 @@ buildConfigField("String", "MINIO_ENDPOINT", "\"http://10.0.2.2:9000\"")
 
 真机部署改为电脑局域网 IP，例如 `192.168.1.100`。
 
+### MQTT TLS / 设备证书（E-P1-1）
+
+| 配置键（Prefs / BuildConfig） | 说明 |
+|-------------------------------|------|
+| `MQTT_USE_TLS` / `mqtt_use_tls` | 是否强制 `ssl://` |
+| `MQTT_TLS_STRICT` / `mqtt_tls_strict` | **自签/私有 CA 必须 true**：未配 truststore 时**拒绝连接**并打明确错误 |
+| `MQTT_TRUST_STORE_*` | 服务端 CA / 信任库路径、密码、类型（默认 PKCS12） |
+| `MQTT_KEY_STORE_*` | **可选**设备客户端证书（mTLS） |
+
+**现场规则**
+
+1. 公有 CA（Let's Encrypt 等）：`MQTT_USE_TLS=true`，`MQTT_TLS_STRICT=false` 即可用系统默认信任库。
+2. 自签 / 私有 CA：**先下发 truststore 到设备路径**，再开 TLS + `MQTT_TLS_STRICT=true`；否则勿开 TLS（避免集体掉线且难排查）。
+3. mTLS：额外配置 keystore；未签发设备证前不要要求 broker 强制客户端证书。
+
+实现见 `MqttSslSocketFactories` + `MqttDeviceClient.connect()`。
+
 ### 运行时（App 界面）
 
 MainActivity 可修改 **MQTT Broker** 并保存到 SharedPreferences，**无需重编译**（需重启 App 重连）。

@@ -22,6 +22,31 @@ object EdgeRuntimeConfig {
     fun mqttUseTls(context: Context): Boolean =
         getBoolean(context, "mqtt_use_tls", BuildConfig.MQTT_USE_TLS)
 
+    /**
+     * TLS 严格模式：为 true 时必须配置 truststore（自签/私有 CA）。
+     * 公有 CA broker 可保持 false，使用系统默认信任库。
+     */
+    fun mqttTlsStrict(context: Context): Boolean =
+        getBoolean(context, "mqtt_tls_strict", BuildConfig.MQTT_TLS_STRICT)
+
+    fun mqttTrustStorePath(context: Context): String =
+        getString(context, "mqtt_trust_store_path", BuildConfig.MQTT_TRUST_STORE_PATH)
+
+    fun mqttTrustStorePassword(context: Context): String =
+        getString(context, "mqtt_trust_store_password", BuildConfig.MQTT_TRUST_STORE_PASSWORD)
+
+    fun mqttTrustStoreType(context: Context): String =
+        getString(context, "mqtt_trust_store_type", BuildConfig.MQTT_TRUST_STORE_TYPE)
+
+    fun mqttKeyStorePath(context: Context): String =
+        getString(context, "mqtt_key_store_path", BuildConfig.MQTT_KEY_STORE_PATH)
+
+    fun mqttKeyStorePassword(context: Context): String =
+        getString(context, "mqtt_key_store_password", BuildConfig.MQTT_KEY_STORE_PASSWORD)
+
+    fun mqttKeyStoreType(context: Context): String =
+        getString(context, "mqtt_key_store_type", BuildConfig.MQTT_KEY_STORE_TYPE)
+
     fun tradeServiceUrl(context: Context): String =
         getString(context, "trade_service_url", BuildConfig.TRADE_SERVICE_URL)
 

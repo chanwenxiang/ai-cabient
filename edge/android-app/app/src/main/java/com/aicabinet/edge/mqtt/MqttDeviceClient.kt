@@ -47,7 +47,15 @@ class MqttDeviceClient(
                 this.password = password.toCharArray()
             }
             if (useTls || resolvedBroker.startsWith("ssl://")) {
-                socketFactory = javax.net.ssl.SSLSocketFactory.getDefault()
+                socketFactory = MqttSslSocketFactories.create(
+                    trustStorePath = EdgeRuntimeConfig.mqttTrustStorePath(appContext),
+                    trustStorePassword = EdgeRuntimeConfig.mqttTrustStorePassword(appContext),
+                    trustStoreType = EdgeRuntimeConfig.mqttTrustStoreType(appContext),
+                    keyStorePath = EdgeRuntimeConfig.mqttKeyStorePath(appContext),
+                    keyStorePassword = EdgeRuntimeConfig.mqttKeyStorePassword(appContext),
+                    keyStoreType = EdgeRuntimeConfig.mqttKeyStoreType(appContext),
+                    strictCustomTrust = EdgeRuntimeConfig.mqttTlsStrict(appContext)
+                )
             }
         }
         client.setCallback(this)
