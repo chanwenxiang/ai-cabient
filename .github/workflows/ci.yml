@@ -97,6 +97,15 @@ jobs:
         env:
           MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
 
+      # 防绕过自测：空头 `-- MIGRATION_REVIEWED: yes` 必须被上面那道门禁拒绝。
+      # 该测试自 2026-09 起就存在，但从未被任何流水线调用（`spawnSync` 的是
+      # check-migration-safety.mjs 本身）—— 属「测试资产未接 CI」，故补齐。
+      # 它会临时写入 V9999__tmp_migration_reviewed_gate_<ts>.sql 并在 finally 中删除。
+      - name: Migration gate bypass self-test
+        run: node scripts/check-migration-reviewed-gate.test.mjs
+        env:
+          MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
+
       - name: Build & Test (trade-service)
         run: mvn verify -DskipITs -pl services/trade-service -am
         env:
