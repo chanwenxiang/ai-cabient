@@ -166,15 +166,54 @@ public class BalanceLedgerService {
                 result.getNumber(), result.getSize(), result.getTotalElements());
     }
 
+    /**
+     * 计算流水的「带符号金额」。
+     *
+     * <p>优先以可用余额差值（after - before）为准，它天然覆盖购物扣款、退款、预授权冲抵、
+     * 充值等所有真正改动用例余额的操作。
+     *
+     * <p>但 {@code recordFreezeOnly} 写入的**纯冻结 / 纯释放**流水（{@code PREAUTH_FREEZE}、
+     * {@code PREAUTH_RELEASE}、{@code BALANCE_REFUND_FREEZE}、{@code BALANCE_REFUND_RELEASE}）
+     * 只调整账户冻结额，可用余额前后一致，余额差恒为 0 —— 若沿用上面的算法会让这些流水
+     * 全部显示成「¥0.00」，这正是 W-4。此类流水改为取操作金额并按业务方向取符号：
+     * 冻结/申请冻结为流出（负），释放/解冻为流入（正）。
+     *
+     * <p>一致性依据：{@code doRecordFreezeOnly} 的调用方在 {@code capture > 0} / {@code release > 0}
+     * 时才落库，故「余额差为 0」与「纯冻结/释放」严格等价，不会误判其它类型。
+     */
+    private static int resolveSignedAmount(PaymentOperation operation) {
+        Integer before = operation.getBalanceBeforeCents();
+        Integer after = operation.getBalanceAfterCents();
+        if (before != null && after != null) {
+            if (!before.equals(after)) {
+                return after - before;
+            }
+            Integer holdAmount = holdSignedAmount(operation.getOperationType(), operation.getAmountCents());
+            // 余额未变的已知冻结/释放类型 → 用操作金额表达；未知类型维持原有 0 语义
+            return holdAmount != null ? holdAmount : 0;
+        }
+        // 历史数据缺失余额快照：沿用按操作类型的兜底
+        return switch (operation.getOperationType() == null ? "" : operation.getOperationType()) {
+            case CHARGE, ADJUST_CHARGE -> -operation.getAmountCents();
+            default -> operation.getAmountCents();
+        };
+    }
+
+    /** 纯冻结/释放类型的带符号金额；非该类返回 {@code null}。 */
+    private static Integer holdSignedAmount(String operationType, int amountCents) {
+        if (operationType == null) {
+            return null;
+        }
+        return switch (operationType) {
+            case "PREAUTH_FREEZE", "BALANCE_REFUND_FREEZE" -> -amountCents;
+            case "PREAUTH_RELEASE", "BALANCE_REFUND_RELEASE" -> amountCents;
+            default -> null;
+        };
+    }
+
     private BalanceTransactionDto toDto(PaymentOperation operation) {
-        int signedAmount = operation.getBalanceBeforeCents() != null && operation.getBalanceAfterCents() != null
-                ? operation.getBalanceAfterCents() - operation.getBalanceBeforeCents()
-                : switch (operation.getOperationType()) {
-                    case CHARGE, ADJUST_CHARGE -> -operation.getAmountCents();
-                    default -> operation.getAmountCents();
-                };
         return new BalanceTransactionDto(operation.getOperationId(), operation.getUserId(),
-                operation.getOperationType(), operation.getOrderId(), signedAmount,
+                operation.getOperationType(), operation.getOrderId(), resolveSignedAmount(operation),
                 value(operation.getBalanceBeforeCents()), value(operation.getBalanceAfterCents()),
                 operation.getReason(), operation.getCreatedAt());
     }
