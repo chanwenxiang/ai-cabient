@@ -174,7 +174,7 @@
 | **P1** | ~~E-P1-1 TLS 仅默认信任库~~ | ✅ 代码支持 truststore/mTLS + strict；**证书文件仍待现场** |
 | **P2** | ~~`SessionService` 755 行~~ | ✅ 再拆 `SessionLiveCartService`，主类约 590 行 |
 | **P2** | 4 个 >2600 行巨型视图 | 继续 composable 化 |
-| **P2** | M-P1-4 统一 AppSheet 未做 | 按原建议抽 `AppSheet` 组件 |
+| **P2** | ~~M-P1-4 统一 AppSheet~~ | ✅ `AppSheet`/`AppDialog` + 多页迁移 |
 | **—** | C-P1-1 appid 为空 | 上线前必须填（真机硬阻塞） |
 
 ---
