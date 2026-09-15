@@ -437,7 +437,7 @@
 - [x] **文档化「模拟支付 vs 占位」边界**（C-P1-5）— live 兜底文案已区分 demo-close
 - [x] **vision-service 强制识别后端可用检查**（V-P1-1）— mock 关闭且 recognizer 不可用时启动失败
 - [x] **Kafka DLT topic + 显式 ack**（V-P1-3 / S-P2-5）— vision request DLT + trade result DLT
-- [x] **edge MQTT TLS/账号配置化**（E-P1-1）— BuildConfig/Prefs 可选 TLS+user/pass；设备证书仍待现场签发
+- [x] **edge MQTT TLS/账号配置化**（E-P1-1）— BuildConfig/Prefs：TLS + user/pass；`MqttSslSocketFactories` 支持 truststore/keystore（mTLS）；`MQTT_TLS_STRICT` 自签未配 truststore 时 fail-fast；现场证书仍需签发下发
 - [x] **Session 超时配置化**（S-P1-3）— `aicabinet.session-expire`
 - [x] **vision 识别超时 need_review fallback**（V-P1-2）— HTTP/Kafka `RECOGNIZE_TIMEOUT_MS`
 
@@ -505,7 +505,7 @@
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display/Shell composables）
 - [x] S-P1-1 SettlementService 拆分（VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator / OrderSupport；主类为薄 Facade + 锁）
-- [x] S-P1-2 Session 拆分（`SessionExpireService` / `SessionOpenService` / `SessionRestockService` / `SessionDoorService` / `SessionSettleService`；主类为 Facade + 锁/DTO/购物车）
+- [x] S-P1-2 Session 拆分（Expire/Open/Restock/Door/Settle/**LiveCart**；主类 ~590 行 Facade + 锁/DTO）
 - [x] A-P2-002 WarehouseView 拆分（采购/盘点/货位/出库/调拨写流 + 实体弹窗 + `useWarehouseTabLoader` + `useWarehouseListFilters` / `useWarehouseCsv` + `useWarehouseLabels` / `useWarehouseRouteLifecycle`；页约 3.2k 行）
 - [x] S-P1-5 / M-P1-5 定价/库存乐观锁：已有行强制 `expectedVersion`（含 reset）；冲突统一「他人已修改，请刷新」+ HTTP 409；库存 DTO 透出 `inventoryVersion`；商户改价页按 `status===409` 刷新
 - [x] H5 隐私政策首屏弹窗（C-P2-5 / M-P2-4）— `privacy-consent-modal` + 两端入口页

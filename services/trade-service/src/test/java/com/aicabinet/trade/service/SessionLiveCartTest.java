@@ -22,21 +22,21 @@ import static org.mockito.Mockito.when;
 class SessionLiveCartTest {
 
     @Mock ShoppingSessionMapper repository;
-    @Mock ObjectMapper objectMapper;
     @Mock DistributedLockService distributedLockService;
+    @Mock SessionService sessionService;
 
-    SessionService sessionService;
+    SessionLiveCartService liveCartService;
 
     @BeforeEach
     void setUp() {
-        sessionService = new SessionService(
-                repository, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, distributedLockService, new ObjectMapper(), null, null);
-        org.springframework.test.util.ReflectionTestUtils.setField(sessionService, "self", sessionService);
-        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+        liveCartService = new SessionLiveCartService(
+                repository, null, null, new ObjectMapper(), sessionService);
+        org.mockito.Mockito.lenient().when(sessionService.runWithSessionLifeLock(
                 org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
+                org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> {
+            java.util.function.Supplier<?> action = inv.getArgument(1);
+            return action.get();
+        });
     }
 
     @Test
@@ -49,13 +49,13 @@ class SessionLiveCartTest {
         when(repository.findByIdForUpdate("S1")).thenReturn(Optional.of(session));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var first = sessionService.updateLiveCartFromVision("S1", new LiveCartUpdateRequest(
+        var first = liveCartService.updateLiveCartFromVision("S1", new LiveCartUpdateRequest(
                 "REPLACE",
                 List.of(new LiveCartUpdateRequest.LiveCartItem("SKU-A", "A", 2, 350))));
         assertEquals(2, first.totalQty());
         assertEquals(700, first.totalAmountCents());
 
-        var second = sessionService.updateLiveCartFromVision("S1", new LiveCartUpdateRequest(
+        var second = liveCartService.updateLiveCartFromVision("S1", new LiveCartUpdateRequest(
                 "DELTA",
                 List.of(new LiveCartUpdateRequest.LiveCartItem("SKU-A", "A", -1, 350))));
         assertEquals(1, second.totalQty());
