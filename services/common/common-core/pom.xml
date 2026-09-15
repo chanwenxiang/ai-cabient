@@ -45,5 +45,11 @@
             <artifactId>jakarta.validation-api</artifactId>
             <version>3.0.2</version>
         </dependency>
+        <!-- springdoc 只认 @Schema；Javadoc 不会进入 /v3/api-docs -->
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations-jakarta</artifactId>
+            <version>2.2.36</version>
+        </dependency>
     </dependencies>
 </project>

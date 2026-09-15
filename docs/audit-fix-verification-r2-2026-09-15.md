@@ -68,11 +68,10 @@ mp-a11y:          clickables with role/aria 381/381 (100%) / icons 37/37 (100%) 
 
 - 删除重复 E-P1-2 行；同步 A-P1-002 / TL;DR / 小计；去掉 AppDialog 成果表述
 
-### 3.3 `inventory/stocktake` 破坏性契约 — ✅ 已标注
+### 3.3 `inventory/stocktake` 破坏性契约 — ⚠️ 待重做（R3 已跟进）
 
-- `StocktakeAdjustRequest.expectedVersion` Javadoc 标明已有行必填（400/409）
-- 删除无调用方的便捷构造器（避免 `expectedVersion=null` 静默绕过）
-- 当前仍无前端调用方；后续接入须带 `inventoryVersion`
+- Javadoc + 删便捷构造器已到位；曾误把手写中文写进 `DO NOT EDIT` 的 `openapi.ts`（编码成 `?`），会挂 CI regen-diff
+- 正确落点：`@Schema(description=...)` → `pnpm gen:api-types` 再提交生成物（见 R3 / R4）
 ---
 
 ## 四、修复质量点评
@@ -103,7 +102,7 @@ mp-a11y:          clickables with role/aria 381/381 (100%) / icons 37/37 (100%) 
 | **P0** | 两端 `manifest.json` `mp-weixin.appid` 仍为空 | 真机/发布硬阻塞（需密钥） |
 | ~~P2~~ | ~~删除 `AppDialog.vue`~~ | ✅ 已删 |
 | ~~P2~~ | ~~修报告文档矛盾~~ | ✅ 已清洗 |
-| ~~P2~~ | ~~stocktake 契约 + 删便捷构造器~~ | ✅ Javadoc 标明；便捷构造器已删 |
+| ~~P2~~ | ~~stocktake 契约 + 删便捷构造器~~ | ⚠️ Javadoc 已写；OpenAPI 须走 `@Schema`（见 R3） |
 | ~~P2~~ | ~~`PrefsJsonQueue` 改 `commit()`~~ | ✅ 同步落盘 |
 | P2 | 巨型视图继续 composable 化 | ReplenishmentView / consumer index / WarehouseView |
 | P2 | `SessionService` 582 行可再拆 | 非紧急 |
