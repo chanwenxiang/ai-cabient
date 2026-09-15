@@ -19,34 +19,34 @@
       aria-label="编辑资料"
       @close="profileEditVisible = false"
     >
-        <text class="dialog-title">编辑资料</text>
-        <text class="hint">维护联系电话与告警联系人，用于异常通知与现场联系</text>
-        <input
-          class="input"
-          type="number"
-          maxlength="11"
-          placeholder="联系电话"
-          :value="profileForm.contactPhone"
-          @input="profileForm.contactPhone = eventInput($event)"
-        />
-        <input
-          class="input"
-          placeholder="告警联系人"
-          :value="profileForm.alertContactName"
-          @input="profileForm.alertContactName = eventInput($event)"
-        />
-        <input
-          class="input"
-          type="number"
-          maxlength="11"
-          placeholder="告警电话"
-          :value="profileForm.alertContactPhone"
-          @input="profileForm.alertContactPhone = eventInput($event)"
-        />
-        <view class="dialog-actions">
-          <button class="btn ghost" @click="profileEditVisible = false">取消</button>
-          <button class="btn" :loading="profileSaving" @click="saveProfileEdit">保存</button>
-        </view>
+      <text class="dialog-title">编辑资料</text>
+      <text class="hint">维护联系电话与告警联系人，用于异常通知与现场联系</text>
+      <input
+        class="input"
+        type="number"
+        maxlength="11"
+        placeholder="联系电话"
+        :value="profileForm.contactPhone"
+        @input="profileForm.contactPhone = eventInput($event)"
+      />
+      <input
+        class="input"
+        placeholder="告警联系人"
+        :value="profileForm.alertContactName"
+        @input="profileForm.alertContactName = eventInput($event)"
+      />
+      <input
+        class="input"
+        type="number"
+        maxlength="11"
+        placeholder="告警电话"
+        :value="profileForm.alertContactPhone"
+        @input="profileForm.alertContactPhone = eventInput($event)"
+      />
+      <view class="dialog-actions">
+        <button class="btn ghost" @click="profileEditVisible = false">取消</button>
+        <button class="btn" :loading="profileSaving" @click="saveProfileEdit">保存</button>
+      </view>
     </AppSheet>
 
     <view v-if="fieldNav.length" class="section-label">现场作业</view>

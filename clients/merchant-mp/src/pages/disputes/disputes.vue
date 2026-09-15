@@ -99,143 +99,143 @@
 
       <!-- 争议详情底部抽屉：替代 uni.showModal 长文本，小屏可滚动 -->
       <AppSheet :visible="detailVisible" aria-label="争议详情" @close="detailVisible = false">
-          <text class="detail-title">{{ statusText(detail?.status) }}</text>
-          <text class="detail-reason">{{
-            merchantDisputeDisplayCopy(detail) || emptyDisplay(detail?.reason, 'reason')
-          }}</text>
-          <scroll-view scroll-y class="detail-scroll">
-            <view class="detail-rows">
-              <view class="detail-row"
-                ><text class="detail-lbl">单号</text
-                ><text class="detail-val">{{ emptyDisplay(detail?.ticketId, 'order') }}</text></view
-              >
-              <view class="detail-row"
-                ><text class="detail-lbl">状态</text
-                ><text class="detail-val">{{ statusText(detail?.status) }}</text></view
-              >
-              <view class="detail-row"
-                ><text class="detail-lbl">柜机</text
-                ><text class="detail-val">{{
-                  emptyDisplay(detail?.deviceName || detail?.deviceId, 'device')
-                }}</text></view
-              >
-              <view v-if="detail?.orderId" class="detail-row"
-                ><text class="detail-lbl">订单</text
-                ><text class="detail-val">{{ detail.orderId }}</text></view
-              >
-              <view v-if="detail?.billedAmountCents != null" class="detail-row">
-                <text class="detail-lbl">已扣金额</text
-                ><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
-              </view>
-              <view v-if="detail?.claimedAmountCents != null" class="detail-row">
-                <text class="detail-lbl">建议金额</text
-                ><text class="detail-val">{{ fmtMoney(detail.claimedAmountCents) }}</text>
-              </view>
-              <view v-if="detail?.refundedAmountCents != null" class="detail-row">
-                <text class="detail-lbl">已退金额</text
-                ><text class="detail-val">{{ fmtMoney(detail.refundedAmountCents) }}</text>
-              </view>
-              <view v-if="detailAmountDiffNote" class="detail-row amount-diff-row">
-                <text class="detail-lbl">差额说明</text
-                ><text class="detail-val amount-diff">{{ detailAmountDiffNote }}</text>
-              </view>
-              <view
-                v-if="detail?.slaOverdue != null || detail?.slaHoursRemaining != null"
-                class="detail-row"
-              >
-                <text class="detail-lbl">处理时限</text
-                ><text class="detail-val" :class="detail?.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
-                  detail?.slaOverdue
-                    ? '已超时'
-                    : detail?.slaHoursRemaining != null
-                      ? `剩余 ${detail.slaHoursRemaining} 小时`
-                      : '暂无'
-                }}</text>
-              </view>
-              <view v-if="detail?.lastMessage" class="detail-row"
-                ><text class="detail-lbl">最新</text
-                ><text class="detail-val">{{ detail.lastMessage }}</text></view
-              >
+        <text class="detail-title">{{ statusText(detail?.status) }}</text>
+        <text class="detail-reason">{{
+          merchantDisputeDisplayCopy(detail) || emptyDisplay(detail?.reason, 'reason')
+        }}</text>
+        <scroll-view scroll-y class="detail-scroll">
+          <view class="detail-rows">
+            <view class="detail-row"
+              ><text class="detail-lbl">单号</text
+              ><text class="detail-val">{{ emptyDisplay(detail?.ticketId, 'order') }}</text></view
+            >
+            <view class="detail-row"
+              ><text class="detail-lbl">状态</text
+              ><text class="detail-val">{{ statusText(detail?.status) }}</text></view
+            >
+            <view class="detail-row"
+              ><text class="detail-lbl">柜机</text
+              ><text class="detail-val">{{
+                emptyDisplay(detail?.deviceName || detail?.deviceId, 'device')
+              }}</text></view
+            >
+            <view v-if="detail?.orderId" class="detail-row"
+              ><text class="detail-lbl">订单</text
+              ><text class="detail-val">{{ detail.orderId }}</text></view
+            >
+            <view v-if="detail?.billedAmountCents != null" class="detail-row">
+              <text class="detail-lbl">已扣金额</text
+              ><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
             </view>
-            <view v-if="(detail?.suggestedItems || []).length" class="suggest-block">
-              <text class="detail-lbl">建议明细</text>
-              <view v-for="(it, i) in detail?.suggestedItems || []" :key="i" class="suggest-row">
-                <text>{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text>
-              </view>
+            <view v-if="detail?.claimedAmountCents != null" class="detail-row">
+              <text class="detail-lbl">建议金额</text
+              ><text class="detail-val">{{ fmtMoney(detail.claimedAmountCents) }}</text>
             </view>
-            <view v-if="detail?.videoPreviewUrl || detail?.videoUri" class="video-block">
-              <text class="detail-lbl">购物录像</text>
-              <video
-                class="dispute-video"
-                :src="detail.videoPreviewUrl || detail.videoUri"
-                controls
-                object-fit="contain"
-                :show-center-play-btn="true"
-              >
-                <track
-                  kind="captions"
-                  srclang="zh"
-                  label="现场录像无对白字幕"
-                  src="data:text/vtt,WEBVTT"
-                />
-                <track
-                  kind="descriptions"
-                  srclang="zh"
-                  label="购物过程监控录像"
-                  src="data:text/vtt,WEBVTT"
-                />
-              </video>
+            <view v-if="detail?.refundedAmountCents != null" class="detail-row">
+              <text class="detail-lbl">已退金额</text
+              ><text class="detail-val">{{ fmtMoney(detail.refundedAmountCents) }}</text>
             </view>
-          </scroll-view>
-          <view class="detail-actions">
-            <app-button
-              v-if="canResolveDetail && !detail?.assignee"
-              :loading="claiming"
-              label="认领工单"
-              @click="claimFromDetail"
-            />
-            <app-button v-if="canReplyDetail" label="回复" @click="replyFromDetail" />
-            <app-button
-              v-if="canResolveDetail"
-              variant="danger"
-              :loading="resolving"
-              :label="displayLabel('dispute_resolution', 'WAIVE')"
-              @click="resolveFromDetail('WAIVE')"
-            />
-            <app-button
-              v-if="canResolveDetail"
-              variant="outline"
-              :label="moreActionsOpen ? '收起' : '更多'"
-              @click="moreActionsOpen = !moreActionsOpen"
-            />
-            <template v-if="canResolveDetail && moreActionsOpen">
-              <app-button
-                variant="outline"
-                :loading="resolving"
-                :label="displayLabel('dispute_resolution', 'KEEP')"
-                @click="resolveFromDetail('KEEP')"
-              />
-              <app-button
-                variant="outline"
-                :loading="resolving"
-                :label="displayLabel('dispute_resolution', 'CONFIRM')"
-                @click="resolveFromDetail('CONFIRM')"
-              />
-            </template>
-            <app-button
-              v-if="detail?.orderId"
-              variant="outline"
-              label="查看订单"
-              @click="goOrderFromDetail"
-            />
-            <app-button
-              v-else-if="detail?.deviceId"
-              variant="outline"
-              label="查看柜机"
-              @click="goDeviceFromDetail"
-            />
-            <app-button variant="ghost" label="关闭" @click="detailVisible = false" />
+            <view v-if="detailAmountDiffNote" class="detail-row amount-diff-row">
+              <text class="detail-lbl">差额说明</text
+              ><text class="detail-val amount-diff">{{ detailAmountDiffNote }}</text>
+            </view>
+            <view
+              v-if="detail?.slaOverdue != null || detail?.slaHoursRemaining != null"
+              class="detail-row"
+            >
+              <text class="detail-lbl">处理时限</text
+              ><text class="detail-val" :class="detail?.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
+                detail?.slaOverdue
+                  ? '已超时'
+                  : detail?.slaHoursRemaining != null
+                    ? `剩余 ${detail.slaHoursRemaining} 小时`
+                    : '暂无'
+              }}</text>
+            </view>
+            <view v-if="detail?.lastMessage" class="detail-row"
+              ><text class="detail-lbl">最新</text
+              ><text class="detail-val">{{ detail.lastMessage }}</text></view
+            >
           </view>
+          <view v-if="(detail?.suggestedItems || []).length" class="suggest-block">
+            <text class="detail-lbl">建议明细</text>
+            <view v-for="(it, i) in detail?.suggestedItems || []" :key="i" class="suggest-row">
+              <text>{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text>
+            </view>
+          </view>
+          <view v-if="detail?.videoPreviewUrl || detail?.videoUri" class="video-block">
+            <text class="detail-lbl">购物录像</text>
+            <video
+              class="dispute-video"
+              :src="detail.videoPreviewUrl || detail.videoUri"
+              controls
+              object-fit="contain"
+              :show-center-play-btn="true"
+            >
+              <track
+                kind="captions"
+                srclang="zh"
+                label="现场录像无对白字幕"
+                src="data:text/vtt,WEBVTT"
+              />
+              <track
+                kind="descriptions"
+                srclang="zh"
+                label="购物过程监控录像"
+                src="data:text/vtt,WEBVTT"
+              />
+            </video>
+          </view>
+        </scroll-view>
+        <view class="detail-actions">
+          <app-button
+            v-if="canResolveDetail && !detail?.assignee"
+            :loading="claiming"
+            label="认领工单"
+            @click="claimFromDetail"
+          />
+          <app-button v-if="canReplyDetail" label="回复" @click="replyFromDetail" />
+          <app-button
+            v-if="canResolveDetail"
+            variant="danger"
+            :loading="resolving"
+            :label="displayLabel('dispute_resolution', 'WAIVE')"
+            @click="resolveFromDetail('WAIVE')"
+          />
+          <app-button
+            v-if="canResolveDetail"
+            variant="outline"
+            :label="moreActionsOpen ? '收起' : '更多'"
+            @click="moreActionsOpen = !moreActionsOpen"
+          />
+          <template v-if="canResolveDetail && moreActionsOpen">
+            <app-button
+              variant="outline"
+              :loading="resolving"
+              :label="displayLabel('dispute_resolution', 'KEEP')"
+              @click="resolveFromDetail('KEEP')"
+            />
+            <app-button
+              variant="outline"
+              :loading="resolving"
+              :label="displayLabel('dispute_resolution', 'CONFIRM')"
+              @click="resolveFromDetail('CONFIRM')"
+            />
+          </template>
+          <app-button
+            v-if="detail?.orderId"
+            variant="outline"
+            label="查看订单"
+            @click="goOrderFromDetail"
+          />
+          <app-button
+            v-else-if="detail?.deviceId"
+            variant="outline"
+            label="查看柜机"
+            @click="goDeviceFromDetail"
+          />
+          <app-button variant="ghost" label="关闭" @click="detailVisible = false" />
+        </view>
       </AppSheet>
     </view>
   </view>

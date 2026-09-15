@@ -69,30 +69,26 @@
           />
         </view>
 
-        <AppSheet
-          :visible="historyVisible"
-          aria-label="调价历史"
-          @close="historyVisible = false"
-        >
-            <view class="dialog-head">
-              <text class="dialog-title">调价历史</text>
-              <text
-                class="dialog-close"
-                role="button"
-                aria-label="关闭"
-                @click="historyVisible = false"
-                >×</text
-              >
+        <AppSheet :visible="historyVisible" aria-label="调价历史" @close="historyVisible = false">
+          <view class="dialog-head">
+            <text class="dialog-title">调价历史</text>
+            <text
+              class="dialog-close"
+              role="button"
+              aria-label="关闭"
+              @click="historyVisible = false"
+              >×</text
+            >
+          </view>
+          <view v-if="historyLoading" class="meta center">{{ UI_COPY.loading }}</view>
+          <view v-else-if="!history.length" class="meta center">暂无调价记录</view>
+          <view v-for="(h, i) in history" :key="i" class="history-row">
+            <view class="history-main">
+              <text class="history-sku">{{ h.skuId }}</text>
+              <text class="history-detail">{{ h.detail || '暂无明细' }}</text>
             </view>
-            <view v-if="historyLoading" class="meta center">{{ UI_COPY.loading }}</view>
-            <view v-else-if="!history.length" class="meta center">暂无调价记录</view>
-            <view v-for="(h, i) in history" :key="i" class="history-row">
-              <view class="history-main">
-                <text class="history-sku">{{ h.skuId }}</text>
-                <text class="history-detail">{{ h.detail || '暂无明细' }}</text>
-              </view>
-              <text class="meta">{{ formatTime(h.changedAt) }}</text>
-            </view>
+            <text class="meta">{{ formatTime(h.changedAt) }}</text>
+          </view>
         </AppSheet>
       </template>
     </view>
