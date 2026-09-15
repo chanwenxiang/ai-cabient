@@ -98,16 +98,7 @@
       </view>
 
       <!-- 争议详情底部抽屉：替代 uni.showModal 长文本，小屏可滚动 -->
-      <view
-        v-if="detailVisible"
-        role="button"
-        aria-label="关闭"
-        class="detail-mask"
-        @click.self="detailVisible = false"
-        @touchmove.stop.prevent
-      >
-        <view class="detail-panel" role="dialog" aria-label="争议详情" @click.stop>
-          <view class="detail-handle" />
+      <AppSheet :visible="detailVisible" aria-label="争议详情" @close="detailVisible = false">
           <text class="detail-title">{{ statusText(detail?.status) }}</text>
           <text class="detail-reason">{{
             merchantDisputeDisplayCopy(detail) || emptyDisplay(detail?.reason, 'reason')
@@ -245,8 +236,7 @@
             />
             <app-button variant="ghost" label="关闭" @click="detailVisible = false" />
           </view>
-        </view>
-      </view>
+      </AppSheet>
     </view>
   </view>
 </template>
@@ -259,6 +249,7 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
 import EmptyState from '@/components/empty-state.vue';
+import AppSheet from '@/components/AppSheet.vue';
 import {
   hasPerm,
   merchantApi,
@@ -746,35 +737,6 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   font-size: var(--font-size-caption);
   font-weight: 600;
   padding: 20rpx 0 8rpx;
-}
-.detail-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  z-index: 300;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-.detail-panel {
-  width: 100%;
-  max-width: 520px;
-  margin: 0 auto;
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-card) 28rpx 0 0;
-  padding: 18rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
-  box-sizing: border-box;
-  max-height: 82vh;
-  display: flex;
-  flex-direction: column;
-}
-.detail-handle {
-  width: 64rpx;
-  height: 8rpx;
-  background: var(--text-subtle, #cbd5e1);
-  border-radius: 4rpx;
-  margin: 0 auto 20rpx;
-  flex-shrink: 0;
 }
 .detail-title {
   font-size: var(--font-size-xl);

@@ -96,6 +96,7 @@
 | 89 | CI 门禁 | 本地审计门禁全绿但回归仍可合入 | `check:audit-gates` 等仅本地、未进 workflow | 新建防回归脚本必须同步接入 `ci.yml`；聚合进 `pnpm check:audit-gates` | `.github/workflows/ci.yml`、`package.json` |
 | 90 | 乐观锁 | 改价/库存并发写可静默覆盖 | `expectedVersion` 可选；冲突文案不统一；前端靠 message includes | 已有行强制 version；冲突文案统一「他人已修改，请刷新」；前端用 HTTP 409 | `OptimisticLocking`、`pricing.vue` |
 | 91 | edge TLS | 自签 broker 开 TLS 后设备集体掉线难排查 | 仅 `SSLSocketFactory.getDefault()`，无私有 CA/truststore | 自签必须配 truststore 且 `MQTT_TLS_STRICT=true`；未配齐禁止开 TLS | `MqttSslSocketFactories.kt` |
+| 92 | 商户弹层 | 多页自建 mask/dialog 样式与 a11y 不一致 | 无统一底部面板组件 | 底部层用 `AppSheet`；确认用 `AppConfirmDialog`；居中表单用 `AppDialog` | `components/AppSheet.vue` |
 
 ## 追加模板
 

@@ -3,9 +3,9 @@ package com.aicabinet.edge.upload
 import android.content.Context
 import android.util.Log
 import com.aicabinet.edge.config.EdgeRuntimeConfig
+import com.aicabinet.edge.queue.PrefsJsonQueue
 import com.aicabinet.edge.video.VideoClipJson
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
+import com.fasterxml.jackson.core.type.TypeReference
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -33,13 +33,18 @@ data class PendingUpload(
 
 /**
  * 断网续传：关门时 MinIO 不可达则 LOCAL_QUEUED，后台重试上传并通知 trade 结算。
+ * 持久化走 [PrefsJsonQueue]（与 MQTT 出站队列同存储策略）。
  */
 class OfflineUploadQueue(
     private val context: Context,
     private val minioUploader: MinioUploader = MinioUploader(context)
 ) {
-    private val mapper = jacksonObjectMapper()
-    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val store = PrefsJsonQueue(
+        context = context,
+        prefsName = PREFS,
+        typeRef = object : TypeReference<List<PendingUpload>>() {},
+        tag = TAG
+    )
     private val executor = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "offline-upload").apply { isDaemon = true }
     }
@@ -54,7 +59,9 @@ class OfflineUploadQueue(
     }
 
     fun enqueue(sessionId: String, files: Map<String, File>, fusionMode: String, deviceId: String, userId: Long) {
-        val pending = loadQueue().filter { it.sessionId != sessionId } +
+        store.mutate { pending ->
+            pending.removeAll { it.sessionId == sessionId }
+            pending.add(
                 PendingUpload(
                     sessionId,
                     files.mapValues { it.value.absolutePath },
@@ -62,7 +69,8 @@ class OfflineUploadQueue(
                     deviceId,
                     userId
                 )
-        saveQueue(pending)
+            )
+        }
         Log.i(TAG, "queued offline upload session=$sessionId files=${files.size} fusion=$fusionMode")
         executor.execute { processQueue() }
     }
@@ -72,7 +80,7 @@ class OfflineUploadQueue(
     }
 
     private fun processQueue() {
-        val queue = loadQueue()
+        val queue = store.snapshot()
         if (queue.isEmpty()) return
         val remaining = mutableListOf<PendingUpload>()
         for (item in queue) {
@@ -89,7 +97,7 @@ class OfflineUploadQueue(
                 }
             }
         }
-        saveQueue(remaining)
+        store.replaceAll(remaining)
     }
 
     private fun uploadPending(item: PendingUpload) {
@@ -107,18 +115,8 @@ class OfflineUploadQueue(
         TradeVideoClient.attachVideo(item.sessionId, primaryUri, item.fusionMode, clipsJson)
     }
 
-    private fun loadQueue(): List<PendingUpload> {
-        val json = prefs.getString(KEY_QUEUE, "[]") ?: "[]"
-        return runCatching { mapper.readValue<List<PendingUpload>>(json) }.getOrElse { emptyList() }
-    }
-
-    private fun saveQueue(items: List<PendingUpload>) {
-        prefs.edit().putString(KEY_QUEUE, mapper.writeValueAsString(items)).apply()
-    }
-
     companion object {
         private const val TAG = "OfflineUploadQueue"
         private const val PREFS = "offline_upload_queue"
-        private const val KEY_QUEUE = "pending"
     }
 }

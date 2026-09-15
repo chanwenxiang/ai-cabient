@@ -69,14 +69,11 @@
           />
         </view>
 
-        <view
-          v-if="historyVisible"
-          role="button"
-          aria-label="关闭"
-          class="mask"
-          @click="historyVisible = false"
+        <AppSheet
+          :visible="historyVisible"
+          aria-label="调价历史"
+          @close="historyVisible = false"
         >
-          <view role="button" class="dialog" @click.stop>
             <view class="dialog-head">
               <text class="dialog-title">调价历史</text>
               <text
@@ -96,8 +93,7 @@
               </view>
               <text class="meta">{{ formatTime(h.changedAt) }}</text>
             </view>
-          </view>
-        </view>
+        </AppSheet>
       </template>
     </view>
   </view>
@@ -108,6 +104,7 @@ import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/empty-state.vue';
+import AppSheet from '@/components/AppSheet.vue';
 import { yuanToCents } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
@@ -341,23 +338,6 @@ async function savePrice(p: MerchantSkuPricing) {
   font-weight: 600;
 }
 
-.mask {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: flex-end;
-}
-.dialog {
-  width: 100%;
-  max-height: 75vh;
-  overflow-y: auto;
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-card) 28rpx 0 0;
-  padding: 30rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
-  box-sizing: border-box;
-}
 .dialog-head {
   display: flex;
   align-items: center;

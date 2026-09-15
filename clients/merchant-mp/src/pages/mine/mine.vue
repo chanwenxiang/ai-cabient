@@ -14,14 +14,11 @@
       </view>
     </view>
 
-    <view
-      v-if="profileEditVisible"
-      role="button"
-      aria-label="关闭"
-      class="mask"
-      @click="profileEditVisible = false"
+    <AppSheet
+      :visible="profileEditVisible"
+      aria-label="编辑资料"
+      @close="profileEditVisible = false"
     >
-      <view role="button" class="dialog" @click.stop>
         <text class="dialog-title">编辑资料</text>
         <text class="hint">维护联系电话与告警联系人，用于异常通知与现场联系</text>
         <input
@@ -50,8 +47,7 @@
           <button class="btn ghost" @click="profileEditVisible = false">取消</button>
           <button class="btn" :loading="profileSaving" @click="saveProfileEdit">保存</button>
         </view>
-      </view>
-    </view>
+    </AppSheet>
 
     <view v-if="fieldNav.length" class="section-label">现场作业</view>
     <view v-if="fieldNav.length" class="menu-list">
@@ -171,6 +167,7 @@
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
+import AppSheet from '@/components/AppSheet.vue';
 import { clearSession, hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
   hasSubscribeTemplates,
@@ -387,21 +384,6 @@ async function onLogout() {
   color: var(--brand, #0f766e);
   font-size: var(--font-size-caption);
   font-weight: 600;
-}
-.mask {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: flex-end;
-}
-.dialog {
-  width: 100%;
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-card) 28rpx 0 0;
-  padding: 32rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
-  box-sizing: border-box;
 }
 .dialog-title {
   display: block;
