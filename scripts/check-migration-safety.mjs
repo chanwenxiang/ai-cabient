@@ -63,11 +63,18 @@ if (!diffList.ok) {
   // 无 remote 基线时：相对 HEAD 已暂存/未提交的新增
   diffList = git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', migrationDir]);
 }
-const untracked = git(['ls-files', '--others', '--exclude-standard', '--', migrationDir]);
-const names = new Set([
-  ...(diffList.ok && diffList.out ? diffList.out.split(/\r?\n/).filter(Boolean) : []),
-  ...(untracked.ok && untracked.out ? untracked.out.split(/\r?\n/).filter(Boolean) : [])
-]);
+// 刻意**不**加 --exclude-standard：migration 目录里任何未跟踪的 .sql 都是一次真实的新迁移，
+// 被 .gitignore 掉 != 不会被 Flyway 执行（例如 check-migration-reviewed-gate.test.mjs 写进去的
+// 临时脚本，已由 .gitignore 兜底防误提交）。带 --exclude-standard 会让这类文件对安全门禁**完全隐形** ——
+// 2026-09-16 实测：一旦把该临时文件名加进 .gitignore，本脚本就再也扫不到它，
+// 于是「空头 MIGRATION_REVIEWED 必须被拦」的自测直接退化成恒假。
+const untracked = git(['ls-files', '--others', '--', migrationDir]);
+const names = new Set(
+  [
+    ...(diffList.ok && diffList.out ? diffList.out.split(/\r?\n/).filter(Boolean) : []),
+    ...(untracked.ok && untracked.out ? untracked.out.split(/\r?\n/).filter(Boolean) : [])
+  ].filter((p) => /\.sql$/i.test(p))
+);
 const files = [...names];
 if (files.length === 0) {
   console.log('[check-migration-safety] no new Flyway scripts vs baseline; OK');

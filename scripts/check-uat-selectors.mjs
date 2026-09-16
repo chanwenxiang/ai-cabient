@@ -229,4 +229,6 @@ if (failed) {
   );
   process.exit(1);
 }
-console.log('\nPASS check-uat-selectors：所有 UAT 类选择器与 placeholder 都能在其驱动的前端源码中找到。');
+console.log(
+  '\nPASS check-uat-selectors：所有 UAT 类选择器与 placeholder 都能在其驱动的前端源码中找到。'
+);

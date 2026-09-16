@@ -81,7 +81,14 @@ function findViolations(file, lines) {
     const haystack = [labelText, ownLabel, text].join('\n');
     if (!CODE_LABEL_RE.test(haystack)) continue;
     if (haystack.includes(IGNORE_MARK)) continue;
-    if (labelLine >= 0 && lines.slice(labelLine, endLine + 1).join('\n').includes(IGNORE_MARK)) continue;
+    if (
+      labelLine >= 0 &&
+      lines
+        .slice(labelLine, endLine + 1)
+        .join('\n')
+        .includes(IGNORE_MARK)
+    )
+      continue;
 
     hits.push({
       line: i + 1,
@@ -120,4 +127,6 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log(`PASS check-device-code-input：扫描 ${scanned} 个 .vue，无编号类字段误用数字键盘类型。`);
+console.log(
+  `PASS check-device-code-input：扫描 ${scanned} 个 .vue，无编号类字段误用数字键盘类型。`
+);
