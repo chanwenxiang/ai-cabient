@@ -19,12 +19,16 @@
  *   infra/xxl-job/seed_aicabinet_jobs.sql（executor_handler 列）
  *        ↕ schedule_conf 必须与 ScheduleZones.XXL_CRON_BY_TASK 逐条一致
  *
- * 业务定时任务**全量托管**（2026-09-16 起，生产多实例）后新增三条硬校验：
+ * 业务定时任务**全量托管**（2026-09-16 起，生产多实例）后新增四条硬校验：
  *   - 每个托管 key 必须在 ScheduleZones.XXL_CRON_BY_TASK 有 cron，且与种子的 schedule_conf
  *     **逐条相同**。两处手工维护必然漂移，而超期看护阈值是按调度周期推的 —— cron 漂移会
  *     连带把看护阈值带偏。
  *   - 每个托管 key 必须在 ScheduledTaskRegistry 注册，否则调度中心派发进来后
  *     registry.get(key) 为空 → handleFail「任务未注册」→ 任务照停。
+ *   - **cron 必须静态可解析**：6 段 Quartz，且「日」/「周」二者只能有一个是 `?`。
+ *     「两处一致」只保证不漂移，**不保证调度器解析得了** —— 实测 `ops-fee-bill-monthly`
+ *     曾写成 7 段 `0 30 1 1 * * ?`（日=1 与周=* 同时限定），XXL `storeExpressionVals` 抛错、
+ *     `refreshNextValidTime` 失败，该 job 永不触发，而当时 3.1~3.9 全部通过。
  *   - 托管任务的「最大静默时长」必须覆盖（见下）。
  *
  * 另外校验两处曾真实引发故障/掩盖故障的漂移：
@@ -357,6 +361,38 @@ if (notRegistered.length) {
   );
 }
 
+// 3.10 XXL cron 必须能被调度中心**真正解析** —— 「两处一致」只保证不漂移，不保证能执行。
+//      XXL 的 CronExpression 是 Quartz 语义：6 段（秒 分 时 日 月 周），且
+//      **「日」(dom) 与「周」(dow) 必须且只能有一个写 `?`**。两个都写（如 7 段
+//      `0 30 1 1 * * ?`）会在 storeExpressionVals 直接抛错 —— admin 日志出现
+//      `refreshNextValidTime error for job: jobId=…`，该 job 永远算不出下次触发时间，
+//      表现与「没接线」完全一样：让位给了调度中心，调度中心却永远不派发。
+//      实测 jobId=119（ops-fee-bill-monthly）曾因此完全停摆，而当时 3.1~3.9 全部通过。
+const cronShapeProblems = [];
+for (const [key, cron] of declaredCrons) {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 6) {
+    cronShapeProblems.push(
+      `${key}：「${cron}」是 ${parts.length} 段，XXL 只接受 6 段（秒 分 时 日 月 周）`
+    );
+    continue;
+  }
+  const dom = parts[3];
+  const dow = parts[5];
+  if ((dom === '?') + (dow === '?') !== 1) {
+    cronShapeProblems.push(
+      `${key}：「${cron}」的「日」=${dom}、「周」=${dow} —— 两者必须且只能有一个写 ?，` +
+        `否则 XXL CronExpression 拒绝解析，该 job 永不触发`
+    );
+  }
+}
+if (cronShapeProblems.length) {
+  problems.push(
+    `XXL cron 静态可解析性校验未通过（能通过一致性校验但调度器解析不了）：\n    - ` +
+      cronShapeProblems.join('\n    - ')
+  );
+}
+
 // ── 4. 执行器地址 与 调度中心 context-path 必须一致 ──────────────────────────
 const composeFiles = readdirSync(INFRA_DIR).filter((f) => /^docker-compose.*\.ya?ml$/.test(f));
 if (composeFiles.length === 0) fail('infra/ 下未找到任何 docker-compose 文件，门禁已失效');
@@ -405,7 +441,7 @@ if (problems.length) {
 
 console.log(
   `${TAG} OK（托管任务 ${managedKeys.length} 个，具名 handler ${namedHandlers.size} 个，` +
-    `种子 ${seededHandlers.size} 条，cron 约定 ${declaredCrons.size} 条与种子逐条一致，` +
+    `种子 ${seededHandlers.size} 条，cron 约定 ${declaredCrons.size} 条与种子逐条一致且均为 6 段 Quartz 可解析形态，` +
     `看护阈值 ${watchKeys.length} 条，` +
     `看护指标 ${monitorGauges.length} 个（告警消费 ${monitorGauges.length - DASHBOARD_ONLY_GAUGES.size} 个、` +
     `看板豁免 ${DASHBOARD_ONLY_GAUGES.size} 个），` +

@@ -29,8 +29,14 @@ public final class ScheduleZones {
     public static final String SPRING_CRON_KPI_SNAPSHOT = "0 10 1 * * *";
 
     /**
-     * XXL 种子 cron（Quartz 7 段）：与 {@code infra/xxl-job/seed_aicabinet_jobs.sql} 对齐。
+     * XXL 种子 cron（Quartz <b>6 段</b>：秒 分 时 日 月 周）：与 {@code infra/xxl-job/seed_aicabinet_jobs.sql} 对齐。
      * key = {@link com.aicabinet.trade.service.XxlJobManagedTasks} taskKey，必须逐一对应（门禁校验）。
+     * <p>⚠️ <b>「日」与「周」不可同时限定</b>：指定了「日」（如月任务写 {@code 0 30 1 1 * ?}）时，
+     * 「周」必须写 {@code ?}；反之亦然。两者都写实数或 {@code *} 会被 XXL 的 {@code CronExpression}
+     * 直接拒绝（{@code storeExpressionVals} 抛错），现象是 admin 日志
+     * {@code refreshNextValidTime error for job: jobId=…} 且该 job <b>永远不触发</b> ——
+     * 实测 {@code ops-fee-bill-monthly} 曾写成 7 段 {@code 0 30 1 1 * * ?} 而停摆。
+     * 该形态由 {@code scripts/check-xxl-job-wiring.mjs} 规则 3.10 静态拦截。</p>
      */
     public static final Map<String, String> XXL_CRON_BY_TASK = Map.ofEntries(
             // 交易会话与订单
@@ -49,7 +55,7 @@ public final class ScheduleZones {
             Map.entry("reconciliation", "0 30 1 * * ?"),
             Map.entry("line-commission", "0 20 0 * * ?"),
             Map.entry("finance-margin", "0 5 0 * * ?"),
-            Map.entry("ops-fee-bill-monthly", "0 30 1 1 * * ?"),
+            Map.entry("ops-fee-bill-monthly", "0 30 1 1 * ?"),
             // 营销
             Map.entry("coupon-expire", "0 0 2 * * ?"),
             Map.entry("coupon-expiry-remind", "0 0 0/6 * * ?"),

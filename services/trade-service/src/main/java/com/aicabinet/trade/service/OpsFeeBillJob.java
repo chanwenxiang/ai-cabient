@@ -32,7 +32,7 @@ public class OpsFeeBillJob {
         this.taskService = taskService;
     }
 
-    @Scheduled(cron = "${aicabinet.fee-bill.auto-generate-cron:0 30 1 1 * *}",
+    @Scheduled(cron = "${aicabinet.fee-bill.auto-generate-cron:0 30 1 1 * ?}",
             zone = "${aicabinet.fee-bill.zone:Asia/Shanghai}")
     public void generateMonthlyFees() {
         long taskStart = System.nanoTime();

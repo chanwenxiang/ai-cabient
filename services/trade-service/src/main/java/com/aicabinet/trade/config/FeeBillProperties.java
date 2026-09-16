@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record FeeBillProperties(
         /** 是否启用每月自动出账 */
         boolean autoGenerateEnabled,
-        /** Spring cron，默认每月 1 日 01:30 */
+        /** Spring cron，默认每月 1 日 01:30（「日」限定为 1 时「周」必须写 ? —— 与 XXL 侧同一形态，见 ScheduleZones） */
         String autoGenerateCron,
         /** 时区 */
         String zone,
@@ -25,7 +25,7 @@ public record FeeBillProperties(
 ) {
     public FeeBillProperties {
         if (autoGenerateCron == null || autoGenerateCron.isBlank()) {
-            autoGenerateCron = "0 30 1 1 * *";
+            autoGenerateCron = "0 30 1 1 * ?";
         }
         if (zone == null || zone.isBlank()) {
             zone = "Asia/Shanghai";
@@ -39,6 +39,6 @@ public record FeeBillProperties(
     }
 
     public static FeeBillProperties defaults() {
-        return new FeeBillProperties(true, "0 30 1 1 * *", "Asia/Shanghai", -1, 100, 20);
+        return new FeeBillProperties(true, "0 30 1 1 * ?", "Asia/Shanghai", -1, 100, 20);
     }
 }

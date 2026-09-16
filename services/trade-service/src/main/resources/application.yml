@@ -57,7 +57,7 @@ aicabinet:
   fee-bill:
     # 每月自动出账（租金+流量费）；账期默认=配置时区下「今天+offset」个月
     auto-generate-enabled: ${FEE_BILL_AUTO_GENERATE_ENABLED:true}
-    auto-generate-cron: ${FEE_BILL_AUTO_GENERATE_CRON:0 30 1 1 * *}
+    auto-generate-cron: ${FEE_BILL_AUTO_GENERATE_CRON:0 30 1 1 * ?}
     zone: ${FEE_BILL_ZONE:Asia/Shanghai}
     bill-month-offset-months: ${FEE_BILL_MONTH_OFFSET:-1}
     max-page-size: ${FEE_BILL_MAX_PAGE_SIZE:100}

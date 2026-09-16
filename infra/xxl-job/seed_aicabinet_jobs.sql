@@ -68,7 +68,7 @@ INSERT INTO `xxl_job_info`(
  'CRON', '0 5 0 * * ?', 'DO_NOTHING', 'FAILOVER',
  'financeMarginJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
 (119, 10, '周期费用月结出账', now(), now(), 'aicabinet', '',
- 'CRON', '0 30 1 1 * * ?', 'DO_NOTHING', 'FAILOVER',
+ 'CRON', '0 30 1 1 * ?', 'DO_NOTHING', 'FAILOVER',
  'opsFeeBillMonthlyJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
 -- ── 营销 ────────────────────────────────────────────────────────────────
 (108, 10, '优惠券过期处理', now(), now(), 'aicabinet', '',

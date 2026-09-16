@@ -90,6 +90,34 @@
 > ```
 > seed 的 `ON DUPLICATE KEY UPDATE` 已覆盖 `schedule_conf` / `executor_handler` / `executor_param` /
 > 路由与阻塞策略 / 重试次数，重跑即对齐。
+>
+> ⚠️ **数据卷一旦存在，initdb 就不会再执行** —— seed 只在 `xxl-job-mysql` 数据卷**首次初始化**时
+> 自动导入（挂到 `/docker-entrypoint-initdb.d/`）。所以上面的手工重跑**不是可选项**，
+> 而且**没有任何门禁覆盖「代码 ↔ 运行库」这条路径**（`scripts/` 下的两个 `check-*` 都只读源码与迁移）。
+
+#### 落地必须「重跑 seed + 重建镜像」成对执行
+
+托管后 `tryBegin` 对清单内任务**无条件让位**，所以只做一半会得到比不落地更糟的结果：
+
+> 新代码认 30 个 key → 内置 `@Scheduled` 让位；调度中心若只有旧的 11 条 → **19 个任务无人派发**
+> ⇒ **静默停摆，调度台和运营台都看不到异常。**
+
+顺序：**先重跑 seed，再重建/重启应用**（反了会报 handler not found，至少是响的）。
+落地后按下表逐项验证：
+
+| # | 验证 | 命令/判据 |
+|---|---|---|
+| 1 | 调度中心业务 job 数 = 30 | `SELECT COUNT(*) FROM xxl_job_info WHERE id BETWEEN 101 AND 131;` |
+| 2 | 已有 job 未被改动 | `101–111` 的 `id`/`executor_handler`/`schedule_conf` 与改动前**逐条相同**（防重复插入 → 双触发） |
+| 3 | 全部启用 | `SELECT trigger_status, COUNT(*) FROM xxl_job_info GROUP BY trigger_status;` → 业务侧 30 条均 `=1`（`0` 只应是镜像自带 demo） |
+| 4 | 执行器已注册 | `SELECT * FROM xxl_job_registry;` 有 `EXECUTOR/trade-service` 且 `update_time` 是近期心跳 |
+| 5 | 调度器能解析每条 cron | admin 日志**没有** `refreshNextValidTime error for job: jobId=…` |
+| 6 | 端到端真的跑 | 手动触发 1~2 条 → `xxl_job_log.handle_code=200`，且业务表 `scheduled_task.last_run_at` 推进 |
+
+> **为什么单列第 5 条**：cron 语法错误**不会**让任务报错，只会让 XXL 的 `CronExpression`
+> 解析失败（`storeExpressionVals` 抛错）→ 该 job 算不出下次触发时间 → **永远不触发**，
+> 并且会被调度器**自动停用**（`trigger_status` 被置 0）。这与「没接线」的现象完全一样。
+> 门禁 `check-xxl-job-wiring` 规则 3.10 现在会静态拦截 6 段以外的形态与「日/周同时限定」。
 
 ### 5. 新增一个托管任务的完整清单（5 处，缺一处门禁即红）
 
@@ -97,7 +125,7 @@
 |---|---|---|
 | 1 | `XxlJobManagedTasks.KEYS` | 加 taskKey |
 | 2 | `ScheduledTaskXxlJobHandler` | 加具名 `@XxlJob("xxxJob")` → `runKey("<taskKey>")` |
-| 3 | `ScheduleZones.XXL_CRON_BY_TASK` | 加 Quartz 7 段 cron |
+| 3 | `ScheduleZones.XXL_CRON_BY_TASK` | 加 Quartz **6 段** cron（`秒 分 时 日 月 周`；**「日」与「周」只能有一个写 `?`**，见下） |
 | 4 | `ScheduleZones.MAX_SILENCE_BY_TASK` | 加超期阈值（周期 + 宽限；**月任务按 32 天**） |
 | 5 | `infra/xxl-job/seed_aicabinet_jobs.sql` | 加排期行（`executor_handler` 指向 #2 的具名 handler） |
 
