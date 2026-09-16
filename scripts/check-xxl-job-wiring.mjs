@@ -18,9 +18,11 @@
  *        ↕ 每个具名 handler 必须被排期
  *   infra/xxl-job/seed_aicabinet_jobs.sql（executor_handler 列）
  *
- * 另外校验一处曾真实引发故障的配置漂移：
- *   xxl-job-admin 3.x 的 context-path 是 "/"，执行器侧 `XXL_JOB_ADMIN_ADDRESSES`
- *   的路径部分必须与之一致（多一段前缀 = 注册 404 = 全部托管任务停跑）。
+ * 另外校验两处曾真实引发故障/掩盖故障的漂移：
+ *   - xxl-job-admin 3.x 的 context-path 是 "/"，执行器侧 `XXL_JOB_ADMIN_ADDRESSES`
+ *     的路径部分必须与之一致（多一段前缀 = 注册 404 = 全部托管任务停跑）。
+ *   - 超期看护暴露的 Gauge 必须有 Prometheus 规则消费，否则「指标告警」这一路是假的
+ *     （实证：tasks_scheduled_execution_seconds_count{outcome="ERROR"} 长期有值却无人报警）。
  *
  *   node scripts/check-xxl-job-wiring.mjs
  */
@@ -211,6 +213,56 @@ if (managedKeys.includes(MONITOR_KEY)) {
   );
 }
 
+// 3.7 看护暴露的指标必须有告警规则消费 ——「指标存在但无人消费」等于没有告警。
+//     实证：`tasks_scheduled_execution_seconds_count{...GrowthLogArchiveScheduler,
+//     error="UnsupportedTemporalTypeException",outcome="ERROR"}` 长期为 1，
+//     而 alert_rules.yml 里无任何规则引用该指标族 —— 任务 100% 失败却零告警。
+//     同理，看护自己新加的 Gauge 若没人消费，三路可见性里那条「指标告警」就是假的。
+const monitorSource = read(
+  join(
+    root,
+    'services',
+    'trade-service',
+    'src',
+    'main',
+    'java',
+    'com',
+    'aicabinet',
+    'trade',
+    'service',
+    'ScheduledTaskStaleMonitor.java'
+  ),
+  'ScheduledTaskStaleMonitor.java'
+);
+const alertRulesSource = read(
+  join(root, 'infra', 'prometheus', 'alert_rules.yml'),
+  'alert_rules.yml'
+);
+// Micrometer 的 "a.b.c" 落到 Prometheus 是 "a_b_c"（已用 /actuator/prometheus 实测核对）。
+const monitorGauges = [
+  ...new Set(
+    [...monitorSource.matchAll(/Gauge\.builder\("([a-z0-9.]+)"/g)].map((m) =>
+      m[1].replace(/\./g, '_')
+    )
+  )
+];
+if (monitorGauges.length === 0) {
+  fail('ScheduledTaskStaleMonitor.java 未解析出任何 Gauge 指标名，门禁已失效，请同步本脚本');
+}
+// 逐任务静默秒数是给看板/排障用的，不配告警规则：每个任务的阈值不同（20 分钟~26 小时），
+// 想写成 PromQL 就必须把阈值在 YAML 里复制一份 → 两处漂移。超期判据只在 Java 侧维护，
+// 告警走聚合值 aicabinet_scheduled_task_stale_count。豁免必须显式列出，不允许静默通过。
+const DASHBOARD_ONLY_GAUGES = new Set(['aicabinet_scheduled_task_silence_seconds']);
+const unalerted = monitorGauges.filter(
+  (g) => !DASHBOARD_ONLY_GAUGES.has(g) && !alertRulesSource.includes(g)
+);
+if (unalerted.length) {
+  problems.push(
+    `看护指标已暴露但 infra/prometheus/alert_rules.yml 无任何规则消费：${unalerted.join(', ')}` +
+      ` —— 指标只是被采集，不会产生告警`
+  );
+}
+
 // ── 4. 执行器地址 与 调度中心 context-path 必须一致 ──────────────────────────
 const composeFiles = readdirSync(INFRA_DIR).filter((f) => /^docker-compose.*\.ya?ml$/.test(f));
 if (composeFiles.length === 0) fail('infra/ 下未找到任何 docker-compose 文件，门禁已失效');
@@ -260,6 +312,8 @@ if (problems.length) {
 console.log(
   `${TAG} OK（托管任务 ${managedKeys.length} 个，具名 handler ${namedHandlers.size} 个，` +
     `种子 ${seededHandlers.size} 条，看护阈值 ${watchKeys.length} 条，` +
+    `看护指标 ${monitorGauges.length} 个（告警消费 ${monitorGauges.length - DASHBOARD_ONLY_GAUGES.size} 个、` +
+    `看板豁免 ${DASHBOARD_ONLY_GAUGES.size} 个），` +
     `地址默认值 ${addressDefaults.length} 处，` +
     `admin context-path ${[...declaredPaths].join('/')}）`
 );

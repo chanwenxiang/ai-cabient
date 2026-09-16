@@ -19,6 +19,11 @@
  *        ↕ 反向：种子行必须有代码侧的 runner（否则是残留登记行，会永远不跑）
  *   任意 .java 里出现该 key 字面量
  *
+ * 第三个方向（规则四）：**任何 `tryBegin(TASK_KEY, …)` 调用点都必须已登记**。
+ * 上面两条只管「注册表 → 种子」，漏掉了「既没登记行也没注册、却照样在跑」的任务
+ * （实测 `cache-purge`：每 5 分钟执行一次，记录被 `finish()` 静默丢弃，运营台不可见）。
+ * 注意键常经 `private static final String TASK_KEY = "…"` 间接引用，必须解析常量后比对。
+ *
  *   node scripts/check-scheduled-task-seed.mjs
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -120,6 +125,37 @@ for (const key of seeded.keys()) {
 const registerKeys = [...registrySrc.matchAll(REGISTER_RE)].map((m) => m[1]);
 const dup = registerKeys.filter((k, i) => registerKeys.indexOf(k) !== i);
 
+// ── 6. 规则四：tryBegin 调用点必须已登记（注册表或种子行）─────────────────
+// 反方向漏检：规则一只管「注册表 → 种子」。而「有 tryBegin 调用点、却既没种子行也没注册」
+// 的任务会在后台静默执行 —— finish() 找不到行时直接把记录丢弃（不抛错、不打日志），
+// 运营台看不见、不能启停、不能手动触发。实测 cache-purge 即属此类。
+// 键可能是字面量，也可能经 `private static final String TASK_KEY = "…"` 间接引用，
+// 必须先解析本文件内的常量再比对 —— 否则会把 ops-fee-bill-monthly 误判成「无 runner」。
+// 豁免的语义必须写明：只把 tryBegin 当分布式锁用、刻意不进运营台的任务。
+const LOCK_ONLY_TASKS = new Set(['cache-purge']);
+const tryBeginKeys = new Map();
+for (const file of javaFiles) {
+  const src = read(file);
+  const consts = new Map();
+  for (const m of src.matchAll(
+    /(?:static\s+final\s+)?String\s+([A-Z0-9_]+)\s*=\s*"([a-z0-9][a-z0-9_-]*)"/g
+  )) {
+    consts.set(m[1], m[2]);
+  }
+  for (const m of src.matchAll(/tryBegin\(\s*([A-Z0-9_]+|"[a-z0-9_-]+")/g)) {
+    const raw = m[1].replace(/"/g, '');
+    const key = consts.get(raw) || raw;
+    if (!/^[a-z0-9][a-z0-9_-]*$/.test(key)) continue;
+    if (!tryBeginKeys.has(key)) tryBeginKeys.set(key, file.split(/[\\/]/).pop());
+  }
+}
+if (tryBeginKeys.size < 20) {
+  fail(`仅从 Java 解析出 ${tryBeginKeys.size} 个 tryBegin 任务键，锚点可能已被重写`);
+}
+const unregistered = [...tryBeginKeys]
+  .filter(([key]) => !registry.has(key) && !seeded.has(key) && !LOCK_ONLY_TASKS.has(key))
+  .map(([key, where]) => `${key}（${where}）`);
+
 const problems = [];
 if (missingSeed.length) {
   problems.push(
@@ -137,12 +173,22 @@ if (orphanSeed.length) {
 if (dup.length) {
   problems.push(`ScheduledTaskRegistry 存在重复 key：${[...new Set(dup)].join('、')}`);
 }
+if (unregistered.length) {
+  problems.push(
+    `任务调用了 tryBegin 但既无种子行也无注册（执行记录会被静默丢弃，运营台不可见/不可启停）：\n    - ` +
+      unregistered.join('\n    - ') +
+      `\n  修法：补种子行，或在 ScheduledTaskRegistry 注册；若刻意只当分布式锁用，` +
+      `请加入 check-scheduled-task-seed.mjs 的 LOCK_ONLY_TASKS 并写明原因`
+  );
+}
 
 if (problems.length) {
   fail(`\n  ${problems.join('\n  ')}\n`);
 }
 
 console.log(
-  `${TAG} OK：注册表 ${registry.size} 个任务 ↔ 种子行 ${seeded.size} 个全部对齐` +
+  `${TAG} OK：注册表 ${registry.size} 个任务 ↔ 种子行 ${seeded.size} 个全部对齐，` +
+    `tryBegin 调用点 ${tryBeginKeys.size} 个均已登记` +
+    `（豁免仅分布式锁用途 ${LOCK_ONLY_TASKS.size} 个：${[...LOCK_ONLY_TASKS].join(', ')}）` +
     `（新增任务必须同时补种子行，否则运营台上看不见）`
 );

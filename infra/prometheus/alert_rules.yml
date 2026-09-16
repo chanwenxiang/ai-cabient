@@ -199,6 +199,40 @@ groups:
           summary: "设备指令 ACK 超时"
           description: "柜机可能离线或固件无响应"
 
+  - name: ai-cabinet-scheduled-task
+    rules:
+      # ── 定时任务：停跑与失败 ──
+      # 这两个指标此前只有采集、没有任何规则消费（「指标存在但无人消费」= 没有告警）。
+      # 直接证据：tasks_scheduled_execution_seconds_count{...GrowthLogArchiveScheduler,
+      # error="UnsupportedTemporalTypeException",outcome="ERROR"} 长期为 1，
+      # 该任务 100% 失败却零告警。
+      - alert: ScheduledTaskExecutionFailed
+        # 覆盖全部 @Scheduled 方法（含未在运营台登记的行），比逐任务白名单更全。
+        expr: sum by (code_namespace, code_function, error) (
+                increase(tasks_scheduled_execution_seconds_count{outcome="ERROR"}[1h])
+              ) > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+          biz: scheduler
+        annotations:
+          summary: "定时任务执行失败"
+          description: "{{ $labels.code_namespace }}#{{ $labels.code_function }} 近 1 小时执行失败（{{ $labels.error }}）"
+
+      - alert: ScheduledTaskStale
+        # 判据来自 ScheduledTaskStaleMonitor：以 scheduled_task.last_run_at 为准（不看调度台），
+        # 已扣除进程停机期。阈值按任务分级，故此处只消费聚合值，避免阈值在两处漂移。
+        expr: aicabinet_scheduled_task_stale_count > 0
+        for: 15m
+        labels:
+          severity: critical
+          team: ops
+          biz: scheduler
+        annotations:
+          summary: "托管定时任务未按时执行"
+          description: "{{ $value }} 个托管任务超过最大静默时长，请查 scheduled_task.last_run_at（调度台状态不可信）"
+
   - name: ai-cabinet-minio
     rules:
       - alert: MinioDown
