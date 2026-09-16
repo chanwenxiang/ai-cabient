@@ -128,11 +128,13 @@ const dup = registerKeys.filter((k, i) => registerKeys.indexOf(k) !== i);
 // ── 6. 规则四：tryBegin 调用点必须已登记（注册表或种子行）─────────────────
 // 反方向漏检：规则一只管「注册表 → 种子」。而「有 tryBegin 调用点、却既没种子行也没注册」
 // 的任务会在后台静默执行 —— finish() 找不到行时直接把记录丢弃（不抛错、不打日志），
-// 运营台看不见、不能启停、不能手动触发。实测 cache-purge 即属此类。
+// 运营台看不见、不能启停、不能手动触发。实测 cache-purge 曾属此类。
 // 键可能是字面量，也可能经 `private static final String TASK_KEY = "…"` 间接引用，
 // 必须先解析本文件内的常量再比对 —— 否则会把 ops-fee-bill-monthly 误判成「无 runner」。
-// 豁免的语义必须写明：只把 tryBegin 当分布式锁用、刻意不进运营台的任务。
-const LOCK_ONLY_TASKS = new Set(['cache-purge']);
+// 豁免名单（当前为空）仅容纳「只把 tryBegin 当分布式锁用、刻意不进运营台」的任务。
+// cache-purge 已于 2026-09-16 撤出豁免：本机缓存必须每实例自清，它不再借全局锁；
+// 若将来有人给它加回 tryBegin，本规则会立刻拦下（而不是被豁免静默放行）。
+const LOCK_ONLY_TASKS = new Set();
 const tryBeginKeys = new Map();
 for (const file of javaFiles) {
   const src = read(file);
@@ -186,9 +188,11 @@ if (problems.length) {
   fail(`\n  ${problems.join('\n  ')}\n`);
 }
 
+const exemption = LOCK_ONLY_TASKS.size
+  ? `（豁免仅分布式锁用途 ${LOCK_ONLY_TASKS.size} 个：${[...LOCK_ONLY_TASKS].join(', ')}）`
+  : '（无豁免：所有 tryBegin 调用点都必须登记）';
 console.log(
   `${TAG} OK：注册表 ${registry.size} 个任务 ↔ 种子行 ${seeded.size} 个全部对齐，` +
-    `tryBegin 调用点 ${tryBeginKeys.size} 个均已登记` +
-    `（豁免仅分布式锁用途 ${LOCK_ONLY_TASKS.size} 个：${[...LOCK_ONLY_TASKS].join(', ')}）` +
+    `tryBegin 调用点 ${tryBeginKeys.size} 个均已登记${exemption}` +
     `（新增任务必须同时补种子行，否则运营台上看不见）`
 );

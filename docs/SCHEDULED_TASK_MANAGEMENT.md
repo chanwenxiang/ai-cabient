@@ -27,11 +27,49 @@
 3. **执行记录**：最近时间/结果/耗时；
 4. **XXL 让位**：`XXL_JOB_ENABLED=true` 且 taskKey ∈ `XxlJobManagedTasks` 时，内置 `@Scheduled` 让位；
    仅 XXL 线程或运营「立即执行」（`runAllowingBuiltin`）可进入。
-5. **ArchUnit**：`TradeArchitectureTest.scheduledMustCallTryBegin` 禁止新增裸 `@Scheduled`。
+5. **ArchUnit**：`TradeArchitectureTest.scheduledMustCallTryBegin` 禁止新增裸 `@Scheduled`；
+   唯一豁免 `CacheConfig#purgeExpiredCache`（本机资源回收，见 §四.3）。
 
 多副本部署见 [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)。
 
-## 四、与 XXL-JOB（仓库根目录启动）
+## 四、与 XXL-JOB
+
+### 1. 托管范围：全部业务定时任务（30 个）
+
+> 2026-09-16 起由「资金类优先」改为**全量托管**。原因是生产为多实例部署：Spring `@Scheduled`
+> 在集群里靠 Redis 锁只能保证「只有一台真跑」，代价是**每台每周期都空转抢一次锁**（10 个秒级任务
+> × N 实例）。交给调度中心单选派发后这层浪费消失，且失败重试/路由/触发历史都在调度台可见。
+
+| 项 | 值 |
+|---|---|
+| 控制台 | http://localhost:18090/ （**3.x 无 `/xxl-job-admin` 前缀**） |
+| 账号 | admin / 123456 |
+| 执行器 AppName | trade-service |
+| 托管清单 | `XxlJobManagedTasks.KEYS` —— **30 个业务任务**，覆盖 §五 表格中的全部业务项 |
+| 路由策略 | `FAILOVER`（多实例下单选一台；该台不可用时自动转下一台） |
+| 阻塞策略 | `SERIAL_EXECUTION` |
+| 执行器开关 | `XXL_JOB_ENABLED`（`application.yml` 默认 `false`） |
+
+本地只跑 IDEA、不起 Docker 全栈时：保持 `XXL_JOB_ENABLED=false`，所有任务继续走 Spring 常驻调度。
+
+### 2. 刻意排除的 2 个（不是遗漏，托管后会失效）
+
+| 任务 | 为什么不能托管 |
+|---|---|
+| `scheduled-task-stale-monitor`（超期看护） | 它是「检测 XXL 是否失效」的装置。一旦也交给 XXL，调度中心故障时它会与被看护任务**同时**停跑，唯一能报警的东西没了。`scripts/check-xxl-job-wiring.mjs` 硬性拦截 |
+| `cache-purge`（本机缓存清理） | 清理的是本进程 `ConcurrentHashMap`，必须**每个实例各自执行**；且本机资源回收不应依赖外部调度中心是否可用 |
+
+### 3. `cache-purge` 的特殊性（曾是真缺陷）
+
+`CacheConfig.purgeExpiredCache` 早先借 `tryBegin("cache-purge")` 的全局锁，在多实例下**只有一台实例
+被清**，其余实例的内存条目**永不回收** —— 锁在这里不是「防重复」，而是**造成漏清理**。
+
+现已改为**每实例自清、不借锁**，并因此从 `check-scheduled-task-seed.mjs` 的 `LOCK_ONLY_TASKS`
+豁免名单**撤出**（名单当前为空）：若将来有人给它加回 `tryBegin`，规则四会立刻拦下。
+它不进 `scheduled_task` 台账、运营台不可见、不参与超期看护；执行情况由 Micrometer
+`tasks_scheduled_execution_seconds_count` 覆盖。
+
+### 4. 启动与种子
 
 日常全栈在 **ai-cabinet 根目录** 起，不要单独 `cd infra`：
 
@@ -44,23 +82,31 @@
 > 但被脚本/CI 以非交互方式调用时会**终止整个宿主进程**，日志来不及 flush（表现为 0 字节日志）。
 > 自动化场景请直接用 `cd infra && docker compose --env-file .env -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d <服务名…>`。
 
-会拉起 trade + **XXL-JOB 调度中心**（已写入 `docker-compose.full.yml`）。
-
-| 项 | 值 |
-|---|---|
-| 控制台 | http://localhost:18090/ （**3.x 无 `/xxl-job-admin` 前缀**） |
-| 账号 | admin / 123456 |
-| 执行器 AppName | trade-service |
-| 资金类任务 | `XxlJobManagedTasks`（对账/分账/未付取消等） |
-| 高频巡检 | 仍 Spring（会话/设备离线等） |
-
-本地只跑 IDEA、不起 Docker 全栈时：保持 `XXL_JOB_ENABLED=false`（`application.yml` 默认），资金任务继续走 Spring。
-
 种子任务：`infra/xxl-job/seed_aicabinet_jobs.sql`（调度中心 MySQL 首次初始化自动导入）。
+
+> **新增排期后必须重跑 seed（幂等）**，否则调度中心里没有这条 job，任务会「让位了但没人接」：
+> ```bash
+> docker exec -i <xxl-mysql> mysql -uroot -pxxljob xxl_job < infra/xxl-job/seed_aicabinet_jobs.sql
+> ```
+> seed 的 `ON DUPLICATE KEY UPDATE` 已覆盖 `schedule_conf` / `executor_handler` / `executor_param` /
+> 路由与阻塞策略 / 重试次数，重跑即对齐。
+
+### 5. 新增一个托管任务的完整清单（5 处，缺一处门禁即红）
+
+| # | 位置 | 改什么 |
+|---|---|---|
+| 1 | `XxlJobManagedTasks.KEYS` | 加 taskKey |
+| 2 | `ScheduledTaskXxlJobHandler` | 加具名 `@XxlJob("xxxJob")` → `runKey("<taskKey>")` |
+| 3 | `ScheduleZones.XXL_CRON_BY_TASK` | 加 Quartz 7 段 cron |
+| 4 | `ScheduleZones.MAX_SILENCE_BY_TASK` | 加超期阈值（周期 + 宽限；**月任务按 32 天**） |
+| 5 | `infra/xxl-job/seed_aicabinet_jobs.sql` | 加排期行（`executor_handler` 指向 #2 的具名 handler） |
+
+若该任务此前未在运营台登记，还要在 `db/migration` 补 `scheduled_task` 行、并在
+`ScheduledTaskRegistry` 注册（否则「立即执行」404）。以上全部由门禁静态校验。
 
 ## 五、超期看护：托管任务停跑的兜底
 
-XXL 让位（上一节第 4 条）只判「开关开 + key 在清单」，**不校验调度中心是否可达、执行器是否已注册**。
+XXL 让位（§三 第 4 条）只判「开关开 + key 在清单」，**不校验调度中心是否可达、执行器是否已注册**。
 所以一次配置漂移（例如 `XXL_JOB_ADMIN_ADDRESSES` 多带 `/xxl-job-admin` 前缀）就会让两边同时失效：
 任务**永久停跑**，`last_run_at` 只是停止推进，没有报错、没有告警，测试也覆盖不到
 （实测停跑约 19 小时无人发现，详见 `three-end-full-audit-2026-09-15.md` §18/§19）。
@@ -70,7 +116,7 @@ XXL 让位（上一节第 4 条）只判「开关开 + key 在清单」，**不�
 | 项 | 说明 |
 |---|---|
 | 判据 | **只看业务表 `scheduled_task.last_run_at`**，与 `ScheduleZones.MAX_SILENCE_BY_TASK` 的阈值比较 |
-| 范围 | `XxlJobManagedTasks.KEYS`（11 个托管任务）；非托管任务由 Spring 常驻执行，不在看护范围 |
+| 范围 | `XxlJobManagedTasks.KEYS` —— **全量托管后即全部 30 个业务任务** |
 | 周期 | 每 5 分钟（`aicabinet.scheduled-task.stale-monitor-interval-ms`） |
 | 超期判定 | `MISSING_ROW`（运营台无登记行）/ `NEVER_RUN`（有行但从未执行）/ `OVERDUE`（静默超过阈值） |
 | 告警出口 | ① 运营「异常列表」写入 `SCHEDULED_TASK_STALE`（CRITICAL，恢复后自动关闭）；② 钉钉/企微/通用 Webhook；③ Prometheus 指标 `aicabinet_scheduled_task_silence_seconds{task}`、`aicabinet_scheduled_task_stale_count` |
@@ -90,7 +136,7 @@ XXL 让位（上一节第 4 条）只判「开关开 + key 在清单」，**不�
 ### 停机不算超期
 
 看护最初只算 `now - last_run_at`，**不看进程是否活着**。这在天天关机的开发机上必然误报：
-开机后高频任务（`recharge-cancel`/`data-consistency`/`device-auto-unlock` 阈值 20 分钟，
+开机后高频任务（`session-opening-expire`/`ops-exception-scanner`/`compensation-process` 阈值 5 分钟，
 `unpaid-cancel`/`profit-sharing-retry` 45 分钟）会立刻被判超期。
 
 修正：判据起点取 `max(last_run_at, 进程启动时刻)`。豁免的是**停机期**，不是**任务** ——
@@ -124,24 +170,23 @@ sum by (code_namespace, code_function, error) (
 ) > 0        # 告警 ScheduledTaskExecutionFailed
 ```
 
-### 覆盖范围：运营台 31 行，看护只盯其中 11 个
+### 覆盖范围：运营台 31 行 = 30 托管 + 1 看护
 
 运营台当前 **31 行登记**（已逐个核对触发源，**无残留行**）：
 
 | 类别 | 数量 | 触发方式 | 超期看护 |
 |---|---|---|---|
-| XXL 托管 | 11 | XXL-JOB 派发（`XxlJobManagedTasks.KEYS`） | ✅ 逐任务阈值 |
-| Spring 常驻 | 20 | 内置 `@Scheduled`（cron / fixedRate） | ❌ **不在覆盖范围** |
+| XXL 托管 | 30 | XXL-JOB 派发（`XxlJobManagedTasks.KEYS`） | ✅ 逐任务阈值 |
+| Spring 常驻 | 1 | 内置 `@Scheduled`（`scheduled-task-stale-monitor`） | ❌ 刻意排除（见 §四.2） |
 
-那 20 个**不是"不用管"**：它们同样会因 cron 写错、时区漂移、bean 未装配而停跑，而目前**没有任何机制会发现**。
-实测 `sla-snapshot`（每日 00:05）静默 15 天无人察觉 —— 本机是因为夜间关机，但**同样的停跑发生在服务器上，一样不会被告警**。
-要纳入看护：把 key 加进 `ScheduleZones.MAX_SILENCE_BY_TASK` 与 `XxlJobManagedTasks.KEYS`
-（后者会同时把触发方式改成 XXL 派发，需一并补具名 handler 与种子，`check-xxl-job-wiring` 会拦住漏项）。
+另有 **1 个不在台账内的执行点**：`cache-purge`（本机缓存清理，每实例自清、不借锁、不进运营台）。
 
-> **`cache-purge` 不在这 31 行里。** `CacheConfig` 每 5 分钟调 `tryBegin("cache-purge")`，但既无登记行、也未注册
-> → 执行记录被 `finish()` 静默丢弃，运营台不可见、不可启停、不能手动触发。它只把 `tryBegin` 当分布式锁用
-> （代码注释即如此），因此已在 `check-scheduled-task-seed.mjs` 的 `LOCK_ONLY_TASKS` 里**显式豁免并写明原因**。
-> 若产品希望它在运营台可见，补一行种子即可。
+> 全量托管的**直接收益**：以前「Spring 常驻」那 20 个任务同样会因 cron 写错、时区漂移、bean 未装配
+> 而停跑，且**没有任何机制会发现**（实测 `sla-snapshot`（每日 00:05）静默 15 天无人察觉）。
+> 现在它们全部进入逐任务阈值的看护范围。
+
+> **月任务阈值必须按 32 天**：`ops-fee-bill-monthly` 的 cron 是每月 1 日 01:30，若按日任务的 26 小时
+> 设阈值，会**每月被误报一次超期**。这类低频任务的检测天然滞后（真停跑要等 32 天才报），是判据的固有属性。
 
 > 核对键时**不能只 grep 字面量**：多数任务写成 `private static final String TASK_KEY = "xxx"` 再 `tryBegin(TASK_KEY, …)`，
 > 字面量检索会把 `ops-fee-bill-monthly` 这类任务误判成「无 runner」。门禁已按常量解析。
@@ -156,16 +201,24 @@ sum by (code_namespace, code_function, error) (
 | 进程整体消失 | 有 | 有（更需重视） | 同进程的看护看不到，靠 Prometheus `ServiceDown`（`up == 0`） |
 
 **停机豁免的代价**：进程重启后，每个任务的判定都从「进程启动时刻」重新起算，
-因此发版后最长要等**该任务自己的阈值**才会重新报警（高频任务 20~45 分钟，每日任务 8~26 小时）。
+因此发版后最长要等**该任务自己的阈值**才会重新报警（高频任务 5~45 分钟，每日任务 8~26 小时，月任务 32 天）。
 这不是漏检——重启瞬间本来就无法区分「马上要跑」和「已经坏了」，阈值就是这段分辨期。
+
+### 托管方式切换的一个副作用（好的方向）
+
+部分任务的 Spring 侧用的是 `fixedRate`（从**进程启动时刻**起算，没有固定墙钟点），而运营台
+`schedule_desc` 写的是墙钟描述（如「每日 03:00」）。托管后由调度中心的**墙钟 cron** 驱动，
+两边就此对齐 —— 顺带消除了「展示频率 ≠ 实际调度」的偏差。
 
 ## 六、技术实现
 
 - 表：`scheduled_task`
-- 后端：`ScheduledTaskService` / `ScheduledTaskRegistry` / `ScheduledTaskXxlJobHandler` / `ScheduledTaskController` / `ScheduledTaskStaleMonitor`
+- 后端：`ScheduledTaskService` / `ScheduledTaskRegistry` / `ScheduledTaskXxlJobHandler` / `ScheduledTaskController` / `ScheduledTaskStaleMonitor` / `XxlJobManagedTasks` / `ScheduleZones`
 - 前端：`ScheduledTaskView.vue`（系统 → 定时任务）
 - 根启动：`docker-up.ps1` → `infra/docker-compose.full.yml`（含 xxl-job-admin）
-- 防回归门禁：`scripts/check-xxl-job-wiring.mjs`（托管清单 ↔ handler ↔ 种子 ↔ 看护阈值 ↔
-  看护指标必须有告警规则消费）、`scripts/check-scheduled-task-seed.mjs`（注册表 ↔ 登记行）
+- 防回归门禁：
+  - `scripts/check-xxl-job-wiring.mjs` —— 托管清单 ↔ 具名 handler ↔ 种子行 ↔
+    **cron 两处逐条一致** ↔ 看护阈值 ↔ **托管任务已在注册表注册** ↔ 看护指标必须有告警规则消费
+  - `scripts/check-scheduled-task-seed.mjs` —— 注册表 ↔ 登记行 ↔ tryBegin 调用点（无豁免名单）
 - 告警规则：`infra/prometheus/alert_rules.yml` → `ScheduledTaskStale`（停跑）、
   `ScheduledTaskExecutionFailed`（执行失败）

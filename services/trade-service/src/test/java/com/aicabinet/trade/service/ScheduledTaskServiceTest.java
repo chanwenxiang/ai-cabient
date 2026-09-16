@@ -89,13 +89,16 @@ class ScheduledTaskServiceTest {
 
     @Test
     void tryBegin_stillRunsUnmanagedWhenXxlEnabled() {
+        // 业务任务全量托管后，清单外只剩超期看护（Spring 常驻）—— 它必须不受 XXL 开关影响，
+        // 否则调度中心故障时它会与被看护任务同时停跑，等于拆掉唯一的报警器。
+        String key = ScheduledTaskStaleMonitor.TASK_KEY;
         ScheduledTask row = new ScheduledTask();
-        row.setTaskKey("device-presence");
+        row.setTaskKey(key);
         row.setEnabled(true);
-        when(mapper.selectById("device-presence")).thenReturn(row);
-        when(locks.tryLock("job:device-presence", 600, 0)).thenReturn(true);
+        when(mapper.selectById(key)).thenReturn(row);
+        when(locks.tryLock("job:" + key, 600, 0)).thenReturn(true);
 
-        assertTrue(service(true).tryBegin("device-presence", 600));
+        assertTrue(service(true).tryBegin(key, 600));
     }
 
     @Test

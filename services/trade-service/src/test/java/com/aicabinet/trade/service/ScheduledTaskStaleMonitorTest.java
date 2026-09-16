@@ -105,13 +105,14 @@ class ScheduledTaskStaleMonitorTest {
         allHealthy();
         rows.get("unpaid-cancel").setEnabled(false);
         rows.get("unpaid-cancel").setLastRunAt(Instant.now().minus(Duration.ofDays(5)));
-        // 非托管任务再久也不算停跑（内置 @Scheduled 不会让位，另有兜底）
+        // 非托管任务再久也不算停跑：看护只覆盖 XxlJobManagedTasks.KEYS。
+        // 业务任务全量托管后，清单外只剩看护自己（cache-purge 不进注册表，也不在此扫描范围）。
         ScheduledTask nonManaged = new ScheduledTask();
-        nonManaged.setTaskKey("device-presence");
-        nonManaged.setTaskName("设备离线巡检");
+        nonManaged.setTaskKey(ScheduledTaskStaleMonitor.TASK_KEY);
+        nonManaged.setTaskName("定时任务超期看护");
         nonManaged.setEnabled(true);
         nonManaged.setLastRunAt(Instant.now().minus(Duration.ofDays(5)));
-        rows.put("device-presence", nonManaged);
+        rows.put(ScheduledTaskStaleMonitor.TASK_KEY, nonManaged);
 
         assertTrue(monitor.scan(Instant.now()).isEmpty());
     }

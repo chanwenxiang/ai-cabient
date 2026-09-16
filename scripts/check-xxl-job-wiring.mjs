@@ -10,13 +10,22 @@
  * 吃 404 → `xxl_job_registry` 为空 → 11 个任务（对账/分账/佣金/保证金/自动解锁…）
  * 100% 派发 "Address Router Fail"，停跑约 19 小时无人发现。
  *
- * 代码侧可静态校验的三方契约：
+ * 代码侧可静态校验的契约：
  *
  *   XxlJobManagedTasks.KEYS              （Java：哪些任务必须让位）
  *        ↕ 每个 key 必须有具名 handler
  *   ScheduledTaskXxlJobHandler           （@XxlJob("xxxJob") → runKey("<taskKey>")）
  *        ↕ 每个具名 handler 必须被排期
  *   infra/xxl-job/seed_aicabinet_jobs.sql（executor_handler 列）
+ *        ↕ schedule_conf 必须与 ScheduleZones.XXL_CRON_BY_TASK 逐条一致
+ *
+ * 业务定时任务**全量托管**（2026-09-16 起，生产多实例）后新增三条硬校验：
+ *   - 每个托管 key 必须在 ScheduleZones.XXL_CRON_BY_TASK 有 cron，且与种子的 schedule_conf
+ *     **逐条相同**。两处手工维护必然漂移，而超期看护阈值是按调度周期推的 —— cron 漂移会
+ *     连带把看护阈值带偏。
+ *   - 每个托管 key 必须在 ScheduledTaskRegistry 注册，否则调度中心派发进来后
+ *     registry.get(key) 为空 → handleFail「任务未注册」→ 任务照停。
+ *   - 托管任务的「最大静默时长」必须覆盖（见下）。
  *
  * 另外校验两处曾真实引发故障/掩盖故障的漂移：
  *   - xxl-job-admin 3.x 的 context-path 是 "/"，执行器侧 `XXL_JOB_ADMIN_ADDRESSES`
@@ -263,6 +272,91 @@ if (unalerted.length) {
   );
 }
 
+// 3.8 托管任务的 cron 必须在两处一致：ScheduleZones.XXL_CRON_BY_TASK（Java）与
+//     seed_aicabinet_jobs.sql 的 schedule_conf（真正生效的那份）。两处手工维护必然漂移，
+//     而超期看护阈值是按调度周期推出来的 —— 频率漂移会把看护阈值一起带偏（漏报或误报）。
+const cronAnchor = zonesSource.indexOf('XXL_CRON_BY_TASK = Map.ofEntries(');
+if (cronAnchor < 0) {
+  fail('ScheduleZones.java 中找不到 XXL_CRON_BY_TASK 锚点，门禁已失效，请同步本脚本');
+}
+const cronEnd = zonesSource.indexOf(');', cronAnchor);
+if (cronEnd < 0) fail('ScheduleZones.java 的 XXL_CRON_BY_TASK 声明无法解析');
+const declaredCrons = new Map(
+  [...zonesSource.slice(cronAnchor, cronEnd).matchAll(/Map\.entry\("([a-z0-9-]+)",\s*"([^"]+)"\)/g)].map(
+    (m) => [m[1], m[2]]
+  )
+);
+if (declaredCrons.size === 0) fail('XXL_CRON_BY_TASK 未解析出任何条目，门禁已失效');
+
+const noCron = managedKeys.filter((key) => !declaredCrons.has(key));
+if (noCron.length) {
+  problems.push(
+    `托管任务缺少 XXL cron 约定（ScheduleZones.XXL_CRON_BY_TASK）：${noCron.join(', ')}`
+  );
+}
+
+const orphanCron = [...declaredCrons.keys()].filter((key) => !managedKeys.includes(key)).sort();
+if (orphanCron.length) {
+  problems.push(`XXL_CRON_BY_TASK 存在非托管条目（僵尸约定）：${orphanCron.join(', ')}`);
+}
+
+// 每条种子元组的 (handler → schedule_conf)；handler 反查 taskKey 后与 Java 侧逐条比对。
+// 元组跨三行，故用 [\s\S]*? 非贪婪跨行匹配。
+const seedTupleRe =
+  /\(\d+,\s*\d+,\s*'[^']*',[\s\S]*?'CRON',\s*'([^']+)',[\s\S]*?'([A-Za-z0-9_$]+)',\s*''/g;
+const seedCronByHandler = new Map();
+for (const m of seedSource.matchAll(seedTupleRe)) seedCronByHandler.set(m[2], m[1]);
+if (seedCronByHandler.size === 0) {
+  fail('未能从 seed_aicabinet_jobs.sql 解析出 (handler, cron) 元组，门禁已失效，请同步本脚本');
+}
+
+const cronMismatch = [];
+for (const { handler, taskKey } of pairs) {
+  const seedCron = seedCronByHandler.get(handler);
+  const javaCron = declaredCrons.get(taskKey);
+  if (seedCron && javaCron && seedCron !== javaCron) {
+    cronMismatch.push(`${taskKey}：seed="${seedCron}" ≠ Java="${javaCron}"`);
+  }
+}
+if (cronMismatch.length) {
+  problems.push(
+    `cron 两处不一致（ScheduleZones.XXL_CRON_BY_TASK ↔ seed_aicabinet_jobs.sql）：\n    - ` +
+      cronMismatch.join('\n    - ')
+  );
+}
+
+// 3.9 托管任务必须已在 ScheduledTaskRegistry 注册 —— 否则调度中心派发到执行器后
+//     registry.get(key) 为空，runKey 直接 handleFail「任务未注册」，任务照停（且只在
+//     调度台报失败，业务侧毫无痕迹）。
+const registrySource = read(
+  join(
+    root,
+    'services',
+    'trade-service',
+    'src',
+    'main',
+    'java',
+    'com',
+    'aicabinet',
+    'trade',
+    'service',
+    'ScheduledTaskRegistry.java'
+  ),
+  'ScheduledTaskRegistry.java'
+);
+const registryKeys = new Set(
+  [...registrySource.matchAll(/register\(\s*"([^"]+)"/g)].map((m) => m[1])
+);
+if (registryKeys.size === 0) {
+  fail('ScheduledTaskRegistry.java 未解析出任何 register 调用，门禁已失效，请同步本脚本');
+}
+const notRegistered = managedKeys.filter((key) => !registryKeys.has(key));
+if (notRegistered.length) {
+  problems.push(
+    `托管任务未在 ScheduledTaskRegistry 注册（XXL 触发会 handleFail「任务未注册」）：${notRegistered.join(', ')}`
+  );
+}
+
 // ── 4. 执行器地址 与 调度中心 context-path 必须一致 ──────────────────────────
 const composeFiles = readdirSync(INFRA_DIR).filter((f) => /^docker-compose.*\.ya?ml$/.test(f));
 if (composeFiles.length === 0) fail('infra/ 下未找到任何 docker-compose 文件，门禁已失效');
@@ -311,7 +405,8 @@ if (problems.length) {
 
 console.log(
   `${TAG} OK（托管任务 ${managedKeys.length} 个，具名 handler ${namedHandlers.size} 个，` +
-    `种子 ${seededHandlers.size} 条，看护阈值 ${watchKeys.length} 条，` +
+    `种子 ${seededHandlers.size} 条，cron 约定 ${declaredCrons.size} 条与种子逐条一致，` +
+    `看护阈值 ${watchKeys.length} 条，` +
     `看护指标 ${monitorGauges.length} 个（告警消费 ${monitorGauges.length - DASHBOARD_ONLY_GAUGES.size} 个、` +
     `看板豁免 ${DASHBOARD_ONLY_GAUGES.size} 个），` +
     `地址默认值 ${addressDefaults.length} 处，` +

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.support.ScheduleZones;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -12,6 +13,10 @@ import java.util.Optional;
  * 定时任务注册表：任务元数据与手动触发执行入口。
  * <p>action 指向各定时任务自身（含执行守卫），保证手动触发与自动调度走同一套
  * 启停开关 + 分布式锁 + 执行记录。</p>
+ * <p><b>这里是「被看护」的边界，不是「被 XXL 托管」的边界。</b>业务定时任务已全量托管
+ * （见 {@link XxlJobManagedTasks}），但仍有 2 个刻意留在 Spring 常驻：超期看护
+ * {@code scheduled-task-stale-monitor}（托管后会与调度中心一起停跑）与 {@code cache-purge}
+ * （本机缓存清理，每实例自清、通过 {@code LOCK_ONLY_TASKS} 豁免而不进本注册表）。</p>
  */
 @Component
 public class ScheduledTaskRegistry {
@@ -59,6 +64,7 @@ public class ScheduledTaskRegistry {
                                  SkuReviewScheduler skuReviewScheduler,
                                  RiskAutoDispositionService riskAutoDispositionService,
                                  DeviceTempPlanService deviceTempPlanService,
+                                 ObjectProvider<OpsFeeBillJob> opsFeeBillJobProvider,
                                  ScheduledTaskStaleMonitor scheduledTaskStaleMonitor) {
         register("device-presence", "设备离线巡检", "DEVICE", V_60, 600,
                 devicePresenceService::markStaleDevicesOffline);
@@ -101,6 +107,11 @@ public class ScheduledTaskRegistry {
                 lineCommissionJob::postDailyCommission);
         register("finance-margin", "财务保证金固化", FINANCE, ScheduleZones.desc("每日 00:05"), 1800,
                 financeMarginLockScheduler::solidifyYesterday);
+        // 条件注册：OpsFeeBillJob 带 @ConditionalOnProperty(auto-generate-enabled, matchIfMissing=true)，
+        // 关闭时不建 bean；直接构造注入会让整个服务起不来，故用 ObjectProvider 探测。
+        // 未注册时运营台「立即执行」与 XXL 触发都会明确报「任务未注册」，而不是静默不跑。
+        opsFeeBillJobProvider.ifAvailable(job -> register("ops-fee-bill-monthly", "周期费用月结出账", FINANCE,
+                ScheduleZones.desc("每月 1 日 01:30"), 1800, job::generateMonthlyFees));
         register("coupon-expire", "优惠券过期处理", MARKETING, ScheduleZones.desc("每日 02:00"), 600,
                 couponService::expireOverdueCoupons);
         register("points-expiry", "积分过期管理", MARKETING, ScheduleZones.desc("每 6 小时"), 600,

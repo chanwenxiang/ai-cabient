@@ -19,7 +19,8 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
  * 防回潮：Controller 不得直调 Mapper；禁止复活旧订单摘要 DTO；
- * 写事务内禁止 MQTT 开门/运维指令；{@code @Scheduled} 须经 {@code tryBegin}（多实例 Redis 锁）。
+ * 写事务内禁止 MQTT 开门/运维指令；{@code @Scheduled} 须经 {@code tryBegin}（多实例 Redis 锁），
+ * 本机资源回收（{@code CacheConfig#purgeExpiredCache}）显式豁免。
  */
 @AnalyzeClasses(
         packages = {"com.aicabinet.trade", "com.aicabinet.common.dto"},
@@ -55,18 +56,32 @@ class TradeArchitectureTest {
     /**
      * 本仓用 {@code ScheduledTaskService.tryBegin}（Redis）做多实例选举，作用等同 ShedLock；
      * 新增 {@code @Scheduled} 必须走 tryBegin，禁止裸跑。
+     *
+     * <p><b>唯一豁免：本机资源回收</b>（{@code CacheConfig#purgeExpiredCache}）。它清理的是
+     * 本进程的 {@code ConcurrentHashMap}，必须<em>每个实例各自执行</em>；借分布式锁会让集群里
+     * 只有一台被清、其余实例的内存条目永不回收 —— 锁在这里不是防重复，而是造成漏清理。
+     * 豁免是显式写死的（类名 + 方法名），不是「不检查 @Scheduled」这种宽泛放行。</p>
      */
     @ArchTest
     static final ArchRule scheduledMustCallTryBegin =
             methods().that().areAnnotatedWith(Scheduled.class)
                     .and().areDeclaredInClassesThat().resideInAPackage("com.aicabinet.trade..")
                     .should(callTryBegin())
-                    .because("多实例下 @Scheduled 须经 ScheduledTaskService.tryBegin（Redis 锁）");
+                    .because("多实例下 @Scheduled 须经 ScheduledTaskService.tryBegin（Redis 锁）；本机资源回收除外");
+
+    private static final String PER_INSTANCE_TASK_CLASS = "com.aicabinet.trade.config.CacheConfig";
+    private static final String PER_INSTANCE_TASK_METHOD = "purgeExpiredCache";
 
     private static ArchCondition<JavaMethod> callTryBegin() {
         return new ArchCondition<>("call tryBegin for cluster-safe scheduling") {
             @Override
             public void check(JavaMethod method, ConditionEvents events) {
+                if (method.getOwner().getName().equals(PER_INSTANCE_TASK_CLASS)
+                        && method.getName().equals(PER_INSTANCE_TASK_METHOD)) {
+                    events.add(SimpleConditionEvent.satisfied(method,
+                            "per-instance local cache purge: distributed lock intentionally not used"));
+                    return;
+                }
                 boolean calls = method.getMethodCallsFromSelf().stream()
                         .anyMatch(c -> "tryBegin".equals(c.getTarget().getName()));
                 if (!calls) {
