@@ -249,7 +249,8 @@ jobs:
       - name: Verify admin UI artifacts are up-to-date
         run: |
           set -euo pipefail
-          changed=$(git status --porcelain -- services/trade-service/src/main/resources/static/admin)
+          # -uall：否则整个 assets/ 都成为未跟踪时会被折叠成一行，诊断信息不足
+          changed=$(git status --porcelain -uall -- services/trade-service/src/main/resources/static/admin)
           if [ -n "$changed" ]; then
             printf '%s\n' "$changed"
             echo "::error::static/admin 与 clients/admin-vue 源码不同步：请在本地运行 \`node scripts/build-admin.mjs\` 并提交产物"
