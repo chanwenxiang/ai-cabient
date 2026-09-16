@@ -300,7 +300,8 @@ springdoc:
     operations-sorter: method
 
 # XXL-JOB 执行器（调度中心独立部署；XXL_JOB_ENABLED=true 时注册）
-# 资金类任务见 XxlJobManagedTasks；控制台默认 http://localhost:18090/xxl-job-admin
+# 资金类任务见 XxlJobManagedTasks；控制台 http://localhost:18090/ （登录页 /auth/login）
+# 地址必须是调度中心根地址，3.x 无 /xxl-job-admin 前缀；写错 = 注册 404 = 托管任务全部停跑
 xxl:
   job:
     admin:

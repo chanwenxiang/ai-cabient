@@ -476,7 +476,7 @@ const { onExport } = useListCsv({
       row.routeCode || '',
       row.address || '',
       row.salesLocked ? '是' : '否',
-      row.salesLockReason || '',
+      row.salesLocked ? row.salesLockReason || '' : '',
       row.currentTempC == null ? '' : `${row.currentTempC}°C`,
       row.firmwareVersion || '',
       row.orderTotal,

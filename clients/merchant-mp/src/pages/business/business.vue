@@ -202,16 +202,27 @@
               </text>
               <text v-if="r.address" class="meta">{{ r.address }}</text>
               <text
-                v-if="r.currentTempC != null || r.firmwareVersion || r.salesLockReason"
+                v-if="
+                  r.currentTempC != null ||
+                  r.firmwareVersion ||
+                  (r.salesLocked && r.salesLockReason)
+                "
                 class="meta"
               >
                 <template v-if="r.currentTempC != null">温度 {{ r.currentTempC }}°C</template>
                 <template v-if="r.currentTempC != null && r.firmwareVersion"> · </template>
                 <template v-if="r.firmwareVersion">固件 {{ r.firmwareVersion }}</template>
-                <template v-if="(r.currentTempC != null || r.firmwareVersion) && r.salesLockReason">
+                <template
+                  v-if="
+                    (r.currentTempC != null || r.firmwareVersion) &&
+                    r.salesLocked &&
+                    r.salesLockReason
+                  "
+                >
                   ·
                 </template>
-                <template v-if="r.salesLockReason">{{ r.salesLockReason }}</template>
+                <!-- 停售原因只在「确实处于停售」时展示：未锁机却挂着原因会自相矛盾 -->
+                <template v-if="r.salesLocked && r.salesLockReason">{{ r.salesLockReason }}</template>
               </text>
             </view>
             <view class="report-data">

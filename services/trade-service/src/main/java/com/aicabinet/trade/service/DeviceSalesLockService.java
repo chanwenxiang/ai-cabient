@@ -124,6 +124,8 @@ public class DeviceSalesLockService {
             device.setSaleForbidden(false);
             device.setSalesLockReason(null);
             device.setSalesUnlockedAt(java.time.Instant.now());
+            // updateById 跳过 null 字段：不显式清库，解锁后仍会残留旧停售原因
+            deviceRepository.clearSalesLockReason(device.getDeviceId());
         }
         deviceRepository.save(device);
         String action = locked ? "DEVICE_LOCK" : "DEVICE_UNLOCK";

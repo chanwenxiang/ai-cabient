@@ -108,7 +108,8 @@ services:
       RECON_MOCK_ENABLED: ${RECON_MOCK_ENABLED:-true}
       # 多实例默认开 XXL：资金/对账类由调度中心触发；本地 IDEA 仍可用 XXL_JOB_ENABLED=false
       XXL_JOB_ENABLED: ${XXL_JOB_ENABLED:-true}
-      XXL_JOB_ADMIN_ADDRESSES: ${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080/xxl-job-admin}
+      # xxl-job-admin 3.x 的 context-path 为 "/"，不能带 /xxl-job-admin 前缀（会 404 → 注册失败）
+      XXL_JOB_ADMIN_ADDRESSES: ${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080}
       XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:-}
       XXL_JOB_EXECUTOR_PORT: ${XXL_JOB_EXECUTOR_PORT:-9999}
     depends_on:

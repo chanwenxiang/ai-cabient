@@ -90,6 +90,18 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
                 .set(DeviceInfo::getSalesUnlockedAt, null));
     }
 
+    /**
+     * 解锁时清空停售原因。
+     * <p>{@code updateById} 默认跳过 null 字段，服务层 {@code setSalesLockReason(null)} 不会落库，
+     * 必须与 {@link #clearSalesUnlockedAt} 一样走显式 SQL；否则解锁后设备会残留
+     * 「离线超时自动停售」这类原因，与 {@code sales_locked=false} 自相矛盾。</p>
+     */
+    default void clearSalesLockReason(String deviceId) {
+        update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                .eq(DeviceInfo::getDeviceId, deviceId)
+                .set(DeviceInfo::getSalesLockReason, null));
+    }
+
     /** 锁机中且已稳定在线超过 cutff 的设备（用于稳定在线自动解锁）。 */
     default List<DeviceInfo> findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
             String onlineStatus, java.time.Instant cutoff, int limit) {
