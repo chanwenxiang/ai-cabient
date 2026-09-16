@@ -760,21 +760,56 @@ async function main() {
     );
 
     // —— TC-ORDD-001 订单详情 ——
-    // 前置：列表里得先有订单卡片。CI 的账号在全新种子里没有任何订单（各 tab 均 0 条），
-    // 此时「点不开详情」是环境没数据，不是详情页坏了 —— 必须记 SKIP，
-    // 否则就是一条结构上不可能 PASS 的用例，白占 UAT_MAX_FAIL 额度（本机有订单所以看不出来）。
+    // 前置：列表里得先有订单卡片。等列表「落定」（卡片 或 空态 出现，都代表请求已返回），
+    // 不再只靠固定 sleep —— CI 上接口冷启动时会踩空，把「还没渲染」误报成「点不开」。
+    await page
+      .waitForFunction(
+        () =>
+          !!document.querySelector('.order-card') || document.body.innerText.includes('暂无订单'),
+        null,
+        { timeout: 15000 }
+      )
+      .catch(() => {});
+    await page.waitForTimeout(300);
+
     const orderCardCount = await page.evaluate(
       () => document.querySelectorAll('.order-card').length
     );
+    text = await bodyText(page);
+
     if (orderCardCount === 0) {
+      // 「0 张卡片」有两种相反含义，必须先分清再下结论：
+      //   (a) 环境本来就没有订单 → 前置不满足，记 SKIP（CI 全新种子就是这情况）；
+      //   (b) 接口有订单、列表却没渲染 → **真缺陷**，必须 FAIL。
+      // 只判 FAIL 会把 (a) 当缺陷；只判 SKIP 会把 (b) 藏起来。故直连接口取一条独立事实。
+      const apiOrderCount = await page.evaluate(async () => {
+        const token =
+          localStorage.getItem('consumer_token') || sessionStorage.getItem('consumer_token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        try {
+          const r = await fetch('/api/v2/orders?page=0&size=5', {
+            headers,
+            credentials: 'same-origin'
+          });
+          if (!r.ok) return -1;
+          const j = await r.json();
+          const items = j?.data?.items || j?.data?.content || [];
+          return Array.isArray(items) ? items.length : -1;
+        } catch {
+          return -1;
+        }
+      });
       const e10aSkip = await shot(page, '10a-order-detail');
+      const apiBroken = apiOrderCount > 0;
       record(
         'TC-ORDD-001',
         '订单详情',
         '功能',
-        'SKIP',
-        '前置不满足：当前账号订单列表为空（无 .order-card），无法验证详情页。' +
-          `实测文案：${text.split('\n').filter(Boolean).slice(0, 6).join(' | ')}`,
+        apiBroken ? 'FAIL' : 'SKIP',
+        (apiBroken
+          ? `接口有 ${apiOrderCount} 条订单但列表渲染 0 张卡片（疑似列表渲染缺陷）— `
+          : `前置不满足：环境无订单（接口返回 ${apiOrderCount} 条），无法验证详情页 — `) +
+          `列表 0 张卡片；页面文案：${text.split('\n').filter(Boolean).slice(0, 6).join(' | ')}`,
         e10aSkip
       );
     } else {

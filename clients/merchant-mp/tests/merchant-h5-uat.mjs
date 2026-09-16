@@ -538,27 +538,82 @@ async function main() {
 
     // —— M-10b 订单详情 ——
     await gotoPath(page, '/pages/orders/orders');
-    await page.waitForTimeout(2000);
-    const clickedOrder = await page.evaluate(() => {
-      // `.order-card` 是重构前的旧类名（已无任何元素使用），保留在回退链里只会掩盖
-      // 选择器失效；真值来源是 clients/merchant-mp/src/pages/orders/orders.vue 的 `.card`。
-      const card = document.querySelector('.page-body .card') || document.querySelector('.card');
-      if (!card) return false;
-      card.click();
-      return true;
-    });
-    await page.waitForTimeout(2000);
-    text = await bodyText(page);
-    const orderDetailOk = clickedOrder && /订单详情|支付信息|商品清单|支付方式/.test(text);
-    const e10d = await shot(page, '10d-order-detail');
-    record(
-      'M-10b',
-      '订单详情',
-      '功能',
-      orderDetailOk ? 'PASS' : 'FAIL',
-      text.split('\n').slice(0, 10).join(' | '),
-      e10d
+    // 等列表「落定」：卡片出现 **或** 空态出现（两者都说明请求已返回）。
+    // 原来只靠固定 sleep，CI 上 API 冷启动时会踩空 → 误报 FAIL。
+    await page
+      .waitForFunction(
+        () =>
+          !!document.querySelector('.page-body .card') || !!document.querySelector('.empty-state'),
+        null,
+        { timeout: 15000 }
+      )
+      .catch(() => {});
+    await page.waitForTimeout(300);
+
+    const orderCardCount = await page.evaluate(
+      () => document.querySelectorAll('.page-body .card').length
     );
+    text = await bodyText(page);
+
+    if (orderCardCount === 0) {
+      // 「0 张卡片」有两种完全相反的含义，必须分清再下结论：
+      //   (a) 环境本来就没有订单 → 前置不满足，应记 SKIP；
+      //   (b) 接口有订单、列表却没渲染 → **真缺陷**，应记 FAIL。
+      // 只判 FAIL 会把 (a) 误当缺陷（CI 全新种子就是这情况）；只判 SKIP 又会把 (b) 藏起来。
+      // 所以这里直连接口取一条独立事实来区分二者。
+      const apiOrderCount = await page.evaluate(async () => {
+        const token =
+          localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        try {
+          const r = await fetch('/api/v2/merchant/orders?page=0&size=5', {
+            headers,
+            credentials: 'same-origin'
+          });
+          if (!r.ok) return -1;
+          const j = await r.json();
+          const items = j?.data?.items || j?.data?.content || [];
+          return Array.isArray(items) ? items.length : -1;
+        } catch {
+          return -1;
+        }
+      });
+      const e10dEmpty = await shot(page, '10d-order-detail');
+      const observed = text.split('\n').filter(Boolean).slice(0, 8).join(' | ');
+      const apiBroken = apiOrderCount > 0;
+      record(
+        'M-10b',
+        '订单详情',
+        '功能',
+        apiBroken ? 'FAIL' : 'SKIP',
+        (apiBroken
+          ? `接口有 ${apiOrderCount} 条订单但列表渲染 0 张卡片（疑似列表渲染缺陷）— `
+          : `前置不满足：环境无订单（接口返回 ${apiOrderCount} 条），无法验证详情页 — `) +
+          `列表 0 张卡片；页面文案：${observed}`,
+        e10dEmpty
+      );
+    } else {
+      const clickedOrder = await page.evaluate(() => {
+        // `.order-card` 是重构前的旧类名（已无任何元素使用），保留在回退链里只会掩盖
+        // 选择器失效；真值来源是 clients/merchant-mp/src/pages/orders/orders.vue 的 `.card`。
+        const card = document.querySelector('.page-body .card') || document.querySelector('.card');
+        if (!card) return false;
+        card.click();
+        return true;
+      });
+      await page.waitForTimeout(2000);
+      text = await bodyText(page);
+      const orderDetailOk = clickedOrder && /订单详情|支付信息|商品清单|支付方式/.test(text);
+      const e10d = await shot(page, '10d-order-detail');
+      record(
+        'M-10b',
+        '订单详情',
+        '功能',
+        orderDetailOk ? 'PASS' : 'FAIL',
+        `cards=${orderCardCount} | ${text.split('\n').slice(0, 10).join(' | ')}`,
+        e10d
+      );
+    }
 
     // —— M-10v 订单购物视频（Bearer 鉴权拉流，禁止假地址冒充通过）——
     const videoOrderHint = DEMO_ORDER_WITH_VIDEO;
