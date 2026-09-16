@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -39,6 +40,17 @@ import java.util.stream.Collectors;
  * <p>命中超期时三路可见：① 运营「异常列表」写入一条 {@code SCHEDULED_TASK_STALE} 系统级异常
  * （恢复后自动关闭）；② 经 {@link OpsAlertDispatcher} 推送钉钉/企微/Webhook；③ 暴露
  * {@code aicabinet_scheduled_task_silence_seconds} / {@code ..._stale_count} 供 Prometheus 告警。</p>
+ *
+ * <p><b>停机不算超期。</b>判据起点取 {@code max(last_run_at, 进程启动时刻)}：进程没活着的那段时间里
+ * 任务本来就不可能执行，把这段静默算作「超期」等于每次重启/开机都误报一次（本机开发环境每天关机，
+ * 高频任务阈值只有 20~45 分钟，必中）。豁免的是「停机期」而不是「任务」：进程恢复后仍超过阈值的
+ * 静默照报。</p>
+ *
+ * <p><b>能力边界（必须知道）。</b>看护与被看护的任务同进程，<b>看不到本进程整体消失</b> —— 进程不在时
+ * 它也没了。所以它只能治「进程活着但任务不触发」（上一轮 11 个任务成功率 0% 且零告警就是这种），
+ * 治不了「进程整个没了」：那种情况要等进程回来才说话（迟到但有用），或交给进程外的探针
+ * （如 Prometheus {@code up{job="trade-service"} == 0}）。宿主休眠/待机同理不被豁免 ——
+ * 挂起期间时钟推进但 {@code serviceStart} 不变，会被判超期。</p>
  */
 @Service
 public class ScheduledTaskStaleMonitor {
@@ -72,8 +84,17 @@ public class ScheduledTaskStaleMonitor {
     }
 
     record StaleTask(String taskKey, String taskName, Reason reason, Instant lastRunAt,
-                     Duration silence, Duration maxSilence) {
+                     Duration silence, Duration maxSilence, boolean afterRestart) {
     }
+
+    /**
+     * 本进程启动时刻。早于它的静默不能用「任务没跑」解释 —— 那时进程根本不在。
+     * 取 JVM 启动时间：容器/宿主重启会同步推进它，正是停机豁免需要的语义。
+     *
+     * <p>非 final 且包内可见：单测需要构造「刚重启（uptime &lt; 阈值）」与「已运行很久」两种场景，
+     * 而 JVM 启动时间是进程级事实，无法注入。生产代码只读不写。</p>
+     */
+    volatile Instant serviceStart;
 
     private final ScheduledTaskMapper taskRepository;
     private final ScheduledTaskService taskService;
@@ -104,11 +125,12 @@ public class ScheduledTaskStaleMonitor {
         this.exceptionService = exceptionService;
         this.enabled = enabled;
         this.realertInterval = Duration.ofMinutes(Math.max(1, realertMinutes));
+        this.serviceStart = Instant.ofEpochMilli(ManagementFactory.getRuntimeMXBean().getStartTime());
         for (String key : XxlJobManagedTasks.KEYS.stream().sorted().toList()) {
             AtomicLong holder = new AtomicLong(-1);
             silenceSeconds.put(key, holder);
             Gauge.builder("aicabinet.scheduled.task.silence.seconds", holder, AtomicLong::doubleValue)
-                    .description("托管任务距最近一次执行的秒数（-1 = 无执行记录）")
+                    .description("托管任务距最近一次执行的秒数（-1 = 无执行记录；已扣除进程停机期）")
                     .tag("task", key)
                     .register(meterRegistry);
         }
@@ -154,7 +176,18 @@ public class ScheduledTaskStaleMonitor {
 
     /** 只读巡检，便于单测直接断言（不触发告警与指标刷新）。 */
     List<StaleTask> scan(Instant now) {
+        return scan(now, serviceStart);
+    }
+
+    /**
+     * 只读巡检。{@code serviceStart} 显式传入，便于单测构造停机/重启场景。
+     *
+     * <p>判据起点 = {@code max(lastRunAt, serviceStart)}。{@code NEVER_RUN} 也给一个阈值宽限期：
+     * 刚重启时任何任务都还没有「本次启动后」的执行记录，立刻报超期没有信息量。</p>
+     */
+    List<StaleTask> scan(Instant now, Instant serviceStart) {
         List<StaleTask> stale = new ArrayList<>();
+        int exemptedByRestart = 0;
         for (String key : XxlJobManagedTasks.KEYS) {
             Duration maxSilence = ScheduleZones.MAX_SILENCE_BY_TASK.get(key);
             if (maxSilence == null) {
@@ -164,7 +197,7 @@ public class ScheduledTaskStaleMonitor {
             ScheduledTask row = taskRepository.selectById(key);
             if (row == null) {
                 setSilence(key, -1);
-                stale.add(new StaleTask(key, key, Reason.MISSING_ROW, null, null, maxSilence));
+                stale.add(new StaleTask(key, key, Reason.MISSING_ROW, null, null, maxSilence, false));
                 continue;
             }
             if (!Boolean.TRUE.equals(row.getEnabled())) {
@@ -174,14 +207,29 @@ public class ScheduledTaskStaleMonitor {
             Instant lastRunAt = row.getLastRunAt();
             if (lastRunAt == null) {
                 setSilence(key, -1);
-                stale.add(new StaleTask(key, row.getTaskName(), Reason.NEVER_RUN, null, null, maxSilence));
+                // 无执行记录：给一个阈值宽限期，让本次启动后的首次调度有机会发生。
+                if (Duration.between(serviceStart, now).compareTo(maxSilence) > 0) {
+                    stale.add(new StaleTask(key, row.getTaskName(), Reason.NEVER_RUN, null, null,
+                            maxSilence, false));
+                }
                 continue;
             }
-            Duration silence = Duration.between(lastRunAt, now);
+            boolean afterRestart = lastRunAt.isBefore(serviceStart);
+            if (afterRestart) {
+                exemptedByRestart++;
+            }
+            // 停机期不算任务失职：起点取「最近执行」与「进程启动」中较晚者。
+            Instant reference = afterRestart ? serviceStart : lastRunAt;
+            Duration silence = Duration.between(reference, now);
             setSilence(key, Math.max(0, silence.getSeconds()));
             if (silence.compareTo(maxSilence) > 0) {
-                stale.add(new StaleTask(key, row.getTaskName(), Reason.OVERDUE, lastRunAt, silence, maxSilence));
+                stale.add(new StaleTask(key, row.getTaskName(), Reason.OVERDUE, lastRunAt, silence,
+                        maxSilence, afterRestart));
             }
+        }
+        if (exemptedByRestart > 0) {
+            log.info("静默起算点被进程启动时刻截断（停机豁免）count={} serviceStart={}",
+                    exemptedByRestart, serviceStart);
         }
         stale.sort(Comparator.comparing(StaleTask::taskKey));
         return stale;
@@ -223,6 +271,11 @@ public class ScheduledTaskStaleMonitor {
                     .append(t.reason().text());
             if (t.lastRunAt() == null) {
                 sb.append("；阈值 ").append(t.maxSilence().toMinutes()).append(" 分钟");
+            } else if (t.afterRestart()) {
+                sb.append("；上次执行 ").append(TIME_FMT.format(t.lastRunAt()))
+                        .append("（早于进程启动），本次启动后已静默 ")
+                        .append(t.silence().toMinutes()).append(" 分钟，阈值 ")
+                        .append(t.maxSilence().toMinutes()).append(" 分钟");
             } else {
                 sb.append("；最近执行 ").append(TIME_FMT.format(t.lastRunAt()))
                         .append(" 已静默 ").append(t.silence().toMinutes()).append(" 分钟");

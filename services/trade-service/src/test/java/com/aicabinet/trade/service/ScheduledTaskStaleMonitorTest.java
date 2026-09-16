@@ -47,6 +47,9 @@ class ScheduledTaskStaleMonitorTest {
         when(mapper.selectById(anyString())).thenAnswer(inv -> rows.get(inv.getArgument(0, String.class)));
         when(taskService.tryBegin(eq(ScheduledTaskStaleMonitor.TASK_KEY), anyLong())).thenReturn(true);
         monitor = newMonitor(true, 360);
+        // 默认把「进程启动时刻」推到无限早：等价于「进程一直活着」，即停机豁免不生效。
+        // 这样既有断言测的仍是纯 last_run_at 判据；要测停机豁免的用例自己覆写该字段。
+        monitor.serviceStart = Instant.EPOCH;
     }
 
     private ScheduledTaskStaleMonitor newMonitor(boolean enabled, long realertMinutes) {
@@ -162,6 +165,66 @@ class ScheduledTaskStaleMonitorTest {
         newMonitor(false, 360).check();
 
         verify(taskService, never()).tryBegin(anyString(), anyLong());
+    }
+
+    // ── 停机豁免：进程没活着的时段不算任务失职（「我关机了怎么跑」）────────────
+
+    @Test
+    void scan_exemptsSilenceShorterThanProcessUptime() {
+        // 机器关机 3 小时、刚开机 10 分钟：recharge-cancel 阈值 20 分钟，
+        // 真实静默 3 小时，但进程只活了 10 分钟 —— 不能判超期。
+        allHealthy();
+        Instant now = Instant.now();
+        rows.get("recharge-cancel").setLastRunAt(now.minus(Duration.ofHours(3)));
+        monitor.serviceStart = now.minus(Duration.ofMinutes(10));
+
+        assertTrue(monitor.scan(now).isEmpty(), "停机期的静默不应被判超期");
+    }
+
+    @Test
+    void scan_stillFlagsOnceUptimeExceedsThreshold() {
+        // 同一场景延后：进程已活 30 分钟（> 20 分钟阈值）仍未执行 —— 这才是真停跑。
+        // 豁免的是「停机期」，不是「任务」。
+        allHealthy();
+        Instant now = Instant.now();
+        rows.get("recharge-cancel").setLastRunAt(now.minus(Duration.ofHours(3)));
+        monitor.serviceStart = now.minus(Duration.ofMinutes(30));
+
+        List<ScheduledTaskStaleMonitor.StaleTask> stale = monitor.scan(now);
+
+        assertEquals(1, stale.size());
+        assertEquals("recharge-cancel", stale.get(0).taskKey());
+        assertEquals(ScheduledTaskStaleMonitor.Reason.OVERDUE, stale.get(0).reason());
+        assertTrue(stale.get(0).afterRestart(), "应标记为「静默起算点被进程启动截断」");
+        assertEquals(Duration.ofMinutes(30), stale.get(0).silence(), "静默应从进程启动时刻起算");
+    }
+
+    @Test
+    void scan_neverRunGetsGracePeriodAfterRestart() {
+        allHealthy();
+        Instant now = Instant.now();
+        rows.get("reconciliation").setLastRunAt(null); // 阈值 26 小时
+
+        monitor.serviceStart = now.minus(Duration.ofMinutes(5));
+        assertTrue(monitor.scan(now).isEmpty(), "刚重启就报「无执行记录」没有信息量");
+
+        monitor.serviceStart = now.minus(Duration.ofHours(27));
+        List<ScheduledTaskStaleMonitor.StaleTask> stale = monitor.scan(now);
+        assertEquals(1, stale.size());
+        assertEquals(ScheduledTaskStaleMonitor.Reason.NEVER_RUN, stale.get(0).reason());
+    }
+
+    @Test
+    void scan_missingRowIsNotExcusedByRestart() {
+        // 缺登记行是配置缺陷（执行记录无处落），成因与停机无关 —— 重启不给宽限。
+        allHealthy();
+        rows.remove("coupon-expire");
+        monitor.serviceStart = Instant.now();
+
+        List<ScheduledTaskStaleMonitor.StaleTask> stale = monitor.scan(Instant.now());
+
+        assertEquals(1, stale.size());
+        assertEquals(ScheduledTaskStaleMonitor.Reason.MISSING_ROW, stale.get(0).reason());
     }
 
     @Test
