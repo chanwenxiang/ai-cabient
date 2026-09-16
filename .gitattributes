@@ -1,0 +1,18 @@
+# ── 构建输入的行尾统一为 LF ────────────────────────────────────────────────
+#
+# 为什么必须钉死：vite/rollup 的产物文件名带**内容哈希**，而哈希取决于源文件字节。
+# 若同一份源码在 Windows 上被 checkout 成 CRLF、在 Linux CI 上是 LF，就会产出两套
+# 哈希完全不同的产物 —— 本地提交的 static/admin 在 CI 上必然报"有差异"（产物门禁
+# 假红），CI 重建的产物也无法在 Windows 上复现。
+#
+# 2026-09-16 实测：clients/ 与 packages/ 下 234 个构建输入中 124 个在磁盘上是 CRLF
+# （本地 core.autocrlf=true 造成），导致一次重建里 78 个 chunk 的哈希全部不一致。
+#
+# 用 `text=auto` 而不是 `text`：保留 git 对二进制文件（png/jpg/woff 等）的自动识别，
+# 避免把二进制当文本转换损坏文件。
+clients/** text=auto eol=lf
+packages/** text=auto eol=lf
+
+# 产物目录同样是"字节即契约"：它被 nginx 直接 bind mount 对外服务，且由 CI job
+# `admin-artifacts` 用 `git status` 与重建结果逐字节比对。这里保持与构建输入一致。
+services/trade-service/src/main/resources/static/admin/** text=auto eol=lf
