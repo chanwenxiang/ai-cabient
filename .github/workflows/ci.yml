@@ -220,6 +220,10 @@ jobs:
   # 因此本 job 刻意**完全不走 Maven**，用与开发者本地一致的入口重建后比对。
   admin-artifacts:
     runs-on: ubuntu-latest
+    # 仓库 .npmrc 为 Windows/Cursor 配置了 script-shell=cmd.exe；Linux CI 必须改回 bash，
+    # 否则 `pnpm install` 的 lifecycle 脚本在 Linux 上会走 cmd.exe 直接失败（本 job 首跑即栽在这）。
+    env:
+      npm_config_script_shell: /bin/bash
     steps:
       - uses: actions/checkout@v5
 
