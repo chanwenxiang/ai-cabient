@@ -7,9 +7,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aicabinet.trade.support.ScheduleZones;
+
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.ZonedDateTime;
 
 /** 增长模块日志归档：清理通知日志；积分流水为账本组成部分，不在此删除。 */
 @Service
@@ -45,8 +47,13 @@ public class GrowthLogArchiveScheduler {
             int notifyMonths = systemConfigService.getInt("ops.log_retention.notify_months", 6);
             int deleted = 0;
             if (notifyMonths > 0) {
-                deleted += deleteInBatches("notification_log",
-                        Instant.now().minus(notifyMonths, ChronoUnit.MONTHS), false);
+                // 注意：Instant 只支持到 DAYS，minus(MONTHS) 必抛 UnsupportedTemporalTypeException
+                // （该任务曾因此 100% 失败且无人发现）。月份运算必须在带日历的 ZonedDateTime 上做，
+                // 且按业务时区解释，否则月末/月初会错一天。
+                Instant cutoff = ZonedDateTime.now(ScheduleZones.ZONE)
+                        .minusMonths(notifyMonths)
+                        .toInstant();
+                deleted += deleteInBatches("notification_log", cutoff, false);
             }
             // member_points_log 与 member.available_points 对账依赖完整流水，禁止 DELETE
             summary = deleted <= 0 ? "本次无归档删除" : "归档删除 " + deleted + " 条";
