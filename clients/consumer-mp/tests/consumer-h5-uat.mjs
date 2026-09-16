@@ -35,8 +35,11 @@ const OUT = path.resolve(__dirname, '../output/playwright');
 const DEMO_PHONE = '13800138000';
 const DEMO_SMS = '123456';
 const DEVICE_ID = 'CAB-001';
-const DEMO_DISPUTE_TICKET_BILLED = process.env.DEMO_DISPUTE_TICKET_BILLED || '1788252219672817302';
-const DEMO_DISPUTE_TICKET_REFUND = process.env.DEMO_DISPUTE_TICKET_REFUND || '1788247248295553600';
+// 争议工单号不再硬编码：演示库多次重建，写死的 id 已不存在（0 行），
+// 会让 TC-IMP-025/025b 长期以「工单不存在」失败并占用 ratchet 基线额度。
+// 默认留空 → 由用例内 API 探测（/api/v2/disputes/mine）挑选真实 RESOLVED 工单；探测不到则 SKIP。
+const DEMO_DISPUTE_TICKET_BILLED = process.env.DEMO_DISPUTE_TICKET_BILLED || '';
+const DEMO_DISPUTE_TICKET_REFUND = process.env.DEMO_DISPUTE_TICKET_REFUND || '';
 
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -224,33 +227,59 @@ function pickCaptchaId(body) {
  * 切到短信 Tab → 等图形验证码 → Redis 读码 → 填手机号/图形码 → 取短信 → 登录。
  * 须在切 Tab 前挂上 waitForResponse，否则可能错过首次自动加载。
  */
+/**
+ * 取一次**成功**的图形验证码响应（含 429 退避）。
+ *
+ * 根因（W-6 更正）：网关 `infra/gateway/nginx.conf:37-38` 对 `/api/v2/auth/*` 施加
+ * `auth_ratelimit`（5r/s + burst 10 + nodelay），登录链路（captcha → sms-code → login）
+ * 每条用例都走一遍，累计十几条后 `/auth/captcha` 开始返回 **429**。
+ * 旧实现用 `r.ok()` 当判据，429 不满足即静默 12s 超时，抛出的却是
+ * 「图形验证码接口未返回」—— 把「被限流」误报成「服务不可用」。
+ * 这里显式区分状态码，并只在 429 上做有上限的线性退避（限流是 5r/s，900ms×n 足够跨过窗口）。
+ */
+async function fetchCaptchaWithRetry(page, { attempts = 6, baseDelayMs = 900 } = {}) {
+  for (let i = 0; i < attempts; i++) {
+    const waiter = page
+      .waitForResponse((r) => /\/api\/v2\/auth\/captcha(?:\?|$)/.test(r.url()), { timeout: 12000 })
+      .catch(() => null);
+
+    if (i === 0) {
+      const smsTab = page.locator('[data-testid="login-tab-sms"]');
+      if ((await smsTab.count()) > 0) {
+        await smsTab.first().click();
+      } else {
+        await clickByText(page, '验证码', { exact: true });
+      }
+      await page.waitForTimeout(500);
+    } else {
+      // 点验证码图片本身即重新拉取（login.vue 的 @click="loadCaptcha"）
+      await page
+        .locator('.btn-captcha')
+        .first()
+        .click({ timeout: 5000 })
+        .catch(() => {});
+    }
+
+    const resp = await waiter;
+    if (!resp) continue;
+    if (resp.status() === 429) {
+      const wait = baseDelayMs * (i + 1);
+      console.log(`○ [setup] captcha 命中网关限流 429（第 ${i + 1} 次），退避 ${wait}ms 重试`);
+      await page.waitForTimeout(wait);
+      continue;
+    }
+    if (resp.ok()) return resp;
+  }
+  throw new Error(
+    `图形验证码连续 ${attempts} 次未取到 2xx（多为网关 auth_ratelimit 429 限流），` +
+      '请检查 infra/gateway/nginx.conf 的 /api/v2/auth/ 限流配置'
+  );
+}
+
 async function loginViaSms(page, phone = DEMO_PHONE, sms = DEMO_SMS) {
   await dismissPrivacyConsent(page);
-  const waitCaptcha = () =>
-    page.waitForResponse((r) => /\/api\/v2\/auth\/captcha(?:\?|$)/.test(r.url()) && r.ok(), {
-      timeout: 12000
-    });
 
-  let captchaWait = waitCaptcha().catch(() => null);
-  const smsTab = page.locator('[data-testid="login-tab-sms"]');
-  if ((await smsTab.count()) > 0) {
-    await smsTab.first().click();
-  } else {
-    await clickByText(page, '验证码', { exact: true });
-  }
-  await page.waitForTimeout(500);
-
-  let resp = await captchaWait;
-  if (!resp) {
-    captchaWait = waitCaptcha().catch(() => null);
-    await page
-      .locator('.btn-captcha')
-      .first()
-      .click({ timeout: 5000 })
-      .catch(() => {});
-    resp = await captchaWait;
-  }
-  if (!resp) throw new Error('图形验证码接口未返回');
+  const resp = await fetchCaptchaWithRetry(page);
 
   const body = await resp.json().catch(() => null);
   const captchaId = pickCaptchaId(body);
@@ -426,16 +455,21 @@ async function disableVisionForceNeedReview() {
 
 /** 清理上次运行遗留的活动会话，保证开门用例可重复执行 */
 async function cancelActiveSession(page) {
-  const token = await page.evaluate(
-    () =>
-      localStorage.getItem('consumer_token') || localStorage.getItem('consumer_cookie_auth') || ''
-  );
-  if (!token) return false;
-  return page.evaluate(async (tok) => {
-    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+  // 与争议种子探测同理：H5 走 HttpOnly Cookie，localStorage 里**没有 JWT**，
+  // `consumer_cookie_auth` 只是值为 '1' 的标记。旧实现把它当 token 拼成
+  // `Authorization: Bearer 1`，服务端判为非法令牌 → 401 → 静默 return false，
+  // 于是"清理残留会话"这一步**从未真正生效**（TC-QUAL-001 里那条 401 就是它）。
+  return page.evaluate(async () => {
+    const token =
+      localStorage.getItem('consumer_token') || sessionStorage.getItem('consumer_token') || '';
+    const headers = token
+      ? { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
+      : { 'Content-Type': 'application/json' };
     try {
-      const res = await fetch('/api/v2/sessions/active', { headers }).then((r) => r.json());
-      const s = res?.data;
+      const res = await fetch('/api/v2/sessions/active', { headers, credentials: 'same-origin' });
+      if (!res.ok) return false;
+      const json = await res.json();
+      const s = json?.data;
       if (!s?.sessionId) return false;
       const state = String(s.state || '').toUpperCase();
       const sid = encodeURIComponent(s.sessionId);
@@ -443,12 +477,14 @@ async function cancelActiveSession(page) {
         await fetch('/api/v2/sessions/' + sid + '/demo-close', {
           method: 'POST',
           headers,
+          credentials: 'same-origin',
           body: '{}'
         }).catch(() => {});
       } else {
         await fetch('/api/v2/sessions/' + sid + '/cancel', {
           method: 'POST',
-          headers
+          headers,
+          credentials: 'same-origin'
         }).catch(() => {});
       }
       return true;
@@ -456,7 +492,7 @@ async function cancelActiveSession(page) {
       /* ignore */
     }
     return false;
-  }, token);
+  });
 }
 
 async function main() {
@@ -658,7 +694,7 @@ async function main() {
       '功能',
       token || loginOk ? 'PASS' : 'FAIL',
       token || loginOk
-        ? 'token 已写入（含图形验证码）'
+        ? '登录态已建立（H5 为 HttpOnly Cookie，本地只有 consumer_cookie_auth 标记，无 JWT）（含图形验证码）'
         : `未拿到 token，err=${loginErr}，正文: ${text.slice(0, 200)}`,
       e8
     );
@@ -809,51 +845,128 @@ async function main() {
     );
 
     // —— TC-IMP-025 已结案争议文案（扣款/退款渠道）——
+    // 单号不再硬编码：旧常量 1788252219672817302 / 1788247248295553600 在演示库里**均 0 行命中**
+    // （`select count(*) from dispute_ticket where ticket_id=...`），页面直接落到「争议工单不存在」，
+    // 用例恒红、白占 UAT_MAX_FAIL 基线额度。改为从「我的争议」接口探测真实可用的种子：
+    //   025  需要一条 RESOLVED/CLOSED 且**已扣款**（billedAmountCents>0）的工单；
+    //   025b 需要一条 RESOLVED/CLOSED 且**已退款**（refundedAmountCents>0）的工单。
+    // 当前演示库**没有已退款结案的工单**（三条结案工单 refundedAmountCents 均为 null，
+    // 且前端 `shouldShowConsumerRefundChannel` 要求 refunded>0 才渲染「退款渠道」行），
+    // 因此 025b 记 SKIP 并写明所缺种子 —— SKIP 会如实暴露覆盖缺口，比一条永远不可能 PASS 的
+    // 假红更诚实（假红会把基线额度吃掉，让真实回归静默通过）。
     await cancelActiveSession(page);
-    await gotoPath(
-      page,
-      `/pages/dispute/detail?ticketId=${encodeURIComponent(DEMO_DISPUTE_TICKET_BILLED)}`
-    );
-    await page.waitForTimeout(3000);
-    text = await bodyText(page);
-    const imp25BilledOk =
-      /人工审核已完成|已结案/.test(text) &&
-      /扣款|¥4\.41/.test(text) &&
-      !/审核中 · 暂未扣款/.test(text) &&
-      !text.includes('退款渠道');
-    const e25a = await shot(page, '25-dispute-resolved-billed');
-    record(
-      'TC-IMP-025',
-      '已结案扣款争议文案',
-      'UX',
-      imp25BilledOk ? 'PASS' : 'FAIL',
-      imp25BilledOk
-        ? '无 OPEN 态暂未扣款/退款渠道'
-        : text.split('\n').filter(Boolean).slice(0, 12).join(' | '),
-      e25a
-    );
+    const disputeSeeds = await page.evaluate(async () => {
+      // 消费者 H5 默认走 **HttpOnly Cookie 鉴权**（见 src/utils/consumer-api.ts:27-28：
+      // `consumer_cookie_auth` 只是"服务端已写 Cookie"的本地标记，**JWT 不落 localStorage**）。
+      // 因此不能无条件塞 `Authorization: Bearer <空串>` —— 空 Bearer 会被服务端判为
+      // 无效令牌并**短路掉 Cookie 鉴权** → 401。那样会把"探测失败"伪装成"库里没种子"，
+      // 又是一次静默假绿。只在真有 token（小程序端/显式注入）时才带该头。
+      const token =
+        localStorage.getItem('consumer_token') || sessionStorage.getItem('consumer_token') || '';
+      const headers = token ? { Authorization: 'Bearer ' + token } : {};
+      try {
+        const res = await fetch('/api/v2/disputes/mine', { headers, credentials: 'same-origin' });
+        if (!res.ok) {
+          return { billedId: '', refundedId: '', resolvedCount: -1, probeError: 'HTTP ' + res.status };
+        }
+        const json = await res.json();
+        const items = Array.isArray(json?.data) ? json.data : json?.data?.items || [];
+        const done = items.filter((t) =>
+          /^(RESOLVED|CLOSED)$/.test(String(t.status || '').toUpperCase())
+        );
+        const billed = done.find((t) => Number(t.billedAmountCents ?? 0) > 0);
+        const refunded = done.find((t) => Number(t.refundedAmountCents ?? 0) > 0);
+        return {
+          billedId: billed ? String(billed.ticketId) : '',
+          refundedId: refunded ? String(refunded.ticketId) : '',
+          resolvedCount: done.length,
+          probeError: ''
+        };
+      } catch (e) {
+        return {
+          billedId: '',
+          refundedId: '',
+          resolvedCount: -1,
+          probeError: String((e && e.message) || e)
+        };
+      }
+    });
+    const billedTicketId = DEMO_DISPUTE_TICKET_BILLED || disputeSeeds.billedId;
+    const refundTicketId = DEMO_DISPUTE_TICKET_REFUND || disputeSeeds.refundedId;
 
-    await gotoPath(
-      page,
-      `/pages/dispute/detail?ticketId=${encodeURIComponent(DEMO_DISPUTE_TICKET_REFUND)}`
-    );
-    await page.waitForTimeout(3000);
-    text = await bodyText(page);
-    const imp25RefundOk =
-      /已结案|人工审核已完成/.test(text) &&
-      (/退款|未扣款|已退/.test(text) || /¥3\.92/.test(text)) &&
-      text.includes('退款渠道');
-    const e25b = await shot(page, '25b-dispute-resolved-refund');
-    record(
-      'TC-IMP-025b',
-      '已结案退款争议文案',
-      'UX',
-      imp25RefundOk ? 'PASS' : 'FAIL',
-      imp25RefundOk
-        ? '展示退款结论与退款渠道'
-        : text.split('\n').filter(Boolean).slice(0, 12).join(' | '),
-      e25b
-    );
+    if (billedTicketId) {
+      await gotoPath(
+        page,
+        `/pages/dispute/detail?ticketId=${encodeURIComponent(billedTicketId)}`
+      );
+      await page.waitForTimeout(3000);
+      text = await bodyText(page);
+      const imp25BilledOk =
+        /人工审核已完成|已结案/.test(text) &&
+        /扣款/.test(text) &&
+        !/暂未扣款/.test(text) &&
+        !text.includes('退款渠道');
+      const e25a = await shot(page, '25-dispute-resolved-billed');
+      record(
+        'TC-IMP-025',
+        '已结案扣款争议文案',
+        'UX',
+        imp25BilledOk ? 'PASS' : 'FAIL',
+        imp25BilledOk
+          ? `无 OPEN 态暂未扣款/退款渠道（ticket=${billedTicketId}）`
+          : text.split('\n').filter(Boolean).slice(0, 12).join(' | '),
+        e25a
+      );
+    } else {
+      // 探测失败 ≠ 没种子。两者必须分开记，否则鉴权坏了也会显示成"演示库无种子"。
+      record(
+        'TC-IMP-025',
+        '已结案扣款争议文案',
+        'UX',
+        disputeSeeds.probeError ? 'FAIL' : 'SKIP',
+        disputeSeeds.probeError
+          ? `争议种子探测失败（${disputeSeeds.probeError}）—— 不能据此判定"库里无已扣款工单"`
+          : `演示库无「已结案且已扣款」的争议种子（结案工单共 ${disputeSeeds.resolvedCount} 条，billed>0 的 0 条）`,
+        null
+      );
+    }
+
+    if (refundTicketId) {
+      await gotoPath(
+        page,
+        `/pages/dispute/detail?ticketId=${encodeURIComponent(refundTicketId)}`
+      );
+      await page.waitForTimeout(3000);
+      text = await bodyText(page);
+      const imp25RefundOk =
+        /已结案|人工审核已完成/.test(text) &&
+        /退款|未扣款|已退/.test(text) &&
+        text.includes('退款渠道');
+      const e25b = await shot(page, '25b-dispute-resolved-refund');
+      record(
+        'TC-IMP-025b',
+        '已结案退款争议文案',
+        'UX',
+        imp25RefundOk ? 'PASS' : 'FAIL',
+        imp25RefundOk
+          ? `展示退款结论与退款渠道（ticket=${refundTicketId}）`
+          : text.split('\n').filter(Boolean).slice(0, 12).join(' | '),
+        e25b
+      );
+    } else {
+      record(
+        'TC-IMP-025b',
+        '已结案退款争议文案',
+        'UX',
+        disputeSeeds.probeError ? 'FAIL' : 'SKIP',
+        disputeSeeds.probeError
+          ? `争议种子探测失败（${disputeSeeds.probeError}）—— 不能据此判定"库里无已退款工单"`
+          : '演示库无「已结案且已退款」的争议种子（需 refundedAmountCents>0；' +
+            `当前结案工单共 ${disputeSeeds.resolvedCount} 条，全部 refunded=null）` +
+            ' → 前端 shouldShowConsumerRefundChannel 为假，「退款渠道」行不会渲染',
+        null
+      );
+    }
 
     // —— TC-RFND-001 立即退款（PW_MUTATE=1 时执行）——
     if (MUTATE) {
@@ -1059,12 +1172,39 @@ async function main() {
       e12
     );
 
-    // —— TC-OPEN-002 CAB-001 开门主路径（柜机已起售）——
+    // —— TC-OPEN-002 CAB-001 开门主路径 ——
+    // 前置：柜机必须 ONLINE **且** available（未停售 / 无占用会话 / 不在补货）。
+    // 演示库现状：`device_info` 三台柜机 `sales_locked` 全为 true（原因「离线超时自动停售」），
+    // 因为恢复在线后的自动解锁 `DeviceStableOnlineAutoUnlockService` **默认关闭**
+    // （system_config `DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED` 默认 false，
+    //  见 DeviceStableOnlineAutoUnlockService.java:79-87），需人工解锁或开配置。
+    // 于是**当前没有一台柜机可以开门**。这种情况必须记 SKIP 并写明原因：
+    // 「环境里没有可售柜机」≠「开门功能坏了」。若仍按原样判 FAIL，
+    // 就是一条结构上不可能 PASS 的用例长年占着 UAT_MAX_FAIL 基线额度，把真实回归吃掉。
     await ensureLoggedIn(page);
     await dismissLandingOverlays(page);
     await gotoPath(page, '/pages/index/index');
     await cancelActiveSession(page);
     await page.waitForTimeout(500);
+
+    const cabStatusProbe = await page.evaluate(async (deviceId) => {
+      try {
+        const r = await fetch('/api/v2/devices/' + encodeURIComponent(deviceId) + '/status', {
+          credentials: 'same-origin'
+        });
+        const j = await r.json().catch(() => null);
+        return { httpStatus: r.status, data: j?.data || null };
+      } catch (e) {
+        return { httpStatus: 0, data: null, err: String((e && e.message) || e) };
+      }
+    }, DEVICE_ID);
+    const cabStatus = cabStatusProbe.data || {};
+    const cabOnline =
+      cabStatus.online === true || String(cabStatus.onlineStatus || '').toUpperCase() === 'ONLINE';
+    const cabAvailable = cabStatus.available === true;
+
+    // 无论可不可售，都把「输入编号 → 确认开门」这条 UI 路径走完：
+    // 可售走成功分支（TC-OPEN-002），不可售走拒绝分支（TC-OPEN-005）。
     await clickByText(page, '手动输入柜机编号');
     await page.waitForTimeout(600);
     const deviceFilled = await fillByTestId(page, 'device-code-input', DEVICE_ID);
@@ -1075,7 +1215,7 @@ async function main() {
     const sessionId3s = await page.evaluate(() => localStorage.getItem('active_session_id') || '');
     const shoppingEarly = /门已开|购物中|本柜价目|正在开门|开门中/.test(text);
     // 已进入购物态则不再多等 5s，避免 mock 识别把会话推进到争议/审核页
-    if (!shoppingEarly && !sessionId3s) {
+    if (cabAvailable && !shoppingEarly && !sessionId3s) {
       await page.waitForTimeout(5000);
       text = await bodyText(page);
     }
@@ -1100,10 +1240,41 @@ async function main() {
       'TC-OPEN-002',
       `${DEVICE_ID} 开门主路径`,
       '功能',
-      sessionCreated || progressing ? 'PASS' : 'FAIL',
-      `filled=${deviceFilled} session=${sessionCreated ? '已创建' : '无'} | 3s:${state3s} | 8s:${state8s}`,
+      cabAvailable ? (sessionCreated || progressing ? 'PASS' : 'FAIL') : 'SKIP',
+      cabAvailable
+        ? `filled=${deviceFilled} session=${sessionCreated ? '已创建' : '无'} | 3s:${state3s} | 8s:${state8s}`
+        : `前置不满足：柜机不可开门（online=${cabOnline} available=${cabAvailable}` +
+          ` busyReason=${cabStatus.busyReason || 'n/a'}）→ 无法验证开门主路径。` +
+          '演示库三台柜机 sales_locked 均为 true（离线超时自动停售，自动解锁默认关闭）；' +
+          `filled=${deviceFilled}；实测文案：${text.split('\n').filter(Boolean).slice(0, 8).join(' | ')}`,
       e13
     );
+
+    // —— TC-OPEN-005 不可售/离线柜机的开门拒绝（把「明确拒绝」当成契约来钉）——
+    // 这条不依赖环境可售性：柜机没开成时**必须给出明确的业务文案且不创建会话**，
+    // 而不是静默失败或白屏。TC-OPEN-002 SKIP 时它正好补上覆盖。
+    if (!cabAvailable) {
+      const refuseMsg = /该柜机当前离线|暂停营业|正在补货|正在被使用|柜机不存在/.test(text);
+      const e13b = await shot(page, '13b-open-refused');
+      record(
+        'TC-OPEN-005',
+        '不可售柜机开门被明确拒绝',
+        'UX',
+        refuseMsg && !sessionCreated ? 'PASS' : 'FAIL',
+        `refuseMsg=${refuseMsg} sessionCreated=${sessionCreated} | ` +
+          text.split('\n').filter(Boolean).slice(0, 8).join(' | '),
+        e13b
+      );
+    } else {
+      record(
+        'TC-OPEN-005',
+        '不可售柜机开门被明确拒绝',
+        'UX',
+        'SKIP',
+        '当前柜机可售，未产生拒绝分支（该分支需一台停售/离线柜机）',
+        null
+      );
+    }
 
     // —— TC-IMP-024 商品步进器 72rpx 热区（IMP-024）——
     const shoppingForStepper = /门已开|购物中|本柜价目|本柜商品|请点选商品/.test(text);
@@ -1246,7 +1417,10 @@ async function main() {
 
     await fillTextarea(page, '这是一条自动化测试建议内容');
     await fillPlaceholder(page, '手机号或微信，方便回访', '<img src=x onerror=alert(1)>');
-    await fillPlaceholder(page, '例如 CAB-001', DEVICE_ID);
+    // 真值来源 clients/consumer-mp/src/pages/feedback/feedback.vue（"柜机编号（选填）"字段）
+    // 旧值 '例如 CAB-001' 是 admin 端 SkuVisionEnrollView 的 placeholder，抄错了 →
+    // 这一步一直静默空转（选填字段，不报错，也就没人发现 XSS 载荷从未进过编号框）。
+    await fillPlaceholder(page, '请输入柜机编号（选填）', DEVICE_ID);
     await clickByText(page, '提交反馈', { exact: true });
     await page.waitForTimeout(2500);
     text = await bodyText(page);
@@ -1295,7 +1469,10 @@ async function main() {
       e17
     );
 
-    await fillPlaceholder(page, '例如 CAB-001', DEVICE_ID);
+    // 真值来源 clients/consumer-mp/src/pages/report/report.vue
+    // 旧值 '例如 CAB-001' 取自 admin 端 SkuVisionEnrollView 的 placeholder（抄错）→
+    // 该输入框永远填不进值，TC-RPT-002 结构上不可能 PASS，却常年占基线额度。
+    await fillPlaceholder(page, '请输入柜机编号', DEVICE_ID);
     await clickByText(page, '提交报修');
     await page.waitForTimeout(2500);
     text = await bodyText(page);
@@ -1430,6 +1607,12 @@ async function main() {
     );
 
     // —— TC-BAL-001 余额明细分页（演示账号有流水则应出列表；空态文案亦可接受）——
+    // 选择器真值来源：clients/consumer-mp/src/pages/balance/balance.vue
+    //   列表项 class = `log-row`，加载更多 class = `more`。
+    // 本用例此前查的是 `.transaction-row` / `.transaction-more`（重构前的旧类名），
+    // 两个都取不到 → 恒为 rows=0/more=false，**永远不可能 PASS**，
+    // 却一直计入 UAT_MAX_FAIL 基线，等于用一条假红掩盖了余额区域的所有真实回归。
+    // 这类「选择器失效导致的静默假红」由 scripts/check-uat-selectors.mjs 兜底。
     await ensureLoggedIn(page);
     await gotoPath(page, '/pages/mine/mine');
     await clickByText(page, '余额明细', { exact: true });
@@ -1439,27 +1622,25 @@ async function main() {
     await page
       .waitForFunction(
         () =>
-          document.querySelectorAll('.transaction-row').length > 0 ||
+          document.querySelectorAll('.log-row').length > 0 ||
           /暂无余额流水|暂无流水/.test(document.body.innerText || ''),
         null,
         { timeout: 8000 }
       )
       .catch(() => {});
     text = await bodyText(page);
-    let balRows = await page.evaluate(() => document.querySelectorAll('.transaction-row').length);
-    const hasMoreBtn = await page.evaluate(() => !!document.querySelector('.transaction-more'));
+    let balRows = await page.evaluate(() => document.querySelectorAll('.log-row').length);
+    const hasMoreBtn = await page.evaluate(() => !!document.querySelector('.more'));
     const balEmpty = /暂无余额流水|暂无流水/.test(text);
     if (hasMoreBtn) {
       await page.evaluate(() => {
-        const btn = document.querySelector('.transaction-more');
+        const btn = document.querySelector('.more');
         if (btn) btn.click();
       });
       await page.waitForTimeout(1500);
-      balRows = await page.evaluate(() => document.querySelectorAll('.transaction-row').length);
+      balRows = await page.evaluate(() => document.querySelectorAll('.log-row').length);
     }
-    const balRowsAfter = await page.evaluate(
-      () => document.querySelectorAll('.transaction-row').length
-    );
+    const balRowsAfter = await page.evaluate(() => document.querySelectorAll('.log-row').length);
     const e19d = await shot(page, '19d-balance-transactions');
     record(
       'TC-BAL-001',
@@ -1468,6 +1649,34 @@ async function main() {
       balRows > 0 || hasMoreBtn || balEmpty ? 'PASS' : 'FAIL',
       `rows=${balRows} more=${hasMoreBtn} rowsAfter=${balRowsAfter} empty=${balEmpty}`,
       e19d
+    );
+
+    // —— TC-BAL-002 冻结/释放类流水金额非零渲染（W-4 防回归）——
+    // W-4：PREAUTH_FREEZE/RELEASE 等只改冻结额的流水，后端按 (after-before) 算金额恒为 0，
+    // 前端于是把 89% 的流水渲染成「¥0.00」。修复后这类流水取操作金额 + 方向符号。
+    // 断言按**行内标题**定位，只约束冻结/释放四类，不会因将来出现合法的零金额流水而误报。
+    let holdZero = [];
+    let holdTotal = 0;
+    if (!balEmpty && balRows > 0) {
+      const rows = await page.evaluate(() => {
+        const HOLD_LABELS = ['开门预授权冻结', '开门预授权释放', '退款申请冻结', '退款冻结释放'];
+        return [...document.querySelectorAll('.log-row')].map((r) => ({
+          label: (r.querySelector('.log-title')?.innerText || '').trim(),
+          amount: (r.querySelector('.log-amount')?.innerText || '').trim()
+        })).filter((r) => HOLD_LABELS.includes(r.label));
+      });
+      holdTotal = rows.length;
+      holdZero = rows.filter((r) => /^[+-]?¥?0\.00$/.test(r.amount.replace(/\s/g, ''))).map((r) => r.label);
+    }
+    const e19e = await shot(page, '19e-balance-hold-amounts');
+    record(
+      'TC-BAL-002',
+      '冻结/释放流水金额非零（W-4）',
+      '功能',
+      // 无冻结/释放数据时记 SKIP（而不是静默 PASS），避免"没数据"被当成"验过了"
+      holdTotal === 0 ? 'SKIP' : holdZero.length === 0 ? 'PASS' : 'FAIL',
+      `冻结/释放行=${holdTotal} 其中显示 ¥0.00 的=${holdZero.length}${holdZero.length ? ' -> ' + holdZero.join(',') : ''}`,
+      e19e
     );
 
     // —— TC-ERR-001 网络异常：断 API 模拟 ——
@@ -1530,7 +1739,9 @@ async function main() {
       '重新登录',
       '功能',
       tokenAfter || reloginOk ? 'PASS' : 'FAIL',
-      tokenAfter || reloginOk ? 'token 已写入（含图形验证码）' : `未拿到 token，err=${reloginErr}`,
+      tokenAfter || reloginOk
+        ? '登录态已建立（HttpOnly Cookie，本地无 JWT）（含图形验证码）'
+        : `未拿到 token，err=${reloginErr}`,
       e20b
     );
 

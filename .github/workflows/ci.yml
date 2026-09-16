@@ -113,7 +113,7 @@ jobs:
           SPRING_DATASOURCE_USERNAME: aicabinet
           SPRING_DATASOURCE_PASSWORD: aicabinet
           REDIS_HOST: localhost
-          REDIS_PORT: "6379"
+          REDIS_PORT: '6379'
 
       # 三端 RBAC E2E 与权限漂移测试依赖 Docker（Testcontainers），缺 Docker 时会被静默跳过；
       # 这里显式校验 surefire 报告存在且全绿，让"跳过"变成构建失败。
@@ -150,8 +150,8 @@ jobs:
           SPRING_DATASOURCE_USERNAME: aicabinet
           SPRING_DATASOURCE_PASSWORD: aicabinet
           REDIS_HOST: localhost
-          REDIS_PORT: "6379"
-          AICABINET_MOCK_ENABLED: "true"
+          REDIS_PORT: '6379'
+          AICABINET_MOCK_ENABLED: 'true'
           JWT_SECRET: ci-openapi-check-jwt-secret-32bytes-min
           INTERNAL_API_KEY: ci-internal-api-key
         run: |
@@ -292,7 +292,7 @@ jobs:
       - name: Merchant nav-guard path helpers
         run: pnpm check:merchant-nav-guard
 
-      # 审计防回归：端点字面量 / pageSize / token 存储 / cron zone / cache 名 / dialog a11y / 布局防抖 / 表列语义 / 小程序 a11y / 余额冻结类型两端一致
+      # 审计防回归：端点字面量 / pageSize / token 存储 / cron zone / cache 名 / dialog a11y / 布局防抖 / 表列语义 / 小程序 a11y / 余额冻结类型两端一致 / UAT 类选择器有效性 / 编号类输入框不得用数字键盘
       - name: Audit regression gates
         run: pnpm check:audit-gates
 
@@ -354,7 +354,7 @@ jobs:
       PW_CHANNEL: chromium
       # 图形验证码改走 TCP 直连 Redis（不依赖 docker 容器名）
       REDIS_HOST: 127.0.0.1
-      REDIS_PORT: "6379"
+      REDIS_PORT: '6379'
       CONSUMER_H5_URL: http://127.0.0.1:3002
       MERCHANT_H5_URL: http://127.0.0.1:3001
       ADMIN_URL: http://127.0.0.1:8080/admin
@@ -362,15 +362,31 @@ jobs:
       SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:15433/aicabinet
       SPRING_DATASOURCE_USERNAME: aicabinet
       SPRING_DATASOURCE_PASSWORD: aicabinet
-      AICABINET_MOCK_ENABLED: "true"
+      AICABINET_MOCK_ENABLED: 'true'
       JWT_SECRET: ci-e2e-jwt-secret-32bytes-minimum
       INTERNAL_API_KEY: ci-e2e-internal-api-key
       # 已知失败基线（ratchet）。首次接入取本地实测值；若 CI 数据导致偏差请据实校准，
       # 但只允许下调（修复）或平级调整（环境差异），不允许为了变绿而上调。
-      UAT_MAX_FAIL_CONSUMER: "5"
-      UAT_MAX_FAIL_MERCHANT: "2"
-      UAT_MAX_FAIL_BUSINESS: "3"
-      UAT_MAX_FAIL_DISPUTE: "2"
+      # 2026-09-16：consumer 5 → 4 → **0**。第二批假红/假绿的根因逐个挖掉之后归零：
+      #   · .transaction-row/.transaction-more 是重构前的旧类名（真值 .log-row/.more）
+      #   · DEMO_DISPUTE_TICKET_* 常量库里早已 0 行 → 改为 API 探测种子
+      #   · fillPlaceholder 用的是 admin 端 SkuVisionEnrollView 的 placeholder（'例如 CAB-001'），
+      #     consumer 报修页真值是「请输入柜机编号」→ 输入框永远填不进值
+      #   · 柜机编号输入用 uni-app type="digit"，H5 渲染成 <input type="number">，
+      #     浏览器丢弃字母 → 打不出 CAB-001（产品缺陷，已改 type="text"）
+      #   · 开门主路径缺少「柜机可售」前置断言 → 改为探测 + 不可售时 SKIP，并新增 TC-OPEN-005
+      # 本地实测 pass=37 / fail=0 / skip=9（skip 均为种子/环境缺口，不是失败）。
+      UAT_MAX_FAIL_CONSUMER: '0'
+      # 2026-09-16：merchant 2 → **0**。两条根因都挖到了底：
+      #   · TC-IMP-032 / M-10v 把 merchant_cookie_auth（值为 '1' 的标记，不是 JWT）拼成
+      #     `Bearer 1` → 服务端短路 Cookie 鉴权 → 401 → 工单探测恒为空、录像探测恒为空
+      #     （M-14 里的三条 401 就是它）
+      #   · TC-IMP-032 用整页文本断言 `!/暂未扣款/`，而抽屉背后的工单列表里「待审核」那条
+      #     的合法文案正是"本次暂未扣款" → 断言范围过大导致的假红，已收敛到 .app-sheet
+      # 本地实测 pass=29 / fail=0 / skip=2。
+      UAT_MAX_FAIL_MERCHANT: '0'
+      UAT_MAX_FAIL_BUSINESS: '3'
+      UAT_MAX_FAIL_DISPUTE: '2'
 
     services:
       postgres:
@@ -508,4 +524,3 @@ jobs:
             h5-3001.log
             h5-3002.log
           if-no-files-found: ignore
-

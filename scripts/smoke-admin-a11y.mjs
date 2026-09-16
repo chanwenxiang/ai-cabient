@@ -156,13 +156,42 @@ async function assertThemeContrast(page, theme) {
   );
 }
 
-async function assertPageShell(page, route) {
-  await page.goto(`${ADMIN_BASE}${route}`, { waitUntil: 'domcontentloaded' });
+/**
+ * 断言页面「外壳」（跳过链接 + 主内容锚点 + 页面标题），带**有界重试**。
+ *
+ * 为什么需要重试：`a.skip-link` 在 `clients/admin-vue/index.html:10` 是**静态**元素，
+ * 只要拿到的是应用文档就必然存在 —— 它偶发取不到，只可能是那一刻文档正在被**整体替换**
+ * （vite dev server 首次访问某路由时做依赖预构建会触发整页 reload；实测固定发生在第 5 个
+ * 路由 `finance`，即首个会拉入新依赖的页面，重跑该 job 即绿）。
+ * 因此把「导航 + 断言」整体作为一次尝试，失败后重新导航，最多 3 次。
+ * 注意：真实缺失跳过链接时 3 次都会失败，门禁仍然会红 —— 重试不掩盖回归。
+ */
+async function assertPageShell(page, route, attempts = 3) {
+  let lastError;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await assertPageShellOnce(page, route);
+      return;
+    } catch (e) {
+      lastError = e;
+      if (i < attempts) {
+        console.log(`  ${route}: 第 ${i} 次断言失败（${e.message}），重新导航后重试`);
+        await page.waitForTimeout(800);
+      }
+    }
+  }
+  throw lastError;
+}
+
+async function assertPageShellOnce(page, route) {
+  // 用 load 而非 domcontentloaded：整页 reload 期间 domcontentloaded 会先于新文档就绪
+  await page.goto(`${ADMIN_BASE}${route}`, { waitUntil: 'load' });
   const main = page.locator('#main-content');
   await main.waitFor({ timeout: 15_000 });
 
   const skip = page.locator('a.skip-link');
-  if ((await skip.count()) < 1) throw new Error(`${route}: 缺少跳过链接`);
+  // 静态元素也用 waitFor：避免在文档替换的空窗里做即时 count()
+  await skip.first().waitFor({ state: 'attached', timeout: 5_000 });
   const href = await skip.first().getAttribute('href');
   if (href !== '#main-content') throw new Error(`${route}: 跳过链接 href 异常 ${href}`);
 

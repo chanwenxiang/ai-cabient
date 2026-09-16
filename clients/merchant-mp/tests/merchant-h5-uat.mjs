@@ -28,7 +28,15 @@ const DEMO_PHONE = process.env.MERCHANT_PHONE || '13800138001';
 const DEMO_PASSWORD = process.env.MERCHANT_PASSWORD || '123456';
 /** 本地 demo 栈常见含录像订单（可通过 MERCHANT_DEMO_ORDER_ID 覆盖） */
 const DEMO_ORDER_WITH_VIDEO = process.env.MERCHANT_DEMO_ORDER_ID || '1788233752744411094';
-const DEMO_DISPUTE_TICKET_BILLED = process.env.DEMO_DISPUTE_TICKET_BILLED || '1788252219672817302';
+/**
+ * 已结案争议工单号。**默认留空**，由用例从「本商家可见的争议列表」里探测一条 RESOLVED 工单。
+ *
+ * 原实现硬编码 `1788252219672817302`，演示库重建后该单号 0 行命中（`select count(*) from
+ * dispute_ticket where ticket_id=...` = 0）→ 详情抽屉打不开 → 用例恒红，
+ * 却一直计入 `UAT_MAX_FAIL_MERCHANT` 基线，白占一个失败额度。
+ * 仅当需要固定某条工单时才用环境变量覆盖。
+ */
+const DEMO_DISPUTE_TICKET_BILLED = process.env.DEMO_DISPUTE_TICKET_BILLED || '';
 /**
  * 已知失败基线（ratchet）：用例级失败数 ≤ 该值不算回归，超出则 exit 1。
  * 目的是让 CI 抓住「整轮崩溃」与「新增失败」；已知缺陷修复后请下调此值。
@@ -532,7 +540,9 @@ async function main() {
     await gotoPath(page, '/pages/orders/orders');
     await page.waitForTimeout(2000);
     const clickedOrder = await page.evaluate(() => {
-      const card = document.querySelector('.page-body .card, .order-card, .card');
+      // `.order-card` 是重构前的旧类名（已无任何元素使用），保留在回退链里只会掩盖
+      // 选择器失效；真值来源是 clients/merchant-mp/src/pages/orders/orders.vue 的 `.card`。
+      const card = document.querySelector('.page-body .card') || document.querySelector('.card');
       if (!card) return false;
       card.click();
       return true;
@@ -553,14 +563,17 @@ async function main() {
     // —— M-10v 订单购物视频（Bearer 鉴权拉流，禁止假地址冒充通过）——
     const videoOrderHint = DEMO_ORDER_WITH_VIDEO;
     const videoOrderId = await page.evaluate(async (hint) => {
-      const token =
-        localStorage.getItem('merchant_token') || localStorage.getItem('merchant_cookie_auth');
-      if (!token) return '';
+      // 同 TC-IMP-032：merchant_cookie_auth 是标记不是 JWT，不能拼进 Authorization。
+      // 旧实现发 `Bearer 1` → 服务端短路 Cookie 鉴权 → 401 → 三条 M-14 里的 401 就是它，
+      // 视频订单也永远探测不到（M-10v 长期 SKIP）。
+      const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
+      const authHeaders = token ? { Authorization: 'Bearer ' + token } : {};
       const probe = async (oid) => {
         if (!oid) return false;
         try {
           const r = await fetch(`/api/v2/merchant/orders/${encodeURIComponent(oid)}/video`, {
-            headers: { Authorization: 'Bearer ' + token }
+            headers: authHeaders,
+            credentials: 'same-origin'
           });
           if (!r.ok) return false;
           const buf = await r.arrayBuffer();
@@ -576,7 +589,8 @@ async function main() {
       if (hint && (await probe(hint))) return hint;
       try {
         const listRes = await fetch('/api/v2/merchant/orders?deviceId=CAB-001&size=30', {
-          headers: { Authorization: 'Bearer ' + token }
+          headers: authHeaders,
+          credentials: 'same-origin'
         });
         const listJson = await listRes.json();
         const data = listJson?.data;
@@ -705,7 +719,7 @@ async function main() {
         return false;
       });
       await page.waitForTimeout(1800);
-      const drawerVisible = await page.evaluate(() => !!document.querySelector('.detail-panel'));
+      const drawerVisible = await page.evaluate(() => !!document.querySelector('.app-sheet'));
       const e10f = await shot(page, '10f-dispute-drawer');
       record(
         'M-10d',
@@ -716,39 +730,81 @@ async function main() {
         e10f
       );
       await page.evaluate(() => {
-        const el = document.querySelector('.detail-mask');
+        const el = document.querySelector('.app-sheet-mask');
         if (el) el.click();
       });
       await page.waitForTimeout(500);
     }
 
     // —— TC-IMP-032 已结案争议文案 ——
+    // 无显式指定时，从本商家可见的争议列表里探测一条 RESOLVED 工单（避免硬编码单号随演示库重建失效）
+    // 注意：商家 H5 同样走 HttpOnly Cookie 鉴权（src/utils/merchant-api.ts:26-28），
+    // localStorage 里只有 `merchant_cookie_auth='1'` 标记、**没有 JWT**。
+    // 旧实现把它当 token 拼成 `Bearer 1` → 服务端判为非法令牌并短路掉 Cookie 鉴权 → 401 →
+    // 探测恒返回空 → 详情抽屉永远打不开，用例恒红并占用基线额度。只在真有 token 时才带该头。
+    const resolvedTicketId =
+      DEMO_DISPUTE_TICKET_BILLED ||
+      (await page.evaluate(async () => {
+        try {
+          const token =
+            localStorage.getItem('merchant_token') ||
+            sessionStorage.getItem('merchant_token') ||
+            '';
+          const res = await fetch('/api/v2/merchant/disputes?page=0&size=50', {
+            headers: token ? { Authorization: 'Bearer ' + token } : {},
+            credentials: 'same-origin'
+          });
+          if (!res.ok) return '';
+          const json = await res.json();
+          const items = json?.data?.items || json?.data?.content || [];
+          const hit = items.find((t) =>
+            /^(RESOLVED|CLOSED)$/.test(String(t.status || '').toUpperCase())
+          );
+          return hit ? String(hit.ticketId) : '';
+        } catch {
+          return '';
+        }
+      }));
     await gotoPath(
       page,
-      `/pages/disputes/disputes?ticketId=${encodeURIComponent(DEMO_DISPUTE_TICKET_BILLED)}`
+      resolvedTicketId
+        ? `/pages/disputes/disputes?ticketId=${encodeURIComponent(resolvedTicketId)}`
+        : '/pages/disputes/disputes'
     );
     const imp32Deadline = Date.now() + 12000;
     let imp32Drawer = false;
     while (Date.now() < imp32Deadline) {
-      imp32Drawer = await page.evaluate(() => !!document.querySelector('.detail-panel'));
+      imp32Drawer = await page.evaluate(() => !!document.querySelector('.app-sheet'));
       if (imp32Drawer) break;
       await page.waitForTimeout(400);
     }
     text = await bodyText(page);
-    const imp32Ok = imp32Drawer && /已结案：/.test(text) && !/暂未扣款/.test(text);
+    // 断言必须**只看抽屉内容**。抽屉是覆盖层，`bodyText(page)` 会把背后的工单列表一起吃进来，
+    // 而列表里「待审核」那条的合法文案正是"本次暂未扣款" → 旧写法 `!/暂未扣款/.test(整页文本)`
+    // 恒为假，于是抽屉明明正确渲染了「已结案：未产生扣款」，用例还是红。
+    // 这是「断言范围过大」导致的假红，与选择器失效同源。
+    const sheetText = await page.evaluate(() => {
+      const el = document.querySelector('.app-sheet');
+      return el ? el.innerText || '' : '';
+    });
+    const imp32Ok = imp32Drawer && /已结案：/.test(sheetText) && !/暂未扣款/.test(sheetText);
     const e32 = await shot(page, '32-dispute-resolved-copy');
+    // 探测不到 RESOLVED 工单时记 SKIP：那是「本商家没有已结案工单」这一环境事实，
+    // 不是「已结案文案坏了」。否则这条用例会以结构上不可能 PASS 的方式长占基线额度。
     record(
       'TC-IMP-032',
       '已结案争议文案',
       'UX',
-      imp32Ok ? 'PASS' : 'FAIL',
-      imp32Ok
-        ? '详情展示已结案摘要，无暂未扣款'
-        : `drawer=${imp32Drawer} | ${text.split('\n').filter(Boolean).slice(0, 10).join(' | ')}`,
+      resolvedTicketId ? (imp32Ok ? 'PASS' : 'FAIL') : 'SKIP',
+      resolvedTicketId
+        ? imp32Ok
+          ? `抽屉展示已结案摘要，无暂未扣款（ticket=${resolvedTicketId}）`
+          : `drawer=${imp32Drawer} sheet=${sheetText.split('\n').filter(Boolean).slice(0, 8).join(' | ')}`
+        : '本商家可见争议里没有 RESOLVED/CLOSED 工单（/api/v2/merchant/disputes 探测为空）→ 无已结案文案可验',
       e32
     );
     await page.evaluate(() => {
-      const el = document.querySelector('.detail-mask');
+      const el = document.querySelector('.app-sheet-mask');
       if (el) el.click();
     });
     await page.waitForTimeout(500);

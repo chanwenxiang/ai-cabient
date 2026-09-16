@@ -202,7 +202,7 @@ async function main() {
   let drawerVisible = false;
   const drawerDeadline = Date.now() + 12000;
   while (Date.now() < drawerDeadline) {
-    drawerVisible = await mpage.evaluate(() => !!document.querySelector('.detail-panel'));
+    drawerVisible = await mpage.evaluate(() => !!document.querySelector('.app-sheet'));
     if (drawerVisible) break;
     await mpage.waitForTimeout(400);
   }
