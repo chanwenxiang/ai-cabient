@@ -58,7 +58,8 @@ public class ScheduledTaskRegistry {
                                  GrowthLogArchiveScheduler growthLogArchiveScheduler,
                                  SkuReviewScheduler skuReviewScheduler,
                                  RiskAutoDispositionService riskAutoDispositionService,
-                                 DeviceTempPlanService deviceTempPlanService) {
+                                 DeviceTempPlanService deviceTempPlanService,
+                                 ScheduledTaskStaleMonitor scheduledTaskStaleMonitor) {
         register("device-presence", "设备离线巡检", "DEVICE", V_60, 600,
                 devicePresenceService::markStaleDevicesOffline);
         register("session-opening-expire", "开门超时会话清理", TRADE, V_30, 600,
@@ -118,6 +119,9 @@ public class ScheduledTaskRegistry {
                 riskAutoDispositionService::runScheduled);
         register("temp-plan", "温控计划下发", "DEVICE", V_60, 600,
                 deviceTempPlanService::scheduledApply);
+        // 托管任务停跑的唯一兜底：刻意不列入 XxlJobManagedTasks（否则会跟着一起让位，等于没看护）
+        register("scheduled-task-stale-monitor", "定时任务超期看护", "SYSTEM", V_5, 600,
+                scheduledTaskStaleMonitor::check);
     }
 
     public Optional<TaskDescriptor> get(String key) {

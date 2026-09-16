@@ -1,5 +1,6 @@
 package com.aicabinet.trade.support;
 
+import java.time.Duration;
 import java.time.ZoneId;
 import java.util.Map;
 
@@ -40,6 +41,27 @@ public final class ScheduleZones {
             Map.entry("points-expiry", "0 0 0/6 * * ?"),
             Map.entry("device-auto-unlock", "0 0/5 * * * ?"),
             Map.entry("kpi-snapshot", "0 10 1 * * ?")
+    );
+
+    /**
+     * 托管任务「最大静默时长」：超过它仍没有推进 {@code scheduled_task.last_run_at} 即视为停跑。
+     * <p>用于超期看护（{@code ScheduledTaskStaleMonitor}）。取值 = 调度周期 + 宽限，
+     * 宽限至少留一个周期，避免单次 GC / 重启 / 慢查询造成误报。</p>
+     * <p>日任务按 26 小时（跨时区/夏令时余量 + 1 个周期）。新增加托管任务时必须同时补条目，
+     * 由 {@code scripts/check-xxl-job-wiring.mjs} 静态校验，缺失即失败。</p>
+     */
+    public static final Map<String, Duration> MAX_SILENCE_BY_TASK = Map.ofEntries(
+            Map.entry("unpaid-cancel", Duration.ofMinutes(45)),        // 15min ×3
+            Map.entry("recharge-cancel", Duration.ofMinutes(20)),      // 5min ×4
+            Map.entry("profit-sharing-retry", Duration.ofMinutes(45)), // 15min ×3
+            Map.entry("data-consistency", Duration.ofMinutes(20)),     // 5min ×4
+            Map.entry("device-auto-unlock", Duration.ofMinutes(20)),   // 5min ×4
+            Map.entry("points-expiry", Duration.ofHours(8)),           // 6h + 2h
+            Map.entry("reconciliation", Duration.ofHours(26)),         // 日 01:30 + 2.5h
+            Map.entry("line-commission", Duration.ofHours(26)),        // 日 00:20 + 2h
+            Map.entry("finance-margin", Duration.ofHours(26)),         // 日 00:05 + 2h
+            Map.entry("coupon-expire", Duration.ofHours(26)),          // 日 02:00 + 2h
+            Map.entry("kpi-snapshot", Duration.ofHours(26))            // 日 01:10 + 2h
     );
 
     private ScheduleZones() {

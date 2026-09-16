@@ -112,9 +112,7 @@ const pairs = [...handlerSource.matchAll(pairPattern)].map((m) => ({
   taskKey: m[2]
 }));
 if (pairs.length === 0) {
-  fail(
-    'ScheduledTaskXxlJobHandler.java 未解析出任何「@XxlJob + runKey(字面量)」配对，门禁已失效'
-  );
+  fail('ScheduledTaskXxlJobHandler.java 未解析出任何「@XxlJob + runKey(字面量)」配对，门禁已失效');
 }
 const namedHandlers = new Set(pairs.map((p) => p.handler));
 const keyToHandlers = new Map();
@@ -164,7 +162,53 @@ const unmanaged = [...new Set(pairs.map((p) => p.taskKey))]
   .filter((key) => !managedKeys.includes(key))
   .sort();
 if (unmanaged.length) {
-  problems.push(`@XxlJob handler 指向未在 XxlJobManagedTasks.KEYS 登记的 taskKey：${unmanaged.join(', ')}`);
+  problems.push(
+    `@XxlJob handler 指向未在 XxlJobManagedTasks.KEYS 登记的 taskKey：${unmanaged.join(', ')}`
+  );
+}
+
+// 3.5 每个托管任务必须有「最大静默时长」阈值 —— 超期看护靠它判定停跑，
+//     缺条目会让该任务被静默跳过，看护等于不存在。
+const zonesFile = join(
+  root,
+  'services',
+  'trade-service',
+  'src',
+  'main',
+  'java',
+  'com',
+  'aicabinet',
+  'trade',
+  'support',
+  'ScheduleZones.java'
+);
+const zonesSource = read(zonesFile, 'ScheduleZones.java');
+const maxSilenceAnchor = zonesSource.indexOf('MAX_SILENCE_BY_TASK = Map.ofEntries(');
+if (maxSilenceAnchor < 0) {
+  fail('ScheduleZones.java 中找不到 MAX_SILENCE_BY_TASK 锚点，门禁已失效，请同步本脚本');
+}
+const maxSilenceEnd = zonesSource.indexOf(');', maxSilenceAnchor);
+if (maxSilenceEnd < 0) fail('ScheduleZones.java 的 MAX_SILENCE_BY_TASK 声明无法解析');
+const watchKeys = [
+  ...zonesSource.slice(maxSilenceAnchor, maxSilenceEnd).matchAll(/Map\.entry\("([a-z0-9-]+)"/g)
+].map((m) => m[1]);
+if (watchKeys.length === 0) fail('MAX_SILENCE_BY_TASK 未解析出任何条目，门禁已失效');
+
+const unwatched = managedKeys.filter((key) => !watchKeys.includes(key));
+if (unwatched.length) {
+  problems.push(
+    `托管任务缺少超期看护阈值（ScheduleZones.MAX_SILENCE_BY_TASK）：${unwatched.join(', ')}` +
+      ` —— 缺条目时看护会静默跳过该任务，停跑无人发现`
+  );
+}
+
+// 3.6 看护者自己不能进托管清单：它一旦让位，就会跟着被看护的对象一起停跑
+const MONITOR_KEY = 'scheduled-task-stale-monitor';
+if (managedKeys.includes(MONITOR_KEY)) {
+  problems.push(
+    `${MONITOR_KEY} 不应出现在 XxlJobManagedTasks.KEYS 中：看护任务必须由 Spring 常驻执行，` +
+      `否则调度中心出故障时它与被看护任务同时停跑`
+  );
 }
 
 // ── 4. 执行器地址 与 调度中心 context-path 必须一致 ──────────────────────────
@@ -215,6 +259,7 @@ if (problems.length) {
 
 console.log(
   `${TAG} OK（托管任务 ${managedKeys.length} 个，具名 handler ${namedHandlers.size} 个，` +
-    `种子 ${seededHandlers.size} 条，地址默认值 ${addressDefaults.length} 处，` +
+    `种子 ${seededHandlers.size} 条，看护阈值 ${watchKeys.length} 条，` +
+    `地址默认值 ${addressDefaults.length} 处，` +
     `admin context-path ${[...declaredPaths].join('/')}）`
 );

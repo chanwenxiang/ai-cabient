@@ -229,6 +229,13 @@ aicabinet:
   xxljob:
     # Docker apps 默认 true；本地 IDEA 默认 false，避免无调度中心时资金任务停跑
     enabled: ${XXL_JOB_ENABLED:false}
+  scheduled-task:
+    # 托管任务超期看护：XXL-JOB 接管后，清单内任务的内置 @Scheduled 会无条件让位，
+    # 若调度中心/执行器链路失效则两边同时停跑且无任何现象，靠 last_run_at 巡检兜底（审计 §19）。
+    stale-monitor-enabled: ${SCHEDULED_TASK_STALE_MONITOR_ENABLED:true}
+    stale-monitor-interval-ms: ${SCHEDULED_TASK_STALE_MONITOR_INTERVAL_MS:300000}
+    # 同一批超期任务重复外发告警的最小间隔（分钟），避免刷屏；异常列表侧由去重键天然收敛
+    stale-monitor-realart-minutes: ${SCHEDULED_TASK_STALE_REALERT_MINUTES:360}
   devops:
     enabled: ${DEVOPS_HUB_ENABLED:true}
     grafana-url: ${DEVOPS_GRAFANA_URL:http://localhost:13000}
