@@ -2324,6 +2324,10 @@ await gotoPath(page, `…`);       →   await gotoPath(
 | 格式（LF 语义 = CI 判据） | 383 个候选 **0 个**不干净 |
 | 两端 UAT | consumer `pass=37 fail=0 skip=9`；merchant `pass=29 fail=0 skip=2` |
 | 两端类型检查 | `tsc --noEmit` exit 0 |
+| 接线门禁规则 4（§19.9①） | 首跑点名 `check:shared` 无人调用 → 核对 CI 已内联其 3 步 → 带证据豁免后 OK（23 个 `check:*` 中 21 可达 + 2 豁免） |
+| 迁移复核自测（§19.9②） | 修复前：干净工作区**首跑即红** + 残留 2 个临时 `.sql`；修复后：连跑 2 次 OK、**残留 0**、首跑打印「清扫了 2 个上次遗留的临时迁移」 |
+| 迁移安全门禁（§19.9③） | 去掉 `--exclude-standard` 后，被忽略的临时 `.sql` 仍被扫到 → 自测的"空头必须被拦"恢复为真；连跑 5 次稳定 `OK (1 new script(s))` |
+| 迁移目录洁净度 | `V9999__tmp_migration_reviewed_gate_*` 残留 **0**（`git ls-files --others` 可枚举到 V275、但无临时文件） |
 
 ### 19.8 本轮沉淀
 
@@ -2334,7 +2338,67 @@ await gotoPath(page, `…`);       →   await gotoPath(
 5. **告警要有"没配置也能看见"的落点。** 只发 Webhook，渠道留空时告警就消失在真空里；因此同步落运营异常列表（可在 UI 看到、可派单、可自动关闭）与 Prometheus 指标。
 6. **行尾是"跨平台一致"的隐形地雷，这次炸的是 prettier 而不是产物。** §16.7 已经在 admin 产物上踩过一次（哈希全变）；这次是 `endOfLine: auto` + CRLF 工作副本，让**本机的格式化结论与 CI 相反**。凡"本机过、CI 红"或者反过来，第一件事查行尾与工具对行尾的处理策略。
 
-**追加门禁后的全仓总数**：聚合链 `pnpm check:audit-gates` 由 13 → **15**（新增 `check:scheduled-task-seed`、`check:audit-gates-wiring`），加 CI 单独步骤调用的 4 个，全仓共 **19 个**。CI 里排在断点后的 10 余个步骤（Lint / Format check / 两端 type-check / OpenAPI 结构门禁…）本轮起首次真正可达。
+**追加门禁后的全仓总数（§19.9 复核更正）**：聚合链 `pnpm check:audit-gates` 由 13 → **15**（新增 `check:scheduled-task-seed`、`check:audit-gates-wiring`）；CI 单独步骤另调 **6 个**（`check-migration-safety`:96、`check-migration-reviewed-gate.test`:105、`check-admin-bundle-budget`:142、`check-merchant-nav-guard`:293、`check-nav-perms`:316、`check-openapi-types`:182/:319）；`scripts/check-*.mjs` 共 **21 个**。
+> ⚠️ §18.10 与本节初稿写的「CI 单独 4 个 / 全仓 17 或 19 个」是**漏数**：`check-openapi-types` 与 `check-migration-reviewed-gate.test` 也是独立脚本，只是分别以 `pnpm check:*` 与 `node scripts/*.mjs` 两种写法调用，早期只按其中一种写法 grep 就漏了。**数门禁不能只认一种调用写法。**
+CI 里排在断点后的 10 余个步骤（Lint / Format check / 两端 type-check / OpenAPI 结构门禁…）本轮起首次真正可达。
+
+### 19.9 修链过程中又挖出三个门禁自身的缺陷（其中两个会留下"假迁移"）
+
+第 19.4 节把 CI 修绿了，但**修的过程本身**暴露了门禁自己的问题。三条都已修复并负向验证。
+
+**① [P2] 门禁接线自检的"恒真"规则：定义了 `check:foo` ≠ 有人调用它**
+
+`check-audit-gates-wiring` 原有三条规则，其中"每个 `check-*.mjs` 必须被接线"的判据是「文件名出现在某条 script 命令里 或 CI 里」——而**定义 `check:foo` 的那条命令自己就提到了脚本文件名**，所以对"定义了却无人调用"这一形态**恒真**，实际只是规则 1 的另一种写法。
+
+新增**规则 4：可达性闭包**——入口 = 聚合链 ∪ CI 里的 `pnpm check:*` ∪ CI 里直接 `node scripts/check-*.mjs`，然后沿被可达脚本内部的 `pnpm` 引用做传递闭包。首次运行即点名 `check:shared` 无人调用。
+
+经核对，CI 已把 `check:shared` 的三个组成部分**拆成独立步骤**（`build:packages`:306、`shared-rbac test`:309、`check:nav-perms`:316），因此**不是覆盖缺口**，属本地"一把梭"别名。处理方式：显式豁免，但**豁免必须带证据**——在代码里逐条写明对应 CI 行号。理由：哪天 CI 删掉其中一步，这个豁免就会变成假绿；没有证据的豁免等于把门禁关掉。
+
+**② [P1] `check-migration-reviewed-gate.test.mjs` 静默泄漏"假迁移"到真实 Flyway 目录**
+
+该自测必须把临时 `.sql` 写进**真实的 `db/migration/` 目录**（因为 `check-migration-safety` 是按目录扫描的），所以清理逻辑本身就是安全边界。而原实现的清理是：
+
+```js
+} finally {
+  try { rmSync(abs); } catch { /* ignore */ }   // ← 静默吞掉
+}
+```
+
+在 **Windows + OneDrive** 环境（OneDrive 持文件句柄）下 `rmSync` 抛 EPERM，被 `catch {}` 吞掉 → **临时文件一个都删不掉**。实测在**干净工作区上首跑即红**：
+
+```
+FAIL: complete reviewed header should pass
+ [check-migration-safety] FAIL …V9999__tmp_migration_reviewed_gate_…: MIGRATION_REVIEWED yes requires LOCK_RISK…
+```
+
+即第一个（空头 `bare`）文件残留在目录里 → 第二次断言扫到它 → 断言失败。**Linux CI 因为 unlink 语义不同（可删除被打开的文件）完全看不到**——又是一条"本机假红、CI 看不出来"的反向镜像。
+
+比假红严重得多的是残留物本身：`db/migration/` 里躺着一个**假的 Flyway 脚本**
+
+```sql
+ALTER TABLE shopping_session ALTER COLUMN state TYPE varchar(64);
+```
+
+一旦被 `git add -A` 带上，就是一次**静默 schema 变更**（`shopping_session` 还是热表）。
+
+修复：① 开跑前 + 跑完后**按前缀**清扫（含上次崩溃遗留）；② 删除带 20 次重试 + 100ms 退避；③ **删不掉显式失败**，不再静默；④ 收尾自查目录内无本测试临时文件；⑤ `.gitignore` 加 `V9999__tmp_migration_reviewed_gate_*.sql` 兜底防误提交。
+验证：连跑两次均 OK、残留 0，首跑打印「清扫了 2 个上次遗留的临时迁移」。
+
+**③ [P1] `check-migration-safety` 的 `--exclude-standard`：被 .gitignore 掉的 `.sql` 对安全门禁隐形**
+
+**第 ③ 条是被第 ② 条修出来的。** 修 ② 时把临时文件名加进 `.gitignore`，紧接着自测的"空头 `MIGRATION_REVIEWED` 必须被拦"就**立刻退化成恒假**：
+
+```
+FAIL: bare MIGRATION_REVIEWED should have failed
+```
+
+原因是该门禁用 `git ls-files --others --exclude-standard` 枚举新迁移——`--exclude-standard` 会**尊重 .gitignore**，于是这个（被忽略的）临时文件对安全门禁**完全不可见**，门禁扫不到它，自然"没有可拦的东西"。
+
+这是个**真漏洞，不只为这一个测试**：migration 目录里任何被忽略的 `.sql` 都是一次真实的新迁移——被忽略 ≠ 不会被 Flyway 执行。修复：去掉 `--exclude-standard`（并把枚举结果过滤为 `.sql`）。
+
+> **通则：安全扫描不要用 `--exclude-standard`。** "git 不跟踪"与"运行时不会执行"是两件事，安全门禁必须按后者取证。
+
+**④ 合并后的判据（第 ② + ③ 条一起看）**：临时文件必须**同时**满足两个相反方向的约束——对 `git add -A` **不可提交**（靠 .gitignore），对安全门禁**必须可见**（靠去掉 `--exclude-standard`）。只满足其中一个，都会得到一个假结论。
 
 **仍未决（更新）**：
 
@@ -2349,4 +2413,4 @@ await gotoPath(page, `…`);       →   await gotoPath(
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0；第 19 章为第十二轮 —— 落地托管任务超期看护（首次实跑即命中 6 个任务无执行记录），并发现上一轮新增门禁从未在 CI 执行、CI 已连红两次。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**；**§18 末句"17 个门禁全绿"已被 §19.4 更正（当时聚合链是断的，逐脚本跑不等于聚合链跑）**。*
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0；第 19 章为第十二轮 —— 落地托管任务超期看护（首次实跑即命中 6 个任务无执行记录），并发现上一轮新增门禁从未在 CI 执行、CI 已连红两次。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**；**§18 末句"17 个门禁全绿"已被 §19.4 更正（当时聚合链是断的，逐脚本跑不等于聚合链跑），其中"门禁总数"一项又被 §19.8/§19.9 的复核再度更正为 21 个（早期漏数了用另一种写法调用的两个脚本）**；**§19.8 中"全仓共 19 个门禁"已被 §19.9 更正为 21 个**。*
