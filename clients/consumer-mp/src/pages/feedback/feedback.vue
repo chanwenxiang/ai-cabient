@@ -59,7 +59,7 @@
             class="input"
             :value="deviceId"
             placeholder="请输入柜机编号（选填）"
-            type="digit"
+            type="text"
             @input="deviceId = eventInputValue($event)"
           />
 

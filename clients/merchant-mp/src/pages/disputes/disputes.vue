@@ -32,11 +32,11 @@
           class="card"
           hover-class="card-hover"
           role="button"
-          :aria-label="`争议 ${shortId(item.ticketId)} ${statusText(item.status)}`"
+          :aria-label="`争议 ${fullId(item.ticketId)} ${statusText(item.status)}`"
           @click="onDetail(item)"
         >
           <view class="card-header">
-            <text class="card-id">#{{ shortId(item.ticketId) }}</text>
+            <text class="card-id">#{{ fullId(item.ticketId) }}</text>
             <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
           </view>
           <text class="card-title">{{ merchantDisputeDisplayCopy(item) || '争议' }}</text>
@@ -70,7 +70,7 @@
             <text v-if="item.refundedAmountCents != null"
               >已退 {{ fmtMoney(item.refundedAmountCents) }}</text
             >
-            <text v-if="item.orderId" class="card-order">订单 {{ shortId(item.orderId) }}</text>
+            <text v-if="item.orderId" class="card-order">订单 {{ fullId(item.orderId) }}</text>
           </view>
           <view
             v-if="item.hasVideo || item.videoUri || item.videoPreviewUrl"
@@ -163,11 +163,11 @@
               <text>{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text>
             </view>
           </view>
-          <view v-if="detail?.videoPreviewUrl || detail?.videoUri" class="video-block">
+          <view v-if="playbackUrl" class="video-block">
             <text class="detail-lbl">购物录像</text>
             <video
               class="dispute-video"
-              :src="detail.videoPreviewUrl || detail.videoUri"
+              :src="playbackUrl"
               controls
               object-fit="contain"
               :show-center-play-btn="true"
@@ -185,6 +185,10 @@
                 src="data:text/vtt,WEBVTT"
               />
             </video>
+          </view>
+          <view v-else-if="detail?.videoUri" class="video-block">
+            <text class="detail-lbl">购物录像</text>
+            <text class="video-unavailable">录像暂不可用（对象不存在或链接已过期）</text>
           </view>
         </scroll-view>
         <view class="detail-actions">
@@ -288,6 +292,21 @@ const pendingSessionId = ref('');
 const detailVisible = ref(false);
 const detail = ref<MerchantDisputeDetailView | null>(null);
 const detailAmountDiffNote = computed(() => merchantDisputeAmountDiffNote(detail.value));
+/**
+ * 可播放的录像地址。
+ *
+ * `videoPreviewUrl` 是后端预签名后的 HTTP 地址；当对象不存在时后端**故意**返回空
+ * （MinioVideoService.presignPlaybackUrl 的注释："对象不存在时不返回 URL，避免指向 404"）。
+ * 旧模板在这种情况下回退到 `videoUri`，而它是一个 `minio://bucket/key` 私有协议地址，
+ * 浏览器 `<video>` 解析不了 → 控制台报 `net::ERR_UNKNOWN_URL_SCHEME`、播放器显示黑屏 00:00。
+ * 实测：`minio://cabinet-videos/sim/.../1789459576844846197-top.mp4`。
+ * 所以这里只在地址真的可播放时才渲染播放器，否则给出明确提示。
+ */
+const PLAYABLE_MEDIA_RE = /^(https?:|blob:|data:|file:)/i;
+const playbackUrl = computed(() => {
+  const url = String(detail.value?.videoPreviewUrl || '').trim();
+  return PLAYABLE_MEDIA_RE.test(url) ? url : '';
+});
 const canReplyDetail = ref(false);
 const canResolveDetail = ref(false);
 const resolving = ref(false);
@@ -422,9 +441,13 @@ function statusText(s?: string) {
   return displayLabel('dispute_status', s, '未知状态');
 }
 
-function shortId(id?: string) {
-  if (!id) return emptyDisplay(id, 'order');
-  return id.length > 12 ? id.substring(0, 12) : id;
+/**
+ * 工单号 / 订单号都是客服与商户的**查询凭据**，列表必须与详情页展示同一个完整号。
+ * 旧实现截断为前 12 位（W-8），导致「凭列表号查不到工单」——详情页给的是完整 19 位。
+ * 此处只做空值兜底，不再截断。
+ */
+function fullId(id?: string) {
+  return emptyDisplay(id, 'order');
 }
 
 function formatTime(t?: string) {
@@ -665,6 +688,10 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
 .card-id {
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
+  /* 完整 19 位工单号：允许收缩并在必要时换行，避免把状态标签挤出卡片 */
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
 }
 .card-status {
   font-size: var(--font-size-sm);
@@ -672,6 +699,7 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
+  flex-shrink: 0;
 }
 .card-status.RESOLVED,
 .card-status.resolved {
@@ -830,6 +858,12 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   margin-top: 12rpx;
   background: var(--text-primary, #0f172a);
   border-radius: var(--radius-control);
+}
+.video-unavailable {
+  display: block;
+  margin-top: 12rpx;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #334155);
 }
 .page-body {
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));

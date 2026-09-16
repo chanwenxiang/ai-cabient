@@ -13,7 +13,7 @@
           class="input"
           :value="deviceId"
           placeholder="请输入柜机编号"
-          type="digit"
+          type="text"
           @input="onDeviceInput"
         />
 

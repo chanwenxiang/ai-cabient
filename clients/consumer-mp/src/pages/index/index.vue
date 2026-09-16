@@ -145,7 +145,7 @@
             data-testid="device-code-input"
             aria-label="柜机编号"
             placeholder="请输入柜机编号"
-            type="digit"
+            type="text"
             placeholder-class="sheet-ph"
           />
           <app-button

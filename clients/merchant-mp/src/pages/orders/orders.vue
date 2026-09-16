@@ -74,11 +74,11 @@
             class="card"
             hover-class="card-hover"
             role="button"
-            :aria-label="`订单 ${shortId(item.orderId)} ${statusText(item.status)} ${money(item.totalAmountCents)}`"
+            :aria-label="`订单 ${fullId(item.orderId)} ${statusText(item.status)} ${money(item.totalAmountCents)}`"
             @click="onDetail(item)"
           >
             <view class="card-header">
-              <text class="card-id">{{ shortId(item.orderId) }}</text>
+              <text class="card-id">{{ fullId(item.orderId) }}</text>
               <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
             </view>
             <view class="card-main">
@@ -99,7 +99,7 @@
                   >分账 {{ splitStatusText(item.splitStatus) }}</text
                 >
                 <text v-if="item.payTradeNo || item.paymentOperationId" class="card-meta mono">
-                  流水 {{ shortId(item.payTradeNo || item.paymentOperationId) }}
+                  流水 {{ fullId(item.payTradeNo || item.paymentOperationId) }}
                 </text>
                 <text
                   v-if="
@@ -163,8 +163,7 @@ import {
   emptyDisplay,
   formatDateTimeShort,
   orderStatusLabel,
-  fmtMoney,
-  shortBizNo
+  fmtMoney
 } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import EmptyState from '@/components/empty-state.vue';
@@ -471,8 +470,13 @@ function refundCents(item: OpenApiOrderReadModelMerchant) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-function shortId(id?: string) {
-  return shortBizNo(id, 14, emptyDisplay(id, 'order'));
+/**
+ * 订单号 / 流水号是客服与商户的**查询凭据**，列表必须与详情页一致地展示完整号。
+ * 旧实现取末尾 14 位（`shortBizNo`），而订单详情页给的是完整号 —— 同一单号两处不一致，
+ * 凭列表号查不到（W-8 同类）。此处只做空值兜底，不再截断。
+ */
+function fullId(id?: string) {
+  return emptyDisplay(id, 'order');
 }
 
 function formatTime(t?: string) {
@@ -611,6 +615,10 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 .card-id {
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
+  /* 完整 19 位订单号：允许收缩并在必要时换行，避免把状态标签挤出卡片 */
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
 }
 .card-status {
   min-width: 108rpx;
@@ -621,6 +629,7 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 .card-status.PAID,
 .card-status.COMPLETED {
