@@ -1684,4 +1684,62 @@ $ cat .mvn/maven.config
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**。*
+### 16.7 续：新门禁首跑红了两次，根因是**行尾** —— 产物跨平台不可复现（同日修复）
+
+新建的门禁并没有一次通过。两次失败各自暴露了一个真问题，且第二个比第一个重要得多。
+
+| 提交 | `admin-artifacts` 结果 | 失败点 |
+| --- | --- | --- |
+| `518112e7` | ❌ | `Install dependencies` —— 缺 `script-shell` 覆盖 |
+| `2dfb0510` | ❌ | `Verify admin UI artifacts are up-to-date` —— **产物在 CI 上不可复现** |
+| `ded0f314` | ✅ | **这是该门禁第一次真正执行并通过** |
+
+**第一次失败（环境配置）**：仓库 `.npmrc` 为 Windows 写了 `script-shell=cmd.exe`，Linux CI 必须覆盖为 `/bin/bash`。其余三个 job 早有该覆盖（`ci.yml:148/265/346`），新 job 漏了 → `pnpm install` 的 lifecycle 脚本在 Linux 上走 `cmd.exe` 直接失败，门禁两步被跳过。
+
+**第二次失败（真缺陷，值得单独记账）**：`install` 与 `Rebuild admin UI` 都成功了，门禁判红。日志显示：
+
+- CI 的重建产出与仓库产物的**模块集合完全一致**（78 个模块，双向差集为 0），
+- 但**每一个 chunk 的哈希都不同**，只有 `index.html` 被修改。
+
+模块集合相同而字节全变 —— 这是"**源文件字节不同**"的指纹。
+
+定位：本机 `core.autocrlf=true`，把 `clients/` 与 `packages/` 下的**文本源码** checkout 成了 CRLF；而 Linux CI 拿到的是 blob 里的 LF。
+
+| 探针 | 结果 |
+| --- | --- |
+| 构建输入（`git ls-files clients packages`，排除 node_modules） | **234** 个 |
+| 其中 磁盘为 CRLF / blob 为 LF | **124** 个 |
+| blob 内含 CRLF 的文件 | 112 个，**全部是 png/jpg**（二进制，非行尾问题） |
+
+vite/rollup 的产物文件名带**内容哈希**，哈希取决于源文件字节 → 同一份源码在两端产出两套文件。**这不是门禁误报，是真实缺陷**：本机验证过的产物并不等于 CI 能复现的产物。
+
+**决定性证据**：把磁盘上的构建输入还原为 blob 字节（LF）后重建，**本地产物文件名集合与 CI 那次重建的完整产出集合完全一致**（各 178 个，双向差集为 0）：
+
+```
+CI 完整产出文件数 : 178
+本地(LF)产物文件数: 178
+两集合完全一致    : True
+仅在 CI 中: 0 []
+仅在本地  : 0 []
+```
+
+**修复**：
+
+1. 新增 `.gitattributes`，对 `clients/**`、`packages/**`、`static/admin/**` 声明 `text=auto eol=lf`。
+   **必须用 `text=auto` 而不是 `text`** —— 后者会强行把二进制当文本转换（本例 blob 内含 CRLF 的 112 个文件全是图片，正是靠 auto 检测才没有被破坏）。
+2. 磁盘上 204 个 CRLF 构建输入还原为 blob 的 LF 字节。**git 视角无内容变更**：`git diff --cached` 为空。此处有个坑要记：加完 `.gitattributes` 后 `git status` 会把 **206 个**文件标为 `M`（stat 缓存失效、文件尺寸变了），但 `git diff` 输出为空 —— **判定"是否有真实改动"要看 `git diff`，不要看 `git status` 的计数**。
+3. 在 LF 源码下重建产物并入库（`index.html` 也由 CRLF 变为 LF，因为它的行尾直接继承自 `clients/admin-vue/index.html` 模板）。
+
+**验证**：run `35046747960`，`admin-artifacts` ✅（`Install dependencies` → `Rebuild admin UI` → `Verify admin UI artifacts are up-to-date` 三步全绿）。
+
+**附带发现 [P2]：`Admin a11y smoke` 偶发假红。** 同一轮里 `mini-programs` 红了，失败断言是 `finance: 缺少跳过链接`（其前 4 个路由 dashboard/orders/devices/exceptions 均 OK），**重跑该 job 即绿**。该断言查的是 `clients/admin-vue/index.html` 里**静态**的 `<a class="skip-link" href="#main-content">`，任何应用页面加载都必然存在 —— 它缺失只可能意味着那一刻拿到的**不是应用文档**（dev server 或客户端跳转的竞态）。结论：与本次改动无关（`ded0f314` 未改任何源码，已用 `git diff --name-only` 核实），但这是门禁自身稳定性问题，建议把该断言改为 `waitForSelector` 或加重试。
+
+**沉淀（可复用于其他仓库）**：
+
+1. **构建产物的可复现性取决于源文件字节，而行尾是隐形变量。** 只要仓库同时有 Windows 开发者与 Linux CI，就必须把构建输入的行尾用 `.gitattributes` 钉死，否则"产物入库"这种模式必然漂移。
+2. 引入 `.gitattributes` 用 `text=auto eol=lf`，不要用 `text eol=lf`（会转坏二进制）。
+3. 新增 job 时，**先抄同仓库同类 job 的 `env`**（本例的 `npm_config_script_shell` 就藏在 `.npmrc` 里，不看日志很难想到）。
+
+---
+
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**。*
