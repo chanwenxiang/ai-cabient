@@ -282,9 +282,9 @@ if (cronAnchor < 0) {
 const cronEnd = zonesSource.indexOf(');', cronAnchor);
 if (cronEnd < 0) fail('ScheduleZones.java 的 XXL_CRON_BY_TASK 声明无法解析');
 const declaredCrons = new Map(
-  [...zonesSource.slice(cronAnchor, cronEnd).matchAll(/Map\.entry\("([a-z0-9-]+)",\s*"([^"]+)"\)/g)].map(
-    (m) => [m[1], m[2]]
-  )
+  [
+    ...zonesSource.slice(cronAnchor, cronEnd).matchAll(/Map\.entry\("([a-z0-9-]+)",\s*"([^"]+)"\)/g)
+  ].map((m) => [m[1], m[2]])
 );
 if (declaredCrons.size === 0) fail('XXL_CRON_BY_TASK 未解析出任何条目，门禁已失效');
 
