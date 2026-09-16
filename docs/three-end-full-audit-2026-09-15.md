@@ -2166,6 +2166,187 @@ infra/xxl-job/seed_aicabinet_jobs.sql    executor_handler 列
 - 两端 `manifest.json` 的 `"appid": ""` 为空，`urlCheck` 与 `validate-miniapp-env.mjs:84-99` 的要求相反 —— 真机/发布硬阻塞。
 - `BalanceTransactionDto` 的字段缺 `@Schema(description)`（javadoc 不进 OpenAPI spec）。
 
+## 19. 第十二轮 · 落地「托管任务超期看护」，并发现上一轮的门禁在 CI 从未执行过
+
+**触发**：§18.11 第 3 条留的待办（"托管任务最近执行时间超期即告警"）。用户回复「好的，按照你的建议」，并要求顺带检查定时任务。
+
+结论先说：**待办已落地并首次实跑就抓到真事；同时查出 §18 那句"17 个门禁全绿"是逐脚本跑出来的结论，聚合链本身当时是断的，CI 已连红两次。**
+
+### 19.1 落地：`ScheduledTaskStaleMonitor`
+
+| 项 | 设计 |
+| --- | --- |
+| 判据 | **只读 `scheduled_task.last_run_at`**，与 `ScheduleZones.MAX_SILENCE_BY_TASK` 的阈值比较 |
+| 范围 | `XxlJobManagedTasks.KEYS`（11 个托管任务）—— §18 的故障面正好就是它们 |
+| 阈值 | 周期 + 宽限（5/15 分钟任务留 3–4 个周期；日任务 26 小时；`points-expiry` 8 小时） |
+| 三态判定 | `MISSING_ROW`（登记行都没有）/ `NEVER_RUN`（有行但无执行记录）/ `OVERDUE`（静默超阈值） |
+| 周期 | 每 5 分钟（`aicabinet.scheduled-task.stale-monitor-interval-ms`） |
+| 告警出口 | ① 异常列表 `SCHEDULED_TASK_STALE`（CRITICAL，**恢复后自动关闭**）；② 钉钉/企微/通用 Webhook；③ Prometheus `aicabinet_scheduled_task_silence_seconds{task}`、`aicabinet_scheduled_task_stale_count` |
+| 防刷屏 | 同一批任务 6 小时内只外发一次（异常列表侧由 `dedup_key` 天然收敛） |
+| **关键约束** | 看护任务**刻意不列入 `XxlJobManagedTasks`** —— 它一旦跟着让位，调度中心出故障时它会与被看护对象一起停跑，看护等于不存在（已写成门禁 3.6 条） |
+
+为什么告警必须"三路可见"：只发 Webhook 的话，**没配 Webhook 就等于没有告警**（本项目三个渠道默认全为空）。
+
+### 19.2 首次实跑就抓到真事：6 个托管任务自 09-01 起再无执行记录
+
+看护上线后第一次巡检（04:29:06Z）即命中：
+
+```
+scheduled task stale detected count=6
+  tasks=coupon-expire,finance-margin,kpi-snapshot,line-commission,points-expiry,reconciliation
+```
+
+```
+ coupon-expire（优惠券过期处理）超过最大静默时长；最近执行 2026-09-01 08:52:21 已静默 21816 分钟
+ finance-margin（财务保证金固化）超过最大静默时长；最近执行 2026-09-01 00:05:00 已静默 22344 分钟
+ kpi-snapshot（设备可用性 KPI 快照）超过最大静默时长；最近执行 2026-09-01 08:52:17 已静默 21816 分钟
+ line-commission（线长佣金入账）超过最大静默时长；最近执行 2026-09-01 08:52:11 已静默 21816 分钟
+ points-expiry（积分过期管理）无执行记录；阈值 480 分钟
+ reconciliation（每日对账）超过最大静默时长；最近执行 2026-09-01 08:52:19 已静默 21816 分钟
+```
+
+两条不同的成因，必须分开看：
+
+- **5 个日/6 小时任务**：真正的停跑残留。它们的 cron 是**本地** 00:05/00:20/01:10/01:30/02:00，而执行器是**今天 12:00 才修好**的（§18.6）—— 今天这些时间点都已经过去，所以"最近一次执行"仍停在 09-01。**这是真实状态，不是误报**，当晚各自到点即自愈。
+- **`points-expiry` 报"无执行记录"**：它今天 04:00Z 其实**跑成功过**（`xxl_job_log` job109 `handle_code=200`），只是当时它的 `scheduled_task` 登记行还不存在，`finish()` 找不到行 → **执行记录被静默丢弃**（见 §19.3）。看护的判据是"记录"，所以它报的是"没有记录"——这个措辞是准确的，也正因为如此才把 19.3 的问题暴露出来。
+
+处置与复核（走运营「立即执行」，与自动调度同一入口）：
+
+```
+200 reconciliation   :: 对账调度未启用（3 ms）
+200 line-commission  :: 本次无线长佣金入账（2026-09-15）（8 ms）
+200 finance-margin   :: 已固化 2026-09-15 毛利快照，订单 0 笔（23 ms）
+200 coupon-expire    :: 本次无过期优惠券（6 ms）
+200 points-expiry    :: 提醒 0 人，过期结转 0 人（9 ms）
+200 kpi-snapshot     :: 已写入 2026-09-15 可用性快照，设备 3 台，离线事件 3，自动锁机 2（23 ms）
+```
+
+**完整闭环实测（检测 → 告警 → 恢复 → 自动关闭）**：
+
+```
+04:29:06  scheduled_task: SUCCESS 超期 6 个：coupon-expire、finance-margin、…、reconciliation
+          ops_exception: SCHEDULED_TASK_STALE / CRITICAL / OPEN（dedup=SCHEDULED_TASK_STALE:GLOBAL）
+04:30:16  「立即执行」6 个任务全部 200 TRIGGERED，执行记录与耗时落库
+04:34:06  scheduled_task: SUCCESS 托管任务 11 个均按时执行
+          ops_exception: RESOLVED / resolution=托管任务已恢复按时执行
+```
+
+### 19.3 [P2] 注册表 ↔ 登记行不一致：7 个任务在运营台"隐形"
+
+`ScheduledTaskService.finish()` 是 `findByIdForUpdate(taskKey).orElse(null)` —— **行不存在时静默丢弃执行记录**。而 `scheduled_task` 是定时任务模块的唯一可见面（列表/启停/手动触发/最近执行都在它上面）。V152 建表时只登记了 22 个任务，之后在 `ScheduledTaskRegistry` 新增的 **7 个从未补行**：
+
+```
+session-door-open-expire / points-expiry / coupon-expiry-remind / growth-log-archive
+/ sku-review-daily / risk-auto-disposition / temp-plan
+```
+
+后果：任务照跑，但运营台**看不到、不能启停**（`requireTaskForUpdate` 直接 404）、**不能手动触发**、出问题时没有任何线索。修复见 `V275__scheduled_task_seed_gap.sql`（一并补上看护任务自身），运营台可见任务数 **23 → 31**。
+
+新增门禁 `scripts/check-scheduled-task-seed.mjs` 把两侧钉死：注册表里每个 key 必须有登记行；登记行必须在 Java 里找得到 runner（防残留登记行）。三项负向验证均通过（删登记行 / 注册表加幽灵任务 / 登记行指向不存在的 runner）。
+
+### 19.4 [P0 · 门禁] CI 实测连红两次：`check:xxl-job-wiring` 在 CI 一次都没跑过
+
+用户要求"检查定时任务"，顺手核对 CI 时发现 **dev HEAD 的两次 CI 都是红的**（`35053093014`、`35054461057`）：
+
+```
+mini-programs › Audit regression gates
+> pnpm check:audit-gates && … && pnpm check:device-code-input && pnpm check:xxl-job-wiring
+ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "check:xxl-job-wiring" not found
+ELIFECYCLE  Command failed with exit code 254.
+```
+
+**根因**：上一轮把 `check:xxl-job-wiring` 写进了聚合链，却**忘了在 package.json 里定义它自己的 script 条目**。危害是双重的：
+
+1. CI 直接红；
+2. **断点处及其之后的门禁（`check:xxl-job-wiring`，以及任何追加在其后的新门禁）在 CI 从未执行过一次** —— "已接入 CI"只停留在纸面。这与 §13 R1「新门禁没接 CI = 等于没有」同源，只是断点位置从"没写进 CI"变成了"写进了但跑不起来"。
+
+**为什么本机没发现**：本机 `pnpm` 包装器坏（corepack shim 指向不存在的路径），历史做法是**逐个 `node scripts/xxx.mjs` 手动跑**。这样跑出来的"全绿"**永远看不出聚合链是断的** —— §18 结尾那句"17 个门禁全绿"正是这样得出的，属结论失真。
+
+**修复**（三重）：
+
+| 措施 | 内容 |
+| --- | --- |
+| 补定义 | `package.json` 补 `check:xxl-job-wiring`、`check:scheduled-task-seed` 两个 script |
+| 补门禁 | 新增 `scripts/check-audit-gates-wiring.mjs`：① 聚合链引用的每个 `pnpm <name>` 必须有定义；② 每个 `scripts/check-*.mjs` 必须被接线（package.json 命令或 CI 工作流）；③ CI 里 `node scripts/xxx.mjs` 引用的文件必须存在 |
+| 补入口 | 新增 `scripts/run-audit-gates.mjs`（`pnpm check:audit-gates:local`）：按聚合链字面顺序逐个执行，与 CI 语义一致，绕开坏掉的 pnpm |
+
+负向验证：删掉 `check:xxl-job-wiring` 的 script 定义 → 门禁 FAIL 并**同时**报出两条症状（聚合链引用未定义 + 该门禁脚本无人接线）。修复后本地实跑聚合链 **15/15 全绿**。
+
+### 19.5 两条「只在 CI 失败、本机不复现」的 UAT 用例
+
+`e2e-h5 › Consumer H5 UAT` 同批失败 2 条（`fail=2`，基线 0）。两条都不是产品缺陷，而是**用例少断言了环境前置**，且**本机有数据所以永远看不出来**：
+
+| 用例 | CI 现象 | 根因 | 修法 |
+| --- | --- | --- | --- |
+| `TC-ORDD-001` 订单详情 | 各 tab 全为 0 条，`.order-card` 不存在 → 恒 FAIL | CI 全新种子里该账号**没有任何订单** | 先数 `.order-card`，为 0 记 **SKIP** 并写明"列表为空" |
+| `TC-OPEN-002` 开门主路径 | `filled=true` 但文案是「该柜机当前离线」→ FAIL | 前置只判了 `available`，而该接口在设备**离线**时仍返回 `available=true` → 走进成功分支 | 前置改为 `online && available`（`canOpen`），并让 `TC-OPEN-005` 的拒绝分支同样按 `canOpen` 判定 |
+
+顺带修正一处过期注释：`TC-OPEN-002` 里"演示库三台柜机 sales_locked 均为 true（自动解锁默认关闭）"——该说法在 §18 修好 XXL-JOB 之后已不成立。
+
+### 19.6 修链时暴露的第二个问题：`format:check` 的 CRLF 陷阱（5 个文件在 CI 语义下不干净）
+
+把聚合链修通之后，CI 里排在它后面的步骤**第一次真正有机会执行**（此前它们全部 `skipped`）。其中 `Format check`（`ci.yml:60`，`pnpm format:check`）会立刻红，因为上一轮的两个提交里有 **5 个文件在 LF 语义下不干净**：
+
+```
+clients/consumer-mp/tests/consumer-h5-uat.mjs
+clients/merchant-mp/tests/merchant-h5-uat.mjs
+clients/merchant-mp/src/pages/business/business.vue
+scripts/check-device-code-input.mjs
+scripts/check-uat-selectors.mjs
+```
+
+**根因是行尾，不是格式习惯**：`.prettierrc.json` 里 `"endOfLine": "auto"`，prettier 会**按文件自身的行尾**排版；而本机 `core.autocrlf=true` 把工作副本 checkout 成 CRLF、CI 是 LF。于是同一份内容在两边得到不同的折行结果：
+
+```
+CRLF 语义（本机 --write 的产物）     LF 语义（CI 的判定）
+await gotoPath(page, `…`);       →   await gotoPath(
+                                        page,
+                                        `/pages/dispute/detail?ticketId=…`
+                                      );
+```
+
+即：**本机 `prettier --write` 报"已修好"，提交后 CI 照样红** —— 上一轮正是这样把 5 个不干净的文件送进 dev，而 `Format check` 因为排在断点之后被跳过，谁都没发现。
+
+**判定手法**（本项目可复用）：把文件按 LF 归一后复制到**仓库内的非点目录**再检查（点目录会被 prettier 默认忽略，那正是本机长期"看起来干净"的第二个陷阱），实测 383 个候选文件中 LF 语义不干净的是上述 5 个；归一 EOL 后 `--write`，复查 **0 个**。
+
+> 顺带说明为什么"用 `.tmp/` 临时文件核对"会骗人：prettier **默认忽略点目录**，`.tmp/xxx.mjs` 根本不进检查，于是 `--check` 报"All matched files use Prettier code style!"——**0 个文件的检查结果被读成了全绿**。这与本项目反复出现的"门禁假绿"是同一个病。
+
+### 19.7 本轮验证清单（均为本机实跑）
+
+| 验证 | 结果 |
+| --- | --- |
+| 新增单测 `ScheduledTaskStaleMonitorTest` | **8/8 PASS**（超期/无执行记录/缺登记行/已停用跳过/非托管不误报/重复告警节流/恢复自动关闭/阈值齐全） |
+| 迁移 V275 | `flyway_schema_history` version **275 success=t**；运营台任务数 23 → 31 |
+| 看护闭环 | 04:29:06 命中 6 个 → 异常 OPEN(CRITICAL)；04:30:16 手工补跑 6/6 `200 TRIGGERED`；04:34:06 巡检 0 个 → 异常 **RESOLVED**（自动关闭） |
+| Prometheus | `aicabinet_scheduled_task_silence_seconds{task=…}` 11 条 + `aicabinet_scheduled_task_stale_count` |
+| 聚合链 | `pnpm check:audit-gates` 语义下 **15/15**（本机 pnpm 坏，用新增的 `check:audit-gates:local` 逐项执行） |
+| 两道新门禁负向验证 | 删阈值 / 看护进托管清单 / 抽种子行 / 注册表加幽灵任务 / 种子指向无 runner / 删聚合链 script 定义 —— **6 项全部 FAIL 且报错精确** |
+| 格式（LF 语义 = CI 判据） | 383 个候选 **0 个**不干净 |
+| 两端 UAT | consumer `pass=37 fail=0 skip=9`；merchant `pass=29 fail=0 skip=2` |
+| 两端类型检查 | `tsc --noEmit` exit 0 |
+
+### 19.8 本轮沉淀
+
+1. **门禁失效的第五种形态：聚合链引用了一个不存在的 script。** 前四种是"未接入 / 被前置失败跳过 / 判据恒真 / 责任移交给没接管的执行者"。这一种的隐蔽点在于：**本地"逐个跑"这个习惯本身成了掩护** —— 它跑得过所有脚本，却永远跑不出"链是断的"。教训：**聚合门禁必须按聚合的方式跑**（本轮补了本地等价入口），并且聚合链本身要有门禁守着。
+2. **判据要选有业务含义的时间戳，不要选看起来在动的状态位。** `trigger_status=1`、`trigger_last_time` 每分钟刷新，看起来一切正常；只有 `scheduled_task.last_run_at` 说真话。这与 §18.11 第 2 条同源，如今已固化成代码。
+3. **"记录"和"事实"可能不一致 —— 而缺失的记录本身就是缺陷。** `points-expiry` 明明跑成功过，却因为没有登记行而"无执行记录"。看护报"无记录"是诚实的；该修的是**为什么没有记录**（§19.3）。看护的措辞因此定为"无执行记录"而不是"从未执行"，避免用一个字段去断言事实。
+4. **兜底者不能与兜底对象共用同一条失效链路。** 看护任务若进了托管清单，就会和它要盯的任务一起停跑 —— 这条已写成静态门禁。
+5. **告警要有"没配置也能看见"的落点。** 只发 Webhook，渠道留空时告警就消失在真空里；因此同步落运营异常列表（可在 UI 看到、可派单、可自动关闭）与 Prometheus 指标。
+6. **行尾是"跨平台一致"的隐形地雷，这次炸的是 prettier 而不是产物。** §16.7 已经在 admin 产物上踩过一次（哈希全变）；这次是 `endOfLine: auto` + CRLF 工作副本，让**本机的格式化结论与 CI 相反**。凡"本机过、CI 红"或者反过来，第一件事查行尾与工具对行尾的处理策略。
+
+**追加门禁后的全仓总数**：聚合链 `pnpm check:audit-gates` 由 13 → **15**（新增 `check:scheduled-task-seed`、`check:audit-gates-wiring`），加 CI 单独步骤调用的 4 个，全仓共 **19 个**。CI 里排在断点后的 10 余个步骤（Lint / Format check / 两端 type-check / OpenAPI 结构门禁…）本轮起首次真正可达。
+
+**仍未决（更新）**：
+
+- ~~新增「托管任务最近执行时间超期」告警~~ → **已完成**（§19.1–19.2）。
+- **新增**：`points-expiry` 等 6 个任务在演示库自 09-01 起无执行记录（§19.2）—— 当晚到点自愈，若次日仍未推进则说明调度链路仍有问题，看护会在 6 小时节流窗口后再次外发告警。
+- **新增建议**：`/api/v2/devices/{id}/status` 在设备离线时仍返回 `available=true`（§19.5），与开门接口的拒绝文案不一致，建议前端/接口统一口径（本轮只改了用例前置，未动接口）。
+- 仍建议产品侧确认：自动解锁阈值 **15 分钟**是否符合运营预期（`SystemConfigService.java:363`，可在线改）。
+- 共享工具 `shortBizNo` 的列表/详情单号口径统一（consumer 余额/订单/充值页 + admin dashboard 共 6 处）。
+- `edge/` 零测试资产；`PrefsJsonQueue.kt` 的 `mutate()` 全程 `@Synchronized` + 同步 `commit()`，需确认调用方不在主线程。
+- 两端 `manifest.json` 的 `"appid": ""` 为空，`urlCheck` 与 `validate-miniapp-env.mjs:84-99` 的要求相反 —— 真机/发布硬阻塞。
+- `BalanceTransactionDto` 的字段缺 `@Schema(description)`（javadoc 不进 OpenAPI spec）。
+
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0，并连带修复解锁后停售原因残留。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**。*
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0；第 19 章为第十二轮 —— 落地托管任务超期看护（首次实跑即命中 6 个任务无执行记录），并发现上一轮新增门禁从未在 CI 执行、CI 已连红两次。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**；**§18 末句"17 个门禁全绿"已被 §19.4 更正（当时聚合链是断的，逐脚本跑不等于聚合链跑）**。*
