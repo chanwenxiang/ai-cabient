@@ -292,7 +292,7 @@ jobs:
       - name: Merchant nav-guard path helpers
         run: pnpm check:merchant-nav-guard
 
-      # 审计防回归：端点字面量 / pageSize / token 存储 / cron zone / cache 名 / dialog a11y / 布局防抖 / 表列语义 / 小程序 a11y / 余额冻结类型两端一致 / UAT 类选择器有效性 / 编号类输入框不得用数字键盘
+      # 审计防回归：端点字面量 / pageSize / token 存储 / cron zone / cache 名 / dialog a11y / 布局防抖 / 表列语义 / 小程序 a11y / 余额冻结类型两端一致 / UAT 类选择器有效性 / 编号类输入框不得用数字键盘 / XXL-JOB 托管任务接线（清单↔handler↔种子↔调度中心 context-path）
       - name: Audit regression gates
         run: pnpm check:audit-gates
 

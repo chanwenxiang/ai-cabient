@@ -23,7 +23,7 @@
     "check:cache-names": "node scripts/check-cache-names.mjs",
     "check:admin-endpoints": "node scripts/check-admin-endpoints.mjs",
     "check:admin-token-storage": "node scripts/check-admin-token-storage.mjs",
-    "check:audit-gates": "pnpm check:admin-dialog-a11y && pnpm check:scheduled-zone && pnpm check:cache-names && pnpm check:admin-endpoints && pnpm check:admin-token-storage && pnpm check:admin-page-size && pnpm check:admin-anti-jitter && pnpm check:admin-table-align && pnpm check:mp-a11y && pnpm check:balance-hold-types && pnpm check:uat-selectors && pnpm check:device-code-input",
+    "check:audit-gates": "pnpm check:admin-dialog-a11y && pnpm check:scheduled-zone && pnpm check:cache-names && pnpm check:admin-endpoints && pnpm check:admin-token-storage && pnpm check:admin-page-size && pnpm check:admin-anti-jitter && pnpm check:admin-table-align && pnpm check:mp-a11y && pnpm check:balance-hold-types && pnpm check:uat-selectors && pnpm check:device-code-input && pnpm check:xxl-job-wiring",
     "check:admin-anti-jitter": "node scripts/check-admin-anti-jitter.mjs",
     "check:mp-a11y": "node scripts/check-mp-a11y-coverage.mjs",
     "check:balance-hold-types": "node scripts/check-balance-hold-types.mjs",

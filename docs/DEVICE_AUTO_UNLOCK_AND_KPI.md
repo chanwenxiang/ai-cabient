@@ -43,7 +43,7 @@ Docker apps 默认 `XXL_JOB_ENABLED=true`；本地 IDEA 默认 `false`（无调�
 .\docker-up.ps1
 ```
 
-- 地址：`http://localhost:18090/xxl-job-admin`（默认账号 `admin` / `123456`）
+- 地址：`http://localhost:18090/`（登录页 `/auth/login`；**3.x 无 `/xxl-job-admin` 前缀**，默认账号 `admin` / `123456`）
 - 已随 `docker-compose.full.yml` 启动；种子见 `infra/xxl-job/seed_aicabinet_jobs.sql`
 - 执行器 AppName：`trade-service`
 

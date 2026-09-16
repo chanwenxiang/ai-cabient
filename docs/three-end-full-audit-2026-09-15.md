@@ -1916,8 +1916,256 @@ select device_id, online_status, sales_locked, sales_lock_reason from device_inf
 - `edge/` 零测试资产；`PrefsJsonQueue.kt` 的 `mutate()` 全程 `@Synchronized` + 同步 `commit()`，需确认调用方不在主线程。
 - 两端 `manifest.json` 的 `"appid": ""` 为空，`urlCheck` 与 `validate-miniapp-env.mjs:84-99` 的要求相反 —— 真机/发布硬阻塞。
 - `BalanceTransactionDto` 的字段缺 `@Schema(description)`（javadoc 不进 OpenAPI spec）。
-- **新增**：柜机"恢复在线后不自动解锁"的运营影响需产品侧确认（配置默认 false 是否有意为之）。
+- ~~**新增**：柜机"恢复在线后不自动解锁"的运营影响需产品侧确认（配置默认 false 是否有意为之）。~~ **已在 §18 更正并修复**：该功能真实存在（稳定在线 15 分钟后自动解锁），"不生效"的真因不在开关而在 XXL-JOB 注册 404 导致**全部 11 个托管任务从未被调度过一次**；§17 中"开关默认 false 所以不解锁"的解释是错的（演示库该键实际为 `true`）。
+
+## 18. 第十一轮 · 由一句反问挖出的 P0：XXL-JOB 从未成功派发过一次，11 个托管任务全部静默停跑
+
+**触发**：上一轮我把"柜机恢复上线后不自动解锁"记成了「配置开关默认 false，属可配置的产品选择」。用户反问：
+
+> 「柜机恢复上线后 应该后过 10 分钟或者 5 分钟 会自动可售吧，应该有这个设置把？」
+
+这个反问是对的，而且我上一轮的结论**是错的** —— 不是"没开"，是"开了也没用"。
+
+### 18.1 设置确实存在，参数是 15 分钟（不是 5/10）
+
+| 系统参数 | 含义 | 代码默认 | 演示库实际 |
+| --- | --- | --- | --- |
+| `device.offline.auto_sales_lock_minutes` | 离线超过该分钟数自动锁机 | `10` | `10` |
+| `device.offline.auto_unlock_enabled` | 是否开启"恢复稳定在线后自动解锁" | `false` | **`true`** |
+| `device.offline.auto_unlock_stable_minutes` | 自动解锁前需保持稳定在线的分钟数 | **`15`** | `15` |
+| `device.offline.manual_unlock_grace_minutes` | 人工解锁后的宽限期 | `45` | `45` |
+
+定义见 `SystemConfigService.java:52-58` 与 `:361-363`（`upsertIfAbsent` 播种）。**§17 里"开关默认 false 所以不解锁"的解释不成立**：演示库该键实际为 `true`。开关是开的、时长是 15 分钟，但柜机照样不解锁 —— 说明问题在下游。
+
+### 18.2 事实：柜机 `330449777078` 已 ONLINE 2 小时 23 分，仍锁着
+
+```
+ device_id   | online_status | sales_locked |       sales_lock_reason        |         online_since
+ 330449777078 | ONLINE       | t            | 离线超时自动停售（超 10 分钟）  | 2026-09-16 01:27:45+00
+（db_now = 03:50:55+00，即已在线 2h23m，远超 15 分钟阈值）
+```
+
+### 18.3 根因：执行器注册吃 404，注册表为空 → 派发全部 Address Router Fail
+
+执行器侧（`ai-cabinet-trade-service-1` 日志，每 30 秒复现一次）：
+
+```
+>>>>>>>>>>> xxl-job registry error,
+  registryParam: RegistryParam{registryGroup='EXECUTOR', registryKey='trade-service',
+                               registryValue='http://172.22.0.10:9999/'}
+java.lang.RuntimeException: Http Request fail, statusCode(404) for url :
+  http://xxl-job-admin:8080/xxl-job-admin/api/registry
+```
+
+调度中心侧（`xxl_job_log.trigger_msg`，解码自乱码）：
+
+```
+执行器-注册方式：自动注册
+执行器-地址列表：null
+执行器地址：address route fail, 调度失败：执行器地址为空
+调度备注：error, Address Router Fail.
+```
+
+调度中心容器日志每 30 秒一条：
+
+```
+WARN o.s.web.servlet.PageNotFound - No mapping for POST /xxl-job-admin/api/registry
+```
+
+**直接探测确认了差的就是这一段路径前缀**：
+
+| 请求 | 状态码 |
+| --- | --- |
+| `POST http://localhost:18090/api/registry` | **200** ← 真正可用的注册端点 |
+| `POST http://localhost:18090/xxl-job-admin/api/registry` | **404** ← 执行器正在打这个 |
+| `POST http://localhost:18090/xxl-job-admin/` | 404 |
+| `GET http://localhost:18090/` | 302 → `/auth/login`（控制台真实入口） |
+
+**根因**：镜像 `xuxueli/xxl-job-admin:3.4.2` 的 context-path 是 `/`（3.x 去掉了 `/xxl-job-admin` 前缀，且 compose 的 `PARAMS` 里没有 `--server.servlet.context-path` 覆盖），而 `XXL_JOB_ADMIN_ADDRESSES` 的默认值仍是 2.x 写法：
+
+```yaml
+# infra/docker-compose.full.yml:168 / docker-compose.apps.yml:111（修复前）
+XXL_JOB_ADMIN_ADDRESSES: ${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080/xxl-job-admin}
+```
+
+多一段前缀 → 执行器自动注册 404 → `xxl_job_registry` 空表 → `xxl_job_group.address_list` 为 `NULL` → 每一次派发都在"路由不到执行器"上失败。
+
+### 18.4 波及面：不是"自动解锁不生效"，是 **11 个任务从未被调度过一次**
+
+这一条比单台柜机严重得多。`xxl_job_log` 按任务统计，**修复前每个任务的失败数 == 总触发数**：
+
+| job_id | 任务 | 派发次数 | Address Router Fail | 成功率 |
+| --- | --- | --- | --- | --- |
+| 101 | 未付订单自动取消 | 1760 | 1760 | **0%** |
+| 102 | 充值单自动取消 | 5304 | 5304 | **0%** |
+| 103 | 分账重试 | 2639 | 2639 | **0%** |
+| 104 | 每日对账 | 6 | 6 | **0%** |
+| 105 | 线长佣金入账 | 14 | 14 | **0%** |
+| 106 | 财务保证金固化 | 20 | 20 | **0%** |
+| 107 | 数据一致性巡检 | 2652 | 2652 | **0%** |
+| 108 | 优惠券过期处理 | 4 | 4 | **0%** |
+| 109 | 积分过期管理 | 92 | 92 | **0%** |
+| 110 | 稳定在线自动解锁 | 2652 | 2652 | **0%** |
+| 111 | 设备可用性 KPI 日快照 | 12 | 12 | **0%** |
+
+**XXL-JOB 这条链路从来没有成功过。** 业务表 `scheduled_task.last_run_at` 的分布把分界线画得极干净 —— 恰好等于"该任务是否在 `XxlJobManagedTasks.KEYS` 清单里"：
+
+| 类别 | 任务 | last_run_at |
+| --- | --- | --- |
+| **在清单内**（让位给 XXL-JOB） | 未付取消 / 充值取消 / 分账重试 / 数据一致性 / **自动解锁** | 停在 **09-15 08:5x**（UTC） |
+| 同上 | 优惠券过期 / 对账 / 线长佣金 / 财务保证金 / KPI 快照 | 停在 **09-01、08-31** |
+| **不在清单**（Spring `@Scheduled` 兜底） | device-presence / compensation-* / session-* / dispute-sla / ops-exception-scanner … | **刚刚 03:51 正常执行** |
+
+### 18.5 设计缺陷：让位是**无条件**的，没有任何存活校验
+
+`ScheduledTaskService.tryBegin`（`:184-193`）：
+
+```java
+public boolean tryBegin(String taskKey, long leaseSeconds) {
+    if (shouldYieldToXxlJob(taskKey)) {   // ← 只看「开了 XXL 且我由 XXL 托管」
+        return false;                     //    不校验「调度中心是否可达/我是否已注册」
+    }
+    ...
+}
+boolean shouldYieldToXxlJob(String taskKey) {
+    if (!xxlJobEnabled || !XxlJobManagedTasks.isManaged(taskKey)) return false;
+    if (Boolean.TRUE.equals(ALLOW_BUILTIN.get())) return false;
+    return !invokedByXxlJob();
+}
+```
+
+`xxlJobEnabled=true` 是 compose 的默认值（`docker-compose.full.yml:167`）。于是只要"开关开 + 名字在清单里"，内置调度就**立刻且永久**地让位；而外部调度一旦注册不上，两边同时失效 —— **既没有执行，也没有告警**。
+
+这是本项目"门禁失效三种形态"之外的**第四种**：**责任被移交给一个从未接管的执行者**。判据不是"配置对不对"，而是"这条链路**有没有人真的在跑**"。
+
+### 18.6 修复
+
+| # | 文件 | 改动 |
+| --- | --- | --- |
+| 1 | `infra/docker-compose.full.yml:168` | 默认值改为 `http://xxl-job-admin:8080`，并加注释说明 3.x 无前缀 |
+| 2 | `infra/docker-compose.apps.yml:111` | 同上 |
+| 3 | `services/trade-service/src/main/resources/application.yml:303` | 过期注释更正（控制台是 `http://localhost:18090/`，登录页 `/auth/login`） |
+| 4 | `docs/DEVICE_AUTO_UNLOCK_AND_KPI.md:46` | 控制台地址更正 |
+| 5 | `docs/SCHEDULED_TASK_MANAGEMENT.md:47` | 控制台地址更正 |
+
+### 18.7 验证（三层，全部实测）
+
+**① 注册落库**：
+
+```
+xxl_job_registry : EXECUTOR | trade-service | http://172.22.0.10:9999/ | 2026-09-16 11:56:00
+xxl_job_group    : address_list = http://172.22.0.10:9999/     ← 修复前为 NULL
+```
+
+**② 派发成功**（`xxl_job_log`，job 110）：
+
+```
+2026-09-16 12:00:00 | code=200 | ok:device-auto-unlock    ← 修复后
+2026-09-16 11:55:00 | code=200 | ok:device-auto-unlock    ← 修复后
+2026-09-16 11:50:00 | code=0   |                          ← 修复前
+```
+
+**③ 业务结果**：
+
+- 5 个托管任务在 `2026-09-16 04:00:00Z` **首次真实执行**（`last_run_at` 从 09-15 08:5x 一次性推进到当前）：
+  ```
+  unpaid-cancel        | 2026-09-16 04:00:00 | SUCCESS | 本次无超时未付订单
+  device-auto-unlock   | 2026-09-16 04:00:00 | SUCCESS | 本次无自动解锁
+  profit-sharing-retry | 2026-09-16 04:00:00 | SUCCESS | 本次无失败分账单
+  recharge-cancel      | 2026-09-16 04:00:00 | SUCCESS | 本次无超时充值单
+  data-consistency     | 2026-09-16 04:00:00 | SUCCESS | 巡检完成，仍有不一致 8 条
+  ```
+- **柜机解锁了**：`330449777078` 的 `sales_locked` 由 `t` → **`f`**，`sales_unlocked_at = 2026-09-16 03:55:00+00`（正是 11:55 那次执行）。
+
+### 18.8 连带发现 [P2]：解锁后 `sales_lock_reason` 残留旧原因
+
+解锁后柜机的 `sales_locked=false`，但 `sales_lock_reason` 仍是「离线超时自动停售（超 10 分钟）」—— 一台**在售**的柜机挂着**停售原因**。
+
+根因是 MyBatis-Plus 的写入策略：`updateById` 默认跳过 `null` 字段，所以 `DeviceSalesLockService.persistSalesLockState` 里的 `device.setSalesLockReason(null)` **落不了库**。代码里其实已经为姊妹字段打过同样的补丁 —— `DeviceInfoMapper.java:86-91` 的 `clearSalesUnlockedAt`，且在锁机分支被显式调用（`DeviceSalesLockService.java:122`）—— 但**没有对称的 `clearSalesLockReason`**，解锁分支就漏了：
+
+```java
+} else {
+    device.setSaleForbidden(false);
+    device.setSalesLockReason(null);                    // updateById 跳过 null → 不落库
+    device.setSalesUnlockedAt(java.time.Instant.now());
+}
+deviceRepository.save(device);
+```
+
+修复：新增 `DeviceInfoMapper.clearSalesLockReason`（`:93-103`）并在解锁分支调用。
+
+**展示层的连带风险**（数据已脏时用户能看到什么）：
+
+| 位置 | 是否按「是否停售」做了条件 | 结论 |
+| --- | --- | --- |
+| `admin-vue/DeviceListView.vue:311` | `row.salesLocked && row.salesLockReason` | 安全 |
+| `merchant-mp/devices.vue:120` | `d.salesLocked && d.salesLockReason` | 安全 |
+| `merchant-mp/device-detail.vue:38` | 外层 `v-if="salesLocked"` | 安全 |
+| **`merchant-mp/business.vue:214`** | **无** → 在售柜机卡片会渲染"离线超时自动停售" | 已修 |
+| **`admin-vue/DeviceReportView.vue:479`** | **无** → 导出报表"是否停售=否 + 停售原因=…" | 已修 |
+
+**运行时验证**（真实锁→解锁闭环，走 `POST /api/v2/ops/admin/devices/{id}/commands`）：
+
+```
+执行 LOCK   → sales_locked=t | reason=审计验证-临时锁机 | unlocked_at=空     ✔（clearSalesUnlockedAt 生效）
+执行 UNLOCK → sales_locked=f | reason=（空）            | unlocked_at=04:06:44 ✔（clearSalesLockReason 生效）
+```
+
+修复前该字段会保留解锁前的值（柜机上滞留的「离线超时自动停售」就是证据），修复后归 NULL。
+
+### 18.9 新增门禁 `check-xxl-job-wiring`
+
+这类事故的特征是：**配置/清单漂移在两个文件之间发生，而它不编译、不报错、测试也覆盖不到**（CI 里没有 docker）。因此把它变成静态三方契约：
+
+```
+XxlJobManagedTasks.KEYS                  哪些任务必须让位
+     ↕ 每个 key 必须有具名 @XxlJob handler
+ScheduledTaskXxlJobHandler               @XxlJob("xxxJob") → runKey("<taskKey>")
+     ↕ 每个具名 handler 必须被排期
+infra/xxl-job/seed_aicabinet_jobs.sql    executor_handler 列
+```
+
+外加一条真实引发过故障的配置不变量：**`XXL_JOB_ADMIN_ADDRESSES` 的路径部分必须与 xxl-job-admin 的 context-path 一致**（后者从 compose 的 `PARAMS` 里读 `--server.servlet.context-path`，缺省即 `/`）。
+
+**负向验证（三项，全部确认会红并指出具体漂移点）**：
+
+| 注入的漂移 | 结果 |
+| --- | --- |
+| 地址默认值改回 `…/xxl-job-admin` | exit 1：`docker-compose.full.yml: XXL_JOB_ADMIN_ADDRESSES 默认值路径为 /xxl-job-admin，而 xxl-job-admin 声明的 context-path 是 /` |
+| `KEYS` 里加一个 `"ghost-task"` | exit 1：`托管任务缺少具名 @XxlJob handler：ghost-task` |
+| 种子里把 `unpaidCancelJob` 改名 | exit 1：`@XxlJob handler 未在 seed 排期：unpaidCancelJob` + `种子排期了不存在的 handler：unpaidCancelJobRenamed` |
+
+锚点缺失（找不到 `KEYS = Set.of(`、解析不出 handler、找不到 compose）一律**显式失败**，避免门禁静默失效 —— 沿用 `check-balance-hold-types` 的既定风格。
+
+### 18.10 admin 产物重建与确定性复核
+
+`DeviceReportView.vue` 改动后 `static/admin` 必须重建（它是被 git 跟踪、由 nginx 直接对外服务的字节）。本轮复核：
+
+- 重建耗时 24s，`git status` 显示 **78 个 chunk 改名 + `index.html` 修改**。
+- 差异性质经逐字节比对确认是**哈希级联**：所有 import `index-<hash>.js` 的 chunk 都换了引用串（例：`import{…}from"./index-D-FFkSID.js"` → `"./index-Bt3zDWLy.js"`），文件名基名与字节长度均不变，**不是语义变化**。
+- **确定性**：连跑两次构建，168 个产物文件 **0 个不同**（`run1 vs run2: 同名不同内容 = 0`）→ 产物可复现（§16.7 立下的判据仍然成立）。
+- 修复确实进了产物：新 `DeviceReportView-5SOW3QdI.js` 中为 `a.salesLocked&&a.salesLockReason||""`。
+- 文件数对账：git 跟踪 178 = 磁盘 178。
+
+### 18.11 本轮沉淀
+
+1. **「已配置」不等于「已生效」，中间还差一个"到底谁在执行"。** 上一轮我停在"开关是 false"就下了结论，而真相是开关为 `true`、参数为 15 分钟、**执行者从未接管**。排查任何"配置看起来是对的但行为不对"的问题，都要先回答一个问题：**这条链路上一次真实执行是什么时候？** 本轮 `scheduled_task.last_run_at` 这一个字段就直接把根因指出来了。
+2. **判断任务是否在跑，要看业务表的时间戳，不要看调度台的状态。** `xxl_job_info.trigger_status=1`（运行中）、`trigger_last_time` 每分钟刷新，看起来一切正常；只有 `handle_code`/`trigger_msg` 和业务表的 `last_run_at` 才说真话。这与"门禁存在 ≠ 门禁生效"是同一个道理，只是换了个层面。
+3. **责任移交必须有存活校验。** "内置调度让位给外部调度"是合理的架构，但让位条件里必须包含"外部调度确实接管了我"。否则一次配置漂移就能把资金类任务（对账、分账、佣金、保证金）悄无声息地停掉，且没有任何告警。**建议后续补一条"托管任务最近执行时间超期即告警"的巡检**（列为本轮之后待办）。
+4. **写入侧的空值是 MyBatis-Plus 的经典坑，且往往只补了一半。** `updateById` 跳过 null → 需要显式 SQL；本项目对 `salesUnlockedAt` 补了、对 `salesLockReason` 漏了。**同一实体里成对出现的"锁时清 A / 解锁清 B"字段，应当成对检查**，展示层也应把"原因"类字段挂在"状态"条件下渲染。
+
+**本轮门禁总数**：聚合链 `pnpm check:audit-gates` 由 12 → **13**（新增 `check:xxl-job-wiring`），加上由 CI 单独步骤调用的 4 个（`check-migration-safety` `ci.yml:96`、`check-admin-bundle-budget` `:142`、`check-merchant-nav-guard` `:293`、`check-nav-perms` `:316`），全仓共 **17 个**，全绿；两端 `tsc --noEmit` exit 0。
+
+**仍未决（更新）**：
+
+- ~~柜机"恢复在线后不自动解锁"需产品侧确认~~ → **已关闭**（§18.7：功能正常，真因是调度链路）。
+- **新增（建议）**：托管任务"最近执行时间超期"告警 —— 用 `scheduled_task.last_run_at` 做巡检，比信任调度台状态可靠（§18.11 第 3 条）。
+- 仍建议产品侧确认：自动解锁阈值定为 **15 分钟**是否符合运营预期（默认值在 `SystemConfigService.java:363`，可在线改）。
+- 共享工具 `shortBizNo` 的列表/详情单号口径统一（consumer 余额/订单/充值页 + admin dashboard 共 6 处）。
+- `edge/` 零测试资产；`PrefsJsonQueue.kt` 的 `mutate()` 全程 `@Synchronized` + 同步 `commit()`，需确认调用方不在主线程。
+- 两端 `manifest.json` 的 `"appid": ""` 为空，`urlCheck` 与 `validate-miniapp-env.mjs:84-99` 的要求相反 —— 真机/发布硬阻塞。
+- `BalanceTransactionDto` 的字段缺 `@Schema(description)`（javadoc 不进 OpenAPI spec）。
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口（W-4 端到端实证 / W-6 根因更正为网关限流 / W-8 单号口径 / 新发现柜机编号输入 `type="digit"` 致字母无法录入 / 假红的第三种形态）。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**。*
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0，并连带修复解锁后停售原因残留。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**。*

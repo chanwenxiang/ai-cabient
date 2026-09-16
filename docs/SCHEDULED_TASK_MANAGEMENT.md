@@ -44,7 +44,7 @@
 
 | 项 | 值 |
 |---|---|
-| 控制台 | http://localhost:18090/xxl-job-admin |
+| 控制台 | http://localhost:18090/ （**3.x 无 `/xxl-job-admin` 前缀**） |
 | 账号 | admin / 123456 |
 | 执行器 AppName | trade-service |
 | 资金类任务 | `XxlJobManagedTasks`（对账/分账/未付取消等） |
