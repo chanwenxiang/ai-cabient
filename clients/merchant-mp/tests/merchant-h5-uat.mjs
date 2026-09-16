@@ -566,7 +566,8 @@ async function main() {
       // 同 TC-IMP-032：merchant_cookie_auth 是标记不是 JWT，不能拼进 Authorization。
       // 旧实现发 `Bearer 1` → 服务端短路 Cookie 鉴权 → 401 → 三条 M-14 里的 401 就是它，
       // 视频订单也永远探测不到（M-10v 长期 SKIP）。
-      const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
+      const token =
+        localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
       const authHeaders = token ? { Authorization: 'Bearer ' + token } : {};
       const probe = async (oid) => {
         if (!oid) return false;

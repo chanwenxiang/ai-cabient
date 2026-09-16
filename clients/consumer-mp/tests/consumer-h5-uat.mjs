@@ -760,24 +760,43 @@ async function main() {
     );
 
     // —— TC-ORDD-001 订单详情 ——
-    const clickedOrder = await page.evaluate(() => {
-      const card = document.querySelector('.order-card');
-      if (!card) return false;
-      card.click();
-      return true;
-    });
-    await page.waitForTimeout(2000);
-    text = await bodyText(page);
-    const orderDetailOk = clickedOrder && /订单详情|支付信息|商品清单|支付方式/.test(text);
-    const e10a = await shot(page, '10a-order-detail');
-    record(
-      'TC-ORDD-001',
-      '订单详情',
-      '功能',
-      orderDetailOk ? 'PASS' : 'FAIL',
-      text.split('\n').slice(0, 12).join(' | '),
-      e10a
+    // 前置：列表里得先有订单卡片。CI 的账号在全新种子里没有任何订单（各 tab 均 0 条），
+    // 此时「点不开详情」是环境没数据，不是详情页坏了 —— 必须记 SKIP，
+    // 否则就是一条结构上不可能 PASS 的用例，白占 UAT_MAX_FAIL 额度（本机有订单所以看不出来）。
+    const orderCardCount = await page.evaluate(
+      () => document.querySelectorAll('.order-card').length
     );
+    if (orderCardCount === 0) {
+      const e10aSkip = await shot(page, '10a-order-detail');
+      record(
+        'TC-ORDD-001',
+        '订单详情',
+        '功能',
+        'SKIP',
+        '前置不满足：当前账号订单列表为空（无 .order-card），无法验证详情页。' +
+          `实测文案：${text.split('\n').filter(Boolean).slice(0, 6).join(' | ')}`,
+        e10aSkip
+      );
+    } else {
+      const clickedOrder = await page.evaluate(() => {
+        const card = document.querySelector('.order-card');
+        if (!card) return false;
+        card.click();
+        return true;
+      });
+      await page.waitForTimeout(2000);
+      text = await bodyText(page);
+      const orderDetailOk = clickedOrder && /订单详情|支付信息|商品清单|支付方式/.test(text);
+      const e10a = await shot(page, '10a-order-detail');
+      record(
+        'TC-ORDD-001',
+        '订单详情',
+        '功能',
+        orderDetailOk ? 'PASS' : 'FAIL',
+        `cards=${orderCardCount} | ${text.split('\n').slice(0, 12).join(' | ')}`,
+        e10a
+      );
+    }
 
     // —— TC-VIDEO-001 购物视频播放页（本地 sample，禁止再用 example.com 假地址冒充通过）——
     const demoVideoCandidates = [
@@ -867,7 +886,12 @@ async function main() {
       try {
         const res = await fetch('/api/v2/disputes/mine', { headers, credentials: 'same-origin' });
         if (!res.ok) {
-          return { billedId: '', refundedId: '', resolvedCount: -1, probeError: 'HTTP ' + res.status };
+          return {
+            billedId: '',
+            refundedId: '',
+            resolvedCount: -1,
+            probeError: 'HTTP ' + res.status
+          };
         }
         const json = await res.json();
         const items = Array.isArray(json?.data) ? json.data : json?.data?.items || [];
@@ -895,10 +919,7 @@ async function main() {
     const refundTicketId = DEMO_DISPUTE_TICKET_REFUND || disputeSeeds.refundedId;
 
     if (billedTicketId) {
-      await gotoPath(
-        page,
-        `/pages/dispute/detail?ticketId=${encodeURIComponent(billedTicketId)}`
-      );
+      await gotoPath(page, `/pages/dispute/detail?ticketId=${encodeURIComponent(billedTicketId)}`);
       await page.waitForTimeout(3000);
       text = await bodyText(page);
       const imp25BilledOk =
@@ -932,10 +953,7 @@ async function main() {
     }
 
     if (refundTicketId) {
-      await gotoPath(
-        page,
-        `/pages/dispute/detail?ticketId=${encodeURIComponent(refundTicketId)}`
-      );
+      await gotoPath(page, `/pages/dispute/detail?ticketId=${encodeURIComponent(refundTicketId)}`);
       await page.waitForTimeout(3000);
       text = await bodyText(page);
       const imp25RefundOk =
@@ -962,8 +980,8 @@ async function main() {
         disputeSeeds.probeError
           ? `争议种子探测失败（${disputeSeeds.probeError}）—— 不能据此判定"库里无已退款工单"`
           : '演示库无「已结案且已退款」的争议种子（需 refundedAmountCents>0；' +
-            `当前结案工单共 ${disputeSeeds.resolvedCount} 条，全部 refunded=null）` +
-            ' → 前端 shouldShowConsumerRefundChannel 为假，「退款渠道」行不会渲染',
+              `当前结案工单共 ${disputeSeeds.resolvedCount} 条，全部 refunded=null）` +
+              ' → 前端 shouldShowConsumerRefundChannel 为假，「退款渠道」行不会渲染',
         null
       );
     }
@@ -1202,6 +1220,10 @@ async function main() {
     const cabOnline =
       cabStatus.online === true || String(cabStatus.onlineStatus || '').toUpperCase() === 'ONLINE';
     const cabAvailable = cabStatus.available === true;
+    // 开门主路径的前置是「在线 **且** 可售」，只判 available 不够：CI 实测该接口在设备离线时
+    // 仍可能返回 available=true，于是用例走进成功分支却只能看到「该柜机当前离线」→ 记 FAIL。
+    // 环境没数据/设备离线 ≠ 开门主路径坏了，这种情况必须 SKIP。
+    const canOpen = cabOnline && cabAvailable;
 
     // 无论可不可售，都把「输入编号 → 确认开门」这条 UI 路径走完：
     // 可售走成功分支（TC-OPEN-002），不可售走拒绝分支（TC-OPEN-005）。
@@ -1215,7 +1237,7 @@ async function main() {
     const sessionId3s = await page.evaluate(() => localStorage.getItem('active_session_id') || '');
     const shoppingEarly = /门已开|购物中|本柜价目|正在开门|开门中/.test(text);
     // 已进入购物态则不再多等 5s，避免 mock 识别把会话推进到争议/审核页
-    if (cabAvailable && !shoppingEarly && !sessionId3s) {
+    if (canOpen && !shoppingEarly && !sessionId3s) {
       await page.waitForTimeout(5000);
       text = await bodyText(page);
     }
@@ -1240,20 +1262,20 @@ async function main() {
       'TC-OPEN-002',
       `${DEVICE_ID} 开门主路径`,
       '功能',
-      cabAvailable ? (sessionCreated || progressing ? 'PASS' : 'FAIL') : 'SKIP',
-      cabAvailable
+      canOpen ? (sessionCreated || progressing ? 'PASS' : 'FAIL') : 'SKIP',
+      canOpen
         ? `filled=${deviceFilled} session=${sessionCreated ? '已创建' : '无'} | 3s:${state3s} | 8s:${state8s}`
         : `前置不满足：柜机不可开门（online=${cabOnline} available=${cabAvailable}` +
-          ` busyReason=${cabStatus.busyReason || 'n/a'}）→ 无法验证开门主路径。` +
-          '演示库三台柜机 sales_locked 均为 true（离线超时自动停售，自动解锁默认关闭）；' +
-          `filled=${deviceFilled}；实测文案：${text.split('\n').filter(Boolean).slice(0, 8).join(' | ')}`,
+            ` busyReason=${cabStatus.busyReason || 'n/a'}）→ 无法验证开门主路径。` +
+            '设备离线或处于停售/占用/补货态时属环境前置不满足；' +
+            `filled=${deviceFilled}；实测文案：${text.split('\n').filter(Boolean).slice(0, 8).join(' | ')}`,
       e13
     );
 
     // —— TC-OPEN-005 不可售/离线柜机的开门拒绝（把「明确拒绝」当成契约来钉）——
     // 这条不依赖环境可售性：柜机没开成时**必须给出明确的业务文案且不创建会话**，
     // 而不是静默失败或白屏。TC-OPEN-002 SKIP 时它正好补上覆盖。
-    if (!cabAvailable) {
+    if (!canOpen) {
       const refuseMsg = /该柜机当前离线|暂停营业|正在补货|正在被使用|柜机不存在/.test(text);
       const e13b = await shot(page, '13b-open-refused');
       record(
@@ -1660,13 +1682,17 @@ async function main() {
     if (!balEmpty && balRows > 0) {
       const rows = await page.evaluate(() => {
         const HOLD_LABELS = ['开门预授权冻结', '开门预授权释放', '退款申请冻结', '退款冻结释放'];
-        return [...document.querySelectorAll('.log-row')].map((r) => ({
-          label: (r.querySelector('.log-title')?.innerText || '').trim(),
-          amount: (r.querySelector('.log-amount')?.innerText || '').trim()
-        })).filter((r) => HOLD_LABELS.includes(r.label));
+        return [...document.querySelectorAll('.log-row')]
+          .map((r) => ({
+            label: (r.querySelector('.log-title')?.innerText || '').trim(),
+            amount: (r.querySelector('.log-amount')?.innerText || '').trim()
+          }))
+          .filter((r) => HOLD_LABELS.includes(r.label));
       });
       holdTotal = rows.length;
-      holdZero = rows.filter((r) => /^[+-]?¥?0\.00$/.test(r.amount.replace(/\s/g, ''))).map((r) => r.label);
+      holdZero = rows
+        .filter((r) => /^[+-]?¥?0\.00$/.test(r.amount.replace(/\s/g, '')))
+        .map((r) => r.label);
     }
     const e19e = await shot(page, '19e-balance-hold-amounts');
     record(

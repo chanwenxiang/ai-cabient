@@ -222,7 +222,9 @@
                   ·
                 </template>
                 <!-- 停售原因只在「确实处于停售」时展示：未锁机却挂着原因会自相矛盾 -->
-                <template v-if="r.salesLocked && r.salesLockReason">{{ r.salesLockReason }}</template>
+                <template v-if="r.salesLocked && r.salesLockReason">{{
+                  r.salesLockReason
+                }}</template>
               </text>
             </view>
             <view class="report-data">
