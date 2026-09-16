@@ -131,9 +131,12 @@ jobs:
               || { echo "RBAC test not fully green: $report"; exit 1; }
           done
 
-      # Maven 构建会重新生成 static/admin；若与提交的产物不一致说明前端改了没同步产物
-      - name: Verify admin UI artifacts are up-to-date
-        run: git diff --exit-code -- services/trade-service/src/main/resources/static/admin
+      # ⚠️ admin 产物校验**不在这里**：`.mvn/maven.config` 内含 `-Dskip.admin.build=true`
+      # （2026-08-04 由 VS Code 自动提交 d389885c 引入），Maven 会自动加载该文件且命令行无关，
+      # 所以上面的 `mvn verify` 其实**不会**重建 static/admin —— CI 日志里三个前端 execution
+      # 全部打印 "Skipping execution."。2026-09-16 前此处用 `git diff --exit-code` 校验产物，
+      # 因产物从未被重建，那道门禁**永远无法失败**（E-1 的"闭环"实为空转，历时约 6 周）。
+      # 现改由独立的 `admin-artifacts` job 在**不走 Maven** 的前提下显式重建并比对。
 
       - name: Admin bundle size budget
         run: node scripts/check-admin-bundle-budget.mjs
@@ -208,6 +211,51 @@ jobs:
         with:
           name: test-results
           path: '**/target/surefire-reports/*.xml'
+
+  # ── admin 产物新鲜度（stale-artifact gate）──────────────────────────────────
+  # 背景：`services/trade-service/src/main/resources/static/admin` 是被 git 跟踪、
+  # 并由 nginx 直接 bind mount 对外的前端产物；它一旦落后于 `clients/admin-vue` 源码，
+  # 线上 UI 就是旧代码，而 `mvn verify` 检测不到（见 build job 里的说明：maven.config
+  # 把 admin 构建整个跳过了）。E-1 就是这么发生的。
+  # 因此本 job 刻意**完全不走 Maven**，用与开发者本地一致的入口重建后比对。
+  admin-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Matches pom.xml <node.version>v24.18.0</node.version>
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24.18.0'
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm install --frozen-lockfile
+
+      # 与本地同一入口（scripts/build-admin.mjs = vue-tsc --noEmit + vite build），
+      # 保证"CI 认为同源"与"开发者本地跑一遍也同源"是同一个判据。
+      - name: Rebuild admin UI
+        run: node scripts/build-admin.mjs
+
+      # 用 `git status --porcelain` 而非 `git diff --exit-code`：
+      # 主因已由上面的 job 注释说明（产物从未被重建，判据恒真）。此外 `git diff` 还有一处
+      # 独立的潜在弱点：vite 产物带内容哈希，`git diff` 只反映已跟踪文件的改动，对新增
+      # （untracked）文件完全无感（本次实测 `emptyOutDir` 会清空，故删除可见、主因不在此，
+      # 但判据仍应选能覆盖新增的那一个）。两者叠加，故此处必须用 `git status --porcelain`。
+      - name: Verify admin UI artifacts are up-to-date
+        run: |
+          set -euo pipefail
+          changed=$(git status --porcelain -- services/trade-service/src/main/resources/static/admin)
+          if [ -n "$changed" ]; then
+            printf '%s\n' "$changed"
+            echo "::error::static/admin 与 clients/admin-vue 源码不同步：请在本地运行 \`node scripts/build-admin.mjs\` 并提交产物"
+            exit 1
+          fi
+          echo "OK: static/admin 与源码同源"
 
   mini-programs:
     runs-on: ubuntu-latest

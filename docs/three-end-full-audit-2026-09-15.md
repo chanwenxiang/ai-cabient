@@ -830,7 +830,9 @@ cd infra && docker compose --env-file .env \
 | 产物定格时间 | `git log -1 -- static/admin` → **`9ae39054` / 2026-09-13 15:00**；而 HEAD `d28b37ca` 是 **2026-09-15 12:38** |
 | 与源码无共同文件 | 重建后 **150 个旧产物被替换 + 151 个新产物**（带 hash 的文件名几乎全变） |
 | 构建链已断 | `clients/admin-vue/package.json` 的 `build` = **`vue-tsc --noEmit && vite build`**，而当前源码 **6 处 TS2345**（见下） |
-| CI 走不到门禁 | `ci.yml:101` `mvn verify -DskipITs -pl services/trade-service -am`（**未加 `-Pskip-admin-ui`**）会先跑 `pnpm run build` 而失败 → `ci.yml:127` 的 `git diff --exit-code -- static/admin` **永远执行不到** |
+| ~~CI 走不到门禁~~ | ⚠️ **本行推断有误，见 §16** —— `ci.yml:101` 的 `mvn verify` **从未**跑过 `pnpm run build`；门禁不是"走不到"，而是"走到了也必然为空" |
+
+> **⚠️ 事后更正（2026-09-16，详见 §16）**：本表最后一行为**错误推断**。原文写「`mvn verify` 会先跑 `pnpm run build` 而失败」，实际是 **`mvn verify` 根本不跑前端构建** —— 仓库根 `.mvn/maven.config` 内含 `-Dskip.admin.build=true`（2026-08-04 由 VS Code 自动提交 `d389885c` 引入，Maven 自动加载且**命令行无关**），三个前端 execution 全部打印 `Skipping execution.`。因此 `static/admin` 从未被重建、`git diff` 必然为空，该门禁属**结构性空转**。（另有一处**独立的潜在弱点**：`git diff` 看不见 vite 新增的未跟踪哈希文件；但本次实测 `emptyOutDir` 会清空目录、删除对 `git diff` 可见，故**主因不在此** —— 判据仍应换成能覆盖新增的 `git status --porcelain`。）**结论方向不变**（门禁保护力为零），但根因、修法与"是否闭环"的判定均需按 §16 重写。
 
 **6 处类型错误**（`vue-tsc --noEmit`，EXIT=2，本地稳定复现）：
 
@@ -1264,7 +1266,7 @@ POST /api/v2/auth/password-login → 200 {"code":0,...}
 
 | 编号 | 原状态 | 现状 | 证据 |
 | --- | --- | --- | --- |
-| E-1 | 6 处 TS2345 在 HEAD，产物门禁 `ci.yml:127` 永远执行不到 | **已修复并重建产物入库** | `vue-tsc --noEmit` exit=0；`static/admin` 178 文件与 HEAD 一致（`git status` 无差异）；提交 `9ea49284` |
+| E-1 | 6 处 TS2345 在 HEAD，产物门禁 `ci.yml:127` 永远执行不到 | **已修复并重建产物入库**（⚠️ 但"门禁已生效"部分被 §16 推翻） | `vue-tsc --noEmit` exit=0；`static/admin` 178 文件与 HEAD 一致（`git status` 无差异）；提交 `9ea49284`。**产物重建是真的；但该门禁在 CI 中从未真正校验过产物（空转），故 E-1 当时并未闭环 —— 见 §16** |
 | N-1 / W-1 / T-1 的 CI 侧 | `ci.yml` 从不调用任何行为测试 | **已接入** | 新增 `e2e-h5` job；`mini-programs` job 接入 admin vitest；提交 `3b26f93b` |
 
 E-1 的修复方式（逐条对应 §10.2 建议）：
@@ -1295,6 +1297,8 @@ E-1 的修复方式（逐条对应 §10.2 建议）：
 ### 13.4 §10.2 建议 4 未采纳的理由
 
 建议是「把 `vue-tsc` 拆成独立 CI 步骤，与 `mvn verify` 解耦」。本轮**未采纳**：E-1 的根因是 6 处真实类型错误，修掉后 `mvn verify` 不再失败，产物门禁 `ci.yml:127` 自然可达；再加一层与主构建并行的类型检查属重复门禁，只增加 CI 时长、不增加保护面。**若后续再出现「主构建失败导致其后门禁失效」，正确修法是给该门禁加 `if: always()`，而不是另起一步。**
+
+> **⚠️ 事后更正（2026-09-16，见 §16）**：本节的论证前提**不成立**。`mvn verify` 从来不执行前端构建（`.mvn/maven.config` 的 `-Dskip.admin.build=true` 会跳过全部三个前端 execution），所以"修掉 TS 错误后门禁自然可达"是错的 —— **那道门禁在任何情况下都不会失败**。§16 因此**采纳了原建议的变体**：用独立 job `admin-artifacts` 校验产物，但判据换成 `git status --porcelain`（因为 `git diff` 对未跟踪的新哈希文件无感），且刻意**不经过 Maven**。
 
 ### 13.5 工作区收口（对应 §8.1 第 1 项 / [S-1]）
 
@@ -1337,7 +1341,7 @@ E-1 的修复方式（逐条对应 §10.2 建议）：
 
 | job | 结果 | 耗时 | 说明 |
 | --- | --- | --- | --- |
-| `build` | ✅ pass | 5m5s | **产物门禁 `ci.yml:127` 首次真正执行**（第 10 章 E-1 的闭环证据） |
+| `build` | ✅ pass | 5m5s | ~~**产物门禁 `ci.yml:127` 首次真正执行**（第 10 章 E-1 的闭环证据）~~ **⚠️ 已被 §16 推翻**：该步骤确实被执行了，但 `static/admin` 从未被重建，`git diff` 输出为空（**23 ms 内零输出**）→ **空转通过**，不构成任何闭环证据 |
 | `e2e-h5` | ✅ pass | 7m31s | 本轮新增 job **一次通过** |
 | `mini-programs` | ❌ fail | 1m31s | 卡在 `Format check`（见 14.3） |
 
@@ -1576,4 +1580,108 @@ CI 使用全新 Flyway 种子，测试账号**没有任何余额流水**，该�
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭。*
+## 16. 第九轮 · 「产物门禁」是一场假闭环：CI 从未重建过 admin 产物
+
+**触发**：电脑重启后需重启整栈容器，并确认「当前代码是最新」。核对镜像与产物是否与源码同源时，发现两件事：一个是常规的镜像滞后，另一个是**门禁失效的第三种形态**。
+
+### 16.1 事实一：trade-service 镜像落后于源码（常规，已修）
+
+| 项 | 值 |
+| --- | --- |
+| 镜像 `ai-cabinet/trade-service:local` 构建时间 | **2026-09-15 15:22** |
+| W-4 修复提交 `1c456659` 时间 | **2026-09-15 20:27** |
+| 结论 | **运行中的镜像不含 W-4 修复**；此前「W-4 已修」仅是源码级 |
+| 处置 | 重建镜像（09-16 09:27）→ 重建容器 → `actuator/health` = `{"status":"UP"}` |
+
+其余服务经核查无需重建：`services/device-service`、`vision-service`、`infra/` 自各自镜像构建时刻起**无任何提交**。
+
+### 16.2 事实二 [P0]：`static/admin` 再次落后于源码，而 CI 报了绿
+
+`services/trade-service/src/main/resources/static/admin` 是**被 git 跟踪**、并由 nginx bind mount 直接对外的前端产物。W-3 提交只改了源码：
+
+```
+$ git show --stat 420fc917
+ clients/admin-vue/src/views/devices/DeviceListView.vue | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+```
+
+对产物做双向探针（用**同一文件内已存在的旧文案**作对照，排除 grep 失效的可能）：
+
+| 探针 | 命令 | 结果 | 判读 |
+| --- | --- | --- | --- |
+| 该产物最后入库 | `git log -1 -- static/admin/assets/DeviceListView-PjiALiqd.js` | `9ea49284` / 09-15 **16:56** | 早于 W-3 的 20:27 |
+| 对照（旧文案） | `grep -c 无新建设备权限 <产物>` | **1** | grep 有效 |
+| 目标（W-3 文案） | `grep -c 未填写设备名称 <产物>` | **0** | **产物不含 W-3** |
+| 本地重建后 | `grep -rl 未填写设备名称 static/admin/assets/` | 命中 `DeviceListView-DfBJDYsc.js` | 源码确实会产出该文案 |
+
+**但 CI 在 HEAD 上是绿的**（run `34970544563`，`build` job ✅），且日志里那一步名叫 `Verify admin UI artifacts are up-to-date`。
+
+### 16.3 根因：`.mvn/maven.config` 让 admin 构建在**任何** Maven 调用中被跳过
+
+CI 日志（`build` job，下载自 run `34970544563`）：
+
+```
+[INFO] --- frontend:1.15.1:install-node-and-pnpm (install-node-and-pnpm) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] --- frontend:1.15.1:pnpm (pnpm-install-admin) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] --- frontend:1.15.1:pnpm (pnpm-build-admin) @ trade-service ---
+[INFO] Skipping execution.
+```
+
+**三个前端 execution 全部被跳过** —— 所以 `static/admin` 在 CI 里**从未被重建**，`git diff --exit-code` 拿到的永远是空 diff。
+
+开关来源是一行没人在看的配置：
+
+```
+$ cat .mvn/maven.config
+-Dskip.admin.build=true
+```
+
+| 项 | 值 |
+| --- | --- |
+| 引入提交 | **`d389885c`**「chore: auto-refresh Java Maven project config in VS Code.」 |
+| 日期 | **2026-08-04 22:40** |
+| 作者标记 | `Co-authored-by: Cursor <cursoragent@cursor.com>` |
+| 生效范围 | **全仓所有 Maven 调用**（Maven 3.3+ 自动加载项目根 `.mvn/maven.config`），CI 与本地一视同仁 |
+| 命中 pom 位置 | `services/trade-service/pom.xml:191/212/224` 的 `<skip>${skip.admin.build}</skip>` |
+
+于是 `ci.yml` 上那道门禁的命令**正确**、步骤名**正确**、CI 结论是 **✅**，但它的保护力是 **零**：
+
+```
+12:47:28.3425021 ##[endgroup]        ← 上一段结束
+12:47:28.3655343 ##[group]Run node scripts/check-admin-bundle-budget.mjs
+```
+
+`git diff --exit-code` 在 **23 毫秒内零输出**通过。**门禁执行了，但判据恒真。**
+
+### 16.4 这是「门禁失效」的第三种形态（前两种已在前文记录）
+
+| 形态 | 现象 | 本报告出处 |
+| --- | --- | --- |
+| ① 未接入 | 脚本存在但无人调用 | §12（T-1：8 套 UAT 从未被 CI 调用）；R1 的「新门禁没接 ci.yml = 等于没有」 |
+| ② 被前置失败跳过 | 步骤显示为「从未执行」 | §14（F-1：`mini-programs` 卡 format:check，其后 4 个步骤被跳过） |
+| ③ **执行了但判据恒真** | **日志 ✅、名字正确、命令正确、输出为空** | **§16（本节）** |
+
+**③ 最隐蔽**：①② 在步骤结论上至少留下 `skipped` 或缺失痕迹，③ 的结论是 **success**，与"真的通过了"不可区分。唯一可靠的识别手法是**看它上一次的实际输出**，而不是它的结论 —— 本例里 `git diff` 的 23 ms 零输出就是铁证。
+
+补充一处必须说清的事实（避免把未验证的机制当结论）：`git diff` 看不见 vite 新增的未跟踪哈希文件，这**是**一个真实弱点，但**不是本次的主因**。本地重建实测产生 `78 D + 78 ?? + 1 M`（`emptyOutDir` 确实清空了目录），说明**只要构建真的跑了，删除对 `git diff` 是可见的**。主因只有一个：**构建根本没跑**。
+
+### 16.5 修复
+
+1. **重建并提交产物**：`node scripts/build-admin.mjs`（与本地开发者同一入口），产物由 09-15 16:56 版更新到 HEAD 版，**78 个哈希文件被替换**，`index.html` 更新；`static/admin` 恢复与源码同源（178 文件）。
+   - **确定性已验证**：连续构建两次，`git status --porcelain` 输出**逐字节一致**（`diff` 为空），故 CI 上重算不会因环境差异误报。
+2. **新增独立 CI job `admin-artifacts`**，刻意**完全不走 Maven**（从构造上免疫 `.mvn/maven.config`）：
+   - `pnpm install --frozen-lockfile` → `node scripts/build-admin.mjs`（与本地同一入口，保证"CI 认为同源"与"开发者本地跑一遍也同源"是同一个判据）；
+   - 判据用 **`git status --porcelain`** 而非 `git diff`（覆盖新增文件），非空即 `::error::` 失败。
+3. **拆除 `build` job 里的空转步骤**，原处改为一段说明性注释，写清 `.mvn/maven.config` 会跳过前端构建、以及这道门禁为何曾经永远不可能失败 —— 避免后人重新加回一根"看着在保护"的空管子。
+
+### 16.6 沉淀的三条经验
+
+1. **门禁有三种失效形态，③「执行了但判据恒真」最危险**：它的 CI 结论是 ✅。审计门禁时，**必须看它上一次的实际输出**（空输出 / 时间异常 / 命中数为 0），只看步骤结论会把假绿当成真绿。本报告 §10.2 与 §14.2 曾把这道门禁的"✅"当作 E-1 的闭环证据，**属误判，已在本节更正**。
+2. **构建配置中的"本地便利开关"会污染 CI**：`.mvn/maven.config`、`settings.xml`、`.npmrc`、`MAVEN_ARGS` 这类项目级配置对 CI 与本地**一视同仁**。凡在其中放宽（skip/忽略/关闭）的行为，都必须补一句反问："CI 是否也继承了它？"本例中 `-Dskip.admin.build=true` 让一道 P0 级门禁静默空转约 6 周。
+3. **"产物入库"这种模式必须配"能失败"的门禁**：把构建产物提交进仓库，等价于让人类充当构建系统。若校验它的门禁判据恒真，产物就会静默漂移 —— 而它恰好是**线上真正被服务的字节**（nginx bind mount）。§10 的 E-1 与本节是同一问题在 3 天内的两次发作，说明当时的修复只清了症状（重建产物），没修机制（门禁）。
+
+---
+
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**。*
