@@ -1,9 +1,9 @@
-# E2E: trigger RECOGNITION_FAILED dispute and verify ops_exception + dispute_ticket
+﻿# E2E: trigger RECOGNITION_FAILED dispute and verify ops_exception + dispute_ticket
 # Toggles vision mock_force_need_review via API (no container recreate).
 param(
     [string]$BaseUrl = "",
     [string]$VisionUrl = "",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [string]$VisionApiKey = ""

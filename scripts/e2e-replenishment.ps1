@@ -1,4 +1,4 @@
-# Replenishment E2E — plan → (optional warehouse pick/ship) → check-in → open-door → complete
+﻿# Replenishment E2E — plan → (optional warehouse pick/ship) → check-in → open-door → complete
 # Usage:
 #   .\scripts\e2e-replenishment.ps1
 #   .\scripts\e2e-replenishment.ps1 -BaseUrl http://localhost:18080
@@ -9,7 +9,7 @@
 
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$OpsPhone = "13900000001",
     [string]$OpsPassword = "123456",
     [string]$MerchantPhone = "13800138001",

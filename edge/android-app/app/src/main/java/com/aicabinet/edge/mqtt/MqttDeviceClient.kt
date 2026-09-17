@@ -21,7 +21,9 @@ class MqttDeviceClient(
 
     private val appContext = context.applicationContext
     private val mapper = jacksonObjectMapper()
-    private val clientId = "edge-$deviceId"
+    // clientId 必须等于 deviceId：EMQX 文件授权器按 cabinet/${clientid}/# 做设备级隔离，
+    // 任何前缀（如旧的 edge-）都会被 no_match_action=deny 拒绝。
+    private val clientId = deviceId
     private val outboundQueue = OutboundMqttQueue(appContext)
     private lateinit var client: MqttClient
     private val heartbeatExecutor = Executors.newSingleThreadScheduledExecutor { r ->

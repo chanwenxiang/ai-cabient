@@ -3,6 +3,9 @@
 # 避免 Windows Docker Desktop 下 DinD 卷挂载导致 Maven 找不到模块。
 name: SonarQube
 
+# 仅保留手动触发：self-hosted runner 未常驻时，push/PR 触发的 job 会永远排队，
+# 直到下一次 push 被 cancel（审计 §25.9.4 的「信号在骗读者」形态）。
+# runner 上线后如需自动化，可再加 workflow_run（CI 成功后触发）。
 on:
   workflow_dispatch:
     inputs:
@@ -14,10 +17,6 @@ on:
         options:
           - dev
           - main
-  push:
-    branches: [main, develop, dev]
-  pull_request:
-    branches: [main, develop, dev]
 
 concurrency:
   group: sonar-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

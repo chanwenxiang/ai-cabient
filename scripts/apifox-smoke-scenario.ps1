@@ -1,4 +1,4 @@
-# Apifox-aligned API smoke: critical mock-demo path (login → device → open → settle readiness).
+﻿# Apifox-aligned API smoke: critical mock-demo path (login → device → open → settle readiness).
 # Mirrors the scenario list you can recreate in Apifox after OAS import (project 8780097).
 #
 # Usage:
@@ -9,7 +9,7 @@
 # Set -WithOpenDoor to also POST /api/v2/sessions then cancel (needs DeviceSimulator ONLINE).
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [string]$MerchantPhone = "13800138001",

@@ -1,5 +1,7 @@
 package com.aicabinet.trade.service;
 
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
@@ -28,7 +30,9 @@ class BalanceLedgerServiceTest {
     BalanceLedgerService service;
 
     @BeforeEach void setUp() {
-        service = new BalanceLedgerService(accountRepository, operationRepository, distributedLockService);
+        // 真实 TransactionTemplate + mock 事务管理器：callback 原样执行，无真实连接
+        service = new BalanceLedgerService(accountRepository, operationRepository, distributedLockService,
+                new TransactionTemplate(mock(PlatformTransactionManager.class)));
         // lenient：仅 change() 路径需要余额锁；list() 路径不涉及
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }

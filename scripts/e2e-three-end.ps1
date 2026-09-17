@@ -1,4 +1,4 @@
-# Three-end regression: API matrix + shopping + KEEP/WAIVE/CONFIRM + consistency
+﻿# Three-end regression: API matrix + shopping + KEEP/WAIVE/CONFIRM + consistency
 # Usage:
 #   .\scripts\e2e-three-end.ps1
 #   .\scripts\e2e-three-end.ps1 -SkipJoint
@@ -7,7 +7,7 @@
 
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$SkuId = "SKU-WATER-001",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",

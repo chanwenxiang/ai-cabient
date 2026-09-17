@@ -29,13 +29,30 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       MQTT_BROKER: ${MQTT_BROKER:-ssl://emqx:8883}
+      MQTT_USERNAME: ${MQTT_USERNAME:?set MQTT_USERNAME (aicabinet-backend) in .env.production}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?set MQTT_PASSWORD in .env.production}
 
   emqx:
+    image: emqx/emqx:5.8.6
     environment:
-      # B-11：生产关闭匿名
-      EMQX_ALLOW_ANONYMOUS: "false"
-      EMQX_AUTH__USER__1__USERNAME: ${EMQX_USERNAME:?set EMQX_USERNAME}
-      EMQX_AUTH__USER__1__PASSWORD: ${EMQX_PASSWORD:?set EMQX_PASSWORD}
+      # B-11(v2)：EMQX 5 没有 allow_anonymous / EMQX_AUTH__USER__* 这些 4.x 键，写了对 5.x 无效——
+      # 且 5.x 未配置任何认证器时默认放行匿名连接。改为显式认证（内置库 + bootstrap 种子）+
+      # 文件授权器（设备按 clientId 隔离到 cabinet/{deviceId}/#，未匹配一律拒绝）。
+      # 口令由 scripts/gen-emqx-auth-bootstrap.ps1 从 .env.production 生成
+      # docker/emqx/auth-bootstrap.production.csv（已 gitignore，勿提交）。
+      EMQX_AUTHENTICATION__1__MECHANISM: password_based
+      EMQX_AUTHENTICATION__1__BACKEND: built_in_database
+      EMQX_AUTHENTICATION__1__USER_ID_TYPE: username
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE: /opt/emqx/etc/aicabinet-auth-bootstrap.csv
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_TYPE: plain
+      EMQX_AUTHORIZATION__NO_MATCH: deny
+      EMQX_AUTHORIZATION__DENY_ACTION: disconnect
+      EMQX_AUTHORIZATION__SOURCES__1__TYPE: file
+      EMQX_AUTHORIZATION__SOURCES__1__ENABLE: "true"
+      EMQX_AUTHORIZATION__SOURCES__1__PATH: /opt/emqx/etc/aicabinet-acl.conf
+    volumes:
+      - ./docker/emqx/aicabinet-acl.conf:/opt/emqx/etc/aicabinet-acl.conf:ro
+      - ./docker/emqx/auth-bootstrap.production.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
 
   minio:
     environment:

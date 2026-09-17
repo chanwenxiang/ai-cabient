@@ -1,0 +1,3 @@
+user_id,password,is_superuser
+aicabinet-backend,dev-mqtt-backend-pass,false
+aicabinet-device,dev-mqtt-device-pass,false

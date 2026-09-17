@@ -11,7 +11,7 @@ services:
       POSTGRES_DB: aicabinet
       POSTGRES_USER: aicabinet
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aicabinet}
-    ports: ["${POSTGRES_PORT:-15433}:5432"]
+    ports: ["127.0.0.1:${POSTGRES_PORT:-15433}:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aicabinet -d aicabinet"]
@@ -21,15 +21,31 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports: ["127.0.0.1:6379:6379"]
 
   emqx:
-    image: emqx/emqx:5.5
+    image: emqx/emqx:5.8.6
     ports:
-      - "${EMQX_MQTT_PORT:-11883}:1883"
-      - "${EMQX_MQTT_TLS_PORT:-18883}:8883"
-      - "${EMQX_DASHBOARD_PORT:-28083}:18083"
-    environment: { EMQX_ALLOW_ANONYMOUS: "true" }
+      # 开发栈仅绑定回环：MQTT/控制台不暴露局域网（手机真机联调走网关 :80 的业务接口即可）
+      - "127.0.0.1:${EMQX_MQTT_PORT:-11883}:1883"
+      - "127.0.0.1:${EMQX_MQTT_TLS_PORT:-18883}:8883"
+      - "127.0.0.1:${EMQX_DASHBOARD_PORT:-28083}:18083"
+    environment:
+      # EMQX 5 无 allow_anonymous 键（4.x 遗留变量会被静默忽略）；配置认证器后无凭据连接一律拒绝。
+      # 设备/服务账号见 docker/emqx/auth-bootstrap.dev.csv（dev 默认口令，勿用于生产）。
+      EMQX_AUTHENTICATION__1__MECHANISM: password_based
+      EMQX_AUTHENTICATION__1__BACKEND: built_in_database
+      EMQX_AUTHENTICATION__1__USER_ID_TYPE: username
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE: /opt/emqx/etc/aicabinet-auth-bootstrap.csv
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_TYPE: plain
+      EMQX_AUTHORIZATION__NO_MATCH: deny
+      EMQX_AUTHORIZATION__DENY_ACTION: disconnect
+      EMQX_AUTHORIZATION__SOURCES__1__TYPE: file
+      EMQX_AUTHORIZATION__SOURCES__1__ENABLE: "true"
+      EMQX_AUTHORIZATION__SOURCES__1__PATH: /opt/emqx/etc/aicabinet-acl.conf
+    volumes:
+      - ./docker/emqx/aicabinet-acl.conf:/opt/emqx/etc/aicabinet-acl.conf:ro
+      - ./docker/emqx/auth-bootstrap.dev.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
 
   minio:
     image: minio/minio:latest
@@ -39,7 +55,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       # 允许 Prometheus 免认证抓取集群指标（内网监控专用；生产如走公网请改用 bearer token）
       MINIO_PROMETHEUS_AUTH_TYPE: public
-    ports: ["9000:9000", "9001:9001"]
+    ports: ["127.0.0.1:${MINIO_API_PORT:-9000}:9000", "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"]
     volumes: ["miniodata:/data"]
 
   minio-init:
@@ -52,7 +68,7 @@ services:
     image: redpandadata/redpanda:v24.1.1
     command: ["redpanda", "start", "--smp", "1", "--memory", "512M", "--overprovisioned", "--kafka-addr", "PLAINTEXT://0.0.0.0:9092", "--advertise-kafka-addr", "PLAINTEXT://redpanda:9092"]
     # Host 9092 often in Windows Hyper-V excluded ranges (e.g. 9083–9182); default 19092.
-    ports: ["${REDPANDA_PORT:-19092}:9092"]
+    ports: ["127.0.0.1:${REDPANDA_PORT:-19092}:9092"]
 
   vision-service:
     build:
@@ -220,6 +236,8 @@ services:
       SERVER_PORT: 8081
       MQTT_BROKER: tcp://emqx:1883
       MQTT_CLIENT_ID: device-service-docker
+      MQTT_USERNAME: ${MQTT_USERNAME:-aicabinet-backend}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-dev-mqtt-backend-pass}
       AICABINET_TRADE_SERVICE_URL: http://trade-service:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       REDIS_HOST: redis
@@ -234,6 +252,8 @@ services:
     build: { context: .., dockerfile: edge/device-simulator/Dockerfile }
     command: ["330449777078", "tcp://emqx:1883"]
     environment:
+      MQTT_USERNAME: ${MQTT_DEVICE_USERNAME:-aicabinet-device}
+      MQTT_PASSWORD: ${MQTT_DEVICE_PASSWORD:-dev-mqtt-device-pass}
       TRADE_SERVICE_URL: http://trade-service:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       MINIO_ENDPOINT: http://minio:9000

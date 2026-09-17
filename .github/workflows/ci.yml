@@ -49,7 +49,9 @@ jobs:
             -e '-----BEGIN EC PRIVATE KEY-----' \
             -e '-----BEGIN OPENSSH PRIVATE KEY-----' \
             -e 'ghp_[A-Za-z0-9]\{20,\}' \
-            -e 'sk_live_[A-Za-z0-9]\{20,\}' 2>/dev/null || true)
+            -e 'sk_live_[A-Za-z0-9]\{20,\}' \
+            -e 'sk-[A-Za-z0-9]\{20,\}' \
+            -e 'MIIE[A-Za-z0-9+/]\{40,\}' 2>/dev/null || true)
           if [ -n "$hits" ]; then
             echo "possible secret(s) in tracked files:"
             echo "$hits"

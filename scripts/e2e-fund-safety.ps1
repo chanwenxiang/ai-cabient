@@ -1,7 +1,7 @@
-# Fund safety E2E: balance insufficient, trade-service outage recovery, idempotency checks
+﻿# Fund safety E2E: balance insufficient, trade-service outage recovery, idempotency checks
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [switch]$SkipBalanceTest,

@@ -27,7 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
+
 import java.util.concurrent.Executors;
 
 /**
@@ -86,11 +86,16 @@ public class DeviceSimulator implements MqttCallbackExtended {
     }
 
     public void start(String broker) throws MqttException {
-        client = new MqttClient(broker, "sim-" + deviceId + "-" + UUID.randomUUID().toString().substring(0, 6),
-                new MemoryPersistence());
+        // clientId 必须等于 deviceId：EMQX 文件授权器按 cabinet/${clientid}/# 做设备级隔离，
+        // 带随机后缀的 clientId 会被 no_match_action=deny 拒绝发布/订阅。
+        client = new MqttClient(broker, deviceId, new MemoryPersistence());
         MqttConnectOptions options = new MqttConnectOptions();
         options.setAutomaticReconnect(true);
         options.setCleanSession(true);
+        // aicabinet-device 账号（dev 默认见 infra/docker/emqx/auth-bootstrap.dev.csv）；
+        // EMQX 5 配置认证器后无凭据连接会被直接拒绝。
+        options.setUserName(env("MQTT_USERNAME", "aicabinet-device"));
+        options.setPassword(env("MQTT_PASSWORD", "dev-mqtt-device-pass").toCharArray());
         client.setCallback(this);
         client.connect(options);
         subscribeCommands();

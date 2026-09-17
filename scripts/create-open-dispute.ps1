@@ -1,11 +1,11 @@
-# Create one OPEN recognition dispute for CAB-001 (leave unresolved for UI UAT).
+﻿# Create one OPEN recognition dispute for CAB-001 (leave unresolved for UI UAT).
 # Usage:
 #   .\scripts\create-open-dispute.ps1
 #   $env:E2E_BASE_URL='http://127.0.0.1:18080'; .\scripts\create-open-dispute.ps1
 # Output JSON: .tmp/open-dispute.json  { sessionId, ticketId, reviewCode }
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [string]$OperatorPhone = "13900000001",

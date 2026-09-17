@@ -1,4 +1,4 @@
-# One-click demo smoke: mock vision need_review → dispute settle (WAIVE) → mock recharge ¥20
+﻿# One-click demo smoke: mock vision need_review → dispute settle (WAIVE) → mock recharge ¥20
 # reviewCode: prefers MOCK list filter; VISION_FORCE_REAL + force-need-review often yields GRAVITY_FILL (accepted).
 # Layout/orderId follow-up (filters height + RESOLVED exception orderId): scripts/admin-layout-smoke.ps1
 # Usage:
@@ -8,7 +8,7 @@
 param(
     [string]$BaseUrl = "",
     [string]$VisionUrl = "",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [string]$OperatorPhone = "13900000001",
@@ -186,7 +186,7 @@ if (-not $SkipRecharge) {
     }
     Assert-True ($null -ne $prepay.orderId) "prepay orderId"
     Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-        -Path "/api/v2/payment/recharge/$($prepay.orderId)/mock-success" -Headers $cAuth | Out-Null
+        -Path "/api/v2/dev/payment/recharge/$(($prepay.orderId))/mock-success" -Headers $cAuth | Out-Null
     $accAfter = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/account" -Headers $cAuth
     $balAfter = [int]$accAfter.balanceCents
     Assert-True ($balAfter -eq ($balBefore + 2000)) "balance +¥20 ($balBefore -> $balAfter)"

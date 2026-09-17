@@ -1,7 +1,7 @@
-# Cleanup E2E/browser test artifacts: resolve open exceptions, cancel blocking sessions, restore consumer balance.
+﻿# Cleanup E2E/browser test artifacts: resolve open exceptions, cancel blocking sessions, restore consumer balance.
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$ConsumerPhone = "13800138000",
     [int]$RestoreBalanceCents = 11300,
     [string]$OperatorPhone = "13900000001",

@@ -1,5 +1,7 @@
 package com.aicabinet.trade.service;
 
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,7 +28,8 @@ class BalanceLedgerConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new BalanceLedgerService(accountRepository, operationRepository, distributedLockService);
+        service = new BalanceLedgerService(accountRepository, operationRepository, distributedLockService,
+                new TransactionTemplate(mock(PlatformTransactionManager.class)));
     }
 
     @Test

@@ -14,8 +14,8 @@ services:
     mem_limit: 1g
     cpus: 1.0
     ports:
-      # Host port avoids Windows Hyper-V reserved range ~5433–5532.
-      - "${POSTGRES_PORT:-15433}:5432"
+      # Host port avoids Windows Hyper-V reserved range ~5433–5532. 仅回环：开发库不暴露局域网。
+      - "127.0.0.1:${POSTGRES_PORT:-15433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -23,7 +23,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -34,15 +34,31 @@ services:
     cpus: 0.5
 
   emqx:
-    image: emqx/emqx:5.5
+    image: emqx/emqx:5.8.6
     restart: unless-stopped
     ports:
       # Host ports avoid Windows Hyper-V reserved range ~1822–1921 (includes 1883/8883/18083).
-      - "${EMQX_MQTT_PORT:-11883}:1883"
-      - "${EMQX_MQTT_TLS_PORT:-18883}:8883"
-      - "${EMQX_DASHBOARD_PORT:-28083}:18083"
+      # 开发栈仅绑定回环：避免匿名弱凭据的 MQTT/MinIO 等暴露到局域网（生产走 production compose）。
+      - "127.0.0.1:${EMQX_MQTT_PORT:-11883}:1883"
+      - "127.0.0.1:${EMQX_MQTT_TLS_PORT:-18883}:8883"
+      - "127.0.0.1:${EMQX_DASHBOARD_PORT:-28083}:18083"
     environment:
-      EMQX_ALLOW_ANONYMOUS: "true"
+      # 认证：内置数据库 + bootstrap 种子（5.8+ 支持）。EMQX 5 无 allow_anonymous 键，
+      # 配置了认证器后无凭据连接一律拒绝。
+      EMQX_AUTHENTICATION__1__MECHANISM: password_based
+      EMQX_AUTHENTICATION__1__BACKEND: built_in_database
+      EMQX_AUTHENTICATION__1__USER_ID_TYPE: username
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE: /opt/emqx/etc/aicabinet-auth-bootstrap.csv
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_TYPE: plain
+      # 授权：设备按 clientId 隔离到 cabinet/{deviceId}/#，未匹配一律拒绝
+      EMQX_AUTHORIZATION__NO_MATCH: deny
+      EMQX_AUTHORIZATION__DENY_ACTION: disconnect
+      EMQX_AUTHORIZATION__SOURCES__1__TYPE: file
+      EMQX_AUTHORIZATION__SOURCES__1__ENABLE: "true"
+      EMQX_AUTHORIZATION__SOURCES__1__PATH: /opt/emqx/etc/aicabinet-acl.conf
+    volumes:
+      - ./docker/emqx/aicabinet-acl.conf:/opt/emqx/etc/aicabinet-acl.conf:ro
+      - ./docker/emqx/auth-bootstrap.dev.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
     healthcheck:
       test: ["CMD", "emqx", "ctl", "status"]
       interval: 10s
@@ -61,9 +77,9 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
       # Host defaults; on Windows if 9000–9039 is Hyper-V reserved, use
-      # docker-compose.win-ports.yml (19000/19001) or set MINIO_API_PORT / MINIO_CONSOLE_PORT.
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      # docker-compose.win-ports.yml (19000/19001) or set MINIO_API_PORT / MINIO_CONSOLE_PORT. 仅回环。
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - miniodata:/data
     healthcheck:
@@ -90,7 +106,7 @@ services:
       - --advertise-kafka-addr
       - PLAINTEXT://localhost:9092
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
 
   gateway:
     image: nginx:alpine

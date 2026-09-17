@@ -1,4 +1,4 @@
-# Shared E2E helpers: API client, device cleanup, MQTT shopping flow
+﻿# Shared E2E helpers: API client, device cleanup, MQTT shopping flow
 
 function Get-E2eLockPath {
     return (Join-Path $env:TEMP "ai-cabinet-e2e.lock")
@@ -153,7 +153,7 @@ WHERE phone_number = '$Phone';
 
 function Get-E2eSimVideoKey {
     param(
-        [string]$DeviceId = "CAB-001",
+        [string]$DeviceId = "330449777078",
         [long]$UserId = 0,
         [string]$SessionId,
         [string]$Camera = "top"
@@ -246,7 +246,7 @@ function Invoke-E2eApi {
 
 function Clear-E2eDeviceBlockingSessions {
     param(
-        [string]$DeviceId = "CAB-001",
+        [string]$DeviceId = "330449777078",
         [string]$PostgresContainer = ""
     )
     if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
@@ -614,7 +614,7 @@ function Invoke-E2eInternalDoorClose {
     param(
         [string]$BaseUrl,
         [string]$SessionId,
-        [string]$DeviceId = "CAB-001",
+        [string]$DeviceId = "330449777078",
         [long]$UserId = 0,
         [string]$SkuId = "SKU-DEMO-001",
         [int]$Quantity = 1,

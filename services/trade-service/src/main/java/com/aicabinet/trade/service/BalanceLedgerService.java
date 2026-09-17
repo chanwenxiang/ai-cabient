@@ -13,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -23,20 +24,28 @@ public class BalanceLedgerService {
     private final UserAccountMapper accountRepository;
     private final PaymentOperationMapper operationRepository;
     private final DistributedLockService distributedLockService;
+    /** 编程式事务：见 change() 的锁序说明（@Transactional 自调用不生效，故不用注解）。 */
+    private final TransactionTemplate txTemplate;
 
     public BalanceLedgerService(UserAccountMapper accountRepository,
                                 PaymentOperationMapper operationRepository,
-                                DistributedLockService distributedLockService) {
+                                DistributedLockService distributedLockService,
+                                TransactionTemplate txTemplate) {
         this.accountRepository = accountRepository;
         this.operationRepository = operationRepository;
         this.distributedLockService = distributedLockService;
+        this.txTemplate = txTemplate;
     }
 
-    @Transactional
+    /**
+     * 加锁在事务之外：若事务直接包住 change 整体，DB 连接会在等待 Redis 分布式锁期间就被
+     * 占用，同用户高并发时最多可挂住 min(pool, 等锁请求数) 个连接。现在的顺序是
+     * 锁 → 开事务 → 提交 → 解锁，等锁阶段零连接占用。
+     */
     public PaymentOperation change(Long userId, int deltaCents, String businessType,
                                    String businessId, String idempotencyKey, String reason) {
-        return runWithBalanceLock(userId, () -> doChange(userId, deltaCents, businessType,
-                businessId, idempotencyKey, reason));
+        return runWithBalanceLock(userId, () -> txTemplate.execute(tx -> doChange(userId, deltaCents,
+                businessType, businessId, idempotencyKey, reason)));
     }
 
     private PaymentOperation doChange(Long userId, int deltaCents, String businessType,
@@ -85,10 +94,10 @@ public class BalanceLedgerService {
 
     /**
      * 记录预授权冻结/释放/冲抵流水（余额字段仅作审计快照；冻结额变更由调用方完成）。
+     * 事务边界在锁内侧，理由同 {@link #change}。
      */
-    @Transactional
     public PaymentOperation recordFreezeOnly(Long userId, BalanceFreezeCommand command) {
-        return runWithBalanceLock(userId, () -> doRecordFreezeOnly(userId, command));
+        return runWithBalanceLock(userId, () -> txTemplate.execute(tx -> doRecordFreezeOnly(userId, command)));
     }
 
     public record BalanceFreezeCommand(

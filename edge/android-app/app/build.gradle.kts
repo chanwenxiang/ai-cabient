@@ -15,8 +15,10 @@ android {
         versionName = "0.6.0"
         buildConfigField("String", "DEVICE_ID", "\"CAB-001\"")
         buildConfigField("String", "MQTT_BROKER", "\"tcp://10.0.2.2:11883\"")
-        buildConfigField("String", "MQTT_USERNAME", "\"\"")
-        buildConfigField("String", "MQTT_PASSWORD", "\"\"")
+        // dev 默认设备账号（aicabinet-device 仅能收发 cabinet/{deviceId}/#，见 infra/docker/emqx/aicabinet-acl.conf）。
+        // 生产现场经 SharedPreferences 覆盖 mqtt_username/mqtt_password 为生产强口令。
+        buildConfigField("String", "MQTT_USERNAME", "\"aicabinet-device\"")
+        buildConfigField("String", "MQTT_PASSWORD", "\"dev-mqtt-device-pass\"")
         buildConfigField("boolean", "MQTT_USE_TLS", "false")
         // 自签环境请改为 true，并下发 truststore；公有 CA 可保持 false
         buildConfigField("boolean", "MQTT_TLS_STRICT", "false")

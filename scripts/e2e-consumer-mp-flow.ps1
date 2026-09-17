@@ -1,8 +1,8 @@
-# Consumer mini program E2E: API flows + mp-weixin bundle assertions
+﻿# Consumer mini program E2E: API flows + mp-weixin bundle assertions
 
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$DistDir = ""
 )
 

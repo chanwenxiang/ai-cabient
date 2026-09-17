@@ -1,4 +1,4 @@
-# Full business test plan: 采购 → 仓储收货 → 补货入柜 → 购物 → 结算 → 分账 (+ 层 A 脚本门禁)
+﻿# Full business test plan: 采购 → 仓储收货 → 补货入柜 → 购物 → 结算 → 分账 (+ 层 A 脚本门禁)
 # Usage: .\scripts\e2e-full-flow-milk.ps1
 #        .\scripts\e2e-full-flow-milk.ps1 -SkipLayerA   # skip long fund-safety / three-end
 
@@ -7,7 +7,7 @@
 param(
     [string]$SkuId = "SKU-MILK-001",
     [string]$BatchNo = "B-WH-MILK-01",
-    [string]$DeviceId = "CAB-001",
+    [string]$DeviceId = "330449777078",
     [string]$SupplierId = "SUP-DEMO-001",
     [string]$WarehouseId = "WH-DEMO-001",
     [int]$ProcurementQty = 12,

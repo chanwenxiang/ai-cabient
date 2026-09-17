@@ -209,3 +209,6 @@ docs/uat-screenshots/**/rebuild-accounts.json
 # 它必须写进真实 migration 目录（check-migration-safety 按目录扫描）才能测到，
 # 若清理失败残留下来就是一个**假迁移**，会被 Flyway 执行 / 被 git add -A 误提交。
 V9999__tmp_migration_reviewed_gate_*.sql
+
+# EMQX 生产认证种子（含明文口令，由 scripts/gen-emqx-auth-bootstrap.ps1 生成）
+infra/docker/emqx/auth-bootstrap.production.csv
