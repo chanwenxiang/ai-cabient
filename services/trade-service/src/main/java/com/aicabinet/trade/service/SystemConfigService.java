@@ -56,6 +56,16 @@ public class SystemConfigService {
             "device.offline.manual_unlock_grace_minutes";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED = "device.offline.auto_unlock_enabled";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = "device.offline.auto_unlock_stable_minutes";
+
+    /**
+     * {@link #DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES} 的**兜底默认值**（分钟）。
+     *
+     * <p>只在配置行缺失时生效；运行时以运营台「系统配置」里的值为准（可改）。
+     * 2026-09-17 产品定稿：15 → 5 分钟。已有配置行的值由 Flyway `V276` **一次性**迁移，
+     * 刻意不写成启动期「值等于 15 就覆盖」——否则运营台把它改回 15 会被反复刷掉，
+     * 配置项会退化成「假可配置」。</p>
+     */
+    public static final int DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = 5;
     /**
      * 柜内温度高于该值（℃）时上报 TEMP_ABNORMAL；0 或负数关闭。
      * 对应告警规则页「温度告警上限」，对齐联调文档「温度&gt;8℃」。
@@ -360,8 +370,9 @@ public class SystemConfigService {
                 "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, FALSE,
                 "设备恢复稳定在线后是否自动解锁起售（默认关闭）");
-        upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, "15",
-                "自动解锁前需保持稳定在线分钟数, 0=关闭");
+        upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES,
+                String.valueOf(DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES),
+                "自动解锁前需保持稳定在线分钟数（默认 5）, 0=关闭");
         upsertIfAbsent(DEVICE_TEMP_ALERT_MAX_C, "8",
                 "柜内温度高于该值(℃)时上报温度异常告警, 0=关闭");
         upsertIfAbsent(MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES, "30",

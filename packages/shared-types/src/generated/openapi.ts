@@ -15521,20 +15521,40 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PageResultBalanceTransactionDto"];
         };
+        /** @description 余额流水（消费者账单明细） */
         BalanceTransactionDto: {
+            /** @description 流水号（= 支付操作号 operationId） */
             transactionId?: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description 用户 ID
+             */
             userId?: number;
+            /** @description 业务类型：充值/扣款/退款/预授权冻结与释放等（如 CHARGE、ADJUST_CHARGE、PREAUTH_FREEZE、PREAUTH_RELEASE） */
             businessType?: string;
+            /** @description 关联业务单号（通常为订单号；纯冻结/释放类流水可能为空） */
             businessId?: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description 带符号金额（分）：正数=入账，负数=出账；纯冻结/释放按业务方向取符号
+             */
             amountCents?: number;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description 变动前可用余额（分）
+             */
             balanceBeforeCents?: number;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description 变动后可用余额（分）
+             */
             balanceAfterCents?: number;
+            /** @description 变动原因/备注 */
             reason?: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description 发生时间
+             */
             createdAt?: string;
         };
         PageResultBalanceTransactionDto: {

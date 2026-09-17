@@ -11,7 +11,15 @@
 | 参数 Key | 默认值 | 说明 |
 |---|---|---|
 | `device.offline.auto_unlock_enabled` | `false` | 稳定在线自动解锁总开关（默认关闭） |
-| `device.offline.auto_unlock_stable_minutes` | `15` | 自动解锁前需保持稳定在线分钟数，`0` 关闭 |
+| `device.offline.auto_unlock_stable_minutes` | `5` | 自动解锁前需保持稳定在线分钟数，`0` 关闭 |
+
+> **默认值变更（2026-09-17 产品定稿）**：该阈值由 `15` 下调为 **`5`** 分钟。
+> 已有的库由 Flyway `V276__device_auto_unlock_stable_minutes_15_to_5.sql` **一次性**迁移
+> （只更新「值仍等于旧默认值 15」的行，运营台手工改过的值不动）；
+> 空库由 `SystemConfigService.ensureDefaults()` 以新默认值插入
+> （常量 `DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES`）。
+> ⚠️ 刻意**不用**「启动时发现值是 15 就覆盖」的写法 —— 那会把运营改回 15 的配置反复刷掉，
+> 让这个参数变成「假可配置」。
 
 配置入口：运营后台 → 系统 → 参数配置。两个参数会自动出现在列表里，**保存后即时生效**
 （任务每次执行实时读取，无需重启服务）。参数页查看 / 编辑 / 删除分别受

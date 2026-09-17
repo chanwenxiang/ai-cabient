@@ -6,6 +6,12 @@ spring:
     name: trade-service
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  # @Scheduled 默认线程池仅 1 个线程：任一任务阻塞会顺延其它任务。业务调度已集中到 XXL-JOB，
+  # 但本地兜底任务（补偿重试、看护、超时重扫等）仍需互不阻塞，故显式放大。
+  task:
+    scheduling:
+      pool:
+        size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:8}
   servlet:
     multipart:
       max-file-size: 10MB

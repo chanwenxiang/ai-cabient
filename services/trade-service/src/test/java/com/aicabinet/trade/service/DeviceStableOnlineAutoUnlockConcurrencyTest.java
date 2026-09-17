@@ -50,8 +50,8 @@ class DeviceStableOnlineAutoUnlockConcurrencyTest {
     void autoUnlock_whenLockBusy_skipsDevice() {
         when(systemConfig.getBoolean(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, false))
                 .thenReturn(true);
-        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 15))
-                .thenReturn(15);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 5))
+                .thenReturn(5);
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId("CAB-AU");
         device.setOnlineStatus("ONLINE");

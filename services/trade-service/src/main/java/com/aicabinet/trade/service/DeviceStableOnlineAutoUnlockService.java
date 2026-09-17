@@ -79,7 +79,8 @@ public class DeviceStableOnlineAutoUnlockService {
         boolean enabled = systemConfigService.getBoolean(
                 SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, false);
         int stableMinutes = systemConfigService.getInt(
-                SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 15);
+                SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES,
+                SystemConfigService.DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES);
         if (!enabled || stableMinutes <= 0) {
             log.debug("device stable-online auto unlock disabled, enabled={}, minutes={}",
                     enabled, stableMinutes);

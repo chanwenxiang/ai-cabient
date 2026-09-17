@@ -7,12 +7,15 @@ import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import com.aicabinet.trade.mapper.RepairTicketMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -43,7 +46,7 @@ class DeviceStableOnlineAutoUnlockServiceTest {
     @Test
     void disabledByDefaultDoesNothing() {
         when(systemConfig.getBoolean(anyString(), eq(false))).thenReturn(false);
-        when(systemConfig.getInt(anyString(), eq(15))).thenReturn(15);
+        when(systemConfig.getInt(anyString(), eq(5))).thenReturn(5);
 
         assertEquals(0, service().autoUnlockStableOnlineDevices());
         verifyNoInteractions(devices, salesLock);
@@ -53,8 +56,8 @@ class DeviceStableOnlineAutoUnlockServiceTest {
     void unlocksDeviceStableOnlineWithoutSessionOrTicket() {
         when(systemConfig.getBoolean(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, false))
                 .thenReturn(true);
-        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 15))
-                .thenReturn(15);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 5))
+                .thenReturn(5);
         DeviceInfo device = lockedDevice("CAB-001");
         when(devices.findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
                 eq("ONLINE"), any(Instant.class), eq(200)))
@@ -79,8 +82,8 @@ class DeviceStableOnlineAutoUnlockServiceTest {
     void skipsDeviceWithOpenRepairTicket() {
         when(systemConfig.getBoolean(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, false))
                 .thenReturn(true);
-        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 15))
-                .thenReturn(15);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 5))
+                .thenReturn(5);
         DeviceInfo device = lockedDevice("CAB-002");
         when(devices.findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
                 eq("ONLINE"), any(Instant.class), eq(200)))
@@ -98,8 +101,8 @@ class DeviceStableOnlineAutoUnlockServiceTest {
     void skipsDeviceLockedManuallyWithoutFault() {
         when(systemConfig.getBoolean(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, false))
                 .thenReturn(true);
-        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 15))
-                .thenReturn(15);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 5))
+                .thenReturn(5);
         DeviceInfo device = lockedDevice("CAB-003");
         when(devices.findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
                 eq("ONLINE"), any(Instant.class), eq(200)))
@@ -110,6 +113,47 @@ class DeviceStableOnlineAutoUnlockServiceTest {
 
         assertEquals(0, service().autoUnlockStableOnlineDevices());
         verifyNoInteractions(salesLock);
+    }
+
+    /**
+     * 钉住**产品定稿的默认值**：恢复稳定在线 5 分钟后自动解锁（2026-09-17 由 15 下调）。
+     *
+     * <p>为什么值得单独立一条：其余用例是通过 `getInt(key, 5)` 的 mock 参数**间接**钉住默认值的
+     * （参数不匹配会让 stub 落空 → 服务拿到 0 → 直接返回，用例随即失败），可读性差且意图不明。
+     * 改这个值时同步点有 3 处：本常量、Flyway 迁移（历史库）、运营台配置行的既有值。</p>
+     */
+    @Test
+    void defaultStableOnlineMinutesIsFive() {
+        assertEquals(5, SystemConfigService.DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES,
+                "产品定稿：稳定在线 5 分钟后自动解锁；下调/上调需同步 Flyway 迁移与文档");
+    }
+
+    /**
+     * 钉住「配置值真的参与 cutoff 计算」：其余用例传的是 `any(Instant.class)`，
+     * 阈值即便写错（例如被当成常量忽略）也照样绿。
+     */
+    @Test
+    void cutoffUsesConfiguredStableMinutes() {
+        when(systemConfig.getBoolean(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, false))
+                .thenReturn(true);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 5))
+                .thenReturn(5);
+        when(devices.findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
+                eq("ONLINE"), any(Instant.class), eq(200)))
+                .thenReturn(List.of());
+
+        Instant before = Instant.now();
+        assertEquals(0, service().autoUnlockStableOnlineDevices());
+        Instant after = Instant.now();
+
+        ArgumentCaptor<Instant> cutoff = ArgumentCaptor.forClass(Instant.class);
+        verify(devices).findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
+                eq("ONLINE"), cutoff.capture(), eq(200));
+        // 期望 cutoff = 「现在 - 5 分钟」；允许调用前后的时钟抖动各 2 秒
+        assertFalse(cutoff.getValue().isBefore(before.minus(5, ChronoUnit.MINUTES).minusSeconds(2)),
+                "cutoff 不应早于 now-5min（阈值被放大？）");
+        assertFalse(cutoff.getValue().isAfter(after.minus(5, ChronoUnit.MINUTES).plusSeconds(2)),
+                "cutoff 不应晚于 now-5min（阈值被缩小？）");
     }
 
     private static DeviceInfo lockedDevice(String deviceId) {

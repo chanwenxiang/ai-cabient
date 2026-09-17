@@ -3305,15 +3305,17 @@ But invoked here:
 | `check-audit-gates-wiring` | `OK：聚合链 15 个引用全部有定义，21 个 check-*.mjs 全部已接线` |
 | `prettier --check` | `All matched files use Prettier code style!` |
 
-#### 25.9.4 ⚠️ 顺带发现：SonarQube 工作流是一条**已死的信号**（本轮未处理）
+#### 25.9.4 ⚠️ 顺带发现：`SonarQube` 工作流是一条**误导读者的信号**
 
 查 CI 时注意到 `SonarQube` 工作流在最近 **8 次**运行中**全部 `cancelled`、从未成功过**
 （`gh run list --workflow=SonarQube`，最近 8 条 conclusion 依次为 `cancelled` × 7 + 本次仍排队）。
 而主 `CI` 工作流仍照常 `success` —— 说明它对门禁**不阻塞**，因此**不会有人因为「它不干活」而被拦住**。
-这正是本报告反复提到的门禁失效形态：**信号存在、无人消费**。
 
-> **待确认（本轮未动它）**：是 Sonar 服务/凭据缺失导致自取消，还是被并发/超时取消。
-> 但无论哪种，**「永远 cancelled 的检查」等价于「没有这个检查」** —— 要么修好，要么显式删掉，别留着装样子。
+> **归因已在第十八轮查清（见 §26.4）**：不是凭据/服务出错，而是**该工作流的 `runs-on` 是
+> `[self-hosted, linux, ai-cabinet]`，而仓库注册的 runner 数为 0**（本机未启 runner/SonarQube）。
+> 无 runner 的 job 永远排队，再被下一次 push 的 `concurrency.cancel-in-progress` 取消 ——
+> 历史 100 次运行 `success` 为 0。**危害不是「跑不起来」，是「误导」**：它在 `gh run list` 里
+> 永远有新 run，且主 CI 结论里看不到它，我曾据此误判「CI 还在跑」而白等。
 
 
 > ⚠️ **本节同时纠正一条我自己的错误诊断**：诊断 §25.9.2 时，日志停在
@@ -3323,4 +3325,90 @@ But invoked here:
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0；第 19 章为第十二轮 —— 落地托管任务超期看护（首次实跑即命中 6 个任务无执行记录），并发现上一轮新增门禁从未在 CI 执行、CI 已连红两次；第 20 章为第十三轮 —— 用户一句「我关机了怎么跑」纠正了「调度器 stall」的错误判断，并由此挖出看护的两处判据缺陷（不看进程存活 / 不看执行成败）、修正 `ChronoUnit.MONTHS` 导致的每日任务 100% 失败，以及运营台 31 行的逐个核对（含我自身首轮核对方法给出假结论的回验）；第 21 章为第十四轮 —— 按「以后都是多实例」的前提把 **30 个业务定时任务全量交给 XXL-JOB**（仅 2 个刻意留在 Spring：超期看护不能自证、本机缓存清理不能被外部依赖），顺带修掉 `cache-purge` 多实例漏清理与 `ops-fee-bill-monthly` 手动触发 404 两个现存缺陷，并把「cron 两处一致」「托管必须已注册」钉成门禁（含三次负向验证）；第 22 章为第十五轮 —— 由用户一句「接下来干什么」逼出的**落地收口**：查出「全量托管只落在 git、运行库仍只有 11 条 job、镜像落后于代码」的落地缺口，并在重跑 seed 后挖出 `ops-fee-bill-monthly` 的 **7 段 cron 被 XXL 解析拒绝 → 该 job 永不触发且被自动停用** 的 P0（当时 3.1~3.9 九条规则**全部通过**），据此把「cron 静态可解析性」钉成规则 3.10 并做**两形态**负向验证，最后完成 seed 重跑 / 镜像重建 / 端到端实测 / 看护负向验证（含告警写入与恢复自动 RESOLVED），并用调度日志把「半落地」的代价量化成硬数字（§22.7：**14968 次调度失败 / 0 次成功 / 0 条告警**，同时给出「非 null 地址 500 = 重建窗口」与「`NOW()` 时区错配」两个读日志陷阱）。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**；**§18 末句"17 个门禁全绿"已被 §19.4 更正（当时聚合链是断的，逐脚本跑不等于聚合链跑），其中"门禁总数"一项又被 §19.8/§19.9 的复核再度更正为 21 个（早期漏数了用另一种写法调用的两个脚本）**；**§19.8 中"全仓共 19 个门禁"已被 §19.9 更正为 21 个**。第 23 章为第十六轮 —— 对用户书面清单（P1×2 / P2×4 / 运维面）逐条读数核实后修复：`available` 折入 `online`（并补 `OFFLINE` 原因与 nearby 兜底）、把「条件装配有意关闭」与「漏注册」分开记账（新增 `NOT_REGISTERED` 判据 + 单测 12→14）、修 `realart` 拼写与两处自相矛盾的文案；过程中修掉一个**构造器循环依赖**（会让服务起不来），并留下一条方法论收获：**两条耦合分支的漂移会互相遮蔽，负向验证必须逐条隔离注入**。第 24 章为第十六轮落地收官 —— 由用户一句「关于 xxl-job 的已经修改完了吗」引出的**落地缺口核查**：证实「代码已改 + CI 绿」与「运行的是新代码」是两件事（运行镜像构建于 09-16 16:25、容器 `RestartCount=0`，镜像内 `realart` 仍在、`conditionallyAbsent`/`NOT_REGISTERED` 各为 0），据此重建镜像并逐项取证闭合（三处特征 1/1/1、健康 UP、执行器心跳刷新、重启后 14 个任务推进），并做**行为级验证**（`CAB-001` 离线柜返回 `available=false` / `busyReason=OFFLINE` —— 旧实现此处会返回 `LOCKED`，故该差异即新逻辑在跑的铁证）；过程中又证伪一条既有判据 —— `xxl_job_log.executor_address` 在**失败路径根本不写**，重启窗口的 16 条 500 该列同为 NULL 而 `trigger_msg` 里却有地址，故判别只能读 `trigger_msg` 文本。第 25 章为第十七轮 —— 补上 §24 未决清单里的**启动期接线自检**：起因是 §18 那次停跑 19 小时的根因并非代码写错，而是**没有任何东西在启动时问过一句「接线通不通」**（`XxlJobConfig` 只打一行 `executor init`，注册失败时无 ERROR 无指标）。先厘清「进程内无法得知注册结果，但注册得上的必要条件全部可自证」，再对**运行中的** admin 3.4.2 实测校准判据（空 body POST 返回 `200 Illegal Argument` 即通路正常且零副作用、带前缀返回 404、GET 返回方法错），据此实现 `XxlJobWiringSelfCheck`（启动期一次；**失败只报不改**，并吞掉一切异常以免把「配置写错」升级成「服务起不来」），三路可见（ERROR 日志 / `XXL_JOB_WIRING_BROKEN` 异常单 / `aicabinet_xxl_job_wiring_ok` + 告警规则）；顺带堵掉两条同族门禁缺口（指标扫描扩为「已知装置清单」逐个扫并剥注释行、新增 `appname` ↔ seed `xxl_job_group.app_name` 交叉校验）。**本轮最有价值的产出是负向验证抓出的两个漏判**：appname 正则匹配不到 `appname: ${VAR:默认}` 形态、纯文本检索把 `// Gauge.builder(` 也算作「已暴露指标」—— 两条新判据**首轮都是绿的**，且都通过了「读代码」这一关，再次印证「新增判据不注入漂移，等于没验证过」。而本轮的落地验证本身也交了一次学费：加重试后的 16 条用例**未先单独跑一遍就进了全量回归**，913 例中唯一红的正是新写用例里一条**自相矛盾的 `never()` 断言**（它断言「瞬态被覆盖后必须判为通过」，却又断言成功分支本来就会调用的 `resolveSystem` 为 `never()` —— 实现无误，是测试写错），修正后干净全量 **913/913 全绿**（§25.9.2 / §25.9.3）；同一过程中还纠正了我自己的两处错误 —— 审计报告 §25.9 里「全量全绿」这处**提前写绿**的记录，以及把「机器休眠冻住构建进程」误判成「javac 极慢、全量要 1 小时」（实测仅 13:27）；提交后 CI run `35189848703` 独立复核 4/4 job 全绿（含 `XxlJobWiringSelfCheckTest` 16/16 与全量 913/913 的逐条取证，§25.9.3），并顺带发现 `SonarQube` 工作流近 8 次运行**全部 `cancelled`、从未成功**却因不阻塞 CI 而无人察觉（§25.9.4）。*
+## 26. 第十八轮 · 未决清单二次复核（两条旧结论作废）与用户点名的五项修复
+
+**起因**：用户问「清单还有哪些」，并指出 SonarQube「我都没有启动，肯定不运行呀」。
+**做法**：不抄 `PROJECT-REFERENCE §9` 的旧结论，对清单**每一条**重新读源码取证；用户点名的 5 项一并修复。
+
+### 26.1 🔴 两条旧未决「早已修完却仍挂在清单上」
+
+| 旧条目 | 现状 | 证据（2026-09-17 重新取证） |
+|---|---|---|
+| `/api/v2/devices/{id}/status` 离线仍返回 `available=true` | ✅ **已修，结论作废** | `DeviceValidationService.java:68` `boolean available = online && active.isEmpty() && !replenishment && !locked;`（`:66-67` 注释显式标注 C-P1 已把 `online` 折入）；`NearbyDeviceService.java:81` 透传同一方法，`:85` 异常兜底同样要求 `"ONLINE"` |
+| 「未做：服务器侧吊销超管会话」 | ✅ **已修，结论作废** | 链路完整**且真被调用**：`SessionRevocationService`（jti → Redis 黑名单 `aicabinet:auth:deny:jti:`，TTL 对齐剩余有效期）← `JwtService.revokeTokenQuietly:123` + 解析期 `assertNotRevoked:140` ← `AuthController.logout`（`:178` 取到 token / `:213` admin Cookie / `:216` consumer Cookie / `:219` 兜底） |
+
+> **方法论**：未决清单是「当时未做」的**快照**，不是当前状态。本条由用户一句「清单还有哪些」逼出 ——
+> 若照抄记忆回答，就会把两条早已完成的项当成待办继续排期。**复核必须逐条重新取证**。
+
+### 26.2 用户点名的五项修复（逐条含 `文件:行`）
+
+| # | 项 | 改动 | 验证 |
+|---|---|---|---|
+| 1 | `.gitignore` 未通用化 | `.gitignore:168` 由单路径 `clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*` 改为 **`**/eyJ*`**（不限目录，覆盖 HS512/RS256 等其它签名头） | `git check-ignore` 三个构造样例（admin 目录 / services 目录 / ops 目录）**均命中**；`clients/admin-vue/src/main.ts` **不被误伤**；`git ls-files \| grep eyJ` = 0（无正当跟踪文件被掩盖） |
+| 2 | `BalanceTransactionDto` 缺 `@Schema` | `common-core/.../dto/BalanceTransactionDto.java`：类 + **9 个字段**全部补 `@Schema(description=...)`（本项目 javadoc 不进 spec，字段描述只能靠 `@Schema`） | 起真实服务拉 `/v3/api-docs`：该 schema **旧 0 个描述 → 新 9 个 + 类描述**（下方 §26.5 有 openapi 门禁的联动） |
+| 3 | `spring.task.scheduling.pool.size` 未配 | `trade-service` `application.yml:11-14` 新增 `spring.task.scheduling.pool.size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:8}`（先确认**只有 trade-service 有 `@Scheduled`**：33 个文件；device-service / common 为 0） | 键可被 Spring 消费（yml 结构 + 服务正常启动） |
+| 4 | `shortBizNo` 口径不一致（admin 剩 1 处） | `DashboardView.vue:321` import 改 `displayBizNo`；`:619-626` `shortId()` 由 `shortBizNo(id,10,id)`（截末尾 10 位）改为 **`displayBizNo(id, id)`**（只归一化、不截断） | `clients/admin-vue` `vue-tsc --noEmit` **exit=0**；同页 `:608-609` 的会话号/工单号在 `:644-645` 被当作**查询参数**传走，而 `DeviceDetailView.vue:996`、`RepairTicketsView.vue:359` 都展示**完整号** → 截断版属同类缺陷（与 merchant-mp `orders.vue:475` 同因） |
+| 5 | 自动解锁阈值 15min → **在线 5 分钟** | 见 §26.3 | 见 §26.3 / §26.5 |
+
+### 26.3 第 5 项：阈值下调为什么**不能只改代码**
+
+用户的原话是「改成在线 5 分钟吧，**应该可以在系统配置吧**」——判断正确，该阈值**本来就是系统配置项**
+（`SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES` = key `device.offline.auto_unlock_stable_minutes`，
+运营台「系统 → 参数配置」可见可改，保存后**即时生效**，因为任务每次执行实时读库）。
+
+但它同时暴露出一个**只改代码会失效**的坑：
+
+1. `ensureDefaults()` 用的是 **`upsertIfAbsent`（不存在才插）**，且只在 `listAll()`（打开配置页）时触发
+   → **已有库里那行 `=15` 永远不会被覆盖**，改代码默认值对现存环境**不生效**；
+2. 于是按项目既有范式（Flyway）新增 **`V276__device_auto_unlock_stable_minutes_15_to_5.sql`**：
+   `UPDATE ... WHERE config_key='...' AND config_value='15'` —— **只迁移仍是旧默认值的行**；
+3. 🔴 **刻意不用「启动时发现值=15 就覆盖」**：那会在每次打开配置页时把运营手工改回的值刷掉，
+   让这个参数退化成**假可配置**。Flyway 天然只执行一次（`flyway_schema_history`）。
+4. 默认值收敛到**一处常量**：`SystemConfigService.DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = 5`，
+   由 `DeviceStableOnlineAutoUnlockService:83` 引用，`ensureDefaults()` 也用它 —— 避免「两处各写一个 15」。
+
+**实跑证据（本地演示库）**：
+
+```
+system_config: device.offline.auto_unlock_stable_minutes = 5   (updated_at 2026-09-17 07:58:18+00)
+flyway_schema_history: version=276  description=device auto unlock stable minutes 15 to 5  success=t
+```
+
+### 26.4 `SonarQube` 工作流归因（更正 §25.9.4）
+
+- `sonar.yml:28` 要求 `runs-on: [self-hosted, linux, ai-cabinet]`；
+  `gh api /repos/{owner}/{repo}/actions/runners` → **`total_count: 0`** —— **仓库没有任何 runner 注册**（本机未启 runner/SonarQube）。
+- 历史 100 次运行：**99 `cancelled` + 1 `queued`，`success` = 0**。机制：无 runner 的 job 永远排队 → 被下一次 push 的 `concurrency.cancel-in-progress: true` 取消。
+- 🔴 **危害重定性**：不是「跑不起来」，而是**误导** —— 它在 `gh run list` 里永远有新 run，
+  且主 `CI` 结论里看不到它。我上一轮就是盯着它的 run 说「CI 还在跑」，而真 CI 早已 success。
+  这给门禁失效形态加了**第六种**：**信号在骗读者**。
+- **待改（本轮未动）**：去掉 `on.push` / `on.pull_request`，只留 `workflow_dispatch`（本地 Sonar 本就是按需自托管扫描）。
+
+> 用户的判断是对的：「我都没有启动，肯定不运行呀」—— `total_count: 0` 就是这句的自然语言版本。
+> 教训：**看到「反复失败/取消」的检查，先查它有没有执行环境**，别急着查它的业务逻辑。
+
+### 26.5 验证矩阵（含负向验证与一个「门禁真的会红」的实证）
+
+| 项 | 结果 |
+|---|---|
+| 聚焦测试（改动前基线） | `DeviceStableOnlineAutoUnlockServiceTest` **4/4** + `ConcurrencyTest` **1/1** 绿 |
+| 聚焦测试（加 2 条新判据后） | **6/6** + **1/1** 绿，`BUILD SUCCESS` |
+| **负向验证 N1**：默认值改回 `15` | **红 3 条** —— `defaultStableOnlineMinutesIsFive`、`cutoffUsesConfiguredStableMinutes`、`unlocksDeviceStableOnlineWithoutSessionOrTicket`（证明既有 4 条的「间接钉住」也真的有效） |
+| **负向验证 N2**：`cutoff` 写死 `minus(15, MINUTES)` | **只红 1 条** —— `cutoffUsesConfiguredStableMinutes`（隔离性精确，判据指向明确） |
+| 还原后复跑 | **6/6 + 1/1 绿**，`BUILD SUCCESS` |
+| 聚合门禁链 `run-audit-gates.mjs` | **15/15，失败 0** |
+| prettier（本轮改动的前端文件） | `All matched files use Prettier code style!`（prettier 3.9.6 实跑 exit=0） |
+| `clients/admin-vue` `vue-tsc --noEmit` | **exit=0** |
+| 🔴 **OpenAPI 类型联动（本轮最重要的意外发现）** | 改动 DTO 的 `@Schema` 会改变 `/v3/api-docs`，而 CI 有一个 job **真的启动 trade-service 拉 spec + 重生成 + `git diff --exit-code`**。本地用**新代码**起服务（18099）拉到新 spec 后跑 `OPENAPI_CHECK_REGEN=1` → 门禁**真的报红**（`generated OpenAPI types are stale`）并产出 `packages/shared-types/src/generated/openapi.ts` 的 **+25/-5**（只新增 `@description`）。**若不重生成并提交，CI 必红** —— 这属于「改了 DTO 就得改生成物」的隐藏耦合。 |
+| Flyway V276 实跑 | 库中值 = `5`，`flyway_schema_history` version 276 / success=t |
+
+### 26.6 本轮未做 / 待确认
+
+- `SonarQube` 工作流仍挂 `on.push`（只做了归因，未改 yml）。
+- `manifest.json` `appid` 为空（**发布硬阻塞**，需微信后台申请）、`edge/` 零测试资产、`PrefsJsonQueue.kt:53` 的同步 `commit()` 是否在主线程 —— 三项未动。
+- `DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED` 仍**默认 false**（阈值改了但开关默认关）：**这是既定的产品选择**（行业惯例是人工确认再起售），已如实写入 `DEVICE_AUTO_UNLOCK_AND_KPI.md`，需要开时在运营台打开即可。
+- 运行中的 trade-service 容器（09-17 11:35 镜像）**无需重建**：阈值从库里读，配置行已迁移为 5，旧容器同样读到 5。**但**兜底默认值（库中无该行时的 5）要等下次重建镜像才生效。
+
+---
+
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0；第 19 章为第十二轮 —— 落地托管任务超期看护（首次实跑即命中 6 个任务无执行记录），并发现上一轮新增门禁从未在 CI 执行、CI 已连红两次；第 20 章为第十三轮 —— 用户一句「我关机了怎么跑」纠正了「调度器 stall」的错误判断，并由此挖出看护的两处判据缺陷（不看进程存活 / 不看执行成败）、修正 `ChronoUnit.MONTHS` 导致的每日任务 100% 失败，以及运营台 31 行的逐个核对（含我自身首轮核对方法给出假结论的回验）；第 21 章为第十四轮 —— 按「以后都是多实例」的前提把 **30 个业务定时任务全量交给 XXL-JOB**（仅 2 个刻意留在 Spring：超期看护不能自证、本机缓存清理不能被外部依赖），顺带修掉 `cache-purge` 多实例漏清理与 `ops-fee-bill-monthly` 手动触发 404 两个现存缺陷，并把「cron 两处一致」「托管必须已注册」钉成门禁（含三次负向验证）；第 22 章为第十五轮 —— 由用户一句「接下来干什么」逼出的**落地收口**：查出「全量托管只落在 git、运行库仍只有 11 条 job、镜像落后于代码」的落地缺口，并在重跑 seed 后挖出 `ops-fee-bill-monthly` 的 **7 段 cron 被 XXL 解析拒绝 → 该 job 永不触发且被自动停用** 的 P0（当时 3.1~3.9 九条规则**全部通过**），据此把「cron 静态可解析性」钉成规则 3.10 并做**两形态**负向验证，最后完成 seed 重跑 / 镜像重建 / 端到端实测 / 看护负向验证（含告警写入与恢复自动 RESOLVED），并用调度日志把「半落地」的代价量化成硬数字（§22.7：**14968 次调度失败 / 0 次成功 / 0 条告警**，同时给出「非 null 地址 500 = 重建窗口」与「`NOW()` 时区错配」两个读日志陷阱）。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**；**§18 末句"17 个门禁全绿"已被 §19.4 更正（当时聚合链是断的，逐脚本跑不等于聚合链跑），其中"门禁总数"一项又被 §19.8/§19.9 的复核再度更正为 21 个（早期漏数了用另一种写法调用的两个脚本）**；**§19.8 中"全仓共 19 个门禁"已被 §19.9 更正为 21 个**。第 23 章为第十六轮 —— 对用户书面清单（P1×2 / P2×4 / 运维面）逐条读数核实后修复：`available` 折入 `online`（并补 `OFFLINE` 原因与 nearby 兜底）、把「条件装配有意关闭」与「漏注册」分开记账（新增 `NOT_REGISTERED` 判据 + 单测 12→14）、修 `realart` 拼写与两处自相矛盾的文案；过程中修掉一个**构造器循环依赖**（会让服务起不来），并留下一条方法论收获：**两条耦合分支的漂移会互相遮蔽，负向验证必须逐条隔离注入**。第 24 章为第十六轮落地收官 —— 由用户一句「关于 xxl-job 的已经修改完了吗」引出的**落地缺口核查**：证实「代码已改 + CI 绿」与「运行的是新代码」是两件事（运行镜像构建于 09-16 16:25、容器 `RestartCount=0`，镜像内 `realart` 仍在、`conditionallyAbsent`/`NOT_REGISTERED` 各为 0），据此重建镜像并逐项取证闭合（三处特征 1/1/1、健康 UP、执行器心跳刷新、重启后 14 个任务推进），并做**行为级验证**（`CAB-001` 离线柜返回 `available=false` / `busyReason=OFFLINE` —— 旧实现此处会返回 `LOCKED`，故该差异即新逻辑在跑的铁证）；过程中又证伪一条既有判据 —— `xxl_job_log.executor_address` 在**失败路径根本不写**，重启窗口的 16 条 500 该列同为 NULL 而 `trigger_msg` 里却有地址，故判别只能读 `trigger_msg` 文本。第 25 章为第十七轮 —— 补上 §24 未决清单里的**启动期接线自检**：起因是 §18 那次停跑 19 小时的根因并非代码写错，而是**没有任何东西在启动时问过一句「接线通不通」**（`XxlJobConfig` 只打一行 `executor init`，注册失败时无 ERROR 无指标）。先厘清「进程内无法得知注册结果，但注册得上的必要条件全部可自证」，再对**运行中的** admin 3.4.2 实测校准判据（空 body POST 返回 `200 Illegal Argument` 即通路正常且零副作用、带前缀返回 404、GET 返回方法错），据此实现 `XxlJobWiringSelfCheck`（启动期一次；**失败只报不改**，并吞掉一切异常以免把「配置写错」升级成「服务起不来」），三路可见（ERROR 日志 / `XXL_JOB_WIRING_BROKEN` 异常单 / `aicabinet_xxl_job_wiring_ok` + 告警规则）；顺带堵掉两条同族门禁缺口（指标扫描扩为「已知装置清单」逐个扫并剥注释行、新增 `appname` ↔ seed `xxl_job_group.app_name` 交叉校验）。**本轮最有价值的产出是负向验证抓出的两个漏判**：appname 正则匹配不到 `appname: ${VAR:默认}` 形态、纯文本检索把 `// Gauge.builder(` 也算作「已暴露指标」—— 两条新判据**首轮都是绿的**，且都通过了「读代码」这一关，再次印证「新增判据不注入漂移，等于没验证过」。而本轮的落地验证本身也交了一次学费：加重试后的 16 条用例**未先单独跑一遍就进了全量回归**，913 例中唯一红的正是新写用例里一条**自相矛盾的 `never()` 断言**（它断言「瞬态被覆盖后必须判为通过」，却又断言成功分支本来就会调用的 `resolveSystem` 为 `never()` —— 实现无误，是测试写错），修正后干净全量 **913/913 全绿**（§25.9.2 / §25.9.3）；同一过程中还纠正了我自己的两处错误 —— 审计报告 §25.9 里「全量全绿」这处**提前写绿**的记录，以及把「机器休眠冻住构建进程」误判成「javac 极慢、全量要 1 小时」（实测仅 13:27）；提交后 CI run `35189848703` 独立复核 4/4 job 全绿（含 `XxlJobWiringSelfCheckTest` 16/16 与全量 913/913 的逐条取证，§25.9.3），并顺带发现 `SonarQube` 工作流近 8 次运行**全部 `cancelled`、从未成功**却因不阻塞 CI 而无人察觉（§25.9.4）。第 26 章为第十八轮 —— 由用户「清单还有哪些」+「SonarQube 我都没有启动」两句追问引出：对未决清单**逐条重新取证**，**作废了两条早已修完却仍挂在清单上的旧结论**（`/devices/{id}/status` 的 `available` 已折入 `online`；服务器侧 JWT 吊销已按 jti 落 Redis 黑名单且四处真被调用），并按用户点名修复五项（`.gitignore` 通用化为 `**/eyJ*`、`BalanceTransactionDto` 补 9 个 `@Schema`、`spring.task.scheduling.pool.size` 显式配置、admin 最后一处 `shortBizNo` 截断改为完整号、自动解锁阈值 **15 → 5 分钟**），其中最值得记的是两件事：① **阈值下调不能只改代码** —— `ensureDefaults()` 是 `upsertIfAbsent`（只在插入时生效），已有库里那行 `15` 必须靠 Flyway `V276` 做**一次性**迁移（实测库中值已为 5、`flyway_schema_history` version 276 success=t），且刻意不写成「发现等于旧默认值就覆盖」，否则运营把值改回 15 会被反复刷掉＝**假可配置**；② **改 DTO 的 `@Schema` 会连动 OpenAPI 生成物** —— CI 里那个 job 真的启动服务、拉 spec、重生成并 `git diff --exit-code`，本地用新代码起服务实跑确认门禁**真的会红**并由此重生成 `generated/openapi.ts`（+25/-5）。负向验证逐条隔离：默认值改回 15 → **红 3 条**；`cutoff` 写死 15 → **只红 1 条**（`cutoffUsesConfiguredStableMinutes`）。同时把 `SonarQube` 的归因查清并更正 §25.9.4：**不是凭据/服务出错，而是仓库 runner 数为 0**（本机未起），无 runner 的 job 永远排队再被下一次 push 取消 —— 危害不是「跑不起来」而是**误导读者**，据此给门禁失效形态加了**第六种：信号在骗读者**。*

@@ -318,7 +318,7 @@ import TableActions from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { shortBizNo } from '@aicabinet/shared-uni/format';
+import { displayBizNo } from '@aicabinet/shared-uni/format';
 import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
 import { normalizeListPage } from '@/utils/normalize-list-page';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -616,8 +616,14 @@ function contextLabel(row: OpsActionItem) {
   return parts.length ? parts.join(' · ') : '无';
 }
 
+/**
+ * 会话号 / 工单号是运营排查时的**查询凭据**，必须与详情页口径一致：
+ * `DeviceDetailView.vue`（会话）与 `RepairTicketsView.vue`（工单详情）都展示**完整号**。
+ * 旧实现 `shortBizNo(id, 10, id)` 截末尾 10 位，运营把列表里的号拿到详情页搜不到
+ * （与 merchant-mp `orders.vue:475` 同类缺陷）；此处只做纯数字归一化，不再截断。
+ */
 function shortId(id: string) {
-  return shortBizNo(id, 10, id);
+  return displayBizNo(id, id);
 }
 
 function goQuick(item: QuickLink) {

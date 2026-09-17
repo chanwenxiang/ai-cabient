@@ -160,7 +160,12 @@ tmp-merchant-tsc.txt
 tsc-out.txt
 tmp-*.html
 BOOT-INF/
-clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*
+
+# JWT / 凭据类文件：文件名以 eyJ 开头即为 base64 的 {"alg":...} 头
+# 原规则写死 clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.* —— 换目录或换签名算法（HS512/RS256）就会漏，
+# 且曾漏掉 3 个文件名不含 eyJ 的凭据文件（见 PROJECT-REFERENCE §9），故此规则不限目录。
+# 已确认仓库内无以 eyJ 开头且被跟踪的正当文件（git ls-files | grep eyJ = 0）。
+**/eyJ*
 
 # Workbuddy / local agent memory (do not commit)
 .workbuddy/
