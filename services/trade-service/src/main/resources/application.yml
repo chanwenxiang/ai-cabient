@@ -235,7 +235,7 @@ aicabinet:
     stale-monitor-enabled: ${SCHEDULED_TASK_STALE_MONITOR_ENABLED:true}
     stale-monitor-interval-ms: ${SCHEDULED_TASK_STALE_MONITOR_INTERVAL_MS:300000}
     # 同一批超期任务重复外发告警的最小间隔（分钟），避免刷屏；异常列表侧由去重键天然收敛
-    stale-monitor-realart-minutes: ${SCHEDULED_TASK_STALE_REALERT_MINUTES:360}
+    stale-monitor-realert-minutes: ${SCHEDULED_TASK_STALE_REALERT_MINUTES:360}
   devops:
     enabled: ${DEVOPS_HUB_ENABLED:true}
     grafana-url: ${DEVOPS_GRAFANA_URL:http://localhost:13000}

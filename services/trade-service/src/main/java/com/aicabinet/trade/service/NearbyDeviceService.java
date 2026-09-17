@@ -80,7 +80,9 @@ public class NearbyDeviceService {
         try {
             available = deviceValidationService.getDeviceStatus(d.getDeviceId()).available();
         } catch (Exception ignored) {
-            available = !d.salesLockedEnabled();
+            // 兜底与主路径同语义：必须在线才可售（离线柜不能标「可开门」）。
+            String life = d.getOnlineStatus() == null ? "" : d.getOnlineStatus().trim();
+            available = "ONLINE".equalsIgnoreCase(life) && !d.salesLockedEnabled();
         }
         List<DeviceProductDto> products = List.of();
         try {

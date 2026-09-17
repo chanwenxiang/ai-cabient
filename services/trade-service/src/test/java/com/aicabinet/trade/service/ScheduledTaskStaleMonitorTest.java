@@ -5,12 +5,14 @@ import com.aicabinet.trade.mapper.ScheduledTaskMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,6 +39,9 @@ class ScheduledTaskStaleMonitorTest {
     private final ScheduledTaskService taskService = mock(ScheduledTaskService.class);
     private final OpsAlertDispatcher dispatcher = mock(OpsAlertDispatcher.class);
     private final OpsExceptionService exceptionService = mock(OpsExceptionService.class);
+    private final ScheduledTaskRegistry registry = mock(ScheduledTaskRegistry.class);
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<ScheduledTaskRegistry> registryProvider = mock(ObjectProvider.class);
 
     private final Map<String, ScheduledTask> rows = new HashMap<>();
 
@@ -46,6 +51,13 @@ class ScheduledTaskStaleMonitorTest {
     void setUp() {
         when(mapper.selectById(anyString())).thenAnswer(inv -> rows.get(inv.getArgument(0, String.class)));
         when(taskService.tryBegin(eq(ScheduledTaskStaleMonitor.TASK_KEY), anyLong())).thenReturn(true);
+        // 默认：所有托管任务都已注册、且没有「条件装配缺席」的 —— 即等价于修复前的行为，
+        // 既有断言测的仍是纯 last_run_at 判据；两条新判据的用例自己覆写这两个 stub。
+        when(registryProvider.getIfAvailable()).thenReturn(registry);
+        when(registry.isConditionallyAbsent(anyString())).thenReturn(false);
+        when(registry.get(anyString())).thenAnswer(inv -> Optional.of(new ScheduledTaskRegistry.TaskDescriptor(
+                inv.getArgument(0, String.class), "stub", "TEST", "测试", 600, true, () -> {
+                })));
         monitor = newMonitor(true, 360);
         // 默认把「进程启动时刻」推到无限早：等价于「进程一直活着」，即停机豁免不生效。
         // 这样既有断言测的仍是纯 last_run_at 判据；要测停机豁免的用例自己覆写该字段。
@@ -54,7 +66,7 @@ class ScheduledTaskStaleMonitorTest {
 
     private ScheduledTaskStaleMonitor newMonitor(boolean enabled, long realertMinutes) {
         return new ScheduledTaskStaleMonitor(mapper, taskService, dispatcher, exceptionService,
-                new SimpleMeterRegistry(), enabled, realertMinutes);
+                registryProvider, new SimpleMeterRegistry(), enabled, realertMinutes);
     }
 
     private void healthy(String key) {
@@ -98,6 +110,34 @@ class ScheduledTaskStaleMonitorTest {
         assertEquals(ScheduledTaskStaleMonitor.Reason.NEVER_RUN, byKey.get("reconciliation"));
         assertEquals(ScheduledTaskStaleMonitor.Reason.MISSING_ROW, byKey.get("coupon-expire"));
         assertEquals(2, stale.size());
+    }
+
+    @Test
+    void scan_skipsConditionallyAbsentTask() {
+        allHealthy();
+        // ops-fee-bill-monthly 阈值 32 天：把 last_run_at 推到 100 天前，若不豁免必报 OVERDUE。
+        rows.get("ops-fee-bill-monthly").setLastRunAt(Instant.now().minus(Duration.ofDays(100)));
+        // aicabinet.fee-bill.auto-generate-enabled=false → bean 不装配，registry 里没有它。
+        when(registry.isConditionallyAbsent("ops-fee-bill-monthly")).thenReturn(true);
+        when(registry.get("ops-fee-bill-monthly")).thenReturn(Optional.empty());
+
+        List<ScheduledTaskStaleMonitor.StaleTask> stale = monitor.scan(Instant.now());
+
+        assertTrue(stale.isEmpty(), "有意关闭的任务不该报超期，实际：" + stale);
+    }
+
+    @Test
+    void scan_flagsManagedTaskMissingFromRegistry() {
+        allHealthy();
+        // 豁免名单之外却查不到 descriptor = 真·漏注册（KEYS/handler/seed 都在，却没进注册表），
+        // 必须报 —— 否则看护的豁免会把它一起静音（XXL 派发只能 handleFail）。
+        when(registry.get("unpaid-cancel")).thenReturn(Optional.empty());
+
+        List<ScheduledTaskStaleMonitor.StaleTask> stale = monitor.scan(Instant.now());
+
+        assertEquals(1, stale.size());
+        assertEquals("unpaid-cancel", stale.get(0).taskKey());
+        assertEquals(ScheduledTaskStaleMonitor.Reason.NOT_REGISTERED, stale.get(0).reason());
     }
 
     @Test

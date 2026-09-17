@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -70,7 +71,9 @@ public class ScheduledTaskStaleMonitor {
         MISSING_ROW("运营台无登记行"),
         /** 有登记行但没有任何执行记录（从未跑过，或登记行是刚补的 —— 措辞按"记录"说，不臆断事实）。 */
         NEVER_RUN("无执行记录"),
-        OVERDUE("超过最大静默时长");
+        OVERDUE("超过最大静默时长"),
+        /** 在托管清单里，却没有登记进执行注册表 —— 调度中心会派发，但执行器只能回 handleFail。 */
+        NOT_REGISTERED("执行器未注册");
 
         private final String text;
 
@@ -100,6 +103,12 @@ public class ScheduledTaskStaleMonitor {
     private final ScheduledTaskService taskService;
     private final OpsAlertDispatcher alertDispatcher;
     private final OpsExceptionService exceptionService;
+    /**
+     * 用 {@link ObjectProvider} 而非直接注入：{@link ScheduledTaskRegistry} 的构造器里
+     * 反向依赖本类（把 {@link #check} 登记成任务），直接注入会形成构造器循环依赖 ——
+     * Spring Boot 2.6+ 默认禁止循环引用，直接注入会让整个服务起不来。
+     */
+    private final ObjectProvider<ScheduledTaskRegistry> registryProvider;
     private final boolean enabled;
     private final Duration realertInterval;
 
@@ -114,15 +123,17 @@ public class ScheduledTaskStaleMonitor {
                                      ScheduledTaskService taskService,
                                      OpsAlertDispatcher alertDispatcher,
                                      OpsExceptionService exceptionService,
+                                     ObjectProvider<ScheduledTaskRegistry> registryProvider,
                                      MeterRegistry meterRegistry,
                                      @Value("${aicabinet.scheduled-task.stale-monitor-enabled:true}")
                                      boolean enabled,
-                                     @Value("${aicabinet.scheduled-task.stale-monitor-realart-minutes:360}")
+                                     @Value("${aicabinet.scheduled-task.stale-monitor-realert-minutes:360}")
                                      long realertMinutes) {
         this.taskRepository = taskRepository;
         this.taskService = taskService;
         this.alertDispatcher = alertDispatcher;
         this.exceptionService = exceptionService;
+        this.registryProvider = registryProvider;
         this.enabled = enabled;
         this.realertInterval = Duration.ofMinutes(Math.max(1, realertMinutes));
         this.serviceStart = Instant.ofEpochMilli(ManagementFactory.getRuntimeMXBean().getStartTime());
@@ -188,11 +199,30 @@ public class ScheduledTaskStaleMonitor {
     List<StaleTask> scan(Instant now, Instant serviceStart) {
         List<StaleTask> stale = new ArrayList<>();
         int exemptedByRestart = 0;
+        ScheduledTaskRegistry registry = registryProvider.getIfAvailable();
         for (String key : XxlJobManagedTasks.KEYS) {
             Duration maxSilence = ScheduleZones.MAX_SILENCE_BY_TASK.get(key);
             if (maxSilence == null) {
                 // 阈值缺失属静态契约漂移，由 scripts/check-xxl-job-wiring.mjs 拦截；此处保守跳过。
                 continue;
+            }
+            // 条件装配关闭的任务（如 aicabinet.fee-bill.auto-generate-enabled=false 时 OpsFeeBillJob
+            // 不建 bean）不进 registry —— 那是运维有意配置的「不跑」，不是停摆，豁免之。
+            // 不豁免的话：XXL 每月派发一次 handleFail("任务未注册")，看护再按 OVERDUE 误报一次，
+            // 让「关掉一个开关」变成两处持续噪音。
+            if (registry != null) {
+                if (registry.isConditionallyAbsent(key)) {
+                    setSilence(key, -1);
+                    continue;
+                }
+                // 豁免名单之外仍查不到 descriptor = 真·漏注册（KEYS / 具名 handler / seed 三处都在，
+                // 却没登记进执行注册表）。这正是「托管了但接不到」的同族缺陷，必须报出来，
+                // 否则看护的豁免会把它一起静音。
+                if (registry.get(key).isEmpty()) {
+                    setSilence(key, -1);
+                    stale.add(new StaleTask(key, key, Reason.NOT_REGISTERED, null, null, maxSilence, false));
+                    continue;
+                }
             }
             ScheduledTask row = taskRepository.selectById(key);
             if (row == null) {

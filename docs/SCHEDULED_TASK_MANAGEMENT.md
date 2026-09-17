@@ -132,6 +132,21 @@
 若该任务此前未在运营台登记，还要在 `db/migration` 补 `scheduled_task` 行、并在
 `ScheduledTaskRegistry` 注册（否则「立即执行」404）。以上全部由门禁静态校验。
 
+### 6. 条件装配的任务：关闭时要「两边一起关」
+
+`ops-fee-bill-monthly` 是唯一带 `@ConditionalOnProperty` 的托管任务
+（`aicabinet.fee-bill.auto-generate-enabled`，默认 `true`）。关掉它时：
+
+| 层 | 行为 | 要做的事 |
+|---|---|---|
+| 执行器 | bean 不装配 → 不注册进 `ScheduledTaskRegistry`，并登记进 `conditionallyAbsent` | —— |
+| 看护 | **豁免超期告警**（识别为「有意不跑」而非停摆） | —— |
+| 调度中心 | job 119 **仍在、仍按 `0 30 1 1 * ?` 每月派发** → 执行器回 `handleFail("任务未注册")` | **同时在调度台停用 job 119**（或接受每月一条失败日志） |
+
+> 为什么看护能豁免而调度中心必须人工停：cron 与 job 行是**静态种子**，运行时的 Spring 条件装配
+> 改变不了它们；而看护读的是运行时的注册表，能区分「有意关闭」与「漏注册」——
+> 豁免名单之外的 key 若查不到 descriptor，会按 `NOT_REGISTERED`（执行器未注册）**照报**，不会被一起静音。
+
 ## 五、超期看护：托管任务停跑的兜底
 
 XXL 让位（§三 第 4 条）只判「开关开 + key 在清单」，**不校验调度中心是否可达、执行器是否已注册**。
@@ -149,8 +164,9 @@ XXL 让位（§三 第 4 条）只判「开关开 + key 在清单」，**不校�
 | 超期判定 | `MISSING_ROW`（运营台无登记行）/ `NEVER_RUN`（有行但从未执行）/ `OVERDUE`（静默超过阈值） |
 | 告警出口 | ① 运营「异常列表」写入 `SCHEDULED_TASK_STALE`（CRITICAL，恢复后自动关闭）；② 钉钉/企微/通用 Webhook；③ Prometheus 指标 `aicabinet_scheduled_task_silence_seconds{task}`、`aicabinet_scheduled_task_stale_count` |
 | 自身 | 注册为系统任务「定时任务超期看护」，可在本页启停/立即执行；**刻意不列入托管清单**，否则它会跟着一起停跑 |
-| 重复告警 | 同一批超期任务 6 小时内只外发一次（`stale-monitor-realart-minutes`），异常列表侧由去重键天然收敛 |
+| 重复告警 | 同一批超期任务 6 小时内只外发一次（`stale-monitor-realert-minutes`），异常列表侧由去重键天然收敛 |
 | 停机豁免 | 判据起点取 `max(last_run_at, 进程启动时刻)` —— 进程没活着的那段时间任务不可能执行，见下节 |
+| 条件装配豁免 | 任务 bean 未装配（如 `aicabinet.fee-bill.auto-generate-enabled=false`）时不进 `ScheduledTaskRegistry`，看护**跳过**该 key 而不报超期 —— 那是「有意不跑」，不是停摆 |
 
 > **不要用调度台判断任务是否在跑**：`xxl_job_info.trigger_status=1` 与每分钟刷新的
 > `trigger_last_time` 在故障期间看起来完全正常。排查链：

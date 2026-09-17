@@ -1078,7 +1078,8 @@ function resetDeviceOnOpenFailure(cabinetId: string) {
 function beginCabinetEntry(cabinetId: string, scanChannel?: string | null): boolean {
   if (!cabinetId || opening.value || enteringFlow.value) return false;
   if (isCabinetIdInvalid(cabinetId)) {
-    setLandingError('柜机编号无效，请扫描柜门二维码或输入数字编号。', 'device_not_found');
+    // 编号形态允许字母+连字符（CAB-001），文案写「数字编号」会与校验规则矛盾。
+    setLandingError('柜机编号无效，请扫描柜门二维码或核对编号后重试。', 'device_not_found');
     lastFailedDeviceId.value = '';
     showError('柜机编号无效');
     return false;

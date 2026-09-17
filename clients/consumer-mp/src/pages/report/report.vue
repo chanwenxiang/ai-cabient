@@ -114,7 +114,8 @@ function onSubmit() {
     return;
   }
   if (!/^[A-Z0-9][A-Z0-9-]{2,31}$/.test(id)) {
-    err.value = '柜机编号格式不正确，请输入数字编号';
+    // 正则允许字母+连字符（CAB-001 这类），文案不能再写「请输入数字编号」——那是自相矛盾。
+    err.value = '柜机编号格式不正确，请核对柜门上的编号后重试';
     return;
   }
   const phone = contactPhone.value.trim();

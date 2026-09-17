@@ -62,16 +62,20 @@ public class DeviceValidationService {
         String activeSessionState = active.isEmpty() ? null : active.get(0).getState().name();
         boolean replenishment = hasInProgressReplenishmentTask(deviceId);
         boolean locked = device.salesLockedEnabled();
-        boolean available = active.isEmpty() && !replenishment && !locked;
+        boolean online = "ONLINE".equalsIgnoreCase(device.getOnlineStatus());
+        // available 语义 = 「消费者现在能开门」：无占用会话、无进行中补货、未锁机、且在线。
+        // 离线不折入会让附近页/状态卡把离线柜标成可售（C-P1：available 只看占用不看连通性）。
+        boolean available = online && active.isEmpty() && !replenishment && !locked;
         String busyReason = "NONE";
         if (!available) {
-            if (locked) {
+            if (!online) {
+                busyReason = "OFFLINE";
+            } else if (locked) {
                 busyReason = "LOCKED";
             } else {
                 busyReason = !active.isEmpty() ? "SESSION" : "REPLENISHMENT";
             }
         }
-        boolean online = "ONLINE".equalsIgnoreCase(device.getOnlineStatus());
         return new DeviceStatusDto(
                 device.getDeviceId(),
                 DeviceNameSupport.resolve(device.getDeviceId(), device.getDeviceName()),

@@ -6,8 +6,10 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 定时任务注册表：任务元数据与手动触发执行入口。
@@ -39,6 +41,13 @@ public class ScheduledTaskRegistry {
     }
 
     private final Map<String, TaskDescriptor> tasks = new LinkedHashMap<>();
+
+    /**
+     * 「因为条件装配而有意不注册」的任务 key（当前仅 {@code ops-fee-bill-monthly}）。
+     * <p>与「漏注册」区分开：看护对这份名单豁免超期告警，名单之外却查不到 descriptor 的，
+     * 一律按缺陷报出（{@code NOT_REGISTERED}）。</p>
+     */
+    private final Set<String> conditionallyAbsent = new LinkedHashSet<>();
 
     public ScheduledTaskRegistry(UnpaidOrderScheduler unpaidOrderScheduler,
                                  RechargeOrderScheduler rechargeOrderScheduler,
@@ -110,8 +119,17 @@ public class ScheduledTaskRegistry {
         // 条件注册：OpsFeeBillJob 带 @ConditionalOnProperty(auto-generate-enabled, matchIfMissing=true)，
         // 关闭时不建 bean；直接构造注入会让整个服务起不来，故用 ObjectProvider 探测。
         // 未注册时运营台「立即执行」与 XXL 触发都会明确报「任务未注册」，而不是静默不跑。
-        opsFeeBillJobProvider.ifAvailable(job -> register("ops-fee-bill-monthly", "周期费用月结出账", FINANCE,
-                ScheduleZones.desc("每月 1 日 01:30"), 1800, job::generateMonthlyFees));
+        //
+        // 「有意关闭」与「漏注册」必须分开记账：前者要豁免看护超期告警（否则关一个开关换来
+        // XXL 每月 handleFail + 看护 32 天后误报 OVERDUE 两处噪音）；后者是真缺陷，必须照报。
+        // 故这里显式登记到 {@link #conditionallyAbsent}，看护只豁免这一份名单。
+        OpsFeeBillJob feeBillJob = opsFeeBillJobProvider.getIfAvailable();
+        if (feeBillJob != null) {
+            register("ops-fee-bill-monthly", "周期费用月结出账", FINANCE,
+                    ScheduleZones.desc("每月 1 日 01:30"), 1800, feeBillJob::generateMonthlyFees);
+        } else {
+            conditionallyAbsent.add("ops-fee-bill-monthly");
+        }
         register("coupon-expire", "优惠券过期处理", MARKETING, ScheduleZones.desc("每日 02:00"), 600,
                 couponService::expireOverdueCoupons);
         register("points-expiry", "积分过期管理", MARKETING, ScheduleZones.desc("每 6 小时"), 600,
@@ -137,6 +155,14 @@ public class ScheduledTaskRegistry {
 
     public Optional<TaskDescriptor> get(String key) {
         return Optional.ofNullable(tasks.get(key));
+    }
+
+    /**
+     * 该 key 是否因条件装配（如 {@code aicabinet.fee-bill.auto-generate-enabled=false}）而有意未注册。
+     * <p>看护据此豁免：「关掉一个开关」不应换来持续的超期告警。</p>
+     */
+    public boolean isConditionallyAbsent(String key) {
+        return conditionallyAbsent.contains(key);
     }
 
     public Collection<TaskDescriptor> all() {

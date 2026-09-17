@@ -2909,4 +2909,103 @@ admin 日志给出确凿根因：
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0；第 19 章为第十二轮 —— 落地托管任务超期看护（首次实跑即命中 6 个任务无执行记录），并发现上一轮新增门禁从未在 CI 执行、CI 已连红两次；第 20 章为第十三轮 —— 用户一句「我关机了怎么跑」纠正了「调度器 stall」的错误判断，并由此挖出看护的两处判据缺陷（不看进程存活 / 不看执行成败）、修正 `ChronoUnit.MONTHS` 导致的每日任务 100% 失败，以及运营台 31 行的逐个核对（含我自身首轮核对方法给出假结论的回验）；第 21 章为第十四轮 —— 按「以后都是多实例」的前提把 **30 个业务定时任务全量交给 XXL-JOB**（仅 2 个刻意留在 Spring：超期看护不能自证、本机缓存清理不能被外部依赖），顺带修掉 `cache-purge` 多实例漏清理与 `ops-fee-bill-monthly` 手动触发 404 两个现存缺陷，并把「cron 两处一致」「托管必须已注册」钉成门禁（含三次负向验证）；第 22 章为第十五轮 —— 由用户一句「接下来干什么」逼出的**落地收口**：查出「全量托管只落在 git、运行库仍只有 11 条 job、镜像落后于代码」的落地缺口，并在重跑 seed 后挖出 `ops-fee-bill-monthly` 的 **7 段 cron 被 XXL 解析拒绝 → 该 job 永不触发且被自动停用** 的 P0（当时 3.1~3.9 九条规则**全部通过**），据此把「cron 静态可解析性」钉成规则 3.10 并做**两形态**负向验证，最后完成 seed 重跑 / 镜像重建 / 端到端实测 / 看护负向验证（含告警写入与恢复自动 RESOLVED），并用调度日志把「半落地」的代价量化成硬数字（§22.7：**14968 次调度失败 / 0 次成功 / 0 条告警**，同时给出「非 null 地址 500 = 重建窗口」与「`NOW()` 时区错配」两个读日志陷阱）。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**；**§18 末句"17 个门禁全绿"已被 §19.4 更正（当时聚合链是断的，逐脚本跑不等于聚合链跑），其中"门禁总数"一项又被 §19.8/§19.9 的复核再度更正为 21 个（早期漏数了用另一种写法调用的两个脚本）**；**§19.8 中"全仓共 19 个门禁"已被 §19.9 更正为 21 个**。*
+## 23. 第十六轮 · 用户书面清单的逐条核实与修复
+
+用户直接给出一份「代码里还剩的问题」清单（P1×2 / P2×4 / 运维面×1）。本轮先**逐条读源码核实**
+（不采信清单本身），再对确认成立的条目动手修。**核实结论：全部属实**，其中 2 条需修正影响面。
+
+### 23.1 核实结果（`文件:行` 级）
+
+| # | 用户结论 | 核实 | 证据 |
+|---|---|---|---|
+| P1-1 | `available` 不含在线态，附近柜机误标可售 | **属实**（影响面需修正） | `DeviceValidationService.java:65`（原 `available = active.isEmpty() && !replenishment && !locked`）、`:74` online 单独算；`NearbyDeviceService.java:81` 只透传 `available()`；`nearby.vue:72` `:disabled="!d.available"` |
+| P1-2 | 关费用月结开关后 XXL 仍派发、看护可能误报 | **属实** | `OpsFeeBillJob.java:14` `@ConditionalOnProperty(matchIfMissing=true)`；`XxlJobManagedTasks.java:54` key 仍在 KEYS；`ScheduledTaskRegistry.java:110-114`（原 `ifAvailable` 注册）→ `ScheduledTaskXxlJobHandler.java:202-204` `registry.get` 空 → `handleFail("任务未注册")` |
+| P2-1 | 配置键 `stale-monitor-realart-minutes` 拼写错 | **属实** | yml`:238` / Java`:120` / 文档`:152` 三处一致错；**env 名 `SCHEDULED_TASK_STALE_REALERT_MINUTES` 反而是对的** |
+| P2-2 | 文案滞后（正则已允许 `CAB-001`，文案仍说「数字编号」） | **属实** | `report.vue:116` 正则 `/^[A-Z0-9][A-Z0-9-]{2,31}$/` vs `:117` 文案；`index.vue:1081` 同 |
+| P2-3 | 看护能力边界（休眠误报 / 进程整体消失看不见） | **属实且已知** | 已载于 §22.5 与巡检用例 |
+| P2-4 | captcha 限流放宽 | **属实（有注释的有意权衡）** | `nginx-full.conf:38-44`（sms/login 仍严格档） |
+| 运维面 | seed 挂 initdb，扩任务须「重跑 seed + 重建镜像」 | **属实且已知** | §22.1 / §10.2 |
+
+> **P1-1 影响面修正**：`nearby` 的「去开门」并不直接开门 —— `openDevice()`（`nearby.vue:129-133`）
+> 只存 `reopen_device_id` 后 `switchTab` 回首页，真正开门在首页被 `!online || !available`（`index.vue:979`）
+> 拦住，服务端还有 `ensureDeviceOnline`（`DeviceValidationService.java:186-192`）。
+> 所以定性是**展示语义缺陷**（把离线柜标成「可开门」并给一个可点但必然失败的入口），不是能真开离线门。
+
+### 23.2 P1-1 修复：`available` 折入 `online`，并补 `OFFLINE` 原因
+
+- `DeviceValidationService.getDeviceStatus`：`available = online && active.isEmpty() && !replenishment && !locked`；
+  `busyReason` 增加 `OFFLINE` 分支（离线不再落进 `REPLENISHMENT`/`SESSION` 的措辞）。
+- `NearbyDeviceService.toDto` 异常兜底从 `!salesLockedEnabled()` 改为
+  `"ONLINE".equalsIgnoreCase(onlineStatus) && !salesLockedEnabled()` —— 原兜底在 `getDeviceStatus` 抛错
+  时把离线柜也算可售，是同一处语义漏洞的第二出口。
+- 消费方安全性已逐个核对：`index.vue:965-979` 原本就 `!online || available===false` 双判（折入后行为不变）；
+  UAT `TC-OPEN-002` 的 `canOpen = online && available` 仍成立；`TC-SEC-002` 依赖的「编号无效」文案未动。
+
+### 23.3 P1-2 修复：把「有意关闭」与「漏注册」分开记账
+
+只做「跳过未注册」是不够的 —— 那会把**真·漏注册**一起静音（XXL 派发只能 `handleFail`），
+两个机制同时失明就是又一次假绿。故改为：
+
+| 变更 | 作用 |
+|---|---|
+| `ScheduledTaskRegistry` 新增 `conditionallyAbsent` + `isConditionallyAbsent(key)` | 显式登记「因条件装配而有意不注册」的 key（当前仅 `ops-fee-bill-monthly`） |
+| 看护 `scan()`：命中 `conditionallyAbsent` → 跳过 | 关掉一个开关不再换来 32 天后的 OVERDUE 误报 |
+| 看护 `scan()`：豁免名单之外查不到 descriptor → 新增 `Reason.NOT_REGISTERED`（执行器未注册） | **漏注册照报**，不会被豁免一起静音 |
+| 单测 +2 条 | `scan_skipsConditionallyAbsentTask` / `scan_flagsManagedTaskMissingFromRegistry`（该类 12 → **14** 条） |
+
+> ⚠️ **实现中踩到并修掉的一个启动级风险**：`ScheduledTaskRegistry` 的构造器（`:68`）反向依赖
+> `ScheduledTaskStaleMonitor`（把 `check` 登记成任务），若让 monitor 直接注入 registry 就构成
+> **构造器循环依赖** —— 本仓未开 `allow-circular-references`，Spring Boot 2.6+ 默认禁止，
+> 结果会是**服务起不来**。改用团队既有惯例 `ObjectProvider<ScheduledTaskRegistry>`（同
+> `ScheduledTaskRegistry:67` 对 `OpsFeeBillJob` 的做法）打断环。
+
+> 静态门禁的边界：`check-xxl-job-wiring.mjs:355-365` 已强制「每个托管 key 必须出现在某个
+> `register("…")` 字面量里」。但它是**静态**的 —— 条件装配为假时字面量仍在，门禁照样绿。
+> 这正是必须补一条**运行时**判据的原因。
+
+### 23.4 P2 修复
+
+- `realart` → `realert`：`application.yml:238`、`ScheduledTaskStaleMonitor.java:130`、
+  `SCHEDULED_TASK_MANAGEMENT.md:152` 三处同步（env 名本就正确，未动）。
+  副作用说明：直接覆盖旧属性名（`…realart-minutes`）的配置将失效并回落到默认 360 分钟 —— 本仓无其他消费者。
+- 文案：`report.vue:118` → 「柜机编号格式不正确，请核对柜门上的编号后重试」；
+  `index.vue:1082` → 「柜机编号无效，请扫描柜门二维码或核对编号后重试。」
+  两处都不再与允许字母的正则自相矛盾，且保留了 UAT 依赖的关键词（`编号无效` / `请输入柜机编号` 未动）。
+
+### 23.5 验证矩阵（本轮实跑）
+
+| 项 | 结果 |
+|---|---|
+| `clean` 全量编译 | 384 + 699 + 253 source files（**非增量**） |
+| trade-service 全量单测 | **Tests run: 897, Failures: 0, Errors: 0** |
+| 看护单测 | **14 条全绿**（含 2 条新增判据） |
+| ArchUnit | `TradeArchitectureTest` 5 条通过（monitor 改动未破坏 `tryBegin` 规则） |
+| 聚合门禁 | `run-audit-gates` **15/15 全绿**（含 `check:xxl-job-wiring`、`check:scheduled-task-seed`） |
+| 格式 | `prettier --check` 两个改动 `.vue` → `All matched files use Prettier code style!` |
+
+**负向验证（逐条隔离，含一个方法论收获）**：
+
+| 注入的漂移 | 期望 | 实测 |
+|---|---|---|
+| A：豁免判据失效（`isConditionallyAbsent` 短路为 false） | `scan_skipsConditionallyAbsentTask` 红 | ✅ 红（1 failure，指名该用例） |
+| B：不再上报漏注册（删 `NOT_REGISTERED`） | `scan_flagsManagedTaskMissingFromRegistry` 红 | ✅ 红（1 failure，指名该用例） |
+| A+B 同时注入 | —— | ❌ **只红 1 条** |
+
+> 🔴 **教训：两条耦合分支的漂移会互相遮蔽。** A 失效后本该落进 B 的分支，而 B 又被删掉 →
+> `scan_skipsConditionallyAbsentTask` 反而通过。**负向验证必须逐条隔离注入**，
+> 「一次注入全部漂移、看到红了」是不够的 —— 那只是证明了**其中一条**被钉住。
+
+### 23.6 本轮教训
+
+1. **新增豁免条款必须配一条「反向判据」。** 为消除误报而加的豁免，天生有把真缺陷一起静音的风险；
+   正确形状是「豁免 A 类 + 对 B 类新增上报」，而不是「一律跳过」。
+2. **给已有类注入新依赖前，先查有没有反向依赖**（构造器注入的环在 Spring Boot 2.6+ 是启动失败，
+   不是告警）；本仓既有 `ObjectProvider` 惯例可直接沿用。
+3. **工具调用的参数也要按平台写对**：`-Dmaven.multiModuleProjectDirectory` 写成 POSIX 形式
+   （`/c/…`）在 Windows 上无效 → Maven 加载不到 `.mvn/maven.config` → `skip.admin.build` 失效 →
+   转去跑 `pnpm install --frozen-lockfile`，**静默挂 20 分钟**。这类「不报错的空转」与 §22 的
+   `refreshNextValidTime error` 同族：失败模式都是「什么都不发生」。
+
+---
+
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0；第 19 章为第十二轮 —— 落地托管任务超期看护（首次实跑即命中 6 个任务无执行记录），并发现上一轮新增门禁从未在 CI 执行、CI 已连红两次；第 20 章为第十三轮 —— 用户一句「我关机了怎么跑」纠正了「调度器 stall」的错误判断，并由此挖出看护的两处判据缺陷（不看进程存活 / 不看执行成败）、修正 `ChronoUnit.MONTHS` 导致的每日任务 100% 失败，以及运营台 31 行的逐个核对（含我自身首轮核对方法给出假结论的回验）；第 21 章为第十四轮 —— 按「以后都是多实例」的前提把 **30 个业务定时任务全量交给 XXL-JOB**（仅 2 个刻意留在 Spring：超期看护不能自证、本机缓存清理不能被外部依赖），顺带修掉 `cache-purge` 多实例漏清理与 `ops-fee-bill-monthly` 手动触发 404 两个现存缺陷，并把「cron 两处一致」「托管必须已注册」钉成门禁（含三次负向验证）；第 22 章为第十五轮 —— 由用户一句「接下来干什么」逼出的**落地收口**：查出「全量托管只落在 git、运行库仍只有 11 条 job、镜像落后于代码」的落地缺口，并在重跑 seed 后挖出 `ops-fee-bill-monthly` 的 **7 段 cron 被 XXL 解析拒绝 → 该 job 永不触发且被自动停用** 的 P0（当时 3.1~3.9 九条规则**全部通过**），据此把「cron 静态可解析性」钉成规则 3.10 并做**两形态**负向验证，最后完成 seed 重跑 / 镜像重建 / 端到端实测 / 看护负向验证（含告警写入与恢复自动 RESOLVED），并用调度日志把「半落地」的代价量化成硬数字（§22.7：**14968 次调度失败 / 0 次成功 / 0 条告警**，同时给出「非 null 地址 500 = 重建窗口」与「`NOW()` 时区错配」两个读日志陷阱）。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**；**§18 末句"17 个门禁全绿"已被 §19.4 更正（当时聚合链是断的，逐脚本跑不等于聚合链跑），其中"门禁总数"一项又被 §19.8/§19.9 的复核再度更正为 21 个（早期漏数了用另一种写法调用的两个脚本）**；**§19.8 中"全仓共 19 个门禁"已被 §19.9 更正为 21 个**。第 23 章为第十六轮 —— 对用户书面清单（P1×2 / P2×4 / 运维面）逐条读数核实后修复：`available` 折入 `online`（并补 `OFFLINE` 原因与 nearby 兜底）、把「条件装配有意关闭」与「漏注册」分开记账（新增 `NOT_REGISTERED` 判据 + 单测 12→14）、修 `realart` 拼写与两处自相矛盾的文案；过程中修掉一个**构造器循环依赖**（会让服务起不来），并留下一条方法论收获：**两条耦合分支的漂移会互相遮蔽，负向验证必须逐条隔离注入**。*
