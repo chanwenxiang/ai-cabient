@@ -1,4 +1,18 @@
 spring:
+  # 生产把 @Scheduled 线程池显式放大（主 application.yml：spring.task.scheduling.pool.size 默认 8），
+  # 但测试库连接池刻意压到 5，且每个 @SpringBootTest 上下文各建一个池（一轮跑出过 HikariPool-1..5）。
+  # 十多个 fixedRate/fixedDelay 且无 initialDelay 的任务会在「上下文启动瞬间」同时开跑，
+  # 于是 调度并发(8) > 单池上限(5) —— 必然把连接池打满，E2E 上下文 30s 拿不到连接直接加载失败。
+  #   实测（2026-09-17 CI run 35198060847）：AdminE2ETest 5/5 ERROR，
+  #   "HikariPool-2 - Connection is not available ... total=5, active=5, idle=0, waiting=8"。
+  # 测试不校验调度并发性（并发正确性由单测断言覆盖），故这里显式钉回 1：
+  # 既恢复改动前的确定行为，又不让生产调优旋钮通过 profile 继承悄悄改掉测试语义。
+  # 不选「把测试池调大到 20」：5 个上下文 × 20 = 100 连接会顶到 Postgres max_connections(默认 100)。
+  # 该约束已由门禁 scripts/check-scheduling-vs-db-pool.mjs 钉住（含「继承 main」一条，防假绿）。
+  task:
+    scheduling:
+      pool:
+        size: 1
   datasource:
     hikari:
       maximum-pool-size: 5
