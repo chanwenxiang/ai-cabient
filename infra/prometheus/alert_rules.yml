@@ -233,6 +233,21 @@ groups:
           summary: "托管定时任务未按时执行"
           description: "{{ $value }} 个托管任务超过最大静默时长，请查 scheduled_task.last_run_at（调度台状态不可信）"
 
+      - alert: XxlJobWiringBroken
+        # 判据来自 XxlJobWiringSelfCheck（启动期一次）：探测调度中心 /api/registry 的响应形态
+        # （404=地址带了多余前缀、401=token 不符、连接失败=不可达），比看护早 20~45 分钟发现问题。
+        # ⚠️ 该 Gauge 表达的是「本进程启动那一刻的接线状态」，不是实时状态 ——
+        # 启动之后才挂掉的调度中心由上面的 ScheduledTaskStale 兜底。
+        expr: aicabinet_xxl_job_wiring_ok == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: ops
+          biz: scheduler
+        annotations:
+          summary: "XXL-JOB 执行器接线异常"
+          description: "执行器与调度中心通道不通（地址前缀/可达性/token 三者之一）。让位已生效，托管任务既不会被 Spring 也不会被调度中心触发；详见启动日志与运营台异常列表"
+
   - name: ai-cabinet-minio
     rules:
       - alert: MinioDown

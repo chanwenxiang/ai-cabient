@@ -90,6 +90,28 @@ function fail(message, details = []) {
   process.exit(1);
 }
 
+/**
+ * 剥掉整行 Java 注释后再做文本检索。
+ *
+ * 纯文本检索会把**被注释掉的代码**也算作「存在」，于是「把一段接线注释掉」或「注释里举例写了
+ * 一个 taskKey」都会骗过门禁。负向验证实测确认过这种假绿（`// Gauge.builder("…"` 仍被当成已暴露指标）。
+ * 只处理行首注释（`//`、`/*`、javadoc 的 `*`）：本脚本的锚点都是行首结构的声明，尾随注释不构成风险。
+ */
+function stripJavaComments(source) {
+  return source
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trim();
+      return !trimmed.startsWith('//') && !trimmed.startsWith('*') && !trimmed.startsWith('/*');
+    })
+    .join('\n');
+}
+
+/** 读 Java 源码并剥离注释行 —— 所有 Java 侧解析一律走这里，避免「注释掉的代码算数」。 */
+function readJava(file, label) {
+  return stripJavaComments(read(file, label));
+}
+
 /** 归一化 URL/context-path 的路径部分：无路径、空、尾部斜杠都视为 "/"。 */
 function normalizePath(value) {
   if (!value) return '/';
@@ -106,7 +128,7 @@ function urlPath(url) {
 }
 
 // ── 1. Java 清单：哪些任务必须让位 ────────────────────────────────────────────
-const managedSource = read(MANAGED_TASKS_FILE, 'XxlJobManagedTasks.java');
+const managedSource = readJava(MANAGED_TASKS_FILE, 'XxlJobManagedTasks.java');
 const keysAnchor = managedSource.indexOf('KEYS = Set.of(');
 if (keysAnchor < 0) {
   fail('XxlJobManagedTasks.java 中找不到 KEYS = Set.of( 锚点，门禁已失效，请同步本脚本');
@@ -119,7 +141,7 @@ const managedKeys = [
 if (managedKeys.length === 0) fail('XxlJobManagedTasks.KEYS 未解析出任何 taskKey，门禁已失效');
 
 // ── 2. Handler：@XxlJob("xxxJob") → runKey("<taskKey>") ──────────────────────
-const handlerSource = read(HANDLER_FILE, 'ScheduledTaskXxlJobHandler.java');
+const handlerSource = readJava(HANDLER_FILE, 'ScheduledTaskXxlJobHandler.java');
 const pairPattern =
   /@XxlJob\("([A-Za-z0-9_$]+)"\)\s*public\s+void\s+[A-Za-z0-9_$]+\(\)\s*\{\s*runKey\("([a-z0-9][a-z0-9-]*)"\)/g;
 const pairs = [...handlerSource.matchAll(pairPattern)].map((m) => ({
@@ -197,7 +219,7 @@ const zonesFile = join(
   'support',
   'ScheduleZones.java'
 );
-const zonesSource = read(zonesFile, 'ScheduleZones.java');
+const zonesSource = readJava(zonesFile, 'ScheduleZones.java');
 const maxSilenceAnchor = zonesSource.indexOf('MAX_SILENCE_BY_TASK = Map.ofEntries(');
 if (maxSilenceAnchor < 0) {
   fail('ScheduleZones.java 中找不到 MAX_SILENCE_BY_TASK 锚点，门禁已失效，请同步本脚本');
@@ -226,41 +248,68 @@ if (managedKeys.includes(MONITOR_KEY)) {
   );
 }
 
-// 3.7 看护暴露的指标必须有告警规则消费 ——「指标存在但无人消费」等于没有告警。
+// 3.7 看护/自检暴露的指标必须有告警规则消费 ——「指标存在但无人消费」等于没有告警。
 //     实证：`tasks_scheduled_execution_seconds_count{...GrowthLogArchiveScheduler,
 //     error="UnsupportedTemporalTypeException",outcome="ERROR"}` 长期为 1，
 //     而 alert_rules.yml 里无任何规则引用该指标族 —— 任务 100% 失败却零告警。
 //     同理，看护自己新加的 Gauge 若没人消费，三路可见性里那条「指标告警」就是假的。
-const monitorSource = read(
-  join(
-    root,
-    'services',
-    'trade-service',
-    'src',
-    'main',
-    'java',
-    'com',
-    'aicabinet',
-    'trade',
-    'service',
-    'ScheduledTaskStaleMonitor.java'
-  ),
-  'ScheduledTaskStaleMonitor.java'
-);
+//
+//     ⚠️ 扫描范围必须覆盖**每一个**暴露指标的装置，不能只看超期看护：
+//     新增 XxlJobWiringSelfCheck 后若漏扫，删掉它的告警规则不会被任何门禁拦住。
+//     故此处按「已知装置清单」逐个扫描，任一装置解析不出指标即判门禁失效（防止装置被静默移除）。
 const alertRulesSource = read(
   join(root, 'infra', 'prometheus', 'alert_rules.yml'),
   'alert_rules.yml'
 );
-// Micrometer 的 "a.b.c" 落到 Prometheus 是 "a_b_c"（已用 /actuator/prometheus 实测核对）。
-const monitorGauges = [
-  ...new Set(
-    [...monitorSource.matchAll(/Gauge\.builder\("([a-z0-9.]+)"/g)].map((m) =>
-      m[1].replace(/\./g, '_')
+const GAUGE_SOURCES = [
+  {
+    label: 'ScheduledTaskStaleMonitor.java',
+    path: join(
+      root,
+      'services',
+      'trade-service',
+      'src',
+      'main',
+      'java',
+      'com',
+      'aicabinet',
+      'trade',
+      'service',
+      'ScheduledTaskStaleMonitor.java'
     )
-  )
+  },
+  {
+    label: 'XxlJobWiringSelfCheck.java',
+    path: join(
+      root,
+      'services',
+      'trade-service',
+      'src',
+      'main',
+      'java',
+      'com',
+      'aicabinet',
+      'trade',
+      'config',
+      'XxlJobWiringSelfCheck.java'
+    )
+  }
 ];
-if (monitorGauges.length === 0) {
-  fail('ScheduledTaskStaleMonitor.java 未解析出任何 Gauge 指标名，门禁已失效，请同步本脚本');
+// Micrometer 的 "a.b.c" 落到 Prometheus 是 "a_b_c"（已用 /actuator/prometheus 实测核对）。
+const monitorGauges = [];
+for (const source of GAUGE_SOURCES) {
+  const sourceCode = readJava(source.path, source.label);
+  const gauges = [
+    ...new Set(
+      [...sourceCode.matchAll(/Gauge\.builder\("([a-z0-9.]+)"/g)].map((m) =>
+        m[1].replace(/\./g, '_')
+      )
+    )
+  ];
+  if (gauges.length === 0) {
+    fail(`${source.label} 未解析出任何 Gauge 指标名（该装置应至少暴露一个），门禁已失效`);
+  }
+  monitorGauges.push(...gauges);
 }
 // 逐任务静默秒数是给看板/排障用的，不配告警规则：每个任务的阈值不同（20 分钟~26 小时），
 // 想写成 PromQL 就必须把阈值在 YAML 里复制一份 → 两处漂移。超期判据只在 Java 侧维护，
@@ -271,7 +320,7 @@ const unalerted = monitorGauges.filter(
 );
 if (unalerted.length) {
   problems.push(
-    `看护指标已暴露但 infra/prometheus/alert_rules.yml 无任何规则消费：${unalerted.join(', ')}` +
+    `指标已暴露但 infra/prometheus/alert_rules.yml 无任何规则消费：${unalerted.join(', ')}` +
       ` —— 指标只是被采集，不会产生告警`
   );
 }
@@ -332,7 +381,7 @@ if (cronMismatch.length) {
 // 3.9 托管任务必须已在 ScheduledTaskRegistry 注册 —— 否则调度中心派发到执行器后
 //     registry.get(key) 为空，runKey 直接 handleFail「任务未注册」，任务照停（且只在
 //     调度台报失败，业务侧毫无痕迹）。
-const registrySource = read(
+const registrySource = readJava(
   join(
     root,
     'services',
@@ -393,10 +442,58 @@ if (cronShapeProblems.length) {
   );
 }
 
-// ── 4. 执行器地址 与 调度中心 context-path 必须一致 ──────────────────────────
+// 3.11 执行器 appname 必须与调度中心「执行器管理」里登记的 app_name 一致。
+//      调度中心按 `xxl_job_info.job_group` → `xxl_job_group.app_name` 定位执行器：
+//      注册时只要 accessToken 对得上就会成功（admin **不会**校验这个 appname 是否已有登记组），
+//      但派发时找不到执行器组 → 任务停跑，表现与「没接线」完全一样（让位已生效、调度台之外
+//      毫无痕迹）。这正是「两处都写对了不构成保障」的场景 —— 配置交给外部组件消费时，
+//      判据必须多一步「那个组件能不能吃」。
+const seedGroupName = (() => {
+  const match = seedSource.match(
+    /INSERT\s+INTO\s+`xxl_job_group`[\s\S]*?VALUES\s*\(\s*\d+\s*,\s*'([^']+)'/
+  );
+  return match ? match[1] : null;
+})();
+if (!seedGroupName) {
+  fail('未从 seed_aicabinet_jobs.sql 解析出 xxl_job_group.app_name，门禁已失效，请同步本脚本');
+}
+
 const composeFiles = readdirSync(INFRA_DIR).filter((f) => /^docker-compose.*\.ya?ml$/.test(f));
 if (composeFiles.length === 0) fail('infra/ 下未找到任何 docker-compose 文件，门禁已失效');
 
+const APPNAME_SOURCES = [
+  ...composeFiles.map((f) => ({ label: `infra/${f}`, path: join(INFRA_DIR, f) })),
+  {
+    label: 'services/trade-service/src/main/resources/application.yml',
+    path: join(root, 'services', 'trade-service', 'src', 'main', 'resources', 'application.yml')
+  }
+];
+const appnameDefaults = [];
+for (const source of APPNAME_SOURCES) {
+  const sourceText = read(source.path, source.label);
+  // 直接匹配 `${XXL_JOB_EXECUTOR_APPNAME:默认值}` 本身，覆盖两种声明形态：
+  //   compose 的 `XXL_JOB_EXECUTOR_APPNAME: ${XXL_JOB_EXECUTOR_APPNAME:-trade-service}`
+  //   与 application.yml 的 `appname: ${XXL_JOB_EXECUTOR_APPNAME:trade-service}`。
+  // 后者的变量名只出现在 ${} 内部 —— 早期写成 `KEY[^\n]*?\$\{VAR:默认\}` 只认前一种形态，
+  // application.yml 的默认值被整条漏掉（负向验证时暴露），故改为锚定 ${} 本身。
+  for (const match of sourceText.matchAll(/\$\{XXL_JOB_EXECUTOR_APPNAME:(-?)([^}]*)\}/g)) {
+    appnameDefaults.push({ label: source.label, value: match[2].trim() });
+  }
+}
+if (appnameDefaults.length === 0) {
+  fail('未找到任何 XXL_JOB_EXECUTOR_APPNAME 默认值，门禁已失效，请同步本脚本');
+}
+for (const { label, value } of appnameDefaults) {
+  if (value !== seedGroupName) {
+    problems.push(
+      `${label}: XXL_JOB_EXECUTOR_APPNAME 默认值为 "${value}"，` +
+        `而 seed_aicabinet_jobs.sql 的 xxl_job_group.app_name 是 "${seedGroupName}"` +
+        `（注册能成功，但调度中心找不到该执行器组 → 派发失败 → 托管任务全停，与「没接线」表现一致）`
+    );
+  }
+}
+
+// ── 4. 执行器地址 与 调度中心 context-path 必须一致 ──────────────────────────
 const declaredPaths = new Set();
 const addressDefaults = [];
 let adminImageSeen = false;
@@ -443,8 +540,9 @@ console.log(
   `${TAG} OK（托管任务 ${managedKeys.length} 个，具名 handler ${namedHandlers.size} 个，` +
     `种子 ${seededHandlers.size} 条，cron 约定 ${declaredCrons.size} 条与种子逐条一致且均为 6 段 Quartz 可解析形态，` +
     `看护阈值 ${watchKeys.length} 条，` +
-    `看护指标 ${monitorGauges.length} 个（告警消费 ${monitorGauges.length - DASHBOARD_ONLY_GAUGES.size} 个、` +
+    `指标 ${monitorGauges.length} 个（告警消费 ${monitorGauges.length - DASHBOARD_ONLY_GAUGES.size} 个、` +
     `看板豁免 ${DASHBOARD_ONLY_GAUGES.size} 个），` +
+    `执行器 appname "${seedGroupName}"（${appnameDefaults.length} 处声明均一致），` +
     `地址默认值 ${addressDefaults.length} 处，` +
     `admin context-path ${[...declaredPaths].join('/')}）`
 );

@@ -229,6 +229,12 @@ aicabinet:
   xxljob:
     # Docker apps 默认 true；本地 IDEA 默认 false，避免无调度中心时资金任务停跑
     enabled: ${XXL_JOB_ENABLED:false}
+    # 启动期「接线自检」的单地址探测超时（毫秒）。仅 enabled=true 时执行；
+    # 失败只报不改（不阻断启动）：让位已生效，起不来只会更难排查。
+    self-check-timeout-ms: ${XXL_JOB_SELF_CHECK_TIMEOUT_MS:3000}
+    # 自检未通过时的重试间隔（毫秒），共 3 次尝试：覆盖「调度中心比本服务晚就绪」这个正常启动瞬间
+    # （compose 对 xxl-job-admin 只有 condition: service_started，容器起来 ≠ Spring Boot 就绪）。
+    self-check-retry-delay-ms: ${XXL_JOB_SELF_CHECK_RETRY_DELAY_MS:2000}
   scheduled-task:
     # 托管任务超期看护：XXL-JOB 接管后，清单内任务的内置 @Scheduled 会无条件让位，
     # 若调度中心/执行器链路失效则两边同时停跑且无任何现象，靠 last_run_at 巡检兜底（审计 §19）。

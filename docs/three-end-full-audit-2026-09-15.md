@@ -3096,4 +3096,208 @@ curl -s -H "Authorization: Bearer $TOK" localhost:18080/api/v2/devices/330449777
 
 ---
 
-*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0；第 19 章为第十二轮 —— 落地托管任务超期看护（首次实跑即命中 6 个任务无执行记录），并发现上一轮新增门禁从未在 CI 执行、CI 已连红两次；第 20 章为第十三轮 —— 用户一句「我关机了怎么跑」纠正了「调度器 stall」的错误判断，并由此挖出看护的两处判据缺陷（不看进程存活 / 不看执行成败）、修正 `ChronoUnit.MONTHS` 导致的每日任务 100% 失败，以及运营台 31 行的逐个核对（含我自身首轮核对方法给出假结论的回验）；第 21 章为第十四轮 —— 按「以后都是多实例」的前提把 **30 个业务定时任务全量交给 XXL-JOB**（仅 2 个刻意留在 Spring：超期看护不能自证、本机缓存清理不能被外部依赖），顺带修掉 `cache-purge` 多实例漏清理与 `ops-fee-bill-monthly` 手动触发 404 两个现存缺陷，并把「cron 两处一致」「托管必须已注册」钉成门禁（含三次负向验证）；第 22 章为第十五轮 —— 由用户一句「接下来干什么」逼出的**落地收口**：查出「全量托管只落在 git、运行库仍只有 11 条 job、镜像落后于代码」的落地缺口，并在重跑 seed 后挖出 `ops-fee-bill-monthly` 的 **7 段 cron 被 XXL 解析拒绝 → 该 job 永不触发且被自动停用** 的 P0（当时 3.1~3.9 九条规则**全部通过**），据此把「cron 静态可解析性」钉成规则 3.10 并做**两形态**负向验证，最后完成 seed 重跑 / 镜像重建 / 端到端实测 / 看护负向验证（含告警写入与恢复自动 RESOLVED），并用调度日志把「半落地」的代价量化成硬数字（§22.7：**14968 次调度失败 / 0 次成功 / 0 条告警**，同时给出「非 null 地址 500 = 重建窗口」与「`NOW()` 时区错配」两个读日志陷阱）。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**；**§18 末句"17 个门禁全绿"已被 §19.4 更正（当时聚合链是断的，逐脚本跑不等于聚合链跑），其中"门禁总数"一项又被 §19.8/§19.9 的复核再度更正为 21 个（早期漏数了用另一种写法调用的两个脚本）**；**§19.8 中"全仓共 19 个门禁"已被 §19.9 更正为 21 个**。第 23 章为第十六轮 —— 对用户书面清单（P1×2 / P2×4 / 运维面）逐条读数核实后修复：`available` 折入 `online`（并补 `OFFLINE` 原因与 nearby 兜底）、把「条件装配有意关闭」与「漏注册」分开记账（新增 `NOT_REGISTERED` 判据 + 单测 12→14）、修 `realart` 拼写与两处自相矛盾的文案；过程中修掉一个**构造器循环依赖**（会让服务起不来），并留下一条方法论收获：**两条耦合分支的漂移会互相遮蔽，负向验证必须逐条隔离注入**。第 24 章为第十六轮落地收官 —— 由用户一句「关于 xxl-job 的已经修改完了吗」引出的**落地缺口核查**：证实「代码已改 + CI 绿」与「运行的是新代码」是两件事（运行镜像构建于 09-16 16:25、容器 `RestartCount=0`，镜像内 `realart` 仍在、`conditionallyAbsent`/`NOT_REGISTERED` 各为 0），据此重建镜像并逐项取证闭合（三处特征 1/1/1、健康 UP、执行器心跳刷新、重启后 14 个任务推进），并做**行为级验证**（`CAB-001` 离线柜返回 `available=false` / `busyReason=OFFLINE` —— 旧实现此处会返回 `LOCKED`，故该差异即新逻辑在跑的铁证）；过程中又证伪一条既有判据 —— `xxl_job_log.executor_address` 在**失败路径根本不写**，重启窗口的 16 条 500 该列同为 NULL 而 `trigger_msg` 里却有地址，故判别只能读 `trigger_msg` 文本。*
+## 25. 第十七轮 · 启动期接线自检：把「让位了但接不到」从 19 小时压到 1 分钟
+
+**触发**：§24 末了列出的未决项第 1 条 —— 「启动期自检缺失」。§18 那次停跑 19 小时的直接原因不是代码
+写错，而是**没有任何东西在启动时问过一句「接线通不通」**：`XxlJobConfig` 只打一行
+`xxl-job executor init ...`；`XXL_JOB_ENABLED=true` 但注册失败时，既无 ERROR 也无指标。
+
+### 25.1 先厘清「进程内能自证什么」
+
+执行器**无法**直接得知「我注册成功了吗」：XXL 3.4.2 的注册线程（`ExecutorRegistryThread`）吞掉失败
+只打 warn，且不暴露任何状态查询接口（`XxlJobExecutor` 没有注册状态 getter）。但「注册得上」的
+**必要条件**全部可在进程内验证，而这些恰好覆盖已发生的真实事故：
+
+| 探测项 | 判据 | 对应的真实故障 |
+|---|---|---|
+| 地址已配置 | `XXL_JOB_ADMIN_ADDRESSES` 非空 | 为空则注册线程根本不启动 |
+| appname 非空 | `XXL_JOB_EXECUTOR_APPNAME` 非空 | 调度中心拒绝注册 |
+| 地址可达 | `POST {addr}/api/registry` 能连通 | 容器名写错 / admin 未启动 |
+| **路径前缀正确** | `404` = 前缀错 | **§18 的 19 小时停跑** |
+| accessToken 被接受 | `401/403` = token 不符 | 生产强制配 token，写错即全停 |
+
+### 25.2 判据来自实测，不是推断
+
+动手前先对**运行中**的 admin 3.4.2 实测三种响应形态：
+
+| 探测方式 | 实测响应 | 用作判据 |
+|---|---|---|
+| 正确地址 + 空 body `POST /api/registry` | `200 {"code":500,"msg":"Illegal Argument."}` | **通**（接口在、方法对、token 通过） |
+| 带 `/xxl-job-admin` 前缀 | `404` | **前缀错** |
+| `GET /api/registry` | `200 …"invalid request, HttpMethod not support."` | 方法错 |
+
+关键收获：**空 body 被拒这件事本身就是通路正常的证据**，而且不会写入注册记录 ——
+探测**零副作用**，既不需要读调度中心数据库，也不需要它提供任何新接口。
+
+### 25.3 两个「不许犯错」的约束
+
+1. **不跟随重定向**（`Redirect.NEVER`）+ 要求响应体含 `"code"` 字段：否则反向代理把 `404` 变成
+   「`302` → 登录页 → `200` + HTML」时，判据会把「配错」读成「通了」。已由
+   `check_when200HtmlLoginPage_reportsUnexpected` 钉住。
+2. **绝不阻断启动**：与 `ProductionStartupValidator`（严格 profile 闸门，故意 `throw`）语义相反 ——
+   调度中心故障不该级联拖垮交易服务本身。`ApplicationReadyEvent` 的监听器抛异常会向上传播到
+   `SpringApplication.run`，反把「配置写错」升级成「服务起不来」。故自检**吞掉一切异常**，
+   其中「异常单写入失败」与「告警通道不可用」两种真实场景各有单测。
+
+### 25.4 三路可见
+
+| 通道 | 内容 |
+|---|---|
+| 日志 | `ERROR`，逐地址给原因 + 修复建议 |
+| 运营台异常列表 | `XXL_JOB_WIRING_BROKEN`（CRITICAL），接线恢复后**自动关闭** |
+| 指标 + 告警 | `aicabinet_xxl_job_wiring_ok` → `alert_rules.yml` 的 `XxlJobWiringBroken` |
+
+> 指标语义在类注释与告警描述里都写明了：**它表达「本进程启动那一刻的接线状态」，不是实时状态** ——
+> 启动之后才挂掉的调度中心由超期看护（§19）兜底。两者互补：自检分钟级发现配置漂移，看护兜住运行中失效。
+
+### 25.5 顺带堵掉的两条同族缺口（都在门禁里）
+
+**(a) 指标无告警消费。** 原规则 3.7 只扫 `ScheduledTaskStaleMonitor` 的 Gauge；新增装置若漏扫，
+把它的告警规则删掉不会有任何门禁变红。改为**遍历「已知装置清单」**逐个扫描，任一装置解析不出指标
+即判门禁失效（防装置被静默移除）。
+
+**(b) `appname` 与调度中心执行器组不一致。** 注册只要能过 token 就会成功（admin **不校验**这个
+appname 是否已有登记组），但派发时按 `xxl_job_info.job_group` → `xxl_job_group.app_name` 找不到执行器
+→ 任务全停，**表现与「没接线」完全一样**。这正是「两处都写对了不构成保障」的场景，故新增规则 3.11：
+交叉校验 `XXL_JOB_EXECUTOR_APPNAME` 默认值（`docker-compose.full.yml` + `application.yml` 两处）
+与 seed 的 `xxl_job_group.app_name`。
+
+### 25.6 负向验证（四条，逐条隔离；其中两条**首轮漏判**）
+
+| # | 注入的漂移 | 首轮 | 修正后 | 修的是什么 |
+|---|---|---|---|---|
+| N1 | 摘掉 `alert_rules.yml` 对 `wiring_ok` 的消费 | ✅ 红 | ✅ 红 | —— |
+| N2a | 改 `application.yml` 的 appname 默认值 | ❌ **绿（漏判）** | ✅ 红 | 正则只认 `KEY: ${KEY:-默认}` 形态，**匹配不到 `appname: ${KEY:默认}`**（变量名只出现在 `${}` 内部）→ 该处默认值整条没被扫 |
+| N2b | 改 `compose.full.yml` 的 appname 默认值 | —— | ✅ 红 | 同上（补测第二个声明来源） |
+| N3 | 注释掉自检的唯一 `Gauge.builder(` | ❌ **绿（漏判）** | ✅ 红 | 纯文本检索**把注释行也算作「已暴露指标」** → 先剥掉注释行再匹配 |
+| N4 | 注释掉 `register("risk-auto-disposition")` | —— | ✅ 红（报「未在 `ScheduledTaskRegistry` 注册」） | 同 N3 缺陷的**同族副本**：把「注释剥离」收敛成 `readJava()`，覆盖全脚本所有 Java 解析 |
+| N5 | 注释掉 `@XxlJob("unpaidCancelJob")` | —— | ✅ 红（报「缺少具名 handler」＋「种子排期了不存在的 handler」） | 同上 |
+
+> N4 / N5 的存在是为了证明「注释剥离」不是只修了 Gauge 那一处 —— 只修被负向验证打中的那一点，
+> 等于把同一个缺陷留在另外四处（**修「一类」缺陷必扫同族副本**）。改造后基线输出与改造前
+> **逐字一致**（30/30/30/30/30），证明剥离没有改变既有效判据的行为。
+
+> 🔴 **N2a / N3 是本轮最有价值的产出**：两条新判据**首轮都是漏判**，而且都通过了「读代码」这一关。
+> 只有把漂移**真的注入**才暴露出来 —— 与 §23.6 的教训同族（判据的可靠性 > 存在性），
+> 也与 §16 的「门禁假闭环」同源。**新增判据不注入漂移，等于没验证过。**
+> 另留一条写法教训：`KEY[^\n]*?\$\{VAR:默认\}` 这种「靠同一个名字出现两次」的正则，对
+> `${VAR:默认}` 与 `KEY: ${VAR:默认}` 两种形态覆盖是**不完整**的，必须锚定 `${}` 本身。
+
+### 25.7 文件
+
+| 文件 | 变更 |
+|---|---|
+| `services/trade-service/.../trade/config/XxlJobWiringSelfCheck.java` | **新增**：自检主体（判据 / 三路可见 / 吞异常） |
+| `services/trade-service/src/test/.../trade/config/XxlJobWiringSelfCheckTest.java` | **新增**：14 条用例 |
+| `services/trade-service/src/main/resources/application.yml` | 新增 `aicabinet.xxljob.self-check-timeout-ms` |
+| `infra/prometheus/alert_rules.yml` | 新增 `XxlJobWiringBroken` 规则 |
+| `scripts/check-xxl-job-wiring.mjs` | 新增 `readJava()`（**所有 Java 侧解析一律先剥注释行**）；3.7 扩为「已知装置清单」逐个扫；新增 3.11 appname ↔ seed 交叉校验 |
+| `docs/SCHEDULED_TASK_MANAGEMENT.md` | 新增 §四.7「启动期接线自检」 |
+
+### 25.8 一个差点被漏掉的「假红」
+
+初版设计是**只探一次**。写完之后去核对 compose，才发现这条判据会**误报** —— 这是查出来的，不是想当然：
+
+| 事实 | 来源 |
+|---|---|
+| `trade-service` 对 `xxl-job-admin` 只声明 `condition: service_started` | `docker-compose.full.yml:183` |
+| 而 `xxl-job-admin` **没有** healthcheck | `docker-compose.full.yml` 全文（只有 minio / trade-service 有） |
+
+`service_started` 只保证**容器起来**，不等于 **Spring Boot 就绪**（admin 还要等 `xxl-job-mysql`
+并完成自身初始化）。于是「admin 尚未监听 8080」是一个**正常会出现的启动瞬间** —— 只探一次就会把它
+报成 CRITICAL，而**虚假告警会连带削弱真告警的可信度**（假红与假绿同病两面）。
+
+修法：探测未通过时重试（3 次尝试，间隔 `self-check-retry-delay-ms` 默认 2s，可配且单测传 0）。
+两条新单测钉住两个方向：`checkWithRetry_whenAdminNotReadyYet_recoversOnRetry`（瞬态被覆盖 →
+判通过且**不写异常单**）与 `checkWithRetry_whenAllAttemptsFail_reportsAfterRetriesExhausted`
+（持续故障**必须报**，不能因为「反正会重试」而静默）。
+
+### 25.9 验证（全部实跑）
+
+| 项 | 结果 |
+|---|---|
+| `clean` 全量编译 + trade-service 单测（版本A，14 条） | 全绿 |
+| 新增 `XxlJobWiringSelfCheckTest`（版本A） | 14 条全绿 |
+| **`clean` 全量编译 + trade-service 单测（版本B，加重试后）** | ⚠️ `Tests run: 913, Failures: 1` —— 唯一失败是本轮新写的用例，**详见 §25.9.2** |
+| 修正断言后聚焦复验 `XxlJobWiringSelfCheckTest` | **16/16 绿**（以 surefire 报告为准，见 §25.9.2） |
+| **修正后再次 `clean` 全量回归** | ✅ `Tests run: 913, Failures: 0, Errors: 0, Skipped: 0`、`BUILD SUCCESS`，**详见 §25.9.3** |
+| ArchUnit | 5 条通过 |
+| 聚合门禁链 `run-audit-gates.mjs` | **15/15**，失败 0 |
+| `check-xxl-job-wiring` 基线 | 30/30/30/30/30、指标 3 个（告警消费 2）、appname **2 处声明均一致** |
+| 负向验证 | **N1–N5 全红**，还原后复跑全绿 |
+| prettier | 干净 |
+
+#### 25.9.1 首轮那 1 条失败是真缺陷，不是测试写错
+
+`check_whenAddressNotUrl_reportsInvalid` 首轮失败：`URI.create("not-a-url/api/registry")`
+**是合法的**（URI 规范允许相对引用，`URI.create` 只在字面非法时才抛错），相对性要到
+`HttpRequest.newBuilder().uri(...)` 才被拒绝。
+
+影响面比测试本身大：**漏写协议的配置**（`xxl-job-admin:8080` —— XXL 官方默认值恰好是
+`http://xxl-job-admin:8080`，抄漏 `http://` 很自然）会**绕过**这道校验，一直要到真正发请求时才失败，
+而那时的异常信息已看不出是配置问题。
+
+修法：显式要求「带主机名的 http(s) 绝对地址」（`scheme ∈ {http, https}` 且 `host` 非空）。
+
+#### 25.9.2 全量回归抓到的那 1 条，反过来是**测试自身写错**
+
+加重试后（16 条用例）**没有先单独跑一遍就进了全量回归**。全量结果 `Tests run: 913, Failures: 1`，
+唯一失败就是新写的 `checkWithRetry_whenAdminNotReadyYet_recoversOnRetry`：
+
+```
+org.mockito.exceptions.verification.NeverWantedButInvoked:
+opsExceptionService.resolveSystem(<any string>, <any string>, <any string>);
+But invoked here:
+-> at XxlJobWiringSelfCheck.selfCheck(XxlJobWiringSelfCheck.java:232)
+   with arguments: [XXL_JOB_WIRING_BROKEN, GLOBAL, XXL-JOB 执行器接线已恢复]
+```
+
+这条用例自己断言 `assertEquals(1d, gaugeValue(), "瞬态失败被重试覆盖后必须判为通过")`，
+却又把 `resolveSystem` 一起写成 `never()` —— 而 `selfCheck()` 的**成功分支本来就会**调
+`resolveSystem`（`:232`，用于关掉历史异常单）。即**断言与它自己上一行的预期自相矛盾**，
+实现行为完全正确。
+
+根因是从「持续故障」用例复制断言时带过来的：在 `checkWithRetry_whenAllAttemptsFail_*` 里
+`resolveSystem` 确实该是 `never()`（失败分支不调它，`:201` 那条断言是对的），复制到恢复用例就错了。
+
+修法：与该文件既有的 `selfCheck_whenPassed_resolvesHistoricalAlertAndSetsGaugeOne` 对齐 ——
+只把 `report` / `alertDispatcher.send` 断言为 `never()`（这**才是**「不写虚假 CRITICAL」的真实意图），
+`resolveSystem` 断言其被调用。修正后聚焦复验 **`Tests run: 16, Failures: 0, Errors: 0, Skipped: 0`**
+（`target/surefire-reports/com.aicabinet.trade.config.XxlJobWiringSelfCheckTest.txt`）。
+
+**方法论收获（三条）**：
+
+1. `clean` 全量回归不是流程仪式 —— 它抓出了聚焦视角看不见的东西；但反过来，**改了测试类却不先
+   跑该类就进全量**，等于把一整轮反馈周期押在一次盲跑上。
+2. **环境事实（本轮差点据此写下错误结论）**：诊断这条失败时，日志停在
+   `Deleting trade-service/target` 上 **67 分钟没有任何新增**，我据此判断「构建卡了 / javac 极慢」——
+   真实原因是**中午机器休眠，Maven 进程被冻住**，唤醒后才继续（由用户指出）。实测本地 `clean`
+   全量约 12 分钟。**结论：别用墙钟判断「构建是不是卡了」，要看进程与产物文件是否在推进**；
+   同理，进程被冻时「长时间无输出」不等于「构建失败或挂死」。（`Out-File` 4KB 块缓冲叠加其上，
+   会让日志看起来更"死"，但它只是次要因素。）
+3. 断言 `never()` 必须逐一问「这条路径**真的**不该调它吗」。同一个 mock 的 `never()` 断言在
+   失败用例里成立、在成功用例里就是错的 —— 这属于「假绿判据」的近亲：**一条写错的断言会让
+   这条用例永久失去判据能力**（它会把「正确」判成「错误」，逼着人把实现改错，比恒真判据更糟）。
+
+#### 25.9.3 修正后的干净全量回归（权威结论）
+
+| 项 | 结果 |
+|---|---|
+| 命令 | `mvn -B -Dskip.admin.build=true -pl services/trade-service -am clean test` |
+| 结果 | **`BUILD SUCCESS`** |
+| 用例 | **`Tests run: 913, Failures: 0, Errors: 0, Skipped: 0`** |
+| 失败/错误累计 | **0** |
+| 其中 `XxlJobWiringSelfCheckTest` | **16/16**（§25.9.2 修正后） |
+| 其中 ArchUnit `TradeArchitectureTest` | **5/5** |
+| 耗时 | `Total time: 13:27 min`（Reactor：common-core 57s、trade-service 12:29） |
+
+即 §25.9.2 那条唯一的失败被修掉后 **913 用例全绿，且未引出任何连带失败**。
+
+> ⚠️ **本节同时纠正一条我自己的错误诊断**：诊断 §25.9.2 时，日志停在
+> `Deleting trade-service/target` 上 67 分钟不动，我据此写下「javac 极慢 / 构建卡住，全量要 1 小时」。
+> 用户指出真实原因是**中午机器休眠把 Maven 进程冻住**，唤醒后才继续 —— 本次实测干净全量仅 **13:27**。
+> 教训已并入上面第 2 条：**不要用墙钟判断构建状态，要看进程与产物文件是否在推进**。
+
+---
+
+*报告结束。第 1~8 章为静态源码审查；第 9 章为第二轮实机渲染；第 10 章为产物链核查；第 11 章为第四轮行为测试与产物复测；第 12 章为第五轮全资产实跑与测试可信度修复；第 13 章为第六轮闭环落地；第 14 章为第七轮首次真实 CI 与工作区深度清理；第 15 章为第八轮两个 P0 业务缺陷落地；第 16 章为第九轮产物门禁假闭环的定位与修复（含 §16.7 的行尾与跨平台可复现性）；第 17 章为第十轮遗留缺陷收口；第 18 章为第十一轮 —— 由用户一句反问纠正了 §17 的错误结论，挖出「XXL-JOB 从未成功派发过一次、11 个托管任务全部静默停跑」的 P0；第 19 章为第十二轮 —— 落地托管任务超期看护（首次实跑即命中 6 个任务无执行记录），并发现上一轮新增门禁从未在 CI 执行、CI 已连红两次；第 20 章为第十三轮 —— 用户一句「我关机了怎么跑」纠正了「调度器 stall」的错误判断，并由此挖出看护的两处判据缺陷（不看进程存活 / 不看执行成败）、修正 `ChronoUnit.MONTHS` 导致的每日任务 100% 失败，以及运营台 31 行的逐个核对（含我自身首轮核对方法给出假结论的回验）；第 21 章为第十四轮 —— 按「以后都是多实例」的前提把 **30 个业务定时任务全量交给 XXL-JOB**（仅 2 个刻意留在 Spring：超期看护不能自证、本机缓存清理不能被外部依赖），顺带修掉 `cache-purge` 多实例漏清理与 `ops-fee-bill-monthly` 手动触发 404 两个现存缺陷，并把「cron 两处一致」「托管必须已注册」钉成门禁（含三次负向验证）；第 22 章为第十五轮 —— 由用户一句「接下来干什么」逼出的**落地收口**：查出「全量托管只落在 git、运行库仍只有 11 条 job、镜像落后于代码」的落地缺口，并在重跑 seed 后挖出 `ops-fee-bill-monthly` 的 **7 段 cron 被 XXL 解析拒绝 → 该 job 永不触发且被自动停用** 的 P0（当时 3.1~3.9 九条规则**全部通过**），据此把「cron 静态可解析性」钉成规则 3.10 并做**两形态**负向验证，最后完成 seed 重跑 / 镜像重建 / 端到端实测 / 看护负向验证（含告警写入与恢复自动 RESOLVED），并用调度日志把「半落地」的代价量化成硬数字（§22.7：**14968 次调度失败 / 0 次成功 / 0 条告警**，同时给出「非 null 地址 500 = 重建窗口」与「`NOW()` 时区错配」两个读日志陷阱）。所有 `文件:行` 证据可在当前工作区复现。§13.6 第 1 条「UAT 基线从未在 CI 实测」已由 §14.2 关闭；§14.7 第 1 条已由 §15 关闭；**§10.2 与 §13.2/§13.4、§14.2 中关于"产物门禁已生效"的结论已被 §16 更正**；**§17 中关于"自动解锁开关默认 false"的结论已被 §18 更正**；**§18 末句"17 个门禁全绿"已被 §19.4 更正（当时聚合链是断的，逐脚本跑不等于聚合链跑），其中"门禁总数"一项又被 §19.8/§19.9 的复核再度更正为 21 个（早期漏数了用另一种写法调用的两个脚本）**；**§19.8 中"全仓共 19 个门禁"已被 §19.9 更正为 21 个**。第 23 章为第十六轮 —— 对用户书面清单（P1×2 / P2×4 / 运维面）逐条读数核实后修复：`available` 折入 `online`（并补 `OFFLINE` 原因与 nearby 兜底）、把「条件装配有意关闭」与「漏注册」分开记账（新增 `NOT_REGISTERED` 判据 + 单测 12→14）、修 `realart` 拼写与两处自相矛盾的文案；过程中修掉一个**构造器循环依赖**（会让服务起不来），并留下一条方法论收获：**两条耦合分支的漂移会互相遮蔽，负向验证必须逐条隔离注入**。第 24 章为第十六轮落地收官 —— 由用户一句「关于 xxl-job 的已经修改完了吗」引出的**落地缺口核查**：证实「代码已改 + CI 绿」与「运行的是新代码」是两件事（运行镜像构建于 09-16 16:25、容器 `RestartCount=0`，镜像内 `realart` 仍在、`conditionallyAbsent`/`NOT_REGISTERED` 各为 0），据此重建镜像并逐项取证闭合（三处特征 1/1/1、健康 UP、执行器心跳刷新、重启后 14 个任务推进），并做**行为级验证**（`CAB-001` 离线柜返回 `available=false` / `busyReason=OFFLINE` —— 旧实现此处会返回 `LOCKED`，故该差异即新逻辑在跑的铁证）；过程中又证伪一条既有判据 —— `xxl_job_log.executor_address` 在**失败路径根本不写**，重启窗口的 16 条 500 该列同为 NULL 而 `trigger_msg` 里却有地址，故判别只能读 `trigger_msg` 文本。第 25 章为第十七轮 —— 补上 §24 未决清单里的**启动期接线自检**：起因是 §18 那次停跑 19 小时的根因并非代码写错，而是**没有任何东西在启动时问过一句「接线通不通」**（`XxlJobConfig` 只打一行 `executor init`，注册失败时无 ERROR 无指标）。先厘清「进程内无法得知注册结果，但注册得上的必要条件全部可自证」，再对**运行中的** admin 3.4.2 实测校准判据（空 body POST 返回 `200 Illegal Argument` 即通路正常且零副作用、带前缀返回 404、GET 返回方法错），据此实现 `XxlJobWiringSelfCheck`（启动期一次；**失败只报不改**，并吞掉一切异常以免把「配置写错」升级成「服务起不来」），三路可见（ERROR 日志 / `XXL_JOB_WIRING_BROKEN` 异常单 / `aicabinet_xxl_job_wiring_ok` + 告警规则）；顺带堵掉两条同族门禁缺口（指标扫描扩为「已知装置清单」逐个扫并剥注释行、新增 `appname` ↔ seed `xxl_job_group.app_name` 交叉校验）。**本轮最有价值的产出是负向验证抓出的两个漏判**：appname 正则匹配不到 `appname: ${VAR:默认}` 形态、纯文本检索把 `// Gauge.builder(` 也算作「已暴露指标」—— 两条新判据**首轮都是绿的**，且都通过了「读代码」这一关，再次印证「新增判据不注入漂移，等于没验证过」。而本轮的落地验证本身也交了一次学费：加重试后的 16 条用例**未先单独跑一遍就进了全量回归**，913 例中唯一红的正是新写用例里一条**自相矛盾的 `never()` 断言**（它断言「瞬态被覆盖后必须判为通过」，却又断言成功分支本来就会调用的 `resolveSystem` 为 `never()` —— 实现无误，是测试写错），修正后干净全量 **913/913 全绿**（§25.9.2 / §25.9.3）；同一过程中还纠正了我自己的两处错误 —— 审计报告 §25.9 里「全量全绿」这处**提前写绿**的记录，以及把「机器休眠冻住构建进程」误判成「javac 极慢、全量要 1 小时」（实测仅 13:27）。*

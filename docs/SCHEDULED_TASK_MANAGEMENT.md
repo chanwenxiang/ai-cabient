@@ -147,6 +147,47 @@
 > 改变不了它们；而看护读的是运行时的注册表，能区分「有意关闭」与「漏注册」——
 > 豁免名单之外的 key 若查不到 descriptor，会按 `NOT_REGISTERED`（执行器未注册）**照报**，不会被一起静音。
 
+### 7. 启动期接线自检：`XxlJobWiringSelfCheck`
+
+「让位」无条件生效，而调度中心是否接得上没人检查 —— 这正是审计 §18 那次**停跑 19 小时**的根因场景
+（地址多带 `/xxl-job-admin` 前缀 → 注册 404 → 注册表为空，而启动日志只有一行
+`xxl-job executor init ...`，看不出任何异常）。
+
+`XxlJobWiringSelfCheck`（`aicabinet.xxljob.enabled=true` 时装配，`ApplicationReadyEvent` 触发一次）
+把「注册得上」的**必要条件**全部在进程内验证：
+
+| 探测项 | 判据（2026-09-17 对 admin 3.4.2 实测校准） | 命中后提示 |
+|---|---|---|
+| 地址已配置 | `XXL_JOB_ADMIN_ADDRESSES` 非空 | 为空则注册线程根本不启动 |
+| appname 非空 | `XXL_JOB_EXECUTOR_APPNAME` 非空 | 调度中心会拒绝注册 |
+| 地址可达 | `POST {addr}/api/registry` 能连通 | 确认 xxl-job-admin 已启动、网络可达（容器内用服务名） |
+| **路径前缀正确** | `200` + JSON（含 `code` 字段）= 通；`404` = **前缀错** | 3.x context-path 是 `/`，不能带 `/xxl-job-admin` |
+| accessToken 被接受 | `401/403` = token 不符 | 核对 `XXL_JOB_ACCESS_TOKEN` 两端一致 |
+
+探测用**空对象 body**，会被调度中心以「参数非法」拒绝（实测 `{"code":500,"msg":"Illegal Argument."}`）——
+**拒绝本身就是通路正常的证据**，且不会写入注册记录，零副作用。另外显式**不跟随重定向**并要求
+响应体是 JSON：否则反代把 404 变成「302 → 登录页 → 200 + HTML」时，判据会把「配错」误读成「通了」。
+
+**瞬态不算故障**：探测未通过会重试（共 3 次尝试，间隔 `aicabinet.xxljob.self-check-retry-delay-ms`，
+默认 2000ms）。原因很具体 —— compose 里 `trade-service` 对 `xxl-job-admin` 只声明了
+`condition: service_started`（**容器起来 ≠ Spring Boot 就绪**），而 admin 在 `docker-compose.full.yml`
+里没有 healthcheck，所以「admin 尚未监听 8080」是**正常会出现的启动瞬间**。只探一次就会把它报成
+一条虚假 CRITICAL —— 而虚假告警会连带削弱真告警的可信度（假红与假绿同病两面）。
+
+失败时三路可见：① 启动日志 `ERROR`（逐地址给原因与修复建议）；② 运营台异常列表写入
+`XXL_JOB_WIRING_BROKEN`（CRITICAL，恢复后自动关闭）；③ 指标 `aicabinet_xxl_job_wiring_ok=0`，
+由 `alert_rules.yml` 的 `XxlJobWiringBroken` 消费。
+
+> **不阻断启动**（与 `ProductionStartupValidator` 的严格 profile 闸门语义相反）：自检失败只报不改 ——
+> 调度中心故障不该级联拖垮交易服务本身；且让位已生效，服务起不来只会更难排查。因此它**吞掉一切异常**
+> （`ApplicationReadyEvent` 的监听器抛异常会传播到 `SpringApplication.run`，反把「配置写错」
+> 升级成「服务起不来」）。
+
+> **能力边界**：一次性自检，指标表达的是**「本进程启动那一刻的接线状态」**，不是实时状态 ——
+> 启动之后才挂掉的调度中心由超期看护兜底（§五）。另：appname 与调度中心「执行器管理」里是否已登记
+> 一致，进程内不可知（需读调度中心库），由 `scripts/check-xxl-job-wiring.mjs` 静态校验 seed 的
+> `xxl_job_group.app_name`。
+
 ## 五、超期看护：托管任务停跑的兜底
 
 XXL 让位（§三 第 4 条）只判「开关开 + key 在清单」，**不校验调度中心是否可达、执行器是否已注册**。
