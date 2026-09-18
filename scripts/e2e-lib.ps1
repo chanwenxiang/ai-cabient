@@ -1035,6 +1035,66 @@ function Restart-E2eDeviceSimulator {
     Start-Sleep -Seconds 12
 }
 
+# 设备无货道时补货建议必然为空（suggest 的数据源就是 device_slot）。
+# 实测 2026-09-18：默认柜机 330449777078 的 device_slot 是 **0 行** ⇒ suggestive 恒空 ⇒ plan 恒 400
+# 「当前无补货缺口」，脚本走不到第 5 步。产品侧创建设备时本就会自动套默认 planogram
+# （DeviceSlotService.ensureDefaultSlots），故这里按同一套路补齐，属于「恢复到产品默认状态」。
+function Ensure-E2eDeviceSlots {
+    param(
+        [string]$BaseUrl,
+        [hashtable]$OpsAuth,
+        [string]$DeviceId
+    )
+    $slots = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+        -Path "/api/v2/ops/admin/devices/$DeviceId/slots" -Headers $OpsAuth)
+    if ($slots.Count -gt 0) {
+        Write-Host "    device slots=$($slots.Count)"
+        return $slots
+    }
+    Write-Warning "设备 $DeviceId 无货道（device_slot 0 行）⇒ 自动套用 planogram 模板补齐默认货道（会改动该柜机的货道配置）"
+    $created = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+        -Path "/api/v2/ops/admin/devices/$DeviceId/slots/apply-template" -Headers $OpsAuth
+    $slots = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+        -Path "/api/v2/ops/admin/devices/$DeviceId/slots" -Headers $OpsAuth)
+    Write-Host "    applied planogram template: created=$created total=$($slots.Count)"
+    if ($slots.Count -eq 0) {
+        throw ("柜机 $DeviceId 套用 planogram 模板后仍无货道 —— 模板里的 SKU 可能不在商品目录中（" +
+            "resolveTemplateSkuId 会把缺失 SKU 的货道留空绑定）。请改用一个已配置货道的 -DeviceId。")
+    }
+    return $slots
+}
+
+# 在途出库会**抵消**补货缺口（服务端 inTransitBySku）：上一次 e2e 跑出来的 SHIPPED 出库单
+# 会让**这一轮**的 /replenishment/suggest 首查恒空。实测 2026-09-18：run3 留下的 outbound
+# 让 run4 直接判「无缺口」，脚本不可重复运行。处置走产品自身的安全路径 cancel-unreceived
+# （接口自述「安全 cancel-unreceived，不硬删」），不是 DB 硬删。
+function Clear-E2eReplenishmentInTransit {
+    param(
+        [string]$BaseUrl,
+        [hashtable]$OpsAuth,
+        [string]$DeviceId
+    )
+    $page = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+        -Path "/api/v2/ops/admin/warehouse/in-transit?deviceId=$DeviceId&page=0&size=200" -Headers $OpsAuth
+    $rows = @()
+    if ($null -ne $page) {
+        if ($page.items) { $rows = @($page.items) } else { $rows = @($page) }
+    }
+    $ids = @($rows | Where-Object { $_.outboundId } |
+        ForEach-Object { [long]$_.outboundId } | Sort-Object -Unique)
+    if ($ids.Count -eq 0) {
+        Write-Host "    in-transit outbounds: 0"
+        return 0
+    }
+    Write-Host "    in-transit outbounds=$($ids.Count)（$($ids -join ',')）→ cancel-unreceived"
+    foreach ($outboundId in $ids) {
+        Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+            -Path "/api/v2/ops/admin/warehouse/outbounds/$outboundId/cancel-unreceived" `
+            -Headers $OpsAuth | Out-Null
+    }
+    return $ids.Count
+}
+
 # plan 按设备全缺口生成出库；若某 SKU 有建议量但仓库无货会导致整单 400
 function Prepare-E2eReplenishmentPlan {
     param(
@@ -1043,11 +1103,33 @@ function Prepare-E2eReplenishmentPlan {
         [string]$DeviceId,
         [string]$WarehouseId = "WH-DEMO-001"
     )
+    Ensure-E2eDeviceSlots -BaseUrl $BaseUrl -OpsAuth $OpsAuth -DeviceId $DeviceId | Out-Null
     $suggestions = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
         -Path "/api/v2/ops/admin/replenishment/suggest?deviceId=$DeviceId" -Headers $OpsAuth)
     if ($suggestions.Count -eq 0) {
-        Write-Host "    Prepare-E2eReplenishmentPlan: no gaps on $DeviceId"
-        return
+        # 先怀疑「在途抵消」（上一轮遗留），清掉后复查一次 —— 否则本脚本不可能重复运行。
+        $cleared = Clear-E2eReplenishmentInTransit -BaseUrl $BaseUrl -OpsAuth $OpsAuth -DeviceId $DeviceId
+        if ($cleared -gt 0) {
+            $suggestions = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+                -Path "/api/v2/ops/admin/replenishment/suggest?deviceId=$DeviceId" -Headers $OpsAuth)
+            Write-Host "    取消 $cleared 张在途出库后复查：suggest=$($suggestions.Count) 条"
+        }
+    }
+    if ($suggestions.Count -eq 0) {
+        # 🔴 这里曾经只是 Write-Host 一句 "no gaps" 就 return —— 于是真正的失败推迟到第 3 步，
+        #    表现为 400「当前无补货缺口」/500「系统繁忙」，看不懂也查不到根因（信号在骗读者）。
+        #    现在失败即刻、并给出可执行的处置方式。
+        throw @"
+柜机 $DeviceId 无补货缺口（/replenishment/suggest 返回 0 条）⇒ POST /replenishment/plan 必然 400「当前无补货缺口」，脚本走不到第 5 步。
+三种成因，按顺序自查：
+  1) 货道库存已 >= minLevel（真的不缺货，属正常状态，不是缺陷）；
+  2) 有货道但都没绑定 SKU（device_slot.assigned_sku_id 为空）；
+  3) 在途补货单已把缺口抵消（inTransitBySku）。
+处置（任选其一）：
+  · 换一台柜机：.\scripts\e2e-replenishment.ps1 -DeviceId <有货道且有缺口的柜机>
+  · 造缺口：POST /api/v2/ops/admin/devices/$DeviceId/slots/stocktake  body {"slotCode":"<货道>","physicalQty":0,"adjustBookQty":true}
+  · 无货道：先 POST /api/v2/ops/admin/devices/$DeviceId/slots/apply-template（本脚本已自动做过一次，仍无货道说明模板 SKU 缺失）
+"@
     }
     $whInv = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
         -Path "/api/v2/ops/admin/warehouse/inventory?warehouseId=$WarehouseId" -Headers $OpsAuth)

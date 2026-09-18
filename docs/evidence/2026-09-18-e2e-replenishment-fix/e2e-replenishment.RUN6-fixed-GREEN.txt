@@ -1,0 +1,43 @@
+PARSE_OK
+==> 0. Cleanup blocking sessions on 330449777078
+==> Cleared blocking sessions on 330449777078 via ai-cabinet-postgres-1
+==> 1. Ops login (13900000001)
+    opsUserId=100000001
+==> 2. Merchant login (13800138001)
+    merchantUserId=100000030
+==> 2b. Ensure warehouse stock for device replenishment gaps
+    device slots=8
+    in-transit outbounds=1（4）→ cancel-unreceived
+    取消 1 张在途出库后复查：suggest=6 条
+    replenishment prep: sku=SKU-DEMO-001 suggest=8 warehouse=0 inbound=10 batch=B-DEMO-01
+    replenishment prep: sku=SKU-SODA-001 suggest=8 warehouse=0 inbound=10 batch=B-WH-SODA-01
+    replenishment prep: sku=SKU-WATER-001 suggest=12 warehouse=0 inbound=14 batch=B-WH-WATER-01
+    replenishment prep: sku=SKU-SNACK-001 suggest=8 warehouse=0 inbound=10 batch=B-WH-CHIPS-01
+    replenishment prep: sku=SKU-MILK-001 suggest=6 warehouse=0 inbound=8 batch=B-WH-MILK-01
+    replenishment prep: sku=SKU-NOODLE-001 suggest=12 warehouse=0 inbound=14 batch=B-WH-NOODLE-01
+    inbound ref=E2E-PREP-20260918164559 lines=6
+==> 3. Plan replenishment route for 330449777078
+    routeId=8 taskId=15 status=PENDING
+==> 4. Resolve warehouse outbound (if any)
+    outboundId=5 status=DRAFT
+==> 4b. Pick outbound (was DRAFT)
+==> 4c. Ship outbound
+==> 5. Merchant check-in — 契约用例（fail-closed）+ 正式签到
+    device coords lat=31.262 lng=121.516
+    ? P1 空 body（期望 location-required） → HTTP 400 已拒绝
+    ? P2 距柜机约 600m（上限 500m） → HTTP 400 已拒绝
+    ? 签到负向用例(P1/P2 均被拒)后整行未动(DB) → 库内 task=15 整行未动（status=IN_PROGRESS check_in_at=）
+    status=IN_PROGRESS checkInAt=2026-09-18T08:46:02.584385725Z distanceM=450.00010782910795
+==> 6. Merchant open-door
+    sessionId=1789721162615376879931 state=OPENING
+==> 7. Restock door OPEN → CLOSED (no consumer bill)
+==> 8. Task lines count=8
+    warehouse lines already present — skip re-submit
+==> 9. Upload site evidence (when require_evidence=true; skip if ops disabled the gate)
+    evidence fileId=2
+==> 10. Complete task
+    taskId=15 COMPLETED outboundId=5
+==> 11. Assert merchant task list reflects completion
+
+OK replenishment E2E passed (warehouse) taskId=15 sessionId=1789721162615376879931
+CHILD_EXIT=0

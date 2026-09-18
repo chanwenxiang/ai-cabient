@@ -1,0 +1,42 @@
+==> 0. Cleanup blocking sessions on 330449777078
+==> Cleared blocking sessions on 330449777078 via ai-cabinet-postgres-1
+==> 1. Ops login (13900000001)
+    opsUserId=100000001
+==> 2. Merchant login (13800138001)
+    merchantUserId=100000030
+==> 2b. Ensure warehouse stock for device replenishment gaps
+    device slots=8
+    in-transit outbounds=1（3）→ cancel-unreceived
+    取消 1 张在途出库后复查：suggest=6 条
+    replenishment prep: sku=SKU-DEMO-001 suggest=8 warehouse=0 inbound=10 batch=B-DEMO-01
+    replenishment prep: sku=SKU-SODA-001 suggest=8 warehouse=0 inbound=10 batch=B-WH-SODA-01
+    replenishment prep: sku=SKU-WATER-001 suggest=12 warehouse=0 inbound=14 batch=B-WH-WATER-01
+    replenishment prep: sku=SKU-SNACK-001 suggest=8 warehouse=0 inbound=10 batch=B-WH-CHIPS-01
+    replenishment prep: sku=SKU-MILK-001 suggest=6 warehouse=0 inbound=8 batch=B-WH-MILK-01
+    replenishment prep: sku=SKU-NOODLE-001 suggest=12 warehouse=0 inbound=14 batch=B-WH-NOODLE-01
+    inbound ref=E2E-PREP-20260918164233 lines=6
+==> 3. Plan replenishment route for 330449777078
+    routeId=7 taskId=14 status=PENDING
+==> 4. Resolve warehouse outbound (if any)
+    outboundId=4 status=DRAFT
+==> 4b. Pick outbound (was DRAFT)
+==> 4c. Ship outbound
+==> 5. Merchant check-in — 契约用例（fail-closed）+ 正式签到
+    device coords lat=31.262 lng=121.516
+    ? P1 空 body（期望 location-required） → HTTP 400 已拒绝
+    ? P2 距柜机约 600m（上限 500m） → HTTP 400 已拒绝
+powershell.exe : 签到负向用例不应推进任务，但 taskId=14 已出现在 IN_PROGRESS 列表
+所在位置 行:453 字符: 3
++   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts ...
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (签到负向用例不应推进任务，但 ... IN_PROGRESS 列表:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+所在位置 C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\scripts\e2e-replenishment.ps1:229 字符: 5
++     throw "签到负向用例不应推进任务，但 taskId=$taskId 已出现在 IN_PROGRESS 列表"
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (签到负向用例不应推进任务，但 ... IN_PROGRESS 列表:String) [], RuntimeE
+xception
+    + FullyQualifiedErrorId : 签到负向用例不应推进任务，但 taskId=14 已出现在 IN_PROGRESS 列表
+ 
+CHILD_EXIT=1

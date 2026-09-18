@@ -1,0 +1,5 @@
+# 负向用例前后任务整行快照（判据的 DB 通道证据）
+# 生成时间: 2026-09-18T08:55:21Z
+# task_id|status|route_id|device_id|outbound_id|check_in_at|check_in_lat|check_in_lng
+14|CANCELLED|7|330449777078|4|||
+15|COMPLETED|8|330449777078|5|2026-09-18 08:46:02.584386+00|31.266046948196365|121.516

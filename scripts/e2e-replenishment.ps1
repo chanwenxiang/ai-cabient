@@ -6,6 +6,16 @@
 #
 # 注意：-FieldOnly 不是「跳过出库」，而是「允许在无计划明细时提交现场 RESTOCK」。
 # 运营 plan 常会同步生成 outbound；完成任务前必须把关联出库单发运。
+#
+# ── 这个脚本归谁跑（2026-09-18 补写）────────────────────────────────────────────
+# 【本地手工工具】Windows + PowerShell 5.1 + 已起的整栈。**CI（Linux）不跑它**，
+# 也不该跑：它要真实登录、真实 MQTT 门事件、真实凭证上传。
+#   · 它的**签到契约**部分由 `scripts/check-replenishment-checkin-contract.mjs`
+#     （`check:replenishment-checkin-contract`，聚合链第 2 位）**静态值级**守着，改文案/常量不改脚本即红；
+#   · 它的**实跑**由 `scripts/e2e-checkin-contract.ps1` 覆盖（带夹具，19/19），本脚本负责**全链路**。
+# ⚠️ 所以：别把「CI 里没跑它」读成「没被覆盖」（会白修）；也别把「本脚本绿」读成「CI 等价物」（会白信）。
+# 前置：目标柜机**必须有货道**（device_slot 非空），否则补货建议恒空 —— 脚本会自动套用
+# planogram 模板补齐；若仍无缺口，会**即刻**报错并给出处置方式，而不是把失败推迟到第 3 步。
 
 param(
     [string]$BaseUrl = "",
@@ -14,7 +24,12 @@ param(
     [string]$OpsPassword = "123456",
     [string]$MerchantPhone = "13800138001",
     [string]$MerchantPassword = "123456",
-    [long]$MerchantUserId = 100000002,
+    # 🔴 必须是 0（=「用登录返回的 userId」）。这里曾硬编码 100000002，而该 id 在 user_info 里
+    #    根本不存在（商户 13800138001 实为 100000030）⇒ 下面 `-le 0` 的解析分支成了死代码，
+    #    plan 写 replenishment_route.assignee_user_id 时撞 FK
+    #    `replenishment_route_assignee_user_id_fkey` ⇒ 500「系统繁忙」，
+    #    真实的「指派人不存在」被完全盖住（2026-09-18 实测，追踪号 ecbe4dedbcc8）。
+    [long]$MerchantUserId = 0,
     [string]$SkuId = "SKU-DEMO-001",
     [string]$SlotId = "A1",
     [int]$Quantity = 1,
@@ -193,6 +208,10 @@ if (-not $deviceHasCoords) {
 
 Write-Host "    device coords lat=$deviceLat lng=$deviceLng"
 
+# 负向用例之前先给任务**整行**拍快照（DB 通道）：被拒之后要比的是「值」，
+# 而不是「taskId 在不在某个状态列表里」—— 后者在走仓库链路时必然假红，见下方说明。
+$taskRowBefore = Get-E2eTaskRow -TaskId $taskId
+
 # 负向用例 1：请求侧闸 —— 柜机有坐标时签到必须带定位
 Assert-E2eApiRejected -BaseUrl $BaseUrl -Method POST -Path $checkInPath -Headers $mchAuth `
     -Body @{} -ExpectStatus 400 `
@@ -206,13 +225,24 @@ Assert-E2eApiRejected -BaseUrl $BaseUrl -Method POST -Path $checkInPath -Headers
     -ExpectMessageContains $CheckInContract.TooFarMessage `
     -Label ("P2 距柜机约 {0}m（上限 {1}m）" -f $CheckInContract.BoundaryOutsideM, $CheckInContract.MaxDistanceDefaultM) | Out-Null
 
-# 负向用例不得推进任务状态（防「先写 check_in_at 再抛错」这种半成品闸门）
-$inProgress = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
-    -Path "/api/v2/merchant/replenishment/tasks?status=IN_PROGRESS" -Headers $mchAuth)
-$advanced = $inProgress | Where-Object { [long]$_.taskId -eq $taskId } | Select-Object -First 1
-if ($advanced) {
-    throw "签到负向用例不应推进任务，但 taskId=$taskId 已出现在 IN_PROGRESS 列表"
-}
+# 负向用例不得产生任何写入（防「先写 check_in_at 再抛错」这种半成品闸门）。
+#
+# 🔴 判据必须比「值」，不能比「存在性」。旧判据是「taskId 有没有出现在
+#    ?status=IN_PROGRESS 列表里」—— 在走仓库链路的完整流程里**必然假红**：
+#    第 4c 步发运出库时 OpsWarehouseAdminService.shipWarehouseOutbound()（第 101 行）
+#    会调 generateLinesFromOutbound() → generateLinesForTask()，而该方法**只改 status、
+#    不写 check_in_at**（ReplenishmentService.java:547-550），于是任务在负向签到**之前**
+#    就已经是 IN_PROGRESS。
+#    实测 2026-09-18 run5：task=14 status=IN_PROGRESS 且 check_in_at / check_in_lat /
+#    check_in_lng 三字段全空 ⇒ 负向用例零写入，是**判据错了**，不是产品错了。
+#    （设计上「IN_PROGRESS + check_in_at=NULL」是合法稳态：ReplenishmentTimeoutScheduler
+#     只收口 check_in_at < cutoff 的行，SQL 里 NULL 不参与比较，不会被误收口。）
+#
+# 新判据：负向用例前后逐字段比对整行（status + check_in_at / lat / lng）。
+# 它同时覆盖原意 —— doCheckInTask 里 setCheckInAt（621 行）先于 setStatus（624 行），
+# 若闸门顺序被改坏（先落库再抛错），check_in_at 必被改写，此处会红。
+Assert-E2eTaskRowUnchanged -TaskId $taskId -Before $taskRowBefore `
+    -Label "签到负向用例(P1/P2 均被拒)后整行未动(DB)" | Out-Null
 
 # 正式签到：距离闸下界内（< max_distance_m）
 $insideLat = $deviceLat + ($CheckInContract.BoundaryInsideM / $MetersPerDegreeLat)

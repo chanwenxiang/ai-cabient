@@ -1,0 +1,7 @@
+  device_id   | merchant_id | online_status 
+--------------+-------------+---------------
+ 330449777078 |             | ONLINE
+ 777740024057 | MCH-DEFAULT | OFFLINE
+ CAB-001      |             | ONLINE
+(3 rows)
+

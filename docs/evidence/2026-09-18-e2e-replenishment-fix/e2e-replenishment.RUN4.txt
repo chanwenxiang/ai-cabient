@@ -1,0 +1,45 @@
+==> 0. Cleanup blocking sessions on 330449777078
+==> Cleared blocking sessions on 330449777078 via ai-cabinet-postgres-1
+==> 1. Ops login (13900000001)
+    opsUserId=100000001
+==> 2. Merchant login (13800138001)
+    merchantUserId=100000030
+==> 2b. Ensure warehouse stock for device replenishment gaps
+    device slots=8
+powershell.exe : 柜机 330449777078 无补货缺口（/replenishment/suggest 返回 0 条）? POST /replenishment/plan 必然 400「当前无补货缺口」，脚
+所在位置 行:446 字符: 1
++ & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\e ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (柜机 330449777078... 400「当前无补货缺口」，脚:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+本走不到第 5 步。
+三种成因，按顺序自查：
+  1) 货道库存已 >= minLevel（真的不缺货，属正常状态，不是缺陷）；
+  2) 有货道但都没绑定 SKU（device_slot.assigned_sku_id 为空）；
+  3) 在途补货单已把缺口抵消（inTransitBySku）。
+处置（任选其一）：
+  · 换一台柜机：.\scripts\e2e-replenishment.ps1 -DeviceId <有货道且有缺口的柜机>
+  · 造缺口：POST /api/v2/ops/admin/devices/330449777078/slots/stocktake  body {"slotCode":"<货道>","physicalQty":0,"adj
+ustBookQty":true}
+  · 无货道：先 POST /api/v2/ops/admin/devices/330449777078/slots/apply-template（本脚本已自动做过一次，仍无货道说明模板
+ SKU 缺失）
+所在位置 C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\scripts\e2e-lib.ps1:1082 字符: 9
++         throw @"
++         ~~~~~~~~
+    + CategoryInfo          : OperationStopped: (柜机 330449777078...无货道说明模板 SKU 缺失）:String) [], RuntimeExcep
+tion
+    + FullyQualifiedErrorId : 柜机 330449777078 无补货缺口（/replenishment/suggest 返回 0 条）? POST /replenishment/pla
+n 必然 400「当前    无补货缺口」，脚本走不到第 5 步。
+三种成因，按顺序自查：
+  1) 货道库存已 >= minLevel（真的不缺货，属正常状态，不是缺陷）；
+  2) 有货道但都没绑定 SKU（device_slot.assigned_sku_id 为空）；
+  3) 在途补货单已把缺口抵消（inTransitBySku）。
+处置（任选其一）：
+  · 换一台柜机：.\scripts\e2e-replenishment.ps1 -DeviceId <有货道且有缺口的柜机>
+      · 造缺口：POST /api/v2/ops/admin/devices/330449777078/slots/stocktake  body {"slotCode":"<货道>","physicalQty":0,
+"adju    stBookQty":true}
+  · 无货道：先 POST /api/v2/ops/admin/devices/330449777078/slots/apply-template（本脚本已自动做过一次，仍无货道说明模板
+ SKU 缺失）
+ 
+CHILD_EXIT=1
