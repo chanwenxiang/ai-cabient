@@ -1,0 +1,56 @@
+{
+  "admin": "http://localhost/admin",
+  "at": "2026-09-18T14:55:34.695Z",
+  "total": 6,
+  "failed": 0,
+  "results": [
+    {
+      "id": "AC-01",
+      "name": "登录运营台",
+      "status": "PASS",
+      "detail": "token 已取得",
+      "evidence": null,
+      "at": "2026-09-18T14:55:31.022Z"
+    },
+    {
+      "id": "AC-02",
+      "name": "告警规则页渲染",
+      "status": "PASS",
+      "detail": "跳到主内容 | 前海易购运营 | 概览 | 交易履约 | 设备商品 | 履约仓储 | 财务商户 | 增长风控 | 系统 | 运营账号",
+      "evidence": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\clients\\admin-vue\\output\\playwright\\alert-channel\\alert-rules-list.png",
+      "at": "2026-09-18T14:55:33.680Z"
+    },
+    {
+      "id": "AC-03",
+      "name": "「测试发送」按钮存在（= 有编辑权限）",
+      "status": "PASS",
+      "detail": "count=1",
+      "evidence": null,
+      "at": "2026-09-18T14:55:33.686Z"
+    },
+    {
+      "id": "AC-04",
+      "name": "飞书 Webhook 配置键在列表中",
+      "status": "PASS",
+      "detail": "找到 ops.alert.feishu_webhook",
+      "evidence": null,
+      "at": "2026-09-18T14:55:33.686Z"
+    },
+    {
+      "id": "AC-05",
+      "name": "「测试发送」返回真实投递结果",
+      "status": "PASS",
+      "detail": "测试发送：全部成功 :: FEISHU：已投递",
+      "evidence": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\clients\\admin-vue\\output\\playwright\\alert-channel\\alert-channel-test-send.png",
+      "at": "2026-09-18T14:55:34.659Z"
+    },
+    {
+      "id": "AC-06",
+      "name": "控制台无阻断性错误",
+      "status": "PASS",
+      "detail": "clean",
+      "evidence": null,
+      "at": "2026-09-18T14:55:34.695Z"
+    }
+  ]
+}

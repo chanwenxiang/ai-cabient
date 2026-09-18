@@ -1,0 +1,19 @@
+前置：干净状态下门禁为绿 ✓
+
+  ✓ 1 一个受管文件磁盘改 CRLF [RED]
+  ✓ 2 两个受管文件磁盘改 CRLF（都要被列出） [RED]
+  ✓ 3 索引 blob 改 CRLF [RED]
+  ✓ 5 .gitattributes 去掉 eol=lf → 不再受管 [RED]
+  ✓ 6 MIN_SCANNED 抬到 999999（锚点守卫） [RED]
+  ✓ 7 MIN_LF_MANAGED 抬到 999999（锚点守卫） [RED]
+  ✓ 8 受管文件加一行注释（保持 LF） [GREEN]
+  ✓ 9 非受管 .java 改 CRLF（不许越界管辖） [GREEN]
+  ✓ 11 新建未跟踪文件即 CRLF（git status 只显示 ??） [RED]
+  ✓ 4 `--fix` 把磁盘改回 LF [期望 exit 0 + 无 CRLF]
+
+  ✓ 10 全部还原后回绿 [期望 GREEN]
+
+全部符合预期
+
+--- 门禁自身 ---
+[check-line-endings] OK: 扫描 3232 个文件（含未跟踪），其中 667 个声明 eol=lf 的文本文件索引与磁盘均为 LF

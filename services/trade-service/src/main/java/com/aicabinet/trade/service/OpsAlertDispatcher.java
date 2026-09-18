@@ -6,7 +6,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import javax.crypto.Mac;
@@ -32,6 +36,13 @@ import java.util.Map;
  * 必须解析响应体，否则会得到「日志说已发送、群里没消息」的假绿。
  * 判定刻意保守以免误红：**只有解析出明确的非 0 业务码才算失败**；响应体为空、非 JSON 或缺字段
  * 一律视为「无法核验」，记 warn 但按成功计。</p>
+ *
+ * <p><b>投递重试</b>：单渠道投递最多尝试 {@value #MAX_ATTEMPTS} 次，仅重试**瞬时传输故障**
+ * （连接失败 / 读写超时 / 5xx / 429）。平台用业务码明确拒绝（如飞书 {@code 19024}）属于配置问题，
+ * 重试不会自愈，立即返回，避免把一次配置错误放大成 N 次无用请求。
+ * 重试粒度是**单渠道**而非整个 {@code send()} —— 后者会让已收到告警的渠道重复收一遍。
+ * 投递语义为 at-least-once：若首次请求已被对方处理但响应丢失，重试会产生重复告警；
+ * 告警场景下「重复」优于「丢失」，故接受。</p>
  */
 @Service
 public class OpsAlertDispatcher {
@@ -39,6 +50,18 @@ public class OpsAlertDispatcher {
     private static final Logger log = LoggerFactory.getLogger(OpsAlertDispatcher.class);
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /** 单渠道投递的最大尝试次数（含首次）。 */
+    static final int MAX_ATTEMPTS = 3;
+
+    /** 首次重试前的退避，之后按 2 倍递增（200ms → 400ms）。 */
+    static final long RETRY_BASE_BACKOFF_MILLIS = 200L;
+
+    /** 告警投递连接超时。 */
+    private static final int CONNECT_TIMEOUT_MILLIS = 3_000;
+
+    /** 告警投递读超时。 */
+    private static final int READ_TIMEOUT_MILLIS = 5_000;
 
     private record Channel(String name, String configKey) {
     }
@@ -55,7 +78,22 @@ public class OpsAlertDispatcher {
 
     public OpsAlertDispatcher(SystemConfigService systemConfigService, RestClient.Builder restClientBuilder) {
         this.systemConfigService = systemConfigService;
-        this.restClient = restClientBuilder.build();
+        this.restClient = restClientBuilder.requestFactory(alertRequestFactory()).build();
+    }
+
+    /**
+     * 告警投递专用请求工厂：**必须显式设超时**。
+     *
+     * <p>Boot 自动配置的 {@code RestClient.Builder} 默认不带读超时（等于无限等待）。目标机器人若
+     * 半死不活（TCP 建连成功但不回包），发送线程会被**永久占住**，重试永远等不到触发时机 ——
+     * 而告警正是从支付回调、定时任务这类不能长时间挂起的关键线程发出的。
+     * 超时预算：单次尝试至多 {@code connect 3s + read 5s}，配 3 次尝试，单渠道最坏 24s。</p>
+     */
+    private static SimpleClientHttpRequestFactory alertRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
+        factory.setReadTimeout(READ_TIMEOUT_MILLIS);
+        return factory;
     }
 
     /**
@@ -91,19 +129,9 @@ public class OpsAlertDispatcher {
         }
     }
 
+    /** 投递并只记日志：{@code send()} 刻意不消费返回值，失败不影响主流程。 */
     private void post(String channel, String type, String url, Object payload) {
-        try {
-            String error = deliveryError(channel, postJson(url, payload));
-            if (error == null) {
-                log.info("ops alert sent channel={} type={}", channel, type);
-            } else {
-                log.warn("ops alert rejected channel={} type={} url={}: {}",
-                        channel, type, mask(url), error);
-            }
-        } catch (Exception e) {
-            log.warn("ops alert failed channel={} type={} url={}: {}",
-                    channel, type, mask(url), e.getMessage());
-        }
+        tryPost(channel, type, url, payload);
     }
 
     /**
@@ -140,20 +168,92 @@ public class OpsAlertDispatcher {
         return !anyConfigured || anySuccess;
     }
 
-    /** 单渠道投递：被平台接受返回 true；抛异常或返回非 0 业务码返回 false（不抛出）。 */
+    /**
+     * 单渠道投递（含重试）：被平台接受返回 true；被业务码拒绝、或重试耗尽仍失败返回 false（不抛出）。
+     *
+     * <p>本方法是**全部渠道日志的唯一出口** —— 若 {@code post()} 与 {@code tryPost()} 各写一份，
+     * 迟早会「两处一起写错」而无人发现。</p>
+     */
     private boolean tryPost(String channel, String type, String url, Object payload) {
-        try {
-            String error = deliveryError(channel, postJson(url, payload));
-            if (error == null) {
-                log.info("ops alert sent channel={} type={}", channel, type);
-                return true;
-            }
+        Delivery delivery = deliver(channel, type, url, payload);
+        if (delivery.delivered()) {
+            log.info("ops alert sent channel={} type={} attempts={}",
+                    channel, type, delivery.attempts());
+            return true;
+        }
+        if (delivery.rejection() != null) {
             log.warn("ops alert rejected channel={} type={} url={}: {}",
-                    channel, type, mask(url), error);
-            return false;
-        } catch (Exception e) {
-            log.warn("ops alert failed channel={} type={} url={}: {}",
-                    channel, type, mask(url), e.getMessage());
+                    channel, type, mask(url), delivery.rejection());
+        } else {
+            log.warn("ops alert failed channel={} type={} url={} attempts={}: {}",
+                    channel, type, mask(url), delivery.attempts(), delivery.failure().getMessage());
+        }
+        return false;
+    }
+
+    /** 单渠道一次投递的最终结局；{@code rejection} 与 {@code failure} 同为 null 表示已送达。 */
+    private record Delivery(int attempts, String rejection, Exception failure) {
+
+        boolean delivered() {
+            return rejection == null && failure == null;
+        }
+
+        /** 失败原因（运营台展示用）：业务码拒绝优先，其次传输异常消息。 */
+        String detail() {
+            if (rejection != null) {
+                return rejection;
+            }
+            return failure == null ? null : failure.getMessage();
+        }
+    }
+
+    /**
+     * 单渠道投递，带**有界重试**。这是全部分发路径（{@code send} / {@code trySend} /
+     * {@code probeChannels}）共用的唯一投递原语。
+     *
+     * <p>重试只针对 {@link #isRetryable} 认定的瞬时故障；业务码拒绝不重试，立即返回。
+     * 退避期间线程被中断则恢复中断位并放弃剩余尝试（按失败处理）。</p>
+     */
+    private Delivery deliver(String channel, String type, String url, Object payload) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return new Delivery(attempt, deliveryError(channel, postJson(url, payload)), null);
+            } catch (Exception e) {
+                if (attempt >= MAX_ATTEMPTS || !isRetryable(e)) {
+                    return new Delivery(attempt, null, e);
+                }
+                log.warn("ops alert transport error channel={} type={} url={} attempt={}/{}: {} - retrying",
+                        channel, type, mask(url), attempt, MAX_ATTEMPTS, e.getMessage());
+                if (!backoff(attempt)) {
+                    return new Delivery(attempt, null, e);  // 线程被中断：不再占用它
+                }
+            }
+        }
+    }
+
+    /**
+     * 是否值得重试：只认**瞬时传输故障**。
+     *
+     * <p>连接失败 / 读写超时（{@link ResourceAccessException}）、服务端 5xx
+     * （{@link HttpServerErrorException}）、限流 429 属于「再试一次可能就好」；
+     * 其余 4xx（404 地址写错、401/403 鉴权失败）与任何非 HTTP 异常都是**确定性失败**，
+     * 重试只会把一次错误放大成 N 次无用请求，并拖长关键线程的占用。</p>
+     */
+    static boolean isRetryable(Throwable e) {
+        if (e instanceof ResourceAccessException || e instanceof HttpServerErrorException) {
+            return true;
+        }
+        return e instanceof HttpClientErrorException clientError
+                && clientError.getStatusCode().value() == 429;
+    }
+
+    /** 指数退避：{@code base << (attempt-1)}。返回 false 表示线程被中断、应放弃剩余尝试。 */
+    private static boolean backoff(int attempt) {
+        try {
+            Thread.sleep(RETRY_BASE_BACKOFF_MILLIS << (attempt - 1));
+            return true;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
             return false;
         }
     }
@@ -177,13 +277,9 @@ public class OpsAlertDispatcher {
             if (url == null || url.isBlank()) {
                 continue;
             }
-            try {
-                String error = deliveryError(channel.name(),
-                        postJson(url, payloadFor(channel, type, title, message, text, Map.of())));
-                probes.add(new ChannelProbe(channel.name(), error == null, error));
-            } catch (Exception e) {
-                probes.add(new ChannelProbe(channel.name(), false, e.getMessage()));
-            }
+            Delivery delivery = deliver(channel.name(), type, url,
+                    payloadFor(channel, type, title, message, text, Map.of()));
+            probes.add(new ChannelProbe(channel.name(), delivery.delivered(), delivery.detail()));
         }
         return probes;
     }

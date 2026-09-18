@@ -8,6 +8,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -34,6 +38,14 @@ class OpsAlertDispatcherTest {
 
     /** 同时带 code 与 errcode=0，使飞书 / 钉钉两类返回体都被判为「已接受」。 */
     private static final String ACCEPTED_BODY = "{\"code\":0,\"errcode\":0,\"msg\":\"success\"}";
+
+    /**
+     * 独立期望值：**故意不复用生产常量**。
+     *
+     * <p>若断言写成 {@code times(OpsAlertDispatcher.MAX_ATTEMPTS)}，把常量调成 1（= 变相取消重试）
+     * 时用例照样全绿 —— 判据恒真。这里独立写死一个数字，常量一改必然红。</p>
+     */
+    private static final int EXPECTED_ATTEMPTS = 3;
 
     @Mock private SystemConfigService systemConfigService;
 
@@ -300,6 +312,134 @@ class OpsAlertDispatcherTest {
         assertEquals(1, probes.size());
         assertFalse(probes.get(0).delivered());
         assertEquals("connection refused", probes.get(0).detail());
+    }
+
+    // ---------- 投递重试 ----------
+
+    /**
+     * 🔴 守卫：重试深度是**产品决策**而非实现细节。
+     *
+     * <p>把 {@code MAX_ATTEMPTS} 调成 1 等于悄悄取消重试（本文件全部行为用例都会因判据脱离实际
+     * 而失去意义），所以这里用独立期望值钉住它，改动必须显式面对这条红。</p>
+     */
+    @Test
+    void maxAttemptsGuard_shouldStayAtExpectedDepth() {
+        assertEquals(
+                EXPECTED_ATTEMPTS,
+                OpsAlertDispatcher.MAX_ATTEMPTS,
+                "单渠道重试深度被改动：若确属有意，请同步更新 EXPECTED_ATTEMPTS 并复核重试预算");
+    }
+
+    /** 瞬时传输故障应重试；重试后成功即视为送达。 */
+    @Test
+    void trySend_shouldRetryTransientTransportErrorThenSucceed() {
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_FEISHU_WEBHOOK, ""))
+                .thenReturn("https://open.feishu.cn/open-apis/bot/v2/hook/abc");
+        doThrow(new ResourceAccessException("connection reset"))
+                .doReturn(ACCEPTED_BODY)
+                .when(dispatcher).postJson(anyString(), any());
+
+        assertTrue(dispatcher.trySend("DEVICE_OFFLINE", "标题", "正文", Map.of()));
+        verify(dispatcher, times(2)).postJson(anyString(), any());
+    }
+
+    /** 重试必须有界：持续失败时尝试次数恰为 MAX_ATTEMPTS，不能变成打爆对方。 */
+    @Test
+    void trySend_shouldStopAfterMaxAttemptsWhenTransportKeepsFailing() {
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_FEISHU_WEBHOOK, ""))
+                .thenReturn("https://open.feishu.cn/open-apis/bot/v2/hook/abc");
+        doThrow(new ResourceAccessException("connection refused"))
+                .when(dispatcher).postJson(anyString(), any());
+
+        assertFalse(dispatcher.trySend("DEVICE_OFFLINE", "标题", "正文", Map.of()));
+        verify(dispatcher, times(EXPECTED_ATTEMPTS)).postJson(anyString(), any());
+    }
+
+    /**
+     * 🔴 反向守卫：业务码拒绝**不得**触发重试。
+     *
+     * <p>这类失败是配置问题（关键词 / 签名 / IP 白名单），重试不会自愈；
+     * 若被重试，就把一次配置错误放大成 N 次无用请求。</p>
+     */
+    @Test
+    void trySend_shouldNotRetryPlatformBusinessRejection() {
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_FEISHU_WEBHOOK, ""))
+                .thenReturn("https://open.feishu.cn/open-apis/bot/v2/hook/abc");
+        doReturn("{\"code\":19024,\"msg\":\"Key Words Not Found\"}")
+                .when(dispatcher).postJson(anyString(), any());
+
+        assertFalse(dispatcher.trySend("DEVICE_OFFLINE", "标题", "正文", Map.of()));
+        verify(dispatcher, times(1)).postJson(anyString(), any());
+    }
+
+    /** 4xx 确定性失败（地址写错 / 鉴权失败）不重试。 */
+    @Test
+    void trySend_shouldNotRetryDeterministicClientError() {
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_FEISHU_WEBHOOK, ""))
+                .thenReturn("https://open.feishu.cn/open-apis/bot/v2/hook/abc");
+        doThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND))
+                .when(dispatcher).postJson(anyString(), any());
+
+        assertFalse(dispatcher.trySend("DEVICE_OFFLINE", "标题", "正文", Map.of()));
+        verify(dispatcher, times(1)).postJson(anyString(), any());
+    }
+
+    /** 5xx 属服务端瞬时故障，应重试到上限。 */
+    @Test
+    void trySend_shouldRetryServerError() {
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_FEISHU_WEBHOOK, ""))
+                .thenReturn("https://open.feishu.cn/open-apis/bot/v2/hook/abc");
+        doThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR))
+                .when(dispatcher).postJson(anyString(), any());
+
+        assertFalse(dispatcher.trySend("DEVICE_OFFLINE", "标题", "正文", Map.of()));
+        verify(dispatcher, times(EXPECTED_ATTEMPTS)).postJson(anyString(), any());
+    }
+
+    /** 分类真值表：瞬时 vs 确定性，逐条钉死（含 429 可重试、其余 4xx 不可重试）。 */
+    @Test
+    void isRetryable_shouldClassifyTransientFailuresOnly() {
+        assertTrue(OpsAlertDispatcher.isRetryable(new ResourceAccessException("timeout")));
+        assertTrue(OpsAlertDispatcher.isRetryable(
+                new HttpServerErrorException(HttpStatus.BAD_GATEWAY)));
+        assertTrue(OpsAlertDispatcher.isRetryable(
+                new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS)));
+
+        assertFalse(OpsAlertDispatcher.isRetryable(
+                new HttpClientErrorException(HttpStatus.NOT_FOUND)));
+        assertFalse(OpsAlertDispatcher.isRetryable(
+                new HttpClientErrorException(HttpStatus.UNAUTHORIZED)));
+        assertFalse(OpsAlertDispatcher.isRetryable(new IllegalStateException("boom")));
+    }
+
+    /** send() 维持「不影响主流程」：即便走完重试也绝不抛异常。 */
+    @Test
+    void send_shouldRetryTransportErrorWithoutThrowing() {
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_FEISHU_WEBHOOK, ""))
+                .thenReturn("https://open.feishu.cn/open-apis/bot/v2/hook/abc");
+        doThrow(new ResourceAccessException("connection reset"))
+                .when(dispatcher).postJson(anyString(), any());
+
+        dispatcher.send("DEVICE_OFFLINE", "标题", "正文");
+
+        verify(dispatcher, times(EXPECTED_ATTEMPTS)).postJson(anyString(), any());
+    }
+
+    /** 运营台试发同样享受重试：一次抖动不该让运营看到「渠道坏了」。 */
+    @Test
+    void probeChannels_shouldRetryTransientErrorThenReportDelivered() {
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_FEISHU_WEBHOOK, ""))
+                .thenReturn("https://open.feishu.cn/open-apis/bot/v2/hook/abc");
+        doThrow(new ResourceAccessException("connection reset"))
+                .doReturn(ACCEPTED_BODY)
+                .when(dispatcher).postJson(anyString(), any());
+
+        List<OpsAlertDispatcher.ChannelProbe> probes =
+                dispatcher.probeChannels("ALERT_CHANNEL_TEST", "标题", "正文");
+
+        assertEquals(1, probes.size());
+        assertTrue(probes.get(0).delivered());
+        assertNull(probes.get(0).detail());
     }
 
 }
