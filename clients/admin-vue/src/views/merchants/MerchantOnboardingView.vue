@@ -238,7 +238,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
@@ -586,6 +586,9 @@ async function batchReview(approve: boolean) {
   }
 }
 
+// H07：页面被 AdminLayout keep-alive 缓存，深链二次进入只触发 onActivated 不走 onMounted；
+// 这里重读 query.onboardingId 刷新高亮（无参数时清掉旧高亮），首载仍由 onMounted(load) 负责。
+onActivated(applyRouteHighlight);
 onMounted(load);
 </script>
 

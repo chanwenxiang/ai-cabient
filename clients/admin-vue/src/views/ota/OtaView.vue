@@ -380,6 +380,27 @@ async function publish() {
     ElMessage.warning('请填写版本号与下载地址');
     return;
   }
+  // H09：发布即时对设备端生效（status:'PUBLISHED'），与下架同级危险操作，需二次确认
+  const scopeText = form.deviceAllowlist.length
+    ? `指定 ${form.deviceAllowlist.length} 台设备`
+    : form.grayPercent < 100
+      ? `灰度 ${form.grayPercent}%`
+      : '全量设备';
+  try {
+    await ElMessageBox.confirm(
+      `确认发布版本 ${form.appVersion.trim()}（${form.channel.trim() || 'stable'} · ${scopeText}· 强制${
+        form.mandatory ? '开' : '关'
+      }）？发布后设备端将立即收到更新。`,
+      '发布版本',
+      {
+        type: 'warning',
+        confirmButtonText: '确认发布',
+        cancelButtonText: '取消'
+      }
+    );
+  } catch {
+    return;
+  }
   saving.value = true;
   try {
     await api.request(AdminEndpoints.otaReleases, 'POST', {

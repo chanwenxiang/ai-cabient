@@ -223,8 +223,23 @@ async function load() {
   }
 }
 
+/**
+ * orders 是 tabBar 页：navigateTo（含带参）到 tabBar 页在微信端会直接失败，
+ * 统一改用 switchTab；「待支付」过滤经一次性 storage 传递（orders.vue onShow 读取后即清除）。
+ */
+function goOrdersTab(pendingOnly = false) {
+  if (pendingOnly) {
+    try {
+      uni.setStorageSync('orders_pending_filter', 'pending');
+    } catch {
+      /* ignore */
+    }
+  }
+  uni.switchTab({ url: '/pages/orders/orders' });
+}
+
 function goPendingOrders() {
-  uni.navigateTo({ url: '/pages/orders/orders?status=PENDING' });
+  goOrdersTab(true);
 }
 
 function onSubscribe() {
@@ -289,9 +304,9 @@ function goByBiz(m: NotificationDto) {
       if (id) {
         uni.navigateTo({ url: `/pages/order-detail/order-detail?orderId=${id}` });
       } else if (tpl.includes('unpaid') || tpl.includes('pending')) {
-        uni.navigateTo({ url: '/pages/orders/orders?status=PENDING' });
+        goOrdersTab(true);
       } else {
-        uni.navigateTo({ url: '/pages/orders/orders' });
+        goOrdersTab();
       }
       break;
     case 'DISPUTE':
@@ -304,7 +319,7 @@ function goByBiz(m: NotificationDto) {
             : `/pages/dispute/detail?sessionId=${id}`
         });
       } else {
-        uni.navigateTo({ url: '/pages/orders/orders' });
+        goOrdersTab();
       }
       break;
     case 'RECHARGE':

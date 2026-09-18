@@ -41,6 +41,15 @@
           <text v-if="maxWithdrawYuan" class="withdraw-hint"
             >最多可提现 ¥{{ maxWithdrawYuan }}</text
           >
+          <!-- H53：绑定多商户时必须显式选择提现商户（后端未指定且多绑定返回 400「请指定提现商户」） -->
+          <picker
+            v-if="multiMerchant"
+            :range="merchantOptions"
+            range-key="label"
+            @change="onMerchantPick"
+          >
+            <view class="picker">提现商户：{{ selectedMerchantLabel }}</view>
+          </picker>
           <app-button
             :disabled="submitting"
             :loading="submitting"
@@ -139,6 +148,7 @@ import {
 } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
 import { merchantApi, isMerchantLoggedIn, handleUnauthorized } from '@/utils/merchant-api';
+import { useMerchantMe } from '@/composables/useMerchantMe';
 import type {
   OpenApiLineWalletOverviewDto,
   OpenApiMerchantWalletOverviewDto
@@ -191,6 +201,33 @@ const maxWithdrawYuan = computed(() =>
   overview.value?.availableCents == null ? '' : yuan(overview.value.availableCents)
 );
 
+// H53：多商户绑定时的提现商户选择；单商户不渲染选择器、请求也不带 merchantId
+const { me, refresh: refreshMerchantMe } = useMerchantMe();
+const selectedMerchantId = ref('');
+const boundMerchants = computed(() =>
+  props.role === 'merchant' ? me.value?.merchants || [] : []
+);
+const multiMerchant = computed(() => boundMerchants.value.length > 1);
+const merchantOptions = computed(() =>
+  boundMerchants.value.map((m) => ({
+    merchantId: m.merchantId,
+    label: `${emptyDisplay(m.merchantName, 'text')} · ${emptyDisplay(m.merchantId, 'text')}`
+  }))
+);
+const selectedMerchantLabel = computed(() => {
+  const hit = merchantOptions.value.find((m) => m.merchantId === selectedMerchantId.value);
+  return hit?.label || '请选择';
+});
+
+function onMerchantPick(e: { detail: { value: string | number } }) {
+  const idx = Number(e.detail.value);
+  const next = merchantOptions.value[idx]?.merchantId || '';
+  if (!next || next === selectedMerchantId.value) return;
+  selectedMerchantId.value = next;
+  overview.value = null;
+  void load();
+}
+
 const displayName = computed(() => {
   const o = overview.value;
   if (!o) return '';
@@ -242,8 +279,20 @@ async function load() {
   loading.value = !overview.value;
   loadError.value = '';
   try {
-    overview.value =
-      props.role === 'merchant' ? await merchantApi.wallet() : await merchantApi.lineWallet();
+    if (props.role === 'merchant') {
+      // H53：确保 me.merchants 已就绪，用于多商户判断与默认选中（软失败不阻断展示）
+      await refreshMerchantMe().catch(() => null);
+      if (
+        multiMerchant.value &&
+        !merchantOptions.value.some((m) => m.merchantId === selectedMerchantId.value)
+      ) {
+        // 默认选中第一个（与后端未指定时的旧行为一致），用户可通过 picker 切换
+        selectedMerchantId.value = merchantOptions.value[0]?.merchantId || '';
+      }
+      overview.value = await merchantApi.wallet(selectedMerchantId.value || undefined);
+    } else {
+      overview.value = await merchantApi.lineWallet();
+    }
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : '加载失败';
   } finally {
@@ -264,11 +313,19 @@ async function submitWithdraw() {
   }
   submitting.value = true;
   try {
-    const body = {
+    const body: { amountCents: number; requestNo: string; merchantId?: string } = {
       amountCents,
       requestNo: cfg.value.requestNoPrefix + Date.now() + '-' + secureRandomToken(5)
     };
     if (props.role === 'merchant') {
+      // H53：多商户绑定必须显式指定提现商户；单商户/未知绑定交由后端自动解析
+      if (multiMerchant.value) {
+        if (!selectedMerchantId.value) {
+          showError('请先选择提现商户');
+          return;
+        }
+        body.merchantId = selectedMerchantId.value;
+      }
       await merchantApi.walletWithdraw(body);
     } else {
       await merchantApi.lineWalletWithdraw(body);
@@ -375,6 +432,16 @@ onShow(load);
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
   margin: -6rpx 0 12rpx;
+}
+.picker {
+  margin-bottom: 16rpx;
+  padding: 20rpx 24rpx;
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-panel);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
 }
 .tip {
   display: block;

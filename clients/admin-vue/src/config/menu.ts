@@ -33,7 +33,10 @@ const BASE_NAV: NavItem[] = [
     path: '/big-screen',
     title: '运营大屏',
     group: '概览',
-    perm: 'ops:bigscreen:view',
+    // H51：后端无接口要求 ops:bigscreen:view（大屏数据接口用 ops:dashboard:view / ops:analytics:view，
+    // workbench 仅认 dashboard:view）。V154 把 bigscreen:view 恰好授给了有 dashboard:view 的角色，
+    // 改用 ops:dashboard:view 后内置角色可见集不变，且与页面实际 API 权限对齐。
+    perm: 'ops:dashboard:view',
     keywords: ['大屏', '监控', 'big screen', '驾驶舱']
   },
   {
@@ -332,7 +335,9 @@ const BASE_NAV: NavItem[] = [
     path: '/ad-campaigns',
     title: '投放计划',
     group: '增长风控',
-    perm: 'ops:ad:campaign:list',
+    // H51：OpsAdController 投放计划接口只要求 ops:ad:list / ops:ad:edit，ops:ad:campaign:list 后端零引用；
+    // V170 对内置角色同时授了 ops:ad:list，改后不丢菜单。
+    perm: 'ops:ad:list',
     keywords: ['投放', '广告', 'campaign', '轮播']
   },
   {

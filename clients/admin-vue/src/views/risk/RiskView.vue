@@ -264,8 +264,9 @@
     </el-tabs>
 
     <el-dialog v-model="addDialog" title="加入黑名单" destroy-on-close>
-      <el-form label-width="auto">
-        <el-form-item label="用户 ID" required>
+      <!-- H08：userId 不预填 1，必填校验走 el-form rules -->
+      <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="auto">
+        <el-form-item label="用户 ID" prop="userId">
           <el-input-number
             v-model="addForm.userId"
             :min="1"
@@ -274,7 +275,7 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="原因" required>
+        <el-form-item label="原因" prop="reason">
           <el-input v-model="addForm.reason" type="textarea" maxlength="200" />
         </el-form-item>
       </el-form>
@@ -290,7 +291,7 @@
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Delete, Refresh } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import TableActions from '@/components/TableActions.vue';
@@ -350,7 +351,13 @@ const blacklistSize = ref(20);
 const blacklistTotal = ref(0);
 const loaded = ref(new Set<string>(['events']));
 const addDialog = ref(false);
-const addForm = reactive({ userId: 1, reason: '' });
+// H08：不再预填 userId=1（误触会把无关用户拉黑）；必填校验交给 el-form rules
+const addFormRef = ref<FormInstance>();
+const addForm = reactive<{ userId?: number; reason: string }>({ userId: undefined, reason: '' });
+const addRules: FormRules = {
+  userId: [{ required: true, message: '请填写用户 ID', trigger: 'blur' }],
+  reason: [{ required: true, message: '请填写原因', trigger: 'blur' }]
+};
 
 const {
   onSelectionChange: onEventsSelectionChange,
@@ -521,11 +528,18 @@ function reloadCurrent() {
 }
 
 function openAdd() {
-  Object.assign(addForm, { userId: 1, reason: '' });
+  Object.assign(addForm, { userId: undefined, reason: '' });
   addDialog.value = true;
 }
 
 async function saveBlacklist() {
+  if (addFormRef.value) {
+    const valid = await addFormRef.value.validate().then(
+      () => true,
+      () => false
+    );
+    if (!valid) return;
+  }
   if (!addForm.userId || !addForm.reason.trim()) {
     return ElMessage.warning('请填写用户 ID 和原因');
   }

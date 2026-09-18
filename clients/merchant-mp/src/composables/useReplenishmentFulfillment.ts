@@ -213,9 +213,17 @@ export function useReplenishmentFulfillment(opts: {
 
   async function applyOpenDoorSession(taskId: number, session: { sessionId?: string }) {
     if (!opts.selected.value) return;
+    // M26：sessionId 缺失说明开门会话未真正建立，绝不能标 doorOpened
+    //（否则现场人员可跳过开门直接核料/完成补货），提示重试并保持待开门状态。
+    if (!session.sessionId) {
+      opts.openSessionId.value = '';
+      opts.doorOpened.value = false;
+      showError('开门会话未建立，请重试');
+      return;
+    }
     opts.doorOpened.value = true;
-    opts.openSessionId.value = session.sessionId || '';
-    if (session.sessionId) opts.persistDoorState(taskId, session.sessionId);
+    opts.openSessionId.value = session.sessionId;
+    opts.persistDoorState(taskId, session.sessionId);
     opts.selected.value = {
       ...opts.selected.value,
       status: opts.selected.value.status === 'PENDING' ? 'IN_PROGRESS' : opts.selected.value.status

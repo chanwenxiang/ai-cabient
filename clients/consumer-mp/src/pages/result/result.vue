@@ -69,12 +69,14 @@
           <text class="sum-label">会员优惠</text>
           <text class="sum-value">减{{ fmtMoney(order.memberDiscountCents) }}</text>
         </view>
-        <view v-if="order.couponDiscountCents != null" class="sum-row discount">
+        <view v-if="Number(order.couponDiscountCents ?? 0) > 0" class="sum-row discount">
           <text class="sum-label">优惠券抵扣</text>
           <text class="sum-value">减{{ fmtMoney(order.couponDiscountCents) }}</text>
         </view>
         <text
-          v-if="order.couponDiscountCents != null || Number(order.memberDiscountCents ?? 0) > 0"
+          v-if="
+            Number(order.couponDiscountCents ?? 0) > 0 || Number(order.memberDiscountCents ?? 0) > 0
+          "
           class="coupon-hint"
           >{{ discountHint }}</text
         >
@@ -89,9 +91,10 @@
           <text class="info-label">柜机</text>
           <text class="info-value">{{ order.deviceName || order.deviceId }}</text>
         </view>
-        <view v-if="order.payTime" class="info-row">
+        <!-- 后端 OrderReadModel 字段是 paidAt；payTime 为旧字段名兜底（与 order-detail 一致） -->
+        <view v-if="order.paidAt || order.payTime" class="info-row">
           <text class="info-label">扣款时间</text>
-          <text class="info-value">{{ formatPayTime(order.payTime) }}</text>
+          <text class="info-value">{{ formatPayTime(order.paidAt || order.payTime) }}</text>
         </view>
         <view
           v-if="
@@ -310,7 +313,8 @@ const payChannelText = computed(() => {
 });
 
 const discountHint = computed(() => {
-  const hasCoupon = order.value?.couponDiscountCents != null;
+  // 后端 couponDiscountCents 为 primitive int（无券恒 0），必须 > 0 才算有券
+  const hasCoupon = Number(order.value?.couponDiscountCents ?? 0) > 0;
   const hasMember = Number(order.value?.memberDiscountCents ?? 0) > 0;
   if (hasCoupon && hasMember) return '已自动抵扣会员价与优惠券';
   if (hasMember) return '已享受会员优惠';

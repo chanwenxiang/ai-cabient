@@ -145,7 +145,8 @@
                     <text v-for="slot in slotTags(o)" :key="slot" class="order-tag slot">{{
                       slot
                     }}</text>
-                    <text v-if="o.couponDiscountCents != null" class="order-tag soft"
+                    <!-- 后端 couponDiscountCents 为 primitive int（无券恒 0），必须 > 0 才算有券 -->
+                    <text v-if="Number(o.couponDiscountCents ?? 0) > 0" class="order-tag soft"
                       >券减{{ fmtMoney(o.couponDiscountCents) }}</text
                     >
                     <text v-if="Number(o.memberDiscountCents ?? 0) > 0" class="order-tag soft"
@@ -255,6 +256,8 @@ type TimeRange = 'all' | 'today' | '7d' | '30d';
 const timeRange = ref<TimeRange>('all');
 const HIDE_ZERO_STORAGE_KEY = 'consumer_orders_hide_zero';
 const hideZeroOrders = ref(readHideZeroPreference());
+/** 消息中心「待支付」深链经此一次性 storage 传过滤（tabBar 页无法带参跳转） */
+const ORDERS_PENDING_FILTER_KEY = 'orders_pending_filter';
 const reviewingDisputes = computed(() =>
   disputes.value.filter(
     (d) => d.status === 'OPEN' && !orders.value.some((o) => o.sessionId === d.sessionId)
@@ -549,8 +552,26 @@ function goHelp() {
   uni.navigateTo({ url: '/pages/help/help' });
 }
 
+/**
+ * 一次性消费消息中心写入的过滤意图（orders_pending_filter）：
+ * 存在则把筛选切到对应档位并立即移除 key，仅本次进入生效；值不合法时忽略。
+ */
+function applyPendingFilterFromStorage() {
+  try {
+    const raw = uni.getStorageSync(ORDERS_PENDING_FILTER_KEY);
+    if (!raw) return;
+    uni.removeStorageSync(ORDERS_PENDING_FILTER_KEY);
+    if (filters.some((f) => f.value === raw)) {
+      filter.value = raw as OrderStatusFilter;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 onShow(() => {
   uni.showTabBar({ animation: false });
+  applyPendingFilterFromStorage();
   load();
 });
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));

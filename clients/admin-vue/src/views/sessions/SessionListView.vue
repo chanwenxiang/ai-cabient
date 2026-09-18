@@ -191,7 +191,7 @@
             <template #default="{ row }">
               <el-tag
                 size="small"
-                :type="row.videoUri || row.videoPreviewUrl ? 'success' : 'info'"
+                :type="row.videoPreviewUrl || String(row.uploadStatus || '').toUpperCase() === 'UPLOADED' ? 'success' : 'info'"
                 effect="plain"
               >
                 {{ uploadStatusShort(row) }}
@@ -699,7 +699,8 @@ function formatDurationMs(ms?: number | null) {
 
 function uploadStatusShort(row: SessionRow) {
   const st = String(row.uploadStatus || '').toUpperCase();
-  if (row.videoUri || row.videoPreviewUrl || st === 'UPLOADED') return '有录像';
+  // M18：裸 videoUri（minio:// 内部地址）不代表可播放，预签名地址或后端 UPLOADED 状态才可信
+  if (row.videoPreviewUrl || st === 'UPLOADED') return '有录像';
   if (st === 'UPLOADING' || st === 'LOCAL_QUEUED') return '上传中';
   if (st.includes('FAIL')) return '失败';
   if (st && st !== 'NONE') return displayLabel('upload_status', row.uploadStatus, '未知');

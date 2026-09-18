@@ -265,7 +265,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import ChartBox from '@/components/ChartBox.vue';
@@ -503,6 +503,20 @@ async function load(opts?: { resetSeries?: boolean }) {
 }
 
 async function solidifyYesterday() {
+  try {
+    // H06：固化会按昨日快照落库、不可回溯重算，必须二次确认
+    await ElMessageBox.confirm(
+      '将把昨日毛利按快照固化入账，固化后不可回溯重算，确认执行？',
+      '固化昨日毛利',
+      {
+        type: 'warning',
+        confirmButtonText: '确认固化',
+        cancelButtonText: '取消'
+      }
+    );
+  } catch {
+    return;
+  }
   solidifying.value = true;
   try {
     await api.request(AdminEndpoints.financeMarginLocksSolidify, 'POST');

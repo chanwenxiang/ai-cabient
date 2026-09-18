@@ -563,11 +563,13 @@ export const merchantApi = {
     ),
   lineWalletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
     request('/api/v2/merchant/line-wallet/withdraw', 'POST', body),
-  wallet: () =>
+  /** 多商户绑定时可指定 merchantId（后端 merchantOverview 校验归属） */
+  wallet: (merchantId?: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantWalletOverviewDto>(
-      '/api/v2/merchant/wallet'
+      withQuery('/api/v2/merchant/wallet', { merchantId })
     ),
-  walletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
+  /** 多商户绑定时必须显式带 merchantId，否则后端 400「请指定提现商户」（H53） */
+  walletWithdraw: (body: { amountCents: number; requestNo?: string; merchantId?: string }) =>
     request('/api/v2/merchant/wallet/withdraw', 'POST', body),
   dailySettlements: (from: string, to: string) =>
     request<import('@aicabinet/shared-types').MerchantDailySettlement[]>(

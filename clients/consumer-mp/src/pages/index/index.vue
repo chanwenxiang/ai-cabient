@@ -429,8 +429,13 @@
       >
         刷新会话状态
       </button>
+      <!-- M25：createSession 在途（openCreateInFlight 且未落号）时取消不可用，避免后端继续建会话开门 -->
       <button
-        v-if="state === 'CREATED' || state === 'OPENING' || (opening && !sessionId)"
+        v-if="
+          state === 'CREATED' ||
+          state === 'OPENING' ||
+          (opening && !sessionId && !openCreateInFlight)
+        "
         class="flow-cancel"
         :loading="cancelling"
         :disabled="cancelling"
@@ -556,6 +561,12 @@ const stateHint = ref('');
 const stateTone = ref('idle');
 const opening = ref(false);
 const cancelling = ref(false);
+/**
+ * M25：createSession 在途标记。HTTP 请求无法中止——本地「取消」清掉 opening/loading 后，
+ * 后端仍会建会话并真实开门（仅靠服务端 90s 超时清扫兜底）。因此在途期间必须禁用取消，
+ * 只允许会话落号（sessionId 有值）后走取消接口，或等请求自然超时失败。
+ */
+const openCreateInFlight = ref(false);
 const pollError = ref('');
 const pollRefreshing = ref(false);
 const landingError = ref('');
@@ -1243,6 +1254,8 @@ async function prepareDeviceForOpen(cabinetId: string): Promise<boolean> {
 
 async function openDeviceSession(cabinetId: string) {
   productsLoading.value = true;
+  // M25：createSession 即将发出，进入「取消不可用」窗口直至请求有结论
+  openCreateInFlight.value = true;
   const OPEN_TIMEOUT_MS = 20000;
   // C-2：先留下 createSession 的 promise 引用——超时只代表「放弃等待」，它仍可能在途并最终成功
   const createSessionPromise = consumerApi.createSession(cabinetId, entryChannel.value);
@@ -1252,6 +1265,7 @@ async function openDeviceSession(cabinetId: string) {
   ]);
   applyProductsResult(productsResult);
   await handleSessionOpenResult(cabinetId, sessionResult, createSessionPromise);
+  openCreateInFlight.value = false;
 }
 
 async function startShoppingFlow(id: string, scanChannel?: string | null) {
@@ -1275,6 +1289,8 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     productsLoading.value = false;
     opening.value = false;
     enteringFlow.value = false;
+    // M25：兜底复位，防止 openDeviceSession 异常退出时残留「取消不可用」状态
+    openCreateInFlight.value = false;
   }
 }
 
@@ -1639,6 +1655,10 @@ async function showDeviceCatalog(id: string) {
 
 async function cancelOpening() {
   if (cancelling.value) return;
+  // M25：createSession 在途时取消必然「前端放弃、后端仍建会话并开门」（HTTP 无法中止，
+  // 仅靠后端 90s 超时清扫兜底），故在途且会话未落号时直接忽略取消；
+  // 会话已落号则走下方取消接口正常关闭。
+  if (openCreateInFlight.value && !sessionId.value) return;
   // 尚无 session：仅取消本地开门等待
   if (!sessionId.value) {
     opening.value = false;

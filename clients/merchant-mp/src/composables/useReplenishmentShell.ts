@@ -45,7 +45,8 @@ export function useReplenishmentShell(opts: {
   clearDeepLinkQuery: () => void;
   fetchList: (args: {
     ensureMe: (seq: number) => Promise<boolean>;
-    canReplenish: boolean;
+    // C24：传 getter 延迟求值——调用瞬间 me 可能尚未 ensureMe（冷启动 → hasPerm=false 的旧快照）
+    canReplenish: () => boolean;
   }) => Promise<{ aborted?: boolean } | null | undefined>;
   isLatestLoad: (seq: number) => boolean;
   refreshMe: () => Promise<unknown>;
@@ -190,7 +191,8 @@ export function useReplenishmentShell(opts: {
   async function load() {
     const result = await opts.fetchList({
       ensureMe: ensureReplenishmentMe,
-      canReplenish: opts.canReplenish.value
+      // C24：延迟求值，fetchList 在 ensureMe 完成后才读取，避免冷启动权限快照恒为 false
+      canReplenish: () => opts.canReplenish.value
     });
     if (!result || result.aborted) return;
     const wantedTaskId = opts.focusTaskId.value;

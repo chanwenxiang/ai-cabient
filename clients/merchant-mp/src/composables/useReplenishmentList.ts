@@ -193,11 +193,13 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
 
   /**
    * 拉取列表数据。返回 loadSeq；调用方应用深链逻辑。
+   * canReplenish 用 getter 延迟求值：调用时 me 尚未 ensureMe（冷启动为 null → false），
+   * 必须在 ensureMe 完成后再读取，否则权限快照永远取到旧值（C24）。
    * @returns null 表示被更新请求取代或未登录/无权限中断
    */
   async function fetchList(hooks: {
     ensureMe: (seq: number) => Promise<boolean>;
-    canReplenish: boolean;
+    canReplenish: () => boolean;
   }): Promise<{ seq: number; aborted: boolean } | null> {
     if (!isMerchantLoggedIn()) {
       uni.reLaunch({ url: '/pages/login/login' });
@@ -205,7 +207,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     }
     const seq = ++loadSeq;
     if (!(await hooks.ensureMe(seq))) return null;
-    if (!hooks.canReplenish) {
+    if (!hooks.canReplenish()) {
       showError('无补货权限');
       uni.switchTab({ url: '/pages/home/home' });
       return null;

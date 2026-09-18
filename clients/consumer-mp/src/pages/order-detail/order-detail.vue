@@ -126,8 +126,9 @@
 
         <view class="actions">
           <app-button v-if="order?.deviceId" label="再去本柜购物" @click="reopenCabinet" />
+          <!-- 后端结算单待支付是 PENDING（SettlementOrderFinalizeService），UNPAID 为另一类应付单；两类都允许去支付 -->
           <app-button
-            v-if="order?.status === 'UNPAID'"
+            v-if="order?.status === 'PENDING' || order?.status === 'UNPAID'"
             :disabled="paying"
             :loading="paying"
             :label="paying ? '支付中…' : '去支付'"

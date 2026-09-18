@@ -80,7 +80,9 @@
             variant="wechat"
             :loading="busy"
             :disabled="busy"
-            :label="busy ? '处理中…' : wechatPayLive ? '微信支付充值 ¥20' : '微信充值 ¥20'"
+            :label="
+              busy ? '处理中…' : wechatPayLive ? `微信支付充值 ¥${quickRechargeYuan}` : `微信充值 ¥${quickRechargeYuan}`
+            "
             @click="onWeChatRecharge"
           />
           <app-button
@@ -88,7 +90,7 @@
             variant="soft"
             :loading="busy"
             :disabled="busy"
-            :label="busy ? '发放中…' : '余额充值 ¥20'"
+            :label="busy ? '发放中…' : `余额充值 ¥${quickRechargeYuan}`"
             @click="onMockRecharge"
           />
           <app-button
@@ -96,7 +98,7 @@
             variant="alipay"
             :loading="busy"
             :disabled="busy"
-            :label="busy ? '处理中…' : '支付宝充值 ¥20'"
+            :label="busy ? '处理中…' : `支付宝充值 ¥${quickRechargeYuan}`"
             @click="onAlipayRecharge"
           />
           <view role="button" class="support-link app-link-chevron" @click="goRechargePage"
@@ -213,6 +215,12 @@ const preauthCents = computed(() =>
   })
 );
 const needYuan = computed(() => preauthYuanLabel(preauthCents.value));
+/**
+ * 开门前快捷充值金额：不低于当前生效的预授权门槛（柜机 > 公共配置 > 默认），
+ * 保证预授权门槛高于 ¥20 时一次充值即可开门，而不是充完仍差一笔。
+ */
+const quickRechargeCents = computed(() => Math.max(preauthCents.value, 2000));
+const quickRechargeYuan = computed(() => preauthYuanLabel(quickRechargeCents.value));
 /** 与后端开门预授权门槛对齐；免密未开通且可用余额不足时不可完成开门准备 */
 const balanceYuan = computed(() => fmtMoney(availableCents(account.value)));
 const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCents || 0)));
@@ -309,7 +317,7 @@ async function onWeChatRecharge() {
   err.value = '';
   try {
     const key = `prep-wechat-${Date.now()}-${secureRandomToken(6)}`;
-    await runWeChatRecharge(2000, key);
+    await runWeChatRecharge(quickRechargeCents.value, key);
     account.value = await consumerApi.account();
     showSuccess('充值成功');
   } catch (error) {
@@ -325,7 +333,7 @@ async function onAlipayRecharge() {
   err.value = '';
   try {
     const key = `prep-alipay-${Date.now()}-${secureRandomToken(6)}`;
-    const { mode } = await runAlipayRecharge(2000, key);
+    const { mode } = await runAlipayRecharge(quickRechargeCents.value, key);
     if (mode === 'live') {
       showError('请在支付宝完成支付');
       return;
@@ -343,7 +351,7 @@ async function onMockRecharge() {
   if (busy.value) return;
   const confirmed = await showConfirm({
     title: '确认充值',
-    content: '将发放 ¥20.00 余额（体验到账，不会真实扣款）。',
+    content: `将发放 ¥${quickRechargeYuan.value} 余额（体验到账，不会真实扣款）。`,
     confirmText: '确认发放'
   });
   if (!confirmed) return;
@@ -351,7 +359,7 @@ async function onMockRecharge() {
   err.value = '';
   try {
     const key = `prep-recharge-${Date.now()}-${secureRandomToken(6)}`;
-    const order = await consumerApi.createMockRecharge(2000, key);
+    const order = await consumerApi.createMockRecharge(quickRechargeCents.value, key);
     await consumerApi.confirmMockRecharge(order.orderId);
     account.value = await consumerApi.account();
     showSuccess('余额已到账');
