@@ -110,11 +110,23 @@ class MqttDeviceClient(
         publish("cabinet/$deviceId/evt", mapper.writeValueAsBytes(data))
     }
 
-    fun publishAck(commandId: String, success: Boolean) {
-        val payload = mapper.writeValueAsBytes(mapOf(
+    fun publishAck(commandId: String, success: Boolean, message: String? = null) {
+        val data = mutableMapOf<String, Any>(
             "type" to "ACK",
             "commandId" to commandId,
             "success" to success,
+            "timestamp" to System.currentTimeMillis()
+        )
+        if (message != null) data["message"] = message
+        publish("cabinet/$deviceId/evt", mapper.writeValueAsBytes(data))
+    }
+
+    /** H62a: 边缘侧告警事件（如队列放弃），未连接时经 OutboundMqttQueue 持久化补投。 */
+    fun publishAlert(alertType: String, message: String) {
+        val payload = mapper.writeValueAsBytes(mapOf(
+            "type" to "ALERT",
+            "alertType" to alertType,
+            "message" to message,
             "timestamp" to System.currentTimeMillis()
         ))
         publish("cabinet/$deviceId/evt", payload)
@@ -171,9 +183,23 @@ class MqttDeviceClient(
         if (pending > 0) {
             Log.i(TAG, "flushing mqtt queue size=$pending")
         }
-        outboundQueue.drain { message ->
-            publishNow(message.topic, message.payload.toByteArray(Charsets.UTF_8), message.qos)
-        }
+        outboundQueue.drain(
+            publish = { message ->
+                publishNow(message.topic, message.payload.toByteArray(Charsets.UTF_8), message.qos)
+            },
+            // H62a: 消息达到放弃上限时直发告警；用 publishNow 不走 publish()，失败仅日志，防再入队成环
+            onAbandon = { message ->
+                val alert = mapper.writeValueAsBytes(mapOf(
+                    "type" to "ALERT",
+                    "alertType" to "EDGE_QUEUE_ABANDON",
+                    "message" to "mqtt outbound message abandoned topic=${message.topic} attempts=${message.attempts}",
+                    "timestamp" to System.currentTimeMillis()
+                ))
+                if (!publishNow("cabinet/$deviceId/evt", alert, 1)) {
+                    Log.w(TAG, "abandon alert publish failed, dropped to avoid queue loop")
+                }
+            }
+        )
     }
 
     private fun subscribeCommands() {
@@ -200,6 +226,8 @@ class MqttDeviceClient(
                 val expireAt = (node["expireAt"] as? Number)?.toLong()
                 if (expireAt != null && System.currentTimeMillis() > expireAt) {
                     Log.w(TAG, "OPEN_DOOR expired commandId=${node["commandId"]}")
+                    // H60: 过期指令不执行开门，但仍需回执失败，避免云端一直等待结果
+                    (node["commandId"] as? String)?.let { publishAck(it, false, "command expired") }
                     return
                 }
                 val cmd = OpenDoorCommand(

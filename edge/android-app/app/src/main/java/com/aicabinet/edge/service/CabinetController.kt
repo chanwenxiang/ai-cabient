@@ -17,7 +17,10 @@ import com.aicabinet.edge.video.RecordingResult
 import com.aicabinet.edge.video.SessionVideoRecorder
 import com.aicabinet.edge.video.VideoClipJson
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Collections
 import java.util.LinkedHashSet
 
@@ -39,6 +42,8 @@ class CabinetController(
     /** 近期已处理的开门 commandId，防 MQTT 重投重复开锁 */
     private val recentCommandIds: MutableSet<String> =
         Collections.synchronizedSet(LinkedHashSet())
+    /** H70: 会话互斥锁，串行化触碰录像器/会话状态的流程，防并发开门互相覆盖录制文件 */
+    private val sessionMutex = Mutex()
 
     fun start() {
         if (!useMockDriver) {
@@ -48,11 +53,19 @@ class CabinetController(
             }
         }
         OtaChecker.checkOnStartup(appContext)
-        offlineQueue.start()
         mqtt = MqttDeviceClient(
             context = appContext,
             onOpenDoor = { cmd -> handleOpenDoor(cmd) }
         )
+        // C22/H62a: 注入事件外发回调（离线上传成功补发关门事件 / 队列放弃告警），
+        // MQTT 未连接时经 MqttDeviceClient 内部 OutboundMqttQueue 持久化补投。
+        offlineQueue.closedEventPublisher = { sessionId, uploadStatus ->
+            mqtt.publishDoorEvent(sessionId, DoorState.CLOSED.name, uploadStatus = uploadStatus)
+        }
+        offlineQueue.alertPublisher = { alertType, message ->
+            mqtt.publishAlert(alertType, message)
+        }
+        offlineQueue.start()
         mqtt.connect()
         DeviceStatusHub.setDoorState(lockDriver.currentDoorState(), event = "服务已启动")
     }
@@ -95,54 +108,96 @@ class CabinetController(
     }
 
     private suspend fun handleOpenDoorInternal(cmd: MqttDeviceClient.OpenDoorCommand) {
-        if (!rememberCommand(cmd.commandId)) {
-            Log.w(TAG, "duplicate OPEN_DOOR ignored commandId=${cmd.commandId}")
-            return
-        }
-        Log.i(TAG, "OPEN_DOOR session=${cmd.sessionId} operator=${cmd.operatorMode}")
-        DeviceStatusHub.setDoorState(DoorState.OPENING, cmd.sessionId, "收到开门指令")
+        // H70: 整个会话流程持 sessionMutex 串行；其中 C19c 门磁确认轮询上限 2s、
+        // waitUntilClosed 有关门超时，均为有界等待，不会无限期占锁。
+        sessionMutex.withLock {
+            if (!rememberCommand(cmd.commandId)) {
+                Log.w(TAG, "duplicate OPEN_DOOR ignored commandId=${cmd.commandId}")
+                return
+            }
+            Log.i(TAG, "OPEN_DOOR session=${cmd.sessionId} operator=${cmd.operatorMode}")
+            DeviceStatusHub.setDoorState(DoorState.OPENING, cmd.sessionId, "收到开门指令")
 
-        if (!cmd.operatorMode) {
-            videoRecorder.start(cmd.sessionId)
-        }
+            var recordingStarted = false
+            if (!cmd.operatorMode) {
+                videoRecorder.start(cmd.sessionId)
+                recordingStarted = true
+            }
 
-        lockDriver.unlock().onFailure {
-            Log.e(TAG, "unlock failed", it)
-            mqtt.publishAck(cmd.commandId, false)
-            DeviceStatusHub.setError("开锁失败: ${it.message}")
-            return
-        }
-        // 仅在开锁成功后 ACK，避免先 success 再 failure 双 ACK
-        mqtt.publishAck(cmd.commandId, true)
-        mqtt.publishDoorEvent(cmd.sessionId, DoorState.OPEN.name)
-        DeviceStatusHub.setDoorState(DoorState.OPEN, cmd.sessionId, "门已开")
+            lockDriver.unlock().onFailure {
+                Log.e(TAG, "unlock failed", it)
+                if (recordingStarted) {
+                    videoRecorder.stop() // H59: 解锁失败也要停录，避免录像无人关门仍持续进行
+                }
+                mqtt.publishAck(cmd.commandId, false)
+                DeviceStatusHub.setError("开锁失败: ${it.message}")
+                return
+            }
 
-        val timeoutMs = if (cmd.operatorMode) {
-            EdgeRuntimeConfig.operatorCloseTimeoutMs(appContext)
-        } else {
-            EdgeRuntimeConfig.shoppingCloseTimeoutMs(appContext)
-        }
-        val closed = DoorCloseWatcher.waitUntilClosed(lockDriver, timeoutMs)
-        if (!closed) {
-            DeviceStatusHub.setError("等待关门超时")
-            mqtt.publishDoorEvent(cmd.sessionId, DoorState.CLOSED.name, uploadStatus = "TIMEOUT")
-            DeviceStatusHub.clearSession("关门超时")
-            return
-        }
+            // C19c: 开锁指令送达 ≠ 门已打开，轮询门磁反馈（ChzhLockDriver 读线程
+            // parseDoorFeedback 更新状态 / Mock 驱动模拟反馈）确认门开后再发 OPEN。
+            if (!awaitDoorOpened()) {
+                Log.e(TAG, "door open not confirmed session=${cmd.sessionId}")
+                if (recordingStarted) {
+                    videoRecorder.stop()
+                }
+                mqtt.publishAck(cmd.commandId, false, "door open not confirmed")
+                mqtt.publishDoorEvent(cmd.sessionId, DoorState.CLOSED.name)
+                DeviceStatusHub.setError("开锁后门磁未确认打开")
+                return
+            }
 
-        if (cmd.operatorMode) {
+            // 仅在确认门开后 ACK，避免先 success 再 failure 双 ACK
+            mqtt.publishAck(cmd.commandId, true)
+            mqtt.publishDoorEvent(cmd.sessionId, DoorState.OPEN.name)
+            DeviceStatusHub.setDoorState(DoorState.OPEN, cmd.sessionId, "门已开")
+
+            val timeoutMs = if (cmd.operatorMode) {
+                EdgeRuntimeConfig.operatorCloseTimeoutMs(appContext)
+            } else {
+                EdgeRuntimeConfig.shoppingCloseTimeoutMs(appContext)
+            }
+            val closed = DoorCloseWatcher.waitUntilClosed(lockDriver, timeoutMs)
+            if (!closed) {
+                DeviceStatusHub.setError("等待关门超时")
+                if (recordingStarted) {
+                    videoRecorder.stop() // C19a: 超时关门也要停录，录像已落盘待上传
+                }
+                // C19a: 录像已停止落盘、尚未上传，uploadStatus 用 UPLOADING（trade 侧按待上传处理，不立即结算）
+                mqtt.publishDoorEvent(cmd.sessionId, DoorState.CLOSED.name, uploadStatus = "UPLOADING")
+                DeviceStatusHub.clearSession("关门超时")
+                return
+            }
+
+            if (cmd.operatorMode) {
+                lockDriver.lock()
+                mqtt.publishDoorEvent(cmd.sessionId, DoorState.CLOSED.name)
+                DeviceStatusHub.setDoorState(DoorState.CLOSED, event = "补货关门完成")
+                DeviceStatusHub.clearSession("补货会话结束")
+                return
+            }
+
+            val recording = videoRecorder.stop()
             lockDriver.lock()
-            mqtt.publishDoorEvent(cmd.sessionId, DoorState.CLOSED.name)
-            DeviceStatusHub.setDoorState(DoorState.CLOSED, event = "补货关门完成")
-            DeviceStatusHub.clearSession("补货会话结束")
-            return
+            finishShoppingClose(recording, cmd.userId)
+            DeviceStatusHub.setDoorState(DoorState.CLOSED, event = "购物关门完成")
+            DeviceStatusHub.clearSession("购物会话结束")
         }
+    }
 
-        val recording = videoRecorder.stop()
-        lockDriver.lock()
-        finishShoppingClose(recording, cmd.userId)
-        DeviceStatusHub.setDoorState(DoorState.CLOSED, event = "购物关门完成")
-        DeviceStatusHub.clearSession("购物会话结束")
+    /**
+     * C19c: 轮询门磁反馈确认门已打开（复用驱动的串口反馈状态），默认上限 2s、200ms 间隔。
+     * 带超时，保证不会长时间阻塞会话互斥锁。
+     */
+    private suspend fun awaitDoorOpened(timeoutMs: Long = 2_000L, pollMs: Long = 200L): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (lockDriver.currentDoorState() == DoorState.OPEN) {
+                return true
+            }
+            delay(pollMs)
+        }
+        return lockDriver.currentDoorState() == DoorState.OPEN
     }
 
     private fun finishShoppingClose(recording: RecordingResult, userId: Long) {

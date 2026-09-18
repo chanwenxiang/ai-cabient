@@ -41,8 +41,9 @@ class ChzhLockDriver(
     override suspend fun unlock(): Result<Unit> = runCatching {
         synchronized(stateLock) { state = DoorState.OPENING }
         sendCommand(UNLOCK_CMD)
-        synchronized(stateLock) { state = DoorState.OPEN }
-        Log.i(TAG, "unlock sent")
+        // C19c: 不在此乐观置 OPEN，门磁状态以串口读线程 parseDoorFeedback 收到的反馈为准，
+        // CabinetController 轮询 currentDoorState()==OPEN 确认门开后才对外发布 OPEN。
+        Log.i(TAG, "unlock sent, awaiting door sensor feedback")
     }
 
     override suspend fun lock(): Result<Unit> = runCatching {
@@ -53,7 +54,9 @@ class ChzhLockDriver(
     override fun currentDoorState(): DoorState = synchronized(stateLock) { state }
 
     private fun sendCommand(cmd: ByteArray) {
-        serial?.write(cmd) ?: Log.w(TAG, "serial not open, cmd skipped: ${cmd.decodeToString().trim()}")
+        // H57: 串口未打开时直接抛出，让 unlock()/上层拿到 failure 而不是静默跳过后误报成功
+        val port = serial ?: throw IllegalStateException("serial not open: $serialPath")
+        port.write(cmd)
     }
 
     private fun startReader() {
