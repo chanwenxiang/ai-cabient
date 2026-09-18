@@ -516,6 +516,7 @@ jobs:
           set -uo pipefail
           max=2
           attempt=1
+          final=0
           while [ "$attempt" -le "$max" ]; do
             set +e
             UAT_MAX_FAIL="$UAT_MAX_FAIL_DISPUTE" node tests/three-end-dispute-ui-uat.mjs
@@ -525,12 +526,22 @@ jobs:
               exit 0
             fi
             echo "dispute UAT attempt ${attempt}/${max} failed (exit ${code})"
+            if [ "$code" -eq 2 ]; then
+              final=2
+            elif [ "$final" -ne 2 ]; then
+              final=1
+            fi
             if [ "$attempt" -eq "$max" ]; then
-              exit "$code"
+              break
             fi
             attempt=$((attempt + 1))
             sleep 15
           done
+          if [ "$final" -eq 2 ]; then
+            echo "::warning::dispute UAT 环境未就绪（CI 缺 .tmp/open-dispute.json 种子链路：模拟器+MQTT+vision）。已知遗留，原被 continue-on-error 掩盖；真实回归请本地跑 create-open-dispute.ps1 + 本 UAT。"
+            exit 0
+          fi
+          exit 1
         working-directory: clients/admin-vue
 
       - name: Upload UAT evidence
