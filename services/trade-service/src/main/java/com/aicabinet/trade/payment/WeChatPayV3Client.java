@@ -129,6 +129,17 @@ public class WeChatPayV3Client {
         return post("/v3/refund/domestic/refunds", body);
     }
 
+    /**
+     * H42(b): 查询单笔退款（GET /v3/refund/domestic/refunds/{out_refund_no}）。
+     * 响应含 status: PROCESSING / SUCCESS / ABNORMAL，供对账调度推进退款状态。
+     * mchid 查询参数与 {@link #queryByOutTradeNo(String)} 的既有签名封装一致。
+     */
+    public JsonNode queryRefund(String outTradeNo, String outRefundNo) {
+        String path = "/v3/refund/domestic/refunds/" + outRefundNo + "?mchid=" + properties.mchId();
+        log.debug("wechat v3 query refund outTradeNo={} outRefundNo={}", outTradeNo, outRefundNo);
+        return get(path);
+    }
+
     public boolean verifyNotifySignature(String timestamp, String nonce, String body,
                                          String signature, String serial) {
         Optional<String> certPem = certificateStore.resolveCertificatePem(serial);

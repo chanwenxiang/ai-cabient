@@ -338,7 +338,20 @@ public class OpsDeviceAdminService {
                 ? request.deviceType().trim() : "AI_CABINET_V1");
         device.setOnlineStatus("OFFLINE");
         device.setSalesLocked(false);
-        if (request.merchantId() != null && !request.merchantId().isBlank()) {
+        // 点位坐标：此前 UpsertDeviceRequest 根本没有经纬度字段，createDevice 也从不 set，
+        // 于是**每台新建柜机坐标恒为 null**，ReplenishmentService 判定「柜机无坐标」后
+        // 直接跳过签到围栏 —— 地理围栏对新建柜机等于不存在。这里补上写入 + 部署必填。
+        boolean deploying = request.merchantId() != null && !request.merchantId().isBlank();
+        boolean hasAnyLocation = request.latitude() != null || request.longitude() != null;
+        if (deploying || hasAnyLocation) {
+            requireDeviceLocation(request.latitude(), request.longitude());
+        }
+        if (hasAnyLocation) {
+            device.setLatitude(request.latitude());
+            device.setLongitude(request.longitude());
+        }
+        device.setAddress(trimToNull(request.address()));
+        if (deploying) {
             String merchantId = request.merchantId().trim();
             requireMerchant(merchantId);
             merchantScopeService.requireMerchantAccess(operatorId, merchantId);
@@ -587,6 +600,19 @@ public class OpsDeviceAdminService {
                 d.getFirmwareVersion(),
                 d.getSalesLockReason()
         );
+    }
+
+    /**
+     * 点位坐标必填 + 范围校验。经纬度是点位主数据（补货路线 / 签到围栏 / 地图都依赖它），
+     * 不是可选项，因此缺失或越界一律 BAD_REQUEST，不允许写入半截数据。
+     */
+    private static void requireDeviceLocation(Double latitude, Double longitude) {
+        if (latitude == null || longitude == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_LOCATION_REQUIRED);
+        }
+        if (latitude < -90d || latitude > 90d || longitude < -180d || longitude > 180d) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_LOCATION_INVALID);
+        }
     }
 
     private void requireMerchant(String merchantId) {

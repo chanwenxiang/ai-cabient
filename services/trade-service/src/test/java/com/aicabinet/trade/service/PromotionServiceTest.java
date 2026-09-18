@@ -143,4 +143,21 @@ class PromotionServiceTest {
         assertEquals(1, result.size());
         assertEquals("ACTIVE", result.get(0).status());
     }
+
+    /** M23：PERCENT_OFF 无面额时按面额估算预留（rate×100 分 = 每百元消费），与核销口径一致。 */
+    @Test
+    void budgetReserveCents_percentOffWithoutDenomination_reservesRateEstimate() {
+        var percentOff = new com.aicabinet.trade.domain.CouponDefinition();
+        percentOff.setCouponType("PERCENT_OFF");
+        percentOff.setDenominationCents(0);
+        percentOff.setDiscountPercent(15);
+        assertEquals(1500, PromotionService.budgetReserveCents(percentOff));
+
+        var amountOff = new com.aicabinet.trade.domain.CouponDefinition();
+        amountOff.setCouponType("AMOUNT_OFF");
+        amountOff.setDenominationCents(300);
+        assertEquals(300, PromotionService.budgetReserveCents(amountOff));
+
+        assertEquals(0, PromotionService.budgetReserveCents(null));
+    }
 }

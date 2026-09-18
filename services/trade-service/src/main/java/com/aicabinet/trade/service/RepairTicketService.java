@@ -10,7 +10,10 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.RepairTicketEventMapper;
 import com.aicabinet.trade.mapper.RepairTicketMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,8 @@ import java.util.Set;
 
 @Service
 public class RepairTicketService {
+    private static final Logger log = LoggerFactory.getLogger(RepairTicketService.class);
+
     private static final String PERM_OPS_DEVICE_LIST = "ops:device:list";
     private static final String PERM_OPS_REPAIR_EDIT = "ops:repair:edit";
     private static final String PERM_OPS_REPAIR_LIST = "ops:repair:list";
@@ -280,6 +285,11 @@ public class RepairTicketService {
         if (device == null) {
             return;
         }
+        if (hasOtherOpenTickets(ticket.getDeviceId(), ticket.getTicketId())) {
+            log.info("skip unlock after repair device={} ticket={} reason=other-open-repair-ticket",
+                    ticket.getDeviceId(), ticket.getTicketId());
+            return;
+        }
         if (device.salesLockedEnabled()) {
             salesLockService.applySalesLock(operatorId, device, false,
                     "repair-done#" + ticket.getTicketId(), true);
@@ -288,6 +298,15 @@ public class RepairTicketService {
                 "维修工单 #" + ticket.getTicketId() + " 完成并解锁");
         opsExceptionService.resolveSystem("DEVICE_OFFLINE", ticket.getDeviceId(),
                 "维修工单 #" + ticket.getTicketId() + " 完成");
+    }
+
+    /** 同设备是否还存在本工单之外的未完结维修工单。 */
+    private boolean hasOtherOpenTickets(String deviceId, long excludeTicketId) {
+        Long count = ticketMapper.selectCount(Wrappers.<RepairTicket>lambdaQuery()
+                .eq(RepairTicket::getDeviceId, deviceId)
+                .ne(RepairTicket::getTicketId, excludeTicketId)
+                .in(RepairTicket::getStatus, List.of("OPEN", STATUS_IN_PROGRESS)));
+        return count != null && count > 0;
     }
 
     private RepairTicket requireTicket(long ticketId) {

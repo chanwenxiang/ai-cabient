@@ -103,32 +103,10 @@ SELECT 10002, '演示：疑似异常下单频率（已自动解除）', 'AUTO', 
 WHERE EXISTS (SELECT 1 FROM user_info WHERE user_id = 10002)
   AND NOT EXISTS (SELECT 1 FROM user_blacklist WHERE user_id = 10002);
 
--- 3.3 营销活动设备范围
-INSERT INTO promotion_device (activity_id, device_id)
-SELECT 1, 'CAB-001'
-WHERE EXISTS (SELECT 1 FROM promotion_activity WHERE activity_id = 1)
-  AND EXISTS (SELECT 1 FROM device_info WHERE device_id = 'CAB-001')
-  AND NOT EXISTS (SELECT 1 FROM promotion_device WHERE activity_id = 1 AND device_id = 'CAB-001');
+-- 已归档（2026-09-18）：原演示种子语句已移除（针对已删除的演示柜 CAB-001），原 SQL 见 git 历史。
 
-INSERT INTO promotion_device (activity_id, device_id)
-SELECT 2, 'CAB-001'
-WHERE EXISTS (SELECT 1 FROM promotion_activity WHERE activity_id = 2)
-  AND NOT EXISTS (SELECT 1 FROM promotion_device WHERE activity_id = 2 AND device_id = 'CAB-001');
 
--- 3.4 设备生命周期事件
-INSERT INTO device_lifecycle_event (device_id, from_status, to_status, action, operator_id, remark)
-SELECT 'CAB-001', NULL, 'INBOUND', 'INBOUND', 100000001, '演示：设备入库'
-WHERE NOT EXISTS (
-    SELECT 1 FROM device_lifecycle_event
-    WHERE device_id = 'CAB-001' AND action = 'INBOUND'
-);
-
-INSERT INTO device_lifecycle_event (device_id, from_status, to_status, action, operator_id, remark)
-SELECT 'CAB-001', 'INBOUND', 'DEPLOYED', 'DEPLOY', 100000001, '演示：部署上线（测试柜-001）'
-WHERE NOT EXISTS (
-    SELECT 1 FROM device_lifecycle_event
-    WHERE device_id = 'CAB-001' AND action = 'DEPLOY'
-);
+-- 已归档（2026-09-18）：原演示种子语句已移除（针对已删除的演示柜 CAB-001），原 SQL 见 git 历史。
 
 -- 3.5 识别结果（补全无识别记录的已完成会话，最多 5 条）
 INSERT INTO recognition_result (task_id, session_id, items, overall_confidence, fusion_mode, model_version, need_review)
@@ -232,31 +210,10 @@ WHERE c.name = '演示屏保投放'
       WHERE i.campaign_id = c.campaign_id AND i.asset_id = a.asset_id
   );
 
-INSERT INTO ad_campaign_device (campaign_id, device_id)
-SELECT c.campaign_id, 'CAB-001'
-FROM ad_campaign c
-WHERE c.name = '演示屏保投放'
-  AND NOT EXISTS (
-      SELECT 1 FROM ad_campaign_device d
-      WHERE d.campaign_id = c.campaign_id AND d.device_id = 'CAB-001'
-  );
+-- 已归档（2026-09-18）：原演示种子语句已移除（针对已删除的演示柜 CAB-001），原 SQL 见 git 历史。
 
-INSERT INTO ad_play_event (campaign_id, device_id, asset_id, event_type)
-SELECT c.campaign_id, 'CAB-001', a.asset_id, 'IMPRESSION'
-FROM ad_campaign c
-CROSS JOIN media_asset a
-WHERE c.name = '演示屏保投放'
-  AND a.title = '演示屏保视频'
-  AND NOT EXISTS (SELECT 1 FROM ad_play_event LIMIT 1);
 
--- 3.14 用户反馈（仅当整表为空）
-INSERT INTO user_feedback (user_id, feedback_type, content, device_id, rating, status)
-SELECT 10001, 'COMPLAINT', '演示：柜门关闭较慢，希望优化。', 'CAB-001', 3, 'PENDING'
-WHERE NOT EXISTS (SELECT 1 FROM user_feedback LIMIT 1);
-
-INSERT INTO user_feedback (user_id, feedback_type, content, device_id, rating, status, handler_id, reply, handled_at)
-SELECT 10001, 'SUGGESTION', '演示：建议增加常温饮料品类。', 'CAB-001', 4, 'REPLIED', 100000001, '感谢建议，已记录选品需求。', NOW()
-WHERE (SELECT COUNT(*) FROM user_feedback) <= 1;
+-- 已归档（2026-09-18）：原演示种子语句已移除（针对已删除的演示柜 CAB-001），原 SQL 见 git 历史。
 
 -- 3.15 采购单（仅当整表为空）
 INSERT INTO purchase_order (supplier_id, warehouse_id, status, ref_no, operator_id, notes)

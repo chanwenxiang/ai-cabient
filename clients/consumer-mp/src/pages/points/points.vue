@@ -13,7 +13,9 @@
             <text class="summary-sub"
               >累计 {{ summary?.totalPoints ?? 0 }} · 已用 {{ summary?.usedPoints ?? 0
               }}{{
-                summary && summary.expiredPoints > 0 ? ` · 已过期 ${summary.expiredPoints}` : ''
+                summary && (summary.expiredPoints ?? 0) > 0
+                  ? ` · 已过期 ${summary.expiredPoints ?? 0}`
+                  : ''
               }}</text
             >
           </view>
@@ -32,9 +34,9 @@
               <text class="meta-label">积分倍率</text>
               <text class="meta-value">¥1 = {{ summary?.pointsRate ?? 1 }} 积分</text>
             </view>
-            <view v-if="summary && summary.nextLevelPointsGap > 0" class="meta-row">
+            <view v-if="summary && (summary.nextLevelPointsGap ?? 0) > 0" class="meta-row">
               <text class="meta-label">升级还差</text>
-              <text class="meta-value warn">{{ summary.nextLevelPointsGap }} 积分</text>
+              <text class="meta-value warn">{{ summary.nextLevelPointsGap ?? 0 }} 积分</text>
             </view>
             <view class="meta-row tip">
               <text class="meta-label">说明</text>
@@ -57,12 +59,12 @@
               <view class="log-main">
                 <text class="log-title">{{ l.description || logTypeText(l.pointsType) }}</text>
                 <text class="log-time">{{ formatTime(l.createdAt) }}</text>
-                <text v-if="l.expireAt && l.points > 0" class="log-expire"
+                <text v-if="l.expireAt && logPoints(l) > 0" class="log-expire"
                   >有效至 {{ formatTime(l.expireAt) }}</text
                 >
               </view>
-              <text class="log-points" :class="l.points >= 0 ? 'income' : 'outcome'">{{
-                l.points >= 0 ? `+${l.points}` : l.points
+              <text class="log-points" :class="logPoints(l) >= 0 ? 'income' : 'outcome'">{{
+                logPoints(l) >= 0 ? `+${logPoints(l)}` : logPoints(l)
               }}</text>
             </view>
           </view>
@@ -115,14 +117,19 @@ async function load() {
   }
 }
 
-function logTypeText(t: string) {
+/** 明细行的积分数（缺字段按 0，避免模板里出现裸 undefined 参与比较/显示）。 */
+function logPoints(l: MemberPointsLogDto) {
+  return l.points ?? 0;
+}
+
+function logTypeText(t?: string) {
   if (t === 'EARN') return '积分获得';
   if (t === 'USE') return '积分使用';
   if (t === 'EXPIRE') return '积分过期';
   return '积分记录';
 }
 
-function formatTime(t: string) {
+function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无');
 }
 

@@ -275,10 +275,10 @@ async function loadDevices() {
     const devices = await merchantApi.devices();
     deviceOptions.value = [
       { label: '全部柜机', value: '' },
-      ...devices.map((d) => ({
-        label: d.deviceName || d.deviceId,
-        value: d.deviceId
-      }))
+      // 生成类型里 deviceId 可选；缺 id 的柜机无法作为筛选项，直接丢弃（否则会与「全部柜机」撞空值）
+      ...devices.flatMap((d) =>
+        d.deviceId ? [{ label: d.deviceName || d.deviceId, value: d.deviceId }] : []
+      )
     ];
   } catch {
     deviceOptions.value = [{ label: '全部柜机', value: '' }];

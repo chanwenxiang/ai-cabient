@@ -77,11 +77,27 @@ public final class ApiMessages {
     /** 柜机已配置坐标且 require_location=true 时，签到必须带经纬度 */
     public static final String REPLENISHMENT_CHECK_IN_LOCATION_REQUIRED =
             "请开启定位后到柜前签到（本柜已配置坐标，不可跳过定位）";
+    /**
+     * 无坐标拒签：柜机自己没有点位坐标时，签到**不能**默默跳过围栏。
+     * 旧逻辑在 deviceHasCoords=false 时直接放行，等价于「建柜时漏填坐标 ⇒ 该柜永久免定位」。
+     */
+    public static final String REPLENISHMENT_CHECK_IN_DEVICE_LOCATION_MISSING =
+            "本柜尚未录入点位坐标，无法校验签到位置，请先在运营后台补录柜机经纬度";
     public static final String REPLENISHMENT_SLOT_CAPACITY =
             "货道 %s 容量不足（上限 %d，已有 %d，本次再补 %d），请调低数量或换货道";
     public static final String SLOT_QTY_OVER_CAPACITY =
             "货道 %s 不能超过容量上限 %d（当前 %d）";
     public static final String DEVICE_MISMATCH = "设备与会话不匹配";
+    /**
+     * 坐标必填：柜机「绑定商户即部署」，部署前必须完成点位建档。
+     * 竞品（无人零售）都把「标点位」（在地图上标记每个点位坐标）作为补货路线优化的第一步，
+     * 坐标属于点位主数据而非可选备注。
+     */
+    public static final String DEVICE_LOCATION_REQUIRED =
+            "请填写点位经纬度：柜机绑定商户前必须完成点位建档，否则补货签到无法做地理围栏";
+    /** 坐标范围非法（纬度 -90~90，经度 -180~180） */
+    public static final String DEVICE_LOCATION_INVALID =
+            "点位经纬度超出合法范围（纬度 -90~90，经度 -180~180）";
     public static final String SESSION_NOT_FOUND = "购物会话不存在";
     public static final String SESSION_FINISHED = "会话已结束，无法取消";
     public static final String SESSION_STATE_INVALID = "当前会话状态不允许此操作";

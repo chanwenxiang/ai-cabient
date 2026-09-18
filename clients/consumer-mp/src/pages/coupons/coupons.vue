@@ -55,7 +55,7 @@
               <text v-else class="coupon-status-badge expired">已过期</text>
             </view>
             <text class="coupon-name">{{ c.couponName }}</text>
-            <text v-if="c.minSpendCents > 0" class="coupon-limit"
+            <text v-if="(c.minSpendCents ?? 0) > 0" class="coupon-limit"
               >满{{ fmtMoney(c.minSpendCents) }}可用</text
             >
             <text v-else class="coupon-limit">无门槛</text>
@@ -172,8 +172,8 @@ async function load() {
   }
 }
 
-function typeText(t: string) {
-  return displayLabel('coupon_type', t, '优惠券');
+function typeText(t?: string) {
+  return displayLabel('coupon_type', t || '', '优惠券');
 }
 
 function deviceScopeText(scope?: string) {
@@ -204,6 +204,8 @@ function goMarketing() {
 }
 
 function pickForNextOpen(c: CouponDto) {
+  // 无 couponId 的券无法被「下次开门优先使用」，直接忽略（同时把 preferredId 收窄为 string）
+  if (!c.couponId) return;
   if (preferredId.value === c.couponId) {
     preferredId.value = null;
     uni.removeStorageSync('preferred_coupon_id');

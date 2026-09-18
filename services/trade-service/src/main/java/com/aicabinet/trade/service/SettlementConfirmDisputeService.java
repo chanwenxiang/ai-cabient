@@ -83,13 +83,23 @@ public class SettlementConfirmDisputeService {
             CabinetOrder order,
             int originalPayable,
             int finalTotal,
-            int paymentDelta) {
+            int paymentDelta,
+            ShoppingSession session,
+            List<VisionServiceClient.RecognizedItem> oldItems,
+            List<VisionServiceClient.RecognizedItem> newItems,
+            java.util.Map<String, String> batchBySku) {
         static ConfirmDisputePrep firstCharge(SettlementService.ConfirmDisputeResult result) {
-            return new ConfirmDisputePrep(true, result, null, 0, 0, 0);
+            return new ConfirmDisputePrep(true, result, null, 0, 0, 0,
+                    null, null, null, null);
         }
 
-        static ConfirmDisputePrep adjust(CabinetOrder order, int originalPayable, int finalTotal, int paymentDelta) {
-            return new ConfirmDisputePrep(false, null, order, originalPayable, finalTotal, paymentDelta);
+        static ConfirmDisputePrep adjust(CabinetOrder order, int originalPayable, int finalTotal, int paymentDelta,
+                                         ShoppingSession session,
+                                         List<VisionServiceClient.RecognizedItem> oldItems,
+                                         List<VisionServiceClient.RecognizedItem> newItems,
+                                         java.util.Map<String, String> batchBySku) {
+            return new ConfirmDisputePrep(false, null, order, originalPayable, finalTotal, paymentDelta,
+                    session, oldItems, newItems, batchBySku);
         }
     }
 
@@ -134,28 +144,18 @@ public class SettlementConfirmDisputeService {
         int finalTotal = order.getTotalAmountCents();
         int delta = finalTotal - originalPayable;
 
-        // 先校验余额再动库存，避免 412 触发 UnexpectedRollbackException（BUG-007）
+        // 先校验余额再动库存/支付，避免 412 触发 UnexpectedRollbackException（BUG-007）
         if (delta > 0 && !userValidationService.canChargeViaPasswordFree(
                 session.getUserId(), session.getEntryChannel())) {
             userValidationService.validateSufficientBalanceForCharge(session.getUserId(), delta);
         }
 
-        if (order.isInventoryDeducted()) {
-            var adjustedBatches = inventoryService.adjustForOrder(
-                    session.getDeviceId(), oldItems, items, batchBySku, order.getOrderId());
-            SettlementOrderSupport.applyBatchNos(order, adjustedBatches);
-        } else {
-            var deductedBatches = inventoryService.deductForOrder(
-                    session.getDeviceId(), items, order.getOrderId(),
-                    orderSupport.gravityDeltasForInventory(session));
-            SettlementOrderSupport.applyBatchNos(order, deductedBatches);
-            order.setInventoryDeducted(true);
-        }
-        orderRepository.save(order);
-        orderSupport.replaceOrderLines(order);
+        // C06：prepare 只做纯读计算与预校验，不写库存/订单；
+        // 库存调整挪到 finalize（支付差额成功之后），支付失败时不做任何库存变更。
         log.info("dispute confirm prepare session={} order={} original={} final={} delta={}",
                 sessionId, order.getOrderId(), originalPayable, finalTotal, delta);
-        return ConfirmDisputePrep.adjust(order, originalPayable, finalTotal, delta);
+        return ConfirmDisputePrep.adjust(order, originalPayable, finalTotal, delta,
+                session, oldItems, items, batchBySku);
     }
 
     @Transactional
@@ -163,13 +163,29 @@ public class SettlementConfirmDisputeService {
         CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         orderSupport.hydrateOrderLines(order);
+        // 重放行改（与 prepare 同口径；结算分布式锁期间数据不变），再执行库存调整（C06）
+        orderSupport.applyItemsToOrder(order, prep.newItems());
+        orderSupport.recalculatePayableAfterLineChange(order);
         if ("DISPUTED".equals(order.getStatus())) {
             order.setStatus("PAID");
+        }
+        if (order.isInventoryDeducted()) {
+            var adjustedBatches = inventoryService.adjustForOrder(
+                    prep.session().getDeviceId(), prep.oldItems(), prep.newItems(), prep.batchBySku(),
+                    order.getOrderId());
+            SettlementOrderSupport.applyBatchNos(order, adjustedBatches);
+        } else {
+            var deductedBatches = inventoryService.deductForOrder(
+                    prep.session().getDeviceId(), prep.newItems(), order.getOrderId(),
+                    orderSupport.gravityDeltasForInventory(prep.session()));
+            SettlementOrderSupport.applyBatchNos(order, deductedBatches);
+            order.setInventoryDeducted(true);
         }
         if (prep.paymentDelta() != 0) {
             revenueSplitService.adjustSplitAfterOrderChange(order, prep.originalPayable());
         }
         orderRepository.save(order);
+        orderSupport.replaceOrderLines(order);
         log.info("dispute confirm finalize order={} original={} final={} delta={}",
                 order.getOrderId(), prep.originalPayable(), prep.finalTotal(), prep.paymentDelta());
         return new SettlementService.ConfirmDisputeResult(

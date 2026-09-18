@@ -50,11 +50,13 @@ public class WeChatPayNotifyService {
         if (!properties.isConfigured()) {
             throw new IllegalStateException(ApiMessages.WECHAT_PAY_NOT_CONFIGURED);
         }
-        assertFreshTimestamp(timestamp);
-        assertNonceOnce(nonce);
+        // H12: 先验签，再做时效/nonce 防重占位 —— 避免未验签请求先消耗 nonce 槽位
+        // （伪造通知可抢先把真实通知的 nonce 占掉，导致真实通知被误判重放）。
         if (!v3Client.verifyNotifySignature(timestamp, nonce, body, signature, serial)) {
             throw new IllegalArgumentException(ApiMessages.INVALID_WECHAT_NOTIFY);
         }
+        assertFreshTimestamp(timestamp);
+        assertNonceOnce(nonce);
         try {
             JsonNode root = objectMapper.readTree(body);
             JsonNode resource = root.path("resource");

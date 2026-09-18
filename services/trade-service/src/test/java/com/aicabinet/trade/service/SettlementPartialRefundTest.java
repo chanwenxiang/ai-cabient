@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -27,6 +28,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -83,6 +85,7 @@ class SettlementPartialRefundTest {
                 line("SKU-B", "B", 2, 300, "B2"))));
 
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findById("O-C")).thenReturn(Optional.of(order));
         when(orderRepository.findByIdForUpdate("O-C")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
@@ -125,6 +128,7 @@ class SettlementPartialRefundTest {
         order.setLines(new ArrayList<>(List.of(a, b)));
 
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findById("O-1")).thenReturn(Optional.of(order));
         when(orderRepository.findByIdForUpdate("O-1")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -191,6 +195,7 @@ class SettlementPartialRefundTest {
         order.setLines(new ArrayList<>(List.of(line("SKU-A", "A", 1, 400, "B1"))));
 
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findById("O-2")).thenReturn(Optional.of(order));
         when(orderRepository.findByIdForUpdate("O-2")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
@@ -210,6 +215,39 @@ class SettlementPartialRefundTest {
         assertTrue(order.getLines().isEmpty());
         assertFalse(order.isInventoryDeducted());
         verify(revenueSplitService).adjustSplitAfterPartialRefund(order, true);
+    }
+
+    /** C04：渠道退款失败时本地零改动——不落库、不动库存/行/分账。 */
+    @Test
+    void partialRefund_channelFails_localUntouched() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-C04");
+        order.setSessionId("S-C04");
+        order.setDeviceId("CAB-001");
+        order.setUserId(10001L);
+        order.setTotalAmountCents(400);
+        order.setStatus("PAID");
+        order.setInventoryDeducted(true);
+        order.setLines(new ArrayList<>(List.of(line("SKU-A", "A", 1, 400, "B1"))));
+
+        when(orderRepository.findById("O-C04")).thenReturn(Optional.of(order));
+        doThrow(new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "渠道退款失败"))
+                .when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> settlementService.partialRefund(
+                        order,
+                        List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, true)),
+                        true,
+                        "c04 channel fail"));
+
+        verify(orderRepository, never()).save(any());
+        verify(orderRepository, never()).findByIdForUpdate(anyString());
+        verify(orderLineRepository, never()).deleteByOrderId(anyString());
+        verify(inventoryService, never()).restoreForOrder(anyString(), anyList(), anyMap());
+        verify(revenueSplitService, never()).adjustSplitAfterPartialRefund(any(), anyBoolean());
     }
 
     private static CabinetOrderLine line(String sku, String name, int qty, int unit, String batch) {

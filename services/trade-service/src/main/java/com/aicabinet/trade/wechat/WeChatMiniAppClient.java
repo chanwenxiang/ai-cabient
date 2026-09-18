@@ -30,6 +30,8 @@ public class WeChatMiniAppClient {
             "https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token={token}";
     private static final String GENERATE_URL_LINK =
             "https://api.weixin.qq.com/wxa/generate_urllink?access_token={token}";
+    private static final String GET_USER_PHONE_NUMBER_URL =
+            "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token={token}";
 
     private final AtomicReference<CachedToken> cachedToken = new AtomicReference<>();
 
@@ -74,6 +76,43 @@ public class WeChatMiniAppClient {
     }
 
     public record Code2SessionResult(String openId, String sessionKey) {}
+
+    /**
+     * 小程序手机号授权码换真实手机号（C13）：
+     * POST wxa/business/getuserphonenumber，access_token 复用 {@link #accessToken()} 缓存。
+     * isConfigured 语义与 {@link #code2Session(String)} 一致：未配置且非 mock 抛 503；
+     * 未配置且 mock（dev）返回空串，由调用方决定 dev 兼容行为。失败抛 IllegalStateException。
+     *
+     * @return purePhoneNumber（含手机号授权码无效/未返回时为空串）
+     */
+    public String getPhoneNumber(String phoneCode) {
+        if (phoneCode == null || phoneCode.isBlank()) {
+            return "";
+        }
+        if (!properties.isConfigured()) {
+            if (securityProperties.mockEnabled()) {
+                log.warn("wechat miniapp not configured, skip getuserphonenumber (dev only)");
+                return "";
+            }
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_MINIAPP_NOT_CONFIGURED);
+        }
+        String body = restClient.post()
+                .uri(GET_USER_PHONE_NUMBER_URL, accessToken())
+                .body(Map.of("code", phoneCode.trim()))
+                .retrieve()
+                .body(String.class);
+        try {
+            JsonNode node = objectMapper.readTree(body);
+            if (node.has(ERRCODE) && node.get(ERRCODE).asInt() != 0) {
+                throw new IllegalStateException("getuserphonenumber failed: " + body);
+            }
+            return node.path("phone_info").path("purePhoneNumber").asText("");
+        } catch (ResponseStatusException | IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("parse getuserphonenumber failed", e);
+        }
+    }
 
     public boolean sendSubscribeMessage(String openId, String templateId, String page, Map<String, String> dataFields) {
         if (openId == null || openId.isBlank() || templateId == null || templateId.isBlank()) {

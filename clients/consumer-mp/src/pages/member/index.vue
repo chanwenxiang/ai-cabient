@@ -169,8 +169,8 @@ const benefits = computed(() => {
   return rows;
 });
 
-function formatYuan(n: number) {
-  const v = Number.isFinite(n) ? n : 0;
+function formatYuan(n?: number | null) {
+  const v = Number.isFinite(n) ? Number(n) : 0;
   return (
     '¥' +
     new Intl.NumberFormat('zh-CN', {

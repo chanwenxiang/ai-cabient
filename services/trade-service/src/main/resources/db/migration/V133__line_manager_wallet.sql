@@ -139,25 +139,7 @@ CREATE TABLE IF NOT EXISTS line_commission_daily (
 CREATE UNIQUE INDEX IF NOT EXISTS uk_line_commission_daily
     ON line_commission_daily (manager_id, biz_date, device_id);
 
--- 演示：绑定商户管理员 13800138001 为线长，绑 CAB-001，预存余额 100 元
-INSERT INTO line_manager (manager_name, phone, status, user_id, org_name, commission_rate_bps, wx_openid)
-SELECT '演示线长', '13800138001', 'ACTIVE', 100000002, '演示组织', 200, 'demo-openid-line-001'
-WHERE NOT EXISTS (SELECT 1 FROM line_manager WHERE phone = '13800138001');
-
-INSERT INTO line_device (manager_id, device_id, status)
-SELECT m.manager_id, 'CAB-001', 'ACTIVE'
-FROM line_manager m
-WHERE m.phone = '13800138001'
-  AND EXISTS (SELECT 1 FROM device_info WHERE device_id = 'CAB-001')
-  AND NOT EXISTS (
-      SELECT 1 FROM line_device d WHERE d.device_id = 'CAB-001' AND d.status = 'ACTIVE'
-  );
-
-INSERT INTO line_wallet_account (manager_id, balance_cents, frozen_cents, updated_at)
-SELECT m.manager_id, 10000, 0, NOW()
-FROM line_manager m
-WHERE m.phone = '13800138001'
-ON CONFLICT (manager_id) DO NOTHING;
+-- 已归档（2026-09-18）：原演示种子语句已移除（针对已删除的演示柜 CAB-001），原 SQL 见 git 历史。
 
 INSERT INTO line_wallet_ledger (manager_id, entry_type, amount_cents, balance_after, frozen_after, ref_type, ref_id, remark)
 SELECT m.manager_id, 'ADJUST', 10000, 10000, 0, 'SEED', 'demo-seed', '演示初始余额'

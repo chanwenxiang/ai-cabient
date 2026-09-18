@@ -16,6 +16,8 @@ import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,6 +35,8 @@ import java.util.UUID;
 
 @Service
 public class MerchantWithdrawService {
+    private static final Logger log = LoggerFactory.getLogger(MerchantWithdrawService.class);
+
     private static final String PERM_OPS_MERCHANT_WITHDRAW_REVIEW = "ops:merchant-withdraw:review";
     private static final String PERM_OPS_MERCHANT_WITHDRAW_LIST = "ops:merchant-withdraw:list";
     private static final String MERCHANT_WITHDRAW_REVIEW = "MERCHANT_WITHDRAW_REVIEW";
@@ -200,20 +204,41 @@ public class MerchantWithdrawService {
     }
 
     public MerchantWithdrawRequestDto merchantApply(Long userId, long amountCents, String requestNo) {
-        String merchantId = resolveMerchantId(userId);
-        Merchant merchant = requireMerchant(merchantId);
+        return merchantApply(userId, amountCents, requestNo, null);
+    }
+
+    /**
+     * 商户自主提现：多商户绑定时必须显式指定 merchantId（避免取字典序第一个）。
+     */
+    public MerchantWithdrawRequestDto merchantApply(Long userId, long amountCents, String requestNo, String merchantId) {
+        String resolvedMerchantId = resolveMerchantId(userId, merchantId);
+        Merchant merchant = requireMerchant(resolvedMerchantId);
         return createWithdraw(merchant, amountCents, requestNo, userId);
     }
 
     @Transactional(readOnly = true)
     public MerchantWalletOverviewDto merchantOverview(Long userId) {
+        return merchantOverview(userId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MerchantWalletOverviewDto merchantOverview(Long userId, String merchantIdParam) {
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
                 userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
             return new MerchantWalletOverviewDto(
                     false, null, null, null, null, null, List.of(), List.of());
         }
-        String merchantId = merchantIds.stream().sorted().findFirst().orElse(null);
+        String merchantId;
+        if (merchantIdParam != null && !merchantIdParam.isBlank()) {
+            merchantId = merchantIdParam.trim();
+            if (!merchantIds.contains(merchantId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权查看该商户钱包");
+            }
+        } else {
+            // 未指定时保持旧行为：单商户直接用；多商户取第一个（只读视图不阻断）
+            merchantId = merchantIds.stream().sorted().findFirst().orElse(null);
+        }
         Merchant merchant = merchantMapper.findById(merchantId).orElse(null);
         if (merchant == null) {
             return new MerchantWalletOverviewDto(
@@ -397,12 +422,18 @@ public class MerchantWithdrawService {
     @Transactional
     public MerchantWithdrawRequest markPaying(long requestId) {
         MerchantWithdrawRequest request = requireRequest(requestId);
-        if (!Set.of(STATUS_APPROVED, "FAILED", "PAYING").contains(request.getStatus())) {
+        String previousStatus = request.getStatus();
+        if (!Set.of(STATUS_APPROVED, "FAILED", "PAYING").contains(previousStatus)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
         }
         request.setStatus("PAYING");
         request.setUpdatedAt(Instant.now());
         withdrawMapper.updateById(request);
+        if ("FAILED".equals(previousStatus)) {
+            // FAILED 落账时已释放冻结；重试打款前需重新冻结，保证 PAID consumeFrozen 口径
+            merchantWalletService.freezeForWithdraw(request.getMerchantId(), request.getAmountCents(),
+                    WITHDRAW, String.valueOf(request.getRequestId()), "重试打款重新冻结");
+        }
         return request;
     }
 
@@ -425,6 +456,9 @@ public class MerchantWithdrawService {
         }
         request.setStatus("FAILED");
         withdrawMapper.updateById(request);
+        // 打款失败即释放冻结，避免冻结悬挂（与人工 cancelFailed 解冻口径一致；日限额统计仍排除终态）
+        merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
+                WITHDRAW, String.valueOf(request.getRequestId()), "提现打款失败释放");
         return toDto(request);
     }
 
@@ -437,6 +471,52 @@ public class MerchantWithdrawService {
         static PayoutGate needPayout(MerchantWithdrawRequestDto dto) {
             return new PayoutGate(dto, true, dto.requestId());
         }
+    }
+
+    /** 打款卡 PAYING 的超时阈值：超过即由对账调度兜底置 FAILED 并解冻（H38）。 */
+    static final long PAYING_TIMEOUT_MINUTES = 60;
+
+    /**
+     * PAYING 超过 {@link #PAYING_TIMEOUT_MINUTES} 分钟的提现单视为打款失败：
+     * 置 FAILED 并按 cancelFailed 同口径解冻；之后可走 payout() 重试（重试会重新冻结）。
+     *
+     * @return 本次处理单数
+     */
+    @Transactional
+    public int failStalePayingWithdraws() {
+        Instant cutoff = Instant.now().minus(PAYING_TIMEOUT_MINUTES, java.time.temporal.ChronoUnit.HOURS);
+        List<MerchantWithdrawRequest> stale =
+                withdrawMapper.findByStatusAndUpdatedAtBefore("PAYING", cutoff);
+        int failed = 0;
+        for (MerchantWithdrawRequest staleRequest : stale) {
+            try {
+                if (failSingleStalePaying(staleRequest.getRequestId())) {
+                    failed++;
+                }
+            } catch (Exception e) {
+                log.warn("stale PAYING merchant withdraw sweep failed requestId={} err={}",
+                        staleRequest.getRequestId(), e.toString());
+            }
+        }
+        return failed;
+    }
+
+    private boolean failSingleStalePaying(long requestId) {
+        return runWithMerchantWalletLock(requireRequest(requestId).getMerchantId(), () -> {
+            MerchantWithdrawRequest request = requireRequest(requestId);
+            if (!"PAYING".equals(request.getStatus())) {
+                return false;
+            }
+            request.setStatus("FAILED");
+            request.setPayoutMessage("PAYING 超过 " + PAYING_TIMEOUT_MINUTES + " 分钟未回执，自动置失败");
+            request.setUpdatedAt(Instant.now());
+            withdrawMapper.updateById(request);
+            merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
+                    WITHDRAW, String.valueOf(request.getRequestId()), "提现打款超时释放");
+            auditService.appendLog(0L, "MERCHANT_WITHDRAW_PAYOUT_TIMEOUT", BIZ_MERCHANT_WITHDRAW,
+                    String.valueOf(requestId), "PAYING 超时自动失败并解冻；金额(分)=" + request.getAmountCents());
+            return true;
+        });
     }
 
     private void validateAmount(String merchantId, long amountCents) {
@@ -456,7 +536,7 @@ public class MerchantWithdrawService {
         }
     }
 
-    private String resolveMerchantId(Long userId) {
+    private String resolveMerchantId(Long userId, String merchantIdParam) {
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
                 userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null) {
@@ -464,6 +544,16 @@ public class MerchantWithdrawService {
         }
         if (merchantIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "未绑定商户");
+        }
+        if (merchantIdParam != null && !merchantIdParam.isBlank()) {
+            String mid = merchantIdParam.trim();
+            if (!merchantIds.contains(mid)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "提现商户与账号绑定不一致");
+            }
+            return mid;
+        }
+        if (merchantIds.size() > 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请指定提现商户");
         }
         return merchantIds.stream().sorted(Comparator.naturalOrder()).findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "未绑定商户"));

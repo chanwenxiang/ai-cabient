@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -179,6 +180,20 @@ public class XxlJobWiringSelfCheck {
      */
     private final AtomicLong wiringOk = new AtomicLong(1);
 
+    /**
+     * Spring 装配用的构造器。
+     *
+     * <p><b>这里的 {@code @Autowired} 不能删。</b>本类刻意有两个构造器（下面那个包内可见的用于单测注入
+     * stub 传输层，单测不跑 docker、不连真调度中心）。Spring 只在「**有且仅有一个**构造器」时才免注解
+     * 自动选择；一旦存在多个且都没标注，它就退化为去找**无参构造器**，于是启动期直接
+     * {@code BeanInstantiationException: No default constructor found} —— 服务起不来。</p>
+     *
+     * <p>之所以此前没被发现：{@code aicabinet.xxljob.enabled} 默认 {@code false}
+     * （{@code application.yml}: {@code ${XXL_JOB_ENABLED:false}}），而 compose 给容器注入的是
+     * {@code true}，单测又是纯 {@code new} 不经容器 ⇒ <b>整条测试链路都绕过了本 bean 的创建</b>。
+     * 于是这个缺陷一路潜伏到「首次以 XXL_JOB_ENABLED=true 重启」才爆（2026-09-18 实测）。</p>
+     */
+    @Autowired
     public XxlJobWiringSelfCheck(OpsExceptionService exceptionService,
                                  OpsAlertDispatcher alertDispatcher,
                                  MeterRegistry meterRegistry,

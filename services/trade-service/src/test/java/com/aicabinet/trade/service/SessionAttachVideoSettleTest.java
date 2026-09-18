@@ -54,7 +54,11 @@ class SessionAttachVideoSettleTest {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, cabinetMetrics, domainEventPublisher,
                 gravityHelper, null, null, null, null, null, null, userInfoRepository, orderRepository,
-                consumerPreauthService, distributedLockService, null, null);
+                consumerPreauthService, distributedLockService, null, null,
+                new com.aicabinet.trade.storage.MinioVideoService(
+                        new com.aicabinet.trade.config.MinioProperties(
+                                "http://localhost:9000", "", "k", "s", "cabinet-videos", 3600), null),
+                null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, service);
@@ -78,12 +82,12 @@ class SessionAttachVideoSettleTest {
         when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-Q6", "S-Q6"));
 
-        var first = service.attachVideo(new VideoAttachRequest("S-Q6", "CAB-001", "s3://v.mp4", "UPLOADED", null, null));
+        var first = service.attachVideo(new VideoAttachRequest("S-Q6", "CAB-001", "minio://cabinet-videos/videos/s-q6.mp4", "UPLOADED", null, null));
         assertEquals(SessionState.COMPLETED, first.state());
         assertEquals(SessionState.COMPLETED, session.getState());
         verify(settlementService, times(1)).settle(session);
 
-        var second = service.attachVideo(new VideoAttachRequest("S-Q6", "CAB-001", "s3://v2.mp4", "UPLOADED", null, null));
+        var second = service.attachVideo(new VideoAttachRequest("S-Q6", "CAB-001", "minio://cabinet-videos/videos/s-q6-2.mp4", "UPLOADED", null, null));
         assertEquals(SessionState.COMPLETED, second.state());
         verify(settlementService, times(1)).settle(any());
     }

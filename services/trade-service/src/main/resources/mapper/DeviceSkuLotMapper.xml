@@ -40,12 +40,14 @@
     ]]>
   </select>
 
+  <!-- 货道账面占用（容量校验/实物分摊用）：不按 status 过滤，
+       BLOCKED（过期下架待处理）等批次仍物理占用货道，否则容量虚低导致超补（H35）。 -->
   <select id="selectSumBookQtyBySlot" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.slot_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
     FROM device_sku_lot l
     WHERE l.device_id = #{deviceId} AND l.slot_id IS NOT NULL AND l.slot_id <> ''
-      AND l.status IN ('ON_SALE', 'NEAR_EXPIRY') AND l.quantity > 0
+      AND l.quantity > 0
     GROUP BY l.slot_id
     ]]>
   </select>

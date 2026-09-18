@@ -159,7 +159,7 @@ import {
 } from '@/utils/preferred-device';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
-import type { DeviceInfo, MerchantMe } from '@aicabinet/shared-types';
+import type { MerchantDeviceInfo, MerchantMe } from '@aicabinet/shared-types';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -170,7 +170,9 @@ const loading = ref(true);
 const scanning = ref(false);
 const error = ref('');
 let loadSeq = 0;
-const devices = ref<(DeviceInfo & { online?: boolean })[]>([]);
+// /api/v2/merchant/devices 实际返回 MerchantDeviceDto（含 oosSlotCount/lifecycleStatus 等），
+// 此前错标为 DeviceInfo(=AdminDeviceDto)，导致 stockSummary() 等读取被 vue-tsc 判为「无公共属性」
+const devices = ref<(MerchantDeviceInfo & { online?: boolean })[]>([]);
 const keyword = ref('');
 const filter = ref<'all' | 'online' | 'offline' | 'locked'>('all');
 const preferredId = ref('');
@@ -225,7 +227,8 @@ function toggleOnlyPreferred() {
   onlyPreferred.value = !onlyPreferred.value;
 }
 
-function togglePreferred(id: string) {
+function togglePreferred(id?: string) {
+  if (!id) return;
   if (preferredId.value === id) {
     clearPreferredDeviceId();
     preferredId.value = '';
@@ -284,11 +287,13 @@ async function load() {
   }
 }
 
-function goDetail(id: string) {
+function goDetail(id?: string) {
+  // 生成类型里 deviceId 可选；缺 id 时原先会跳到 ?id=undefined
+  if (!id) return;
   uni.navigateTo({ url: `/pages/device-detail/device-detail?id=${encodeURIComponent(id)}` });
 }
 
-function openNav(d: DeviceInfo) {
+function openNav(d: MerchantDeviceInfo) {
   void confirmOpenDeviceNavigation({
     latitude: d.latitude,
     longitude: d.longitude,
@@ -319,7 +324,7 @@ async function onScan() {
           .trim()
           .toUpperCase() === key
     );
-    if (!hit) {
+    if (!hit?.deviceId) {
       showError('未找到该柜机或无权限');
       return;
     }

@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.MerchantNotifyPrefDto;
 import com.aicabinet.common.dto.MerchantSubscribeRequest;
 import com.aicabinet.common.dto.MerchantWorkbenchDto;
+import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.MerchantNotifyLog;
 import com.aicabinet.trade.domain.MerchantSubscribePref;
@@ -54,6 +55,7 @@ public class MerchantNotifyService {
     private final MerchantNotifyLogMapper notifyLogRepository;
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
+    private final NotificationProperties notificationProperties;
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantNotifyService self;
@@ -68,6 +70,7 @@ public class MerchantNotifyService {
                                  MerchantNotifyLogMapper notifyLogRepository,
                                  WeChatMiniAppClient weChatMiniAppClient,
                                  WeChatMiniAppProperties weChatMiniAppProperties,
+                                 NotificationProperties notificationProperties,
                                  DistributedLockService distributedLockService, @Lazy MerchantNotifyService self) {
         this.merchantPortalGuard = merchantPortalGuard;
         this.permissionService = permissionService;
@@ -79,6 +82,7 @@ public class MerchantNotifyService {
         this.notifyLogRepository = notifyLogRepository;
         this.weChatMiniAppClient = weChatMiniAppClient;
         this.weChatMiniAppProperties = weChatMiniAppProperties;
+        this.notificationProperties = notificationProperties;
         this.distributedLockService = distributedLockService;
         this.self = self;
     }
@@ -166,6 +170,11 @@ public class MerchantNotifyService {
     }
 
     private boolean doMaybeNotifyUser(Long userId) {
+        // M24：与 ExternalNotificationDispatcher 同一全局开关，wechat 关闭时不得绕过直发
+        if (!notificationProperties.wechatEnabled()) {
+            log.info("merchant notify skipped: notify.wechat-enabled=false userId={}", userId);
+            return false;
+        }
         UserInfo user = userInfoRepository.findById(userId).orElse(null);
         if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
             return false;

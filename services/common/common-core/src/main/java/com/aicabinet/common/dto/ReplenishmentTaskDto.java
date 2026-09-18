@@ -27,7 +27,13 @@ public record ReplenishmentTaskDto(
         /** 现场凭证张数（列表聚合，避免 N+1） */
         Integer evidenceCount,
         /** 明细行摘要（列表聚合） */
-        String lineSummary
+        String lineSummary,
+        /**
+         * 柜机是否已录入点位坐标。null=未知（未联查）。
+         * false 时签到**必被拒**（{@code REPLENISHMENT_CHECK_IN_DEVICE_LOCATION_MISSING}，400），
+         * 客户端据此**前置禁用签到**并提示「联系运营补录坐标」，而不是等到柜前吃 400。
+         */
+        Boolean deviceHasCoords
 ) {
     public ReplenishmentTaskDto(
             Long taskId,
@@ -47,7 +53,7 @@ public record ReplenishmentTaskDto(
     ) {
         this(taskId, routeId, deviceId, assigneeUserId, status, notes, completedAt, checkInAt,
                 checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     public ReplenishmentTaskDto(
@@ -69,7 +75,7 @@ public record ReplenishmentTaskDto(
     ) {
         this(taskId, routeId, deviceId, assigneeUserId, status, notes, completedAt, checkInAt,
                 checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt,
-                deviceName, null, null, null, null);
+                deviceName, null, null, null, null, null);
     }
 
     public ReplenishmentTaskDto(
@@ -93,6 +99,6 @@ public record ReplenishmentTaskDto(
     ) {
         this(taskId, routeId, deviceId, assigneeUserId, status, notes, completedAt, checkInAt,
                 checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt,
-                deviceName, routeName, plannedDate, null, null);
+                deviceName, routeName, plannedDate, null, null, null);
     }
 }

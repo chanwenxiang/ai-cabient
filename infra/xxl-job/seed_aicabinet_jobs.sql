@@ -119,7 +119,11 @@ INSERT INTO `xxl_job_info`(
  'deviceAvailabilityKpiDailyJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
 (131, 10, '风控事件自动处置', now(), now(), 'aicabinet', '',
  'CRON', '0 0/15 * * * ?', 'DO_NOTHING', 'FAILOVER',
- 'riskAutoDispositionJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0)
+ 'riskAutoDispositionJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+-- 提现打款超时兜底（H38）：写型任务（置 FAILED + 解冻资金），故 fail_retry_count=1
+(132, 10, '提现打款超时兜底', now(), now(), 'aicabinet', '',
+ 'CRON', '0 0/10 * * * ?', 'DO_NOTHING', 'FAILOVER',
+ 'withdrawPayingTimeoutJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0)
 ON DUPLICATE KEY UPDATE
   `job_desc`=VALUES(`job_desc`),
   `schedule_conf`=VALUES(`schedule_conf`),

@@ -174,7 +174,8 @@ function bizTypeLabel(type?: string) {
 }
 
 async function markNotificationReadIfNeeded(m: OpenApiNotificationDto) {
-  if (m.read) return;
+  // id 缺失时无法标记已读（生成类型可选），直接跳过，避免打到 /notifications/undefined/read
+  if (m.read || m.id == null) return;
   try {
     await merchantApi.markNotificationRead(m.id);
     m.read = true;
@@ -246,7 +247,7 @@ async function onOpen(m: OpenApiNotificationDto) {
   navigateForNotification(String(m.bizType || '').toUpperCase(), id);
 }
 
-function formatTime(t: string) {
+function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无');
 }
 </script>

@@ -30,6 +30,32 @@ class SiteRentBillServiceTest {
         assertEquals(5000, lines.get(0).amountCents());
     }
 
+    /** H30(c)：INACTIVE 规则不参与分摊，份额不并入首条 ACTIVE 规则。 */
+    @Test
+    void allocate_ignoresInactiveRules() {
+        SiteRentSplitRule landlord = rule(CabinetConstants.RENT_PARTY_LANDLORD, null, 7000, 100);
+        SiteRentSplitRule inactive = rule(CabinetConstants.RENT_PARTY_PLATFORM, null, 3000, 0);
+        inactive.setStatus("INACTIVE");
+
+        var lines = SiteRentBillService.allocate(10000, List.of(landlord, inactive));
+
+        assertEquals(1, lines.size());
+        assertEquals(CabinetConstants.RENT_PARTY_LANDLORD, lines.get(0).partyType());
+        assertEquals(10100, lines.get(0).amountCents());
+    }
+
+    /** H30(c)：status 为空白按 ACTIVE（与保存默认一致）。 */
+    @Test
+    void allocate_blankStatusTreatedAsActive() {
+        SiteRentSplitRule landlord = rule(CabinetConstants.RENT_PARTY_LANDLORD, null, 7000, 0);
+        SiteRentSplitRule blank = rule(CabinetConstants.RENT_PARTY_PLATFORM, null, 3000, 0);
+        blank.setStatus(" ");
+
+        var lines = SiteRentBillService.allocate(10000, List.of(landlord, blank));
+
+        assertEquals(2, lines.size());
+    }
+
     private static SiteRentSplitRule rule(String type, String partyId, int bps, int fixed) {
         SiteRentSplitRule r = new SiteRentSplitRule();
         r.setPartyType(type);

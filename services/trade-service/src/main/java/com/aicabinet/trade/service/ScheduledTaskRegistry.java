@@ -112,6 +112,10 @@ public class ScheduledTaskRegistry {
                 expiryAlertScheduler::scanExpiry);
         register("reconciliation", "每日对账", FINANCE, ScheduleZones.desc("每日 01:30"), 1800,
                 reconciliationScheduler::runDailyReconciliation);
+        // H38 提现打款超时兜底：原先只有 @Scheduled(fixedDelay) 且**未登记** —— 执行记录被
+        // finish() 静默丢弃，运营台看不见、不能启停、不能手动触发（门禁 Rule 4 已拦下）。
+        register("withdraw-paying-timeout", "提现打款超时兜底", FINANCE, "每 10 分钟", 600,
+                reconciliationScheduler::failStalePayingWithdraws);
         register("line-commission", "线长佣金入账", FINANCE, ScheduleZones.desc("每日 00:20"), 1800,
                 lineCommissionJob::postDailyCommission);
         register("finance-margin", "财务保证金固化", FINANCE, ScheduleZones.desc("每日 00:05"), 1800,

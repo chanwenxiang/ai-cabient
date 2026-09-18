@@ -1,0 +1,24 @@
+﻿=== e2e-checkin-contract.ps1（自动选目标，14:30:42）===
+==> 契约真值（读自 e2e-replenishment.ps1）
+    max_distance_m=500 边界 450m/600m
+==> 登录取 token
+    自动选中 device=777740024057 task=3
+    device coords lat=31.238 lng=121.48
+==> 目标 device=777740024057 task=3
+
+==> 用例 1-2：负向断言助手对**真拒绝**应通过
+    ✓ 空 body → HTTP 400 已拒绝
+  [PASS] 空 body → 400 location-required — 请开启定位后到柜前签到
+    ✓ 超距 600m → HTTP 400 已拒绝
+  [PASS] 距柜机约 600m → 400 too-far — 签到位置距柜机约
+
+==> 用例 3-4：对照组 —— 助手**必须**能失败（这组才是防假绿的关键）
+  [PASS] 对照：请求成功却期望被拒 ⇒ 助手报错 — 未被「异常即通过」吞掉
+  [PASS] 对照：状态码对但文案不匹配 ⇒ 助手报错 — 文案断言真的在比
+
+==> 用例 5：正式签到（边界内 450m）
+  [PASS] 边界内签到 → 200 且落库 — status=IN_PROGRESS distanceM=450.00010782910795
+
+[e2e-checkin-contract] 5 个用例，失败 0 个
+[e2e-checkin-contract] OK
+EXITCODE=0

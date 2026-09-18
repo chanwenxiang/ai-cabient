@@ -210,12 +210,9 @@ public class DisputeService {
             }
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DISPUTE_ALREADY_EXISTS);
         }
-        DisputeTicketDto dto = saveOpenTicket(new OpenTicketDraft(
-                userId, session.getSessionId(), request.reason().trim(), "[]",
-                normalizeCategory(request.category()), normalizePriority(request.priority()), null, null));
-        // 用户事后申诉：在原始录像仍保留期间立即归档，避免过期后无法回放
-        videoArchiveService.archiveSession(session);
-        fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
+        // H08b：先把会话置 DISPUTED 并落库，再开争议单——saveOpenTicket 内的
+        // riskControlService.onDisputeCreated 统计近 7 天 DISPUTED 会话时才能把当前单计入频次。
+        // 两者同事务，saveOpenTicket 失败会连同会话状态一起回滚。
         sessionService.transition(session, SessionState.DISPUTED);
         orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
             if ("PAID".equals(order.getStatus()) || STATUS_COMPLETED.equals(order.getStatus())) {
@@ -223,6 +220,12 @@ public class DisputeService {
                 orderRepository.save(order);
             }
         });
+        DisputeTicketDto dto = saveOpenTicket(new OpenTicketDraft(
+                userId, session.getSessionId(), request.reason().trim(), "[]",
+                normalizeCategory(request.category()), normalizePriority(request.priority()), null, null));
+        // 用户事后申诉：在原始录像仍保留期间立即归档，避免过期后无法回放
+        videoArchiveService.archiveSession(session);
+        fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
         return toDto(disputeRepository.findById(dto.ticketId()).orElseThrow());
     }
 
@@ -372,6 +375,8 @@ public class DisputeService {
             ticket.setResolvedAt(null);
             ticket.setReopenedAt(Instant.now());
             ticket.setOperatorNote(null);
+            // M01：save/updateById 忽略 null 列，清空字段须显式 set(null)（后续 finalize 再写回非空值）
+            disputeRepository.update(null, reopenUpdateWrapper(ticket));
         }
         ticket.setReason(reason);
         ticket.setCategory(USER_APPEAL);
@@ -713,10 +718,25 @@ public class DisputeService {
                 orderRepository.save(order);
             }
         });
-        disputeRepository.save(ticket);
+        // M01：updateById 默认忽略 null 列，closedAt 等清空字段必须走显式 set(null) 的 wrapper 更新
+        disputeRepository.update(null, reopenUpdateWrapper(ticket));
         auditService.appendLog(operatorId, "DISPUTE_REOPEN", DISPUTE, ticketId,
                 SESSION + ticket.getSessionId());
         return toDto(ticket);
+    }
+
+    /** M01：重开工单的显式字段更新——实体值全量覆盖，closedAt/resolvedAt 显式置 NULL。 */
+    private com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DisputeTicket>
+            reopenUpdateWrapper(DisputeTicket ticket) {
+        return com.baomidou.mybatisplus.core.toolkit.Wrappers.<DisputeTicket>lambdaUpdate()
+                .eq(DisputeTicket::getTicketId, ticket.getTicketId())
+                .set(DisputeTicket::getStatus, ticket.getStatus())
+                .set(DisputeTicket::getPriority, ticket.getPriority())
+                .set(DisputeTicket::getOperatorNote, ticket.getOperatorNote())
+                .set(DisputeTicket::getClosedAt, null)
+                .set(DisputeTicket::getResolvedAt, ticket.getResolvedAt())
+                .set(DisputeTicket::getReopenedAt, ticket.getReopenedAt())
+                .set(DisputeTicket::getSlaDueAt, ticket.getSlaDueAt());
     }
 
     private ResolveDisputeResultDto resolveWaive(Long operatorId, DisputeTicket ticket, ShoppingSession session,
@@ -1031,7 +1051,10 @@ public class DisputeService {
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
                 ticket.getCategory(), ticket.getPriority(), ticket.getOperatorNote(),
                 ticket.getClosedAt(), ticket.getReopenedAt(), List.of(),
-                fileAttachmentService.listDisputeEvidence(ticket.getTicketId()),
+                // H58：商户无既有附件下载接口权限（仅 operator/上传者），改发带签名的临时 URL
+                fileAttachmentService.listDisputeEvidenceRows(ticket.getTicketId()).stream()
+                        .map(fileAttachmentService::toMerchantEvidenceDto)
+                        .toList(),
                 reviewCode,
                 parseDetectedClasses(ticket.getDetectedClasses()),
                 refundedAmountCents,

@@ -63,7 +63,7 @@ class DuplicateCallbackTest {
         sessionService = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, cabinetMetrics, domainEventPublisher,
                 gravityHelper, null, null, null, null, null, null, null, orderRepository,
-                null, distributedLockService, null, null);
+                null, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(sessionService, "self", sessionService);
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, sessionService);

@@ -1,11 +1,13 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.UpsertDeviceRequest;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.support.ApiMessages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,6 +21,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -79,5 +82,36 @@ class OpsDeviceAdminServiceTest {
         assertTrue(ex.getReason().contains("入库"));
         verify(deviceIdRenameService, never()).renameInPlace(anyString(), anyString());
         verify(deviceIdService, never()).allocateRandomDeviceId();
+    }
+
+    /**
+     * 坐标必填：选商户 = 直接部署，此时没有点位坐标的柜机会产出「永久免定位」的签到，
+     * 因此在建柜阶段就 fail-closed（这是本判据生效的负向证明）。
+     */
+    @Test
+    void createDevice_rejectsDeployWithoutCoords() {
+        when(deviceIdService.resolveForCreate(any())).thenReturn("CAB-NEW");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.createDevice(10001L,
+                        new UpsertDeviceRequest(null, "柜A", null, "M-1", null, null, null)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals(ApiMessages.DEVICE_LOCATION_REQUIRED, ex.getReason());
+        verify(deviceRepository, never()).save(any(DeviceInfo.class));
+    }
+
+    /** 坐标范围非法同样拒写，避免落半截点位数据。 */
+    @Test
+    void createDevice_rejectsOutOfRangeCoords() {
+        when(deviceIdService.resolveForCreate(any())).thenReturn("CAB-NEW");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.createDevice(10001L,
+                        new UpsertDeviceRequest(null, "柜A", null, null, 91.0, 121.0, null)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals(ApiMessages.DEVICE_LOCATION_INVALID, ex.getReason());
+        verify(deviceRepository, never()).save(any(DeviceInfo.class));
     }
 }

@@ -2,11 +2,20 @@
 -- Super admin (100000001) sees 审批节点 + 待他人处理, no 通过/驳回 buttons.
 -- Idempotent: keyed by ref_no PO-UAT-B06.
 
+-- =====================================================================
+-- v2 修订（C01+H15）：本迁移为 UAT/本地种子数据，现按 Flyway placeholders 环境守卫收窄：
+--   仅当 seed-env ∈ (local, dev, uat) 时执行写语句；生产（application-prod.yml 固定 seed-env: none）跳过。
+-- 注意 Flyway checksum：已应用过 v1 本迁移的环境升级后需执行 `flyway repair` 对齐校验和。
+-- =====================================================================
 DO $$
 DECLARE
     po_id BIGINT;
     inst_id BIGINT;
 BEGIN
+    -- 环境守卫（C01+H15）：非 local/dev/uat 环境直接跳过全部种子写入
+    IF '${seed_env}' NOT IN ('local', 'dev', 'uat') THEN
+        RETURN;
+    END IF;
     SELECT purchase_order_id INTO po_id
     FROM purchase_order
     WHERE ref_no = 'PO-UAT-B06'

@@ -110,7 +110,7 @@ services:
       XXL_JOB_ENABLED: ${XXL_JOB_ENABLED:-true}
       # xxl-job-admin 3.x 的 context-path 为 "/"，不能带 /xxl-job-admin 前缀（会 404 → 注册失败）
       XXL_JOB_ADMIN_ADDRESSES: ${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080}
-      XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:-}
+      XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:-dev-xxl-token}  # H48: 开发默认非空，与 full.yml/执行器一致
       XXL_JOB_EXECUTOR_PORT: ${XXL_JOB_EXECUTOR_PORT:-9999}
     depends_on:
       postgres:

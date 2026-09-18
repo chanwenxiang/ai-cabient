@@ -17,12 +17,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 @Service
 public class LineCommissionJob {
     private static final String LINE_COMMISSION = "line-commission";
+    /** 除昨天外回扫的天数窗口：抢锁失败/停机漏算的设备-日在窗口内自愈补算（H19）。 */
+    private static final int BACKFILL_DAYS = 7;
 
 
     private static final Logger log = LoggerFactory.getLogger(LineCommissionJob.class);
@@ -62,9 +65,12 @@ public class LineCommissionJob {
         boolean failed = false;
         String summary = "本次无线长佣金入账";
         try {
-            LocalDate bizDate = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
-            Instant start = bizDate.atStartOfDay(ScheduleZones.ZONE).toInstant();
-            Instant end = bizDate.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
+            LocalDate today = LocalDate.now(ScheduleZones.ZONE);
+            // 主算昨天 + 回扫最近 7 天：单设备-日抢锁失败仅跳过当天，下次运行自愈（H19）
+            LinkedHashSet<LocalDate> bizDates = new LinkedHashSet<>();
+            for (int i = 1; i <= BACKFILL_DAYS; i++) {
+                bizDates.add(today.minusDays(i));
+            }
             List<LineDevice> bindings = deviceMapper.findByStatus(LineManagerService.STATUS_ACTIVE);
             int posted = 0;
             for (LineDevice binding : bindings) {
@@ -72,15 +78,23 @@ public class LineCommissionJob {
                 if (manager == null || !LineManagerService.STATUS_ACTIVE.equalsIgnoreCase(manager.getStatus())) {
                     continue;
                 }
-                if (tryPostCommissionForBinding(manager, binding, bizDate, start, end)) {
-                    posted++;
+                for (LocalDate bizDate : bizDates) {
+                    // 无锁预查重，避免已入账设备-日反复抢锁
+                    if (commissionDailyMapper.findByManagerIdAndBizDateAndDeviceId(
+                            manager.getManagerId(), bizDate, binding.getDeviceId()).isPresent()) {
+                        continue;
+                    }
+                    if (tryPostCommissionForBinding(manager, binding, bizDate)) {
+                        posted++;
+                    }
                 }
             }
             summary = posted <= 0
-                    ? "本次无线长佣金入账（" + bizDate + "）"
-                    : "入账线长佣金 " + posted + " 条（" + bizDate + "）";
+                    ? "本次无线长佣金入账（含回扫 " + BACKFILL_DAYS + " 天）"
+                    : "入账线长佣金 " + posted + " 条（含回扫 " + BACKFILL_DAYS + " 天）";
             if (posted > 0) {
-                log.info("Line commission posted for {} device-day rows on {}", posted, bizDate);
+                log.info("Line commission posted for {} device-day rows (backfill window={}d)",
+                        posted, BACKFILL_DAYS);
             }
         } catch (Exception e) {
             failed = true;
@@ -97,8 +111,9 @@ public class LineCommissionJob {
         return "line-commission:daily:" + managerId + ":" + deviceId + ":" + bizDate;
     }
 
-    private boolean tryPostCommissionForBinding(LineManager manager, LineDevice binding,
-                                                LocalDate bizDate, Instant start, Instant end) {
+    private boolean tryPostCommissionForBinding(LineManager manager, LineDevice binding, LocalDate bizDate) {
+        Instant start = bizDate.atStartOfDay(ScheduleZones.ZONE).toInstant();
+        Instant end = bizDate.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
         String lockKey = lineCommissionDailyLockKey(
                 manager.getManagerId(), binding.getDeviceId(), bizDate);
         if (!distributedLockService.tryLock(lockKey, 60, 5)) {

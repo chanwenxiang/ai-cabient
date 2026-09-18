@@ -29,14 +29,7 @@ SELECT 10001, '13900000003', 'SMS', 'MCH-DEFAULT', NOW() - INTERVAL '1 day'
 WHERE EXISTS (SELECT 1 FROM phone_verify_log LIMIT 1)
   AND NOT EXISTS (SELECT 1 FROM phone_verify_log WHERE phone = '13900000003');
 
-INSERT INTO device_ops_event (device_id, event_type, severity, title, detail, created_at)
-SELECT 'CAB-001', 'OFFLINE', 'WARN', '设备离线', '演示：心跳超时 15 分钟', NOW() - INTERVAL '2 hour'
-WHERE NOT EXISTS (SELECT 1 FROM device_ops_event LIMIT 1);
-
-INSERT INTO device_ops_event (device_id, event_type, severity, title, detail, created_at)
-SELECT 'CAB-001', 'NO_SALES', 'INFO', '长时间无销售', '演示：24h 无成交', NOW() - INTERVAL '6 hour'
-WHERE EXISTS (SELECT 1 FROM device_info WHERE device_id = 'CAB-001')
-  AND NOT EXISTS (SELECT 1 FROM device_ops_event WHERE event_type = 'NO_SALES' AND device_id = 'CAB-001');
+-- 已归档（2026-09-18）：原演示设备事件种子已移除（针对已删除的演示柜 CAB-001），原 SQL 见 git 历史。
 
 INSERT INTO warehouse_stocktake (
     stocktake_no, warehouse_id, mode, status, book_qty, notes, operator_id, created_at

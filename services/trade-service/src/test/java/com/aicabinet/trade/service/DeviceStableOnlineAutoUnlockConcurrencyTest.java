@@ -16,7 +16,6 @@ import org.mockito.quality.Strictness;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -59,9 +58,9 @@ class DeviceStableOnlineAutoUnlockConcurrencyTest {
         when(devices.findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
                 eq("ONLINE"), any(Instant.class), eq(200)))
                 .thenReturn(List.of(device));
-        when(exceptions.findFirstByExceptionTypeAndDeviceIdAndStatusIn(
-                eq("DEVICE_FAULT"), eq("CAB-AU"), any()))
-                .thenReturn(Optional.of(new OpsException()));
+        when(exceptions.findByDeviceIdAndExceptionTypeInAndStatusIn(
+                eq("CAB-AU"), any(), any()))
+                .thenReturn(List.of(offlineAutoLockFault()));
         when(tickets.selectCount(any())).thenReturn(0L);
         when(sessions.selectCount(any())).thenReturn(0L);
         when(distributedLockService.tryLock(
@@ -70,5 +69,12 @@ class DeviceStableOnlineAutoUnlockConcurrencyTest {
 
         assertEquals(0, service.autoUnlockStableOnlineDevices());
         verifyNoInteractions(salesLock);
+    }
+
+    private static OpsException offlineAutoLockFault() {
+        OpsException fault = new OpsException();
+        fault.setExceptionType("DEVICE_FAULT");
+        fault.setTitle(OpsExceptionService.OFFLINE_AUTO_LOCK_TITLE);
+        return fault;
     }
 }

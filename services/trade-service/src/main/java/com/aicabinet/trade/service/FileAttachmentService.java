@@ -163,6 +163,28 @@ public class FileAttachmentService {
                 .toList();
     }
 
+    /**
+     * H58：返回争议凭证原始行（含 storagePath），供商户端生成预签名临时 URL。
+     * 与 {@link #listDisputeEvidence} 同源只读，不改变既有方法行为。
+     */
+    @Transactional(readOnly = true)
+    public List<FileAttachment> listDisputeEvidenceRows(String ticketId) {
+        return fileAttachmentMapper.findByRef(REF_DISPUTE, ticketId);
+    }
+
+    /** 按行生成商户可见 URL：预签名临时地址，本地 file:// 等无法预签名时回退既有接口地址。 */
+    public FileAttachmentDto toMerchantEvidenceDto(FileAttachment row) {
+        String presigned = minioVideoService.presignPlaybackUrl(row.getStoragePath())
+                .filter(url -> !url.startsWith("file:"))
+                .orElse(null);
+        FileAttachmentDto legacy = toDto(row);
+        if (presigned == null) {
+            return legacy;
+        }
+        return FileAttachmentDto.of(row.getFileId(), row.getFileName(), row.getContentType(),
+                row.getFileSize(), presigned);
+    }
+
     @Transactional
     public FileAttachmentDto uploadReplenishmentEvidence(Long userId, Long taskId, MultipartFile file) {
         if (userId == null) {
@@ -647,13 +669,29 @@ public class FileAttachmentService {
         return row;
     }
 
+    /**
+     * H24：运营经通用附件读取入口（requireReadable）可见的附件类别白名单。
+     * 仅限运营职责必需的争议与补货证据（含关联争议/补货申请的待归属附件）；
+     * 商品图 / 头像 / Logo 各有专属访问路径，不经此口放行。
+     * 宁窄勿宽：仓库出现新 refType 时默认不可读，需显式加入。
+     */
+    private static final Set<String> OPERATOR_READABLE_REF_TYPES = Set.of(
+            REF_PENDING, REF_DISPUTE, REF_REPLENISHMENT,
+            REF_PENDING_REPLENISHMENT_REQUEST, REF_REPLENISHMENT_REQUEST);
+
     @Transactional(readOnly = true)
     public FileAttachment requireReadable(Long requesterId, Long fileId, boolean operator) {
         FileAttachment row = fileAttachmentMapper.selectById(fileId);
         if (row == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "附件不存在");
         }
-        if (operator || requesterId.equals(row.getUploadedBy())) {
+        if (operator) {
+            if (row.getRefType() == null || !OPERATOR_READABLE_REF_TYPES.contains(row.getRefType())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权查看该附件");
+            }
+            return row;
+        }
+        if (requesterId.equals(row.getUploadedBy())) {
             return row;
         }
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权查看该附件");

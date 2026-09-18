@@ -318,6 +318,52 @@ class SettlementConfirmDisputeTest {
         verify(orderRepository, org.mockito.Mockito.never()).save(any());
     }
 
+    /** C06：支付差额失败 → 不做任何库存变更、订单不落库（库存调整已移至支付成功后的 finalize）。 */
+    @Test
+    void confirmDisputedItems_paymentDeltaFails_skipsInventoryAndSave() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-D6-PAYFAIL");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-1");
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-D6-PAYFAIL");
+        order.setSessionId("S-D6-PAYFAIL");
+        order.setUserId(10001L);
+        order.setDeviceId("CAB-1");
+        order.setStatus("DISPUTED");
+        order.setTotalAmountCents(400);
+        order.setInventoryDeducted(true);
+        order.setLines(new ArrayList<>(List.of(line("SKU-A", "A", 1, 400))));
+
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId("SKU-A");
+        sku.setSkuName("A");
+
+        when(orderRepository.findBySessionId("S-D6-PAYFAIL")).thenReturn(Optional.of(order));
+        when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
+        when(skuPricingService.resolveUnitPriceCents("CAB-1", sku)).thenReturn(400);
+        when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
+        when(slotRepository.findByIdDeviceId("CAB-1")).thenReturn(List.of());
+        when(userValidationService.canChargeViaPasswordFree(10001L, null)).thenReturn(true);
+        org.mockito.Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.PAYMENT_REQUIRED, "支付差额失败"))
+                .when(orderPaymentService).applyPaymentDelta(any(), eq(400));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> settlementService.confirmDisputedItems(
+                        session,
+                        List.of(new VisionServiceClient.RecognizedItem("SKU-A", 2, 1f))));
+
+        verify(inventoryService, org.mockito.Mockito.never())
+                .adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any());
+        verify(inventoryService, org.mockito.Mockito.never())
+                .deductForOrder(anyString(), anyList(), anyString(), any());
+        verify(orderRepository, org.mockito.Mockito.never()).save(any());
+        verify(revenueSplitService, org.mockito.Mockito.never()).adjustSplitAfterOrderChange(any(), anyInt());
+    }
+
     private static CabinetOrderLine line(String sku, String name, int qty, int unit) {
         CabinetOrderLine l = new CabinetOrderLine();
         l.setSkuId(sku);

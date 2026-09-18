@@ -44,6 +44,7 @@ class ReplenishmentServiceEmptyTaskTest {
     @Mock private SessionService sessionService;
     @Mock private NotificationService notificationService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private SystemConfigService systemConfigService;
 
     private ReplenishmentService replenishmentService;
 
@@ -52,7 +53,7 @@ class ReplenishmentServiceEmptyTaskTest {
         replenishmentService = new ReplenishmentService(
                 null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
                 new ObjectMapper(), warehouseService, deviceRepository, deviceSlotService, inTransitService,
-                sessionService, null, null, notificationService, distributedLockService, null, null);
+                sessionService, null, null, notificationService, distributedLockService, systemConfigService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(replenishmentService, "self", replenishmentService);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
     }
@@ -79,6 +80,10 @@ class ReplenishmentServiceEmptyTaskTest {
         task.setStatus("PLANNED");
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId("CAB-1");
+        // 本用例的考点是「有任务行即可签到」（BUG-010 空任务收口），与位置围栏正交：
+        // 显式关掉 require_location，避免坐标必填门禁（见 ReplenishmentCheckInLocationGatesTest）
+        // 把这条断言污染成"因为位置才失败/通过"。
+        when(systemConfigService.getBoolean(anyString(), anyBoolean())).thenReturn(false);
         when(taskRepository.findByIdForUpdate(8L)).thenReturn(Optional.of(task));
         when(taskLineRepository.findByTaskIdOrderByLineIdAsc(8L)).thenReturn(List.of(new ReplenishmentTaskLine()));
         when(deviceRepository.findById("CAB-1")).thenReturn(Optional.of(device));

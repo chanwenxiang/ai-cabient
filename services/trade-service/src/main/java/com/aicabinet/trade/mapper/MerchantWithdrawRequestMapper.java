@@ -37,4 +37,13 @@ public interface MerchantWithdrawRequestMapper extends BaseTradeMapper<MerchantW
         }
         return sum;
     }
+
+    /** 指定状态且 updatedAt 早于 cutoff 的提现单（打款超时扫描用，H38）。 */
+    default List<MerchantWithdrawRequest> findByStatusAndUpdatedAtBefore(String status, Instant cutoff) {
+        return selectList(Wrappers.<MerchantWithdrawRequest>lambdaQuery()
+                .eq(MerchantWithdrawRequest::getStatus, status)
+                .lt(MerchantWithdrawRequest::getUpdatedAt, cutoff)
+                .orderByAsc(MerchantWithdrawRequest::getUpdatedAt)
+                .last("LIMIT 100"));
+    }
 }

@@ -24,6 +24,7 @@ import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.mapper.FileAttachmentMapper;
 import com.aicabinet.trade.domain.FileAttachment;
+import com.aicabinet.trade.sms.SmsCodeService;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -63,6 +64,7 @@ public class OpsRbacService {
     private final OpsDepartmentMapper departmentRepository;
     private final FileAttachmentMapper fileAttachmentRepository;
     private final AdminAuditService auditService;
+    private final SmsCodeService smsCodeService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final OpsRbacService self;
 
@@ -84,6 +86,7 @@ public class OpsRbacService {
                           OpsDepartmentMapper departmentRepository,
                           FileAttachmentMapper fileAttachmentRepository,
                           AdminAuditService auditService,
+                          SmsCodeService smsCodeService,
                           @Lazy OpsRbacService self) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
@@ -103,6 +106,7 @@ public class OpsRbacService {
         this.departmentRepository = departmentRepository;
         this.fileAttachmentRepository = fileAttachmentRepository;
         this.auditService = auditService;
+        this.smsCodeService = smsCodeService;
         this.self = self;
     }
 
@@ -181,8 +185,20 @@ public class OpsRbacService {
         return runWithPermissionCodeLock(permCode, () -> doCreatePermission(request, permCode));
     }
 
+    /** H65：运行时新建权限码必须是具体 ops 分段码，禁止通配（PermissionService 对 xxx:* 显式放行）。 */
+    private static final java.util.regex.Pattern OPS_PERM_CODE_PATTERN =
+            java.util.regex.Pattern.compile("^ops:[a-z0-9-]+(:[a-z0-9-]+)*$");
+
     private OpsPermissionDto doCreatePermission(CreateOpsPermissionRequest request, String permCode) {
         String permType = normalizePermType(request.permType());
+        if (permCode == null || permCode.contains("*") || !OPS_PERM_CODE_PATTERN.matcher(permCode).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "权限标识须为 ops:xxx 分段格式（小写字母数字与连字符），不允许通配符");
+        }
+        if ("ops:admin".equals(permCode)) {
+            // ops:admin 仅由数据库初始化脚本（V 系列迁移）创建，运行时一律拒绝
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "系统内置权限不可创建");
+        }
         if (permissionRepository.findByPermCode(permCode).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "权限标识已存在");
         }
@@ -322,14 +338,26 @@ public class OpsRbacService {
         rolePermissionRepository.deleteByIdRoleId(roleId);
         if (permissionIds != null) {
             for (Long permissionId : permissionIds) {
-                if (!permissionRepository.existsById(permissionId)) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                            ApiMessages.INVALID_REQUEST + "：permissionId=" + permissionId);
+                OpsPermission permission = permissionRepository.findById(permissionId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                ApiMessages.INVALID_REQUEST + "：permissionId=" + permissionId));
+                // C15：保留权限（ops:admin / 通配码）不可落到自定义角色，否则持有即放行全部运营权限
+                String code = permission.getPermCode();
+                if (!ADMIN.equals(role.getRoleKey()) && isReservedPermissionCode(code)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "保留权限不可分配给自定义角色");
                 }
                 rolePermissionRepository.insert(new OpsRolePermission(roleId, permissionId));
             }
         }
         return self.getRolePermissions(operatorId, roleId);
+    }
+
+    /** C15：ops:admin 与 xxx:* 通配码为保留权限，仅超级管理员角色可持有。 */
+    private static boolean isReservedPermissionCode(String permCode) {
+        if (permCode == null) {
+            return false;
+        }
+        return "ops:admin".equals(permCode) || permCode.endsWith(":*");
     }
 
     @Transactional(readOnly = true)
@@ -394,6 +422,10 @@ public class OpsRbacService {
         UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         String phone = normalizePhone(request.phoneNumber());
+        if (!phone.equals(user.getPhoneNumber())) {
+            // C14：换绑手机号必须先校验发往新号码的短信验证码
+            verifyPhoneChangeSmsCode(phone, request.phoneSmsCode());
+        }
         userInfoRepository.findByPhoneNumber(phone).ifPresent(existing -> {
             if (!existing.getUserId().equals(userId)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.PHONE_ALREADY_EXISTS);
@@ -429,10 +461,15 @@ public class OpsRbacService {
         if (userId.equals(operatorId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_DISABLE_SELF);
         }
+        // C16：超级管理员账号不允许被其他运营禁用
+        if (userHasRoleKey(userId, ADMIN)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "不允许禁用/重置超级管理员账号");
+        }
         UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         user.setStatus(INACTIVE);
         userInfoRepository.save(user);
+        auditService.appendLog(operatorId, "OPS_OPERATOR_DISABLE", "USER", String.valueOf(userId), null);
     }
 
     /** 管理员重置他人运营账号密码；禁止重置自己（请走个人中心）。 */
@@ -449,6 +486,10 @@ public class OpsRbacService {
         ensureOperatorAccount(userId);
         if (userId.equals(operatorId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_RESET_OWN_PASSWORD);
+        }
+        // C16：超级管理员账号不允许被其他运营重置密码
+        if (userHasRoleKey(userId, ADMIN)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "不允许禁用/重置超级管理员账号");
         }
         String password = request.password();
         if (password == null || password.length() < 6 || password.length() > 64) {
@@ -670,6 +711,10 @@ public class OpsRbacService {
     private OpsMeDto doUpdateMyProfile(Long operatorId, UpdateOpsMeRequest request, String phone) {
         UserInfo user = userInfoRepository.findByIdForUpdate(operatorId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        if (!phone.equals(user.getPhoneNumber())) {
+            // C14：换绑手机号必须先校验发往新号码的短信验证码
+            verifyPhoneChangeSmsCode(phone, request.phoneSmsCode());
+        }
         userInfoRepository.findByPhoneNumber(phone).ifPresent(existing -> {
             if (!existing.getUserId().equals(operatorId)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.PHONE_ALREADY_EXISTS);
@@ -690,6 +735,25 @@ public class OpsRbacService {
         user.setAvatarUrl(avatarUrl);
         userInfoRepository.save(user);
         return myProfile(operatorId);
+    }
+
+    /**
+     * C14：发送换绑手机验证码到新号码（运营登录态即可调用）。
+     * 冷却 / 小时限频复用 {@link SmsCodeService} 既有节流。
+     */
+    public void sendPhoneChangeCode(Long operatorId, String phoneNumber) {
+        permissionService.requireOperator(operatorId);
+        smsCodeService.sendCode(normalizePhone(phoneNumber));
+    }
+
+    /** C14：校验发往新手机号的短信验证码；缺失或不匹配抛业务异常。 */
+    private void verifyPhoneChangeSmsCode(String newPhone, String smsCode) {
+        if (smsCode == null || smsCode.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "换绑手机号需提供短信验证码");
+        }
+        if (!smsCodeService.verifyCode(newPhone, smsCode.trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_CODE);
+        }
     }
 
     private OpsOperatorDto toOperatorDto(UserInfo user) {

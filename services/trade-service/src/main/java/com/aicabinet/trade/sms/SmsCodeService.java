@@ -68,8 +68,9 @@ public class SmsCodeService {
         markSendSucceeded(normalized);
 
         if (securityProperties.mockEnabled()) {
+            // L03：验证码属敏感信息，降为 debug 且只打掩码（前 2 位 + ****）
             String masked = maskPhone(normalized);
-            log.info("DEV SMS code for {}: {} (stored in DB)", masked, code);
+            log.debug("DEV SMS code for {}: {} (stored in DB)", masked, maskCode(code));
             return;
         }
         smsSender.send(normalized, code);
@@ -194,6 +195,14 @@ public class SmsCodeService {
             return "***";
         }
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
+
+    /** 验证码日志掩码：仅保留前 2 位，避免明文进日志。 */
+    private static String maskCode(String code) {
+        if (code == null || code.length() <= 2) {
+            return "****";
+        }
+        return code.substring(0, 2) + "****";
     }
 
     public record SmsCodeSnapshot(String phoneNumber, String code, Instant expiresAt) {}

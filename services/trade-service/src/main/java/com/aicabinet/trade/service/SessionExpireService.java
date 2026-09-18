@@ -185,6 +185,7 @@ public class SessionExpireService {
             return;
         }
         boolean failed = false;
+        int failures = 0;
         String summary = "本次无识别超时会话";
         try {
             Instant cutoff = Instant.now().minus(sessionExpireProperties.recognizingMinutes(), ChronoUnit.MINUTES);
@@ -192,12 +193,21 @@ public class SessionExpireService {
             for (ShoppingSession s : repository.findByStateInAndUpdatedAtBefore(
                     List.of(SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING),
                     cutoff, 500)) {
-                if (upgradeStaleRecognizingSession(s, cutoff)) {
-                    upgraded++;
+                try {
+                    if (upgradeStaleRecognizingSession(s, cutoff)) {
+                        upgraded++;
+                    }
+                } catch (Exception sessionEx) {
+                    // M14：单会话失败不再吞掉，计入 failures 并反映到任务状态
+                    failures++;
+                    log.warn("识别超时升级失败 {}", SessionLogContext.of(s), sessionEx);
                 }
             }
             if (upgraded > 0) {
                 summary = "识别超时升级 " + upgraded + " 个会话";
+            }
+            if (failures > 0) {
+                summary = (upgraded > 0 ? summary : "本次识别超时升级 0 个会话") + ", failures=" + failures;
             }
         } catch (Exception e) {
             failed = true;
@@ -205,39 +215,60 @@ public class SessionExpireService {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish(SESSION_RECOGNIZING_EXPIRE, STATUS_SUCCESS, summary, start);
+                taskService.finish(SESSION_RECOGNIZING_EXPIRE,
+                        failures > 0 ? CabinetConstants.ORDER_STATUS_FAILED : STATUS_SUCCESS, summary, start);
             }
         }
     }
 
+    /**
+     * 识别超时升级：与会话清理路径一致——先抢 session:life 分布式锁 + findByIdForUpdate 行锁重查，
+     * 再做状态迁移；抢锁失败跳过本会话（下轮重扫），行锁内重查后不满足超时条件同样跳过（C08）。
+     */
     private boolean upgradeStaleRecognizingSession(ShoppingSession session, Instant cutoff) {
-        Instant anchor;
-        if (session.getCloseTime() != null) {
-            anchor = session.getCloseTime();
-        } else if (session.getUpdatedAt() != null) {
-            anchor = session.getUpdatedAt();
-        } else {
-            anchor = session.getCreatedAt();
-        }
-        if (anchor == null || !anchor.isBefore(cutoff)) {
+        if (!distributedLockService.tryLock(SessionService.sessionLifeLockKey(session.getSessionId()), 30, 0)) {
+            log.debug("expire recognizing skipped busy session={}", session.getSessionId());
             return false;
         }
         try {
-            if (DeviceValidationService.isRestockSession(session)) {
-                closeStaleRestockRecognizing(session);
+            ShoppingSession locked = repository.findByIdForUpdate(session.getSessionId()).orElse(null);
+            if (locked == null) {
+                return false;
+            }
+            Instant anchor = resolveRecognizingAnchor(locked);
+            if (anchor == null || !anchor.isBefore(cutoff)) {
+                return false;
+            }
+            if (DeviceValidationService.isRestockSession(locked)) {
+                closeStaleRestockRecognizing(locked);
                 return true;
             }
-            upgradeConsumerRecognizingTimeout(session);
+            upgradeConsumerRecognizingTimeout(locked);
             return true;
-        } catch (Exception e) {
-            log.warn("识别超时升级失败 {}", SessionLogContext.of(session), e);
-            return false;
+        } finally {
+            distributedLockService.unlock(SessionService.sessionLifeLockKey(session.getSessionId()));
         }
+    }
+
+    private static Instant resolveRecognizingAnchor(ShoppingSession session) {
+        if (session.getCloseTime() != null) {
+            return session.getCloseTime();
+        }
+        if (session.getUpdatedAt() != null) {
+            return session.getUpdatedAt();
+        }
+        return session.getCreatedAt();
     }
 
     private void upgradeConsumerRecognizingTimeout(ShoppingSession session) {
         SessionState from = session.getState();
         String failReason = "识别超时，已转人工审核，本次暂未扣款";
+        // C09：升级前释放预授权冻结；失败只记 error 并告警，不阻断状态迁移
+        try {
+            consumerPreauthService.releaseIfFrozen(session);
+        } catch (Exception e) {
+            log.error("识别超时释放预授权失败 sessionId={}", session.getSessionId(), e);
+        }
         if (from.canTransitionTo(SessionState.DISPUTED)) {
             session.setFailReason(failReason);
             sessionService.transition(session, SessionState.DISPUTED);

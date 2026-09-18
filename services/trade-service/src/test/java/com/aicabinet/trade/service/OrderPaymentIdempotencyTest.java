@@ -65,6 +65,10 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
+                null,
+                null,
+                null,
+                null,
                 memberService,
                 null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
@@ -164,6 +168,10 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
+                null,
+                null,
+                null,
+                null,
                 memberService,
                 null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
@@ -193,6 +201,10 @@ class OrderPaymentIdempotencyTest {
                 balanceLedgerService,
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
+                null,
+                null,
+                null,
+                null,
                 null,
                 memberService,
                 null);
@@ -224,6 +236,10 @@ class OrderPaymentIdempotencyTest {
                 balanceLedgerService,
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
+                null,
+                null,
+                null,
+                null,
                 null,
                 memberService,
                 null);
@@ -257,6 +273,10 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
+                null,
+                null,
+                null,
+                null,
                 memberService,
                 null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
@@ -289,6 +309,10 @@ class OrderPaymentIdempotencyTest {
                 balanceLedgerService,
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
+                null,
+                null,
+                null,
+                null,
                 null,
                 memberService,
                 null);
@@ -329,6 +353,10 @@ class OrderPaymentIdempotencyTest {
                 balanceLedgerService,
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
+                null,
+                null,
+                null,
+                null,
                 null,
                 memberService,
                 null);

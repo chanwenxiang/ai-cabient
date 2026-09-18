@@ -139,28 +139,89 @@ try {
     $outboundId = $null
 }
 
-Write-Host "==> 5. Merchant check-in (device coords when configured)"
-$checkInBody = @{}
+Write-Host "==> 5. Merchant check-in — 契约用例（fail-closed）+ 正式签到"
+
+# ── 签到契约真值块 ────────────────────────────────────────────────────────────
+# 本块被 scripts/check-replenishment-checkin-contract.mjs **静态校验**：
+#   · 三条文案必须是 ApiMessages.java 里对应常量的子串（改了文案不改这里 ⇒ 门禁红）
+#   · MaxDistanceDefaultM 必须等于 SystemConfigService 中 upsertIfAbsent 的默认值
+#   · BoundaryInsideM < MaxDistanceDefaultM < BoundaryOutsideM
+# 背景：本脚本曾把「柜机无坐标」当成「跳过校验、发空 body」的**放行**路径。
+#      服务端改成「无坐标拒签」(fail-closed) 后那条路径必然 400 —— 脚本必须跟着契约走，
+#      而不是跟着旧假设走；否则只要柜机漏填坐标，脚本第 5 步就必红且原因难辨认。
+$CheckInContract = @{
+    DeviceLocationMissingMessage = "本柜尚未录入点位坐标"
+    LocationRequiredMessage      = "请开启定位后到柜前签到"
+    TooFarMessage                = "签到位置距柜机约"
+    TaskFinishedMessage          = "补货任务已结束"
+    MaxDistanceDefaultM          = 500
+    BoundaryInsideM              = 450
+    BoundaryOutsideM             = 600
+}
+# 服务端距离用 haversine（R=6371000）⇒ 1 纬度 ≈ 111194.9 m。边界用例靠纯纬度偏移构造。
+$MetersPerDegreeLat = 111194.9
+
+$deviceLat = $null
+$deviceLng = $null
 try {
     $dev = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
         -Path "/api/v2/ops/admin/devices/$DeviceId" -Headers $opsAuth
-    $lat = $null; $lng = $null
-    if ($dev.latitude -ne $null) { $lat = [double]$dev.latitude }
-    elseif ($dev.device -and $dev.device.latitude -ne $null) { $lat = [double]$dev.device.latitude }
-    if ($dev.longitude -ne $null) { $lng = [double]$dev.longitude }
-    elseif ($dev.device -and $dev.device.longitude -ne $null) { $lng = [double]$dev.device.longitude }
-    if ($null -ne $lat -and $null -ne $lng) {
-        $checkInBody = @{ latitude = $lat; longitude = $lng }
-        Write-Host "    using device coords lat=$lat lng=$lng"
-    } else {
-        Write-Host "    device has no coords — empty check-in body"
-    }
+    if ($dev.latitude -ne $null) { $deviceLat = [double]$dev.latitude }
+    elseif ($dev.device -and $dev.device.latitude -ne $null) { $deviceLat = [double]$dev.device.latitude }
+    if ($dev.longitude -ne $null) { $deviceLng = [double]$dev.longitude }
+    elseif ($dev.device -and $dev.device.longitude -ne $null) { $deviceLng = [double]$dev.device.longitude }
 } catch {
-    Write-Warning "Device lookup for check-in coords failed: $_"
+    throw "读取柜机 $DeviceId 坐标失败（签到契约靠它选分支）：$_"
 }
-$checked = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-    -Path "/api/v2/merchant/replenishment/tasks/$taskId/check-in" -Headers $mchAuth -Body $checkInBody
-Write-Host "    status=$($checked.status) checkInAt=$($checked.checkInAt)"
+$deviceHasCoords = ($null -ne $deviceLat -and $null -ne $deviceLng)
+$checkInPath = "/api/v2/merchant/replenishment/tasks/$taskId/check-in"
+
+if (-not $deviceHasCoords) {
+    # fail-closed 分支：柜机无坐标 ⇒ 契约要求**任何**请求体都被拒。
+    # 这里必须直接失败退出，而不是「凑合继续」—— 后续 open-door / complete 都依赖签到成功。
+    Assert-E2eApiRejected -BaseUrl $BaseUrl -Method POST -Path $checkInPath -Headers $mchAuth `
+        -Body @{} -ExpectStatus 400 `
+        -ExpectMessageContains $CheckInContract.DeviceLocationMissingMessage `
+        -Label "P0 柜机无坐标 + 空 body" | Out-Null
+    Assert-E2eApiRejected -BaseUrl $BaseUrl -Method POST -Path $checkInPath -Headers $mchAuth `
+        -Body @{ latitude = 31.2304; longitude = 121.4737 } -ExpectStatus 400 `
+        -ExpectMessageContains $CheckInContract.DeviceLocationMissingMessage `
+        -Label "P0 柜机无坐标 + 带合法坐标（旧逻辑会放行的那条路径）" | Out-Null
+    throw ("柜机 $DeviceId 未配置点位坐标：签到契约要求拒签（fail-closed），补货流程无法继续。" +
+        "请先在运营后台补录该柜机经纬度，然后重跑本脚本。")
+}
+
+Write-Host "    device coords lat=$deviceLat lng=$deviceLng"
+
+# 负向用例 1：请求侧闸 —— 柜机有坐标时签到必须带定位
+Assert-E2eApiRejected -BaseUrl $BaseUrl -Method POST -Path $checkInPath -Headers $mchAuth `
+    -Body @{} -ExpectStatus 400 `
+    -ExpectMessageContains $CheckInContract.LocationRequiredMessage `
+    -Label "P1 空 body（期望 location-required）" | Out-Null
+
+# 负向用例 2：距离闸上界 —— 超出 max_distance_m 必须被拒
+$outsideLat = $deviceLat + ($CheckInContract.BoundaryOutsideM / $MetersPerDegreeLat)
+Assert-E2eApiRejected -BaseUrl $BaseUrl -Method POST -Path $checkInPath -Headers $mchAuth `
+    -Body @{ latitude = $outsideLat; longitude = $deviceLng } -ExpectStatus 400 `
+    -ExpectMessageContains $CheckInContract.TooFarMessage `
+    -Label ("P2 距柜机约 {0}m（上限 {1}m）" -f $CheckInContract.BoundaryOutsideM, $CheckInContract.MaxDistanceDefaultM) | Out-Null
+
+# 负向用例不得推进任务状态（防「先写 check_in_at 再抛错」这种半成品闸门）
+$inProgress = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+    -Path "/api/v2/merchant/replenishment/tasks?status=IN_PROGRESS" -Headers $mchAuth)
+$advanced = $inProgress | Where-Object { [long]$_.taskId -eq $taskId } | Select-Object -First 1
+if ($advanced) {
+    throw "签到负向用例不应推进任务，但 taskId=$taskId 已出现在 IN_PROGRESS 列表"
+}
+
+# 正式签到：距离闸下界内（< max_distance_m）
+$insideLat = $deviceLat + ($CheckInContract.BoundaryInsideM / $MetersPerDegreeLat)
+$checked = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path $checkInPath -Headers $mchAuth `
+    -Body @{ latitude = $insideLat; longitude = $deviceLng }
+if ($null -eq $checked.checkInAt -or $null -eq $checked.checkInLat -or $null -eq $checked.checkInLng) {
+    throw "签到成功但未落库 checkInAt/check_in_lat/check_in_lng：$($checked | ConvertTo-Json -Depth 4 -Compress)"
+}
+Write-Host "    status=$($checked.status) checkInAt=$($checked.checkInAt) distanceM=$($checked.checkInDistanceM)"
 
 Write-Host "==> 6. Merchant open-door"
 $session = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `

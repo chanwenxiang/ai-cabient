@@ -76,6 +76,7 @@ public class PaymentService {
     private final PayScoreService payScoreService;
     private final DistributedLockService distributedLockService;
     private final PaymentOperationMapper paymentOperationRepository;
+    private final OpsAlertDispatcher opsAlertDispatcher;
     private final PaymentService self;
 
     public PaymentService(RechargeOrderMapper rechargeOrderRepository,
@@ -94,6 +95,7 @@ public class PaymentService {
                           PayScoreService payScoreService,
                           DistributedLockService distributedLockService,
                           PaymentOperationMapper paymentOperationRepository,
+                          OpsAlertDispatcher opsAlertDispatcher,
                           @Lazy PaymentService self) {
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.userInfoRepository = userInfoRepository;
@@ -111,6 +113,7 @@ public class PaymentService {
         this.payScoreService = payScoreService;
         this.distributedLockService = distributedLockService;
         this.paymentOperationRepository = paymentOperationRepository;
+        this.opsAlertDispatcher = opsAlertDispatcher;
         this.self = self;
     }
 
@@ -210,6 +213,16 @@ public class PaymentService {
             return new RechargePrepayResponse(order.getChannel(), order.getOrderId(), null,
                     new AlipayPayParams(order.getOrderId(), order.getAlipayTradeNo(), null, null),
                     Map.of(ORDERID, order.getOrderId(), "mode", "mock"));
+        }
+        // H10: live 已配置时不得返回 MOCK_SIGN 等模拟参数，复用真实预下单分支重签
+        if (weChatPayProperties.isConfigured()) {
+            if (!STATUS_PENDING.equals(order.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
+            }
+            return createWeChatPrepay(order, order.getUserId());
+        }
+        if (!securityProperties.mockEnabled()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_PAY_NOT_CONFIGURED);
         }
         Map<String, String> info = Map.of(ORDERID, order.getOrderId(), "mode", "mock");
         WxPayParams wxPay = new WxPayParams(String.valueOf(Instant.now().getEpochSecond()),
@@ -345,7 +358,7 @@ public class PaymentService {
                 log.warn("wechat notify missing amount orderId={}", outTradeNo);
                 return;
             }
-            creditRecharge(outTradeNo, notifyCents,
+            creditRechargeNotify(outTradeNo, notifyCents,
                     transaction.path(TRANSACTION_ID).asText(null), null);
         });
     }
@@ -380,8 +393,16 @@ public class PaymentService {
                 log.warn("alipay notify missing amount orderId={}", outTradeNo);
                 return;
             }
+            // H13: 金额与订单一致性校验前置到 notify_id 占位之前，占位成功后才入账
+            if (notifyCents != order.getAmountCents()) {
+                log.error("alipay notify amount mismatch orderId={} expected={} notify={}",
+                        order.getOrderId(), order.getAmountCents(), notifyCents);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "充值金额与订单不一致");
+            }
+            // 同一 notify_id 只入账一次（占位在金额校验之后、入账之前）
+            alipayNotifyService.assertNotifyIdOnce(verified.get("notify_id"));
             String tradeNo = verified.get(TRADE_NO);
-            creditRecharge(order.getOrderId(), notifyCents, null, tradeNo);
+            creditRechargeNotify(order.getOrderId(), notifyCents, null, tradeNo);
         });
     }
 
@@ -617,9 +638,17 @@ public class PaymentService {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                         "缺少微信支付交易号，无法原路退款");
             }
-            weChatPayClient.createRefund(
+            // H42(a): 解析渠道退款状态并写入流水备注；ABNORMAL 告警，PROCESSING 由对账查单推进
+            com.fasterxml.jackson.databind.JsonNode resp = weChatPayClient.createRefund(
                     order.getOrderId(), refundNo, refundCents, order.getAmountCents(), reason);
-            recordRechargeRefundOperation(order, refundCents, PayChannels.WECHAT, idemKey, refundNo, reason);
+            String refundStatus = OrderPaymentService.weChatRefundStatus(resp);
+            if ("ABNORMAL".equalsIgnoreCase(refundStatus)) {
+                log.error("wechat recharge refund abnormal orderId={} outRefundNo={}", order.getOrderId(), refundNo);
+                sendOpsAlert("WECHAT_REFUND_ABNORMAL", "微信充值退款异常",
+                        "orderId=" + order.getOrderId() + " outRefundNo=" + refundNo + " 需人工介入", order);
+            }
+            recordRechargeRefundOperation(order, refundCents, PayChannels.WECHAT, idemKey, refundNo,
+                    reasonOrDefault(reason) + " [refund:" + refundStatus + "]");
         } else if (securityProperties.mockEnabled()) {
             recordRechargeRefundOperation(order, refundCents, PayChannels.WECHAT, idemKey, null,
                     reasonOrDefault(reason) + "（模拟通道退款）");
@@ -874,6 +903,16 @@ public class PaymentService {
         return toDto(order);
     }
 
+    /** 复用既有运营告警分发（钉钉/企微/Webhook）；失败仅记日志不影响主流程。 */
+    private void sendOpsAlert(String type, String title, String message, RechargeOrder order) {
+        try {
+            opsAlertDispatcher.send(type, title, message,
+                    Map.of(ORDERID, order.getOrderId(), AMOUNT, yuan(order.getAmountCents())));
+        } catch (Exception e) {
+            log.warn("ops alert failed type={} orderId={}", type, order.getOrderId(), e);
+        }
+    }
+
     private void syncPendingOrder(RechargeOrder order) {
         if (!STATUS_PENDING.equals(order.getStatus())) {
             return;
@@ -897,7 +936,16 @@ public class PaymentService {
                 if (txnId != null && !txnId.isBlank()) {
                     order.setWxTransactionId(txnId);
                 }
-                creditRecharge(order.getOrderId(), weChatQueryAmountCents(remote), txnId, null);
+                // H11: 查单成功但金额解析为 0 时不得按订单原额入账，保持 PENDING 等人工处理
+                int cents = weChatQueryAmountCents(remote);
+                if (cents <= 0) {
+                    log.error("wechat query success but amount zero/missing, skip credit orderId={}",
+                            order.getOrderId());
+                    sendOpsAlert("RECHARGE_QUERY_AMOUNT_ZERO", "充值查单金额异常",
+                            "微信查单成功但金额为 0，已跳过入账（订单保持 PENDING）", order);
+                    return;
+                }
+                creditRecharge(order.getOrderId(), cents, txnId, null);
             } else if ("CLOSED".equals(tradeState) || "REVOKED".equals(tradeState) || "PAYERROR".equals(tradeState)) {
                 if (self.markRechargeCancelledIfPending(order.getOrderId())) {
                     order.setStatus(STATUS_CANCELLED);
@@ -921,7 +969,16 @@ public class PaymentService {
                 if (tradeNo != null && !tradeNo.isBlank()) {
                     order.setAlipayTradeNo(tradeNo);
                 }
-                creditRecharge(order.getOrderId(), alipayQueryAmountCents(remote), null, tradeNo);
+                // H11: 查单成功但金额解析为 0 时不得按订单原额入账，保持 PENDING 等人工处理
+                int cents = alipayQueryAmountCents(remote);
+                if (cents <= 0) {
+                    log.error("alipay query success but amount zero/missing, skip credit orderId={}",
+                            order.getOrderId());
+                    sendOpsAlert("RECHARGE_QUERY_AMOUNT_ZERO", "充值查单金额异常",
+                            "支付宝查单成功但金额为 0，已跳过入账（订单保持 PENDING）", order);
+                    return;
+                }
+                creditRecharge(order.getOrderId(), cents, null, tradeNo);
             } else if ("TRADE_CLOSED".equals(tradeStatus)) {
                 if (self.markRechargeCancelledIfPending(order.getOrderId())) {
                     order.setStatus(STATUS_CANCELLED);
@@ -950,8 +1007,26 @@ public class PaymentService {
 
     private void creditRecharge(String orderId, Integer notifyAmountCents,
                               String wxTransactionId, String alipayTradeNo) {
+        creditRecharge(orderId, notifyAmountCents, wxTransactionId, alipayTradeNo, false);
+    }
+
+    /**
+     * C12: notify 回调入账路径抢锁失败必须抛可重试异常（503），让控制器返回非 2xx，
+     * 微信/支付宝会重试通知；不得静默 return 造成「渠道已扣款但本单未入账」。
+     */
+    private void creditRechargeNotify(String orderId, Integer notifyAmountCents,
+                                      String wxTransactionId, String alipayTradeNo) {
+        creditRecharge(orderId, notifyAmountCents, wxTransactionId, alipayTradeNo, true);
+    }
+
+    private void creditRecharge(String orderId, Integer notifyAmountCents,
+                              String wxTransactionId, String alipayTradeNo, boolean failClosed) {
         if (!distributedLockService.tryLock(rechargeLockKey(orderId), 30, 5)) {
             log.warn("recharge credit lock busy orderId={}", orderId);
+            if (failClosed) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "充值入账处理中，请稍后重试");
+            }
             return;
         }
         try {

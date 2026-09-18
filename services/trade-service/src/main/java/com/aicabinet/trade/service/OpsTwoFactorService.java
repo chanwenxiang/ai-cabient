@@ -171,7 +171,13 @@ public class OpsTwoFactorService {
         }
         user.setTotpEnabled(false);
         user.setTotpSecret(null);
-        userInfoRepository.save(user);
+        // M01：save→updateById 默认忽略 null 列，totp_secret 清不掉；改用显式 set(null) 的 wrapper 更新
+        userInfoRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                .<UserInfo>lambdaUpdate()
+                .eq(UserInfo::getUserId, operatorId)
+                .set(UserInfo::isTotpEnabled, false)
+                .set(UserInfo::getTotpSecret, null)
+                .set(UserInfo::getUpdatedAt, Instant.now()));
         recoveryRepository.deleteByUserId(operatorId);
     }
 

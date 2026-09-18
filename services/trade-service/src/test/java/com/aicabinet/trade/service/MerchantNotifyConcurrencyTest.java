@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.mapper.MerchantNotifyLogMapper;
 import com.aicabinet.trade.mapper.MerchantSubscribePrefMapper;
@@ -39,7 +40,8 @@ class MerchantNotifyConcurrencyTest {
     void setUp() {
         service = new MerchantNotifyService(merchantPortalGuard, permissionService, merchantPortalService,
                 merchantFeaturePackService, opsExceptionService, userInfoRepository, subscribePrefRepository,
-                notifyLogRepository, weChatMiniAppClient, weChatMiniAppProperties, distributedLockService, null);
+                notifyLogRepository, weChatMiniAppClient, weChatMiniAppProperties,
+                new NotificationProperties(false, false, false), distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

@@ -6,16 +6,20 @@ import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.InvoiceRequest;
+import com.aicabinet.trade.domain.PayScoreOrder;
 import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.payment.AgreementChargeClient;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.InvoiceRequestMapper;
+import com.aicabinet.trade.mapper.PayScoreOrderMapper;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
-import com.aicabinet.trade.architecture.AllowTransactionalRemote;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -24,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -55,6 +60,10 @@ public class OrderPaymentService {
     private final ShoppingSessionMapper sessionRepository;
     private final ConsumerPreauthService consumerPreauthService;
     private final MemberService memberService;
+    private final PayScoreOrderMapper payScoreOrderMapper;
+    private final AgreementChargeClient agreementChargeClient;
+    private final OpsAlertDispatcher opsAlertDispatcher;
+    private final InvoiceRequestMapper invoiceRequestMapper;
     private final OrderPaymentService self;
 
     public OrderPaymentService(UserInfoMapper userInfoRepository,
@@ -70,6 +79,10 @@ public class OrderPaymentService {
                                CheckoutProperties checkoutProperties,
                                ShoppingSessionMapper sessionRepository,
                                ConsumerPreauthService consumerPreauthService,
+                               PayScoreOrderMapper payScoreOrderMapper,
+                               AgreementChargeClient agreementChargeClient,
+                               OpsAlertDispatcher opsAlertDispatcher,
+                               InvoiceRequestMapper invoiceRequestMapper,
                                @Lazy MemberService memberService,
                                @Lazy OrderPaymentService self) {
         this.userInfoRepository = userInfoRepository;
@@ -85,16 +98,20 @@ public class OrderPaymentService {
         this.checkoutProperties = checkoutProperties;
         this.sessionRepository = sessionRepository;
         this.consumerPreauthService = consumerPreauthService;
+        this.payScoreOrderMapper = payScoreOrderMapper;
+        this.agreementChargeClient = agreementChargeClient;
+        this.opsAlertDispatcher = opsAlertDispatcher;
+        this.invoiceRequestMapper = invoiceRequestMapper;
         this.memberService = memberService;
         this.self = self;
     }
 
     /**
      * 订单扣款：须参与调用方事务，以便结算/争议确认中「先落单再扣款」可见未提交订单。
-     * PayScore 渠道 HTTP 刻意保留在同事务内（见 {@link AllowTransactionalRemote}）。
+     * H41: 渠道 HTTP 前先以独立事务（REQUIRES_NEW）落 CHARGE_PENDING 痕迹并立即提交；
+     * 渠道已扣款而外层结算事务回滚时，凭该记录补偿/人工介入，不再出现「无痕迹双扣」。
      */
     @Transactional
-    @AllowTransactionalRemote(reason = "chargeOrder 须与未提交订单同事务可见；PayScore 与落单不可拆")
     public void chargeOrder(CabinetOrder order) {
         if (order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             order.setPayChannel(PayChannels.BALANCE);
@@ -152,8 +169,21 @@ public class OrderPaymentService {
         if (checkoutProperties.balanceOnly()) {
             return false;
         }
-        PayScoreService.ChargeResult charge = payScoreService.charge(
-                user, order.getOrderId(), order.getTotalAmountCents(), "AI开门柜购物", entryChannel);
+        // H41: 渠道 HTTP 之前先以独立事务落 CHARGE_PENDING 并立即提交（mock 路径跳过，行为不变）
+        if (!securityProperties.mockEnabled()) {
+            self.recordChargePending(order);
+        }
+        PayScoreService.ChargeResult charge;
+        try {
+            charge = payScoreService.charge(
+                    user, order.getOrderId(), order.getTotalAmountCents(), "AI开门柜购物", entryChannel);
+        } catch (RuntimeException e) {
+            // H41: 失败保留 CHARGE_PENDING 供补偿/人工（REQUIRES_NEW 已提交，不受外层回滚影响）；
+            // 不降级余额、不盲切渠道
+            log.error("payscore charge failed, CHARGE_PENDING kept order={} channelHint={} err={}",
+                    order.getOrderId(), order.getPayChannel(), e.getMessage(), e);
+            throw e;
+        }
         if (PayChannels.BALANCE.equals(charge.channel())) {
             return false;
         }
@@ -161,12 +191,113 @@ public class OrderPaymentService {
         order.setPayTradeNo(charge.tradeNo());
         recordOperation(order, CHARGE, order.getTotalAmountCents(), charge.channel(), idemKey,
                 charge.tradeNo(), "order charge");
+        self.finalizeChargePending(order.getOrderId(), charge.tradeNo());
+        recordPayScoreOrder(order, user, charge);
         if (session != null) {
             consumerPreauthService.releaseIfFrozen(session);
         }
         log.info("order charged channel={} order={} tradeNo={} entry={}",
                 charge.channel(), order.getOrderId(), charge.tradeNo(), entryChannel);
         return true;
+    }
+
+    static String chargePendingIdempotencyKey(String orderId) {
+        return "CHARGE:PENDING:" + orderId;
+    }
+
+    /** H41: 独立事务落 CHARGE_PENDING 痕迹（立即提交，外层回滚不影响）。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordChargePending(CabinetOrder order) {
+        String pendingKey = chargePendingIdempotencyKey(order.getOrderId());
+        if (paymentOperationRepository.findByIdempotencyKey(pendingKey).isPresent()) {
+            return;
+        }
+        PaymentOperation op = new PaymentOperation();
+        op.setOperationId(BizIds.nextNumeric());
+        op.setOrderId(order.getOrderId());
+        op.setOperationType(CHARGE);
+        op.setAmountCents(order.getTotalAmountCents());
+        op.setChannel(order.getPayChannel() != null && !order.getPayChannel().isBlank()
+                ? order.getPayChannel() : "PENDING");
+        op.setStatus("CHARGE_PENDING");
+        op.setIdempotencyKey(pendingKey);
+        op.setReason("渠道扣款进行中（CHARGE_PENDING，事务外痕迹）");
+        paymentOperationRepository.save(op);
+    }
+
+    /** H41: 渠道成功后把 CHARGE_PENDING 标记为 FINALIZED（仅审计；不计入 netCompletedCents）。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void finalizeChargePending(String orderId, String tradeNo) {
+        paymentOperationRepository.findByIdempotencyKey(chargePendingIdempotencyKey(orderId))
+                .filter(op -> "CHARGE_PENDING".equals(op.getStatus()))
+                .ifPresent(op -> {
+                    op.setStatus("FINALIZED");
+                    if (tradeNo != null && !tradeNo.isBlank()) {
+                        op.setGatewayTradeNo(tradeNo);
+                    }
+                    paymentOperationRepository.updateById(op);
+                });
+    }
+
+    /** H64(a): 支付分/代扣渠道扣款成功后落 payscore_order 一行（含渠道单号与状态）。 */
+    private void recordPayScoreOrder(CabinetOrder order, UserInfo user, PayScoreService.ChargeResult charge) {
+        if (!PayChannels.WECHAT.equalsIgnoreCase(charge.channel()) || payScoreOrderMapper == null) {
+            return;
+        }
+        try {
+            PayScoreOrder psOrder = new PayScoreOrder();
+            psOrder.setPayscoreOrderId("PSO-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase());
+            psOrder.setOrderId(order.getOrderId());
+            psOrder.setUserId(order.getUserId());
+            psOrder.setOpenId(user.getWxOpenId() == null ? "" : user.getWxOpenId());
+            // gateway 代扣场景无微信 service_id：以签约协议号标识扣款依据
+            psOrder.setServiceId(user.getPayscoreContractId() == null ? "" : user.getPayscoreContractId());
+            psOrder.setOutOrderNo(order.getOrderId());
+            psOrder.setServiceStartTime(Instant.now());
+            psOrder.setServiceEndTime(Instant.now());
+            psOrder.setTotalAmountCents(order.getTotalAmountCents());
+            psOrder.setActualAmountCents(order.getTotalAmountCents());
+            psOrder.setOrderState("DONE");
+            psOrder.setNeedUserConfirm(false);
+            psOrder.setNeedCollection(false);
+            psOrder.setCreatedAt(Instant.now());
+            psOrder.setUpdatedAt(Instant.now());
+            payScoreOrderMapper.insert(psOrder);
+        } catch (Exception e) {
+            // 痕迹落库失败不阻断扣款主流程，但必须留日志
+            log.error("payscore_order persist failed order={}", order.getOrderId(), e);
+        }
+    }
+
+    /** H64(b): 会话取消时释放 payscore_order —— 未支付单置 CANCELLED，已支付单标记需退款并告警。 */
+    public void cancelPayScoreOrdersForSession(String orderId) {
+        if (payScoreOrderMapper == null || orderId == null || orderId.isBlank()) {
+            return;
+        }
+        for (PayScoreOrder psOrder : payScoreOrderMapper.findByOrderId(orderId)) {
+            String state = psOrder.getOrderState() == null ? "" : psOrder.getOrderState();
+            if ("DONE".equalsIgnoreCase(state)) {
+                // 真实渠道释放/退款 API 未接入（明确不在代码修复内）：先落本地退款标记与告警
+                psOrder.setOrderState("REFUND_REQUIRED");
+                psOrder.setUpdatedAt(Instant.now());
+                payScoreOrderMapper.updateById(psOrder);
+                log.error("session cancel but payscore order already charged, refund required order={} psOrder={}",
+                        orderId, psOrder.getPayscoreOrderId());
+                try {
+                    opsAlertDispatcher.send("PAYSCORE_ORDER_REFUND_REQUIRED", "支付分订单取消需退款",
+                            "会话取消但渠道已扣款，需人工退款 orderId=" + orderId
+                                    + " payscoreOrder=" + psOrder.getPayscoreOrderId());
+                } catch (Exception e) {
+                    log.warn("ops alert failed payscore refund required orderId={}", orderId, e);
+                }
+            } else if (!"CANCELLED".equalsIgnoreCase(state) && !"REFUND_REQUIRED".equalsIgnoreCase(state)) {
+                psOrder.setOrderState("CANCELLED");
+                psOrder.setUpdatedAt(Instant.now());
+                payScoreOrderMapper.updateById(psOrder);
+                log.info("payscore order cancelled on session cancel order={} psOrder={}",
+                        orderId, psOrder.getPayscoreOrderId());
+            }
+        }
     }
 
     private void applyBalanceCharge(CabinetOrder order, ShoppingSession session, String idemKey) {
@@ -263,8 +394,8 @@ public class OrderPaymentService {
                 return;
             }
             if (prep.needsLiveChannel()) {
-                executeLiveChannelRefund(prep);
-                self.finalizeLiveOrderRefund(prep);
+                String refundStatus = executeLiveChannelRefund(prep);
+                self.finalizeLiveOrderRefund(prep, refundStatus);
             }
             refreshCallerOrder(order);
             clawbackPointsQuietly(prep.userId(), prep.refundCents(), prep.orderId());
@@ -313,7 +444,8 @@ public class OrderPaymentService {
             return new OrderRefundPrep(orderId, locked.getUserId(), 0, reason, null, null, null, 0, true, false);
         }
         int refundCents = Math.min(amountCents, netCharged);
-        String idemKey = "REFUND:" + locked.getOrderId() + ":" + refundCents + ":" + reasonKey(reason);
+        // M02: 幂等键只含订单+金额（reason 可变，勿入键，否则同单同额不同文案会重复退款）
+        String idemKey = "REFUND:" + locked.getOrderId() + ":" + refundCents;
         if (isCompleted(idemKey)) {
             return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, reason, idemKey,
                     locked.getPayChannel(), locked.getPayTradeNo(), 0, true, false);
@@ -339,25 +471,83 @@ public class OrderPaymentService {
                     PayChannels.ALIPAY, locked.getPayTradeNo(), 0, false, true);
         }
         completeLocalRefund(locked, refundCents, reason, idemKey, channel);
+        alertIfInvoicedOnFullRefund(locked, refundCents);
         return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, reason, idemKey,
                 channel, locked.getPayTradeNo(), 0, false, false);
     }
 
     @Transactional
     public void finalizeLiveOrderRefund(OrderRefundPrep prep) {
+        finalizeLiveOrderRefund(prep, null);
+    }
+
+    @Transactional
+    public void finalizeLiveOrderRefund(OrderRefundPrep prep, String channelRefundStatus) {
         CabinetOrder locked = cabinetOrderRepository.findByIdForUpdate(prep.orderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         if (isCompleted(prep.idemKey())) {
             return;
         }
         String outRefundNo = deterministicRefundNo(prep.idemKey());
+        String reason = channelRefundStatus != null && !channelRefundStatus.isBlank()
+                ? prep.reason() + " [refund:" + channelRefundStatus + "]"
+                : prep.reason();
         recordOperation(locked, REFUND, prep.refundCents(), prep.channel(), prep.idemKey(),
-                outRefundNo, prep.reason());
+                outRefundNo, reason);
         locked.setRefundedAt(Instant.now());
         locked.setRefundedCents(Math.max(0, locked.getRefundedCents()) + prep.refundCents());
         cabinetOrderRepository.updateById(locked);
-        log.info("live channel order refund finalized order={} channel={} amount={}",
-                prep.orderId(), prep.channel(), prep.refundCents());
+        alertIfInvoicedOnFullRefund(locked, prep.refundCents());
+        log.info("live channel order refund finalized order={} channel={} amount={} refundStatus={}",
+                prep.orderId(), prep.channel(), prep.refundCents(), channelRefundStatus);
+    }
+
+    /**
+     * H42(a): 解析微信 createRefund 响应状态（PROCESSING/SUCCESS/ABNORMAL）。
+     * ABNORMAL 时记 error 并发运营告警；状态随退款流水落库（reason 标记），
+     * PROCESSING 单由每日对账的 {@code WeChatRefundReconciler} 调 queryRefund 推进。
+     * 注：微信退款结果回调 Controller 暂不新增（无回调地址配置入口），以查单推进兜底。
+     */
+    static String weChatRefundStatus(com.fasterxml.jackson.databind.JsonNode response) {
+        if (response == null) {
+            return "UNKNOWN";
+        }
+        String status = response.path("status").asText("");
+        return status.isBlank() ? "UNKNOWN" : status;
+    }
+
+    /**
+     * H42(b): 微信查单笔退款由对账调度（WeChatRefundReconciler）直接调
+     * {@code WeChatPayV3Client#queryRefund(outTradeNo, outRefundNo)} 推进。
+     */
+
+    /** M22(b): 订单已开票且本次退款将覆盖全部实付时，发运营告警「需人工红冲」。 */
+    private void alertIfInvoicedOnFullRefund(CabinetOrder order, int refundCents) {
+        try {
+            if (invoiceRequestMapper == null || opsAlertDispatcher == null) {
+                return;
+            }
+            int refundedAfter = Math.max(0, order.getRefundedCents());
+            int chargedTotal = paymentOperationRepository.selectList(
+                            Wrappers.<PaymentOperation>lambdaQuery()
+                                    .eq(PaymentOperation::getOrderId, order.getOrderId())
+                                    .eq(PaymentOperation::getStatus, STATUS_COMPLETED)
+                                    .in(PaymentOperation::getOperationType, CHARGE, ADJUST_CHARGE))
+                    .stream().mapToInt(PaymentOperation::getAmountCents).sum();
+            if (chargedTotal <= 0) {
+                chargedTotal = order.getTotalAmountCents();
+            }
+            if (refundedAfter < chargedTotal) {
+                return;
+            }
+            if (invoiceRequestMapper.findActiveByOrderIdForUpdate(order.getOrderId()).isPresent()) {
+                opsAlertDispatcher.send("INVOICE_FULL_REFUND_RED_INVERSE", "已开票订单全额退款，需人工红冲",
+                        "orderId=" + order.getOrderId() + " 已开票且退款覆盖全部实付，请人工红冲发票");
+                log.error("invoiced order fully refunded, manual red-inverse required orderId={}", order.getOrderId());
+            }
+        } catch (Exception e) {
+            log.warn("invoice full-refund alert failed order={}", order.getOrderId(), e);
+        }
     }
 
     @Transactional
@@ -373,6 +563,9 @@ public class OrderPaymentService {
         boolean preferLive = !checkoutProperties.balanceOnly()
                 && (PayChannels.WECHAT.equalsIgnoreCase(channel) || PayChannels.ALIPAY.equalsIgnoreCase(channel));
         if (preferLive) {
+            // M27: 渠道扣款前先以独立事务落 ADJUST INITIATED（稳定渠道单号=orderId+"-ADJ"），
+            // 超时/未知异常后的重试先查单确认而不是再次 HTTP
+            self.recordAdjustInitiated(locked, deltaCents);
             return new AdjustChargePrep(orderId, locked.getUserId(), deltaCents, idemKey, channel, false, true);
         }
         balanceLedgerService.change(locked.getUserId(), -deltaCents, ADJUST_CHARGE,
@@ -380,22 +573,59 @@ public class OrderPaymentService {
         return new AdjustChargePrep(orderId, locked.getUserId(), deltaCents, idemKey, channel, false, false);
     }
 
+    static String adjustInitiatedIdempotencyKey(String orderId, int deltaCents) {
+        return "ADJUST_CHARGE:INITIATED:" + orderId + ":" + deltaCents;
+    }
+
+    /** M27: 独立事务落「ADJUST 已发起」痕迹（立即提交，渠道已扣而落库失败时可供查单确认）。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordAdjustInitiated(CabinetOrder order, int deltaCents) {
+        String initiatedKey = adjustInitiatedIdempotencyKey(order.getOrderId(), deltaCents);
+        if (paymentOperationRepository.findByIdempotencyKey(initiatedKey).isPresent()) {
+            return;
+        }
+        PaymentOperation op = new PaymentOperation();
+        op.setOperationId("ADJ-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
+        op.setOrderId(order.getOrderId());
+        op.setOperationType(ADJUST_CHARGE);
+        op.setAmountCents(deltaCents);
+        op.setChannel(order.getPayChannel() != null ? order.getPayChannel() : PayChannels.WECHAT);
+        op.setStatus("INITIATED");
+        op.setIdempotencyKey(initiatedKey);
+        op.setGatewayTradeNo(order.getOrderId() + "-ADJ");
+        op.setReason("争议差额渠道扣款已发起（INITIATED）");
+        paymentOperationRepository.save(op);
+    }
+
+    /** M27: 渠道结果落库后把 INITIATED 标记 FINALIZED（审计用，不参与净额计算）。 */
+    private void markAdjustInitiatedFinalized(String orderId, int deltaCents) {
+        paymentOperationRepository.findByIdempotencyKey(adjustInitiatedIdempotencyKey(orderId, deltaCents))
+                .filter(op -> "INITIATED".equals(op.getStatus()))
+                .ifPresent(op -> {
+                    op.setStatus("FINALIZED");
+                    paymentOperationRepository.updateById(op);
+                });
+    }
+
     @Transactional
     public void finalizeAdjustCharge(AdjustChargePrep prep, PayScoreService.ChargeResult charge) {
         CabinetOrder locked = cabinetOrderRepository.findByIdForUpdate(prep.orderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         if (isCompleted(prep.idemKey())) {
+            markAdjustInitiatedFinalized(prep.orderId(), prep.deltaCents());
             return;
         }
         if (charge != null && !PayChannels.BALANCE.equals(charge.channel())) {
             recordOperation(locked, ADJUST_CHARGE, prep.deltaCents(), charge.channel(), prep.idemKey(),
                     charge.tradeNo(), "dispute adjust charge");
+            markAdjustInitiatedFinalized(prep.orderId(), prep.deltaCents());
             log.info("order adjust charge channel={} order={} delta={}",
                     charge.channel(), prep.orderId(), prep.deltaCents());
             return;
         }
         balanceLedgerService.change(locked.getUserId(), -prep.deltaCents(), ADJUST_CHARGE,
                 locked.getOrderId(), prep.idemKey(), "dispute adjust charge");
+        markAdjustInitiatedFinalized(prep.orderId(), prep.deltaCents());
     }
 
     private void completeLocalRefund(CabinetOrder order, int amountCents, String reason,
@@ -427,20 +657,33 @@ public class OrderPaymentService {
         cabinetOrderRepository.updateById(order);
     }
 
-    private void executeLiveChannelRefund(OrderRefundPrep prep) {
+    /** @return 渠道退款状态（微信 PROCESSING/SUCCESS/ABNORMAL；支付宝同步退款视为 SUCCESS）。 */
+    private String executeLiveChannelRefund(OrderRefundPrep prep) {
         String outRefundNo = deterministicRefundNo(prep.idemKey());
         String reason = reasonOrDefault(prep.reason());
         if (PayChannels.WECHAT.equalsIgnoreCase(prep.channel())) {
-            weChatPayClient.createRefund(prep.orderId(), outRefundNo, prep.refundCents(),
+            com.fasterxml.jackson.databind.JsonNode resp = weChatPayClient.createRefund(
+                    prep.orderId(), outRefundNo, prep.refundCents(),
                     prep.originalChargeTotalCents(), reason);
-            log.info("wechat order refund order={} amount={} total={} (原路退回零钱)",
-                    prep.orderId(), prep.refundCents(), prep.originalChargeTotalCents());
-            return;
+            String status = weChatRefundStatus(resp);
+            if ("ABNORMAL".equalsIgnoreCase(status)) {
+                log.error("wechat refund abnormal order={} outRefundNo={} resp={}",
+                        prep.orderId(), outRefundNo, resp);
+                try {
+                    opsAlertDispatcher.send("WECHAT_REFUND_ABNORMAL", "微信退款异常",
+                            "orderId=" + prep.orderId() + " outRefundNo=" + outRefundNo + " 需人工介入");
+                } catch (Exception e) {
+                    log.warn("ops alert failed wechat refund abnormal order={}", prep.orderId(), e);
+                }
+            }
+            log.info("wechat order refund order={} amount={} total={} refundStatus={} (原路退回零钱)",
+                    prep.orderId(), prep.refundCents(), prep.originalChargeTotalCents(), status);
+            return status;
         }
         if (PayChannels.ALIPAY.equalsIgnoreCase(prep.channel())) {
             alipayPayClient.refund(prep.orderId(), outRefundNo, prep.refundCents(), reason);
             log.info("alipay order refund order={} amount={}", prep.orderId(), prep.refundCents());
-            return;
+            return "SUCCESS";
         }
         throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "不支持的退款渠道");
     }
@@ -448,7 +691,32 @@ public class OrderPaymentService {
     private PayScoreService.ChargeResult executeLiveAdjustCharge(AdjustChargePrep prep) {
         UserInfo user = userInfoRepository.findById(prep.userId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        return payScoreService.charge(user, prep.orderId() + "-ADJ", prep.deltaCents(), reasonOrDefault(null));
+        String channelOutNo = prep.orderId() + "-ADJ";
+        // M27: 已发起过的扣款先查单确认结果，确认无结果才允许重发（同 Idempotency-Key=orderId-ADJ）
+        PayScoreService.ChargeResult confirmed = confirmAdjustChargeViaQuery(prep, channelOutNo);
+        if (confirmed != null) {
+            return confirmed;
+        }
+        return payScoreService.charge(user, channelOutNo, prep.deltaCents(), reasonOrDefault(null));
+    }
+
+    /** M27: 借助网关 queryCharge（H50）确认 INITIATED 扣款的真实结果；无结果返回 null。 */
+    private PayScoreService.ChargeResult confirmAdjustChargeViaQuery(AdjustChargePrep prep, String channelOutNo) {
+        if (agreementChargeClient == null || !agreementChargeClient.isConfigured()) {
+            return null;
+        }
+        try {
+            var response = agreementChargeClient.queryCharge(channelOutNo);
+            if (response.isPresent() && response.get().tradeNo() != null && !response.get().tradeNo().isBlank()
+                    && response.get().status() != null && "SUCCESS".equalsIgnoreCase(response.get().status())) {
+                log.warn("adjust charge confirmed via queryCharge order={} outNo={} tradeNo={}",
+                        prep.orderId(), channelOutNo, response.get().tradeNo());
+                return new PayScoreService.ChargeResult(prep.preferredChannel(), response.get().tradeNo());
+            }
+        } catch (Exception e) {
+            log.warn("adjust charge query confirm failed order={}: {}", prep.orderId(), e.getMessage());
+        }
+        return null;
     }
 
     private void refreshCallerOrder(CabinetOrder order) {
@@ -601,7 +869,9 @@ public class OrderPaymentService {
     }
 
     /**
-     * 微信退款接口要求 total=原支付金额。取本单 COMPLETED CHARGE 合计；
+     * 微信退款接口要求 total=原支付金额。取本单 COMPLETED CHARGE + ADJUST_CHARGE 合计
+     * （H03: 争议加收差额 ADJUST_CHARGE 也是真实扣款，必须计入，否则退款超上限被微信拒绝；
+     * 与 {@link PaymentOperationMapper#netCompletedCents(String)} 口径一致）；
      * 无流水时回退到 max(当前订单额, 本次退款额)。
      */
     private int resolveOriginalChargeTotalCents(CabinetOrder order, int refundCents) {
@@ -609,7 +879,7 @@ public class OrderPaymentService {
                         Wrappers.<PaymentOperation>lambdaQuery()
                                 .eq(PaymentOperation::getOrderId, order.getOrderId())
                                 .eq(PaymentOperation::getStatus, STATUS_COMPLETED)
-                                .eq(PaymentOperation::getOperationType, CHARGE))
+                                .in(PaymentOperation::getOperationType, CHARGE, ADJUST_CHARGE))
                 .stream()
                 .mapToInt(PaymentOperation::getAmountCents)
                 .sum();

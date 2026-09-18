@@ -252,6 +252,8 @@ function onSubscribe() {
 }
 
 async function onPrefChange(p: NotifyPrefDto, ev: { detail?: { value?: boolean } } | Event) {
+  // category 是更新偏好的必需键；缺失时直接放弃，避免打到 /notify-prefs/undefined
+  if (!p.category) return;
   const detail = (ev as { detail?: { value?: boolean } })?.detail;
   const enabled = !!detail?.value;
   const prev = p.enabled;
@@ -265,7 +267,7 @@ async function onPrefChange(p: NotifyPrefDto, ev: { detail?: { value?: boolean }
 }
 
 async function onOpen(m: NotificationDto) {
-  if (!m.read) {
+  if (!m.read && m.id != null) {
     try {
       await consumerApi.markNotificationRead(m.id);
       m.read = true;
@@ -369,7 +371,7 @@ async function markAllRead() {
   }
 }
 
-function formatTime(t: string) {
+function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无');
 }
 </script>

@@ -328,8 +328,9 @@ function applyDeviceSettings(settings: Awaited<ReturnType<typeof merchantApi.dev
   firmwareVersion.value = ext.firmwareVersion;
   latitude.value = ext.latitude;
   longitude.value = ext.longitude;
-  currentTemp.value = formatTempDisplay(settings.currentTempC, '暂无');
-  targetTemp.value = formatTempDisplay(settings.targetTempC, '未设置');
+  // settings 是 Record<string, unknown>；温度字段需显式收窄（同下方 deviceName/opsRemark 的既有写法）
+  currentTemp.value = formatTempDisplay(settings.currentTempC as number | null | undefined, '暂无');
+  targetTemp.value = formatTempDisplay(settings.targetTempC as number | null | undefined, '未设置');
   formName.value = (settings.deviceName as string) || '';
   formTargetTemp.value = settings.targetTempC == null ? '' : String(settings.targetTempC);
   formRemark.value = (settings.opsRemark as string) || '';

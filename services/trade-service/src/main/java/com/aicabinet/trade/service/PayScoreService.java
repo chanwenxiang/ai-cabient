@@ -93,6 +93,10 @@ public class PayScoreService {
         return runWithPayScoreUserLock(userId, () -> {
             UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                     .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
+            // C17: 本地 PSC-* 伪签约仅限 mock 环境；生产（enabled=true 且 mock=false）不得静默落伪单
+            if (!securityProperties.mockEnabled()) {
+                throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "微信先享支付签约未接入");
+            }
             if (!payScoreProperties.enabled() && !securityProperties.mockEnabled()) {
                 throw new IllegalStateException("微信支付分未启用");
             }
@@ -152,16 +156,40 @@ public class PayScoreService {
         return new AlipaySignResult(true, agreementId, null, false);
     }
 
+    /** 支付宝协议状态枚举：解约/关闭类（H68）。 */
+    private static final java.util.Set<String> ALIPAY_AGREEMENT_TERMINAL_STATES = java.util.Set.of(
+            "UNSIGN", "TERMINATE", "TERMINATED", "CLOSE", "CLOSED", "STOP", "STOPPED",
+            "CANCEL", "CANCELLED", "REVOKED", "TEMP");
+
     /** 支付宝协议签约异步通知：用 external_agreement_no 绑定真实 agreement_no。 */
     @Transactional
     public boolean bindAlipayAgreementFromNotify(String externalAgreementNo, String agreementNo, String status) {
-        if (externalAgreementNo == null || externalAgreementNo.isBlank()
-                || agreementNo == null || agreementNo.isBlank()) {
+        return bindAlipayAgreementFromNotify(externalAgreementNo, agreementNo, status, null);
+    }
+
+    /**
+     * H68: 支持 (a) 解约/关闭类状态 → 清除用户 alipayAgreementId；
+     * (b) notify 携带 alipay_user_id 时与已保存 buyer id 比对，防止 A 用户协议绑到 B 用户
+     * （历史数据缺失时保存并放行，见内注释）。
+     */
+    @Transactional
+    public boolean bindAlipayAgreementFromNotify(String externalAgreementNo, String agreementNo,
+                                                 String status, String alipayUserId) {
+        if (externalAgreementNo == null || externalAgreementNo.isBlank()) {
+            // 解约通知可能只带 agreement_no：无 external 时按 agreement_no 找用户
+            if (agreementNo == null || agreementNo.isBlank()) {
+                return false;
+            }
+            return handleAgreementReleaseByAgreementNo(agreementNo.trim(), status);
+        }
+        if (isTerminalAgreementStatus(status)) {
+            return handleAgreementRelease(externalAgreementNo.trim(), agreementNo, status);
+        }
+        if (agreementNo == null || agreementNo.isBlank()) {
             return false;
         }
-        if (status != null && !status.isBlank()
-                && !"NORMAL".equalsIgnoreCase(status)
-                && !"SUCCESS".equalsIgnoreCase(status)) {
+        if (!"NORMAL".equalsIgnoreCase(status) && !"SUCCESS".equalsIgnoreCase(status)
+                && status != null && !status.isBlank()) {
             log.info("alipay agreement notify ignored status={} external={}", status, externalAgreementNo);
             return false;
         }
@@ -185,6 +213,20 @@ public class PayScoreService {
                         externalAgreementNo, user.getUserId(), current);
                 return false;
             }
+            // H68(b): buyer id 校验 —— 已保存且与通知不一致则拒绝绑定；缺失（历史数据）则保存并放行
+            if (alipayUserId != null && !alipayUserId.isBlank()) {
+                if (user.getAlipayUserId() != null && !user.getAlipayUserId().isBlank()
+                        && !user.getAlipayUserId().trim().equals(alipayUserId.trim())) {
+                    log.error("alipay agreement notify buyer id mismatch user={} saved={} notify={}",
+                            user.getUserId(), user.getAlipayUserId(), alipayUserId);
+                    return false;
+                }
+                if (user.getAlipayUserId() == null || user.getAlipayUserId().isBlank()) {
+                    log.warn("alipay agreement notify buyer id missing on user={}, saving from notify user={}",
+                            user.getUserId(), user.getUserId());
+                    user.setAlipayUserId(alipayUserId.trim());
+                }
+            }
             user.setAlipayAgreementId(agreementNo.trim());
             if (!PayChannels.BALANCE.equalsIgnoreCase(
                     user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
@@ -195,6 +237,51 @@ public class PayScoreService {
                     user.getUserId(), agreementNo, externalAgreementNo);
             return true;
         });
+    }
+
+    private static boolean isTerminalAgreementStatus(String status) {
+        return status != null && !status.isBlank()
+                && ALIPAY_AGREEMENT_TERMINAL_STATES.contains(status.trim().toUpperCase(java.util.Locale.ROOT));
+    }
+
+    /** H68(a): 解约/关闭 → 清除 alipayAgreementId，保留痕迹日志（协议状态无独立列）。 */
+    private boolean handleAgreementRelease(String externalAgreementNo, String agreementNo, String status) {
+        String pendingKey = ALIPAY_PENDING_PREFIX + externalAgreementNo;
+        UserInfo preview = userInfoRepository.findByAlipayAgreementId(pendingKey)
+                .or(() -> userInfoRepository.findByAlipayAgreementId(externalAgreementNo))
+                .or(() -> agreementNo == null || agreementNo.isBlank()
+                        ? java.util.Optional.<UserInfo>empty()
+                        : userInfoRepository.findByAlipayAgreementId(agreementNo.trim()))
+                .orElse(null);
+        if (preview == null) {
+            log.warn("alipay agreement release notify user not found external={} status={}",
+                    externalAgreementNo, status);
+            return false;
+        }
+        return runWithPayScoreUserLock(preview.getUserId(), () -> doClearAgreement(preview.getUserId(), status));
+    }
+
+    private boolean handleAgreementReleaseByAgreementNo(String agreementNo, String status) {
+        UserInfo preview = userInfoRepository.findByAlipayAgreementId(agreementNo).orElse(null);
+        if (preview == null) {
+            log.warn("alipay agreement release notify user not found agreement={} status={}", agreementNo, status);
+            return false;
+        }
+        return runWithPayScoreUserLock(preview.getUserId(), () -> doClearAgreement(preview.getUserId(), status));
+    }
+
+    private boolean doClearAgreement(Long userId, String status) {
+        UserInfo user = userInfoRepository.findByIdForUpdate(userId).orElse(null);
+        if (user == null) {
+            return false;
+        }
+        if (user.getAlipayAgreementId() != null && !user.getAlipayAgreementId().isBlank()) {
+            user.setAlipayAgreementId(null);
+            userInfoRepository.save(user);
+        }
+        // 协议状态无独立存储列：以 WARN 日志留痕，供审计/客服检索
+        log.warn("alipay agreement released user={} status={} agreementCleared=true", userId, status);
+        return true;
     }
 
     public ChargeResult charge(UserInfo user, String orderId, int amountCents, String description) {
@@ -249,7 +336,8 @@ public class PayScoreService {
                     orderId,
                     user.getPayscoreContractId(),
                     amountCents,
-                    description
+                    description,
+                    orderId
             )).tradeNo();
             log.info("payscore live charge user={} order={} amount={}", user.getUserId(), orderId, amountCents);
             return new ChargeResult(PayChannels.WECHAT, tradeNo);
@@ -274,15 +362,19 @@ public class PayScoreService {
                         user.getUserId(), orderId, amountCents);
                 return new ChargeResult(PayChannels.ALIPAY, tradeNo);
             } catch (RuntimeException ex) {
-                if (agreementChargeClient.isConfigured()) {
-                    log.warn("alipay native charge failed, fallback gateway order={}: {}", orderId, ex.getMessage());
+                // H41(b): 仅「明确未开通/未配置」类确定性异常才允许 fallback 到 gateway；
+                // 超时/未知异常直接抛出（调用方保留 CHARGE_PENDING 痕迹），不得盲切二次扣款
+                if (isDeterministicNotOpenedFailure(ex) && agreementChargeClient.isConfigured()) {
+                    log.warn("alipay native charge failed (deterministic), fallback gateway order={}: {}",
+                            orderId, ex.getMessage());
                     String tradeNo = agreementChargeClient.charge(new AgreementChargeClient.ChargeRequest(
                             PayChannels.ALIPAY,
                             user.getUserId(),
                             orderId,
                             user.getAlipayAgreementId(),
                             amountCents,
-                            description
+                            description,
+                            orderId
                     )).tradeNo();
                     return new ChargeResult(PayChannels.ALIPAY, tradeNo);
                 }
@@ -296,7 +388,8 @@ public class PayScoreService {
                     orderId,
                     user.getAlipayAgreementId(),
                     amountCents,
-                    description
+                    description,
+                    orderId
             )).tradeNo();
             log.info("alipay gateway agreement charge user={} order={} amount={}",
                     user.getUserId(), orderId, amountCents);
@@ -311,6 +404,25 @@ public class PayScoreService {
         throw new IllegalStateException(
                 "Alipay agreement charge unavailable: configure Alipay OpenAPI + PAYSCORE_LIVE_CHARGE_ENABLED, "
                         + "or a charge gateway, or enable mock.");
+    }
+
+    /**
+     * H41(b): 判断是否「明确未开通/未配置」类确定性失败 —— 只有这类失败才允许 fallback gateway。
+     * 超时、网络、限流、未知错误一律返回 false（直接置 CHARGE_PENDING 等补偿/人工）。
+     */
+    static boolean isDeterministicNotOpenedFailure(RuntimeException ex) {
+        if (ex instanceof AgreementChargeClient.AgreementNotConfiguredException) {
+            return true;
+        }
+        String msg = ex.getMessage() == null ? "" : ex.getMessage();
+        String upper = msg.toUpperCase(java.util.Locale.ROOT);
+        return upper.contains("NOT CONFIGURED")
+                || upper.contains("AGREEMENT_NOT_EXIST")
+                || upper.contains("USER_AGREEMENT_NOT_EXIST")
+                || upper.contains("USER_NOT_SIGN")
+                || upper.contains("AGREEMENT_NOT_EFFECTIVE")
+                || msg.contains("未签约")
+                || msg.contains("协议不存在");
     }
 
     static String payScoreUserLockKey(long userId) {

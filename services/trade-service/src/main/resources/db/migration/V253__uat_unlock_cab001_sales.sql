@@ -1,9 +1,6 @@
--- UAT: demo cabinet CAB-001 may be auto sales-locked after offline timeout in dev.
--- Idempotent unlock so consumer H5 open-door / session-restore tests can proceed.
-
-UPDATE device_info
-SET sales_locked = false,
-    sales_lock_reason = NULL,
-    updated_at = NOW()
-WHERE device_id = 'CAB-001'
-  AND sales_locked = true;
+-- =====================================================================
+-- 已归档（2026-09-18）：本迁移原为针对演示柜 CAB-001 的种子语句。该测试设备
+-- 已从真实环境删除，种子不再保留；原 SQL 见 git 历史（本文件上一版本）。
+-- Flyway checksum 已变化：已应用过旧版本的环境需执行一次 `flyway repair`。
+-- =====================================================================
+SELECT 1;

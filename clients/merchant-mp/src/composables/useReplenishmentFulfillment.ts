@@ -50,6 +50,31 @@ export function isDistanceCheckError(msg: string): boolean {
 }
 
 /**
+ * 柜机未录点位坐标时的签到阻断提示。
+ *
+ * 为什么要**前置**说、而不是等服务端 400：服务端是 fail-closed 的
+ * （`REPLENISHMENT_CHECK_IN_DEVICE_LOCATION_MISSING`），现场人员在柜前点下签到只会拿到一个
+ * 自己**无权修复**的错误 —— 补录坐标是运营后台的动作。只告诉他「无法校验」等于死路，
+ * 所以这里必须一并给出下一步找谁。
+ *
+ * 文案单一出处：页面与履约 composable 都引用本常量，避免两处各写一份后漂移。
+ */
+export const DEVICE_COORDS_MISSING_HINT =
+  '本柜尚未录入点位坐标，无法校验签到位置。请联系运营在后台补录该柜经纬度后再签到。';
+
+/**
+ * 柜机是否**明确**没有坐标。
+ *
+ * 只有 `=== false` 才拦：字段缺失 / null（旧服务端、历史响应）一律不拦，
+ * 交给服务端判 —— 客户端不能因为「不知道」就把人挡在门外。
+ */
+export function isDeviceCoordsMissing(
+  task: { deviceHasCoords?: boolean | null } | null | undefined
+): boolean {
+  return task?.deviceHasCoords === false;
+}
+
+/**
  * 补货详情履约：签到 → 开门 → 核对清单 → 完成。
  * 列表/深链/证据上传仍由页面编排。
  */
@@ -89,6 +114,10 @@ export function useReplenishmentFulfillment(opts: {
     if (!opts.requireReplenishmentCheckInLocation.value) {
       return { body: {}, locationOk: false };
     }
+    // dev-only（页面由 showDevTools() 把关）。⚠️ 这里**不是**「绕过服务端」——
+    // 服务端 requireLocation 为真时无坐标必拒（DEVICE_LOCATION_MISSING / LOCATION_REQUIRED），
+    // 本分支只是**故意不发坐标**，用来在真机上验证服务端 fail-closed 的拒签与提示文案。
+    // 页面文案已据此写成「跳过定位采集」而非「跳过定位验证」，避免读成「开了就能签」。
     if (opts.canSkipLocation && (opts.skipLocationCheck.value || opts.getSkipCheckInLocation())) {
       opts.skipLocationCheck.value = true;
       return { body: {}, locationOk: false };
@@ -148,6 +177,12 @@ export function useReplenishmentFulfillment(opts: {
     if (!opts.selected.value || opts.submitting.value) return;
     if (!opts.canRequest.value) {
       showError('无补货操作权限');
+      return;
+    }
+    // 纵深防御：页面上按钮已据此禁用，但深链/旧缓存仍可能带着过期任务进来。
+    // 与服务端同判据（deviceHasCoords === false ⇒ 必拒），所以这里提前给出**可执行**的提示。
+    if (isDeviceCoordsMissing(opts.selected.value)) {
+      showError(DEVICE_COORDS_MISSING_HINT, 3600);
       return;
     }
     opts.submitting.value = true;

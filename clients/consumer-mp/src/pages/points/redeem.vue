@@ -34,21 +34,21 @@
                 >领后 {{ item.validityDays }} 天有效 · {{ deviceScopeText(item.deviceScope) }}</text
               >
               <text class="item-stock">{{
-                item.availableStock > 0 ? `剩余 ${item.availableStock} 份` : '已兑完'
+                stockOf(item) > 0 ? `剩余 ${stockOf(item)} 份` : '已兑完'
               }}</text>
             </view>
           </view>
           <view class="item-side">
-            <text class="item-cost">{{ item.pointsCost }} 积分</text>
+            <text class="item-cost">{{ costOf(item) }} 积分</text>
             <button
               class="redeem-btn"
               :class="{
                 disabled:
                   !!redeeming ||
-                  item.availableStock <= 0 ||
-                  (summary?.availablePoints ?? 0) < item.pointsCost
+                  stockOf(item) <= 0 ||
+                  (summary?.availablePoints ?? 0) < costOf(item)
               }"
-              :disabled="!!redeeming || item.availableStock <= 0"
+              :disabled="!!redeeming || stockOf(item) <= 0"
               @click="redeem(item)"
             >
               {{ redeeming === item.itemId ? '兑换中…' : '立即兑换' }}
@@ -108,19 +108,34 @@ function deviceScopeText(scope?: string) {
   return scope || '全柜可用';
 }
 
+/**
+ * 兑换项的积分成本 / 可兑库存。
+ * 生成类型里两者都是可选的，直接参与比较会出现 `undefined <= 0 === false`
+ * 这类恒假判断（按钮可点但兑不了），故统一按 0 兜底。
+ */
+function costOf(item: PointsRedeemItemDto) {
+  return item.pointsCost ?? 0;
+}
+
+function stockOf(item: PointsRedeemItemDto) {
+  return item.availableStock ?? 0;
+}
+
 async function redeem(item: PointsRedeemItemDto) {
   if (redeeming.value) return;
-  if (item.availableStock <= 0) {
+  // itemId 是兑换的必需主键；缺失时直接拒绝，避免打到 /points/redeem/undefined
+  if (!item.itemId) return;
+  if ((item.availableStock ?? 0) <= 0) {
     showSuccess('已兑完');
     return;
   }
-  if ((summary.value?.availablePoints ?? 0) < item.pointsCost) {
+  if ((summary.value?.availablePoints ?? 0) < (item.pointsCost ?? 0)) {
     showError('积分不足');
     return;
   }
   const confirmed = await showConfirm({
     title: '确认兑换',
-    content: `将消耗 ${item.pointsCost} 积分兑换「${item.title}」，兑换后发放至我的优惠券。`,
+    content: `将消耗 ${item.pointsCost ?? 0} 积分兑换「${item.title}」，兑换后发放至我的优惠券。`,
     confirmText: '确认兑换'
   });
   if (!confirmed) return;

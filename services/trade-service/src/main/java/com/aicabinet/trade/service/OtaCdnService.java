@@ -29,9 +29,10 @@ public class OtaCdnService {
     }
 
     public boolean isInGrayRollout(String deviceId, OtaRelease release) {
-        // 定向白名单优先：指定了设备白名单时，只有白名单内设备参与（否则 gray=100 会绕过白名单）
-        if (isInAllowlist(deviceId, release.getDeviceAllowlist())) {
-            return true;
+        // 定向白名单是「排他」而非「必含」：配置了非空白名单时只有名单内设备参与，
+        // 否则 gray=100（缺省值）会绕过白名单推给全部设备
+        if (hasAllowlist(release.getDeviceAllowlist())) {
+            return isInAllowlist(deviceId, release.getDeviceAllowlist());
         }
         if (release.getGrayPercent() >= 100) {
             return true;
@@ -40,8 +41,12 @@ public class OtaCdnService {
         return bucket < release.getGrayPercent();
     }
 
+    private boolean hasAllowlist(String allowlistJson) {
+        return allowlistJson != null && !allowlistJson.isBlank();
+    }
+
     private boolean isInAllowlist(String deviceId, String allowlistJson) {
-        if (allowlistJson == null || allowlistJson.isBlank()) {
+        if (!hasAllowlist(allowlistJson)) {
             return false;
         }
         try {

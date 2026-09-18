@@ -18,9 +18,12 @@ import org.springframework.util.StringUtils;
 public class ScheduledTaskXxlJobHandler {
 
     private final ScheduledTaskRegistry registry;
+    private final ScheduledTaskService taskService;
 
-    public ScheduledTaskXxlJobHandler(ScheduledTaskRegistry registry) {
+    public ScheduledTaskXxlJobHandler(ScheduledTaskRegistry registry,
+                                      ScheduledTaskService taskService) {
         this.registry = registry;
+        this.taskService = taskService;
     }
 
     /** JobParam = scheduled_task.task_key，例如 unpaid-cancel（具名 handler 未覆盖时的备用入口）。 */
@@ -103,6 +106,11 @@ public class ScheduledTaskXxlJobHandler {
     @XxlJob("opsFeeBillMonthlyJob")
     public void opsFeeBillMonthlyJob() {
         runKey("ops-fee-bill-monthly");
+    }
+
+    @XxlJob("withdrawPayingTimeoutJob")
+    public void withdrawPayingTimeoutJob() {
+        runKey("withdraw-paying-timeout");
     }
 
     // ── 营销 ────────────────────────────────────────────────────────────────
@@ -206,11 +214,27 @@ public class ScheduledTaskXxlJobHandler {
         }
         try {
             descriptor.action().run();
+            // M19：action 内部 tryBegin 失败会静默 return；读取 skip 原因区分「跳过」与「执行成功」
+            String skipReason = taskService.consumeLastTryBeginSkip();
+            if (skipReason != null) {
+                XxlJobHelper.log("scheduled task skipped key={} name={} reason={}",
+                        key, descriptor.name(), skipReason);
+                try {
+                    taskService.markSkipped(key, "skipped: " + skipReason);
+                } catch (Exception recordEx) {
+                    XxlJobHelper.log("record skip status failed key={}: {}", key, recordEx.toString());
+                }
+                XxlJobHelper.handleSuccess("skipped:" + key + " (" + skipReason + ")");
+                return;
+            }
             XxlJobHelper.log("scheduled task finished key={} name={}", key, descriptor.name());
             XxlJobHelper.handleSuccess("ok:" + key);
         } catch (Exception e) {
             XxlJobHelper.log(e);
             XxlJobHelper.handleFail(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+        } finally {
+            // 防御：跳过分支异常时也不把残留状态带给同线程的下一个任务
+            taskService.consumeLastTryBeginSkip();
         }
     }
 }

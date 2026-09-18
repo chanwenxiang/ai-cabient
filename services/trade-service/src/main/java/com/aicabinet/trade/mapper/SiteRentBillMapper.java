@@ -4,11 +4,20 @@ import com.aicabinet.trade.domain.SiteRentBill;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 @Mapper
 public interface SiteRentBillMapper extends BaseTradeMapper<SiteRentBill> {
+
+    /** H30(a)：行锁重查，markPaid/void 持锁后再判断状态，避免与重出账/并发操作竞态。 */
+    SiteRentBill selectByIdForUpdateRaw(@Param("billId") Long billId);
+
+    default Optional<SiteRentBill> selectByIdForUpdate(Long billId) {
+        return Optional.ofNullable(selectByIdForUpdateRaw(billId));
+    }
 
     default List<SiteRentBill> findByContractAndMonth(Long contractId, String billMonth) {
         return selectList(Wrappers.<SiteRentBill>lambdaQuery()

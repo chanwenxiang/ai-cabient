@@ -3,6 +3,8 @@ package com.aicabinet.trade.storage;
 import com.aicabinet.common.dto.VideoUploadPresignResponse;
 import com.aicabinet.common.storage.ObjectStorageKeys;
 import com.aicabinet.trade.config.MinioProperties;
+import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import io.minio.CopyObjectArgs;
 import io.minio.CopySource;
 import io.minio.GetObjectArgs;
@@ -40,13 +42,18 @@ public class MinioVideoService {
 
     private static final Logger log = LoggerFactory.getLogger(MinioVideoService.class);
 
+    /** 与 ObjectStorageKeys.UNSAFE 一致：对象键里会话段的清洗规则，供归属前缀比对。 */
+    private static final java.util.regex.Pattern UNSAFE_KEY_CHARS = java.util.regex.Pattern.compile("[^a-zA-Z0-9._-]+");
+
     private final MinioProperties properties;
+    private final ShoppingSessionMapper sessionMapper;
     private final AtomicReference<MinioClient> clientRef = new AtomicReference<>();
     /** 仅用于预签名：按 public-endpoint 签名，避免改写 Host 导致 SignatureDoesNotMatch。 */
     private final AtomicReference<MinioClient> presignClientRef = new AtomicReference<>();
 
-    public MinioVideoService(MinioProperties properties) {
+    public MinioVideoService(MinioProperties properties, ShoppingSessionMapper sessionMapper) {
         this.properties = properties;
+        this.sessionMapper = sessionMapper;
     }
 
     public Optional<String> presignDownloadUrl(String storageUri, int expirySeconds) {
@@ -78,18 +85,49 @@ public class MinioVideoService {
 
     /**
      * 播放预签名：对象不存在时不返回 URL，避免后台 videoPreviewUrl 指向 404。
+     * H46: file:// 与任意 http(s) 一并拒绝 —— 只允许本平台 MinIO 路径预签名。
      */
     public Optional<String> presignPlaybackUrl(String videoUri) {
         if (videoUri == null || videoUri.isBlank()) {
             return Optional.empty();
         }
         if (videoUri.startsWith(FILE) || videoUri.startsWith(HTTP) || videoUri.startsWith(HTTPS)) {
-            return Optional.of(videoUri);
+            log.warn("presignPlaybackUrl rejected non-platform uri scheme");
+            return Optional.empty();
         }
         if (!objectExists(videoUri)) {
             return Optional.empty();
         }
         return presignDownloadUrl(videoUri, properties.presignExpirySeconds());
+    }
+
+    /**
+     * H21/H46: 会话对象键的会话段前缀（与 {@link ObjectStorageKeys} 的 sanitize 规则一致），
+     * 用于校验 videoUri / objectKey 是否归属指定会话。
+     */
+    public static String expectedSessionPrefix(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return "session";
+        }
+        String cleaned = UNSAFE_KEY_CHARS.matcher(sessionId.trim()).replaceAll("_");
+        return cleaned.isBlank() ? "session" : cleaned;
+    }
+
+    /**
+     * H21: 是否本平台 MinIO 对象 URI（minio:// 且 bucket 匹配、键安全）。
+     * attachVideo 入口用它拒绝 file://、http(s):// 等任意外部地址。
+     */
+    public boolean isPlatformObjectUri(String videoUri) {
+        if (videoUri == null || videoUri.isBlank() || !videoUri.startsWith(MINIO)) {
+            return false;
+        }
+        ParsedUri parsed = parseUri(videoUri);
+        if (parsed == null || parsed.objectKey().isBlank()
+                || parsed.objectKey().startsWith("/") || parsed.objectKey().contains("..")) {
+            return false;
+        }
+        return properties.bucket() == null || properties.bucket().isBlank()
+                || properties.bucket().equalsIgnoreCase(parsed.bucket());
     }
 
     /** MinIO 对象是否存在（minio://bucket/key）。 */
@@ -155,6 +193,8 @@ public class MinioVideoService {
 
     /**
      * 为柜机/模拟器生成录像上传地址，对象键由 {@link ObjectStorageKeys} 统一生成。
+     * H46: 生成前校验会话归属 —— 会话必须存在、deviceId/userId 与会话一致，
+     * 且生成的 objectKey 匹配该会话的预期前缀；不满足返回 empty。
      *
      * @param sim true 时使用 {@code sim/} 前缀（开发模拟器）
      */
@@ -163,10 +203,25 @@ public class MinioVideoService {
         if (sessionId == null || sessionId.isBlank() || deviceId == null || deviceId.isBlank()) {
             return Optional.empty();
         }
+        ShoppingSession session = sessionMapper.findById(sessionId.trim()).orElse(null);
+        if (session == null) {
+            log.warn("presign upload rejected: session not found sessionId={}", sessionId);
+            return Optional.empty();
+        }
+        if (!deviceId.trim().equals(session.getDeviceId()) || session.getUserId() == null
+                || session.getUserId() != userId) {
+            log.warn("presign upload rejected: session ownership mismatch sessionId={}", sessionId);
+            return Optional.empty();
+        }
         int expirySeconds = properties.presignExpirySeconds();
         String objectKey = sim
                 ? ObjectStorageKeys.simMediaKey(deviceId, userId, sessionId, camera, extension)
                 : ObjectStorageKeys.shoppingVideoKey(deviceId, userId, sessionId, camera, extension);
+        // H46: objectKey 必须匹配该会话的预期前缀（会话段），防止拼接出越权路径
+        if (!objectKey.contains("/" + expectedSessionPrefix(sessionId) + "-")) {
+            log.warn("presign upload rejected: objectKey prefix mismatch sessionId={}", sessionId);
+            return Optional.empty();
+        }
         try {
             // sim 上传方在 Docker 内网（device-simulator），须用内部 endpoint 签名；
             // 若用 publicEndpoint（localhost:19000）再改写 host，签名 host 不一致会 403。

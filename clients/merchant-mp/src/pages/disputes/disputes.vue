@@ -72,11 +72,9 @@
             >
             <text v-if="item.orderId" class="card-order">订单 {{ fullId(item.orderId) }}</text>
           </view>
-          <view
-            v-if="item.hasVideo || item.videoUri || item.videoPreviewUrl"
-            class="card-video-hint"
-            >有录像</view
-          >
+          <!-- 列表行契约（MerchantDisputeSummaryDto）只有 hasVideo；videoUri / videoPreviewUrl
+               仅存在于**详情**契约，原先这里写成三选一的死条件（后两项恒为 undefined） -->
+          <view v-if="item.hasVideo" class="card-video-hint">有录像</view>
           <view v-if="item.lastMessage" class="card-msg"
             ><text>{{ item.lastMessage }}</text></view
           >

@@ -20,8 +20,10 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.PayScoreOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +68,8 @@ public class SessionService {
     private final DistributedLockService distributedLockService;
     private final DisplaySnapshotHelper displaySnapshotHelper;
     private final ApiRateLimitService apiRateLimitService;
+    private final MinioVideoService minioVideoService;
+    private final PayScoreOrderMapper payScoreOrderMapper;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -86,7 +90,9 @@ public class SessionService {
                           ConsumerPreauthService consumerPreauthService,
                           DistributedLockService distributedLockService,
                           DisplaySnapshotHelper displaySnapshotHelper,
-                          ApiRateLimitService apiRateLimitService) {
+                          ApiRateLimitService apiRateLimitService,
+                          MinioVideoService minioVideoService,
+                          PayScoreOrderMapper payScoreOrderMapper) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -107,6 +113,8 @@ public class SessionService {
         this.distributedLockService = distributedLockService;
         this.displaySnapshotHelper = displaySnapshotHelper;
         this.apiRateLimitService = apiRateLimitService;
+        this.minioVideoService = minioVideoService;
+        this.payScoreOrderMapper = payScoreOrderMapper;
     }
 
     /** 无外层长事务：落库短事务与 MQTT 开门分离。 */
@@ -272,6 +280,11 @@ public class SessionService {
 
     @Transactional
     public SessionDto persistAttachedVideo(VideoAttachRequest request) {
+        // H21: videoUri 必须是本平台 MinIO 对象路径（拒绝 file:// / http(s):// 等任意值）
+        if (minioVideoService == null || !minioVideoService.isPlatformObjectUri(request.videoUri())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "videoUri 必须为本平台对象存储路径（minio://）");
+        }
         ShoppingSession session = repository.findByIdForUpdate(request.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!session.getDeviceId().equals(request.deviceId())) {
@@ -412,9 +425,43 @@ public class SessionService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
         }
         consumerPreauthService.releaseIfFrozen(session);
+        // H64(b): 取消会话同步释放支付分订单（未支付置 CANCELLED，已支付标记需退款并 log.error 告警）
+        cancelPayScoreOrdersQuietly(session.getOrderId());
         transition(session, SessionState.CANCELLED);
         log.info("consumer cancelled opening session={} device={}", sessionId, session.getDeviceId());
         return toDto(session);
+    }
+
+    /**
+     * H64(b): 会话取消/终止时联动 payscore_order。
+     * 真实渠道释放/退款 API 未接入（明确不在代码修复内）：先把本地状态与痕迹做对 ——
+     * 未支付单置 CANCELLED；已支付单置 REFUND_REQUIRED 并 log.error 告警，由人工跟进渠道退款。
+     */
+    private void cancelPayScoreOrdersQuietly(String orderId) {
+        if (payScoreOrderMapper == null || orderId == null || orderId.isBlank()) {
+            return;
+        }
+        try {
+            for (com.aicabinet.trade.domain.PayScoreOrder psOrder : payScoreOrderMapper.findByOrderId(orderId)) {
+                String state = psOrder.getOrderState() == null ? "" : psOrder.getOrderState();
+                if ("DONE".equalsIgnoreCase(state)) {
+                    psOrder.setOrderState("REFUND_REQUIRED");
+                    psOrder.setUpdatedAt(Instant.now());
+                    payScoreOrderMapper.updateById(psOrder);
+                    log.error("session cancelled but payscore order already charged, refund required "
+                            + "sessionId={} orderId={} payscoreOrderId={}",
+                            psOrder.getOrderId(), orderId, psOrder.getPayscoreOrderId());
+                } else if (!"CANCELLED".equalsIgnoreCase(state) && !"REFUND_REQUIRED".equalsIgnoreCase(state)) {
+                    psOrder.setOrderState("CANCELLED");
+                    psOrder.setUpdatedAt(Instant.now());
+                    payScoreOrderMapper.updateById(psOrder);
+                    log.info("payscore order cancelled on session cancel orderId={} payscoreOrderId={}",
+                            orderId, psOrder.getPayscoreOrderId());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("payscore order release on session cancel failed orderId={}", orderId, e);
+        }
     }
 
     /**
@@ -436,6 +483,8 @@ public class SessionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!ACTIVE_STATES.contains(session.getState())) return toDto(session);
         consumerPreauthService.releaseIfFrozen(session);
+        // H64(b): 运营终止会话同步释放支付分订单
+        cancelPayScoreOrdersQuietly(session.getOrderId());
         session.setFailReason(reason == null ? "运营终止会话" : reason.trim());
         transition(session, SessionState.CANCELLED);
         domainEventPublisher.publish("SessionForceCancelled", sessionId,

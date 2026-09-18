@@ -20,7 +20,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -117,19 +116,24 @@ public class DeviceStableOnlineAutoUnlockService {
 
     /**
      * 自动解锁安全校验：
-     * 1) 只处理存在未解决 OFFLINE_TIMEOUT 故障（DEVICE_FAULT）的设备，人工锁机不会被自动解锁；
+     * 1) 存在未决故障，且全部未决故障均为设备离线类（DEVICE_OFFLINE，或「离线超时自动停售」标题的 DEVICE_FAULT）；
+     *    存在消费者报修/开门故障等其他类型未决故障时跳过（人工/策略锁机不会被自动解锁）；
      * 2) 无未完结维修工单；
      * 3) 无未结算购物会话。
      */
     private boolean safeToUnlock(DeviceInfo device) {
-        Optional<OpsException> fault = exceptionRepository
-                .findFirstByExceptionTypeAndDeviceIdAndStatusIn(
-                        "DEVICE_FAULT", device.getDeviceId(), OPEN_FAULT_STATES);
-        Optional<OpsException> offline = exceptionRepository
-                .findFirstByExceptionTypeAndDeviceIdAndStatusIn(
-                        "DEVICE_OFFLINE", device.getDeviceId(), OPEN_FAULT_STATES);
-        if (fault.isEmpty() && offline.isEmpty()) {
+        List<OpsException> openFaults = exceptionRepository.findByDeviceIdAndExceptionTypeInAndStatusIn(
+                device.getDeviceId(), List.of("DEVICE_OFFLINE", "DEVICE_FAULT"), OPEN_FAULT_STATES);
+        if (openFaults.isEmpty()) {
             log.info("skip auto unlock device={} reason=no-open-offline-or-fault", device.getDeviceId());
+            return false;
+        }
+        boolean allOfflineClass = openFaults.stream().allMatch(fault ->
+                "DEVICE_OFFLINE".equals(fault.getExceptionType())
+                        || OpsExceptionService.isOfflineAutoLockTitle(fault.getTitle()));
+        if (!allOfflineClass) {
+            log.info("skip auto unlock device={} reason=non-offline-open-fault count={}",
+                    device.getDeviceId(), openFaults.size());
             return false;
         }
         Long openTickets = ticketRepository.selectCount(Wrappers.<RepairTicket>lambdaQuery()

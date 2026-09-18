@@ -184,7 +184,7 @@ services:
       # 注意：xxl-job-admin 3.x 起 context-path 为 "/"，**不能**再带 /xxl-job-admin 前缀。
       # 带前缀会让执行器注册打到 404 → 注册表为空 → 所有托管任务派发 "Address Router Fail" 静默停跑。
       XXL_JOB_ADMIN_ADDRESSES: ${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080}
-      XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:-}
+      XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:-dev-xxl-token}  # H48: 开发默认非空，与执行器一致
       XXL_JOB_EXECUTOR_APPNAME: ${XXL_JOB_EXECUTOR_APPNAME:-trade-service}
       XXL_JOB_EXECUTOR_PORT: ${XXL_JOB_EXECUTOR_PORT:-9999}
       # 容器内 app 用户对 /app 无写权限，日志落到 /tmp
@@ -220,7 +220,7 @@ services:
   xxl-job-admin:
     image: xuxueli/xxl-job-admin:3.4.2
     environment:
-      PARAMS: "--spring.datasource.url=jdbc:mysql://xxl-job-mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true --spring.datasource.username=root --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljob} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:-}"
+      PARAMS: "--spring.datasource.url=jdbc:mysql://xxl-job-mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true --spring.datasource.username=root --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljob} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:-dev-xxl-token}"
     depends_on:
       xxl-job-mysql: { condition: service_healthy }
     ports:

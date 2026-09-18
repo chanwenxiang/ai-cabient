@@ -46,31 +46,33 @@ class WeChatPayNotifyServiceTest {
                 .thenAnswer(inv -> nonceBucket);
     }
 
+    /** H12: 验签失败必须先于 nonce 占位被拒，避免伪造通知抢占真实通知的 nonce 槽位。 */
     @Test
-    void parseAndVerify_nonceReplay_rejectedBeforeSignatureCheck() {
+    void parseAndVerify_invalidSignature_rejectedBeforeNonceOccupied() {
         String ts = String.valueOf(Instant.now().getEpochSecond());
+        when(v3Client.verifyNotifySignature(anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(false);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.parseAndVerify("{}", ts, "forged-nonce-1", "bad-sig", "serial"));
+
+        assertEquals(ApiMessages.INVALID_WECHAT_NOTIFY, ex.getMessage());
+        verify(v3Client).verifyNotifySignature(eq(ts), eq("forged-nonce-1"), eq("{}"), eq("bad-sig"), eq("serial"));
+        verify(nonceBucket, never()).setIfAbsent(anyString(), any(Duration.class));
+    }
+
+    /** H12: 验签通过后才做 nonce 防重；重放通知仍被拒。 */
+    @Test
+    void parseAndVerify_signatureValid_nonceReplay_rejected() {
+        String ts = String.valueOf(Instant.now().getEpochSecond());
+        when(v3Client.verifyNotifySignature(anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
         when(nonceBucket.setIfAbsent(eq("1"), any(Duration.class))).thenReturn(false);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.parseAndVerify("{}", ts, "replay-nonce-1", "sig", "serial"));
 
         assertEquals(ApiMessages.WECHAT_NOTIFY_REPLAY, ex.getMessage());
-        verify(v3Client, never()).verifyNotifySignature(anyString(), anyString(), anyString(), anyString(), anyString());
         verify(aead, never()).decrypt(anyString(), anyString(), anyString(), anyString());
-    }
-
-    @Test
-    void parseAndVerify_firstNonce_continuesToSignature() {
-        String ts = String.valueOf(Instant.now().getEpochSecond());
-        when(nonceBucket.setIfAbsent(eq("1"), any(Duration.class))).thenReturn(true);
-        when(v3Client.verifyNotifySignature(anyString(), anyString(), anyString(), anyString(), anyString()))
-                .thenReturn(false);
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> service.parseAndVerify("{}", ts, "fresh-nonce-1", "bad-sig", "serial"));
-
-        assertEquals(ApiMessages.INVALID_WECHAT_NOTIFY, ex.getMessage());
-        verify(nonceBucket).setIfAbsent(eq("1"), any(Duration.class));
-        verify(v3Client).verifyNotifySignature(eq(ts), eq("fresh-nonce-1"), eq("{}"), eq("bad-sig"), eq("serial"));
     }
 }

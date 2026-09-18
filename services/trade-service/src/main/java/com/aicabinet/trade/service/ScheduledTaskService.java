@@ -33,6 +33,12 @@ public class ScheduledTaskService {
 
     private static final ThreadLocal<Boolean> ALLOW_BUILTIN = new ThreadLocal<>();
 
+    /**
+     * M19：本次 {@link #tryBegin} 返回 false 的原因（线程内）。
+     * 调度入口（XXL handler）在 action 结束后读取，用于区分「跳过」与「执行成功」。
+     */
+    private static final ThreadLocal<String> LAST_SKIP_REASON = new ThreadLocal<>();
+
     private static final Pattern TASK_KEY_PATTERN = Pattern.compile("^[a-z0-9][a-z0-9_-]{1,62}$");
 
     private final ScheduledTaskMapper taskRepository;
@@ -183,13 +189,50 @@ public class ScheduledTaskService {
     /** 执行守卫：任务启用检查 + 分布式锁；返回是否允许本次执行。 */
     public boolean tryBegin(String taskKey, long leaseSeconds) {
         if (shouldYieldToXxlJob(taskKey)) {
+            recordSkip("builtin scheduler yields to xxl-job");
             return false;
         }
         ScheduledTask row = taskRepository.selectById(taskKey);
         if (row != null && !Boolean.TRUE.equals(row.getEnabled())) {
+            recordSkip("task disabled");
             return false;
         }
-        return lockService.tryLock("job:" + taskKey, leaseSeconds, 0);
+        if (!lockService.tryLock("job:" + taskKey, leaseSeconds, 0)) {
+            recordSkip("lock busy");
+            return false;
+        }
+        LAST_SKIP_REASON.remove();
+        return true;
+    }
+
+    private static void recordSkip(String reason) {
+        LAST_SKIP_REASON.set(reason);
+    }
+
+    /** M19：调度入口在 action 结束后调用，取走本次 tryBegin 跳过原因；未跳过返回 null。 */
+    public String consumeLastTryBeginSkip() {
+        String reason = LAST_SKIP_REASON.get();
+        LAST_SKIP_REASON.remove();
+        return reason;
+    }
+
+    /**
+     * M19：把「跳过」落库为执行记录（lastResult=SKIPPED），运营台可与「执行成功」区分。
+     * <p>与 {@link #finish} 不同：不释放分布式锁——跳过场景锁可能正被其它实例持有。</p>
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markSkipped(String taskKey, String message) {
+        ScheduledTask row = taskRepository.findByIdForUpdate(taskKey).orElse(null);
+        if (row == null) {
+            return;
+        }
+        Instant now = Instant.now();
+        row.setLastRunAt(now);
+        row.setLastResult("SKIPPED");
+        row.setLastMessage(truncate(message, 500));
+        row.setLastDurationMs(0L);
+        row.setUpdatedAt(now);
+        taskRepository.save(row);
     }
 
     /** 记录执行结果并释放分布式锁（独立事务，外层异常回滚不影响记录）。 */

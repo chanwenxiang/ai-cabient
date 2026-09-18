@@ -44,7 +44,7 @@ class BalanceRefundConcurrencyTest {
         service = new BalanceRefundService(
                 requestMapper, allocationMapper, accountMapper, rechargeOrderMapper,
                 paymentService, balanceLedgerService, permissionService, auditService,
-                distributedLockService, null, systemConfigService);
+                distributedLockService, null, systemConfigService, null);
     }
 
     @Test

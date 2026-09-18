@@ -1,0 +1,61 @@
+[基线] RC=0  绿
+[备份] 8 个文件 / 193852 字节
+
+[ 1] OK  D1 签到丢掉终态文案（换成另一条）
+      gate_rc=1（期望红） restored=True
+        doCheckInTask 里读不到 REPLENISHMENT_TASK_FINISHED —— 签到又能复活终态任务了（CANCELLED 会被改回 IN_PROGRESS，而柜机冻结判据正是 status=IN_PROGRESS 且 checkInAt≠null）
+[ 2] OK  D2 终态闸被挪到坐标闸之后（顺序反了）
+      gate_rc=1（期望红） restored=True
+        终态闸被挪到了坐标闸之后：已取消/已完成的任务会先收到「去补录柜机坐标」这种**做了也没用**的指引（补了坐标也仍然签不了），而不是「补货任务已结束」
+[ 3] OK  D3 签到不再点名 CANCELLED
+      gate_rc=1（期望红） restored=True
+        doCheckInTask 的终态闸没有点名 STATUS_CANCELLED
+[ 4] OK  D4 开门侧终态文案分叉
+      gate_rc=1（期望红） restored=True
+        DeviceValidationService（开门）里读不到 REPLENISHMENT_TASK_FINISHED —— 终态判据被改成了另一条文案，两个入口会对同一状态给出不同说法
+[ 5] OK  D5 坐标判据被重新内联（2 处）
+      gate_rc=1（期望红） restored=True
+        ReplenishmentService 里又出现了内联的 getLatitude() != null && …getLongitude() != null（2 处）——坐标判据必须走 DeviceLocationSupport.hasCoords，否则两处会各自漂移
+[ 6] OK  D6 商户门户列表路径不再用统一判据
+      gate_rc=1（期望红） restored=True
+        MerchantInventoryPortalService 里又出现了内联的 getLatitude() != null && …getLongitude() != null（1 处）——坐标判据必须走 DeviceLocationSupport.hasCoords，否则两处会各自漂移
+[ 7] OK  D7 坐标判据本体被改名
+      gate_rc=1（期望红） restored=True
+        DeviceLocationSupport 里没有 static boolean hasCoords(...)，坐标判据的单一出处没了
+[ 8] OK  D8 DTO 去掉 deviceHasCoords 字段
+      gate_rc=1（期望红） restored=True
+        ReplenishmentTaskDto 里没有 Boolean deviceHasCoords —— 客户端拿不到「本柜没坐标」这个事实
+[ 9] OK  D9 实跑脚本不再断言终态文案（2 处）
+      gate_rc=1（期望红） restored=True
+        终态拒签的报文断言不见了 —— 「任务已结束」这条文案没人在实跑里比
+[10] OK  D10 缺终态任务时把「未覆盖」记成通过
+      gate_rc=1（期望红） restored=True
+        缺终态任务时脚本没有显式报失败 —— 会静默跳过，「没验证」就会被读成「已验证」
+[11] OK  D11 实跑脚本不再消费 deviceHasCoords（2 处属性访问）
+      gate_rc=1（期望红） restored=True
+        e2e-checkin-contract.ps1 没有读取响应里的 .deviceHasCoords —— 「字段真的出现在响应里」就没有证据，客户端的前置拦可能建立在一个永远为 null 的字段上
+[12] OK  D12 契约块终态文案漂移成非子串
+      gate_rc=1（期望红） restored=True
+        TaskFinishedMessage 与服务端文案不一致：脚本声明「补货任务已取消」，ApiMessages 实为「补货任务已结束」
+[13] OK  D13 契约块终态文案削成碎片
+      gate_rc=1（期望红） restored=True
+        TaskFinishedMessage 声明得太短（「补货」，2 字，至少 7）—— 碎片式断言等于没断言
+[14] OK  D14 「状态未变」断言助手被改名
+      gate_rc=1（期望红） restored=True
+        scripts/e2e-lib.ps1 里没有 Assert-E2eTaskStillTerminal —— 「终态没被复活」这条不变量就没有实跑证据
+[15] OK  D15 终态拒签不再是 409（2 处）
+      gate_rc=1（期望红） restored=True
+        终态拒签必须是 409（与开门同一个状态码）
+[16] OK  D16 删掉整条 fail-loud 分支（静默 continue）
+      gate_rc=1（期望红） restored=True
+        缺终态任务时脚本没有显式报失败 —— 会静默跳过，「没验证」就会被读成「已验证」
+[17] OK  D17 只改 fail-loud 文案（结构不变）—— 不得假红
+      gate_rc=0（期望绿） restored=True
+      [check-replenishment-checkin-contract] OK：doCheckInTask 闸门顺序（终态 → 无坐标 → 缺定位）、4 条文案、默认距离 500m、边界 450m/600m 与 e2e-replenishment.ps1 的期望值全部一致；终态闸与开门共用同一条文案、坐标判据唯一（DeviceLoca
+[18] OK  D18 实跑脚本不再覆盖 CANCELLED（3 处）
+      gate_rc=1（期望红） restored=True
+        实跑脚本没有覆盖 CANCELLED 终态
+
+[还原复核] ALL_RESTORED=True  还原后 RC=0（期望 0）
+
+结果：18/18 全部按预期 —— 每条判据都能被真注入打红，逐字节还原，还原后复绿

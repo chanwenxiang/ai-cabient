@@ -45,6 +45,27 @@ public class DisputeSlaAlertService {
         dispatch("DISPUTE_SLA_OVERDUE", title, ticket, msg);
     }
 
+    /** 可感知失败版本（H37）：至少一个渠道发送成功才返回 true，调度器据此落 SLA 标记。 */
+    public boolean trySendReminder(DisputeTicket ticket) {
+        String title = "[争议SLA提醒]";
+        String msg = String.format("工单 %s 会话 %s 将在 %dh 内到期，请尽快审核",
+                ticket.getTicketId(), ticket.getSessionId(),
+                systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_REMINDER_HOURS,
+                        disputeSlaProperties.reminderHoursBefore()));
+        log.warn("{} {}", title, msg);
+        return dispatchForStatus("DISPUTE_SLA_REMINDER", title, ticket, msg);
+    }
+
+    public boolean trySendOverdue(DisputeTicket ticket) {
+        String title = "[争议SLA超时]";
+        String msg = String.format("工单 %s 会话 %s 已超过 %dh 未结案",
+                ticket.getTicketId(), ticket.getSessionId(),
+                systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS,
+                        disputeSlaProperties.hours()));
+        log.error("{} {}", title, msg);
+        return dispatchForStatus("DISPUTE_SLA_OVERDUE", title, ticket, msg);
+    }
+
     private void dispatch(String type, String title, DisputeTicket ticket, String message) {
         Map<String, Object> extra = Map.of(
                 "ticketId", ticket.getTicketId(),
@@ -54,5 +75,16 @@ public class DisputeSlaAlertService {
         String legacyUrl = systemConfigService.getValue(SystemConfigService.DISPUTE_SLA_WEBHOOK,
                 disputeSlaProperties.alertWebhookUrl());
         opsAlertDispatcher.send(type, title, message, extra, legacyUrl);
+    }
+
+    private boolean dispatchForStatus(String type, String title, DisputeTicket ticket, String message) {
+        Map<String, Object> extra = Map.of(
+                "ticketId", ticket.getTicketId(),
+                "sessionId", ticket.getSessionId(),
+                "reason", ticket.getReason() != null ? ticket.getReason() : ""
+        );
+        String legacyUrl = systemConfigService.getValue(SystemConfigService.DISPUTE_SLA_WEBHOOK,
+                disputeSlaProperties.alertWebhookUrl());
+        return opsAlertDispatcher.trySend(type, title, message, extra, legacyUrl);
     }
 }

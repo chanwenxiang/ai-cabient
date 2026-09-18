@@ -241,6 +241,12 @@ public class InventoryLotService {
         if (totalTaken <= 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "lot not found");
         }
+        if (remaining > 0) {
+            // 批次在库量不足以覆盖本次核销/下架数量：拒绝部分扣减，与 FEFO 路径保持一致
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "批次库存不足：batch=" + command.batchNo() + " need=" + command.quantity()
+                            + " short=" + remaining);
+        }
         recordMovement(deviceId, skuId, new InventoryMovementCommand(
                 command.batchNo(), command.movementType(), -totalTaken, command.ref()));
     }

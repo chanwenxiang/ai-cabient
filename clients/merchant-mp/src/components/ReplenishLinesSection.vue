@@ -24,15 +24,15 @@
       <view class="line-main">
         <view class="product-thumb">
           <image
-            v-if="skuThumb(line.skuId)"
+            v-if="skuThumb(skuKey(line))"
             class="product-thumb-img"
-            :src="skuThumb(line.skuId)"
+            :src="skuThumb(skuKey(line))"
             mode="aspectFill"
           />
-          <text v-else class="product-mark">{{ productGlyph(line.skuId) }}</text>
+          <text v-else class="product-mark">{{ productGlyph(skuKey(line)) }}</text>
         </view>
         <view class="product-copy">
-          <text class="sku-name">{{ skuName(line.skuId) }}</text>
+          <text class="sku-name">{{ skuName(skuKey(line)) }}</text>
           <text class="device-code">{{ line.skuId }}</text>
         </view>
         <view v-if="canEditLine(line)" class="qty-actions">
@@ -105,7 +105,7 @@
         class="line-cap"
         :class="{
           full: slotHeadroom(line) <= 0,
-          warn: slotHeadroom(line) > 0 && line.quantity > slotHeadroom(line)
+          warn: slotHeadroom(line) > 0 && (line.quantity ?? 0) > slotHeadroom(line)
         }"
         >{{ slotHint(line) }}</view
       >
@@ -156,6 +156,15 @@ const subtitle = computed(() => {
 
 function canEditLine(line: Line) {
   return props.canEdit && !props.completed && !line.applied;
+}
+
+/**
+ * 明细行的 SKU 编号。
+ * `line.skuId` 在生成类型里是可选的，而 `skuThumb` / `skuName` / `productGlyph`
+ * 三个注入函数签名都是 `(id: string)`，模板直传会报 TS2345，故在此统一兜空串。
+ */
+function skuKey(line: Line) {
+  return line.skuId || '';
 }
 </script>
 

@@ -384,7 +384,7 @@ export const merchantApi = {
       `/api/v2/merchant/trend?days=${days}`
     ),
   devices: () =>
-    request<import('@aicabinet/shared-types').DeviceInfo[]>('/api/v2/merchant/devices'),
+    request<import('@aicabinet/shared-types').MerchantDeviceInfo[]>('/api/v2/merchant/devices'),
   deviceSettings: (id: string) =>
     request<Record<string, unknown>>(`/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`),
   updateDeviceSettings: (id: string, body: Record<string, unknown>) =>

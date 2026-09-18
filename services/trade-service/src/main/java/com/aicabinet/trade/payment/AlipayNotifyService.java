@@ -42,8 +42,27 @@ public class AlipayNotifyService {
         }
         assertAppIdMatches(params);
         assertSellerIdMatches(params);
-        assertNotifyIdOnce(params.get("notify_id"));
+        // H13: notify_id 去重占位不在验签阶段执行 —— 移到「金额校验通过之后、入账之前」
+        // 由 PaymentService.handleAlipayNotify 调用 assertNotifyIdOnce，保证金额不符的通知
+        // 不会消耗 notify_id 槽位，且同一 notify_id 只入账一次。
         return new HashMap<>(params);
+    }
+
+    /**
+     * H13: notify_id 去重占位（金额校验通过后、入账前调用）。
+     * 同一 notify_id 第二次到达会抛 {@link ApiMessages#ALIPAY_NOTIFY_REPLAY}。
+     */
+    public void assertNotifyIdOnce(String notifyId) {
+        if (notifyId == null || notifyId.isBlank()) {
+            return;
+        }
+        String key = NOTIFY_ID_KEY_PREFIX + notifyId.trim();
+        RBucket<String> bucket = redisson.getBucket(key, StringCodec.INSTANCE);
+        boolean first = bucket.setIfAbsent("1", NOTIFY_ID_TTL);
+        if (!first) {
+            log.warn("alipay notify_id replay key={}", key);
+            throw new IllegalArgumentException(ApiMessages.ALIPAY_NOTIFY_REPLAY);
+        }
     }
 
     private void assertAppIdMatches(Map<String, String> params) {
@@ -75,16 +94,4 @@ public class AlipayNotifyService {
         }
     }
 
-    private void assertNotifyIdOnce(String notifyId) {
-        if (notifyId == null || notifyId.isBlank()) {
-            return;
-        }
-        String key = NOTIFY_ID_KEY_PREFIX + notifyId.trim();
-        RBucket<String> bucket = redisson.getBucket(key, StringCodec.INSTANCE);
-        boolean first = bucket.setIfAbsent("1", NOTIFY_ID_TTL);
-        if (!first) {
-            log.warn("alipay notify_id replay key={}", key);
-            throw new IllegalArgumentException(ApiMessages.ALIPAY_NOTIFY_REPLAY);
-        }
-    }
 }

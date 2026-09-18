@@ -139,7 +139,7 @@
         </div>
       </el-form>
       <p v-if="ENABLE_TEST_TOOLS" class="hint">
-        内部测试账号（密码均为 123456）：<br />
+        内部测试账号（口令见后端 seed，不写回前端）：<br />
         超管 13900000001 · 财务 13900000002 · 运营 13900000003<br />
         补货 13900000004 · 只读 13900000005
       </p>
@@ -185,7 +185,7 @@ const particles = Array.from({ length: 16 }, (_, i) => {
 
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
 
-/** 只记住手机号；密码不写 localStorage（安全）。演示号可预填，其余靠浏览器密码管理器。 */
+/** 只记住手机号；密码不写 localStorage（安全），也不做任何预填。 */
 const PW_STORE_KEY = 'admin_password';
 const PW_FLAG_KEY = 'admin_remember_password';
 try {
@@ -195,13 +195,15 @@ try {
   /* ignore quota / private mode */
 }
 
-const DEMO_LOGIN_PASSWORD = '123456';
-function isDemoPhone(p: string) {
-  return /^1390000000[1-5]$/.test(p.trim());
-}
-
 const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
-const password = ref(ENABLE_TEST_TOOLS || isDemoPhone(phone.value) ? DEMO_LOGIN_PASSWORD : '');
+/**
+ * A-1：不做演示口令预填。
+ * 原实现用 `ENABLE_TEST_TOOLS || isDemoPhone(phone.value)` 决定是否预填演示口令——只把门控关了一半：
+ * isDemoPhone 只看 localStorage.admin_phone（开发期写过一次就永久留存），
+ * 于是生产构建同样会预填口令，等于内置一个可用口令的资金后台入口。
+ * 现在一律留空（靠浏览器密码管理器）；内置账号只存在于后端 seed。
+ */
+const password = ref('');
 const captchaCode = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');

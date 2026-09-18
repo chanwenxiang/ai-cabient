@@ -1,0 +1,25 @@
+===== PHASE1：柜机无坐标（DB 尚未回填）=====
+health: {"status":"UP"}
+--- DB 前置状态 ---
+device_id|merchant_id|latitude|longitude|task_id|status|check_in_at
+777740024057|MCH-DEFAULT|||2|PENDING|
+(1 row)
+login body: {"code":0,"message":"ok","data":{"token":"<REDACTED-JWT>","userId":100000030,"expiresInSeconds":1800,"serverBootEpoch":1789705962530,"cookieEnabled":true,"twoFactorRequired":false}}
+token present = yes
+
+===== 用例（设备无坐标闸先于请求无坐标闸）=====
+--- A1 空 body（不传经纬度） ---
+  http=400
+  body={"code":400,"message":"本柜尚未录入点位坐标，无法校验签到位置，请先在运营后台补录柜机经纬度","data":null}
+--- A2 带柜前坐标（设备无坐标 ⇒ 仍应拒） ---
+  http=400
+  body={"code":400,"message":"本柜尚未录入点位坐标，无法校验签到位置，请先在运营后台补录柜机经纬度","data":null}
+--- A3 重复 A2（确认非一次性） ---
+  http=400
+  body={"code":400,"message":"本柜尚未录入点位坐标，无法校验签到位置，请先在运营后台补录柜机经纬度","data":null}
+
+===== 后置事实：任务不得被推进 =====
+task_id|status|check_in_at|check_in_lat|check_in_lng
+2|PENDING|||
+(1 row)
+===== END PHASE1 =====

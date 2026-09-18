@@ -24,6 +24,7 @@ import java.util.Map;
 public class MerchantPortalController {
     private static final String AMOUNTCENTS = "amountCents";
     private static final String REQUESTNO = "requestNo";
+    private static final String MERCHANTID = "merchantId";
 
 
     private final MerchantPortalService merchantPortalService;
@@ -661,8 +662,10 @@ public class MerchantPortalController {
     /** 商户主体钱包：分账账本入账后可自主提现（演示默认 Mock 打款）。 */
     @RequiresPermissions("merchant:wallet:view")
     @GetMapping("/wallet")
-    public ApiResponse<MerchantWalletOverviewDto> wallet(HttpServletRequest request) {
-        return ApiResponse.ok(support.merchantWithdrawService().merchantOverview(userId(request)));
+    public ApiResponse<MerchantWalletOverviewDto> wallet(
+            HttpServletRequest request,
+            @RequestParam(value = MERCHANTID, required = false) String merchantId) {
+        return ApiResponse.ok(support.merchantWithdrawService().merchantOverview(userId(request), merchantId));
     }
 
     @RequiresPermissions("merchant:wallet:apply")
@@ -672,7 +675,9 @@ public class MerchantPortalController {
         long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
                 : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
         String requestNo = body.get(REQUESTNO) == null ? null : String.valueOf(body.get(REQUESTNO));
-        return ApiResponse.ok(support.merchantWithdrawService().merchantApply(userId(request), amount, requestNo));
+        String merchantId = body.get(MERCHANTID) == null ? null : String.valueOf(body.get(MERCHANTID));
+        return ApiResponse.ok(
+                support.merchantWithdrawService().merchantApply(userId(request), amount, requestNo, merchantId));
     }
 
     private static ResponseEntity<byte[]> csvAttachment(String filename, byte[] csv) {

@@ -70,7 +70,12 @@ public class SiteRentSplitService {
             if (r.shareBps() < 0 || r.shareBps() > 10000) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "shareBps 非法");
             }
-            sumBps += r.shareBps();
+            // H30(c)：仅 ACTIVE 规则计入 10000bps 校验——INACTIVE 规则不参与出账分摊，
+            // 保留作历史口径时不应挤占新规则的份额
+            if (r.status() == null || r.status().isBlank()
+                    || CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(r.status().trim())) {
+                sumBps += r.shareBps();
+            }
         }
         if (sumBps != CabinetConstants.SHARE_BPS_FULL) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

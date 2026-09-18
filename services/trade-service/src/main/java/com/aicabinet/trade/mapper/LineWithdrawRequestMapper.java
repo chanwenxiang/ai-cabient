@@ -37,4 +37,13 @@ public interface LineWithdrawRequestMapper extends BaseTradeMapper<LineWithdrawR
         }
         return sum;
     }
+
+    /** 指定状态且 updatedAt 早于 cutoff 的提现单（打款超时扫描用，H38）。 */
+    default List<LineWithdrawRequest> findByStatusAndUpdatedAtBefore(String status, Instant cutoff) {
+        return selectList(Wrappers.<LineWithdrawRequest>lambdaQuery()
+                .eq(LineWithdrawRequest::getStatus, status)
+                .lt(LineWithdrawRequest::getUpdatedAt, cutoff)
+                .orderByAsc(LineWithdrawRequest::getUpdatedAt)
+                .last("LIMIT 100"));
+    }
 }

@@ -71,32 +71,49 @@ if (!manifestAppId && projectAppId) {
     `manifest.json 未配置 mp-weixin.appid（当前 project.config.json=${projectAppId}）。`
   );
 }
-console.log(`mini-program AppID => ${manifestAppId || projectAppId || '(未配置，请确认)'}`);
+// AppID 优先级：构建期注入（env / CI secret） > 源码里已提交的值。
+// 🔴 源码里**不该**出现真 appid（账号资产）；而提交一个**假** appid 更糟——
+//    本校验分辨不了 wx5a5bc7b541b62a13 是真是假，于是那条「appid 校验」对它是**假绿**。
+//    因此真值统一由 scripts/inject-miniapp-env.mjs 在构建期注入产物，源码留空即 fail-closed。
+const packageJson = readJson(join(packageDir, 'package.json')) || {};
+const appKey = String(packageJson.name || '')
+  .split('/')
+  .pop()
+  .replace(/-mp$/, '')
+  .replace(/[^A-Za-z0-9]+/g, '_')
+  .toUpperCase();
+const envAppId = (
+  process.env[`MP_WEIXIN_APPID_${appKey}`] ||
+  process.env.MP_WEIXIN_APPID ||
+  ''
+).trim();
 
-const effectiveAppId = manifestAppId || projectAppId;
+const effectiveAppId = envAppId || manifestAppId || projectAppId;
+console.log(
+  `mini-program AppID => ${effectiveAppId || '(未配置)'}${envAppId ? ' (from build-time injection)' : ''}`
+);
 if (!effectiveAppId || effectiveAppId === 'touristappid') {
   console.error(
-    'Production mini-program build requires a real mp-weixin.appid in src/manifest.json (and matching project.config.json).'
+    `Production mini-program build requires a real appid: set MP_WEIXIN_APPID_${appKey} (or MP_WEIXIN_APPID) in the build environment, or configure src/manifest.json.`
   );
   process.exit(1);
 }
 
-const urlCheck =
-  manifest?.['mp-weixin']?.setting?.urlCheck ??
-  manifest?.mpWeixin?.setting?.urlCheck ??
-  projectConfig?.setting?.urlCheck;
-if (urlCheck !== true) {
+// urlCheck 的**权威判据不在这里**，而在 scripts/inject-miniapp-env.mjs：
+// 它检查的是**最终产物** `dist/*/mp-weixin/project.config.json`，而不是源文件里写了什么。
+// 源文件必须长期保持 false（开发期要连 localhost 后端），发布期的 true 由注入步骤写入产物。
+// 此处只拦「显式要求关闭」这种自相矛盾的配置。
+const explicitUrlCheck = (process.env.MP_WEIXIN_URL_CHECK || '').trim().toLowerCase();
+if (explicitUrlCheck === 'false') {
   console.error(
-    'Production mini-program build requires urlCheck=true in src/manifest.json mp-weixin.setting (and project.config.json setting).'
+    'MP_WEIXIN_URL_CHECK=false 与生产构建冲突：发布产物必须开启合法域名校验（urlCheck=true）。'
   );
-  console.error(
-    'Local dev may keep urlCheck=false; flip it to true before release builds, or set AICABINET_ALLOW_URL_CHECK_OFF=1 to bypass (not recommended).'
-  );
-  if (process.env.AICABINET_ALLOW_URL_CHECK_OFF === '1') {
-    console.warn('AICABINET_ALLOW_URL_CHECK_OFF=1: continuing with urlCheck off.');
-  } else {
-    process.exit(1);
-  }
-} else {
-  console.log('mini-program urlCheck => true');
+  process.exit(1);
 }
+if (explicitUrlCheck && explicitUrlCheck !== 'true') {
+  console.error(`MP_WEIXIN_URL_CHECK 只能是 true/false，收到 ${explicitUrlCheck}`);
+  process.exit(1);
+}
+console.log(
+  'mini-program urlCheck => 交由产物判据（inject-miniapp-env.mjs --mode release 校验产物为 true）'
+);

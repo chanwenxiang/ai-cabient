@@ -121,6 +121,12 @@ public class ApprovalWorkflowService {
             locked.setRemark(null);
             locked.setFinishedAt(null);
             instanceRepository.save(locked);
+            // updateById 忽略 null 字段，remark/finishedAt 清不掉：显式 set null（M01）
+            instanceRepository.update(null,
+                    com.baomidou.mybatisplus.core.toolkit.Wrappers.<ApprovalInstance>lambdaUpdate()
+                            .eq(ApprovalInstance::getInstanceId, locked.getInstanceId())
+                            .set(ApprovalInstance::getRemark, null)
+                            .set(ApprovalInstance::getFinishedAt, null));
             createTasksForNode(locked, first);
             return;
         }
@@ -167,16 +173,30 @@ public class ApprovalWorkflowService {
         }
 
         Instant now = Instant.now();
+        String passRule = normalizePassRule(current.getPassRule());
+        // 先落本人通过（H34：passRule=ALL 时同节点需全部通过才推进）
+        for (ApprovalTask task : currentTasks) {
+            if (STATUS_PENDING.equals(task.getStatus()) && actorUserId.equals(task.getAssigneeUserId())) {
+                task.setStatus(STATUS_APPROVED);
+                task.setActedAt(now);
+                task.setRemark(trim(remark));
+                taskRepository.save(task);
+            }
+        }
+
+        boolean allApproved = currentTasks.stream().allMatch(t -> STATUS_APPROVED.equals(t.getStatus()));
+        if ("ALL".equals(passRule) && !allApproved) {
+            // 会签节点：还有其他处理人未通过，保留其待办、不推进流程
+            log.info("approval node waits for remaining assignees bizType={} bizId={} node={} rule=ALL",
+                    instance.getBizType(), instance.getBizId(), current.getNodeName());
+            return;
+        }
+
+        // ANY（或 ALL 全部通过后）跳过同节点余量待办并推进
         for (ApprovalTask task : currentTasks) {
             if (STATUS_PENDING.equals(task.getStatus())) {
-                if (actorUserId.equals(task.getAssigneeUserId())) {
-                    task.setStatus(STATUS_APPROVED);
-                    task.setActedAt(now);
-                    task.setRemark(trim(remark));
-                } else {
-                    task.setStatus(STATUS_SKIPPED);
-                    task.setActedAt(now);
-                }
+                task.setStatus(STATUS_SKIPPED);
+                task.setActedAt(now);
                 taskRepository.save(task);
             }
         }
@@ -787,6 +807,12 @@ public class ApprovalWorkflowService {
                     : "/merchant-onboarding?onboardingId=" + id;
             default -> "/approvals";
         };
+    }
+
+    /** passRule 归一化：空默认 ANY，仅 ALL 生效会签语义（与节点配置校验口径一致）。 */
+    static String normalizePassRule(String passRule) {
+        return passRule == null || passRule.isBlank()
+                ? "ANY" : passRule.trim().toUpperCase(Locale.ROOT);
     }
 
     private static String trim(String s) {

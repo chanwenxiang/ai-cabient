@@ -204,24 +204,28 @@ public class SiteRentBillService {
 
     static List<AllocationLine> allocate(int baseFeeCents, List<SiteRentSplitRule> rules) {
         int base = Math.max(0, baseFeeCents);
-        if (rules == null || rules.isEmpty()) {
+        // H30(c)：仅 ACTIVE 规则参与分摊——INACTIVE 规则不占份额，余额也不会被并入首条 ACTIVE 规则
+        List<SiteRentSplitRule> active = rules == null ? List.of() : rules.stream()
+                .filter(SiteRentBillService::isActiveRule)
+                .toList();
+        if (active.isEmpty()) {
             return List.of(new AllocationLine(
                     CabinetConstants.RENT_PARTY_LANDLORD, null, CabinetConstants.SHARE_BPS_FULL, 0, base));
         }
         long allocated = 0;
-        long[] shareParts = new long[rules.size()];
-        for (int i = 0; i < rules.size(); i++) {
-            SiteRentSplitRule r = rules.get(i);
+        long[] shareParts = new long[active.size()];
+        for (int i = 0; i < active.size(); i++) {
+            SiteRentSplitRule r = active.get(i);
             shareParts[i] = (long) base * Math.max(0, r.getShareBps()) / CabinetConstants.SHARE_BPS_FULL;
             allocated += shareParts[i];
         }
         long rem = base - allocated;
-        if (!rules.isEmpty()) {
+        if (!active.isEmpty()) {
             shareParts[0] += rem;
         }
-        List<AllocationLine> lines = new ArrayList<>(rules.size());
-        for (int i = 0; i < rules.size(); i++) {
-            SiteRentSplitRule r = rules.get(i);
+        List<AllocationLine> lines = new ArrayList<>(active.size());
+        for (int i = 0; i < active.size(); i++) {
+            SiteRentSplitRule r = active.get(i);
             int fixed = Math.max(0, r.getFixedCents());
             int amount = Math.toIntExact(shareParts[i] + fixed);
             lines.add(new AllocationLine(
@@ -232,6 +236,12 @@ public class SiteRentBillService {
                     amount));
         }
         return lines;
+    }
+
+    /** H30(c)：status 为空按 ACTIVE（与保存时的默认一致），仅 ACTIVE 参与 10000bps 校验与分摊。 */
+    static boolean isActiveRule(SiteRentSplitRule r) {
+        return r != null && (r.getStatus() == null || r.getStatus().isBlank()
+                || CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(r.getStatus().trim()));
     }
 
     static boolean isEffectiveInMonth(SiteRentSplitRule r, LocalDate monthStart, LocalDate monthEnd) {
@@ -250,10 +260,9 @@ public class SiteRentBillService {
     }
 
     private SiteRentBill requireBill(Long billId) {
-        SiteRentBill bill = billMapper.selectById(billId);
-        if (bill == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "租金账单不存在");
-        }
+        // H30(a)：行锁重查，markPaid/void 与重出账/并发状态变更互斥
+        SiteRentBill bill = billMapper.selectByIdForUpdate(billId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "租金账单不存在"));
         return bill;
     }
 

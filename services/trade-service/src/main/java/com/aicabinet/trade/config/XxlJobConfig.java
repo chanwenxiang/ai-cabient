@@ -22,7 +22,9 @@ public class XxlJobConfig {
     @Value("${xxl.job.admin.addresses}")
     private String adminAddresses;
 
-    @Value("${xxl.job.access-token:}")
+    // H48: 默认值与 infra/docker-compose.full.yml 的开发默认保持一致（非空），
+    // 避免执行器与调度中心一侧空 token 一侧非空导致注册/回调鉴权失败
+    @Value("${xxl.job.access-token:dev-xxl-token}")
     private String accessToken;
 
     @Value("${xxl.job.executor.appname:trade-service}")

@@ -201,12 +201,25 @@ public class PromotionService {
         }
     }
 
-    /** 领券预算占用额：默认按券面额。 */
+    /**
+     * 领券预算占用额：满减券按面额；折扣券（PERCENT_OFF）无面额，按面额估算预留——
+     * 以每 100 元消费为基准，预留 {@code discountPercent × 100} 分
+     * （如 discountPercent=15 → 每百元优惠 15 元 → 预留 1500 分）。
+     * 实际抵扣随订单金额浮动，核销时按「预留 − 实抵」差额回补（见 CouponService.reconcilePromotionBudgetOnUse），
+     * 领券与核销两处统一走本口径。
+     */
     public static int budgetReserveCents(CouponDefinition def) {
         if (def == null) {
             return 0;
         }
-        return Math.max(0, def.getDenominationCents());
+        if (def.getDenominationCents() > 0) {
+            return def.getDenominationCents();
+        }
+        if ("PERCENT_OFF".equals(def.getCouponType()) && def.getDiscountPercent() != null) {
+            // 面额估算口径：rate×100 分 = 每百元消费的预计优惠额
+            return Math.max(0, def.getDiscountPercent()) * 100;
+        }
+        return 0;
     }
 
     private PromotionActivityDto toDto(PromotionActivity a) {

@@ -49,7 +49,7 @@ class BalanceInsufficientSettlementTest {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, cabinetMetrics, domainEventPublisher,
                 gravityHelper, null, null, null, null, null, null, null, orderRepository,
-                null, distributedLockService, null, null);
+                null, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, service);

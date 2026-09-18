@@ -596,6 +596,9 @@ public class WarehouseService {
         if (SHIPPED.equals(outbound.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "already shipped");
         }
+        if (STATUS_CANCELLED.equals(outbound.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "出库单已作废，无法拣货");
+        }
         List<WarehouseOutboundLine> lines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
         if (lines.isEmpty()) {
             throw badRequest("出库单无明细，无法拣货（可能库存不足未生成行项）");
@@ -626,10 +629,20 @@ public class WarehouseService {
         if (SHIPPED.equals(outbound.getStatus())) {
             return self.getOutbound(outboundId);
         }
+        if (STATUS_CANCELLED.equals(outbound.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "出库单已作废，无法发运");
+        }
         List<WarehouseOutboundLine> lines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
         if (lines.isEmpty()) {
             throw badRequest("出库单无明细，无法发运（可能库存不足未生成行项）");
         }
+        if (lines.stream().allMatch(line -> STATUS_CANCELLED.equals(line.getHandoverStatus()))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "出库单行项已全部作废，无法发运");
+        }
+        // 已作废行不参与发运扣库
+        lines = lines.stream()
+                .filter(line -> !STATUS_CANCELLED.equals(line.getHandoverStatus()))
+                .toList();
         if (lines.stream().anyMatch(line -> !line.isPicked())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "outbound must be picked before ship");
         }
@@ -759,6 +772,8 @@ public class WarehouseService {
     private void markDeviceLinesCancelled(List<WarehouseOutboundLine> deviceLines) {
         for (WarehouseOutboundLine line : deviceLines) {
             line.setHandoverStatus(STATUS_CANCELLED);
+            // 作废行同时清除拣货标记，避免 ship 前置校验被已作废行的 picked 状态放行
+            line.setPicked(false);
             outboundLineRepository.save(line);
         }
     }

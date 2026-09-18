@@ -33,6 +33,14 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
                 .last("LIMIT 1")));
     }
 
+    default List<OpsException> findByDeviceIdAndExceptionTypeInAndStatusIn(
+            String deviceId, Collection<String> exceptionTypes, Collection<String> statuses) {
+        return selectList(Wrappers.<OpsException>lambdaQuery()
+                .eq(OpsException::getDeviceId, deviceId)
+                .in(OpsException::getExceptionType, exceptionTypes)
+                .in(OpsException::getStatus, statuses));
+    }
+
     default List<OpsException> findBySessionIdAndStatusIn(String sessionId, Collection<String> statuses) {
     return selectList(Wrappers.<OpsException>lambdaQuery().eq(OpsException::getSessionId, sessionId).in(OpsException::getStatus, statuses));
     }

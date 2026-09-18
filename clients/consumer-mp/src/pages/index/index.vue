@@ -171,12 +171,8 @@
             class="device-status app-status"
             :class="{
               'is-offline': deviceOffline,
-              'is-warn':
-                !deviceOffline &&
-                [UI_COPY.replenishing, UI_COPY.paused, UI_COPY.inUse].includes(deviceStatusText),
-              'is-online':
-                !deviceOffline &&
-                ![UI_COPY.replenishing, UI_COPY.paused, UI_COPY.inUse].includes(deviceStatusText)
+              'is-warn': !deviceOffline && deviceBusy,
+              'is-online': !deviceOffline && !deviceBusy
             }"
           >
             <text class="app-status-dot" aria-hidden="true" />
@@ -324,7 +320,7 @@
                   class="stepper-btn plus"
                   :class="{ disabled: !canAddProduct(p) }"
                   role="button"
-                  :aria-disabled="(!canAddProduct(p)).toString()"
+                  :aria-disabled="!canAddProduct(p) ? 'true' : 'false'"
                   :aria-label="`增加 ${p.skuName}`"
                   :data-testid="`product-step-plus-${p.skuId}`"
                   :data-sku-id="p.skuId"
@@ -623,6 +619,13 @@ let pollInFlight = false;
 let pollFailStreak = 0;
 const SESSION_POLL_MS = 2000;
 const POLL_FAIL_WARN_AT = 3;
+/**
+ * C-2：开门超时后给「仍在途的 createSession」的宽限期，以及随后轮询 /sessions/active 的退避间隔。
+ * 依据：request 层单次超时 12s + 内部失败重试 600ms + 再 12s ⇒ 最长约 24.6s 才有结论，
+ * 而开门侧的 withTimeout 在 20s 就放弃了等待。
+ */
+const ORPHAN_GRACE_MS = 5000;
+const ORPHAN_ADOPT_BACKOFF_MS: readonly number[] = [0, 1000, 2000];
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let prepResolve: ((ok: boolean) => void) | null = null;
@@ -636,12 +639,38 @@ const recognitionSlow = computed(
     recognitionElapsedSec.value >= 90
 );
 
+/**
+ * 会话「进行中」状态集合（非终态）。
+ * 轮询恢复、孤儿会话接管、重复开门拦截共用同一份定义，避免多处字面量各写一份导致漂移
+ * （C-1/C-2/C-3 三条缺陷都依赖「会话是否仍进行中」这个判据）。
+ */
+const SESSION_ACTIVE_STATES: readonly string[] = [
+  'CREATED',
+  'OPENING',
+  'SHOPPING',
+  'RECOGNIZING',
+  'WAITING_UPLOAD',
+  'SETTLING'
+];
+
+/**
+ * 「柜机被他人占用」的展示文案（补货中 / 暂停营业 / 使用中）。
+ *
+ * ⚠️ 必须显式标注为 `readonly string[]`：字面量数组会被推断成联合字面量元组，
+ * 于是 `string` 类型的 `deviceStatusText` 传进 `includes()` 会报 TS2345
+ * （vue-tsc 的模板检查会命中这一点）。
+ */
+const DEVICE_BUSY_STATUS_TEXTS: readonly string[] = [
+  UI_COPY.replenishing,
+  UI_COPY.paused,
+  UI_COPY.inUse
+];
+
+/** 是否处于「他人占用」态；模板里原本把这个判断写了两遍。 */
+const deviceBusy = computed(() => DEVICE_BUSY_STATUS_TEXTS.includes(deviceStatusText.value));
+
 const sessionActive = computed(
-  () =>
-    !!sessionId.value &&
-    ['CREATED', 'OPENING', 'SHOPPING', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(
-      state.value
-    )
+  () => !!sessionId.value && SESSION_ACTIVE_STATES.includes(state.value)
 );
 
 const productCategories = computed(() => {
@@ -888,6 +917,10 @@ onShow(async () => {
     await onAuthenticatedShow();
   }
   if (seq !== showSeq) return;
+  // C-1：onHide 已 stopPoll()，而 sessionId 非空时 restoreActiveSession() 会提前 return，
+  // 因此返回首页时必须在此兜底重启轮询，否则关门永不被识别（不弹账单、不跳结果页）。
+  // onAuthenticatedShow 内部还有 reopen/browse 等提前 return 分支，放在它之后才不会被跳过。
+  resumeSessionPollingIfActive();
   startDevicePoll();
 });
 
@@ -1041,20 +1074,85 @@ function applyProductsResult(result: PromiseSettledResult<DeviceProduct[]>) {
   showError(formatError(result.reason));
 }
 
+/** 接管服务端会话：写入活动会话、同步视图并启动轮询。 */
+function adoptSession(s: SessionDto) {
+  lastFailedDeviceId.value = '';
+  lastFailedChannel.value = null;
+  setActiveSession(s.sessionId);
+  applySessionView(s);
+  startPoll();
+}
+
+/** 该会话能否被本次开门接管：同柜机且处于非终态。 */
+function isAdoptableSession(s: SessionDto | null | undefined, cabinetId: string): boolean {
+  if (!s) return false;
+  const same =
+    String(s.deviceId || '')
+      .trim()
+      .toUpperCase() ===
+    String(cabinetId || '')
+      .trim()
+      .toUpperCase();
+  return same && SESSION_ACTIVE_STATES.includes(String(s.state || ''));
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 在 ms 内 settle 则返回结果，否则返回 null（给在途请求一个宽限期）。 */
+function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race<T | null>([promise.catch(() => null), sleep(ms).then(() => null)]);
+}
+
+/**
+ * C-2：开门请求「超时」不等于失败。
+ * withTimeout 只放弃等待，底层 createSession 仍在途（request 层 12s 超时 + 内部 600ms 重试，
+ * 最长约 24.6s），而服务端按 idempotencyKey 幂等回放同一会话。因此这里先给在途请求一段宽限期，
+ * 再退避轮询 /sessions/active，最后才判失败——否则会出现「柜门已开、订单可能已产生、客户端毫无感知」
+ * 的幽灵会话（唯一可能造成用户不知情被扣款的路径）。
+ */
+async function adoptOrphanSession(
+  cabinetId: string,
+  options: { pendingCreate?: Promise<SessionDto>; delays?: readonly number[] } = {}
+): Promise<boolean> {
+  const { pendingCreate, delays = ORPHAN_ADOPT_BACKOFF_MS } = options;
+  if (pendingCreate) {
+    const late = await settleWithin(pendingCreate, ORPHAN_GRACE_MS);
+    if (late && isAdoptableSession(late, cabinetId)) {
+      adoptSession(late);
+      showSuccess('已恢复开门会话');
+      return true;
+    }
+  }
+  for (const delay of delays) {
+    if (delay > 0) await sleep(delay);
+    // 其它路径（轮询/恢复）已接管时无需重复查询
+    if (sessionId.value) return true;
+    try {
+      const s = await consumerApi.activeSession();
+      if (isAdoptableSession(s, cabinetId)) {
+        adoptSession(s as SessionDto);
+        showSuccess('已恢复开门会话');
+        return true;
+      }
+    } catch {
+      /* 查询失败：继续退避重试，全部失败才走原失败路径 */
+    }
+  }
+  return false;
+}
+
 async function handleSessionOpenResult(
   cabinetId: string,
-  sessionResult: PromiseSettledResult<SessionDto>
+  sessionResult: PromiseSettledResult<SessionDto>,
+  pendingCreate?: Promise<SessionDto>
 ): Promise<boolean> {
   if (sessionResult.status === 'fulfilled') {
-    const s = sessionResult.value;
-    lastFailedDeviceId.value = '';
-    lastFailedChannel.value = null;
-    setActiveSession(s.sessionId);
-    applySessionView(s);
-    startPoll();
+    adoptSession(sessionResult.value);
     return true;
   }
-  if (await adoptOrphanSession(cabinetId)) return true;
+  if (await adoptOrphanSession(cabinetId, { pendingCreate })) return true;
   markOpenFailed(cabinetId);
   const failReason = sessionResult.reason;
   const kind = classifyOpenError(failReason);
@@ -1075,8 +1173,35 @@ function resetDeviceOnOpenFailure(cabinetId: string) {
   lastFailedChannel.value = entryChannel.value;
 }
 
+/**
+ * C-3：已有进行中会话时禁止再次开门。
+ * 服务端 ensureNoBlockingSession 只拦「同一柜机被占用」，跨柜机的用户级并发会话拦不住；
+ * 若放行，开门失败的错误会展示在新柜机的落地页，而本地 sessionId/ACTIVE_SESSION_KEY 已被覆盖，
+ * 原柜机的轮询彻底失联（叠加 C-1 后不可自愈），原账单只能靠订单页事后发现。
+ * canReopen 要求 !sessionActive，因此「再次开门」按钮不会被本拦截误伤。
+ */
+function rejectEntryWhenSessionActive(cabinetId: string): boolean {
+  if (!sessionActive.value) return false;
+  const current = normalizeCabinetId(deviceId.value || '');
+  if (current && current === cabinetId) {
+    showError('当前柜机购物进行中，请先完成结算', 2400);
+    return true;
+  }
+  setLandingError('你有一笔未完成的购物单，请先完成或取消后再开门。', 'device_busy');
+  void showConfirm({
+    title: '有未完成的购物单',
+    content: '请先关闭当前柜门完成结算，或取消当前会话后再扫其他柜机。',
+    confirmText: '查看订单',
+    cancelText: '继续当前'
+  }).then((ok) => {
+    if (ok) goOrders();
+  });
+  return true;
+}
+
 function beginCabinetEntry(cabinetId: string, scanChannel?: string | null): boolean {
   if (!cabinetId || opening.value || enteringFlow.value) return false;
+  if (rejectEntryWhenSessionActive(cabinetId)) return false;
   if (isCabinetIdInvalid(cabinetId)) {
     // 编号形态允许字母+连字符（CAB-001），文案写「数字编号」会与校验规则矛盾。
     setLandingError('柜机编号无效，请扫描柜门二维码或核对编号后重试。', 'device_not_found');
@@ -1108,22 +1233,25 @@ async function prepareDeviceForOpen(cabinetId: string): Promise<boolean> {
   const pre = Number(status.preauthCents);
   devicePreauthCents.value = Number.isFinite(pre) && pre > 0 ? pre : null;
   const avail = applyDeviceAvailability(status);
+  // C-2 收口：柜机被占用时，若占用会话本身就是当前用户的（超时后落库的幽灵会话），
+  // 直接接管继续轮询，而不是把用户挡在「柜机正在被使用」外面——否则他既进不去也退不出。
+  // 此处没有在途请求，只需单次查询，不做退避以免拖慢「柜机正忙」的正常报错。
+  if (avail.reason === 'SESSION' && (await adoptOrphanSession(cabinetId, { delays: [0] })))
+    return false;
   return !rejectBlockedDevice(cabinetId, avail);
 }
 
 async function openDeviceSession(cabinetId: string) {
   productsLoading.value = true;
   const OPEN_TIMEOUT_MS = 20000;
+  // C-2：先留下 createSession 的 promise 引用——超时只代表「放弃等待」，它仍可能在途并最终成功
+  const createSessionPromise = consumerApi.createSession(cabinetId, entryChannel.value);
   const [productsResult, sessionResult] = await Promise.allSettled([
     withTimeout(consumerApi.deviceProducts(cabinetId), OPEN_TIMEOUT_MS, '商品加载超时，请重试'),
-    withTimeout(
-      consumerApi.createSession(cabinetId, entryChannel.value),
-      OPEN_TIMEOUT_MS,
-      '开门请求超时，请检查网络后重试'
-    )
+    withTimeout(createSessionPromise, OPEN_TIMEOUT_MS, '开门请求超时，请检查网络后重试')
   ]);
   applyProductsResult(productsResult);
-  await handleSessionOpenResult(cabinetId, sessionResult);
+  await handleSessionOpenResult(cabinetId, sessionResult, createSessionPromise);
 }
 
 async function startShoppingFlow(id: string, scanChannel?: string | null) {
@@ -1148,39 +1276,6 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     opening.value = false;
     enteringFlow.value = false;
   }
-}
-
-/**
- * 开门请求超时后认领服务端可能已创建的会话（同柜机、非终态）。
- * 成功则接管会话继续轮询，返回 true；否则走原失败路径。
- */
-async function adoptOrphanSession(cabinetId: string): Promise<boolean> {
-  try {
-    const s = await consumerApi.activeSession();
-    const matched =
-      s &&
-      String(s.deviceId || '')
-        .trim()
-        .toUpperCase() ===
-        String(cabinetId || '')
-          .trim()
-          .toUpperCase() &&
-      ['CREATED', 'OPENING', 'SHOPPING', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(
-        s.state
-      );
-    if (matched) {
-      lastFailedDeviceId.value = '';
-      lastFailedChannel.value = null;
-      setActiveSession(s.sessionId);
-      applySessionView(s);
-      startPoll();
-      showSuccess('已恢复开门会话');
-      return true;
-    }
-  } catch {
-    /* 查询失败仍按原失败路径处理 */
-  }
-  return false;
 }
 
 function setLandingError(message: string, kind: OpenErrorKind = 'other') {
@@ -1428,17 +1523,16 @@ async function loadDeviceAndProducts() {
 }
 
 function normalizeProducts(list: DeviceProduct[] | null | undefined): DeviceProduct[] {
-  return (list || [])
-    .map((p) => {
-      const n = Number(p.quantity);
-      // C-22：非法库存不静默归 0，直接丢弃该行避免假库存
-      if (!Number.isFinite(n)) return null;
-      return {
-        ...p,
-        quantity: Math.max(0, Math.floor(n))
-      };
-    })
-    .filter((p): p is DeviceProduct => p != null);
+  // 用 for-of 而非 map+filter：`filter((p): p is DeviceProduct => ...)` 会因
+  // `DeviceProduct.quantity` 可选而报 TS2677（谓词类型必须是入参类型的子类型）。
+  const normalized: DeviceProduct[] = [];
+  for (const p of list || []) {
+    const n = Number(p.quantity);
+    // C-22：非法库存不静默归 0，直接丢弃该行避免假库存
+    if (!Number.isFinite(n)) continue;
+    normalized.push({ ...p, quantity: Math.max(0, Math.floor(n)) });
+  }
+  return normalized;
 }
 
 function clampSelectionToStock() {
@@ -1609,8 +1703,24 @@ function clearCategory() {
   activeCategory.value = '';
 }
 
-function onCategoryChipTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
-  const cat = String(e?.currentTarget?.dataset?.cat ?? '');
+/**
+ * 从 uni-app 事件里取 `currentTarget.dataset[key]`。
+ *
+ * 跨端唯一稳定的取数位置就是 `currentTarget.dataset`（H5 是 DOM 事件、小程序是自定义对象，
+ * 其余字段两端不一致）。原先每个 handler 各自声明一套窄类型
+ * `{ currentTarget?: { dataset?: Record<string, string> } }`，与 Vue 给原生元素 `@click`
+ * 推导出的 `PointerEvent` 参数不兼容 → vue-tsc 报 TS2345（共 3 处模板命中）。
+ * 收口成 `unknown` 入参 + 单点断言后，既满足模板类型，也消掉了 4 份重复声明。
+ */
+function datasetOf(e: unknown, key: string): string {
+  const target = (e as { currentTarget?: { dataset?: Record<string, unknown> } } | null)
+    ?.currentTarget;
+  const value = target?.dataset?.[key];
+  return value == null ? '' : String(value);
+}
+
+function onCategoryChipTap(e: unknown) {
+  const cat = datasetOf(e, 'cat');
   if (!cat) return;
   activeCategory.value = activeCategory.value === cat ? '' : cat;
 }
@@ -1619,18 +1729,18 @@ function productBySkuId(skuId: string): DeviceProduct | undefined {
   return products.value.find((p) => p.skuId === skuId);
 }
 
-function onProductCellTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
-  const skuId = String(e?.currentTarget?.dataset?.skuId ?? '');
+function onProductCellTap(e: unknown) {
+  const skuId = datasetOf(e, 'skuId');
   const p = productBySkuId(skuId);
   if (p) addProduct(p);
 }
 
-function onAddProductTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
+function onAddProductTap(e: unknown) {
   onProductCellTap(e);
 }
 
-function onRemoveProductTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
-  const skuId = String(e?.currentTarget?.dataset?.skuId ?? '');
+function onRemoveProductTap(e: unknown) {
+  const skuId = datasetOf(e, 'skuId');
   const p = productBySkuId(skuId);
   if (p) removeProduct(p);
 }
@@ -1930,9 +2040,26 @@ function stopOpeningCountdown() {
   openingSeconds.value = 90;
 }
 
+/**
+ * C-1：恢复前台时重启会话轮询。
+ * onHide 会 stopPoll()，而 restoreActiveSession() 在 sessionId 非空时提前 return，
+ * 导致「SHOPPING 中跳帮助页/切 Tab 再返回」后轮询永久停摆、关门不再被识别。
+ * startPoll() 自身先 stopPoll()，重复调用只是重启定时器，幂等安全。
+ */
+function resumeSessionPollingIfActive(): boolean {
+  if (!sessionId.value) return false;
+  if (!SESSION_ACTIVE_STATES.includes(state.value)) return false;
+  startPoll();
+  return true;
+}
+
 async function restoreActiveSession() {
   const saved = uni.getStorageSync(ACTIVE_SESSION_KEY);
-  if (sessionId.value) return;
+  if (sessionId.value) {
+    // C-1：本地已有进行中会话，只需恢复被 onHide 关掉的轮询，不必重新查询
+    resumeSessionPollingIfActive();
+    return;
+  }
   try {
     const s = saved ? await consumerApi.getSession(saved) : await consumerApi.activeSession();
     if (!s) return;

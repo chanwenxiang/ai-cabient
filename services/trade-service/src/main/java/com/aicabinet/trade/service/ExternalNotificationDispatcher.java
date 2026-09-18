@@ -4,8 +4,10 @@ import com.aicabinet.common.dto.NotificationDispatchMessage;
 import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.NotificationLog;
-import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.domain.NotificationTemplate;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
+import com.aicabinet.trade.mapper.NotificationTemplateMapper;
+import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.sms.WebhookSmsSender;
 import com.aicabinet.trade.wechat.WeChatMiniAppClient;
@@ -14,6 +16,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 
 /** 外部渠道通知分发：微信订阅消息 / 短信；同步与异步（Kafka 消费）共用。 */
@@ -24,6 +28,7 @@ public class ExternalNotificationDispatcher {
 
     private final NotificationLogMapper logRepository;
     private final UserInfoMapper userInfoRepository;
+    private final NotificationTemplateMapper templateRepository;
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final WebhookSmsSender smsSender;
@@ -31,12 +36,14 @@ public class ExternalNotificationDispatcher {
 
     public ExternalNotificationDispatcher(NotificationLogMapper logRepository,
                                           UserInfoMapper userInfoRepository,
+                                          NotificationTemplateMapper templateRepository,
                                           WeChatMiniAppClient weChatMiniAppClient,
                                           WeChatMiniAppProperties weChatMiniAppProperties,
                                           WebhookSmsSender smsSender,
                                           NotificationProperties notificationProperties) {
         this.logRepository = logRepository;
         this.userInfoRepository = userInfoRepository;
+        this.templateRepository = templateRepository;
         this.weChatMiniAppClient = weChatMiniAppClient;
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.smsSender = smsSender;
@@ -86,8 +93,37 @@ public class ExternalNotificationDispatcher {
         if (user == null || user.getPhoneNumber() == null || user.getPhoneNumber().isBlank()) {
             return;
         }
+        if (!smsChannelConfigured(msg.templateCode())) {
+            // M09：模板未配置短信渠道（如微信-only）时不得因全局 sms-enabled 而双发
+            log.info("sms skipped: template {} has no SMS channel, userId={}", msg.templateCode(), msg.userId());
+            return;
+        }
         smsSender.sendMessage(user.getPhoneNumber(), msg.title() + "：" + msg.body());
         saveLog(msg, "SMS");
+    }
+
+    /**
+     * M09：按模板 channels（逗号分隔 IN_APP/WECHAT_SUBSCRIBE/SMS）判断短信渠道是否启用。
+     * 消息体只带 templateCode，故回查模板；模板缺失/无模板上下文时保持既有直发行为。
+     */
+    private boolean smsChannelConfigured(String templateCode) {
+        if (templateCode == null || templateCode.isBlank()) {
+            return true;
+        }
+        NotificationTemplate template = templateRepository.findByCode(templateCode).orElse(null);
+        if (template == null) {
+            return true;
+        }
+        String raw = template.getChannels() != null && !template.getChannels().isBlank()
+                ? template.getChannels()
+                : template.getChannel();
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        return Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .map(c -> c.toUpperCase(Locale.ROOT))
+                .anyMatch("SMS"::equals);
     }
 
     private void saveLog(NotificationDispatchMessage msg, String channel) {

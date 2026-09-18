@@ -14,6 +14,19 @@ aicabinet:
     mock-enabled: false
     scheduled-enabled: true
 
+spring:
+  flyway:
+    placeholders:
+      # C01+H15: 生产禁用种子守卫迁移（V202/V244/V252/V253/V254/V262 的写语句被 seed_env 守卫跳过）
+      seed_env: none
+
+# H47: 生产关闭 SpringDoc OpenAPI / Swagger UI（默认开启会暴露全部接口结构，且无 spring-security 鉴权）
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 logging:
   level:
     root: INFO

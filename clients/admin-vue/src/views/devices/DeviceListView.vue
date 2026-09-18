@@ -475,6 +475,36 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="点位坐标">
+          <div style="display: flex; gap: 8px; width: 100%">
+            <el-input-number
+              v-model="createForm.latitude"
+              :controls="false"
+              :precision="6"
+              :step="0.0001"
+              :min="-90"
+              :max="90"
+              style="width: 100%"
+              placeholder="纬度，如 31.230400"
+            />
+            <el-input-number
+              v-model="createForm.longitude"
+              :controls="false"
+              :precision="6"
+              :step="0.0001"
+              :min="-180"
+              :max="180"
+              style="width: 100%"
+              placeholder="经度，如 121.473700"
+            />
+          </div>
+          <p class="form-hint muted">
+            选择商户即视为柜机已部署，此时经纬度必填：补货签到靠坐标做地理围栏，缺坐标的柜机无法校验签到位置。
+          </p>
+        </el-form-item>
+        <el-form-item label="点位地址">
+          <el-input v-model="createForm.address" clearable placeholder="可选…" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
@@ -580,7 +610,11 @@ const merchantOptions = ref<MerchantOption[]>([]);
 const createForm = reactive({
   deviceName: '',
   deviceType: '',
-  merchantId: ''
+  merchantId: '',
+  /** 点位坐标：填了商户即视为部署，此时经纬度必填（后端 createDevice 亦 fail-closed） */
+  latitude: undefined as number | undefined,
+  longitude: undefined as number | undefined,
+  address: ''
 });
 const boardCounts = reactive({
   ALL: 0,
@@ -1090,6 +1124,9 @@ function openCreate() {
   createForm.deviceName = '';
   createForm.deviceType = '';
   createForm.merchantId = '';
+  createForm.latitude = undefined;
+  createForm.longitude = undefined;
+  createForm.address = '';
   createVisible.value = true;
   void loadMerchants();
 }
@@ -1117,12 +1154,27 @@ async function saveCreate() {
       return;
     }
   }
+  // 坐标必填：选了商户 = 直接部署，此时必须先完成点位建档。
+  // 前端拦一道只是为了让用户少跑一次 400；权威判据在后端 createDevice。
+  const hasLat = typeof createForm.latitude === 'number';
+  const hasLng = typeof createForm.longitude === 'number';
+  if (hasLat !== hasLng) {
+    ElMessage.warning('纬度与经度需成对填写');
+    return;
+  }
+  if (createForm.merchantId && (!hasLat || !hasLng)) {
+    ElMessage.warning('已选择商户（柜机将直接部署），必须填写点位经纬度');
+    return;
+  }
   createSaving.value = true;
   try {
     const created = await api.request<{ deviceId: string }>(AdminEndpoints.devices, 'POST', {
       deviceName: createForm.deviceName.trim() || undefined,
       deviceType: createForm.deviceType || undefined,
-      merchantId: createForm.merchantId || undefined
+      merchantId: createForm.merchantId || undefined,
+      latitude: createForm.latitude,
+      longitude: createForm.longitude,
+      address: createForm.address.trim() || undefined
     });
     ElMessage.success(`设备已创建，编号 ${created.deviceId}`);
     createVisible.value = false;

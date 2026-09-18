@@ -63,11 +63,7 @@ CREATE TABLE IF NOT EXISTS repair_ticket_event (
 CREATE INDEX IF NOT EXISTS idx_repair_ticket_event_ticket
     ON repair_ticket_event (ticket_id, created_at DESC);
 
--- 演示柜种子工单（若设备存在）
-INSERT INTO repair_ticket (device_id, title, fault_type, status, assignee, priority, remark, created_by)
-SELECT 'CAB-001', '门锁偶发卡顿', 'DOOR', 'OPEN', NULL, 'NORMAL', '演示维修工单', 100000001
-WHERE EXISTS (SELECT 1 FROM device_info WHERE device_id = 'CAB-001')
-  AND NOT EXISTS (SELECT 1 FROM repair_ticket WHERE device_id = 'CAB-001' AND title = '门锁偶发卡顿');
+-- 已归档（2026-09-18）：原演示种子语句已移除（针对已删除的演示柜 CAB-001），原 SQL 见 git 历史。
 
 SELECT setval(
     pg_get_serial_sequence('ops_permission', 'permission_id'),

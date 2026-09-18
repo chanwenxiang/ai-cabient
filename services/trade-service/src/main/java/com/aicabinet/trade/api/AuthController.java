@@ -188,7 +188,7 @@ public class AuthController {
         }
     }
 
-    /** 登出：吊销当前会话 JWT，并清除运营与消费者 Cookie（幂等）。 */
+    /** 登出：吊销当前会话 JWT 与两套 realm 会话 Cookie，并清除 Cookie（幂等）。 */
     @PostMapping("/logout")
     public ApiResponse<Void> logout(
             @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -205,18 +205,17 @@ public class AuthController {
                 token = presented.token();
             }
         }
-        if (token == null) {
-            // 两套 Cookie 都尽量吊销
-            String admin = sessionCookieService.resolveToken(request, SessionCookieService.Realm.ADMIN);
-            String consumer = sessionCookieService.resolveToken(request, SessionCookieService.Realm.CONSUMER);
-            if (admin != null) {
-                jwtService.revokeTokenQuietly(admin);
-            }
-            if (consumer != null) {
-                jwtService.revokeTokenQuietly(consumer);
-            }
-        } else {
+        if (token != null) {
             jwtService.revokeTokenQuietly(token);
+        }
+        // H66a：Bearer 吊销后，两个 realm 的会话 Cookie JWT 也必须吊销，不能只 clear
+        String adminCookie = sessionCookieService.resolveToken(request, SessionCookieService.Realm.ADMIN);
+        if (adminCookie != null) {
+            jwtService.revokeTokenQuietly(adminCookie);
+        }
+        String consumerCookie = sessionCookieService.resolveToken(request, SessionCookieService.Realm.CONSUMER);
+        if (consumerCookie != null) {
+            jwtService.revokeTokenQuietly(consumerCookie);
         }
         sessionCookieService.clearSessionCookie(response, SessionCookieService.Realm.ADMIN);
         sessionCookieService.clearSessionCookie(response, SessionCookieService.Realm.CONSUMER);

@@ -2201,6 +2201,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/rbac/me/phone-sms-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["sendPhoneChangeSmsCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/rbac/me/avatar": {
         parameters: {
             query?: never;
@@ -8997,6 +9013,7 @@ export interface components {
             deptIds?: number[];
             /** Format: int64 */
             primaryDeptId?: number;
+            phoneSmsCode?: string;
         };
         ApiResponseOpsOperatorDto: {
             /** Format: int32 */
@@ -9027,6 +9044,7 @@ export interface components {
             /** Format: email */
             email?: string;
             avatarUrl?: string;
+            phoneSmsCode?: string;
         };
         ApiResponseOpsMeDto: {
             /** Format: int32 */
@@ -10783,6 +10801,7 @@ export interface components {
             /** Format: int32 */
             evidenceCount?: number;
             lineSummary?: string;
+            deviceHasCoords?: boolean;
         };
         ReplenishmentCheckInRequest: {
             /** Format: double */
@@ -11568,6 +11587,11 @@ export interface components {
             deviceName?: string;
             deviceType?: string;
             merchantId?: string;
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+            address?: string;
         };
         AdminDeviceDto: {
             deviceId?: string;
@@ -11955,6 +11979,7 @@ export interface components {
         WxLoginRequest: {
             code: string;
             phoneNumber?: string;
+            phoneCode?: string;
         };
         ApiResponseLoginResponse: {
             /** Format: int32 */
@@ -20032,6 +20057,28 @@ export interface operations {
             };
         };
     };
+    sendPhoneChangeSmsCode: {
+        parameters: {
+            query: {
+                phoneNumber: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     uploadMyAvatar: {
         parameters: {
             query?: never;
@@ -27661,7 +27708,9 @@ export interface operations {
     };
     wallet: {
         parameters: {
-            query?: never;
+            query?: {
+                merchantId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

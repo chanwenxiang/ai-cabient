@@ -96,19 +96,26 @@ public class DisputeSlaScheduler {
                     ChronoUnit.HOURS));
             dirty = true;
         }
+        // H37：仅发送成功（至少一个渠道成功）才落 SLA 标记；失败时本轮不标记，下轮扫描重试
         if (ticket.getSlaReminderAt() == null
                 && !ticket.getSlaDueAt().isAfter(reminderThreshold)
                 && ticket.getSlaDueAt().isAfter(now)) {
-            alertService.sendReminder(ticket);
-            ticket.setSlaReminderAt(now);
-            dirty = true;
-            reminders = 1;
+            if (alertService.trySendReminder(ticket)) {
+                ticket.setSlaReminderAt(now);
+                dirty = true;
+                reminders = 1;
+            } else {
+                log.error("dispute sla reminder dispatch failed, will retry ticket={}", ticket.getTicketId());
+            }
         }
         if (ticket.getSlaAlertedAt() == null && !ticket.getSlaDueAt().isAfter(now)) {
-            alertService.sendOverdue(ticket);
-            ticket.setSlaAlertedAt(now);
-            dirty = true;
-            overdue = 1;
+            if (alertService.trySendOverdue(ticket)) {
+                ticket.setSlaAlertedAt(now);
+                dirty = true;
+                overdue = 1;
+            } else {
+                log.error("dispute sla overdue dispatch failed, will retry ticket={}", ticket.getTicketId());
+            }
         }
         return new SlaScanResult(dirty, reminders, overdue);
     }

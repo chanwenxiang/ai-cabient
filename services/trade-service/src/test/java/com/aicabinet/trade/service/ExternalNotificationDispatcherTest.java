@@ -4,8 +4,10 @@ import com.aicabinet.common.dto.NotificationDispatchMessage;
 import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.NotificationLog;
+import com.aicabinet.trade.domain.NotificationTemplate;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
+import com.aicabinet.trade.mapper.NotificationTemplateMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.sms.WebhookSmsSender;
 import com.aicabinet.trade.wechat.WeChatMiniAppClient;
@@ -31,6 +33,7 @@ class ExternalNotificationDispatcherTest {
 
     @Mock private NotificationLogMapper logRepository;
     @Mock private UserInfoMapper userInfoRepository;
+    @Mock private NotificationTemplateMapper templateRepository;
     @Mock private WeChatMiniAppClient weChatMiniAppClient;
     @Mock private WebhookSmsSender smsSender;
 
@@ -39,7 +42,7 @@ class ExternalNotificationDispatcherTest {
                     "consumer-tpl", "pages/messages/messages");
 
     private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms) {
-        return new ExternalNotificationDispatcher(logRepository, userInfoRepository,
+        return new ExternalNotificationDispatcher(logRepository, userInfoRepository, templateRepository,
                 weChatMiniAppClient, WECHAT_PROPS, smsSender,
                 new NotificationProperties(wechat, sms, false));
     }
@@ -47,6 +50,13 @@ class ExternalNotificationDispatcherTest {
     private static NotificationDispatchMessage message() {
         return new NotificationDispatchMessage("order_paid", 100L, "订单支付成功",
                 "您的订单 O1 已支付 12 元", "ORDER", "O1");
+    }
+
+    private static NotificationTemplate template(String channels) {
+        NotificationTemplate tpl = new NotificationTemplate();
+        tpl.setTemplateCode("order_paid");
+        tpl.setChannels(channels);
+        return tpl;
     }
 
     private static UserInfo user(String openId, String phone) {
@@ -106,5 +116,34 @@ class ExternalNotificationDispatcherTest {
 
         verify(weChatMiniAppClient, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap());
         verify(smsSender, never()).sendMessage(anyString(), anyString());
+    }
+
+    @Test
+    void dispatch_wechatOnlyTemplate_shouldNotSendSms() {
+        // M09：模板 channels 仅 IN_APP,WECHAT_SUBSCRIBE（如 coupon_expiring），全局 sms 开启也不发短信
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, true);
+        when(templateRepository.findByCode("order_paid")).thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE")));
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", "13800138000")));
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap()))
+                .thenReturn(true);
+
+        dispatcher.dispatch(message());
+
+        verify(smsSender, never()).sendMessage(anyString(), anyString());
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(captor.capture());
+        assertEquals("WECHAT_SUBSCRIBE", captor.getValue().getChannel());
+    }
+
+    @Test
+    void dispatch_smsChannelTemplate_shouldSendSms() {
+        // M09：模板 channels 含 SMS 时短信照常发送
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
+        when(templateRepository.findByCode("order_paid")).thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE,SMS")));
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+
+        dispatcher.dispatch(message());
+
+        verify(smsSender).sendMessage(eq("13800138000"), anyString());
     }
 }

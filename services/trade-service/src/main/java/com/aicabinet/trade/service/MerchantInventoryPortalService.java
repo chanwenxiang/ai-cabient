@@ -12,6 +12,7 @@ import com.aicabinet.trade.mapper.PullOffTaskMapper;
 import com.aicabinet.trade.mapper.ReplenishmentRouteMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
+import com.aicabinet.trade.support.DeviceLocationSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -223,10 +224,13 @@ public class MerchantInventoryPortalService {
     private ReplenishmentTaskDto toReplenishmentTaskDto(
             ReplenishmentTask t, ReplenishmentRoute route, Integer evidenceCount, String lineSummary) {
         String deviceName = null;
+        Boolean deviceHasCoords = null;
         if (t.getDeviceId() != null) {
-            deviceName = deviceRepository.findById(t.getDeviceId())
-                    .map(DeviceInfo::getDeviceName)
-                    .orElse(null);
+            DeviceInfo device = deviceRepository.findById(t.getDeviceId()).orElse(null);
+            if (device != null) {
+                deviceName = device.getDeviceName();
+                deviceHasCoords = DeviceLocationSupport.hasCoords(device);
+            }
         }
         return new ReplenishmentTaskDto(
                 t.getTaskId(), t.getRouteId(), t.getDeviceId(), t.getAssigneeUserId(),
@@ -238,7 +242,8 @@ public class MerchantInventoryPortalService {
                 route != null ? route.getRouteName() : null,
                 route != null ? route.getPlannedDate() : null,
                 evidenceCount,
-                lineSummary
+                lineSummary,
+                deviceHasCoords
         );
     }
 

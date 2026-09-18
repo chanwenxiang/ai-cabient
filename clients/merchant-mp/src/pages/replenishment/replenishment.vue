@@ -143,7 +143,7 @@
               deviceAddressLine(task.deviceId)
             }}</text>
           </view>
-          <text class="status" :class="task.status.toLowerCase()">
+          <text class="status" :class="(task.status || '').toLowerCase()">
             {{ displayLabel('replenishment_task_status', task.status, '未知状态') }}
           </text>
         </view>
@@ -210,11 +210,14 @@
           :pull-off="detailIsPullOff"
         />
 
+        <!-- dev-only（showDevTools）。deviceCoordsMissing 时必须隐藏：那种柜机服务端已 fail-closed 拒签，
+             再摆一个「跳过定位」开关会与上方「本柜尚未录入点位坐标」提示自相矛盾。 -->
         <view
           v-if="
             canSkipLocation &&
             requireReplenishmentCheckInLocation &&
             canRequest &&
+            !deviceCoordsMissing &&
             selected?.status !== 'COMPLETED' &&
             !selected?.checkInAt
           "
@@ -225,8 +228,10 @@
           @click="toggleSkipLocation"
         >
           <view class="skip-loc-copy">
-            <text class="skip-loc-label">跳过定位验证</text>
-            <text class="skip-loc-hint">室内定位不准时可暂关；仍可能要求在柜前签到</text>
+            <text class="skip-loc-label">跳过定位采集</text>
+            <text class="skip-loc-hint"
+              >不获取 GPS，直接不带坐标提交；服务端要求定位时会拒签并给出原因</text
+            >
           </view>
           <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
             skipLocationCheck ? '开' : '关'
@@ -246,10 +251,23 @@
           }}
         </text>
 
+        <text
+          v-if="
+            canRequest &&
+            deviceCoordsMissing &&
+            selected?.status !== 'COMPLETED' &&
+            !selected?.checkInAt
+          "
+          class="door-tip"
+          data-testid="replenish-no-coords-tip"
+        >
+          {{ DEVICE_COORDS_MISSING_HINT }}
+        </text>
+
         <app-button
           v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
           data-testid="replenish-checkin"
-          :disabled="submitting"
+          :disabled="submitting || deviceCoordsMissing"
           label="现场签到"
           @click="checkIn"
         />
@@ -348,7 +366,11 @@ import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import { useReplenishmentDoorState } from '@/composables/useReplenishmentDoorState';
 import { useReplenishmentDetail } from '@/composables/useReplenishmentDetail';
 import { useReplenishmentDisplay } from '@/composables/useReplenishmentDisplay';
-import { useReplenishmentFulfillment } from '@/composables/useReplenishmentFulfillment';
+import {
+  DEVICE_COORDS_MISSING_HINT,
+  isDeviceCoordsMissing,
+  useReplenishmentFulfillment
+} from '@/composables/useReplenishmentFulfillment';
 import { useReplenishmentList } from '@/composables/useReplenishmentList';
 import { useReplenishmentScan } from '@/composables/useReplenishmentScan';
 import { useReplenishmentShell } from '@/composables/useReplenishmentShell';
@@ -414,6 +436,11 @@ const detailVisible = ref(false);
 /** 避免「点卡片打开」同一轮点击落到遮罩上立刻关掉 */
 const sheetCloseArmed = ref(false);
 const selected = ref<Task | null>(null);
+/**
+ * 柜机是否明确未录点位坐标。为 true 时签到**必被服务端拒**（fail-closed），
+ * 所以直接在按钮上禁用并给出指路提示，而不是让补货员到柜前吃 400。
+ */
+const deviceCoordsMissing = computed(() => isDeviceCoordsMissing(selected.value));
 const lines = ref<Line[]>([]);
 const linesConfirmed = ref(false);
 const evidenceItems = ref<{ localPath: string; fileId?: number }[]>([]);

@@ -229,19 +229,15 @@
             </view>
             <view class="report-data">
               <text
-                >今日 {{ r.orderToday }} 单 · ¥{{ (r.revenueTodayCents / 100).toFixed(2)
+                >今日 {{ num(r.orderToday) }} 单 · ¥{{ (num(r.revenueTodayCents) / 100).toFixed(2)
                 }}{{
-                  r.orderToday > 0
-                    ? ` · 客单 ¥${((r.avgOrderValueTodayCents || r.revenueTodayCents / r.orderToday) / 100).toFixed(2)}`
-                    : ''
+                  avgOrderText(r.revenueTodayCents, r.avgOrderValueTodayCents, r.orderToday)
                 }}</text
               >
               <text
-                >累计 {{ r.orderTotal }} 单 · ¥{{ (r.revenueTotalCents / 100).toFixed(2)
+                >累计 {{ num(r.orderTotal) }} 单 · ¥{{ (num(r.revenueTotalCents) / 100).toFixed(2)
                 }}{{
-                  r.orderTotal > 0
-                    ? ` · 客单 ¥${((r.avgOrderValueTotalCents || r.revenueTotalCents / r.orderTotal) / 100).toFixed(2)}`
-                    : ''
+                  avgOrderText(r.revenueTotalCents, r.avgOrderValueTotalCents, r.orderTotal)
                 }}</text
               >
               <text>会话 {{ r.sessionTotal }}（活跃 {{ r.sessionActive }}）</text>
@@ -380,6 +376,24 @@ const settlement = ref<MerchantSettlementOverview>({
 const aiInsight = ref<MerchantAiInsight | null>(null);
 const expirySummary = ref<MerchantExpirySummary | null>(null);
 const deviceReports = ref<OpenApiMerchantDeviceReportDto[]>([]);
+
+/** 报表数值兜底：生成类型里这些字段全部可选，缺字段按 0，避免 NaN 进入展示。 */
+function num(v?: number | null) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** 「今日 / 累计」右侧的客单文案；单量为 0 时返回空串（与原逻辑一致）。 */
+function avgOrderText(
+  revenueCents?: number | null,
+  avgCents?: number | null,
+  orders?: number | null
+) {
+  const o = num(orders);
+  if (o <= 0) return '';
+  const avg = num(avgCents) || num(revenueCents) / o;
+  return ` · 客单 ¥${(avg / 100).toFixed(2)}`;
+}
 const reportDims = [
   { value: 'PRODUCT', label: '商品' },
   { value: 'CABINET', label: '货柜' },

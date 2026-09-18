@@ -244,7 +244,10 @@ async function ensurePricingAccess(seq: number): Promise<boolean> {
 
 async function fetchPricingRows(seq: number) {
   if (!devices.value.length) {
-    devices.value = await merchantApi.devices();
+    // 只保留有 deviceId 的柜机（生成类型里该字段可选）；缺 id 会污染「全部柜机」的空值项
+    devices.value = (await merchantApi.devices()).flatMap((d) =>
+      d.deviceId ? [{ deviceId: d.deviceId, deviceName: d.deviceName }] : []
+    );
   }
   if (seq !== loadSeq) return null;
   return merchantApi.pricing(selectedDeviceId.value || undefined);

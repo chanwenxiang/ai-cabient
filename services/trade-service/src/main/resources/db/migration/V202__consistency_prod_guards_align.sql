@@ -52,8 +52,14 @@ WHERE po.order_id = 'O-BUG007-TEST'
         AND ch.operation_type IN ('CHARGE', 'ADJUST_CHARGE')
   );
 
+-- C02 v2 修订：data_consistency_record 无 error_type 列，无法按错误类型精确收窄
+-- 「当时确应修复」的 FAIL 行；按 C01+H15 约定改用 seed-env 环境守卫整体包住：
+-- 仅 local/dev/uat（种子/演示环境）执行 FAIL→FIXED，生产环境不再无条件洗白 FAIL 记录，
+-- FAIL 应由 DataConsistencyService 巡检复核后闭环。
+-- 注意 Flyway checksum：已应用过 v1 本迁移的环境升级后需执行 `flyway repair` 对齐校验和。
 UPDATE data_consistency_record
 SET status = 'FIXED',
     fixed_at = NOW(),
     error_message = COALESCE(error_message, '') || ' | V202 prod align'
-WHERE status = 'FAIL';
+WHERE status = 'FAIL'
+  AND '${seed_env}' IN ('local', 'dev', 'uat');

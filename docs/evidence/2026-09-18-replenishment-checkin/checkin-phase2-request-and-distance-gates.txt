@@ -1,0 +1,29 @@
+===== PHASE2：柜机已补坐标 =====
+--- DB 前置状态 ---
+device_id|latitude|longitude|task_id|status|check_in_at|check_in_lat|check_in_lng
+777740024057|31.238|121.48|2|PENDING|||
+(1 row)
+token present = yes
+
+===== 请求侧闸 / 距离闸 / 边界（期望值取自源码）=====
+--- B1 空 body                ⇒ 期望 400 请开启定位…（LOCATION_REQUIRED） ---
+  http=400
+  body={"code":400,"message":"请开启定位后到柜前签到（本柜已配置坐标，不可跳过定位）","data":null}
+--- B2 北京坐标(≈1067km)      ⇒ 期望 400 超出 500 米范围（TOO_FAR） ---
+  http=400
+  body={"code":400,"message":"签到位置距柜机约 1066782 米，超出 500 米范围，请到柜前再签到","data":null}
+--- B3 正北约 600m            ⇒ 期望 400 TOO_FAR（边界外） ---
+  http=400
+  body={"code":400,"message":"签到位置距柜机约 600 米，超出 500 米范围，请到柜前再签到","data":null}
+--- B4 正北约 450m            ⇒ 期望 200（边界内） ---
+  http=200
+  body={"code":0,"message":"ok","data":{"taskId":2,"routeId":2,"deviceId":"777740024057","assigneeUserId":null,"status":"IN_PROGRESS","notes":"merchant request 1","completedAt":null,"checkInAt":"2026-09-18T04:44:49.714335325Z","checkInLat":31.2420469,"checkInLng":121.48,"checkInDistanceM":449.99474863772497,"requestId":1,"outboundId":null,"createdAt":"2026-09-13T03:06:18.636364Z","deviceName":"浏览器自动发号柜","routeName":"商户要货 #1","plannedDate":"2026-09-13","evidenceCount":null,"lineSummary":null}}
+--- B5 柜机坐标点(0m)         ⇒ 期望 200 并写入 check_in_lat/lng ---
+  http=200
+  body={"code":0,"message":"ok","data":{"taskId":2,"routeId":2,"deviceId":"777740024057","assigneeUserId":null,"status":"IN_PROGRESS","notes":"merchant request 1","completedAt":null,"checkInAt":"2026-09-18T04:44:53.294196138Z","checkInLat":31.238,"checkInLng":121.48,"checkInDistanceM":0.0,"requestId":1,"outboundId":null,"createdAt":"2026-09-13T03:06:18.636364Z","deviceName":"浏览器自动发号柜","routeName":"商户要货 #1","plannedDate":"2026-09-13","evidenceCount":null,"lineSummary":null}}
+
+===== 后置事实 =====
+task_id|status|check_in_at|check_in_lat|check_in_lng
+2|IN_PROGRESS|2026-09-18 04:44:53.294196+00|31.238|121.48
+(1 row)
+===== END PHASE2 =====

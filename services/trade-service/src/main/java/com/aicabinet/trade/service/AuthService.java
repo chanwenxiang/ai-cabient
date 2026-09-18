@@ -10,6 +10,7 @@ import com.aicabinet.common.dto.AlipayLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.auth.LoginThrottleService;
 import com.aicabinet.trade.config.AuthProperties;
+import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.domain.PhoneVerifyLog;
@@ -46,6 +47,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final ServerBootMarker serverBootMarker;
     private final AuthProperties authProperties;
+    private final SecurityProperties securityProperties;
     private final LoginThrottleService loginThrottleService;
     private final PhoneVerifyLogMapper phoneVerifyLogMapper;
     private final DistributedLockService distributedLockService;
@@ -62,6 +64,7 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        ServerBootMarker serverBootMarker,
                        AuthProperties authProperties,
+                       SecurityProperties securityProperties,
                        LoginThrottleService loginThrottleService,
                        PhoneVerifyLogMapper phoneVerifyLogMapper,
                        DistributedLockService distributedLockService, @Lazy AuthService self) {
@@ -75,6 +78,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.serverBootMarker = serverBootMarker;
         this.authProperties = authProperties;
+        this.securityProperties = securityProperties;
         this.loginThrottleService = loginThrottleService;
         this.phoneVerifyLogMapper = phoneVerifyLogMapper;
         this.distributedLockService = distributedLockService;
@@ -118,7 +122,7 @@ public class AuthService {
         return tokenFor(user);
     }
 
-    /** 运营后台登录：拒绝消费者账号 */
+    /** 运营后台登录：拒绝消费者账号；开启 TOTP 的账号走与密码登录一致的 2FA 流程（H22）。 */
     @Transactional
     public LoginResponse adminLogin(LoginRequest request) {
         LoginResponse response = self.login(request);
@@ -126,6 +130,11 @@ public class AuthService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         requireOperator(user);
         requireActiveAccount(response.userId());
+        if (user.isTotpEnabled()) {
+            String challenge = jwtService.createTwoFactorChallengeToken(user.getUserId());
+            return new LoginResponse(challenge, user.getUserId(), 300L,
+                    serverBootMarker.epochMillis(), authProperties.cookieEnabled(), true);
+        }
         return response;
     }
 
@@ -184,10 +193,33 @@ public class AuthService {
         });
     }
 
-    /** 微信小程序 wx.login：code2Session 在事务外；建档/登录走短事务。 */
+    /** 微信小程序 wx.login：code2Session / 手机号解密在事务外；建档/登录走短事务。 */
     public LoginResponse wxLogin(WxLoginRequest request) {
         var session = weChatMiniAppClient.code2Session(request.code());
-        return self.loginOrCreateByOpenId(session.openId(), request.phoneNumber());
+        return self.loginOrCreateByOpenId(session.openId(), resolveWxPhoneNumber(request));
+    }
+
+    /**
+     * C13：绑定手机号必须来自服务端 getuserphonenumber 换取，不信任客户端明文
+     * （否则知手机号即可接管既有账号）。phoneCode 为空且 dev mock 开启时，
+     * 允许沿用请求体 phoneNumber 联调；mock 关闭时提供手机号必须携带授权码。
+     */
+    private String resolveWxPhoneNumber(WxLoginRequest request) {
+        String phoneCode = request.phoneCode();
+        if (phoneCode != null && !phoneCode.isBlank()) {
+            String phone = weChatMiniAppClient.getPhoneNumber(phoneCode.trim());
+            if (phone == null || phone.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
+            }
+            return phone;
+        }
+        if (request.phoneNumber() != null && !request.phoneNumber().isBlank()) {
+            if (securityProperties.mockEnabled()) {
+                return request.phoneNumber();
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "需提供手机号授权码");
+        }
+        return null;
     }
 
     /** H5 微信网页授权：OAuth 换 openid 在事务外。 */
@@ -353,6 +385,8 @@ public class AuthService {
     public LoginResponse refreshSession(Long userId) {
         UserInfo user = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN));
+        // H23：已停用账号不得续期，与登录路径同门槛
+        requireActiveAccount(user.getUserId());
         return tokenFor(user);
     }
 

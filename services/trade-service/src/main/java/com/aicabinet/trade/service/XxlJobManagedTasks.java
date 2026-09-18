@@ -29,10 +29,20 @@ public final class XxlJobManagedTasks {
 
     /**
      * 与运营「定时任务」taskKey、调度中心 executor_param / 专用 handler 对齐。
-     * <p>新增任务必须同步四处：本清单、{@code ScheduledTaskXxlJobHandler} 的具名 handler、
-     * {@link ScheduleZones#XXL_CRON_BY_TASK}、{@code ScheduleZones#MAX_SILENCE_BY_TASK}，
-     * 以及 {@code infra/xxl-job/seed_aicabinet_jobs.sql} 的排期行 —— 缺任何一处
-     * {@code scripts/check-xxl-job-wiring.mjs} 都会失败。</p>
+     * <p><b>新增任务必须同步七处</b>（漏任何一处任务都会静默不跑或不可见，各处的必要性都有门禁实证）：
+     * <ol>
+     *   <li>本清单 {@code KEYS}；</li>
+     *   <li>{@code ScheduledTaskXxlJobHandler} 的具名 {@code @XxlJob("…Job")} handler；</li>
+     *   <li>{@link ScheduleZones#XXL_CRON_BY_TASK}（XXL 侧 cron）；</li>
+     *   <li>{@link ScheduleZones#MAX_SILENCE_BY_TASK}（超期看护阈值，缺条目看护会静默跳过）；</li>
+     *   <li>{@code ScheduledTaskRegistry} 的 {@code register(key, …)}（否则调度中心派发进来
+     *       {@code registry.get(key)} 为空 → {@code handleFail「任务未注册」}）；</li>
+     *   <li>{@code db/migration} 的 {@code scheduled_task} 登记行（否则 {@code finish()}
+     *       静默丢弃执行记录，运营台看不见、不能启停）；</li>
+     *   <li>{@code infra/xxl-job/seed_aicabinet_jobs.sql} 的排期行。</li>
+     * </ol>
+     * ①~④⑦ 由 {@code scripts/check-xxl-job-wiring.mjs} 校验，⑤⑥ 另由
+     * {@code scripts/check-scheduled-task-seed.mjs} 校验。</p>
      */
     public static final Set<String> KEYS = Set.of(
             // 交易会话与订单
@@ -52,6 +62,7 @@ public final class XxlJobManagedTasks {
             "line-commission",
             "finance-margin",
             "ops-fee-bill-monthly",
+            "withdraw-paying-timeout",
             // 营销
             "coupon-expire",
             "coupon-expiry-remind",

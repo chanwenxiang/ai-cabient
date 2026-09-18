@@ -107,6 +107,23 @@ class ReplenishmentCheckInLocationGatesTest {
     }
 
     @Test
+    void checkIn_rejectsWhenDeviceHasNoCoords() {
+        taskWithLines(15L);
+        // 柜机未做点位建档（无坐标）+ 签到带了坐标：仍必须拒签。
+        // 旧逻辑把「设备无坐标」当成「无需校验」，等于「建柜时漏填坐标 ⇒ 该柜永久免定位」，
+        // 这是静默失效而非宽松策略，故此处锁死 fail-closed 语义。
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-1");
+        when(deviceRepository.findById("CAB-1")).thenReturn(Optional.of(device));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.checkInTask(1L, 15L,
+                        new ReplenishmentCheckInRequest(31.2304, 121.4737)));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals(ApiMessages.REPLENISHMENT_CHECK_IN_DEVICE_LOCATION_MISSING, ex.getReason());
+    }
+
+    @Test
     void checkIn_rejectsTooFarWhenWithinDefaultRadiusOff() {
         taskWithLines(13L);
         deviceWithCoords();

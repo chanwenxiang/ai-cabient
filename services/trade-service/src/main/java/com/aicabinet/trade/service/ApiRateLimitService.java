@@ -22,6 +22,8 @@ public class ApiRateLimitService {
 
     private static final Logger log = LoggerFactory.getLogger(ApiRateLimitService.class);
     private static final Duration WINDOW = Duration.ofHours(1);
+    /** 匿名公开页的滑动窗口（按分钟），与登录态小时窗口区分（L04）。 */
+    private static final Duration IP_WINDOW = Duration.ofMinutes(1);
     private static final String KEY_PREFIX = "aicabinet:rate:";
 
     public static final String ACTION_COUPON_CLAIM = "coupon_claim";
@@ -29,6 +31,7 @@ public class ApiRateLimitService {
     public static final String ACTION_SESSION_CREATE = "session_create";
     public static final String ACTION_OPEN_DOOR = "open_door";
     public static final String ACTION_OPEN_DOOR_DEVICE = "open_door_device";
+    public static final String ACTION_OPEN_LANDING = "open_landing";
 
     private final RedissonClient redisson;
     private final RateLimitProperties properties;
@@ -62,6 +65,35 @@ public class ApiRateLimitService {
         if (StringUtils.hasText(deviceId)) {
             assertAllowed(ACTION_OPEN_DOOR_DEVICE, deviceId.trim(), userId,
                     properties.maxOpenDoorsPerDevicePerHour(), ApiMessages.TOO_MANY_OPENS);
+        }
+    }
+
+    /**
+     * L04：公开匿名页按来源 IP 限流（无登录态、独立分钟窗口）。
+     * 超限抛 429；limitPerMinute<=0 / 限流总开关关闭 / IP 缺失时放行。
+     */
+    public void assertIpAllowed(String action, String clientIp, int limitPerMinute, String message) {
+        if (!properties.enabled() || limitPerMinute <= 0
+                || clientIp == null || clientIp.isBlank()) {
+            return;
+        }
+        String ip = clientIp.trim();
+        String key = KEY_PREFIX + action + ":" + ip;
+        RAtomicLong counter = redisson.getAtomicLong(key);
+        long count = counter.get();
+        if (count >= limitPerMinute) {
+            log.warn("rate limit hit action={} ip={} count={} max={}", action, ip, count, limitPerMinute);
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, message);
+        }
+        long next = counter.incrementAndGet();
+        if (next == 1) {
+            counter.expire(IP_WINDOW);
+        }
+        if (next > limitPerMinute) {
+            // 并发下可能越过阈值：回退一次并拒绝
+            counter.decrementAndGet();
+            log.warn("rate limit race reject action={} ip={} next={} max={}", action, ip, next, limitPerMinute);
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, message);
         }
     }
 

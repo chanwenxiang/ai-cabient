@@ -1,0 +1,75 @@
+-- =====================================================================
+-- V202 / V252 人工核查与回滚说明（说明性脚本，不可直接执行）
+-- =====================================================================
+-- 背景（C02 / C01+H15 修订）：
+--   * V202__consistency_prod_guards_align.sql 原先无条件把 data_consistency_record
+--     中全部 FAIL 行改写为 FIXED；v2 已用 seed-env 环境守卫收窄（仅 local/dev/uat 生效）。
+--   * V252__seed_uat_order_amount_diff.sql 会改写最新一笔 PAID 订单的金额
+--     （member_discount_cents=59, total_amount_cents=441，明细行单价/行金额改写）；
+--     v2 已在 DO 块顶部加 seed-env 守卫。
+--   本目录脚本不随 Flyway 执行（不在 classpath:db/migration 下），仅供 DBA/运营人工核查与回滚参考。
+--
+-- 注意：以上两个迁移文件为「v2 修订」，已应用过 v1 的环境升级后需执行 `flyway repair` 对齐 checksum。
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 一、V202（FAIL→FIXED 全量洗白）人工核查
+-- ---------------------------------------------------------------------
+-- 1) 找出被 V202 洗白过的记录（error_message 带该次标记）：
+--    SELECT id, check_type, table_name, check_key, error_message, checked_at, fixed_at
+--    FROM data_consistency_record
+--    WHERE status = 'FIXED'
+--      AND error_message LIKE '%V202 prod align%';
+--
+-- 2) 逐条核对对应业务表是否真实一致（按 check_type 调用 DataConsistencyService 巡检）；
+--    不一致的记录应回滚为 FAIL 留待修复：
+--    UPDATE data_consistency_record
+--    SET status = 'FAIL', fixed_at = NULL
+--    WHERE id = :id;
+--
+-- 3) 生产环境（seed-env=none）如历史版本已执行过 v1 洗白：按上面第 1/2 步全量复核，
+--    不能依赖迁移再次执行（v2 在生产被守卫跳过）。
+
+-- ---------------------------------------------------------------------
+-- 二、V252（演示订单金额改写）人工核查与回滚
+-- ---------------------------------------------------------------------
+-- 1) 定位被改写的订单（特征：PAID + member_discount_cents=59 + total_amount_cents=441）：
+--    SELECT order_id, user_id, total_amount_cents, member_discount_cents, coupon_discount_cents, created_at
+--    FROM cabinet_order
+--    WHERE status = 'PAID'
+--      AND member_discount_cents = 59
+--      AND total_amount_cents = 441
+--    ORDER BY created_at DESC;
+--
+-- 2) 明细行核对（V252 将三行明细分别改写为 500/500、520/520、668/668 相关口径，
+--    详见 V202 中对同一演示订单 1787215465125755801 的 350/520/668 修正）：
+--    SELECT order_id, sku_id, unit_price_cents, line_amount_cents
+--    FROM cabinet_order_line
+--    WHERE order_id = :order_id;
+--
+-- 3) 回滚：仅适用于确认被误改写的演示/种子订单（真实订单禁止用固定金额回写）：
+--    -- 先备份原值再改写：
+--    -- UPDATE cabinet_order SET member_discount_cents = 0, total_amount_cents = :原金额
+--    -- WHERE order_id = :order_id AND status = 'PAID';
+--    -- UPDATE cabinet_order_line SET unit_price_cents = :原单价, line_amount_cents = :原行金额
+--    -- WHERE order_id = :order_id;
+--
+-- 4) 金额改写涉及对账口径（payment_operation / reconciliation）：
+--    回滚订单金额前，先核对 payment_operation 中该订单 CHARGE 流水金额是否与新订单额一致；
+--    不一致时以「资金流水」为准修订单，而不是改流水。
+
+-- =====================================================================
+-- 完成核查/回滚后，如需对齐 Flyway 校验和：执行 `flyway repair`
+-- =====================================================================
+
+-- =====================================================================
+-- 2026-09-18 追加：已删设备（CAB-001）种子归档
+--   整体归档为 no-op：V253（解锁 CAB-001）、V134/V135（演示坐标）
+--   切除种子语句：V132（演示工单）、V133（演示线长三件套）、
+--                V222（promotion_device/lifecycle/ad_device/ad_play/feedback）、
+--                V223（device_ops_event 演示事件）
+--   保留：V2/V44 基线设备行（E2E 依赖，属 schema 期种子，另行处理）；
+--         V123/V181/V209 为一次性数据修复（非种子），未改动。
+--   checksum 变化：所有环境部署前执行一次 `flyway repair`（与 seed_env 守卫
+--   修订的 repair 合并为同一次即可）。
+-- =====================================================================

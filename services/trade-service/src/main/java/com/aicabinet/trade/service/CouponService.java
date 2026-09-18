@@ -231,6 +231,10 @@ public class CouponService {
         CabinetOrder order = requireOrderEligibleForCoupon(userId, orderId, couponId);
         CouponDefinition def = definitionRepository.findById(uc.getCouponDefId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+        // M23：手动核销同样校验券定义状态（与自动选券 evaluateCoupon 对齐）
+        if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(def.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优惠券已停用");
+        }
         int discount = requireApplicableDiscount(def, order);
         int subtotal = resolveOrderLineSubtotal(order);
 
@@ -278,9 +282,13 @@ public class CouponService {
         if (!Objects.equals(order.getUserId(), userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "订单不属于当前用户");
         }
-        // 仅允许未支付/争议中订单手动核销；已支付不可再核销改额（BUG-018）
+        // 仅允许未支付订单手动核销；已支付不可再核销改额（BUG-018）
         String status = order.getStatus() == null ? "" : order.getStatus().toUpperCase(Locale.ROOT);
-        if (!Set.of("PENDING", "UNPAID", "DISPUTED", "CREATED").contains(status)) {
+        // C07：争议订单禁止手动核销——用券只降应付总额，改单差额退款口径会不一致
+        if ("DISPUTED".equals(status)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "争议处理中的订单不支持使用优惠券");
+        }
+        if (!Set.of("PENDING", "UNPAID", "CREATED").contains(status)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单当前状态不可用券");
         }
         if (order.getCouponId() != null) {

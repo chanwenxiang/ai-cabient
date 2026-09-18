@@ -339,7 +339,27 @@ npm run dev:mp-weixin
 
 余额：消费者种子账户 **100 元**（10000 分）。
 
-### 5. 操作流程
+### 5. appid 与 urlCheck（构建期注入）
+
+源码里**刻意不存真 appid**（账号资产），`urlCheck` 在源码里也**必须长期保持 `false`**——否则开发者工具会按域名白名单校验，本地连 localhost 后端会直接跑不通。两者都在构建期由 `scripts/inject-miniapp-env.mjs` 写入**构建产物** `dist/{dev,build}/mp-weixin/project.config.json`（该目录已被 `.gitignore` 忽略，不会把账号资产提交进仓库）。
+
+| 变量 | 作用 | 缺省 |
+|------|------|------|
+| `MP_WEIXIN_APPID_CONSUMER` / `MP_WEIXIN_APPID_MERCHANT` | 对应小程序的 appid（可用 `MP_WEIXIN_APPID` 兜底） | dev 回落 `touristappid`（试玩号） |
+| `MP_WEIXIN_URL_CHECK` | 显式 `true` / `false` 覆盖 | dev=false，release=true |
+
+```powershell
+# 本地开发：产物 appid=touristappid、urlCheck=false
+npm run build:mp-weixin:dev
+
+# 发布构建：必须提供 appid，否则直接失败（这是正确的 fail-closed，不是构建坏了）
+$env:MP_WEIXIN_APPID_CONSUMER="wxXXXXXXXXXXXXXXXX"; npm run build:mp-weixin
+```
+
+> appid 申请下来后**不需要改任何代码**：在 CI 里把它配成 secret（`MP_WEIXIN_APPID_CONSUMER` / `MP_WEIXIN_APPID_MERCHANT`）即可。
+> `dev` 是 watch 模式，不会在结束时跑注入；首次编译后执行一次 `npm run inject:mp-weixin` 即可。
+
+### 6. 操作流程
 
 1. 消费者端登录 → 设备 ID `CAB-001` → 开门购物
 2. 商户端登录 → 查看柜机 / 待办 / 定价（受平台开关控制）

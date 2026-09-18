@@ -74,7 +74,11 @@ public class InvoiceService {
         if (!INVOICEABLE.contains(st)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前订单状态不可开票");
         }
+        // M22(a): 部分退款订单只按未退部分开票（全额退款订单不在 INVOICEABLE 内）
         int amount = Math.max(0, order.getTotalAmountCents());
+        if ("PARTIAL_REFUNDED".equals(st)) {
+            amount = Math.max(0, amount - Math.max(0, order.getRefundedCents()));
+        }
         if (amount <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单金额为 0，无法开票");
         }

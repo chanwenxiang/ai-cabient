@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SessionOpenService {
     private static final Logger log = LoggerFactory.getLogger(SessionOpenService.class);
+    /** C10：开门失败释放预授权失败时的运营告警类型。 */
+    static final String ALERT_OPEN_DOOR_PREAUTH_RELEASE_FAILED = "OPEN_DOOR_PREAUTH_RELEASE_FAILED";
 
     private final ShoppingSessionMapper repository;
     private final UserValidationService userValidationService;
@@ -30,6 +32,8 @@ public class SessionOpenService {
     private final DisplaySnapshotHelper displaySnapshotHelper;
     private final UserInfoMapper userInfoRepository;
     private final SessionService sessionService;
+    private final DistributedLockService distributedLockService;
+    private final OpsAlertDispatcher opsAlertDispatcher;
 
     public SessionOpenService(ShoppingSessionMapper repository,
                               UserValidationService userValidationService,
@@ -38,7 +42,9 @@ public class SessionOpenService {
                               ConsumerPreauthService consumerPreauthService,
                               DisplaySnapshotHelper displaySnapshotHelper,
                               UserInfoMapper userInfoRepository,
-                              @Lazy SessionService sessionService) {
+                              @Lazy SessionService sessionService,
+                              DistributedLockService distributedLockService,
+                              OpsAlertDispatcher opsAlertDispatcher) {
         this.repository = repository;
         this.userValidationService = userValidationService;
         this.deviceValidationService = deviceValidationService;
@@ -47,6 +53,8 @@ public class SessionOpenService {
         this.displaySnapshotHelper = displaySnapshotHelper;
         this.userInfoRepository = userInfoRepository;
         this.sessionService = sessionService;
+        this.distributedLockService = distributedLockService;
+        this.opsAlertDispatcher = opsAlertDispatcher;
     }
 
     @Transactional
@@ -77,22 +85,46 @@ public class SessionOpenService {
         return sessionService.toDto(session);
     }
 
+    /**
+     * 开门失败标记（C10）：与会话清理路径一致——先抢 session:life 分布式锁 + findByIdForUpdate
+     * 行锁重查，transition 前做状态 CAS；抢锁失败说明有并发迁移在处理，跳过交给超时清扫兜底。
+     */
     @Transactional
     public void markOpenDoorFailed(String sessionId, String failReason) {
-        ShoppingSession session = repository.findById(sessionId).orElse(null);
-        if (session == null) {
+        if (!distributedLockService.tryLock(SessionService.sessionLifeLockKey(sessionId), 30, 0)) {
+            log.warn("mark open door failed skipped busy session={}", sessionId);
             return;
         }
-        if (session.getState() == SessionState.FAILED || session.getState() == SessionState.CANCELLED
-                || session.getState() == SessionState.COMPLETED) {
-            return;
-        }
-        session.setFailReason(failReason);
-        sessionService.transition(session, SessionState.FAILED);
         try {
-            consumerPreauthService.releaseIfFrozen(session);
-        } catch (Exception e) {
-            log.warn("release preauth after open fail session={}", sessionId, e);
+            ShoppingSession session = repository.findByIdForUpdate(sessionId).orElse(null);
+            if (session == null) {
+                return;
+            }
+            // 状态 CAS：终态（FAILED/CANCELLED/COMPLETED）不再迁移
+            if (session.getState() == SessionState.FAILED || session.getState() == SessionState.CANCELLED
+                    || session.getState() == SessionState.COMPLETED) {
+                return;
+            }
+            session.setFailReason(failReason);
+            sessionService.transition(session, SessionState.FAILED);
+            try {
+                consumerPreauthService.releaseIfFrozen(session);
+            } catch (Exception e) {
+                log.error("release preauth after open fail session={}", sessionId, e);
+                try {
+                    opsAlertDispatcher.send(ALERT_OPEN_DOOR_PREAUTH_RELEASE_FAILED,
+                            "开门失败后预授权释放失败",
+                            "sessionId=" + sessionId + " device=" + session.getDeviceId()
+                                    + " userId=" + session.getUserId() + "，需人工核对预授权",
+                            java.util.Map.of("sessionId", sessionId,
+                                    "deviceId", String.valueOf(session.getDeviceId())));
+                } catch (Exception alertEx) {
+                    log.error("ops alert failed type={} session={}",
+                            ALERT_OPEN_DOOR_PREAUTH_RELEASE_FAILED, sessionId, alertEx);
+                }
+            }
+        } finally {
+            distributedLockService.unlock(SessionService.sessionLifeLockKey(sessionId));
         }
     }
 

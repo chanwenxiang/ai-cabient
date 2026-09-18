@@ -1,0 +1,69 @@
+==> 契约真值（读自 e2e-replenishment.ps1）
+    max_distance_m=500 边界 450m/600m
+==> 登录取 token
+    自动选中 device=777740024057（来源：商户可见任务 ∩ 已录坐标）
+    device coords lat=31.238 lng=121.48
+==> 造夹具任务（PENDING，可签到）
+    fixture task=12 device=777740024057（PENDING + 1 条明细 applied=false）
+==> 目标 device=777740024057 task=12
+
+==> 用例 1-2：负向断言助手对**真拒绝**应通过
+    ✓ 空 body → HTTP 400 已拒绝
+  [PASS] 空 body → 400 location-required — 请开启定位后到柜前签到
+    ✓ 超距 600m → HTTP 400 已拒绝
+  [PASS] 距柜机约 600m → 400 too-far — 签到位置距柜机约
+
+==> 用例 3-4：对照组 —— 助手**必须**能失败（这组才是防假绿的关键）
+  [PASS] 对照：请求成功却期望被拒 ⇒ 助手报错 — 未被「异常即通过」吞掉
+  [PASS] 对照：状态码对但文案不匹配 ⇒ 助手报错 — 文案断言真的在比
+
+==> 用例 5：正式签到（边界内 450m）
+  [PASS] 边界内签到 → 200 且落库 — status=IN_PROGRESS distanceM=450.00010782910795
+  [PASS] 响应带 deviceHasCoords=true（客户端前置拦有依据） — device=777740024057 已录坐标
+    ✓ 签到落库核对 → 库内 task=12 status=IN_PROGRESS check_in_at=2026-09-18 07:40:33.75
+6309+00
+  [PASS] 签到落库核对（DB 通道：IN_PROGRESS + check_in_at 已写） — check_in_at=2026-09-18 07
+:40:33.756309+00 lat=31.242046948196364 lng=121.48
+
+==> 用例 6-7：终态不可复活（COMPLETED / CANCELLED）
+    ✓ 终态 COMPLETED 任务签到 → HTTP 409 已拒绝
+  [PASS] 终态 COMPLETED 拒签 → 409 且文案正确 — task=1 / 补货任务已结束
+    ✓ 终态 COMPLETED 状态未变(API) → task=1 仍为 COMPLETED
+  [PASS] 终态 COMPLETED 拒签后状态未变（API 通道） — task=1 仍为 COMPLETED
+    ✓ 终态 COMPLETED 整行未动(DB) → 库内 task=1 整行未动（status=COMPLETED check_in_at=2026-
+09-13 03:02:27.437109+00）
+  [PASS] 终态 COMPLETED 拒签后整行未动（DB 通道） — status=COMPLETED check_in_at=2026-09-13 
+03:02:27.437109+00
+    ✓ 终态 CANCELLED 任务签到 → HTTP 409 已拒绝
+  [PASS] 终态 CANCELLED 拒签 → 409 且文案正确 — task=2 / 补货任务已结束
+    ✓ 终态 CANCELLED 状态未变(API) → task=2 仍为 CANCELLED
+  [PASS] 终态 CANCELLED 拒签后状态未变（API 通道） — task=2 仍为 CANCELLED
+    ✓ 终态 CANCELLED 整行未动(DB) → 库内 task=2 整行未动（status=CANCELLED check_in_at=2026-
+09-18 04:44:53.294196+00）
+  [PASS] 终态 CANCELLED 拒签后整行未动（DB 通道） — status=CANCELLED check_in_at=2026-09-18 
+04:44:53.294196+00
+
+==> 用例 8：运营空取消解冻 → 现场签到**不得**把它冻回去（完整因果链）
+    ✓ 前置：签到后柜机被冻结 → device=777740024057 处于补货冻结（frozen_tasks=1 restock_sessions=
+0）
+  [PASS] 因果链① 签到后柜机对消费者冻结 — device=777740024057 冻结判据成立
+  [PASS] 因果链② 运营 cancel-empty 解冻 — task=12 → CANCELLED
+    ✓ 解冻后柜机可售 → device=777740024057 未被补货冻结（frozen_tasks=0 restock_sessions=0）；接
+口 busyReason=OFFLINE 属遮蔽态，未提供旁证
+  [PASS] 因果链③ 解冻生效（消费者可开门） — device=777740024057 未被补货冻结
+    ✓ 已空取消任务再签到 → HTTP 409 已拒绝
+  [PASS] 因果链④ 已取消任务再签到 → 409 — 补货任务已结束
+    ✓ 解冻后状态与签到证据 → 库内 task=12 status=CANCELLED check_in_at=2026-09-18 07:40:33.
+756309+00
+  [PASS] 因果链⑤ 已取消 + 签到证据仍在（DB 通道） — status=CANCELLED 且 check_in_at 未清空 ⇒ 冻结本可重新
+成立
+    ✓ 拒签后柜机仍可售（解冻未被撤销） → device=777740024057 未被补货冻结（frozen_tasks=0 restock_sess
+ions=0）；接口 busyReason=OFFLINE 属遮蔽态，未提供旁证
+  [PASS] 因果链⑥ 拒签后柜机仍可售（P0 已修复） — device=777740024057 未被重新冻结
+
+==> 卸载夹具任务
+    fixture task=12 已卸载
+
+[e2e-checkin-contract] 19 个用例，失败 0 个
+[e2e-checkin-contract] OK
+EXIT=0

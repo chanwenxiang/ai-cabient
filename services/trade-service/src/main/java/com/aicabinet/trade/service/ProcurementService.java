@@ -3,6 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,8 @@ import java.util.List;
 
 @Service
 public class ProcurementService {
+    private static final Logger log = LoggerFactory.getLogger(ProcurementService.class);
+
     private static final String PURCHASE_ORDER_NOT_FOUND = "purchase order not found";
     private static final String PURCHASE_LINE_NOT_FOUND = "purchase line not found";
     private static final String PENDING_APPROVAL = "PENDING_APPROVAL";
@@ -368,7 +372,7 @@ public class ProcurementService {
         for (PurchaseOrderLineDto receiveLine : received) {
             receivedValueCents += processReceiveLine(operatorId, order, existing, receiveLine, warehouseId);
         }
-        finalizePurchaseOrderReceive(operatorId, purchaseOrderId, order, request, receivedValueCents);
+        finalizePurchaseOrderReceive(operatorId, purchaseOrderId, order, request, warehouseId, receivedValueCents);
         return toPurchaseDto(purchaseOrderRepository.save(order));
     }
 
@@ -410,7 +414,8 @@ public class ProcurementService {
     }
 
     private void finalizePurchaseOrderReceive(Long operatorId, Long purchaseOrderId, PurchaseOrder order,
-                                              ReceivePurchaseOrderRequest request, long receivedValueCents) {
+                                              ReceivePurchaseOrderRequest request, String receiveWarehouseId,
+                                              long receivedValueCents) {
         boolean allReceived = purchaseOrderLineRepository.findByPurchaseOrderIdOrderByLineIdAsc(purchaseOrderId)
                 .stream()
                 .allMatch(line -> line.getReceivedQty() >= line.getOrderedQty());
@@ -420,6 +425,12 @@ public class ProcurementService {
         }
         if (request.notes() != null && !request.notes().isBlank()) {
             order.setNotes(request.notes().trim());
+        }
+        // 实际收货仓回写订单，保证后续退货从同一仓扣减（H33）
+        if (!receiveWarehouseId.equals(order.getWarehouseId())) {
+            log.warn("purchase order receive warehouse changed orderId={} from={} to={}",
+                    purchaseOrderId, order.getWarehouseId(), receiveWarehouseId);
+            order.setWarehouseId(receiveWarehouseId);
         }
         supplierPayableService.recordReceive(operatorId, order, receivedValueCents);
     }

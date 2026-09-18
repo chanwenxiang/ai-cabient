@@ -225,6 +225,7 @@ class CouponServiceTest {
         def.setCouponName("测试券");
         def.setCouponType("AMOUNT_OFF");
         def.setDenominationCents(500);
+        def.setStatus("ACTIVE");
 
         when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
         when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
@@ -344,6 +345,7 @@ class CouponServiceTest {
         def.setCouponType("AMOUNT_OFF");
         def.setDenominationCents(200);
         def.setMinSpendCents(0);
+        def.setStatus("ACTIVE");
 
         var line = new CabinetOrderLine();
         line.setLineAmountCents(2000);
@@ -393,6 +395,69 @@ class CouponServiceTest {
 
         assertThrows(ResponseStatusException.class,
                 () -> couponService.useCoupon(10001L, 1L, "O-1", "CAB-1"));
+    }
+
+    /** C07：争议订单禁止手动核销用券（原来只降总额会造成退款差额口径不一致）。 */
+    @Test
+    void useCoupon_shouldReject_whenOrderDisputed() {
+        var uc = new UserCoupon();
+        uc.setCouponId(1L);
+        uc.setUserId(10001L);
+        uc.setCouponDefId(1L);
+        uc.setStatus("UNUSED");
+        uc.setExpireAt(Instant.now().plus(30, ChronoUnit.DAYS));
+
+        var order = new CabinetOrder();
+        order.setOrderId("O-DISPUTED");
+        order.setUserId(10001L);
+        order.setStatus("DISPUTED");
+        order.setTotalAmountCents(2000);
+
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
+        when(orderRepository.findByIdForUpdate("O-DISPUTED")).thenReturn(Optional.of(order));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> couponService.useCoupon(10001L, 1L, "O-DISPUTED", "CAB-1"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals("争议处理中的订单不支持使用优惠券", ex.getReason());
+        verify(userCouponRepository, never()).save(any());
+        verify(orderRepository, never()).save(any());
+    }
+
+    /** M23：手动核销路径校验券定义状态——INACTIVE 定义不可核销。 */
+    @Test
+    void useCoupon_shouldReject_whenDefinitionInactive() {
+        var uc = new UserCoupon();
+        uc.setCouponId(1L);
+        uc.setUserId(10001L);
+        uc.setCouponDefId(1L);
+        uc.setStatus("UNUSED");
+        uc.setExpireAt(Instant.now().plus(30, ChronoUnit.DAYS));
+
+        var def = new CouponDefinition();
+        def.setCouponDefId(1L);
+        def.setCouponType("AMOUNT_OFF");
+        def.setDenominationCents(500);
+        def.setStatus("INACTIVE");
+
+        var order = new CabinetOrder();
+        order.setOrderId("O-INACT");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setTotalAmountCents(2000);
+
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
+        when(orderRepository.findByIdForUpdate("O-INACT")).thenReturn(Optional.of(order));
+        when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> couponService.useCoupon(10001L, 1L, "O-INACT", "CAB-1"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals("优惠券已停用", ex.getReason());
+        verify(userCouponRepository, never()).save(any());
+        verify(orderRepository, never()).save(any());
     }
 
     @Test

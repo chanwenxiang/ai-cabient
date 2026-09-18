@@ -231,6 +231,15 @@ public class OpsRbacController {
         return ApiResponse.ok(rbacService.updateMyProfile(operatorId(request), body));
     }
 
+    /** C14：发送换绑手机验证码到新号码（需登录态；冷却/小时限频由短信服务控制）。 */
+    @PostMapping("/rbac/me/phone-sms-code")
+    public ApiResponse<Void> sendPhoneChangeSmsCode(
+            @RequestParam("phoneNumber") String phoneNumber,
+            HttpServletRequest request) {
+        rbacService.sendPhoneChangeCode(operatorId(request), phoneNumber);
+        return ApiResponse.ok(null);
+    }
+
     /** 个人中心：上传头像 / Logo。 */
     @PostMapping(value = "/rbac/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<FileAttachmentDto> uploadMyAvatar(

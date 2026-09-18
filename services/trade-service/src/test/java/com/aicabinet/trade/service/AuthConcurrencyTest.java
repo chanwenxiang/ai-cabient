@@ -7,6 +7,7 @@ import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.auth.LoginThrottleService;
 import com.aicabinet.trade.config.AuthProperties;
+import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.PhoneVerifyLogMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
@@ -55,6 +56,7 @@ class AuthConcurrencyTest {
                 weChatMiniAppClient, weChatWebOAuthClient, alipayOauthClient, smsCodeService,
                 passwordEncoder, serverBootMarker,
                 new AuthProperties("test-secret", 3600L, false, false, 5, 15, null),
+                new SecurityProperties(false),
                 loginThrottleService, phoneVerifyLogMapper, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
@@ -68,7 +70,7 @@ class AuthConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.wxLogin(new WxLoginRequest("wx-code", null)));
+                () -> service.wxLogin(new WxLoginRequest("wx-code", null, null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

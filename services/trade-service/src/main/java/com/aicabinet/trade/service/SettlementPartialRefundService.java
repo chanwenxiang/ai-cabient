@@ -54,7 +54,8 @@ public class SettlementPartialRefundService {
     /**
      * 按行部分退款（竞品口径）：指定 SKU/数量退款；行级或默认决定是否回库。
      * 退完全部行 → {@code REFUNDED}；否则 → {@code PARTIAL_REFUNDED}。
-     * 无外层长事务：库存/行改短事务 → 退款（可含渠道）→ 状态短事务。
+     * C04 顺序：纯读计算退款计划 → 渠道退款（幂等 idemKey=订单+金额+原因）→ prepare+finalize 落库。
+     * 渠道失败时本地零改动；渠道成功但落库失败时，重试用相同金额/原因命中同一幂等键，安全重试。
      */
     public PartialRefundResult partialRefund(CabinetOrder order,
                                              List<OrderRefundRequest.PartialRefundLine> refundLines,
@@ -63,10 +64,30 @@ public class SettlementPartialRefundService {
         if (order == null || refundLines == null || refundLines.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请指定要退款的商品行");
         }
-        PartialRefundPrep prep = self.preparePartialRefund(order.getOrderId(), refundLines, defaultRestore);
-        orderPaymentService.refundOrder(prep.order(), prep.refundCents(),
+        int refundCents = self.planPartialRefundCents(order.getOrderId(), refundLines);
+        orderPaymentService.refundOrder(order, refundCents,
                 reason == null ? "按行部分退款" : reason);
+        PartialRefundPrep prep = self.preparePartialRefund(order.getOrderId(), refundLines, defaultRestore);
         return self.finalizePartialRefund(prep);
+    }
+
+    /**
+     * C04：只读规划——校验退款行并计算退款金额，不写订单/库存/券。
+     * 与 {@link #estimatePartialRefundCents} 同一套口径；调用方持有订单支付分布式锁期间数据稳定。
+     */
+    @Transactional(readOnly = true)
+    public int planPartialRefundCents(String orderId,
+                                      List<OrderRefundRequest.PartialRefundLine> refundLines) {
+        CabinetOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已全额退款");
+        }
+        int refundCents = estimatePartialRefundCents(order, refundLines);
+        if (refundCents <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额为 0");
+        }
+        return refundCents;
     }
 
     public record PartialRefundPrep(

@@ -130,8 +130,11 @@ public class OpsMemberFinanceAdminService {
         return runWithUserBalanceLock(userId, () -> {
             UserInfo user = userInfoRepository.findById(userId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+            // H67：幂等键绑定 userId 与金额，同键不同用户/金额互不冲突；同键同参重放仍被去重跳过
             var ledger = balanceLedgerService.change(userId, request.deltaCents(), "ADMIN_ADJUST",
-                    "ADMIN-" + userId, "ADMIN:" + request.idempotencyKey().trim(), request.reason());
+                    "ADMIN-" + userId,
+                    "ADMIN:" + request.idempotencyKey().trim() + ":" + userId + ":" + request.deltaCents(),
+                    request.reason());
             auditService.appendLog(operatorId, "BALANCE_ADJUST", "USER", String.valueOf(userId),
                     "delta=" + request.deltaCents() + " balance=" + ledger.getBalanceAfterCents()
                             + " reason=" + request.reason().trim());

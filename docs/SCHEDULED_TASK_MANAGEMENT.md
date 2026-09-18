@@ -255,13 +255,13 @@ sum by (code_namespace, code_function, error) (
 ) > 0        # 告警 ScheduledTaskExecutionFailed
 ```
 
-### 覆盖范围：运营台 31 行 = 30 托管 + 1 看护
+### 覆盖范围：运营台 32 行 = 31 托管 + 1 看护
 
-运营台当前 **31 行登记**（已逐个核对触发源，**无残留行**）：
+运营台当前 **32 行登记**（已逐个核对触发源，**无残留行**）：
 
 | 类别 | 数量 | 触发方式 | 超期看护 |
 |---|---|---|---|
-| XXL 托管 | 30 | XXL-JOB 派发（`XxlJobManagedTasks.KEYS`） | ✅ 逐任务阈值 |
+| XXL 托管 | 31 | XXL-JOB 派发（`XxlJobManagedTasks.KEYS`） | ✅ 逐任务阈值 |
 | Spring 常驻 | 1 | 内置 `@Scheduled`（`scheduled-task-stale-monitor`） | ❌ 刻意排除（见 §四.2） |
 
 另有 **1 个不在台账内的执行点**：`cache-purge`（本机缓存清理，每实例自清、不借锁、不进运营台）。

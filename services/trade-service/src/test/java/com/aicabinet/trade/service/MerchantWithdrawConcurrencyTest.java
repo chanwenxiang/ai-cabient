@@ -18,7 +18,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -111,9 +113,9 @@ class MerchantWithdrawConcurrencyTest {
         verify(distributedLockService).unlock(MerchantWithdrawService.merchantWalletLockKey("M-1"));
     }
 
-    /** W6: 打款失败保留冻结；cancelFailed 才 releaseFrozen，且不得 consumeFrozen。 */
+    /** W6(H26): 打款失败即释放冻结，不得 consumeFrozen；CANCELLED 后不再重复打款。 */
     @Test
-    void apply_payoutFailed_keepsFreeze_cancelReleases() {
+    void apply_payoutFailed_releasesFrozen_cancelFinalizes() {
         Merchant merchant = new Merchant();
         merchant.setMerchantId("M-1");
         merchant.setMerchantName("商户1");
@@ -145,13 +147,116 @@ class MerchantWithdrawConcurrencyTest {
 
         assertEquals("FAILED", failed.status());
         verify(merchantWalletService).freezeForWithdraw(eq("M-1"), eq(10_000L), any(), any(), any());
+        // H26：FAILED 落账同事务即解冻
+        verify(merchantWalletService).releaseFrozen(eq("M-1"), eq(10_000L), eq("WITHDRAW"), eq("77"), anyString());
         verify(merchantWalletService, never()).consumeFrozen(anyString(), anyLong(), anyString(), anyString(), anyString());
-        verify(merchantWalletService, never()).releaseFrozen(anyString(), anyLong(), anyString(), anyString(), anyString());
 
         MerchantWithdrawRequestDto cancelled = service.cancelFailed(1L, 77L, "放弃打款");
 
         assertEquals("CANCELLED", cancelled.status());
-        verify(merchantWalletService).releaseFrozen(eq("M-1"), eq(10_000L), eq("WITHDRAW"), eq("77"), anyString());
         verify(merchantWalletService, never()).consumeFrozen(anyString(), anyLong(), anyString(), anyString(), anyString());
+    }
+
+    /** H26：从 FAILED 重试打款，markPaying 需重新冻结后再打款。 */
+    @Test
+    void payoutRetryFromFailed_refreezesBeforePaying() {
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setMerchantName("商户1");
+
+        MerchantWithdrawRequest request = new MerchantWithdrawRequest();
+        request.setRequestId(88L);
+        request.setRequestNo("REQ-RETRY");
+        request.setMerchantId("M-1");
+        request.setAmountCents(10_000L);
+        request.setStatus("FAILED");
+
+        when(withdrawMapper.findById(88L)).thenReturn(Optional.of(request));
+        when(merchantMapper.findById("M-1")).thenReturn(Optional.of(merchant));
+        when(distributedLockService.tryLock(
+                MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
+                .thenReturn(true);
+        when(payoutService.payout(any(), eq(merchant))).thenReturn(
+                new MerchantWithdrawPayoutService.PayoutResult(true, "MOCK", "PAY-2", "ok"));
+
+        MerchantWithdrawRequestDto dto = service.payout(1L, 88L);
+
+        assertEquals("PAID", dto.status());
+        // FAILED → PAYING 时重新冻结 + PAID 时 consume
+        verify(merchantWalletService).freezeForWithdraw(eq("M-1"), eq(10_000L), eq("WITHDRAW"), eq("88"), anyString());
+        verify(merchantWalletService).consumeFrozen(eq("M-1"), eq(10_000L), eq("WITHDRAW"), eq("88"), anyString());
+    }
+
+    /** H38：PAYING 超过 1 小时的提现单被兜底置 FAILED 并解冻。 */
+    @Test
+    void failStalePayingWithdraws_marksFailedAndReleases() {
+        MerchantWithdrawRequest stale = new MerchantWithdrawRequest();
+        stale.setRequestId(66L);
+        stale.setRequestNo("REQ-STALE");
+        stale.setMerchantId("M-1");
+        stale.setAmountCents(10_000L);
+        stale.setStatus("PAYING");
+
+        when(withdrawMapper.findByStatusAndUpdatedAtBefore(eq("PAYING"), any())).thenReturn(List.of(stale));
+        when(withdrawMapper.findById(66L)).thenReturn(Optional.of(stale));
+        when(distributedLockService.tryLock(
+                MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
+                .thenReturn(true);
+
+        assertEquals(1, service.failStalePayingWithdraws());
+
+        assertEquals("FAILED", stale.getStatus());
+        verify(merchantWalletService).releaseFrozen(eq("M-1"), eq(10_000L), eq("WITHDRAW"), eq("66"), anyString());
+    }
+
+    /** H53：绑定多个商户且未指定 merchantId 时拒绝申请，显式指定合法商户可提现。 */
+    @Test
+    void merchantApply_multiBound_requiresExplicitMerchantId() {
+        when(merchantFeaturePackService.allowedMerchantIdsForPack(9L, MerchantFeaturePacks.BIZ))
+                .thenReturn(Set.of("M-1", "M-2"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.merchantApply(9L, 10_000L, "REQ-M1", null));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-2");
+        merchant.setMerchantName("商户2");
+        when(merchantMapper.findById("M-2")).thenReturn(Optional.of(merchant));
+        when(distributedLockService.tryLock(
+                MerchantWithdrawService.merchantWalletLockKey("M-2"), 60L, 5L))
+                .thenReturn(true);
+        when(withdrawMapper.findByRequestNo("REQ-M2")).thenReturn(Optional.empty());
+        MerchantWalletAccount account = new MerchantWalletAccount();
+        account.setMerchantId("M-2");
+        account.setBalanceCents(100_000L);
+        account.setFrozenCents(0L);
+        when(merchantWalletService.ensureAccount("M-2")).thenReturn(account);
+        when(withdrawMapper.sumAmountByMerchantSince(eq("M-2"), any())).thenReturn(0L);
+        AtomicReference<MerchantWithdrawRequest> stored = new AtomicReference<>();
+        when(withdrawMapper.insert(any())).thenAnswer(inv -> {
+            MerchantWithdrawRequest req = inv.getArgument(0);
+            req.setRequestId(101L);
+            stored.set(req);
+            return 1;
+        });
+        when(withdrawMapper.findById(101L)).thenAnswer(inv -> Optional.ofNullable(stored.get()));
+        when(payoutService.payout(any(), eq(merchant))).thenReturn(
+                new MerchantWithdrawPayoutService.PayoutResult(true, "MOCK", "PAY-M2", "ok"));
+
+        MerchantWithdrawRequestDto dto = service.merchantApply(9L, 10_000L, "REQ-M2", "M-2");
+        assertEquals("PAID", dto.status());
+        assertEquals("M-2", dto.merchantId());
+    }
+
+    /** H53：显式指定未绑定的商户被拒绝。 */
+    @Test
+    void merchantApply_explicitForeignMerchant_rejected() {
+        when(merchantFeaturePackService.allowedMerchantIdsForPack(9L, MerchantFeaturePacks.BIZ))
+                .thenReturn(Set.of("M-1"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.merchantApply(9L, 10_000L, "REQ-X", "M-9"));
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
     }
 }

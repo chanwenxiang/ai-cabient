@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.trade.config.QrProperties;
+import com.aicabinet.trade.service.ApiRateLimitService;
 import com.aicabinet.trade.service.DeviceQrService;
 import com.aicabinet.trade.wechat.WeChatMiniAppClient;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,22 +24,31 @@ import java.nio.charset.StandardCharsets;
 @RestController
 public class CabinetOpenLandingController {
 
+    /** L04：公开落地页按来源 IP 限流，防止用 NOT_FOUND 差异无限探测柜机编号。 */
+    private static final int OPEN_LANDING_MAX_PER_MINUTE_PER_IP = 20;
+    private static final String OPEN_LANDING_RATE_MESSAGE = "请求过于频繁，请稍后再试";
+
     private final DeviceQrService deviceQrService;
     private final QrProperties qrProperties;
     private final WeChatMiniAppClient weChatMiniAppClient;
+    private final ApiRateLimitService rateLimitService;
 
     public CabinetOpenLandingController(DeviceQrService deviceQrService,
                                         QrProperties qrProperties,
-                                        WeChatMiniAppClient weChatMiniAppClient) {
+                                        WeChatMiniAppClient weChatMiniAppClient,
+                                        ApiRateLimitService rateLimitService) {
         this.deviceQrService = deviceQrService;
         this.qrProperties = qrProperties;
         this.weChatMiniAppClient = weChatMiniAppClient;
+        this.rateLimitService = rateLimitService;
     }
 
     @GetMapping(value = "/o/{deviceId}", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> openLanding(
             @PathVariable("deviceId") String deviceId,
             HttpServletRequest request) {
+        rateLimitService.assertIpAllowed(ApiRateLimitService.ACTION_OPEN_LANDING,
+                resolveClientIp(request), OPEN_LANDING_MAX_PER_MINUTE_PER_IP, OPEN_LANDING_RATE_MESSAGE);
         String id;
         try {
             id = deviceQrService.requireDevice(deviceId).getDeviceId();
@@ -74,6 +84,23 @@ public class CabinetOpenLandingController {
         }
         // 桌面/其它浏览器：展示引导页，避免误跳到本机 H5 开发端口
         return "OTHER";
+    }
+
+    /** L04：取来源 IP，优先代理头第一跳（与限流口径一致，不可伪造多段绕过）。 */
+    private static String resolveClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            int comma = forwarded.indexOf(',');
+            String first = (comma > 0 ? forwarded.substring(0, comma) : forwarded).trim();
+            if (!first.isBlank()) {
+                return first;
+            }
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr();
     }
 
     String resolveTargetUrl(String deviceId, String channel) {

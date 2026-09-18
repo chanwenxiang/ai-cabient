@@ -62,9 +62,9 @@ class DeviceStableOnlineAutoUnlockServiceTest {
         when(devices.findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
                 eq("ONLINE"), any(Instant.class), eq(200)))
                 .thenReturn(List.of(device));
-        when(exceptions.findFirstByExceptionTypeAndDeviceIdAndStatusIn(
-                eq("DEVICE_FAULT"), eq("CAB-001"), any()))
-                .thenReturn(Optional.of(new OpsException()));
+        when(exceptions.findByDeviceIdAndExceptionTypeInAndStatusIn(
+                eq("CAB-001"), any(), any()))
+                .thenReturn(List.of(offlineAutoLockFault("CAB-001")));
         when(tickets.selectCount(any())).thenReturn(0L);
         when(sessions.selectCount(any())).thenReturn(0L);
         when(devices.findByIdForUpdate("CAB-001")).thenReturn(Optional.of(device));
@@ -88,9 +88,9 @@ class DeviceStableOnlineAutoUnlockServiceTest {
         when(devices.findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
                 eq("ONLINE"), any(Instant.class), eq(200)))
                 .thenReturn(List.of(device));
-        when(exceptions.findFirstByExceptionTypeAndDeviceIdAndStatusIn(
-                eq("DEVICE_FAULT"), eq("CAB-002"), any()))
-                .thenReturn(Optional.of(new OpsException()));
+        when(exceptions.findByDeviceIdAndExceptionTypeInAndStatusIn(
+                eq("CAB-002"), any(), any()))
+                .thenReturn(List.of(offlineAutoLockFault("CAB-002")));
         when(tickets.selectCount(any())).thenReturn(1L);
 
         assertEquals(0, service().autoUnlockStableOnlineDevices());
@@ -107,9 +107,31 @@ class DeviceStableOnlineAutoUnlockServiceTest {
         when(devices.findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
                 eq("ONLINE"), any(Instant.class), eq(200)))
                 .thenReturn(List.of(device));
-        when(exceptions.findFirstByExceptionTypeAndDeviceIdAndStatusIn(
-                eq("DEVICE_FAULT"), eq("CAB-003"), any()))
-                .thenReturn(Optional.empty());
+        when(exceptions.findByDeviceIdAndExceptionTypeInAndStatusIn(
+                eq("CAB-003"), any(), any()))
+                .thenReturn(List.of());
+
+        assertEquals(0, service().autoUnlockStableOnlineDevices());
+        verifyNoInteractions(salesLock);
+    }
+
+    /** H28：存在消费者报修等其他类型未决故障时，稳定在线也不自动解锁。 */
+    @Test
+    void skipsDeviceWithNonOfflineOpenFault() {
+        when(systemConfig.getBoolean(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, false))
+                .thenReturn(true);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, 5))
+                .thenReturn(5);
+        DeviceInfo device = lockedDevice("CAB-004");
+        when(devices.findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
+                eq("ONLINE"), any(Instant.class), eq(200)))
+                .thenReturn(List.of(device));
+        OpsException consumerFault = new OpsException();
+        consumerFault.setExceptionType("DEVICE_FAULT");
+        consumerFault.setTitle("消费者报修：柜门无法打开");
+        when(exceptions.findByDeviceIdAndExceptionTypeInAndStatusIn(
+                eq("CAB-004"), any(), any()))
+                .thenReturn(List.of(offlineAutoLockFault("CAB-004"), consumerFault));
 
         assertEquals(0, service().autoUnlockStableOnlineDevices());
         verifyNoInteractions(salesLock);
@@ -162,5 +184,14 @@ class DeviceStableOnlineAutoUnlockServiceTest {
         device.setOnlineStatus("ONLINE");
         device.setSalesLocked(true);
         return device;
+    }
+
+    /** 离线超时自动锁机产生的 DEVICE_FAULT（离线类故障）。 */
+    private static OpsException offlineAutoLockFault(String deviceId) {
+        OpsException fault = new OpsException();
+        fault.setExceptionType("DEVICE_FAULT");
+        fault.setDeviceId(deviceId);
+        fault.setTitle(OpsExceptionService.OFFLINE_AUTO_LOCK_TITLE + "（超 10 分钟）");
+        return fault;
     }
 }

@@ -47,6 +47,11 @@ public class OpsAlertDispatcher {
      * @param extra      附加字段（通用 Webhook 透传）
      * @param extraUrls  额外的通用 Webhook URL（兼容历史配置，如 dispute.sla.webhook）
      */
+    /** 无附加字段的便捷重载。 */
+    public void send(String type, String title, String message) {
+        send(type, title, message, Map.of());
+    }
+
     public void send(String type, String title, String message,
                      Map<String, Object> extra, String... extraUrls) {
         String text = title + (message == null || message.isBlank() ? "" : "\n" + message);
@@ -78,6 +83,57 @@ public class OpsAlertDispatcher {
         } catch (Exception e) {
             log.warn("ops alert failed channel={} type={} url={}: {}",
                     channel, type, mask(url), e.getMessage());
+        }
+    }
+
+    /**
+     * 与 {@link #send(String, String, String, Map, String...)} 相同的分发范围，但可感知失败（H37）：
+     * 任一渠道发送成功即返回 true；全部渠道失败返回 false；未配置任何渠道时视为无需投递，返回 true。
+     * 既有 {@code send(...)} 对其他调用方的「吞异常、不影响主流程」行为保持不变。
+     */
+    public boolean trySend(String type, String title, String message,
+                           Map<String, Object> extra, String... extraUrls) {
+        String text = title + (message == null || message.isBlank() ? "" : "\n" + message);
+        boolean anySuccess = false;
+        boolean anyConfigured = false;
+        for (Channel channel : CHANNELS) {
+            String url = systemConfigService.getValue(channel.configKey(), "");
+            if (url == null || url.isBlank()) {
+                continue;
+            }
+            anyConfigured = true;
+            Object payload = switch (channel.name()) {
+                case "DINGTALK" -> dingTalkPayload(text);
+                case "WECOM" -> weComPayload(text);
+                default -> genericPayload(type, title, message, extra);
+            };
+            if (tryPost(channel.name(), type, url, payload)) {
+                anySuccess = true;
+            }
+        }
+        if (extraUrls != null) {
+            for (String url : extraUrls) {
+                if (url != null && !url.isBlank()) {
+                    anyConfigured = true;
+                    if (tryPost("WEBHOOK", type, url, genericPayload(type, title, message, extra))) {
+                        anySuccess = true;
+                    }
+                }
+            }
+        }
+        return !anyConfigured || anySuccess;
+    }
+
+    /** 单渠道投递：成功返回 true；失败捕获异常记日志后返回 false（不抛出）。 */
+    private boolean tryPost(String channel, String type, String url, Object payload) {
+        try {
+            postJson(url, payload);
+            log.info("ops alert sent channel={} type={}", channel, type);
+            return true;
+        } catch (Exception e) {
+            log.warn("ops alert failed channel={} type={} url={}: {}",
+                    channel, type, mask(url), e.getMessage());
+            return false;
         }
     }
 

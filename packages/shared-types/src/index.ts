@@ -211,6 +211,17 @@ export interface AdCampaignDto {
 /** @deprecated 使用 OpenApiAdminDeviceDto（springdoc AdminDeviceDto） */
 export type DeviceInfo = import('./generated/admin-models').OpenApiAdminDeviceDto;
 
+/**
+ * 商户端柜机列表读模型。
+ *
+ * `/api/v2/merchant/devices` **实际返回的是 `MerchantDeviceDto`**（含 `oosSlotCount` /
+ * `lowStockSlotCount` / `lifecycleStatus` / `firmwareVersion` / `salesLockReason` / `routeCode`），
+ * 此前 `merchant-api.ts` 把它错标成 `DeviceInfo`（= `AdminDeviceDto`），导致
+ * `devices.vue` 读这些字段时 vue-tsc 报「类型无公共属性」——运行时是对的，类型是错的。
+ */
+export type MerchantDeviceInfo =
+  import('./generated/openapi').components['schemas']['MerchantDeviceDto'];
+
 export interface DeviceSlot {
   deviceId: string;
   slotCode: string;
@@ -282,6 +293,9 @@ export interface RevenueSplit {
   settlementBatchNo?: string;
   settleAfter?: string;
   settledAt?: string;
+  /** 柜机展示名（后端 `RevenueSplitDto.deviceName` 一直返回，此前手写模型漏了它，
+   *  导致 `splits.vue` 的 `s.deviceName` 恒被判为不存在、柜机名永远退化成 deviceId）。 */
+  deviceName?: string;
 }
 
 export interface MerchantUserDto {
