@@ -320,6 +320,33 @@ services:
       - ./monitoring/grafana/provisioning/dashboards/json:/etc/grafana/provisioning/dashboards/json:ro
     depends_on: [prometheus]
 
+  # ---------- 告警通知链路（alerting profile，默认不启动） ----------
+  # Alertmanager 无原生飞书 receiver ⇒ 必须有 feishu-alert-relay 这层转换。
+  # 本机资源有限，故挂在 profile 下，需要时显式带上 --profile alerting。
+  feishu-alert-relay:
+    image: python:3.12-slim
+    profiles: ["alerting"]
+    restart: unless-stopped
+    command: python /app/feishu-relay.py
+    environment:
+      PORT: "8098"
+      FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL:-}
+      FEISHU_SIGN_SECRET: ${FEISHU_SIGN_SECRET:-}
+    volumes:
+      - "./monitoring/feishu-relay.py:/app/feishu-relay.py:ro"
+    ports: ["${FEISHU_RELAY_PORT:-18098}:8098"]
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    profiles: ["alerting"]
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    volumes:
+      - "./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"
+    ports: ["${ALERTMANAGER_PORT:-19093}:9093"]
+    depends_on: [feishu-alert-relay]
+
 volumes:
   pgdata:
   miniodata:

@@ -4,6 +4,14 @@ global:
 rule_files:
   - /etc/prometheus/alert_rules.yml
 
+# 告警下游：alertmanager（→ feishu-alert-relay → 飞书）。
+# 在 docker-compose.full.yml 的 `alerting` profile 下启动；未启动时 prometheus
+# 会记录"连不上 alertmanager"的告警——这是**如实反映**，不是故障。
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
   - job_name: trade-service
     metrics_path: /actuator/prometheus

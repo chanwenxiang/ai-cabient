@@ -1,0 +1,40 @@
+# Alertmanager 告警路由 —— 全部经 feishu-alert-relay 转成飞书机器人报文。
+#
+# 为什么要有这个文件
+# ------------------
+# prometheus/alert_rules.yml 里的业务规则此前**只评估、无人被通知**：
+# 三份 prometheus 配置都没有 alerting: 段，全仓也没有 alertmanager service。
+# 而**Alertmanager 没有原生飞书 receiver**（只有 wechat/webhook 等），
+# 其 webhook 类型发的是 Alertmanager 自己的 JSON，直接填飞书地址会被飞书
+# 以 code=9499 Bad Request 拒收 ⇒ 中间必须有 infra/monitoring/feishu-relay.py 这层转换。
+#
+# 部署（本机资源有限，故挂在 alerting profile 下，**不随 dev 栈默认启动**）
+# ----------------------------------------------------------------------
+#   docker compose --env-file infra/.env \
+#     -f infra/docker-compose.full.yml \
+#     --profile alerting up -d feishu-alert-relay alertmanager
+#
+# 飞书地址通过 .env 注入 relay（不是写在这里）：FEISHU_WEBHOOK_URL / FEISHU_SIGN_SECRET
+#
+# 校验：amtool check-config infra/monitoring/alertmanager.yml
+# 端到端：python scripts/devops/verify-feishu-relay-e2e.py
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: feishu
+  group_by: ["alertname", "severity"]
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: feishu
+    webhook_configs:
+      # 指向 full.yml 里的 relay 服务名（同网络内可解析）
+      - url: http://feishu-alert-relay:8098/webhook
+        # 恢复通知也发，否则群里只看到"炸了"看不到"好了"
+        send_resolved: true
+        # 桥在飞书业务被拒时返回 502（而非 200），Alertmanager 会把该次通知
+        # 标为失败并重试 —— 这正是我们要的"信号不骗人"。
