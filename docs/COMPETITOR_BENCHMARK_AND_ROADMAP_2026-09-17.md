@@ -34,7 +34,7 @@
 | G6 | 无加盟/点位合伙人体系（曾建后删） | V130 DROP franchise_settlement/franchise_device |
 | G7 | 无企业 B 端（团购/福利采购/账期） | 无对应代码 |
 | G8 | 无第三方平台流量接入（美团等） | 无对应代码 |
-| G9 | PayScore 签约开通/解约链路不完整 | `PayScoreService` 依赖已有 contractId，无签约流程控制器 |
+| G9 | ~~PayScore 签约开通/解约链路不完整~~ → **签约已实现，仅缺口收窄为「用户主动解约端点」（09-18 复核更正）** | ✅ **签约链路已在**：`AccountController.java:81` `POST /payscore/sign` → `PayScoreService.signWeChatPayScore:92`；`:88` `POST /alipay-agreement/sign` → `signAlipayAgreement:124`，回调绑定 `bindAlipayAgreementFromNotify:166/:176`，含 `AlipayPayClient:45` 的 H5 签约表单。⚠️ **仍缺**：**用户主动解约**端点——解约目前只在**通知回调**侧处理（H68，`PayScoreService:159-247` 识别 `UNSIGN/TERMINATE/CLOSE…` 类状态并清除 `alipayAgreementId`），没有「用户在 App 内点解约」的入口。原表述「依赖已有 contractId、无签约流程控制器」**已过期** |
 | G10 | 告警有钉钉/企微/Webhook 三渠道，但无电话/飞书、无升级链（escalation） | `OpsAlertDispatcher` |
 
 ### 2.2 三端客户端 — 成熟度：后台最厚、双端精炼
@@ -53,7 +53,9 @@
 ### 2.4 基础设施/可观测性 — 有骨架、缺末端
 
 - 有：Prometheus + Grafana 看板 + 基础告警规则、Micrometer /actuator/prometheus、EMQX 内置认证+ACL（clientId=deviceId、no_match=deny）、Redpanda(Kafka)、MinIO、XXL-JOB。
-- 缺：**Alertmanager 未部署**（业务级 15 条告警规则无人消费）、无日志聚合（Loki/ELK）、无 APM/错误追踪（OTLP exporter 无接收端）、边缘端无 metrics 上报。
+- 缺：**Alertmanager 未部署**（业务级告警规则无人消费 —— 09-18 逐条复核精确化：`infra/prometheus/alert_rules.yml` 现 **22 条**规则，`prometheus-full.yml:5` / `prometheus.compose.yml:5` 确在 `rule_files` 里加载，**但三份 prometheus 配置都无 `alerting:` 段、全仓无 alertmanager service** ⇒ 规则**会评估、无人被通知**；Grafana 侧虽有 contact point（email → ops@aicabinet.local）与 notification policy，但 **alert rule 数为 0**、且 compose 未配 `GF_SMTP_*` ⇒ 邮件也发不出去，**两条链路末端都是断的**）、无日志聚合（Loki/ELK）、无 APM/错误追踪（OTLP exporter 无接收端）、边缘端无 metrics 上报。
+- 🔴 **09-18 新发现（已修）：告警指标名静默失效。** Micrometer 把 `_total` 当作 **Counter 的保留后缀** —— Counter 追加、**Gauge 剥离**。用镜像内 micrometer 1.15.12 做最小复现（三类命名并列导出）：`gauge("cabinet.devices.total")` → **`cabinet_devices`**、`gauge("cabinet.devices.count")` → `cabinet_devices_count`、`counter("cabinet.door.open")` → `cabinet_door_open_total`。于是任何按 `xxx_total` 写的 **Gauge** 引用**静默失效且不报错**。实证受害面 4 处：`DeviceOfflineRateHigh`、`DeviceAllOffline`（**「全部设备离线」critical 告警**）、Grafana「设备总数」面板、运维页 2 张卡片。已改为 `cabinet.devices.count`（4 处源 + admin 产物重建 + 镜像重建后实测 `cabinet_devices_count 3.0`），并新增门禁 `check:prometheus-metric-names`（33 注册点 → 24 个有效名；A/B 9/9）。
+- **`infra/monitoring/alerts.yml` 定论（原「未挂载的死配置」精确化）**：那 **14 条**规则**不是「被取代的旧版」**（与 `alert_rules.yml` 只 1 条重名，且连那条的指标名也是错的），而是**从未落地的设计草稿** —— ①从未被任何 `rule_files` 引用；②指标名与实现不符（`ai_cabinet_*` vs 实际 `cabinet_*`、`hikari_connections_*` vs 实测 `hikaricp_*`）；③依赖 blackbox / kafka / redis 三个**本仓从未部署**的 exporter（prometheus 只有 trade-service / device-service / minio 三个 job）⇒ **即便挂上也不会触发**。已加 `# gate: draft-unimplemented` 显式标记，由 `check:prometheus-metric-names` 的 R1 规则守着（既防它被误挂，也防新规则文件重蹈"写了没人加载"）。
 
 ### 2.5 既有审计未决项（截至 2026-09-17；**09-18 逐条复核后更正**）
 
@@ -189,8 +191,8 @@
 | P0-2 | **提现打款闭环**：接入微信商家转账 API，**商户/线长两端成对**（`MerchantWithdrawPayoutService.java:47` + `LineWithdrawPayoutService.java:47`，同族缺陷各一处），打款失败回滚+重试+对账 | G1 |
 | P0-3 | **支付/短信进件**：真实微信/支付宝商户号与回调、关闭全部 mock 支付/短信/识别/测试余额入口；PayScore 签约-解约全流程补全 | G9 + 生产清单 |
 | P0-4 | **小程序发布合规（09-18 第二轮更新）**：① ✅ **构建期注入点已建** —— 新增 `scripts/inject-miniapp-env.mjs`：release 模式把 `MP_WEIXIN_APPID_{CONSUMER,MERCHANT}`（或 `MP_WEIXIN_APPID`）与 `urlCheck=true` 注入**构建产物** `dist/*/mp-weixin/project.config.json`；缺 appid、或显式 `MP_WEIXIN_URL_CHECK=false`，一律 `exit(1)`，并回读产物自检。`validate-miniapp-env.mjs` 相应改为「env appid 优先 + 只拦自相矛盾的 urlCheck」，**删除了 `AICABINET_ALLOW_URL_CHECK_OFF` 这个 bypass**。两端 `build:mp-weixin` / `build:mp-weixin:dev` 已接线 ⇒ **appid 申请下来后零改代码**；② ✅ 假 appid `wx5a5bc7b541b62a13` 已从 consumer 置空，`clients/admin-vue/project.config.json`（死文件）已删；③ ⏳ **appid 本体仍待申请**——未申请前 release 构建必然红灯，这是**正确的 fail-closed**，**不要误判为「构建坏了」**；④ ⏳ 隐私授权声明（补 `__usePrivacyCheck__`；弹窗组件已有，勿重做）；⑤ ⏳ 域名白名单。⚠️ 源码里的 `urlCheck` **必须长期保持 `false`**（开发者工具要连 localhost/内网），置 `true` 由注入步骤写进产物 | 三端审计 §26.6 |
-| P0-5 | **三端审计 P0 残留（09-18 第二轮后）**：① ✅ **C-1/C-2/C-3 会话竞态三连已修**（`consumer-mp/index.vue`：`onShow` 轮询恢复 + 孤儿会话宽限接管 + 重入拦截，详见 §2.5）；② ✅ **A-1 演示口令已修**（`admin-vue/LoginView.vue`）；③ ✅ **坐标必填 + 无坐标拒签已落地**（`UpsertDeviceRequest` 补 `latitude/longitude/address` → `OpsDeviceAdminService.createDevice` 落库且「选商户=部署」必填 → `ReplenishmentService` fail-closed，含 3 条新单测做负向证明；**09-18 第三轮已端到端实证 8 用例**：回填前「设备无坐标」闸对**带合法坐标的请求也拒**，回填后 450m 通过 / 600m 拒签，任务态与 `check_in_lat/lng` 落库均已核）；④ ✅ **09-18 第四轮已把契约接上「消费点」**：新增静态门禁 `check:replenishment-checkin-contract`（已入聚合链，5 类漂移真注入全转红）+ 实跑脚本 `scripts/e2e-checkin-contract.ps1`（5/5 通过，含 2 个防假绿对照组），并修掉 `e2e-replenishment.ps1` 第 5 步的旧契约（原「设备无坐标 ⇒ 发空 body 放行」必红）；⑤ ⏳ **剩余**：客户端补 `deviceHasCoords`，并把「无坐标」分支从「允许无定位签到」改为「明确提示缺坐标并终止」 | 三端审计 §2.5 |
-| P0-6 | **可观测性收口**：部署 Alertmanager 消费既有 15 条业务规则；Loki 日志聚合；OTLP 接收端（Tempo/Jaeger）；业务 KPI 看板（开门成功率、关门完整率、结算时长、识别准确率、争议率、MQTT 转发失败） | §2.4 |
+| P0-5 | **三端审计 P0 残留（09-18 第二轮后）**：① ✅ **C-1/C-2/C-3 会话竞态三连已修**（`consumer-mp/index.vue`：`onShow` 轮询恢复 + 孤儿会话宽限接管 + 重入拦截，详见 §2.5）；② ✅ **A-1 演示口令已修**（`admin-vue/LoginView.vue`）；③ ✅ **坐标必填 + 无坐标拒签已落地**（`UpsertDeviceRequest` 补 `latitude/longitude/address` → `OpsDeviceAdminService.createDevice` 落库且「选商户=部署」必填 → `ReplenishmentService` fail-closed，含 3 条新单测做负向证明；**09-18 第三轮已端到端实证 8 用例**：回填前「设备无坐标」闸对**带合法坐标的请求也拒**，回填后 450m 通过 / 600m 拒签，任务态与 `check_in_lat/lng` 落库均已核）；④ ✅ **09-18 第四轮已把契约接上「消费点」**：新增静态门禁 `check:replenishment-checkin-contract`（已入聚合链，5 类漂移真注入全转红）+ 实跑脚本 `scripts/e2e-checkin-contract.ps1`（5/5 通过，含 2 个防假绿对照组），并修掉 `e2e-replenishment.ps1` 第 5 步的旧契约（原「设备无坐标 ⇒ 发空 body 放行」必红）；⑤ ✅ **已闭环** —— 客户端 `deviceHasCoords` 早已实现（`merchant-mp/src/composables/useReplenishmentFulfillment.ts:71-75` `isDeviceCoordsMissing`、`replenishment.vue:443` 按钮 `:disabled` + 指路提示、DTO 字段 + `generated/openapi.ts` 回填），「无坐标」分支已从「允许无定位签到」改为**明确提示缺坐标并终止**。🔴 **本条原标 ⏳ 属「假未决」——09-18 复核更正为本轮第二例过期自报状态** | 三端审计 §2.5 |
+| P0-6 | **可观测性收口**：部署 Alertmanager 消费既有业务规则（09-18 复核：`infra/prometheus/alert_rules.yml` 已 **22 条**，且三份 prometheus 配置**都缺 `alerting:` 段** ⇒ 部署 Alertmanager 之外**还须补 `alerting:` 指向它**，并把 dev 用 `prometheus.yml` 也补上 `rule_files`），**另需给 Grafana 侧补 alert rule 或删掉其空转的 contact point/policy**（现为 0 条规则，且无 `GF_SMTP_*`）；`infra/monitoring/alerts.yml` 那 **14 条**已**定论为未实现草稿**（指标名与实现不符 + 依赖未部署的 exporter）⇒ **不挂，加 `# gate: draft-unimplemented` 标记**，由 `check:prometheus-metric-names` 的 R1 守着；Loki 日志聚合；OTLP 接收端（Tempo/Jaeger）；业务 KPI 看板（开门成功率、关门完整率、结算时长、识别准确率、争议率、MQTT 转发失败）。⚠️ 通知渠道凭据（SMTP / 机器人 webhook）需外部提供，在此之前"链路通、消息落日志" | §2.4 |
 | P0-7 | edge 端基础测试与风险排除：`PrefsJsonQueue` 主线程 commit、MQTT 集成测、模拟器↔device↔trade 契约测试 | 三端审计 |
 
 ## 5. 计划：建议新增的功能（缩小增长差距，按优先级）
@@ -224,13 +226,13 @@
 | O1 | **识别准确率保障体系** | 有 need_review/争议熔断 → 增加模型版本管理、灰度回滚、准确率看板（识别 P95、置信度分布、need_review 率、争议率按模型版本对比）；争议仲裁引入 DeepSeek 图片级辅助（现仅 OCR+文本） |
 | O2 | **OTA 完整化** | 下载+SHA-256 → 静默安装（PackageInstaller）、分批灰度发布、失败回滚、升级进度上报 |
 | O3 | **告警升级链** | 钉钉/企微/Webhook → 增加 P0 告警电话/SMS 升级链、值班表联动（配合争议 SLA 值班表 P1 项） |
-| O4 | **协议治理** | `cabinet.proto` 与实际 JSON 消息漂移 → 以实际协议为准刷新 proto 或冻结 proto，加「协议契约测试」进 CI |
+| O4 | **协议治理** | `cabinet.proto` 与实际 JSON 消息漂移 → 以实际协议为准刷新 proto 或冻结 proto，加「协议契约测试」进 CI。**09-18 取证加严**：`proto/cabinet.proto` **不被任何构建引用**（根 pom / 各模块 pom / gradle 里 `proto\|protobuf\|protoc` 零命中）⇒ 它是**无代码生成、无消费**的纯文本契约（「没人调」形态）；实际协议是 `CabinetConstants` 的 5 个 JSON/MQTT 命令（`OPEN_DOOR`/`SET_TARGET_TEMP`/`LOCK`/`UNLOCK`/`REBOOT`），与 proto 的 3 个 oneof（open_door/force_close/ota_upgrade）**互不覆盖**。⚠️ 落地路径可行：`edge/device-simulator` 是**根 pom 的 Maven 模块**（`mvn -pl edge/device-simulator test` 可跑），契约测试有真实落点 |
 | O5 | **商户经营分析可视化** | merchant-mp 纯数字 → 引入轻量图表（如 ucharts）补趋势/构成图 |
 | O6 | **余额退款自动化** | 纯人工审核 → 小额（阈值可配）自动原路退回 + 风控联动（黑名单/新号限制），大额仍人工 |
 | O7 | **测试资产还债** | trade 202 单测但 god service 分支不全、device 仅 2 测试、edge 0 测试 → 按 CODEBASE_FOUNDATION §10 优先级补开门竞态/结算置信度/回调幂等决策表测试；Testcontainers 进 CI 不跳过 |
 | O8 | **性能基线** | 无压测数据 → jmeter 已在仓库根，做开门/结算/轮询三链路压测并入库容量基线 |
 | O9 | **Flyway 治理** | 276 个迁移 → 种子/结构分离策略，防止继续膨胀（CODEBASE_FOUNDATION P2） |
-| O10 | **小程序 mock 演示路径隔离** | demo-close/mock 充值等入口在生产构建编译期剔除（feature flag 硬关），而非运行时开关 |
+| O10 | **小程序 mock 演示路径隔离** | ✅ **09-18 复核：已实现（原判「仅运行时开关」不成立）**。`packages/shared-uni/src/runtime-flags.ts` 的 `isDevBuild = import.meta.env.DEV \|\| MODE==='development'` 是 **Vite 编译期常量替换** ⇒ `resolveMockEnabled()` / `resolveSandboxRecharge()` / `resolveWechatRechargeVisible()` 的生产分支被**常量折叠 + DCE 消除**（`showDevTools()` 恒 false ⇒ 模板 `v-if` 分支一并消除）；其上是后端 `mockEnabled` **运行时**开关，构成**双层**防御而非二选一 |
 
 ## 7. 建议排期（供讨论）
 
