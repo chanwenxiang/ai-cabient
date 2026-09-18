@@ -1,0 +1,110 @@
+# 运营台前端重建 —— 部署取证（2026-09-18）
+# 采集时间：2026-09-18 22:20-22:27 +0800
+# 宿主：win32 / Git Bash；工作区在 OneDrive 同步目录内
+#
+# 背景：应用内飞书渠道的 Java 侧已进镜像（见 deploy-artifact-ab.txt），但
+#       运营台页面仍看不到「告警渠道」里的飞书两行，因为前端源码改动
+#       （clients/admin-vue/src/views/system/AlertRuleView.vue）从未编译进产物。
+
+===== 0. 事件：首次构建「卡死」而非「慢」 =====
+
+$ node scripts/build-admin.mjs            # 输出到仓库内 static/admin（OneDrive 目录）
+[build-admin] type-check...
+[build-admin] vite build...
+vite v6.4.3 building for production...
+✓ 2096 modules transformed.
+                                          # ← 此后 14 分钟零输出，被强制终止（EXIT=127）
+
+判定依据（不是看墙钟，是看产物是否推进）：
+  日志 mtime        : 22:06:26，采样时刻 22:19:46  → 13 分钟无新输出
+  assets 目录文件数  : 0        （emptyOutDir 已清空，新产物一个都没写出来）
+  近 3 分钟更新文件数: 0
+  node 进程 CPU     : PID 49116 两次采样均为 28.375 秒 → 完全冻结（在等 IO，不是在算）
+
+⇒ 危险中间态：产物被清空、没有补回。已用 `git checkout -- <static/admin>` 复原
+  （恢复 168 个 assets 文件，git status 该目录归零）。
+
+===== 1. 对策：输出改到非 OneDrive 目录 =====
+
+$ cd clients/admin-vue
+$ node node_modules/vite/bin/vite.js build \
+      --outDir "C:/Users/cwx/AppData/Local/Temp/admin-dist" --emptyOutDir
+✓ built in 12.58s
+EXIT=0
+
+  临时产物：178 文件 / 168 assets（与 git 跟踪的 178 个数量一致）
+  顶层结构与 static/admin 完全一致：assets / device-default.png / favicon.svg / index.html / sku-demo
+
+⇒ 同一份源码、同一个 vite、同一个命令，只改输出目录：14 分钟卡死 → 12.58 秒完成。
+  根因锁定为写产物到 OneDrive 同步目录时的 IO 阻塞，与源码/依赖无关。
+
+===== 2. 同步回仓库目录 =====
+
+$ robocopy <admin-dist> <...static\admin> /MIR /NFL /NDL /NJH /NJS /R:2 /W:1
+ROBOCOPY_EXIT=3        （robocopy 约定：0-7 为成功，3 = 有文件复制 + 有额外文件被清理）
+  目标：178 文件 / 168 assets
+  git status 该目录：77 新增(??) + 77 删除(D) + 2 修改(M)  ← 全部是 chunk 文件名 hash 变化
+
+===== 3. 产物判据 A/B（构建前基线取自 HEAD，不是"我觉得"） =====
+
+$ git grep -l "feishu_webhook" HEAD -- .../static/admin          → 0 个文件
+$ git grep -l "测试发送"        HEAD -- .../static/admin          → 0 个文件
+$ grep -rl "feishu_webhook"  <工作区 static/admin>                → 1 个文件
+$ grep -rl "测试发送"        <工作区 static/admin>                → 1 个文件
+
+===== 4. 镜像判据 A/B（同一口径：解压 jar 内 admin js 条目按字节搜） =====
+
+[BEFORE 重建前运行的镜像] admin js 条目=97  含 feishu_webhook=0  含「测试发送」=0
+[AFTER  重建后运行的镜像] admin js 条目=97  含 feishu_webhook=1  含「测试发送」=1
+        命中文件: AlertRuleView-DoL8vVWt.js
+
+  镜像重建：docker compose build trade-service          → EXIT=0
+  容器重建：docker compose up -d --force-recreate --no-build trade-service → EXIT=0
+  健康检查：/actuator/health → {"status":"UP"}  （T+15s）
+
+  ⚠️ 判据口径说明：不能直接 `grep app.jar` —— jar 内条目是 deflate 压缩的，
+     那样连 HEAD 里确定存在的串也是 0（无效判据）。必须用 zipfile 解出条目再搜。
+
+===== 5. HTTP 层判据（用户打开浏览器时走的就是这条） =====
+
+$ curl -i http://localhost:18080/admin/
+HTTP/1.1 200
+Content-Type: text/html;charset=UTF-8
+Content-Length: 1242
+Last-Modified: Fri, 18 Sep 2026 14:24:31 GMT      ← 就是本次重建时间
+
+$ curl -o arv.js -w "%{http_code} %{size_download}" \
+    http://localhost:18080/admin/assets/AlertRuleView-DoL8vVWt.js
+HTTP=200 bytes=12675
+  feishu_webhook     命中: 1
+  feishu_sign_secret 命中: 1
+  测试发送           命中: 1
+
+===== 6. 运营台可配置性闭环（可读 → 可改 → 可用） =====
+
+登录：POST /api/v2/auth/admin-password-login（含图形验证码）→ code=0，token 在 data.token
+
+  ① 可读：GET /api/v2/ops/admin/system-configs → 共 50 条，其中
+     ops.alert.feishu_sign_secret = <空>   | 运营告警：飞书机器人签名密钥（仅勾选「签名校验」时必填…）
+     ops.alert.feishu_webhook     = https://open.feishu.cn/open-apis/bot/v2/hook/****-****
+                                    | 运营告警：飞书自定义机器人 Webhook URL（留空不推送）
+
+  ② 可改：PUT /api/v2/ops/admin/system-configs {configKey: ops.alert.feishu_webhook, ...}
+     code=0  回读值 == 写入值  → True
+
+  ③ 可用：POST /api/v2/ops/admin/system-configs/alert-test
+     FEISHU  delivered=True  detail=(空=已送达)
+     结论：FEISHU delivered = True
+
+EXIT=0
+
+===== 这份证据没有证明什么（诚实边界） =====
+
+1. **没有人真的在浏览器里点过。** 判据全部来自 HTTP 层（curl 拉 chunk + API 调用）。
+   我能证明"该 chunk 已发布且含目标串""接口可写可试发"，但**没有截图级的人工确认**。
+2. **只验了 AlertRuleView 这一条路径**，没有做其他页面的回归——虽然本次构建是全量重建，
+   理论上其他 chunk 内容不应变（git 只记录 hash 变化），但没有逐页比对。
+3. **没有验证页面渲染后的实际交互**（例如「测试发送」按钮的 loading/错误提示样式）。
+4. **`ops.alert.feishu_webhook` 仍是明文存在 dev 数据库**里；本轮未做加密或脱敏。
+5. 卡死根因**只做了时序对照**（改输出目录即恢复），没有抓 OneDrive 侧的进程级证据
+   （如句柄/锁），所以"OneDrive 锁"是**最一致的解释**，不是直接观测到的。

@@ -1,0 +1,142 @@
+# 证据：接入**真实飞书**并端到端实测（不再是替身）
+# 采集时间：2026-09-18 21:31–21:41 +0800
+# 宿主：win32 / Git Bash ｜ Python 3.13.12 ｜ Docker Desktop
+#
+# 这份证据回答的问题：「监控栈告警到底会不会真的出现在飞书群里？」
+# 与旧证据的区别：此前所有投递断言都指向本地替身 feishu-sink-mock.py；
+#                 本份的接收方是 https://open.feishu.cn 的真机器人。
+# ⚠️ webhook URL 是凭据，本文件内一律打码（形如 …/hook/******44f5）。
+
+
+===== 0. 接入前状态（只读体检，证明「之前确实没接」）=====
+$ python scripts/devops/activate-feishu-webhook.py --check
+== 当前飞书告警渠道状态 ==
+  infra/.env     : (空)
+  容器内实际值   : (空)
+  /health        : {'ok': True, 'configured': False, 'dryRun': False}
+  [OK] .env 与容器取值一致
+check_exit=0
+
+
+===== 1. 接入（一条命令，五步判据）=====
+$ python scripts/devops/activate-feishu-webhook.py --url "https://open.feishu.cn/open-apis/bot/v2/hook/<已打码>"
+== 1/5 URL 形状校验 ==
+  [PASS] 形状合法
+  目标: https://open.feishu.cn/…/hook/******44f5
+  签名: 关（若机器人开了「签名校验」，飞书会拒收 code=19021）
+== 2/5 写入 infra/.env（幂等，保留 CRLF）==
+  - FEISHU_WEBHOOK_URL 已更新（第 85 行）
+  - FEISHU_SIGN_SECRET 已是目标值（未改动）
+  [PASS] 回读一致；文件 2741 → 2822 字节，换行仍为 CRLF
+== 3/5 重建 relay 容器（--force-recreate）==
+  [PASS] relay 已重建并起监听
+== 4/5 复核容器内取值（防「改了 .env 没生效」）==
+  [PASS] 容器内取值 == 目标值；签名密钥为空
+== 5/5 真实投递自检（飞书业务码必须为 0）==
+  [PASS] 已送达
+
+== 结论：飞书告警渠道已接通，且实测送达 ==
+activate_exit=0
+
+
+===== 2. 不采信脚本自述：取桥拿到的飞书原始结果 =====
+$ curl -s http://127.0.0.1:18098/last
+{"text": "【告警触发】共 1 条\n- [触发] FeishuActivationProbe1789738464（info）\n  飞书渠道接入自检：这条消息若出现在群里，说明链路已通。",
+ "status": 200, "detail": "已送达", "at": 1789738465}
+
+$ docker logs ai-cabinet-feishu-alert-relay-1
+feishu-alert-relay listening on :8098  POST /webhook  health=/health  last=/last
+  飞书 webhook：已配置  签名：关  dryRun=False
+[feishu-relay] forward status=200 detail=已送达
+[feishu-relay] 172.22.0.1 - "POST /webhook HTTP/1.1" 200 -
+# ↑ detail=已送达 是桥解析飞书响应体 code 得出的（code==0 才为「已送达」），
+#   不是「HTTP 200 就算成功」——飞书被拒时也返回 HTTP 200。
+
+
+===== 3. 差分测试：这个机器人接受哪几种文案？（直投飞书，读业务码）=====
+# 目的：判断同一条 webhook 能否同时服务「监控栈」与「应用内」两条链路。
+# 依据：应用内告警文本是 title + "\n" + message，而 title 形如 [争议SLA提醒]，
+#       与监控栈的【告警触发】不同 —— 若机器人设了「关键词=告警」，
+#       应用内那条会被飞书以 code=19024 静默拒收。
+
+A. 应用内文案形状  {"text": "[争议SLA提醒] 渠道能力差分测试…"}
+   → {"StatusCode":0,"StatusMessage":"success","code":0,"data":{},"msg":"success"}
+B. 监控栈文案形状  {"text": "【告警触发】差分测试…"}
+   → {"StatusCode":0,"StatusMessage":"success","code":0,"data":{},"msg":"success"}
+C. 中性文案（不含「告警」二字）{"text": "neutral-probe-2026-09-18"}
+   → {"StatusCode":0,"StatusMessage":"success","code":0,"data":{},"msg":"success"}
+
+⇒ 三者全部 code=0，**包括不含任何关键词的中性文案**。
+⇒ 结论：该机器人**当前未启用任何安全设置**（无关键词、无签名、无 IP 白名单）。
+   · 好处：监控栈与应用内两条链路都能用，不需要迁就关键词。
+   · 风险：**任何拿到该 URL 的人都能往群里发消息**。URL 即凭据，建议补一种安全设置。
+   · 若补「关键词」：两条链路的文案都**不含**「告警」以外的公共词 ⇒ 关键词会挑一条断掉，
+     需选一个两边都有的词（当前文案下不存在）⇒ 建议改用**签名校验**（两条链路都支持）。
+
+
+===== 4. 端到端：Alertmanager → 桥 → 真飞书（此前只对替身证过）=====
+# 受控验证：唯一 alertname 隔离，不干扰其他告警。
+$ POST http://127.0.0.1:19093/api/v2/alerts
+  {"labels":{"alertname":"FeishuRealChainProbe1789738525","severity":"info","biz":"feishu-real-e2e"},
+   "annotations":{"summary":"受控验证：Alertmanager → 桥 → 真飞书 端到端链路自检（可忽略）"}}
+  → HTTP 200
+
+$ 轮询 http://127.0.0.1:18098/last   （第 8s 命中，group_wait=10s）
+{"text": "【告警触发】共 1 条\n- [触发] FeishuRealChainProbe1789738525（info）\n  受控验证：Alertmanager → 桥 → 真飞书 端到端链路自检（可忽略）",
+ "status": 200, "detail": "已送达", "at": 1789738535}
+
+$ docker logs ai-cabinet-feishu-alert-relay-1
+[feishu-relay] forward status=200 detail=已送达
+[feishu-relay] 172.22.0.16 - "POST /webhook HTTP/1.1" 200 -
+# ↑ 172.22.0.16 = alertmanager 容器地址 ⇒ 确认这一跳是 Alertmanager 自己发起的，
+#   不是我用 curl 伪造的。
+
+===== 5. 恢复通知（send_resolved=true 是否真的生效）=====
+$ POST 同一 labels 但 endsAt 已过期（now-2s）  → HTTP 200
+$ curl http://127.0.0.1:19093/api/v2/alerts?filter=alertname=FeishuRealChainProbe1789738525
+[]                      ← 告警已从 AM 移除（已解析）
+$ 轮询 /last
+{"text": "【告警恢复】共 1 条\n- [恢复] FeishuRealChainProbe1789738525（info）\n  受控验证：Alertmanager → 桥 → 真飞书 端到端链路自检（可忽略）",
+ "status": 200, "detail": "已送达", "at": 1789738836}
+
+⚠️ 时间线（重要，别误判为「恢复通知坏了」）：
+   触发通知 at = 1789738535
+   恢复通知 at = 1789738836   （差 301 秒）
+   而 alertmanager.yml 的 group_interval = 5m = 300s
+   ⇒ 恢复通知**恰好**在分组窗口开启后 1 秒发出 ⇒ 延迟来自 AM 的
+     group_interval 分组机制（同 group_by: [alertname, severity] 的后续通知要等窗口），
+     **不是缺陷**。生产上如果要求恢复通知尽快达，应调小 group_interval。
+
+
+===== 6. 凭据安全检查 =====
+$ git check-ignore -v infra/.env
+.gitignore:36:infra/.env	infra/.env
+$ git status --porcelain | grep -iE "\.env$|feishu"      # 只列出新增的脚本/配置，无 .env
+$ grep -rn "<token 明文>" --exclude-dir=.git --exclude-dir=node_modules .
+./infra/.env:85:FEISHU_WEBHOOK_URL=...    ← 唯一命中，且该文件被 gitignore
+⇒ 明文只存在于被忽略的 infra/.env；仓库不跟踪、不会提交。
+
+
+===== 7. 门禁回归（本轮改动未破坏既有判据）=====
+$ node scripts/check-ops-alert-channels.mjs        → exit 0
+  [check-ops-alert-channels] OK: 4 条渠道（FEISHU/DINGTALK/WECOM/WEBHOOK）；
+  5 个 ops.alert.* 配置键全部 seed 且在运营台可见；飞书报文 msg_type/content 与失败码判定就位；
+  监控栈接线一致（feishu-alert-relay:8098/webhook ∈ 17 个 compose 服务）
+
+$ python scripts/devops/verify-ops-alert-channels-drift.py  → exit 0
+  34/34 用例符合预期
+
+
+===== 8. 这份证据**没有**证明什么（诚实边界）=====
+1. **没有**证明「应用内告警渠道」（运营台 DB 配置那条）也接通 —— 那条读的是
+   DB system_config.ops.alert.feishu_webhook，本轮**未写入**（差分测试只证明
+   该机器人**接受**该文案形状，不等于那条链路已配置）。
+2. **没有**证明 Prometheus 的 22 条业务规则真的会产生告警 —— 本轮是**直接向
+   Alertmanager 注入**合成告警，绕过了 Prometheus 的规则评估。规则本身的
+   「会不会触发」不在本证据范围。
+3. **没有**覆盖真实故障场景（设备真离线、真对账不平）。收到的是自检文案。
+4. **没有**验证长期稳定性（重复投递、限流）。飞书自定义机器人有频控（约 100 次/分钟），
+   高频告警风暴下的表现未测。
+5. **没有**证明机器人开启「签名校验」后仍可用 —— 当前签名关闭；若开启，
+   须用 --secret 重新接入并复测（届时 code=19021 会暴露问题）。
+6. 机器人**当前无任何安全设置** ⇒ 该 URL 泄露即可被任意人往群里发消息。

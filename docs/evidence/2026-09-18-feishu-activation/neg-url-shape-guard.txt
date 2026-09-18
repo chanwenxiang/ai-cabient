@@ -1,0 +1,30 @@
+# 证据：飞书渠道接入（activate-feishu-webhook.py）
+# 采集时间：2026-09-18 21:04:08 +0800
+# 宿主：win32 / Git Bash
+
+=== 负向用例1: 粘成 alertmanager 地址（http）===
+== 1/5 URL 形状校验 ==
+  [FAIL] 必须用 https（当前 scheme=http）——飞书不接受 http
+  → 拒绝写入，infra/.env 未被触碰
+EXIT=1
+
+=== 负向用例2: 飞书域名但路径是 IM 接口 ===
+== 1/5 URL 形状校验 ==
+  [FAIL] 路径必须以 /open-apis/bot/v2/hook/ 开头（当前 '/open-apis/im/v1/messages'）——常见于粘贴了 Alertmanager/Grafana 地址
+  → 拒绝写入，infra/.env 未被触碰
+EXIT=1
+
+=== 负向用例3: 非飞书主机 ===
+== 1/5 URL 形状校验 ==
+  [FAIL] 主机 'example.com' 不是飞书域名（应为 open.feishu.cn 或 open.larksuite.com）。若这是本地替身在联调，请显式加 --allow-non-feishu
+  → 拒绝写入，infra/.env 未被触碰
+EXIT=1
+
+=== 负向用例4: token 被截断 ===
+== 1/5 URL 形状校验 ==
+  [FAIL] webhook token 过短（3 位），疑似被截断
+  → 拒绝写入，infra/.env 未被触碰
+EXIT=1
+
+=== .env 未被触碰（负向用例后）===
+066c7f0fbe30cd26625ae7a61d352072 *infra/.env

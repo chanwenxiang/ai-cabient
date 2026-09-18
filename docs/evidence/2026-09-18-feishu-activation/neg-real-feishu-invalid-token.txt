@@ -1,0 +1,23 @@
+# 证据：形状合法但 token 无效 → **真连 open.feishu.cn**
+# 采集时间：2026-09-18 21:04:29 +0800
+# 这条用例的价值：证明本机网络确实能到达飞书，且脚本不会被「HTTP 200」骗过
+
+== 1/5 URL 形状校验 ==
+  [PASS] 形状合法
+  目标: https://open.feishu.cn/…/hook/******0000
+  签名: 关（若机器人开了「签名校验」，飞书会拒收 code=19021）
+== 2/5 写入 infra/.env（幂等，保留 CRLF）==
+  - FEISHU_WEBHOOK_URL 已更新（第 85 行）
+  - FEISHU_SIGN_SECRET 已是目标值（未改动）
+  [PASS] 回读一致；文件 2741 → 2822 字节，换行仍为 CRLF
+== 3/5 重建 relay 容器（--force-recreate）==
+  [PASS] relay 已重建并起监听
+== 4/5 复核容器内取值（防「改了 .env 没生效」）==
+  [PASS] 容器内取值 == 目标值；签名密钥为空
+== 5/5 真实投递自检（飞书业务码必须为 0）==
+  [FAIL] relay HTTP 502，桥的结论='飞书拒绝投递 code=19001 msg=param invalid: incoming webhook access token invalid'（报文响应={"delivered": false, "detail": "飞书拒绝投递 code=19001 msg=param invalid: incoming webhook access token invalid"}）
+
+== 结论：**未接通**，不要把上面任何一步当成成功 ==
+  提示：飞书 code=19001 —— 参数错误 → webhook 地址多半粘错/被截断
+  ⚠️ 另注意：飞书对 4xx/5xx 也可能回 HTTP 200，成败只看响应体 code —— 本脚本已按此判定。
+EXIT=1

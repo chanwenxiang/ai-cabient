@@ -1,0 +1,91 @@
+# 应用内飞书告警渠道 —— 部署前后对比（产物级）
+
+采集时间：2026-09-18 21:5x +0800
+宿主：win32 / Git Bash；单测命令均为直调，不用 npm/pnpm 包装。
+
+## 为什么需要这份对比
+
+「代码写了」不等于「运行的东西里有」。本轮发现：飞书渠道的实现
+（`OpsAlertDispatcher` 的 FEISHU 分支、`SystemConfigService` 的两个配置键）
+**只存在于工作区、从未编进任何运行镜像**：
+
+- `git status` 显示这两个文件是 ` M`（已改未提交）
+- `git show HEAD:...OpsAlertDispatcher.java | grep -i feishu` → **0 命中**（HEAD 里没有）
+- 运行容器 `app.jar` mtime = 2026-09-18 17:32，即由 HEAD 构建
+
+⇒ 运营台当时点「测试发送」**根本不会探测飞书**（那部分代码不在运行的 jar 里）。
+
+## 复现方式（可重跑）
+
+```
+# 旧镜像（对照）
+docker create --name tmp-prefeishu ai-cabinet/trade-service:pre-feishu-backup
+docker cp tmp-prefeishu:/app/app.jar old.jar && docker rm -f tmp-prefeishu
+# 新镜像（当前运行）
+docker cp ai-cabinet-trade-service-1:/app/app.jar new.jar
+# 用 zipfile 读出 class 字节，统计关键字符串出现次数
+```
+
+⚠️ 判据说明：**不能直接 `grep app.jar`** —— jar 内 class 是压缩的，连 HEAD 里
+确定存在的 `ops.alert.dingtalk_webhook` 也 grep 到 0（这是一个**假判据**）。
+必须先解压 class 再统计字节。
+
+## 实测输出
+
+```
+[旧镜像 pre-feishu-backup]
+   OpsAlertDispatcher.class   feishu=0 FEISHU=0 msg_type=0 dingtalk=1
+   SystemConfigService.class  feishu=0 FEISHU=0 msg_type=0 dingtalk=1
+[新镜像 local（当前运行）]
+   OpsAlertDispatcher.class   feishu=4 FEISHU=1 msg_type=1 dingtalk=1
+   SystemConfigService.class  feishu=2 FEISHU=2 msg_type=0 dingtalk=1
+```
+
+`jar` 体积：old 123,806,134 B → new 123,810,081 B。
+
+## 重建方式（未改任何源码，只重打包）
+
+```
+IMAGE_TAG=local docker compose --env-file infra/.env \
+  -f infra/docker-compose.full.yml -f infra/docker-compose.win-ports.yml \
+  build trade-service      # 50s（BuildKit /root/.m2 缓存命中）
+IMAGE_TAG=local docker compose ... up -d --force-recreate --no-build trade-service
+```
+
+- 重建前已 `docker tag ai-cabinet/trade-service:local ai-cabinet/trade-service:pre-feishu-backup`
+  ⇒ 可回滚。
+- health 通过耗时 T+9s：`{"status":"UP"}`
+
+## 配置键的播种前后
+
+`SystemConfigService.listAll()` 每次都会调 `ensureDefaults()`（无一次性守卫，`SystemConfigService.java:283`），
+所以直接读一次列表就能看到播种结果：
+
+| | 系统参数条数 | `ops.alert.feishu_webhook` |
+|---|---|---|
+| 重建前 | 48 | **不存在** |
+| 重建后 | 50 | 存在（空值，desc=「运营告警：飞书自定义机器人 Webhook URL（留空不推送）」） |
+
+同理 `ops.alert.feishu_sign_secret` 也一并被播种。
+
+## 这份证据**没有**证明什么（诚实边界）
+
+1. **应用内渠道的真实业务告警未走通端到端**。已验证的是运营台「测试发送」
+   （`POST /api/v2/ops/admin/system-configs/alert-test`）。该端点与业务告警
+   `OpsAlertDispatcher.send(...)` **共用** `postJson` + `deliveryError`，
+   投递机制相同，但**调用方不同** —— 「业务告警触达」这一步没实测。
+2. **运营台前端未重建**。`AlertRuleView.vue`（飞书字段 + 「测试发送」按钮）与
+   `endpoints.ts` 的改动同样只在工作区；已跟踪的构建产物
+   `services/trade-service/src/main/resources/static/admin`（178 个文件）
+   仍是 HEAD 版本。⇒ **现在运营台页面上看不到飞书这一行**，
+   本次配置是走 API 写进去的。
+3. **飞书侧从未被人眼确认**。`delivered=true` 的来源是「飞书响应体 `code=0`」，
+   这是飞书自己的权威信号，但没有人打开群看过。
+4. **偶发一次 TLS 握手失败**：首次探测返回
+   `I/O error on POST request ...: Remote host terminated the handshake`；
+   紧接着连续 5 次全部 `delivered=true`。为排除"是不是容器根本出不去"，
+   做了三层验证：容器内 `wget https://open.feishu.cn/` → HTTP 200；
+   同网络 JDK 容器发等价请求 → `code=0`；**在 trade-service 容器内**用它的 JVM
+   发同一请求 → `code=0`。⇒ 归因于**一次性网络抖动**，不是网络配置缺陷。
+   但由此暴露一个**未修的真实弱点**：`OpsAlertDispatcher.post()` 捕获异常后只记 warn、
+   **不重试**，因此偶发失败会**直接丢一条告警**。

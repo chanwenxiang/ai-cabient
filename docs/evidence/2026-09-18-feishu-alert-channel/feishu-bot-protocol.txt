@@ -1,0 +1,64 @@
+# 飞书自定义机器人协议要点（本次改动的事实依据）
+
+来源：飞书开放平台《自定义机器人使用指南》
+https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot
+抓取时间：2026-09-18（文档页标注"最后更新于 2025-03-27"）
+
+## 1. webhook 地址
+
+    https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxxxxxxxxxxx
+
+## 2. 文本消息请求体（⚠️ 下划线 msg_type）
+
+    {
+        "msg_type": "text",
+        "content": {
+            "text": "新更新提醒"
+        }
+    }
+
+对照：钉钉 / 企微是 `{"msgtype":"text","text":{"content":"..."}}`。
+**字段名与层级都不同**，照搬钉钉报文会被飞书拒收。
+
+## 3. 成功响应
+
+    {
+         "StatusCode": 0,               //冗余字段，用于兼容存量历史逻辑，不建议使用
+         "StatusMessage": "success",    //冗余字段，用于兼容存量历史逻辑，不建议使用
+         "code": 0,
+         "data": {},
+         "msg": "success"
+    }
+
+## 4. 失败响应（关键：HTTP 200 + 业务码）
+
+    {"code": 9499,  "msg": "Bad Request"}                                    // 请求体格式错误
+    {"code": 19024, "msg": "Key Words Not Found"}                            // 自定义关键词校验失败
+    {"code": 19022, "msg": "Ip Not Allowed"}                                 // IP 白名单校验失败
+    {"code": 19021, "msg": "sign match fail or timestamp is not within one hour from current time"}  // 签名校验失败
+
+⇒ **不能把「未抛异常」当作「已送达」**。原实现用 `toBodilessEntity()` 丢弃响应体，
+   于是这些失败全部表现为"日志说已发送、群里没消息"。本次改为解析业务码。
+
+## 5. 签名校验（可选）
+
+    stringToSign = timestamp + "\n" + secret
+    把 stringToSign 当作 HMAC 密钥，被签消息为**空串**，HmacSHA256 后 Base64
+
+开启后请求体需带 timestamp 与 sign：
+
+    {
+        "timestamp": "1599360473",
+        "sign": "xxxxxxxxxxxxxxxxxxxxx",
+        "msg_type": "text",
+        "content": { "text": "request example" }
+    }
+
+**签名是「强烈建议」的安全设置之一**；另外两种是「自定义关键词」与「IP 白名单」，
+三者可同时启用。仅用关键词时不需要 sign。
+
+## 6. 其它约束
+
+- 单机器人限流：100 次/分钟、5 次/秒；整点/半点容易触发 11232 限流。
+- 请求体不超过 20 KB。
+- 自定义机器人只能在**当前群聊**内使用，无任何数据访问权限。

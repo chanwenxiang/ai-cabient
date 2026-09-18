@@ -1,0 +1,40 @@
+[monitoring-e2e] 监控栈告警链路端到端验证
+[monitoring-e2e] 仓库根：C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet
+
+== Phase 0：环境 ==
+  docker server 29.3.1
+  三个监控容器均在运行
+
+== Phase 1：健康与接线 ==
+  [PASS] relay /health 可达   {'ok': True, 'configured': True, 'dryRun': False}
+  [PASS] alertmanager 就绪   cluster=ready
+  [PASS] prometheus 加载到全部告警规则   加载 22 条 / 文件中 22 条（4 组）
+  [PASS] prometheus 已连上 alertmanager   active=['http://alertmanager:9093/api/v2/alerts']  ← 证明 prometheus-full.yml 的 alerting 段真的生效
+
+== Phase 2：飞书替身与 relay 指向 ==
+  [PASS] 飞书替身 sink 就绪
+  [PASS] relay 已注入飞书地址（configured）   dryRun=False
+  [PASS] relay 容器能解析到 sink（服务名）   ok
+
+== Phase 3：清空 alertmanager 状态 ==
+  [PASS] alertmanager 已清空（无历史告警干扰）   残留 0 条
+
+== Phase 4：成功路径（触发） ==
+  注入告警 E2EProbe204252，等待 group_wait≈10s …
+  [PASS] 触发通知送达飞书   首行='【告警触发】共 1 条'
+  [PASS] 飞书报文形状正确（msg_type 下划线）   msg_type='text' 含msgtype=False
+  [PASS] 触发语义正确（[触发] + alertname）
+
+== Phase 5：失败必须显形（sink 不可达 → 502，不许假绿） ==
+  停掉 sink 后注入 E2EProbeFail204306，等待 group_wait…
+  [PASS] sink 不可达时 relay 返回 502（不拿 200 冒充送达）   relay /last status=502 detail=飞书请求失败：<urlopen error [Errno -5] No address associated with hostname>
+  [PASS] sink 恢复
+
+== Phase 6：恢复路径（send_resolved） ==
+  置为 recovered，等待 group_interval≈300s …
+  [PASS] 恢复通知送达（send_resolved: true 的另一半）   首行='【告警恢复】共 1 条'
+
+[monitoring-e2e] 已清理 tmp-feishu-sink
+[monitoring-e2e] 注意：relay 仍指向已删除的 sink；如需再验证，重跑本脚本即可（会重建）。
+
+[monitoring-e2e] 14/14 用例通过

@@ -1,0 +1,26 @@
+# 应用内飞书告警渠道 —— A/B 对照（证据由此命令产出，可复跑）
+# 采集时间：2026-09-18 22:01:28 +0800
+# 宿主：win32 / Git Bash
+#
+# 前置：拒绝替身已起（SINK_CODE=19024），命令见脚本头部 docstring
+# 命令：AI_CABINET_OPS_TOKEN=<token> python scripts/devops/verify-feishu-inapp-channel-ab.py
+
+=== A 组：渠道指向拒绝替身（期望 delivered=false + 带业务码）===
+    mock = http://tmp-feishu-sink:18099/send
+    detail    = code=19024 Key Words Not Found
+    delivered = False
+    A 组符合预期: True
+
+=== B 组：渠道指回真实飞书（期望 delivered=true + detail 空）===
+    webhook = https://open.feishu.cn/open-apis/bot/v2/hook/****-****
+    detail    = None
+    delivered = True
+    B 组符合预期: True
+
+=== 终态复核：渠道必须已复原成真实 webhook ===
+    当前值 = https://open.feishu.cn/open-apis/bot/v2/hook/****-****
+    已复原: True
+
+结论：A/B 双向判据 + 终态复原 全部成立
+
+EXIT=0

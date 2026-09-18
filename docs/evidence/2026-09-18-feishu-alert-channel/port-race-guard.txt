@@ -1,0 +1,54 @@
+# 端口竞态：负向对照 + 稳定性
+# 生成命令：
+#   python scripts/devops/verify-feishu-relay-portguard.py
+#   python scripts/devops/verify-feishu-relay-e2e.py --no-docker   （连续 3 次）
+
+## 1) 负向对照：端口被占时预检必须拦住，且归因指向测试框架而非桥
+[ok] 第一个实例已起：port_in_use=True url=http://127.0.0.1:18088/webhook
+[PASS] 第二个实例被拦住：起桥前端口 18088 仍被占用：上一个用例的进程没退干净。⚠️ 这是**测试框架的竞态**，不是桥的缺陷，别据此改 feishu-relay.py。
+[PASS] stop() 后端口已释放：port_in_use=False
+GUARD_EXIT=0
+
+## 2) 稳定性：连续 3 次 Phase A（未修复前 A4 曾偶发 relay=0）
+--- RUN 1 ---
+  [PASS] A1 正常投递 → 飞书报文形状正确                                relay=200 msg_type=text text首行='【告警触发】共 1 条'
+  [PASS] A5 超长正文按 20KB 上限截断                                relay=200 正文长度=18011
+  [PASS] A2 未配置 FEISHU_WEBHOOK_URL 时返回 503（不是 200）         relay=503 body={"delivered": false, "detail": "FEISHU_WEBHOOK_URL 未配置：桥无法投递（这是配置缺失，不是送达成功）"}
+  [PASS] A3 飞书 code!=0 → 桥返回 502 并透传业务码                    relay=502 body={"delivered": false, "detail": "飞书拒绝投递 code=19024 msg=Key Words Not Found"}
+  [PASS] A4 签名与独立实现一致                                      relay=200 timestamp=1789733216 sign一致性=True
+  [PASS] A6 status=resolved 渲染为「告警恢复」（send_resolved 的另一半）  relay=200 首行='【告警恢复】共 1 条'
+6/6 用例通过
+--- RUN 2 ---
+  [PASS] A1 正常投递 → 飞书报文形状正确                                relay=200 msg_type=text text首行='【告警触发】共 1 条'
+  [PASS] A5 超长正文按 20KB 上限截断                                relay=200 正文长度=18011
+  [PASS] A2 未配置 FEISHU_WEBHOOK_URL 时返回 503（不是 200）         relay=503 body={"delivered": false, "detail": "FEISHU_WEBHOOK_URL 未配置：桥无法投递（这是配置缺失，不是送达成功）"}
+  [PASS] A3 飞书 code!=0 → 桥返回 502 并透传业务码                    relay=502 body={"delivered": false, "detail": "飞书拒绝投递 code=19024 msg=Key Words Not Found"}
+  [PASS] A4 签名与独立实现一致                                      relay=200 timestamp=1789733225 sign一致性=True
+  [PASS] A6 status=resolved 渲染为「告警恢复」（send_resolved 的另一半）  relay=200 首行='【告警恢复】共 1 条'
+6/6 用例通过
+--- RUN 3 ---
+  [PASS] A1 正常投递 → 飞书报文形状正确                                relay=200 msg_type=text text首行='【告警触发】共 1 条'
+  [PASS] A5 超长正文按 20KB 上限截断                                relay=200 正文长度=18011
+  [PASS] A2 未配置 FEISHU_WEBHOOK_URL 时返回 503（不是 200）         relay=503 body={"delivered": false, "detail": "FEISHU_WEBHOOK_URL 未配置：桥无法投递（这是配置缺失，不是送达成功）"}
+  [PASS] A3 飞书 code!=0 → 桥返回 502 并透传业务码                    relay=502 body={"delivered": false, "detail": "飞书拒绝投递 code=19024 msg=Key Words Not Found"}
+  [PASS] A4 签名与独立实现一致                                      relay=200 timestamp=1789733235 sign一致性=True
+  [PASS] A6 status=resolved 渲染为「告警恢复」（send_resolved 的另一半）  relay=200 首行='【告警恢复】共 1 条'
+6/6 用例通过
+
+## 3) 完整 A+B（含真实 alertmanager 容器）
+[Phase A] 桥本身的投递与失败语义
+[Phase B] 真实 alertmanager 是否吃得下配置、能否一路走到飞书
+  [PASS] A1 正常投递 → 飞书报文形状正确                                relay=200 msg_type=text text首行='【告警触发】共 1 条'
+  [PASS] A5 超长正文按 20KB 上限截断                                relay=200 正文长度=18011
+  [PASS] A2 未配置 FEISHU_WEBHOOK_URL 时返回 503（不是 200）         relay=503 body={"delivered": false, "detail": "FEISHU_WEBHOOK_URL 未配置：桥无法投递（这是配置缺失，不是送达成功）"}
+  [PASS] A3 飞书 code!=0 → 桥返回 502 并透传业务码                    relay=502 body={"delivered": false, "detail": "飞书拒绝投递 code=19024 msg=Key Words Not Found"}
+  [PASS] A4 签名与独立实现一致                                      relay=200 timestamp=1789733244 sign一致性=True
+  [PASS] A6 status=resolved 渲染为「告警恢复」（send_resolved 的另一半）  relay=200 首行='【告警恢复】共 1 条'
+  [PASS] B1 amtool 能解析仓库里的 alertmanager.yml                exit=0 Checking '/cfg/alertmanager.yml'  SUCCESS
+  [PASS] B1b 反向守卫：坏配置必须被拒（防 B1 恒真）                         exit=1 Checking '/cfg/broken.yml'  FAILED: undefined receiver "nowhere" used in route
+  [PASS] B2 relay 容器就绪且已配置飞书地址                             health={"ok": true, "configured": true, "dryRun": false}
+  [PASS] B3 alertmanager 就绪（配置被接受）                         status=200
+  [PASS] B4 向 Alertmanager API 投递告警                        api=200
+  [PASS] B4 端到端：alertmanager → 桥 → 飞书报文                    sink 收到 1 条 msg_type=text text='【告警触发】共 1 条'
+12/12 用例通过
+FULL_EXIT=0（以 e2e-feishu-relay.txt 的 EXIT= 为准）

@@ -1,0 +1,15 @@
+# 证据：复原为「未配置」终态（fail-closed，投递 503）
+# 采集时间：2026-09-18 21:04:42 +0800
+
+  - FEISHU_WEBHOOK_URL 已更新（第 85 行）
+  - FEISHU_SIGN_SECRET 已是目标值（未改动）
+== 已清空飞书配置（写入空值 = fail-closed 的「未配置」）==
+  [PASS] relay 已重建
+  /health: {'ok': True, 'configured': False, 'dryRun': False}
+  [PASS] 已回到「未配置」：此后投递返回 503（配置缺失，不是送达成功）
+EXIT=0
+
+=== 未配置下投递必须 503，且 /last 如实说明是配置缺失 ===
+POST /webhook -> HTTP=503
+
+{"text": "【告警触发】共 0 条\n（报文里没有 alerts 字段）", "status": 503, "detail": "FEISHU_WEBHOOK_URL 未配置：桥无法投递（这是配置缺失，不是送达成功）", "at": 1789736688}

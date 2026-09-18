@@ -1,0 +1,13 @@
+# 飞书签名独立预言机（Python 侧实现，用于交叉验证 Java 实现）
+#
+# 规范来源：飞书官方《自定义机器人使用指南》「方式三：设置签名校验」
+#   https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot
+#   stringToSign = timestamp + "\n" + secret
+#   把 stringToSign 当作 HMAC **密钥**，被签消息为空串 b""（非标准用法，照官方 Java 示例）
+#   HmacSHA256 -> Base64；timestamp 为秒级、距当前不超过 1 小时
+#
+# 文档样例：secret=demo, timestamp=1599360473
+demo/1599360473      = l1N0gAcBjdwBvGm1xMjOF0XSyaLRpR7tuO5dHfhAYc8=
+
+# 单元测试向量（OpsAlertDispatcherTest.feishuSign_shouldMatchOfficialSampleVector 断言上面那行）
+s3cr3t/1700000000    = CNNNRL0wSY2j+cKcY98lQAfVvb21u/iW3phZyXRkmcY=

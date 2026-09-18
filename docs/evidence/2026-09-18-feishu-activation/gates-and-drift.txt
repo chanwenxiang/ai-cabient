@@ -1,0 +1,15 @@
+# 门禁与 A/B 漂移复核（本轮未改动被守卫的文件，确认无回归）
+# 采集时间：2026-09-18 21:04:49 +0800
+
+$ node scripts/check-ops-alert-channels.mjs
+[check-ops-alert-channels] OK: 4 条渠道（FEISHU/DINGTALK/WECOM/WEBHOOK）；5 个 ops.alert.* 配置键全部 seed 且在运营台可见；飞书报文 msg_type/content 与失败码判定就位；监控栈接线一致（feishu-alert-relay:8098/webhook ∈ 17 个 compose 服务）
+EXIT=0
+
+$ python scripts/devops/verify-ops-alert-channels-drift.py
+  [PASS] alertmanager 的 receiver URL 改用单引号包裹（应仍绿）             exit=0
+  [PASS] compose 给两个服务再挂一个 profile（应仍绿：不绑「只有 alerting」）       exit=0
+  [PASS] 桥改用单线程 HTTPServer 装配（keep-alive 下会被饿死）               exit=1
+  [PASS] 全部还原后回绿                                              exit=0
+
+34/34 用例符合预期
+EXIT=0

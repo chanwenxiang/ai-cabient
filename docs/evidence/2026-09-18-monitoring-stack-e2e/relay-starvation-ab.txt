@@ -1,0 +1,11 @@
+[relay-starvation-ab] 连接饿死 A/B 对照
+--- 对照组：单线程 HTTPServer（修复前） (port 18097) ---
+  A：已发一次请求并**保持打开**（模拟 Alertmanager 连接池里的空闲连接）
+  B：❌ TimeoutError —— 被 A 的 keep-alive 饿死
+--- 修复后：ThreadingHTTPServer (port 18096) ---
+  A：已发一次请求并**保持打开**（模拟 Alertmanager 连接池里的空闲连接）
+  B：HTTP=200  ✅ 新连接未被饿死
+
+  单线程被饿死（预期 True）: True
+  多线程正常   （预期 True）: True
+[relay-starvation-ab] 判据有区分力: True

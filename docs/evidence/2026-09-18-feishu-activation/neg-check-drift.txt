@@ -1,0 +1,5 @@
+== 当前飞书告警渠道状态 ==
+  infra/.env     : https://open.feishu.cn/…/hook/******0001
+  容器内实际值   : http://tmp-feishu-sink:18099/…/hook/******send
+  /health        : {'ok': True, 'configured': True, 'dryRun': False}
+  [FAIL] .env 与容器不一致 ⇒ 改了 .env 但没重建容器
