@@ -132,6 +132,33 @@ public class TradeServiceClient {
         }
     }
 
+    /**
+     * H54：OPEN_DOOR 命令 ACK 超时，通知 trade 立即把会话置为失败（不等 trade 侧 90s 兜底）。
+     * 抛出异常由调用方（DeviceCommandTracker）捕获并仅记 warn。
+     */
+    public void openDoorFailed(String sessionId, String reason) {
+        restClient.post()
+                .uri("/internal/v1/sessions/{sessionId}/open-failed", sessionId)
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .body(new OpenDoorFailedBody(reason))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    /** H62a：转发柜机 edge 告警事件到 trade 运营告警通道（薄端点转发 OpsAlertDispatcher）。 */
+    public void notifyOpsAlert(String alertType, String message, String deviceId) {
+        restClient.post()
+                .uri("/internal/v1/ops-alerts")
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .body(new EdgeAlertBody(alertType, message, deviceId))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     record HeartbeatBody(String appVersion, String firmwareVersion, Integer currentTempC,
                          Double humidityPct, Double voltageV, Double powerW) {}
+
+    record OpenDoorFailedBody(String reason) {}
+
+    record EdgeAlertBody(String alertType, String message, String deviceId) {}
 }

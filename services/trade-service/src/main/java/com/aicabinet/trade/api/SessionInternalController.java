@@ -9,6 +9,7 @@ import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.common.dto.VideoUploadPresignRequest;
 import com.aicabinet.common.dto.VideoUploadPresignResponse;
+import com.aicabinet.trade.service.SessionOpenService;
 import com.aicabinet.trade.service.SessionService;
 import com.aicabinet.trade.storage.MinioVideoService;
 import jakarta.validation.Valid;
@@ -21,10 +22,14 @@ import org.springframework.web.server.ResponseStatusException;
 public class SessionInternalController {
 
     private final SessionService sessionService;
+    private final SessionOpenService sessionOpenService;
     private final MinioVideoService minioVideoService;
 
-    public SessionInternalController(SessionService sessionService, MinioVideoService minioVideoService) {
+    public SessionInternalController(SessionService sessionService,
+                                     SessionOpenService sessionOpenService,
+                                     MinioVideoService minioVideoService) {
         this.sessionService = sessionService;
+        this.sessionOpenService = sessionOpenService;
         this.minioVideoService = minioVideoService;
     }
 
@@ -67,4 +72,20 @@ public class SessionInternalController {
             @Valid @RequestBody LiveCartUpdateRequest body) {
         return ApiResponse.ok(sessionService.updateLiveCartFromVision(sessionId, body));
     }
+
+    /**
+     * H54：device-service 开门指令 ACK 超时回调——立即把 OPENING 会话置为失败并释放预授权，
+     * 不等 90s 兜底清扫。幂等：非终态才迁移（见 SessionOpenService.markOpenDoorFailed）。
+     */
+    @PostMapping("/{sessionId}/open-failed")
+    public ApiResponse<Void> openDoorFailed(@PathVariable("sessionId") String sessionId,
+                                            @RequestBody(required = false) OpenDoorFailedRequest body) {
+        String reason = body != null && body.reason() != null && !body.reason().isBlank()
+                ? body.reason() : "开门指令失败";
+        sessionOpenService.markOpenDoorFailed(sessionId, reason);
+        return ApiResponse.ok(null);
+    }
+
+    /** H54 请求体：失败原因（可空）。 */
+    record OpenDoorFailedRequest(String reason) {}
 }

@@ -21,11 +21,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class MqttEventListener implements MqttCallbackExtended {
     private static final String CURRENT_TEMP_C = "current_temp_c";
     private static final String CURRENTTEMPC = "currentTempC";
+    private static final String EVENT_TYPE_ACK = "ACK";
+    private static final String EVENT_TYPE_ALERT = "ALERT";
+
+    /** C11：同一消息连续处理失败达到该次数后 ACK 丢弃（防重投风暴）。 */
+    private static final int MAX_DELIVERY_FAILURES = 3;
 
 
     private static final Logger log = LoggerFactory.getLogger(MqttEventListener.class);
@@ -39,6 +45,9 @@ public class MqttEventListener implements MqttCallbackExtended {
     private final DoorEventDeduplicator deduplicator;
     private final DeviceCommandTracker commandTracker;
     private final String clientId;
+
+    /** C11：手动 ACK 模式下记录各消息连续处理失败次数（key = topic#messageId，重投之间保留）。 */
+    private final ConcurrentHashMap<String, Integer> deliveryFailures = new ConcurrentHashMap<>();
 
     private MqttClient client;
 
@@ -65,6 +74,9 @@ public class MqttEventListener implements MqttCallbackExtended {
     @PostConstruct
     public void connect() throws MqttException {
         client = new MqttClient(mqttProperties.broker(), clientId, filePersistence("listener"));
+        // C11：手动 ACK——处理成功/忽略/去重命中后显式 messageArrivedComplete，
+        // 处理失败不 ACK，broker 重连后重投，避免 QoS1 消息被自动 PUBACK 而永久丢失。
+        client.setManualAcks(true);
         client.setCallback(this);
         client.connect(connectOptionsFactory.create());
         subscribeEvents();
@@ -103,29 +115,96 @@ public class MqttEventListener implements MqttCallbackExtended {
     public void messageArrived(String topic, MqttMessage message) {
         metrics.recordMessageIn();
         String body = new String(message.getPayload(), StandardCharsets.UTF_8);
+        JsonNode node;
         try {
-            JsonNode node = objectMapper.readTree(body);
+            node = objectMapper.readTree(body);
+        } catch (Exception e) {
+            // C11：报文不可解析，重投也无法恢复，ACK 丢弃
+            log.warn("unparseable mqtt message topic={} dropped: {}", topic, e.toString());
+            acknowledgeMessage(topic, message);
+            return;
+        }
+        try {
             String type = node.path("type").asText("");
             if (CabinetConstants.MQTT_EVENT_TYPE_DOOR.equals(type)) {
-                handleDoorEvent(topic, node);
+                handleDoorEvent(topic, node, message);
             } else if (CabinetConstants.MQTT_EVENT_TYPE_HEARTBEAT.equals(type)) {
                 handleHeartbeat(topic, node);
-            } else if ("ACK".equals(type)) {
-                handleAck(node);
+                acknowledgeMessage(topic, message);
+            } else if (EVENT_TYPE_ACK.equals(type)) {
+                handleAck(topic, node);
+                acknowledgeMessage(topic, message);
+            } else if (EVENT_TYPE_ALERT.equals(type)) {
+                handleAlert(topic, node);
+                acknowledgeMessage(topic, message);
+            } else {
+                log.debug("ignored mqtt message topic={} type={}", topic, type);
+                acknowledgeMessage(topic, message);
             }
         } catch (Exception e) {
-            log.error("failed to handle mqtt message topic={} body={}", topic, body, e);
+            onProcessingFailure(topic, body, message, e);
         }
     }
 
-    private void handleAck(JsonNode node) {
+    /**
+     * C11：手动 ACK 成功出口。处理成功 / 忽略 / 去重命中后必须调用，
+     * 否则 broker 会在重连后重投该消息。
+     */
+    void acknowledgeMessage(String topic, MqttMessage message) {
+        deliveryFailures.remove(failureKey(topic, message));
+        if (client == null) {
+            return;
+        }
+        try {
+            client.messageArrivedComplete(message.getId(), message.getQos());
+        } catch (MqttException e) {
+            log.warn("manual ack failed topic={} messageId={}: {}", topic, message.getId(), e.toString());
+        }
+    }
+
+    /**
+     * C11：处理失败不 ACK（broker 重连后重投）；同一消息连续失败达阈值则 ACK 丢弃并记 error。
+     */
+    private void onProcessingFailure(String topic, String body, MqttMessage message, Exception e) {
+        String key = failureKey(topic, message);
+        int failures = deliveryFailures.merge(key, 1, Integer::sum);
+        if (failures >= MAX_DELIVERY_FAILURES) {
+            deliveryFailures.remove(key);
+            log.error("mqtt message processing failed {} times, ack-drop topic={} messageId={} body={}",
+                    failures, topic, message.getId(), body, e);
+            acknowledgeMessage(topic, message);
+            return;
+        }
+        log.error("failed to handle mqtt message topic={} messageId={} body={} failures={}/{} (left unacked for redelivery)",
+                topic, message.getId(), body, failures, MAX_DELIVERY_FAILURES, e);
+    }
+
+    private static String failureKey(String topic, MqttMessage message) {
+        return topic + "#" + message.getId();
+    }
+
+    /** H55：ACK 携带 topic，从 topic 解析 deviceId 与命令登记的 deviceId 比对，伪造来源被拒。 */
+    private void handleAck(String topic, JsonNode node) {
         metrics.recordAck();
         String commandId = node.path("commandId").asText("");
         if (!commandId.isBlank()) {
-            commandTracker.recordAck(commandId, node.path("success").asBoolean(false));
+            commandTracker.recordAck(commandId, node.path("success").asBoolean(false),
+                    extractDeviceId(topic));
         }
         log.debug("device ACK commandId={} success={}",
                 commandId, node.path("success").asBoolean(false));
+    }
+
+    /** H62a：edge 告警事件（如 EDGE_QUEUE_ABANDON）转发到运营告警通道（经 trade 内部端点）。 */
+    private void handleAlert(String topic, JsonNode node) {
+        String alertType = node.path("alertType").asText("");
+        String message = node.path("message").asText("");
+        String deviceId = extractDeviceId(topic);
+        if (node.has("deviceId")) {
+            deviceId = node.path("deviceId").asText(deviceId);
+        }
+        log.warn("edge alert received device={} alertType={} message={}", deviceId, alertType, message);
+        tradeServiceClient.notifyOpsAlert(alertType, message, deviceId);
     }
 
     private void handleHeartbeat(String topic, JsonNode node) {
@@ -181,7 +260,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         }
     }
 
-    private void handleDoorEvent(String topic, JsonNode node) {
+    private void handleDoorEvent(String topic, JsonNode node, MqttMessage message) {
         String topicDeviceId = extractDeviceId(topic);
         String bodyDeviceId = textOrNull(node, "deviceId");
         String deviceId = topicDeviceId;
@@ -189,6 +268,7 @@ public class MqttEventListener implements MqttCallbackExtended {
             if (!"unknown".equals(topicDeviceId) && !bodyDeviceId.equals(topicDeviceId)) {
                 log.warn("door event deviceId mismatch topic={} body={} session={}",
                         topicDeviceId, bodyDeviceId, node.path("sessionId").asText(null));
+                acknowledgeMessage(topic, message);
                 return;
             }
             deviceId = bodyDeviceId;
@@ -197,6 +277,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         String doorStateStr = node.path("doorState").asText(null);
         if (sessionId == null || doorStateStr == null) {
             log.warn("invalid door event: {}", node);
+            acknowledgeMessage(topic, message);
             return;
         }
         String videoUri = textOrNull(node, "videoUri");
@@ -223,27 +304,31 @@ public class MqttEventListener implements MqttCallbackExtended {
                 : String.join("|",
                 nonNull(videoUri), nonNull(uploadStatus), nonNull(videoClipsJson),
                 nonNull(cameraFusionMode), nonNull(gravityDeltasJson));
-        if (deduplicator.isDuplicate(sessionId, doorStateStr, fingerprint)) {
+        if (deduplicator.seen(sessionId, doorStateStr, fingerprint)) {
             metrics.recordDoorDeduped();
             log.info("duplicate door event ignored session={} state={}", sessionId, doorStateStr);
+            acknowledgeMessage(topic, message);
             return;
         }
         DoorState doorState;
         try {
             doorState = DoorState.valueOf(doorStateStr);
         } catch (IllegalArgumentException e) {
+            // M11：seen() 不写键，无需 clear
             log.warn("invalid doorState={} session={} topic={}", doorStateStr, sessionId, topic);
-            deduplicator.clear(sessionId, doorStateStr, fingerprint);
+            acknowledgeMessage(topic, message);
             return;
         }
         try {
             tradeServiceClient.notifyDoorEvent(new com.aicabinet.common.dto.DoorEventRequest(
                     sessionId, deviceId, doorState, System.currentTimeMillis(),
                     videoUri, uploadStatus, videoClipsJson, cameraFusionMode, gravityDeltasJson));
+            // M11：转发成功后才写幂等键；失败不 mark，重投后 seen=false 可再处理
+            deduplicator.mark(sessionId, doorStateStr, fingerprint);
             metrics.recordDoorForwarded();
+            acknowledgeMessage(topic, message);
         } catch (Exception e) {
-            // 转发失败释放幂等键，允许 MQTT 重投 / 退避重试（B-2）
-            deduplicator.clear(sessionId, doorStateStr, fingerprint);
+            // C11/M11：转发失败不 ACK 也不 mark，broker 重连后重投（B-2）
             metrics.recordTradeFailure();
             throw e;
         }

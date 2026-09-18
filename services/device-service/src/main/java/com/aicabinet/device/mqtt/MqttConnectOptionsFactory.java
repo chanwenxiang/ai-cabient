@@ -29,6 +29,8 @@ public class MqttConnectOptionsFactory {
         MqttConnectOptions options = new MqttConnectOptions();
         options.setAutomaticReconnect(true);
         options.setCleanSession(false);
+        // C11：cleanSession=false 保证处理失败未 ACK 的 QoS1 消息在重连后由 broker 重投；
+        // 手动 ACK 开关在 MqttEventListener.connect() 里对 client 实例调用 setManualAcks(true)。
         options.setConnectionTimeout(10);
         options.setKeepAliveInterval(30);
         if (properties.hasCredentials()) {

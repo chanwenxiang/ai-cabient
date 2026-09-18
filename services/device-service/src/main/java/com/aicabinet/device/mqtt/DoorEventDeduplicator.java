@@ -13,6 +13,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 开门事件去重：优先 Redis（多实例共享），Redis 不可用时回退本地内存去重。
+ *
+ * <p>M11：键的写入与检查分离——{@link #seen} 只读检查（不写键），
+ * {@link #mark} 在**转发成功后**才写键。先写后转发的旧做法在 crash 窗口会丢事件
+ * （键已写、事件未转发，重投被误判为重复）；失败不 mark，重投后 seen=false 可再次处理。</p>
  */
 @Component
 public class DoorEventDeduplicator {
@@ -37,23 +41,20 @@ public class DoorEventDeduplicator {
         this.redis = redis;
     }
 
-    public boolean isDuplicate(String sessionId, String doorState) {
-        return isDuplicate(sessionId, doorState, "");
-    }
-
-    public boolean isDuplicate(String sessionId, String doorState, String fingerprint) {
+    /** 只读检查该事件是否已成功转发过（不写键，crash 窗口安全）。 */
+    public boolean seen(String sessionId, String doorState, String fingerprint) {
         if (sessionId == null || doorState == null) {
             return false;
         }
         String key = dedupKey(sessionId, doorState, fingerprint);
         if (redis != null) {
             try {
-                Boolean first = redis.opsForValue().setIfAbsent(key, "1", TTL);
+                Boolean exists = redis.hasKey(key);
                 if (!redisAvailable) {
                     redisAvailable = true;
                     log.info("redis door-event dedup recovered");
                 }
-                return !Boolean.TRUE.equals(first);
+                return Boolean.TRUE.equals(exists);
             } catch (Exception e) {
                 if (redisAvailable) {
                     redisAvailable = false;
@@ -61,23 +62,23 @@ public class DoorEventDeduplicator {
                 }
             }
         }
-        return localDuplicate(key);
+        return localSeen(key);
     }
 
-    /** 转发失败时释放幂等键，允许重投（B-2） */
-    public void clear(String sessionId, String doorState, String fingerprint) {
+    /** 转发成功后写幂等键（M11：只处理过的事件才去重）。 */
+    public void mark(String sessionId, String doorState, String fingerprint) {
         if (sessionId == null || doorState == null) {
             return;
         }
         String key = dedupKey(sessionId, doorState, fingerprint);
         if (redis != null) {
             try {
-                redis.delete(key);
+                redis.opsForValue().set(key, "1", TTL);
             } catch (Exception e) {
-                log.warn("redis door-event dedup clear failed: {}", e.toString());
+                log.warn("redis door-event dedup mark failed, fallback to local: {}", e.toString());
             }
         }
-        recent.remove(key);
+        recent.put(key, System.currentTimeMillis());
     }
 
     private static String dedupKey(String sessionId, String doorState, String fingerprint) {
@@ -85,10 +86,10 @@ public class DoorEventDeduplicator {
         return KEY_PREFIX + suffix;
     }
 
-    private boolean localDuplicate(String key) {
+    private boolean localSeen(String key) {
         long now = System.currentTimeMillis();
-        Long previous = recent.put(key, now);
         evictExpired(now);
+        Long previous = recent.get(key);
         return previous != null && now - previous < TTL_MS;
     }
 

@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Q4: notifyDoorEvent 最多 3 次退避重试；失败后由 listener 清 dedup。 */
 class TradeServiceClientRetryTest {
@@ -55,7 +56,7 @@ class TradeServiceClientRetryTest {
 
     @Test
     void notifyDoorEvent_succeedsOnThirdAttempt() {
-        TradeServiceClient client = new TradeServiceClient(baseUrl, new InternalApiProperties("test-key", null));
+        TradeServiceClient client = new TradeServiceClient(baseUrl, new InternalApiProperties("test-key", null, null));
         DoorEventRequest req = new DoorEventRequest(
                 "S-RETRY", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(),
                 null, null, null, null, null);
@@ -77,12 +78,57 @@ class TradeServiceClientRetryTest {
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
 
-        TradeServiceClient client = new TradeServiceClient(baseUrl, new InternalApiProperties("test-key", null));
+        TradeServiceClient client = new TradeServiceClient(baseUrl, new InternalApiProperties("test-key", null, null));
         DoorEventRequest req = new DoorEventRequest(
                 "S-FAIL", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(),
                 null, null, null, null, null);
 
         assertThrows(RuntimeException.class, () -> client.notifyDoorEvent(req));
         assertEquals(3, hits.get());
+    }
+
+    /** H54：openDoorFailed POST /internal/v1/sessions/{sessionId}/open-failed，带 internal key 与 reason。 */
+    @Test
+    void openDoorFailed_postsToInternalOpenFailedEndpoint() throws IOException {
+        server.stop(0);
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        String[] captured = new String[2];
+        server.createContext("/internal/v1/sessions/S-H54/open-failed", exchange -> {
+            captured[0] = exchange.getRequestHeaders().getFirst("X-Internal-Api-Key");
+            captured[1] = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.start();
+        baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+
+        TradeServiceClient client = new TradeServiceClient(baseUrl, new InternalApiProperties("test-key", null, null));
+        client.openDoorFailed("S-H54", "开门指令确认超时");
+
+        assertEquals("test-key", captured[0]);
+        assertTrue(captured[1].contains("开门指令确认超时"));
+    }
+
+    /** H62a：notifyOpsAlert POST /internal/v1/ops-alerts，带 alertType/message/deviceId。 */
+    @Test
+    void notifyOpsAlert_postsToOpsAlertsEndpoint() throws IOException {
+        server.stop(0);
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        String[] captured = new String[2];
+        server.createContext("/internal/v1/ops-alerts", exchange -> {
+            captured[0] = exchange.getRequestHeaders().getFirst("X-Internal-Api-Key");
+            captured[1] = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.start();
+        baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+
+        TradeServiceClient client = new TradeServiceClient(baseUrl, new InternalApiProperties("test-key", null, null));
+        client.notifyOpsAlert("EDGE_QUEUE_ABANDON", "queue abandoned", "CAB-001");
+
+        assertEquals("test-key", captured[0]);
+        assertTrue(captured[1].contains("EDGE_QUEUE_ABANDON"));
+        assertTrue(captured[1].contains("CAB-001"));
     }
 }
