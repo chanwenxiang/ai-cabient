@@ -4,6 +4,7 @@
 # 适用场景：改完 admin-vue 后想立刻在网关看到新 hash，不必等整包前端进 JAR。
 services:
   trade-service:
+    stop_grace_period: 30s
     environment:
       SPRING_WEB_RESOURCES_STATIC_LOCATIONS: file:/app/admin-static/,classpath:/static/
       # AdminUiController 专用：/admin/** 必须显式列出 admin 子目录（否则仍吃 JAR 内旧包）

@@ -14,6 +14,7 @@
 
 services:
   trade-service:
+    stop_grace_period: 30s
     # 清空 apps.yml 的 8080 映射，避免 --scale 端口冲突；经 gateway 访问
     ports: !reset []
     environment:

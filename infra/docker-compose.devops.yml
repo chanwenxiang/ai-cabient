@@ -4,6 +4,7 @@
 
 services:
   sonarqube-db:
+    stop_grace_period: 60s
     image: postgres:16-alpine
     profiles: ["devops"]
     restart: unless-stopped
@@ -24,6 +25,7 @@ services:
   # Community Build 25.x required by official mcp/sonarqube (min SQCB 25.1).
   # Jumping from 10.4 → 25.x: wipe sonarqube_* volumes once (local DevOps only).
   sonarqube:
+    stop_grace_period: 30s
     image: sonarqube:25.12.0.117093-community
     profiles: ["devops"]
     restart: unless-stopped
@@ -52,6 +54,7 @@ services:
       start_period: 180s
 
   github-runner:
+    stop_grace_period: 30s
     build:
       context: ..
       dockerfile: infra/docker/github-runner.Dockerfile

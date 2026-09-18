@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import os
+import signal
+import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Lock
 
@@ -79,8 +81,24 @@ class SmsWebhookHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     server = HTTPServer(("0.0.0.0", PORT), SmsWebhookHandler)
+
+    # 优雅停机：容器里本进程是 PID 1，而内核会**忽略 PID 1 对未安装 handler 的信号**，
+    # 所以不装 handler 时 compose 的 stop_grace_period 一秒都用不上 —— 进程只会等到宽限
+    # 耗尽被 SIGKILL（exit 137）。修法与 infra/monitoring/feishu-relay.py 同一处。
+    def _graceful(signum: int, _frame: object) -> None:
+        print(f"sms-webhook-mock 收到信号 {signum}，停止接受新请求…", flush=True)
+        # shutdown() 会阻塞等待 serve_forever() 返回，而本 handler 就跑在 serve_forever 的
+        # 主线程里 —— 直接调用会自等死锁，必须换线程执行。
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGTERM, _graceful)
+    signal.signal(signal.SIGINT, _graceful)
     print(f"sms-webhook-mock listening on :{PORT}  health=/health  last=/last")
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+    print("sms-webhook-mock 已优雅退出", flush=True)
 
 
 if __name__ == "__main__":

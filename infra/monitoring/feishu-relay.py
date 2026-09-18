@@ -16,6 +16,9 @@
 2. **未配置就明说**：`FEISHU_WEBHOOK_URL` 为空时返回 **503**（不是 200），
    避免"桥在跑、消息全丢"的静默失效。
 3. 单条消息按飞书 20 KB 上限截断，并在末尾标注已截断。
+4. **装 SIGTERM/SIGINT handler 走优雅退出**：容器里本进程是 PID 1，而内核会**忽略 PID 1
+   对「未安装 handler 的信号」**，所以不装 handler 时 `docker stop` 发的 SIGTERM 等于石沉大海，
+   只能等 `stop_grace_period` 耗尽后被 SIGKILL（exit 137）——compose 里给的宽限全白给。
 
 接口
 ----
@@ -39,6 +42,8 @@ import hashlib
 import hmac
 import json
 import os
+import signal
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -235,7 +240,21 @@ def main() -> None:
         f"  飞书 webhook：{state}  签名：{'开' if FEISHU_SIGN_SECRET else '关'}  dryRun={DRY_RUN}",
         flush=True,
     )
-    server.serve_forever()
+
+    # 优雅停机（见模块 docstring 第 4 条）：必须是**信号 handler**，否则 PID 1 会忽略 SIGTERM。
+    def _graceful(signum: int, _frame: object) -> None:
+        print(f"[feishu-relay] 收到信号 {signum}，停止接受新请求…", flush=True)
+        # shutdown() 会阻塞到 serve_forever() 返回，而本 handler 就跑在 serve_forever 所在的
+        # 主线程上 —— 直接调用会自等死锁，必须换线程执行（官方推荐写法）。
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGTERM, _graceful)
+    signal.signal(signal.SIGINT, _graceful)
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+    print("[feishu-relay] 已优雅退出", flush=True)
 
 
 if __name__ == "__main__":

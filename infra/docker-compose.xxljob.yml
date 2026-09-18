@@ -5,6 +5,7 @@
 # trade-service 需 XXL_JOB_ENABLED=true（compose apps 默认已开）。
 services:
   xxl-job-mysql:
+    stop_grace_period: 60s
     image: mysql:8.0
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
@@ -22,6 +23,7 @@ services:
     profiles: ["apps", "xxljob"]
 
   xxl-job-admin:
+    stop_grace_period: 30s
     image: xuxueli/xxl-job-admin:3.4.2
     environment:
       PARAMS: "--spring.datasource.url=jdbc:mysql://xxl-job-mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true --spring.datasource.username=root --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljob} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:-dev-xxl-token}"
