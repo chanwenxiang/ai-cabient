@@ -46,7 +46,13 @@ public class CabinetMetrics {
                 .baseUnit("cents").description("Charge amount distribution").register(registry);
         this.settlementTimer = registry.timer("cabinet.settlement.duration");
         registry.gauge("cabinet.devices.online", devicesOnline);
-        registry.gauge("cabinet.devices.total", devicesTotal);
+        // 注意：**不要**把此 Gauge 命名为 `cabinet.devices.total`。
+        // Micrometer 把 `_total` 视为 Counter 的保留后缀，导出时会把 Gauge 名末尾的 `_total` 剥掉
+        // ⇒ 实测 `cabinet.devices.total` 在 /actuator/prometheus 里是 `cabinet_devices`，
+        // 于是所有按 `cabinet_devices_total` 写的告警/看板静默失效（永不触发）。
+        // 复现：registry.gauge("x.y.total", …) → x_y；registry.gauge("x.y.count", …) → x_y_count。
+        // 用 `.count` 既避开该坑又保留「这是总数」的语义。
+        registry.gauge("cabinet.devices.count", devicesTotal);
         refreshDeviceGauges(deviceRepository);
     }
 

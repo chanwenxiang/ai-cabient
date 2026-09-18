@@ -44,7 +44,7 @@
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
       "targets": [
         { "expr": "cabinet_devices_online", "legendFormat": "在线" },
-        { "expr": "cabinet_devices_total", "legendFormat": "总数" }
+        { "expr": "cabinet_devices_count", "legendFormat": "总数" }
       ],
       "title": "设备在线 / 总数",
       "type": "stat"

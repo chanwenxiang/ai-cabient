@@ -1,0 +1,17 @@
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+---- scrape ----
+# HELP cabinet_devices  
+# TYPE cabinet_devices gauge
+cabinet_devices 3.0
+# HELP cabinet_devices_count  
+# TYPE cabinet_devices_count gauge
+cabinet_devices_count 4.0
+# HELP cabinet_devices_online  
+# TYPE cabinet_devices_online gauge
+cabinet_devices_online 2.0
+# HELP cabinet_door_open_total  
+# TYPE cabinet_door_open_total counter
+cabinet_door_open_total{result="success"} 1.0
+

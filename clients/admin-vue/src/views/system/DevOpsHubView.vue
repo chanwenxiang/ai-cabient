@@ -128,10 +128,10 @@ const NAME_ZH: Record<string, string> = {
 const promQueries = [
   { label: '服务是否在线', expr: 'up' },
   { label: '在线设备数', expr: 'cabinet_devices_online' },
-  { label: '设备总数', expr: 'cabinet_devices_total' },
+  { label: '设备总数', expr: 'cabinet_devices_count' },
   {
     label: '设备离线率',
-    expr: '(cabinet_devices_total - cabinet_devices_online) / cabinet_devices_total'
+    expr: '(cabinet_devices_count - cabinet_devices_online) / cabinet_devices_count'
   },
   { label: '开门成功速率', expr: 'rate(cabinet_door_open_total{result="success"}[5m])' },
   { label: '开门失败速率', expr: 'rate(cabinet_door_open_total{result="failure"}[5m])' },

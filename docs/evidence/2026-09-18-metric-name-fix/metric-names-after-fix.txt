@@ -1,0 +1,2 @@
+cabinet_devices_count 3.0
+cabinet_devices_online 2.0

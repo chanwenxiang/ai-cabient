@@ -1,5 +1,35 @@
-# P1: 告警规则 — 用于生产环境 Prometheus AlertManager
-# 部署: 在 prometheus.yml 中引用此文件
+# P1: 告警规则（**未实现草稿 —— 不要挂进 rule_files**）
+# gate: draft-unimplemented
+#
+# 09-18 逐条取证结论（此前本文件的自述是「部署: 在 prometheus.yml 中引用此文件」，与事实不符）：
+#
+# 1) **从未被加载**：`prometheus.yml` / `prometheus.compose.yml` / `prometheus-full.yml` 三份配置的
+#    `rule_files` 都只引用 `prometheus/alert_rules.yml` ⇒ 本文件的规则**一次都没被评估过**。
+#
+# 2) **指标名与实现不符**（实测 trade-service `/actuator/prometheus`，106 个真实指标名为准）：
+#      本文件写法                                   实际实现
+#      ------------------------------------------   --------------------------------------------
+#      ai_cabinet_session_state{state="OPENING"}    cabinet_session_transition_total{state=...}
+#      ai_cabinet_settlement_failures_total         cabinet_settlement_total{result="failure"}
+#      ai_cabinet_device_settlement_failures_total  （无对应指标）
+#      ai_cabinet_balance_insufficient_total        （无对应指标）
+#      ai_cabinet_dispute_sla_remaining_hours       （无对应指标）
+#      ai_cabinet_device_temperature                （无对应指标）
+#      ai_cabinet_upload_queue_size                 （无对应指标）
+#      mqtt_disconnect_total                        （无对应指标）
+#      vision_recognition_duration_seconds_bucket   cabinet_recognize_duration_seconds_*
+#      hikari_connections_{active,max}              hikaricp_connections_{active,max}
+#    ⇒ 即便挂上，这 14 条规则**也不会触发**（Prometheus 对不存在的指标只是无序列，不报错）。
+#
+# 3) **依赖的 exporter 本仓从未部署**：prometheus 只有 `trade-service` / `device-service` / `minio`
+#    三个 scrape job，而本文件引用了 `probe_success{job="cabinet-blackbox"}`、`kafka_consumer_lag`、
+#    `redis_memory_*` ⇒ blackbox / kafka / redis exporter 均不存在。
+#
+# 4) 与 `prometheus/alert_rules.yml` 只有 1 条重名（`DatabaseConnectionPoolExhausted`，且**它的指标名也是错的**）
+#    ⇒ 它不是「被取代的旧版本」，而是另一批**从未落地**的设计意图。
+#
+# 处置：保留为设计意图存档，但**显式标记为草稿**；启用前必须先按真实指标名重写、部署对应 exporter，
+# 再删掉本标记并挂进 `rule_files`。该标记由 `scripts/check-prometheus-metric-names.mjs` 的 R1 规则消费。
 
 groups:
   - name: ai-cabinet-alerts

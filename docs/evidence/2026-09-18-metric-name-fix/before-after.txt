@@ -1,0 +1,11 @@
+# 修复前（2026-09-18 本轮首次实测，镜像 2026-09-18T07:39Z 构建）
+# 命令: curl -s http://localhost:18080/actuator/prometheus | grep -E '^cabinet_devices( |_)'
+# 输出:
+cabinet_devices 3.0
+cabinet_devices_online 2.0
+# 且: grep -c cabinet_devices_total  =>  0
+
+# 修复后（同命令，镜像重建 + 容器 --force-recreate 之后）
+cabinet_devices_count 3.0
+cabinet_devices_online 2.0
+# 且: grep -c cabinet_devices_total  =>  0

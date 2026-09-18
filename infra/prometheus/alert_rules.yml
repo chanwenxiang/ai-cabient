@@ -103,8 +103,8 @@ groups:
 
       - alert: DeviceOfflineRateHigh
         expr: |
-          (cabinet_devices_total - cabinet_devices_online)
-          / (cabinet_devices_total > 0) > 0.2
+          (cabinet_devices_count - cabinet_devices_online)
+          / (cabinet_devices_count > 0) > 0.2
         for: 10m
         labels:
           severity: warning
@@ -115,7 +115,7 @@ groups:
           description: "在线 {{ $value | humanizePercentage }} 离线，请查看设备运维"
 
       - alert: DeviceAllOffline
-        expr: cabinet_devices_total > 0 and cabinet_devices_online == 0
+        expr: cabinet_devices_count > 0 and cabinet_devices_online == 0
         for: 3m
         labels:
           severity: critical
