@@ -1,0 +1,10 @@
+﻿=== device-simulator first unit tests: normal / injected-drift / restored ===
+restore byte-identical: True  (2E2EBAC314CE)
+
+[1-normal] exit=0
+    [INFO] Tests run: 23, Failures: 0, Errors: 0, Skipped: 0
+[2-drift] exit=1
+    [ERROR] Tests run: 23, Failures: 1, Errors: 0, Skipped: 0
+    FAILED: [ERROR]   SimulatorSupportTest.fillsDefaultPort
+[3-restored] exit=0
+    [INFO] Tests run: 23, Failures: 0, Errors: 0, Skipped: 0

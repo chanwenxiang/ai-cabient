@@ -34,6 +34,13 @@
             <artifactId>slf4j-simple</artifactId>
             <version>2.0.13</version>
         </dependency>
+        <!-- 单测：只测 SimulatorSupport 里的纯函数。版本由根 pom 的 spring-boot-dependencies BOM 管，
+             与 trade-service 用同一套 JUnit 5；不引 spring-boot-starter-test（本模块不依赖 Spring）。 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

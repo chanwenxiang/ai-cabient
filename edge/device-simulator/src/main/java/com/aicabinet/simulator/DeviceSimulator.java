@@ -25,7 +25,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import java.util.concurrent.Executors;
@@ -641,8 +640,8 @@ public class DeviceSimulator implements MqttCallbackExtended {
         if (!Files.isRegularFile(localPath)) {
             throw new IllegalArgumentException("video file not found: " + localPath.toAbsolutePath());
         }
-        String ext = extension(localPath);
-        String uri = uploadBytesViaPresign(Files.readAllBytes(localPath), ext, contentType(ext), sessionId, userId, camera);
+        String ext = SimulatorSupport.extension(localPath);
+        String uri = uploadBytesViaPresign(Files.readAllBytes(localPath), ext, SimulatorSupport.contentType(ext), sessionId, userId, camera);
         System.out.println("[simulator] uploaded " + localPath + " -> " + uri);
         return uri;
     }
@@ -696,34 +695,9 @@ public class DeviceSimulator implements MqttCallbackExtended {
         return videoUri;
     }
 
-    /** 容器内上传走 MINIO_ENDPOINT，避免 presign 公网 URL（localhost）不可达。 */
+    /** 容器内上传走 MINIO_ENDPOINT，避免 presign 公网 URL（localhost）不可达。逻辑见 {@link SimulatorSupport#rewriteUploadUrl}。 */
     private String resolveUploadUrl(String presignedUrl) {
-        String internalEndpoint = env("MINIO_ENDPOINT", null);
-        if (internalEndpoint == null || internalEndpoint.isBlank()) {
-            return presignedUrl;
-        }
-        try {
-            URI internal = URI.create(internalEndpoint.endsWith("/")
-                    ? internalEndpoint.substring(0, internalEndpoint.length() - 1)
-                    : internalEndpoint);
-            URI signed = URI.create(presignedUrl);
-            int port = internal.getPort();
-            if (port < 0) {
-                port = "https".equalsIgnoreCase(internal.getScheme()) ? 443 : 80;
-            }
-            return new URI(
-                    internal.getScheme(),
-                    signed.getUserInfo(),
-                    internal.getHost(),
-                    port,
-                    signed.getPath(),
-                    signed.getQuery(),
-                    signed.getFragment()
-            ).toString();
-        } catch (Exception e) {
-            System.err.println("[simulator] rewrite upload url failed: " + e.getMessage());
-            return presignedUrl;
-        }
+        return SimulatorSupport.rewriteUploadUrl(presignedUrl, env("MINIO_ENDPOINT", null));
     }
 
     private void publishAck(String commandId) throws Exception {
@@ -798,37 +772,14 @@ public class DeviceSimulator implements MqttCallbackExtended {
         return env("AICABINET_SIM_APP_VERSION", "0.9.0");
     }
 
-    private static double parseDoubleEnv(String key, double defaultValue) {
-        String v = env(key, null);
-        if (v == null) {
-            return defaultValue;
-        }
-        try {
-            return Double.parseDouble(v);
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
-    }
-
+    /** 环境变量取值（纯逻辑见 {@link SimulatorSupport#env}，这里只负责注入真实 env）。 */
     private static String env(String key, String defaultValue) {
-        String v = System.getenv(key);
-        return v != null && !v.isBlank() ? v.trim() : defaultValue;
+        return SimulatorSupport.env(System.getenv(), key, defaultValue);
     }
 
-    private static String extension(Path path) {
-        String name = path.getFileName().toString();
-        int dot = name.lastIndexOf('.');
-        return dot < 0 ? ".bin" : name.substring(dot);
-    }
-
-    private static String contentType(String ext) {
-        return switch (ext.toLowerCase(Locale.ROOT)) {
-            case ".jpg", ".jpeg" -> "image/jpeg";
-            case ".png" -> "image/png";
-            case ".webp" -> "image/webp";
-            case ".mp4" -> "video/mp4";
-            default -> "application/octet-stream";
-        };
+    /** double 配置解析（纯逻辑见 {@link SimulatorSupport#parseDoubleOrDefault}）。 */
+    private static double parseDoubleEnv(String key, double defaultValue) {
+        return SimulatorSupport.parseDoubleOrDefault(env(key, null), defaultValue);
     }
 
     @Override
