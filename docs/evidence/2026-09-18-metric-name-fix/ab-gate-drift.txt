@@ -1,0 +1,13 @@
+[baseline] exit=0 OK
+[PASS] 注册点改回 gauge 的 .total: exit=1
+[PASS] 告警规则改回 cabinet_devices_total: exit=1
+[PASS] Grafana 看板改回 cabinet_devices_total: exit=1
+[PASS] admin 运维页改回 cabinet_devices_total: exit=1
+[PASS] 摘掉 alerts.yml 的草稿标记: exit=1
+[PASS] 把草稿挂进 rule_files: exit=1
+[PASS] MIN_REGISTERED 抬到 99: exit=1
+[PASS] MIN_REFS 抬到 999: exit=1
+[PASS] 全部还原后回绿: exit=0
+[restore] 字节级还原=OK 复跑 exit=0
+
+汇总：9/9 例符合预期

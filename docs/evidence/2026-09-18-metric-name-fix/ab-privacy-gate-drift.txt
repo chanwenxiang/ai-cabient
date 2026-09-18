@@ -1,0 +1,11 @@
+[baseline] exit=0 OK
+[PASS] 删掉 requiredPrivateInfos 字段: exit=1
+[PASS] requiredPrivateInfos 改空数组: exit=1
+[PASS] 删掉 permission 段: exit=1
+[PASS] desc 改空串: exit=1
+[PASS] MIN_LOCATION_CALLS 抬到 99: exit=1
+[PASS] MIN_APPS 抬到 99: exit=1
+[PASS] 全部还原后回绿: exit=0
+[restore] 字节级还原=OK 复跑 exit=0
+
+汇总：7/7 例符合预期
