@@ -1,0 +1,37 @@
+=== 生效值（合并 full.yml + win-ports.yml，即本机 docker-up.ps1 实际用到的组合） ===
+命令: cd infra && docker compose -f docker-compose.full.yml -f docker-compose.win-ports.yml config
+
+  device-service:
+    stop_grace_period: 30s
+  device-simulator:
+    stop_grace_period: 30s
+  emqx:
+    stop_grace_period: 30s
+  gateway:
+    stop_grace_period: 30s
+  grafana:
+    stop_grace_period: 30s
+  minio:
+    stop_grace_period: 1m0s
+  minio-init:
+    stop_grace_period: 10s
+  postgres:
+    stop_grace_period: 1m0s
+  prometheus:
+    stop_grace_period: 30s
+  redis:
+    stop_grace_period: 30s
+  redpanda:
+    stop_grace_period: 1m0s
+  trade-service:
+    stop_grace_period: 30s
+  vision-service:
+    stop_grace_period: 30s
+  xxl-job-admin:
+    stop_grace_period: 30s
+  xxl-job-mysql:
+    stop_grace_period: 1m0s
+  default:
+  miniodata:
+  pgdata:
+  xxljob-mysql-data:

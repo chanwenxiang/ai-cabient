@@ -1,0 +1,78 @@
+=== 1) 门禁正向（期望 OK） ===
+[check-compose-stop-grace] OK: 10 个 compose 文件、54 个 service 均已声明 stop_grace_period（落盘型 ≥60s / 常驻型 ≥30s / 一次性 ≥10s）
+exit=0
+
+=== 2) 门禁 --list 全表 ===
+30s      docker-compose.admin-static.yml  trade-service
+60s      docker-compose.apps.yml  postgres
+10s      docker-compose.apps.yml  minio-init
+30s      docker-compose.apps.yml  trade-service
+30s      docker-compose.apps.yml  device-service
+30s      docker-compose.apps.yml  vision-service
+60s      docker-compose.apps.yml  redpanda
+30s      docker-compose.apps.yml  gateway
+30s      docker-compose.apps.yml  prometheus
+60s      docker-compose.devops.yml  sonarqube-db
+30s      docker-compose.devops.yml  sonarqube
+30s      docker-compose.devops.yml  github-runner
+60s      docker-compose.full.yml  postgres
+30s      docker-compose.full.yml  redis
+30s      docker-compose.full.yml  emqx
+60s      docker-compose.full.yml  minio
+10s      docker-compose.full.yml  minio-init
+60s      docker-compose.full.yml  redpanda
+30s      docker-compose.full.yml  vision-service
+30s      docker-compose.full.yml  trade-service
+60s      docker-compose.full.yml  xxl-job-mysql
+30s      docker-compose.full.yml  xxl-job-admin
+30s      docker-compose.full.yml  device-service
+30s      docker-compose.full.yml  device-simulator
+30s      docker-compose.full.yml  gateway
+30s      docker-compose.full.yml  prometheus
+30s      docker-compose.full.yml  grafana
+30s      docker-compose.full.yml  feishu-alert-relay
+30s      docker-compose.full.yml  alertmanager
+30s      docker-compose.ha.yml  trade-service
+30s      docker-compose.production.yml  trade-service
+30s      docker-compose.production.yml  vision-service
+30s      docker-compose.production.yml  device-service
+30s      docker-compose.production.yml  emqx
+60s      docker-compose.production.yml  minio
+30s      docker-compose.production.yml  grafana
+60s      docker-compose.production.yml  xxl-job-mysql
+30s      docker-compose.production.yml  xxl-job-admin
+30s      docker-compose.staging.yml  sms-webhook-mock
+30s      docker-compose.staging.yml  trade-service
+30s      docker-compose.staging.yml  vision-service
+60s      docker-compose.win-ports.yml  minio
+60s      docker-compose.win-ports.yml  redpanda
+30s      docker-compose.win-ports.yml  trade-service
+60s      docker-compose.xxljob.yml  xxl-job-mysql
+30s      docker-compose.xxljob.yml  xxl-job-admin
+60s      docker-compose.yml  postgres
+30s      docker-compose.yml  redis
+30s      docker-compose.yml  emqx
+60s      docker-compose.yml  minio
+60s      docker-compose.yml  redpanda
+30s      docker-compose.yml  gateway
+30s      docker-compose.yml  prometheus
+30s      docker-compose.yml  grafana
+
+=== 3) 判据有效性 A/B（11 例，期望全部符合预期） ===
+前置：10 个 compose 文件、干净状态下门禁为绿 ✓
+
+  ✓ 1 删掉 trade-service 的 stop_grace_period [RED]
+  ✓ 2 postgres 60s→5s（落盘型低于下限） [RED]
+  ✓ 3 redis 30s→5s（常驻型低于下限） [RED]
+  ✓ 4 minio-init 10s→5s（一次性低于下限） [RED]
+  ✓ 5 新增服务但不声明宽限 [RED]
+  ✓ 6 services: 锚点被改名（解析失效守卫） [RED]
+  ✓ 7 全部文件里 postgres 改名（分层表脱节守卫） [RED]
+  ✓ 8 redis 30s→45s（只设下限，不钉死值） [GREEN]
+  ✓ 9 postgres 60s→1m（等价写法不许假红） [GREEN]
+  ✓ 10 新增服务且声明 30s（合法扩充） [GREEN]
+
+  ✓ 11 全部还原后回绿 [期望 GREEN]
+
+全部符合预期
+exit=0

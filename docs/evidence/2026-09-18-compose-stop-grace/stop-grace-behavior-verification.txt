@@ -1,0 +1,59 @@
+==============================================================================
+stop_grace_period 行为级验证
+==============================================================================
+
+[1] 本机 daemon 默认宽限（不写 stop_grace_period）
+  ✓ 默认 StopTimeout == 1（⇒ 「引擎会兜底 10s」在本机不成立）    实测 StopTimeout=1
+  ✓ 默认宽限下被 SIGKILL（exit 137）    docker stop 耗时 2s，exit=137
+
+[2] compose 声明 stop_grace_period: 30s 是否覆盖默认且被遵守
+  ✓ StopTimeout 被覆盖为 30    实测 StopTimeout=30
+  ✓ docker stop 真的等满 ~30s 才 SIGKILL（宽限被遵守）    实测等待 30s（>25s 即证明等的是宽限而不是 1s），exit=137
+
+[3] PID 1 无声明的信号会被忽略 ⇒ 只加宽限没用
+  ✓ 不装 handler 的 PID 1：宽限 30s 全被浪费、最后仍是 SIGKILL    等待 30s 后 exit=137；日志尾部 GOT SIGTERM
+  ✓ 进程其实**收到**了 SIGTERM（只是没 handler ⇒ 被忽略）
+
+     对照：同一个探针**装上** handler（这正是 feishu-relay 的修法）
+  ✓ 装了 handler：立刻优雅退出（宽限一点都没浪费）    等待 0s，exit=0
+
+[4] 各镜像的 STOPSIGNAL 并不都是 SIGTERM（决定「怎么停」的是它，不是信号名）
+      postgres:16-alpine                 STOPSIGNAL=SIGINT
+      nginx:alpine                       STOPSIGNAL=SIGQUIT
+      redis:7-alpine                     STOPSIGNAL=(空 ⇒ SIGTERM)
+      mysql:8.0                          STOPSIGNAL=(空 ⇒ SIGTERM)
+  ✓ postgres 的 STOPSIGNAL 是 SIGINT（= fast shutdown，退出快、不需长宽限）    实测 SIGINT
+
+[5] 同一个 postgres：docker stop（按 STOPSIGNAL=SIGINT）vs docker kill -s TERM
+  ✓ docker stop 走 SIGINT ⇒ 干净退出、快（无需长宽限）    等待 0s，exit=0
+  ✓ docker kill -s TERM 触发 smart shutdown：8 秒后仍在跑（在等客户端断开）    8s 后状态=running
+
+[6] 仓库内 PID-1 python 服务的 A/B（HEAD 修复前 vs 当前）
+     判据：宽限 10s 下，HEAD 版本必然被 SIGKILL(137)，当前版本应 exit 0
+  ✓ feishu-relay: 两版都能起来并通过 /health（A/B 前提成立）    HEAD health=True / 当前 health=True
+  ✓ feishu-relay HEAD（无 handler）被 SIGKILL：宽限全被浪费    等待 10s，exit=137
+  ✓ feishu-relay 当前版本优雅退出    等待 1s，exit=0
+  ✓ sms-webhook-mock: 两版都能起来并通过 /health（A/B 前提成立）    HEAD health=True / 当前 health=True
+  ✓ sms-webhook-mock HEAD（无 handler）被 SIGKILL：宽限全被浪费    等待 10s，exit=137
+  ✓ sms-webhook-mock 当前版本优雅退出    等待 1s，exit=0
+
+==============================================================================
+  ✓ 默认 StopTimeout == 1（⇒ 「引擎会兜底 10s」在本机不成立）
+  ✓ 默认宽限下被 SIGKILL（exit 137）
+  ✓ StopTimeout 被覆盖为 30
+  ✓ docker stop 真的等满 ~30s 才 SIGKILL（宽限被遵守）
+  ✓ 不装 handler 的 PID 1：宽限 30s 全被浪费、最后仍是 SIGKILL
+  ✓ 进程其实**收到**了 SIGTERM（只是没 handler ⇒ 被忽略）
+  ✓ 装了 handler：立刻优雅退出（宽限一点都没浪费）
+  ✓ postgres 的 STOPSIGNAL 是 SIGINT（= fast shutdown，退出快、不需长宽限）
+  ✓ docker stop 走 SIGINT ⇒ 干净退出、快（无需长宽限）
+  ✓ docker kill -s TERM 触发 smart shutdown：8 秒后仍在跑（在等客户端断开）
+  ✓ feishu-relay: 两版都能起来并通过 /health（A/B 前提成立）
+  ✓ feishu-relay HEAD（无 handler）被 SIGKILL：宽限全被浪费
+  ✓ feishu-relay 当前版本优雅退出
+  ✓ sms-webhook-mock: 两版都能起来并通过 /health（A/B 前提成立）
+  ✓ sms-webhook-mock HEAD（无 handler）被 SIGKILL：宽限全被浪费
+  ✓ sms-webhook-mock 当前版本优雅退出
+==============================================================================
+全部符合预期（16 项）
+（已清理残留探针容器 1 个）
