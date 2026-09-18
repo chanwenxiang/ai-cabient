@@ -1,0 +1,24 @@
+﻿=== docker-up.ps1 exit-code A/B (end-to-end, IMAGE_TAG=local, -NoBuild) ===
+PSVersion: 5.1.26100.9444
+Repro condition: caller redirects with *> (as in the real failing invocation)
+
+[A-HEAD-old] C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\_tmp-docker-up-before-fix.ps1
+   EXIT=-1  elapsed=1.8s  loglines=1
+   "app stack is ready" count=0   (1=reached end, 0=aborted midway)
+   NativeCommandError count=0
+   CAUGHT=[RemoteException:  Container ai-cabinet-redpanda-1 Running ]
+   --- last 6 log lines ---
+      | IMAGE_TAG=local
+
+[B-worktree-fixed] C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\docker-up.ps1
+   EXIT=0  elapsed=4.5s  loglines=35
+   "app stack is ready" count=1   (1=reached end, 0=aborted midway)
+   NativeCommandError count=1
+   CAUGHT=[]
+   --- last 6 log lines ---
+      | Waiting for trade-service...
+      | AI Cabinet Docker app stack is ready (devops skipped unless -DevOps/-WithMonitoring)
+      | Admin:    http://localhost/admin/index.html
+      | API:      http://localhost:18080  (gateway http://localhost)
+      | XXL-JOB:  http://localhost:18090/xxl-job-admin  (admin / 123456)
+      | MinIO:    http://localhost:19000 (API) / http://localhost:19001 (console) on Windows win-ports

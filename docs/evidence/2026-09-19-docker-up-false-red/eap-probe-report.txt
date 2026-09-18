@@ -1,0 +1,13 @@
+﻿PSVersion: 5.1.26100.9444
+probe-before.ps1 -> EXIT=-1 REACHED=0 CAUGHT=[RemoteException: ##5 trade-service Building]
+
+probe-after.ps1 -> EXIT=0 REACHED=1 CAUGHT=[]
+      | node.exe : ##5 trade-service Building
+      | 所在位置 C:\Users\cwx\AppData\Local\Temp\eap-ab3\probe-after.ps1:11 字符: 9
+      | +         & $FilePath @ArgumentList
+      | +         ~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     + CategoryInfo          : NotSpecified: (##5 trade-service Building:String) [], RemoteException
+      |     + FullyQualifiedErrorId : NativeCommandError
+      |  
+      | REACHED-END (after-fix) native_exit=0
+

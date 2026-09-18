@@ -5,6 +5,32 @@ param(
     [switch]$WithMonitoring
 )
 $ErrorActionPreference = "Stop"
+
+# ── 原生命令调用助手 ──────────────────────────────────────────────────────────────
+# 🔴 PowerShell 5.1 在 $ErrorActionPreference='Stop' 下，会把 **native exe 写到 stderr 的每一行**
+#    包成 NativeCommandError 并**立即终止脚本**。而 `docker compose up -d` 恰恰把 build 进度
+#    （`#5 [trade-service] ...`）与容器状态（`Container xxx Starting`）写到 stderr ⇒
+#    **容器其实已经起来了，脚本却在中途抛错退出**（2026-09-19 实测：退出码 1，但 12/12 容器
+#    已重建、`/actuator/health` = UP —— 典型假红，会把「成功」读成「失败」）。
+# 修法：调用原生命令期间临时把 EAP 降为 Continue，成败**一律以 $LASTEXITCODE 为准**。
+# 输出不做任何包装（不接管道），因此调用者的 `*>` / `2>&1` 重定向照常生效。
+# 退出码经 [ref] 带回，避免「函数没有 return 就没有输出」的歧义。
+function Invoke-NativeCommand {
+    param(
+        [Parameter(Mandatory)][string]$FilePath,
+        [string[]]$ArgumentList,
+        [Parameter(Mandatory)][ref]$ExitCode
+    )
+    $previousEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $FilePath @ArgumentList
+        $ExitCode.Value = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousEap
+    }
+}
+
 $Root = $PSScriptRoot
 $Infra = Join-Path $Root "infra"
 $EnvFile = Join-Path $Infra ".env"
@@ -48,8 +74,12 @@ if ($WithMonitoring -or $DevOps) {
 $composeArgs = @("compose", "--env-file", $EnvFile) + $composeFiles + @("up", "-d") + $appServices
 if (-not $NoBuild) { $composeArgs += "--build" }
 
-& docker @composeArgs
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$composeExit = 0
+Invoke-NativeCommand -FilePath docker -ArgumentList $composeArgs -ExitCode ([ref]$composeExit)
+if ($composeExit -ne 0) {
+  Write-Host "docker compose up exited with $composeExit" -ForegroundColor Red
+  exit $composeExit
+}
 
 # Keep devops tooling stopped unless explicitly requested（容器不存在时忽略）
 if (-not $DevOps) {
@@ -81,8 +111,10 @@ do {
     Start-Sleep -Seconds 3
 } while ((Get-Date) -lt $deadline)
 if ($health.status -ne "UP") {
-  docker compose --env-file $EnvFile @composeFiles ps
-  throw "trade-service did not become healthy"
+  $psExit = 0
+  Invoke-NativeCommand -FilePath docker -ExitCode ([ref]$psExit) `
+    -ArgumentList (@("compose", "--env-file", $EnvFile) + $composeFiles + @("ps"))
+  throw "trade-service did not become healthy (docker compose ps exit=$psExit)"
 }
 
 Write-Host "AI Cabinet Docker app stack is ready (devops skipped unless -DevOps/-WithMonitoring)" -ForegroundColor Green

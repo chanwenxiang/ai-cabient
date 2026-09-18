@@ -1,0 +1,6 @@
+﻿e2e-lib.ps1 -> errors=0
+    here-string 计数: @"=9  "@=9  @'=0  '@=0
+e2e-replenishment.ps1 -> errors=0
+    here-string 计数: @"=1  "@=1  @'=0  '@=0
+docker-up.ps1 -> errors=0
+    here-string 计数: @"=0  "@=0  @'=0  '@=0
