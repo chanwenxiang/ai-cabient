@@ -248,6 +248,22 @@ groups:
           summary: "XXL-JOB 执行器接线异常"
           description: "执行器与调度中心通道不通（地址前缀/可达性/token 三者之一）。让位已生效，托管任务既不会被 Spring 也不会被调度中心触发；详见启动日志与运营台异常列表"
 
+      - alert: SchedulingPoolCapacityRisk
+        # 判据来自 SchedulingPoolCapacitySelfCheck（启动期一次，读**运行进程里生效的值**）：
+        # @Scheduled 并发 > Hikari 上限。CI 侧的 check-scheduling-vs-db-pool.mjs 只看 YAML 声明值，
+        # 部署期用环境变量把池改小/并发调大它是看不到的 —— 这一路补的就是那个盲区。
+        # ⚠️ 语义是「本进程启动那一刻的取值」，不是实时值；服务因连接池打满而起不来时本规则不会响，
+        # 那种情形由 ServiceDown 兜底。
+        expr: aicabinet_scheduling_pool_capacity_ok == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: ops
+          biz: scheduler
+        annotations:
+          summary: "定时任务并发超出连接池上限"
+          description: "多个无 initialDelay 的 @Scheduled 会在启动瞬间同时抢连接，连接池打满后上下文可能加载失败、运行期请求排队等连接。自查启动日志与运营台异常列表（SCHEDULING_POOL_CAPACITY_RISK），调整 DB_POOL_SIZE 或 SPRING_TASK_SCHEDULING_POOL_SIZE"
+
   - name: ai-cabinet-minio
     rules:
       - alert: MinioDown

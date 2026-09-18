@@ -293,19 +293,63 @@ const GAUGE_SOURCES = [
       'config',
       'XxlJobWiringSelfCheck.java'
     )
+  },
+  {
+    // 非 XXL 装置也登记在此：规则 3.7 的语义是「**任何**暴露指标的启动期自检都必须有人消费」。
+    // 漏登记 ⇒ 删掉它的告警规则不会被任何门禁拦住（这正是 3.7 注释警告的形态）。
+    label: 'SchedulingPoolCapacitySelfCheck.java',
+    path: join(
+      root,
+      'services',
+      'trade-service',
+      'src',
+      'main',
+      'java',
+      'com',
+      'aicabinet',
+      'trade',
+      'config',
+      'SchedulingPoolCapacitySelfCheck.java'
+    )
   }
 ];
 // Micrometer 的 "a.b.c" 落到 Prometheus 是 "a_b_c"（已用 /actuator/prometheus 实测核对）。
+//
+// ⚠️ 指标名允许写成**常量的引用**（`Gauge.builder(GAUGE_NAME, …)`）—— 那是合法且更常见的写法。
+// 早期只匹配字符串字面量 `Gauge.builder("a.b.c"`，于是把「指标名抽成常量」这种纯重构判成
+// 「门禁已失效」（2026-09-18 实跑假红）。故这里两级解析：字面量 → 同文件内的 `String NAME = "…"`。
+// 解析不出来的常量不会被静默跳过，而是列进 unresolved 显式报错（假绿比假红更危险）。
 const monitorGauges = [];
 for (const source of GAUGE_SOURCES) {
   const sourceCode = readJava(source.path, source.label);
+  const unresolved = new Set();
   const gauges = [
     ...new Set(
-      [...sourceCode.matchAll(/Gauge\.builder\("([a-z0-9.]+)"/g)].map((m) =>
-        m[1].replace(/\./g, '_')
-      )
+      [...sourceCode.matchAll(/Gauge\.builder\((?:"([a-z0-9.]+)"|([A-Za-z_][A-Za-z0-9_]*))/g)]
+        .map((m) => {
+          if (m[1]) return m[1].replace(/\./g, '_');
+          const constName = m[2];
+          // 常量声明必须锚定到 `"…";` 结尾：否则 `"a.b.c" + ".ok";` 会被截成前缀 `a_b_c`，
+          // 而下面的消费检查（子串/词边界）对前缀同样成立 ⇒ **静默假绿**。
+          // 解析不出即视为 unresolved 显式报错，绝不猜。
+          const hit = sourceCode.match(
+            new RegExp(`String\\s+${constName}\\s*=\\s*"([a-z0-9.]+)"\\s*;`)
+          );
+          if (!hit) {
+            unresolved.add(constName);
+            return null;
+          }
+          return hit[1].replace(/\./g, '_');
+        })
+        .filter(Boolean)
     )
   ];
+  if (unresolved.size) {
+    fail(
+      `${source.label} 里的 Gauge 指标名引用了解析不出的常量：${[...unresolved].join(', ')} —— ` +
+        `请把常量声明写成同文件内的 String NAME = "a.b.c" 形态，或在本脚本补解析规则（勿静默跳过）`
+    );
+  }
   if (gauges.length === 0) {
     fail(`${source.label} 未解析出任何 Gauge 指标名（该装置应至少暴露一个），门禁已失效`);
   }
@@ -315,8 +359,11 @@ for (const source of GAUGE_SOURCES) {
 // 想写成 PromQL 就必须把阈值在 YAML 里复制一份 → 两处漂移。超期判据只在 Java 侧维护，
 // 告警走聚合值 aicabinet_scheduled_task_stale_count。豁免必须显式列出，不允许静默通过。
 const DASHBOARD_ONLY_GAUGES = new Set(['aicabinet_scheduled_task_silence_seconds']);
+// 消费检查用**词边界**而非 `includes` 子串：子串会把「前缀被别处提及」也算作已消费
+// （`aicabinet_xxl_job_wiring` 是 `aicabinet_xxl_job_wiring_ok` 的子串）。下划线是词字符，
+// 所以 `\b…\b` 不会跨过 `_` 匹配 —— 正是这里需要的严格性。
 const unalerted = monitorGauges.filter(
-  (g) => !DASHBOARD_ONLY_GAUGES.has(g) && !alertRulesSource.includes(g)
+  (g) => !DASHBOARD_ONLY_GAUGES.has(g) && !new RegExp(`\\b${g}\\b`).test(alertRulesSource)
 );
 if (unalerted.length) {
   problems.push(
