@@ -450,6 +450,7 @@ export const AdminEndpoints = {
   systemConfigs: `${ops}/system-configs`,
   systemConfig: (configKey: string) => `${ops}/system-configs/${encodeURIComponent(configKey)}`,
   systemConfigBrandLogo: `${ops}/system-configs/brand-logo`,
+  systemConfigAlertTest: `${ops}/system-configs/alert-test`,
   dicts: `${ops}/dicts`,
   dictTypes: `${ops}/dicts/types`,
   dictType: (dictType: string) => `${ops}/dicts/types/${encodeURIComponent(dictType)}`,

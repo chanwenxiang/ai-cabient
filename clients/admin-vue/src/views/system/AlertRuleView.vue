@@ -20,6 +20,9 @@
             批量删除
           </el-button>
           <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-if="canEdit" :loading="testingAlert" @click="onTestAlertChannels">
+            测试发送
+          </el-button>
           <el-button v-if="canEdit" type="primary" @click="openCreate">新增</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -210,6 +213,13 @@ interface RuleRow extends SystemConfigRow {
   group: string;
 }
 
+/** 试发结果：detail 为空表示已投递，否则是平台给出的拒绝原因（如飞书 code=19024）。 */
+interface AlertChannelProbe {
+  channel: string;
+  delivered: boolean;
+  detail?: string | null;
+}
+
 const BUILTIN_GROUPS: Record<string, string[]> = {
   设备离线与解锁: [
     'device.offline.auto_sales_lock_minutes',
@@ -219,7 +229,13 @@ const BUILTIN_GROUPS: Record<string, string[]> = {
   ],
   温控告警: ['device.temp.alert_max_c'],
   '争议 SLA': ['dispute.sla.hours', 'dispute.sla.reminder_hours', 'dispute.sla.webhook'],
-  告警渠道: ['ops.alert.dingtalk_webhook', 'ops.alert.wecom_webhook', 'ops.alert.webhook'],
+  告警渠道: [
+    'ops.alert.feishu_webhook',
+    'ops.alert.feishu_sign_secret',
+    'ops.alert.dingtalk_webhook',
+    'ops.alert.wecom_webhook',
+    'ops.alert.webhook'
+  ],
   卡点扫描: [
     'ops.scan.door_open_minutes',
     'ops.scan.upload_stuck_minutes',
@@ -236,6 +252,7 @@ const auth = useAuthStore();
 const loading = ref(false);
 const saving = ref(false);
 const batchLoading = ref(false);
+const testingAlert = ref(false);
 const rows = ref<RuleRow[]>([]);
 const {
   tableRef,
@@ -540,6 +557,49 @@ async function onDelete(row: RuleRow) {
       ElMessage.error(e instanceof Error ? e.message : '删除失败');
     }
   }
+}
+
+/**
+ * 试发一条测试告警到所有已配置渠道。
+ *
+ * 告警渠道（尤其飞书）配错时 HTTP 仍是 200，只在响应体里带业务码，所以「保存成功」
+ * 不等于「收得到」。这个按钮把每个渠道的真实投递结果（含平台业务码）直接摊开，
+ * 不需要任何监控栈就能确认通不通。
+ */
+async function onTestAlertChannels() {
+  testingAlert.value = true;
+  try {
+    const probes = await api.request<AlertChannelProbe[]>(
+      AdminEndpoints.systemConfigAlertTest,
+      'POST',
+      {}
+    );
+    if (!probes.length) {
+      ElMessage.warning('没有已配置的告警渠道：请先填写对应渠道的 Webhook URL 并保存');
+      return;
+    }
+    const lines = probes.map(
+      (p) => `${p.channel}：${p.delivered ? '已投递' : `投递失败 —— ${p.detail || '未返回原因'}`}`
+    );
+    const allOk = probes.every((p) => p.delivered);
+    await ElMessageBox.alert(
+      `<div style="line-height:1.9">${lines.map((l) => `<div>${escapeHtml(l)}</div>`).join('')}</div>`,
+      allOk ? '测试发送：全部成功' : '测试发送：存在失败',
+      { dangerouslyUseHTMLString: true, confirmButtonText: '知道了' }
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '测试发送失败');
+  } finally {
+    testingAlert.value = false;
+  }
+}
+
+/** 渠道返回的业务码文案来自外部平台，拼进 HTML 前一律转义。 */
+function escapeHtml(s: string) {
+  return s.replaceAll(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c
+  );
 }
 
 onMounted(load);

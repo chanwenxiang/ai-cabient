@@ -77,6 +77,8 @@ public class SystemConfigService {
     public static final String DISPUTE_SLA_HOURS = "dispute.sla.hours";
     public static final String DISPUTE_SLA_REMINDER_HOURS = "dispute.sla.reminder_hours";
     public static final String DISPUTE_SLA_WEBHOOK = "dispute.sla.webhook";
+    public static final String OPS_ALERT_FEISHU_WEBHOOK = "ops.alert.feishu_webhook";
+    public static final String OPS_ALERT_FEISHU_SIGN_SECRET = "ops.alert.feishu_sign_secret";
     public static final String OPS_ALERT_DINGTALK_WEBHOOK = "ops.alert.dingtalk_webhook";
     public static final String OPS_ALERT_WECOM_WEBHOOK = "ops.alert.wecom_webhook";
     public static final String OPS_ALERT_WEBHOOK = "ops.alert.webhook";
@@ -380,6 +382,10 @@ public class SystemConfigService {
         upsertIfAbsent(DISPUTE_SLA_HOURS, "48", "争议工单 SLA 处理时限（小时）");
         upsertIfAbsent(DISPUTE_SLA_REMINDER_HOURS, "12", "争议 SLA 到期前提醒提前量（小时）");
         upsertIfAbsent(DISPUTE_SLA_WEBHOOK, "", "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）");
+        upsertIfAbsent(OPS_ALERT_FEISHU_WEBHOOK, "",
+                "运营告警：飞书自定义机器人 Webhook URL（留空不推送）");
+        upsertIfAbsent(OPS_ALERT_FEISHU_SIGN_SECRET, "",
+                "运营告警：飞书机器人签名密钥（仅勾选「签名校验」时必填，留空则不签名）");
         upsertIfAbsent(OPS_ALERT_DINGTALK_WEBHOOK, "", "运营告警：钉钉机器人 Webhook URL（留空不推送）");
         upsertIfAbsent(OPS_ALERT_WECOM_WEBHOOK, "", "运营告警：企业微信机器人 Webhook URL（留空不推送）");
         upsertIfAbsent(OPS_ALERT_WEBHOOK, "", "运营告警：通用 JSON Webhook URL（留空不推送）");
