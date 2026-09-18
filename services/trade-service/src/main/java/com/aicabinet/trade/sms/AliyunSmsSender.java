@@ -1,6 +1,7 @@
 package com.aicabinet.trade.sms;
 
 import com.aicabinet.trade.config.AuthProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,6 +9,8 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -93,14 +96,57 @@ public class AliyunSmsSender implements SmsSender {
                 out.write(bytes);
             }
             int status = conn.getResponseCode();
-            if (status >= 400) {
-                throw new IllegalStateException("Aliyun SMS HTTP " + status);
-            }
+            // H14：4xx/5xx 也读响应体（阿里云错误详情在 body），便于排障
+            String responseBody = readResponseBody(conn, status);
+            verifyAliyunAccepted(status, responseBody);
             String masked = maskPhone(phoneNumber);
             log.info("SMS code dispatched via Aliyun phone={}", masked);
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Aliyun SMS dispatch failed", e);
         }
+    }
+
+    /**
+     * H14：统一判定发送结果。阿里云在业务被拒（如 {@code isv.BUSINESS_LIMIT_CONTROL} 流控）时
+     * 仍返回 HTTP 200，只看状态码会把失败当成功；必须解析响应体 {@code Code}，仅 {@code OK} 算成功。
+     */
+    void verifyAliyunAccepted(int status, String responseBody) {
+        if (status >= 400) {
+            log.warn("Aliyun SMS HTTP {} body={}", status, truncate(responseBody));
+            throw new IllegalStateException("Aliyun SMS HTTP " + status);
+        }
+        String code;
+        String message;
+        try {
+            JsonNode node = objectMapper.readTree(responseBody == null ? "" : responseBody);
+            code = node.path("Code").asText("");
+            message = node.path("Message").asText("");
+        } catch (Exception e) {
+            throw new IllegalStateException("Aliyun SMS unexpected response body: " + truncate(responseBody));
+        }
+        if (!"OK".equals(code)) {
+            log.warn("Aliyun SMS rejected code={} message={}", code, message);
+            throw new IllegalStateException("Aliyun SMS business error code=" + code + " message=" + message);
+        }
+    }
+
+    private static String readResponseBody(HttpURLConnection conn, int status) throws IOException {
+        InputStream in = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
+        if (in == null) {
+            return "";
+        }
+        try (InputStream stream = in) {
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static String truncate(String body) {
+        if (body == null) {
+            return "";
+        }
+        return body.length() <= 200 ? body : body.substring(0, 200) + "...";
     }
 
     private static String blankOr(String v, String def) {

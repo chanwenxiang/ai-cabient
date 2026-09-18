@@ -46,8 +46,11 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v2/payment/alipay/notify",
                         // 消费者公开公告
                         "/api/v2/announcements/**",
-                        // 商品图等 <img> 直链
-                        "/api/v2/media/**",
+                        // 商品图/品牌 Logo/广告素材等 <img> 直链（H43：运营头像不公开，
+                        // /api/v2/media/ops-avatars/** 要求运营登录，见 MediaController#opsAvatar）
+                        "/api/v2/media/sku-images/**",
+                        "/api/v2/media/ops-brand/**",
+                        "/api/v2/media/ad-assets/**",
                         // 消费者公开配置
                         "/api/v2/public/**",
                         // 营销活动/轮播（游客可见；领券 /claim 仍需登录）

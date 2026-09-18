@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.ScreenContentDto;
 import com.aicabinet.trade.domain.AdCampaign;
 import com.aicabinet.trade.domain.AdCampaignDevice;
 import com.aicabinet.trade.domain.AdCampaignItem;
+import com.aicabinet.trade.domain.AdPlayEvent;
 import com.aicabinet.trade.domain.MediaAsset;
 import com.aicabinet.trade.mapper.AdCampaignDeviceMapper;
 import com.aicabinet.trade.mapper.AdCampaignItemMapper;
@@ -25,6 +26,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -121,5 +124,50 @@ class AdCampaignServiceTest {
         when(campaignRepository.findRunningInWindow(any())).thenReturn(List.of());
         ScreenContentDto out = service.screenContent("CAB-001");
         assertTrue(out.items().isEmpty());
+    }
+
+    @Test
+    void recordPlayEvent_shouldRejectWhenCampaignNotRunning() {
+        when(campaignRepository.findById(1L)).thenReturn(Optional.of(campaign(1L, "STOPPED", "ALL")));
+
+        service.recordPlayEvent("CAB-001", 1L, 100L, "IMPRESSION");
+
+        verify(playEventRepository, never()).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void recordPlayEvent_shouldRejectWhenDeviceOutOfScope() {
+        when(campaignRepository.findById(2L)).thenReturn(Optional.of(campaign(2L, "RUNNING", "SPECIFIC")));
+        AdCampaignDevice row = new AdCampaignDevice();
+        row.setCampaignId(2L);
+        row.setDeviceId("CAB-001");
+        when(deviceRepository.findByCampaignId(2L)).thenReturn(List.of(row));
+
+        // 未在投放范围内的设备上报：静默丢弃（不抛 4xx，防接口探测）
+        service.recordPlayEvent("CAB-002", 2L, 100L, "IMPRESSION");
+
+        verify(playEventRepository, never()).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void recordPlayEvent_shouldRecordForDeviceInScope() {
+        when(campaignRepository.findById(2L)).thenReturn(Optional.of(campaign(2L, "RUNNING", "SPECIFIC")));
+        AdCampaignDevice row = new AdCampaignDevice();
+        row.setCampaignId(2L);
+        row.setDeviceId("CAB-001");
+        when(deviceRepository.findByCampaignId(2L)).thenReturn(List.of(row));
+
+        service.recordPlayEvent("cab-001", 2L, 100L, "COMPLETE");
+
+        verify(playEventRepository).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void recordPlayEvent_allScopeAcceptsAnyDevice() {
+        when(campaignRepository.findById(3L)).thenReturn(Optional.of(campaign(3L, "RUNNING", "ALL")));
+
+        service.recordPlayEvent("CAB-XYZ", 3L, 100L, "IMPRESSION");
+
+        verify(playEventRepository).insert(any(AdPlayEvent.class));
     }
 }

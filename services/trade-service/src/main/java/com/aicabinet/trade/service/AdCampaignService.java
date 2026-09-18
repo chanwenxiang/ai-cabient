@@ -16,6 +16,8 @@ import com.aicabinet.trade.mapper.AdCampaignMapper;
 import com.aicabinet.trade.mapper.AdPlayEventMapper;
 import com.aicabinet.trade.mapper.MediaAssetMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,7 @@ import java.util.List;
  */
 @Service
 public class AdCampaignService {
+    private static final Logger log = LoggerFactory.getLogger(AdCampaignService.class);
     private static final String AD_CAMPAIGN = "AD_CAMPAIGN";
     private static final String SPECIFIC = "SPECIFIC";
     private static final String LITERAL = "投放计划不存在";
@@ -216,7 +219,20 @@ public class AdCampaignService {
         if (!type.equals("IMPRESSION") && !type.equals("COMPLETE") && !type.equals("CLICK")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "eventType 仅支持 IMPRESSION/COMPLETE/CLICK");
         }
-        requireCampaign(campaignId);
+        AdCampaign campaign = requireCampaign(campaignId);
+        // H44：仅统计投放中计划，且设备必须在投放范围内；越界/停用直接丢弃（不抛 4xx，防接口探测刷量）
+        if (!"RUNNING".equalsIgnoreCase(campaign.getStatus())) {
+            log.debug("ad play event dropped: campaign {} not RUNNING (status={})",
+                    campaignId, campaign.getStatus());
+            return;
+        }
+        if (SPECIFIC.equals(campaign.getDeviceScope())
+                && deviceRepository.findByCampaignId(campaignId).stream()
+                .noneMatch(d -> d.getDeviceId().equalsIgnoreCase(deviceId.trim()))) {
+            log.debug("ad play event dropped: device {} not in campaign {} device scope",
+                    deviceId, campaignId);
+            return;
+        }
         AdPlayEvent ev = new AdPlayEvent();
         ev.setCampaignId(campaignId);
         ev.setDeviceId(deviceId.trim().toUpperCase());

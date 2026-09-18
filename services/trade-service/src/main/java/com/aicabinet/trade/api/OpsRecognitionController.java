@@ -6,9 +6,12 @@ import com.aicabinet.common.dto.DevRecognitionTestRequest;
 import com.aicabinet.common.dto.DevRecognitionTestResponse;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.service.OperatorAuth;
 import com.aicabinet.trade.service.RecognitionTestService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.core.env.Environment;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 
@@ -25,9 +29,15 @@ import java.io.IOException;
 public class OpsRecognitionController {
 
     private final RecognitionTestService recognitionTestService;
+    private final SecurityProperties securityProperties;
+    private final Environment environment;
 
-    public OpsRecognitionController(RecognitionTestService recognitionTestService) {
+    public OpsRecognitionController(RecognitionTestService recognitionTestService,
+                                    SecurityProperties securityProperties,
+                                    Environment environment) {
         this.recognitionTestService = recognitionTestService;
+        this.securityProperties = securityProperties;
+        this.environment = environment;
     }
 
     @RequiresPermissions(value = {"ops:sku:demo", "ops:vision:edit", "ops:sku:edit"}, logical = RequiresPermissions.Logical.OR)
@@ -54,10 +64,27 @@ public class OpsRecognitionController {
             @RequestParam(value = "settle", required = false, defaultValue = "false") boolean settle) throws IOException {
         Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         OperatorAuth.requireOperator(operatorId);
+        if (settle && !demoSettleAllowed()) {
+            // H45：settle=true 直通真实结算链路，仅在演示/非生产环境开放
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "演示结算仅限非生产环境");
+        }
         byte[] bytes = requireImage(image);
         DevRecognitionTestRequest body = new DevRecognitionTestRequest(deviceId, sessionId, mode);
         return ApiResponse.ok(recognitionTestService.runWithUpload(
                 operatorId, body, bytes, image.getOriginalFilename(), settle));
+    }
+
+    /** H45：演示结算守卫——mock 开关开启或 dev/uat profile 才放行（与 ProductionStartupValidator 同模式）。 */
+    private boolean demoSettleAllowed() {
+        if (securityProperties.mockEnabled()) {
+            return true;
+        }
+        for (String profile : environment.getActiveProfiles()) {
+            if ("dev".equalsIgnoreCase(profile) || "uat".equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 争议审核：上传关键帧，DeepSeek 推荐 SKU（不自动改单）。 */
