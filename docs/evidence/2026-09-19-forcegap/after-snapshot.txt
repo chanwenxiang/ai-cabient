@@ -1,0 +1,50 @@
+=== 快照时刻: 2026-09-19 01:13:10     ===
+--- device_slot (330449777078) last_physical_qty ---
+ slot_code | assigned_sku_id | min_level | max_level | last_physical_qty 
+-----------+-----------------+-----------+-----------+-------------------
+ A1        | SKU-DEMO-001    |         2 |         8 |                 8
+ A2        | SKU-SODA-001    |         2 |         8 |                 8
+ A3        | SKU-WATER-001   |         2 |         6 |                 6
+ A4        | SKU-WATER-001   |         2 |         6 |                 6
+ B1        | SKU-SNACK-001   |         2 |         8 |                 8
+ B2        | SKU-MILK-001    |         2 |         6 |                 6
+ B3        | SKU-NOODLE-001  |         2 |         8 |                 8
+ B4        | SKU-NOODLE-001  |         1 |         4 |                 4
+(8 rows)
+
+--- device_sku_lot (330449777078) 当前库存 ---
+ slot_id |     sku_id     | quantity | status  
+---------+----------------+----------+---------
+ A1      | SKU-DEMO-001   |        8 | ON_SALE
+ A2      | SKU-SODA-001   |        8 | ON_SALE
+ A3      | SKU-WATER-001  |        6 | ON_SALE
+ A4      | SKU-WATER-001  |        6 | ON_SALE
+ B1      | SKU-SNACK-001  |        8 | ON_SALE
+ B2      | SKU-MILK-001   |        6 | ON_SALE
+ B3      | SKU-NOODLE-001 |        8 | ON_SALE
+ B4      | SKU-NOODLE-001 |        4 | ON_SALE
+(8 rows)
+
+--- 仓库库存 (WH-DEMO-001) ---
+     sku_id     |    batch_no    | quantity 
+----------------+----------------+----------
+ SKU-DEMO-001   | B-DEMO-01      |       44
+ SKU-DEMO-001   | B-WH-COLA-01   |       80
+ SKU-MILK-001   | B-WH-MILK-01   |       66
+ SKU-NOODLE-001 | B-WH-NOODLE-01 |      112
+ SKU-SNACK-001  | B-WH-CHIPS-01  |       84
+ SKU-SODA-001   | B-WH-SODA-01   |       44
+ SKU-SODA-001   | B-WH-SPRITE-01 |       60
+ SKU-WATER-001  | B-WH-WATER-01  |      160
+(8 rows)
+
+--- 本次 e2e 任务 ---
+ task_id |  device_id   |  status   | has_checkin 
+---------+--------------+-----------+-------------
+      16 | 330449777078 | COMPLETED | t
+(1 row)
+
+--- 盘点流水（本次清零留下的 ADJ）---
+ERROR:  relation "device_inventory_movement" does not exist
+LINE 1: ...o, change_type, change_qty, ref_type, ref_id FROM device_inv...
+                                                             ^

@@ -3,9 +3,19 @@
 #   .\scripts\e2e-replenishment.ps1
 #   .\scripts\e2e-replenishment.ps1 -BaseUrl http://localhost:18080
 #   .\scripts\e2e-replenishment.ps1 -FieldOnly   # 现场补货线；若 plan 已挂出库单仍须 pick/ship，否则 complete 409
+#   .\scripts\e2e-replenishment.ps1 -ForceGap    # 无缺口时自动盘点清零一条货道造缺口（**会写真实账面库存**）
 #
 # 注意：-FieldOnly 不是「跳过出库」，而是「允许在无计划明细时提交现场 RESTOCK」。
 # 运营 plan 常会同步生成 outbound；完成任务前必须把关联出库单发运。
+#
+# ── -ForceGap 是干什么的（2026-09-19 补）────────────────────────────────────────
+# 补货建议的数据源是 device_slot：账面 < min_level 才有缺口。而**跑过一次本脚本后**，
+# 默认柜机的货道会被补到 max_level（全满）⇒ 之后 /replenishment/suggest 恒 0 条 ⇒
+# 脚本第二次必在第 3 步失败。这是「库存真的不缺」的**合法稳态**，不是缺陷，但让 E2E
+# 不可重复运行。加了本开关后：无缺口时自动把账面最多的那条货道**盘点清零**，
+# 从而稳定造出真实缺口。
+# 🔴 它走的是产品自身的盘点接口（不是 DB 硬改），但**会写真实账面库存 + 记盘亏流水**，
+#    因此**默认关闭**，必须显式传 -ForceGap。
 #
 # ── 这个脚本归谁跑（2026-09-18 补写）────────────────────────────────────────────
 # 【本地手工工具】Windows + PowerShell 5.1 + 已起的整栈。**CI（Linux）不跑它**，
@@ -34,7 +44,9 @@ param(
     [string]$SlotId = "A1",
     [int]$Quantity = 1,
     [string]$InternalApiKey = "dev-internal-key-change-me",
-    [switch]$FieldOnly
+    [switch]$FieldOnly,
+    # 无缺口时自动盘点清零一条货道以造出缺口（**会写真实账面库存**，默认关闭）
+    [switch]$ForceGap
 )
 
 $ErrorActionPreference = "Stop"
@@ -93,8 +105,8 @@ Write-Host "    merchantUserId=$MerchantUserId"
 $today = (Get-Date).ToString("yyyy-MM-dd")
 $routeName = "E2E replenishment $today $([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
 
-Write-Host "==> 2b. Ensure warehouse stock for device replenishment gaps"
-Prepare-E2eReplenishmentPlan -BaseUrl $BaseUrl -OpsAuth $opsAuth -DeviceId $DeviceId
+Write-Host "==> 2b. Ensure warehouse stock for device replenishment gaps$(if ($ForceGap) { ' [-ForceGap: may zero a slot]' })"
+Prepare-E2eReplenishmentPlan -BaseUrl $BaseUrl -OpsAuth $opsAuth -DeviceId $DeviceId -ForceGap:$ForceGap
 
 Write-Host "==> 3. Plan replenishment route for $DeviceId"
 $route = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/ops/admin/replenishment/plan" -Headers $opsAuth -Body @{

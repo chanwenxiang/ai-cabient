@@ -1,0 +1,42 @@
+=== 快照时刻: 2026-09-19 01:09:15     ===
+--- device_slot (330449777078) ---
+ slot_code | assigned_sku_id | min_level | max_level | enabled | last_physical_qty 
+-----------+-----------------+-----------+-----------+---------+-------------------
+ A1        | SKU-DEMO-001    |         2 |         8 | t       |                 8
+ A2        | SKU-SODA-001    |         2 |         8 | t       |                 8
+ A3        | SKU-WATER-001   |         2 |         6 | t       |                 6
+ A4        | SKU-WATER-001   |         2 |         6 | t       |                 6
+ B1        | SKU-SNACK-001   |         2 |         8 | t       |                 8
+ B2        | SKU-MILK-001    |         2 |         6 | t       |                 6
+ B3        | SKU-NOODLE-001  |         2 |         8 | t       |                 8
+ B4        | SKU-NOODLE-001  |         1 |         4 | t       |                 4
+(8 rows)
+
+--- device_sku_lot (330449777078) ---
+ slot_id |     sku_id     |    batch_no    | quantity | status  
+---------+----------------+----------------+----------+---------
+ A1      | SKU-DEMO-001   | B-DEMO-01      |        8 | ON_SALE
+ A2      | SKU-SODA-001   | B-WH-SODA-01   |        8 | ON_SALE
+ A3      | SKU-WATER-001  | B-WH-WATER-01  |        6 | ON_SALE
+ A4      | SKU-WATER-001  | B-WH-WATER-01  |        6 | ON_SALE
+ B1      | SKU-SNACK-001  | B-WH-CHIPS-01  |        8 | ON_SALE
+ B2      | SKU-MILK-001   | B-WH-MILK-01   |        6 | ON_SALE
+ B3      | SKU-NOODLE-001 | B-WH-NOODLE-01 |        8 | ON_SALE
+ B4      | SKU-NOODLE-001 | B-WH-NOODLE-01 |        4 | ON_SALE
+(8 rows)
+
+--- 仓库库存 (WH-DEMO-001) ---
+     sku_id     |    batch_no    | quantity 
+----------------+----------------+----------
+ SKU-DEMO-001   | B-DEMO-01      |       44
+ SKU-DEMO-001   | B-WH-COLA-01   |       80
+ SKU-MILK-001   | B-WH-MILK-01   |       66
+ SKU-NOODLE-001 | B-WH-NOODLE-01 |      110
+ SKU-SNACK-001  | B-WH-CHIPS-01  |       84
+ SKU-SODA-001   | B-WH-SODA-01   |       44
+ SKU-SODA-001   | B-WH-SPRITE-01 |       60
+ SKU-WATER-001  | B-WH-WATER-01  |      160
+(8 rows)
+
+--- suggest 当前返回条数（应为 0）---
+device_slot 行数: 8

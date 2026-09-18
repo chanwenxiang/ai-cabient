@@ -1,0 +1,4 @@
+﻿http://localhost:8080/actuator/health TimeoutSec=2 -> ok=False elapsed=2056ms
+http://localhost:8080/actuator/health TimeoutSec=5 -> ok=False elapsed=4068ms
+http://localhost:18080/actuator/health TimeoutSec=2 -> ok=False elapsed=2016ms
+http://localhost:18080/actuator/health TimeoutSec=5 -> ok=True elapsed=2105ms
