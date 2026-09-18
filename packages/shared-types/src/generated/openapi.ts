@@ -793,6 +793,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/sessions/{sessionId}/open-failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["openDoorFailed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/sessions/{sessionId}/live-cart": {
         parameters: {
             query?: never;
@@ -867,6 +883,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["doorEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/ops-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["edgeAlert"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1651,6 +1683,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["uploadBrandLogo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/system-configs/alert-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["testAlertChannels"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9722,6 +9770,9 @@ export interface components {
             /** Format: date-time */
             archivedAt?: string;
         };
+        OpenDoorFailedRequest: {
+            reason?: string;
+        };
         LiveCartItem: {
             skuId: string;
             skuName?: string;
@@ -9811,6 +9862,11 @@ export interface components {
             videoClipsJson?: string;
             cameraFusionMode?: string;
             gravityDeltasJson?: string;
+        };
+        EdgeAlertRequest: {
+            alertType?: string;
+            message?: string;
+            deviceId?: string;
         };
         HeartbeatRequest: {
             appVersion?: string;
@@ -10543,6 +10599,17 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["FileAttachmentDto"];
+        };
+        ApiResponseListChannelProbe: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ChannelProbe"][];
+        };
+        ChannelProbe: {
+            channel?: string;
+            delivered?: boolean;
+            detail?: string;
         };
         PaySupplierRequest: {
             /** Format: int64 */
@@ -17590,6 +17657,32 @@ export interface operations {
             };
         };
     };
+    openDoorFailed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OpenDoorFailedRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     liveCart: {
         parameters: {
             query?: never;
@@ -17708,6 +17801,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseSessionDto"];
+                };
+            };
+        };
+    };
+    edgeAlert: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EdgeAlertRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
                 };
             };
         };
@@ -19021,6 +19138,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseFileAttachmentDto"];
+                };
+            };
+        };
+    };
+    testAlertChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListChannelProbe"];
                 };
             };
         };

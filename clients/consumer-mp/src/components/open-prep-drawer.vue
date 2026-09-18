@@ -81,7 +81,11 @@
             :loading="busy"
             :disabled="busy"
             :label="
-              busy ? '处理中…' : wechatPayLive ? `微信支付充值 ¥${quickRechargeYuan}` : `微信充值 ¥${quickRechargeYuan}`
+              busy
+                ? '处理中…'
+                : wechatPayLive
+                  ? `微信支付充值 ¥${quickRechargeYuan}`
+                  : `微信充值 ¥${quickRechargeYuan}`
             "
             @click="onWeChatRecharge"
           />

@@ -204,9 +204,7 @@ const maxWithdrawYuan = computed(() =>
 // H53：多商户绑定时的提现商户选择；单商户不渲染选择器、请求也不带 merchantId
 const { me, refresh: refreshMerchantMe } = useMerchantMe();
 const selectedMerchantId = ref('');
-const boundMerchants = computed(() =>
-  props.role === 'merchant' ? me.value?.merchants || [] : []
-);
+const boundMerchants = computed(() => (props.role === 'merchant' ? me.value?.merchants || [] : []));
 const multiMerchant = computed(() => boundMerchants.value.length > 1);
 const merchantOptions = computed(() =>
   boundMerchants.value.map((m) => ({

@@ -191,7 +191,11 @@
             <template #default="{ row }">
               <el-tag
                 size="small"
-                :type="row.videoPreviewUrl || String(row.uploadStatus || '').toUpperCase() === 'UPLOADED' ? 'success' : 'info'"
+                :type="
+                  row.videoPreviewUrl || String(row.uploadStatus || '').toUpperCase() === 'UPLOADED'
+                    ? 'success'
+                    : 'info'
+                "
                 effect="plain"
               >
                 {{ uploadStatusShort(row) }}
