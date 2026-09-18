@@ -123,7 +123,7 @@
             <view class="order-top">
               <view class="order-meta">
                 <text class="order-device-name">{{ deviceDisplay(o) }}</text>
-                <text class="order-id">{{ shortId(o.orderId) }}</text>
+                <text class="order-id">{{ orderIdDisplay(o.orderId) }}</text>
               </view>
               <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
             </view>
@@ -151,8 +151,8 @@
                     <text v-if="Number(o.memberDiscountCents ?? 0) > 0" class="order-tag soft"
                       >会员减{{ fmtMoney(o.memberDiscountCents) }}</text
                     >
-                    <text v-if="payTradeShort(o)" class="order-tag mono">{{
-                      payTradeShort(o)
+                    <text v-if="payTradeDisplay(o)" class="order-tag mono">{{
+                      payTradeDisplay(o)
                     }}</text>
                     <text v-if="canInvoiceHint(o)" class="order-tag soft">可开票</text>
                   </view>
@@ -225,7 +225,7 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { consumerApi, ensureConsumerAuth, isConsumerLoggedIn } from '@/utils/consumer-api';
 import {
-  shortBizNo,
+  displayBizNo,
   formatDateTimeShort,
   startOfTodayShanghaiMs,
   orderStatusLabel,
@@ -363,8 +363,8 @@ function filterCountSuffix(value: OrderStatusFilter) {
   }
   return ` ${countBy(value)}`;
 }
-function shortId(id?: string) {
-  return shortBizNo(id, 12, '暂无单号');
+function orderIdDisplay(id?: string) {
+  return displayBizNo(id, '暂无单号');
 }
 function deviceDisplay(o: { deviceId?: string; deviceName?: string } | string | undefined) {
   if (!o) return '无柜机';
@@ -417,10 +417,10 @@ function canInvoiceHint(o: OrderSummary) {
   const s = String(o.status || '');
   return s === 'PAID' || s === 'COMPLETED' || s === 'PARTIAL_REFUNDED';
 }
-function payTradeShort(o: OrderSummary) {
+function payTradeDisplay(o: OrderSummary) {
   const id = o.payTradeNo || o.paymentOperationId;
   if (!id) return '';
-  return shortBizNo(id, 10);
+  return displayBizNo(id);
 }
 function formatTime(value?: string) {
   return formatDateTimeShort(value);
@@ -814,6 +814,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-id {
   display: block;
+  word-break: break-all;
   margin-top: 6rpx;
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
@@ -889,6 +890,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin-top: 10rpx;
 }
 .order-tag {
+  white-space: nowrap;
   font-size: var(--font-size-xs);
   color: var(--color-link-secondary);
   background: var(--surface-muted);

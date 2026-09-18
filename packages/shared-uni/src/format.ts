@@ -305,7 +305,12 @@ function decimalMulAdd(dec: string, mul: number, add: number): string {
   return out || '0';
 }
 
-/** 列表短号：纯数字，超长取末尾 */
+/**
+ * @deprecated 不要用它展示单号（2026-09-18 起）。
+ * 列表取末尾 N 位、详情页给全号 ⇒ 同一单号两处对不上，客服按列表号搜不到。
+ * 消费者端 6 处调用已全部改为 `displayBizNo`（全号）；确需缩短请走 UI 侧的
+ * `text-overflow: ellipsis`，不要在数据层永久丢掉字符。
+ */
 export function shortBizNo(
   id?: string | number | null,
   maxLen = 14,

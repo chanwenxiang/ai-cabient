@@ -39,7 +39,7 @@
               <text class="refund-amt">{{ fmtMoney(r.amountCents) }}</text>
               <text class="refund-meta"
                 >{{ refundStatusLabel(r.status)
-                }}{{ r.requestNo ? ` · ${shortBizNo(r.requestNo)}` : '' }}</text
+                }}{{ r.requestNo ? ` · ${displayBizNo(r.requestNo)}` : '' }}</text
               >
               <text v-if="r.reviewRemark || r.failReason" class="refund-remark">{{
                 r.reviewRemark || r.failReason
@@ -161,7 +161,7 @@
             <text class="record-amount">{{ fmtMoney(r.amountCents ?? 0) }}</text>
             <view class="record-meta">
               <text class="record-channel">{{ channelText(r.channel) }}</text>
-              <text class="record-id">{{ shortBizNo(r.orderId) }}</text>
+              <text class="record-id">{{ displayBizNo(r.orderId) }}</text>
               <text class="record-time">{{ formatTime(r.createdAt) }}</text>
               <text v-if="r.paidAt && r.status === 'PAID'" class="record-time"
                 >到账 {{ formatTime(r.paidAt) }}</text
@@ -195,7 +195,7 @@ import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { secureRandomToken } from '@/utils/secure-id';
 import {
-  shortBizNo,
+  displayBizNo,
   formatDateTimeMinute,
   fmtMoney,
   yuanToCents
@@ -656,6 +656,7 @@ async function onAlipayRecharge() {
 }
 .refund-meta {
   display: block;
+  word-break: break-all;
   font-size: var(--font-size-sm);
   color: var(--brand);
 }
@@ -863,6 +864,9 @@ async function onAlipayRecharge() {
   gap: 12rpx;
   margin-top: 6rpx;
   flex-wrap: wrap;
+}
+.record-id {
+  word-break: break-all;
 }
 .record-channel {
   font-size: var(--font-size-sm);

@@ -26,7 +26,7 @@
               <text class="log-title">{{ transactionLabel(item.businessType) }}</text>
               <text class="log-time">{{ formatTransactionTime(item.createdAt) }}</text>
               <text v-if="item.businessId" class="log-meta"
-                >单号 {{ shortBizNo(item.businessId) }}</text
+                >单号 {{ displayBizNo(item.businessId) }}</text
               >
               <text v-if="item.balanceAfterCents != null" class="log-meta"
                 >余额 {{ fmtMoney(item.balanceAfterCents) }}</text
@@ -52,7 +52,7 @@ import { ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
-import { formatDateTimeShort, fmtMoney, shortBizNo } from '@aicabinet/shared-uni/format';
+import { formatDateTimeShort, fmtMoney, displayBizNo } from '@aicabinet/shared-uni/format';
 import { consumerApi, ensureConsumerAuth, isConsumerLoggedIn } from '@/utils/consumer-api';
 import { availableCents } from '@/utils/account';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -280,6 +280,7 @@ function goRecharge() {
 .log-time,
 .log-meta {
   display: block;
+  word-break: break-all;
   margin-top: 6rpx;
   font-size: var(--font-size-sm);
   color: var(--text-subtle, #9aa4a0);

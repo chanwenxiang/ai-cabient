@@ -32,7 +32,7 @@
         </view>
         <view class="info-row">
           <text class="info-label">购物单号</text>
-          <text class="info-value mono">{{ shortId(ticket.sessionId) }}</text>
+          <text class="info-value mono">{{ idDisplay(ticket.sessionId) }}</text>
         </view>
         <view v-if="ticket.createdAt" class="info-row">
           <text class="info-label">提交时间</text>
@@ -134,7 +134,7 @@ import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
 import { displayLabel } from '@aicabinet/shared-dict';
 import {
   emptyDisplay,
-  shortBizNo,
+  displayBizNo,
   formatDateTimeMinute,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
@@ -422,8 +422,8 @@ function fmtLine(line: OrderLineDto) {
   return fmtMoney(cents);
 }
 
-function shortId(id?: string) {
-  return shortBizNo(id, 12, '暂无');
+function idDisplay(id?: string) {
+  return displayBizNo(id, '暂无');
 }
 
 async function loadRefundChannel(orderId?: string) {
@@ -636,6 +636,7 @@ function previewEvidence(img: FileAttachmentDto) {
 }
 .info-value {
   font-size: var(--font-size-caption);
+  word-break: break-all;
   color: var(--text-muted, #475569);
   max-width: 70%;
   text-align: right;
