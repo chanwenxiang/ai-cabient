@@ -1,0 +1,50 @@
+================ 停机宽限 · 重建后生效取证（after）================
+取证时刻 shell date: 2026-09-19 00:57:11     | UTC 2026-09-18T16:57:11Z
+
+--------------- 1. 运行容器实际宽限（正确字段 .Config.StopTimeout）---------------
+container                        StopTimeout    StopSignal
+ai-cabinet-device-service-1      30             nil       
+ai-cabinet-device-simulator-1    30             nil       
+ai-cabinet-emqx-1                30             nil       
+ai-cabinet-gateway-1             30             SIGQUIT   
+ai-cabinet-minio-1               60             nil       
+ai-cabinet-postgres-1            60             SIGINT    
+ai-cabinet-redis-1               30             nil       
+ai-cabinet-redpanda-1            60             nil       
+ai-cabinet-trade-service-1       30             nil       
+ai-cabinet-vision-service-1      30             nil       
+ai-cabinet-xxl-job-admin-1       30             nil       
+ai-cabinet-xxl-job-mysql-1       60             nil       
+
+--------------- 2. compose 分层期望（合并后 config）---------------
+device-service:          30s
+device-simulator:        30s
+emqx:                    30s
+gateway:                 30s
+grafana:                 30s
+minio:                   1m0s
+minio-init:              10s
+postgres:                1m0s
+prometheus:              30s
+redis:                   30s
+redpanda:                1m0s
+trade-service:           30s
+vision-service:          30s
+xxl-job-admin:           30s
+xxl-job-mysql:           1m0s
+
+--------------- 3. 容器创建时间（证明是本次重建）---------------
+ai-cabinet-postgres-1            2026-09-18T16:53:42.102739263Z
+ai-cabinet-trade-service-1       2026-09-18T16:53:45.729235788Z
+ai-cabinet-gateway-1             2026-09-18T16:53:49.026639278Z
+ai-cabinet-redis-1               2026-09-18T16:53:42.115176488Z
+
+--------------- 4. trade-service 健康 ---------------
+GET /actuator/health -> {"status":"UP"}
+
+--------------- 5. 字段名勘误对照（错误 vs 正确）---------------
+错误字段 .HostConfig.StopTimeout :
+
+template parsing error: template: :1:13: executing "" at <.HostConfig.StopTimeout>: map has no entry for key "StopTimeout"
+正确字段 .Config.StopTimeout     :
+60
