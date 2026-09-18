@@ -207,6 +207,11 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "RECON_MISMATCH", "对账差异", "RECONCILIATION_MISMATCH", "对账差异",
                 "SPLIT_EXCEPTION", "分账异常", "PROFIT_SHARING_RETURN_FAILED", "分账回退失败",
                 "PROFIT_SHARING_MANUAL_SUPPLEMENT", "分账需人工补账",
+                // M06+M07：后端实际会发出但此前未 seed 的告警类型，补齐与 shared-dict 对齐
+                "PROFIT_SHARING_RETURN_SUBMIT_FAILED", "分账回退提交失败",
+                "XXL_JOB_WIRING_BROKEN", "XXL-JOB 执行器接线异常",
+                "SCHEDULED_TASK_STALE", "定时任务停摆",
+                "VISION_ANOMALY", "视觉异常告警",
                 "IN_TRANSIT_OVERDUE", "签收超时")));
         map.put("ad_asset_type", t("广告素材类型", m(
                 "IMAGE", "图片", "VIDEO", "视频", "H5", "H5")));

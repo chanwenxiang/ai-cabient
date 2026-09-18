@@ -8,12 +8,15 @@
 # 控制台：http://localhost:19001  API：http://localhost:19000
 services:
   minio:
+    stop_grace_period: 60s
     ports: !override
       - "127.0.0.1:19000:9000"
       - "127.0.0.1:19001:9001"
   redpanda:
+    stop_grace_period: 60s
     ports: !override
       - "127.0.0.1:19092:9092"
   trade-service:
+    stop_grace_period: 30s
     ports: !override
-      - "18080:8080"
+      - "127.0.0.1:18080:8080"

@@ -86,6 +86,8 @@ aicabinet:
     key: ${INTERNAL_API_KEY:dev-internal-key-change-me}
     # 逗号分隔 CIDR；空=不限制。生产建议 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
     allowed-cidrs: ${INTERNAL_API_ALLOWED_CIDRS:}
+    # M08：可信反代网段；空=不信任 X-Forwarded-For/X-Real-IP（只用直连地址）
+    trusted-proxy-cidrs: ${INTERNAL_API_TRUSTED_PROXY_CIDRS:}
   identity-verify:
     base-url: ${IDENTITY_VERIFY_BASE_URL:}
     api-key: ${IDENTITY_VERIFY_API_KEY:}

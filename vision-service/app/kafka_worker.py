@@ -181,10 +181,19 @@ def start_kafka_worker(recognizer) -> threading.Thread | None:
                         "taskId": task_id,
                         "raw": raw_value if isinstance(raw_value, str) else str(raw_value),
                     }
-                    producer.send(REQUEST_DLT_TOPIC, json.dumps(dlt_payload, ensure_ascii=False))
+                    dlt_future = producer.send(
+                        REQUEST_DLT_TOPIC, json.dumps(dlt_payload, ensure_ascii=False)
+                    )
                     producer.flush()
+                    # H40：确认 DLT 真正落盘（broker ack）才算成功
+                    dlt_future.get(timeout=10)
                 except Exception as dlt_exc:
-                    log.exception("failed to publish vision request DLT: %s", dlt_exc)
+                    # H40：DLT 也失败 → 不提交 offset，跳过让 broker 重投同一消息（at-least-once）
+                    log.exception(
+                        "failed to publish vision request DLT, skip commit (will redeliver): %s",
+                        dlt_exc,
+                    )
+                    continue
                 try:
                     consumer.commit()
                 except Exception as commit_exc:

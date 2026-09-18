@@ -7,6 +7,7 @@
 
 services:
   trade-service:
+    stop_grace_period: 30s
     environment:
       SPRING_PROFILES_ACTIVE: prod
       AICABINET_STAGING_MODE: "false"
@@ -17,22 +18,31 @@ services:
       XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:?set XXL_JOB_ACCESS_TOKEN in .env.production}
 
   vision-service:
+    stop_grace_period: 30s
     environment:
       MOCK_ENABLED: "false"
       # A-I1：生产禁止默认回落 mock
       RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:?set RECOGNIZER_BACKEND (not mock) in .env.production}
       VISION_DISABLE_DOCS: "true"
+      # H52：生产强制显式来源 CIDR（叠加在 API Key 之上）
+      VISION_ALLOWED_CIDRS: ${VISION_ALLOWED_CIDRS:?set VISION_ALLOWED_CIDRS in .env.production}
+      VISION_TRUST_PROXY: ${VISION_TRUST_PROXY:-false}
       KAFKA_ENABLED: ${KAFKA_ENABLED:-true}
       KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-redpanda:9092}
 
   device-service:
+    stop_grace_period: 30s
     environment:
       SPRING_PROFILES_ACTIVE: prod
       MQTT_BROKER: ${MQTT_BROKER:-ssl://emqx:8883}
       MQTT_USERNAME: ${MQTT_USERNAME:?set MQTT_USERNAME (aicabinet-backend) in .env.production}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set MQTT_PASSWORD in .env.production}
+      # M20：device 与 trade 同样强制显式内部 API CIDR
+      INTERNAL_API_ALLOWED_CIDRS: ${INTERNAL_API_ALLOWED_CIDRS:?set INTERNAL_API_ALLOWED_CIDRS in .env.production}
+      INTERNAL_API_TRUSTED_PROXY_CIDRS: ${INTERNAL_API_TRUSTED_PROXY_CIDRS:-}
 
   emqx:
+    stop_grace_period: 30s
     image: emqx/emqx:5.8.6
     environment:
       # B-11(v2)：EMQX 5 没有 allow_anonymous / EMQX_AUTH__USER__* 这些 4.x 键，写了对 5.x 无效——
@@ -55,6 +65,7 @@ services:
       - ./docker/emqx/auth-bootstrap.production.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
 
   minio:
+    stop_grace_period: 60s
     environment:
       # B-11：强制强密码，无弱默认
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
@@ -62,6 +73,7 @@ services:
 
   # B-28：Grafana 禁止 admin/admin 弱默认
   grafana:
+    stop_grace_period: 30s
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?set GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
@@ -70,9 +82,11 @@ services:
 
   # B-25：XXL-JOB 生产强口令（需叠加 docker-compose.xxljob.yml）
   xxl-job-mysql:
+    stop_grace_period: 60s
     environment:
       MYSQL_ROOT_PASSWORD: ${XXL_JOB_MYSQL_PASSWORD:?set XXL_JOB_MYSQL_PASSWORD}
 
   xxl-job-admin:
+    stop_grace_period: 30s
     environment:
       PARAMS: "--spring.datasource.url=jdbc:mysql://xxl-job-mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true --spring.datasource.username=root --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:?set XXL_JOB_MYSQL_PASSWORD} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?set XXL_JOB_ACCESS_TOKEN}"

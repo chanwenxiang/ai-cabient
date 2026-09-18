@@ -3,6 +3,7 @@
 
 services:
   sms-webhook-mock:
+    stop_grace_period: 30s
     image: python:3.12-slim
     volumes:
       - ../scripts/sms-webhook-mock.py:/app/sms-webhook-mock.py:ro
@@ -19,6 +20,7 @@ services:
     profiles: ["apps"]
 
   trade-service:
+    stop_grace_period: 30s
     environment:
       SPRING_PROFILES_ACTIVE: staging
       AICABINET_STAGING_MODE: "true"
@@ -32,9 +34,12 @@ services:
         condition: service_healthy
 
   vision-service:
+    stop_grace_period: 30s
     build:
       args:
         INSTALL_ML: ${VISION_INSTALL_ML:-true}
     environment:
+      # H69：让 vision-service 识别 staging 为安全环境（拒 MOCK/默认 Key、关 /docs）
+      APP_ENV: staging
       MOCK_ENABLED: ${VISION_MOCK_ENABLED:-false}
       YOLO_AUTO_DOWNLOAD: "true"

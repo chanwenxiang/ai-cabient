@@ -6,6 +6,7 @@ name: ai-cabinet
 
 services:
   postgres:
+    stop_grace_period: 60s
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: aicabinet
@@ -20,10 +21,12 @@ services:
       retries: 30
 
   redis:
+    stop_grace_period: 30s
     image: redis:7-alpine
     ports: ["127.0.0.1:6379:6379"]
 
   emqx:
+    stop_grace_period: 30s
     image: emqx/emqx:5.8.6
     ports:
       # 开发栈仅绑定回环：MQTT/控制台不暴露局域网（手机真机联调走网关 :80 的业务接口即可）
@@ -48,6 +51,7 @@ services:
       - ./docker/emqx/auth-bootstrap.dev.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
 
   minio:
+    stop_grace_period: 60s
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
@@ -59,18 +63,21 @@ services:
     volumes: ["miniodata:/data"]
 
   minio-init:
+    stop_grace_period: 10s
     image: minio/mc:latest
     depends_on: [minio]
     entrypoint: ["/bin/sh", "-c"]
     command: ["until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin}; do sleep 2; done; mc mb --ignore-existing local/${MINIO_BUCKET:-cabinet-videos}; mc ilm add --prefix 'sim/' --expire-days '${MINIO_SIM_RETENTION_DAYS:-7}' local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'videos/' --expire-days '${MINIO_VIDEO_RETENTION_DAYS:-30}' local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'archive/' --expire-days '${MINIO_ARCHIVE_RETENTION_DAYS:-180}' local/${MINIO_BUCKET:-cabinet-videos} || true"]
 
   redpanda:
+    stop_grace_period: 60s
     image: redpandadata/redpanda:v24.1.1
     command: ["redpanda", "start", "--smp", "1", "--memory", "512M", "--overprovisioned", "--kafka-addr", "PLAINTEXT://0.0.0.0:9092", "--advertise-kafka-addr", "PLAINTEXT://redpanda:9092"]
     # Host 9092 often in Windows Hyper-V excluded ranges (e.g. 9083–9182); default 19092.
     ports: ["127.0.0.1:${REDPANDA_PORT:-19092}:9092"]
 
   vision-service:
+    stop_grace_period: 30s
     build:
       context: ..
       dockerfile: infra/docker/vision-service.Dockerfile
@@ -93,12 +100,13 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-cabinet-videos}
       KAFKA_ENABLED: "false"
       KAFKA_BOOTSTRAP: redpanda:9092
-    ports: ["18082:8082"]
+    ports: ["127.0.0.1:18082:8082"]
     depends_on:
       minio-init: { condition: service_completed_successfully }
     restart: unless-stopped
 
   trade-service:
+    stop_grace_period: 30s
     build:
       context: ..
       dockerfile: infra/docker/trade-service.Dockerfile
@@ -189,7 +197,7 @@ services:
       XXL_JOB_EXECUTOR_PORT: ${XXL_JOB_EXECUTOR_PORT:-9999}
       # 容器内 app 用户对 /app 无写权限，日志落到 /tmp
       XXL_JOB_EXECUTOR_LOG_PATH: ${XXL_JOB_EXECUTOR_LOG_PATH:-/tmp/xxl-job/jobhandler}
-    ports: ["18080:8080", "${XXL_JOB_EXECUTOR_PORT:-9999}:9999"]
+    ports: ["127.0.0.1:18080:8080", "${XXL_JOB_EXECUTOR_PORT:-9999}:9999"]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
@@ -201,6 +209,7 @@ services:
 
   # XXL-JOB（随根目录 docker-up.ps1 / full 栈启动；控制台 :18090）
   xxl-job-mysql:
+    stop_grace_period: 60s
     image: mysql:8.0
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
@@ -218,6 +227,7 @@ services:
     restart: unless-stopped
 
   xxl-job-admin:
+    stop_grace_period: 30s
     image: xuxueli/xxl-job-admin:3.4.2
     environment:
       PARAMS: "--spring.datasource.url=jdbc:mysql://xxl-job-mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true --spring.datasource.username=root --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljob} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:-dev-xxl-token}"
@@ -228,6 +238,7 @@ services:
     restart: unless-stopped
 
   device-service:
+    stop_grace_period: 30s
     build:
       context: ..
       dockerfile: Dockerfile.java-service
@@ -242,13 +253,14 @@ services:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-    ports: ["18081:8081"]
+    ports: ["127.0.0.1:18081:8081"]
     depends_on:
       emqx: { condition: service_started }
       trade-service: { condition: service_started }
     restart: unless-stopped
 
   device-simulator:
+    stop_grace_period: 30s
     build: { context: .., dockerfile: edge/device-simulator/Dockerfile }
     command: ["330449777078", "tcp://emqx:1883"]
     environment:
@@ -286,6 +298,7 @@ services:
     restart: unless-stopped
 
   gateway:
+    stop_grace_period: 30s
     image: nginx:alpine
     ports: ["80:80"]
     volumes:
@@ -295,14 +308,16 @@ services:
     depends_on: [trade-service]
 
   prometheus:
+    stop_grace_period: 30s
     image: prom/prometheus:v2.51.0
-    ports: ["9090:9090"]
+    ports: ["127.0.0.1:9090:9090"]
     volumes:
       - "./monitoring/prometheus-full.yml:/etc/prometheus/prometheus.yml:ro"
       - "./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro"
     depends_on: [trade-service, device-service]
 
   grafana:
+    stop_grace_period: 30s
     image: grafana/grafana:10.4.0
     ports: ["${GRAFANA_PORT:-13000}:3000"]
     environment:
@@ -311,8 +326,8 @@ services:
       GF_SERVER_ROOT_URL: ${DEVOPS_GRAFANA_ROOT_URL:-http://localhost/devops/grafana/}
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SECURITY_ALLOW_EMBEDDING: "true"
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # M12：关闭匿名 Viewer——/devops/grafana/ 现要求 Grafana 登录（admin 或运营账号）
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
       # 看板默认中文（Prometheus 原生 UI 无官方中文，日常请用 Grafana）
       GF_USERS_DEFAULT_LANGUAGE: zh-Hans
     volumes:
@@ -324,6 +339,7 @@ services:
   # Alertmanager 无原生飞书 receiver ⇒ 必须有 feishu-alert-relay 这层转换。
   # 本机资源有限，故挂在 profile 下，需要时显式带上 --profile alerting。
   feishu-alert-relay:
+    stop_grace_period: 30s
     image: python:3.12-slim
     profiles: ["alerting"]
     restart: unless-stopped
@@ -337,6 +353,7 @@ services:
     ports: ["${FEISHU_RELAY_PORT:-18098}:8098"]
 
   alertmanager:
+    stop_grace_period: 30s
     image: prom/alertmanager:v0.28.1
     profiles: ["alerting"]
     restart: unless-stopped

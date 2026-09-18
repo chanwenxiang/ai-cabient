@@ -13,6 +13,18 @@ public final class CidrAllowlist {
 
     private CidrAllowlist() {}
 
+    /**
+     * M08：校验文本是否为合法 IPv4 字面量（复用 normalize 兼容 IPv6 回环映射 / host:port 形式），
+     * 供代理头（X-Forwarded-For / X-Real-IP）取值时做格式校验，防止注入任意字符串参与匹配。
+     */
+    public static boolean isIpv4Literal(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String normalized = normalize(value);
+        return normalized.matches("(\\d{1,3}\\.){3}\\d{1,3}") && toIpv4Int(normalized).isPresent();
+    }
+
     public static boolean isAllowed(String remoteAddr, List<String> cidrs) {
         if (cidrs == null || cidrs.isEmpty()) {
             return true;

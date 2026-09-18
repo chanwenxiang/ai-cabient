@@ -204,7 +204,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest httpx
-          PYTHONPATH=vision-service pytest -q vision-service/tests/test_mock_recognizer.py
+          PYTHONPATH=vision-service pytest -q vision-service/tests/test_mock_recognizer.py vision-service/tests/test_ip_guard.py
         working-directory: ${{ github.workspace }}
 
       - name: Upload test results
@@ -508,9 +508,29 @@ jobs:
 
       # 前置：scripts/create-open-dispute.ps1 生成种子；Linux 下等价地由后端接口建单，
       # 若种子缺失脚本会以 exit 2 退出——那属于环境未就绪，不应视为产品回归。
+      # M17：不再 continue-on-error 无条件吞失败；改为失败后重试 1 次（共 2 次，留间隔等环境就绪），
+      # 真实回归（非环境类失败）最终仍会让 job 变红。
       - name: Three-end dispute UAT
-        continue-on-error: true
-        run: UAT_MAX_FAIL="$UAT_MAX_FAIL_DISPUTE" node tests/three-end-dispute-ui-uat.mjs
+        shell: bash
+        run: |
+          set -uo pipefail
+          max=2
+          attempt=1
+          while [ "$attempt" -le "$max" ]; do
+            set +e
+            UAT_MAX_FAIL="$UAT_MAX_FAIL_DISPUTE" node tests/three-end-dispute-ui-uat.mjs
+            code=$?
+            set -e
+            if [ "$code" -eq 0 ]; then
+              exit 0
+            fi
+            echo "dispute UAT attempt ${attempt}/${max} failed (exit ${code})"
+            if [ "$attempt" -eq "$max" ]; then
+              exit "$code"
+            fi
+            attempt=$((attempt + 1))
+            sleep 15
+          done
         working-directory: clients/admin-vue
 
       - name: Upload UAT evidence

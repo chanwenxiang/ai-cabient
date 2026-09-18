@@ -5,6 +5,7 @@ name: ai-cabinet
 
 services:
   postgres:
+    stop_grace_period: 60s
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -20,6 +21,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   redis:
+    stop_grace_period: 30s
     image: redis:7-alpine
     restart: unless-stopped
     ports:
@@ -34,6 +36,7 @@ services:
     cpus: 0.5
 
   emqx:
+    stop_grace_period: 30s
     image: emqx/emqx:5.8.6
     restart: unless-stopped
     ports:
@@ -69,6 +72,7 @@ services:
     cpus: 0.5
 
   minio:
+    stop_grace_period: 60s
     image: minio/minio:latest
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -92,6 +96,7 @@ services:
     cpus: 0.5
 
   redpanda:
+    stop_grace_period: 60s
     image: redpandadata/redpanda:v24.1.1
     command:
       - redpanda
@@ -109,6 +114,7 @@ services:
       - "127.0.0.1:9092:9092"
 
   gateway:
+    stop_grace_period: 30s
     image: nginx:alpine
     ports:
       - "80:80"
@@ -118,10 +124,12 @@ services:
       - "host.docker.internal:host-gateway"
 
   prometheus:
+    stop_grace_period: 30s
     image: prom/prometheus:v2.51.0
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      # 仅回环：指标端点含内部拓扑信息，不暴露局域网/公网
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     mem_limit: 512m
@@ -130,6 +138,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   grafana:
+    stop_grace_period: 30s
     image: grafana/grafana:10.4.0
     restart: unless-stopped
     profiles: ["apps"]

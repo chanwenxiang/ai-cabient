@@ -82,7 +82,8 @@ jobs:
 
       - name: Unit tests + Jacoco
         run: |
-          mvn -B -Dmaven.test.failure.ignore=true test jacoco:report \
+          # M10：测试失败必须让 job 变红（不得 ignore），否则 Sonar 在无报告/坏报告上照常出质量门
+          mvn -B test jacoco:report \
             -pl services/trade-service,services/device-service,services/common/common-core -am
 
       - name: Verify Jacoco reports exist

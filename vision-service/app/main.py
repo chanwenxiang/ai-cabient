@@ -21,17 +21,17 @@ VISION_API_KEY = os.getenv("VISION_API_KEY", "dev-vision-key-change-me")
 RECOGNIZER_BACKEND = os.getenv("RECOGNIZER_BACKEND", "mock")
 # 上传体积上限（B-8）；可用 VISION_UPLOAD_MAX_BYTES 覆盖
 UPLOAD_MAX_BYTES = int(os.getenv("VISION_UPLOAD_MAX_BYTES", str(20 * 1024 * 1024)))
-_IS_PROD = os.getenv("SPRING_PROFILES_ACTIVE", os.getenv("APP_ENV", "")).lower() in (
-    "prod",
-    "production",
-) or os.getenv("VISION_DISABLE_DOCS", "").lower() in ("1", "true", "yes")
+# H69：staging 与 prod 同为安全环境（拒 MOCK/默认 Key、关 /docs）
+_SECURE_PROFILES = ("prod", "production", "stage", "staging")
+_IS_SECURE_ENV = os.getenv("SPRING_PROFILES_ACTIVE", os.getenv("APP_ENV", "")).lower() in _SECURE_PROFILES \
+    or os.getenv("VISION_DISABLE_DOCS", "").lower() in ("1", "true", "yes")
 
 app = FastAPI(
     title="AI Cabinet Vision Service",
     version="0.9.0",
-    docs_url=None if _IS_PROD else "/docs",
-    redoc_url=None if _IS_PROD else "/redoc",
-    openapi_url=None if _IS_PROD else "/openapi.json",
+    docs_url=None if _IS_SECURE_ENV else "/docs",
+    redoc_url=None if _IS_SECURE_ENV else "/redoc",
+    openapi_url=None if _IS_SECURE_ENV else "/openapi.json",
 )
 recognizer = get_recognizer()
 start_kafka_worker(recognizer)
@@ -40,10 +40,10 @@ start_cache_maintenance()
 MOCK_ENABLED = os.getenv("MOCK_ENABLED", "true").lower() == "true"
 VISION_FORCE_REAL = os.getenv("VISION_FORCE_REAL", "false").lower() == "true"
 DEV_VISION_KEY = "dev-vision-key-change-me"
-if _IS_PROD and MOCK_ENABLED:
-    raise RuntimeError("production forbids MOCK_ENABLED=true")
-if _IS_PROD and VISION_API_KEY == DEV_VISION_KEY:
-    raise RuntimeError("production forbids default VISION_API_KEY")
+if _IS_SECURE_ENV and MOCK_ENABLED:
+    raise RuntimeError("secure env (prod/staging) forbids MOCK_ENABLED=true")
+if _IS_SECURE_ENV and VISION_API_KEY == DEV_VISION_KEY:
+    raise RuntimeError("secure env (prod/staging) forbids default VISION_API_KEY")
 if VISION_API_KEY == DEV_VISION_KEY and not MOCK_ENABLED:
     raise RuntimeError("MOCK_ENABLED=false requires a strong VISION_API_KEY (not dev default)")
 if (not MOCK_ENABLED or VISION_FORCE_REAL) and not getattr(recognizer, "available", False):
@@ -71,10 +71,43 @@ def _api_key_ok(provided: str | None) -> bool:
     return hmac.compare_digest(provided, VISION_API_KEY)
 
 
+# ---- H52：来源 CIDR 校验（与 API Key 同时生效，AND） -------------------------------
+# VISION_ALLOWED_CIDRS：逗号分隔 CIDR；空=不限制（保持旧行为兼容）
+# VISION_TRUST_PROXY：仅当确有可信反代时置 true，才读取 X-Forwarded-For / X-Real-IP
+from app.ip_guard import addr_in_networks, parse_cidrs, parse_ip
+
+VISION_ALLOWED_CIDRS_RAW = os.getenv("VISION_ALLOWED_CIDRS", "")
+VISION_ALLOWED_NETWORKS = parse_cidrs(VISION_ALLOWED_CIDRS_RAW)
+VISION_TRUST_PROXY = os.getenv("VISION_TRUST_PROXY", "false").lower() == "true"
+if VISION_ALLOWED_CIDRS_RAW.strip() and not VISION_ALLOWED_NETWORKS:
+    log.warning("VISION_ALLOWED_CIDRS set but no valid entry parsed; CIDR check disabled")
+
+
+def _client_addr(request: Request):
+    if VISION_TRUST_PROXY:
+        xff = request.headers.get("X-Forwarded-For", "")
+        first = xff.split(",")[0].strip() if xff else ""
+        addr = parse_ip(first) if first else None
+        if addr is None:
+            addr = parse_ip(request.headers.get("X-Real-IP", ""))
+        if addr is not None:
+            return addr
+    host = request.client.host if request.client else ""
+    return parse_ip(host or "")
+
+
+def _cidr_ok(request: Request) -> bool:
+    if not VISION_ALLOWED_NETWORKS:
+        return True
+    return addr_in_networks(_client_addr(request), VISION_ALLOWED_NETWORKS)
+
+
 @app.middleware("http")
 async def verify_api_key(request: Request, call_next):
     path = request.url.path
     if path.startswith("/api/"):
+        if not _cidr_ok(request):
+            return JSONResponse(status_code=403, content={"detail": "forbidden"})
         provided = request.headers.get(API_KEY_HEADER)
         if not _api_key_ok(provided):
             return JSONResponse(status_code=401, content={"detail": "unauthorized"})
@@ -173,7 +206,7 @@ class ForceNeedReviewRequest(BaseModel):
 @app.post("/api/v2/vision/debug/force-need-review")
 def debug_force_need_review(req: ForceNeedReviewRequest):
     """Local/E2E helper: toggle mock need_review without recreating the container."""
-    if _IS_PROD or not MOCK_ENABLED:
+    if _IS_SECURE_ENV or not MOCK_ENABLED:
         raise HTTPException(status_code=403, detail="debug endpoint disabled")
     enabled = set_force_need_review(req.enabled)
     return {"ok": True, "mock_force_need_review": enabled}

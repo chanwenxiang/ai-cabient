@@ -557,6 +557,7 @@ export const DICT = {
   ops_alert_type: {
     DISPUTE: '账单争议',
     DEVICE_OFFLINE: '设备离线',
+    SALES_LOCKED: '柜机停售',
     UPLOAD_STUCK: '录像滞留',
     SESSION_STALE: '会话超时',
     LOW_STOCK: '库存不足',
@@ -564,6 +565,12 @@ export const DICT = {
     RECON_MISMATCH: '对账差异',
     RECONCILIATION_MISMATCH: '对账差异',
     SPLIT_EXCEPTION: '分账异常',
+    PROFIT_SHARING_RETURN_FAILED: '分账回退失败',
+    PROFIT_SHARING_MANUAL_SUPPLEMENT: '分账需人工补账',
+    PROFIT_SHARING_RETURN_SUBMIT_FAILED: '分账回退提交失败',
+    XXL_JOB_WIRING_BROKEN: 'XXL-JOB 执行器接线异常',
+    SCHEDULED_TASK_STALE: '定时任务停摆',
+    VISION_ANOMALY: '视觉异常告警',
     IN_TRANSIT_OVERDUE: '签收超时'
   },
   ad_asset_type: { IMAGE: '图片', VIDEO: '视频', H5: 'H5' },
@@ -620,6 +627,18 @@ export const DICT = {
     DIAMOND: '钻石'
   },
   site_contract_status: { ACTIVE: '有效', EXPIRING: '临期', EXPIRED: '已到期' },
+  /** 场地租金账单状态（V255 / SiteRentBillService，值同 CabinetConstants.FEE_BILL_STATUS_*） */
+  site_rent_bill_status: { UNPAID: '待付', PAID: '已付', VOID: '已作废' },
+  /** 柜机流量费账单状态（V256 / DeviceDataFeeBillService，值同 FEE_BILL_STATUS_*） */
+  device_data_fee_bill_status: { UNPAID: '待付', PAID: '已付', VOID: '已作废' },
+  /** 场地租金分账角色（SiteRentSplitService.PARTIES） */
+  site_rent_party_type: {
+    LANDLORD: '场地主',
+    PLATFORM: '平台',
+    MERCHANT: '商户',
+    FRANCHISE: '加盟',
+    OTHER: '其他'
+  },
   device_env_type: { HUMIDITY: '湿度', VOLTAGE: '电压', POWER: '功耗' },
   device_lifecycle_action: {
     BIND: '绑定商户',
