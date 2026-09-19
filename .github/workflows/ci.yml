@@ -108,6 +108,20 @@ jobs:
         env:
           MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
 
+      # O9 种子/结构分离：新增 V 迁移若含数据写语句必须显式声明种类；种子必须走
+      # db/seed/R__seed_*.sql（可重复 + 幂等）。与 migration-safety 同性质：
+      # 依赖基线 ref，故**不进聚合链**（进链会在 PR 里拿错基线 → 假红）。
+      - name: Flyway seed/schema separation gate
+        run: node scripts/check-flyway-seed-separation.mjs
+        env:
+          MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
+
+      # 防绕过自测：把用例写进**真实** Flyway 目录再删（含清理失败即失败）。
+      - name: Flyway seed separation self-test
+        run: node scripts/check-flyway-seed-separation.test.mjs
+        env:
+          MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
+
       - name: Build & Test (trade-service)
         run: mvn verify -DskipITs -pl services/trade-service -am
         env:

@@ -40,13 +40,20 @@ import static org.mockito.Mockito.verify;
  * <p>🔴 **报文一律由模拟器的真实构造器产出**（{@link SimulatorSupport#doorEventPayload} 等），
  * 不在测试里手抄 JSON —— 手抄出来的字段名改坏生产代码也不会红，是**假契约**。
  *
- * <p>覆盖不到的两处（故意的，各有守护者）：
+ * <p>覆盖不到的两处，由**同一个**静态门禁 {@code check:edge-cloud-mqtt-contract}
+ * （{@code scripts/check-edge-cloud-mqtt-contract.mjs}，已入聚合链）兜住：
  * <ul>
  *   <li><b>真机端 Kotlin</b>（{@code edge/android-app} 无 gradlew/ANDROID_HOME，Maven 跑不到）
- *       ⇒ 其硬编码 topic 与报文字段由静态门禁 {@code check:edge-cloud-mqtt-contract} 守护；</li>
- *   <li><b>trade-service 侧端点</b>（本模块测试不依赖 trade-service）⇒ 同上门禁按源码断言
- *       {@code /internal/v1/sessions/door-event} 与 API Key header。</li>
+ *       ⇒ 其硬编码 topic 形状与 {@code payload.type} 取值，与 {@code MqttTopics} /
+ *       {@code CabinetConstants} / {@code proto/cabinet.proto} **三方对账**；</li>
+ *   <li><b>trade-service 侧端点</b>（本模块测试不依赖 trade-service）⇒ 门禁按源码把
+ *       {@code TradeServiceClient} 的 {@code .uri("/internal/…")} 与对端
+ *       {@code @RequestMapping} + {@code @XxxMapping} 拼出的路径逐个比对，
+ *       拼不上即红（否则是**运行期静默 404**，编译期毫无提示）。</li>
  * </ul>
+ *
+ * <p>⚠️ 门禁只管**路径**能不能对上，不管 HTTP 方法与请求体形状（那要端到端测试兜）；
+ * 报文**体内字段**（如 {@code alertType}）也不在它的覆盖面内。
  */
 @ExtendWith(MockitoExtension.class)
 class EdgeCloudMqttContractTest {
@@ -204,8 +211,9 @@ class EdgeCloudMqttContractTest {
      * 边缘告警（{@code EDGE_QUEUE_ABANDON} 等）→ 转运营告警通道。
      *
      * <p>⚠️ 该报文由**真机端 Kotlin** 发出（{@code MqttDeviceClient.kt} 的 {@code publishAlert}），
-     * 模拟器不产生，故此处字段名按真机端约定书写；其与源码的一致性由门禁
-     * {@code check:edge-cloud-mqtt-contract} 守护（Kotlin 侧改字段名会红）。
+     * 模拟器不产生，故此处字段名按真机端约定书写；其 {@code type="ALERT"} 取值与常量集合的
+     * 一致性由门禁 {@code check:edge-cloud-mqtt-contract} 守护（Kotlin 侧改 payload.type 会红）。
+     * {@code alertType} 等**报文体字段**不在门禁覆盖面内，改它们本类不会红。
      */
     @Test
     void alert_fromDeviceClientConvention_reachesOpsAlert() throws Exception {
@@ -295,5 +303,8 @@ class EdgeCloudMqttContractTest {
         assertEquals("DOOR", CabinetConstants.MQTT_EVENT_TYPE_DOOR);
         assertEquals("HEARTBEAT", CabinetConstants.MQTT_EVENT_TYPE_HEARTBEAT);
         assertEquals("ACK", CabinetConstants.MQTT_EVENT_TYPE_ACK);
+        // O4：本类上面就在测 ALERT 分支，常量却一直没断言 —— 补上（否则「测了 ALERT」
+        // 与「常量里没有 ALERT」能同时成立，正是本次抓到的那类裂缝）。
+        assertEquals("ALERT", CabinetConstants.MQTT_EVENT_TYPE_ALERT);
     }
 }

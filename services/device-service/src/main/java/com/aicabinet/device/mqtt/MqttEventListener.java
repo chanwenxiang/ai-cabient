@@ -27,9 +27,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MqttEventListener implements MqttCallbackExtended {
     private static final String CURRENT_TEMP_C = "current_temp_c";
     private static final String CURRENTTEMPC = "currentTempC";
-    private static final String EVENT_TYPE_ACK = "ACK";
-    private static final String EVENT_TYPE_ALERT = "ALERT";
-
+    // O4（2026-09-19）：原先这里各有一份 `EVENT_TYPE_ACK = "ACK"` / `EVENT_TYPE_ALERT = "ALERT"`
+    // 局部副本，与 CabinetConstants.MQTT_EVENT_TYPE_* 是**同一事实的两处定义** —— 改一处忘另一处
+    // 就是静默漂移。统一收敛到 CabinetConstants（本类其余分支早已用它）。
     /** C11：同一消息连续处理失败达到该次数后 ACK 丢弃（防重投风暴）。 */
     private static final int MAX_DELIVERY_FAILURES = 3;
 
@@ -131,10 +131,10 @@ public class MqttEventListener implements MqttCallbackExtended {
             } else if (CabinetConstants.MQTT_EVENT_TYPE_HEARTBEAT.equals(type)) {
                 handleHeartbeat(topic, node);
                 acknowledgeMessage(topic, message);
-            } else if (EVENT_TYPE_ACK.equals(type)) {
+            } else if (CabinetConstants.MQTT_EVENT_TYPE_ACK.equals(type)) {
                 handleAck(topic, node);
                 acknowledgeMessage(topic, message);
-            } else if (EVENT_TYPE_ALERT.equals(type)) {
+            } else if (CabinetConstants.MQTT_EVENT_TYPE_ALERT.equals(type)) {
                 handleAlert(topic, node);
                 acknowledgeMessage(topic, message);
             } else {

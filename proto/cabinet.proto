@@ -5,6 +5,24 @@ package aicabinet;
 option java_package = "com.aicabinet.proto";
 option java_multiple_files = true;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ⚠️ 权威性口径（O4 治理，2026-09-19）
+//
+// 本文件**不是**运行时权威。线上协议是 **JSON over MQTT**，权威定义在两处 Java：
+//   · topic 形状   → services/common/common-core/.../mqtt/MqttTopics.java
+//   · 命令/事件集合 → services/common/common-core/.../constants/CabinetConstants.java
+//
+// 本文件是**与上面两者对齐的文档化契约**，由 scripts/check-edge-cloud-mqtt-contract.mjs
+// 守卫：proto / Java 常量 / edge Kotlin 硬编码，三方任一漂移 ⇒ 门禁红。
+//
+// 🔴 本文件**不参与代码生成**（仓库 pom / gradle 里 `protobuf|protoc` 零命中），
+//    因此不要假设存在生成产物；它的价值只有一个 —— 被门禁拿来对账。
+//
+// 🔴 命名约定（门禁依赖，勿破坏）：下行 oneof 字段名 `upper_snake` 后必须**逐字等于**
+//    `CabinetConstants.MQTT_CMD_*` 的取值；上行 oneof 字段名同理等于 `MQTT_EVENT_TYPE_*`。
+//    例如 oneof 字段 `set_target_temp` ⟷ 常量值 `SET_TARGET_TEMP`。
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── 枚举 ──────────────────────────────────────────
 
 enum DoorState {
@@ -46,38 +64,47 @@ enum RecognitionSource {
   SOURCE_FUSION = 2;
 }
 
-// ── 下行指令（云端 → 设备）────────────────────────
+// ── 下行指令（云端 → 设备）：topic = MqttTopics.command(deviceId) ──
 
 message OpenDoorCommand {
-  string session_id = 1;
-  string user_id = 2;
-  int64 expire_at = 3;
-  bool operator_mode = 4;
+  string command_id = 1;
+  string session_id = 2;
+  int64 user_id = 3;
+  int64 expire_at = 4;
+  bool operator_mode = 5;
 }
 
-message ForceCloseCommand {
-  string session_id = 1;
-  string reason = 2;
+message SetTargetTempCommand {
+  int32 target_celsius = 1;
 }
 
-message OtaUpgradeCommand {
-  string target_version = 1;
-  string download_url = 2;
-  string checksum_sha256 = 3;
-  bool mandatory = 4;
+message LockCommand {
+  string reason = 1;
 }
 
+message UnlockCommand {
+  string reason = 1;
+}
+
+message RebootCommand {
+  string reason = 1;
+}
+
+// 信封字段 `type` 即 MQTT 报文里的 `type` 字段，取值 ∈ MQTT_CMD_*。
 message DeviceCommand {
   string command_id = 1;
+  string type = 2;
   int64 timestamp = 3;
   oneof payload {
     OpenDoorCommand open_door = 10;
-    ForceCloseCommand force_close = 11;
-    OtaUpgradeCommand ota_upgrade = 12;
+    SetTargetTempCommand set_target_temp = 11;
+    LockCommand lock = 12;
+    UnlockCommand unlock = 13;
+    RebootCommand reboot = 14;
   }
 }
 
-// ── 上行事件（设备 → 云端）────────────────────────
+// ── 上行事件（设备 → 云端）：topic = MqttTopics.event(deviceId) ──
 
 message VideoClip {
   string camera = 1;       // TOP / SIDE
@@ -110,27 +137,26 @@ message Heartbeat {
   map<string, string> metrics = 5;
 }
 
-message VideoChunkMeta {
-  string session_id = 1;
-  string chunk_id = 2;
-  int32 sequence = 3;
-  int32 total_chunks = 4;
-  string storage_uri = 5;
-  int64 duration_ms = 6;
+message AlertEvent {
+  string alert_type = 1;
+  string message = 2;
+  int64 timestamp = 3;
 }
 
+// 信封字段 `type` 即 MQTT 报文里的 `type` 字段，取值 ∈ MQTT_EVENT_TYPE_*。
 message DeviceEvent {
   string device_id = 1;
-  int64 timestamp = 2;
+  string type = 2;
+  int64 timestamp = 3;
   oneof payload {
     DoorEvent door = 10;
     CommandAck ack = 11;
     Heartbeat heartbeat = 12;
-    VideoChunkMeta video_chunk = 13;
+    AlertEvent alert = 13;
   }
 }
 
-// ── 识别结果 ──────────────────────────────────────
+// ── 识别结果（HTTP，非 MQTT）────────────────────────
 
 message LineItem {
   string sku_id = 1;

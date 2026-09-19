@@ -63,3 +63,40 @@ pnpm check:migration-safety
 - `TABLES:` 非空（表名与估行数）
 
 禁止只写 `MIGRATION_REVIEWED: yes` 空头豁免。`LOCK_RISK: high` 时 NOTES 同样强制非空。
+
+## 6. 种子数据与结构分离（O9，2026-09-19）
+
+`db/migration/` 里 277 个迁移中，种子数据一直与结构 DDL 混在一起
+（`V11__production_sku_seed`、`V25__demo_catalog_seed`、`V56__vision_mapping_seed`、
+`V134/V135__seed_*`、`V222/V223__*_seed`、`V252__seed_*`、`V275__scheduled_task_seed_gap` …）。
+后果：改一次种子就要吃掉一个不可变的版本号；「当前基线长什么样」没人能一眼看出。
+
+**新约定（只向前生效）：**
+
+| | 位置 | 前缀 | 语义 |
+|---|---|---|---|
+| 结构 | `db/migration/` | `V*` | 一次性、checksum 不可变 |
+| 种子 | `db/seed/` | `R__seed_*` | **可重复**，checksum 变了就重跑 ⇒ **必须幂等** |
+
+`spring.flyway.locations` 已含 `classpath:db/seed`（见 `application.yml`）。
+
+**新增 `V*.sql` 的规则：**
+
+- 含数据写语句（`INSERT INTO` / `UPDATE … SET` / `DELETE FROM` / `TRUNCATE`）⇒ 必须声明一行
+  `-- MIGRATION_KIND: backfill`（一次性数据修复，V 的正当用途）或 `-- MIGRATION_KIND: schema`；
+- 声明 `MIGRATION_KIND: seed` ⇒ **直接红**（种子不许留在 V 里，请移入 `db/seed/R__seed_*.sql`）；
+- 声明 `schema` 却写数据 ⇒ 红（二者矛盾）。
+
+**`R__seed_*.sql` 的规则：** 文件名必须 `R__seed_<用途>.sql`；必须幂等
+（至少出现 `ON CONFLICT` 或 `WHERE NOT EXISTS`）；禁止 `TRUNCATE` 与无条件 `DELETE FROM`。
+生产保护沿用 `seed_env` 占位符（prod 固定 `none`）。
+
+**历史迁移怎么办 —— 不动。** 已应用的 `V*.sql` 一旦改写就是 checksum 漂移，需要每台已应用环境
+`flyway repair`；门禁按「相对基线新增」判定，277 个历史迁移天然 grandfather。
+不要为了「看起来整齐」去重构历史迁移。
+
+```bash
+pnpm check:flyway-seed-separation        # 门禁（CI 步骤同样跑，带 PR 基线 ref）
+node scripts/check-flyway-seed-separation.test.mjs   # 自带 A/B 自测（10 用例）
+```
+

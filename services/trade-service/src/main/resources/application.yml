@@ -31,7 +31,10 @@ spring:
       port: ${REDIS_PORT:6379}
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    locations: classpath:db/migration,classpath:db/seed
+    # O9 种子/结构分离：db/migration 只放结构（V*.sql，一次性、checksum 不可变）；
+    # db/seed 放**可重复**种子（R__seed_*.sql，幂等，checksum 变了就重跑）。
+    # 由 check:flyway-seed-separation 守；历史 277 个迁移不动（改动已应用迁移 = checksum 漂移）。
     # PostgreSQL：Flyway 使用 advisory lock，多实例启动时串行迁移（见 docs/HIGH_AVAILABILITY.md）
     # C01+H15: 种子迁移环境守卫 —— UAT/本地种子迁移（V244/V252/V253/V254/V262 等）的写语句
     # 仅在 seed-env ∈ (local,dev,uat) 时生效；生产 profile 固定 seed-env: none。

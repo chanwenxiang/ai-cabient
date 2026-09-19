@@ -57,6 +57,10 @@ public final class CabinetConstants {
     public static final String MQTT_EVENT_TYPE_DOOR = "DOOR";
     public static final String MQTT_EVENT_TYPE_HEARTBEAT = "HEARTBEAT";
     public static final String MQTT_EVENT_TYPE_ACK = "ACK";
+    /** O4（2026-09-19）：edge 侧 `publishAlert` 与 `EDGE_QUEUE_ABANDON` 都在发 `type=ALERT`，
+     *  device-service `MqttEventListener` 也真的在分发它；此前只在监听器里**局部**定义过，
+     *  与 CDC 契约（proto/edge）对不上账 ⇒ 收敛到这里。 */
+    public static final String MQTT_EVENT_TYPE_ALERT = "ALERT";
 
     public static final String MQTT_CMD_OPEN_DOOR = "OPEN_DOOR";
     public static final String MQTT_CMD_SET_TARGET_TEMP = "SET_TARGET_TEMP";
