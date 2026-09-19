@@ -514,6 +514,10 @@ public class WarehouseService {
             if (o.getOutboundId().equals(task.getOutboundId())) {
                 task.setOutboundId(null);
                 taskRepository.save(task);
+                // M01：updateById 忽略 null 列，outbound_id 清列须 wrapper 显式 set(null)
+                taskRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<ReplenishmentTask>lambdaUpdate()
+                        .eq(ReplenishmentTask::getTaskId, task.getTaskId())
+                        .set(ReplenishmentTask::getOutboundId, null));
             }
         }
         outboundRepository.deleteById(o.getOutboundId());
@@ -546,6 +550,10 @@ public class WarehouseService {
             if (outboundId.equals(task.getOutboundId())) {
                 task.setOutboundId(null);
                 taskRepository.save(task);
+                // M01：updateById 忽略 null 列，outbound_id 清列须 wrapper 显式 set(null)
+                taskRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<ReplenishmentTask>lambdaUpdate()
+                        .eq(ReplenishmentTask::getTaskId, task.getTaskId())
+                        .set(ReplenishmentTask::getOutboundId, null));
             }
         }
     }

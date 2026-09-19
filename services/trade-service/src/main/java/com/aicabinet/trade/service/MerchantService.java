@@ -168,8 +168,11 @@ public class MerchantService {
             }
             merchant.setParentMerchantId(parent.getMerchantId());
         } else if (request.parentMerchantId() != null) {
-            // 显式传空串：清空上级
+            // 显式传空串：清空上级（M01：updateById 忽略 null 列，须 wrapper 显式 set(null)）
             merchant.setParentMerchantId(null);
+            merchantRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<Merchant>lambdaUpdate()
+                    .eq(Merchant::getMerchantId, merchantId)
+                    .set(Merchant::getParentMerchantId, null));
         }
         merchantRepository.save(merchant);
         auditService.appendLog(operatorId, isNew ? "MERCHANT_CREATE" : "MERCHANT_UPDATE",

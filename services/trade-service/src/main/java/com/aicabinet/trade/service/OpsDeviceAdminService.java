@@ -376,6 +376,10 @@ public class OpsDeviceAdminService {
         device.setImei(null);
         device.setOnlineStatus("OFFLINE");
         device.setOnlineSince(null);
+        // M01：updateById 忽略 null 列，imei/online_since 清列须 wrapper 显式 set(null)
+        deviceRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<DeviceInfo>lambdaUpdate()
+                .eq(DeviceInfo::getDeviceId, deviceId)
+                .set(DeviceInfo::getImei, null));
         deviceRepository.clearOnlineSince(deviceId);
         device.markHeartbeatReceived();
         deviceRepository.save(device);

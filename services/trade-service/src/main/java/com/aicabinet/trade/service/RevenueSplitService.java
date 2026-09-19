@@ -149,6 +149,10 @@ public class RevenueSplitService {
             split.setStatus(VOIDED);
             split.setFailureReason(null);
             splitRepository.save(split);
+            // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
+            splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
+                    .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                    .set(OrderRevenueSplit::getFailureReason, null));
             log.info("分账已冲正（全额退款） order={} splitId={}", orderId, split.getSplitId());
         });
     }
@@ -262,6 +266,10 @@ public class RevenueSplitService {
             split.setFailureReason(null);
         }
         splitRepository.save(split);
+        // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
+        splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
+                .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                .set(OrderRevenueSplit::getFailureReason, null));
         log.warn("split adjusted after partial refund (submitted wechat) order={} splitId={} oldMerchant={} newMerchant={} returnCents={} pendingReturn={}",
                 order.getOrderId(), split.getSplitId(), oldMerchantCents, merchantShare, returnCents,
                 split.getWechatPendingReturnNo());
@@ -378,7 +386,12 @@ public class RevenueSplitService {
         split.setStatus(SETTLED);
         split.setSettledAt(java.time.Instant.now());
         split.setFailureReason(null);
-        return splitRepository.save(split);
+        splitRepository.save(split);
+        // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
+        splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
+                .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                .set(OrderRevenueSplit::getFailureReason, null));
+        return split;
     }
 
     /** 账本型分账（无微信分账接收方）同步入商户可提现钱包，幂等按 splitId。 */

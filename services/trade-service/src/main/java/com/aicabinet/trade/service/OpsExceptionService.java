@@ -215,6 +215,10 @@ public class OpsExceptionService {
             item.setArchived(false);
             item.setArchivedAt(null);
             repository.save(item);
+            // M01：updateById 忽略 null 列，archived_at 清列须 wrapper 显式 set(null)
+            repository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OpsException>lambdaUpdate()
+                    .eq(OpsException::getExceptionId, item.getExceptionId())
+                    .set(OpsException::getArchivedAt, null));
             support.auditService().appendLog(operatorId, "OPS_EXCEPTION_UNARCHIVE", OPS_EXCEPTION, exceptionId,
                     "异常取消归档：" + item.getExceptionId());
             return toDto(item);

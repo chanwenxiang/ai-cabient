@@ -1,5 +1,9 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.domain.Merchant;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.aicabinet.common.dto.UpsertMerchantRequest;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
@@ -22,6 +26,13 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MerchantConcurrencyTest {
+    static {
+        // M01 门禁修复引入 LambdaUpdateWrapper：纯 Mockito 环境需手动注册 TableInfo 缓存
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                Merchant.class);
+    }
+
 
     @Mock private MerchantMapper merchantRepository;
     @Mock private DeviceInfoMapper deviceRepository;

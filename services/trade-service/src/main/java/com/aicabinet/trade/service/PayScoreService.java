@@ -278,6 +278,10 @@ public class PayScoreService {
         if (user.getAlipayAgreementId() != null && !user.getAlipayAgreementId().isBlank()) {
             user.setAlipayAgreementId(null);
             userInfoRepository.save(user);
+            // M01：updateById 忽略 null 列，alipay_agreement_id 清列须 wrapper 显式 set(null)
+            userInfoRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<UserInfo>lambdaUpdate()
+                    .eq(UserInfo::getUserId, user.getUserId())
+                    .set(UserInfo::getAlipayAgreementId, null));
         }
         // 协议状态无独立存储列：以 WARN 日志留痕，供审计/客服检索
         log.warn("alipay agreement released user={} status={} agreementCleared=true", userId, status);

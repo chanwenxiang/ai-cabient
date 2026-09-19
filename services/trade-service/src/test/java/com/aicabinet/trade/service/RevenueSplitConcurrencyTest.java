@@ -1,5 +1,8 @@
 package com.aicabinet.trade.service;
 
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
@@ -24,6 +27,13 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class RevenueSplitConcurrencyTest {
+    static {
+        // M01 门禁修复引入 LambdaUpdateWrapper：纯 Mockito 环境需手动注册 TableInfo 缓存
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                OrderRevenueSplit.class);
+    }
+
 
     @Mock private OrderRevenueSplitMapper splitRepository;
     @Mock private DeviceInfoMapper deviceRepository;

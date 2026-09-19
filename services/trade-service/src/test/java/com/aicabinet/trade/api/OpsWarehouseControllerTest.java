@@ -1,5 +1,9 @@
 package com.aicabinet.trade.api;
 
+import com.aicabinet.trade.domain.ReplenishmentTask;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.WarehouseDto;
@@ -34,6 +38,13 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class OpsWarehouseControllerTest {
+    static {
+        // M01 门禁修复引入 LambdaUpdateWrapper：纯 Mockito 环境需手动注册 TableInfo 缓存
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                ReplenishmentTask.class);
+    }
+
 
     @Mock WarehouseStocktakeService warehouseStocktakeService;
     @Mock WarehouseBinService warehouseBinService;

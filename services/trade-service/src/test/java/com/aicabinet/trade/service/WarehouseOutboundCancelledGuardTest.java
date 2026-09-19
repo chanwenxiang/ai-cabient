@@ -1,5 +1,9 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.domain.ReplenishmentTask;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.aicabinet.trade.domain.WarehouseOutbound;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.mapper.*;
@@ -30,6 +34,13 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class WarehouseOutboundCancelledGuardTest {
+    static {
+        // M01 门禁修复引入 LambdaUpdateWrapper：纯 Mockito 环境需手动注册 TableInfo 缓存
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                ReplenishmentTask.class);
+    }
+
 
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private WarehouseInventoryMapper inventoryRepository;

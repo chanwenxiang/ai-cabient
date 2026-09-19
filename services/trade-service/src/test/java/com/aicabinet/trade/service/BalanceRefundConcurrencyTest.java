@@ -1,5 +1,9 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.domain.BalanceRefundRequest;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.mapper.BalanceRefundAllocationMapper;
 import com.aicabinet.trade.mapper.BalanceRefundRequestMapper;
@@ -23,6 +27,13 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class BalanceRefundConcurrencyTest {
+    static {
+        // M01 门禁修复引入 LambdaUpdateWrapper：纯 Mockito 环境需手动注册 TableInfo 缓存
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                BalanceRefundRequest.class);
+    }
+
 
     @Mock private BalanceRefundRequestMapper requestMapper;
     @Mock private BalanceRefundAllocationMapper allocationMapper;

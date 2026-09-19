@@ -77,7 +77,12 @@ public class WeChatProfitSharingService {
         if (split.getMerchantCents() <= 0) {
             split.setStatus(LEDGER_ONLY);
             split.setFailureReason(null);
-            return splitRepository.save(split);
+            splitRepository.save(split);
+            // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
+            splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
+                    .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                    .set(OrderRevenueSplit::getFailureReason, null));
+            return split;
         }
         if (WECHAT_SUBMITTED.equals(split.getStatus())) {
             return split;
@@ -97,7 +102,12 @@ public class WeChatProfitSharingService {
             split.setFailureReason(null);
             log.info("mock profit sharing submitted splitId={} orderId={} wxTxn={}",
                     split.getSplitId(), split.getOrderId(), trimmedWxTxn);
-            return splitRepository.save(split);
+            splitRepository.save(split);
+            // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
+            splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
+                    .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                    .set(OrderRevenueSplit::getFailureReason, null));
+            return split;
         }
 
         Map<String, Object> receiver = new LinkedHashMap<>();
@@ -285,12 +295,22 @@ public class WeChatProfitSharingService {
                 split.setWechatPendingReturnCents(null);
                 split.setFailureReason(null);
                 splitRepository.save(split);
+                // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
+                splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
+                        .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                        .set(OrderRevenueSplit::getWechatPendingReturnNo, null)
+                        .set(OrderRevenueSplit::getWechatPendingReturnCents, null)
+                        .set(OrderRevenueSplit::getFailureReason, null));
                 log.info("profit sharing return confirmed splitId={} order={}", split.getSplitId(), split.getOrderId());
                 return true;
             }
             case PROCESSING -> {
                 split.setFailureReason(null);
                 splitRepository.save(split);
+                // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
+                splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
+                        .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                        .set(OrderRevenueSplit::getFailureReason, null));
                 return false;
             }
             case FAILED -> {

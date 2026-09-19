@@ -397,6 +397,10 @@ public class BalanceRefundService {
         req.setFailReason(null);
         req.setUpdatedAt(Instant.now());
         requestMapper.updateById(req);
+        // M01：updateById 忽略 null 列，fail_reason 清列须 wrapper 显式 set(null)
+        requestMapper.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<BalanceRefundRequest>lambdaUpdate()
+                .eq(BalanceRefundRequest::getRequestId, req.getRequestId())
+                .set(BalanceRefundRequest::getFailReason, null));
         auditService.appendLog(req.getReviewerId() == null ? 0L : req.getReviewerId(),
                 "BALANCE_REFUND_APPROVE", BIZ_BALANCE_REFUND, String.valueOf(req.getRequestId()),
                 "通过并原路退款 " + req.getRequestNo()

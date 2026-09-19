@@ -1,5 +1,8 @@
 package com.aicabinet.trade.service;
 
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.junit.jupiter.api.Test;
@@ -25,6 +28,13 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PayScoreAlipayAgreementTest {
+    static {
+        // M01 门禁修复引入 LambdaUpdateWrapper：纯 Mockito 环境需手动注册 TableInfo 缓存
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                UserInfo.class);
+    }
+
 
     @Mock UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.config.PayScoreProperties payScoreProperties;
