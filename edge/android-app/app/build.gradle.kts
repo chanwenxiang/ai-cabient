@@ -52,6 +52,13 @@ android {
         viewBinding = true
     }
 
+    // JVM 单元测试（testMockDebugUnitTest / testDeviceDebugUnitTest）。
+    // isReturnDefaultValues：android.util.Log 等未打桩的框架方法返回默认值，
+    // 而不是抛 "Stub!" —— 纯逻辑用例不必为了避 Log 而强引 Robolectric。
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -77,4 +84,7 @@ dependencies {
     implementation("androidx.camera:camera-video:$camerax")
     implementation("androidx.lifecycle:lifecycle-service:2.7.0")
     implementation("com.licheedev:android-serialport:2.1.2")
+
+    // 单元测试（JVM，无需真机/模拟器）。AGP 的 testMockDebugUnitTest 任务用 junit4 跑。
+    testImplementation("junit:junit:4.13.2")
 }

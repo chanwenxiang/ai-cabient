@@ -23,7 +23,11 @@ class ChzhSerialPort(
         if (!device.exists()) {
             throw IllegalStateException("serial device not found: $devicePath")
         }
-        serialPort = SerialPort(device, baudRate, 0)
+        // android-serialport 2.1.2 **没有 3 参构造器** —— javap 实证只有
+        // (File,int) / (File,int,int,int,int) / (File,int,int,int,int,int)。
+        // 2 参形式在字节码里委托为 dataBits=8, parity=0, stopBits=1, flags=0，
+        // 正是本类需要的 19200 8N1，与原先 `(device, baudRate, 0)` 的意图等价。
+        serialPort = SerialPort(device, baudRate)
         input = serialPort!!.inputStream
         output = serialPort!!.outputStream
         Log.i(TAG, "serial opened path=$devicePath baud=$baudRate")

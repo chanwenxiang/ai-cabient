@@ -1,0 +1,21 @@
+PASS  G1 把 app/src/test 整个移走 ⇒ 红
+        exit=1 ✓（按预期红）
+PASS  G2 把所有测试文件的 @Test 改名 ⇒ 红
+        exit=1 ✓（按预期红）
+PASS  G3 删掉 testImplementation(junit) ⇒ 红
+        exit=1 ✓（按预期红）
+PASS  G4 把 productFlavors 的 mock 改名 ⇒ 红
+        exit=1 ✓（按预期红）
+PASS  G5 把 CI 的 gradle 那行整行注释掉 ⇒ 红
+        exit=1 ✓（按预期红）
+PASS  G6 移除 <testcase> 计数判据 ⇒ 红
+        exit=1 ✓（按预期红）
+PASS  G8 CI 改用 ./gradlew（仓库无 wrapper）⇒ 红
+        exit=1 ✓（按预期红）
+PASS  G7 反假红：只在 job 里加注释提到 testcase / test-results / ./gradlew ⇒ 必须仍绿
+        exit=0 ✓（反假红：仍绿）
+
+[gate-drift] 8/8 符合期望（文件已还原）
+  sha256 20140ac1790106e6d21c809857a981676289798ed2737901ca83cd8a3332fafa  app/build.gradle.kts
+  sha256 d9bab5496071caef8641d259fd1f0aa72deca2955f44c1e718ebb468addfc04e  .github/workflows/ci.yml
+  sha256 4f419fa61149a84d9411ab86bf98775888bf0c4a7d3cde87b6024d47f7f14d19  scripts/check-android-tests-wired.mjs

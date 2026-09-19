@@ -166,7 +166,10 @@ class MqttDeviceClient(
 
     private fun publishNow(topic: String, payload: ByteArray, qos: Int): Boolean {
         if (!::client.isInitialized || !client.isConnected) return false
-        val msg = MqttMessage(payload).apply { qos = 1 }
+        // 必须写 `this.qos`：裸写 `qos = 1` 会解析到**外层函数参数** `publishNow(..., qos: Int)`，
+        // 函数参数是 val ⇒ 编译报 "Val cannot be reassigned"（Kotlin 简单名优先绑局部变量，
+        // 再考虑隐式接收者）。别把 `this.` 删掉。
+        val msg = MqttMessage(payload).apply { this.qos = 1 }
         return runCatching {
             msg.qos = qos
             client.publish(topic, msg)

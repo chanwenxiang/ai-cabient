@@ -1,0 +1,7 @@
+[check-android-tests-wired] OK（测试文件 6 个／含 @Test 6 个；flavor ["mock","device"] 与 CI 任务名一致；CI 有 <testcase> 计数判据）
+  · app/src/test/java/com/aicabinet/edge/config/EdgeRuntimeConfigTest.kt
+  · app/src/test/java/com/aicabinet/edge/config/KeystoreCipherTest.kt
+  · app/src/test/java/com/aicabinet/edge/hal/chzh/ChzhLockDriverFeedbackTest.kt
+  · app/src/test/java/com/aicabinet/edge/mqtt/OutboundMqttQueueCriticalTest.kt
+  · app/src/test/java/com/aicabinet/edge/video/RecordingResultTest.kt
+  · app/src/test/java/com/aicabinet/edge/video/VideoClipJsonTest.kt

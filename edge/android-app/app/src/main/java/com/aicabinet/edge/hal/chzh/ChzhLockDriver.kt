@@ -85,19 +85,30 @@ class ChzhLockDriver(
     }
 
     private fun parseDoorFeedback(text: String) {
-        val upper = text.uppercase()
-        synchronized(stateLock) {
-            when {
-                upper.contains("DOOR=C") || upper.contains("DOOR=0") || upper.contains("CLOSED") ->
-                    state = DoorState.CLOSED
-                upper.contains("DOOR=O") || upper.contains("DOOR=1") || upper.contains("OPEN") ->
-                    state = DoorState.OPEN
-            }
-        }
+        val next = doorStateFromFeedback(text) ?: return
+        synchronized(stateLock) { state = next }
     }
 
     companion object {
         private const val TAG = "ChzhLockDriver"
         val UNLOCK_CMD: ByteArray = "L1@200\r\n".toByteArray()
+
+        /**
+         * 串口回包 → 门状态；**无法识别时返回 null**，由调用方保持原状态不变。
+         *
+         * 抽成纯函数是为可测：门磁判错会让 CabinetController 误判「门已关/未关」——
+         * 早关会把还在购物的用户锁在门外流程外，晚关则让会话一直挂着。
+         * 行为与抽取前逐字一致（原来无匹配分支就是什么都不做）。
+         */
+        internal fun doorStateFromFeedback(text: String): DoorState? {
+            val upper = text.uppercase()
+            return when {
+                upper.contains("DOOR=C") || upper.contains("DOOR=0") || upper.contains("CLOSED") ->
+                    DoorState.CLOSED
+                upper.contains("DOOR=O") || upper.contains("DOOR=1") || upper.contains("OPEN") ->
+                    DoorState.OPEN
+                else -> null
+            }
+        }
     }
 }

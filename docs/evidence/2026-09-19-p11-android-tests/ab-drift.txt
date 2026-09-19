@@ -1,0 +1,29 @@
+预检通过：8 个锚点各命中 1 次
+
+PASS  D1 CRITICAL_TYPES 去掉 DOOR ⇒ 红
+      exit=1 失败用例=['type 判定大小写不敏感', 'DOOR 类型的 payload 视为关键']
+PASS  D2 取消 payload.type 分支（只按 topic 判）⇒ 红
+      exit=1 失败用例=['type 判定大小写不敏感', 'ACK 与 ALERT 均为关键类型', '有 type 时不再回看 topic —— 心跳不会被误判为关键', 'type 显式为 JSON null 时不回退 topic，按非关键处理', 'DOOR 类型的 payload 视为关键']
+PASS  D3 门磁解析调换分支顺序（打开优先）⇒ 红
+      exit=1 失败用例=['关闭分支优先于打开分支']
+PASS  D4 capturedAt 写成常量 0 ⇒ 红（首版漂移证明旧判据恒真，见 README）
+      exit=1 失败用例=['capturedAt 落在本次调用窗口内 —— 不是常量、不是 0、不是秒级']
+PASS  D5 isPlaceholderDeviceId 加 trim ⇒ 红（分层契约被改）
+      exit=1 失败用例=['带空白的 CAB-001 不算占位（trim 责任在调用方）']
+PASS  D6 fusionMode 边界改成 > 2 ⇒ 红
+      exit=1 失败用例=['两路及以上为 MULTI 且主文件取第一路']
+PASS  D7 密文前缀 enc:v1: → enc:v2: ⇒ 红
+      exit=1 失败用例=['带前缀的负载判为密文', '前缀完整但负载为空仍判为密文（长度校验不在这里）', '版本前缀不匹配时按明文处理而非尝试解密']
+PASS  R1 仅加注释（语义等价）⇒ 必须仍绿
+      exit=0 失败用例=[]
+
+=== 逐字节还原校验 ===
+ok   OutboundMqttQueue.kt  sha256=一致
+ok   ChzhLockDriver.kt  sha256=一致
+ok   VideoClipJson.kt  sha256=一致
+ok   EdgeRuntimeConfig.kt  sha256=一致
+ok   RecordingResult.kt  sha256=一致
+ok   KeystoreCipher.kt  sha256=一致
+
+=== 结论：8/8 符合期望；还原 一致 ===
+AB_EXIT=0

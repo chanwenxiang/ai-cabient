@@ -1,0 +1,45 @@
+Starting a Gradle Daemon, 4 incompatible and 3 stopped Daemons could not be reused, use --status for details
+> Task :app:checkKotlinGradlePluginConfigurationErrors
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preMockDebugBuild UP-TO-DATE
+> Task :app:generateMockDebugResValues
+> Task :app:generateMockDebugResources
+> Task :app:dataBindingMergeDependencyArtifactsMockDebug
+> Task :app:packageMockDebugResources
+> Task :app:generateMockDebugBuildConfig
+> Task :app:mapMockDebugSourceSetPaths
+> Task :app:parseMockDebugLocalResources
+> Task :app:createMockDebugCompatibleScreenManifests
+> Task :app:checkMockDebugAarMetadata
+> Task :app:extractDeepLinksMockDebug
+> Task :app:mergeMockDebugResources
+> Task :app:processMockDebugMainManifest
+> Task :app:dataBindingGenBaseClassesMockDebug
+> Task :app:processMockDebugManifest
+> Task :app:preMockDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileMockDebugUnitTest
+> Task :app:javaPreCompileMockDebug
+> Task :app:processMockDebugManifestForPackage
+> Task :app:processMockDebugResources
+
+> Task :app:compileMockDebugKotlin
+w: file:///C:/Users/cwx/AppData/Local/Temp/aicabinet-android-build/app/src/main/java/com/aicabinet/edge/service/CabinetController.kt:257:23 Parameter 'context' is never used
+
+> Task :app:compileMockDebugJavaWithJavac
+> Task :app:bundleMockDebugClassesToRuntimeJar
+> Task :app:bundleMockDebugClassesToCompileJar
+> Task :app:processMockDebugJavaRes
+> Task :app:compileMockDebugUnitTestKotlin
+> Task :app:compileMockDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processMockDebugUnitTestJavaRes
+> Task :app:testMockDebugUnitTest
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.9/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 50s
+26 actionable tasks: 26 executed
+GRADLE_EXIT=0

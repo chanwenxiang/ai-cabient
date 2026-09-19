@@ -760,3 +760,95 @@ jobs:
             h5-3001.log
             h5-3002.log
           if-no-files-found: ignore
+
+  # ── Android 真机端（edge/android-app）单测 ─────────────────────────────────────
+  # 这一端此前**从不被 CI 碰过**：它是 Gradle Kotlin DSL、不在 Maven reactor 里，
+  # 本机/CI 都没有 ANDROID_HOME ⇒ 长期被登记为「不可构建」。装上 SDK 后它跑得起来，
+  # 缺口于是从「跑不了」变成「没人调」（门禁失效形态①）—— 本 job 就是那个调用者。
+  #
+  # SDK 与 Gradle 依赖都走 cache：无 cache 时这一步要下 ~200MB SDK + 首次依赖解析，
+  # 有 cache 时只剩编译与执行。
+  edge-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 仓库**不含 gradle wrapper**（无 gradlew / gradle-wrapper.jar，已取证），
+      # 所以不能写 `./gradlew`。改用官方 action 装指定发行版，与本地构建同为 8.9；
+      # 该 action 自带依赖缓存，无需再手写 actions/cache。
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Cache Android SDK
+        id: android-sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/android-sdk
+          key: android-sdk-platform34-buildtools34-v1
+
+      - name: Install Android SDK
+        if: steps.android-sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          SDK="$HOME/android-sdk"
+          mkdir -p "$SDK/cmdline-tools"
+          curl -fsSL -o /tmp/cmdline-tools.zip \
+            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q /tmp/cmdline-tools.zip -d "$SDK/cmdline-tools"
+          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          # `yes` 会被 sdkmanager 提前关掉管道 ⇒ 在 pipefail 下拿到 141，故兜底。
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" \
+            "platforms;android-34" "build-tools;34.0.0" "platform-tools" >/dev/null
+
+      # 单独一步、无条件执行：SDK 命中缓存时上一步被跳过，env 就再没人写了。
+      - name: Export Android SDK location
+        run: echo "ANDROID_HOME=$HOME/android-sdk" >> "$GITHUB_ENV"
+
+      - name: Android unit tests
+        working-directory: edge/android-app
+        run: gradle :app:testMockDebugUnitTest --no-daemon --stacktrace
+
+      # 与 build/integration job 同款判据：**只看 `<testcase>` 元素个数**。
+      # gradle 在无测试源时同样 exit 0（NO-SOURCE），只看退出码等于「没测也能绿」。
+      - name: Verify Android tests actually ran (no silent skip)
+        working-directory: edge/android-app
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          report_dir=app/build/test-results/testMockDebugUnitTest
+          reports=("$report_dir"/TEST-*.xml)
+          if [ ${#reports[@]} -eq 0 ]; then
+            echo "RED  没有测试报告($report_dir) ⇒ 用例根本没执行"
+            exit 1
+          fi
+          total=0
+          for report in "${reports[@]}"; do
+            n=$(grep -o '<testcase ' "$report" | wc -l || true)
+            total=$((total + n))
+            if grep -qE '<failure|<error' "$report"; then
+              echo "RED  $(basename "$report") 出现 failure/error"
+              exit 1
+            fi
+          done
+          if [ "$total" -lt 1 ]; then
+            echo "RED  报告在、但 <testcase> 元素为 0 ⇒ 静默跳过（这正是要防的那种绿）"
+            exit 1
+          fi
+          echo "ok  edge/android-app  testcases=$total（${#reports[@]} 份报告）"
+
+      - name: Upload Android test reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: android-unit-test-reports
+          path: edge/android-app/app/build/reports/tests/testMockDebugUnitTest/
+          if-no-files-found: ignore
