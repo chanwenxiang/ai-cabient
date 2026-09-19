@@ -7,7 +7,9 @@
  * 这里的每条用例都**真的把仓库改坏**，跑门禁，再**逐字节还原**并校验 sha256。
  *
  * 用例构成（两类，缺一不可）：
- *   · 期望红（8 条）：拆掉被测的每一个锚点，门禁必须报红，且报的是**对应的**那条理由；
+ *   · 期望红（9 条）：拆掉被测的每一个锚点，门禁必须报红，且报的是**对应的**那条理由；
+ *     其中 G9 是**形态③专杀**：把 `@Test` 改成注释形式 `// @Test` —— 朴素 `/@Test\b/`
+ *     照样命中（恒真/假绿），只有先剥注释的实现才会红。G2 换名那条做不到这个区分。
  *   · 反假红（1 条）：只加注释、不碰真命令，门禁**必须仍然绿** ——
  *     否则说明判据是在「搜关键词」而不是在「看谁真的会被执行」
  *     （本项目固化的失效形态③变体：注释里写着命令串，改坏代码照样匹配）。
@@ -117,15 +119,31 @@ push(
   })
 );
 
-// G3 ── 测试运行依赖被移出 testImplementation
+// G3 ── 测试运行依赖**整体**被移出 testImplementation
+//
+// ⚠️ 这条用例抓出过两个问题（2026-09-19）：
+//
+// (a) **期望错了**（第一版）：只摘掉 `junit:junit:4.13.2` 一行，期望门禁红 —— 实测仍绿。
+//     那不是门禁缺陷：规则 2 的语义是「testImplementation 里至少要有运行依赖」，
+//     而不是「必须钉死 junit」。只摘 junit 时 robolectric/androidx.test 两行还在 ⇒ 本就不该红。
+//     （且「只摘 junit」不会造成静默绿：测试源码 `import org.junit.Test` 直接编译失败，
+//      那是 CI 能抓到的**好的红**；静态门禁只需守 CI 抓不到的 NO-SOURCE 路径。）
+//     改成「必须钉死 junit」才是错方向 —— 迁到 JUnit5 会在能跑通的配置上假红。
+//     故漂移改为按规则真实语义：摘掉全部 testImplementation。
+//
+// (b) **门禁真有缺陷**：替换文本**故意把原串留在注释里**
+//     （`// removed: testImplementation("junit:junit:4.13.2")`）。
+//     旧实现直接在原文里搜 `testImplementation(` ⇒ 字符串仍在 ⇒ 照样绿（形态③，判据恒真）。
+//     据此把规则 2/2b/3 全部改为跑在**剥掉 Kotlin 注释**的文本上（`build.gradle.kts` 本就是 Kotlin）。
+//     ⇒ 现在这条用例同时守着两件事：依赖真被摘掉、且判据不吃注释里的字符串。
 push(
   drift({
-    name: 'G3 删掉 testImplementation(junit) ⇒ 红',
+    name: 'G3 删掉全部 testImplementation（替换文本保留原串在注释里）⇒ 红',
     files: [MODULE_GRADLE],
     expectRed: true,
     expectWhy: '没有 testImplementation',
     mutate: (_f, text) =>
-      text.replace(/^\s*testImplementation\("junit:junit:4\.13\.2"\)\s*$/m, '    // removed')
+      text.replace(/^\s*testImplementation\((.*)\)\s*$/gm, (m) => `    // removed: ${m.trim()}`)
   })
 );
 
@@ -195,6 +213,41 @@ push(
       text.replace(
         /^(\s*)run: gradle :app:testMockDebugUnitTest/m,
         '$1run: ./gradlew :app:testMockDebugUnitTest'
+      )
+  })
+);
+
+// G9 ── **形态③专杀**：把 @Test 注解改成「注释里写着 @Test」。
+//
+// 这条与 G2 的区别必须说清，否则会被误当成重复用例：
+//   · G2 把 `@Test` 改成 `@TestDisabled` —— 连**朴素的** `/@Test\b/` 都不匹配
+//     （`\b` 在 `t` 与 `D` 之间不成立），所以 G2 绿不绿**区分不出**实现好坏；
+//   · G9 把 `@Test` 改成 `// @Test` —— 朴素搜索**照样命中**（恒真 ⇒ 假绿），
+//     只有「先剥注释、再看真正会被编译的那几行」的实现才会红。
+// 这正是旧版门禁被击穿的确切形态：本批新增的 `EdgeRuntimeConfigPrefsTest.kt` 里有一句
+// `// 每个用例从干净 prefs 起步：Robolectric 每个 @Test 会重建 Application。`，
+// 光凭这句注释，一个用例都没有的文件也能让旧门禁判「有 @Test」。
+push(
+  drift({
+    name: 'G9 把 @Test 改成注释形式 // @Test（形态③）⇒ 红',
+    files: collectTestKt(TEST_DIR),
+    expectRed: true,
+    expectWhy: '没有一个含 @Test 注解',
+    mutate: (_f, text) => text.replaceAll('@Test', '// @Test')
+  })
+);
+
+// G10 ── 用了 Robolectric 却把它的编译期依赖摘掉（规则 2b）⇒ 红
+push(
+  drift({
+    name: 'G10 摘掉 robolectric 依赖（测试源仍在用）⇒ 红',
+    files: [MODULE_GRADLE],
+    expectRed: true,
+    expectWhy: '没有 org.robolectric:robolectric 依赖',
+    mutate: (_f, text) =>
+      text.replace(
+        /^\s*testImplementation\("org\.robolectric:robolectric:[^"]+"\)\s*$/m,
+        '    // removed'
       )
   })
 );

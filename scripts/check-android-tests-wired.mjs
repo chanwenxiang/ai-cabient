@@ -80,6 +80,92 @@ function stripShellLineComments(block) {
     .join('\n');
 }
 
+/**
+ * 剥掉 Kotlin 的行注释与块注释。
+ *
+ * 为什么必须剥（2026-09-19 本批踩到）：旧版规则 1 用 `/@Test\b/.test(file)` 在**整个文件**里搜，
+ * 而本批新建的 `EdgeRuntimeConfigPrefsTest.kt` 里有一句普通注释
+ *   `// 每个用例从干净 prefs 起步：Robolectric 每个 @Test 会重建 Application。`
+ * —— 只靠这句注释，一个**一个用例都没有**的文件也能让门禁判「有 @Test」。
+ * 这与本门禁**自己**在文件头警告过的「形态③：搜关键词 ⇒ 注释也算」是同一类错误。
+ * 判据必须落在**真正会被编译的那几行**上。
+ *
+ * 实现按字符扫描而非正则，避免把字符串字面量里的 `//` 误当注释起点
+ * （如 `assertTrue("/api/v2/orders".startsWith("/"))`）。
+ */
+function stripKotlinComments(src) {
+  let out = '';
+  let i = 0;
+  let inLine = false;
+  let inBlock = false;
+  let inString = false;
+  let inChar = false;
+  while (i < src.length) {
+    const c = src[i];
+    const n = src[i + 1];
+    if (inLine) {
+      if (c === '\n') {
+        inLine = false;
+        out += c;
+      }
+      i += 1;
+      continue;
+    }
+    if (inBlock) {
+      if (c === '*' && n === '/') {
+        inBlock = false;
+        i += 2;
+      } else {
+        if (c === '\n') out += c;
+        i += 1;
+      }
+      continue;
+    }
+    if (inString) {
+      out += c;
+      if (c === '\\') {
+        out += n ?? '';
+        i += 2;
+        continue;
+      }
+      if (c === '"') inString = false;
+      i += 1;
+      continue;
+    }
+    if (inChar) {
+      out += c;
+      if (c === '\\') {
+        out += n ?? '';
+        i += 2;
+        continue;
+      }
+      if (c === "'") inChar = false;
+      i += 1;
+      continue;
+    }
+    if (c === '/' && n === '/') {
+      inLine = true;
+      i += 2;
+      continue;
+    }
+    if (c === '/' && n === '*') {
+      inBlock = true;
+      i += 2;
+      continue;
+    }
+    if (c === '"') inString = true;
+    if (c === "'") inChar = true;
+    out += c;
+    i += 1;
+  }
+  return out;
+}
+
+/** 真值判据：文件里是否真有 `@Test` **注解**（注释不算）。 */
+function hasRealTestAnnotation(file) {
+  return /@Test\b/.test(stripKotlinComments(readFileSync(join(TEST_ROOT, file), 'utf8')));
+}
+
 // ── 前置锚点自检：缺任何一个都说明门禁已失去判别力 ──────────────────────────────
 if (!existsSync(APP_DIR)) fail('缺少 edge/android-app —— 扫描锚点已失效');
 if (!existsSync(MODULE_GRADLE)) fail('缺少 edge/android-app/app/build.gradle.kts —— 锚点已失效');
@@ -87,29 +173,59 @@ if (!existsSync(CI_PATH)) fail('缺少 .github/workflows/ci.yml —— 锚点已
 
 const problems = [];
 
-// ── 规则 1：必须真有测试源集，且真有 @Test ────────────────────────────────────
+// ── 规则 1：必须真有测试源集，且真有 @Test（注解，不是注释里的字样）────────────
 const testFiles = collectKt(TEST_ROOT);
+const filesWithRealTests = [];
 if (testFiles.length === 0) {
   problems.push('edge/android-app/app/src/test 下一个 *.kt 都没有 —— 这一端等于没有单测资产');
 } else {
-  const withCases = testFiles.filter((f) =>
-    /@Test\b/.test(readFileSync(join(TEST_ROOT, f), 'utf8'))
-  );
-  if (withCases.length === 0) {
-    problems.push(`测试源集有 ${testFiles.length} 个文件，但没有一个含 @Test 注解（等于空跑）`);
+  for (const f of testFiles) if (hasRealTestAnnotation(f)) filesWithRealTests.push(f);
+  if (filesWithRealTests.length === 0) {
+    problems.push(
+      `测试源集有 ${testFiles.length} 个文件，但没有一个含 @Test 注解（注释里的字样不算，等于空跑）`
+    );
   }
 }
 
 // ── 规则 2：测试运行时依赖必须声明在 testImplementation ────────────────────────
+//
+// ⚠️ 必须跑在**剥掉 Kotlin 注释**的文本上（与规则 1 同理）。
+//    2026-09-19 由漂移用例 G3 抓出：旧实现直接在原文里搜 `testImplementation(`，
+//    于是把这行「注释掉」——`// testImplementation("junit:junit:4.13.2")` ——
+//    字符串仍在文本里，规则照样通过（形态③：判据恒真）。
+//    `build.gradle.kts` 本来就是 Kotlin，故复用同一个剥注释器。
 const moduleGradle = readFileSync(MODULE_GRADLE, 'utf8');
-if (!/testImplementation\s*\(/.test(moduleGradle)) {
+const gradleCode = stripKotlinComments(moduleGradle);
+if (!/testImplementation\s*\(/.test(gradleCode)) {
   problems.push(
     'app/build.gradle.kts 里没有 testImplementation(...) —— 测试源码无法编译（缺 junit 等运行依赖）'
   );
 }
 
+// ── 规则 2b：用了 Robolectric 就必须声明它的编译期依赖 ─────────────────────────
+// Robolectric 不是「加个依赖就能用」，前提是 `testImplementation("org.robolectric:robolectric:…")`。
+// 漏了是编译期红（好的红），但只在**真的编译到测试源**时才红 —— 而 NO-SOURCE 的路径
+// （任务名写错、源集被挪走）根本编译不到，所以这条静态规则仍有价值。
+//
+// ⚠️ 曾经还有一条「必须配 `unitTests.isIncludeAndroidResources = true`」，**已删除**：
+//    2026-09-19 实测（去掉该行后重跑）**89 例仍然全绿** —— 本仓的测试只用
+//    Application Context 与 SharedPreferences，不读资源/manifest，Robolectric 无需该开关。
+//    要求一个「不配也能过」的东西，就是在能跑通的配置上报红（假红），与假绿同害。
+//    将来若真加了读资源的用例，那时再按当时的取证决定是否引入该开关。
+const usesRobolectric = filesWithRealTests.some((f) =>
+  /RobolectricTestRunner|ApplicationProvider/.test(
+    stripKotlinComments(readFileSync(join(TEST_ROOT, f), 'utf8'))
+  )
+);
+if (usesRobolectric && !/["']org\.robolectric:robolectric:/.test(gradleCode)) {
+  problems.push(
+    '测试源码用了 Robolectric（RobolectricTestRunner / ApplicationProvider），' +
+      '但 app/build.gradle.kts 的 testImplementation 里没有 org.robolectric:robolectric 依赖'
+  );
+}
+
 // ── 规则 3：解析 productFlavors，作为 CI 任务名的核对依据（自动跟随改名）────────
-const flavorBlock = /productFlavors\s*\{([\s\S]*?)\n\s{4}\}/.exec(moduleGradle);
+const flavorBlock = /productFlavors\s*\{([\s\S]*?)\n\s{4}\}/.exec(gradleCode);
 if (!flavorBlock) {
   problems.push(
     'app/build.gradle.kts 里解析不到 productFlavors 块 —— 无法核对 CI 的任务名是否与 flavor 一致'
@@ -237,9 +353,12 @@ if (problems.length) {
 }
 
 console.log(
-  `${TAG} OK（测试文件 ${testFiles.length} 个／含 @Test ${testFiles.filter((f) => /@Test\b/.test(readFileSync(join(TEST_ROOT, f), 'utf8'))).length} 个；` +
+  `${TAG} OK（测试文件 ${testFiles.length} 个／含**真** @Test ${filesWithRealTests.length} 个` +
+    `${usesRobolectric ? '／Robolectric 前提已配' : ''}；` +
     `flavor ${JSON.stringify(flavors)} 与 CI 任务名一致；CI 有 <testcase> 计数判据）`
 );
 for (const f of testFiles) {
-  console.log(`  · app/src/test/${f}`);
+  console.log(
+    `  · app/src/test/${f}${hasRealTestAnnotation(f) ? '' : '   ⚠️ 无 @Test（注释里的字样不算）'}`
+  );
 }

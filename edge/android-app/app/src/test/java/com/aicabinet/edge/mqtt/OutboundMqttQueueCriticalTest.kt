@@ -1,6 +1,5 @@
 package com.aicabinet.edge.mqtt
 
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -114,32 +113,13 @@ class OutboundMqttQueueCriticalTest {
         assertFalse(OutboundMqttQueue.isCriticalTopic("cabinet/CAB-001/heartbeat"))
     }
 
-    // ── 队列满时的丢弃选择（把上面判据的后果显式钉住）────────────────────
-
-    @Test
-    fun `队列满时优先丢弃非关键，保留 DOOR`() {
-        // 复刻 enqueue 的选人表达式，证明「判据错 ⇒ 丢错人」这条链路成立。
-        val pending =
-            listOf(
-                """{"type":"HEARTBEAT"}""",
-                """{"type":"DOOR"}""",
-                """{"type":"STATUS"}"""
-            )
-        val dropIndex =
-            pending.indexOfFirst { !OutboundMqttQueue.isCriticalMessage(EVT_TOPIC, it) }
-                .takeIf { it >= 0 } ?: 0
-        assertEquals(0, dropIndex)
-        assertEquals("""{"type":"DOOR"}""", pending[1])
-    }
-
-    @Test
-    fun `队列全是关键消息时丢弃第一条（兜底分支）`() {
-        val pending = listOf("""{"type":"DOOR"}""", """{"type":"ACK"}""")
-        val dropIndex =
-            pending.indexOfFirst { !OutboundMqttQueue.isCriticalMessage(EVT_TOPIC, it) }
-                .takeIf { it >= 0 } ?: 0
-        assertEquals(0, dropIndex)
-    }
+    // ── 队列满时的丢弃选择 ────────────────────────────────────────────────
+    //
+    // 原本这里有两例「复刻 enqueue 的选人表达式、在本地 list 上算 dropIndex」的断言。
+    // 那是**自证式**判据：把实现的表达式抄一遍再断言——实现怎么改，断言就跟着怎么改，
+    // 永远绿，守护不了任何东西（PROJECT-REFERENCE.md §11.6 失效形态③）。
+    // 已删除，改由 `OutboundMqttQueueTest` 用**真 enqueue + 真 SharedPreferences** 覆盖：
+    // 见 「超过上限时优先丢弃非关键消息_关键门事件必须留下」「队列全是关键消息时丢弃最早的一条」。
 
     private companion object {
         /** 生产环境的真实出站 topic 形态：无任何关键词，故 payload.type 是唯一信号源。 */

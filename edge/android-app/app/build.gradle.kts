@@ -87,4 +87,11 @@ dependencies {
 
     // 单元测试（JVM，无需真机/模拟器）。AGP 的 testMockDebugUnitTest 任务用 junit4 跑。
     testImplementation("junit:junit:4.13.2")
+    // Robolectric：为需要**真实 Android 框架行为**的路径提供 JVM 内的影子实现
+    // （SharedPreferences 真读写、Application Context、资源解析）。
+    // 纯逻辑用例不必用它 —— 只有 Context / SharedPreferences 这类才需要，
+    // 否则用例会被 RobolectricTestRunner 的启动开销拖慢。
+    // androidx.test:core 提供 ApplicationProvider.getApplicationContext()。
+    testImplementation("org.robolectric:robolectric:4.12.2")
+    testImplementation("androidx.test:core:1.5.0")
 }

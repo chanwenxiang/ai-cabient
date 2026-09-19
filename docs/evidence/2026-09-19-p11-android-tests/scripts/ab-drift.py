@@ -40,6 +40,7 @@ F_VIDEO = SRC / "video" / "VideoClipJson.kt"
 F_CFG = SRC / "config" / "EdgeRuntimeConfig.kt"
 F_REC = SRC / "video" / "RecordingResult.kt"
 F_CIPHER = SRC / "config" / "KeystoreCipher.kt"
+F_PREFS = SRC / "queue" / "PrefsJsonQueue.kt"
 
 
 def sha(b: bytes) -> str:
@@ -99,7 +100,7 @@ def main() -> int:
     assert F_QUEUE.exists(), f"源码不在预期位置：{F_QUEUE}"
 
     # 基线快照（用于最后逐字节校验还原）
-    touched = [F_QUEUE, F_CHZH, F_VIDEO, F_CFG, F_REC, F_CIPHER]
+    touched = [F_QUEUE, F_CHZH, F_VIDEO, F_CFG, F_REC, F_CIPHER, F_PREFS]
     baseline = {p: (read(p), sha(read(p))) for p in touched}
 
     cases = []
@@ -192,6 +193,97 @@ def main() -> int:
             "版本前缀不匹配时按明文处理而非尝试解密",
         ],
     )
+    # ══════════════════════════════════════════════════════════════════════
+    # D8–D14：P0-12（Robolectric 批次）新增用例的注入漂移。
+    # 这批判据全部落在**真 SharedPreferences / 真 enqueue / 真 drain** 上，
+    # 所以必须注入到 main 源码里才有效（注入测试文件等于自己改判据，不算验证）。
+    # ══════════════════════════════════════════════════════════════════════
+
+    # ── D8：getString 去掉「空白 ⇒ 默认」回退 ─────────────────────────────
+    case(
+        "D8 getString 去掉空白回退（空白当有效值）⇒ 红",
+        F_CFG,
+        """    private fun getString(context: Context, key: String, default: String): String =
+        prefs(context).getString(key, default)?.trim()?.takeIf { it.isNotEmpty() } ?: default""",
+        """    private fun getString(context: Context, key: String, default: String): String =
+        prefs(context).getString(key, default) ?: default""",
+        True,
+        ["空白值回退默认而不是当成空字符串", "字符串读取会 trim", "空白 deviceId 回退默认"],
+    )
+    # ── D9：出站队列容量去掉 coerceIn 夹紧 ────────────────────────────────
+    case(
+        "D9 mqttOutboundMaxItems 去掉 coerceIn ⇒ 红",
+        F_CFG,
+        '        getInt(context, "mqtt_outbound_max_items", 500).coerceIn(50, 5_000)',
+        '        getInt(context, "mqtt_outbound_max_items", 500)',
+        True,
+        ["出站队列容量按下界夹紧", "出站队列容量按上界夹紧"],
+    )
+    # ── D10：队列满时不再挑非关键，一律丢第一条 ───────────────────────────
+    case(
+        "D10 enqueue 丢弃策略改成恒丢第 0 条 ⇒ 红",
+        F_QUEUE,
+        """                val dropIndex = pending.indexOfFirst { !isCriticalMessage(it.topic, it.payload) }
+                    .takeIf { it >= 0 } ?: 0""",
+        """                val dropIndex = 0""",
+        True,
+        ["超过上限时优先丢弃非关键消息_关键门事件必须留下"],
+    )
+    # ── D11：重试边界 < 改成 <=（少重试一轮）──────────────────────────────
+    case(
+        "D11 drain 的 attempts < maxAttempts 改成 <= ⇒ 红",
+        F_QUEUE,
+        "                    if (message.attempts < maxAttempts) {",
+        "                    if (message.attempts <= maxAttempts) {",
+        True,
+        ["达到重试上限时放弃并回调告警_恰好一次"],
+    )
+    # ── D12：PrefsJsonQueue 去掉反序列化兜底（坏 JSON 直接抛）─────────────
+    case(
+        "D12 loadMutable 去掉 runCatching 兜底 ⇒ 红",
+        F_PREFS,
+        """        return runCatching { mapper.readValue(json, typeRef).toMutableList() }
+            .onFailure { Log.w(tag, "queue decode failed: ${it.message}") }
+            .getOrElse { mutableListOf() }""",
+        """        return mapper.readValue(json, typeRef).toMutableList()""",
+        True,
+        ["损坏JSON_退化为空队列而不是抛异常", "类型不匹配的JSON_同样退化为空队列"],
+    )
+    # ── D13：ensureDeviceId 的 mock 分支取反 ──────────────────────────────
+    case(
+        "D13 ensureDeviceId 的 mock 分支取反（mock 档也生成并落盘）⇒ 红",
+        F_CFG,
+        "        if (BuildConfig.USE_MOCK_DRIVER) {",
+        "        if (!BuildConfig.USE_MOCK_DRIVER) {",
+        True,
+        ["ensureDeviceId 在 mock 档下保留占位号且不落盘"],
+    )
+    # ── D14：把 getOrCreateKey() 提到长度校验之前 ─────────────────────────
+    case(
+        "D14 decrypt 把取密钥提到长度校验之前 ⇒ 红（顺序契约被改）",
+        F_CIPHER,
+        """        val data = Base64.decode(encoded.removePrefix(PREFIX), Base64.NO_WRAP)
+        if (data.size <= IV_LENGTH_BYTES) {""",
+        """        getOrCreateKey()
+        val data = Base64.decode(encoded.removePrefix(PREFIX), Base64.NO_WRAP)
+        if (data.size <= IV_LENGTH_BYTES) {""",
+        True,
+        ["decrypt_负载过短在触碰密钥前就拒绝"],
+    )
+    # ── D15：丢弃兜底从「最早」改成「最新」─────────────────────────────────
+    # 这条专治「队列全是关键消息时丢弃最早的一条」可能是个**空判据**：
+    # 全关键时 `indexOfFirst{!critical}` 返回 -1 ⇒ takeIf 得 null ⇒ 落到 `?: 0`。
+    # 只有把兜底取值改成别的，才能证明那条用例真的钉住了「丢最早」而不是恰好通过。
+    case(
+        "D15 dropIndex 兜底 ?: 0 改成 ?: pending.size - 1 ⇒ 红",
+        F_QUEUE,
+        """                val dropIndex = pending.indexOfFirst { !isCriticalMessage(it.topic, it.payload) }
+                    .takeIf { it >= 0 } ?: 0""",
+        """                val dropIndex = pending.indexOfFirst { !isCriticalMessage(it.topic, it.payload) }
+                    .takeIf { it >= 0 } ?: pending.size - 1""",
+        True,
+        ["队列全是关键消息时丢弃最早的一条"],
+    )
     # ── R1：只加注释（语义等价）⇒ 必须仍绿 ────────────────────────────────
     case(
         "R1 仅加注释（语义等价）⇒ 必须仍绿",
@@ -199,6 +291,17 @@ def main() -> int:
         """        fun isCriticalMessage(topic: String, payload: String): Boolean {""",
         """        // drift-free: 这里只加一行注释，判据不该受影响
         fun isCriticalMessage(topic: String, payload: String): Boolean {""",
+        False,
+        [],
+    )
+    # ── R2：只插空行（纯格式）⇒ 必须仍绿（防「见改动就红」）───────────────
+    case(
+        "R2 仅插入空行（纯格式）⇒ 必须仍绿",
+        F_PREFS,
+        """    private fun save(items: List<T>) {""",
+        """
+
+    private fun save(items: List<T>) {""",
         False,
         [],
     )
