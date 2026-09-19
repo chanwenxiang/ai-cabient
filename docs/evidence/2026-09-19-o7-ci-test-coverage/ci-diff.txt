@@ -1,0 +1,60 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 9672160a..b1951516 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -131,6 +131,9 @@ jobs:
+             test -s "$report" || { echo "missing surefire report: $report"; exit 1; }
+             grep -q "Failures: 0, Errors: 0, Skipped: 0" "$report" \
+               || { echo "RBAC test not fully green: $report"; exit 1; }
++            # 0 条用例的报告同样写着 "Failures: 0, Errors: 0, Skipped: 0" ⇒ 单靠上一行会假绿
++            grep -qE "Tests run: [1-9][0-9]*" "$report" \
++              || { echo "RBAC test ran 0 cases (silent skip): $report"; exit 1; }
+           done
+ 
+       # ⚠️ admin 产物校验**不在这里**：`.mvn/maven.config` 内含 `-Dskip.admin.build=true`
+@@ -183,10 +186,43 @@ jobs:
+           fi
+           OPENAPI_CHECK_REGEN=1 OPENAPI_FILE=.tmp/live-openapi.json pnpm check:openapi-types
+ 
+-      - name: Build (device-service)
+-        run: mvn compile -pl services/device-service -am
++      # device-service 此前只跑 `mvn compile` ⇒ 6 个测试类（38 条）在 CI 里从未执行；
++      # edge/device-simulator（根 pom 第 4 个 module）则完全没被 CI 触碰。
++      # 二者并入同一条 `mvn test`：`-am` 只会带出 common-core，不会重跑 trade-service。
++      - name: Test (device-service + device-simulator)
++        run: mvn test -pl services/device-service,edge/device-simulator -am
+         env:
+           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:15433/aicabinet
++          SPRING_DATASOURCE_USERNAME: aicabinet
++          SPRING_DATASOURCE_PASSWORD: aicabinet
++          REDIS_HOST: localhost
++          REDIS_PORT: '6379'
++
++      # 防静默跳过：报告缺失 / 用例数低于基线 / 出现 failure|error|skipped ⇒ 红。
++      # ⚠️ 真值只在 `<testcase>` 元素个数上。@Nested 用例类（SimulatorSupportTest）的 `.txt`
++      # 写的是 `Tests run: 0`、XML 根元素的 `tests=` 同样是 0（用例全在嵌套类里），因此只断言
++      # `Failures: 0, Errors: 0, Skipped: 0` 的写法在「一条用例都没跑」时照样是绿的。
++      - name: Verify device tests ran (no silent skip)
++        run: |
++          set -euo pipefail
++          check() { # $1=xml 路径  $2=用例数下限  $3=类名
++            xml="$1"
++            test -f "$xml" || { echo "missing surefire report: $xml"; exit 1; }
++            n=$(grep -o '<testcase ' "$xml" | wc -l || true)
++            [ "$n" -ge "$2" ] || { echo "$3: only $n testcases in $xml (baseline >= $2)"; exit 1; }
++            if grep -qE '<failure|<error|<skipped' "$xml"; then
++              echo "$3: $xml contains failure/error/skipped"; exit 1
++            fi
++            echo "ok  $3  testcases=$n"
++          }
++          R=target/surefire-reports
++          check services/device-service/$R/TEST-com.aicabinet.common.security.InternalApiAuthInterceptorTest.xml 6  InternalApiAuthInterceptorTest
++          check services/device-service/$R/TEST-com.aicabinet.device.client.TradeServiceClientRetryTest.xml 4  TradeServiceClientRetryTest
++          check services/device-service/$R/TEST-com.aicabinet.device.mqtt.DoorEventDeduplicatorTest.xml 5  DoorEventDeduplicatorTest
++          check services/device-service/$R/TEST-com.aicabinet.device.mqtt.MqttEventListenerDoorTest.xml 14 MqttEventListenerDoorTest
++          check services/device-service/$R/TEST-com.aicabinet.device.service.DeviceCommandServiceTest.xml 2  DeviceCommandServiceTest
++          check services/device-service/$R/TEST-com.aicabinet.device.service.DeviceCommandTrackerTest.xml 7  DeviceCommandTrackerTest
++          check edge/device-simulator/$R/TEST-com.aicabinet.simulator.SimulatorSupportTest.xml 23 SimulatorSupportTest
+ 
+       # Maven runtime 全树 → OSV；有 finding 时 exit 1。pip-audit 尽力而为（缺工具不挡门）。
+       - name: Backend dependency OSV audit

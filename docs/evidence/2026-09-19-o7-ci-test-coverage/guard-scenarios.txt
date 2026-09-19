@@ -1,0 +1,50 @@
+# 守卫判据场景验证（guard.sh 由 ci.yml 步骤原样抽出，未手抄）
+Sat Sep 19 12:07:30     2026
+
+## S1 · 真实报告 → 期望 exit 0
+ok  InternalApiAuthInterceptorTest  testcases=6
+ok  TradeServiceClientRetryTest  testcases=4
+ok  DoorEventDeduplicatorTest  testcases=5
+ok  MqttEventListenerDoorTest  testcases=14
+ok  DeviceCommandServiceTest  testcases=2
+ok  DeviceCommandTrackerTest  testcases=7
+ok  SimulatorSupportTest  testcases=23
+exit=0
+
+## S2 · 某测试类报告缺失 → 期望 exit 1
+ok  InternalApiAuthInterceptorTest  testcases=6
+ok  TradeServiceClientRetryTest  testcases=4
+ok  DoorEventDeduplicatorTest  testcases=5
+missing surefire report: services/device-service/target/surefire-reports/TEST-com.aicabinet.device.mqtt.MqttEventListenerDoorTest.xml
+exit=1
+
+## S3 · SimulatorSupportTest 变成 0 用例（@Nested 陷阱本体）→ 期望 exit 1
+ok  InternalApiAuthInterceptorTest  testcases=6
+ok  TradeServiceClientRetryTest  testcases=4
+ok  DoorEventDeduplicatorTest  testcases=5
+ok  MqttEventListenerDoorTest  testcases=14
+ok  DeviceCommandServiceTest  testcases=2
+ok  DeviceCommandTrackerTest  testcases=7
+SimulatorSupportTest: only 0 testcases in edge/device-simulator/target/surefire-reports/TEST-com.aicabinet.simulator.SimulatorSupportTest.xml (baseline >= 23)
+exit=1
+
+## S4 · 注入 <failure> → 期望 exit 1
+ok  InternalApiAuthInterceptorTest  testcases=6
+ok  TradeServiceClientRetryTest  testcases=4
+ok  DoorEventDeduplicatorTest  testcases=5
+ok  MqttEventListenerDoorTest  testcases=14
+ok  DeviceCommandServiceTest  testcases=2
+DeviceCommandTrackerTest: services/device-service/target/surefire-reports/TEST-com.aicabinet.device.service.DeviceCommandTrackerTest.xml contains failure/error/skipped
+exit=1
+
+## S5 · 用例数低于基线（14 → 10）→ 期望 exit 1
+  裁剪后 testcase 数 = 10
+ok  InternalApiAuthInterceptorTest  testcases=6
+ok  TradeServiceClientRetryTest  testcases=4
+ok  DoorEventDeduplicatorTest  testcases=5
+MqttEventListenerDoorTest: only 10 testcases in services/device-service/target/surefire-reports/TEST-com.aicabinet.device.mqtt.MqttEventListenerDoorTest.xml (baseline >= 14)
+exit=1
+
+## 对照 · 同一份「0 用例」文本报告，新旧断言的区别
+  旧式 grep "Failures: 0, Errors: 0, Skipped: 0" → 命中 ⇒ 判绿（假绿）
+  新式 grep -E "Tests run: [1-9][0-9]*"      → 未命中 ⇒ 判红（正确）
