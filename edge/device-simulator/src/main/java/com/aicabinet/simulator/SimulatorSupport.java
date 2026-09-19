@@ -126,7 +126,9 @@ public final class SimulatorSupport {
     // 造不出来实例，契约只能靠人眼比对。抽出来后既可由 DeviceSimulator 复用，
     // 也可由 device-service 的契约测试**用真报文喂真解析器**，改坏任一侧即红。
     //
-    // 🔴 字段名/类型/取值语义与抽取前**完全一致**；提取时唯一有意差异见 ackPayload 的注释。
+    // 🔴 字段名/类型/取值语义与抽取前**完全一致**（无任何有意差异）：
+    //    doorEvent/heartbeat 沿用抽取前的 LinkedHashMap，ack 沿用抽取前的 Map.of —— 见各函数 Javadoc。
+    //    可用性 / 键序差异随之逐字保留（含 ack 的 null ⇒ NPE 严格语义）。
     // ---------------------------------------------------------------------
 
     /**
@@ -195,17 +197,23 @@ public final class SimulatorSupport {
      * 指令 ACK 上行报文（{@code type=ACK}）—— 对应 {@code MqttEventListener.handleAck}
      * 与 {@code DeviceCommandTracker.recordAck}。
      *
-     * <p>🔴 **提取时唯一有意差异**：抽取前用 {@code Map.of(...)}（字段顺序未指定，且 null 值抛 NPE），
-     * 现改为 {@code LinkedHashMap}（顺序固定为 type→commandId→success→timestamp）。
-     * **字段名/类型/值完全一致**，且消费端按名取值、不依赖顺序；
-     * 副作用是 {@code commandId == null} 不再抛 NPE（宽松化，非破坏性）。
+     * <p>🔴 本函数用 {@code Map.of(...)} 而**不是** {@code LinkedHashMap}，尽管后者"更好看"
+     * （键序固定、null 不炸）。选前者是为了与抽取前的实现**逐字一致** —— 抽取重构不该夹带行为变更。
+     * 两处差异均为**接受项**，理由写在这里防止后人"顺手优化"：
+     * <ul>
+     *   <li>{@code commandId == null} 抛 {@link NullPointerException}（fail-fast 的严格语义）。
+     *       生产路径**安全**：调用方传的是 Jackson {@code node.path("commandId").asText()}，
+     *       字段缺失返回 {@code ""}、NullNode 返回字面量 {@code "null"}，**不会是 Java null**。</li>
+     *   <li>键的迭代顺序未指定（{@code Map.of} 语义）。消费端一律按名取值
+     *       （{@code node.path("success").asBoolean()}），不依赖顺序，故无语义影响。</li>
+     * </ul>
+     * <p>该严格语义由 {@code SimulatorSupportTest} 的 {@code ackKeepsStrictMapOfSemanticsOnNull} 钉住。
      */
     public static Map<String, Object> ackPayload(String commandId, boolean success, long timestamp) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("type", CabinetConstants.MQTT_EVENT_TYPE_ACK);
-        payload.put("commandId", commandId);
-        payload.put("success", success);
-        payload.put("timestamp", timestamp);
-        return payload;
+        return Map.of(
+                "type", CabinetConstants.MQTT_EVENT_TYPE_ACK,
+                "commandId", commandId,
+                "success", success,
+                "timestamp", timestamp);
     }
 }

@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * {@link SimulatorSupport} 的纯函数单测。
@@ -227,6 +229,87 @@ class SimulatorSupportTest {
         @DisplayName("固化既有行为：内部端点不可解析时也原样返回")
         void passthroughOnUnparsableEndpoint() {
             assertEquals(SIGNED, SimulatorSupport.rewriteUploadUrl(SIGNED, "::::not-an-endpoint"));
+        }
+    }
+
+    /**
+     * 上行报文构造（P0-7 抽取出来的三个纯函数）。
+     *
+     * <p>本组断言的是**线上报文的真实形态**，故 {@code type} 一律断字面量而非
+     * {@code CabinetConstants.MQTT_EVENT_TYPE_*} —— 这些字符串是**跨进程/跨语言**契约
+     * （真机端是 Kotlin 独立实现、不共享该常量类），用共享常量自证等于没证。
+     *
+     * <p>与 device-service 的 {@code EdgeCloudMqttContractTest} 互补：那边验「云端能不能吃」
+     * （真解析器消费真报文），这边验「模拟器发的是什么」。
+     */
+    @Nested
+    @DisplayName("上行报文构造：字段名/值与抽取前逐字一致")
+    class PayloadConstructionTest {
+
+        @Test
+        @DisplayName("ack：4 个字段，值与契约一致")
+        void ackFields() {
+            Map<String, Object> p = SimulatorSupport.ackPayload("cmd-1", true, 1_700_000_000_003L);
+            assertEquals(4, p.size());
+            assertEquals("ACK", p.get("type"));
+            assertEquals("cmd-1", p.get("commandId"));
+            assertEquals(Boolean.TRUE, p.get("success"));
+            assertEquals(Long.valueOf(1_700_000_000_003L), p.get("timestamp"));
+        }
+
+        @Test
+        @DisplayName("🔴 ack 刻意保留 Map.of 的严格语义：commandId 为 null ⇒ NPE（与抽取前逐字一致）")
+        void ackKeepsStrictMapOfSemanticsOnNull() {
+            // 这不是缺陷，而是「抽取重构不夹带行为变更」的结果。
+            // 若有人把实现改成 LinkedHashMap，本用例转红 —— 那时请先确认是否有意改变契约，
+            // 而不是把断言删掉了事（理由写在 SimulatorSupport#ackPayload 的 Javadoc 里）。
+            assertThrows(NullPointerException.class,
+                    () -> SimulatorSupport.ackPayload(null, true, 1L));
+        }
+
+        @Test
+        @DisplayName("door：必填 4 键；可选字段为 null 时**整个键不写入**（云端 node.path 取到空）")
+        void doorEventOmitsNullOptionalKeys() {
+            Map<String, Object> min = SimulatorSupport.doorEventPayload(
+                    "S-MIN", "OPEN", 1L, null, null, null, null, null);
+            assertEquals(4, min.size());
+            assertFalse(min.containsKey("videoUri"));
+            assertFalse(min.containsKey("uploadStatus"));
+            assertFalse(min.containsKey("videoClipsJson"));
+            assertFalse(min.containsKey("cameraFusionMode"));
+            assertFalse(min.containsKey("gravityDeltasJson"));
+
+            Map<String, Object> full = SimulatorSupport.doorEventPayload(
+                    "S-FULL", "CLOSED", 1L, "u", "UPLOADED", "[]", "MULTI", "[]");
+            assertEquals(9, full.size());
+            assertEquals("DOOR", full.get("type"));
+            assertEquals("S-FULL", full.get("sessionId"));
+            assertEquals("CLOSED", full.get("doorState"));
+        }
+
+        @Test
+        @DisplayName("door：刻意**不含 deviceId**（设备身份由 topic 承载，body 里出现即违约）")
+        void doorEventNeverCarriesDeviceId() {
+            Map<String, Object> p = SimulatorSupport.doorEventPayload(
+                    "S-1", "CLOSED", 1L, "u", "UPLOADED", "[]", "MULTI", "[]");
+            assertFalse(p.containsKey("deviceId"),
+                    "deviceId 走 topic（cabinet/{deviceId}/evt），报文体里不得重复 —— 云端以 topic 为准");
+        }
+
+        @Test
+        @DisplayName("heartbeat：camelCase 字段名（云端优先分支）+ deviceId 在报文体内")
+        void heartbeatFields() {
+            Map<String, Object> p = SimulatorSupport.heartbeatPayload(
+                    "DEV-1", 2L, "0.9.0", "1.0.0", 12);
+            assertEquals(6, p.size());
+            assertEquals("HEARTBEAT", p.get("type"));
+            assertEquals("DEV-1", p.get("deviceId"));
+            assertEquals("0.9.0", p.get("appVersion"));
+            assertEquals("1.0.0", p.get("firmwareVersion"));
+            assertEquals(Integer.valueOf(12), p.get("currentTempC"));
+            // snake_case 是云端保留给老固件的兼容分支，模拟器**发的是** camelCase
+            assertFalse(p.containsKey("app_version"));
+            assertFalse(p.containsKey("current_temp_c"));
         }
     }
 }

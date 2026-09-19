@@ -1,0 +1,131 @@
+﻿[WARNING] 
+[WARNING] Some problems were encountered while building the effective settings
+[WARNING] Unrecognised tag: 'repositories' (position: START_TAG seen ...</profile>\n    -->\n\t\n<repositories>... @234:15)  @ D:\devTools\apache-maven-3.9.11\conf\settings.xml, line 234, column 15
+[WARNING] 
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] AI Cabinet                                                         [pom]
+[INFO] common-core                                                        [jar]
+[INFO] device-simulator                                                   [jar]
+[INFO] 
+[INFO] ----------------------< com.aicabinet:ai-cabinet >----------------------
+[INFO] Building AI Cabinet 0.1.0-SNAPSHOT                                 [1/3]
+[INFO]   from pom.xml
+[INFO] --------------------------------[ pom ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ ai-cabinet ---
+[INFO] Deleting C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\target
+[INFO] 
+[INFO] --- jacoco:0.8.12:prepare-agent (prepare-agent) @ ai-cabinet ---
+[INFO] argLine set to -javaagent:D:\\devTools\\repository\\org\\jacoco\\org.jacoco.agent\\0.8.12\\org.jacoco.agent-0.8.12-runtime.jar=destfile=C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\target\\jacoco.exec
+[INFO] 
+[INFO] --- jacoco:0.8.12:report (report) @ ai-cabinet ---
+[INFO] Skipping JaCoCo execution due to missing execution data file.
+[INFO] 
+[INFO] ---------------------< com.aicabinet:common-core >----------------------
+[INFO] Building common-core 0.1.0-SNAPSHOT                                [2/3]
+[INFO]   from services\common\common-core\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ common-core ---
+[INFO] Deleting C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\common\common-core\target
+[INFO] 
+[INFO] --- jacoco:0.8.12:prepare-agent (prepare-agent) @ common-core ---
+[INFO] argLine set to -javaagent:D:\\devTools\\repository\\org\\jacoco\\org.jacoco.agent\\0.8.12\\org.jacoco.agent-0.8.12-runtime.jar=destfile=C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\services\\common\\common-core\\target\\jacoco.exec
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ common-core ---
+[INFO] skip non existing resourceDirectory C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\common\common-core\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ common-core ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 384 source files with javac [debug parameters target 17] to target\classes
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ common-core ---
+[INFO] skip non existing resourceDirectory C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\common\common-core\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ common-core ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- surefire:3.5.4:test (default-test) @ common-core ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] --- jacoco:0.8.12:report (report) @ common-core ---
+[INFO] Skipping JaCoCo execution due to missing execution data file.
+[INFO] 
+[INFO] -------------------< com.aicabinet:device-simulator >-------------------
+[INFO] Building device-simulator 0.1.0-SNAPSHOT                           [3/3]
+[INFO]   from edge\device-simulator\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ device-simulator ---
+[INFO] Deleting C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\edge\device-simulator\target
+[INFO] 
+[INFO] --- jacoco:0.8.12:prepare-agent (prepare-agent) @ device-simulator ---
+[INFO] argLine set to -javaagent:D:\\devTools\\repository\\org\\jacoco\\org.jacoco.agent\\0.8.12\\org.jacoco.agent-0.8.12-runtime.jar=destfile=C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\edge\\device-simulator\\target\\jacoco.exec
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ device-simulator ---
+[INFO] skip non existing resourceDirectory C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\edge\device-simulator\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ device-simulator ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 2 source files with javac [debug parameters target 17] to target\classes
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ device-simulator ---
+[INFO] skip non existing resourceDirectory C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\edge\device-simulator\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ device-simulator ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 1 source file with javac [debug parameters target 17] to target\test-classes
+[INFO] 
+[INFO] --- surefire:3.5.4:test (default-test) @ device-simulator ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.aicabinet.simulator.SimulatorSupportTest
+[INFO] Running 上行报文构造：字段名/值与抽取前逐字一致
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.091 s -- in 上行报文构造：字段名/值与抽取前逐字一致
+[INFO] Running rewriteUploadUrl：presign URL 重写为容器内地址
+mvn : [simulator] rewrite upload url failed: Illegal character in path at index 3: not a url at all
+所在位置 行:447 字符: 1
++ mvn -B clean test -pl edge/device-simulator -am 2>&1 | Out-File -Enco ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([simulator] rew...ot a url at all:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[simulator] rewrite upload url failed: Expected scheme name at index 0: ::::not-an-endpoint
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s -- in rewriteUploadUrl：presign URL 重写为容器内地址
+[INFO] Running contentType：扩展名转 MIME
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in contentType：扩展名转 MIME
+[INFO] Running extension：取文件扩展名
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in extension：取文件扩展名
+[INFO] Running parseDoubleOrDefault：解析 double 配置
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.010 s -- in parseDoubleOrDefault：解析 double 配置
+[INFO] Running env：取环境变量
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.010 s -- in env：取环境变量
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.201 s -- in com.aicabinet.simulator.SimulatorSupportTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 28, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jacoco:0.8.12:report (report) @ device-simulator ---
+[INFO] Loading execution data file C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\edge\device-simulator\target\jacoco.exec
+[INFO] Analyzed bundle 'device-simulator' with 3 classes
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for AI Cabinet 0.1.0-SNAPSHOT:
+[INFO] 
+[INFO] AI Cabinet ......................................... SUCCESS [  1.037 s]
+[INFO] common-core ........................................ SUCCESS [ 39.037 s]
+[INFO] device-simulator ................................... SUCCESS [ 12.096 s]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  52.512 s
+[INFO] Finished at: 2026-09-19T15:08:04+08:00
+[INFO] ------------------------------------------------------------------------
+EXITCODE=0

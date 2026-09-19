@@ -1,0 +1,49 @@
+基线 sha256 = 940d2aa1b3fddeb838bbbf3b6259e00c0984e1ba9b487fe668f9676fc3e61cae
+
+【前置】清理产物后跑基线 ...
+✅ 基线绿：单测 testcase=28，契约 testcase=10，EXITCODE=0
+
+==============================================================================
+【漂移① ack 改回 LinkedHashMap（模拟「顺手优化」）】
+  注入后 sha=6fcd365b8454  (基线 940d2aa1b3fd)
+  mvn EXITCODE=1
+  单测 SimulatorSupportTest: testcase=28 失败=1 🔴红 ['ackKeepsStrictMapOfSemanticsOnNull']
+  契约 EdgeCloudMqttContractTest: **无报告**
+  还原一致: True  (sha=940d2aa1b3fd)
+  ⇒ 符合期望 ✅
+
+==============================================================================
+【漂移② heartbeat appVersion→app_version（云端**兼容**的写法）】
+  注入后 sha=45aade84252e  (基线 940d2aa1b3fd)
+  mvn EXITCODE=1
+  单测 SimulatorSupportTest: testcase=28 失败=1 🔴红 ['heartbeatFields']
+  契约 EdgeCloudMqttContractTest: **无报告**
+  还原一致: True  (sha=940d2aa1b3fd)
+  ⇒ 符合期望 ✅
+
+==============================================================================
+【漂移③ heartbeat appVersion→appVer（云端**不认**的名字）】
+  注入后 sha=b1c8667cad60  (基线 940d2aa1b3fd)
+  mvn EXITCODE=1
+  单测 SimulatorSupportTest: testcase=28 失败=1 🔴红 ['heartbeatFields']
+  契约 EdgeCloudMqttContractTest: **无报告**
+  还原一致: True  (sha=940d2aa1b3fd)
+  ⇒ 与期望不符 ❌
+
+==============================================================================
+【反假红 仅改注释（含全部关键词），逻辑不动】
+  注入后 sha=70e7ca45c939  (基线 940d2aa1b3fd)
+  mvn EXITCODE=0
+  单测 SimulatorSupportTest: testcase=28 失败=0 绿 
+  契约 EdgeCloudMqttContractTest: testcase=10 失败=0 绿 
+  还原一致: True  (sha=940d2aa1b3fd)
+  ⇒ 符合期望 ✅
+
+==============================================================================
+汇总
+  ✅ 漂移① ack 改回 LinkedHashMap（模拟「顺手优化」）                       单测=红 契约=绿 还原=True
+  ✅ 漂移② heartbeat appVersion→app_version（云端**兼容**的写法）        单测=红 契约=绿 还原=True
+  ❌ 漂移③ heartbeat appVersion→appVer（云端**不认**的名字）             单测=红 契约=绿 还原=True
+  ✅ 反假红 仅改注释（含全部关键词），逻辑不动                                    单测=绿 契约=绿 还原=True
+
+结果：3/4 例符合期望｜基线绿=True｜最终 sha 一致=True
