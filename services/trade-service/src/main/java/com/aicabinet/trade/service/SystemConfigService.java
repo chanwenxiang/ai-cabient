@@ -82,6 +82,20 @@ public class SystemConfigService {
     public static final String OPS_ALERT_DINGTALK_WEBHOOK = "ops.alert.dingtalk_webhook";
     public static final String OPS_ALERT_WECOM_WEBHOOK = "ops.alert.wecom_webhook";
     public static final String OPS_ALERT_WEBHOOK = "ops.alert.webhook";
+    /**
+     * P0 告警升级链（O3）：聊天渠道没送达时，改用短信/电话叫值班人。总开关默认关（零行为变化）。
+     * ⚠️ 键名必须保持 `ops.alert.` 前缀 —— `check-ops-alert-channels` 的 R5/R6 按该前缀
+     * 自动要求「seed + 运营台可见」，换前缀就会绕过那两道守卫。
+     */
+    public static final String OPS_ALERT_ESCALATION_ENABLED = "ops.alert.escalation_enabled";
+    /** 需要升级的告警类型白名单（逗号分隔），空 = 全类型都升级。 */
+    public static final String OPS_ALERT_ESCALATION_TYPES = "ops.alert.escalation_types";
+    /** 值班表 JSON（见 {@link OnCallRoster}）；留空 ⇒ 无值班人 ⇒ 不升级（fail-closed）。 */
+    public static final String OPS_ALERT_ONCALL_ROSTER = "ops.alert.oncall_roster";
+    /** 升级链一级：短信网关 Webhook（留空则跳过该级）。 */
+    public static final String OPS_ALERT_ESCALATION_SMS_WEBHOOK = "ops.alert.escalation_sms_webhook";
+    /** 升级链二级：电话外呼网关 Webhook（留空则跳过该级）。 */
+    public static final String OPS_ALERT_ESCALATION_PHONE_WEBHOOK = "ops.alert.escalation_phone_webhook";
     public static final String OPS_SCAN_DOOR_OPEN_MINUTES = "ops.scan.door_open_minutes";
     public static final String OPS_SCAN_UPLOAD_STUCK_MINUTES = "ops.scan.upload_stuck_minutes";
     public static final String OPS_SCAN_RECOGNITION_STUCK_MINUTES = "ops.scan.recognition_stuck_minutes";
@@ -389,6 +403,19 @@ public class SystemConfigService {
         upsertIfAbsent(OPS_ALERT_DINGTALK_WEBHOOK, "", "运营告警：钉钉机器人 Webhook URL（留空不推送）");
         upsertIfAbsent(OPS_ALERT_WECOM_WEBHOOK, "", "运营告警：企业微信机器人 Webhook URL（留空不推送）");
         upsertIfAbsent(OPS_ALERT_WEBHOOK, "", "运营告警：通用 JSON Webhook URL（留空不推送）");
+        upsertIfAbsent(OPS_ALERT_ESCALATION_ENABLED, FALSE,
+                "P0 告警升级链开关（聊天渠道未送达时改打短信/电话给值班人）；默认关");
+        upsertIfAbsent(OPS_ALERT_ESCALATION_TYPES,
+                "DISPUTE_SLA_OVERDUE,PAYSCORE_ORDER_REFUND_REQUIRED,WECHAT_REFUND_ABNORMAL,"
+                        + "PROFIT_SHARING_RETURN_FAILED,INVOICE_FULL_REFUND_RED_INVERSE",
+                "需要升级的告警类型（逗号分隔），留空表示全类型；仅对投递失败的告警生效");
+        upsertIfAbsent(OPS_ALERT_ONCALL_ROSTER, "",
+                "值班表 JSON：[{\"name\":\"张三\",\"phone\":\"138...\",\"days\":[1,2,3,4,5],"
+                        + "\"startHour\":9,\"endHour\":18}]；留空=无值班人=不升级");
+        upsertIfAbsent(OPS_ALERT_ESCALATION_SMS_WEBHOOK, "",
+                "告警升级一级：短信网关 Webhook URL（留空跳过；载荷 phoneNumber/message）");
+        upsertIfAbsent(OPS_ALERT_ESCALATION_PHONE_WEBHOOK, "",
+                "告警升级二级：电话外呼网关 Webhook URL（留空跳过；短信失败后才会走到这里）");
         upsertIfAbsent("ops.log_retention.notify_months", "6", "通知日志保留月数，0=不清理");
         upsertIfAbsent("ops.log_retention.points_months", "12", "积分日志保留月数，0=不清理");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");

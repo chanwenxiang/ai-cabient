@@ -236,6 +236,13 @@ const BUILTIN_GROUPS: Record<string, string[]> = {
     'ops.alert.wecom_webhook',
     'ops.alert.webhook'
   ],
+  告警升级链: [
+    'ops.alert.escalation_enabled',
+    'ops.alert.escalation_types',
+    'ops.alert.oncall_roster',
+    'ops.alert.escalation_sms_webhook',
+    'ops.alert.escalation_phone_webhook'
+  ],
   卡点扫描: [
     'ops.scan.door_open_minutes',
     'ops.scan.upload_stuck_minutes',
