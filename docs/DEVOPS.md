@@ -142,12 +142,32 @@ docker compose -p ai-cabinet -f docker-compose.full.yml -f docker-compose.devops
 ### Self-hosted runner
 
 ```powershell
-$env:GITHUB_REPO_URL = "https://github.com/your-org/ai-cabinet"
-$env:GITHUB_RUNNER_TOKEN = "<一次性 registration token>"
+$env:GITHUB_REPO_URL = "https://github.com/chanwenxiang/ai-cabient"
+$env:GITHUB_RUNNER_TOKEN = "<classic PAT，勾选 repo 作用域>"   # 注意：是 PAT，不是 registration token
 .\scripts\devops\register-github-runner.ps1
 ```
 
 Runner 标签：`self-hosted`, `linux`, `ai-cabinet`（与 `sonar.yml` 中 `runs-on` 一致）。
+
+🔴 **为什么必须是 PAT 而不是 registration token**：镜像 entrypoint 拿到 `ACCESS_TOKEN` 后，会**在容器启动时现取**
+注册令牌（`POST /repos/{owner}/{repo}/actions/runners/registration-token`，取回的令牌**有效期仅 1 小时**）。
+若把一次性 registration token 直接塞进来，1 小时后它就失效；而 `restart: unless-stopped` 会让容器反复重启，
+日志里只有这一行关键信息：
+
+```
+Http response code: NotFound from 'POST https://api.github.com/actions/runner-registration' … 404
+```
+
+（2026-09-19 实测：`RestartCount=274`、`ExitCode=1` 无限循环。**404 而非 401** 是这类令牌失效的典型表现——
+GitHub 对无法解析的令牌一律返回 404。）换成 PAT 后由 entrypoint 自动续期，不再需要人工重签。
+
+**另外两件容易踩的事**（2026-09-19 已修，详见下方「已知坑」）：
+
+- runner 与 **SonarQube 已解耦**：不再 `depends_on: sonarqube`。原写法会让「只想起 runner」变成必须连带
+  拉起 3GB 的 SonarQube 并等它 `service_healthy`（`start_period: 180s`）。需要扫 sonar 时用同一 profile 单独起。
+- runner 需要 **Maven 缓存 + 阿里云镜像 settings** 两处挂载；此前它们**只存在于手工起的容器里、不在 compose 内**
+  ⇒ 用 compose 重建会**静默丢掉**（丢掉的后果：CI 走 Maven Central 而非阿里云镜像，构建变慢甚至超时）。
+  现已写入 compose，默认值可用 `MAVEN_REPO_HOST_PATH` / `MAVEN_SETTINGS_HOST_PATH` 覆盖。
 
 ## SonarQube 版本（MCP）
 

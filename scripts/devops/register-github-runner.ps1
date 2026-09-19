@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$RepoUrl = $env:GITHUB_REPO_URL,
   [string]$RunnerToken = $env:GITHUB_RUNNER_TOKEN,
   [string]$RunnerName = "ai-cabinet-local"
@@ -10,10 +10,10 @@ $Infra = Join-Path $Root "infra"
 $EnvFile = Join-Path $Infra ".env"
 
 if (-not $RepoUrl) {
-  Write-Error "Set GITHUB_REPO_URL, e.g. https://github.com/your-org/ai-cabinet"
+  Write-Error "Set GITHUB_REPO_URL, e.g. https://github.com/chanwenxiang/ai-cabient"
 }
 if (-not $RunnerToken) {
-  Write-Error "Set GITHUB_RUNNER_TOKEN from GitHub repo Settings → Actions → Runners → New self-hosted runner"
+  Write-Error "Set GITHUB_RUNNER_TOKEN to a classic PAT with 'repo' scope (Settings -> Developer settings -> Personal access tokens). NOT a one-shot registration token: it expires in 1h and the container will crash-loop with 'POST /actions/runner-registration -> 404'."
 }
 
 if (-not (Test-Path $EnvFile)) {

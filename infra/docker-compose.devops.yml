@@ -65,6 +65,11 @@ services:
       TZ: Asia/Shanghai
       REPO_URL: ${GITHUB_REPO_URL:-https://github.com/chanwenxiang/ai-cabient}
       RUNNER_NAME: ${GITHUB_RUNNER_NAME:-ai-cabinet-local}
+      # 🔴 这里必须是 PAT（classic，含 repo 作用域）：镜像 entrypoint 会用它在启动时**现取**
+      # 注册令牌（ACCESS_TOKEN=… bash /token.sh → RUNNER_TOKEN=$(…| jq -r .token)）。
+      # 不要改传 RUNNER_TOKEN —— 那是**一次性注册令牌，1 小时即过期**，过期后容器会以
+      # `POST https://api.github.com/actions/runner-registration → 404` 无限重启
+      # （2026-09-19 实测 RestartCount=274）。二者与 APP_ID/APP_PRIVATE_KEY 互斥（entrypoint 会报错）。
       ACCESS_TOKEN: ${GITHUB_RUNNER_TOKEN:-}
       RUNNER_WORKDIR: /tmp/runner/work
       LABELS: self-hosted,linux,ai-cabinet
@@ -75,10 +80,15 @@ services:
       - runner_work:/tmp/runner/work
       - /var/run/docker.sock:/var/run/docker.sock
       - ..:/workspace
-    # 预装 Java/Maven/Sonar Scanner；重建：docker compose ... build github-runner --no-cache
-    depends_on:
-      sonarqube:
-        condition: service_healthy
+      # 下面两处此前**只存在于手工 `docker run` 起的容器里、不在版本管理内** ⇒ 一旦用 compose
+      # 重建就会静默丢失：丢了 Maven 会改走 Maven Central（而非阿里云镜像），CI 构建变慢甚至超时。
+      # 默认值取自 2026-09-19 实测的现存挂载；Linux/CI 上用 .env 覆盖即可。
+      - ${MAVEN_REPO_HOST_PATH:-D:/devTools/repository}:/root/.m2/repository
+      - ${MAVEN_SETTINGS_HOST_PATH:-C:/Users/cwx/.m2/settings-container.xml}:/root/.m2/settings.xml
+    # 刻意**不**依赖 sonarqube：runner 的职责是注册并跑 job，注册与监听都不需要 SonarQube。
+    # 原先的 `depends_on: sonarqube(condition: service_healthy)` 会让「只想起 runner」变成
+    # 必须连带拉起 3GB 的 SonarQube 并等它健康（start_period 180s）——两个 devops 服务被绑死。
+    # 需要跑 sonar 扫描时，用同一 profile 单独起 sonarqube 即可。
 
 volumes:
   sonarqube_pg:
