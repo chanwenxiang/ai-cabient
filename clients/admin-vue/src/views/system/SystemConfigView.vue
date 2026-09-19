@@ -103,6 +103,17 @@
           @clear="search"
         />
       </el-form-item>
+      <el-form-item v-if="flagGroups.length" label="功能分组">
+        <el-select
+          v-model="groupFilter"
+          clearable
+          placeholder="全部分组"
+          style="width: 200px"
+          @change="onGroupFilterChange"
+        >
+          <el-option v-for="g in flagGroups" :key="g" :label="g" :value="g" />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
         <el-button @click="reset">重置</el-button>
@@ -131,10 +142,20 @@
             class-name="col-status"
             label-class-name="col-status"
           />
-          <el-table-column label="配置键" min-width="180" class-name="col-text">
+          <el-table-column label="配置键" min-width="200" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.configKey }}</span>
+              <el-tooltip
+                v-if="flagByKey[row.configKey]?.deprecated"
+                :content="flagByKey[row.configKey]?.deprecatedNote || '已废弃，请勿使用'"
+                placement="top"
+              >
+                <el-tag type="danger" size="small" class="flag-deprecated-tag">已废弃</el-tag>
+              </el-tooltip>
             </template>
+          </el-table-column>
+          <el-table-column label="功能分组" min-width="130">
+            <template #default="{ row }">{{ groupOf(row.configKey) || '—' }}</template>
           </el-table-column>
           <el-table-column label="说明" min-width="160" class-name="col-text">
             <template #default="{ row }">{{ row.description || '无说明' }}</template>
@@ -257,6 +278,28 @@ interface SystemConfigRow {
   updatedAt?: string;
 }
 
+/** 功能开关注册表（后端 ops/feature-flags.json）——只读元数据，用于分组筛选与类型化控件。 */
+interface FeatureFlagOption {
+  value: string;
+  label: string;
+}
+interface FeatureFlagMeta {
+  key: string;
+  group: string;
+  type: string;
+  default: string;
+  description: string;
+  unit?: string;
+  options?: FeatureFlagOption[];
+  deprecated?: boolean;
+  deprecatedNote?: string;
+}
+interface FeatureFlagCatalog {
+  version: number;
+  groups: string[];
+  flags: FeatureFlagMeta[];
+}
+
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
@@ -271,6 +314,10 @@ const keyword = ref('');
 const page = ref(1);
 const size = ref(20);
 const items = ref<SystemConfigRow[]>([]);
+/** key -> 开关元数据；面板据此分组筛选、按 type 渲染控件、标注废弃项 */
+const flagByKey = ref<Record<string, FeatureFlagMeta>>({});
+const flagGroups = ref<string[]>([]);
+const groupFilter = ref('');
 const dialogVisible = ref(false);
 const creating = ref(false);
 const form = reactive({ configKey: '', configValue: '', description: '' });
@@ -297,21 +344,38 @@ const ENUM_VALUE_OPTIONS: Record<string, { value: string; label: string }[]> = {
   ]
 };
 
-const valueOptions = computed(() => ENUM_VALUE_OPTIONS[form.configKey.trim()] || []);
+const valueOptions = computed(() => {
+  const key = form.configKey.trim();
+  // 注册表是权威清单：枚举候选优先取它，前端不再各维护一份（下面的常量只作兜底）
+  const fromCatalog = flagByKey.value[key]?.options;
+  if (fromCatalog && fromCatalog.length > 0) {
+    return fromCatalog.map((o) => ({ value: o.value, label: `${o.value} — ${o.label}` }));
+  }
+  return ENUM_VALUE_OPTIONS[key] || [];
+});
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  const rows = q
-    ? items.value.filter((row) =>
-        [row.configKey, row.configValue, row.description].some((x) =>
-          String(x || '')
-            .toLowerCase()
-            .includes(q)
-        )
-      )
-    : items.value;
+  const g = groupFilter.value;
+  const rows = items.value.filter((row) => {
+    if (g && flagByKey.value[row.configKey]?.group !== g) return false;
+    if (!q) return true;
+    return [row.configKey, row.configValue, row.description].some((x) =>
+      String(x || '')
+        .toLowerCase()
+        .includes(q)
+    );
+  });
   return sortByPrimaryKey(rows, 'configKey', 'asc');
 });
+
+function groupOf(key: string) {
+  return flagByKey.value[key]?.group || '';
+}
+
+function onGroupFilterChange() {
+  page.value = 1;
+}
 
 const paged = computed(() => {
   const start = (page.value - 1) * size.value;
@@ -402,6 +466,27 @@ function applyRouteQuery() {
     return true;
   }
   return false;
+}
+
+/**
+ * 拉取功能开关注册表。它只影响「怎么分组展示」，不影响配置读写本身，
+ * 所以单独 try —— 清单挂了也不能连累主表；但必须提示，不能静默退化成「没有分组」。
+ */
+async function loadFeatureFlags() {
+  try {
+    const catalog = await api.request<FeatureFlagCatalog>(
+      AdminEndpoints.systemConfigFeatureFlags,
+      'GET'
+    );
+    flagGroups.value = catalog.groups || [];
+    const map: Record<string, FeatureFlagMeta> = {};
+    for (const flag of catalog.flags || []) {
+      map[flag.key] = flag;
+    }
+    flagByKey.value = map;
+  } catch (e) {
+    ElMessage.warning(e instanceof Error ? e.message : '功能开关清单加载失败（仍可编辑参数）');
+  }
 }
 
 async function load() {
@@ -569,6 +654,7 @@ async function save() {
 onMounted(() => {
   applyRouteQuery();
   load();
+  void loadFeatureFlags();
 });
 
 async function reloadFromRouteQuery() {
@@ -656,5 +742,8 @@ onActivated(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.flag-deprecated-tag {
+  margin-left: 6px;
 }
 </style>

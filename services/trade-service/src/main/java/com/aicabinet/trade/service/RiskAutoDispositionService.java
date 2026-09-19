@@ -60,7 +60,7 @@ public class RiskAutoDispositionService {
 
     /** INFO 超龄 → AUTO_CLEARED */
     public int autoClearInfo() {
-        int hours = systemConfigService.getInt("risk.auto_clear_info_hours", 72);
+        int hours = systemConfigService.getInt(SystemConfigService.RISK_AUTO_CLEAR_INFO_HOURS, 72);
         if (hours <= 0) {
             return 0;
         }
@@ -82,7 +82,7 @@ public class RiskAutoDispositionService {
 
     /** WARN 超龄 → ACKED（不拉黑，仅留痕） */
     public int autoAckWarn() {
-        int hours = systemConfigService.getInt("risk.auto_ack_warn_hours", 168);
+        int hours = systemConfigService.getInt(SystemConfigService.RISK_AUTO_ACK_WARN_HOURS, 168);
         if (hours <= 0) {
             return 0;
         }

@@ -1,0 +1,48 @@
+# Promtail：抓取 Docker 容器 stdout/stderr 并推送到 Loki
+#
+# 为什么用 promtail 而不是给每个服务改 logging driver：
+#   ① 服务本身零侵入（不必改 compose 里每个 app 的 logging 段）；
+#   ② 新增/移除业务容器自动被发现（docker_sd_configs 动态服务发现）。
+# 代价：需要只读挂载 docker.sock（见 docker-compose.observability.yml）。
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: warn
+
+positions:
+  # 🔴 必须落在**数据卷**里（compose 挂了 promtail_positions:/positions）。
+  #    放在默认的 /tmp 会让每次 off→on 都丢进度 ⇒ 每次重启都把历史重灌一遍
+  #    （重复日志 + 再来一次限速尖峰）。
+  filename: /positions/positions.yaml
+  sync_period: 10s
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+    relabel_configs:
+      # 容器名去掉前导 '/'（如 /ai-cabinet-trade-service-1 → ai-cabinet-trade-service-1）
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      # compose service 名（trade-service / device-service / …），查询时最好用这个
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: stream
+    pipeline_stages:
+      # 拆开 Docker 的日志封装，并把 entry 时间设为容器里那条日志的真实时间
+      # （下面 drop.older_than 依赖它；若本步失效，drop 计数器会恒为 0，可据此判定）
+      - docker: {}
+      # 🔴 界定「启动回灌」：positions.yaml 是空的（数据卷首次创建）时，promtail 会从
+      #    容器日志文件**开头**读起 ⇒ 一次性把历史全推给 Loki，撞单流限速变 429、
+      #    条目被丢弃（现象：标签都在、就是查不到内容）。这里只保留最近 10 分钟。
+      # ⚠️ 代价（刻意接受并写下来）：promtail 停机超过 10 分钟再启动，停机期间的
+      #    日志会被丢弃 —— 单机演示栈用它换「不淹 Loki」；要更长请调大本值。
+      - drop:
+          older_than: 10m
+          drop_counter_reason: startup_backlog

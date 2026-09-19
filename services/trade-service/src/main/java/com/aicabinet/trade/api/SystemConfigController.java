@@ -1,11 +1,13 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.FeatureFlagCatalogDto;
 import com.aicabinet.common.dto.FileAttachmentDto;
 import com.aicabinet.common.dto.SystemConfigDto;
 import com.aicabinet.common.dto.UpsertSystemConfigRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.FeatureFlagCatalogService;
 import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.OpsAlertDispatcher;
 import com.aicabinet.trade.service.SystemConfigService;
@@ -32,19 +34,32 @@ public class SystemConfigController {
     private final SystemConfigService systemConfigService;
     private final FileAttachmentService fileAttachmentService;
     private final OpsAlertDispatcher opsAlertDispatcher;
+    private final FeatureFlagCatalogService featureFlagCatalogService;
 
     public SystemConfigController(SystemConfigService systemConfigService,
                                   FileAttachmentService fileAttachmentService,
-                                  OpsAlertDispatcher opsAlertDispatcher) {
+                                  OpsAlertDispatcher opsAlertDispatcher,
+                                  FeatureFlagCatalogService featureFlagCatalogService) {
         this.systemConfigService = systemConfigService;
         this.fileAttachmentService = fileAttachmentService;
         this.opsAlertDispatcher = opsAlertDispatcher;
+        this.featureFlagCatalogService = featureFlagCatalogService;
     }
 
     @RequiresPermissions("ops:config:list")
     @GetMapping
     public ApiResponse<List<SystemConfigDto>> list(HttpServletRequest request) {
         return ApiResponse.ok(systemConfigService.listAll());
+    }
+
+    /**
+     * 功能开关注册表（权威清单）：运营台「功能开关」面板据此分组渲染控件。
+     * 只读；写入仍走 {@code PUT /api/v2/ops/admin/system-configs}，所以运行期改完即时生效。
+     */
+    @RequiresPermissions("ops:config:list")
+    @GetMapping("/feature-flags")
+    public ApiResponse<FeatureFlagCatalogDto> featureFlags() {
+        return ApiResponse.ok(featureFlagCatalogService.catalog());
     }
 
     @RequiresPermissions(value = {"ops:config:edit", "ops:config:import"}, logical = RequiresPermissions.Logical.OR)

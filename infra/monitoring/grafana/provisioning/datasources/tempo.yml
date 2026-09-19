@@ -1,0 +1,24 @@
+# Grafana 数据源：Tempo（链路追踪）
+#
+# 带 traces → logs 的关联：在 trace 里点一条 span 可直接跳到 Loki 里该服务的日志
+# （依赖 loki.yml 里 uid=loki 的数据源；promtail 打的 `service` 标签即对应服务名）。
+#
+# 🔴 同样是「数据源存在 ≠ 有 trace」：应用侧 exporter 默认不注册
+#    （`tracing.otlp.endpoint` 为空 / 运行期开关关闭时），此时 Tempo 里就是空的。
+apiVersion: 1
+
+datasources:
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: '-5m'
+        spanEndTimeShift: '5m'
+        filterByTraceID: true
+        tags:
+          - key: service.name
+            value: service

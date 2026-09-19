@@ -141,6 +141,33 @@ public class SystemConfigService {
     public static final String REPLENISHMENT_COMPLETE_REQUIRE_DOOR =
             "replenishment.complete.require_door";
 
+    // ── 可观测性（P0-6）：链路追踪的**运行期**开关 ──────────────────────────
+    /**
+     * 链路追踪总开关，**运行期生效**（运营台改完即生效，不用重启）。
+     *
+     * <p>它决定本服务**要不要把 span 发出去**。而 Loki / Tempo **容器在不在跑**由
+     * {@code infra/observability.ps1} 管 —— 系统配置存在 PG 里，它拉不起容器，两件事别混。</p>
+     *
+     * <p>三态语义（seed 为<b>空串</b>＝未表态）：</p>
+     * <ul>
+     *   <li>{@code true} ⇒ 强制开（需要端点，见 {@link #OPS_OBSERVABILITY_OTLP_ENDPOINT}）</li>
+     *   <li>{@code false} ⇒ 强制关，**压过** Spring 属性 {@code tracing.otlp.endpoint}</li>
+     *   <li>空 ⇒ 跟随属性：属性有端点就开、没有就关（保证「纯 env 部署」行为不变）</li>
+     * </ul>
+     */
+    public static final String OPS_OBSERVABILITY_TRACING_ENABLED = "ops.observability.tracing_enabled";
+    /**
+     * OTLP HTTP 导出端点，如 {@code http://tempo:4318/v1/traces}（容器间走服务名）。
+     * 留空则回退 Spring 属性 {@code tracing.otlp.endpoint}。
+     */
+    public static final String OPS_OBSERVABILITY_OTLP_ENDPOINT = "ops.observability.otlp_endpoint";
+    /** 运营台是否显示「演示数据」横幅。⚠️ 原先只有代码里读、没 seed ⇒ 运营台看不到（本次补齐）。 */
+    public static final String OPS_DEMO_DATA_BANNER = "ops.demo_data_banner";
+    /** 风控自动处置：信息类工单多少小时后自动清除。⚠️ 原先只有代码里读、没 seed（本次补齐）。 */
+    public static final String RISK_AUTO_CLEAR_INFO_HOURS = "risk.auto_clear_info_hours";
+    /** 风控自动处置：待确认工单超多少小时告警。⚠️ 原先只有代码里读、没 seed（本次补齐）。 */
+    public static final String RISK_AUTO_ACK_WARN_HOURS = "risk.auto_ack_warn_hours";
+
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
     private final AlipayProperties alipayProperties;
@@ -417,7 +444,8 @@ public class SystemConfigService {
         upsertIfAbsent(OPS_ALERT_ESCALATION_PHONE_WEBHOOK, "",
                 "告警升级二级：电话外呼网关 Webhook URL（留空跳过；短信失败后才会走到这里）");
         upsertIfAbsent("ops.log_retention.notify_months", "6", "通知日志保留月数，0=不清理");
-        upsertIfAbsent("ops.log_retention.points_months", "12", "积分日志保留月数，0=不清理");
+        upsertIfAbsent("ops.log_retention.points_months", "12",
+                "【已废弃·请勿使用】积分流水是账本组成部分，禁止删除（见 GrowthLogArchiveScheduler）");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
         upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");
@@ -434,6 +462,17 @@ public class SystemConfigService {
                 "签到距柜机最大允许距离（米）；≤0=关闭距离校验");
         upsertIfAbsent(REPLENISHMENT_COMPLETE_REQUIRE_DOOR, "true",
                 "商户端完成补货是否必须先补货开门；false=可跳过");
+        // ── 可观测性（P0-6）：追踪的运行期开关与端点。留空=跟随/不用，零行为变化 ──
+        upsertIfAbsent(OPS_OBSERVABILITY_TRACING_ENABLED, "",
+                "分布式追踪运行期开关: true/1=强制开, false/0=强制关(压过 OTLP_ENDPOINT), 留空=跟随端点");
+        upsertIfAbsent(OPS_OBSERVABILITY_OTLP_ENDPOINT, "",
+                "OTLP 导出端点，如 http://tempo:4318/v1/traces（容器间走服务名）；留空回退环境变量 OTLP_ENDPOINT");
+        // ── 补齐原先「代码里读、却没 seed」的键：不补则运营台看不到，等于假可配置 ──
+        upsertIfAbsent(OPS_DEMO_DATA_BANNER, "true", "运营台是否显示「演示数据」横幅（仅 mock 支付模式生效）");
+        upsertIfAbsent(RISK_AUTO_CLEAR_INFO_HOURS, "72",
+                "风控自动处置：INFO 级事件超该小时数自动清除, 0=关闭");
+        upsertIfAbsent(RISK_AUTO_ACK_WARN_HOURS, "168",
+                "风控自动处置：WARN 级事件超该小时数自动转待确认(ACK), 0=关闭");
         // 兼容旧默认值中的英文 OPS / 损坏的副标题（历史编码写成 ??????）
         repository.findById(OPS_BRAND_SIDEBAR_TITLE).ifPresent(row -> {
             if ("AI开门柜 OPS".equals(row.getConfigValue())) {
@@ -474,6 +513,10 @@ public class SystemConfigService {
                 "自动结算最低整体识别置信度（低于则触发人工审；单品另看 SKU 扣款阈值）");
         refreshDescriptionIfPresent(DISPUTE_AUTO_OPEN,
                 "识别低置信是否自动开争议工单；false 时仍结算但记日志（空车/超时等安全路径不受影响）");
+        // 把历史库里那条误导性描述刷成「已废弃」：原描述承诺的「积分日志清理」永远不会发生，
+        // 与 GrowthLogArchiveScheduler「积分流水禁止 DELETE」的账本约束冲突。
+        refreshDescriptionIfPresent("ops.log_retention.points_months",
+                "【已废弃·请勿使用】积分流水是账本组成部分，禁止删除（见 GrowthLogArchiveScheduler）");
     }
 
     private void refreshDescriptionIfPresent(String key, String description) {

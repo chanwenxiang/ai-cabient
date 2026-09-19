@@ -9,6 +9,7 @@ import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.OpsDeviceAdminService;
 import com.aicabinet.trade.service.OpsSessionOrderQueryService;
 import com.aicabinet.trade.support.CacheNames;
+import com.aicabinet.trade.service.SystemConfigService;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -49,7 +50,7 @@ public class AdminDashboardController {
     @GetMapping("/data-scope")
     public ApiResponse<DataScopeDto> dataScope(HttpServletRequest request) {
         boolean mock = support.securityProperties().mockEnabled();
-        boolean banner = support.systemConfigService().getBoolean("ops.demo_data_banner", true);
+        boolean banner = support.systemConfigService().getBoolean(SystemConfigService.OPS_DEMO_DATA_BANNER, true);
         boolean demo = mock && banner;
         return ApiResponse.ok(new DataScopeDto(
                 demo,

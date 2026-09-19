@@ -1,0 +1,36 @@
+==> 探针目标 trade-service=http://127.0.0.1:18080  tempo=http://127.0.0.1:13200
+
+==> Phase 0：运营登录 + 功能开关注册表端点
+  ✅ feature-flags 端点可用 :: code=0
+  ✅ 注册表 flag 数量 :: 实测 56，期望 56
+  ✅ 注册表分组数 :: 实测 15，期望 15
+  ✅ 追踪开关在注册表内 :: key=ops.observability.tracing_enabled
+  ✅ 追踪开关是三态 SELECT :: type=SELECT options=['', 'true', 'false']
+  ✅ OTLP 端点项在注册表内 :: key=ops.observability.otlp_endpoint
+    原始值 endpoint=[http://tempo:4318/v1/traces] switch=[]（结束后还原）
+
+==> Phase 1：端点留空 ⇒ 基线应查不到 trace
+    [基线 · 无端点] 流量 24/24 成功，窗口 [1789824094,1789824116] traces = 0
+  ✅ 无端点时不外发 :: traces=0，期望 0
+
+==> Phase 2：写入端点（不重启）⇒ trace 应出现
+    [开启 · 跟随端点] 流量 24/24 成功，窗口 [1789824122,1789824145] traces = 3
+  ✅ 写完端点后开始外发 :: traces=3，期望 >0
+  ✅ 端点生效日志出现（无需重启） :: 日志含 'OTLP 导出端点已生效'
+
+==> Phase 3：tracing_enabled=false（不重启）⇒ 应停止外发
+    [强制关闭] 流量 24/24 成功，窗口 [1789824151,1789824173] traces = 0
+  ✅ 关闭后不再外发 :: traces=0，期望 0
+
+==> Phase 4：改回留空（不重启）⇒ 应恢复外发（三态闭合）
+    [恢复 · 跟随端点] 流量 24/24 成功，窗口 [1789824179,1789824202] traces = 3
+  ✅ 恢复后重新外发 :: traces=3，期望 >0
+
+==> 判别力自检（防假绿）
+  ✅ ON/OFF/ON 单调性成立 :: on=3 off=0 on=3
+
+==> 还原原始配置
+  ✅ 配置已还原 :: endpoint=[http://tempo:4318/v1/traces] switch=[]
+
+========================================================================
+结论：全部断言通过 ✅

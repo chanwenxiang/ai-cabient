@@ -451,6 +451,8 @@ export const AdminEndpoints = {
   systemConfig: (configKey: string) => `${ops}/system-configs/${encodeURIComponent(configKey)}`,
   systemConfigBrandLogo: `${ops}/system-configs/brand-logo`,
   systemConfigAlertTest: `${ops}/system-configs/alert-test`,
+  /** 功能开关注册表（权威清单，只读）：驱动「参数配置」页的分组筛选与类型化控件 */
+  systemConfigFeatureFlags: `${ops}/system-configs/feature-flags`,
   dicts: `${ops}/dicts`,
   dictTypes: `${ops}/dicts/types`,
   dictType: (dictType: string) => `${ops}/dicts/types/${encodeURIComponent(dictType)}`,

@@ -1,0 +1,78 @@
+# 可观测性接收端 overlay（profile = observability，默认不启动）
+#
+# 用法（与 alerting 同款做法，见 docker-compose.full.yml 里的说明）：
+#   docker compose -f docker-compose.full.yml -f docker-compose.observability.yml \
+#       --profile alerting --profile observability up -d
+# 或者直接用一键脚本：  infra/observability.ps1 on
+#
+# 🔴 为什么要挂 profile：Docker VM 只有 3.82GB。Loki + Tempo 常驻会和业务容器抢内存
+#    （O8 压测那次 1000 VU 已把 Docker 引擎打崩、需人工重启）⇒ 要看日志/链路时再开。
+#    ⚠️ 于是「容器是否在跑」**不可能**由应用侧的系统配置决定 —— 系统配置能控制的是
+#    「应用要不要往这里发数据」（见 tracing 的运行期开关），两件事别混。
+#
+# 网络：不声明 networks ⇒ 随 base compose 落进同一个默认网络（ai-cabinet_default），
+#      所以 Grafana 可以用 http://loki:3100 / http://tempo:3200 直连。
+services:
+  loki:
+    stop_grace_period: 30s
+    image: grafana/loki:2.9.8
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - "./monitoring/loki-config.yml:/etc/loki/loki-config.yml:ro"
+      - loki_data:/loki
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-13100}:3100"
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3100/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # 采集层：动态发现所有容器并抓 stdout/stderr（对业务服务零侵入）
+  promtail:
+    stop_grace_period: 30s
+    image: grafana/promtail:2.9.8
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - "./monitoring/promtail-config.yml:/etc/promtail/promtail-config.yml:ro"
+      # 采集进度必须持久化，否则每次 off→on 都会重灌历史（重复日志 + 限速尖峰）
+      - promtail_positions:/positions
+      # 只读挂载 docker.sock：docker_sd_configs 需要它做服务发现与日志读取
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      loki:
+        condition: service_started
+    mem_limit: 128m
+
+  # 链路追踪接收端：OTLP gRPC 4317 / OTLP HTTP 4318
+  tempo:
+    stop_grace_period: 30s
+    image: grafana/tempo:2.4.1
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo-config.yml"]
+    volumes:
+      - "./monitoring/tempo-config.yml:/etc/tempo/tempo-config.yml:ro"
+      - tempo_data:/var/tempo
+    ports:
+      - "127.0.0.1:${TEMPO_PORT:-13200}:3200"
+      - "127.0.0.1:${OTLP_HTTP_PORT:-14318}:4318"
+      - "127.0.0.1:${OTLP_GRPC_PORT:-14317}:4317"
+    mem_limit: 320m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3200/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  loki_data:
+  tempo_data:
+  promtail_positions:

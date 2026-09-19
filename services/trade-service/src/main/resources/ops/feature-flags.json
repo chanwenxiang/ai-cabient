@@ -1,0 +1,473 @@
+{
+  "version": 1,
+  "generatedBy": "scripts/check-feature-flags.mjs 守卫一致性；清单由源码 seed ∪ 读取点汇总",
+  "groups": [
+    "结算与识别",
+    "交易与资金",
+    "退款",
+    "争议工单",
+    "设备与柜机",
+    "补货与签到",
+    "商户",
+    "风控自动处置",
+    "运营告警",
+    "卡点监控",
+    "可观测性（追踪/日志）",
+    "日志留存",
+    "客户端展示",
+    "品牌文案",
+    "演示数据"
+  ],
+  "flags": [
+    {
+      "key": "balance.refund.max_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "500000",
+      "description": "单次余额退款申请上限（分），默认 ¥5000，0=不限制",
+      "unit": "分"
+    },
+    {
+      "key": "checkout.preauth_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "2000",
+      "description": "消费者开门预授权冻结金额(分)",
+      "unit": "分"
+    },
+    {
+      "key": "consumer.service_phone",
+      "group": "客户端展示",
+      "type": "TEXT",
+      "default": "400-888-0018",
+      "description": "C端客服电话"
+    },
+    {
+      "key": "debt.block_open_on_pending",
+      "group": "交易与资金",
+      "type": "BOOLEAN",
+      "default": "true",
+      "description": "有待支付订单时是否禁止开门"
+    },
+    {
+      "key": "device.offline.auto_sales_lock_minutes",
+      "group": "设备与柜机",
+      "type": "NUMBER",
+      "default": "10",
+      "description": "设备离线超时自动锁机分钟数, 0=关闭",
+      "unit": "分钟"
+    },
+    {
+      "key": "device.offline.auto_unlock_enabled",
+      "group": "设备与柜机",
+      "type": "TEXT",
+      "default": "FALSE",
+      "description": "设备恢复稳定在线后是否自动解锁起售（默认关闭）"
+    },
+    {
+      "key": "device.offline.auto_unlock_stable_minutes",
+      "group": "设备与柜机",
+      "type": "TEXT",
+      "default": "String.valueOf(DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES)",
+      "description": "自动解锁前需保持稳定在线分钟数（默认 5）, 0=关闭"
+    },
+    {
+      "key": "device.offline.manual_unlock_grace_minutes",
+      "group": "设备与柜机",
+      "type": "NUMBER",
+      "default": "45",
+      "description": "人工解锁后离线自动锁机宽限分钟数, 0=无宽限",
+      "unit": "分钟"
+    },
+    {
+      "key": "device.temp.alert_max_c",
+      "group": "设备与柜机",
+      "type": "NUMBER",
+      "default": "8",
+      "description": "柜内温度高于该值(℃)时上报温度异常告警, 0=关闭",
+      "unit": "℃"
+    },
+    {
+      "key": "dispute.auto_open",
+      "group": "争议工单",
+      "type": "BOOLEAN",
+      "default": "true",
+      "description": "识别低置信是否自动开争议工单；false 时仍结算但记日志（空车/超时等安全路径不受影响）"
+    },
+    {
+      "key": "dispute.sla.hours",
+      "group": "争议工单",
+      "type": "NUMBER",
+      "default": "48",
+      "description": "争议工单 SLA 处理时限（小时）",
+      "unit": "小时"
+    },
+    {
+      "key": "dispute.sla.reminder_hours",
+      "group": "争议工单",
+      "type": "NUMBER",
+      "default": "12",
+      "description": "争议 SLA 到期前提醒提前量（小时）",
+      "unit": "小时"
+    },
+    {
+      "key": "dispute.sla.webhook",
+      "group": "争议工单",
+      "type": "TEXT",
+      "default": "",
+      "description": "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）"
+    },
+    {
+      "key": "merchant.notify.incident_cooldown_minutes",
+      "group": "商户",
+      "type": "NUMBER",
+      "default": "30",
+      "description": "柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却",
+      "unit": "分钟"
+    },
+    {
+      "key": "ops.alert.dingtalk_webhook",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "运营告警：钉钉机器人 Webhook URL（留空不推送）"
+    },
+    {
+      "key": "ops.alert.escalation_enabled",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "FALSE",
+      "description": "P0 告警升级链开关（聊天渠道未送达时改打短信/电话给值班人）；默认关"
+    },
+    {
+      "key": "ops.alert.escalation_phone_webhook",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "告警升级二级：电话外呼网关 Webhook URL（留空跳过；短信失败后才会走到这里）"
+    },
+    {
+      "key": "ops.alert.escalation_sms_webhook",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "告警升级一级：短信网关 Webhook URL（留空跳过；载荷 phoneNumber/message）"
+    },
+    {
+      "key": "ops.alert.escalation_types",
+      "group": "运营告警",
+      "type": "TEXTAREA",
+      "default": "DISPUTE_SLA_OVERDUE,PAYSCORE_ORDER_REFUND_REQUIRED,WECHAT_REFUND_ABNORMAL,\"\r\n                        + \"PROFIT_SHARING_RETURN_FAILED,INVOICE_FULL_REFUND_RED_INVERSE",
+      "description": "需要升级的告警类型（逗号分隔），留空表示全类型；仅对投递失败的告警生效"
+    },
+    {
+      "key": "ops.alert.feishu_sign_secret",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "运营告警：飞书机器人签名密钥（仅勾选「签名校验」时必填，留空则不签名）"
+    },
+    {
+      "key": "ops.alert.feishu_webhook",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "运营告警：飞书自定义机器人 Webhook URL（留空不推送）"
+    },
+    {
+      "key": "ops.alert.oncall_roster",
+      "group": "运营告警",
+      "type": "TEXTAREA",
+      "default": "",
+      "description": "值班表 JSON：[{\\\"name\\\":\\\"张三\\\",\\\"phone\\\":\\\"138...\\\",\\\"days\\\":[1,2,3,4,5],\"\r\n                        + \"\\\"startHour\\\":9,\\\"endHour\\\":18}]；留空=无值班人=不升级"
+    },
+    {
+      "key": "ops.alert.webhook",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "运营告警：通用 JSON Webhook URL（留空不推送）"
+    },
+    {
+      "key": "ops.alert.wecom_webhook",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "运营告警：企业微信机器人 Webhook URL（留空不推送）"
+    },
+    {
+      "key": "ops.brand.logo_url",
+      "group": "品牌文案",
+      "type": "TEXT",
+      "default": "",
+      "description": "品牌标志图片地址（留空则用标题末字）"
+    },
+    {
+      "key": "ops.brand.sidebar_title",
+      "group": "品牌文案",
+      "type": "TEXT",
+      "default": "AI开门柜运营",
+      "description": "侧栏展开时的品牌文案"
+    },
+    {
+      "key": "ops.brand.subtitle",
+      "group": "品牌文案",
+      "type": "TEXT",
+      "default": "运营管理系统",
+      "description": "运营后台副标题（登录页副文案）"
+    },
+    {
+      "key": "ops.brand.title",
+      "group": "品牌文案",
+      "type": "TEXT",
+      "default": "AI开门柜",
+      "description": "运营后台品牌标题（登录页主标题）"
+    },
+    {
+      "key": "ops.demo_data_banner",
+      "group": "演示数据",
+      "type": "BOOLEAN",
+      "default": "true",
+      "description": "运营台是否显示「演示数据」横幅（仅 mock 支付模式生效）"
+    },
+    {
+      "key": "ops.log_retention.notify_months",
+      "group": "日志留存",
+      "type": "NUMBER",
+      "default": "6",
+      "description": "通知日志保留月数，0=不清理",
+      "unit": "月"
+    },
+    {
+      "key": "ops.log_retention.points_months",
+      "group": "日志留存",
+      "type": "NUMBER",
+      "default": "12",
+      "description": "【已废弃·请勿使用】积分流水是账本组成部分，禁止删除（见 GrowthLogArchiveScheduler）",
+      "unit": "月",
+      "deprecated": true,
+      "deprecatedNote": "积分流水是账本组成部分，与 member.available_points 对账依赖完整流水，禁止 DELETE（见 GrowthLogArchiveScheduler）"
+    },
+    {
+      "key": "ops.observability.otlp_endpoint",
+      "group": "可观测性（追踪/日志）",
+      "type": "TEXT",
+      "default": "",
+      "description": "OTLP 导出端点，如 http://tempo:4318/v1/traces（容器间走服务名）；留空回退环境变量 OTLP_ENDPOINT"
+    },
+    {
+      "key": "ops.observability.tracing_enabled",
+      "group": "可观测性（追踪/日志）",
+      "type": "SELECT",
+      "default": "",
+      "description": "分布式追踪运行期开关: true/1=强制开, false/0=强制关(压过 OTLP_ENDPOINT), 留空=跟随端点",
+      "options": [
+        {
+          "value": "",
+          "label": "跟随端点（默认：配了端点即开启）"
+        },
+        {
+          "value": "true",
+          "label": "强制开启"
+        },
+        {
+          "value": "false",
+          "label": "强制关闭（压过 OTLP_ENDPOINT）"
+        }
+      ]
+    },
+    {
+      "key": "ops.scan.door_open_minutes",
+      "group": "卡点监控",
+      "type": "NUMBER",
+      "default": "10",
+      "description": "柜门开启超时告警分钟数",
+      "unit": "分钟"
+    },
+    {
+      "key": "ops.scan.recognition_stuck_minutes",
+      "group": "卡点监控",
+      "type": "NUMBER",
+      "default": "3",
+      "description": "识别卡点告警分钟数",
+      "unit": "分钟"
+    },
+    {
+      "key": "ops.scan.settlement_stuck_minutes",
+      "group": "卡点监控",
+      "type": "NUMBER",
+      "default": "3",
+      "description": "结算卡点告警分钟数",
+      "unit": "分钟"
+    },
+    {
+      "key": "ops.scan.upload_stuck_minutes",
+      "group": "卡点监控",
+      "type": "NUMBER",
+      "default": "5",
+      "description": "视频上传卡点告警分钟数",
+      "unit": "分钟"
+    },
+    {
+      "key": "ops.support_email",
+      "group": "客户端展示",
+      "type": "TEXT",
+      "default": "ops@aicabinet.local",
+      "description": "运营支持邮箱（下发 C 端公开配置 supportEmail）"
+    },
+    {
+      "key": "order.unpaid.auto_blacklist",
+      "group": "交易与资金",
+      "type": "TEXT",
+      "default": "FALSE",
+      "description": "待支付超时关单时是否自动拉黑用户"
+    },
+    {
+      "key": "order.unpaid.auto_cancel_hours",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "48",
+      "description": "待支付订单超时自动关单小时数, 0=关闭",
+      "unit": "小时"
+    },
+    {
+      "key": "recharge.max_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "500000",
+      "description": "单次充值上限（分），默认 ¥5000，0=不限制",
+      "unit": "分"
+    },
+    {
+      "key": "recharge.pending.auto_cancel_minutes",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "30",
+      "description": "待支付充值单超时自动取消分钟数, 0=关闭",
+      "unit": "分钟"
+    },
+    {
+      "key": "refund.default_policy",
+      "group": "退款",
+      "type": "SELECT",
+      "default": "AUTO_REFUND",
+      "description": "全局默认退款策略: AUTO_REFUND=自助退款, DISPUTE_ONLY=仅申诉",
+      "options": [
+        {
+          "value": "AUTO_REFUND",
+          "label": "自助退款"
+        },
+        {
+          "value": "DISPUTE_ONLY",
+          "label": "仅申诉"
+        }
+      ]
+    },
+    {
+      "key": "refund.self.max_cents",
+      "group": "退款",
+      "type": "NUMBER",
+      "default": "5000",
+      "description": "消费者自助单笔退款上限（分），0=不限制",
+      "unit": "分"
+    },
+    {
+      "key": "refund.self.max_daily",
+      "group": "退款",
+      "type": "NUMBER",
+      "default": "3",
+      "description": "消费者每日自助退款次数上限，0=不限制"
+    },
+    {
+      "key": "refund.self.max_hours",
+      "group": "退款",
+      "type": "NUMBER",
+      "default": "24",
+      "description": "消费者自助退款时限（下单后小时数）",
+      "unit": "小时"
+    },
+    {
+      "key": "refund.self.partial_enabled",
+      "group": "退款",
+      "type": "BOOLEAN",
+      "default": "true",
+      "description": "是否允许消费者按行自助部分退"
+    },
+    {
+      "key": "replenishment.check_in.max_distance_m",
+      "group": "补货与签到",
+      "type": "NUMBER",
+      "default": "500",
+      "description": "签到距柜机最大允许距离（米）；≤0=关闭距离校验",
+      "unit": "米"
+    },
+    {
+      "key": "replenishment.check_in.require_location",
+      "group": "补货与签到",
+      "type": "BOOLEAN",
+      "default": "true",
+      "description": "柜机已配置坐标时签到是否必须带定位；false=允许空定位签到"
+    },
+    {
+      "key": "replenishment.complete.require_door",
+      "group": "补货与签到",
+      "type": "BOOLEAN",
+      "default": "true",
+      "description": "商户端完成补货是否必须先补货开门；false=可跳过"
+    },
+    {
+      "key": "replenishment.complete.require_evidence",
+      "group": "补货与签到",
+      "type": "BOOLEAN",
+      "default": "true",
+      "description": "商户端完成补货是否必须上传现场凭证照片；false=可跳过（仍可上传）"
+    },
+    {
+      "key": "risk.auto_ack_warn_hours",
+      "group": "风控自动处置",
+      "type": "NUMBER",
+      "default": "168",
+      "description": "风控自动处置：WARN 级事件超该小时数自动转待确认(ACK), 0=关闭",
+      "unit": "小时"
+    },
+    {
+      "key": "risk.auto_clear_info_hours",
+      "group": "风控自动处置",
+      "type": "NUMBER",
+      "default": "72",
+      "description": "风控自动处置：INFO 级事件超该小时数自动清除, 0=关闭",
+      "unit": "小时"
+    },
+    {
+      "key": "settlement.empty_auto_complete_no_gravity",
+      "group": "结算与识别",
+      "type": "TEXT",
+      "default": "FALSE",
+      "description": "纯视觉柜空车是否自动零结（无重力字段时）；默认 false 进争议"
+    },
+    {
+      "key": "settlement.min_confidence",
+      "group": "结算与识别",
+      "type": "TEXT",
+      "default": "0.72",
+      "description": "自动结算最低整体识别置信度（低于则触发人工审；单品另看 SKU 扣款阈值）"
+    },
+    {
+      "key": "settlement.recognition_mode",
+      "group": "结算与识别",
+      "type": "SELECT",
+      "default": "VISION",
+      "description": "结算识别方式: VISION=纯视觉(忽略重力), VISION_GRAVITY=视觉+重力融合",
+      "options": [
+        {
+          "value": "VISION",
+          "label": "纯视觉（忽略重力）"
+        },
+        {
+          "value": "VISION_GRAVITY",
+          "label": "视觉 + 重力融合"
+        }
+      ]
+    }
+  ]
+}

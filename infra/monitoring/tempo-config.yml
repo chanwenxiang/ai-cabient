@@ -1,0 +1,42 @@
+# Tempo：OTLP 链路追踪接收端（trace 存储）
+#
+# 与应用的接入方式：trade-service 侧 `tracing.otlp.endpoint`（Spring 属性）
+# 指向 http://tempo:4318/v1/traces（HTTP/OTLP）。
+# 🔴 应用侧 exporter **默认不注册**（端点为空时），所以「起没起 Tempo」与
+#    「应用发不发 span」是两件事 —— 后者由系统配置的运行期开关决定。
+#
+# 启停：见 infra/observability.ps1（profile=observability，默认不启动）。
+server:
+  http_listen_port: 3200
+  log_level: warn
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+ingester:
+  # 小栈：缩短 block 周期，让 trace 更快可查
+  max_block_duration: 5m
+  trace_idle_period: 10s
+
+compactor:
+  compaction:
+    # 演示栈只留 24h，Docker VM 仅 3.82GB
+    block_retention: 24h
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal
+
+# 不开 metrics_generator（会额外吃内存且需要 Prometheus remote_write）
+usage_report:
+  reporting_enabled: false

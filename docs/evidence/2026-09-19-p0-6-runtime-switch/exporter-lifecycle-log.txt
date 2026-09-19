@@ -1,0 +1,2 @@
+2026-09-19T13:12:42.758Z  INFO [trade-service,,] [] c.a.trade.config.TracingConfig - OTLP 导出器已常驻注册：运行期开关=ops.observability.tracing_enabled / 运行期端点=ops.observability.otlp_endpoint / 启动期回退端点=(未设置)
+2026-09-19T13:19:07.929Z  INFO [trade-service,,] [] c.a.t.c.RuntimeSwitchableOtlpSpanExporter - OTLP 导出端点已生效: http://tempo:4318/v1/traces

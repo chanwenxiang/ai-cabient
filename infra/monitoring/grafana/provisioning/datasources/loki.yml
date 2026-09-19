@@ -1,0 +1,15 @@
+# Grafana 数据源：Loki（日志）
+#
+# 由 grafana 容器的 provisioning 目录挂载加载（见 docker-compose.full.yml 的 grafana 服务）。
+# 🔴 与 prometheus 数据源一样：**数据源存在 ≠ 有数据** —— Loki 容器没起（profile 未开）
+#    时这里会显示 "Data source connected, but no data" 之类的空结果，属预期，不是故障。
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      maxLines: 1000
