@@ -20,13 +20,17 @@ const SERVICES_DIR = 'services';
 /** 菜单可见性专用权限码豁免清单（键=perm 码，值=设计依据） */
 const ALLOWLIST = new Map([
   // V138__align_menus_with_sidebar.sql：识别演示为 C 级菜单，侧栏可见性与按钮(API) ops:sku:demo 刻意分离
-  ['ops:recognition-demo:view', 'V138 刻意的菜单/按钮两级权限分离设计（按钮用 ops:sku:demo）'],
+  ['ops:recognition-demo:view', 'V138 刻意的菜单/按钮两级权限分离设计（按钮用 ops:sku:demo）']
 ]);
 
 const PERM_LITERAL = /[a-z0-9-]+(?::[a-z0-9-]+)+/g;
 
 function readIfExists(p) {
-  try { return readFileSync(join(ROOT, p), 'utf8'); } catch { return null; }
+  try {
+    return readFileSync(join(ROOT, p), 'utf8');
+  } catch {
+    return null;
+  }
 }
 
 // ── 菜单侧 ────────────────────────────────────────────────────────────────
@@ -52,7 +56,8 @@ for (const file of walkJava(servicesDir)) {
   const src = readFileSync(file, 'utf8');
   // 1) @RequiresPermissions(...)：取注解括号块（兼容 value=、多行、Logical.OR）
   for (const m of src.matchAll(/@RequiresPermissions\s*\(/g)) {
-    let depth = 1, i = m.index + m[0].length;
+    let depth = 1,
+      i = m.index + m[0].length;
     while (i < src.length && depth > 0) {
       if (src[i] === '(') depth++;
       else if (src[i] === ')') depth--;
@@ -79,9 +84,15 @@ for (const perm of menuPerms) {
 }
 
 if (violations.length > 0) {
-  console.error('[check-menu-permissions] 以下菜单 perm 码在后端无出处（@RequiresPermissions / 编程式检查均未命中）：');
+  console.error(
+    '[check-menu-permissions] 以下菜单 perm 码在后端无出处（@RequiresPermissions / 编程式检查均未命中）：'
+  );
   for (const p of violations) console.error(`  - ${p}`);
-  console.error('  修复：改用后端真实权限码；如属菜单/按钮两级分离设计，先补迁移注释再加入 ALLOWLIST。');
+  console.error(
+    '  修复：改用后端真实权限码；如属菜单/按钮两级分离设计，先补迁移注释再加入 ALLOWLIST。'
+  );
   process.exit(1);
 }
-console.log(`[check-menu-permissions] OK：${menuPerms.length} 个菜单权限码全部可溯源（豁免 ${ALLOWLIST.size} 项）`);
+console.log(
+  `[check-menu-permissions] OK：${menuPerms.length} 个菜单权限码全部可溯源（豁免 ${ALLOWLIST.size} 项）`
+);

@@ -17,7 +17,7 @@ const INFRA = 'infra';
 const ALLOWLIST = new Map([
   ['docker-compose.full.yml:80', 'gateway 业务入口（全栈部署对外唯一 HTTP）'],
   ['docker-compose.yml:80', 'gateway 业务入口（base 栈）'],
-  ['docker-compose.staging.yml:8099', 'sms-webhook-mock 测试工具（staging 短信回调模拟，仅联调用）'],
+  ['docker-compose.staging.yml:8099', 'sms-webhook-mock 测试工具（staging 短信回调模拟，仅联调用）']
 ]);
 
 const files = readdirSync(join(ROOT, INFRA))
@@ -33,7 +33,10 @@ for (const file of files) {
   let inPorts = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (/^\s*ports:\s*$/.test(line)) { inPorts = true; continue; }
+    if (/^\s*ports:\s*$/.test(line)) {
+      inPorts = true;
+      continue;
+    }
     if (inPorts && !/^\s*-/.test(line)) inPorts = false;
     if (!inPorts) continue;
     const entry = line.match(/^\s*-\s+"?([^"]+?)"?\s*(?:#.*)?$/);
@@ -43,10 +46,16 @@ for (const file of files) {
     const parts = spec.split(':');
     if (parts.length < 2) continue; // 仅容器端口（未发布宿主），不检查
     const hostPart = parts[0];
-    if (/^(127\.0\.0\.1|::1|\[::1\])/.test(hostPart)) { checked++; continue; }
+    if (/^(127\.0\.0\.1|::1|\[::1\])/.test(hostPart)) {
+      checked++;
+      continue;
+    }
     const hostPort = (hostPart.match(/(\d+)\s*$/) ?? [])[1] ?? hostPart;
     const key = `${file}:${hostPort}`;
-    if (ALLOWLIST.has(key)) { checked++; continue; }
+    if (ALLOWLIST.has(key)) {
+      checked++;
+      continue;
+    }
     violations.push(`${INFRA}/${file}:${i + 1}  "${spec}"  （宿主侧未绑回环；豁免键 "${key}"）`);
   }
 }
@@ -54,7 +63,11 @@ for (const file of files) {
 if (violations.length > 0) {
   console.error('[check-compose-ports] 以下端口映射未绑定 127.0.0.1/::1 且不在豁免清单：');
   for (const v of violations) console.error(`  - ${v}`);
-  console.error('  修复：改为 "127.0.0.1:端口:端口"；确需对外暴露则在此脚本 ALLOWLIST 带理由登记。');
+  console.error(
+    '  修复：改为 "127.0.0.1:端口:端口"；确需对外暴露则在此脚本 ALLOWLIST 带理由登记。'
+  );
   process.exit(1);
 }
-console.log(`[check-compose-ports] OK：${checked} 条端口映射全部绑回环或在豁免清单（${files.length} 个 compose 文件）`);
+console.log(
+  `[check-compose-ports] OK：${checked} 条端口映射全部绑回环或在豁免清单（${files.length} 个 compose 文件）`
+);

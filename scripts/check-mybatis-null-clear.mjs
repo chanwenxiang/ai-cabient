@@ -14,18 +14,22 @@ import { join, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const MODULES = ['services/trade-service/src/main/java', 'services/device-service/src/main/java', 'services/common'];
+const MODULES = [
+  'services/trade-service/src/main/java',
+  'services/device-service/src/main/java',
+  'services/common'
+];
 
 /** 豁免清单：键 = 模块相对路径（/ 分隔），值 = 为什么这不是清列意图 */
 const ALLOWLIST = new Map([
   [
     'services/trade-service/src/main/java/com/aicabinet/trade/service/DevicePresenceService.java',
-    'set(null) 后紧跟 mapper 的 clearOnlineSince/clearSalesUnlockedAt 显式清列 SQL，净效果正确',
+    'set(null) 后紧跟 mapper 的 clearOnlineSince/clearSalesUnlockedAt 显式清列 SQL，净效果正确'
   ],
   [
     'services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementOrderSupport.java',
-    'setId(null) 是 INSERT 前清主键让 MP 自增生成，save 为插入而非清列',
-  ],
+    'setId(null) 是 INSERT 前清主键让 MP 自增生成，save 为插入而非清列'
+  ]
 ]);
 
 const SET_NULL = /\.set[A-Z]\w*\(\s*null\s*\)/;
@@ -35,7 +39,11 @@ const MITIGATION = /lambdaUpdate\(\)[\s\S]{0,400}?\.set\([\s\S]{0,80}?null\)/;
 
 function* walkJava(dir) {
   let entries;
-  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
   for (const e of entries) {
     const p = join(dir, e.name);
     if (e.isDirectory()) yield* walkJava(p);
@@ -46,7 +54,10 @@ function* walkJava(dir) {
 const violations = [];
 for (const base of MODULES) {
   for (const file of walkJava(join(ROOT, base))) {
-    const rel = file.slice(ROOT.length + 1).split(sep).join('/');
+    const rel = file
+      .slice(ROOT.length + 1)
+      .split(sep)
+      .join('/');
     const lines = readFileSync(file, 'utf8').split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       if (!SET_NULL.test(lines[i])) continue;
@@ -65,9 +76,13 @@ for (const base of MODULES) {
 }
 
 if (violations.length > 0) {
-  console.error('[check-mybatis-null-clear] 疑似 set(null)+updateById/save 清列误用（updateById 默认忽略 null，列清不掉）：');
+  console.error(
+    '[check-mybatis-null-clear] 疑似 set(null)+updateById/save 清列误用（updateById 默认忽略 null，列清不掉）：'
+  );
   for (const v of violations) console.error(`  - ${v}`);
-  console.error('  修复：改 LambdaUpdateWrapper 显式 set(field, null)；确非清列意图的在 ALLOWLIST 带理由登记。');
+  console.error(
+    '  修复：改 LambdaUpdateWrapper 显式 set(field, null)；确非清列意图的在 ALLOWLIST 带理由登记。'
+  );
   process.exit(1);
 }
 console.log('[check-mybatis-null-clear] OK：未发现 set(null)+updateById/save 清列误用');
