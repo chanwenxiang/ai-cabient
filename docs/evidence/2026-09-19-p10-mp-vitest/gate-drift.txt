@@ -1,0 +1,54 @@
+P0-10 门禁注入漂移验证：scripts/check-mp-unit-tests-wired.mjs
+
+=== 基线（无漂移） ===
+exit=0
+  [check-mp-unit-tests-wired] OK（装了 vitest 的包 3 个，逐个校验 test 脚本 / 测试文件 / include 命中 / CI 真调用）
+  · @aicabinet/admin-vue（clients/admin-vue）：6 个测试文件
+  · @aicabinet/consumer-mp（clients/consumer-mp）：3 个测试文件
+  · @aicabinet/merchant-mp（clients/merchant-mp）：4 个测试文件
+
+[G1] 规则1：consumer-mp 的 test 脚本改成非 vitest（echo skip）
+      期望：红
+      实际 exit=1（红）；还原 ok=True，还原后 exit=0
+        [check-mp-unit-tests-wired] FAIL: 前端单测接线不完整：
+        - clients/consumer-mp：`test` 脚本不是 vitest（实际：`echo skip`）
+      VERDICT: ✅ 符合期望
+
+[G2] 规则2：consumer-mp 三个测试文件全部移走
+      期望：红
+      实际 exit=1（红）；还原 ok=True，还原后 exit=0
+        [check-mp-unit-tests-wired] FAIL: 前端单测接线不完整：
+        - clients/consumer-mp：声明了 vitest 但 src/** 下一个 *.test.ts 都没有（等于没测）
+      VERDICT: ✅ 符合期望
+
+[G3] 规则3：merchant-mp 的 include 改成 'tests/**/*.test.ts'（文件在但不匹配）
+      期望：红
+      实际 exit=1（红）；还原 ok=True，还原后 exit=0
+        [check-mp-unit-tests-wired] FAIL: 前端单测接线不完整：
+        - clients/merchant-mp：include ["tests/**/*.test.ts"] 匹配不到这些测试文件（改了 include 等于静默停跑）：
+        - src/utils/checkin-location-pref.test.ts
+        - src/utils/merchant-display.test.ts
+        - src/utils/preferred-device.test.ts
+        - src/utils/todo-list.test.ts
+      VERDICT: ✅ 符合期望
+
+[G4] 规则4：把 `pnpm --filter @aicabinet/merchant-mp test` 那行注释掉
+      期望：红
+      实际 exit=1（红）；还原 ok=True，还原后 exit=0
+        [check-mp-unit-tests-wired] FAIL: 前端单测接线不完整：
+        - clients/merchant-mp：mini-programs job 里找不到可执行命令 `pnpm --filter @aicabinet/merchant-mp test` —— 测试写了但没人调（失效形态①）
+      VERDICT: ✅ 符合期望
+
+[G5] 反假红：真命令保留，仅在 CI 里新增一行注释提到该命令
+      期望：绿
+      实际 exit=0（绿）；还原 ok=True，还原后 exit=0
+        [check-mp-unit-tests-wired] OK（装了 vitest 的包 3 个，逐个校验 test 脚本 / 测试文件 / include 命中 / CI 真调用）
+      VERDICT: ✅ 符合期望
+
+=== 汇总 ===
+5/5 条符合期望且还原干净
+  G1 规则1：consumer-mp 的 test 脚本改成非 vitest（echo skip） → exit=1 期望红=True 还原ok=True ✅
+  G2 规则2：consumer-mp 三个测试文件全部移走 → exit=1 期望红=True 还原ok=True ✅
+  G3 规则3：merchant-mp 的 include 改成 'tests/**/*.test.ts'（文件在但不匹配） → exit=1 期望红=True 还原ok=True ✅
+  G4 规则4：把 `pnpm --filter @aicabinet/merchant-mp test` 那行注释掉 → exit=1 期望红=True 还原ok=True ✅
+  G5 反假红：真命令保留，仅在 CI 里新增一行注释提到该命令 → exit=0 期望红=False 还原ok=True ✅

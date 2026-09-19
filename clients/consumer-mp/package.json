@@ -12,6 +12,7 @@
     "dev:h5": "node ./node_modules/@dcloudio/vite-plugin-uni/bin/uni.js",
     "build:h5": "uni build",
     "type-check": "vue-tsc --noEmit",
+    "test": "vitest run",
     "test:uat": "node tests/consumer-h5-uat.mjs",
     "test:ci": "npm run type-check && npm run test:uat"
   },
@@ -38,6 +39,7 @@
     "playwright": "1.62.1",
     "typescript": "^5.4.5",
     "vite": "^5.2.8",
+    "vitest": "^3.2.7",
     "vue-tsc": "^2.0.19"
   }
 }

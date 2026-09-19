@@ -1,0 +1,1 @@
+[check-audit-gates-wiring] OK：聚合链 28 个引用全部有定义，34 个 check-*.mjs 全部已接线，CI 引用的脚本文件均存在，36 个 check:* 脚本中 34 个可达，另 2 个豁免本地专用（check:audit-gates:local, check:shared，CI 锚点均已存在）

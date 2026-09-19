@@ -510,6 +510,13 @@ jobs:
       - name: Admin unit tests (vitest)
         run: pnpm --filter @aicabinet/admin-vue test
 
+      # 两端 mp 的纯逻辑此前只被 Playwright e2e（需 dev 栈）覆盖，改坏不会红
+      - name: Consumer MP unit tests (vitest)
+        run: pnpm --filter @aicabinet/consumer-mp test
+
+      - name: Merchant MP unit tests (vitest)
+        run: pnpm --filter @aicabinet/merchant-mp test
+
       - name: Nav-permission alignment check
         run: pnpm check:nav-perms
 

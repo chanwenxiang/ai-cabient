@@ -1,0 +1,18 @@
+
+> @aicabinet/merchant-mp@0.1.0 test /build/clients/merchant-mp
+> vitest run
+
+
+ RUN  v3.2.7 /build/clients/merchant-mp
+
+ ✓ src/utils/preferred-device.test.ts (5 tests) 3ms
+ ✓ src/utils/merchant-display.test.ts (10 tests) 3ms
+ ✓ src/utils/checkin-location-pref.test.ts (5 tests) 3ms
+ ✓ src/utils/todo-list.test.ts (16 tests) 10ms
+
+ Test Files  4 passed (4)
+      Tests  36 passed (36)
+   Start at  07:46:20
+   Duration  404ms (transform 192ms, setup 0ms, collect 271ms, tests 19ms, environment 1ms, prepare 395ms)
+
+MERCHANT_EXIT=0

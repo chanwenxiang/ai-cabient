@@ -1,0 +1,4 @@
+[check-mp-unit-tests-wired] OK（装了 vitest 的包 3 个，逐个校验 test 脚本 / 测试文件 / include 命中 / CI 真调用）
+  · @aicabinet/admin-vue（clients/admin-vue）：6 个测试文件
+  · @aicabinet/consumer-mp（clients/consumer-mp）：3 个测试文件
+  · @aicabinet/merchant-mp（clients/merchant-mp）：4 个测试文件

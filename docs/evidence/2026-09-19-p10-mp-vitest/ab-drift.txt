@@ -1,0 +1,65 @@
+P0-10 A/B 漂移验证（容器 node:24-slim + pnpm 9.15.9）
+生成时间：2026-09-19T07:49:00.368Z
+
+=== 基线（未漂移） ===
+[@aicabinet/consumer-mp] exit=0 | Test Files  3 passed (3) | Tests  35 passed (35)
+[@aicabinet/merchant-mp] exit=0 | Test Files  4 passed (4) | Tests  36 passed (36)
+
+[M1] structuredExpiry 互斥失守：hasExpiryApi 恒真
+      pkg=@aicabinet/merchant-mp expectRed=true actualExit=1 wentRed=true
+      Test Files  1 failed | 3 passed (4) | Tests  2 failed | 34 passed (36)
+      patchApplied=true restoreSha256=b961e063174d1dcd->b961e063174d1dcd restoreOk=true
+      失败：× mergeTodoItems · 临期行与 workbench EXPIRY 汇总的互斥 > 没有结构化临期行时，保留 workbench 的 EXPIRY 汇总 6ms
+      失败：× mergeTodoItems · 临期行与 workbench EXPIRY 汇总的互斥 > 结构化行按 OPEN 过滤；全被过滤时 EXPIRY 汇总重新出现（两处判据必须联动） 1ms
+      失败：FAIL  src/utils/todo-list.test.ts > mergeTodoItems · 临期行与 workbench EXPIRY 汇总的互斥 > 没有结构化临期行时，保留 workbench 的 EXPIRY 汇总
+      失败：FAIL  src/utils/todo-list.test.ts > mergeTodoItems · 临期行与 workbench EXPIRY 汇总的互斥 > 结构化行按 OPEN 过滤；全被过滤时 EXPIRY 汇总重新出现（两处判据必须联动）
+      失败：ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @aicabinet/merchant-mp@0.1.0 test: `vitest run`
+      VERDICT: ✅ 符合期望
+
+[M2] 临期行不再按 OPEN 过滤（终态行混进待办）
+      pkg=@aicabinet/merchant-mp expectRed=true actualExit=1 wentRed=true
+      Test Files  1 failed | 3 passed (4) | Tests  1 failed | 35 passed (36)
+      patchApplied=true restoreSha256=b961e063174d1dcd->b961e063174d1dcd restoreOk=true
+      失败：× mergeTodoItems · 临期行与 workbench EXPIRY 汇总的互斥 > 结构化行按 OPEN 过滤；全被过滤时 EXPIRY 汇总重新出现（两处判据必须联动） 6ms
+      失败：FAIL  src/utils/todo-list.test.ts > mergeTodoItems · 临期行与 workbench EXPIRY 汇总的互斥 > 结构化行按 OPEN 过滤；全被过滤时 EXPIRY 汇总重新出现（两处判据必须联动）
+      失败：ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @aicabinet/merchant-mp@0.1.0 test: `vitest run`
+      VERDICT: ✅ 符合期望
+
+[M3] 反假红：只改注释，逻辑零变化
+      pkg=@aicabinet/merchant-mp expectRed=false actualExit=0 wentRed=false
+      Test Files  4 passed (4) | Tests  36 passed (36)
+      patchApplied=true restoreSha256=b961e063174d1dcd->b961e063174d1dcd restoreOk=true
+      VERDICT: ✅ 符合期望
+
+[C1] C-10 失守：无 chip 时客户端开始"猜"库存回补
+      pkg=@aicabinet/consumer-mp expectRed=true actualExit=1 wentRed=true
+      Test Files  1 failed | 2 passed (3) | Tests  1 failed | 34 passed (35)
+      patchApplied=true restoreSha256=6e097be1ddaa02a5->6e097be1ddaa02a5 restoreOk=true
+      失败：× inferRestoreInventory > 自由文本（无 chip）一律 undefined，交由服务端判定（C-10：客户端不猜库存回补） 5ms
+      失败：FAIL  src/utils/dispute-form.test.ts > inferRestoreInventory > 自由文本（无 chip）一律 undefined，交由服务端判定（C-10：客户端不猜库存回补）
+      失败：ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @aicabinet/consumer-mp@0.1.0 test: `vitest run`
+      VERDICT: ✅ 符合期望
+
+[C2] C-21 失守：可用余额负值被钳制为 0
+      pkg=@aicabinet/consumer-mp expectRed=true actualExit=1 wentRed=true
+      Test Files  1 failed | 2 passed (3) | Tests  1 failed | 34 passed (35)
+      patchApplied=true restoreSha256=b02160f7c8d0d21e->b02160f7c8d0d21e restoreOk=true
+      失败：× availableCents > 负值不钳制（C-21：可用余额为负必须显形，不要伪装成 0） 5ms
+      失败：FAIL  src/utils/account.test.ts > availableCents > 负值不钳制（C-21：可用余额为负必须显形，不要伪装成 0）
+      失败：ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @aicabinet/consumer-mp@0.1.0 test: `vitest run`
+      VERDICT: ✅ 符合期望
+
+[C3] 反假红：只改注释，逻辑零变化
+      pkg=@aicabinet/consumer-mp expectRed=false actualExit=0 wentRed=false
+      Test Files  3 passed (3) | Tests  35 passed (35)
+      patchApplied=true restoreSha256=b02160f7c8d0d21e->b02160f7c8d0d21e restoreOk=true
+      VERDICT: ✅ 符合期望
+
+=== 汇总 ===
+6/6 条符合期望
+  M1 structuredExpiry 互斥失守：hasExpiryApi 恒真 → exit=1 期望红=true ✅
+  M2 临期行不再按 OPEN 过滤（终态行混进待办） → exit=1 期望红=true ✅
+  M3 反假红：只改注释，逻辑零变化 → exit=0 期望红=false ✅
+  C1 C-10 失守：无 chip 时客户端开始"猜"库存回补 → exit=1 期望红=true ✅
+  C2 C-21 失守：可用余额负值被钳制为 0 → exit=1 期望红=true ✅
+  C3 反假红：只改注释，逻辑零变化 → exit=0 期望红=false ✅

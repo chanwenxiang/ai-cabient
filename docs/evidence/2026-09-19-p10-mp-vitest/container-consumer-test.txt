@@ -1,0 +1,17 @@
+
+> @aicabinet/consumer-mp@0.1.0 test /build/clients/consumer-mp
+> vitest run
+
+
+ RUN  v3.2.7 /build/clients/consumer-mp
+
+ ✓ src/utils/secure-id.test.ts (4 tests) 4ms
+ ✓ src/utils/dispute-form.test.ts (9 tests) 4ms
+ ✓ src/utils/account.test.ts (22 tests) 4ms
+
+ Test Files  3 passed (3)
+      Tests  35 passed (35)
+   Start at  07:46:19
+   Duration  373ms (transform 126ms, setup 0ms, collect 151ms, tests 13ms, environment 0ms, prepare 366ms)
+
+CONSUMER_EXIT=0

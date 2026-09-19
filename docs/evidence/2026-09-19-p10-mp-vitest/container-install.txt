@@ -1,0 +1,144 @@
+Scope: all 9 workspace projects
+(node:68) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+   ╭──────────────────────────────────────────────────────────────────╮
+   │                                                                  │
+   │                Update available! 9.15.9 → 12.4.2.                │
+   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v12.4.2   │
+   │            Run "corepack use pnpm@12.4.2" to update.             │
+   │                                                                  │
+   ╰──────────────────────────────────────────────────────────────────╯
+
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 3, reused 0, downloaded 2, added 0
+Progress: resolved 14, reused 0, downloaded 13, added 0
+clients/consumer-mp                      |  WARN  deprecated vue-i18n@9.14.5
+Progress: resolved 20, reused 0, downloaded 19, added 0
+Progress: resolved 22, reused 0, downloaded 21, added 0
+Progress: resolved 25, reused 0, downloaded 25, added 0
+Progress: resolved 25, reused 0, downloaded 26, added 0
+Progress: resolved 26, reused 0, downloaded 26, added 0
+Progress: resolved 30, reused 0, downloaded 30, added 0
+Progress: resolved 33, reused 0, downloaded 33, added 0
+Progress: resolved 34, reused 0, downloaded 34, added 0
+Progress: resolved 35, reused 0, downloaded 35, added 0
+Progress: resolved 35, reused 0, downloaded 36, added 0
+Progress: resolved 37, reused 0, downloaded 37, added 0
+Progress: resolved 37, reused 0, downloaded 38, added 0
+Progress: resolved 38, reused 0, downloaded 38, added 0
+Progress: resolved 39, reused 0, downloaded 39, added 0
+ WARN  GET https://registry.npmmirror.com/vue/-/vue-3.5.40.tgz error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+Progress: resolved 39, reused 0, downloaded 40, added 0
+Progress: resolved 59, reused 0, downloaded 41, added 0
+Progress: resolved 83, reused 0, downloaded 70, added 0
+Progress: resolved 93, reused 0, downloaded 80, added 0
+Progress: resolved 99, reused 0, downloaded 87, added 0
+Progress: resolved 106, reused 0, downloaded 94, added 0
+Progress: resolved 110, reused 0, downloaded 98, added 0
+Progress: resolved 115, reused 0, downloaded 103, added 0
+Progress: resolved 134, reused 0, downloaded 122, added 0
+Progress: resolved 149, reused 0, downloaded 137, added 0
+Progress: resolved 156, reused 0, downloaded 144, added 0
+Progress: resolved 164, reused 0, downloaded 152, added 0
+Progress: resolved 171, reused 0, downloaded 159, added 0
+Progress: resolved 182, reused 0, downloaded 170, added 0
+Progress: resolved 184, reused 0, downloaded 172, added 0
+Progress: resolved 204, reused 0, downloaded 192, added 0
+Progress: resolved 209, reused 0, downloaded 197, added 0
+Progress: resolved 210, reused 0, downloaded 198, added 0
+Progress: resolved 214, reused 0, downloaded 206, added 0
+Progress: resolved 216, reused 0, downloaded 210, added 0
+Progress: resolved 224, reused 0, downloaded 219, added 0
+Progress: resolved 231, reused 0, downloaded 227, added 0
+Progress: resolved 253, reused 0, downloaded 250, added 0
+Progress: resolved 265, reused 0, downloaded 258, added 0
+Progress: resolved 306, reused 0, downloaded 267, added 0
+Progress: resolved 321, reused 0, downloaded 270, added 0
+Progress: resolved 372, reused 0, downloaded 270, added 0
+Progress: resolved 377, reused 0, downloaded 276, added 0
+Progress: resolved 386, reused 0, downloaded 285, added 0
+Progress: resolved 392, reused 0, downloaded 294, added 0
+Progress: resolved 397, reused 0, downloaded 300, added 0
+Progress: resolved 407, reused 0, downloaded 310, added 0
+Progress: resolved 415, reused 0, downloaded 318, added 0
+Progress: resolved 422, reused 0, downloaded 325, added 0
+Progress: resolved 433, reused 0, downloaded 336, added 0
+Progress: resolved 436, reused 0, downloaded 339, added 0
+Progress: resolved 443, reused 0, downloaded 347, added 0
+Progress: resolved 450, reused 0, downloaded 354, added 0
+Progress: resolved 456, reused 0, downloaded 360, added 0
+Progress: resolved 465, reused 0, downloaded 369, added 0
+Progress: resolved 478, reused 0, downloaded 382, added 0
+Progress: resolved 490, reused 0, downloaded 394, added 0
+Progress: resolved 500, reused 0, downloaded 404, added 0
+Progress: resolved 529, reused 0, downloaded 434, added 0
+Progress: resolved 574, reused 0, downloaded 457, added 0
+Progress: resolved 588, reused 0, downloaded 470, added 0
+Progress: resolved 613, reused 0, downloaded 496, added 0
+Progress: resolved 648, reused 0, downloaded 531, added 0
+Progress: resolved 669, reused 0, downloaded 555, added 0
+Progress: resolved 710, reused 0, downloaded 591, added 0
+Progress: resolved 725, reused 0, downloaded 606, added 0
+Progress: resolved 739, reused 0, downloaded 620, added 0
+Progress: resolved 740, reused 0, downloaded 622, added 0
+Progress: resolved 743, reused 0, downloaded 623, added 0
+ WARN  GET https://registry.npmmirror.com/licia/-/licia-1.48.1.tgz error (ECONNRESET). Will retry in 10 seconds. 2 retries left.
+Progress: resolved 743, reused 0, downloaded 624, added 0
+Progress: resolved 760, reused 0, downloaded 640, added 0
+Progress: resolved 787, reused 0, downloaded 667, added 0
+Progress: resolved 805, reused 0, downloaded 685, added 0
+Progress: resolved 825, reused 0, downloaded 705, added 0
+Progress: resolved 837, reused 0, downloaded 717, added 0
+Progress: resolved 842, reused 0, downloaded 718, added 0
+Progress: resolved 862, reused 0, downloaded 731, added 0
+Progress: resolved 895, reused 0, downloaded 758, added 0
+Progress: resolved 926, reused 0, downloaded 791, added 0
+Progress: resolved 974, reused 0, downloaded 836, added 0
+Progress: resolved 1015, reused 0, downloaded 872, added 0
+Progress: resolved 1053, reused 0, downloaded 924, added 0
+ WARN  7 deprecated subdependencies found: abab@2.0.6, domexception@2.0.1, glob@7.2.3, inflight@1.0.6, phin@3.7.1, rimraf@3.0.2, w3c-hr-time@1.0.2
+Progress: resolved 1055, reused 0, downloaded 935, added 0
+Packages: +935
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 1055, reused 0, downloaded 935, added 934
+Progress: resolved 1055, reused 0, downloaded 935, added 935, done
+.../core-js@3.49.0/node_modules/core-js postinstall$ node -e "try{require('./postinstall')}catch(e){}"
+.../node_modules/vue-demi postinstall$ node -e "try{require('./scripts/postinstall.js')}catch(e){}"
+.../esbuild@0.25.12/node_modules/esbuild postinstall$ node install.js
+.../esbuild@0.28.1/node_modules/esbuild postinstall$ node install.js
+.../esbuild@0.20.2/node_modules/esbuild postinstall$ node install.js
+.../core-js@3.49.0/node_modules/core-js postinstall: Thank you for using core-js ( https://github.com/zloirock/core-js ) for polyfilling JavaScript standard library!
+.../core-js@3.49.0/node_modules/core-js postinstall: The project needs your help! Please consider supporting core-js:
+.../core-js@3.49.0/node_modules/core-js postinstall: > https://opencollective.com/core-js 
+.../core-js@3.49.0/node_modules/core-js postinstall: > https://patreon.com/zloirock 
+.../core-js@3.49.0/node_modules/core-js postinstall: > https://boosty.to/zloirock 
+.../core-js@3.49.0/node_modules/core-js postinstall: > bitcoin: bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz 
+.../core-js@3.49.0/node_modules/core-js postinstall: I highly recommend reading this: https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md 
+.../core-js@3.49.0/node_modules/core-js postinstall: Done
+.../esbuild@0.20.2/node_modules/esbuild postinstall: Done
+.../esbuild@0.25.12/node_modules/esbuild postinstall: Done
+.../esbuild@0.28.1/node_modules/esbuild postinstall: Done
+.../node_modules/vue-demi postinstall: Done
+.../esbuild@0.21.5/node_modules/esbuild postinstall$ node install.js
+.../esbuild@0.21.5/node_modules/esbuild postinstall: Done
+
+devDependencies:
++ eslint 9.39.5
++ eslint-config-prettier 9.1.2
++ eslint-plugin-vue 9.33.0
++ globals 15.15.0
++ openapi-typescript 7.13.0
++ playwright 1.55.0
++ prettier 3.9.6
++ typescript-eslint 8.66.0
+
+ WARN  Issues with peer dependencies found
+clients/consumer-mp
+└─┬ @dcloudio/uni-automator 3.0.0-4010520240507001
+  └─┬ @dcloudio/uni-cli-shared 3.0.0-4010520240507001
+    └─┬ @vue/server-renderer 3.4.21
+      └── ✕ unmet peer vue@3.4.21: found 3.5.40
+
+Done in 10m 0.2s using pnpm v9.15.9
+INSTALL_EXIT=0
