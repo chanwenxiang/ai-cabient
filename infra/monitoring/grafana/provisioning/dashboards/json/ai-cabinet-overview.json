@@ -213,12 +213,76 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "datasource", "uid": "-- Grafana --" },
-      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "真值口径：人工复核结论（KEEP=识别正确；WAIVE/ADJUST/CONFIRM=识别有误）。分母是**被提起争议**的会话（有偏样本），是「争议子集上的准确率」，用于趋势与下钻，不可读作全站准确率。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "green", "value": 0.95 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 40 },
       "id": 13,
-      "options": { "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false }, "content": "### 识别准确率：本仓**没有**真值数据源（缺口在此登记，不放假面板）\n\n路线图 P0-6 列的 6 个业务 KPI 里，**识别准确率**目前**算不出来** —— 准确率要有\n「识别结果 vs 人工标注真值」的对照，而系统里没有这份真值。硬凑一个「看起来像准确率」的数\n属于**信号骗读者**，所以这里只登记缺口与现有代理信号：\n\n| 可用代理 | 指标 | 说明 |\n| --- | --- | --- |\n| **争议率**（见右上） | `cabinet_session_transition_total{state=\"DISPUTED\"}` | 识别不确定（needReview / 低置信 / 白名单不符）统一 `escalateToDispute` ⇒ 最近的代理 |\n| **对账 MISMATCH**（左上） | `cabinet_reconciliation_total{status=\"MISMATCH\"}` | 错扣/漏扣，多数源于识别错 |\n| 识别耗时（现有面板） | `cabinet_recognize_duration_seconds_*` | 只反映**性能**，不反映准确率 |\n\n补真值需另立项：路线图 **O1**（模型版本管理 + 灰度回滚 + 按模型版本对比准确率）。", "mode": "markdown" },
-      "title": "识别准确率：无真值数据源（缺口登记，非面板）",
-      "type": "text"
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "expr": "sum(rate(cabinet_recognition_human_verdict_total{verdict=\"correct\"}[6h])) / (sum(rate(cabinet_recognition_human_verdict_total[6h])) > 0)",
+          "legendFormat": "人工复核判「识别正确」占比"
+        }
+      ],
+      "title": "识别准确率（人工复核真值 · 争议子集）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "按 review_code 下钻：哪一类失败（MOCK/EMPTY/LOW_CONF/UNMAPPED/WHITELIST/GRAVITY_MISMATCH/NEED_REVIEW）被人工判为识别有误最多。",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 40 },
+      "id": 14,
+      "options": { "showHeader": true, "cellHeight": "sm" },
+      "targets": [
+        {
+          "expr": "increase(cabinet_recognition_human_verdict_total{verdict=\"wrong\"}[24h])",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "title": "判「识别有误」按 review_code 下钻 (24h)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "P0-1 阶段 B 边缘盒监控：在线设备中固件版本 != aicabinet.edge.expected-firmware 的台数。值为 -1 表示未配置期望版本（此时 EdgeFirmwareOutdated 告警不触发）。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 40 },
+      "id": 15,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [
+        { "expr": "cabinet_edge_firmware_outdated_count", "legendFormat": "固件≠期望版本(在线台数)" }
+      ],
+      "title": "边缘盒固件漂移（-1=未配置期望版本）",
+      "type": "stat"
     }
   ],
   "refresh": "30s",

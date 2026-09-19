@@ -157,6 +157,11 @@ aicabinet:
     enabled: false
   vision-api:
     key: ${VISION_API_KEY:dev-vision-key-change-me}
+  # 边缘盒期望固件版本（P0-1 阶段 B · 边缘盒监控）。
+  # 留空 ⇒ `cabinet.edge.firmware.outdated.count` 置 -1（并据此不触发 EdgeFirmwareOutdated 告警）——
+  # 刻意不用 0 表示「未配置」，否则会被读成「全部合规」。
+  edge:
+    expected-firmware: ${EDGE_EXPECTED_FIRMWARE:}
   reconciliation:
     mock-enabled: ${RECON_MOCK_ENABLED:true}
     wechat-bill-type: ${WECHAT_BILL_TYPE:ALL}

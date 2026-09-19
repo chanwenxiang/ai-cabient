@@ -6,10 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,6 +19,7 @@ import com.aicabinet.common.dto.VisionRecognitionResultDto;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.RecognitionResult;
 import com.aicabinet.trade.mapper.RecognitionResultMapper;
+import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Optional;
@@ -41,12 +44,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class RecognitionResultWriterTest {
 
     @Mock RecognitionResultMapper mapper;
+    @Mock CabinetMetrics metrics;
 
     private RecognitionResultWriter writer;
 
     @BeforeEach
     void setUp() {
-        writer = new RecognitionResultWriter(mapper, new ObjectMapper());
+        writer = new RecognitionResultWriter(mapper, new ObjectMapper(), metrics);
         // 默认：库里没有同一 task、会话也没有记录、写入成功（1 行）。各用例按需覆写。
         lenient().when(mapper.findById(anyString())).thenReturn(Optional.empty());
         lenient().when(mapper.findBySessionId(anyString())).thenReturn(Optional.empty());
@@ -194,5 +198,24 @@ class RecognitionResultWriterTest {
     void persist_nullRecognition_invalid() {
         assertEquals(RecognitionResultWriter.Outcome.INVALID, writer.persist("S-1", null));
         verify(mapper, never()).insertIgnoreConflict(any());
+    }
+
+    /**
+     * 质量指标（P0-1 阶段 B）只在**真正写入**那一支记一次。
+     *
+     * <p>为什么这条重要：{@code need_review} 率与置信度分布都拿这个计数当分母，而端侧重投/同会话
+     * 重复上报是常态。若在入口就记，每次重投都会把分母抬高，把「需复核率」算低 ⇒ 监控指标系统性偏乐观。
+     */
+    @Test
+    void persist_recordsQualityMetricsOnlyWhenActuallyWritten() {
+        writer.persist("S-1", recognized("T-1", "edge-v1"));
+        verify(metrics).recordRecognition(0.93f, false);
+
+        reset(metrics);
+        when(mapper.findBySessionId("S-2")).thenReturn(Optional.of(new RecognitionResult()));
+        RecognitionResultWriter.Outcome outcome = writer.persist("S-2", recognized("T-2", "edge-v1"));
+
+        assertEquals(RecognitionResultWriter.Outcome.SESSION_ALREADY_RECORDED, outcome);
+        verify(metrics, never()).recordRecognition(any(), anyBoolean());
     }
 }

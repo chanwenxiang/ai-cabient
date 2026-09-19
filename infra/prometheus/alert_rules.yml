@@ -125,6 +125,19 @@ groups:
           summary: "全部设备离线"
           description: "无在线柜机，请检查 EMQX / device-service"
 
+      # 边缘盒固件漂移（P0-1 阶段 B）。判据刻意写 `> 0`：
+      # 指标在「未配置 aicabinet.edge.expected-firmware」时置 **-1**，因此未配置不会误报。
+      - alert: EdgeFirmwareOutdated
+        expr: max(cabinet_edge_firmware_outdated_count) > 0
+        for: 30m
+        labels:
+          severity: warning
+          team: ops
+          biz: device
+        annotations:
+          summary: "有在线边缘盒固件版本与期望值不一致"
+          description: "{{ $value }} 台在线设备的 firmware_version ≠ aicabinet.edge.expected-firmware，请安排固件升级或修正期望值"
+
       # ── 识别与结算 ──
       - alert: RecognitionLatencyHigh
         expr: |
@@ -138,6 +151,43 @@ groups:
         annotations:
           summary: "视觉识别平均耗时超过 5 秒"
           description: "请检查 vision-service 负载与模型"
+
+      # ── 识别准确率（P0-1 阶段 B）────────────────────────────────────────────
+      # **不做云端识别**：没有「端侧 vs 云端」的对照，故每条信号都来自真实落库/计数，真值口径如下：
+      #   ① 人工复核结论（真值来源）：运营/商户对争议单的结案**本身就是标注** ——
+      #      KEEP（维持原账单）⇒ 识别正确；WAIVE/ADJUST/CONFIRM（免单/改单/按确认清单）⇒ 识别有误。
+      #      指标 cabinet_recognition_human_verdict_total{verdict,review_code}（结案分支处唯一落点）。
+      #   ② need_review 占比（**代理**，不是真值）：分母=平台采纳次数，分子=需人工复核次数，用于提前预警。
+      # ⚠️ ① 的分母是**被提起争议**的会话（有偏样本）：用户只在觉得被扣错时才提争议，
+      #    因此这是「**争议子集上的准确率**」，会系统性低于全量准确率。它用于**趋势与下钻**
+      #    （按 review_code 看哪类失败最多），**不可**读作「全站识别准确率」。
+      - alert: RecognitionNeedReviewRateHigh
+        expr: |
+          sum(rate(cabinet_recognition_recorded_total{need_review="true"}[15m]))
+          /
+          (sum(rate(cabinet_recognition_recorded_total[15m])) > 0) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          team: backend
+          biz: vision
+        annotations:
+          summary: "识别需人工复核占比超过 50%"
+          description: "近 15 分钟采纳的识别结果过半需要人工复核 ⇒ 识别质量可能下降。请按 model_version 查置信度分布与争议率"
+
+      - alert: RecognitionHumanVerdictWrongRateHigh
+        expr: |
+          sum(rate(cabinet_recognition_human_verdict_total{verdict="wrong"}[1h]))
+          /
+          (sum(rate(cabinet_recognition_human_verdict_total[1h])) > 0) > 0.5
+        for: 1h
+        labels:
+          severity: warning
+          team: backend
+          biz: vision
+        annotations:
+          summary: "人工复核判定「识别有误」占比超过 50%"
+          description: "近 1 小时结案的争议单里过半被人工判为「识别有误」（WAIVE/ADJUST/CONFIRM）⇒ 按 review_code 下钻（MOCK/EMPTY/LOW_CONF/UNMAPPED/WHITELIST 各占多少）并检查对应 model_version"
 
       - alert: SettlementFailureRateHigh
         expr: |

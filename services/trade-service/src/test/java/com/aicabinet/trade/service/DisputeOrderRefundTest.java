@@ -12,6 +12,7 @@ import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,6 +59,7 @@ class DisputeOrderRefundTest {
     @Mock OrderPaymentService orderPaymentService;
     @Mock DistributedLockService distributedLockService;
     @Mock SessionService sessionService;
+    @Mock CabinetMetrics metrics;
 
     private DisputeService service;
 
@@ -74,7 +76,7 @@ class DisputeOrderRefundTest {
                 permissionService, merchantScopeService, merchantFeaturePackService, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
                 fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService, null, null,
-                sessionService);
+                sessionService, metrics);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);

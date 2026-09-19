@@ -1,5 +1,10 @@
 # P0-6 ①② 可观测性收口：Grafana 侧假渠道 + 业务 KPI 看板（2026-09-19）
 
+> ⚠️ **后续批次已更新本文的一处结论**（正文保留原样，不改历史）：本文「13 面板」「第 6 个 KPI 识别准确率
+> 刻意没有面板 / 只在看板上登记缺口」已被 **P0-1 阶段 B** 取代 —— 准确率真值改用**人工复核结论**
+> （不依赖云端识别），看板现为 **15 面板**（text 缺口登记面板已换成 accuracy 时序图 + review_code 下钻表 +
+> 边缘盒固件漂移 stat）。见 `docs/evidence/2026-09-19-p01-phase-b/README.md`。
+
 ## ① Grafana 侧 contact point 是假的（修）
 
 **改前**：`infra/monitoring/grafana/provisioning/alerting/contact-points.yml` 是

@@ -7,6 +7,7 @@ import com.aicabinet.common.enums.VisionIngestOutcome;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.metrics.CabinetMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,12 +52,13 @@ class VisionResultIngestServiceTest {
 
     @Mock private ShoppingSessionMapper repository;
     @Mock private SessionService sessionService;
+    @Mock private CabinetMetrics metrics;
 
     private VisionResultIngestService service;
 
     @BeforeEach
     void setUp() {
-        service = new VisionResultIngestService(repository, sessionService);
+        service = new VisionResultIngestService(repository, sessionService, metrics);
     }
 
     // ---------- 采纳路径 ----------

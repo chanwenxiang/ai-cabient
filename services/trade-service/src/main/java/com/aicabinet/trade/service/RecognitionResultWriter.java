@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.VisionRecognitionResultDto;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.RecognitionResult;
 import com.aicabinet.trade.mapper.RecognitionResultMapper;
+import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -60,10 +61,13 @@ public class RecognitionResultWriter {
 
     private final RecognitionResultMapper mapper;
     private final ObjectMapper objectMapper;
+    private final CabinetMetrics metrics;
 
-    public RecognitionResultWriter(RecognitionResultMapper mapper, ObjectMapper objectMapper) {
+    public RecognitionResultWriter(RecognitionResultMapper mapper, ObjectMapper objectMapper,
+                                   CabinetMetrics metrics) {
         this.mapper = mapper;
         this.objectMapper = objectMapper;
+        this.metrics = metrics;
     }
 
     /** 落库结论。{@link #INVALID} 由调用方记日志——不做静默。 */
@@ -138,6 +142,9 @@ public class RecognitionResultWriter {
         }
         log.info("识别结果已落库 session={} task={} items={} modelVersion={}",
                 sessionId, taskId, itemsJson, modelVersion);
+        // 质量指标只在**真正写入**时记：重投/同会话重复都会被前面两道幂等闸挡住，
+        // 若在入口记就会把同一份识别结果重复计入分母，把 need_review 率算低。
+        metrics.recordRecognition(recognition.overallConfidence(), Boolean.TRUE.equals(recognition.needReview()));
         return Outcome.WRITTEN;
     }
 

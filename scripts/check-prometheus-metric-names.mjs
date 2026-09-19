@@ -272,7 +272,13 @@ function metricsIn(expr) {
 
 /** 解析 YAML 里 `expr:`（同行标量或 `|` 块）。 */
 function exprsOfYaml(file) {
-  const lines = readFileSync(file, 'utf8').split('\n');
+  // ⚠️ 必须容忍 CRLF：Windows 工作区 checkout 出来的 yml 行尾是 `\r\n`，而本函数用的 `$`（非 multiline）
+  // 只在**字符串末尾**匹配、`.` 又不吃 `\r` ⇒ `/^(\s*)expr:\s*(.*)$/` 对 `"        expr: |\r"` 会
+  // **整条匹配失败**，于是 R2 在任何 CRLF 规则文件上静默失去全部覆盖。
+  // 本仓实测（2026-09-19）：在 CRLF 工作区把 `cabinet_devices_count` 改成并不存在的
+  // `cabinet_devices_total`，门禁**仍打印 OK** —— 判据已被空转，正是「信号在骗读者」。
+  // 故按 `/\r?\n/` 切行（顺带剥掉行尾 `\r`）。
+  const lines = readFileSync(file, 'utf8').split(/\r?\n/);
   const found = [];
   for (let i = 0; i < lines.length; i++) {
     const m = /^(\s*)expr:\s*(.*)$/.exec(lines[i]);
@@ -357,8 +363,13 @@ const dashboards = walk(join(root, 'infra/monitoring/grafana/provisioning/dashbo
 );
 for (const f of dashboards) {
   const raw = readFileSync(f, 'utf8');
-  for (const m of raw.matchAll(/"expr"\s*:\s*"([^"]+)"/g)) {
-    for (const name of metricsIn(m[1])) {
+  // ⚠️ 看板 JSON 里 expr 内的引号是**转义的**（如 `{\"result\":\"success\"}`）。若用 `"([^"]+)"` 捕获，
+  // 会在第一个 `\"` 处截断，把 `…{result=` 这种残片喂给 metricsIn —— 左花括号没闭合 ⇒ 花括号剥离失效 ⇒
+  // **标签名被当成指标名**误报（历史面板只因 `result/state/status` 恰好在关键字白名单里才没暴露）。
+  // 故按「非引号 or 转义序列」整体捕获后再反转义，让 expr 完整进入 metricsIn。
+  for (const m of raw.matchAll(/"expr"\s*:\s*"((?:[^"\\]|\\.)+)"/g)) {
+    const expr = m[1].replace(/\\(.)/g, '$1');
+    for (const name of metricsIn(expr)) {
       refCount++;
       if (!isKnownMetric(name)) problems.push(`${rel(f)} 面板引用了不存在的指标 \`${name}\``);
     }

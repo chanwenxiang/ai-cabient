@@ -7,6 +7,7 @@ import com.aicabinet.common.enums.VisionIngestOutcome;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,10 @@ import java.util.List;
  *   <li><b>明确回执</b>：结算侧 {@code doCompleteAsyncRecognition} 在非 RECOGNIZING 态是
  *       静默 return，HTTP 调用方无从区分「已结算」与「被丢弃」⇒ 本类把受理结论显式回给端侧，
  *       端侧据此决定是否重发。</li>
+ *   <li><b>通道健康度信号</b>（P0-1 阶段 B「边缘盒监控」）：每次上报记一笔受理结论计数
+ *       （{@code cabinet.edge.ingest{outcome}}）。{@code TOO_EARLY} 偏高说明端侧报得太早、
+ *       {@code ALREADY_HANDLED} 偏高说明端侧在重发、{@code PROCESSED} 长时间为 0 说明端侧通道断了 ——
+ *       没有这个计数，端侧通道的质量问题在监控上是隐形的。</li>
  * </ol>
  */
 @Service
@@ -46,10 +51,13 @@ public class VisionResultIngestService {
 
     private final ShoppingSessionMapper repository;
     private final SessionService sessionService;
+    private final CabinetMetrics metrics;
 
-    public VisionResultIngestService(ShoppingSessionMapper repository, SessionService sessionService) {
+    public VisionResultIngestService(ShoppingSessionMapper repository, SessionService sessionService,
+                                     CabinetMetrics metrics) {
         this.repository = repository;
         this.sessionService = sessionService;
+        this.metrics = metrics;
     }
 
     /**
@@ -66,17 +74,22 @@ public class VisionResultIngestService {
 
         if (stateBefore != SessionState.RECOGNIZING) {
             VisionIngestOutcome outcome = outcomeFor(stateBefore);
+            // 端侧通道健康度：非 RECOGNIZING 的每一次上报都记一笔（TOO_EARLY 高说明端侧报得太早、
+            // ALREADY_HANDLED 高说明端侧在重发）——没有这个计数，通道质量问题在监控上是隐形的。
+            metrics.recordEdgeIngest(outcome.name());
             log.info("端侧识别结果未采纳 session={} state={} outcome={}",
                     sessionId, stateBefore, outcome);
             return new VisionResultIngestResponseDto(false, outcome,
                     reasonFor(stateBefore), sessionId, request.taskId(), stateBefore.name());
         }
 
-        sessionService.completeAsyncRecognition(sessionId, toResult(request));
+        VisionServiceClient.RecognitionResult result = toResult(request);
+        sessionService.completeAsyncRecognition(sessionId, result);
 
         String stateAfter = repository.findById(sessionId)
                 .map(session -> session.getState().name())
                 .orElse("UNKNOWN");
+        metrics.recordEdgeIngest(VisionIngestOutcome.PROCESSED.name());
         log.info("端侧识别结果已采纳 session={} task={} provider={} 终态={}",
                 sessionId, request.taskId(), request.provider(), stateAfter);
         return new VisionResultIngestResponseDto(true, VisionIngestOutcome.PROCESSED,

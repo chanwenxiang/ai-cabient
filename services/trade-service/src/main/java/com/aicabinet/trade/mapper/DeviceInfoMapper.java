@@ -132,6 +132,20 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
         return c == null ? 0 : c;
     }
 
+    /**
+     * **在线**且固件版本 ≠ 期望值的台数（P0-1 阶段 B「边缘盒监控」的固件漂移信号）。
+     *
+     * <p>NULL 语义：从未上报过固件的设备也算「不合规」（{@code isNull ... or().ne(...)}），
+     * 否则一台从没上报固件的盒子会被读成「合规」，把没数据当成没问题。
+     */
+    default long countByOnlineStatusAndFirmwareVersionNot(String onlineStatus, String firmwareVersion) {
+        Long c = selectCount(Wrappers.<DeviceInfo>lambdaQuery()
+                .eq(DeviceInfo::getOnlineStatus, onlineStatus)
+                .and(w -> w.isNull(DeviceInfo::getFirmwareVersion)
+                        .or().ne(DeviceInfo::getFirmwareVersion, firmwareVersion)));
+        return c == null ? 0 : c;
+    }
+
     default long countByDeviceIdInAndOnlineStatusNot(Collection<String> deviceIds, String onlineStatus) {
         if (deviceIds == null || deviceIds.isEmpty()) {
             return 0;

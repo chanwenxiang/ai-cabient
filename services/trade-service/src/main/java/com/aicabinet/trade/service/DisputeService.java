@@ -29,6 +29,7 @@ import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DisputeTicketTransitions;
 import com.aicabinet.trade.support.MerchantPortalGuard;
@@ -99,6 +100,7 @@ public class DisputeService {
     private final OrderPaymentService orderPaymentService;
     private final DistributedLockService distributedLockService;
     private final SessionService sessionService;
+    private final CabinetMetrics metrics;
 
     public DisputeService(DisputeTicketMapper disputeRepository,
                           DisputeMessageMapper disputeMessageRepository,
@@ -124,7 +126,8 @@ public class DisputeService {
                           DistributedLockService distributedLockService,
                           SystemConfigService systemConfigService,
                           @Lazy DisputeService self,
-                          @Lazy SessionService sessionService) {
+                          @Lazy SessionService sessionService,
+                          CabinetMetrics metrics) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
@@ -150,6 +153,7 @@ public class DisputeService {
         this.systemConfigService = systemConfigService;
         this.self = self;
         this.sessionService = sessionService;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -591,6 +595,7 @@ public class DisputeService {
             case ADJUST, CONFIRM -> resolveConfirm(operatorId, ticket, session, body, resolutionType);
             default -> throw new IllegalStateException("unexpected resolution: " + resolutionType); // NOSONAR java:S2583
         };
+        recordRecognitionVerdict(ticket, resolutionType);
 
         opsExceptionService.resolveOpenForSession(operatorId, session.getSessionId(),
                 "争议结案(" + resolutionType + ")同步关闭异常");
@@ -655,6 +660,7 @@ public class DisputeService {
                 ticket.setResolutionItems(toJson(manualItems));
             }
             disputeRepository.save(ticket);
+            recordRecognitionVerdict(ticket, type);
             auditService.appendLog(operatorId, "DISPUTE_SYNC_FROM_OPS_EXCEPTION", DISPUTE, ticket.getTicketId(),
                     SESSION + sessionId + "; type=" + type);
         });
@@ -737,6 +743,21 @@ public class DisputeService {
                 .set(DisputeTicket::getResolvedAt, ticket.getResolvedAt())
                 .set(DisputeTicket::getReopenedAt, ticket.getReopenedAt())
                 .set(DisputeTicket::getSlaDueAt, ticket.getSlaDueAt());
+    }
+
+    /**
+     * 人工结案结论 → 识别准确率的**真值**（P0-1 阶段 B）。
+     *
+     * <p>不做云端识别的前提下，唯一的人工标注就是争议结案本身：
+     * {@code KEEP}（维持原账单）= 人工认定账单与实物一致 ⇒ 识别**正确**；
+     * {@code WAIVE}/{@code ADJUST}/{@code CONFIRM}（免单/改单/按确认清单）= 原账单与实物不符 ⇒ 识别**有误**。
+     *
+     * <p>唯一的三处调用点都在「人工把工单从 OPEN 处置掉」的分支上（运营结案 / 商户结案 / 异常中心同步结案），
+     * 三者互斥（都要求 {@code canActWhileOpen}）⇒ 同一工单只计一次，分母不会被重复计数。
+     */
+    private void recordRecognitionVerdict(DisputeTicket ticket, String resolutionType) {
+        String verdict = "KEEP".equals(resolutionType) ? "correct" : "wrong";
+        metrics.recordHumanVerdict(verdict, resolveReviewCode(ticket));
     }
 
     private ResolveDisputeResultDto resolveWaive(Long operatorId, DisputeTicket ticket, ShoppingSession session,
@@ -974,6 +995,7 @@ public class DisputeService {
             case CONFIRM -> resolveConfirm(userId, ticket, session, body, CONFIRM);
             default -> throw new IllegalStateException("unexpected resolution: " + resolutionType); // NOSONAR java:S2583
         };
+        recordRecognitionVerdict(ticket, resolutionType);
         opsExceptionService.resolveOpenForSession(userId, session.getSessionId(),
                 "商户争议结案(" + resolutionType + ")同步关闭异常");
         sessionService.transition(session, SessionState.COMPLETED);

@@ -11,6 +11,7 @@ import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,6 +56,7 @@ class DisputeReviewCodeTest {
     @Mock VideoArchiveService videoArchiveService;
     @Mock OrderPaymentService orderPaymentService;
     @Mock DistributedLockService distributedLockService;
+    @Mock CabinetMetrics metrics;
 
     private DisputeService service;
 
@@ -65,7 +67,7 @@ class DisputeReviewCodeTest {
                 permissionService, merchantScopeService, null, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
                 fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService,
-                systemConfigService, null, null);
+                systemConfigService, null, null, metrics);
         lenient().when(systemConfigService.getInt(anyString(), anyInt())).thenAnswer(i -> i.getArgument(1));
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
