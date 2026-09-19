@@ -1,0 +1,4 @@
+2026-09-19T14:03:24.605Z  INFO [trade-service,c971864408e469083b35bb58533e1f61,2345aa31ad226249] [] c.a.trade.service.SessionDoorService - door closed, recognizing sessionId=1789826603465737808511 deviceId=330449777078 userId=10001 video=null
+2026-09-19T14:03:24.664Z  INFO [trade-service,c971864408e469083b35bb58533e1f61,2345aa31ad226249] [] c.a.t.m.VisionRecognitionProducer - published vision request session=1789826603465737808511 task=T-1789826603465737808511 fusion=SINGLE
+2026-09-19T14:03:24.866Z  INFO [trade-service,e0c0e72098d5a6a84a5409d9de561074,ac4fac1d62f8817e] [] c.a.t.s.VisionResultIngestService - 端侧识别结果已采纳 session=1789826603465737808511 task=EDGE-1789826603465737808511 provider=QUECTEL 终态=COMPLETED
+2026-09-19T14:03:26.005Z  INFO [trade-service,b2064b714aeccf29f7139e70c28821c4,a4787e07654bface] [] c.a.t.s.VisionResultIngestService - 端侧识别结果未采纳 session=1789826603465737808511 state=COMPLETED outcome=ALREADY_HANDLED
