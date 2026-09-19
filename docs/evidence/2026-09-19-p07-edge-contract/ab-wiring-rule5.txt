@@ -1,0 +1,29 @@
+=========== 规则 5（豁免锚点）A/B ===========
+
+--- 基线：沙箱与真仓库一致（期望绿）---
+baseline                                       rc=0
+        | [check-audit-gates-wiring] OK：聚合链 26 个引用全部有定义，32 个 check-*.mjs 全部已接线，CI 引用的脚本文件均存在，34 个 check:* 脚本中 32 个可达，另 2 个豁免本地专用（check:audit-gates:local, check:shared，CI 锚点均已存在）
+
+--- 漂移①：CI 删掉 'pnpm check:nav-perms'（check:shared 的锚点之一）---
+drift1 drop pnpm check:nav-perms               rc=1
+        | [check-audit-gates-wiring] FAIL: 
+        |   check:* 脚本已定义但**无人调用**（聚合链、CI、以及被调用脚本里都找不到）= 等于没有：
+        |     - check:nav-perms  (node scripts/check-nav-perms.mjs)
+        |   豁免 check:shared（本地别名；CI 已内联其三个步骤）的 CI 替代步骤已不存在（豁免变假绿：要么把步骤补回 CI，要么去掉豁免）：
+        |     - pnpm check:nav-perms
+
+--- 漂移②：CI 删掉 'pnpm check:audit-gates'（聚合门禁步骤整个消失）---
+drift2 drop pnpm check:audit-gates             rc=1
+        | [check-audit-gates-wiring] FAIL: 
+        |   check:* 脚本已定义但**无人调用**（聚合链、CI、以及被调用脚本里都找不到）= 等于没有：
+        |     - check:audit-gates  (pnpm check:audit-gates-wiring && pnpm check:line-endings && pnpm check:compose-stop-grace && pnpm check:menu-permissions && pnpm check:compose-ports && pnpm check:mybatis-null-clear && pnpm check:ops-alert-channels && pnpm check:miniapp-privacy-declaration && pnpm check:prometheus-metric-names && pnpm check:replenishment-checkin-contract && pnpm check:edge-queue-threading && pnpm check:admin-dialog-a11y && pnpm check:scheduled-zone && pnpm check:cache-names && pnpm check:admin-endpoints && pnpm check:admin-token-storage && pnpm check:admin-page-size && pnpm check:admin-anti-jitter && pnpm check:admin-table-align && pnpm check:mp-a11y && pnpm check:balance-hold-types && pnpm check:uat-selectors && pnpm check:device-code-input && pnpm check:xxl-job-wiring && pnpm check:scheduled-task-seed && pnpm check:scheduling-vs-db-pool)
+        |   豁免 check:audit-gates:local（本地聚合 runner；CI 用 pnpm check:audit-gates）的 CI 替代步骤已不存在（豁免变假绿：要么把步骤补回 CI，要么去掉豁免）：
+        |     - pnpm check:audit-gates
+
+--- 漂移③：把锚点命令改名（'pnpm build:packages' → 'pnpm build:pkgs'）---
+drift3 rename build:packages                   rc=1
+        | [check-audit-gates-wiring] FAIL: 
+        |   豁免 check:shared（本地别名；CI 已内联其三个步骤）的 CI 替代步骤已不存在（豁免变假绿：要么把步骤补回 CI，要么去掉豁免）：
+        |     - pnpm build:packages
+
+=========== done ===========

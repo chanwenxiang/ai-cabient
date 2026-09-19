@@ -252,14 +252,14 @@ public class DeviceSimulator implements MqttCallbackExtended {
     private void publishHeartbeat() {
         try {
             convergeTempTowardTarget();
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("type", CabinetConstants.MQTT_EVENT_TYPE_HEARTBEAT);
-            payload.put("deviceId", deviceId);
-            payload.put("timestamp", System.currentTimeMillis());
-            payload.put("appVersion", appVersion());
-            payload.put("firmwareVersion", env("AICABINET_SIM_FIRMWARE_VERSION", "1.0.0"));
-            // 与 device-service MqttEventListener.parseTemp 对齐
-            payload.put("currentTempC", (int) Math.round(currentTempC));
+            // 报文构造见 SimulatorSupport.heartbeatPayload（P0-7：抽成纯函数以便契约测试复用真报文）
+            // currentTempC 取整，与 device-service MqttEventListener.parseTemp 的 asInt() 对齐
+            Map<String, Object> payload = SimulatorSupport.heartbeatPayload(
+                    deviceId,
+                    System.currentTimeMillis(),
+                    appVersion(),
+                    env("AICABINET_SIM_FIRMWARE_VERSION", "1.0.0"),
+                    (int) Math.round(currentTempC));
             client.publish(MqttTopics.event(deviceId), new MqttMessage(mapper.writeValueAsBytes(payload)));
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -701,12 +701,9 @@ public class DeviceSimulator implements MqttCallbackExtended {
     }
 
     private void publishAck(String commandId) throws Exception {
-        byte[] payload = mapper.writeValueAsBytes(Map.of(
-                "type", CabinetConstants.MQTT_EVENT_TYPE_ACK,
-                "commandId", commandId,
-                "success", true,
-                "timestamp", System.currentTimeMillis()
-        ));
+        // 报文构造见 SimulatorSupport.ackPayload（P0-7）
+        byte[] payload = mapper.writeValueAsBytes(
+                SimulatorSupport.ackPayload(commandId, true, System.currentTimeMillis()));
         client.publish(MqttTopics.event(deviceId), new MqttMessage(payload));
     }
 
@@ -717,16 +714,10 @@ public class DeviceSimulator implements MqttCallbackExtended {
                                   String videoClipsJson,
                                   String cameraFusionMode,
                                   String gravityDeltasJson) throws Exception {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("type", CabinetConstants.MQTT_EVENT_TYPE_DOOR);
-        data.put("sessionId", sessionId);
-        data.put("doorState", state.name());
-        data.put("timestamp", System.currentTimeMillis());
-        if (videoUri != null) data.put("videoUri", videoUri);
-        if (uploadStatus != null) data.put("uploadStatus", uploadStatus);
-        if (videoClipsJson != null) data.put("videoClipsJson", videoClipsJson);
-        if (cameraFusionMode != null) data.put("cameraFusionMode", cameraFusionMode);
-        if (gravityDeltasJson != null) data.put("gravityDeltasJson", gravityDeltasJson);
+        // 报文构造见 SimulatorSupport.doorEventPayload（P0-7）
+        Map<String, Object> data = SimulatorSupport.doorEventPayload(
+                sessionId, state.name(), System.currentTimeMillis(),
+                videoUri, uploadStatus, videoClipsJson, cameraFusionMode, gravityDeltasJson);
 
         MqttMessage msg = new MqttMessage(mapper.writeValueAsBytes(data));
         msg.setQos(1);

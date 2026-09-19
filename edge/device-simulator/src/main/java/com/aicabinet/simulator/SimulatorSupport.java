@@ -1,7 +1,10 @@
 package com.aicabinet.simulator;
 
+import com.aicabinet.common.constants.CabinetConstants;
+
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -113,5 +116,96 @@ public final class SimulatorSupport {
             System.err.println("[simulator] rewrite upload url failed: " + e.getMessage());
             return presignedUrl;
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // 上行报文构造（P0-7：抽成纯函数，使「模拟器 ↔ 云端」契约可被自动化断言）
+    //
+    // 动机：这些字段名是**三方约定**（模拟器 / edge 真机 / device-service 解析器），
+    // 而原先它们散在 DeviceSimulator 的 private publish* 方法里 —— 那里带 MQTT 连接、
+    // 造不出来实例，契约只能靠人眼比对。抽出来后既可由 DeviceSimulator 复用，
+    // 也可由 device-service 的契约测试**用真报文喂真解析器**，改坏任一侧即红。
+    //
+    // 🔴 字段名/类型/取值语义与抽取前**完全一致**；提取时唯一有意差异见 ackPayload 的注释。
+    // ---------------------------------------------------------------------
+
+    /**
+     * DOOR 事件上行报文（{@code type=DOOR}）—— 对应 device-service
+     * {@code MqttEventListener.handleDoorEvent} 的消费字段。
+     *
+     * <p>⚠️ 刻意**不含 {@code deviceId}**：设备身份由 topic（{@code cabinet/{deviceId}/evt}）承载，
+     * 云端在 body 缺省时以 topic 为准。可选字段为 {@code null} 时**整个键不写入**，
+     * 与抽取前逐字一致（云端用 {@code node.path(x)} 取值，缺键即取到空串/null）。
+     */
+    public static Map<String, Object> doorEventPayload(
+            String sessionId,
+            String doorStateName,
+            long timestamp,
+            String videoUri,
+            String uploadStatus,
+            String videoClipsJson,
+            String cameraFusionMode,
+            String gravityDeltasJson) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("type", CabinetConstants.MQTT_EVENT_TYPE_DOOR);
+        data.put("sessionId", sessionId);
+        data.put("doorState", doorStateName);
+        data.put("timestamp", timestamp);
+        if (videoUri != null) {
+            data.put("videoUri", videoUri);
+        }
+        if (uploadStatus != null) {
+            data.put("uploadStatus", uploadStatus);
+        }
+        if (videoClipsJson != null) {
+            data.put("videoClipsJson", videoClipsJson);
+        }
+        if (cameraFusionMode != null) {
+            data.put("cameraFusionMode", cameraFusionMode);
+        }
+        if (gravityDeltasJson != null) {
+            data.put("gravityDeltasJson", gravityDeltasJson);
+        }
+        return data;
+    }
+
+    /**
+     * 心跳上行报文（{@code type=HEARTBEAT}）—— 对应 {@code MqttEventListener.handleHeartbeat}。
+     *
+     * <p>字段名取 **camelCase**（{@code appVersion}/{@code firmwareVersion}/{@code currentTempC}）：
+     * 云端同时接受 snake_case 变体并**优先 camelCase**，此处发的是优先分支。
+     */
+    public static Map<String, Object> heartbeatPayload(
+            String deviceId,
+            long timestamp,
+            String appVersion,
+            String firmwareVersion,
+            Integer currentTempC) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("type", CabinetConstants.MQTT_EVENT_TYPE_HEARTBEAT);
+        payload.put("deviceId", deviceId);
+        payload.put("timestamp", timestamp);
+        payload.put("appVersion", appVersion);
+        payload.put("firmwareVersion", firmwareVersion);
+        payload.put("currentTempC", currentTempC);
+        return payload;
+    }
+
+    /**
+     * 指令 ACK 上行报文（{@code type=ACK}）—— 对应 {@code MqttEventListener.handleAck}
+     * 与 {@code DeviceCommandTracker.recordAck}。
+     *
+     * <p>🔴 **提取时唯一有意差异**：抽取前用 {@code Map.of(...)}（字段顺序未指定，且 null 值抛 NPE），
+     * 现改为 {@code LinkedHashMap}（顺序固定为 type→commandId→success→timestamp）。
+     * **字段名/类型/值完全一致**，且消费端按名取值、不依赖顺序；
+     * 副作用是 {@code commandId == null} 不再抛 NPE（宽松化，非破坏性）。
+     */
+    public static Map<String, Object> ackPayload(String commandId, boolean success, long timestamp) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("type", CabinetConstants.MQTT_EVENT_TYPE_ACK);
+        payload.put("commandId", commandId);
+        payload.put("success", success);
+        payload.put("timestamp", timestamp);
+        return payload;
     }
 }

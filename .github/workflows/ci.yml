@@ -252,14 +252,21 @@ jobs:
 
   # ── 集成测试（Testcontainers；需要 Docker）─────────────────────────────────
   # 背景（2026-09-19 实测）：根 pom 此前只有 surefire，而 surefire 默认排除 `**/*IT.java`
-  # ⇒ device-service 的 EmqxSharedSubscriptionIT（EMQX `$share` 组只投递一次）**没有任何入口**：
-  # `mvn verify` BUILD SUCCESS、日志里 0 次提及它、也没有 target/failsafe-reports。
+  # ⇒ device-service 的 IT（EMQX `$share` 组只投递一次；模拟器↔device↔trade 契约端到端）
+  # **没有任何入口**：`mvn verify` BUILD SUCCESS、日志里 0 次提及它、也没有 target/failsafe-reports。
   # 本 job 用 failsafe（根 pom 已绑定 integration-test + verify）真正跑它，并守住
   # 「报告在、用例数为 0」这种静默跳过 —— 真值只在 `<testcase>` 元素个数上，
   # 不是 `*.txt` 的 `Tests run:` 也不是 XML 根元素的 `tests=`。
+  # 守卫**遍历全部 TEST-*.xml**：此前只盯 EmqxSharedSubscriptionIT 一个文件，新增 IT 后
+  # 它静默不跑无人知（同一个坑换个文件名就能绕过去）。
+  # ⚠️ failsafe 跑在 package 之后，`spring-boot:repackage` 已把本模块主 artifact 换成 fat jar
+  # ⇒ fork classpath 里本模块那条正是 fat jar（`BOOT-INF/classes` 不能当 classpath 类用），
+  # 任何引用本模块类的 `*IT` 都会在 discover 阶段 ClassNotFoundException，而不引用本模块类的
+  # 老 IT 反而侥幸能跑。根 pom 用 `<additionalClasspathElements>${project.build.outputDirectory}`
+  # 把 classes 目录补回 fork classpath。
   # 该 IT 带 @Testcontainers(disabledWithoutDocker = true)：无 Docker 时 JUnit 显式禁用；
   # GH 托管 runner 有 Docker ⇒ 这里要求它**真跑**，一条都没跑就是红。
-  # 不挂 postgres/redis services：device-service 的单测是纯 Mockito，该 IT 只用 Testcontainers。
+  # 不挂 postgres/redis services：device-service 的单测是纯 Mockito，IT 只用 Testcontainers。
   integration:
     runs-on: ubuntu-latest
     needs: build
@@ -282,23 +289,67 @@ jobs:
       - name: Verify integration tests ran (no silent skip)
         run: |
           set -euo pipefail
-          report=services/device-service/target/failsafe-reports/TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.xml
-          if [ ! -f "$report" ]; then
-            echo "missing failsafe report: $report（failsafe 没绑到 verify，或该 IT 没被识别）"
-            ls -la services/device-service/target/failsafe-reports 2>/dev/null \
-              || echo "(failsafe-reports 目录根本不存在 ⇒ IT 一次都没执行)"
+
+          # 判据只看 `<testcase>` 元素个数：`*.txt` 的 `Tests run:` 与 XML 根元素的 tests=
+          # 在 @Nested / IT 类上都会写 0，按它们判会「一条都没跑却照样绿」。
+
+          # ① 反向扫：已生成的每份报告都必须真跑过用例、且没有 failure/error。
+          reports=()
+          while IFS= read -r r; do reports+=("$r"); done \
+            < <(find services edge -path '*/target/failsafe-reports/TEST-*.xml' 2>/dev/null | sort)
+          if [ "${#reports[@]}" -lt 1 ]; then
+            echo "RED  一份 failsafe 报告都没有 ⇒ IT 静默跳过（failsafe 没绑到 verify，或被整体跳过）"
+            ls -1d */target/failsafe-reports 2>/dev/null || true
             exit 1
           fi
-          n=$(grep -o '<testcase ' "$report" | wc -l || true)
-          if [ "$n" -lt 1 ]; then
-            echo "EmqxSharedSubscriptionIT 执行了 0 条用例 ⇒ 静默跳过（被 disabled 或根本没跑到）"
+          for report in "${reports[@]}"; do
+            name=$(basename "$report" .xml)
+            n=$(grep -o '<testcase ' "$report" | wc -l || true)
+            if [ "$n" -lt 1 ]; then
+              echo "RED  $name  执行了 0 条用例 ⇒ 静默跳过（被 disabled 或根本没跑到）"
+              exit 1
+            fi
+            if grep -qE '<failure|<error' "$report"; then
+              echo "RED  $name  出现 failure/error（mvn 应已失败，这里再判一次）"
+              exit 1
+            fi
+            echo "ok   $name  testcases=$n"
+          done
+
+          # ② 正向扫（防「新 IT 根本没被发现」）：源码里每个 *IT.java 都必须有对应报告。
+          #    只遍历已有报告是**不够**的 —— 新 IT 若在 discover 阶段就出局（如 failsafe 的
+          #    fork classpath 里本模块是 fat jar ⇒ ClassNotFoundException），连报告文件都不会
+          #    生成，① 会一无所知，换个文件名就能绕过守卫。
+          #    「在不在本 job 范围内」用 `<module>/target/` 是否存在判断：本 job 是
+          #    `mvn verify -pl services/device-service -am`，被构建的模块一定有 target/；
+          #    没被构建的模块（如 trade-service）在 CI 全新检出下没有 target/ ⇒ 跳过，不误红。
+          #    ⚠️ 本 job 的 -pl 范围变化时这条规则自动跟随，无需改脚本。
+          missing=0
+          while IFS= read -r src; do
+            mod=${src%%/src/test/java/*}
+            [ -d "$mod/target" ] || continue          # 本 job 没构建该模块 ⇒ 不在范围内
+            fqcn=${src#*/src/test/java/}
+            fqcn=${fqcn%.java}
+            fqcn=$(printf '%s' "$fqcn" | tr '/' '.')
+            report="$mod/target/failsafe-reports/TEST-$fqcn.xml"
+            if [ ! -f "$report" ]; then
+              echo "RED  $fqcn  有源码但**没有报告** ⇒ 该 IT 根本没被执行（discover 阶段就出局）"
+              ls -1 "$mod/target/failsafe-reports" 2>/dev/null \
+                || echo "     (该模块没有 failsafe-reports 目录)"
+              missing=$((missing + 1))
+              continue
+            fi
+            if [ "$(grep -o '<testcase ' "$report" | wc -l || true)" -lt 1 ]; then
+              echo "RED  $fqcn  报告在但 0 条用例 ⇒ 静默跳过"
+              missing=$((missing + 1))
+            fi
+          done < <(find services edge -path '*/src/test/java/*' -name '*IT.java' 2>/dev/null | sort)
+
+          if [ "$missing" -gt 0 ]; then
+            echo "有 $missing 个 *IT.java 没有被真正执行"
             exit 1
           fi
-          if grep -qE '<failure|<error' "$report"; then
-            echo "集成测试出现 failure/error（mvn 应已失败，这里再判一次）"
-            exit 1
-          fi
-          echo "ok  EmqxSharedSubscriptionIT  testcases=$n"
+          echo "集成测试守卫通过：真跑报告 ${#reports[@]} 份，源码中全部 *IT.java 均有对应报告且无失败"
 
       - name: Upload integration test results
         if: always()

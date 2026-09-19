@@ -84,16 +84,34 @@ if (unwired.length) {
 }
 
 // ── 规则 4：每个 check:* 脚本必须可达（「定义了」≠「有人调」） ──────────────
-// 豁免名单 = **本地/手工入口**，其等价步骤已由 CI 用内联步骤覆盖（逐条核对过，
-// 若哪天 CI 删掉其中一步，这里的豁免就会变成假绿 —— 所以每条都写明对应 CI 行号）。
+// 豁免名单 = **本地/手工入口**，其等价步骤已由 CI 用内联步骤覆盖。
+// 豁免本身是有代价的：「CI 里到底还有没有那一步」如果没人管，某天 CI 删掉它、
+// 这里照样豁免 ⇒ 豁免退化成假绿。所以豁免必须**自带可验证锚点**：
+// ciAnchors 必须是 CI 工作流原文里真实存在的命令串，由规则 5 逐条校验。
+// 🔴 锚点一律用**命令串**，不用行号 —— 早期版本写成 `ci.yml:297` 这类硬编码行号，
+// 只要在它之前插入任何一行就会悄悄过期并指向无关内容（实测已漂到 147 行之外），
+// 那是「信号在骗读者」，比没有锚点更坏。
 const LOCAL_ONLY = new Map([
   // pnpm 包装器在本机坏（corepack 路径丢失），本地只能用这个 runner 逐脚本跑。
-  ['check:audit-gates:local', '本地聚合 runner；CI 用 pnpm check:audit-gates（ci.yml:297）'],
+  [
+    'check:audit-gates:local',
+    {
+      why: '本地聚合 runner；CI 用 pnpm check:audit-gates',
+      ciAnchors: ['pnpm check:audit-gates']
+    }
+  ],
   // 本地「一把梭」别名；CI 把它的三个组成部分拆成独立步骤，未跑这个别名本身。
-  //   build:packages           → ci.yml:306
-  //   shared-rbac test         → ci.yml:309
-  //   check:nav-perms          → ci.yml:316
-  ['check:shared', '本地别名；CI 已内联其三个步骤（ci.yml:306 / :309 / :316）']
+  [
+    'check:shared',
+    {
+      why: '本地别名；CI 已内联其三个步骤',
+      ciAnchors: [
+        'pnpm build:packages',
+        'pnpm --filter @aicabinet/shared-rbac test',
+        'pnpm check:nav-perms'
+      ]
+    }
+  ]
 ]);
 
 const checkScriptNames = Object.keys(scripts).filter((k) => k.startsWith('check:'));
@@ -132,6 +150,19 @@ if (unreachable.length) {
   );
 }
 
+// ── 规则 5：豁免条目的 CI 锚点必须真实存在 ────────────────────────────────
+// 豁免 = 「本地专用，等价步骤已在 CI 覆盖」。锚点若在 CI 里消失，该脚本就既没人调、
+// 也无 CI 替代 —— 豁免退化成假绿。逐条在**工作流原文**里查命令串（不是查行号）。
+for (const [name, { why, ciAnchors }] of LOCAL_ONLY) {
+  const gone = ciAnchors.filter((a) => !workflowRaw.includes(a));
+  if (gone.length) {
+    problems.push(
+      `豁免 ${name}（${why}）的 CI 替代步骤已不存在（豁免变假绿：要么把步骤补回 CI，要么去掉豁免）：\n    - ` +
+        gone.join('\n    - ')
+    );
+  }
+}
+
 // ── 规则 3：CI 直接调用的脚本文件必须存在 ─────────────────────────────────
 const missingFiles = new Set();
 for (const m of workflowRaw.matchAll(/scripts\/([A-Za-z0-9_.-]+\.(?:mjs|ps1|py|sh))/g)) {
@@ -154,5 +185,5 @@ if (problems.length) {
 console.log(
   `${TAG} OK：聚合链 ${refs.length} 个引用全部有定义，${gateFiles.length} 个 check-*.mjs 全部已接线，` +
     `CI 引用的脚本文件均存在，${checkScriptNames.length} 个 check:* 脚本中 ${reached.size} 个可达` +
-    `${LOCAL_ONLY.size ? `，另 ${LOCAL_ONLY.size} 个豁免本地专用（${[...LOCAL_ONLY.keys()].join(', ')}）` : ''}`
+    `${LOCAL_ONLY.size ? `，另 ${LOCAL_ONLY.size} 个豁免本地专用（${[...LOCAL_ONLY.keys()].join(', ')}，CI 锚点均已存在）` : ''}`
 );

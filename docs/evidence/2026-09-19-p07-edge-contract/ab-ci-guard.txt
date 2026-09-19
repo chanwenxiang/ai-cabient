@@ -1,0 +1,64 @@
+=========== P0-7 CI 守卫 A/B ===========
+
+--- 基线（期望：新/旧守卫都绿）---
+baseline                                     guard     rc=0
+        | ok   TEST-com.aicabinet.device.mqtt.EdgeCloudMqttIntegrationIT  testcases=1
+        | ok   TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT  testcases=1
+        | 集成测试守卫通过：真跑报告 2 份，源码中全部 *IT.java 均有对应报告且无失败
+baseline                                     old-guard rc=0
+        | ok  EmqxSharedSubscriptionIT  testcases=1
+
+--- 漂移①：新增 IT 源码但报告不存在（本轮要堵的洞）---
+drift1 new-IT-no-report                      guard     rc=1
+        | ok   TEST-com.aicabinet.device.mqtt.EdgeCloudMqttIntegrationIT  testcases=1
+        | ok   TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT  testcases=1
+        | RED  com.aicabinet.device.mqtt.BrandNewIT  有源码但**没有报告** ⇒ 该 IT 根本没被执行（discover 阶段就出局）
+        | TEST-com.aicabinet.device.mqtt.EdgeCloudMqttIntegrationIT.xml
+        | TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.xml
+        | 有 1 个 *IT.java 没有被真正执行
+drift1 new-IT-no-report                      old-guard rc=0
+        | ok  EmqxSharedSubscriptionIT  testcases=1
+
+--- 漂移②：报告在但 0 条用例（被 disabled/静默跳过）---
+drift2 report-with-0-testcases               guard     rc=1
+        | RED  TEST-com.aicabinet.device.mqtt.EdgeCloudMqttIntegrationIT  执行了 0 条用例 ⇒ 静默跳过（被 disabled 或根本没跑到）
+drift2 report-with-0-testcases               old-guard rc=0
+        | ok  EmqxSharedSubscriptionIT  testcases=1
+
+--- 漂移③：报告里出现 failure ---
+drift3 report-with-failure                   guard     rc=1
+        | ok   TEST-com.aicabinet.device.mqtt.EdgeCloudMqttIntegrationIT  testcases=1
+        | RED  TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT  出现 failure/error（mvn 应已失败，这里再判一次）
+drift3 report-with-failure                   old-guard rc=1
+        | 集成测试出现 failure/error（mvn 应已失败，这里再判一次）
+
+--- 漂移④：一份报告都没有 ---
+drift4 no-report-at-all                      guard     rc=1
+        | RED  一份 failsafe 报告都没有 ⇒ IT 静默跳过（failsafe 没绑到 verify，或被整体跳过）
+drift4 no-report-at-all                      old-guard rc=1
+        | missing failsafe report: services/device-service/target/failsafe-reports/TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.xml（failsafe 没绑到 verify，或该 IT 没被识别）
+        | total 4
+        | drwxr-xr-x 1 cwx 197121 0 Sep 19 13:52 .
+        | drwxr-xr-x 1 cwx 197121 0 Sep 19 13:52 ..
+
+--- 漂移⑤：edge 模块（-am 闭包内）的 IT 没被跑 ---
+drift5 edge-module-IT-no-report              guard     rc=1
+        | ok   TEST-com.aicabinet.device.mqtt.EdgeCloudMqttIntegrationIT  testcases=1
+        | ok   TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT  testcases=1
+        | RED  com.aicabinet.simulator.EdgeScopeIT  有源码但**没有报告** ⇒ 该 IT 根本没被执行（discover 阶段就出局）
+        |      (该模块没有 failsafe-reports 目录)
+        | 有 1 个 *IT.java 没有被真正执行
+
+--- 反假红⑤：本 job 未构建的模块里存在 IT 源码（不应误红）---
+anti-false-red out-of-scope-IT               guard     rc=0
+        | ok   TEST-com.aicabinet.device.mqtt.EdgeCloudMqttIntegrationIT  testcases=1
+        | ok   TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT  testcases=1
+        | 集成测试守卫通过：真跑报告 2 份，源码中全部 *IT.java 均有对应报告且无失败
+
+--- 反假红⑥：已构建模块里 IT 源码与报告齐备（DeviceSimulator 类型改名场景）---
+anti-false-red renamed-IT                    guard     rc=0
+        | ok   TEST-com.aicabinet.device.mqtt.EdgeCloudMqttContractIT  testcases=1
+        | ok   TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT  testcases=1
+        | 集成测试守卫通过：真跑报告 2 份，源码中全部 *IT.java 均有对应报告且无失败
+
+=========== done ===========

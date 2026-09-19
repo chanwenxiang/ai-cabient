@@ -26,6 +26,8 @@
         <spring-boot.version>3.5.16</spring-boot.version>
         <tomcat.version>10.1.59</tomcat.version>
         <netty.version>4.1.137.Final</netty.version>
+        <!-- OSV GHSA-9pwp-9qqc-pr26 / GHSA-qp49-qgx5-5m26：1.85 修复（minio 8.6.0 传递引入 1.84） -->
+        <bouncycastle.version>1.85</bouncycastle.version>
         <jackson-bom.version>2.21.5</jackson-bom.version>
         <postgresql.version>42.7.12</postgresql.version>
         <minio.version>8.6.0</minio.version>
@@ -75,6 +77,11 @@
                 <groupId>org.apache.tomcat.embed</groupId>
                 <artifactId>tomcat-embed-core</artifactId>
                 <version>${tomcat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.tomcat.embed</groupId>
@@ -226,6 +233,21 @@
                     <configuration>
                         <!-- 同 surefire：让 Jacoco prepare-agent 写入的 argLine 生效 -->
                         <argLine>@{argLine}</argLine>
+                        <!--
+                          🔴 必须显式补上本模块的 classes 目录，否则 IT 引用**本模块的类**就会在
+                          discover 阶段炸。机制：failsafe 跑在 integration-test（package 之后），
+                          此时 spring-boot:repackage 已把本模块主 artifact 换成 fat jar，而 fork 出来的
+                          classpath 里本模块那一条正是那个 fat jar（类在 BOOT-INF/classes/ 下，**不能**
+                          当普通 classpath jar 用）⇒ 加载本模块类必然 ClassNotFoundException。
+                          实证：探针打印 fork 的 java.class.path 第 3 条为
+                          `...\target\device-service-0.1.0-SNAPSHOT.jar`（而非 target\classes），
+                          同时 `Class.forName("...TradeServiceClient")` 报 MISSING、而兄弟模块类（走普通 jar）FOUND。
+                          补这一条后 classes 目录追加进 classpath，fat jar 里找不到的类可由这里命中。
+                          ⚠️ 与 `-DskipTests` 无关；这是 *IT 能否引用被测服务的前提条件。
+                        -->
+                        <additionalClasspathElements>
+                            <additionalClasspathElement>${project.build.outputDirectory}</additionalClasspathElement>
+                        </additionalClasspathElements>
                     </configuration>
                 </plugin>
             </plugins>
