@@ -1,0 +1,124 @@
+# SonarQube 全仓扫描（Java + 前端），由 self-hosted runner 连内网 Sonar。
+# Runner 镜像预装 Java/Maven/Sonar Scanner（见 infra/docker/github-runner.Dockerfile），
+# 避免 Windows Docker Desktop 下 DinD 卷挂载导致 Maven 找不到模块。
+name: SonarQube
+
+# 仅保留手动触发：self-hosted runner 未常驻时，push/PR 触发的 job 会永远排队，
+# 直到下一次 push 被 cancel（审计 §25.9.4 的「信号在骗读者」形态）。
+# runner 上线后如需自动化，可再加 workflow_run（CI 成功后触发）。
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '扫描分支（dev / main）'
+        required: false
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - main
+
+concurrency:
+  group: sonar-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sonar:
+    runs-on: [self-hosted, linux, ai-cabinet]
+    timeout-minutes: 90
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+
+      - name: Validate Sonar secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SONAR_TOKEN:-}" ]; then
+            echo "SONAR_TOKEN secret is missing"
+            exit 1
+          fi
+          if [ -z "${SONAR_HOST_URL:-}" ]; then
+            echo "SONAR_HOST_URL secret is missing (use http://sonarqube:9000 for self-hosted runner)"
+            exit 1
+          fi
+          echo "SONAR_HOST_URL=${SONAR_HOST_URL}"
+
+      - name: Verify runner toolchain
+        run: |
+          set -euo pipefail
+          java -version
+          mvn -version
+          sonar-scanner --version
+
+      - name: Resolve Sonar project (dev / main)
+        id: sonar_proj
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH="${{ inputs.ref }}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH="${GITHUB_BASE_REF:-dev}"
+          else
+            BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+          case "$BRANCH" in
+            main)
+              echo "project_key=ai-cabinet-main" >> "$GITHUB_OUTPUT"
+              echo "project_name=AI Cabinet (main)" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "project_key=ai-cabinet-dev" >> "$GITHUB_OUTPUT"
+              echo "project_name=AI Cabinet (dev)" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Unit tests + Jacoco
+        run: |
+          # M10：测试失败必须让 job 变红（不得 ignore），否则 Sonar 在无报告/坏报告上照常出质量门
+          mvn -B test jacoco:report \
+            -pl services/trade-service,services/device-service,services/common/common-core -am
+
+      - name: Verify Jacoco reports exist
+        run: |
+          set -euo pipefail
+          for f in \
+            services/trade-service/target/site/jacoco/jacoco.xml \
+            services/device-service/target/site/jacoco/jacoco.xml; do
+            test -s "$f" || { echo "missing Jacoco report: $f"; exit 1; }
+          done
+          echo "Jacoco reports OK"
+
+      - name: Prepare Sonar Java classpaths
+        run: |
+          set -euo pipefail
+          # 先 install 到本地仓库：单模块 -f 会找不到 sibling common-core:0.1.0-SNAPSHOT
+          mvn -B -q install -DskipTests \
+            -pl services/trade-service,services/device-service,services/common/common-core -am
+          mvn -B -q dependency:copy-dependencies \
+            -DincludeScope=compile -DoutputDirectory=target/dependency \
+            -pl services/trade-service,services/device-service,services/common/common-core
+
+      - name: Ensure quality gate (AI Cabinet)
+        run: bash scripts/ci/setup-sonar-quality-gate.sh
+
+      - name: Sonar scan + wait quality gate
+        run: |
+          set -euo pipefail
+          KEY="${{ steps.sonar_proj.outputs.project_key }}"
+          NAME="${{ steps.sonar_proj.outputs.project_name }}"
+          sonar-scanner \
+            -Dsonar.projectKey="$KEY" \
+            -Dsonar.projectName="$NAME" \
+            -Dsonar.host.url="${SONAR_HOST_URL}" \
+            -Dsonar.token="${SONAR_TOKEN}" \
+            -Dsonar.scm.revision="${{ github.sha }}" \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=600
