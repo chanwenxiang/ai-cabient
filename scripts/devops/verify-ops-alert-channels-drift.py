@@ -41,11 +41,20 @@
      26. MIN_ALERT_KEYS 抬到 99                     → 「常量格式可能已变」（锚点守卫）
      27. MIN_SERVICES 抬到 99                        → 「结构可能已变」（锚点守卫）
      28. MIN_RELAY_CHARS 抬到 999999                 → 「只读到」（锚点守卫）
+  R14 34. contact point 改回假 email                  → 「不可投递」
+     35. webhook 指向不存在的服务名（断链）           → 「Grafana contact point」
+     36. webhook 端口与 relay 的 PORT 不一致          → 「Grafana 把告警发到」
+     37. webhook 路径改成桥不接受的                   → 「只接受」
+     38. policies 的 receiver 悬空                    → 「在 contact-points.yml 里不存在」
+     39. 注入与 Prometheus 同名的 Grafana 规则        → 「与 prometheus/alert_rules.yml 同名」
   反向 29. CHANNELS 里把 FEISHU 挪到最后一位          → **必须仍绿**（不绑顺序）
      30. feishuPayload 多写一个无关字段              → **必须仍绿**（不绑整块文本）
      31. receiver URL 用单引号包裹                  → **必须仍绿**（不绑引号）
      32. 服务多挂一个 profile                        → **必须仍绿**（不绑「只有 alerting」）
      33. 全部还原后                                 → 必须回绿（防「永久红」被当有效）
+  反向 31. receiver URL 用单引号包裹                  → **必须仍绿**（不绑引号）
+     40. Grafana contact point 的 url 用单引号        → **必须仍绿**（不绑引号）
+     41. 注入一份**不重名**的 Grafana 规则            → **必须仍绿**（只禁重名，不禁存在）
 
 用法
 ----
@@ -108,6 +117,20 @@ RELAY_FILE = ROOT / "infra" / "monitoring" / "feishu-relay.py"
 AM_CONFIG = ROOT / "infra" / "monitoring" / "alertmanager.yml"
 FULL_COMPOSE = ROOT / "infra" / "docker-compose.full.yml"
 PROM_FULL = ROOT / "infra" / "monitoring" / "prometheus-full.yml"
+GF_ALERTING_DIR = ROOT / "infra" / "monitoring" / "grafana" / "provisioning" / "alerting"
+GF_CONTACT_POINTS = GF_ALERTING_DIR / "contact-points.yml"
+GF_POLICIES = GF_ALERTING_DIR / "policies.yml"
+INJECTED_GF_RULES = GF_ALERTING_DIR / "alert-rules.yml"
+
+# 有些用例会**新建**文件（注入一份 Grafana 规则），`originals` 的还原覆盖不到它 ⇒
+# 必须单独删掉，否则会污染后续用例（例如让「不重名」那条反向用例撞上上一例残留）。
+EXTRA_CLEANUP = [INJECTED_GF_RULES]
+
+
+def cleanup_extra() -> None:
+    for p in EXTRA_CLEANUP:
+        if p.exists():
+            p.unlink()
 
 FEISHU_CHANNEL_LINE = (
     b'            new Channel("FEISHU", SystemConfigService.OPS_ALERT_FEISHU_WEBHOOK),\n'
@@ -472,6 +495,82 @@ CASES = [
         "未用 ThreadingHTTPServer 装配",
         replace_tokens(RELAY_FILE, [(b"server = ThreadingHTTPServer(", b"server = HTTPServer(")]),
     ),
+    # ---------- R14 Grafana 侧告警渠道 ----------
+    Case(
+        "Grafana contact point 改回假 email（ops@aicabinet.local，且全仓无 SMTP）",
+        True,
+        "不可投递",
+        replace_tokens(
+            GF_CONTACT_POINTS,
+            [
+                (b"        type: webhook\n", b"        type: email\n"),
+                (
+                    b"          url: http://feishu-alert-relay:8098/webhook\n",
+                    b"          addresses: ops@aicabinet.local\n",
+                ),
+            ],
+        ),
+    ),
+    Case(
+        "Grafana webhook 指向 compose 里不存在的服务名（断链）",
+        True,
+        "Grafana contact point ai-cabinet-ops",
+        replace_tokens(
+            GF_CONTACT_POINTS,
+            [(
+                b"url: http://feishu-alert-relay:8098/webhook",
+                b"url: http://feishu-relay-renamed:8098/webhook",
+            )],
+        ),
+    ),
+    Case(
+        "Grafana webhook 端口与 relay 的 PORT 不一致",
+        True,
+        "Grafana 把告警发到",
+        replace_tokens(GF_CONTACT_POINTS, [(b":8098/webhook", b":9999/webhook")]),
+    ),
+    Case(
+        "Grafana webhook 路径改成桥不接受的路由",
+        True,
+        "只接受",
+        replace_tokens(GF_CONTACT_POINTS, [(b":8098/webhook", b":8098/alerts")]),
+    ),
+    Case(
+        "Grafana contact point 的 url 改用单引号包裹（应仍绿）",
+        False,
+        "",
+        replace_tokens(
+            GF_CONTACT_POINTS,
+            [(
+                b"url: http://feishu-alert-relay:8098/webhook",
+                b"url: 'http://feishu-alert-relay:8098/webhook'",
+            )],
+        ),
+    ),
+    Case(
+        "policies 引用的 receiver 在 contact-points 里不存在（路由悬空）",
+        True,
+        "在 contact-points.yml 里不存在",
+        replace_tokens(GF_POLICIES, [(b"receiver: ai-cabinet-ops", b"receiver: ai-cabinet-ops-typo")]),
+    ),
+    Case(
+        "注入一份与 Prometheus 同名的 Grafana alert rule（双通道重复告警）",
+        True,
+        "与 prometheus/alert_rules.yml 同名",
+        lambda: INJECTED_GF_RULES.write_bytes(
+            b"apiVersion: 1\ngroups:\n  - orgId: 1\n    name: dup\n    rules:\n"
+            b"      - uid: dup-1\n        title: DoorOpenSuccessRateLow\n"
+        ),
+    ),
+    Case(
+        "注入一份**不重名**的 Grafana 规则（应仍绿：只禁重名，不禁存在）",
+        False,
+        "",
+        lambda: INJECTED_GF_RULES.write_bytes(
+            b"apiVersion: 1\ngroups:\n  - orgId: 1\n    name: extra\n    rules:\n"
+            b"      - uid: extra-1\n        title: GrafanaOnlySomethingNew\n"
+        ),
+    ),
     Case("全部还原后回绿", False, "", lambda: None),
 ]
 
@@ -486,6 +585,8 @@ TARGETS = [
     AM_CONFIG,
     FULL_COMPOSE,
     PROM_FULL,
+    GF_CONTACT_POINTS,
+    GF_POLICIES,
 ]
 
 
@@ -502,6 +603,7 @@ def main() -> int:
         for case in CASES:
             for path, data in originals.items():
                 write(path, data)
+            cleanup_extra()
             case.mutate()
 
             code, out = run_gate()
@@ -519,8 +621,11 @@ def main() -> int:
     finally:
         for path, data in originals.items():
             write(path, data)
+        cleanup_extra()
         restored = all(read(p) == d for p, d in originals.items())
+        injected_clean = not any(p.exists() for p in EXTRA_CLEANUP)
         print(f"[restore] 字节级还原={'一致' if restored else '不一致！'}")
+        print(f"[restore] 注入文件已清理={'是' if injected_clean else '否！'}")
 
     print()
     width = max(len(name) for name, _, _ in results)

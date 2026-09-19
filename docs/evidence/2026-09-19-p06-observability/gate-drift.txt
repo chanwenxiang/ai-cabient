@@ -1,0 +1,54 @@
+# Grafana 侧 R14 的判据有效性（逐分支真注入漂移）
+Sat Sep 19 12:32:45     2026
+脚本：scripts/devops/verify-ops-alert-channels-drift.py（本次新增 R14 的 6 红 + 2 反向用例）
+
+[baseline] exit=0 OK
+[restore] 字节级还原=一致
+[restore] 注入文件已清理=是
+
+  [PASS] FEISHU 渠道名被换成别的渠道                                               exit=1
+  [PASS] 整条删掉 FEISHU 渠道声明（先撞上计数守卫）                                       exit=1
+  [PASS] FEISHU 渠道改绑企微的配置常量                                              exit=1
+  [PASS] feishuPayload 改用钉钉的 msgtype                                     exit=1
+  [PASS] payloadFor 删掉 FEISHU 分支（落 default）                              exit=1
+  [PASS] deliveryError 的 FEISHU 分支改看 errcode                             exit=1
+  [PASS] postJson 退回 toBodilessEntity()                                  exit=1
+  [PASS] 去掉飞书 webhook 的 upsertIfAbsent seed                              exit=1
+  [PASS] 运营台 BUILTIN_GROUPS 删掉飞书渠道项                                      exit=1
+  [PASS] probeChannels 不再遍历 CHANNELS                                     exit=1
+  [PASS] 改掉 POST /alert-test 路径                                          exit=1
+  [PASS] systemConfigAlertTest 指向错误路径                                    exit=1
+  [PASS] AlertRuleView 不再调用试发端点                                          exit=1
+  [PASS] 桥在未配置飞书地址时改回返回 200                                              exit=1
+  [PASS] 桥把「飞书业务码非 0」也返回 200（拒收=送达）                                      exit=1
+  [PASS] 桥的报文改用钉钉的 msgtype                                               exit=1
+  [PASS] compose 把 relay 服务改名（alertmanager 的 receiver 就跟不上了）             exit=1
+  [PASS] compose 改掉 relay 的监听端口（receiver 还发旧端口）                          exit=1
+  [PASS] alertmanager 的 receiver 路径改成桥不接受的路由                             exit=1
+  [PASS] prometheus-full 删掉 alerting 段（规则仍加载）                            exit=1
+  [PASS] prometheus-full 把告警推错的 alertmanager 端口                          exit=1
+  [PASS] compose 的 alertmanager 从 alerting profile 里摘掉                   exit=1
+  [PASS] compose 的 alertmanager 不再 depends_on 桥                          exit=1
+  [PASS] compose 的 alertmanager 不挂仓库里那份配置                                exit=1
+  [PASS] MIN_CHANNELS 抬到 99                                              exit=1
+  [PASS] MIN_ALERT_KEYS 抬到 99                                            exit=1
+  [PASS] MIN_SERVICES 抬到 99                                              exit=1
+  [PASS] MIN_RELAY_CHARS 抬到 999999                                       exit=1
+  [PASS] CHANNELS 里把 FEISHU 挪到最后一位（应仍绿）                                  exit=0
+  [PASS] feishuPayload 多写一个无关字段（应仍绿）                                     exit=0
+  [PASS] alertmanager 的 receiver URL 改用单引号包裹（应仍绿）                        exit=0
+  [PASS] compose 给两个服务再挂一个 profile（应仍绿：不绑「只有 alerting」）                  exit=0
+  [PASS] 桥改用单线程 HTTPServer 装配（keep-alive 下会被饿死）                          exit=1
+  [PASS] Grafana contact point 改回假 email（ops@aicabinet.local，且全仓无 SMTP）  exit=1
+  [PASS] Grafana webhook 指向 compose 里不存在的服务名（断链）                         exit=1
+  [PASS] Grafana webhook 端口与 relay 的 PORT 不一致                            exit=1
+  [PASS] Grafana webhook 路径改成桥不接受的路由                                     exit=1
+  [PASS] Grafana contact point 的 url 改用单引号包裹（应仍绿）                        exit=0
+  [PASS] policies 引用的 receiver 在 contact-points 里不存在（路由悬空）               exit=1
+  [PASS] 注入一份与 Prometheus 同名的 Grafana alert rule（双通道重复告警）                exit=1
+  [PASS] 注入一份**不重名**的 Grafana 规则（应仍绿：只禁重名，不禁存在）                          exit=0
+  [PASS] 全部还原后回绿                                                         exit=0
+
+42/42 用例符合预期
+
+EXITCODE=0

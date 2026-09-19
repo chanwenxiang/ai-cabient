@@ -1,0 +1,7 @@
+# 聚合门禁链（scripts/run-audit-gates.mjs）
+Sat Sep 19 12:33:06     2026
+
+✓ check:scheduled-task-seed
+✓ check:scheduling-vs-db-pool
+
+[run-audit-gates] 聚合链 23 个门禁，失败 0 个

@@ -58,7 +58,7 @@
  *
  *   node scripts/check-ops-alert-channels.mjs
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -89,6 +89,13 @@ const PROM_CONFIGS = [
   'infra/monitoring/prometheus-full.yml'
 ].map((p) => join(root, p));
 
+/** Grafana 侧 provisioning（R14）：contact point / policy / 将来的 alert rule。 */
+const GF_ALERTING_DIR = join(root, 'infra/monitoring/grafana/provisioning/alerting');
+const GF_CONTACT_POINTS = join(GF_ALERTING_DIR, 'contact-points.yml');
+const GF_POLICIES = join(GF_ALERTING_DIR, 'policies.yml');
+/** Prometheus 侧规则（R14d 的重名对照面）。 */
+const PROM_ALERT_RULES = join(root, 'infra/prometheus/alert_rules.yml');
+
 /** 解析下限：低于此值说明锚点/结构已变，门禁失去判别力。 */
 const MIN_CHANNELS = 4;
 const MIN_ALERT_KEYS = 5;
@@ -96,6 +103,9 @@ const MIN_GROUPS = 5;
 const MIN_DISPLAYED = 5;
 const MIN_SERVICES = 8;
 const MIN_RELAY_CHARS = 2000;
+/** R14 锚点下限：Grafana 侧至少要解析出这么多 contact point / receiver，否则结构已变。 */
+const MIN_GF_CONTACT_POINTS = 1;
+const MIN_GF_RECEIVERS = 1;
 
 /** 桥接受的路由（与 feishu-relay.py 的 do_POST 一致）。 */
 const RELAY_PATHS = ['/webhook', '/'];
@@ -122,6 +132,9 @@ for (const f of [
   RELAY,
   AM_CONFIG,
   FULL_COMPOSE,
+  GF_CONTACT_POINTS,
+  GF_POLICIES,
+  PROM_ALERT_RULES,
   ...PROM_CONFIGS
 ]) {
   if (!existsSync(f)) fail(`缺少被校验文件 ${rel(f)}（路径可能已变）`);
@@ -135,6 +148,9 @@ const endpoints = readFileSync(ENDPOINTS, 'utf8');
 const relay = readFileSync(RELAY, 'utf8');
 const amConfig = readFileSync(AM_CONFIG, 'utf8');
 const compose = readFileSync(FULL_COMPOSE, 'utf8');
+const gfContactPoints = readFileSync(GF_CONTACT_POINTS, 'utf8');
+const gfPolicies = readFileSync(GF_POLICIES, 'utf8');
+const promAlertRules = readFileSync(PROM_ALERT_RULES, 'utf8');
 
 const problems = [];
 
@@ -479,6 +495,159 @@ for (const [name, mount] of [
   }
 }
 
+// ---------- R14 Grafana 侧告警渠道 ----------
+// 背景（2026-09-19 实测）】：Grafana 侧长期是 `type: email` + `addresses: ops@aicabinet.local`，
+// 而全仓**没有任何 `GF_SMTP_*`** ⇒ 该 contact point 一旦被触发必然发不出去，看板上却看不出异常
+// （「写了但永远不会送达」= 信号在骗读者）。Grafana 与 Alertmanager 一样**没有原生飞书 receiver**，
+// 而桥 `feishu-relay.py` 的 `render_alert_text` 同时认两家的报文
+// （都读 status/alerts[].labels|annotations）⇒ Grafana 复用同一个桥即可，不需要第二个组件。
+const HAS_SMTP = /GF_SMTP_/.test(compose);
+
+const grafanaService = services.get('grafana');
+if (!grafanaService) {
+  problems.push(
+    'compose 里没有 grafana 服务 ⇒ 这些 provisioning 文件不会被任何容器加载（整套是死的）'
+  );
+} else if (!grafanaService.includes('monitoring/grafana/provisioning')) {
+  problems.push(
+    'compose 的 grafana 未挂载 monitoring/grafana/provisioning ⇒ 容器里用的不是仓库这份配置'
+  );
+}
+
+const cpBlock = topLevelBlock(gfContactPoints, 'contactPoints');
+if (cpBlock === null) {
+  fail('contact-points.yml 里找不到顶层 contactPoints:（结构可能已变，R14 会失去判别力）');
+}
+// 每个 contact point 以两空格 + `- ` 起头；其下 receiver 以六空格 + `- ` 起头。
+const cpChunks = cpBlock.split(/^ {2}- /m).slice(1);
+const gfCpNames = [];
+let gfReceiverCount = 0;
+
+for (const chunk of cpChunks) {
+  const nameMatch = chunk.match(/^\s{4}name:\s*["']?([A-Za-z0-9_.-]+)["']?/m);
+  const cpName = nameMatch ? nameMatch[1] : '(未命名)';
+  if (nameMatch) gfCpNames.push(cpName);
+
+  for (const rc of chunk.split(/^\s{6}- /m).slice(1)) {
+    gfReceiverCount += 1;
+    const type = (rc.match(/^\s{8}type:\s*["']?([A-Za-z_]+)["']?/m) || [])[1] || '';
+    if (!type) {
+      problems.push(
+        `Grafana contact point ${cpName} 的某个 receiver 没写 type ⇒ 无法判断它能不能送达`
+      );
+      continue;
+    }
+
+    if (type === 'email') {
+      for (const m of rc.matchAll(/([^\s"'@,]+@[A-Za-z0-9_.-]+)/g)) {
+        const domain = m[1].split('@')[1] || '';
+        if (
+          /\.local$/i.test(domain) ||
+          /^(example\.(com|org|net)|localhost|invalid)$/i.test(domain)
+        ) {
+          problems.push(
+            `Grafana contact point ${cpName} 的 email 收件地址是 ${m[1]}（本地/保留域，不可投递）⇒ 该渠道永远发不出去，看板上却看不出异常`
+          );
+        }
+      }
+      if (!HAS_SMTP) {
+        problems.push(
+          `Grafana contact point ${cpName} 用 email，但 compose 里没有任何 GF_SMTP_* ⇒ Grafana 未配 SMTP、通知必然失败（本仓真实渠道是飞书，应改 webhook 指向 feishu-alert-relay）`
+        );
+      }
+    }
+
+    if (type === 'webhook') {
+      const url = (rc.match(/url:\s*["']?(https?:\/\/[^\s"']+)["']?/) || [])[1];
+      if (!url) {
+        problems.push(
+          `Grafana contact point ${cpName} 的 webhook receiver 没有 url ⇒ 告警无处可发`
+        );
+        continue;
+      }
+      const parsed = url.match(/^https?:\/\/([A-Za-z0-9_.-]+):(\d+)(\/[^\s"']*)?$/);
+      if (!parsed) {
+        problems.push(`Grafana contact point ${cpName} 的 webhook url 解析不出 host:port：${url}`);
+        continue;
+      }
+      const [, host, port, path = ''] = parsed;
+      const block = services.get(host);
+      if (!block) {
+        problems.push(
+          `Grafana contact point ${cpName} 的 webhook 指向 ${host}，但 docker-compose.full.yml 里没有这个服务名 ⇒ 容器内解析不到、告警永远送不出（改名即断链）`
+        );
+        continue;
+      }
+      // 判「有效值」：容器真正监听哪个端口由 PORT 环境变量说了算，不是端口映射的左半边。
+      const envPort = block.match(/PORT:\s*["']?(\d+)/);
+      if (!envPort) {
+        problems.push(
+          `compose 服务 ${host} 未声明 PORT ⇒ 无法确认它监听哪个端口（Grafana 写的是 ${port}）`
+        );
+      } else if (envPort[1] !== port) {
+        problems.push(
+          `Grafana 把告警发到 ${host}:${port}，而该服务实际监听 ${envPort[1]}（compose 的 PORT）⇒ 连接被拒`
+        );
+      }
+      if (!RELAY_PATHS.includes(path)) {
+        problems.push(
+          `Grafana contact point ${cpName} 的 webhook 路径是 ${path || '(空)'}，而 feishu-relay.py 只接受 ${RELAY_PATHS.join(' / ')} ⇒ 桥会回 404`
+        );
+      }
+    }
+  }
+}
+
+if (cpChunks.length < MIN_GF_CONTACT_POINTS) {
+  fail(
+    `只解析出 ${cpChunks.length} 个 Grafana contact point（期望 ≥ ${MIN_GF_CONTACT_POINTS}）：结构可能已变`
+  );
+}
+if (gfReceiverCount < MIN_GF_RECEIVERS) {
+  fail(
+    `只解析出 ${gfReceiverCount} 个 Grafana receiver（期望 ≥ ${MIN_GF_RECEIVERS}）：结构可能已变`
+  );
+}
+
+// R14c 路由悬空：policies 引用的 receiver 必须真实存在（名字对不上 = 告警静默丢失）
+const policyReceivers = [
+  ...gfPolicies.matchAll(/^\s*receiver:\s*["']?([A-Za-z0-9_.-]+)["']?/gm)
+].map((m) => m[1]);
+if (!policyReceivers.length) {
+  fail('policies.yml 里解析不到任何 receiver（结构可能已变，R14c 会失去判别力）');
+}
+for (const r of policyReceivers) {
+  if (!gfCpNames.includes(r)) {
+    problems.push(
+      `policies.yml 的 receiver「${r}」在 contact-points.yml 里不存在（现有：${gfCpNames.join('/')}）⇒ 告警路由到空处、静默丢失`
+    );
+  }
+}
+
+// R14d 双通道重复：Grafana 规则不得与 Prometheus 规则重名
+// （同一条件两条通道 = 飞书群收到两份重复告警，且两边阈值会各自分叉）
+const promAlertNames = new Set(
+  [...promAlertRules.matchAll(/^\s*-\s*alert:\s*([A-Za-z0-9_]+)/gm)].map((m) => m[1])
+);
+if (!promAlertNames.size) {
+  fail('alert_rules.yml 里解析不到任何 `- alert:`（结构可能已变，R14d 会失去判别力）');
+}
+if (existsSync(GF_ALERTING_DIR)) {
+  const gfRuleFiles = readdirSync(GF_ALERTING_DIR).filter(
+    (n) => /\.ya?ml$/.test(n) && n !== 'contact-points.yml' && n !== 'policies.yml'
+  );
+  for (const rf of gfRuleFiles) {
+    const text = readFileSync(join(GF_ALERTING_DIR, rf), 'utf8');
+    for (const m of text.matchAll(/^\s*title:\s*["']?([A-Za-z0-9_]+)["']?/gm)) {
+      if (promAlertNames.has(m[1])) {
+        problems.push(
+          `Grafana 规则文件 ${rf} 的 title「${m[1]}」与 prometheus/alert_rules.yml 同名 ⇒ 同一条件被两条通道各投递一次（飞书群出现重复告警、阈值还会分叉）`
+        );
+      }
+    }
+  }
+}
+
 if (problems.length) {
   console.error(`${TAG} FAIL: 发现 ${problems.length} 处告警渠道缺陷：`);
   for (const p of problems) console.error(`  - ${p}`);
@@ -489,5 +658,7 @@ console.log(
   `${TAG} OK: ${channels.length} 条渠道（${[...byName.keys()].join('/')}）；` +
     `${constants.size} 个 ops.alert.* 配置键全部 seed 且在运营台可见；` +
     '飞书报文 msg_type/content 与失败码判定就位；' +
-    `监控栈接线一致（${receiverUrl[1]}:${receiverUrl[2]}${receiverUrl[3] || ''} ∈ ${services.size} 个 compose 服务）`
+    `监控栈接线一致（${receiverUrl[1]}:${receiverUrl[2]}${receiverUrl[3] || ''} ∈ ${services.size} 个 compose 服务）；` +
+    `Grafana 侧 R14：${cpChunks.length} 个 contact point / ${gfReceiverCount} 个 receiver，` +
+    `receiver「${policyReceivers.join('/')}」可解析、无假邮箱、未与 ${promAlertNames.size} 条 Prometheus 规则重名`
 );

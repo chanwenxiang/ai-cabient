@@ -1,0 +1,42 @@
+# O7-① *IT.java 入口缺失 —— A/B 对照
+同一条命令：mvn -B clean verify -pl services/device-service -am
+Sat Sep 19 12:31:39     2026
+
+读法声明（避免时序混淆）：下面每一节的判据都只用**该次运行自己的日志**。
+C:\Users\cwx\.workbuddy\binaries\PortableGit\versions\1.2.0\bin\bash.exe: line 7: target/failsafe-reports: No such file or directory
+ 是否存在这类『现在看磁盘』的读数**不能**当作 A 组状态，
+故本文件不引用它；A 组当时的实测另记于本节末注。
+
+## A 组（改 pom 前：根 pom 只有 surefire，无 failsafe）
+-- 日志里出现 EmqxSharedSubscriptionIT 的次数 --
+0
+-- 日志里出现 failsafe 的次数（应为 0）--
+0
+-- surefire 跑到的测试类数（failsafe 不参与）--
+7
+-- 结论行 --
+[INFO] BUILD SUCCESS
+[INFO] Total time:  01:11 min
+EXITCODE=0
+注：A 组运行时刻（12:19）单独实测 2026-09-19T12-22-26_922.dumpstream
+TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.xml
+com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.txt
+failsafe-summary.xml
+    → 'No such file or directory'（本次 A/B 现场输出，未混入 B 组之后的磁盘状态）。
+
+## B 组（加 failsafe 后）
+-- failsafe 关键行 --
+[INFO] --- failsafe:3.5.4:integration-test (integration-tests) @ ai-cabinet ---
+[INFO] --- failsafe:3.5.4:verify (integration-tests) @ ai-cabinet ---
+[INFO] --- failsafe:3.5.4:integration-test (integration-tests) @ common-core ---
+[INFO] --- failsafe:3.5.4:verify (integration-tests) @ common-core ---
+[INFO] --- failsafe:3.5.4:integration-test (integration-tests) @ device-service ---
+[INFO] Running com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.915 s -- in com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT
+[INFO] --- failsafe:3.5.4:verify (integration-tests) @ device-service ---
+-- 出现 EmqxSharedSubscriptionIT 的次数 --
+2
+-- 结论行 --
+[INFO] BUILD SUCCESS
+[INFO] Total time:  01:24 min
+EXITCODE=0

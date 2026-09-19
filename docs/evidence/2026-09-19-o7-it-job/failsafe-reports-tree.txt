@@ -1,0 +1,20 @@
+# failsafe 报告树与权威计数（真值 = <testcase> 元素个数）
+Sat Sep 19 12:31:18     2026
+
+total 43
+drwxr-xr-x 1 cwx 197121     0 Sep 19 12:23 .
+drwxr-xr-x 1 cwx 197121     0 Sep 19 12:23 ..
+-rw-r--r-- 1 cwx 197121   302 Sep 19 12:23 2026-09-19T12-22-26_922.dumpstream
+-rw-r--r-- 1 cwx 197121 31213 Sep 19 12:23 TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.xml
+-rw-r--r-- 1 cwx 197121   354 Sep 19 12:23 com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.txt
+-rw-r--r-- 1 cwx 197121   492 Sep 19 12:23 failsafe-summary.xml
+
+-- txt 报告 --
+-------------------------------------------------------------------------------
+Test set: com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.915 s -- in com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT
+-- XML 根属性 vs testcase 元素数 --
+TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.xml
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-failsafe-plugin/xsd/fail
+  testcase 元素数: 1

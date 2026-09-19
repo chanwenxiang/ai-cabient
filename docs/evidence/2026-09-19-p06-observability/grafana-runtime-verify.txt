@@ -1,0 +1,81 @@
+# 一次性 Grafana 10.4.0 容器的运行时取证
+Sat Sep 19 12:32:31     2026
+容器：aicab-gf-verify（挂载 repo 的 infra/monitoring/grafana/provisioning，与 compose 同路径）
+
+=== /api/health ===
+{
+  "commit": "03f502a94d17f7dc4e6c34acdf8428aedd986e4c",
+  "database": "ok",
+  "version": "10.4.0"
+}
+
+=== /api/v1/provisioning/contact-points（扁平 receiver 列表）===
+[
+  {
+    "uid": "ai-cabinet-ops-default",
+    "name": "ai-cabinet-ops",
+    "type": "webhook",
+    "settings": {
+      "authorization_credentials": "[REDACTED]",
+      "httpMethod": "POST",
+      "password": "[REDACTED]",
+      "url": "http://feishu-alert-relay:8098/webhook"
+    },
+    "disableResolveMessage": false,
+    "provenance": "file"
+  },
+  {
+    "uid": "",
+    "name": "email receiver",
+    "type": "email",
+    "settings": {
+      "addresses": "<example@email.com>"
+    },
+    "disableResolveMessage": false
+  }
+]
+
+=== /api/v1/provisioning/policies ===
+{"receiver":"ai-cabinet-ops","group_by":["alertname","biz"],"group_wait":"30s","group_interval":"5m","repeat_interval":"4h","provenance":"file"}
+
+=== /api/v1/provisioning/alert-rules（本仓应为 0：单一路径 = Prometheus/AM）===
+[]
+
+=== /api/search?type=dash-db ===
+[{"id":2,"uid":"ai-cabinet-overview","title":"AI Cabinet 运营概览","uri":"db/ai-cabinet-e8bf90-e890a5-e6a682-e8a788","url":"/d/ai-cabinet-overview/ai-cabinet-e8bf90-e890a5-e6a682-e8a788","slug":"","type":"dash-db","tags":["ai-cabinet"],"isStarred":false,"folderId":1,"folderUid":"dfyoxq82y4oowe","folderTitle":"AI Cabinet","folderUrl":"/dashboards/f/dfyoxq82y4oowe/ai-cabinet","sortMeta":0}]
+
+=== 看板面板清单（uid=ai-cabinet-overview）===
+title = AI Cabinet 运营概览 | panels = 13
+  id=1 gauge | 开门成功率 (5m)
+  id=2 stat | 设备在线 / 总数
+  id=3 stat | 对账 MISMATCH (24h)
+  id=4 timeseries | 开门 QPS
+  id=5 timeseries | 视觉识别平均耗时
+  id=6 timeseries | 会话结算
+  id=7 timeseries | device-service MQTT
+  id=8 gauge | 门事件送达完整率 (5m)
+  id=9 gauge | 争议率 (5m)
+  id=10 stat | MQTT 转发失败 (5m)
+  id=11 timeseries | 结算时长 P95 / 均值
+  id=12 timeseries | MQTT 转发失败 / 指令 ACK 异常
+  id=13 text | 识别准确率：无真值数据源（缺口登记，非面板）
+
+=== 断言（全 PASS 才算通过；退出码由本脚本返回）===
+  [PASS] file 来源的 receiver 恰好 1 个
+  [PASS] 它是 webhook 类型
+  [PASS] url = http://feishu-alert-relay:8098/webhook
+  [PASS] file 来源里不再有 ops@aicabinet.local
+  [PASS] file 来源里没有 email 类型
+  [PASS] policies 的 receiver 名可在列表中找到
+  [PASS] Grafana alert rule 数为 0（单一路径）
+  [PASS] 看板共 13 个面板
+  [PASS] 含「门事件送达完整率 (5m)」
+  [PASS] 含「争议率 (5m)」
+  [PASS] 含「MQTT 转发失败 (5m)」
+  [PASS] 含「结算时长 P95 / 均值」
+  [PASS] 含「MQTT 转发失败 / 指令 ACK 异常」
+  [PASS] 含识别准确率缺口登记面板
+
+14/14 条断言通过
+
+EXITCODE=0

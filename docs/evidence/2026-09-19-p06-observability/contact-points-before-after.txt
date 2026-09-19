@@ -1,3 +1,19 @@
+# Grafana contact point：改前 / 改后
+Sat Sep 19 12:33:04     2026
+
+## 改前（HEAD 版本：假 email）
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: ai-cabinet-ops
+    receivers:
+      - uid: ai-cabinet-ops-default
+        type: email
+        settings:
+          addresses: ops@aicabinet.local
+        disableResolveMessage: false
+
+## 改后（工作区：webhook → feishu-alert-relay）
 # Grafana 侧告警渠道 —— 与 Alertmanager 复用同一个转换桥。
 #
 # 为什么不再是 email
@@ -40,3 +56,8 @@ contactPoints:
           url: http://feishu-alert-relay:8098/webhook
           httpMethod: POST
         disableResolveMessage: false
+
+## 为什么它此前永远发不出去（实测）
+- 全仓 GF_SMTP_* 命中数: 1
+- 收件域 aicabinet.local 是保留给 mDNS 的域，不可投递
+- 桥 feishu-relay.py 的 render_alert_text 同时认 AM/Grafana 两家报文 ⇒ 复用同一个桥即可

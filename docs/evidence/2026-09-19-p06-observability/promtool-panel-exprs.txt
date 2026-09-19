@@ -1,0 +1,12 @@
+# 看板全部 panel expr 的 PromQL 语法校验（promtool check rules）
+Sat Sep 19 12:32:42     2026
+做法：把看板 13 个 panel 的 20 条 expr 导出成临时 rules 文件，用 prom/prometheus:v2.51.0 的 promtool 校验。
+⚠️ 本步骤只证**语法**；指标名是否真实存在由 check-prometheus-metric-names 的 R3 负责（另一份证据）。
+
+expr 数 = 20
+
+Checking /tmp/r.yml
+  SUCCESS: 20 rules found
+
+
+EXITCODE=0

@@ -1,0 +1,33 @@
+# O7-① 守卫判据场景验证（guard.sh 由 ci.yml 的 integration job 原样抽出，未手抄）
+Sat Sep 19 12:25:44     2026
+
+## S1 · 真实报告（IT 真跑了 1 条）→ 期望 exit 0
+ok  EmqxSharedSubscriptionIT  testcases=1
+exit=0
+
+## S2 · 报告不存在（failsafe 未绑定 / IT 没被识别）→ 期望 exit 1
+missing failsafe report: services/device-service/target/failsafe-reports/TEST-com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.xml（failsafe 没绑到 verify，或该 IT 没被识别）
+total 7
+drwxr-xr-x 1 cwx 197121   0 Sep 19 12:25 .
+drwxr-xr-x 1 cwx 197121   0 Sep 19 12:25 ..
+-rw-r--r-- 1 cwx 197121 302 Sep 19 12:23 2026-09-19T12-22-26_922.dumpstream
+-rw-r--r-- 1 cwx 197121 354 Sep 19 12:23 com.aicabinet.device.mqtt.EmqxSharedSubscriptionIT.txt
+-rw-r--r-- 1 cwx 197121 492 Sep 19 12:23 failsafe-summary.xml
+exit=1
+
+## S3 · 报告存在但 0 条用例（@Testcontainers 被 disabled 的形态）→ 期望 exit 1
+EmqxSharedSubscriptionIT 执行了 0 条用例 ⇒ 静默跳过（被 disabled 或根本没跑到）
+exit=1
+
+## S4 · 注入 <failure> → 期望 exit 1
+集成测试出现 failure/error（mvn 应已失败，这里再判一次）
+exit=1
+
+## S5（反向对照）· 复制成 2 条用例 → 必须仍绿（只设下限，不绑条数）
+  已复制为 2 条 testcase
+ok  EmqxSharedSubscriptionIT  testcases=2
+exit=0
+
+## 还原后复跑 → 必须回绿（防「永久红」被当成有效判据）
+ok  EmqxSharedSubscriptionIT  testcases=1
+exit=0

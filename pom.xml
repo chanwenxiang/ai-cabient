@@ -219,6 +219,15 @@
                         <argLine>@{argLine}</argLine>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>3.5.4</version>
+                    <configuration>
+                        <!-- 同 surefire：让 Jacoco prepare-agent 写入的 argLine 生效 -->
+                        <argLine>@{argLine}</argLine>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
 
@@ -243,6 +252,27 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+            <!--
+              failsafe：跑 *IT.java（集成测试）。此前根 pom 只有 surefire，而 surefire 默认
+              排除 **/*IT.java ⇒ device-service 的 EmqxSharedSubscriptionIT（Testcontainers +
+              EMQX 共享订阅）**在任何入口都不执行**：`mvn verify` BUILD SUCCESS、日志里 0 次
+              提及它、也无 target/failsafe-reports（2026-09-19 实测）。
+              该 IT 带 @Testcontainers(disabledWithoutDocker = true)：有 Docker 才跑，
+              无 Docker 时显式跳过（不是静默丢失）。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>integration-tests</id>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>

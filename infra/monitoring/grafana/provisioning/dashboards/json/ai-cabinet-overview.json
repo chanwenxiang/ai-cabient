@@ -113,6 +113,113 @@
       "title": "device-service MQTT",
       "type": "timeseries"
     }
+,
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "门事件（OPEN/CLOSED）被 device-service 完整送达 trade-service 的比例 = 转发成功 /(成功+失败)。指标：device_mqtt_door_total{result=forwarded}（MqttEventListener.java:328）与 device_trade_forward_total{result=failure}（同文件 :332）。⚠️ 转发失败**不 ACK**、由 broker 重投 ⇒ 本率是「重投前」的瞬时完整度，不是最终丢失率。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.99 },
+              { "color": "green", "value": 0.9999 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+      "id": 8,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [
+        { "expr": "sum(rate(device_mqtt_door_total{result=\"forwarded\"}[5m])) / ((sum(rate(device_mqtt_door_total{result=\"forwarded\"}[5m])) + sum(rate(device_trade_forward_total{result=\"failure\"}[5m]))) > 0)", "legendFormat": "门事件送达完整率" }
+      ],
+      "title": "门事件送达完整率 (5m)",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "争议会话占全部已终结会话的比例 = DISPUTED /(COMPLETED+DISPUTED)，指标 cabinet_session_transition_total{state=...}。⚠️ 本仓识别不确定（needReview / 低置信 / 白名单不符）统一走 escalateToDispute（SettlementRecognitionService.java:335）⇒ 本率同时是**识别质量**的代理指标。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.03 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "id": 9,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [
+        { "expr": "sum(rate(cabinet_session_transition_total{state=\"DISPUTED\"}[5m])) / (sum(rate(cabinet_session_transition_total[5m])) > 0)", "legendFormat": "争议率" }
+      ],
+      "title": "争议率 (5m)",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "近 5 分钟 device-service 向 trade-service 转发门事件失败速率（device_trade_forward_total{result=failure}）。失败不会丢：不 ACK ⇒ broker 重投；但持续 >0.1/s 会触发告警 MqttTradeForwardFailures。",
+      "fieldConfig": { "defaults": { "unit": "ops", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.1 } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "id": 10,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+      "targets": [
+        { "expr": "sum(rate(device_trade_forward_total{result=\"failure\"}[5m]))", "legendFormat": "转发失败" }
+      ],
+      "title": "MQTT 转发失败 (5m)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "结算耗时（cabinet_settlement_duration_seconds，Micrometer Timer）。P95 用 histogram_quantile；均值 = sum(rate(_sum))/sum(rate(_count))。",
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(cabinet_settlement_duration_seconds_bucket[5m])))", "legendFormat": "P95" },
+        { "expr": "sum(rate(cabinet_settlement_duration_seconds_sum[5m])) / sum(rate(cabinet_settlement_duration_seconds_count[5m]))", "legendFormat": "均值" }
+      ],
+      "title": "结算时长 P95 / 均值",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "MQTT 转发失败与设备指令异常速率。指令指标 device_command_total{result=ack_timeout|ack_failure} （DeviceMqttMetrics.java:34-38）。ack_timeout 触发告警 MqttCommandAckTimeout。",
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum(rate(device_trade_forward_total{result=\"failure\"}[5m]))", "legendFormat": "转发失败" },
+        { "expr": "sum(rate(device_command_total{result=\"ack_timeout\"}[5m]))", "legendFormat": "指令 ACK 超时" },
+        { "expr": "sum(rate(device_command_total{result=\"ack_failure\"}[5m]))", "legendFormat": "指令 ACK 失败" }
+      ],
+      "title": "MQTT 转发失败 / 指令 ACK 异常",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Grafana --" },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 40 },
+      "id": 13,
+      "options": { "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false }, "content": "### 识别准确率：本仓**没有**真值数据源（缺口在此登记，不放假面板）\n\n路线图 P0-6 列的 6 个业务 KPI 里，**识别准确率**目前**算不出来** —— 准确率要有\n「识别结果 vs 人工标注真值」的对照，而系统里没有这份真值。硬凑一个「看起来像准确率」的数\n属于**信号骗读者**，所以这里只登记缺口与现有代理信号：\n\n| 可用代理 | 指标 | 说明 |\n| --- | --- | --- |\n| **争议率**（见右上） | `cabinet_session_transition_total{state=\"DISPUTED\"}` | 识别不确定（needReview / 低置信 / 白名单不符）统一 `escalateToDispute` ⇒ 最近的代理 |\n| **对账 MISMATCH**（左上） | `cabinet_reconciliation_total{status=\"MISMATCH\"}` | 错扣/漏扣，多数源于识别错 |\n| 识别耗时（现有面板） | `cabinet_recognize_duration_seconds_*` | 只反映**性能**，不反映准确率 |\n\n补真值需另立项：路线图 **O1**（模型版本管理 + 灰度回滚 + 按模型版本对比准确率）。", "mode": "markdown" },
+      "title": "识别准确率：无真值数据源（缺口登记，非面板）",
+      "type": "text"
+    }
   ],
   "refresh": "30s",
   "schemaVersion": 39,

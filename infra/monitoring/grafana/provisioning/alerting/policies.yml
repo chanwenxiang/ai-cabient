@@ -1,3 +1,12 @@
+# Grafana 告警路由策略 —— 默认走 `ai-cabinet-ops`（= 飞书桥，见 contact-points.yml）。
+#
+# 当前 Grafana 侧 0 条 alert rule ⇒ 本策略实际不投递任何东西；它在这里是为了
+# 将来加规则时不必回头补路由。R14 会校验：这里引用的 receiver 必须在
+# contact-points.yml 里真实存在（名字对不上 = 告警静默丢失）。
+#
+# group_by 里的 `biz` 与 alertmanager.yml 的 `group_by: [alertname, severity]` 不同：
+# 本仓业务规则带 `biz` 标签（door/device/settlement/dispute/reconciliation/mqtt），
+# Grafana 侧按 biz 聚合更贴近运营视角。
 apiVersion: 1
 policies:
   - orgId: 1
