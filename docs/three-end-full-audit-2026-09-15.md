@@ -1241,6 +1241,22 @@ POST /api/v2/auth/password-login → 200 {"code":0,...}
 | `F-03` / `F-07` 财务采购待审 | `purchase_order` 0 行 | 缺种子数据 |
 | `B-05` 全局搜索只读触发器 | `readonly=null placeholder=""` | **待复核**，疑似只读账号仍可用全局搜索 |
 
+> **2026-09-20 更新：占用 `UAT_MAX_FAIL_BUSINESS=3` / `UAT_MAX_FAIL_DISPUTE=2` 的那 5 条已逐条实跑 + 修复 + 下调基线至 0。**
+> 本表（§12.6）的归因方向是对的，但当时**是反推**出来的 —— `ci.yml` 里那两行基线**没有逐用例注释**
+> （只有 consumer/merchant 那两行有）。现已有逐条实证，且证实 **5 条全是测试/种子缺陷，没有一条是产品缺陷**：
+>
+> | 用例 | 实证根因（`文件:行` 级） | 修法 |
+> |---|---|---|
+> | `T-C01` / `D-C01` | `consumer-mp/src/pages/login/login.vue:418` 的 `onSendCode()` 要求 `captchaId && captchaCode` 才发短信，而 `captchaId` 只在 Vue 状态里（`:258`）、**不落 DOM** ⇒ 脚本无从读 | 拦截 `/api/v2/auth/captcha` 取 `captchaId` + Redis 读码；抽到 `scripts/lib/h5-login.mjs` 供三套 H5 UAT 共用 |
+> | `T-C03` / `T-M03` | `DEMO_ORDER_ID` 默认值 `1788233752744411094` **全仓无任何 Flyway 种子写入**（`grep -rn … *.sql` = 0）；演示库重建后该单 0 行 | 改为 API 探测「真有可播放录像的订单」（200 + ≥1KB + MP4 `ftyp`），探测不到则 **SKIP**（同 `M-10v` / `TC-OPEN-005` 口径） |
+> | `D-A04` | `.tmp/open-dispute.json` 是**消耗性**种子：上一次运行的免单结案把它自己结掉，且无 setup/teardown 重置 | 先判种子工单是否**仍在 OPEN 列表**，不在则 SKIP 并提示重跑 `scripts/create-open-dispute.ps1` |
+>
+> **取证与 A/B 对照**：`docs/evidence/2026-09-20-three-end-uat-ratchet/README.md`
+> （含「注入可过探测但浏览器解不了的假 MP4 → T-C03/T-M03 立即变红（exit 1）」的负向对照，
+> 与「`create-open-dispute.ps1` 造新种子 → dispute 9/9 全绿」的正向对照）。
+> ⚠️ 另发现：`.tmp/` 被 `.gitignore:153` 忽略 ⇒ **dispute 套件在 CI 里本来就一条用例都不跑**（脚本 `exit 2` → 被重试逻辑转成 warning+exit 0）。
+> 本次修的是「本机可跑且结论可信」，**并未改变** CI 这一现状。
+
 ### 12.7 本轮之后仍未闭环
 
 > **本节第 1、2 条已在第 13 章闭环**（见 §13.2 / §13.7）。以下保留原始记录，不做改写。

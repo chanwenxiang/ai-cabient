@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captchaFromRedis } from '../../../scripts/lib/redis-captcha.mjs';
+import { consumerLoginViaSms } from '../../../scripts/lib/h5-login.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../../..');
@@ -161,31 +162,37 @@ async function merchantLogin(page) {
   ));
 }
 
+/**
+ * 消费者短信登录（含图形验证码）。
+ *
+ * 旧实现在「获取验证码」之前**从不填图形验证码**，而
+ * `consumer-mp/src/pages/login/login.vue` 的 `onSendCode()` 要求
+ * `captchaId && captchaCode` 才发短信 —— 于是 D-C01 恒为 fail。
+ * `captchaId` 不落 DOM（只在 Vue 状态里），只能「拦截 captcha 响应 + Redis 读码」，
+ * 该逻辑已抽到 `scripts/lib/h5-login.mjs`（三套 H5 UAT 共用一份）。
+ */
 async function consumerLogin(page) {
   await page.goto(`${CONSUMER}/pages/login/login`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
-  await dismissPrivacyConsent(page);
-  const smsTab = page.getByText('验证码', { exact: true });
-  if ((await smsTab.count()) > 0) await smsTab.first().click();
-  await page.waitForTimeout(200);
-  await page.locator('input').first().click();
-  await page.keyboard.press('ControlOrMeta+a');
-  await page.keyboard.type('13800138000', { delay: 20 });
-  const getCode = page.getByText('获取验证码');
-  if ((await getCode.count()) > 0) await getCode.first().click();
-  await page.waitForTimeout(400);
-  const inputs = page.locator('input');
-  await inputs.nth(Math.min(1, (await inputs.count()) - 1)).click();
-  await page.keyboard.type('123456', { delay: 20 });
-  await page
-    .locator('[data-testid="login-submit"], button:has-text("验证并继续"), button:has-text("登录")')
-    .first()
-    .click();
-  await page.waitForTimeout(2200);
-  return !!(await page.evaluate(
-    () =>
-      localStorage.getItem('consumer_token') || localStorage.getItem('consumer_cookie_auth') || ''
-  ));
+  return consumerLoginViaSms(page).catch(() => false);
+}
+
+/**
+ * 种子里那条工单是否**真的还在 OPEN 列表里**。
+ *
+ * 脚本原本只校验「`OPEN_DISPUTE_JSON` 文件存在 + 有 ticketId/sessionId」，
+ * **不校验工单是否还有效** —— 而该文件是 `.gitignore` 的（CI 里根本不存在），
+ * 本机又会被上一条 UAT 自己结案（D-A04 免单）或演示库重建变成「指向不存在的工单」。
+ * 结果 D-A04 长期恒红，报的却是 `hasWaive=false`，看不出是「种子失效」还是「产品坏了」。
+ * 这里显式区分：工单不在 OPEN 列表 → SKIP（并提示重跑种子脚本），而不是记成失败。
+ */
+async function seedTicketInOpenList(page, ticketId) {
+  return page.evaluate((tid) => {
+    const rows = [...document.querySelectorAll('.el-table__body tr, .el-table__row')];
+    if (!rows.length) return false;
+    const tail = String(tid).slice(-8);
+    return rows.some((r) => (r.innerText || '').includes(tail));
+  }, ticketId);
 }
 
 async function checkCheckboxByLabel(page, label) {
@@ -243,6 +250,10 @@ async function main() {
     );
     listOk ? pass++ : fail++;
 
+    // 种子有效性必须在**列表还完整时**判（后面会点开抽屉、甚至结案）
+    const seedOk = await seedTicketInOpenList(page, ticketId);
+    console.log(`[种子] 工单 ${ticketId} 出现在 OPEN 列表中: ${seedOk}`);
+
     // 点开首行或已自动选中
     const clicked = await page.evaluate((tid) => {
       const rows = [...document.querySelectorAll('.el-table__body tr, .el-table__row')];
@@ -265,63 +276,77 @@ async function main() {
     );
     clicked || /工单|会话/.test(text) ? pass++ : fail++;
 
-    // 无录像路径：勾选两个框（业务强制人工确认）
-    await page.waitForTimeout(800);
-    // 先尝试加载录像；失败则走无录像勾选
-    const reloadBtn = page.getByRole('button', { name: '重新加载录像' });
-    if ((await reloadBtn.count()) > 0) {
-      await reloadBtn
-        .first()
-        .click()
-        .catch(() => {});
-      await page.waitForTimeout(2500);
-    }
-    text = await bodyText(page);
-    if (/无录像|尚未加载|无法播放|录像加载/.test(text) || !(await page.locator('video').count())) {
-      await checkCheckboxByLabel(page, '无录像 / 无法播放，仍结案');
-    }
-    await checkCheckboxByLabel(page, '已对照录像核对');
-    await page.waitForTimeout(300);
-
-    const waiveBtn = page.getByRole('button', { name: /免单并退款/ });
-    const hasWaive = (await waiveBtn.count()) > 0;
-    if (hasWaive) {
-      await waiveBtn.first().click();
-      await page.waitForTimeout(600);
-      // 确认争议处理
-      const confirm = page.getByRole('button', { name: '确认处理' });
-      if ((await confirm.count()) > 0) await confirm.first().click();
+    if (!seedOk) {
+      // 种子失效：一个按钮都不点（列表里可能有别的 OPEN 单，误点会影响无关工单）
+      record(
+        'D-A04',
+        '运营 UI 免单结案',
+        'SKIP',
+        `种子工单 ${ticketId} 不在 OPEN 列表（已被上一次 UAT 结案 / 演示库重建）⇒ 请重跑 scripts/create-open-dispute.ps1`,
+        await shot(page, '04-seed-missing')
+      );
+    } else {
+      // 无录像路径：勾选两个框（业务强制人工确认）
       await page.waitForTimeout(800);
-      // 免单是否回库：选「仅退款（不回库）」更贴近顾客已拿走
-      const onlyRefund = page.getByRole('button', { name: /仅退款/ });
-      if ((await onlyRefund.count()) > 0) await onlyRefund.first().click();
-      else {
-        const restore = page.getByRole('button', { name: /退货退款/ });
-        if ((await restore.count()) > 0) await restore.first().click();
+      // 先尝试加载录像；失败则走无录像勾选
+      const reloadBtn = page.getByRole('button', { name: '重新加载录像' });
+      if ((await reloadBtn.count()) > 0) {
+        await reloadBtn
+          .first()
+          .click()
+          .catch(() => {});
+        await page.waitForTimeout(2500);
       }
-      await page.waitForTimeout(2500);
+      text = await bodyText(page);
+      if (
+        /无录像|尚未加载|无法播放|录像加载/.test(text) ||
+        !(await page.locator('video').count())
+      ) {
+        await checkCheckboxByLabel(page, '无录像 / 无法播放，仍结案');
+      }
+      await checkCheckboxByLabel(page, '已对照录像核对');
+      await page.waitForTimeout(300);
+
+      const waiveBtn = page.getByRole('button', { name: /免单并退款/ });
+      const hasWaive = (await waiveBtn.count()) > 0;
+      if (hasWaive) {
+        await waiveBtn.first().click();
+        await page.waitForTimeout(600);
+        // 确认争议处理
+        const confirm = page.getByRole('button', { name: '确认处理' });
+        if ((await confirm.count()) > 0) await confirm.first().click();
+        await page.waitForTimeout(800);
+        // 免单是否回库：选「仅退款（不回库）」更贴近顾客已拿走
+        const onlyRefund = page.getByRole('button', { name: /仅退款/ });
+        if ((await onlyRefund.count()) > 0) await onlyRefund.first().click();
+        else {
+          const restore = page.getByRole('button', { name: /退货退款/ });
+          if ((await restore.count()) > 0) await restore.first().click();
+        }
+        await page.waitForTimeout(2500);
+      }
+      text = await bodyText(page);
+      const resolvedUi =
+        /已处理|已结案|争议已结案|已免单|RESOLVED|免单/.test(text) ||
+        !!(await page
+          .locator('.resolve-feedback, .el-alert')
+          .filter({ hasText: /结案|免单|已处理/ })
+          .count());
+      record(
+        'D-A04',
+        '运营 UI 免单结案',
+        hasWaive && resolvedUi,
+        `hasWaive=${hasWaive} resolvedUi=${resolvedUi} body=${text.split('\n').slice(0, 10).join(' | ')}`,
+        await shot(page, '04-resolved')
+      );
+      hasWaive && resolvedUi ? pass++ : fail++;
     }
-    text = await bodyText(page);
-    const resolvedUi =
-      /已处理|已结案|争议已结案|已免单|RESOLVED|免单/.test(text) ||
-      !!(await page
-        .locator('.resolve-feedback, .el-alert')
-        .filter({ hasText: /结案|免单|已处理/ })
-        .count());
-    record(
-      'D-A04',
-      '运营 UI 免单结案',
-      hasWaive && resolvedUi,
-      `hasWaive=${hasWaive} resolvedUi=${resolvedUi} body=${text.split('\n').slice(0, 10).join(' | ')}`,
-      await shot(page, '04-resolved')
-    );
-    hasWaive && resolvedUi ? pass++ : fail++;
 
     // —— 消费者 ——
     const cOk = await consumerLogin(page);
     record(
       'D-C01',
-      '消费者登录（短信，无图形码）',
+      '消费者登录（短信 + 图形验证码）',
       cOk,
       cOk ? 'ok' : 'fail',
       await shot(page, '05-consumer-login')
@@ -380,7 +405,10 @@ async function main() {
     await browser.close();
   }
 
-  const summary = { pass, fail, ticketId, sessionId, report: path.join(OUT, 'report.json') };
+  // SKIP ≠ FAIL：种子失效（如 D-A04 的 OPEN 工单已被结案）不算回归，也**不计入 PASS**，
+  // 单独计数以免「跳过」被读成「通过」。ratchet 只吃 fail。
+  const skip = results.filter((r) => r.status === 'SKIP').length;
+  const summary = { pass, fail, skip, ticketId, sessionId, report: path.join(OUT, 'report.json') };
   fs.writeFileSync(summary.report, JSON.stringify({ summary, results }, null, 2));
   console.log('\n=== DISPUTE UI FLOW ===');
   console.log(JSON.stringify(summary, null, 2));

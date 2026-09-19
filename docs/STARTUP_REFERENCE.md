@@ -173,10 +173,25 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 
 | 项 | 值 |
 |----|-----|
-| 演示会话 | `1788233611382431271` |
-| 演示订单 | `1788233752744411094` |
-| 柜机 | `CAB-001` |
+| 演示会话 / 演示订单 | ⚠️ **会过期，勿硬编码**，见下方说明 |
+| 柜机 | `CAB-001`（注意 `device_info.device_id` 实际值形如 `330449777078`） |
 | MinIO 对象 | `cabinet-videos/demo/sample-shopping.mp4` |
+
+⚠️ **演示 id 会过期 —— 别再把它写死进脚本或文档**（2026-09-20 复核）：
+本表原先写的 `演示会话 1788233611382431271` 与 `演示订单 1788233752744411094`，
+复核时在演示库里**都是 0 行**；后者全仓**没有任何 Flyway 种子写过**，只是早期手工造单留下的常量。
+三端 UAT 曾照抄这两个常量，演示库一重建就**恒红**，还长期白占 `UAT_MAX_FAIL_BUSINESS` 的额度。
+现已改为 **API 探测**（`GET /api/v2/orders/{id}/video` 校验 200 + ≥1KB + MP4 `ftyp`，探测不到即 SKIP）。
+
+需要一条「真能播录像」的演示订单时，现场两步生成：
+
+```powershell
+# 1) 挑一条带 order_id 的会话（值每次都会变，别抄）
+docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -tAc `
+  "select session_id, order_id from shopping_session where order_id is not null and order_id<>'' order by created_at desc limit 3;"
+# 2) 上传样例录像并把 video_uri 绑到该会话
+.\scripts\seed-demo-shopping-video.ps1 -SessionId <上一步的 session_id>
+```
 
 消费者 / 商户 H5 订单详情 →「查看购物视频」；API：`GET /api/v2/orders/{id}/video`、`GET /api/v2/merchant/orders/{id}/video`。
 

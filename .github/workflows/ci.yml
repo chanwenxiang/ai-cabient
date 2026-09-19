@@ -604,8 +604,30 @@ jobs:
       #     的合法文案正是"本次暂未扣款" → 断言范围过大导致的假红，已收敛到 .app-sheet
       # 本地实测 pass=29 / fail=0 / skip=2。
       UAT_MAX_FAIL_MERCHANT: '0'
-      UAT_MAX_FAIL_BUSINESS: '3'
-      UAT_MAX_FAIL_DISPUTE: '2'
+      # 2026-09-20：business 3 → **0**、dispute 2 → **0**（取证：docs/evidence/2026-09-20-three-end-uat-ratchet/）。
+      # 这 5 条**全是测试/种子缺陷，没有一条是产品缺陷** —— 长期挂着是因为从未被逐条追根因：
+      #   · T-C01 / D-C01「消费者登录」：登录页加了**图形验证码**后，`login.vue` 的 `onSendCode()`
+      #     要求 captchaId+captchaCode 才发短信；而 captchaId 只在 Vue 状态里、**不落 DOM**，
+      #     旧脚本从不填 → 恒无 token。修法：拦截 `/api/v2/auth/captcha` 响应取 captchaId +
+      #     Redis 读码，抽到 `scripts/lib/h5-login.mjs` 供三套 H5 UAT 共用
+      #     （consumer 侧早已修好，business/dispute 这两套是没跟上的旧副本）。
+      #   · T-C03 / T-M03「订单购物视频」：`DEMO_ORDER_ID` 默认值 1788233752744411094 是早期手工
+      #     造单留下的常量，**全仓没有任何 Flyway 种子写它** → 演示库重建后该单 0 行 → 恒红。
+      #     修法：改为 API 探测「真的有可播放录像的订单」（200 + ≥1KB + MP4 `ftyp`），探测不到
+      #     则 **SKIP**（与 merchant M-10v / consumer TC-OPEN-005 同款口径）。
+      #     ⚠️ CI 无 MinIO，探测必然落空 ⇒ 这两条在 CI 里恒为 **SKIP**，属**预期**而非回归。
+      #   · D-A04「运营 UI 免单结案」：`.tmp/open-dispute.json` 种子会被上一次运行自己结案
+      #     （消耗性用例，无 setup/teardown）→ 恒红。修法：先判种子工单是否**仍在 OPEN 列表**，
+      #     不在则 SKIP 并提示重跑 `scripts/create-open-dispute.ps1`。
+      #     ⚠️ 该种子文件被 `.gitignore:153` 忽略 ⇒ **CI 里永远不存在**，脚本会直接 exit 2，
+      #     再由下方重试逻辑转成 warning+exit 0 —— 即 dispute 套件在 CI 中**本来就一条用例都不跑**。
+      #     本次修的是「本机可跑且结论可信」，**并未改变** CI 的这一现状（真要改需让 CI 造种子）。
+      # 实测：business 无录像种子 8P/0F/2SKIP，注入录像后 10P/0F/0SKIP；
+      #       dispute 新种子 9P/0F/0SKIP，种子被消耗后 8P/0F/1SKIP。
+      # 负向对照：给订单绑「过探测但浏览器解不了」的假 MP4 → T-C03/T-M03 立即变红（exit 1），
+      #           证明 SKIP 不是空判据、断言仍在真正起作用。
+      UAT_MAX_FAIL_BUSINESS: '0'
+      UAT_MAX_FAIL_DISPUTE: '0'
 
     services:
       postgres:
