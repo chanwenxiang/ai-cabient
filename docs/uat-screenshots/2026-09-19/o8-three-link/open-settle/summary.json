@@ -1,0 +1,36 @@
+{
+  "at": "2026-09-19T11:09:28.922Z",
+  "source": "C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/docs/uat-screenshots/2026-09-19/o8-three-link/open-settle/results.jtl",
+  "total": 20,
+  "ok": 20,
+  "bad": 0,
+  "errorRate": 0,
+  "avg": 52,
+  "p50": 40,
+  "p95": 88,
+  "p99": 259,
+  "max": 259,
+  "thresholds": {
+    "p95_ms": 800,
+    "error_rate": 0.001
+  },
+  "labels": {
+    "POST create session": {
+      "n": 10,
+      "ok": 10,
+      "bad": 0,
+      "p50": 34,
+      "p95": 259,
+      "p99": 259
+    },
+    "POST demo-close 结算": {
+      "n": 10,
+      "ok": 10,
+      "bad": 0,
+      "p50": 45,
+      "p95": 88,
+      "p99": 88
+    }
+  },
+  "pass": true
+}

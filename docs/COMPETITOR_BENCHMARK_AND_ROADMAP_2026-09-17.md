@@ -230,7 +230,7 @@
 | O5 | **商户经营分析可视化** | merchant-mp 纯数字 → 引入轻量图表（如 ucharts）补趋势/构成图 |
 | O6 | **余额退款自动化** | 纯人工审核 → 小额（阈值可配）自动原路退回 + 风控联动（黑名单/新号限制），大额仍人工 |
 | O7 | **测试资产还债** | trade 202 单测但 god service 分支不全、device 仅 2 测试、edge 0 测试 → 按 CODEBASE_FOUNDATION §10 优先级补开门竞态/结算置信度/回调幂等决策表测试；Testcontainers 进 CI 不跳过 |
-| O8 | **性能基线** | 无压测数据 → jmeter 已在仓库根，做开门/结算/轮询三链路压测并入库容量基线 |
+| O8 | **性能基线** | ✅ **09-19 已落盘并入库容量基线**。新增 `scripts/perf/poll_scale.jmx`（轮询读）+ `run-o8-staged.sh`（**分级升压**，级间健康检查、拐点即停）+ `open_settle_cycle.jmx`（开门+结算闭环）。实测：读链路 **≥600 VU、p95 379ms、≈2470 TPS、0 错误**（吞吐 **200 VU 即封顶**，之后加 VU 只推高尾延迟）；写路径**串行 10 轮全绿**（建会话 p50 **34ms** / 结算 p50 **45ms**）。🔴 **1000 VU 不可作容量结论**：该轮 70.16% 错误、且**打崩宿主机 Docker 引擎**（需人工重启），根因取证为 **Docker VM 仅 3.82GB** ＋ `trade-service` **`mem_limit:1024m`/`cpus:1.5`** ＋ **Tomcat 完全未配置**（默认 `acceptCount=100`），属宿主/容器配额而非应用逻辑。⚠️ 写路径容量由**风控策略**决定（建会话 20/时/用户、开门 60/时/**设备**），「订单创建 TPS」类指标不成立。证据：`docs/uat-screenshots/2026-09-19/o8-three-link/`（README 含环境取证与复现）；`docs/PERFORMANCE_TESTING.md` §3/§8 已按实测重写（**删除原无依据的 TPS 估算表**） |
 | O9 | **Flyway 治理** | 276 个迁移 → 种子/结构分离策略，防止继续膨胀（CODEBASE_FOUNDATION P2） |
 | O10 | **小程序 mock 演示路径隔离** | ✅ **09-18 复核：已实现（原判「仅运行时开关」不成立）**。`packages/shared-uni/src/runtime-flags.ts` 的 `isDevBuild = import.meta.env.DEV \|\| MODE==='development'` 是 **Vite 编译期常量替换** ⇒ `resolveMockEnabled()` / `resolveSandboxRecharge()` / `resolveWechatRechargeVisible()` 的生产分支被**常量折叠 + DCE 消除**（`showDevTools()` 恒 false ⇒ 模板 `v-if` 分支一并消除）；其上是后端 `mockEnabled` **运行时**开关，构成**双层**防御而非二选一 |
 

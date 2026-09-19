@@ -81,7 +81,7 @@
 
 ### 2.1 页面清单基线（代码实测 2026-09-12，防页面漂移）
 
-> **分册新鲜度声明（2026-09-12 实测）**：`BUSINESS_FULL_TEST_MATRIX.md` v1.2 的**页面路径引用 37/37 全部有效**，按钮级明细可继续使用；但其「消费者 23 页」计数过时（现 24，缺 `pages/balance/balance` 用例，见 §2.4 UI-C04 补测）。`PERFORMANCE_TESTING.md` 的 JMeter 脚本**仅为文档内嵌 XML 示例，仓库无现成 .jmx 文件**——跑 PERF-1 前须先从该文档导出落盘。`SECURITY_BEST_PRACTICES_REPORT.md`（08-25）不含 CI 已新增的 OSV/secret scan（已在本文 §5 SEC-R8/R9 收录）。
+> **分册新鲜度声明（2026-09-12 实测）**：`BUSINESS_FULL_TEST_MATRIX.md` v1.2 的**页面路径引用 37/37 全部有效**，按钮级明细可继续使用；但其「消费者 23 页」计数过时（现 24，缺 `pages/balance/balance` 用例，见 §2.4 UI-C04 补测）。`PERFORMANCE_TESTING.md` 的「内嵌 XML 仅为示例、不可当成品」这一判断仍成立，但其中**「仓库无现成 .jmx 文件」已过期**——`scripts/perf/` 下现有 **3 个可跑计划**（09-13 `order_read_scale.jmx`；09-19 O8 新增 `poll_scale.jmx` / `open_settle_cycle.jmx`），且该文档 §3/§8 已于 09-19 按 O8 实测重写、**删除了无依据的 TPS 估算表**。`SECURITY_BEST_PRACTICES_REPORT.md`（08-25）不含 CI 已新增的 OSV/secret scan（已在本文 §5 SEC-R8/R9 收录）。
 
 | 端 | 真源文件 | 实测数量 |
 |----|----------|----------|
@@ -323,7 +323,7 @@ S-01 配置生效（新单按新比例，旧单不静默改写）/ S-02 支付�
 
 | ID | 项 | 方法 | 门槛 | 状态 |
 |----|-----|------|------|------|
-| PERF-1 | 订单创建压测 | JMeter（方案见 `PERFORMANCE_TESTING.md`；**注意：仓库无现成 .jmx，须先按文档内嵌 XML 导出落盘**；1000 用户 ramp 60s） | p95<800ms，错误率<0.1% | **待跑基线** |
+| PERF-1 | 订单读压测 ＋ O8 三链路 | JMeter。**现成 `.jmx` 已落盘**（本行原写「仓库无现成 .jmx」已过期）：`scripts/perf/order_read_scale.jmx`（09-13）、`poll_scale.jmx` / `open_settle_cycle.jmx`（09-19 O8）；跑法与前置见 `docs/uat-screenshots/2026-09-19/o8-three-link/README.md` §8 | p95<800ms，错误率<0.1% | ✅ **已跑**（原标「待跑基线」已过期）：09-13 **1000 VU** p95 **577ms** / 0 错误（`docs/uat-screenshots/2026-09-12/jmeter-order-read/`）；09-19 O8 分级升压 **600 VU** p95 **379ms** / ≈**2470 TPS** / 0 错误（`docs/uat-screenshots/2026-09-19/o8-three-link/`）。⚠️ 09-19 盲打 1000 VU **打崩过宿主 Docker 引擎**，勿直接复用该参数，用 `run-o8-staged.sh` |
 | PERF-2 | 并发开门 | 多柜模拟器并发 | 无超开/漏开，幂等 | 部分 |
 | PERF-3 | 视频上传 | 并发上传 MinIO | 无丢帧丢单 | 待跑 |
 | PERF-4 | 识别任务 | 并发识别队列 | 无积压雪崩 | 待跑 |

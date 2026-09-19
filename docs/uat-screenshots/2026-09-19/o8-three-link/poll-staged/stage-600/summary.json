@@ -1,0 +1,44 @@
+{
+  "at": "2026-09-19T11:06:48.844Z",
+  "source": "C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/docs/uat-screenshots/2026-09-19/o8-three-link/poll-staged/stage-600/results.jtl",
+  "total": 150666,
+  "ok": 150666,
+  "bad": 0,
+  "errorRate": 0,
+  "avg": 219,
+  "p50": 204,
+  "p95": 379,
+  "p99": 476,
+  "max": 892,
+  "thresholds": {
+    "p95_ms": 800,
+    "error_rate": 0.001
+  },
+  "labels": {
+    "GET sessions/active": {
+      "n": 50421,
+      "ok": 50421,
+      "bad": 0,
+      "p50": 184,
+      "p95": 266,
+      "p99": 324
+    },
+    "GET device status": {
+      "n": 50259,
+      "ok": 50259,
+      "bad": 0,
+      "p50": 282,
+      "p95": 445,
+      "p99": 530
+    },
+    "GET orders": {
+      "n": 49986,
+      "ok": 49986,
+      "bad": 0,
+      "p50": 193,
+      "p95": 277,
+      "p99": 334
+    }
+  },
+  "pass": true
+}

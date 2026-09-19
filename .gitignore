@@ -192,6 +192,12 @@ docs/uat-screenshots/**/jmeter-order-read/summary-5k.json
 docs/uat-screenshots/**/jmeter-order-read/summary-10k.json
 docs/uat-screenshots/**/jmeter-order-read/report/
 
+# O8 压测（2026-09-19 新增目录布局 poll/ poll-staged/ open-settle/）
+# 与上一条同口径：只留证 summary.json（及 jmeter.log 作来源留痕），
+# 原始 jtl 单个 20MB+、token 是凭据 —— 一律不入库。
+docs/uat-screenshots/**/o8-*/**/*.jtl
+docs/uat-screenshots/**/o8-*/**/token.txt
+
 # UAT 本地会话/工具输出（cookies、登录态、eslint/tsc 转储）
 docs/uat-screenshots/**/admin-cookies.txt
 docs/uat-screenshots/**/login-session*.json
