@@ -1,0 +1,34 @@
+   [eol] RecognitionResultWriter.java = lf
+   [eol] SettlementRecognitionService.java = crlf
+== 基线（应全绿）==
+   RecognitionResultWriterTest: testcase=12 失败=0 []
+   SettlementDisputeTest: testcase=17 失败=0 []
+
+== 漂移 A 移除会话级去重（预期仅 persist_sessionAlreadyHasResult_skips 红）==
+   RecognitionResultWriterTest: testcase=12 失败=1 名单=['persist_sessionAlreadyHasResult_skips']
+   => 判据会红，符合预期
+
+== 漂移 B 移除 task_id 去重（预期仅 persist_sameTaskIdTwice_skipsSecondWrite 红）==
+   RecognitionResultWriterTest: testcase=12 失败=1 名单=['persist_sameTaskIdTwice_skipsSecondWrite']
+   => 判据会红，符合预期
+
+== 漂移 C 移除 model_version 列宽闸（预期仅 persist_modelVersionOverColumnWidth_invalidAndNeverTouchesDb 红）==
+   RecognitionResultWriterTest: testcase=12 失败=1 名单=['persist_modelVersionOverColumnWidth_invalidAndNeverTouchesDb']
+   => 判据会红，符合预期
+
+== 漂移 D 摘掉结算侧写入钩子（预期仅 recognitionApplied_persistsResultOnce 红）==
+   SettlementDisputeTest: testcase=17 失败=1 名单=['recognitionApplied_persistsResultOnce']
+   => 判据会红，符合预期
+
+== 漂移 E items 恒序列化为空数组（预期仅 persist_itemsJsonUsesQuantityKeyAndNotQty 红）==
+   RecognitionResultWriterTest: testcase=12 失败=2 名单=['persist_writesRowWithAllColumnsMapped', 'persist_itemsJsonUsesQuantityKeyAndNotQty']
+   => 判据会红，符合预期
+
+== 汇总 ==
+   [OK] A 移除会话级去重 → testcase=12 失败=1 ['persist_sessionAlreadyHasResult_skips']
+   [OK] B 移除 task_id 去重 → testcase=12 失败=1 ['persist_sameTaskIdTwice_skipsSecondWrite']
+   [OK] C 移除 model_version 列宽闸 → testcase=12 失败=1 ['persist_modelVersionOverColumnWidth_invalidAndNeverTouchesDb']
+   [OK] D 摘掉结算侧写入钩子 → testcase=17 失败=1 ['recognitionApplied_persistsResultOnce']
+   [OK] E items 恒序列化为空数组 → testcase=12 失败=2 ['persist_writesRowWithAllColumnsMapped', 'persist_itemsJsonUsesQuantityKeyAndNotQty']
+
+字节级还原： 全部一致

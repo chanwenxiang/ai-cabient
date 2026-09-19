@@ -38,6 +38,7 @@ public class SettlementRecognitionService {
     private final ConsumerPreauthService consumerPreauthService;
     private final SettlementService settlement;
     private final SettlementOrderSupport orderSupport;
+    private final RecognitionResultWriter recognitionResultWriter;
 
     public SettlementRecognitionService(ShoppingSessionMapper sessionRepository,
                                         CabinetOrderMapper orderRepository,
@@ -50,7 +51,8 @@ public class SettlementRecognitionService {
                                         @Lazy DisputeService disputeService,
                                         ConsumerPreauthService consumerPreauthService,
                                         @Lazy SettlementService settlement,
-                                        SettlementOrderSupport orderSupport) {
+                                        SettlementOrderSupport orderSupport,
+                                        RecognitionResultWriter recognitionResultWriter) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
         this.confidenceService = confidenceService;
@@ -63,6 +65,33 @@ public class SettlementRecognitionService {
         this.consumerPreauthService = consumerPreauthService;
         this.settlement = settlement;
         this.orderSupport = orderSupport;
+        this.recognitionResultWriter = recognitionResultWriter;
+    }
+
+    /**
+     * 识别结果落库（会话维度一份）——<b>唯一的运行期写入点</b>。
+     *
+     * <p>位置选在这里的理由：{@code processRecognitionResultUnlocked} 是三条路径的公共下游——
+     * 同步关门（{@code SettlementSettleOrchestrator#processRecognitionAfterVision}）、
+     * 异步识别回调（{@code SettlementService#processRecognitionResult}）、开发上传识别；
+     * 一处即可全覆盖。若挂在上游各个入口，三份代码会各自漂移，且默认配置（
+     * {@code aicabinet.vision-async.enabled=false}）下异步通道根本不启用，只挂它等于没落库。
+     *
+     * <p>记录的是<b>归一之后</b>的识别结果（已含重力兜底 / 强制复核），即平台据此决策的那一份；
+     * 端侧原始报文的逐字对账不在本表职责内。
+     *
+     * <p><b>失败语义</b>：与结算<b>共用同一个事务</b>（理由见 {@link RecognitionResultWriter} 类注释——
+     * 外键会让独立事务与外层 {@code FOR UPDATE} 互锁）。因此落库失败会让结算一起回滚，这是刻意的
+     * fail-hard：宁可让本次结算失败并可重试，也不接受「已扣款却没有识别记录」的对账黑洞。
+     * 异常不在此处吞掉，交由上层按结算失败统一处理（会话置 FAILED + 运维事件）。
+     */
+    private void recordRecognitionResult(ShoppingSession session,
+                                         VisionServiceClient.RecognitionResult recognition) {
+        RecognitionResultWriter.Outcome outcome =
+                recognitionResultWriter.persist(session.getSessionId(), recognition);
+        if (outcome != RecognitionResultWriter.Outcome.WRITTEN) {
+            log.info("识别结果未落库 session={} outcome={}", session.getSessionId(), outcome);
+        }
     }
 
     OrderReadModel processRecognitionResultUnlocked(ShoppingSession session,
@@ -86,6 +115,7 @@ public class SettlementRecognitionService {
         if (recognition == null) {
             throw new IllegalStateException("recognition result is null after gravity/review normalize");
         }
+        recordRecognitionResult(session, recognition);
 
         OrderReadModel early = trySettleWhenReviewRequired(session, recognition, allowDevFallback);
         if (early != null) {

@@ -31,7 +31,9 @@ import java.util.List;
  *       「modelVersion 是否含 mock/fallback」判定「非生产精度不得静默扣款」
  *       （{@code SettlementService#blocksSilentSettle}）；Kafka 通道的该字段来自
  *       vision-service 代码常量、外部无法构造，而 HTTP 入站可被外部构造
- *       ⇒ 若允许留空即可绕过该闸，故在入口直接拒绝。</li>
+ *       ⇒ 若允许留空即可绕过该闸，故在入口直接拒绝。同处一并拦截
+ *       {@code modelVersion} 超列宽（{@link VisionRecognitionResultDto#MODEL_VERSION_MAX_LENGTH}），
+ *       避免「入口放行 → 写库报错 → 被 best-effort 吞掉」造成识别结果静默缺失。</li>
  *   <li><b>明确回执</b>：结算侧 {@code doCompleteAsyncRecognition} 在非 RECOGNIZING 态是
  *       静默 return，HTTP 调用方无从区分「已结算」与「被丢弃」⇒ 本类把受理结论显式回给端侧，
  *       端侧据此决定是否重发。</li>
@@ -113,6 +115,11 @@ public class VisionResultIngestService {
         if (isBlank(request.modelVersion())) {
             throw badRequest("modelVersion 必填：平台据此判定识别是否生产精度，留空会导致"
                     + "「非生产精度不得静默扣款」校验被绕过");
+        }
+        if (request.modelVersion().trim().length() > VisionRecognitionResultDto.MODEL_VERSION_MAX_LENGTH) {
+            throw badRequest("modelVersion 超长：识别结果表该列宽为 "
+                    + VisionRecognitionResultDto.MODEL_VERSION_MAX_LENGTH
+                    + " 字符，超长会被平台拒收，请上报真实且不超长的版本号");
         }
         if (request.items() != null) {
             for (VisionRecognitionResultDto.Item item : request.items()) {

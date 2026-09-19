@@ -1,0 +1,29 @@
+== 前置检查 ==
+   health=200
+   设备 online=True available=True
+
+== A 开门 → SHOPPING（此时不应有识别结果）==
+   sessionId=1789830731176745342321
+   当前状态=SHOPPING
+   [PASS] A1 会话未结算时识别结果行数=0（应为 0，不该写的不会被写）
+
+== B 关门 ==
+   [PASS] B1 关门后无需外部输入即离开识别态，终态=DISPUTED（同步模式成立）
+
+== C 识别结果落库 ==
+   [PASS] C1 该会话识别结果行数=1（应为 1）
+   落库行(taskId|融合模式|模型版本|需复核|整体置信度|items) = T-1789830731176745342321|VISION|mock-v1|true|0.75|[{"skuId": "SKU-DEMO-001", "quantity": 1, "confidence": 0.75}]
+   [PASS] C2 taskId 非空 = T-1789830731176745342321
+   [PASS] C3 融合模式 = VISION（应为 VISION）
+   [PASS] C4 modelVersion 非空 = mock-v1
+   [PASS] C5 needReview 为布尔 = true
+   [PASS] C6 items 键为 quantity（非 qty）
+   [PASS] C7 items 非空 = [{"skuId": "SKU-DEMO-001", "quantity": 1, "confidence": 0.75}]
+
+== D 全表不变量 ==
+   [PASS] D1 无「同会话多行」（重复会话数=0）
+
+== 汇总：10/10 通过 ==
+端到端验证 通过
+
+本次会话 1789830731176745342321：终态 DISPUTED

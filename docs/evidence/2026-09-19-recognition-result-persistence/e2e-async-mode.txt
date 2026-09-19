@@ -1,0 +1,51 @@
+== 前置检查 ==
+   health=200
+   登录成功 token长度=260
+   设备 online=True available=True
+   余额(初始) = 11650
+
+== A/B 开门 → 关门 ==
+   sessionId=1789830778248602719681
+   [PASS] A 开门后进入 SHOPPING
+   [PASS] B 关门后停在 RECOGNIZING（异步识别已生效，等待端侧结果）
+
+== C/D 端侧直报识别结果 ==
+   回执 = {"accepted": true, "outcome": "PROCESSED", "reason": "已采纳并结算，会话终态 COMPLETED", "sessionId": "1789830778248602719681", "taskId": "EDGE-1789830778248602719681", "sessionState": "COMPLETED"}
+   [PASS] C1 HTTP=200 accepted=true
+   [PASS] C2 outcome=PROCESSED
+   [PASS] D1 会话终态=COMPLETED
+   orderId=1789830779488265753766 status=PAID 总额=350 优惠=0
+   订单行(sku|数量|单价|置信度|行金额) = SKU-DEMO-001|1|350|0.96|350
+   [PASS] D2 订单已生成且 PAID（PAID）
+   [PASS] D3 订单行内容 = 端侧上报内容（sku=SKU-DEMO-001 数量=1 置信度=0.96）
+   [PASS] D4 账目自洽：总额350 + 优惠0 = 行金额350
+   余额 11650 → 11300（应为 11300）
+   [PASS] D5 余额精确扣减 11650-350=11300
+
+== G 识别结果落库 ==
+   [PASS] G1 该会话识别结果行数=1（应为 1）
+   落库行(taskId|融合模式|模型版本|需复核|整体置信度|items) = EDGE-1789830778248602719681|VISION|QUECTEL-EDGE-1.5.2|false|0.96|[{"skuId": "SKU-DEMO-001", "quantity": 1, "confidence": 0.96}]
+   [PASS] G2 taskId=EDGE-1789830778248602719681（应为 EDGE-1789830778248602719681）
+   [PASS] G3 融合模式=VISION（应为 VISION）
+   [PASS] G4 模型版本=QUECTEL-EDGE-1.5.2（应为 QUECTEL-EDGE-1.5.2）
+   [PASS] G5 需复核=false（应为 false）
+   [PASS] G6 items 含 sku=SKU-DEMO-001 且键为 quantity（非 qty）
+
+== E 负对照：重复上报 ==
+   [PASS] E1 二次上报 outcome=ALREADY_HANDLED（不重复采纳）
+   [PASS] E2 二次上报后余额不变（未重复扣款）
+   [PASS] E3 该会话订单数仍为 1（未重复建单）
+   [PASS] E4 该会话识别结果仍为 1 行（未重复落库）
+
+== F 负对照：入口校验 ==
+   [PASS] F1 缺 modelVersion → HTTP 400（400）
+   [PASS] F2 quantity=0 → HTTP 400（400）
+   [PASS] F3 会话不存在 → HTTP 404（404）
+   [PASS] F4 无内部密钥 → HTTP 401（401）
+   [PASS] F5 modelVersion=65 字符（列宽 64）→ HTTP 400（400）
+   [PASS] H1 全表无「同会话多行」（重复会话数=0）
+
+== 汇总：25/25 通过 ==
+端到端验证 通过
+
+本次会话 1789830778248602719681：余额 11650 → 11300，订单 1789830779488265753766

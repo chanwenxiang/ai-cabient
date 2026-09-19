@@ -15,8 +15,10 @@
   B 关门 → RECOGNIZING（等端侧结果，不是自动结算）
   C 端侧直报 → accepted=true / outcome=PROCESSED / sessionState=COMPLETED
   D 会话 COMPLETED + 订单 PAID + 金额=商品价 + 余额精确扣减
-  E 负对照：重复上报（幂等，不重复扣款/不重复建单）
-  F 负对照：缺 modelVersion→400、quantity<=0→400、会话不存在→404、无密钥→401
+  E 负对照：重复上报（幂等，不重复扣款/不重复建单/不重复落库）
+  F 负对照：缺 modelVersion→400、quantity<=0→400、会话不存在→404、无密钥→401、modelVersion 超列宽→400
+  G 识别结果落库：recognition_result 出现该会话 1 行且字段与上报一致（items 键为 quantity）
+  H 全表不变量：无「同会话多行」
 
 用法：
   python scripts/devops/verify-vision-result-ingest.py
@@ -209,6 +211,24 @@ def main() -> int:
     print(f"   余额 {balance_before} → {balance_after}（应为 {expected}）")
     check(balance_after == expected, f"D5 余额精确扣减 {balance_before}-{amount}={expected}")
 
+    # ---- G 识别结果落库（recognition_result）----
+    # 该表自 V1 建表起长期无人写入（0 行），本批补齐；此处验证「端侧直报也被记账」。
+    print("\n== G 识别结果落库 ==")
+    rr_count = psql(f"SELECT count(*) FROM recognition_result WHERE session_id='{sid}';")
+    check(rr_count == "1", f"G1 该会话识别结果行数={rr_count}（应为 1）")
+    rr = psql("SELECT task_id || '|' || fusion_mode || '|' || coalesce(model_version,'') || '|' || "
+              "coalesce(need_review::text,'') || '|' || coalesce(overall_confidence::text,'') || '|' || "
+              f"items::text FROM recognition_result WHERE session_id='{sid}';")
+    print(f"   落库行(taskId|融合模式|模型版本|需复核|整体置信度|items) = {rr}")
+    g = rr.split("|") if rr else []
+    check(len(g) == 6 and g[0] == f"EDGE-{sid}", f"G2 taskId={g[0] if g else ''}（应为 EDGE-{sid}）")
+    check(len(g) == 6 and g[1] == "VISION", f"G3 融合模式={g[1] if len(g) == 6 else ''}（应为 VISION）")
+    check(len(g) == 6 and g[2] == MODEL_VERSION, f"G4 模型版本={g[2] if len(g) == 6 else ''}（应为 {MODEL_VERSION}）")
+    check(len(g) == 6 and g[3] == "false", f"G5 需复核={g[3] if len(g) == 6 else ''}（应为 false）")
+    # items 的键必须是 quantity（与 Kafka 报文一致）；V222 demo seed 用的是 qty，跟着它写消费者会取不到数量
+    check(len(g) == 6 and '"quantity"' in g[5] and '"qty"' not in g[5] and SKU in g[5],
+          f"G6 items 含 sku={SKU} 且键为 quantity（非 qty）")
+
     # ---- E 幂等 ----
     print("\n== E 负对照：重复上报 ==")
     code2, body2 = ingest(payload)
@@ -218,6 +238,8 @@ def main() -> int:
     check(balance(token) == balance_after, "E2 二次上报后余额不变（未重复扣款）")
     check(psql(f"SELECT count(*) FROM cabinet_order WHERE session_id='{sid}';") == "1",
           "E3 该会话订单数仍为 1（未重复建单）")
+    check(psql(f"SELECT count(*) FROM recognition_result WHERE session_id='{sid}';") == "1",
+          "E4 该会话识别结果仍为 1 行（未重复落库）")
 
     # ---- F 入口 fail-closed ----
     print("\n== F 负对照：入口校验 ==")
@@ -245,6 +267,18 @@ def main() -> int:
     except urllib.error.HTTPError as e:
         no_key = e.code
     check(no_key == 401, f"F4 无内部密钥 → HTTP {no_key}（401）")
+
+    # F5：model_version 超列宽必须在入口拒绝。该列由 V279 放宽到 64；若入口放行，超长值会在写库时被
+    # PostgreSQL 拒收，进而被 fail-hard 放大成「结算一起回滚」——把「平台存不下」变成业务失败。
+    too_long = {"sessionId": sid, "items": [{"skuId": SKU, "quantity": 1, "confidence": 0.9}],
+                "needReview": False, "modelVersion": "X" * 65}
+    code6, _ = ingest(too_long)
+    check(code6 == 400, f"F5 modelVersion=65 字符（列宽 64）→ HTTP {code6}（400）")
+
+    # ---- H 全表不变量：会话维度唯一 ----
+    dup = psql("SELECT count(*) FROM (SELECT session_id FROM recognition_result "
+               "GROUP BY session_id HAVING count(*) > 1) t;")
+    check(dup == "0", f"H1 全表无「同会话多行」（重复会话数={dup}）")
 
     failed = [label for ok, label in RESULTS if not ok]
     print(f"\n== 汇总：{len(RESULTS) - len(failed)}/{len(RESULTS)} 通过 ==")

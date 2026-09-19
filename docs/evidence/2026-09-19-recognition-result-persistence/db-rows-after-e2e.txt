@@ -1,0 +1,11 @@
+# 改后 recognition_result 全部行（本批 e2e 共 4 次结算：2 同步 + 2 异步）
+# 采集时间：2026-09-19 23:13:45    
+
+           task_id           |       session_id       | fusion_mode |   model_version    | need_review | overall_confidence |                             items                              
+-----------------------------+------------------------+-------------+--------------------+-------------+--------------------+----------------------------------------------------------------
+ T-1789830583838929519222    | 1789830583838929519222 | VISION      | mock-v1            | t           |               0.75 | [{"skuId": "SKU-DEMO-001", "quantity": 1, "confidence": 0.75}]
+ EDGE-1789830646265281902918 | 1789830646265281902918 | VISION      | QUECTEL-EDGE-1.5.2 | f           |               0.96 | [{"skuId": "SKU-DEMO-001", "quantity": 1, "confidence": 0.96}]
+ T-1789830731176745342321    | 1789830731176745342321 | VISION      | mock-v1            | t           |               0.75 | [{"skuId": "SKU-DEMO-001", "quantity": 1, "confidence": 0.75}]
+ EDGE-1789830778248602719681 | 1789830778248602719681 | VISION      | QUECTEL-EDGE-1.5.2 | f           |               0.96 | [{"skuId": "SKU-DEMO-001", "quantity": 1, "confidence": 0.96}]
+(4 rows)
+

@@ -34,6 +34,18 @@ public record VisionRecognitionResultDto(
         Instant occurredAt
 ) {
     /**
+     * {@code recognition_result.model_version} 的列宽。
+     *
+     * <p>原为 {@code VARCHAR(32)}，因端侧固件/模型版本号实际可能更长，已由
+     * {@code V279__recognition_result_model_version_widen.sql} 放宽到 64。
+     *
+     * <p>放在契约层：入口校验（HTTP 400）与落库校验必须共用同一权威值，否则会出现
+     * 「入口放行、写库报错、被 best-effort 吞掉」⇒ 结算成功但识别结果静默缺失。
+     * 这是「平台存不下」的硬约束，不是业务规则。
+     */
+    public static final int MODEL_VERSION_MAX_LENGTH = 64;
+
+    /**
      * 单行识别结果。
      *
      * @param skuId      SKU 编码（必填非空）

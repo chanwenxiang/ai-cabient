@@ -1,0 +1,21 @@
+# V279 迁移与列宽取证
+
+## flyway_schema_history
+ version |              description               | success |        installed_on        
+---------+----------------------------------------+---------+----------------------------
+ 279     | recognition result model version widen | t       | 2026-09-19 15:09:17.467212
+(1 row)
+
+## information_schema.columns
+    column_name     |        data_type         | character_maximum_length 
+--------------------+--------------------------+--------------------------
+ task_id            | character varying        |                       64
+ session_id         | character varying        |                       32
+ items              | jsonb                    |                         
+ overall_confidence | real                     |                         
+ fusion_mode        | character varying        |                       16
+ model_version      | character varying        |                       64
+ need_review        | boolean                  |                         
+ created_at         | timestamp with time zone |                         
+(8 rows)
+

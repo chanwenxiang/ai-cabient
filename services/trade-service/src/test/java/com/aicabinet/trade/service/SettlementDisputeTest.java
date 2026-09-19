@@ -60,6 +60,7 @@ class SettlementDisputeTest {
     @Mock NotificationService notificationService;
     @Mock ConsumerPreauthService consumerPreauthService;
     @Mock SystemConfigService systemConfigService;
+    @Mock RecognitionResultWriter recognitionResultWriter;
     @Mock DistributedLockService distributedLockService;
     @Mock DisplaySnapshotHelper displaySnapshotHelper;
 
@@ -84,7 +85,7 @@ class SettlementDisputeTest {
         SettlementRecognitionService recognitionSvc = new SettlementRecognitionService(
                 sessionRepository, orderRepository, confidenceService, gravityHelper,
                 securityProperties, stagingProperties, systemConfigService, skuVisionEnrollmentService,
-                disputeService, consumerPreauthService, settlementService, orderSupport);
+                disputeService, consumerPreauthService, settlementService, orderSupport, recognitionResultWriter);
         SettlementSettleOrchestrator settleOrchestrator = new SettlementSettleOrchestrator(
                 sessionRepository, orderRepository, visionClient, deviceValidationService,
                 recognitionSvc, settlementService, orderSupport, null);
@@ -129,6 +130,42 @@ class SettlementDisputeTest {
 
         verify(disputeService).createTicket(session, recognition,
                 "未识别到商品，需人工审核");
+    }
+
+    /**
+     * 识别结果必须被落库。{@code recognition_result} 自 V1 建表起长期无写入者（0 行），
+     * 本批在结算识别收敛处补上唯一写入点；此用例守住「钩子真的被结算路径调到」——
+     * 只靠真实栈 e2e 会慢，且一旦钩子被摘掉，e2e 只报「表为空」而看不出是被谁摘的。
+     */
+    @Test
+    void recognitionApplied_persistsResultOnce() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-PERSIST-01");
+        session.setUserId(13800138000L);
+        session.setDeviceId("CAB-001");
+        session.setGravityDeltas("[]");
+
+        when(orderRepository.findBySessionId("S-PERSIST-01")).thenReturn(java.util.Optional.empty());
+        when(securityProperties.mockEnabled()).thenReturn(false);
+        when(stagingProperties.stagingMode()).thenReturn(false);
+        when(stagingProperties.gravityFallbackSettle()).thenReturn(false);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(gravityHelper.toRecognizedItems("[]")).thenReturn(List.of());
+        org.mockito.Mockito.doNothing().when(deviceValidationService).ensureSettlementAllowed("CAB-001");
+        when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(true);
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(inventoryService.deductForOrder(any(), any(), any(), any())).thenReturn(java.util.Map.of());
+        org.mockito.Mockito.doNothing().when(orderPaymentService).chargeOrder(any());
+        when(revenueSplitService.recordSplit(any())).thenReturn(java.util.Optional.empty());
+        org.mockito.Mockito.doNothing().when(videoArchiveService).archiveAfterSettlement(any());
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var recognition = new VisionServiceClient.RecognitionResult(
+                "T-persist", List.of(), 0f, false, "yolov8", List.of());
+
+        settlementService.processRecognitionResult(session, recognition, true);
+
+        verify(recognitionResultWriter).persist(eq("S-PERSIST-01"), any());
     }
 
     @Test
