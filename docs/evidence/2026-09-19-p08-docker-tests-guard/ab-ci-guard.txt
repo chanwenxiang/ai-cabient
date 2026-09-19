@@ -1,0 +1,58 @@
+PASS  基线（真产物）  (rc=0, 期望绿)
+        ok   com.aicabinet.trade.e2e.AdminE2ETest  testcases=5
+        ok   com.aicabinet.trade.e2e.ConsumerE2ETest  testcases=7
+        ok   com.aicabinet.trade.e2e.MerchantE2ETest  testcases=11
+        ok   com.aicabinet.trade.integration.ReconciliationIntegrationTest  testcases=1
+
+PASS  漂移① 有源码但报告被删（该测试根本没跑）  (rc=1, 期望红)
+        ok   com.aicabinet.trade.e2e.AdminE2ETest  testcases=5
+        ok   com.aicabinet.trade.e2e.ConsumerE2ETest  testcases=7
+        ok   com.aicabinet.trade.e2e.MerchantE2ETest  testcases=11
+        ok   com.aicabinet.trade.integration.ReconciliationIntegrationTest  testcases=1
+
+PASS  漂移② 报告在但 <testcase> 计数为 0（静默跳过）  (rc=1, 期望红)
+        ok   com.aicabinet.trade.e2e.AdminE2ETest  testcases=5
+        ok   com.aicabinet.trade.e2e.ConsumerE2ETest  testcases=7
+        ok   com.aicabinet.trade.e2e.MerchantE2ETest  testcases=11
+        RED  com.aicabinet.trade.integration.ReconciliationIntegrationTest  testcases=0 ⇒ 静默跳过（Docker 不可用 / 容器起不来 / 被 disabled）
+
+PASS  漂移③ 报告里出现 <failure>  (rc=1, 期望红)
+        ok   com.aicabinet.trade.e2e.AdminE2ETest  testcases=5
+        ok   com.aicabinet.trade.e2e.ConsumerE2ETest  testcases=7
+        RED  com.aicabinet.trade.e2e.MerchantE2ETest  出现 failure/error（mvn 应已失败，这里再判一次）
+
+PASS  漂移④ PermissionCodeDriftTest 报告被删  (rc=1, 期望红)
+        ok   com.aicabinet.trade.e2e.AdminE2ETest  testcases=5
+        ok   com.aicabinet.trade.e2e.ConsumerE2ETest  testcases=7
+        ok   com.aicabinet.trade.e2e.MerchantE2ETest  testcases=11
+        ok   com.aicabinet.trade.integration.ReconciliationIntegrationTest  testcases=1
+
+PASS  漂移⑤ PermissionCodeDriftTest 0 条用例  (rc=1, 期望红)
+        ok   com.aicabinet.trade.e2e.AdminE2ETest  testcases=5
+        ok   com.aicabinet.trade.e2e.ConsumerE2ETest  testcases=7
+        ok   com.aicabinet.trade.e2e.MerchantE2ETest  testcases=11
+        ok   com.aicabinet.trade.integration.ReconciliationIntegrationTest  testcases=1
+
+PASS  漂移⑥ 守卫的 @Testcontainers 筛选被改坏（护栏）  (rc=1, 期望红)
+        RED  一个带 @Testcontainers 的 *Test.java 都没扫到 ⇒ 扫描逻辑失效（源码里明明有）
+
+PASS  漂移⑦ 整个 surefire-reports 目录消失  (rc=1, 期望红)
+        RED  com.aicabinet.trade.e2e.AdminE2ETest  有源码但**没有 surefire 报告** ⇒ 该测试根本没执行
+
+PASS  反假红 非 @Testcontainers 报告有 failure（mvn 自己会红，守卫不越权）  (rc=0, 期望绿)
+        ok   com.aicabinet.trade.e2e.AdminE2ETest  testcases=5
+        ok   com.aicabinet.trade.e2e.ConsumerE2ETest  testcases=7
+        ok   com.aicabinet.trade.e2e.MerchantE2ETest  testcases=11
+        ok   com.aicabinet.trade.integration.ReconciliationIntegrationTest  testcases=1
+
+========================================================================
+A/B 汇总：9 例，不符合期望 0 例
+  OK   绿  rc=0   基线（真产物）
+  OK   红  rc=1   漂移① 有源码但报告被删（该测试根本没跑）
+  OK   红  rc=1   漂移② 报告在但 <testcase> 计数为 0（静默跳过）
+  OK   红  rc=1   漂移③ 报告里出现 <failure>
+  OK   红  rc=1   漂移④ PermissionCodeDriftTest 报告被删
+  OK   红  rc=1   漂移⑤ PermissionCodeDriftTest 0 条用例
+  OK   红  rc=1   漂移⑥ 守卫的 @Testcontainers 筛选被改坏（护栏）
+  OK   红  rc=1   漂移⑦ 整个 surefire-reports 目录消失
+  OK   绿  rc=0   反假红 非 @Testcontainers 报告有 failure（mvn 自己会红，守卫不越权）

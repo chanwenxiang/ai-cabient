@@ -1,0 +1,1528 @@
+﻿[WARNING] 
+[WARNING] Some problems were encountered while building the effective settings
+[WARNING] Unrecognised tag: 'repositories' (position: START_TAG seen ...</profile>\n    -->\n\t\n<repositories>... @234:15)  @ D:\devTools\apache-maven-3.9.11\conf\settings.xml, line 234, column 15
+[WARNING] 
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] AI Cabinet                                                         [pom]
+[INFO] common-core                                                        [jar]
+[INFO] trade-service                                                      [jar]
+[INFO] 
+[INFO] ----------------------< com.aicabinet:ai-cabinet >----------------------
+[INFO] Building AI Cabinet 0.1.0-SNAPSHOT                                 [1/3]
+[INFO]   from pom.xml
+[INFO] --------------------------------[ pom ]---------------------------------
+[INFO] 
+[INFO] --- jacoco:0.8.12:prepare-agent (prepare-agent) @ ai-cabinet ---
+[INFO] argLine set to -javaagent:D:\\devTools\\repository\\org\\jacoco\\org.jacoco.agent\\0.8.12\\org.jacoco.agent-0.8.12-runtime.jar=destfile=C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\target\\jacoco.exec
+[INFO] 
+[INFO] --- jacoco:0.8.12:report (report) @ ai-cabinet ---
+[INFO] Skipping JaCoCo execution due to missing execution data file.
+[INFO] 
+[INFO] --- failsafe:3.5.4:integration-test (integration-tests) @ ai-cabinet ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- failsafe:3.5.4:verify (integration-tests) @ ai-cabinet ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] ---------------------< com.aicabinet:common-core >----------------------
+[INFO] Building common-core 0.1.0-SNAPSHOT                                [2/3]
+[INFO]   from services\common\common-core\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- jacoco:0.8.12:prepare-agent (prepare-agent) @ common-core ---
+[INFO] argLine set to -javaagent:D:\\devTools\\repository\\org\\jacoco\\org.jacoco.agent\\0.8.12\\org.jacoco.agent-0.8.12-runtime.jar=destfile=C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\services\\common\\common-core\\target\\jacoco.exec
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ common-core ---
+[INFO] skip non existing resourceDirectory C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\common\common-core\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ common-core ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ common-core ---
+[INFO] skip non existing resourceDirectory C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\common\common-core\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ common-core ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- surefire:3.5.4:test (default-test) @ common-core ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] --- jacoco:0.8.12:report (report) @ common-core ---
+[INFO] Skipping JaCoCo execution due to missing execution data file.
+[INFO] 
+[INFO] --- jar:3.4.1:jar (default-jar) @ common-core ---
+[INFO] 
+[INFO] --- failsafe:3.5.4:integration-test (integration-tests) @ common-core ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- failsafe:3.5.4:verify (integration-tests) @ common-core ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --------------------< com.aicabinet:trade-service >---------------------
+[INFO] Building trade-service 0.1.0-SNAPSHOT                              [3/3]
+[INFO]   from services\trade-service\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- jacoco:0.8.12:prepare-agent (prepare-agent) @ trade-service ---
+[INFO] argLine set to -javaagent:D:\\devTools\\repository\\org\\jacoco\\org.jacoco.agent\\0.8.12\\org.jacoco.agent-0.8.12-runtime.jar=destfile=C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\services\\trade-service\\target\\jacoco.exec
+[INFO] 
+[INFO] --- frontend:1.15.1:install-node-and-pnpm (install-node-and-pnpm) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] 
+[INFO] --- frontend:1.15.1:pnpm (pnpm-install-admin) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] 
+[INFO] --- frontend:1.15.1:pnpm (pnpm-build-admin) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ trade-service ---
+[INFO] Copying 538 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ trade-service ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ trade-service ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ trade-service ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.4:test (default-test) @ trade-service ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+14:29:02.319 [main] INFO org.testcontainers.DockerClientFactory -- Testcontainers version: 1.21.4
+14:29:02.795 [main] INFO org.testcontainers.dockerclient.DockerClientProviderStrategy -- Loaded org.testcontainers.dockerclient.NpipeSocketClientProviderStrategy from ~/.testcontainers.properties, will try it first
+14:29:03.199 [main] INFO org.testcontainers.dockerclient.DockerClientProviderStrategy -- Found Docker environment with local Npipe socket (npipe:////./pipe/docker_engine)
+14:29:03.202 [main] INFO org.testcontainers.DockerClientFactory -- Docker host IP address is localhost
+14:29:03.220 [main] INFO org.testcontainers.DockerClientFactory -- Connected to docker: 
+  Server Version: 29.3.1
+  API Version: 1.54
+  Operating System: Docker Desktop
+  Total Memory: 3913 MB
+  Labels: 
+    com.docker.desktop.address=npipe://\\.\pipe\docker_cli
+14:29:03.237 [main] INFO org.testcontainers.images.PullPolicy -- Image pull policy will be performed by: DefaultPullPolicy()
+14:29:03.240 [main] INFO org.testcontainers.utility.ImageNameSubstitutor -- Image name substitution will be performed by: DefaultImageNameSubstitutor (composite of 'ConfigurationFileImageNameSubstitutor' and 'PrefixingImageNameSubstitutor')
+14:29:03.375 [main] INFO tc.testcontainers/ryuk:0.12.0 -- Creating container for image: testcontainers/ryuk:0.12.0
+14:29:03.922 [main] INFO org.testcontainers.utility.RegistryAuthLocator -- Credential helper/store (docker-credential-desktop) does not have credentials for https://index.docker.io/v1/
+14:29:04.094 [main] INFO tc.testcontainers/ryuk:0.12.0 -- Container testcontainers/ryuk:0.12.0 is starting: 16976616d7f6cb06ac6edbe7ed3f51a8ababc47b382600d61796f61ec6668580
+14:29:04.524 [main] INFO tc.testcontainers/ryuk:0.12.0 -- Container testcontainers/ryuk:0.12.0 started in PT1.1485165S
+14:29:04.529 [main] INFO org.testcontainers.utility.RyukResourceReaper -- Ryuk started - will monitor and terminate Testcontainers containers on JVM exit
+14:29:04.529 [main] INFO org.testcontainers.DockerClientFactory -- Checking the system...
+14:29:04.530 [main] INFO org.testcontainers.DockerClientFactory -- ?? Docker server version should be at least 1.6.0
+[INFO] Running com.aicabinet.trade.integration.ReconciliationIntegrationTest
+14:29:04.547 [main] INFO tc.redis:7-alpine -- Creating container for image: redis:7-alpine
+14:29:04.611 [main] INFO tc.redis:7-alpine -- Container redis:7-alpine is starting: 1f11e919c08c19983a574589625744c60b145f299d09d30609ddd0b395634fca
+14:29:04.966 [main] INFO tc.redis:7-alpine -- Container redis:7-alpine started in PT0.4197821S
+14:29:04.966 [main] INFO tc.postgres:16-alpine -- Creating container for image: postgres:16-alpine
+14:29:05.074 [main] INFO tc.postgres:16-alpine -- Container postgres:16-alpine is starting: 92414c0971f579943ce16dd4fd6e81649f83932b0b7d68b47c01bf230dbda66e
+14:29:06.431 [main] INFO tc.postgres:16-alpine -- Container postgres:16-alpine started in PT1.4646071S
+14:29:06.432 [main] INFO tc.postgres:16-alpine -- Container is started (JDBC URL: jdbc:postgresql://localhost:6732/aicabinet_test?loggerLevel=OFF)
+14:29:06.545 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.aicabinet.trade.integration.ReconciliationIntegrationTest]: ReconciliationIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+14:29:06.717 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.aicabinet.trade.TradeServiceApplication for test class com.aicabinet.trade.integration.ReconciliationIntegrationTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::               (v3.5.16)
+
+2026-09-19T14:29:07.474+08:00  INFO [trade-service,,] [] c.a.t.i.ReconciliationIntegrationTest - Starting ReconciliationIntegrationTest using Java 17.0.17 with PID 51048 (started by cwx in C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service)
+2026-09-19T14:29:07.476+08:00  INFO [trade-service,,] [] c.a.t.i.ReconciliationIntegrationTest - The following 1 profile is active: "test"
+2026-09-19T14:29:10.494+08:00  INFO [trade-service,,] [] o.s.d.r.c.RepositoryConfigurationDelegate - Multiple Spring Data modules found, entering strict repository configuration mode
+2026-09-19T14:29:10.499+08:00  INFO [trade-service,,] [] o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-09-19T14:29:10.580+08:00  INFO [trade-service,,] [] o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 59 ms. Found 0 Redis repository interfaces.
+2026-09-19T14:29:13.362+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.DeviceSkuInventory".
+2026-09-19T14:29:13.362+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.DeviceSkuInventory ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:13.397+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.DeviceSkuPrice".
+2026-09-19T14:29:13.397+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.DeviceSkuPrice ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:13.864+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsRolePermission".
+2026-09-19T14:29:13.864+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsRolePermission ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        3.5.5 
+2026-09-19T14:29:15.036+08:00  INFO [trade-service,,] [] com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2026-09-19T14:29:15.260+08:00  INFO [trade-service,,] [] com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@4c606f8c
+2026-09-19T14:29:15.263+08:00  INFO [trade-service,,] [] com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+2026-09-19T14:29:15.315+08:00  INFO [trade-service,,] [] org.flywaydb.core.FlywayExecutor - Database: jdbc:postgresql://localhost:6732/aicabinet_test?loggerLevel=OFF (PostgreSQL 16.14)
+2026-09-19T14:29:15.657+08:00  INFO [trade-service,,] [] o.f.c.i.s.JdbcTableSchemaHistory - Schema history table "public"."flyway_schema_history" does not exist yet
+2026-09-19T14:29:15.668+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbValidate - Successfully validated 277 migrations (execution time 00:00.296s)
+2026-09-19T14:29:15.693+08:00  INFO [trade-service,,] [] o.f.c.i.s.JdbcTableSchemaHistory - Creating Schema History table "public"."flyway_schema_history" ...
+2026-09-19T14:29:15.758+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Current version of schema "public": << Empty Schema >>
+2026-09-19T14:29:15.780+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "1 - init schema"
+2026-09-19T14:29:15.863+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "2 - user order sku"
+2026-09-19T14:29:15.917+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "3 - auth payment"
+2026-09-19T14:29:15.958+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "4 - dispute ops"
+2026-09-19T14:29:15.993+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "5 - dispute vision"
+2026-09-19T14:29:16.025+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "6 - admin audit"
+2026-09-19T14:29:16.050+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "7 - commercial vision storage"
+2026-09-19T14:29:16.071+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "8 - ops rbac"
+2026-09-19T14:29:16.113+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "9 - commercial ops"
+2026-09-19T14:29:16.161+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "firmware_version" of relation "device_info" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:16.179+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "10 - concurrency control"
+2026-09-19T14:29:16.208+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "11 - production sku seed"
+2026-09-19T14:29:16.224+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "12 - recharge wechat txn"
+2026-09-19T14:29:16.242+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "13 - ops audit permission"
+2026-09-19T14:29:16.262+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "14 - vision upload permissions"
+2026-09-19T14:29:16.284+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "15 - merchant revenue split"
+2026-09-19T14:29:16.313+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "16 - ops user merchant"
+2026-09-19T14:29:16.331+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "17 - profit sharing wechat"
+2026-09-19T14:29:16.352+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "18 - sku catalog enrich"
+2026-09-19T14:29:16.372+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "19 - sku demo enrich"
+2026-09-19T14:29:16.401+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "20 - user password"
+2026-09-19T14:29:16.416+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "21 - recharge alipay txn"
+2026-09-19T14:29:16.431+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "22 - session fail reason"
+2026-09-19T14:29:16.448+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "23 - ops commercial enhancements"
+2026-09-19T14:29:16.482+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "24 - inventory lots phase a"
+2026-09-19T14:29:16.519+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "25 - demo catalog seed"
+2026-09-19T14:29:16.541+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "26 - warehouse phase b"
+2026-09-19T14:29:16.582+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "27 - phase c finance"
+2026-09-19T14:29:16.608+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "28 - demo vision mapping seed"
+2026-09-19T14:29:16.621+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "29 - sms verification code"
+2026-09-19T14:29:16.637+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "30 - device slot planogram"
+2026-09-19T14:29:16.658+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "31 - session replenishment task"
+2026-09-19T14:29:16.673+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "32 - warehouse in transit"
+2026-09-19T14:29:16.692+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "33 - dispute operations workbench"
+2026-09-19T14:29:16.714+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "34 - procurement and warehouse ledger"
+2026-09-19T14:29:16.770+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "35 - merchant portal"
+2026-09-19T14:29:16.792+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "36 - merchant portal p1"
+2026-09-19T14:29:16.813+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "37 - merchant portal p2"
+2026-09-19T14:29:16.834+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "38 - merchant portal p3"
+2026-09-19T14:29:16.875+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "39 - merchant settlements m1"
+2026-09-19T14:29:16.901+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "40 - backfill settlement batch"
+2026-09-19T14:29:16.924+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "41 - merchant sku pricing m2"
+2026-09-19T14:29:16.961+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "42 - merchant dispute collaboration m3"
+2026-09-19T14:29:16.994+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "43 - merchant replenishment request m4"
+2026-09-19T14:29:17.046+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "44 - merchant scope hardening m5"
+2026-09-19T14:29:17.079+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "45 - merchant analytics m6"
+2026-09-19T14:29:17.104+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "46 - merchant finance notify m7"
+2026-09-19T14:29:17.145+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "47 - operator user id sequence"
+2026-09-19T14:29:17.151+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +-----------+
+| setval    |
++-----------+
+| 100000005 |
++-----------+
+
+2026-09-19T14:29:17.168+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "48 - ops finance permission"
+2026-09-19T14:29:17.182+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "49 - merchant self service flags"
+2026-09-19T14:29:17.200+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "50 - demo merchant self service"
+2026-09-19T14:29:17.215+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "51 - device fault report"
+2026-09-19T14:29:17.232+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "52 - balance ledger and ops exception"
+2026-09-19T14:29:17.256+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "53 - mock recharge idempotency"
+2026-09-19T14:29:17.272+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "54 - simulator demo skus"
+2026-09-19T14:29:17.283+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "55 - system config"
+2026-09-19T14:29:17.298+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "56 - vision mapping seed"
+2026-09-19T14:29:17.312+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "57 - repair demo device name"
+2026-09-19T14:29:17.325+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "58 - sku vision mapping yolo sku"
+2026-09-19T14:29:17.338+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "59 - cleanup min uat replenishment routes"
+2026-09-19T14:29:17.356+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "60 - demo soda min charge confidence"
+2026-09-19T14:29:17.374+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "61 - retail os vision mapping"
+2026-09-19T14:29:17.390+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "62 - oriental leaf tea aliyun mapping"
+2026-09-19T14:29:17.408+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "63 - sku vision enrollment"
+2026-09-19T14:29:17.431+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "65 - sys dict and analytics"
+2026-09-19T14:29:17.460+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "66 - coupon promotion system"
+2026-09-19T14:29:17.513+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "67 - member feedback notification"
+2026-09-19T14:29:17.580+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "68 - enhance existing tables"
+2026-09-19T14:29:17.589+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "pay_channel" of relation "cabinet_order" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:17.602+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "image_url" of relation "sku_catalog" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:17.602+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "barcode" of relation "sku_catalog" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:17.602+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "status" of relation "sku_catalog" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:17.604+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_sku_catalog_category" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:17.606+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_sku_catalog_barcode" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:17.611+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "contact_phone" of relation "merchant" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:17.647+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "69 - performance indexes"
+2026-09-19T14:29:17.681+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "70 - jsonb fk cascade"
+2026-09-19T14:29:17.706+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "payment_operation_order_id_fkey" of relation "payment_operation" does not exist, skipping
+2026-09-19T14:29:17.725+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "71 - concurrency control"
+2026-09-19T14:29:17.727+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idempotency_key" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:17.729+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_idempotency_expire" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:17.730+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_idempotency_business" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:17.734+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "rate_limit_config" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:17.737+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "rate_limit_record" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:17.740+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_rate_limit_record_time" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:17.760+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "72 - distributed transaction"
+2026-09-19T14:29:17.794+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "73 - data consistency"
+2026-09-19T14:29:17.827+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "74 - payscore payment"
+2026-09-19T14:29:17.863+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "75 - user auth"
+2026-09-19T14:29:17.907+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "76 - complete optimization"
+2026-09-19T14:29:17.909+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "uk_sku_name" of relation "sku_catalog" does not exist, skipping
+2026-09-19T14:29:17.912+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "uk_merchant_name" of relation "merchant" does not exist, skipping
+2026-09-19T14:29:17.916+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "uk_device_name" of relation "device_info" does not exist, skipping
+2026-09-19T14:29:17.919+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "fk_session_user" of relation "shopping_session" does not exist, skipping
+2026-09-19T14:29:17.943+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "77 - franchise management"
+2026-09-19T14:29:17.985+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "78 - line manager management"
+2026-09-19T14:29:18.021+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "79 - member management"
+2026-09-19T14:29:18.060+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "80 - data consistency"
+2026-09-19T14:29:18.079+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "81 - ad management"
+2026-09-19T14:29:18.113+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "82 - social marketing"
+2026-09-19T14:29:18.172+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "83 - gamification"
+2026-09-19T14:29:18.235+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "84 - edge computing"
+2026-09-19T14:29:18.283+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "85 - production enhancements"
+2026-09-19T14:29:18.302+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "86 - production enhancements"
+2026-09-19T14:29:18.347+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "87 - clamp slot lot over capacity"
+2026-09-19T14:29:18.372+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "88 - dispute status closed label"
+2026-09-19T14:29:18.395+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "89 - coupon edit perm"
+2026-09-19T14:29:18.417+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "90 - ruoyi menu perms"
+2026-09-19T14:29:18.436+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "91 - fix rbac sequences"
+2026-09-19T14:29:18.439+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 8      |
++--------+
+
+2026-09-19T14:29:18.440+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 308    |
++--------+
+
+2026-09-19T14:29:18.452+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "92 - split rbac menus"
+2026-09-19T14:29:18.474+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "93 - align menu and button perms"
+2026-09-19T14:29:18.497+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 323    |
++--------+
+
+2026-09-19T14:29:18.511+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "94 - align menu tree with sidebar"
+2026-09-19T14:29:18.545+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 403    |
++--------+
+
+2026-09-19T14:29:18.559+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "95 - reparent button perms to menus"
+2026-09-19T14:29:18.584+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "96 - operator account status"
+2026-09-19T14:29:18.593+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 407    |
++--------+
+
+2026-09-19T14:29:18.607+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "97 - demo merchant wechat receiver"
+2026-09-19T14:29:18.622+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "98 - payment operation order id nullable"
+2026-09-19T14:29:18.638+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "99 - member marketing consumer"
+2026-09-19T14:29:18.640+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "member" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.641+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_user" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.643+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_invite_code" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.644+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_level" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.645+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "member_points_log" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.646+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_points_member" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.648+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_points_type" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.648+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "member_level_rule" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.650+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_level_code" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.691+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "100 - link campaign coupons"
+2026-09-19T14:29:18.711+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "101 - session entry channel"
+2026-09-19T14:29:18.731+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "102 - device refund policy"
+2026-09-19T14:29:18.750+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "103 - ensure data consistency record"
+2026-09-19T14:29:18.752+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "data_consistency_record" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.753+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_consistency_status" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.755+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_consistency_type" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.756+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_consistency_time" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:18.774+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "104 - device ops and exception sla"
+2026-09-19T14:29:18.797+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "105 - purchase return"
+2026-09-19T14:29:18.831+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "106 - export import button perms"
+2026-09-19T14:29:18.842+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 443    |
++--------+
+
+2026-09-19T14:29:18.858+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "107 - user verify button perm"
+2026-09-19T14:29:18.865+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 444    |
++--------+
+
+2026-09-19T14:29:18.882+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "108 - promotion launch perm"
+2026-09-19T14:29:18.889+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 445    |
++--------+
+
+2026-09-19T14:29:18.905+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "109 - align ota sla vision nav"
+2026-09-19T14:29:18.926+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "110 - order refund perm"
+2026-09-19T14:29:18.931+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 446    |
++--------+
+
+2026-09-19T14:29:18.944+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "111 - procurement perms"
+2026-09-19T14:29:18.951+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 448    |
++--------+
+
+2026-09-19T14:29:18.964+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "112 - warehouse outbound line slot"
+2026-09-19T14:29:18.984+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "113 - dispute review code"
+2026-09-19T14:29:19.007+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "114 - merchant parent org"
+2026-09-19T14:29:19.024+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "115 - unpaid order ops"
+2026-09-19T14:29:19.031+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 450    |
++--------+
+
+2026-09-19T14:29:19.058+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "116 - finance role and merchant split perm"
+2026-09-19T14:29:19.093+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "117 - demo ops role accounts"
+2026-09-19T14:29:19.140+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "118 - tighten demo role perms"
+2026-09-19T14:29:19.173+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "119 - fix garbled merchant names"
+2026-09-19T14:29:19.191+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "120 - fix garbled dispute reasons"
+2026-09-19T14:29:19.211+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "121 - merchant menu tree groups"
+2026-09-19T14:29:19.254+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "122 - merchant feature packs"
+2026-09-19T14:29:19.277+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "123 - align three end data consistency"
+2026-09-19T14:29:19.315+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "124 - ops consistency menu"
+2026-09-19T14:29:19.324+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 456    |
++--------+
+
+2026-09-19T14:29:19.341+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "125 - competitive gap features"
+2026-09-19T14:29:19.406+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 466    |
++--------+
+
+2026-09-19T14:29:19.422+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "126 - align ops menu with sidebar"
+2026-09-19T14:29:19.456+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 472    |
++--------+
+
+2026-09-19T14:29:19.473+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "127 - device asset lifecycle"
+2026-09-19T14:29:19.491+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 481    |
++--------+
+
+2026-09-19T14:29:19.504+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "128 - remove invite and commercial hub"
+2026-09-19T14:29:19.533+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "129 - remove line manager"
+2026-09-19T14:29:19.552+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "130 - remove franchise and achievement"
+2026-09-19T14:29:19.584+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "131 - remove gamification checkin tasks"
+2026-09-19T14:29:19.606+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "132 - device map and repair ticket"
+2026-09-19T14:29:19.628+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 492    |
++--------+
+
+2026-09-19T14:29:19.641+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "133 - line manager wallet"
+2026-09-19T14:29:19.676+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 496    |
++--------+
+
+2026-09-19T14:29:19.686+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "134 - seed device map coords"
+2026-09-19T14:29:19.687+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +----------+
+| ?column? |
++----------+
+| 1        |
++----------+
+
+2026-09-19T14:29:19.699+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "135 - seed more device map coords"
+2026-09-19T14:29:19.700+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +----------+
+| ?column? |
++----------+
+| 1        |
++----------+
+
+2026-09-19T14:29:19.709+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "136 - remove points and messaging legacy"
+2026-09-19T14:29:19.720+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: index "idx_member_invited_by" does not exist, skipping
+2026-09-19T14:29:19.752+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "137 - purge inactive ops permissions"
+2026-09-19T14:29:19.765+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "138 - align menus with sidebar"
+2026-09-19T14:29:19.784+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "139 - merchant withdraw"
+2026-09-19T14:29:19.806+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 501    |
++--------+
+
+2026-09-19T14:29:19.816+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "140 - merchant team roles"
+2026-09-19T14:29:19.833+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 504    |
++--------+
+
+2026-09-19T14:29:19.843+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "141 - consumer open preauth"
+2026-09-19T14:29:19.863+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "142 - admin crud button perms"
+2026-09-19T14:29:19.885+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "143 - device info auto id"
+2026-09-19T14:29:19.892+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 2      |
++--------+
+
+2026-09-19T14:29:19.907+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "144 - sku master code and fields"
+2026-09-19T14:29:19.914+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 100008 |
++--------+
+
+2026-09-19T14:29:19.923+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 562    |
++--------+
+
+2026-09-19T14:29:19.939+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "145 - sku local demo images"
+2026-09-19T14:29:19.954+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "146 - sku local demo images by code"
+2026-09-19T14:29:19.970+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "147 - sku catalog updated by"
+2026-09-19T14:29:19.983+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "148 - user alipay user id"
+2026-09-19T14:29:19.999+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "149 - fix garbled sku catalog names"
+2026-09-19T14:29:20.017+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "150 - device ref perm"
+2026-09-19T14:29:20.029+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "151 - device online since and availability kpi"
+2026-09-19T14:29:20.049+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "152 - scheduled task module"
+2026-09-19T14:29:20.072+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "153 - device kpi perm"
+2026-09-19T14:29:20.087+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "154 - bigscreen perm"
+2026-09-19T14:29:20.103+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "155 - drop orphan legacy tables"
+2026-09-19T14:29:20.145+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "156 - ops exception archive"
+2026-09-19T14:29:20.164+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "157 - sku real product photos"
+2026-09-19T14:29:20.182+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "158 - cleanup remaining demo svg images"
+2026-09-19T14:29:20.196+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "159 - supplier payables"
+2026-09-19T14:29:20.220+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "160 - warehouse stocktake"
+2026-09-19T14:29:20.242+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "161 - warehouse bins"
+2026-09-19T14:29:20.260+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "162 - fix merchant replenisher demo account"
+2026-09-19T14:29:20.281+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "163 - growth marketing modules"
+2026-09-19T14:29:20.288+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_user" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:20.289+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_level" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:20.326+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 605    |
++--------+
+
+2026-09-19T14:29:20.336+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "164 - file attachment content sha"
+2026-09-19T14:29:20.346+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "165 - points coupon expiry recall"
+2026-09-19T14:29:20.359+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "166 - notify prefs points idempotent"
+2026-09-19T14:29:20.377+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "167 - marketing roi perm"
+2026-09-19T14:29:20.380+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 612    |
++--------+
+
+2026-09-19T14:29:20.390+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "168 - notify channels member levels"
+2026-09-19T14:29:20.392+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "channels" of relation "notification_template" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:20.395+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 612    |
++--------+
+
+2026-09-19T14:29:20.406+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "169 - merchant line wallet withdraw perm"
+2026-09-19T14:29:20.416+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "170 - new pages menu perms"
+2026-09-19T14:29:20.426+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 618    |
++--------+
+
+2026-09-19T14:29:20.439+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "171 - scheduled task group wallet entry dict"
+2026-09-19T14:29:20.464+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "172 - ops two factor auth"
+2026-09-19T14:29:20.478+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "173 - device temp plan and env reading"
+2026-09-19T14:29:20.498+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "174 - ad media operation"
+2026-09-19T14:29:20.522+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "175 - order line slot"
+2026-09-19T14:29:20.535+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "176 - org and site contract"
+2026-09-19T14:29:20.560+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "177 - tighten viewer write perms"
+2026-09-19T14:29:20.573+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "178 - viewer revoke exports and repair closed dict"
+2026-09-19T14:29:20.585+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "179 - announcement status archived label"
+2026-09-19T14:29:20.598+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "180 - promotion and consistency dict labels"
+2026-09-19T14:29:20.613+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "181 - obs viewer ops coords distance"
+2026-09-19T14:29:20.635+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "182 - fix garbled names and demo points"
+2026-09-19T14:29:20.652+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "183 - unlock grace and sanitize feedback"
+2026-09-19T14:29:20.670+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "184 - notify title strip hash id"
+2026-09-19T14:29:20.686+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "185 - balance refund request"
+2026-09-19T14:29:20.712+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "186 - merchant dispute resolve perm"
+2026-09-19T14:29:20.727+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "187 - session live cart"
+2026-09-19T14:29:20.739+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "188 - refund self policy defaults"
+2026-09-19T14:29:20.753+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "189 - nearby coupon member discount"
+2026-09-19T14:29:20.774+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "190 - invoice and mid pri"
+2026-09-19T14:29:20.805+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "191 - low pri risk ad demo"
+2026-09-19T14:29:20.827+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "192 - wave1 onboard device scope"
+2026-09-19T14:29:20.860+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "193 - wave3 warehouse transfer"
+2026-09-19T14:29:20.884+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "194 - wave4 rent split line promo"
+2026-09-19T14:29:20.906+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "195 - session refund lock fee"
+2026-09-19T14:29:20.921+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "196 - session kind consumer dict"
+2026-09-19T14:29:20.933+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "197 - fix viewer invoice edit and titles"
+2026-09-19T14:29:20.947+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "198 - backfill partial refunded cents"
+2026-09-19T14:29:20.960+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "199 - settlement recognition mode"
+2026-09-19T14:29:20.973+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "200 - fix demo four consistency failures"
+2026-09-19T14:29:20.993+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "201 - fix points consistency checker align"
+2026-09-19T14:29:21.007+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "202 - consistency prod guards align"
+2026-09-19T14:29:21.025+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "203 - profit sharing return tracking"
+2026-09-19T14:29:21.039+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "204 - compensation task generic retry"
+2026-09-19T14:29:21.058+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "205 - compensation task retry count"
+2026-09-19T14:29:21.098+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "206 - backfill pay trade no from payment ops"
+2026-09-19T14:29:21.114+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "207 - order revenue split order id unique"
+2026-09-19T14:29:21.130+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "208 - supplier payment idempotency key"
+2026-09-19T14:29:21.148+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "209 - clamp device slot over capacity"
+2026-09-19T14:29:21.167+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "210 - purge orphan device slots"
+2026-09-19T14:29:21.183+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "211 - device slot device fk"
+2026-09-19T14:29:21.202+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "212 - merchant wallet merchant fk"
+2026-09-19T14:29:21.226+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "213 - device inventory fk"
+2026-09-19T14:29:21.246+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "214 - warehouse inventory fk"
+2026-09-19T14:29:21.285+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "215 - transaction chain fk"
+2026-09-19T14:29:21.319+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "216 - ops transit slot fk"
+2026-09-19T14:29:21.352+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "217 - ops ad scope fk"
+2026-09-19T14:29:21.397+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "218 - user order line fk"
+2026-09-19T14:29:21.443+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "219 - merchant order slot fk"
+2026-09-19T14:29:21.505+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "220 - coupon ops slot fk"
+2026-09-19T14:29:21.546+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: trigger "trg_cabinet_order_line_slot" for relation "cabinet_order_line" does not exist, skipping
+2026-09-19T14:29:21.547+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: trigger "trg_replenishment_task_line_slot" for relation "replenishment_task_line" does not exist, skipping
+2026-09-19T14:29:21.591+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "221 - admin audit log operator fk"
+2026-09-19T14:29:21.610+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "222 - core table comments and demo seed"
+2026-09-19T14:29:21.672+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "223 - category id backfill and empty module seed"
+2026-09-19T14:29:21.704+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "224 - verify channel dict"
+2026-09-19T14:29:21.721+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "225 - notification biz type dict"
+2026-09-19T14:29:21.734+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "226 - platform bill trade type dict"
+2026-09-19T14:29:21.747+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "227 - pull off reason dict"
+2026-09-19T14:29:21.759+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "228 - approval workflow"
+2026-09-19T14:29:21.787+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 651    |
++--------+
+
+2026-09-19T14:29:21.789+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 2      |
++--------+
+
+2026-09-19T14:29:21.797+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "229 - devops hub perm"
+2026-09-19T14:29:21.811+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "230 - approval biz extensions"
+2026-09-19T14:29:21.838+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "231 - ops department and approval config"
+2026-09-19T14:29:21.862+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 653    |
++--------+
+
+2026-09-19T14:29:21.863+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 4      |
++--------+
+
+2026-09-19T14:29:21.864+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 7      |
++--------+
+
+2026-09-19T14:29:21.874+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "232 - fix approval list perm path"
+2026-09-19T14:29:21.887+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "233 - ops department tree and primary"
+2026-09-19T14:29:21.904+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "234 - devops sonar scan perm"
+2026-09-19T14:29:21.918+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "235 - fix system user name encoding"
+2026-09-19T14:29:21.930+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "236 - schema comments backfill"
+2026-09-19T14:29:22.028+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "237 - polish column comments zh"
+2026-09-19T14:29:22.809+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "238 - audit soft delete baseline"
+2026-09-19T14:29:22.861+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "239 - core trade display redundancy"
+2026-09-19T14:29:22.882+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "240 - ops repair display redundancy"
+2026-09-19T14:29:22.905+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "241 - finance display and uk"
+2026-09-19T14:29:22.939+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "242 - index rename and bool exemption"
+2026-09-19T14:29:22.952+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "243 - dispute assignee"
+2026-09-19T14:29:22.965+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "244 - member level demo discount"
+2026-09-19T14:29:22.978+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "245 - device id fk on update cascade"
+2026-09-19T14:29:23.043+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "246 - ops inbox approval reminder copy"
+2026-09-19T14:29:23.055+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "247 - ops user profile email"
+2026-09-19T14:29:23.068+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "248 - finance warehouse list revoke devops"
+2026-09-19T14:29:23.081+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "249 - revoke devops non admin"
+2026-09-19T14:29:23.094+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "250 - fix device 100001 name encoding"
+2026-09-19T14:29:23.106+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "251 - demo supplier name zh"
+2026-09-19T14:29:23.118+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "252 - seed uat order amount diff"
+2026-09-19T14:29:23.131+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "253 - uat unlock cab001 sales"
+2026-09-19T14:29:23.132+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +----------+
+| ?column? |
++----------+
+| 1        |
++----------+
+
+2026-09-19T14:29:23.143+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "254 - uat pending purchase approval"
+2026-09-19T14:29:23.156+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "255 - site rent bill"
+2026-09-19T14:29:23.190+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "256 - device data fee bill"
+2026-09-19T14:29:23.205+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "257 - consumer preauth hold"
+2026-09-19T14:29:23.219+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "258 - user account type"
+2026-09-19T14:29:23.235+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "259 - merchant alert sales locked"
+2026-09-19T14:29:23.245+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "260 - device sku inventory version"
+2026-09-19T14:29:23.256+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "261 - revoke staff team list perm"
+2026-09-19T14:29:23.269+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "262 - finance dept member and stuck approval tasks"
+2026-09-19T14:29:23.282+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "263 - bug004 skip auto lock never heartbeat"
+2026-09-19T14:29:23.292+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "264 - clarify replenisher role names"
+2026-09-19T14:29:23.305+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "265 - platform replenisher merchant portal"
+2026-09-19T14:29:23.320+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "266 - replenishment require evidence config"
+2026-09-19T14:29:23.333+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "267 - replenishment checkin door config"
+2026-09-19T14:29:23.345+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "268 - consistency check type extend"
+2026-09-19T14:29:23.357+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "269 - order display snapshot immutable"
+2026-09-19T14:29:23.360+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: trigger "trg_cabinet_order_display_snapshot_immutable" for relation "cabinet_order" does not exist, skipping
+2026-09-19T14:29:23.370+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "270 - drop duplicate order user index"
+2026-09-19T14:29:23.380+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "271 - cross link and inventory guard"
+2026-09-19T14:29:23.381+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: trigger "trg_cabinet_order_inventory_link" for relation "cabinet_order" does not exist, skipping
+2026-09-19T14:29:23.396+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "272 - dispute resolution dict"
+2026-09-19T14:29:23.412+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "273 - ops operator reset password"
+2026-09-19T14:29:23.414+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 654    |
++--------+
+
+2026-09-19T14:29:23.424+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "274 - device sku price version"
+2026-09-19T14:29:23.435+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "275 - scheduled task seed gap"
+2026-09-19T14:29:23.447+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "276 - device auto unlock stable minutes 15 to 5"
+2026-09-19T14:29:23.460+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "277 - site rent bill uk fix"
+2026-09-19T14:29:23.472+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "278 - withdraw paying timeout scheduled task"
+2026-09-19T14:29:23.482+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Successfully applied 277 migrations to schema "public", now at version v278 (execution time 00:04.543s)
+2026-09-19T14:29:24.332+08:00  INFO [trade-service,,] [] org.redisson.Version - Redisson 3.52.0
+2026-09-19T14:29:24.891+08:00  INFO [trade-service,,] [] o.r.connection.ConnectionsHolder - 1 connections initialized for localhost/127.0.0.1:6724
+2026-09-19T14:29:24.891+08:00  INFO [trade-service,,] [] o.r.connection.ConnectionsHolder - 1 connections initialized for localhost/127.0.0.1:6724
+2026-09-19T14:29:25.316+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserRole".
+2026-09-19T14:29:25.316+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserRole ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:25.349+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserMerchant".
+2026-09-19T14:29:25.349+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserMerchant ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:25.383+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserDeviceScope".
+2026-09-19T14:29:25.383+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserDeviceScope ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:25.415+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserRouteScope".
+2026-09-19T14:29:25.415+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserRouteScope ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:26.610+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserDepartment".
+2026-09-19T14:29:26.610+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserDepartment ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:26.890+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.DeviceSlot".
+2026-09-19T14:29:26.890+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.DeviceSlot ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:27.277+08:00  INFO [trade-service,,] [] c.a.trade.config.Resilience4jConfig - Resilience4j retry configured: device-service, max=3 wait=500ms
+2026-09-19T14:29:28.036+08:00  INFO [trade-service,,] [] c.a.trade.config.Resilience4jConfig - Resilience4j circuit breaker configured: vision-service, window=10 threshold=50%
+2026-09-19T14:29:28.832+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsTwoFactorRecoveryCode".
+2026-09-19T14:29:28.833+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsTwoFactorRecoveryCode ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:30.370+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.MerchantSubscribePref".
+2026-09-19T14:29:30.371+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.MerchantSubscribePref ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:31.994+08:00  INFO [trade-service,,] [] c.aicabinet.trade.config.CacheConfig - CacheService initialized (local TTL cache)
+2026-09-19T14:29:35.101+08:00  INFO [trade-service,,] [] o.s.b.a.e.web.EndpointLinksResolver - Exposing 2 endpoints beneath base path '/actuator'
+2026-09-19T14:29:35.284+08:00  INFO [trade-service,,] [] c.a.t.i.ReconciliationIntegrationTest - Started ReconciliationIntegrationTest in 28.35 seconds (process running for 34.945)
+2026-09-19T14:29:35.491+08:00  INFO [trade-service,,] [] c.a.trade.service.DemoDataService - demo data ensured device=CAB-001 skus=8 fallbackSku=SKU-DEMO-001 warehouseLots=6
+2026-09-19T14:29:35.508+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_type
+2026-09-19T14:29:35.546+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type session_state
+2026-09-19T14:29:35.597+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type upload_status
+2026-09-19T14:29:35.636+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type dispute_status
+2026-09-19T14:29:35.665+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type dispute_category
+2026-09-19T14:29:35.690+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type dispute_priority
+2026-09-19T14:29:35.714+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type pay_channel
+2026-09-19T14:29:35.750+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type split_status
+2026-09-19T14:29:35.785+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type merchant_status
+2026-09-19T14:29:35.802+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type online_status
+2026-09-19T14:29:35.822+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_lifecycle
+2026-09-19T14:29:35.833+08:00  INFO [trade-service,4ed8573ddda075cd3ae8a3da5fb96010,c253548a1b3b4e25] [] c.a.t.service.SkuDelistReviewService - sku review refreshed window=30d skus=8
+2026-09-19T14:29:35.843+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_coop_mode
+2026-09-19T14:29:35.849+08:00  INFO [trade-service,4ed8573ddda075cd3ae8a3da5fb96010,c253548a1b3b4e25] [] c.a.trade.service.SkuReviewScheduler - daily sku review refreshed rows=8
+2026-09-19T14:29:35.859+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type repair_ticket_status
+2026-09-19T14:29:35.861+08:00  INFO [trade-service,4da76b2810fe00bb27c7291474a5b884,84ba30d2306f1430] [] c.a.t.service.DataConsistencyService - 开始数据一致性巡检
+2026-09-19T14:29:35.873+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type line_manager_status
+2026-09-19T14:29:35.881+08:00  WARN [trade-service,4da76b2810fe00bb27c7291474a5b884,84ba30d2306f1430] [] c.a.t.service.DataConsistencyService - 发现数据不一致 type=INVENTORY_MISMATCH key=CAB-001|SKU-SNACK-001 expected=2 actual=0
+2026-09-19T14:29:35.883+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type announcement_status
+2026-09-19T14:29:35.894+08:00  WARN [trade-service,4da76b2810fe00bb27c7291474a5b884,84ba30d2306f1430] [] c.a.t.service.DataConsistencyService - 发现数据不一致 type=INVENTORY_MISMATCH key=CAB-001|SKU-DEMO-001 expected=3 actual=0
+2026-09-19T14:29:35.896+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type announcement_audience
+2026-09-19T14:29:35.901+08:00  WARN [trade-service,4da76b2810fe00bb27c7291474a5b884,84ba30d2306f1430] [] c.a.t.service.DataConsistencyService - 发现数据不一致 type=INVENTORY_MISMATCH key=CAB-001|SKU-SODA-001 expected=4 actual=0
+2026-09-19T14:29:35.910+08:00  WARN [trade-service,4da76b2810fe00bb27c7291474a5b884,84ba30d2306f1430] [] c.a.t.service.DataConsistencyService - 发现数据不一致 type=INVENTORY_MISMATCH key=CAB-001|SKU-WATER-001 expected=8 actual=0
+2026-09-19T14:29:35.914+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type promotion_type
+2026-09-19T14:29:35.934+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type coupon_type
+2026-09-19T14:29:35.956+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type enable_status
+2026-09-19T14:29:35.977+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type sku_enrollment_status
+2026-09-19T14:29:35.988+08:00  INFO [trade-service,4da76b2810fe00bb27c7291474a5b884,84ba30d2306f1430] [] c.a.t.service.DataConsistencyService - 数据一致性巡检结束
+2026-09-19T14:29:35.998+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type fund_ledger_type
+2026-09-19T14:29:36.017+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type fund_direction
+2026-09-19T14:29:36.071+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Added 1 missing dict items for wallet_entry_type
+2026-09-19T14:29:36.078+08:00  INFO [trade-service,e2bb8385a192cab799c0231035576bce,d8450c6acc392bbb] [] c.a.t.s.CompensationTaskScheduler - Found 0 transactions to retry
+2026-09-19T14:29:36.096+08:00  INFO [trade-service,224089823a62ede0dbc0b0e544366c81,3e3bc2e760b5f1ff] [] c.a.t.s.CompensationTaskScheduler - Found 0 compensation tasks to process
+2026-09-19T14:29:36.132+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Added 6 missing dict items for ops_alert_type
+2026-09-19T14:29:36.237+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type site_rent_bill_status
+2026-09-19T14:29:36.255+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_data_fee_bill_status
+2026-09-19T14:29:36.271+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type ops_fee_type
+2026-09-19T14:29:36.290+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type site_rent_party_type
+2026-09-19T14:29:36.407+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_ops_event
+2026-09-19T14:29:36.434+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type repair_fault_type
+2026-09-19T14:29:36.457+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_fault_issue
+2026-09-19T14:29:36.478+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type line_withdraw_status
+2026-09-19T14:29:36.500+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type merchant_withdraw_status
+2026-09-19T14:29:36.515+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type supplier_status
+2026-09-19T14:29:36.527+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type purchase_order_status
+2026-09-19T14:29:36.541+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type warehouse_status
+2026-09-19T14:29:36.554+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type warehouse_outbound_status
+2026-09-19T14:29:36.570+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type handover_status
+2026-09-19T14:29:36.590+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type in_transit_status
+2026-09-19T14:29:36.611+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type warehouse_movement_type
+2026-09-19T14:29:36.640+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type business_reference_type
+2026-09-19T14:29:36.662+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type replenishment_route_status
+2026-09-19T14:29:36.677+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type replenishment_task_status
+2026-09-19T14:29:36.692+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type replenishment_request_status
+2026-09-19T14:29:36.707+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type inventory_lot_status
+2026-09-19T14:29:36.720+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type exception_severity
+2026-09-19T14:29:36.736+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type exception_status
+2026-09-19T14:29:36.750+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type feedback_type
+2026-09-19T14:29:36.764+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type feedback_status
+2026-09-19T14:29:36.795+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type exception_type
+2026-09-19T14:29:36.825+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_fault_code
+2026-09-19T14:29:36.851+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type ops_exception_action
+2026-09-19T14:29:36.874+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type reconciliation_status
+2026-09-19T14:29:36.889+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type sku_status
+2026-09-19T14:29:36.909+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type order_status
+2026-09-19T14:29:36.933+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type recharge_status
+2026-09-19T14:29:36.958+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type risk_event_type
+2026-09-19T14:29:36.980+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type risk_severity
+2026-09-19T14:29:36.995+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type risk_disposition_status
+2026-09-19T14:29:37.012+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type settlement_batch_status
+2026-09-19T14:29:37.030+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type route_code
+2026-09-19T14:29:37.041+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type category_code
+2026-09-19T14:29:37.047+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - Running with mock-enabled=true (dev/demo). Settlement mock is NOT production accuracy; mock/low-conf/gravity-mismatch routes to need_review.
+2026-09-19T14:29:37.048+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - Vision mock likely enabled (VISION_MOCK_ENABLED/MOCK_ENABLED). Demo recognition must not be treated as production accuracy; use docker-compose.production.yml for go-live.
+2026-09-19T14:29:37.048+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - INTERNAL_API_KEY is unset or still the demo default (dev-internal-key-change-me). Do not expose this stack to the public internet; use docker-compose.production.yml + strong key for go-live.
+2026-09-19T14:29:37.048+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - JWT secret is unset or still the dev default. Replace JWT_SECRET before any production/staging deploy.
+2026-09-19T14:29:37.048+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - VISION_API_KEY is unset or still the dev default. Replace before production vision traffic.
+2026-09-19T14:29:37.049+08:00  INFO [trade-service,,] [] c.a.t.c.SchedulingPoolCapacitySelfCheck - scheduling/datasource capacity self-check PASSED: @Scheduled 并发 1（运行中的 ThreadPoolTaskScheduler 核心线程数） ≤ 连接池 5（运行中的 HikariDataSource 有效上限）
+mvn : Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap cl
+asspath has been appended
+所在位置 行:447 字符: 1
++ mvn -B verify "-DskipITs" -pl services/trade-service -am "-Dtest=Reco ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Java HotSpot(TM...s been appended:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+2026-09-19T14:29:39.028+08:00  INFO [trade-service,,] [] c.a.t.service.ReconciliationService - reconciliation date=2026-09-19 channel=MOCK platform=350 ledger=350 diff=0 matched=1 unmatched=0
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 35.33 s -- in com.aicabinet.trade.integration.ReconciliationIntegrationTest
+[INFO] Running com.aicabinet.trade.integration.WeChatNotifyIntegrationTest
+2026-09-19T14:29:39.862+08:00  INFO [trade-service,,] [] tc.redis:7-alpine - Creating container for image: redis:7-alpine
+2026-09-19T14:29:39.953+08:00  INFO [trade-service,,] [] tc.redis:7-alpine - Container redis:7-alpine is starting: 579c02f2b9be9f435dd61515e827d304eea4b303e70f72a3e2385bc134452ace
+2026-09-19T14:29:40.372+08:00  INFO [trade-service,,] [] tc.redis:7-alpine - Container redis:7-alpine started in PT0.5104407S
+2026-09-19T14:29:40.373+08:00  INFO [trade-service,,] [] tc.postgres:16-alpine - Creating container for image: postgres:16-alpine
+2026-09-19T14:29:40.479+08:00  INFO [trade-service,,] [] tc.postgres:16-alpine - Container postgres:16-alpine is starting: 3b18e792162e065a247a8ba53658ac4ee7c8023a4df83755e86687dd90e82c9c
+2026-09-19T14:29:41.892+08:00  INFO [trade-service,,] [] tc.postgres:16-alpine - Container postgres:16-alpine started in PT1.5197691S
+2026-09-19T14:29:41.892+08:00  INFO [trade-service,,] [] tc.postgres:16-alpine - Container is started (JDBC URL: jdbc:postgresql://localhost:6868/aicabinet_test?loggerLevel=OFF)
+2026-09-19T14:29:41.895+08:00  INFO [trade-service,,] [] o.s.t.c.s.AnnotationConfigContextLoaderUtils - Could not detect default configuration classes for test class [com.aicabinet.trade.integration.WeChatNotifyIntegrationTest]: WeChatNotifyIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-19T14:29:41.903+08:00  INFO [trade-service,,] [] o.s.b.t.c.SpringBootTestContextBootstrapper - Found @SpringBootConfiguration com.aicabinet.trade.TradeServiceApplication for test class com.aicabinet.trade.integration.WeChatNotifyIntegrationTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::               (v3.5.16)
+
+2026-09-19T14:29:42.506+08:00  INFO [trade-service,,] [] c.a.t.i.WeChatNotifyIntegrationTest - Starting WeChatNotifyIntegrationTest using Java 17.0.17 with PID 51048 (started by cwx in C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service)
+2026-09-19T14:29:42.506+08:00  INFO [trade-service,,] [] c.a.t.i.WeChatNotifyIntegrationTest - The following 1 profile is active: "test"
+2026-09-19T14:29:43.474+08:00  INFO [trade-service,,] [] o.s.d.r.c.RepositoryConfigurationDelegate - Multiple Spring Data modules found, entering strict repository configuration mode
+2026-09-19T14:29:43.474+08:00  INFO [trade-service,,] [] o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-09-19T14:29:43.521+08:00  INFO [trade-service,,] [] o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 45 ms. Found 0 Redis repository interfaces.
+2026-09-19T14:29:43.976+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.DeviceSkuInventory".
+2026-09-19T14:29:43.976+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.DeviceSkuInventory ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:43.996+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.DeviceSkuPrice".
+2026-09-19T14:29:43.996+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.DeviceSkuPrice ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:44.248+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsRolePermission".
+2026-09-19T14:29:44.248+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsRolePermission ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        3.5.5 
+2026-09-19T14:29:44.785+08:00  INFO [trade-service,,] [] com.zaxxer.hikari.HikariDataSource - HikariPool-2 - Starting...
+2026-09-19T14:29:44.809+08:00  INFO [trade-service,,] [] com.zaxxer.hikari.pool.HikariPool - HikariPool-2 - Added connection org.postgresql.jdbc.PgConnection@511139ae
+2026-09-19T14:29:44.809+08:00  INFO [trade-service,,] [] com.zaxxer.hikari.HikariDataSource - HikariPool-2 - Start completed.
+2026-09-19T14:29:44.812+08:00  INFO [trade-service,,] [] org.flywaydb.core.FlywayExecutor - Database: jdbc:postgresql://localhost:6868/aicabinet_test?loggerLevel=OFF (PostgreSQL 16.14)
+2026-09-19T14:29:45.031+08:00  INFO [trade-service,,] [] o.f.c.i.s.JdbcTableSchemaHistory - Schema history table "public"."flyway_schema_history" does not exist yet
+2026-09-19T14:29:45.033+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbValidate - Successfully validated 277 migrations (execution time 00:00.204s)
+2026-09-19T14:29:45.046+08:00  INFO [trade-service,,] [] o.f.c.i.s.JdbcTableSchemaHistory - Creating Schema History table "public"."flyway_schema_history" ...
+2026-09-19T14:29:45.069+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Current version of schema "public": << Empty Schema >>
+2026-09-19T14:29:45.075+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "1 - init schema"
+2026-09-19T14:29:45.115+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "2 - user order sku"
+2026-09-19T14:29:45.151+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "3 - auth payment"
+2026-09-19T14:29:45.172+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "4 - dispute ops"
+2026-09-19T14:29:45.195+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "5 - dispute vision"
+2026-09-19T14:29:45.222+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "6 - admin audit"
+2026-09-19T14:29:45.243+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "7 - commercial vision storage"
+2026-09-19T14:29:45.264+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "8 - ops rbac"
+2026-09-19T14:29:45.314+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "9 - commercial ops"
+2026-09-19T14:29:45.361+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "firmware_version" of relation "device_info" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:45.379+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "10 - concurrency control"
+2026-09-19T14:29:45.411+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "11 - production sku seed"
+2026-09-19T14:29:45.432+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "12 - recharge wechat txn"
+2026-09-19T14:29:45.451+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "13 - ops audit permission"
+2026-09-19T14:29:45.470+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "14 - vision upload permissions"
+2026-09-19T14:29:45.491+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "15 - merchant revenue split"
+2026-09-19T14:29:45.524+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "16 - ops user merchant"
+2026-09-19T14:29:45.542+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "17 - profit sharing wechat"
+2026-09-19T14:29:45.564+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "18 - sku catalog enrich"
+2026-09-19T14:29:45.587+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "19 - sku demo enrich"
+2026-09-19T14:29:45.605+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "20 - user password"
+2026-09-19T14:29:45.622+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "21 - recharge alipay txn"
+2026-09-19T14:29:45.640+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "22 - session fail reason"
+2026-09-19T14:29:45.656+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "23 - ops commercial enhancements"
+2026-09-19T14:29:45.694+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "24 - inventory lots phase a"
+2026-09-19T14:29:45.737+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "25 - demo catalog seed"
+2026-09-19T14:29:45.756+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "26 - warehouse phase b"
+2026-09-19T14:29:45.797+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "27 - phase c finance"
+2026-09-19T14:29:45.834+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "28 - demo vision mapping seed"
+2026-09-19T14:29:45.852+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "29 - sms verification code"
+2026-09-19T14:29:45.870+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "30 - device slot planogram"
+2026-09-19T14:29:45.896+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "31 - session replenishment task"
+2026-09-19T14:29:45.919+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "32 - warehouse in transit"
+2026-09-19T14:29:45.943+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "33 - dispute operations workbench"
+2026-09-19T14:29:45.970+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "34 - procurement and warehouse ledger"
+2026-09-19T14:29:46.043+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "35 - merchant portal"
+2026-09-19T14:29:46.071+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "36 - merchant portal p1"
+2026-09-19T14:29:46.093+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "37 - merchant portal p2"
+2026-09-19T14:29:46.117+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "38 - merchant portal p3"
+2026-09-19T14:29:46.144+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "39 - merchant settlements m1"
+2026-09-19T14:29:46.161+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "40 - backfill settlement batch"
+2026-09-19T14:29:46.181+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "41 - merchant sku pricing m2"
+2026-09-19T14:29:46.206+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "42 - merchant dispute collaboration m3"
+2026-09-19T14:29:46.232+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "43 - merchant replenishment request m4"
+2026-09-19T14:29:46.268+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "44 - merchant scope hardening m5"
+2026-09-19T14:29:46.287+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "45 - merchant analytics m6"
+2026-09-19T14:29:46.303+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "46 - merchant finance notify m7"
+2026-09-19T14:29:46.328+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "47 - operator user id sequence"
+2026-09-19T14:29:46.331+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +-----------+
+| setval    |
++-----------+
+| 100000005 |
++-----------+
+
+2026-09-19T14:29:46.347+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "48 - ops finance permission"
+2026-09-19T14:29:46.361+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "49 - merchant self service flags"
+2026-09-19T14:29:46.378+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "50 - demo merchant self service"
+2026-09-19T14:29:46.392+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "51 - device fault report"
+2026-09-19T14:29:46.410+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "52 - balance ledger and ops exception"
+2026-09-19T14:29:46.439+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "53 - mock recharge idempotency"
+2026-09-19T14:29:46.461+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "54 - simulator demo skus"
+2026-09-19T14:29:46.472+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "55 - system config"
+2026-09-19T14:29:46.494+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "56 - vision mapping seed"
+2026-09-19T14:29:46.516+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "57 - repair demo device name"
+2026-09-19T14:29:46.531+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "58 - sku vision mapping yolo sku"
+2026-09-19T14:29:46.545+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "59 - cleanup min uat replenishment routes"
+2026-09-19T14:29:46.564+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "60 - demo soda min charge confidence"
+2026-09-19T14:29:46.583+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "61 - retail os vision mapping"
+2026-09-19T14:29:46.598+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "62 - oriental leaf tea aliyun mapping"
+2026-09-19T14:29:46.615+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "63 - sku vision enrollment"
+2026-09-19T14:29:46.632+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "65 - sys dict and analytics"
+2026-09-19T14:29:46.656+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "66 - coupon promotion system"
+2026-09-19T14:29:46.699+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "67 - member feedback notification"
+2026-09-19T14:29:46.769+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "68 - enhance existing tables"
+2026-09-19T14:29:46.779+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "pay_channel" of relation "cabinet_order" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:46.792+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "image_url" of relation "sku_catalog" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:46.792+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "barcode" of relation "sku_catalog" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:46.792+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "status" of relation "sku_catalog" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:46.796+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_sku_catalog_category" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:46.797+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_sku_catalog_barcode" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:46.804+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "contact_phone" of relation "merchant" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:46.845+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "69 - performance indexes"
+2026-09-19T14:29:46.886+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "70 - jsonb fk cascade"
+2026-09-19T14:29:46.916+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "payment_operation_order_id_fkey" of relation "payment_operation" does not exist, skipping
+2026-09-19T14:29:46.936+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "71 - concurrency control"
+2026-09-19T14:29:46.939+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idempotency_key" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:46.940+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_idempotency_expire" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:46.941+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_idempotency_business" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:46.944+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "rate_limit_config" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:46.949+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "rate_limit_record" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:46.951+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_rate_limit_record_time" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:46.971+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "72 - distributed transaction"
+2026-09-19T14:29:47.009+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "73 - data consistency"
+2026-09-19T14:29:47.045+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "74 - payscore payment"
+2026-09-19T14:29:47.078+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "75 - user auth"
+2026-09-19T14:29:47.109+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "76 - complete optimization"
+2026-09-19T14:29:47.111+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "uk_sku_name" of relation "sku_catalog" does not exist, skipping
+2026-09-19T14:29:47.113+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "uk_merchant_name" of relation "merchant" does not exist, skipping
+2026-09-19T14:29:47.116+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "uk_device_name" of relation "device_info" does not exist, skipping
+2026-09-19T14:29:47.119+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: constraint "fk_session_user" of relation "shopping_session" does not exist, skipping
+2026-09-19T14:29:47.141+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "77 - franchise management"
+2026-09-19T14:29:47.175+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "78 - line manager management"
+2026-09-19T14:29:47.216+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "79 - member management"
+2026-09-19T14:29:47.260+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "80 - data consistency"
+2026-09-19T14:29:47.284+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "81 - ad management"
+2026-09-19T14:29:47.319+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "82 - social marketing"
+2026-09-19T14:29:47.359+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "83 - gamification"
+2026-09-19T14:29:47.400+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "84 - edge computing"
+2026-09-19T14:29:47.435+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "85 - production enhancements"
+2026-09-19T14:29:47.448+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "86 - production enhancements"
+2026-09-19T14:29:47.478+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "87 - clamp slot lot over capacity"
+2026-09-19T14:29:47.495+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "88 - dispute status closed label"
+2026-09-19T14:29:47.510+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "89 - coupon edit perm"
+2026-09-19T14:29:47.531+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "90 - ruoyi menu perms"
+2026-09-19T14:29:47.544+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "91 - fix rbac sequences"
+2026-09-19T14:29:47.546+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 8      |
++--------+
+
+2026-09-19T14:29:47.547+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 308    |
++--------+
+
+2026-09-19T14:29:47.559+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "92 - split rbac menus"
+2026-09-19T14:29:47.580+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "93 - align menu and button perms"
+2026-09-19T14:29:47.606+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 323    |
++--------+
+
+2026-09-19T14:29:47.621+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "94 - align menu tree with sidebar"
+2026-09-19T14:29:47.663+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 403    |
++--------+
+
+2026-09-19T14:29:47.678+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "95 - reparent button perms to menus"
+2026-09-19T14:29:47.706+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "96 - operator account status"
+2026-09-19T14:29:47.714+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 407    |
++--------+
+
+2026-09-19T14:29:47.728+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "97 - demo merchant wechat receiver"
+2026-09-19T14:29:47.743+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "98 - payment operation order id nullable"
+2026-09-19T14:29:47.760+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "99 - member marketing consumer"
+2026-09-19T14:29:47.763+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "member" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.764+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_user" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.765+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_invite_code" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.766+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_level" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.768+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "member_points_log" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.769+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_points_member" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.770+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_points_type" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.772+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "member_level_rule" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.773+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_level_code" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.806+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "100 - link campaign coupons"
+2026-09-19T14:29:47.823+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "101 - session entry channel"
+2026-09-19T14:29:47.839+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "102 - device refund policy"
+2026-09-19T14:29:47.855+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "103 - ensure data consistency record"
+2026-09-19T14:29:47.857+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "data_consistency_record" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.858+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_consistency_status" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.859+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_consistency_type" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.860+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_consistency_time" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:47.873+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "104 - device ops and exception sla"
+2026-09-19T14:29:47.893+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "105 - purchase return"
+2026-09-19T14:29:47.920+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "106 - export import button perms"
+2026-09-19T14:29:47.929+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 443    |
++--------+
+
+2026-09-19T14:29:47.942+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "107 - user verify button perm"
+2026-09-19T14:29:47.947+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 444    |
++--------+
+
+2026-09-19T14:29:47.959+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "108 - promotion launch perm"
+2026-09-19T14:29:47.965+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 445    |
++--------+
+
+2026-09-19T14:29:47.979+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "109 - align ota sla vision nav"
+2026-09-19T14:29:47.998+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "110 - order refund perm"
+2026-09-19T14:29:48.002+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 446    |
++--------+
+
+2026-09-19T14:29:48.015+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "111 - procurement perms"
+2026-09-19T14:29:48.020+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 448    |
++--------+
+
+2026-09-19T14:29:48.035+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "112 - warehouse outbound line slot"
+2026-09-19T14:29:48.050+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "113 - dispute review code"
+2026-09-19T14:29:48.070+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "114 - merchant parent org"
+2026-09-19T14:29:48.084+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "115 - unpaid order ops"
+2026-09-19T14:29:48.089+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 450    |
++--------+
+
+2026-09-19T14:29:48.102+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "116 - finance role and merchant split perm"
+2026-09-19T14:29:48.122+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "117 - demo ops role accounts"
+2026-09-19T14:29:48.150+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "118 - tighten demo role perms"
+2026-09-19T14:29:48.174+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "119 - fix garbled merchant names"
+2026-09-19T14:29:48.190+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "120 - fix garbled dispute reasons"
+2026-09-19T14:29:48.207+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "121 - merchant menu tree groups"
+2026-09-19T14:29:48.246+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "122 - merchant feature packs"
+2026-09-19T14:29:48.262+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "123 - align three end data consistency"
+2026-09-19T14:29:48.292+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "124 - ops consistency menu"
+2026-09-19T14:29:48.298+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 456    |
++--------+
+
+2026-09-19T14:29:48.311+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "125 - competitive gap features"
+2026-09-19T14:29:48.370+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 466    |
++--------+
+
+2026-09-19T14:29:48.387+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "126 - align ops menu with sidebar"
+2026-09-19T14:29:48.424+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 472    |
++--------+
+
+2026-09-19T14:29:48.431+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "127 - device asset lifecycle"
+2026-09-19T14:29:48.445+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 481    |
++--------+
+
+2026-09-19T14:29:48.452+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "128 - remove invite and commercial hub"
+2026-09-19T14:29:48.479+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "129 - remove line manager"
+2026-09-19T14:29:48.501+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "130 - remove franchise and achievement"
+2026-09-19T14:29:48.524+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "131 - remove gamification checkin tasks"
+2026-09-19T14:29:48.543+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "132 - device map and repair ticket"
+2026-09-19T14:29:48.557+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 492    |
++--------+
+
+2026-09-19T14:29:48.570+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "133 - line manager wallet"
+2026-09-19T14:29:48.602+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 496    |
++--------+
+
+2026-09-19T14:29:48.612+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "134 - seed device map coords"
+2026-09-19T14:29:48.614+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +----------+
+| ?column? |
++----------+
+| 1        |
++----------+
+
+2026-09-19T14:29:48.621+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "135 - seed more device map coords"
+2026-09-19T14:29:48.624+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +----------+
+| ?column? |
++----------+
+| 1        |
++----------+
+
+2026-09-19T14:29:48.632+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "136 - remove points and messaging legacy"
+2026-09-19T14:29:48.643+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: index "idx_member_invited_by" does not exist, skipping
+2026-09-19T14:29:48.676+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "137 - purge inactive ops permissions"
+2026-09-19T14:29:48.686+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "138 - align menus with sidebar"
+2026-09-19T14:29:48.702+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "139 - merchant withdraw"
+2026-09-19T14:29:48.723+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 501    |
++--------+
+
+2026-09-19T14:29:48.740+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "140 - merchant team roles"
+2026-09-19T14:29:48.777+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 504    |
++--------+
+
+2026-09-19T14:29:48.793+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "141 - consumer open preauth"
+2026-09-19T14:29:48.817+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "142 - admin crud button perms"
+2026-09-19T14:29:48.839+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "143 - device info auto id"
+2026-09-19T14:29:48.851+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 2      |
++--------+
+
+2026-09-19T14:29:48.863+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "144 - sku master code and fields"
+2026-09-19T14:29:48.873+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 100008 |
++--------+
+
+2026-09-19T14:29:48.883+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 562    |
++--------+
+
+2026-09-19T14:29:48.894+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "145 - sku local demo images"
+2026-09-19T14:29:48.912+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "146 - sku local demo images by code"
+2026-09-19T14:29:48.930+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "147 - sku catalog updated by"
+2026-09-19T14:29:48.942+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "148 - user alipay user id"
+2026-09-19T14:29:48.958+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "149 - fix garbled sku catalog names"
+2026-09-19T14:29:48.982+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "150 - device ref perm"
+2026-09-19T14:29:48.999+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "151 - device online since and availability kpi"
+2026-09-19T14:29:49.019+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "152 - scheduled task module"
+2026-09-19T14:29:49.044+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "153 - device kpi perm"
+2026-09-19T14:29:49.059+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "154 - bigscreen perm"
+2026-09-19T14:29:49.074+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "155 - drop orphan legacy tables"
+2026-09-19T14:29:49.122+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "156 - ops exception archive"
+2026-09-19T14:29:49.139+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "157 - sku real product photos"
+2026-09-19T14:29:49.162+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "158 - cleanup remaining demo svg images"
+2026-09-19T14:29:49.174+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "159 - supplier payables"
+2026-09-19T14:29:49.203+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "160 - warehouse stocktake"
+2026-09-19T14:29:49.224+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "161 - warehouse bins"
+2026-09-19T14:29:49.247+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "162 - fix merchant replenisher demo account"
+2026-09-19T14:29:49.270+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "163 - growth marketing modules"
+2026-09-19T14:29:49.277+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_user" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:49.278+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: relation "idx_member_level" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-09-19T14:29:49.325+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 605    |
++--------+
+
+2026-09-19T14:29:49.337+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "164 - file attachment content sha"
+2026-09-19T14:29:49.351+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "165 - points coupon expiry recall"
+2026-09-19T14:29:49.368+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "166 - notify prefs points idempotent"
+2026-09-19T14:29:49.397+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "167 - marketing roi perm"
+2026-09-19T14:29:49.401+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 612    |
++--------+
+
+2026-09-19T14:29:49.411+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "168 - notify channels member levels"
+2026-09-19T14:29:49.413+08:00  WARN [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: column "channels" of relation "notification_template" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-09-19T14:29:49.418+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 612    |
++--------+
+
+2026-09-19T14:29:49.430+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "169 - merchant line wallet withdraw perm"
+2026-09-19T14:29:49.460+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "170 - new pages menu perms"
+2026-09-19T14:29:49.471+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 618    |
++--------+
+
+2026-09-19T14:29:49.485+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "171 - scheduled task group wallet entry dict"
+2026-09-19T14:29:49.519+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "172 - ops two factor auth"
+2026-09-19T14:29:49.536+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "173 - device temp plan and env reading"
+2026-09-19T14:29:49.560+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "174 - ad media operation"
+2026-09-19T14:29:49.585+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "175 - order line slot"
+2026-09-19T14:29:49.602+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "176 - org and site contract"
+2026-09-19T14:29:49.629+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "177 - tighten viewer write perms"
+2026-09-19T14:29:49.646+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "178 - viewer revoke exports and repair closed dict"
+2026-09-19T14:29:49.663+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "179 - announcement status archived label"
+2026-09-19T14:29:49.679+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "180 - promotion and consistency dict labels"
+2026-09-19T14:29:49.699+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "181 - obs viewer ops coords distance"
+2026-09-19T14:29:49.716+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "182 - fix garbled names and demo points"
+2026-09-19T14:29:49.736+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "183 - unlock grace and sanitize feedback"
+2026-09-19T14:29:49.755+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "184 - notify title strip hash id"
+2026-09-19T14:29:49.772+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "185 - balance refund request"
+2026-09-19T14:29:49.803+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "186 - merchant dispute resolve perm"
+2026-09-19T14:29:49.813+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "187 - session live cart"
+2026-09-19T14:29:49.823+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "188 - refund self policy defaults"
+2026-09-19T14:29:49.831+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "189 - nearby coupon member discount"
+2026-09-19T14:29:49.861+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "190 - invoice and mid pri"
+2026-09-19T14:29:49.882+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "191 - low pri risk ad demo"
+2026-09-19T14:29:49.899+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "192 - wave1 onboard device scope"
+2026-09-19T14:29:49.933+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "193 - wave3 warehouse transfer"
+2026-09-19T14:29:49.955+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "194 - wave4 rent split line promo"
+2026-09-19T14:29:49.973+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "195 - session refund lock fee"
+2026-09-19T14:29:49.985+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "196 - session kind consumer dict"
+2026-09-19T14:29:49.998+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "197 - fix viewer invoice edit and titles"
+2026-09-19T14:29:50.011+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "198 - backfill partial refunded cents"
+2026-09-19T14:29:50.019+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "199 - settlement recognition mode"
+2026-09-19T14:29:50.029+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "200 - fix demo four consistency failures"
+2026-09-19T14:29:50.041+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "201 - fix points consistency checker align"
+2026-09-19T14:29:50.049+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "202 - consistency prod guards align"
+2026-09-19T14:29:50.072+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "203 - profit sharing return tracking"
+2026-09-19T14:29:50.086+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "204 - compensation task generic retry"
+2026-09-19T14:29:50.099+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "205 - compensation task retry count"
+2026-09-19T14:29:50.107+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "206 - backfill pay trade no from payment ops"
+2026-09-19T14:29:50.118+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "207 - order revenue split order id unique"
+2026-09-19T14:29:50.137+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "208 - supplier payment idempotency key"
+2026-09-19T14:29:50.151+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "209 - clamp device slot over capacity"
+2026-09-19T14:29:50.168+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "210 - purge orphan device slots"
+2026-09-19T14:29:50.180+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "211 - device slot device fk"
+2026-09-19T14:29:50.194+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "212 - merchant wallet merchant fk"
+2026-09-19T14:29:50.214+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "213 - device inventory fk"
+2026-09-19T14:29:50.240+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "214 - warehouse inventory fk"
+2026-09-19T14:29:50.288+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "215 - transaction chain fk"
+2026-09-19T14:29:50.322+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "216 - ops transit slot fk"
+2026-09-19T14:29:50.357+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "217 - ops ad scope fk"
+2026-09-19T14:29:50.420+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "218 - user order line fk"
+2026-09-19T14:29:50.474+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "219 - merchant order slot fk"
+2026-09-19T14:29:50.521+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "220 - coupon ops slot fk"
+2026-09-19T14:29:50.561+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: trigger "trg_cabinet_order_line_slot" for relation "cabinet_order_line" does not exist, skipping
+2026-09-19T14:29:50.573+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: trigger "trg_replenishment_task_line_slot" for relation "replenishment_task_line" does not exist, skipping
+2026-09-19T14:29:50.618+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "221 - admin audit log operator fk"
+2026-09-19T14:29:50.640+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "222 - core table comments and demo seed"
+2026-09-19T14:29:50.724+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "223 - category id backfill and empty module seed"
+2026-09-19T14:29:50.744+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "224 - verify channel dict"
+2026-09-19T14:29:50.763+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "225 - notification biz type dict"
+2026-09-19T14:29:50.778+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "226 - platform bill trade type dict"
+2026-09-19T14:29:50.790+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "227 - pull off reason dict"
+2026-09-19T14:29:50.807+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "228 - approval workflow"
+2026-09-19T14:29:50.839+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 651    |
++--------+
+
+2026-09-19T14:29:50.840+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 2      |
++--------+
+
+2026-09-19T14:29:50.854+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "229 - devops hub perm"
+2026-09-19T14:29:50.873+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "230 - approval biz extensions"
+2026-09-19T14:29:50.905+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "231 - ops department and approval config"
+2026-09-19T14:29:50.935+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 653    |
++--------+
+
+2026-09-19T14:29:50.936+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 4      |
++--------+
+
+2026-09-19T14:29:50.937+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 7      |
++--------+
+
+2026-09-19T14:29:50.952+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "232 - fix approval list perm path"
+2026-09-19T14:29:50.969+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "233 - ops department tree and primary"
+2026-09-19T14:29:50.999+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "234 - devops sonar scan perm"
+2026-09-19T14:29:51.017+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "235 - fix system user name encoding"
+2026-09-19T14:29:51.034+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "236 - schema comments backfill"
+2026-09-19T14:29:51.141+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "237 - polish column comments zh"
+2026-09-19T14:29:52.229+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "238 - audit soft delete baseline"
+2026-09-19T14:29:52.293+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "239 - core trade display redundancy"
+2026-09-19T14:29:52.320+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "240 - ops repair display redundancy"
+2026-09-19T14:29:52.346+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "241 - finance display and uk"
+2026-09-19T14:29:52.384+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "242 - index rename and bool exemption"
+2026-09-19T14:29:52.400+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "243 - dispute assignee"
+2026-09-19T14:29:52.418+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "244 - member level demo discount"
+2026-09-19T14:29:52.436+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "245 - device id fk on update cascade"
+2026-09-19T14:29:52.507+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "246 - ops inbox approval reminder copy"
+2026-09-19T14:29:52.521+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "247 - ops user profile email"
+2026-09-19T14:29:52.535+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "248 - finance warehouse list revoke devops"
+2026-09-19T14:29:52.551+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "249 - revoke devops non admin"
+2026-09-19T14:29:52.567+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "250 - fix device 100001 name encoding"
+2026-09-19T14:29:52.582+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "251 - demo supplier name zh"
+2026-09-19T14:29:52.598+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "252 - seed uat order amount diff"
+2026-09-19T14:29:52.614+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "253 - uat unlock cab001 sales"
+2026-09-19T14:29:52.616+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +----------+
+| ?column? |
++----------+
+| 1        |
++----------+
+
+2026-09-19T14:29:52.628+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "254 - uat pending purchase approval"
+2026-09-19T14:29:52.647+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "255 - site rent bill"
+2026-09-19T14:29:52.666+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "256 - device data fee bill"
+2026-09-19T14:29:52.685+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "257 - consumer preauth hold"
+2026-09-19T14:29:52.702+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "258 - user account type"
+2026-09-19T14:29:52.721+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "259 - merchant alert sales locked"
+2026-09-19T14:29:52.736+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "260 - device sku inventory version"
+2026-09-19T14:29:52.759+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "261 - revoke staff team list perm"
+2026-09-19T14:29:52.775+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "262 - finance dept member and stuck approval tasks"
+2026-09-19T14:29:52.792+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "263 - bug004 skip auto lock never heartbeat"
+2026-09-19T14:29:52.807+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "264 - clarify replenisher role names"
+2026-09-19T14:29:52.824+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "265 - platform replenisher merchant portal"
+2026-09-19T14:29:52.840+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "266 - replenishment require evidence config"
+2026-09-19T14:29:52.855+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "267 - replenishment checkin door config"
+2026-09-19T14:29:52.870+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "268 - consistency check type extend"
+2026-09-19T14:29:52.886+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "269 - order display snapshot immutable"
+2026-09-19T14:29:52.890+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: trigger "trg_cabinet_order_display_snapshot_immutable" for relation "cabinet_order" does not exist, skipping
+2026-09-19T14:29:52.904+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "270 - drop duplicate order user index"
+2026-09-19T14:29:52.919+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "271 - cross link and inventory guard"
+2026-09-19T14:29:52.923+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - DB: trigger "trg_cabinet_order_inventory_link" for relation "cabinet_order" does not exist, skipping
+2026-09-19T14:29:52.936+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "272 - dispute resolution dict"
+2026-09-19T14:29:52.951+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "273 - ops operator reset password"
+2026-09-19T14:29:52.956+08:00  INFO [trade-service,,] [] o.f.c.i.s.DefaultSqlScriptExecutor - +--------+
+| setval |
++--------+
+| 654    |
++--------+
+
+2026-09-19T14:29:52.967+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "274 - device sku price version"
+2026-09-19T14:29:52.984+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "275 - scheduled task seed gap"
+2026-09-19T14:29:52.999+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "276 - device auto unlock stable minutes 15 to 5"
+2026-09-19T14:29:53.013+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "277 - site rent bill uk fix"
+2026-09-19T14:29:53.028+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "278 - withdraw paying timeout scheduled task"
+2026-09-19T14:29:53.040+08:00  INFO [trade-service,,] [] o.f.core.internal.command.DbMigrate - Successfully applied 277 migrations to schema "public", now at version v278 (execution time 00:04.901s)
+2026-09-19T14:29:53.264+08:00  INFO [trade-service,,] [] org.redisson.Version - Redisson 3.52.0
+2026-09-19T14:29:53.332+08:00  INFO [trade-service,,] [] o.r.connection.ConnectionsHolder - 1 connections initialized for localhost/127.0.0.1:6866
+2026-09-19T14:29:53.332+08:00  INFO [trade-service,,] [] o.r.connection.ConnectionsHolder - 1 connections initialized for localhost/127.0.0.1:6866
+2026-09-19T14:29:53.467+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserRole".
+2026-09-19T14:29:53.467+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserRole ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:53.487+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserMerchant".
+2026-09-19T14:29:53.487+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserMerchant ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:53.504+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserDeviceScope".
+2026-09-19T14:29:53.504+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserDeviceScope ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:53.521+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserRouteScope".
+2026-09-19T14:29:53.521+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserRouteScope ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:54.048+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsUserDepartment".
+2026-09-19T14:29:54.048+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsUserDepartment ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:54.184+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.DeviceSlot".
+2026-09-19T14:29:54.184+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.DeviceSlot ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:54.356+08:00  INFO [trade-service,,] [] c.a.trade.config.Resilience4jConfig - Resilience4j retry configured: device-service, max=3 wait=500ms
+2026-09-19T14:29:54.706+08:00  INFO [trade-service,,] [] c.a.trade.config.Resilience4jConfig - Resilience4j circuit breaker configured: vision-service, window=10 threshold=50%
+2026-09-19T14:29:55.049+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.OpsTwoFactorRecoveryCode".
+2026-09-19T14:29:55.049+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.OpsTwoFactorRecoveryCode ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:55.768+08:00  WARN [trade-service,,] [] c.b.m.core.metadata.TableInfoHelper - Can not find table primary key in Class: "com.aicabinet.trade.domain.MerchantSubscribePref".
+2026-09-19T14:29:55.768+08:00  WARN [trade-service,,] [] c.b.m.c.injector.DefaultSqlInjector - class com.aicabinet.trade.domain.MerchantSubscribePref ,Not found @TableId annotation, Cannot use Mybatis-Plus 'xxById' Method.
+2026-09-19T14:29:56.484+08:00  INFO [trade-service,,] [] c.aicabinet.trade.config.CacheConfig - CacheService initialized (local TTL cache)
+2026-09-19T14:29:57.827+08:00  INFO [trade-service,,] [] o.s.b.t.m.w.SpringBootMockServletContext - Initializing Spring TestDispatcherServlet ''
+2026-09-19T14:29:57.827+08:00  INFO [trade-service,,] [] o.s.t.w.s.TestDispatcherServlet - Initializing Servlet ''
+2026-09-19T14:29:57.835+08:00  INFO [trade-service,,] [] o.s.b.a.e.web.EndpointLinksResolver - Exposing 2 endpoints beneath base path '/actuator'
+2026-09-19T14:29:57.846+08:00  INFO [trade-service,,] [] o.s.t.w.s.TestDispatcherServlet - Completed initialization in 18 ms
+2026-09-19T14:29:57.909+08:00  INFO [trade-service,,] [] c.a.t.i.WeChatNotifyIntegrationTest - Started WeChatNotifyIntegrationTest in 15.557 seconds (process running for 57.569)
+2026-09-19T14:29:57.920+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_type
+2026-09-19T14:29:57.936+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type session_state
+2026-09-19T14:29:57.960+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type upload_status
+2026-09-19T14:29:57.977+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type dispute_status
+2026-09-19T14:29:57.996+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type dispute_category
+2026-09-19T14:29:58.015+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type dispute_priority
+2026-09-19T14:29:58.030+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type pay_channel
+2026-09-19T14:29:58.049+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type split_status
+2026-09-19T14:29:58.068+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type merchant_status
+2026-09-19T14:29:58.077+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type online_status
+2026-09-19T14:29:58.087+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_lifecycle
+2026-09-19T14:29:58.096+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_coop_mode
+2026-09-19T14:29:58.107+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type repair_ticket_status
+2026-09-19T14:29:58.116+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type line_manager_status
+2026-09-19T14:29:58.121+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type announcement_status
+2026-09-19T14:29:58.130+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type announcement_audience
+2026-09-19T14:29:58.134+08:00  INFO [trade-service,09ab7de9dbdc0caaa1b446bd95c8cf07,f4adc539aee2d335] [] c.a.t.service.SkuDelistReviewService - sku review refreshed window=30d skus=8
+2026-09-19T14:29:58.140+08:00  INFO [trade-service,09ab7de9dbdc0caaa1b446bd95c8cf07,f4adc539aee2d335] [] c.a.trade.service.SkuReviewScheduler - daily sku review refreshed rows=8
+2026-09-19T14:29:58.142+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type promotion_type
+2026-09-19T14:29:58.150+08:00  INFO [trade-service,26482059a498ec6adf358cf1dcef7fd3,cb3115e63ffdc692] [] c.a.t.service.DataConsistencyService - 开始数据一致性巡检
+2026-09-19T14:29:58.154+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type coupon_type
+2026-09-19T14:29:58.161+08:00  WARN [trade-service,26482059a498ec6adf358cf1dcef7fd3,cb3115e63ffdc692] [] c.a.t.service.DataConsistencyService - 发现数据不一致 type=INVENTORY_MISMATCH key=CAB-001|SKU-SNACK-001 expected=2 actual=0
+2026-09-19T14:29:58.163+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type enable_status
+2026-09-19T14:29:58.171+08:00  WARN [trade-service,26482059a498ec6adf358cf1dcef7fd3,cb3115e63ffdc692] [] c.a.t.service.DataConsistencyService - 发现数据不一致 type=INVENTORY_MISMATCH key=CAB-001|SKU-DEMO-001 expected=3 actual=0
+2026-09-19T14:29:58.174+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type sku_enrollment_status
+2026-09-19T14:29:58.177+08:00  WARN [trade-service,26482059a498ec6adf358cf1dcef7fd3,cb3115e63ffdc692] [] c.a.t.service.DataConsistencyService - 发现数据不一致 type=INVENTORY_MISMATCH key=CAB-001|SKU-SODA-001 expected=4 actual=0
+2026-09-19T14:29:58.183+08:00  WARN [trade-service,26482059a498ec6adf358cf1dcef7fd3,cb3115e63ffdc692] [] c.a.t.service.DataConsistencyService - 发现数据不一致 type=INVENTORY_MISMATCH key=CAB-001|SKU-WATER-001 expected=8 actual=0
+2026-09-19T14:29:58.184+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type fund_ledger_type
+2026-09-19T14:29:58.192+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type fund_direction
+2026-09-19T14:29:58.216+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Added 1 missing dict items for wallet_entry_type
+2026-09-19T14:29:58.233+08:00  INFO [trade-service,26482059a498ec6adf358cf1dcef7fd3,cb3115e63ffdc692] [] c.a.t.service.DataConsistencyService - 数据一致性巡检结束
+2026-09-19T14:29:58.247+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Added 6 missing dict items for ops_alert_type
+2026-09-19T14:29:58.280+08:00  INFO [trade-service,bf70e3dc5b9efad946ba9df88cb1b360,394dec61cdfe1e69] [] c.a.t.s.CompensationTaskScheduler - Found 0 transactions to retry
+2026-09-19T14:29:58.292+08:00  INFO [trade-service,7fc9f6bfd9ee7942ce98ba4eb43e757f,53e0749578b519e1] [] c.a.t.s.CompensationTaskScheduler - Found 0 compensation tasks to process
+2026-09-19T14:29:58.299+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type site_rent_bill_status
+2026-09-19T14:29:58.309+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_data_fee_bill_status
+2026-09-19T14:29:58.316+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type ops_fee_type
+2026-09-19T14:29:58.325+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type site_rent_party_type
+2026-09-19T14:29:58.389+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_ops_event
+2026-09-19T14:29:58.408+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type repair_fault_type
+2026-09-19T14:29:58.426+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_fault_issue
+2026-09-19T14:29:58.439+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type line_withdraw_status
+2026-09-19T14:29:58.457+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type merchant_withdraw_status
+2026-09-19T14:29:58.468+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type supplier_status
+2026-09-19T14:29:58.477+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type purchase_order_status
+2026-09-19T14:29:58.485+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type warehouse_status
+2026-09-19T14:29:58.495+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type warehouse_outbound_status
+2026-09-19T14:29:58.508+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type handover_status
+2026-09-19T14:29:58.520+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type in_transit_status
+2026-09-19T14:29:58.534+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type warehouse_movement_type
+2026-09-19T14:29:58.562+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type business_reference_type
+2026-09-19T14:29:58.577+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type replenishment_route_status
+2026-09-19T14:29:58.590+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type replenishment_task_status
+2026-09-19T14:29:58.602+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type replenishment_request_status
+2026-09-19T14:29:58.616+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type inventory_lot_status
+2026-09-19T14:29:58.631+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type exception_severity
+2026-09-19T14:29:58.640+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type exception_status
+2026-09-19T14:29:58.652+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type feedback_type
+2026-09-19T14:29:58.664+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type feedback_status
+2026-09-19T14:29:58.686+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type exception_type
+2026-09-19T14:29:58.712+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type device_fault_code
+2026-09-19T14:29:58.733+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type ops_exception_action
+2026-09-19T14:29:58.748+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type reconciliation_status
+2026-09-19T14:29:58.755+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type sku_status
+2026-09-19T14:29:58.767+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type order_status
+2026-09-19T14:29:58.782+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type recharge_status
+2026-09-19T14:29:58.800+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type risk_event_type
+2026-09-19T14:29:58.816+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type risk_severity
+2026-09-19T14:29:58.825+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type risk_disposition_status
+2026-09-19T14:29:58.834+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type settlement_batch_status
+2026-09-19T14:29:58.845+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type route_code
+2026-09-19T14:29:58.851+08:00  INFO [trade-service,,] [] c.a.trade.service.SysDictBootstrap - Seeded missing dict type category_code
+2026-09-19T14:29:58.887+08:00  INFO [trade-service,,] [] c.a.trade.service.DemoDataService - demo data ensured device=CAB-001 skus=8 fallbackSku=SKU-DEMO-001 warehouseLots=6
+2026-09-19T14:29:58.888+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - Running with mock-enabled=true (dev/demo). Settlement mock is NOT production accuracy; mock/low-conf/gravity-mismatch routes to need_review.
+2026-09-19T14:29:58.888+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - Vision mock likely enabled (VISION_MOCK_ENABLED/MOCK_ENABLED). Demo recognition must not be treated as production accuracy; use docker-compose.production.yml for go-live.
+2026-09-19T14:29:58.888+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - INTERNAL_API_KEY is unset or still the demo default (dev-internal-key-change-me). Do not expose this stack to the public internet; use docker-compose.production.yml + strong key for go-live.
+2026-09-19T14:29:58.888+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - JWT secret is unset or still the dev default. Replace JWT_SECRET before any production/staging deploy.
+2026-09-19T14:29:58.888+08:00  WARN [trade-service,,] [] c.a.t.c.ProductionStartupValidator - VISION_API_KEY is unset or still the dev default. Replace before production vision traffic.
+2026-09-19T14:29:58.889+08:00  INFO [trade-service,,] [] c.a.t.c.SchedulingPoolCapacitySelfCheck - scheduling/datasource capacity self-check PASSED: @Scheduled 并发 1（运行中的 ThreadPoolTaskScheduler 核心线程数） ≤ 连接池 5（运行中的 HikariDataSource 有效上限）
+2026-09-19T14:29:59.057+08:00  INFO [trade-service,a5f48f2ac0a1aed20c6ba87da7c38803,6a40f9ff6c74f8c8] [] c.a.t.service.NotificationService - notification sent channel=IN_APP template=recharge_success audience=CONSUMER userId=10001 merchantId=null
+2026-09-19T14:29:59.057+08:00  INFO [trade-service,a5f48f2ac0a1aed20c6ba87da7c38803,6a40f9ff6c74f8c8] [] c.a.trade.service.PaymentService - recharge credited user=10001 amount=500 channel=WECHAT
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 19.89 s -- in com.aicabinet.trade.integration.WeChatNotifyIntegrationTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jacoco:0.8.12:report (report) @ trade-service ---
+[INFO] Loading execution data file C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service\target\jacoco.exec
+[INFO] Analyzed bundle 'trade-service' with 853 classes
+[INFO] 
+[INFO] --- jar:3.4.1:jar (default-jar) @ trade-service ---
+[INFO] 
+[INFO] --- spring-boot:3.5.16:repackage (default) @ trade-service ---
+[INFO] Replacing main artifact C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service\target\trade-service-0.1.0-SNAPSHOT.jar with repackaged archive, adding nested dependencies in BOOT-INF/.
+[INFO] The original artifact has been renamed to C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service\target\trade-service-0.1.0-SNAPSHOT.jar.original
+[INFO] 
+[INFO] --- failsafe:3.5.4:integration-test (integration-tests) @ trade-service ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- failsafe:3.5.4:verify (integration-tests) @ trade-service ---
+[INFO] Tests are skipped.
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for AI Cabinet 0.1.0-SNAPSHOT:
+[INFO] 
+[INFO] AI Cabinet ......................................... SUCCESS [  0.465 s]
+[INFO] common-core ........................................ SUCCESS [  1.368 s]
+[INFO] trade-service ...................................... SUCCESS [01:54 min]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  01:56 min
+[INFO] Finished at: 2026-09-19T14:30:51+08:00
+[INFO] ------------------------------------------------------------------------
+EXITCODE=0

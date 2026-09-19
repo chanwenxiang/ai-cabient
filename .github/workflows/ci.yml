@@ -117,24 +117,75 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: '6379'
 
-      # 三端 RBAC E2E 与权限漂移测试依赖 Docker（Testcontainers），缺 Docker 时会被静默跳过；
-      # 这里显式校验 surefire 报告存在且全绿，让"跳过"变成构建失败。
-      - name: Verify RBAC E2E ran (no silent skip)
+      # 依赖 Docker（Testcontainers）的测试在缺 Docker 时会被**静默跳过**：类上标着
+      # `@Testcontainers(disabledWithoutDocker = true)`，JUnit 直接禁用整个类，surefire
+      # 仍写出一份 **0 条用例**的报告，`mvn` 照样 SUCCESS。这里把"跳过"变成构建失败。
+      #
+      # 🔴 判据只看 `<testcase>` 元素个数：`*.txt` 的 `Tests run:` 与 XML 根元素的 `tests=`
+      #    在 @Nested 类上都会写 0，按它们判会「一条都没跑却照样绿」（§11.16 / O7）。
+      # 🔴 用**源码自动发现**而不是硬编码名单：2026-09-19 实测旧白名单只列了 3 个 E2E，
+      #    而 `ReconciliationIntegrationTest` / `WeChatNotifyIntegrationTest` 两个同样带
+      #    `@Testcontainers` 的类**从来没被任何守卫覆盖过** —— 名单模式下新增一个测试类
+      #    同样不会被发现，静默跳过无人知。
+      # 本 job 是 `mvn verify -DskipITs -pl services/trade-service -am`：
+      #   `*Test.java` → surefire 跑（本 job 范围内）；
+      #   `*IT.java`   → failsafe 跑，被 `-DskipITs` 跳过，由 integration job 的守卫覆盖。
+      - name: Verify Docker-backed tests ran (no silent skip)
         run: |
           set -euo pipefail
-          for cls in \
-            com.aicabinet.trade.auth.PermissionCodeDriftTest \
-            com.aicabinet.trade.e2e.AdminE2ETest \
-            com.aicabinet.trade.e2e.ConsumerE2ETest \
-            com.aicabinet.trade.e2e.MerchantE2ETest; do
-            report="services/trade-service/target/surefire-reports/$cls.txt"
-            test -s "$report" || { echo "missing surefire report: $report"; exit 1; }
-            grep -q "Failures: 0, Errors: 0, Skipped: 0" "$report" \
-              || { echo "RBAC test not fully green: $report"; exit 1; }
-            # 0 条用例的报告同样写着 "Failures: 0, Errors: 0, Skipped: 0" ⇒ 单靠上一行会假绿
-            grep -qE "Tests run: [1-9][0-9]*" "$report" \
-              || { echo "RBAC test ran 0 cases (silent skip): $report"; exit 1; }
-          done
+
+          found=0
+          while IFS= read -r src; do
+            # 只认真正的注解行（行首，允许缩进）——注释里提到 @Testcontainers 不算。
+            grep -qE '^[[:space:]]*@Testcontainers' "$src" || continue
+            mod=${src%%/src/test/java/*}
+            [ -d "$mod/target" ] || continue      # 本 job 没构建该模块 ⇒ 不在范围内
+            fqcn=${src#*/src/test/java/}
+            fqcn=${fqcn%.java}
+            fqcn=$(printf '%s' "$fqcn" | tr '/' '.')
+            report="$mod/target/surefire-reports/TEST-$fqcn.xml"
+            if [ ! -f "$report" ]; then
+              echo "RED  $fqcn  有源码但**没有 surefire 报告** ⇒ 该测试根本没执行"
+              ls -1 "$mod/target/surefire-reports" 2>/dev/null | head -5 || true
+              exit 1
+            fi
+            n=$(grep -o '<testcase ' "$report" | wc -l || true)
+            if [ "$n" -lt 1 ]; then
+              echo "RED  $fqcn  testcases=0 ⇒ 静默跳过（Docker 不可用 / 容器起不来 / 被 disabled）"
+              exit 1
+            fi
+            if grep -qE '<failure|<error' "$report"; then
+              echo "RED  $fqcn  出现 failure/error（mvn 应已失败，这里再判一次）"
+              exit 1
+            fi
+            echo "ok   $fqcn  testcases=$n"
+            found=$((found + 1))
+          done < <(find services -path '*/src/test/java/*' -name '*Test.java' | sort)
+
+          # 护栏：扫描逻辑自己失效时不能「零发现即通过」（否则判据恒真）。
+          if [ "$found" -lt 1 ]; then
+            echo "RED  一个带 @Testcontainers 的 *Test.java 都没扫到 ⇒ 扫描逻辑失效（源码里明明有）"
+            exit 1
+          fi
+
+          # 权限漂移守卫不带 @Testcontainers，但它是 RBAC 的核心判据，单独钉住。
+          report=services/trade-service/target/surefire-reports/TEST-com.aicabinet.trade.auth.PermissionCodeDriftTest.xml
+          if [ ! -f "$report" ]; then
+            echo "RED  PermissionCodeDriftTest 没有 surefire 报告"
+            exit 1
+          fi
+          n=$(grep -o '<testcase ' "$report" | wc -l || true)
+          if [ "$n" -lt 1 ]; then
+            echo "RED  PermissionCodeDriftTest testcases=0 ⇒ 静默跳过"
+            exit 1
+          fi
+          if grep -qE '<failure|<error' "$report"; then
+            echo "RED  PermissionCodeDriftTest 出现 failure/error"
+            exit 1
+          fi
+          echo "ok   com.aicabinet.trade.auth.PermissionCodeDriftTest  testcases=$n"
+
+          echo "Docker-backed 测试守卫通过：$found 个 @Testcontainers 类真跑"
 
       # ⚠️ admin 产物校验**不在这里**：`.mvn/maven.config` 内含 `-Dskip.admin.build=true`
       # （2026-08-04 由 VS Code 自动提交 d389885c 引入），Maven 会自动加载该文件且命令行无关，

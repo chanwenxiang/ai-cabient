@@ -1,0 +1,63 @@
+PASS  基线（真仓库内容）  (rc=0, 期望绿)
+        [check-docker-tests-guarded] OK（@Testcontainers 类 7 个：*IT.java 2 / *Test.java 5；自动发现锚点在位：build job（surefire / *Test.java）、integration job（failsafe / *IT.java））
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EdgeCloudMqttIntegrationIT.java
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EmqxSharedSubscriptionIT.java
+          · [build] services/trade-service/src/test/java/com/aicabinet/trade/e2e/AdminE2ETest.java
+
+PASS  漂移① 新增@WithTestcontainers类但未登记（从清单移除一条）  (rc=1, 期望红)
+        [check-docker-tests-guarded] FAIL: 需要 Docker 的测试没有被守卫覆盖：
+          - services/trade-service/src/test/java/com/aicabinet/trade/integration/ReconciliationIntegrationTest.java：带 @Testcontainers 但未在 GUARDED 清单登记。
+              它会不会真跑？缺 Docker 时它会被静默跳过（0 条用例、mvn 仍绿）。
+              请确认它落到哪个 job（`*Test.java` ⇒ build/surefire），然后在 GUARDED 里补一条并写明依据
+
+PASS  漂移② 清单登记了源码里已不存在的类  (rc=1, 期望红)
+        [check-docker-tests-guarded] FAIL: 需要 Docker 的测试没有被守卫覆盖：
+          - services/trade-service/src/test/java/com/aicabinet/trade/e2e/GhostE2ETest.java：GUARDED 清单里有、源码里已找不到 —— 该条目已失效（改名/搬走/删除）。请同步清理
+
+PASS  漂移③ build 守卫删掉命令里的 -name '*Test.java'（自动发现被破坏）  (rc=1, 期望红)
+        [check-docker-tests-guarded] FAIL: 需要 Docker 的测试没有被守卫覆盖：
+          - build job（surefire / *Test.java） 的自动发现锚点已消失：
+            - -name '*Test.java'
+              build job 的守卫必须仍按源码扫 `*Test.java` 并读 surefire 报告；缺了它，新增的 @Testcontainers 类不会被任何守卫覆盖
+
+PASS  漂移④ integration 守卫删掉命令里的 -name '*IT.java'  (rc=1, 期望红)
+        [check-docker-tests-guarded] FAIL: 需要 Docker 的测试没有被守卫覆盖：
+          - integration job（failsafe / *IT.java） 的自动发现锚点已消失：
+            - -name '*IT.java'
+              integration job 的守卫必须仍按源码扫 `*IT.java` 并读 failsafe 报告；缺了它，新增的 @Testcontainers 类不会被任何守卫覆盖
+
+PASS  对照 不剥注释的实现跑漂移③（应假绿 ⇒ 证明剥注释必要）  (rc=0, 期望绿)
+        [check-docker-tests-guarded] OK（@Testcontainers 类 7 个：*IT.java 2 / *Test.java 5；自动发现锚点在位：build job（surefire / *Test.java）、integration job（failsafe / *IT.java））
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EdgeCloudMqttIntegrationIT.java
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EmqxSharedSubscriptionIT.java
+          · [build] services/trade-service/src/test/java/com/aicabinet/trade/e2e/AdminE2ETest.java
+
+PASS  对照 不剥注释的实现跑漂移④（应假绿）  (rc=0, 期望绿)
+        [check-docker-tests-guarded] OK（@Testcontainers 类 7 个：*IT.java 2 / *Test.java 5；自动发现锚点在位：build job（surefire / *Test.java）、integration job（failsafe / *IT.java））
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EdgeCloudMqttIntegrationIT.java
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EmqxSharedSubscriptionIT.java
+          · [build] services/trade-service/src/test/java/com/aicabinet/trade/e2e/AdminE2ETest.java
+
+PASS  反假红A 注释里塞满锚点关键词，命令未动  (rc=0, 期望绿)
+        [check-docker-tests-guarded] OK（@Testcontainers 类 7 个：*IT.java 2 / *Test.java 5；自动发现锚点在位：build job（surefire / *Test.java）、integration job（failsafe / *IT.java））
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EdgeCloudMqttIntegrationIT.java
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EmqxSharedSubscriptionIT.java
+          · [build] services/trade-service/src/test/java/com/aicabinet/trade/e2e/AdminE2ETest.java
+
+PASS  反假红B 清单 why 文字里塞锚点关键词  (rc=0, 期望绿)
+        [check-docker-tests-guarded] OK（@Testcontainers 类 7 个：*IT.java 2 / *Test.java 5；自动发现锚点在位：build job（surefire / *Test.java）、integration job（failsafe / *IT.java））
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EdgeCloudMqttIntegrationIT.java
+          · [integration] services/device-service/src/test/java/com/aicabinet/device/mqtt/EmqxSharedSubscriptionIT.java
+          · [build] services/trade-service/src/test/java/com/aicabinet/trade/e2e/AdminE2ETest.java
+
+========================================================================
+A/B 汇总：9 例，不符合期望 0 例
+  OK   绿  rc=0   基线（真仓库内容）
+  OK   红  rc=1   漂移① 新增@WithTestcontainers类但未登记（从清单移除一条）
+  OK   红  rc=1   漂移② 清单登记了源码里已不存在的类
+  OK   红  rc=1   漂移③ build 守卫删掉命令里的 -name '*Test.java'（自动发现被破坏）
+  OK   红  rc=1   漂移④ integration 守卫删掉命令里的 -name '*IT.java'
+  OK   绿  rc=0   对照 不剥注释的实现跑漂移③（应假绿 ⇒ 证明剥注释必要）
+  OK   绿  rc=0   对照 不剥注释的实现跑漂移④（应假绿）
+  OK   绿  rc=0   反假红A 注释里塞满锚点关键词，命令未动
+  OK   绿  rc=0   反假红B 清单 why 文字里塞锚点关键词
