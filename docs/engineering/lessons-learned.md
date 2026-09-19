@@ -99,6 +99,13 @@
 | 92 | 商户弹层 | 多页自建 mask/dialog 样式与 a11y 不一致 | 无统一底部面板组件 | 底部层用 `AppSheet`；确认用 `AppConfirmDialog`；禁再引入未接线弹层组件 | `components/AppSheet.vue` |
 | 93 | 库存盘点契约 | 调用方不传 version 即 400 | 已有行强制 `expectedVersion` 未写入 changelog | **`@Schema` 注解**（springdoc 不读 Javadoc）+ Javadoc 标明必填；禁无 version 便捷构造器；**禁止手改** `generated/openapi.ts` | `StocktakeAdjustRequest` |
 | 94 | Prefs 队列 | 进程被杀可能丢刚入队数据 | `SharedPreferences.apply()` 异步落盘 | 关键出站队列用 `commit()` 同步写 | `PrefsJsonQueue.kt` |
+| 95 | MQ 消费 | 消费失败吞异常后正常返回，offset/PUBACK 照常提交，消息永久丢失 | 容器/客户端对「正常返回」自动确认；DLT 发布也是异步、其自身失败同样被吞 | 失败必须重抛（Kafka）或不 ACK（MQTT manualAcks）；入 DLT 用同步 send().get 确认；重投设上限防风暴 | `MqttEventListener`、`VisionRecognitionListener`、`kafka_worker.py`、`NotificationDispatchListener` |
+| 96 | 资金事务 | prepare 短事务先提交库存/行改，渠道调用后置且失败无补偿，渠道失败本地已不可回滚 | 渠道 HTTP 无法参与本地事务，先落库后调渠道 = 有去无回 | 渠道调用前置（先算后付）或「落 CHARGE_PENDING 痕迹→渠道→终态」两段式；渠道幂等键必须稳定 | `SettlementPartialRefundService`、`SettlementConfirmDisputeService`、`OrderPaymentService` |
+| 97 | 幂等键 | 幂等键含可变字段（reason）或随机尾缀，重试换键 → 幂等失效可双扣双退 | 把请求上下文里的可变要素编进了键；或每次调用生成新键 | 幂等键只由不变业务要素构成（单号+金额+类型）；渠道侧同步传稳定 outRefundNo/Idempotency-Key | `OrderPaymentService`、`BalanceRefundService`、`AgreementChargeClient` |
+| 98 | 白名单语义 | OTA 白名单是「必含」不是「排他」，gray=100 时名单外设备照收 | 把 allowlist 当 excluson 写了短路判断，语义先于代码定义 | 配置名单前先写明「必含/排他」语义并加测试；灰度与名单组合要有明确真值表 | `OtaCdnService` |
+| 99 | Windows Git Bash | docker run/compose 的 -e/-v POSIX 路径被 MSYS 静默改写成 C:\Users\...\Temp，容器内路径全错 | Git Bash 对含 / 开头参数做自动路径转换 | 传容器路径的 docker 命令一律前缀 `MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'`；改完用 docker inspect 核对 Mounts/Env | `infra/docker/github-runner.Dockerfile`、devops 栈启动命令 |
+| 100 | GHA runner | actions/checkout@v5 在 self-hosted runner 上 14 秒即崩 node24 not supported | actions 运行时版本要求 runner ≥ 2.327，而镜像 pinned 2.321 | 升级 action 前核对 runner 版本兼容表；self-hosted 镜像 FROM 版本随 action 升级同步动 | `.github/workflows/sonar.yml`、`github-runner.Dockerfile` |
+| 101 | Sonar 25.x 凭据 | 旧 bcrypt 密码重置法失效、旧 token 401、admin 走 Basic 认证也 401 | 25.x 本地账号改 PBKDF2（SHA-512/100k/512bit，crypted=iterations$b64）；token 存 SHA-384；admin 禁 Basic 仅表单可用 | 凭据操作先读 `TokenGeneratorImpl`/`CredentialsLocalAuthentication` 源码定格式；DB 注入 token=sha384(明文) 写 user_tokens | `infra/sonarqube/`、`scripts/ci/setup-sonar-quality-gate.sh` |
 
 ## 追加模板
 

@@ -33,7 +33,7 @@ services:
       sonarqube-db:
         condition: service_healthy
     ports:
-      - "${SONAR_PORT:-19002}:9000"
+      - "127.0.0.1:${SONAR_PORT:-19002}:9000"
     environment:
       SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/${SONAR_DB_NAME:-sonar}
       SONAR_JDBC_USERNAME: ${SONAR_DB_USER:-sonar}

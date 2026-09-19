@@ -234,7 +234,7 @@ services:
     depends_on:
       xxl-job-mysql: { condition: service_healthy }
     ports:
-      - "${XXL_JOB_ADMIN_PORT:-18090}:8080"
+      - "127.0.0.1:${XXL_JOB_ADMIN_PORT:-18090}:8080"
     restart: unless-stopped
 
   device-service:
@@ -288,7 +288,7 @@ services:
       # 顶摄测试图/视频上传 MinIO，供 vision-service mock 联调
       AICABINET_SIM_VIDEO_FILE: "${AICABINET_SIM_VIDEO_FILE:-/testdata/bottle.jpg}"
     ports:
-      - "${AICABINET_SIM_HTTP_PORT:-18089}:18089"
+      - "127.0.0.1:${AICABINET_SIM_HTTP_PORT:-18089}:18089"
     volumes:
       - ../testdata:/testdata:ro
     depends_on:

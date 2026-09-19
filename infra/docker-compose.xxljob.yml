@@ -31,7 +31,7 @@ services:
       xxl-job-mysql:
         condition: service_healthy
     ports:
-      - "${XXL_JOB_ADMIN_PORT:-18090}:8080"
+      - "127.0.0.1:${XXL_JOB_ADMIN_PORT:-18090}:8080"
     profiles: ["apps", "xxljob"]
 
 volumes:
