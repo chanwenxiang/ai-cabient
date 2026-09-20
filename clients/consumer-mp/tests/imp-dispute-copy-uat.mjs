@@ -30,6 +30,12 @@
  * ④ `TC-IMP-032` 的 `!/暂未扣款/` 原本打在**整页文本**上，而抽屉背后的工单列表里
  *    「待审核」那条的合法文案正是"本次暂未扣款" ⇒ 恒为假（merchant 侧的同款缺陷已修，
  *    这份是没跟上的旧副本）。改为只看 `.app-sheet` 内部，并绑定被点工单号。
+ * ⑤ 2026-09-20 第三轮：**接入 CI**（ci.yml 的「Imp dispute copy UAT」步骤），并由
+ *    `scripts/check-uat-consumers.mjs` 门禁守住「每个 `*-uat.mjs` 都必须有执行消费者」。
+ *    它当初之所以能烂半年，根因就是**没有任何东西执行它** ⇒ 从判据上堵死该形态。
+ *    同时把 `main().catch` 的退出码由 2 改为 **3**：CI 只把 exit 2（环境未就绪：登录未落
+ *    token / 接口不可用）降级为 warning，exit 3（**脚本自身崩溃**）必须让 job 变红 ——
+ *    否则「按 2 降级」会把脚本 bug 一起吞成假绿。
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import { chromium } from 'playwright';
@@ -358,5 +364,8 @@ async function main() {
 
 main().catch((e) => {
   console.error(e);
-  process.exit(2);
+  // exit 3 = **脚本自身崩溃**（未预期异常：选择器 typo、页面结构变更、空引用…），
+  // 与 exit 2 = **环境未就绪**（消费者登录未落 token / /api/v2/disputes/mine 不可用）区分开。
+  // 🔴 CI 只降级 exit 2；exit 3 必须让 job 变红 —— 否则降级会把脚本 bug 吞成假绿。
+  process.exit(3);
 });
