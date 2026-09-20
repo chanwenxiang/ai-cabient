@@ -353,6 +353,85 @@ class PaymentServiceTest {
         verify(rechargeOrderRepository, never()).save(any());
     }
 
+    // ---- F5 储值营销：充值赠送（recharge.bonus.percent，0=关闭） ----
+
+    @Test
+    void rechargeBonusCents_nonPositiveInputs_areDisabled() {
+        assertEquals(0, PaymentService.rechargeBonusCents(10_000, 0));
+        assertEquals(0, PaymentService.rechargeBonusCents(10_000, -5));
+        assertEquals(0, PaymentService.rechargeBonusCents(0, 10));
+        assertEquals(0, PaymentService.rechargeBonusCents(-1, 10));
+    }
+
+    @Test
+    void rechargeBonusCents_floorsToWholeCents() {
+        assertEquals(1_000, PaymentService.rechargeBonusCents(10_000, 10)); // 充 100 送 10
+        assertEquals(99, PaymentService.rechargeBonusCents(999, 10));       // 99.9 -> 99
+        assertEquals(33, PaymentService.rechargeBonusCents(100, 33));       // 33.0
+        assertEquals(0, PaymentService.rechargeBonusCents(9, 10));          // 0.9 -> 0
+    }
+
+    @Test
+    void confirmRechargeMock_whenBonusEnabled_grantsBonusLedger() {
+        RechargeOrder order = pendingOrder("R-BONUS", 10001L);
+        order.setAmountCents(10_000);
+        when(rechargeOrderRepository.findByIdForUpdate("R-BONUS")).thenReturn(Optional.of(order));
+        when(systemConfigService.getInt(SystemConfigService.RECHARGE_BONUS_PERCENT, 0)).thenReturn(10);
+        PaymentOperation credit = new PaymentOperation();
+        credit.setOperationId("BL-CREDIT");
+        when(balanceLedgerService.change(10001L, 10_000, "RECHARGE", "R-BONUS",
+                "recharge-credit:R-BONUS", "充值到账（灰度环境测试余额）")).thenReturn(credit);
+        PaymentOperation bonus = new PaymentOperation();
+        bonus.setOperationId("BL-BONUS");
+        when(balanceLedgerService.change(10001L, 1_000, "RECHARGE_BONUS", "R-BONUS",
+                "recharge-bonus:R-BONUS", "充值赠送")).thenReturn(bonus);
+
+        var dto = paymentService.confirmRechargeMock(10001L, "R-BONUS");
+
+        assertEquals("PAID", dto.status());
+        verify(balanceLedgerService).change(10001L, 1_000, "RECHARGE_BONUS", "R-BONUS",
+                "recharge-bonus:R-BONUS", "充值赠送");
+    }
+
+    @Test
+    void confirmRechargeMock_whenBonusDisabled_doesNotGrantBonus() {
+        RechargeOrder order = pendingOrder("R-NOBONUS", 10001L);
+        order.setAmountCents(10_000);
+        when(rechargeOrderRepository.findByIdForUpdate("R-NOBONUS")).thenReturn(Optional.of(order));
+        when(systemConfigService.getInt(SystemConfigService.RECHARGE_BONUS_PERCENT, 0)).thenReturn(0);
+        PaymentOperation credit = new PaymentOperation();
+        credit.setOperationId("BL-CREDIT");
+        when(balanceLedgerService.change(10001L, 10_000, "RECHARGE", "R-NOBONUS",
+                "recharge-credit:R-NOBONUS", "充值到账（灰度环境测试余额）")).thenReturn(credit);
+
+        var dto = paymentService.confirmRechargeMock(10001L, "R-NOBONUS");
+
+        assertEquals("PAID", dto.status());
+        // 关闭态：只有主充值一条流水，行为与接入前逐字节一致。
+        verify(balanceLedgerService, times(1))
+                .change(anyLong(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(balanceLedgerService, never())
+                .change(anyLong(), anyInt(), eq("RECHARGE_BONUS"), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void confirmRechargeMock_whenBonusRoundsToZero_skipsLedgerCall() {
+        RechargeOrder order = pendingOrder("R-ROUND", 10001L);
+        order.setAmountCents(9); // 9 分 × 10% = 0.9 -> 0；不得落 0 元流水（change(0) 会 400）
+        when(rechargeOrderRepository.findByIdForUpdate("R-ROUND")).thenReturn(Optional.of(order));
+        when(systemConfigService.getInt(SystemConfigService.RECHARGE_BONUS_PERCENT, 0)).thenReturn(10);
+        PaymentOperation credit = new PaymentOperation();
+        credit.setOperationId("BL-CREDIT");
+        when(balanceLedgerService.change(10001L, 9, "RECHARGE", "R-ROUND",
+                "recharge-credit:R-ROUND", "充值到账（灰度环境测试余额）")).thenReturn(credit);
+
+        var dto = paymentService.confirmRechargeMock(10001L, "R-ROUND");
+
+        assertEquals("PAID", dto.status());
+        verify(balanceLedgerService, never())
+                .change(anyLong(), anyInt(), eq("RECHARGE_BONUS"), anyString(), anyString(), anyString());
+    }
+
     private static RechargeOrder pendingOrder(String id, Long userId) {
         RechargeOrder order = new RechargeOrder();
         order.setOrderId(id);

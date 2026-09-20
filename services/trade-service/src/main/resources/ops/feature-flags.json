@@ -368,6 +368,14 @@
       "unit": "分"
     },
     {
+      "key": "recharge.bonus.percent",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "充值赠送比例（百分比，充 100 送 10 即填 10），0=关闭（不赠送）；赠送额按分向下取整",
+      "unit": "%"
+    },
+    {
       "key": "recharge.pending.auto_cancel_minutes",
       "group": "交易与资金",
       "type": "NUMBER",

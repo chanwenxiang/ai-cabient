@@ -1065,6 +1065,7 @@ public class PaymentService {
             var operation = balanceLedgerService.change(order.getUserId(), order.getAmountCents(),
                     "RECHARGE", order.getOrderId(), "recharge-credit:" + order.getOrderId(),
                     "充值到账（灰度环境测试余额）");
+            applyRechargeBonus(order);
             order.setStatus("PAID");
             order.setPaidAt(Instant.now());
             order.setPaymentOperationId(operation.getOperationId());
@@ -1082,6 +1083,36 @@ public class PaymentService {
             }
             log.info("recharge credited user={} amount={} channel={}",
                     order.getUserId(), order.getAmountCents(), order.getChannel());
+    }
+
+    /**
+     * F5 储值营销：充值赠送。按 {@code recharge.bonus.percent} 计算赠送额，并落一条
+     * {@code RECHARGE_BONUS} 账本流水（幂等键 recharge-bonus:{orderId}）。
+     *
+     * <p>关闭（比例 0）或赠送额按分向下取整为 0 时不落任何流水，行为与接入前逐字节一致。
+     *
+     * <p>赠送放在主充值入账之后、订单置 PAID 之前：万一赠送失败会连带本方法抛出，
+     * 订单保持 PENDING，回调重试时主充值凭幂等键不重复入账、赠送亦凭幂等键补记，
+     * 不会出现「订单已 PAID 却没赠送」或「赠送重复」。
+     */
+    private void applyRechargeBonus(RechargeOrder order) {
+        int percent = systemConfigService.getInt(SystemConfigService.RECHARGE_BONUS_PERCENT, 0);
+        int bonusCents = rechargeBonusCents(order.getAmountCents(), percent);
+        if (bonusCents <= 0) {
+            return;
+        }
+        balanceLedgerService.change(order.getUserId(), bonusCents, "RECHARGE_BONUS",
+                order.getOrderId(), "recharge-bonus:" + order.getOrderId(), "充值赠送");
+        log.info("recharge bonus granted user={} amount={} bonus={} percent={}",
+                order.getUserId(), order.getAmountCents(), bonusCents, percent);
+    }
+
+    /** 充值赠送额（分）= 金额 × 比例 / 100 向下取整；金额/比例非正一律 0（即关闭）。 */
+    static int rechargeBonusCents(int amountCents, int percent) {
+        if (amountCents <= 0 || percent <= 0) {
+            return 0;
+        }
+        return (int) ((long) amountCents * percent / 100);
     }
 
     static String rechargeLockKey(String orderId) {

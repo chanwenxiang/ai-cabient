@@ -40,6 +40,14 @@ public class SystemConfigService {
     public static final String REFUND_SELF_MAX_DAILY = "refund.self.max_daily";
     /** 单次充值上限（分）；默认 ¥5000；0=不限制。 */
     public static final String RECHARGE_MAX_CENTS = "recharge.max_cents";
+    /**
+     * 充值赠送比例（百分比，充 100 送 10 即填 10）；默认 0 = 关闭（不赠送）。
+     *
+     * <p>大于 0 时，充值到账按 {@code 金额 × 比例 / 100} 向下取整赠送等额余额，
+     * 落一条 {@code RECHARGE_BONUS} 流水（幂等键 {@code recharge-bonus:&lt;orderId&gt;}，
+     * 故与主充值一样可安全重试，不会重复赠送）。
+     */
+    public static final String RECHARGE_BONUS_PERCENT = "recharge.bonus.percent";
     /** 单次余额退款申请上限（分）；默认 ¥5000；0=不限制。 */
     public static final String BALANCE_REFUND_MAX_CENTS = "balance.refund.max_cents";
     /**
@@ -447,6 +455,8 @@ public class SystemConfigService {
         upsertIfAbsent(UNPAID_AUTO_BLACKLIST, FALSE, "待支付超时关单时是否自动拉黑用户");
         upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");
         upsertIfAbsent(RECHARGE_MAX_CENTS, "500000", "单次充值上限（分），默认 ¥5000，0=不限制");
+        upsertIfAbsent(RECHARGE_BONUS_PERCENT, "0",
+                "充值赠送比例（百分比，充 100 送 10 即填 10），0=关闭（不赠送）；赠送额按分向下取整");
         upsertIfAbsent(BALANCE_REFUND_MAX_CENTS, "500000", "单次余额退款申请上限（分），默认 ¥5000，0=不限制");
         upsertIfAbsent(REFUND_AUTO_APPROVE_MAX_CENTS, "0",
                 "余额退款自动审批上限（分），0=关闭（全部人工审核）；≤该上限的申请提交后由系统账号立即审批并原路退款，不进入审批流");
