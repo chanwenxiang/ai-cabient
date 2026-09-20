@@ -310,6 +310,16 @@
               <text class="product-name">{{ p.skuName }}</text>
               <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
               <text v-if="p.category" class="product-cat">{{ p.category }}</text>
+              <text
+                v-if="detailVisible"
+                role="button"
+                class="product-detail-btn"
+                :aria-label="`查看 ${p.skuName} 详情`"
+                :data-testid="`product-detail-${p.skuId}`"
+                :data-sku-id="p.skuId"
+                @click.stop="onProductDetailTap"
+                >详情</text
+              >
               <view
                 v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
                 role="button"
@@ -469,6 +479,55 @@
       @done="onPrepDone"
       @cancel="onPrepCancel"
     />
+
+    <!-- 扩展功能：本柜商品详情弹层（consumer.product_detail.enabled，关时不渲染入口） -->
+    <view
+      v-if="detailProduct"
+      role="button"
+      aria-label="关闭商品详情"
+      class="landing-mask"
+      data-testid="product-detail-mask"
+      @click="closeProductDetail"
+    >
+      <view
+        role="button"
+        class="landing-sheet"
+        data-testid="product-detail-sheet"
+        @click.stop="noop"
+      >
+        <text class="landing-sheet-title">{{ detailProduct.skuName }}</text>
+        <view class="detail-hero">
+          <image
+            v-if="showThumb(detailProduct)"
+            class="detail-img"
+            :src="productThumb(detailProduct)"
+            mode="aspectFill"
+          />
+          <text v-else class="detail-mark">{{ productGlyph(detailProduct) }}</text>
+        </view>
+        <view class="detail-rows">
+          <view class="detail-row">
+            <text class="detail-k">价格</text>
+            <text class="detail-v">{{ fmtMoney(detailProduct.priceCents) }}</text>
+          </view>
+          <view v-if="detailProduct.category" class="detail-row">
+            <text class="detail-k">分类</text>
+            <text class="detail-v">{{ detailProduct.category }}</text>
+          </view>
+          <view class="detail-row">
+            <text class="detail-k">在柜</text>
+            <text class="detail-v">{{ stockOf(detailProduct) }} 件</text>
+          </view>
+        </view>
+        <text v-if="detailProduct.description" class="detail-desc">{{
+          detailProduct.description
+        }}</text>
+        <view class="landing-sheet-actions">
+          <text role="button" class="landing-sheet-btn" @click="closeProductDetail">关闭</text>
+        </view>
+      </view>
+    </view>
+
     <PrivacyConsentModal
       :visible="showPrivacy"
       policy-url="/pages/policy/detail?type=privacy"
@@ -510,7 +569,7 @@ import { parseQuery } from '@aicabinet/shared-uni/query';
 import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { resolveMockEnabled } from '@/utils/runtime-flags';
-import { couponEntryEnabled, seedConsumerFlags } from '@/utils/feature-flags';
+import { couponEntryEnabled, productDetailEnabled, seedConsumerFlags } from '@/utils/feature-flags';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
@@ -624,6 +683,10 @@ const servicePhone = ref('400-888-0018');
  * fail-closed：默认 false ⇒ 首页不渲染入口，与接入前完全一致。
  */
 const couponEntryVisible = ref(false);
+/** 扩展功能：商品详情入口/弹层（`consumer.product_detail.enabled`，默认关 ⇒ 入口不渲染）。 */
+const detailVisible = ref(false);
+/** 当前打开详情的商品（null = 弹层关闭）。 */
+const detailProduct = ref<DeviceProduct | null>(null);
 const openingSeconds = ref(90);
 const brokenThumbs = ref<Record<string, boolean>>({});
 const lastDeviceId = ref('');
@@ -1408,6 +1471,7 @@ async function loadConsumerConfig() {
     if (phone) servicePhone.value = phone;
     mockEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
     couponEntryVisible.value = couponEntryEnabled();
+    detailVisible.value = productDetailEnabled();
   } catch {
     /* 使用默认客服电话 */
   }
@@ -1777,6 +1841,17 @@ function onProductCellTap(e: unknown) {
   const skuId = datasetOf(e, 'skuId');
   const p = productBySkuId(skuId);
   if (p) addProduct(p);
+}
+
+/** 扩展功能：打开商品详情弹层（`consumer.product_detail.enabled`）。入口不存在时不会触发。 */
+function onProductDetailTap(e: unknown) {
+  const skuId = datasetOf(e, 'skuId');
+  const p = productBySkuId(skuId);
+  if (p) detailProduct.value = p;
+}
+
+function closeProductDetail() {
+  detailProduct.value = null;
 }
 
 function onAddProductTap(e: unknown) {
@@ -2842,6 +2917,51 @@ function stopDevicePoll() {
   color: var(--text-subtle);
   margin-top: 2rpx;
   line-height: 1.2;
+}
+/* 扩展功能：商品详情入口与弹层（consumer.product_detail.enabled，关时入口不渲染） */
+.product-detail-btn {
+  margin-top: 4rpx;
+  padding: 2rpx 14rpx;
+  border-radius: 999rpx;
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
+  font-size: 20rpx;
+  line-height: 1.6;
+}
+.detail-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 320rpx;
+  margin: 16rpx 0;
+  border-radius: var(--radius-card, 12rpx);
+  background: var(--page-bg, #f6f7f9);
+  overflow: hidden;
+}
+.detail-img {
+  width: 100%;
+  height: 100%;
+}
+.detail-mark {
+  font-size: 96rpx;
+  color: var(--text-muted, #94a3b8);
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8rpx 0;
+}
+.detail-k {
+  color: var(--text-secondary, #6b7280);
+}
+.detail-v {
+  color: var(--text-primary, #111827);
+}
+.detail-desc {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--text-muted, #334155);
+  line-height: 1.6;
 }
 .product-stepper {
   display: flex;

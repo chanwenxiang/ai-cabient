@@ -908,6 +908,8 @@ export interface DeviceProduct {
   quantity?: number;
   category?: string;
   imageUrl?: string;
+  /** 商品描述。后端 `DeviceProductDto` 早已下发该字段，此前手写类型漏了它 ⇒ 消费端拿不到、也无法展示。 */
+  description?: string;
 }
 
 export interface FileDisputeRequest {

@@ -42,6 +42,13 @@
       "description": "商户端：经营分析趋势/构成图（默认关闭；关闭时维持纯数字与列表）"
     },
     {
+      "key": "consumer.product_detail.enabled",
+      "group": "扩展功能",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "消费端：本柜商品详情弹层（默认关闭；关闭时仅展示商品卡片摘要）"
+    },
+    {
       "key": "balance.refund.max_cents",
       "group": "交易与资金",
       "type": "NUMBER",

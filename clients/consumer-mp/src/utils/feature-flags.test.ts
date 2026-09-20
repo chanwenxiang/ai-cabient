@@ -31,13 +31,19 @@ describe('扩展功能开关读取器', () => {
     const m = await fresh();
     expect(m.orderSearchEnabled()).toBe(false);
     expect(m.couponEntryEnabled()).toBe(false);
+    expect(m.productDetailEnabled()).toBe(false);
   });
 
   it('seed 后按值判定：true / "true" / "1" 为开，其余（含 "false" / 空串 / 任意串）为关', async () => {
     const on = await fresh();
-    on.seedConsumerFlags({ couponEntryEnabled: 'true', orderSearchEnabled: '1' });
+    on.seedConsumerFlags({
+      couponEntryEnabled: 'true',
+      orderSearchEnabled: '1',
+      productDetailEnabled: 'true'
+    });
     expect(on.couponEntryEnabled()).toBe(true);
     expect(on.orderSearchEnabled()).toBe(true);
+    expect(on.productDetailEnabled()).toBe(true);
 
     // 越界输入（JSON 布尔）也应判为开：`enabled()` 收 unknown，容忍直接下发布尔值。
     // 契约上服务端是 String.valueOf(...) ⇒ 恒字符串；这里**刻意越过类型边界**验证容错，
@@ -48,17 +54,19 @@ describe('扩展功能开关读取器', () => {
 
     for (const raw of ['false', '', 'yes', 'TRUE', '0']) {
       const m = await fresh();
-      m.seedConsumerFlags({ couponEntryEnabled: raw });
+      m.seedConsumerFlags({ couponEntryEnabled: raw, productDetailEnabled: raw });
       expect(m.couponEntryEnabled(), `raw=${JSON.stringify(raw)} 必须判为关`).toBe(false);
+      expect(m.productDetailEnabled(), `raw=${JSON.stringify(raw)} 必须判为关`).toBe(false);
     }
   });
 
   it('🔴 seed(null/undefined)（网络失败）不得覆盖已有缓存 —— 一次失败不能把开关永久钉死在关', async () => {
     const m = await fresh();
-    m.seedConsumerFlags({ couponEntryEnabled: 'true' });
+    m.seedConsumerFlags({ couponEntryEnabled: 'true', productDetailEnabled: 'true' });
     m.seedConsumerFlags(null);
     m.seedConsumerFlags(undefined);
     expect(m.couponEntryEnabled()).toBe(true);
+    expect(m.productDetailEnabled()).toBe(true);
   });
 
   it('loadConsumerFlags 请求失败 ⇒ 缓存空表、开关全关（fail-closed，且不抛穿）', async () => {
@@ -67,17 +75,20 @@ describe('扩展功能开关读取器', () => {
     await expect(m.loadConsumerFlags()).resolves.toEqual({});
     expect(m.couponEntryEnabled()).toBe(false);
     expect(m.orderSearchEnabled()).toBe(false);
+    expect(m.productDetailEnabled()).toBe(false);
   });
 
   it('loadConsumerFlags 成功 ⇒ 下发键进缓存，开关随值打开', async () => {
     consumerPublicConfig.mockResolvedValue({
       orderSearchEnabled: 'true',
-      couponEntryEnabled: '1'
+      couponEntryEnabled: '1',
+      productDetailEnabled: '1'
     });
     const m = await fresh();
     await m.loadConsumerFlags();
     expect(m.orderSearchEnabled()).toBe(true);
     expect(m.couponEntryEnabled()).toBe(true);
+    expect(m.productDetailEnabled()).toBe(true);
   });
 
   it('loadConsumerFlags 并发去重：同时调用只发一次请求，且都拿到同一份配置', async () => {

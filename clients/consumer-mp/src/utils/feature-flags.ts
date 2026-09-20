@@ -70,3 +70,13 @@ export function orderSearchEnabled(): boolean {
 export function couponEntryEnabled(): boolean {
   return enabled(cache?.couponEntryEnabled);
 }
+
+/**
+ * 本柜商品详情弹层（`consumer.product_detail.enabled`）。
+ *
+ * **开**：商品卡片出现「详情」入口，点开弹层显示大图/分类/在柜数量/描述；
+ * **关**（默认）：商品卡片维持原样（缩略图、名称、价格、分类），即接入前行为。
+ */
+export function productDetailEnabled(): boolean {
+  return enabled(cache?.productDetailEnabled);
+}

@@ -185,6 +185,8 @@ public class SystemConfigService {
     public static final String CONSUMER_COUPON_ENTRY_ENABLED = "consumer.coupon_entry.enabled";
     /** 商户端：经营分析图表（趋势/构成图；关闭时维持纯数字与列表）。 */
     public static final String MERCHANT_CHARTS_ENABLED = "merchant.charts.enabled";
+    /** 消费端：本柜商品详情（商品卡片可点开详情弹层；关闭时仅展示卡片摘要，与接入前一致）。 */
+    public static final String CONSUMER_PRODUCT_DETAIL_ENABLED = "consumer.product_detail.enabled";
 
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
@@ -316,6 +318,8 @@ public class SystemConfigService {
                 String.valueOf(self.getBoolean(CONSUMER_ORDER_SEARCH_ENABLED, false)));
         map.put("couponEntryEnabled",
                 String.valueOf(self.getBoolean(CONSUMER_COUPON_ENTRY_ENABLED, false)));
+        map.put("productDetailEnabled",
+                String.valueOf(self.getBoolean(CONSUMER_PRODUCT_DETAIL_ENABLED, false)));
         return map;
     }
 
@@ -494,6 +498,8 @@ public class SystemConfigService {
                 "消费端：券包入口前置到首页（默认关闭；关闭时仅「我的」页有入口）");
         upsertIfAbsent(MERCHANT_CHARTS_ENABLED, "false",
                 "商户端：经营分析趋势/构成图（默认关闭；关闭时维持纯数字与列表）");
+        upsertIfAbsent(CONSUMER_PRODUCT_DETAIL_ENABLED, "false",
+                "消费端：本柜商品详情弹层（默认关闭；关闭时仅展示商品卡片摘要）");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
         upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");
