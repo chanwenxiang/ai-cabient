@@ -203,6 +203,55 @@
       background
     />
 
+    <!-- F1 策略版本：某配置键的变更历史（旧值/新值/操作人），可回滚到任一历史版本 -->
+    <el-drawer v-model="historyVisible" :title="`变更历史 · ${historyKey}`" size="680px">
+      <el-table v-loading="historyLoading" :data="historyRows" border size="small">
+        <el-table-column label="变更时间" width="150" class-name="col-text">
+          <template #default="{ row }">
+            <span>{{ formatDateTime(row.createdAt) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作人" width="100" class-name="col-text">
+          <template #default="{ row }">
+            <span>{{ row.operatorName }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="变更前" class-name="col-text">
+          <template #default="{ row }">
+            <span>{{ historyValueText(row.oldValue) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="变更后" class-name="col-text">
+          <template #default="{ row }">
+            <span>{{ historyValueText(row.newValue, true) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          label="操作"
+          width="90"
+          align="center"
+          class-name="col-action"
+          fixed="right"
+        >
+          <template #default="{ row }">
+            <el-button
+              v-hasPermi="['ops:config:edit']"
+              link
+              type="primary"
+              :disabled="row.oldValue === null"
+              :loading="rollingBackId === row.historyId"
+              @click="onRollback(row)"
+              >回滚</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty
+        v-if="!historyLoading && !historyRows.length"
+        description="暂无变更记录；需先开启「系统配置变更审计」并发生过改动"
+      />
+    </el-drawer>
+
     <el-dialog v-model="dialogVisible" :title="creating ? '新增参数' : '编辑参数'" destroy-on-close>
       <el-form label-width="auto">
         <el-form-item label="配置键" required>
@@ -248,7 +297,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
+import { Clock, Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { UploadRequestOptions } from 'element-plus';
 import { api, authFetch } from '@/api/client';
@@ -390,16 +439,94 @@ function rowActions(_row: SystemConfigRow): TableAction[] {
   if (auth.hasPerm('ops:config:delete')) {
     acts.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger' });
   }
+  // F1 策略版本：能看配置就能看它的变更历史（后端同权限 ops:config:list）
+  if (auth.hasPerm('ops:config:list')) {
+    acts.push({ key: 'history', label: '历史', icon: Clock, type: 'info' });
+  }
   return acts;
 }
 
 const showActionColumn = computed(
-  () => auth.hasPerm('ops:config:edit') || auth.hasPerm('ops:config:delete')
+  () =>
+    auth.hasPerm('ops:config:edit') ||
+    auth.hasPerm('ops:config:delete') ||
+    auth.hasPerm('ops:config:list')
 );
 
 async function onRowAction(key: string, row: SystemConfigRow) {
   if (key === 'edit') openEdit(row);
   else if (key === 'delete') await onDelete(row);
+  else if (key === 'history') await openHistory(row);
+}
+
+/** F1 策略版本：变更历史抽屉。 */
+interface SystemConfigHistoryRow {
+  historyId: number;
+  configKey: string;
+  oldValue: string | null;
+  newValue: string | null;
+  operatorId: number;
+  operatorName: string;
+  createdAt: string;
+}
+
+const historyVisible = ref(false);
+const historyLoading = ref(false);
+const historyKey = ref('');
+const historyRows = ref<SystemConfigHistoryRow[]>([]);
+const rollingBackId = ref<number | null>(null);
+
+async function openHistory(row: SystemConfigRow) {
+  historyKey.value = row.configKey;
+  historyVisible.value = true;
+  historyLoading.value = true;
+  historyRows.value = [];
+  try {
+    historyRows.value = await api.request<SystemConfigHistoryRow[]>(
+      AdminEndpoints.systemConfigHistory(row.configKey),
+      'GET'
+    );
+  } catch (e: unknown) {
+    ElMessage.error(errorMessage(e, '加载变更历史失败'));
+  } finally {
+    historyLoading.value = false;
+  }
+}
+
+function historyValueText(v: string | null, del = false) {
+  if (v === null) return del ? '（已删除）' : '（未配置）';
+  return v === '' ? '（空值）' : v;
+}
+
+/**
+ * 回滚到某版本的**变更前值**（撤销那一次变更）。
+ * 该版本若是配置首次创建（oldValue 为 null），后端会拒绝——按钮已禁用，这里再兜一层。
+ */
+async function onRollback(row: SystemConfigHistoryRow) {
+  if (row.oldValue === null) return;
+  try {
+    await ElMessageBox.confirm(
+      `确认把「${historyKey.value}」回滚到该次变更之前的值：${historyValueText(row.oldValue)}？`,
+      '回滚配置',
+      { type: 'warning' }
+    );
+  } catch (e: unknown) {
+    if (isUserDismiss(e)) return;
+    throw e;
+  }
+  rollingBackId.value = row.historyId;
+  try {
+    await api.request(AdminEndpoints.systemConfigRollback(historyKey.value), 'POST', {
+      historyId: row.historyId
+    });
+    ElMessage.success('已回滚');
+    await load();
+    await openHistory({ configKey: historyKey.value } as SystemConfigRow);
+  } catch (e: unknown) {
+    ElMessage.error(errorMessage(e, '回滚失败'));
+  } finally {
+    rollingBackId.value = null;
+  }
 }
 
 async function onDelete(row: SystemConfigRow) {

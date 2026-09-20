@@ -11,6 +11,8 @@ import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.config.WeChatWebProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.SystemConfig;
+import com.aicabinet.trade.domain.SystemConfigHistory;
+import com.aicabinet.trade.mapper.SystemConfigHistoryMapper;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
@@ -249,7 +251,37 @@ public class SystemConfigService {
     /** 消费端：本柜商品详情（商品卡片可点开详情弹层；关闭时仅展示卡片摘要，与接入前一致）。 */
     public static final String CONSUMER_PRODUCT_DETAIL_ENABLED = "consumer.product_detail.enabled";
 
+    // ── F1 动态定价 · 策略版本与审计 ─────────────────────────────────────────
+    /**
+     * 系统配置变更审计开关；默认 false = 关闭 ⇒ 写路径**零留痕**，行为与接入前
+     * 逐字节一致（fail-closed）。
+     *
+     * <p>开启后，每次配置写操作（upsert / delete）留**两份**记录：
+     * <ol>
+     *   <li>{@code system_config_history} —— 结构化版本（old_value / new_value / operator / 时间），
+     *       某键的全部历史行按时间倒序即版本序列，可回滚到任一条的 oldValue；</li>
+     *   <li>{@code admin_audit_log}（{@code action=CONFIG_UPSERT|CONFIG_DELETE}）—— 统一审计视图。</li>
+     * </ol>
+     *
+     * <p>刻意<b>只读侧不受开关影响</b>：关掉开关只是「不再新增版本」，不该让已记录的历史不可见
+     * ——否则运营为了查历史就得先开写权限。seed 初始化（{@code upsertIfAbsent}）不经
+     * {@code doUpsert}，天然不产生历史（初始化不是「变更」）。
+     */
+    public static final String OPS_CONFIG_AUDIT_ENABLED = "ops.config.audit.enabled";
+
+    /** 配置审计的 {@code admin_audit_log.target_type} 取值（运营台审计页据此过滤）。 */
+    public static final String CONFIG_AUDIT_TARGET_TYPE = "system_config";
+    public static final String CONFIG_ACTION_UPSERT = "CONFIG_UPSERT";
+    public static final String CONFIG_ACTION_DELETE = "CONFIG_DELETE";
+    /**
+     * 无鉴权上下文（定时任务 / 内部调用）的操作人。
+     * 与 V221 预置的「系统」账号一致，也是 {@code BalanceRefundService.AUTO_REVIEWER_ID} 的取值。
+     */
+    public static final long SYSTEM_OPERATOR_ID = 0L;
+
     private final SystemConfigMapper repository;
+    private final SystemConfigHistoryMapper historyRepository;
+    private final AdminAuditService auditService;
     private final SecurityProperties securityProperties;
     private final AlipayProperties alipayProperties;
     private final WeChatPayProperties weChatPayProperties;
@@ -261,6 +293,8 @@ public class SystemConfigService {
     private final SystemConfigService self;
 
     public SystemConfigService(SystemConfigMapper repository,
+                               SystemConfigHistoryMapper historyRepository,
+                               AdminAuditService auditService,
                                SecurityProperties securityProperties,
                                AlipayProperties alipayProperties,
                                WeChatPayProperties weChatPayProperties,
@@ -271,6 +305,8 @@ public class SystemConfigService {
                                DistributedLockService distributedLockService,
                                @Lazy SystemConfigService self) {
         this.repository = repository;
+        this.historyRepository = historyRepository;
+        this.auditService = auditService;
         this.securityProperties = securityProperties;
         this.alipayProperties = alipayProperties;
         this.weChatPayProperties = weChatPayProperties;
@@ -434,16 +470,31 @@ public class SystemConfigService {
 
     @Transactional
     public SystemConfigDto upsert(UpsertSystemConfigRequest request) {
-        return self.upsert(request.configKey(), request.configValue(), request.description());
+        return self.upsert(request.configKey(), request.configValue(), request.description(), null);
+    }
+
+    /** 带操作人的重载：运营台写入走这条，审计/版本记录里才有「谁改的」。 */
+    @Transactional
+    public SystemConfigDto upsert(UpsertSystemConfigRequest request, Long operatorId) {
+        return self.upsert(request.configKey(), request.configValue(), request.description(), operatorId);
     }
 
     @Transactional
     public SystemConfigDto upsert(String key, String value, String description) {
-        return runWithConfigLock(key, () -> doUpsert(key, value, description));
+        return self.upsert(key, value, description, null);
     }
 
-    private SystemConfigDto doUpsert(String key, String value, String description) {
-        SystemConfig config = repository.findByIdForUpdate(key).orElseGet(SystemConfig::new);
+    @Transactional
+    public SystemConfigDto upsert(String key, String value, String description, Long operatorId) {
+        return runWithConfigLock(key, () -> doUpsert(key, value, description, operatorId));
+    }
+
+    private SystemConfigDto doUpsert(String key, String value, String description, Long operatorId) {
+        java.util.Optional<SystemConfig> existing = repository.findByIdForUpdate(key);
+        // 覆盖前先留旧值：这才是「版本」的全部信息量（写入后旧值即不可追）。
+        String oldValue = existing.map(SystemConfig::getConfigValue).orElse(null);
+        boolean created = existing.isEmpty();
+        SystemConfig config = existing.orElseGet(SystemConfig::new);
         config.setConfigKey(key);
         config.setConfigValue(value == null ? "" : value);
         if (description != null && !description.isBlank()) {
@@ -452,21 +503,65 @@ public class SystemConfigService {
             config.setDescription("");
         }
         config.setUpdatedAt(Instant.now());
-        return toDto(repository.save(config));
+        SystemConfigDto saved = toDto(repository.save(config));
+        recordChangeIfEnabled(key, created ? null : oldValue, saved.configValue(),
+                operatorId, CONFIG_ACTION_UPSERT);
+        return saved;
     }
 
     @Transactional
     public void delete(String configKey) {
+        delete(configKey, null);
+    }
+
+    /** 带操作人的删除重载；删除同样留一条历史（newValue 为 null）。 */
+    @Transactional
+    public void delete(String configKey, Long operatorId) {
         if (configKey == null || configKey.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "配置键不能为空");
         }
         runWithConfigLock(configKey, () -> {
-            if (repository.findByIdForUpdate(configKey).isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "参数不存在");
-            }
+            SystemConfig existing = repository.findByIdForUpdate(configKey)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "参数不存在"));
             repository.deleteById(configKey);
+            recordChangeIfEnabled(configKey, existing.getConfigValue(), null,
+                    operatorId, CONFIG_ACTION_DELETE);
             return null;
         });
+    }
+
+    /**
+     * 配置写操作的留痕（F1 策略版本与审计）：受 {@link #OPS_CONFIG_AUDIT_ENABLED} 控制。
+     *
+     * <p><b>关时零写入</b>（默认）——不查表、不落行、不写审计，与接入前完全一致。
+     * 每次变更落两处：结构化的 {@code system_config_history}（版本）与
+     * {@code admin_audit_log}（统一审计视图，运营台审计页按 target_type 可过滤）。
+     *
+     * <p>在分布式锁内执行（调用方持锁），故「读开关 → 写历史」与真正的配置写入同锁同事务，
+     * 不会出现「值改了但历史没记」的中间态。
+     */
+    private void recordChangeIfEnabled(String key, String oldValue, String newValue,
+                                      Long operatorId, String action) {
+        if (!self.getBoolean(OPS_CONFIG_AUDIT_ENABLED, false)) {
+            return;
+        }
+        long op = operatorId == null ? SYSTEM_OPERATOR_ID : operatorId;
+        SystemConfigHistory history = new SystemConfigHistory();
+        history.setConfigKey(key);
+        history.setOldValue(oldValue);
+        history.setNewValue(newValue);
+        history.setOperatorId(op);
+        history.setCreatedAt(Instant.now());
+        historyRepository.save(history);
+        auditService.appendLog(op, action, CONFIG_AUDIT_TARGET_TYPE, key,
+                describeChange(oldValue, newValue));
+    }
+
+    /** 变更摘要（仅用于审计 detail，会被 appendLog 截到 512 字符）。 */
+    static String describeChange(String oldValue, String newValue) {
+        String before = oldValue == null ? "（未配置）" : oldValue;
+        String after = newValue == null ? "（已删除）" : newValue;
+        return before + " → " + after;
     }
 
     static String systemConfigLockKey(String configKey) {
@@ -537,6 +632,8 @@ public class SystemConfigService {
                 "自动解锁前需保持稳定在线分钟数（默认 5）, 0=关闭");
         upsertIfAbsent(OTA_PROGRESS_ENABLED, "false",
                 "OTA 升级进度上报（默认关闭）；开启后设备侧的下载/安装进度写入 ota_device_report");
+        upsertIfAbsent(OPS_CONFIG_AUDIT_ENABLED, "false",
+                "系统配置变更审计（默认关闭）；开启后每次改配置留版本历史与审计日志，可回滚");
         upsertIfAbsent(DEVICE_TEMP_ALERT_MAX_C, "8",
                 "柜内温度高于该值(℃)时上报温度异常告警, 0=关闭");
         upsertIfAbsent(MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES, "30",

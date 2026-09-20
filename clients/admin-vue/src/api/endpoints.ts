@@ -449,6 +449,11 @@ export const AdminEndpoints = {
   /** 系统配置 / 字典 / 定时任务 / 审批 / 组织 / DevOps / 审计 */
   systemConfigs: `${ops}/system-configs`,
   systemConfig: (configKey: string) => `${ops}/system-configs/${encodeURIComponent(configKey)}`,
+  /** F1 策略版本：某键的变更历史（读）与回滚到指定历史版本的变更前值（写） */
+  systemConfigHistory: (configKey: string) =>
+    `${ops}/system-configs/${encodeURIComponent(configKey)}/history`,
+  systemConfigRollback: (configKey: string) =>
+    `${ops}/system-configs/${encodeURIComponent(configKey)}/rollback`,
   systemConfigBrandLogo: `${ops}/system-configs/brand-logo`,
   systemConfigAlertTest: `${ops}/system-configs/alert-test`,
   /** 功能开关注册表（权威清单，只读）：驱动「参数配置」页的分组筛选与类型化控件 */

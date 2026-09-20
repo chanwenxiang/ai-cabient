@@ -4,12 +4,14 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.FeatureFlagCatalogDto;
 import com.aicabinet.common.dto.FileAttachmentDto;
 import com.aicabinet.common.dto.SystemConfigDto;
+import com.aicabinet.common.dto.SystemConfigHistoryDto;
 import com.aicabinet.common.dto.UpsertSystemConfigRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.FeatureFlagCatalogService;
 import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.OpsAlertDispatcher;
+import com.aicabinet.trade.service.SystemConfigAuditService;
 import com.aicabinet.trade.service.SystemConfigService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -32,15 +34,18 @@ import java.util.List;
 public class SystemConfigController {
 
     private final SystemConfigService systemConfigService;
+    private final SystemConfigAuditService systemConfigAuditService;
     private final FileAttachmentService fileAttachmentService;
     private final OpsAlertDispatcher opsAlertDispatcher;
     private final FeatureFlagCatalogService featureFlagCatalogService;
 
     public SystemConfigController(SystemConfigService systemConfigService,
+                                  SystemConfigAuditService systemConfigAuditService,
                                   FileAttachmentService fileAttachmentService,
                                   OpsAlertDispatcher opsAlertDispatcher,
                                   FeatureFlagCatalogService featureFlagCatalogService) {
         this.systemConfigService = systemConfigService;
+        this.systemConfigAuditService = systemConfigAuditService;
         this.fileAttachmentService = fileAttachmentService;
         this.opsAlertDispatcher = opsAlertDispatcher;
         this.featureFlagCatalogService = featureFlagCatalogService;
@@ -67,7 +72,7 @@ public class SystemConfigController {
     public ApiResponse<SystemConfigDto> upsert(
             HttpServletRequest request,
             @Valid @RequestBody UpsertSystemConfigRequest body) {
-        return ApiResponse.ok(systemConfigService.upsert(body));
+        return ApiResponse.ok(systemConfigService.upsert(body, operatorId(request)));
     }
 
     /** 上传品牌 Logo，返回可写入 ops.brand.logo_url 的地址。 */
@@ -102,7 +107,43 @@ public class SystemConfigController {
     public ApiResponse<Void> delete(
             HttpServletRequest request,
             @PathVariable("configKey") String configKey) {
-        systemConfigService.delete(configKey);
+        systemConfigService.delete(configKey, operatorId(request));
         return ApiResponse.ok(null);
+    }
+
+    /**
+     * 某配置键的变更历史（F1 策略版本）。最新在前；读侧不受
+     * {@code ops.config.audit.enabled} 影响 —— 关开关只是不再新增版本，不该让已有历史不可见。
+     */
+    @RequiresPermissions("ops:config:list")
+    @GetMapping("/{configKey}/history")
+    public ApiResponse<List<SystemConfigHistoryDto>> history(
+            HttpServletRequest request,
+            @PathVariable("configKey") String configKey) {
+        return ApiResponse.ok(systemConfigAuditService.listHistory(operatorId(request), configKey));
+    }
+
+    /**
+     * 回滚到指定历史版本的**变更前值**（撤销那一次变更）。本身也是一次 upsert ⇒ 会再留一条历史。
+     *
+     * <p>权限与写入同级（{@code ops:config:edit}）：回滚会改运行期的真实配置，不是只读操作。
+     */
+    @RequiresPermissions("ops:config:edit")
+    @PostMapping("/{configKey}/rollback")
+    public ApiResponse<SystemConfigDto> rollback(
+            HttpServletRequest request,
+            @PathVariable("configKey") String configKey,
+            @Valid @RequestBody ConfigRollbackRequest body) {
+        return ApiResponse.ok(
+                systemConfigAuditService.rollback(operatorId(request), configKey, body.historyId()));
+    }
+
+    /** 回滚请求体：{@code historyId} 来自历史列表。 */
+    public record ConfigRollbackRequest(long historyId) {}
+
+    /** 取当前操作人；无鉴权上下文（理论上不会走到，端点都带 @RequiresPermissions）时按系统账号记。 */
+    private static Long operatorId(HttpServletRequest request) {
+        Object attr = request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return attr instanceof Long id ? id : null;
     }
 }

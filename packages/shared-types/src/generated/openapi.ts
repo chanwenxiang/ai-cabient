@@ -1705,6 +1705,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/system-configs/{configKey}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rollback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/system-configs/brand-logo": {
         parameters: {
             query?: never;
@@ -5393,6 +5409,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["channelBreakdown"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/system-configs/{configKey}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["history"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10736,6 +10768,10 @@ export interface components {
             reason: string;
             idempotencyKey: string;
         };
+        ConfigRollbackRequest: {
+            /** Format: int64 */
+            historyId?: number;
+        };
         ApiResponseFileAttachmentDto: {
             /** Format: int32 */
             code?: number;
@@ -13001,6 +13037,24 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["SystemConfigDto"][];
+        };
+        ApiResponseListSystemConfigHistoryDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["SystemConfigHistoryDto"][];
+        };
+        SystemConfigHistoryDto: {
+            /** Format: int64 */
+            historyId?: number;
+            configKey?: string;
+            oldValue?: string;
+            newValue?: string;
+            /** Format: int64 */
+            operatorId?: number;
+            operatorName?: string;
+            /** Format: date-time */
+            createdAt?: string;
         };
         ApiResponseFeatureFlagCatalogDto: {
             /** Format: int32 */
@@ -19340,6 +19394,32 @@ export interface operations {
             };
         };
     };
+    rollback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                configKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigRollbackRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSystemConfigDto"];
+                };
+            };
+        };
+    };
     uploadBrandLogo: {
         parameters: {
             query?: never;
@@ -25622,6 +25702,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseAdminChannelBreakdownDto"];
+                };
+            };
+        };
+    };
+    history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                configKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListSystemConfigHistoryDto"];
                 };
             };
         };

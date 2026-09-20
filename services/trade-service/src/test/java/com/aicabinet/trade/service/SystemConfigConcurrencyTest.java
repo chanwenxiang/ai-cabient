@@ -7,6 +7,7 @@ import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.config.WeChatWebProperties;
+import com.aicabinet.trade.mapper.SystemConfigHistoryMapper;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,8 @@ import static org.mockito.Mockito.when;
 class SystemConfigConcurrencyTest {
 
     @Mock private SystemConfigMapper repository;
+    @Mock private SystemConfigHistoryMapper historyRepository;
+    @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
 
     private SystemConfigService service;
@@ -33,6 +36,8 @@ class SystemConfigConcurrencyTest {
     void setUp() {
         service = new SystemConfigService(
                 repository,
+                historyRepository,
+                auditService,
                 new SecurityProperties(false),
                 new AlipayProperties(false, "", "", "", "", "", "", "", "", "", ""),
                 new WeChatPayProperties(false, "", "", "", "", "", "", "", true),

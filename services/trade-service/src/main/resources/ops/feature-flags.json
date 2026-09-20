@@ -321,6 +321,13 @@
       "description": "运营台是否显示「演示数据」横幅（仅 mock 支付模式生效）"
     },
     {
+      "key": "ops.config.audit.enabled",
+      "group": "日志留存",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "系统配置变更审计（默认关闭）；开启后每次改配置留版本历史（可回滚到任一历史版本）与审计日志；读历史不受该开关影响"
+    },
+    {
       "key": "ops.log_retention.notify_months",
       "group": "日志留存",
       "type": "NUMBER",
