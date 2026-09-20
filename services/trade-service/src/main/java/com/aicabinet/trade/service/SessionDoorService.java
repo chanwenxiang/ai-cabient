@@ -124,14 +124,19 @@ public class SessionDoorService {
     }
 
     private SessionDto onDoorClosed(ShoppingSession session, String videoUri) {
+        boolean orphanClose = false;
         if (session.getState() == SessionState.OPENING) {
             session.setOpenTime(Instant.now());
             sessionService.transition(session, SessionState.SHOPPING);
+            orphanClose = true;
             log.warn("door closed while opening, treat as shopping {}", SessionLogContext.of(session));
         }
         if (session.getState() != SessionState.SHOPPING) {
             return sessionService.toDto(session);
         }
+        // 关门完整率的分子：只在「从 SHOPPING 正常走到这里」时计一次
+        // （重复关门/非 SHOPPING 已在上方 return ⇒ 不重复计数）。
+        cabinetMetrics.recordDoorClose(orphanClose);
         session.setCloseTime(Instant.now());
         if (videoUri != null && !videoUri.isBlank()) {
             session.setVideoUri(videoUri);

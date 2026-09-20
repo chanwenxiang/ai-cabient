@@ -19,6 +19,8 @@ public class CabinetMetrics {
 
     private final Counter doorOpenSuccess;
     private final Counter doorOpenFailure;
+    private final Counter doorCloseNormal;
+    private final Counter doorCloseOrphan;
     private final Counter sessionCompleted;
     private final Counter sessionDisputed;
     private final Counter reconciliationMismatch;
@@ -40,6 +42,12 @@ public class CabinetMetrics {
         this.expectedFirmware = expectedFirmware;
         this.doorOpenSuccess = registry.counter("cabinet.door.open", RESULT, "success");
         this.doorOpenFailure = registry.counter("cabinet.door.open", RESULT, "failure");
+        // 关门完整率：doorClose{normal} / doorOpen{success}（P0-6「真缺」清单的最后一项）。
+        // 🔴 两类必须**分开**统计：onDoorClosed 存在「未收到开门事件就收到关门」的路径
+        //    （开门报文丢失/重放），它**没有**对应的 doorOpen.success 进分母 ⇒ 若把它混进分子，
+        //    完整率会算出 >100%。orphan 单列：既不污染分子，又能直接暴露门磁/报文异常。
+        this.doorCloseNormal = registry.counter("cabinet.door.close", RESULT, "normal");
+        this.doorCloseOrphan = registry.counter("cabinet.door.close", RESULT, "orphan");
         this.sessionCompleted = registry.counter("cabinet.session.transition", "state", "COMPLETED");
         this.sessionDisputed = registry.counter("cabinet.session.transition", "state", "DISPUTED");
         this.reconciliationMismatch = registry.counter("cabinet.reconciliation", "status", "MISMATCH");
@@ -85,6 +93,19 @@ public class CabinetMetrics {
     public void recordDoorOpen(boolean success) {
         if (success) doorOpenSuccess.increment();
         else doorOpenFailure.increment();
+    }
+
+    /**
+     * 收到并**接受**了一次关门事件 —— 关门完整率的分子来源。
+     *
+     * <p>{@code orphan=true} ⇒ 该会话此前**没有**开门成功记录（开门报文丢失/重放）；
+     * 不计入完整率分子（否则会 >100%），单列出来用于发现门磁/链路异常。
+     * 重复关门（会话已非 {@code SHOPPING}）在上游 {@code onDoorClosed} 直接返回、**不计**，
+     * 避免同一会话被重复计数。
+     */
+    public void recordDoorClose(boolean orphan) {
+        if (orphan) doorCloseOrphan.increment();
+        else doorCloseNormal.increment();
     }
     public void recordSessionState(SessionState state) {
         if (state == SessionState.COMPLETED) sessionCompleted.increment();

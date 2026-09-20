@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -94,5 +95,61 @@ class SessionDoorClosedIdempotencyTest {
         assertEquals(SessionState.COMPLETED, service.handleDoorEvent(second).state());
         assertEquals("s3://v2", session.getVideoUri());
         verify(settlementService, times(1)).settle(session);
+        // 顺手断言完整率计数：两次 CLOSED 只应记**一次** normal（第二次已非 SHOPPING ⇒ 不重复计数）
+        verify(cabinetMetrics, times(1)).recordDoorClose(false);
+        verify(cabinetMetrics, never()).recordDoorClose(true);
+    }
+
+    /**
+     * 关门完整率的分子来源：从 {@code SHOPPING} 正常关门记一次 {@code normal}；
+     * 同一会话的第二个 CLOSED（会话已 COMPLETED、非 SHOPPING）**不再记** ——
+     * 否则同一会话被重复计数，完整率会被推高。
+     */
+    @Test
+    void doorClosed_normalPath_recordsNormalExactlyOnce() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-CLOSE-1");
+        session.setDeviceId("CAB-001");
+        session.setUserId(7L);
+        session.setState(SessionState.SHOPPING);
+
+        when(repository.findByIdForUpdate("S-CLOSE-1")).thenReturn(Optional.of(session));
+        when(repository.findById("S-CLOSE-1")).thenReturn(Optional.of(session));
+        when(visionAsyncProperties.enabled()).thenReturn(false);
+        when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-C1", "S-CLOSE-1"));
+
+        service.handleDoorEvent(new DoorEventRequest(
+                "S-CLOSE-1", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(), "s3://a"));
+        service.handleDoorEvent(new DoorEventRequest(
+                "S-CLOSE-1", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(), "s3://b"));
+
+        verify(cabinetMetrics, times(1)).recordDoorClose(false);
+        verify(cabinetMetrics, never()).recordDoorClose(true);
+    }
+
+    /**
+     * 孤儿关门：**没收到 OPEN 就收到 CLOSED**（开门报文丢失/重放）。
+     *
+     * <p>必须记 {@code orphan=true} —— 该会话没有对应的 {@code doorOpen{result=success}} 进分母，
+     * 若把它当 normal 混进分子，「关门完整率」会算出 **>100%**（本指标刻意要防的假绿）。
+     */
+    @Test
+    void doorClosed_withoutOpenEvent_recordsOrphanNotNormal() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-ORPHAN");
+        session.setDeviceId("CAB-001");
+        session.setUserId(7L);
+        session.setState(SessionState.OPENING);
+
+        when(repository.findByIdForUpdate("S-ORPHAN")).thenReturn(Optional.of(session));
+        when(repository.findById("S-ORPHAN")).thenReturn(Optional.of(session));
+        when(visionAsyncProperties.enabled()).thenReturn(false);
+        when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-OR", "S-ORPHAN"));
+
+        service.handleDoorEvent(new DoorEventRequest(
+                "S-ORPHAN", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(), "s3://o"));
+
+        verify(cabinetMetrics, times(1)).recordDoorClose(true);
+        verify(cabinetMetrics, never()).recordDoorClose(false);
     }
 }
