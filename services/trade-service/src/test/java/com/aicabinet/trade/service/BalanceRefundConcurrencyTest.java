@@ -56,6 +56,8 @@ class BalanceRefundConcurrencyTest {
                 requestMapper, allocationMapper, accountMapper, rechargeOrderMapper,
                 paymentService, balanceLedgerService, permissionService, auditService,
                 distributedLockService, null, systemConfigService, null);
+        // O6：apply 经 self（@Lazy 代理）调用 doApply 以避免自调用失效 ⇒ 单测把 self 指回自身
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test
