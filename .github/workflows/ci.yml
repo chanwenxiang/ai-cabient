@@ -767,14 +767,22 @@ jobs:
             exit 0
           fi
           if [ "$code" -eq 2 ]; then
-            echo "::warning::imp-dispute-copy UAT 环境未就绪（exit 2：消费者登录未落 token 或 /api/v2/disputes/mine 不可用）"
+            echo '::warning::imp-dispute-copy UAT 本次 0 条断言（环境未就绪 exit 2 早退：消费者登录未落 token 或 /api/v2/disputes/mine 不可用）。「步骤绿」≠「争议文案被验证过」。'
             exit 0
           fi
           exit 1
         working-directory: clients/consumer-mp
 
-      # 前置：scripts/create-open-dispute.ps1 生成种子；Linux 下等价地由后端接口建单，
-      # 若种子缺失脚本会以 exit 2 退出——那属于环境未就绪，不应视为产品回归。
+      # 前置：scripts/create-open-dispute.ps1 生成种子 —— 它必须走 MQTT 模拟购物链路
+      # （模拟器 + EMQX + vision-service）造出一条 DISPUTED 会话，争议单才有处可挂。
+      # 🔴 本行此前写「Linux 下等价地由后端接口建单」，**那是假的**（2026-09-20 取证）：
+      #    不存在能造 shopping_session 的产品接口 —— /internal/v1/demo/ensure 只补主数据
+      #    （SKU/设备/槽位/仓库/用户），而消费者建争议单 POST /api/v2/disputes 要求会话已处于
+      #    COMPLETED/DISPUTED（DisputeService.java:206），Flyway 也没有任何种子写
+      #    shopping_session/orders。所以 CI 里这条路**无解**，不是「没接线」。
+      # 结论：本步骤在 CI 中**必然 0 断言**（种子缺失 → exit 2 → 降级）。这不是回归，
+      #    但**不能静默**：退出前显式声明「本次 0 断言」，否则绿色步骤会让人误以为争议 UI
+      #    被测过（下面的 warning 注解即为此）。
       # M17：不再 continue-on-error 无条件吞失败；改为失败后重试 1 次（共 2 次，留间隔等环境就绪），
       # 真实回归（非环境类失败）最终仍会让 job 变红。
       - name: Three-end dispute UAT
@@ -805,7 +813,7 @@ jobs:
             sleep 15
           done
           if [ "$final" -eq 2 ]; then
-            echo "::warning::dispute UAT 环境未就绪（CI 缺 .tmp/open-dispute.json 种子链路：模拟器+MQTT+vision）。已知遗留，原被 continue-on-error 掩盖；真实回归请本地跑 create-open-dispute.ps1 + 本 UAT。"
+            echo '::warning::dispute UAT 本次 0 条断言（种子缺失 → exit 2 早退，一条用例都没跑）：CI 缺 .tmp/open-dispute.json 种子链路（模拟器+MQTT+vision，仓内无等价 REST 路径，见本步骤注释）。「步骤绿」≠「争议 UI 被验证过」。真实回归请本地跑 create-open-dispute.ps1 + 本 UAT。'
             exit 0
           fi
           exit 1

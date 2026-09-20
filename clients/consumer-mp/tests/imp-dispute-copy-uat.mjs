@@ -354,11 +354,19 @@ async function main() {
   await browser.close();
   const pass = results.filter((r) => r.status === 'PASS').length;
   const fail = results.filter((r) => r.status === 'FAIL').length;
-  console.log('\n=== IMP DISPUTE COPY UAT ===', {
-    pass,
-    fail,
-    skip: results.length - pass - fail
-  });
+  const skip = results.length - pass - fail;
+  console.log('\n=== IMP DISPUTE COPY UAT ===', { pass, fail, skip });
+  // 🔴 `pass=0 且全 SKIP` ⇒ 退出码仍是 0（无 fail），CI 上是一个**绿色步骤** —— 读者会
+  // 以为「争议文案被测过了」，实际**一条断言都没跑**。这是「信号在骗读者」，比红色更危险：
+  // 红色会让人去查，绿色让人放心。
+  // 无法把它变红（CI 库里确实没有终态争议，这是**事实**不是错误），但**必须让它可见**：
+  // 下面这行是 GitHub Actions 的 workflow command，CI 会渲染成黄色告警 annotation；
+  // 在本地跑时就只是一行普通输出，没有副作用。
+  if (pass === 0 && fail === 0 && skip > 0) {
+    console.log(
+      `::warning::imp-dispute-copy UAT 本次 0 条断言（${skip} 条全部 SKIP：本账号名下没有终态争议工单）。"步骤绿" ≠ "争议文案被验证过" —— CI 缺争议种子链路，详见 .github/workflows/ci.yml 的 Three-end dispute UAT 步骤注释。`
+    );
+  }
   process.exit(fail > 0 ? 1 : 0);
 }
 
