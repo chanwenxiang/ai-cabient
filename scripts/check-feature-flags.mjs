@@ -20,6 +20,10 @@
  *      多一处、少一处、换个表达式都要红。刻意**不用行号**做锚点 —— 行号会随插入而静默漂移，
  *      那是「信号在骗读者」（本项目已踩过 `ci.yml:297` 漂到 147 行之外）。
  *   R5 注册表 → seed：每个登记在册的键都必须被 seed，保证默认值存在。
+ *   R6 下发键 → 前端消费者：`*PublicConfig()` 方法里 `.put("<key>", …)` 下发给客户端的每个键，
+ *      都必须能在 `clients/**` 源码里找到字面量引用。R2 只扫 Java ——
+ *      「后端下发了、前端根本没读」的**死下发**它抓不到（实测 3 个：充值/退款上限被前端
+ *      硬编码成 ¥5000，运营改配置后前后端上限不一致）。R6 就是补这个方向的镜像校验。
  *
  * 🔴 豁免（R2 的 `deprecated` 条目）**必须自带可验证锚点**：声明它被废弃的代码注释必须真实存在。
  *    没有锚点的豁免会退化成「随便标个 deprecated 就绕过门禁」。
@@ -458,6 +462,82 @@ for (const file of dynamicByFile.keys()) {
   }
 }
 
+// ── R6：下发键 → 前端消费者 ───────────────────────────────────────────────
+// 扫 *PublicConfig() 方法体里的 `.put("<字面量>", …)`，要求每个键在 clients/** 源码里有引用。
+// 前端消费形如 `cfg?.rechargeMaxCents`（属性访问，无引号）⇒ 判据用 \b 词边界匹配键名。
+function walkClients(dir, out = []) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (['node_modules', 'dist', 'unpackage', '.git'].includes(e.name)) continue;
+    const full = join(dir, e.name);
+    if (e.isDirectory()) walkClients(full, out);
+    else if (e.isFile() && /\.(ts|vue|js)$/.test(e.name)) out.push(full);
+  }
+  return out;
+}
+
+const clientsDir = join(root, 'clients');
+const clientFiles = walkClients(clientsDir).map((p) => ({
+  abs: p,
+  rel: relative(root, p).replace(/\\/g, '/')
+}));
+if (clientFiles.length < 50) {
+  fail(
+    `clients/ 下只扫到 ${clientFiles.length} 个源码文件（下限 50）—— 目录结构可能已变，R6 判定失效`
+  );
+}
+const clientTexts = clientFiles.map((f) => ({ ...f, text: readFileSync(f.abs, 'utf8') }));
+
+const PUBLIC_CONFIG_SIG = /Map<String,\s*String>\s+(\w*[Pp]ublicConfig)\s*\(/g;
+const downlink = new Map(); // key -> "file:line"
+for (const { abs, rel } of mainJava) {
+  const text = readFileSync(abs, 'utf8');
+  PUBLIC_CONFIG_SIG.lastIndex = 0;
+  let sig;
+  while ((sig = PUBLIC_CONFIG_SIG.exec(text)) !== null) {
+    // 从签名后第一个 { 起做括号配对，取方法体（不依赖行号）
+    const open = text.indexOf('{', sig.index + sig[0].length);
+    if (open < 0) continue;
+    let depth = 0;
+    let end = -1;
+    for (let i = open; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    if (end < 0) continue;
+    const body = text.slice(open, end);
+    const before = text.slice(0, open);
+    const line = before.split(/\r?\n/).length;
+    for (const m of body.matchAll(/\.put\(\s*"((?:[^"\\]|\\.)*)"/g)) {
+      if (!downlink.has(m[1])) downlink.set(m[1], `${rel}:${line}`);
+    }
+  }
+}
+
+if (downlink.size < 10) {
+  fail(
+    `*PublicConfig() 里只解析出 ${downlink.size} 个下发键（下限 10）—— R6 扫描锚点可能已被重写，判定失效`
+  );
+}
+
+const unreadDownlink = [];
+for (const [key, site] of downlink) {
+  const re = new RegExp(`\\b${key.replace(/\$/g, '\\$')}\\b`);
+  if (!clientTexts.some((f) => re.test(f.text))) unreadDownlink.push(`${key}   (${site})`);
+}
+if (unreadDownlink.length) {
+  problems.push(
+    `R6 下发了但前端零引用（下发却没人读 = 死下发；` +
+      `若确为后端自用，请从 *PublicConfig() 移除下发，不要白送字段）：\n    - ` +
+      unreadDownlink.join('\n    - ')
+  );
+}
+
 if (problems.length) {
   fail(`\n  ${problems.join('\n  ')}\n`);
 }
@@ -466,5 +546,6 @@ console.log(
   `${TAG} OK：注册表 ${flags.length} 个开关 / ${groups.length} 个分组，seed ${seeded.size} 个键全部登记，` +
     `读取点 ${readSites} 处（可解析键 ${readKeys.size} 个）全部登记，` +
     `${EXPECTED_DYNAMIC_SITES.size} 个文件的动态键站点已登记，` +
+    `下发键 ${downlink.size} 个前端全部消费，` +
     `${DEPRECATED_ANCHORS.size} 个废弃豁免的代码锚点均存在`
 );

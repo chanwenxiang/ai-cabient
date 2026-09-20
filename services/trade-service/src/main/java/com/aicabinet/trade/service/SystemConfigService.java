@@ -291,7 +291,7 @@ public class SystemConfigService {
         // 支付分开门: 显式开启或 mock 时前端展示一键开通
         map.put("payScoreSignEnabled",
                 String.valueOf(payScoreProperties.enabled() || securityProperties.mockEnabled()));
-        map.put("refundDefaultPolicy", self.getValue(REFUND_DEFAULT_POLICY, "AUTO_REFUND"));
+        // refund.default_policy 是设备级退款策略（RefundPolicyService 后端自用），不对 C 端下发
         map.put("paymentModeHint", securityProperties.mockEnabled()
                 ? "模拟支付(无真实进件), 充值可一键到账, 订单退款退回余额"
                 : "真实/沙箱支付");

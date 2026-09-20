@@ -239,6 +239,10 @@ const refundAmountCents = ref(0);
 const refundError = ref('');
 const refundBusy = ref(false);
 const refundRequests = ref<BalanceRefundRequestDto[]>([]);
+// 上限由后端下发（recharge.max_cents / balance.refund.max_cents，0=不限制）。
+// 默认值与后端 seed（500_000 分）一致：配置取不到时行为与硬编码时代相同（fail-closed）。
+const rechargeMaxCents = ref(500_000);
+const refundMaxCents = ref(500_000);
 
 const pendingCount = computed(() => records.value.filter((r) => r.status === 'PENDING').length);
 const visibleRecords = computed(() =>
@@ -292,9 +296,12 @@ function onRefundYuan(e: unknown) {
     refundError.value = '请输入大于 0 的金额';
     return;
   }
-  if (yuan > 5000) {
+  if (
+    refundMaxCents.value !== Number.POSITIVE_INFINITY &&
+    Math.round(yuan * 100) > refundMaxCents.value
+  ) {
     refundAmountCents.value = 0;
-    refundError.value = '单次申请不超过 ¥5000';
+    refundError.value = `单次申请不超过 ¥${refundMaxCents.value / 100}`;
     return;
   }
   const cents = yuanToCents(raw);
@@ -373,9 +380,12 @@ function onCustomAmount(e: unknown) {
     customAmountError.value = '请输入大于 0 的金额';
     return;
   }
-  if (yuan > 5000) {
+  if (
+    rechargeMaxCents.value !== Number.POSITIVE_INFINITY &&
+    Math.round(yuan * 100) > rechargeMaxCents.value
+  ) {
     selectedAmount.value = 0;
-    customAmountError.value = '单次充值不超过 ¥5000';
+    customAmountError.value = `单次充值不超过 ¥${rechargeMaxCents.value / 100}`;
     return;
   }
   const cents = yuanToCents(raw);
@@ -387,10 +397,19 @@ function onCustomAmount(e: unknown) {
   selectedAmount.value = cents;
 }
 
+/** 解析后端下发的上限（分）。0=不限制 → Infinity；非法/负数 → 回退默认。 */
+function resolveLimitCents(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return n === 0 ? Number.POSITIVE_INFINITY : n;
+}
+
 async function loadConfig() {
   try {
     const cfg = await consumerApi.consumerPublicConfig();
     mockEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
+    rechargeMaxCents.value = resolveLimitCents(cfg?.rechargeMaxCents, 500_000);
+    refundMaxCents.value = resolveLimitCents(cfg?.balanceRefundMaxCents, 500_000);
     alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
     wechatPayLive.value = cfg?.wechatPayLive === 'true';
     alipayPayLive.value = cfg?.alipayPayLive === 'true';
@@ -401,6 +420,8 @@ async function loadConfig() {
     });
   } catch {
     mockEnabled.value = false;
+    rechargeMaxCents.value = 500_000;
+    refundMaxCents.value = 500_000;
     alipayRechargeEnabled.value = false;
     wechatRechargeEnabled.value = false;
     wechatPayLive.value = false;
