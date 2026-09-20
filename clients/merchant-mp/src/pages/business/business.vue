@@ -111,15 +111,25 @@
               >{{ d.label }}</text
             >
           </view>
-          <!-- 扩展功能：收入构成条形图（merchant.charts.enabled，关时不渲染） -->
+          <!-- 扩展功能：构成图（merchant.charts.enabled，关时不渲染）。O5：可切换营收/毛利/销量/订单 -->
           <view v-if="chartsEnabled && salesRows.length" class="chart-block">
-            <text class="chart-title">收入构成（按当前维度）</text>
+            <text class="chart-title">{{ chartTitle }}</text>
+            <view class="chart-metrics">
+              <text
+                v-for="m in chartMetricOptions"
+                :key="'metric-' + m.value"
+                class="chart-metric"
+                :class="{ active: chartMetric === m.value }"
+                @click="chartMetric = m.value"
+                >{{ m.label }}</text
+              >
+            </view>
             <view v-for="r in salesRows.slice(0, 8)" :key="'chart-' + r.dimKey" class="chart-row">
               <text class="chart-label">{{ r.dimLabel || r.dimKey }}</text>
               <view class="chart-track"
                 ><view class="chart-bar" :style="{ width: barWidth(r) }"
               /></view>
-              <text class="chart-value">{{ money(r.revenueCents) }}</text>
+              <text class="chart-value">{{ chartValue(r) }}</text>
             </view>
           </view>
           <view v-if="reportLoading" class="empty">{{ loadingLabel('报表') }}</view>
@@ -279,6 +289,15 @@ import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { loadMerchantFlags, merchantChartsEnabled } from '@/utils/merchant-config';
 import {
+  SALES_CHART_METRICS,
+  formatSalesMetric,
+  salesBarWidth,
+  salesMetricMax,
+  salesMetricValue,
+  type SalesChartMetric,
+  type SalesChartRow
+} from '@/utils/sales-chart';
+import {
   isMerchantLoggedIn,
   hasPerm,
   merchantApi,
@@ -419,13 +438,22 @@ const salesRows = ref<import('@aicabinet/shared-types').OpenApiSalesReportRowDto
  * 默认关 ⇒ 图表块不渲染，页面与接入前完全一致。
  */
 const chartsEnabled = ref(false);
-/** 收入占比条的分母（各维度最大值，至少 1 ⇒ 不会除零）。 */
-const maxRevenue = computed(() =>
-  Math.max(1, ...(salesRows.value || []).map((r) => Number(r.revenueCents ?? 0)))
+/** O5：构成图当前指标（默认营收 ⇒ 开关开启后默认展示与接入前一致）。 */
+const chartMetric = ref<SalesChartMetric>('revenue');
+const chartMetricOptions = SALES_CHART_METRICS;
+const chartTitle = computed(
+  () =>
+    `构成（按当前维度 · ${
+      chartMetricOptions.find((m) => m.value === chartMetric.value)?.label ?? ''
+    }）`
 );
-function barWidth(row: { revenueCents?: number }) {
-  const pct = (Number(row.revenueCents ?? 0) / maxRevenue.value) * 100;
-  return `${Math.max(2, Math.round(pct))}%`;
+/** 当前指标下各维度最大值（至少 1 ⇒ 不会除零）。 */
+const maxMetricValue = computed(() => salesMetricMax(salesRows.value || [], chartMetric.value));
+function barWidth(row: SalesChartRow) {
+  return salesBarWidth(salesMetricValue(row, chartMetric.value), maxMetricValue.value);
+}
+function chartValue(row: SalesChartRow) {
+  return formatSalesMetric(salesMetricValue(row, chartMetric.value), chartMetric.value);
 }
 const marginRate = computed(() =>
   analytics.value.revenueCents
@@ -610,6 +638,26 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   font-size: var(--font-size-sm, 26rpx);
   color: var(--text-secondary, #6b7280);
   margin-bottom: 12rpx;
+}
+
+/* O5：指标切换（营收/毛利/销量/订单），视觉与页面既有 report-dim 保持一致 */
+.chart-metrics {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.chart-metric {
+  padding: 6rpx 18rpx;
+  border-radius: var(--radius-card);
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
+  font-size: var(--font-size-xs, 24rpx);
+}
+
+.chart-metric.active {
+  background: var(--brand);
+  color: var(--white);
 }
 
 .chart-row {
