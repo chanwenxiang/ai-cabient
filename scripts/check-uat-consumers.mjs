@@ -62,27 +62,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * 纪律：只放「**客观不该/不能在 CI 跑**」的套件；「接入麻烦」不构成理由 —— 那是该补的活。
  */
 const EXEMPT = new Map([
-  [
-    'admin-uat.mjs',
-    {
-      why: '依赖 CI 未播种的采购单/订单等业务数据；ci.yml 的注释写明「待其种子脚本补齐后按同样方式接入」',
-      ciAnchor: '三个 admin 侧脚本（admin-uat / role-regression / batch-imp）依赖采购单等业务数据'
-    }
-  ],
-  [
-    'role-regression-uat.mjs',
-    {
-      why: '同上：需要采购/财务/拣货等业务数据（CI 未播种），断言的是角色权限矩阵',
-      ciAnchor: '三个 admin 侧脚本（admin-uat / role-regression / batch-imp）依赖采购单等业务数据'
-    }
-  ],
-  [
-    'batch-imp-uat.mjs',
-    {
-      why: '同上：需要采购单等业务数据（CI 未播种）',
-      ciAnchor: '三个 admin 侧脚本（admin-uat / role-regression / batch-imp）依赖采购单等业务数据'
-    }
-  ],
+  // 2026-09-20：原先豁免的 admin-uat / role-regression-uat / batch-imp-uat **三条已删除** ——
+  // 它们要的种子一直就在 Flyway 里（V116 财务 / V117 三角色 / V254 待审采购单 PO-UAT-B06），
+  // CI 空库自动应用，缺的从来不是种子而是「有人调」。接入 ci.yml 的 e2e-h5 后若保留豁免，
+  // 本门禁会按规则③报红（豁免过期）—— 当时**确实报了**，这一步就是它要求的收尾。
+  // 复核：node scripts/check-uat-consumers.mjs 应对这三个套件走「CI 调用」分支（非 EXEMPT）。
   [
     'admin-alert-channel-uat.mjs',
     {

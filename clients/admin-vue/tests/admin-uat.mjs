@@ -10,10 +10,10 @@
  *   PW_HEADED=1     headed mode
  */
 import { chromium } from 'playwright';
-import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captchaFromRedis } from '../../../scripts/lib/redis-captcha.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADMIN = (process.env.ADMIN_URL || 'http://localhost/admin').replace(/\/$/, '');
@@ -22,7 +22,6 @@ const HEADED = process.env.PW_HEADED === '1';
 const OUT = path.resolve(__dirname, '../output/playwright');
 const OPS_PHONE = '13900000001';
 const OPS_PASSWORD = '123456';
-const REDIS_CONTAINER = process.env.REDIS_CONTAINER || 'ai-cabinet-redis-1';
 
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -59,14 +58,8 @@ async function bodyText(page) {
   return page.evaluate(() => document.body?.innerText || '');
 }
 
-function captchaFromRedis(captchaId) {
-  const raw = execSync(
-    `docker exec ${REDIS_CONTAINER} redis-cli GET aicabinet:captcha:${captchaId}`,
-    { encoding: 'utf8' }
-  ).trim();
-  if (!raw || /nil|ERR/i.test(raw)) throw new Error(`captcha missing in redis: ${captchaId}`);
-  return raw.toUpperCase();
-}
+// 图形验证码读取见顶部 import 的共享模块：它在设了 REDIS_HOST 时走 TCP 直连。
+// 原内联版硬编码 `docker exec ai-cabinet-redis-1` —— CI 里没有该容器，必然 exit 2。
 
 async function waitPageCaptchaId(page, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
@@ -85,7 +78,7 @@ async function captchaForPage(page) {
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const capId = await waitPageCaptchaId(page, 5000);
-      return { captchaId: capId, captchaCode: captchaFromRedis(capId) };
+      return { captchaId: capId, captchaCode: (await captchaFromRedis(capId)).toUpperCase() };
     } catch {
       // Redis 偶发未写入：刷新图形码；仍失败则整页重载
       try {

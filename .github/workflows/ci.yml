@@ -731,8 +731,10 @@ jobs:
           (cd clients/consumer-mp && pnpm exec playwright install chromium)
           (cd clients/merchant-mp && pnpm exec playwright install chromium)
 
-      # 三个 admin 侧脚本（admin-uat / role-regression / batch-imp）依赖采购单等业务数据，
-      # 暂不纳入；待其种子脚本补齐后按同样方式接入。
+      # 三个 admin 侧脚本（admin-uat / role-regression / batch-imp）已在下方 Three-end business
+      # UAT 之后接入。🔴 原注释写「依赖采购单等业务数据，暂不纳入；待其种子脚本补齐后接入」——
+      # **已过期**（2026-09-20 取证）：种子一直在 Flyway 里（V116/V117/V254），CI 空库自动生效，
+      # 缺的从来不是种子而是「没人调」（门禁失效形态①）。详见下方 admin 步骤注释。
       - name: Consumer H5 UAT
         run: UAT_MAX_FAIL="$UAT_MAX_FAIL_CONSUMER" node tests/consumer-h5-uat.mjs
         working-directory: clients/consumer-mp
@@ -743,6 +745,46 @@ jobs:
 
       - name: Three-end business UAT
         run: UAT_MAX_FAIL="$UAT_MAX_FAIL_BUSINESS" node tests/three-end-business-uat.mjs
+        working-directory: clients/admin-vue
+
+      # ── admin 控制台三套件 ──────────────────────────────────────────────────────
+      # 此前**从不被 CI 调用**（失效形态①「没人调」）⇒ 修了也白修，坏了半年没人发现。
+      # 它们需要的种子不在测试脚本里，而在 Flyway 迁移里，CI 空库自动应用：
+      #   · V116__finance_role_and_merchant_split_perm.sql:31 → 财务 13900000002（userId
+      #     **100000007**）
+      #   · V117__demo_ops_role_accounts.sql → operator 13900000003 / replenisher
+      #     13900000004 / viewer 13900000005（运营超管 13900000001 由更早的迁移建）
+      #   · V254__uat_pending_purchase_approval.sql → 待审采购单 PO-UAT-B06（status=
+      #     PENDING_APPROVAL），node2 的 assignee **硬编码 100000007**（即 V116 的财务）。
+      #     CI 空库按 116 < 254 顺序执行 ⇒ FK 成立（本机库因主键段被外部重排而缺该 ID，
+      #     所以才需要手工重放 —— 那是本机特有，不是 CI 问题）。
+      # 守卫：application.yml:43 `seed_env: ${SEED_ENV:local}`，CI 未设 SEED_ENV ⇒ 落 local ⇒
+      #      守卫放行（只有 application-prod.yml:21 置 none 才跳过 V254 的写语句）。
+      #
+      # 🔴 这三个脚本**不读 UAT_MAX_FAIL**（`exit(fail>0?1:0)` 纯零容忍），与 H5 套件形态不同
+      #    ⇒ 不给基线，非 0 即红。注意 role-regression / batch-imp 的 summary `total` =
+      #    pass+fail，**不含 SKIP** ⇒ headline 数字 ≠ 用例总数（本机 batch-imp 另有 2 条 SKIP）。
+      # 🔴 种子缺失**不会静默**：role-regression 的 F-03/F-04 是 `hasPo ? PASS : FAIL` ——
+      #    PO-UAT-B06 看不到就是 **FAIL**（不是 SKIP）⇒ 该步骤立刻红，fail-closed。
+      # 🔴 role-regression 的 headed 默认原为**有头**（`process.env.PW_HEADED !== '0'`），与其余
+      #    6 个 UAT 脚本不一致，在无显示器的 runner 上 chromium.launch({headless:false}) 必崩
+      #    ⇒ 已统一为 `=== '1'`（默认无头）。CI 里 PW_CHANNEL=chromium / ADMIN_URL 已由 job env 提供。
+      # 幂等：三套件都不写库（batch-imp 的 B-10 点「驳回」后按「取消」收尾，batch-imp-uat.mjs:445）
+      #      ⇒ 顺序无关、可重复跑，不消耗 PO-UAT-B06。
+      # 验证码走 REDIS_HOST TCP 直连（job env 已备），不再 `docker exec ai-cabinet-redis-1`。
+      # ⚠️ 本机 dev 库与 CI 空库**不同构**（user_info 主键段被外部重排，本机已无 100000007），
+      #    本机实测 10P/22P/9P 只证明**脚本逻辑与选择器**正确；headline 数字以 CI 实测为准，
+      #    首次接入如与 CI 有偏差请据实校准（只允许下调或平级调整，不允许为变绿而上调）。
+      - name: Admin console UAT
+        run: node tests/admin-uat.mjs
+        working-directory: clients/admin-vue
+
+      - name: Admin role regression UAT
+        run: node tests/role-regression-uat.mjs
+        working-directory: clients/admin-vue
+
+      - name: Admin batch import UAT
+        run: node tests/batch-imp-uat.mjs
         working-directory: clients/admin-vue
 
       # IMP-025 / IMP-032 已结案争议文案（消费者 + 商户两端）。

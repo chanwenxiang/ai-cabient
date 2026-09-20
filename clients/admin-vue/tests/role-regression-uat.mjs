@@ -3,17 +3,18 @@
  * Run: node clients/admin-vue/tests/role-regression-uat.mjs
  */
 import { chromium } from 'playwright';
-import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captchaFromRedis } from '../../../scripts/lib/redis-captcha.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADMIN = (process.env.ADMIN_URL || 'http://localhost/admin').replace(/\/$/, '');
 const CHANNEL = process.env.PW_CHANNEL || 'chrome';
-const HEADED = process.env.PW_HEADED !== '0';
+// 与其余 6 个 UAT 脚本统一：默认**无头**，`PW_HEADED=1` 才开有头。
+// 原写法 `!== '0'` 是默认**有头**，在 CI（无显示器）里 chromium.launch({headless:false}) 必崩。
+const HEADED = process.env.PW_HEADED === '1';
 const OUT = path.resolve(__dirname, '../output/playwright/role-regression');
-const REDIS_CONTAINER = process.env.REDIS_CONTAINER || 'ai-cabinet-redis-1';
 const PASSWORD = '123456';
 
 fs.mkdirSync(OUT, { recursive: true });
@@ -40,14 +41,8 @@ async function shot(page, name) {
   }
 }
 
-function captchaFromRedis(captchaId) {
-  const raw = execSync(
-    `docker exec ${REDIS_CONTAINER} redis-cli GET aicabinet:captcha:${captchaId}`,
-    { encoding: 'utf8' }
-  ).trim();
-  if (!raw || /nil|ERR/i.test(raw)) throw new Error(`captcha missing: ${captchaId}`);
-  return raw.toUpperCase();
-}
+// 图形验证码读取见顶部 import 的共享模块：它在设了 REDIS_HOST 时走 TCP 直连。
+// 原内联版硬编码 `docker exec ai-cabinet-redis-1` —— CI 里没有该容器，必然 exit 2。
 
 async function waitPageCaptchaId(page, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
@@ -66,7 +61,7 @@ async function captchaForPage(page) {
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const capId = await waitPageCaptchaId(page, 5000);
-      return { captchaId: capId, captchaCode: captchaFromRedis(capId) };
+      return { captchaId: capId, captchaCode: (await captchaFromRedis(capId)).toUpperCase() };
     } catch {
       await page
         .locator('button.captcha-img-btn')
@@ -101,7 +96,20 @@ async function logoutIfNeeded(page) {
 
 async function loginAs(page, phone) {
   await logoutIfNeeded(page);
-  await page.goto(`${ADMIN}/login`, { waitUntil: 'domcontentloaded' });
+  // 🔴 logoutIfNeeded 已跳到 /login，这里再跳**同一 URL** 会与上一次导航竞态 ——
+  //    实测偶发 net::ERR_ABORTED（本机 5 次里 1 次；CI 里会伪装成真失败，
+  //    且会让整块角色用例不执行：total 22 → 16）。只对该错误重试，其余照抛。
+  let landed = false;
+  for (let attempt = 1; attempt <= 3 && !landed; attempt++) {
+    try {
+      await page.goto(`${ADMIN}/login`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      landed = true;
+    } catch (e) {
+      const aborted = /ERR_ABORTED/.test(String(e?.message));
+      if (!aborted || attempt === 3) throw e;
+      await page.waitForTimeout(500);
+    }
+  }
   await page.waitForTimeout(900);
   const cap = await captchaForPage(page);
   await fillElInput(page, '请输入11位手机号…', phone);

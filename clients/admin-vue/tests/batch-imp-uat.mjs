@@ -3,17 +3,16 @@
  * Run: cd clients/consumer-mp && node ../admin-vue/tests/batch-imp-uat.mjs
  */
 import { chromium } from 'playwright';
-import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captchaFromRedis } from '../../../scripts/lib/redis-captcha.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADMIN = (process.env.ADMIN_URL || 'http://localhost/admin').replace(/\/$/, '');
 const CHANNEL = process.env.PW_CHANNEL || 'chrome';
 const HEADED = process.env.PW_HEADED === '1';
 const OUT = path.resolve(__dirname, '../output/playwright/batch-imp');
-const REDIS_CONTAINER = process.env.REDIS_CONTAINER || 'ai-cabinet-redis-1';
 const OPS_PHONE = '13900000001';
 const OPS_PASSWORD = '123456';
 
@@ -37,14 +36,8 @@ async function shot(page, name) {
   }
 }
 
-function captchaFromRedis(captchaId) {
-  const raw = execSync(
-    `docker exec ${REDIS_CONTAINER} redis-cli GET aicabinet:captcha:${captchaId}`,
-    { encoding: 'utf8' }
-  ).trim();
-  if (!raw || /nil|ERR/i.test(raw)) throw new Error(`captcha missing: ${captchaId}`);
-  return raw.toUpperCase();
-}
+// 图形验证码读取见顶部 import 的共享模块：它在设了 REDIS_HOST 时走 TCP 直连。
+// 原内联版硬编码 `docker exec ai-cabinet-redis-1` —— CI 里没有该容器，必然 exit 2。
 
 async function waitPageCaptchaId(page, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
@@ -63,7 +56,7 @@ async function captchaForPage(page) {
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const capId = await waitPageCaptchaId(page, 5000);
-      return { captchaId: capId, captchaCode: captchaFromRedis(capId) };
+      return { captchaId: capId, captchaCode: (await captchaFromRedis(capId)).toUpperCase() };
     } catch {
       await page
         .locator('button.captcha-img-btn')
@@ -244,20 +237,29 @@ async function main() {
     record('B-04', '窄视口验收提示', narrowOk ? 'PASS' : 'FAIL', JSON.stringify(narrow), eNarrow);
     narrowOk ? pass++ : fail++;
 
-    // IMP-027 global search readonly trigger
+    // IMP-027 全局搜索触发器。
+    // 🔴 原判据找 `.global-search input`（三条回退链），但设计早已改为 button 触发器
+    //    （GlobalSearch.vue 顶部注释：只读 el-input 的 click 穿透在部分环境点不开弹层）；
+    //    真正的 el-input 现在只在 el-dialog 内，而 dialog 是 append-to-body + destroy-on-close
+    //    ⇒ 面板未打开时**不在 DOM** ⇒ 原判据恒假（`readonly: null`）。
+    //    新判据＝触发器存在 + 它是可点的 button(aria-haspopup=dialog) + 触发器区域**没有**可直接
+    //    输入的 input。最后一条保留了「只读」的原意，也让判据有区分力（若退回 input 触发器会红）。
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${ADMIN}/fund-bills`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     const gs = await page.evaluate(() => {
-      const input = document.querySelector(
-        '.global-search-trigger input, [data-testid="global-search"] input, .global-search input'
-      );
+      const root = document.querySelector('.global-search');
+      const trigger = root
+        ? root.querySelector('button.search-trigger, [aria-haspopup="dialog"]')
+        : null;
       return {
-        readonly: input?.hasAttribute('readonly') ?? null,
-        placeholder: input?.getAttribute('placeholder') || ''
+        hasRoot: !!root,
+        tag: trigger ? trigger.tagName : null,
+        haspopup: trigger ? trigger.getAttribute('aria-haspopup') : null,
+        strayInput: root ? !!root.querySelector('input') : null
       };
     });
-    const gsOk = gs.readonly === true;
+    const gsOk = !!gs.hasRoot && gs.tag === 'BUTTON' && gs.haspopup === 'dialog' && !gs.strayInput;
     record('B-05', '全局搜索只读触发器', gsOk ? 'PASS' : 'FAIL', JSON.stringify(gs), null);
     gsOk ? pass++ : fail++;
 
