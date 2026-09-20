@@ -4,6 +4,9 @@
 判据口径
 --------
 - 建表来源：`services/trade-service/src/main/resources/db/migration/V*.sql`（**排除 target/**）。
+  🔴 **按迁移号顺序 replay `CREATE` / `DROP`**，只对**最终存活**的表做孤儿判定 ——
+  否则被后续迁移 DROP 掉的表会以「幽灵孤儿」的形式留在清单里（实测踩到：`member_level`
+  建于 V67、被 `V136` DROP，旧版脚本仍把它报成「有读无写」，且该结论写过文档）。
 - 代码引用：`services/**`（java/xml/yml）+ `clients/**`（ts/vue/js）+ `scripts/**`（mjs/py），
   排除 target / node_modules / dist / unpackage。按 snake_case 整词匹配。
 - 写者证据（三条任一即算「有写者」）：
@@ -12,6 +15,11 @@
   * Java 源码里出现 `INSERT INTO t` / `UPDATE t ` / `DELETE FROM t`
 - seed 证据：迁移脚本里出现 `INSERT INTO t`
 - 读证据：迁移脚本或代码里出现 `from t` 且非写语句
+
+⚠️ **口径局限**：判据只按「整词出现」计数，**分不清「表名」与「恰好同名的字典类型键」**
+（`member_level` 的 6 处引用里没有一处是 SQL，全是 `displayLabel("member_level", …)` 这类字典类型）；
+构建产物（`static/admin/assets/*.js`、`clients/**/dist`）含表名也会被计成引用 ⇒ 会**抬高**引用数。
+⇒ 该清单是**候选集**，逐条定性必须另取 SQL/实体级证据。
 
 输出：docs/ORPHAN_TABLE_DISPOSITION.md 的数据段 + 控制台摘要
 """
@@ -26,6 +34,7 @@ CODE_DIRS = ['services', 'clients', 'scripts']
 CODE_EXT = {'.java', '.xml', '.yml', '.yaml', '.ts', '.vue', '.js', '.mjs', '.py'}
 
 cx_re = re.compile(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`]?([a-z_][a-z0-9_]*)["`]?', re.I)
+drop_re = re.compile(r'DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?["`]?([a-z_][a-z0-9_]*)["`]?', re.I)
 
 
 def iter_files(base, exts):
@@ -36,13 +45,53 @@ def iter_files(base, exts):
                 yield Path(dirpath) / fn
 
 
-# 1. 建表清单
-tables = {}
-for p in sorted(MIG.glob('V*.sql')):
+# 1. 建表清单（按迁移顺序 replay CREATE/DROP ⇒ 最终存活集合）
+# 🔴 顺序必须按**版本号数字**，不能按文件名字典序：字典序会把 V100..V199 排在 V1 之前
+#    （'0' < '_'），于是「后建的 DROP」被当成「先 DROP」⇒ replay 结果完全错乱
+#    （实测：V136 的 `DROP TABLE member_level` 被排到 V67 的建表之前，member_level 假存活）。
+def mig_order(p):
+    m = re.match(r'V(\d+)', p.name)
+    return (int(m.group(1)) if m else 10 ** 9, p.name)
+
+
+created_in = {}   # 表 -> 曾建它的迁移文件（按序）
+dropped_in = {}   # 表 -> 曾 DROP 它的迁移文件（按序）
+live = set()      # 最终存活
+phantom_drops = []  # 🔴 DROP 却没有先前的 CREATE ⇒ 顺序/正则失效的指纹
+mig_files = sorted(MIG.glob('V*.sql'), key=mig_order)
+for p in mig_files:
     txt = p.read_text(encoding='utf-8', errors='replace')
-    for m in cx_re.finditer(txt):
-        tables.setdefault(m.group(1).lower(), []).append(p.name)
-print(f'建表数（去重）: {len(tables)}')
+    events = [(m.start(), 'create', m.group(1).lower()) for m in cx_re.finditer(txt)]
+    events += [(m.start(), 'drop', m.group(1).lower()) for m in drop_re.finditer(txt)]
+    for _, kind, t in sorted(events):
+        if kind == 'create':
+            live.add(t)
+            created_in.setdefault(t, [])
+            if p.name not in created_in[t]:
+                created_in[t].append(p.name)
+        else:
+            if t not in live:
+                phantom_drops.append((p.name, t))
+            live.discard(t)
+            dropped_in.setdefault(t, [])
+            if p.name not in dropped_in[t]:
+                dropped_in[t].append(p.name)
+
+# 🔴 自证护栏：正常重放里，DROP 的目标必然已经被某个更早的迁移建过。若出现「DROP 却没见过 CREATE」，
+#    说明**迁移顺序或 DROP 正则已失效**（实测：文件名字典序会让 V136 排在 V67 之前，member_level
+#    因此假存活）⇒ 此时本脚本的全部结论都不可信，必须当错误处理，而不是继续输出清单。
+if phantom_drops:
+    print('🔴 判定基础失效：以下 DROP 找不到先前的 CREATE（迁移顺序或 DROP 正则已坏）：')
+    for fname, t in phantom_drops[:20]:
+        print(f'     {t:<36} DROP 于 {fname}')
+    print('   ⇒ 修复顺序/正则后再采信本脚本的任何数字。')
+    raise SystemExit(2)
+
+phantom = sorted(set(created_in) - live)
+print(f'建表数（曾建，去重）: {len(created_in)}')
+print(f'最终存活: {len(live)}   已被后续迁移 DROP: {len(phantom)}')
+if phantom:
+    print(f'  ⤫ 不再参与孤儿判定（旧版会把它们报成幽灵孤儿）: {", ".join(phantom)}')
 
 # 2. 代码引用计数 + 写者/读证据
 code_blob = {}
@@ -57,10 +106,10 @@ for d in CODE_DIRS:
             pass
 print(f'扫描代码文件: {len(code_blob)}')
 
-mig_blob = {p: p.read_text(encoding='utf-8', errors='replace') for p in sorted(MIG.glob('V*.sql'))}
+mig_blob = {p: p.read_text(encoding='utf-8', errors='replace') for p in mig_files}
 
 rows = []
-for t in sorted(tables):
+for t in sorted(live):
     tw = re.compile(r'(?<![a-z0-9_])' + re.escape(t) + r'(?![a-z0-9_])')
     ref_files = [str(p.relative_to(ROOT)) for p, s in code_blob.items() if tw.search(s)]
     ref_count = len(ref_files)
@@ -91,7 +140,7 @@ for t in sorted(tables):
     rows.append(dict(table=t, ref_count=ref_count, ref_files=ref_files,
                      entity=has_entity, writer=has_writer, literal_write=literal_write,
                      seed=len(seed_files), seed_files=seed_files,
-                     reader=has_reader, created_in=tables[t]))
+                     reader=has_reader, created_in=created_in[t]))
 
 zero = [r for r in rows if r['ref_count'] == 0]
 print(f'\n零代码引用表: {len(zero)} / {len(rows)}')
