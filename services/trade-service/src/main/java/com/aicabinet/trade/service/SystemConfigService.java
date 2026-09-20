@@ -100,6 +100,30 @@ public class SystemConfigService {
     public static final String PRICING_TIME_WINDOW_DISCOUNT_PERCENT =
             "pricing.time_window.discount_percent";
 
+    // ── F1 动态定价 · 库存清仓折扣 ───────────────────────────────────────────
+    //    与时段折扣共用同一份快照（PricingPromoPolicy），两个维度各自独立归一化：
+    //    「时段配错」不会连坐「清仓」，反之亦然。
+    /**
+     * 库存清仓折扣总开关；默认 false = 关闭 ⇒ 价格与接入前**逐字节一致**（fail-closed）。
+     *
+     * <p>语义（可验证）：某设备上某 SKU 的**可售批次中最早入库的那一批**，
+     * 其入库（{@code device_sku_lot.created_at}）至今的天数 ≥ {@code stock_age_days}
+     * 时，判定为**滞销库存**，该 SKU 按 {@code discount_percent} 清仓。
+     * 即「清仓 = 清滞销」：与「临期」（按 {@code expiry_date}）是两个不同维度，
+     * 临期批次本身不会被算成清仓。
+     *
+     * <p>叠加规则：清仓**不叠加于临期价**（临期价是人工绝对促销价，优先，同 C 端可预期性）；
+     * 清仓与时段折扣**取更深者**，不做折上折 —— 否则商户无法预知最终售价。
+     */
+    public static final String PRICING_CLEARANCE_ENABLED = "pricing.clearance.enabled";
+    /** 滞销判定天数阈值（&gt;0 生效）；最早可售批次入库满该天数即视为滞销。0 或负数 = 不生效。 */
+    public static final String PRICING_CLEARANCE_STOCK_AGE_DAYS = "pricing.clearance.stock_age_days";
+    /**
+     * 清仓折扣比例（1-99）。0 与 ≥100 一律视为「不生效」（fail-closed，绝不白送）。
+     */
+    public static final String PRICING_CLEARANCE_DISCOUNT_PERCENT =
+            "pricing.clearance.discount_percent";
+
     /**
      * {@link #DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES} 的**兜底默认值**（分钟）。
      *
@@ -497,6 +521,12 @@ public class SystemConfigService {
                 "时段折扣结束小时（0-23，不含）；小于起始小时表示跨零点窗口");
         upsertIfAbsent(PRICING_TIME_WINDOW_DISCOUNT_PERCENT, "0",
                 "时段折扣比例（1-99）；0 或 ≥100 视为不生效（不白送）");
+        upsertIfAbsent(PRICING_CLEARANCE_ENABLED, "false",
+                "库存清仓折扣总开关（默认关闭）；开启后滞销库存按比例清仓");
+        upsertIfAbsent(PRICING_CLEARANCE_STOCK_AGE_DAYS, "0",
+                "滞销判定天数（>0 生效）；最早可售批次入库满该天数视为滞销，0 或负数=不生效");
+        upsertIfAbsent(PRICING_CLEARANCE_DISCOUNT_PERCENT, "0",
+                "清仓折扣比例（1-99）；0 或 ≥100 视为不生效；与时段折扣取更深者不叠加");
         upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10", "设备离线超时自动锁机分钟数, 0=关闭");
         upsertIfAbsent(DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, "45",
                 "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");

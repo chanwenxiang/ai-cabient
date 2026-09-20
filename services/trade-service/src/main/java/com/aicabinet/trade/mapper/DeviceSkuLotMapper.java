@@ -19,6 +19,19 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
                 .orderByAsc(DeviceSkuLot::getExpiryDate));
     }
 
+    /**
+     * 清仓（滞销）判定用：按**入库时间**升序取该设备该 SKU 的批次，最早入库的在最前。
+     *
+     * <p>刻意与 {@link #findByDeviceIdAndSkuIdOrderByExpiryDateAsc}（FEFO 用到期日）分开：
+     * 「临期」看 {@code expiry_date}，「清仓」看 {@code created_at}，是两个不同维度。
+     */
+    default List<DeviceSkuLot> findByDeviceIdAndSkuIdOrderByCreatedAtAsc(String deviceId, String skuId) {
+        return selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
+                .eq(DeviceSkuLot::getDeviceId, deviceId)
+                .eq(DeviceSkuLot::getSkuId, skuId)
+                .orderByAsc(DeviceSkuLot::getCreatedAt));
+    }
+
     default List<DeviceSkuLot> findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(
             String deviceId, String skuId, String slotId) {
         return selectList(Wrappers.<DeviceSkuLot>lambdaQuery()

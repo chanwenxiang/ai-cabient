@@ -72,10 +72,10 @@ public class MerchantSkuPricingService {
     }
 
     /**
-     * 读取一次促销策略快照（F1 时段折扣）。
+     * 读取一次促销策略快照（F1 时段折扣 + 库存清仓折扣）。
      *
      * <p>调用方应在**循环外**调用一次、循环内复用（见 {@link PricingPromoPolicy} 的说明）：
-     * 商品目录与结算明细都是逐 SKU 调价，逐 SKU 查配置会把一次查询放大成 N×4 次。
+     * 商品目录与结算明细都是逐 SKU 调价，逐 SKU 查配置会把一次查询放大成 N×7 次。
      */
     @Transactional(readOnly = true)
     public PricingPromoPolicy loadPromoPolicy() {
@@ -83,7 +83,10 @@ public class MerchantSkuPricingService {
                 systemConfigService.getBoolean(SystemConfigService.PRICING_TIME_WINDOW_ENABLED, false),
                 systemConfigService.getInt(SystemConfigService.PRICING_TIME_WINDOW_START_HOUR, 0),
                 systemConfigService.getInt(SystemConfigService.PRICING_TIME_WINDOW_END_HOUR, 0),
-                systemConfigService.getInt(SystemConfigService.PRICING_TIME_WINDOW_DISCOUNT_PERCENT, 0));
+                systemConfigService.getInt(SystemConfigService.PRICING_TIME_WINDOW_DISCOUNT_PERCENT, 0),
+                systemConfigService.getBoolean(SystemConfigService.PRICING_CLEARANCE_ENABLED, false),
+                systemConfigService.getInt(SystemConfigService.PRICING_CLEARANCE_STOCK_AGE_DAYS, 0),
+                systemConfigService.getInt(SystemConfigService.PRICING_CLEARANCE_DISCOUNT_PERCENT, 0));
     }
 
     @Transactional(readOnly = true)
@@ -100,10 +103,21 @@ public class MerchantSkuPricingService {
     /** 显式传入小时的重载 —— 只为可测：时段判定的时间轴不能靠墙钟去撞。 */
     @Transactional(readOnly = true)
     public int resolveUnitPriceCents(String deviceId, SkuCatalog sku, PricingPromoPolicy policy, int hour) {
+        return resolveUnitPriceCents(deviceId, sku, policy, hour, java.time.LocalDate.now());
+    }
+
+    /**
+     * 显式传入小时与「今天」的重载 —— 时段（小时）与清仓（入库天数）两条时间轴都注入，
+     * 判据不靠墙钟去撞。
+     */
+    @Transactional(readOnly = true)
+    public int resolveUnitPriceCents(String deviceId, SkuCatalog sku, PricingPromoPolicy policy,
+                                     int hour, java.time.LocalDate today) {
         if (sku == null) {
             return 0;
         }
         if (deviceId == null) {
+            // 无设备上下文 ⇒ 既无批次（不可能命中清仓）也无覆盖价，只可能命中时段折扣。
             return applyTimeWindowDiscount(sku.getPriceCents(), discountFor(policy, hour));
         }
         int base = priceRepository.findByDeviceIdAndSkuId(deviceId, sku.getSkuId())
@@ -113,15 +127,36 @@ public class MerchantSkuPricingService {
                 .map(lot -> InventoryLotService.isNearExpiryByDate(
                         lot.getExpiryDate(),
                         sku.getNearExpiryDays(),
-                        java.time.LocalDate.now()))
+                        today))
                 .orElse(false);
         int priced = pickUnitPriceCents(base, sku.getNearExpiryPriceCents(), nearExpiry);
-        // 临期价是人工设定的**绝对促销价**，优先级最高，不再叠加时段折扣 ——
+        // 临期价是人工设定的**绝对促销价**，优先级最高：不叠加时段折扣，也不叠加清仓折扣 ——
         // 否则商户无法预知「临期 + 折上折」后的最终售价。
         if (usesNearExpiryPrice(sku.getNearExpiryPriceCents(), nearExpiry)) {
             return priced;
         }
-        return applyTimeWindowDiscount(priced, discountFor(policy, hour));
+        // 时段与清仓**取更深者**，不做折上折（同上：售价可预期 > 折扣力度）。
+        int percent = Math.max(discountFor(policy, hour),
+                clearanceDiscountFor(deviceId, sku, policy, today));
+        return applyTimeWindowDiscount(priced, percent);
+    }
+
+    /**
+     * 清仓折扣比例；不适用时 0。
+     *
+     * <p>滞销判定看「可售批次中最早入库那一批」的入库天数（见
+     * {@link InventoryLotService#oldestSellableLotCreatedAt}）。无批次账本 / 无可售批次 /
+     * 入库时间为空 ⇒ 返回 0（不清仓），与 {@link PricingPromoPolicy} 的 fail-closed 归一化同向。
+     */
+    private int clearanceDiscountFor(String deviceId, SkuCatalog sku, PricingPromoPolicy policy,
+                                     java.time.LocalDate today) {
+        if (policy == null || !policy.clearanceEnabled()) {
+            return 0;
+        }
+        return inventoryLotService.oldestSellableLotCreatedAt(deviceId, sku.getSkuId())
+                .map(createdAt -> InventoryLotService.stockAgeDays(createdAt, today))
+                .map(policy::clearanceDiscountAt)
+                .orElse(0);
     }
 
     private static int discountFor(PricingPromoPolicy policy, int hour) {
@@ -143,7 +178,11 @@ public class MerchantSkuPricingService {
     }
 
     /**
-     * 时段折扣：按比例下调价格，向下取整（对商户有利，不会多折），并保底 1 分。
+     * 按比例下调价格，向下取整（对商户有利，不会多折），并保底 1 分。
+     *
+     * <p>入参是**生效的促销折扣比例**（时段与清仓取更深者，见
+     * {@link #resolveUnitPriceCents(String, SkuCatalog, PricingPromoPolicy, int, java.time.LocalDate)}）；
+     * 本方法只管「一个比例怎么落到分」，不关心比例来自哪个维度。
      *
      * <p>比例 ≤0 或 ≥100 一律原价返回（fail-closed，见 {@link PricingPromoPolicy#of}）。
      */

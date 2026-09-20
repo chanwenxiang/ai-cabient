@@ -152,6 +152,119 @@
     />
   </el-card>
 
+  <!-- O2：设备侧上报的升级进度（下载/安装）。数据源同受 ota.progress.enabled 控制：
+       开关关闭时设备不上报，这里就是空表 —— 这是「没上报」而不是「页面坏了」，故给出明确空态。 -->
+  <el-card class="page-card report-page" shadow="never">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">升级进度</span>
+            <span class="hint">设备上报的下载/安装进度；未开启上报开关时设备不上报</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-select v-model="progressStatus" style="width: 150px" @change="loadProgress">
+            <el-option label="全部状态" value="" />
+            <el-option
+              v-for="s in PROGRESS_STATUSES"
+              :key="s"
+              :label="progressStatusLabel(s)"
+              :value="s"
+            />
+          </el-select>
+          <el-button :icon="Refresh" :loading="progressLoading" @click="loadProgress"
+            >刷新</el-button
+          >
+        </div>
+      </div>
+    </template>
+
+    <div class="table-scroll">
+      <div class="table-scroll-inner">
+        <el-table
+          v-loading="progressLoading"
+          :data="progressItems"
+          stripe
+          border
+          class="report-table"
+          row-key="deviceId"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="progressHydrated && !progressLoading" description="暂无升级进度上报"
+          /></template>
+          <el-table-column
+            prop="deviceId"
+            label="设备"
+            min-width="140"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            label="当前版本"
+            width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
+            <template #default="{ row }">{{ row.appVersion || '—' }}</template>
+          </el-table-column>
+          <el-table-column
+            label="目标版本"
+            width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
+            <template #default="{ row }">{{ row.targetVersion || '—' }}</template>
+          </el-table-column>
+          <el-table-column
+            label="状态"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-tag :type="progressStatusTagType(row.upgradeStatus)" size="small" effect="plain">
+                {{ progressStatusLabel(row.upgradeStatus) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="进度"
+            width="170"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-progress :percentage="clampPercent(row.progressPercent)" :stroke-width="12" />
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="失败原因"
+            min-width="160"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
+            <template #default="{ row }">{{ row.errorMessage || '—' }}</template>
+          </el-table-column>
+          <el-table-column
+            label="最近上报"
+            width="168"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+  </el-card>
+
   <el-dialog v-model="dialog" title="发布固件版本" destroy-on-close>
     <el-form label-width="auto">
       <el-form-item label="版本号" required>
@@ -239,6 +352,33 @@ function channelLabel(c?: string) {
   return (c && m[c]) || (c ? '未知' : '暂无');
 }
 
+/** 与后端 OtaService.ALLOWED_PROGRESS_STATUS 对齐（未知状态后端直接 400，不会落库）。 */
+const PROGRESS_STATUSES = ['IDLE', 'DOWNLOADING', 'INSTALLING', 'SUCCESS', 'FAILED'] as const;
+
+function progressStatusLabel(s?: string) {
+  const m: Record<string, string> = {
+    IDLE: '空闲',
+    DOWNLOADING: '下载中',
+    INSTALLING: '安装中',
+    SUCCESS: '已成功',
+    FAILED: '失败'
+  };
+  return (s && m[s]) || (s ? '未知' : '暂无');
+}
+
+function progressStatusTagType(s?: string): 'success' | 'info' | 'warning' | 'danger' {
+  if (s === 'SUCCESS') return 'success';
+  if (s === 'FAILED') return 'danger';
+  if (s === 'DOWNLOADING' || s === 'INSTALLING') return 'warning';
+  return 'info';
+}
+
+/** 进度条只接受 0-100；后端已 clamp，这里再兜一层，避免脏数据把进度条画爆。 */
+function clampPercent(v?: number) {
+  if (typeof v !== 'number' || Number.isNaN(v)) return 0;
+  return Math.min(100, Math.max(0, Math.round(v)));
+}
+
 interface OtaRelease {
   releaseId?: number;
   appVersion?: string;
@@ -254,6 +394,18 @@ interface OtaRelease {
   deviceAllowlist?: string[];
 }
 
+/** 对应后端 OtaUpgradeProgressDto（GET /ops/ota/reports）。 */
+interface OtaProgress {
+  deviceId?: string;
+  appVersion?: string | null;
+  targetVersion?: string | null;
+  upgradeStatus?: string;
+  progressPercent?: number;
+  errorMessage?: string | null;
+  reportedAt?: string;
+  updatedAt?: string;
+}
+
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const auth = useAuthStore();
 const loading = ref(false);
@@ -265,6 +417,12 @@ const total = ref(0);
 const saving = ref(false);
 const batchUnpublishing = ref(false);
 const items = ref<OtaRelease[]>([]);
+
+// ── O2 升级进度 ────────────────────────────────────────────────────────────
+const progressStatus = ref('');
+const progressLoading = ref(false);
+const progressHydrated = ref(false);
+const progressItems = ref<OtaProgress[]>([]);
 
 /** 当前页无已发布项（或无下架权限）时隐藏操作列 */
 const showActionColumn = computed(
@@ -359,6 +517,25 @@ async function load() {
 function onSizeChange() {
   page.value = 1;
   load();
+}
+
+/** 拉取设备升级进度（不分页：后端固定返回最近 N 条，按最近上报倒序）。 */
+async function loadProgress() {
+  progressLoading.value = true;
+  try {
+    const q = new URLSearchParams();
+    if (progressStatus.value) q.set('status', progressStatus.value);
+    const data = await api.request<OtaProgress[]>(
+      AdminEndpoints.otaReports(q.size ? q : undefined),
+      'GET'
+    );
+    progressItems.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载升级进度失败');
+  } finally {
+    progressHydrated.value = true;
+    progressLoading.value = false;
+  }
 }
 
 function openPublish() {
@@ -497,7 +674,10 @@ async function batchUnpublish() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  void load();
+  void loadProgress();
+});
 </script>
 
 <style scoped>

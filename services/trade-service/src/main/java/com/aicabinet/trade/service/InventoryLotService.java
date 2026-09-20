@@ -23,10 +23,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -859,6 +863,55 @@ public class InventoryLotService {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * 清仓（滞销）判定：该设备该 SKU **可售批次中最早入库的那一批**的入库时间。
+     *
+     * <p>「可售」口径与 FEFO 窥探一致（复用 {@link #isSellable}）：有库存、未被封禁、
+     * 且到期日在「今日 + SKU 的 block_sale_days_before_expiry」之后。无批次账本、
+     * 无可售批次或入库时间为空时返回 empty —— 调用方据此判「不清仓」（fail-closed）。
+     *
+     * <p>刻意用 {@code created_at} 而不是 {@code expiry_date}：后者是 FEFO/临期的维度，
+     * 「清仓」要判的是**货压了多久**（滞销），不是**还有多久过期**。
+     */
+    @Transactional(readOnly = true)
+    public Optional<Instant> oldestSellableLotCreatedAt(String deviceId, String skuId) {
+        if (deviceId == null || deviceId.isBlank() || skuId == null || skuId.isBlank()) {
+            return Optional.empty();
+        }
+        String dev = deviceId.trim();
+        String sku = skuId.trim();
+        if (!deviceUsesLotLedger(dev)) {
+            return Optional.empty();
+        }
+        SkuCatalog catalog = skuCatalogRepository.findById(sku).orElse(null);
+        int blockDays = catalog != null ? catalog.getBlockSaleDaysBeforeExpiry() : 0;
+        LocalDate minExpiry = LocalDate.now().plusDays(blockDays);
+        return lotRepository.findByDeviceIdAndSkuIdOrderByCreatedAtAsc(dev, sku).stream()
+                .filter(lot -> lot.getExpiryDate() != null)
+                .filter(lot -> isSellable(lot, minExpiry))
+                .map(DeviceSkuLot::getCreatedAt)
+                .filter(Objects::nonNull)
+                .findFirst();
+    }
+
+    /**
+     * 入库至今的天数（把入库时刻按本地时区折算成日期后与 today 相减）。
+     *
+     * <p>同日或未来时间（时钟回拨、数据异常）一律返回 0 —— 宁可「不算滞销」，
+     * 也不要因负天数把刚补的货误判成滞销清仓。
+     */
+    public static int stockAgeDays(Instant createdAt, LocalDate today) {
+        if (createdAt == null || today == null) {
+            return 0;
+        }
+        LocalDate stockedOn = createdAt.atZone(ZoneId.systemDefault()).toLocalDate();
+        long days = ChronoUnit.DAYS.between(stockedOn, today);
+        if (days <= 0) {
+            return 0;
+        }
+        return days > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) days;
     }
 
     private DeviceSkuLot createFallbackLot(String deviceId, String skuId, String batchNo) {

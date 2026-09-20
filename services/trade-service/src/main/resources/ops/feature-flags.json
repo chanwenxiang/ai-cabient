@@ -193,6 +193,29 @@
       "unit": "%"
     },
     {
+      "key": "pricing.clearance.enabled",
+      "group": "商户",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "F1 库存清仓折扣总开关（默认关闭）；开启后滞销库存按比例清仓"
+    },
+    {
+      "key": "pricing.clearance.stock_age_days",
+      "group": "商户",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "滞销判定天数（>0 生效）；最早可售批次入库满该天数视为滞销，0 或负数=不生效",
+      "unit": "天"
+    },
+    {
+      "key": "pricing.clearance.discount_percent",
+      "group": "商户",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "清仓折扣比例（1-99）；0 或 ≥100 视为不生效；与时段折扣取更深者不叠加",
+      "unit": "%"
+    },
+    {
       "key": "ops.alert.dingtalk_webhook",
       "group": "运营告警",
       "type": "TEXT",
