@@ -199,7 +199,7 @@ function resolveConstRef(expr) {
   const text = readFileSync(target.abs, 'utf8');
   const hit = new RegExp(`static final (?:int|long|String) ${m[3]}\\s*=\\s*([^;]+);`).exec(text);
   if (!hit) return null;
-  const raw = hit[1].trim().replace(/_/g, '');
+  const raw = hit[1].trim();
   // 与 resolveExpr 同因（§11.42）：`unquote` 的贪婪正则会把 `"a," + "b"` 整段吞成**源码片段**
   // （内含真实换行，而行尾取决于磁盘）⇒ 必须先试拼接。当前注册表里没有 `Class.CONST` 形式的
   // 默认值（该分支尚不可达），此处属**预防性**补齐——同类缺陷不留第二处。
@@ -207,7 +207,11 @@ function resolveConstRef(expr) {
   if (concat !== null) return concat;
   const lit = unquote(raw);
   if (lit !== null) return lit;
-  return /^-?\d+$/.test(raw) ? raw : null;
+  // 🔴 `1_000` 式下划线只对**数字字面量**有意义。原先在 unquote 之前就 `replace(/_/g,'')`
+  // （bc815f84 漏掉的那处），会把字符串常量 `"SOME_FLAG"` 剥成 `SOMEFLAG` ⇒ 与注册表比较
+  // **必不相等 ⇒ 假红**。故只对落到数字分支的值剥下划线。
+  const digits = raw.replace(/_/g, '');
+  return /^-?\d+$/.test(digits) ? digits : null;
 }
 
 // ── R0：结构 ──────────────────────────────────────────────────────────────
