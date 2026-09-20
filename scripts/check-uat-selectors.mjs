@@ -30,6 +30,28 @@
  * 第三方/框架运行时类名不在源码里，按前缀放行（FRAMEWORK_PREFIXES）。
  * 新增框架前缀必须写清来源，否则门禁会变成"什么都放行"的空管子。
  *
+ * 选择器「组」语义（2026-09-20 第二轮加固）
+ * ----------------------------------------
+ * 逗号分隔的选择器是**回退链**：`'.el-aside, .layout-aside, .sidebar'` 只要**任一分支**
+ * 命中就能取到元素。原实现把整串拆成逐个类名、要求**全部**存在 ⇒ 回退链里那些
+ * 「匹配不到但无所谓」的备选名被报成「定位永远取不到元素」，与本门禁自己的判据不符（假红）。
+ * ⇒ 现在按**组**判定：组内 ≥1 个分支的类名全部命中 ⇒ 通过；**整组全死**才报红。
+ *   （单分支组＝原语义：`.sheet` 这类独立选择器照旧必红。）
+ *   ⚠️ 这不是放宽 —— 含回退链的那 4 个套件原先**整个没被本门禁覆盖**（见下「自动跟随」），
+ *    现在它们的分支会被真检查、只有整组失效才红 ⇒ 严格强于原状。
+ *   ⚠️ 反面教训：`fillElInput(page, placeholder, value)` 这类 helper 内部的
+ *    `` `.el-input input[placeholder="${placeholder}"]` `` 是**模板插值**，静态无从判定，
+ *    原实现把它当字面量 `${placeholder}` 报红（假红）⇒ 现在含 `${` 的一律跳过。
+ *
+ * 🔴 自动跟随（同一轮新增）
+ * ------------------------
+ * `SUITES` 曾是**手写清单**：新增 `clients/*\/tests/*-uat.mjs` 不会自动进闸门。
+ * 实测漏洞（2026-09-20）：磁盘 9 个套件，`SUITES` 只映射 5 个 —— `admin-uat` /
+ * `role-regression-uat` / `batch-imp-uat`（**21 处类选择器**）/ `admin-alert-channel-uat`
+ * 长期**零校验**。⇒ 现在双向扫：磁盘上的每个 `*-uat.mjs` 必须出现在 `SUITES`；
+ * `SUITES` 里的每个条目也必须仍在磁盘上（重命名后不留僵尸条目）。
+ * 确实无法静态校验的套件须登记进 `UNMAPPED`（附可核对的理由）。
+ *
  * 用法：node scripts/check-uat-selectors.mjs
  */
 import fs from 'node:fs';
@@ -60,8 +82,48 @@ const SUITES = [
   {
     file: 'clients/admin-vue/tests/three-end-dispute-ui-uat.mjs',
     roots: ['clients/admin-vue/src', 'packages']
+  },
+  // —— 2026-09-20 补齐：这 4 个 admin 套件此前**整个未被本门禁覆盖**（不是有意豁免，是遗漏）。
+  //    `batch-imp-uat.mjs` 单文件就有 21 处类选择器在裸奔。
+  { file: 'clients/admin-vue/tests/admin-uat.mjs', roots: ['clients/admin-vue/src', 'packages'] },
+  {
+    file: 'clients/admin-vue/tests/role-regression-uat.mjs',
+    roots: ['clients/admin-vue/src', 'packages']
+  },
+  {
+    file: 'clients/admin-vue/tests/batch-imp-uat.mjs',
+    roots: ['clients/admin-vue/src', 'packages']
+  },
+  {
+    file: 'clients/admin-vue/tests/admin-alert-channel-uat.mjs',
+    roots: ['clients/admin-vue/src', 'packages']
   }
 ];
+
+/**
+ * 确实无法静态校验的套件 → 理由（必须可核对）。当前为空。
+ *
+ * 纪律：只放「它驱动的前端源码不在本仓库」这类**客观不可校验**的套件；
+ * 「源码根写起来麻烦」不构成理由 —— 那是 SUITES 该补的活（补齐 4 个 admin 套件
+ * 就是一次这类活）。空表是正常状态：说明 9/9 套件都在被校验。
+ */
+const UNMAPPED = new Map();
+
+/** 发现 `clients/*\/tests/*-uat.mjs`（发现式，避免手写清单悄悄落后于磁盘）。 */
+function discoverSuites() {
+  const out = [];
+  const clientsDir = path.join(ROOT, 'clients');
+  if (!fs.existsSync(clientsDir)) return out;
+  for (const client of fs.readdirSync(clientsDir, { withFileTypes: true })) {
+    if (!client.isDirectory()) continue;
+    const testsDir = path.join(clientsDir, client.name, 'tests');
+    if (!fs.existsSync(testsDir)) continue;
+    for (const f of fs.readdirSync(testsDir)) {
+      if (/-uat\.mjs$/.test(f)) out.push(`clients/${client.name}/tests/${f}`);
+    }
+  }
+  return out.sort();
+}
 
 /** 运行时才注入的第三方/框架类名，源码里查不到属正常。前缀 → 来源说明。 */
 const FRAMEWORK_PREFIXES = [
@@ -184,30 +246,68 @@ function stripComments(src) {
   return buf.join('');
 }
 
-/** 从测试脚本里提取 CSS 类选择器（只取我们自己写的 .xxx，忽略复合/伪类）。 */
-function extractSelectors(text) {
-  const found = new Map(); // className -> 首个出现行号
-  const patterns = [
-    /querySelector(?:All)?\(\s*['"]([^'"]+)['"]/g,
-    /waitForSelector\(\s*['"]([^'"]+)['"]/g,
-    /locator\(\s*['"]([^'"]+)['"]/g,
-    /\$\(\s*['"]([^'"]+)['"]/g
-  ];
-  const lines = text.split('\n');
-  const lineOf = (idx) => text.slice(0, idx).split('\n').length;
+/** 按**顶层**逗号切分选择器组：括号/引号里的逗号（`[placeholder="a,b"]`）不切。 */
+function splitTopLevel(raw) {
+  const out = [];
+  let depth = 0;
+  let quote = null;
+  let cur = '';
+  for (const c of raw) {
+    if (quote) {
+      cur += c;
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      cur += c;
+      continue;
+    }
+    if (c === '[' || c === '(') depth += 1;
+    else if (c === ']' || c === ')') depth -= 1;
+    if (c === ',' && depth === 0) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  out.push(cur);
+  return out;
+}
 
+/**
+ * 从测试脚本里提取**选择器组**（只取我们自己写的 .xxx，忽略 #id / [attr] / 标签）。
+ *
+ * 每个组＝一条逗号分隔的回退链。组内各分支的类名 token 分开算，判定见主循环：
+ * **≥1 个分支的类名全部命中 ⇒ 组通过**（回退链语义）；整组全死才报红。
+ * 含模板插值（`${...}`）的选择器静态无从判定 ⇒ 跳过（那是变量，不是字面量）。
+ */
+function extractSelectorGroups(text) {
+  const groups = [];
+  const patterns = [
+    /querySelector(?:All)?\(\s*(['"])(.*?)\1/g,
+    /waitForSelector\(\s*(['"])(.*?)\1/g,
+    /locator\(\s*(['"])(.*?)\1/g,
+    /\$\(\s*(['"])(.*?)\1/g
+  ];
   for (const re of patterns) {
     for (const m of text.matchAll(re)) {
-      const raw = m[1];
-      // 只处理纯类选择器（忽略 #id、[attr]、后代组合中的非类部分）
-      for (const cls of raw.matchAll(/\.([A-Za-z][A-Za-z0-9_-]*)/g)) {
-        const name = cls[1];
-        if (!found.has(name)) found.set(name, lineOf(m.index));
-      }
+      // 反向引用配对引号：`'…[data-testid="x"]…'` 里出现的双引号不再把字面量截断
+      // （原实现用两个独立引号类 `['"]…['"]`，会在内层双引号处提前收尾 ⇒ 假红）。
+      const raw = m[2];
+      if (raw.includes('${')) continue;
+      const branches = splitTopLevel(raw)
+        .map((b) => b.trim())
+        .filter(Boolean)
+        .map((b) => ({
+          raw: b,
+          tokens: [...b.matchAll(/\.([A-Za-z][A-Za-z0-9_-]*)/g)].map((c) => c[1])
+        }));
+      groups.push({ raw, line: text.slice(0, m.index).split('\n').length, branches });
     }
   }
-  void lines;
-  return found;
+  return groups;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +345,9 @@ function extractPlaceholders(text) {
   const lineOf = (idx) => text.slice(0, idx).split('\n').length;
   for (const re of patterns) {
     for (const m of text.matchAll(re)) {
+      // 模板插值（`[placeholder="${placeholder}"]`）是**变量**不是字面量，静态无从判定。
+      // 不跳过的话 `fillElInput(page, placeholder, value)` 这类 helper 会稳定假红。
+      if (m[1].includes('${')) continue;
       if (!found.has(m[1])) found.set(m[1], lineOf(m.index));
     }
   }
@@ -256,6 +359,27 @@ function isFrameworkClass(name) {
 }
 
 let failed = false;
+
+// —— 自动跟随：双向扫。手写清单会悄悄落后于磁盘（实测漏了 4 个套件），必须让磁盘说话。 ——
+const onDisk = discoverSuites();
+const mapped = new Set([...SUITES.map((s) => s.file), ...UNMAPPED.keys()]);
+for (const f of onDisk) {
+  if (!mapped.has(f)) {
+    failed = true;
+    console.error(
+      `✗ ${f}\n    未被本门禁覆盖：它的类选择器 / placeholder 处于**零校验**状态。\n` +
+        `    请把驱动的前端源码根加进 SUITES；确实无法静态校验则登记进 UNMAPPED 并写明理由。`
+    );
+  }
+}
+for (const f of mapped) {
+  if (!onDisk.includes(f)) {
+    failed = true;
+    console.error(
+      `✗ ${f}\n    条目已过期：磁盘上已无此套件（重命名 / 删除后请同步 SUITES / UNMAPPED，别留僵尸条目）。`
+    );
+  }
+}
 
 for (const suite of SUITES) {
   const suitePath = path.join(ROOT, suite.file);
@@ -275,28 +399,43 @@ for (const suite of SUITES) {
     }
   }
 
-  const suiteSrc = fs.readFileSync(suitePath, 'utf8');
   // 只看代码：注释里提到某个（已修复的）选择器属正常文档，不应报红
-  const selectors = extractSelectors(stripComments(suiteSrc));
-  const missing = [...selectors.entries()].filter(
-    ([name]) => !available.has(name) && !isFrameworkClass(name)
-  );
+  const code = stripComments(fs.readFileSync(suitePath, 'utf8'));
 
-  const usedPlaceholders = extractPlaceholders(stripComments(suiteSrc));
+  // 选择器**组**：组内 ≥1 个分支的类名全部命中 ⇒ 通过（回退链语义）；整组全死才报红。
+  // 无类名的分支（#id / [attr] / 标签）本门禁判不了 ⇒ 不计入，也不算「活分支」。
+  const checkedTokens = new Set();
+  const deadGroups = [];
+  for (const g of extractSelectorGroups(code)) {
+    const branches = g.branches
+      .filter((b) => b.tokens.length > 0)
+      .map((b) => ({
+        ...b,
+        missing: b.tokens.filter((t) => !available.has(t) && !isFrameworkClass(t))
+      }));
+    if (!branches.length) continue;
+    for (const b of branches) for (const t of b.tokens) checkedTokens.add(t);
+    if (!branches.some((b) => b.missing.length === 0)) deadGroups.push({ ...g, branches });
+  }
+
+  const usedPlaceholders = extractPlaceholders(code);
   const missingPh = [...usedPlaceholders.entries()].filter(([s]) => !placeholders.has(s));
 
-  if (missing.length || missingPh.length) {
+  if (deadGroups.length || missingPh.length) {
     failed = true;
     console.error(`✗ ${suite.file}`);
-    for (const [name, line] of missing) {
-      console.error(`    .${name}  :${line} 在 ${suite.roots.join(' + ')} 中不存在`);
+    for (const g of deadGroups) {
+      console.error(`    选择器组 '${g.raw}'  :${g.line} —— 整组都取不到元素：`);
+      for (const b of g.branches) {
+        console.error(`        分支 '${b.raw}' 缺 ${b.missing.map((m) => `.${m}`).join('、')}`);
+      }
     }
     for (const [s, line] of missingPh) {
       console.error(`    placeholder "${s}"  :${line} 在 ${suite.roots.join(' + ')} 中不存在`);
     }
   } else {
     console.log(
-      `✓ ${suite.file}（类选择器 ${selectors.size} 个、placeholder ${usedPlaceholders.size} 个全部命中）`
+      `✓ ${suite.file}（类选择器 ${checkedTokens.size} 个、placeholder ${usedPlaceholders.size} 个全部命中）`
     );
   }
 }

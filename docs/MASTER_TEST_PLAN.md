@@ -381,11 +381,17 @@ pnpm test:mp                                 # 两端小程序 vitest（本地�
 | `e2e-live-cart.ps1` / `e2e-consumer-mp-flow.ps1` / `e2e-consumer-marketing-recharge.ps1` | 实时购物车 / 消费者小程序流 / 营销+充值 |
 | 聚合入口 | `verify-local.ps1`（= shopping+replenishment+marketing-recharge+dispute-recognition）/ `verify-full.ps1` / `verify-production-readiness.ps1` |
 
-**UAT（Playwright，`clients/*/tests/*.mjs`，8 个）**：
+**UAT（Playwright，`clients/*/tests/*.mjs`，9 个）**：
+
+> 这 9 个**全部**受 `check:uat-selectors` 校验（2026-09-20 起为**发现式**：磁盘上每个
+> `*-uat.mjs` 都必须映射到源码根，漏映射直接红）。此前只映射了 5 个，另 4 个 admin 套件
+> （`admin-uat` / `role-regression-uat` / `batch-imp-uat` / `admin-alert-channel-uat`）
+> 长期处于零校验状态。
 
 | 脚本 | 端 |
 |------|-----|
 | `admin-uat.mjs` / `role-regression-uat.mjs` / `batch-imp-uat.mjs` | admin 全量 / 运营角色 / 批量导入 |
+| `admin-alert-channel-uat.mjs` | admin 告警通道配置 |
 | `three-end-business-uat.mjs` / `three-end-dispute-ui-uat.mjs` | 三端业务 / 三端争议 UI |
 | `consumer-h5-uat.mjs` / `merchant-h5-uat.mjs` | 两端 H5 冒烟 |
 | `imp-dispute-copy-uat.mjs`（在 `clients/consumer-mp/tests/`） | 消费者争议 |
