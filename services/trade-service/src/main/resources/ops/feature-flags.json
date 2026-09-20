@@ -49,6 +49,13 @@
       "description": "消费端：本柜商品详情弹层（默认关闭；关闭时仅展示商品卡片摘要）"
     },
     {
+      "key": "consumer.ad_banner.enabled",
+      "group": "扩展功能",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "消费端：首页广告位（S1；默认关闭，关闭时首页不渲染。开启后无投放内容时显示占位图且不上报计量）"
+    },
+    {
       "key": "balance.refund.max_cents",
       "group": "交易与资金",
       "type": "NUMBER",

@@ -23,14 +23,18 @@ const TEAL = '#0d9488';
 const RESET_CSS = 'html,body{margin:0;padding:0;overflow:hidden}';
 
 // Render an SVG to a PNG of the exact requested size via a clipped screenshot.
+// `size` 可以是数字（正方形，图标）或 { width, height }（横幅）。调用方必须让
+// page 的 viewport 不小于该尺寸，否则 clip 会被截断。
 async function renderSvgToPng(page, svgHtml, file, size) {
+  const width = typeof size === 'number' ? size : size.width;
+  const height = typeof size === 'number' ? size : size.height;
   await page.setContent(
     `<!doctype html><html><head><style>${RESET_CSS}</style></head><body>${svgHtml}</body></html>`
   );
   await page.screenshot({
     path: file,
     omitBackground: true,
-    clip: { x: 0, y: 0, width: size, height: size }
+    clip: { x: 0, y: 0, width, height }
   });
 }
 
@@ -146,6 +150,61 @@ function syncSkuImages() {
   }
 }
 
+/**
+ * 首页广告位**站位占位图**（F4 切片 1，见 docs/AD_MONETIZATION_DESIGN.md）。
+ *
+ * 尺寸 750x220 —— 与 `device-ad-banner.vue` 里 swiper 的 `220rpx` 等比
+ * （设计稿宽 750rpx ⇒ 本图即 2x 位图）。开关开启但该柜没有生效投放时由组件渲染，
+ * **不携带任何点击行为、不上报计量**。
+ *
+ * ⚠️ 含中文文案 ⇒ 渲染依赖本机中文字体（Windows: Microsoft YaHei）。本脚本**不在 CI 门禁链内**
+ * （手工运行），换机器重跑若字体缺失只影响字形，不影响尺寸与文件名。
+ *
+ * 📌 占位图左上角带「广告」标识：《广告法》要求广告可识别。真实投放素材的标识
+ * 尚未实装（切片 2 待办，见设计稿 §7 合规项）——**付费投放上线前必须先补**。
+ */
+const AD_PLACEHOLDER_W = 750;
+const AD_PLACEHOLDER_H = 220;
+
+/** 与前端 CSS 变量同源的青绿主色 + 中性灰，避免占位图看起来像「真广告」。 */
+const AD_PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="${AD_PLACEHOLDER_W}" height="${AD_PLACEHOLDER_H}" viewBox="0 0 ${AD_PLACEHOLDER_W} ${AD_PLACEHOLDER_H}">
+  <defs>
+    <linearGradient id="adbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f0fdfa"/>
+      <stop offset="1" stop-color="#e6ebf1"/>
+    </linearGradient>
+  </defs>
+  <rect width="${AD_PLACEHOLDER_W}" height="${AD_PLACEHOLDER_H}" fill="url(#adbg)"/>
+  <rect x="11" y="11" width="${AD_PLACEHOLDER_W - 22}" height="${AD_PLACEHOLDER_H - 22}" rx="18"
+        fill="none" stroke="#5eead4" stroke-width="2" stroke-dasharray="14 10"/>
+  <rect x="38" y="34" width="88" height="36" rx="9" fill="#0f766e" fill-opacity="0.92"/>
+  <text x="82" y="59" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif"
+        font-size="21" fill="#ffffff" text-anchor="middle">广告</text>
+  <text x="${AD_PLACEHOLDER_W / 2}" y="126" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif"
+        font-size="42" font-weight="700" fill="#0f766e" text-anchor="middle">广告位招租</text>
+  <text x="${AD_PLACEHOLDER_W / 2}" y="168" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif"
+        font-size="21" fill="#64748b" text-anchor="middle">暖柜场景 · 高复购人流 · 商务合作请联系运营</text>
+  <text x="${AD_PLACEHOLDER_W - 38}" y="${AD_PLACEHOLDER_H - 26}" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif"
+        font-size="18" fill="#94a3b8" text-anchor="end">占位图 · 配置投放后自动替换</text>
+</svg>`;
+
+/** 渲染首页广告位占位图到 C 端 static/ad/。 */
+async function renderAdSlotPlaceholder(browser) {
+  const outDir = path.join(root, 'clients/consumer-mp/src/static/ad');
+  fs.mkdirSync(outDir, { recursive: true });
+  const page = await browser.newPage({
+    viewport: { width: AD_PLACEHOLDER_W, height: AD_PLACEHOLDER_H }
+  });
+  try {
+    await renderSvgToPng(page, AD_PLACEHOLDER_SVG, path.join(outDir, 'slot-placeholder.png'), {
+      width: AD_PLACEHOLDER_W,
+      height: AD_PLACEHOLDER_H
+    });
+  } finally {
+    await page.close();
+  }
+}
+
 async function main() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
@@ -184,9 +243,11 @@ async function main() {
     await tabPage.close();
     await menuPage.close();
 
+    await renderAdSlotPlaceholder(browser);
+
     syncSkuImages();
 
-    console.log('render-mp-assets ok（tab 图标已渲染，商品图已同步）');
+    console.log('render-mp-assets ok（tab 图标已渲染，广告位占位图已渲染，商品图已同步）');
   } finally {
     await browser.close();
   }

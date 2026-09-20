@@ -197,7 +197,12 @@
         </view>
       </view>
 
-      <DeviceAdBanner v-if="deviceId" :device-id="deviceId" />
+      <!--
+        首页广告位（S1，扩展功能 `consumer.ad_banner.enabled`）。
+        默认关 ⇒ 整块不渲染，与接入前逐字节一致（fail-closed）。
+        开关只管「位置可见性」：广告主/计费/结算属 F4 后续切片，不在本开关语义内。
+      -->
+      <DeviceAdBanner v-if="deviceId && adBannerVisible" :device-id="deviceId" />
 
       <view
         v-if="reviewSessionId && !sessionActive"
@@ -569,7 +574,12 @@ import { parseQuery } from '@aicabinet/shared-uni/query';
 import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { resolveMockEnabled } from '@/utils/runtime-flags';
-import { couponEntryEnabled, productDetailEnabled, seedConsumerFlags } from '@/utils/feature-flags';
+import {
+  adBannerEnabled,
+  couponEntryEnabled,
+  productDetailEnabled,
+  seedConsumerFlags
+} from '@/utils/feature-flags';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
@@ -685,6 +695,11 @@ const servicePhone = ref('400-888-0018');
 const couponEntryVisible = ref(false);
 /** 扩展功能：商品详情入口/弹层（`consumer.product_detail.enabled`，默认关 ⇒ 入口不渲染）。 */
 const detailVisible = ref(false);
+/**
+ * 首页广告位（扩展功能 `consumer.ad_banner.enabled`）。
+ * fail-closed：默认 false ⇒ 首页不渲染广告位，与接入前完全一致。
+ */
+const adBannerVisible = ref(false);
 /** 当前打开详情的商品（null = 弹层关闭）。 */
 const detailProduct = ref<DeviceProduct | null>(null);
 const openingSeconds = ref(90);
@@ -1472,6 +1487,7 @@ async function loadConsumerConfig() {
     mockEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
     couponEntryVisible.value = couponEntryEnabled();
     detailVisible.value = productDetailEnabled();
+    adBannerVisible.value = adBannerEnabled();
   } catch {
     /* 使用默认客服电话 */
   }

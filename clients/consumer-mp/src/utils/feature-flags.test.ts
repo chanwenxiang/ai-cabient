@@ -32,6 +32,8 @@ describe('扩展功能开关读取器', () => {
     expect(m.orderSearchEnabled()).toBe(false);
     expect(m.couponEntryEnabled()).toBe(false);
     expect(m.productDetailEnabled()).toBe(false);
+    // 广告位尤其要守住：误判成「开」会让首页在没有投放时也挂出占位图
+    expect(m.adBannerEnabled()).toBe(false);
   });
 
   it('seed 后按值判定：true / "true" / "1" 为开，其余（含 "false" / 空串 / 任意串）为关', async () => {
@@ -39,11 +41,13 @@ describe('扩展功能开关读取器', () => {
     on.seedConsumerFlags({
       couponEntryEnabled: 'true',
       orderSearchEnabled: '1',
-      productDetailEnabled: 'true'
+      productDetailEnabled: 'true',
+      adBannerEnabled: 'true'
     });
     expect(on.couponEntryEnabled()).toBe(true);
     expect(on.orderSearchEnabled()).toBe(true);
     expect(on.productDetailEnabled()).toBe(true);
+    expect(on.adBannerEnabled()).toBe(true);
 
     // 越界输入（JSON 布尔）也应判为开：`enabled()` 收 unknown，容忍直接下发布尔值。
     // 契约上服务端是 String.valueOf(...) ⇒ 恒字符串；这里**刻意越过类型边界**验证容错，
@@ -54,19 +58,43 @@ describe('扩展功能开关读取器', () => {
 
     for (const raw of ['false', '', 'yes', 'TRUE', '0']) {
       const m = await fresh();
-      m.seedConsumerFlags({ couponEntryEnabled: raw, productDetailEnabled: raw });
+      m.seedConsumerFlags({
+        couponEntryEnabled: raw,
+        productDetailEnabled: raw,
+        adBannerEnabled: raw
+      });
       expect(m.couponEntryEnabled(), `raw=${JSON.stringify(raw)} 必须判为关`).toBe(false);
       expect(m.productDetailEnabled(), `raw=${JSON.stringify(raw)} 必须判为关`).toBe(false);
+      expect(m.adBannerEnabled(), `raw=${JSON.stringify(raw)} 必须判为关`).toBe(false);
     }
+  });
+
+  it('🔴 各开关互相独立 —— 广告位不得读成别的键（复制粘贴最容易改错键名）', async () => {
+    const m = await fresh();
+    m.seedConsumerFlags({
+      adBannerEnabled: 'true',
+      orderSearchEnabled: 'false',
+      couponEntryEnabled: 'false',
+      productDetailEnabled: 'false'
+    });
+    expect(m.adBannerEnabled()).toBe(true);
+    expect(m.orderSearchEnabled()).toBe(false);
+    expect(m.couponEntryEnabled()).toBe(false);
+    expect(m.productDetailEnabled()).toBe(false);
   });
 
   it('🔴 seed(null/undefined)（网络失败）不得覆盖已有缓存 —— 一次失败不能把开关永久钉死在关', async () => {
     const m = await fresh();
-    m.seedConsumerFlags({ couponEntryEnabled: 'true', productDetailEnabled: 'true' });
+    m.seedConsumerFlags({
+      couponEntryEnabled: 'true',
+      productDetailEnabled: 'true',
+      adBannerEnabled: 'true'
+    });
     m.seedConsumerFlags(null);
     m.seedConsumerFlags(undefined);
     expect(m.couponEntryEnabled()).toBe(true);
     expect(m.productDetailEnabled()).toBe(true);
+    expect(m.adBannerEnabled()).toBe(true);
   });
 
   it('loadConsumerFlags 请求失败 ⇒ 缓存空表、开关全关（fail-closed，且不抛穿）', async () => {
@@ -76,19 +104,22 @@ describe('扩展功能开关读取器', () => {
     expect(m.couponEntryEnabled()).toBe(false);
     expect(m.orderSearchEnabled()).toBe(false);
     expect(m.productDetailEnabled()).toBe(false);
+    expect(m.adBannerEnabled()).toBe(false);
   });
 
   it('loadConsumerFlags 成功 ⇒ 下发键进缓存，开关随值打开', async () => {
     consumerPublicConfig.mockResolvedValue({
       orderSearchEnabled: 'true',
       couponEntryEnabled: '1',
-      productDetailEnabled: '1'
+      productDetailEnabled: '1',
+      adBannerEnabled: '1'
     });
     const m = await fresh();
     await m.loadConsumerFlags();
     expect(m.orderSearchEnabled()).toBe(true);
     expect(m.couponEntryEnabled()).toBe(true);
     expect(m.productDetailEnabled()).toBe(true);
+    expect(m.adBannerEnabled()).toBe(true);
   });
 
   it('loadConsumerFlags 并发去重：同时调用只发一次请求，且都拿到同一份配置', async () => {

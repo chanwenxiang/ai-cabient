@@ -84,6 +84,7 @@ class SystemConfigExtensionFlagsTest {
         var consumer = service.consumerPublicConfig();
         assertEquals("false", consumer.get("orderSearchEnabled"));
         assertEquals("false", consumer.get("couponEntryEnabled"));
+        assertEquals("false", consumer.get("adBannerEnabled"));
         assertEquals("false", service.merchantPublicConfig().get("chartsEnabled"));
     }
 
@@ -91,17 +92,21 @@ class SystemConfigExtensionFlagsTest {
     void extensionFlags_followStoredValue() {
         stub(SystemConfigService.CONSUMER_ORDER_SEARCH_ENABLED, "true");
         stub(SystemConfigService.CONSUMER_COUPON_ENTRY_ENABLED, "true");
+        stub(SystemConfigService.CONSUMER_AD_BANNER_ENABLED, "true");
         stub(SystemConfigService.MERCHANT_CHARTS_ENABLED, "true");
 
         var consumer = service.consumerPublicConfig();
         assertEquals("true", consumer.get("orderSearchEnabled"));
         assertEquals("true", consumer.get("couponEntryEnabled"));
+        assertEquals("true", consumer.get("adBannerEnabled"));
         assertEquals("true", service.merchantPublicConfig().get("chartsEnabled"));
     }
 
     @Test
     void extensionFlags_blankStoredValue_staysFalse() {
         stub(SystemConfigService.MERCHANT_CHARTS_ENABLED, "   ");
+        stub(SystemConfigService.CONSUMER_AD_BANNER_ENABLED, "   ");
         assertEquals("false", service.merchantPublicConfig().get("chartsEnabled"));
+        assertEquals("false", service.consumerPublicConfig().get("adBannerEnabled"));
     }
 }

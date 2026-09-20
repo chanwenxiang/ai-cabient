@@ -1,6 +1,7 @@
 <template>
-  <view v-if="items.length" class="ad-banner" data-testid="device-ad-banner">
+  <view v-if="items.length || placeholderVisible" class="ad-banner" data-testid="device-ad-banner">
     <swiper
+      v-if="items.length"
       class="ad-swiper"
       circular
       :autoplay="items.length > 1"
@@ -35,6 +36,19 @@
         </view>
       </swiper-item>
     </swiper>
+    <!--
+      站位占位图（F4 切片 1）：开关已开、但该柜没有生效中的投放计划时渲染。
+      🔴 刻意**不绑定任何点击、也不上报任何事件** —— 占位不是广告，不该产生计量数据
+      （计量即计费依据，见 docs/AD_MONETIZATION_DESIGN.md §5）。
+    -->
+    <image
+      v-else
+      class="ad-media"
+      mode="aspectFill"
+      :src="placeholderUrl"
+      alt="广告位招租"
+      data-testid="device-ad-banner-placeholder"
+    />
     <text v-if="campaignName" class="ad-caption">{{ campaignName }}</text>
   </view>
 </template>
@@ -44,6 +58,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { API_BASE_URL } from '@/config/api';
 import { consumerApi } from '@/utils/consumer-api';
 import type { ScreenContentItemDto } from '@aicabinet/shared-types';
+import placeholderUrl from '@/static/ad/slot-placeholder.png';
 
 const props = defineProps<{
   deviceId: string;
@@ -53,8 +68,17 @@ const campaignId = ref<number | null>(null);
 const campaignName = ref('');
 const items = ref<ScreenContentItemDto[]>([]);
 const currentIndex = ref(0);
+/**
+ * 是否已完成一次加载（成功或失败）。
+ * 🔴 用它（而不是 `!items.length`）当占位图的闸门：加载中 `items` 也是空数组，
+ * 直接判空会让占位图在真实素材到达前**闪一下**，看起来像「投放内容丢了」。
+ */
+const loaded = ref(false);
 const completeTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const impressed = new Set<number>();
+
+/** 站位：开关开、加载完成、但该柜没有生效投放 ⇒ 显示占位图。 */
+const placeholderVisible = computed(() => loaded.value && items.value.length === 0);
 
 const slideMs = computed(() => {
   const cur = items.value[currentIndex.value];
@@ -82,8 +106,10 @@ async function load() {
   const id = (props.deviceId || '').trim();
   if (!id) {
     reset();
+    loaded.value = false;
     return;
   }
+  loaded.value = false;
   try {
     const data = await consumerApi.screenContent(id);
     campaignId.value = data?.campaignId ?? null;
@@ -99,6 +125,9 @@ async function load() {
   } catch {
     reset();
   }
+  // 🔴 无论成功失败都置 true：取不到投放内容 ≠ 取不到广告位。开关由页面把关，
+  // 这里落占位图，避免「接口失败」被表现成「整块消失」（运营会误判开关没生效）。
+  loaded.value = true;
 }
 
 function reset() {

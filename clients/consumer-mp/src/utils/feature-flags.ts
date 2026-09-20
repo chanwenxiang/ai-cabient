@@ -80,3 +80,15 @@ export function couponEntryEnabled(): boolean {
 export function productDetailEnabled(): boolean {
   return enabled(cache?.productDetailEnabled);
 }
+
+/**
+ * 首页广告位（S1，`consumer.ad_banner.enabled`）。见 `docs/AD_MONETIZATION_DESIGN.md`。
+ *
+ * **开**：首页在柜机状态卡下方渲染广告位 —— 该柜有生效投放则显示真实素材，没有则显示占位图；
+ * **关**（默认）：首页**不渲染广告位**，即接入前行为（fail-closed）。
+ *
+ * ⚠️ 与「计量」无关：占位图不上报曝光/点击；真实素材的上报由组件内部按 campaignId 决定。
+ */
+export function adBannerEnabled(): boolean {
+  return enabled(cache?.adBannerEnabled);
+}

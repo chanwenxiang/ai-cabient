@@ -250,6 +250,21 @@ public class SystemConfigService {
     public static final String MERCHANT_CHARTS_ENABLED = "merchant.charts.enabled";
     /** 消费端：本柜商品详情（商品卡片可点开详情弹层；关闭时仅展示卡片摘要，与接入前一致）。 */
     public static final String CONSUMER_PRODUCT_DETAIL_ENABLED = "consumer.product_detail.enabled";
+    /**
+     * 消费端：首页广告位（S1，见 {@code docs/AD_MONETIZATION_DESIGN.md}）。
+     *
+     * <p><b>关闭（默认）＝ 首页不渲染广告位</b>，与接入前逐字节一致（fail-closed）。
+     * 开启后按下列优先级渲染：
+     * <ol>
+     *   <li>该柜有生效中的投放计划 ⇒ 渲染真实素材（曝光/完播/点击照常上报）；</li>
+     *   <li>没有投放内容 ⇒ 渲染**占位图**（「广告位招租」），且**不上报任何事件**
+     *       —— 占位不是广告，不该产生计量数据，更不该进计费。</li>
+     * </ol>
+     *
+     * <p>⚠️ 本开关只负责「位置可见性」。广告主 / 订单 / CPM 计费与结算属 F4 后续切片，
+     * 不在本开关语义内（现在的默认关＝只站位，不产生任何计费行为）。
+     */
+    public static final String CONSUMER_AD_BANNER_ENABLED = "consumer.ad_banner.enabled";
 
     // ── F1 动态定价 · 策略版本与审计 ─────────────────────────────────────────
     /**
@@ -417,6 +432,9 @@ public class SystemConfigService {
                 String.valueOf(self.getBoolean(CONSUMER_COUPON_ENTRY_ENABLED, false)));
         map.put("productDetailEnabled",
                 String.valueOf(self.getBoolean(CONSUMER_PRODUCT_DETAIL_ENABLED, false)));
+        // 首页广告位（S1）：默认关 ⇒ 渲染分支与接入前一致
+        map.put("adBannerEnabled",
+                String.valueOf(self.getBoolean(CONSUMER_AD_BANNER_ENABLED, false)));
         return map;
     }
 
@@ -676,6 +694,8 @@ public class SystemConfigService {
                 "商户端：经营分析趋势/构成图（默认关闭；关闭时维持纯数字与列表）");
         upsertIfAbsent(CONSUMER_PRODUCT_DETAIL_ENABLED, "false",
                 "消费端：本柜商品详情弹层（默认关闭；关闭时仅展示商品卡片摘要）");
+        upsertIfAbsent(CONSUMER_AD_BANNER_ENABLED, "false",
+                "消费端：首页广告位（默认关闭；关闭时首页不渲染广告位。开启后无投放内容时显示占位图）");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
         upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");
