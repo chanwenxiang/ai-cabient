@@ -31,6 +31,7 @@ class MerchantSkuPricingConcurrencyTest {
     @Mock private MerchantFeaturePackService merchantFeaturePackService;
     @Mock private InventoryLotService inventoryLotService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private SystemConfigService systemConfigService;
 
     private MerchantSkuPricingService service;
 
@@ -38,7 +39,8 @@ class MerchantSkuPricingConcurrencyTest {
     void setUp() {
         service = new MerchantSkuPricingService(priceRepository, inventoryRepository, skuCatalogRepository,
                 deviceRepository, permissionService, merchantPortalGuard, auditService, auditLogRepository,
-                merchantSelfServiceGate, merchantFeaturePackService, inventoryLotService, distributedLockService, null);
+                merchantSelfServiceGate, merchantFeaturePackService, inventoryLotService, distributedLockService,
+                systemConfigService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

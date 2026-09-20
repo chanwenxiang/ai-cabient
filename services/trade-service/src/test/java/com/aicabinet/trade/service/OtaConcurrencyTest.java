@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.OtaDeviceReportMapper;
 import com.aicabinet.trade.mapper.OtaReleaseMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,8 +22,10 @@ class OtaConcurrencyTest {
 
     @Mock private OtaReleaseMapper releaseRepository;
     @Mock private DeviceInfoMapper deviceRepository;
+    @Mock private OtaDeviceReportMapper reportRepository;
     @Mock private OtaCdnService otaCdnService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private SystemConfigService systemConfigService;
 
     private OtaService service;
 
@@ -31,9 +34,11 @@ class OtaConcurrencyTest {
         service = new OtaService(
                 releaseRepository,
                 deviceRepository,
+                reportRepository,
                 otaCdnService,
                 new ObjectMapper(),
-                distributedLockService);
+                distributedLockService,
+                systemConfigService);
     }
 
     @Test

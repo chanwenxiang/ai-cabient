@@ -70,6 +70,35 @@ public class SystemConfigService {
             "device.offline.manual_unlock_grace_minutes";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED = "device.offline.auto_unlock_enabled";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = "device.offline.auto_unlock_stable_minutes";
+    /**
+     * OTA 升级进度上报开关（O2）；默认 false = 关闭。
+     *
+     * <p>关闭时设备侧的进度上报**不落库**（返回空），
+     * 即 {@code ota_device_report} 保持与接入前一致的「零写入」状态（fail-closed）。
+     */
+    public static final String OTA_PROGRESS_ENABLED = "ota.progress.enabled";
+
+    // ── F1 动态定价 · 时段折扣 ───────────────────────────────────────────────
+    //    这四个键由 MerchantSkuPricingService.loadPromoPolicy() 一次读成快照，
+    //    调用方（商品目录 / 结算）在循环外读一次、循环内复用，避免 N×DB。
+    /**
+     * 时段折扣总开关；默认 false = 关闭 ⇒ 价格与接入前**逐字节一致**（fail-closed）。
+     *
+     * <p>开启后，位于 {@code start_hour}（含）至 {@code end_hour}（不含）之间的成交按
+     * {@code discount_percent} 打折；跨零点窗口（start &gt; end）按「或」判定。
+     * 折扣**不叠加于临期价**：命中临期批次时仍按人工设定的临期价成交。
+     */
+    public static final String PRICING_TIME_WINDOW_ENABLED = "pricing.time_window.enabled";
+    /** 时段折扣起始小时（0-23，含）。start == end 视为空窗口 ⇒ 不生效。 */
+    public static final String PRICING_TIME_WINDOW_START_HOUR = "pricing.time_window.start_hour";
+    /** 时段折扣结束小时（0-23，不含）。 */
+    public static final String PRICING_TIME_WINDOW_END_HOUR = "pricing.time_window.end_hour";
+    /**
+     * 时段折扣比例（1-99）。0 与 ≥100 一律视为「不生效」：100% 折扣不是合法折扣，
+     * 宁可原价也不要白送（fail-closed）。
+     */
+    public static final String PRICING_TIME_WINDOW_DISCOUNT_PERCENT =
+            "pricing.time_window.discount_percent";
 
     /**
      * {@link #DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES} 的**兜底默认值**（分钟）。
@@ -460,6 +489,14 @@ public class SystemConfigService {
         upsertIfAbsent(BALANCE_REFUND_MAX_CENTS, "500000", "单次余额退款申请上限（分），默认 ¥5000，0=不限制");
         upsertIfAbsent(REFUND_AUTO_APPROVE_MAX_CENTS, "0",
                 "余额退款自动审批上限（分），0=关闭（全部人工审核）；≤该上限的申请提交后由系统账号立即审批并原路退款，不进入审批流");
+        upsertIfAbsent(PRICING_TIME_WINDOW_ENABLED, "false",
+                "时段折扣总开关（默认关闭）；开启后指定时段内成交按比例打折");
+        upsertIfAbsent(PRICING_TIME_WINDOW_START_HOUR, "0",
+                "时段折扣起始小时（0-23，含）；与结束小时相同视为空窗口⇒不生效");
+        upsertIfAbsent(PRICING_TIME_WINDOW_END_HOUR, "0",
+                "时段折扣结束小时（0-23，不含）；小于起始小时表示跨零点窗口");
+        upsertIfAbsent(PRICING_TIME_WINDOW_DISCOUNT_PERCENT, "0",
+                "时段折扣比例（1-99）；0 或 ≥100 视为不生效（不白送）");
         upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10", "设备离线超时自动锁机分钟数, 0=关闭");
         upsertIfAbsent(DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, "45",
                 "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");
@@ -468,6 +505,8 @@ public class SystemConfigService {
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES,
                 String.valueOf(DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES),
                 "自动解锁前需保持稳定在线分钟数（默认 5）, 0=关闭");
+        upsertIfAbsent(OTA_PROGRESS_ENABLED, "false",
+                "OTA 升级进度上报（默认关闭）；开启后设备侧的下载/安装进度写入 ota_device_report");
         upsertIfAbsent(DEVICE_TEMP_ALERT_MAX_C, "8",
                 "柜内温度高于该值(℃)时上报温度异常告警, 0=关闭");
         upsertIfAbsent(MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES, "30",

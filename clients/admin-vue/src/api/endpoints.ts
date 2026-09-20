@@ -568,6 +568,12 @@ export const AdminEndpoints = {
       : `${ops}/ota/releases?${query.toString()}`,
   otaReleaseUnpublish: (releaseId: string | number) =>
     `${ops}/ota/releases/${encodeURIComponent(String(releaseId))}/unpublish`,
+  /** 设备升级进度列表（O2）；status 省略即不过滤。 */
+  otaReports: (query?: URLSearchParams | string) => {
+    if (!query) return `${ops}/ota/reports`;
+    const qs = typeof query === 'string' ? query : query.toString();
+    return qs ? `${ops}/ota/reports?${qs}` : `${ops}/ota/reports`;
+  },
   repairTickets: `${ops}/repair-tickets`,
   repairTicketsList: (query: URLSearchParams | string) =>
     typeof query === 'string'

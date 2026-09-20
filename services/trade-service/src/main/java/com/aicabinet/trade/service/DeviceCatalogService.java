@@ -65,6 +65,8 @@ public class DeviceCatalogService {
                 .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s));
 
         List<DeviceProductDto> result = new ArrayList<>();
+        // 促销策略快照读一次、循环内复用：配置是直读 DB 无缓存的，逐 SKU 读会放大成 N×4 次查库。
+        PricingPromoPolicy promoPolicy = skuPricingService.loadPromoPolicy();
         for (String skuId : skuIds) {
             SkuCatalog sku = skuMap.get(skuId);
             int qty = qtyBySku.getOrDefault(skuId, 0);
@@ -72,7 +74,7 @@ public class DeviceCatalogService {
                 result.add(new DeviceProductDto(
                     sku.getSkuId(),
                     sku.getSkuName(),
-                    skuPricingService.resolveUnitPriceCents(dev, sku),
+                    skuPricingService.resolveUnitPriceCents(dev, sku, promoPolicy),
                     qty,
                     sku.getImageUrl(),
                     sku.getCategory(),

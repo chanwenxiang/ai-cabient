@@ -101,6 +101,13 @@
       "description": "自动解锁前需保持稳定在线分钟数（默认 5）, 0=关闭"
     },
     {
+      "key": "ota.progress.enabled",
+      "group": "设备与柜机",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "OTA 升级进度上报（默认关闭）；开启后设备侧的下载/安装进度写入 ota_device_report"
+    },
+    {
       "key": "device.offline.manual_unlock_grace_minutes",
       "group": "设备与柜机",
       "type": "NUMBER",
@@ -153,6 +160,37 @@
       "default": "30",
       "description": "柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却",
       "unit": "分钟"
+    },
+    {
+      "key": "pricing.time_window.enabled",
+      "group": "商户",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "F1 时段折扣总开关（默认关闭；开启后指定时段内成交按比例打折）"
+    },
+    {
+      "key": "pricing.time_window.start_hour",
+      "group": "商户",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "时段折扣起始小时（0-23，含）；与结束小时相同视为空窗口⇒不生效",
+      "unit": "时"
+    },
+    {
+      "key": "pricing.time_window.end_hour",
+      "group": "商户",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "时段折扣结束小时（0-23，不含）；小于起始小时表示跨零点窗口",
+      "unit": "时"
+    },
+    {
+      "key": "pricing.time_window.discount_percent",
+      "group": "商户",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "时段折扣比例（1-99）；0 或 ≥100 视为不生效（不白送）",
+      "unit": "%"
     },
     {
       "key": "ops.alert.dingtalk_webhook",

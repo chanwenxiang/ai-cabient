@@ -37,6 +37,7 @@ public class MerchantSkuPricingService {
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final InventoryLotService inventoryLotService;
     private final DistributedLockService distributedLockService;
+    private final SystemConfigService systemConfigService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantSkuPricingService self;
 
@@ -51,7 +52,9 @@ public class MerchantSkuPricingService {
                                      MerchantSelfServiceGate merchantSelfServiceGate,
                                      MerchantFeaturePackService merchantFeaturePackService,
                                      InventoryLotService inventoryLotService,
-                                     DistributedLockService distributedLockService, @Lazy MerchantSkuPricingService self) {
+                                     DistributedLockService distributedLockService,
+                                     SystemConfigService systemConfigService,
+                                     @Lazy MerchantSkuPricingService self) {
         this.priceRepository = priceRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -64,16 +67,44 @@ public class MerchantSkuPricingService {
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.inventoryLotService = inventoryLotService;
         this.distributedLockService = distributedLockService;
+        this.systemConfigService = systemConfigService;
         this.self = self;
+    }
+
+    /**
+     * 读取一次促销策略快照（F1 时段折扣）。
+     *
+     * <p>调用方应在**循环外**调用一次、循环内复用（见 {@link PricingPromoPolicy} 的说明）：
+     * 商品目录与结算明细都是逐 SKU 调价，逐 SKU 查配置会把一次查询放大成 N×4 次。
+     */
+    @Transactional(readOnly = true)
+    public PricingPromoPolicy loadPromoPolicy() {
+        return PricingPromoPolicy.of(
+                systemConfigService.getBoolean(SystemConfigService.PRICING_TIME_WINDOW_ENABLED, false),
+                systemConfigService.getInt(SystemConfigService.PRICING_TIME_WINDOW_START_HOUR, 0),
+                systemConfigService.getInt(SystemConfigService.PRICING_TIME_WINDOW_END_HOUR, 0),
+                systemConfigService.getInt(SystemConfigService.PRICING_TIME_WINDOW_DISCOUNT_PERCENT, 0));
     }
 
     @Transactional(readOnly = true)
     public int resolveUnitPriceCents(String deviceId, SkuCatalog sku) {
+        return resolveUnitPriceCents(deviceId, sku, loadPromoPolicy());
+    }
+
+    /** 复用同一份策略快照的重载（循环内调用本方法，避免重复查配置）。 */
+    @Transactional(readOnly = true)
+    public int resolveUnitPriceCents(String deviceId, SkuCatalog sku, PricingPromoPolicy policy) {
+        return resolveUnitPriceCents(deviceId, sku, policy, java.time.LocalTime.now().getHour());
+    }
+
+    /** 显式传入小时的重载 —— 只为可测：时段判定的时间轴不能靠墙钟去撞。 */
+    @Transactional(readOnly = true)
+    public int resolveUnitPriceCents(String deviceId, SkuCatalog sku, PricingPromoPolicy policy, int hour) {
         if (sku == null) {
             return 0;
         }
         if (deviceId == null) {
-            return sku.getPriceCents();
+            return applyTimeWindowDiscount(sku.getPriceCents(), discountFor(policy, hour));
         }
         int base = priceRepository.findByDeviceIdAndSkuId(deviceId, sku.getSkuId())
                 .map(DeviceSkuPrice::getPriceCents)
@@ -84,17 +115,43 @@ public class MerchantSkuPricingService {
                         sku.getNearExpiryDays(),
                         java.time.LocalDate.now()))
                 .orElse(false);
-        return pickUnitPriceCents(base, sku.getNearExpiryPriceCents(), nearExpiry);
+        int priced = pickUnitPriceCents(base, sku.getNearExpiryPriceCents(), nearExpiry);
+        // 临期价是人工设定的**绝对促销价**，优先级最高，不再叠加时段折扣 ——
+        // 否则商户无法预知「临期 + 折上折」后的最终售价。
+        if (usesNearExpiryPrice(sku.getNearExpiryPriceCents(), nearExpiry)) {
+            return priced;
+        }
+        return applyTimeWindowDiscount(priced, discountFor(policy, hour));
+    }
+
+    private static int discountFor(PricingPromoPolicy policy, int hour) {
+        return policy == null ? 0 : policy.discountPercentAt(hour);
     }
 
     /**
      * 临期价优先：FEFO 首批可售批次处于临期窗口且配置了临期价时使用临期价。
      */
     static int pickUnitPriceCents(int catalogOrOverridePrice, Integer nearExpiryPriceCents, boolean primaryLotNearExpiry) {
-        if (primaryLotNearExpiry && nearExpiryPriceCents != null && nearExpiryPriceCents > 0) {
-            return nearExpiryPriceCents;
+        return usesNearExpiryPrice(nearExpiryPriceCents, primaryLotNearExpiry)
+                ? nearExpiryPriceCents
+                : catalogOrOverridePrice;
+    }
+
+    /** 是否按临期价成交 —— 判定条件的**唯一来源**，定价链与「是否叠加时段折扣」共用。 */
+    static boolean usesNearExpiryPrice(Integer nearExpiryPriceCents, boolean primaryLotNearExpiry) {
+        return primaryLotNearExpiry && nearExpiryPriceCents != null && nearExpiryPriceCents > 0;
+    }
+
+    /**
+     * 时段折扣：按比例下调价格，向下取整（对商户有利，不会多折），并保底 1 分。
+     *
+     * <p>比例 ≤0 或 ≥100 一律原价返回（fail-closed，见 {@link PricingPromoPolicy#of}）。
+     */
+    static int applyTimeWindowDiscount(int priceCents, int discountPercent) {
+        if (priceCents <= 0 || discountPercent <= 0 || discountPercent >= 100) {
+            return priceCents;
         }
-        return catalogOrOverridePrice;
+        return (int) Math.max(1L, (long) priceCents * (100 - discountPercent) / 100);
     }
 
     @Transactional(readOnly = true)

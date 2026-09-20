@@ -44,6 +44,15 @@ public class OpsOtaController {
         return ApiResponse.ok(otaAdminService.unpublishOta(operatorId(request), releaseId));
     }
 
+    /** 设备升级进度列表（O2）；status 省略即不过滤。 */
+    @RequiresPermissions("ops:ota:list")
+    @GetMapping("/ota/reports")
+    public ApiResponse<List<OtaUpgradeProgressDto>> listOtaReports(
+            HttpServletRequest request,
+            @RequestParam(required = false) String status) {
+        return ApiResponse.ok(otaAdminService.listProgress(operatorId(request), status));
+    }
+
     private static Long operatorId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }

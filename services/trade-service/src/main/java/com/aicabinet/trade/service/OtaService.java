@@ -2,8 +2,11 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OtaCheckResponse;
 import com.aicabinet.common.dto.OtaReleaseDto;
+import com.aicabinet.common.dto.OtaUpgradeProgressDto;
+import com.aicabinet.trade.domain.OtaDeviceReport;
 import com.aicabinet.trade.domain.OtaRelease;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.OtaDeviceReportMapper;
 import com.aicabinet.trade.mapper.OtaReleaseMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -15,29 +18,45 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class OtaService {
     private static final Logger log = LoggerFactory.getLogger(OtaService.class);
     private static final String STATUS_PUBLISHED = "PUBLISHED";
 
+    /** 升级状态取值（O2）。收纳在服务端是为了让「不认识的状态」显式 400，而不是静默落库。 */
+    static final String PROGRESS_IDLE = "IDLE";
+    static final String PROGRESS_DOWNLOADING = "DOWNLOADING";
+    static final String PROGRESS_INSTALLING = "INSTALLING";
+    static final String PROGRESS_SUCCESS = "SUCCESS";
+    static final String PROGRESS_FAILED = "FAILED";
+    private static final Set<String> ALLOWED_PROGRESS_STATUS =
+            Set.of(PROGRESS_IDLE, PROGRESS_DOWNLOADING, PROGRESS_INSTALLING, PROGRESS_SUCCESS, PROGRESS_FAILED);
 
     private final OtaReleaseMapper releaseRepository;
     private final DeviceInfoMapper deviceRepository;
+    private final OtaDeviceReportMapper reportRepository;
     private final OtaCdnService otaCdnService;
     private final ObjectMapper objectMapper;
     private final DistributedLockService distributedLockService;
+    private final SystemConfigService systemConfigService;
 
     public OtaService(OtaReleaseMapper releaseRepository,
                       DeviceInfoMapper deviceRepository,
+                      OtaDeviceReportMapper reportRepository,
                       OtaCdnService otaCdnService,
                       ObjectMapper objectMapper,
-                      DistributedLockService distributedLockService) {
+                      DistributedLockService distributedLockService,
+                      SystemConfigService systemConfigService) {
         this.releaseRepository = releaseRepository;
         this.deviceRepository = deviceRepository;
+        this.reportRepository = reportRepository;
         this.otaCdnService = otaCdnService;
         this.objectMapper = objectMapper;
         this.distributedLockService = distributedLockService;
+        this.systemConfigService = systemConfigService;
     }
 
     @Transactional(readOnly = true)
@@ -135,6 +154,140 @@ public class OtaService {
             });
             return null;
         });
+    }
+
+    /**
+     * 设备侧上报 OTA 升级进度（O2）。
+     *
+     * <p>开关 {@code ota.progress.enabled} 关闭时**不写库**并返回 {@link Optional#empty()}
+     * —— 即行为与接入前完全一致（该表保持零写入）。这是刻意的 fail-closed：
+     * 新表在开关打开前不该被任何流量写入。
+     *
+     * <p>语义：
+     * <ul>
+     *   <li>首次上报 INSERT，其后 UPDATE（主键 device_id，天然幂等，重复上报只是刷新）；</li>
+     *   <li>{@code progressPercent} 收敛到 0-100（越界不报错，按边界存，避免脏数据入库）；</li>
+     *   <li>非 FAILED 一律清空 {@code errorMessage} —— 上一次的失败原因残留会变成假线索；</li>
+     *   <li>SUCCESS 时同步改写 {@code device_info.app_version}，与既有
+     *       {@link #reportVersion} 落**同一个字段**，不制造第二套「当前版本」。</li>
+     * </ul>
+     */
+    @Transactional
+    public Optional<OtaUpgradeProgressDto> reportProgress(String deviceId,
+                                                          String targetVersion,
+                                                          String status,
+                                                          Integer progressPercent,
+                                                          String errorMessage) {
+        if (!progressEnabled()) {
+            return Optional.empty();
+        }
+        String dev = requireDeviceId(deviceId);
+        String st = normalizeProgressStatus(status);
+        String target = trimToNull(targetVersion);
+        String error = PROGRESS_FAILED.equals(st) ? trimToNull(errorMessage) : null;
+        int pct = clampProgressPercent(progressPercent);
+        return Optional.of(
+                runWithDeviceVersionLock(dev, () -> doReportProgress(dev, target, st, pct, error)));
+    }
+
+    private OtaUpgradeProgressDto doReportProgress(String deviceId, String targetVersion,
+                                                   String status, int progressPercent, String errorMessage) {
+        Instant now = Instant.now();
+        OtaDeviceReport existing = reportRepository.selectById(deviceId);
+        if (existing == null) {
+            OtaDeviceReport row = new OtaDeviceReport();
+            row.setDeviceId(deviceId);
+            row.setReportedAt(now);
+            row.setUpdatedAt(now);
+            row.setUpgradeStatus(status);
+            row.setProgressPercent(progressPercent);
+            row.setTargetVersion(targetVersion);
+            row.setErrorMessage(errorMessage);
+            reportRepository.insert(row);
+            existing = row;
+        } else {
+            // 进度列里有「必须能写 null」的字段 ⇒ 走显式 set（updateById 会跳过 null，清不掉列）
+            reportRepository.updateProgress(deviceId, targetVersion, status, progressPercent, errorMessage, now);
+            existing.setTargetVersion(targetVersion);
+            existing.setUpgradeStatus(status);
+            existing.setProgressPercent(progressPercent);
+            existing.setErrorMessage(errorMessage);
+            existing.setUpdatedAt(now);
+        }
+        if (PROGRESS_SUCCESS.equals(status) && targetVersion != null) {
+            deviceRepository.findByIdForUpdate(deviceId).ifPresent(d -> {
+                d.setAppVersion(targetVersion);
+                deviceRepository.save(d);
+            });
+        }
+        log.info("ota progress reported device={} status={} target={} pct={}",
+                deviceId, status, targetVersion, progressPercent);
+        return toProgressDto(existing);
+    }
+
+    /**
+     * 运营台查看设备升级进度（O2）。
+     *
+     * <p>读侧**不**受开关控制：关掉开关是「不再写入新进度」，不该把历史进度也藏起来
+     * （排障时恰恰要看开关关掉之前发生了什么）。
+     */
+    @Transactional(readOnly = true)
+    public List<OtaUpgradeProgressDto> listProgress(String status, int limit) {
+        List<OtaDeviceReport> rows = (status == null || status.isBlank())
+                ? reportRepository.findAllOrderByUpdatedAtDesc(limit)
+                : reportRepository.findByUpgradeStatusOrderByUpdatedAtDesc(normalizeProgressStatus(status));
+        return rows.stream().map(OtaService::toProgressDto).toList();
+    }
+
+    private boolean progressEnabled() {
+        return systemConfigService.getBoolean(SystemConfigService.OTA_PROGRESS_ENABLED, false);
+    }
+
+    private static String requireDeviceId(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备 ID 不能为空");
+        }
+        return deviceId.trim();
+    }
+
+    /** 空值视为 IDLE（设备只表示「没在升级」）；不认识的状态显式 400，不静默落库。 */
+    static String normalizeProgressStatus(String status) {
+        String s = trimToNull(status);
+        if (s == null) {
+            return PROGRESS_IDLE;
+        }
+        String upper = s.toUpperCase(java.util.Locale.ROOT);
+        if (!ALLOWED_PROGRESS_STATUS.contains(upper)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的升级状态：" + status);
+        }
+        return upper;
+    }
+
+    /** 收敛到 0-100；null 视作 0。 */
+    static int clampProgressPercent(Integer progressPercent) {
+        if (progressPercent == null) {
+            return 0;
+        }
+        return Math.max(0, Math.min(100, progressPercent));
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private static OtaUpgradeProgressDto toProgressDto(OtaDeviceReport r) {
+        return new OtaUpgradeProgressDto(
+                r.getDeviceId(),
+                r.getAppVersion(),
+                r.getTargetVersion(),
+                r.getUpgradeStatus(),
+                r.getProgressPercent(),
+                r.getErrorMessage(),
+                r.getReportedAt(),
+                r.getUpdatedAt());
     }
 
     static String otaReleaseLockKey(Long releaseId) {

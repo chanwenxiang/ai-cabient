@@ -921,6 +921,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/devices/{deviceId}/ota/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reportOtaProgress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/devices/{deviceId}/heartbeat": {
         parameters: {
             query?: never;
@@ -6169,6 +6185,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/ota/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listOtaReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/org/tree": {
         parameters: {
             query?: never;
@@ -9951,6 +9983,32 @@ export interface components {
             alertType?: string;
             message?: string;
             deviceId?: string;
+        };
+        OtaProgressRequest: {
+            targetVersion?: string;
+            status?: string;
+            /** Format: int32 */
+            progressPercent?: number;
+            errorMessage?: string;
+        };
+        ApiResponseOtaUpgradeProgressDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["OtaUpgradeProgressDto"];
+        };
+        OtaUpgradeProgressDto: {
+            deviceId?: string;
+            appVersion?: string;
+            targetVersion?: string;
+            upgradeStatus?: string;
+            /** Format: int32 */
+            progressPercent?: number;
+            errorMessage?: string;
+            /** Format: date-time */
+            reportedAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
         HeartbeatRequest: {
             appVersion?: string;
@@ -13812,6 +13870,12 @@ export interface components {
             size?: number;
             /** Format: int64 */
             total?: number;
+        };
+        ApiResponseListOtaUpgradeProgressDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["OtaUpgradeProgressDto"][];
         };
         ApiResponseListOtaReleaseDto: {
             /** Format: int32 */
@@ -17960,6 +18024,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    reportOtaProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OtaProgressRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseOtaUpgradeProgressDto"];
                 };
             };
         };
@@ -26654,6 +26744,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponsePageResultPurchaseSuggestionDto"];
+                };
+            };
+        };
+    };
+    listOtaReports: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListOtaUpgradeProgressDto"];
                 };
             };
         };

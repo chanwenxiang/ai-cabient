@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.AdPlayEventRequest;
 import com.aicabinet.common.dto.OtaCheckResponse;
+import com.aicabinet.common.dto.OtaUpgradeProgressDto;
 import com.aicabinet.common.dto.SkuQuantityDto;
 import com.aicabinet.common.dto.ScreenContentDto;
 import com.aicabinet.trade.service.DevicePresenceService;
@@ -84,6 +85,24 @@ public class DeviceInternalController {
         return ApiResponse.ok(otaService.checkUpdate(deviceId, currentVersion, channel));
     }
 
+    /**
+     * 设备侧上报 OTA 升级进度（O2）。
+     *
+     * <p>开关 {@code ota.progress.enabled} 关闭时服务端不落库，响应体为 {@code null} ——
+     * 设备侧只需看 HTTP 200 即可，不必解读内容（老固件不发这个请求，新固件发了也不会因开关而失败）。
+     */
+    @PostMapping("/{deviceId}/ota/progress")
+    public ApiResponse<OtaUpgradeProgressDto> reportOtaProgress(
+            @PathVariable("deviceId") String deviceId,
+            @RequestBody OtaProgressRequest body) {
+        return ApiResponse.ok(otaService.reportProgress(
+                deviceId,
+                body.targetVersion(),
+                body.status(),
+                body.progressPercent(),
+                body.errorMessage()).orElse(null));
+    }
+
     /** 供 vision-service 补货库存快照模式拉取柜内 SKU 汇总数量。 */
     @GetMapping("/{deviceId}/inventory-snapshot")
     public ApiResponse<List<SkuQuantityDto>> inventorySnapshot(@PathVariable("deviceId") String deviceId) {
@@ -93,4 +112,8 @@ public class DeviceInternalController {
     record HeartbeatRequest(String appVersion, String firmwareVersion, Integer currentTempC,
                             Double humidityPct, Double voltageV, Double powerW,
                             String imei, String boardSn) {}
+
+    /** OTA 进度上报请求体；字段全可空，缺省即 IDLE / 0%。 */
+    record OtaProgressRequest(String targetVersion, String status, Integer progressPercent,
+                              String errorMessage) {}
 }

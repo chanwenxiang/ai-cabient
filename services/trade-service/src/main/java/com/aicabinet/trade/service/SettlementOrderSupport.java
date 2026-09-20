@@ -80,6 +80,9 @@ public class SettlementOrderSupport {
             SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                             ApiMessages.SKU_NOT_FOUND + "：" + item.skuId()));
+            // 这里刻意走 2 参重载（每条明细各自取一次策略快照）：本方法只在结算时对**一单的
+            // 少量明细**调用，不是商品目录那种 O(N) 热路径；每单额外几次配置查询可忽略，
+            // 而少一次重载改动能把改动面收敛在定价服务内部，不动结算链的既有测试桩。
             int unitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
             unitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), unitPrice);
             int lineAmount = unitPrice * item.quantity();
