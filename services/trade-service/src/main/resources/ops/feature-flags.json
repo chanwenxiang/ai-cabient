@@ -157,7 +157,7 @@
       "key": "ops.alert.escalation_types",
       "group": "运营告警",
       "type": "TEXTAREA",
-      "default": "DISPUTE_SLA_OVERDUE,PAYSCORE_ORDER_REFUND_REQUIRED,WECHAT_REFUND_ABNORMAL,\"\r\n                        + \"PROFIT_SHARING_RETURN_FAILED,INVOICE_FULL_REFUND_RED_INVERSE",
+      "default": "DISPUTE_SLA_OVERDUE,PAYSCORE_ORDER_REFUND_REQUIRED,WECHAT_REFUND_ABNORMAL,PROFIT_SHARING_RETURN_FAILED,INVOICE_FULL_REFUND_RED_INVERSE",
       "description": "需要升级的告警类型（逗号分隔），留空表示全类型；仅对投递失败的告警生效"
     },
     {
@@ -179,7 +179,7 @@
       "group": "运营告警",
       "type": "TEXTAREA",
       "default": "",
-      "description": "值班表 JSON：[{\\\"name\\\":\\\"张三\\\",\\\"phone\\\":\\\"138...\\\",\\\"days\\\":[1,2,3,4,5],\"\r\n                        + \"\\\"startHour\\\":9,\\\"endHour\\\":18}]；留空=无值班人=不升级"
+      "description": "值班表 JSON：[{\"name\":\"张三\",\"phone\":\"138...\",\"days\":[1,2,3,4,5],\"startHour\":9,\"endHour\":18}]；留空=无值班人=不升级"
     },
     {
       "key": "ops.alert.webhook",

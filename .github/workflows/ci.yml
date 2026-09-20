@@ -924,12 +924,24 @@ jobs:
             "platforms;android-34" "build-tools;34.0.0" "platform-tools" >/dev/null
 
       # 单独一步、无条件执行：SDK 命中缓存时上一步被跳过，env 就再没人写了。
+      # 🔴 必须**同时**导出 ANDROID_SDK_ROOT。ubuntu-latest 镜像自带
+      #    `ANDROID_SDK_ROOT=/usr/local/lib/android/sdk`，与本 job 自装的 `$HOME/android-sdk`
+      #    指向两处不同的 SDK 时 AGP 直接 fail（"Several environment variables and/or system
+      #    properties contain different paths to the SDK"）—— 2026-09-20 该 job 首次上 CI 时
+      #    就死在这里（本机无此环境，故本机永远复现不出来）。
       - name: Export Android SDK location
-        run: echo "ANDROID_HOME=$HOME/android-sdk" >> "$GITHUB_ENV"
+        run: |
+          echo "ANDROID_HOME=$HOME/android-sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> "$GITHUB_ENV"
 
       - name: Android unit tests
         working-directory: edge/android-app
-        run: gradle :app:testMockDebugUnitTest --no-daemon --stacktrace
+        run: |
+          # 再内联赋值一次：`$GITHUB_ENV` 能否覆盖 runner 预设的同名变量取决于其实现，
+          # shell 内联赋值对本次命令是确定的（不依赖任何环境变量传递语义）。
+          export ANDROID_HOME="$HOME/android-sdk"
+          export ANDROID_SDK_ROOT="$HOME/android-sdk"
+          gradle :app:testMockDebugUnitTest --no-daemon --stacktrace
 
       # 与 build/integration job 同款判据：**只看 `<testcase>` 元素个数**。
       # gradle 在无测试源时同样 exit 0（NO-SOURCE），只看退出码等于「没测也能绿」。

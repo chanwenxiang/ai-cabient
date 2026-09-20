@@ -109,11 +109,49 @@ const unquote = (s) => {
   return m ? m[1] : null;
 };
 
+/**
+ * 解析 Java **字面量拼接**："a," + "b" → "a,b"。
+ *
+ * 🔴 为什么必须有它（2026-09-20，CI 实测）：`unquote` 的 /^"([\s\S]*)"$/ 是**贪婪**的，
+ * 遇到 `"a," + "b"` 会把整段吞掉首尾引号、返回**源码片段**（内含真实换行）。
+ * 于是判据拿到的是源码文本而不是值 —— 而源码文本的换行是 CRLF 还是 LF **取决于磁盘**：
+ * 本机 core.autocrlf=true 把 services 下的 .java 检出为 CRLF，恰好与注册表 JSON 里手抄的
+ * 同一片段（含 CRLF 转义）**一致 ⇒ 假绿**；CI（blob 为 LF）两者差一个 CR ⇒ **红**。
+ * 解析成真值后，比较结果与行尾彻底无关。
+ *
+ * 只处理**全部由字面量与 + 组成**的表达式；单个字面量、或含常量引用时返回 null（交给原逻辑）。
+ */
+function resolveConcat(expr) {
+  const s = String(expr).trim();
+  let i = 0;
+  let out = '';
+  let parts = 0;
+  while (i < s.length) {
+    while (i < s.length && /\s/.test(s[i])) i++;
+    if (i >= s.length) break;
+    if (s[i] === '+') {
+      i++;
+      continue;
+    }
+    if (s[i] !== '"') return null;
+    let j = i + 1;
+    while (j < s.length && s[j] !== '"') j += s[j] === '\\' ? 2 : 1;
+    if (j >= s.length) return null;
+    out += s.slice(i + 1, j);
+    parts++;
+    i = j + 1;
+  }
+  return parts > 1 ? out : null;
+}
+
 function resolveExpr(expr, localMap) {
   if (expr == null) return null;
   let t = expr.trim();
   const sv = /^String\.valueOf\((.+)\)$/.exec(t);
   if (sv) t = sv[1].trim();
+  // 必须先试拼接：`unquote` 的贪婪正则会把 `"a," + "b"` 整段吞成源码片段。
+  const concat = resolveConcat(t);
+  if (concat !== null) return concat;
   const lit = unquote(t);
   if (lit !== null) return lit;
   let name = t;

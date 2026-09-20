@@ -777,6 +777,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/vision/edge-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["edgeResults"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/vision/anomaly-events": {
         parameters: {
             query?: never;
@@ -5353,6 +5369,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/system-configs/feature-flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["featureFlags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/suppliers": {
         parameters: {
             query?: never;
@@ -9725,6 +9757,42 @@ export interface components {
             message?: string;
             data?: components["schemas"]["AccountDto"];
         };
+        Item: {
+            skuId?: string;
+            /** Format: int32 */
+            quantity?: number;
+            /** Format: double */
+            confidence?: number;
+        };
+        VisionRecognitionResultDto: {
+            sessionId?: string;
+            taskId?: string;
+            traceId?: string;
+            items?: components["schemas"]["Item"][];
+            /** Format: double */
+            overallConfidence?: number;
+            needReview?: boolean;
+            modelVersion?: string;
+            detectedClasses?: string[];
+            provider?: string;
+            /** Format: date-time */
+            occurredAt?: string;
+        };
+        ApiResponseVisionResultIngestResponseDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["VisionResultIngestResponseDto"];
+        };
+        VisionResultIngestResponseDto: {
+            accepted?: boolean;
+            /** @enum {string} */
+            outcome?: "PROCESSED" | "ALREADY_HANDLED" | "TOO_EARLY" | "CANCELLED";
+            reason?: string;
+            sessionId?: string;
+            taskId?: string;
+            sessionState?: string;
+        };
         VisionAnomalyEventDto: {
             deviceId?: string;
             sessionId?: string;
@@ -12859,6 +12927,33 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["SystemConfigDto"][];
+        };
+        ApiResponseFeatureFlagCatalogDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["FeatureFlagCatalogDto"];
+        };
+        FeatureFlagCatalogDto: {
+            /** Format: int32 */
+            version?: number;
+            groups?: string[];
+            flags?: components["schemas"]["FeatureFlagDto"][];
+        };
+        FeatureFlagDto: {
+            key?: string;
+            group?: string;
+            type?: string;
+            default?: string;
+            description?: string;
+            unit?: string;
+            options?: components["schemas"]["FeatureFlagOptionDto"][];
+            deprecated?: boolean;
+            deprecatedNote?: string;
+        };
+        FeatureFlagOptionDto: {
+            value?: string;
+            label?: string;
         };
         ApiResponsePageResultSupplierDto: {
             /** Format: int32 */
@@ -17629,6 +17724,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseAccountDto"];
+                };
+            };
+        };
+    };
+    edgeResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisionRecognitionResultDto"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVisionResultIngestResponseDto"];
                 };
             };
         };
@@ -25377,6 +25496,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseAdminChannelBreakdownDto"];
+                };
+            };
+        };
+    };
+    featureFlags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseFeatureFlagCatalogDto"];
                 };
             };
         };
