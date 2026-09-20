@@ -4873,6 +4873,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/public/merchant-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["merchantConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/public/consumer-config": {
         parameters: {
             query?: never;
@@ -24801,6 +24817,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseOpsBrandDto"];
+                };
+            };
+        };
+    };
+    merchantConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringString"];
                 };
             };
         };
