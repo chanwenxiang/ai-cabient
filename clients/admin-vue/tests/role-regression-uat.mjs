@@ -231,8 +231,11 @@ async function main() {
           /\s+/g,
           ' '
         );
+        // 🔴 必须**词边界**匹配：`includes('PO-UAT-B06')` 是子串匹配 ⇒ `PO-UAT-B06-INJECTED`
+        //    这类单号会**假通过**（实测取证：把种子改名成 PO-UAT-B06-INJECTED，F-03 仍 PASS；
+        //    改成不含原串的 PO-INJECT-XYZ 才 FAIL）。前后否定环视 = 整段名字必须完全相同。
         const row = [...document.querySelectorAll('.el-table__body tr')].find((r) =>
-          (r.innerText || '').includes('PO-UAT-B06')
+          /(?<![\w-])PO-UAT-B06(?![\w-])/.test(r.innerText || '')
         );
         const rowText = (row?.innerText || '').replace(/\s+/g, ' ');
         const hasApprove =

@@ -393,8 +393,13 @@ async function main() {
         return { open: !!msg, text };
       });
       const e014 = await shot(page, '10-reject-confirm');
+      // 原判据第二条 `/PO-|采购单\s*\d+/` 里 `PO-` **单独**即可命中 ⇒ 任何 PO- 开头的串都通过。
+      // 收紧为「一段完整的 PO- 单号」，不恒真；也**不写死成 PO-UAT-B06** —— 本分支由超管触发，
+      // 被点的行不保证是 UAT 种子那单（否则会在别的数据下假红）。
       const ok014 =
-        box.open && /确认驳回采购单/.test(box.text) && /PO-|采购单\s*\d+/.test(box.text);
+        box.open &&
+        /确认驳回采购单/.test(box.text) &&
+        /(?<![\w-])PO-[A-Z0-9-]{3,}(?![\w-])/i.test(box.text);
       record('B-10', '驳回确认含单号', ok014 ? 'PASS' : 'FAIL', JSON.stringify(box), e014);
       ok014 ? pass++ : fail++;
       await page
@@ -425,9 +430,14 @@ async function main() {
       await page.waitForTimeout(2500);
       await page.goto(`${ADMIN}/warehouse?tab=purchase`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2800);
+      // 同 role-regression-uat：`hasText: '…'` 是**子串**匹配 ⇒ `PO-UAT-B06-INJECTED` 会被误配。
+      // 🔴 但这里**不能用词边界正则**：`hasText` 匹配的是 cell 的 `textContent`，而它是
+      //    无空白分隔的连写（`2PO-UAT-B06演示饮品供应商…`）⇒ `(?<![\w-])` 因前面是 `2` 而失败。
+      //    实测：换成环视正则后 filter count 由 2 变 0，B-10 直接退化成 SKIP（断言覆盖面缩小）。
+      //    正解＝用**单元格精确匹配**定位行（`td` 的 textContent 就是单号本身）。
       const rejectBtn = page
         .locator('.el-table__body tr')
-        .filter({ hasText: 'PO-UAT-B06' })
+        .filter({ has: page.locator('td', { hasText: /^\s*PO-UAT-B06\s*$/ }) })
         .getByRole('button', { name: '驳回' });
       if (await rejectBtn.count()) {
         await rejectBtn.first().click();
@@ -438,8 +448,13 @@ async function main() {
           return { open: !!msg, text };
         });
         const e014 = await shot(page, '10-reject-confirm');
+        // 🔴 原判据第二条 `/PO-UAT-B06|采购单/` 的 `|采购单` 是**恒真兜底**：确认框文案本身
+        //    就是「确认驳回采购单 …」⇒ 不含单号也通过，与用例名「驳回确认**含单号**」矛盾。
+        //    去掉兜底 + 词边界，让判据名副其实。
         const ok014 =
-          box.open && /确认驳回采购单/.test(box.text) && /PO-UAT-B06|采购单/.test(box.text);
+          box.open &&
+          /确认驳回采购单/.test(box.text) &&
+          /(?<![\w-])PO-UAT-B06(?![\w-])/.test(box.text);
         record('B-10', '驳回确认含单号', ok014 ? 'PASS' : 'FAIL', JSON.stringify(box), e014);
         ok014 ? pass++ : fail++;
         await page
