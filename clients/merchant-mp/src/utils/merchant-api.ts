@@ -529,6 +529,12 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').OpenApiSalesReportRowDto[]>(
       withQuery('/api/v2/merchant/analytics/sales-reports', { dim, fromDate, toDate })
     ),
+  /**
+   * 商户端公开配置（只含非敏感 UI 开关，如经营分析图表）。
+   * 走匿名端点，故 `auth=false`。
+   */
+  merchantPublicConfig: () =>
+    request<Record<string, string>>('/api/v2/public/merchant-config', 'GET', null, false),
   skuSales: (days = 30, deviceId?: string) =>
     request<import('@aicabinet/shared-types').MerchantSkuSales[]>(
       withQuery('/api/v2/merchant/analytics/sku-sales', { days, deviceId })

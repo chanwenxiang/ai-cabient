@@ -168,6 +168,18 @@ public class SystemConfigService {
     /** 风控自动处置：待确认工单超多少小时告警。⚠️ 原先只有代码里读、没 seed（本次补齐）。 */
     public static final String RISK_AUTO_ACK_WARN_HOURS = "risk.auto_ack_warn_hours";
 
+    // ── 扩展功能域（路线图功能的总闸，2026-09-20 第二十七轮）────────────────────
+    // 🔴 语义：每个开关都控制一个**已接入的真实行为**（入口可见性），默认 false = 维持现状（零行为变化）。
+    //    ⚠️ 门禁 R2 会把「注册了却没有 Java 消费者的键」判成**死开关**，故这些键一律在
+    //    consumerPublicConfig() / merchantPublicConfig() 里被读取并下发给客户端；
+    //    新增同族开关时**必须同时接入一个真实读取点**，否则门禁红——这是刻意的。
+    /** 消费端：订单关键字搜索（订单列表顶部搜索框）。 */
+    public static final String CONSUMER_ORDER_SEARCH_ENABLED = "consumer.order_search.enabled";
+    /** 消费端：券包入口前置（首页显示券包入口；关闭时仅「我的」页有）。 */
+    public static final String CONSUMER_COUPON_ENTRY_ENABLED = "consumer.coupon_entry.enabled";
+    /** 商户端：经营分析图表（趋势/构成图；关闭时维持纯数字与列表）。 */
+    public static final String MERCHANT_CHARTS_ENABLED = "merchant.charts.enabled";
+
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
     private final AlipayProperties alipayProperties;
@@ -293,6 +305,24 @@ public class SystemConfigService {
         }
         map.put("preauthCents", self.getValue(CHECKOUT_PREAUTH_CENTS,
                 String.valueOf(com.aicabinet.common.constants.CabinetConstants.MIN_BALANCE_CENTS)));
+        // 扩展功能域开关：关闭时客户端不显示对应入口（默认关 = 与接入前完全一致）
+        map.put("orderSearchEnabled",
+                String.valueOf(self.getBoolean(CONSUMER_ORDER_SEARCH_ENABLED, false)));
+        map.put("couponEntryEnabled",
+                String.valueOf(self.getBoolean(CONSUMER_COUPON_ENTRY_ENABLED, false)));
+        return map;
+    }
+
+    /**
+     * 商户端配置下发（对称于 {@link #consumerPublicConfig()}）。
+     * <p>刻意只下发**非敏感的 UI 开关**（无金额、无凭据）；商户端请求本身带鉴权，
+     * 但该端点与 C 端配置同样放在匿名 {@code /api/v2/public/**} 下以便首屏取用。</p>
+     */
+    @Transactional(readOnly = true)
+    public Map<String, String> merchantPublicConfig() {
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("chartsEnabled",
+                String.valueOf(self.getBoolean(MERCHANT_CHARTS_ENABLED, false)));
         return map;
     }
 
@@ -446,6 +476,16 @@ public class SystemConfigService {
         upsertIfAbsent("ops.log_retention.notify_months", "6", "通知日志保留月数，0=不清理");
         upsertIfAbsent("ops.log_retention.points_months", "12",
                 "【已废弃·请勿使用】积分流水是账本组成部分，禁止删除（见 GrowthLogArchiveScheduler）");
+        // 扩展功能域（默认全关 = 维持现状）。🔴 seed 用**小写字面量**而非 FALSE 常量：
+        // 门禁的 R5 比的是「解析出的真值」，而 `FALSE` 是 private 常量、解析会退化成原文 "FALSE"，
+        // 那样注册表就得写成 type=TEXT / default="FALSE" 才不红（既有 settlement.empty_auto_* 就是这种
+        // 历史形态）。用字面量才能保持 type=BOOLEAN（运营台渲染成开关而不是文本框）。
+        upsertIfAbsent(CONSUMER_ORDER_SEARCH_ENABLED, "false",
+                "消费端：订单列表关键字搜索入口（默认关闭）");
+        upsertIfAbsent(CONSUMER_COUPON_ENTRY_ENABLED, "false",
+                "消费端：券包入口前置到首页（默认关闭；关闭时仅「我的」页有入口）");
+        upsertIfAbsent(MERCHANT_CHARTS_ENABLED, "false",
+                "商户端：经营分析趋势/构成图（默认关闭；关闭时维持纯数字与列表）");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
         upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");

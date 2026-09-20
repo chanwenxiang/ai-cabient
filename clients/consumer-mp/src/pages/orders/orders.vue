@@ -66,6 +66,24 @@
         </view>
 
         <view class="filter-block">
+          <!-- 扩展功能：订单关键字搜索（consumer.order_search.enabled，关时不渲染） -->
+          <view v-if="searchEnabled" class="search-row">
+            <input
+              v-model="searchKeyword"
+              class="search-input"
+              type="text"
+              placeholder="搜索订单号 / 柜机 / 商品"
+              placeholder-class="search-placeholder"
+              confirm-type="search"
+            />
+            <text
+              v-if="searchKeyword"
+              role="button"
+              class="search-clear"
+              @click="searchKeyword = ''"
+              >清空</text
+            >
+          </view>
           <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
             <view class="order-filters">
               <text
@@ -225,6 +243,7 @@
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { consumerApi, ensureConsumerAuth, isConsumerLoggedIn } from '@/utils/consumer-api';
+import { loadConsumerFlags, orderSearchEnabled } from '@/utils/feature-flags';
 import {
   displayBizNo,
   formatDateTimeShort,
@@ -256,6 +275,12 @@ type TimeRange = 'all' | 'today' | '7d' | '30d';
 const timeRange = ref<TimeRange>('all');
 const HIDE_ZERO_STORAGE_KEY = 'consumer_orders_hide_zero';
 const hideZeroOrders = ref(readHideZeroPreference());
+/**
+ * 扩展功能：订单关键字搜索（`consumer.order_search.enabled`）。
+ * 默认关 ⇒ 搜索框不渲染、过滤条件不参与，与接入前完全一致。
+ */
+const searchEnabled = ref(false);
+const searchKeyword = ref('');
 /** 消息中心「待支付」深链经此一次性 storage 传过滤（tabBar 页无法带参跳转） */
 const ORDERS_PENDING_FILTER_KEY = 'orders_pending_filter';
 const reviewingDisputes = computed(() =>
@@ -290,7 +315,8 @@ const visibleOrders = computed(() =>
     (o) =>
       matchesFilter(o, filter.value) &&
       matchesTimeRange(o.createdAt, timeRange.value) &&
-      matchesZeroFilter(o)
+      matchesZeroFilter(o) &&
+      matchesKeyword(o)
   )
 );
 
@@ -319,6 +345,21 @@ function isZeroAmountOrder(order: OrderSummary) {
 
 function matchesZeroFilter(order: OrderSummary) {
   return !hideZeroOrders.value || !isZeroAmountOrder(order);
+}
+
+/**
+ * 关键字搜索：匹配订单号 / 柜机名 / 商品摘要（大小写不敏感）。
+ * 开关关闭或关键字为空时**恒返回 true**（不过滤），保证默认路径零影响。
+ */
+function matchesKeyword(order: OrderSummary) {
+  if (!searchEnabled.value) return true;
+  const kw = searchKeyword.value.trim().toLowerCase();
+  if (!kw) return true;
+  return [order.orderId, order.deviceName, order.lineSummary].some((v) =>
+    String(v ?? '')
+      .toLowerCase()
+      .includes(kw)
+  );
 }
 
 function startOfTodayShanghai(): number {
@@ -573,11 +614,46 @@ onShow(() => {
   uni.showTabBar({ animation: false });
   applyPendingFilterFromStorage();
   load();
+  // 扩展功能开关（fail-closed：配置取不到就保持关闭，行为与接入前一致）
+  // 先同步读一次：若缓存已被首页预置（seedConsumerFlags）则首屏即为正确值，不会再「闪」出搜索框。
+  searchEnabled.value = orderSearchEnabled();
+  void loadConsumerFlags().then(() => {
+    searchEnabled.value = orderSearchEnabled();
+  });
 });
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+/* 扩展功能：订单搜索（仅 consumer.order_search.enabled=true 时渲染） */
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px 8px;
+}
+
+.search-input {
+  flex: 1;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: var(--page-bg, #f6f7f9);
+  border: 1px solid var(--border-color, #e5e7eb);
+  font-size: var(--font-size-sm, 13px);
+  color: var(--text-primary, #111827);
+}
+
+.search-placeholder {
+  color: var(--text-tertiary, #9ca3af);
+}
+
+.search-clear {
+  font-size: var(--font-size-sm, 13px);
+  color: var(--accent-blue, #2563eb);
+  padding: 4px;
+}
+
 .discount {
   font-size: var(--font-size-xs);
   color: var(--accent-orange, #c2410c);

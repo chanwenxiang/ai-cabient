@@ -96,6 +96,16 @@
             <text>附近找柜</text>
             <view class="app-icon app-icon--chevron" aria-hidden="true" />
           </view>
+          <!-- 扩展功能 consumer.coupon_entry.enabled：券包入口前置到首页；默认关闭 ⇒ 不渲染 -->
+          <view
+            v-if="couponEntryVisible"
+            class="coupon-link"
+            role="button"
+            data-testid="landing-coupon-entry"
+            aria-label="我的券包"
+            @click="goCoupons"
+            >我的券包</view
+          >
         </view>
 
         <view v-if="showManualEntry && !showManual" class="landing-foot">
@@ -500,6 +510,7 @@ import { parseQuery } from '@aicabinet/shared-uni/query';
 import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { resolveMockEnabled } from '@/utils/runtime-flags';
+import { couponEntryEnabled, seedConsumerFlags } from '@/utils/feature-flags';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
@@ -608,6 +619,11 @@ function clearReviewSession() {
 const reviewTicket = ref<DisputeTicketDto | null>(null);
 const reviewCopy = computed(() => consumerDisputeReviewCopy(reviewTicket.value));
 const servicePhone = ref('400-888-0018');
+/**
+ * 首页券包入口（扩展功能 `consumer.coupon_entry.enabled`）。
+ * fail-closed：默认 false ⇒ 首页不渲染入口，与接入前完全一致。
+ */
+const couponEntryVisible = ref(false);
 const openingSeconds = ref(90);
 const brokenThumbs = ref<Record<string, boolean>>({});
 const lastDeviceId = ref('');
@@ -1308,6 +1324,11 @@ function goNearby() {
   uni.navigateTo({ url: '/pages/nearby/nearby' });
 }
 
+/** 扩展功能：首页券包入口前置（`consumer.coupon_entry.enabled`）。 */
+function goCoupons() {
+  uni.navigateTo({ url: '/pages/coupons/coupons' });
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
@@ -1381,9 +1402,12 @@ async function onLiveNeedHelp() {
 async function loadConsumerConfig() {
   try {
     const cfg = await consumerApi.consumerPublicConfig();
+    // 顺手把公开配置喂给扩展功能开关缓存，免得为了读开关再发一次同样的请求。
+    seedConsumerFlags(cfg);
     const phone = cfg?.servicePhone || cfg?.['consumer.service_phone'];
     if (phone) servicePhone.value = phone;
     mockEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
+    couponEntryVisible.value = couponEntryEnabled();
   } catch {
     /* 使用默认客服电话 */
   }
@@ -2449,6 +2473,19 @@ function stopDevicePoll() {
   height: 0.45em;
   border-width: 2rpx;
   opacity: 0.9;
+}
+/* 扩展功能：首页券包入口（consumer.coupon_entry.enabled；默认关闭 ⇒ 不渲染） */
+.coupon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 12rpx auto 0;
+  padding: 8rpx 24rpx;
+  border-radius: var(--radius-pill);
+  background: rgba(6, 78, 59, 0.55);
+  border: 1rpx solid rgba(255, 255, 255, 0.32);
+  font-size: var(--font-size-sm);
+  color: var(--white);
 }
 .btn-hover {
   opacity: 0.85;

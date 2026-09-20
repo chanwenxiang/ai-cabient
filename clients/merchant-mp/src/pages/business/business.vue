@@ -111,6 +111,17 @@
               >{{ d.label }}</text
             >
           </view>
+          <!-- 扩展功能：收入构成条形图（merchant.charts.enabled，关时不渲染） -->
+          <view v-if="chartsEnabled && salesRows.length" class="chart-block">
+            <text class="chart-title">收入构成（按当前维度）</text>
+            <view v-for="r in salesRows.slice(0, 8)" :key="'chart-' + r.dimKey" class="chart-row">
+              <text class="chart-label">{{ r.dimLabel || r.dimKey }}</text>
+              <view class="chart-track"
+                ><view class="chart-bar" :style="{ width: barWidth(r) }"
+              /></view>
+              <text class="chart-value">{{ money(r.revenueCents) }}</text>
+            </view>
+          </view>
           <view v-if="reportLoading" class="empty">{{ loadingLabel('报表') }}</view>
           <view v-else-if="!salesRows.length" class="empty">该区间暂无销售明细</view>
           <view v-for="r in salesRows.slice(0, 8)" :key="r.dimKey" class="sku-row">
@@ -266,6 +277,7 @@ import { computed, ref } from 'vue';
 import { UI_COPY, onlineLabel, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { loadMerchantFlags, merchantChartsEnabled } from '@/utils/merchant-config';
 import {
   isMerchantLoggedIn,
   hasPerm,
@@ -402,6 +414,19 @@ const reportDims = [
 const reportDim = ref('PRODUCT');
 const reportLoading = ref(false);
 const salesRows = ref<import('@aicabinet/shared-types').OpenApiSalesReportRowDto[]>([]);
+/**
+ * 扩展功能：经营分析图表（`merchant.charts.enabled`）。
+ * 默认关 ⇒ 图表块不渲染，页面与接入前完全一致。
+ */
+const chartsEnabled = ref(false);
+/** 收入占比条的分母（各维度最大值，至少 1 ⇒ 不会除零）。 */
+const maxRevenue = computed(() =>
+  Math.max(1, ...(salesRows.value || []).map((r) => Number(r.revenueCents ?? 0)))
+);
+function barWidth(row: { revenueCents?: number }) {
+  const pct = (Number(row.revenueCents ?? 0) / maxRevenue.value) * 100;
+  return `${Math.max(2, Math.round(pct))}%`;
+}
 const marginRate = computed(() =>
   analytics.value.revenueCents
     ? `${((analytics.value.grossMarginCents / analytics.value.revenueCents) * 100).toFixed(1)}%`
@@ -563,11 +588,67 @@ onLoad(() => void load(false));
 onShow(() => {
   // 返回本页时静默刷新（含首次为空的场景）
   if (!loading.value) void load(true);
+  // 扩展功能开关（fail-closed：配置取不到就保持关闭，页面与接入前一致）
+  void loadMerchantFlags().then(() => {
+    chartsEnabled.value = merchantChartsEnabled();
+  });
 });
 onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+/* 扩展功能：经营分析图表（仅 merchant.charts.enabled=true 时渲染） */
+.chart-block {
+  margin-top: 16rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background: var(--card-bg, #ffffff);
+}
+
+.chart-title {
+  display: block;
+  font-size: var(--font-size-sm, 26rpx);
+  color: var(--text-secondary, #6b7280);
+  margin-bottom: 12rpx;
+}
+
+.chart-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 10rpx;
+}
+
+.chart-label {
+  width: 140rpx;
+  font-size: var(--font-size-xs, 24rpx);
+  color: var(--text-primary, #111827);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chart-track {
+  flex: 1;
+  height: 16rpx;
+  border-radius: 8rpx;
+  background: var(--page-bg, #f6f7f9);
+  overflow: hidden;
+}
+
+.chart-bar {
+  height: 100%;
+  border-radius: 8rpx;
+  background: var(--accent-blue, #2563eb);
+}
+
+.chart-value {
+  width: 130rpx;
+  text-align: right;
+  font-size: var(--font-size-xs, 24rpx);
+  color: var(--text-secondary, #6b7280);
+}
+
 .insight-text {
   display: block;
   margin-top: 8rpx;

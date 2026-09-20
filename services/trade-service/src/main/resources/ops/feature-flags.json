@@ -16,9 +16,31 @@
     "日志留存",
     "客户端展示",
     "品牌文案",
-    "演示数据"
+    "演示数据",
+    "扩展功能"
   ],
   "flags": [
+    {
+      "key": "consumer.order_search.enabled",
+      "group": "扩展功能",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "消费端：订单列表关键字搜索入口（默认关闭）"
+    },
+    {
+      "key": "consumer.coupon_entry.enabled",
+      "group": "扩展功能",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "消费端：券包入口前置到首页（默认关闭；关闭时仅「我的」页有入口）"
+    },
+    {
+      "key": "merchant.charts.enabled",
+      "group": "扩展功能",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "商户端：经营分析趋势/构成图（默认关闭；关闭时维持纯数字与列表）"
+    },
     {
       "key": "balance.refund.max_cents",
       "group": "交易与资金",

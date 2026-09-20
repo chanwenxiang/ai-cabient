@@ -24,6 +24,15 @@ public class PublicConfigController {
         return ApiResponse.ok(systemConfigService.consumerPublicConfig());
     }
 
+    /**
+     * 商户端配置（只含非敏感 UI 开关，如经营分析图表）。
+     * 与 C 端配置对称放在匿名端点下，便于商户端首屏取用。
+     */
+    @GetMapping("/merchant-config")
+    public ApiResponse<Map<String, String>> merchantConfig() {
+        return ApiResponse.ok(systemConfigService.merchantPublicConfig());
+    }
+
     /** 运营后台登录页 / 侧栏品牌（无需登录）。 */
     @GetMapping("/ops-branding")
     public ApiResponse<OpsBrandDto> opsBranding() {
