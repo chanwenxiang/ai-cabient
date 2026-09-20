@@ -146,7 +146,9 @@ for (const { name, dir, pkg } of targets) {
   // 规则 1：test 脚本必须是 vitest run（而不是 type-check 之类的替代品）
   const testScript = pkg.scripts?.test;
   if (!testScript) {
-    problems.push(`${label}：package.json 没有 \`test\` 脚本（CI 的 \`pnpm --filter … test\` 会 ERR`);
+    problems.push(
+      `${label}：package.json 没有 \`test\` 脚本（CI 的 \`pnpm --filter … test\` 会 ERR`
+    );
   } else if (!/\bvitest\b/.test(testScript)) {
     problems.push(`${label}：\`test\` 脚本不是 vitest（实际：\`${testScript}\`）`);
   }
