@@ -208,7 +208,10 @@ async function runRecognize() {
       (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const form = new FormData();
     form.append('image', imageFile.value);
-    form.append('deviceId', 'CAB-001');
+    // 不再硬编码 `deviceId=CAB-001`：那是迁移播种出来的**孤儿空壳**（无商户、0 订单、
+    // OFFLINE），填它等于给识别结果挂一个不存在的柜机。该参数在服务端本就是
+    // `required = false`（`OpsRecognitionController#preview`），本页也没有柜机选择器，
+    // 因此不传才是准确语义（需要时再补一个柜机选择控件）。
     const res = await authFetch(`${base}/api/v2/ops/recognition-preview`, {
       method: 'POST',
       body: form

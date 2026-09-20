@@ -15,7 +15,15 @@
  * 判据
  * ----
  * 每个套件声明它驱动哪个前端（见 SUITES）；把这些前端源码 + packages/ 共享层里
- * 出现过的类名收集成一个集合，套件里出现的每个类选择器都必须命中该集合。
+ * **元素真的可能带上的类名**收集成一个集合（模板 class / 动态 :class / 表格列类名 /
+ * data-testid），套件里出现的每个类选择器都必须命中该集合。
+ *
+ * 🔴 反面教材（本闸门曾经漏掉的形态）：判据第一版把「文件里出现过的任意 `.xxx`」
+ * 当作可用类名，于是 CSS 死规则与 JS 属性访问（`foo.mask`）都算数。
+ * 实测 `App.vue` 遗留死规则 `.sheet .app-btn` 让 `.sheet` 变成"存在"，
+ * 而 `merchant-h5-uat.mjs` 的 `document.querySelector('.sheet')` 恒取不到元素
+ * （重构后的真类名是 `.app-sheet`）→ 用例永久假红、白占基线额度，闸门却全绿。
+ * **可用集合的来源必须与"元素能否带上它"同源**，否则闸门会变成空管子。
  *
  * 例外
  * ----
@@ -78,31 +86,102 @@ function walk(dir, out = []) {
 }
 
 /**
- * 从源码文本里收集「类名 token」：
- *  1. CSS/SCSS 选择器  .foo / .foo:hover / .foo,
- *  2. 模板静态 class   class="a b c"
- *  3. :class 对象键     :class="{ a: cond, 'b-c': cond }"
+ * 从源码文本里收集「**元素真的可能带上**的类名 token」。
+ *
+ * 🔴 这里**不能**用「文件里出现过的任意 `.xxx`」。第一版就是这么写的，于是：
+ *   - CSS 里的**死规则**（如 `App.vue` 遗留的 `.sheet .app-btn` —— AppSheet 重构后
+ *     再没有任何元素带 `sheet` 类）会被当成"该类名存在"；
+ *   - JS 属性访问/对象键（`foo.mask`、`{ mask: false }`）同理。
+ *   ⇒ 闸门被自己的"可用集合"污染，恰恰**抓不到它本来要抓的那类缺陷**。
+ *     实测：`merchant-h5-uat.mjs` 里 `document.querySelector('.sheet')` 恒取不到元素
+ *     （真类名是 `.app-sheet`），用例永久假红，而本闸门一路绿灯。
+ *
+ * 收集来源（都能让元素真的带上该类名）：
+ *  1. 静态 class        class="a b c"
+ *  2. 动态 class 表达式  :class="..." / v-bind:class="..."（对象键、字符串字面量、三元分支）
+ *  3. 组件透传的列类名    class-name="x" / label-class-name="x"（Element Plus 表格列）
+ *  4. data-testid      元素上的测试锚点
  * 用 token 集合（而非子串）比对，避免 `.more` 被任意含 "more" 的单词蒙混过关。
  */
 function collectClassTokens(text) {
   const out = new Set();
 
-  for (const m of text.matchAll(/\.([A-Za-z][A-Za-z0-9_-]*)/g)) out.add(m[1]);
+  const addAttr = (m) => {
+    for (const t of m[1].split(/\s+/)) {
+      if (/^[A-Za-z][A-Za-z0-9_-]*$/.test(t)) out.add(t);
+    }
+  };
+  // 1. 静态 class（含 class-name / label-class-name 这类后缀属性）
+  for (const m of text.matchAll(/\b(?:class|class-name|label-class-name)\s*=\s*"([^"]*)"/g))
+    addAttr(m);
+  for (const m of text.matchAll(/\b(?:class|class-name|label-class-name)\s*=\s*'([^']*)'/g))
+    addAttr(m);
 
-  for (const m of text.matchAll(/\bclass\s*=\s*"([^"]*)"/g)) {
-    for (const t of m[1].split(/\s+/)) {
-      if (/^[A-Za-z][A-Za-z0-9_-]*$/.test(t)) out.add(t);
-    }
+  // 2. 动态 class 表达式：对象键 { 'a-b': cond }、字符串分支 'is-online'、数组元素
+  for (const m of text.matchAll(/(?::|v-bind:)class\s*=\s*"([^"]*)"/g)) {
+    const expr = m[1];
+    for (const k of expr.matchAll(/['"]?([A-Za-z][A-Za-z0-9_-]*)['"]?\s*:/g)) out.add(k[1]);
+    for (const s of expr.matchAll(/['"]([A-Za-z][A-Za-z0-9_-]*)['"]/g)) out.add(s[1]);
   }
-  for (const m of text.matchAll(/\bclass\s*=\s*'([^']*)'/g)) {
-    for (const t of m[1].split(/\s+/)) {
-      if (/^[A-Za-z][A-Za-z0-9_-]*$/.test(t)) out.add(t);
-    }
+  for (const m of text.matchAll(/(?::|v-bind:)class\s*=\s*'([^']*)'/g)) {
+    for (const s of m[1].matchAll(/['"]([A-Za-z][A-Za-z0-9_-]*)['"]/g)) out.add(s[1]);
   }
-  for (const m of text.matchAll(/:class\s*=\s*"\{([^}]*)\}"/g)) {
-    for (const k of m[1].matchAll(/['"]?([A-Za-z][A-Za-z0-9_-]*)['"]?\s*:/g)) out.add(k[1]);
-  }
+
+  // 4. data-testid
+  for (const m of text.matchAll(/data-testid\s*=\s*["']([^"']+)["']/g)) out.add(m[1]);
   return out;
+}
+
+/**
+ * 遮掉注释，**长度不变**（注释字符换成空格、换行保留），这样行号仍与原文对齐。
+ *
+ * 为什么需要：判据应只看「代码里用了什么选择器」，而**注释里提到**某个已删除的选择器
+ * 是合理的文档（本项目习惯把踩过的坑写在原地）。实测 `M-09b` 的说明注释里写了
+ * `document.querySelector('.sheet')`，于是这条**已被修复**的选择器又被门禁报红 ——
+ * 假报错会消耗对门禁的信任，最终导致门禁被绕过；而真正在骗人的判据反而留下。
+ */
+function stripComments(src) {
+  const buf = [...src];
+  const blank = (from, to) => {
+    for (let k = from; k < to && k < buf.length; k += 1) {
+      if (buf[k] !== '\n') buf[k] = ' ';
+    }
+  };
+  let i = 0;
+  let quote = null;
+  while (i < src.length) {
+    const c = src[i];
+    const n = src[i + 1];
+    if (quote) {
+      if (c === '\\') i += 2;
+      else {
+        if (c === quote) quote = null;
+        i += 1;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      quote = c;
+      i += 1;
+      continue;
+    }
+    if (c === '/' && n === '*') {
+      const e = src.indexOf('*/', i + 2);
+      const end = e === -1 ? src.length : e + 2;
+      blank(i, end);
+      i = end;
+      continue;
+    }
+    if (c === '/' && n === '/') {
+      const e = src.indexOf('\n', i);
+      const end = e === -1 ? src.length : e;
+      blank(i, end);
+      i = end;
+      continue;
+    }
+    i += 1;
+  }
+  return buf.join('');
 }
 
 /** 从测试脚本里提取 CSS 类选择器（只取我们自己写的 .xxx，忽略复合/伪类）。 */
@@ -197,12 +276,13 @@ for (const suite of SUITES) {
   }
 
   const suiteSrc = fs.readFileSync(suitePath, 'utf8');
-  const selectors = extractSelectors(suiteSrc);
+  // 只看代码：注释里提到某个（已修复的）选择器属正常文档，不应报红
+  const selectors = extractSelectors(stripComments(suiteSrc));
   const missing = [...selectors.entries()].filter(
     ([name]) => !available.has(name) && !isFrameworkClass(name)
   );
 
-  const usedPlaceholders = extractPlaceholders(suiteSrc);
+  const usedPlaceholders = extractPlaceholders(stripComments(suiteSrc));
   const missingPh = [...usedPlaceholders.entries()].filter(([s]) => !placeholders.has(s));
 
   if (missing.length || missingPh.length) {

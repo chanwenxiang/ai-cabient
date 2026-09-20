@@ -12,9 +12,11 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { captchaFromRedis } from '../../../scripts/lib/redis-captcha.mjs';
 import { consumerLoginViaSms } from '../../../scripts/lib/h5-login.mjs';
+import { adminPageState, mpListPageState, pollUntil } from '../../../scripts/lib/ui-assert.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../../..');
@@ -30,6 +32,14 @@ const OUT = path.resolve(__dirname, '../output/playwright/dispute-flow');
  */
 const UAT_MAX_FAIL = Number(process.env.UAT_MAX_FAIL ?? 0);
 const DISPUTE_FILE = process.env.OPEN_DISPUTE_JSON || path.join(ROOT, '.tmp/open-dispute.json');
+/**
+ * 种子工单是**一次性消耗品**：D-A04 会把它免单结案，于是第二次跑本套件必然「种子失效」。
+ * 与其永远 SKIP，不如让套件自己把前置条件重建出来（在 `seedTicketInOpenList` 判失效时才触发，
+ * 且只在本机能跑 PowerShell 时启用）。
+ *   OPEN_DISPUTE_AUTOSEED=0 可关闭；关闭后种子失效退回 SKIP（不再是 FAIL）。
+ */
+const AUTOSEED =
+  (process.env.OPEN_DISPUTE_AUTOSEED ?? (process.platform === 'win32' ? '1' : '0')) !== '0';
 
 fs.mkdirSync(OUT, { recursive: true });
 const results = [];
@@ -93,6 +103,93 @@ async function adminLogin(page) {
     }
   }
   return false;
+}
+
+/**
+ * 点某工单所在行的「详情」，返回**实际被点的那条工单号**。
+ *
+ * 为什么要返回 targetId 而不是只返回布尔：判据是「工作台展示的工单 == 点之前该行显示的工单」。
+ * 若种子工单已被上一次运行结案（不在 OPEN 列表里），就退化为点首行——
+ * 断言强度不变（照样能红），但 D-A03 不再依赖种子是否新鲜（种子新鲜度是 D-A04 的事）。
+ */
+async function clickDetailForTicket(page, preferredTicketId) {
+  return page.evaluate((tid) => {
+    const rows = [...document.querySelectorAll('.report-table .el-table__body tr.el-table__row')];
+    if (!rows.length) return { clicked: false, reason: 'no-rows', targetId: '' };
+    const idOf = (r) => (r.querySelector('.cell-id')?.innerText || '').trim();
+    const tail = String(tid || '').slice(-8);
+    const hit =
+      (tid && rows.find((r) => idOf(r) === String(tid))) ||
+      (tid && rows.find((r) => idOf(r).slice(-8) === tail)) ||
+      rows[0];
+    const targetId = idOf(hit);
+    // 操作列是**图标按钮**（无可见文字），唯一稳定的定位是 aria-label="详情"。
+    const btn =
+      hit.querySelector('td.col-action button[aria-label="详情"]') ||
+      [...hit.querySelectorAll('button')].find(
+        (b) => (b.getAttribute('aria-label') || '') === '详情'
+      );
+    if (!btn) return { clicked: false, reason: 'detail-button-not-found', targetId };
+    btn.click();
+    return { clicked: true, reason: 'ok', targetId };
+  }, preferredTicketId);
+}
+
+/**
+ * 关闭当前抽屉（若已打开）。
+ *
+ * 必要性：列表页支持 `?ticketId=` 深链，`openFocusedTicket()` 会在加载后**自动**打开工作台。
+ * 若不先关掉，「点详情后抽屉是开的」就分辨不出是深链开的还是点击开的——判据会失去意义。
+ */
+async function closeDrawerIfOpen(page) {
+  const drawer = page.locator('.el-drawer.dispute-workbench');
+  const wasOpen =
+    (await drawer.count()) > 0 &&
+    (await drawer
+      .first()
+      .isVisible()
+      .catch(() => false));
+  if (!wasOpen) return { wasOpen: false, closed: true };
+  await page
+    .locator('.el-drawer.dispute-workbench .el-drawer__close-btn')
+    .first()
+    .click({ timeout: 3000 })
+    .catch(() => {});
+  const st = await pollUntil(
+    page,
+    async () => ({
+      ok: (await page.locator('.el-drawer.dispute-workbench').count()) === 0
+    }),
+    { timeoutMs: 4000 }
+  );
+  return { wasOpen: true, closed: !!st?.ok };
+}
+
+/**
+ * 争议审单工作台是否打开，且展示的是**指定**工单。
+ *
+ * 旧判据 `clicked || /工单|会话|免单/.test(text)` 两半都靠不住：
+ *  · `clicked` 只证明表格里有 `<tr>`（el-table 没绑 `@row-click`，点行没有任何开详情的副作用）；
+ *  · 「免单」出现在页头提示「同屏对照录像改 SKU 后一键落账或免单」里 ⇒ 恒真。
+ */
+async function disputeWorkbenchState(page, expectTicketId) {
+  return page.evaluate((tid) => {
+    const drawer = document.querySelector('.el-drawer.dispute-workbench');
+    const visible = !!drawer && drawer.offsetHeight > 0;
+    const title = (drawer?.querySelector('.el-drawer__title')?.innerText || '').trim();
+    const desc = drawer?.querySelector('.workbench-desc');
+    // 「工单」是 .workbench-desc 里第一个 descriptions-item，其内容即 selected.ticketId
+    const shownTicket = (desc?.querySelector('.cell-id')?.innerText || '').trim();
+    const titleOk = title === '争议审单工作台';
+    const ticketOk = !!tid && shownTicket === String(tid);
+    return {
+      ok: visible && titleOk && ticketOk,
+      visible,
+      title,
+      shownTicket,
+      detail: `drawer=${visible} title=${JSON.stringify(title)} shown=${JSON.stringify(shownTicket)} expect=${JSON.stringify(String(tid || ''))}`
+    };
+  }, expectTicketId);
 }
 
 /**
@@ -195,6 +292,24 @@ async function seedTicketInOpenList(page, ticketId) {
   }, ticketId);
 }
 
+/**
+ * 重建 OPEN 争议种子（调用仓库里的 create-open-dispute.ps1）。
+ * 该脚本自身是幂等的：记录里的工单仍 OPEN 就直接复用，否则新造一条。
+ */
+function reseedOpenDispute() {
+  const script = path.join(ROOT, 'scripts', 'create-open-dispute.ps1');
+  if (!fs.existsSync(script)) return { ok: false, output: `找不到 ${script}` };
+  const r = spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    timeout: 240000,
+    windowsHide: true
+  });
+  const output = `${r.stdout || ''}\n${r.stderr || ''}`.trim();
+  const ok = r.status === 0 && /OPEN dispute (ready|reused)/.test(output);
+  return { ok, output, status: r.status };
+}
+
 async function checkCheckboxByLabel(page, label) {
   const row = page.locator('.el-checkbox').filter({ hasText: label }).first();
   if ((await row.count()) === 0) return false;
@@ -210,8 +325,8 @@ async function main() {
     process.exit(2);
   }
   const dispute = JSON.parse(fs.readFileSync(DISPUTE_FILE, 'utf8').replace(/^\uFEFF/, ''));
-  const ticketId = String(dispute.ticketId || '');
-  const sessionId = String(dispute.sessionId || '');
+  let ticketId = String(dispute.ticketId || '');
+  let sessionId = String(dispute.sessionId || '');
   if (!ticketId || !sessionId) {
     console.error('open-dispute.json 缺少 ticketId/sessionId');
     process.exit(2);
@@ -238,53 +353,89 @@ async function main() {
 
     const url = `${ADMIN}/disputes?status=OPEN&ticketId=${encodeURIComponent(ticketId)}&sessionId=${encodeURIComponent(sessionId)}`;
     await page.goto(url, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2200);
+    // 🔴 不再用 `bodyText.includes('争议审核')`：`src/config/menu.ts:108` 的侧栏菜单标题就是
+    // 「争议审核」⇒ 内容区整块没渲染也会绿。改判内容区标题精确匹配 + `.report-table` 已水合。
+    const dA02 = await adminPageState(page, { title: '争议审核' });
+    record('D-A02', '打开待审争议页', dA02.ok, dA02.detail, await shot(page, '02-disputes'));
+    dA02.ok ? pass++ : fail++;
     let text = await bodyText(page);
-    const listOk = text.includes('争议审核');
-    record(
-      'D-A02',
-      '打开待审争议页',
-      listOk,
-      text.split('\n').slice(0, 8).join(' | '),
-      await shot(page, '02-disputes')
-    );
-    listOk ? pass++ : fail++;
 
     // 种子有效性必须在**列表还完整时**判（后面会点开抽屉、甚至结案）
-    const seedOk = await seedTicketInOpenList(page, ticketId);
-    console.log(`[种子] 工单 ${ticketId} 出现在 OPEN 列表中: ${seedOk}`);
+    let seedOk = await seedTicketInOpenList(page, ticketId);
+    let seedNote = '';
+    if (!seedOk && AUTOSEED) {
+      // 工单已被上一次运行结案 ⇒ 自动重建前置条件（脚本幂等：仍 OPEN 就直接复用）
+      const rs = reseedOpenDispute();
+      if (rs.ok) {
+        const fresh = JSON.parse(fs.readFileSync(DISPUTE_FILE, 'utf8').replace(/^\uFEFF/, ''));
+        ticketId = String(fresh.ticketId || '');
+        sessionId = String(fresh.sessionId || '');
+        await page.goto(
+          `${ADMIN}/disputes?status=OPEN&ticketId=${encodeURIComponent(ticketId)}&sessionId=${encodeURIComponent(sessionId)}`,
+          { waitUntil: 'domcontentloaded' }
+        );
+        await adminPageState(page, { title: '争议审核' });
+        seedOk = await seedTicketInOpenList(page, ticketId);
+        seedNote = `自动重造种子 ticket=${ticketId} → 有效=${seedOk}；`;
+      } else {
+        seedNote = `自动重造种子失败(status=${rs.status}): ${rs.output.slice(-400)}；`;
+      }
+    }
+    console.log(`[种子] 工单 ${ticketId} 出现在 OPEN 列表中: ${seedOk} ${seedNote}`);
 
-    // 点开首行或已自动选中
-    const clicked = await page.evaluate((tid) => {
-      const rows = [...document.querySelectorAll('.el-table__body tr, .el-table__row')];
-      const hit =
-        rows.find((r) => (r.innerText || '').includes(tid.slice(-6))) ||
-        rows.find((r) => /OPEN|待审|待处理|识别/.test(r.innerText || '')) ||
-        rows[0];
-      if (!hit) return false;
-      hit.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      return true;
-    }, ticketId);
-    await page.waitForTimeout(1800);
-    text = await bodyText(page);
-    record(
-      'D-A03',
-      '打开争议详情',
-      clicked || /工单|会话|免单/.test(text),
-      `click=${clicked}`,
-      await shot(page, '03-detail')
-    );
-    clicked || /工单|会话/.test(text) ? pass++ : fail++;
+    // 深链 `?ticketId=` 会自动开工作台（`openFocusedTicket`）⇒ 必须先关掉，
+    // 「点详情之后抽屉是开的」才等于「点击真的打开了抽屉」。
+    const pre = await closeDrawerIfOpen(page);
+    const detailClick = pre.closed
+      ? await clickDetailForTicket(page, seedOk ? ticketId : '')
+      : { clicked: false, reason: 'drawer-close-failed', targetId: '' };
+    const dA03 =
+      detailClick.clicked === true
+        ? await pollUntil(page, () => disputeWorkbenchState(page, detailClick.targetId), {
+            timeoutMs: 8000
+          })
+        : { ok: false, detail: `未点到「详情」按钮：${detailClick.reason}` };
+    if (detailClick.reason === 'no-rows') {
+      // 列表里一条 OPEN 争议都没有（数据问题，不是产品缺陷）⇒ 诚实 SKIP，不冒充通过。
+      record(
+        'D-A03',
+        '打开争议详情（工作台展示该行工单）',
+        'SKIP',
+        'OPEN 列表为空，无可点的「详情」（需先造争议：scripts/create-open-dispute.ps1）',
+        await shot(page, '03-detail')
+      );
+    } else {
+      record(
+        'D-A03',
+        '打开争议详情（工作台展示该行工单）',
+        dA03.ok,
+        `autoDrawerClosed=${pre.closed} click=${detailClick.clicked}(${detailClick.reason}) target=${detailClick.targetId} ${dA03.detail}`,
+        await shot(page, '03-detail')
+      );
+      dA03.ok ? pass++ : fail++;
+    }
 
     if (!seedOk) {
       // 种子失效：一个按钮都不点（列表里可能有别的 OPEN 单，误点会影响无关工单）
-      record(
-        'D-A04',
-        '运营 UI 免单结案',
-        'SKIP',
-        `种子工单 ${ticketId} 不在 OPEN 列表（已被上一次 UAT 结案 / 演示库重建）⇒ 请重跑 scripts/create-open-dispute.ps1`,
-        await shot(page, '04-seed-missing')
-      );
+      if (AUTOSEED) {
+        // 已经尝试重建前置条件仍失败 ⇒ fail-closed，不冒充通过、也不假装「只是跳过」
+        record(
+          'D-A04',
+          '运营 UI 免单结案',
+          false,
+          `无法建立前置条件（OPEN 种子工单）：${seedNote}`,
+          await shot(page, '04-seed-missing')
+        );
+        fail++;
+      } else {
+        record(
+          'D-A04',
+          '运营 UI 免单结案',
+          'SKIP',
+          `种子工单 ${ticketId} 不在 OPEN 列表（已被上一次 UAT 结案 / 演示库重建）；OPEN_DISPUTE_AUTOSEED=0 已关闭自动重造 ⇒ 请重跑 scripts/create-open-dispute.ps1`,
+          await shot(page, '04-seed-missing')
+        );
+      }
     } else {
       // 无录像路径：勾选两个框（业务强制人工确认）
       await page.waitForTimeout(800);
@@ -353,18 +504,19 @@ async function main() {
     );
     cOk ? pass++ : fail++;
     await page.goto(`${CONSUMER}/pages/orders/orders`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
-    text = await bodyText(page);
-    // 免单后：可能显示已退款/已完成/¥0，或「需要关注」减少
-    const cSee = /订单|已完成|已退款|免单|¥0|已支付|暂无/.test(text);
+    // 免单后：可能显示已退款/已完成/¥0。旧判据 `/订单|…/` 会被底部 tabbar 的「订单」满足。
+    const cSee = await mpListPageState(page, {
+      contentSel: '.orders-main',
+      itemSel: '.order-card'
+    });
     record(
       'D-C02',
       '消费者订单页可见结算结果',
-      cSee,
-      text.split('\n').slice(0, 10).join(' | '),
+      cSee.ok,
+      `${cSee.detail} | ${(await bodyText(page)).split('\n').slice(0, 6).join(' | ')}`,
       await shot(page, '06-consumer-orders')
     );
-    cSee ? pass++ : fail++;
+    cSee.ok ? pass++ : fail++;
 
     // —— 商户（无图形验证码）——
     const mOk = await merchantLogin(page);
@@ -377,30 +529,33 @@ async function main() {
     );
     mOk ? pass++ : fail++;
     await page.goto(`${MERCHANT}/pages/orders/orders`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
-    text = await bodyText(page);
-    const mSee = /柜机订单|已支付|已退款|争议|导出|订单/.test(text);
+    const mSee = await mpListPageState(page, {
+      contentSel: '.page-body .filter-panel',
+      itemSel: '.page-body .card'
+    });
     record(
       'D-M02',
       '商户订单页可打开',
-      mSee,
-      text.split('\n').slice(0, 10).join(' | '),
+      mSee.ok,
+      mSee.detail,
       await shot(page, '08-merchant-orders')
     );
-    mSee ? pass++ : fail++;
+    mSee.ok ? pass++ : fail++;
 
     await page.goto(`${MERCHANT}/pages/disputes/disputes`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1800);
-    text = await bodyText(page);
-    const mDisp = /争议|已结案|待处理|已关闭|暂无/.test(text);
+    // 该页没有 .filter-panel，内容分支由 `.tabs-pill` + 列表/空态/错误态共同界定
+    const mDisp = await mpListPageState(page, {
+      contentSel: '.page-body .tabs-pill',
+      itemSel: '.page-body .card'
+    });
     record(
       'D-M03',
       '商户争议页状态',
-      mDisp,
-      text.split('\n').slice(0, 10).join(' | '),
+      mDisp.ok,
+      mDisp.detail,
       await shot(page, '09-merchant-disputes')
     );
-    mDisp ? pass++ : fail++;
+    mDisp.ok ? pass++ : fail++;
   } finally {
     await browser.close();
   }

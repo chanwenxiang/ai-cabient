@@ -1,4 +1,13 @@
 <template>
+  <!--
+    🔴 遮罩关闭**不要**写 `@click.self`。
+    uni-app H5 把 `view` 编译成自定义元素 `<uni-view>`，实测 `@click.self` 的
+    `target === currentTarget` 判定不会成立 ⇒ 处理函数**永不触发** ⇒ 底部面板
+    点遮罩关不掉（`useReplenishmentDetail.closeDetail` 的守卫已 armed=true、
+    事件也确实送到了 `.app-sheet-mask`，`detailVisible` 仍停在 true）。
+    改成普通 `@click` 即可：内层 `.app-sheet` 已 `@click.stop`，语义与原意等价
+    （实测：点遮罩→关闭；点面板内部→不关闭）。同类写法见 AppConfirmDialog。
+  -->
   <view
     v-if="visible"
     class="app-sheet-mask"
@@ -6,7 +15,7 @@
     aria-modal="true"
     :aria-label="ariaLabel"
     data-testid="app-sheet"
-    @click.self="emit('close')"
+    @click="emit('close')"
     @touchmove.stop.prevent
   >
     <view role="document" class="app-sheet" @click.stop>

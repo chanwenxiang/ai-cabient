@@ -34,7 +34,21 @@ const UAT_MAX_FAIL = Number(process.env.UAT_MAX_FAIL ?? 0);
 const OUT = path.resolve(__dirname, '../output/playwright');
 const DEMO_PHONE = '13800138000';
 const DEMO_SMS = '123456';
-const DEVICE_ID = 'CAB-001';
+/**
+ * 演示柜机号。
+ *
+ * 🔴 这里**不能**直接改成本地演示库那台 `330449777078`：全仓 17 个迁移仍在播种 `CAB-001`
+ * （`V2__user_order_sku.sql:56` 建 device_info、`V25`/`V30` 建货道与 SKU），而
+ * `330449777078` / `777740024057` 在迁移里出现 **0 次**（实测 `grep` = 0 命中）——
+ * 也就是说 **CI 的全新库只有 CAB-001**，换掉默认值会让开门主路径在 CI 上找不到柜子。
+ *
+ * `CAB-001` 的真实处境（别再被 V253 那句「已从真实环境删除」误导）：
+ *   · `V253__uat_unlock_cab001_sales.sql` 只归档了**它自己那几行种子**；
+ *   · `V2` 的建柜 INSERT **从未移除** ⇒ 每次全新库仍会把它建出来（实测本地 `device_info` 有该行）；
+ *   · 但它是**孤儿空壳**：无 `merchant_id`、0 订单、0 会话、OFFLINE。
+ * 需要跑在真实演示数据上（要订单/录像/在线态）时用 `DEMO_DEVICE_ID=330449777078` 覆盖。
+ */
+const DEVICE_ID = process.env.DEMO_DEVICE_ID || 'CAB-001';
 // 争议工单号不再硬编码：演示库多次重建，写死的 id 已不存在（0 行），
 // 会让 TC-IMP-025/025b 长期以「工单不存在」失败并占用 ratchet 基线额度。
 // 默认留空 → 由用例内 API 探测（/api/v2/disputes/mine）挑选真实 RESOLVED 工单；探测不到则 SKIP。

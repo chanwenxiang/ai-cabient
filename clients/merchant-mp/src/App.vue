@@ -249,10 +249,15 @@ input {
   align-self: stretch !important;
 }
 
+/* 底部面板 / 弹层内的按钮统一撑满宽度。
+   🔴 `AppSheet` 重构前的类名是 `.sheet` / `.detail-panel`，两条选择器一直留在这里没人清理，
+   而重构后**再也没有元素带这两个类**（全仓 0 次）⇒ 这两条规则是死的、按钮没撑满；
+   更糟的是它们把 `sheet` 塞进了 `scripts/check-uat-selectors.mjs` 的"可用类名"集合，
+   让该门禁**永远抓不到** UAT 里 `querySelector('.sheet')` 这种恒假选择器。
+   统一改用当前组件类名 `.app-sheet`。 */
 .card .app-btn,
 .action-card .app-btn,
-.sheet .app-btn,
-.detail-panel .app-btn,
+.app-sheet .app-btn,
 .detail-actions .app-btn,
 .actions > .app-btn,
 .btn-stack > .app-btn,

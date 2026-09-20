@@ -1,4 +1,6 @@
 <template>
+  <!-- 遮罩关闭：同 AppSheet，uni-app H5 下 `@click.self` 不触发，用普通 `@click`
+       （内层 `.confirm-card` 已 `@click.stop`，语义等价）。 -->
   <view
     v-if="visible"
     class="confirm-mask"
@@ -6,7 +8,7 @@
     aria-modal="true"
     :aria-label="title"
     data-testid="confirm-dialog"
-    @click.self="emit('cancel')"
+    @click="emit('cancel')"
     @touchmove.stop.prevent
   >
     <view role="button" class="confirm-card" @click.stop>

@@ -14,7 +14,7 @@
 | 2 | vision-service | `cd vision-service && .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8082`（**必启**：trade 的 `/actuator/health` 含 vision 探针，vision 挂则 trade=DOWN） |
 | 3 | trade-service | IDEA Run `trade-service`（:8080）；需能连 **Redis `:6379`** 与 Postgres `:15433` |
 | 4 | device-service | IDEA Run `device-service`（:8081）；MQTT 默认 `tcp://localhost:11883` |
-| 5 | 设备模拟器 | IDEA Run `DeviceSimulator`，参数 `CAB-001` |
+| 5 | 设备模拟器 | IDEA Run `DeviceSimulator`，参数 `330449777078`（**别用 `CAB-001`**，见「三、演示账号 › 设备」口径） |
 | 6 | 消费者小程序 | 微信：`pnpm --filter @aicabinet/consumer-mp dev:mp-weixin`；**浏览器 H5**：`pnpm --filter @aicabinet/consumer-mp dev:h5` → http://127.0.0.1:3002 |
 | 7 | 商户小程序 | 微信：`pnpm --filter @aicabinet/merchant-mp dev:mp-weixin`；**浏览器 H5**：`pnpm --filter @aicabinet/merchant-mp dev:h5` → http://127.0.0.1:3001 |
 | 8 | 运营控制台 | 有 Gateway 时 http://localhost/admin/index.html；仅 IDEA trade 时用 http://localhost:8080/admin/index.html |
@@ -36,7 +36,7 @@
 | **trade-service** | **8080**（全栈 Docker 常为 **18080**） | http://localhost:8080/actuator/health 须为 **UP**（依赖 Redis + vision） |
 | **device-service** | **8081**（Docker 常为 **18081**） | http://localhost:8081/actuator/health |
 | **vision-service** | **8082**（Docker 常为 **18082**） | http://localhost:8082/health |
-| **设备模拟器** | — | 程序参数 `CAB-001`，每 30s 心跳 |
+| **设备模拟器** | — | 程序参数 `330449777078`，每 30s 心跳 |
 
 ### 可选
 
@@ -111,8 +111,23 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 
 | 项 | 值 |
 |----|-----|
-| 设备 ID | `CAB-001` |
-| 模拟器启动参数 | `CAB-001` |
+| 演示柜机号（本地演示库） | `330449777078` |
+| 模拟器启动参数 | `330449777078` |
+
+> ⚠️ **柜机号口径（别再照抄 `CAB-001`）**
+>
+> | 柜机号 | 实测状态 | 说明 |
+> |---|---|---|
+> | `330449777078` | ONLINE · `MCH-DEFAULT` · **17 张订单** | 演示数据就在它下面，模拟器应传它 |
+> | `777740024057` | OFFLINE · `MCH-DEFAULT` · 2 张订单 | 浏览器自动发号柜 |
+> | `CAB-001` | OFFLINE · **无商户 · 0 订单 · 0 会话** | **孤儿空壳**，不要再用它做演示柜 |
+>
+> `V253__uat_unlock_cab001_sales.sql` 的头注写「该测试设备已从真实环境删除」，但那只归档了**它自己那几行种子**；
+> `V2__user_order_sku.sql:56` 的建柜 `INSERT` 从未移除，`V25`/`V30` 仍在播种它的货道与 SKU
+> ⇒ **每次全新库都会把 CAB-001 建出来**（共 17 个迁移引用它）。所以：
+> - 🔴 **别再在任何脚本/文档里写死柜机号**（2026-09-20 改）：三端 UAT 已改为**运行时发现** —— 商家端从 `GET /api/v2/merchant/devices` 取本商户名下第一台柜机，取不到就 SKIP；`DEMO_DEVICE_ID` / `MERCHANT_DEVICE_ID` 只作「我要固定跑某台」的覆盖。此前 `M-10c` 硬编码 `CAB-001`，在 CI（全新库，`V15` 会把它绑给 `MCH-DEFAULT`）碰巧能过，在重建过的库里必 403 ⇒ 用例随环境红绿随机；
+> - **本地演示库**要订单/录像/在线态，请用 `330449777078`（UAT 支持 `DEMO_DEVICE_ID` / `MERCHANT_DEVICE_ID` 覆盖）；
+> - 想让它真正消失，得改迁移（此前已定策「刻意不动」，见 `docs/evidence/2026-09-19-legacy-triage/README.md`），不是改测试能了事的。
 
 ### 商品
 
@@ -139,8 +154,8 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 ✓ :8080/actuator/health      → trade-service UP
 ✓ :8081/actuator/health      → device-service UP
 ✓ :8082/health               → vision-service UP
-✓ DeviceSimulator CAB-001    → 控制台有心跳日志
-✓ uni-app 13800138000/123456 → 开门 CAB-001
+✓ DeviceSimulator 330449777078 → 控制台有心跳日志
+✓ uni-app 13800138000/123456 → 开门 330449777078
 ✓ 运营控制台 13900000001     → 登录
 ```
 
@@ -174,14 +189,17 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 | 项 | 值 |
 |----|-----|
 | 演示会话 / 演示订单 | ⚠️ **会过期，勿硬编码**，见下方说明 |
-| 柜机 | `CAB-001`（注意 `device_info.device_id` 实际值形如 `330449777078`） |
+| 柜机 | `330449777078`（本地演示库的 ONLINE 柜；**别再用 `CAB-001`**，见「三 › 柜机号口径」） |
 | MinIO 对象 | `cabinet-videos/demo/sample-shopping.mp4` |
 
 ⚠️ **演示 id 会过期 —— 别再把它写死进脚本或文档**（2026-09-20 复核）：
 本表原先写的 `演示会话 1788233611382431271` 与 `演示订单 1788233752744411094`，
 复核时在演示库里**都是 0 行**；后者全仓**没有任何 Flyway 种子写过**，只是早期手工造单留下的常量。
 三端 UAT 曾照抄这两个常量，演示库一重建就**恒红**，还长期白占 `UAT_MAX_FAIL_BUSINESS` 的额度。
-现已改为 **API 探测**（`GET /api/v2/orders/{id}/video` 校验 200 + ≥1KB + MP4 `ftyp`，探测不到即 SKIP）。
+现已改为 **API 探测**（`GET /api/v2/orders/{id}/video` 校验 200 + ≥1KB + MP4 `ftyp`，**且编码属于浏览器可解集合** `avc1/avc3/hvc1/hev1/vp09/vp08/av01`，探测不到即 SKIP）。
+> ⚠️ **只看 `ftyp` 不够**：设备模拟器产出的会话录像编码是 **`mp4v`（MPEG-4 Part 2）**，容器合法但 Chromium 解不了
+> ⇒ 探测"通过"、用例却在 `<video>` 的 `readyState` 处变红，把**环境问题误报成产品缺陷**。
+> 需要真能播的样例录像时，用 `node scripts/generate-demo-shopping-video.mjs`（Chromium + MediaRecorder 直接产 H.264/avc1）。
 
 需要一条「真能播录像」的演示订单时，现场两步生成：
 

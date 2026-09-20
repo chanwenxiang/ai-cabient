@@ -26,8 +26,23 @@ const HEADED = process.env.PW_HEADED === '1';
 const OUT = path.resolve(__dirname, '../output/playwright');
 const DEMO_PHONE = process.env.MERCHANT_PHONE || '13800138001';
 const DEMO_PASSWORD = process.env.MERCHANT_PASSWORD || '123456';
-/** 本地 demo 栈常见含录像订单（可通过 MERCHANT_DEMO_ORDER_ID 覆盖） */
-const DEMO_ORDER_WITH_VIDEO = process.env.MERCHANT_DEMO_ORDER_ID || '1788233752744411094';
+/**
+ * 含录像订单的**提示值**（仅作为探测首选，探测不到会自动遍历订单列表）。
+ * 原默认 `1788233752744411094` 早就是死常量（全仓 Flyway 种子 0 命中、库里 0 行），
+ * 留着只会误导；默认留空，需要时用 MERCHANT_DEMO_ORDER_ID 指定。
+ */
+const DEMO_ORDER_WITH_VIDEO = process.env.MERCHANT_DEMO_ORDER_ID || '';
+/**
+ * 演示柜机号（仅 M-10c 柜机详情用）。**默认留空 ⇒ 运行时从本商户柜机列表自动发现**。
+ *
+ * 历史坑：这里曾写死 `CAB-001`。它是 `V2__user_order_sku.sql:56` 播下的演示柜，生产侧
+ * **早已删除**；硬编码在 CI 上碰巧能过，只因 `V15__merchant_revenue_split.sql:37` 会把
+ * 无主柜机批量绑给 `MCH-DEFAULT`。而在被重建过的库里它是**孤儿空壳**
+ * （实测 `device_info`：`CAB-001 | NULL merchant_id | 0 订单`）⇒ 商户端 `/settings` 403
+ * ⇒ 页面「无权限执行此操作」，用例随环境红绿随机。
+ * 仅当需要固定跑某台柜机时才用 `MERCHANT_DEVICE_ID` 覆盖。
+ */
+const DEMO_DEVICE_ID = process.env.MERCHANT_DEVICE_ID || '';
 /**
  * 已结案争议工单号。**默认留空**，由用例从「本商家可见的争议列表」里探测一条 RESOLVED 工单。
  *
@@ -247,6 +262,29 @@ async function dismissPrivacyConsent(page) {
 }
 
 /** uni-app history 路由：直接访问页面路径 */
+/**
+ * 从**本商户自己的**柜机列表里发现一台柜机（M-10c 用）。
+ *
+ * 为什么不写死：见 `DEMO_DEVICE_ID` 注释（CAB-001 是已删除的演示柜，硬编码会让用例
+ * 随环境红绿随机）。商家柜机接口 `/api/v2/merchant/devices` 不带参数即返回本商户全量
+ * （`clients/merchant-mp/src/utils/merchant-api.ts:387`），按登录态过滤，正是"我能不能看"的判据。
+ * 返回 `''` 表示该商户名下确实没有柜机 —— 此时用例应 SKIP，而不是借别的柜机硬撑。
+ */
+async function discoverMerchantDevice(page) {
+  const ids = await page.evaluate(async () => {
+    try {
+      const r = await fetch('/api/v2/merchant/devices', { credentials: 'same-origin' });
+      const j = await r.json();
+      const d = j?.data;
+      const arr = Array.isArray(d) ? d : d?.items || d?.content || [];
+      return arr.map((x) => x.deviceId || x.device_id).filter(Boolean);
+    } catch {
+      return [];
+    }
+  });
+  return ids[0] || '';
+}
+
 async function gotoPath(page, pathname, wait = 1500) {
   await page.goto(BASE + pathname, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(wait);
@@ -463,31 +501,70 @@ async function main() {
     }
 
     // —— M-09b 补货任务详情抽屉（只读）——
+    // 🔴 旧判据 `document.querySelector('.sheet')` 是**恒假**选择器：AppSheet 重构后
+    // 真类名是 `.app-sheet`/`.app-sheet-mask`（components/AppSheet.vue），全仓没有 `sheet` 类
+    // （唯一来源是 App.vue 里一条遗留死规则 `.sheet .app-btn`）。于是只要页面上有任务卡片，
+    // 本用例**必红**；而环境里恰好没卡片时它走 SKIP，把缺陷藏了很久。
+    // 关闭动作用的 `.mask` 同样是死选择器 ⇒ 抽屉从来没被真正关掉。
+    // 现改为断言：真实抽屉可见 + 标题非空 + 内容确实是**被点那张卡**的柜机。
     await gotoPath(page, '/pages/replenishment/replenishment');
     const taskCards = await page.evaluate(() => document.querySelectorAll('.task-card').length);
     if (taskCards > 0) {
-      await page.evaluate(() => {
+      const clickedCode = await page.evaluate(() => {
         const c = document.querySelector('.task-card');
+        const code = (c?.querySelector('.device-code')?.innerText || '').trim();
         if (c) c.click();
+        return code;
       });
       await page.waitForTimeout(2200);
-      const sheetVisible = await page.evaluate(() => !!document.querySelector('.sheet'));
+      const sheet = await page.evaluate(() => {
+        const vis = (el) => {
+          if (!el) return false;
+          const st = getComputedStyle(el);
+          return st.display !== 'none' && el.offsetHeight > 0;
+        };
+        const mask = document.querySelector('[data-testid="app-sheet"]');
+        const panel = document.querySelector('.app-sheet');
+        return {
+          visible: vis(mask) && vis(panel),
+          title: (panel?.querySelector('.sheet-title')?.innerText || '').trim(),
+          body: (panel?.innerText || '').slice(0, 300)
+        };
+      });
       const e9b = await shot(page, '09b-replenishment-detail');
+      // 内容与卡片绑定：抽屉里必须出现被点那张卡的柜机号（防止「随便开了个抽屉」也算过）
+      const contentBound = !clickedCode || sheet.body.includes(clickedCode);
+      const sheetOk = sheet.visible && sheet.title.length > 0 && contentBound;
       record(
         'M-09b',
         '补货任务详情抽屉',
         '功能',
-        sheetVisible ? 'PASS' : 'FAIL',
-        `sheet=${sheetVisible}`,
+        sheetOk ? 'PASS' : 'FAIL',
+        `visible=${sheet.visible} title=${JSON.stringify(sheet.title)} 卡片柜机=${clickedCode || '(空)'} 内容匹配=${contentBound}`,
         e9b
       );
+      // 用真实遮罩关闭（旧代码点的 `.mask` 不存在，关不掉）
       await page.evaluate(() => {
-        const el = document.querySelector('.mask');
+        const el = document.querySelector('.app-sheet-mask');
         if (el) el.click();
       });
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(600);
+      const closedAfter = !(await page.evaluate(() => !!document.querySelector('.app-sheet')));
+      if (!closedAfter) {
+        record(
+          'M-09c',
+          '补货详情抽屉可关闭（点遮罩）',
+          'UX',
+          'FAIL',
+          '点 .app-sheet-mask 后抽屉仍在（closeDetail 未被触发）',
+          await shot(page, '09c-replenish-sheet-close')
+        );
+      } else {
+        record('M-09c', '补货详情抽屉可关闭（点遮罩）', 'UX', 'PASS', '遮罩点击已关闭抽屉', null);
+      }
     } else {
       record('M-09b', '补货任务详情抽屉', '功能', 'SKIP', '当前无补货任务', null);
+      record('M-09c', '补货详情抽屉可关闭（点遮罩）', 'UX', 'SKIP', '当前无补货任务', null);
     }
 
     // —— M-10 我的页深层导航 ——
@@ -617,49 +694,83 @@ async function main() {
 
     // —— M-10v 订单购物视频（Bearer 鉴权拉流，禁止假地址冒充通过）——
     const videoOrderHint = DEMO_ORDER_WITH_VIDEO;
-    const videoOrderId = await page.evaluate(async (hint) => {
-      // 同 TC-IMP-032：merchant_cookie_auth 是标记不是 JWT，不能拼进 Authorization。
-      // 旧实现发 `Bearer 1` → 服务端短路 Cookie 鉴权 → 401 → 三条 M-14 里的 401 就是它，
-      // 视频订单也永远探测不到（M-10v 长期 SKIP）。
-      const token =
-        localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
-      const authHeaders = token ? { Authorization: 'Bearer ' + token } : {};
-      const probe = async (oid) => {
-        if (!oid) return false;
+    const videoOrderId = await page.evaluate(
+      async ({ hint, merchantDevice }) => {
+        // 同 TC-IMP-032：merchant_cookie_auth 是标记不是 JWT，不能拼进 Authorization。
+        // 旧实现发 `Bearer 1` → 服务端短路 Cookie 鉴权 → 401 → 三条 M-14 里的 401 就是它，
+        // 视频订单也永远探测不到（M-10v 长期 SKIP）。
+        const token =
+          localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
+        const authHeaders = token ? { Authorization: 'Bearer ' + token } : {};
+        const probe = async (oid) => {
+          if (!oid) return false;
+          try {
+            const r = await fetch(`/api/v2/merchant/orders/${encodeURIComponent(oid)}/video`, {
+              headers: authHeaders,
+              credentials: 'same-origin'
+            });
+            if (!r.ok) return false;
+            const buf = await r.arrayBuffer();
+            // 过短或非 MP4 ftyp 的「假成功」会在 video 里报 MEDIA_ERR_SRC_NOT_SUPPORTED
+            if (buf.byteLength < 1024) return false;
+            const u8 = new Uint8Array(buf);
+            if (String.fromCharCode(...u8.slice(4, 8)) !== 'ftyp') return false;
+            // 🔴 只看容器不看编码不够：设备模拟器产出的会话录像编码是 **mp4v**（MPEG-4 Part 2），
+            // 容器合法而 Chromium 解不了 ⇒ 探测「通过」、用例却在 readyState 处变红，
+            // 把环境问题误报成产品缺陷。要求编码属于浏览器可解集合。
+            return [
+              [0x61, 0x76, 0x63, 0x31], // avc1
+              [0x61, 0x76, 0x63, 0x33], // avc3
+              [0x68, 0x76, 0x63, 0x31], // hvc1
+              [0x68, 0x65, 0x76, 0x31], // hev1
+              [0x76, 0x70, 0x30, 0x39], // vp09
+              [0x76, 0x70, 0x30, 0x38], // vp08
+              [0x61, 0x76, 0x30, 0x31] // av01
+            ].some((cc) => {
+              for (let i = 0; i + 4 <= u8.length; i += 1) {
+                if (
+                  u8[i] === cc[0] &&
+                  u8[i + 1] === cc[1] &&
+                  u8[i + 2] === cc[2] &&
+                  u8[i + 3] === cc[3]
+                ) {
+                  return true;
+                }
+              }
+              return false;
+            });
+          } catch {
+            return false;
+          }
+        };
+        if (hint && (await probe(hint))) return hint;
         try {
-          const r = await fetch(`/api/v2/merchant/orders/${encodeURIComponent(oid)}/video`, {
-            headers: authHeaders,
-            credentials: 'same-origin'
-          });
-          if (!r.ok) return false;
-          const buf = await r.arrayBuffer();
-          // 过短或非 MP4 ftyp 的「假成功」会在 video 里报 MEDIA_ERR_SRC_NOT_SUPPORTED
-          if (buf.byteLength < 1024) return false;
-          const u8 = new Uint8Array(buf.slice(4, 8));
-          const tag = String.fromCharCode(...u8);
-          return tag === 'ftyp';
+          // 🔴 这里原来写死 `deviceId=CAB-001`：CAB-001 是迁移播种出来的**孤儿空壳**
+          // （无 merchant_id、0 订单），按它过滤 ⇒ 列表恒为空 ⇒ M-10v 永久 SKIP，
+          // 看不出「没数据」还是「探测写错了」。商家接口的 deviceId 本就**可选**
+          // （clients/merchant-mp/src/utils/merchant-api.ts:715），改用与页面默认一致的不带过滤，
+          // 需要时用 MERCHANT_DEVICE_ID 覆盖。
+          const listRes = await fetch(
+            `/api/v2/merchant/orders?page=0&size=50${merchantDevice ? `&deviceId=${encodeURIComponent(merchantDevice)}` : ''}`,
+            {
+              headers: authHeaders,
+              credentials: 'same-origin'
+            }
+          );
+          const listJson = await listRes.json();
+          const data = listJson?.data;
+          const list = data?.items || data?.content || [];
+          for (const row of list) {
+            const oid = String(row.orderId || '');
+            if (await probe(oid)) return oid;
+          }
         } catch {
-          return false;
+          /* fall through */
         }
-      };
-      if (hint && (await probe(hint))) return hint;
-      try {
-        const listRes = await fetch('/api/v2/merchant/orders?deviceId=CAB-001&size=30', {
-          headers: authHeaders,
-          credentials: 'same-origin'
-        });
-        const listJson = await listRes.json();
-        const data = listJson?.data;
-        const list = data?.items || data?.content || [];
-        for (const row of list) {
-          const oid = String(row.orderId || '');
-          if (await probe(oid)) return oid;
-        }
-      } catch {
-        /* fall through */
-      }
-      return '';
-    }, videoOrderHint);
+        return '';
+      },
+      { hint: videoOrderHint, merchantDevice: process.env.MERCHANT_DEVICE_ID || '' }
+    );
 
     if (!videoOrderId) {
       record(
@@ -735,18 +846,63 @@ async function main() {
     }
 
     // —— M-10c 柜机详情 ——
-    await gotoPath(page, '/pages/device-detail/device-detail?id=CAB-001');
-    text = await bodyText(page);
-    const devDetailOk = /测试柜|CAB-001|货道|柜机设置|在线|离线/.test(text);
-    const e10e = await shot(page, '10e-device-detail');
-    record(
-      'M-10c',
-      '柜机详情',
-      '功能',
-      devDetailOk ? 'PASS' : 'FAIL',
-      text.split('\n').slice(0, 12).join(' | '),
-      e10e
-    );
+    // 🔴 原实现写死 `?id=CAB-001`，而 CAB-001 是**已删除的演示柜**（`V2__user_order_sku.sql:56`
+    // 播的种，生产侧早已删除）。硬编码之所以在 CI 上碰巧能过，是因为 `V15__merchant_revenue_split.sql:37`
+    // 有一条 `UPDATE device_info SET merchant_id='MCH-DEFAULT' WHERE merchant_id IS NULL` ——
+    // 全新库里 CAB-001 会被绑给默认商户；但任何**被重建过**的库里它是孤儿空壳
+    // （实测 merchant_id=NULL、0 订单）⇒ 商户端 `/api/v2/merchant/devices/CAB-001/settings` 403
+    // ⇒ 页面显示「无权限执行此操作」。用例于是随环境红绿随机，判据完全失真。
+    // 改为从**本商户自己的柜机列表**发现（同 M-10v 的策略）；需要固定时用 MERCHANT_DEVICE_ID。
+    const deviceId = DEMO_DEVICE_ID || (await discoverMerchantDevice(page));
+    if (!deviceId) {
+      record(
+        'M-10c',
+        '柜机详情',
+        '功能',
+        'SKIP',
+        '本商户名下没有柜机（/api/v2/merchant/devices 返回空），无法进入详情页',
+        null
+      );
+    } else {
+      await gotoPath(page, `/pages/device-detail/device-detail?id=${encodeURIComponent(deviceId)}`);
+      await page.waitForTimeout(900);
+      // 旧判据 `/测试柜|CAB-001|货道|柜机设置|在线|离线/` 是**弱断言**：这些词在页头/壳里就有，
+      // 「无权限」「加载中」也照样命中。改判该页专属内容：标题（柜机名）非空、
+      // 状态行里出现的正是**本次导航的柜机号**、且既无权限错误块也无加载失败态。
+      const devDetail = await page.evaluate((wantId) => {
+        const vis = (el) => {
+          if (!el) return false;
+          const st = getComputedStyle(el);
+          return st.display !== 'none' && el.offsetHeight > 0;
+        };
+        const tx = (sel) =>
+          (document.querySelector(sel)?.innerText || '').replace(/\s+/g, ' ').trim();
+        const title = tx('.page-body .card .title');
+        const statusRow = tx('.page-body .card .meta-status-row');
+        const err = [...document.querySelectorAll('.page-body .err')].filter(vis).length;
+        const errorState = vis(document.querySelector('.page-body .error-state'));
+        const idShown = statusRow.includes(wantId);
+        return {
+          ok: title.length > 0 && idShown && err === 0 && !errorState,
+          title,
+          statusRow,
+          idShown,
+          err,
+          errorState,
+          detail: `title=${JSON.stringify(title)} 状态行含柜机号=${idShown} err=${err} errorState=${errorState}`
+        };
+      }, deviceId);
+      text = await bodyText(page);
+      const e10e = await shot(page, '10e-device-detail');
+      record(
+        'M-10c',
+        '柜机详情',
+        '功能',
+        devDetail.ok ? 'PASS' : 'FAIL',
+        `device=${deviceId}（${DEMO_DEVICE_ID ? 'env 指定' : '自动发现'}） ${devDetail.detail} | ${text.split('\n').slice(0, 8).join(' | ')}`,
+        e10e
+      );
+    }
 
     // —— M-10d 争议详情抽屉 ——
     await gotoPath(page, '/pages/disputes/disputes');

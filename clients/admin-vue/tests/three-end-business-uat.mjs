@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captchaFromRedis } from '../../../scripts/lib/redis-captcha.mjs';
 import { consumerLoginViaSms } from '../../../scripts/lib/h5-login.mjs';
+import { adminPageState, mpListPageState } from '../../../scripts/lib/ui-assert.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONSUMER = (process.env.CONSUMER_H5_URL || 'http://127.0.0.1:3002').replace(/\/$/, '');
@@ -159,13 +160,19 @@ async function consumerLogin(page) {
  */
 async function probeOrderWithVideo(page, hint, kind = 'consumer') {
   return page.evaluate(
-    async ({ h, kind }) => {
+    async ({ h, kind, merchantDevice }) => {
       const token =
         localStorage.getItem(`${kind}_token`) || sessionStorage.getItem(`${kind}_token`) || '';
       const authHeaders = token ? { Authorization: 'Bearer ' + token } : {};
       const prefix = kind === 'merchant' ? '/api/v2/merchant/orders' : '/api/v2/orders';
+      // 商户端 `deviceId` 是**可选**过滤条件（见 clients/merchant-mp/src/utils/merchant-api.ts:715）。
+      // 旧实现在这里写死 `deviceId=CAB-001`，而 CAB-001 是 device_info 里一条**没有订单**的登记设备
+      // ⇒ 列表恒为空 ⇒ T-M03 永久 SKIP，看不出是「没数据」还是「探测写错了」。改用与页面默认一致的
+      // 「不带设备过滤」，需要时可用 MERCHANT_DEVICE_ID 覆盖。
       const listUrl =
-        kind === 'merchant' ? `${prefix}?deviceId=CAB-001&size=30` : `${prefix}?page=0&size=30`;
+        kind === 'merchant'
+          ? `${prefix}?page=0&size=50${merchantDevice ? `&deviceId=${encodeURIComponent(merchantDevice)}` : ''}`
+          : `${prefix}?page=0&size=30`;
       const probe = async (oid) => {
         if (!oid) return false;
         try {
@@ -175,9 +182,35 @@ async function probeOrderWithVideo(page, hint, kind = 'consumer') {
           });
           if (!r.ok) return false;
           const buf = await r.arrayBuffer();
-          // 过短或非 MP4 ftyp 的「假成功」会在 <video> 里报 MEDIA_ERR_SRC_NOT_SUPPORTED
+          // 过短或非 MP4 的「假成功」会在 <video> 里报 MEDIA_ERR_SRC_NOT_SUPPORTED
           if (buf.byteLength < 1024) return false;
-          return String.fromCharCode(...new Uint8Array(buf.slice(4, 8))) === 'ftyp';
+          const bytes = new Uint8Array(buf);
+          if (String.fromCharCode(...bytes.slice(4, 8)) !== 'ftyp') return false;
+          // 🔴 只看容器不看编码是不够的：设备模拟器产出的会话录像编码是 **mp4v**
+          // （MPEG-4 Part 2），容器合法、`<video>` 照样解不了 ⇒ 探测会「通过」而用例在
+          // readyState 处变红，把一个环境问题误报成产品缺陷。这里要求编码是浏览器可解的。
+          const codec = [
+            [0x61, 0x76, 0x63, 0x31], // avc1
+            [0x61, 0x76, 0x63, 0x33], // avc3
+            [0x68, 0x76, 0x63, 0x31], // hvc1
+            [0x68, 0x65, 0x76, 0x31], // hev1
+            [0x76, 0x70, 0x30, 0x39], // vp09
+            [0x76, 0x70, 0x30, 0x38], // vp08
+            [0x61, 0x76, 0x30, 0x31] // av01
+          ].some((cc) => {
+            for (let i = 0; i + 4 <= bytes.length; i += 1) {
+              if (
+                bytes[i] === cc[0] &&
+                bytes[i + 1] === cc[1] &&
+                bytes[i + 2] === cc[2] &&
+                bytes[i + 3] === cc[3]
+              ) {
+                return true;
+              }
+            }
+            return false;
+          });
+          return codec;
         } catch {
           return false;
         }
@@ -197,13 +230,13 @@ async function probeOrderWithVideo(page, hint, kind = 'consumer') {
       }
       return '';
     },
-    { h: hint || '', kind }
+    { h: hint || '', kind, merchantDevice: process.env.MERCHANT_DEVICE_ID || '' }
   );
 }
 
 /** 无可用录像种子时的统一说明（与 merchant 侧 M-10v 的口径一致）。 */
 const NO_VIDEO_SEED_HINT =
-  '未找到含可播放录像的订单（可先执行 scripts/seed-demo-shopping-video.ps1 -SessionId <id>）';
+  '未找到含「浏览器可解编码」录像的订单（先用 node scripts/generate-demo-shopping-video.mjs 生成样例，再执行 scripts/seed-demo-shopping-video.ps1 -SessionId <id>）';
 
 async function merchantLogin(page) {
   await page.goto(`${MERCHANT}/pages/login/login`, { waitUntil: 'domcontentloaded' });
@@ -278,6 +311,8 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
   let pass = 0;
   let fail = 0;
+  // 少数用例仍需整页文本（例如商户订单详情里「查看购物视频」按钮的存在性），统一在此声明。
+  let text = '';
 
   try {
     // —— 消费者 ——
@@ -287,17 +322,14 @@ async function main() {
     cToken ? pass++ : fail++;
 
     await page.goto(`${CONSUMER}/pages/orders/orders`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1800);
-    let text = await bodyText(page);
-    const ordersOk = /订单|已支付|已完成|暂无/.test(text);
-    record(
-      'T-C02',
-      '消费者订单列表',
-      ordersOk,
-      text.split('\n').slice(0, 8).join(' | '),
-      await shot(page, 'c02-orders')
-    );
-    ordersOk ? pass++ : fail++;
+    // 🔴 不再用 `/订单|已支付|暂无/.test(bodyText)`：底部 tabbar 就有「订单」，导航栏标题
+    // 也有「我的订单」⇒ 列表整块没渲染也会绿。改判「内容分支容器 + 真实列表项/空态」。
+    const cOrders = await mpListPageState(page, {
+      contentSel: '.orders-main',
+      itemSel: '.order-card'
+    });
+    record('T-C02', '消费者订单列表', cOrders.ok, cOrders.detail, await shot(page, 'c02-orders'));
+    cOrders.ok ? pass++ : fail++;
 
     const cVideoOrder = await probeOrderWithVideo(page, DEMO_ORDER, 'consumer');
     if (!cVideoOrder) {
@@ -329,17 +361,13 @@ async function main() {
     mToken ? pass++ : fail++;
 
     await page.goto(`${MERCHANT}/pages/orders/orders`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1800);
-    text = await bodyText(page);
-    const mOrders = /柜机订单|订单|已支付|导出/.test(text);
-    record(
-      'T-M02',
-      '商户柜机订单',
-      mOrders,
-      text.split('\n').slice(0, 8).join(' | '),
-      await shot(page, 'm02-orders')
-    );
-    mOrders ? pass++ : fail++;
+    // 同上：商户端导航栏标题就是「柜机订单」⇒ 旧正则被外壳满足。改判内容容器 + 列表项。
+    const mOrders = await mpListPageState(page, {
+      contentSel: '.page-body .filter-panel',
+      itemSel: '.page-body .card'
+    });
+    record('T-M02', '商户柜机订单', mOrders.ok, mOrders.detail, await shot(page, 'm02-orders'));
+    mOrders.ok ? pass++ : fail++;
 
     const mVideoOrder = await probeOrderWithVideo(page, DEMO_ORDER, 'merchant');
     if (!mVideoOrder) {
@@ -378,23 +406,19 @@ async function main() {
     adminOk ? pass++ : fail++;
 
     if (adminOk) {
+      // 🔴 旧判据 `p.re.test(bodyText)` 是**恒真**的：`src/config/menu.ts:94/108/115` 的侧栏
+      // 菜单标题就是「订单管理 / 争议审核 / 异常中心」，内容区整块没渲染也照样命中。
+      // 改判：内容区标题（`.page-card-head__title .title`，仅 src/views/** 使用、侧栏不引用）
+      // **精确**等于期望值，且该页 `.report-table` 已水合（有数据行或已渲染 el-empty）。
       for (const p of [
-        { id: 'T-A02', name: '争议审核', path: '/disputes', re: /争议审核|工单|识别/ },
-        { id: 'T-A03', name: '异常中心', path: '/exceptions', re: /异常中心|级别|超时/ },
-        { id: 'T-A04', name: '订单管理', path: '/orders', re: /订单|状态|金额/ }
+        { id: 'T-A02', name: '争议审核', path: '/disputes', title: '争议审核' },
+        { id: 'T-A03', name: '异常中心', path: '/exceptions', title: '异常中心' },
+        { id: 'T-A04', name: '订单管理', path: '/orders', title: '订单管理' }
       ]) {
         await page.goto(`${ADMIN}${p.path}`, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(1600);
-        text = await bodyText(page);
-        const ok = p.re.test(text);
-        record(
-          p.id,
-          p.name,
-          ok,
-          text.split('\n').slice(0, 8).join(' | '),
-          await shot(page, p.id.toLowerCase())
-        );
-        ok ? pass++ : fail++;
+        const st = await adminPageState(page, { title: p.title });
+        record(p.id, p.name, st.ok, st.detail, await shot(page, p.id.toLowerCase()));
+        st.ok ? pass++ : fail++;
       }
     }
   } finally {
