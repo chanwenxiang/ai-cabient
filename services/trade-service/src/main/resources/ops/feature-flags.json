@@ -416,6 +416,14 @@
       "description": "是否允许消费者按行自助部分退"
     },
     {
+      "key": "refund.auto_approve.max_cents",
+      "group": "退款",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "余额退款自动审批上限（分），0=关闭（全部人工审核）；≤该上限的申请提交后由系统账号立即审批并原路退款，不进入审批流",
+      "unit": "分"
+    },
+    {
       "key": "replenishment.check_in.max_distance_m",
       "group": "补货与签到",
       "type": "NUMBER",

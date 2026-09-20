@@ -42,6 +42,12 @@ public class SystemConfigService {
     public static final String RECHARGE_MAX_CENTS = "recharge.max_cents";
     /** 单次余额退款申请上限（分）；默认 ¥5000；0=不限制。 */
     public static final String BALANCE_REFUND_MAX_CENTS = "balance.refund.max_cents";
+    /**
+     * 余额退款自动审批上限（分）；默认 0 = 关闭（全部转人工审核）。
+     * 大于 0 时，申请金额不超过该阈值的退款申请提交后立即由系统账号审批并执行原路退款，
+     * 不进入人工审批流（也不创建审批实例）。
+     */
+    public static final String REFUND_AUTO_APPROVE_MAX_CENTS = "refund.auto_approve.max_cents";
     public static final String REFUND_SELF_PARTIAL_ENABLED = "refund.self.partial_enabled";
     /** 待支付订单超时自动关单小时数, 0=关闭自动关单. */
     public static final String UNPAID_AUTO_CANCEL_HOURS = "order.unpaid.auto_cancel_hours";
@@ -438,6 +444,8 @@ public class SystemConfigService {
         upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");
         upsertIfAbsent(RECHARGE_MAX_CENTS, "500000", "单次充值上限（分），默认 ¥5000，0=不限制");
         upsertIfAbsent(BALANCE_REFUND_MAX_CENTS, "500000", "单次余额退款申请上限（分），默认 ¥5000，0=不限制");
+        upsertIfAbsent(REFUND_AUTO_APPROVE_MAX_CENTS, "0",
+                "余额退款自动审批上限（分），0=关闭（全部人工审核）；≤该上限的申请提交后由系统账号立即审批并原路退款，不进入审批流");
         upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10", "设备离线超时自动锁机分钟数, 0=关闭");
         upsertIfAbsent(DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, "45",
                 "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");

@@ -41,6 +41,14 @@ public class BalanceRefundService {
     private static final String STATUS_FAILED = "FAILED";
     /** H63: 渠道切片部分成功时保留进度（已成功切片不回滚），复审可续退剩余部分。 */
     private static final String STATUS_PARTIAL = "PARTIAL";
+    /**
+     * O6 自动审批的操作人：V221 预置的「系统」账号（user_id=0）。
+     * 该账号同时满足 {@code balance_refund_request.reviewer_id} 与
+     * {@code admin_audit_log.operator_id} 两处外键（V220/V221）。
+     */
+    static final long AUTO_REVIEWER_ID = 0L;
+    private static final String AUTO_APPROVE_REMARK =
+            "系统自动审批（金额在 refund.auto_approve.max_cents 阈值内）";
 
     private final BalanceRefundRequestMapper requestMapper;
     private final BalanceRefundAllocationMapper allocationMapper;
@@ -91,7 +99,13 @@ public class BalanceRefundService {
                 .toList();
     }
 
-    @Transactional
+    /**
+     * 提交余额退款申请。
+     * <p>O6：当 {@code refund.auto_approve.max_cents > 0} 且申请金额不超过该阈值时，申请提交后立即由
+     * {@link #AUTO_REVIEWER_ID 系统账号}审批并执行原路退款。阈值内申请<b>不创建审批实例</b>——自动审批的
+     * 语义就是「按策略免审」，创建实例只会在人工审批台留下无人认领的待办。默认阈值为 0 ⇒ 不自动审批，
+     * 行为与接入前逐字节一致（fail-closed）。
+     */
     public BalanceRefundRequestDto apply(Long userId, int amountCents, String reason) {
         if (amountCents < 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额至少 ¥1.00");
@@ -101,10 +115,25 @@ public class BalanceRefundService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "单次申请不超过 ¥" + String.format("%.2f", maxCents / 100.0));
         }
-        return runWithBalanceRefundLock(userId, () -> doApply(userId, amountCents, reason));
+        boolean auto = withinAutoApproveThreshold(amountCents);
+        BalanceRefundRequestDto applied = runWithBalanceRefundLock(userId,
+                () -> self.doApply(userId, amountCents, reason, auto));
+        if (!auto) {
+            return applied;
+        }
+        // 自动审批与申请必须分处两个事务：渠道 HTTP 只能在事务外（C05 三段式）
+        return runWithBalanceRefundLock(userId, () -> self.doAutoApprove(applied));
     }
 
-    private BalanceRefundRequestDto doApply(Long userId, int amountCents, String reason) {
+    /** O6：申请金额是否落在自动审批阈值内（阈值 ≤ 0 = 关闭，全部转人工）。 */
+    private boolean withinAutoApproveThreshold(int amountCents) {
+        int threshold = systemConfigService.getInt(
+                SystemConfigService.REFUND_AUTO_APPROVE_MAX_CENTS, 0);
+        return threshold > 0 && amountCents <= threshold;
+    }
+
+    @Transactional
+    public BalanceRefundRequestDto doApply(Long userId, int amountCents, String reason, boolean auto) {
         if (requestMapper.countByUserIdAndStatus(userId, STATUS_PENDING) > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已有待审核的退款申请，请等待处理完成");
         }
@@ -139,14 +168,58 @@ public class BalanceRefundService {
         req.setCreatedAt(now);
         req.setUpdatedAt(now);
         requestMapper.insert(req);
-        approvalWorkflowService.start(
-                BIZ_BALANCE_REFUND,
-                String.valueOf(req.getRequestId()),
-                userId,
-                "余额退款 " + req.getRequestNo() + " ¥"
-                        + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
-        log.info("balance refund applied user={} amount={} request={}", userId, amountCents, req.getRequestNo());
+        if (auto) {
+            // O6：阈值内申请免审 ⇒ 不创建审批实例（否则人工审批台会留下无人认领的待办）
+            log.info("balance refund applied (auto-approve eligible) user={} amount={} request={}",
+                    userId, amountCents, req.getRequestNo());
+        } else {
+            approvalWorkflowService.start(
+                    BIZ_BALANCE_REFUND,
+                    String.valueOf(req.getRequestId()),
+                    userId,
+                    "余额退款 " + req.getRequestNo() + " ¥"
+                            + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
+            log.info("balance refund applied user={} amount={} request={}", userId, amountCents, req.getRequestNo());
+        }
         return toDto(req);
+    }
+
+    /**
+     * O6 自动审批执行体（锁内、事务外）：重查行 → 记录系统审批人 → 复用既有三段式执行退款。
+     * <p>若申请已被其它路径处理（非 PENDING），按当前状态原样返回，不重复触达资金。
+     * <p>渠道失败时资金已按既有契约冲回（FAILED）或保留进度（PARTIAL）；此处<b>不向上抛</b>——
+     * 申请已经落库，把真实状态回给消费者比一个 500 更诚实（人工 {@code review()} 面向有界面可看的运营，
+     * 抛错才合适，两者场景不同）。
+     */
+    public BalanceRefundRequestDto doAutoApprove(BalanceRefundRequestDto applied) {
+        BalanceRefundRequest req = requestMapper.selectById(applied.requestId());
+        if (req == null) {
+            return applied;
+        }
+        if (!STATUS_PENDING.equals(req.getStatus())) {
+            return toDto(req);
+        }
+        try {
+            return toDto(executeApprovedRefund(self.markAutoReviewed(req.getRequestId())));
+        } catch (RuntimeException e) {
+            log.error("balance refund auto-approve failed request={}", req.getRequestNo(), e);
+            BalanceRefundRequest latest = requestMapper.selectById(req.getRequestId());
+            return latest == null ? toDto(req) : toDto(latest);
+        }
+    }
+
+    /** O6 自动审批落账（短事务）：行锁重查 + PENDING 守卫 + 记录系统审批人/备注 + 审计。 */
+    @Transactional
+    public BalanceRefundRequest markAutoReviewed(long requestId) {
+        BalanceRefundRequest req = requirePendingForUpdate(requestId);
+        req.setReviewerId(AUTO_REVIEWER_ID);
+        req.setReviewRemark(AUTO_APPROVE_REMARK);
+        req.setReviewedAt(Instant.now());
+        req.setUpdatedAt(Instant.now());
+        requestMapper.updateById(req);
+        auditService.appendLog(AUTO_REVIEWER_ID, "BALANCE_REFUND_AUTO_APPROVE", BIZ_BALANCE_REFUND,
+                String.valueOf(req.getRequestId()), "系统自动审批 " + req.getRequestNo());
+        return req;
     }
 
     @Transactional(readOnly = true)
