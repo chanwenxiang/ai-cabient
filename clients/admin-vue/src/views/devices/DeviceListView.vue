@@ -16,7 +16,7 @@
             v-hasPermi="['ops:device:edit']"
             type="danger"
             plain
-            :disabled="!selectedKeys.length"
+            :disabled="!crud.hasSelection"
             :loading="batchCmdLoading === 'LOCK'"
             @click="batchCommand('LOCK')"
             >批量锁机</el-button
@@ -25,7 +25,7 @@
             v-hasPermi="['ops:device:edit']"
             type="success"
             plain
-            :disabled="!selectedKeys.length"
+            :disabled="!crud.hasSelection"
             :loading="batchCmdLoading === 'UNLOCK'"
             @click="batchCommand('UNLOCK')"
             >批量解锁</el-button
@@ -33,7 +33,7 @@
           <el-button
             v-hasPermi="['ops:device:edit']"
             plain
-            :disabled="!selectedKeys.length"
+            :disabled="!crud.hasSelection"
             :loading="batchCmdLoading === 'DEPLOY'"
             @click="batchLifecycle('DEPLOY')"
             >批量投放</el-button
@@ -41,7 +41,7 @@
           <el-button
             v-hasPermi="['ops:device:edit']"
             plain
-            :disabled="!selectedKeys.length"
+            :disabled="!crud.hasSelection"
             :loading="batchCmdLoading === 'UNDEPLOY'"
             @click="batchLifecycle('UNDEPLOY')"
             >批量未投放</el-button
@@ -50,18 +50,14 @@
             v-hasPermi="['ops:device:edit']"
             type="warning"
             plain
-            :disabled="!selectedKeys.length"
+            :disabled="!crud.hasSelection"
             :loading="batchCmdLoading === 'RETIRE'"
             @click="batchRetire"
             >批量退役</el-button
           >
-          <el-button v-hasPermi="['ops:device:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
           <el-button v-hasPermi="['ops:device:create']" type="primary" @click="openCreate"
             >新建设备</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
         </div>
       </div>
     </template>
@@ -177,35 +173,19 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="devices"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="deviceId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="rowActions"
+          :action-width="140"
+          actions-testid="device"
+          empty-text="暂无设备"
+          sort-field-label="设备编号"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" description="暂无设备" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="deviceId"
-            label="设备编号"
-            min-width="140"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="deviceId" label="设备编号" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
@@ -397,35 +377,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="140"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="deviceActions(row)"
-                @action="(key: string) => onRowAction(key, row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="ADMIN_LIST_PAGE_SIZES"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="() => load(false)"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog
       v-model="createVisible"
@@ -552,26 +506,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Refresh, Setting, View } from '@element-plus/icons-vue';
+import { Setting, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useTableSelection } from '@/composables/useTableSelection';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import type {
   OpenApiAdminDeviceDto,
   OpenApiPageResultAdminDeviceDto
 } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
-import { ADMIN_LIST_PAGE_SIZES, clampAdminPageSize } from '@/utils/admin-list-pager';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'CAN_BUY' | 'ON_SALE' | 'LOCKED';
@@ -584,23 +533,11 @@ interface MerchantOption {
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const keyword = ref('');
 const lifecycleFilter = ref('');
 const coopFilter = ref('');
 const routeFilter = ref('');
 const boardTab = ref<BoardTab>('ALL');
-const devices = ref<OpenApiAdminDeviceDto[]>([]);
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('deviceId', {
-  onChange: () => {
-    devices.value = sortById([...devices.value], 'deviceId');
-  }
-});
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
 const batchCmdLoading = ref('');
 const policyVisible = ref(false);
 const policySaving = ref(false);
@@ -707,9 +644,6 @@ function lifecycleLabel(status?: string | null) {
   return dictLabel('device_lifecycle', status || 'DEPLOYED');
 }
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
-  useTableSelection<OpenApiAdminDeviceDto>((r) => r.deviceId ?? '');
-
 const policyHint = computed(() => {
   switch (policyForm.refundPolicy) {
     case 'AUTO_REFUND':
@@ -721,8 +655,44 @@ const policyHint = computed(() => {
   }
 });
 
-const { onExport } = useListCsv({
+// 首屏先把路由 query 同步进筛选状态，再交给 useCrudTable 挂载后自动加载（原 onMounted 前置逻辑）
+applyRouteQuery();
+
+/** 拉取一页设备；顺带同步当前 tab 的看板计数并刷新整个看板（原 load 的附带副作用） */
+async function fetchPage(params: CrudPageParams) {
+  const q = new URLSearchParams({
+    page: String(params.page),
+    size: String(params.size)
+  });
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  if (lifecycleFilter.value) q.set('lifecycleStatus', lifecycleFilter.value);
+  if (coopFilter.value) q.set('coopMode', coopFilter.value);
+  if (routeFilter.value.trim()) q.set('routeCode', routeFilter.value.trim());
+  const filters = boardQuery(boardTab.value);
+  if (filters.online) q.set('online', filters.online);
+  if (filters.salesLocked) q.set('salesLocked', filters.salesLocked);
+  const tabAtRequest = boardTab.value;
+  const data = await api.request<OpenApiPageResultAdminDeviceDto>(
+    AdminEndpoints.devicesList(q),
+    'GET'
+  );
+  if (tabAtRequest in boardCounts) {
+    boardCounts[tabAtRequest] = data.total || 0;
+  }
+  void refreshBoardCounts();
+  return data;
+}
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 / 刷新 全部内建
+const crud = useCrudTable<OpenApiAdminDeviceDto>({
+  rowKey: (r) => r.deviceId ?? '',
+  fetchPage,
+  sort: { prop: 'deviceId', mode: 'local' }
+});
+
+const csvOptions: CrudCsvOptions = {
   filePrefix: '设备',
+  exportPerm: 'ops:device:export',
   headers: [
     '设备编号',
     '名称',
@@ -744,8 +714,9 @@ const { onExport } = useListCsv({
     '会话状态',
     '更新时间'
   ],
-  toRows: () =>
-    pickSelected(devices.value).map((row) => [
+  // 选中优先由 CrudTable 内部处理（勾选了就只导选中行）
+  toRows: (rows) =>
+    rows.map((row) => [
       row.deviceId,
       row.deviceName,
       dictLabel('device_type', row.deviceType),
@@ -766,15 +737,32 @@ const { onExport } = useListCsv({
       row.activeSessionState ? dictLabel('session_state', row.activeSessionState) : '无',
       formatDateTime(row.updatedAt)
     ])
-});
+};
+
+function rowActions(_row: OpenApiAdminDeviceDto): CrudRowAction[] {
+  return [
+    { key: 'detail', label: '详情', icon: View, type: 'primary' },
+    { key: 'policy', label: '退款设置', icon: Setting, type: 'warning', perm: 'ops:device:edit' }
+  ];
+}
+
+function onAction({ key, row }: { key: string; row: OpenApiAdminDeviceDto }) {
+  if (key === 'detail') {
+    goDetail(row);
+    return;
+  }
+  if (key === 'policy') {
+    openPolicy(row);
+  }
+}
 
 async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
   if (!auth.hasPerm('ops:device:edit')) {
     ElMessage.warning('无设备编辑权限');
     return;
   }
-  const targets = devices.value.filter((d) =>
-    selectedKeys.value.map(String).includes(d.deviceId ?? '')
+  const targets = crud.items.filter((d) =>
+    crud.selectedKeys.map(String).includes(d.deviceId ?? '')
   );
   if (!targets.length) {
     ElMessage.warning('请先勾选设备');
@@ -807,8 +795,8 @@ async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
     }
     if (fail === 0) ElMessage.success(`已${label} ${ok} 台`);
     else ElMessage.warning(`${label}完成：成功 ${ok}，失败 ${fail}`);
-    clearSelection();
-    await load(false);
+    crud.clearSelection();
+    await crud.load();
   } finally {
     batchCmdLoading.value = '';
   }
@@ -819,8 +807,8 @@ async function batchRetire() {
     ElMessage.warning('无设备编辑权限');
     return;
   }
-  const targets = devices.value.filter((d) =>
-    selectedKeys.value.map(String).includes(d.deviceId ?? '')
+  const targets = crud.items.filter((d) =>
+    crud.selectedKeys.map(String).includes(d.deviceId ?? '')
   );
   if (!targets.length) {
     ElMessage.warning('请先勾选设备');
@@ -859,8 +847,8 @@ async function batchRetire() {
     }
     if (fail === 0) ElMessage.success(`已退役 ${ok} 台`);
     else ElMessage.warning(`退役完成：成功 ${ok}，失败 ${fail}`);
-    clearSelection();
-    await load(false);
+    crud.clearSelection();
+    await crud.load();
   } finally {
     batchCmdLoading.value = '';
   }
@@ -871,8 +859,8 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
     ElMessage.warning('无设备编辑权限');
     return;
   }
-  const targets = devices.value.filter((d) =>
-    selectedKeys.value.map(String).includes(d.deviceId ?? '')
+  const targets = crud.items.filter((d) =>
+    crud.selectedKeys.map(String).includes(d.deviceId ?? '')
   );
   if (!targets.length) {
     ElMessage.warning('请先勾选设备');
@@ -899,10 +887,10 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
           'POST',
           { command, reason: `batch-${command.toLowerCase()}` }
         );
-        const idx = devices.value.findIndex((d) => d.deviceId === row.deviceId);
+        const idx = crud.items.findIndex((d) => d.deviceId === row.deviceId);
         if (idx >= 0) {
-          devices.value[idx] = {
-            ...devices.value[idx],
+          crud.items[idx] = {
+            ...crud.items[idx],
             salesLocked: result.salesLocked ?? command === 'LOCK'
           };
         }
@@ -913,7 +901,7 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
     }
     if (fail === 0) ElMessage.success(`已${label} ${ok} 台`);
     else ElMessage.warning(`${label}完成：成功 ${ok}，失败 ${fail}`);
-    clearSelection();
+    crud.clearSelection();
   } finally {
     batchCmdLoading.value = '';
   }
@@ -931,24 +919,6 @@ function goDetail(row: OpenApiAdminDeviceDto) {
     .catch(() => {
       router.push(`/devices/${encodeURIComponent(id)}`);
     });
-}
-
-function deviceActions(_row: OpenApiAdminDeviceDto): TableAction[] {
-  const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
-  if (auth.hasPerm('ops:device:edit')) {
-    actions.push({ key: 'policy', label: '退款设置', icon: Setting, type: 'warning' });
-  }
-  return actions;
-}
-
-function onRowAction(key: string, row: OpenApiAdminDeviceDto) {
-  if (key === 'detail') {
-    goDetail(row);
-    return;
-  }
-  if (key === 'policy') {
-    openPolicy(row);
-  }
 }
 
 function openPolicy(row: OpenApiAdminDeviceDto) {
@@ -972,11 +942,11 @@ async function savePolicy() {
       'PATCH',
       { refundPolicy: policyForm.refundPolicy }
     );
-    const idx = devices.value.findIndex((d) => d.deviceId === updated.deviceId);
+    const idx = crud.items.findIndex((d) => d.deviceId === updated.deviceId);
     if (idx >= 0) {
-      devices.value[idx] = { ...devices.value[idx], ...updated };
+      crud.items[idx] = { ...crud.items[idx], ...updated };
     } else {
-      await load(false);
+      await crud.load();
     }
     ElMessage.success(
       `已保存：${policyLabel(updated.effectiveRefundPolicy || updated.refundPolicy)}`
@@ -1054,54 +1024,14 @@ async function refreshBoardCounts() {
 function selectBoard(tab: BoardTab) {
   if (boardTab.value === tab) return;
   boardTab.value = tab;
-  page.value = 1;
   syncRouteQuery();
-  load(false);
+  void crud.search();
 }
 
 function onBoardTab(name: string | number) {
   boardTab.value = String(name) as BoardTab;
-  page.value = 1;
   syncRouteQuery();
-  load(false);
-}
-
-async function load(showToast = false) {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(clampAdminPageSize(size.value))
-    });
-    if (keyword.value.trim()) q.set('q', keyword.value.trim());
-    if (lifecycleFilter.value) q.set('lifecycleStatus', lifecycleFilter.value);
-    if (coopFilter.value) q.set('coopMode', coopFilter.value);
-    if (routeFilter.value.trim()) q.set('routeCode', routeFilter.value.trim());
-    const filters = boardQuery(boardTab.value);
-    if (filters.online) q.set('online', filters.online);
-    if (filters.salesLocked) q.set('salesLocked', filters.salesLocked);
-    const data = await api.request<OpenApiPageResultAdminDeviceDto>(
-      AdminEndpoints.devicesList(q),
-      'GET'
-    );
-    if (!loadSeq.isCurrent(seq)) return;
-    devices.value = sortById(data.items || [], 'deviceId');
-    total.value = data.total || 0;
-    if (boardTab.value in boardCounts) {
-      boardCounts[boardTab.value] = data.total || 0;
-    }
-    clearSelection();
-    void refreshBoardCounts();
-    if (showToast) ElMessage.success('已刷新');
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
+  void crud.search();
 }
 
 async function loadMerchants() {
@@ -1178,7 +1108,7 @@ async function saveCreate() {
     });
     ElMessage.success(`设备已创建，编号 ${created.deviceId}`);
     createVisible.value = false;
-    await load(false);
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '创建失败');
   } finally {
@@ -1187,9 +1117,8 @@ async function saveCreate() {
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load(false);
+  void crud.search();
 }
 function reset() {
   keyword.value = '';
@@ -1197,14 +1126,8 @@ function reset() {
   coopFilter.value = '';
   routeFilter.value = '';
   boardTab.value = 'ALL';
-  page.value = 1;
   syncRouteQuery();
-  load(false);
-}
-function onSizeChange() {
-  size.value = clampAdminPageSize(size.value);
-  page.value = 1;
-  load(false);
+  void crud.search();
 }
 
 function applyRouteQuery() {
@@ -1238,14 +1161,9 @@ function applyRouteQuery() {
   return changed;
 }
 
-onMounted(() => {
-  applyRouteQuery();
-  load(false);
-});
 onActivated(() => {
   if (applyRouteQuery()) {
-    page.value = 1;
-    load(false);
+    void crud.search();
   }
 });
 </script>
