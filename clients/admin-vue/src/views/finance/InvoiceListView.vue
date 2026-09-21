@@ -1,14 +1,12 @@
-﻿<script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+<script setup lang="ts">
+import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { CircleCheck, CircleClose, Refresh } from '@element-plus/icons-vue';
+import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import PagePager from '@/components/PagePager.vue';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface InvoiceRow {
@@ -26,50 +24,43 @@ interface InvoiceRow {
 }
 
 const auth = useAuthStore();
-const loading = ref(false);
-const loadSeq = createLoadSeq();
-const hydrated = ref(false);
-const rows = ref<InvoiceRow[]>([]);
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
+const keyword = ref('');
 const statusTab = ref(localStorage.getItem('ops_invoice_status_tab') ?? '');
 const batchLoading = ref<'issue' | 'reject' | ''>('');
 
-const {
-  tableRef,
-  keyword,
-  hasSelection,
-  onSelectionChange,
-  pickSelected,
-  clearSelection,
-  filterByKeyword,
-  resetKeyword
-} = useAdminListTable<InvoiceRow>((r) => r.invoiceId);
-
 const canEdit = computed(() => auth.hasPerm('ops:invoice:edit'));
 
-const displayRows = computed(() =>
-  filterByKeyword(rows.value, (row, kw) => {
-    return (
+/** 关键词为纯前端过滤（后端无该参数）：原 displayRows 计算属性前移到取数处，total 仍取服务端值 */
+function filterByKeyword(rows: InvoiceRow[]): InvoiceRow[] {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter(
+    (row) =>
       String(row.invoiceId).includes(kw) ||
-      String(row.orderId || '')
-        .toLowerCase()
-        .includes(kw) ||
+      String(row.orderId || '').toLowerCase().includes(kw) ||
       displayBizNo(row.orderId).toLowerCase().includes(kw) ||
       String(row.userId ?? '').includes(kw) ||
-      String(row.title || '')
-        .toLowerCase()
-        .includes(kw) ||
-      String(row.taxNo || '')
-        .toLowerCase()
-        .includes(kw) ||
-      String(row.email || '')
-        .toLowerCase()
-        .includes(kw)
+      String(row.title || '').toLowerCase().includes(kw) ||
+      String(row.taxNo || '').toLowerCase().includes(kw) ||
+      String(row.email || '').toLowerCase().includes(kw)
+  );
+}
+
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 全部内建（本表无排序、无 CSV 导出）
+const crud = useCrudTable<InvoiceRow>({
+  rowKey: (r) => r.invoiceId,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page), // 0 起（useCrudTable 已换算）
+      size: String(params.size)
+    });
+    if (statusTab.value) q.set('status', statusTab.value);
+    const data = await api.request<{ items: InvoiceRow[]; total: number }>(
+      AdminEndpoints.invoicesList(q)
     );
-  })
-);
+    return { items: filterByKeyword(data.items || []), total: Number(data.total) || 0 };
+  }
+});
 
 const statusOptions = [
   { value: '', label: '全部' },
@@ -112,17 +103,17 @@ function emptyHint() {
   return `当前「${label}」无数据，可切换状态查看`;
 }
 
-function rowActions(row: InvoiceRow): TableAction[] {
-  if (row.status !== 'PENDING' || !canEdit.value) return [];
+function rowActions(row: InvoiceRow): CrudRowAction[] {
+  if (row.status !== 'PENDING') return [];
   return [
-    { key: 'issue', label: '开具', icon: CircleCheck, type: 'success' },
-    { key: 'reject', label: '驳回', icon: CircleClose, type: 'danger' }
+    { key: 'issue', label: '开具', icon: CircleCheck, type: 'success', perm: 'ops:invoice:edit' },
+    { key: 'reject', label: '驳回', icon: CircleClose, type: 'danger', perm: 'ops:invoice:edit' }
   ];
 }
 
-/** 过滤后无可审核项时隐藏操作列 */
-const showActionColumn = computed(() =>
-  displayRows.value.some((row) => rowActions(row).length > 0)
+/** 过滤后无可审核项（含无 ops:invoice:edit 权限）时隐藏操作列 */
+const showActionColumn = computed(
+  () => canEdit.value && crud.displayItems.some((row) => rowActions(row).length > 0)
 );
 
 async function onRowAction(key: string, row: InvoiceRow) {
@@ -134,7 +125,7 @@ async function onRowAction(key: string, row: InvoiceRow) {
       );
       await api.request(AdminEndpoints.invoiceIssue(row.invoiceId), 'POST');
       ElMessage.success('已标记为已开具（未对接税控）');
-      await load();
+      await crud.load();
       return;
     }
     if (key === 'reject') {
@@ -146,15 +137,19 @@ async function onRowAction(key: string, row: InvoiceRow) {
         reason: value || '不符合开票条件'
       });
       ElMessage.success('已驳回');
-      await load();
+      await crud.load();
     }
   } catch {
     /* 用户取消对话框 */
   }
 }
 
+function onAction({ key, row }: { key: string; row: InvoiceRow }) {
+  void onRowAction(key, row);
+}
+
 async function batchIssue() {
-  const targets = pickSelected(displayRows.value).filter((r) => r.status === 'PENDING');
+  const targets = crud.pickSelected(crud.displayItems).filter((r) => r.status === 'PENDING');
   if (!targets.length) {
     ElMessage.warning('请先勾选待开具申请');
     return;
@@ -179,15 +174,15 @@ async function batchIssue() {
     const fail = results.length - ok;
     if (fail === 0) ElMessage.success(`已开具 ${ok} 张`);
     else ElMessage.warning(`批量开具完成：成功 ${ok}，失败 ${fail}`);
-    clearSelection();
-    await load();
+    crud.clearSelection();
+    await crud.load();
   } finally {
     batchLoading.value = '';
   }
 }
 
 async function batchReject() {
-  const targets = pickSelected(displayRows.value).filter((r) => r.status === 'PENDING');
+  const targets = crud.pickSelected(crud.displayItems).filter((r) => r.status === 'PENDING');
   if (!targets.length) {
     ElMessage.warning('请先勾选待开具申请');
     return;
@@ -218,58 +213,26 @@ async function batchReject() {
     const fail = results.length - ok;
     if (fail === 0) ElMessage.success(`已驳回 ${ok} 张`);
     else ElMessage.warning(`批量驳回完成：成功 ${ok}，失败 ${fail}`);
-    clearSelection();
-    await load();
+    crud.clearSelection();
+    await crud.load();
   } finally {
     batchLoading.value = '';
   }
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    if (statusTab.value) q.set('status', statusTab.value);
-    const data = await api.request<{ items: InvoiceRow[]; total: number }>(
-      AdminEndpoints.invoicesList(q)
-    );
-    rows.value = data.items || [];
-    total.value = Number(data.total) || 0;
-    clearSelection();
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    loading.value = false;
-    hydrated.value = true;
-  }
-}
-
 function search() {
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 function resetFilters() {
-  resetKeyword();
-  page.value = 1;
-  load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
+  keyword.value = '';
+  void crud.search();
 }
 
 function onStatusChange() {
   localStorage.setItem('ops_invoice_status_tab', statusTab.value);
-  page.value = 1;
-  load();
+  void crud.search();
 }
-
-onMounted(load);
 </script>
 
 <template>
@@ -289,7 +252,7 @@ onMounted(load);
             <el-button
               type="success"
               plain
-              :disabled="!hasSelection"
+              :disabled="!crud.hasSelection"
               :loading="batchLoading === 'issue'"
               @click="batchIssue"
               >批量开具</el-button
@@ -297,13 +260,12 @@ onMounted(load);
             <el-button
               type="danger"
               plain
-              :disabled="!hasSelection"
+              :disabled="!crud.hasSelection"
               :loading="batchLoading === 'reject'"
               @click="batchReject"
               >批量驳回</el-button
             >
           </template>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -344,27 +306,15 @@ onMounted(load);
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          :data="displayRows"
-          v-loading="loading"
-          stripe
-          border
+        <CrudTable
+          :table="crud"
           row-key="invoiceId"
-          empty-text=" "
-          class="report-table"
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="showActionColumn ? rowActions : undefined"
+          :action-width="140"
+          :empty-text="emptyHint()"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="hydrated && !loading" :description="emptyHint()" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             label="申请号"
             width="100"
@@ -435,33 +385,9 @@ onMounted(load);
               row.issuedAt ? formatDateTime(row.issuedAt) : ''
             }}</template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="140"
-            fixed="right"
-            align="center"
-            class-name="col-action"
-          >
-            <template #default="{ row }">
-              <TableActions :actions="rowActions(row)" @action="(k) => onRowAction(k, row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="hydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 </template>
 
