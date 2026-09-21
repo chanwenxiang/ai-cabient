@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -13,7 +13,7 @@
             <el-button
               type="success"
               plain
-              :disabled="!wdHasSelection"
+              :disabled="!wdCrud.hasSelection"
               :loading="wdBatchLoading === 'approve'"
               @click="batchReviewWithdraws(true)"
               >批量通过</el-button
@@ -21,15 +21,17 @@
             <el-button
               type="danger"
               plain
-              :disabled="!wdHasSelection"
+              :disabled="!wdCrud.hasSelection"
               :loading="wdBatchLoading === 'reject'"
               @click="batchReviewWithdraws(false)"
               >批量驳回</el-button
             >
           </template>
+          <!-- 刷新保留在页头：除重查当前 tab 列表外还需同步刷新打款模式提示；
+               CrudTable 内建刷新只查列表，故两个表格均 :show-refresh="false" -->
           <el-button
             :icon="Refresh"
-            :loading="tab === 'withdraws' ? withdrawsLoading : walletsLoading"
+            :loading="tab === 'withdraws' ? wdCrud.loading : walletsCrud.loading"
             @click="reload"
             >刷新</el-button
           >
@@ -48,44 +50,33 @@
 
     <el-tabs v-model="tab" @tab-change="onTab">
       <el-tab-pane label="商户钱包" name="wallets">
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchWallets">
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="walletsCrud.search()">
           <el-form-item label="关键词">
             <el-input
               v-model="keyword"
               clearable
               placeholder="商户编号 / 名称 / 手机"
               style="width: 220px"
-              @keyup.enter="searchWallets"
+              @keyup.enter="walletsCrud.search()"
             />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="searchWallets">查询</el-button>
+            <el-button type="primary" @click="walletsCrud.search()">查询</el-button>
           </el-form-item>
         </el-form>
 
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              ref="walletTableRef"
-              :data="wallets"
-              v-loading="walletsLoading"
-              stripe
-              border
+            <CrudTable
+              :table="walletsCrud"
               row-key="merchantId"
-              class="report-table"
-              empty-text=" "
-              @selection-change="onWalletSelectionChange"
+              selectable
+              :actions="walletRowActions"
+              :action-width="130"
+              empty-text="暂无商户钱包"
+              :show-refresh="false"
+              @action="onWalletAction"
             >
-              <template #empty
-                ><el-empty v-if="walletsHydrated && !walletsLoading" description="暂无商户钱包"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column
                 prop="merchantId"
                 label="商户编号"
@@ -148,56 +139,20 @@
                   displayLabel('merchant_status', row.status, '暂无')
                 }}</template>
               </el-table-column>
-              <!--
-                不使用 fixed="right"：页面/CSS 放大时 sticky 操作列会钉在可视区右侧，
-                与中间列错位，出现大块留白（仅见商户编号+操作）。列不多，横滑即可。
-              -->
-              <el-table-column label="操作" width="260" align="center" class-name="col-action">
-                <template #default="{ row }">
-                  <div class="table-row-actions">
-                    <el-button
-                      v-hasPermi="['ops:merchant-withdraw:adjust']"
-                      link
-                      type="primary"
-                      @click="openAdjust(row)"
-                      >调账</el-button
-                    >
-                    <el-button link @click="showLedgers(row)">流水</el-button>
-                    <el-button
-                      v-hasPermi="['ops:merchant-withdraw:adjust']"
-                      link
-                      type="warning"
-                      @click="openWithdraw(row)"
-                      >代提现</el-button
-                    >
-                  </div>
-                </template>
-              </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
-        <PagePager
-          :hydrated="walletsHydrated"
-          v-model:current-page="wPage"
-          v-model:page-size="wSize"
-          :total="wTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @current-change="loadWallets"
-          @size-change="onWalletSizeChange"
-        />
       </el-tab-pane>
 
       <el-tab-pane label="提现审核" name="withdraws">
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchWithdraws">
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="wdCrud.search()">
           <el-form-item label="状态">
             <el-select
               v-model="wdStatus"
               clearable
               placeholder="全部"
               style="width: 160px"
-              @change="searchWithdraws"
+              @change="wdCrud.search()"
             >
               <el-option
                 v-for="item in withdrawStatusOptions"
@@ -208,32 +163,20 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="searchWithdraws">查询</el-button>
+            <el-button type="primary" @click="wdCrud.search()">查询</el-button>
           </el-form-item>
         </el-form>
 
         <div class="table-scroll">
-          <el-table
-            ref="wdTableRef"
-            :data="withdraws"
-            v-loading="withdrawsLoading"
-            stripe
-            border
+          <CrudTable
+            :table="wdCrud"
             row-key="requestId"
-            class="report-table"
-            empty-text=" "
-            @selection-change="onWdSelectionChange"
+            selectable
+            :actions="wdRowActionsFn"
+            empty-text="暂无提现申请"
+            :show-refresh="false"
+            @action="onWdAction"
           >
-            <template #empty
-              ><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请"
-            /></template>
-            <el-table-column
-              type="selection"
-              width="48"
-              align="center"
-              class-name="col-status"
-              label-class-name="col-status"
-            />
             <el-table-column
               prop="requestId"
               label="单号"
@@ -333,44 +276,8 @@
             >
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column
-              v-if="showWithdrawActionColumn"
-              label="操作"
-              width="260"
-              align="center"
-              class-name="col-action"
-              fixed="right"
-            >
-              <template #default="{ row }">
-                <template v-if="canReviewWithdraw(row)">
-                  <el-button link type="success" @click="review(row, true)">通过并打款</el-button>
-                  <el-button link type="danger" @click="review(row, false)">驳回</el-button>
-                </template>
-                <template v-else-if="canRetryWithdrawPayout(row)">
-                  <el-button link type="primary" @click="payout(row)">重试打款</el-button>
-                  <el-button
-                    v-if="canCancelFailedWithdraw(row)"
-                    link
-                    type="danger"
-                    @click="cancelFailed(row)"
-                    >取消解冻</el-button
-                  >
-                </template>
-              </template>
-            </el-table-column>
-          </el-table>
+          </CrudTable>
         </div>
-        <PagePager
-          :hydrated="withdrawsHydrated"
-          v-model:current-page="wdPage"
-          v-model:page-size="wdSize"
-          :total="wdTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @current-change="loadWithdraws"
-          @size-change="onWdSizeChange"
-        />
       </el-tab-pane>
     </el-tabs>
 
@@ -548,21 +455,31 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
-import { Refresh } from '@element-plus/icons-vue';
+import {
+  CircleCheck,
+  CircleClose,
+  Coin,
+  List,
+  Money,
+  Refresh,
+  RefreshRight,
+  Unlock
+} from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
-import { useAdminListTable } from '@/composables/useAdminListTable';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { yuanToCents } from '@/utils/display';
 
+// loadSeq 仅剩打款模式提示在用；两个列表的分页/多选/竞态已由 useCrudTable 收口
 const loadSeq = createLoadSeq();
 
 interface WalletRow {
@@ -606,19 +523,7 @@ interface Withdraw {
 const auth = useAuthStore();
 const tab = ref('wallets');
 const payoutMode = ref<{ mockEnabled?: boolean; note?: string } | null>(null);
-const walletsLoading = ref(false);
-const withdrawsLoading = ref(false);
-const walletsHydrated = ref(false);
-const withdrawsHydrated = ref(false);
-const wallets = ref<WalletRow[]>([]);
-const wPage = ref(1);
-const wSize = ref(20);
-const wTotal = ref(0);
 const keyword = ref('');
-const withdraws = ref<Withdraw[]>([]);
-const wdPage = ref(1);
-const wdSize = ref(20);
-const wdTotal = ref(0);
 const wdStatus = ref('');
 const ledgerVisible = ref(false);
 const ledgerHydrated = ref(false);
@@ -633,19 +538,34 @@ const withdrawTarget = ref<WalletRow | null>(null);
 const withdrawForm = ref({ amount: 0 });
 const wdBatchLoading = ref<'approve' | 'reject' | ''>('');
 
-const {
-  tableRef: walletTableRef,
-  onSelectionChange: onWalletSelectionChange,
-  clearSelection: clearWalletSelection
-} = useAdminListTable<WalletRow>((r) => r.merchantId);
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态全部内建。
+// 两个 tab 的内容默认同时挂载，首查必须跟随当前激活 tab（并与打款模式提示同批初始化），
+// 因此 autoLoad:false，由 onMounted(reload) / onTab 显式首查。
+const walletsCrud = useCrudTable<WalletRow>({
+  rowKey: (r) => r.merchantId,
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
+    return api.request<{ items: WalletRow[]; total: number }>(
+      AdminEndpoints.merchantWalletsList(q),
+      'GET'
+    );
+  }
+});
 
-const {
-  tableRef: wdTableRef,
-  hasSelection: wdHasSelection,
-  onSelectionChange: onWdSelectionChange,
-  pickSelected: pickWdSelected,
-  clearSelection: clearWdSelection
-} = useAdminListTable<Withdraw>((r) => r.requestId);
+const wdCrud = useCrudTable<Withdraw>({
+  rowKey: (r) => r.requestId,
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    if (wdStatus.value) q.set('status', wdStatus.value);
+    return api.request<{ items: Withdraw[]; total: number }>(
+      AdminEndpoints.merchantWithdrawsList(q),
+      'GET'
+    );
+  }
+});
 
 const withdrawStatusOptions = useDictOptions('merchant_withdraw_status');
 
@@ -664,12 +584,67 @@ function canCancelFailedWithdraw(row: Withdraw) {
   return row.status === 'FAILED' && auth.hasPerm('ops:merchant-withdraw:review');
 }
 
-/** 当前页无可操作行时隐藏操作列，避免终态列表整列空白 */
-const showWithdrawActionColumn = computed(() =>
-  withdraws.value.some(
+function walletRowActions(_row: WalletRow): CrudRowAction[] {
+  return [
+    {
+      key: 'adjust',
+      label: '调账',
+      icon: Coin,
+      type: 'primary',
+      perm: 'ops:merchant-withdraw:adjust'
+    },
+    { key: 'ledgers', label: '流水', icon: List },
+    {
+      key: 'withdraw',
+      label: '代提现',
+      icon: Money,
+      type: 'warning',
+      perm: 'ops:merchant-withdraw:adjust'
+    }
+  ];
+}
+
+function onWalletAction({ key, row }: { key: string; row: WalletRow }) {
+  if (key === 'adjust') openAdjust(row);
+  else if (key === 'ledgers') void showLedgers(row);
+  else if (key === 'withdraw') openWithdraw(row);
+}
+
+/** 审核行操作：权限内嵌在 can* 判定（状态+权限双条件），与迁移前一致 */
+function wdActions(row: Withdraw): CrudRowAction[] {
+  if (canReviewWithdraw(row)) {
+    return [
+      { key: 'approve', label: '通过并打款', icon: CircleCheck, type: 'success' },
+      { key: 'reject', label: '驳回', icon: CircleClose, type: 'danger' }
+    ];
+  }
+  if (canRetryWithdrawPayout(row)) {
+    const acts: CrudRowAction[] = [
+      { key: 'payout', label: '重试打款', icon: RefreshRight, type: 'primary' }
+    ];
+    if (canCancelFailedWithdraw(row)) {
+      acts.push({ key: 'cancel', label: '取消解冻', icon: Unlock, type: 'danger' });
+    }
+    return acts;
+  }
+  return [];
+}
+
+/** 当前页无可操作行时传 undefined，让 CrudTable 不渲染操作列，避免终态列表整列空白 */
+const wdRowActionsFn = computed<((row: Withdraw) => CrudRowAction[]) | undefined>(() =>
+  wdCrud.items.some(
     (row) => canReviewWithdraw(row) || canRetryWithdrawPayout(row) || canCancelFailedWithdraw(row)
   )
+    ? wdActions
+    : undefined
 );
+
+function onWdAction({ key, row }: { key: string; row: Withdraw }) {
+  if (key === 'approve') void review(row, true);
+  else if (key === 'reject') void review(row, false);
+  else if (key === 'payout') void payout(row);
+  else if (key === 'cancel') void cancelFailed(row);
+}
 
 function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -685,8 +660,8 @@ function onTab() {
 
 function reload() {
   void loadPayoutMode();
-  if (tab.value === 'withdraws') loadWithdraws();
-  else loadWallets();
+  if (tab.value === 'withdraws') void wdCrud.load();
+  else void walletsCrud.load();
 }
 
 async function loadPayoutMode() {
@@ -699,78 +674,6 @@ async function loadPayoutMode() {
       mockEnabled: true,
       note: '无法读取打款模式；当前可能为记账打款（非真实转账）'
     };
-  }
-}
-
-function searchWallets() {
-  wPage.value = 1;
-  loadWallets();
-}
-
-function onWalletSizeChange() {
-  wPage.value = 1;
-  loadWallets();
-}
-
-function searchWithdraws() {
-  wdPage.value = 1;
-  loadWithdraws();
-}
-
-function onWdSizeChange() {
-  wdPage.value = 1;
-  loadWithdraws();
-}
-
-async function loadWallets() {
-  const seq = loadSeq.begin('loadWallets');
-  walletsLoading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(wPage.value - 1),
-      size: String(wSize.value)
-    });
-    if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
-    const res = await api.request<{ items: WalletRow[]; total: number }>(
-      AdminEndpoints.merchantWalletsList(q),
-      'GET'
-    );
-    wallets.value = res.items || [];
-    wTotal.value = res.total || 0;
-    clearWalletSelection();
-  } catch (e: unknown) {
-    if (!loadSeq.isCurrent(seq, 'loadWallets')) return;
-    ElMessage.error(errorMessage(e, '加载失败'));
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadWallets')) return;
-    walletsHydrated.value = true;
-    walletsLoading.value = false;
-  }
-}
-
-async function loadWithdraws() {
-  const seq = loadSeq.begin('loadWithdraws');
-  withdrawsLoading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(wdPage.value - 1),
-      size: String(wdSize.value)
-    });
-    if (wdStatus.value) q.set('status', wdStatus.value);
-    const res = await api.request<{ items: Withdraw[]; total: number }>(
-      AdminEndpoints.merchantWithdrawsList(q),
-      'GET'
-    );
-    withdraws.value = res.items || [];
-    wdTotal.value = res.total || 0;
-    clearWdSelection();
-  } catch (e: unknown) {
-    if (!loadSeq.isCurrent(seq, 'loadWithdraws')) return;
-    ElMessage.error(errorMessage(e, '加载失败'));
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadWithdraws')) return;
-    withdrawsHydrated.value = true;
-    withdrawsLoading.value = false;
   }
 }
 
@@ -804,7 +707,7 @@ async function submitAdjust() {
     });
     ElMessage.success('已调账');
     adjustVisible.value = false;
-    await loadWallets();
+    await walletsCrud.load();
   } catch (e) {
     ElMessage.error(errorMessage(e, '调账失败'));
   } finally {
@@ -860,7 +763,7 @@ async function submitWithdraw() {
     ElMessage.success('已提交提现');
     withdrawVisible.value = false;
     tab.value = 'withdraws';
-    await loadWithdraws();
+    await wdCrud.load();
   } catch (e) {
     ElMessage.error(errorMessage(e, '代提现失败'));
   } finally {
@@ -880,7 +783,7 @@ async function review(row: Withdraw, approve: boolean) {
       remark: approve ? '审核通过' : '审核驳回'
     });
     ElMessage.success(approve ? '已通过' : '已驳回');
-    await loadWithdraws();
+    await wdCrud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '审核失败'));
@@ -889,7 +792,7 @@ async function review(row: Withdraw, approve: boolean) {
 }
 
 async function batchReviewWithdraws(approve: boolean) {
-  const targets = pickWdSelected(withdraws.value).filter((r) => r.status === 'PENDING_REVIEW');
+  const targets = wdCrud.pickSelected(wdCrud.items).filter((r) => r.status === 'PENDING_REVIEW');
   if (!targets.length) {
     ElMessage.warning('请先勾选待审核提现申请');
     return;
@@ -920,8 +823,8 @@ async function batchReviewWithdraws(approve: boolean) {
     const fail = results.length - ok;
     if (fail === 0) ElMessage.success(`已${approve ? '通过' : '驳回'} ${ok} 条`);
     else ElMessage.warning(`批量${label}完成：成功 ${ok}，失败 ${fail}`);
-    clearWdSelection();
-    await loadWithdraws();
+    wdCrud.clearSelection();
+    await wdCrud.load();
   } finally {
     wdBatchLoading.value = '';
   }
@@ -940,7 +843,7 @@ async function payout(row: Withdraw) {
     );
     await api.request(AdminEndpoints.merchantWithdrawPayout(row.requestId), 'POST', {});
     ElMessage.success('已重试打款');
-    await loadWithdraws();
+    await wdCrud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '打款失败'));
@@ -963,7 +866,7 @@ async function cancelFailed(row: Withdraw) {
       remark: '运营取消解冻'
     });
     ElMessage.success('已取消并解冻');
-    await loadWithdraws();
+    await wdCrud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '取消失败'));
