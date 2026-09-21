@@ -144,9 +144,10 @@
           </fieldset>
         </template>
         <Transition name="chart-fade" mode="out-in">
-          <ChartBox
-            :key="revenueKind"
-            :svg="revenueSvg"
+          <EChart
+            :key="`revenue-${revenueKind}`"
+            :option="revenueOption"
+            :height="260"
             :loading="loading && !listHydrated"
             :error="loadFailed ? '营收趋势加载失败' : ''"
             empty-text="暂无营收趋势"
@@ -185,9 +186,10 @@
           </fieldset>
         </template>
         <Transition name="chart-fade" mode="out-in">
-          <ChartBox
-            :key="orderKind"
-            :svg="orderSvg"
+          <EChart
+            :key="`order-${orderKind}`"
+            :option="orderOption"
+            :height="260"
             :loading="loading && !listHydrated"
             :error="loadFailed ? '订单趋势加载失败' : ''"
             empty-text="暂无订单趋势"
@@ -203,15 +205,16 @@
     <div class="chart-grid chart-grid--2">
       <ChartPanel title="订单支付渠道" :hint="`近 ${days} 天 · 按金额`" donut>
         <div class="donut-layout">
-          <ChartBox
-            :svg="orderChannelSvg"
-            donut
+          <EChart
+            :option="orderChannelOption"
+            :height="168"
+            :width="168"
             :loading="loading && !listHydrated"
             :error="loadFailed ? '订单支付数据加载失败' : ''"
             empty-text="暂无订单支付数据"
             @retry="load"
           />
-          <ul v-if="orderChannelSvg" class="donut-legend-list">
+          <ul v-if="orderChannelOption" class="donut-legend-list">
             <li v-for="p in orderChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
               {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(2) }}
@@ -223,15 +226,16 @@
 
       <ChartPanel title="充值渠道" :hint="`近 ${days} 天 · 已到账`" donut>
         <div class="donut-layout">
-          <ChartBox
-            :svg="rechargeChannelSvg"
-            donut
+          <EChart
+            :option="rechargeChannelOption"
+            :height="168"
+            :width="168"
             :loading="loading && !listHydrated"
             :error="loadFailed ? '充值数据加载失败' : ''"
             empty-text="暂无充值数据"
             @retry="load"
           />
-          <ul v-if="rechargeChannelSvg" class="donut-legend-list">
+          <ul v-if="rechargeChannelOption" class="donut-legend-list">
             <li v-for="p in rechargeChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
               {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(2) }}
@@ -258,9 +262,10 @@
           </fieldset>
         </template>
         <Transition name="chart-fade" mode="out-in">
-          <ChartBox
-            :key="opsKind"
-            :svg="opsSvg"
+          <EChart
+            :key="`ops-${opsKind}`"
+            :option="opsOption"
+            :height="260"
             :loading="loading && !listHydrated"
             :error="loadFailed ? '识别质量数据加载失败' : ''"
             empty-text="暂无识别质量数据"
@@ -286,15 +291,16 @@
             </el-button>
           </template>
           <div class="donut-layout">
-            <ChartBox
-              :svg="deviceSvg"
-              donut
+            <EChart
+              :option="deviceOption"
+              :height="168"
+              :width="168"
               :loading="loading && !listHydrated"
               :error="loadFailed ? '设备数据加载失败' : ''"
               empty-text="暂无设备数据"
               @retry="load"
             />
-            <ul v-if="deviceSvg" class="donut-legend-list">
+            <ul v-if="deviceOption" class="donut-legend-list">
               <li>
                 <i style="background: #2dd4bf" />在线
                 {{ listHydrated ? stats.deviceOnline || 0 : '…' }}
@@ -356,17 +362,16 @@ import { ElMessage } from 'element-plus';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
+import EChart from '@/components/EChart.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import {
-  buildDonutChart,
-  buildSeriesChart,
-  formatPct,
-  formatYuan,
-  shortDate,
-  type ChartKind
-} from '@/utils/charts';
+  donutOption,
+  seriesOption,
+  type ChartKind,
+  type EChartsOption
+} from '@/utils/echarts';
+import { formatPct, formatYuan, shortDate } from '@/utils/charts';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface AdminStats {
@@ -469,21 +474,22 @@ function channelParts(statsList?: ChannelStat[]) {
 const orderChannelParts = computed(() => channelParts(channels.value.orderPayChannels));
 const rechargeChannelParts = computed(() => channelParts(channels.value.rechargeChannels));
 
-const revenueSvg = computed(() => {
-  if (!trend.value.length) return '';
-  return buildSeriesChart({
+const revenueOption = computed<EChartsOption | null>(() => {
+  if (!trend.value.length) return null;
+  return seriesOption({
     labels: labels.value,
     series: [
       { name: '营收', values: trend.value.map((d) => d.revenueCents / 100), color: '#2dd4bf' }
     ],
     kind: revenueKind.value,
-    formatY: (v) => formatYuan(v * 100)
+    formatY: (v) => formatYuan(v * 100),
+    formatValue: (v) => formatYuan(v * 100)
   });
 });
 
-const orderSvg = computed(() => {
-  if (!trend.value.length) return '';
-  return buildSeriesChart({
+const orderOption = computed<EChartsOption | null>(() => {
+  if (!trend.value.length) return null;
+  return seriesOption({
     labels: labels.value,
     series: [{ name: '订单', values: trend.value.map((d) => d.orderCount), color: '#60a5fa' }],
     kind: orderKind.value,
@@ -491,9 +497,9 @@ const orderSvg = computed(() => {
   });
 });
 
-const opsSvg = computed(() => {
-  if (!opsTrend.value.length) return '';
-  return buildSeriesChart({
+const opsOption = computed<EChartsOption | null>(() => {
+  if (!opsTrend.value.length) return null;
+  return seriesOption({
     labels: opsTrend.value.map((d) => shortDate(d.date)),
     series: [
       {
@@ -504,42 +510,45 @@ const opsSvg = computed(() => {
       { name: '争议率', values: opsTrend.value.map((d) => d.disputeRate * 100), color: '#fbbf24' }
     ],
     kind: opsKind.value,
-    formatY: (v) => formatPct(v / 100)
+    formatY: (v) => formatPct(v / 100),
+    formatValue: (v) => formatPct(v / 100)
   });
 });
 
-const orderChannelSvg = computed(() =>
-  buildDonutChart({
-    parts: orderChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color })),
+const orderChannelOption = computed<EChartsOption | null>(() => {
+  const parts = orderChannelParts.value;
+  if (!parts.length || !parts.some((p) => p.value > 0)) return null;
+  return donutOption({
+    parts: parts.map((p) => ({ label: p.label, value: p.value, color: p.color })),
     formatCenter: (cents) => (cents / 100).toFixed(2),
     formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
     valueLabel: '金额'
-  })
-);
+  });
+});
 
-const rechargeChannelSvg = computed(() =>
-  buildDonutChart({
-    parts: rechargeChannelParts.value.map((p) => ({
-      label: p.label,
-      value: p.value,
-      color: p.color
-    })),
+const rechargeChannelOption = computed<EChartsOption | null>(() => {
+  const parts = rechargeChannelParts.value;
+  if (!parts.length || !parts.some((p) => p.value > 0)) return null;
+  return donutOption({
+    parts: parts.map((p) => ({ label: p.label, value: p.value, color: p.color })),
     formatCenter: (cents) => (cents / 100).toFixed(2),
     formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
     valueLabel: '金额'
-  })
-);
+  });
+});
 
-const deviceSvg = computed(() =>
-  buildDonutChart({
-    parts: [
-      { label: '在线', value: stats.value.deviceOnline || 0, color: '#2dd4bf' },
-      { label: '离线', value: offlineDevices.value, color: '#64748b' }
-    ],
+const deviceOption = computed<EChartsOption | null>(() => {
+  const parts = [
+    { label: '在线', value: stats.value.deviceOnline || 0, color: '#2dd4bf' },
+    { label: '离线', value: offlineDevices.value, color: '#64748b' }
+  ];
+  if (!parts.some((p) => p.value > 0)) return null;
+  return donutOption({
+    parts,
     formatValue: (n) => `${n} 台`,
     valueLabel: '数量'
-  })
-);
+  });
+});
 
 async function load(opts?: { resetSeries?: boolean }) {
   loading.value = true;

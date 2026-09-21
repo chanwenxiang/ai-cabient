@@ -104,9 +104,10 @@
             </fieldset>
           </template>
           <Transition name="chart-fade" mode="out-in">
-            <ChartBox
+            <EChart
               :key="chartKind"
-              :svg="chartSvg"
+              :option="chartOption"
+              :height="260"
               :loading="crud.loading && !crud.hydrated"
               :error="loadError ? '毛利趋势加载失败' : ''"
               empty-text="暂无趋势数据"
@@ -251,12 +252,13 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
 import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
+import EChart from '@/components/EChart.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { buildSeriesChart, formatYuan, shortDate, type ChartKind } from '@/utils/charts';
+import { seriesOption, type ChartKind, type EChartsOption } from '@/utils/echarts';
+import { formatYuan, shortDate } from '@/utils/charts';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface FinanceStats {
@@ -457,9 +459,9 @@ const kpiTiles = computed(() => {
   );
 });
 
-const chartSvg = computed(() => {
-  if (!daily.value.length) return '';
-  return buildSeriesChart({
+const chartOption = computed<EChartsOption | null>(() => {
+  if (!daily.value.length) return null;
+  return seriesOption({
     labels: daily.value.map((d) => shortDate(d.date)),
     series: [
       { name: '营收', values: daily.value.map((d) => d.revenueCents / 100), color: '#2dd4bf' },
@@ -467,7 +469,8 @@ const chartSvg = computed(() => {
       { name: '毛利', values: daily.value.map((d) => d.grossMarginCents / 100), color: '#fbbf24' }
     ],
     kind: chartKind.value,
-    formatY: (v) => formatYuan(v * 100)
+    formatY: (v) => formatYuan(v * 100),
+    formatValue: (v) => formatYuan(v * 100)
   });
 });
 

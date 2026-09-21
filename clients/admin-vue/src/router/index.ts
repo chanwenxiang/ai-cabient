@@ -20,12 +20,6 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '运营工作台', group: '概览' }
   },
   {
-    path: 'big-screen',
-    name: 'big-screen',
-    component: () => import('@/views/dashboard/BigScreenView.vue'),
-    meta: { title: '运营大屏', group: '概览' }
-  },
-  {
     path: 'analytics',
     name: 'analytics',
     component: () => import('@/views/analytics/AnalyticsView.vue'),
@@ -328,6 +322,12 @@ const bizChildren: RouteRecordRaw[] = [
     component: () => import('@/views/system/DevOpsHubView.vue'),
     meta: { title: 'DevOps 中心', group: '系统' }
   },
+  {
+    path: 'observability',
+    name: 'observability',
+    component: () => import('@/views/system/ObservabilityView.vue'),
+    meta: { title: '日志中心', group: '系统' }
+  },
   { path: 'oper-logs', redirect: '/audit' },
   {
     path: 'promotions',
@@ -443,6 +443,14 @@ const router = createRouter({
       component: () => import('@/views/print/PrintView.vue'),
       // 权限由 findNavByPath('/print') → ops:warehouse:list 在 beforeEach 校验
       meta: { title: '打印单据', group: '履约仓储' }
+    },
+    {
+      // 全屏态势大屏：脱离 AdminLayout（无侧栏/页签），权限同 /print 走
+      // findNavByPath('/big-screen') → ops:dashboard:view 在 beforeEach 校验
+      path: '/big-screen',
+      name: 'big-screen',
+      component: () => import('@/views/dashboard/BigScreenView.vue'),
+      meta: { title: '运营大屏', group: '概览' }
     },
     {
       path: '/',
