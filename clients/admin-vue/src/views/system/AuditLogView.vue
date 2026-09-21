@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,11 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:audit:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
           <el-switch v-model="mineOnly" active-text="仅看我的" @change="onMineChange" />
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -60,34 +56,19 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayItems"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="logId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          empty-text="暂无审计日志"
+          sort-field-label="日志编号"
+          :csv="csvOptions"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" description="暂无审计日志" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             prop="logId"
             label="日志编号"
             width="100"
             class-name="col-text"
-            sortable="custom"
           >
             <template #default="{ row }">
               <span class="cell-id">{{ row.logId }}</span>
@@ -133,30 +114,15 @@
           <el-table-column label="详情" min-width="220" class-name="col-text">
             <template #default="{ row }">{{ formatOpsActionDetail(row.detail) }}</template>
           </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="onPageChange"
-      @size-change="onSizeChange"
-    />
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
-import PagePager from '@/components/PagePager.vue';
+import { onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
 import {
   AUDIT_ACTION_LABELS,
   AUDIT_TARGET_LABELS,
@@ -169,10 +135,8 @@ import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useListCsv } from '@/composables/useListCsv';
-import { useTableSelection } from '@/composables/useTableSelection';
+import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 
 interface AuditRow {
   logId: number;
@@ -188,34 +152,38 @@ interface AuditRow {
 
 const route = useRoute();
 const router = useRouter();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const mineOnly = ref(false);
 const actionFilter = ref('');
 const targetFilter = ref('');
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const items = ref<AuditRow[]>([]);
 
-const { idSortDir, idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('logId', {
-  onChange: () => {
-    page.value = 1;
-    void load();
-  }
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 竞态 / 空态 / 刷新 全部内建。
+// 审计日志为只读流水：无行操作列；多选仅服务于 CSV「导出选中」。
+const crud = useCrudTable<AuditRow>({
+  rowKey: (r) => r.logId,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page),
+      size: String(params.size),
+      sortDir: params.sortDir ?? 'asc'
+    });
+    if (mineOnly.value) q.set('mine', 'true');
+    if (actionFilter.value) q.set('action', actionFilter.value);
+    if (targetFilter.value) q.set('target', targetFilter.value);
+    return api.request<PageResult<AuditRow>>(AdminEndpoints.auditLogsList(q), 'GET');
+  },
+  // 后端固定按 logId 排序、仅接收方向（默认升序）；方向由壳内「升/降序」按钮驱动重查
+  sort: { prop: 'logId', mode: 'server', defaultDir: 'asc' }
 });
 
-const displayItems = computed(() => items.value);
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<AuditRow>((r) => r.logId);
-
-const { onExport } = useListCsv({
+// 导出移入 CrudTable 内建工具条；勾选行时仅导出选中（原 pickSelected 语义）
+const csvOptions: CrudCsvOptions = {
   filePrefix: '审计日志',
+  exportPerm: 'ops:audit:export',
   headers: ['ID', '时间', '操作人', '动作', '对象类型', '对象ID', '详情'],
-  toRows: () =>
-    pickSelected(displayItems.value).map((row) => [
+  toRows: (rows) =>
+    rows.map((row) => [
       row.logId,
       formatDateTime(row.createdAt),
       operatorLabel(row),
@@ -224,7 +192,7 @@ const { onExport } = useListCsv({
       row.targetId || '无',
       formatOpsActionDetail(row.detail)
     ])
-});
+};
 
 function operatorLabel(row: AuditRow) {
   return actorDisplayName({
@@ -234,11 +202,6 @@ function operatorLabel(row: AuditRow) {
   });
 }
 
-function matchFilters(row: AuditRow) {
-  if (actionFilter.value && row.action !== actionFilter.value) return false;
-  if (targetFilter.value && row.targetType !== targetFilter.value) return false;
-  return true;
-}
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
@@ -268,64 +231,26 @@ function applyRouteQuery() {
   return changed;
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value),
-      sortDir: idSortDir.value
-    });
-    if (mineOnly.value) q.set('mine', 'true');
-    if (actionFilter.value) q.set('action', actionFilter.value);
-    if (targetFilter.value) q.set('target', targetFilter.value);
-    const data = await api.request<PageResult<AuditRow>>(AdminEndpoints.auditLogsList(q), 'GET');
-    items.value = data.items || [];
-    total.value = data.total || 0;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function reset() {
   actionFilter.value = '';
   targetFilter.value = '';
   mineOnly.value = false;
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function onMineChange() {
   search();
 }
 
-function onPageChange() {
-  void load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -337,7 +262,7 @@ watch(
 
 onMounted(() => {
   applyRouteQuery();
-  load();
+  void crud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
