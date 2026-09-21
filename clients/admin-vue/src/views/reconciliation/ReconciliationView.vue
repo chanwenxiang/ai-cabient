@@ -9,11 +9,8 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <!-- 导出 / 刷新由 CrudTable 内建工具条与操作行提供 -->
           <el-button v-if="canRun" type="primary" @click="openRunDialog">执行对账</el-button>
-          <el-button v-hasPermi="['ops:reconciliation:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -77,38 +74,28 @@
     </el-form>
 
     <div class="kpi-tags">
-      <el-tag size="small" type="info">批次总数 {{ listHydrated ? totalCount : '…' }}</el-tag>
+      <el-tag size="small" type="info">批次总数 {{ crud.hydrated ? crud.total : '…' }}</el-tag>
       <el-tag size="small" type="danger"
-        >本页差异 {{ listHydrated ? mismatchBatchCount : '…' }}</el-tag
+        >本页差异 {{ crud.hydrated ? mismatchBatchCount : '…' }}</el-tag
       >
       <el-tag size="small" type="success"
-        >本页匹配 {{ listHydrated ? matchedBatchCount : '…' }}</el-tag
+        >本页匹配 {{ crud.hydrated ? matchedBatchCount : '…' }}</el-tag
       >
     </div>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="items"
-          stripe
-          border
-          class="report-table"
-          :row-class-name="rowClassName"
+        <CrudTable
+          :table="crud"
           row-key="reconId"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="rowActions"
+          :action-width="88"
+          empty-text="暂无对账记录"
+          :csv="csvOptions"
+          :row-class-name="rowClassName"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无对账记录"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column label="对账ID" width="88" class-name="col-text">
             <template #default="{ row }">
               <span class="mono">{{ row.reconId }}</span>
@@ -177,34 +164,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="88"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
-                @action="() => openDetail(row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog v-model="runDialog" title="执行对账" destroy-on-close>
       <p class="dialog-hint">按 T+1 节奏核对渠道流水与平台订单；请选择账期日期与渠道后执行。</p>
@@ -370,20 +332,16 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Refresh, View } from '@element-plus/icons-vue';
+import { View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useTableSelection } from '@/composables/useTableSelection';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { normalizeListPage } from '@/utils/normalize-list-page';
 
 type Row = Record<string, any>;
 const route = useRoute();
@@ -391,36 +349,65 @@ const router = useRouter();
 const auth = useAuthStore();
 const canRun = computed(() => auth.hasPerm('ops:reconciliation:run'));
 
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
 const channel = ref('');
 const statusFilter = ref('');
 const keyword = ref('');
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const items = ref<Row[]>([]);
 const runDialog = ref(false);
 const detailOpen = ref(false);
 const detailHydrated = ref(false);
 const detail = ref<Row | null>(null);
 const runForm = reactive({ date: '', channel: 'WECHAT' });
 
-const filtered = computed(() => items.value);
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 / CSV 全部内建。
+// 首查依赖路由筛选参数初始化（onMounted 内 applyRouteQuery 之后），故 autoLoad:false 显式首查。
+const crud = useCrudTable<Row>({
+  rowKey: (r) => r.reconId,
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page),
+      size: String(params.size)
+    });
+    if (channel.value) q.set('channel', channel.value);
+    if (statusFilter.value) q.set('status', statusFilter.value);
+    if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
+    return api.request<Row[] | { items: Row[]; total: number }>(
+      AdminEndpoints.reconciliationList(q),
+      'GET'
+    );
+  }
+});
 
-const paged = computed(() => items.value);
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '对账',
+  exportPerm: 'ops:reconciliation:export',
+  headers: ['对账ID', '日期', '渠道', '状态', '差额(分)', '未匹配笔数', '创建时间'],
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.reconId,
+      row.reconDate || '',
+      dictLabel('pay_channel', row.channel),
+      dictLabel('reconciliation_status', row.status),
+      row.diffCents ?? 0,
+      row.unmatchedCount ?? 0,
+      formatDateTime(row.createdAt)
+    ])
+};
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<Row>((r) => r.reconId);
+function rowActions(_row: Row): CrudRowAction[] {
+  return [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+}
 
-const totalCount = computed(() => total.value);
+function onAction({ key, row }: { key: string; row: Row }) {
+  if (key === 'detail') void openDetail(row);
+}
+
 const mismatchBatchCount = computed(
   () =>
-    items.value.filter((row) => (row.unmatchedCount ?? 0) > 0 || row.status === 'MISMATCH').length
+    crud.items.filter((row) => (row.unmatchedCount ?? 0) > 0 || row.status === 'MISMATCH').length
 );
-const matchedBatchCount = computed(() => items.value.length - mismatchBatchCount.value);
+const matchedBatchCount = computed(() => crud.items.length - mismatchBatchCount.value);
 
 const amountOnlyMismatch = computed(() => {
   const s = detail.value?.summary;
@@ -434,21 +421,6 @@ function formatCents(cents: unknown) {
   const sign = n < 0 ? '-' : '';
   return `${sign}¥${(Math.abs(n) / 100).toFixed(2)}`;
 }
-
-const { onExport } = useListCsv({
-  filePrefix: '对账',
-  headers: ['对账ID', '日期', '渠道', '状态', '差额(分)', '未匹配笔数', '创建时间'],
-  toRows: () =>
-    pickSelected(filtered.value).map((row) => [
-      row.reconId,
-      row.reconDate || '',
-      dictLabel('pay_channel', row.channel),
-      dictLabel('reconciliation_status', row.status),
-      row.diffCents ?? 0,
-      row.unmatchedCount ?? 0,
-      formatDateTime(row.createdAt)
-    ])
-});
 
 function localDate() {
   const now = new Date();
@@ -466,53 +438,17 @@ function syncRouteQuery() {
   router.replace({ query });
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    if (channel.value) q.set('channel', channel.value);
-    if (statusFilter.value) q.set('status', statusFilter.value);
-    if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
-    const data = await api.request<Row[] | { items: Row[]; total: number }>(
-      AdminEndpoints.reconciliationList(q),
-      'GET'
-    );
-    const pageData = normalizeListPage(data);
-    items.value = pageData.items;
-    total.value = pageData.total;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function reset() {
   channel.value = '';
   statusFilter.value = '';
   keyword.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function openRunDialog() {
@@ -533,7 +469,7 @@ async function runRecon() {
     await api.request(AdminEndpoints.reconciliationRun(q), 'POST');
     runDialog.value = false;
     ElMessage.success('对账已执行');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '执行失败');
   } finally {
@@ -574,12 +510,11 @@ function applyRouteQuery() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch([keyword, statusFilter], () => {
-  page.value = 1;
+  crud.page = 1;
 });
 
 watch(
@@ -593,7 +528,8 @@ onMounted(() => {
   runForm.date = localDate();
   applyRouteQuery();
   syncRouteQuery();
-  load();
+  // 首查依赖路由筛选初始化（crud 已 autoLoad:false），此处显式首查
+  void crud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
