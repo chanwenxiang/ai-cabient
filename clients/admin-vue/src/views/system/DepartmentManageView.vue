@@ -13,45 +13,35 @@
         <div class="page-card-head__actions">
           <el-button
             v-hasPermi="['ops:dept:edit']"
-            :disabled="!selected.length"
+            :disabled="!crud.hasSelection"
             @click="batchSetStatus('ACTIVE')"
             >批量启用</el-button
           >
           <el-button
             v-hasPermi="['ops:dept:edit']"
-            :disabled="!selected.length"
+            :disabled="!crud.hasSelection"
             @click="batchSetStatus('INACTIVE')"
             >批量停用</el-button
           >
           <el-button v-hasPermi="['ops:dept:edit']" type="primary" @click="openDept()"
             >新增部门</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="rows"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="deptId"
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="rowActions"
+          :action-width="200"
+          actions-testid="dept"
+          empty-text="暂无部门"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="hydrated && !loading" description="暂无部门" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             prop="deptKey"
             label="编码"
@@ -111,28 +101,7 @@
             class-name="col-text"
             label-class-name="col-text"
           />
-          <el-table-column
-            label="操作"
-            width="200"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <el-button v-hasPermi="['ops:dept:edit']" link type="primary" @click="openDept(row)"
-                >编辑</el-button
-              >
-              <el-button
-                v-hasPermi="['ops:dept:edit']"
-                link
-                type="primary"
-                @click="openMembers(row)"
-              >
-                成员
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
   </el-card>
@@ -211,12 +180,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
+import { Edit, User } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { displayLabel } from '@aicabinet/shared-dict';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 
 interface DeptRow {
   deptId: number;
@@ -244,10 +215,6 @@ interface TransferItem {
   disabled?: boolean;
 }
 
-const loading = ref(false);
-const hydrated = ref(false);
-const rows = ref<DeptRow[]>([]);
-const selected = ref<DeptRow[]>([]);
 const deptDlg = ref(false);
 const savingDept = ref(false);
 const deptForm = reactive({
@@ -260,13 +227,33 @@ const deptForm = reactive({
   remark: ''
 });
 
+// 全量部门列表（接口一次返回整棵部门表，无服务端分页）；
+// 「上级」名称与上级选项须跨页查找，故单独留存，分页只影响表格展示切片。
+const allDepts = ref<DeptRow[]>([]);
+
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 全部内建
+const crud = useCrudTable<DeptRow>({
+  rowKey: (r) => r.deptId,
+  fetchPage: fetchDeptPage,
+  // 部门量级小，默认 50（一页上限）尽量一页展示完，最接近原「整表一次渲染」
+  pageSize: 50
+});
+
+// 本页无服务端分页：fetchPage 拉全量部门 → 前端切片成一页；全量另存 allDepts 供上级名称/选项跨页取用
+async function fetchDeptPage(params: CrudPageParams) {
+  const list = (await api.request<DeptRow[]>(AdminEndpoints.departments, 'GET')) || [];
+  allDepts.value = list;
+  const start = params.page * params.size;
+  return { items: list.slice(start, start + params.size), total: list.length };
+}
+
 const parentOptions = computed(() =>
-  rows.value.filter((d) => d.deptId !== deptForm.deptId && d.status === 'ACTIVE')
+  allDepts.value.filter((d) => d.deptId !== deptForm.deptId && d.status === 'ACTIVE')
 );
 
 function parentName(parentId?: number | null) {
   if (parentId == null) return '—';
-  const p = rows.value.find((d) => d.deptId === parentId);
+  const p = allDepts.value.find((d) => d.deptId === parentId);
   return p ? p.deptName : String(parentId);
 }
 
@@ -285,21 +272,16 @@ const transferData = computed<TransferItem[]>(() =>
   }))
 );
 
-function onSelectionChange(list: DeptRow[]) {
-  selected.value = list;
+function rowActions(_row: DeptRow): CrudRowAction[] {
+  return [
+    { key: 'edit', label: '编辑', icon: Edit, type: 'primary', perm: 'ops:dept:edit' },
+    { key: 'members', label: '成员', icon: User, type: 'primary', perm: 'ops:dept:edit' }
+  ];
 }
 
-async function load() {
-  loading.value = true;
-  try {
-    rows.value = (await api.request<DeptRow[]>(AdminEndpoints.departments, 'GET')) || [];
-    selected.value = [];
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    loading.value = false;
-    hydrated.value = true;
-  }
+function onAction({ key, row }: { key: string; row: DeptRow }) {
+  if (key === 'edit') openDept(row);
+  else if (key === 'members') void openMembers(row);
 }
 
 function openDept(row?: DeptRow) {
@@ -337,7 +319,7 @@ async function saveDept() {
     }
     ElMessage.success('已保存');
     deptDlg.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -346,18 +328,19 @@ async function saveDept() {
 }
 
 async function batchSetStatus(status: 'ACTIVE' | 'INACTIVE') {
-  if (!selected.value.length) return;
+  if (!crud.hasSelection) return;
+  const targets = crud.pickSelected(crud.items);
   const label = displayLabel('enable_status', status);
   try {
     await ElMessageBox.confirm(
-      `确认将选中的 ${selected.value.length} 个部门设为「${label}」？`,
+      `确认将选中的 ${targets.length} 个部门设为「${label}」？`,
       '批量操作'
     );
   } catch {
     return;
   }
   try {
-    for (const row of selected.value) {
+    for (const row of targets) {
       await api.request(AdminEndpoints.department(row.deptId), 'PUT', {
         deptKey: row.deptKey,
         deptName: row.deptName,
@@ -368,7 +351,7 @@ async function batchSetStatus(status: 'ACTIVE' | 'INACTIVE') {
       });
     }
     ElMessage.success(`已批量${label}`);
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '批量操作失败');
   }
@@ -433,15 +416,13 @@ async function saveMembers() {
     });
     ElMessage.success('成员已更新');
     memberDlg.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
     savingMembers.value = false;
   }
 }
-
-onMounted(load);
 </script>
 
 <style scoped>
