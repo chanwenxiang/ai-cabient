@@ -292,6 +292,7 @@ const crud = useCrudTable<RuleRow>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '告警规则',
+  exportPerm: 'ops:config:export',
   headers: ['分组', '配置键', '规则说明', '当前值', '更新时间'],
   toRows: (picked) =>
     picked.map((r) => [

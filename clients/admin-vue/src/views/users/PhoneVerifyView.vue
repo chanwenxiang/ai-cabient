@@ -178,7 +178,7 @@ const crud = useCrudTable<PhoneVerifyRow>({
 // 导出移入 CrudTable 内建工具条；勾选行时仅导出选中（原 pickSelected 语义）
 const csvOptions: CrudCsvOptions = {
   filePrefix: '手机验证流水',
-  exportPerm: 'ops:phone-verify:list',
+  exportPerm: 'ops:phone-verify:export',
   headers: ['记录ID', '手机号', '用户ID', '渠道', '商户', '验证时间'],
   toRows: (rows) =>
     rows.map((row) => [
@@ -193,7 +193,7 @@ const csvOptions: CrudCsvOptions = {
 
 function rowActions(_row: PhoneVerifyRow): CrudRowAction[] {
   return [
-    { key: 'edit', label: '编辑', icon: Edit, type: 'primary' },
+    { key: 'edit', label: '编辑', icon: Edit, type: 'primary', perm: 'ops:phone-verify:edit' },
     { key: 'delete', label: '删除', icon: Delete, type: 'danger' }
   ];
 }

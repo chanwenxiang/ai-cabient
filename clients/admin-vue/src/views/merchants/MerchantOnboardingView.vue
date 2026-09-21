@@ -276,6 +276,7 @@ const hasReviewableSelection = computed(() => reviewableSelected.value.length > 
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '进件工作台',
+  exportPerm: 'ops:merchant:export',
   headers: [
     '进件ID',
     '商户ID',

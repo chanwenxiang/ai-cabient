@@ -277,6 +277,7 @@ const crud = useCrudTable<ScheduledTaskRow>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '定时任务',
+  exportPerm: 'ops:task:export',
   headers: ['任务名称', '任务标识', '分组', '调度说明', '状态', '最近执行', '最近结果'],
   toRows: (rows) =>
     rows.map((r) => [

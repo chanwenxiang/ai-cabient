@@ -62,6 +62,7 @@ const crud = useCrudTable<BalanceRefundRequestDto>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '余额退款申请',
+  exportPerm: 'ops:balance-refund:export',
   headers: ['申请号', '用户ID', '金额(元)', '状态', '申请原因', '审核备注', '失败原因', '申请时间'],
   toRows: (rows) =>
     rows.map((row) => [

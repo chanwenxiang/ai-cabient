@@ -265,6 +265,7 @@ const crud = useCrudTable<OpsEvent>({
 // 导出移入 CrudTable 内建工具条；勾选行时仅导出选中（原 pickSelected 语义）
 const csvOptions: CrudCsvOptions = {
   filePrefix: '设备运维事件',
+  exportPerm: 'ops:device-ops:export',
   headers: ['事件ID', '类型', '级别', '设备名称', '设备编号', '标题', '详情', '时间'],
   toRows: (rows) =>
     rows.map((row) => [

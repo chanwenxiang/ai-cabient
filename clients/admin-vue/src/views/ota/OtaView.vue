@@ -379,6 +379,7 @@ const crud = useCrudTable<OtaRelease>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '固件版本',
+  exportPerm: 'ops:ota:export',
   headers: [
     '发布ID',
     '版本',

@@ -244,6 +244,7 @@ const crud = useCrudTable<MediaAssetDto>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '素材库',
+  exportPerm: 'ops:ad:export',
   headers: ['ID', '标题', '类型', '时长(秒)', '状态', '上传时间'],
   toRows: (rows) =>
     rows.map((r) => [

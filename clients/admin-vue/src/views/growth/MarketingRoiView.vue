@@ -196,6 +196,7 @@ const crud = useCrudTable<RoiRow>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '活动效果分析',
+  exportPerm: 'ops:report:export',
   headers: [
     '活动',
     '类型',

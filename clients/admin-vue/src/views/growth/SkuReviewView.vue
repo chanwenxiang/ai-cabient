@@ -203,6 +203,7 @@ const crud = useCrudTable<ReviewRow>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '选品诊断',
+  exportPerm: 'ops:sku:export',
   headers: [
     'SKU',
     '商品',

@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button
-            v-hasPermi="['ops:notify:list']"
+            v-hasPermi="['ops:notify:delete']"
             type="danger"
             plain
             :disabled="!crud.hasSelection"
@@ -18,7 +18,7 @@
             @click="batchRemove"
             >删除选中</el-button
           >
-          <el-button v-hasPermi="['ops:notify:list']" type="primary" @click="openSend"
+          <el-button v-hasPermi="['ops:notify:send']" type="primary" @click="openSend"
             >发送站内信</el-button
           >
         </div>
@@ -187,7 +187,7 @@ const crud = useCrudTable<NotificationRow>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '消息记录',
-  exportPerm: 'ops:notify:list',
+  exportPerm: 'ops:notify:export',
   headers: ['ID', '时间', '受众', '标题', '内容', '业务', '关联单号'],
   toRows: (rows) =>
     rows.map((row) => [
@@ -203,8 +203,8 @@ const csvOptions: CrudCsvOptions = {
 
 function rowActions(_row: NotificationRow): CrudRowAction[] {
   return [
-    { key: 'edit', label: '编辑', icon: Edit, type: 'primary', perm: 'ops:notify:list' },
-    { key: 'delete', label: '删除', icon: Delete, type: 'danger', perm: 'ops:notify:list' }
+    { key: 'edit', label: '编辑', icon: Edit, type: 'primary', perm: 'ops:notify:edit' },
+    { key: 'delete', label: '删除', icon: Delete, type: 'danger', perm: 'ops:notify:delete' }
   ];
 }
 

@@ -282,6 +282,7 @@ const crud = useCrudTable<RedeemItem>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '积分兑换管理',
+  exportPerm: 'ops:points:export',
   headers: ['ID', '标题', '副标题', '所需积分', '兑换优惠券', '库存', '已兑', '排序', '状态'],
   toRows: (rows) =>
     rows.map((r) => [

@@ -162,6 +162,7 @@ const crud = useCrudTable<StaffRow>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '补货员效率',
+  exportPerm: 'ops:replenishment:export',
   headers: [
     '工号',
     '姓名',

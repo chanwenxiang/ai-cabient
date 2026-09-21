@@ -269,6 +269,7 @@ const crud = useCrudTable<AdCampaignDto>({
 
 const csvOptions: CrudCsvOptions = {
   filePrefix: '投放计划',
+  exportPerm: 'ops:ad:export',
   headers: ['ID', '名称', '状态', '范围', '素材数', '曝光', '完播', '时间窗'],
   toRows: (rows) =>
     rows.map((r: AdCampaignDto) => [

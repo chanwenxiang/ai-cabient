@@ -755,6 +755,7 @@ function filterContractRows(rows: SiteContractDto[]): SiteContractDto[] {
 
 const contractCsv: CrudCsvOptions = {
   filePrefix: '场地合同',
+  exportPerm: 'ops:org:export',
   headers: ['柜机', '设备ID', '场地', '地址', '场地主', '月费(元)', '起租', '到期', '状态'],
   toRows: (rows) =>
     rows.map((r) => [

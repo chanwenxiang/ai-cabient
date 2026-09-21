@@ -241,7 +241,7 @@ function levelCodeLabel(code?: string, fallbackName?: string) {
 function rowActions(row: LevelRule): CrudRowAction[] {
   const active = row.status === 'ACTIVE';
   return [
-    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:member-level:edit' },
     {
       key: 'toggle',
       label: displayLabel('enable_status', active ? 'INACTIVE' : 'ACTIVE'),
