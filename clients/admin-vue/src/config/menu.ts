@@ -474,6 +474,16 @@ const BASE_NAV: NavItem[] = [
     perm: 'ops:devops:view',
     keywords: ['devops', 'grafana', 'prometheus', 'actions', 'sonar', 'github', '监控', 'CI']
   },
+  {
+    path: '/observability',
+    title: '日志中心',
+    group: '系统',
+    // 复用 ops:devops:view：日志/链路与 DevOps 中心是同一类运维能力，V249 已把该码从非 admin
+    // 角色回收（即同权=仅 admin 可见）。刻意不新增权限码 —— 复用已有 C 级菜单行（V229）即可让
+    // 侧栏可见，免去一条仅为一屏 iframe 服务的迁移与角色授权。
+    perm: 'ops:devops:view',
+    keywords: ['日志', 'log', 'loki', '链路', 'trace', 'tempo', 'grafana', '看日志', '可观测']
+  },
   { path: '/profile', title: '个人中心', group: '系统', keywords: ['账号', 'profile', '我'] }
 ];
 
