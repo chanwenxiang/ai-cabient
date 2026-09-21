@@ -715,6 +715,39 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * 表格交互三件套的全局规范（多选列 / 可排序列 / 空态）。
+ * 作用域为全站所有 el-table（99 张），改这里即全页面生效，勿在各页 scoped 重复。
+ */
+/* 多选列：勾选框水平垂直居中，与 col-status 列视觉对齐 */
+.layout-main-scroll .el-table th.el-table-column--selection > .cell,
+.layout-main-scroll .el-table td.el-table-column--selection > .cell,
+.page-card .el-table th.el-table-column--selection > .cell,
+.page-card .el-table td.el-table-column--selection > .cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.layout-main-scroll .el-table .el-checkbox.el-checkbox--large,
+.page-card .el-table .el-checkbox.el-checkbox--large {
+  height: auto;
+}
+/* 可排序列：激活方向的箭头用主题色，未激活保持中性灰 */
+.layout-main-scroll .el-table th.el-table__cell.ascending .sort-caret.ascending,
+.page-card .el-table th.el-table__cell.ascending .sort-caret.ascending {
+  border-bottom-color: var(--app-primary, #0f766e);
+}
+.layout-main-scroll .el-table th.el-table__cell.descending .sort-caret.descending,
+.page-card .el-table th.el-table__cell.descending .sort-caret.descending {
+  border-top-color: var(--app-primary, #0f766e);
+}
+/* 空态：统一最小高度，避免各页 loading/空态切换时表体高度跳动 */
+.layout-main-scroll .el-table .el-table__empty-block,
+.page-card .el-table .el-table__empty-block {
+  min-height: 160px;
+}
+
 /* 多行主数据单元格允许换行，避免商品名/SKU 被 nowrap 裁成一行 */
 .layout-main-scroll .el-table td.col-text > .cell:has(.name-cell),
 .layout-main-scroll .el-table td.col-text > .cell:has(.master-data-cell),
