@@ -8,12 +8,6 @@
             <span class="hint">按设备汇总累计 / 今日订单、营收与会话</span>
           </div>
         </div>
-        <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:report:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
-        </div>
       </div>
     </template>
 
@@ -84,32 +78,18 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="rows"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="deviceId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="canAccessPath('/devices') ? rowActions : undefined"
+          :action-width="96"
+          empty-text="暂无设备报表数据"
+          sort-field-label="设备编号"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="deviceId"
-            label="设备编号"
-            min-width="140"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="deviceId" label="设备编号" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
@@ -267,58 +247,22 @@
             class-name="col-status"
             label-class-name="col-status"
           />
-          <el-table-column
-            v-if="canAccessPath('/devices')"
-            label="操作"
-            width="96"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
-                @action="() => goDevice(row.deviceId)"
-              />
-            </template>
-          </el-table-column>
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无设备报表数据"
-          /></template>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      :layout="paginationLayout"
-      :pager-count="pagerCount"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { Refresh, View } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { View } from '@element-plus/icons-vue';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useTableSelection } from '@/composables/useTableSelection';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface DeviceReportRow {
@@ -345,25 +289,41 @@ interface DeviceReportRow {
 
 const route = useRoute();
 const { router, canAccessPath, goPath } = useNavAccess();
-const loading = ref(false);
-/** 首屏未拉完前勿展示 0 / ¥0.00 */
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
-const rows = ref<DeviceReportRow[]>([]);
-const total = ref(0);
 const offlineTotal = ref(0);
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('deviceId');
 const keyword = ref('');
 const deviceId = ref('');
 const onlineFilter = ref('');
-const page = ref(1);
-const size = ref(20);
-const viewportWidth = ref(typeof globalThis === 'undefined' ? 1280 : globalThis.innerWidth);
 
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 
+// 首屏先把路由 query 同步进筛选状态，再交给 useCrudTable 挂载后自动加载（原 onMounted 前置逻辑）
+applyRouteQuery();
+
+/** 拉取一页设备报表；查询拼装保持原样（page 已是 0 起） */
+async function fetchPage(params: CrudPageParams) {
+  const q = new URLSearchParams({
+    page: String(params.page),
+    size: String(params.size)
+  });
+  if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
+  if (onlineFilter.value) q.set('online', onlineFilter.value);
+  if (deviceId.value) q.set('deviceId', deviceId.value);
+  return api.request<{ items: DeviceReportRow[]; total: number }>(
+    AdminEndpoints.reportsDevicesList(q),
+    'GET'
+  );
+}
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 / 刷新 全部内建
+const crud = useCrudTable<DeviceReportRow>({
+  rowKey: (r) => r.deviceId,
+  fetchPage,
+  sort: { prop: 'deviceId', mode: 'local' },
+  errorMessage: '加载失败'
+});
+
 const sum = computed(() =>
-  rows.value.reduce(
+  crud.items.reduce(
     (acc, r) => ({
       orderTotal: acc.orderTotal + (r.orderTotal || 0),
       revenueTotal: acc.revenueTotal + (r.revenueTotalCents || 0),
@@ -374,11 +334,11 @@ const sum = computed(() =>
   )
 );
 
-const pagePartial = computed(() => total.value > rows.value.length);
+const pagePartial = computed(() => crud.total > crud.items.length);
 
 function deviceReportDeviceCountHint(ready: boolean) {
   if (!ready) return UI_COPY.loading;
-  if (onlineFilter.value) return `已筛选 · 共 ${total.value} 台`;
+  if (onlineFilter.value) return `已筛选 · 共 ${crud.total} 台`;
   return undefined;
 }
 
@@ -400,14 +360,14 @@ function deviceReportToggleOfflineFilter() {
 }
 
 const kpiTiles = computed(() => {
-  const ready = listHydrated.value;
+  const ready = crud.hydrated;
   const pageHint = pagePartial.value ? '本页合计' : undefined;
   const deviceCountHint = deviceReportDeviceCountHint(ready);
   const offlineHint = deviceReportOfflineHint(ready);
   return [
     {
       label: '设备数',
-      value: ready ? String(total.value) : '…',
+      value: ready ? String(crud.total) : '…',
       accent: 'accent-teal',
       hint: deviceCountHint,
       action: ready ? deviceReportClearOnlineFilter : undefined
@@ -434,19 +394,9 @@ const kpiTiles = computed(() => {
   ];
 });
 
-const paginationLayout = computed(() => {
-  if (viewportWidth.value < 560) return 'prev, pager, next';
-  if (viewportWidth.value < 900) return 'total, prev, pager, next';
-  return 'total, sizes, prev, pager, next';
-});
-
-const pagerCount = computed(() => (viewportWidth.value < 560 ? 5 : 7));
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<DeviceReportRow>((r) => r.deviceId);
-
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '设备经营报表',
+  exportPerm: 'ops:report:export',
   headers: [
     '设备编号',
     '设备名称',
@@ -467,8 +417,9 @@ const { onExport } = useListCsv({
     '累计会话',
     '进行中'
   ],
-  toRows: () =>
-    pickSelected(rows.value).map((row) => [
+  // 选中优先由 CrudTable 内部处理（勾选了就只导选中行）
+  toRows: (rows) =>
+    rows.map((row) => [
       row.deviceId,
       row.deviceName || '',
       dictLabel('online_status', row.onlineStatus),
@@ -488,25 +439,14 @@ const { onExport } = useListCsv({
       row.sessionTotal,
       row.sessionActive
     ])
-});
+};
 
-function onResize() {
-  viewportWidth.value = globalThis.innerWidth;
+function rowActions(_row: DeviceReportRow): CrudRowAction[] {
+  return [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
 }
 
-watch(keyword, () => {
-  page.value = 1;
-});
-
-function queryParams() {
-  const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
-  if (onlineFilter.value) q.set('online', onlineFilter.value);
-  if (deviceId.value) q.set('deviceId', deviceId.value);
-  return q;
+function onAction({ key, row }: { key: string; row: DeviceReportRow }) {
+  if (key === 'detail') goDevice(row.deviceId);
 }
 
 async function loadDeviceOptions() {
@@ -531,25 +471,8 @@ async function loadOfflineTotal() {
   }
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const data = await api.request<{ items: DeviceReportRow[]; total: number }>(
-      AdminEndpoints.reportsDevicesList(queryParams()),
-      'GET'
-    );
-    rows.value = sortById(data.items || [], 'deviceId');
-    total.value = Number(data.total) || 0;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
+function goDevice(deviceId: string) {
+  goPath(`/devices/${encodeURIComponent(deviceId)}`);
 }
 
 function syncRouteQuery() {
@@ -560,27 +483,16 @@ function syncRouteQuery() {
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function reset() {
   keyword.value = '';
   deviceId.value = '';
   onlineFilter.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
-function goDevice(deviceId: string) {
-  goPath(`/devices/${encodeURIComponent(deviceId)}`);
+  void crud.search();
 }
 
 function applyRouteQuery() {
@@ -596,25 +508,15 @@ function applyRouteQuery() {
   return changed;
 }
 
+// 列表首查由 useCrudTable 挂载时自动触发；这里只补充 KPI 离线数与柜机下拉选项
 onMounted(() => {
-  applyRouteQuery();
-  globalThis.addEventListener('resize', onResize, { passive: true });
   void loadDeviceOptions();
   void loadOfflineTotal();
-  load();
 });
 onActivated(() => {
-  globalThis.addEventListener('resize', onResize, { passive: true });
   if (applyRouteQuery()) {
-    page.value = 1;
-    load();
+    void crud.search();
   }
-});
-onDeactivated(() => {
-  globalThis.removeEventListener('resize', onResize);
-});
-onUnmounted(() => {
-  globalThis.removeEventListener('resize', onResize);
 });
 </script>
 
@@ -652,12 +554,6 @@ onUnmounted(() => {
   color: var(--layout-muted);
   font-size: var(--admin-font-size-sm);
   font-weight: 400;
-}
-
-.page-card-head__actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .kpi-grid {
@@ -763,10 +659,6 @@ onUnmounted(() => {
 }
 .link-cell:hover {
   text-decoration: underline;
-}
-.report-table :deep(th.col-text > .cell),
-.report-table :deep(td.col-text > .cell) {
-  text-align: center;
 }
 
 @media (max-width: 640px) {
