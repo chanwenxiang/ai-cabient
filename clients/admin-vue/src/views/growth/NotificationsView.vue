@@ -9,14 +9,11 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:notify:list']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
           <el-button
             v-hasPermi="['ops:notify:list']"
             type="danger"
             plain
-            :disabled="!selectedKeys.length"
+            :disabled="!crud.hasSelection"
             :loading="batchDeleting"
             @click="batchRemove"
             >删除选中</el-button
@@ -24,42 +21,25 @@
           <el-button v-hasPermi="['ops:notify:list']" type="primary" @click="openSend"
             >发送站内信</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayList"
-          stripe
-          border
+        <CrudTable
+          :table="crud"
           row-key="id"
-          empty-text=" "
-          class="report-table"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="rowActions"
+          :action-width="140"
+          :actions-testid="'notify'"
+          empty-text="暂无消息记录"
+          sort-field-label="ID"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无消息记录"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="id"
-            label="ID"
-            width="80"
-            class-name="col-text"
-            sortable="custom"
-          />
+          <el-table-column prop="id" label="ID" width="80" class-name="col-text" />
           <el-table-column
             label="时间"
             width="150"
@@ -108,37 +88,9 @@
           <el-table-column label="关联单号" width="150" class-name="col-text">
             <template #default="{ row }">{{ displayBizNo(row.bizId, '无') }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="140"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <el-button v-hasPermi="['ops:notify:list']" link type="primary" @click="openEdit(row)"
-                >编辑</el-button
-              >
-              <el-button v-hasPermi="['ops:notify:list']" link type="danger" @click="removeRow(row)"
-                >删除</el-button
-              >
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog v-model="sendVisible" title="发送站内信" destroy-on-close>
       <el-form label-width="auto">
@@ -197,18 +149,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
+import { Delete, Edit } from '@element-plus/icons-vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { displayBizNo, rewriteBizNosInText } from '@aicabinet/shared-uni/format';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useListCsv } from '@/composables/useListCsv';
-import { useTableSelection } from '@/composables/useTableSelection';
 
 type NotificationRow = {
   id: number;
@@ -220,27 +169,28 @@ type NotificationRow = {
   createdAt: string;
 };
 
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const sending = ref(false);
 const saving = ref(false);
 const batchDeleting = ref(false);
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const list = ref<NotificationRow[]>([]);
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort<NotificationRow>('id');
-const displayList = computed(() => sortById(list.value));
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
-  useTableSelection<NotificationRow>((r) => r.id);
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<NotificationRow>({
+  rowKey: (r) => r.id,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    return api.request<{ items: NotificationRow[]; total: number }>(
+      AdminEndpoints.growthNotificationsList(q)
+    );
+  },
+  sort: { prop: 'id', mode: 'local' }
+});
 
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '消息记录',
+  exportPerm: 'ops:notify:list',
   headers: ['ID', '时间', '受众', '标题', '内容', '业务', '关联单号'],
-  toRows: () =>
-    pickSelected(displayList.value).map((row) => [
+  toRows: (rows) =>
+    rows.map((row) => [
       row.id,
       formatTime(row.createdAt),
       audienceLabel(row.audience),
@@ -249,7 +199,19 @@ const { onExport } = useListCsv({
       dictLabel('notification_biz_type', row.bizType),
       displayBizNo(row.bizId, '无')
     ])
-});
+};
+
+function rowActions(_row: NotificationRow): CrudRowAction[] {
+  return [
+    { key: 'edit', label: '编辑', icon: Edit, type: 'primary', perm: 'ops:notify:list' },
+    { key: 'delete', label: '删除', icon: Delete, type: 'danger', perm: 'ops:notify:list' }
+  ];
+}
+
+function onAction({ key, row }: { key: string; row: NotificationRow }) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'delete') void removeRow(row);
+}
 
 const sendVisible = ref(false);
 const sendForm = reactive({
@@ -262,39 +224,8 @@ const sendForm = reactive({
 const editVisible = ref(false);
 const editForm = reactive({ id: 0, title: '', body: '' });
 
-onMounted(load);
-
 function audienceLabel(audience?: string) {
   return audience === 'CONSUMER' ? '消费者' : audience === 'MERCHANT' ? '商户' : audience || '未知';
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  clearSelection();
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    const data = await api.request<{ items: NotificationRow[]; total: number }>(
-      AdminEndpoints.growthNotificationsList(q)
-    );
-    list.value = data.items || [];
-    total.value = Number(data.total) || 0;
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
 }
 
 function openSend() {
@@ -337,7 +268,7 @@ async function doSend() {
     });
     ElMessage.success('已发送');
     sendVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '发送失败');
   } finally {
@@ -358,7 +289,7 @@ async function doSaveEdit() {
     });
     ElMessage.success('已更新');
     editVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -375,14 +306,14 @@ async function removeRow(row: NotificationRow) {
   try {
     await api.request(AdminEndpoints.growthNotification(row.id), 'DELETE');
     ElMessage.success('已删除');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
 }
 
 async function batchRemove() {
-  const ids = selectedKeys.value.map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  const ids = crud.selectedKeys.map(Number).filter((n) => Number.isFinite(n) && n > 0);
   if (!ids.length) return;
   try {
     await ElMessageBox.confirm(`确认删除选中的 ${ids.length} 条消息？`, '批量删除', {
@@ -399,7 +330,7 @@ async function batchRemove() {
       { ids }
     );
     ElMessage.success(`已删除 ${res?.deleted ?? ids.length} 条`);
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '批量删除失败');
   } finally {
