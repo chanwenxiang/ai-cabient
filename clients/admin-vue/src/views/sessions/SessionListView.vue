@@ -13,9 +13,8 @@
         </div>
         <div class="page-card-head__actions">
           <el-button v-hasPermi="['ops:session:export']" @click="onExport">{{
-            exportButtonLabel
+            crud.exportButtonLabel
           }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -70,55 +69,33 @@
     </el-form>
 
     <el-alert
-      v-if="listHydrated && (stuckOnly ? total > 0 : pageStuckCount > 0)"
+      v-if="crud.hydrated && (stuckOnly ? crud.total > 0 : pageStuckCount > 0)"
       type="warning"
       :closable="false"
       show-icon
       class="sla-banner"
       :title="
         stuckOnly
-          ? `当前筛选共 ${total} 条滞留会话（活跃态超过 ${STALE_MINUTES} 分钟）`
+          ? `当前筛选共 ${crud.total} 条滞留会话（活跃态超过 ${STALE_MINUTES} 分钟）`
           : `本页 ${pageStuckCount} 条可能滞留，可勾选「仅滞留」或从工作台「异常会话」进入`
       "
     />
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayItems"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="sessionId"
+          selectable
+          :actions="rowActions"
+          :action-width="220"
+          actions-testid="session"
+          :empty-text="stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'"
+          sort-field-label="会话编号"
           :row-class-name="rowClassName"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty
-              v-if="listHydrated && !loading"
-              :description="
-                stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'
-              "
-            />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="sessionId"
-            label="会话编号"
-            min-width="160"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="sessionId" label="会话编号" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <button type="button" class="link-cell mono" @click="openTimeline(row)">
                 <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
@@ -301,35 +278,9 @@
           >
             <template #default="{ row }">{{ formatDuration(row) }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="220"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="sessionActions(row)"
-                @action="(k) => onAction(String(k), row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <ResizableDrawer
       v-model="timelineOpen"
@@ -434,33 +385,22 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import {
-  CircleClose,
-  Clock,
-  CopyDocument,
-  Refresh,
-  View,
-  VideoCamera
-} from '@element-plus/icons-vue';
+import { CircleClose, Clock, CopyDocument, View, VideoCamera } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
-import { comparePrimaryKey } from '@/utils/sort-by-pk';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 interface SessionRow {
@@ -508,9 +448,6 @@ const route = useRoute();
 const { router, canAccessPath, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const videoLoading = ref(false);
 const keyword = ref('');
 const createdRange = ref<[string, string] | null>(null);
@@ -520,39 +457,50 @@ const statusTab = ref('ALL');
 const stateFilter = computed(() => (statusTab.value === 'ALL' ? '' : statusTab.value));
 const stuckOnly = ref(false);
 const focusSessionId = ref('');
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const items = ref<SessionRow[]>([]);
-const {
-  defaultSort: idDefaultSort,
-  onSortChange: onIdSortChange,
-  sortById,
-  idSortDir
-} = useIdColumnSort<SessionRow>('sessionId');
 const timelineOpen = ref(false);
 const timelineRow = ref<SessionRow | null>(null);
 const stateOptions = useDictOptions('session_state');
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<SessionRow>((r) => r.sessionId);
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建。
+// 类型筛选（kindFilter）与「焦点会话兜底补查」原在 displayItems / load 内完成，
+// 现前移到取数处（类型切换与路由变更本就会触发重查，语义不变）。
+const crud = useCrudTable<SessionRow>({
+  rowKey: (r) => r.sessionId,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    appendSessionFilters(q);
+    const data = await api.request<PageResult<SessionRow>>(AdminEndpoints.sessionsList(q), 'GET');
+    let rows: SessionRow[] = data.items || [];
 
-const displayItems = computed(() => {
-  let list = [...items.value];
-  if (kindFilter.value) {
-    list = list.filter((r) => (r.sessionKind || 'CONSUMER') === kindFilter.value);
-  }
-  if (stuckOnly.value) return sortById(list);
-  const dir = idSortDir.value === 'desc' ? -1 : 1;
-  return list.sort((a, b) => {
-    const as = isStuck(a) ? 1 : 0;
-    const bs = isStuck(b) ? 1 : 0;
-    if (as !== bs) return bs - as;
-    return comparePrimaryKey(a.sessionId, b.sessionId) * dir;
-  });
+    // 焦点会话兜底：路由指定 sessionId 但不在当前页时，单查一条并置顶（原 load 内联逻辑）
+    const sid = focusSessionId.value.trim();
+    if (sid && !rows.some((r) => r.sessionId === sid)) {
+      const focusQ = new URLSearchParams({ page: '0', size: '1', sessionId: sid });
+      if (keyword.value.trim()) focusQ.set('q', keyword.value.trim());
+      if (stateFilter.value) focusQ.set('state', stateFilter.value);
+      const focusData = await api.request<PageResult<SessionRow>>(
+        AdminEndpoints.sessionsList(focusQ),
+        'GET'
+      );
+      const found = focusData.items?.[0];
+      if (found) {
+        rows = [found, ...rows.filter((r) => r.sessionId !== found.sessionId)];
+      }
+    }
+    await maybeOpenFocusedSession(rows);
+
+    if (kindFilter.value) {
+      rows = rows.filter((r) => (r.sessionKind || 'CONSUMER') === kindFilter.value);
+    }
+    return { items: rows, total: data.total ?? 0 };
+  },
+  // 滞留会话置顶（组内仍按会话编号排序），保留原「滞留优先」跟进体验
+  sort: { prop: 'sessionId', mode: 'local', pinned: (r) => isStuck(r) }
 });
 
-const pageStuckCount = computed(() => displayItems.value.filter((r) => isStuck(r)).length);
+const pageStuckCount = computed(() => crud.displayItems.filter((r) => isStuck(r)).length);
 
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '开门记录',
@@ -570,7 +518,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
     '更新时间'
   ],
   toRows: () =>
-    pickSelected(displayItems.value).map((row) => [
+    crud.pickSelected(crud.displayItems).map((row) => [
       row.sessionId,
       sessionKindLabel(row.sessionKind),
       row.userId,
@@ -601,9 +549,9 @@ function appendSessionFilters(q: URLSearchParams) {
 }
 
 async function onExport() {
-  const selected = pickSelected(displayItems.value);
+  const selected = crud.pickSelected(crud.displayItems);
   // 有勾选时导出勾选项；否则走服务端 F 码导出（当前筛选条件）
-  if (selected.length && selected.length < displayItems.value.length) {
+  if (selected.length && selected.length < crud.displayItems.length) {
     exportSelectedCsv();
     return;
   }
@@ -788,14 +736,20 @@ function sessionStateType(s?: string) {
   return '';
 }
 
-function sessionActions(row: SessionRow): TableAction[] {
-  const acts: TableAction[] = [{ key: 'timeline', label: '时间线', icon: Clock, type: 'primary' }];
+function rowActions(row: SessionRow): CrudRowAction[] {
+  const acts: CrudRowAction[] = [
+    { key: 'timeline', label: '时间线', icon: Clock, type: 'primary' }
+  ];
   if (row.deviceId && canAccessPath('/devices')) {
     acts.push({ key: 'device', label: '看设备', icon: View, type: 'info' });
   }
-  if (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload')) {
-    acts.push({ key: 'play', label: '播放录像', icon: VideoCamera, type: 'warning' });
-  }
+  acts.push({
+    key: 'play',
+    label: '播放录像',
+    icon: VideoCamera,
+    type: 'warning',
+    perm: ['ops:session:list', 'ops:session:upload']
+  });
   acts.push({ key: 'copy', label: '复制会话ID', icon: CopyDocument, type: 'info', overflow: true });
   if (row.deviceId && canAccessPath('/upload-queue')) {
     acts.push({
@@ -806,13 +760,14 @@ function sessionActions(row: SessionRow): TableAction[] {
       overflow: true
     });
   }
-  if (canCancel(row.state) && auth.hasPerm('ops:session:cancel')) {
+  if (canCancel(row.state)) {
     acts.push({
       key: 'cancel',
       label: '取消会话',
       icon: CircleClose,
       type: 'danger',
-      overflow: true
+      overflow: true,
+      perm: 'ops:session:cancel'
     });
   }
   return acts;
@@ -874,7 +829,7 @@ function goOrders(device?: string) {
   goPath('/orders', query);
 }
 
-async function onAction(key: string, row: SessionRow) {
+async function onAction({ key, row }: { key: string; row: SessionRow }) {
   if (key === 'timeline') {
     openTimeline(row);
     return;
@@ -923,65 +878,26 @@ function syncRouteQuery() {
   router.replace({ query });
 }
 
-async function maybeOpenFocusedSession() {
-  if (!focusSessionId.value) return;
-  const hit = items.value.find((r) => r.sessionId === focusSessionId.value);
+/** 焦点会话打开：fetchPage 注入兜底行后调用（rows 已包含该行） */
+async function maybeOpenFocusedSession(rows: SessionRow[]) {
+  const sid = focusSessionId.value.trim();
+  if (!sid) return;
+  const hit = rows.find((r) => r.sessionId === sid);
   if (hit) {
     await nextTick();
     openTimeline(hit);
   }
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-    appendSessionFilters(q);
-    const data = await api.request<PageResult<SessionRow>>(AdminEndpoints.sessionsList(q), 'GET');
-    if (!loadSeq.isCurrent(seq)) return;
-    items.value = data.items || [];
-    total.value = data.total ?? 0;
-
-    const sid = focusSessionId.value.trim();
-    if (sid && !items.value.some((r) => r.sessionId === sid)) {
-      const focusQ = new URLSearchParams({ page: '0', size: '1', sessionId: sid });
-      if (keyword.value.trim()) focusQ.set('q', keyword.value.trim());
-      if (stateFilter.value) focusQ.set('state', stateFilter.value);
-      const focusData = await api.request<PageResult<SessionRow>>(
-        AdminEndpoints.sessionsList(focusQ),
-        'GET'
-      );
-      if (!loadSeq.isCurrent(seq)) return;
-      const found = focusData.items?.[0];
-      if (found) {
-        items.value = [found, ...items.value.filter((r) => r.sessionId !== found.sessionId)];
-      }
-    }
-
-    clearSelection();
-    await maybeOpenFocusedSession();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.load({ resetPage: true });
 }
 
 function onStatusTab(name: string | number) {
   statusTab.value = String(name);
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.load({ resetPage: true });
 }
 
 function onStuckToggle() {
@@ -995,14 +911,8 @@ function reset() {
   statusTab.value = 'ALL';
   stuckOnly.value = false;
   focusSessionId.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
+  void crud.load({ resetPage: true });
 }
 
 async function cancelSession(sessionId: string) {
@@ -1010,7 +920,7 @@ async function cancelSession(sessionId: string) {
     await ElMessageBox.confirm('确认取消该会话？', '取消会话');
     await api.request(AdminEndpoints.sessionCancel(sessionId), 'POST');
     ElMessage.success('已取消');
-    load();
+    void crud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '操作失败'));
   }
@@ -1080,8 +990,7 @@ function applyRouteQuery() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.load({ resetPage: true });
 }
 
 watch(
@@ -1099,9 +1008,10 @@ watch(
   }
 );
 
+// 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由这里显式首查
 onMounted(() => {
   applyRouteQuery();
-  load();
+  void crud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
