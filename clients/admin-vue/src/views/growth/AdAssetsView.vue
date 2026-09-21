@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button
-            v-if="hasSelection"
+            v-if="crud.hasSelection"
             v-hasPermi="['ops:ad:edit']"
             type="warning"
             :loading="batchLoading === 'deactivate'"
@@ -19,7 +19,7 @@
             批量停用
           </el-button>
           <el-button
-            v-if="hasSelection"
+            v-if="crud.hasSelection"
             v-hasPermi="['ops:ad:edit']"
             type="danger"
             :loading="batchLoading === 'delete'"
@@ -27,7 +27,6 @@
           >
             批量删除
           </el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <input
             ref="fileInput"
             type="file"
@@ -43,7 +42,6 @@
           >
             上传素材
           </el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -87,32 +85,22 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          v-loading="loading"
-          :data="displayRows"
-          stripe
-          border
+        <CrudTable
+          :table="crud"
           row-key="assetId"
-          class="report-table"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="rowActions"
+          :action-width="140"
+          actions-testid="ad-asset"
+          sort-field-label="ID"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            reserve-selection
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             prop="assetId"
             label="ID"
             width="80"
             align="center"
-            sortable="custom"
             class-name="col-status"
             label-class-name="col-status"
           />
@@ -175,35 +163,9 @@
           >
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="200"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                @action="(k) => onRowAction(String(k), row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog v-model="editVisible" title="编辑素材">
       <el-form label-position="top">
@@ -230,66 +192,61 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
+import { ref } from 'vue';
+import { Delete, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import PagePager from '@/components/PagePager.vue';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useListCsv } from '@/composables/useListCsv';
-import { useAuthStore } from '@/stores/auth';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type { MediaAssetDto } from '@aicabinet/shared-types';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { validateAdAssetFile } from '@/utils/upload-validate';
 
-const loading = ref(false);
-const auth = useAuthStore();
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
 const uploading = ref(false);
 const saving = ref(false);
-const rows = ref<MediaAssetDto[]>([]);
 const batchLoading = ref<'delete' | 'deactivate' | ''>('');
-const {
-  tableRef,
-  keyword,
-  hasSelection,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection,
-  filterByKeyword,
-  resetKeyword
-} = useAdminListTable<MediaAssetDto>((r) => r.assetId);
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort<MediaAssetDto>('assetId');
-const displayRows = computed(() =>
-  sortById(
-    filterByKeyword(rows.value, (row, kw) => {
-      return (
-        String(row.title || '')
-          .toLowerCase()
-          .includes(kw) ||
-        String(row.assetType || '')
-          .toLowerCase()
-          .includes(kw) ||
-        typeLabel(row.assetType).toLowerCase().includes(kw)
-      );
-    })
-  )
-);
+const keyword = ref('');
 
-const { onExport } = useListCsv({
+/** 关键词为纯前端过滤（接口无该参数）：原 displayRows 过滤前移到取数处，total 仍取服务端总数 */
+function filterByKeyword(rows: MediaAssetDto[]): MediaAssetDto[] {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter((row) => {
+    return (
+      String(row.title || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.assetType || '')
+        .toLowerCase()
+        .includes(kw) ||
+      typeLabel(row.assetType).toLowerCase().includes(kw)
+    );
+  });
+}
+
+// 列表状态机统一交给 CrudTable：分页 / ID 本地排序（原 useIdColumnSort，默认升序）/ 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<MediaAssetDto>({
+  rowKey: (r) => r.assetId,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page),
+      size: String(params.size)
+    });
+    const data = await api.request<{ items: MediaAssetDto[]; total: number }>(
+      AdminEndpoints.adAssetsList(q),
+      'GET'
+    );
+    return { items: filterByKeyword(data.items || []), total: Number(data.total) || 0 };
+  },
+  sort: { prop: 'assetId', mode: 'local' }
+});
+
+const csvOptions: CrudCsvOptions = {
   filePrefix: '素材库',
   headers: ['ID', '标题', '类型', '时长(秒)', '状态', '上传时间'],
-  toRows: () =>
-    pickSelected(displayRows.value).map((r) => [
+  toRows: (rows) =>
+    rows.map((r) => [
       r.assetId,
       r.title,
       typeLabel(r.assetType),
@@ -297,67 +254,33 @@ const { onExport } = useListCsv({
       r.status === 'ACTIVE' ? '在用' : displayLabel('enable_status', 'INACTIVE'),
       formatDateTime(r.createdAt)
     ])
-});
+};
+
 const fileInput = ref<HTMLInputElement | null>(null);
 const uploadOpen = ref(false);
 const uploadForm = ref({ title: '', assetType: 'IMAGE', durationSeconds: 10 });
 const editVisible = ref(false);
 const editForm = ref({ assetId: 0, title: '', durationSeconds: 10, active: true });
 
-onMounted(load);
-
 function search() {
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 function reset() {
-  resetKeyword();
-  page.value = 1;
-  load();
+  keyword.value = '';
+  void crud.search();
 }
 
-function rowActions(_row: MediaAssetDto): TableAction[] {
-  if (!auth.hasPerm('ops:ad:edit')) return [];
+function rowActions(_row: MediaAssetDto): CrudRowAction[] {
   return [
-    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
-    { key: 'delete', label: '删除', icon: Delete, type: 'danger' }
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:ad:edit' },
+    { key: 'delete', label: '删除', icon: Delete, type: 'danger', perm: 'ops:ad:edit' }
   ];
 }
 
-function onRowAction(key: string, row: MediaAssetDto) {
+function onAction({ key, row }: { key: string; row: MediaAssetDto }) {
   if (key === 'edit') openEdit(row);
   else if (key === 'delete') void removeAsset(row);
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    const data = await api.request<{ items: MediaAssetDto[]; total: number }>(
-      AdminEndpoints.adAssetsList(q),
-      'GET'
-    );
-    rows.value = data.items || [];
-    total.value = Number(data.total) || 0;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
 }
 
 function openUpload() {
@@ -406,7 +329,7 @@ async function doUploadFile(file: File) {
     }
     ElMessage.success('上传成功');
     uploadOpen.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '上传失败');
   } finally {
@@ -435,7 +358,7 @@ async function saveEdit() {
     });
     ElMessage.success('已保存');
     editVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -456,14 +379,14 @@ async function removeAsset(row: MediaAssetDto) {
   try {
     await api.request(AdminEndpoints.adAsset(row.assetId), 'DELETE');
     ElMessage.success('已删除');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
 }
 
 async function batchDelete() {
-  const targets = pickSelected(displayRows.value);
+  const targets = crud.pickSelected(crud.displayItems);
   if (!targets.length) {
     ElMessage.warning('请先勾选素材');
     return;
@@ -482,11 +405,11 @@ async function batchDelete() {
   batchLoading.value = '';
   const ok = results.filter((r) => r.status === 'fulfilled').length;
   ElMessage.success(`批量删除完成：成功 ${ok}，失败 ${targets.length - ok}`);
-  await load();
+  await crud.load();
 }
 
 async function batchDeactivate() {
-  const targets = pickSelected(displayRows.value).filter((r) => r.status === 'ACTIVE');
+  const targets = crud.pickSelected(crud.displayItems).filter((r) => r.status === 'ACTIVE');
   if (!targets.length) {
     ElMessage.warning('请先勾选在用素材');
     return;
@@ -504,7 +427,7 @@ async function batchDeactivate() {
   batchLoading.value = '';
   const ok = results.filter((r) => r.status === 'fulfilled').length;
   ElMessage.success(`批量停用完成：成功 ${ok}，失败 ${targets.length - ok}`);
-  await load();
+  await crud.load();
 }
 
 function typeLabel(type: string) {
