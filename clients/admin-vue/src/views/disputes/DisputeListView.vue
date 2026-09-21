@@ -12,10 +12,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:dispute:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
+          <!-- 导出迁入 CrudTable 内建工具条（:csv + exportPerm）；刷新迁入壳内统一交互行 -->
         </div>
       </div>
     </template>
@@ -78,35 +75,18 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="items"
-          stripe
-          border
-          class="report-table"
-          empty-text=" "
+        <CrudTable
+          :table="crud"
           row-key="ticketId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="rowActions"
+          :action-width="220"
+          :empty-text="emptyHint"
+          sort-field-label="工单号"
+          :csv="csvOptions"
+          @action="onRowAction"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" :description="emptyHint" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="ticketId"
-            label="工单号"
-            min-width="140"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="ticketId" label="工单号" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id cell-ellipsis" :title="String(row.ticketId || '')">{{
                 row.ticketId
@@ -317,36 +297,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="220"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                :max-primary="2"
-                @action="(key) => onRowAction(key, row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="() => load(false)"
-      @size-change="onSizeChange"
-    />
 
     <ResizableDrawer
       v-if="detailVisible"
@@ -741,7 +694,6 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   CircleClose,
   Link,
-  Refresh,
   RefreshLeft,
   VideoCamera,
   View,
@@ -751,15 +703,12 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { disputeAmountDiffNote } from '@/utils/dispute-amount-note';
-import { useTableSelection } from '@/composables/useTableSelection';
 import type {
   DevRecognitionPreviewDto,
   DisputeTicketDto,
@@ -767,7 +716,6 @@ import type {
   PageResult
 } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { validateImageFile } from '@/utils/upload-validate';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -787,9 +735,6 @@ const route = useRoute();
 const router = useRouter();
 const { auth, canAccessPath, goPath } = useNavAccess();
 const { playSessionVideo, fetchSessionVideoBlob } = useSessionVideo();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const videoLoading = ref(false);
 const videoAttempted = ref(false);
 const embedVideoUrl = ref('');
@@ -799,15 +744,6 @@ const categoryTab = ref('ALL');
 const reviewCodeTab = ref('ALL');
 const keyword = ref('');
 const focusDisputeId = ref('');
-const items = ref<DisputeTicketDto[]>([]);
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('ticketId', {
-  onChange: () => {
-    items.value = sortById([...items.value], 'ticketId');
-  }
-});
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
 const selected = ref<DisputeTicketDto | null>(null);
 const detailVisible = ref(false);
 const resolving = ref(false);
@@ -821,11 +757,31 @@ const noVideoAck = ref(false);
 const skus = ref<SkuOption[]>([]);
 const draftLines = ref<{ skuId: string; quantity: number }[]>([]);
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<DisputeTicketDto>((r) => r.ticketId);
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建。
+// 首查依赖路由查询参数（status/category/reviewCode/keyword/ticketId）先落位，故 autoLoad:false，onMounted 显式首查。
+const crud = useCrudTable<DisputeTicketDto>({
+  rowKey: (r) => r.ticketId,
+  errorMessage: '加载失败',
+  autoLoad: false,
+  fetchPage: async (params) => {
+    const data = await api.request<PageResult<DisputeTicketDto>>(
+      `/api/v2/ops/disputes?${buildDisputeListQuery(params.page, params.size)}`,
+      'GET'
+    );
+    // 关键词若是工单号（雪花）被当成 sessionId 会空；回退按 ticketId 拉详情
+    if (!(data.items || []).length && keyword.value.trim()) {
+      const fallback = await tryLoadTicketByNumericKeyword(keyword.value.trim());
+      if (fallback) return { items: [fallback], total: 1 };
+    }
+    return data;
+  },
+  // 排序走壳内「升/降序」工具条（全站无表头箭头），默认升序对齐原 useIdColumnSort
+  sort: { prop: 'ticketId', mode: 'local' }
+});
 
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '争议',
+  exportPerm: 'ops:dispute:export',
   headers: [
     '工单',
     '设备',
@@ -843,8 +799,8 @@ const { onExport } = useListCsv({
     '创建时间',
     '结案时间'
   ],
-  toRows: () =>
-    pickSelected(items.value).map((row) => [
+  toRows: (rows) =>
+    rows.map((row) => [
       row.ticketId,
       row.deviceId,
       row.sessionId,
@@ -867,7 +823,7 @@ const { onExport } = useListCsv({
       formatDateTime(row.createdAt),
       formatDateTime(row.resolvedAt)
     ])
-});
+};
 
 const emptyHint = computed(() => {
   if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value !== 'ALL') {
@@ -1034,7 +990,7 @@ function reviewChipType(row?: DisputeTicketDto | null) {
   return 'info';
 }
 
-function appendDisputeVideoAction(actions: TableAction[], row: DisputeTicketDto) {
+function appendDisputeVideoAction(actions: CrudRowAction[], row: DisputeTicketDto) {
   if (!row.sessionId) return;
   if (!(auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) return;
   actions.push({
@@ -1046,12 +1002,12 @@ function appendDisputeVideoAction(actions: TableAction[], row: DisputeTicketDto)
   });
 }
 
-function appendDisputeMappingAction(actions: TableAction[], row: DisputeTicketDto) {
+function appendDisputeMappingAction(actions: CrudRowAction[], row: DisputeTicketDto) {
   if (row.reviewCode !== 'UNMAPPED' && !(row.detectedClasses && row.detectedClasses.length)) return;
   actions.push({ key: 'mapping', label: '去映射', icon: Link, overflow: true });
 }
 
-function appendDisputeStatusActions(actions: TableAction[], row: DisputeTicketDto) {
+function appendDisputeStatusActions(actions: CrudRowAction[], row: DisputeTicketDto) {
   if (row.status === 'RESOLVED' && auth.hasPerm('ops:dispute:resolve')) {
     actions.push({ key: 'close', label: '关闭', icon: CircleClose, overflow: true });
   }
@@ -1060,8 +1016,8 @@ function appendDisputeStatusActions(actions: TableAction[], row: DisputeTicketDt
   }
 }
 
-function rowActions(row: DisputeTicketDto): TableAction[] {
-  const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+function rowActions(row: DisputeTicketDto): CrudRowAction[] {
+  const actions: CrudRowAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
   appendDisputeVideoAction(actions, row);
   appendDisputeMappingAction(actions, row);
   if (row.deviceId && canAccessPath('/exceptions')) {
@@ -1074,7 +1030,7 @@ function rowActions(row: DisputeTicketDto): TableAction[] {
   return actions;
 }
 
-function onRowAction(key: string, row: DisputeTicketDto) {
+function onRowAction({ key, row }: { key: string; row: DisputeTicketDto }) {
   if (key === 'detail') openDetail(row);
   if (key === 'video') playVideo(row.sessionId);
   if (key === 'exception') goExceptions(row.deviceId);
@@ -1095,7 +1051,8 @@ async function closeTicket(row: DisputeTicketDto) {
   try {
     await api.request(`/api/v2/ops/disputes/${encodeURIComponent(row.ticketId)}/close`, 'POST', {});
     ElMessage.success('已关闭');
-    await load(false);
+    await crud.load();
+    await openFocusedTicket(); // 原 load() 收尾：深链工单号自动打开工作台
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '关闭失败');
   }
@@ -1114,7 +1071,8 @@ async function reopenTicket(row: DisputeTicketDto) {
       {}
     );
     ElMessage.success('已重开');
-    await load(false);
+    await crud.load();
+    await openFocusedTicket(); // 原 load() 收尾：深链工单号自动打开工作台
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '重开失败');
   }
@@ -1242,11 +1200,11 @@ async function onDisputeImagePick(ev: Event) {
 
 function patchResolvedListItem(ticketId: string, patched: DisputeTicketDto) {
   if (status.value === 'OPEN') {
-    items.value = items.value.filter((t) => t.ticketId !== ticketId);
-    total.value = Math.max(0, total.value - 1);
+    crud.items = crud.items.filter((t) => t.ticketId !== ticketId);
+    crud.total = Math.max(0, crud.total - 1);
     return;
   }
-  items.value = items.value.map((t) => (t.ticketId === ticketId ? patched : t));
+  crud.items = crud.items.map((t) => (t.ticketId === ticketId ? patched : t));
 }
 
 function applyResolvedTicket(result: ResolveDisputeResultDto) {
@@ -1378,8 +1336,8 @@ async function claimSelected() {
       'POST'
     );
     selected.value = updated;
-    const idx = items.value.findIndex((r) => r.ticketId === updated.ticketId);
-    if (idx >= 0) items.value[idx] = { ...items.value[idx], ...updated };
+    const idx = crud.items.findIndex((r) => r.ticketId === updated.ticketId);
+    if (idx >= 0) crud.items[idx] = { ...crud.items[idx], ...updated };
     ElMessage.success(`已认领：${updated.assignee || '当前账号'}`);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '认领失败');
@@ -1445,9 +1403,7 @@ function syncRouteQuery() {
 function onCategoryTab(name: string | number) {
   categoryTab.value = String(name);
   if (categoryTab.value !== 'RECOGNITION') reviewCodeTab.value = 'ALL';
-  page.value = 1;
-  syncRouteQuery();
-  load(false);
+  search();
 }
 
 function onReviewCodeTab() {
@@ -1472,10 +1428,11 @@ function appendDisputeListKeyword(q: URLSearchParams) {
   if (classified.orderId) q.set('orderId', classified.orderId);
 }
 
-function buildDisputeListQuery(): URLSearchParams {
+function buildDisputeListQuery(page0: number, pageSize: number): URLSearchParams {
+  // page 由 useCrudTable 传入，已是全站约定的 0 起
   const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
+    page: String(page0),
+    size: String(pageSize)
   });
   if (status.value) q.set('status', status.value);
   if (categoryTab.value && categoryTab.value !== 'ALL') {
@@ -1499,50 +1456,11 @@ async function tryLoadTicketByNumericKeyword(raw: string): Promise<DisputeTicket
   }
 }
 
-async function applyNumericKeywordFallback() {
-  if (items.value.length) return;
-  const fallback = await tryLoadTicketByNumericKeyword(keyword.value.trim());
-  if (!fallback) return;
-  items.value = [fallback];
-  total.value = 1;
-}
-
-async function load(showToast = false) {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const data = await api.request<PageResult<DisputeTicketDto>>(
-      `/api/v2/ops/disputes?${buildDisputeListQuery()}`,
-      'GET'
-    );
-    if (!loadSeq.isCurrent(seq)) return;
-    items.value = sortById(data.items || [], 'ticketId');
-    total.value = data.total || 0;
-    // 关键词若是工单号（雪花）被当成 sessionId 会空；回退按 ticketId 拉详情
-    await applyNumericKeywordFallback();
-    if (!loadSeq.isCurrent(seq)) return;
-    clearSelection();
-    await openFocusedTicket();
-    if (showToast) ElMessage.success('已刷新');
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load(false);
-}
-
-function search() {
-  page.value = 1;
+/** 检索：重置回第 1 页并同步路由；就绪后按工单号深链自动打开审单工作台（原 load() 收尾行为） */
+async function search() {
   syncRouteQuery();
-  load(false);
+  await crud.search();
+  await openFocusedTicket();
 }
 
 function reset() {
@@ -1551,9 +1469,7 @@ function reset() {
   categoryTab.value = 'ALL';
   reviewCodeTab.value = 'ALL';
   keyword.value = '';
-  page.value = 1;
-  syncRouteQuery();
-  load(false);
+  return search();
 }
 
 /** 看板/深链带入筛选时，清掉本地粘住的分拣 tab，避免 MOCK 把 EMPTY 工单滤没 */
@@ -1648,7 +1564,7 @@ function applyRouteQuery() {
 
 async function openFocusedTicket() {
   if (!focusDisputeId.value || detailVisible.value) return;
-  let row = items.value.find((it) => String(it.ticketId ?? '') === String(focusDisputeId.value));
+  let row = crud.items.find((it) => String(it.ticketId ?? '') === String(focusDisputeId.value));
   if (!row) {
     try {
       row = await api.request<DisputeTicketDto>(
@@ -1664,8 +1580,9 @@ async function openFocusedTicket() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load(false);
+  // 路由深链（如看板跳入）只落状态不回写 URL，避免 replace 抹掉入口参数形态
+  await crud.search();
+  await openFocusedTicket();
 }
 
 watch(
@@ -1693,8 +1610,7 @@ onActivated(async () => {
   clearEmbedVideo();
   // keep-alive 复用时必须按本次 query 重置分拣 tab，再拉列表
   applyRouteQuery();
-  page.value = 1;
-  await load(false);
+  await crud.search();
   await openFocusedTicket();
 });
 onDeactivated(() => {
@@ -1703,10 +1619,11 @@ onDeactivated(() => {
   clearEmbedVideo();
 });
 onMounted(async () => {
+  // crud 已配 autoLoad:false：首查需等路由查询参数落位（applyRouteQuery/syncRouteQuery 后）再显式触发
   applyRouteQuery();
   syncRouteQuery();
-  await load(false);
-  await openFocusedTicket();
+  await crud.load();
+  await openFocusedTicket(); // 原 load() 收尾：深链工单号自动打开工作台
 });
 </script>
 
