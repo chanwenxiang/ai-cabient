@@ -12,7 +12,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-dropdown v-hasPermi="['ops:order:export']" trigger="click" @command="onExportMode">
-            <el-button>{{ exportButtonLabel }}<span class="export-caret"> ▾</span></el-button>
+            <el-button>{{ crud.exportButtonLabel }}<span class="export-caret"> ▾</span></el-button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="orders">按订单导出</el-dropdown-item>
@@ -20,7 +20,6 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -105,38 +104,25 @@
       show-icon
       class="chase-banner"
       :title="
-        listHydrated
-          ? `本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按创建时间新→旧）`
+        crud.hydrated
+          ? `本页 ${crud.displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按创建时间新→旧）`
           : `超时未付 ${UI_COPY.loading}`
       "
     />
 
     <div class="table-scroll" data-testid="order-table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayItems"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="orderId"
+          selectable
+          :actions="rowActions"
+          :action-width="180"
+          actions-testid="order"
+          :empty-text="statusTab === 'PENDING' && overdueOnly ? '无超时未付订单' : '暂无订单'"
           :row-class-name="orderRowClass"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty
-              v-if="listHydrated && !loading"
-              :description="statusTab === 'PENDING' && overdueOnly ? '无超时未付订单' : '暂无订单'"
-            />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             prop="orderId"
             label="订单号"
@@ -420,36 +406,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="180"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                :max-primary="2"
-                @action="(key) => onRowAction(key, row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="ADMIN_LIST_PAGE_SIZES"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <ResizableDrawer
       v-model="detailOpen"
@@ -763,7 +722,6 @@ import { useRoute } from 'vue-router';
 import {
   CopyDocument,
   Link,
-  Refresh,
   VideoCamera,
   View,
   Wallet,
@@ -775,14 +733,12 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type {
   OrderLineDto,
@@ -794,7 +750,6 @@ import type {
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
-import { ADMIN_LIST_PAGE_SIZES, clampAdminPageSize } from '@/utils/admin-list-pager';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
@@ -839,9 +794,6 @@ const route = useRoute();
 const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const videoLoading = ref(false);
 const refundingId = ref('');
 const keyword = ref('');
@@ -872,29 +824,46 @@ function persistHideZeroPreference(value: boolean) {
 
 const hideZeroOrders = ref(readHideZeroPreference());
 const focusOrderId = ref('');
-const items = ref<OrderSummary[]>([]);
 
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<OrderReadModel | null>(null);
 const selectedOrderAmountDiffNote = computed(() => orderAmountDiffNote(detail.value));
 
-const displayItems = computed(() => {
-  let list = [...items.value];
-  if (statusTab.value === 'PENDING' && overdueOnly.value) {
-    // overdueOnly: load() already scans; keep filter as safety net for mixed pages
-    list = list.filter((row) => isUnpaidOverdue(row));
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 全部内建（本页无表头排序）
+// overdueOnly 兜底过滤与「创建时间新→旧」原在 displayItems 计算属性完成，现前移到取数处
+const crud = useCrudTable<OrderSummary>({
+  rowKey: (r) => r.orderId,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page),
+      size: String(params.size)
+    });
+    appendOrderFilters(q);
+    if (overdueOnly.value && statusTab.value === 'PENDING') {
+      q.set('status', 'PENDING');
+      q.set('overdue', '1');
+    } else if (status.value) {
+      q.set('status', status.value);
+    }
+    const data = await api.request<PageResult<OpenApiOrderReadModelAdmin>>(
+      AdminEndpoints.ordersList(q),
+      'GET'
+    );
+    const rows = (data.items || []) as OrderSummary[];
+    await maybeOpenFocusedOrder(rows);
+    let list = rows;
+    if (statusTab.value === 'PENDING' && overdueOnly.value) {
+      // overdueOnly: backend already scans; keep filter as safety net for mixed pages
+      list = list.filter((row) => isUnpaidOverdue(row));
+    }
+    // 创建时间新→旧（去掉订单号主键排序）
+    list = [...list].sort((a, b) => createdAtMs(b.createdAt) - createdAtMs(a.createdAt));
+    return { items: list, total: data.total || 0 };
   }
-  // 创建时间新→旧（去掉订单号主键排序）
-  list.sort((a, b) => createdAtMs(b.createdAt) - createdAtMs(a.createdAt));
-  return list;
 });
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<OrderSummary>((r) => r.orderId);
 
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '订单',
@@ -918,7 +887,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
     '创建时间'
   ],
   toRows: () =>
-    pickSelected(items.value).map((row) => [
+    crud.pickSelected(crud.items).map((row) => [
       row.orderId,
       row.sessionId,
       row.userId,
@@ -952,8 +921,8 @@ function appendOrderFilters(q: URLSearchParams) {
 }
 
 async function onExportMode(mode: string) {
-  const selected = pickSelected(items.value);
-  if (mode === 'orders' && selected.length && selected.length < items.value.length) {
+  const selected = crud.pickSelected(crud.items);
+  if (mode === 'orders' && selected.length && selected.length < crud.items.length) {
     exportSelectedCsv();
     return;
   }
@@ -1067,63 +1036,58 @@ function orderRowClass({ row }: { row: OrderSummary }) {
   return isUnpaidOverdue(row) ? 'is-unpaid-overdue' : '';
 }
 
-function appendPendingOrderActions(actions: TableAction[]) {
-  if (auth.hasPerm('ops:order:remind')) {
-    actions.push({ key: 'remind', label: '催付', icon: Bell, type: 'warning' });
-  }
-  if (
-    auth.hasPerm('ops:order:remind') ||
-    auth.hasPerm('ops:order:cancel') ||
-    auth.hasPerm('ops:order:refund')
-  ) {
-    actions.push({ key: 'collect', label: '补扣', icon: Coin, overflow: true });
-  }
-  if (auth.hasPerm('ops:order:cancel')) {
-    actions.push({
-      key: 'cancel',
-      label: '关单',
-      icon: CircleClose,
-      type: 'danger',
-      overflow: true
-    });
-  }
-}
-
-function appendOrderSessionVideoAction(actions: TableAction[], row: OrderSummary) {
-  if (!row.sessionId) return;
-  if (!(auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) return;
-  actions.push({
-    key: 'video',
-    label: '录像',
-    icon: VideoCamera,
-    type: 'warning',
-    overflow: true
-  });
-}
-
-function rowActions(row: OrderSummary): TableAction[] {
-  const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
-  actions.push({ key: 'copy', label: '复制单号', icon: CopyDocument, overflow: true });
+function rowActions(row: OrderSummary): CrudRowAction[] {
+  const actions: CrudRowAction[] = [
+    { key: 'detail', label: '详情', icon: View, type: 'primary' },
+    { key: 'copy', label: '复制单号', icon: CopyDocument, overflow: true }
+  ];
   if (row.sessionId) {
     actions.push({ key: 'session', label: '会话', icon: Link, overflow: true });
   }
   if (row.status === 'PENDING') {
-    appendPendingOrderActions(actions);
+    actions.push(
+      { key: 'remind', label: '催付', icon: Bell, type: 'warning', perm: 'ops:order:remind' },
+      {
+        key: 'collect',
+        label: '补扣',
+        icon: Coin,
+        overflow: true,
+        perm: ['ops:order:remind', 'ops:order:cancel', 'ops:order:refund']
+      },
+      {
+        key: 'cancel',
+        label: '关单',
+        icon: CircleClose,
+        type: 'danger',
+        overflow: true,
+        perm: 'ops:order:cancel'
+      }
+    );
   }
-  appendOrderSessionVideoAction(actions, row);
-  if (canRefund(row.status) && auth.hasPerm('ops:order:refund')) {
+  if (row.sessionId) {
+    actions.push({
+      key: 'video',
+      label: '录像',
+      icon: VideoCamera,
+      type: 'warning',
+      overflow: true,
+      perm: ['ops:session:list', 'ops:session:upload']
+    });
+  }
+  if (canRefund(row.status)) {
     actions.push({
       key: 'refund',
       label: '退款',
       icon: Wallet,
       type: 'danger',
-      disabled: refundingId.value === row.orderId
+      disabled: refundingId.value === row.orderId,
+      perm: 'ops:order:refund'
     });
   }
   return actions;
 }
 
-function onRowAction(key: string, row: OrderSummary) {
+function onAction({ key, row }: { key: string; row: OrderSummary }) {
   if (key === 'detail') openDetail(row);
   if (key === 'refund') refundOrder(row);
   if (key === 'video') playVideo(row.sessionId);
@@ -1238,7 +1202,7 @@ async function refundOrder(row: { orderId: string; status?: string }) {
     if (detailOpen.value && detail.value?.orderId === row.orderId) {
       await openDetail(row as OrderSummary);
     }
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '退款失败');
@@ -1321,7 +1285,7 @@ async function submitPartialRefund() {
     if (detailOpen.value && detail.value?.orderId === partialOrderId.value) {
       await openDetail({ orderId: partialOrderId.value } as OrderSummary);
     }
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '按行退款失败');
   } finally {
@@ -1359,7 +1323,7 @@ async function collectUnpaid(row: { orderId: string }) {
     if (detailOpen.value && detail.value?.orderId === row.orderId) {
       await openDetail(row as OrderSummary);
     }
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '补扣失败');
@@ -1399,7 +1363,7 @@ async function cancelUnpaid(row: { orderId: string }) {
     );
     ElMessage.success(result.message || '已关单');
     detailOpen.value = false;
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '关单失败');
@@ -1424,9 +1388,8 @@ function onStatusTab(name: string | number) {
   localStorage.setItem('ops_order_status_tab', tab);
   status.value = tab === 'ALL' ? '' : tab;
   if (tab !== 'PENDING') overdueOnly.value = false;
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function onOverdueToggle() {
@@ -1438,44 +1401,9 @@ function onHideZeroToggle() {
   search();
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(clampAdminPageSize(size.value))
-    });
-    appendOrderFilters(q);
-    if (overdueOnly.value && statusTab.value === 'PENDING') {
-      q.set('status', 'PENDING');
-      q.set('overdue', '1');
-    } else if (status.value) {
-      q.set('status', status.value);
-    }
-    const data = await api.request<PageResult<OpenApiOrderReadModelAdmin>>(
-      AdminEndpoints.ordersList(q),
-      'GET'
-    );
-    if (!loadSeq.isCurrent(seq)) return;
-    items.value = (data.items || []) as OrderSummary[];
-    total.value = data.total || 0;
-    clearSelection();
-    await maybeOpenFocusedOrder();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 function reset() {
   keyword.value = '';
@@ -1487,14 +1415,8 @@ function reset() {
   hideZeroOrders.value = true;
   persistHideZeroPreference(true);
   focusOrderId.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
-}
-function onSizeChange() {
-  size.value = clampAdminPageSize(size.value);
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 const ORDER_ROUTE_KEYWORD_KEYS = [
@@ -1593,10 +1515,10 @@ function applyRouteQuery() {
   return changed;
 }
 
-async function maybeOpenFocusedOrder() {
+async function maybeOpenFocusedOrder(rows: OrderSummary[]) {
   const oid = focusOrderId.value.trim();
   if (!oid) return;
-  const hit = items.value.find((r) => r.orderId === oid);
+  const hit = rows.find((r) => r.orderId === oid);
   if (hit) {
     await openDetail(hit);
     return;
@@ -1614,15 +1536,15 @@ async function maybeOpenFocusedOrder() {
   }
 }
 
+// 首查前需先应用路由查询参数，故保留显式首查（crud 已配 autoLoad: false）
 onMounted(() => {
   applyRouteQuery();
-  load();
+  void crud.load();
 });
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
