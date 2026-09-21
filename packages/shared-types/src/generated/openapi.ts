@@ -10188,6 +10188,9 @@ export interface components {
             inventoryRestored?: boolean;
             partial?: boolean;
         };
+        PayOrderRequest_Consumer: {
+            channel?: string;
+        };
         ApiResponseOrderReadModel_Consumer: {
             /** Format: int32 */
             code?: number;
@@ -18382,7 +18385,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PayOrderRequest_Consumer"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

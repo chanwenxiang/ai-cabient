@@ -116,6 +116,11 @@ public final class ApiMessages {
     public static final String ORDER_ALREADY_PAID = "订单已支付";
     public static final String ORDER_NOT_PAID = "订单未支付，无法退款";
     public static final String INSUFFICIENT_BALANCE = "余额不足";
+    /**
+     * 结算页显式选择的支付方式未就绪（未签约支付分 / 无有效支付宝协议 / 环境不支持该渠道）。
+     * <p>刻意**不降级**成别的渠道：用户选了免密却被扣余额，比直接报错更糟。
+     */
+    public static final String PAY_CHANNEL_NOT_READY = "所选支付方式当前不可用，请重新选择或先完成开通";
     public static final String INSUFFICIENT_REFUND = "余额不足，无法退款";
     public static final String WECHAT_PAY_NOT_CONFIGURED = "微信支付未配置";
     public static final String ALIPAY_PAY_NOT_CONFIGURED = "支付宝未配置";

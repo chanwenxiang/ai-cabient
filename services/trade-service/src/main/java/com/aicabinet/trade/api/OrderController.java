@@ -8,6 +8,7 @@ import com.aicabinet.common.dto.OrderRefundRequest;
 import com.aicabinet.common.dto.OrderRefundResultDto;
 import com.aicabinet.common.dto.OrderViews;
 import com.aicabinet.common.dto.PageResult;
+import com.aicabinet.common.dto.PayOrderRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.service.InvoiceService;
 import com.aicabinet.trade.service.OrderService;
@@ -76,13 +77,22 @@ public class OrderController {
         orderService.streamMyOrderVideo(userId, orderId, request, response);
     }
 
+    /**
+     * 补缴待支付订单。
+     *
+     * <p>F6：可选 body {@code {"channel":"BALANCE|WECHAT|ALIPAY"}} 表示消费者在结算页**显式选择**的支付方式。
+     * 不传 body（老客户端）或 {@code channel} 为空 ⇒ 服务端按既有规则自动决策，行为与接入前一致。
+     * 显式选择时**不降级**：所选渠道未就绪返回 412（由前端提示改选或先去开通）。
+     */
     @JsonView(OrderViews.Consumer.class)
     @PostMapping("/{orderId}/pay")
     public ApiResponse<OrderReadModel> payPending(
             HttpServletRequest request,
-            @PathVariable("orderId") String orderId) {
+            @PathVariable("orderId") String orderId,
+            @Valid @RequestBody(required = false) PayOrderRequest body) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return ApiResponse.ok(unpaidOrderService.collectByUser(userId, orderId));
+        return ApiResponse.ok(unpaidOrderService.collectByUser(userId, orderId,
+                body == null ? null : body.channel()));
     }
 
     @PostMapping("/{orderId}/refund")

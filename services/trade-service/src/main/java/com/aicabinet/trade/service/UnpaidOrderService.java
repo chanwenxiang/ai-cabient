@@ -176,14 +176,21 @@ public class UnpaidOrderService {
         permissionService.requireAnyPermission(operatorId, "ops:order:remind", "ops:order:cancel", "ops:order:refund");
         return runWithOrderPaymentLock(orderId, () -> {
             CabinetOrder order = requirePendingScoped(operatorId, orderId);
-            markPaid(order);
+            markPaid(order, null);
             auditService.appendLog(operatorId, "ORDER_COLLECT_UNPAID", ORDER, orderId, "运营代收");
             return settlementService.getOrderBySession(order.getSessionId());
         });
     }
 
+    /**
+     * 消费者补缴待支付订单。
+     *
+     * @param channel F6：消费者在结算页**显式选择**的支付方式（BALANCE / WECHAT / ALIPAY）；
+     *                {@code null}/空白 ⇒ 沿用服务端自动决策，行为与接入前一致。
+     *                非空时只按该渠道扣款、**不降级** —— 未就绪返回 412。
+     */
     @Transactional
-    public OrderReadModel collectByUser(Long userId, String orderId) {
+    public OrderReadModel collectByUser(Long userId, String orderId, String channel) {
         apiRateLimitService.assertOrderPayAllowed(userId);
         return runWithOrderPaymentLock(orderId, () -> {
             CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
@@ -194,7 +201,7 @@ public class UnpaidOrderService {
             if (!STATUS_PENDING.equals(order.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
             }
-            markPaid(order);
+            markPaid(order, channel);
             return settlementService.getOrderBySession(order.getSessionId());
         });
     }
@@ -245,11 +252,11 @@ public class UnpaidOrderService {
         return cancelled != null;
     }
 
-    private void markPaid(CabinetOrder order) {
+    private void markPaid(CabinetOrder order, String requestedChannel) {
         hydrate(order);
         // 创建 PENDING 时未占券；补扣时再选最优券后扣款并核销
         CouponService.BestCoupon applied = applyBestCouponForCollect(order);
-        orderPaymentService.chargeOrder(order);
+        orderPaymentService.chargeOrder(order, requestedChannel);
         order.setStatus("PAID");
         orderRepository.save(order);
         if (applied != null) {

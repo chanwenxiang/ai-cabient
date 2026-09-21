@@ -314,6 +314,39 @@
           >
         </view>
       </view>
+
+      <view
+        v-if="showPayChannel"
+        role="button"
+        aria-label="关闭支付方式选择"
+        class="dispute-mask"
+        @click="closePayChannel"
+      >
+        <view role="button" class="dispute-panel" @click.stop>
+          <text class="dispute-title">选择支付方式</text>
+          <text class="dispute-sub">
+            仅对本单生效。选「账户余额」先花掉余额；选免密则按所选渠道扣款，若该渠道未开通会提示重新选择。
+          </text>
+          <view class="chip-row">
+            <text
+              v-for="opt in payChannelOptions"
+              role="button"
+              :key="opt.key"
+              class="reason-chip"
+              :class="{ busy: paying }"
+              @click="submitPay(opt.key)"
+              >{{ opt.label }}</text
+            >
+          </view>
+          <text
+            role="button"
+            class="dispute-cancel"
+            aria-label="取消支付方式选择"
+            @click="closePayChannel"
+            >取消</text
+          >
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -333,7 +366,12 @@ import {
   fmtMoney
 } from '@aicabinet/shared-uni/format';
 import { queryGet } from '@aicabinet/shared-uni/query';
-import type { OrderDetailDto } from '@aicabinet/shared-types';
+import type { AccountDto, OrderDetailDto } from '@aicabinet/shared-types';
+import { payChannelSelectEnabled, seedConsumerFlags } from '@/utils/feature-flags';
+import {
+  payChannelOptions as buildPayChannelOptions,
+  shouldAskPayChannel
+} from '@/utils/pay-channel';
 import {
   DISPUTE_REASON_CHIPS,
   appendChipToReason,
@@ -361,6 +399,12 @@ const disputeReason = ref('');
 const disputeLoading = ref(false);
 const refundLoading = ref(false);
 const paying = ref(false);
+/** F6：结算页渠道选择弹层可见性 */
+const showPayChannel = ref(false);
+/** F6：账号状态（渠道就绪判据）；仅在开关打开时拉取，未取到时为 null ⇒ 不显示选择 */
+const account = ref<AccountDto | null>(null);
+/** F6：`consumer.pay_channel_select.enabled`；配置未取到恒为 false（fail-closed） */
+const payChannelSelectOn = ref(false);
 const disputeFiled = ref(false);
 const refundDone = ref(false);
 const invoiceLoading = ref(false);
@@ -424,6 +468,7 @@ async function bootstrap(opt?: Record<string, string | undefined>) {
     disputeFiled.value = false;
     refundDone.value = false;
     showDispute.value = false;
+    showPayChannel.value = false;
   }
   bootstrapTarget = nextId;
   bootstrapPromise = (async () => {
@@ -470,8 +515,28 @@ async function loadSupportPhone() {
       supportPhoneDisplay.value = phone;
       supportPhoneDial.value = phone.replaceAll(/[^\d+]/g, '');
     }
+    // 顺手把已取到的公开配置喂给开关缓存，避免为了读开关再发一次同样的请求
+    seedConsumerFlags(cfg);
+    payChannelSelectOn.value = payChannelSelectEnabled();
+    if (payChannelSelectOn.value) {
+      await loadPayChannels();
+    }
   } catch {
     /* keep defaults */
+  }
+}
+
+/**
+ * 渠道选择所需的账号状态（F6）。
+ *
+ * 🔴 **仅在开关打开时调用** —— 开关关闭时一个多余请求都不发，行为与接入前完全一致。
+ * 取不到（未登录/网络失败）⇒ 保持 `null` ⇒ `payChannelOptions` 为空 ⇒ 退回「直接补缴」。
+ */
+async function loadPayChannels() {
+  try {
+    account.value = await consumerApi.account();
+  } catch {
+    account.value = null;
   }
 }
 
@@ -658,6 +723,12 @@ const payChannelText = computed(() => {
   return displayLabel('pay_channel', ch, '未知渠道');
 });
 
+/**
+ * 结算页可选的支付方式（F6）。规则在 `@/utils/pay-channel`（纯函数，有单测）——
+ * 就绪判据与后端 `PayScoreService.isChannelUsable` 同源，前端不另立一套。
+ */
+const payChannelOptions = computed(() => buildPayChannelOptions(account.value));
+
 function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无');
 }
@@ -690,11 +761,30 @@ function openRefund() {
   showDispute.value = true;
 }
 
+/**
+ * 「去支付」：
+ * - 开关关 / 可用渠道 < 2 ⇒ 直接补缴（渠道由服务端自动决策）—— 与接入前一致；
+ * - 开关开且 ≥2 个可用渠道 ⇒ 先弹选择，避免替用户决定用哪个渠道扣钱。
+ */
 async function payNow() {
+  if (!order.value?.orderId || paying.value) return;
+  if (shouldAskPayChannel(payChannelSelectOn.value, payChannelOptions.value)) {
+    showPayChannel.value = true;
+    return;
+  }
+  await submitPay(null);
+}
+
+/**
+ * 提交补缴。{@code channel} 非空时为用户**显式选择**的渠道；
+ * 服务端只按该渠道扣款、不降级（未就绪返回 412，此处按普通错误提示用户改选）。
+ */
+async function submitPay(channel: string | null) {
   if (!order.value?.orderId || paying.value) return;
   paying.value = true;
   try {
-    await consumerApi.payOrder(order.value.orderId);
+    await consumerApi.payOrder(order.value.orderId, channel || undefined);
+    showPayChannel.value = false;
     showSuccess('支付成功');
     await reload();
   } catch (e) {
@@ -702,6 +792,10 @@ async function payNow() {
   } finally {
     paying.value = false;
   }
+}
+
+function closePayChannel() {
+  showPayChannel.value = false;
 }
 
 function closeDispute() {

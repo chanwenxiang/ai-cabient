@@ -66,7 +66,7 @@ class UnpaidOrderConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.collectByUser(10001L, "O-PEND"));
+                () -> service.collectByUser(10001L, "O-PEND", null));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
@@ -88,7 +88,7 @@ class UnpaidOrderConcurrencyTest {
         when(couponService.selectBestCoupon(10001L, 500)).thenReturn(java.util.Optional.empty());
         when(settlementService.getOrderBySession("S-1")).thenReturn(null);
 
-        service.collectByUser(10001L, "O-OK");
+        service.collectByUser(10001L, "O-OK", null);
 
         org.mockito.Mockito.verify(orderRepository).findByIdForUpdate("O-OK");
         org.mockito.Mockito.verify(distributedLockService).unlock(OrderPaymentService.orderPaymentLockKey("O-OK"));

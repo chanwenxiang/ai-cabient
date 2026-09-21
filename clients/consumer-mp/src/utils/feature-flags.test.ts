@@ -195,3 +195,39 @@ describe('腾讯流量主广告位读取器', () => {
     expect(m.adBannerEnabled()).toBe(true);
   });
 });
+
+/**
+ * 结算页支付方式选择（`consumer.pay_channel_select.enabled`，F6，2026-09-21）。
+ *
+ * 这个键决定「结算那一刻要不要问用户用哪个渠道扣钱」，默认必须是**关**：
+ * 关掉时订单详情的「去支付」不得多发任何请求、也不得弹出选择。
+ */
+describe('结算页渠道选择开关读取器', () => {
+  it('fail-closed：缓存未热 ⇒ 关（拿不到配置不把新交互放出来）', async () => {
+    const m = await fresh();
+    expect(m.payChannelSelectEnabled()).toBe(false);
+  });
+
+  it('值判定与其它开关一致：true / "1" 为开，"false" / 空串为关', async () => {
+    const on = await fresh();
+    on.seedConsumerFlags({ payChannelSelectEnabled: 'true' });
+    expect(on.payChannelSelectEnabled()).toBe(true);
+
+    const one = await fresh();
+    one.seedConsumerFlags({ payChannelSelectEnabled: '1' });
+    expect(one.payChannelSelectEnabled()).toBe(true);
+
+    for (const raw of ['false', '', 'yes']) {
+      const m = await fresh();
+      m.seedConsumerFlags({ payChannelSelectEnabled: raw });
+      expect(m.payChannelSelectEnabled(), `raw=${JSON.stringify(raw)} 必须判为关`).toBe(false);
+    }
+  });
+
+  it('🔴 不得读成 productDetailEnabled（同族 consumer.* 键名最易复制错）', async () => {
+    const m = await fresh();
+    m.seedConsumerFlags({ productDetailEnabled: 'true', payChannelSelectEnabled: 'false' });
+    expect(m.payChannelSelectEnabled()).toBe(false);
+    expect(m.productDetailEnabled()).toBe(true);
+  });
+});

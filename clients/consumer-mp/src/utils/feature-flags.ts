@@ -82,6 +82,20 @@ export function productDetailEnabled(): boolean {
 }
 
 /**
+ * 结算页主动选择支付方式（F6，`consumer.pay_channel_select.enabled`）。
+ *
+ * **开**：订单详情「去支付」时，若用户有 **≥2 个可用渠道**（账户余额 / 微信免密 / 支付宝免密）
+ * 先弹出选择，选定后随补缴请求上送；服务端**只按所选渠道扣款、不降级**（未就绪返回 412）。
+ * **关**（默认）：维持原样直接补缴，渠道由服务端自动决策（用户偏好 → 扫码入口 → 已签约渠道 → 余额兜底），
+ * 即接入前行为 —— 且**不会多发一次账号查询请求**。
+ *
+ * ⚠️ 只决定「结算那一刻要不要问用户」；渠道是否就绪由账号状态（`AccountDto`）决定。
+ */
+export function payChannelSelectEnabled(): boolean {
+  return enabled(cache?.payChannelSelectEnabled);
+}
+
+/**
  * 首页推广位（S1，`consumer.ad_banner.enabled`）。见 `docs/AD_MONETIZATION_DESIGN.md`。
  *
  * **开**：首页在柜机状态卡下方渲染推广位 —— 按「自有投放 → 腾讯广告 → 占位图」择一渲染；

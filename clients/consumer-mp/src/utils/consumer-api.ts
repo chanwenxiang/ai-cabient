@@ -763,10 +763,18 @@ export const consumerApi = {
   pendingOrderCount: () => request<{ count: number }>('/api/v2/orders/pending-count'),
   getOrder: (orderId: string) =>
     request<import('@aicabinet/shared-types').OrderDetailDto>(`/api/v2/orders/${orderId}`),
-  payOrder: (orderId: string) =>
+  /**
+   * 补缴待支付订单。
+   *
+   * @param channel F6：结算页**显式选择**的支付方式（BALANCE / WECHAT / ALIPAY）。
+   *                不传 ⇒ 服务端按既有规则自动决策（与接入前一致）。
+   *                传了 ⇒ 服务端只按该渠道扣款、**不降级**；渠道未就绪返回 412。
+   */
+  payOrder: (orderId: string, channel?: string) =>
     request<import('@aicabinet/shared-types').OrderDetailDto>(
       `/api/v2/orders/${encodeURIComponent(orderId)}/pay`,
-      'POST'
+      'POST',
+      channel ? { channel } : undefined
     ),
   fileDispute: (body: import('@aicabinet/shared-types').FileDisputeRequest) =>
     request<import('@aicabinet/shared-types').DisputeTicketDto>('/api/v2/disputes', 'POST', body),

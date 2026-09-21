@@ -7,6 +7,7 @@ import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.payment.AgreementChargeClient;
 import com.aicabinet.trade.payment.AlipayPayClient;
+import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +60,31 @@ public class PayScoreService {
             return null;
         }
         return agreementId.substring(ALIPAY_PENDING_PREFIX.length());
+    }
+
+    /**
+     * 渠道对当前用户是否**已就绪**（余额恒就绪）。这是「显式选择该渠道能否成交」的唯一判据。
+     *
+     * <p>🔴 与 {@link AccountService#doSetPayPreferredChannel} 的校验必须同源 —— 否则会出现
+     * 「设得了优先支付、却扣不动款」或反过来的自相矛盾。故两边都调本方法，不再各写一份条件。
+     */
+    public static boolean isChannelUsable(UserInfo user, String channel) {
+        if (user == null || channel == null) {
+            return false;
+        }
+        String c = channel.trim().toUpperCase(java.util.Locale.ROOT);
+        if (PayChannels.BALANCE.equals(c)) {
+            return true;
+        }
+        if (PayChannels.WECHAT.equals(c)) {
+            return user.isPayscoreEnabled()
+                    && user.getPayscoreContractId() != null
+                    && !user.getPayscoreContractId().isBlank();
+        }
+        if (PayChannels.ALIPAY.equals(c)) {
+            return isActiveAlipayAgreementId(user.getAlipayAgreementId());
+        }
+        return false;
     }
 
     public boolean isPasswordFreeReady(UserInfo user) {
@@ -330,6 +356,36 @@ public class PayScoreService {
             return chargeAlipayAgreement(user, orderId, amountCents, description);
         }
         return new ChargeResult(PayChannels.BALANCE, null);
+    }
+
+    /**
+     * 显式渠道扣款（消费者在结算页主动选择，F6）：**不做偏好解析、不降级**。
+     *
+     * <p>与 {@link #charge} 的关键差别：{@code charge} 把「用户偏好 BALANCE」「扫码入口渠道」纳入决策，
+     * 选不出可用渠道时返回 {@code BALANCE} 让调用方回落余额；本方法**只认传入渠道** ——
+     * 未就绪直接 412，绝不换成别的渠道扣款（用户选了免密却被扣余额，比直接失败更糟）。
+     *
+     * <p>注意：{@code charge} 里那条「用户偏好为 BALANCE 就无条件返回 BALANCE」的早退分支
+     * 对本方法**不适用**，否则默认偏好 BALANCE 的用户永远选不动免密。
+     *
+     * @throws ResponseStatusException 412 渠道未就绪；400 渠道值非法（非 BALANCE/WECHAT/ALIPAY）
+     */
+    public ChargeResult chargeExplicit(UserInfo user, String orderId, int amountCents,
+                                       String description, String channel) {
+        String c = channel == null ? "" : channel.trim().toUpperCase(java.util.Locale.ROOT);
+        // 金额非正或显式选余额：无需走渠道，调用方按余额处理
+        if (amountCents <= 0 || PayChannels.BALANCE.equals(c)) {
+            return new ChargeResult(PayChannels.BALANCE, null);
+        }
+        if (PayChannels.WECHAT.equals(c) || PayChannels.ALIPAY.equals(c)) {
+            if (!isChannelUsable(user, c)) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.PAY_CHANNEL_NOT_READY);
+            }
+            return PayChannels.WECHAT.equals(c)
+                    ? chargeWeChatPayScore(user, orderId, amountCents, description)
+                    : chargeAlipayAgreement(user, orderId, amountCents, description);
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
     }
 
     private ChargeResult chargeWeChatPayScore(UserInfo user, String orderId, int amountCents, String description) {

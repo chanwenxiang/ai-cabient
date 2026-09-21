@@ -33,7 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 public class OrderPaymentService {
@@ -42,6 +44,8 @@ public class OrderPaymentService {
     private static final String REFUND = "REFUND";
     private static final String CHARGE = "CHARGE";
     private static final String ADJUST_CHARGE = "ADJUST_CHARGE";
+    /** 渠道扣款描述（免密账单展示用）；自动决策与显式选择两条路径共用同一文案。 */
+    private static final String CHARGE_SUBJECT = "AI开门柜购物";
 
 
     private static final Logger log = LoggerFactory.getLogger(OrderPaymentService.class);
@@ -110,9 +114,24 @@ public class OrderPaymentService {
      * 订单扣款：须参与调用方事务，以便结算/争议确认中「先落单再扣款」可见未提交订单。
      * H41: 渠道 HTTP 前先以独立事务（REQUIRES_NEW）落 CHARGE_PENDING 痕迹并立即提交；
      * 渠道已扣款而外层结算事务回滚时，凭该记录补偿/人工介入，不再出现「无痕迹双扣」。
+     *
+     * <p>渠道由服务端自动决策（用户偏好 → 扫码入口渠道 → 已签约渠道 → 余额兜底）；
+     * 自动结算与运营代收走这条。
      */
     @Transactional
     public void chargeOrder(CabinetOrder order) {
+        chargeOrder(order, null);
+    }
+
+    /**
+     * 带**显式渠道**的订单扣款（F6「结算页支付方式选择」）。
+     *
+     * <p>{@code requestedChannel} 为空白 ⇒ 完全等同于 {@link #chargeOrder(CabinetOrder)}（自动决策），
+     * 即老客户端/老调用方行为不变；非空 ⇒ 只按该渠道扣款、**不降级**
+     * （见 {@link #chargeWithSelectedChannel}）。
+     */
+    @Transactional
+    public void chargeOrder(CabinetOrder order, String requestedChannel) {
         if (order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             order.setPayChannel(PayChannels.BALANCE);
             return;
@@ -123,13 +142,13 @@ public class OrderPaymentService {
             return;
         }
         runWithOrderPaymentLock(order.getOrderId(), locked -> {
-            chargeOrderUnderLock(locked);
+            chargeOrderUnderLock(locked, requestedChannel);
             cabinetOrderRepository.updateById(locked);
             syncPaymentFields(order, locked);
         });
     }
 
-    private void chargeOrderUnderLock(CabinetOrder order) {
+    private void chargeOrderUnderLock(CabinetOrder order, String requestedChannel) {
         String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
         if (restoreCompletedCharge(order, idemKey)) {
             return;
@@ -137,6 +156,10 @@ public class OrderPaymentService {
         UserInfo user = userInfoRepository.findById(order.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         ShoppingSession session = resolveSession(order.getSessionId());
+        if (requestedChannel != null && !requestedChannel.isBlank()) {
+            chargeWithSelectedChannel(order, user, session, requestedChannel, idemKey);
+            return;
+        }
         String entryChannel = session != null ? session.getEntryChannel() : null;
         if (tryPayScoreCharge(order, user, session, entryChannel, idemKey)) {
             return;
@@ -144,6 +167,39 @@ public class OrderPaymentService {
         applyBalanceCharge(order, session, idemKey);
         order.setPayChannel(PayChannels.BALANCE);
         ensurePaymentOperationId(order);
+    }
+
+    /**
+     * 只按用户**显式选择**的渠道扣款，**不降级**：渠道未就绪或在本环境不可用 ⇒ 412，
+     * 由前端提示改选或先去开通。
+     *
+     * <p>与自动结算的差别是刻意的：自动结算允许「免密不可用 ⇒ 回落余额」，
+     * 但用户显式选了免密却被扣余额，是**背离用户意图**的资金动作，必须显式失败。
+     */
+    private void chargeWithSelectedChannel(CabinetOrder order, UserInfo user, ShoppingSession session,
+                                           String requestedChannel, String idemKey) {
+        String channel = requestedChannel.trim().toUpperCase(Locale.ROOT);
+        if (!PayScoreService.isChannelUsable(user, channel)) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.PAY_CHANNEL_NOT_READY);
+        }
+        if (PayChannels.BALANCE.equals(channel)) {
+            applyBalanceCharge(order, session, idemKey);
+            order.setPayChannel(PayChannels.BALANCE);
+            ensurePaymentOperationId(order);
+            return;
+        }
+        if (checkoutProperties.balanceOnly()) {
+            // 余额专用环境（aicabinet.checkout.balance-only）：不接受免密渠道，同样不静默切回余额
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.PAY_CHANNEL_NOT_READY);
+        }
+        boolean charged = submitChannelCharge(order, user, session, idemKey,
+                () -> payScoreService.chargeExplicit(user, order.getOrderId(),
+                        order.getTotalAmountCents(), CHARGE_SUBJECT, channel),
+                "selected:" + channel);
+        if (!charged) {
+            // chargeExplicit 对非余额渠道「失败即抛」，返回 BALANCE 只可能源自金额非正（上面已拦）
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.PAY_CHANNEL_NOT_READY);
+        }
     }
 
     private boolean restoreCompletedCharge(CabinetOrder order, String idemKey) {
@@ -164,24 +220,39 @@ public class OrderPaymentService {
         return sessionRepository.findById(sessionId).orElse(null);
     }
 
+    /** 自动决策路径的渠道扣款：渠道不可用（返回 BALANCE）时让调用方回落余额。 */
     private boolean tryPayScoreCharge(CabinetOrder order, UserInfo user, ShoppingSession session,
                                       String entryChannel, String idemKey) {
         if (checkoutProperties.balanceOnly()) {
             return false;
         }
+        String origin = entryChannel == null || entryChannel.isBlank() ? "auto" : "auto:" + entryChannel;
+        return submitChannelCharge(order, user, session, idemKey,
+                () -> payScoreService.charge(user, order.getOrderId(), order.getTotalAmountCents(),
+                        CHARGE_SUBJECT, entryChannel),
+                origin);
+    }
+
+    /**
+     * 渠道扣款的公共部分（自动决策与显式选择共用同一套痕迹/落账语义）：
+     * H41 CHARGE_PENDING 痕迹 → 提交渠道 → 成功则落 CHARGE 流水 + FINALIZED + 释放预授权。
+     *
+     * @return {@code false} ⇒ 渠道判定为不可用（结果渠道为 BALANCE），**未扣任何款**，由调用方决定回落还是报错
+     */
+    private boolean submitChannelCharge(CabinetOrder order, UserInfo user, ShoppingSession session, String idemKey,
+                                        Supplier<PayScoreService.ChargeResult> submit, String origin) {
         // H41: 渠道 HTTP 之前先以独立事务落 CHARGE_PENDING 并立即提交（mock 路径跳过，行为不变）
         if (!securityProperties.mockEnabled()) {
             self.recordChargePending(order);
         }
         PayScoreService.ChargeResult charge;
         try {
-            charge = payScoreService.charge(
-                    user, order.getOrderId(), order.getTotalAmountCents(), "AI开门柜购物", entryChannel);
+            charge = submit.get();
         } catch (RuntimeException e) {
             // H41: 失败保留 CHARGE_PENDING 供补偿/人工（REQUIRES_NEW 已提交，不受外层回滚影响）；
             // 不降级余额、不盲切渠道
-            log.error("payscore charge failed, CHARGE_PENDING kept order={} channelHint={} err={}",
-                    order.getOrderId(), order.getPayChannel(), e.getMessage(), e);
+            log.error("payscore charge failed, CHARGE_PENDING kept order={} channelHint={} origin={} err={}",
+                    order.getOrderId(), order.getPayChannel(), origin, e.getMessage(), e);
             throw e;
         }
         if (PayChannels.BALANCE.equals(charge.channel())) {
@@ -196,8 +267,8 @@ public class OrderPaymentService {
         if (session != null) {
             consumerPreauthService.releaseIfFrozen(session);
         }
-        log.info("order charged channel={} order={} tradeNo={} entry={}",
-                charge.channel(), order.getOrderId(), charge.tradeNo(), entryChannel);
+        log.info("order charged channel={} order={} tradeNo={} origin={}",
+                charge.channel(), order.getOrderId(), charge.tradeNo(), origin);
         return true;
     }
 

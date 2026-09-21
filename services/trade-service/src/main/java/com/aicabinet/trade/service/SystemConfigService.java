@@ -251,6 +251,19 @@ public class SystemConfigService {
     /** 消费端：本柜商品详情（商品卡片可点开详情弹层；关闭时仅展示卡片摘要，与接入前一致）。 */
     public static final String CONSUMER_PRODUCT_DETAIL_ENABLED = "consumer.product_detail.enabled";
     /**
+     * 消费端：结算页**主动选择支付方式**（F6，见 {@code docs/COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md} F6）。
+     *
+     * <p>**关闭（默认）**：订单详情的「去支付」维持原样 —— 直接补缴，渠道由服务端自动决策
+     * （用户偏好 → 扫码入口 → 已签约渠道 → 余额兜底），即接入前行为。
+     * **开启**：若用户有 ≥2 个可用渠道，先弹出渠道选择（余额 / 微信免密 / 支付宝免密），
+     * 选定后随 `POST /api/v2/orders/{orderId}/pay` 的 body 上送；服务端**只按所选渠道扣款、不降级**，
+     * 未就绪返回 412 让用户改选。
+     *
+     * <p>⚠️ 本开关只影响「结算那一刻要不要问用户」；渠道是否就绪由账号状态决定，
+     * 与 {@link #CONSUMER_PRODUCT_DETAIL_ENABLED} 等展示类开关无关。
+     */
+    public static final String CONSUMER_PAY_CHANNEL_SELECT_ENABLED = "consumer.pay_channel_select.enabled";
+    /**
      * 消费端：首页推广位（S1，见 {@code docs/AD_MONETIZATION_DESIGN.md}）。
      *
      * <p><b>关闭（默认）＝ 首页不渲染该位置</b>，与接入前逐字节一致（fail-closed）。
@@ -456,6 +469,9 @@ public class SystemConfigService {
                 String.valueOf(self.getBoolean(CONSUMER_COUPON_ENTRY_ENABLED, false)));
         map.put("productDetailEnabled",
                 String.valueOf(self.getBoolean(CONSUMER_PRODUCT_DETAIL_ENABLED, false)));
+        // 结算页主动选择支付方式（F6）：默认关 ⇒ 「去支付」直接补缴，与接入前一致
+        map.put("payChannelSelectEnabled",
+                String.valueOf(self.getBoolean(CONSUMER_PAY_CHANNEL_SELECT_ENABLED, false)));
         // 首页推广位（S1）：默认关 ⇒ 渲染分支与接入前一致
         map.put("adBannerEnabled",
                 String.valueOf(self.getBoolean(CONSUMER_AD_BANNER_ENABLED, false)));
@@ -727,6 +743,8 @@ public class SystemConfigService {
                 "消费端：首页推广位接腾讯流量主广告（默认关闭；需先开通流量主并创建广告位）");
         upsertIfAbsent(CONSUMER_WX_AD_UNIT_ID, "",
                 "消费端：腾讯流量主广告单元 ID（adunit- 开头；留空则不渲染广告）");
+        upsertIfAbsent(CONSUMER_PAY_CHANNEL_SELECT_ENABLED, "false",
+                "消费端：结算页主动选择支付方式（默认关闭；关闭时「去支付」直接补缴，渠道由服务端自动决策）");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
         upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");

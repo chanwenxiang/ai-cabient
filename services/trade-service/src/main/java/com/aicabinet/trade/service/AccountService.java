@@ -148,14 +148,16 @@ public class AccountService {
                 && !PayChannels.ALIPAY.equals(normalized)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
+        // 🔴 就绪判据与「结算页显式选择」同源（PayScoreService.isChannelUsable）：
+        // 否则会出现「API 允许设为优先、但真到扣款时又不可用」的自相矛盾。
+        // 附带收紧了支付宝一侧：原先只判 agreementId 非空，PENDING 协议（尚未异步激活）也能设为优先，
+        // 而 AccountDto.alipayAgreementEnabled（前端据此禁用选项）用的是 isActiveAlipayAgreementId ⇒ 前后端口径原本不一致。
         if (PayChannels.WECHAT.equals(normalized)
-                && !(user.isPayscoreEnabled()
-                && user.getPayscoreContractId() != null
-                && !user.getPayscoreContractId().isBlank())) {
+                && !PayScoreService.isChannelUsable(user, PayChannels.WECHAT)) {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "请先开通微信支付分后再设为优先");
         }
         if (PayChannels.ALIPAY.equals(normalized)
-                && (user.getAlipayAgreementId() == null || user.getAlipayAgreementId().isBlank())) {
+                && !PayScoreService.isChannelUsable(user, PayChannels.ALIPAY)) {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "请先开通支付宝免密后再设为优先");
         }
         user.setPayPreferredChannel(normalized);
