@@ -108,7 +108,12 @@
             <el-button v-hasPermi="['ops:warehouse:export']" @click="onExport">
               {{ selectedKeys.length ? `导出选中 (${selectedKeys.length})` : '导出' }}
             </el-button>
-            <el-button :icon="Refresh" :loading="isTabLoading(tab)" @click="reloadCurrent"
+            <!-- 仓库主 tab 的刷新已内建 CrudTable 工具条；页头刷新仅服务其余 tab -->
+            <el-button
+              v-if="tab !== 'warehouses'"
+              :icon="Refresh"
+              :loading="isTabLoading(tab)"
+              @click="reloadCurrent"
               >刷新</el-button
             >
           </div>
@@ -306,36 +311,22 @@
         <el-tab-pane v-if="tabGroup === 'overview'" label="仓库概览" name="warehouses">
           <div class="table-scroll">
             <div class="table-scroll-inner">
-              <el-table
-                v-loading="isTabLoading('warehouses')"
-                :data="pagedWarehouses"
-                :default-sort="warehouseIdDefaultSort"
-                @sort-change="onWarehouseIdSortChange"
-                stripe
-                border
-                class="report-table"
+              <!-- 主列表统一表格壳：多选/升降序切换/固定操作列/分页/空态/刷新内建 -->
+              <CrudTable
+                :table="crud"
                 row-key="warehouseId"
-                @selection-change="onSelectionChange"
-                empty-text=" "
+                selectable
+                :actions="warehouseRowActions"
+                :action-width="88"
+                sort-field-label="仓库编号"
+                empty-text="暂无仓库"
+                @action="onWarehouseAction"
               >
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('warehouses') && !isTabLoading('warehouses')"
-                    description="暂无仓库"
-                /></template>
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
                 <el-table-column
                   prop="warehouseId"
                   label="仓库编号"
                   min-width="120"
                   class-name="col-text"
-                  sortable="custom"
                 >
                   <template #default="{ row }">
                     <span class="cell-id">{{ row.warehouseId }}</span>
@@ -363,22 +354,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column
-                  v-if="canEdit"
-                  label="操作"
-                  width="88"
-                  class-name="col-action"
-                  align="center"
-                  fixed="right"
-                >
-                  <template #default="{ row }">
-                    <TableActions
-                      :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
-                      @action="() => openWarehouse(row)"
-                    />
-                  </template>
-                </el-table-column>
-              </el-table>
+              </CrudTable>
             </div>
           </div>
         </el-tab-pane>
@@ -2117,7 +2093,9 @@
           </div>
         </el-tab-pane>
       </el-tabs>
+      <!-- 仓库主 tab 的分页已内建 CrudTable；共享分页器仅服务其余 tab -->
       <PagePager
+        v-if="tab !== 'warehouses'"
         :hydrated="hydratedTabs.has(tab)"
         v-model:current-page="page"
         v-model:page-size="size"
@@ -2244,6 +2222,7 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import WarehouseBinDialogs from '@/components/warehouse/WarehouseBinDialogs.vue';
@@ -2253,6 +2232,7 @@ import WarehousePurchaseDialogs from '@/components/warehouse/WarehousePurchaseDi
 import WarehouseStocktakeDialogs from '@/components/warehouse/WarehouseStocktakeDialogs.vue';
 import WarehouseTransferDialogs from '@/components/warehouse/WarehouseTransferDialogs.vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useWarehouseBins } from '@/composables/warehouse/useWarehouseBins';
 import { useWarehouseCsv } from '@/composables/warehouse/useWarehouseCsv';
@@ -2285,6 +2265,7 @@ type WarehouseLine = {
   expiryDate?: string;
 };
 /** 仓储多 Tab 共用行（字段随业务表变化） */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 
 const route = useRoute();
@@ -2511,11 +2492,32 @@ const overdueOnly = ref(false);
 const focusDeviceId = ref('');
 const warehouses = ref<Row[]>([]);
 const suppliers = ref<Row[]>([]);
-const {
-  defaultSort: warehouseIdDefaultSort,
-  onSortChange: onWarehouseIdSortChange,
-  sortById: sortWarehousesById
-} = useIdColumnSort<Row>('warehouseId');
+/** loadWarehouses 由 useWarehouseTabLoader 提供（setup 后半段赋值）；crud.fetchPage 委托它，避免重复拼装查询 */
+const loadWarehousesHolder: { fn: () => Promise<void> } = { fn: async () => undefined };
+
+// 仓库主列表状态机：分页/排序/多选/竞态收口到 CrudTable。
+// autoLoad:false —— 首查由路由生命周期 loadTab('warehouses', true) 触发（经 loadTab 桥接转发 crud.load），
+// 与深链 / keep-alive 激活刷新共用同一入口，避免双重首查。
+const crud = useCrudTable<Row>({
+  rowKey: (r) => r.warehouseId,
+  autoLoad: false,
+  sort: { prop: 'warehouseId', mode: 'local' },
+  errorMessage: '加载失败',
+  fetchPage: async (params) => {
+    page.value = params.page + 1; // 与多 tab 共用的 page/size 保持同步（其余 tab 与页头按钮仍读这两个 ref）
+    size.value = params.size;
+    await loadWarehousesHolder.fn();
+    return { items: warehouses.value, total: tabTotals.value.warehouses || 0 };
+  }
+});
+
+// 仓库主列表勾选已迁 CrudTable：同步回页面级 selectedKeys，页头「导出选中 (N)」与 useWarehouseCsv 继续复用
+watch(
+  () => [...crud.selectedKeys],
+  (keys) => {
+    if (tab.value === 'warehouses') selectedKeys.value = keys;
+  }
+);
 const {
   defaultSort: supplierIdDefaultSort,
   onSortChange: onSupplierIdSortChange,
@@ -2675,7 +2677,6 @@ const tabTotal = computed(() => {
   }
   return tabSource.value.length;
 });
-const pagedWarehouses = computed(() => sortWarehousesById(warehouses.value));
 const pagedSuppliers = computed(() => sortSuppliersById(suppliers.value));
 const pagedPurchaseOrders = computed(() => purchaseOrders.value);
 const pagedPurchaseReturns = computed(() => purchaseReturns.value);
@@ -2696,6 +2697,7 @@ const payableSummaryText = computed(() => {
 watch(tab, () => {
   page.value = 1;
   selectedKeys.value = [];
+  crud.clearSelection(); // 仓库主列表勾选随切 tab 清空（与原共用勾选行为一致）
 });
 watch([keyword, filterWarehouseId, focusDeviceId], () => {
   page.value = 1;
@@ -2747,6 +2749,17 @@ const {
   isTransitOverdue
 });
 
+/** 仓库主列表行操作（CrudTable rowActions）：perm 与原 canEdit（warehouses tab）等价 */
+function warehouseRowActions(_row: Row): CrudRowAction[] {
+  return [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:warehouse:edit' }
+  ];
+}
+
+function onWarehouseAction({ key, row }: { key: string; row: Row }) {
+  if (key === 'edit') openWarehouse(row);
+}
+
 function outboundSecondaryActions(row: Row): TableAction[] {
   const acts: TableAction[] = [];
   const hasLines = (row.lines?.length || 0) > 0;
@@ -2766,8 +2779,14 @@ function outboundSecondaryActions(row: Row): TableAction[] {
   return acts;
 }
 
-const { ensureMeta, loadWarehousesSoft, loadSuppliersSoft, loadPurchase, loadTab } =
-  useWarehouseTabLoader({
+const {
+  ensureMeta,
+  loadWarehouses,
+  loadWarehousesSoft,
+  loadSuppliersSoft,
+  loadPurchase,
+  loadTab: loadTabRaw
+} = useWarehouseTabLoader({
     loadSeq,
     hasDeviceListPerm: () => auth.hasPerm('ops:device:list') || auth.hasPerm('ops:device:ref'),
     page,
@@ -2805,6 +2824,18 @@ const { ensureMeta, loadWarehousesSoft, loadSuppliersSoft, loadPurchase, loadTab
     loadingTabs,
     hydratedTabs
   });
+loadWarehousesHolder.fn = loadWarehouses;
+
+/**
+ * 仓库主列表已迁 CrudTable：warehouses tab 的加载改走 crud 状态机（fetchPage 委托 loadWarehouses），
+ * 其余 tab 原样走 useWarehouseTabLoader。缓存语义与原 loadTab 一致：非 force 且已加载则跳过。
+ */
+async function loadTab(name: string, force = false): Promise<void> {
+  if (name !== 'warehouses') return loadTabRaw(name, force);
+  if (!force && loadedTabs.value.has('warehouses')) return;
+  await crud.load();
+  loadedTabs.value.add('warehouses');
+}
 loadTabHolder.fn = loadTab;
 
 const {
