@@ -9,40 +9,8 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:sku:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button
-            v-hasPermi="['ops:sku:import']"
-            @click="
-              onDownloadTemplate([
-                'SKU-DEMO-001',
-                '示例商品',
-                '3.50',
-                '',
-                '饮料',
-                'demo_sku',
-                '映射中',
-                '上架',
-                '92%',
-                '50%'
-              ])
-            "
-            >导入模板</el-button
-          >
-          <el-button v-hasPermi="['ops:sku:import']" :loading="importing" @click="triggerImport"
-            >导入</el-button
-          >
-          <input
-            ref="importInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onImportFile"
-          />
           <el-button v-if="canAccessSkus" @click="goSkus">商品管理</el-button>
           <el-button v-if="canEnroll" type="primary" @click="openEnroll()">入驻配置</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -140,7 +108,7 @@
           v-hasPermi="['ops:sku:edit']"
           type="danger"
           plain
-          :disabled="!selectedKeys.length"
+          :disabled="!crud.selectedKeys.length"
           :loading="batchDelisting"
           @click="batchDelist"
           >批量下架</el-button
@@ -150,35 +118,20 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayList"
-          stripe
-          border
+        <CrudTable
+          :table="crud"
+          class="sku-table"
           row-key="skuId"
-          class="report-table sku-table"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="rowActions"
+          :action-width="200"
+          actions-testid="sku-vision-enroll"
+          :empty-text="skuEmptyText"
+          sort-field-label="编号"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" :description="skuEmptyText" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="skuCode"
-            label="编号"
-            width="100"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="skuCode" label="编号" width="100" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.skuCode ?? '暂无' }}</span>
             </template>
@@ -297,35 +250,9 @@
               formatConfidence(row.detectionMinConfidence ?? 0.5)
             }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="200"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="skuActions(row)"
-                :max-primary="2"
-                @action="(key) => onSkuAction(key, row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog
       v-model="enrollDialog"
@@ -541,19 +468,15 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Refresh, Upload, CircleCheck, ArrowRight } from '@element-plus/icons-vue';
+import { EditPen, Upload, CircleCheck, ArrowRight } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useDictOptions } from '@/composables/useDictOptions';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useListCsv } from '@/composables/useListCsv';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { findNavByPath } from '@/config/menu';
 import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
 import { yuanToCents } from '@/utils/display';
@@ -572,7 +495,6 @@ import type {
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('skuCode');
 /** 入驻/转生产需同时具备商品编辑与识别映射编辑 */
 const canEnroll = computed(() => auth.hasPerm('ops:sku:edit') && auth.hasPerm('ops:vision:edit'));
 const canVisionEdit = computed(() => auth.hasPerm('ops:vision:edit'));
@@ -583,9 +505,6 @@ const canAccessSkus = computed(() => {
 function goSkus() {
   router.push('/skus');
 }
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
 const advancing = ref(false);
 const testing = ref(false);
@@ -593,8 +512,6 @@ const suggestingClass = ref(false);
 const suggestingImage = ref(false);
 const imageUploading = ref(false);
 const batchDelisting = ref(false);
-const items = ref<SkuCatalog[]>([]);
-const total = ref(0);
 const catalogOptions = ref<SkuCatalog[]>([]);
 const rowBySku = ref<Record<string, SkuVisionEnrollmentRow>>({});
 const pipelineHint = ref(
@@ -624,25 +541,46 @@ const keyword = ref('');
 const enrollmentFilter = ref('');
 const helpOpen = ref(false);
 const saleTab = ref('ACTIVE');
-const page = ref(1);
-const size = ref(20);
-const displayList = computed(() => sortById(items.value, (r) => r.skuCode ?? r.skuId));
 
-function queryParams() {
+// 路由深链筛选（keyword/enrollment/sale）须在首查前生效：setup 期同步应用，配合 useCrudTable 自动首载
+applyRouteQuery();
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<SkuCatalog>({
+  rowKey: (r) => r.skuId,
+  fetchPage: async (params) => {
+    // 行数据与入驻流水线信息同源返回；pipeline 拉取失败不阻断列表（保持原降级行为）
+    const [rowsRes, pipeline] = await Promise.all([
+      api.request<{ items: SkuVisionEnrollmentRow[]; total: number }>(
+        AdminEndpoints.skuVisionRows(queryParams(params.page, params.size)),
+        'GET'
+      ),
+      api
+        .request<SkuVisionEnrollmentPipeline>(AdminEndpoints.skuVisionPipeline, 'GET')
+        .catch(() => null)
+    ]);
+    const map: Record<string, SkuVisionEnrollmentRow> = {};
+    for (const r of rowsRes.items || []) map[r.sku.skuId] = r;
+    rowBySku.value = map;
+    if (pipeline) {
+      pipelineHint.value = pipeline.modelPipelineHint || pipelineHint.value;
+      if (pipeline.steps?.length) pipelineStepsFromApi.value = pipeline.steps;
+    }
+    return { items: (rowsRes.items || []).map((r) => r.sku), total: Number(rowsRes.total) || 0 };
+  },
+  sort: { prop: 'skuCode', mode: 'local' }
+});
+
+function queryParams(page: number, size: number) {
   const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
+    page: String(page), // 0 起（useCrudTable 已换算）
+    size: String(size)
   });
   if (keyword.value.trim()) q.set('q', keyword.value.trim());
   if (saleTab.value === 'ACTIVE') q.set('status', 'ACTIVE');
   else q.set('status', 'ALL');
   if (enrollmentFilter.value) q.set('enrollment', enrollmentFilter.value);
   return q;
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
 }
 
 async function loadCatalogOptions() {
@@ -665,14 +603,9 @@ const skuEmptyText = computed(() => {
   if (keyword.value.trim() || enrollmentFilter.value) return '无匹配商品';
   return '暂无商品';
 });
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
-  useTableSelection<SkuCatalog>((r) => r.skuId);
-
 function onSaleTab() {
-  clearSelection();
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
@@ -705,8 +638,8 @@ function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
 }
 
 async function batchDelist() {
-  const targets = items.value.filter(
-    (d) => selectedKeys.value.map(String).includes(d.skuId) && d.status === 'ACTIVE'
+  const targets = crud.items.filter(
+    (d) => crud.selectedKeys.map(String).includes(d.skuId) && d.status === 'ACTIVE'
   );
   if (!targets.length) {
     ElMessage.warning('请勾选在售商品');
@@ -728,8 +661,8 @@ async function batchDelist() {
     for (const row of targets) {
       try {
         await api.request(AdminEndpoints.sku(row.skuId), 'PUT', toUpsertBody(row, 'INACTIVE'));
-        const idx = items.value.findIndex((x) => x.skuId === row.skuId);
-        if (idx >= 0) items.value[idx] = { ...items.value[idx], status: 'INACTIVE' };
+        const idx = crud.items.findIndex((x) => x.skuId === row.skuId);
+        if (idx >= 0) crud.items[idx] = { ...crud.items[idx], status: 'INACTIVE' };
         ok += 1;
       } catch {
         fail += 1;
@@ -737,7 +670,7 @@ async function batchDelist() {
     }
     if (fail === 0) ElMessage.success(`已下架 ${ok} 个商品`);
     else ElMessage.warning(`下架完成：成功 ${ok}，失败 ${fail}`);
-    clearSelection();
+    crud.clearSelection();
   } finally {
     batchDelisting.value = false;
   }
@@ -779,87 +712,98 @@ function parseConfidence(raw: string | undefined, fallback: number) {
   return n > 1 ? n / 100 : n;
 }
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
-  useListCsv({
-    filePrefix: '商品',
-    headers: [
-      '商品编号',
-      '名称',
-      '基准价',
-      '成本',
-      '类目',
-      '识别类名',
-      '识别状态',
-      '商品状态',
-      '扣款阈值',
-      '检测阈值'
-    ],
-    toRows: () =>
-      pickSelected(displayList.value).map((row) => [
-        row.skuId,
-        row.skuName,
-        ((row.priceCents || 0) / 100).toFixed(2),
-        row.purchaseCostCents == null ? '' : (row.purchaseCostCents / 100).toFixed(2),
-        categoryLabel(row.category) === '无' ? '' : categoryLabel(row.category),
-        row.yoloClassName || '',
-        enrollmentLabel(row.visionEnrollmentStatus),
-        skuStatusLabel(row.status),
-        formatConfidence(row.minChargeConfidence),
-        formatConfidence(row.detectionMinConfidence ?? 0.5)
-      ]),
-    onImportRows: async (rows) => {
-      let ok = 0;
-      for (const row of rows) {
-        const skuId = (row['商品编号'] || row.skuId || '').trim();
-        const skuName = (row['名称'] || row.skuName || '').trim();
-        if (!skuId || !skuName) continue;
-        const yoloClassName =
-          (row['识别类名'] || row.yoloClassName || '').trim() ||
-          skuId.toLowerCase().replaceAll(/[^a-z0-9_]+/g, '_');
-        const priceCents = yuanToCents(row['基准价'] || row.priceYuan);
-        if (priceCents == null || priceCents < 0) continue;
-        const visionEnrollmentStatus = enrollmentStatusCode(
-          row['识别状态'] || row.visionEnrollmentStatus
-        );
-        const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
-        const costRaw = row['成本'] ?? row.purchaseCostYuan;
-        const purchaseCostCents =
-          costRaw != null && String(costRaw).trim() !== ''
-            ? (yuanToCents(costRaw) ?? undefined)
-            : undefined;
-        const body: UpsertSkuVisionEnrollmentRequest = {
-          sku: {
-            skuId,
-            skuName,
-            priceCents,
-            visionEnabled: true,
-            status,
-            category: normalizeCategoryToCode(row['类目'] || row.category) || undefined,
-            purchaseCostCents,
-            minChargeConfidence: parseConfidence(row['扣款阈值'] || row.minChargeConfidence, 0.92),
-            yoloClassName,
-            visionEnrollmentStatus,
-            detectionMinConfidence: parseConfidence(
-              row['检测阈值'] || row.detectionMinConfidence,
-              0.5
-            )
-          },
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '商品',
+  exportPerm: 'ops:sku:export',
+  importPerm: 'ops:sku:import',
+  headers: [
+    '商品编号',
+    '名称',
+    '基准价',
+    '成本',
+    '类目',
+    '识别类名',
+    '识别状态',
+    '商品状态',
+    '扣款阈值',
+    '检测阈值'
+  ],
+  templateSample: [
+    'SKU-DEMO-001',
+    '示例商品',
+    '3.50',
+    '',
+    '饮料',
+    'demo_sku',
+    '映射中',
+    '上架',
+    '92%',
+    '50%'
+  ],
+  // 选中优先导出由 CrudTable 内建（勾选了就只导选中）
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.skuId,
+      row.skuName,
+      ((row.priceCents || 0) / 100).toFixed(2),
+      row.purchaseCostCents == null ? '' : (row.purchaseCostCents / 100).toFixed(2),
+      categoryLabel(row.category) === '无' ? '' : categoryLabel(row.category),
+      row.yoloClassName || '',
+      enrollmentLabel(row.visionEnrollmentStatus),
+      skuStatusLabel(row.status),
+      formatConfidence(row.minChargeConfidence),
+      formatConfidence(row.detectionMinConfidence ?? 0.5)
+    ]),
+  onImportRows: async (rows) => {
+    let ok = 0;
+    for (const row of rows) {
+      const skuId = (row['商品编号'] || row.skuId || '').trim();
+      const skuName = (row['名称'] || row.skuName || '').trim();
+      if (!skuId || !skuName) continue;
+      const yoloClassName =
+        (row['识别类名'] || row.yoloClassName || '').trim() ||
+        skuId.toLowerCase().replaceAll(/[^a-z0-9_]+/g, '_');
+      const priceCents = yuanToCents(row['基准价'] || row.priceYuan);
+      if (priceCents == null || priceCents < 0) continue;
+      const visionEnrollmentStatus = enrollmentStatusCode(
+        row['识别状态'] || row.visionEnrollmentStatus
+      );
+      const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
+      const costRaw = row['成本'] ?? row.purchaseCostYuan;
+      const purchaseCostCents =
+        costRaw != null && String(costRaw).trim() !== ''
+          ? (yuanToCents(costRaw) ?? undefined)
+          : undefined;
+      const body: UpsertSkuVisionEnrollmentRequest = {
+        sku: {
+          skuId,
+          skuName,
+          priceCents,
+          visionEnabled: true,
+          status,
+          category: normalizeCategoryToCode(row['类目'] || row.category) || undefined,
+          purchaseCostCents,
+          minChargeConfidence: parseConfidence(row['扣款阈值'] || row.minChargeConfidence, 0.92),
           yoloClassName,
           visionEnrollmentStatus,
           detectionMinConfidence: parseConfidence(
             row['检测阈值'] || row.detectionMinConfidence,
             0.5
-          ),
-          mappingSource: 'EDGE_CLASS'
-        };
-        await api.request<SkuCatalog>(AdminEndpoints.skuVisionEnroll, 'POST', body);
-        ok++;
-      }
-      clearSelection();
-      await load();
-      return ok;
+          )
+        },
+        yoloClassName,
+        visionEnrollmentStatus,
+        detectionMinConfidence: parseConfidence(row['检测阈值'] || row.detectionMinConfidence, 0.5),
+        mappingSource: 'EDGE_CLASS'
+      };
+      await api.request<SkuCatalog>(AdminEndpoints.skuVisionEnroll, 'POST', body);
+      ok++;
     }
-  });
+    crud.clearSelection();
+    await crud.load();
+    return ok;
+  }
+};
 const enrollDialog = ref(false);
 const testDialog = ref(false);
 const testPreview = ref<DevRecognitionPreviewDto | null>(null);
@@ -971,8 +915,8 @@ function jsonToUrls(raw?: string) {
   return raw;
 }
 
-function skuActions(row: SkuCatalog): TableAction[] {
-  const acts: TableAction[] = [];
+function rowActions(row: SkuCatalog): CrudRowAction[] {
+  const acts: CrudRowAction[] = [];
   if (canEnroll.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
@@ -1001,7 +945,7 @@ function skuActions(row: SkuCatalog): TableAction[] {
   return acts;
 }
 
-function onSkuAction(key: string, row: SkuCatalog) {
+function onAction({ key, row }: { key: string; row: SkuCatalog }) {
   if (key === 'edit') openEnroll(row);
   else if (key === 'test') openTest(row);
   else if (key === 'advance') advanceRow(row);
@@ -1009,7 +953,7 @@ function onSkuAction(key: string, row: SkuCatalog) {
 }
 
 function onPickSku(skuId: string) {
-  const row = items.value.find((i) => i.skuId === skuId);
+  const row = crud.items.find((i) => i.skuId === skuId);
   if (!row) return;
   enrollForm.skuCode = row.skuCode;
   enrollForm.skuName = row.skuName;
@@ -1156,7 +1100,7 @@ async function saveEnroll() {
   try {
     const referenceImageUrlsJson = urlsToJson(enrollForm.referenceImageUrls);
     const skuId = enrollForm.skuId.trim();
-    const existing = items.value.find((i) => i.skuId === skuId);
+    const existing = crud.items.find((i) => i.skuId === skuId);
     const body: UpsertSkuVisionEnrollmentRequest = {
       sku: {
         skuId,
@@ -1192,13 +1136,13 @@ async function saveEnroll() {
       mappingSource: 'EDGE_CLASS'
     };
     const updated = await api.request<SkuCatalog>(AdminEndpoints.skuVisionEnroll, 'POST', body);
-    const idx = items.value.findIndex((i) => i.skuId === updated.skuId);
-    if (idx >= 0) items.value[idx] = updated;
-    else items.value.push(updated);
-    items.value.sort((a, b) => (a.skuCode ?? 0) - (b.skuCode ?? 0));
+    const idx = crud.items.findIndex((i) => i.skuId === updated.skuId);
+    if (idx >= 0) crud.items[idx] = updated;
+    else crud.items.push(updated);
+    crud.items.sort((a, b) => (a.skuCode ?? 0) - (b.skuCode ?? 0));
     enrollDialog.value = false;
     ElMessage.success('已保存识别入驻配置');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -1208,8 +1152,8 @@ async function saveEnroll() {
 
 async function applyRowUpdate(updated: SkuVisionEnrollmentRow) {
   const sku = updated.sku;
-  const idx = items.value.findIndex((i) => i.skuId === sku.skuId);
-  if (idx >= 0) items.value[idx] = sku;
+  const idx = crud.items.findIndex((i) => i.skuId === sku.skuId);
+  if (idx >= 0) crud.items[idx] = sku;
   rowBySku.value = { ...rowBySku.value, [sku.skuId]: updated };
 }
 
@@ -1258,10 +1202,10 @@ async function markProduction(row: SkuCatalog) {
       AdminEndpoints.skuVisionStatus(row.skuId, 'PRODUCTION'),
       'PATCH'
     );
-    const idx = items.value.findIndex((i) => i.skuId === row.skuId);
-    if (idx >= 0) items.value[idx] = updated;
+    const idx = crud.items.findIndex((i) => i.skuId === row.skuId);
+    if (idx >= 0) crud.items[idx] = updated;
     ElMessage.success(`${row.skuName} 已进入结算白名单`);
-    await load();
+    await crud.load();
   } catch (e) {
     if (e === 'cancel') return;
     ElMessage.error(e instanceof Error ? e.message : '更新失败');
@@ -1281,11 +1225,11 @@ async function markTestedFromPreview() {
       AdminEndpoints.skuVisionStatus(testForm.skuId, 'TESTED'),
       'PATCH'
     );
-    const idx = items.value.findIndex((i) => i.skuId === updated.skuId);
-    if (idx >= 0) items.value[idx] = updated;
+    const idx = crud.items.findIndex((i) => i.skuId === updated.skuId);
+    if (idx >= 0) crud.items[idx] = updated;
     testForm.status = 'TESTED';
     ElMessage.success('已标记为已测试，可继续转生产（进入结算白名单）');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '更新失败');
   } finally {
@@ -1371,18 +1315,16 @@ function syncRouteQuery() {
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function resetFilters() {
   keyword.value = '';
   enrollmentFilter.value = '';
   saleTab.value = 'ACTIVE';
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function applyRouteQuery() {
@@ -1406,43 +1348,9 @@ function applyRouteQuery() {
   return changed;
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const [rowsRes, pipeline] = await Promise.all([
-      api.request<{ items: SkuVisionEnrollmentRow[]; total: number }>(
-        AdminEndpoints.skuVisionRows(queryParams()),
-        'GET'
-      ),
-      api
-        .request<SkuVisionEnrollmentPipeline>(AdminEndpoints.skuVisionPipeline, 'GET')
-        .catch(() => null)
-    ]);
-    items.value = (rowsRes.items || []).map((r) => r.sku);
-    total.value = Number(rowsRes.total) || 0;
-    const map: Record<string, SkuVisionEnrollmentRow> = {};
-    for (const r of rowsRes.items || []) map[r.sku.skuId] = r;
-    rowBySku.value = map;
-    if (pipeline) {
-      pipelineHint.value = pipeline.modelPipelineHint || pipelineHint.value;
-      if (pipeline.steps?.length) pipelineStepsFromApi.value = pipeline.steps;
-    }
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -1453,9 +1361,8 @@ watch(
 );
 
 onMounted(() => {
-  applyRouteQuery();
+  // 首查由 useCrudTable autoLoad（默认 true）在挂载时执行；这里只补拉入驻弹窗的商品选项
   void loadCatalogOptions();
-  load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
