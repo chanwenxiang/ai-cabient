@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button
-            v-if="canAccessPath('/replenishment') && listHydrated && planDeviceIds.length"
+            v-if="canAccessPath('/replenishment') && crud.hydrated && planDeviceIds.length"
             v-hasPermi="['ops:replenishment:edit']"
             type="primary"
             @click="goPlanReplenishment()"
@@ -18,9 +18,8 @@
             一键补货规划（{{ planDeviceIds.length }} 台）
           </el-button>
           <el-button v-hasPermi="['ops:stock-health:export']" @click="onExport">{{
-            exportButtonLabel
+            crud.exportButtonLabel
           }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -95,66 +94,53 @@
       <button
         type="button"
         class="kpi-tile warn"
-        :aria-label="listHydrated ? `断货行 ${countBy('STOCKOUT')}` : `断货行 ${UI_COPY.loading}`"
+        :aria-label="crud.hydrated ? `断货行 ${countBy('STOCKOUT')}` : `断货行 ${UI_COPY.loading}`"
       >
         <div class="kpi-label">断货行</div>
-        <div class="kpi-value">{{ listHydrated ? countBy('STOCKOUT') : '…' }}</div>
-        <div v-if="!listHydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
+        <div class="kpi-value">{{ crud.hydrated ? countBy('STOCKOUT') : '…' }}</div>
+        <div v-if="!crud.hydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
       </button>
       <button
         type="button"
         class="kpi-tile"
-        :aria-label="listHydrated ? `低库存行 ${countBy('LOW')}` : `低库存行 ${UI_COPY.loading}`"
+        :aria-label="crud.hydrated ? `低库存行 ${countBy('LOW')}` : `低库存行 ${UI_COPY.loading}`"
       >
         <div class="kpi-label">低库存行</div>
-        <div class="kpi-value">{{ listHydrated ? countBy('LOW') : '…' }}</div>
-        <div v-if="!listHydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
+        <div class="kpi-value">{{ crud.hydrated ? countBy('LOW') : '…' }}</div>
+        <div v-if="!crud.hydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
       </button>
       <button
         type="button"
         class="kpi-tile warn"
         :aria-label="
-          listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : `临期行 ${UI_COPY.loading}`
+          crud.hydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : `临期行 ${UI_COPY.loading}`
         "
       >
         <div class="kpi-label">临期行</div>
-        <div class="kpi-value">{{ listHydrated ? countBy('NEAR_EXPIRY') : '…' }}</div>
-        <div v-if="!listHydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
+        <div class="kpi-value">{{ crud.hydrated ? countBy('NEAR_EXPIRY') : '…' }}</div>
+        <div v-if="!crud.hydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
       </button>
       <button
         type="button"
         class="kpi-tile"
-        :aria-label="listHydrated ? `涉及柜机 ${deviceCount}` : `涉及柜机 ${UI_COPY.loading}`"
+        :aria-label="crud.hydrated ? `涉及柜机 ${deviceCount}` : `涉及柜机 ${UI_COPY.loading}`"
       >
         <div class="kpi-label">涉及柜机</div>
-        <div class="kpi-value">{{ listHydrated ? deviceCount : '…' }}</div>
-        <div v-if="!listHydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
+        <div class="kpi-value">{{ crud.hydrated ? deviceCount : '…' }}</div>
+        <div v-if="!crud.hydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
       </button>
     </div>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          v-loading="loading"
-          :data="rows"
-          stripe
-          border
-          class="report-table"
-          row-key="rowKey"
-          empty-text=" "
-          @selection-change="onSelectionChange"
+        <CrudTable
+          :table="crud"
+          selectable
+          :actions="rowActions"
+          :action-width="220"
+          empty-text="暂无异常库存"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无异常库存"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             label="维度"
             width="96"
@@ -240,47 +226,22 @@
           <el-table-column label="到期日" width="120" class-name="col-text">
             <template #default="{ row }">{{ row.expiryDate || '未填' }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="220"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Box, Delete, Refresh, Remove, View } from '@element-plus/icons-vue';
+import { Box, Delete, Remove, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import PagePager from '@/components/PagePager.vue';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { createLoadSeq } from '@/composables/createLoadSeq';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -289,7 +250,6 @@ import { csvFileName } from '@/utils/csv';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface StockHealthRow {
-  rowKey?: string;
   dimension: string;
   deviceId: string;
   deviceName?: string;
@@ -309,6 +269,16 @@ interface StockHealthRow {
   batchNo?: string;
 }
 
+interface StockHealthPage {
+  items: StockHealthRow[];
+  total: number;
+  stockoutCount: number;
+  lowCount: number;
+  nearExpiryCount: number;
+  deviceCount: number;
+  planDeviceIds: string[];
+}
+
 function stockRowKey(row: StockHealthRow) {
   return [row.dimension, row.deviceId, row.skuId || '', row.lotId || row.batchNo || ''].join('|');
 }
@@ -316,19 +286,11 @@ function stockRowKey(row: StockHealthRow) {
 const route = useRoute();
 const auth = useAuthStore();
 const { canAccessPath, goPath } = useNavAccess();
-const loading = ref(false);
-/** 首屏未拉完前勿展示 0，避免与真实库存异常数闪错 */
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const dimension = ref('ALL');
 const deviceId = ref('');
 const merchantId = ref('');
 const routeCode = ref('');
 const lifecycleStatus = ref('DEPLOYED');
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const rows = ref<StockHealthRow[]>([]);
 const stockoutCount = ref(0);
 const lowCount = ref(0);
 const nearExpiryCount = ref(0);
@@ -336,14 +298,26 @@ const deviceCount = ref(0);
 const planDeviceIds = ref<string[]>([]);
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 
-const {
-  tableRef,
-  selectedKeys,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection
-} = useAdminListTable<StockHealthRow>((r) => r.rowKey || stockRowKey(r));
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 全部内建（本页无表头排序）。
+// KPI 计数与一键补货柜机取自响应旁路字段，在 fetchPage 内同步落位。
+const crud = useCrudTable<StockHealthRow>({
+  rowKey: stockRowKey,
+  // 首查前需先应用路由查询参数并加载柜机选项（onMounted），故关闭 autoLoad 显式首查
+  autoLoad: false,
+  errorMessage: '加载失败',
+  fetchPage: async (params) => {
+    const data = await api.request<StockHealthPage>(
+      AdminEndpoints.reportsStockHealthList(queryString(true, params.page, params.size)),
+      'GET'
+    );
+    stockoutCount.value = Number(data.stockoutCount) || 0;
+    lowCount.value = Number(data.lowCount) || 0;
+    nearExpiryCount.value = Number(data.nearExpiryCount) || 0;
+    deviceCount.value = Number(data.deviceCount) || 0;
+    planDeviceIds.value = data.planDeviceIds || [];
+    return { items: data.items || [], total: Number(data.total) || 0 };
+  }
+});
 
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '库存健康',
@@ -363,7 +337,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
     '到期日'
   ],
   toRows: () =>
-    pickSelected(rows.value).map((r) => [
+    crud.pickSelected(crud.displayItems).map((r) => [
       dimLabel(r.dimension),
       r.deviceName || '',
       r.deviceId || '',
@@ -380,8 +354,8 @@ const { onExport: exportSelectedCsv } = useListCsv({
     ])
 });
 
-function rowActions(row: StockHealthRow): TableAction[] {
-  const actions: TableAction[] = [];
+function rowActions(row: StockHealthRow): CrudRowAction[] {
+  const actions: CrudRowAction[] = [];
   if (canAccessPath('/devices')) {
     actions.push({ key: 'device', label: '设备', icon: View, type: 'primary' });
   }
@@ -404,7 +378,7 @@ function rowActions(row: StockHealthRow): TableAction[] {
   return actions;
 }
 
-function onRowAction(key: string, row: StockHealthRow) {
+function onAction({ key, row }: { key: string; row: StockHealthRow }) {
   if (key === 'device') {
     goPath(`/devices/${encodeURIComponent(row.deviceId)}`);
     return;
@@ -461,7 +435,7 @@ async function writeOffLot(row: StockHealthRow) {
       reason: 'EXPIRED'
     });
     ElMessage.success('已报损');
-    await load();
+    await crud.load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
     ElMessage.error(e instanceof Error ? e.message : '报损失败');
@@ -498,7 +472,7 @@ function dimTag(dim?: string): 'danger' | 'warning' | 'info' {
   return 'info';
 }
 
-function queryString(includePage = false) {
+function queryString(includePage = false, pageNo?: number, sizeNo?: number) {
   const q = new URLSearchParams();
   q.set('dimension', dimension.value || 'ALL');
   if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
@@ -510,55 +484,19 @@ function queryString(includePage = false) {
     q.set('lifecycleStatus', '');
   }
   if (includePage) {
-    q.set('page', String(page.value - 1));
-    q.set('size', String(size.value));
+    q.set('page', String(pageNo ?? 0));
+    q.set('size', String(sizeNo ?? crud.size));
   }
   return q.toString();
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const data = await api.request<{
-      items: StockHealthRow[];
-      total: number;
-      stockoutCount: number;
-      lowCount: number;
-      nearExpiryCount: number;
-      deviceCount: number;
-      planDeviceIds: string[];
-    }>(AdminEndpoints.reportsStockHealthList(queryString(true)), 'GET');
-    rows.value = (data.items || []).map((r) => ({ ...r, rowKey: stockRowKey(r) }));
-    total.value = Number(data.total) || 0;
-    stockoutCount.value = Number(data.stockoutCount) || 0;
-    lowCount.value = Number(data.lowCount) || 0;
-    nearExpiryCount.value = Number(data.nearExpiryCount) || 0;
-    deviceCount.value = Number(data.deviceCount) || 0;
-    planDeviceIds.value = data.planDeviceIds || [];
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
 function search() {
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 async function onExport() {
-  if (selectedKeys.value.length) {
+  // 有勾选时导出勾选项 CSV；否则走服务端导出（当前筛选条件）
+  if (crud.selectedKeys.length) {
     exportSelectedCsv();
     return;
   }
@@ -614,18 +552,17 @@ function applyRouteQuery() {
   return changed;
 }
 
+// 首查前需先应用路由查询参数并加载柜机选项，故关闭 autoLoad 由这里显式首查
 onMounted(async () => {
   applyRouteQuery();
   await loadDeviceOptions();
-  page.value = 1;
-  await load();
+  await crud.load();
 });
 
 onActivated(() => {
   // keep-alive 复用时 onMounted 不重跑；须按本次路由 query 同步维度
   applyRouteQuery();
-  page.value = 1;
-  void load();
+  void crud.search();
 });
 
 watch(
@@ -639,8 +576,7 @@ watch(
     ] as const,
   () => {
     if (applyRouteQuery()) {
-      page.value = 1;
-      void load();
+      void crud.search();
     }
   }
 );
