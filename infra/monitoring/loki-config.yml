@@ -38,7 +38,7 @@ limits_config:
   # 单机演示栈：7 天。生产按合规要求调整（也可用环境变量注入）。
   retention_period: 168h
   allow_structured_metadata: false
-  # Docker VM 仅 3.82GB ⇒ 压小查询内存，避免与业务容器抢内存。
+  # 仍是单机演示栈 ⇒ 压小查询内存，避免与业务容器抢内存（Docker VM 2026-09-21 起 8GB）。
   max_query_series: 5000
   max_streams_per_user: 10000
   # 🔴 限速不能按「稳态」拍：promtail **首次启动**会把容器已有日志整体回灌，

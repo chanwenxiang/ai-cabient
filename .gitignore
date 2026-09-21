@@ -86,6 +86,9 @@ desktop.ini
 patch.txt
 *.log
 infra/docker-rebuild.log
+# 证据包里的原始日志必须入库：门禁/测试/迁移的 raw 输出是判据本体，
+# 被 ignore 掉等于「证据对后来者不存在」（与 README 一起提交才有意义）。
+!docs/evidence/**/*.log
 .batch*.json
 
 # Browser/agent verification screenshots (local only)

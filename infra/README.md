@@ -285,7 +285,9 @@ Compose 默认 **`VISION_INSTALL_ML=false`**，镜像只装 `requirements-base.t
 |------|------|
 | `docker-compose.yml` | PostgreSQL、Redis、EMQX、MinIO、Redpanda、Gateway、监控 |
 | `docker-compose.apps.yml` | trade / device / vision 应用服务（profile: `apps`）、healthcheck、depends_on |
-| `docker-compose.devops.yml` | SonarQube、GHA Runner（profile: `devops`），详见 [docs/DEVOPS.md](../docs/DEVOPS.md) |
+| `docker-compose.devops.yml` | SonarQube、GHA Runner（profile: `devops`，默认不启动），详见 [docs/DEVOPS.md](../docs/DEVOPS.md) |
+| `docker-compose.observability.yml` | Loki / promtail / Tempo（profile: `observability`，默认不启动） |
+| `observability.ps1` | 可观测性一键启停：`on` / `off` / `status` / `logs` |
 | `.env.example` | 环境变量模板 |
 | `up.ps1` | 全栈启动脚本（`-Build` / `-Down` / `-Prod`） |
 | `gateway/nginx.conf` | 本地开发 gateway（转发 host.docker.internal） |
@@ -315,6 +317,47 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 # 仅拉基础设施
 docker compose up -d
 ```
+
+---
+
+## 日志与链路查看
+
+> 完整手册（LogQL 示例、6 个坑、保留期）见 **[docs/OBSERVABILITY_USAGE.md](../docs/OBSERVABILITY_USAGE.md)**。
+
+**入口只有一个：Grafana** → `http://localhost/devops/grafana/`（admin/admin），
+看板在 `AI Cabinet` 文件夹下：
+
+| 看板 | 看什么 |
+|---|---|
+| **全栈日志流** | 所有服务原始日志（可多选服务 / 关键词过滤） |
+| **错误与告警** | 只留 error/warn/exception/fail 的行 —— 排障先看这页 |
+| **日志速率（按服务）** | 每服务日志行速率：突增＝刷屏，骤降＝卡住 |
+| **ERROR 行计数（按服务）** | 5m 窗口 ERROR 行数（日志计数，非业务失败率） |
+| **一次调用追踪（traceId）** | 粘 traceId 串起一次调用的全部日志 |
+| **AI Cabinet 运营概览** | 开门成功率、设备在线、对账 MISMATCH、MQTT 链路等指标 |
+
+> 日志 5 个页面都在 `AI Cabinet` 文件夹下、带标签 `ai-cabinet-logs` ⇒ 页内右上角「日志中心」可互相跳转。
+> 后台「系统 → 日志中心」把这 5 页 + 运营概览做成页签，最省事。
+
+Loki（日志）与 Tempo（链路）**默认不启动**，需要时再开：
+
+```powershell
+cd infra
+.\observability.ps1 status   # 状态 + Docker VM 内存提示
+.\observability.ps1 on       # 启动 loki + promtail + tempo
+.\observability.ps1 off      # 停掉它们（保留 loki_data / tempo_data / promtail_positions）
+```
+
+🔴 两个最容易踩的：
+
+- **promtail 只保留最近 10 分钟**（`drop.older_than`）⇒ `off` 超过 10 分钟再 `on`，中间日志**永久丢失**。
+- **日志里有 traceId ≠ 该链路已上报 Tempo**：采样概率默认 0.1，未采样的是 `nonRecordingSpan`。
+
+⚠️ 直连 `http://localhost:13000` 根路径只会 301 跳到 `/devops/grafana/`（`serve_from_sub_path`），
+那个前缀由 gateway（宿主 80）提供 ⇒ 记 `localhost/devops/grafana/`。
+
+---
+
 ## Step 4 one-command runtime smoke
 
 From `infra/`:

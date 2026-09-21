@@ -10,8 +10,11 @@
 #    控制不了**容器在不在跑** —— 系统配置存在 PG 里，它拉不起容器。
 #    所以「可观测开关」= 本脚本管容器 ＋ 运营台「功能开关」管数据，两层缺一不可。
 #
-# 🔴 为什么默认不启动：本机 Docker VM 只有 3.82GB，Loki+Tempo 常驻会与业务容器抢内存
-#    （O8 压测那次 1000 VU 已把 Docker 引擎打崩、需人工重启）。需要看日志/链路时再开。
+# 🔴 为什么默认不启动：Loki+Tempo 常驻会与业务容器抢内存（O8 压测那次 1000 VU 已把
+#    Docker 引擎打崩、需人工重启）。需要看日志/链路时再开。
+#    ⚠️ 2026-09-21 起本机 Docker VM 已由 4GB 调到 8GB（`~/.wslconfig` 的 `memory=8GB`，
+#    `docker info .MemTotal` 报 ≈7939MB）——「默认不启动」现在的理由是**资源隔离习惯**，
+#    不再是「装不下」。历史压测文档里的 3.82GB 是当时的环境基线，未改动。
 
 param(
     [Parameter(Position = 0)]
@@ -91,7 +94,10 @@ if ($Action -eq "status") {
     Write-Host "==> 端口（宿主）" -ForegroundColor Cyan
     Write-Host "  Loki    http://127.0.0.1:13100/ready"
     Write-Host "  Tempo   http://127.0.0.1:13200/ready   （OTLP HTTP 14318 / gRPC 14317）"
-    Write-Host "  Grafana http://localhost:13000/  数据源 Loki / Tempo"
+    Write-Host "  Grafana http://localhost/devops/grafana/   （admin/admin；数据源 Loki / Tempo / Prometheus）"
+    Write-Host "          ⚠️ 别用 :13000 直连根路径：serve_from_sub_path 会 301 跳到 /devops/grafana/，" -ForegroundColor Yellow
+    Write-Host "             该前缀由 gateway（宿主 80）提供。看板在 AI Cabinet 文件夹下。" -ForegroundColor Yellow
+    Write-Host "  手册：docs/OBSERVABILITY_USAGE.md"
     exit 0
 }
 
@@ -152,7 +158,8 @@ Write-Host "==> 自检" -ForegroundColor Cyan
 Write-Host "  loki ready: $(try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 http://127.0.0.1:13100/ready).StatusCode } catch { 'FAILED' })"
 Write-Host "  tempo ready: $(try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 http://127.0.0.1:13200/ready).StatusCode } catch { 'FAILED' })"
 Write-Host ""
-Write-Host "下一步：Grafana(Loki/Tempo 数据源已自动加载) → 应用侧运行期开关见运营台「功能开关」" -ForegroundColor Cyan
+Write-Host "下一步：Grafana → http://localhost/devops/grafana/ （AI Cabinet 文件夹：全栈日志流 / 错误与告警 / 日志速率 / ERROR 计数 / 一次调用追踪 / 运营概览）" -ForegroundColor Cyan
+Write-Host "用法手册：docs/OBSERVABILITY_USAGE.md ｜ 应用侧运行期开关见运营台「功能开关」" -ForegroundColor Cyan
 
 # 🔴 必须显式 exit 0：不写的话 $LASTEXITCODE 会留着脚本内部最后一条原生命令的值，
 # 调用方（含 CI / 人肉判断）会读到一个没有意义的非 0 值（实测拿到过 -1）——

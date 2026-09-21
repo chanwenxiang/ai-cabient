@@ -106,4 +106,9 @@ Micrometer/OTel 在**未采样**时仍会创建 span（`nonRecordingSpan`）：`
 1. 🔴 **采样率未显式配置、未登记**（依赖框架默认 0.1）。排障时「为什么没有数据」无法自解释 ⇒ 建议在 `application.yml` 显式写出并在功能开关注册表登记。
 2. ⚠️ `tempo_data` 卷内**残留 2026-09-20 的 5 条旧 trace** ⇒ 判「有没有新数据」必须比较 `startTime`，**不能只看条数**。
 3. 监控栈容器当前**处于运行状态**（约占 1 GB；Docker VM 仅 3.9 GB）。停止并保留数据卷：`infra/observability.ps1 off`。
+   - 📌 本页正文里的 **3.9 GB / 1 GB 是报告写作时（当天上午）的环境快照，保留未改**。同日晚实测：`docker info .MemTotal` = 7939 MB（`~/.wslconfig` 已调到 `memory=8GB`），
+     loki+promtail+tempo+grafana+prometheus 合计 ≈320 MB —— 与「1 GB」的差额来自当日的首次回灌/索引构建开销，不是判据变化。
+   - 📌 同日晚补：新看板 `AI Cabinet 全栈日志`（uid `ai-cabinet-logs`）已落地，用法见 [OBSERVABILITY_USAGE.md](./OBSERVABILITY_USAGE.md)。
+   - 📌 同日晚（更晚）：该合并看板**已按主题拆成 5 个页面**（`ai-cabinet-logs-stream` / `-errors` / `-rate` / `-errorcount` / `-trace`，一页一面板、整行宽），
+     上面的 uid `ai-cabinet-logs` 已随文件删除下线。**本页正文是当时的取证记录，保留原样。**
 4. 本报告的验证面为 **Testcontainers/容器级真环境**（真 PG/Redis/真 HTTP 管线），**未跑浏览器 UAT**。

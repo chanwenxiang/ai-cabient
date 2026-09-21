@@ -5,8 +5,10 @@
 #       --profile alerting --profile observability up -d
 # 或者直接用一键脚本：  infra/observability.ps1 on
 #
-# 🔴 为什么要挂 profile：Docker VM 只有 3.82GB。Loki + Tempo 常驻会和业务容器抢内存
-#    （O8 压测那次 1000 VU 已把 Docker 引擎打崩、需人工重启）⇒ 要看日志/链路时再开。
+# 🔴 为什么要挂 profile：Loki + Tempo 常驻会和业务容器抢内存（O8 压测那次 1000 VU 已把
+#    Docker 引擎打崩、需人工重启）⇒ 要看日志/链路时再开。
+#    ⚠️ 2026-09-21 起本机 Docker VM 已由 4GB 调到 8GB ⇒「默认不启动」是**资源隔离习惯**，
+#    不再是「装不下」。用法手册见 docs/OBSERVABILITY_USAGE.md。
 #    ⚠️ 于是「容器是否在跑」**不可能**由应用侧的系统配置决定 —— 系统配置能控制的是
 #    「应用要不要往这里发数据」（见 tracing 的运行期开关），两件事别混。
 #

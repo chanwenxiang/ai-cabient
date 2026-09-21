@@ -20,6 +20,15 @@
   8. `MIN_REFS` 抬到 999（消费方 expr 锚点失效 ⇒ 恒绿守卫）
   9. 全部还原后必须回绿（反向守卫，防「永久红」被当成有效）
 
+2026-09-21 追加（修 Loki 看板误报后）
+------------------------------------
+  10. **Loki 看板注入假指标名 ⇒ 仍绿**：R3 只校验 Prometheus 数据源的面板。
+      加 5 个 Loki 日志看板时，门禁曾连报 9 条「不存在的指标」（`service`/`keyword`/`traceId`/
+      `count_over_time`/`warn`/`exception`/`fail`），全是把 LogQL 的标签名、模板变量、函数名
+      当成了 PromQL 指标名。此例锁住「按数据源同源过滤」这一语义，防止后人再把它改回全量扫描。
+  11. `MIN_PROM_EXPRS` 抬到 999（Prometheus 面板 expr 锚点失效 ⇒ 恒绿守卫）：
+      证明第 10 条的「绿」是因为**真的过滤了**，不是因为过滤写错导致一条都没校验。
+
 用法
 ----
     python scripts/devops/verify-metric-names-drift.py
@@ -46,6 +55,10 @@ DASHBOARD = (
     / "dashboards" / "json" / "ai-cabinet-overview.json"
 )
 ADMIN_VIEW = ROOT / "clients" / "admin-vue" / "src" / "views" / "system" / "DevOpsHubView.vue"
+LOKI_DASHBOARD = (
+    ROOT / "infra" / "monitoring" / "grafana" / "provisioning"
+    / "dashboards" / "json" / "ai-cabinet-logs-stream.json"
+)
 DRAFT_ALERTS = ROOT / "infra" / "monitoring" / "alerts.yml"
 PROM_FULL = ROOT / "infra" / "monitoring" / "prometheus-full.yml"
 
@@ -53,6 +66,10 @@ GOOD = b"cabinet.devices.count"
 BAD = b"cabinet.devices.total"
 GOOD_M = b"cabinet_devices_count"
 BAD_M = b"cabinet_devices_total"
+# 该 Loki 看板里必然出现的模板变量（`|~ "$keyword"`）：换成假指标名后，若门禁仍绿 ⇒ 说明它确实按数据源跳过了。
+# ⚠️ 别用 `count_over_time` 之类 LogQL 函数名：只有 metrics/errorcount 页有，stream 页没有（锚点会找不到）。
+LOKI_TOKEN = b"$keyword"
+LOKI_FAKE = b"cabinet_devices_probe_not_a_metric"
 
 
 def node_bin() -> str:
@@ -141,10 +158,18 @@ CASES = [
     Case("把草稿挂进 rule_files", True, "草稿不得被加载", mount_draft_rule),
     Case("MIN_REGISTERED 抬到 99", True, "只从 Java 解析出", replace_tokens(GATE, [(b"const MIN_REGISTERED = 15;", b"const MIN_REGISTERED = 99;")])),
     Case("MIN_REFS 抬到 999", True, "只解析出", replace_tokens(GATE, [(b"const MIN_REFS = 8;", b"const MIN_REFS = 999;")])),
+    # 反向例：Loki（LogQL）面板里的"假指标名"**不该**被报出来 —— 它本来就不是 PromQL。
+    Case(
+        "Loki 看板注入假指标名仍应绿",
+        False,
+        "",
+        replace_tokens(LOKI_DASHBOARD, [(LOKI_TOKEN, LOKI_FAKE)]),
+    ),
+    Case("MIN_PROM_EXPRS 抬到 999", True, "只校验到", replace_tokens(GATE, [(b"const MIN_PROM_EXPRS = 15;", b"const MIN_PROM_EXPRS = 999;")])),
     Case("全部还原后回绿", False, "", lambda: None),
 ]
 
-TARGETS = [METRICS_JAVA, ALERT_RULES, DASHBOARD, ADMIN_VIEW, DRAFT_ALERTS, PROM_FULL, GATE]
+TARGETS = [METRICS_JAVA, ALERT_RULES, DASHBOARD, ADMIN_VIEW, LOKI_DASHBOARD, DRAFT_ALERTS, PROM_FULL, GATE]
 
 
 def main() -> int:

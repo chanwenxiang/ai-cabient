@@ -26,7 +26,7 @@ ingester:
 
 compactor:
   compaction:
-    # 演示栈只留 24h，Docker VM 仅 3.82GB
+    # 演示栈只留 24h（本机 Docker VM 2026-09-21 起为 8GB；保留期按演示栈定位，与内存无关了）
     block_retention: 24h
 
 storage:

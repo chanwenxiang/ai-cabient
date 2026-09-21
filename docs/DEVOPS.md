@@ -63,12 +63,19 @@ docker compose -f docker-compose.full.yml -f docker-compose.devops.yml --profile
 | 工具 | URL | 说明 |
 |------|-----|------|
 | **运营后台 DevOps 中心** | http://localhost/admin/index.html#/devops | 集成入口，嵌入 Grafana |
-| Grafana（同源嵌入） | http://localhost/devops/grafana/ | 经 Gateway 反代 |
-| Grafana（直连） | http://localhost:13000 | 容器端口 |
+| **日志中心（后台内嵌）** | http://localhost/admin/index.html#/observability | 系统模块 → 日志中心：6 个页签（5 个日志主题页 + 运营概览）直接嵌在页面内，带切换与探测；与 DevOps 中心同权（`ops:devops:view`，V249 后仅 admin） |
+| Grafana（同源嵌入） | http://localhost/devops/grafana/ | 经 Gateway 反代。**看日志/指标都从这里进**（admin/admin） |
+| Grafana（直连） | http://localhost:13000 | ⚠️ 根路径只回 **301**，会跳到 `/devops/grafana/`（`serve_from_sub_path=true`）⇒ 日常请直接记上面那行 |
+| Loki（日志聚合） | http://127.0.0.1:13100 | 容器 stdout 汇总；日常走 Grafana 的 5 个「日志中心」页面（`ai-cabinet-logs-*`） |
+| Tempo（链路追踪） | http://127.0.0.1:13200 | OTLP HTTP 14318 / gRPC 14317 |
 | Prometheus | http://localhost:9090 | 指标查询（**官方 UI 无中文**；日常用 Grafana 中文看板） |
 | Grafana 中文 | http://localhost/devops/grafana/ | 已默认 `zh-Hans`；也可在个人偏好里改语言 |
-| SonarQube | http://localhost:19002 | 首次登录 admin/admin 后改密 |
+| SonarQube | http://localhost:19002 | ⚠️ **默认不启动**（devops profile，省内存），需用时 `-f docker-compose.devops.yml --profile devops up -d sonarqube`；首次登录 admin/admin 后改密 |
 | GitHub Actions | https://github.com/chanwenxiang/ai-cabient/actions/workflows/sonar.yml | CI + Sonar 扫描 |
+
+> 🔴 **Loki / Tempo / promtail 在 `observability` profile 下，默认不启动** —— 容器没起时
+> Grafana 里查不到日志是**预期**，不是故障。启停：`infra/observability.ps1 on|off|status`。
+> 完整用法（含 6 个坑、LogQL 示例、保留期）见 **[OBSERVABILITY_USAGE.md](./OBSERVABILITY_USAGE.md)**。
 
 SonarQube / Runner 容器默认 `TZ=Asia/Shanghai`。
 

@@ -43,6 +43,8 @@ const TAG = '[check-prometheus-metric-names]';
 
 const MIN_REGISTERED = 15;
 const MIN_REFS = 8;
+/** Prometheus 面板 expr 数下限：防止「按数据源过滤」写错后整段静默空转（实测 2026-09-21 为 25）。 */
+const MIN_PROM_EXPRS = 15;
 const DRAFT_MARK = '# gate: draft-unimplemented';
 
 /** actuator / exporter 自带指标：无法从业务代码里找到注册点，按前缀放行（逐条注明来源）。 */
@@ -358,22 +360,54 @@ for (const f of ruleFiles) {
 }
 
 // ── R3：看板与运维页 ─────────────────────────────────────────────────────
+// ⚠️ 只校验 **Prometheus 数据源**面板的 expr：Loki 面板的 expr 是 LogQL
+// （如 `sum by (service) (count_over_time({service=~"$service"} |~ "(?i)error" [5m]))`），
+// 里面的**标签名**（`service`）、**模板变量**（`"$keyword"`/`"$traceId"` → 剥掉 `{}` 后只剩标识符）
+// 和 **LogQL 函数名**（`count_over_time`）都会被 metricsIn 当成指标名 ⇒ 每个 Loki 看板都凭空报错。
+//
+// 2026-09-21 实测：新增 5 个 Loki 日志看板后本门禁报了 9 条「不存在的指标」
+// （`service` / `keyword` / `traceId` / `count_over_time` / `warn` / `exception` / `fail`），**全是误报**：
+// 已提交的 HEAD 只有 Prometheus 看板，所以本门禁此前一直是绿的 —— 即误报只在「有人加非 Prometheus 看板」时暴露。
+// 判据改为「与元素的数据源同源」：面板或 target 声明 prometheus 才校验，其余计入 skipped 并打印出来。
+const isPromDs = (ds) => (ds?.type ?? '') === 'prometheus';
 const dashboards = walk(join(root, 'infra/monitoring/grafana/provisioning/dashboards/json'), (n) =>
   n.endsWith('.json')
 );
+let promExprs = 0;
+let skippedExprs = 0;
 for (const f of dashboards) {
-  const raw = readFileSync(f, 'utf8');
-  // ⚠️ 看板 JSON 里 expr 内的引号是**转义的**（如 `{\"result\":\"success\"}`）。若用 `"([^"]+)"` 捕获，
-  // 会在第一个 `\"` 处截断，把 `…{result=` 这种残片喂给 metricsIn —— 左花括号没闭合 ⇒ 花括号剥离失效 ⇒
-  // **标签名被当成指标名**误报（历史面板只因 `result/state/status` 恰好在关键字白名单里才没暴露）。
-  // 故按「非引号 or 转义序列」整体捕获后再反转义，让 expr 完整进入 metricsIn。
-  for (const m of raw.matchAll(/"expr"\s*:\s*"((?:[^"\\]|\\.)+)"/g)) {
-    const expr = m[1].replace(/\\(.)/g, '$1');
-    for (const name of metricsIn(expr)) {
-      refCount++;
-      if (!isKnownMetric(name)) problems.push(`${rel(f)} 面板引用了不存在的指标 \`${name}\``);
+  let doc;
+  try {
+    doc = JSON.parse(readFileSync(f, 'utf8'));
+  } catch (e) {
+    // 以前这里用正则扫原文，JSON 语法错也照样「解析成功」⇒ 判据会静默失效；改为解析失败即报。
+    problems.push(`${rel(f)} 不是合法 JSON（${e.message}）—— 本门禁无法校验它的指标名`);
+    continue;
+  }
+  for (const panel of doc.panels ?? []) {
+    const panelProm = isPromDs(panel.datasource);
+    for (const t of panel.targets ?? []) {
+      const expr = typeof t.expr === 'string' ? t.expr : '';
+      if (!expr) continue;
+      const targetProm = t.datasource === undefined ? panelProm : isPromDs(t.datasource);
+      if (!targetProm) {
+        skippedExprs++;
+        continue;
+      }
+      promExprs++;
+      for (const name of metricsIn(expr)) {
+        refCount++;
+        if (!isKnownMetric(name)) problems.push(`${rel(f)} 面板引用了不存在的指标 \`${name}\``);
+      }
     }
   }
+}
+
+if (promExprs < MIN_PROM_EXPRS) {
+  fail(
+    `只校验到 ${promExprs} 条 Prometheus 面板 expr（期望 ≥ ${MIN_PROM_EXPRS}）：` +
+      `数据源过滤或看板结构可能已变，R3 的看板覆盖已失去判别力`
+  );
 }
 
 const adminViews = walk(join(root, 'clients/admin-vue/src'), (n) => /\.(vue|ts)$/.test(n));
@@ -402,6 +436,7 @@ if (problems.length) {
 
 console.log(
   `${TAG} OK: ${registered} 个注册点 → ${allowedSuffixes.size} 个有效指标名；` +
-    `${ruleFiles.length} 个规则文件（草稿 ${draftFiles.size} 个）、${dashboards.length} 个看板、` +
+    `${ruleFiles.length} 个规则文件（草稿 ${draftFiles.size} 个）、${dashboards.length} 个看板` +
+    `（校验 ${promExprs} 条 Prometheus expr，跳过 ${skippedExprs} 条非 Prometheus）、` +
     `${adminViews.length} 个 admin 视图的引用全部可解析`
 );
