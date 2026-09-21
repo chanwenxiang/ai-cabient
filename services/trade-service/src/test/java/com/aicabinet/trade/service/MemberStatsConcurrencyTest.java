@@ -4,6 +4,7 @@ import com.aicabinet.trade.domain.Member;
 import com.aicabinet.trade.mapper.MemberLevelRuleMapper;
 import com.aicabinet.trade.mapper.MemberMapper;
 import com.aicabinet.trade.mapper.MemberPointsLogMapper;
+import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,7 @@ class MemberStatsConcurrencyTest {
     @Mock private MemberMapper memberRepository;
     @Mock private MemberLevelRuleMapper levelRuleRepository;
     @Mock private MemberPointsLogMapper pointsLogRepository;
+    @Mock private RechargeOrderMapper rechargeOrderRepository;
     @Mock private DistributedLockService distributedLockService;
 
     private MemberService memberService;
@@ -33,7 +35,7 @@ class MemberStatsConcurrencyTest {
     @BeforeEach
     void setUp() {
         memberService = new MemberService(memberRepository, levelRuleRepository, pointsLogRepository,
-                distributedLockService, null);
+                rechargeOrderRepository, distributedLockService, null);
     }
 
     @Test

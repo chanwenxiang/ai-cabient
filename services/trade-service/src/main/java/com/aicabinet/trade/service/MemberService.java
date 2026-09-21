@@ -6,12 +6,14 @@ import com.aicabinet.trade.domain.MemberPointsLog;
 import com.aicabinet.trade.mapper.MemberMapper;
 import com.aicabinet.trade.mapper.MemberLevelRuleMapper;
 import com.aicabinet.trade.mapper.MemberPointsLogMapper;
+import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import com.aicabinet.common.dto.MemberLevelRuleDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -34,17 +36,20 @@ public class MemberService {
     private final MemberMapper memberRepository;
     private final MemberLevelRuleMapper levelRuleRepository;
     private final MemberPointsLogMapper pointsLogRepository;
+    private final RechargeOrderMapper rechargeOrderRepository;
     private final DistributedLockService distributedLockService;
     private final MemberService self;
 
     public MemberService(MemberMapper memberRepository,
                          MemberLevelRuleMapper levelRuleRepository,
                          MemberPointsLogMapper pointsLogRepository,
+                         RechargeOrderMapper rechargeOrderRepository,
                          DistributedLockService distributedLockService,
                          @Lazy MemberService self) {
         this.memberRepository = memberRepository;
         this.levelRuleRepository = levelRuleRepository;
         this.pointsLogRepository = pointsLogRepository;
+        this.rechargeOrderRepository = rechargeOrderRepository;
         this.distributedLockService = distributedLockService;
         this.self = self;
     }
@@ -94,28 +99,78 @@ public class MemberService {
         int nextCount = Math.addExact(Math.max(0, member.getOrderCount()), 1);
         member.setOrderCount(nextCount);
 
-        String newLevel = calculateMemberLevel(member.getTotalSpent());
-        if (!newLevel.equals(member.getMemberLevel())) {
-            member.setMemberLevel(newLevel);
-            member.setLevelUpgradeAt(Instant.now());
-            log.info("Member level upgraded: memberId={}, newLevel={}", member.getMemberId(), newLevel);
-        }
-
+        applyLevelIfChanged(member);
         member.setUpdatedAt(Instant.now());
     }
 
-    private String calculateMemberLevel(BigDecimal totalSpent) {
+    /**
+     * 按「累计消费 or 累计净充值」重算等级并写回实体字段（不落库，由调用方 save）。
+     *
+     * @return 等级是否发生变化
+     */
+    private boolean applyLevelIfChanged(Member member) {
+        String newLevel = calculateMemberLevel(member.getTotalSpent(), netRechargeOf(member.getUserId()));
+        String current = member.getMemberLevel();
+        if (newLevel.equals(current)) {
+            return false;
+        }
+        member.setMemberLevel(newLevel);
+        member.setLevelUpgradeAt(Instant.now());
+        log.info("Member level upgraded: memberId={}, from={}, to={}",
+                member.getMemberId(), current, newLevel);
+        return true;
+    }
+
+    /**
+     * 累计净充值（元）= 曾支付成功的充值额 − 已原路退回额。
+     *
+     * <p>刻意**实时聚合** {@code recharge_order} 而不是在 member 上物化一列：
+     * 物化列需要在每个入账/退款点挂钩子，漏一处就长期漂移；聚合天然幂等、可自愈，
+     * 退款语义也直接由 {@code refunded_cents} 表达。代价是每次等级重算多一次 SUM 查询，
+     * 而等级重算只发生在「订单支付后」与「充值入账后」两个低频点。
+     */
+    private BigDecimal netRechargeOf(Long userId) {
+        if (userId == null) {
+            return BigDecimal.ZERO;
+        }
+        return BigDecimal.valueOf(rechargeOrderRepository.sumNetRechargeByUser(userId), 2);
+    }
+
+    /**
+     * 等级判定：**累计消费**与**累计净充值**两条口径取高（D1 储值等级）。
+     *
+     * <p>规则表按 sortorder 升序，逐条判断「消费落在 [minSpent, maxSpent)」或
+     * 「净充值 ≥ minRecharge」，取**最后**一个达标档，即最高档。原实现「取首个达标档」
+     * 在区间互斥时与取最后等价，故消费口径行为不变；不这样改则储值路径永远走不到
+     * （NORMAL 的 minSpent=0 会先把任何输入吃掉）。
+     *
+     * <p>{@code minRecharge} 为 null 表示该档无储值路径，跳过该口径。
+     * 两条口径都单调不减 ⇒ 等级只升不降。规则表为空时回落 NORMAL。
+     */
+    private String calculateMemberLevel(BigDecimal totalSpent, BigDecimal netRecharge) {
         List<MemberLevelRule> rules = levelRuleRepository.findByStatusOrderBySortorderAsc("ACTIVE");
 
+        String matched = null;
         for (MemberLevelRule rule : rules) {
-            if (rule.getMinSpent() != null
-                    && totalSpent.compareTo(rule.getMinSpent()) >= 0
-                    && (rule.getMaxSpent() == null || totalSpent.compareTo(rule.getMaxSpent()) < 0)) {
-                return rule.getLevelCode();
+            if (matchesSpentTier(rule, totalSpent) || matchesRechargeTier(rule, netRecharge)) {
+                matched = rule.getLevelCode();
             }
         }
 
-        return LEVEL_NORMAL;
+        return matched != null ? matched : LEVEL_NORMAL;
+    }
+
+    private static boolean matchesSpentTier(MemberLevelRule rule, BigDecimal totalSpent) {
+        return totalSpent != null
+                && rule.getMinSpent() != null
+                && totalSpent.compareTo(rule.getMinSpent()) >= 0
+                && (rule.getMaxSpent() == null || totalSpent.compareTo(rule.getMaxSpent()) < 0);
+    }
+
+    private static boolean matchesRechargeTier(MemberLevelRule rule, BigDecimal netRecharge) {
+        return netRecharge != null
+                && rule.getMinRecharge() != null
+                && netRecharge.compareTo(rule.getMinRecharge()) >= 0;
     }
 
     public Optional<Member> getMemberByUserId(Long userId) {
@@ -138,6 +193,33 @@ public class MemberService {
             applyMemberStatsDelta(member, BigDecimal.valueOf(paidAmountCents, 2));
             memberRepository.save(member);
             self.earnPoints(member, paidAmountCents, orderId);
+            return null;
+        });
+    }
+
+    /**
+     * 充值入账后刷新等级（D1「储值即升级」）。
+     *
+     * <p>⚠️ 用 {@link Propagation#REQUIRES_NEW}：调用方
+     * {@code PaymentService.doCreditRecharge} 正处于「充值入账」事务中，本方法失败
+     * <b>不得</b>把「钱已入账」一起回滚 —— 挂起外层事务另开一个，内部异常不会把外层
+     * 标记为 rollback-only。调用方仍须 try/catch，否则异常会继续向外传播。
+     *
+     * <p>幂等：只做「读聚合 + 重算 + 需要时写等级」，不做累加，重复调用结果相同，
+     * 故不需要幂等键（与 {@code applyRechargeBonus} 的账本流水不同）。
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void refreshLevelOnRecharge(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        runWithMemberUserLock(userId, () -> {
+            Member member = memberRepository.findByUserIdForUpdate(userId)
+                    .orElseGet(() -> createMemberIfAbsent(userId));
+            if (applyLevelIfChanged(member)) {
+                member.setUpdatedAt(Instant.now());
+                memberRepository.save(member);
+            }
             return null;
         });
     }

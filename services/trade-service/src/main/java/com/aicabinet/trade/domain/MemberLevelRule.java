@@ -22,6 +22,14 @@ public class MemberLevelRule {
 
     private java.math.BigDecimal maxSpent;
 
+    /**
+     * D1 储值等级：升到该等级所需的**累计净充值**（元）。null = 该档无储值路径。
+     *
+     * <p>与 {@code minSpent}/{@code maxSpent} 是「或」关系：任一口径达标即升到该档，
+     * 判定取最高达标档（见 {@code MemberService.calculateMemberLevel}）。
+     */
+    private java.math.BigDecimal minRecharge;
+
     private Integer minPoints = 0;
 
     private Integer maxPoints;

@@ -314,6 +314,72 @@ public class PayScoreService {
         return true;
     }
 
+    /**
+     * G9：**用户主动解约**（关闭免密代扣）。
+     *
+     * <p>为什么必须有这个入口：在此之前，微信支付分免密只能开不能关，支付宝免密只能靠渠道侧
+     * 通知回调（{@link #bindAlipayAgreementFromNotify} → {@link #doClearAgreement}）才会解除 ——
+     * 用户**没有撤回授权的通道**，这是合规缺口，不是可选功能。
+     *
+     * <p>行为契约：
+     * <ul>
+     *   <li><b>幂等</b>：没有已生效/待生效合约时返回 {@code terminated=false}，不抛错、不写库；</li>
+     *   <li><b>fail-closed（非 mock 一律 501）</b>：渠道侧解约接口尚未接入时，宁可报错也不本地清列 ——
+     *       本地清了而渠道侧仍持协议，用户会以为已解约、实际继续被扣款，比直接失败更糟。
+     *       口径与 {@link #signWeChatPayScore} 的 C17「生产不得静默落伪单」对称；</li>
+     *   <li><b>偏好回落</b>：优先支付渠道若指向被解约的渠道，回落 {@code BALANCE}，不留悬空偏好；</li>
+     *   <li><b>待签约也撤</b>：支付宝 {@code PENDING:EXT-*} 尚未激活，但 external_agreement_no 已被占用，
+     *       同样要能撤销；</li>
+     *   <li>与签约/回调共用同一把用户锁（{@code payscore:user:<id>}），避免并发交叉。</li>
+     * </ul>
+     */
+    @Transactional
+    public ContractCancelResult cancelPasswordFree(Long userId) {
+        return runWithPayScoreUserLock(userId, () -> doCancelPasswordFree(userId));
+    }
+
+    private ContractCancelResult doCancelPasswordFree(Long userId) {
+        UserInfo user = userInfoRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
+        boolean wechatSigned = user.isPayscoreEnabled()
+                && user.getPayscoreContractId() != null && !user.getPayscoreContractId().isBlank();
+        boolean alipaySigned = isActiveAlipayAgreementId(user.getAlipayAgreementId());
+        boolean alipayPending = pendingExternalNo(user.getAlipayAgreementId()) != null;
+        if (!wechatSigned && !alipaySigned && !alipayPending) {
+            return new ContractCancelResult(false, java.util.List.of());
+        }
+        if (!securityProperties.mockEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
+                    "渠道侧解约接口未接入；为避免本地已解约而渠道仍可扣款，暂不提供自助解约");
+        }
+        java.util.List<String> cancelled = new java.util.ArrayList<>();
+        if (wechatSigned) {
+            user.setPayscoreEnabled(false);
+            cancelled.add(PayChannels.WECHAT);
+        }
+        if (alipaySigned || alipayPending) {
+            cancelled.add(PayChannels.ALIPAY);
+        }
+        String preferred = user.getPayPreferredChannel();
+        if (preferred != null
+                && cancelled.contains(preferred.trim().toUpperCase(java.util.Locale.ROOT))) {
+            user.setPayPreferredChannel(PayChannels.BALANCE);
+        }
+        user.setPayscoreContractId(null);
+        user.setAlipayAgreementId(null);
+        userInfoRepository.save(user);
+        // M01：updateById 忽略 null 列 ⇒ 两个协议号列必须用 wrapper 显式 set(null)，
+        // 否则 DB 里仍留着旧协议号（下次结算/对账会按"已签约"处理）。
+        userInfoRepository.update(null,
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<UserInfo>lambdaUpdate()
+                        .eq(UserInfo::getUserId, user.getUserId())
+                        .set(UserInfo::getPayscoreContractId, null)
+                        .set(UserInfo::getAlipayAgreementId, null));
+        // 协议状态无独立存储列：以 WARN 留痕，供审计/客服检索（与 doClearAgreement 同口径）
+        log.warn("pay contract cancelled by user={} channels={} source=self-service", userId, cancelled);
+        return new ContractCancelResult(true, java.util.List.copyOf(cancelled));
+    }
+
     public ChargeResult charge(UserInfo user, String orderId, int amountCents, String description) {
         return charge(user, orderId, amountCents, description, null);
     }
@@ -506,6 +572,9 @@ public class PayScoreService {
     }
 
     public record ChargeResult(String channel, String tradeNo) {}
+
+    /** G9：用户主动解约的结果 —— 是否真的解掉了（幂等时为 false）、解掉了哪些渠道。 */
+    public record ContractCancelResult(boolean terminated, java.util.List<String> channels) {}
 
     public record AlipaySignResult(boolean active, String contractId, String signFormHtml, boolean pending) {}
 }

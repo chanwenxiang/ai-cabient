@@ -25,6 +25,14 @@ public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
 
         long sumPaidAmountBetween(@Param("start") Instant start, @Param("end") Instant end);
 
+        /**
+         * D1 储值等级：该用户「累计净充值」（分）= 曾支付成功金额 − 已原路退回金额。
+         *
+         * <p>与 {@link #sumPaidAmountBetween} 同口径（含事后退款成 REFUNDED 的单），
+         * 见 mapper XML 中的说明。无任何充值记录时返回 0。
+         */
+        long sumNetRechargeByUser(@Param("userId") Long userId);
+
 
         List<String> findPaidOrderIdsBetween(@Param("start") Instant start, @Param("end") Instant end);
 

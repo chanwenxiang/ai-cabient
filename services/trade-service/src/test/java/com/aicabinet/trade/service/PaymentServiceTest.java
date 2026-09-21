@@ -48,6 +48,7 @@ class PaymentServiceTest {
     @Mock private DistributedLockService distributedLockService;
     @Mock private PaymentOperationMapper paymentOperationRepository;
     @Mock private OpsAlertDispatcher opsAlertDispatcher;
+    @Mock private MemberService memberService;
 
     private PaymentService paymentService;
     private WeChatPayProperties weChatPayProperties;
@@ -64,7 +65,7 @@ class PaymentServiceTest {
                 weChatPayProperties, securityProperties,
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository, opsAlertDispatcher, null);
+                distributedLockService, paymentOperationRepository, opsAlertDispatcher, memberService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
     }
 
@@ -187,7 +188,7 @@ class PaymentServiceTest {
                 weChatPayProperties, securityProperties,
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository, opsAlertDispatcher, null);
+                distributedLockService, paymentOperationRepository, opsAlertDispatcher, memberService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
 
         RechargeOrder order = paidOrder("R-WX", 10001L, 500);
@@ -214,7 +215,7 @@ class PaymentServiceTest {
                 new SecurityProperties(false),
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository, opsAlertDispatcher, null);
+                distributedLockService, paymentOperationRepository, opsAlertDispatcher, memberService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
         when(alipayPayClient.isConfigured()).thenReturn(true);
 
@@ -243,7 +244,7 @@ class PaymentServiceTest {
                 weChatPayProperties, securityProperties,
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository, opsAlertDispatcher, null);
+                distributedLockService, paymentOperationRepository, opsAlertDispatcher, memberService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
 
         RechargeOrder order = paidOrder("R-WX-BF", 10001L, 500);
@@ -269,7 +270,7 @@ class PaymentServiceTest {
                 new SecurityProperties(false),
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository, opsAlertDispatcher, null);
+                distributedLockService, paymentOperationRepository, opsAlertDispatcher, memberService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
         when(alipayPayClient.isConfigured()).thenReturn(true);
 

@@ -91,6 +91,19 @@ public class AccountController {
         return ApiResponse.ok(accountService.signAlipayAgreement(userId));
     }
 
+    /**
+     * G9：**用户主动解约**（关闭免密代扣），幂等，返回刷新后的账户。
+     *
+     * <p>在此之前免密代扣只能开不能关（支付宝仅靠渠道通知回调解除）⇒ 用户无法撤回授权，
+     * 属合规缺口。解约范围＝该用户**全部**已生效/待生效合约（微信支付分 + 支付宝代扣），
+     * 因为两者共用「优先支付」这一处开关，只解其一仍会让用户以为已经关掉了。
+     */
+    @PostMapping("/pay-contract/unsign")
+    public ApiResponse<AccountDto> unsignPayContract(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(accountService.cancelPasswordFree(userId));
+    }
+
     @GetMapping("/invoices")
     public ApiResponse<List<InvoiceRequestDto>> myInvoices(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);

@@ -77,6 +77,7 @@ public class PaymentService {
     private final DistributedLockService distributedLockService;
     private final PaymentOperationMapper paymentOperationRepository;
     private final OpsAlertDispatcher opsAlertDispatcher;
+    private final MemberService memberService;
     private final PaymentService self;
 
     public PaymentService(RechargeOrderMapper rechargeOrderRepository,
@@ -96,6 +97,7 @@ public class PaymentService {
                           DistributedLockService distributedLockService,
                           PaymentOperationMapper paymentOperationRepository,
                           OpsAlertDispatcher opsAlertDispatcher,
+                          MemberService memberService,
                           @Lazy PaymentService self) {
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.userInfoRepository = userInfoRepository;
@@ -114,6 +116,7 @@ public class PaymentService {
         this.distributedLockService = distributedLockService;
         this.paymentOperationRepository = paymentOperationRepository;
         this.opsAlertDispatcher = opsAlertDispatcher;
+        this.memberService = memberService;
         this.self = self;
     }
 
@@ -1083,6 +1086,24 @@ public class PaymentService {
             }
             log.info("recharge credited user={} amount={} channel={}",
                     order.getUserId(), order.getAmountCents(), order.getChannel());
+            refreshMemberLevelAfterRecharge(order.getUserId());
+    }
+
+    /**
+     * D1 储值等级：充值入账后刷新会员等级（「储值即升级」）。
+     *
+     * <p>等级是**派生数据**，刷新失败绝不能让「钱已入账」回滚，故此处吞掉异常只记 warn。
+     * MemberService 侧另有 {@code REQUIRES_NEW} 保证内部异常不会把本事务标记成
+     * rollback-only。兜底路径：下一次下单（{@code MemberService.onOrderPaid}）会按同一
+     * 口径重算，因此即使这里失败也不会永久漏升级。
+     */
+    private void refreshMemberLevelAfterRecharge(Long userId) {
+        try {
+            memberService.refreshLevelOnRecharge(userId);
+        } catch (Exception e) {
+            log.warn("member level refresh after recharge failed userId={}, will be retried on next order",
+                    userId, e);
+        }
     }
 
     /**

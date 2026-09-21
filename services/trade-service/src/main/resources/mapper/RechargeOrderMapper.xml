@@ -37,4 +37,22 @@
     ]]>
   </select>
 
+  <!--
+    D1 储值等级：该用户「累计净充值」（分）= 曾支付成功金额 − 已原路退回金额。
+
+    口径与 sumPaidAmountBetween 保持一致（status IN ('PAID','REFUNDED') 且 paid_at 非空）：
+    「先收后记退」场景下全额退款会把 status 置 REFUNDED 并记录 refunded_cents，
+    部分退款则保持 PAID 只累加 refunded_cents —— 两种都靠 amount − refunded 得到净额。
+
+    刻意用 SQL 聚合而不是把行拉进内存：充值单随用户增长，内存求和会随规模退化。
+  -->
+  <select id="sumNetRechargeByUser" resultType="long">
+    <![CDATA[
+    SELECT COALESCE(SUM(r.amount_cents - COALESCE(r.refunded_cents, 0)), 0) FROM recharge_order r
+    WHERE r.user_id = #{userId}
+      AND r.status IN ('PAID', 'REFUNDED')
+      AND r.paid_at IS NOT NULL
+    ]]>
+  </select>
+
 </mapper>

@@ -105,6 +105,25 @@ public class AccountService {
         });
     }
 
+    /**
+     * G9：**用户主动解约**（关闭免密代扣），返回刷新后的账户。
+     *
+     * <p>返回 {@code AccountDto} 而非签约流的 {@code PayContractDto} 是刻意的：解约必然同时改变
+     * {@code payscoreEnabled / alipayAgreementEnabled / passwordFreeReady / payPreferredChannel}
+     * 四个字段，回一份账户快照比回一句 message 更不容易让前端状态与后端漂移；
+     * 惯例对齐同类的 {@link #setPayPreferredChannel}（同样写状态 + 回账户）。
+     *
+     * <p>幂等：没有已开通合约时也返回 200 + 当前账户，绝不 500；文案由前端按
+     * {@code passwordFreeReady} 前后差异决定，避免后端与 UI 两处各写一套判断。
+     */
+    @Transactional
+    public AccountDto cancelPasswordFree(Long userId) {
+        return runWithUserAccountLock(userId, () -> {
+            payScoreService.cancelPasswordFree(userId);
+            return self.getAccount(userId);
+        });
+    }
+
     @Transactional
     public void bindWxOpenId(Long userId, String openId) {
         runWithUserAccountLock(userId, () -> {
