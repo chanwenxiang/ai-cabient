@@ -10,25 +10,20 @@
         </div>
         <div class="page-card-head__actions">
           <el-button v-if="canEdit" type="primary" @click="openCreate">新增</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="rows"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="defId"
-          empty-text=" "
+          empty-text="暂无审批定义"
+          :actions="canEdit ? rowActions : undefined"
+          :action-width="160"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="hydrated && !loading" description="暂无审批定义" />
-          </template>
           <el-table-column type="expand">
             <template #default="{ row }">
               <div class="flow-preview">
@@ -99,19 +94,7 @@
             class-name="col-text"
             label-class-name="col-text"
           />
-          <el-table-column
-            v-if="canEdit"
-            label="操作"
-            width="160"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions :actions="rowActions()" @action="(k) => onRowAction(String(k), row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
   </el-card>
@@ -300,12 +283,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ArrowDown, ArrowUp, Delete, EditPen, Refresh, Share } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Delete, EditPen, Share } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 
@@ -341,12 +325,9 @@ function nextKey() {
 
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:approval:config'));
-const loading = ref(false);
-const hydrated = ref(false);
 const saving = ref(false);
 const metaSaving = ref(false);
 const creating = ref(false);
-const rows = ref<ApprovalDef[]>([]);
 const departments = ref<DeptRow[]>([]);
 const dlg = ref(false);
 const metaDlg = ref(false);
@@ -370,7 +351,7 @@ const metaForm = reactive({
 const assigneeTypeOptions = computed(() => dictOptions('approval_assignee_type'));
 const bizTypeOptions = computed(() => dictOptions('approval_biz_type'));
 
-function rowActions(): TableAction[] {
+function rowActions(_row: ApprovalDef): CrudRowAction[] {
   return [
     { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
     { key: 'flow', label: '编辑流程图', icon: Share, type: 'primary' },
@@ -378,7 +359,7 @@ function rowActions(): TableAction[] {
   ];
 }
 
-function onRowAction(key: string, row: ApprovalDef) {
+function onAction({ key, row }: { key: string; row: ApprovalDef }) {
   if (key === 'edit') openMetaEdit(row);
   else if (key === 'flow') openFlowEdit(row);
   else if (key === 'delete') void onDelete(row);
@@ -424,22 +405,25 @@ function reseq() {
   });
 }
 
-async function load() {
-  loading.value = true;
-  try {
-    const [defs, depts] = await Promise.all([
-      api.request<ApprovalDef[]>(AdminEndpoints.approvalsDefinitions, 'GET'),
-      api.request<DeptRow[]>(AdminEndpoints.departments, 'GET').catch(() => [])
-    ]);
-    rows.value = defs || [];
-    departments.value = depts || [];
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    loading.value = false;
-    hydrated.value = true;
-  }
+// 列表状态机统一交给 CrudTable：分页 / 竞态 / 空态 / 刷新全部内建。
+// 本页无服务端分页：fetchPage 拉全量定义（连同部门选项，沿用原 Promise.all）→ 前端切片成一页。
+async function fetchPage(params: CrudPageParams) {
+  const [defs, depts] = await Promise.all([
+    api.request<ApprovalDef[]>(AdminEndpoints.approvalsDefinitions, 'GET'),
+    api.request<DeptRow[]>(AdminEndpoints.departments, 'GET').catch(() => [])
+  ]);
+  departments.value = depts || [];
+  const list = defs || [];
+  const start = params.page * params.size;
+  return { items: list.slice(start, start + params.size), total: list.length };
 }
+
+const crud = useCrudTable<ApprovalDef>({
+  rowKey: (r) => r.defId,
+  fetchPage,
+  // 审批定义通常个位数条，默认一页展示完，最接近原「整表一次渲染」
+  pageSize: 50
+});
 
 function openCreate() {
   creating.value = true;
@@ -501,7 +485,7 @@ async function saveMeta() {
       ElMessage.success('已保存');
     }
     metaDlg.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -522,7 +506,7 @@ async function onDelete(row: ApprovalDef) {
   try {
     await api.request(AdminEndpoints.approvalsDefinition(row.defId), 'DELETE');
     ElMessage.success('已删除');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
@@ -595,15 +579,13 @@ async function save() {
     });
     ElMessage.success('流程图已保存');
     dlg.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
     saving.value = false;
   }
 }
-
-onMounted(load);
 </script>
 
 <style scoped>
