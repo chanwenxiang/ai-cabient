@@ -1,0 +1,77 @@
+{
+  "annotations": { "list": [] },
+  "description": "日志速率：每条服务的日志行速率（行/秒）。突增＝刷屏或重试风暴，骤降＝服务卡住或没在打日志。",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": ["ai-cabinet-logs"],
+      "targetBlank": false,
+      "title": "日志中心",
+      "tooltip": "在日志中心的各主题页之间跳转",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "每条服务的日志行速率（行/秒）。突增＝刷屏或重试风暴，骤降＝服务卡住或没在打日志，两者都比单看内容更早暴露问题。左上「服务」变量可多选。",
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "lineWidth": 1, "fillOpacity": 8 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 26, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (service) (rate({service=~\"$service\"}[1m]))",
+          "legendFormat": "{{service}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "日志速率（按服务，行/秒）",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["ai-cabinet", "ai-cabinet-logs"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values(service)",
+        "includeAll": true,
+        "label": "服务",
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": "label_values(service)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "timezone": "browser",
+  "title": "日志速率（按服务）",
+  "uid": "ai-cabinet-logs-rate",
+  "version": 1
+}

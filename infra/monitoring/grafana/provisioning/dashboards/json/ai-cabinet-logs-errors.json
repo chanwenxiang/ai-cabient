@@ -1,0 +1,88 @@
+{
+  "annotations": { "list": [] },
+  "description": "错误与告警：只看 error / warn / exception / fail 的行。排查故障从这页开始；要串一次完整调用去「一次调用追踪」页。",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": ["ai-cabinet-logs"],
+      "targetBlank": false,
+      "title": "日志中心",
+      "tooltip": "在日志中心的各主题页之间跳转",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "只保留含 error / warn / exception / fail 的行（大小写不敏感），时间正序。每行一条、不换行。⚠️ 命中的多是框架的 WARN/DEBUG，判「真故障」要看后半段异常栈。",
+      "gridPos": { "h": 26, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": false,
+        "sortOrder": "Ascending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service=~\"$service\"} |~ \"(?i)(error|warn|exception|fail)\" |~ \"$keyword\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "错误 / 告警行",
+      "type": "logs"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["ai-cabinet", "ai-cabinet-logs"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values(service)",
+        "includeAll": true,
+        "label": "服务",
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": "label_values(service)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "", "value": "" },
+        "description": "错误行里再筛一层。留空＝不过滤。示例：412、PaymentCallback、deadlock",
+        "label": "关键词",
+        "name": "keyword",
+        "options": [],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "title": "错误与告警",
+  "uid": "ai-cabinet-logs-errors",
+  "version": 1
+}

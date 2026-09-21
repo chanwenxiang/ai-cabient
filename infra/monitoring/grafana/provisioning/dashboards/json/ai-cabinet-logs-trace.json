@@ -1,0 +1,88 @@
+{
+  "annotations": { "list": [] },
+  "description": "一次调用追踪：手里有 traceId（或 orderId）时，用这页把这次调用的日志按时间串起来。⚠️ 日志里有 traceId ≠ 该链路已上报 Tempo。",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": ["ai-cabinet-logs"],
+      "targetBlank": false,
+      "title": "日志中心",
+      "tooltip": "在日志中心的各主题页之间跳转",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "在「traceId」变量里粘贴一个 32 位 traceId，这里按时间正序捞出这次调用的全部日志行。配合 Tempo 的 tracesToLogs 可以双向跳。留空时该面板会捞到全部日志（属预期，用于先看格式）。",
+      "gridPos": { "h": 26, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": false,
+        "sortOrder": "Ascending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service=~\"$service\"} |= \"$traceId\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "按 traceId 串起一次调用",
+      "type": "logs"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": ["ai-cabinet", "ai-cabinet-logs"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values(service)",
+        "includeAll": true,
+        "label": "服务",
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": "label_values(service)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "", "value": "" },
+        "description": "32 位 traceId（或任意唯一串，如 orderId）。留空＝捞全部，属预期行为。",
+        "label": "traceId",
+        "name": "traceId",
+        "options": [],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "一次调用追踪（traceId）",
+  "uid": "ai-cabinet-logs-trace",
+  "version": 1
+}

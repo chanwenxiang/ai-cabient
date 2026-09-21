@@ -1,0 +1,88 @@
+{
+  "annotations": { "list": [] },
+  "description": "全栈日志流：原始日志，不预过滤。想「看某件事到底怎么走的」用这页；只想看报错去「错误与告警」页。",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": ["ai-cabinet-logs"],
+      "targetBlank": false,
+      "title": "日志中心",
+      "tooltip": "在日志中心的各主题页之间跳转",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "所有入选服务的原始日志流。左上「服务」变量可多选（默认全部）；「关键词」变量填了就做包含过滤（如 412、PaymentCallback、orderId=CO123）。日志按时间倒序，每行一条、不换行，超长横向滚动。",
+      "gridPos": { "h": 24, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": false,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service=~\"$service\"} |~ \"$keyword\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "全栈日志流",
+      "type": "logs"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["ai-cabinet", "ai-cabinet-logs"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values(service)",
+        "includeAll": true,
+        "label": "服务",
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": "label_values(service)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "", "value": "" },
+        "description": "日志包含过滤。留空＝不过滤。示例：412、PaymentCallback、orderId=CO123",
+        "label": "关键词",
+        "name": "keyword",
+        "options": [],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "timezone": "browser",
+  "title": "全栈日志流",
+  "uid": "ai-cabinet-logs-stream",
+  "version": 1
+}
