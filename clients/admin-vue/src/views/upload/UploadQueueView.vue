@@ -10,12 +10,6 @@
             >
           </div>
         </div>
-        <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:upload:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
-        </div>
       </div>
     </template>
 
@@ -37,14 +31,14 @@
     </div>
 
     <el-alert
-      v-if="listHydrated && (stuckOnly ? total > 0 : pageStuckCount > 0)"
+      v-if="crud.hydrated && (stuckOnly ? crud.total > 0 : pageStuckCount > 0)"
       :type="stuckOnly || pageStuckCount > 0 ? 'warning' : 'info'"
       :closable="false"
       show-icon
       class="sla-banner"
       :title="
         stuckOnly
-          ? `当前筛选共 ${total} 条滞留上传（超过 ${SLA_MINUTES} 分钟）`
+          ? `当前筛选共 ${crud.total} 条滞留上传（超过 ${SLA_MINUTES} 分钟）`
           : `本页 ${pageStuckCount} 条已滞留，可勾选「仅滞留」优先处理`
       "
     />
@@ -87,35 +81,20 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayItems"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="sessionId"
+          selectable
+          :empty-text="emptyHint"
+          sort-field-label="会话编号"
+          :csv="csvOptions"
           :row-class-name="rowClassName"
-          @selection-change="onSelectionChange"
-          empty-text=" "
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" :description="emptyHint" :image-size="88" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             prop="sessionId"
             label="会话编号"
             min-width="168"
             class-name="col-text"
-            sortable="custom"
           >
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goSession(row.sessionId)">
@@ -227,40 +206,23 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
-import PagePager from '@/components/PagePager.vue';
 import { useRoute } from 'vue-router';
-import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
 import { dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useDictOptions } from '@/composables/useDictOptions';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
-import { useTableSelection } from '@/composables/useTableSelection';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -283,88 +245,18 @@ const DUE_SOON_MS = 10 * 60 * 1000;
 const route = useRoute();
 const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const helpOpen = ref(false);
 const keyword = ref('');
 const uploadStatus = ref('');
 const stuckOnly = ref(false);
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const items = ref<SessionRow[]>([]);
-const {
-  defaultSort: idDefaultSort,
-  onSortChange: onIdSortChange,
-  sortById,
-  idSortDir
-} = useIdColumnSort<SessionRow>('sessionId');
-
 const focusSessionId = ref('');
+
 const uploadStatusDict = useDictOptions('upload_status');
 const uploadStatusOptions = computed(() =>
   uploadStatusDict.value.filter((o) =>
     ['NONE', 'LOCAL_QUEUED', 'UPLOADING', 'UPLOADED', 'FAILED'].includes(o.value)
   )
 );
-
-function matchUploadStatus(row: SessionRow) {
-  if (!uploadStatus.value) return true;
-  return String(row.uploadStatus || '').toUpperCase() === uploadStatus.value.toUpperCase();
-}
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<SessionRow>((row) => row.sessionId);
-
-const displayItems = computed(() => {
-  const list = [...items.value];
-  if (stuckOnly.value) return sortById(list);
-  const dir = idSortDir.value === 'desc' ? -1 : 1;
-  return list.sort((a, b) => {
-    const as = isStuck(a) ? 1 : 0;
-    const bs = isStuck(b) ? 1 : 0;
-    if (as !== bs) return bs - as;
-    return (
-      String(a.sessionId).localeCompare(String(b.sessionId), undefined, { numeric: true }) * dir
-    );
-  });
-});
-
-const pageStuckCount = computed(() => displayItems.value.filter((r) => isStuck(r)).length);
-
-const emptyHint = computed(() =>
-  stuckOnly.value
-    ? `当前无超过 ${SLA_MINUTES} 分钟的滞留上传，可关闭「仅滞留」查看全部队列`
-    : '暂无待上传录像（队列为空表示当前没有滞留上传任务）'
-);
-
-const { onExport } = useListCsv({
-  filePrefix: '录像上传队列',
-  headers: [
-    '会话编号',
-    '用户',
-    '设备',
-    '上传状态',
-    '等待原因',
-    '滞留分钟',
-    '是否滞留',
-    '关门时间',
-    '更新时间'
-  ],
-  toRows: () =>
-    pickSelected(displayItems.value).map((row) => [
-      row.sessionId,
-      row.userId ?? '',
-      row.deviceId ?? '',
-      displayLabel('upload_status', row.uploadStatus, '未知'),
-      waitReason(row),
-      String(Math.floor(ageMs(row) / 60000)),
-      isStuck(row) ? '是' : '否',
-      formatDateTime(row.closeTime),
-      formatDateTime(row.updatedAt)
-    ])
-});
 
 function parseTs(value?: string) {
   if (!value) return Number.NaN;
@@ -414,6 +306,90 @@ function isDueSoon(row: SessionRow) {
   const left = remainMs(row);
   return left > 0 && left <= DUE_SOON_MS;
 }
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 / CSV 全部内建。
+// autoLoad 关闭：首查依赖 onMounted 中 applyRouteQuery() 先把路由参数写入筛选项。
+const crud = useCrudTable<SessionRow>({
+  rowKey: (row) => row.sessionId,
+  autoLoad: false,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page), // 已是 0 起
+      size: String(params.size),
+      state: 'WAITING_UPLOAD'
+    });
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    if (uploadStatus.value) q.set('uploadStatus', uploadStatus.value);
+    if (stuckOnly.value) {
+      q.set('stuckOnly', 'true');
+      q.set('stuckMinutes', String(SLA_MINUTES));
+    }
+    const data = await api.request<PageResult<SessionRow>>(AdminEndpoints.sessionsList(q), 'GET');
+    const rows = data.items || [];
+    const sid = focusSessionId.value.trim();
+    // 聚焦会话不在当前页时：扫描等待队列定位后插入页首（保留原行为）
+    if (sid && !rows.some((r) => r.sessionId === sid)) {
+      const { found } = await scanWaitingPages(() => false, { findFirst: sid });
+      if (found) {
+        return {
+          items: [found, ...rows.filter((r) => r.sessionId !== found.sessionId)],
+          total: data.total ?? 0
+        };
+      }
+    }
+    return { items: rows, total: data.total ?? 0 };
+  },
+  sort: {
+    prop: 'sessionId',
+    mode: 'local',
+    // 滞留行置顶（组内保持主键序）；「仅滞留」下服务端已过滤、全部命中置顶等价于不分组，与原逻辑一致
+    pinned: (row) => !stuckOnly.value && isStuck(row)
+  }
+});
+
+// 原逻辑在 load() 尾部滚动到聚焦行；迁移后改为监听数据变化统一触发
+watch(
+  () => crud.items,
+  () => {
+    void maybeScrollToFocus();
+  }
+);
+
+const pageStuckCount = computed(() => crud.displayItems.filter((r) => isStuck(r)).length);
+
+const emptyHint = computed(() =>
+  stuckOnly.value
+    ? `当前无超过 ${SLA_MINUTES} 分钟的滞留上传，可关闭「仅滞留」查看全部队列`
+    : '暂无待上传录像（队列为空表示当前没有滞留上传任务）'
+);
+
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '录像上传队列',
+  exportPerm: 'ops:upload:export',
+  headers: [
+    '会话编号',
+    '用户',
+    '设备',
+    '上传状态',
+    '等待原因',
+    '滞留分钟',
+    '是否滞留',
+    '关门时间',
+    '更新时间'
+  ],
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.sessionId,
+      row.userId ?? '',
+      row.deviceId ?? '',
+      displayLabel('upload_status', row.uploadStatus, '未知'),
+      waitReason(row),
+      String(Math.floor(ageMs(row) / 60000)),
+      isStuck(row) ? '是' : '否',
+      formatDateTime(row.closeTime),
+      formatDateTime(row.updatedAt)
+    ])
+};
 
 function formatAge(ms: number) {
   const abs = Math.max(0, Math.floor(ms / 1000));
@@ -573,47 +549,9 @@ async function maybeScrollToFocus() {
     ?.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value),
-      state: 'WAITING_UPLOAD'
-    });
-    if (keyword.value.trim()) q.set('q', keyword.value.trim());
-    if (uploadStatus.value) q.set('uploadStatus', uploadStatus.value);
-    if (stuckOnly.value) {
-      q.set('stuckOnly', 'true');
-      q.set('stuckMinutes', String(SLA_MINUTES));
-    }
-    const data = await api.request<PageResult<SessionRow>>(AdminEndpoints.sessionsList(q), 'GET');
-    items.value = data.items || [];
-    total.value = data.total ?? 0;
-    const sid = focusSessionId.value.trim();
-    if (sid && !items.value.some((r) => r.sessionId === sid)) {
-      const { found } = await scanWaitingPages(() => false, { findFirst: sid });
-      if (found) {
-        items.value = [found, ...items.value.filter((r) => r.sessionId !== found.sessionId)];
-      }
-    }
-    clearSelection();
-    await maybeScrollToFocus();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  crud.search();
 }
 
 function onStuckToggle() {
@@ -625,14 +563,8 @@ function reset() {
   uploadStatus.value = '';
   stuckOnly.value = false;
   focusSessionId.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
+  crud.search();
 }
 
 function goSession(sessionId: string) {
@@ -651,8 +583,7 @@ async function playVideo(sessionId: string) {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -670,8 +601,9 @@ watch(
 );
 
 onMounted(() => {
+  // 首查依赖路由参数初始化（useCrudTable 配置 autoLoad: false），同步完筛选项后显式首查
   applyRouteQuery();
-  load();
+  void crud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
