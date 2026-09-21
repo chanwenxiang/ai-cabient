@@ -15,10 +15,7 @@
             <el-button v-if="canAccessPath('/device-ops')" @click="goPath('/device-ops')"
               >设备运维</el-button
             >
-            <el-button v-hasPermi="['ops:exception:export']" @click="onExport">{{
-              exportButtonLabel
-            }}</el-button>
-            <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+            <!-- 导出迁入 CrudTable 内建工具条（:csv + exportPerm）；刷新迁入壳内统一交互行 -->
           </div>
         </div>
       </template>
@@ -50,14 +47,14 @@
       </el-form>
 
       <el-alert
-        v-if="listHydrated && (overdueOnly ? total > 0 : pageOverdueCount > 0)"
+        v-if="crud.hydrated && (overdueOnly ? crud.total > 0 : pageOverdueCount > 0)"
         type="error"
         :closable="false"
         show-icon
         class="sla-banner"
         :title="
           overdueOnly
-            ? `共 ${total} 条已超时（服务端过滤，分页准确）`
+            ? `共 ${crud.total} 条已超时（服务端过滤，分页准确）`
             : `本页 ${pageOverdueCount} 条已超时，可勾选「仅超时」查看全部`
         "
       />
@@ -75,35 +72,23 @@
 
       <div class="table-scroll">
         <div class="table-scroll-inner">
-          <el-table
-            v-loading="loading"
-            :data="displayItems"
-            stripe
-            border
-            class="report-table"
-            empty-text=" "
-            :row-class-name="rowClassName"
+          <CrudTable
+            :table="crud"
             row-key="exceptionId"
-            :default-sort="idDefaultSort"
-            @sort-change="onIdSortChange"
-            @selection-change="onSelectionChange"
+            selectable
+            :actions="rowActions"
+            :action-width="220"
+            :empty-text="emptyHint"
+            sort-field-label="异常编号"
+            :csv="csvOptions"
+            :row-class-name="rowClassName"
+            @action="onExceptionAction"
           >
-            <template #empty>
-              <el-empty v-if="listHydrated && !loading" :description="emptyHint" />
-            </template>
-            <el-table-column
-              type="selection"
-              width="48"
-              align="center"
-              class-name="col-status"
-              label-class-name="col-status"
-            />
             <el-table-column
               prop="exceptionId"
               label="异常编号"
               min-width="140"
               class-name="col-text"
-              sortable="custom"
             >
               <template #default="{ row }">
                 <span class="cell-id cell-ellipsis" :title="String(row.exceptionId || '')">{{
@@ -270,35 +255,9 @@
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column
-              label="操作"
-              width="220"
-              class-name="col-action"
-              align="center"
-              fixed="right"
-            >
-              <template #default="{ row }">
-                <TableActions
-                  :actions="exceptionActions(row)"
-                  @action="(key) => onExceptionAction(key, row)"
-                />
-              </template>
-            </el-table-column>
-          </el-table>
+          </CrudTable>
         </div>
       </div>
-
-      <PagePager
-        :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50]"
-        layout="total, sizes, prev, pager, next, jumper"
-        background
-        @current-change="load"
-        @size-change="onSizeChange"
-      />
     </el-card>
 
     <ResizableDrawer
@@ -611,7 +570,6 @@ import {
   CircleCheck,
   FolderOpened,
   Monitor,
-  Refresh,
   UserFilled,
   VideoCamera,
   View
@@ -620,14 +578,11 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import {
   actorDisplayName,
@@ -642,7 +597,6 @@ import {
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useDictOptions } from '@/composables/useDictOptions';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const route = useRoute();
@@ -690,7 +644,6 @@ interface Sku {
   priceCents: number;
 }
 
-const loading = ref(false);
 const videoLoading = ref(false);
 const videoAttempted = ref(false);
 const inlineVideoUrl = ref('');
@@ -700,15 +653,7 @@ const status = ref('OPEN');
 const statusTabOptions = useDictOptions('exception_status');
 const severity = ref('');
 const overdueOnly = ref(false);
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const items = ref<OpsException[]>([]);
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('exceptionId');
 const statusCounts = reactive({ OPEN: 0, PROCESSING: 0, RESOLVED: 0, CLOSED: 0, ARCHIVED: 0 });
-/** 首屏未完成加载前不展示「0 / 暂无」，避免与工作台计数短暂不一致 */
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const drawer = ref(false);
 const detailLoading = ref(false);
 const detail = ref<OpsDetail | null>(null);
@@ -723,15 +668,39 @@ const manualConfirmItems = computed(() =>
   manualLines.value.filter((line) => line.skuId && line.quantity > 0)
 );
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<OpsException>((r) => r.exceptionId);
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建。
+// 首查依赖路由查询参数（status/severity/overdue）先落位，故 autoLoad:false，onMounted 显式首查。
+const crud = useCrudTable<OpsException>({
+  rowKey: (r) => r.exceptionId,
+  errorMessage: '加载失败',
+  autoLoad: false,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    const apiStatus = status.value === 'ALL' ? '' : status.value;
+    if (status.value === 'ARCHIVED') q.set('archived', 'true');
+    if (apiStatus) q.set('status', apiStatus);
+    if (severity.value) q.set('severity', severity.value);
+    if (overdueOnly.value) q.set('overdue', '1');
+    const data = await api.request<PageResult<OpsException>>(
+      AdminEndpoints.exceptionsList(q),
+      'GET'
+    );
+    // 原 load() 副作用保持不变：同步当前状态 tab 计数，并刷新各 tab 计数
+    if (!overdueOnly.value && apiStatus && apiStatus in statusCounts) {
+      statusCounts[apiStatus as keyof typeof statusCounts] = data.total || 0;
+    }
+    await refreshStatusCounts();
+    return data;
+  },
+  // 排序走壳内「升/降序」工具条（全站无表头箭头），默认升序对齐原 useIdColumnSort
+  sort: { prop: 'exceptionId', mode: 'local' }
+});
 
-const displayItems = computed(() => sortById(items.value, 'exceptionId'));
+const pageOverdueCount = computed(() => crud.items.filter((r) => r.slaOverdue).length);
 
-const pageOverdueCount = computed(() => items.value.filter((r) => r.slaOverdue).length);
-
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '异常',
+  exportPerm: 'ops:exception:export',
   headers: [
     '异常编号',
     '级别',
@@ -747,8 +716,8 @@ const { onExport } = useListCsv({
     '负责人',
     '创建时间'
   ],
-  toRows: () =>
-    pickSelected(displayItems.value).map((row) => [
+  toRows: (rows) =>
+    rows.map((row) => [
       row.exceptionId,
       dictLabel('exception_severity', row.severity),
       dictLabel('exception_type', row.exceptionType),
@@ -763,7 +732,7 @@ const { onExport } = useListCsv({
       row.assigneeUserId || '未领取',
       formatDateTime(row.createdAt)
     ])
-});
+};
 
 const emptyHint = computed(() => {
   if (overdueOnly.value) return '当前筛选下无超时异常，可关闭「仅超时」或切换状态';
@@ -772,13 +741,13 @@ const emptyHint = computed(() => {
 });
 
 function statusTabLabel(label: string, value: string) {
-  if (!listHydrated.value) return `${label} (…)`;
+  if (!crud.hydrated) return `${label} (…)`;
   const key = value as keyof typeof statusCounts;
   return `${label} (${statusCounts[key] || 0})`;
 }
 
 const archivedTabLabel = computed(() => {
-  if (!listHydrated.value) return '已归档 (…)';
+  if (!crud.hydrated) return '已归档 (…)';
   return `已归档 (${statusCounts.ARCHIVED || 0})`;
 });
 
@@ -865,13 +834,13 @@ function emptyRefHint(row: OpsException) {
   return '暂无关联数据';
 }
 
-function pushOpenExceptionActions(acts: TableAction[], row: OpsException) {
+function pushOpenExceptionActions(acts: CrudRowAction[], row: OpsException) {
   if (canHandle.value && row.status === 'OPEN') {
     acts.push({ key: 'claim', label: '领取', icon: UserFilled, type: 'primary' });
   }
 }
 
-function pushResolveExceptionAction(acts: TableAction[], row: OpsException) {
+function pushResolveExceptionAction(acts: CrudRowAction[], row: OpsException) {
   if (!canHandle.value || row.status === 'RESOLVED') return;
   if (canResolveWithRepair(row)) {
     acts.push({
@@ -886,7 +855,7 @@ function pushResolveExceptionAction(acts: TableAction[], row: OpsException) {
   acts.push({ key: 'resolve', label: '解决', icon: CircleCheck, type: 'success' });
 }
 
-function pushArchiveExceptionAction(acts: TableAction[], row: OpsException) {
+function pushArchiveExceptionAction(acts: CrudRowAction[], row: OpsException) {
   if (!canHandle.value || row.status !== 'RESOLVED') return;
   acts.push({
     key: row.archived ? 'unarchive' : 'archive',
@@ -896,9 +865,9 @@ function pushArchiveExceptionAction(acts: TableAction[], row: OpsException) {
   });
 }
 
-function exceptionActions(row: OpsException): TableAction[] {
+function rowActions(row: OpsException): CrudRowAction[] {
   // 对齐库存健康：主区放详情/设备/处理，次要进「更多」
-  const acts: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+  const acts: CrudRowAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
   if (row.deviceId && canAccessPath('/devices')) {
     acts.push({ key: 'device', label: '设备', icon: Monitor });
   }
@@ -911,7 +880,7 @@ function exceptionActions(row: OpsException): TableAction[] {
   return acts;
 }
 
-function onExceptionAction(key: string, row: OpsException) {
+function onExceptionAction({ key, row }: { key: string; row: OpsException }) {
   if (key === 'detail') openDetail(row);
   else if (key === 'device' && row.deviceId) goDevice(row.deviceId);
   else if (key === 'claim') claim(row);
@@ -935,7 +904,7 @@ async function archiveRow(row: OpsException) {
   try {
     await api.request(AdminEndpoints.exceptionArchive(row.exceptionId), 'POST');
     ElMessage.success('归档成功');
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '归档失败'));
@@ -956,7 +925,7 @@ async function unarchiveRow(row: OpsException) {
   try {
     await api.request(AdminEndpoints.exceptionUnarchive(row.exceptionId), 'POST');
     ElMessage.success('已取消归档');
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '取消归档失败'));
@@ -1092,46 +1061,13 @@ async function refreshStatusCounts() {
 
 function onStatusTab(name: string | number) {
   status.value = String(name);
-  page.value = 1;
   syncRouteQuery();
-  load();
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-    const apiStatus = status.value === 'ALL' ? '' : status.value;
-    if (status.value === 'ARCHIVED') q.set('archived', 'true');
-    if (apiStatus) q.set('status', apiStatus);
-    if (severity.value) q.set('severity', severity.value);
-    if (overdueOnly.value) q.set('overdue', '1');
-    const data = await api.request<PageResult<OpsException>>(
-      AdminEndpoints.exceptionsList(q),
-      'GET'
-    );
-    items.value = data.items || [];
-    total.value = data.total || 0;
-    if (!overdueOnly.value && apiStatus && apiStatus in statusCounts) {
-      statusCounts[apiStatus as keyof typeof statusCounts] = data.total || 0;
-    }
-    clearSelection();
-    await refreshStatusCounts();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
+  crud.search();
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  crud.search();
 }
 
 function onOverdueToggle() {
@@ -1141,20 +1077,15 @@ function reset() {
   status.value = 'OPEN';
   severity.value = '';
   overdueOnly.value = false;
-  page.value = 1;
   syncRouteQuery();
-  load();
-}
-function onSizeChange() {
-  page.value = 1;
-  load();
+  crud.search();
 }
 
 async function claim(row: OpsException) {
   try {
     await api.request(AdminEndpoints.exceptionClaim(row.exceptionId), 'POST');
     ElMessage.success('已领取');
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '领取失败'));
@@ -1172,7 +1103,7 @@ async function resolve(row: OpsException) {
       resolution: value
     });
     ElMessage.success('异常已解决');
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '解决失败'));
@@ -1246,7 +1177,7 @@ async function transfer() {
       }
     );
     ElMessage.success('已转派');
-    await Promise.all([load(), refreshDetail()]);
+    await Promise.all([crud.load(), refreshDetail()]);
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '转派失败'));
@@ -1272,7 +1203,7 @@ async function cancelSession() {
       idempotencyKey: `ops-cancel-${item.exceptionId}`
     });
     ElMessage.success('会话已终止，设备占用已释放');
-    await Promise.all([load(), refreshDetail()]);
+    await Promise.all([crud.load(), refreshDetail()]);
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '终止会话失败'));
@@ -1307,7 +1238,7 @@ async function resolveWithRepairRow(row: OpsException): Promise<boolean> {
       resolution: String(value).trim()
     });
     ElMessage.success('已建维修工单并结案');
-    await load();
+    await crud.load();
     return true;
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
@@ -1347,7 +1278,7 @@ async function retryException() {
       idempotencyKey: `ops-retry-${item.exceptionId}-${crypto.randomUUID?.() ?? Date.now()}`
     });
     ElMessage.success('重试请求已执行');
-    await Promise.all([load(), refreshDetail()]);
+    await Promise.all([crud.load(), refreshDetail()]);
   } catch (e: unknown) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '重试失败'));
@@ -1404,7 +1335,7 @@ async function submitManualResolve() {
     );
     resolveFeedback.value = '人工商品清单已结算并结案';
     ElMessage.success(resolveFeedback.value);
-    await Promise.all([load(), refreshDetail()]);
+    await Promise.all([crud.load(), refreshDetail()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '人工结算失败');
   } finally {
@@ -1441,7 +1372,7 @@ async function waiveOrder() {
     });
     resolveFeedback.value = '免单处理完成';
     ElMessage.success(resolveFeedback.value);
-    await Promise.all([load(), refreshDetail()]);
+    await Promise.all([crud.load(), refreshDetail()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '免单失败');
   } finally {
@@ -1474,8 +1405,7 @@ function applyRouteQuery() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -1499,9 +1429,10 @@ onDeactivated(() => {
   clearInlineVideo();
 });
 onMounted(async () => {
+  // 首查前先把路由查询参数落到筛选状态（crud 已配 autoLoad:false），这里显式首查
   applyRouteQuery();
   syncRouteQuery();
-  await load();
+  await crud.load();
 });
 </script>
 
