@@ -12,15 +12,10 @@
           <el-button v-if="canBlacklist && tab === 'blacklist'" type="primary" @click="openAdd">
             加入黑名单
           </el-button>
+          <!-- 后端全量导出保留页头；部分选中时的前端 CSV 回退逻辑不变 -->
           <el-button v-hasPermi="['ops:risk:export']" @click="onExport">{{
             exportButtonLabel
           }}</el-button>
-          <el-button
-            :icon="Refresh"
-            :loading="tab === 'blacklist' ? blacklistLoading : eventsLoading"
-            @click="reloadCurrent"
-            >刷新</el-button
-          >
         </div>
       </div>
     </template>
@@ -29,26 +24,12 @@
       <el-tab-pane label="风险事件" name="events">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              v-loading="eventsLoading"
-              :data="events"
-              stripe
-              border
-              class="report-table"
-              empty-text=" "
+            <CrudTable
+              :table="eventsCrud"
               row-key="eventId"
-              @selection-change="onEventsSelectionChange"
+              selectable
+              empty-text="暂无风险事件"
             >
-              <template #empty
-                ><el-empty v-if="eventsHydrated && !eventsLoading" description="暂无风险事件"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column label="事件" min-width="140" class-name="col-text">
                 <template #default="{ row }">
                   <div class="id-cell">
@@ -150,45 +131,24 @@
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
               </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
-        <PagePager
-          :hydrated="eventsHydrated"
-          v-model:current-page="eventPage"
-          v-model:page-size="eventSize"
-          :total="eventTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @current-change="loadEvents"
-          @size-change="onEventSizeChange"
-        />
       </el-tab-pane>
 
       <el-tab-pane label="黑名单" name="blacklist">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              v-loading="blacklistLoading"
-              :data="blacklist"
-              stripe
-              border
-              class="report-table"
-              empty-text=" "
+            <CrudTable
+              :table="blacklistCrud"
               row-key="userId"
-              @selection-change="onBlacklistSelectionChange"
+              selectable
+              empty-text="暂无黑名单"
+              :actions="canBlacklist ? blacklistActions : undefined"
+              :action-width="88"
+              actions-testid="risk-blacklist"
+              @action="onBlacklistAction"
             >
-              <template #empty
-                ><el-empty v-if="blacklistHydrated && !blacklistLoading" description="暂无黑名单"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column label="用户" width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button
@@ -231,35 +191,9 @@
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                v-if="canBlacklist"
-                label="操作"
-                width="88"
-                class-name="col-action"
-                align="center"
-                fixed="right"
-              >
-                <template #default="{ row }">
-                  <TableActions
-                    :actions="[{ key: 'remove', label: '移出', icon: Delete, type: 'danger' }]"
-                    @action="() => removeBlacklist(row)"
-                  />
-                </template>
-              </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
-        <PagePager
-          :hydrated="blacklistHydrated"
-          v-model:current-page="blacklistPage"
-          v-model:page-size="blacklistSize"
-          :total="blacklistTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @current-change="loadBlacklist"
-          @size-change="onBlacklistSizeChange"
-        />
       </el-tab-pane>
     </el-tabs>
 
@@ -290,19 +224,16 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Delete, Refresh } from '@element-plus/icons-vue';
+import { Delete } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
-import { normalizeListPage } from '@/utils/normalize-list-page';
 import type { PageResult } from '@aicabinet/shared-types';
 import {
   dictLabel,
@@ -312,8 +243,6 @@ import {
 } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
-
-const loadSeq = createLoadSeq();
 
 function dispositionLabel(s?: string) {
   const m: Record<string, string> = {
@@ -335,20 +264,8 @@ const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
 const canBlacklist = computed(() => auth.hasPerm('ops:risk:blacklist'));
 
-const eventsLoading = ref(false);
-const blacklistLoading = ref(false);
-const eventsHydrated = ref(false);
-const blacklistHydrated = ref(false);
 const saving = ref(false);
 const tab = ref('events');
-const events = ref<Row[]>([]);
-const blacklist = ref<Row[]>([]);
-const eventPage = ref(1);
-const eventSize = ref(20);
-const eventTotal = ref(0);
-const blacklistPage = ref(1);
-const blacklistSize = ref(20);
-const blacklistTotal = ref(0);
 const loaded = ref(new Set<string>(['events']));
 const addDialog = ref(false);
 // H08：不再预填 userId=1（误触会把无关用户拉黑）；必填校验交给 el-form rules
@@ -359,29 +276,49 @@ const addRules: FormRules = {
   reason: [{ required: true, message: '请填写原因', trigger: 'blur' }]
 };
 
-const {
-  onSelectionChange: onEventsSelectionChange,
-  pickSelected: pickEvents,
-  exportButtonLabel: eventsExportLabel,
-  clearSelection: clearEventsSelection
-} = useTableSelection<Row>((r) => r.eventId);
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 全部内建
+const eventsCrud = useCrudTable<Row>({
+  rowKey: (r) => r.eventId,
+  errorMessage: '风险事件加载失败',
+  // 首查依赖路由 query.tab 的解析结果，故关闭自动加载，onMounted 里显式首查当前 Tab
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    return api.request<PageResult<Row> | Row[]>(AdminEndpoints.riskEventsList(q), 'GET');
+  }
+});
 
-const {
-  onSelectionChange: onBlacklistSelectionChange,
-  pickSelected: pickBlacklist,
-  exportButtonLabel: blacklistExportLabel,
-  clearSelection: clearBlacklistSelection
-} = useTableSelection<Row>((r) => r.userId);
+const blacklistCrud = useCrudTable<Row>({
+  rowKey: (r) => r.userId,
+  errorMessage: '黑名单加载失败',
+  // 首查延迟到首次切到黑名单 Tab（loaded 懒加载约定），同样关闭自动加载
+  autoLoad: false,
+  fetchPage: async (params) => {
+    if (!canBlacklist.value) {
+      // 无权限：不请求，置空并提示（与迁移前行为一致，不记入 loaded，切回仍会重试提示）
+      ElMessage.warning('当前账号无黑名单权限');
+      return { items: [], total: 0 };
+    }
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    const data = await api.request<PageResult<Row> | Row[]>(
+      AdminEndpoints.riskBlacklistList(q),
+      'GET'
+    );
+    loaded.value.add('blacklist');
+    return data;
+  }
+});
 
 const exportButtonLabel = computed(() =>
-  tab.value === 'blacklist' ? blacklistExportLabel.value : eventsExportLabel.value
+  tab.value === 'blacklist' ? blacklistCrud.exportButtonLabel : eventsCrud.exportButtonLabel
 );
 
+// 页头「导出」按钮的部分选中回退：勾选了部分行时走前端 CSV，否则走后端全量导出
 const { onExport: exportEvents } = useListCsv({
   filePrefix: '风险事件',
   headers: ['事件ID', '用户', '类型', '级别', '时间'],
   toRows: () =>
-    pickEvents(events.value).map((row) => [
+    eventsCrud.pickSelected(eventsCrud.items).map((row) => [
       row.eventId,
       row.userId,
       dictLabel('risk_event_type', row.eventType),
@@ -394,7 +331,7 @@ const { onExport: exportBlacklist } = useListCsv({
   filePrefix: '黑名单',
   headers: ['用户ID', '原因', '加入时间'],
   toRows: () =>
-    pickBlacklist(blacklist.value).map((row) => [
+    blacklistCrud.pickSelected(blacklistCrud.items).map((row) => [
       row.userId,
       row.reason || '',
       formatDateTime(row.createdAt)
@@ -403,8 +340,8 @@ const { onExport: exportBlacklist } = useListCsv({
 
 async function onExport() {
   if (tab.value === 'blacklist') {
-    const selected = pickBlacklist(blacklist.value);
-    if (selected.length && selected.length < blacklist.value.length) {
+    const selected = blacklistCrud.pickSelected(blacklistCrud.items);
+    if (selected.length && selected.length < blacklistCrud.items.length) {
       exportBlacklist();
       return;
     }
@@ -416,8 +353,8 @@ async function onExport() {
     }
     return;
   }
-  const selected = pickEvents(events.value);
-  if (selected.length && selected.length < events.value.length) {
+  const selected = eventsCrud.pickSelected(eventsCrud.items);
+  if (selected.length && selected.length < eventsCrud.items.length) {
     exportEvents();
     return;
   }
@@ -445,86 +382,21 @@ function applyRouteQuery() {
   return false;
 }
 
-async function loadEvents() {
-  const seq = loadSeq.begin('loadEvents');
-  eventsLoading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(Math.max(0, eventPage.value - 1)),
-      size: String(eventSize.value)
-    });
-    const ev = await api.request<PageResult<Row> | Row[]>(AdminEndpoints.riskEventsList(q), 'GET');
-    const pageData = normalizeListPage(ev);
-    events.value = pageData.items;
-    eventTotal.value = pageData.total;
-    clearEventsSelection();
-    loaded.value.add('events');
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq, 'loadEvents')) return;
-    ElMessage.error(e instanceof Error ? e.message : '风险事件加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadEvents')) return;
-    eventsHydrated.value = true;
-    eventsLoading.value = false;
-  }
-}
-
-function onEventSizeChange() {
-  eventPage.value = 1;
-  loadEvents();
-}
-
-async function loadBlacklist() {
-  const seq = loadSeq.begin('loadBlacklist');
-  if (!canBlacklist.value) {
-    blacklist.value = [];
-    blacklistHydrated.value = true;
-    ElMessage.warning('当前账号无黑名单权限');
-    return;
-  }
-  blacklistLoading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(blacklistPage.value - 1),
-      size: String(blacklistSize.value)
-    });
-    const data = await api.request<PageResult<Row> | Row[]>(
-      AdminEndpoints.riskBlacklistList(q),
-      'GET'
-    );
-    const pageData = normalizeListPage(data);
-    blacklist.value = pageData.items;
-    blacklistTotal.value = pageData.total;
-    clearBlacklistSelection();
-    loaded.value.add('blacklist');
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq, 'loadBlacklist')) return;
-    ElMessage.error(e instanceof Error ? e.message : '黑名单加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadBlacklist')) return;
-    blacklistHydrated.value = true;
-    blacklistLoading.value = false;
-  }
-}
-
-function onBlacklistSizeChange() {
-  blacklistPage.value = 1;
-  loadBlacklist();
-}
-
 function onTabChange(name: string | number) {
   const key = String(name);
   syncRouteQuery();
   if (!loaded.value.has(key)) {
-    if (key === 'blacklist') loadBlacklist();
-    else loadEvents();
+    if (key === 'blacklist') void blacklistCrud.load();
+    else void eventsCrud.load();
   }
 }
 
-function reloadCurrent() {
-  loaded.value.delete(tab.value);
-  if (tab.value === 'blacklist') loadBlacklist();
-  else loadEvents();
+function blacklistActions(_row: Row): CrudRowAction[] {
+  return [{ key: 'remove', label: '移出', icon: Delete, type: 'danger' }];
+}
+
+function onBlacklistAction({ key, row }: { key: string; row: Row }) {
+  if (key === 'remove') void removeBlacklist(row);
 }
 
 function openAdd() {
@@ -552,7 +424,7 @@ async function saveBlacklist() {
     addDialog.value = false;
     ElMessage.success('已加入黑名单');
     loaded.value.delete('blacklist');
-    await loadBlacklist();
+    await blacklistCrud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
   } finally {
@@ -567,7 +439,7 @@ async function removeBlacklist(row: Row) {
     });
     await api.request(AdminEndpoints.riskBlacklistUser(row.userId), 'DELETE');
     ElMessage.success('已移出');
-    await loadBlacklist();
+    await blacklistCrud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '操作失败'));
   }
@@ -575,8 +447,8 @@ async function removeBlacklist(row: Row) {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  if (tab.value === 'blacklist') await loadBlacklist();
-  else await loadEvents();
+  if (tab.value === 'blacklist') await blacklistCrud.load();
+  else await eventsCrud.load();
 }
 
 watch(
@@ -588,8 +460,9 @@ watch(
 
 onMounted(() => {
   applyRouteQuery();
-  if (tab.value === 'blacklist') loadBlacklist();
-  else loadEvents();
+  // 两个 crud 均已 autoLoad:false：首查依赖路由 query.tab 解析结果，这里显式首查当前 Tab
+  if (tab.value === 'blacklist') void blacklistCrud.load();
+  else void eventsCrud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
