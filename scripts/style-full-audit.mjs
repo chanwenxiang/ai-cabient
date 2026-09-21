@@ -289,7 +289,7 @@ for (const mp of ['consumer-mp', 'merchant-mp']) {
 }
 
 // —— Markdown 报告 ————————————————————————————————————————————
-const shortFile = (f, app) => f.split(`/src/`)[1] || f;
+const shortFile = (f) => f.split(`/src/`)[1] || f;
 const fmt = (n) => (n === 0 ? '·' : String(n));
 
 function buildMarkdown(result) {
