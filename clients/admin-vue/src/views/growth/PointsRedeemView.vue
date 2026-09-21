@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button
-            v-if="hasSelection"
+            v-if="crud.hasSelection"
             v-hasPermi="['ops:points:edit']"
             type="success"
             :loading="batchLoading === 'enable'"
@@ -19,7 +19,7 @@
             批量上架
           </el-button>
           <el-button
-            v-if="hasSelection"
+            v-if="crud.hasSelection"
             v-hasPermi="['ops:points:edit']"
             type="warning"
             :loading="batchLoading === 'disable'"
@@ -27,11 +27,9 @@
           >
             批量下架
           </el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-hasPermi="['ops:points:edit']" type="primary" @click="openCreate"
             >新建兑换项</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -55,25 +53,17 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          v-loading="loading"
-          :data="displayList"
-          stripe
-          border
+        <CrudTable
+          :table="crud"
           row-key="itemId"
-          empty-text=" "
-          class="report-table"
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="rowActions"
+          :action-width="120"
+          actions-testid="points-redeem"
+          empty-text="暂无兑换项"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty><el-empty v-if="!loading" description="暂无兑换项" /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column prop="itemId" label="ID" width="80" class-name="col-text" />
           <el-table-column
             label="兑换项"
@@ -169,21 +159,7 @@
               row.createdAt ? formatDateTime(row.createdAt) : '暂无'
             }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="120"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                @action="(k) => onRowAction(String(k), row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
 
@@ -234,15 +210,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
+import { onMounted, reactive, ref } from 'vue';
+import { EditPen, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { useListCsv } from '@/composables/useListCsv';
-import { useAuthStore } from '@/stores/auth';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -268,30 +242,19 @@ type CouponDef = {
   denominationCents: number;
 };
 
-const loading = ref(false);
 const saving = ref(false);
 const batchLoading = ref<'enable' | 'disable' | ''>('');
-const list = ref<RedeemItem[]>([]);
 const couponDefs = ref<CouponDef[]>([]);
 const dialogVisible = ref(false);
 const editing = ref(false);
-const auth = useAuthStore();
+const keyword = ref('');
 
-const {
-  tableRef,
-  keyword,
-  hasSelection,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection,
-  filterByKeyword,
-  resetKeyword
-} = useAdminListTable<RedeemItem>((r) => r.itemId);
-
-const displayList = computed(() =>
-  filterByKeyword(list.value, (row, kw) => {
-    return (
+/** 关键词为纯前端过滤（接口无该参数）：过滤前移到取数处，与原 displayList 行为一致 */
+function filterByKeyword(rows: RedeemItem[]): RedeemItem[] {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter(
+    (row) =>
       String(row.title || '')
         .toLowerCase()
         .includes(kw) ||
@@ -301,15 +264,27 @@ const displayList = computed(() =>
       String(row.subtitle || '')
         .toLowerCase()
         .includes(kw)
-    );
-  })
-);
+  );
+}
 
-const { onExport } = useListCsv({
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 / 导出 全部内建
+const crud = useCrudTable<RedeemItem>({
+  rowKey: (r) => r.itemId,
+  fetchPage: async (params) => {
+    // 接口无分页参数：整表拉取后前端过滤 + 前端切片
+    const list = filterByKeyword(
+      await api.request<RedeemItem[]>(AdminEndpoints.growthPointsRedeem)
+    );
+    const start = params.page * params.size;
+    return { items: list.slice(start, start + params.size), total: list.length };
+  }
+});
+
+const csvOptions: CrudCsvOptions = {
   filePrefix: '积分兑换管理',
   headers: ['ID', '标题', '副标题', '所需积分', '兑换优惠券', '库存', '已兑', '排序', '状态'],
-  toRows: () =>
-    pickSelected(displayList.value).map((r) => [
+  toRows: (rows) =>
+    rows.map((r) => [
       r.itemId,
       r.title,
       r.subtitle || '',
@@ -320,7 +295,7 @@ const { onExport } = useListCsv({
       r.sortOrder,
       displayLabel('enable_status', r.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
     ])
-});
+};
 
 const form = reactive({
   itemId: 0 as number | null,
@@ -334,48 +309,36 @@ const form = reactive({
   status: 'ACTIVE'
 });
 
-onMounted(async () => {
-  await Promise.all([load(), loadCouponDefs()]);
+onMounted(() => {
+  // 列表首查由 useCrudTable(autoLoad) 挂载时自动发起；这里补充加载优惠券定义下拉
+  void loadCouponDefs();
 });
 
 function search() {
-  /* client-side filter */
+  void crud.search();
 }
 
 function reset() {
-  resetKeyword();
+  keyword.value = '';
+  void crud.search();
 }
 
-function rowActions(row: RedeemItem): TableAction[] {
-  if (!auth.hasPerm('ops:points:edit')) {
-    return [{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }];
-  }
+function rowActions(row: RedeemItem): CrudRowAction[] {
   return [
     { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
     {
       key: 'toggle',
       label: displayLabel('enable_status', row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'),
       icon: SwitchButton,
-      type: row.status === 'ACTIVE' ? 'danger' : 'success'
+      type: row.status === 'ACTIVE' ? 'danger' : 'success',
+      perm: 'ops:points:edit'
     }
   ];
 }
 
-function onRowAction(key: string, row: RedeemItem) {
+function onAction({ key, row }: { key: string; row: RedeemItem }) {
   if (key === 'edit') openEdit(row);
   else if (key === 'toggle') void toggleStatus(row);
-}
-
-async function load() {
-  loading.value = true;
-  try {
-    list.value = await api.request<RedeemItem[]>(AdminEndpoints.growthPointsRedeem);
-    clearSelection();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    loading.value = false;
-  }
 }
 
 async function loadCouponDefs() {
@@ -437,7 +400,7 @@ async function save() {
     });
     ElMessage.success('已保存');
     dialogVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -452,14 +415,14 @@ async function toggleStatus(row: RedeemItem) {
       status: next
     });
     ElMessage.success(next === 'ACTIVE' ? '已启用' : '已停用');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
   }
 }
 
 async function batchToggle(status: 'ACTIVE' | 'INACTIVE') {
-  const targets = pickSelected(displayList.value).filter((r) =>
+  const targets = crud.pickSelected(crud.items).filter((r) =>
     status === 'ACTIVE' ? r.status !== 'ACTIVE' : r.status === 'ACTIVE'
   );
   if (!targets.length) {
@@ -488,7 +451,7 @@ async function batchToggle(status: 'ACTIVE' | 'INACTIVE') {
   ElMessage.success(
     `批量${status === 'ACTIVE' ? '上架' : '下架'}完成：成功 ${ok}，失败 ${targets.length - ok}`
   );
-  await load();
+  await crud.load();
 }
 </script>
 
