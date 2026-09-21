@@ -240,14 +240,15 @@
 
       <div class="table-scroll">
         <div class="table-scroll-inner">
-          <el-table class="action-table" :data="pagedActions" stripe border empty-text=" ">
-            <template #empty>
-              <el-empty
-                v-if="listHydrated && !loading"
-                :description="queueEmptyText"
-                :image-size="72"
-              />
-            </template>
+          <CrudTable
+            :table="queueCrud"
+            class="action-table"
+            :actions="queueRowActions"
+            :action-width="88"
+            :show-refresh="false"
+            :empty-text="queueEmptyText"
+            @action="onQueueAction"
+          >
             <el-table-column
               label="优先级"
               width="92"
@@ -275,46 +276,21 @@
               <template #default="{ row }">{{ contextLabel(row) }}</template>
             </el-table-column>
             <el-table-column prop="detail" label="详情" min-width="220" class-name="col-text" />
-            <el-table-column
-              label="操作"
-              width="88"
-              class-name="col-action"
-              align="center"
-              fixed="right"
-            >
-              <template #default="{ row }">
-                <TableActions
-                  v-if="canHandleAction(row)"
-                  :actions="[{ key: 'handle', label: '查看', icon: Right, type: 'primary' }]"
-                  @action="() => goAction(row)"
-                />
-                <span v-else class="no-perm">暂无</span>
-              </template>
-            </el-table-column>
-          </el-table>
+          </CrudTable>
         </div>
       </div>
-      <PagePager
-        v-if="listHydrated && filteredActions.length > pageSize"
-        :hydrated="listHydrated"
-        v-model:current-page="page"
-        :page-size="pageSize"
-        :total="filteredActions.length"
-        layout="total, prev, pager, next"
-        background
-      />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import PagePager from '@/components/PagePager.vue';
 import { Refresh, Right } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions from '@/components/TableActions.vue';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -342,7 +318,8 @@ interface OpsActionItem {
   sessionId?: string;
   ticketId?: string;
   skuId?: string;
-  taskId?: number;
+  /** 与 shared-types OpsWorkbench.actionItems 对齐（补货签收超时的 taskId 是出库单号，可能为 string） */
+  taskId?: number | string;
 }
 
 interface QuickLink {
@@ -362,8 +339,6 @@ const workbench = ref<OpsWorkbench | null>(null);
 const openExceptionCount = ref(0);
 const showZeroLinks = ref(false);
 const severityFilter = ref<'all' | 'urgent'>('all');
-const page = ref(1);
-const pageSize = 10;
 const onboardPending = ref(0);
 
 const quickLinks = computed<QuickLink[]>(() => [
@@ -578,17 +553,45 @@ const queueEmptyText = computed(() => {
   return filteredActions.value.length ? '暂无明细项' : '运行正常，暂无待处理异常';
 });
 
-const pagedActions = computed(() => {
-  const start = (page.value - 1) * pageSize;
-  return filteredActions.value.slice(start, start + pageSize);
+/** 行主键：告警行无唯一 id，用业务字段拼装（本表无多选，仅保证行渲染稳定） */
+function queueRowKey(row: OpsActionItem): string {
+  return [row.type, row.deviceId, row.sessionId, row.ticketId, row.skuId, row.taskId, row.title]
+    .map((part) => part ?? '')
+    .join('|');
+}
+
+// 告警明细无独立分页接口（数据来自工作台聚合 workbench.actionItems），fetchPage 做前端切片；
+// 首查依赖 load() 的聚合结果，故 autoLoad:false，待 load() 成功后显式 queueCrud.load()
+const queueCrud = useCrudTable<OpsActionItem>({
+  rowKey: queueRowKey,
+  autoLoad: false,
+  pageSize: 10,
+  fetchPage: async ({ page, size }) => {
+    const start = page * size;
+    return filteredActions.value.slice(start, start + size);
+  }
 });
 
+function queueRowActions(row: OpsActionItem): CrudRowAction[] {
+  if (!canHandleAction(row)) return [];
+  return [{ key: 'handle', label: '查看', icon: Right, type: 'primary' }];
+}
+
+function onQueueAction({ row }: { key: string; row: OpsActionItem }) {
+  goAction(row);
+}
+
 watch(severityFilter, () => {
-  page.value = 1;
+  // 紧急筛选切换后回到第一页并重切
+  void queueCrud.search();
 });
 watch(filteredActions, (list) => {
-  const maxPage = Math.max(1, Math.ceil(list.length / pageSize) || 1);
-  if (page.value > maxPage) page.value = maxPage;
+  // 聚合数据刷新后保持页码；页码越界回退到最后一页（对齐旧 clamp 行为）
+  const maxPage = Math.max(1, Math.ceil(list.length / queueCrud.size) || 1);
+  if (queueCrud.page > maxPage) {
+    queueCrud.page = maxPage;
+    void queueCrud.load();
+  }
 });
 
 function priority(severity = '') {
@@ -764,6 +767,8 @@ async function load(opts?: { silent?: boolean }) {
     stats.value = s || {};
     workbench.value = wb;
     openExceptionCount.value = ex?.total || 0;
+    // 聚合数据落位后重切告警明细（保持页码，越界由 filteredActions watch 兜底回退）
+    void queueCrud.load();
     await loadOnboardPending();
   } catch (e) {
     if (!loadSeq.isCurrent(seq)) return;
@@ -812,10 +817,6 @@ onMounted(() => load({ silent: true }));
   color: var(--el-text-color-secondary);
   font-size: var(--admin-font-size-sm);
   line-height: 1.4;
-}
-.no-perm {
-  color: var(--el-text-color-placeholder);
-  font-size: var(--admin-font-size-table);
 }
 .zone-row {
   margin-top: 12px;
