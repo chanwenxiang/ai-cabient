@@ -122,6 +122,10 @@ jobs:
         env:
           MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
 
+      # 管理后台表格收敛门禁：裸 el-table / 表头排序 / 原生按钮防回潮 + shared-uni 拷贝一致性
+      - name: Admin table & shared-component gate
+        run: node scripts/check-admin-table-gate.mjs
+
       - name: Build & Test (trade-service)
         run: mvn verify -DskipITs -pl services/trade-service -am
         env:

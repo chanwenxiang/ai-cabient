@@ -1,7 +1,3 @@
-<!--
-  Canonical: packages/shared-uni/src/components/app-nav-bar.vue
-  Keep in sync (uni easycom 需本地路径).
--->
 <template>
   <view class="app-nav" :style="wrapStyle">
     <view class="app-nav-row" :style="rowStyle">
@@ -41,7 +37,7 @@ const props = withDefaults(
   }>(),
   {
     title: '',
-    bg: 'var(--brand-deep, #134e4a)',
+    bg: 'var(--brand-deep)',
     color: 'var(--white)',
     homeUrl: '/pages/index/index'
   }
@@ -149,7 +145,6 @@ export default { name: 'AppNavBar' };
   left: 0;
   right: 0;
   text-align: center;
-  /* R3-C01 豁免：17px 对齐微信胶囊按钮字号，不用 rpx/token */
   font-size: 17px;
   font-weight: 600;
   overflow: hidden;

@@ -1,7 +1,3 @@
-<!--
-  Canonical: packages/shared-uni/src/components/app-button.vue
-  Keep this file identical (uni easycom 需本地路径；改共享后请同步拷贝到两端).
--->
 <template>
   <button
     class="app-btn"
@@ -115,12 +111,12 @@ export default { name: 'AppButton' };
   font-weight: 600;
 }
 .app-btn--alipay {
-  background: linear-gradient(135deg, var(--brand-alipay, #1677ff), #4096ff);
+  background: linear-gradient(135deg, var(--brand-alipay), #4096ff);
   color: var(--white);
   box-shadow: 0 8rpx 20rpx rgba(22, 119, 255, 0.28);
 }
 .app-btn--wechat {
-  background: linear-gradient(135deg, var(--brand-wx, #07c160), #06ae56);
+  background: linear-gradient(135deg, var(--brand-wx), #06ae56);
   color: var(--white);
   box-shadow: 0 8rpx 20rpx rgba(7, 193, 96, 0.28);
 }
