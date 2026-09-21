@@ -11,37 +11,17 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:promotion:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button v-hasPermi="['ops:promotion:import']" @click="onDownloadTemplate"
-            >导入模板</el-button
-          >
           <el-button
-            v-hasPermi="['ops:promotion:import']"
-            :loading="importing"
-            @click="triggerImport"
-            >导入</el-button
-          >
-          <input
-            ref="importInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onImportFile"
-          />
-          <el-button
-            v-if="selectedIds.length"
+            v-if="crud.selectedKeys.length"
             v-hasPermi="['ops:promotion:stop']"
             type="warning"
             @click="batchDisable"
           >
-            批量停用 ({{ selectedIds.length }})
+            批量停用 ({{ crud.selectedKeys.length }})
           </el-button>
           <el-button v-hasPermi="['ops:promotion:create']" type="primary" @click="openCreate"
             >新建活动</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -77,35 +57,19 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayList"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="activityId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="rowActions"
+          :action-width="100"
+          actions-testid="promotion"
+          empty-text="暂无活动"
+          sort-field-label="活动编号"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无活动"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="activityId"
-            label="活动编号"
-            width="80"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="activityId" label="活动编号" width="80" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.activityId }}</span>
             </template>
@@ -193,36 +157,9 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="100"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                v-if="rowActions(row).length"
-                :actions="rowActions(row)"
-                @action="(k) => onAction(String(k), row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog
       v-model="showDialog"
@@ -322,66 +259,44 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
+import { EditPen, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useAuthStore } from '@/stores/auth';
-import { csvFileName, csvRowsToObjects, downloadCsv, parseCsv } from '@/utils/csv';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
-import { createLoadSeq } from '@/composables/createLoadSeq';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
-import type {
-  OpenApiPromotionActivityDto,
-  OpenApiPageResultPromotionActivityDto
-} from '@aicabinet/shared-types';
+import type { OpenApiPromotionActivityDto } from '@aicabinet/shared-types';
 
 const route = useRoute();
 const router = useRouter();
-const auth = useAuthStore();
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('activityId');
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
-const importing = ref(false);
-const list = ref<OpenApiPromotionActivityDto[]>([]);
-const total = ref(0);
 const keyword = ref('');
 const statusFilter = ref('');
-const page = ref(1);
-const size = ref(20);
-const selectedIds = ref<number[]>([]);
 const showDialog = ref(false);
 const editingId = ref<number | null>(null);
-const importInput = ref<HTMLInputElement | null>(null);
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
-const displayList = computed(() => sortById(list.value));
 
-function queryParams() {
-  const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (keyword.value.trim()) q.set('q', keyword.value.trim());
-  if (statusFilter.value) q.set('status', statusFilter.value);
-  return q;
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
-const exportButtonLabel = computed(() =>
-  selectedIds.value.length ? `导出选中 (${selectedIds.value.length})` : '导出'
-);
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<OpenApiPromotionActivityDto>({
+  rowKey: (r) => r.activityId ?? 0,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    if (statusFilter.value) q.set('status', statusFilter.value);
+    return api.request<{ items: OpenApiPromotionActivityDto[]; total: number }>(
+      `/api/v2/ops/promotions?${q}`,
+      'GET'
+    );
+  },
+  sort: { prop: 'activityId', mode: 'local' }
+});
 
 const CSV_HEADERS = [
   '活动名称',
@@ -407,9 +322,6 @@ const emptyForm = () => ({
 });
 const form = ref(emptyForm());
 
-const typeMap: Record<string, string> = Object.fromEntries(
-  dictOptions('promotion_type').map((o) => [o.value, o.label])
-);
 const typeCodeByLabel: Record<string, string> = Object.fromEntries(
   dictOptions('promotion_type').flatMap(
     (o) =>
@@ -476,64 +388,42 @@ async function loadDevices() {
   }
 }
 
-function rowActions(row: OpenApiPromotionActivityDto): TableAction[] {
-  const acts: TableAction[] = [];
-  if (!isEnabled(row.status) && row.status !== 'ENDED' && auth.hasPerm('ops:promotion:edit')) {
-    acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
+function rowActions(row: OpenApiPromotionActivityDto): CrudRowAction[] {
+  const acts: CrudRowAction[] = [];
+  if (!isEnabled(row.status) && row.status !== 'ENDED') {
+    acts.push({
+      key: 'edit',
+      label: '编辑',
+      icon: EditPen,
+      type: 'primary',
+      perm: 'ops:promotion:edit'
+    });
   }
   if (row.status !== 'ENDED') {
-    if (isEnabled(row.status) && auth.hasPerm('ops:promotion:stop')) {
+    if (isEnabled(row.status)) {
       acts.push({
         key: 'toggle',
         label: displayLabel('enable_status', 'INACTIVE'),
         icon: SwitchButton,
-        type: 'warning'
+        type: 'warning',
+        perm: 'ops:promotion:stop'
       });
-    } else if (!isEnabled(row.status) && auth.hasPerm('ops:promotion:launch')) {
+    } else {
       acts.push({
         key: 'toggle',
         label: displayLabel('enable_status', 'ACTIVE'),
         icon: SwitchButton,
-        type: 'success'
+        type: 'success',
+        perm: 'ops:promotion:launch'
       });
     }
   }
   return acts;
 }
 
-/** 当前页没有任何可操作项时不展示操作列（避免整列「无」） */
-const showActionColumn = computed(() =>
-  displayList.value.some((row) => rowActions(row).length > 0)
-);
-
-function onSelectionChange(rows: OpenApiPromotionActivityDto[]) {
-  selectedIds.value = rows.map((r) => r.activityId).filter((id): id is number => id != null);
-}
-
-async function onAction(key: string, row: OpenApiPromotionActivityDto) {
+function onAction({ key, row }: { key: string; row: OpenApiPromotionActivityDto }) {
   if (key === 'edit') openEdit(row);
-  else if (key === 'toggle') await onToggleStatus(row);
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const data = await api.request<OpenApiPageResultPromotionActivityDto>(
-      `/api/v2/ops/promotions?${queryParams()}`,
-      'GET'
-    );
-    list.value = data.items || [];
-    total.value = Number(data.total) || 0;
-    selectedIds.value = [];
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(errorMessage(e, '加载失败'));
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
+  else if (key === 'toggle') void onToggleStatus(row);
 }
 
 function openCreate() {
@@ -602,7 +492,7 @@ async function onSubmit() {
       ElMessage.success('创建成功');
     }
     showDialog.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
@@ -623,7 +513,7 @@ async function onToggleStatus(row: OpenApiPromotionActivityDto) {
       await api.request(`/api/v2/ops/promotions/${row.activityId}/stop`, 'POST');
     }
     ElMessage.success(`已${action}`);
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : `${action}失败`);
@@ -632,8 +522,8 @@ async function onToggleStatus(row: OpenApiPromotionActivityDto) {
 }
 
 async function batchDisable() {
-  const targets = list.value.filter(
-    (r) => r.activityId != null && selectedIds.value.includes(r.activityId) && isEnabled(r.status)
+  const targets = crud.items.filter(
+    (r) => r.activityId != null && crud.selectedKeys.includes(r.activityId) && isEnabled(r.status)
   );
   if (!targets.length) return ElMessage.warning('请勾选已启用的活动');
   try {
@@ -642,7 +532,7 @@ async function batchDisable() {
       await api.request(`/api/v2/ops/promotions/${row.activityId}/stop`, 'POST');
     }
     ElMessage.success(`已停用 ${targets.length} 个活动`);
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(errorMessage(e, '批量停用失败'));
@@ -650,48 +540,64 @@ async function batchDisable() {
   }
 }
 
-function toExportRows(items: OpenApiPromotionActivityDto[]) {
-  return items.map((row) => [
-    row.activityName || '',
-    displayLabel('promotion_type', row.activityType, '未知类型'),
-    formatTime(row.startTime || ''),
-    formatTime(row.endTime || ''),
-    yuan(row.budgetCents || 0),
-    row.userLimit ?? 1,
-    row.description || '',
-    statusLabel(row.status)
-  ]);
-}
-
-function onExport() {
-  const rows = selectedIds.value.length
-    ? displayList.value.filter(
-        (r) => r.activityId != null && selectedIds.value.includes(r.activityId)
-      )
-    : displayList.value;
-  if (!rows.length) return ElMessage.warning('暂无数据可导出');
-  downloadCsv(csvFileName('营销活动'), CSV_HEADERS, toExportRows(rows));
-  ElMessage.success(`已导出 ${rows.length} 条`);
-}
-
-function onDownloadTemplate() {
-  downloadCsv(csvFileName('营销活动导入模板'), CSV_HEADERS, [
-    [
-      '示例满减活动',
-      '满减',
-      '2026-07-16 00:00',
-      '2026-08-16 23:59',
-      '1000',
-      '1',
-      '示例描述',
-      displayLabel('enable_status', 'INACTIVE')
-    ]
-  ]);
-}
-
-function triggerImport() {
-  importInput.value?.click();
-}
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '营销活动',
+  exportPerm: 'ops:promotion:export',
+  importPerm: 'ops:promotion:import',
+  headers: CSV_HEADERS,
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.activityName || '',
+      displayLabel('promotion_type', row.activityType, '未知类型'),
+      formatTime(row.startTime || ''),
+      formatTime(row.endTime || ''),
+      yuan(row.budgetCents || 0),
+      row.userLimit ?? 1,
+      row.description || '',
+      statusLabel(row.status)
+    ]),
+  templateSample: [
+    '示例满减活动',
+    '满减',
+    '2026-07-16 00:00',
+    '2026-08-16 23:59',
+    '1000',
+    '1',
+    '示例描述',
+    displayLabel('enable_status', 'INACTIVE')
+  ],
+  onImportRows: async (rows) => {
+    let ok = 0;
+    for (const row of rows) {
+      const name = row['活动名称'] || row.activityName;
+      if (!name) continue;
+      const type = typeCodeByLabel[row['类型'] || row.activityType] || 'FULL_REDUCE';
+      const start = parseImportTime(row['开始时间'] || row.startTime);
+      const end = parseImportTime(row['结束时间'] || row.endTime);
+      if (!start || !end || end <= start) {
+        throw new Error(`活动「${name}」时间无效`);
+      }
+      const created = await api.request<OpenApiPromotionActivityDto>('/api/v2/ops/promotions', 'POST', {
+        activityName: name,
+        activityType: type,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        budgetCents: yuanToCents(row['预算(元)'] || row.budgetYuan) ?? 0,
+        userLimit: (() => {
+          const n = Number(row['每人限制'] || row.userLimit);
+          return Number.isFinite(n) && n > 0 ? n : 1;
+        })(),
+        description: row['描述'] || row.description || ''
+      });
+      if (wantsEnabled(row['状态'] || row.status) && created?.activityId) {
+        await api.request(`/api/v2/ops/promotions/${created.activityId}/launch`, 'POST');
+      }
+      ok++;
+    }
+    await crud.load();
+    return ok;
+  }
+};
 
 function parseImportTime(raw: string): Date | null {
   if (!raw) return null;
@@ -705,56 +611,6 @@ function wantsEnabled(statusRaw: string) {
   return s === displayLabel('enable_status', 'ACTIVE') || s.toUpperCase() === 'ACTIVE';
 }
 
-async function onImportFile(ev: Event) {
-  const input = ev.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-  importing.value = true;
-  try {
-    const text = await file.text();
-    const objects = csvRowsToObjects(parseCsv(text));
-    if (!objects.length) return ElMessage.warning('CSV 无有效数据行');
-    let ok = 0;
-    for (const row of objects) {
-      const name = row['活动名称'] || row.activityName;
-      if (!name) continue;
-      const type = typeCodeByLabel[row['类型'] || row.activityType] || 'FULL_REDUCE';
-      const start = parseImportTime(row['开始时间'] || row.startTime);
-      const end = parseImportTime(row['结束时间'] || row.endTime);
-      if (!start || !end || end <= start) {
-        throw new Error(`活动「${name}」时间无效`);
-      }
-      const created = await api.request<OpenApiPromotionActivityDto>(
-        '/api/v2/ops/promotions',
-        'POST',
-        {
-          activityName: name,
-          activityType: type,
-          startTime: start.toISOString(),
-          endTime: end.toISOString(),
-          budgetCents: yuanToCents(row['预算(元)'] || row.budgetYuan) ?? 0,
-          userLimit: (() => {
-            const n = Number(row['每人限制'] || row.userLimit);
-            return Number.isFinite(n) && n > 0 ? n : 1;
-          })(),
-          description: row['描述'] || row.description || ''
-        }
-      );
-      if (wantsEnabled(row['状态'] || row.status) && created?.activityId) {
-        await api.request(`/api/v2/ops/promotions/${created.activityId}/launch`, 'POST');
-      }
-      ok++;
-    }
-    ElMessage.success(`导入成功 ${ok} 条`);
-    await load();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '导入失败'));
-  } finally {
-    importing.value = false;
-  }
-}
-
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (keyword.value.trim()) query.keyword = keyword.value.trim();
@@ -763,17 +619,15 @@ function syncRouteQuery() {
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function resetFilters() {
   keyword.value = '';
   statusFilter.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function applyRouteQuery() {
@@ -793,8 +647,7 @@ function applyRouteQuery() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -804,10 +657,11 @@ watch(
   }
 );
 
+// 首查前需先应用路由查询参数，故保留显式首查（crud 已配 autoLoad: false）
 onMounted(() => {
   applyRouteQuery();
   void loadDevices();
-  load();
+  void crud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
@@ -857,9 +711,6 @@ onActivated(() => {
 }
 .budget-full-tag {
   margin: 0;
-}
-.hidden-input {
-  display: none;
 }
 :global(.promo-dialog .el-dialog__body) {
   overflow: visible;
