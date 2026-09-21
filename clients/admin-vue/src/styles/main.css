@@ -1653,6 +1653,16 @@ a:focus-visible {
 }
 
 /*
+ * CrudTable 自带吸附工具行/分页行（position: sticky）与 el-table 内部横向滚动：
+ * 外层 .table-scroll 一旦 overflow:auto 会形成独立滚动上下文，把 sticky 困在壳内失效。
+ * 包着 CrudTable 的壳一律放行为 visible（横向滚动由 el-table 自己接管）。
+ */
+.table-scroll:has(> .table-scroll-inner > .crud-table),
+.table-scroll:has(> .crud-table) {
+  overflow: visible;
+}
+
+/*
  * 表格长文案：用原生 title，勿用 show-overflow-tooltip。
  * EP 浮层挂在表内，`.table-scroll` 横滚 + 右侧 sticky 操作列时会漂到操作列上。
  */

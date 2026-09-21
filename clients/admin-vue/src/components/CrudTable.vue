@@ -1,44 +1,10 @@
 <template>
   <div class="crud-table">
-    <div v-if="csvCtl" class="crud-table__toolbar">
-      <div class="crud-table__toolbar-main">
-        <slot name="toolbar" />
-      </div>
-      <div class="crud-table__toolbar-tools">
-        <el-button
-          v-if="canExport"
-          size="small"
-          :disabled="table.loading"
-          @click="csvCtl.onExport()"
-          >{{ table.exportButtonLabel }}</el-button
-        >
-        <template v-if="canImport">
-          <el-button size="small" @click="csvCtl.onDownloadTemplate(csv?.templateSample)"
-            >下载模板</el-button
-          >
-          <el-button
-            v-hasPermi="csv?.importPerm ? toPermArray(csv.importPerm) : undefined"
-            size="small"
-            type="primary"
-            plain
-            :loading="csvCtl.importing.value"
-            @click="csvCtl.triggerImport()"
-            >导入</el-button
-          >
-        </template>
-        <input
-          :ref="bindCsvInput"
-          type="file"
-          accept=".csv,text/csv"
-          class="crud-table__csv-input"
-          aria-hidden="true"
-          tabindex="-1"
-          @change="csvCtl?.onImportFile($event)"
-        />
-      </div>
+    <div v-if="$slots.toolbar" class="crud-table__toolbar">
+      <slot name="toolbar" />
     </div>
 
-    <!-- 排序切换 / 已选提示 / 刷新：全站统一交互行 -->
+    <!-- 吸附工具行：排序切换 / 已选提示 / 导入导出 / 刷新，随表格滚动钉在可视区顶部 -->
     <div v-if="showMetaBar" class="crud-table__meta">
       <div class="crud-table__meta-left">
         <template v-if="table.sortProp">
@@ -63,14 +29,48 @@
           <el-button link type="primary" size="small" @click="table.clearSelection()">清空</el-button>
         </span>
       </div>
-      <el-button
-        v-if="showRefresh"
-        size="small"
-        :icon="Refresh"
-        :loading="table.loading"
-        @click="table.refresh()"
-        >刷新</el-button
-      >
+      <div class="crud-table__meta-right">
+        <template v-if="csvCtl">
+          <el-button
+            v-if="canExport"
+            size="small"
+            :disabled="table.loading"
+            @click="csvCtl.onExport()"
+            >{{ table.exportButtonLabel }}</el-button
+          >
+          <template v-if="canImport">
+            <el-button size="small" @click="csvCtl.onDownloadTemplate(csv?.templateSample)"
+              >下载模板</el-button
+            >
+            <el-button
+              v-hasPermi="csv?.importPerm ? toPermArray(csv.importPerm) : undefined"
+              size="small"
+              type="primary"
+              plain
+              :loading="csvCtl.importing.value"
+              @click="csvCtl.triggerImport()"
+              >导入</el-button
+            >
+          </template>
+          <input
+            :ref="bindCsvInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="crud-table__csv-input"
+            aria-hidden="true"
+            tabindex="-1"
+            @change="csvCtl?.onImportFile($event)"
+          />
+        </template>
+        <el-button
+          v-if="showRefresh"
+          size="small"
+          :icon="Refresh"
+          :loading="table.loading"
+          @click="table.refresh()"
+          >刷新</el-button
+        >
+      </div>
     </div>
 
     <el-table
@@ -116,17 +116,20 @@
       </el-table-column>
     </el-table>
 
-    <PagePager
-      :hydrated="table.hydrated"
-      v-model:current-page="table.page"
-      v-model:page-size="table.size"
-      :total="table.total"
-      :page-sizes="table.pageSizes"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      @current-change="table.load()"
-      @size-change="table.onSizeChange()"
-    />
+    <!-- 吸附分页行：表格过长时分页钉在可视区底部，无需滚到底换页 -->
+    <div class="crud-table__pager">
+      <PagePager
+        :hydrated="table.hydrated"
+        v-model:current-page="table.page"
+        v-model:page-size="table.size"
+        :total="table.total"
+        :page-sizes="table.pageSizes"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+        @current-change="table.load()"
+        @size-change="table.onSizeChange()"
+      />
+    </div>
   </div>
 </template>
 
@@ -238,7 +241,7 @@ function visibleActions(row: any): TableAction[] {
 
 const sortFieldLabel = computed(() => props.sortFieldLabel || table.sortProp);
 const showMetaBar = computed(
-  () => Boolean(table.sortProp) || props.selectable || props.showRefresh
+  () => Boolean(table.sortProp) || props.selectable || props.showRefresh || Boolean(csvCtl)
 );
 const hasActions = computed(() => typeof props.actions === 'function');
 
@@ -275,35 +278,36 @@ function bindCsvInput(el: Element | ComponentPublicInstance | null) {
 .crud-table__toolbar {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-.crud-table__toolbar-main {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.crud-table__toolbar-tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-.crud-table__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 10px;
+}
+/* 吸附工具行：页面滚动时钉在主滚动区顶部，排序/导出/刷新始终可见 */
+.crud-table__meta {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--layout-card, var(--el-bg-color, #fff));
+  padding: 6px 0 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--layout-border, var(--el-border-color-light));
 }
 .crud-table__meta-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+.crud-table__meta-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
   flex-wrap: wrap;
 }
 .crud-table__meta-label {
@@ -319,6 +323,15 @@ function bindCsvInput(el: Element | ComponentPublicInstance | null) {
   background: color-mix(in srgb, var(--app-primary, #0f766e) 10%, transparent);
   color: var(--app-primary, #0f766e);
   font-size: var(--admin-font-size-table, 13px);
+}
+/* 吸附分页行：长表格滚动时钉在主滚动区底部 */
+.crud-table__pager {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  background: var(--layout-card, var(--el-bg-color, #fff));
+  padding: 6px 0 4px;
+  border-top: 1px solid var(--layout-border, var(--el-border-color-light));
 }
 .crud-table__csv-input {
   position: absolute;
