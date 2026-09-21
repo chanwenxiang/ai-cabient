@@ -8,12 +8,6 @@
             <span class="hint">按手机号 / 姓名 / ID 筛选；有权限可调整余额</span>
           </div>
         </div>
-        <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:user:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
-        </div>
       </div>
     </template>
 
@@ -36,35 +30,18 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="items"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="userId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="showActionColumn ? rowActions : undefined"
+          :action-width="100"
+          empty-text="暂无用户"
+          sort-field-label="用户编号"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无用户"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="userId"
-            label="用户编号"
-            width="100"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="userId" label="用户编号" width="100" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.userId }}</span>
             </template>
@@ -165,38 +142,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="100"
-            class-name="col-action"
-            label-class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                v-if="userActions(row).length"
-                :actions="userActions(row)"
-                @action="(key) => onUserAction(key, row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 
   <el-dialog
@@ -247,16 +195,12 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { CircleCheck, Refresh, Wallet } from '@element-plus/icons-vue';
+import { CircleCheck, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useTableSelection } from '@/composables/useTableSelection';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -297,8 +241,57 @@ const auth = useAuthStore();
 const canAdjust = computed(() => auth.hasPerm('ops:user:balance'));
 const canVerify = computed(() => auth.hasPerm('ops:user:verify'));
 
-function userActions(row: UserRow): TableAction[] {
-  const acts: TableAction[] = [];
+const keyword = ref('');
+const adjustVisible = ref(false);
+const adjustSaving = ref(false);
+const adjustRow = ref<UserRow | null>(null);
+const adjustForm = ref({ amount: 0, reason: '' });
+/** Fixed for this dialog open — avoids Date.now() double-submit creating duplicate adjusts. */
+const adjustIdempotencyKey = ref('');
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 / 刷新 全部内建
+const crud = useCrudTable<UserRow>({
+  rowKey: (r) => r.userId,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  fetchPage: async (params) => {
+    const classified = classifyKeyword(keyword.value);
+    if (classified.userId) {
+      // 纯数字关键词走「按 ID 精确查找」，不受分页影响（原 load 行为保留）
+      const hit = await findUserById(classified.userId);
+      return { items: hit ? [hit] : [], total: hit ? 1 : 0 };
+    }
+    const q = new URLSearchParams({
+      page: String(params.page), // 0 起（useCrudTable 已换算）
+      size: String(params.size)
+    });
+    if (classified.phone) q.set('phone', classified.phone);
+    if (classified.name) q.set('name', classified.name);
+    return api.request<PageResult<UserRow>>(AdminEndpoints.usersList(q), 'GET');
+  },
+  // 用户编号本地排序（替代原 useIdColumnSort 表头排序，改由壳内「按用户编号 升/降序」切换）
+  sort: { prop: 'userId', mode: 'local' }
+});
+
+// 导出统一并入 CrudTable 工具条（选中优先导出、文件命名由组件内置）
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '用户余额',
+  exportPerm: 'ops:user:export',
+  headers: ['用户ID', '手机号', '姓名', '角色', '实名', '余额', '注册时间'],
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.userId,
+      row.phoneNumber,
+      userNameText(row),
+      roleLabel(row.role),
+      row.verified ? '已实名' : '未实名',
+      ((row.balanceCents || 0) / 100).toFixed(2),
+      formatDateTime(row.createdAt)
+    ])
+};
+
+function rowActions(row: UserRow): CrudRowAction[] {
+  const acts: CrudRowAction[] = [];
   if (canAdjust.value) {
     acts.push({ key: 'adjust', label: '调整余额', icon: Wallet, type: 'primary' });
   }
@@ -308,12 +301,14 @@ function userActions(row: UserRow): TableAction[] {
   return acts;
 }
 
+/** 与原逻辑一致：无任何可用操作（无权限或全部已实名）时隐藏整列 */
 const showActionColumn = computed(
   () =>
-    (canAdjust.value || canVerify.value) && items.value.some((row) => userActions(row).length > 0)
+    (canAdjust.value || canVerify.value) &&
+    crud.items.some((row) => rowActions(row).length > 0)
 );
 
-function onUserAction(key: string, row: UserRow) {
+function onAction({ key, row }: { key: string; row: UserRow }) {
   if (key === 'verify') verifyUser(row);
   else if (key === 'adjust') openAdjust(row);
 }
@@ -335,51 +330,12 @@ async function verifyUser(row: UserRow) {
       realName: (value || '').trim() || undefined
     });
     ElMessage.success('已核验实名');
-    await load();
+    await crud.load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
     ElMessage.error(e instanceof Error ? e.message : '核验失败');
   }
 }
-
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
-const keyword = ref('');
-const adjustVisible = ref(false);
-const adjustSaving = ref(false);
-const adjustRow = ref<UserRow | null>(null);
-const adjustForm = ref({ amount: 0, reason: '' });
-/** Fixed for this dialog open — avoids Date.now() double-submit creating duplicate adjusts. */
-const adjustIdempotencyKey = ref('');
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const items = ref<UserRow[]>([]);
-
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('userId', {
-  onChange: () => {
-    items.value = sortById([...items.value]);
-  }
-});
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<UserRow>((r) => r.userId);
-
-const { onExport } = useListCsv({
-  filePrefix: '用户余额',
-  headers: ['用户ID', '手机号', '姓名', '角色', '实名', '余额', '注册时间'],
-  toRows: () =>
-    pickSelected(items.value).map((row) => [
-      row.userId,
-      row.phoneNumber,
-      userNameText(row),
-      roleLabel(row.role),
-      row.verified ? '已实名' : '未实名',
-      ((row.balanceCents || 0) / 100).toFixed(2),
-      formatDateTime(row.createdAt)
-    ])
-});
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
@@ -412,52 +368,15 @@ async function findUserById(userId: string): Promise<UserRow | null> {
   return hit ?? null;
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const classified = classifyKeyword(keyword.value);
-    if (classified.userId) {
-      const hit = await findUserById(classified.userId);
-      if (!loadSeq.isCurrent(seq)) return;
-      items.value = sortById(hit ? [hit] : []);
-      total.value = hit ? 1 : 0;
-    } else {
-      const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-      if (classified.phone) q.set('phone', classified.phone);
-      if (classified.name) q.set('name', classified.name);
-      const data = await api.request<PageResult<UserRow>>(AdminEndpoints.usersList(q), 'GET');
-      if (!loadSeq.isCurrent(seq)) return;
-      items.value = sortById(data.items || []);
-      total.value = data.total || 0;
-    }
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function reset() {
   keyword.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 function openAdjust(row: UserRow) {
@@ -499,7 +418,7 @@ async function submitAdjust() {
     });
     ElMessage.success('余额已调整');
     adjustVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '调整失败');
   } finally {
@@ -509,8 +428,7 @@ async function submitAdjust() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -520,9 +438,10 @@ watch(
   }
 );
 
+// 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由这里显式首查
 onMounted(() => {
   applyRouteQuery();
-  load();
+  void crud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
@@ -553,10 +472,6 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: var(--admin-font-size-sm);
   line-height: 1.4;
-}
-.page-card-head__actions {
-  display: flex;
-  gap: 8px;
 }
 .user-cell {
   display: grid;
