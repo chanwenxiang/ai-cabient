@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -11,8 +11,8 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+          <!-- 后端有整单导出端点：页头导出按钮保留页面内实现（选中行走页内 CSV，无选中走后端导出） -->
+          <el-button @click="onExport">{{ crud.exportButtonLabel }}</el-button>
         </div>
       </div>
     </template>
@@ -74,37 +74,23 @@
         :aria-label="`${tile.label} ${tile.value}`"
       >
         <div class="kpi-label">{{ tile.label }}</div>
-        <div class="kpi-value">{{ listHydrated ? tile.value : '…' }}</div>
+        <div class="kpi-value">{{ crud.hydrated ? tile.value : '…' }}</div>
         <div v-if="tile.hint" class="kpi-hint">{{ tile.hint }}</div>
       </div>
     </div>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          v-loading="loading"
-          :data="rows"
-          stripe
-          border
-          class="report-table"
-          row-key="dimKey"
-          empty-text=" "
+        <!-- 排序为三列服务端表头排序（营收/退款/毛利），壳内单字段排序无法表达，
+             故 @sort-change / :default-sort 经 $attrs 透传给内建 el-table，保留页面级实现 -->
+        <CrudTable
+          :table="crud"
+          selectable
+          empty-text="暂无数据"
           :default-sort="tableDefaultSort"
-          @selection-change="onSelectionChange"
-          @sort-change="onSortChange"
           @row-click="onRowClick"
+          @sort-change="onSortChange"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无数据"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             prop="dimKey"
             label="编码"
@@ -275,34 +261,20 @@
               }}
             </template>
           </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import type { TableColumnCtx } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import PagePager from '@/components/PagePager.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { createLoadSeq } from '@/composables/createLoadSeq';
+import CrudTable from '@/components/CrudTable.vue';
+import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -339,16 +311,11 @@ type SortProp = 'revenueCents' | 'refundedCents' | 'marginCents' | '';
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const { canAccessPath, goPath } = useNavAccess();
 
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
 const dim = ref('PRODUCT');
 const deviceId = ref('');
 const rangePreset = ref<RangePreset>('today');
 const summary = ref<SalesSummary | null>(null);
+// 服务端多列排序（营收/退款/毛利三列表头点击）：useCrudTable 单字段排序无法表达，保留页面级实现
 const sortBy = ref<SortProp>('');
 const sortDir = ref<'asc' | 'desc' | ''>('');
 
@@ -373,16 +340,46 @@ function rangeForPreset(preset: RangePreset): [string, string] {
 }
 
 const range = ref<[string, string] | null>(rangeForPreset('today'));
-const rows = ref<SalesRow[]>([]);
 
-const {
-  tableRef,
-  selectedKeys,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection
-} = useAdminListTable<SalesRow>((r) => r.dimKey || r.dimLabel || '');
+function queryParams(params?: CrudPageParams) {
+  const q = new URLSearchParams({ dim: dim.value });
+  if (range.value?.[0]) q.set('fromDate', range.value[0]);
+  if (range.value?.[1]) q.set('toDate', range.value[1]);
+  if (deviceId.value) q.set('deviceId', deviceId.value);
+  if (sortBy.value) {
+    q.set('sortBy', sortBy.value);
+    if (sortDir.value) q.set('sortDir', sortDir.value);
+  }
+  if (params) {
+    q.set('page', String(params.page)); // 0 起（useCrudTable 已换算）
+    q.set('size', String(params.size));
+  }
+  return q;
+}
+
+// KPI 汇总与列表同接口返回，在 fetchPage 内就地捕获；仅采纳最新一次请求，防止快速切维后串数据
+let fetchSeq = 0;
+
+/** 拉取一页销售报表；查询拼装保持原样（page 已是 0 起） */
+async function fetchPage(params: CrudPageParams) {
+  const seq = ++fetchSeq;
+  const data = await api.request<{
+    items: SalesRow[];
+    total: number;
+    summary?: SalesSummary;
+  }>(AdminEndpoints.salesReportsList(queryParams(params)), 'GET');
+  if (seq === fetchSeq) summary.value = data.summary || null;
+  return data;
+}
+
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 全部内建
+const crud = useCrudTable<SalesRow>({
+  rowKey: (r) => r.dimKey || r.dimLabel || '',
+  fetchPage,
+  errorMessage: '加载失败',
+  // 首查依赖柜机下拉选项初始化完成（原 onMounted 串行行为），故关闭自动首查、挂载后显式查询
+  autoLoad: false
+});
 
 const tableDefaultSort = computed(() => {
   if (sortBy.value && sortDir.value) {
@@ -454,8 +451,8 @@ function onSortChange(payload: {
     sortBy.value = prop;
     sortDir.value = payload.order === 'ascending' ? 'asc' : 'desc';
   }
-  page.value = 1;
-  load();
+  crud.page = 1;
+  void crud.load();
 }
 
 const kpiTiles = computed(() => {
@@ -499,6 +496,7 @@ const kpiTiles = computed(() => {
   ];
 });
 
+// 页内 CSV（选中优先）保留在页面：页头导出按钮共用，无选中时走后端整单导出
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '销售报表',
   headers: [
@@ -518,7 +516,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
     '件均价'
   ],
   toRows: () =>
-    pickSelected(rows.value).map((r) => {
+    crud.pickSelected(crud.displayItems).map((r) => {
       const revenue = Number(r.revenueCents || 0);
       const margin = Number(r.marginCents || 0);
       const refunded = Number(r.refundedCents || 0);
@@ -544,57 +542,8 @@ const { onExport: exportSelectedCsv } = useListCsv({
     })
 });
 
-function queryParams(includePage = true) {
-  const q = new URLSearchParams({ dim: dim.value });
-  if (range.value?.[0]) q.set('fromDate', range.value[0]);
-  if (range.value?.[1]) q.set('toDate', range.value[1]);
-  if (deviceId.value) q.set('deviceId', deviceId.value);
-  if (sortBy.value) {
-    q.set('sortBy', sortBy.value);
-    if (sortDir.value) q.set('sortDir', sortDir.value);
-  }
-  if (includePage) {
-    q.set('page', String(page.value - 1));
-    q.set('size', String(size.value));
-  }
-  return q;
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const data = await api.request<{
-      items: SalesRow[];
-      total: number;
-      summary?: SalesSummary;
-    }>(AdminEndpoints.salesReportsList(queryParams()), 'GET');
-    rows.value = data.items || [];
-    total.value = Number(data.total) || 0;
-    summary.value = data.summary || null;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-    if (!listHydrated.value) {
-      rows.value = [];
-      summary.value = null;
-    }
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
 function search() {
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 function onPresetChange(preset: RangePreset | string) {
@@ -616,18 +565,17 @@ function reset() {
   range.value = rangeForPreset('today');
   sortBy.value = '';
   sortDir.value = '';
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 async function onExport() {
-  if (selectedKeys.value.length) {
+  if (crud.selectedKeys.length) {
     exportSelectedCsv();
     return;
   }
   try {
     await downloadAuthFile(
-      AdminEndpoints.salesReportsExport(queryParams(false)),
+      AdminEndpoints.salesReportsExport(queryParams()),
       csvFileName(`销售报表-${dim.value}`)
     );
   } catch (e) {
@@ -635,9 +583,10 @@ async function onExport() {
   }
 }
 
+// 首查依赖柜机下拉选项初始化完成（原串行行为），autoLoad:false 后在挂载时显式首查
 onMounted(async () => {
   await loadDeviceOptions();
-  await load();
+  await crud.load();
 });
 </script>
 
