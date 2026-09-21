@@ -14,7 +14,7 @@
           }}</el-button>
           <el-button
             :icon="Refresh"
-            :loading="tab === 'ledger' ? ledgerLoading : loading"
+            :loading="tab === 'ledger' ? ledgerLoading : crud.loading"
             @click="reloadCurrent"
             >刷新</el-button
           >
@@ -70,28 +70,14 @@
       <el-tab-pane label="日资金账单" name="bills">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              v-loading="loading"
-              :data="displayBills"
-              :default-sort="billIdDefaultSort"
-              @sort-change="onBillIdSortChange"
-              stripe
-              border
-              class="report-table"
-              row-key="rowKey"
-              @selection-change="onBillSelectionChange"
-              empty-text=" "
+            <!-- 主列表（日资金账单）接入统一表格壳；刷新/导出保留页头（两个 Tab 共用），故壳内刷新关闭 -->
+            <CrudTable
+              :table="crud"
+              selectable
+              :show-refresh="false"
+              :empty-text="billEmptyDescription"
+              sort-field-label="商户编号"
             >
-              <template #empty
-                ><el-empty v-if="listHydrated && !loading" :description="billEmptyDescription"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column
                 prop="bizDate"
                 label="账期"
@@ -105,7 +91,6 @@
                 label="商户编号"
                 min-width="120"
                 class-name="col-text"
-                sortable="custom"
               >
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.merchantId }}</span>
@@ -180,20 +165,9 @@
                   </el-tag>
                 </template>
               </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
-        <PagePager
-          :hydrated="listHydrated"
-          v-model:current-page="billPage"
-          v-model:page-size="billSize"
-          :total="billTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @current-change="loadBills"
-          @size-change="onBillSizeChange"
-        />
       </el-tab-pane>
 
       <el-tab-pane label="账务明细" name="ledger">
@@ -352,8 +326,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import PagePager from '@/components/PagePager.vue';
+import CrudTable from '@/components/CrudTable.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
@@ -361,6 +336,7 @@ import { displayBizNo } from '@aicabinet/shared-uni/format';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useListCsv } from '@/composables/useListCsv';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -377,7 +353,6 @@ interface BillRow {
   pendingCents: number;
   orderCount: number;
   solidified: boolean;
-  rowKey?: string;
 }
 
 interface LedgerRow {
@@ -394,32 +369,14 @@ interface LedgerRow {
 const MAX_RANGE_DAYS = 90;
 
 const tab = ref('bills');
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const ledgerLoading = ref(false);
 const ledgerHydrated = ref(false);
-const bills = ref<BillRow[]>([]);
-const billTotal = ref(0);
 const ledger = ref<LedgerRow[]>([]);
+// 账务明细 tab 仍为手写加载（未迁 CrudTable），保留独立竞态防护
+const loadSeq = createLoadSeq();
 const keyword = ref('');
 /** 点击「查询」后生效的关键词，用于结果条数/空态提示（IMP-028） */
 const appliedKeyword = ref('');
-const billPage = ref(1);
-const billSize = ref(20);
-
-const {
-  defaultSort: billIdDefaultSort,
-  onSortChange: onBillIdSortChange,
-  sortById: sortBillsById
-} = useIdColumnSort<BillRow>('merchantId');
-const {
-  defaultSort: ledgerIdDefaultSort,
-  onSortChange: onLedgerIdSortChange,
-  sortById: sortLedgerById
-} = useIdColumnSort<LedgerRow>('entryId');
-const displayBills = computed(() => sortBillsById(bills.value));
-const displayLedger = computed(() => sortLedgerById(ledger.value));
 
 const ledgerTotal = ref(0);
 const ledgerPage = ref(1);
@@ -440,13 +397,32 @@ function assertRangeOk(): boolean {
   return true;
 }
 
+// 主列表（日资金账单）状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<BillRow>({
+  rowKey: (r) => `${r.bizDate}|${r.merchantId}`,
+  fetchPage: async (params) => {
+    // 翻页/刷新触发的加载同样要守 90 天账期上限（原 loadBills 前置校验）；拦截时不清空提示、返回空页
+    if (!assertRangeOk()) return { items: [], total: 0 };
+    const q = queryDates();
+    if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
+    q.set('page', String(params.page)); // 0 起（useCrudTable 已换算）
+    q.set('size', String(params.size));
+    const data = await api.request<{ items: BillRow[]; total: number }>(
+      AdminEndpoints.fundDailyBills(q),
+      'GET'
+    );
+    return { items: data.items || [], total: Number(data.total) || 0 };
+  },
+  // 替代原 useIdColumnSort 表头排序，改由壳内「按商户编号 升/降序」切换（本地页内排序）
+  sort: { prop: 'merchantId', mode: 'local' }
+});
+
 const {
-  onSelectionChange: onBillSelectionChange,
-  pickSelected: pickBills,
-  exportButtonLabel: billsExportLabel,
-  selectedKeys: billSelectedKeys,
-  clearSelection: clearBillSelection
-} = useTableSelection<BillRow>((r) => r.rowKey || `${r.bizDate}|${r.merchantId}`);
+  defaultSort: ledgerIdDefaultSort,
+  onSortChange: onLedgerIdSortChange,
+  sortById: sortLedgerById
+} = useIdColumnSort<LedgerRow>('entryId');
+const displayLedger = computed(() => sortLedgerById(ledger.value));
 
 const {
   onSelectionChange: onLedgerSelectionChange,
@@ -458,11 +434,11 @@ const {
 const exportLabel = computed(() =>
   tab.value === 'ledger'
     ? ledgerExportLabel.value.replace('导出', '导出明细')
-    : billsExportLabel.value.replace('导出', '导出日账单')
+    : crud.exportButtonLabel.replace('导出', '导出日账单')
 );
 
 const activeResultTotal = computed(() =>
-  tab.value === 'ledger' ? ledgerTotal.value : billTotal.value
+  tab.value === 'ledger' ? ledgerTotal.value : crud.total
 );
 
 const searchResultHint = computed(() => {
@@ -479,6 +455,7 @@ const ledgerEmptyDescription = computed(() =>
   appliedKeyword.value ? `未找到匹配「${appliedKeyword.value}」的账务明细` : '暂无流水'
 );
 
+// 页内 CSV（选中优先）保留在页面：页头导出按钮两个 Tab 共用，日账单无选中时走后端整单导出
 const { onExport: exportBillsCsv } = useListCsv({
   filePrefix: '资金日账单',
   headers: [
@@ -494,7 +471,7 @@ const { onExport: exportBillsCsv } = useListCsv({
     '固化'
   ],
   toRows: () =>
-    pickBills(displayBills.value).map((row) => [
+    crud.pickSelected(crud.displayItems).map((row) => [
       row.bizDate,
       row.merchantId,
       row.merchantName,
@@ -542,7 +519,7 @@ function queryDates() {
 }
 
 function onSearch() {
-  billPage.value = 1;
+  crud.page = 1;
   ledgerPage.value = 1;
   appliedKeyword.value = keyword.value.trim();
   if (!assertRangeOk()) return;
@@ -559,43 +536,9 @@ function onLedgerSizeChange() {
   loadLedger();
 }
 
-function onBillSizeChange() {
-  billPage.value = 1;
-  loadBills();
-}
-
 function reloadCurrent() {
   if (tab.value === 'ledger') loadLedger();
-  else loadBills();
-}
-
-async function loadBills() {
-  const seq = loadSeq.begin('loadBills');
-  if (!assertRangeOk()) return;
-  loading.value = true;
-  try {
-    const q = queryDates();
-    q.set('page', String(Math.max(0, billPage.value - 1)));
-    q.set('size', String(billSize.value));
-    if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
-    const data = await api.request<{ items: BillRow[]; total: number }>(
-      AdminEndpoints.fundDailyBills(q),
-      'GET'
-    );
-    bills.value = (data.items || []).map((r) => ({
-      ...r,
-      rowKey: `${r.bizDate}|${r.merchantId}`
-    }));
-    billTotal.value = Number(data.total) || 0;
-    clearBillSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq, 'loadBills')) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadBills')) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
+  else void crud.load();
 }
 
 async function loadLedger() {
@@ -631,7 +574,7 @@ async function exportCsv() {
     exportLedgerCsv();
     return;
   }
-  if (billSelectedKeys.value.length) {
+  if (crud.selectedKeys.length) {
     exportBillsCsv();
     return;
   }
@@ -650,16 +593,16 @@ async function exportCsv() {
 }
 
 watch(keyword, () => {
-  billPage.value = 1;
+  crud.page = 1;
   ledgerPage.value = 1;
 });
 
 watch(tab, (v) => {
   if (v === 'ledger') loadLedger();
-  else loadBills();
+  else void crud.load();
 });
 
-onMounted(loadBills);
+// 日账单首查由 useCrudTable autoLoad（默认 true）在挂载时执行
 </script>
 
 <style scoped>
