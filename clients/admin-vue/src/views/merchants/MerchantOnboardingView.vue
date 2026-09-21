@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card shadow="never" class="page-card">
     <template #header>
       <div class="page-card-head">
@@ -27,8 +27,6 @@
           >
             批量驳回
           </el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           <el-button v-if="canEdit" type="primary" @click="openCreate">新建进件</el-button>
         </div>
       </div>
@@ -71,34 +69,25 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="search">查询</el-button>
+        <el-button type="primary" @click="crud.search()">查询</el-button>
       </el-form-item>
     </el-form>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          :data="rows"
-          v-loading="loading"
-          stripe
-          border
-          empty-text=" "
-          class="report-table"
+        <!-- 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / CSV / 刷新 全部内建（本页无服务端排序） -->
+        <CrudTable
+          :table="crud"
           row-key="onboardingId"
+          selectable
+          :actions="showActionColumn ? rowActions : undefined"
+          :action-width="180"
+          actions-testid="onboarding"
+          empty-text="暂无进件记录"
           :row-class-name="rowClassName"
-          @selection-change="onSelectionChange"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="hydrated && !loading" description="暂无进件记录" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column prop="merchantId" label="商户" min-width="140">
             <template #default="{ row }">
               <div>{{ row.merchantName || row.merchantId }}</div>
@@ -153,46 +142,9 @@
           <el-table-column label="更新时间" width="160">
             <template #default="{ row }">{{ formatDateTime(row.updatedAt) || '' }}</template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="180"
-            fixed="right"
-            class-name="col-action"
-            align="center"
-          >
-            <template #default="{ row }">
-              <div class="table-row-actions">
-                <el-button
-                  v-if="canEdit && row.status !== 'SUBMITTED'"
-                  link
-                  type="primary"
-                  @click="openEdit(row)"
-                >
-                  编辑
-                </el-button>
-                <template v-if="row.status === 'SUBMITTED' && row.approvalStatus === 'PENDING'">
-                  <el-button link type="success" @click="review(row, true)">通过</el-button>
-                  <el-button link type="danger" @click="review(row, false)">驳回</el-button>
-                </template>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="hydrated"
-      v-model:current-page="page"
-      v-model:page-size="pageSize"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 
   <el-dialog v-model="dlg" :title="form.onboardingId ? '编辑进件' : '新建进件'" destroy-on-close>
@@ -238,19 +190,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
+import { CircleCheck, CircleClose, Edit } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import PagePager from '@/components/PagePager.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useListCsv } from '@/composables/useListCsv';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { normalizeListPage } from '@/utils/normalize-list-page';
 
 interface OnboardRow {
   onboardingId: number;
@@ -271,13 +220,42 @@ interface OnboardRow {
 const route = useRoute();
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:merchant:onboard:edit'));
-const loading = ref(false);
-const loadSeq = createLoadSeq();
-const hydrated = ref(false);
 const saving = ref(false);
 /** 批量审批 loading：通过 / 驳回 */
 const batching = ref<'approve' | 'reject' | ''>('');
-const rows = ref<OnboardRow[]>([]);
+
+const merchantId = ref('');
+const channel = ref('');
+const status = ref('');
+const hints = ref<Record<string, any> | null>(null);
+const highlightId = ref<number | null>(null);
+
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 / CSV 全部内建
+const crud = useCrudTable<OnboardRow>({
+  rowKey: (r) => r.onboardingId,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page), // 0 起
+      size: String(params.size)
+    });
+    if (merchantId.value.trim()) q.set('merchantId', merchantId.value.trim());
+    if (channel.value) q.set('channel', channel.value);
+    if (status.value) q.set('status', status.value);
+    const [list, h] = await Promise.all([
+      api.request<OnboardRow[] | { items: OnboardRow[]; total: number }>(
+        AdminEndpoints.merchantOnboardingList(q),
+        'GET'
+      ),
+      api
+        .request<Record<string, any>>(AdminEndpoints.merchantOnboardingLiveHints, 'GET')
+        .catch(() => null)
+    ]);
+    hints.value = h;
+    applyRouteHighlight();
+    return list;
+  },
+  errorMessage: '加载失败'
+});
 
 function rowHasAction(row: OnboardRow) {
   if (canEdit.value && row.status !== 'SUBMITTED') return true;
@@ -285,36 +263,18 @@ function rowHasAction(row: OnboardRow) {
 }
 
 /** 当前页无可编辑/审批项时隐藏操作列 */
-const showActionColumn = computed(() => rows.value.some(rowHasAction));
-
-const page = ref(1);
-const pageSize = ref(20);
-const total = ref(0);
-const merchantId = ref('');
-const channel = ref('');
-const status = ref('');
-const hints = ref<Record<string, any> | null>(null);
-const highlightId = ref<number | null>(null);
-
-const {
-  tableRef,
-  hasSelection,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection
-} = useAdminListTable<OnboardRow>((r) => r.onboardingId);
+const showActionColumn = computed(() => crud.items.some(rowHasAction));
 
 /** 勾选中可审批的行（已提交且审批中）；未勾选时为空。 */
 const reviewableSelected = computed(() => {
-  if (!hasSelection.value) return [];
-  return pickSelected(rows.value).filter(
-    (r) => r.status === 'SUBMITTED' && r.approvalStatus === 'PENDING'
-  );
+  if (!crud.hasSelection) return [];
+  return crud
+    .pickSelected(crud.items)
+    .filter((r) => r.status === 'SUBMITTED' && r.approvalStatus === 'PENDING');
 });
 const hasReviewableSelection = computed(() => reviewableSelected.value.length > 0);
 
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '进件工作台',
   headers: [
     '进件ID',
@@ -331,8 +291,8 @@ const { onExport } = useListCsv({
     '创建时间',
     '更新时间'
   ],
-  toRows: () =>
-    pickSelected(rows.value).map((r) => [
+  toRows: (rows: OnboardRow[]) =>
+    rows.map((r) => [
       r.onboardingId,
       r.merchantId,
       r.merchantName || '',
@@ -347,7 +307,32 @@ const { onExport } = useListCsv({
       formatDateTime(r.createdAt) || '',
       formatDateTime(r.updatedAt) || ''
     ])
-});
+};
+
+function rowActions(row: OnboardRow): CrudRowAction[] {
+  const actions: CrudRowAction[] = [];
+  if (row.status !== 'SUBMITTED') {
+    actions.push({
+      key: 'edit',
+      label: '编辑',
+      icon: Edit,
+      type: 'primary',
+      perm: 'ops:merchant:onboard:edit'
+    });
+  }
+  if (row.status === 'SUBMITTED' && row.approvalStatus === 'PENDING') {
+    actions.push({ key: 'approve', label: '通过', icon: CircleCheck, type: 'success' });
+    actions.push({ key: 'reject', label: '驳回', icon: CircleClose, type: 'danger' });
+  }
+  return actions;
+}
+
+function onAction({ key, row }: { key: string; row: OnboardRow }) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'approve') void review(row, true);
+  else if (key === 'reject') void review(row, false);
+}
+
 const dlg = ref(false);
 const form = reactive({
   onboardingId: null as number | null,
@@ -402,42 +387,6 @@ function rowClassName({ row }: { row: OnboardRow }) {
     : '';
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(pageSize.value)
-    });
-    if (merchantId.value.trim()) q.set('merchantId', merchantId.value.trim());
-    if (channel.value) q.set('channel', channel.value);
-    if (status.value) q.set('status', status.value);
-    const [list, h] = await Promise.all([
-      api.request<OnboardRow[] | { items: OnboardRow[]; total: number }>(
-        AdminEndpoints.merchantOnboardingList(q),
-        'GET'
-      ),
-      api
-        .request<Record<string, any>>(AdminEndpoints.merchantOnboardingLiveHints, 'GET')
-        .catch(() => null)
-    ]);
-    const pageData = normalizeListPage(list);
-    rows.value = pageData.items;
-    total.value = pageData.total;
-    hints.value = h;
-    clearSelection();
-    applyRouteHighlight();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    loading.value = false;
-    hydrated.value = true;
-  }
-}
-
 /** 从审批历史深链带入 onboardingId 时高亮对应行。 */
 function applyRouteHighlight() {
   const raw = route.query.onboardingId;
@@ -447,16 +396,6 @@ function applyRouteHighlight() {
     return;
   }
   highlightId.value = id;
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
-function search() {
-  page.value = 1;
-  load();
 }
 
 function openCreate() {
@@ -507,7 +446,7 @@ async function save() {
     }
     ElMessage.success(form.status === 'SUBMITTED' ? '已提交审批' : '已保存');
     dlg.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -533,7 +472,7 @@ async function review(row: OnboardRow, approve: boolean) {
       remark: approve ? '审批通过' : '审批驳回'
     });
     ElMessage.success(approve ? '已通过' : '已驳回');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '审批失败');
   }
@@ -547,7 +486,7 @@ async function batchReview(approve: boolean) {
   const targets = reviewableSelected.value;
   if (!targets.length) {
     ElMessage.warning(
-      hasSelection.value ? '勾选行中没有「已提交且审批中」的进件' : '请先勾选需要审批的进件'
+      crud.hasSelection ? '勾选行中没有「已提交且审批中」的进件' : '请先勾选需要审批的进件'
     );
     return;
   }
@@ -580,16 +519,15 @@ async function batchReview(approve: boolean) {
     } else {
       ElMessage.warning(`成功 ${ok} 条，失败 ${fail} 条`);
     }
-    await load();
+    await crud.load();
   } finally {
     batching.value = '';
   }
 }
 
 // H07：页面被 AdminLayout keep-alive 缓存，深链二次进入只触发 onActivated 不走 onMounted；
-// 这里重读 query.onboardingId 刷新高亮（无参数时清掉旧高亮），首载仍由 onMounted(load) 负责。
+// 这里重读 query.onboardingId 刷新高亮（无参数时清掉旧高亮）；首查由 useCrudTable autoLoad 在 onMounted 触发。
 onActivated(applyRouteHighlight);
-onMounted(load);
 </script>
 
 <style scoped>
