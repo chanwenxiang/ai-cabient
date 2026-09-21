@@ -12,37 +12,6 @@
           <el-button v-hasPermi="['ops:rbac:role:add']" type="primary" @click="openCreate"
             >新增角色</el-button
           >
-          <el-button v-hasPermi="['ops:rbac:role:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button
-            v-hasPermi="['ops:rbac:role:import']"
-            @click="
-              onDownloadTemplate([
-                '',
-                '示例角色',
-                'ops_demo',
-                displayLabel('merchant_status', 'ACTIVE'),
-                '',
-                '备注'
-              ])
-            "
-            >导入模板</el-button
-          >
-          <el-button
-            v-hasPermi="['ops:rbac:role:import']"
-            :loading="importing"
-            @click="triggerImport"
-            >导入</el-button
-          >
-          <input
-            ref="importInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onImportFile"
-          />
-          <el-button :icon="Refresh" :loading="loading" @click="loadRoles">刷新</el-button>
         </div>
       </div>
     </template>
@@ -78,35 +47,19 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="filteredRoles"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="roleId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="rowActions"
+          :action-width="160"
+          actions-testid="role"
+          empty-text="暂无角色"
+          sort-field-label="角色编号"
+          :csv="csvOptions"
+          @action="onRowAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无角色"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="roleId"
-            label="角色编号"
-            width="80"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="roleId" label="角色编号" width="80" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.roleId }}</span>
             </template>
@@ -150,18 +103,7 @@
           <el-table-column prop="remark" label="备注" min-width="160" class-name="col-text">
             <template #default="{ row }">{{ row.remark || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="160"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions :actions="roleActions(row)" @action="(k) => onRoleAction(k, row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
 
@@ -266,25 +208,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
+import { nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Key, Refresh, SwitchButton } from '@element-plus/icons-vue';
+import { EditPen, Key, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type ElTree } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { useTableSelection } from '@/composables/useTableSelection';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import { buildPermTree, type PermRow } from '@/utils/rbac-tree';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { displayLabel } from '@aicabinet/shared-dict';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('roleId');
 
 /** 后端 permissions 为展示文案列表，如 ["12 项权限"] */
 function permissionCountLabel(row: RoleRow): string {
@@ -294,34 +234,34 @@ function permissionCountLabel(row: RoleRow): string {
   return m ? m[1] : raw;
 }
 
-function roleActions(row: RoleRow): TableAction[] {
-  const acts: TableAction[] = [];
-  if (auth.hasPerm('ops:rbac:role:edit')) {
-    acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
-  }
-  if (auth.hasPerm('ops:rbac:role:perm')) {
-    acts.push({
+// 行操作权限判断转 perm 字段（CrudTable 内建过滤）；admin 角色保护逻辑保留行内条件
+function rowActions(row: RoleRow): CrudRowAction[] {
+  const acts: CrudRowAction[] = [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:rbac:role:edit' },
+    {
       key: 'perms',
       label: '分配权限',
       icon: Key,
       type: 'success',
-      disabled: row.roleKey === 'admin'
-    });
-  }
-  if (auth.hasPerm('ops:rbac:role:edit') && row.roleKey !== 'admin') {
+      disabled: row.roleKey === 'admin',
+      perm: 'ops:rbac:role:perm'
+    }
+  ];
+  if (row.roleKey !== 'admin') {
     const isActive = (row.status || 'ACTIVE') === 'ACTIVE';
     acts.push({
       key: 'toggle',
       label: displayLabel('enable_status', isActive ? 'INACTIVE' : 'ACTIVE'),
       icon: SwitchButton,
       type: isActive ? 'danger' : 'success',
-      overflow: true
+      overflow: true,
+      perm: 'ops:rbac:role:edit'
     });
   }
   return acts;
 }
 
-function onRoleAction(key: string, row: RoleRow) {
+function onRowAction({ key, row }: { key: string; row: RoleRow }) {
   if (key === 'edit') openEdit(row);
   else if (key === 'perms') openPerms(row);
   else if (key === 'toggle') void onToggleStatus(row);
@@ -349,7 +289,7 @@ async function onToggleStatus(row: RoleRow) {
       status: next
     });
     ElMessage.success(`已${label}`);
-    await loadRoles();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : `${label}失败`);
   }
@@ -364,11 +304,8 @@ interface RoleRow {
   permissions?: string[];
 }
 
-const loading = ref(false);
-const listHydrated = ref(false);
 const loadingPerms = ref(false);
 const saving = ref(false);
-const roles = ref<RoleRow[]>([]);
 const keyword = ref('');
 const statusFilter = ref('');
 const permTree = ref<PermRow[]>([]);
@@ -385,22 +322,32 @@ const form = ref({
   status: 'ACTIVE'
 });
 
-const filteredRoles = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  const rows = roles.value.filter((row) => {
-    if (statusFilter.value && (row.status || 'ACTIVE') !== statusFilter.value) return false;
-    if (!q) return true;
-    return [row.roleId, row.roleName, row.roleKey, row.remark].some((x) =>
-      String(x || '')
-        .toLowerCase()
-        .includes(q)
-    );
-  });
-  return sortById(rows);
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+// 后端无分页接口：fetchPage 拉全量后按关键词/状态过滤，按角色编号排序并前端切片
+const crud = useCrudTable<RoleRow>({
+  rowKey: (r) => r.roleId,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  fetchPage: async ({ page, size, sortDir }) => {
+    const all = await api.request<RoleRow[]>(AdminEndpoints.rbacRoles, 'GET');
+    const q = keyword.value.trim().toLowerCase();
+    const rows = (all || []).filter((row) => {
+      if (statusFilter.value && (row.status || 'ACTIVE') !== statusFilter.value) return false;
+      if (!q) return true;
+      return [row.roleId, row.roleName, row.roleKey, row.remark].some((x) =>
+        String(x || '')
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+    const sorted = sortByPrimaryKey(rows, 'roleId', sortDir ?? 'asc');
+    const start = page * size; // page 为 0 起（useCrudTable 已换算）
+    return { items: sorted.slice(start, start + size), total: sorted.length };
+  },
+  // 角色编号排序（替代原 useIdColumnSort 表头排序，改由壳内「按角色编号 升/降序」切换）；
+  // 用 server 模式让方向切换走重查，避免 local 模式只重排当前页切片
+  sort: { prop: 'roleId', mode: 'server', defaultDir: 'asc' }
 });
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<RoleRow>((r) => r.roleId);
 
 const statusByLabel: Record<string, string> = {
   正常: 'ACTIVE',
@@ -409,51 +356,40 @@ const statusByLabel: Record<string, string> = {
   INACTIVE: 'INACTIVE'
 };
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
-  useListCsv({
-    filePrefix: '角色',
-    headers: ['角色ID', '角色名称', '权限字符', '状态', '权限数', '备注'],
-    toRows: () =>
-      pickSelected(filteredRoles.value).map((row) => [
-        row.roleId,
-        row.roleName,
-        row.roleKey,
-        displayLabel('merchant_status', row.status || 'ACTIVE'),
-        permissionCountLabel(row),
-        row.remark || ''
-      ]),
-    onImportRows: async (rows) => {
-      let ok = 0;
-      for (const row of rows) {
-        const roleKey = (row['权限字符'] || row.roleKey || '').trim();
-        const roleName = (row['角色名称'] || row.roleName || '').trim();
-        if (!roleKey || !roleName) continue;
-        await api.request(AdminEndpoints.rbacRoles, 'POST', {
-          roleKey,
-          roleName,
-          remark: (row['备注'] || row.remark || '').trim(),
-          status: statusByLabel[row['状态'] || row.status] || 'ACTIVE'
-        });
-        ok++;
-      }
-      clearSelection();
-      await loadRoles();
-      return ok;
+// 导出/导入移入 CrudTable 内建工具条；勾选行时仅导出选中（原 pickSelected 语义）
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '角色',
+  exportPerm: 'ops:rbac:role:export',
+  importPerm: 'ops:rbac:role:import',
+  headers: ['角色ID', '角色名称', '权限字符', '状态', '权限数', '备注'],
+  templateSample: ['', '示例角色', 'ops_demo', displayLabel('merchant_status', 'ACTIVE'), '', '备注'],
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.roleId,
+      row.roleName,
+      row.roleKey,
+      displayLabel('merchant_status', row.status || 'ACTIVE'),
+      permissionCountLabel(row),
+      row.remark || ''
+    ]),
+  onImportRows: async (rows) => {
+    let ok = 0;
+    for (const row of rows) {
+      const roleKey = (row['权限字符'] || row.roleKey || '').trim();
+      const roleName = (row['角色名称'] || row.roleName || '').trim();
+      if (!roleKey || !roleName) continue;
+      await api.request(AdminEndpoints.rbacRoles, 'POST', {
+        roleKey,
+        roleName,
+        remark: (row['备注'] || row.remark || '').trim(),
+        status: statusByLabel[row['状态'] || row.status] || 'ACTIVE'
+      });
+      ok++;
     }
-  });
-
-async function loadRoles() {
-  loading.value = true;
-  try {
-    roles.value = await api.request<RoleRow[]>(AdminEndpoints.rbacRoles, 'GET');
-    clearSelection();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载角色失败');
-  } finally {
-    listHydrated.value = true;
-    loading.value = false;
+    await crud.load(); // load 内部会清空勾选（原 clearSelection + loadRoles）
+    return ok;
   }
-}
+};
 
 async function loadPermTree() {
   const flat = await api.request<PermRow[]>(AdminEndpoints.rbacPermissions, 'GET');
@@ -499,7 +435,7 @@ async function saveRole() {
       ElMessage.success('角色已创建');
     }
     formDlg.value = false;
-    await loadRoles();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -585,7 +521,7 @@ async function savePerms() {
     ]);
     ElMessage.success('权限已保存');
     permDlg.value = false;
-    await Promise.all([loadRoles(), auth.refreshPermissions()]);
+    await Promise.all([crud.load(), auth.refreshPermissions()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -602,12 +538,14 @@ function syncRouteQuery() {
 
 function search() {
   syncRouteQuery();
+  void crud.search();
 }
 
 function resetFilters() {
   keyword.value = '';
   statusFilter.value = '';
   syncRouteQuery();
+  void crud.search();
 }
 
 function applyRouteQuery() {
@@ -627,6 +565,7 @@ function applyRouteQuery() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
+  await crud.search(); // 路由参数变化时重查（原为 computed 即时过滤，现由状态机拉取）
 }
 
 watch(
@@ -638,7 +577,7 @@ watch(
 
 onMounted(async () => {
   applyRouteQuery();
-  await loadRoles();
+  await crud.load(); // 显式首查：autoLoad 已关闭，需先应用路由查询参数
   loadPermTree().catch(() => undefined);
 });
 onActivated(() => {
@@ -675,9 +614,6 @@ onActivated(() => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-.hidden-input {
-  display: none;
 }
 .perm-toolbar {
   display: flex;
