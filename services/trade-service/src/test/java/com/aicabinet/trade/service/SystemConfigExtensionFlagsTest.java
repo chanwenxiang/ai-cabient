@@ -109,4 +109,56 @@ class SystemConfigExtensionFlagsTest {
         assertEquals("false", service.merchantPublicConfig().get("chartsEnabled"));
         assertEquals("false", service.consumerPublicConfig().get("adBannerEnabled"));
     }
+
+    // ── 腾讯流量主广告位（consumer.wx_ad.*，2026-09-20 第二十八轮）──────────────
+    //
+    // 我们是流量主（收腾讯分成），故「广告单元 ID」是**账号资产**、做成配置而非常量。
+    // 这两条守住 fail-closed 的两道闸：开关默认关；ID 默认空且空白一律收敛为空串
+    //（空 unit-id 喂给微信广告组件会触发组件自身报错）。
+
+    @Test
+    void wxAd_defaultsToDisabledAndEmptyUnitId_whenNoRowInDb() {
+        var consumer = service.consumerPublicConfig();
+        assertEquals("false", consumer.get("wxAdEnabled"));
+        assertEquals("", consumer.get("wxAdUnitId"));
+    }
+
+    @Test
+    void wxAd_followsStoredValues() {
+        stub(SystemConfigService.CONSUMER_WX_AD_ENABLED, "true");
+        stub(SystemConfigService.CONSUMER_WX_AD_UNIT_ID, "adunit-abc123");
+
+        var consumer = service.consumerPublicConfig();
+        assertEquals("true", consumer.get("wxAdEnabled"));
+        assertEquals("adunit-abc123", consumer.get("wxAdUnitId"));
+    }
+
+    /**
+     * 运营从后台复制 ID 时极易带上首尾空白/换行 ⇒ 下发给客户端前必须收敛，
+     * 否则前端拿到 `"adunit-x "` 传给广告组件会被判成非法 unit-id。
+     * 而“全空白”应回落成空串（= 不渲染），不能变成 `"   "` 这种“看起来非空”的值。
+     */
+    @Test
+    void wxAdUnitId_isTrimmed_andBlankFallsBackToEmpty() {
+        stub(SystemConfigService.CONSUMER_WX_AD_UNIT_ID, "  adunit-trimmed \n");
+        assertEquals("adunit-trimmed", service.consumerPublicConfig().get("wxAdUnitId"));
+
+        // 全空白 ⇒ 落到 getValue 的 defaultValue("") ，不能下发 "   " 这种“看着非空”的值
+        stub(SystemConfigService.CONSUMER_WX_AD_UNIT_ID, "   ");
+        assertEquals("", service.consumerPublicConfig().get("wxAdUnitId"));
+    }
+
+    /**
+     * 🔴 两个键**互相独立**：开关开但没填 ID ⇒ 仍是「不可渲染」。
+     * 前端 `wxAdAvailable = wxAdEnabled() && adUnitId !== ''` 正是靠这条服务端契约成立；
+     * 若哪天把「开关开」当成「可以渲染」，这条会红。
+     */
+    @Test
+    void wxAd_enabledWithoutUnitId_stillReportsBothSeparately() {
+        stub(SystemConfigService.CONSUMER_WX_AD_ENABLED, "true");
+
+        var consumer = service.consumerPublicConfig();
+        assertEquals("true", consumer.get("wxAdEnabled"), "开关必须如实下发");
+        assertEquals("", consumer.get("wxAdUnitId"), "没配 ID 就必须是空串，前端据此不渲染");
+    }
 }

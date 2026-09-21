@@ -198,9 +198,10 @@
       </view>
 
       <!--
-        首页广告位（S1，扩展功能 `consumer.ad_banner.enabled`）。
+        首页推广位（S1，扩展功能 `consumer.ad_banner.enabled`）。
         默认关 ⇒ 整块不渲染，与接入前逐字节一致（fail-closed）。
-        开关只管「位置可见性」：广告主/计费/结算属 F4 后续切片，不在本开关语义内。
+        开启后由组件按优先级择一渲染：自有投放 → 腾讯流量主广告 → 占位图。
+        ⚠️ 本开关只管「位置可见性」；广告收益对账/入账属 F4 后续切片，不在其语义内。
       -->
       <DeviceAdBanner v-if="deviceId && adBannerVisible" :device-id="deviceId" />
 

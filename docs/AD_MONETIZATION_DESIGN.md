@@ -1,249 +1,303 @@
-# F4 广告变现闭环 · 设计稿
+# F4 广告变现 · 设计稿（**流量主**方向）
 
-> 状态：**切片 1 的「站位」部分已落地**（2026-09-20）：S1 已纳入开关门控 + 占位图；
-> 广告主 / 投放订单 / 计费 / 报表 / 入账仍按本稿口径待推进。关联路线图条目 `F4`（`COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md:207`）。
-> 本稿先把「库存到底是什么」这条前提锁死，再谈计费。
-> 落地记录见 **§10**。
+> 状态：**切片 1 已落地**（2026-09-20，见 §11）。后续切片按本稿口径推进。
+> 关联路线图条目 `F4`（`COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md:207`）。
+>
+> 🔴 **本稿已在 2026-09-20 按商业模式更正重写**：旧稿写的是「我们把屏幕位卖给第三方广告主」
+> （媒体主模型：广告主 / 投放订单 / CPM 计费 / 广告主报表）。**该模型已作废** —— 见 §12，
+> 里面记录了作废原因与新旧的对照，避免后来者照着旧结论重复劳动。
 
 ---
 
-## 0. 前提更正：本项目**没有柜机屏**，库存也不在柜屏上
+## 0. 方向：我们是**流量主**，不是媒体主
 
-**核实结论（2026-09-20，逐条取证）：**
+| | **流量主（本项目）** | 媒体主（已作废的口径） |
+|---|---|---|
+| 谁来投广告 | **腾讯**（微信广告平台）按算法投放 | 我们招广告主、卖位 |
+| 钱怎么流 | 腾讯按月把**分成**打给我们 | 广告主按 CPM/CPC 付我们 |
+| 谁定价 | 平台（eCPM 由竞价决定） | 我们 |
+| 我们要建什么 | **广告位接入 + 开关 + 收益对账** | 广告主/订单/计费/预算/发票 |
+| 需要资质 | 流量主开通（**平台侧门槛**，见 §3） | 广告经营资质、发票、税务口径 |
+
+⇒ **一句话**：广告内容是腾讯安排的，我们只负责**把官方广告组件放对位置**，收入按平台结算。
+
+### 何时仍会出现「我们自己的内容」
+
+**同一位置**也会用于**我们自己做活动时的推广**（例如平台满减、新柜开业）。这不改变上面的方向，
+但它决定了这个位置的正确抽象是 **「推广位」**（一个位置、两种来源），而不是「广告位」：
+
+- 自有活动 → 我们自己的素材（复用既有 `ad_campaign` 投放体系，**不需要新表**）
+- 空档期 → 腾讯流量主广告（兜底填充，产生收入）
+- 都没有 → 占位图（开发期可见，见 §5）
+
+---
+
+## 1. 槽位语义：一个位置，两种来源，优先级「自有优先」
+
+| 优先级 | 条件 | 渲染 | 计量 |
+|---|---|---|---|
+| 1 | 该柜有生效中的**自有**投放 | 自有素材轮播（IMAGE/VIDEO） | `IMPRESSION`/`COMPLETE`/`CLICK` 照常上报 |
+| 2 | 无自有内容 + 腾讯广告**可渲染** | 微信原生广告组件 | **零自有计量**（数据在腾讯侧） |
+| 3 | 两者都没有 + 已加载完成 | 占位图 | **零事件**（不绑点击、不上报） |
+| — | 位置总开关关闭（默认） | 整块不渲染 | — |
+
+**为什么「自有优先」**：我们自己做活动时，这个位置必须归我们；腾讯广告是**兜底填充**，
+不抢占 —— 否则「做活动」与「赚广告费」会互相打架，且运营无法预测自己的活动会不会被广告顶掉。
+（若产品上要改成「广告优先」，只需改 `resolvePromoSlot()` 一处，且有单测守着。）
+
+**这条优先级已抽成纯函数** `clients/consumer-mp/src/utils/promo-slot.ts::resolvePromoSlot()`
+—— 原本散在组件的三个布尔判断里，而前端 vitest 跑在 `environment: 'node'`（无 jsdom/组件测试）
+⇒ 散着写则**一条判据都落不下来**。
+
+---
+
+## 2. 前提核实：本项目**没有柜机屏**，位置也不在柜屏上
+
+（此结论不受方向更正影响，仍成立。）
 
 | 事实 | 证据 |
 |------|------|
 | 边缘端**无屏幕/播放能力**（无解码、无渲染、无 HDMI/kiosk） | `edge/android-app` 全仓 `ExoPlayer\|VideoView\|MediaPlayer\|SurfaceView\|kiosk\|hdmi` **0 命中** |
-| 只有**模拟器在假装**柜机屏播放器 | `edge/device-simulator/src/main/java/.../DeviceSimulator.java:169` `startAdScreenLoop()`「柜机屏播放器模拟」 |
-| **真实广告位早已落在消费者小程序首页** | `clients/consumer-mp/src/pages/index/index.vue:200` `<DeviceAdBanner v-if="deviceId" :device-id="deviceId" />` |
-| 该组件**已实现且已计量** | `clients/consumer-mp/src/components/device-ad-banner.vue`：拉 `screen-content` → `swiper` 轮播 IMAGE/VIDEO → 回写 `IMPRESSION` / `COMPLETE`（按 `durationSeconds` 计时）/ `CLICK` |
+| 只有**模拟器在假装**柜机屏播放器 | `edge/device-simulator/.../DeviceSimulator.java:169` `startAdScreenLoop()` |
+| 真实位置在**消费者小程序首页**（用户自己的手机屏） | `clients/consumer-mp/src/pages/index/index.vue` `<DeviceAdBanner :device-id="deviceId" />` |
 
-⇒ **库存 = 消费者微信小程序首页的横幅轮播位（用户自己的手机屏）**，不是柜体屏。
-⇒ 路线图里「屏幕广告变现」的「屏幕」应读作**用户端屏幕**；柜机没有屏幕**不阻断**本项。
+### 命名债
 
-### 命名债（必须校正，否则后续会持续误判）
-
-现有代码/注释仍带「柜屏」心智模型，与真实消费端不符：
-
-- `DeviceInternalController.java:54` —— `/** 柜屏曝光/完播回写（ROI 留痕）。 */`
-- `DeviceController.java:77` —— `/** 开门页/柜机屏：拉取当前生效的投放轮播（需登录）。 */`（这句是**对的**，点出了「开门页」）
+- `DeviceInternalController.java:54` —— `/** 柜屏曝光/完播回写（ROI 留痕）。 */`（**错**：真实端是小程序）
+- `DeviceController.java:77` —— 「开门页/柜机屏：拉取当前生效的投放轮播」（这句点出了「开门页」）
 - `DeviceSimulator.java:169` —— 「柜机屏播放器模拟」
 
-**建议**：后续统一改为「**小程序展示位**」；`screen-content` 这一 API 名属历史包袱，**保留不改**（改名会牵动三端契约与 OpenAPI 生成物），但在文档与注释里标注真实语义。
+**建议**：注释统一改为「**小程序推广位**」；`screen-content` 这个 API 名属历史包袱，**保留不改**
+（改名牵动三端契约与 OpenAPI 生成物），只在文档/注释标注真实语义。
 
 ---
 
-## 1. 现状盘点
+## 3. 外部依赖（硬门槛，全部在项目之外）
+
+| # | 依赖 | 说明 | 卡住了什么 |
+|---|------|------|-----------|
+| E1 | 小程序 **appid + 主体认证** | 仓库里 `manifest.json` 的 `mp-weixin.appid` 为**空**，构建期由 `scripts/inject-miniapp-env.mjs` 注入 ⇒ 未申请前 release 构建**正确 fail-closed** | 小程序发布、任何真机验证 |
+| E2 | **流量主开通** | 官方门槛：小程序累计独立访客（UV）达标且无违规记录（口径以公众平台后台**实时校验**为准；2026 年官方 FAQ 写 500，早期资料写 1000）。路径：公众平台 → 推广 → 流量主 → 开通 | 广告组件才有填充 |
+| E3 | **结算信息** | 开通后须补银行账户等结算资料，否则「正常结算」无法进行 | 钱到账 |
+| E4 | **广告位创建** | 在「流量主 → 广告位管理」创建广告位，拿到 `adunit-` 开头的 ID ⇒ 填进本项目的系统配置 | 前端拿不到 unit-id（默认空 ⇒ 不渲染） |
+| E5 | **AppSecret**（仅对账用） | 拉收益接口需要 `access_token`。🔴 **凭据**：走环境变量/密钥管理，**不入库、不下发前端** | 收益自动对账（切片 3） |
+
+⚠️ E2/E3/E4 是**同一件事的三个阶段**：没开通流量主就没有广告位，没有广告位就填不进 unit-id。
+所以本项工程侧**只能做到「站位」**：开关 + 配置 + 广告组件 + 占位图全部就位，等 E1–E4 齐了
+只需**填配置 + 开开关**，不用再改代码发版。
+
+---
+
+## 4. 平台能力（决定了后续切片能做什么）
+
+### 4.1 广告形式
+
+| 形式 | 接入方式 | 特点 |
+|------|---------|------|
+| **Banner** | `<ad unit-id="adunit-xxx">` 组件 | 装机即用、单价低（eCPM 低）、适合固定位 —— **本项目首发** |
+| 原生模板 | `<ad-custom unit-id="...">` | 融入内容流、填充率不足时会空白 |
+| **激励视频** | `wx.createRewardedVideoAd`（API，非组件） | eCPM 最高；需设计「看广告换什么」的场景 |
+| 插屏 | `wx.createInterstitialAd` | 打断感强、频次必须严格控制 |
+
+**本项目首发只做 Banner**：位置已存在、无需设计新的用户动线，先把「接入 + 开关 + 观测」跑通。
+
+### 4.2 收益对账接口（切片 3 的关键依据）
+
+微信提供流量主数据接口（**需 `access_token`**）：
+
+```
+GET https://api.weixin.qq.com/publisher/stat
+    ?action=publisher_adpos_general      # 汇总（按广告位）
+    |  action=publisher_adunit_general   # 细分（按广告单元）
+    |  action=get_adunit_list            # 广告位清单
+    |  action=publisher_settlement       # 结算收入 + 结算主体
+```
+
+- 最大时间跨度 **90 天** ⇒ 需要**定期拉取并落库**，不能「需要时再拉历史」。
+- 🔴 ⚠️ 该文档发布在**小游戏**目录（`minigame/dev/guide/open-ability/ad/ad-data-interface.html`）；
+  小程序侧是否同样可用**必须在 E2 完成后实测确认**。若不可用，退路是人工导出后台数据
+  （**不要**先按「一定有接口」把账本设计死）。
+
+### 4.3 激励视频服务端验证（若将来做「看广告得券」）
+
+微信支持**服务端奖励回调**（流量主后台 → 广告管理 → 激励广告 → 服务端奖励回调入口，
+填 URL / Token / EncodingAESKey）。用户完整观看后微信服务器回调我们的接口，我们校验后再发奖。
+
+⇒ **防刷是平台给的，不必自己造**：客户端 `onClose` 的 `isEnded` 可被改包伪造，
+服务端回调才是权威。⚠️ 同上，文档亦在 minigame 目录，小程序侧需实测。
+
+---
+
+## 5. 开关与配置（已落地）
+
+| 键 | 类型 | 默认 | 语义 |
+|---|---|---|---|
+| `consumer.ad_banner.enabled` | BOOLEAN | `false` | **位置总开关**。关 ⇒ 整块不渲染（与接入前逐字节一致） |
+| `consumer.wx_ad.enabled` | BOOLEAN | `false` | **腾讯广告来源开关**。关 ⇒ 连广告节点都不渲染 |
+| `consumer.wx_ad.unit_id` | TEXT | `""` | **广告单元 ID**（`adunit-` 开头）。空 ⇒ 不渲染 |
+
+三键**逐层 fail-closed**，任一未就绪都不会产生意外渲染：
+
+```
+位置可见 = ad_banner.enabled
+         ∧ ( 自有内容 ∨ ( wx_ad.enabled ∧ unit_id ≠ "" ) ∨ 占位图 )
+```
+
+设计取舍：
+
+- **`unit_id` 做成配置而非常量** —— 广告位 ID 是账号资产，换广告位/换账号不该发版。
+- **`unit_id` 是「值」不是「开关」**：读取器 `wxAdUnitId()` 只 `trim`、**不做布尔化**
+  （若复用 `enabled()` 那套判定，含 `0`/`false` 的 ID 会被判成假而返回空 ⇒ 广告静默不渲染）。
+- **开关开 ≠ 可渲染**：还必须 `unit_id` 非空。空 unit-id 喂给广告组件会触发组件自身报错，
+  故在**读取处**就收敛掉（`wxAdUnitId()` 非字符串一律返回 `''`）。
+- **占位图是「第三种来源」，不是「第二种失败态」**：它在**位置开、两种来源都没有**时出现，
+  且**零计量**。文案刻意中立、**不带「广告」标识**（见 §7）。
+
+### 运营怎么用
+
+1. 位置总开关打开 ⇒ 首页出现占位图（验证位置与样式）。
+2. 给某柜配自有投放 ⇒ 该柜换成自有素材；其他柜仍是占位图。
+3. E1–E4 就绪后：填 `consumer.wx_ad.unit_id` + 打开 `consumer.wx_ad.enabled`
+   ⇒ 没有自有投放的柜立刻开始出腾讯广告。
+
+---
+
+## 6. 现状盘点
 
 | 环节 | 状态 | 落点 |
 |------|------|------|
-| 素材库 | ✅ 已实现 | `media_asset`、`MediaAssetService`、`MediaController`、运营台 `AdAssetsView.vue` |
-| 投放计划（增删改查/启停/投放范围） | ✅ 已实现 | `ad_campaign` + `ad_campaign_item` + `ad_campaign_device`、`AdCampaignService`、`OpsAdController`、`AdCampaignsView.vue` |
-| 投放下发（按设备取当前轮播） | ✅ 已实现 | `GET /{deviceId}/screen-content` → `ScreenContentDto` |
-| 曝光/完播/点击上报 | ✅ 已实现 | `ad_play_event`、`POST /{deviceId}/ad-play`、`AdCampaignService.recordPlayEvent:214` |
-| 曝光数统计（粗） | ⚠️ 仅计数 | `AdCampaignService` `toDto` 内 `countByCampaignAndType(...IMPRESSION)` |
-| **广告主 / 投放订单** | ❌ 缺失 | 全仓 `advertiser\|广告主` 实现侧 0 命中 |
-| **CPM/CPC 计费** | ❌ 缺失 | 全仓 `\bcpm\b\|\bcpc\b` 0 命中 |
-| **投放报表（广告主视图）** | ❌ 缺失 | `OpsAdController` 无任何统计/报表端点 |
-| **广告收入入账** | ❌ 缺失 | 无表、无账本、无对账 |
+| 自有素材库 / 投放计划 / 按设备下发 | ✅ 已实现 | `media_asset`、`ad_campaign(+item/device)`、`GET /{deviceId}/screen-content` |
+| 自有素材曝光/完播/点击上报 | ✅ 已实现 | `ad_play_event`、`AdCampaignService.recordPlayEvent` |
+| 位置门控（开关 + 占位） | ✅ **本批落地** | `consumer.ad_banner.enabled`、`device-ad-banner.vue` |
+| 腾讯流量主广告组件接入 | ✅ **本批落地**（待 E1–E4 通电） | `wx-ad-slot.vue`、`consumer.wx_ad.*` |
+| 自有/腾讯/占位 优先级 | ✅ **本批落地**（有单测） | `utils/promo-slot.ts` |
+| **收益对账**（拉平台数据） | ❌ 未做 | 见 §4.2、§8 切片 3 |
+| 激励视频 / 插屏 / 原生模板 | ❌ 未做 | 视 E2 后的收益结构再定 |
 
-### 历史注记（为什么这次不能只建表）
+### 历史注记（一个不该忘的教训）
 
-`V81__ad_management.sql` **曾建过完整版**：`ad_slot`(含 `default_price`)、`ad_campaign`(含 `advertiser_id`/`budget`/`spent`/`slot_id`)、`ad_impression`(含 `cost`)。
-**`V155__drop_orphan_legacy_tables.sql:4-6` 把这三张表当孤儿 DROP 了** —— 迁移头理由：「Java 功能栈 never wired to services/APIs」（**设计了但从未接线**）。
-随后 `V174` 重建了简化版 `ad_campaign`（去掉了广告主与预算字段），即当前形态。
+`V81__ad_management.sql` 当年建过 `ad_slot` / `ad_campaign(advertiser_id,budget,spent)` /
+`ad_impression(cost)`；`V155__drop_orphan_legacy_tables.sql` 把这三张**当孤儿表 DROP 了**
+（理由：Java 功能栈 never wired to services/APIs）。
 
-⇒ **F4 本质＝把当年设计过的那套重新接起来**；区别在于这次**每一张新表必须有真实写入方与读取方**，不得再留孤儿表（参见 `docs/ORPHAN_TABLE_DISPOSITION.md` 的教训）。
-
----
-
-## 2. 可售库存清单
-
-| 位号 | 位置 | 状态 | 说明 |
-|------|------|------|------|
-| **S1** | 消费者小程序首页横幅轮播 | ✅ 已实现（**已纳入门控**） | 首发库存；`device-ad-banner.vue`，220rpx 高，多素材自动轮播 |
-| S2 | 结算页 / 支付结果页 | ⬜ 待建 | 下单后等待期，注意力集中，转化价值高 |
-| S3 | 商户端小程序位 | ⬜ 待建 | 面向供应商/服务商（B 端广告主天然匹配） |
-| — | 柜身贴纸 / 灯箱 | ➖ 不属本项 | 线下物料，需人工，非软件库存 |
-
-### S1 的门控与站位（已落地）
-
-原状态：`index.vue:200` 只有 `v-if="deviceId"`，**没有任何开关**，与其他消费端扩展功能（`consumer.product_detail.enabled` 等）的约定不一致 ⇒ **关不掉**。现已修正：
-
-- 开关键 **`consumer.ad_banner.enabled`**（默认 `false`，fail-closed）。
-  ⚠️ 本文早期草拟的键名是 `ad.banner.enabled`；**最终采用 `consumer.*` 命名空间**，理由：本开关控的是**消费端界面可见性**，与 `consumer.order_search.enabled` / `consumer.product_detail.enabled` 同族，应同组同前缀（运营台「扩展功能」组），不要为广告单独开一个顶层域。
-- **三态语义**（开关开启后）：
-
-  | 条件 | 渲染 |
-  |------|------|
-  | 该柜有生效中的投放计划 | 真实素材轮播（曝光/完播/点击照常上报） |
-  | 没有投放内容 | **占位图**（`static/ad/slot-placeholder.png`，由 `scripts/render-mp-assets.mjs` 生成） |
-  | 开关关闭（默认） | **整块不渲染** —— 与接入前逐字节一致 |
-
-- 🔴 **占位图不上报任何事件**（不绑定点击、不发 `ad-play`）：占位不是广告，不该产生计量数据。
-  计量即计费依据 —— 一旦占位也上报，上线计费后就会凭空多出「收入」。
+⚠️ 上一版设计稿的结论是「F4 ＝ 把它们重新接起来」。**方向更正后这个结论作废**：
+流量主模式下**不需要**广告主/预算/CPM 计费那套。真正要记的教训只有一条 ——
+**新表必须有真实写入方与读取方**，别再造孤儿表（参见 `docs/ORPHAN_TABLE_DISPOSITION.md`）。
 
 ---
 
-## 3. ⚠️ 前置确认项（工程不能替产品/法务决定）
+## 7. 合规与平台规范
 
-1. **合规**：在小程序内向**第三方**广告主售卖展示位，是否落入微信小程序运营规范的受限范围？自有/关联方推广（如平台自己的活动、合作品牌）与第三方付费广告，风险等级不同。
-2. **资质/财税**：向广告主收费涉及广告服务收入，是否需要对应经营资质、发票与税务口径。
-3. **数据合规**：曝光上报目前携带 `device_id`；若后续要按「人」定向或归因，涉及个人信息，需另评估。
-4. 🔴 **广告可识别性（《广告法》要求）**：投放素材必须带**可识别的广告标识**（本项目截图中的 `流量主` 广告即带「广告」角标）。
-   现状：`device-ad-banner.vue` 渲染真实素材时**没有加标识**。占位图自带「广告」角标，但**真实投放素材的标识尚未实装** ⇒
-   **切片 2 之前必须补**（否则一旦对外收费即为违规投放）。这是**工程可做**的一项，不需要等外部结论。
-
-⇒ 在上述未定之前，**先落地「只统计不结算」的第一版是安全的**（不触碰资金，不构成收费行为）。见 §8 D4。
-
----
-
-## 4. 数据模型（建议）
-
-```
-advertiser                     广告主
-  advertiser_id   BIGSERIAL PK
-  name            VARCHAR(128) 广告主名称
-  contact_name    VARCHAR(64)  联系人
-  contact_phone   VARCHAR(32)  联系电话
-  status          VARCHAR(16)  ACTIVE | DISABLED
-  created_at / updated_at
-
-ad_order                       投放订单（把「投放计划」商品化）
-  order_id        BIGSERIAL PK
-  advertiser_id   BIGINT  → advertiser（FK）
-  campaign_id     BIGINT  → ad_campaign（FK，复用既有投放计划）
-  billing_mode    VARCHAR(8)   CPM | CPC
-  unit_price_cents BIGINT      每千次曝光 / 每次点击 的单价（分）
-  budget_cents    BIGINT       预算上限（分）
-  spent_cents     BIGINT NOT NULL DEFAULT 0   已消耗（分）
-  slot_code       VARCHAR(32)  库存位号（S1/S2/S3）
-  start_at / end_at
-  status          VARCHAR(16)  DRAFT | RUNNING | EXHAUSTED | STOPPED
-  created_at / updated_at
-
-ad_billing_entry               计费流水（幂等落在这一层）
-  entry_id        BIGSERIAL PK
-  order_id        BIGINT  → ad_order
-  event_id        BIGINT  → ad_play_event（唯一，幂等键）
-  event_type      VARCHAR(16)  IMPRESSION | CLICK
-  qty             INT          本次计量数量（曝光=1；CPM 汇总时=1000）
-  amount_cents    BIGINT       本次计费金额（分）
-  occurred_at     TIMESTAMPTZ
-  UNIQUE (event_id)            ← 🔴 同一播放事件只能计费一次
-
-ad_revenue_ledger              广告收入账本（独立，不挂 RevenueSplit）
-  ledger_id       BIGSERIAL PK
-  order_id        BIGINT
-  entry_id        BIGINT       来源计费流水（可空，汇总记账时为空）
-  kind            VARCHAR(16)  BILLING | ADJUSTMENT | REFUND
-  amount_cents    BIGINT
-  occurred_at     TIMESTAMPTZ
-```
-
-### 为什么广告收入**不挂** `RevenueSplit`
-
-`RevenueSplitService.recordSplit(CabinetOrder)` 的签名与实体 `OrderRevenueSplit` **以订单为锚**（按 `order_id` 分账、随退款 `voidSplitOnFullRefund` / `adjustSplitAfterPartialRefund` 联动）。
-广告收入**没有订单**，硬挂只能造「假订单」，会污染订单表与资金对账口径。
-
-⇒ **独立 `ad_revenue_ledger`**；若未来需要并入平台总账，在**报表层**做汇总，而不是在**存储层**伪造关联。
+| 项 | 结论 |
+|---|---|
+| **广告可识别性（《广告法》）** | ✅ **由平台组件自带** —— 微信广告组件渲染时自带宽高固定的「广告」标识。⇒ 上一版设计稿里「真实投放素材未加广告标识」的缺口**在流量主模式下自动消失** |
+| 自有活动是否要标「广告」 | ❌ 不要。自有活动是**平台自营推广内容**，不是广告；标「广告」反而误导用户 |
+| 占位图是否要标「广告」 | ❌ 不要。占位图**本身不是广告**；且在新文案下它与「招租」无关（旧文案「广告位招租 / 商务合作请联系运营」已废弃） |
+| 微信小程序广告规范 | 广告不得被**遮挡**、不得诱导点击、位置不宜频繁变动；**密度要克制**（行业经验：广告位超过 3 个，用户流失明显上升） |
+| 数据合规 | 腾讯广告的数据由**平台**采集。本项目**不额外上报**任何用户标识给广告侧（我们的 `ad_play_event` 只服务自有内容） |
 
 ---
 
-## 5. 计费口径（需拍板，附推荐）
-
-| 议题 | 推荐 | 理由 |
-|------|------|------|
-| CPM 计量粒度 | **按曝光逐次累加，跨满 1000 次才产生一条 `qty=1000` 的计费流水**；未满 1000 的部分**保留在余额**，不预收 | 避免「999 次也按 1 千次收费」的争议；订单结束时可选择**按实际不足千次比例结算或抹零**（→ D3） |
-| CPC 计量 | 按 `CLICK` 事件逐次计费，单价 = `unit_price_cents` | 直接 |
-| 预算控制 | 每次计费后累加 `spent_cents`；`spent_cents >= budget_cents` ⇒ 订单转 `EXHAUSTED` 并**从 `screen-content` 下发中剔除**（fail-closed，停投） | 防止超投产生无法收费的曝光 |
-| 幂等 | `ad_billing_entry.event_id` **唯一键** | 上报接口可重试；重复事件不得重复计费 |
-| 🔴 服务端防刷 | `recordPlayEvent` **必须补**服务端去重 + 频次上限 | 现状：`device-ad-banner.vue` 只用**客户端内存 Set**（`impressed`）防重复，**可被绕过**；服务端当前**无任何限制** ⇒ 曝光可刷，直接等于可刷钱 |
-
-⚠️ **防刷是本项的生死线**：计费一旦上线，「曝光的可信度」就等于「收入的真实性」。建议切片 2 必须与服务端限流同批上线，不得后补。
-
----
-
-## 6. 对账
-
-- `Σ ad_billing_entry.amount_cents (BY order)` **应恒等于** `σ ad_revenue_ledger.amount_cents (BY order, kind=BILLING)`。
-- 建议加**静态门禁**（沿用本项目 `check-*` 惯例）：校验两张表的写入点成对出现，避免「记了流水没入账」或反之。
-
----
-
-## 7. 分片计划
+## 8. 分片计划（按新方向重估）
 
 | 切片 | 内容 | 是否触碰资金 | 状态 |
 |------|------|------------|------|
-| **1** | 开关 `consumer.ad_banner.enabled`（含把既有 S1 纳入门控）+ 占位图 | 否 | 🟡 **站位部分已落地**（本文 §10）；广告主 + 投放订单 CRUD + 运营台页面待做 |
-| **2** | 计费引擎：CPM/CPC + 幂等 + 预算停投 + **服务端防刷** + 素材「广告」标识 | 否（只记账） | ⬜ 待做 |
-| **3** | 投放报表：运营台（按订单/广告主/设备/时段）+ 广告主视图 | 否 | ⬜ 待做 |
-| **4** | 收入入账 `ad_revenue_ledger` + 对账门禁 | ✅ 是 | ⬜ 待做 |
+| **1** | 位置门控 + 腾讯广告组件接入 + 优先级 + 占位图 | 否 | ✅ **已落地**（§11） |
+| **2** | **通电验证**：E1–E4 就绪后填 unit-id 开开关，在**开发者工具/体验版**确认广告真能出、错误码可观测 | 否 | ⬜ 阻塞于外部（E1–E4） |
+| **3** | **收益对账**：定时拉 `publisher/stat` 落库（限 90 天）+ 运营台看板 + 与后台数据核对 | 只读 | ⬜ 待做（先实测 §4.2 可用性） |
+| **4** | **收入入账**：把结算收入记进平台收入侧（**独立账本**，见下）+ 对账门禁 | ✅ 是 | ⬜ 待做 |
+| **5** | 按收益结构再选形态：激励视频（含服务端回调）/ 插屏 / 原生模板 | 视形态 | ⬜ 待做 |
 
-切片 1–3 不构成对外收费，可在合规确认前推进；**切片 4 必须在 §3 前置项落定后再动**。
+### 为什么收入仍是**独立账本**，不挂 `RevenueSplit`
 
----
-
-## 8. 待确认决策（带推荐）
-
-| # | 议题 | 我的推荐 |
-|---|------|---------|
-| **D1** | 首发库存范围 | **只做 S1（小程序首页横幅）**，验证计费链路后再扩 S2/S3 |
-| **D2** | 计费模式 | **先做 CPM**（曝光量已在采，口径最稳）；CPC 留接口占位，切片 3 再开 |
-| **D3** | 不足千次曝光 | **按实际次数按比例结算**（`amount = ceil(qty * unit_price / 1000)`），订单终态时结清 |
-| **D4** | 是否先做「只统计不结算」版 | **是** —— 切片 1+2 只记账不出账，合规未定前不收费 |
-| **D5** | S1 开关默认值 | `false`（fail-closed；与其他消费端扩展功能一致） |
+`RevenueSplitService.recordSplit(CabinetOrder)` 与 `OrderRevenueSplit` **以订单为锚**
+（按 `order_id` 分账、随退款 `voidSplitOnFullRefund` 联动）。**广告收入没有订单**，
+硬挂只能造「假订单」，污染订单表与资金对账口径。
+⇒ 独立账本；要并入平台总账只在**报表层**汇总，不在存储层伪造关联。
+（这条结论与旧稿一致，因为它是**账务结构**问题，与商业模式无关。）
 
 ---
 
-## 9. 本项必须一并处理的既有问题
+## 9. 待确认决策
 
-1. ~~**S1 无开关门控** —— `index.vue:200` 裸挂，需接入开关。~~ ✅ **已修**（`consumer.ad_banner.enabled`，见 §2）。
-2. **上报无服务端防刷** —— `AdCampaignService.recordPlayEvent:214` 无去重/限流。
-3. **命名债** —— 「柜屏」相关注释与真实消费端不符，需校正（§0）。
-4. **`GET /{deviceId}/screen-content` 不下发计费信息** —— 计费上线后，前端**不得**收到单价/预算（避免客户端推断与作弊），计价**必须**全在服务端。
-5. **素材无「广告」标识** —— 真实投放渲染时需补（§3 第 4 条，切片 2 前置）。
+| # | 议题 | 现状/建议 |
+|---|---|---|
+| D1 | 首发广告形式 | **Banner**（已实现） |
+| D2 | 位置总开关默认值 | `false`（已实现，fail-closed） |
+| D3 | 自有 vs 腾讯 优先级 | **自有优先**（已实现，有单测） |
+| D4 | 收益是否要建账本 | **要**，但**先等切片 2/3**：没有真实收益前建账本＝造孤儿表 |
+| D5 | 是否做激励视频 | 待 E2 后的 eCPM 实测再定；若做，「看广告换什么」是产品决策 |
 
 ---
 
-## 10. 落地记录
+## 10. 本项必须一并处理的既有问题
 
-### 切片 1 · 站位（2026-09-20）
+1. ~~**位置无开关门控**~~ ✅ 已修（切片 1）。
+2. **上报无服务端防刷** —— `AdCampaignService.recordPlayEvent` 服务端无去重/限流，
+   前端 `impressed` 只是客户端内存 Set，**可绕过**。
+   ⚠️ **影响面已变化**：新方向下自有内容**不收费**，所以它不再是「可刷钱」，
+   而是「自有投放 ROI 数据不可信」。优先级**下降**，但仍应在做投放报表前修。
+3. ~~**素材无「广告」标识**~~ ✅ **不再需要**（平台组件自带，§7）。
+4. **命名债** —— 「柜屏」注释与真实端不符（§2）。
+5. **`screen-content` 不下发计费/单价信息** —— 新方向下平台侧本就由腾讯计价，
+   本项目**也不应该**把任何单价下发前端。
+
+---
+
+## 11. 落地记录
+
+### 切片 1（2026-09-20 第二十八轮）
 
 **改了什么**
 
 | 层 | 文件 | 内容 |
 |----|------|------|
-| 后端 | `SystemConfigService.java` | 常量 `CONSUMER_AD_BANNER_ENABLED` + `ensureDefaults()` seed（`"false"`）+ `consumerPublicConfig()` 下发 `adBannerEnabled` |
-| 后端 | `resources/ops/feature-flags.json` | 注册表登记（组「扩展功能」，`BOOLEAN`，默认 `false`） |
-| 前端 | `utils/feature-flags.ts` | `adBannerEnabled()` 读取器（fail-closed） |
-| 前端 | `pages/index/index.vue` | 广告位改为 `v-if="deviceId && adBannerVisible"`；`adBannerVisible` 由公开配置喂入 |
-| 前端 | `components/device-ad-banner.vue` | 新增占位分支（`loaded && !items.length`）+ 占位**不上报任何事件** |
-| 资产 | `scripts/render-mp-assets.mjs` | 新增占位图渲染（750×220，与 `220rpx` 等比）→ `consumer-mp/src/static/ad/slot-placeholder.png` |
-| 测试 | `SystemConfigExtensionFlagsTest` / `feature-flags.test.ts` | 下发默认关 / 跟随存储值 / blank 仍关；前端 fail-closed、取值边界、**开关互相独立**（防读错键） |
+| 后端 | `SystemConfigService.java` | 常量 `CONSUMER_WX_AD_ENABLED` / `CONSUMER_WX_AD_UNIT_ID` + seed + `consumerPublicConfig()` 下发 `wxAdEnabled` / `wxAdUnitId`（trim） |
+| 后端 | `resources/ops/feature-flags.json` | 两条登记（组「扩展功能」，BOOLEAN / TEXT） |
+| 前端 | `utils/feature-flags.ts` | `wxAdEnabled()` / `wxAdUnitId()`（后者只 trim、布尔化会误杀 `0`/`false` 型 ID） |
+| 前端 | `components/wx-ad-slot.vue` | **新增**：`#ifdef MP-WEIXIN` 内渲染微信原生 `<ad :unit-id>`；H5 端不渲染（避免把「平台不支持」表现成「加载失败」） |
+| 前端 | `utils/promo-slot.ts` | **新增**：来源优先级纯函数（可单测） |
+| 前端 | `components/device-ad-banner.vue` | 三来源择一渲染；占位分支移入优先级决议 |
+| 资产 | `scripts/render-mp-assets.mjs` | 占位图文案改中性（去「招租」与「广告」角标）→ 重渲染 |
+| 测试 | `SystemConfigExtensionFlagsTest` / `feature-flags.test.ts` / `promo-slot.test.ts` | 见下 |
 
-**不变量（本切片刻意守住的）**
+**不变量**
 
-- 默认关时，首页**不渲染**广告位 —— 与接入前逐字节一致。
-- 前端拿不到配置（网络失败/字段缺失）一律按「关」（`loadConsumerFlags` 失败 ⇒ 缓存空表）。
-- 占位图**零计量**：无点击、无 `ad-play` 上报。
-- 页面门控用**页面级 ref**（`adBannerVisible`）而非模板内直接调函数 —— 与 `couponEntryVisible` / `detailVisible` 的既有姿势一致，避免模板里出现不可测的副作用。
+- 开关关（默认）⇒ 首页**不渲染**该位置，与接入前逐字节一致。
+- 拿不到配置（网络失败）⇒ 一律按「关」，`unit_id` 视为空。
+- 腾讯广告**零自有计量**：不上报 `ad-play`、不绑点击（数据在腾讯侧，收益经接口对账）。
+- 占位图**零事件**。
+- **开关开 ≠ 可渲染**（还需 unit-id 非空）—— 双保险。
 
 **验证证据**
 
-- 前端：`node node_modules/vitest/vitest.mjs run` ⇒ **43 passed**（基线 42 + 新增 1）。
-- 门禁：`node scripts/check-feature-flags.mjs` ⇒ **OK：注册表 72 个开关 / 16 个分组，下发键 21 个前端全部消费**。
-- **A/B 注入漂移（证明新判据真的会红，且精确命中）**：
-  - A「`adBannerEnabled()` 恒返回 `true`（丢掉 fail-closed）」⇒ 精确红 3 例（缓存未热 / 取值边界 / 请求失败）。
-  - B「`adBannerEnabled()` 误读 `orderSearchEnabled`（复制粘贴改错键）」⇒ 红 2 例，其中**「开关互相独立」正是为抓这类漂移而新增**。
-  - 两次注入后均按 md5 逐字节还原（`bcb26ceec1a359b51b69824fd024e096`）。
-- 样式/静态检查：`prettier --check` 全过；`eslint .` **0 error**（31 条 warning 均在既有 `merchant-mp` 文件）。
+- 前端：`vitest run` ⇒ **54 passed**（基线 43 + `promo-slot` 6 + `wx_ad` 5）。
+- 门禁：`check-feature-flags` ⇒ **OK：注册表 74 个开关 / 16 个分组，下发键 23 个前端全部消费**。
+- 类型检查：`vue-tsc --noEmit` 通过。
+- 条件编译：用 uni-app 预处理器（`initPreContext` + `preHtml`）分平台实测 ——
+  **mp-weixin 保留 `<ad :unit-id="unitId">`，h5 被剥掉**（⚠️ 首次判据被自身文档注释里的 `<ad>`/`unit-id`
+  字样污染，必须**先剥注释再判**）。
+- **A/B 注入漂移**（三条，各自精确只红 1 例，均 md5 逐字节还原）：
+  - 优先级写反（腾讯抢先）⇒ 「有自有投放 ⇒ 一定选自有」红；
+  - `wxAdUnitId()` 复用布尔化 ⇒ 「`0`/`false` 必须原样返回」红；
+  - 占位闸门丢掉 `loaded` ⇒ 「未加载完成 ⇒ `none`」红。
+- **未能取证的一项（如实记录）**：`uni build -p mp-weixin` 在**本仓库 HEAD 上就失败**
+  （rollup `VALIDATION_ERROR`：`packages/shared-uni/...privacy-consent-modal.js` 被当成
+  `output.chunkFileNames` 模式）。已用 `git stash` 在**干净 HEAD** 复现同一错误 ⇒ **既有缺陷，非本批引入**。
+  后果：**无法从产物 wxml 层面验证广告节点**，只能以上述「编译器源码 + 预处理器」证据替代。
+  CI 也不构建 mp-weixin ⇒ 这条路径**长期无人验证**。
 
-**运维怎么用**
+---
 
-1. 运营台 → 系统配置 → 「扩展功能」组 → `consumer.ad_banner.enabled` 打开 ⇒ 首页立刻出现**占位图**（验证位置与样式）。
-2. 在投放计划里给某柜配置生效中的素材 ⇒ 该柜首页自动换成**真实素材**；其他没配的柜仍是占位图。
-3. 关闭开关 ⇒ 恢复「不渲染」。
+## 12. 附：已作废的旧口径（避免后来者重复劳动）
 
-> ⚠️ 小程序的**广告账户 / 商家号**尚未就绪，本切片刻意**不需要**它们：占位图是纯静态资源，
-> 开关是纯配置。等账户与素材就绪，只需**配置投放 + 打开开关**，无需再改代码。
+| 旧稿内容 | 现状 |
+|---|---|
+| 「可售库存清单 S1/S2/S3，面向广告主招商」 | ❌ 作废：不卖位。位置改为「推广位」，来源＝自有 + 腾讯 |
+| 数据模型 `advertiser` / `ad_order`(billing_mode,unit_price,budget,spent) | ❌ **不需要**：没有广告主，没有订单，价格由平台竞价 |
+| `ad_billing_entry`（幂等计费流水） | ❌ **不需要**：我们不产生计费事件，腾讯按平台口径结算 |
+| CPM/CPC 计费口径与预算停投/EXHAUSTED | ❌ **不需要**：预算由广告主在腾讯侧设定 |
+| 「先做只统计不结算版」（D4 旧推荐） | ❌ 作废：本就没有「我们向谁结算」这回事 |
+| 「真实投放素材须补广告标识」（旧 §3 第 4 条） | ✅ **自动消失**：微信广告组件自带标识；自有活动不属于广告 |
+| `ad_revenue_ledger` 独立账本（不挂 `RevenueSplit`） | ✅ **仍成立**（账务结构问题，与商业模式无关），但金额来源改为**腾讯结算单** |
+| 服务端防刷为「生死线」 | ⚠️ 降级：自有内容不收费 ⇒ 影响的是投放数据可信度，不是钱 |

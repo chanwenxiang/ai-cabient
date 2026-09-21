@@ -34,6 +34,9 @@ describe('扩展功能开关读取器', () => {
     expect(m.productDetailEnabled()).toBe(false);
     // 广告位尤其要守住：误判成「开」会让首页在没有投放时也挂出占位图
     expect(m.adBannerEnabled()).toBe(false);
+    // 腾讯广告位同理：拿不到配置 ⇒ 开关按「关」，且 ID 视为空（两者共同决定「可渲染」）
+    expect(m.wxAdEnabled()).toBe(false);
+    expect(m.wxAdUnitId()).toBe('');
   });
 
   it('seed 后按值判定：true / "true" / "1" 为开，其余（含 "false" / 空串 / 任意串）为关', async () => {
@@ -136,5 +139,59 @@ describe('扩展功能开关读取器', () => {
     await m.loadConsumerFlags();
     await m.loadConsumerFlags();
     expect(consumerPublicConfig).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * 腾讯流量主广告位（`consumer.wx_ad.*`，2026-09-20 第二十八轮）。
+ *
+ * 我们是**流量主**（收腾讯分成），广告由微信广告平台投放；这两条守住它的两道闸：
+ * 开关默认关、广告单元 ID 空 ⇒ 不渲染。
+ */
+describe('腾讯流量主广告位读取器', () => {
+  it('fail-closed：缓存未热 ⇒ 开关关、ID 空', async () => {
+    const m = await fresh();
+    expect(m.wxAdEnabled()).toBe(false);
+    expect(m.wxAdUnitId()).toBe('');
+  });
+
+  it('ID 只做 trim，**不做布尔化** —— "0" / "false" 这类值必须原样返回', async () => {
+    const m = await fresh();
+    m.seedConsumerFlags({ wxAdUnitId: '  adunit-xyz  ' });
+    expect(m.wxAdUnitId()).toBe('adunit-xyz');
+
+    // 🔴 这条是刻意的：unit id 是**值**不是开关。若图省事复用 enabled() 那套判定，
+    // 含 "0"/"false" 的 ID 会被判成「假」而返回空串 ⇒ 广告静默不渲染（且很难查）。
+    const zero = await fresh();
+    zero.seedConsumerFlags({ wxAdUnitId: '0' });
+    expect(zero.wxAdUnitId()).toBe('0');
+
+    const falsy = await fresh();
+    falsy.seedConsumerFlags({ wxAdUnitId: 'false' });
+    expect(falsy.wxAdUnitId()).toBe('false');
+  });
+
+  it('ID 非字符串 ⇒ 收敛成空串，不把 "null"/"123" 喂给广告组件', async () => {
+    const nul = await fresh();
+    nul.seedConsumerFlags({ wxAdUnitId: null as unknown as string });
+    expect(nul.wxAdUnitId()).toBe('');
+
+    const num = await fresh();
+    num.seedConsumerFlags({ wxAdUnitId: 123 as unknown as string });
+    expect(num.wxAdUnitId()).toBe('');
+  });
+
+  it('🔴 开关与 ID 互相独立：开关开但 ID 为空 ⇒ 仍是「不可渲染」', async () => {
+    const m = await fresh();
+    m.seedConsumerFlags({ wxAdEnabled: 'true' });
+    expect(m.wxAdEnabled()).toBe(true);
+    expect(m.wxAdUnitId()).toBe('');
+  });
+
+  it('🔴 wxAdEnabled 不得读成 adBannerEnabled（同族键名最易复制错）', async () => {
+    const m = await fresh();
+    m.seedConsumerFlags({ adBannerEnabled: 'true', wxAdEnabled: 'false' });
+    expect(m.wxAdEnabled()).toBe(false);
+    expect(m.adBannerEnabled()).toBe(true);
   });
 });

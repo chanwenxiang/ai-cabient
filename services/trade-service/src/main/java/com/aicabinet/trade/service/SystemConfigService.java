@@ -251,20 +251,44 @@ public class SystemConfigService {
     /** 消费端：本柜商品详情（商品卡片可点开详情弹层；关闭时仅展示卡片摘要，与接入前一致）。 */
     public static final String CONSUMER_PRODUCT_DETAIL_ENABLED = "consumer.product_detail.enabled";
     /**
-     * 消费端：首页广告位（S1，见 {@code docs/AD_MONETIZATION_DESIGN.md}）。
+     * 消费端：首页推广位（S1，见 {@code docs/AD_MONETIZATION_DESIGN.md}）。
      *
-     * <p><b>关闭（默认）＝ 首页不渲染广告位</b>，与接入前逐字节一致（fail-closed）。
-     * 开启后按下列优先级渲染：
+     * <p><b>关闭（默认）＝ 首页不渲染该位置</b>，与接入前逐字节一致（fail-closed）。
+     * 开启后按下列优先级渲染（同一时刻只渲染一种来源）：
      * <ol>
-     *   <li>该柜有生效中的投放计划 ⇒ 渲染真实素材（曝光/完播/点击照常上报）；</li>
-     *   <li>没有投放内容 ⇒ 渲染**占位图**（「广告位招租」），且**不上报任何事件**
-     *       —— 占位不是广告，不该产生计量数据，更不该进计费。</li>
+     *   <li>该柜有生效中的投放计划 ⇒ 渲染自有素材（我们自己的活动/推广；曝光/完播/点击照常上报）；</li>
+     *   <li>没有自有内容、且 {@link #CONSUMER_WX_AD_ENABLED} 开且广告单元 ID 非空
+     *       ⇒ 渲染**腾讯流量主广告**（微信原生广告组件，自带「广告」标识）；</li>
+     *   <li>都没有 ⇒ 渲染**占位图**，且**不上报任何事件**（占位不是广告，不该产生计量数据）。</li>
      * </ol>
      *
-     * <p>⚠️ 本开关只负责「位置可见性」。广告主 / 订单 / CPM 计费与结算属 F4 后续切片，
-     * 不在本开关语义内（现在的默认关＝只站位，不产生任何计费行为）。
+     * <p>🔴 本开关只负责「位置可见性」，与「腾讯广告位」是两个独立维度；
+     * 广告收益对账/入账属 F4 后续切片，不在本开关语义内（现在的默认关＝只站位，不产生任何资金行为）。
      */
     public static final String CONSUMER_AD_BANNER_ENABLED = "consumer.ad_banner.enabled";
+
+    /**
+     * 消费端：在首页推广位接**腾讯流量主广告**（微信原生广告组件）。
+     *
+     * <p>我们是**流量主**（收腾讯分成），不是媒体主（不向第三方卖广告位）——
+     * 广告由微信广告平台投放与结算，我们只负责把广告组件放在页面上。
+     *
+     * <p>🔴 默认 false：小程序 appid / 流量主开户 / 广告位创建尚未就绪，且广告组件在
+     * H5 端不存在 ⇒ 关闭时前端不渲染任何广告节点，与接入前逐字节一致。
+     * 开启后仍需 {@link #CONSUMER_WX_AD_UNIT_ID} 非空才会真正渲染（双保险 fail-closed）。
+     */
+    public static final String CONSUMER_WX_AD_ENABLED = "consumer.wx_ad.enabled";
+
+    /**
+     * 消费端：腾讯流量主**广告单元 ID**（`adunit-` 开头，在公众平台「流量主 → 广告位管理」创建）。
+     *
+     * <p>做成配置而非常量：广告位 ID 属账号资产（换账号/换广告位不该发版），
+     * 且**默认空串 ⇒ 不渲染**，避免「开关开了但没配 ID」时前端拿到空 unit-id 触发组件报错。
+     *
+     * <p>⚠️ 这是**公开值**（会随 {@code consumerPublicConfig()} 下发给客户端），
+     * 因此**不得**在此放任何凭据 —— 收益对账用的 AppSecret 走环境变量，不入库、不下发。
+     */
+    public static final String CONSUMER_WX_AD_UNIT_ID = "consumer.wx_ad.unit_id";
 
     // ── F1 动态定价 · 策略版本与审计 ─────────────────────────────────────────
     /**
@@ -432,9 +456,12 @@ public class SystemConfigService {
                 String.valueOf(self.getBoolean(CONSUMER_COUPON_ENTRY_ENABLED, false)));
         map.put("productDetailEnabled",
                 String.valueOf(self.getBoolean(CONSUMER_PRODUCT_DETAIL_ENABLED, false)));
-        // 首页广告位（S1）：默认关 ⇒ 渲染分支与接入前一致
+        // 首页推广位（S1）：默认关 ⇒ 渲染分支与接入前一致
         map.put("adBannerEnabled",
                 String.valueOf(self.getBoolean(CONSUMER_AD_BANNER_ENABLED, false)));
+        // 首页推广位「腾讯流量主广告」来源：开关 + 广告单元 ID（空串 ⇒ 前端不渲染，fail-closed）
+        map.put("wxAdEnabled", String.valueOf(self.getBoolean(CONSUMER_WX_AD_ENABLED, false)));
+        map.put("wxAdUnitId", self.getValue(CONSUMER_WX_AD_UNIT_ID, "").trim());
         return map;
     }
 
@@ -695,7 +722,11 @@ public class SystemConfigService {
         upsertIfAbsent(CONSUMER_PRODUCT_DETAIL_ENABLED, "false",
                 "消费端：本柜商品详情弹层（默认关闭；关闭时仅展示商品卡片摘要）");
         upsertIfAbsent(CONSUMER_AD_BANNER_ENABLED, "false",
-                "消费端：首页广告位（默认关闭；关闭时首页不渲染广告位。开启后无投放内容时显示占位图）");
+                "消费端：首页推广位（默认关闭；关闭时首页不渲染该位置。开启后按 自有投放 → 腾讯广告 → 占位图 渲染）");
+        upsertIfAbsent(CONSUMER_WX_AD_ENABLED, "false",
+                "消费端：首页推广位接腾讯流量主广告（默认关闭；需先开通流量主并创建广告位）");
+        upsertIfAbsent(CONSUMER_WX_AD_UNIT_ID, "",
+                "消费端：腾讯流量主广告单元 ID（adunit- 开头；留空则不渲染广告）");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
         upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");

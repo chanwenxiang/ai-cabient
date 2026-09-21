@@ -82,13 +82,40 @@ export function productDetailEnabled(): boolean {
 }
 
 /**
- * 首页广告位（S1，`consumer.ad_banner.enabled`）。见 `docs/AD_MONETIZATION_DESIGN.md`。
+ * 首页推广位（S1，`consumer.ad_banner.enabled`）。见 `docs/AD_MONETIZATION_DESIGN.md`。
  *
- * **开**：首页在柜机状态卡下方渲染广告位 —— 该柜有生效投放则显示真实素材，没有则显示占位图；
- * **关**（默认）：首页**不渲染广告位**，即接入前行为（fail-closed）。
+ * **开**：首页在柜机状态卡下方渲染推广位 —— 按「自有投放 → 腾讯广告 → 占位图」择一渲染；
+ * **关**（默认）：首页**不渲染该位置**，即接入前行为（fail-closed）。
  *
- * ⚠️ 与「计量」无关：占位图不上报曝光/点击；真实素材的上报由组件内部按 campaignId 决定。
+ * ⚠️ 与「计量」无关：占位图不上报曝光/点击；自有素材的上报由组件内部按 campaignId 决定。
  */
 export function adBannerEnabled(): boolean {
   return enabled(cache?.adBannerEnabled);
+}
+
+/**
+ * 首页推广位的**腾讯流量主广告**来源（`consumer.wx_ad.enabled`）。
+ *
+ * 我们是流量主（收腾讯分成），不是媒体主（不向第三方卖广告位）：广告由微信广告平台
+ * 投放与结算，我们只负责把广告组件放在页面上。
+ *
+ * **开**：自有投放为空时渲染微信原生广告组件；
+ * **关**（默认）：连广告节点都不渲染 —— 小程序 appid / 流量主开户未就绪时的安全态。
+ *
+ * ⚠️ 仅表示「允许渲染」，真正渲染还要 `wxAdUnitId()` 非空（见下）。
+ */
+export function wxAdEnabled(): boolean {
+  return enabled(cache?.wxAdEnabled);
+}
+
+/**
+ * 腾讯流量主广告单元 ID（`consumer.wx_ad.unit_id`，`adunit-` 开头）。
+ *
+ * 🔴 **空串一律视为「不可渲染」**：开关开了但运营忘了填 ID 时，把空串喂给广告组件
+ * 会触发组件报错/占位异常；这里在读取处就收敛掉，调用方只需判空即可。
+ * 与 `enabled()` 不同，本函数返回的是**值**，故不做布尔转换，只做 trim。
+ */
+export function wxAdUnitId(): string {
+  const raw = cache?.wxAdUnitId;
+  return typeof raw === 'string' ? raw.trim() : '';
 }

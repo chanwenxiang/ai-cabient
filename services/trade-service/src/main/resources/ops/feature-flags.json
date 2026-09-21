@@ -53,7 +53,21 @@
       "group": "扩展功能",
       "type": "BOOLEAN",
       "default": "false",
-      "description": "消费端：首页广告位（S1；默认关闭，关闭时首页不渲染。开启后无投放内容时显示占位图且不上报计量）"
+      "description": "消费端：首页推广位（S1；默认关闭时首页不渲染。开启后按 自有投放 → 腾讯广告 → 占位图 渲染；占位图不上报计量）"
+    },
+    {
+      "key": "consumer.wx_ad.enabled",
+      "group": "扩展功能",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "消费端：首页推广位接腾讯流量主广告（微信原生广告组件；需先开通流量主，且广告单元 ID 非空才渲染）"
+    },
+    {
+      "key": "consumer.wx_ad.unit_id",
+      "group": "扩展功能",
+      "type": "TEXT",
+      "default": "",
+      "description": "消费端：腾讯流量主广告单元 ID（adunit- 开头，在公众平台「流量主→广告位管理」创建；留空则不渲染广告。⚠️ 公开值，不得填凭据）"
     },
     {
       "key": "balance.refund.max_cents",
