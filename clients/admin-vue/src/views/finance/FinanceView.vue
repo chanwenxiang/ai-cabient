@@ -1,5 +1,5 @@
 <template>
-  <div v-loading="loading" class="finance-page">
+  <div v-loading="crud.loading" class="finance-page">
     <el-result
       v-if="loadError"
       icon="warning"
@@ -7,7 +7,7 @@
       sub-title="如需查看财务数据，请联系管理员开通权限后重试"
     >
       <template #extra>
-        <el-button type="primary" :loading="loading" @click="load">重试</el-button>
+        <el-button type="primary" :loading="crud.loading" @click="crud.refresh()">重试</el-button>
         <el-button @click="goPath('/')">返回工作台</el-button>
       </template>
     </el-result>
@@ -26,7 +26,10 @@
               <el-button type="primary" plain :loading="solidifying" @click="solidifyYesterday"
                 >固化昨日毛利</el-button
               >
-              <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+              <!-- 页头刷新是整页刷新（KPI/图表/榜单共用一次报告请求），故 CrudTable 关闭壳内刷新 -->
+              <el-button :icon="Refresh" :loading="crud.loading" @click="crud.refresh()"
+                >刷新</el-button
+              >
             </div>
           </div>
         </template>
@@ -51,7 +54,7 @@
               @keydown.enter="item.path && goPath(item.path)"
             >
               <div class="kpi-label">{{ item.label }}</div>
-              <div class="kpi-value" :class="{ warn: listHydrated && item.warn }">
+              <div class="kpi-value" :class="{ warn: crud.hydrated && item.warn }">
                 {{ item.value }}
               </div>
               <div v-if="item.hint" class="kpi-hint">{{ item.hint }}</div>
@@ -104,10 +107,10 @@
             <ChartBox
               :key="chartKind"
               :svg="chartSvg"
-              :loading="loading && !listHydrated"
+              :loading="crud.loading && !crud.hydrated"
               :error="loadError ? '毛利趋势加载失败' : ''"
               empty-text="暂无趋势数据"
-              @retry="load"
+              @retry="crud.refresh()"
             />
           </Transition>
           <template #footer>
@@ -120,19 +123,19 @@
         <ChartPanel title="累计快照" fill compact>
           <el-descriptions :column="1" border size="small" class="snapshot-desc">
             <el-descriptions-item label="累计营收">{{
-              listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '…'
+              crud.hydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '…'
             }}</el-descriptions-item>
             <el-descriptions-item label="累计成本">{{
-              listHydrated ? `¥${((stats.cogsTotalCents || 0) / 100).toFixed(2)}` : '…'
+              crud.hydrated ? `¥${((stats.cogsTotalCents || 0) / 100).toFixed(2)}` : '…'
             }}</el-descriptions-item>
             <el-descriptions-item label="累计毛利">{{
-              listHydrated ? `¥${((stats.grossMarginTotalCents || 0) / 100).toFixed(2)}` : '…'
+              crud.hydrated ? `¥${((stats.grossMarginTotalCents || 0) / 100).toFixed(2)}` : '…'
             }}</el-descriptions-item>
             <el-descriptions-item label="今日报废金额">{{
-              listHydrated ? `¥${((stats.writeOffTodayCents || 0) / 100).toFixed(2)}` : '…'
+              crud.hydrated ? `¥${((stats.writeOffTodayCents || 0) / 100).toFixed(2)}` : '…'
             }}</el-descriptions-item>
             <el-descriptions-item label="今日报废件数">{{
-              listHydrated ? stats.writeOffTodayQty || 0 : '…'
+              crud.hydrated ? stats.writeOffTodayQty || 0 : '…'
             }}</el-descriptions-item>
           </el-descriptions>
         </ChartPanel>
@@ -140,43 +143,23 @@
 
       <ChartPanel :title="`商品毛利排行 · 近 ${days} 天`" compact class="sku-panel">
         <template #actions>
-          <el-button v-hasPermi="['ops:finance:export']" @click="onExportTopSkus">{{
-            topSkusExportLabel
-          }}</el-button>
           <el-button v-if="canAccessPath('/skus')" link type="primary" @click="goPath('/skus')"
             >商品管理</el-button
           >
         </template>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              class="report-table sku-table"
-              :data="displayTopSkus"
-              :default-sort="idDefaultSort"
-              @sort-change="onIdSortChange"
-              stripe
-              border
+            <!-- 商品毛利榜单接入统一表格壳；报告接口无服务端分页（后端榜单上限 20 条），整表一页 -->
+            <CrudTable
+              :table="crud"
               row-key="skuId"
-              @selection-change="onTopSkusSelectionChange"
-              empty-text=" "
+              selectable
+              :show-refresh="false"
+              empty-text="暂无商品毛利数据"
+              sort-field-label="商品编号"
+              :csv="csvOptions"
             >
-              <template #empty
-                ><el-empty v-if="listHydrated && !loading" description="暂无商品毛利数据"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column
-                prop="skuId"
-                label="商品编号"
-                min-width="120"
-                class-name="col-text"
-                sortable="custom"
-              >
+              <el-table-column prop="skuId" label="商品编号" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.skuId }}</span>
                 </template>
@@ -253,7 +236,7 @@
                   }}
                 </template>
               </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
       </ChartPanel>
@@ -262,7 +245,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -270,10 +253,9 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
-import { useListCsv } from '@/composables/useListCsv';
+import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useTableSelection } from '@/composables/useTableSelection';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { buildSeriesChart, formatYuan, shortDate, type ChartKind } from '@/utils/charts';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -316,22 +298,53 @@ interface FinanceReport {
 
 const { router, canAccessPath, goPath } = useNavAccess();
 const route = useRoute();
-const loading = ref(false);
-/** 首屏未拉完前勿展示 ¥0 / 0%，避免与真实快照闪错 */
-const listHydrated = ref(false);
 const solidifying = ref(false);
 const loadError = ref('');
 const days = ref(parseDays(route.query.days));
 const chartKind = ref<ChartKind>('area');
 const stats = ref<FinanceStats>({});
 const daily = ref<FinanceDaily[]>([]);
-const topSkus = ref<FinanceSku[]>([]);
-const {
-  defaultSort: idDefaultSort,
-  onSortChange: onIdSortChange,
-  sortById
-} = useIdColumnSort<FinanceSku>('skuId');
-const displayTopSkus = computed(() => sortById(topSkus.value));
+
+// 列表状态机统一交给 CrudTable：分页/排序/多选/竞态/空态全部内建。
+// 报告接口一次带回 KPI/趋势/榜单：fetchPage 内顺带分发 stats/daily；
+// crud.hydrated 首查完成后置真（首屏未拉完前勿展示 ¥0 / 0%，避免与真实快照闪错）。
+const crud = useCrudTable<FinanceSku>({
+  rowKey: (r) => r.skuId,
+  fetchPage: async () => {
+    loadError.value = '';
+    try {
+      const data = await api.request<FinanceReport>(
+        AdminEndpoints.financeReport(days.value),
+        'GET'
+      );
+      stats.value = data.summary || {};
+      daily.value = data.daily || [];
+      // 榜单无服务端分页（后端上限 20 条），整表一页返回
+      return data.topSkus || [];
+    } catch (e) {
+      // 整页错误态（el-result）由页面维护；错误提示交给 useCrudTable 统一弹出
+      loadError.value = e instanceof Error ? e.message : '加载失败';
+      throw e;
+    }
+  },
+  sort: { prop: 'skuId', mode: 'local' }
+});
+
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '商品毛利TOP',
+  exportPerm: 'ops:finance:export',
+  headers: ['商品编号', '商品', '销量', '营收', '成本', '毛利', '毛利率'],
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.skuId,
+      row.skuName,
+      row.qtySold,
+      (row.revenueCents / 100).toFixed(2),
+      (row.cogsCents / 100).toFixed(2),
+      (row.grossMarginCents / 100).toFixed(2),
+      `${skuMarginRateDisplay(row)}`
+    ])
+};
 
 function parseDays(raw: unknown): number {
   const n = Number(raw);
@@ -344,7 +357,9 @@ function parseDays(raw: unknown): number {
 
 function onDaysChange() {
   router.replace({ query: { ...route.query, days: String(days.value) } });
-  load({ resetSeries: true });
+  // 切天数时清空趋势系列，避免旧区间叠新图；榜单由 crud.search() 回第一页重查
+  daily.value = [];
+  void crud.search();
 }
 
 /** 无营收时不展示假 0% 毛利率 */
@@ -357,28 +372,6 @@ function skuMarginRateDisplay(row: FinanceSku): string {
   const rate = skuMarginRate(row);
   return rate === '暂无' ? '暂无' : `${rate}%`;
 }
-
-const {
-  onSelectionChange: onTopSkusSelectionChange,
-  pickSelected: pickTopSkusSelected,
-  exportButtonLabel: topSkusExportLabel,
-  clearSelection: clearTopSkusSelection
-} = useTableSelection<FinanceSku>((row) => row.skuId);
-
-const { onExport: onExportTopSkus } = useListCsv({
-  filePrefix: '商品毛利TOP',
-  headers: ['商品编号', '商品', '销量', '营收', '成本', '毛利', '毛利率'],
-  toRows: () =>
-    pickTopSkusSelected(topSkus.value).map((row) => [
-      row.skuId,
-      row.skuName,
-      row.qtySold,
-      (row.revenueCents / 100).toFixed(2),
-      (row.cogsCents / 100).toFixed(2),
-      (row.grossMarginCents / 100).toFixed(2),
-      `${skuMarginRateDisplay(row)}`
-    ])
-});
 
 function kpiNavHint(ready: boolean, canNavigate: boolean, navigateLabel: string) {
   if (!ready) return UI_COPY.loading;
@@ -456,7 +449,7 @@ const kpiTiles = computed(() => {
   const marginRate = (stats.value.grossMarginRateToday || 0) * 100;
   const marginCents = stats.value.grossMarginTodayCents || 0;
   return buildFinanceKpiTiles(
-    listHydrated.value,
+    crud.hydrated,
     canAccessPath('/analytics'),
     canAccessPath('/orders'),
     marginRate,
@@ -478,30 +471,6 @@ const chartSvg = computed(() => {
   });
 });
 
-async function load(opts?: { resetSeries?: boolean }) {
-  loading.value = true;
-  loadError.value = '';
-  // 切天数时清空系列，避免旧区间叠新图；软刷新保留
-  if (opts?.resetSeries) {
-    daily.value = [];
-    topSkus.value = [];
-  }
-  try {
-    const data = await api.request<FinanceReport>(AdminEndpoints.financeReport(days.value), 'GET');
-    stats.value = data.summary || {};
-    daily.value = data.daily || [];
-    topSkus.value = data.topSkus || [];
-    clearTopSkusSelection();
-  } catch (e) {
-    const message = e instanceof Error ? e.message : '加载失败';
-    loadError.value = message;
-    ElMessage.error(message);
-  } finally {
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 async function solidifyYesterday() {
   try {
     // H06：固化会按昨日快照落库、不可回溯重算，必须二次确认
@@ -521,7 +490,7 @@ async function solidifyYesterday() {
   try {
     await api.request(AdminEndpoints.financeMarginLocksSolidify, 'POST');
     ElMessage.success('昨日毛利已固化');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '固化失败');
   } finally {
@@ -535,12 +504,11 @@ watch(
     const next = parseDays(raw);
     if (next !== days.value) {
       days.value = next;
-      load({ resetSeries: true });
+      daily.value = [];
+      void crud.search();
     }
   }
 );
-
-onMounted(load);
 </script>
 
 <style scoped>
@@ -666,10 +634,6 @@ onMounted(load);
 }
 .sku-panel {
   margin-top: 16px;
-}
-.sku-table :deep(th.col-text > .cell),
-.sku-table :deep(td.col-text > .cell) {
-  text-align: center;
 }
 .snapshot-desc :deep(.el-descriptions__table) {
   height: 100%;
