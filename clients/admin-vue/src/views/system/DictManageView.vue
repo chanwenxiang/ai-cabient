@@ -88,50 +88,15 @@
                 <div class="page-card-head__title">
                   <span class="title">字典数据{{ selected ? ` · ${selected.dictName}` : '' }}</span>
                   <span class="hint">{{
-                    selected ? `${itemsHydrated ? displayItems.length : 0} 项` : '请先选择左侧类型'
+                    selected ? `${crud.hydrated ? crud.total : 0} 项` : '请先选择左侧类型'
                   }}</span>
                 </div>
               </div>
               <div class="page-card-head__actions">
-                <el-button size="small" :loading="loadingTypes || loadingItems" @click="refreshAll"
+                <!-- 导出 / 下载模板 / 导入已内建到 CrudTable 工具条；刷新为整页联动（类型 + 字典项 + 运行时字典），保留页头按钮并关闭 CrudTable 内建刷新 -->
+                <el-button size="small" :loading="loadingTypes || crud.loading" @click="refreshAll"
                   >刷新</el-button
                 >
-                <el-button
-                  v-hasPermi="['ops:dict:export']"
-                  size="small"
-                  :disabled="!selected"
-                  @click="onExport"
-                  >{{ exportButtonLabel }}</el-button
-                >
-                <el-button
-                  v-hasPermi="['ops:dict:import']"
-                  size="small"
-                  :disabled="!selected"
-                  @click="
-                    onDownloadTemplate([
-                      'DEMO',
-                      '示例标签',
-                      '0',
-                      displayLabel('enable_status', 'ACTIVE')
-                    ])
-                  "
-                  >导入模板</el-button
-                >
-                <el-button
-                  v-hasPermi="['ops:dict:import']"
-                  size="small"
-                  :disabled="!selected"
-                  :loading="importing"
-                  @click="triggerImport"
-                  >导入</el-button
-                >
-                <input
-                  ref="importInput"
-                  type="file"
-                  accept=".csv,text/csv"
-                  class="hidden-input"
-                  @change="onImportFile"
-                />
                 <el-button
                   v-hasPermi="['ops:dict:edit']"
                   type="primary"
@@ -145,39 +110,20 @@
           </template>
           <div class="table-scroll dict-item-scroll">
             <div class="table-scroll-inner">
-              <el-table
-                v-loading="loadingItems"
-                :data="displayItems"
-                stripe
-                border
-                class="report-table"
+              <CrudTable
+                :table="crud"
                 row-key="dictDataId"
-                empty-text=" "
-                :default-sort="itemDefaultSort"
-                @sort-change="onItemSortChange"
-                @selection-change="onSelectionChange"
+                selectable
+                :actions="canEdit ? rowActions : undefined"
+                :action-width="120"
+                actions-testid="dict-item"
+                :empty-text="selected ? '暂无字典项' : '请先选择左侧字典类型'"
+                sort-field-label="数据编号"
+                :csv="csvOptions"
+                :show-refresh="false"
+                @action="onItemAction"
               >
-                <template #empty>
-                  <el-empty
-                    v-if="itemsHydrated && !loadingItems"
-                    :description="selected ? '暂无字典项' : '请先选择左侧字典类型'"
-                    :image-size="64"
-                  />
-                </template>
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  prop="dictDataId"
-                  label="数据编号"
-                  width="80"
-                  class-name="col-text"
-                  sortable="custom"
-                >
+                <el-table-column prop="dictDataId" label="数据编号" width="80" class-name="col-text">
                   <template #default="{ row }">
                     <span class="cell-id">{{ row.dictDataId }}</span>
                   </template>
@@ -211,20 +157,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column
-                  v-if="canEdit"
-                  label="操作"
-                  width="120"
-                  class-name="col-action"
-                  align="center"
-                  fixed="right"
-                >
-                  <template #default="{ row }">
-                    <el-button link type="primary" @click="openItem(row)">编辑</el-button>
-                    <el-button link type="danger" @click="removeItem(row)">删除</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
+              </CrudTable>
             </div>
           </div>
         </el-card>
@@ -329,11 +262,13 @@ import {
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus';
+import { Delete, Edit } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { useListCsv } from '@/composables/useListCsv';
-import { useTableSelection } from '@/composables/useTableSelection';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { loadRuntimeDict } from '@/stores/dict-runtime';
 import { useAuthStore } from '@/stores/auth';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
@@ -375,19 +310,13 @@ const {
   onSortChange: onTypeSortChange,
   sortById: sortTypesById
 } = useIdColumnSort<DictTypeRow>('dictType');
-const {
-  defaultSort: itemDefaultSort,
-  onSortChange: onItemSortChange,
-  sortById: sortItemsById
-} = useIdColumnSort<DictItemRow>('dictDataId');
+// 左侧类型表为主从联动小表（highlight-current-row + setCurrentRow 恢复选中），保留原有实现；
+// 右侧字典项主列表的状态机统一交给 CrudTable（见下方 crud）。
 
 const loadingTypes = ref(false);
-const loadingItems = ref(false);
 const typesHydrated = ref(false);
-const itemsHydrated = ref(false);
 const saving = ref(false);
 const types = ref<DictTypeRow[]>([]);
-const items = ref<DictItemRow[]>([]);
 const selected = ref<DictTypeRow | null>(null);
 const typeTableRef = ref<TableInstance | null>(null);
 const detailColRef = ref<HTMLElement | null>(null);
@@ -425,7 +354,6 @@ const filteredTypes = computed(() => {
     : types.value;
   return sortTypesById(list);
 });
-const displayItems = computed(() => sortItemsById(items.value));
 
 /** OBS-009：左侧搜索后若当前选中不在结果中，自动切到首项 */
 watch(filteredTypes, async (list) => {
@@ -438,8 +366,28 @@ watch(filteredTypes, async (list) => {
   typeTableRef.value?.setCurrentRow?.(first);
 });
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<DictItemRow>((r) => r.dictDataId);
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建。
+// autoLoad 关闭原因：首查依赖左侧选中类型（含路由 type 参数恢复）后触发，onMounted 里选中类型时显式首查。
+const crud = useCrudTable<DictItemRow>({
+  rowKey: (r) => r.dictDataId,
+  fetchPage: fetchItemsPage,
+  sort: { prop: 'dictDataId', mode: 'server' },
+  // 字典项量级小，默认 50（一页上限）尽量一页展示完，最接近原「整表一次渲染」
+  pageSize: 50
+});
+
+// 本页无服务端分页：fetchPage 按选中类型拉全量字典项 → 按数据编号排序 → 前端切片成一页；
+// 未选类型时返回空页（右侧空态提示「请先选择左侧字典类型」）。
+async function fetchItemsPage(params: CrudPageParams) {
+  if (!selected.value) return { items: [], total: 0 };
+  const list = await api.request<DictItemRow[]>(
+    AdminEndpoints.dictItems(selected.value.dictType),
+    'GET'
+  );
+  const sorted = sortByPrimaryKey(list, 'dictDataId', params.sortDir ?? 'asc');
+  const start = params.page * params.size;
+  return { items: sorted.slice(start, start + params.size), total: sorted.length };
+}
 
 const statusByLabel: Record<string, string> = {
   启用: 'ACTIVE',
@@ -448,40 +396,54 @@ const statusByLabel: Record<string, string> = {
   INACTIVE: 'INACTIVE'
 };
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
-  useListCsv({
-    filePrefix: '字典项',
-    headers: ['值', '标签', '排序', '状态'],
-    toRows: () =>
-      pickSelected(items.value).map((row) => [
-        row.dictValue,
-        row.dictLabel,
-        row.sortOrder,
-        displayLabel('enable_status', row.status || 'ACTIVE')
-      ]),
-    onImportRows: async (rows) => {
-      if (!selected.value) throw new Error('请先选择字典类型');
-      let ok = 0;
-      const t = encodeURIComponent(selected.value.dictType);
-      for (const row of rows) {
-        const dictValue = (row['值'] || row.dictValue || '').trim();
-        const dictLabel = (row['标签'] || row.dictLabel || '').trim();
-        if (!dictValue || !dictLabel) continue;
-        const sortRaw = (row['排序'] || row.sortOrder || '0').trim();
-        await api.request(AdminEndpoints.dictItems(t), 'POST', {
-          dictValue,
-          dictLabel,
-          sortOrder: Number(sortRaw) || 0,
-          status: statusByLabel[row['状态'] || row.status] || 'ACTIVE',
-          remark: ''
-        });
-        ok++;
-      }
-      clearSelection();
-      await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
-      return ok;
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '字典项',
+  exportPerm: 'ops:dict:export',
+  importPerm: 'ops:dict:import',
+  headers: ['值', '标签', '排序', '状态'],
+  templateSample: ['DEMO', '示例标签', '0', displayLabel('enable_status', 'ACTIVE')],
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.dictValue,
+      row.dictLabel,
+      row.sortOrder,
+      displayLabel('enable_status', row.status || 'ACTIVE')
+    ]),
+  onImportRows: async (rows) => {
+    if (!selected.value) throw new Error('请先选择字典类型');
+    let ok = 0;
+    const t = encodeURIComponent(selected.value.dictType);
+    for (const row of rows) {
+      const dictValue = (row['值'] || row.dictValue || '').trim();
+      const dictLabel = (row['标签'] || row.dictLabel || '').trim();
+      if (!dictValue || !dictLabel) continue;
+      const sortRaw = (row['排序'] || row.sortOrder || '0').trim();
+      await api.request(AdminEndpoints.dictItems(t), 'POST', {
+        dictValue,
+        dictLabel,
+        sortOrder: Number(sortRaw) || 0,
+        status: statusByLabel[row['状态'] || row.status] || 'ACTIVE',
+        remark: ''
+      });
+      ok++;
     }
-  });
+    crud.clearSelection();
+    await Promise.all([crud.load(), loadTypes(), loadRuntimeDict()]);
+    return ok;
+  }
+};
+
+function rowActions(_row: DictItemRow): CrudRowAction[] {
+  return [
+    { key: 'edit', label: '编辑', icon: Edit, type: 'primary', perm: 'ops:dict:edit' },
+    { key: 'delete', label: '删除', icon: Delete, type: 'danger', perm: 'ops:dict:edit' }
+  ];
+}
+
+function onItemAction({ key, row }: { key: string; row: DictItemRow }) {
+  if (key === 'edit') openItem(row);
+  else if (key === 'delete') void removeItem(row);
+}
 
 async function loadTypes() {
   loadingTypes.value = true;
@@ -506,32 +468,11 @@ async function loadTypes() {
   }
 }
 
-async function loadItems() {
-  if (!selected.value) {
-    items.value = [];
-    itemsHydrated.value = true;
-    return;
-  }
-  loadingItems.value = true;
-  try {
-    items.value = await api.request<DictItemRow[]>(
-      AdminEndpoints.dictItems(selected.value.dictType),
-      'GET'
-    );
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载字典项失败');
-    items.value = [];
-  } finally {
-    itemsHydrated.value = true;
-    loadingItems.value = false;
-  }
-}
-
 /** 列表 + 运行时字典一并刷新，使其他页下拉立即按 ACTIVE 项更新 */
 async function refreshAll() {
   await Promise.all([
     loadTypes(),
-    selected.value ? loadItems() : Promise.resolve(),
+    selected.value ? crud.load() : Promise.resolve(),
     loadRuntimeDict()
   ]);
   ElMessage.success('已刷新字典');
@@ -557,9 +498,8 @@ function onSelectType(row: DictTypeRow | null, opts?: { sync?: boolean }) {
   if (!row) {
     if (suppressTypeClear) return;
     selected.value = null;
-    clearSelection();
-    items.value = [];
-    itemsHydrated.value = true;
+    crud.clearSelection();
+    void crud.search(); // 未选类型：fetchPage 返回空页，右侧随之清空
     if (opts?.sync !== false) syncRouteQuery();
     return;
   }
@@ -569,8 +509,8 @@ function onSelectType(row: DictTypeRow | null, opts?: { sync?: boolean }) {
     return;
   }
   selected.value = row;
-  clearSelection();
-  loadItems();
+  crud.clearSelection();
+  void crud.search(); // 切换类型从第 1 页重新拉取
   if (opts?.sync !== false) syncRouteQuery();
   scrollDetailIntoViewIfStacked();
 }
@@ -612,7 +552,7 @@ function openItem(row?: DictItemRow) {
   itemForm.dictLabel = row?.dictLabel || '';
   itemForm.status = row?.status || 'ACTIVE';
   itemForm.remark = row?.remark || '';
-  itemForm.sortOrder = row?.sortOrder ?? items.value.length + 1;
+  itemForm.sortOrder = row?.sortOrder ?? crud.total + 1;
   itemDlg.value = true;
 }
 
@@ -622,7 +562,7 @@ function resetItemFormForContinue() {
   itemForm.dictLabel = '';
   itemForm.status = 'ACTIVE';
   itemForm.remark = '';
-  itemForm.sortOrder = items.value.length + 1;
+  itemForm.sortOrder = crud.total + 1;
 }
 
 async function saveType() {
@@ -659,7 +599,7 @@ async function saveItem(continueAdd = false) {
       await api.request(AdminEndpoints.dictItems(t), 'POST', body);
     }
     ElMessage.success('已保存');
-    await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
+    await Promise.all([crud.load(), loadTypes(), loadRuntimeDict()]);
     if (!isEdit && continueAdd) {
       resetItemFormForContinue();
       itemDlg.value = true;
@@ -678,7 +618,7 @@ async function removeItem(row: DictItemRow) {
     await ElMessageBox.confirm(`确认删除字典项「${row.dictLabel}」？`, '删除确认');
     await api.request(AdminEndpoints.dictItemById(row.dictDataId), 'DELETE');
     ElMessage.success('已删除');
-    await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
+    await Promise.all([crud.load(), loadTypes(), loadRuntimeDict()]);
   } catch (e: unknown) {
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '删除失败'));
   }
@@ -702,7 +642,7 @@ async function removeType(row: DictTypeRow) {
     ElMessage.success('已删除');
     if (selected.value?.dictType === row.dictType) {
       selected.value = null;
-      items.value = [];
+      void crud.search(); // 右侧清空为空页
     }
     await Promise.all([loadTypes(), loadRuntimeDict()]);
   } catch (e: unknown) {
@@ -742,6 +682,7 @@ watch(
 );
 
 onMounted(async () => {
+  // crud 关闭了 autoLoad：先等左侧类型加载并按路由参数选中后，onSelectType 内 crud.search() 完成首查
   await loadTypes();
   if (!applyRouteQuery() && types.value.length) {
     onSelectType(types.value[0]);
@@ -923,8 +864,5 @@ onBeforeUnmount(() => {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-}
-.hidden-input {
-  display: none;
 }
 </style>
