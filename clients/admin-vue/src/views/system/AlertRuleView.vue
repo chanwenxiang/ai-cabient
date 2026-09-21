@@ -12,19 +12,17 @@
         </div>
         <div class="page-card-head__actions">
           <el-button
-            v-if="hasSelection && canDelete"
+            v-if="crud.hasSelection && canDelete"
             type="danger"
             :loading="batchLoading"
             @click="batchDelete"
           >
             批量删除
           </el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-if="canEdit" :loading="testingAlert" @click="onTestAlertChannels">
             测试发送
           </el-button>
           <el-button v-if="canEdit" type="primary" @click="openCreate">新增</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -46,28 +44,19 @@
       </el-form-item>
     </el-form>
 
-    <div v-loading="loading" class="table-scroll">
+    <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          :data="displayRows"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="configKey"
-          empty-text=" "
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="showActionColumn ? rowActions : undefined"
+          :action-width="140"
+          actions-testid="alert-rule"
+          empty-text="暂无告警规则"
+          :csv="csvOptions"
+          @action="onRowAction"
         >
-          <template #empty>
-            <el-empty description="暂无告警规则" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             label="分组"
             width="140"
@@ -120,22 +109,7 @@
               row.updatedAt ? formatDateTime(row.updatedAt) : '暂无'
             }}</template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="140"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                @action="(k) => onRowAction(String(k), row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
 
@@ -191,14 +165,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
+import { computed, reactive, ref } from 'vue';
+import { Delete, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { useListCsv } from '@/composables/useListCsv';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -256,52 +229,80 @@ const CUSTOM_GROUP_PREFIX = '自定义';
 const GROUP_META_KEY = 'ops.alert.rule_groups_json';
 
 const auth = useAuthStore();
-const loading = ref(false);
 const saving = ref(false);
 const batchLoading = ref(false);
 const testingAlert = ref(false);
+const keyword = ref('');
+/** 全量派生规则（未做关键词过滤），供「新增」白名单键排除已存在键使用 */
 const rows = ref<RuleRow[]>([]);
-const {
-  tableRef,
-  keyword,
-  hasSelection,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection,
-  filterByKeyword,
-  resetKeyword
-} = useAdminListTable<RuleRow>((r) => r.configKey);
+const customGroupMap = ref<Record<string, string>>({});
 
-const displayRows = computed(() =>
-  filterByKeyword(rows.value, (row, kw) => {
-    return (
-      String(row.group || '')
-        .toLowerCase()
-        .includes(kw) ||
-      String(row.configKey || '')
-        .toLowerCase()
-        .includes(kw) ||
-      String(row.description || '')
-        .toLowerCase()
-        .includes(kw)
-    );
-  })
-);
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / CSV / 刷新全部内建。
+// 本页无服务端分页：fetchPage 拉全量配置 → 客户端按关键词过滤（随查询生效）→ 前端切片成一页。
+async function fetchPage(params: CrudPageParams) {
+  const all = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');
+  const byKey = new Map(all.map((r) => [r.configKey, r]));
+  const meta = byKey.get(GROUP_META_KEY);
+  let map: Record<string, string> = {};
+  if (meta?.configValue) {
+    try {
+      map = JSON.parse(meta.configValue) as Record<string, string>;
+    } catch {
+      map = {};
+    }
+  }
+  customGroupMap.value = map;
 
-const { onExport } = useListCsv({
+  const out: RuleRow[] = [];
+  const seen = new Set<string>();
+  for (const [group, keys] of Object.entries(BUILTIN_GROUPS)) {
+    for (const key of keys) {
+      const row = byKey.get(key);
+      if (row) {
+        out.push({ ...row, group });
+        seen.add(key);
+      }
+    }
+  }
+  for (const row of all) {
+    if (seen.has(row.configKey) || !isAlertRelated(row.configKey)) continue;
+    out.push({ ...row, group: resolveGroup(row.configKey) });
+  }
+  rows.value = out;
+
+  const kw = keyword.value.trim().toLowerCase();
+  const filtered = kw
+    ? out.filter(
+        (row) =>
+          String(row.group || '').toLowerCase().includes(kw) ||
+          String(row.configKey || '').toLowerCase().includes(kw) ||
+          String(row.description || '').toLowerCase().includes(kw)
+      )
+    : out;
+  const start = params.page * params.size;
+  return { items: filtered.slice(start, start + params.size), total: filtered.length };
+}
+
+const crud = useCrudTable<RuleRow>({
+  rowKey: (r) => r.configKey,
+  fetchPage,
+  // 数据量为白名单键量级（24 个内置键），默认一页展示完，最接近原「整表一次渲染」
+  pageSize: 50
+});
+
+const csvOptions: CrudCsvOptions = {
   filePrefix: '告警规则',
   headers: ['分组', '配置键', '规则说明', '当前值', '更新时间'],
-  toRows: () =>
-    pickSelected(displayRows.value).map((r) => [
+  toRows: (picked) =>
+    picked.map((r) => [
       r.group,
       r.configKey,
       r.description || '',
       displayValue(r),
       r.updatedAt ? formatDateTime(r.updatedAt) : ''
     ])
-});
-const customGroupMap = ref<Record<string, string>>({});
+};
+
 const dialogVisible = ref(false);
 const creating = ref(false);
 const form = reactive({
@@ -321,8 +322,6 @@ const formEnabled = computed({
     form.configValue = String(v);
   }
 });
-
-const groupOptions = computed(() => Object.keys(BUILTIN_GROUPS));
 
 const allBuiltinKeys = computed(() => Object.values(BUILTIN_GROUPS).flat());
 
@@ -376,13 +375,18 @@ function ruleUnitHint(key: string) {
   return '暂无';
 }
 
-function rowActions(row: RuleRow): TableAction[] {
-  const acts: TableAction[] = [];
-  if (canEdit.value) {
-    acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
-  }
-  if (canDelete.value && isCustomKey(row.configKey)) {
-    acts.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger' });
+function rowActions(row: RuleRow): CrudRowAction[] {
+  const acts: CrudRowAction[] = [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:config:edit' }
+  ];
+  if (isCustomKey(row.configKey)) {
+    acts.push({
+      key: 'delete',
+      label: '删除',
+      icon: Delete,
+      type: 'danger',
+      perm: 'ops:config:delete'
+    });
   }
   return acts;
 }
@@ -391,16 +395,18 @@ function isCustomKey(key: string) {
   return !builtinGroupOf(key);
 }
 
+/** 关键词为客户端过滤（fetchPage 内生效），查询/回车/清空触发重查 */
 function search() {
-  /* client-side filter only */
+  void crud.search();
 }
 
 function reset() {
-  resetKeyword();
+  keyword.value = '';
+  void crud.search();
 }
 
 async function batchDelete() {
-  const targets = pickSelected(displayRows.value).filter((r) => isCustomKey(r.configKey));
+  const targets = crud.pickSelected(crud.displayItems).filter((r) => isCustomKey(r.configKey));
   if (!targets.length) {
     ElMessage.warning('请先勾选自定义告警规则（内置键不可批量删除）');
     return;
@@ -426,10 +432,10 @@ async function batchDelete() {
   batchLoading.value = false;
   const ok = results.filter((r) => r.status === 'fulfilled').length;
   ElMessage.success(`批量删除完成：成功 ${ok}，失败 ${targets.length - ok}`);
-  await load();
+  await crud.load();
 }
 
-async function onRowAction(key: string, row: RuleRow) {
+async function onRowAction({ key, row }: { key: string; row: RuleRow }) {
   if (key === 'edit') openEdit(row);
   else if (key === 'delete') await onDelete(row);
 }
@@ -441,46 +447,6 @@ async function persistCustomGroups(next: Record<string, string>) {
     configValue: JSON.stringify(next),
     description: '告警规则页自定义分组映射（内部）'
   });
-}
-
-async function load() {
-  loading.value = true;
-  try {
-    const all = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');
-    const byKey = new Map(all.map((r) => [r.configKey, r]));
-    const meta = byKey.get(GROUP_META_KEY);
-    let map: Record<string, string> = {};
-    if (meta?.configValue) {
-      try {
-        map = JSON.parse(meta.configValue) as Record<string, string>;
-      } catch {
-        map = {};
-      }
-    }
-    customGroupMap.value = map;
-
-    const out: RuleRow[] = [];
-    const seen = new Set<string>();
-    for (const [group, keys] of Object.entries(BUILTIN_GROUPS)) {
-      for (const key of keys) {
-        const row = byKey.get(key);
-        if (row) {
-          out.push({ ...row, group });
-          seen.add(key);
-        }
-      }
-    }
-    for (const row of all) {
-      if (seen.has(row.configKey) || !isAlertRelated(row.configKey)) continue;
-      out.push({ ...row, group: resolveGroup(row.configKey) });
-    }
-    rows.value = out;
-    clearSelection();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    loading.value = false;
-  }
 }
 
 function openCreate() {
@@ -536,7 +502,7 @@ async function save() {
     });
     ElMessage.success('已保存并生效');
     dialogVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -558,7 +524,7 @@ async function onDelete(row: RuleRow) {
       await persistCustomGroups(next);
     }
     ElMessage.success('已删除');
-    await load();
+    await crud.load();
   } catch (e) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '删除失败');
@@ -608,6 +574,4 @@ function escapeHtml(s: string) {
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c
   );
 }
-
-onMounted(load);
 </script>
