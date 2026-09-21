@@ -1155,6 +1155,15 @@ a:focus-visible {
   overflow: visible;
 }
 
+/*
+ * 浏览器全屏（顶栏全屏按钮 / F11）：隐藏侧栏与标签栏，内容区独占整屏。
+ * Esc 或再次点击按钮退出时 fullscreenchange 会同步还原布局。
+ */
+.layout-main.layout--fullscreen > .sidebar,
+.layout-main.layout--fullscreen .tags-view {
+  display: none;
+}
+
 .layout-main-scroll > .page-card,
 .layout-main-scroll > .page-fill > .page-card {
   flex: 0 0 auto;

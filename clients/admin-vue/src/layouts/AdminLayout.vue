@@ -1,5 +1,5 @@
 <template>
-  <el-container class="layout-main">
+  <el-container class="layout-main" :class="{ 'layout--fullscreen': isFullscreen }">
     <el-aside
       :width="sidebarCollapsed ? '64px' : '220px'"
       class="sidebar"
