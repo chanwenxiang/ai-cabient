@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,42 +9,10 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:sku:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button
-            v-hasPermi="['ops:sku:import']"
-            @click="
-              onDownloadTemplate([
-                '',
-                '6901234567890',
-                '示例可乐',
-                '可口可乐',
-                '330ml',
-                '瓶',
-                '3.50',
-                '1.20',
-                '饮料',
-                '上架'
-              ])
-            "
-            >导入模板</el-button
-          >
-          <el-button v-hasPermi="['ops:sku:import']" :loading="importing" @click="triggerImport"
-            >导入</el-button
-          >
-          <input
-            ref="importInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onImportFile"
-          />
           <el-button v-if="canAccessPath('/sku-vision')" @click="goVision">识别入驻</el-button>
           <el-button v-hasPermi="['ops:sku:edit']" type="primary" @click="openEdit()"
             >新建商品</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -88,7 +56,7 @@
           v-hasPermi="['ops:sku:edit']"
           type="danger"
           plain
-          :disabled="!selectedKeys.length"
+          :disabled="!crud.selectedKeys.length"
           :loading="batchDelisting"
           @click="batchDelist"
           >批量下架</el-button
@@ -96,7 +64,7 @@
         <el-button
           type="primary"
           plain
-          :disabled="!selectedKeys.length"
+          :disabled="!crud.selectedKeys.length"
           @click="printSelectedLabels"
           >打印标签</el-button
         >
@@ -105,35 +73,20 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayRows"
-          stripe
-          border
+        <CrudTable
+          :table="crud"
+          class="sku-table"
           row-key="skuId"
-          class="report-table sku-table"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="rowActions"
+          :action-width="96"
+          actions-testid="sku"
+          :empty-text="skuEmptyText"
+          sort-field-label="编号"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" :description="skuEmptyText" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="skuCode"
-            label="编号"
-            width="84"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="skuCode" label="编号" width="84" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.skuCode ?? '暂无' }}</span>
             </template>
@@ -227,35 +180,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="96"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="skuActions(row)"
-                :max-primary="2"
-                @action="(key) => onSkuAction(key, row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog
       v-model="editDialog"
@@ -363,22 +290,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onActivated, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Printer, Refresh } from '@element-plus/icons-vue';
+import { EditPen, Printer } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
-import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useDictOptions } from '@/composables/useDictOptions';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { findNavByPath } from '@/config/menu';
 import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
 import { yuanToCents } from '@/utils/display';
@@ -388,41 +311,128 @@ import type { FileAttachmentDto, SkuCatalog, UpsertSkuRequest } from '@aicabinet
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('skuCode');
 const canEdit = computed(() => auth.hasPerm('ops:sku:edit'));
 
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
 const imageUploading = ref(false);
 const batchDelisting = ref(false);
-const items = ref<SkuCatalog[]>([]);
-const total = ref(0);
 const keyword = ref('');
 const categoryFilter = ref('');
 const categoryOptions = useDictOptions('category_code');
 const saleTab = ref('ACTIVE');
+const editDialog = ref(false);
+
+// 路由深链筛选（keyword/category/sale）须在首查前生效：setup 期同步应用，配合 useCrudTable 自动首载
+applyRouteQuery();
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<SkuCatalog>({
+  rowKey: (r) => r.skuId,
+  fetchPage: (params) =>
+    api.request<{ items: SkuCatalog[]; total: number }>(
+      AdminEndpoints.skusList(skuQueryParams(params.page, params.size))
+    ),
+  sort: { prop: 'skuCode', mode: 'local' }
+});
+
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '商品',
+  exportPerm: 'ops:sku:export',
+  importPerm: 'ops:sku:import',
+  headers: [
+    '编号',
+    '条码',
+    '名称',
+    '品牌',
+    '规格',
+    '单位',
+    '售价',
+    '成本',
+    '类目',
+    '商品状态',
+    '添加时间',
+    '操作人'
+  ],
+  templateSample: [
+    '',
+    '6901234567890',
+    '示例可乐',
+    '可口可乐',
+    '330ml',
+    '瓶',
+    '3.50',
+    '1.20',
+    '饮料',
+    '上架'
+  ],
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.skuCode == null ? '' : String(row.skuCode),
+      row.barcode || '',
+      row.skuName,
+      row.brand || '',
+      row.spec || '',
+      row.unit || '件',
+      ((row.priceCents || 0) / 100).toFixed(2),
+      row.purchaseCostCents == null ? '' : (row.purchaseCostCents / 100).toFixed(2),
+      categoryLabel(row.category) || '',
+      skuStatusLabel(row.status),
+      formatDateTime(row.createdAt),
+      row.updatedByName || ''
+    ]),
+  onImportRows: async (rows) => {
+    let ok = 0;
+    for (const row of rows) {
+      const skuName = (row['名称'] || row.skuName || '').trim();
+      if (!skuName) continue;
+      const barcode = (row['条码'] || row.barcode || '').trim() || undefined;
+      const priceCents = yuanToCents(row['售价'] || row.priceYuan);
+      if (priceCents == null || priceCents < 0) continue;
+      const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
+      const costRaw = row['成本'] ?? row.purchaseCostYuan;
+      const purchaseCostCents =
+        costRaw != null && String(costRaw).trim() !== ''
+          ? (yuanToCents(costRaw) ?? undefined)
+          : undefined;
+      const existing = barcode
+        ? crud.items.find((i) => i.barcode && i.barcode === barcode)
+        : undefined;
+      const body: UpsertSkuRequest = {
+        skuId: existing?.skuId,
+        skuName,
+        priceCents,
+        barcode,
+        brand: (row['品牌'] || row.brand || '').trim() || undefined,
+        spec: (row['规格'] || row.spec || '').trim() || undefined,
+        unit: (row['单位'] || row.unit || '').trim() || '件',
+        category: normalizeCategoryToCode(row['类目'] || row.category) || undefined,
+        purchaseCostCents,
+        status,
+        visionEnabled: existing?.visionEnabled ?? true,
+        yoloClassName: existing?.yoloClassName,
+        visionEnrollmentStatus:
+          existing?.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
+        minChargeConfidence: existing?.minChargeConfidence,
+        detectionMinConfidence: existing?.detectionMinConfidence,
+        referenceImageUrlsJson: existing?.referenceImageUrlsJson
+      };
+      if (existing) {
+        await api.request(AdminEndpoints.sku(existing.skuId), 'PUT', body);
+      } else {
+        await api.request(AdminEndpoints.skus, 'POST', body);
+      }
+      ok++;
+    }
+    crud.clearSelection();
+    await crud.load();
+    return ok;
+  }
+};
 
 function categoryLabel(code?: string | null) {
   if (!code) return '暂无';
   consumeDictRuntimeEpoch();
   return displayLabel('category_code', code, '未分类');
-}
-
-/** 下拉值为字典键值（如 FRESH_PRODUCE）；历史数据可能存中文标签「生鲜」 */
-function categoryMatches(stored: string | null | undefined, selected: string): boolean {
-  if (!selected) return true;
-  const raw = String(stored || '').trim();
-  if (!raw) return false;
-  if (raw === selected) return true;
-  const label = dictLabel('category_code', selected);
-  if (label && label !== selected && raw === label) return true;
-  // 反向：库里是键值、筛选项误为标签时
-  for (const o of dictOptions('category_code')) {
-    if (o.label === selected && (raw === o.value || raw === o.label)) return true;
-  }
-  return false;
 }
 
 /** 写入/编辑时尽量落到字典键值，避免再次出现「标签 vs 键值」不一致 */
@@ -435,9 +445,6 @@ function normalizeCategoryToCode(raw?: string | null): string {
   }
   return text;
 }
-const page = ref(1);
-const size = ref(20);
-const editDialog = ref(false);
 
 const form = reactive({
   existing: false,
@@ -469,8 +476,6 @@ const form = reactive({
   nearExpiryPriceCents: undefined as number | undefined
 });
 
-const displayRows = computed(() => sortById(items.value, (r) => r.skuCode ?? r.skuId));
-
 const skuEmptyText = computed(() => {
   if (saleTab.value === 'ACTIVE') {
     if (keyword.value.trim() || categoryFilter.value.trim())
@@ -480,9 +485,6 @@ const skuEmptyText = computed(() => {
   if (keyword.value.trim() || categoryFilter.value.trim()) return '无匹配商品';
   return '暂无商品';
 });
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
-  useTableSelection<SkuCatalog>((r) => r.skuId);
 
 function canAccessPath(path: string) {
   const nav = findNavByPath(path);
@@ -544,10 +546,8 @@ async function onImageUpload(options: UploadRequestOptions) {
 }
 
 function onSaleTab() {
-  clearSelection();
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function skuStatusLabel(status?: string) {
@@ -588,8 +588,8 @@ function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
 }
 
 async function batchDelist() {
-  const targets = items.value.filter(
-    (d) => selectedKeys.value.map(String).includes(d.skuId) && d.status === 'ACTIVE'
+  const targets = crud.items.filter(
+    (d) => crud.selectedKeys.map(String).includes(d.skuId) && d.status === 'ACTIVE'
   );
   if (!targets.length) {
     ElMessage.warning('请勾选在售商品');
@@ -611,8 +611,8 @@ async function batchDelist() {
     for (const row of targets) {
       try {
         await api.request(AdminEndpoints.sku(row.skuId), 'PUT', toUpsertBody(row, 'INACTIVE'));
-        const idx = items.value.findIndex((x) => x.skuId === row.skuId);
-        if (idx >= 0) items.value[idx] = { ...items.value[idx], status: 'INACTIVE' };
+        const idx = crud.items.findIndex((x) => x.skuId === row.skuId);
+        if (idx >= 0) crud.items[idx] = { ...crud.items[idx], status: 'INACTIVE' };
         ok += 1;
       } catch {
         fail += 1;
@@ -620,7 +620,7 @@ async function batchDelist() {
     }
     if (fail === 0) ElMessage.success(`已下架 ${ok} 个商品`);
     else ElMessage.warning(`下架完成：成功 ${ok}，失败 ${fail}`);
-    clearSelection();
+    crud.clearSelection();
   } finally {
     batchDelisting.value = false;
   }
@@ -635,89 +635,8 @@ const skuStatusByLabel: Record<string, string> = {
   DISABLED: 'DISABLED'
 };
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
-  useListCsv({
-    filePrefix: '商品',
-    headers: [
-      '编号',
-      '条码',
-      '名称',
-      '品牌',
-      '规格',
-      '单位',
-      '售价',
-      '成本',
-      '类目',
-      '商品状态',
-      '添加时间',
-      '操作人'
-    ],
-    toRows: () =>
-      pickSelected(displayRows.value).map((row) => [
-        row.skuCode == null ? '' : String(row.skuCode),
-        row.barcode || '',
-        row.skuName,
-        row.brand || '',
-        row.spec || '',
-        row.unit || '件',
-        ((row.priceCents || 0) / 100).toFixed(2),
-        row.purchaseCostCents == null ? '' : (row.purchaseCostCents / 100).toFixed(2),
-        categoryLabel(row.category) || '',
-        skuStatusLabel(row.status),
-        formatDateTime(row.createdAt),
-        row.updatedByName || ''
-      ]),
-    onImportRows: async (rows) => {
-      let ok = 0;
-      for (const row of rows) {
-        const skuName = (row['名称'] || row.skuName || '').trim();
-        if (!skuName) continue;
-        const barcode = (row['条码'] || row.barcode || '').trim() || undefined;
-        const priceCents = yuanToCents(row['售价'] || row.priceYuan);
-        if (priceCents == null || priceCents < 0) continue;
-        const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
-        const costRaw = row['成本'] ?? row.purchaseCostYuan;
-        const purchaseCostCents =
-          costRaw != null && String(costRaw).trim() !== ''
-            ? (yuanToCents(costRaw) ?? undefined)
-            : undefined;
-        const existing = barcode
-          ? items.value.find((i) => i.barcode && i.barcode === barcode)
-          : undefined;
-        const body: UpsertSkuRequest = {
-          skuId: existing?.skuId,
-          skuName,
-          priceCents,
-          barcode,
-          brand: (row['品牌'] || row.brand || '').trim() || undefined,
-          spec: (row['规格'] || row.spec || '').trim() || undefined,
-          unit: (row['单位'] || row.unit || '').trim() || '件',
-          category: normalizeCategoryToCode(row['类目'] || row.category) || undefined,
-          purchaseCostCents,
-          status,
-          visionEnabled: existing?.visionEnabled ?? true,
-          yoloClassName: existing?.yoloClassName,
-          visionEnrollmentStatus:
-            existing?.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
-          minChargeConfidence: existing?.minChargeConfidence,
-          detectionMinConfidence: existing?.detectionMinConfidence,
-          referenceImageUrlsJson: existing?.referenceImageUrlsJson
-        };
-        if (existing) {
-          await api.request(AdminEndpoints.sku(existing.skuId), 'PUT', body);
-        } else {
-          await api.request(AdminEndpoints.skus, 'POST', body);
-        }
-        ok++;
-      }
-      clearSelection();
-      await load();
-      return ok;
-    }
-  });
-
-function skuActions(_row: SkuCatalog): TableAction[] {
-  const acts: TableAction[] = [];
+function rowActions(_row: SkuCatalog): CrudRowAction[] {
+  const acts: CrudRowAction[] = [];
   if (canEdit.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
@@ -725,9 +644,9 @@ function skuActions(_row: SkuCatalog): TableAction[] {
   return acts;
 }
 
-function onSkuAction(key: string, row: SkuCatalog) {
+function onAction({ key, row }: { key: string; row: SkuCatalog }) {
   if (key === 'edit') openEdit(row);
-  if (key === 'print-label') openPrintLabels([row.skuId]);
+  else if (key === 'print-label') openPrintLabels([row.skuId]);
 }
 
 function openPrintLabels(ids: Array<string | number>) {
@@ -743,7 +662,7 @@ function openPrintLabels(ids: Array<string | number>) {
   globalThis.open(url, '_blank');
 }
 function printSelectedLabels() {
-  openPrintLabels(selectedKeys.value);
+  openPrintLabels(crud.selectedKeys);
 }
 
 function openEdit(row?: SkuCatalog) {
@@ -862,10 +781,10 @@ async function saveEdit() {
     } else {
       updated = await api.request<SkuCatalog>(AdminEndpoints.skus, 'POST', body);
     }
-    const idx = items.value.findIndex((i) => i.skuId === updated.skuId);
-    if (idx >= 0) items.value[idx] = updated;
-    else items.value.push(updated);
-    items.value.sort((a, b) => (a.skuCode ?? 0) - (b.skuCode ?? 0));
+    const idx = crud.items.findIndex((i) => i.skuId === updated.skuId);
+    if (idx >= 0) crud.items[idx] = updated;
+    else crud.items.push(updated);
+    crud.items.sort((a, b) => (a.skuCode ?? 0) - (b.skuCode ?? 0));
     editDialog.value = false;
     ElMessage.success(
       form.existing ? '已保存商品' : `已新建，编号 ${updated.skuCode ?? updated.skuId}`
@@ -886,29 +805,22 @@ function syncRouteQuery() {
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function resetFilters() {
   keyword.value = '';
   categoryFilter.value = '';
   saleTab.value = 'ACTIVE';
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
-function skuQueryParams() {
+function skuQueryParams(page: number, size: number) {
   const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
+    page: String(page),
+    size: String(size)
   });
   const kw = keyword.value.trim();
   if (kw) q.set('q', kw);
@@ -939,32 +851,9 @@ function applyRouteQuery() {
   return changed;
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const data = await api.request<{ items: SkuCatalog[]; total: number }>(
-      AdminEndpoints.skusList(skuQueryParams()),
-      'GET'
-    );
-    if (!loadSeq.isCurrent(seq)) return;
-    items.value = data.items || [];
-    total.value = Number(data.total) || 0;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -974,10 +863,6 @@ watch(
   }
 );
 
-onMounted(() => {
-  applyRouteQuery();
-  load();
-});
 onActivated(() => {
   void reloadFromRouteQuery();
 });
@@ -1076,8 +961,5 @@ onActivated(() => {
 }
 .sku-table {
   font-size: var(--admin-font-size-menu);
-}
-.hidden-input {
-  display: none;
 }
 </style>
