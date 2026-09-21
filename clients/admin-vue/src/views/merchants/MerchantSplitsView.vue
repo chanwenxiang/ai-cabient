@@ -15,9 +15,13 @@
           <el-button v-hasPermi="['ops:merchant:export']" @click="onExport">{{
             exportButtonLabel
           }}</el-button>
+          <!-- 刷新保留在页头：除重查当前 tab 列表外还需同步组织树全量数据 / 分账状态等共享数据；
+               CrudTable 内建刷新只查列表，故两个表格均 :show-refresh="false" -->
           <el-button
             :icon="Refresh"
-            :loading="loading || loadingMerchants || loadingStatus"
+            :loading="
+              crudMerchants.loading || crudSplits.loading || loadingMerchants || loadingStatus
+            "
             @click="refresh"
           >
             刷新
@@ -91,52 +95,41 @@
           title="功能包按商户独立控制（关闭父商户不会自动级联到子商户）；与角色权限同时生效。改货道/改价为包内细粒度写开关。"
           class="status-banner"
         />
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchMerchants">
+        <el-form
+          inline
+          class="filter-bar filter-bar--compact"
+          @submit.prevent="crudMerchants.search()"
+        >
           <el-form-item label="关键词">
             <el-input
               v-model="merchantKeyword"
               clearable
               placeholder="商户编号 / 名称"
               style="width: 220px"
-              @keyup.enter="searchMerchants"
-              @clear="searchMerchants"
+              @keyup.enter="crudMerchants.search()"
+              @clear="crudMerchants.search()"
             />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="searchMerchants">查询</el-button>
+            <el-button type="primary" @click="crudMerchants.search()">查询</el-button>
             <el-button @click="resetMerchantFilters">重置</el-button>
           </el-form-item>
         </el-form>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              v-loading="loadingMerchants"
-              :data="pagedMerchants"
-              stripe
-              border
-              class="report-table"
+            <CrudTable
+              :table="crudMerchants"
               row-key="merchantId"
-              :default-sort="idDefaultSort"
-              @sort-change="onIdSortChange"
-              @selection-change="onMerchantsSelectionChange"
-              empty-text=" "
+              selectable
+              :show-refresh="false"
+              empty-text="暂无商户"
+              sort-field-label="商户编号"
             >
-              <template #empty
-                ><el-empty v-if="merchantsHydrated && !loadingMerchants" description="暂无商户"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column
                 prop="merchantId"
                 label="商户编号"
                 min-width="120"
                 class-name="col-text"
-                sortable="custom"
               >
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.merchantId }}</span>
@@ -288,20 +281,9 @@
                   }}</span>
                 </template>
               </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
-        <PagePager
-          :hydrated="merchantsHydrated"
-          v-model:current-page="merchantPage"
-          v-model:page-size="merchantSize"
-          :total="merchantTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @current-change="onMerchantPageChange"
-          @size-change="onMerchantSizeChange"
-        />
       </el-tab-pane>
 
       <el-tab-pane label="运营配置" name="ops-config">
@@ -519,26 +501,16 @@
 
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              v-loading="loading"
-              :data="splits"
-              stripe
-              border
-              class="report-table"
+            <CrudTable
+              :table="crudSplits"
               row-key="splitId"
-              @selection-change="onSplitsSelectionChange"
-              empty-text=" "
+              selectable
+              :show-refresh="false"
+              :actions="showSplitActionColumn ? splitActions : undefined"
+              :action-width="110"
+              empty-text="暂无分账明细"
+              @action="onSplitAction"
             >
-              <template #empty
-                ><el-empty v-if="splitsLoaded && !loading" description="暂无分账明细"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column label="分账编号" min-width="150" class-name="col-text">
                 <template #default="{ row }"
                   ><span class="cell-id">{{ displayBizNo(row.splitId) }}</span></template
@@ -629,37 +601,9 @@
                   <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                v-if="showSplitActionColumn"
-                label="操作"
-                width="110"
-                class-name="col-action"
-                align="center"
-                fixed="right"
-              >
-                <template #default="{ row }">
-                  <TableActions
-                    v-if="splitActions(row).length"
-                    :actions="splitActions(row)"
-                    @action="(key) => onSplitAction(key, row)"
-                  />
-                </template>
-              </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
-
-        <PagePager
-          :hydrated="splitsLoaded"
-          v-model:current-page="splitPage"
-          v-model:page-size="splitSize"
-          :total="splitTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next, jumper"
-          background
-          @current-change="loadSplits"
-          @size-change="onSplitSizeChange"
-        />
       </el-tab-pane>
     </el-tabs>
 
@@ -808,12 +752,11 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useListCsv } from '@/composables/useListCsv';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type {
   MerchantDto,
@@ -821,7 +764,7 @@ import type {
   ProfitSharingStatus,
   RevenueSplit
 } from '@aicabinet/shared-types';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -833,52 +776,50 @@ const canEdit = computed(() => auth.hasPerm('ops:merchant:edit'));
 const canSplit = computed(() => auth.hasPerm('ops:merchant:split'));
 
 const tab = ref('org');
-const loading = ref(false);
 const loadSeq = createLoadSeq();
 const loadingMerchants = ref(false);
 const merchantsHydrated = ref(false);
 const loadingStatus = ref(false);
 const acting = ref(false);
 const status = ref('');
-const splits = ref<RevenueSplit[]>([]);
 const merchants = ref<MerchantDto[]>([]);
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('merchantId', {
-  onChange: () => {
-    merchants.value = sortById([...merchants.value], 'merchantId');
-  }
-});
-const splitsLoaded = ref(false);
-const splitPage = ref(1);
-const splitSize = ref(20);
-const splitTotal = ref(0);
 const merchantKeyword = ref('');
-const merchantPage = ref(1);
-const merchantSize = ref(20);
-const merchantTotal = ref(0);
-const merchantTabItems = ref<MerchantDto[]>([]);
 /** 分账明细按商户筛选（支持从销售报表等深链带入） */
 const splitMerchantId = ref('');
 
-const pagedMerchants = computed(() => merchantTabItems.value);
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建。
+// 页面含多个 tab 且组织树全量数据并行初始化，列表首查须跟随当前激活 tab，
+// 因此两个 crud 均 autoLoad:false，由 onMounted / onTabChange / refresh 显式触发。
+const crudMerchants = useCrudTable<MerchantDto>({
+  rowKey: (r) => r.merchantId,
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    if (merchantKeyword.value.trim()) q.set('q', merchantKeyword.value.trim());
+    return api.request<PageResult<MerchantDto>>(AdminEndpoints.merchantsList(q), 'GET');
+  },
+  // 原表头 sortable="custom" 改为壳内工具条升/降序；默认升序，与原 useIdColumnSort 一致
+  sort: { prop: 'merchantId', mode: 'local' },
+  errorMessage: '商户列表加载失败'
+});
 
-function searchMerchants() {
-  merchantPage.value = 1;
-  void loadMerchantsTab();
-}
+const crudSplits = useCrudTable<RevenueSplit>({
+  rowKey: (r) => r.splitId,
+  autoLoad: false,
+  fetchPage: async (params) => {
+    // 无分账权限时与原 loadSplits 一致：不请求，直接给空页（由壳置 hydrated）
+    if (!canSplit.value) return { items: [], total: 0 };
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    if (status.value) q.set('status', status.value);
+    if (splitMerchantId.value.trim()) q.set('merchantId', splitMerchantId.value.trim());
+    return api.request<PageResult<RevenueSplit>>(AdminEndpoints.merchantsRevenueSplits(q), 'GET');
+  },
+  errorMessage: '分账明细加载失败'
+});
 
 function resetMerchantFilters() {
   merchantKeyword.value = '';
-  merchantPage.value = 1;
-  void loadMerchantsTab();
-}
-
-function onMerchantPageChange() {
-  void loadMerchantsTab();
-}
-
-function onMerchantSizeChange() {
-  merchantPage.value = 1;
-  void loadMerchantsTab();
+  void crudMerchants.search();
 }
 const psStatus = ref<ProfitSharingStatus | null>(null);
 const opsConfigMerchantId = ref('');
@@ -1015,30 +956,16 @@ function cascadeKeepPct(node: { platformRateBps?: number }) {
 
 const parentOptions = computed(() => merchants.value);
 
-const {
-  onSelectionChange: onMerchantsSelectionChange,
-  pickSelected: pickMerchants,
-  exportButtonLabel: merchantsExportLabel,
-  clearSelection: clearMerchantsSelection
-} = useTableSelection<MerchantDto>((r) => r.merchantId);
-
-const {
-  selectedKeys: splitSelectedKeys,
-  onSelectionChange: onSplitsSelectionChange,
-  pickSelected: pickSplits,
-  exportButtonLabel: splitsExportLabel,
-  clearSelection: clearSplitsSelection
-} = useTableSelection<RevenueSplit>((r) => r.splitId);
-
 const selectedLedgerCount = computed(() => {
-  if (!splitSelectedKeys.value.length) return 0;
-  return pickSplits(splits.value).filter((r) => r.status === 'LEDGER_ONLY').length;
+  if (!crudSplits.hasSelection) return 0;
+  return crudSplits.pickSelected(crudSplits.items).filter((r) => r.status === 'LEDGER_ONLY').length;
 });
 
 const exportButtonLabel = computed(() =>
-  tab.value === 'splits' ? splitsExportLabel.value : merchantsExportLabel.value
+  tab.value === 'splits' ? crudSplits.exportButtonLabel : crudMerchants.exportButtonLabel
 );
 
+// 双路线导出（页头按钮按 tab 切换数据源）：保留 useListCsv，数据源换成 crud 控制器
 const { onExport: exportMerchants } = useListCsv({
   filePrefix: '商户',
   headers: [
@@ -1053,8 +980,8 @@ const { onExport: exportMerchants } = useListCsv({
     '设备数'
   ],
   toRows: () => {
-    const source = tab.value === 'merchants' ? merchantTabItems.value : merchants.value;
-    return pickMerchants(source).map((row) => [
+    const source = tab.value === 'merchants' ? crudMerchants.displayItems : merchants.value;
+    return crudMerchants.pickSelected(source).map((row) => [
       row.merchantId,
       row.merchantName,
       `${(row.platformRateBps / 100).toFixed(1)}%`,
@@ -1072,7 +999,7 @@ const { onExport: exportSplits } = useListCsv({
   filePrefix: '分账明细',
   headers: ['分账编号', '订单', '商户', '商户收入', '状态', '失败原因'],
   toRows: () =>
-    pickSplits(splits.value).map((row) => [
+    crudSplits.pickSelected(crudSplits.items).map((row) => [
       row.splitId,
       row.orderId,
       row.merchantName || '',
@@ -1105,8 +1032,8 @@ function splitTagType(s: string) {
   return 'info';
 }
 
-function splitActions(row: RevenueSplit): TableAction[] {
-  const actions: TableAction[] = [];
+function splitActions(row: RevenueSplit): CrudRowAction[] {
+  const actions: CrudRowAction[] = [];
   if (row.status === 'LEDGER_ONLY') {
     actions.push({ key: 'confirmLedger', label: '确认完结', icon: CircleCheck, type: 'success' });
   }
@@ -1119,8 +1046,9 @@ function splitActions(row: RevenueSplit): TableAction[] {
   return actions;
 }
 
+// 整列显隐沿用原判定（canSplit + 当页存在可操作行）；无操作行时传 undefined 让壳不渲染操作列
 const showSplitActionColumn = computed(
-  () => canSplit.value && splits.value.some((row) => splitActions(row).length > 0)
+  () => canSplit.value && crudSplits.items.some((row) => splitActions(row).length > 0)
 );
 
 function syncRouteQuery() {
@@ -1146,30 +1074,7 @@ async function fetchAllMerchants(): Promise<MerchantDto[]> {
     if (!batch.length || batch.length < pageSize) break;
     apiPage += 1;
   }
-  return sortById(all, 'merchantId');
-}
-
-async function loadMerchantsTab() {
-  const seq = loadSeq.begin('loadMerchantsTab');
-  loadingMerchants.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(merchantPage.value - 1),
-      size: String(merchantSize.value)
-    });
-    if (merchantKeyword.value.trim()) q.set('q', merchantKeyword.value.trim());
-    const data = await api.request<PageResult<MerchantDto>>(AdminEndpoints.merchantsList(q), 'GET');
-    merchantTabItems.value = sortById(data.items || [], 'merchantId');
-    merchantTotal.value = data.total ?? 0;
-    clearMerchantsSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq, 'loadMerchantsTab')) return;
-    ElMessage.error(e instanceof Error ? e.message : '商户列表加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadMerchantsTab')) return;
-    merchantsHydrated.value = true;
-    loadingMerchants.value = false;
-  }
+  return sortByPrimaryKey(all, 'merchantId');
 }
 
 async function loadMerchants() {
@@ -1177,7 +1082,7 @@ async function loadMerchants() {
   loadingMerchants.value = true;
   try {
     merchants.value = await fetchAllMerchants();
-    clearMerchantsSelection();
+    crudMerchants.clearSelection();
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
     ElMessage.error(e instanceof Error ? e.message : '商户加载失败');
@@ -1206,56 +1111,16 @@ async function loadStatus() {
   }
 }
 
-async function loadSplits() {
-  const seq = loadSeq.begin('loadSplits');
-  if (!canSplit.value) {
-    splits.value = [];
-    splitTotal.value = 0;
-    splitsLoaded.value = true;
-    return;
-  }
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(Math.max(0, splitPage.value - 1)),
-      size: String(splitSize.value)
-    });
-    if (status.value) q.set('status', status.value);
-    if (splitMerchantId.value.trim()) q.set('merchantId', splitMerchantId.value.trim());
-    const data = await api.request<PageResult<RevenueSplit>>(
-      AdminEndpoints.merchantsRevenueSplits(q),
-      'GET'
-    );
-    splits.value = data.items || [];
-    splitTotal.value = data.total ?? splits.value.length;
-    clearSplitsSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq, 'loadSplits')) return;
-    ElMessage.error(e instanceof Error ? e.message : '分账明细加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadSplits')) return;
-    splitsLoaded.value = true;
-    loading.value = false;
-  }
-}
-
-function onSplitSizeChange() {
-  splitPage.value = 1;
-  loadSplits();
-}
-
 function onSplitFilterChange() {
-  splitPage.value = 1;
   syncRouteQuery();
-  loadSplits();
+  void crudSplits.search();
 }
 
 function resetSplitFilter() {
   status.value = '';
   splitMerchantId.value = '';
-  splitPage.value = 1;
   syncRouteQuery();
-  loadSplits();
+  void crudSplits.search();
 }
 
 function onTabChange(name: string | number) {
@@ -1263,10 +1128,10 @@ function onTabChange(name: string | number) {
   tab.value = next;
   syncRouteQuery();
   if (next === 'merchants') {
-    void loadMerchantsTab();
+    void crudMerchants.load();
   }
   if (next === 'splits') {
-    if (!splitsLoaded.value) loadSplits();
+    if (!crudSplits.hydrated) void crudSplits.load();
     if (!psStatus.value) loadStatus();
   }
   if (next === 'ops-config') {
@@ -1333,10 +1198,10 @@ async function saveOpsConfig() {
 function refresh() {
   loadMerchants();
   if (tab.value === 'merchants') {
-    void loadMerchantsTab();
+    void crudMerchants.load();
   }
   if (tab.value === 'splits') {
-    loadSplits();
+    void crudSplits.load();
     loadStatus();
   }
   if (tab.value === 'ops-config') {
@@ -1345,7 +1210,7 @@ function refresh() {
   }
 }
 
-function onSplitAction(key: string, row: RevenueSplit) {
+function onSplitAction({ key, row }: { key: string; row: RevenueSplit }) {
   if (key === 'submit') openSubmit(row);
   else if (key === 'refresh') doRefresh(row);
   else if (key === 'confirmLedger') confirmLedger(row);
@@ -1373,7 +1238,7 @@ async function confirmLedger(row: RevenueSplit) {
       reason: String(value).trim()
     });
     ElMessage.success('已确认完结');
-    await loadSplits();
+    await crudSplits.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '确认失败'));
   } finally {
@@ -1382,7 +1247,7 @@ async function confirmLedger(row: RevenueSplit) {
 }
 
 async function batchConfirmLedger() {
-  const rows = pickSplits(splits.value).filter((r) => r.status === 'LEDGER_ONLY');
+  const rows = crudSplits.pickSelected(crudSplits.items).filter((r) => r.status === 'LEDGER_ONLY');
   if (!rows.length) {
     ElMessage.warning('请先勾选「仅记账」明细');
     return;
@@ -1406,13 +1271,13 @@ async function batchConfirmLedger() {
       ok += 1;
     }
     ElMessage.success(`已确认完结 ${ok} 笔`);
-    clearSplitsSelection();
-    await loadSplits();
+    crudSplits.clearSelection();
+    await crudSplits.load();
   } catch (e) {
     ElMessage.error(
       e instanceof Error ? `已成功 ${ok} 笔；失败：${e.message}` : `已成功 ${ok} 笔后失败`
     );
-    await loadSplits();
+    await crudSplits.load();
   } finally {
     acting.value = false;
   }
@@ -1432,7 +1297,7 @@ async function confirmSubmit() {
     );
     submitDialog.value = false;
     ElMessage.success('已提交分账');
-    await loadSplits();
+    await crudSplits.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '提交失败');
   } finally {
@@ -1445,7 +1310,7 @@ async function doRefresh(row: RevenueSplit) {
   try {
     await api.request(AdminEndpoints.merchantRevenueSplitWechatRefresh(row.splitId), 'POST');
     ElMessage.success('已刷新状态');
-    await loadSplits();
+    await crudSplits.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '刷新失败');
   } finally {
@@ -1655,7 +1520,7 @@ function applyRouteQuery() {
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
   if (tab.value === 'splits') {
-    await Promise.all([loadSplits(), loadStatus()]);
+    await Promise.all([crudSplits.load(), loadStatus()]);
   } else {
     await loadMerchants();
   }
@@ -1668,15 +1533,16 @@ watch(
   }
 );
 
+// 首查依赖 tab / canSplit 初始化（两个 crud 均 autoLoad:false），按激活 tab 显式首查
 onMounted(() => {
   applyRouteQuery();
   syncRouteQuery();
   loadMerchants();
   if (tab.value === 'merchants') {
-    void loadMerchantsTab();
+    void crudMerchants.load();
   }
   if (tab.value === 'splits') {
-    loadSplits();
+    void crudSplits.load();
     loadStatus();
   }
 });
