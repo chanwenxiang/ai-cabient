@@ -8,12 +8,6 @@
             <span class="hint">按状态 / 用户筛选充值单；金额居中展示</span>
           </div>
         </div>
-        <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:recharge:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
-        </div>
       </div>
     </template>
 
@@ -51,34 +45,22 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayItems"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="orderId"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="showActionColumn ? rowActions : undefined"
+          :action-width="100"
+          empty-text="暂无充值记录"
+          sort-field-label="充值单"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无充值记录"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             prop="orderId"
             label="充值单"
             min-width="168"
             class-name="col-text"
-            sortable="custom"
           >
             <template #default="{ row }">
               <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
@@ -162,54 +144,22 @@
               <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="100"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                v-if="isRefundable(row)"
-                :actions="[{ key: 'refund', label: '退款', icon: RefreshLeft, type: 'danger' }]"
-                @action="() => refundRecharge(row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Refresh, RefreshLeft } from '@element-plus/icons-vue';
+import { RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useTableSelection } from '@/composables/useTableSelection';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
@@ -218,31 +168,33 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const canRefund = computed(() => auth.hasPerm('ops:recharge:edit'));
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
 const status = ref('');
 const keyword = ref('');
-const items = ref<Record<string, unknown>[]>([]);
-const {
-  defaultSort: idDefaultSort,
-  onSortChange: onIdSortChange,
-  sortById
-} = useIdColumnSort<Record<string, unknown>>('orderId');
-const displayItems = computed(() => sortById(items.value));
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = useTableSelection<
-  Record<string, unknown>
->((r) => String(r.orderId ?? ''));
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建。
+// 首查依赖路由 query 初始化筛选条件，故关闭 autoLoad、在 onMounted 显式首查。
+const crud = useCrudTable<Record<string, unknown>>({
+  rowKey: (r) => String(r.orderId ?? ''),
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    if (status.value) q.set('status', status.value);
+    const userId = parseUserIdFilter(keyword.value);
+    if (userId != null) q.set('userId', String(userId));
+    return api.request<PageResult<Record<string, unknown>>>(
+      AdminEndpoints.rechargesList(q),
+      'GET'
+    );
+  },
+  sort: { prop: 'orderId', mode: 'local' }
+});
 
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '充值',
+  exportPerm: 'ops:recharge:export',
   headers: ['充值单', '用户', '金额', '渠道', '状态', '时间'],
-  toRows: () =>
-    pickSelected(items.value).map((row) => [
+  toRows: (rows) =>
+    rows.map((row) => [
       row.orderId,
       row.userId,
       money(row.amountCents),
@@ -250,7 +202,7 @@ const { onExport } = useListCsv({
       displayLabel('recharge_status', String(row.status || ''), '未知状态'),
       formatDateTime(String(row.createdAt || ''))
     ])
-});
+};
 
 function money(cents: unknown) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -261,9 +213,21 @@ function isRefundable(row: Record<string, unknown>) {
   return s === 'PAID' || s === 'SUCCESS';
 }
 
+/** 当前页无可退款行时整列隐藏（保持原行为：操作列按需出现） */
 const showActionColumn = computed(
-  () => canRefund.value && items.value.some((row) => isRefundable(row))
+  () => canRefund.value && crud.items.some((row) => isRefundable(row))
 );
+
+function rowActions(row: Record<string, unknown>): CrudRowAction[] {
+  if (!isRefundable(row)) return [];
+  return [
+    { key: 'refund', label: '退款', icon: RefreshLeft, type: 'danger', perm: 'ops:recharge:edit' }
+  ];
+}
+
+function onAction({ key, row }: { key: string; row: Record<string, unknown> }) {
+  if (key === 'refund') void refundRecharge(row);
+}
 
 async function refundRecharge(row: Record<string, unknown>) {
   const orderId = String(row.orderId || '');
@@ -278,7 +242,7 @@ async function refundRecharge(row: Record<string, unknown>) {
       reason: (value || '').trim() || undefined
     });
     ElMessage.success('已发起退款');
-    await load();
+    await crud.load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
     ElMessage.error(e instanceof Error ? e.message : '退款失败');
@@ -302,53 +266,21 @@ function parseUserIdFilter(raw: string): number | null {
   return id;
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-    if (status.value) q.set('status', status.value);
-    const userId = parseUserIdFilter(keyword.value);
-    if (userId != null) q.set('userId', String(userId));
-    const data = await api.request<PageResult<Record<string, unknown>>>(
-      AdminEndpoints.rechargesList(q),
-      'GET'
-    );
-    items.value = data.items || [];
-    total.value = data.total || 0;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 function search() {
   const raw = keyword.value.trim();
   if (raw && parseUserIdFilter(raw) == null) {
     ElMessage.warning('用户编号须为正整数');
     return;
   }
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function reset() {
   status.value = '';
   keyword.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 function applyRouteQuery() {
@@ -373,8 +305,7 @@ function applyRouteQuery() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -385,8 +316,9 @@ watch(
 );
 
 onMounted(() => {
+  // 首查前先用路由 query 初始化筛选条件（autoLoad 已关闭）
   applyRouteQuery();
-  load();
+  void crud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
@@ -417,9 +349,5 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: var(--admin-font-size-sm);
   line-height: 1.4;
-}
-.page-card-head__actions {
-  display: flex;
-  gap: 8px;
 }
 </style>
