@@ -9,42 +9,12 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:coupon:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
           <el-button
-            v-hasPermi="['ops:coupon:import']"
-            @click="
-              onDownloadTemplate([
-                '示例优惠券',
-                '满减券',
-                '5',
-                '0',
-                '90',
-                '30',
-                '100',
-                '示例描述',
-                displayLabel('enable_status', 'INACTIVE')
-              ])
-            "
-            >导入模板</el-button
-          >
-          <el-button v-hasPermi="['ops:coupon:import']" :loading="importing" @click="triggerImport"
-            >导入</el-button
-          >
-          <input
-            ref="importInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onImportFile"
-          />
-          <el-button
-            v-if="selectedIds.length && auth.hasPerm('ops:coupon:edit')"
+            v-if="crud.selectedKeys.length && auth.hasPerm('ops:coupon:edit')"
             type="warning"
             @click="batchDisable"
           >
-            批量停用 ({{ selectedIds.length }})
+            批量停用 ({{ crud.selectedKeys.length }})
           </el-button>
           <el-button v-hasPermi="['ops:coupon:create']" type="primary" @click="openCreate"
             >新建优惠券</el-button
@@ -53,7 +23,6 @@
             >手动发券</el-button
           >
           <el-button v-hasPermi="['ops:coupon:create']" @click="openBatchIssue">批量发券</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -89,35 +58,19 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="displayList"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="couponDefId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="rowActions"
+          :action-width="100"
+          actions-testid="coupon"
+          empty-text="暂无优惠券"
+          sort-field-label="券定义编号"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无优惠券"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="couponDefId"
-            label="券定义编号"
-            width="100"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="couponDefId" label="券定义编号" width="100" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.couponDefId }}</span>
             </template>
@@ -208,36 +161,9 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="100"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                v-if="rowActions(row).length"
-                :actions="rowActions(row)"
-                @action="(k) => onAction(String(k), row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog
       v-model="showCreate"
@@ -387,20 +313,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Refresh, SwitchButton, Ticket, EditPen } from '@element-plus/icons-vue';
+import { SwitchButton, Ticket, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { yuanToCents } from '@/utils/display';
 import { api } from '@/api/client';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useTableSelection } from '@/composables/useTableSelection';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage } from '@/utils/error-message';
 import type {
   OpenApiCouponDefinitionDto,
@@ -410,22 +332,30 @@ import type {
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('couponDefId');
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
-const list = ref<OpenApiCouponDefinitionDto[]>([]);
-const total = ref(0);
 const keyword = ref('');
 const statusFilter = ref('');
-const page = ref(1);
-const size = ref(20);
 const activeCoupons = ref<OpenApiCouponDefinitionDto[]>([]);
 const activityOptions = ref<OpenApiPromotionActivityDto[]>([]);
 const showCreate = ref(false);
 const editingId = ref<number | null>(null);
-const displayList = computed(() => sortById(list.value));
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<OpenApiCouponDefinitionDto>({
+  rowKey: (r) => r.couponDefId ?? 0,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    if (statusFilter.value) q.set('status', statusFilter.value);
+    return api.request<{ items: OpenApiCouponDefinitionDto[]; total: number }>(
+      `/api/v2/coupons/definitions?${q}`,
+      'GET'
+    );
+  },
+  sort: { prop: 'couponDefId', mode: 'local' }
+});
 
 async function loadActiveCoupons() {
   try {
@@ -455,20 +385,6 @@ async function loadActivityOptions() {
   }
 }
 
-function queryParams() {
-  const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (keyword.value.trim()) q.set('q', keyword.value.trim());
-  if (statusFilter.value) q.set('status', statusFilter.value);
-  return q;
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
 const showIssue = ref(false);
 const batchVisible = ref(false);
 const batchForm = ref<{ couponDefId: number | null; userIdsText: string }>({
@@ -476,18 +392,10 @@ const batchForm = ref<{ couponDefId: number | null; userIdsText: string }>({
   userIdsText: ''
 });
 
-const {
-  selectedKeys: selectedIds,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection
-} = useTableSelection<OpenApiCouponDefinitionDto>((r) => r.couponDefId ?? 0);
-
 async function batchDisable() {
-  const targets = list.value.filter(
+  const targets = crud.items.filter(
     (r) =>
-      r.couponDefId != null && selectedIds.value.includes(r.couponDefId) && r.status === 'ACTIVE'
+      r.couponDefId != null && crud.selectedKeys.includes(r.couponDefId) && r.status === 'ACTIVE'
   );
   if (!targets.length) return ElMessage.warning('请勾选已启用的优惠券');
   try {
@@ -501,8 +409,8 @@ async function batchDisable() {
       );
     }
     ElMessage.success(`已停用 ${targets.length} 张优惠券`);
-    clearSelection();
-    await load();
+    crud.clearSelection();
+    await crud.load();
     await loadActiveCoupons();
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
@@ -537,9 +445,6 @@ const issueForm = ref<{ couponDefId: number | null; userId: number | null }>({
   userId: null
 });
 
-const typeMap: Record<string, string> = Object.fromEntries(
-  dictOptions('coupon_type').map((o) => [o.value, o.label])
-);
 const typeCodeByLabel: Record<string, string> = Object.fromEntries(
   dictOptions('coupon_type').flatMap(
     (o) =>
@@ -561,65 +466,78 @@ const CSV_HEADERS = [
   '状态'
 ];
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
-  useListCsv({
-    filePrefix: '优惠券',
-    headers: CSV_HEADERS,
-    toRows: () =>
-      pickSelected(displayList.value).map((row) => [
-        row.couponName,
-        displayLabel('coupon_type', row.couponType, '未知类型'),
-        yuan(row.denominationCents || 0),
-        yuan(row.minSpendCents || 0),
-        row.discountPercent ?? '',
-        row.validityDays,
-        row.maxIssueCount || 0,
-        row.description || '',
-        displayLabel('enable_status', row.status, '未知状态')
-      ]),
-    onImportRows: async (rows) => {
-      let ok = 0;
-      for (const row of rows) {
-        const name = row['名称'] || row.couponName;
-        if (!name?.trim()) continue;
-        const created = await api.request<OpenApiCouponDefinitionDto>(
-          '/api/v2/coupons/definitions',
-          'POST',
-          {
-            couponName: name.trim(),
-            couponType: typeCodeByLabel[row['类型'] || row.couponType] || 'AMOUNT_OFF',
-            denominationCents: yuanToCents(row['面值(元)'] || row.denominationYuan) ?? 0,
-            minSpendCents: yuanToCents(row['最低消费(元)'] || row.minSpendYuan) ?? 0,
-            discountPercent: Number(row['折扣百分比'] || row.discountPercent) || 90,
-            validityDays: Number(row['有效天数'] || row.validityDays) || 30,
-            maxIssueCount: Number(row['总量限制'] || row.maxIssueCount) || 0,
-            description: row['描述'] || row.description || ''
-          }
-        );
-        const statusRaw = (row['状态'] || row.status || '').trim();
-        const wantsActive =
-          statusRaw.toUpperCase() === 'ACTIVE' ||
-          statusRaw === displayLabel('enable_status', 'ACTIVE');
-        if (!wantsActive && created?.couponDefId) {
-          await api.request(
-            `/api/v2/coupons/definitions/${created.couponDefId}/status?status=INACTIVE`,
-            'PUT'
-          );
+// 导出/下载模板/导入并入 CrudTable 内建工具条（选中优先导出、文件命名走共享 csvFileName）
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '优惠券',
+  exportPerm: 'ops:coupon:export',
+  importPerm: 'ops:coupon:import',
+  headers: CSV_HEADERS,
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.couponName,
+      displayLabel('coupon_type', row.couponType, '未知类型'),
+      yuan(row.denominationCents || 0),
+      yuan(row.minSpendCents || 0),
+      row.discountPercent ?? '',
+      row.validityDays,
+      row.maxIssueCount || 0,
+      row.description || '',
+      displayLabel('enable_status', row.status, '未知状态')
+    ]),
+  templateSample: [
+    '示例优惠券',
+    '满减券',
+    '5',
+    '0',
+    '90',
+    '30',
+    '100',
+    '示例描述',
+    displayLabel('enable_status', 'INACTIVE')
+  ],
+  onImportRows: async (rows) => {
+    let ok = 0;
+    for (const row of rows) {
+      const name = row['名称'] || row.couponName;
+      if (!name?.trim()) continue;
+      const created = await api.request<OpenApiCouponDefinitionDto>(
+        '/api/v2/coupons/definitions',
+        'POST',
+        {
+          couponName: name.trim(),
+          couponType: typeCodeByLabel[row['类型'] || row.couponType] || 'AMOUNT_OFF',
+          denominationCents: yuanToCents(row['面值(元)'] || row.denominationYuan) ?? 0,
+          minSpendCents: yuanToCents(row['最低消费(元)'] || row.minSpendYuan) ?? 0,
+          discountPercent: Number(row['折扣百分比'] || row.discountPercent) || 90,
+          validityDays: Number(row['有效天数'] || row.validityDays) || 30,
+          maxIssueCount: Number(row['总量限制'] || row.maxIssueCount) || 0,
+          description: row['描述'] || row.description || ''
         }
-        ok++;
+      );
+      const statusRaw = (row['状态'] || row.status || '').trim();
+      const wantsActive =
+        statusRaw.toUpperCase() === 'ACTIVE' ||
+        statusRaw === displayLabel('enable_status', 'ACTIVE');
+      if (!wantsActive && created?.couponDefId) {
+        await api.request(
+          `/api/v2/coupons/definitions/${created.couponDefId}/status?status=INACTIVE`,
+          'PUT'
+        );
       }
-      await load();
-      await loadActiveCoupons();
-      return ok;
+      ok++;
     }
-  });
+    await crud.load();
+    await loadActiveCoupons();
+    return ok;
+  }
+};
 
 function yuan(cents: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
 }
 
-function rowActions(row: OpenApiCouponDefinitionDto): TableAction[] {
-  const acts: TableAction[] = [];
+function rowActions(row: OpenApiCouponDefinitionDto): CrudRowAction[] {
+  const acts: CrudRowAction[] = [];
   if (auth.hasPerm('ops:coupon:edit')) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
@@ -637,18 +555,14 @@ function rowActions(row: OpenApiCouponDefinitionDto): TableAction[] {
   return acts;
 }
 
-const showActionColumn = computed(() =>
-  displayList.value.some((row) => rowActions(row).length > 0)
-);
-
-async function onAction(key: string, row: OpenApiCouponDefinitionDto) {
+function onAction({ key, row }: { key: string; row: OpenApiCouponDefinitionDto }) {
   if (key === 'edit') {
     openEdit(row);
   } else if (key === 'issue') {
     issueForm.value.couponDefId = row.couponDefId ?? null;
     showIssue.value = true;
   } else if (key === 'toggle') {
-    await onToggleStatus(row);
+    void onToggleStatus(row);
   }
 }
 
@@ -684,27 +598,6 @@ function openEdit(row: OpenApiCouponDefinitionDto) {
   };
   void loadActivityOptions();
   showCreate.value = true;
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const data = await api.request<{ items: OpenApiCouponDefinitionDto[]; total: number }>(
-      `/api/v2/coupons/definitions?${queryParams()}`,
-      'GET'
-    );
-    list.value = data.items || [];
-    total.value = Number(data.total) || 0;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(errorMessage(e, '加载失败'));
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
 }
 
 async function onCreateSubmit() {
@@ -751,7 +644,7 @@ async function onCreateSubmit() {
     }
     showCreate.value = false;
     editingId.value = null;
-    await load();
+    await crud.load();
     await loadActiveCoupons();
   } catch (e) {
     ElMessage.error(errorMessage(e, '保存失败'));
@@ -840,7 +733,7 @@ async function onToggleStatus(row: OpenApiCouponDefinitionDto) {
       'PUT'
     );
     ElMessage.success(`已${action}`);
-    await load();
+    await crud.load();
     await loadActiveCoupons();
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
@@ -857,17 +750,15 @@ function syncRouteQuery() {
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function resetFilters() {
   keyword.value = '';
   statusFilter.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function applyRouteQuery() {
@@ -887,8 +778,7 @@ function applyRouteQuery() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -898,10 +788,11 @@ watch(
   }
 );
 
+// 首查前需先应用路由查询参数，故保留显式首查（crud 已配 autoLoad: false）
 onMounted(() => {
   applyRouteQuery();
   void loadActiveCoupons();
-  load();
+  void crud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
@@ -937,8 +828,5 @@ onActivated(() => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-.hidden-input {
-  display: none;
 }
 </style>
