@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button
-            v-if="hasSelection"
+            v-if="crud.hasSelection"
             v-hasPermi="['ops:ad:edit']"
             type="warning"
             :loading="batchLoading === 'stop'"
@@ -18,11 +18,9 @@
           >
             批量停止
           </el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-hasPermi="['ops:ad:edit']" type="primary" @click="openCreate">
             新建投放
           </el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -46,32 +44,23 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          v-loading="loading"
-          :data="displayRows"
-          stripe
-          border
+        <CrudTable
+          :table="crud"
           row-key="campaignId"
-          class="report-table"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="rowActions"
+          :action-width="200"
+          actions-testid="ad-campaign"
+          empty-text="暂无投放计划"
+          sort-field-label="ID"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            reserve-selection
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             prop="campaignId"
             label="ID"
             width="80"
             align="center"
-            sortable="custom"
             class-name="col-status"
             label-class-name="col-status"
           />
@@ -164,35 +153,9 @@
               {{ formatRange(row) }}
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="200"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                @action="(k) => onRowAction(String(k), row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog
       v-model="dialogVisible"
@@ -254,64 +217,61 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { Delete, EditPen, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue';
+import { onMounted, ref } from 'vue';
+import { Delete, EditPen, VideoPause, VideoPlay } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import PagePager from '@/components/PagePager.vue';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useListCsv } from '@/composables/useListCsv';
-import { useAuthStore } from '@/stores/auth';
+import CrudTable, {
+  type CrudCsvOptions,
+  type CrudRowAction
+} from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type { AdCampaignDto, MediaAssetDto } from '@aicabinet/shared-types';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
-const auth = useAuthStore();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
+const keyword = ref('');
 const saving = ref(false);
 const batchLoading = ref<'stop' | ''>('');
-const rows = ref<AdCampaignDto[]>([]);
-const {
-  tableRef,
-  keyword,
-  hasSelection,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection,
-  filterByKeyword,
-  resetKeyword
-} = useAdminListTable<AdCampaignDto>((r) => r.campaignId);
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort<AdCampaignDto>('campaignId');
-const displayRows = computed(() =>
-  sortById(
-    filterByKeyword(rows.value, (row, kw) => {
-      return (
-        String(row.name || '')
-          .toLowerCase()
-          .includes(kw) ||
-        statusLabel(row.status).toLowerCase().includes(kw) ||
-        String(row.status || '')
-          .toLowerCase()
-          .includes(kw)
-      );
-    })
-  )
-);
 
-const { onExport } = useListCsv({
+function matchKeyword(row: AdCampaignDto, kw: string) {
+  return (
+    String(row.name || '')
+      .toLowerCase()
+      .includes(kw) ||
+    statusLabel(row.status).toLowerCase().includes(kw) ||
+    String(row.status || '')
+      .toLowerCase()
+      .includes(kw)
+  );
+}
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<AdCampaignDto>({
+  rowKey: (r) => r.campaignId,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page), // 0 起（useCrudTable 已换算）
+      size: String(params.size)
+    });
+    const data = await api.request<{ items: AdCampaignDto[]; total: number }>(
+      AdminEndpoints.adCampaignsList(q),
+      'GET'
+    );
+    // 关键词沿用前端过滤（只作用于当前页，与原 displayRows 行为一致），total 仍取服务端值
+    const kw = keyword.value.trim().toLowerCase();
+    const items = kw ? (data.items || []).filter((r) => matchKeyword(r, kw)) : data.items || [];
+    return { items, total: Number(data.total) || 0 };
+  },
+  // 投放 ID 本地排序（替代原 useIdColumnSort 表头排序，改由壳内「按 ID 升/降序」切换）
+  sort: { prop: 'campaignId', mode: 'local' }
+});
+
+const csvOptions: CrudCsvOptions = {
   filePrefix: '投放计划',
   headers: ['ID', '名称', '状态', '范围', '素材数', '曝光', '完播', '时间窗'],
-  toRows: () =>
-    pickSelected(displayRows.value).map((r) => [
+  toRows: (rows) =>
+    rows.map((r: AdCampaignDto) => [
       r.campaignId,
       r.name,
       statusLabel(r.status),
@@ -321,7 +281,8 @@ const { onExport } = useListCsv({
       r.completeCount ?? 0,
       formatRange(r)
     ])
-});
+};
+
 const assets = ref<MediaAssetDto[]>([]);
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 const dialogVisible = ref(false);
@@ -334,71 +295,61 @@ const form = ref<{
   window: [Date, Date] | null;
 }>({ name: '', deviceScope: 'ALL', deviceIds: [], assetIds: [], window: null });
 
-onMounted(async () => {
-  await Promise.all([load(), loadAssets(), loadDevices()]);
+// 列表首查由 useCrudTable autoLoad（默认 true）在挂载时执行；这里只拉弹窗所需的素材/设备选项
+onMounted(() => {
+  void loadAssets();
+  void loadDevices();
 });
 
 function search() {
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 function reset() {
-  resetKeyword();
-  page.value = 1;
-  load();
+  keyword.value = '';
+  void crud.search();
 }
 
-function rowActions(row: AdCampaignDto): TableAction[] {
-  if (!auth.hasPerm('ops:ad:edit')) return [];
-  const actions: TableAction[] = [{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }];
+function rowActions(row: AdCampaignDto): CrudRowAction[] {
+  const actions: CrudRowAction[] = [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:ad:edit' }
+  ];
   if (row.status === 'DRAFT' || row.status === 'STOPPED') {
-    actions.push({ key: 'launch', label: '上线', icon: VideoPlay, type: 'success' });
+    actions.push({
+      key: 'launch',
+      label: '上线',
+      icon: VideoPlay,
+      type: 'success',
+      perm: 'ops:ad:edit'
+    });
   }
   if (row.status === 'RUNNING') {
-    actions.push({ key: 'stop', label: '停止', icon: VideoPause, type: 'warning' });
+    actions.push({
+      key: 'stop',
+      label: '停止',
+      icon: VideoPause,
+      type: 'warning',
+      perm: 'ops:ad:edit'
+    });
   }
   if (row.status !== 'RUNNING') {
-    actions.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger', overflow: true });
+    actions.push({
+      key: 'delete',
+      label: '删除',
+      icon: Delete,
+      type: 'danger',
+      overflow: true,
+      perm: 'ops:ad:edit'
+    });
   }
   return actions;
 }
 
-function onRowAction(key: string, row: AdCampaignDto) {
+function onAction({ key, row }: { key: string; row: AdCampaignDto }) {
   if (key === 'edit') openEdit(row);
   else if (key === 'launch') void launch(row);
   else if (key === 'stop') void stop(row);
   else if (key === 'delete') void removeCampaign(row);
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    const data = await api.request<{ items: AdCampaignDto[]; total: number }>(
-      AdminEndpoints.adCampaignsList(q),
-      'GET'
-    );
-    rows.value = data.items || [];
-    total.value = Number(data.total) || 0;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
 }
 
 async function loadAssets() {
@@ -474,7 +425,7 @@ async function save() {
     }
     ElMessage.success('已保存');
     dialogVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -486,7 +437,7 @@ async function launch(row: AdCampaignDto) {
   try {
     await api.request(AdminEndpoints.adCampaignLaunch(row.campaignId), 'POST');
     ElMessage.success('已上线');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '上线失败');
   }
@@ -496,14 +447,14 @@ async function stop(row: AdCampaignDto) {
   try {
     await api.request(AdminEndpoints.adCampaignStop(row.campaignId), 'POST');
     ElMessage.success('已停止');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '停止失败');
   }
 }
 
 async function batchStop() {
-  const targets = pickSelected(displayRows.value).filter((r) => r.status === 'RUNNING');
+  const targets = crud.pickSelected(crud.displayItems).filter((r) => r.status === 'RUNNING');
   if (!targets.length) {
     ElMessage.warning('请先勾选运行中的投放计划');
     return;
@@ -522,7 +473,7 @@ async function batchStop() {
   batchLoading.value = '';
   const ok = results.filter((r) => r.status === 'fulfilled').length;
   ElMessage.success(`批量停止完成：成功 ${ok}，失败 ${targets.length - ok}`);
-  await load();
+  await crud.load();
 }
 
 async function removeCampaign(row: AdCampaignDto) {
@@ -537,7 +488,7 @@ async function removeCampaign(row: AdCampaignDto) {
   try {
     await api.request(AdminEndpoints.adCampaign(row.campaignId), 'DELETE');
     ElMessage.success('已删除');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
