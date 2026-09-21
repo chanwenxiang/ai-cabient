@@ -9,28 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:config:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button
-            v-hasPermi="['ops:config:import']"
-            @click="onDownloadTemplate(['demo.config.key', 'value', '说明', ''])"
-            >导入模板</el-button
-          >
-          <el-button v-hasPermi="['ops:config:import']" :loading="importing" @click="triggerImport"
-            >导入</el-button
-          >
-          <input
-            ref="importInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onImportFile"
-          />
           <el-button v-hasPermi="['ops:config:edit']" type="primary" @click="openCreate"
             >新增</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -122,26 +103,16 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="paged"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="configKey"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="showActionColumn ? rowActions : undefined"
+          actions-testid="system-config"
+          empty-text="暂无参数"
+          :csv="csvOptions"
+          @action="onRowAction"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" description="暂无参数" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column label="配置键" min-width="200" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.configKey }}</span>
@@ -174,34 +145,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="120"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                @action="(k) => onRowAction(String(k), row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="filtered.length"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-    />
 
     <!-- F1 策略版本：某配置键的变更历史（旧值/新值/操作人），可回滚到任一历史版本 -->
     <el-drawer v-model="historyVisible" :title="`变更历史 · ${historyKey}`" size="680px">
@@ -297,16 +243,13 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Clock, Delete, EditPen, Refresh } from '@element-plus/icons-vue';
+import { Clock, Delete, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { UploadRequestOptions } from 'element-plus';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useTableSelection } from '@/composables/useTableSelection';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -353,15 +296,11 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const brandStore = useBrandStore();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
 const brandSaving = ref(false);
 const brandLogoUploading = ref(false);
 const keyword = ref('');
-const page = ref(1);
-const size = ref(20);
+/** 全量配置（未做关键词/分组过滤）：品牌表单回显与 valueOfKey 依赖它 */
 const items = ref<SystemConfigRow[]>([]);
 /** key -> 开关元数据；面板据此分组筛选、按 type 渲染控件、标注废弃项 */
 const flagByKey = ref<Record<string, FeatureFlagMeta>>({});
@@ -422,28 +361,66 @@ function groupOf(key: string) {
   return flagByKey.value[key]?.group || '';
 }
 
-function onGroupFilterChange() {
-  page.value = 1;
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / CSV / 刷新全部内建。
+// 本页无服务端分页：fetchPage 拉全量配置 → 客户端按关键词/功能分组过滤（随查询生效）→ 前端切片成一页。
+async function fetchPage(params: CrudPageParams) {
+  items.value = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');
+  syncBrandFormFromItems();
+  const rows = filtered.value;
+  const start = params.page * params.size;
+  return { items: rows.slice(start, start + params.size), total: rows.length };
 }
 
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
+const crud = useCrudTable<SystemConfigRow>({
+  rowKey: (r) => r.configKey,
+  fetchPage,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false
 });
 
-function rowActions(_row: SystemConfigRow): TableAction[] {
-  const acts: TableAction[] = [];
-  if (auth.hasPerm('ops:config:edit')) {
-    acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
+/** 功能分组为客户端过滤（fetchPage 内生效），切换分组触发重查并回到第一页 */
+function onGroupFilterChange() {
+  void crud.search();
+}
+
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '参数配置',
+  exportPerm: 'ops:config:export',
+  importPerm: 'ops:config:import',
+  headers: ['配置键', '配置值', '说明', '更新时间'],
+  toRows: (picked) =>
+    picked.map((row) => [
+      row.configKey,
+      row.configValue,
+      row.description || '',
+      formatDateTime(row.updatedAt)
+    ]),
+  templateSample: ['demo.config.key', 'value', '说明', ''],
+  onImportRows: async (rows) => {
+    let ok = 0;
+    for (const row of rows) {
+      const configKey = (row['配置键'] || row.configKey || '').trim();
+      const configValue = (row['配置值'] || row.configValue || '').trim();
+      if (!configKey) continue;
+      await api.request(AdminEndpoints.systemConfigs, 'PUT', {
+        configKey,
+        configValue,
+        description: (row['说明'] || row.description || '').trim()
+      });
+      ok++;
+    }
+    await crud.load();
+    return ok;
   }
-  if (auth.hasPerm('ops:config:delete')) {
-    acts.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger' });
-  }
-  // F1 策略版本：能看配置就能看它的变更历史（后端同权限 ops:config:list）
-  if (auth.hasPerm('ops:config:list')) {
-    acts.push({ key: 'history', label: '历史', icon: Clock, type: 'info' });
-  }
-  return acts;
+};
+
+function rowActions(_row: SystemConfigRow): CrudRowAction[] {
+  return [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:config:edit' },
+    { key: 'delete', label: '删除', icon: Delete, type: 'danger', perm: 'ops:config:delete' },
+    // F1 策略版本：能看配置就能看它的变更历史（后端同权限 ops:config:list）
+    { key: 'history', label: '历史', icon: Clock, type: 'info', perm: 'ops:config:list' }
+  ];
 }
 
 const showActionColumn = computed(
@@ -453,7 +430,7 @@ const showActionColumn = computed(
     auth.hasPerm('ops:config:list')
 );
 
-async function onRowAction(key: string, row: SystemConfigRow) {
+async function onRowAction({ key, row }: { key: string; row: SystemConfigRow }) {
   if (key === 'edit') openEdit(row);
   else if (key === 'delete') await onDelete(row);
   else if (key === 'history') await openHistory(row);
@@ -520,7 +497,7 @@ async function onRollback(row: SystemConfigHistoryRow) {
       historyId: row.historyId
     });
     ElMessage.success('已回滚');
-    await load();
+    await crud.load();
     await openHistory({ configKey: historyKey.value } as SystemConfigRow);
   } catch (e: unknown) {
     ElMessage.error(errorMessage(e, '回滚失败'));
@@ -538,47 +515,11 @@ async function onDelete(row: SystemConfigRow) {
     );
     await api.request(AdminEndpoints.systemConfig(row.configKey), 'DELETE');
     ElMessage.success('已删除');
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '删除失败'));
   }
 }
-
-watch(keyword, () => {
-  page.value = 1;
-});
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<SystemConfigRow>((r) => r.configKey);
-
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
-  useListCsv({
-    filePrefix: '参数配置',
-    headers: ['配置键', '配置值', '说明', '更新时间'],
-    toRows: () =>
-      pickSelected(filtered.value).map((row) => [
-        row.configKey,
-        row.configValue,
-        row.description || '',
-        formatDateTime(row.updatedAt)
-      ]),
-    onImportRows: async (rows) => {
-      let ok = 0;
-      for (const row of rows) {
-        const configKey = (row['配置键'] || row.configKey || '').trim();
-        const configValue = (row['配置值'] || row.configValue || '').trim();
-        if (!configKey) continue;
-        await api.request(AdminEndpoints.systemConfigs, 'PUT', {
-          configKey,
-          configValue,
-          description: (row['说明'] || row.description || '').trim()
-        });
-        ok++;
-      }
-      await load();
-      return ok;
-    }
-  });
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
@@ -613,23 +554,6 @@ async function loadFeatureFlags() {
     flagByKey.value = map;
   } catch (e) {
     ElMessage.warning(e instanceof Error ? e.message : '功能开关清单加载失败（仍可编辑参数）');
-  }
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    items.value = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');
-    syncBrandFormFromItems();
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
   }
 }
 
@@ -683,7 +607,7 @@ async function saveBrand() {
       logoUrl: brandForm.logoUrl.trim()
     });
     ElMessage.success('品牌已保存');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -726,15 +650,16 @@ async function uploadBrandLogo(options: UploadRequestOptions) {
   }
 }
 
+/** 关键词/分组为客户端过滤（fetchPage 内生效），查询/回车/清空触发重查 */
 function search() {
-  page.value = 1;
   syncRouteQuery();
+  void crud.search();
 }
 
 function reset() {
   keyword.value = '';
-  page.value = 1;
   syncRouteQuery();
+  void crud.search();
 }
 
 function openCreate() {
@@ -767,7 +692,7 @@ async function save() {
     });
     ElMessage.success('已保存');
     dialogVisible.value = false;
-    await load();
+    await crud.load();
     if (form.configKey.startsWith('ops.brand.')) {
       await brandStore.load();
     }
@@ -778,15 +703,17 @@ async function save() {
   }
 }
 
+// 首查前需先应用路由查询参数（applyRouteQuery），故 crud 配 autoLoad: false，由这里显式首查
 onMounted(() => {
   applyRouteQuery();
-  load();
+  void crud.load();
   void loadFeatureFlags();
 });
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
+  // 关键词来自路由变更：同步后重查（crud.search 自带回到第一页）
+  await crud.search();
 }
 
 watch(
@@ -830,9 +757,6 @@ onActivated(() => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-.hidden-input {
-  display: none;
 }
 .brand-card {
   margin-bottom: 16px;
