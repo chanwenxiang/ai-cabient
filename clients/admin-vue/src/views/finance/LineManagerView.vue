@@ -210,33 +210,17 @@
             </el-table-column>
             <el-table-column
               label="操作"
-              width="360"
+              width="140"
               align="center"
               class-name="col-action"
               fixed="right"
             >
               <template #default="{ row }">
-                <div class="table-row-actions">
-                  <el-button
-                    v-hasPermi="['ops:line-manager:edit']"
-                    link
-                    type="primary"
-                    @click="openBind(row)"
-                    >绑柜</el-button
-                  >
-                  <el-button v-hasPermi="['ops:line-manager:edit']" link @click="adjust(row)"
-                    >调账</el-button
-                  >
-                  <el-button link @click="showLedgers(row)">流水</el-button>
-                  <el-button link @click="showKpi(row)">业绩</el-button>
-                  <el-button
-                    v-hasPermi="['ops:line-manager:edit']"
-                    link
-                    type="warning"
-                    @click="proxyWithdraw(row)"
-                    >代提现</el-button
-                  >
-                </div>
+                <TableActions
+                  :actions="managerRowActions(row)"
+                  :max-primary="2"
+                  @action="(key) => onManagerRowAction(key, row)"
+                />
               </template>
             </el-table-column>
           </el-table>
@@ -695,7 +679,8 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
-import { Refresh } from '@element-plus/icons-vue';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { Refresh, View, TrendCharts, Link, Wallet, Money } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -1012,6 +997,30 @@ function openBind(row: Manager) {
   bindDeviceId.value = '';
   bindVisible.value = true;
   if (!deviceOptions.value.length) void loadDeviceOptions();
+}
+
+/** 主按钮只放全员可用的只读操作，编辑类操作收进「更多」并按权限过滤 */
+function managerRowActions(row: Manager): TableAction[] {
+  const actions: TableAction[] = [
+    { key: 'ledgers', label: '流水', icon: View, type: 'primary' },
+    { key: 'kpi', label: '业绩', icon: TrendCharts }
+  ];
+  if (auth.hasPerm('ops:line-manager:edit')) {
+    actions.push(
+      { key: 'bind', label: '绑柜', icon: Link },
+      { key: 'adjust', label: '调账', icon: Wallet },
+      { key: 'withdraw', label: '代提现', icon: Money, divided: true }
+    );
+  }
+  return actions;
+}
+
+function onManagerRowAction(key: string, row: Manager) {
+  if (key === 'ledgers') void showLedgers(row);
+  else if (key === 'kpi') void showKpi(row);
+  else if (key === 'bind') openBind(row);
+  else if (key === 'adjust') void adjust(row);
+  else if (key === 'withdraw') void proxyWithdraw(row);
 }
 
 async function confirmBind() {
