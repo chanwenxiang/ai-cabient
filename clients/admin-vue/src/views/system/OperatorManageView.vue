@@ -9,40 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:rbac:assign:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button
-            v-hasPermi="['ops:rbac:assign:import']"
-            @click="
-              onDownloadTemplate([
-                '',
-                '张三',
-                '13900000099',
-                'Passw0rd',
-                displayLabel('merchant_status', 'ACTIVE'),
-                ''
-              ])
-            "
-            >导入模板</el-button
-          >
-          <el-button
-            v-hasPermi="['ops:rbac:assign:import']"
-            :loading="importing"
-            @click="triggerImport"
-            >导入</el-button
-          >
-          <input
-            ref="importInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onImportFile"
-          />
           <el-button v-hasPermi="['ops:rbac:assign:add']" type="primary" @click="openCreate"
             >新增账号</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="reload">刷新</el-button>
         </div>
       </div>
     </template>
@@ -66,35 +35,18 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="operators"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="userId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="rowActions"
+          :action-width="120"
+          empty-text="暂无运营账号"
+          sort-field-label="用户编号"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无运营账号"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="userId"
-            label="用户编号"
-            width="100"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="userId" label="用户编号" width="100" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.userId }}</span>
             </template>
@@ -214,35 +166,9 @@
               <el-tag v-else size="small" type="success" effect="plain">全局</el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="120"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                :max-primary="2"
-                @action="(k) => onRowAction(k, row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="loadOperators"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog v-model="formDlg" :title="form.userId ? '编辑账号' : '新增账号'" destroy-on-close>
       <el-form label-width="auto">
@@ -530,26 +456,15 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import {
-  Delete,
-  EditPen,
-  Key,
-  Monitor,
-  OfficeBuilding,
-  Refresh,
-  Unlock
-} from '@element-plus/icons-vue';
+import { Delete, EditPen, Key, Monitor, OfficeBuilding, Unlock } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useListCsv } from '@/composables/useListCsv';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { displayLabel } from '@aicabinet/shared-dict';
 
@@ -592,23 +507,28 @@ interface MerchantRow {
   deviceCount?: number;
 }
 
-const loading = ref(false);
-const listHydrated = ref(false);
+// loadSeq 仅用于部门/角色/商户等辅助数据加载的竞态防护；主列表竞态由 useCrudTable 内建
 const loadSeq = createLoadSeq();
 const saving = ref(false);
-const operators = ref<OperatorRow[]>([]);
 const roles = ref<RoleRow[]>([]);
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('userId', {
-  onChange: () => {
-    operators.value = sortById([...operators.value], 'userId');
-  }
-});
 const merchants = ref<MerchantRow[]>([]);
 const departments = ref<DeptRow[]>([]);
 const phone = ref('');
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<OperatorRow>({
+  rowKey: (r) => r.userId,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  errorMessage: '加载运营账号失败',
+  fetchPage: (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    if (phone.value.trim()) q.set('phone', phone.value.trim());
+    return api.request<PageResult<OperatorRow>>(AdminEndpoints.rbacOperatorsList(q), 'GET');
+  },
+  // 原 useIdColumnSort 的本地主键排序由 local 模式接管（默认升序）
+  sort: { prop: 'userId', mode: 'local' }
+});
 const formDlg = ref(false);
 const resetPwdDlg = ref(false);
 const resetPwdSaving = ref(false);
@@ -670,9 +590,6 @@ const primaryDeptOptions = computed(() =>
   activeDepartments.value.filter((d) => form.value.deptIds.includes(d.deptId))
 );
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<OperatorRow>((r) => r.userId);
-
 const statusByLabel: Record<string, string> = {
   正常: 'ACTIVE',
   停用: 'INACTIVE',
@@ -680,53 +597,62 @@ const statusByLabel: Record<string, string> = {
   INACTIVE: 'INACTIVE'
 };
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
-  useListCsv({
-    filePrefix: '运营账号',
-    headers: ['用户ID', '姓名', '手机号', '密码', '状态', '角色', '数据范围'],
-    toRows: () =>
-      pickSelected(operators.value).map((row) => [
-        row.userId,
-        row.name,
-        row.phoneNumber,
-        '',
-        displayLabel('merchant_status', row.status || 'ACTIVE'),
-        (row.roleNames || []).join('、') || '未分配',
-        (row.merchantNames || row.merchantIds || []).length
-          ? (row.merchantNames || row.merchantIds || []).join('、')
-          : '全局'
-      ]),
-    onImportRows: async (rows) => {
-      let ok = 0;
-      const roleByName = new Map(activeRoles.value.map((r) => [r.roleName, r.roleId]));
-      for (const row of rows) {
-        const name = (row['姓名'] || row.name || '').trim();
-        const phoneNumber = (row['手机号'] || row.phoneNumber || '').trim();
-        const password = (row['密码'] || row.password || '').trim();
-        if (!name || !/^1\d{10}$/.test(phoneNumber) || password.length < 6) continue;
-        const roleLabel = (row['角色'] || row.roleNames || '').trim();
-        const roleIds = roleLabel
-          ? roleLabel
-              .split(/[,，、]/)
-              .map((s) => s.trim())
-              .filter(Boolean)
-              .map((n) => roleByName.get(n))
-              .filter((id): id is number => id != null)
-          : [];
-        await api.request(AdminEndpoints.rbacOperators, 'POST', {
-          name,
-          phoneNumber,
-          password,
-          status: statusByLabel[row['状态'] || row.status] || 'ACTIVE',
-          roleIds
-        });
-        ok++;
-      }
-      clearSelection();
-      await loadOperators();
-      return ok;
+// 导出/下载模板/导入并入 CrudTable 内建工具条（选中优先导出、文件命名走共享 csvFileName）
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '运营账号',
+  exportPerm: 'ops:rbac:assign:export',
+  importPerm: 'ops:rbac:assign:import',
+  headers: ['用户ID', '姓名', '手机号', '密码', '状态', '角色', '数据范围'],
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.userId,
+      row.name,
+      row.phoneNumber,
+      '',
+      displayLabel('merchant_status', row.status || 'ACTIVE'),
+      (row.roleNames || []).join('、') || '未分配',
+      (row.merchantNames || row.merchantIds || []).length
+        ? (row.merchantNames || row.merchantIds || []).join('、')
+        : '全局'
+    ]),
+  templateSample: [
+    '',
+    '张三',
+    '13900000099',
+    'Passw0rd',
+    displayLabel('merchant_status', 'ACTIVE'),
+    ''
+  ],
+  onImportRows: async (rows) => {
+    let ok = 0;
+    const roleByName = new Map(activeRoles.value.map((r) => [r.roleName, r.roleId]));
+    for (const row of rows) {
+      const name = (row['姓名'] || row.name || '').trim();
+      const phoneNumber = (row['手机号'] || row.phoneNumber || '').trim();
+      const password = (row['密码'] || row.password || '').trim();
+      if (!name || !/^1\d{10}$/.test(phoneNumber) || password.length < 6) continue;
+      const roleLabel = (row['角色'] || row.roleNames || '').trim();
+      const roleIds = roleLabel
+        ? roleLabel
+            .split(/[,，、]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((n) => roleByName.get(n))
+            .filter((id): id is number => id != null)
+        : [];
+      await api.request(AdminEndpoints.rbacOperators, 'POST', {
+        name,
+        phoneNumber,
+        password,
+        status: statusByLabel[row['状态'] || row.status] || 'ACTIVE',
+        roleIds
+      });
+      ok++;
     }
-  });
+    await crud.load();
+    return ok;
+  }
+};
 
 function roleTip(row: OperatorRow): string {
   return (row.roleNames || []).join('、');
@@ -749,56 +675,49 @@ function scopeTip(row: OperatorRow): string {
   return (row.merchantNames || row.merchantIds || []).join('、');
 }
 
-function rowActions(row: OperatorRow): TableAction[] {
-  const acts: TableAction[] = [];
-  if (auth.hasPerm('ops:rbac:assign:edit')) {
-    acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
-  }
-  if (auth.hasPerm('ops:rbac:assign:role')) {
-    acts.push({ key: 'roles', label: '分配角色', icon: Key, type: 'success' });
-  }
-  if (
-    auth.hasPerm('ops:rbac:assign:merchant') ||
-    auth.hasPerm('ops:rbac:assign:device') ||
-    auth.hasPerm('ops:rbac:assign')
-  ) {
-    acts.push(
-      { key: 'merchants', label: '商户范围', icon: OfficeBuilding, overflow: true },
-      { key: 'devices', label: '货柜范围', icon: Monitor, overflow: true }
-    );
-  }
-  if (auth.hasPerm('ops:rbac:assign:reset-password') && row.userId !== Number(auth.userId)) {
+function rowActions(row: OperatorRow): CrudRowAction[] {
+  const isSelf = row.userId === Number(auth.userId);
+  const scopePerm = [
+    'ops:rbac:assign:merchant',
+    'ops:rbac:assign:device',
+    'ops:rbac:assign'
+  ];
+  const acts: CrudRowAction[] = [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:rbac:assign:edit' },
+    { key: 'roles', label: '分配角色', icon: Key, type: 'success', perm: 'ops:rbac:assign:role' },
+    { key: 'merchants', label: '商户范围', icon: OfficeBuilding, overflow: true, perm: scopePerm },
+    { key: 'devices', label: '货柜范围', icon: Monitor, overflow: true, perm: scopePerm }
+  ];
+  if (!isSelf) {
     acts.push({
       key: 'reset-password',
       label: '重置密码',
       icon: Unlock,
       type: 'warning',
-      overflow: true
+      overflow: true,
+      perm: 'ops:rbac:assign:reset-password'
     });
   }
-  if (
-    auth.hasPerm('ops:rbac:assign:disable') &&
-    row.status === 'ACTIVE' &&
-    row.userId !== Number(auth.userId)
-  ) {
+  if (row.status === 'ACTIVE' && !isSelf) {
     acts.push({
       key: 'disable',
       label: displayLabel('enable_status', 'INACTIVE'),
       icon: Delete,
       type: 'danger',
-      overflow: true
+      overflow: true,
+      perm: 'ops:rbac:assign:disable'
     });
   }
   return acts;
 }
 
-function onRowAction(key: string, row: OperatorRow) {
+function onAction({ key, row }: { key: string; row: OperatorRow }) {
   if (key === 'edit') openEdit(row);
   else if (key === 'roles') openRoles(row);
   else if (key === 'merchants') openMerchants(row);
   else if (key === 'devices') openDevices(row);
   else if (key === 'reset-password') openResetPassword(row);
-  else if (key === 'disable') onDisable(row);
+  else if (key === 'disable') void onDisable(row);
 }
 
 async function loadDepartments() {
@@ -837,29 +756,6 @@ async function loadMerchants() {
   }
 }
 
-async function loadOperators() {
-  const seq = loadSeq.begin('loadOperators');
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-    if (phone.value.trim()) q.set('phone', phone.value.trim());
-    const data = await api.request<PageResult<OperatorRow>>(
-      AdminEndpoints.rbacOperatorsList(q),
-      'GET'
-    );
-    operators.value = sortById(data.items || [], 'userId');
-    total.value = data.total;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq, 'loadOperators')) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载运营账号失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadOperators')) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (phone.value.trim()) query.phone = phone.value.trim();
@@ -876,21 +772,14 @@ function applyRouteQuery() {
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  loadOperators();
+  void crud.search();
 }
 
 function resetFilter() {
   phone.value = '';
-  page.value = 1;
   syncRouteQuery();
-  loadOperators();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  loadOperators();
+  void crud.search();
 }
 
 function openCreate() {
@@ -989,7 +878,7 @@ async function saveForm() {
       });
       ElMessage.success('已更新');
       formDlg.value = false;
-      await loadOperators();
+      await crud.load();
     } else {
       const created = await api.request<{ userId: number }>(AdminEndpoints.rbacOperators, 'POST', {
         name: f.name.trim(),
@@ -1002,10 +891,10 @@ async function saveForm() {
       });
       ElMessage.success('已创建');
       formDlg.value = false;
-      await loadOperators();
+      await crud.load();
       if (needsMerchantBind && created?.userId) {
         ElMessage.info('补货相关角色须绑定商户范围后才能登录补货小程序');
-        const row = operators.value.find((o) => o.userId === created.userId);
+        const row = crud.items.find((o) => o.userId === created.userId);
         if (row) await openMerchants(row);
       }
     }
@@ -1023,7 +912,7 @@ async function onDisable(row: OperatorRow) {
     });
     await api.request(AdminEndpoints.rbacOperator(row.userId), 'DELETE');
     ElMessage.success('已停用');
-    await loadOperators();
+    await crud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '停用失败'));
   }
@@ -1068,13 +957,13 @@ async function saveRoles() {
     await api.request(AdminEndpoints.rbacUserRoles(currentUserId.value), 'PUT', [...selected]);
     ElMessage.success('角色已更新');
     roleDlg.value = false;
-    const tasks: Promise<unknown>[] = [loadOperators()];
+    const tasks: Promise<unknown>[] = [crud.load()];
     if (String(currentUserId.value) === String(auth.userId)) {
       tasks.push(auth.refreshPermissions());
     }
     await Promise.all(tasks);
     if (assignMerchantRoles.value.some((r) => selected.has(r.roleId)) || hasOpsReplenisher) {
-      const row = operators.value.find((o) => o.userId === currentUserId.value);
+      const row = crud.items.find((o) => o.userId === currentUserId.value);
       if (row && !(row.merchantIds || []).length) {
         ElMessage.info('补货相关角色须绑定「商户范围」后才能登录补货小程序');
         await openMerchants(row);
@@ -1117,7 +1006,7 @@ async function saveMerchants() {
     );
     ElMessage.success('商户范围已更新');
     merchantDlg.value = false;
-    await loadOperators();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -1190,13 +1079,12 @@ async function saveDevices() {
 }
 
 async function reload() {
-  await Promise.all([loadRoles(), loadMerchants(), loadDepartments(), loadOperators()]);
+  await Promise.all([loadRoles(), loadMerchants(), loadDepartments(), crud.load()]);
 }
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await loadOperators();
+  await crud.search();
 }
 
 watch(
@@ -1271,9 +1159,6 @@ onActivated(() => {
 }
 .scope-alert {
   margin-bottom: 12px;
-}
-.hidden-input {
-  display: none;
 }
 .merchant-group {
   display: flex;
