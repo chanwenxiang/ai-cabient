@@ -10,47 +10,39 @@
         </div>
         <div class="page-card-head__actions">
           <el-button
-            v-if="selectedIds.length && auth.hasPerm('ops:member-level:edit')"
+            v-if="crud.hasSelection"
+            v-hasPermi="['ops:member-level:edit']"
             type="success"
             @click="batchSetStatus('ACTIVE')"
           >
-            批量启用 ({{ selectedIds.length }})
+            批量启用 ({{ crud.selectedKeys.length }})
           </el-button>
           <el-button
-            v-if="selectedIds.length && auth.hasPerm('ops:member-level:edit')"
+            v-if="crud.hasSelection"
+            v-hasPermi="['ops:member-level:edit']"
             type="warning"
             @click="batchSetStatus('INACTIVE')"
           >
-            批量停用 ({{ selectedIds.length }})
+            批量停用 ({{ crud.selectedKeys.length }})
           </el-button>
           <el-button v-hasPermi="['ops:member-level:edit']" type="primary" @click="openCreate"
             >新建等级</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="list"
-          stripe
-          border
-          row-key="id"
-          empty-text=" "
-          class="report-table"
-          @selection-change="onSelectionChange"
+        <CrudTable
+          :table="crud"
+          selectable
+          :actions="rowActions"
+          :action-width="150"
+          actions-testid="member-level"
+          empty-text="暂无等级规则"
+          @action="onAction"
         >
-          <template #empty><el-empty v-if="!loading" description="暂无等级规则" /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column label="等级编码" width="120" class-name="col-text">
             <template #default="{ row }">
               {{ levelCodeLabel(row.levelCode, row.levelName) }}
@@ -131,27 +123,7 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="150"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-              <el-button
-                v-if="auth.hasPerm('ops:member-level:edit')"
-                link
-                :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
-                @click="toggleStatus(row)"
-                >{{
-                  displayLabel('enable_status', row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')
-                }}</el-button
-              >
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
 
@@ -222,14 +194,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
+import { EditPen, SwitchButton } from '@element-plus/icons-vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { useAuthStore } from '@/stores/auth';
-import { useTableSelection } from '@/composables/useTableSelection';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 
 type LevelRule = {
   id?: number;
@@ -245,23 +217,44 @@ type LevelRule = {
   status: string;
 };
 
-const loading = ref(false);
 const saving = ref(false);
-const list = ref<LevelRule[]>([]);
 const dialogVisible = ref(false);
 const editing = ref(false);
-const auth = useAuthStore();
-const {
-  selectedKeys: selectedIds,
-  onSelectionChange,
-  clearSelection
-} = useTableSelection<LevelRule>((row) => row.id ?? row.levelCode);
+
+// 列表状态机统一交给 CrudTable：分页（接口无分页，前端切片）/ 多选 / 竞态 / 空态 / 刷新 全部内建
+const crud = useCrudTable<LevelRule>({
+  rowKey: (r) => r.id ?? r.levelCode,
+  fetchPage: async (params) => {
+    const list = await api.request<LevelRule[]>(AdminEndpoints.growthMemberLevels);
+    const start = params.page * params.size;
+    return { items: list.slice(start, start + params.size), total: list.length };
+  }
+});
 
 function levelCodeLabel(code?: string, fallbackName?: string) {
   if (!code) return fallbackName || '—';
   const label = displayLabel('member_level', code, '');
   if (label && label !== code) return label;
   return fallbackName || code;
+}
+
+function rowActions(row: LevelRule): CrudRowAction[] {
+  const active = row.status === 'ACTIVE';
+  return [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
+    {
+      key: 'toggle',
+      label: displayLabel('enable_status', active ? 'INACTIVE' : 'ACTIVE'),
+      icon: SwitchButton,
+      type: active ? 'danger' : 'success',
+      perm: 'ops:member-level:edit'
+    }
+  ];
+}
+
+function onAction({ key, row }: { key: string; row: LevelRule }) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'toggle') void toggleStatus(row);
 }
 
 const form = reactive({
@@ -277,20 +270,6 @@ const form = reactive({
   sortOrder: 0,
   status: 'ACTIVE'
 });
-
-onMounted(load);
-
-async function load() {
-  loading.value = true;
-  try {
-    list.value = await api.request<LevelRule[]>(AdminEndpoints.growthMemberLevels);
-    clearSelection();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    loading.value = false;
-  }
-}
 
 function openCreate() {
   editing.value = false;
@@ -350,7 +329,7 @@ async function save() {
     }
     ElMessage.success('已保存');
     dialogVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -369,17 +348,14 @@ async function toggleStatus(row: LevelRule) {
       status: next
     });
     ElMessage.success(next === 'ACTIVE' ? '已启用' : '已停用');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
   }
 }
 
 async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
-  const selected = list.value.filter((r) =>
-    selectedIds.value.map(String).includes(String(r.id ?? r.levelCode))
-  );
-  const targets = selected.filter(
+  const targets = crud.pickSelected(crud.items).filter(
     (r): r is LevelRule & { id: number } => r.status !== next && r.id != null
   );
   if (!targets.length) {
@@ -405,7 +381,7 @@ async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
       });
     }
     ElMessage.success(`已批量${action} ${targets.length} 条`);
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : `批量${action}失败`);
   }
