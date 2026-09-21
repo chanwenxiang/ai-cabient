@@ -1,66 +1,70 @@
-﻿<script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+<script setup lang="ts">
+import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { CircleCheck, CircleClose, Refresh } from '@element-plus/icons-vue';
+import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { useListCsv } from '@/composables/useListCsv';
-import PagePager from '@/components/PagePager.vue';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import type { BalanceRefundRequestDto, PageResult } from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 const auth = useAuthStore();
 const { goPath } = useNavAccess();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
-const rows = ref<BalanceRefundRequestDto[]>([]);
 const statusTab = ref(localStorage.getItem('ops_balance_refund_status_tab') || 'PENDING_REVIEW');
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
+const keyword = ref('');
 const batchLoading = ref<'approve' | 'reject' | ''>('');
-
-const {
-  tableRef,
-  keyword,
-  hasSelection,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection,
-  filterByKeyword,
-  resetKeyword
-} = useAdminListTable<BalanceRefundRequestDto>((r) => r.requestId);
 
 const canReview = computed(() => auth.hasPerm('ops:balance-refund:review'));
 
-const displayRows = computed(() => {
-  const list = filterByKeyword([...rows.value], (row, kw) => {
-    return (
+/** 关键词为纯前端过滤（后端无该参数）：原 displayRows 计算属性前移到取数处，total 仍取服务端值 */
+function filterByKeyword(rows: BalanceRefundRequestDto[]): BalanceRefundRequestDto[] {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter(
+    (row) =>
       String(row.requestId).includes(kw) ||
       String(row.requestNo || '')
         .toLowerCase()
         .includes(kw) ||
       displayBizNo(row.requestNo).toLowerCase().includes(kw) ||
       String(row.userId || '').includes(kw)
+  );
+}
+
+function createdAtMs(createdAt?: string) {
+  if (!createdAt) return 0;
+  const t = new Date(createdAt).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 全部内建；
+// 固定「申请时间倒序」（原 displayRows 排序前移到取数处，本表无表头排序配置）
+const crud = useCrudTable<BalanceRefundRequestDto>({
+  rowKey: (r) => r.requestId,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page), // 0 起（useCrudTable 已换算）
+      size: String(params.size)
+    });
+    if (statusTab.value && statusTab.value !== 'ALL') q.set('status', statusTab.value);
+    const res = await api.request<PageResult<BalanceRefundRequestDto>>(
+      AdminEndpoints.balanceRefundsList(q)
     );
-  });
-  list.sort((a, b) => createdAtMs(b.createdAt) - createdAtMs(a.createdAt));
-  return list;
+    const list = filterByKeyword(res?.items || []);
+    list.sort((a, b) => createdAtMs(b.createdAt) - createdAtMs(a.createdAt));
+    return { items: list, total: Number(res?.total || 0) };
+  }
 });
 
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '余额退款申请',
   headers: ['申请号', '用户ID', '金额(元)', '状态', '申请原因', '审核备注', '失败原因', '申请时间'],
-  toRows: () =>
-    pickSelected(displayRows.value).map((row) => [
+  toRows: (rows) =>
+    rows.map((row) => [
       displayBizNo(row.requestNo),
       row.userId ?? '',
       yuan(row.amountCents),
@@ -70,13 +74,7 @@ const { onExport } = useListCsv({
       row.failReason || '',
       formatDateTime(row.createdAt)
     ])
-});
-
-function createdAtMs(createdAt?: string) {
-  if (!createdAt) return 0;
-  const t = new Date(createdAt).getTime();
-  return Number.isFinite(t) ? t : 0;
-}
+};
 
 function yuan(cents?: number) {
   return ((cents || 0) / 100).toFixed(2);
@@ -101,67 +99,49 @@ function statusTagType(s?: string): 'success' | 'warning' | 'danger' | 'info' {
   }
 }
 
-function rowActions(row: BalanceRefundRequestDto): TableAction[] {
-  if (row.status !== 'PENDING_REVIEW' || !canReview.value) return [];
+function rowActions(row: BalanceRefundRequestDto): CrudRowAction[] {
+  if (row.status !== 'PENDING_REVIEW') return [];
   return [
-    { key: 'approve', label: '通过', icon: CircleCheck, type: 'success' },
-    { key: 'reject', label: '驳回', icon: CircleClose, type: 'danger' }
+    {
+      key: 'approve',
+      label: '通过',
+      icon: CircleCheck,
+      type: 'success',
+      perm: 'ops:balance-refund:review'
+    },
+    {
+      key: 'reject',
+      label: '驳回',
+      icon: CircleClose,
+      type: 'danger',
+      perm: 'ops:balance-refund:review'
+    }
   ];
 }
 
-/** 过滤后无可审核项时隐藏操作列（避免终态页整列「暂无」） */
-const showActionColumn = computed(() =>
-  displayRows.value.some((row) => rowActions(row).length > 0)
+/** 过滤后无可审核项（含无 ops:balance-refund:review 权限）时隐藏操作列（避免终态页整列「暂无」） */
+const showActionColumn = computed(
+  () => canReview.value && crud.displayItems.some((row) => rowActions(row).length > 0)
 );
 
-function onRowAction(key: string, row: BalanceRefundRequestDto) {
-  if (key === 'approve') review(row, true);
-  if (key === 'reject') review(row, false);
+function onAction({ key, row }: { key: string; row: BalanceRefundRequestDto }) {
+  if (key === 'approve') void review(row, true);
+  if (key === 'reject') void review(row, false);
 }
 
 function onStatusTab(name: string | number) {
   statusTab.value = String(name);
   localStorage.setItem('ops_balance_refund_status_tab', statusTab.value);
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 function search() {
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 function reset() {
-  resetKeyword();
-  page.value = 1;
-  load();
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    if (statusTab.value && statusTab.value !== 'ALL') q.set('status', statusTab.value);
-    const res = await api.request<PageResult<BalanceRefundRequestDto>>(
-      AdminEndpoints.balanceRefundsList(q)
-    );
-    rows.value = res?.items || [];
-    total.value = Number(res?.total || 0);
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-    rows.value = [];
-    total.value = 0;
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    loading.value = false;
-    listHydrated.value = true;
-  }
+  keyword.value = '';
+  void crud.search();
 }
 
 async function review(row: BalanceRefundRequestDto, approve: boolean) {
@@ -184,7 +164,7 @@ async function review(row: BalanceRefundRequestDto, approve: boolean) {
       remark: value || undefined
     });
     ElMessage.success(displayLabel('balance_refund_status', approve ? 'REFUNDED' : 'REJECTED'));
-    await load();
+    await crud.load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
@@ -192,7 +172,7 @@ async function review(row: BalanceRefundRequestDto, approve: boolean) {
 }
 
 async function batchReviewAll(approve: boolean) {
-  const targets = pickSelected(displayRows.value).filter((r) => r.status === 'PENDING_REVIEW');
+  const targets = crud.pickSelected(crud.displayItems).filter((r) => r.status === 'PENDING_REVIEW');
   if (!targets.length) {
     ElMessage.warning('请先勾选待审核申请');
     return;
@@ -224,8 +204,8 @@ async function batchReviewAll(approve: boolean) {
     const fail = results.length - ok;
     if (fail === 0) ElMessage.success(`已${approve ? '通过' : '驳回'} ${ok} 条`);
     else ElMessage.warning(`批量${action}完成：成功 ${ok}，失败 ${fail}`);
-    clearSelection();
-    await load();
+    crud.clearSelection();
+    await crud.load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
@@ -233,13 +213,6 @@ async function batchReviewAll(approve: boolean) {
     batchLoading.value = '';
   }
 }
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
-onMounted(load);
 </script>
 
 <template>
@@ -257,7 +230,7 @@ onMounted(load);
             <el-button
               type="success"
               plain
-              :disabled="!hasSelection"
+              :disabled="!crud.hasSelection"
               :loading="batchLoading === 'approve'"
               @click="batchReviewAll(true)"
               >批量通过</el-button
@@ -265,14 +238,12 @@ onMounted(load);
             <el-button
               type="danger"
               plain
-              :disabled="!hasSelection"
+              :disabled="!crud.hasSelection"
               :loading="batchLoading === 'reject'"
               @click="batchReviewAll(false)"
               >批量驳回</el-button
             >
           </template>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -306,27 +277,15 @@ onMounted(load);
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          v-loading="loading"
-          :data="displayRows"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="requestId"
-          empty-text=" "
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="showActionColumn ? rowActions : undefined"
+          :csv="csvOptions"
+          empty-text="暂无申请"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" description="暂无申请" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column prop="requestNo" label="申请号" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ displayBizNo(row.requestNo) }}</span>
@@ -381,33 +340,9 @@ onMounted(load);
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="120"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 </template>
 
