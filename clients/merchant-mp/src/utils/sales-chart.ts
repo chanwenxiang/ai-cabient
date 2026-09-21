@@ -1,13 +1,14 @@
 /**
- * 商户经营分析「构成图」的指标计算（纯函数，便于单测）。
+ * 商户经营分析「构成图」的指标计算与 ECharts option 构建（纯函数，便于单测）。
  *
- * 背景（O5 增强）：构成图此前只用 `revenueCents` 一根柱子，而后端
- * `SalesReportRowDto` 已经同时下发 `orderCount` / `qty` / `marginCents` /
- * `revenueCents` —— 这里把「取哪个字段、怎么归一化、怎么格式化」收敛成一组
- * 纯函数，组件只负责渲染。
+ * 演进（O5）：构成图最早是组件里手写的 CSS 百分比条（`salesBarWidth` + 宽度内联样式），
+ * 2026-09-21 起改用 **ECharts** 渲染（`uni-echarts` 组件）。为免把「取哪个字段、怎么
+ * 格式化、怎么组织 option」散进组件，这里统一收敛成纯函数，组件只负责挂载图表。
  *
- * ⚠️ 缺字段一律按 0（生成类型里所有字段可选），避免 NaN 进入 `width`/展示。
+ * ⚠️ 缺字段一律按 0（生成类型里所有字段可选），避免 NaN 进入坐标轴与展示。
+ * ⚠️ 金额字段单位是**分**（`revenueCents` / `marginCents`），展示前由 `formatSalesMetric` 换算。
  */
+import type { EChartsOption } from 'echarts';
 
 export type SalesChartMetric = 'revenue' | 'margin' | 'qty' | 'orders';
 
@@ -34,6 +35,9 @@ export interface SalesChartRow {
   marginCents?: number | null;
 }
 
+/** 构成图最多展示的维度数（与前手写版 `slice(0, 8)` 一致）。 */
+export const SALES_CHART_MAX_ROWS = 8;
+
 function num(v?: number | null): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -54,26 +58,74 @@ export function salesMetricValue(row: SalesChartRow, metric: SalesChartMetric): 
   }
 }
 
-/** 当前指标下各行的最大值（至少 1 ⇒ 不会除零）。空集合恒为 1。 */
-export function salesMetricMax(rows: SalesChartRow[], metric: SalesChartMetric): number {
-  let max = 0;
-  for (const r of rows || []) {
-    const v = salesMetricValue(r, metric);
-    if (v > max) max = v;
-  }
-  return Math.max(1, max);
-}
-
-/** 条形宽度百分比：最小 2%（保证「有值但极小」可见），最大 100%。 */
-export function salesBarWidth(value: number, max: number): string {
-  const pct = (num(value) / Math.max(1, num(max))) * 100;
-  return `${Math.max(2, Math.round(pct))}%`;
-}
-
-/** 条形右侧的数值文案：金额类走 ¥，计数类带单位。 */
+/** 展示文案：金额类走 ¥（分→元），计数类带单位。 */
 export function formatSalesMetric(value: number, metric: SalesChartMetric): string {
   const v = num(value);
   if (metric === 'qty') return `${v} 件`;
   if (metric === 'orders') return `${v} 单`;
   return `¥${(v / 100).toFixed(2)}`;
+}
+
+/**
+ * 构建构成图的 ECharts option（横向条形，按当前指标归一化）。
+ *
+ * 取值/格式化全部复用上面的纯函数，因此单测能覆盖「渲染成什么样」而不必挂载组件。
+ * 视觉与接入前保持一致：维度名在左、值在条末、条色与页面主色一致。
+ */
+export function buildSalesChartOption(
+  rows: SalesChartRow[],
+  metric: SalesChartMetric,
+  limit: number = SALES_CHART_MAX_ROWS
+): EChartsOption {
+  const picked = (rows || []).slice(0, Math.max(1, limit));
+  const labels = picked.map((r) => r.dimLabel || r.dimKey || '');
+  const values = picked.map((r) => salesMetricValue(r, metric));
+  const formatValue = (value: unknown) => formatSalesMetric(Number(value), metric);
+
+  return {
+    animation: false,
+    grid: { left: 0, right: 0, top: 8, bottom: 0, containLabel: true },
+    tooltip: {
+      trigger: 'item',
+      formatter: (p: unknown) => {
+        const params = p as { name?: string; value?: unknown };
+        return `${params.name ?? ''}<br/>${formatValue(params.value)}`;
+      },
+      textStyle: {
+        // 微信小程序上 tooltip 文字有阴影，官方建议置 1 规避。
+        textShadowBlur: 1
+      }
+    },
+    xAxis: { type: 'value', show: false },
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: labels,
+      axisTick: { show: false },
+      axisLine: { show: false },
+      axisLabel: {
+        fontSize: 11,
+        color: '#6b7280',
+        width: 70,
+        overflow: 'truncate'
+      }
+    },
+    series: [
+      {
+        type: 'bar',
+        data: values,
+        barMaxWidth: 14,
+        itemStyle: { color: '#2563eb', borderRadius: [0, 4, 4, 0] },
+        label: {
+          show: true,
+          position: 'right',
+          fontSize: 11,
+          color: '#6b7280',
+          formatter: (p: unknown) => formatValue((p as { value?: unknown }).value)
+        },
+        // 0 值维度不留空轨，避免看起来像「漏了数据」。
+        silent: false
+      }
+    ]
+  };
 }

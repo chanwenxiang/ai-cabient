@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:mp-weixin": "uni -p mp-weixin",
-    "build:mp-weixin": "node ../../scripts/validate-miniapp-env.mjs && uni build -p mp-weixin && node ../../scripts/patch-mp-weixin-appjson.mjs && node ../../scripts/inject-miniapp-env.mjs --mode release",
+    "dev:mp-weixin": "node ../../scripts/patch-uni-mp-workspace.mjs && uni -p mp-weixin",
+    "build:mp-weixin": "node ../../scripts/validate-miniapp-env.mjs && node ../../scripts/patch-uni-mp-workspace.mjs && uni build -p mp-weixin && node ../../scripts/patch-mp-weixin-appjson.mjs && node ../../scripts/inject-miniapp-env.mjs --mode release",
     "build:mp-weixin:prod": "npm run build:mp-weixin",
     "inject:mp-weixin": "node ../../scripts/inject-miniapp-env.mjs --mode dev",
     "patch:mp-weixin": "node ../../scripts/patch-mp-weixin-appjson.mjs",
@@ -26,6 +26,8 @@
     "@dcloudio/uni-components": "3.0.0-4010520240507001",
     "@dcloudio/uni-h5": "3.0.0-4010520240507001",
     "@dcloudio/uni-mp-weixin": "3.0.0-4010520240507001",
+    "echarts": "^5.6.0",
+    "uni-echarts": "^2.5.3",
     "vue": "^3.4.21",
     "vue-i18n": "^9.1.9"
   },

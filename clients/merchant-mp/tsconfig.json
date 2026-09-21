@@ -10,7 +10,7 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "lib": ["ES2021", "DOM"],
-    "types": ["@dcloudio/types"],
+    "types": ["@dcloudio/types", "uni-echarts/global"],
     "paths": {
       "@/*": ["./src/*"],
       "@aicabinet/shared-dict": ["../../packages/shared-dict/src/index.ts"],

@@ -111,7 +111,7 @@
               >{{ d.label }}</text
             >
           </view>
-          <!-- 扩展功能：构成图（merchant.charts.enabled，关时不渲染）。O5：可切换营收/毛利/销量/订单 -->
+          <!-- 扩展功能：构成图（merchant.charts.enabled，关时不渲染）。O5：ECharts 渲染，可切换营收/毛利/销量/订单 -->
           <view v-if="chartsEnabled && salesRows.length" class="chart-block">
             <text class="chart-title">{{ chartTitle }}</text>
             <view class="chart-metrics">
@@ -124,13 +124,13 @@
                 >{{ m.label }}</text
               >
             </view>
-            <view v-for="r in salesRows.slice(0, 8)" :key="'chart-' + r.dimKey" class="chart-row">
-              <text class="chart-label">{{ r.dimLabel || r.dimKey }}</text>
-              <view class="chart-track"
-                ><view class="chart-bar" :style="{ width: barWidth(r) }"
-              /></view>
-              <text class="chart-value">{{ chartValue(r) }}</text>
-            </view>
+            <!--
+              O5：画布尺寸必须走 `custom-style`（内联），不能用 custom-class + 本页 scoped 样式。
+              🔴 实测（微信开发者工具模拟器）：scoped 规则会被编译成 `.chart.data-v-<本页>`，
+              而组件根节点带的是**组件自己**的 scope（`data-v-<组件>`）⇒ 规则永不匹配
+              ⇒ 根节点高度 auto ⇒ canvas 实测 345×0，图上什么都看不到（H5 无此问题）。
+            -->
+            <uni-echarts custom-style="width: 100%; height: 420rpx" :option="chartOption" />
           </view>
           <view v-if="reportLoading" class="empty">{{ loadingLabel('报表') }}</view>
           <view v-else-if="!salesRows.length" class="empty">该区间暂无销售明细</view>
@@ -287,16 +287,19 @@ import { computed, ref } from 'vue';
 import { UI_COPY, onlineLabel, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import UniEcharts from 'uni-echarts';
+import { provideEcharts } from 'uni-echarts/shared';
 import { loadMerchantFlags, merchantChartsEnabled } from '@/utils/merchant-config';
+import { echarts } from '@/utils/echarts-setup';
 import {
   SALES_CHART_METRICS,
-  formatSalesMetric,
-  salesBarWidth,
-  salesMetricMax,
-  salesMetricValue,
-  type SalesChartMetric,
-  type SalesChartRow
+  buildSalesChartOption,
+  type SalesChartMetric
 } from '@/utils/sales-chart';
+
+// O5：把**按需注册**的 echarts 实例注入 uni-echarts 组件。文档允许由 Vite 插件代劳，
+// 这里显式调用是为了不依赖插件的隐式行为（插件失效时图表会静默不渲染，极难排查）。
+provideEcharts(echarts);
 import {
   isMerchantLoggedIn,
   hasPerm,
@@ -447,14 +450,8 @@ const chartTitle = computed(
       chartMetricOptions.find((m) => m.value === chartMetric.value)?.label ?? ''
     }）`
 );
-/** 当前指标下各维度最大值（至少 1 ⇒ 不会除零）。 */
-const maxMetricValue = computed(() => salesMetricMax(salesRows.value || [], chartMetric.value));
-function barWidth(row: SalesChartRow) {
-  return salesBarWidth(salesMetricValue(row, chartMetric.value), maxMetricValue.value);
-}
-function chartValue(row: SalesChartRow) {
-  return formatSalesMetric(salesMetricValue(row, chartMetric.value), chartMetric.value);
-}
+/** O5：构成图 option（ECharts）。取值/格式化全在 `buildSalesChartOption`，组件只负责挂载。 */
+const chartOption = computed(() => buildSalesChartOption(salesRows.value || [], chartMetric.value));
 const marginRate = computed(() =>
   analytics.value.revenueCents
     ? `${((analytics.value.grossMarginCents / analytics.value.revenueCents) * 100).toFixed(1)}%`
@@ -660,42 +657,12 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   color: var(--white);
 }
 
-.chart-row {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  margin-bottom: 10rpx;
-}
-
-.chart-label {
-  width: 140rpx;
-  font-size: var(--font-size-xs, 24rpx);
-  color: var(--text-primary, #111827);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.chart-track {
-  flex: 1;
-  height: 16rpx;
-  border-radius: 8rpx;
-  background: var(--page-bg, #f6f7f9);
-  overflow: hidden;
-}
-
-.chart-bar {
-  height: 100%;
-  border-radius: 8rpx;
-  background: var(--accent-blue, #2563eb);
-}
-
-.chart-value {
-  width: 130rpx;
-  text-align: right;
-  font-size: var(--font-size-xs, 24rpx);
-  color: var(--text-secondary, #6b7280);
-}
+/*
+ * O5：ECharts 画布的尺寸**不在这里定义**。
+ * 组件根节点属于 `uni-echarts` 自己的作用域，本页 scoped 规则匹配不到它（编译产物为
+ * `.chart.data-v-<本页>`，而节点上是 `data-v-<组件>`）。故尺寸写在模板的 `custom-style` 上
+ * （见 `<uni-echarts custom-style="...">`），这里不再保留同名空规则以免误导。
+ */
 
 .insight-text {
   display: block;
