@@ -80,6 +80,18 @@
           >支付宝免密</text
         >
       </view>
+      <!-- G9：免密代扣的用户自助解约入口。没有它，用户只能等渠道侧通知才能撤回授权。 -->
+      <view v-if="passwordFreeReady" class="pay-pref-unsign-row">
+        <text
+          role="button"
+          class="pay-pref-unsign"
+          :class="{ busy: payPrefBusy }"
+          aria-label="关闭免密支付"
+          @click="onUnsignPayContract"
+          >关闭免密支付</text
+        >
+        <text class="pay-pref-unsign-hint">关闭后可随时重新开通</text>
+      </view>
     </view>
 
     <view class="quick-grid">
@@ -337,6 +349,8 @@ const payPreferred = computed(() => {
   if (c === 'WECHAT' || c === 'ALIPAY' || c === 'BALANCE') return c;
   return 'BALANCE';
 });
+/** G9：是否已有生效的免密代扣（任一渠道）——决定是否显示「关闭免密支付」。 */
+const passwordFreeReady = computed(() => !!account.value?.passwordFreeReady);
 const setupHint = computed(() => {
   if (!verified.value) return '完成实名并开通免密支付后即可开门';
   return payReadyHint(account.value, null, preauthCents.value);
@@ -365,6 +379,33 @@ async function onSetPayPreferred(channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') {
     showSuccess(`已优先${label}`);
   } catch (e) {
     showError(e instanceof Error ? e.message : '设置失败');
+  } finally {
+    payPrefBusy.value = false;
+  }
+}
+
+/**
+ * G9：用户主动解约（关闭免密代扣）。
+ *
+ * 后端返回**刷新后的账户** ⇒ 直接整份替换，避免「按钮点完了、状态还显示已开通」的前后端漂移；
+ * 提示文案按调用前后的 `passwordFreeReady` 差异决定，不在后端再写一套 UI 判断。
+ */
+async function onUnsignPayContract() {
+  if (!authed.value || payPrefBusy.value) return;
+  const confirmed = await showConfirm({
+    title: '关闭免密支付',
+    content: '关闭后购物将改用余额或当场付款，可随时重新开通。',
+    confirmText: '确认关闭'
+  });
+  if (!confirmed) return;
+  const wasReady = passwordFreeReady.value;
+  payPrefBusy.value = true;
+  try {
+    account.value = await consumerApi.unsignPayContract();
+    syncBalanceDisplay(account.value);
+    showSuccess(wasReady ? '免密支付已关闭' : '当前没有已开通的免密支付');
+  } catch (e) {
+    showError(e instanceof Error ? e.message : '关闭失败，请稍后重试');
   } finally {
     payPrefBusy.value = false;
   }
@@ -841,6 +882,26 @@ async function onLogout() {
 }
 .pay-pref-chip.busy {
   opacity: 0.7;
+}
+.pay-pref-unsign-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid var(--color-border-subtle, #edf1ef);
+}
+.pay-pref-unsign {
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #849087);
+  text-decoration: underline;
+}
+.pay-pref-unsign.busy {
+  opacity: 0.5;
+}
+.pay-pref-unsign-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
 }
 
 .quick-grid {

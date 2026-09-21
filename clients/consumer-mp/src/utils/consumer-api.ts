@@ -601,6 +601,15 @@ export const consumerApi = {
       '/api/v2/account/alipay-agreement/sign',
       'POST'
     ),
+  /**
+   * G9：用户主动解约（关闭免密代扣）。幂等 —— 没有已开通合约时同样返回 200。
+   * 返回刷新后的 `AccountDto`（与 `setPayPreferred` 同款），前端整份替换即可。
+   */
+  unsignPayContract: () =>
+    request<import('@aicabinet/shared-types').AccountDto>(
+      '/api/v2/account/pay-contract/unsign',
+      'POST'
+    ),
   setPayPreferred: (channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') =>
     request<import('@aicabinet/shared-types').AccountDto>('/api/v2/account/pay-preferred', 'PUT', {
       channel
