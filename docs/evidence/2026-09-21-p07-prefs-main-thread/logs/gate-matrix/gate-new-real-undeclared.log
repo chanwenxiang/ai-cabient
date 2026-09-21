@@ -1,0 +1,3 @@
+[check-edge-queue-threading] FAIL: 边端持久化队列的落盘线程契约被破坏：
+  - status/DeviceStatusHub.kt::enqueue（第 49 行）：接触持久化队列但未在本门禁清单中声明。
+      落盘是同步刷盘；请确认它跑在哪个线程上，然后在 DECLARED 里补一条并写明依据

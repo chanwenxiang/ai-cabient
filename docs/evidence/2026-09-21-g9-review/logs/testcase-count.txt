@@ -1,0 +1,6 @@
+mvn -B -pl services/trade-service -am clean test -Dtest=PayScoreContractCancelTest -Dsurefire.failIfNoSpecifiedTests=false
+EXITCODE=0   [INFO] BUILD SUCCESS
+--- <testcase> 元素计数（唯一判据）---
+TEST-com.aicabinet.trade.service.PayScoreContractCancelTest.xml testcase=5 failure=0 error=0
+--- 编译产物 ---
+PayScoreService$ContractCancelResult.class EXISTS

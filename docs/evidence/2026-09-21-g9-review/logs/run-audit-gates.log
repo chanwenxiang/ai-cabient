@@ -1,0 +1,37 @@
+✓ check:audit-gates-wiring
+✗ check:line-endings exit=1 ::   这些就是「纯行尾假改动」：git status 说改了、git diff 说没改、git add 什么都提交不了。 /   修复：node scripts/check-line-endings.mjs --fix /   注意 `git add` 只是刷新 stat，**不会**把磁盘改回 LF，所以别拿它当修复。
+✓ check:demo-video-format
+✓ check:uat-consumers
+✓ check:feature-flags
+✓ check:mp-unit-tests-wired
+✓ check:android-tests-wired
+✓ check:edge-cloud-mqtt-contract
+✓ check:ops-alert-escalation
+✓ check:docker-tests-guarded
+✓ check:compose-stop-grace
+✓ check:menu-permissions
+✓ check:compose-ports
+✓ check:mybatis-null-clear
+✓ check:ops-alert-channels
+✓ check:miniapp-privacy-declaration
+✓ check:prometheus-metric-names
+✓ check:replenishment-checkin-contract
+✓ check:edge-queue-threading
+✓ check:admin-dialog-a11y
+✓ check:scheduled-zone
+✓ check:cache-names
+✓ check:admin-endpoints
+✓ check:admin-token-storage
+✓ check:admin-page-size
+✓ check:admin-anti-jitter
+✓ check:admin-table-align
+✓ check:mp-a11y
+✓ check:balance-hold-types
+✓ check:uat-selectors
+✓ check:device-code-input
+✓ check:xxl-job-wiring
+✓ check:scheduled-task-seed
+✓ check:scheduling-vs-db-pool
+
+[run-audit-gates] 聚合链 34 个门禁，失败 1 个
+EXIT=1

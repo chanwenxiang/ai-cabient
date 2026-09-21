@@ -1,0 +1,3 @@
+[check-edge-queue-threading] FAIL: service/CabinetService.kt 的 CoroutineScope 用了 Dispatchers.Main。
+  CabinetController 在协程内做同步落盘（PrefsJsonQueue.commit）与阻塞网络上传（MinIO），
+  换成 Main 会让落盘与上传直接跑在主线程上 ⇒ ANR / NetworkOnMainThreadException。

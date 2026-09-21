@@ -1,0 +1,290 @@
+[WARNING] 
+[WARNING] Some problems were encountered while building the effective settings
+[WARNING] Unrecognised tag: 'repositories' (position: START_TAG seen ...</profile>\n    -->\n\t\n<repositories>... @234:15)  @ D:\devTools\apache-maven-3.9.11\conf\settings.xml, line 234, column 15
+[WARNING] 
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] AI Cabinet                                                         [pom]
+[INFO] common-core                                                        [jar]
+[INFO] trade-service                                                      [jar]
+[INFO] 
+[INFO] ----------------------< com.aicabinet:ai-cabinet >----------------------
+[INFO] Building AI Cabinet 0.1.0-SNAPSHOT                                 [1/3]
+[INFO]   from pom.xml
+[INFO] --------------------------------[ pom ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ ai-cabinet ---
+[INFO] 
+[INFO] --- jacoco:0.8.12:prepare-agent (prepare-agent) @ ai-cabinet ---
+[INFO] argLine set to -javaagent:D:\\devTools\\repository\\org\\jacoco\\org.jacoco.agent\\0.8.12\\org.jacoco.agent-0.8.12-runtime.jar=destfile=C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\target\\jacoco.exec
+[INFO] 
+[INFO] --- jacoco:0.8.12:report (report) @ ai-cabinet ---
+[INFO] Skipping JaCoCo execution due to missing execution data file.
+[INFO] 
+[INFO] ---------------------< com.aicabinet:common-core >----------------------
+[INFO] Building common-core 0.1.0-SNAPSHOT                                [2/3]
+[INFO]   from services\common\common-core\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ common-core ---
+[INFO] Deleting C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\common\common-core\target
+[INFO] 
+[INFO] --- jacoco:0.8.12:prepare-agent (prepare-agent) @ common-core ---
+[INFO] argLine set to -javaagent:D:\\devTools\\repository\\org\\jacoco\\org.jacoco.agent\\0.8.12\\org.jacoco.agent-0.8.12-runtime.jar=destfile=C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\services\\common\\common-core\\target\\jacoco.exec
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ common-core ---
+[INFO] skip non existing resourceDirectory C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\common\common-core\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ common-core ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 384 source files with javac [debug parameters target 17] to target\classes
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ common-core ---
+[INFO] skip non existing resourceDirectory C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\common\common-core\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ common-core ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- surefire:3.5.4:test (default-test) @ common-core ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] --- jacoco:0.8.12:report (report) @ common-core ---
+[INFO] Skipping JaCoCo execution due to missing execution data file.
+[INFO] 
+[INFO] --------------------< com.aicabinet:trade-service >---------------------
+[INFO] Building trade-service 0.1.0-SNAPSHOT                              [3/3]
+[INFO]   from services\trade-service\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ trade-service ---
+[INFO] Deleting C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service\target
+[INFO] 
+[INFO] --- jacoco:0.8.12:prepare-agent (prepare-agent) @ trade-service ---
+[INFO] argLine set to -javaagent:D:\\devTools\\repository\\org\\jacoco\\org.jacoco.agent\\0.8.12\\org.jacoco.agent-0.8.12-runtime.jar=destfile=C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\services\\trade-service\\target\\jacoco.exec
+[INFO] 
+[INFO] --- frontend:1.15.1:install-node-and-pnpm (install-node-and-pnpm) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] 
+[INFO] --- frontend:1.15.1:pnpm (pnpm-install-admin) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] 
+[INFO] --- frontend:1.15.1:pnpm (pnpm-build-admin) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ trade-service ---
+[INFO] Copying 538 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ trade-service ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 705 source files with javac [debug parameters target 17] to target\classes
+[INFO] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/config/RedissonConfig.java: C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service\src\main\java\com\aicabinet\trade\config\RedissonConfig.java使用或覆盖了已过时的 API。
+[INFO] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/config/RedissonConfig.java: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+[INFO] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/config/OrderReadModelOpenApiCustomizer.java: C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service\src\main\java\com\aicabinet\trade\config\OrderReadModelOpenApiCustomizer.java使用了未经检查或不安全的操作。
+[INFO] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/config/OrderReadModelOpenApiCustomizer.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ trade-service ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ trade-service ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 274 source files with javac [debug parameters target 17] to target\test-classes
+[WARNING] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/test/java/com/aicabinet/trade/e2e/ConsumerE2ETest.java:[78,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/test/java/com/aicabinet/trade/e2e/ConsumerE2ETest.java:[78,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/test/java/com/aicabinet/trade/e2e/ConsumerE2ETest.java:[78,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/test/java/com/aicabinet/trade/e2e/ConsumerE2ETest.java:[78,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/test/java/com/aicabinet/trade/e2e/ConsumerE2ETest.java:[78,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[INFO] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/test/java/com/aicabinet/trade/config/SchedulingPoolCapacitySelfCheckTest.java: 某些输入文件使用了未经检查或不安全的操作。
+[INFO] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/test/java/com/aicabinet/trade/config/SchedulingPoolCapacitySelfCheckTest.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] 
+[INFO] --- surefire:3.5.4:test (default-test) @ trade-service ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.aicabinet.trade.service.OpsAlertDispatcherTest
+mvn.cmd : Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstra
+p classpath has been appended
+所在位置 行:446 字符: 1
++ & mvn '-pl' 'services/trade-service' '-am' 'clean' 'test' '-Dtest=Ops ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Java HotSpot(TM...s been appended:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+23:00:57.651 [main] WARN com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert failed channel=FEISHU type=DEVICE_OFFLINE url=https://open...hook/abc attempts=1: connection reset
+23:00:57.777 [main] WARN com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert failed channel=FEISHU type=DEVICE_OFFLINE url=https://open...hook/abc attempts=1: connection reset
+23:00:57.945 [main] INFO com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert sent channel=WECOM type=DEVICE_OFFLINE attempts=1
+23:00:57.993 [main] INFO com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert sent channel=FEISHU type=DEVICE_OFFLINE attempts=1
+23:00:58.091 [main] INFO com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert sent channel=WEBHOOK type=DISPUTE_SLA_OVERDUE attempts=1
+23:00:58.127 [main] INFO com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert sent channel=WEBHOOK type=DISPUTE_SLA_REMINDER attempts=1
+23:00:58.145 [main] WARN com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert rejected channel=DINGTALK type=DEVICE_OFFLINE url=https://oapi...oken=abc: errcode=310000 keywords not in content
+23:00:58.198 [main] WARN com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert rejected channel=FEISHU type=DEVICE_OFFLINE url=https://open...hook/abc: code=9499 Bad Request
+23:00:58.210 [main] WARN com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert failed channel=FEISHU type=DEVICE_OFFLINE url=https://open...hook/abc attempts=1: connection refused
+23:00:58.247 [main] WARN com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert failed channel=FEISHU type=DEVICE_OFFLINE url=https://open...hook/abc attempts=1: 500 INTERNAL_SERVER_ERROR
+23:00:58.256 [main] WARN com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert rejected channel=FEISHU type=DEVICE_OFFLINE url=https://open...hook/abc: code=19024 Key Words Not Found
+23:00:58.283 [main] INFO com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert sent channel=FEISHU type=DEVICE_OFFLINE attempts=1
+23:00:58.302 [main] WARN com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert failed channel=FEISHU type=DEVICE_OFFLINE url=https://open...hook/abc attempts=1: 404 NOT_FOUND
+23:00:58.338 [main] WARN com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert rejected channel=FEISHU type=DEVICE_OFFLINE url=https://open...hook/abc: code=19024 Key Words Not Found
+23:00:58.344 [main] INFO com.aicabinet.trade.service.OpsAlertDispatcher -- ops alert sent channel=DINGTALK type=DISPUTE_SLA_REMINDER attempts=1
+[ERROR] Tests run: 30, Failures: 6, Errors: 0, Skipped: 0, Time elapsed: 7.578 s <<< FAILURE! -- in com.aicabinet.trade.service.OpsAlertDispatcherTest
+[ERROR] com.aicabinet.trade.service.OpsAlertDispatcherTest.trySend_shouldRetryTransientTransportErrorThenSucceed -- Time elapsed: 6.913 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)
+	at com.aicabinet.trade.service.OpsAlertDispatcherTest.trySend_shouldRetryTransientTransportErrorThenSucceed(OpsAlertDispatcherTest.java:342)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+[ERROR] com.aicabinet.trade.service.OpsAlertDispatcherTest.send_shouldRetryTransportErrorWithoutThrowing -- Time elapsed: 0.092 s <<< FAILURE!
+org.mockito.exceptions.verification.TooFewActualInvocations: 
+
+opsAlertDispatcher.postJson(
+    <any string>,
+    <any>
+);
+Wanted 3 times:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.postJson(OpsAlertDispatcher.java:394)
+But was 1 time:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.deliver(OpsAlertDispatcher.java:220)
+
+	at com.aicabinet.trade.service.OpsAlertDispatcher.postJson(OpsAlertDispatcher.java:394)
+	at com.aicabinet.trade.service.OpsAlertDispatcherTest.send_shouldRetryTransportErrorWithoutThrowing(OpsAlertDispatcherTest.java:425)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+[ERROR] com.aicabinet.trade.service.OpsAlertDispatcherTest.maxAttemptsGuard_shouldStayAtExpectedDepth -- Time elapsed: 0.011 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 单渠道重试深度被改动：若确属有意，请同步更新 EXPECTED_ATTEMPTS 并复核重试预算 ==> expected: <3> but was: <1>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:150)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:563)
+	at com.aicabinet.trade.service.OpsAlertDispatcherTest.maxAttemptsGuard_shouldStayAtExpectedDepth(OpsAlertDispatcherTest.java:327)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+[ERROR] com.aicabinet.trade.service.OpsAlertDispatcherTest.probeChannels_shouldRetryTransientErrorThenReportDelivered -- Time elapsed: 0.013 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)
+	at com.aicabinet.trade.service.OpsAlertDispatcherTest.probeChannels_shouldRetryTransientErrorThenReportDelivered(OpsAlertDispatcherTest.java:441)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+[ERROR] com.aicabinet.trade.service.OpsAlertDispatcherTest.trySend_shouldStopAfterMaxAttemptsWhenTransportKeepsFailing -- Time elapsed: 0.012 s <<< FAILURE!
+org.mockito.exceptions.verification.TooFewActualInvocations: 
+
+opsAlertDispatcher.postJson(
+    <any string>,
+    <any>
+);
+Wanted 3 times:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.postJson(OpsAlertDispatcher.java:394)
+But was 1 time:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.deliver(OpsAlertDispatcher.java:220)
+
+	at com.aicabinet.trade.service.OpsAlertDispatcher.postJson(OpsAlertDispatcher.java:394)
+	at com.aicabinet.trade.service.OpsAlertDispatcherTest.trySend_shouldStopAfterMaxAttemptsWhenTransportKeepsFailing(OpsAlertDispatcherTest.java:355)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+[ERROR] com.aicabinet.trade.service.OpsAlertDispatcherTest.trySend_shouldRetryServerError -- Time elapsed: 0.027 s <<< FAILURE!
+org.mockito.exceptions.verification.TooFewActualInvocations: 
+
+opsAlertDispatcher.postJson(
+    <any string>,
+    <any>
+);
+Wanted 3 times:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.postJson(OpsAlertDispatcher.java:394)
+But was 1 time:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.deliver(OpsAlertDispatcher.java:220)
+
+	at com.aicabinet.trade.service.OpsAlertDispatcher.postJson(OpsAlertDispatcher.java:394)
+	at com.aicabinet.trade.service.OpsAlertDispatcherTest.trySend_shouldRetryServerError(OpsAlertDispatcherTest.java:396)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   OpsAlertDispatcherTest.maxAttemptsGuard_shouldStayAtExpectedDepth:327 单渠道重试深度被改动：若确属有意，请同步更新 EXPECTED_ATTEMPTS 并复核重试预算 ==> expected: <3> but was: <1>
+[ERROR]   OpsAlertDispatcherTest.probeChannels_shouldRetryTransientErrorThenReportDelivered:441 expected: <true> but was: <false>
+[ERROR]   OpsAlertDispatcherTest.send_shouldRetryTransportErrorWithoutThrowing:425 
+opsAlertDispatcher.postJson(
+    <any string>,
+    <any>
+);
+Wanted 3 times:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.postJson(OpsAlertDispatcher.java:394)
+But was 1 time:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.deliver(OpsAlertDispatcher.java:220)
+
+[ERROR]   OpsAlertDispatcherTest.trySend_shouldRetryServerError:396 
+opsAlertDispatcher.postJson(
+    <any string>,
+    <any>
+);
+Wanted 3 times:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.postJson(OpsAlertDispatcher.java:394)
+But was 1 time:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.deliver(OpsAlertDispatcher.java:220)
+
+[ERROR]   OpsAlertDispatcherTest.trySend_shouldRetryTransientTransportErrorThenSucceed:342 expected: <true> but was: <false>
+[ERROR]   OpsAlertDispatcherTest.trySend_shouldStopAfterMaxAttemptsWhenTransportKeepsFailing:355 
+opsAlertDispatcher.postJson(
+    <any string>,
+    <any>
+);
+Wanted 3 times:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.postJson(OpsAlertDispatcher.java:394)
+But was 1 time:
+-> at com.aicabinet.trade.service.OpsAlertDispatcher.deliver(OpsAlertDispatcher.java:220)
+
+[INFO] 
+[ERROR] Tests run: 30, Failures: 6, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for AI Cabinet 0.1.0-SNAPSHOT:
+[INFO] 
+[INFO] AI Cabinet ......................................... SUCCESS [  0.313 s]
+[INFO] common-core ........................................ SUCCESS [ 37.196 s]
+[INFO] trade-service ...................................... FAILURE [02:57 min]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  03:35 min
+[INFO] Finished at: 2026-09-18T23:00:58+08:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.4:test (default-test) on project trade-service: There are test failures.
+[ERROR] 
+[ERROR] See C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service\target\surefire-reports for the individual test results.
+[ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[ERROR] 
+[ERROR] After correcting the problems, you can resume the build with the command
+[ERROR]   mvn <args> -rf :trade-service
+EXITCODE=1

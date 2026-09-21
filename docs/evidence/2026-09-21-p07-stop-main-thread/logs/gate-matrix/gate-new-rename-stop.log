@@ -1,0 +1,1 @@
+[check-edge-queue-threading] FAIL: 规则④ 的解析锚点失效：CabinetService.kt 只解析出 1 处 .start()/.stop() 调用（预期 ≥ 2：onCreate 一处、onDestroy 一处）—— 请同步本脚本

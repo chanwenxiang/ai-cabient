@@ -1,0 +1,45 @@
+== 沙箱：C:\Users\cwx\AppData\Local\Temp\aicabinet-gate-ab ==
+
+-- 无注入                                源=head-lf    期望 旧=绿 / 新=绿
+     实测 旧=绿 / 新=绿 ⇒ 符合预期
+
+-- 无注入                                源=head-crlf  期望 旧=绿 / 新=绿
+     实测 旧=绿 / 新=绿 ⇒ 符合预期
+
+-- `//` 注释里提到 drain(                  源=head-lf    期望 旧=绿 / 新=绿
+     实测 旧=绿 / 新=绿 ⇒ 符合预期
+
+-- `//` 注释里提到 drain(                  源=head-crlf  期望 旧=红 / 新=绿
+     实测 旧=红 / 新=绿 ⇒ 符合预期
+
+-- 无注入（工作区真实源）                        源=worktree   期望 旧=红 / 新=绿
+     实测 旧=红 / 新=绿 ⇒ 符合预期
+
+-- KDoc 里提到 mutate(（对照）               源=head-crlf  期望 旧=绿 / 新=绿
+     实测 旧=绿 / 新=绿 ⇒ 符合预期
+
+-- 真新增未声明 enqueue(                    源=head-crlf  期望 旧=红 / 新=红
+     实测 旧=红 / 新=红 ⇒ 符合预期
+
+-- Scope 改 Dispatchers.Main           源=head-crlf  期望 旧=红 / 新=红
+     实测 旧=红 / 新=红 ⇒ 符合预期
+
+-- 已声明条目改名失效                          源=head-crlf  期望 旧=红 / 新=红
+     实测 旧=红 / 新=红 ⇒ 符合预期
+
+== 矩阵汇总 ==
+  tag                说明                           源        旧实测    旧期     新实测    新期    
+  none-lf            无注入                          head-lf  绿      绿      绿      绿      
+  none-crlf          无注入                          head-crlf 绿      绿      绿      绿      
+  comment-lf         `//` 注释里提到 drain(            head-lf  绿      绿      绿      绿      
+  comment-crlf       `//` 注释里提到 drain(            head-crlf 红      红      绿      绿      
+  worktree-crlf      无注入（工作区真实源）                  worktree 红      红      绿      绿      
+  kdoc-crlf          KDoc 里提到 mutate(（对照）         head-crlf 绿      绿      绿      绿      
+  real-undeclared    真新增未声明 enqueue(              head-crlf 红      红      红      红      
+  dispatchers-main   Scope 改 Dispatchers.Main     head-crlf 红      红      红      红      
+  stale-declaration  已声明条目改名失效                    head-crlf 红      红      红      红      
+
+  读法：`comment-*` 两行是同一注入、**只差源行尾** ⇒ LF 绿 / CRLF 假红，
+        `worktree-crlf` 是本次真实事故；其余真漂移行两臂都必须红。
+
+A/B 结论：全部符合预期

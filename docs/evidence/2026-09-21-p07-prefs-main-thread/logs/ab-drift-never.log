@@ -1,0 +1,57 @@
+> Task :app:checkKotlinGradlePluginConfigurationErrors
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preMockDebugBuild UP-TO-DATE
+> Task :app:dataBindingMergeDependencyArtifactsMockDebug UP-TO-DATE
+> Task :app:generateMockDebugResValues UP-TO-DATE
+> Task :app:generateMockDebugResources UP-TO-DATE
+> Task :app:mergeMockDebugResources UP-TO-DATE
+> Task :app:packageMockDebugResources UP-TO-DATE
+> Task :app:parseMockDebugLocalResources UP-TO-DATE
+> Task :app:dataBindingGenBaseClassesMockDebug UP-TO-DATE
+> Task :app:generateMockDebugBuildConfig UP-TO-DATE
+> Task :app:checkMockDebugAarMetadata UP-TO-DATE
+> Task :app:mapMockDebugSourceSetPaths UP-TO-DATE
+> Task :app:createMockDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksMockDebug UP-TO-DATE
+> Task :app:processMockDebugMainManifest UP-TO-DATE
+> Task :app:processMockDebugManifest UP-TO-DATE
+> Task :app:processMockDebugManifestForPackage UP-TO-DATE
+> Task :app:processMockDebugResources UP-TO-DATE
+> Task :app:javaPreCompileMockDebug UP-TO-DATE
+> Task :app:preMockDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileMockDebugUnitTest UP-TO-DATE
+> Task :app:compileMockDebugKotlin
+> Task :app:compileMockDebugJavaWithJavac UP-TO-DATE
+> Task :app:processMockDebugJavaRes UP-TO-DATE
+> Task :app:bundleMockDebugClassesToRuntimeJar
+> Task :app:bundleMockDebugClassesToCompileJar
+> Task :app:compileMockDebugUnitTestKotlin
+> Task :app:compileMockDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processMockDebugUnitTestJavaRes UP-TO-DATE
+
+> Task :app:testMockDebugUnitTest
+
+PrefsJsonQueueMainThreadTest > 主线程写_两条写路径都被检测到_且数据真的落盘 FAILED
+    java.lang.AssertionError at PrefsJsonQueueMainThreadTest.kt:72
+
+2 tests completed, 1 failed
+
+> Task :app:testMockDebugUnitTest FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:testMockDebugUnitTest'.
+> There were failing tests. See the report at: file:///C:/Users/cwx/AppData/Local/Temp/aicabinet-android-ab/app/build/reports/tests/testMockDebugUnitTest/index.html
+
+* Try:
+> Run with --scan to get full insights.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.9/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 22s
+26 actionable tasks: 6 executed, 20 up-to-date

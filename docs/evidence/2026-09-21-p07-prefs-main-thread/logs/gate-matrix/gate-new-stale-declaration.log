@@ -1,0 +1,3 @@
+[check-edge-queue-threading] FAIL: 边端持久化队列的落盘线程契约被破坏：
+  - upload/OfflineUploadQueue.kt::replaceAll：清单里有、代码里已找不到 —— 该条目已失效。
+      要么调用点被删/改名（请更新清单），要么解析被绕过（请复核判据）

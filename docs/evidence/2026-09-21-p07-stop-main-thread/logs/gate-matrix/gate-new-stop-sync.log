@@ -1,0 +1,2 @@
+[check-edge-queue-threading] FAIL: service/CabinetService.kt 第 65 行的 .stop() 是**同步调用**。
+  stop() 是阻塞链（串口 / Paho connect·disconnect / 同步落盘），而 onCreate·onDestroy 跑在主线程 ⇒ 必须放进 launch 或 ServiceShutdown.schedule 的异步块内。

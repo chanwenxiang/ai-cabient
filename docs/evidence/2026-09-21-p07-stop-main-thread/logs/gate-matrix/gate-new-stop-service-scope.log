@@ -1,0 +1,3 @@
+[check-edge-queue-threading] FAIL: service/CabinetService.kt 第 65 行的 .stop() 挂在 `serviceScope` 上，而 onDestroy 随后对该作用域调用了 cancel()。
+  cancel() 会取消「刚提交、尚未被调度到」的子协程 ⇒ 该调用**静默不执行**（不报错、不打日志）。
+  停机请用独立作用域（见 ServiceShutdown.schedule）。

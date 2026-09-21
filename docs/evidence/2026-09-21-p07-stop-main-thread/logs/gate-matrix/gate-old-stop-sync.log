@@ -1,0 +1,11 @@
+[check-edge-queue-threading] OK（接触点 12 处／已声明 10 条；锁内同步落盘 ✓、CabinetScope 非主线程 ✓）
+  · mqtt/MqttDeviceClient.kt::enqueue —— publish()：调用方为心跳线程池(scheduleAtFixedRate)、Paho 回调线程(connectComplete)、或 CabinetController 的 Dispatchers.Default 协程
+  · mqtt/MqttDeviceClient.kt::size —— flushOutbound() ← connectComplete()：Paho 客户端回调线程
+  · mqtt/MqttDeviceClient.kt::drain —— flushOutbound() ← connectComplete()：Paho 客户端回调线程
+  · mqtt/OutboundMqttQueue.kt::mutate —— enqueue()/drain() 内部调用，线程随调用方（见本文件 enqueue/drain 两条）
+  · mqtt/OutboundMqttQueue.kt::size —— size() 内部调用，线程随调用方（见 MqttDeviceClient.kt::size）
+  · service/CabinetController.kt::enqueue —— finishShoppingClose() ← handleOpenDoor 的 scope.launch（Dispatchers.Default）；此处只在上传失败分支触发，与同函数内的阻塞上传同一线程
+  · upload/OfflineUploadQueue.kt::mutate —— enqueue() 内部调用，线程随调用方（见 CabinetController.kt::enqueue）
+  · upload/OfflineUploadQueue.kt::enqueue —— enqueueSingle() 内部委托；enqueueSingle 当前无外部调用者（若将来接线，必须重新复核线程）
+  · upload/OfflineUploadQueue.kt::snapshot —— processQueue() ← start() 在 offline-upload 单线程 executor 上调度（scheduleWithFixedDelay + execute）
+  · upload/OfflineUploadQueue.kt::replaceAll —— processQueue() ← 同上（offline-upload 单线程 executor）

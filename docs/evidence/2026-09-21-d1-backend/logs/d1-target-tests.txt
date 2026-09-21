@@ -1,0 +1,8 @@
+﻿CMD=mvn -B -pl services/trade-service -am clean test -Dtest=MemberServiceDepositLevelTest,MemberStatsConcurrencyTest,MemberOnOrderPaidConcurrencyTest,MemberLevelAdminConcurrencyTest,PointsRedeemServiceTest,PaymentServiceTest -Dsurefire.failIfNoSpecifiedTests=false
+EXITCODE=0
+TEST-com.aicabinet.trade.service.MemberLevelAdminConcurrencyTest.xml testcase=3 failure=0 error=0
+TEST-com.aicabinet.trade.service.MemberOnOrderPaidConcurrencyTest.xml testcase=2 failure=0 error=0
+TEST-com.aicabinet.trade.service.MemberServiceDepositLevelTest.xml testcase=9 failure=0 error=0
+TEST-com.aicabinet.trade.service.MemberStatsConcurrencyTest.xml testcase=3 failure=0 error=0
+TEST-com.aicabinet.trade.service.PaymentServiceTest.xml testcase=21 failure=0 error=0
+TEST-com.aicabinet.trade.service.PointsRedeemServiceTest.xml testcase=5 failure=0 error=0
