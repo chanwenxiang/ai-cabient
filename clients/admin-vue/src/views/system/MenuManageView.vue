@@ -12,21 +12,15 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-radio-group v-model="scope" size="small" @change="syncRouteQuery">
+          <el-radio-group v-model="scope" size="small" @change="applyFilters">
             <el-radio-button value="ops">运营侧栏</el-radio-button>
             <el-radio-button value="merchant">商户权限</el-radio-button>
             <el-radio-button value="all">全部</el-radio-button>
           </el-radio-group>
-          <el-switch v-model="showInactive" active-text="含停用" @change="syncRouteQuery" />
-          <el-button link type="primary" @click="selectAllRows">全选</el-button>
-          <el-button link @click="clearAllRows">清空</el-button>
+          <el-switch v-model="showInactive" active-text="含停用" @change="applyFilters" />
           <el-button v-hasPermi="['ops:rbac:menu:add']" type="primary" @click="openCreate()"
             >新增</el-button
           >
-          <el-button v-hasPermi="['ops:rbac:menu:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -38,8 +32,8 @@
           clearable
           placeholder="名称 / 权限标识 / 路由"
           style="width: 220px"
-          @clear="syncRouteQuery"
-          @keyup.enter="syncRouteQuery"
+          @clear="applyFilters"
+          @keyup.enter="applyFilters"
         />
       </el-form-item>
       <el-form-item label="类型">
@@ -48,7 +42,7 @@
           clearable
           placeholder="全部"
           style="width: 120px"
-          @change="syncRouteQuery"
+          @change="applyFilters"
         >
           <el-option label="目录 M" value="M" />
           <el-option label="菜单 C" value="C" />
@@ -56,39 +50,26 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="syncRouteQuery">查询</el-button>
+        <el-button type="primary" @click="applyFilters">查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
-        <el-button link type="primary" @click="setExpandAll(true)">展开</el-button>
-        <el-button link type="primary" @click="setExpandAll(false)">收起</el-button>
       </el-form-item>
     </el-form>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          v-loading="loading"
-          :data="tableRows"
+        <CrudTable
+          :table="crud"
           row-key="permissionId"
+          selectable
+          :actions="rowActions"
+          empty-text="暂无菜单"
+          :csv="csvOptions"
           default-expand-all
           :indent="22"
           :tree-props="{ children: 'children' }"
-          stripe
-          border
-          class="report-table menu-tree-table"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          class="menu-tree-table"
+          @action="onMenuAction"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" description="暂无菜单" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             label="名称"
             min-width="200"
@@ -143,18 +124,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="120"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions :actions="menuActions(row)" @action="(k) => onMenuAction(k, row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
 
@@ -217,15 +187,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Delete, EditPen, Plus, Refresh, CircleCheck } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus';
+import { Delete, EditPen, Plus, CircleCheck } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { useTableSelection } from '@/composables/useTableSelection';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import { buildPermTree, flattenForParentSelect, type PermRow } from '@/utils/rbac-tree';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
@@ -236,15 +205,12 @@ type MenuScope = 'ops' | 'merchant' | 'all';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const loading = ref(false);
-const listHydrated = ref(false);
 const saving = ref(false);
 const typeFilter = ref('');
 const keyword = ref('');
 const scope = ref<MenuScope>('ops');
 const showInactive = ref(false);
 const tree = ref<PermRow[]>([]);
-const tableRef = ref<TableInstance>();
 const dlg = ref(false);
 const form = ref({
   permissionId: null as number | null,
@@ -290,42 +256,6 @@ function typeTag(t: string) {
 function parentOptionLabel(p: PermRow) {
   const depth = depthMap.value.get(p.permissionId) ?? 0;
   return `${'· '.repeat(depth)}[${typeText(p.permType)}] ${p.permName} (${p.permCode})`;
-}
-
-function menuActions(row: PermRow): TableAction[] {
-  const acts: TableAction[] = [];
-  if (auth.hasPerm('ops:rbac:menu:edit')) {
-    acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
-  }
-  if (auth.hasPerm('ops:rbac:menu:add') && row.permType !== 'F') {
-    acts.push({ key: 'add', label: '新增', icon: Plus, type: 'success' });
-  }
-  if (auth.hasPerm('ops:rbac:menu:remove') && row.status === 'ACTIVE') {
-    acts.push({
-      key: 'remove',
-      label: displayLabel('enable_status', 'INACTIVE'),
-      icon: Delete,
-      type: 'danger',
-      overflow: true
-    });
-  }
-  if (auth.hasPerm('ops:rbac:menu:edit') && row.status !== 'ACTIVE') {
-    acts.push({
-      key: 'enable',
-      label: displayLabel('enable_status', 'ACTIVE'),
-      icon: CircleCheck,
-      type: 'success',
-      overflow: true
-    });
-  }
-  return acts;
-}
-
-function onMenuAction(key: string, row: PermRow) {
-  if (key === 'edit') openEdit(row);
-  else if (key === 'add') openCreate(row.permissionId);
-  else if (key === 'remove') onRemove(row);
-  else if (key === 'enable') onEnable(row);
 }
 
 function codeInScope(code: string, s: MenuScope): boolean {
@@ -410,57 +340,85 @@ function flattenTableRows(nodes: PermRow[]): PermRow[] {
   return out;
 }
 
-function setExpandAll(expand: boolean) {
-  const rows = flattenTableRows(tableRows.value);
-  nextTick(() => {
-    for (const row of rows) {
-      tableRef.value?.toggleRowExpansion(row, expand);
-    }
-  });
-}
+// 列表状态机统一交给 CrudTable：竞态 / 多选 / 空态 / 刷新 / CSV 导出全部内建（本页无表头排序）。
+// 树形表全量渲染：取数后按 scope/类型/关键词/停用 客户端过滤，仅当顶层节点超过一页（50）时做
+// 前端切片分页——子节点嵌套在根节点内，切片只切顶层，子树不会跨页断裂。
+// 首查依赖路由 query 初始化筛选（autoLoad:false），onMounted 显式首查。
+const crud = useCrudTable<PermRow>({
+  rowKey: (r) => r.permissionId,
+  pageSize: 50,
+  autoLoad: false,
+  fetchPage: async ({ page, size }) => {
+    const flat = await api.request<PermRow[]>(AdminEndpoints.rbacPermissionsIncludeInactive, 'GET');
+    tree.value = buildPermTree(flat);
+    const roots = tableRows.value;
+    return roots.length > size
+      ? { items: roots.slice(page * size, page * size + size), total: roots.length }
+      : { items: roots, total: roots.length };
+  }
+});
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<PermRow>((r) => r.permissionId);
-
-function selectAllRows() {
-  const rows = flattenTableRows(tableRows.value);
-  nextTick(() => {
-    for (const row of rows) {
-      tableRef.value?.toggleRowSelection(row, true);
-    }
-  });
-}
-
-function clearAllRows() {
-  tableRef.value?.clearSelection();
-  clearSelection();
-}
-
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '菜单',
+  exportPerm: 'ops:rbac:menu:export',
   headers: ['名称', '类型', '权限标识', '路由', '排序', '状态'],
-  toRows: () =>
-    pickSelected(flattenTableRows(tableRows.value)).map((row) => [
+  toRows: () => {
+    // 树形数据导出：CrudTable 只传入顶层行，这里回源整棵过滤后的树展平，
+    // 勾选时按 selectedKeys 精确匹配（含子节点），未勾选导出全部（与原行为一致）
+    const all = flattenTableRows(tableRows.value);
+    const selected = crud.hasSelection ? new Set(crud.selectedKeys.map(String)) : null;
+    const rows = selected ? all.filter((r) => selected.has(String(r.permissionId))) : all;
+    return rows.map((row) => [
       row.permName,
       typeText(row.permType),
       row.permCode,
       row.path || '无',
       row.sortOrder ?? 0,
       displayLabel('merchant_status', row.status || 'ACTIVE')
-    ])
-});
-
-async function load() {
-  loading.value = true;
-  try {
-    const flat = await api.request<PermRow[]>(AdminEndpoints.rbacPermissionsIncludeInactive, 'GET');
-    tree.value = buildPermTree(flat);
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    listHydrated.value = true;
-    loading.value = false;
+    ]);
   }
+};
+
+function rowActions(row: PermRow): CrudRowAction[] {
+  const acts: CrudRowAction[] = [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:rbac:menu:edit' }
+  ];
+  if (row.permType !== 'F') {
+    acts.push({
+      key: 'add',
+      label: '新增',
+      icon: Plus,
+      type: 'success',
+      perm: 'ops:rbac:menu:add'
+    });
+  }
+  if (row.status === 'ACTIVE') {
+    acts.push({
+      key: 'remove',
+      label: displayLabel('enable_status', 'INACTIVE'),
+      icon: Delete,
+      type: 'danger',
+      overflow: true,
+      perm: 'ops:rbac:menu:remove'
+    });
+  } else {
+    acts.push({
+      key: 'enable',
+      label: displayLabel('enable_status', 'ACTIVE'),
+      icon: CircleCheck,
+      type: 'success',
+      overflow: true,
+      perm: 'ops:rbac:menu:edit'
+    });
+  }
+  return acts;
+}
+
+function onMenuAction({ key, row }: { key: string; row: PermRow }) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'add') openCreate(row.permissionId);
+  else if (key === 'remove') onRemove(row);
+  else if (key === 'enable') onEnable(row);
 }
 
 function openCreate(parentId = 0) {
@@ -523,7 +481,7 @@ async function save() {
       ElMessage.success('已创建');
     }
     dlg.value = false;
-    await load();
+    await crud.load();
     await auth.refreshPermissions();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
@@ -543,7 +501,7 @@ async function onRemove(row: PermRow) {
     ElMessage.success('已停用（勾选「含停用」可查看并启用）');
     showInactive.value = true;
     syncRouteQuery();
-    await load();
+    await crud.load();
     await auth.refreshPermissions();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '停用失败'));
@@ -562,7 +520,7 @@ async function onEnable(row: PermRow) {
       status: 'ACTIVE'
     });
     ElMessage.success('已启用');
-    await load();
+    await crud.load();
     await auth.refreshPermissions();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '启用失败'));
@@ -586,10 +544,16 @@ function syncRouteQuery() {
   router.replace({ query });
 }
 
+/** 筛选条件变化：同步路由 query 并重查（page 重置到第 1 页） */
+function applyFilters() {
+  syncRouteQuery();
+  void crud.search();
+}
+
 function resetFilters() {
   typeFilter.value = '';
   keyword.value = '';
-  syncRouteQuery();
+  applyFilters();
 }
 
 function applyRouteQuery() {
@@ -617,8 +581,9 @@ function applyRouteQuery() {
   return changed;
 }
 
+/** 路由 query 变化（如前进/后退）→ 应用到筛选并重查；无实际变化不重复请求 */
 function reloadFromRouteQuery() {
-  applyRouteQuery();
+  if (applyRouteQuery()) void crud.search();
 }
 
 watch(
@@ -636,8 +601,9 @@ watch(
 );
 
 onMounted(() => {
+  // 首查依赖路由 query 初始化筛选（crud 为 autoLoad:false），此处显式首查
   applyRouteQuery();
-  load();
+  void crud.load();
 });
 onActivated(() => {
   reloadFromRouteQuery();
