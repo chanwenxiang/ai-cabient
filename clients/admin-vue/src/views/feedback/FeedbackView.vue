@@ -8,12 +8,6 @@
             <span class="hint">回复为运营备注，不推送用户；用户可在「我的反馈」自行查看</span>
           </div>
         </div>
-        <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:feedback:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
-        </div>
       </div>
     </template>
 
@@ -42,35 +36,18 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="sortedList"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="feedbackId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="showActionColumn ? feedbackActions : undefined"
+          :action-width="140"
+          empty-text="暂无反馈"
+          sort-field-label="反馈编号"
+          :csv="csvOptions"
+          @action="onFeedbackAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无反馈"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="feedbackId"
-            label="反馈编号"
-            width="100"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="feedbackId" label="反馈编号" width="100" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.feedbackId }}</span>
             </template>
@@ -152,36 +129,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="140"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="feedbackActions(row)"
-                @action="(key) => onFeedbackAction(key, row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 
   <el-dialog v-model="replyDialog" title="回复反馈" destroy-on-close>
@@ -204,53 +154,55 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { ChatDotRound, Delete, Refresh } from '@element-plus/icons-vue';
+import { ChatDotRound, Delete } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
-import PagePager from '@/components/PagePager.vue';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 type Row = Record<string, any>;
 const route = useRoute();
 const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('feedbackId');
 const canReply = computed(() => auth.hasPerm('ops:feedback:reply'));
 const canDelete = computed(
   () => auth.hasPerm('ops:feedback') || auth.hasPerm('ops:feedback:reply')
 );
 
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
 const status = ref('');
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const list = ref<Row[]>([]);
 const replyDialog = ref(false);
 const replyText = ref('');
 const current = ref<Row | null>(null);
 
-const sortedList = computed(() => sortById(list.value));
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<Row>({
+  rowKey: (r) => r.feedbackId,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page), // 0 起（useCrudTable 已换算）
+      size: String(params.size)
+    });
+    if (status.value) q.set('status', status.value);
+    return api.request<{ items: Row[]; total: number }>(`/api/v2/ops/feedback?${q}`, 'GET');
+  },
+  // 反馈编号本地排序（替代原 useIdColumnSort 表头排序，改由壳内「按反馈编号 升/降序」切换）
+  sort: { prop: 'feedbackId', mode: 'local' }
+});
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<Row>((r) => r.feedbackId);
-
-const { onExport } = useListCsv({
+// 导出统一并入 CrudTable 工具条（选中优先导出、文件命名由组件内置）
+const csvOptions: CrudCsvOptions = {
   filePrefix: '用户反馈',
+  exportPerm: 'ops:feedback:export',
   headers: ['ID', '类型', '内容', '用户', '设备', '评分', '状态', '时间'],
-  toRows: () =>
-    pickSelected(sortedList.value).map((row) => [
+  toRows: (rows) =>
+    rows.map((row) => [
       row.feedbackId,
       dictLabel('feedback_type', row.feedbackType),
       row.content,
@@ -260,7 +212,7 @@ const { onExport } = useListCsv({
       dictLabel('feedback_status', row.status),
       formatDateTime(row.createdAt)
     ])
-});
+};
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
@@ -277,48 +229,15 @@ function applyRouteQuery() {
   return false;
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    if (status.value) q.set('status', status.value);
-    const data = await api.request<{ items: Row[]; total: number }>(
-      `/api/v2/ops/feedback?${q}`,
-      'GET'
-    );
-    list.value = data.items || [];
-    total.value = Number(data.total) || 0;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
-
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function reset() {
   status.value = '';
-  page.value = 1;
   syncRouteQuery();
-  load();
+  void crud.search();
 }
 
 function openReply(row: Row) {
@@ -327,23 +246,35 @@ function openReply(row: Row) {
   replyDialog.value = true;
 }
 
-function feedbackActions(row: Row) {
-  const acts: TableAction[] = [];
-  if (canReply.value && row.status === 'PENDING') {
-    acts.push({ key: 'reply', label: '回复', icon: ChatDotRound, type: 'primary' });
+function feedbackActions(row: Row): CrudRowAction[] {
+  const acts: CrudRowAction[] = [];
+  if (row.status === 'PENDING') {
+    acts.push({
+      key: 'reply',
+      label: '回复',
+      icon: ChatDotRound,
+      type: 'primary',
+      perm: 'ops:feedback:reply'
+    });
   }
-  if (canDelete.value) {
-    acts.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger' });
-  }
+  acts.push({
+    key: 'delete',
+    label: '删除',
+    icon: Delete,
+    type: 'danger',
+    perm: ['ops:feedback', 'ops:feedback:reply']
+  });
   return acts;
 }
 
-/** 当前页无可操作项时隐藏操作列 */
-const showActionColumn = computed(() => list.value.some((row) => feedbackActions(row).length > 0));
+/** 当前页无可操作项时隐藏操作列（与行操作配置同口径：权限 + 状态） */
+const showActionColumn = computed(
+  () => canDelete.value || (canReply.value && crud.items.some((row) => row.status === 'PENDING'))
+);
 
-async function onFeedbackAction(key: string, row: Row) {
+function onFeedbackAction({ key, row }: { key: string; row: Row }) {
   if (key === 'reply') openReply(row);
-  else if (key === 'delete') await removeFeedback(row);
+  else if (key === 'delete') void removeFeedback(row);
 }
 
 async function removeFeedback(row: Row) {
@@ -357,7 +288,7 @@ async function removeFeedback(row: Row) {
   try {
     await api.request(`/api/v2/ops/feedback/${row.feedbackId}`, 'DELETE');
     ElMessage.success('已删除');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
@@ -373,7 +304,7 @@ async function submitReply() {
     });
     replyDialog.value = false;
     ElMessage.success('已保存回复（仅运营备注，未推送用户）');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '回复失败');
   } finally {
@@ -381,15 +312,15 @@ async function submitReply() {
   }
 }
 
+// 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由这里显式首查
 onMounted(() => {
   applyRouteQuery();
-  load();
+  void crud.load();
 });
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.search();
 }
 
 watch(
@@ -428,30 +359,6 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: var(--admin-font-size-sm);
   line-height: 1.4;
-}
-.page-card-head__actions {
-  display: flex;
-  gap: 8px;
-}
-.feedback-cell {
-  display: grid;
-  gap: 2px;
-  line-height: 1.35;
-}
-.feedback-cell strong {
-  font-weight: 650;
-}
-.feedback-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: var(--admin-font-size-xs);
-}
-.feedback-cell .content-line {
-  color: var(--el-text-color-regular);
-  font-size: var(--admin-font-size-table);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 320px;
 }
 .link-cell {
   appearance: none;
