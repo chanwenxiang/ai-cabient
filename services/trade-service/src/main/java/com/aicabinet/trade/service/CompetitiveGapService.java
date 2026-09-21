@@ -32,6 +32,7 @@ public class CompetitiveGapService {
     private static final String LIMIT_2000 = "LIMIT 2000";
     private static final String PRODUCT = "PRODUCT";
     private static final String DEVICE = "DEVICE";
+    private static final String UNCATEGORY_LABEL = "未分类";
 
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -53,6 +54,7 @@ public class CompetitiveGapService {
     private final SecurityProperties securityProperties;
     private final OpsUserRouteScopeMapper routeScopeMapper;
     private final DistributedLockService distributedLockService;
+    private final SkuCatalogMapper skuCatalogMapper;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final CompetitiveGapService self;
 
@@ -72,7 +74,8 @@ public class CompetitiveGapService {
                                  DeviceSalesLockService salesLockService,
                                  SecurityProperties securityProperties,
                                  OpsUserRouteScopeMapper routeScopeMapper,
-                                 DistributedLockService distributedLockService, @Lazy CompetitiveGapService self) {
+                                 DistributedLockService distributedLockService,
+                                 SkuCatalogMapper skuCatalogMapper, @Lazy CompetitiveGapService self) {
         this.deviceScopeMapper = deviceScopeMapper;
         this.deviceScopePrefMapper = deviceScopePrefMapper;
         this.opsConfigMapper = opsConfigMapper;
@@ -90,6 +93,7 @@ public class CompetitiveGapService {
         this.securityProperties = securityProperties;
         this.routeScopeMapper = routeScopeMapper;
         this.distributedLockService = distributedLockService;
+        this.skuCatalogMapper = skuCatalogMapper;
         this.self = self;
     }
 
@@ -365,9 +369,10 @@ public class CompetitiveGapService {
             case "MERCHANT" -> aggregateByMerchant(deviceIds, start, end);
             case "CHANNEL", "PAY_CHANNEL" -> aggregateByChannel(deviceIds, start, end);
             case "MARGIN" -> sortByMargin(aggregateByProduct(deviceIds, start, end));
+            case "CATEGORY" -> aggregateByCategory(deviceIds, start, end);
             case PRODUCT, "SKU" -> aggregateByProduct(deviceIds, start, end);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "dim 支持 PRODUCT/SKU/CABINET/MERCHANT/CHANNEL/MARGIN");
+                    "dim 支持 PRODUCT/SKU/CABINET/MERCHANT/CHANNEL/MARGIN/CATEGORY");
         };
     }
 
@@ -409,8 +414,10 @@ public class CompetitiveGapService {
         return switch (dimension) {
             case "CABINET", DEVICE -> aggregateByDevice(scoped, start, end);
             case "MARGIN" -> sortByMargin(aggregateByProduct(scoped, start, end));
+            case "CATEGORY" -> aggregateByCategory(scoped, start, end);
             case PRODUCT, "SKU" -> aggregateByProduct(scoped, start, end);
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户报表 dim 支持 PRODUCT/CABINET/MARGIN");
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "商户报表 dim 支持 PRODUCT/CABINET/MARGIN/CATEGORY");
         };
     }
 
@@ -719,6 +726,32 @@ public class CompetitiveGapService {
             ));
         }
         return out;
+    }
+
+    /** 品类维：商品行按 sku_catalog.category 归并（目录缺失或未填时归入「未分类」）。 */
+    private List<SalesReportRowDto> aggregateByCategory(Set<String> deviceIds, Instant start, Instant end) {
+        Map<String, String> skuCategory = skuCatalogMapper.findAllByOrderBySkuIdAsc().stream()
+                .collect(Collectors.toMap(SkuCatalog::getSkuId,
+                        s -> s.getCategory() == null || s.getCategory().isBlank() ? UNCATEGORY_LABEL : s.getCategory(),
+                        (a, b) -> a));
+        Map<String, Agg> map = new HashMap<>();
+        for (SalesReportRowDto r : aggregateByProduct(deviceIds, start, end)) {
+            String cat = skuCategory.getOrDefault(r.dimKey(), UNCATEGORY_LABEL);
+            Agg a = map.computeIfAbsent(cat, k -> new Agg());
+            a.orderCount += r.orderCount();
+            a.qty += r.qty();
+            a.revenue += r.revenueCents();
+            a.cogs += r.cogsCents();
+            a.refunded += r.refundedCents();
+            a.refundOrders += r.refundOrderCount();
+        }
+        return map.entrySet().stream()
+                .map(e -> new SalesReportRowDto(e.getKey(), e.getKey(), e.getValue().orderCount,
+                        e.getValue().qty, e.getValue().revenue, e.getValue().cogs,
+                        e.getValue().revenue - e.getValue().cogs, e.getValue().refunded,
+                        e.getValue().refundOrders))
+                .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
+                .toList();
     }
 
     private List<SalesReportRowDto> aggregateByDevice(Set<String> deviceIds, Instant start, Instant end) {
