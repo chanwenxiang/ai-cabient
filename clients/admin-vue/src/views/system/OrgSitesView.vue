@@ -90,7 +90,7 @@
       <el-tab-pane label="场地合同" name="contracts">
         <div class="org-toolbar">
           <el-button
-            v-if="contractHasSelection"
+            v-if="crud.hasSelection"
             v-hasPermi="['ops:org:edit']"
             type="danger"
             :loading="contractBatchLoading"
@@ -98,7 +98,6 @@
           >
             批量删除
           </el-button>
-          <el-button @click="onExportContracts">{{ contractExportLabel }}</el-button>
           <el-button
             v-hasPermi="['ops:org:edit']"
             size="small"
@@ -108,41 +107,36 @@
             新增合同
           </el-button>
         </div>
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchContracts">
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="crud.search()">
           <el-form-item label="关键词">
             <el-input
               v-model="contractKeyword"
               clearable
               placeholder="柜机 / 设备ID / 场地 / 场地主"
               style="width: 240px"
-              @keyup.enter="searchContracts"
-              @clear="searchContracts"
+              @keyup.enter="crud.search()"
+              @clear="crud.search()"
             />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="searchContracts">查询</el-button>
+            <el-button type="primary" @click="crud.search()">查询</el-button>
             <el-button @click="resetContracts">重置</el-button>
           </el-form-item>
         </el-form>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              ref="contractTableRef"
-              v-loading="loading"
-              :data="displayContracts"
-              stripe
-              border
+            <CrudTable
+              :table="crud"
               row-key="contractId"
-              @selection-change="onContractSelectionChange"
+              selectable
+              :actions="rowActions"
+              :action-width="300"
+              actions-testid="site"
+              empty-text="暂无数据"
+              :show-refresh="false"
+              :csv="contractCsv"
+              @action="onAction"
             >
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                reserve-selection
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column prop="deviceName" label="柜机" min-width="140" />
               <el-table-column prop="deviceId" label="设备ID" min-width="110" />
               <el-table-column label="场地" min-width="140" class-name="col-text">
@@ -213,52 +207,9 @@
                   }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="操作"
-                width="300"
-                align="center"
-                fixed="right"
-                class-name="col-action"
-                label-class-name="col-action"
-              >
-                <template #default="{ row }">
-                  <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openContract(row)">
-                    编辑
-                  </el-button>
-                  <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openRentSplit(row)">
-                    租金分账
-                  </el-button>
-                  <el-button
-                    v-hasPermi="['ops:org:edit']"
-                    size="small"
-                    @click="openGenerateBill(row)"
-                  >
-                    出账
-                  </el-button>
-                  <el-button
-                    v-hasPermi="['ops:org:edit']"
-                    size="small"
-                    type="danger"
-                    @click="removeContract(row)"
-                  >
-                    删除
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
-        <PagePager
-          :hydrated="contractsHydrated"
-          v-model:current-page="contractPage"
-          v-model:page-size="contractSize"
-          :total="contractTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @current-change="loadContracts"
-          @size-change="onContractSizeChange"
-        />
       </el-tab-pane>
 
       <el-tab-pane label="费用账单" name="bills">
@@ -738,15 +689,15 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { Refresh } from '@element-plus/icons-vue';
+import { Delete, Edit, Refresh, Share, Tickets } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import PagePager from '@/components/PagePager.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useListCsv } from '@/composables/useListCsv';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import type {
   DeviceDataFeeBillDto,
@@ -766,44 +717,47 @@ const loadSeq = createLoadSeq();
 const saving = ref(false);
 const tab = ref('org');
 const orgTree = ref<OrgNodeDto[]>([]);
-const contracts = ref<SiteContractDto[]>([]);
 const contractBatchLoading = ref(false);
-const {
-  tableRef: contractTableRef,
-  keyword: contractKeyword,
-  hasSelection: contractHasSelection,
-  onSelectionChange: onContractSelectionChange,
-  pickSelected: pickContracts,
-  exportButtonLabel: contractExportLabel,
-  clearSelection: clearContractSelection,
-  filterByKeyword: filterContracts,
-  resetKeyword: resetContractKeyword
-} = useAdminListTable<SiteContractDto>((r) => r.contractId);
+const contractKeyword = ref('');
 
-const displayContracts = computed(() =>
-  filterContracts(contracts.value, (row, kw) => {
-    return (
-      String(row.deviceName || '')
-        .toLowerCase()
-        .includes(kw) ||
-      String(row.deviceId || '')
-        .toLowerCase()
-        .includes(kw) ||
-      String(row.siteName || '')
-        .toLowerCase()
-        .includes(kw) ||
-      String(row.landlordName || '')
-        .toLowerCase()
-        .includes(kw)
+// 主列表（场地合同）状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / CSV 导出 全部内建（本页无表头排序）。
+// 关键词过滤原为 displayItems 本地过滤，现前移到取数处（查询/回车/清空本就会重查，语义不变）；
+// 首查由 onMounted 的 loadAll 统一触发（与组织树 / 设备选项并行初始化），故关闭 autoLoad。
+const crud = useCrudTable<SiteContractDto>({
+  rowKey: (r) => r.contractId,
+  errorMessage: '合同加载失败',
+  autoLoad: false,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page),
+      size: String(params.size)
+    });
+    const data = await api.request<{ items: SiteContractDto[]; total: number }>(
+      AdminEndpoints.siteContractsList(q),
+      'GET'
     );
-  })
-);
+    return { items: filterContractRows(data.items || []), total: Number(data.total) || 0 };
+  }
+});
 
-const { onExport: onExportContracts } = useListCsv({
+/** 原关键词本地过滤（柜机 / 设备ID / 场地 / 场地主），保持同一匹配字段 */
+function filterContractRows(rows: SiteContractDto[]): SiteContractDto[] {
+  const kw = contractKeyword.value.trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter(
+    (r) =>
+      String(r.deviceName || '').toLowerCase().includes(kw) ||
+      String(r.deviceId || '').toLowerCase().includes(kw) ||
+      String(r.siteName || '').toLowerCase().includes(kw) ||
+      String(r.landlordName || '').toLowerCase().includes(kw)
+  );
+}
+
+const contractCsv: CrudCsvOptions = {
   filePrefix: '场地合同',
   headers: ['柜机', '设备ID', '场地', '地址', '场地主', '月费(元)', '起租', '到期', '状态'],
-  toRows: () =>
-    pickContracts(displayContracts.value).map((r) => [
+  toRows: (rows) =>
+    rows.map((r) => [
       r.deviceName || '',
       r.deviceId,
       r.siteName,
@@ -814,11 +768,24 @@ const { onExport: onExportContracts } = useListCsv({
       r.endDate || '',
       contractStatusLabel(r.status)
     ])
-});
-const contractsHydrated = ref(false);
-const contractPage = ref(1);
-const contractSize = ref(20);
-const contractTotal = ref(0);
+};
+
+function rowActions(_row: SiteContractDto): CrudRowAction[] {
+  return [
+    { key: 'edit', label: '编辑', icon: Edit, perm: 'ops:org:edit' },
+    { key: 'rentSplit', label: '租金分账', icon: Share, perm: 'ops:org:edit' },
+    { key: 'bill', label: '出账', icon: Tickets, perm: 'ops:org:edit' },
+    { key: 'delete', label: '删除', icon: Delete, type: 'danger', perm: 'ops:org:edit' }
+  ];
+}
+
+function onAction({ key, row }: { key: string; row: SiteContractDto }) {
+  if (key === 'edit') openContract(row);
+  else if (key === 'rentSplit') void openRentSplit(row);
+  else if (key === 'bill') openGenerateBill(row);
+  else if (key === 'delete') void removeContract(row);
+}
+
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 const nodeVisible = ref(false);
 const nodeForm = ref<{
@@ -947,7 +914,7 @@ async function loadAll() {
   loading.value = true;
   try {
     orgTree.value = (await api.request<OrgNodeDto[]>(AdminEndpoints.orgTree, 'GET')) || [];
-    await loadContracts();
+    await crud.load();
     if (tab.value === 'bills') {
       await loadBills();
     }
@@ -960,49 +927,13 @@ async function loadAll() {
   }
 }
 
-async function loadContracts() {
-  const seq = loadSeq.begin('loadContracts');
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(contractPage.value - 1),
-      size: String(contractSize.value)
-    });
-    const data = await api.request<{ items: SiteContractDto[]; total: number }>(
-      AdminEndpoints.siteContractsList(q),
-      'GET'
-    );
-    contracts.value = data.items || [];
-    contractTotal.value = Number(data.total) || 0;
-    clearContractSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq, 'loadContracts')) return;
-    ElMessage.error(e instanceof Error ? e.message : '合同加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadContracts')) return;
-    contractsHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onContractSizeChange() {
-  contractPage.value = 1;
-  loadContracts();
-}
-
-function searchContracts() {
-  contractPage.value = 1;
-  loadContracts();
-}
-
 function resetContracts() {
-  resetContractKeyword();
-  contractPage.value = 1;
-  loadContracts();
+  contractKeyword.value = '';
+  void crud.search();
 }
 
 async function batchDeleteContracts() {
-  const targets = pickContracts(displayContracts.value);
+  const targets = crud.pickSelected(crud.displayItems);
   if (!targets.length) {
     ElMessage.warning('请先勾选合同');
     return;
