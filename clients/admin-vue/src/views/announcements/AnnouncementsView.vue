@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,40 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:announcement:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button
-            v-hasPermi="['ops:announcement:import']"
-            @click="
-              onDownloadTemplate([
-                '示例公告',
-                '公告正文',
-                '全部',
-                '普通',
-                displayLabel('announcement_status', 'PUBLISHED'),
-                ''
-              ])
-            "
-            >导入模板</el-button
-          >
-          <el-button
-            v-hasPermi="['ops:announcement:import']"
-            :loading="importing"
-            @click="triggerImport"
-            >导入</el-button
-          >
-          <input
-            ref="importInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onImportFile"
-          />
           <el-button v-hasPermi="['ops:announcement:create']" type="primary" @click="openCreate"
             >发布公告</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -96,42 +65,21 @@
       </el-form-item>
     </el-form>
 
-    <div v-if="error" class="error-state">
-      <el-alert :title="error" type="error" show-icon />
-      <el-button size="small" @click="load">重试</el-button>
-    </div>
-
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="paged"
-          border
-          stripe
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="announceId"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+          selectable
+          :actions="rowActions"
+          :action-width="160"
+          actions-testid="announcement"
+          empty-text="暂无公告"
+          sort-field-label="公告编号"
+          :csv="csvOptions"
+          @action="onRowAction"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" description="暂无公告" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="announceId"
-            label="公告编号"
-            width="100"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="announceId" label="公告编号" width="100" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.announceId ?? '无' }}</span>
             </template>
@@ -186,36 +134,9 @@
               <span class="cell-datetime">{{ formatTime(row.publishAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="160"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                :max-primary="2"
-                @action="(k) => onRowAction(k, row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog v-model="showForm" :title="editingId ? '编辑公告' : '发布公告'" destroy-on-close>
       <el-form :model="form" label-width="auto">
@@ -297,20 +218,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, FolderOpened, Promotion, Refresh, View } from '@element-plus/icons-vue';
+import { EditPen, FolderOpened, Promotion, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import type { OpenApiAnnouncement, OpenApiPageResultAnnouncement } from '@aicabinet/shared-types';
 import { get, post, put } from '@/api/client';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useTableSelection } from '@/composables/useTableSelection';
-import { useAuthStore } from '@/stores/auth';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
 
 type AnnouncementForm = {
@@ -322,17 +238,7 @@ type AnnouncementForm = {
 
 const route = useRoute();
 const router = useRouter();
-const auth = useAuthStore();
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('announceId');
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
-const error = ref('');
-const list = ref<OpenApiAnnouncement[]>([]);
-const total = ref(0);
-const page = ref(1);
-const size = ref(20);
 const keyword = ref('');
 const statusFilter = ref('');
 const priorityFilter = ref('');
@@ -351,13 +257,25 @@ function emptyForm(): AnnouncementForm {
   return { title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' };
 }
 
-const filtered = computed(() => sortById(list.value));
-
-/** 表格与导出共用排序结果，避免点 ID 排序无反应 */
-const paged = computed(() => filtered.value);
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<OpenApiAnnouncement>((r) => r.announceId ?? `${r.title}-${r.publishAt}`);
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<OpenApiAnnouncement>({
+  rowKey: (r) => r.announceId ?? `${r.title}-${r.publishAt}`,
+  // 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由 onMounted 显式首查
+  autoLoad: false,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page), // 0 起（useCrudTable 已换算）
+      size: String(params.size)
+    });
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    if (statusFilter.value) q.set('status', statusFilter.value);
+    if (priorityFilter.value) q.set('priority', priorityFilter.value);
+    const res = await get<OpenApiPageResultAnnouncement>(`/api/v2/ops/announcements?${q}`);
+    return res.data;
+  },
+  // 公告编号本地排序（替代原 useIdColumnSort 表头排序，改由壳内「按公告编号 升/降序」切换）
+  sort: { prop: 'announceId', mode: 'local' }
+});
 
 const priorityMap: Record<string, string> = Object.fromEntries(
   dictOptions('dispute_priority').map((o) => [o.value, o.label])
@@ -382,54 +300,62 @@ const priorityCodeByLabel: Record<string, string> = Object.fromEntries(
   )
 );
 
-const CSV_HEADERS = ['标题', '内容', '目标', '优先级', '状态', '发布时间'];
-
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
-  useListCsv({
-    filePrefix: '公告',
-    headers: CSV_HEADERS,
-    toRows: () =>
-      pickSelected(filtered.value).map((row) => [
-        row.title,
-        row.content || '',
-        displayLabel('announcement_audience', row.targetScope),
-        priorityMap[row.priority || ''] || '普通',
-        displayLabel('announcement_status', row.status),
-        formatTime(row.publishAt || '')
-      ]),
-    onImportRows: async (rows) => {
-      const statusCodeByLabel: Record<string, string> = Object.fromEntries(
-        dictOptions('announcement_status').flatMap(
-          (o) =>
-            [
-              [o.label, o.value],
-              [o.value, o.value]
-            ] as [string, string][]
-        )
-      );
-      let ok = 0;
-      for (const row of rows) {
-        const title = row['标题'] || row.title;
-        if (!title?.trim()) continue;
-        // 后端 create 固定为 DRAFT，忽略 body.publishAt；需发布时再调 publish
-        const created = await post<OpenApiAnnouncement>('/api/v2/ops/announcements', {
-          title: title.trim(),
-          content: row['内容'] || row.content || '',
-          targetScope: scopeCodeByLabel[row['目标'] || row.targetScope] || 'ALL',
-          priority: priorityCodeByLabel[row['优先级'] || row.priority] || 'NORMAL'
-        });
-        const statusRaw = String(row['状态'] || row.status || '').trim();
-        const status = statusCodeByLabel[statusRaw] || statusRaw.toUpperCase();
-        const announceId = created?.data?.announceId;
-        if (status === 'PUBLISHED' && announceId != null) {
-          await post(`/api/v2/ops/announcements/${announceId}/publish`);
-        }
-        ok++;
+// 导出 / 下载模板 / 导入统一并入 CrudTable 工具条（选中优先导出、文件命名由组件内置）
+const csvOptions: CrudCsvOptions = {
+  filePrefix: '公告',
+  exportPerm: 'ops:announcement:export',
+  importPerm: 'ops:announcement:import',
+  headers: ['标题', '内容', '目标', '优先级', '状态', '发布时间'],
+  templateSample: [
+    '示例公告',
+    '公告正文',
+    '全部',
+    '普通',
+    displayLabel('announcement_status', 'PUBLISHED'),
+    ''
+  ],
+  toRows: (rows) =>
+    rows.map((row) => [
+      row.title,
+      row.content || '',
+      displayLabel('announcement_audience', row.targetScope),
+      priorityMap[row.priority || ''] || '普通',
+      displayLabel('announcement_status', row.status),
+      formatTime(row.publishAt || '')
+    ]),
+  onImportRows: async (rows) => {
+    const statusCodeByLabel: Record<string, string> = Object.fromEntries(
+      dictOptions('announcement_status').flatMap(
+        (o) =>
+          [
+            [o.label, o.value],
+            [o.value, o.value]
+          ] as [string, string][]
+      )
+    );
+    let ok = 0;
+    for (const row of rows) {
+      const title = row['标题'] || row.title;
+      if (!title?.trim()) continue;
+      // 后端 create 固定为 DRAFT，忽略 body.publishAt；需发布时再调 publish
+      const created = await post<OpenApiAnnouncement>('/api/v2/ops/announcements', {
+        title: title.trim(),
+        content: row['内容'] || row.content || '',
+        targetScope: scopeCodeByLabel[row['目标'] || row.targetScope] || 'ALL',
+        priority: priorityCodeByLabel[row['优先级'] || row.priority] || 'NORMAL'
+      });
+      const statusRaw = String(row['状态'] || row.status || '').trim();
+      const status = statusCodeByLabel[statusRaw] || statusRaw.toUpperCase();
+      const announceId = created?.data?.announceId;
+      if (status === 'PUBLISHED' && announceId != null) {
+        await post(`/api/v2/ops/announcements/${announceId}/publish`);
       }
-      await load();
-      return ok;
+      ok++;
     }
-  });
+    await crud.load();
+    return ok;
+  }
+};
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
@@ -460,51 +386,16 @@ function applyRouteQuery() {
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  void load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  void load();
+  void crud.load({ resetPage: true });
 }
 
 function reset() {
   keyword.value = '';
   statusFilter.value = '';
   priorityFilter.value = '';
-  page.value = 1;
   syncRouteQuery();
-  void load();
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  error.value = '';
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    if (keyword.value.trim()) q.set('q', keyword.value.trim());
-    if (statusFilter.value) q.set('status', statusFilter.value);
-    if (priorityFilter.value) q.set('priority', priorityFilter.value);
-    const res = await get<OpenApiPageResultAnnouncement>(`/api/v2/ops/announcements?${q}`);
-    if (!loadSeq.isCurrent(seq)) return;
-    list.value = res.data?.items ?? [];
-    total.value = Number(res.data?.total ?? 0);
-    clearSelection();
-  } catch (e: unknown) {
-    if (!loadSeq.isCurrent(seq)) return;
-    error.value = errorMessage(e, '加载失败');
-    ElMessage.error('加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
+  void crud.load({ resetPage: true });
 }
 
 function priorityType(p: string) {
@@ -527,21 +418,41 @@ function formatTime(t: string) {
   return t.substring(0, 16).replace('T', ' ');
 }
 
-function rowActions(row: OpenApiAnnouncement): TableAction[] {
-  const actions: TableAction[] = [{ key: 'preview', label: '查看', icon: View, type: 'primary' }];
-  if (row.status !== 'ARCHIVED' && auth.hasPerm('ops:announcement:edit')) {
-    actions.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
+function rowActions(row: OpenApiAnnouncement): CrudRowAction[] {
+  const actions: CrudRowAction[] = [
+    { key: 'preview', label: '查看', icon: View, type: 'primary' }
+  ];
+  if (row.status !== 'ARCHIVED') {
+    actions.push({
+      key: 'edit',
+      label: '编辑',
+      icon: EditPen,
+      type: 'primary',
+      perm: 'ops:announcement:edit'
+    });
   }
-  if (row.status === 'DRAFT' && auth.hasPerm('ops:announcement:publish')) {
-    actions.push({ key: 'publish', label: '发布', icon: Promotion, type: 'success' });
+  if (row.status === 'DRAFT') {
+    actions.push({
+      key: 'publish',
+      label: '发布',
+      icon: Promotion,
+      type: 'success',
+      perm: 'ops:announcement:publish'
+    });
   }
-  if (row.status === 'PUBLISHED' && auth.hasPerm('ops:announcement:edit')) {
-    actions.push({ key: 'archive', label: '归档', icon: FolderOpened, type: 'warning' });
+  if (row.status === 'PUBLISHED') {
+    actions.push({
+      key: 'archive',
+      label: '归档',
+      icon: FolderOpened,
+      type: 'warning',
+      perm: 'ops:announcement:edit'
+    });
   }
   return actions;
 }
 
-function onRowAction(key: string, row: OpenApiAnnouncement) {
+function onRowAction({ key, row }: { key: string; row: OpenApiAnnouncement }) {
   if (key === 'preview') onPreview(row);
   else if (key === 'edit') openEdit(row);
   else if (key === 'publish') onPublish(row);
@@ -587,7 +498,7 @@ async function onSaveSubmit() {
     showForm.value = false;
     editingId.value = null;
     form.value = emptyForm();
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
@@ -611,7 +522,7 @@ async function onPublishSubmit() {
     showForm.value = false;
     editingId.value = null;
     form.value = emptyForm();
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     ElMessage.error(errorMessage(e, '发布失败'));
   } finally {
@@ -628,7 +539,7 @@ async function onPublish(row: OpenApiAnnouncement) {
   try {
     await post(`/api/v2/ops/announcements/${row.announceId ?? 0}/publish`);
     ElMessage.success('发布成功');
-    load();
+    void crud.load();
   } catch (e: unknown) {
     ElMessage.error(errorMessage(e, '发布失败'));
   }
@@ -639,21 +550,22 @@ async function onArchive(row: OpenApiAnnouncement) {
     await ElMessageBox.confirm(`确认归档公告「${row.title}」？`, '归档公告');
     await post(`/api/v2/ops/announcements/${row.announceId ?? 0}/archive`);
     ElMessage.success('归档成功');
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (e === 'cancel' || e === 'close') return;
     ElMessage.error(errorMessage(e, '归档失败'));
   }
 }
 
+// 首查前需先应用路由查询参数（applyRouteQuery），故关闭 autoLoad 由这里显式首查
 onMounted(() => {
   applyRouteQuery();
-  load();
+  void crud.load();
 });
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
+  await crud.load({ resetPage: true });
 }
 
 watch(
@@ -697,15 +609,6 @@ onActivated(() => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-.error-state {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.hidden-input {
-  display: none;
 }
 .announcement-content {
   white-space: pre-wrap;
