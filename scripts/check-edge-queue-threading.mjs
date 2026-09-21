@@ -58,12 +58,28 @@ function readText(file, label) {
   return readFileSync(file, 'utf8');
 }
 
-/** 剥掉行注释/KDoc，避免「注释里举个例子」骗过判据（同 check-xxl-job-wiring 的处理）。 */
+/**
+ * 剥掉行注释/KDoc，避免「注释里举个例子」骗过判据（同 check-xxl-job-wiring 的处理）。
+ *
+ * 🔴 两个必须守住的不变量（2026-09-21 实测踩中，二者都会让判据**悄悄失真**）：
+ *
+ *   ① **必须 `split(/\r?\n/)`，不能 `split('\n')`**。`edge/**` 在 Windows 检出下是 **CRLF**
+ *      （`.gitattributes` 只约束了 `clients/**`），于是每行以 `\r` 结尾；`.` 不匹配 `\r`，
+ *      而 `$` 在不带 `m` 标志时**只匹配输入串尾** ⇒ `/\/\/.*$/` **永不匹配** ⇒ 剥离整片空转。
+ *      后果不是「更严格」而是**本机假红**：任何在 `//` 注释里提到过队列 API 名的文件，
+ *      都会被当成真调用点；同一份代码在 CI（LF 检出）却是绿的 —— 一门禁两种结论。
+ *
+ *   ② **不要用 `.filter()` 丢行**，改为把该行**置空串**。丢行会让后面报出来的
+ *      「第 N 行」整体错位，而那条错误信息正是拿去定位源码用的。
+ */
 function stripComments(source) {
   return source
-    .split('\n')
-    .map((line) => line.replace(/\/\/.*$/, ''))
-    .filter((line) => !line.trim().startsWith('*') && !line.trim().startsWith('/*'))
+    .split(/\r?\n/)
+    .map((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('*') || trimmed.startsWith('/*')) return '';
+      return line.replace(/\/\/.*$/, '');
+    })
     .join('\n');
 }
 
@@ -222,8 +238,139 @@ if (totalContacts < MIN_CONTACT_POINTS) {
   );
 }
 
-const problems = [];
+// ── ④ CabinetService 的启停（阻塞链）必须在「异步块」内 ──────────────────────
+/**
+ * 为什么单列一条：`start()` / `stop()` 都是**阻塞链**，而 `onCreate()` / `onDestroy()`
+ * 跑在主线程：
+ *   · start()：OTA 同步 HTTP、串口 open()、Paho connect()（≤10s）、收尾
+ *              flushOutbound() → drain() → PrefsJsonQueue.commit()（同步刷盘）
+ *   · stop() ：Paho `disconnect(30000)`（QUIESCE_TIMEOUT）+ `waitForCompletion()`
+ *              （**无参 = 无超时等待**）、串口 close()
+ * 规则② 只校验 `CoroutineScope(` 的实参，管不到「直接同步调用」这条路 —— 2026-09-21 就是
+ * 在 `onDestroy()` 里发现 `getController(...).stop()` 裸调（主线程最长可卡 30s+）。
+ *
+ * 判据落在**结构**上（不绑句子）：每处 `.start()/.stop()` 都必须落在 `launch { … }` 或
+ * `ServiceShutdown.schedule(…) { … }` 块内；且**在 onDestroy 体内提交的那些**，其调度作用域
+ * 不得是同一文件里被 `cancel()` 的那个 —— 否则会被紧随的 cancel() 静默取消，停机根本不执行
+ * （该失效模式由 `ServiceShutdownTest` 的负向用例另行钉住）。
+ */
+
+/**
+ * 从 `openIdx` 的配对起始符配平到对应的结束符，返回其下标；不匹配返回 -1。
+ *
+ * ⚠️ 别用 `\([^)]*\)` 之类的「非右括号」正则解析实参：实参里**本来就可能有右括号**
+ * —— `ServiceShutdown.schedule(shutdownScope, onError = { Log.w(TAG, "…", it) }) { … }`
+ * 的第一个 `)` 来自 `Log.w(...)`，非右括号正则会在此截断 ⇒ 解析失败。
+ * （本规则首跑就踩了这一下，表现与「契约被破坏」一模一样。）
+ */
+function matchPaired(source, openIdx, open = '{', close = '}') {
+  let depth = 0;
+  for (let i = openIdx; i < source.length; i += 1) {
+    if (source[i] === open) depth += 1;
+    else if (source[i] === close) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function matchBrace(source, openIdx) {
+  return matchPaired(source, openIdx, '{', '}');
+}
+
+/**
+ * 收集「异步块」。⚠️ 必须传**剥过注释**的源码：KDoc 里举例写的 `launch { … }`
+ * 或 `{ stop() }` 会带进花括号，既可能造假块、也可能把配平带偏。
+ */
+function collectAsyncBlocks(source) {
+  const blocks = [];
+  const add = (openBraceIdx, scopeExpr) => {
+    if (openBraceIdx < 0) return;
+    const end = matchBrace(source, openBraceIdx);
+    if (end > 0) blocks.push({ scopeExpr, start: openBraceIdx, end });
+  };
+  // `<scope>.launch(…) { … }` 与无实参的 `<scope>.launch { … }`。
+  for (const m of source.matchAll(/([A-Za-z_][\w.]*)\s*\.\s*launch\s*(?:\([^)]*\))?\s*\{/g)) {
+    add(source.lastIndexOf('{', m.index + m[0].length - 1), m[1]);
+  }
+  // `<obj>.schedule(<实参…>) { … }`：调度作用域是**第 1 个实参**。
+  for (const m of source.matchAll(/[A-Za-z_][\w.]*\s*\.\s*schedule\s*\(/g)) {
+    const openParen = source.indexOf('(', m.index);
+    const closeParen = matchPaired(source, openParen, '(', ')');
+    if (closeParen < 0) continue;
+    const tail = source.slice(closeParen + 1).match(/^\s*\{/);
+    if (!tail) continue;
+    const openBrace = closeParen + 1 + tail[0].length - 1;
+    const args = source.slice(openParen + 1, closeParen);
+    add(openBrace, (args.split(',')[0] || '').trim());
+  }
+  return blocks;
+}
+
+const asyncBlocks = collectAsyncBlocks(serviceSource);
+const lifecycleCalls = [...serviceSource.matchAll(/\.\s*(start|stop)\s*\(\s*\)/g)];
+/** 同一文件里被 `cancel()` 的作用域 —— 往它上面挂停机 = 停机静默不执行。 */
+const cancelledScopes = new Set(
+  [...serviceSource.matchAll(/([A-Za-z_][\w.]*)\s*\.\s*cancel\s*\(\s*\)/g)].map((m) => m[1])
+);
+
+// 守卫：解析锚点失效时不能静默变绿（0 处调用会让下面的循环「全部通过」），
+// 也不能把「有人写了同步调用」误诊断成「本脚本锚点坏了」—— 那只是换了个方向骗读者。
+//
+//   · calls = 0：判据循环空转 ⇒ **静默绿**，必须拦。
+//   · blocks = 0：所有调用都会落进「不在异步块内」⇒ 全红（安全方向），但若真因解析器坏
+//     而导致，就是**假红**。故只拦「一个块都解析不出」，允许 blocks = 1（那正是
+//     「只修了 start、没修 stop」这种真实半修状态，应当走下面的诊断分支如实报出来）。
+if (lifecycleCalls.length < 2) {
+  fail(
+    `规则④ 的解析锚点失效：CabinetService.kt 只解析出 ${lifecycleCalls.length} 处 ` +
+      `.start()/.stop() 调用（预期 ≥ 2：onCreate 一处、onDestroy 一处）—— 请同步本脚本`
+  );
+}
+if (asyncBlocks.length < 1) {
+  fail(
+    `规则④ 的解析锚点失效：CabinetService.kt 里一个异步块（launch / schedule）都解析不出。\n` +
+      `  继续跑会把「所有调用都在主线程」当成结论，那是假红 —— 请同步本脚本。`
+  );
+}
+
+const onDestroyHead = serviceSource.match(/override\s+fun\s+onDestroy\s*\(\s*\)\s*\{/);
+let onDestroyRange = null;
+if (onDestroyHead) {
+  const openIdx = serviceSource.lastIndexOf('{', onDestroyHead.index + onDestroyHead[0].length - 1);
+  const end = openIdx >= 0 ? matchBrace(serviceSource, openIdx) : -1;
+  if (end > 0) onDestroyRange = { start: openIdx, end };
+}
+if (!onDestroyRange) {
+  fail(
+    'service/CabinetService.kt 里解析不出 `override fun onDestroy()` 的函数体 —— 规则④ 锚点失效'
+  );
+}
+
+for (const call of lifecycleCalls) {
+  const line = serviceSource.slice(0, call.index).split('\n').length;
+  const host = asyncBlocks.find((b) => call.index > b.start && call.index < b.end);
+  if (!host) {
+    fail(
+      `service/CabinetService.kt 第 ${line} 行的 .${call[1]}() 是**同步调用**。\n` +
+        `  ${call[1]}() 是阻塞链（串口 / Paho connect·disconnect / 同步落盘），` +
+        `而 onCreate·onDestroy 跑在主线程 ⇒ 必须放进 launch 或 ServiceShutdown.schedule 的异步块内。`
+    );
+  }
+  const inOnDestroy = call.index > onDestroyRange.start && call.index < onDestroyRange.end;
+  if (inOnDestroy && cancelledScopes.has(host.scopeExpr)) {
+    fail(
+      `service/CabinetService.kt 第 ${line} 行的 .${call[1]}() 挂在 \`${host.scopeExpr}\` 上，` +
+        `而 onDestroy 随后对该作用域调用了 cancel()。\n` +
+        `  cancel() 会取消「刚提交、尚未被调度到」的子协程 ⇒ 该调用**静默不执行**（不报错、不打日志）。\n` +
+        `  停机请用独立作用域（见 ServiceShutdown.schedule）。`
+    );
+  }
+}
+
 const undeclared = [...found.keys()].filter((key) => !DECLARED.has(key)).sort();
+const problems = [];
 for (const key of undeclared) {
   problems.push(
     `${key}（第 ${found.get(key).join(', ')} 行）：接触持久化队列但未在本门禁清单中声明。\n` +
@@ -244,7 +391,7 @@ if (problems.length) {
 
 console.log(
   `${TAG} OK（接触点 ${totalContacts} 处／已声明 ${DECLARED.size} 条；` +
-    `锁内同步落盘 ✓、CabinetScope 非主线程 ✓）`
+    `锁内同步落盘 ✓、CabinetScope 非主线程 ✓、启停异步块 ${asyncBlocks.length} 个 ✓）`
 );
 for (const [key, thread] of DECLARED) {
   console.log(`  · ${key} —— ${thread}`);
