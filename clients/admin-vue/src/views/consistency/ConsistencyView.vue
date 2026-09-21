@@ -14,7 +14,6 @@
           <el-button v-if="canRun" type="primary" :loading="running" @click="runCheck"
             >立即巡检</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -29,11 +28,11 @@
     />
 
     <div class="kpi-tags">
-      <el-tag size="small" type="danger">未通过 {{ listHydrated ? failCount : '…' }}</el-tag>
-      <el-tag v-if="listHydrated && severityCounts.high > 0" size="small" type="danger">
+      <el-tag size="small" type="danger">未通过 {{ crud.hydrated ? failCount : '…' }}</el-tag>
+      <el-tag v-if="crud.hydrated && severityCounts.high > 0" size="small" type="danger">
         高优先级 {{ severityCounts.high }}
       </el-tag>
-      <el-tag size="small" type="info">本页 {{ listHydrated ? paged.length : '…' }}</el-tag>
+      <el-tag size="small" type="info">本页 {{ crud.hydrated ? crud.items.length : '…' }}</el-tag>
       <el-tag v-if="lastRunAt" size="small" type="success">上次巡检 {{ lastRunAt }}</el-tag>
     </div>
 
@@ -72,18 +71,14 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="paged"
-          stripe
-          border
-          class="report-table"
+        <CrudTable
+          :table="crud"
           row-key="id"
-          empty-text=" "
+          :actions="rowActions"
+          actions-testid="consistency"
+          :empty-text="emptyText"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="listHydrated && !loading" :description="emptyText" />
-          </template>
           <el-table-column
             label="类型"
             width="160"
@@ -175,55 +170,22 @@
               <span class="cell-datetime">{{ formatDateTime(row.checkedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="120"
-            align="center"
-            fixed="right"
-            class-name="col-action"
-            label-class-name="col-action"
-          >
-            <template #default="{ row }">
-              <el-button
-                v-if="canFix && isFixable(row.checkType)"
-                type="primary"
-                link
-                :loading="fixingId === row.id"
-                @click="fixRow(row)"
-              >
-                修复
-              </el-button>
-              <span v-else-if="canFix" class="muted" title="该类仅巡检记录，需人工核对处理"
-                >需人工</span
-              >
-              <span v-else class="muted">暂无</span>
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="filtered.length"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-    />
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import PagePager from '@/components/PagePager.vue';
+import { computed, onActivated, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Refresh } from '@element-plus/icons-vue';
+import { MagicStick, User } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictOptions, displayLabel, formatConsistencyValue } from '@aicabinet/shared-dict';
 
@@ -258,23 +220,30 @@ const canFix = computed(
   () => auth.hasPerm('ops:consistency:fix') || auth.hasPerm('ops:order:refund')
 );
 
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const running = ref(false);
 const fixingId = ref<number | null>(null);
-const items = ref<Row[]>([]);
 const lastRunAt = ref('');
 const keyword = ref('');
 const typeFilter = ref('');
-const page = ref(1);
-const size = ref(20);
 const consistencyTypeOptions = dictOptions('consistency_check_type');
 
-const filtered = computed(() => {
+// 列表状态机统一交给 CrudTable：分页 / 竞态防护 / 空态 / 刷新 全部内建。
+// 接口无服务端分页：fetchPage 拉全量未通过记录后按当前筛选过滤 + 前端切片（page 已是 0 起）。
+// KPI 标签（未通过 / 高优先级）按过滤后的全量列表统计，故另存 fullFiltered。
+const fullFiltered = ref<Row[]>([]);
+const crud = useCrudTable<Row>({
+  rowKey: (r) => r.id,
+  fetchPage: async (params) => {
+    const list = (await api.request<Row[]>(AdminEndpoints.consistencyFailures, 'GET')) || [];
+    return paginate(list, params.page, params.size);
+  }
+});
+
+/** 关键词 / 类型过滤（原 computed filtered 逻辑原样搬移） */
+function filterRows(list: Row[]): Row[] {
   const q = keyword.value.trim().toLowerCase();
   const type = typeFilter.value.trim();
-  return items.value.filter((row) => {
+  return list.filter((row) => {
     if (type && row.checkType !== type) return false;
     if (!q) return true;
     return [row.checkKey, row.tableName, row.errorMessage].some((x) =>
@@ -283,18 +252,21 @@ const filtered = computed(() => {
         .includes(q)
     );
   });
-});
+}
 
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
-});
+/** 全量 → 过滤 → 前端切片；过滤后的全量另存给 KPI 标签统计 */
+function paginate(list: Row[], page: number, size: number) {
+  const filtered = filterRows(list);
+  fullFiltered.value = filtered;
+  const start = page * size;
+  return { items: filtered.slice(start, start + size), total: filtered.length };
+}
 
-const failCount = computed(() => filtered.value.length);
+const failCount = computed(() => fullFiltered.value.length);
 
 const severityCounts = computed(() => {
   let high = 0;
-  for (const row of filtered.value) {
+  for (const row of fullFiltered.value) {
     if (rowSeverity(row) === 'high') high++;
   }
   return { high };
@@ -386,18 +358,19 @@ const emptyText = computed(() => {
   return '当前无未通过记录，点击「立即巡检」可再跑一轮';
 });
 
+// 原为响应式 computed 过滤 + watch 仅重置页码；迁移后过滤随 fetchPage 生效，筛选变化即重查
 watch([keyword, typeFilter], () => {
-  page.value = 1;
+  void crud.search();
 });
 
 function onSearch() {
-  page.value = 1;
+  void crud.search();
 }
 
 function resetFilters() {
   keyword.value = '';
   typeFilter.value = '';
-  page.value = 1;
+  void crud.search();
 }
 
 function typeLabel(t: string) {
@@ -567,35 +540,53 @@ function openKey(row: Row) {
   }
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    items.value = (await api.request<Row[]>(AdminEndpoints.consistencyFailures, 'GET')) || [];
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
+function rowActions(row: Row): CrudRowAction[] {
+  // 权限沿用原 canFix（fix || order:refund），与权限码逻辑保持不变
+  if (!canFix.value) return [];
+  if (!isFixable(row.checkType)) {
+    return [
+      {
+        key: 'manual',
+        label: '需人工：该类仅巡检记录，需人工核对处理',
+        icon: User,
+        type: 'info',
+        disabled: true
+      }
+    ];
   }
+  return [
+    {
+      key: 'fix',
+      label: '修复',
+      icon: MagicStick,
+      type: 'primary',
+      disabled: fixingId.value === row.id
+    }
+  ];
+}
+
+function onAction({ key, row }: { key: string; row: Row }) {
+  if (key === 'fix') void fixRow(row);
 }
 
 async function runCheck() {
   running.value = true;
   try {
     const res = await api.request<RunResult>(AdminEndpoints.consistencyRun, 'POST');
-    items.value = res?.failures || [];
+    // 巡检结果直接落表（沿用原逻辑：不回源再查 failures），手动同步表格状态机
+    const failures = res?.failures || [];
+    const view = paginate(failures, 0, crud.size);
+    crud.items = view.items;
+    crud.total = view.total;
+    crud.page = 1;
     lastRunAt.value = formatDateTime(new Date().toISOString());
-    page.value = 1;
-    const n = res?.failCount ?? items.value.length;
+    const n = res?.failCount ?? failures.length;
     if (n === 0) ElMessage.success('巡检完成：全部通过');
     else ElMessage.warning(`巡检完成：仍有 ${n} 条未通过`);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '巡检失败');
   } finally {
-    listHydrated.value = true;
+    crud.hydrated = true;
     running.value = false;
   }
 }
@@ -615,7 +606,7 @@ async function fixRow(row: Row) {
     const res = await api.request<FixResult>(AdminEndpoints.consistencyFix(row.id), 'POST');
     if (res?.fixed) {
       ElMessage.success(res.message || '已修复');
-      await load();
+      await crud.load();
     } else {
       ElMessage.warning(res?.message || '未能自动修复（可能需人工补明细）');
     }
@@ -626,8 +617,10 @@ async function fixRow(row: Row) {
   }
 }
 
-onMounted(load);
-onActivated(load);
+// 首查由 useCrudTable（autoLoad 默认 true）在挂载时执行；keep-alive 激活沿用原 onActivated 重查
+onActivated(() => {
+  void crud.load();
+});
 </script>
 
 <style scoped>
