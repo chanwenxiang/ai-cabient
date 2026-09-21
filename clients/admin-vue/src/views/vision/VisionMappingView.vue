@@ -19,10 +19,6 @@
           <el-button v-hasPermi="['ops:vision:edit']" type="primary" @click="openCreate"
             >新增映射</el-button
           >
-          <el-button v-hasPermi="['ops:vision:export']" @click="onExport">{{
-            exportButtonLabel
-          }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -46,35 +42,17 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="paged"
-          stripe
-          border
-          class="report-table"
-          row-key="className"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-          empty-text=" "
+        <CrudTable
+          :table="crud"
+          selectable
+          :actions="rowActions"
+          :action-width="120"
+          empty-text="暂无识别类名映射"
+          sort-field-label="类名"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无识别类名映射"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            prop="className"
-            label="类名"
-            min-width="140"
-            class-name="col-text"
-            sortable="custom"
-          >
+          <el-table-column prop="className" label="类名" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.className || '无' }}</span>
             </template>
@@ -120,39 +98,9 @@
           >
             <template #default="{ row }">{{ formatConfidence(row.minConfidence) }}</template>
           </el-table-column>
-          <el-table-column
-            v-if="auth.hasPerm('ops:vision:edit')"
-            label="操作"
-            width="120"
-            class-name="col-action"
-            align="center"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <TableActions
-                :actions="[
-                  { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
-                  { key: 'delete', label: '删除', icon: Delete, type: 'danger' }
-                ]"
-                @action="(k) => onAction(String(k), row)"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-card class="aliyun-card" shadow="never">
       <template #header>
@@ -290,21 +238,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
+import { Delete, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions from '@/components/TableActions.vue';
-import PagePager from '@/components/PagePager.vue';
-import { useListCsv } from '@/composables/useListCsv';
-import { createLoadSeq } from '@/composables/createLoadSeq';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useTableSelection } from '@/composables/useTableSelection';
-import { useAuthStore } from '@/stores/auth';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 interface YoloMappingRow {
@@ -331,18 +274,9 @@ interface SkuOption {
 }
 
 const route = useRoute();
-const auth = useAuthStore();
 const { router, canAccessPath, goPath } = useNavAccess();
-const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('className');
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
 const keyword = ref('');
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const yoloMappings = ref<YoloMappingRow[]>([]);
 const aliyunMappings = ref<AliyunMappingRow[]>([]);
 const skuOptions = ref<SkuOption[]>([]);
 const dialogVisible = ref(false);
@@ -361,24 +295,54 @@ const editForm = reactive({
   mappingSource: '' as string | undefined
 });
 
-const filtered = computed(() => sortById(yoloMappings.value));
+// 列表状态机统一交给 CrudTable：分页 / 排序（按类名升/降序）/ 多选 / 竞态 / 空态 全部内建。
+// 首查依赖路由查询参数（keyword）先落位（crud 已配 autoLoad:false），onMounted 显式首查。
+const crud = useCrudTable<YoloMappingRow>({
+  rowKey: (r) => r.className || `${r.skuId}`,
+  errorMessage: '加载失败',
+  autoLoad: false,
+  sort: { prop: 'className', mode: 'local' },
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    const yoloPage = await api.request<{ items?: YoloMappingRow[]; total?: number }>(
+      AdminEndpoints.visionMappingsYoloList(q),
+      'GET'
+    );
+    // 主列表刷新时同步刷新阿里云映射（保持迁移前 load() 的双路线行为）
+    const all = await api.request<{ aliyun?: AliyunMappingRow[] }>(
+      AdminEndpoints.visionMappings,
+      'GET'
+    );
+    aliyunMappings.value = all.aliyun || [];
+    return { items: yoloPage.items || [], total: yoloPage.total ?? 0 };
+  }
+});
 
-const paged = computed(() => filtered.value);
-
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<YoloMappingRow>((r) => r.className || `${r.skuId}`);
-
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '识别类名映射',
+  exportPerm: 'ops:vision:export',
   headers: ['类别', 'SKU', '商品名', '最低置信度'],
-  toRows: () =>
-    pickSelected(filtered.value).map((row) => [
+  toRows: (rows) =>
+    rows.map((row) => [
       row.className ?? '',
       row.skuId ?? '',
       row.skuName ?? '',
       row.minConfidence ?? ''
     ])
-});
+};
+
+function rowActions(_row: YoloMappingRow): CrudRowAction[] {
+  return [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:vision:edit' },
+    { key: 'delete', label: '删除', icon: Delete, type: 'danger', perm: 'ops:vision:edit' }
+  ];
+}
+
+function onAction({ key, row }: { key: string; row: YoloMappingRow }) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'delete') void onDelete(row);
+}
 
 function formatConfidence(v?: number | string) {
   if (v == null || v === '') return '无';
@@ -414,21 +378,14 @@ function applyRouteQuery() {
 }
 
 function search() {
-  page.value = 1;
   syncRouteQuery();
-  void load();
+  void crud.search();
 }
 
 function reset() {
   keyword.value = '';
-  page.value = 1;
   syncRouteQuery();
-  void load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  void load();
+  void crud.search();
 }
 
 async function loadSkus() {
@@ -440,38 +397,6 @@ async function loadSkus() {
     skuOptions.value = Array.isArray(data) ? data : data.items || [];
   } catch {
     skuOptions.value = [];
-  }
-}
-
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    if (keyword.value.trim()) q.set('q', keyword.value.trim());
-    const yoloPage = await api.request<{ items?: YoloMappingRow[]; total?: number }>(
-      AdminEndpoints.visionMappingsYoloList(q),
-      'GET'
-    );
-    yoloMappings.value = yoloPage.items || [];
-    total.value = yoloPage.total ?? 0;
-
-    const all = await api.request<{ aliyun?: AliyunMappingRow[] }>(
-      AdminEndpoints.visionMappings,
-      'GET'
-    );
-    aliyunMappings.value = all.aliyun || [];
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
   }
 }
 
@@ -525,7 +450,7 @@ async function saveAliyun() {
     });
     ElMessage.success('已保存');
     aliyunVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -544,7 +469,7 @@ async function deleteAliyun(row: AliyunMappingRow) {
   try {
     await api.request(AdminEndpoints.visionMappingAliyun(row.categoryId), 'DELETE');
     ElMessage.success('已删除');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
@@ -566,7 +491,7 @@ async function saveEdit() {
     });
     ElMessage.success(creating.value ? '已新增' : '已保存');
     dialogVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -583,21 +508,15 @@ async function onDelete(row: YoloMappingRow) {
     });
     await api.request(AdminEndpoints.visionMappingYolo(className), 'DELETE');
     ElMessage.success('已删除');
-    await load();
+    await crud.load();
   } catch (e: unknown) {
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '删除失败'));
   }
 }
 
-function onAction(key: string, row: YoloMappingRow) {
-  if (key === 'edit') openEdit(row);
-  else if (key === 'delete') void onDelete(row);
-}
-
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
-  page.value = 1;
-  await load();
+  await crud.load({ resetPage: true });
 }
 
 watch(
@@ -608,9 +527,10 @@ watch(
 );
 
 onMounted(() => {
+  // 首查前先把路由查询参数落到筛选状态（crud 已配 autoLoad:false），这里显式首查
   applyRouteQuery();
   void loadSkus();
-  load();
+  void crud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
