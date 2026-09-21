@@ -52,13 +52,13 @@
               type="button"
               class="kpi-tag-btn"
               :aria-label="
-                listHydrated && !expiryLoading
+                listHydrated && !crudExpiry.loading
                   ? `临期 ${expiryAlerts.length}`
                   : `临期 ${UI_COPY.loading}`
               "
             >
               <el-tag size="small" type="danger"
-                >临期 {{ listHydrated && !expiryLoading ? expiryAlerts.length : '暂无' }}</el-tag
+                >临期 {{ listHydrated && !crudExpiry.loading ? expiryAlerts.length : '暂无' }}</el-tag
               >
             </button>
             <el-tag
@@ -77,9 +77,6 @@
           <el-button v-hasPermi="['ops:replenishment:export']" @click="onExport">{{
             exportButtonLabel
           }}</el-button>
-          <el-button :icon="Refresh" :loading="headerRefreshing" @click="reloadCurrent"
-            >刷新</el-button
-          >
         </div>
       </div>
     </template>
@@ -88,29 +85,13 @@
       <el-tab-pane label="补货路线" name="routes">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              v-loading="isTabLoading('routes')"
-              :data="pagedRoutes"
-              stripe
-              border
-              empty-text=" "
+            <CrudTable
+              :table="crudRoutes"
               row-key="routeId"
-              :default-sort="routeIdDefaultSort"
-              @sort-change="onRouteIdSortChange"
-              @selection-change="onRoutesSelectionChange"
+              selectable
+              :empty-text="routesEmptyText"
+              sort-field-label="路线ID"
             >
-              <template #empty
-                ><el-empty
-                  v-if="listHydrated && !isTabLoading('routes')"
-                  :description="routesEmptyText"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column
                 type="expand"
                 align="center"
@@ -312,7 +293,7 @@
                           </el-table-column>
                           <template #empty
                             ><el-empty
-                              v-if="listHydrated && !isTabLoading('routes')"
+                              v-if="listHydrated && !crudRoutes.loading"
                               description="该路线暂无设备任务"
                               :image-size="48"
                           /></template>
@@ -325,13 +306,7 @@
               <el-table-column label="路线" min-width="140" class-name="col-text">
                 <template #default="{ row }">{{ row.routeName || '无' }}</template>
               </el-table-column>
-              <el-table-column
-                prop="routeId"
-                label="路线ID"
-                min-width="120"
-                class-name="col-text"
-                sortable="custom"
-              >
+              <el-table-column prop="routeId" label="路线ID" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <span class="mono">{{ row.routeId }}</span>
                 </template>
@@ -386,7 +361,7 @@
                   >
                 </template>
               </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
       </el-tab-pane>
@@ -622,36 +597,24 @@
             </el-radio-button>
             <el-radio-button value="ALL">全部</el-radio-button>
           </el-radio-group>
-          <el-button :icon="Refresh" :loading="isTabLoading('requests')" @click="reloadCurrent"
-            >刷新</el-button
-          >
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              v-loading="isTabLoading('requests')"
-              :data="pagedRequests"
-              stripe
-              border
-              empty-text=" "
+            <CrudTable
+              :table="crudRequests"
               row-key="requestId"
-              :default-sort="requestIdDefaultSort"
-              @sort-change="onRequestIdSortChange"
-              @selection-change="onRequestsSelectionChange"
+              selectable
+              :actions="showRequestActionColumn ? requestActionsFor : undefined"
+              :action-width="200"
+              :empty-text="requestsEmptyText"
+              sort-field-label="要货单"
+              @action="onRequestRowAction"
             >
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column
                 prop="requestId"
                 label="要货单"
                 min-width="120"
                 class-name="col-text"
-                sortable="custom"
               >
                 <template #default="{ row }"
                   ><span class="cell-id">{{ row.requestId }}</span></template
@@ -746,28 +709,7 @@
                   }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                v-if="showRequestActionColumn"
-                label="操作"
-                width="200"
-                class-name="col-action"
-                align="center"
-                fixed="right"
-              >
-                <template #default="{ row }">
-                  <TableActions
-                    v-if="requestActionsFor(row).length"
-                    :actions="requestActionsFor(row)"
-                    @action="(k) => onRequestAction(row, String(k))"
-                  />
-                </template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="listHydrated && !isTabLoading('requests')"
-                  :description="requestsEmptyText"
-              /></template>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
       </el-tab-pane>
@@ -781,33 +723,18 @@
           >
             一键规划补货（{{ shortageDevices.length }} 台）
           </el-button>
-          <el-button :icon="Refresh" :loading="isTabLoading('shortage')" @click="reloadCurrent"
-            >刷新缺货</el-button
-          >
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              v-loading="isTabLoading('shortage')"
-              :data="pagedShortages"
-              stripe
-              border
-              empty-text=" "
+            <CrudTable
+              :table="crudShortages"
               row-key="slotKey"
-              @selection-change="onShortageSelectionChange"
+              selectable
+              empty-text="当前无缺货/低库存货道"
+              :actions="canEdit ? shortageRowActions : undefined"
+              :action-width="100"
+              @action="onShortageAction"
             >
-              <template #empty
-                ><el-empty
-                  v-if="listHydrated && !isTabLoading('shortage')"
-                  description="当前无缺货/低库存货道"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
               <el-table-column label="设备" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
@@ -867,21 +794,7 @@
                   <el-tag :type="stockTagType(row)" size="small">{{ stockLabel(row) }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column
-                v-if="canEdit"
-                label="操作"
-                width="100"
-                align="center"
-                class-name="col-action"
-                fixed="right"
-              >
-                <template #default="{ row }">
-                  <el-button link type="primary" @click="planSingleDevice(row.deviceId)"
-                    >补货</el-button
-                  >
-                </template>
-              </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
       </el-tab-pane>
@@ -895,33 +808,10 @@
             title="临期批次建议优先下架或换新；可跳转仓库批次或按设备规划补货。"
             class="expiry-hint"
           />
-          <el-button :icon="Refresh" :loading="expiryLoading" @click="loadExpiryAlerts"
-            >刷新临期</el-button
-          >
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
-              v-loading="isTabLoading('expiry') || expiryLoading"
-              :data="pagedExpiry"
-              stripe
-              border
-              empty-text=" "
-              row-key="taskId"
-              @selection-change="onExpirySelectionChange"
-            >
-              <template #empty
-                ><el-empty
-                  v-if="listHydrated && !isTabLoading('expiry') && !expiryLoading"
-                  description="当前无临期下架任务"
-              /></template>
-              <el-table-column
-                type="selection"
-                width="48"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
+            <CrudTable :table="crudExpiry" row-key="taskId" selectable empty-text="当前无临期下架任务">
               <el-table-column label="设备" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
@@ -1015,12 +905,14 @@
                   <el-button link type="primary" @click="goWarehouse(row.deviceId)">仓库</el-button>
                 </template>
               </el-table-column>
-            </el-table>
+            </CrudTable>
           </div>
         </div>
       </el-tab-pane>
     </el-tabs>
+    <!-- 共享分页器仅服务未迁壳的履约记录 tab；其余 tab 由 CrudTable 内建分页 -->
     <PagePager
+      v-if="tab === 'fulfillment'"
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
@@ -1428,19 +1320,20 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Check, Close, Refresh, View } from '@element-plus/icons-vue';
+import { Check, Close, Goods, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import type { TableAction } from '@/components/TableActions.vue';
+import CrudTable from '@/components/CrudTable.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
@@ -1450,6 +1343,7 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 多 tab 动态行，字段随业务表变化
 type Row = Record<string, any>;
 
 interface AssigneeOption {
@@ -1464,27 +1358,17 @@ const { goPath } = useNavAccess();
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:replenishment:edit'));
 
-const {
-  defaultSort: routeIdDefaultSort,
-  onSortChange: onRouteIdSortChange,
-  sortById: sortRoutesById
-} = useIdColumnSort<Row>('routeId');
+// 主列表排序统一走 CrudTable 工具条「升/降序」；履约记录 tab 未迁壳，保留表头排序
 const {
   defaultSort: taskIdDefaultSort,
   onSortChange: onTaskIdSortChange,
   sortById: sortTasksById
 } = useIdColumnSort<Row>('taskId');
-const {
-  defaultSort: requestIdDefaultSort,
-  onSortChange: onRequestIdSortChange,
-  sortById: sortRequestsById
-} = useIdColumnSort<Row>('requestId');
 
 function sortedRouteTasks(tasks: Row[] | undefined | null): Row[] {
   return sortByPrimaryKey(tasks || [], 'taskId', 'asc');
 }
 
-const loading = ref(false);
 const loadingTabs = ref(new Set<string>());
 const listHydrated = ref(false);
 const loadSeq = createLoadSeq();
@@ -1492,11 +1376,6 @@ const loadSeq = createLoadSeq();
 function isTabLoading(name: string) {
   return loadingTabs.value.has(name);
 }
-
-const headerRefreshing = computed(() => {
-  if (tab.value === 'expiry') return isTabLoading('expiry') || expiryLoading.value;
-  return isTabLoading(tab.value);
-});
 
 function markTabsLoading(names: string[], on: boolean) {
   const next = new Set(loadingTabs.value);
@@ -1507,12 +1386,7 @@ function markTabsLoading(names: string[], on: boolean) {
   loadingTabs.value = next;
 }
 
-function reloadCurrent() {
-  void loadTab(tab.value, true);
-}
-
 const saving = ref(false);
-const expiryLoading = ref(false);
 const expiryActingId = ref<number | null>(null);
 const openDoorLoading = ref<number | null>(null);
 const checkInLoading = ref<number | null>(null);
@@ -1638,15 +1512,10 @@ const fulfillmentEmptyText = computed(() => {
   if (fulfillmentStatus.value) return '当前筛选下暂无履约记录';
   return '暂无履约记录';
 });
-const filteredRoutes = computed(() => sortRoutesById(routes.value));
-const sortedRequests = computed(() => sortRequestsById(requests.value));
 const routesEmptyText = computed(() =>
   focusDeviceId.value.trim() ? `设备 ${focusDeviceId.value} 暂无关联补货路线` : '暂无补货路线'
 );
 
-const pagedRoutes = computed(() => filteredRoutes.value);
-const pagedRequests = computed(() => sortedRequests.value);
-const pagedShortages = computed(() => shortages.value);
 const tabTotal = computed(() => {
   if (SERVER_PAGINATED_TABS.has(tab.value)) {
     if (tab.value === 'fulfillment' && fulfillmentUnassignedOnly.value) {
@@ -1657,7 +1526,6 @@ const tabTotal = computed(() => {
   return 0;
 });
 
-const pagedExpiry = computed(() => expiryAlerts.value);
 const pagedFulfillment = computed(() => sortTasksById(fulfillmentTasks.value));
 const linesDrawerTitle = computed(() =>
   linesTask.value?.taskId ? `理货明细 · 任务 ${linesTask.value.taskId}` : '理货明细'
@@ -1757,50 +1625,131 @@ function requestActionsFor(row: Row): TableAction[] {
 }
 
 const showRequestActionColumn = computed(() =>
-  pagedRequests.value.some((row) => requestActionsFor(row).length > 0)
+  requests.value.some((row) => requestActionsFor(row).length > 0)
 );
 
-const {
-  onSelectionChange: onRoutesSelectionChange,
-  pickSelected: pickRoutes,
-  exportButtonLabel: routesExportLabel,
-  clearSelection: clearRoutesSelection
-} = useTableSelection<Row>((r) => r.routeId);
+/** 缺货建议行操作（迁入 CrudTable 固定操作列；整列随 canEdit 显隐） */
+function shortageRowActions(_row: Row): TableAction[] {
+  return [{ key: 'restock', label: '补货', icon: Goods, type: 'primary' }];
+}
 
-const {
-  onSelectionChange: onRequestsSelectionChange,
-  pickSelected: pickRequests,
-  exportButtonLabel: requestsExportLabel,
-  clearSelection: clearRequestsSelection
-} = useTableSelection<Row>((r) => r.requestId);
+function onShortageAction({ row }: { key: string; row: Row }) {
+  planSingleDevice(row.deviceId);
+}
 
-const {
-  onSelectionChange: onShortageSelectionChange,
-  pickSelected: pickShortages,
-  exportButtonLabel: shortageExportLabel,
-  clearSelection: clearShortageSelection
-} = useTableSelection<Row>((r) => r.slotKey || `${r.deviceId}-${r.slotCode}`);
+function onRequestRowAction({ key, row }: { key: string; row: Row }) {
+  void onRequestAction(row, key);
+}
 
-const {
-  onSelectionChange: onExpirySelectionChange,
-  pickSelected: pickExpiry,
-  exportButtonLabel: expiryExportLabel,
-  clearSelection: clearExpirySelection
-} = useTableSelection<Row>((r) => r.taskId || `${r.deviceId}-${r.lotId}-${r.skuId}`);
+// ── 主列表状态机统一交给 CrudTable（分页 / 多选 / 升降序 / 竞态 / 空态 内建）────────────
+// 首查依赖 onMounted 应用路由查询参数（tab / deviceId / plan），故全部 autoLoad:false，由 loadTab 显式首查。
+// 履约记录 tab 的关键词与「仅待分配」是拉取后逐键客户端过滤，CrudTable 无此数据钩子，该 tab 保持原 el-table。
+function replenishmentPageQuery(
+  params: { page: number; size: number },
+  extra?: Record<string, string>
+) {
+  const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) q.set(key, value);
+    }
+  }
+  return q;
+}
+
+const crudRoutes = useCrudTable<Row>({
+  rowKey: (r) => r.routeId,
+  errorMessage: '补货数据加载失败',
+  autoLoad: false,
+  sort: { prop: 'routeId', mode: 'local' },
+  fetchPage: async (params) => {
+    await loadSummary();
+    const extra: Record<string, string> = {};
+    if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
+    const data = await api.request<{ items: Row[]; total: number }>(
+      AdminEndpoints.replenishmentRoutes(replenishmentPageQuery(params, extra)),
+      'GET'
+    );
+    routes.value = data.items || [];
+    tabTotals.value = { ...tabTotals.value, routes: Number(data.total) || 0 };
+    return data;
+  }
+});
+
+const crudRequests = useCrudTable<Row>({
+  rowKey: (r) => r.requestId,
+  errorMessage: '补货数据加载失败',
+  autoLoad: false,
+  sort: { prop: 'requestId', mode: 'local' },
+  fetchPage: async (params) => {
+    await loadSummary();
+    const status = requestStatusFilter.value || 'ALL';
+    const data = await api.request<{ items: Row[]; total: number }>(
+      AdminEndpoints.replenishmentRequests(replenishmentPageQuery(params, { status })),
+      'GET'
+    );
+    allRequests.value = data.items || [];
+    tabTotals.value = { ...tabTotals.value, requests: Number(data.total) || 0 };
+    return data;
+  }
+});
+
+const crudShortages = useCrudTable<Row>({
+  rowKey: (r) => r.slotKey || `${r.deviceId}-${r.slotCode}`,
+  errorMessage: '补货数据加载失败',
+  autoLoad: false,
+  fetchPage: async (params) => {
+    await loadSummary();
+    const extra: Record<string, string> = {};
+    if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
+    const data = await api.request<{
+      items: Row[];
+      total: number;
+      shortageDeviceIds: string[];
+    }>(AdminEndpoints.replenishmentShortage(replenishmentPageQuery(params, extra)), 'GET');
+    shortages.value = (data.items || []).map((row) => ({
+      ...row,
+      slotKey: row.slotKey || `${row.deviceId}:${row.slotCode || row.skuId || ''}`
+    }));
+    tabTotals.value = { ...tabTotals.value, shortage: Number(data.total) || 0 };
+    shortageDeviceIds.value = data.shortageDeviceIds || [];
+    return { items: shortages.value, total: Number(data.total) || 0 };
+  }
+});
+
+const crudExpiry = useCrudTable<Row>({
+  rowKey: (r) => r.taskId || `${r.deviceId}-${r.lotId}-${r.skuId}`,
+  errorMessage: '临期告警加载失败',
+  autoLoad: false,
+  fetchPage: async (params) => {
+    await loadSummary();
+    const data = await api.request<{ items: Row[]; total: number }>(
+      AdminEndpoints.expiryAlerts(replenishmentPageQuery(params)),
+      'GET'
+    );
+    let rows = data.items || [];
+    if (focusDeviceId.value.trim()) {
+      rows = rows.filter((x) => x.deviceId === focusDeviceId.value.trim());
+    }
+    expiryAlerts.value = rows;
+    tabTotals.value = { ...tabTotals.value, expiry: Number(data.total) || 0 };
+    return { items: rows, total: Number(data.total) || 0 };
+  }
+});
 
 const exportButtonLabel = computed(() => {
-  if (tab.value === 'requests') return requestsExportLabel.value;
-  if (tab.value === 'shortage') return shortageExportLabel.value;
-  if (tab.value === 'expiry') return expiryExportLabel.value;
+  if (tab.value === 'requests') return crudRequests.exportButtonLabel;
+  if (tab.value === 'shortage') return crudShortages.exportButtonLabel;
+  if (tab.value === 'expiry') return crudExpiry.exportButtonLabel;
   if (tab.value === 'fulfillment') return fulfillmentExportLabel.value;
-  return routesExportLabel.value;
+  return crudRoutes.exportButtonLabel;
 });
 
 const { onExport: exportRoutes } = useListCsv({
   filePrefix: '补货路线',
   headers: ['路线编号', '路线名称', '设备数', '计划日期', '状态'],
   toRows: () =>
-    pickRoutes(routes.value).map((row) => [
+    crudRoutes.pickSelected(crudRoutes.items).map((row) => [
       row.routeId,
       row.routeName || '',
       row.tasks?.length || 0,
@@ -1844,7 +1793,7 @@ const { onExport: exportRequests } = useListCsv({
   filePrefix: '商户要货',
   headers: ['要货单', '商户', '目标设备', '状态', '审核人', '审核时间', '驳回原因', '提交时间'],
   toRows: () =>
-    pickRequests(requests.value).map((row) => [
+    crudRequests.pickSelected(crudRequests.items).map((row) => [
       row.requestId,
       row.merchantName || '',
       deviceName(row.deviceId, row.deviceName),
@@ -1860,7 +1809,7 @@ const { onExport: exportShortages } = useListCsv({
   filePrefix: '缺货建议',
   headers: ['设备', '货道', '商品', '账面', '最低', '目标', '状态'],
   toRows: () =>
-    pickShortages(shortages.value).map((row) => [
+    crudShortages.pickSelected(crudShortages.items).map((row) => [
       row.deviceName || row.deviceId,
       row.slotCode,
       row.assignedSkuName || '',
@@ -1875,7 +1824,7 @@ const { onExport: exportExpiry } = useListCsv({
   filePrefix: '临期下架',
   headers: ['任务', '设备', 'SKU', '批次', '批次ID', '数量', '原因', '状态', '创建时间'],
   toRows: () =>
-    pickExpiry(expiryAlerts.value).map((row) => [
+    crudExpiry.pickSelected(crudExpiry.items).map((row) => [
       row.taskId,
       row.deviceId,
       row.skuId,
@@ -1907,8 +1856,8 @@ async function exportRoutesFull() {
 }
 
 async function exportRequestsTab() {
-  const selected = pickRequests(requests.value);
-  if (selected.length && selected.length < requests.value.length) {
+  const selected = crudRequests.pickSelected(crudRequests.items);
+  if (selected.length && selected.length < crudRequests.items.length) {
     exportRequests();
     return;
   }
@@ -1916,8 +1865,8 @@ async function exportRequestsTab() {
 }
 
 async function exportRoutesTab() {
-  const selected = pickRoutes(routes.value);
-  if (selected.length && selected.length < routes.value.length) {
+  const selected = crudRoutes.pickSelected(crudRoutes.items);
+  if (selected.length && selected.length < crudRoutes.items.length) {
     exportRoutes();
     return;
   }
@@ -2128,21 +2077,8 @@ async function loadSummary() {
   }
 }
 
-async function loadRoutes() {
-  const seq = loadSeq.begin('loadRoutes');
-  const extra: Record<string, string> = {};
-  if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
-  const data = await api.request<{ items: Row[]; total: number }>(
-    AdminEndpoints.replenishmentRoutes(replenishmentListParams(extra)),
-    'GET'
-  );
-  routes.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, routes: Number(data.total) || 0 };
-  clearRoutesSelection();
-}
-
 async function loadFulfillment() {
-  const seq = loadSeq.begin('loadFulfillment');
+  loadSeq.begin('loadFulfillment');
   const extra: Record<string, string> = {};
   if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
   if (fulfillmentStatus.value) extra.status = fulfillmentStatus.value;
@@ -2156,18 +2092,6 @@ async function loadFulfillment() {
   void prefetchUnassignedHints();
 }
 
-async function loadRequests() {
-  const seq = loadSeq.begin('loadRequests');
-  const status = requestStatusFilter.value || 'ALL';
-  const data = await api.request<{ items: Row[]; total: number }>(
-    AdminEndpoints.replenishmentRequests(replenishmentListParams({ status })),
-    'GET'
-  );
-  allRequests.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, requests: Number(data.total) || 0 };
-  clearRequestsSelection();
-}
-
 async function loadDeviceRefs() {
   const seq = loadSeq.begin('loadDeviceRefs');
   if (devices.value.length) return;
@@ -2179,46 +2103,27 @@ async function loadDeviceRefs() {
   }
 }
 
-async function loadShortages() {
-  const seq = loadSeq.begin('loadShortages');
-  const extra: Record<string, string> = {};
-  if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
-  const data = await api.request<{
-    items: Row[];
-    total: number;
-    shortageDeviceIds: string[];
-  }>(AdminEndpoints.replenishmentShortage(replenishmentListParams(extra)), 'GET');
-  shortages.value = (data.items || []).map((row) => ({
-    ...row,
-    slotKey: row.slotKey || `${row.deviceId}:${row.slotCode || row.skuId || ''}`
-  }));
-  tabTotals.value = { ...tabTotals.value, shortage: Number(data.total) || 0 };
-  shortageDeviceIds.value = data.shortageDeviceIds || [];
-  clearShortageSelection();
-}
-
 async function loadTab(name: string, force = false) {
   const seq = loadSeq.begin('loadTab');
   if (!force && !SERVER_PAGINATED_TABS.has(name)) return;
-  markTabsLoading([name], true);
-  loading.value = true;
+  if (name === 'fulfillment') markTabsLoading(['fulfillment'], true);
   try {
-    await loadSummary();
-    if (name === 'routes') await loadRoutes();
-    else if (name === 'fulfillment') await loadFulfillment();
-    else if (name === 'requests') await loadRequests();
+    if (name === 'routes') await crudRoutes.search();
+    else if (name === 'fulfillment') {
+      await loadSummary();
+      await loadFulfillment();
+    } else if (name === 'requests') await crudRequests.search();
     else if (name === 'shortage') {
       await loadDeviceRefs();
-      await loadShortages();
-    } else if (name === 'expiry') await loadExpiryAlerts();
+      await crudShortages.search();
+    } else if (name === 'expiry') await crudExpiry.search();
   } catch (error) {
     if (!loadSeq.isCurrent(seq, 'loadTab')) return;
     ElMessage.error(error instanceof Error ? error.message : '补货数据加载失败');
   } finally {
     if (!loadSeq.isCurrent(seq, 'loadTab')) return;
     listHydrated.value = true;
-    loading.value = false;
-    markTabsLoading([name], false);
+    if (name === 'fulfillment') markTabsLoading(['fulfillment'], false);
   }
 }
 
@@ -2308,30 +2213,6 @@ function planSingleDevice(deviceId: string) {
   });
   void loadAssignees();
   planDialog.value = true;
-}
-
-async function loadExpiryAlerts() {
-  const seq = loadSeq.begin('loadExpiryAlerts');
-  expiryLoading.value = true;
-  try {
-    const data = await api.request<{ items: Row[]; total: number }>(
-      AdminEndpoints.expiryAlerts(replenishmentListParams()),
-      'GET'
-    );
-    let rows = data.items || [];
-    if (focusDeviceId.value.trim()) {
-      rows = rows.filter((x) => x.deviceId === focusDeviceId.value.trim());
-    }
-    expiryAlerts.value = rows;
-    tabTotals.value = { ...tabTotals.value, expiry: Number(data.total) || 0 };
-    clearExpirySelection();
-  } catch (error) {
-    if (!loadSeq.isCurrent(seq, 'loadExpiryAlerts')) return;
-    ElMessage.error(error instanceof Error ? error.message : '临期告警加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadExpiryAlerts')) return;
-    expiryLoading.value = false;
-  }
 }
 
 function goWarehouse(deviceId?: string) {
@@ -2487,7 +2368,7 @@ async function createFromExpiry(row: Row, lineType: 'PULL_OFF' | 'RESTOCK') {
         ? `已生成下架任务 ${route?.tasks?.[0]?.taskId || route?.routeId || ''}`
         : `已生成补货任务 ${route?.tasks?.[0]?.taskId || route?.routeId || ''}`
     );
-    await loadExpiryAlerts();
+    await crudExpiry.load();
     await loadTab(tab.value, true);
     tab.value = 'routes';
   } catch (error) {
@@ -3136,6 +3017,7 @@ watch(requestFlowDrawer, (open) => {
   if (!open) revokeRequestEvidenceUrls();
 });
 
+// 各列表控制器均 autoLoad:false：首查须在路由查询参数（tab/deviceId/plan）应用后由 loadTab 显式触发
 onMounted(async () => {
   applyRouteQuery();
   syncRouteQuery();
