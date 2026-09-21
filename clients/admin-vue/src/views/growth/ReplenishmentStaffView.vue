@@ -9,42 +9,39 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-radio-group v-model="days" @change="load">
+          <el-radio-group v-model="days" @change="search">
             <el-radio-button :value="7">近 7 天</el-radio-button>
             <el-radio-button :value="30">近 30 天</el-radio-button>
             <el-radio-button :value="90">近 90 天</el-radio-button>
           </el-radio-group>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
-    <el-form inline class="filter-bar filter-bar--compact">
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
-        <el-input v-model="keyword" clearable placeholder="姓名" style="width: 160px" />
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="姓名"
+          style="width: 160px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
       </el-form-item>
     </el-form>
 
-    <el-table
-      ref="tableRef"
-      v-loading="loading"
-      :data="displayList"
-      stripe
-      border
+    <CrudTable
+      :table="crud"
       row-key="userId"
-      empty-text=" "
-      class="report-table"
-      @selection-change="onSelectionChange"
+      selectable
+      :csv="csvOptions"
+      empty-text="暂无补货任务数据"
     >
-      <template #empty><el-empty v-if="!loading" description="暂无补货任务数据" /></template>
-      <el-table-column
-        type="selection"
-        width="48"
-        align="center"
-        class-name="col-status"
-        label-class-name="col-status"
-      />
       <el-table-column prop="userId" label="工号" width="110" class-name="col-text" />
       <el-table-column
         label="姓名"
@@ -117,18 +114,16 @@
         class-name="col-status"
         label-class-name="col-status"
       />
-    </el-table>
+    </CrudTable>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { ElMessage } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
+import { ref } from 'vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { useListCsv } from '@/composables/useListCsv';
+import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';
 
 type StaffRow = {
@@ -143,25 +138,29 @@ type StaffRow = {
   avgDailyTasks: number;
 };
 
-const loading = ref(false);
 const days = ref(30);
-const list = ref<StaffRow[]>([]);
+const keyword = ref('');
 
-const {
-  tableRef,
-  keyword,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection,
-  filterByKeyword
-} = useAdminListTable<StaffRow>((r) => r.userId);
+/** 关键词为纯前端过滤（接口无该参数）：原 displayList 计算属性前移到取数处，切片前先过滤保证分页计数一致 */
+function filterByKeyword(rows: StaffRow[]): StaffRow[] {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter((row) => (row.name || '').toLowerCase().includes(kw));
+}
 
-const displayList = computed(() =>
-  filterByKeyword(list.value, (row, kw) => (row.name || '').toLowerCase().includes(kw))
-);
+// 列表状态机统一交给 CrudTable：分页（接口无分页，前端切片）/ 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<StaffRow>({
+  rowKey: (r) => r.userId,
+  fetchPage: async (params) => {
+    const list = filterByKeyword(
+      await api.request<StaffRow[]>(AdminEndpoints.replenishmentReportStaff(days.value))
+    );
+    const start = params.page * params.size;
+    return { items: list.slice(start, start + params.size), total: list.length };
+  }
+});
 
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '补货员效率',
   headers: [
     '工号',
@@ -174,8 +173,8 @@ const { onExport } = useListCsv({
     '待办',
     '日均任务'
   ],
-  toRows: () =>
-    pickSelected(displayList.value).map((r) => [
+  toRows: (rows) =>
+    rows.map((r) => [
       r.userId,
       r.name || '',
       r.phone || '',
@@ -186,20 +185,14 @@ const { onExport } = useListCsv({
       r.openTasks,
       r.avgDailyTasks
     ])
-});
+};
 
-onMounted(load);
-
-async function load() {
-  loading.value = true;
-  try {
-    list.value = await api.request<StaffRow[]>(AdminEndpoints.replenishmentReportStaff(days.value));
-    clearSelection();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    loading.value = false;
-  }
+function search() {
+  void crud.search();
+}
+function reset() {
+  keyword.value = '';
+  void crud.search();
 }
 
 function pct(v?: number) {
