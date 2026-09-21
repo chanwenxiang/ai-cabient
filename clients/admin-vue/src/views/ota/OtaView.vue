@@ -19,38 +19,25 @@
           >
             批量下架
           </el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-hasPermi="['ops:ota:publish']" type="primary" @click="openPublish"
             >发布版本</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          v-loading="loading"
-          :data="items"
-          stripe
-          border
-          class="report-table"
-          row-key="releaseId"
-          empty-text=" "
-          @selection-change="onSelectionChange"
+        <CrudTable
+          :table="crud"
+          selectable
+          :actions="rowActions"
+          :action-width="100"
+          actions-testid="ota"
+          empty-text="暂无固件版本"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无固件版本"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column prop="appVersion" label="版本" min-width="120" class-name="col-text" />
           <el-table-column prop="channel" label="渠道" width="100" class-name="col-text">
             <template #default="{ row }">{{ channelLabel(row.channel) }}</template>
@@ -116,40 +103,9 @@
             class-name="col-text"
             label-class-name="col-text"
           />
-          <el-table-column
-            v-if="showActionColumn"
-            label="操作"
-            width="100"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <el-button
-                v-if="row.status === 'PUBLISHED'"
-                v-hasPermi="['ops:ota:publish']"
-                link
-                type="danger"
-                @click="unpublish(row)"
-                >下架</el-button
-              >
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 
   <!-- O2：设备侧上报的升级进度（下载/安装）。数据源同受 ota.progress.enabled 控制：
@@ -319,18 +275,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { Refresh } from '@element-plus/icons-vue';
+import { CircleClose, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import PagePager from '@/components/PagePager.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useAuthStore } from '@/stores/auth';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
-import { useListCsv } from '@/composables/useListCsv';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { normalizeListPage } from '@/utils/normalize-list-page';
 
 function statusLabel(s?: string) {
   const m: Record<string, string> = {
@@ -407,59 +359,25 @@ interface OtaProgress {
 }
 
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
-const auth = useAuthStore();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
 const saving = ref(false);
 const batchUnpublishing = ref(false);
-const items = ref<OtaRelease[]>([]);
 
-// ── O2 升级进度 ────────────────────────────────────────────────────────────
-const progressStatus = ref('');
-const progressLoading = ref(false);
-const progressHydrated = ref(false);
-const progressItems = ref<OtaProgress[]>([]);
-
-/** 当前页无已发布项（或无下架权限）时隐藏操作列 */
-const showActionColumn = computed(
-  () => auth.hasPerm('ops:ota:publish') && items.value.some((row) => row.status === 'PUBLISHED')
-);
-const dialog = ref(false);
-const form = reactive({
-  appVersion: '',
-  channel: 'stable',
-  downloadUrl: '',
-  checksumSha256: '',
-  releaseNotes: '',
-  mandatory: false,
-  minVersion: '',
-  grayPercent: 100,
-  deviceAllowlist: [] as string[]
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态防护 / 空态 全部内建（挂载后自动首查）
+const crud = useCrudTable<OtaRelease>({
+  rowKey: (r) => r.releaseId ?? `${r.appVersion}-${r.channel}`,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page),
+      size: String(params.size)
+    });
+    return api.request<OtaRelease[] | { items: OtaRelease[]; total: number }>(
+      AdminEndpoints.otaReleasesList(q),
+      'GET'
+    );
+  }
 });
 
-const {
-  tableRef,
-  hasSelection,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection
-} = useAdminListTable<OtaRelease>((r) => r.releaseId ?? `${r.appVersion}-${r.channel}`);
-
-/** 勾选中可下架的已发布版本；未勾选时为空。 */
-const unpublishableSelected = computed(() => {
-  if (!hasSelection.value) return [];
-  return pickSelected(items.value).filter(
-    (r): r is OtaRelease & { releaseId: number } => r.status === 'PUBLISHED' && r.releaseId != null
-  );
-});
-const hasUnpublishableSelection = computed(() => unpublishableSelected.value.length > 0);
-
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '固件版本',
   headers: [
     '发布ID',
@@ -473,8 +391,8 @@ const { onExport } = useListCsv({
     '发布时间',
     '说明'
   ],
-  toRows: () =>
-    pickSelected(items.value).map((r) => [
+  toRows: (rows) =>
+    rows.map((r) => [
       r.releaseId ?? '',
       r.appVersion || '',
       channelLabel(r.channel),
@@ -486,38 +404,53 @@ const { onExport } = useListCsv({
       formatDateTime(r.publishedAt) || '',
       r.releaseNotes || ''
     ])
+};
+
+// ── O2 升级进度 ────────────────────────────────────────────────────────────
+const progressStatus = ref('');
+const progressLoading = ref(false);
+const progressHydrated = ref(false);
+const progressItems = ref<OtaProgress[]>([]);
+
+function rowActions(row: OtaRelease): CrudRowAction[] {
+  return row.status === 'PUBLISHED'
+    ? [
+        {
+          key: 'unpublish',
+          label: '下架',
+          icon: CircleClose,
+          type: 'danger',
+          perm: 'ops:ota:publish'
+        }
+      ]
+    : [];
+}
+
+function onAction({ key, row }: { key: string; row: OtaRelease }) {
+  if (key === 'unpublish') void unpublish(row);
+}
+
+/** 勾选中可下架的已发布版本；未勾选时为空。 */
+const unpublishableSelected = computed(() => {
+  if (!crud.hasSelection) return [];
+  return crud.pickSelected(crud.items).filter(
+    (r): r is OtaRelease & { releaseId: number } => r.status === 'PUBLISHED' && r.releaseId != null
+  );
 });
+const hasUnpublishableSelection = computed(() => unpublishableSelected.value.length > 0);
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    const data = await api.request<OtaRelease[] | { items: OtaRelease[]; total: number }>(
-      AdminEndpoints.otaReleasesList(q),
-      'GET'
-    );
-    const pageData = normalizeListPage(data);
-    items.value = pageData.items;
-    total.value = pageData.total;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
-}
+const dialog = ref(false);
+const form = reactive({
+  appVersion: '',
+  channel: 'stable',
+  downloadUrl: '',
+  checksumSha256: '',
+  releaseNotes: '',
+  mandatory: false,
+  minVersion: '',
+  grayPercent: 100,
+  deviceAllowlist: [] as string[]
+});
 
 /** 拉取设备升级进度（不分页：后端固定返回最近 N 条，按最近上报倒序）。 */
 async function loadProgress() {
@@ -594,7 +527,7 @@ async function publish() {
     });
     ElMessage.success('已发布');
     dialog.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '发布失败');
   } finally {
@@ -623,7 +556,7 @@ async function unpublish(row: OtaRelease) {
   try {
     await api.request(AdminEndpoints.otaReleaseUnpublish(row.releaseId), 'POST', {});
     ElMessage.success('已下架');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '下架失败');
   }
@@ -634,7 +567,7 @@ async function batchUnpublish() {
   const targets = unpublishableSelected.value;
   if (!targets.length) {
     ElMessage.warning(
-      hasSelection.value ? '勾选行中没有「已发布」的版本' : '请先勾选需要下架的版本'
+      crud.hasSelection ? '勾选行中没有「已发布」的版本' : '请先勾选需要下架的版本'
     );
     return;
   }
@@ -668,14 +601,14 @@ async function batchUnpublish() {
     } else {
       ElMessage.warning(`成功 ${ok} 个，失败 ${fail} 个`);
     }
-    await load();
+    await crud.load();
   } finally {
     batchUnpublishing.value = false;
   }
 }
 
+// 主列表由 useCrudTable 挂载后自动首查；这里只补拉设备升级进度
 onMounted(() => {
-  void load();
   void loadProgress();
 });
 </script>
