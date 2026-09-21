@@ -9,17 +9,17 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <!-- 刷新迁入 CrudTable 内建统一交互行 -->
           <el-button
             v-hasPermi="['ops:repair:edit']"
-            :disabled="!selectedRows.length"
+            :disabled="!crud.hasSelection"
             @click="openAssign"
           >
-            批量指派{{ selectedRows.length ? `（${selectedRows.length}）` : '' }}
+            批量指派{{ crud.selectedKeys.length ? `（${crud.selectedKeys.length}）` : '' }}
           </el-button>
           <el-button v-hasPermi="['ops:repair:edit']" type="primary" @click="openCreate"
             >新建工单</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -98,32 +98,21 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          :data="displayRows"
-          :default-sort="idDefaultSort"
-          @selection-change="onSelectionChange"
-          @sort-change="onIdSortChange"
-          v-loading="loading"
-          stripe
-          border
-          class="report-table"
-          empty-text=" "
+        <CrudTable
+          :table="crud"
+          row-key="ticketId"
+          selectable
+          :actions="rowActions"
+          :action-width="140"
+          actions-testid="repair"
+          empty-text="暂无维修工单"
+          sort-field-label="工单号"
+          @action="onAction"
         >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无维修工单"
-          /></template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column
             prop="ticketId"
             label="工单号"
             width="88"
-            sortable="custom"
             class-name="col-text"
             label-class-name="col-text"
           />
@@ -226,57 +215,9 @@
           >
             <template #default="{ row }">{{ formatDateTime(row.closedAt) || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="220"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <div class="repair-actions">
-                <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-                <template v-if="auth.hasPerm('ops:repair:edit')">
-                  <el-button
-                    v-if="row.status === 'OPEN'"
-                    link
-                    type="warning"
-                    @click="transition(row, 'IN_PROGRESS')"
-                    >开始处理</el-button
-                  >
-                  <el-button
-                    v-if="row.status === 'IN_PROGRESS'"
-                    link
-                    type="success"
-                    @click="transition(row, 'DONE')"
-                    >完成</el-button
-                  >
-                  <el-button
-                    v-if="row.status === 'OPEN' || row.status === 'IN_PROGRESS'"
-                    link
-                    type="danger"
-                    @click="transition(row, 'CANCELLED')"
-                    >取消</el-button
-                  >
-                </template>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page1"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
 
     <el-dialog
       v-model="createVisible"
@@ -424,7 +365,7 @@
         type="info"
         :closable="false"
         show-icon
-        :title="`已选 ${selectedRows.length} 张未关闭工单`"
+        :title="`已选 ${crud.selectedKeys.length} 张未关闭工单`"
         class="assign-alert"
       />
       <el-form label-position="top" style="margin-top: 14px" @submit.prevent="submitAssign">
@@ -441,19 +382,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
-import PagePager from '@/components/PagePager.vue';
-import ResizableDrawer from '@/components/ResizableDrawer.vue';
+import { onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Refresh } from '@element-plus/icons-vue';
+import { CircleCheck, CircleClose, VideoPlay, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
@@ -488,28 +427,37 @@ interface Detail {
   }>;
 }
 
-const auth = useAuthStore();
 const route = useRoute();
 const { canAccessPath, goPath } = useNavAccess();
-const loading = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const saving = ref(false);
-const rows = ref<Ticket[]>([]);
-const {
-  defaultSort: idDefaultSort,
-  onSortChange: onIdSortChange,
-  sortById
-} = useIdColumnSort<Ticket>('ticketId');
-const displayRows = computed(() => sortById(rows.value));
-const total = ref(0);
-const page1 = ref(1);
-const size = ref(20);
 const status = ref('');
 const deviceId = ref('');
 const priority = ref('');
 const faultType = ref('');
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
+
+// 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<Ticket>({
+  rowKey: (r) => r.ticketId,
+  // 首查需等路由查询参数（deviceId）与设备选项先落位，故 autoLoad:false，onMounted 显式首查
+  autoLoad: false,
+  fetchPage: (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page), // 0 起（useCrudTable 已换算）
+      size: String(params.size)
+    });
+    if (status.value) q.set('status', status.value);
+    if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+    if (priority.value) q.set('priority', priority.value);
+    if (faultType.value) q.set('faultType', faultType.value);
+    return api.request<{ items: Ticket[]; total: number }>(
+      AdminEndpoints.repairTicketsList(q),
+      'GET'
+    );
+  },
+  // 工单号本地排序（替代原 useIdColumnSort 表头排序，改由壳内「按工单号 升/降序」切换）
+  sort: { prop: 'ticketId', mode: 'local' }
+});
 
 /** 设备详情等入口带 deviceId 时覆盖筛选；keep-alive 复用须再同步 */
 function applyRouteQuery() {
@@ -527,7 +475,6 @@ const createVisible = ref(false);
 const detailVisible = ref(false);
 const detailHydrated = ref(false);
 const detail = ref<Detail | null>(null);
-const selectedRows = ref<Ticket[]>([]);
 const assignVisible = ref(false);
 const assignSaving = ref(false);
 const assignee = ref('');
@@ -544,12 +491,8 @@ const statusOptions = useDictOptions('repair_ticket_status');
 const priorityOptions = useDictOptions('dispute_priority');
 const faultOptions = useDictOptions('repair_fault_type');
 
-function onSelectionChange(rows: Ticket[]) {
-  selectedRows.value = rows;
-}
-
 function openAssign() {
-  if (!selectedRows.value.length) return;
+  if (!crud.hasSelection) return;
   assignee.value = '';
   assignVisible.value = true;
 }
@@ -563,13 +506,12 @@ async function submitAssign() {
   assignSaving.value = true;
   try {
     const count = await api.request<number>(AdminEndpoints.repairTicketsBatchAssign, 'POST', {
-      ticketIds: selectedRows.value.map((r) => r.ticketId),
+      ticketIds: crud.selectedKeys.map(Number),
       assignee: name
     });
     ElMessage.success(`已指派 ${count} 张工单`);
     assignVisible.value = false;
-    selectedRows.value = [];
-    await load();
+    await crud.load(); // 壳内 load 自带清空勾选
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '指派失败');
   } finally {
@@ -618,42 +560,55 @@ function faultLabel(f?: string) {
   return displayLabel('repair_fault_type', f, '未知');
 }
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page1.value - 1),
-      size: String(size.value)
-    });
-    if (status.value) q.set('status', status.value);
-    if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-    if (priority.value) q.set('priority', priority.value);
-    if (faultType.value) q.set('faultType', faultType.value);
-    const res = await api.request<{ items: Ticket[]; total: number }>(
-      AdminEndpoints.repairTicketsList(q),
-      'GET'
-    );
-    rows.value = res.items || [];
-    total.value = Number(res.total || 0);
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
+// 行操作迁入 CrudTable 统一操作列（TableActions 呈现）；权限过滤走 CrudRowAction.perm
+function rowActions(row: Ticket): CrudRowAction[] {
+  return [
+    { key: 'detail', label: '详情', icon: View, type: 'primary' },
+    ...(row.status === 'OPEN'
+      ? [
+          {
+            key: 'start',
+            label: '开始处理',
+            icon: VideoPlay,
+            type: 'warning' as const,
+            perm: 'ops:repair:edit'
+          }
+        ]
+      : []),
+    ...(row.status === 'IN_PROGRESS'
+      ? [
+          {
+            key: 'done',
+            label: '完成',
+            icon: CircleCheck,
+            type: 'success' as const,
+            perm: 'ops:repair:edit'
+          }
+        ]
+      : []),
+    ...(row.status === 'OPEN' || row.status === 'IN_PROGRESS'
+      ? [
+          {
+            key: 'cancel',
+            label: '取消',
+            icon: CircleClose,
+            type: 'danger' as const,
+            perm: 'ops:repair:edit'
+          }
+        ]
+      : [])
+  ];
+}
+
+function onAction({ key, row }: { key: string; row: Ticket }) {
+  if (key === 'detail') void openDetail(row);
+  else if (key === 'start') void transition(row, 'IN_PROGRESS');
+  else if (key === 'done') void transition(row, 'DONE');
+  else if (key === 'cancel') void transition(row, 'CANCELLED');
 }
 
 function search() {
-  page1.value = 1;
-  load();
-}
-
-function onSizeChange() {
-  page1.value = 1;
-  void load();
+  void crud.search();
 }
 
 function openCreate() {
@@ -677,7 +632,7 @@ async function create() {
     await api.request(AdminEndpoints.repairTickets, 'POST', { ...form });
     ElMessage.success('已创建');
     createVisible.value = false;
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '创建失败');
   } finally {
@@ -770,7 +725,7 @@ async function transition(row: Ticket, next: string) {
       unlockDevice: unlockDevice ? 'true' : 'false'
     });
     ElMessage.success(unlockDevice ? '已完成并解锁' : '已更新');
-    await load();
+    await crud.load();
   } catch (e) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '流转失败');
@@ -778,23 +733,23 @@ async function transition(row: Ticket, next: string) {
   }
 }
 
+// crud 已配 autoLoad:false：首查需等路由查询参数（deviceId）与设备选项落位后再显式触发
 onMounted(async () => {
   applyRouteQuery();
   await loadDeviceOptions();
-  await load();
+  await crud.load();
 });
 
 onActivated(() => {
   applyRouteQuery();
-  void load();
+  void crud.load();
 });
 
 watch(
   () => route.query.deviceId,
   () => {
     if (applyRouteQuery()) {
-      page1.value = 1;
-      void load();
+      void crud.search();
     }
   }
 );
@@ -830,14 +785,5 @@ watch(
 }
 .assign-alert {
   margin-bottom: 4px;
-}
-.repair-actions {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  width: 100%;
-  box-sizing: border-box;
 }
 </style>
