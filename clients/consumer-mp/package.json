@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:mp-weixin": "node ../../scripts/sync-consumer-mp-api.mjs && uni -p mp-weixin",
-    "build:mp-weixin": "node ../../scripts/validate-miniapp-env.mjs && uni build -p mp-weixin && node ../../scripts/patch-mp-weixin-appjson.mjs && node ../../scripts/inject-miniapp-env.mjs --mode release",
-    "build:mp-weixin:dev": "node ../../scripts/sync-consumer-mp-api.mjs && uni build -p mp-weixin --mode development && node ../../scripts/patch-mp-weixin-appjson.mjs && node ../../scripts/sync-mp-weixin-dev-dist.mjs && node ../../scripts/inject-miniapp-env.mjs --mode dev",
+    "dev:mp-weixin": "node ../../scripts/sync-consumer-mp-api.mjs && node ../../scripts/patch-uni-mp-workspace.mjs && uni -p mp-weixin",
+    "build:mp-weixin": "node ../../scripts/validate-miniapp-env.mjs && node ../../scripts/patch-uni-mp-workspace.mjs && uni build -p mp-weixin && node ../../scripts/patch-mp-weixin-appjson.mjs && node ../../scripts/inject-miniapp-env.mjs --mode release",
+    "build:mp-weixin:dev": "node ../../scripts/sync-consumer-mp-api.mjs && node ../../scripts/patch-uni-mp-workspace.mjs && uni build -p mp-weixin --mode development && node ../../scripts/patch-mp-weixin-appjson.mjs && node ../../scripts/sync-mp-weixin-dev-dist.mjs && node ../../scripts/inject-miniapp-env.mjs --mode dev",
     "build:mp-weixin:prod": "npm run build:mp-weixin",
     "inject:mp-weixin": "node ../../scripts/inject-miniapp-env.mjs --mode dev",
     "patch:mp-weixin": "node ../../scripts/patch-mp-weixin-appjson.mjs",
