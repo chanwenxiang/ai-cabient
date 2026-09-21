@@ -11,42 +11,39 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-radio-group v-model="days" @change="load">
+          <el-radio-group v-model="days" @change="search">
             <el-radio-button :value="7">近 7 天</el-radio-button>
             <el-radio-button :value="30">近 30 天</el-radio-button>
             <el-radio-button :value="90">近 90 天</el-radio-button>
           </el-radio-group>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
-    <el-form inline class="filter-bar filter-bar--compact">
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
-        <el-input v-model="keyword" clearable placeholder="活动名称" style="width: 180px" />
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="活动名称"
+          style="width: 180px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
       </el-form-item>
     </el-form>
 
-    <el-table
-      ref="tableRef"
-      v-loading="loading"
-      :data="displayList"
-      stripe
-      border
+    <CrudTable
+      :table="crud"
       row-key="activityId"
-      empty-text=" "
-      class="report-table"
-      @selection-change="onSelectionChange"
+      selectable
+      :csv="csvOptions"
+      empty-text="暂无活动数据"
     >
-      <template #empty><el-empty v-if="!loading" description="暂无活动数据" /></template>
-      <el-table-column
-        type="selection"
-        width="48"
-        align="center"
-        class-name="col-status"
-        label-class-name="col-status"
-      />
       <el-table-column
         prop="activityName"
         label="活动"
@@ -148,19 +145,17 @@
           <span class="cell-revenue">{{ yuan(row.orderRevenueCents) }}</span>
         </template>
       </el-table-column>
-    </el-table>
+    </CrudTable>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { ElMessage } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
+import { ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { useListCsv } from '@/composables/useListCsv';
+import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 
 type RoiRow = {
   activityId: number;
@@ -177,25 +172,29 @@ type RoiRow = {
   redeemRate: number;
 };
 
-const loading = ref(false);
 const days = ref(30);
-const list = ref<RoiRow[]>([]);
+const keyword = ref('');
 
-const {
-  tableRef,
-  keyword,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection,
-  filterByKeyword
-} = useAdminListTable<RoiRow>((r) => r.activityId);
+/** 关键词为纯前端过滤（接口无该参数）：原 displayList 计算属性前移到取数处，切片前先过滤保证分页计数一致 */
+function filterByKeyword(rows: RoiRow[]): RoiRow[] {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter((row) => (row.activityName || '').toLowerCase().includes(kw));
+}
 
-const displayList = computed(() =>
-  filterByKeyword(list.value, (row, kw) => (row.activityName || '').toLowerCase().includes(kw))
-);
+// 列表状态机统一交给 CrudTable：分页（接口无分页，前端切片）/ 多选 / 竞态 / 空态 全部内建
+const crud = useCrudTable<RoiRow>({
+  rowKey: (r) => r.activityId,
+  fetchPage: async (params) => {
+    const list = filterByKeyword(
+      await api.request<RoiRow[]>(AdminEndpoints.growthMarketingRoi(days.value))
+    );
+    const start = params.page * params.size;
+    return { items: list.slice(start, start + params.size), total: list.length };
+  }
+});
 
-const { onExport } = useListCsv({
+const csvOptions: CrudCsvOptions = {
   filePrefix: '活动效果分析',
   headers: [
     '活动',
@@ -210,8 +209,8 @@ const { onExport } = useListCsv({
     '带动订单',
     '带动营收(元)'
   ],
-  toRows: () =>
-    pickSelected(displayList.value).map((r) => [
+  toRows: (rows) =>
+    rows.map((r) => [
       r.activityName,
       typeLabel(r.activityType),
       displayLabel('enable_status', r.status, '未知'),
@@ -224,20 +223,14 @@ const { onExport } = useListCsv({
       r.orderCount,
       yuan(r.orderRevenueCents)
     ])
-});
+};
 
-onMounted(load);
-
-async function load() {
-  loading.value = true;
-  try {
-    list.value = await api.request<RoiRow[]>(AdminEndpoints.growthMarketingRoi(days.value));
-    clearSelection();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    loading.value = false;
-  }
+function search() {
+  void crud.search();
+}
+function reset() {
+  keyword.value = '';
+  void crud.search();
 }
 
 function typeLabel(t: string) {
