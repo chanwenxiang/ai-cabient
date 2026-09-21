@@ -14,7 +14,7 @@
           <el-button
             type="warning"
             plain
-            :disabled="!hasSelection"
+            :disabled="!crud.hasSelection"
             :loading="batchLoading === 'delist'"
             @click="batchDecide('DELIST')"
             >批量下架</el-button
@@ -22,7 +22,7 @@
           <el-button
             type="success"
             plain
-            :disabled="!hasSelection"
+            :disabled="!crud.hasSelection"
             :loading="batchLoading === 'keep'"
             @click="batchDecide('KEEP')"
             >批量保留</el-button
@@ -33,8 +33,6 @@
             <el-option label="近 90 天" :value="90" />
           </el-select>
           <el-button type="primary" :loading="running" @click="run">运行诊断</el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -57,27 +55,17 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
-          ref="tableRef"
-          v-loading="loading"
-          :data="displayList"
-          stripe
-          border
+        <CrudTable
+          :table="crud"
           row-key="skuId"
-          empty-text=" "
-          class="report-table"
-          @selection-change="onSelectionChange"
+          selectable
+          :actions="rowActions"
+          :action-width="220"
+          actions-testid="sku-review"
+          empty-text="暂无诊断数据，点击「运行诊断」生成"
+          :csv="csvOptions"
+          @action="onAction"
         >
-          <template #empty>
-            <el-empty v-if="!loading" description="暂无诊断数据，点击「运行诊断」生成" />
-          </template>
-          <el-table-column
-            type="selection"
-            width="48"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
           <el-table-column prop="skuId" label="SKU" width="110" class-name="col-text" />
           <el-table-column
             prop="skuName"
@@ -147,49 +135,20 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作"
-            width="220"
-            align="center"
-            class-name="col-action"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <el-button link type="warning" @click="decide(row, 'RECOMMEND_DELIST')"
-                >建议下架</el-button
-              >
-              <el-button link type="success" @click="decide(row, 'KEEP')">保留</el-button>
-              <el-button link type="danger" @click="confirmDelist(row)">确认下架</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </div>
     </div>
-
-    <PagePager
-      :hydrated="listHydrated"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      @current-change="load"
-      @size-change="onSizeChange"
-    />
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
+import { CircleCheck, CircleClose, Warning } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import PagePager from '@/components/PagePager.vue';
-import { useAdminListTable } from '@/composables/useAdminListTable';
-import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useListCsv } from '@/composables/useListCsv';
+import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';
 
 type ReviewRow = {
@@ -207,32 +166,17 @@ type ReviewRow = {
   replaceSkuId?: string;
 };
 
-const loading = ref(false);
 const running = ref(false);
-const listHydrated = ref(false);
-const loadSeq = createLoadSeq();
 const batchLoading = ref<'delist' | 'keep' | ''>('');
 const days = ref(30);
-const page = ref(1);
-const size = ref(20);
-const total = ref(0);
-const list = ref<ReviewRow[]>([]);
+const keyword = ref('');
 
-const {
-  tableRef,
-  keyword,
-  hasSelection,
-  onSelectionChange,
-  pickSelected,
-  exportButtonLabel,
-  clearSelection,
-  filterByKeyword,
-  resetKeyword
-} = useAdminListTable<ReviewRow>((r) => r.skuId);
-
-const displayList = computed(() =>
-  filterByKeyword(list.value, (row, kw) => {
-    return (
+/** 关键词为纯前端过滤（接口无该参数）：过滤前移到取数处，与原 displayList 行为一致 */
+function filterByKeyword(rows: ReviewRow[]): ReviewRow[] {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter(
+    (row) =>
       String(row.skuId || '')
         .toLowerCase()
         .includes(kw) ||
@@ -242,11 +186,22 @@ const displayList = computed(() =>
       String(row.category || '')
         .toLowerCase()
         .includes(kw)
-    );
-  })
-);
+  );
+}
 
-const { onExport } = useListCsv({
+// 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 / 导出 全部内建
+const crud = useCrudTable<ReviewRow>({
+  rowKey: (r) => r.skuId,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+    const data = await api.request<{ items: ReviewRow[]; total: number }>(
+      AdminEndpoints.growthSkuReviewList(q)
+    );
+    return { items: filterByKeyword(data.items || []), total: Number(data.total) || 0 };
+  }
+});
+
+const csvOptions: CrudCsvOptions = {
   filePrefix: '选品诊断',
   headers: [
     'SKU',
@@ -261,8 +216,8 @@ const { onExport } = useListCsv({
     '原因',
     '替换SKU'
   ],
-  toRows: () =>
-    pickSelected(displayList.value).map((r) => [
+  toRows: (rows) =>
+    rows.map((r) => [
       r.skuId,
       r.skuName,
       r.category || '',
@@ -275,56 +230,36 @@ const { onExport } = useListCsv({
       r.reason || '',
       r.replaceSkuId || ''
     ])
-});
+};
 
-onMounted(load);
+function rowActions(_row: ReviewRow): CrudRowAction[] {
+  return [
+    { key: 'recommend', label: '建议下架', icon: Warning, type: 'warning' },
+    { key: 'keep', label: '保留', icon: CircleCheck, type: 'success' },
+    { key: 'delist', label: '确认下架', icon: CircleClose, type: 'danger' }
+  ];
+}
 
-async function load() {
-  const seq = loadSeq.begin();
-  loading.value = true;
-  try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    const data = await api.request<{ items: ReviewRow[]; total: number }>(
-      AdminEndpoints.growthSkuReviewList(q)
-    );
-    list.value = data.items || [];
-    total.value = Number(data.total) || 0;
-    clearSelection();
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
-  } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
-  }
+function onAction({ key, row }: { key: string; row: ReviewRow }) {
+  if (key === 'recommend') void decide(row, 'RECOMMEND_DELIST');
+  else if (key === 'keep') void decide(row, 'KEEP');
+  else if (key === 'delist') void confirmDelist(row);
 }
 
 function search() {
-  page.value = 1;
-  load();
+  void crud.search();
 }
 
 function resetFilters() {
-  resetKeyword();
-  page.value = 1;
-  load();
-}
-
-function onSizeChange() {
-  page.value = 1;
-  load();
+  keyword.value = '';
+  void crud.search();
 }
 
 async function run() {
   running.value = true;
   try {
     await api.request<ReviewRow[]>(AdminEndpoints.growthSkuReviewRun(days.value), 'POST');
-    page.value = 1;
-    await load();
+    await crud.search();
     ElMessage.success('诊断完成');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '诊断失败');
@@ -339,7 +274,7 @@ async function decide(row: ReviewRow, action: string) {
       action
     });
     ElMessage.success(action === 'KEEP' ? '已保留' : '已建议下架');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
   }
@@ -363,14 +298,14 @@ async function confirmDelist(row: ReviewRow) {
       replaceSkuId: value.trim() || undefined
     });
     ElMessage.success('已下架');
-    await load();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
   }
 }
 
 async function batchDecide(action: 'DELIST' | 'KEEP') {
-  const targets = pickSelected(displayList.value);
+  const targets = crud.pickSelected(crud.items);
   if (!targets.length) {
     ElMessage.warning('请先勾选 SKU');
     return;
@@ -413,8 +348,8 @@ async function batchDecide(action: 'DELIST' | 'KEEP') {
     const fail = results.length - ok;
     if (fail === 0) ElMessage.success(`已批量${label} ${ok} 个`);
     else ElMessage.warning(`批量${label}完成：成功 ${ok}，失败 ${fail}`);
-    clearSelection();
-    await load();
+    crud.clearSelection();
+    await crud.load();
   } finally {
     batchLoading.value = '';
   }
