@@ -160,7 +160,7 @@ public class AdminGrowthController {
         return ApiResponse.ok(notificationService.adminPage(page, size));
     }
 
-    @RequiresPermissions("ops:notify:list")
+    @RequiresPermissions("ops:notify:send")
     @PostMapping("/notifications/send")
     public ApiResponse<NotificationDto> sendNotification(
             HttpServletRequest request,
@@ -168,7 +168,7 @@ public class AdminGrowthController {
         return ApiResponse.ok(notificationService.sendManual(operatorId(request), body));
     }
 
-    @RequiresPermissions("ops:notify:list")
+    @RequiresPermissions("ops:notify:edit")
     @PutMapping("/notifications/{id}")
     public ApiResponse<NotificationDto> updateNotification(
             HttpServletRequest request,
@@ -177,7 +177,7 @@ public class AdminGrowthController {
         return ApiResponse.ok(notificationService.updateManual(operatorId(request), id, body));
     }
 
-    @RequiresPermissions("ops:notify:list")
+    @RequiresPermissions("ops:notify:delete")
     @DeleteMapping("/notifications/{id}")
     public ApiResponse<Void> deleteNotification(
             HttpServletRequest request,
@@ -186,7 +186,7 @@ public class AdminGrowthController {
         return ApiResponse.ok(null);
     }
 
-    @RequiresPermissions("ops:notify:list")
+    @RequiresPermissions("ops:notify:delete")
     @PostMapping("/notifications/batch-delete")
     public ApiResponse<Map<String, Integer>> batchDeleteNotifications(
             HttpServletRequest request,

@@ -226,7 +226,7 @@ public class OpsGapFeaturesController {
         return ApiResponse.ok(gapService.listPhoneVerify(operatorId(request), phone, channel, page, size));
     }
 
-    @RequiresPermissions("ops:phone-verify:list")
+    @RequiresPermissions("ops:phone-verify:edit")
     @PostMapping("/phone-verify/logs")
     public ApiResponse<PhoneVerifyLogDto> createPhoneVerify(
             HttpServletRequest request,
@@ -234,7 +234,7 @@ public class OpsGapFeaturesController {
         return ApiResponse.ok(gapService.recordPhoneVerify(operatorId(request), body));
     }
 
-    @RequiresPermissions("ops:phone-verify:list")
+    @RequiresPermissions("ops:phone-verify:edit")
     @PutMapping("/phone-verify/logs/{logId}")
     public ApiResponse<PhoneVerifyLogDto> updatePhoneVerify(
             HttpServletRequest request,
@@ -243,7 +243,7 @@ public class OpsGapFeaturesController {
         return ApiResponse.ok(gapService.updatePhoneVerify(operatorId(request), logId, body));
     }
 
-    @RequiresPermissions("ops:phone-verify:list")
+    @RequiresPermissions("ops:phone-verify:delete")
     @DeleteMapping("/phone-verify/logs/{logId}")
     public ApiResponse<Void> deletePhoneVerify(
             HttpServletRequest request, @PathVariable Long logId) {
