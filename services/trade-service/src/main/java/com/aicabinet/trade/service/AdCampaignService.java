@@ -46,6 +46,7 @@ public class AdCampaignService {
     private final AdminAuditService auditService;
     private final AdPlayEventMapper playEventRepository;
     private final DistributedLockService distributedLockService;
+    private final AdPlayEventDeduplicator playEventDeduplicator;
 
     public AdCampaignService(AdCampaignMapper campaignRepository,
                              AdCampaignItemMapper itemRepository,
@@ -53,7 +54,8 @@ public class AdCampaignService {
                              MediaAssetMapper assetRepository,
                              AdminAuditService auditService,
                              AdPlayEventMapper playEventRepository,
-                             DistributedLockService distributedLockService) {
+                             DistributedLockService distributedLockService,
+                             AdPlayEventDeduplicator playEventDeduplicator) {
         this.campaignRepository = campaignRepository;
         this.itemRepository = itemRepository;
         this.deviceRepository = deviceRepository;
@@ -61,6 +63,7 @@ public class AdCampaignService {
         this.auditService = auditService;
         this.playEventRepository = playEventRepository;
         this.distributedLockService = distributedLockService;
+        this.playEventDeduplicator = playEventDeduplicator;
     }
 
     @Transactional(readOnly = true)
@@ -209,7 +212,13 @@ public class AdCampaignService {
         return new ScreenContentDto(null, null, List.of());
     }
 
-    /** 设备屏回写曝光/完播，供投放 ROI 留痕。 */
+    /**
+     * 小程序推广位回写曝光/完播/点击，供投放 ROI 留痕。
+     *
+     * <p>🔴 服务端**必须自己去重**：客户端（{@code device-ad-banner.vue}）的 {@code impressed} /
+     * {@code completeTimers} 只是内存 Set，改包或脚本可直接绕过；而本表是 ROI 的唯一数据源。
+     * 去重键 = 设备 × 计划 × 素材 × 事件类型，窗口 60s（见 {@link AdPlayEventDeduplicator}）。
+     */
     @Transactional
     public void recordPlayEvent(String deviceId, Long campaignId, Long assetId, String eventType) {
         if (deviceId == null || deviceId.isBlank() || campaignId == null) {
@@ -233,13 +242,26 @@ public class AdCampaignService {
                     deviceId, campaignId);
             return;
         }
+        String deviceKey = deviceId.trim().toUpperCase();
+        // 窗口内重复上报：静默丢弃（同样不抛 4xx，理由与上面的越界丢弃一致）
+        if (!playEventDeduplicator.tryAcquire(deviceKey, campaignId, assetId, type)) {
+            log.debug("ad play event dropped: duplicate {} in dedup window (device={}, campaign={}, asset={})",
+                    type, deviceKey, campaignId, assetId);
+            return;
+        }
         AdPlayEvent ev = new AdPlayEvent();
         ev.setCampaignId(campaignId);
-        ev.setDeviceId(deviceId.trim().toUpperCase());
+        ev.setDeviceId(deviceKey);
         ev.setAssetId(assetId);
         ev.setEventType(type);
         ev.setCreatedAt(Instant.now());
-        playEventRepository.insert(ev);
+        try {
+            playEventRepository.insert(ev);
+        } catch (RuntimeException e) {
+            // 落库失败 ⇒ 归还资格：同窗口内的重试仍能落库，避免一次 DB 抖动就让这次真实曝光彻底丢失
+            playEventDeduplicator.release(deviceKey, campaignId, assetId, type);
+            throw e;
+        }
     }
 
     private void replaceItems(Long campaignId, List<Long> assetIds) {

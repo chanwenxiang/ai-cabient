@@ -58,17 +58,21 @@
 | 事实 | 证据 |
 |------|------|
 | 边缘端**无屏幕/播放能力**（无解码、无渲染、无 HDMI/kiosk） | `edge/android-app` 全仓 `ExoPlayer\|VideoView\|MediaPlayer\|SurfaceView\|kiosk\|hdmi` **0 命中** |
-| 只有**模拟器在假装**柜机屏播放器 | `edge/device-simulator/.../DeviceSimulator.java:169` `startAdScreenLoop()` |
+| 只有**模拟器在假装**柜机屏播放器 | `edge/device-simulator/.../DeviceSimulator.java` 的 `startAdScreenLoop()` |
 | 真实位置在**消费者小程序首页**（用户自己的手机屏） | `clients/consumer-mp/src/pages/index/index.vue` `<DeviceAdBanner :device-id="deviceId" />` |
 
-### 命名债
+### 命名债（✅ 2026-09-21 已清）
 
-- `DeviceInternalController.java:54` —— `/** 柜屏曝光/完播回写（ROI 留痕）。 */`（**错**：真实端是小程序）
-- `DeviceController.java:77` —— 「开门页/柜机屏：拉取当前生效的投放轮播」（这句点出了「开门页」）
-- `DeviceSimulator.java:169` —— 「柜机屏播放器模拟」
+原则：**注释与运营台文案统一改为「消费者小程序推广位」**，让后来者不会再以为有柜屏；
+`screen-content` 这个 **API 名保留不改**（改名牵动三端契约与 OpenAPI 生成物），只在文档/注释标注真实语义。
 
-**建议**：注释统一改为「**小程序推广位**」；`screen-content` 这个 API 名属历史包袱，**保留不改**
-（改名牵动三端契约与 OpenAPI 生成物），只在文档/注释标注真实语义。
+| 位置 | 原写法 | 现状 |
+|---|---|---|
+| `DeviceInternalController` `screen-content` | 「设备屏拉取当前投放内容」 | ✅ 已改为「消费者小程序推广位…」 |
+| `DeviceInternalController` `ad-play` | 「柜屏曝光/完播回写（ROI 留痕）」 | ✅ 已改，并补注服务端 60s 去重 |
+| `DeviceController` `screen-content` | 「开门页/柜机屏：拉取当前生效的投放轮播」 | ✅ 已改，并显式写明「位置在用户自己的手机屏」 |
+| `DeviceSimulator.startAdScreenLoop` | 「柜机屏播放器模拟」 | ✅ 已改，并说明它替代的是「真人在小程序里看广告」 |
+| `admin-vue/AdCampaignsView.vue` | 「投放后柜屏与开门页可拉取素材…」 | ✅ 已改（**运营可见文案**，不改会让错误概念继续扩散） |
 
 ---
 
@@ -168,6 +172,7 @@ GET https://api.weixin.qq.com/publisher/stat
 |------|------|------|
 | 自有素材库 / 投放计划 / 按设备下发 | ✅ 已实现 | `media_asset`、`ad_campaign(+item/device)`、`GET /{deviceId}/screen-content` |
 | 自有素材曝光/完播/点击上报 | ✅ 已实现 | `ad_play_event`、`AdCampaignService.recordPlayEvent` |
+| 上报的**服务端去重**（防客户端绕过） | ✅ **本批落地** | `AdPlayEventDeduplicator`（60s 窗口，Redis + 本地回退，见 §10.2） |
 | 位置门控（开关 + 占位） | ✅ **本批落地** | `consumer.ad_banner.enabled`、`device-ad-banner.vue` |
 | 腾讯流量主广告组件接入 | ✅ **本批落地**（待 E1–E4 通电） | `wx-ad-slot.vue`、`consumer.wx_ad.*` |
 | 自有/腾讯/占位 优先级 | ✅ **本批落地**（有单测） | `utils/promo-slot.ts` |
@@ -233,12 +238,16 @@ GET https://api.weixin.qq.com/publisher/stat
 ## 10. 本项必须一并处理的既有问题
 
 1. ~~**位置无开关门控**~~ ✅ 已修（切片 1）。
-2. **上报无服务端防刷** —— `AdCampaignService.recordPlayEvent` 服务端无去重/限流，
-   前端 `impressed` 只是客户端内存 Set，**可绕过**。
-   ⚠️ **影响面已变化**：新方向下自有内容**不收费**，所以它不再是「可刷钱」，
-   而是「自有投放 ROI 数据不可信」。优先级**下降**，但仍应在做投放报表前修。
+2. ~~**上报无服务端防刷**~~ ✅ **本批已修** —— 新增 `AdPlayEventDeduplicator`：按「设备 × 计划 ×
+   素材 × 事件类型」在 **60s 窗口**内只记一次；Redis（`SETNX` + TTL，多副本共享）优先，
+   Redis 不可用回退本地内存；**落库失败归还资格**（避免一次 DB 抖动吞掉真实曝光）。
+   ⚠️ **边界**：只压「同一组合重复上报」，**不防**遍历有限组合（组合数 = 计划数 × 素材数，量级小）；
+   **限流刻意不做** —— 阈值无实测依据，做了只是拍脑袋的假保障。
+   （新方向下自有内容不收费 ⇒ 这条从来不是「可刷钱」，而是「ROI 数据不可信」；已按原计划在做报表前修掉。）
 3. ~~**素材无「广告」标识**~~ ✅ **不再需要**（平台组件自带，§7）。
-4. **命名债** —— 「柜屏」注释与真实端不符（§2）。
+4. ~~**命名债**~~ ✅ **本批已修** —— `DeviceController`／`DeviceInternalController` 的方法注释、
+   以及运营台投放页文案（`AdCampaignsView.vue` 原写「投放后柜屏与开门页…」）统一改为
+   「消费者小程序推广位」。`screen-content` 这个 API 名**保留不改**（改名牵动三端契约与生成物，见 §2）。
 5. **`screen-content` 不下发计费/单价信息** —— 新方向下平台侧本就由腾讯计价，
    本项目**也不应该**把任何单价下发前端。
 

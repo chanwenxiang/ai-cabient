@@ -45,13 +45,19 @@ public class DeviceInternalController {
         return ApiResponse.ok(Map.of("deviceId", deviceId == null ? "" : deviceId, "exists", exists));
     }
 
-    /** 设备屏拉取当前投放内容（广告/多媒体轮播）。 */
+    /** 消费者小程序推广位：拉取当前投放内容（自有素材/多媒体轮播）。 */
     @GetMapping("/{deviceId}/screen-content")
     public ApiResponse<ScreenContentDto> screenContent(@PathVariable("deviceId") String deviceId) {
         return ApiResponse.ok(adCampaignService.screenContent(deviceId));
     }
 
-    /** 柜屏曝光/完播回写（ROI 留痕）。 */
+    /**
+     * 小程序推广位曝光/完播/点击回写（ROI 留痕）。
+     *
+     * <p>🔴 服务端按「设备 × 计划 × 素材 × 事件类型」在 60s 窗口内去重
+     * （{@code AdPlayEventDeduplicator}）—— 客户端去重（{@code impressed}/{@code completeTimers}）
+     * 可被改包或脚本绕过，服务端才是最后一道。
+     */
     @PostMapping("/{deviceId}/ad-play")
     public ApiResponse<Void> adPlay(
             @PathVariable("deviceId") String deviceId,

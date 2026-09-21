@@ -68,13 +68,18 @@ public class DeviceController {
         return ApiResponse.ok(deviceCatalogService.listProducts(deviceId));
     }
 
-    /** 开门页/柜机屏：拉取当前生效的投放轮播（需登录）。 */
+    /**
+     * 开门页/消费者小程序首页的推广位：拉取当前生效的投放轮播（需登录）。
+     *
+     * <p>⚠️ 位置在**用户自己的手机屏**（小程序），本项目没有柜机屏 —— 见
+     * {@code docs/AD_MONETIZATION_DESIGN.md} §2。此注释旧写作「柜机屏」，属命名债，已更正。
+     */
     @GetMapping("/{deviceId}/screen-content")
     public ApiResponse<ScreenContentDto> screenContent(@PathVariable String deviceId) {
         return ApiResponse.ok(adCampaignService.screenContent(deviceId));
     }
 
-    /** 开门页曝光/完播回写，供投放 ROI。 */
+    /** 开门页推广位曝光/完播/点击回写，供投放 ROI（服务端 60s 窗口去重）。 */
     @PostMapping("/{deviceId}/ad-play")
     public ApiResponse<Void> adPlay(
             @PathVariable String deviceId,

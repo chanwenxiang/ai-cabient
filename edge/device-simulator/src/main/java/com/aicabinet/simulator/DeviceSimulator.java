@@ -166,7 +166,12 @@ public class DeviceSimulator implements MqttCallbackExtended {
     }
 
     /**
-     * 柜机屏播放器模拟：轮询 screen-content，对当前素材回写 IMPRESSION/COMPLETE。
+     * 推广位播放器模拟：轮询 screen-content，对当前素材回写 IMPRESSION/COMPLETE。
+     *
+     * <p>⚠️ 命名说明：本项目**没有柜机屏** —— 位置真实落在**消费者小程序首页**
+     * （见 {@code docs/AD_MONETIZATION_DESIGN.md} §2）。本模拟器只是替代「真人在小程序里看广告」
+     * 这一步，让开发期在没有真机、没有真实小程序的情况下也能跑通上报链路。
+     * 旧注释写作「柜机屏播放器模拟」，属命名债，已更正。
      */
     private void startAdScreenLoop() {
         long intervalMs = Long.parseLong(env("AICABINET_SIM_AD_POLL_MS", "20000"));

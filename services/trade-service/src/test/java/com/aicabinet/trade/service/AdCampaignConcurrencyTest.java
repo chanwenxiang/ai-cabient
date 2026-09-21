@@ -34,7 +34,8 @@ class AdCampaignConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new AdCampaignService(campaignRepository, itemRepository, deviceRepository,
-                assetRepository, auditService, playEventRepository, distributedLockService);
+                assetRepository, auditService, playEventRepository, distributedLockService,
+                new AdPlayEventDeduplicator());
     }
 
     @Test

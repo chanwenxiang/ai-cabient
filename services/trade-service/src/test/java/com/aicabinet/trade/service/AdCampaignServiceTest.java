@@ -24,9 +24,13 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,7 +55,8 @@ class AdCampaignServiceTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         service = new AdCampaignService(campaignRepository, itemRepository, deviceRepository,
-                assetRepository, auditService, playEventRepository, distributedLockService);
+                assetRepository, auditService, playEventRepository, distributedLockService,
+                new AdPlayEventDeduplicator());
     }
 
     private static AdCampaign campaign(Long id, String status, String scope) {
@@ -169,5 +174,50 @@ class AdCampaignServiceTest {
         service.recordPlayEvent("CAB-XYZ", 3L, 100L, "IMPRESSION");
 
         verify(playEventRepository).insert(any(AdPlayEvent.class));
+    }
+
+    // ── 服务端去重（docs/AD_MONETIZATION_DESIGN.md §10 第 2 条）────────────────────
+    //
+    // 客户端去重（`impressed` / `completeTimers`）可被改包或脚本绕过，服务端是最后一道。
+    // 🔴 每条都**同时**断言「该记的仍然记」——只断言 never/次数会漏掉「整块功能坏掉」的假绿。
+
+    @Test
+    void recordPlayEvent_dedupesSameEventWithinWindow() {
+        when(campaignRepository.findById(3L)).thenReturn(Optional.of(campaign(3L, "RUNNING", "ALL")));
+
+        service.recordPlayEvent("CAB-DUP", 3L, 100L, "IMPRESSION");
+        service.recordPlayEvent("CAB-DUP", 3L, 100L, "IMPRESSION");
+        // 大小写与空白不同，规范化后仍是同一组合 ⇒ 同样只记一次
+        service.recordPlayEvent("cab-dup", 3L, 100L, " impression ");
+
+        verify(playEventRepository, times(1)).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void recordPlayEvent_keepsDistinctCombinations() {
+        when(campaignRepository.findById(3L)).thenReturn(Optional.of(campaign(3L, "RUNNING", "ALL")));
+
+        service.recordPlayEvent("CAB-K1", 3L, 100L, "IMPRESSION");
+        service.recordPlayEvent("CAB-K1", 3L, 101L, "IMPRESSION"); // 换素材
+        service.recordPlayEvent("CAB-K1", 3L, 100L, "COMPLETE");   // 换事件类型
+        service.recordPlayEvent("CAB-K2", 3L, 100L, "IMPRESSION"); // 换设备
+
+        verify(playEventRepository, times(4)).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void recordPlayEvent_releasesSlotWhenInsertFails() {
+        when(campaignRepository.findById(3L)).thenReturn(Optional.of(campaign(3L, "RUNNING", "ALL")));
+        // 🔴 `insert` 返回 int（MyBatis-Plus BaseMapper），不是 void ⇒ 第二次不能写 doNothing()
+        doThrow(new IllegalStateException("db down"))
+                .doReturn(1)
+                .when(playEventRepository).insert(any(AdPlayEvent.class));
+
+        assertThrows(IllegalStateException.class,
+                () -> service.recordPlayEvent("CAB-RL", 3L, 100L, "CLICK"));
+        // 落库失败必须归还资格 ⇒ 同窗口内重试仍能落库（否则一次 DB 抖动就永久吞掉这次曝光）
+        service.recordPlayEvent("CAB-RL", 3L, 100L, "CLICK");
+
+        verify(playEventRepository, times(2)).insert(any(AdPlayEvent.class));
     }
 }

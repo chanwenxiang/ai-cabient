@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">投放计划</span>
-            <span class="hint">投放后柜屏与开门页可拉取素材并回传曝光/完播</span>
+            <span class="hint">投放后消费者小程序首页（开门页）可拉取素材并回传曝光/完播/点击</span>
           </div>
         </div>
         <div class="page-card-head__actions">
