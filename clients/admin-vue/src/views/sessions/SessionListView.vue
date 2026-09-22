@@ -87,6 +87,7 @@
           :table="crud"
           row-key="sessionId"
           selectable
+          manage-table="shopping_session"
           :actions="rowActions"
           :action-width="220"
           actions-testid="session"
