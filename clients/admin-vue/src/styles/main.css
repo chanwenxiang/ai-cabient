@@ -1667,10 +1667,17 @@ a:focus-visible {
  * 就会把 sticky 困在壳内失效。凡包着 CrudTable 的壳一律放行为 visible（横向滚动由
  * el-table 自己接管）。后代匹配 + !important 压过各页对 --h 变体的定制。
  */
+/*
+ * ⚠ 超宽表格（如订单 20+ 列）必须保留壳的横向滚动：
+ * 若放行为 visible，el-table 会按全部列宽铺开、铺到卡片外（「散开」炸版）。
+ * 代价：这类页面的吸附工具行/分页行退化为随页滚动（仅纵向被壳锁住）。
+ * 横向滚动由壳接管，el-table 不再自行横向滚。
+ */
 .layout-main-scroll > .page-card > .el-card__body > .table-scroll:has(.crud-table),
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll:has(.crud-table),
 .table-scroll:has(.crud-table) {
-  overflow: visible !important;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 /*
