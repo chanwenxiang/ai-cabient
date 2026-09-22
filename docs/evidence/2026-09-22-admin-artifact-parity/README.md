@@ -367,3 +367,21 @@ CI 重建」三者一致的**必要代价**（`.env.local` 与 CI 二者不可�
 `git diff --numstat` 只有 15/2 行，提交不产生行尾漂移；但若将来有脚本对 `scripts/**` 做
 字节级比较会踩坑。
 
+### 9.7 CI 验证结果（提交 `84a81547`，run `35708077543`）
+
+| job | 上轮 `35706249923` | 本轮 `35708077543` |
+|---|---|---|
+| `admin-artifacts` | success | **✅ success** |
+| `build` | **failure**（**仅**停在 `Admin bundle size budget`） | **✅ success** |
+| `mini-programs` | success | ✅ success |
+| `edge-android` | success | ✅ success |
+| `e2e-h5` | success | ✅ success |
+| `integration` | skipped | ✅ success |
+
+⇒ **全 job 绿**。两个关键含义：
+
+1. `admin-artifacts` 转绿且是在**改了 chunk 划分之后** ⇒ 本机产物与 CI 重建在
+   `manualChunks` 变更下依然逐字节一致，不是「上一次碰巧对上」。
+2. `build` 的 `Admin bundle size budget` 由红转绿 ⇒ §9.1–§9.3 的归类修正**确实解掉了**那个
+   红点，而不是绕过它（`ui-vendor` 未被污染、route 预算仍有牙，见 §9.2 / §9.3 的实测）。
+
