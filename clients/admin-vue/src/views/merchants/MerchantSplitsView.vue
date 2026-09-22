@@ -981,17 +981,19 @@ const { onExport: exportMerchants } = useListCsv({
   ],
   toRows: () => {
     const source = tab.value === 'merchants' ? crudMerchants.displayItems : merchants.value;
-    return crudMerchants.pickSelected(source).map((row) => [
-      row.merchantId,
-      row.merchantName,
-      `${(row.platformRateBps / 100).toFixed(1)}%`,
-      row.packFieldEnabled === false ? '否' : '是',
-      row.packBizEnabled === false ? '否' : '是',
-      row.packTeamEnabled === false ? '否' : '是',
-      row.allowMerchantPlanogramEdit ? '是' : '否',
-      row.allowMerchantPricingEdit ? '是' : '否',
-      row.deviceCount ?? 0
-    ]);
+    return crudMerchants
+      .pickSelected(source)
+      .map((row) => [
+        row.merchantId,
+        row.merchantName,
+        `${(row.platformRateBps / 100).toFixed(1)}%`,
+        row.packFieldEnabled === false ? '否' : '是',
+        row.packBizEnabled === false ? '否' : '是',
+        row.packTeamEnabled === false ? '否' : '是',
+        row.allowMerchantPlanogramEdit ? '是' : '否',
+        row.allowMerchantPricingEdit ? '是' : '否',
+        row.deviceCount ?? 0
+      ]);
   }
 });
 
@@ -999,14 +1001,16 @@ const { onExport: exportSplits } = useListCsv({
   filePrefix: '分账明细',
   headers: ['分账编号', '订单', '商户', '商户收入', '状态', '失败原因'],
   toRows: () =>
-    crudSplits.pickSelected(crudSplits.items).map((row) => [
-      row.splitId,
-      row.orderId,
-      row.merchantName || '',
-      `¥${money(row.merchantCents)}`,
-      dictLabel('split_status', row.status),
-      row.failureReason || '无'
-    ])
+    crudSplits
+      .pickSelected(crudSplits.items)
+      .map((row) => [
+        row.splitId,
+        row.orderId,
+        row.merchantName || '',
+        `¥${money(row.merchantCents)}`,
+        dictLabel('split_status', row.status),
+        row.failureReason || '无'
+      ])
 });
 
 function money(cents?: number) {

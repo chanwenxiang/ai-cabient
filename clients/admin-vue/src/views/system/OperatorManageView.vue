@@ -677,11 +677,7 @@ function scopeTip(row: OperatorRow): string {
 
 function rowActions(row: OperatorRow): CrudRowAction[] {
   const isSelf = row.userId === Number(auth.userId);
-  const scopePerm = [
-    'ops:rbac:assign:merchant',
-    'ops:rbac:assign:device',
-    'ops:rbac:assign'
-  ];
+  const scopePerm = ['ops:rbac:assign:merchant', 'ops:rbac:assign:device', 'ops:rbac:assign'];
   const acts: CrudRowAction[] = [
     { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:rbac:assign:edit' },
     { key: 'roles', label: '分配角色', icon: Key, type: 'success', perm: 'ops:rbac:assign:role' },

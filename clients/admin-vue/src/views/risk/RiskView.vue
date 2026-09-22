@@ -24,12 +24,7 @@
       <el-tab-pane label="风险事件" name="events">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <CrudTable
-              :table="eventsCrud"
-              row-key="eventId"
-              selectable
-              empty-text="暂无风险事件"
-            >
+            <CrudTable :table="eventsCrud" row-key="eventId" selectable empty-text="暂无风险事件">
               <el-table-column label="事件" min-width="140" class-name="col-text">
                 <template #default="{ row }">
                   <div class="id-cell">
@@ -318,24 +313,24 @@ const { onExport: exportEvents } = useListCsv({
   filePrefix: '风险事件',
   headers: ['事件ID', '用户', '类型', '级别', '时间'],
   toRows: () =>
-    eventsCrud.pickSelected(eventsCrud.items).map((row) => [
-      row.eventId,
-      row.userId,
-      dictLabel('risk_event_type', row.eventType),
-      dictLabel('risk_severity', row.severity),
-      formatDateTime(row.createdAt)
-    ])
+    eventsCrud
+      .pickSelected(eventsCrud.items)
+      .map((row) => [
+        row.eventId,
+        row.userId,
+        dictLabel('risk_event_type', row.eventType),
+        dictLabel('risk_severity', row.severity),
+        formatDateTime(row.createdAt)
+      ])
 });
 
 const { onExport: exportBlacklist } = useListCsv({
   filePrefix: '黑名单',
   headers: ['用户ID', '原因', '加入时间'],
   toRows: () =>
-    blacklistCrud.pickSelected(blacklistCrud.items).map((row) => [
-      row.userId,
-      row.reason || '',
-      formatDateTime(row.createdAt)
-    ])
+    blacklistCrud
+      .pickSelected(blacklistCrud.items)
+      .map((row) => [row.userId, row.reason || '', formatDateTime(row.createdAt)])
 });
 
 async function onExport() {

@@ -90,12 +90,7 @@
           :csv="csvOptions"
           :row-class-name="rowClassName"
         >
-          <el-table-column
-            prop="sessionId"
-            label="会话编号"
-            min-width="168"
-            class-name="col-text"
-          >
+          <el-table-column prop="sessionId" label="会话编号" min-width="168" class-name="col-text">
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goSession(row.sessionId)">
                 <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>

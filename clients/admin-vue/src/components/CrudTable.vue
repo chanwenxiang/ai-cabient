@@ -26,7 +26,9 @@
         </template>
         <span v-if="selectable && table.hasSelection" class="crud-table__selection-hint">
           已选 {{ table.selectedKeys.length }} 项
-          <el-button link type="primary" size="small" @click="table.clearSelection()">清空</el-button>
+          <el-button link type="primary" size="small" @click="table.clearSelection()"
+            >清空</el-button
+          >
         </span>
       </div>
       <div class="crud-table__meta-right">

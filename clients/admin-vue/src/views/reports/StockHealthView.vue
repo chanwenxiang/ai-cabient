@@ -337,21 +337,23 @@ const { onExport: exportSelectedCsv } = useListCsv({
     '到期日'
   ],
   toRows: () =>
-    crud.pickSelected(crud.displayItems).map((r) => [
-      dimLabel(r.dimension),
-      r.deviceName || '',
-      r.deviceId || '',
-      r.merchantId || '',
-      r.routeCode || '',
-      r.skuName || '',
-      r.skuId || '',
-      r.quantity ?? '',
-      r.capacity ?? '',
-      r.lowThreshold ?? '',
-      Number(r.stockoutRatePct || 0).toFixed(1),
-      r.daysOutOfStock ?? '',
-      r.expiryDate || ''
-    ])
+    crud
+      .pickSelected(crud.displayItems)
+      .map((r) => [
+        dimLabel(r.dimension),
+        r.deviceName || '',
+        r.deviceId || '',
+        r.merchantId || '',
+        r.routeCode || '',
+        r.skuName || '',
+        r.skuId || '',
+        r.quantity ?? '',
+        r.capacity ?? '',
+        r.lowThreshold ?? '',
+        Number(r.stockoutRatePct || 0).toFixed(1),
+        r.daysOutOfStock ?? '',
+        r.expiryDate || ''
+      ])
 });
 
 function rowActions(row: StockHealthRow): CrudRowAction[] {

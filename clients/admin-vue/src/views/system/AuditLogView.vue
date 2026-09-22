@@ -64,12 +64,7 @@
           sort-field-label="日志编号"
           :csv="csvOptions"
         >
-          <el-table-column
-            prop="logId"
-            label="日志编号"
-            width="100"
-            class-name="col-text"
-          >
+          <el-table-column prop="logId" label="日志编号" width="100" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.logId }}</span>
             </template>
@@ -201,7 +196,6 @@ function operatorLabel(row: AuditRow) {
     operatorId: row.operatorId
   });
 }
-
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};

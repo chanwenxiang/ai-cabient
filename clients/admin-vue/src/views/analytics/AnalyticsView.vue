@@ -365,12 +365,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import ChartPanel from '@/components/ChartPanel.vue';
 import EChart from '@/components/EChart.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
-import {
-  donutOption,
-  seriesOption,
-  type ChartKind,
-  type EChartsOption
-} from '@/utils/echarts';
+import { donutOption, seriesOption, type ChartKind, type EChartsOption } from '@/utils/echarts';
 import { formatPct, formatYuan, shortDate } from '@/utils/charts';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 

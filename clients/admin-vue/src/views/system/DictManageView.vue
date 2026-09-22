@@ -123,7 +123,12 @@
                 :show-refresh="false"
                 @action="onItemAction"
               >
-                <el-table-column prop="dictDataId" label="数据编号" width="80" class-name="col-text">
+                <el-table-column
+                  prop="dictDataId"
+                  label="数据编号"
+                  width="80"
+                  class-name="col-text"
+                >
                   <template #default="{ row }">
                     <span class="cell-id">{{ row.dictDataId }}</span>
                   </template>

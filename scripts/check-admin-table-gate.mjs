@@ -118,7 +118,9 @@ const diffList = (name, base, cur) => {
   const baseSet = new Set(base);
   const added = cur.filter((f) => !baseSet.has(f));
   if (added.length) {
-    errors.push(`${name} 新增 ${added.length} 个文件（应走 CrudTable / 工具条排序）：\n    ${added.join('\n    ')}`);
+    errors.push(
+      `${name} 新增 ${added.length} 个文件（应走 CrudTable / 工具条排序）：\n    ${added.join('\n    ')}`
+    );
   }
   if (cur.length < base.length) {
     console.log(

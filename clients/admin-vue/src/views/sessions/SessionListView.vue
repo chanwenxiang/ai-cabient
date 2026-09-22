@@ -518,19 +518,21 @@ const { onExport: exportSelectedCsv } = useListCsv({
     '更新时间'
   ],
   toRows: () =>
-    crud.pickSelected(crud.displayItems).map((row) => [
-      row.sessionId,
-      sessionKindLabel(row.sessionKind),
-      row.userId,
-      row.deviceId,
-      row.orderId,
-      dictLabel('session_state', row.state),
-      waitReason(row),
-      String(Math.floor(ageMs(row) / 60000)),
-      isStuck(row) ? '是' : '否',
-      failReasonText(row),
-      formatDateTime(row.updatedAt)
-    ])
+    crud
+      .pickSelected(crud.displayItems)
+      .map((row) => [
+        row.sessionId,
+        sessionKindLabel(row.sessionKind),
+        row.userId,
+        row.deviceId,
+        row.orderId,
+        dictLabel('session_state', row.state),
+        waitReason(row),
+        String(Math.floor(ageMs(row) / 60000)),
+        isStuck(row) ? '是' : '否',
+        failReasonText(row),
+        formatDateTime(row.updatedAt)
+      ])
 });
 
 function appendSessionFilters(q: URLSearchParams) {

@@ -69,14 +69,18 @@ describe('payChannelOptions（可选渠道列表）', () => {
   });
 
   it('🔴 渠道之间不得串味：只开支付宝时绝不能冒出「微信免密」', () => {
-    const opts = payChannelOptions(account({ payscoreEnabled: false, alipayAgreementEnabled: true }));
+    const opts = payChannelOptions(
+      account({ payscoreEnabled: false, alipayAgreementEnabled: true })
+    );
     const keys = opts.map((o) => o.key);
     expect(keys).not.toContain('WECHAT');
     expect(keys).toContain('ALIPAY');
   });
 
   it('副标题是给人看的文案，不参与判定；键值域始终在后端 PayChannels 之内', () => {
-    const opts = payChannelOptions(account({ payscoreEnabled: true, alipayAgreementEnabled: true }));
+    const opts = payChannelOptions(
+      account({ payscoreEnabled: true, alipayAgreementEnabled: true })
+    );
     for (const o of opts) {
       expect(PAY_CHANNEL_KEYS as readonly string[]).toContain(o.key);
       expect(o.label.trim()).not.toBe('');

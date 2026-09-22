@@ -577,18 +577,22 @@ const csvOptions: CrudCsvOptions = {
       if (!start || !end || end <= start) {
         throw new Error(`活动「${name}」时间无效`);
       }
-      const created = await api.request<OpenApiPromotionActivityDto>('/api/v2/ops/promotions', 'POST', {
-        activityName: name,
-        activityType: type,
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
-        budgetCents: yuanToCents(row['预算(元)'] || row.budgetYuan) ?? 0,
-        userLimit: (() => {
-          const n = Number(row['每人限制'] || row.userLimit);
-          return Number.isFinite(n) && n > 0 ? n : 1;
-        })(),
-        description: row['描述'] || row.description || ''
-      });
+      const created = await api.request<OpenApiPromotionActivityDto>(
+        '/api/v2/ops/promotions',
+        'POST',
+        {
+          activityName: name,
+          activityType: type,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          budgetCents: yuanToCents(row['预算(元)'] || row.budgetYuan) ?? 0,
+          userLimit: (() => {
+            const n = Number(row['每人限制'] || row.userLimit);
+            return Number.isFinite(n) && n > 0 ? n : 1;
+          })(),
+          description: row['描述'] || row.description || ''
+        }
+      );
       if (wantsEnabled(row['状态'] || row.status) && created?.activityId) {
         await api.request(`/api/v2/ops/promotions/${created.activityId}/launch`, 'POST');
       }

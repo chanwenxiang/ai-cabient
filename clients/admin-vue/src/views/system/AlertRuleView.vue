@@ -274,9 +274,15 @@ async function fetchPage(params: CrudPageParams) {
   const filtered = kw
     ? out.filter(
         (row) =>
-          String(row.group || '').toLowerCase().includes(kw) ||
-          String(row.configKey || '').toLowerCase().includes(kw) ||
-          String(row.description || '').toLowerCase().includes(kw)
+          String(row.group || '')
+            .toLowerCase()
+            .includes(kw) ||
+          String(row.configKey || '')
+            .toLowerCase()
+            .includes(kw) ||
+          String(row.description || '')
+            .toLowerCase()
+            .includes(kw)
       )
     : out;
   const start = params.page * params.size;

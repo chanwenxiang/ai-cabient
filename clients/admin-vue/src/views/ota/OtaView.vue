@@ -434,9 +434,12 @@ function onAction({ key, row }: { key: string; row: OtaRelease }) {
 /** 勾选中可下架的已发布版本；未勾选时为空。 */
 const unpublishableSelected = computed(() => {
   if (!crud.hasSelection) return [];
-  return crud.pickSelected(crud.items).filter(
-    (r): r is OtaRelease & { releaseId: number } => r.status === 'PUBLISHED' && r.releaseId != null
-  );
+  return crud
+    .pickSelected(crud.items)
+    .filter(
+      (r): r is OtaRelease & { releaseId: number } =>
+        r.status === 'PUBLISHED' && r.releaseId != null
+    );
 });
 const hasUnpublishableSelection = computed(() => unpublishableSelected.value.length > 0);
 

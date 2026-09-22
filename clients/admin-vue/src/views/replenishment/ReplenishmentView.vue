@@ -58,7 +58,8 @@
               "
             >
               <el-tag size="small" type="danger"
-                >临期 {{ listHydrated && !crudExpiry.loading ? expiryAlerts.length : '暂无' }}</el-tag
+                >临期
+                {{ listHydrated && !crudExpiry.loading ? expiryAlerts.length : '暂无' }}</el-tag
               >
             </button>
             <el-tag
@@ -811,7 +812,12 @@
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <CrudTable :table="crudExpiry" row-key="taskId" selectable empty-text="当前无临期下架任务">
+            <CrudTable
+              :table="crudExpiry"
+              row-key="taskId"
+              selectable
+              empty-text="当前无临期下架任务"
+            >
               <el-table-column label="设备" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
@@ -1749,13 +1755,15 @@ const { onExport: exportRoutes } = useListCsv({
   filePrefix: '补货路线',
   headers: ['路线编号', '路线名称', '设备数', '计划日期', '状态'],
   toRows: () =>
-    crudRoutes.pickSelected(crudRoutes.items).map((row) => [
-      row.routeId,
-      row.routeName || '',
-      row.tasks?.length || 0,
-      row.plannedDate || '',
-      dictLabel('replenishment_route_status', row.status)
-    ])
+    crudRoutes
+      .pickSelected(crudRoutes.items)
+      .map((row) => [
+        row.routeId,
+        row.routeName || '',
+        row.tasks?.length || 0,
+        row.plannedDate || '',
+        dictLabel('replenishment_route_status', row.status)
+      ])
 });
 
 const { onExport: exportFulfillment } = useListCsv({
@@ -1793,48 +1801,54 @@ const { onExport: exportRequests } = useListCsv({
   filePrefix: '商户要货',
   headers: ['要货单', '商户', '目标设备', '状态', '审核人', '审核时间', '驳回原因', '提交时间'],
   toRows: () =>
-    crudRequests.pickSelected(crudRequests.items).map((row) => [
-      row.requestId,
-      row.merchantName || '',
-      deviceName(row.deviceId, row.deviceName),
-      dictLabel('replenishment_request_status', row.status),
-      row.reviewerName || row.reviewerId || '',
-      row.reviewedAt ? formatDateTime(row.reviewedAt) : '',
-      row.rejectReason || '',
-      formatDateTime(row.submittedAt || row.createdAt)
-    ])
+    crudRequests
+      .pickSelected(crudRequests.items)
+      .map((row) => [
+        row.requestId,
+        row.merchantName || '',
+        deviceName(row.deviceId, row.deviceName),
+        dictLabel('replenishment_request_status', row.status),
+        row.reviewerName || row.reviewerId || '',
+        row.reviewedAt ? formatDateTime(row.reviewedAt) : '',
+        row.rejectReason || '',
+        formatDateTime(row.submittedAt || row.createdAt)
+      ])
 });
 
 const { onExport: exportShortages } = useListCsv({
   filePrefix: '缺货建议',
   headers: ['设备', '货道', '商品', '账面', '最低', '目标', '状态'],
   toRows: () =>
-    crudShortages.pickSelected(crudShortages.items).map((row) => [
-      row.deviceName || row.deviceId,
-      row.slotCode,
-      row.assignedSkuName || '',
-      row.bookQty,
-      row.minLevel,
-      row.parLevel,
-      row.stockStatus || (row.bookQty <= 0 ? '缺货' : '低库存')
-    ])
+    crudShortages
+      .pickSelected(crudShortages.items)
+      .map((row) => [
+        row.deviceName || row.deviceId,
+        row.slotCode,
+        row.assignedSkuName || '',
+        row.bookQty,
+        row.minLevel,
+        row.parLevel,
+        row.stockStatus || (row.bookQty <= 0 ? '缺货' : '低库存')
+      ])
 });
 
 const { onExport: exportExpiry } = useListCsv({
   filePrefix: '临期下架',
   headers: ['任务', '设备', 'SKU', '批次', '批次ID', '数量', '原因', '状态', '创建时间'],
   toRows: () =>
-    crudExpiry.pickSelected(crudExpiry.items).map((row) => [
-      row.taskId,
-      row.deviceId,
-      row.skuId,
-      row.batchNo || '',
-      row.lotId || '',
-      row.quantity,
-      displayLabel('pull_off_reason', row.reason, '临期'),
-      row.status || '',
-      formatDateTime(row.createdAt)
-    ])
+    crudExpiry
+      .pickSelected(crudExpiry.items)
+      .map((row) => [
+        row.taskId,
+        row.deviceId,
+        row.skuId,
+        row.batchNo || '',
+        row.lotId || '',
+        row.quantity,
+        displayLabel('pull_off_reason', row.reason, '临期'),
+        row.status || '',
+        formatDateTime(row.createdAt)
+      ])
 });
 
 async function exportRequestsFull() {

@@ -12,11 +12,14 @@
       </div>
       <div class="bs-side bs-side--right">
         <span v-if="demoBanner" class="bs-demo-tag">{{ demoBanner }}</span>
-        <span class="bs-clock"><b>{{ clockTime }}</b><i>{{ clockDate }}</i></span>
-        <button class="bs-btn" type="button" @click="load" :disabled="loading">刷新</button>
-        <button class="bs-btn" type="button" @click="toggleFullscreen">
+        <span class="bs-clock"
+          ><b>{{ clockTime }}</b
+          ><i>{{ clockDate }}</i></span
+        >
+        <el-button class="bs-btn" :disabled="loading" @click="load">刷新</el-button>
+        <el-button class="bs-btn" @click="toggleFullscreen">
           {{ isFullscreen ? '退出全屏' : '全屏' }}
-        </button>
+        </el-button>
         <RouterLink class="bs-btn bs-btn--ghost" to="/dashboard">返回后台</RouterLink>
       </div>
     </header>
@@ -83,13 +86,17 @@
       </div>
 
       <div class="bs-map">
-        <i class="bs-corner tl" /><i class="bs-corner tr" /><i class="bs-corner bl" /><i class="bs-corner br" />
+        <i class="bs-corner tl" /><i class="bs-corner tr" /><i class="bs-corner bl" /><i
+          class="bs-corner br"
+        />
         <div ref="mapRef" class="bs-map-canvas" />
         <div v-if="!hydrated" class="bs-map-loading">地图数据加载中…</div>
         <div v-else-if="!mapPoints.length" class="bs-map-empty">暂无设备点位（含坐标）</div>
         <div class="bs-map-legend">
           <span><i class="lg-dot lg-online" />{{ onlineLabel('ONLINE') }} {{ onlineCount }}</span>
-          <span><i class="lg-dot lg-offline" />{{ onlineLabel('OFFLINE') }} {{ offlineCount }}</span>
+          <span
+            ><i class="lg-dot lg-offline" />{{ onlineLabel('OFFLINE') }} {{ offlineCount }}</span
+          >
         </div>
       </div>
 
@@ -99,7 +106,12 @@
             <i class="bs-arrow" />点位销售排行（今日）<i class="bs-title-line" />
           </div>
           <div class="bs-panel-body bs-panel-body--list">
-            <div v-for="(d, i) in topDevices" :key="d.deviceId" class="bs-rank" :class="{ top: i < 3 }">
+            <div
+              v-for="(d, i) in topDevices"
+              :key="d.deviceId"
+              class="bs-rank"
+              :class="{ top: i < 3 }"
+            >
               <span class="bs-rank-idx" :class="`no${i + 1}`">{{ i + 1 }}</span>
               <div class="bs-rank-main">
                 <div class="bs-rank-row">
@@ -140,7 +152,12 @@
             <i class="bs-arrow" />待办 / 告警<i class="bs-title-line" />
           </div>
           <div class="bs-panel-body bs-panel-body--list">
-            <div v-for="(item, idx) in actionItems" :key="idx" class="bs-action" :class="severityClass(item.severity)">
+            <div
+              v-for="(item, idx) in actionItems"
+              :key="idx"
+              class="bs-action"
+              :class="severityClass(item.severity)"
+            >
               <i class="bs-action-bar" />
               <div class="bs-action-main">
                 <div class="bs-action-title">{{ item.title }}</div>
@@ -166,7 +183,14 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo } from '@aicabinet/shared-uni/format';
-import { Monitor, Wallet, Tickets, TrendCharts, Connection, Warning } from '@element-plus/icons-vue';
+import {
+  Monitor,
+  Wallet,
+  Tickets,
+  TrendCharts,
+  Connection,
+  Warning
+} from '@element-plus/icons-vue';
 import EChart from '@/components/EChart.vue';
 import {
   loadAmap,
@@ -271,17 +295,55 @@ let amapInfoWindow: AmapInfoWindow | null = null;
 const amapMarkers: AmapMarkerLike[] = [];
 
 /* ---------- KPI ---------- */
-const onlineCount = computed(() => mapPoints.value.filter((p) => p.onlineStatus === 'ONLINE').length);
+const onlineCount = computed(
+  () => mapPoints.value.filter((p) => p.onlineStatus === 'ONLINE').length
+);
 const offlineCount = computed(
   () => mapPoints.value.filter((p) => p.onlineStatus !== 'ONLINE').length
 );
 const kpis = computed(() => [
-  { icon: KPI_ICONS.Monitor, tone: '#2dd4bf', label: '售货机总数', value: String(stats.value?.deviceTotal ?? 0), hint: `在售 ${workbench.value?.devicesOnSale ?? 0}` },
-  { icon: KPI_ICONS.Wallet, tone: '#38bdf8', label: '今日营收', value: yuan(stats.value?.revenueTodayCents), hint: `累计 ${yuan(stats.value?.revenueTotalCents)}` },
-  { icon: KPI_ICONS.Tickets, tone: '#a78bfa', label: '今日订单', value: String(stats.value?.orderToday ?? 0), hint: `累计 ${stats.value?.orderTotal ?? 0}` },
-  { icon: KPI_ICONS.TrendCharts, tone: '#4ade80', label: '今日毛利', value: yuan(finance.value?.grossMarginTodayCents), hint: `毛利率 ${pct(finance.value?.grossMarginRateToday)}` },
-  { icon: KPI_ICONS.Connection, tone: '#fbbf24', label: '设备在线率', value: pct(sla.value?.deviceOnlineRate), hint: `离线 ${workbench.value?.offlineDevices ?? 0}` },
-  { icon: KPI_ICONS.Warning, tone: '#f87171', label: '待处理争议', value: String(workbench.value?.openDisputes ?? 0), hint: `逾期 ${workbench.value?.overdueDisputes ?? 0}` }
+  {
+    icon: KPI_ICONS.Monitor,
+    tone: '#2dd4bf',
+    label: '售货机总数',
+    value: String(stats.value?.deviceTotal ?? 0),
+    hint: `在售 ${workbench.value?.devicesOnSale ?? 0}`
+  },
+  {
+    icon: KPI_ICONS.Wallet,
+    tone: '#38bdf8',
+    label: '今日营收',
+    value: yuan(stats.value?.revenueTodayCents),
+    hint: `累计 ${yuan(stats.value?.revenueTotalCents)}`
+  },
+  {
+    icon: KPI_ICONS.Tickets,
+    tone: '#a78bfa',
+    label: '今日订单',
+    value: String(stats.value?.orderToday ?? 0),
+    hint: `累计 ${stats.value?.orderTotal ?? 0}`
+  },
+  {
+    icon: KPI_ICONS.TrendCharts,
+    tone: '#4ade80',
+    label: '今日毛利',
+    value: yuan(finance.value?.grossMarginTodayCents),
+    hint: `毛利率 ${pct(finance.value?.grossMarginRateToday)}`
+  },
+  {
+    icon: KPI_ICONS.Connection,
+    tone: '#fbbf24',
+    label: '设备在线率',
+    value: pct(sla.value?.deviceOnlineRate),
+    hint: `离线 ${workbench.value?.offlineDevices ?? 0}`
+  },
+  {
+    icon: KPI_ICONS.Warning,
+    tone: '#f87171',
+    label: '待处理争议',
+    value: String(workbench.value?.openDisputes ?? 0),
+    hint: `逾期 ${workbench.value?.overdueDisputes ?? 0}`
+  }
 ]);
 
 /* ---------- 图表 ---------- */
@@ -529,7 +591,11 @@ interface MapPointInput {
   labeled: boolean;
 }
 
-function markerInput(pts: MapPoint[], maxRev: number, revOf: Map<string, DeviceRank>): MapPointInput[] {
+function markerInput(
+  pts: MapPoint[],
+  maxRev: number,
+  revOf: Map<string, DeviceRank>
+): MapPointInput[] {
   return pts.map((p) => {
     const revenue = revOf.get(p.deviceId)?.revenueTodayCents ?? 0;
     return {
@@ -586,11 +652,7 @@ function renderMarkersAmap(pts: MapPoint[], maxRev: number, revOf: Map<string, D
   amapMap.setFitView(amapMarkers.length ? amapMarkers : null, false, [70, 70, 70, 70]);
 }
 
-function renderMarkersLeaflet(
-  pts: MapPoint[],
-  maxRev: number,
-  revOf: Map<string, DeviceRank>
-) {
+function renderMarkersLeaflet(pts: MapPoint[], maxRev: number, revOf: Map<string, DeviceRank>) {
   if (!map || !markerLayer) return;
   markerLayer.clearLayers();
   for (const m of markerInput(pts, maxRev, revOf)) {
@@ -608,7 +670,9 @@ function renderMarkersLeaflet(
     map.setView([pts[0].latitude as number, pts[0].longitude as number], 13);
   } else if (pts.length > 1) {
     map.fitBounds(
-      L.latLngBounds(pts.map((p) => L.latLng(p.latitude as number, p.longitude as number))).pad(0.25)
+      L.latLngBounds(pts.map((p) => L.latLng(p.latitude as number, p.longitude as number))).pad(
+        0.25
+      )
     );
   }
 }
@@ -647,16 +711,25 @@ function ensureLeafletMap() {
   }).setView([35.86, 104.19], 4);
   // 大屏固定暗色：高德路网 + CSS 反相成深色底图（失败降级 Esri / GeoQ）
   const layers = [
-    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-      maxZoom: 18,
-      subdomains: '1234'
-    }),
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19
-    }),
-    L.tileLayer('https://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineCommunity/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 16
-    })
+    L.tileLayer(
+      'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+      {
+        maxZoom: 18,
+        subdomains: '1234'
+      }
+    ),
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 19
+      }
+    ),
+    L.tileLayer(
+      'https://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineCommunity/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 16
+      }
+    )
   ];
   const attach = (i: number) => {
     if (!map || i >= layers.length) return;
@@ -801,7 +874,8 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: linear-gradient(rgba(64, 144, 255, 0.04) 1px, transparent 1px),
+  background-image:
+    linear-gradient(rgba(64, 144, 255, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(64, 144, 255, 0.04) 1px, transparent 1px);
   background-size: 48px 48px;
 }
@@ -925,7 +999,12 @@ onBeforeUnmount(() => {
   padding: 1px 8px;
   white-space: nowrap;
 }
-.bs-btn {
+/* 大屏极简按钮。动作按钮走 el-button —— admin-table-gate 禁止视图内出现原生 button 元素。
+   `.bs-root` 前缀用于提高权重（.bs-root .bs-btn = 2 类，scoped 后为 3），压过
+   element-plus 的 `.el-button` / `.el-button.is-disabled` 默认态；
+   `.el-button` 后缀块只做「抹平」：height:32px / line-height:1 / font-weight:500 /
+   相邻按钮 margin-left，其余视觉与改造前逐条一致。 */
+.bs-root .bs-btn {
   font-size: 12px;
   color: #d7e7ff;
   background: rgba(45, 212, 191, 0.08);
@@ -937,19 +1016,32 @@ onBeforeUnmount(() => {
   text-decoration: none;
   white-space: nowrap;
 }
-.bs-btn:hover {
+.bs-root .bs-btn.el-button {
+  height: auto;
+  margin-left: 0;
+  font-weight: 400;
+  line-height: normal;
+}
+.bs-root .bs-btn:hover,
+.bs-root .bs-btn:focus {
+  color: #d7e7ff;
   background: rgba(45, 212, 191, 0.2);
 }
-.bs-btn:disabled {
+.bs-root .bs-btn:disabled,
+.bs-root .bs-btn.is-disabled {
+  color: #d7e7ff;
+  background: rgba(45, 212, 191, 0.08);
+  border-color: rgba(45, 212, 191, 0.35);
   opacity: 0.55;
   cursor: default;
 }
-.bs-btn--ghost {
+.bs-root .bs-btn--ghost {
   color: #8fa8c7;
   border-color: rgba(143, 168, 199, 0.35);
   background: transparent;
 }
-.bs-btn--ghost:hover {
+.bs-root .bs-btn--ghost:hover,
+.bs-root .bs-btn--ghost:focus {
   color: #d7e7ff;
   background: rgba(143, 168, 199, 0.12);
 }
@@ -1068,7 +1160,12 @@ onBeforeUnmount(() => {
   font-weight: 600;
   letter-spacing: 1.5px;
   color: #f2f9ff;
-  background: linear-gradient(90deg, rgba(45, 212, 191, 0.14), rgba(56, 189, 248, 0.05) 42%, transparent 78%);
+  background: linear-gradient(
+    90deg,
+    rgba(45, 212, 191, 0.14),
+    rgba(56, 189, 248, 0.05) 42%,
+    transparent 78%
+  );
   border-bottom: 1px solid rgba(64, 144, 255, 0.14);
   white-space: nowrap;
 }
@@ -1085,7 +1182,12 @@ onBeforeUnmount(() => {
   flex: 1;
   height: 2px;
   margin-left: 6px;
-  background: linear-gradient(90deg, rgba(45, 212, 191, 0.55), rgba(56, 189, 248, 0.2) 55%, transparent);
+  background: linear-gradient(
+    90deg,
+    rgba(45, 212, 191, 0.55),
+    rgba(56, 189, 248, 0.2) 55%,
+    transparent
+  );
   min-width: 30px;
 }
 .bs-panel-body {

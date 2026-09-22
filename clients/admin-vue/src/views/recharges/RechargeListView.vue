@@ -56,12 +56,7 @@
           :csv="csvOptions"
           @action="onAction"
         >
-          <el-table-column
-            prop="orderId"
-            label="充值单"
-            min-width="168"
-            class-name="col-text"
-          >
+          <el-table-column prop="orderId" label="充值单" min-width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
             </template>
@@ -181,10 +176,7 @@ const crud = useCrudTable<Record<string, unknown>>({
     if (status.value) q.set('status', status.value);
     const userId = parseUserIdFilter(keyword.value);
     if (userId != null) q.set('userId', String(userId));
-    return api.request<PageResult<Record<string, unknown>>>(
-      AdminEndpoints.rechargesList(q),
-      'GET'
-    );
+    return api.request<PageResult<Record<string, unknown>>>(AdminEndpoints.rechargesList(q), 'GET');
   },
   sort: { prop: 'orderId', mode: 'local' }
 });

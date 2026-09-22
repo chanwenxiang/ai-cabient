@@ -355,9 +355,9 @@ async function toggleStatus(row: LevelRule) {
 }
 
 async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
-  const targets = crud.pickSelected(crud.items).filter(
-    (r): r is LevelRule & { id: number } => r.status !== next && r.id != null
-  );
+  const targets = crud
+    .pickSelected(crud.items)
+    .filter((r): r is LevelRule & { id: number } => r.status !== next && r.id != null);
   if (!targets.length) {
     ElMessage.info(next === 'ACTIVE' ? '选中项均已启用' : '选中项均已停用');
     return;

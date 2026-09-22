@@ -303,9 +303,7 @@ function rowActions(row: UserRow): CrudRowAction[] {
 
 /** 与原逻辑一致：无任何可用操作（无权限或全部已实名）时隐藏整列 */
 const showActionColumn = computed(
-  () =>
-    (canAdjust.value || canVerify.value) &&
-    crud.items.some((row) => rowActions(row).length > 0)
+  () => (canAdjust.value || canVerify.value) && crud.items.some((row) => rowActions(row).length > 0)
 );
 
 function onAction({ key, row }: { key: string; row: UserRow }) {

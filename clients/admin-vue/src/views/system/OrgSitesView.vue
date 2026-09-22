@@ -746,10 +746,18 @@ function filterContractRows(rows: SiteContractDto[]): SiteContractDto[] {
   if (!kw) return rows;
   return rows.filter(
     (r) =>
-      String(r.deviceName || '').toLowerCase().includes(kw) ||
-      String(r.deviceId || '').toLowerCase().includes(kw) ||
-      String(r.siteName || '').toLowerCase().includes(kw) ||
-      String(r.landlordName || '').toLowerCase().includes(kw)
+      String(r.deviceName || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(r.deviceId || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(r.siteName || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(r.landlordName || '')
+        .toLowerCase()
+        .includes(kw)
   );
 }
 

@@ -887,25 +887,27 @@ const { onExport: exportSelectedCsv } = useListCsv({
     '创建时间'
   ],
   toRows: () =>
-    crud.pickSelected(crud.items).map((row) => [
-      row.orderId,
-      row.sessionId,
-      row.userId,
-      row.deviceName || row.deviceId,
-      row.merchantName || row.merchantId || '',
-      displayBizNo(row.payTradeNo || row.paymentOperationId, ''),
-      displayLabel('order_status', row.status, '未知状态'),
-      paymentStatusLabel(row.status),
-      refundColumnLabel(row.status),
-      displayLabel('pay_channel', row.payChannel, '未知渠道'),
-      row.splitStatus ? displayLabel('split_status', row.splitStatus, '未知') : '',
-      row.inventoryDeducted ? '已扣' : '未扣',
-      row.lineSummary || '',
-      row.lineCount,
-      money(row.totalAmountCents),
-      Number(row.refundedCents || 0) > 0 ? money(row.refundedCents) : '',
-      formatDateTime(row.createdAt)
-    ])
+    crud
+      .pickSelected(crud.items)
+      .map((row) => [
+        row.orderId,
+        row.sessionId,
+        row.userId,
+        row.deviceName || row.deviceId,
+        row.merchantName || row.merchantId || '',
+        displayBizNo(row.payTradeNo || row.paymentOperationId, ''),
+        displayLabel('order_status', row.status, '未知状态'),
+        paymentStatusLabel(row.status),
+        refundColumnLabel(row.status),
+        displayLabel('pay_channel', row.payChannel, '未知渠道'),
+        row.splitStatus ? displayLabel('split_status', row.splitStatus, '未知') : '',
+        row.inventoryDeducted ? '已扣' : '未扣',
+        row.lineSummary || '',
+        row.lineCount,
+        money(row.totalAmountCents),
+        Number(row.refundedCents || 0) > 0 ? money(row.refundedCents) : '',
+        formatDateTime(row.createdAt)
+      ])
 });
 
 function appendOrderFilters(q: URLSearchParams) {

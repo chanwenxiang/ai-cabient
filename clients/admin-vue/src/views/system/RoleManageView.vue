@@ -362,7 +362,14 @@ const csvOptions: CrudCsvOptions = {
   exportPerm: 'ops:rbac:role:export',
   importPerm: 'ops:rbac:role:import',
   headers: ['角色ID', '角色名称', '权限字符', '状态', '权限数', '备注'],
-  templateSample: ['', '示例角色', 'ops_demo', displayLabel('merchant_status', 'ACTIVE'), '', '备注'],
+  templateSample: [
+    '',
+    '示例角色',
+    'ops_demo',
+    displayLabel('merchant_status', 'ACTIVE'),
+    '',
+    '备注'
+  ],
   toRows: (rows) =>
     rows.map((row) => [
       row.roleId,

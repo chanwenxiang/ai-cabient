@@ -419,9 +419,7 @@ function formatTime(t: string) {
 }
 
 function rowActions(row: OpenApiAnnouncement): CrudRowAction[] {
-  const actions: CrudRowAction[] = [
-    { key: 'preview', label: '查看', icon: View, type: 'primary' }
-  ];
+  const actions: CrudRowAction[] = [{ key: 'preview', label: '查看', icon: View, type: 'primary' }];
   if (row.status !== 'ARCHIVED') {
     actions.push({
       key: 'edit',

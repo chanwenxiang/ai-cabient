@@ -24,7 +24,12 @@ describe('useCrudTable', () => {
 
     await crud.load();
 
-    expect(fetchPage).toHaveBeenCalledWith({ page: 0, size: 20, sortProp: undefined, sortDir: 'asc' });
+    expect(fetchPage).toHaveBeenCalledWith({
+      page: 0,
+      size: 20,
+      sortProp: undefined,
+      sortDir: 'asc'
+    });
     expect(crud.items).toHaveLength(2);
     expect(crud.total).toBe(42);
     expect(crud.hydrated).toBe(true);

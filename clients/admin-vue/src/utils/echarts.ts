@@ -4,11 +4,7 @@
  * 禁止 `import * as echarts from 'echarts'` 全量引入（全量 dist 约 1MB）。
  */
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
-import {
-  GridComponent,
-  LegendComponent,
-  TooltipComponent
-} from 'echarts/components';
+import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { BarSeriesOption, LineSeriesOption, PieSeriesOption } from 'echarts/charts';
@@ -126,7 +122,12 @@ export function seriesOption(opts: {
       textStyle: { color: palette.tooltipText, fontSize: 12, fontFamily: CHART_FONT_FAMILY },
       axisPointer:
         kind === 'bar'
-          ? { type: 'shadow', shadowStyle: { color: dark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(100, 116, 139, 0.08)' } }
+          ? {
+              type: 'shadow',
+              shadowStyle: {
+                color: dark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(100, 116, 139, 0.08)'
+              }
+            }
           : { type: 'line' },
       valueFormatter: (v) => fmtValue(Number(v))
     },

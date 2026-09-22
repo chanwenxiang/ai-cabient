@@ -50,7 +50,11 @@
 
     <el-tabs v-model="tab" @tab-change="onTab">
       <el-tab-pane label="商户钱包" name="wallets">
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="walletsCrud.search()">
+        <el-form
+          inline
+          class="filter-bar filter-bar--compact"
+          @submit.prevent="walletsCrud.search()"
+        >
           <el-form-item label="关键词">
             <el-input
               v-model="keyword"

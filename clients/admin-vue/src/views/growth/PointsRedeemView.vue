@@ -423,9 +423,9 @@ async function toggleStatus(row: RedeemItem) {
 }
 
 async function batchToggle(status: 'ACTIVE' | 'INACTIVE') {
-  const targets = crud.pickSelected(crud.items).filter((r) =>
-    status === 'ACTIVE' ? r.status !== 'ACTIVE' : r.status === 'ACTIVE'
-  );
+  const targets = crud
+    .pickSelected(crud.items)
+    .filter((r) => (status === 'ACTIVE' ? r.status !== 'ACTIVE' : r.status === 'ACTIVE'));
   if (!targets.length) {
     ElMessage.warning(status === 'ACTIVE' ? '请先勾选停用的兑换项' : '请先勾选启用的兑换项');
     return;

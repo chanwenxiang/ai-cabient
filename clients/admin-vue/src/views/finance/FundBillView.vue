@@ -437,9 +437,7 @@ const exportLabel = computed(() =>
     : crud.exportButtonLabel.replace('导出', '导出日账单')
 );
 
-const activeResultTotal = computed(() =>
-  tab.value === 'ledger' ? ledgerTotal.value : crud.total
-);
+const activeResultTotal = computed(() => (tab.value === 'ledger' ? ledgerTotal.value : crud.total));
 
 const searchResultHint = computed(() => {
   if (!appliedKeyword.value) return '';
@@ -471,18 +469,20 @@ const { onExport: exportBillsCsv } = useListCsv({
     '固化'
   ],
   toRows: () =>
-    crud.pickSelected(crud.displayItems).map((row) => [
-      row.bizDate,
-      row.merchantId,
-      row.merchantName,
-      yuan(row.orderPaidCents),
-      yuan(row.platformFeeCents),
-      yuan(row.channelFeeCents),
-      yuan(row.creditedCents),
-      yuan(row.pendingCents),
-      row.orderCount,
-      row.solidified ? '已固化' : '实时'
-    ])
+    crud
+      .pickSelected(crud.displayItems)
+      .map((row) => [
+        row.bizDate,
+        row.merchantId,
+        row.merchantName,
+        yuan(row.orderPaidCents),
+        yuan(row.platformFeeCents),
+        yuan(row.channelFeeCents),
+        yuan(row.creditedCents),
+        yuan(row.pendingCents),
+        row.orderCount,
+        row.solidified ? '已固化' : '实时'
+      ])
 });
 
 const { onExport: exportLedgerCsv } = useListCsv({

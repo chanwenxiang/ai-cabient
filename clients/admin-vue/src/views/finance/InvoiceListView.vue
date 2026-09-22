@@ -37,12 +37,20 @@ function filterByKeyword(rows: InvoiceRow[]): InvoiceRow[] {
   return rows.filter(
     (row) =>
       String(row.invoiceId).includes(kw) ||
-      String(row.orderId || '').toLowerCase().includes(kw) ||
+      String(row.orderId || '')
+        .toLowerCase()
+        .includes(kw) ||
       displayBizNo(row.orderId).toLowerCase().includes(kw) ||
       String(row.userId ?? '').includes(kw) ||
-      String(row.title || '').toLowerCase().includes(kw) ||
-      String(row.taxNo || '').toLowerCase().includes(kw) ||
-      String(row.email || '').toLowerCase().includes(kw)
+      String(row.title || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.taxNo || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.email || '')
+        .toLowerCase()
+        .includes(kw)
   );
 }
 
