@@ -100,6 +100,12 @@ function forceReflow(el: HTMLElement): number {
 }
 
 function measureOverflow(el: HTMLElement): boolean {
+  // CrudTable 自带吸附工具行/分页行（sticky）且 el-table 内部自横向滚动：
+  // 这类壳不参与 --h 机制（--h 的 overflow 锁定会困死 sticky，见 main.css 放行规则）
+  if (el.querySelector('.crud-table')) {
+    el.classList.remove('table-scroll--h');
+    return false;
+  }
   const table = el.querySelector<HTMLElement>('.el-table');
   const hadH = el.classList.contains('table-scroll--h');
   const clientW = el.clientWidth;

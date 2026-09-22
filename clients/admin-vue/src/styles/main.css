@@ -1663,12 +1663,14 @@ a:focus-visible {
 
 /*
  * CrudTable 自带吸附工具行/分页行（position: sticky）与 el-table 内部横向滚动：
- * 外层 .table-scroll 一旦 overflow:auto 会形成独立滚动上下文，把 sticky 困在壳内失效。
- * 包着 CrudTable 的壳一律放行为 visible（横向滚动由 el-table 自己接管）。
+ * 外层 .table-scroll（含 --h 变体的 overflow-x:auto/y:hidden）一旦形成独立滚动上下文，
+ * 就会把 sticky 困在壳内失效。凡包着 CrudTable 的壳一律放行为 visible（横向滚动由
+ * el-table 自己接管）。后代匹配 + !important 压过各页对 --h 变体的定制。
  */
-.table-scroll:has(> .table-scroll-inner > .crud-table),
-.table-scroll:has(> .crud-table) {
-  overflow: visible;
+.layout-main-scroll > .page-card > .el-card__body > .table-scroll:has(.crud-table),
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll:has(.crud-table),
+.table-scroll:has(.crud-table) {
+  overflow: visible !important;
 }
 
 /*
