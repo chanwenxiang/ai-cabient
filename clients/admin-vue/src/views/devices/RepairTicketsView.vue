@@ -101,6 +101,7 @@
         <CrudTable
           :table="crud"
           row-key="ticketId"
+          manage-table="repair_ticket"
           selectable
           :actions="rowActions"
           :action-width="140"

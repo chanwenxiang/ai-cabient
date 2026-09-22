@@ -75,6 +75,7 @@
           <CrudTable
             :table="crud"
             row-key="exceptionId"
+          manage-table="ops_exception"
             selectable
             :actions="rowActions"
             :action-width="220"
