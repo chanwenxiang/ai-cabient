@@ -14,8 +14,10 @@ export const AuthEndpoints = {
 
 export const AdminEndpoints = {
   dataTables: `${API_PREFIX}/ops/admin/data/tables`,
-  dataDelete: (table: string, id: string) => `${API_PREFIX}/ops/admin/data/${table}/${encodeURIComponent(id)}`,
-  dataUpdate: (table: string, id: string) => `${API_PREFIX}/ops/admin/data/${table}/${encodeURIComponent(id)}`,
+  dataDelete: (table: string, id: string) =>
+    `${API_PREFIX}/ops/admin/data/${table}/${encodeURIComponent(id)}`,
+  dataUpdate: (table: string, id: string) =>
+    `${API_PREFIX}/ops/admin/data/${table}/${encodeURIComponent(id)}`,
   dataCreate: (table: string) => `${API_PREFIX}/ops/admin/data/${table}`,
   /** 工作台 KPI */
   stats: `${ops}/stats`,

@@ -687,7 +687,9 @@ async function ensureMapEngine() {
     mapEngine = 'amap';
     amapNS = ns;
     amapMap = new ns.Map(mapRef.value, {
-      mapStyle: 'amap://styles/dark',
+      // 深青蓝（暗色系）：`dark` 偏褐灰、路网对比低，在大屏上观感发闷；
+      // `blue` 保留深色底同时路网清晰，与面板青绿发光风格更搭（2026-09-22 实拍对比选定）。
+      mapStyle: 'amap://styles/blue',
       viewMode: '2D',
       zoom: 11,
       center: [113.75, 23.02],

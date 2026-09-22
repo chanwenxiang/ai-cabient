@@ -39,9 +39,7 @@ VALUES
     (711, (SELECT permission_id FROM ops_permission WHERE perm_code = 'ops:org:list'),
      'ops:org:export',            '导出场地合同',     'F', NULL, 21),
     (712, (SELECT permission_id FROM ops_permission WHERE perm_code = 'ops:task:list'),
-     'ops:task:export',           '导出定时任务',     'F', NULL, 21),
-    (714, (SELECT permission_id FROM ops_permission WHERE perm_code = 'ops:config:list'),
-     'ops:data:manage',           '通用数据管理',     'F', NULL, 40)
+     'ops:task:export',           '导出定时任务',     'F', NULL, 21)
 ON CONFLICT (perm_code) DO NOTHING;
 
 -- 超级管理员：全部新码（ops:admin 运行时本就短路，这里补显式授权保持数据面一致）
@@ -51,8 +49,7 @@ WHERE perm_code IN (
     'ops:notify:send', 'ops:notify:edit', 'ops:notify:delete', 'ops:notify:export',
     'ops:phone-verify:edit', 'ops:phone-verify:delete', 'ops:phone-verify:export',
     'ops:device-ops:export', 'ops:balance-refund:export', 'ops:ad:export',
-    'ops:points:export', 'ops:ota:export', 'ops:org:export', 'ops:task:export',
-    'ops:data:manage'
+    'ops:points:export', 'ops:ota:export', 'ops:org:export', 'ops:task:export'
 )
 ON CONFLICT DO NOTHING;
 

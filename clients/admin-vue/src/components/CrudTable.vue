@@ -135,7 +135,12 @@
     </el-table>
 
     <!-- 吸附分页行：表格过长时分页钉在可视区底部，无需滚到底换页 -->
-    <el-dialog v-model="jsonDialog.visible" :title="jsonDialog.mode === 'edit' ? '编辑数据（JSON）' : '新增数据（JSON）'" width="640px" destroy-on-close>
+    <el-dialog
+      v-model="jsonDialog.visible"
+      :title="jsonDialog.mode === 'edit' ? '编辑数据（JSON）' : '新增数据（JSON）'"
+      width="640px"
+      destroy-on-close
+    >
       <el-input v-model="jsonDialog.text" type="textarea" :rows="14" spellcheck="false" />
       <template #footer>
         <el-button @click="jsonDialog.visible = false">取消</el-button>
@@ -264,17 +269,37 @@ function hasAnyPerm(perm?: string | string[]): boolean {
 
 /** 行操作：先做权限过滤（无权限整项隐藏），其余交给 TableActions 呈现 */
 function visibleActions(row: any): TableAction[] {
-  const list: TableAction[] = props.actions ? props.actions(row).filter((a) => a && a.key && hasAnyPerm(a.perm)) : [];
+  const list: TableAction[] = props.actions
+    ? props.actions(row).filter((a) => a && a.key && hasAnyPerm(a.perm))
+    : [];
   if (canDataManage.value && props.manageTable) {
-    list.push({ key: 'data-edit', label: '编辑数据', icon: EditPen, type: 'primary', overflow: true });
-    list.push({ key: 'data-delete', label: '删除数据', icon: Delete, type: 'danger', overflow: true });
+    list.push({
+      key: 'data-edit',
+      label: '编辑数据',
+      icon: EditPen,
+      type: 'primary',
+      overflow: true
+    });
+    list.push({
+      key: 'data-delete',
+      label: '删除数据',
+      icon: Delete,
+      type: 'danger',
+      overflow: true
+    });
   }
   return list;
 }
 
 // —— 通用数据管理（ops:data:manage）——
 const canDataManage = computed(() => auth.hasPerm('ops:data:manage'));
-const jsonDialog = reactive({ visible: false, mode: 'edit' as 'edit' | 'create', id: '', text: '', busy: false });
+const jsonDialog = reactive({
+  visible: false,
+  mode: 'edit' as 'edit' | 'create',
+  id: '',
+  text: '',
+  busy: false
+});
 
 async function dataDelete(row: any) {
   const id = String(row[table.rowKey || props.rowKey] ?? '');
@@ -300,10 +325,14 @@ async function dataBatchDelete() {
   const rows = table.pickSelected(table.displayItems);
   if (!rows.length) return;
   try {
-    await ElMessageBox.confirm(`确认删除选中的 ${rows.length} 行？级联删除、不可恢复！`, '批量删除', {
-      type: 'warning',
-      confirmButtonText: '删除'
-    });
+    await ElMessageBox.confirm(
+      `确认删除选中的 ${rows.length} 行？级联删除、不可恢复！`,
+      '批量删除',
+      {
+        type: 'warning',
+        confirmButtonText: '删除'
+      }
+    );
   } catch {
     return;
   }
@@ -331,7 +360,7 @@ function dataEdit(row: any) {
 function dataCreate() {
   jsonDialog.mode = 'create';
   jsonDialog.id = '';
-  jsonDialog.text = JSON.stringify({ 列名: "值" }, null, 2);
+  jsonDialog.text = JSON.stringify({ 列名: '值' }, null, 2);
   jsonDialog.visible = true;
 }
 
@@ -346,7 +375,9 @@ async function dataSave() {
   jsonDialog.busy = true;
   try {
     if (jsonDialog.mode === 'edit') {
-      const pk = table.rowKey ? String(table.rowKey(JSON.parse(jsonDialog.text) as never) ?? jsonDialog.id) : jsonDialog.id;
+      const pk = table.rowKey
+        ? String(table.rowKey(JSON.parse(jsonDialog.text) as never) ?? jsonDialog.id)
+        : jsonDialog.id;
       await api.request(AdminEndpoints.dataUpdate(props.manageTable, jsonDialog.id), 'PUT', body);
       void pk;
     } else {

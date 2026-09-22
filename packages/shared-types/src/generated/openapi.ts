@@ -633,6 +633,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/data/{table}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateRow"];
+        post?: never;
+        delete: operations["deleteRow"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/approvals/definitions/{defId}": {
         parameters: {
             query?: never;
@@ -3459,6 +3475,22 @@ export interface paths {
         get: operations["list_10"];
         put?: never;
         post: operations["create_9"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/data/{table}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["insertRow"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7017,6 +7049,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/data/tables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["tables"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/data-scope": {
         parameters: {
             query?: never;
@@ -9663,6 +9711,13 @@ export interface components {
             userIds?: number[];
             userNames?: string[];
         };
+        ApiResponseInteger: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            /** Format: int32 */
+            data?: number;
+        };
         ApprovalNodeDto: {
             /** Format: int64 */
             nodeId?: number;
@@ -11193,13 +11248,6 @@ export interface components {
             updatedAt?: string;
             /** Format: date-time */
             closedAt?: string;
-        };
-        ApiResponseInteger: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            /** Format: int32 */
-            data?: number;
         };
         ApiResponsePaymentReconciliationDto: {
             /** Format: int32 */
@@ -14798,6 +14846,12 @@ export interface components {
             message?: string;
             data?: components["schemas"]["OpsDepartmentDto"][];
         };
+        ApiResponseListString: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: string[];
+        };
         ApiResponseDataScopeDto: {
             /** Format: int32 */
             code?: number;
@@ -17497,6 +17551,58 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseOpsDepartmentMembersDto"];
+                };
+            };
+        };
+    };
+    updateRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseInteger"];
+                };
+            };
+        };
+    };
+    deleteRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
                 };
             };
         };
@@ -22599,6 +22705,34 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseOpsDepartmentDto"];
+                };
+            };
+        };
+    };
+    insertRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseInteger"];
                 };
             };
         };
@@ -28025,6 +28159,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseDeviceAvailabilityKpiDto"];
+                };
+            };
+        };
+    };
+    tables: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListString"];
                 };
             };
         };
