@@ -115,6 +115,7 @@
         <CrudTable
           :table="crud"
           row-key="orderId"
+          manage-table="cabinet_order"
           selectable
           :actions="rowActions"
           :action-width="180"

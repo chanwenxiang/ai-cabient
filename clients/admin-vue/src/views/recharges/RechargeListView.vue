@@ -48,6 +48,7 @@
         <CrudTable
           :table="crud"
           row-key="orderId"
+          manage-table="recharge_order"
           selectable
           :actions="showActionColumn ? rowActions : undefined"
           :action-width="100"

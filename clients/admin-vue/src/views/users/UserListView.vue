@@ -33,6 +33,7 @@
         <CrudTable
           :table="crud"
           row-key="userId"
+          manage-table="user_account"
           selectable
           :actions="showActionColumn ? rowActions : undefined"
           :action-width="100"

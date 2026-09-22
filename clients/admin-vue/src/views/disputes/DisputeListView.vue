@@ -78,6 +78,7 @@
         <CrudTable
           :table="crud"
           row-key="ticketId"
+          manage-table="dispute_ticket"
           selectable
           :actions="rowActions"
           :action-width="220"

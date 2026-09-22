@@ -176,6 +176,7 @@
         <CrudTable
           :table="crud"
           row-key="deviceId"
+          manage-table="device_info"
           selectable
           :actions="rowActions"
           :action-width="140"
