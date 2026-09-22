@@ -284,7 +284,10 @@ const mapPoints = ref<MapPoint[]>([]);
 
 const rootRef = ref<HTMLDivElement | null>(null);
 const mapRef = ref<HTMLDivElement | null>(null);
-/** 地图引擎：配置了 VITE_AMAP_JS_KEY 用高德官方暗色底图，否则降级 Leaflet 免 key 瓦片。 */
+/**
+ * 地图引擎：key 可用时用高德官方暗色底图，否则降级 Leaflet 免 key 瓦片。
+ * key 来源优先级见 `@/utils/amap`：运行时 `runtime-config.json` → 构建时 `VITE_AMAP_JS_KEY`。
+ */
 type MapEngine = 'amap' | 'leaflet';
 let mapEngine: MapEngine = 'leaflet';
 let map: L.Map | null = null;
@@ -677,10 +680,9 @@ function renderMarkersLeaflet(pts: MapPoint[], maxRev: number, revOf: Map<string
   }
 }
 
-/** 引擎选择：高德可用（配置了 key 且脚本加载成功）则用官方暗色底图，否则 Leaflet。 */
+/** 引擎选择：高德可用（运行时/构建时配置了 key 且加载成功）则用官方暗色底图，否则 Leaflet。 */
 async function ensureMapEngine() {
-  const loader = loadAmap();
-  const ns = loader ? await loader.catch(() => null) : null;
+  const ns = await loadAmap().catch(() => null);
   if (ns && mapRef.value) {
     mapEngine = 'amap';
     amapNS = ns;

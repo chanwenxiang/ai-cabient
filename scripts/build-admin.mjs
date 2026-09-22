@@ -37,4 +37,21 @@ if (!skipTypecheck) {
   runStep('type-check', 'vue-tsc/bin/vue-tsc.js', ['--noEmit']);
 }
 runStep('vite build', 'vite/bin/vite.js', ['build']);
+
+// ⚠️ 必须在构建**之后**：vite 的 emptyOutDir 会清空 static/admin，先放会被删掉。
+// 该 json 是 .gitignore 的（含高德 JS API key），既不参与 CI 的 admin-artifacts 逐字节
+// 比对，也不进 git；CI 环境取不到 key 时脚本写 `{}`，页面降级 Leaflet。
+if (!process.argv.includes('--skip-runtime-config')) {
+  const genScript = path.join(root, 'scripts', 'gen-admin-runtime-config.mjs');
+  console.log('[build-admin] runtime-config...');
+  const gen = spawnSync(process.execPath, [genScript], {
+    cwd: root,
+    stdio: 'inherit',
+    env: process.env
+  });
+  if (gen.status !== 0) {
+    process.exit(gen.status ?? 1);
+  }
+}
+
 console.log('[build-admin] done → services/trade-service/src/main/resources/static/admin');

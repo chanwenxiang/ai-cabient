@@ -221,3 +221,8 @@ V9999__tmp_migration_reviewed_gate_*.sql
 
 # EMQX 生产认证种子（含明文口令，由 scripts/gen-emqx-auth-bootstrap.ps1 生成）
 infra/docker/emqx/auth-bootstrap.production.csv
+
+# admin 运行时配置（含高德 JS API key，由 scripts/gen-admin-runtime-config.mjs 生成）。
+# 🔴 必须保持忽略：CI 的 admin-artifacts 判据是 `git status --porcelain -uall -- static/admin`
+#    须为空，而该命令**不显示被忽略的文件** ⇒ 放行它等于把 key 提交进仓库、并让判据变红。
+services/trade-service/src/main/resources/static/admin/runtime-config.json

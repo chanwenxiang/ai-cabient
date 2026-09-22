@@ -344,9 +344,10 @@ CI 检出里没有该文件 ⇒ 同一提交在两地构建得到不同哈希。
 | `src/utils/amap.ts` 注释 | 「.env.local」→「.env.development.local」，并把「为什么不能放 .env.local」写进注释 |
 | 新产物命中 AMap key | **0**（key 长 32，只报长度不打印值） |
 
-⚠️ **代价（必须知情）**：production 产物不再带 key ⇒ 大屏地图**降级为 Leaflet 免 key 瓦片**，
-即 `http://localhost/admin/` 看到的是 Leaflet 而非高德暗色底图。这是「本机产物 / 入库产物 /
-CI 重建」三者一致的**必要代价**（`.env.local` 与 CI 二者不可兼得）；dev server(:3000) 仍带 key。
+⚠️ **曾经的代价（已由 §10 解掉 ⇒ 此处不再是现状）**：production 产物不再带 key ⇒ 大屏地图
+**降级为 Leaflet 免 key 瓦片**。这在当时是「本机产物 / 入库产物 / CI 重建」三者一致的
+**必要代价**（`.env.local` 与 CI 二者不可兼得）。**§10 把 key 从「构建时内联」搬到「运行时注入」，
+既恢复了 `:80` 的高德暗色底图、又保住了产物可复现**。本节保留原始推理过程，结论以 §10 为准。
 
 ### 9.6 本轮回归（全部直调真实入口，取退出码）
 
@@ -384,4 +385,86 @@ CI 重建」三者一致的**必要代价**（`.env.local` 与 CI 二者不可�
    `manualChunks` 变更下依然逐字节一致，不是「上一次碰巧对上」。
 2. `build` 的 `Admin bundle size budget` 由红转绿 ⇒ §9.1–§9.3 的归类修正**确实解掉了**那个
    红点，而不是绕过它（`ui-vendor` 未被污染、route 预算仍有牙，见 §9.2 / §9.3 的实测）。
+
+---
+
+## 10. 运行时配置注入：既不内联 key，也不降级 Leaflet
+
+§9 的 env 定档换来「产物可复现」，代价是 `:80/admin/` 大屏降级 Leaflet。本节把 key 从
+**构建时**搬到**运行时**，两者兼得（`§9.5` 的「代价」在此作废）。
+
+### 10.1 方案前提：CI 判据**不显示被忽略的文件**
+
+CI 的 `admin-artifacts` 判据是（`.github/workflows/ci.yml`）：
+
+```bash
+changed=$(git status --porcelain -uall -- services/trade-service/src/main/resources/static/admin)
+[ -z "$changed" ] || { printf '%s\n' "$changed"; exit 1; }
+```
+
+关键性质：`git status --porcelain -uall`（**不带 `--ignored`**）**不显示被忽略的文件**得到。
+⇒ 把运行时配置放进 `static/admin/` 并写进 `.gitignore`，它既不让判据变红、也不会被提交；
+而 `index.html` / `assets/**` 内**没有任何 key 字面量** ⇒ 两侧构建产物仍逐字节一致。
+
+### 10.2 分层：哪些配置属于构建时，哪些属于运行时
+
+| 类别 | 载体 | 约束 | 本仓入口 |
+|---|---|---|---|
+| **构建时** | `import.meta.env.*`（会进产物） | **必须**在 CI 可复现 ⇒ 禁止依赖未入库输入 | `clients/admin-vue/.env.development.local`（仅 development 档） |
+| **运行时** | `window.__APP_RUNTIME__`（不进产物） | 随环境变化、可缺省 ⇒ 缺了要能优雅降级 | `static/admin/runtime-config.json`（**未入库**） |
+
+地图 key 天然属于后者：它随部署环境变化，且浏览器本来就能读到（前端可见**不是**威胁模型），
+真正要防的是**进 git**。
+
+### 10.3 实现（6 处）
+
+| 文件 | 改动 |
+|---|---|
+| `clients/admin-vue/src/utils/amap.ts` | 新增 `ensureRuntimeConfig()`：`fetch(BASE_URL + 'runtime-config.json')`、`no-store`、只跑一次、**失败静默**；key 解析改为 运行时 → `import.meta.env` → 空（降级）；`loadAmap()` 改 `async`，返回 `Promise<AmapNS \| null>` |
+| `clients/admin-vue/src/views/dashboard/BigScreenView.vue` | `ensureMapEngine()` 调用点适配（它本来就是 async）：`await loadAmap().catch(() => null)` |
+| `scripts/gen-admin-runtime-config.mjs`（**新增**） | 取值优先级 `$AMAP_JS_KEY` → `infra/.env#AMAP_JS_KEY` → `clients/admin-vue/.env.development.local#VITE_AMAP_JS_KEY`（兜底，**避免同一个 key 写两处**）；写 `static/admin/runtime-config.json`；**只打印来源与长度，绝不打印 key 值** |
+| `scripts/build-admin.mjs` | 构建**之后**生成 runtime-config（`emptyOutDir` 会先清空 `static/admin`，先放必被删）；`--skip-runtime-config` 可跳过 |
+| `docker-up.ps1` | 起 gateway **之前**调用生成脚本（gateway 把 `static/admin` bind-mount 给 nginx）；失败**只告警不中断**（缺 key 属正常降级） |
+| `.gitignore` / `infra/.env.example` | 忽略该 json（附「为何必须忽略」的理由）；补充 `AMAP_JS_KEY` / `AMAP_JS_SECURITY_CODE` 说明 |
+
+⚠️ **`AMAP_WEB_KEY` ≠ `AMAP_JS_KEY`，不可互相顶替**：前者是**后端** Web 服务 API key
+（`trade-service` 的 `AmapGeocodeService.java` 服务端地理编码用），后者是**浏览器** JS API key；
+高德控制台里是**两个不同条目**（实测 sha256 前 8 位 `c098d662` vs `ce1b62af`，都长 32）。
+
+### 10.4 验证（全部实跑，取退出码 / HTTP 码）
+
+| 判据 | 结果 |
+|---|---|
+| `node scripts/build-admin.mjs` | **EXITCODE=0**，181 文件，96 个 `assets/*.js`，`runtime-config.json` 就位 |
+| 产物内的 fetch 路径 | `fetch("/admin/runtime-config.json",{cache:"no-store"})`（`base='/admin/'`） |
+| **产物是否内联 key**（`assets/**`） | 命中 **0** ⇒ 产物不含 key ✓ |
+| key 在 `static/admin/` 的命中面 | **仅 1 个** = `runtime-config.json` **自身**（预期） |
+| `index.html` 含 key | **0** ✓ |
+| `:80` 运行时文件可达 | **HTTP 200**，`application/json`，112 B —— gateway bind-mount 的是**目录** ⇒ 宿主新增文件**即时可见、无需重启容器** |
+| `check-admin-bundle-budget.mjs` | **EXIT=0**（`echarts-vendor` 508.0 ≤ 600；largest route `WarehouseView` 142.4 ≤ 150；total 3031.3 ≤ 3200） |
+| `check-admin-table-gate.mjs` | **EXIT=0** |
+| `check-line-endings.mjs` | **EXIT=0**（3669 文件；778 个 `eol=lf` 的索引与磁盘均为 LF） |
+| `prettier --check`（改动 6 文件） | `All matched files use Prettier code style!` |
+| `eslint`（改动 6 文件） | **EXIT=0** |
+| `run-audit-gates.mjs` | **34 门禁 / 失败 0** |
+| 两端 `mp-weixin`（dev 档）+ H5 重建 | 全部 EXITCODE=0（consumer 208 / merchant 241 文件，appid=`touristappid`；h5 consumer 131 / merchant 129） |
+
+**降级链（fail-safe 实测依据）**：`runtime-config.json` 缺失 ⇒ `fetch` 404 ⇒ `res.ok=false` ⇒
+直接 return ⇒ 不写 `window.__APP_RUNTIME__` ⇒ 回落到 `import.meta.env` ⇒ 仍为空则
+`loadAmap()` 返回 `null` ⇒ `ensureMapEngine()` 走 Leaflet 分支。全程**无异常、无阻塞**。
+
+### 10.5 新发现：本仓 admin 产物对**注释**也敏感
+
+两次构建之间只改了一处**注释**（`BigScreenView.vue` 中描述 key 来源的那行），
+`BigScreenView` chunk 哈希即由 `C7h-xmZQ` 变为 `Dt9GLMOR`。
+
+⇒ 结论：**改 `clients/admin-vue` 的任何源码（含注释）都必须重建 `static/admin`**，
+否则 `admin-artifacts` 在 CI 上必红。**不要**凭「只是改了注释」跳过重建。
+
+### 10.6 回退方式
+
+1. **只想去掉高德底图**：删掉 `static/admin/runtime-config.json`（或把它清成 `{}`）⇒
+   大屏立刻降级 Leaflet，**产物不受影响**（它本来就不在产物里）。
+2. **想彻底移除该机制**：还原 `amap.ts` / `BigScreenView.vue` / `build-admin.mjs` /
+   `docker-up.ps1` 四处改动，再重建产物一次；`runtime-config.json` 与 `.gitignore` 条目可留可删。
 

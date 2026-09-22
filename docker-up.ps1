@@ -74,6 +74,24 @@ if ($WithMonitoring -or $DevOps) {
 $composeArgs = @("compose", "--env-file", $EnvFile) + $composeFiles + @("up", "-d") + $appServices
 if (-not $NoBuild) { $composeArgs += "--build" }
 
+# 生成 admin 运行时配置（高德 JS API key）——务必在起 gateway **之前**：
+# gateway 把 services/.../static/admin 直接 bind-mount 给 nginx，该 json 就靠这条路径生效。
+# 产物里只有一句 `fetch(BASE_URL + 'runtime-config.json')`，所以 key 不参与构建、不影响 CI
+# 的 admin-artifacts 逐字节比对（该 json 是 .gitignore 的）。缺 key 时脚本写 `{}`，页面降级
+# Leaflet —— 属正常降级，因此这里失败只告警、不中断启动。
+$genScript = Join-Path $Root "scripts/gen-admin-runtime-config.mjs"
+if (Test-Path $genScript) {
+  $genExit = 0
+  try {
+    Invoke-NativeCommand -FilePath "node" -ArgumentList @($genScript) -ExitCode ([ref]$genExit)
+    if ($genExit -ne 0) {
+      Write-Host "gen-admin-runtime-config exited with $genExit (大屏将降级 Leaflet)" -ForegroundColor Yellow
+    }
+  } catch {
+    Write-Host "gen-admin-runtime-config skipped: $($_.Exception.Message)" -ForegroundColor Yellow
+  }
+}
+
 $composeExit = 0
 Invoke-NativeCommand -FilePath docker -ArgumentList $composeArgs -ExitCode ([ref]$composeExit)
 if ($composeExit -ne 0) {
