@@ -246,3 +246,25 @@ mv clients/consumer-mp/dist .tmp/mpdist-old-consumer-mp   # 可逆
 - **产物入库 + CI 逐字节比对**这条不变量本身是合理的，但它把「构建环境的私密差异」
   放大成红点。⇒ 入库前应固定构建输入（env 文件、node 版本、行尾），
   否则下次还会以另一种形式复现。
+
+---
+
+## 8. CI 验证结果（修复后实测）
+
+修复提交 **`0bc93a52`**（`95d16838..0bc93a52  HEAD -> dev`），CI run **`35706249923`**：
+
+| job | 修复前（`35701296932`） | 修复后（`35706249923`） |
+|---|---|---|
+| `admin-artifacts` | failure | **✅ success** |
+| `mini-programs` | success | ✅ success |
+| `edge-android` | success | ✅ success |
+| `e2e-h5` | success | ✅ success |
+| `build` | failure | ❌ failure（**仅**停在 `Admin bundle size budget`） |
+| `integration` | skipped | skipped（设计如此） |
+
+`build` 的失败步骤经 `gh run view --json jobs` 的 `steps[].conclusion` 取证，
+**只有** `Admin bundle size budget` 一个 failure；其上游 `Build & Test (trade-service)`
+已 **success** ⇒ 说明 §1 里那两条红（`Format check` / `Admin table gate`）确已修掉。
+
+⇒ **本轮修复的三个红点全部转绿**；唯一剩余红点是**既有超标**，见 §1 与 §7。
+

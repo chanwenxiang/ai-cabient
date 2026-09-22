@@ -1,0 +1,7 @@
+run: completed failure
+  admin-artifacts	success
+  build	failure
+  edge-android	success
+  e2e-h5	success
+  mini-programs	success
+  integration	skipped
