@@ -233,14 +233,17 @@ mv clients/consumer-mp/dist .tmp/mpdist-old-consumer-mp   # 可逆
 
 - **`c0f388bc` 那次 `admin-artifacts` 的红另有原因**（它的产物不含 key，却是 failure）。
   本轮的修复判据不依赖对该次的归因，但**不应**把它算作 `.env.local` 的受害者。
-- 🔴 **欠修：`.env.local` → `.env.development.local`**。其中 `VITE_DEV_ORIGIN` 只影响
-  dev server 的 proxy 与后端 CORS 回显，**不该参与生产构建**；移到 `.env.development.local`
-  可两全（dev 仍可用、生产构建不再被污染）。本轮只做了「构建时移走 + 还原」，未改文件名。
-- ⚠️ **`check-admin-bundle-budget.mjs` 有假信号**：第 104–109 行**无条件**打印
-  `OK largest route …`，即使它已超标（判据在第 100–102 行 push violation）。
-  ⇒ 该行日志不可信，只看 `violations`。
-- ❌ **`EChart-*.js` 513.2KB > 150KB 预算超标（既有）**：HEAD~1 的
-  `EChart-DIKNaHON.js` = 525475 B 同尺寸 ⇒ 非本轮引入。需拆分 ECharts 按需引入或调预算。
+- ✅ **已修：`.env.local` → `.env.development.local`**（见 §9）。`VITE_DEV_ORIGIN` 只影响
+  dev server 的 proxy 与后端 CORS 回显，**不该参与生产构建**。现按 mode 分档：dev 带 key
+  走高德、production 产物不带 key 降级 Leaflet，使「本机产物 / 入库产物 / CI 重建」三者一致。
+- ✅ **已修：`check-admin-bundle-budget.mjs` 的假信号**（见 §9）。`largest route` 行原本
+  **无条件**打印 `OK`，即使已超标（判据在第 100–102 行 push violation）⇒ 该行日志在说谎。
+  现按实际是否超标打印 `OK` / `OVER`。
+- ✅ **已修：`EChart-*.js` 的归类错误**（见 §9）。ECharts **早已按需注册**（`src/utils/echarts.ts`，
+  只 use Bar/Line/Pie + CanvasRenderer），513.2KB 是真实体积 —— 没有"再优化"空间。
+  真问题是它属**第三方库**却被算进**业务 route 桶**（门禁按 chunk 名前缀分类）。
+  现独立为 `echarts-vendor` chunk，由 `ADMIN_BUDGET_ECHARTS_KB=600` 单管；
+  route 预算对业务页面仍然有效（第二名 `WarehouseView` 142.4KB 贴身受管）。
 - **`docs/three-end-full-audit-2026-09-15.md`** 里指向 `clients/*/output/playwright/`
   的两处引用已悬空（该 md 本身已被判定为陈旧快照）。
 - **产物入库 + CI 逐字节比对**这条不变量本身是合理的，但它把「构建环境的私密差异」
@@ -267,4 +270,100 @@ mv clients/consumer-mp/dist .tmp/mpdist-old-consumer-mp   # 可逆
 已 **success** ⇒ 说明 §1 里那两条红（`Format check` / `Admin table gate`）确已修掉。
 
 ⇒ **本轮修复的三个红点全部转绿**；唯一剩余红点是**既有超标**，见 §1 与 §7。
+
+---
+
+## 9. 第二轮（同日）：归类修正 · env 定档 · 假信号修复
+
+承接 §7 的三条待办，本轮全部收口。**仍以「注入漂移必须真变色」验收**，不只看绿灯。
+
+### 9.1 ECharts 的问题不是体积，是归类
+
+复核发现 **ECharts 早已按需注册** —— `clients/admin-vue/src/utils/echarts.ts:2-9` 明确写着
+「禁止 `import * as echarts from 'echarts'` 全量引入（全量 dist 约 1MB）」，实际只
+`use([BarChart, LineChart, PieChart, Grid/Legend/Tooltip, CanvasRenderer])`。
+⇒ **513.2KB 就是按需注册后的真实体积**，没有"再优化"的空间。
+
+真问题在**归类**：`check-admin-bundle-budget.mjs` 按 **chunk 名前缀**分类
+（`ui-vendor-` / `index-` / `leaflet-`，其余全算 route），而 ECharts 由 `EChart.vue` 直接
+import ⇒ 落进 route 桶 ⇒ 撞上给**业务页面**设的 150KB 预算。
+这不是「ECharts 太大」，是「第三方库被算成了业务页面」。
+
+改动必须**两处同源**（否则整类掉回 route 桶）：
+
+| 文件 | 改动 |
+|---|---|
+| `clients/admin-vue/vite.config.ts` | `manualChunks` 新增 `/echarts/` 或 `/zrender/` → `'echarts-vendor'` |
+| `scripts/check-admin-bundle-budget.mjs` | 新增 `ADMIN_BUDGET_ECHARTS_KB=600` + `echarts-vendor-` 分类 + routes 排除 |
+
+预算取 600KB 的依据：实测 508.0KB（门禁口径 KiB），留 ~17% 余量 —— 足够容忍 minor 升级，
+又能抓住「有人退回全量 `import * as echarts from 'echarts'`」这类 ~1MB 的回归。
+
+### 9.2 结果（`node scripts/check-admin-bundle-budget.mjs`）
+
+| chunk | 改前 | 改后 |
+|---|---|---|
+| `EChart-*.js` | **513.2KB（route 桶 ⇒ 超 150KB ⇒ 红）** | `EChart-CMwhv7Mq.js` **5.2KB** |
+| `echarts-vendor-*.js` | — | **508.0KB ≤ 600** |
+| `ui-vendor-*.js` | 1050.6KB（`D4pq3Nzp`） | 1050.6KB（**哈希一字未变**） |
+| `largest route` | `EChart` 513.2KB | `WarehouseView` 142.4KB ≤ 150 |
+| total JS | 3030.6KB | 3030.8KB ≤ 3200 |
+
+🔴 `ui-vendor` 的哈希 `D4pq3Nzp` **改前改后完全相同** —— 这是「ECharts 没有被挪进 ui-vendor
+藏起来」的硬证据。若只是把 513KB 塞进 1200KB 的 ui-vendor 桶，该桶会涨到 ~1563KB 并**反而超
+预算** —— 那才是真的放宽判据。
+
+### 9.3 注入漂移验证（判据必须真会红）
+
+| 注入 | 期望 | 实测 |
+|---|---|---|
+| `ADMIN_BUDGET_ECHARTS_KB=100` | 红 | **EXIT=1** `echarts-vendor ... = 508.0KB > 100KB` ✓ |
+| `ADMIN_BUDGET_ROUTE_KB=100` | 红 | **EXIT=1** `route WarehouseView = 142.4KB > 100KB` ✓ |
+| 默认预算 | 绿 | EXIT=0 ✓ |
+
+第二条尤其重要：它证明**拆出 echarts 后 route 预算对业务页面仍然有效** ——
+不是「把违规挪走」，而是「第三方库移出业务桶、业务桶继续管业务」。
+
+### 9.4 顺手修掉一个说谎的信号
+
+`check-admin-bundle-budget.mjs` 原第 104–109 行**无条件**打印 `OK largest route …`，
+即使该 chunk 已超标（判据在别处 push violation）—— 这是「失效六形态」的第 ⑥ 类
+「信号在骗读者」，也正是它长期掩盖了 EChart 513KB 违规。现改为按实际超标与否打印
+`OK` / `OVER`；§9.3 第 2 行输出的 `OVER largest route …` 即实证。
+
+### 9.5 env 定档：`.env.local` → `.env.development.local`
+
+`.env.local` 在**所有 mode** 下被 vite 加载 ⇒ 把 key 内联进 `vite build`(production) 产物；
+CI 检出里没有该文件 ⇒ 同一提交在两地构建得到不同哈希。这是 §2 主因的**根治**
+（§2 只做了「构建时移走 + 还原」，下次本机构建仍会复现）。
+
+| 动作 | 结果 |
+|---|---|
+| `mv .env.local .env.development.local` | 590 B，**字节数未变**（全程不读取真值） |
+| 新增 `clients/admin-vue/.env.development.example` | **入库**（`.gitignore:35` 的 `!**/.env.*.example` 放行；与 `clients/*-mp` 已有约定一致） |
+| `src/utils/amap.ts` 注释 | 「.env.local」→「.env.development.local」，并把「为什么不能放 .env.local」写进注释 |
+| 新产物命中 AMap key | **0**（key 长 32，只报长度不打印值） |
+
+⚠️ **代价（必须知情）**：production 产物不再带 key ⇒ 大屏地图**降级为 Leaflet 免 key 瓦片**，
+即 `http://localhost/admin/` 看到的是 Leaflet 而非高德暗色底图。这是「本机产物 / 入库产物 /
+CI 重建」三者一致的**必要代价**（`.env.local` 与 CI 二者不可兼得）；dev server(:3000) 仍带 key。
+
+### 9.6 本轮回归（全部直调真实入口，取退出码）
+
+| 判据 | 结果 |
+|---|---|
+| `vite build`（node 24.18.0，无 `--mode` ⇒ production） | EXITCODE=0，29.23s，180 文件 |
+| `check-admin-bundle-budget.mjs` | EXIT=0 |
+| `check-admin-table-gate.mjs` | EXIT=0（裸表格 18 / 表头排序 7 / 原生按钮 25 文件） |
+| `check-line-endings.mjs` | EXIT=0（3668 文件；778 个 eol=lf 的索引与磁盘均为 LF） |
+| `prettier --check`（改动 3 文件） | All matched files use Prettier code style ✓ |
+| `eslint`（改动 3 文件） | EXIT=0 |
+| `run-audit-gates.mjs` | **34 门禁 / 失败 0** |
+| 两端 `mp-weixin`（dev 档） | ALL OK（consumer 208 / merchant 241 文件，appid=`touristappid`） |
+
+⚠️ **低优先缺口（未纳入本轮）**：`.gitattributes` 只把 `clients/**`、`packages/**`、
+`static/admin/**` 钉成 `eol=lf`，**`scripts/**` 无约束** ⇒ 改动后的
+`check-admin-bundle-budget.mjs` 在磁盘上是 CRLF、HEAD 里是 LF。因 `core.autocrlf` 归一，
+`git diff --numstat` 只有 15/2 行，提交不产生行尾漂移；但若将来有脚本对 `scripts/**` 做
+字节级比较会踩坑。
 

@@ -77,6 +77,13 @@ export default defineConfig(({ mode }) => {
             if (norm.includes('/leaflet') || norm.includes('/leaflet.markercluster')) {
               return 'leaflet';
             }
+            // echarts + zrender：重型图表库（已按需注册，见 src/utils/echarts.ts，压缩后仍 ~513KB）。
+            // 必须独立成 vendor chunk —— 它是「第三方库」，不是「业务页面」。混在 route 类里
+            // 会让 150KB 的业务页面预算对它失焦：既误报它，又让它 513KB 的体积把真正需要
+            // 盯的业务膨胀掩盖在「largest route」之下。独立后由 ADMIN_BUDGET_ECHARTS_KB 单管。
+            if (norm.includes('/echarts/') || norm.includes('/zrender/')) {
+              return 'echarts-vendor';
+            }
             // vue 与 element-plus 必须同 chunk：拆开会形成双向 import，生产 TDZ 白屏
             // （Circular chunk: element-plus → vue-vendor → element-plus）
             if (

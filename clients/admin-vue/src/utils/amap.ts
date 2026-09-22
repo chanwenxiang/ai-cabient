@@ -1,9 +1,15 @@
 /**
  * 高德 JS API 2.0 按需加载封装。
  *
- * key 来自 `VITE_AMAP_JS_KEY`（.env.local，Web端(JS API) 类型），未配置时
- * `loadAmap()` 返回 null，调用方降级到 Leaflet 免 key 瓦片。安全密钥可选
+ * key 来自 `VITE_AMAP_JS_KEY`（本机 `.env.development.local`，Web端(JS API) 类型），
+ * 未配置时 `loadAmap()` 返回 null，调用方降级到 Leaflet 免 key 瓦片。安全密钥可选
  * （`VITE_AMAP_SECURITY_CODE`），有值时按官方要求注入 `window._AMapSecurityConfig`。
+ *
+ * 🔴 只放 development 档，**不要**用 `.env.local`：`.env.local` 在**所有 mode**下加载，
+ * 会把 key 字面量内联进 `vite build`（production）的产物，而 CI 检出里没有该文件
+ * ⇒ 同一提交在两处构建得到不同 chunk 哈希，`admin-artifacts` 逐字节比对永远对不上。
+ * 现约定：dev server(:3000) 带 key 走高德；production 产物不带 key、降级 Leaflet，
+ * 使「本机产物 / 入库产物 / CI 重建产物」三者一致。
  */
 
 const JSAPI_KEY = import.meta.env.VITE_AMAP_JS_KEY?.trim() || '';

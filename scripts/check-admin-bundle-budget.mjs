@@ -10,8 +10,13 @@
  *   ADMIN_BUDGET_UI_VENDOR_KB=1200
  *   ADMIN_BUDGET_INDEX_KB=120
  *   ADMIN_BUDGET_LEAFLET_KB=220
+ *   ADMIN_BUDGET_ECHARTS_KB=600
  *   ADMIN_BUDGET_ROUTE_KB=150
  *   ADMIN_BUDGET_TOTAL_JS_KB=3200
+ *
+ * 分类按 chunk **名前缀**判定（`ui-vendor-` / `index-` / `leaflet-` / `echarts-vendor-`，
+ * 其余全算 route）。⇒ 新增一类必须同时改这里与 vite.config.ts 的 manualChunks，
+ * 两边不同源就会让整类掉进 route 桶。
  */
 import { readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -42,6 +47,9 @@ const BUDGET = {
   uiVendorKb: envKb('ADMIN_BUDGET_UI_VENDOR_KB', 1200),
   indexKb: envKb('ADMIN_BUDGET_INDEX_KB', 120),
   leafletKb: envKb('ADMIN_BUDGET_LEAFLET_KB', 220),
+  // echarts+zrender 按需注册后的实测体积 ≈513KB（全量引入约 1MB）。600KB 留 ~17% 余量，
+  // 既能容忍 minor 升级，又能抓住「有人退回 import * as echarts from 'echarts'」这类回归。
+  echartsVendorKb: envKb('ADMIN_BUDGET_ECHARTS_KB', 600),
   routeKb: envKb('ADMIN_BUDGET_ROUTE_KB', 150),
   totalJsKb: envKb('ADMIN_BUDGET_TOTAL_JS_KB', 3200)
 };
@@ -68,11 +76,13 @@ if (!files.length) fail(`no js in ${assetsDir}`);
 const uiVendor = files.filter((f) => f.name.startsWith('ui-vendor-'));
 const index = files.filter((f) => f.name.startsWith('index-'));
 const leaflet = files.filter((f) => f.name.startsWith('leaflet-'));
+const echartsVendor = files.filter((f) => f.name.startsWith('echarts-vendor-'));
 const routes = files.filter(
   (f) =>
     !f.name.startsWith('ui-vendor-') &&
     !f.name.startsWith('index-') &&
-    !f.name.startsWith('leaflet-')
+    !f.name.startsWith('leaflet-') &&
+    !f.name.startsWith('echarts-vendor-')
 );
 
 const totalKb = files.reduce((s, f) => s + f.kb, 0);
@@ -95,6 +105,7 @@ function checkNamed(label, list, maxKb, required = true) {
 checkNamed('ui-vendor', uiVendor, BUDGET.uiVendorKb);
 checkNamed('index', index, BUDGET.indexKb);
 checkNamed('leaflet', leaflet, BUDGET.leafletKb, false);
+checkNamed('echarts-vendor', echartsVendor, BUDGET.echartsVendorKb, false);
 
 for (const f of routes) {
   if (f.kb > BUDGET.routeKb) {
@@ -103,8 +114,10 @@ for (const f of routes) {
 }
 const biggestRoute = routes[0];
 if (biggestRoute) {
+  // 别无条件打 OK —— 超标时也打 OK 就是把判据的结论说谎（本条曾长期掩盖 EChart 513KB 违规）。
+  const over = biggestRoute.kb > BUDGET.routeKb;
   console.log(
-    `  OK largest route ${biggestRoute.name} ${biggestRoute.kb.toFixed(1)}KB (budget ≤${BUDGET.routeKb})`
+    `  ${over ? 'OVER' : 'OK'} largest route ${biggestRoute.name} ${biggestRoute.kb.toFixed(1)}KB (budget ≤${BUDGET.routeKb})`
   );
 }
 
