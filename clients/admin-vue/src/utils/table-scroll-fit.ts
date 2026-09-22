@@ -274,7 +274,7 @@ export function syncTableScrollFit(): void {
         el.classList.remove('table-scroll--h');
         return;
       }
-      const next = measureOverflow(el);
+      let next = measureOverflow(el);
       if (el.querySelector('.crud-table')) next = false; // CrudTable 壳不参与 --h（保 sticky，横滚由 el-table 接管）
       if (el.classList.contains('table-scroll--h') === next) return;
       el.classList.toggle('table-scroll--h', next);
