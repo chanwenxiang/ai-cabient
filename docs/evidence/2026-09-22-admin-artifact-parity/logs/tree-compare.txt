@@ -1,0 +1,39 @@
+# static/admin 四棵树的逐名/逐字节比对 + 聚合哈希
+#   A = .tmp/admin-outdir-backup        HEAD~1 的已提交产物（上一位提交者构建）
+#   B = $LOCALAPPDATA/Temp/adminbuild-crlf-925   同一份源码、仅 BigScreenView.vue 为 CRLF 的重建
+#   C = .tmp/admin-run1                同一份源码、LF 的重建（prettier 前）
+#   生成时间: 2026-09-22 15:52:08 +0800
+
+[0] A 是否等于 HEAD~1 的已提交产物（名字集合）
+    git HEAD~1 169 个 / A 169 个 / 集合相同 = True
+
+[1] 逻辑名并集 = 169
+
+[2] A HEAD~1  vs  B CRLF
+    名同且字节同 = 79   仅改名(级联) = 87   真正正文不同 = 3   缺 = 0
+      - 正文不同: BigScreenView.js
+      - 正文不同: index.js
+      - 正文不同: ui-vendor.js
+
+[2] A HEAD~1  vs  C LF
+    名同且字节同 = 78   仅改名(级联) = 87   真正正文不同 = 4   缺 = 0
+      - 正文不同: BigScreenView.css
+      - 正文不同: BigScreenView.js
+      - 正文不同: index.js
+      - 正文不同: ui-vendor.js
+
+[2] B CRLF  vs  C LF
+    名同且字节同 = 89   仅改名(级联) = 77   真正正文不同 = 3   缺 = 0
+      - 正文不同: BigScreenView.css
+      - 正文不同: BigScreenView.js
+      - 正文不同: index.js
+
+[3] 聚合哈希（含文件名）
+    A HEAD~1   857ca44a1bddd14a
+    B CRLF     e10e4be410d37a43
+    C LF       1ee4e3e0a80576c6
+
+[4] 行尾是自变量的直接证据（同一份源码，只有 .vue 行尾不同）
+    B(CRLF) BigScreenView: BigScreenView-CoMq5KU6.css BigScreenView-DTbB9e20.js 
+    C(LF)   BigScreenView: BigScreenView-DJPXWZZY.css BigScreenView-DgEEboZl.js 
+    A(已提交) BigScreenView: BigScreenView-BRK_22mi.js BigScreenView-CoMq5KU6.css 

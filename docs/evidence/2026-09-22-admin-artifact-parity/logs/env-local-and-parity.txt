@@ -1,0 +1,84 @@
+# admin-artifacts 的真正主因：本地未入库的 clients/admin-vue/.env.local 被内联进生产包
+# 生成时间: 2026-09-22 16:34:18 +0800
+# 基线 HEAD: 95d16838  CI run: 35701296932
+
+## [1] .env.local 的存在性与跟踪状态
+  git check-ignore: .gitignore:32:.env.*	clients/admin-vue/.env.local
+  跟踪状态: UNTRACKED（= CI checkout 里不存在此文件）
+  键名（不打印值）: VITE_DEV_ORIGIN VITE_AMAP_JS_KEY VITE_AMAP_SECURITY_CODE 
+  VITE_AMAP_JS_KEY 值长度: 32
+  mtime: 2026-09-22 00:09:49
+
+## [2] 它为什么会影响产物：vite.config.ts 用 loadEnv(mode, __dirname, '')，空前缀=注入全部变量
+  1:import { defineConfig, loadEnv } from 'vite';
+  15:  const env = loadEnv(mode, __dirname, '');
+  amap.ts:9  const JSAPI_KEY = import.meta.env.VITE_AMAP_JS_KEY?.trim() || '';
+  BigScreenView.vue:287 -> /** 地图引擎：配置了 VITE_AMAP_JS_KEY 用高德官方暗色底图，否则降级 Leaflet 免 key 瓦片。 */
+  ⇒ 本机带 .env.local 构建时 key 被字面量内联进 chunk；CI 无此文件 ⇒ 产物必不相同
+
+## [3] CI 的 admin-artifacts job 环境（.github/workflows/ci.yml）
+  行号 437 起：
+    2:    runs-on: ubuntu-latest
+    4:    # 否则 `pnpm install` 的 lifecycle 脚本在 Linux 上会走 cmd.exe 直接失败（本 job 首跑即栽在这）。
+    13:          node-version: '24.18.0'
+    21:          pnpm install --frozen-lockfile
+    23:      # 与本地同一入口（scripts/build-admin.mjs = vue-tsc --noEmit + vite build），
+    26:        run: node scripts/build-admin.mjs
+    28:      # 用 `git status --porcelain` 而非 `git diff --exit-code`：
+    32:      # 但判据仍应选能覆盖新增的那一个）。两者叠加，故此处必须用 `git status --porcelain`。
+    37:          changed=$(git status --porcelain -uall -- services/trade-service/src/main/resources/static/admin)
+    40:            echo "::error::static/admin 与 clients/admin-vue 源码不同步：请在本地运行 \`node scripts/build-admin.mjs\` 并提交产物"
+  ⇒ 检出里没有 .env.local：CI 构建时 VITE_AMAP_JS_KEY 为空
+
+## [4] key 是否被内联进产物（只报命中文件名与计数，不打印值）
+  [HEAD] 快照文件数 = 169
+        命中 key 的文件 = BigScreenView-BYBxZz4p.js 
+  [c0f388bc] 快照文件数 = 168
+        命中 key 的文件 = （无）
+  修正后新产物（工作区，无 .env.local 构建）命中文件 = （无）
+  ⇒ HEAD 产物里含 key ⇒ CI 无此文件必然对不上；c0f388bc 干净 ⇒ CI 不带 key 是既有常态
+
+## [4.5] 单变量 A/B 对照实验（最强判据：其余输入逐字节相同，只动 .env.local）
+  前提：工作区源码树与 HEAD 逐字节相同 ——
+    git diff --stat HEAD -- ':!.../static/admin' 输出行数 = 0 （0 = 源码无差异）
+    static/admin 内非 assets 的改动 =  M services/trade-service/src/main/resources/static/admin/index.html
+
+  A) 构建输入含 .env.local（即 HEAD 的已提交产物，快照在 .tmp/tree-HEAD）
+     BigScreenView chunk 名: BigScreenView-BYBxZz4p.js 
+     是否内联 key        : BigScreenView-BYBxZz4p.js 
+  B) 构建输入不含 .env.local（即当前工作区，待提交）
+     BigScreenView chunk 名: BigScreenView-D4lgoeHc.js 
+     是否内联 key        : 
+
+  ⇒ 源码一个字节没动，只去掉一个未入库的 env 文件：chunk 名改变、key 消失；
+    且 B 的名字与 CI 重建的名字逐名一致（判据2 差集 = 0）⇒ 因果关系闭环。
+
+## [5] 决定性判据：本机重建（移走 .env.local）vs CI 重建，文件名集合必须逐名一致
+  来源：CI run 35701296932 的 admin-artifacts 日志 git status --porcelain 输出
+    删除(D)集合: 79 个   新增(??)集合: 79 个
+    本机删除(D)集合: 79 个   本机新增(??)集合: 79 个
+  判据1  CI-D  vs 本机-D  差集（须 0） = 0
+  判据2  CI-?? vs 本机-?? 差集（须 0） = 0
+
+  关键 chunk 逐个对照：
+    [useErrorPageActions]
+      本机重建: useErrorPageActions-cL7v9W4F.js 
+      CI  重建: useErrorPageActions-cL7v9W4F.js 
+      基线 HEAD: useErrorPageActions-BZ6Kctjf.js 
+    [index-]
+      本机重建: index-DBch8Ow7.js index-dR9J3ml-.css 
+      CI  重建: index-DBch8Ow7.js 
+      基线 HEAD: index-BvGqbyqS.js index-dR9J3ml-.css 
+    [BigScreenView]
+      本机重建: BigScreenView-D3TTHI_H.css BigScreenView-D4lgoeHc.js 
+      CI  重建: BigScreenView-D4lgoeHc.js 
+      基线 HEAD: BigScreenView-BYBxZz4p.js BigScreenView-D3TTHI_H.css 
+    [WarehouseView]
+      本机重建: WarehouseView-BpVb6ImV.css WarehouseView-CKqUwuqs.js 
+      CI  重建: WarehouseView-CKqUwuqs.js 
+      基线 HEAD: WarehouseView-BpVb6ImV.css WarehouseView-DS70Hpyu.js 
+
+## [6] 结论
+  判据1 与判据2 均为 0 ⇒ 提交工作区当前的 static/admin 即可让 admin-artifacts 转绿。
+  build job 的剩余红点 Admin bundle size budget 属既有超标
+  （EChart-*.js 513.2KB > 150KB，HEAD~1 的 EChart-DIKNaHON.js = 525475B 同尺寸），不在本次修复范围。

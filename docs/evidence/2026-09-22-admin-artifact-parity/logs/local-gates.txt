@@ -1,0 +1,128 @@
+# CI 同款判据回归  2026-09-22 16:32:04 +0800
+# node = v24.18.0
+### 注意：check-line-endings 本机恒 spawnSync git EBUSY，须挂 nopipe 垫片
+
+=== [16:32:05] Format check (prettier --check) ===
+$ C:/nvm4w/nodejs/node.exe node_modules/prettier/bin/prettier.cjs --check clients/**/*.{ts,vue,js,mjs,css,html,json} packages/**/*.{ts,json} scripts/**/*.mjs
+Checking formatting...
+All matched files use Prettier code style!
+EXITCODE=0
+
+=== [16:32:16] Lint (eslint .) ===
+$ C:/nvm4w/nodejs/node.exe node_modules/eslint/bin/eslint.js .
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\admin-vue\src\views\finance\LineManagerView.vue
+  1003:28  warning  'row' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\admin-vue\tests\three-end-business-uat.mjs
+  27:7  warning  'API' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\consumer-mp\src\pages\index\index.vue
+  1449:16  warning  'contactOps' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\consumer-mp\src\pages\login\login.vue
+  193:10  warning  'showError' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\consumer-mp\src\pages\video\video.vue
+  72:10  warning  'showError' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\alerts\alerts.vue
+  99:15  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\business\business.vue
+  314:3  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\device-detail\device-detail.vue
+  193:3  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\devices\devices.vue
+  162:35  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\disputes\disputes.vue
+  264:15  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\home\home.vue
+  302:3  warning  'canTrend' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\order-detail\order-detail.vue
+  143:15  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\orders\orders.vue
+  178:15  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\pricing\pricing.vue
+  113:3  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\request\request.vue
+  186:3  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\settlements\settlements.vue
+  191:3  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\team\team.vue
+  156:15  warning  'MerchantMe' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\clients\merchant-mp\src\pages\video\video.vue
+  51:10  warning  'showError' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 18 problems (0 errors, 18 warnings)
+
+EXITCODE=0
+
+=== [16:32:27] Audit regression gates (run-audit-gates.mjs) ===
+$ env NODE_OPTIONS=--require=C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/.tmp/tools/nopipe.cjs C:/nvm4w/nodejs/node.exe scripts/run-audit-gates.mjs
+✓ check:audit-gates-wiring
+✓ check:line-endings
+✓ check:demo-video-format
+✓ check:uat-consumers
+✓ check:feature-flags
+✓ check:mp-unit-tests-wired
+✓ check:android-tests-wired
+✓ check:edge-cloud-mqtt-contract
+✓ check:ops-alert-escalation
+✓ check:docker-tests-guarded
+✓ check:compose-stop-grace
+✓ check:menu-permissions
+✓ check:compose-ports
+✓ check:mybatis-null-clear
+✓ check:ops-alert-channels
+✓ check:miniapp-privacy-declaration
+✓ check:prometheus-metric-names
+✓ check:replenishment-checkin-contract
+✓ check:edge-queue-threading
+✓ check:admin-dialog-a11y
+✓ check:scheduled-zone
+✓ check:cache-names
+✓ check:admin-endpoints
+✓ check:admin-token-storage
+✓ check:admin-page-size
+✓ check:admin-anti-jitter
+✓ check:admin-table-align
+✓ check:mp-a11y
+✓ check:balance-hold-types
+✓ check:uat-selectors
+✓ check:device-code-input
+✓ check:xxl-job-wiring
+✓ check:scheduled-task-seed
+✓ check:scheduling-vs-db-pool
+
+[run-audit-gates] 聚合链 34 个门禁，失败 0 个
+EXITCODE=0
+
+=== [16:33:13] Admin table & shared-component gate ===
+$ C:/nvm4w/nodejs/node.exe scripts/check-admin-table-gate.mjs
+[admin-table-gate] OK（裸表格 18 / 表头排序 7 / 原生按钮 25 文件 / 拷贝一致）
+EXITCODE=0
+
+=== [16:33:14] Admin bundle size budget (已知既有超标) ===
+$ C:/nvm4w/nodejs/node.exe scripts/check-admin-bundle-budget.mjs
+  OK ui-vendor ui-vendor-D4pq3Nzp.js 1050.6KB (≤1200)
+  OK index index-DBch8Ow7.js 101.6KB (≤120)
+  OK leaflet leaflet-CvxaWwux.js 179.7KB (≤220)
+  OK largest route EChart--ZGngmVx.js 513.2KB (budget ≤150)
+  OK total JS 3030.6KB (≤3200)
+[check-admin-bundle] FAILED:
+  - route EChart--ZGngmVx.js = 513.2KB > 150KB
+EXITCODE=1
+
+=== 汇总 ===

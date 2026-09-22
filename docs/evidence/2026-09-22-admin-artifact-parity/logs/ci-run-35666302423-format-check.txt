@@ -1,0 +1,39 @@
+# CI 中 Format check 的计数与文件清单（截取）
+# 生成时间: 2026-09-22 15:51:31 +0800
+
+mini-programs	UNKNOWN STEP	2026-09-21T23:12:03.1851230Z [^[[33mwarn^[[39m] Code style issues found in 33 files. Run Prettier with --write to fix.
+
+# 该 run 报出的全部未格式化文件：
+clients/admin-vue/src/components/CrudTable.vue
+clients/admin-vue/src/composables/useCrudTable.test.ts
+clients/admin-vue/src/utils/echarts.ts
+clients/admin-vue/src/views/analytics/AnalyticsView.vue
+clients/admin-vue/src/views/announcements/AnnouncementsView.vue
+clients/admin-vue/src/views/dashboard/BigScreenView.vue
+clients/admin-vue/src/views/finance/FundBillView.vue
+clients/admin-vue/src/views/finance/InvoiceListView.vue
+clients/admin-vue/src/views/finance/MerchantWithdrawView.vue
+clients/admin-vue/src/views/growth/AdCampaignsView.vue
+clients/admin-vue/src/views/growth/MemberLevelsView.vue
+clients/admin-vue/src/views/growth/PointsRedeemView.vue
+clients/admin-vue/src/views/merchants/MerchantSplitsView.vue
+clients/admin-vue/src/views/orders/OrderListView.vue
+clients/admin-vue/src/views/ota/OtaView.vue
+clients/admin-vue/src/views/promotions/PromotionsView.vue
+clients/admin-vue/src/views/recharges/RechargeListView.vue
+clients/admin-vue/src/views/replenishment/ReplenishmentView.vue
+clients/admin-vue/src/views/reports/StockHealthView.vue
+clients/admin-vue/src/views/risk/RiskView.vue
+clients/admin-vue/src/views/sessions/SessionListView.vue
+clients/admin-vue/src/views/system/AlertRuleView.vue
+clients/admin-vue/src/views/system/AuditLogView.vue
+clients/admin-vue/src/views/system/DictManageView.vue
+clients/admin-vue/src/views/system/OperatorManageView.vue
+clients/admin-vue/src/views/system/OrgSitesView.vue
+clients/admin-vue/src/views/system/RoleManageView.vue
+clients/admin-vue/src/views/upload/UploadQueueView.vue
+clients/admin-vue/src/views/users/UserListView.vue
+clients/admin-vue/src/views/warehouse/WarehouseView.vue
+clients/consumer-mp/src/utils/pay-channel.test.ts
+scripts/check-admin-table-gate.mjs
+scripts/style-full-audit.mjs

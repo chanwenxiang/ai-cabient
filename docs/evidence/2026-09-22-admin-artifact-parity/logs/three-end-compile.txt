@@ -1,0 +1,118 @@
+# 三端编译回归  2026-09-22 16:26:13 +0800
+# node = v24.18.0  (.nvmrc=24.18.0)
+# 直接调真实入口，不经 pnpm/npm 脚本壳（本机脚本壳可能静默不执行）
+
+=== [16:26:14] admin-vue type-check (vue-tsc --noEmit) ===
+$ (cd clients/admin-vue && C:/nvm4w/nodejs/node.exe node_modules/vue-tsc/bin/vue-tsc.js --noEmit)
+EXITCODE=0
+
+=== [16:26:33] consumer-mp type-check ===
+$ (cd clients/consumer-mp && C:/nvm4w/nodejs/node.exe node_modules/vue-tsc/bin/vue-tsc.js --noEmit)
+EXITCODE=0
+
+=== [16:26:38] merchant-mp type-check ===
+$ (cd clients/merchant-mp && C:/nvm4w/nodejs/node.exe node_modules/vue-tsc/bin/vue-tsc.js --noEmit)
+EXITCODE=0
+
+=== [16:26:44] consumer-mp H5 build (uni build) ===
+$ (cd clients/consumer-mp && C:/nvm4w/nodejs/node.exe node_modules/@dcloudio/vite-plugin-uni/bin/uni.js build)
+Compiler version: 4.15（vue3）
+Compiling...
+
+uni-app 有新版本发布，请执行 `npx @dcloudio/uvm@latest` 更新，更新日志详见：https://download1.dcloud.net.cn/hbuilderx/changelog/5.26.2026091802.html
+[31mx[39m Build failed in 4.69s
+
+欢迎将web站点部署到uniCloud前端网页托管平台，高速、免费、安全、省心，详见：https://uniapp.dcloud.io/uniCloud/hosting
+[31m[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":76,"threshold":50,"scope":"turn","targets":["C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\clients\\consumer-mp\\dist\\build\\h5\\assets"],"targetCount":1}[39m
+    at checkBulkDeleteGuard (D:\devTools\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:239:19)
+    at tryTrash (D:\devTools\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:591:5)
+    at tryRm (D:\devTools\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:785:5)
+    at Object.wrappedRmSync [as rmSync] (D:\devTools\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:791:15)
+    at emptyDir (file:///C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/node_modules/.pnpm/vite@5.4.21_@types+node@26.1.2_terser@5.49.0/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:17082:19)
+    at prepareOutDir (file:///C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/node_modules/.pnpm/vite@5.4.21_@types+node@26.1.2_terser@5.49.0/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:65746:7)
+    at Module.build (file:///C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/node_modules/.pnpm/vite@5.4.21_@types+node@26.1.2_terser@5.49.0/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:65711:7)
+    at async CAC.runBuild (C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\node_modules\.pnpm\@dcloudio+vite-plugin-uni@3.0.0-4010520240507001_@vueuse+core@14.3.0_vue@3.5.40_typescript@5._wgqltrzikeumxrthf23cx6jigu\node_modules\@dcloudio\vite-plugin-uni\dist\cli\action.js:146:9)
+Build failed with errors.
+EXITCODE=1
+
+=== [16:26:52] merchant-mp H5 build (uni build) ===
+$ (cd clients/merchant-mp && C:/nvm4w/nodejs/node.exe node_modules/@dcloudio/vite-plugin-uni/bin/uni.js build)
+Compiler version: 4.15（vue3）
+Compiling...
+
+uni-app 有新版本发布，请执行 `npx @dcloudio/uvm@latest` 更新，更新日志详见：https://download1.dcloud.net.cn/hbuilderx/changelog/5.26.2026091802.html
+[31mx[39m Build failed in 9.86s
+
+欢迎将web站点部署到uniCloud前端网页托管平台，高速、免费、安全、省心，详见：https://uniapp.dcloud.io/uniCloud/hosting
+[31m[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":78,"threshold":50,"scope":"turn","targets":["C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\clients\\merchant-mp\\dist\\build\\h5\\assets"],"targetCount":1}[39m
+    at checkBulkDeleteGuard (D:\devTools\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:239:19)
+    at tryTrash (D:\devTools\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:591:5)
+    at tryRm (D:\devTools\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:785:5)
+    at Object.wrappedRmSync [as rmSync] (D:\devTools\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:791:15)
+    at emptyDir (file:///C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/node_modules/.pnpm/vite@5.4.21_@types+node@26.1.2_terser@5.49.0/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:17082:19)
+    at prepareOutDir (file:///C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/node_modules/.pnpm/vite@5.4.21_@types+node@26.1.2_terser@5.49.0/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:65746:7)
+    at Module.build (file:///C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/node_modules/.pnpm/vite@5.4.21_@types+node@26.1.2_terser@5.49.0/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:65711:7)
+    at async CAC.runBuild (C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\node_modules\.pnpm\@dcloudio+vite-plugin-uni@3.0.0-4010520240507001_@vueuse+core@14.3.0_vue@3.5.40_typescript@5._wgqltrzikeumxrthf23cx6jigu\node_modules\@dcloudio\vite-plugin-uni\dist\cli\action.js:146:9)
+Build failed with errors.
+EXITCODE=1
+
+=== [16:27:06] admin-vue unit tests (vitest run) ===
+$ (cd clients/admin-vue && C:/nvm4w/nodejs/node.exe node_modules/vitest/vitest.mjs run)
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mC:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/clients/admin-vue[39m
+
+ [32m✓[39m src/utils/upload-validate.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/composables/createLoadSeq.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m src/utils/list-and-redirect.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/utils/admin-utils.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 81[2mms[22m[39m
+ [32m✓[39m src/utils/rbac-cache-policy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/utils/admin-hash-history.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/composables/useCrudTable.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[32m48 passed[39m[22m[90m (48)[39m
+[2m   Start at [22m 16:27:08
+[2m   Duration [22m 971ms[2m (transform 597ms, setup 0ms, import 924ms, tests 202ms, environment 1ms)[22m
+
+EXITCODE=0
+
+=== [16:27:11] consumer-mp unit tests (vitest run) ===
+$ (cd clients/consumer-mp && C:/nvm4w/nodejs/node.exe node_modules/vitest/vitest.mjs run)
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mC:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/clients/consumer-mp[39m
+
+ [32m✓[39m src/utils/promo-slot.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/utils/secure-id.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/utils/dispute-form.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/utils/account.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/utils/feature-flags.test.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 308[2mms[22m[39m
+ [32m✓[39m src/utils/pay-channel.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m69 passed[39m[22m[90m (69)[39m
+[2m   Start at [22m 16:27:12
+[2m   Duration [22m 1.71s[2m (transform 647ms, setup 0ms, collect 1.18s, tests 340ms, environment 1ms, prepare 2.03s)[22m
+
+EXITCODE=0
+
+=== [16:27:16] merchant-mp unit tests (vitest run) ===
+$ (cd clients/merchant-mp && C:/nvm4w/nodejs/node.exe node_modules/vitest/vitest.mjs run)
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mC:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/clients/merchant-mp[39m
+
+ [32m✓[39m src/utils/checkin-location-pref.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/utils/merchant-display.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/utils/preferred-device.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/utils/sales-chart.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/utils/merchant-config.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 272[2mms[22m[39m
+ [32m✓[39m src/utils/todo-list.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m55 passed[39m[22m[90m (55)[39m
+[2m   Start at [22m 16:27:17
+[2m   Duration [22m 1.64s[2m (transform 667ms, setup 0ms, collect 927ms, tests 304ms, environment 1ms, prepare 1.81s)[22m
+
+EXITCODE=0
+
+=== 汇总 ===
+FAILED: consumer-mp H5 build (uni build) merchant-mp H5 build (uni build)

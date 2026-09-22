@@ -1,0 +1,39 @@
+
+=== [consumer-mp 16:29:05] 预处理：可逆 mv 走 dist ===
+  moved -> .tmp/mpdist-old-consumer-mp (131 文件)
+  outDir 现在存在? NO
+
+=== [consumer-mp 16:29:12] H5 build ===
+$ (cd clients/consumer-mp && node node_modules/@dcloudio/vite-plugin-uni/bin/uni.js build)
+Compiler version: 4.15（vue3）
+Compiling...
+
+uni-app 有新版本发布，请执行 `npx @dcloudio/uvm@latest` 更新，更新日志详见：https://download1.dcloud.net.cn/hbuilderx/changelog/5.26.2026091802.html
+
+欢迎将web站点部署到uniCloud前端网页托管平台，高速、免费、安全、省心，详见：https://uniapp.dcloud.io/uniCloud/hosting
+DONE  Build complete.
+EXITCODE=0
+  产物文件数 = 131
+  outDir 顶层 = build 
+  构建产物时间戳最新 = 74 个文件在最近 10 分钟内
+
+=== [merchant-mp 16:29:30] 预处理：可逆 mv 走 dist ===
+  moved -> .tmp/mpdist-old-merchant-mp (597 文件)
+  outDir 现在存在? NO
+
+=== [merchant-mp 16:29:40] H5 build ===
+$ (cd clients/merchant-mp && node node_modules/@dcloudio/vite-plugin-uni/bin/uni.js build)
+Compiler version: 4.15（vue3）
+Compiling...
+
+uni-app 有新版本发布，请执行 `npx @dcloudio/uvm@latest` 更新，更新日志详见：https://download1.dcloud.net.cn/hbuilderx/changelog/5.26.2026091802.html
+
+欢迎将web站点部署到uniCloud前端网页托管平台，高速、免费、安全、省心，详见：https://uniapp.dcloud.io/uniCloud/hosting
+DONE  Build complete.
+EXITCODE=0
+  产物文件数 = 129
+  outDir 顶层 = build 
+  构建产物时间戳最新 = 76 个文件在最近 10 分钟内
+
+=== 汇总 ===
+EXITCODE=0 EXITCODE=0 

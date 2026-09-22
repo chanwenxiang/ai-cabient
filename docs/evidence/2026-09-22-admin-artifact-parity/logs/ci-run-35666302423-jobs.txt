@@ -1,0 +1,14 @@
+# gh run view 35666302423 --json jobs  （提交 35f6423e，失败 run）
+# 生成时间: 2026-09-22 15:51:25 +0800
+
+mini-programs  ->  Format check
+admin-artifacts  ->  Verify admin UI artifacts are up-to-date
+build  ->  Admin table & shared-component gate
+
+# 全部 job 结论：
+failure	mini-programs
+failure	admin-artifacts
+failure	build
+success	edge-android
+success	e2e-h5
+skipped	integration
