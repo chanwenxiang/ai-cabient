@@ -1735,7 +1735,18 @@ a:focus-visible {
   vertical-align: bottom;
 }
 
-.table-scroll .el-table {
+/*
+ * ⚠ 以下三条规则是给「壳自己纵滚 + 表体全展开」的老布局写的，**含 CrudTable 的壳不适用**。
+ *
+ * CrudTable 页里纵滚已下移到 el-table 自身（max-height，由 CrudTable.vue 的 calcMaxHeight 写入），
+ * 若仍被这三条 height:auto / max-height:none / overflow:visible 压掉：
+ *   EP 的 max-height 内滚失效（实测 inline max-height:484px 被算成 none）⇒ 表体全展开 1182px
+ *   ⇒ 页面（.layout-main-scroll）又可以纵滚 ⇒ 吸附工具行/分页行 sticky 吸顶后盖住表头，
+ *   表格行从两层吸附元素之间的缝里穿过（实测表头 y=-20 而工具行 y=106）。
+ * 故凡「壳内含 CrudTable」一律排除 —— 与既有 `.table-scroll:has(.crud-table){overflow:visible}`
+ * 同一判据（见 scripts/check-admin-anti-jitter.mjs 规则 I）。
+ */
+.table-scroll:not(:has(.crud-table)) .el-table {
   width: 100% !important;
   min-width: 100% !important;
   height: auto !important;
@@ -1836,8 +1847,8 @@ a:focus-visible {
   background: var(--el-table-header-bg-color, #3a3a3a);
 }
 
-.table-scroll .el-table__body-wrapper,
-.table-scroll .el-table__footer-wrapper {
+.table-scroll:not(:has(.crud-table)) .el-table__body-wrapper,
+.table-scroll:not(:has(.crud-table)) .el-table__footer-wrapper {
   height: auto !important;
   max-height: none !important;
   overflow: visible !important;
@@ -1929,7 +1940,7 @@ a:focus-visible {
   pointer-events: none;
 }
 
-.table-scroll .el-table .el-scrollbar__wrap {
+.table-scroll:not(:has(.crud-table)) .el-table .el-scrollbar__wrap {
   overflow: visible !important;
   max-height: none !important;
 }

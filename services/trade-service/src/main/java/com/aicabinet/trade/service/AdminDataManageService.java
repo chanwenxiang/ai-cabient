@@ -113,6 +113,91 @@ public class AdminDataManageService {
         return out;
     }
 
+    /**
+     * 单表列元数据：列名 + PG 类型 + 可空 / 有默认值（含 identity）/ 主键 / **必填**。
+     *
+     * <p>{@code required} 由 SQL 直接算（NOT NULL 且无默认值且非 identity），**不由前端推导** ——
+     * 这条规则前端自己推过一版，判成「主键一律不必填」，于是新增模板漏掉主键列
+     * （{@code exception_id} 这类**应用侧赋值**的 varchar 主键 NOT NULL 无默认），
+     * 保存必 400「缺少必填字段」：又造出一个「必点必失败」的入口。</p>
+     */
+    public record ColumnMeta(
+            String name,
+            String type,
+            boolean nullable,
+            boolean hasDefault,
+            boolean primaryKey,
+            boolean required) {}
+
+    /**
+     * 列元数据 —— 供前端预填「新增数据」模板与展示列清单。
+     * 一律现查 {@code information_schema}：手写列清单必漂。
+     */
+    public List<ColumnMeta> columnMetadata(String table) {
+        requireManaged(table);
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT c.column_name AS name, c.udt_name AS col_type,"
+                        + " (c.is_nullable = 'YES') AS can_be_null,"
+                        + " (c.column_default IS NOT NULL OR c.is_identity = 'YES') AS has_default,"
+                        + " (pk.column_name IS NOT NULL) AS is_pk,"
+                        + " (c.is_nullable = 'NO' AND c.column_default IS NULL"
+                        + "  AND c.is_identity = 'NO') AS required"
+                        + " FROM information_schema.columns c"
+                        + " LEFT JOIN ("
+                        + "   SELECT kcu.column_name FROM information_schema.table_constraints tc"
+                        + "   JOIN information_schema.key_column_usage kcu"
+                        + "     ON tc.constraint_name = kcu.constraint_name"
+                        + "    AND tc.table_schema = kcu.table_schema"
+                        + "   WHERE tc.table_schema = current_schema() AND tc.table_name = ?"
+                        + "     AND tc.constraint_type = 'PRIMARY KEY'"
+                        + " ) pk ON pk.column_name = c.column_name"
+                        + " WHERE c.table_schema = current_schema() AND c.table_name = ?"
+                        + " ORDER BY c.ordinal_position",
+                table, table);
+        List<ColumnMeta> out = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            out.add(new ColumnMeta(
+                    String.valueOf(r.get("name")),
+                    String.valueOf(r.get("col_type")),
+                    Boolean.TRUE.equals(r.get("can_be_null")),
+                    Boolean.TRUE.equals(r.get("has_default")),
+                    Boolean.TRUE.equals(r.get("is_pk")),
+                    Boolean.TRUE.equals(r.get("required"))));
+        }
+        return out;
+    }
+
+    /**
+     * 单行**原始列值**：列名 = 数据库列名（snake_case），值统一取 {@code ::text}（NULL 原样为 null）。
+     *
+     * <p>为什么编辑框必须用数据库列名而不是列表接口的 DTO 字段名：{@link #updateRow} 的列校验走
+     * {@code information_schema.columns}，只认 snake_case。前端若把 DTO（camelCase）填进编辑框，
+     * 保存时每个键都判「未知列」⇒ 400 —— 即「编辑数据」对**任何**表都必然失败
+     * （2026-09-23 实测：{@code PUT {sessionId,…}} → {@code 400 未知列：sessionId}）。</p>
+     *
+     * <p>值取 text 与写入侧对称：写入侧一律 {@code CAST(? AS <udt>)}，故 text 形态可原样回写，
+     * 数字 / 时间戳 / 布尔 / jsonb 都不必在两端各写一套转换规则。</p>
+     */
+    public Map<String, Object> rowDetail(String table, String id) {
+        requireManaged(table);
+        PkColumn pk = primaryKey(table);
+        StringBuilder select = new StringBuilder();
+        for (String col : columnTypes(table).keySet()) {
+            if (select.length() > 0) {
+                select.append(", ");
+            }
+            select.append(col).append("::text AS ").append(col);
+        }
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT " + select + " FROM " + table
+                        + " WHERE " + pk.name() + " = " + placeholder(pk.udt()),
+                id);
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "记录不存在：" + table + "." + id);
+        }
+        return rows.get(0);
+    }
+
     @Transactional
     public void deleteRow(Long operatorId, String table, String id) {
         requireManaged(table);

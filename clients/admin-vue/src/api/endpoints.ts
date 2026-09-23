@@ -21,6 +21,11 @@ export const AdminEndpoints = {
   dataUpdate: (table: string, id: string) =>
     `${API_PREFIX}/ops/admin/data/${table}/${encodeURIComponent(id)}`,
   dataCreate: (table: string) => `${API_PREFIX}/ops/admin/data/${table}`,
+  /** 列元数据：列名 / 类型 / 可空 / 有默认 / 主键（新增数据模板、列清单提示） */
+  dataSchema: (table: string) => `${API_PREFIX}/ops/admin/data/schema/${table}`,
+  /** 单行原始列值（编辑数据预填）；键 = 数据库列名，与写入侧校验同源 */
+  dataRow: (table: string, id: string) =>
+    `${API_PREFIX}/ops/admin/data/row/${table}/${encodeURIComponent(id)}`,
   /** 工作台 KPI */
   stats: `${ops}/stats`,
   workbench: `${ops}/workbench`,

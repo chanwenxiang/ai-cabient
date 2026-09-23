@@ -7065,6 +7065,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/data/schema/{table}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["schema"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/data/row/{table}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["row"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/data/capabilities": {
         parameters: {
             query?: never;
@@ -14867,6 +14899,20 @@ export interface components {
             code?: number;
             message?: string;
             data?: string[];
+        };
+        ApiResponseListColumnMeta: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ColumnMeta"][];
+        };
+        ColumnMeta: {
+            name?: string;
+            type?: string;
+            nullable?: boolean;
+            hasDefault?: boolean;
+            primaryKey?: boolean;
+            required?: boolean;
         };
         ApiResponseDataScopeDto: {
             /** Format: int32 */
@@ -28195,6 +28241,51 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListString"];
+                };
+            };
+        };
+    };
+    schema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListColumnMeta"];
+                };
+            };
+        };
+    };
+    row: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
                 };
             };
         };

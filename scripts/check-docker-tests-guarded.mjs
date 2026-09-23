@@ -117,6 +117,15 @@ const GUARDED = new Map([
         'surefire 跑（`*Test.java`）；守通用数据管理（ops/admin/data）的**参数类型绑定**：' +
         'URL 里的 id 与 JSON 里的值都来自 Java String，未按列类型 CAST 时 `bigint = varchar` ⇒ 42883 ⇒ 500'
     }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/AdminDataManageColumnContractTest.java',
+    {
+      job: 'build',
+      why:
+        '同左：surefire + build job 守卫的自动扫；守通用数据管理的**列名/键名契约**：' +
+        '编辑框预填若用接口 DTO 驼峰名，写入侧（只认 information_schema 的 snake_case）必判「未知列」⇒ 保存必 400'
+    }
   ]
 ]);
 

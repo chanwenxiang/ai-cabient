@@ -52,6 +52,26 @@ public class AdminDataManageController {
         return ApiResponse.ok(service.deleteCapabilities());
     }
 
+    /**
+     * 列元数据（列名 / 类型 / 可空 / 有默认 / 主键）。
+     * 前端据此生成「新增数据」的必填列骨架，避免给一个没有任何列名线索的空模板。
+     */
+    @GetMapping("/schema/{table}")
+    public ApiResponse<List<AdminDataManageService.ColumnMeta>> schema(@PathVariable String table) {
+        return ApiResponse.ok(service.columnMetadata(table));
+    }
+
+    /**
+     * 单行原始列值（键 = 数据库列名）。编辑对话框据此预填 —— 保证「看到的键就是能保存的键」。
+     * 路径前缀用 /row，与 /{table}/{id} 的 PUT/DELETE 不产生歧义。
+     */
+    @GetMapping("/row/{table}/{id}")
+    public ApiResponse<Map<String, Object>> row(
+            @PathVariable String table,
+            @PathVariable String id) {
+        return ApiResponse.ok(service.rowDetail(table, id));
+    }
+
     @DeleteMapping("/{table}/{id}")
     public ApiResponse<Void> deleteRow(
             HttpServletRequest request,

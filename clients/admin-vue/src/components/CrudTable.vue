@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootRef" class="crud-table">
+  <div ref="rootRef" class="crud-table" :class="{ 'crud-table--fill': fillMode }">
     <div v-if="$slots.toolbar" class="crud-table__toolbar">
       <slot name="toolbar" />
     </div>
@@ -8,7 +8,8 @@
     <div v-if="showMetaBar" class="crud-table__meta">
       <div class="crud-table__meta-left">
         <template v-if="table.sortProp">
-          <span class="crud-table__meta-label">按 {{ sortFieldLabel }}</span>
+          <!-- 中文标签不加空格（「按会话编号」）；写成 `按 {{ … }}` 会在「按」后留一个半角空格 -->
+          <span class="crud-table__meta-label">按{{ sortFieldLabel }}</span>
           <el-button-group size="small">
             <el-button
               :type="table.sortDir === 'asc' ? 'primary' : 'default'"
@@ -146,10 +147,21 @@
       width="640px"
       destroy-on-close
     >
-      <el-input v-model="jsonDialog.text" type="textarea" :rows="14" spellcheck="false" />
+      <!-- 键名口径必须写在眼前：编辑框预填的是**数据库列名**（与后端列校验同源）；
+           用接口 DTO 的驼峰名保存会被逐个判「未知列」 -->
+      <p class="crud-table__json-hint">{{ jsonDialog.hint }}</p>
+      <div v-loading="jsonDialog.loading" class="crud-table__json-body">
+        <el-input v-model="jsonDialog.text" type="textarea" :rows="14" spellcheck="false" />
+      </div>
       <template #footer>
         <el-button @click="jsonDialog.visible = false">取消</el-button>
-        <el-button type="primary" :loading="jsonDialog.busy" @click="dataSave">保存</el-button>
+        <el-button
+          type="primary"
+          :loading="jsonDialog.busy"
+          :disabled="jsonDialog.loading"
+          @click="dataSave"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
 
@@ -346,12 +358,25 @@ watch(
   },
   { immediate: true }
 );
+/** 后端列元数据（GET /ops/admin/data/schema/{table}） */
+interface AdminColumnMeta {
+  name: string;
+  type: string;
+  nullable: boolean;
+  hasDefault: boolean;
+  primaryKey: boolean;
+  /** 必填（NOT NULL 且无默认值且非 identity）—— 由后端单一事实源算出，前端不自行推导 */
+  required: boolean;
+}
+
 const jsonDialog = reactive({
   visible: false,
   mode: 'edit' as 'edit' | 'create',
   id: '',
   text: '',
-  busy: false
+  hint: '',
+  busy: false,
+  loading: false
 });
 
 /**
@@ -439,22 +464,76 @@ async function dataBatchDelete() {
   await table.load();
 }
 
+/**
+ * 编辑数据：预填必须用**数据库列名** —— 后端列校验走 information_schema，只认 snake_case。
+ * 早先用列表 DTO（camelCase）预填，保存时每个键都判「未知列」⇒ 400，
+ * 等于「编辑数据」这个大路上任何表都必然失败（实测 PUT {sessionId,…} → 400 未知列：sessionId）。
+ * 故改为现拉该行的原始列值（GET /row/{table}/{id}），做到「看到的键就是能保存的键」。
+ */
 function dataEdit(row: any) {
-  jsonDialog.mode = 'edit';
-  jsonDialog.id = rowId(row);
-  if (!jsonDialog.id) {
+  const id = rowId(row);
+  if (!id) {
     ElMessage.error('无法确定该行主键，已取消编辑');
     return;
   }
-  jsonDialog.text = JSON.stringify(row, null, 2);
+  jsonDialog.mode = 'edit';
+  jsonDialog.id = id;
+  jsonDialog.text = '';
+  jsonDialog.hint =
+    '键名必须是数据库列名（与表结构一致）；数字 / 时间 / 布尔可写成字符串，保存时按列类型转换。';
+  jsonDialog.loading = true;
   jsonDialog.visible = true;
+  void (async () => {
+    try {
+      const detail = await api.request<Record<string, unknown>>(
+        AdminEndpoints.dataRow(props.manageTable, id),
+        'GET'
+      );
+      jsonDialog.text = JSON.stringify(detail, null, 2);
+    } catch (e) {
+      ElMessage.error(e instanceof Error ? e.message : '读取该行数据失败');
+      jsonDialog.visible = false;
+    } finally {
+      jsonDialog.loading = false;
+    }
+  })();
 }
 
+/**
+ * 新增数据：用列元数据生成骨架。「必填」由后端算好（{@code required}），前端**不自行推导** ——
+ * 曾自己判过一版（误以为主键一律不必填），于是模板漏掉主键列（{@code exception_id} 这类
+ * 应用侧赋值的 varchar 主键 NOT NULL 无默认）⇒ 点保存必 400「缺少必填字段」。
+ * 必填列一律先给 null 占位：给 0/'' 之类「合法默认值」会顺手插出一条脏行，
+ * 给 null 则得到可读的 400，逼调用方填真值。
+ */
 function dataCreate() {
   jsonDialog.mode = 'create';
   jsonDialog.id = '';
-  jsonDialog.text = JSON.stringify({ 列名: '值' }, null, 2);
+  jsonDialog.text = '';
+  jsonDialog.hint = '正在读取表结构…';
+  jsonDialog.loading = true;
   jsonDialog.visible = true;
+  void (async () => {
+    try {
+      const cols = await api.request<AdminColumnMeta[]>(
+        AdminEndpoints.dataSchema(props.manageTable),
+        'GET'
+      );
+      const required = cols.filter((c) => c.required);
+      const tpl: Record<string, null> = {};
+      for (const c of required) tpl[c.name] = null;
+      jsonDialog.text = JSON.stringify(tpl, null, 2);
+      const names = cols.map((c) => (c.required ? `${c.name}*` : c.name)).join(', ');
+      jsonDialog.hint = required.length
+        ? `本表列（* 为必填，已用 null 占位，请替换成具体值）：${names}`
+        : `本表无必填列（均有默认值），留 {} 即插入一行默认值。列：${names}`;
+    } catch (e) {
+      ElMessage.error(e instanceof Error ? e.message : '读取表结构失败');
+      jsonDialog.visible = false;
+    } finally {
+      jsonDialog.loading = false;
+    }
+  })();
 }
 
 async function dataSave() {
@@ -496,16 +575,88 @@ function onDataAction(key: string, row: any) {
 
 // —— 表格内滚：给 el-table 设可用最大高度，页面（el-main）不再滚动，
 //    工具行/分页行天然常驻可见，不再依赖 position: sticky（超宽表格页与壳横滚互斥的问题就此消除）
+//
+// ⚠ 只减分页行是不够的：吸附工具行（.crud-table__meta）也是同层占位元素，
+//   分页行又是 sticky bottom:0 —— 少扣一点，它就会吸到表体上面盖住最后几行
+//   （实测少扣工具行 39+8px ⇒ 表体与分页行重叠 58px）。故把同层非表体元素全扣掉，
+//   再扣主滚动区自身的 padding-bottom（否则仍差 12px 重叠）。
+//
+// ⚠ 也不能只扣「上方 + 同层」：**表格之后**同在主区里的内容一样占位。漏掉它，填充高度
+//   会把主区撑出可滚动范围，主区一可滚，吸附元素就又会盖住表体（实测 /sessions 残留 16.4px、
+//   /vision-mappings 表后还有一整张卡片 ⇒ 主区高出 289px）。
+//
+// ⚠ 更不能「算出来多少就至少给 240」：主区放不下时抬高到 240 等于**保证**溢出。
+//   实测 /system-configs 的 avail=102.2 被抬到 240 ⇒ 多出 137.4px，而实测被吸底分页行盖住的
+//   正是 137px；/dashboard avail=52.7 ⇒ 多出 186.8px，实测盖住 186.8px —— 逐位吻合。
+//   故主区放不下时**退回文档流（flow 模式）**：不设 max-height、且取消吸附
+//   （见 .crud-table:not(.crud-table--fill) 的样式），表体与工具行/分页行都在流里，互不覆盖。
+const MIN_FILL_HEIGHT = 240;
 const rootRef = ref<HTMLElement>();
 const tableMaxHeight = ref<number>();
+/** 填充模式：表格吃满主区剩余高度并启用吸附行；false = 文档流模式（主区放不下时） */
+const fillMode = ref(false);
 function calcMaxHeight() {
   const rootEl = rootRef.value;
   const main = rootEl?.closest('.layout-main-scroll') as HTMLElement | null;
   if (!rootEl || !main) return;
-  const top = rootEl.getBoundingClientRect().top - main.getBoundingClientRect().top;
-  const pager = rootEl.querySelector('.crud-table__pager') as HTMLElement | null;
-  const h = main.clientHeight - Math.max(top, 0) - (pager?.offsetHeight ?? 48) - 12;
-  tableMaxHeight.value = Math.max(240, Math.round(h));
+  const px = (v: string) => Number.parseFloat(v) || 0;
+  // 主区已下滚时 getBoundingClientRect 的差会少算 scrollTop，补回来才是真实偏移
+  const top =
+    rootEl.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
+  let used = 0;
+  for (const el of Array.from(rootEl.children) as HTMLElement[]) {
+    // 表体自己不算占位；其余（页面工具栏 / 吸附工具行 / 分页行）都要扣
+    if (el.classList.contains('crud-table__table')) continue;
+    const cs = getComputedStyle(el);
+    // 弹层（el-dialog 的 .el-overlay 也渲染在本容器内）是 fixed 全屏遮罩，不是占位元素：
+    // 若在弹窗打开时重算，整屏高度会被当成占位 ⇒ 表格被压到最小值
+    if (cs.position === 'fixed' || cs.position === 'absolute') continue;
+    if (el.getBoundingClientRect().height === 0) continue;
+    used +=
+      el.getBoundingClientRect().height +
+      (Number.parseFloat(cs.marginTop) || 0) +
+      (Number.parseFloat(cs.marginBottom) || 0);
+  }
+  const padBottom = px(getComputedStyle(main).paddingBottom);
+  // 「表格之后同在主区里的内容」必须沿 DOM 逐层累加，且一层都不能漏：
+  //  · 根自身的下外边距（它的 border box 之后还有一段属于它）
+  //  · 父容器的下内边距 / 下边框（排在最后一个子元素之后，同样占位）
+  //  · 每层里根之后的流式兄弟（高度 + 上下外边距）
+  // 🔴 不能用 main.scrollHeight − 组件底 来求 —— scrollHeight 会被**下限钳到 clientHeight**，
+  //   内容不满一屏时会凭空多出一段「剩余空白」，代数化简后 avail 恒等于「当前表体高度」，
+  //   于是填充高度自我循环：本来放得下的页面（实测 /fund-bills、/notifications）被误判成放不下。
+  // 实测漏掉「父层下内边距/边框」这一项，/sessions 会在填充模式下仍残留 16px 纵滚
+  //   （主区内容 10+785.6+24 = 819.6 > 804，而根自己的 margin 与后续兄弟都是 0）。
+  let spaceAfter = 0;
+  let node: HTMLElement | null = rootEl;
+  while (node && node !== main) {
+    spaceAfter += px(getComputedStyle(node).marginBottom);
+    const parentEl: HTMLElement | null = node.parentElement;
+    if (parentEl && parentEl !== main) {
+      const pcs = getComputedStyle(parentEl);
+      spaceAfter += px(pcs.paddingBottom) + px(pcs.borderBottomWidth);
+    }
+    let sib: HTMLElement | null = node.nextElementSibling as HTMLElement | null;
+    while (sib) {
+      const cs = getComputedStyle(sib);
+      if (cs.position === 'fixed' || cs.position === 'absolute') {
+        sib = sib.nextElementSibling as HTMLElement | null;
+        continue;
+      }
+      const h = sib.getBoundingClientRect().height;
+      if (h > 0) spaceAfter += h + px(cs.marginTop) + px(cs.marginBottom);
+      sib = sib.nextElementSibling as HTMLElement | null;
+    }
+    node = parentEl;
+  }
+  const avail = main.clientHeight - Math.max(top, 0) - used - spaceAfter - padBottom;
+  if (avail >= MIN_FILL_HEIGHT) {
+    fillMode.value = true;
+    tableMaxHeight.value = Math.round(avail);
+  } else {
+    fillMode.value = false;
+    tableMaxHeight.value = undefined;
+  }
 }
 
 function setSortDir(dir: 'asc' | 'desc') {
@@ -595,6 +746,24 @@ function bindCsvInput(el: Element | ComponentPublicInstance | null) {
   background: var(--layout-card, var(--el-bg-color, #fff));
   padding: 6px 0 4px;
   border-top: 1px solid var(--layout-border, var(--el-border-color-light));
+}
+/*
+ * 文档流模式（主区放不下整张表，见脚本里的 MIN_FILL_HEIGHT）：
+ * 取消吸附。吸附元素是「悬浮」在内容之上的，一旦页面还得纵滚，
+ * 吸底分页行就会横压在表体上 —— 那正是这套样式的原始缺陷。
+ * 退回流式后表体与工具行/分页行互不覆盖，只是要跟着页面滚。
+ */
+.crud-table:not(.crud-table--fill) .crud-table__meta,
+.crud-table:not(.crud-table--fill) .crud-table__pager {
+  position: static;
+}
+/* 对话框里的列名/口径提示：长列清单要能换行，别把对话框撑宽 */
+.crud-table__json-hint {
+  margin: 0 0 10px;
+  color: var(--layout-muted, var(--el-text-color-secondary));
+  font-size: var(--admin-font-size-table, 13px);
+  line-height: 1.6;
+  word-break: break-word;
 }
 .crud-table__csv-input {
   position: absolute;
