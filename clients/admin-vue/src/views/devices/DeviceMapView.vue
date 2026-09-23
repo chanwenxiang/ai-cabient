@@ -140,7 +140,13 @@ const settings = useSettingsStore();
 const isDark = computed(() => settings.theme === 'dark');
 const loading = ref(false);
 const listHydrated = ref(false);
-const lifecycleStatus = ref('DEPLOYED');
+/**
+ * 默认「全部有坐标」（`ALL`）。
+ *
+ * 🔴 投放地图的首要用途是**看全量点位分布**；默认收窄到「已投放」会让地图缺一大半点位，
+ *    看起来像「设备没了」（2026-09-23 用户要求）。
+ */
+const lifecycleStatus = ref('ALL');
 const onlineOnly = ref(false);
 const selfOperatedOnly = ref(false);
 const machineNo = ref('');
@@ -153,8 +159,6 @@ const mapEl = ref<HTMLElement | null>(null);
 let map: L.Map | null = null;
 let cluster: L.MarkerClusterGroup | null = null;
 const markerById = new Map<string, L.Marker>();
-/** 侧栏点选后保持特写，避免 renderMarkers 再次 fitBounds 拉回总览 */
-let keepViewAfterRender = false;
 const FOCUS_ZOOM = 18;
 
 const lifecycleOptions = [
@@ -354,7 +358,7 @@ function renderMarkers() {
       `<strong>${escapeHtml(p.deviceName || p.deviceId)}</strong><br/>${escapeHtml(p.deviceId)}<br/>${status} · ${locked} · ${escapeHtml(lifecycleLabel(p.lifecycleStatus))}<br/>路线：${escapeHtml(p.routeCode || '无')}<br/>${escapeHtml(p.address || '')}<br/><a href="#" class="map-goto" data-id="${escapeAttr(p.deviceId)}">查看详情</a>`
     );
     marker.on('click', () => {
-      selectedId.value = p.deviceId;
+      applySelection(p.deviceId);
     });
     marker.on('popupopen', () => {
       const link = document.querySelector(`a.map-goto[data-id="${CSS.escape(p.deviceId)}"]`);
@@ -366,26 +370,44 @@ function renderMarkers() {
     markerById.set(p.deviceId, marker);
     cluster.addLayer(marker);
   }
-  // 点选柜子后保持特写；仅在初次加载/筛选刷新时按真实落点框选
-  if (!keepViewAfterRender) {
-    if (bounds.length === 1) {
-      map.setView(bounds[0], 14);
-    } else if (bounds.length > 1) {
-      map.fitBounds(L.latLngBounds(bounds as L.LatLngTuple[]), { padding: [48, 48], maxZoom: 14 });
-    }
+  // 点选不再重建整层（见 applySelection 注释）；此处按真实落点框选只在初次加载/筛选刷新时做
+  if (bounds.length === 1) {
+    map.setView(bounds[0], 14);
+  } else if (bounds.length > 1) {
+    map.fitBounds(L.latLngBounds(bounds as L.LatLngTuple[]), { padding: [48, 48], maxZoom: 14 });
   }
-  keepViewAfterRender = false;
+  // 仅收敛在「整层重建」的路径上（初次加载 / 筛选刷新）。
+  // 🔴 别把它挪回 focusPoint()：那里正在跑 flyTo，80ms 后插一次 invalidateSize 会打断动画。
   setTimeout(() => map?.invalidateSize(), 80);
 }
 
+/**
+ * 只切换「选中 / 未选中」两个图标的差异，**不**碰其它标记。
+ *
+ * 🔴 为什么不能沿用 `renderMarkers()`：
+ *  它开头就是 `cluster.clearLayers()`，会把**所有**标记（含聚合点的 `.pulse-cluster`）
+ *  连同 DOM 一起销毁重建 —— 每次点一下点位列表，全图标记一起闪一下，
+ *  聚合成环的 `map-pulse-ring` 动画也从 0 重来（实测：点 1 次列表 ⇒ 脉冲环 9 个 → 0 个，
+ *  marker 面板 +12/-17 节点）。用户的原话就是「我点击点位列表的时候页面还会抖」。
+ *  ⇒ 选中态是**局部**变化，就必须做局部更新。
+ */
+function applySelection(nextId: string) {
+  const prevId = selectedId.value;
+  if (prevId === nextId) return;
+  selectedId.value = nextId;
+  const prev = prevId ? markerById.get(prevId) : undefined;
+  const cur = nextId ? markerById.get(nextId) : undefined;
+  prev?.setIcon(pinIcon(false));
+  cur?.setIcon(pinIcon(true));
+}
+
 function focusPoint(p: MapPoint) {
-  selectedId.value = p.deviceId;
   ensureMap();
-  keepViewAfterRender = true;
-  renderMarkers();
-  const maxZ = Math.min(FOCUS_ZOOM, map?.getMaxZoom() ?? FOCUS_ZOOM);
+  applySelection(p.deviceId);
+  if (!map) return;
+  const maxZ = Math.min(FOCUS_ZOOM, map.getMaxZoom() ?? FOCUS_ZOOM);
   // 高于 disableClusteringAtZoom(17)，展开为红色水滴钉
-  map?.flyTo([p.latitude, p.longitude], maxZ, { duration: 0.55 });
+  map.flyTo([p.latitude, p.longitude], maxZ, { duration: 0.55 });
   const openSelected = () => {
     const m = markerById.get(p.deviceId);
     if (!m || !map || !cluster) return;
@@ -397,7 +419,7 @@ function focusPoint(p: MapPoint) {
       m.openPopup();
     }
   };
-  map?.once('moveend', openSelected);
+  map.once('moveend', openSelected);
   setTimeout(openSelected, 700);
 }
 
@@ -427,8 +449,24 @@ onBeforeUnmount(() => {
 <style scoped>
 .map-page {
   position: relative;
-  height: calc(100vh - 120px);
-  min-height: 560px;
+  /**
+   * 🔴 高度要跟着视口走，但**必须同时挡住 flex 压缩** —— 少一个就会塌成一条线。
+   *
+   * 父级 `.layout-main-scroll` 是 `display:flex; flex-direction:column`，而
+   * `.layout-main-scroll > *` 只声明了 `width/max-width/min-width`，**没有 `flex-shrink:0`**
+   * ⇒ 页面根节点是**可压缩**的 flex 子项：`height` 只当 flex-basis 用，空间不足时
+   *    会被压到 `min-height:auto`（＝内容最小高度）；而本容器内部是 absolute 的 Leaflet 元素
+   *    ⇒ 内容最小高度 ≈ 0 ⇒ **地图被压成十几像素的细带**（实测截图就是一条瓦片线）。
+   *
+   * 旧版 `calc(100vh - 120px); min-height: 560px` 是靠 min-height **顺带**挡住压缩的。
+   * 上一轮为修「底边越出视口」把它换成纯 `height: clamp(...)`，等于拆掉唯一的抗压保护
+   * ⇒ 引入塌陷回归。因此这里两件都要写：
+   *   `flex: none` —— 对 flex 父级明确声明「不参与伸缩」（真正的修法）；
+   *   `min-height` —— 兜底（覆盖 flex 之外的压缩场景）。
+   */
+  flex: none;
+  height: clamp(320px, calc(100vh - 170px), 1200px);
+  min-height: 320px;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--el-border-color-lighter);
@@ -531,7 +569,23 @@ onBeforeUnmount(() => {
 .row-actions {
   margin-top: 4px;
 }
-@media (max-width: 1100px) {
+/* 中等宽度：先收窄输入框、再收浮层右边界，别让工具行长出第三行压住地图 */
+@media (max-width: 1240px) {
+  .float-input {
+    width: 140px;
+  }
+  .map-float-bar {
+    left: 12px;
+    right: 292px;
+  }
+}
+
+/**
+ * 🔴 这里原来是 `max-width: 1100px` ⇒ 1092 宽的窗口下 `.map-side-panel` 被 display:none，
+ * **整个「点位列表」消失**（实测 side.display=none），而用户的操作路径就是点这个列表。
+ * 阈值收到 900（真正的窄屏）才隐藏，中间这段宁可让列表留在原地。
+ */
+@media (max-width: 900px) {
   .map-float-bar {
     left: 12px;
     right: 12px;

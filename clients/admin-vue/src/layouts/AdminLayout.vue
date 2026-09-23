@@ -276,7 +276,46 @@ const { brand, markChar } = storeToRefs(brandStore);
 const { firstAccessiblePath, goPath } = useNavAccess();
 const settings = useSettingsStore();
 const MAX_TAGS = 12;
-const tags = ref<{ path: string; title: string }[]>([]);
+const TAGS_KEY = 'admin_vue_opened_tags';
+/**
+ * 🔴 标签栏要**持久化**：它是「这次进来开过哪些页面」的记忆。
+ *
+ * 只放内存（原实现 `ref([])`）在刷新后必然清空 —— 用户原话「历史的页面记录也清了」，
+ * 而多标签的意义正在于跨刷新继续用。
+ *
+ * 用 sessionStorage 而非 localStorage：同一浏览器的多个标签页各维护自己的「已打开页面」，
+ * 不该互相覆盖；关掉浏览器即忘，语义也更贴「本次会话」。
+ */
+const tags = ref<{ path: string; title: string }[]>(restoreTags());
+
+function restoreTags(): { path: string; title: string }[] {
+  try {
+    const raw = sessionStorage.getItem(TAGS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (t): t is { path: string; title: string } =>
+          !!t &&
+          typeof (t as { path?: unknown }).path === 'string' &&
+          typeof (t as { title?: unknown }).title === 'string'
+      )
+      .slice(0, MAX_TAGS);
+  } catch {
+    return [];
+  }
+}
+
+function persistTags() {
+  try {
+    sessionStorage.setItem(TAGS_KEY, JSON.stringify(tags.value));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+watch(tags, persistTags, { deep: true });
 const tagsScrollRef = ref<HTMLElement | null>(null);
 const menuRef = ref<MenuInstance>();
 const openedMenus = ref<string[]>([]);

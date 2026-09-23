@@ -25,144 +25,304 @@
       </template>
     </el-page-header>
 
-    <el-card class="page-card qr-card" shadow="never">
-      <template #header>
-        <div class="page-card-head">
-          <div class="page-card-head__meta">
-            <div class="page-card-head__title">
-              <span class="title">柜机二维码</span>
+    <!--
+      首屏：左侧「设备概览」（关键信息 + 健康指标），右侧「柜机二维码」。
+      二维码原先是首屏的整张卡片（200×200 + 提示撑满一屏），把商户/地址/版本全挤到折叠线以下；
+      改为并排后首屏即可读完设备身份与健康度，二维码仍可预览/复制/下载。
+    -->
+    <div class="device-hero">
+      <el-card class="page-card hero-info" shadow="never">
+        <template #header>
+          <div class="page-card-head">
+            <div class="page-card-head__meta">
+              <div class="page-card-head__title">
+                <span class="title">设备概览</span>
+                <span class="hint">商户 / 投放位置 / 版本号 / 告警联系人 / 会话与补货</span>
+              </div>
             </div>
           </div>
-          <div class="qr-actions">
-            <el-button size="small" :loading="qrLoading" @click="loadQr">刷新</el-button>
-            <el-button size="small" :disabled="!qrUrl" @click="copyQrLink">复制链接</el-button>
-            <el-button
-              type="primary"
-              size="small"
-              :disabled="!qrUrl"
-              :loading="qrDownloading"
-              @click="downloadQr"
-              >下载 PNG</el-button
-            >
-          </div>
-        </div>
-      </template>
-      <div class="qr-body">
-        <div v-if="qrPreviewUrl" class="qr-preview">
-          <img :src="qrPreviewUrl" alt="柜机二维码" />
-        </div>
-        <div v-else class="qr-empty" :class="{ 'is-loading': !qrHydrated || qrLoading }">
-          <template v-if="!qrHydrated || qrLoading">
-            <div class="qr-skeleton" aria-hidden="true" />
-            <span class="qr-empty-text">二维码{{ UI_COPY.loading }}</span>
-          </template>
-          <template v-else>
-            <div class="qr-empty-icon" aria-hidden="true">▦</div>
-            <span class="qr-empty-text">暂无二维码</span>
-            <span class="qr-empty-hint">生成或刷新后可在此预览并下载</span>
-          </template>
-        </div>
-        <div class="qr-tips">
-          <p>消费者微信扫码即可开门购物；打印后贴于柜门显眼位置。</p>
-          <p>链接变更或柜机换码后，请重新下载打印；也可用右上角「复制链接」发给现场同事。</p>
-        </div>
-      </div>
-    </el-card>
+        </template>
 
-    <el-row :gutter="12" class="stat-row">
-      <el-col :xs="12" :sm="6" :md="4">
-        <div
-          class="stat-tile"
-          role="group"
-          :aria-label="
-            metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : `填充率 ${UI_COPY.loading}`
-          "
-        >
-          <div class="stat-label">填充率</div>
-          <div class="stat-value">
-            {{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '暂无' }}
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">设备编号</span>
+            <span class="info-value cell-id">{{ device?.deviceId || deviceId }}</span>
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
-        </div>
-      </el-col>
-      <el-col :xs="12" :sm="6" :md="4">
-        <div
-          class="stat-tile"
-          role="group"
-          :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
-          :aria-label="
-            metricsHydrated
-              ? `缺货货道 ${metrics?.oosSlotCount ?? 0}`
-              : `缺货货道 ${UI_COPY.loading}`
-          "
-        >
-          <div class="stat-label">缺货货道</div>
-          <div class="stat-value">
-            {{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}
+          <div class="info-item">
+            <span class="info-label">商户</span>
+            <span class="info-value">
+              <template v-if="metricsHydrated">
+                <strong v-if="device?.merchantName || device?.merchantId">{{
+                  device.merchantName || device.merchantId
+                }}</strong>
+                <span v-else class="muted">无</span>
+                <small v-if="device?.merchantName && device?.merchantId" class="cell-id info-sub">{{
+                  device.merchantId
+                }}</small>
+              </template>
+              <span v-else class="muted">{{ UI_COPY.loading }}</span>
+            </span>
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
-        </div>
-      </el-col>
-      <el-col :xs="12" :sm="6" :md="4">
-        <div
-          class="stat-tile"
-          role="group"
-          :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
-          :aria-label="
-            metricsHydrated
-              ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
-              : `低库存货道 ${UI_COPY.loading}`
-          "
-        >
-          <div class="stat-label">低库存货道</div>
-          <div class="stat-value">
-            {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '暂无' }}
+          <div class="info-item">
+            <span class="info-label">经纬度</span>
+            <span class="info-value cell-id">{{
+              asset.latitude != null && asset.longitude != null
+                ? `${asset.latitude}, ${asset.longitude}`
+                : '未采集'
+            }}</span>
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
-        </div>
-      </el-col>
-      <el-col :xs="12" :sm="6" :md="4">
-        <div
-          class="stat-tile"
-          role="group"
-          :class="{ warn: metricsHydrated && (metrics?.nearExpiryLotCount || 0) > 0 }"
-          :aria-label="
-            metricsHydrated
-              ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}`
-              : `临期批次 ${UI_COPY.loading}`
-          "
-        >
-          <div class="stat-label">临期批次</div>
-          <div class="stat-value">
-            {{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '暂无' }}
+          <div class="info-item">
+            <span class="info-label">App 版本</span>
+            <span class="info-value">{{
+              metricsHydrated ? metrics?.appVersion || '无' : UI_COPY.loading
+            }}</span>
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+          <div class="info-item">
+            <span class="info-label">固件版本</span>
+            <span class="info-value">{{
+              metricsHydrated ? metrics?.firmwareVersion || '无' : UI_COPY.loading
+            }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">告警联系人</span>
+            <span class="info-value">{{
+              metricsHydrated ? metrics?.alertContactName || '无' : UI_COPY.loading
+            }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">联系电话</span>
+            <span class="info-value">{{
+              metricsHydrated ? metrics?.alertContactPhone || '无' : UI_COPY.loading
+            }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">最近会话</span>
+            <span class="info-value cell-id">{{
+              metricsHydrated ? device?.activeSessionId || '无' : UI_COPY.loading
+            }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">会话状态</span>
+            <span class="info-value">
+              <template v-if="metricsHydrated">
+                <el-tag v-if="device?.activeSessionState" size="small" effect="plain">{{
+                  dictLabel('session_state', device.activeSessionState)
+                }}</el-tag>
+                <span v-else class="muted">暂无</span>
+              </template>
+              <span v-else class="muted">{{ UI_COPY.loading }}</span>
+            </span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">最近补货</span>
+            <span class="info-value cell-datetime">{{
+              metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : UI_COPY.loading
+            }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">温度上报</span>
+            <span class="info-value cell-datetime">{{
+              metricsHydrated ? formatDateTime(metrics?.tempReportedAt) || '无' : UI_COPY.loading
+            }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">库存准确率</span>
+            <span class="info-value">
+              {{
+                metricsHydrated
+                  ? metrics?.inventoryAccuracyPct != null
+                    ? `${metrics.inventoryAccuracyPct}%`
+                    : '无'
+                  : UI_COPY.loading
+              }}
+            </span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">退款规则</span>
+            <span class="info-value">
+              <el-tag
+                size="small"
+                :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
+              >
+                {{ policyLabel(effectiveRefundPolicy) }}
+              </el-tag>
+              <span class="inherit-hint">{{ device?.refundPolicy ? '本柜覆盖' : '跟随全局' }}</span>
+            </span>
+          </div>
+          <div class="info-item info-item--full">
+            <span class="info-label">投放地址</span>
+            <!-- 整行 + 允许换行：长地址（省市区+街道门牌+门店名）不再被格子截断 -->
+            <span class="info-value info-value--wrap">{{
+              metricsHydrated ? metrics?.address || '无' : UI_COPY.loading
+            }}</span>
+          </div>
+          <div class="info-item info-item--full">
+            <span class="info-label">目标温度</span>
+            <span class="info-value">
+              <span class="temp-set-row">
+                <el-input-number
+                  v-model="tempDraft"
+                  :min="-30"
+                  :max="30"
+                  :step="1"
+                  size="small"
+                  controls-position="right"
+                />
+                <span class="muted">°C</span>
+                <el-button
+                  v-hasPermi="['ops:device:edit']"
+                  type="primary"
+                  size="small"
+                  plain
+                  :loading="cmdLoading === 'SET_TEMP'"
+                  @click="setTargetTemp"
+                  >下发温度</el-button
+                >
+                <span class="muted"
+                  >柜内当前
+                  {{
+                    metricsHydrated
+                      ? metrics?.currentTempC != null
+                        ? `${metrics.currentTempC}°C`
+                        : '无'
+                      : UI_COPY.loading
+                  }}</span
+                >
+              </span>
+            </span>
+          </div>
         </div>
-      </el-col>
-      <el-col :xs="12" :sm="6" :md="4">
-        <div
-          class="stat-tile"
-          role="group"
-          :aria-label="
-            metricsHydrated
-              ? `柜内温度 ${metrics?.currentTempC != null ? metrics.currentTempC + '°C' : '无'}`
-              : `柜内温度 ${UI_COPY.loading}`
-          "
-        >
-          <div class="stat-label">柜内温度</div>
-          <div class="stat-value">
-            {{
+
+        <div class="kpi-grid">
+          <div
+            class="stat-tile"
+            role="group"
+            :aria-label="
+              metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : `填充率 ${UI_COPY.loading}`
+            "
+          >
+            <div class="stat-label">填充率</div>
+            <div class="stat-value">
+              {{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '暂无' }}
+            </div>
+            <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+          </div>
+          <div
+            class="stat-tile"
+            role="group"
+            :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
+            :aria-label="
               metricsHydrated
-                ? metrics?.currentTempC != null
-                  ? `${metrics.currentTempC}°C`
-                  : '无'
-                : '暂无'
-            }}
+                ? `缺货货道 ${metrics?.oosSlotCount ?? 0}`
+                : `缺货货道 ${UI_COPY.loading}`
+            "
+          >
+            <div class="stat-label">缺货货道</div>
+            <div class="stat-value">
+              {{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}
+            </div>
+            <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+          <div
+            class="stat-tile"
+            role="group"
+            :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
+            :aria-label="
+              metricsHydrated
+                ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
+                : `低库存货道 ${UI_COPY.loading}`
+            "
+          >
+            <div class="stat-label">低库存货道</div>
+            <div class="stat-value">
+              {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '暂无' }}
+            </div>
+            <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+          </div>
+          <div
+            class="stat-tile"
+            role="group"
+            :class="{ warn: metricsHydrated && (metrics?.nearExpiryLotCount || 0) > 0 }"
+            :aria-label="
+              metricsHydrated
+                ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}`
+                : `临期批次 ${UI_COPY.loading}`
+            "
+          >
+            <div class="stat-label">临期批次</div>
+            <div class="stat-value">
+              {{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '暂无' }}
+            </div>
+            <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+          </div>
+          <div
+            class="stat-tile"
+            role="group"
+            :aria-label="
+              metricsHydrated
+                ? `柜内温度 ${metrics?.currentTempC != null ? metrics.currentTempC + '°C' : '无'}`
+                : `柜内温度 ${UI_COPY.loading}`
+            "
+          >
+            <div class="stat-label">柜内温度</div>
+            <div class="stat-value">
+              {{
+                metricsHydrated
+                  ? metrics?.currentTempC != null
+                    ? `${metrics.currentTempC}°C`
+                    : '无'
+                  : '暂无'
+              }}
+            </div>
+            <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+          </div>
         </div>
-      </el-col>
-    </el-row>
+      </el-card>
+
+      <el-card class="page-card hero-qr qr-card" shadow="never">
+        <template #header>
+          <div class="page-card-head">
+            <div class="page-card-head__meta">
+              <div class="page-card-head__title">
+                <span class="title">柜机二维码</span>
+              </div>
+            </div>
+            <div class="qr-actions">
+              <el-button size="small" :loading="qrLoading" @click="loadQr">刷新</el-button>
+              <el-button size="small" :disabled="!qrUrl" @click="copyQrLink">复制链接</el-button>
+              <el-button
+                type="primary"
+                size="small"
+                :disabled="!qrUrl"
+                :loading="qrDownloading"
+                @click="downloadQr"
+                >下载 PNG</el-button
+              >
+            </div>
+          </div>
+        </template>
+        <div class="qr-body">
+          <div v-if="qrPreviewUrl" class="qr-preview">
+            <img :src="qrPreviewUrl" alt="柜机二维码" />
+          </div>
+          <div v-else class="qr-empty" :class="{ 'is-loading': !qrHydrated || qrLoading }">
+            <template v-if="!qrHydrated || qrLoading">
+              <div class="qr-skeleton" aria-hidden="true" />
+              <span class="qr-empty-text">二维码{{ UI_COPY.loading }}</span>
+            </template>
+            <template v-else>
+              <div class="qr-empty-icon" aria-hidden="true">▦</div>
+              <span class="qr-empty-text">暂无二维码</span>
+              <span class="qr-empty-hint">生成或刷新后可在此预览并下载</span>
+            </template>
+          </div>
+          <div class="qr-tips">
+            <p>消费者微信扫码即可开门购物；打印后贴于柜门显眼位置。</p>
+            <p>链接变更或柜机换码后，请重新下载打印；也可用「复制链接」发给现场同事。</p>
+          </div>
+        </div>
+      </el-card>
+    </div>
 
     <el-card class="page-card" shadow="never">
       <template #header>
@@ -305,6 +465,24 @@
               />
             </el-form-item>
           </el-col>
+          <el-col :xs="24" :sm="24" :md="24">
+            <el-form-item label="投放地址">
+              <AddressPicker
+                v-model="asset.address"
+                :disabled="!canEditDevice"
+                :resolvable="geoConfigured"
+                @update:latitude="(v) => (asset.latitude = v ?? undefined)"
+                @update:longitude="(v) => (asset.longitude = v ?? undefined)"
+              />
+              <div class="field-hint">
+                先选省 / 市 /
+                区再写详细地址：高德不限行政区时会全国乱匹配（实测「测试门店」曾被解析到广东省梅州市兴宁市）。
+                <template v-if="!geoConfigured">
+                  当前未配置 AMAP_WEB_KEY，无法自动解析，可用下方经纬度手工填写。
+                </template>
+              </div>
+            </el-form-item>
+          </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="纬度">
               <el-input-number
@@ -329,29 +507,6 @@
                 style="width: 100%"
                 placeholder="如 121.473700"
               />
-            </el-form-item>
-          </el-col>
-          <el-col :xs="24" :sm="12" :md="16">
-            <el-form-item label="投放地址">
-              <div class="address-row">
-                <el-input
-                  v-model="asset.address"
-                  :disabled="!canEditDevice"
-                  clearable
-                  placeholder="门店/点位地址"
-                />
-                <el-button
-                  v-hasPermi="['ops:device:edit']"
-                  :disabled="!canEditDevice || !asset.address?.trim() || !geoConfigured"
-                  :loading="geoLoading"
-                  :title="geoConfigured ? '调用高德解析经纬度' : '未配置 AMAP_WEB_KEY'"
-                  @click="resolveAddress"
-                  >解析坐标</el-button
-                >
-              </div>
-              <div v-if="!geoConfigured" class="field-hint">
-                未配置 AMAP_WEB_KEY，地址解析不可用
-              </div>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
@@ -532,168 +687,181 @@
           </div>
         </div>
       </template>
-      <el-alert
-        type="warning"
-        :closable="false"
-        show-icon
-        class="open-door-alert"
-        title="开门请分清场景"
-        description="「运维远程开门」：应急/检修，会创建运维会话（开门记录可筛「运维」），关门后不结算；不绑定补货任务。现场补货请用「补货调度 → 补货开门」或商户小程序（需先签到）。锁机停售时也可运维开门检修。"
-      />
-      <div class="cmd-section-label">运维指令</div>
-      <div class="cmd-bar">
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          type="primary"
-          :loading="cmdLoading === 'OPEN_DOOR'"
-          @click="sendCommand('OPEN_DOOR')"
-          >运维远程开门</el-button
-        >
-        <el-button
-          v-if="!metrics?.salesLocked"
-          v-hasPermi="['ops:device:edit']"
-          type="warning"
-          :loading="cmdLoading === 'LOCK'"
-          @click="sendCommand('LOCK')"
-          >锁机停售</el-button
-        >
-        <el-button
-          v-else
-          v-hasPermi="['ops:device:edit']"
-          type="success"
-          :loading="cmdLoading === 'UNLOCK'"
-          @click="sendCommand('UNLOCK')"
-          >解锁营业</el-button
-        >
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          type="danger"
-          plain
-          :loading="cmdLoading === 'REBOOT'"
-          @click="sendCommand('REBOOT')"
-          >重启设备</el-button
-        >
-      </div>
-
-      <div class="cmd-section-label">退款规则</div>
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        class="policy-lock-alert"
-        title="柜机规则优先于全局"
-        :description="refundPriorityHint"
-      />
-      <el-form label-width="auto" class="policy-form" @submit.prevent>
-        <el-form-item label="本柜策略">
-          <el-select
-            v-model="refundPolicyDraft"
-            :disabled="!canEditDevice"
-            placeholder="请选择"
-            style="width: 280px"
-          >
-            <el-option
-              :label="`跟随全局默认（${policyLabel(globalRefundPolicy)}）`"
-              value="INHERIT"
-            />
-            <el-option label="消费者可自助退款" value="AUTO_REFUND" />
-            <el-option label="仅可申诉，运营审核后退款" value="DISPUTE_ONLY" />
-          </el-select>
-          <el-button
-            v-hasPermi="['ops:device:edit']"
-            type="primary"
-            class="refund-save-btn"
-            :disabled="!canEditDevice"
-            :loading="refundPolicySaving"
-            @click="saveRefundPolicy"
-            >保存退款规则</el-button
-          >
-          <div class="field-hint">{{ refundDraftHint }}</div>
-          <div class="field-hint">
-            当前生效：
-            <el-tag
-              size="small"
-              :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
+      <!--
+        远程运维分两列：左＝「要下发的动作」（运维指令 / 补货入口），右＝「柜机上的规则开关」
+        （退款规则 / 策略锁）。原先全部纵向堆叠，一屏里既有按钮又有表单，扫读成本高。
+        维修工单表列宽较大，单独放整行，避免被半列挤成横向滚动。
+      -->
+      <div class="ops-grid">
+        <div class="ops-col">
+          <div class="cmd-section-label">运维指令</div>
+          <el-alert
+            type="warning"
+            :closable="false"
+            show-icon
+            class="open-door-alert"
+            title="开门请分清场景"
+            description="「运维远程开门」：应急/检修，会创建运维会话（开门记录可筛「运维」），关门后不结算；不绑定补货任务。现场补货请用「补货调度 → 补货开门」或商户小程序（需先签到）。锁机停售时也可运维开门检修。"
+          />
+          <div class="cmd-bar">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              type="primary"
+              :loading="cmdLoading === 'OPEN_DOOR'"
+              @click="sendCommand('OPEN_DOOR')"
+              >运维远程开门</el-button
             >
-              {{ policyLabel(effectiveRefundPolicy) }}
-            </el-tag>
-            <span v-if="!device?.refundPolicy" class="inherit-hint">（跟随全局）</span>
+            <el-button
+              v-if="!metrics?.salesLocked"
+              v-hasPermi="['ops:device:edit']"
+              type="warning"
+              :loading="cmdLoading === 'LOCK'"
+              @click="sendCommand('LOCK')"
+              >锁机停售</el-button
+            >
+            <el-button
+              v-else
+              v-hasPermi="['ops:device:edit']"
+              type="success"
+              :loading="cmdLoading === 'UNLOCK'"
+              @click="sendCommand('UNLOCK')"
+              >解锁营业</el-button
+            >
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              type="danger"
+              plain
+              :loading="cmdLoading === 'REBOOT'"
+              @click="sendCommand('REBOOT')"
+              >重启设备</el-button
+            >
           </div>
-        </el-form-item>
-      </el-form>
 
-      <div class="cmd-section-label">柜机策略锁</div>
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        class="policy-lock-alert"
-        title="营业锁机与「锁机停售」同源"
-        description="打开营业锁机或禁售，会同步下发边端锁机；关闭营业锁机会解除边端锁并清除禁售。勿与运维按钮各改一套。"
-      />
-      <el-form v-if="policy" label-width="auto" class="policy-form" @submit.prevent>
-        <el-form-item label="营业锁机">
-          <el-switch
-            v-model="policy.salesLocked"
-            :disabled="!canEditDevice"
-            @change="() => savePolicy()"
-          />
-        </el-form-item>
-        <el-form-item label="价格锁">
-          <el-switch
-            v-model="policy.priceLocked"
-            :disabled="!canEditDevice"
-            @change="() => savePolicy()"
-          />
-        </el-form-item>
-        <el-form-item label="禁改 SKU">
-          <el-switch
-            v-model="policy.skuEditForbidden"
-            :disabled="!canEditDevice"
-            @change="() => savePolicy()"
-          />
-        </el-form-item>
-        <el-form-item label="禁售">
-          <el-switch
-            v-model="policy.saleForbidden"
-            :disabled="!canEditDevice"
-            @change="() => savePolicy()"
-          />
-          <div class="field-hint">
-            禁售会同时营业锁机；停售期间仍可签到后补货开门（不产生消费者账单）
+          <div class="cmd-section-label">补货入口</div>
+          <div class="cmd-bar">
+            <el-button v-if="canAccessPath('/replenishment')" @click="goReplenish"
+              >缺货建议</el-button
+            >
+            <el-button
+              v-if="canAccessPath('/replenishment') && (metrics?.oosSlotCount || 0) > 0"
+              v-hasPermi="['ops:replenishment:edit']"
+              type="primary"
+              @click="goPlanReplenish"
+            >
+              一键规划补货
+            </el-button>
+            <el-button
+              v-if="canAccessPath('/replenishment')"
+              type="success"
+              plain
+              @click="goRestockTasks"
+            >
+              补货调度 / 补货开门
+            </el-button>
+            <span v-else class="muted">无补货调度权限</span>
           </div>
-        </el-form-item>
-      </el-form>
+        </div>
 
-      <el-alert
-        v-if="metrics?.salesLocked"
-        type="warning"
-        :closable="false"
-        show-icon
-        class="lock-restock-hint"
-        title="当前已锁机停售：消费者无法开门；补货请走「补货调度 → 签到 → 补货开门」，或使用上方「运维远程开门」检修。"
-      />
+        <div class="ops-col">
+          <div class="cmd-section-label">退款规则</div>
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="policy-lock-alert"
+            title="柜机规则优先于全局"
+            :description="refundPriorityHint"
+          />
+          <el-form label-width="auto" class="policy-form" @submit.prevent>
+            <el-form-item label="本柜策略">
+              <el-select
+                v-model="refundPolicyDraft"
+                :disabled="!canEditDevice"
+                placeholder="请选择"
+                style="width: 280px"
+              >
+                <el-option
+                  :label="`跟随全局默认（${policyLabel(globalRefundPolicy)}）`"
+                  value="INHERIT"
+                />
+                <el-option label="消费者可自助退款" value="AUTO_REFUND" />
+                <el-option label="仅可申诉，运营审核后退款" value="DISPUTE_ONLY" />
+              </el-select>
+              <el-button
+                v-hasPermi="['ops:device:edit']"
+                type="primary"
+                class="refund-save-btn"
+                :disabled="!canEditDevice"
+                :loading="refundPolicySaving"
+                @click="saveRefundPolicy"
+                >保存退款规则</el-button
+              >
+              <div class="field-hint">{{ refundDraftHint }}</div>
+              <div class="field-hint">
+                当前生效：
+                <el-tag
+                  size="small"
+                  :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
+                >
+                  {{ policyLabel(effectiveRefundPolicy) }}
+                </el-tag>
+                <span v-if="!device?.refundPolicy" class="inherit-hint">（跟随全局）</span>
+              </div>
+            </el-form-item>
+          </el-form>
 
-      <div class="cmd-section-label">补货入口</div>
-      <div class="cmd-bar">
-        <el-button v-if="canAccessPath('/replenishment')" @click="goReplenish">缺货建议</el-button>
-        <el-button
-          v-if="canAccessPath('/replenishment') && (metrics?.oosSlotCount || 0) > 0"
-          v-hasPermi="['ops:replenishment:edit']"
-          type="primary"
-          @click="goPlanReplenish"
-        >
-          一键规划补货
-        </el-button>
-        <el-button
-          v-if="canAccessPath('/replenishment')"
-          type="success"
-          plain
-          @click="goRestockTasks"
-        >
-          补货调度 / 补货开门
-        </el-button>
-        <span v-else class="muted">无补货调度权限</span>
+          <div class="cmd-section-label">柜机策略锁</div>
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="policy-lock-alert"
+            title="营业锁机与「锁机停售」同源"
+            description="打开营业锁机或禁售，会同步下发边端锁机；关闭营业锁机会解除边端锁并清除禁售。勿与运维按钮各改一套。"
+          />
+          <el-form v-if="policy" label-width="auto" class="policy-form" @submit.prevent>
+            <el-form-item label="营业锁机">
+              <el-switch
+                v-model="policy.salesLocked"
+                :disabled="!canEditDevice"
+                @change="() => savePolicy()"
+              />
+            </el-form-item>
+            <el-form-item label="价格锁">
+              <el-switch
+                v-model="policy.priceLocked"
+                :disabled="!canEditDevice"
+                @change="() => savePolicy()"
+              />
+            </el-form-item>
+            <el-form-item label="禁改 SKU">
+              <el-switch
+                v-model="policy.skuEditForbidden"
+                :disabled="!canEditDevice"
+                @change="() => savePolicy()"
+              />
+            </el-form-item>
+            <el-form-item label="禁售">
+              <el-switch
+                v-model="policy.saleForbidden"
+                :disabled="!canEditDevice"
+                @change="() => savePolicy()"
+              />
+              <div class="field-hint">
+                禁售会同时营业锁机；停售期间仍可签到后补货开门（不产生消费者账单）
+              </div>
+            </el-form-item>
+          </el-form>
+
+          <el-alert
+            v-if="metrics?.salesLocked"
+            type="warning"
+            :closable="false"
+            show-icon
+            class="lock-restock-hint"
+            title="当前已锁机停售：消费者无法开门；补货请走「补货调度 → 签到 → 补货开门」，或使用上方「运维远程开门」检修。"
+          />
+        </div>
       </div>
 
       <div class="cmd-section-label">维修工单</div>
@@ -748,106 +916,10 @@
 
     <el-card class="page-card report-page" shadow="never">
       <el-tabs v-model="tab">
-        <el-tab-pane label="概览" name="overview">
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="设备编号">
-              <span class="cell-id">{{ device?.deviceId || deviceId }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="商户">
-              <div class="name-cell inline">
-                <strong>{{
-                  metricsHydrated ? device?.merchantName || device?.merchantId || '无' : '暂无'
-                }}</strong>
-                <small
-                  v-if="metricsHydrated && device?.merchantId && device?.merchantName"
-                  class="cell-id"
-                  >{{ device.merchantId }}</small
-                >
-              </div>
-            </el-descriptions-item>
-            <el-descriptions-item label="地址">{{
-              metricsHydrated ? metrics?.address || '无' : '暂无'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="App 版本">{{
-              metricsHydrated ? metrics?.appVersion || '无' : '暂无'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="固件版本">{{
-              metricsHydrated ? metrics?.firmwareVersion || '无' : '暂无'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="目标温度">
-              <div class="temp-set-row">
-                <el-input-number
-                  v-model="tempDraft"
-                  :min="-30"
-                  :max="30"
-                  :step="1"
-                  size="small"
-                  controls-position="right"
-                />
-                <span class="muted">°C</span>
-                <el-button
-                  v-hasPermi="['ops:device:edit']"
-                  type="primary"
-                  size="small"
-                  plain
-                  :loading="cmdLoading === 'SET_TEMP'"
-                  @click="setTargetTemp"
-                  >下发温度</el-button
-                >
-              </div>
-            </el-descriptions-item>
-            <el-descriptions-item label="温度上报">
-              <span class="cell-datetime">{{
-                metricsHydrated ? formatDateTime(metrics?.tempReportedAt) || '无' : '暂无'
-              }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="告警联系人">{{
-              metricsHydrated ? metrics?.alertContactName || '无' : '暂无'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="联系电话">{{
-              metricsHydrated ? metrics?.alertContactPhone || '无' : '暂无'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="最近会话">
-              <span class="cell-id">{{
-                metricsHydrated ? device?.activeSessionId || '无' : '暂无'
-              }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="会话状态">
-              <template v-if="metricsHydrated">
-                <el-tag v-if="device?.activeSessionState" size="small" effect="plain">
-                  {{ dictLabel('session_state', device.activeSessionState) }}
-                </el-tag>
-                <span v-else class="muted">暂无</span>
-              </template>
-              <span v-else>暂无</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="退款规则">
-              <el-tag
-                size="small"
-                :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
-              >
-                {{ policyLabel(effectiveRefundPolicy) }}
-              </el-tag>
-              <span v-if="!device?.refundPolicy" class="inherit-hint">跟随全局</span>
-              <span v-else class="inherit-hint">本柜覆盖</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="最近补货">
-              <span class="cell-datetime">{{
-                metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : '暂无'
-              }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="库存准确率">
-              {{
-                metricsHydrated
-                  ? metrics?.inventoryAccuracyPct != null
-                    ? `${metrics.inventoryAccuracyPct}%`
-                    : '无'
-                  : '暂无'
-              }}
-            </el-descriptions-item>
-          </el-descriptions>
-        </el-tab-pane>
-
+        <!--
+          「概览」页签已并入首屏「设备概览」卡片：同一批字段原先在两处各写一遍，
+          既重复又占一个页签位置。本区保留的四个页签都是「数据量大、需要时才展开」的内容。
+        -->
         <el-tab-pane label="温控与环境" name="temp-env">
           <div class="temp-plan-box">
             <div class="pane-head">
@@ -1277,6 +1349,7 @@ import { api, authFetch, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
+import AddressPicker from '@/components/AddressPicker.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 import type {
@@ -1475,7 +1548,6 @@ const applying = ref(false);
 const saving = ref(false);
 const stocktaking = ref(false);
 const assetSaving = ref(false);
-const geoLoading = ref(false);
 const geoConfigured = ref(false);
 const lifeLoading = ref('');
 const bindDialogVisible = ref(false);
@@ -1484,7 +1556,8 @@ const bindMerchantsLoading = ref(false);
 const bindMerchantOptions = ref<Array<{ merchantId: string; merchantName?: string }>>([]);
 const cmdLoading = ref('');
 const tempDraft = ref<number | undefined>(undefined);
-const tab = ref('overview');
+// 默认停在「货道陈列」：概览信息已提到首屏，这里先给运营最常查的陈列与库存
+const tab = ref('slots');
 
 watch(tab, (v) => {
   if (v === 'temp-env') {
@@ -1803,35 +1876,9 @@ async function saveAsset() {
   }
 }
 
-async function resolveAddress() {
-  const address = (asset.address || '').trim();
-  if (!address) {
-    ElMessage.warning('请先填写投放地址');
-    return;
-  }
-  if (!geoConfigured.value) {
-    ElMessage.warning('未配置 AMAP_WEB_KEY，无法解析');
-    return;
-  }
-  geoLoading.value = true;
-  try {
-    const data = await api.request<{
-      longitude: number;
-      latitude: number;
-      formattedAddress?: string;
-    }>(AdminEndpoints.geoGeocode(address), 'GET');
-    asset.longitude = data.longitude;
-    asset.latitude = data.latitude;
-    if (data.formattedAddress) {
-      asset.address = data.formattedAddress;
-    }
-    ElMessage.success('已写入经纬度，可再手动微调后保存');
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '地址解析失败'));
-  } finally {
-    geoLoading.value = false;
-  }
-}
+// 「解析坐标」已下沉到 AddressPicker：那里能拿到省/市/区的 adcode，
+// 而**不带行政区的地址解析会被高德在全国范围乱匹配**（实测「测试门店」→ 广东省梅州市兴宁市）。
+// 保留在这里只会退化成「无行政区限定」的错误路径，因此整段删除。
 
 async function loadGeoStatus() {
   if (!canEditDevice.value) {
@@ -2411,8 +2458,92 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   line-height: 1.4;
 }
-.stat-row {
-  margin-top: 4px;
+/* ── 首屏：左「设备概览」（信息 + 指标），右「柜机二维码」 ────────────────
+   窄屏回落单列；二维码卡片跟随内容高度，不拉伸。 */
+.device-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1280px) {
+  .device-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* 关键信息：标签在上、值在下（堆叠式），避免 el-descriptions 半宽格把长地址截断 */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 20px;
+  margin-bottom: 16px;
+}
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.info-item--full {
+  grid-column: 1 / -1;
+}
+.info-label {
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+}
+.info-value {
+  min-width: 0;
+  font-size: var(--admin-font-size-table);
+  line-height: 1.5;
+  /* 地址 / 会话号等长文本在格内断行：既不溢出到邻格，也不被省略号吃掉 */
+  overflow-wrap: anywhere;
+}
+.info-value--wrap {
+  white-space: normal;
+}
+.info-sub {
+  margin-left: 6px;
+  color: var(--el-text-color-secondary);
+}
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.kpi-grid .stat-tile {
+  margin-bottom: 0;
+}
+.hero-qr .page-card-head {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.hero-qr .qr-tips {
+  max-width: 100%;
+}
+/* 策略锁表单在右半列里只有 ~560px：提示文案必须自成一行，
+   否则会挤在开关右侧贴着列边折行 */
+.policy-form :deep(.field-hint) {
+  flex-basis: 100%;
+}
+/* 目标温度输入框给稳定宽度，避免值为空时被压成一个「小方块」 */
+.temp-set-row :deep(.el-input-number) {
+  width: 120px;
+}
+/* 远程运维：左＝要下发的动作，右＝柜机上的规则开关；窄屏回落单列 */
+.ops-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 24px;
+}
+@media (max-width: 1200px) {
+  .ops-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.ops-col {
+  min-width: 0;
 }
 .qr-card .qr-actions {
   display: flex;
@@ -2614,15 +2745,6 @@ onActivated(() => {
   line-height: 1.4;
   margin-top: 4px;
 }
-.address-row {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  align-items: center;
-}
-.address-row .el-input {
-  flex: 1;
-}
 .lock-restock-hint {
   margin: 8px 0 12px;
 }
@@ -2659,20 +2781,5 @@ onActivated(() => {
   margin: 16px 0 8px;
   font-size: var(--admin-font-size-menu);
   font-weight: 600;
-}
-.name-cell {
-  display: grid;
-  gap: 2px;
-  line-height: 1.35;
-}
-.name-cell.inline {
-  display: inline-grid;
-}
-.name-cell strong {
-  font-weight: 650;
-}
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-family: inherit;
 }
 </style>
