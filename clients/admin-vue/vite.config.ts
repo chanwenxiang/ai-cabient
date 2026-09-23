@@ -70,11 +70,17 @@ export default defineConfig(({ mode }) => {
       // 浏览器基线（本仓无 browserslist ⇒ 走 Vite 默认 build.target='modules'：
       // 原生 ESM + 动态 import + import.meta 的浏览器）。其中 modulepreload 原生支持始于
       // Chrome 66 / Edge 79 / Safari 11.3 / Firefox 115（2023-07），
-      // 故基线内唯一缺它的是已过保的 Firefox 78–114。
-      // 该 polyfill 在支持的浏览器里**第一行就 early-return**（relList.supports('modulepreload')），
-      // 对现代浏览器纯属解析开销（实测 710B 常驻入口）。关掉后仅影响 Firefox 78–114 的
-      // 「预取」优化：`__vitePreload` 注入的 <link rel=modulepreload> 被忽略，动态 import
-      // 仍按需拉取（只是少一段提前量），**功能不受影响**。
+      // 故基线内唯一缺它的是已过保的 Firefox 78–114。🔴 改 build.target 时须回来复核本段。
+      //
+      // 关掉 polyfill 的机制（读 vite 6.4.3 源码确认，**不是**「老浏览器丢预取」）：
+      // build-import-analysis 里 `scriptRel = polyfill ? "'modulepreload'" : detectScriptRel()`
+      // （dist/node/chunks/dep-Dm0c1Wj2.js:45517、:45419），而 detectScriptRel() 在
+      // 不支持时返回 "preload"（:45465 再补 link.as="script"）。
+      // ⇒ 支持的浏览器仍拿到 rel="modulepreload"（与改动前逐字相同）；
+      //   缺支持的改走**浏览器原生 rel="preload"** —— 预取能力不变，只是换了机制。
+      // 省掉的是原先注入入口的那段 IIFE（MutationObserver{subtree:true} + fetch 兜底），
+      // 它在支持的浏览器里第一行就 early-return（relList.supports('modulepreload')）
+      // ⇒ 对现代浏览器纯属解析开销（实测常驻入口 710B）。
       modulePreload: { polyfill: false },
       rollupOptions: {
         output: {
