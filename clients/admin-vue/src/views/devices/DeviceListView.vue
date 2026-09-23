@@ -430,6 +430,15 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="点位地址">
+          <!-- 地址在坐标之前：先选省/市/区，点「解析坐标」即把经纬度填到下面，不必再手敲 -->
+          <AddressPicker
+            v-model="createForm.address"
+            :resolvable="geoConfigured"
+            @update:latitude="(v) => (createForm.latitude = v ?? undefined)"
+            @update:longitude="(v) => (createForm.longitude = v ?? undefined)"
+          />
+        </el-form-item>
         <el-form-item label="点位坐标">
           <div style="display: flex; gap: 8px; width: 100%">
             <el-input-number
@@ -456,9 +465,6 @@
           <p class="form-hint muted">
             选择商户即视为柜机已部署，此时经纬度必填：补货签到靠坐标做地理围栏，缺坐标的柜机无法校验签到位置。
           </p>
-        </el-form-item>
-        <el-form-item label="点位地址">
-          <el-input v-model="createForm.address" clearable placeholder="可选…" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -507,7 +513,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Setting, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -515,6 +521,7 @@ import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import AddressPicker from '@/components/AddressPicker.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import type {
@@ -544,6 +551,8 @@ const policyVisible = ref(false);
 const policySaving = ref(false);
 const createVisible = ref(false);
 const createSaving = ref(false);
+/** 高德是否已配置：决定要不要显示「解析坐标」（未配置时仍可手填经纬度） */
+const geoConfigured = ref(false);
 const merchantOptions = ref<MerchantOption[]>([]);
 const createForm = reactive({
   deviceName: '',
@@ -658,6 +667,16 @@ const policyHint = computed(() => {
 
 // 首屏先把路由 query 同步进筛选状态，再交给 useCrudTable 挂载后自动加载（原 onMounted 前置逻辑）
 applyRouteQuery();
+
+// 高德是否配置：拿不到就当未配置（只影响「解析坐标」按钮是否出现，手填经纬度始终可用）
+onMounted(async () => {
+  try {
+    const data = await api.request<{ configured: boolean }>(AdminEndpoints.geoStatus, 'GET');
+    geoConfigured.value = !!data.configured;
+  } catch {
+    geoConfigured.value = false;
+  }
+});
 
 /** 拉取一页设备；顺带同步当前 tab 的看板计数并刷新整个看板（原 load 的附带副作用） */
 async function fetchPage(params: CrudPageParams) {

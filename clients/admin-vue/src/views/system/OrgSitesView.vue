@@ -507,7 +507,8 @@
           <el-input v-model="contractForm.siteName" />
         </el-form-item>
         <el-form-item label="地址">
-          <el-input v-model="contractForm.address" />
+          <!-- 与设备投放地址同一套录入方式：省/市/区级联 + 详细地址 -->
+          <AddressPicker v-model="contractForm.address" />
         </el-form-item>
         <div class="form-grid">
           <el-form-item label="场地主">
@@ -695,6 +696,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import AddressPicker from '@/components/AddressPicker.vue';
 import PagePager from '@/components/PagePager.vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useCrudTable } from '@/composables/useCrudTable';

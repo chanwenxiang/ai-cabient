@@ -6681,6 +6681,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/geo/districts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["districts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/fund/ledger": {
         parameters: {
             query?: never;
@@ -14433,6 +14449,22 @@ export interface components {
             /** Format: double */
             latitude?: number;
             formattedAddress?: string;
+            adcode?: string;
+            province?: string;
+            city?: string;
+            district?: string;
+            level?: string;
+        };
+        ApiResponseListGeoDistrictNode: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["GeoDistrictNode"][];
+        };
+        GeoDistrictNode: {
+            adcode?: string;
+            name?: string;
+            level?: string;
         };
         ApiResponsePageResultFundLedgerEntryDto: {
             /** Format: int32 */
@@ -14913,6 +14945,7 @@ export interface components {
             hasDefault?: boolean;
             primaryKey?: boolean;
             required?: boolean;
+            comment?: string;
         };
         ApiResponseDataScopeDto: {
             /** Format: int32 */
@@ -27676,6 +27709,8 @@ export interface operations {
         parameters: {
             query: {
                 address: string;
+                city?: string;
+                district?: string;
             };
             header?: never;
             path?: never;
@@ -27690,6 +27725,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseGeocodeResponse"];
+                };
+            };
+        };
+    };
+    districts: {
+        parameters: {
+            query?: {
+                parent?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListGeoDistrictNode"];
                 };
             };
         };

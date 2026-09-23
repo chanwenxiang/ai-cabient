@@ -39,10 +39,38 @@ public class OpsGapFeaturesController {
 
     // ---- geo ----
 
+    /**
+     * 地址 → 坐标。
+     *
+     * <p>🔴 {@code city} / {@code district} 不是可选装饰：不给定时高德会全国范围模糊匹配，
+     * 把「测试门店」解析到广东省梅州市兴宁市（实测）。选定行政区后，解析结果若落在所选
+     * 行政区之外会**直接报错**，而不是把错误点位静默写进设备档案。
+     *
+     * @param address  详细地址
+     * @param city     所选城市的 adcode（6 位）
+     * @param district 所选区县的 adcode（6 位），给定时校验更严格
+     */
     @RequiresPermissions("ops:device:edit")
     @GetMapping("/geo/geocode")
-    public ApiResponse<GeocodeResponse> geocode(@RequestParam("address") String address) {
-        return ApiResponse.ok(amapGeocodeService.geocode(address));
+    public ApiResponse<GeocodeResponse> geocode(@RequestParam("address") String address,
+                                                @RequestParam(required = false) String city,
+                                                @RequestParam(required = false) String district) {
+        return ApiResponse.ok(amapGeocodeService.geocode(address, city, district));
+    }
+
+    /**
+     * 行政区划下一级（省 / 市 / 区），供表单里做级联下拉。
+     *
+     * <p>不加 {@code @RequiresPermissions}：这是**纯参照数据**（行政区划名称与 adcode），
+     * 不含任何业务数据；而使用它的表单跨多个权限域（设备、仓库、场地），
+     * 绑任何一个具体权限都会让另外几处用不了。登录校验仍然生效。
+     *
+     * @param parent 上级 adcode；留空返回省级列表
+     */
+    @GetMapping("/geo/districts")
+    public ApiResponse<java.util.List<GeoDistrictNode>> districts(
+            @RequestParam(required = false) String parent) {
+        return ApiResponse.ok(amapGeocodeService.districts(parent));
     }
 
     @RequiresPermissions("ops:device:edit")

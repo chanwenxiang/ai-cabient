@@ -21,9 +21,13 @@ export const AdminEndpoints = {
   dataUpdate: (table: string, id: string) =>
     `${API_PREFIX}/ops/admin/data/${table}/${encodeURIComponent(id)}`,
   dataCreate: (table: string) => `${API_PREFIX}/ops/admin/data/${table}`,
-  /** 列元数据：列名 / 类型 / 可空 / 有默认 / 主键（新增数据模板、列清单提示） */
+  /**
+   * 列元数据：列名 / 类型 / 可空 / 有默认 / 主键。
+   * ⚠️ 前端**已无调用方**（2026-09-23 撤掉原始表写入口，见 CrudTable 顶部说明），
+   * 保留是因为后端接口仍在：这份对象是「API 镜像」，不是「用到的接口清单」。
+   */
   dataSchema: (table: string) => `${API_PREFIX}/ops/admin/data/schema/${table}`,
-  /** 单行原始列值（编辑数据预填）；键 = 数据库列名，与写入侧校验同源 */
+  /** 单行原始列值（{@code ::text} 口径）；键 = 数据库列名，与写入侧校验同源。同上，前端已无调用方 */
   dataRow: (table: string, id: string) =>
     `${API_PREFIX}/ops/admin/data/row/${table}/${encodeURIComponent(id)}`,
   /** 工作台 KPI */
@@ -681,7 +685,20 @@ export const AdminEndpoints = {
   analyticsFootfall: (days: number) => `${ops}/analytics/footfall?days=${days}`,
   analyticsFootfallSlots: (deviceId: string, days: number) =>
     `${ops}/analytics/footfall/slots?deviceId=${encodeURIComponent(deviceId)}&days=${days}`,
-  geoGeocode: (address: string) => `${ops}/geo/geocode?address=${encodeURIComponent(address)}`,
+  /**
+   * 地址 → 坐标。
+   * 🔴 `city` / `district` 必须带上：不给定时高德全国模糊匹配，实测会把
+   * 「测试门店」解析到广东省梅州市兴宁市。带上行政区后越界会被后端拒绝。
+   */
+  geoGeocode: (address: string, city?: string, district?: string) => {
+    const q = new URLSearchParams({ address });
+    if (city) q.set('city', city);
+    if (district) q.set('district', district);
+    return `${ops}/geo/geocode?${q.toString()}`;
+  },
+  /** 行政区划下一级（省 / 市 / 区），`parent` 留空取省级 */
+  geoDistricts: (parent?: string) =>
+    `${ops}/geo/districts${parent ? `?parent=${encodeURIComponent(parent)}` : ''}`,
   geoStatus: `${ops}/geo/status`,
   deviceOpsEventsList: (query: URLSearchParams | string) =>
     typeof query === 'string'

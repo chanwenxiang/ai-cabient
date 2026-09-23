@@ -17,7 +17,8 @@
         <el-input v-model="warehouseForm.warehouseName" maxlength="64" />
       </el-form-item>
       <el-form-item label="地址">
-        <el-input v-model="warehouseForm.address" maxlength="255" />
+        <!-- 用省/市/区级联而不是自由文本：地址要能对齐行政区，后续才能按区县归集与解析坐标 -->
+        <AddressPicker v-model="warehouseForm.address" :maxlength="255" />
       </el-form-item>
       <el-form-item label="状态">
         <el-radio-group v-model="warehouseForm.status">
@@ -191,6 +192,7 @@
 
 <script setup lang="ts">
 import { dictOptions } from '@aicabinet/shared-dict';
+import AddressPicker from '@/components/AddressPicker.vue';
 import type { WarehouseEntityRow } from '@/composables/warehouse/useWarehouseEntityDialogs';
 
 defineProps<{
