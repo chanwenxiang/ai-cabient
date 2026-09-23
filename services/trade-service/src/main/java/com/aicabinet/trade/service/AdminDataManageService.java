@@ -42,11 +42,96 @@ import java.util.regex.Pattern;
 @Service
 public class AdminDataManageService {
 
-    /** 这些表禁止通过通用通道增删改 */
+    /**
+     * 禁止通过通用通道增删改的表 —— **显式清单**部分。
+     *
+     * <p>🔴 **2026-09-23 修（fail-open）**：本清单原是纯枚举 7 张，同族的
+     * {@code ops_user_department} / {@code ops_user_device_scope} /
+     * {@code ops_user_device_scope_pref} / {@code ops_user_merchant} /
+     * {@code ops_user_route_scope}（{@code ops_user_role} 之外的整族）与
+     * {@code ops_2fa_recovery_code} 全部漏在保护外，另有 {@code sys_oper_log} /
+     * {@code system_config} / {@code user_account} 同类漏项 —— 实测库里 157 张表，
+     * 命中「后台权限 / 凭据 / 资金」语义却有 **9** 张不在名单里，全部可被通用通道
+     * 增删改。失效形态是 **fail-open**：新增一张敏感表，没有任何东西会提醒你补清单，
+     * 而 enumerate 式清单**必漂**（与 {@link #deleteProtectedTables()} 的「由 schema 推导、
+     * 不手写清单」同一教训）。</p>
+     *
+     * <p>现改为「**整族前缀（{@link #EXCLUDED_PREFIXES}）+ 本清单**」：同族表用前缀覆盖，
+     * 新增同族表自动生效；前缀表达不了的才逐张列出。规则由
+     * {@code AdminDataManageTablePolicyTest}（源码侧）与
+     * {@code AdminDataManageColumnContractTest}（库内 schema 侧）**双向扫**钉住。</p>
+     */
     private static final Set<String> EXCLUDED_TABLES = Set.of(
+            // 迁移历史：被改会让 Flyway 校验失败、服务起不来
             "flyway_schema_history",
-            "ops_user", "ops_role", "ops_user_role", "ops_role_permission", "ops_permission",
-            "admin_audit_log");
+            // 审计 / 操作日志：有各自的管理页
+            "admin_audit_log",
+            "sys_oper_log",
+            // 权限树
+            "ops_permission",
+            // 两步验证恢复码（user_id + code_hash）：改写即可绕过或锁死 2FA
+            "ops_2fa_recovery_code",
+            // 系统配置：含 balance.refund.max_cents / checkout.preauth_cents 等资金风控参数与业务开关
+            "system_config",
+            // 资金账户（balance_cents / frozen_cents）：经此通道改余额不经过任何业务校验
+            "user_account");
+
+    /**
+     * 整族排除的表名前缀 —— 后台账号 / 角色绑定体系。
+     *
+     * <p>用前缀而不用逐张枚举：这些表的共同点是「人一多就会长出新子表」
+     * （设备可见范围、偏好、商户绑定、路由范围各自一张）。枚举时漏掉任何一张，
+     * 后果都是**权限边界被从通用通道改写**（实测 {@code ops_2fa_recovery_code}
+     * 就是被这样漏掉的）。</p>
+     *
+     * <p>⚠️ 刻意**不**用裸 {@code ops_} 前缀：{@code ops_exception}（异常单）、
+     * {@code ops_department} / {@code ops_device_org} / {@code ops_org_node}（组织架构）
+     * 是**业务表**，运营本来就该能订正。</p>
+     */
+    private static final List<String> EXCLUDED_PREFIXES = List.of("ops_user", "ops_role");
+
+    /**
+     * 凭据 / 密钥类**列名子串**：禁止经通用通道**读或写**。
+     *
+     * <p>🔴 **2026-09-23 修**：表级排除挡不住「**同一张表里混着业务列与凭据列**」——
+     * 最典型的是 {@code user_info}：它既是运营要订正的用户资料，又存着
+     * {@code password_hash} 与 {@code totp_secret}。而 {@code ops_user_role.user_id}
+     * 外键指向 {@code user_info} ⇒ **后台管理员账号就在这张表里**。后果：</p>
+     * <ul>
+     *   <li>**读**：{@code rowDetail} 把整行 {@code ::text} 回吐 ⇒ 拿到 {@code totp_secret}
+     *       即可**直接生成该管理员的一次性密码**，拿到 {@code password_hash} 可离线爆破；</li>
+     *   <li>**写**：{@code updateRow} 可改 {@code password_hash} ⇒ **接管任意账号、自我提权**。</li>
+     * </ul>
+     * <p>故表级白名单之外必须再加一道**列级**判据（两者正交，缺一不可）。</p>
+     */
+    private static final List<String> CREDENTIAL_COLUMN_PATTERNS = List.of(
+            "password", "passwd", "pwd", "secret", "token", "credential", "salt", "pepper");
+
+    /**
+     * 哈希类后缀。取值是单向摘要、**不可能**是需要人工订正的业务数据，
+     * 故整类禁改（实测库内命中 {@code code_hash} / {@code request_hash}，均属安全相关，无误伤）。
+     */
+    private static final String CREDENTIAL_COLUMN_SUFFIX = "_hash";
+
+    /**
+     * 模式表达不了的精确列名：{@code wechat_binding.session_key}（微信会话密钥，
+     * 拿到可解密/冒用）。⚠️ 刻意**不**用裸 {@code _key} 后缀 —— 那会误伤
+     * {@code task_key}/{@code dept_key}/{@code role_key}/{@code config_key}/{@code dedup_key}
+     * 等一大批**业务标识**列（都是运营订正数据的正常对象）。
+     */
+    private static final Set<String> CREDENTIAL_COLUMNS = Set.of("session_key");
+
+    /** 该列是否属于凭据/密钥（读写皆禁）。包级可见：策略可被纯逻辑单测直接钉住。 */
+    static boolean isCredentialColumn(String column) {
+        if (column == null) {
+            return true;
+        }
+        String c = column.toLowerCase();
+        if (CREDENTIAL_COLUMNS.contains(c) || c.endsWith(CREDENTIAL_COLUMN_SUFFIX)) {
+            return true;
+        }
+        return CREDENTIAL_COLUMN_PATTERNS.stream().anyMatch(c::contains);
+    }
 
     private final JdbcTemplate jdbc;
     private final AdminAuditService auditService;
@@ -65,7 +150,7 @@ public class AdminDataManageService {
                         + "WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' "
                         + "ORDER BY table_name",
                 String.class);
-        return tables.stream().filter(t -> !EXCLUDED_TABLES.contains(t)).toList();
+        return tables.stream().filter(t -> !isExcluded(t)).toList();
     }
 
     /**
@@ -212,7 +297,11 @@ public class AdminDataManageService {
         if (rows.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "记录不存在：" + table + "." + id);
         }
-        return rows.get(0);
+        // 凭据列一律不回吐：拿到 totp_secret 就等于拿到该账号的 2FA 一次性密码，
+        // 拿到 password_hash 可离线爆破；而这张表里就躺着后台管理员账号。
+        Map<String, Object> row = new LinkedHashMap<>(rows.get(0));
+        row.keySet().removeIf(AdminDataManageService::isCredentialColumn);
+        return row;
     }
 
     @Transactional
@@ -286,8 +375,25 @@ public class AdminDataManageService {
 
     // —— 校验 ————————————————————————————————————————————
 
+    /**
+     * 该表是否禁止经通用通道操作：**显式清单 ∪ 前缀规则**。
+     *
+     * <p>包级可见是**有意的**：让策略本身可以被纯逻辑单测直接钉住
+     * （不需要起 Spring / Docker 就能验证「新增同族表是否自动被挡」），
+     * 避免判据只能靠「连库跑一遍」才发现规则漏了。</p>
+     */
+    static boolean isExcluded(String table) {
+        if (table == null) {
+            return true;
+        }
+        if (EXCLUDED_TABLES.contains(table)) {
+            return true;
+        }
+        return EXCLUDED_PREFIXES.stream().anyMatch(table::startsWith);
+    }
+
     private void requireManaged(String table) {
-        if (table == null || !table.matches("[a-z0-9_]+") || EXCLUDED_TABLES.contains(table)) {
+        if (table == null || !table.matches("[a-z0-9_]+") || isExcluded(table)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该表不允许通过通用数据管理通道操作");
         }
         Integer exists = jdbc.queryForObject(
@@ -361,6 +467,10 @@ public class AdminDataManageService {
             }
             if (!types.containsKey(col)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知列：" + col);
+            }
+            if (isCredentialColumn(col)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "该列属于凭据/密钥，禁止经通用数据管理通道写入：" + col);
             }
             out.put(col, e.getValue());
         }

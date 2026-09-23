@@ -304,4 +304,131 @@ class AdminDataManageColumnContractTest {
                 HttpStatus.FORBIDDEN,
                 assertThrows(ResponseStatusException.class, () -> service.columnMetadata("ops_user")).getStatusCode());
     }
+
+    // —— 排除规则：库内 schema 侧的双向扫（2026-09-23 补） ——————————————————————
+
+    /** {@code ops_} 前缀但确属业务表、运营经通用通道订正属正常（与策略单测同一份口径）。 */
+    private static final Set<String> BUSINESS_OPS_TABLES = Set.of(
+            "ops_department", "ops_device_org", "ops_exception", "ops_org_node");
+
+    /**
+     * 修复前**真实漏掉**的表（走遍了 {@code requireManaged} 的放行路径）。
+     *
+     * <p>{@code ops_2fa_recovery_code} 是其中最重的一条：改 {@code code_hash} 即绕过两步验证；
+     * {@code user_account} 改 {@code balance_cents} 即无校验改余额；
+     * {@code system_config} 里有 {@code balance.refund.max_cents} 这类资金风控参数。</p>
+     */
+    private static final List<String> PREVIOUSLY_LEAKED = List.of(
+            "ops_user_department",
+            "ops_user_device_scope",
+            "ops_user_device_scope_pref",
+            "ops_user_merchant",
+            "ops_user_route_scope",
+            "ops_2fa_recovery_code",
+            "sys_oper_log",
+            "system_config",
+            "user_account");
+
+    /** 端到端语义：这些表必须被服务边界挡在 FORBIDDEN，而不是「能进去只是删不掉」。 */
+    @Test
+    void previouslyLeakedTables_areRejectedAtServiceBoundary() {
+        for (String table : PREVIOUSLY_LEAKED) {
+            ResponseStatusException e = assertThrows(
+                    ResponseStatusException.class,
+                    () -> service.rowDetail(table, "1"),
+                    table + " 本应被拒绝，却走进了通用数据管理通道");
+            assertEquals(HttpStatus.FORBIDDEN, e.getStatusCode(), table + " 应回 403（不可经通用通道操作）");
+        }
+    }
+
+    /**
+     * 🔴 **库内双向扫（自动跟随）**：{@code information_schema} 里所有 {@code ops_} 表必须二选一 ——
+     * 被排除规则挡住（⇒ 不出现在受管清单里），或登记在 {@link #BUSINESS_OPS_TABLES}。
+     *
+     * <p>与策略单测的源码侧扫描互补：那条扫的是 {@code @TableName} 实体，这条扫的是**真库**，
+     * 能抓到「迁移里建了表、但没写 JPA 实体」的新增敏感表 —— 那正是最容易被漏保护的一类。</p>
+     *
+     * <p>⚠️ 自检 {@code opsTables.size() >= 10}：扫描语句若失效（零发现），下面断言恒真全绿。</p>
+     */
+    @Test
+    void everyOpsTableInSchema_isEitherExcludedOrKnownBusinessTable() {
+        List<String> opsTables = jdbc.queryForList(
+                "SELECT table_name FROM information_schema.tables"
+                        + " WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'"
+                        + " AND table_name LIKE 'ops\\_%' ORDER BY table_name",
+                String.class);
+        assertTrue(
+                opsTables.size() >= 10,
+                "只扫到 " + opsTables.size() + " 张 ops_ 表（预期 ≥10）—— 扫描语句已失效，本判据会恒真全绿");
+
+        Set<String> managed = Set.copyOf(service.listManagedTables());
+        List<String> unclassified = opsTables.stream()
+                .filter(t -> !BUSINESS_OPS_TABLES.contains(t))
+                .filter(managed::contains)
+                .sorted()
+                .toList();
+        assertTrue(
+                unclassified.isEmpty(),
+                "这些 ops_ 表既没被排除规则挡住（仍出现在受管清单里）、也不属已知业务表 ⇒ 新增体系表却忘了保护："
+                        + unclassified);
+    }
+
+    /** 反向对账：别把业务表一起收紧了（否则运营的正当订正入口被砍掉，属过度修）。 */
+    @Test
+    void managedTableList_stillContainsBusinessTables() {
+        List<String> managed = service.listManagedTables();
+        for (String t : BUSINESS_OPS_TABLES) {
+            assertTrue(managed.contains(t), t + " 是业务表，应仍可经通用通道订正");
+        }
+        assertTrue(managed.contains("cabinet_order"), "cabinet_order 是既有回归判据的夹具表，不能被排除");
+        assertTrue(managed.contains("repair_ticket"), "repair_ticket 是既有回归判据的夹具表，不能被排除");
+    }
+
+    // —— 列级保护：凭据列「读不回吐、写不生效」（2026-09-23 补） ————————————————
+
+    /**
+     * 🔴 {@code user_info} 是**表级可操作**的业务表（运营要订正手机号等），
+     * 但同一张表里躺着 {@code password_hash} / {@code totp_secret}，
+     * 而 {@code ops_user_role.user_id} 外键指向 {@code user_info} ⇒ **后台管理员账号就在这张表里**。
+     *
+     * <p>读到 {@code totp_secret} 等于**直接拿到该管理员的一次性密码**（2FA 形同虚设）；
+     * 读到 {@code password_hash} 可离线爆破。故「表可操作」**不等于**「列可操作」——
+     * 这是与表级排除**正交**的第二道防线。</p>
+     */
+    @Test
+    void rowDetail_neverReturnsCredentialColumns() {
+        seedOperator();
+        Map<String, Object> row = service.rowDetail("user_info", String.valueOf(OP_ID));
+
+        for (String col : List.of("password_hash", "totp_secret")) {
+            assertFalse(
+                    row.containsKey(col),
+                    "凭据列 " + col + " 被回吐了（读 totp_secret 即等于拿到 2FA 一次性密码）。实际键：" + row.keySet());
+        }
+        assertTrue(row.containsKey("phone_number"), "业务列应正常回读；实际键：" + row.keySet());
+    }
+
+    /** 写侧：凭据列必须以 403 拒绝，且**不能**因为「列表 DTO 里有这个字段」而被放行。 */
+    @Test
+    void updateRow_rejectsCredentialColumns() {
+        seedOperator();
+        for (String col : List.of("password_hash", "totp_secret")) {
+            ResponseStatusException e = assertThrows(
+                    ResponseStatusException.class,
+                    () -> service.updateRow(OP_ID, "user_info", String.valueOf(OP_ID), Map.of(col, "hijacked")),
+                    "凭据列 " + col + " 必须被拒绝");
+            assertEquals(HttpStatus.FORBIDDEN, e.getStatusCode(), "凭据列 " + col + " 应回 403，而非被默默写入");
+        }
+    }
+
+    /** 插入侧同样要挡：否则可以塞一条带自选 {@code password_hash} 的账号行。 */
+    @Test
+    void insertRow_rejectsCredentialColumns() {
+        seedOperator();
+        ResponseStatusException e = assertThrows(
+                ResponseStatusException.class,
+                () -> service.insertRow(
+                        OP_ID, "user_info", Map.of("user_id", 900000002L, "password_hash", "hijacked")));
+        assertEquals(HttpStatus.FORBIDDEN, e.getStatusCode(), "新增时写入凭据列也必须 403");
+    }
 }
