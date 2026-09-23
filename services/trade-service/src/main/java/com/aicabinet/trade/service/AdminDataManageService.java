@@ -114,12 +114,18 @@ public class AdminDataManageService {
     }
 
     /**
-     * 单表列元数据：列名 + PG 类型 + 可空 / 有默认值（含 identity）/ 主键 / **必填**。
+     * 单表列元数据：列名 + PG 类型 + 可空 / 有默认值（含 identity）/ 主键 / **必填** / **列注释**。
      *
      * <p>{@code required} 由 SQL 直接算（NOT NULL 且无默认值且非 identity），**不由前端推导** ——
      * 这条规则前端自己推过一版，判成「主键一律不必填」，于是新增模板漏掉主键列
      * （{@code exception_id} 这类**应用侧赋值**的 varchar 主键 NOT NULL 无默认），
      * 保存必 400「缺少必填字段」：又造出一个「必点必失败」的入口。</p>
+     *
+     * <p>{@code comment} 是 PG 列注释（{@code col_description}）。必须带上：
+     * 「新增/编辑数据」的表单要给人看，而**列名是给机器看的** —— 实测库里
+     * {@code session_id} 注释是「购物会话ID」、{@code state} 是「状态机状态」，
+     * 不带注释的表单等于让人照着数据库字典填空，运营根本没法用。
+     * 注释可能为空（不是每张表都写了），前端须有回落（退到列名）。</p>
      */
     public record ColumnMeta(
             String name,
@@ -127,11 +133,14 @@ public class AdminDataManageService {
             boolean nullable,
             boolean hasDefault,
             boolean primaryKey,
-            boolean required) {}
+            boolean required,
+            String comment) {}
 
     /**
-     * 列元数据 —— 供前端预填「新增数据」模板与展示列清单。
-     * 一律现查 {@code information_schema}：手写列清单必漂。
+     * 列元数据 —— 供渲染原始表撰写表单与列清单使用。
+     * <p>⚠️ 现状（2026-09-23）：前端入口已撤（写原始列「加上去也没用」），
+     * 当前仅 API 与集成测试在使用。</p>
+     * 一律现查 {@code information_schema} / {@code pg_description}：手写列清单必漂。
      */
     public List<ColumnMeta> columnMetadata(String table) {
         requireManaged(table);
@@ -141,7 +150,8 @@ public class AdminDataManageService {
                         + " (c.column_default IS NOT NULL OR c.is_identity = 'YES') AS has_default,"
                         + " (pk.column_name IS NOT NULL) AS is_pk,"
                         + " (c.is_nullable = 'NO' AND c.column_default IS NULL"
-                        + "  AND c.is_identity = 'NO') AS required"
+                        + "  AND c.is_identity = 'NO') AS required,"
+                        + " d.description AS col_comment"
                         + " FROM information_schema.columns c"
                         + " LEFT JOIN ("
                         + "   SELECT kcu.column_name FROM information_schema.table_constraints tc"
@@ -151,18 +161,25 @@ public class AdminDataManageService {
                         + "   WHERE tc.table_schema = current_schema() AND tc.table_name = ?"
                         + "     AND tc.constraint_type = 'PRIMARY KEY'"
                         + " ) pk ON pk.column_name = c.column_name"
+                        // 列注释：pg_description 按 (表 oid, 列序号) 存
+                        + " LEFT JOIN pg_class cl ON cl.relname = c.table_name"
+                        + "   AND cl.relnamespace = current_schema()::regnamespace"
+                        + " LEFT JOIN pg_description d ON d.objoid = cl.oid"
+                        + "   AND d.objsubid = c.ordinal_position"
                         + " WHERE c.table_schema = current_schema() AND c.table_name = ?"
                         + " ORDER BY c.ordinal_position",
                 table, table);
         List<ColumnMeta> out = new ArrayList<>();
         for (Map<String, Object> r : rows) {
+            Object comment = r.get("col_comment");
             out.add(new ColumnMeta(
                     String.valueOf(r.get("name")),
                     String.valueOf(r.get("col_type")),
                     Boolean.TRUE.equals(r.get("can_be_null")),
                     Boolean.TRUE.equals(r.get("has_default")),
                     Boolean.TRUE.equals(r.get("is_pk")),
-                    Boolean.TRUE.equals(r.get("required"))));
+                    Boolean.TRUE.equals(r.get("required")),
+                    comment == null ? null : String.valueOf(comment)));
         }
         return out;
     }

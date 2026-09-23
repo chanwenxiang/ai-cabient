@@ -71,10 +71,6 @@
           @change="search"
         />
       </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="search">查询</el-button>
-        <el-button @click="reset">重置</el-button>
-      </el-form-item>
       <el-form-item v-if="statusTab === 'PENDING'">
         <el-checkbox v-model="overdueOnly" @change="onOverdueToggle"
           >仅超时未付（≥30 分钟）</el-checkbox
@@ -94,6 +90,13 @@
             <span class="hide-zero-hint">?</span>
           </el-tooltip>
         </el-checkbox>
+      </el-form-item>
+      <!-- 🔴 动作组必须是筛选行的**最后一项**：main.css 用 `margin-left:auto` 把「只含按钮」的项
+           推到行尾，让它与表格工具行的动作按钮共处一条竖线。本页原先把两个勾选项写在按钮之后，
+           于是 auto 外边距把它们一起推到右边、按钮反而离行尾 126px（实测 1080 宽下 912.8 vs 1039）。 -->
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
       </el-form-item>
     </el-form>
 

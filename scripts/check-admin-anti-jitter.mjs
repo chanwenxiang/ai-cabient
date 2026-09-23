@@ -64,8 +64,8 @@ if (ruleHas(['.table-scroll', 'fixed-column--right'], /position\s*:\s*static/i))
 }
 
 // ——— I) 横滚须收在内层：包着 CrudTable 的壳不得自己横滚 ———
-// 壳一旦成为横滚容器，位于壳内的吸附工具行（排序/新增数据/刷新）与分页行
-// 会随表体一起左移（现象：往右滑动，分页和新增数据、刷新跟着动）。
+// 壳一旦成为横滚容器，位于壳内的吸附工具行（排序/批量删除/刷新）与分页行
+// 会随表体一起左移（现象：往右滑动，分页和表格动作按钮跟着动）。
 if (!ruleHas(['.table-scroll:has(.crud-table)'], /overflow\s*:\s*visible/i)) {
   fail(
     'I: main.css 包着 CrudTable 的 .table-scroll 壳须 overflow:visible（否则壳成横滚容器，工具行/分页行随表体左移）'

@@ -41,14 +41,6 @@
           @click="dataBatchDelete()"
           >批量删除</el-button
         >
-        <el-button
-          v-if="manageTable && canDataManage"
-          size="small"
-          type="primary"
-          plain
-          @click="dataCreate()"
-          >新增数据</el-button
-        >
         <template v-if="csvCtl">
           <el-button
             v-if="canExport"
@@ -148,30 +140,18 @@
       </el-table>
     </div>
 
-    <!-- 吸附分页行：表格过长时分页钉在可视区底部，无需滚到底换页 -->
-    <el-dialog
-      v-model="jsonDialog.visible"
-      :title="jsonDialog.mode === 'edit' ? '编辑数据（JSON）' : '新增数据（JSON）'"
-      width="640px"
-      destroy-on-close
-    >
-      <!-- 键名口径必须写在眼前：编辑框预填的是**数据库列名**（与后端列校验同源）；
-           用接口 DTO 的驼峰名保存会被逐个判「未知列」 -->
-      <p class="crud-table__json-hint">{{ jsonDialog.hint }}</p>
-      <div v-loading="jsonDialog.loading" class="crud-table__json-body">
-        <el-input v-model="jsonDialog.text" type="textarea" :rows="14" spellcheck="false" />
-      </div>
-      <template #footer>
-        <el-button @click="jsonDialog.visible = false">取消</el-button>
-        <el-button
-          type="primary"
-          :loading="jsonDialog.busy"
-          :disabled="jsonDialog.loading"
-          @click="dataSave"
-          >保存</el-button
-        >
-      </template>
-    </el-dialog>
+    <!--
+      🔴 这里**不再**有「通用原始表的写入口」弹窗（即工具行的「新增」与行内的「编辑」）。
+
+      2026-09-23 决策：通用原始表（`manage-table`）的写入口对任何表都「加上去也没用」——
+      行内数据一律由业务侧的正规弹窗（新建设备 / 新建订单…）维护，绕过业务校验直接写原始列
+      只会造脏行；编辑侧唯一存在的价值是排障时改一行，而这可以用 psql 做，
+      不值得为此在 8 个业务页面上常驻一个能写任意列的入口。
+      删除侧**保留**（能力由后端 capabilities 推导，见 canDataDelete），
+      因为它对应「运营确实要清理一条脏记录」这个真实动作。
+      ⚠️ 后端 /ops/admin/data/{schema,row} 与 POST/PUT 仍保留为 API，只是前端不再有入口 ——
+         所以回归判据是「产物里不再出现这两个按钮文案」，而不是「接口 404」。
+    -->
 
     <div class="crud-table__pager">
       <PagePager
@@ -194,13 +174,12 @@ import {
   computed,
   onBeforeUnmount,
   onMounted,
-  reactive,
   ref,
   watch,
   type ComponentPublicInstance
 } from 'vue';
 import type { TableInstance } from 'element-plus';
-import { CaretBottom, CaretTop, Delete, EditPen, Refresh } from '@element-plus/icons-vue';
+import { CaretBottom, CaretTop, Delete, Refresh } from '@element-plus/icons-vue';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -259,7 +238,10 @@ const props = withDefaults(
     sortFieldLabel?: string;
     /** 是否内建刷新按钮 */
     showRefresh?: boolean;
-    /** 通用数据管理表名（传入即在行操作/工具行内建 删除/批量删除/编辑/新增，挂 ops:data:manage） */
+    /**
+     * 通用数据管理表名（传入即在行操作内建 删除/批量删除，挂 ops:data:manage）。
+     * 只读 + 删：原始表的写入口已撤掉（2026-09-23 决策，见模板顶部说明）。
+     */
     manageTable?: string;
   }>(),
   {
@@ -315,13 +297,7 @@ function visibleActions(row: any): TableAction[] {
     ? props.actions(row).filter((a) => a && a.key && hasAnyPerm(a.perm))
     : [];
   if (canDataManage.value && props.manageTable) {
-    list.push({
-      key: 'data-edit',
-      label: '编辑数据',
-      icon: EditPen,
-      type: 'primary',
-      overflow: true
-    });
+    // 只留删除：编辑/新增已按 2026-09-23 决策撤掉（见模板顶部说明）
     // 删除可能被下游外键挡住（会话 / 订单 / 主数据等）⇒ 后端不开放删除时，干脆不渲染该入口
     if (canDataDelete.value) {
       list.push({
@@ -366,27 +342,6 @@ watch(
   },
   { immediate: true }
 );
-/** 后端列元数据（GET /ops/admin/data/schema/{table}） */
-interface AdminColumnMeta {
-  name: string;
-  type: string;
-  nullable: boolean;
-  hasDefault: boolean;
-  primaryKey: boolean;
-  /** 必填（NOT NULL 且无默认值且非 identity）—— 由后端单一事实源算出，前端不自行推导 */
-  required: boolean;
-}
-
-const jsonDialog = reactive({
-  visible: false,
-  mode: 'edit' as 'edit' | 'create',
-  id: '',
-  text: '',
-  hint: '',
-  busy: false,
-  loading: false
-});
-
 /**
  * 行主键取值。useCrudTable 的 rowKey 是**函数**（rowKey: row => row.id），
  * 直接写成 `row[table.rowKey || props.rowKey]` 会把函数当属性名 —— 取到 undefined，
@@ -472,103 +427,6 @@ async function dataBatchDelete() {
   await table.load();
 }
 
-/**
- * 编辑数据：预填必须用**数据库列名** —— 后端列校验走 information_schema，只认 snake_case。
- * 早先用列表 DTO（camelCase）预填，保存时每个键都判「未知列」⇒ 400，
- * 等于「编辑数据」这个大路上任何表都必然失败（实测 PUT {sessionId,…} → 400 未知列：sessionId）。
- * 故改为现拉该行的原始列值（GET /row/{table}/{id}），做到「看到的键就是能保存的键」。
- */
-function dataEdit(row: any) {
-  const id = rowId(row);
-  if (!id) {
-    ElMessage.error('无法确定该行主键，已取消编辑');
-    return;
-  }
-  jsonDialog.mode = 'edit';
-  jsonDialog.id = id;
-  jsonDialog.text = '';
-  jsonDialog.hint =
-    '键名必须是数据库列名（与表结构一致）；数字 / 时间 / 布尔可写成字符串，保存时按列类型转换。';
-  jsonDialog.loading = true;
-  jsonDialog.visible = true;
-  void (async () => {
-    try {
-      const detail = await api.request<Record<string, unknown>>(
-        AdminEndpoints.dataRow(props.manageTable, id),
-        'GET'
-      );
-      jsonDialog.text = JSON.stringify(detail, null, 2);
-    } catch (e) {
-      ElMessage.error(e instanceof Error ? e.message : '读取该行数据失败');
-      jsonDialog.visible = false;
-    } finally {
-      jsonDialog.loading = false;
-    }
-  })();
-}
-
-/**
- * 新增数据：用列元数据生成骨架。「必填」由后端算好（{@code required}），前端**不自行推导** ——
- * 曾自己判过一版（误以为主键一律不必填），于是模板漏掉主键列（{@code exception_id} 这类
- * 应用侧赋值的 varchar 主键 NOT NULL 无默认）⇒ 点保存必 400「缺少必填字段」。
- * 必填列一律先给 null 占位：给 0/'' 之类「合法默认值」会顺手插出一条脏行，
- * 给 null 则得到可读的 400，逼调用方填真值。
- */
-function dataCreate() {
-  jsonDialog.mode = 'create';
-  jsonDialog.id = '';
-  jsonDialog.text = '';
-  jsonDialog.hint = '正在读取表结构…';
-  jsonDialog.loading = true;
-  jsonDialog.visible = true;
-  void (async () => {
-    try {
-      const cols = await api.request<AdminColumnMeta[]>(
-        AdminEndpoints.dataSchema(props.manageTable),
-        'GET'
-      );
-      const required = cols.filter((c) => c.required);
-      const tpl: Record<string, null> = {};
-      for (const c of required) tpl[c.name] = null;
-      jsonDialog.text = JSON.stringify(tpl, null, 2);
-      const names = cols.map((c) => (c.required ? `${c.name}*` : c.name)).join(', ');
-      jsonDialog.hint = required.length
-        ? `本表列（* 为必填，已用 null 占位，请替换成具体值）：${names}`
-        : `本表无必填列（均有默认值），留 {} 即插入一行默认值。列：${names}`;
-    } catch (e) {
-      ElMessage.error(e instanceof Error ? e.message : '读取表结构失败');
-      jsonDialog.visible = false;
-    } finally {
-      jsonDialog.loading = false;
-    }
-  })();
-}
-
-async function dataSave() {
-  let body: Record<string, unknown>;
-  try {
-    body = JSON.parse(jsonDialog.text);
-  } catch {
-    ElMessage.error('JSON 格式不合法');
-    return;
-  }
-  jsonDialog.busy = true;
-  try {
-    if (jsonDialog.mode === 'edit') {
-      await api.request(AdminEndpoints.dataUpdate(props.manageTable, jsonDialog.id), 'PUT', body);
-    } else {
-      await api.request(AdminEndpoints.dataCreate(props.manageTable), 'POST', body);
-    }
-    ElMessage.success('已保存');
-    jsonDialog.visible = false;
-    await table.load();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
-  } finally {
-    jsonDialog.busy = false;
-  }
-}
-
 const sortFieldLabel = computed(() => props.sortFieldLabel || table.sortProp);
 const showMetaBar = computed(
   () => Boolean(table.sortProp) || props.selectable || props.showRefresh || Boolean(csvCtl)
@@ -577,7 +435,6 @@ const hasActions = computed(() => typeof props.actions === 'function');
 
 function onDataAction(key: string, row: any) {
   if (key === 'data-delete') void dataDelete(row);
-  else if (key === 'data-edit') dataEdit(row);
   else emit('action', { key, row });
 }
 
@@ -598,12 +455,35 @@ function onDataAction(key: string, row: any) {
 //   正是 137px；/dashboard avail=52.7 ⇒ 多出 186.8px，实测盖住 186.8px —— 逐位吻合。
 //   故主区放不下时**退回文档流（flow 模式）**：不设 max-height、且取消吸附
 //   （见 .crud-table:not(.crud-table--fill) 的样式），表体与工具行/分页行都在流里，互不覆盖。
+/**
+ * 表格纵向滚动归谁 —— 两种模式都是完整实现，切换只改这一处。
+ *
+ * · 'page'（**当前产品决策**，2026-09-23）：不设 max-height、取消吸附 ⇒
+ *   表格按内容展开，整页一起滚动，表头随页面滚走、分页排在表格之后。
+ *   产品原话：「他的表头不固定，而且可以整页都可以动」—— 要的就是这个观感，
+ *   并且参照「数据一致性」页（那页因主区放不下，一直是这个模式）。
+ *   有意接受的代价：滚到下面看不见列名，也看不见排序/刷新按钮；翻页要滚到页面底部。
+ * · 'table'：表格内滚 + 工具行/分页行吸附（方案 B，同日早些时候落地）。
+ *   一屏内永远有列名与分页，但数据区被锁在主区剩余高度里
+ *   （实测 1440×900 只有 402px ⇒ 可见 7 行，这正是「显示区域太小」的来源）。
+ *
+ * 🔴 calcMaxHeight 的整套算法（连同 MIN_FILL_HEIGHT）**只在 'table' 模式有意义**：
+ *    它是为「吸附行不盖表体」逐像素实测出来的。'page' 模式下不要再设 max-height，
+ *    否则立刻退回「小窗口内滚」，与产品要求相反。
+ */
+const VSCROLL_OWNER: 'page' | 'table' = 'page';
 const MIN_FILL_HEIGHT = 240;
 const rootRef = ref<HTMLElement>();
 const tableMaxHeight = ref<number>();
-/** 填充模式：表格吃满主区剩余高度并启用吸附行；false = 文档流模式（主区放不下时） */
+/** 填充模式：表格吃满主区剩余高度并启用吸附行；false = 文档流模式（'page' 恒为此态） */
 const fillMode = ref(false);
 function calcMaxHeight() {
+  // 'page' 模式：整页滚，表格按内容展开 —— 不设 max-height 即天然走这里
+  if (VSCROLL_OWNER === 'page') {
+    fillMode.value = false;
+    tableMaxHeight.value = undefined;
+    return;
+  }
   const rootEl = rootRef.value;
   const main = rootEl?.closest('.layout-main-scroll') as HTMLElement | null;
   if (!rootEl || !main) return;
@@ -715,8 +595,10 @@ function bindCsvInput(el: Element | ComponentPublicInstance | null) {
   gap: 12px;
   flex-wrap: wrap;
   background: var(--layout-card, var(--el-bg-color, #fff));
-  padding: 6px 0 8px;
-  margin-bottom: 8px;
+  /* 纵向内边距收到最小：这一行与分页行都是「表格的自己人」，
+     它们的上下空白同样从数据区高度里扣（见 calcMaxHeight 的 used 累加）。 */
+  padding: 3px 0 5px;
+  margin-bottom: 5px;
   border-bottom: 1px solid var(--layout-border, var(--el-border-color-light));
 }
 .crud-table__meta-left {
@@ -752,7 +634,7 @@ function bindCsvInput(el: Element | ComponentPublicInstance | null) {
   bottom: 0;
   z-index: 20;
   background: var(--layout-card, var(--el-bg-color, #fff));
-  padding: 6px 0 4px;
+  padding: 3px 0 2px;
   border-top: 1px solid var(--layout-border, var(--el-border-color-light));
 }
 /*
@@ -764,14 +646,6 @@ function bindCsvInput(el: Element | ComponentPublicInstance | null) {
 .crud-table:not(.crud-table--fill) .crud-table__meta,
 .crud-table:not(.crud-table--fill) .crud-table__pager {
   position: static;
-}
-/* 对话框里的列名/口径提示：长列清单要能换行，别把对话框撑宽 */
-.crud-table__json-hint {
-  margin: 0 0 10px;
-  color: var(--layout-muted, var(--el-text-color-secondary));
-  font-size: var(--admin-font-size-table, 13px);
-  line-height: 1.6;
-  word-break: break-word;
 }
 .crud-table__csv-input {
   position: absolute;

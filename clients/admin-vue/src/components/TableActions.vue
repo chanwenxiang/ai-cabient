@@ -108,12 +108,23 @@ const more = computed(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  /*
+   * 🔴 24px 不是审美参数，是**整张表的行高旋钮**。
+   *
+   * 表格行高 = max(各列 cell) + td 上下内边距，而本项目操作列用的是这个自定义方形按钮
+   * （不是 el-button），它天生比任何文本/tag 都高。32px 时整表行高被它顶到 57px：
+   *   32（按钮）+ 8（col-action 的 .cell 上下 padding）+ 16（td 上下 padding）= 56 ≈ 实测 57
+   * ⇒ 把任意一页的**操作列按钮改大改小，全表行高就跟着变**，与字体、行内 tag 都无关。
+   * 实测（1440×900 / 开门记录，数据区 402px）：
+   *   32px → 行高 57 → 可见 7 行；24px → 行高 37~40 → 可见 10~11 行。
+   * 24 与 EP small 按钮同尺寸，图标仍是 14px，点击区域对桌面端足够。
+   */
+  width: 24px;
+  height: 24px;
   margin: 0;
   padding: 0;
   border: 1px solid var(--layout-border, #ebeef5);
-  border-radius: 8px;
+  border-radius: 6px;
   /* 实心底：避免 fixed 操作列上半透明按钮透视出时间文字 */
   background: var(--layout-card, #ffffff);
   color: var(--layout-muted, #64748b);

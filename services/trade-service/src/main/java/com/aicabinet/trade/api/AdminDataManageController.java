@@ -54,7 +54,9 @@ public class AdminDataManageController {
 
     /**
      * 列元数据（列名 / 类型 / 可空 / 有默认 / 主键）。
-     * 前端据此生成「新增数据」的必填列骨架，避免给一个没有任何列名线索的空模板。
+     * 当初是给前端生成新增表单的必填列骨架用的（避免给一个没有任何列名线索的空模板）。
+     * <p>⚠️ 现状（2026-09-23）：前端已撤掉原始表的写入口（见 {@code CrudTable.vue} 顶部说明），
+     * 本接口**当前没有前端调用方**，仅作为 API 能力保留。</p>
      */
     @GetMapping("/schema/{table}")
     public ApiResponse<List<AdminDataManageService.ColumnMeta>> schema(@PathVariable String table) {

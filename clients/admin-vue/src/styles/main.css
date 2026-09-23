@@ -608,15 +608,30 @@ select {
   );
 }
 
-.layout-main-scroll .el-table th.el-table__cell,
+/*
+ * 行高由「最高的那一列」决定 —— 本项目的撑高列是**操作列**（自定义方形图标按钮，
+ * 见 TableActions.vue 的 .action-icon-btn）。压缩密度要动的是那个按钮，不是字体。
+ *   实测（1440×900，数据区 ~700px）：按钮 32px ⇒ 行高 57 ⇒ 首屏 7 行；
+ *                                  按钮 24px ⇒ 行高 ~44 ⇒ 首屏 12 行以上。
+ * ⚠️ 单元格上下内边距**保持 8px**：一度压到 6px（行高 41），观感偏挤 —— 省下的 2px
+ *    不值得拿「看着挤」去换，要提密度就让按钮更小（见 .action-icon-btn）。
+ */
 .layout-main-scroll .el-table td.el-table__cell,
-.page-card .el-table th.el-table__cell,
 .page-card .el-table td.el-table__cell {
   /* 全部列默认居中（含文本/金额/状态）；树表缩进列见 col-tree */
   text-align: center;
   font-family: inherit;
   font-size: var(--admin-font-size-table);
   padding: 8px 0;
+}
+
+.layout-main-scroll .el-table th.el-table__cell,
+.page-card .el-table th.el-table__cell {
+  text-align: center;
+  font-family: inherit;
+  font-size: var(--admin-font-size-table);
+  /* 表头只有一行文字、没有按钮，可以比表体紧 */
+  padding: 4px 0;
 }
 
 .layout-main-scroll .el-table th.el-table__cell,
@@ -657,7 +672,8 @@ select {
 .page-card .el-table td.col-action > .cell {
   overflow: visible;
   text-overflow: clip;
-  padding: 4px 6px;
+  /* 上下 2px：这层 padding 会叠在按钮高度上一起决定整表行高，见上面 td 段的说明 */
+  padding: 2px 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -857,8 +873,11 @@ select {
 
 .page-card > .el-card__header {
   overflow: visible;
-  /* A11：与 body 同用 --admin-card-pad-* */
-  padding: var(--admin-card-pad-y, 14px) var(--admin-card-pad-x, 16px);
+  /* A11：横向仍与 body 同用 --admin-card-pad-*；
+     纵向单独收窄 —— 卡片头只有「标题 + 一句说明」，70px 里 28px 是纯内边距，
+     而它下方的每 1px 都是从数据区里扣出来的（见 CrudTable.calcMaxHeight）。
+     实测 1440×900：卡片头 70 → 58，多出来的直接落在可见行数上。 */
+  padding: 8px var(--admin-card-pad-x, 16px);
   border-bottom: 1px solid var(--layout-border);
 }
 
@@ -1669,8 +1688,8 @@ a:focus-visible {
  */
 /*
  * ⚠ 包着 CrudTable 的壳不再自己横滚：
- *   壳一旦成为横滚容器，位于壳内的吸附工具行（排序 / 新增数据 / 刷新）与分页行就会
- *   随表体一起左移 —— 现象即「往右滑动，分页和新增数据、刷新跟着动」。
+ *   壳一旦成为横滚容器，位于壳内的吸附工具行（排序 / 批量删除 / 刷新）与分页行就会
+ *   随表体一起左移 —— 现象即「往右滑动，分页和表格动作按钮跟着动」。
  *   故壳层放行为 visible（不再形成滚动上下文，sticky 交回主滚动区），
  *   横向滚动下移到 .crud-table__table（只包住 el-table），操作列 sticky 相对它钉住。
  */
@@ -2251,11 +2270,37 @@ a:focus-visible {
   flex-wrap: wrap;
   gap: 12px;
   align-items: flex-end;
-  margin-bottom: 16px;
+  /* 16 → 12 → 8：筛选栏与表之间的这段空隙不承载任何内容，却直接从数据区高度里扣 */
+  margin-bottom: 8px;
 }
 
 .filter-bar .el-form-item {
   margin-bottom: 0;
+}
+
+/**
+ * 筛选行的「动作组」（只放按钮、不放任何输入控件的 el-form-item）：推到所在行的右端。
+ *
+ * 🔴 为什么必须推：`.filter-bar` 是 `flex-wrap: wrap` 容器，动作组原先只是流里的**普通项** ⇒
+ *    它会跟着换行一起漂走，既不贴右边界、又和下面的表格动作按钮不在同一条竖线上。
+ *    实测（1080×675，`.tmp/probe/filter-audit.mjs`）：
+ *      sessions        动作组右边界 **850**（表格动作按钮在 **1038**）
+ *      repair-tickets  动作组右边界 **470**（第一行空着 300+px，按钮却跑在第二行中间）
+ *    ⇒ 用户看到的是「查询/重置」和「表格侧动作按钮」分处两行、右边界还差 188px，
+ *      观感就是两组按钮「没放在一起」（产品原话：「新加的按钮为什么不能和之前的放一起」）。
+ *
+ * 🔴 选择器必须锁「只含按钮」这一事实，不能写 `:last-child`：
+ *    有的页面最后一个 form-item 恰恰是输入框（写死序号/位置会在那些页面把输入框推到右边）。
+ *    `:has(> .el-form-item__content > .el-button)` 收窄到**直接子级按钮**（输入框内的
+ *    清除/追加按钮不在这一层），再用 `:not(:has(输入控件))` 排除「输入框 + 按钮」的组合项。
+ */
+.filter-bar
+  > .el-form-item:has(> .el-form-item__content > .el-button):not(:has(.el-input)):not(
+    :has(.el-select)
+  ):not(:has(.el-checkbox)):not(:has(.el-radio)):not(:has(.el-date-editor)):not(
+    :has(.el-textarea)
+  ):not(:has(.el-switch)) {
+  margin-left: auto;
 }
 
 [data-theme='dark'] .el-table {
@@ -2311,8 +2356,25 @@ a:focus-visible {
 .layout-main-scroll .el-table,
 .page-card .el-table,
 .report-page .el-table {
-  --el-table-fixed-right-column: inset -10px 0 14px -6px rgba(15, 23, 42, 0.22);
-  --el-table-fixed-left-column: inset 10px 0 14px -6px rgba(15, 23, 42, 0.22);
+  /*
+   * 🔴 原值 `inset ∓10px 0 14px -6px rgba(15,23,42,.22)` 实测在吸附列左缘画出**一条 13px 宽的灰带**
+   * （截图像素扫描：x=532–544 在表头与每一行都非白；吸附列本体从 x=545 开始）。
+   * 用户原话就是「为什么他们之间有条线？」——它看起来像表格被切成两块。
+   * 收到 8px/8px/-8px、alpha .16 ⇒ 只剩 2–3px 的软过渡，仍能表达「列被钉住」但不再是灰条。
+   */
+  --el-table-fixed-right-column: inset -8px 0 8px -8px rgba(15, 23, 42, 0.16);
+  --el-table-fixed-left-column: inset 8px 0 8px -8px rgba(15, 23, 42, 0.16);
+}
+
+/*
+ * 深色主题必须单独覆盖：上面那三条（0,2,0）与 `[data-theme='dark'] .el-table`（0,2,0）
+ * 同特异性且更靠后，会把深色下更该显眼的分隔压成浅色值。
+ */
+[data-theme='dark'] .layout-main-scroll .el-table,
+[data-theme='dark'] .page-card .el-table,
+[data-theme='dark'] .report-page .el-table {
+  --el-table-fixed-right-column: inset -8px 0 8px -8px rgba(0, 0, 0, 0.5);
+  --el-table-fixed-left-column: inset 8px 0 8px -8px rgba(0, 0, 0, 0.5);
 }
 
 /* 旧版 patch 表（兼容） */
@@ -2326,17 +2388,21 @@ a:focus-visible {
 }
 
 /*
- * EP 默认仅在 is-scrolling-left/middle 时给右侧固定列加阴影；
- * is-scrolling-none / 滚到最右时会清掉。业务上操作列需要始终可见分隔。
- * 直接写 inset，避免依赖被 EP 晚加载 chunk 覆盖的 CSS 变量。
+ * 右侧吸附列的分隔：**只保留「确有内容被压在下面」时的那条提示**。
+ *
+ * EP 自己就是这么做的（is-scrolling-left/middle 才加），我们曾把它强行改成常驻，
+ * 结果 `is-scrolling-none`（压根没有横滚）与 `is-scrolling-right`（已滚到最右）
+ * 这两种「下面什么都没有」的情况也画阴影 ⇒ 纯属凭空的竖线。
+ *
+ * 判据可验：关掉本规则的 box-shadow 后，吸附列左缘的非白像素区段从 13px 塌到 0。
  */
 .el-table .el-table-fixed-column--right.is-first-column::before {
-  box-shadow: inset -10px 0 14px -6px rgba(15, 23, 42, 0.22) !important;
+  box-shadow: var(--el-table-fixed-right-column) !important;
   pointer-events: none;
 }
 .el-table.is-scrolling-none .el-table-fixed-column--right.is-first-column::before,
 .el-table.is-scrolling-right .el-table-fixed-column--right.is-first-column::before {
-  box-shadow: inset -10px 0 14px -6px rgba(15, 23, 42, 0.22) !important;
+  box-shadow: none !important;
 }
 
 /*
