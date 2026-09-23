@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:services/trade-service/src/main/resources/static/admin/assets/useDeviceOptions-DBPppxOO.js
-import{c as o,a as n,A as r}from"./index-BfpYiDXE.js";import{r as t}from"./ui-vendor-DnE6-c5J.js";function v(){const a=o(),e=t([]),s=t(!1);async function i(){if(!a.hasPerm("ops:device:list")&&!a.hasPerm("ops:device:ref")){e.value=[];return}s.value=!0;try{e.value=await n.request(r.devicesRef,"GET")}catch{e.value=[]}finally{s.value=!1}}return{deviceOptions:e,deviceOptionsLoading:s,loadDeviceOptions:i}}export{v as u};
-========
-import{c as o,a as n,A as r}from"./index-Dq7M4Kul.js";import{r as t}from"./ui-vendor-DdIZWGRH.js";function v(){const a=o(),e=t([]),s=t(!1);async function i(){if(!a.hasPerm("ops:device:list")&&!a.hasPerm("ops:device:ref")){e.value=[];return}s.value=!0;try{e.value=await n.request(r.devicesRef,"GET")}catch{e.value=[]}finally{s.value=!1}}return{deviceOptions:e,deviceOptionsLoading:s,loadDeviceOptions:i}}export{v as u};
->>>>>>>> parent of a495fab3 (fix(admin): el-table 动态最大高度改表格内滚——工具行/分页行常驻可见):services/trade-service/src/main/resources/static/admin/assets/useDeviceOptions-srH5sv81.js
