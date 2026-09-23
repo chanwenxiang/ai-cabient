@@ -289,4 +289,8 @@
    - **D1（F5 储值等级）已拍 A 并落地** ⇒ F5 转 ✅（`V283` 四档 + `MemberService.java:143` 消费点）——决策表 D1 行可画勾。
    - **G9 解约端点已落**（「立刻可开工」项消项）：`POST /pay-contract/unsign` + consumer-mp `mine.vue` 入口 + 证据包 `docs/evidence/2026-09-21-g9-review/`。
 2. **决策项现状**：D1 ✅ 已落｜D3/D4/D6/D7/D8/D9 仍待拍板（F3 复测两端分享 API 仍 0 命中）｜D2 建议 A（等 P0-1）维持｜D5 建议 A（等平台账号）维持。
-3. **新登记一项工程侧待办（不在 29 条内）**：`clients/admin-vue/vite.config.ts` 加 `build.modulePreload.polyfill: false` —— 省入口体积＋去掉一处入口变动源（入口内嵌 `__vite__mapDeps` 95 js + 72 css 名）。🔴 **现在不做**：改一行 ⇒ 产物哈希全变 ⇒ 必须重建 `static/admin`，而当前工作区是并发会话在制品（重建会把半成品固化进产物、提交归属说不清）；等其收口后做成「config 一行 + 重建」独立提交，前置＝先定浏览器基线。详见 `PROJECT-REFERENCE` §9 #15。
+3. ~~**新登记一项工程侧待办（不在 29 条内）**~~ ⇒ ✅ **已于 2026-09-23 收口（`423f65e1`）**：`clients/admin-vue/vite.config.ts` 加 `build.modulePreload.polyfill: false` ＋ 重建 `static/admin`。阻塞前提（并发会话在制品）已解除，已做成「config ＋ 重建」独立提交。
+   - 🔴 **机制不是「省掉老浏览器的预取」**（原文那句「去掉一处入口变动源」也不准确 —— 入口内嵌的 `__vite__mapDeps` 名单仍在，改名级联机制不变）：vite 6.4.3 `dep-Dm0c1Wj2.js:45517` `polyfill ? "'modulepreload'" : detectScriptRel()`，`:45419` 在不支持时返回 `"preload"`（`:45465` 补 `link.as="script"`）⇒ **支持的浏览器逐字不变，缺支持的改走浏览器原生 `rel=preload`**；省掉的是注入入口、且在支持浏览器里**首行即 early-return** 的 **710B** IIFE（`MutationObserver(…,{subtree:true})` ＋ `fetch` 兜底）。
+   - **基线已显式化**：本仓无 browserslist ⇒ vite 默认 `target='modules'`；modulepreload 原生支持始于 Chrome 66/Edge 79/Safari 11.3/Firefox 115 ⇒ 唯一落 `preload` 的是已过保的 FF 78–114。基线写进配置注释（不是只写在提交信息里）。
+   - 体积：入口 104689 → **104123B**；`index 101.7KB（≤120）`、`total JS 3040.9KB（≤3200）` 门禁 OK。
+   - 详细取证（含 diff 面「纯改名级联」的逐字节证明、两条判据陷阱）→ `PROJECT-REFERENCE` **§11.76**。
