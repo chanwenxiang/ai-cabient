@@ -1,0 +1,35 @@
+{
+  "login": true,
+  "summary": [
+    {
+      "path": "devices",
+      "pass": false,
+      "rendered": true,
+      "rows": 3,
+      "missing": [
+        "门店九号柜"
+      ],
+      "legacyLeft": []
+    },
+    {
+      "path": "users",
+      "pass": false,
+      "rendered": true,
+      "rows": 15,
+      "missing": [
+        "门店九号柜"
+      ],
+      "legacyLeft": []
+    },
+    {
+      "path": "user-analysis",
+      "pass": false,
+      "rendered": true,
+      "rows": 1,
+      "missing": [
+        "门店九号柜"
+      ],
+      "legacyLeft": []
+    }
+  ]
+}

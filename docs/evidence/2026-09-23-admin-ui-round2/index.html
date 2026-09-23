@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>管理后台第二轮：UI 优化 + 文案清理 + 夹具改名（2026-09-23）</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --card: #fff;
+        --fg: #1f2937;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --ok: #0f766e;
+        --warn: #b45309;
+        --bad: #b91c1c;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 32px 20px 64px;
+        background: var(--bg); color: var(--fg);
+        font: 14px/1.7 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      }
+      .wrap { max-width: 1080px; margin: 0 auto; }
+      h1 { font-size: 22px; margin: 0 0 6px; }
+      .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+      section {
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 10px; padding: 18px 20px; margin-bottom: 18px;
+      }
+      h2 { font-size: 16px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+      h3 { font-size: 14px; margin: 18px 0 8px; }
+      table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+      th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+      th { background: #f3f4f6; font-weight: 600; }
+      code {
+        background: #f3f4f6; padding: 1px 5px; border-radius: 4px;
+        font-family: "Cascadia Mono", Consolas, monospace; font-size: 12.5px;
+      }
+      pre {
+        background: #f8fafc; border: 1px solid var(--line); border-radius: 8px;
+        padding: 10px 12px; overflow: auto; font-size: 12.5px; margin: 8px 0;
+      }
+      .ok { color: var(--ok); font-weight: 600; }
+      .warn { color: var(--warn); font-weight: 600; }
+      .bad { color: var(--bad); font-weight: 600; }
+      ul { margin: 8px 0; padding-left: 22px; }
+      .shots { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+      .shots figure { margin: 0; width: 320px; }
+      .shots img { width: 100%; border: 1px solid var(--line); border-radius: 8px; }
+      .shots figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+      .kpi { display: flex; flex-wrap: wrap; gap: 12px; margin: 4px 0 0; }
+      .kpi div {
+        border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; background: #fafafa;
+      }
+      .kpi b { display: block; font-size: 18px; }
+      .kpi span { font-size: 12px; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>管理后台第二轮：UI 优化 + 文案清理 + 夹具改名</h1>
+      <div class="sub">
+        2026-09-23 · 真浏览器（Playwright 1.55，登录态，1440×900）· 所有结论附命令与输出
+      </div>
+
+      <section>
+        <h2>0. 一句话结论</h2>
+        <div class="kpi">
+          <div><b>34 / 0</b><span>门禁链：34 个门禁，失败 0</span></div>
+          <div><b>10 / 0</b><span>受影响单测：10 例，失败 0</span></div>
+          <div><b>0</b><span>渲染层「测试」文案命中</span></div>
+          <div><b>3/3 vs 0/3</b><span>改名验证 A/B</span></div>
+        </div>
+        <p>
+          四条建议已逐条处置 —— 其中<strong>两条我最初的判据是错的</strong>（③ 与 ①），已当场更正并写清错在哪。
+          「测试用文案」在<strong>渲染层面清零</strong>；dev 夹具改名走 forward-only 迁移 <code>V286</code>，
+          因此<strong>一个全新的库（含生产）跑完迁移链也不会再出现「测试柜-001 / 测试用户」</strong>。
+        </p>
+      </section>
+
+      <section>
+        <h2>1. 方法与口径</h2>
+        <ul>
+          <li>只认<strong>渲染后文本</strong>（<code>document.body.innerText</code>）——源码里有字面量 ≠ 会渲染（会被 <code>v-if</code> / 常量折叠摘掉）。</li>
+          <li>每条断言都要有<strong>渲染证明</strong>：页面正文长度达标 <em>且</em> 表体有行，否则「旧名消失」在空页上恒真 ⇒ 假绿。</li>
+          <li>新增判据一律做 <strong>A/B</strong>：能证明它会红，才算它绿。</li>
+          <li>容器内取证：本机 <code>curl</code> 必须带 <code>--noproxy "*"</code>（宿主注入的 <code>http_proxy</code> 会把「没监听」误读成「服务 502」）。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>2. 四条建议：结果与两处自我更正</h2>
+        <table>
+          <tr>
+            <th style="width: 90px">建议</th>
+            <th style="width: 210px">我最初的判断</th>
+            <th>实测与处置</th>
+          </tr>
+          <tr>
+            <td>① 宽表吸附列压住邻列</td>
+            <td>「阴影太淡，加个左阴影」</td>
+            <td>
+              <span class="warn">原判不准</span>：阴影<strong>本来就存在</strong> —— <code>main.css:2360</code> 起是
+              <strong>刻意调暗</strong>过的（用户曾抱怨那里有一条「线」）。真正的缺陷是
+              <code>main.css:2403-2406</code> 那两条抑制规则<strong>永不触发</strong>：
+              「压根不可横滚 / 已滚到最右」判的是 EP 的 <code>is-scrolling-*</code> 状态类，而本仓把横滚收在
+              <code>.crud-table__table</code>，EP 收不到滚动事件 ⇒ 该类<strong>恒为 <code>is-scrolling-left</code></strong>，
+              吸附列左缘在任何位置都挂着过渡带。<br />
+              处置：改为由<strong>真实滚动容器</strong>驱动 <code>is-fixshadow</code>（可横滚 <em>且</em> 未到最右 ⇒ 显示）。
+              实测：滚到最右时 class 由 <code>true → false</code>、阴影消失。
+            </td>
+          </tr>
+          <tr>
+            <td>② 空态浪费竖向空间</td>
+            <td>「占位太高」</td>
+            <td>
+              属实：<code>el-empty</code> 实测占 <strong>278–318px</strong>，且整块没有出口动作。<br />
+              处置：紧凑空态 <code>.crud-empty</code>（小图标＋一行说明＋可选 <code>#empty-extra</code> 动作），
+              并放行 EP 自带的 <code>.el-table__empty-text{width:50%;line-height:60px}</code>（它会把这套紧凑空态重新撑高）。
+              实测：空态块 <strong>160px</strong>、表体 <strong>192px</strong>。
+            </td>
+          </tr>
+          <tr>
+            <td>③ 溢出单元格悬停看全文</td>
+            <td>「没有悬浮提示，要加」</td>
+            <td>
+              <span class="bad">原判是错的</span>：<code>installTableCellNativeTitle()</code>
+              （<code>main.ts:28</code> 全局安装）<strong>早已</strong>用原生 <code>title</code> 兜底，并显式跳过
+              <code>.col-action</code> / <code>.el-table-fixed-column--right</code>。<br />
+              我 round-1 的判据只看了 <code>text-overflow: ellipsis</code>，<strong>没查 <code>title</code> 属性</strong> ——
+              于是把「已经解决」误报成「缺失」。本项<strong>无需改代码</strong>，只补了正/负对照判据（见 §4）。<br />
+              ⚠️ 顺带发现：门禁 <code>check:admin-anti-jitter</code> 规则 H 全后台禁止该 prop，
+              且它的 <code>stripComments</code> 只剥 JS 注释、<strong>不剥 HTML 注释</strong> ⇒ 连注释里写出那个 prop 名都会判红。
+            </td>
+          </tr>
+          <tr>
+            <td>④ 窄屏提示条占高</td>
+            <td>「排查其它固定高度页」</td>
+            <td>round-1 已修设备地图页；本轮 71 路由复扫<strong>无回归</strong>。</td>
+          </tr>
+          <tr>
+            <td>⑤ 新增（对标主流 SaaS 后台）</td>
+            <td>—</td>
+            <td>
+              <strong>列设置</strong>：列显示/隐藏，按<strong>路由</strong>持久化（不同页列集合不同，混存会互相污染）；
+              ≥2 列时出现；「至少保留一列」防呆。<br />
+              ⚠️ 实现要点：业务列由各页通过默认插槽传入 ⇒ 在渲染前对插槽 vnode 做一次过滤，
+              一处改动覆盖全站 71 个表页。<strong>两处陷阱</strong>：
+              (a) 必须给每个列 vnode 显式 <code>key</code>（Vue 对无 key 子节点按<strong>下标</strong> diff，
+              隐藏中间列会让后面的列被就地复用 ⇒ <code>columnId</code> 错乱）；
+              (b) 过滤结果必须是<strong>扁平 vnode 数组</strong>（<code>el-table-column</code> 用
+              <code>getColumnElIndex()</code>＝<code>indexOf</code> 只看<strong>直接子节点</strong>，
+              多包一层 DOM 会让所有列注册失败、整表变空）⇒ 用函数式组件返回数组（Fragment，不产生 DOM）。<br />
+              ⚠️ <strong>未采纳「行密度切换」</strong>：<code>main.css:611-618</code> 已按实测定过行高
+              （<code>TableActions</code> 24px 按钮＝行高旋钮，再压「观感偏挤」）⇒ 加个开关只会是无效花架子。
+            </td>
+          </tr>
+        </table>
+      </section>
+
+      <section>
+        <h2>3. 「测试用文案」清理</h2>
+
+        <h3>3.1 处置清单</h3>
+        <table>
+          <tr><th style="width: 300px">位置</th><th>原文案</th><th>处置</th></tr>
+          <tr>
+            <td><code>LoginView.vue</code></td>
+            <td>「内部测试账号」</td>
+            <td>由 <code>ENABLE_TEST_TOOLS</code> 门控（<code>v-if</code>）⇒ 命中登录页渲染文本 <strong>0</strong>（复扫确认）。无需改。</td>
+          </tr>
+          <tr>
+            <td><code>LineManagerView.vue</code> / <code>MerchantWithdrawView.vue</code></td>
+            <td>「测试环境可能为记账打款」「Mock 打款」</td>
+            <td>改为业务化措辞（说明手续费与到账口径），去掉「测试 / Mock」字样。</td>
+          </tr>
+          <tr>
+            <td><code>SystemConfigService.java</code></td>
+            <td>告警值班人描述里的「张三」</td>
+            <td>改为占位符（值班人姓名 / 手机号）；并用既有 <code>refreshDescriptionIfPresent</code> 修正<strong>已入库的历史行</strong>（否则旧库仍显示张三）。</td>
+          </tr>
+          <tr>
+            <td><code>AdminDashboardController.java</code></td>
+            <td>大屏「演示 / Mock 数据 · 请勿作为生产口径」</td>
+            <td>
+              改为「演示数据 · 非生产口径」，语义保留 —— <strong>有意保留</strong>：
+              它是运行期真值标签，删掉会让演示数据失去标注（已在 Javadoc 写明「勿删」）。
+            </td>
+          </tr>
+          <tr>
+            <td><code>DeviceDetailView.vue</code></td>
+            <td>字段提示里的「测试门店…」</td>
+            <td>改写成真实的地址录入约束说明（未限定行政区划会被地图服务匹配到别的城市）。</td>
+          </tr>
+          <tr>
+            <td>公告 / 优惠券 / 营销 / SKU 等页面</td>
+            <td>「示例公告」「示例可乐」等</td>
+            <td>逐条改写为业务化文案。</td>
+          </tr>
+        </table>
+
+        <h3>3.2 复扫结果（渲染层）</h3>
+        <pre>[summary] 1440x900 命中 0 处，涉及页面 0 个 + 登录页
+（覆盖 66 条路由 + 登录页；日志 .tmp/probe/audit/copy-scan-rename.log）</pre>
+        <p>
+          ⚠️ <strong>诚实口径</strong>：扫描器 <code>copy-scan.mjs:71</code> 的 <code>SKIP</code> 集合含
+          <code>/big-screen</code> ⇒ 该页<strong>未被扫描</strong>（不是「已验证为干净」）。
+          该页显示的「演示数据 · 非生产口径」是<strong>有意的运行期标签</strong>，非遗留文案。
+        </p>
+
+        <h3>3.3 dev 夹具改名（本轮新增）</h3>
+        <p><strong>病根</strong>（不是「某处文案漏改」，而是种子写在无条件迁移里）：</p>
+        <table>
+          <tr><th style="width: 220px">来源</th><th>写入内容</th></tr>
+          <tr><td><code>V2__user_order_sku.sql:56</code></td><td><code>CAB-001</code> → 「测试柜-001」</td></tr>
+          <tr><td><code>V2__user_order_sku.sql:59-60</code></td><td><code>user_info#10001</code> → 「测试用户」</td></tr>
+          <tr><td><code>V44__merchant_scope_hardening_m5.sql:8</code></td><td><code>CAB-OTHER</code> → 「测试柜-OTHER」</td></tr>
+          <tr><td><code>V57__repair_demo_device_name.sql:3</code></td><td>把 <code>CAB-001</code> 的名字<strong>改回</strong>「测试柜-001」</td></tr>
+        </table>
+        <p>
+          这四支<strong>没有 <code>seed_env</code> 守卫</strong> ⇒ 一个全新的库（<strong>含生产</strong>）跑完迁移链后，
+          运营台上就会出现「测试柜-001 / 测试用户」，上线时还得再改一次 —— 这正是本轮要消除的。
+        </p>
+        <ul>
+          <li>
+            <strong>forward-only</strong>：<code>V2</code> / <code>V44</code> / <code>V57</code> 一律不动
+            （改写已应用迁移 = checksum 漂移）。改名前移到新迁移
+            <code>V286__rename_demo_fixtures.sql</code>（<code>MIGRATION_KIND: backfill</code>）。
+          </li>
+          <li>
+            <strong>自限式条件</strong>：仅当当前值<strong>仍等于旧占位值</strong>（或为空 / 等于 device_id / 含 <code>???</code>）才改写
+            ⇒ 运营已经手工改过的名字<strong>不会被覆盖</strong>，重放与多环境均安全。
+          </li>
+          <li>
+            🔴 <strong>刻意不加 <code>seed_env</code> 守卫</strong>（与 <code>V244</code>/<code>V252</code>/<code>V283</code> 不同）：
+            那几支守的是「只在 UAT/local 生效的演示种子」，生产跳过它们是对的；而这里要修的病根恰恰是
+            「旧名<strong>已经</strong>写进了每一个环境」—— 加守卫会让生产<strong>继续</strong>显示「测试柜-001」，与目的完全相反。
+          </li>
+          <li>
+            <strong>同源收口</strong>：<code>DeviceNameSupport.KNOWN_NAMES</code> 为唯一运行时权威
+            （新增 <code>DEMO_DEVICE_NAME</code> / <code>DEMO_DEVICE_NAME_OTHER</code>），
+            <code>DemoDataService</code> 改为引用常量（新增 <code>DEMO_CONSUMER_NAME</code>），消灭重复字面量。
+          </li>
+          <li>
+            顺带把测试里的同族夹具一并改名（<code>DeviceNameSupportTest</code> 断言改为引用常量，
+            <code>FundBillServiceTest</code> / <code>SiteContractServiceTest</code> 的本地夹具）——
+            <strong>修一类缺陷要扫兄弟副本</strong>。
+          </li>
+        </ul>
+        <table>
+          <tr><th style="width: 200px">对象</th><th>旧</th><th>新</th></tr>
+          <tr><td><code>device_info</code> CAB-001</td><td>测试柜-001</td><td><strong>门店一号柜</strong></td></tr>
+          <tr><td><code>device_info</code> CAB-OTHER</td><td>测试柜-OTHER</td><td><strong>门店二号柜</strong></td></tr>
+          <tr><td><code>user_info</code> 10001</td><td>测试用户</td><td><strong>陈晓</strong></td></tr>
+        </table>
+      </section>
+
+      <section>
+        <h2>4. 验证证据</h2>
+        <table>
+          <tr><th style="width: 190px">项</th><th style="width: 300px">命令 / 取证点</th><th>结果</th></tr>
+          <tr>
+            <td>受影响单测</td>
+            <td><code>mvn -pl services/trade-service clean test -Dtest=DeviceNameSupportTest,FundBillServiceTest,SiteContractServiceTest</code></td>
+            <td>
+              <span class="ok">EXITCODE=0</span>；按<strong>真实 <code>&lt;testcase&gt;</code> 计数</strong>：
+              FundBill 4 + SiteContract 2 + DeviceNameSupport 4 = <strong>10 例，fail=0</strong>；日志尾部 <code>BUILD SUCCESS</code>
+              <br />（不用 <code>Tests run:</code> 行——在 <code>@Nested</code>/IT 类上会写 0）
+            </td>
+          </tr>
+          <tr>
+            <td>迁移已应用</td>
+            <td><code>select version,success,installed_on from flyway_schema_history where version='286'</code></td>
+            <td><span class="ok">286 · success=t</span> · installed_on 2026-09-23 15:41:08 —— 从<strong>运行中的容器</strong>取，不是源码</td>
+          </tr>
+          <tr>
+            <td>数据行已改名</td>
+            <td><code>select device_id,device_name from device_info</code> / <code>select name from user_info</code></td>
+            <td>
+              <code>CAB-001 → 门店一号柜</code>；<code>10001 → 陈晓</code>；
+              两表 <code>like '%测试%'</code> 行数 = <strong>0 / 0</strong>
+            </td>
+          </tr>
+          <tr>
+            <td>渲染层 A/B</td>
+            <td><code>node .tmp/probe/verify-rename.mjs</code>（A＝期望新名 / B＝期望「门店九号柜」）</td>
+            <td>
+              <span class="ok">A：3/3 PASS</span>（devices rows=3 / users rows=15 / user-analysis rows=1，
+              均 <code>missing=[]</code>、<code>legacyLeft=[]</code>）<br />
+              <span class="bad">B：0/3 FAIL</span>（<code>missing=[门店九号柜]</code>）⇒ <strong>证明判据非恒真</strong>
+            </td>
+          </tr>
+          <tr>
+            <td>文案复扫</td>
+            <td><code>copy-scan.mjs --viewport=1440x900</code></td>
+            <td><span class="ok">命中 0 处 / 0 个页面</span>（66 路由 + 登录页；<code>/big-screen</code> 被 SKIP，见 §3.2）</td>
+          </tr>
+          <tr>
+            <td>门禁链</td>
+            <td><code>node scripts/run-audit-gates.mjs</code>（带 nopipe 垫片）</td>
+            <td><span class="ok">34 个门禁，失败 0</span>（含 <code>check:line-endings</code>、<code>check:admin-anti-jitter</code>、<code>check:admin-table-align</code>）</td>
+          </tr>
+          <tr>
+            <td>迁移门禁<br />（<strong>CI-only</strong>）</td>
+            <td><code>check-flyway-seed-separation.mjs</code> / <code>check-migration-safety.mjs</code></td>
+            <td>
+              前者：<code>新增 V 迁移 1 个</code> → OK（<strong>真扫到了 V286</strong>，非空转）<br />
+              后者：<code>reviewed=false ...V286__rename_demo_fixtures.sql</code> → OK
+              <br />⚠️ 这两支<strong>不在本机 34 链内</strong>（O9 的门禁布在 CI），故必须手工跑
+            </td>
+          </tr>
+          <tr>
+            <td>round-2 界面复跑</td>
+            <td><code>node .tmp/probe/final-verify.mjs</code></td>
+            <td>
+              原生 <code>title</code> 正对照：溢出单元格 <code>title</code> == 全文 ⇒ <strong>true</strong>；
+              隐藏 3 列后 <code>scrollW=1710 vs clientW=1147</code>；
+              空态 <code>tableH=192 / emptyBlockH=160</code>
+            </td>
+          </tr>
+        </table>
+
+        <h3>截图</h3>
+        <div class="shots">
+          <figure><img src="shots/rename-devices.png" alt="设备列表：门店一号柜" /><figcaption>设备列表：<code>门店一号柜</code></figcaption></figure>
+          <figure><img src="shots/rename-users.png" alt="用户余额：陈晓" /><figcaption>用户余额：<code>陈晓</code></figcaption></figure>
+          <figure><img src="shots/rename-user-analysis.png" alt="用户分析：陈晓" /><figcaption>用户分析：<code>陈晓</code></figcaption></figure>
+          <figure><img src="shots/sessions-cols-popover.png" alt="列设置弹层" /><figcaption>列设置弹层（⑤）</figcaption></figure>
+          <figure><img src="shots/sessions-cols-hidden.png" alt="隐藏列后" /><figcaption>隐藏列后的表头（⑤）</figcaption></figure>
+          <figure><img src="shots/ad-assets-empty.png" alt="紧凑空态" /><figcaption>紧凑空态（②）</figcaption></figure>
+        </div>
+      </section>
+
+      <section>
+        <h2>5. 遗留与风险（诚实口径）</h2>
+        <ul>
+          <li>
+            🔴 <strong>比文案更本质的上线问题</strong>：<code>V2</code>/<code>V44</code>/<code>V57</code>
+            <strong>没有 <code>seed_env</code> 守卫</strong>，会把 dev 夹具
+            （<code>CAB-001</code> / <code>CAB-OTHER</code> / <code>user_info#10001</code> /
+            <code>WH-DEMO-001</code> / <code>SKU-DEMO-001</code>）播种到<strong>生产</strong>。
+            本轮<strong>只改了名字，没有删</strong>。是否加一支「生产不播种 dev 夹具」的迁移属
+            <strong>破坏性数据动作</strong>，需拍板后再做。
+          </li>
+          <li>
+            设备/仓库<strong>地址</strong>仍含「演示」字样（如「上海市黄浦区演示点位」「演示中心仓」）——
+            与本仓既有的「演示数据 · 非生产口径」口径一致，<strong>有意保留</strong>。
+          </li>
+          <li>
+            <code>10001</code> 的手机号 <code>13800138000</code> 是经典测试号段；<strong>未改</strong> ——
+            改它牵动 UAT/脚本多处，收益不抵风险。
+          </li>
+          <li><code>/big-screen</code> 未纳入文案复扫（扫描器 SKIP）；如需覆盖请加 <code>--dyn=1</code>。</li>
+          <li>
+            <code>static/admin</code> 是<strong>烘焙进镜像</strong>的（当前运行栈<strong>无</strong> bind mount）⇒
+            改前端后必须 <code>node scripts/build-admin.mjs</code> → <strong>重建镜像</strong>，只改源码不重建＝没生效。
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>6. 未做 / 下一步（待一句话确认）</h2>
+        <ul>
+          <li>
+            「列表页个人视图」的下一档：<strong>列顺序自定义（拖拽）</strong>、<strong>每页条数按路由记忆</strong>。
+          </li>
+          <li>
+            竞品路线图 29 条的<strong>工程侧可开工项已为 0</strong>
+            （<code>COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md</code> §8.5）；
+            再往上的功能（F3/F7–F11 等）需 <strong>D2–D9 拍板</strong>或外部资源到位。
+          </li>
+        </ul>
+      </section>
+    </div>
+  </body>
+</html>

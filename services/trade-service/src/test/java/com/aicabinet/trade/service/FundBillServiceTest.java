@@ -69,9 +69,9 @@ class FundBillServiceTest {
                 "S1:ORDER_PAYMENT", "ORDER_PAYMENT", "IN", 441,
                 "M001", "默认直营商户", "CAB-001", "1788252279967241317",
                 null, "WECHAT", Instant.parse("2026-09-01T08:00:00Z"));
-        var deviceNames = Map.of("CAB-001", "测试柜-001");
+        var deviceNames = Map.of("CAB-001", "门店一号柜");
         assertEquals(1, FundBillService.filterLedgerRows(List.of(row), "178825227996", deviceNames).size());
-        assertEquals(1, FundBillService.filterLedgerRows(List.of(row), "测试柜", deviceNames).size());
+        assertEquals(1, FundBillService.filterLedgerRows(List.of(row), "门店", deviceNames).size());
         assertEquals(1, FundBillService.filterLedgerRows(List.of(row), "默认直营", deviceNames).size());
         assertTrue(FundBillService.filterLedgerRows(List.of(row), "not-a-real-keyword", deviceNames).isEmpty());
     }

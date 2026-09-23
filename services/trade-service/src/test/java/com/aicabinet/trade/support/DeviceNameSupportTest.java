@@ -8,7 +8,7 @@ class DeviceNameSupportTest {
 
     @Test
     void resolve_corruptedDemoDevice_returnsCanonicalName() {
-        assertEquals("测试柜-001", DeviceNameSupport.resolve("CAB-001", "???-001"));
+        assertEquals(DeviceNameSupport.DEMO_DEVICE_NAME, DeviceNameSupport.resolve("CAB-001", "???-001"));
     }
 
     @Test
@@ -23,7 +23,11 @@ class DeviceNameSupportTest {
 
     @Test
     void canonicalIfCorrupted_detectsQuestionMarks() {
-        assertEquals("测试柜-001", DeviceNameSupport.canonicalIfCorrupted("CAB-001", "???-001"));
-        assertNull(DeviceNameSupport.canonicalIfCorrupted("CAB-001", "测试柜-001"));
+        assertEquals(
+                DeviceNameSupport.DEMO_DEVICE_NAME,
+                DeviceNameSupport.canonicalIfCorrupted("CAB-001", "???-001")
+        );
+        // 已经是规范名 ⇒ 不需要修复（返回 null，调用方据此判断「无需写库」）
+        assertNull(DeviceNameSupport.canonicalIfCorrupted("CAB-001", DeviceNameSupport.DEMO_DEVICE_NAME));
     }
 }

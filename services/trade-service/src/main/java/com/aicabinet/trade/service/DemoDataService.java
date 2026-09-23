@@ -35,6 +35,14 @@ public class DemoDataService {
     public static final String DEMO_WAREHOUSE_ID = "WH-DEMO-001";
     public static final long DEMO_CONSUMER_USER_ID = 10001L;
     public static final String DEMO_CONSUMER_PHONE = "13800138000";
+    /**
+     * 演示消费者的显示名。
+     *
+     * <p>2026-09-23：原为「测试用户」，会随 V2 的种子落到任何环境（含生产），上线时还得再改
+     * ⇒ 改成拟真名。柜机名同理由 {@link DeviceNameSupport#DEMO_DEVICE_NAME} 提供。
+     * 历史行由 {@code V286__rename_demo_fixtures.sql} 一次性改写。
+     */
+    public static final String DEMO_CONSUMER_NAME = "陈晓";
 
     private final SecurityProperties securityProperties;
     private final SkuCatalogMapper skuCatalogRepository;
@@ -176,7 +184,7 @@ public class DemoDataService {
         if (device == null) {
             device = new DeviceInfo();
             device.setDeviceId(DEMO_DEVICE_ID);
-            device.setDeviceName("测试柜-001");
+            device.setDeviceName(DeviceNameSupport.DEMO_DEVICE_NAME);
             device.setDeviceType("AI_CABINET_V1");
             device.setOnlineStatus("OFFLINE");
             device.setLatitude(31.2304);
@@ -272,7 +280,7 @@ public class DemoDataService {
             user.setUserId(DEMO_CONSUMER_USER_ID);
             user.setAccountType(CabinetConstants.ACCOUNT_TYPE_CONSUMER);
             user.setPhoneNumber(DEMO_CONSUMER_PHONE);
-            user.setName("测试用户");
+            user.setName(DEMO_CONSUMER_NAME);
             user.setVerified(true);
             userInfoRepository.save(user);
         }
