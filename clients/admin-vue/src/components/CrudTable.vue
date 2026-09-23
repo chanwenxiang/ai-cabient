@@ -1,9 +1,12 @@
 <template>
   <div ref="rootRef" class="crud-table">
-    <!-- 工具行：页面筛选（slot）+ 排序/已选/导入导出/刷新 同一行，钉在表格上方 -->
-    <div v-if="showMetaBar || $slots.toolbar" class="crud-table__meta">
+    <div v-if="$slots.toolbar" class="crud-table__toolbar">
+      <slot name="toolbar" />
+    </div>
+
+    <!-- 吸附工具行：排序切换 / 已选提示 / 导入导出 / 刷新，随表格滚动钉在可视区顶部 -->
+    <div v-if="showMetaBar" class="crud-table__meta">
       <div class="crud-table__meta-left">
-        <slot name="toolbar" />
         <template v-if="table.sortProp">
           <span class="crud-table__meta-label">按 {{ sortFieldLabel }}</span>
           <el-button-group size="small">
@@ -163,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, useSlots, watch, type ComponentPublicInstance } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type ComponentPublicInstance } from 'vue';
 import type { TableInstance } from 'element-plus';
 import { CaretBottom, CaretTop, Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import PagePager from '@/components/PagePager.vue';
@@ -399,9 +402,8 @@ async function dataSave() {
 
 const sortFieldLabel = computed(() => props.sortFieldLabel || table.sortProp);
 const showMetaBar = computed(
-  () => Boolean(table.sortProp) || props.selectable || props.showRefresh || Boolean(csvCtl) || Boolean(slots.toolbar)
+  () => Boolean(table.sortProp) || props.selectable || props.showRefresh || Boolean(csvCtl)
 );
-const slots = useSlots();
 const hasActions = computed(() => typeof props.actions === 'function');
 
 function onDataAction(key: string, row: any) {
