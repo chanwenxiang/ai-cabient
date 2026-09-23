@@ -92,13 +92,21 @@
       </div>
     </div>
 
-    <!-- 横向滚动收在本容器内（壳 .table-scroll 放行 visible）：
-         否则壳一横滚，上面的工具行与下面的分页行会随表体一起左移 -->
-    <div class="crud-table__table">
+    <!-- 纵横滚动都收在本容器内（壳 .table-scroll 放行 visible）：
+         ① 壳一旦自己横滚，上面的工具行与下面的分页行会随表体一起左移；
+         ② 内滚收在这里，「表头 th」与「表体 td」的最近滚动容器才同源 ⇒ 右侧操作列两侧一致吸附。
+         高度上限由 calcMaxHeight 写进本容器的 max-height。
+         🔴 切勿改回把 max-height 交给 el-table：EP 的 body-wrapper/el-scrollbar__wrap 会因此
+            另立滚动上下文，表体 td 的最近滚动容器变成「宽度=表格总宽」的纵向滚动容器，
+            其 sticky right:0 只能钉在表格右缘＝自然位置 ⇒ 操作列不吸附，且与表头不一致。
+         见 main.css「.crud-table__table」段落。 -->
+    <div
+      class="crud-table__table"
+      :style="tableMaxHeight ? { maxHeight: `${tableMaxHeight}px` } : undefined"
+    >
       <el-table
         ref="tableRef"
         v-loading="table.loading"
-        :max-height="tableMaxHeight"
         :data="table.displayItems"
         stripe
         border

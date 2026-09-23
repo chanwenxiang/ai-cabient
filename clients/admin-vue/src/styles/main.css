@@ -1691,25 +1691,75 @@ a:focus-visible {
   overflow: visible;
 }
 
-/* CrudTable 的横滚容器：只包表格本体，工具行/分页行在它之外，不再被横滚带动 */
+/*
+ * CrudTable 的内滚容器：**横滚 + 纵滚都在这一层**，工具行/分页行在它之外，不会被带动。
+ * 高度上限由 CrudTable.vue 的 calcMaxHeight 写成本容器的 inline max-height。
+ *
+ * 🔴 纵滚为什么必须在这一层，而不是交回 el-table 的 max-height：
+ *    sticky 的「钉住位置」= **最近的滚动容器**。若纵滚落在 el-table 内部
+ *    （.el-table__body-wrapper .el-scrollbar__wrap），那个容器的**宽度必然等于表格总宽**
+ *    （否则它就得自己横向裁切），于是表体 td 的 sticky right:0 只能钉在表格右缘 = 自然位置
+ *    ⇒ 操作列**不吸附**；而表头 wrapper 是 overflow:visible，它会钉到本容器（宽=可视宽）
+ *    ⇒ 真的吸附。两者不同源（实测 /orders：th 恒 x=1218，td 2253→1994→1735→1477→1218）
+ *    ⇒ 「操作」表头浮在别的列上方、按钮却还在屏外，比两者都不吸附更糟。
+ *    纵滚上移到本层后，th 与 td 的最近滚动容器同为 .crud-table__table ⇒ 两侧一致吸附。
+ * 见 scripts/check-admin-anti-jitter.mjs 规则 A / I。
+ */
 .crud-table__table {
   min-width: 0;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
   border-radius: inherit;
 }
 
-/* 与 .table-scroll--h 同法：内层 table 按列宽总和铺开，由上面的容器横滚。
-   选择器比 `.table-scroll .el-table` 多一级，压过它的 width/min-width: 100% */
-.table-scroll .crud-table__table .el-table,
-.table-scroll .crud-table__table .el-table__inner-wrapper {
-  width: fit-content !important;
-  min-width: 100% !important;
+/*
+ * 🔴 .el-table 必须**定宽 = 容器**，绝不能给 width: fit-content。
+ *
+ * EP 算列宽时读的是元素自身的宽度：
+ *   table-layout.mjs:93   const bodyWidth = this.table.vnode.el?.clientWidth
+ *   table-layout.mjs:104  if (bodyMinWidth <= bodyWidth) { …按差值拉伸弹性列… }
+ * 给 `width: fit-content` ⇒ clientWidth 就是「EP 自己上一轮算出来的宽度」= 自引用：
+ * 列集合一变化（例：订单页「待支付」页签多一列 width:110），下一次重排读到的是**旧的更大宽度**，
+ * 于是 EP 把「多出来的那点」当余量摊给弹性列 ⇒ 宽度**只增不减**：
+ *   实测 Σ 2182 →(切到待支付)→ 2292 →(切回)→ 2292(列被摊宽:140→164) → 2402 → 2402(185) → …
+ *   每次切页签 +110，无限增长 ⇒ 列越来越宽、内容一路右移（用户报「一直在往右移动」）。
+ * 定宽后 bodyWidth 恒定 ⇒ EP 每次得到同一结果（幂等），可用区不够时走 min-width 分支。
+ *
+ * 内层宽度不再由我们插手：EP 从 bodyWidth 写 inline width 给 .el-table__inner-wrapper
+ * （style-helper.mjs:59），列宽总和超过容器时它就 >100%，由 .crud-table__table 横滚；
+ * 故 .el-table 自身放行 overflow，否则那截超宽会被自己裁掉、外层永远滚不到。
+ */
+.table-scroll .crud-table__table .el-table {
+  width: 100% !important;
+  min-width: 0 !important;
   max-width: none !important;
+  /* 压掉 EP 由 max-height prop 写入的 inline 值（inline 非 important，输给 !important） */
+  max-height: none !important;
+  overflow: visible !important;
+}
+.table-scroll .crud-table__table .el-table__inner-wrapper {
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: visible !important;
 }
 .table-scroll .crud-table__table .el-table table {
   min-width: 100% !important;
   table-layout: fixed !important;
+}
+/*
+ * 把 EP 自己的内滚容器一并放行 —— 否则它们会抢走「最近滚动容器」的身份，
+ * 表体 td 的 sticky 就又钉回「宽度=表格总宽」的那一层（见上方 .crud-table__table 注释）。
+ * ⚠ 既有两条同义规则都带 :not(:has(.crud-table))（老布局专用），故此处必须为 CrudTable 再写一份。
+ */
+.table-scroll .crud-table__table .el-table__body-wrapper,
+.table-scroll .crud-table__table .el-table__footer-wrapper {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.table-scroll .crud-table__table .el-table .el-scrollbar__wrap {
+  overflow: visible !important;
+  max-height: none !important;
 }
 
 /*
@@ -1809,6 +1859,28 @@ a:focus-visible {
 }
 .table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--right {
   z-index: 7 !important;
+}
+
+/*
+ * 🔴 CrudTable 页里表头与表体**同源吸附**（本规则 + 上方 .crud-table__table 的纵滚上移）。
+ *
+ * sticky 的「钉住位置」由**最近的滚动容器**决定，表头与表体在这一层曾经并不相同：
+ *   表头：.el-table__header-wrapper 是 overflow:visible，故钉到 .crud-table__table（宽=容器）；
+ *   表体：纵向内滚在 .el-table__body-wrapper .el-scrollbar__wrap 上（overflow:auto），
+ *         该容器**宽度必等于表格总宽**，故 td 的 sticky right:0 只能钉在表格右缘 = 自然位置。
+ * 只让表头吸附的后果（实测 /orders，容器 [251..1398]，操作列宽 180）：
+ *   表头 th 恒 x=1218（钉住），表体 td 却 2253→1994→1735→1477→1218（随滚动左移）
+ *   ⇒ 表头「操作」浮在别的列上方、表体按钮还在屏外。
+ * 修法不是取消吸附，而是把**纵横内滚都收到 .crud-table__table**（见上方注释），
+ * 使 th 与 td 的最近滚动容器同源 ⇒ 两侧一致吸附。实测 5 个横滚位置 th/td 均恒 x=1218。
+ * 此处把表头钉在该容器顶边；top 必须是 0（整页吸顶那条负 top 已按 :not(:has(.crud-table)) 排除，
+ * 否则表头顶部 10px 会被滚动容器裁掉：实测表头顶 332 而容器顶 342）。
+ */
+.table-scroll:has(.crud-table) .crud-table__table .el-table__header-wrapper,
+.table-scroll:has(.crud-table) .crud-table__table .el-table__body-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 6;
 }
 
 .table-scroll .el-table__inner-wrapper {
@@ -2036,20 +2108,31 @@ a:focus-visible {
  * .layout-main-scroll 有 padding-top(12px)，sticky 约束在内容盒内，
  * 直接 top:0 会让表头与页面顶部留一条缝（滚动时缝隙里能透见内容）；
  * 用负 top 抵消该 padding，使表头与顶部无缝。
+ * 🔴 包着 CrudTable 的壳必须排除：那种页里表头钉的是 .crud-table__table（在卡片内），
+ *    不是在主区顶上；负 top 会让表头顶部 10px 被滚动容器裁掉
+ *    （实测 --admin-space-md:10px ⇒ 纵滚后表头顶 332 而容器顶 342）。
  */
-.layout-main-scroll > .page-card > .el-card__body > .table-scroll .el-table__header-wrapper,
-.layout-main-scroll > .page-card > .el-card__body > .table-scroll .el-table__body-header,
+.layout-main-scroll
+  > .page-card
+  > .el-card__body
+  > .table-scroll:not(:has(.crud-table))
+  .el-table__header-wrapper,
+.layout-main-scroll
+  > .page-card
+  > .el-card__body
+  > .table-scroll:not(:has(.crud-table))
+  .el-table__body-header,
 .layout-main-scroll
   > .page-fill
   > .page-card
   > .el-card__body
-  > .table-scroll
+  > .table-scroll:not(:has(.crud-table))
   .el-table__header-wrapper,
 .layout-main-scroll
   > .page-fill
   > .page-card
   > .el-card__body
-  > .table-scroll
+  > .table-scroll:not(:has(.crud-table))
   .el-table__body-header {
   top: calc(-1 * var(--admin-space-md, 12px)) !important;
 }
