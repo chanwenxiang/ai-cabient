@@ -12,6 +12,13 @@ if (!existsSync(src)) {
   console.warn('skip sync: missing', src);
   process.exit(0);
 }
-rmSync(dst, { recursive: true, force: true });
-cpSync(src, dst, { recursive: true });
+// 微信开发者工具/OneDrive 可能锁住 dst 目录（Windows EPERM）；带重试，仍失败则降级为覆盖拷贝
+try {
+  rmSync(dst, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+} catch (err) {
+  console.warn(
+    `[sync-dev-dist] rm 失败（${err.code || err.errno}），降级为覆盖拷贝：dst 可能残留已删除页面的旧文件`
+  );
+}
+cpSync(src, dst, { recursive: true, force: true });
 console.log(`synced  ${src} -> ${dst}`);

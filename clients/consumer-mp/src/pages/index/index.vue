@@ -2,9 +2,15 @@
   <view class="page-root page-fill" :class="{ 'is-landing': showLanding }">
     <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
     <view v-if="showLanding" class="landing">
-      <image class="landing-bg" :src="landingBgUrl" mode="aspectFill" aria-hidden="true" />
-      <view class="landing-overlay" />
-
+      <view class="bg-decor" aria-hidden="true">
+        <view class="bg-orb o1" />
+        <view class="bg-orb o2" />
+        <view class="bg-ring r1" />
+        <view class="bg-ring r2" />
+        <view class="bg-dot d1" />
+        <view class="bg-dot d2" />
+        <view class="bg-dot d3" />
+      </view>
       <view class="landing-content">
         <view class="landing-top">
           <view class="landing-head" :style="landingHeadStyle">
@@ -559,7 +565,6 @@ import {
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
-import landingBgUrl from '@/static/bg-shop-indoor.jpg';
 import {
   sessionStateHint,
   sessionStateLabel,
@@ -2344,7 +2349,7 @@ function stopDevicePoll() {
   position: relative;
 }
 .page-root.is-landing {
-  background: var(--brand-deep, #134e4a);
+  background: linear-gradient(168deg, #0d9488 0%, #0f766e 46%, #115e59 100%);
 }
 
 .landing {
@@ -2355,30 +2360,77 @@ function stopDevicePoll() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--brand-deep, #134e4a);
+  /* 设计背景：右上青光主光源 + 左侧青雾 + 底部深潭渐隐，叠品牌绿基色（竞品同款多层光效） */
+  background:
+    radial-gradient(110% 75% at 88% -8%, rgba(52, 211, 183, 0.5) 0%, rgba(52, 211, 183, 0) 58%),
+    radial-gradient(85% 55% at -12% 28%, rgba(94, 234, 212, 0.2) 0%, rgba(94, 234, 212, 0) 62%),
+    radial-gradient(140% 95% at 50% 118%, rgba(3, 42, 39, 0.9) 0%, rgba(3, 42, 39, 0) 68%),
+    linear-gradient(170deg, #159d8d 0%, #0f766e 46%, #0c554e 100%);
 }
-.landing-bg {
+.bg-decor {
   position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   z-index: 0;
+  pointer-events: none;
 }
-.landing-overlay {
+.bg-orb {
   position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1;
-  /* 同一绿色仅调透明度，杜绝灰绿/青绿断层 */
-  background: linear-gradient(
-    180deg,
-    rgba(6, 78, 59, 0.72) 0%,
-    rgba(6, 78, 59, 0.45) 45%,
-    rgba(6, 78, 59, 0.82) 100%
-  );
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 70%);
+}
+.bg-orb.o1 {
+  width: 540rpx;
+  height: 540rpx;
+  right: -150rpx;
+  top: -130rpx;
+}
+.bg-orb.o2 {
+  width: 320rpx;
+  height: 320rpx;
+  left: -90rpx;
+  top: 36%;
+}
+.bg-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2rpx solid rgba(255, 255, 255, 0.13);
+}
+.bg-ring.r1 {
+  width: 560rpx;
+  height: 560rpx;
+  right: -190rpx;
+  top: 100rpx;
+}
+.bg-ring.r2 {
+  width: 300rpx;
+  height: 300rpx;
+  left: -100rpx;
+  bottom: 320rpx;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.bg-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+}
+.bg-dot.d1 {
+  width: 10rpx;
+  height: 10rpx;
+  left: 18%;
+  top: 24%;
+}
+.bg-dot.d2 {
+  width: 6rpx;
+  height: 6rpx;
+  right: 22%;
+  top: 17%;
+}
+.bg-dot.d3 {
+  width: 8rpx;
+  height: 8rpx;
+  right: 30%;
+  bottom: 25%;
+  background: rgba(255, 255, 255, 0.22);
 }
 .landing-content {
   position: relative;
@@ -2447,23 +2499,24 @@ function stopDevicePoll() {
   margin-top: 28rpx;
   width: 100%;
   max-width: 520rpx;
-  background: var(--brand-ink, #0f3f3c);
+  background: var(--white, #ffffff);
   border-radius: var(--radius-card, 24rpx);
   padding: 16rpx 20rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.22);
+  border: 1rpx solid rgba(15, 118, 110, 0.18);
+  box-shadow: 0 8rpx 24rpx rgba(6, 78, 59, 0.22);
   box-sizing: border-box;
   text-align: center;
 }
 .resume-title {
   font-size: var(--font-size-body);
   font-weight: 600;
-  color: var(--white);
+  color: var(--brand-deep, #134e4a);
   display: block;
   text-align: center;
 }
 .resume-sub {
   font-size: var(--font-size-sm);
-  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
+  color: rgba(15, 118, 110, 0.72);
   margin-top: 2rpx;
   display: block;
   text-align: center;
@@ -2496,22 +2549,22 @@ function stopDevicePoll() {
   transform: scale(0.98);
 }
 .scan-circle-inner {
-  width: 168rpx;
-  height: 168rpx;
+  width: 260rpx;
+  height: 260rpx;
   border-radius: 50%;
-  /* 与页面深绿统一，不再用白底 */
-  background: linear-gradient(145deg, var(--brand, #0f766e), var(--brand-deep, #134e4a));
-  border: 2rpx solid rgba(255, 255, 255, 0.22);
+  /* 白底与深绿页面强对比，取景角用品牌绿，扫一扫认知更明确 */
+  background: var(--white, #ffffff);
+  border: 2rpx solid rgba(15, 118, 110, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 10rpx 28rpx rgba(6, 78, 59, 0.45),
-    0 0 0 10rpx rgba(255, 255, 255, 0.1);
+    0 12rpx 32rpx rgba(6, 78, 59, 0.35),
+    0 0 0 12rpx rgba(255, 255, 255, 0.18);
 }
 .scan-icon-box {
-  width: 72rpx;
-  height: 72rpx;
+  width: 132rpx;
+  height: 132rpx;
   position: relative;
   display: flex;
   align-items: center;
@@ -2585,40 +2638,40 @@ function stopDevicePoll() {
 
 .scan-corner {
   position: absolute;
-  width: 28rpx;
-  height: 28rpx;
-  border-color: rgba(255, 255, 255, var(--on-deep-opacity-95));
+  width: 44rpx;
+  height: 44rpx;
+  border-color: var(--brand, #0f766e);
   border-style: solid;
 }
 .scan-corner.tl {
   top: 0;
   left: 0;
-  border-width: 5rpx 0 0 5rpx;
+  border-width: 6rpx 0 0 6rpx;
   border-radius: 4rpx 0 0 0;
 }
 .scan-corner.tr {
   top: 0;
   right: 0;
-  border-width: 5rpx 5rpx 0 0;
+  border-width: 6rpx 6rpx 0 0;
   border-radius: 0 4rpx 0 0;
 }
 .scan-corner.bl {
   bottom: 0;
   left: 0;
-  border-width: 0 0 5rpx 5rpx;
+  border-width: 0 0 6rpx 6rpx;
   border-radius: 0 0 0 4rpx;
 }
 .scan-corner.br {
   bottom: 0;
   right: 0;
-  border-width: 0 5rpx 5rpx 0;
+  border-width: 0 6rpx 6rpx 0;
   border-radius: 0 0 4rpx 0;
 }
 .scan-line {
-  width: 8rpx;
-  height: 40rpx;
-  background: var(--card-bg, #ffffff);
-  border-radius: 4rpx;
+  width: 10rpx;
+  height: 64rpx;
+  background: var(--brand, #0f766e);
+  border-radius: 6rpx;
 }
 
 .shop {

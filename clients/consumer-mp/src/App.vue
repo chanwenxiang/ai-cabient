@@ -36,6 +36,24 @@ uni-page-body {
   --brand-wx: #07c160;
   --brand-soft: #ecfdf5;
   --brand-mist: #ccfbf1;
+  /* 小程序端 theme.css 的 :root 不生效（WXSS 不支持 :root），页面用到的核心 token 在此补齐 */
+  --white: #ffffff;
+  --card-bg: #ffffff;
+  --surface-muted: #f4f7f5;
+  --success: #16a34a;
+  --warning: #b45309;
+  --danger: #b91c1c;
+  --mask-bg: rgba(15, 23, 42, 0.62);
+  --app-font:
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC',
+    'Source Han Sans SC', sans-serif;
+  --on-deep-opacity-50: 0.5;
+  --on-deep-opacity-78: 0.78;
+  --on-deep-opacity-88: 0.88;
+  --on-deep-opacity-92: 0.92;
+  --on-deep-opacity-95: 0.95;
+  /* 自定义导航栏（AppNavBar）在消费端的提亮底色 */
+  --nav-bar-bg: var(--brand);
   --color-primary: var(--brand);
   --color-primary-deep: var(--brand-deep);
   --color-primary-soft: var(--brand-soft);

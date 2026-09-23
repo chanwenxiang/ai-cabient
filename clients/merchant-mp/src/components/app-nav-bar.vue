@@ -37,7 +37,7 @@ const props = withDefaults(
   }>(),
   {
     title: '',
-    bg: 'var(--brand-deep)',
+    bg: 'var(--nav-bar-bg, var(--brand-deep))',
     color: 'var(--white)',
     homeUrl: '/pages/index/index'
   }

@@ -5,7 +5,7 @@
       "style": {
         "navigationBarTitleText": "开门购物",
         "navigationStyle": "custom",
-        "backgroundColor": "#134e4a",
+        "backgroundColor": "#0d9488",
         "backgroundTextStyle": "light",
         "disableScroll": true
       }
@@ -299,9 +299,9 @@
   },
   "globalStyle": {
     "navigationBarTextStyle": "white",
-    "navigationBarBackgroundColor": "#134e4a",
+    "navigationBarBackgroundColor": "#0f766e",
     "backgroundColor": "#ffffff",
-    "backgroundColorTop": "#134e4a",
+    "backgroundColorTop": "#0f766e",
     "backgroundColorBottom": "#ffffff",
     "backgroundTextStyle": "dark"
   },

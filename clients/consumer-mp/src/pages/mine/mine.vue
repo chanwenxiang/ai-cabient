@@ -654,7 +654,7 @@ async function onLogout() {
   align-items: stretch;
   width: 100%;
   box-sizing: border-box;
-  background: linear-gradient(145deg, var(--brand-deep, #134e4a) 0%, var(--brand, #0f766e) 100%);
+  background: linear-gradient(145deg, var(--brand, #0f766e) 0%, #14b8a6 100%);
   box-shadow: none;
   color: var(--white);
 }
@@ -796,7 +796,7 @@ async function onLogout() {
   margin: 12rpx 24rpx 0;
   padding: 14rpx 18rpx;
   border-radius: var(--radius-control);
-  background: var(--brand-deep, #134e4a);
+  background: var(--brand, #0f766e);
   border: 1rpx solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 6rpx 16rpx rgba(6, 78, 59, 0.16);
   display: flex;
