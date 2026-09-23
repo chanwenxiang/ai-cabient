@@ -290,13 +290,37 @@ P0-5（坐标必填/无坐标拒签/会话三连）、**P0-6**（Alertmanager+�
 | P0-4 | appid 申请 + 域名白名单（隐私声明 ✅ 已落，门禁 `check:miniapp-privacy-declaration` 实跑 OK；🔴 `__usePrivacyCheck__` 是空操作字段，勿再当缺口） |
 | F4 | 切片 2（E1–E4 通电）/ 3（收益对账）/ 4（入账）/ 5（形态）—— 切片 1 已落（`wx-ad-slot.vue` / `utils/promo-slot.ts`） |
 | O1 | 模型版本管理 / 灰度回滚（看板侧已落；`modelVersion` 全透传；按 D2 决策等 P0-1） |
-| O2 | 静默安装/分批/回滚（`OtaChecker.kt` 仅下载+SHA-256；需真机 DeviceOwner 预置，非纯仓内活） |
+| O2 | **仓内已收口**（`f34bf01c`）⇒ 真剩余仅**真机验收**（DeviceOwner 出厂预置下真实静默安装）；原判「非纯仓内活」不准确，详见 §8.6 |
 
 ### 8.4 ❌10 条（外部 4 + 产品决策 6）
 
 - **外部**：P0-2 提现打款（`MerchantWithdrawPayoutService.java:47` 仍「微信商户转账接口尚未接入」，`transferApiReady=false`；非 mock 必失败 = fail-closed）｜P0-3 真实商户号/短信（G9 已消项）｜F2 刷脸（蜻蜓/微信刷脸资质）｜F12 发票（航信/百望/诺诺）。
 - **产品决策**：F3 分享裂变（复测 `onShareAppMessage`/`onShareTimeline` 两端 **0 命中**）｜F7 企业 B 端｜F8 平台流量｜F9 设备租赁｜F10 加盟合伙人｜F11 营销玩法 —— 全部在 `ROADMAP_DECISIONS_2026-09-21.md` D2–D9 有选项与建议，**一句话即可开工**。
 
-### 8.5 结论
+### 8.5 结论（09-23 当轮修正）
 
-**「纯工程、无需外部资源、无需产品决策」的可开工项 = 0。** 路线图继续推进的前置条件是：① 外部资源到位（appid / 商户号 / SDK / 平台账号），或 ② 拍板 D2–D9。另登记一项工程侧小优化待办：`admin-vue` `modulePreload.polyfill: false`（见 `ROADMAP_DECISIONS` 文末注③），等并发工作收口后做。
+**原判「纯工程可开工 = 0」不准确** —— 它把「需真机验收」与「代码能不能写」混成了一件事。
+按这两件事拆开看：**O2 的端侧就是纯仓内可写的**（服务端接口早已就绪却零调用），当轮已做完，见 **§8.6**。
+
+路线图继续推进的前置条件仍是：① 外部资源到位（appid / 商户号 / SDK / 平台账号），或 ② 拍板 D2–D9。
+另登记一项工程侧小优化待办：`admin-vue` `modulePreload.polyfill: false`（见 `ROADMAP_DECISIONS` 文末注③）。
+
+### 8.6 O2 端侧收口（09-23 当轮，提交 `f34bf01c`）
+
+原判「非纯仓内活」是**归因失焦**。回源码重取后，缺口的真身是两条：
+
+| 真缺口 | 取证 |
+|---|---|
+| 服务端进度端点**早已就绪、零调用** | `DeviceInternalController:100-110` + `OtaService.reportProgress:176-191` + 开关 `ota.progress.enabled`（默认 `false`）+ V280 给 `ota_device_report` 加的四列；而 `grep -rn "ota/progress" edge/ --include=*.kt` **为空** ⇒ 设备侧从来没有调用方 |
+| 安装确实没写 | `OtaChecker.kt` 原注释自认「安装由运维/后续 `PackageInstaller` 流程接管」 |
+
+**已落**（`edge/android-app`，7 文件 +897/-8）：`OtaProgressReporter`（best-effort 上报，报文契约镜像服务端收敛）、
+`OtaInstaller`（DeviceOwner 静默安装 ＋ 非属主明确降级）、`OtaUpgradeLedger`（成功判据＝**重启后版本号** ＋ 安装宽限期）、
+`OtaInstallResultReceiver`（失败/待用户确认即时上报）、`OtaChecker` 接入（DOWNLOADING **真实百分比** → INSTALLING → 下次启动结算）。
+
+**验证**：临时副本 `gradle :app:testMockDebugUnitTest` → **118 用例全绿**（原 94 ＋ 新 24）；
+负向对照注入 4 处漂移 → **7 个用例变红**，四处各自被独立抓到。
+
+**仍记 ⚠️ 的真剩余**：DeviceOwner 出厂预置下的**真实静默安装**需真机，本机无 emulator。
+另两点更正：**分批灰度不是端侧活**（`updateAvailable` 由服务端判定 ⇒ 原表把它记在端侧属归因错误）；
+开关 `ota.progress.enabled` **默认关闭** ⇒ 上线须显式打开，否则设备上报了也不落库。
