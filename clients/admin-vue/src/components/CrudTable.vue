@@ -1,5 +1,5 @@
 <template>
-  <div class="crud-table">
+  <div ref="rootRef" class="crud-table">
     <div v-if="$slots.toolbar" class="crud-table__toolbar">
       <slot name="toolbar" />
     </div>
@@ -94,6 +94,7 @@
     <el-table
       ref="tableRef"
       v-loading="table.loading"
+      :max-height="tableMaxHeight"
       :data="table.displayItems"
       stripe
       border
@@ -165,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch, type ComponentPublicInstance } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type ComponentPublicInstance } from 'vue';
 import type { TableInstance } from 'element-plus';
 import { CaretBottom, CaretTop, Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import PagePager from '@/components/PagePager.vue';
@@ -250,6 +251,12 @@ defineOptions({ inheritAttrs: false, name: 'CrudTable' });
 const table = props.table as any;
 
 const tableRef = ref<TableInstance>();
+onMounted(() => {
+  calcMaxHeight();
+  window.addEventListener('resize', calcMaxHeight);
+});
+onBeforeUnmount(() => window.removeEventListener('resize', calcMaxHeight));
+watch(() => table.items, () => requestAnimationFrame(calcMaxHeight));
 // 每次拉取新数据后同步清空勾选（与既有页面行为一致：跨页不保留选择）
 watch(
   () => table.items,
@@ -403,6 +410,20 @@ function onDataAction(key: string, row: any) {
   if (key === 'data-delete') void dataDelete(row);
   else if (key === 'data-edit') dataEdit(row);
   else emit('action', { key, row });
+}
+
+// —— 表格内滚：给 el-table 设可用最大高度，页面（el-main）不再滚动，
+//    工具行/分页行天然常驻可见，不再依赖 position: sticky（超宽表格页与壳横滚互斥的问题就此消除）
+const rootRef = ref<HTMLElement>();
+const tableMaxHeight = ref<number>();
+function calcMaxHeight() {
+  const rootEl = rootRef.value;
+  const main = rootEl?.closest('.layout-main-scroll') as HTMLElement | null;
+  if (!rootEl || !main) return;
+  const top = rootEl.getBoundingClientRect().top - main.getBoundingClientRect().top;
+  const pager = rootEl.querySelector('.crud-table__pager') as HTMLElement | null;
+  const h = main.clientHeight - Math.max(top, 0) - (pager?.offsetHeight ?? 48) - 12;
+  tableMaxHeight.value = Math.max(240, Math.round(h));
 }
 
 function setSortDir(dir: 'asc' | 'desc') {
