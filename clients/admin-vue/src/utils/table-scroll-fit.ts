@@ -5,6 +5,8 @@
  *
  * 另：表底滚出主区时，在可视区底部贴浮动横滑条（与当前活跃表同步），
  * 滚到表底原生横条可见时自动隐藏。
+ * ⚠ CrudTable 页面的横滚容器是 .crud-table__table（而非 .table-scroll 壳），
+ *   浮动条候选须把它一并纳入，否则超宽列表没有可视区底部横滑条。
  *
  * 注意：
  * - 必须用内层列宽 / table 宽度判断。若容器曾被设成 overflow:visible，
@@ -207,7 +209,7 @@ function updateFloatingHScrollDock(): void {
   let best: HTMLElement | null = null;
   let bestScore = -1;
 
-  main.querySelectorAll<HTMLElement>('.table-scroll').forEach((el) => {
+  main.querySelectorAll<HTMLElement>('.table-scroll, .crud-table__table').forEach((el) => {
     if (el.closest('.footfall-page')) return;
     bindTableScroll(el);
     if (el.scrollWidth <= el.clientWidth + 2) return;

@@ -1668,16 +1668,48 @@ a:focus-visible {
  * el-table 自己接管）。后代匹配 + !important 压过各页对 --h 变体的定制。
  */
 /*
- * ⚠ 超宽表格（如订单 20+ 列）必须保留壳的横向滚动：
- * 若放行为 visible，el-table 会按全部列宽铺开、铺到卡片外（「散开」炸版）。
- * 代价：这类页面的吸附工具行/分页行退化为随页滚动（仅纵向被壳锁住）。
- * 横向滚动由壳接管，el-table 不再自行横向滚。
+ * ⚠ 包着 CrudTable 的壳不再自己横滚：
+ *   壳一旦成为横滚容器，位于壳内的吸附工具行（排序 / 新增数据 / 刷新）与分页行就会
+ *   随表体一起左移 —— 现象即「往右滑动，分页和新增数据、刷新跟着动」。
+ *   故壳层放行为 visible（不再形成滚动上下文，sticky 交回主滚动区），
+ *   横向滚动下移到 .crud-table__table（只包住 el-table），操作列 sticky 相对它钉住。
  */
 .layout-main-scroll > .page-card > .el-card__body > .table-scroll:has(.crud-table),
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll:has(.crud-table),
+.layout-main-scroll
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll:has(.crud-table),
+.layout-main-scroll
+  > .page-fill
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll:has(.crud-table),
 .table-scroll:has(.crud-table) {
+  overflow: visible;
+}
+
+/* CrudTable 的横滚容器：只包表格本体，工具行/分页行在它之外，不再被横滚带动 */
+.crud-table__table {
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  border-radius: inherit;
+}
+
+/* 与 .table-scroll--h 同法：内层 table 按列宽总和铺开，由上面的容器横滚。
+   选择器比 `.table-scroll .el-table` 多一级，压过它的 width/min-width: 100% */
+.table-scroll .crud-table__table .el-table,
+.table-scroll .crud-table__table .el-table__inner-wrapper {
+  width: fit-content !important;
+  min-width: 100% !important;
+  max-width: none !important;
+}
+.table-scroll .crud-table__table .el-table table {
+  min-width: 100% !important;
+  table-layout: fixed !important;
 }
 
 /*

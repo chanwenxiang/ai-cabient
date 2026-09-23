@@ -51,17 +51,28 @@ for (const name of OPENAPI_INDEX_REEXPORTS) {
   }
 }
 
-const openApiFile = process.env.OPENAPI_FILE
+const explicitOpenApiFile = process.env.OPENAPI_FILE
   ? resolve(root, process.env.OPENAPI_FILE)
-  : join(root, '.tmp', 'live-openapi.json');
+  : null;
 const shouldRegen =
   process.env.OPENAPI_CHECK_REGEN === '1' || process.env.OPENAPI_CHECK_REGEN === 'true';
 
 if (shouldRegen) {
   console.log('[check-openapi-types] regenerating from OpenAPI…');
   const env = { ...process.env };
-  if (existsSync(openApiFile)) {
-    env.OPENAPI_FILE = openApiFile;
+  if (explicitOpenApiFile) {
+    if (!existsSync(explicitOpenApiFile)) {
+      fail(`OPENAPI_FILE 不存在：${explicitOpenApiFile}`);
+    }
+    env.OPENAPI_FILE = explicitOpenApiFile;
+  } else {
+    // 🔴 不要回落到 .tmp/live-openapi.json 缓存：该缓存可能远早于当前服务代码，
+    // 用陈旧 spec 重生成会得到与 HEAD 完全一致的产物 ⇒ 「端点漏了却报 OK」的假绿。
+    // 2026-09-23 实测：新增 /ops/admin/data/capabilities 后，带 09-22 的缓存重生成报 OK，
+    // 现抓同一服务则立刻翻红。检查的意义就是「对着**当前**服务校验」，故这里强制现抓。
+    delete env.OPENAPI_FILE;
+    env.OPENAPI_IGNORE_CACHE = '1';
+    console.log('[check-openapi-types] 忽略 .tmp 缓存，现抓 OPENAPI_URL 校验');
   }
   const gen = spawnSync('node', [join(root, 'scripts', 'gen-openapi-types.mjs')], {
     cwd: root,

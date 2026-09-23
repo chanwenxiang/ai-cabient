@@ -6,6 +6,7 @@
  *   pnpm gen:api-types
  *   OPENAPI_URL=http://127.0.0.1:8080/v3/api-docs pnpm gen:api-types
  *   OPENAPI_FILE=.tmp/live-openapi.json pnpm gen:api-types
+ *   OPENAPI_IGNORE_CACHE=1 pnpm gen:api-types        # 忽略本地缓存，强制现抓
  *
  * 默认先读 OPENAPI_FILE / .tmp/live-openapi.json，没有再拉 OPENAPI_URL。
  * 别名组定义见 scripts/openapi-alias-groups.mjs（与 check 共用）。
@@ -28,12 +29,17 @@ const openApiUrl =
   process.env.OPENAPI_URL ||
   process.env.OPENAPI_URL_FALLBACK ||
   'http://127.0.0.1:18080/v3/api-docs';
+/** 强制现抓、忽略本地 spec 缓存（校验场景用：缓存可能远早于当前服务代码） */
+const ignoreCache =
+  process.env.OPENAPI_IGNORE_CACHE === '1' || process.env.OPENAPI_IGNORE_CACHE === 'true';
 
 mkdirSync(outDir, { recursive: true });
 mkdirSync(dirname(defaultFile), { recursive: true });
 
 async function resolveSpecPath() {
-  if (existsSync(openApiFile)) {
+  if (ignoreCache) {
+    console.log('[gen-openapi-types] OPENAPI_IGNORE_CACHE=1 → 跳过本地缓存，直接现抓');
+  } else if (existsSync(openApiFile)) {
     const raw = readFileSync(openApiFile, 'utf8');
     const json = JSON.parse(raw);
     const pathCount = json?.paths ? Object.keys(json.paths).length : 0;

@@ -63,6 +63,21 @@ if (ruleHas(['.table-scroll', 'fixed-column--right'], /position\s*:\s*static/i))
   fail('A: main.css .table-scroll 内 fixed-column--right 不可再 static（与锁列冲突）');
 }
 
+// ——— I) 横滚须收在内层：包着 CrudTable 的壳不得自己横滚 ———
+// 壳一旦成为横滚容器，位于壳内的吸附工具行（排序/新增数据/刷新）与分页行
+// 会随表体一起左移（现象：往右滑动，分页和新增数据、刷新跟着动）。
+if (!ruleHas(['.table-scroll:has(.crud-table)'], /overflow\s*:\s*visible/i)) {
+  fail(
+    'I: main.css 包着 CrudTable 的 .table-scroll 壳须 overflow:visible（否则壳成横滚容器，工具行/分页行随表体左移）'
+  );
+}
+{
+  const innerBodies = ruleBodies(['.crud-table__table']);
+  if (!innerBodies || !/overflow-x\s*:\s*auto/i.test(innerBodies)) {
+    fail('I: main.css 缺少 .crud-table__table{overflow-x:auto}（横向滚动须下移到该内层容器）');
+  }
+}
+
 // ——— G) 禁 dvh / visualViewport / translateZ(0) ———
 for (const rel of [
   'clients/admin-vue/src/styles/main.css',

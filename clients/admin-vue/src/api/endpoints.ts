@@ -14,6 +14,8 @@ export const AuthEndpoints = {
 
 export const AdminEndpoints = {
   dataTables: `${API_PREFIX}/ops/admin/data/tables`,
+  /** 表名 → 是否允许删除（后端由 pg_constraint 推导，前端据此隐藏注定失败的入口） */
+  dataCapabilities: `${API_PREFIX}/ops/admin/data/capabilities`,
   dataDelete: (table: string, id: string) =>
     `${API_PREFIX}/ops/admin/data/${table}/${encodeURIComponent(id)}`,
   dataUpdate: (table: string, id: string) =>

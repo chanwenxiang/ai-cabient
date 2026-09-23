@@ -33,7 +33,7 @@
       </div>
       <div class="crud-table__meta-right">
         <el-button
-          v-if="manageTable && canDataManage && table.hasSelection"
+          v-if="manageTable && canDataManage && canDataDelete && table.hasSelection"
           size="small"
           type="danger"
           plain
@@ -91,49 +91,53 @@
       </div>
     </div>
 
-    <el-table
-      ref="tableRef"
-      v-loading="table.loading"
-      :max-height="tableMaxHeight"
-      :data="table.displayItems"
-      stripe
-      border
-      class="report-table"
-      :row-key="rowKey || table.rowKey"
-      empty-text=" "
-      v-bind="$attrs"
-      @selection-change="table.onSelectionChange"
-    >
-      <template #empty>
-        <el-empty v-if="table.hydrated && !table.loading" :description="emptyText" />
-      </template>
-      <el-table-column
-        v-if="selectable"
-        type="selection"
-        width="48"
-        align="center"
-        class-name="col-status"
-        label-class-name="col-status"
-      />
-      <!-- 业务列由页面通过默认插槽传入（el-table-column 原样透传） -->
-      <slot />
-      <el-table-column
-        v-if="hasActions"
-        label="操作"
-        fixed="right"
-        align="center"
-        class-name="col-action"
-        :width="actionWidth"
+    <!-- 横向滚动收在本容器内（壳 .table-scroll 放行 visible）：
+         否则壳一横滚，上面的工具行与下面的分页行会随表体一起左移 -->
+    <div class="crud-table__table">
+      <el-table
+        ref="tableRef"
+        v-loading="table.loading"
+        :max-height="tableMaxHeight"
+        :data="table.displayItems"
+        stripe
+        border
+        class="report-table"
+        :row-key="rowKey || table.rowKey"
+        empty-text=" "
+        v-bind="$attrs"
+        @selection-change="table.onSelectionChange"
       >
-        <template #default="{ row }">
-          <TableActions
-            :actions="visibleActions(row)"
-            :test-id-prefix="actionsTestId"
-            @action="(key: string) => onDataAction(key, row)"
-          />
+        <template #empty>
+          <el-empty v-if="table.hydrated && !table.loading" :description="emptyText" />
         </template>
-      </el-table-column>
-    </el-table>
+        <el-table-column
+          v-if="selectable"
+          type="selection"
+          width="48"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        />
+        <!-- 业务列由页面通过默认插槽传入（el-table-column 原样透传） -->
+        <slot />
+        <el-table-column
+          v-if="hasActions"
+          label="操作"
+          fixed="right"
+          align="center"
+          class-name="col-action"
+          :width="actionWidth"
+        >
+          <template #default="{ row }">
+            <TableActions
+              :actions="visibleActions(row)"
+              :test-id-prefix="actionsTestId"
+              @action="(key: string) => onDataAction(key, row)"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <!-- 吸附分页行：表格过长时分页钉在可视区底部，无需滚到底换页 -->
     <el-dialog
@@ -166,7 +170,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type ComponentPublicInstance } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+  type ComponentPublicInstance
+} from 'vue';
 import type { TableInstance } from 'element-plus';
 import { CaretBottom, CaretTop, Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import PagePager from '@/components/PagePager.vue';
@@ -256,7 +268,10 @@ onMounted(() => {
   window.addEventListener('resize', calcMaxHeight);
 });
 onBeforeUnmount(() => window.removeEventListener('resize', calcMaxHeight));
-watch(() => table.items, () => requestAnimationFrame(calcMaxHeight));
+watch(
+  () => table.items,
+  () => requestAnimationFrame(calcMaxHeight)
+);
 // 每次拉取新数据后同步清空勾选（与既有页面行为一致：跨页不保留选择）
 watch(
   () => table.items,
@@ -287,19 +302,50 @@ function visibleActions(row: any): TableAction[] {
       type: 'primary',
       overflow: true
     });
-    list.push({
-      key: 'data-delete',
-      label: '删除数据',
-      icon: Delete,
-      type: 'danger',
-      overflow: true
-    });
+    // 删除可能被下游外键挡住（会话 / 订单 / 主数据等）⇒ 后端不开放删除时，干脆不渲染该入口
+    if (canDataDelete.value) {
+      list.push({
+        key: 'data-delete',
+        label: '删除数据',
+        icon: Delete,
+        type: 'danger',
+        overflow: true
+      });
+    }
   }
   return list;
 }
 
 // —— 通用数据管理（ops:data:manage）——
 const canDataManage = computed(() => auth.hasPerm('ops:data:manage'));
+
+/**
+ * 删除能力：由后端按 pg_constraint 推导（删除可能被下游外键挡住 ⇒ 不开放删除），
+ * 前端不硬编码受保护表清单（手写清单必漂）。拉取失败按「不可删除」保守处理 ——
+ * 宁可少给一个入口，也不给一个注定失败的入口。
+ */
+let deleteCapsPromise: Promise<Record<string, boolean>> | null = null;
+function loadDeleteCaps(): Promise<Record<string, boolean>> {
+  if (!deleteCapsPromise) {
+    deleteCapsPromise = api
+      .request<Record<string, boolean>>(AdminEndpoints.dataCapabilities, 'GET')
+      .catch(() => ({}) as Record<string, boolean>);
+  }
+  return deleteCapsPromise;
+}
+const canDataDelete = ref(false);
+watch(
+  [() => props.manageTable, canDataManage],
+  async ([tbl, manage]) => {
+    if (!tbl || !manage) {
+      canDataDelete.value = false;
+      return;
+    }
+    const caps = await loadDeleteCaps();
+    canDataDelete.value = caps[tbl] === true;
+  },
+  { immediate: true }
+);
 const jsonDialog = reactive({
   visible: false,
   mode: 'edit' as 'edit' | 'create',
@@ -308,11 +354,28 @@ const jsonDialog = reactive({
   busy: false
 });
 
+/**
+ * 行主键取值。useCrudTable 的 rowKey 是**函数**（rowKey: row => row.id），
+ * 直接写成 `row[table.rowKey || props.rowKey]` 会把函数当属性名 —— 取到 undefined，
+ * 于是删除/编辑都请求到 `/ops/admin/data/<表>/`（没有 id），后端只能回 404「资源不存在」。
+ * 这里按「函数 → 字段名 → id」依次取值，取不到就返回空串（调用方 fail-closed）。
+ */
+function rowId(row: any): string {
+  const key = table.rowKey ?? props.rowKey;
+  if (typeof key === 'function') return String(key(row) ?? '');
+  if (typeof key === 'string' && key) return String(row?.[key] ?? '');
+  return String(row?.id ?? '');
+}
+
 async function dataDelete(row: any) {
-  const id = String(row[table.rowKey || props.rowKey] ?? '');
+  const id = rowId(row);
+  if (!id) {
+    ElMessage.error('无法确定该行主键，已取消删除');
+    return;
+  }
   try {
     await ElMessageBox.confirm(
-      `确认删除 ${props.manageTable}.${id || '(空)'}？关联数据将被级联删除，且不可恢复！`,
+      `确认删除 ${props.manageTable}.${id}？其可级联的下游数据会一并删除，且不可恢复。`,
       '删除数据',
       { type: 'warning', confirmButtonText: '删除' }
     );
@@ -333,7 +396,7 @@ async function dataBatchDelete() {
   if (!rows.length) return;
   try {
     await ElMessageBox.confirm(
-      `确认删除选中的 ${rows.length} 行？级联删除、不可恢复！`,
+      `确认删除选中的 ${rows.length} 行？其可级联的下游数据会一并删除，且不可恢复。`,
       '批量删除',
       {
         type: 'warning',
@@ -344,22 +407,45 @@ async function dataBatchDelete() {
     return;
   }
   let ok = 0;
+  let noKey = 0;
+  const failures: string[] = [];
   for (const row of rows) {
-    const id = String(row[table.rowKey || props.rowKey] ?? '');
+    const id = rowId(row);
+    if (!id) {
+      noKey++;
+      continue;
+    }
     try {
       await api.request(AdminEndpoints.dataDelete(props.manageTable, id), 'DELETE');
       ok++;
-    } catch {
-      /* 单行失败继续 */
+    } catch (e) {
+      // 不静默吞错：留下首条失败原因，避免「已删除 N 行」掩盖真实失败
+      if (failures.length === 0) failures.push(e instanceof Error ? e.message : '删除失败');
     }
   }
-  ElMessage.success(`已删除 ${ok} 行${ok < rows.length ? `，失败 ${rows.length - ok} 行` : ''}`);
+  const failed = rows.length - ok - noKey;
+  const tail = [
+    failed ? `失败 ${failed} 行${failures.length ? `（${failures[0]}）` : ''}` : '',
+    noKey ? `无主键 ${noKey} 行` : ''
+  ]
+    .filter(Boolean)
+    .join('，');
+  const summary = `已删除 ${ok} 行${tail ? `，${tail}` : ''}`;
+  if (failed || noKey) {
+    ElMessage.warning(summary);
+  } else {
+    ElMessage.success(summary);
+  }
   await table.load();
 }
 
 function dataEdit(row: any) {
   jsonDialog.mode = 'edit';
-  jsonDialog.id = String(row[table.rowKey || props.rowKey] ?? '');
+  jsonDialog.id = rowId(row);
+  if (!jsonDialog.id) {
+    ElMessage.error('无法确定该行主键，已取消编辑');
+    return;
+  }
   jsonDialog.text = JSON.stringify(row, null, 2);
   jsonDialog.visible = true;
 }
@@ -382,11 +468,7 @@ async function dataSave() {
   jsonDialog.busy = true;
   try {
     if (jsonDialog.mode === 'edit') {
-      const pk = table.rowKey
-        ? String(table.rowKey(JSON.parse(jsonDialog.text) as never) ?? jsonDialog.id)
-        : jsonDialog.id;
       await api.request(AdminEndpoints.dataUpdate(props.manageTable, jsonDialog.id), 'PUT', body);
-      void pk;
     } else {
       await api.request(AdminEndpoints.dataCreate(props.manageTable), 'POST', body);
     }

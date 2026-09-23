@@ -12,10 +12,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,15 @@ public class AdminDataManageController {
     @GetMapping("/tables")
     public ApiResponse<List<String>> tables() {
         return ApiResponse.ok(service.listManagedTables());
+    }
+
+    /**
+     * 各表的删除能力（表名 → 是否允许删除）。受保护表由 pg_constraint 推导，
+     * 前端据此**不渲染**注定失败的删除入口 —— 而不是点了才报错。
+     */
+    @GetMapping("/capabilities")
+    public ApiResponse<Map<String, Boolean>> deleteCapabilities() {
+        return ApiResponse.ok(service.deleteCapabilities());
     }
 
     @DeleteMapping("/{table}/{id}")
@@ -69,9 +79,10 @@ public class AdminDataManageController {
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ApiResponse<Void> onIntegrity(DataIntegrityViolationException e) {
-        return ApiResponse.error(HttpStatus.CONFLICT.value(),
-                "数据库约束拒绝该操作（存在关联数据）：" + e.getMostSpecificCause().getMessage());
+    public ResponseEntity<ApiResponse<Void>> onIntegrity(DataIntegrityViolationException e) {
+        ResponseStatusException mapped = service.translateIntegrity(e);
+        return ResponseEntity.status(mapped.getStatusCode())
+                .body(ApiResponse.error(mapped.getStatusCode().value(), mapped.getReason()));
     }
 
     private static Long operatorId(HttpServletRequest request) {

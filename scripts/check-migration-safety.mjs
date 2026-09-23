@@ -69,6 +69,18 @@ if (!diffList.ok) {
 // 2026-09-16 实测：一旦把该临时文件名加进 .gitignore，本脚本就再也扫不到它，
 // 于是「空头 MIGRATION_REVIEWED 必须被拦」的自测直接退化成恒假。
 const untracked = git(['ls-files', '--others', '--', migrationDir]);
+
+// 🔴 枚举不到 ≠「没有新迁移」。沙箱/受限宿主下 spawn 会 EBUSY（status=null），git() 返回 ok=false；
+// 若两路都失败而这里默认放行，门禁就在**没看**的情况下报 OK —— 比漏检更糟（信号在骗读者）。
+// 实测 2026-09-23：本机沙箱下不带垫片时，新增的 V285 完全扫不到，却打印「no new Flyway scripts; OK」。
+if (!diffList.ok && !untracked.ok) {
+  fail(
+    '无法枚举新增迁移（git 不可用或被环境阻断：spawn status=null / 非 0）。' +
+      '不要当成「没有新迁移」；本机沙箱下请用 .tmp/tools/nopipe.cjs 垫片重跑：' +
+      'NODE_OPTIONS="--require <repo>/.tmp/tools/nopipe.cjs" node scripts/check-migration-safety.mjs'
+  );
+}
+
 const names = new Set(
   [
     ...(diffList.ok && diffList.out ? diffList.out.split(/\r?\n/).filter(Boolean) : []),
