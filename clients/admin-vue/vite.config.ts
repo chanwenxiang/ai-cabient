@@ -67,6 +67,15 @@ export default defineConfig(({ mode }) => {
       outDir: OUT_DIR,
       emptyOutDir: true,
       chunkSizeWarningLimit: 1000,
+      // 浏览器基线（本仓无 browserslist ⇒ 走 Vite 默认 build.target='modules'：
+      // 原生 ESM + 动态 import + import.meta 的浏览器）。其中 modulepreload 原生支持始于
+      // Chrome 66 / Edge 79 / Safari 11.3 / Firefox 115（2023-07），
+      // 故基线内唯一缺它的是已过保的 Firefox 78–114。
+      // 该 polyfill 在支持的浏览器里**第一行就 early-return**（relList.supports('modulepreload')），
+      // 对现代浏览器纯属解析开销（实测 710B 常驻入口）。关掉后仅影响 Firefox 78–114 的
+      // 「预取」优化：`__vitePreload` 注入的 <link rel=modulepreload> 被忽略，动态 import
+      // 仍按需拉取（只是少一段提前量），**功能不受影响**。
+      modulePreload: { polyfill: false },
       rollupOptions: {
         output: {
           manualChunks(id) {
