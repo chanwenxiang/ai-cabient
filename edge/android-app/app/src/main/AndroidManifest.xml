@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- O2：DeviceOwner 柜机用 PackageInstaller 提交静默升级会话（见 ota/OtaInstaller.kt）。
+         非属主设备上系统仍会要求用户确认，由 OtaInstallResultReceiver 上报失败原因。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".AiCabinetApp"
@@ -26,5 +29,9 @@
             android:name=".service.CabinetService"
             android:exported="false"
             android:foregroundServiceType="dataSync|camera" />
+        <!-- 只接收本进程 PendingIntent 的安装结果回调（显式 intent），不必对外导出。 -->
+        <receiver
+            android:name=".ota.OtaInstallResultReceiver"
+            android:exported="false" />
     </application>
 </manifest>
