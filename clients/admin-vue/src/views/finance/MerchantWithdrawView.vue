@@ -5,7 +5,8 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商户提现</span>
-            <span class="hint">手续费见系统参数 · 到账=申请额−手续费 · 测试环境可能为记账打款</span>
+            <!-- 打款模式由下方 payoutMode 提示条按后端真实配置说明，此处不再写死环境口径 -->
+            <span class="hint">手续费见系统参数 · 到账金额 = 申请金额 − 手续费</span>
           </div>
         </div>
         <div class="page-card-head__actions">

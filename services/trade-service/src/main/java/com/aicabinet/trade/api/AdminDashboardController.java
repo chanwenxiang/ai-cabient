@@ -45,7 +45,14 @@ public class AdminDashboardController {
                 () -> adminService.stats(opId)));
     }
 
-    /** 大屏/分析：演示数据口径提示（mock 且配置开启时）。 */
+    /**
+     * 大屏/分析：数据口径提示（mock 且配置开启时）。
+     *
+     * 🔴 这段文案是**运行期真值标签**，不是测试文案：它标出「屏幕上的数字不是生产口径」，
+     *    由 `ops.demo_data_banner` 开关控制（默认开，mock 关闭时自动为「生产口径」）。
+     *    措辞用运营语言（「演示数据」）而非开发术语（原为「演示/Mock 数据 · 请勿作为生产口径」）；
+     *    **语义不许弱化** —— 删掉它等于让演示数字冒充生产口径。
+     */
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/data-scope")
     public ApiResponse<DataScopeDto> dataScope(HttpServletRequest request) {
@@ -55,7 +62,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(new DataScopeDto(
                 demo,
                 mock,
-                demo ? "演示/Mock 数据 · 请勿作为生产口径" : "生产口径"));
+                demo ? "演示数据 · 非生产口径" : "生产口径"));
     }
 
     @RequiresPermissions("ops:dashboard:view")

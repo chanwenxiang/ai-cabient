@@ -5,7 +5,8 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">线长钱包</span>
-            <span class="hint">与商户分账解耦 · 地推完成入账赏金 · 测试环境可能为记账打款</span>
+            <!-- 打款模式由下方 payoutMode 提示条按后端真实配置说明，此处不再写死环境口径 -->
+            <span class="hint">与商户分账解耦 · 地推完成入账赏金 · 收益实时入账可自助提现</span>
           </div>
         </div>
         <div class="page-card-head__actions">

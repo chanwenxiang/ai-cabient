@@ -81,6 +81,50 @@
           @click="table.refresh()"
           >刷新</el-button
         >
+        <!--
+          列设置（显示/隐藏）—— 对标主流 SaaS 后台的列表页标配。
+          起因：本仓宽表极宽（开门记录 16 列 / 订单 19 列，1440 下需横滚 950–1035px），
+          运营每次都要横滚找列；勾掉不关心的列即可一屏看完，选择按**路由**持久化。
+          ⚠️ 不做「行密度切换」：本仓已按实测定过行高（TableActions 里 24px 按钮＝行高旋钮，
+             再压会「观感偏挤」）—— 加个切换开关只会是无效花架子。
+        -->
+        <el-popover
+          v-if="configurableCols.length >= 2"
+          trigger="click"
+          :width="260"
+          placement="bottom-end"
+        >
+          <template #reference>
+            <el-button size="small" :icon="Operation">
+              列设置{{ hiddenCount ? ` · 隐藏 ${hiddenCount}` : '' }}
+            </el-button>
+          </template>
+          <div class="crud-cols">
+            <div class="crud-cols__head">
+              <span class="crud-cols__title">
+                显示 {{ configurableCols.length - hiddenCount }} / {{ configurableCols.length }}
+              </span>
+              <el-button
+                link
+                type="primary"
+                size="small"
+                :disabled="!hiddenCount"
+                @click="resetCols"
+                >重置</el-button
+              >
+            </div>
+            <el-scrollbar max-height="264px">
+              <el-checkbox
+                v-for="c in configurableCols"
+                :key="c.key"
+                class="crud-cols__item"
+                :model-value="!hiddenCols.has(c.key)"
+                @change="(v: unknown) => toggleCol(c.key, v)"
+                >{{ c.label }}</el-checkbox
+              >
+            </el-scrollbar>
+          </div>
+        </el-popover>
       </div>
     </div>
 
@@ -93,7 +137,9 @@
             其 sticky right:0 只能钉在表格右缘＝自然位置 ⇒ 操作列不吸附，且与表头不一致。
          见 main.css「.crud-table__table」段落。 -->
     <div
+      ref="tableWrapRef"
       class="crud-table__table"
+      :class="{ 'is-fixshadow': fixShadowEnabled }"
       :style="tableMaxHeight ? { maxHeight: `${tableMaxHeight}px` } : undefined"
     >
       <el-table
@@ -109,7 +155,17 @@
         @selection-change="table.onSelectionChange"
       >
         <template #empty>
-          <el-empty v-if="table.hydrated && !table.loading" :description="emptyText" />
+          <!--
+            紧凑空态（原为 el-empty 大图，实测占 278–318px 且无出口动作）。
+            小图标 + 一行说明 + 可选动作；页面可用 #empty-extra 插槽补「新建/上传」等出口。
+          -->
+          <div v-if="table.hydrated && !table.loading" class="crud-empty">
+            <el-icon class="crud-empty__icon"><Files /></el-icon>
+            <p class="crud-empty__text">{{ emptyText }}</p>
+            <div v-if="$slots['empty-extra']" class="crud-empty__extra">
+              <slot name="empty-extra" />
+            </div>
+          </div>
         </template>
         <el-table-column
           v-if="selectable"
@@ -119,10 +175,14 @@
           class-name="col-status"
           label-class-name="col-status"
         />
-        <!-- 业务列由页面通过默认插槽传入（el-table-column 原样透传） -->
-        <slot />
+        <!-- 业务列由页面通过默认插槽传入（el-table-column 原样透传；列显示/隐藏在此统一过滤） -->
+        <component :is="renderColumns" />
+        <!-- 操作列：⚠️ 不要开 EP 的单元格溢出浮层（门禁 check:admin-anti-jitter 规则 H 全后台禁止该 prop，
+             且它的 stripComments 只剥 JS 注释、不剥 HTML 注释 ⇒ 连注释里写出那个 prop 名都会判红）。
+             单元格全文提示由全局 installTableCellNativeTitle() 用原生 title 兜底，
+             它已显式跳过 .col-action / .el-table-fixed-column--right（浮层会盖邻列）。 -->
         <el-table-column
-          v-if="hasActions"
+          v-if="hasActions && !hiddenCols.has('__action__')"
           label="操作"
           fixed="right"
           align="center"
@@ -171,15 +231,23 @@
 
 <script setup lang="ts">
 import {
+  cloneVNode,
+  Comment,
   computed,
+  Fragment,
+  isVNode,
   onBeforeUnmount,
   onMounted,
   ref,
+  Text,
+  useSlots,
   watch,
-  type ComponentPublicInstance
+  type ComponentPublicInstance,
+  type VNode
 } from 'vue';
+import { useRoute } from 'vue-router';
 import type { TableInstance } from 'element-plus';
-import { CaretBottom, CaretTop, Delete, Refresh } from '@element-plus/icons-vue';
+import { CaretBottom, CaretTop, Delete, Files, Operation, Refresh } from '@element-plus/icons-vue';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -265,15 +333,46 @@ defineOptions({ inheritAttrs: false, name: 'CrudTable' });
 const table = props.table as any;
 
 const tableRef = ref<TableInstance>();
+const tableWrapRef = ref<HTMLElement>();
+
+/**
+ * 右侧吸附列的分隔过渡带是否该显示 —— 由**真实滚动容器**驱动，而非 EP 的 is-scrolling-* 状态类。
+ *
+ * 🔴 EP 那个状态类在本仓失效：横向滚动被收在 `.crud-table__table`（见模板上方注释），
+ *    EP 自己的滚动事件收不到 ⇒ 实测 `el-table` 上的 class **恒为 `is-scrolling-left`**
+ *    （横滚到最右也不变，见 .tmp/probe 实测：scrolledTo=476 后 classes 仍只有 is-scrolling-left）。
+ *    后果：main.css 里「压根不可横滚 / 已滚到最右」两条规则**永不触发**，
+ *    吸附列左缘在任何位置都挂着过渡带 —— 与那两条规则写明的原意正相反。
+ * 判据（与那两条规则同义）：可横滚 **且** 未滚到最右 ⇒ 吸附列下面确实压着内容 ⇒ 显示。
+ */
+const fixShadowEnabled = ref(false);
+function syncFixShadow() {
+  const el = tableWrapRef.value;
+  if (!el) return;
+  const scrollable = el.scrollWidth > el.clientWidth + 1;
+  const atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
+  fixShadowEnabled.value = scrollable && !atEnd;
+}
 onMounted(() => {
   calcMaxHeight();
   window.addEventListener('resize', calcMaxHeight);
+  tableWrapRef.value?.addEventListener('scroll', syncFixShadow, { passive: true });
+  syncFixShadow();
 });
-onBeforeUnmount(() => window.removeEventListener('resize', calcMaxHeight));
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', calcMaxHeight);
+  tableWrapRef.value?.removeEventListener('scroll', syncFixShadow);
+});
 watch(
   () => table.items,
-  () => requestAnimationFrame(calcMaxHeight)
+  () =>
+    requestAnimationFrame(() => {
+      calcMaxHeight();
+      syncFixShadow();
+    })
 );
+// ⚠️ 「列显示/隐藏 ⇒ 重算可横滚性」的那个 watch 放在列设置代码块之后
+//    （filteredCols 在那一块才声明，提前引用会 TS2448/TDZ）
 // 每次拉取新数据后同步清空勾选（与既有页面行为一致：跨页不保留选择）
 watch(
   () => table.items,
@@ -429,9 +528,150 @@ async function dataBatchDelete() {
 
 const sortFieldLabel = computed(() => props.sortFieldLabel || table.sortProp);
 const showMetaBar = computed(
-  () => Boolean(table.sortProp) || props.selectable || props.showRefresh || Boolean(csvCtl)
+  () =>
+    Boolean(table.sortProp) ||
+    props.selectable ||
+    props.showRefresh ||
+    Boolean(csvCtl) ||
+    // 有可配置列时也出工具行：列设置不能只存在于「恰好有刷新按钮」的页面（原为二者解耦）
+    configurableCols.value.length >= 2
 );
 const hasActions = computed(() => typeof props.actions === 'function');
+
+/* ============================================================================
+ * 列设置（显示 / 隐藏，按路由持久化）
+ * ============================================================================
+ * 业务列由页面用默认插槽传入。这里不改各页 910 处列声明，而是在渲染前对插槽
+ * vnode 做一次过滤：保留原 vnode 的全部属性（prop / min-width / 自定义 #default
+ * 插槽……），只丢掉被隐藏的那些 ⇒ 一处改动，全站 71 个表格页同时获得该能力。
+ *
+ * 🔴 陷阱一：必须给每个列 vnode 显式 `key`。
+ *   Vue 对无 key 的子节点按**下标**做 diff ⇒ 隐藏中间一列时，后面的列会被
+ *   「就地复用」（组件实例没换、props 换人），而 el-table-column 的 columnId
+ *   只在 setup 里算一次 ⇒ 列身份错乱。加 key 后 Vue 才会真正卸载被隐藏的那列。
+ *
+ * 🔴 陷阱二：过滤结果必须是**扁平的 vnode 数组**，不能包一层 DOM 元素。
+ *   el-table 把默认插槽渲染进 `.hidden-columns`（table.vue render:223），
+ *   el-table-column 用 `getColumnElIndex()`（= `indexOf`，**只看直接子节点**）
+ *   判断自己该不该 `insertColumn`（table-column/index:86-89）
+ *   ⇒ 多包一层 div，所有列都注册失败、整张表变空。
+ *   故 renderColumns 是**函数式组件**（返回数组＝Fragment，不产生 DOM 节点）。
+ *
+ * 持久化按**路由**隔离：不同页面的列集合不同，混存会互相污染。
+ * 隐藏键只存声明用的 prop/label/type 组合，页面改列名后旧键自然失效（不报错）。
+ */
+const slots = useSlots();
+const route = useRoute();
+const ACTION_COL_KEY = '__action__';
+const COL_STORE = 'admin.crudTable.hiddenCols';
+
+type ColEntry = { key: string; label: string; node: VNode };
+
+/** 展平插槽 vnode：剔除注释节点（v-if=false 的列）与空白文本，并展开 Fragment */
+function flattenColVNodes(nodes: unknown[], out: VNode[] = []): VNode[] {
+  for (const n of nodes) {
+    if (!isVNode(n)) continue;
+    if (n.type === Comment) continue;
+    if (n.type === Text && !String(n.children ?? '').trim()) continue;
+    if (n.type === Fragment && Array.isArray(n.children)) {
+      flattenColVNodes(n.children as unknown[], out);
+      continue;
+    }
+    out.push(n);
+  }
+  return out;
+}
+
+function routeColKey(): string {
+  return `${COL_STORE}:${route.path}`;
+}
+
+function readHiddenCols(): Set<string> {
+  try {
+    const raw = localStorage.getItem(routeColKey());
+    const arr: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    // localStorage 不可用（隐私模式/配额满）时降级为「不记忆」，不影响本次会话内的切换
+    return new Set();
+  }
+}
+
+const hiddenCols = ref<Set<string>>(readHiddenCols());
+watch(
+  () => route.path,
+  () => {
+    hiddenCols.value = readHiddenCols();
+  }
+);
+
+const allCols = computed<ColEntry[]>(() => {
+  const raw = flattenColVNodes((slots.default?.() ?? []) as unknown[]);
+  const seen = new Map<string, number>();
+  return raw.map((node) => {
+    const p = (node.props ?? {}) as Record<string, unknown>;
+    const base = String(p.prop ?? p.label ?? p.type ?? 'col');
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    const key = n > 1 ? `${base}#${n}` : base;
+    return {
+      key,
+      label: String(p.label ?? p.prop ?? p.type ?? '列'),
+      node: cloneVNode(node, { key })
+    };
+  });
+});
+
+/** 供弹层列出的可配置列（含本组件自渲染的操作列） */
+const configurableCols = computed(() => {
+  const list = allCols.value.map(({ key, label }) => ({ key, label }));
+  if (hasActions.value) list.push({ key: ACTION_COL_KEY, label: '操作（固定列）' });
+  return list;
+});
+
+const filteredCols = computed(() =>
+  allCols.value.filter((c) => !hiddenCols.value.has(c.key)).map((c) => c.node)
+);
+
+/** 函数式组件：返回 vnode 数组 ⇒ Fragment，不引入任何 DOM 层级 */
+const renderColumns = () => filteredCols.value;
+
+const hiddenCount = computed(
+  () => configurableCols.value.filter((c) => hiddenCols.value.has(c.key)).length
+);
+
+function persistHiddenCols() {
+  try {
+    localStorage.setItem(routeColKey(), JSON.stringify([...hiddenCols.value]));
+  } catch {
+    // 同 readHiddenCols：写不进去只影响下次记忆
+  }
+}
+
+function toggleCol(key: string, visible: unknown) {
+  const show = visible === true;
+  const next = new Set(hiddenCols.value);
+  // 至少保留一列：全藏掉后表格只剩空壳，用户会以为页面坏了
+  const remain = configurableCols.value.filter((c) =>
+    c.key === key ? show : !next.has(c.key)
+  ).length;
+  if (remain === 0) {
+    ElMessage.warning('至少保留一列');
+    return;
+  }
+  if (show) next.delete(key);
+  else next.add(key);
+  hiddenCols.value = next;
+  persistHiddenCols();
+}
+
+function resetCols() {
+  hiddenCols.value = new Set();
+  persistHiddenCols();
+}
+
+// 列显示/隐藏会改变列宽总和 ⇒ 可横滚性与「是否已到最右」都会变，须重算吸附列过渡带
+watch(filteredCols, () => requestAnimationFrame(syncFixShadow));
 
 function onDataAction(key: string, row: any) {
   if (key === 'data-delete') void dataDelete(row);
@@ -654,5 +894,38 @@ function bindCsvInput(el: Element | ComponentPublicInstance | null) {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/*
+ * 紧凑空态 —— 替代 el-empty 的大插图（实测占 278–318px，且整块没有出口动作）。
+ * 高度改为内容驱动，表格区不再被撑成一大片空白；页面可用 #empty-extra 补「新建/上传」出口。
+ */
+.crud-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 22px 16px 26px;
+  color: var(--layout-muted, var(--el-text-color-secondary));
+}
+.crud-empty__icon {
+  font-size: 26px;
+  color: var(--el-text-color-placeholder);
+}
+.crud-empty__text {
+  margin: 0;
+  font-size: var(--admin-font-size-table, 13px);
+}
+.crud-empty__extra {
+  margin-top: 4px;
+}
+/*
+ * EP 的 .el-table__empty-text 自带 `width: 50%; line-height: 60px`，
+ * 会把上面这套紧凑空态重新撑高、并让内容只在半宽内居中 ⇒ 一并放行。
+ */
+.crud-table :deep(.el-table__empty-text) {
+  width: auto;
+  line-height: 1.4;
 }
 </style>

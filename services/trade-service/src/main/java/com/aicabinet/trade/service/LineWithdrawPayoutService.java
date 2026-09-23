@@ -44,10 +44,17 @@ public class LineWithdrawPayoutService {
                 request.getRequestId(), manager.getWxOpenid(), request.getAmountCents(),
                 request.getFeeCents(), netCents);
         return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null,
-                "微信转账到零钱接口尚未接入（非 Mock 环境不可打款）");
+                "微信转账到零钱接口尚未接入（仅记账打款模式可受理）");
     }
 
-    /** 运营后台展示打款模式，避免误以为已真实到账。 */
+    /**
+     * 运营后台展示打款模式，避免误以为已真实到账。
+     *
+     * 🔴 这是**运行期真值提示**，不是测试文案 —— 它逐字反映当前是否会真的出款。
+     *    文案用运营语言描述事实（「记账打款」「未接入真实转账」），
+     *    **不得删除或弱化**：删掉后运营会把「标记成功」当成「钱已到账」。
+     *    真实转账接入（P0-2）后 mock 默认关闭，本提示自动切到「打款会失败」分支直至 API 就绪。
+     */
     public java.util.Map<String, Object> modeInfo() {
         boolean mock = properties.mockEnabled();
         boolean wx = weChatPayProperties.isConfigured();
@@ -56,11 +63,11 @@ public class LineWithdrawPayoutService {
         String feeNote = "；手续费=固定 " + feeCents + " 分 + " + feeBps + " bps（仅新申请写入 feeCents）";
         String note;
         if (mock) {
-            note = "当前为 Mock 打款：审核通过后标记成功，不发起真实微信转账到零钱" + feeNote;
+            note = "当前为记账打款（未接入真实转账）：审核通过后标记为成功，不向微信转账到零钱" + feeNote;
         } else if (!wx) {
-            note = "Mock 已关闭且微信支付未配置：打款会失败" + feeNote;
+            note = "记账打款已关闭且微信支付未配置：打款会失败" + feeNote;
         } else {
-            note = "Mock 已关闭：微信转账到零钱 API 尚未接入，打款会失败" + feeNote;
+            note = "记账打款已关闭：微信转账到零钱 API 尚未接入，打款会失败" + feeNote;
         }
         return java.util.Map.of(
                 "mockEnabled", mock,

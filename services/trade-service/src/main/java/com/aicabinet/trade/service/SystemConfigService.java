@@ -715,8 +715,16 @@ public class SystemConfigService {
                 "DISPUTE_SLA_OVERDUE,PAYSCORE_ORDER_REFUND_REQUIRED,WECHAT_REFUND_ABNORMAL,"
                         + "PROFIT_SHARING_RETURN_FAILED,INVOICE_FULL_REFUND_RED_INVERSE",
                 "需要升级的告警类型（逗号分隔），留空表示全类型；仅对投递失败的告警生效");
+        // ⚠️ 示例里的姓名/手机号用**占位符**而非具体人名（原为「张三 / 138...」）：
+        //    该描述会直接渲染在「告警规则」页的字段说明上，假人名会让运营误以为已配好值班人。
+        //    🔴 upsertIfAbsent 只补「全新安装」缺的行；既有环境该行描述不会自动更新
+        //    ⇒ 必须**同时**用 refreshDescriptionIfPresent 纠历史库（这就是它的用途，
+        //       先例见下方 ops.log_retention.points_months「把历史库里那条误导性描述刷成已废弃」）。
         upsertIfAbsent(OPS_ALERT_ONCALL_ROSTER, "",
-                "值班表 JSON：[{\"name\":\"张三\",\"phone\":\"138...\",\"days\":[1,2,3,4,5],"
+                "值班表 JSON：[{\"name\":\"值班人姓名\",\"phone\":\"手机号\",\"days\":[1,2,3,4,5],"
+                        + "\"startHour\":9,\"endHour\":18}]；留空=无值班人=不升级");
+        refreshDescriptionIfPresent(OPS_ALERT_ONCALL_ROSTER,
+                "值班表 JSON：[{\"name\":\"值班人姓名\",\"phone\":\"手机号\",\"days\":[1,2,3,4,5],"
                         + "\"startHour\":9,\"endHour\":18}]；留空=无值班人=不升级");
         upsertIfAbsent(OPS_ALERT_ESCALATION_SMS_WEBHOOK, "",
                 "告警升级一级：短信网关 Webhook URL（留空跳过；载荷 phoneNumber/message）");

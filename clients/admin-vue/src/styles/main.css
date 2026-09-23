@@ -1732,6 +1732,38 @@ a:focus-visible {
 }
 
 /*
+ * 列设置弹层（CrudTable 的「列设置」按钮）。
+ * ⚠️ 必须写在这里（全局）而不是 CrudTable 的 scoped 样式里：
+ *    el-popover 默认 teleport 到 body，scoped 的 [data-v-*] 属性不会跟着过去，
+ *    写在组件里会「看起来写了但不生效」。
+ */
+.crud-cols__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.crud-cols__title {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+/* 列名可能很长（「平均恢复时长」…）⇒ 整行可点、超长省略并保留 title 全文 */
+.crud-cols .el-checkbox.crud-cols__item {
+  display: flex;
+  width: 100%;
+  height: 30px;
+  margin-right: 0;
+}
+.crud-cols .el-checkbox.crud-cols__item .el-checkbox__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
  * 🔴 .el-table 必须**定宽 = 容器**，绝不能给 width: fit-content。
  *
  * EP 算列宽时读的是元素自身的宽度：
@@ -2402,6 +2434,26 @@ a:focus-visible {
 }
 .el-table.is-scrolling-none .el-table-fixed-column--right.is-first-column::before,
 .el-table.is-scrolling-right .el-table-fixed-column--right.is-first-column::before {
+  box-shadow: none !important;
+}
+
+/*
+ * CrudTable 场景：上面的 EP 状态类**失效**，改由真实滚动位置说了算。
+ *
+ * 实测（.tmp/probe/fix-diag.mjs，1440×900 / 开门记录）：横滚到 scrollLeft=476 后
+ * `el-table` 上的 class 仍只有 `is-scrolling-left` —— 因为横向滚动被收在
+ * `.crud-table__table`（见组件内注释），EP 的滚动监听收不到事件。
+ * 于是「已滚到最右该收阴影」那条规则永不触发，吸附列左缘在最右端也挂着过渡带，
+ * 与那两条规则写明的原意相反。
+ *
+ * 修法：由 CrudTable 的 syncFixShadow() 按**真实滚动容器**增减 `.is-fixshadow`，
+ * 这里显式声明正反两面，不再依赖 EP 状态类。特异性与上面两条同为 (0,4,1)，
+ * 位置更靠后 ⇒ 必然胜出。
+ */
+.crud-table__table.is-fixshadow .el-table-fixed-column--right.is-first-column::before {
+  box-shadow: var(--el-table-fixed-right-column) !important;
+}
+.crud-table__table:not(.is-fixshadow) .el-table-fixed-column--right.is-first-column::before {
   box-shadow: none !important;
 }
 
