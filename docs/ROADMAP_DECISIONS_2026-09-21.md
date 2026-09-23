@@ -278,3 +278,15 @@
 3. **拍 D4（F11 → 选 B 时段价+限量）**：复用 F1 策略层，边际成本最低。
 4. **拍 D3（F3 → 先只做原生分享）**：拿分享量数据，再决定是否上奖励。
 5. **暂缓**：D2（等 P0-1）、D5（等平台账号）、D6/D7/D8/D9（等商业模式/资质/商务）。
+
+---
+
+## 09-23 复核注（不采信上文计数，已回源码重取）
+
+> 证据链：`.workbuddy/memory/PROJECT-REFERENCE.md` §9.1 第三十九轮；29 条现值详表：`COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md` §8。
+
+1. **本文 §0 的「✅13｜⚠️6｜❌10」已过期 ⇒ 现值 ✅14｜⚠️5｜❌10 = 29**：
+   - **D1（F5 储值等级）已拍 A 并落地** ⇒ F5 转 ✅（`V283` 四档 + `MemberService.java:143` 消费点）——决策表 D1 行可画勾。
+   - **G9 解约端点已落**（「立刻可开工」项消项）：`POST /pay-contract/unsign` + consumer-mp `mine.vue` 入口 + 证据包 `docs/evidence/2026-09-21-g9-review/`。
+2. **决策项现状**：D1 ✅ 已落｜D3/D4/D6/D7/D8/D9 仍待拍板（F3 复测两端分享 API 仍 0 命中）｜D2 建议 A（等 P0-1）维持｜D5 建议 A（等平台账号）维持。
+3. **新登记一项工程侧待办（不在 29 条内）**：`clients/admin-vue/vite.config.ts` 加 `build.modulePreload.polyfill: false` —— 省入口体积＋去掉一处入口变动源（入口内嵌 `__vite__mapDeps` 95 js + 72 css 名）。🔴 **现在不做**：改一行 ⇒ 产物哈希全变 ⇒ 必须重建 `static/admin`，而当前工作区是并发会话在制品（重建会把半成品固化进产物、提交归属说不清）；等其收口后做成「config 一行 + 重建」独立提交，前置＝先定浏览器基线。详见 `PROJECT-REFERENCE` §9 #15。

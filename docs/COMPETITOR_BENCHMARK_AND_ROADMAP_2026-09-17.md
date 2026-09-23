@@ -3,6 +3,8 @@
 > 审计方式：只读代码盘点（后端 83 个 Controller / 276 个 Flyway 迁移、admin-vue 约 60 页面 318 端点、双小程序、edge/android-app、vision-service、infra），结合既有审计文档（`three-end-full-audit-2026-09-15.md`、`production-launch-checklist.md`、`CODEBASE_FOUNDATION.md`、`GO_LIVE_EXECUTION_PLAN.md`），对标市面主流竞品后输出。**本文档只出计划，不动代码。**
 
 > **09-18 复核更正**：对本文档关键判据逐条回到源码 / 工作流重新取证，**推翻 2 条过期结论**（§2.5 的 M-1/M-2/M-3、Sonar `on.push`），**修正 2 处判据**（appid 实际有 `project.config.json` 一份且门禁红灯在 `urlCheck`；M 组客户端其实已接开关），**新发现 1 条**（两端小程序 `type-check` 因 `tsc` 不解析 `.vue` 而假绿），另补充 G1 的线长侧同族副本。**并当轮修复了 C-1/C-2/C-3 与 A-1**（见 §2.5 逐条）。更正过程见 §2.5 行内标注。
+>
+> 🗓 **2026-09-23 第三轮全量重取**：29 条**不采信任何既有 ✅** 逐条回源码复核 ⇒ **现值 ✅14｜⚠️5｜❌10 = 29**（F5 收口、G9 消项）。**正文 §4/§5/§6 的行内状态标注停在 09-21，最新现值一律以 §8 为准**。
 
 ---
 
@@ -254,3 +256,47 @@
 - [中国无人零售行业调研简报（东方财富 PDF）](http://pdf.dfcfw.com/pdf/H3_AP202508141727476593_1.pdf)
 - [AI 动态定价在自动贩卖机的应用（2026）](https://xn--mts593a6yk.com/blog/ai-dynamic-pricing-vending-machine-taiwan-2026)
 - [丰e足食单柜产出分析（钛媒体）](https://www.tmtpost.com/8028086.html)
+
+---
+
+## 8. 2026-09-23 回源码复核（第三轮全量重取）
+
+> 复核口径：**不采信本文任何既有 ✅ 标注**（最后更新 09-21 14:15），29 条逐条回源码重取（`文件:行` / grep 实测）。
+> 复核过程与证据链见 `.workbuddy/memory/PROJECT-REFERENCE.md` §9.1 第三十九轮；决策项现值见 `ROADMAP_DECISIONS_2026-09-21.md` 文末注。
+>
+> **现值：✅14｜⚠️5｜❌10 = 29**（上一轮 09-21 为 ✅13｜⚠️6｜❌10）。
+
+### 8.1 相对上一轮的变化
+
+| 项 | 变化 | 证据 |
+|---|---|---|
+| **F5 储值营销** | ⚠️ → **✅ 全收口** | `V283__member_level_min_recharge.sql`（`min_recharge` 四档 0/500/2000/5000，幂等补行）；服务端消费 `MemberService.java:143-147`（净充值 ≥ minRecharge 取最高达标档）；「余额优先支付」此前已验（`PayScoreService.charge:304-310` 早退分支 → `applyBalanceCharge`） |
+| **G9 用户主动解约** | ❌（挂 P0-3）→ **✅ 消项** | `AccountController.java:101 POST /api/v2/account/pay-contract/unsign` + `AccountService.java:109` + consumer-mp `mine.vue:83-93` 入口；证据 `docs/evidence/2026-09-21-g9-review/`；`packages/shared-types/src/generated/openapi.ts` 已含该端点 |
+| P0-7 | 维持 ✅（纠正一处误判） | 三方契约测试落点在 `services/device-service/src/test/.../mqtt/EdgeCloudMqttContractTest.java`（**310 行**），不在 `edge/device-simulator`（后者只有 `SimulatorSupportTest` 属正常） |
+
+### 8.2 ✅14 条（全部有文件级证据）
+
+P0-5（坐标必填/无坐标拒签/会话三连）、**P0-6**（Alertmanager+飞书桥+Loki/Tempo 运行期三处互证）、**P0-7**（edge 单测 13 文件 + `EdgeCloudMqttContractTest` 310 行）、
+**F1** 动态定价（`PricingPromoPolicy` / `LinePromoTaskService` / `ClearanceDiscountPricingTest`）、**F5**（本轮收口）、**F6** 消费者体验（订单搜索 `consumer.order_search.enabled`／支付方式选择 `utils/pay-channel`＋`order-detail.vue:326`／柜内商品浏览 `index.vue:234`／券包入口 `mine.vue:102`）、
+**O3** 告警升级链、**O4** 协议治理（`check:edge-cloud-mqtt-contract`，链第 8 位）、**O5** 商户图表（`business.vue:133 uni-echarts`）、**O6** 余额退款自动化（`BalanceRefundService.java:104` `refund.auto_approve.max_cents`）、**O7** 测试资产（trade 300 / device 9 / edge 13 测试文件）、**O8** 性能基线、**O9** Flyway 治理（`ci.yml:115`）、**O10** mock 隔离。
+
+> ⚠️ **诚实口径**：F6 / O6 等「代码闭合」项**运行期未验**（无 UAT 覆盖、部分开关默认关）——✅ 指「实现＋单测＋门禁绿」，不等于「已验收」。
+
+### 8.3 ⚠️5 条（有实现、差尾款，全部卡外部或决策）
+
+| 项 | 真剩余 |
+|---|---|
+| P0-1 | 移远 OpenVending SDK 本体（仓内无解）；阶段 B/C 随后 |
+| P0-4 | appid 申请 + 域名白名单（隐私声明 ✅ 已落，门禁 `check:miniapp-privacy-declaration` 实跑 OK；🔴 `__usePrivacyCheck__` 是空操作字段，勿再当缺口） |
+| F4 | 切片 2（E1–E4 通电）/ 3（收益对账）/ 4（入账）/ 5（形态）—— 切片 1 已落（`wx-ad-slot.vue` / `utils/promo-slot.ts`） |
+| O1 | 模型版本管理 / 灰度回滚（看板侧已落；`modelVersion` 全透传；按 D2 决策等 P0-1） |
+| O2 | 静默安装/分批/回滚（`OtaChecker.kt` 仅下载+SHA-256；需真机 DeviceOwner 预置，非纯仓内活） |
+
+### 8.4 ❌10 条（外部 4 + 产品决策 6）
+
+- **外部**：P0-2 提现打款（`MerchantWithdrawPayoutService.java:47` 仍「微信商户转账接口尚未接入」，`transferApiReady=false`；非 mock 必失败 = fail-closed）｜P0-3 真实商户号/短信（G9 已消项）｜F2 刷脸（蜻蜓/微信刷脸资质）｜F12 发票（航信/百望/诺诺）。
+- **产品决策**：F3 分享裂变（复测 `onShareAppMessage`/`onShareTimeline` 两端 **0 命中**）｜F7 企业 B 端｜F8 平台流量｜F9 设备租赁｜F10 加盟合伙人｜F11 营销玩法 —— 全部在 `ROADMAP_DECISIONS_2026-09-21.md` D2–D9 有选项与建议，**一句话即可开工**。
+
+### 8.5 结论
+
+**「纯工程、无需外部资源、无需产品决策」的可开工项 = 0。** 路线图继续推进的前置条件是：① 外部资源到位（appid / 商户号 / SDK / 平台账号），或 ② 拍板 D2–D9。另登记一项工程侧小优化待办：`admin-vue` `modulePreload.polyfill: false`（见 `ROADMAP_DECISIONS` 文末注③），等并发工作收口后做。
