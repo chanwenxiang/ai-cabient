@@ -291,7 +291,13 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  width: clamp(108px, 16vw, 220px);
+  /**
+   * 🔴 下限曾是 108px，而 16vw 在 1100px 以下都小于该值 ⇒ 900–1100 区间是「截断带」：
+   *    图标 14 + 间距 6 + 内边距 22 = 42px 固定开销，占位文案「搜索页面名称或关键词…」
+   *    实测自然宽 141px ⇒ 需要 183px 以上才不省略。实测 1092 视口下 16vw=174.7px ⇒ 被截。
+   *    下限抬到 190px 后，只要不进 (max-width:900px) 的图标模式，文案就完整。
+   */
+  width: clamp(190px, 16vw, 220px);
   max-width: 100%;
   height: 32px;
   padding: 0 11px;

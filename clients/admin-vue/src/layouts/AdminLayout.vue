@@ -103,9 +103,11 @@
                 userInitial
               }}</el-avatar>
               <div class="user-text">
-                <span class="user-name">{{ auth.displayName }}</span>
-                <span class="user-detail">{{ auth.phone || '暂无' }} · {{ auth.roleText }}</span>
-                <span class="user-scope">{{ auth.dataScopeText }}</span>
+                <span class="user-name" :title="auth.displayName">{{ auth.displayName }}</span>
+                <span class="user-detail" :title="`${auth.phone || '暂无'} · ${auth.roleText}`"
+                  >{{ auth.phone || '暂无' }} · {{ auth.roleText }}</span
+                >
+                <span class="user-scope" :title="auth.dataScopeText">{{ auth.dataScopeText }}</span>
               </div>
             </button>
             <template #dropdown>
@@ -1001,7 +1003,14 @@ onUnmounted(() => {
 .user-text {
   line-height: 1.3;
   min-width: 0;
-  max-width: clamp(72px, 12vw, 180px);
+  /**
+   * 🔴 上限曾是 clamp(72px, 12vw, 180px)：按最长的「手机号 · 全部角色名」量，
+   *    实测自然宽 256px ⇒ 1440 下被截 83px、1092 下被截 125px（几乎半个字段读不到）。
+   *    顶栏右侧实测仍有约 500px 空白。22vw 时 1092 仍差 16px，故取 26vw：
+   *    1092 ⇒ 280px、1280/1440 ⇒ 280px，均可完整显示；
+   *    仍放不下的极窄视口由 .user-detail 的 title 属性兜底（hover 可见全文）。
+   */
+  max-width: clamp(72px, 26vw, 280px);
 }
 .user-name {
   display: block;

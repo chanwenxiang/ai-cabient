@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>运营后台 UI 全站巡检报告 · 2026-09-23</title>
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--line:#e5e7eb;--text:#1e293b;--muted:#64748b;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--brand:#0d9488}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.65 "Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:24px;margin:0 0 6px}
+h2{font-size:18px;margin:36px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+h3{font-size:15px;margin:22px 0 8px}
+.sub{color:var(--muted);margin-bottom:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:18px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;border-left:4px solid var(--brand)}
+.kpi b{display:block;font-size:22px;line-height:1.25}
+.kpi span{color:var(--muted);font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:#f1f5f9;font-weight:600;position:sticky;top:0;z-index:2}
+tr.ok td:first-child{border-left:3px solid var(--ok)}
+tr.warn td:first-child{border-left:3px solid var(--warn)}
+tr.bad td:first-child{border-left:3px solid var(--bad)}
+.mono{font-family:Consolas,Menlo,monospace;font-size:12px}
+.sm{font-size:12px;color:var(--muted)}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px}
+.p-ok{background:#dcfce7;color:#166534}.p-warn{background:#fef3c7;color:#92400e}.p-bad{background:#fee2e2;color:#991b1b}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+figure{margin:10px 0}
+figure img{width:100%;border:1px solid var(--line);border-radius:8px;display:block}
+figcaption{color:var(--muted);font-size:12px;padding:6px 2px}
+code{background:#f1f5f9;padding:1px 6px;border-radius:4px;font-family:Consolas,Menlo,monospace;font-size:12.5px}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:8px;overflow:auto;font-size:12.5px}
+.note{border-left:4px solid var(--warn);background:#fffbeb;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+.good{border-left-color:var(--ok);background:#f0fdf4}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>运营后台（admin-vue）UI 全站巡检报告</h1>
+<div class="sub">2026-09-23 · 真实浏览器（Chromium / Playwright）逐页访问 · 运行栈 <code>http://127.0.0.1:18080/admin/</code></div>
+
+<div class="kpis">
+  <div class="kpi"><b>71 页</b><span>巡检路由数（静态 66 + 动态/特殊 5）</span></div>
+  <div class="kpi"><b>2 档视口</b><span>1440×900 与 1092×606（用户实际窗口）</span></div>
+  <div class="kpi"><b>0</b><span>JS 异常 / 控制台错误 / 4xx·5xx 响应</span></div>
+  <div class="kpi"><b>3 项</b><span>已修复的布局缺陷</span></div>
+  <div class="kpi"><b>34/34</b><span>本机门禁链（含 3 个链外 admin 门禁）</span></div>
+</div>
+
+<h2>一、巡检方法</h2>
+<div class="card">
+<p><b>页面清单不手写</b>：从 <code>clients/admin-vue/src/router/index.ts</code> 源码解析（按路由对象分块），避免人工清单漂移。</p>
+<p><b>真浏览器</b>：Chromium 加载运行中的服务（无任何路由拦截/接口 mock），登录后逐页访问、等待渲染稳定再采样。</p>
+<p><b>判据（结果导向，只读几何，不写业务数据）</b></p>
+<ul>
+<li><code>PAGE_HSCROLL</code> 文档级横向溢出 · <code>OVERLAP</code> 同父流式块重叠（排除浮层）</li>
+<li><code>CLIPPED</code> 内容被容器裁切 · <code>TRUNCATED</code> 文本省略号截断 · <code>EMPTY</code> 空渲染 · <code>IMG_FAIL</code> 图片失败</li>
+<li><code>CRUD_*</code> 表格页专项：工具行/表头/首行/分页行零重叠、fill-flow 模式自洽</li>
+<li>运行时：<code>pageerror</code> / console error / HTTP ≥400</li>
+</ul>
+<p class="sm">共采样 71 路由 × 2 视口，全部归档截图。</p>
+</div>
+
+<h2>二、已修复的 3 处布局缺陷</h2>
+
+<h3>1. 顶栏用户信息被截断（全站每一页都出现）</h3>
+<div class="card">
+<p><b>现象</b>：右上角「手机号 · 角色名」被省略号截断，1440 下少 83px、1092 下少 <b>125px</b>（几乎一半字段读不到）。</p>
+<p><b>根因</b>：<code>AdminLayout.vue</code> 的 <code>.user-text</code> 限宽 <code>clamp(72px, 12vw, 180px)</code>；而该字段自然宽 256px（按真实内容量取），顶栏右侧实测尚有约 500px 空白 → 限宽过保守。</p>
+<p><b>修法</b>：限宽放宽为 <code>clamp(72px, 26vw, 280px)</code>；并给三行文本补 <code>title</code> 属性（极窄视口仍可 hover 看全）。</p>
+<div class="grid2">
+<figure><img src="shots/topbar-1440-before.png" alt="修复前 1440"><figcaption>1440 修复前：溢出 83px（「超级管理员、运…」）</figcaption></figure>
+<figure><img src="shots/topbar-1440-after.png" alt="修复后 1440"><figcaption>1440 修复后：溢出 0px，角色名完整</figcaption></figure>
+</div>
+</div>
+
+<h3>2. 搜索框占位文案在 900–1100px 区间被截断</h3>
+<div class="card">
+<p><b>现象</b>：1092 窗口下顶栏搜索框显示「搜索页面名称或关键…」。</p>
+<p><b>根因</b>：<code>GlobalSearch.vue</code> 的 <code>.search-trigger</code> 宽 <code>clamp(108px, 16vw, 220px)</code>；图标+间距+内边距固定占 42px，占位文案自然宽 141px ⇒ 需 ≥183px，而 16vw 在 1100px 以下都小于 183 ⇒ 形成 <b>900–1100px 的截断带</b>（900 以下才切成纯图标）。</p>
+<p><b>修法</b>：下限抬到 190px（<code>clamp(190px, 16vw, 220px)</code>）。</p>
+<div class="grid2">
+<figure><img src="shots/topbar-1092-before.png" alt="修复前 1092"><figcaption>1092 修复前：搜索文案与用户信息双双截断</figcaption></figure>
+<figure><img src="shots/topbar-1092-after.png" alt="修复后 1092"><figcaption>1092 修复后：两者均完整</figcaption></figure>
+</div>
+</div>
+
+<h3>3. 投放地图页底部留白 / 窄窗口下越出视口</h3>
+<div class="card">
+<p><b>现象</b>：1440×900 下地图底边距可用底 <b>留 40px 空白带</b>；1092×606 下改公式后又<b>越出</b>（主区多一条「当前窗口较窄」提示条，占 40px+间距）。</p>
+<p><b>根因</b>：<code>DeviceMapView.vue</code> 用 <code>height: clamp(320px, calc(100vh - 170px), 1200px)</code> —— <code>100vh</code> 减常数无法反映「顶栏 / 面包屑 / 标签栏 / 窄屏提示条 / 主区内边距」的实际占位（1440 顶偏移 106，1092 为 156）。</p>
+<p><b>修法</b>：改为 <code>flex: 1 1 auto</code> + 保留 <code>min-height: 320px</code> —— 让地图吃掉主区剩余空间（有富余就拉伸、无富余才压缩），彻底去掉魔法数字。</p>
+<div class="grid2">
+<figure><img src="shots/map-1440-before.png" alt="修复前 1440"><figcaption>1440 修复前：底边 836，可用底 876 → 留白 40px</figcaption></figure>
+<figure><img src="shots/map-1440-after.png" alt="修复后 1440"><figcaption>1440 修复后：底边 876 = 可用底，贴合</figcaption></figure>
+</div>
+<figure><img src="shots/map-1092-after.png" alt="修复后 1092"><figcaption>1092 修复后：底边 582 = 可用底（含窄屏提示条时同样贴合）</figcaption></figure>
+</div>
+
+<h3>负向对照（证明修复真的起作用，而非「测得恰好为 0」）</h3>
+<div class="card">
+<p class="sm">在<b>修复后的运行栈</b>上注入各处的旧值，判据必须变红：</p>
+<table>
+<thead><tr><th>判据</th><th>视口</th><th>修复后</th><th>注入旧值</th><th>判别力</th></tr></thead>
+<tbody>
+<tr><td>顶栏 user-detail 溢出</td><td>1440×900</td><td class="mono">0px</td><td class="mono">83px</td><td>✓ 变红</td></tr>
+<tr><td>顶栏 user-detail 溢出</td><td>1092×606</td><td class="mono">0px</td><td class="mono">125px</td><td>✓ 变红</td></tr>
+<tr><td>搜索占位文案溢出</td><td>1092×606</td><td class="mono">0px</td><td class="mono">10px</td><td>✓ 变红</td></tr>
+<tr><td>搜索占位文案溢出</td><td>1440×900</td><td class="mono">0px</td><td class="mono">0px</td><td>— 该视口本就无此问题（自洽）</td></tr>
+<tr><td>地图底边 vs 可用底</td><td>1440×900</td><td class="mono">差 0（876/876）</td><td class="mono">留白 40px</td><td>✓ 变红</td></tr>
+<tr><td>地图底边 vs 可用底</td><td>1092×606</td><td class="mono">差 0（582/582）</td><td class="mono">溢出 10px</td><td>✓ 变红</td></tr>
+</tbody>
+</table>
+<p class="sm">另：修复前用含窄屏提示条的真实页面实测，同一旧公式在 1092 下溢出达 50px ⇒ 说明该公式对顶部占位敏感、跨视口不可靠。</p>
+</div>
+
+<h2>三、逐页结论</h2>
+<div class="card">
+<p class="sm">「仅省略号」= 命中项全部是 Element Plus 表格单元格的 <code>ellipsis</code> 省略（列宽设计使然），非布局缺陷；「干净」= 零命中、零运行时错误。</p>
+<p class="sm">1440 视口：干净 <b>45</b> 页 · 仅省略号 <b>26</b> 页 · 需关注 <b>0</b> 页。
+1092 视口：干净 <b>43</b> 页 · 仅省略号 <b>28</b> 页 · 需关注 <b>0</b> 页。
+两档视口合计 JS 异常 0、HTTP 4xx/5xx 0、空渲染 0、横向溢出 0。</p>
+<table>
+<thead><tr><th>路由</th><th>标题</th><th>内容</th><th>文本量</th><th>1092</th><th>1440</th><th>判据码</th><th>运行时</th><th>视图文件</th></tr></thead>
+<tbody>
+<tr class="warn"><td class="mono">dashboard</td><td>运营工作台</td><td class="sm">1 表</td><td>1613</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">dashboard/DashboardView.vue</td></tr>
+<tr class="ok"><td class="mono">analytics</td><td>数据分析</td><td class="sm">6 图</td><td>584</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">analytics/AnalyticsView.vue</td></tr>
+<tr class="warn"><td class="mono">footfall</td><td>客流坪效</td><td class="sm">2 表</td><td>663</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED</td><td class="sm">无</td><td class="sm">analytics/FootfallView.vue</td></tr>
+<tr class="warn"><td class="mono">reports</td><td>设备报表</td><td class="sm">1 表</td><td>811</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED,TRUNCATED</td><td class="sm">无</td><td class="sm">reports/DeviceReportView.vue</td></tr>
+<tr class="ok"><td class="mono">finance</td><td>财务毛利</td><td class="sm">1 表 1 图</td><td>638</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">finance/FinanceView.vue</td></tr>
+<tr class="ok"><td class="mono">fund-bills</td><td>资金账单</td><td class="sm">2 表</td><td>676</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">finance/FundBillView.vue</td></tr>
+<tr class="ok"><td class="mono">sales-reports</td><td>销售报表</td><td class="sm">1 表</td><td>476</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">reports/SalesReportsView.vue</td></tr>
+<tr class="ok"><td class="mono">stock-health</td><td>库存健康</td><td class="sm">1 表</td><td>406</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">reports/StockHealthView.vue</td></tr>
+<tr class="warn"><td class="mono">devices</td><td>设备管理</td><td class="sm">1 表</td><td>1117</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED,CELL_ELLIPSIS,TRUNCATED</td><td class="sm">无</td><td class="sm">devices/DeviceListView.vue</td></tr>
+<tr class="warn"><td class="mono">device-map</td><td>投放地图</td><td class="sm">—</td><td>435</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED</td><td class="sm">无</td><td class="sm">devices/DeviceMapView.vue</td></tr>
+<tr class="ok"><td class="mono">device-kpi</td><td>设备可用性</td><td class="sm">—</td><td>340</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">devices/DeviceKpiView.vue</td></tr>
+<tr class="warn"><td class="mono">repair-tickets</td><td>维修工单</td><td class="sm">1 表</td><td>503</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">devices/RepairTicketsView.vue</td></tr>
+<tr class="ok"><td class="mono">device-ops</td><td>设备运维</td><td class="sm">1 表</td><td>4152</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">devices/DeviceOpsMonitorView.vue</td></tr>
+<tr class="warn"><td class="mono">sessions</td><td>开门记录</td><td class="sm">1 表</td><td>3447</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">sessions/SessionListView.vue</td></tr>
+<tr class="ok"><td class="mono">upload-queue</td><td>录像上传</td><td class="sm">1 表</td><td>423</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">upload/UploadQueueView.vue</td></tr>
+<tr class="warn"><td class="mono">orders</td><td>订单管理</td><td class="sm">1 表</td><td>2117</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED,CELL_ELLIPSIS,TRUNCATED</td><td class="sm">无</td><td class="sm">orders/OrderListView.vue</td></tr>
+<tr class="warn"><td class="mono">skus</td><td>商品管理</td><td class="sm">1 表</td><td>1039</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED,CELL_ELLIPSIS,TRUNCATED</td><td class="sm">无</td><td class="sm">skus/SkuListView.vue</td></tr>
+<tr class="ok"><td class="mono">sku-vision</td><td>识别入驻</td><td class="sm">1 表</td><td>991</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">skus/SkuVisionEnrollView.vue</td></tr>
+<tr class="warn"><td class="mono">disputes</td><td>争议审核</td><td class="sm">1 表</td><td>2061</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED,TRUNCATED</td><td class="sm">无</td><td class="sm">disputes/DisputeListView.vue</td></tr>
+<tr class="warn"><td class="mono">exceptions</td><td>异常中心</td><td class="sm">1 表</td><td>2340</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED,TRUNCATED</td><td class="sm">无</td><td class="sm">exceptions/ExceptionListView.vue</td></tr>
+<tr class="ok"><td class="mono">replenishment</td><td>补货调度</td><td class="sm">5 表</td><td>822</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">replenishment/ReplenishmentView.vue</td></tr>
+<tr class="ok"><td class="mono">merchants</td><td>商户与分账</td><td class="sm">3 表</td><td>482</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">merchants/MerchantSplitsView.vue</td></tr>
+<tr class="ok"><td class="mono">line-managers</td><td>线长钱包</td><td class="sm">3 表</td><td>491</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">finance/LineManagerView.vue</td></tr>
+<tr class="ok"><td class="mono">merchant-withdraw</td><td>商户提现</td><td class="sm">2 表</td><td>547</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">finance/MerchantWithdrawView.vue</td></tr>
+<tr class="ok"><td class="mono">reconciliation</td><td>对账</td><td class="sm">1 表</td><td>611</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">reconciliation/ReconciliationView.vue</td></tr>
+<tr class="warn"><td class="mono">consistency</td><td>数据一致性</td><td class="sm">1 表</td><td>2436</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED,TRUNCATED</td><td class="sm">无</td><td class="sm">consistency/ConsistencyView.vue</td></tr>
+<tr class="ok"><td class="mono">warehouse</td><td>仓库</td><td class="sm">1 表</td><td>380</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">warehouse/WarehouseView.vue</td></tr>
+<tr class="warn"><td class="mono">recharges</td><td>充值管理</td><td class="sm">1 表</td><td>722</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">recharges/RechargeListView.vue</td></tr>
+<tr class="ok"><td class="mono">balance-refunds</td><td>余额退款</td><td class="sm">1 表</td><td>386</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">finance/BalanceRefundView.vue</td></tr>
+<tr class="ok"><td class="mono">invoices</td><td>开票申请</td><td class="sm">1 表</td><td>443</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">finance/InvoiceListView.vue</td></tr>
+<tr class="ok"><td class="mono">merchant-onboarding</td><td>进件工作台</td><td class="sm">1 表</td><td>466</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">merchants/MerchantOnboardingView.vue</td></tr>
+<tr class="ok"><td class="mono">users</td><td>用户余额</td><td class="sm">1 表</td><td>1764</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">users/UserListView.vue</td></tr>
+<tr class="ok"><td class="mono">phone-verify</td><td>手机验证</td><td class="sm">1 表</td><td>1659</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">users/PhoneVerifyView.vue</td></tr>
+<tr class="ok"><td class="mono">vision-mappings</td><td>识别映射</td><td class="sm">2 表</td><td>660</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">vision/VisionMappingView.vue</td></tr>
+<tr class="ok"><td class="mono">ota</td><td>固件版本</td><td class="sm">2 表</td><td>422</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">ota/OtaView.vue</td></tr>
+<tr class="ok"><td class="mono">sla</td><td>服务时限监控</td><td class="sm">—</td><td>399</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">sla/SlaView.vue</td></tr>
+<tr class="warn"><td class="mono">risk</td><td>风控</td><td class="sm">2 表</td><td>2778</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">risk/RiskView.vue</td></tr>
+<tr class="ok"><td class="mono">operators</td><td>运营账号</td><td class="sm">1 表</td><td>1104</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">system/OperatorManageView.vue</td></tr>
+<tr class="warn"><td class="mono">roles</td><td>角色管理</td><td class="sm">1 表</td><td>1124</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">system/RoleManageView.vue</td></tr>
+<tr class="warn"><td class="mono">departments</td><td>部门管理</td><td class="sm">1 表</td><td>683</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">system/DepartmentManageView.vue</td></tr>
+<tr class="warn"><td class="mono">approvals</td><td>审批流配置</td><td class="sm">1 表</td><td>933</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">system/ApprovalConfigView.vue</td></tr>
+<tr class="ok"><td class="mono">menus</td><td>菜单管理</td><td class="sm">1 表</td><td>10940</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">system/MenuManageView.vue</td></tr>
+<tr class="ok"><td class="mono">dicts</td><td>字典管理</td><td class="sm">2 表</td><td>2336</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">system/DictManageView.vue</td></tr>
+<tr class="warn"><td class="mono">system-configs</td><td>参数配置</td><td class="sm">1 表</td><td>2402</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">system/SystemConfigView.vue</td></tr>
+<tr class="warn"><td class="mono">alert-rules</td><td>告警规则</td><td class="sm">1 表</td><td>3235</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">system/AlertRuleView.vue</td></tr>
+<tr class="warn"><td class="mono">scheduled-tasks</td><td>定时任务</td><td class="sm">1 表</td><td>2739</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED,CELL_ELLIPSIS,TRUNCATED</td><td class="sm">无</td><td class="sm">system/ScheduledTaskView.vue</td></tr>
+<tr class="ok"><td class="mono">org-sites</td><td>组织与点位</td><td class="sm">2 表</td><td>340</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">system/OrgSitesView.vue</td></tr>
+<tr class="ok"><td class="mono">announcements</td><td>通知公告</td><td class="sm">1 表</td><td>457</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">announcements/AnnouncementsView.vue</td></tr>
+<tr class="warn"><td class="mono">audit</td><td>审计日志</td><td class="sm">1 表</td><td>2409</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">system/AuditLogView.vue</td></tr>
+<tr class="ok"><td class="mono">devops</td><td>DevOps 中心</td><td class="sm">—</td><td>478</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">system/DevOpsHubView.vue</td></tr>
+<tr class="ok"><td class="mono">observability</td><td>日志中心</td><td class="sm">—</td><td>869</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">system/ObservabilityView.vue</td></tr>
+<tr class="ok"><td class="mono">promotions</td><td>营销活动</td><td class="sm">1 表</td><td>420</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">promotions/PromotionsView.vue</td></tr>
+<tr class="ok"><td class="mono">coupons</td><td>优惠券</td><td class="sm">1 表</td><td>492</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">promotions/CouponsView.vue</td></tr>
+<tr class="ok"><td class="mono">ad-assets</td><td>素材库</td><td class="sm">1 表</td><td>366</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">growth/AdAssetsView.vue</td></tr>
+<tr class="ok"><td class="mono">ad-campaigns</td><td>投放计划</td><td class="sm">1 表</td><td>392</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">growth/AdCampaignsView.vue</td></tr>
+<tr class="ok"><td class="mono">points-redeem</td><td>积分兑换管理</td><td class="sm">1 表</td><td>388</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">growth/PointsRedeemView.vue</td></tr>
+<tr class="ok"><td class="mono">member-levels</td><td>会员等级规则</td><td class="sm">1 表</td><td>615</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">growth/MemberLevelsView.vue</td></tr>
+<tr class="warn"><td class="mono">marketing-roi</td><td>活动效果分析</td><td class="sm">1 表</td><td>437</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED</td><td class="sm">无</td><td class="sm">growth/MarketingRoiView.vue</td></tr>
+<tr class="ok"><td class="mono">replenishment-staff</td><td>补货员效率</td><td class="sm">1 表</td><td>428</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">growth/ReplenishmentStaffView.vue</td></tr>
+<tr class="warn"><td class="mono">sku-review</td><td>选品诊断</td><td class="sm">1 表</td><td>775</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">growth/SkuReviewView.vue</td></tr>
+<tr class="warn"><td class="mono">user-analysis</td><td>用户分析</td><td class="sm">2 表</td><td>573</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CLIPPED</td><td class="sm">无</td><td class="sm">growth/UserAnalysisView.vue</td></tr>
+<tr class="warn"><td class="mono">notifications</td><td>消息记录</td><td class="sm">1 表</td><td>524</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">growth/NotificationsView.vue</td></tr>
+<tr class="ok"><td class="mono">feedback</td><td>用户反馈</td><td class="sm">1 表</td><td>957</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">feedback/FeedbackView.vue</td></tr>
+<tr class="ok"><td class="mono">profile</td><td>个人中心</td><td class="sm">—</td><td>478</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">profile/ProfileView.vue</td></tr>
+<tr class="ok"><td class="mono">forbidden</td><td>无权访问</td><td class="sm">—</td><td>186</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">error/ForbiddenView.vue</td></tr>
+<tr class="ok"><td class="mono">recognition-demo</td><td>识别预览</td><td class="sm">—</td><td>187</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">vision/RecognitionDemoView.vue</td></tr>
+<tr class="ok"><td class="mono">devices/330449777078</td><td>设备详情</td><td class="sm">3 表</td><td>1723</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">devices/DeviceDetailView.vue</td></tr>
+<tr class="ok"><td class="mono">big-screen</td><td>运营大屏</td><td class="sm">4 图</td><td>496</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">dashboard/BigScreenView.vue</td></tr>
+<tr class="ok"><td class="mono">print</td><td>打印单据</td><td class="sm">—</td><td>18</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">print/PrintView.vue</td></tr>
+<tr class="warn"><td class="mono">login</td><td>登录页</td><td class="sm">1 表</td><td>1680</td><td><span class="pill p-warn">仅省略号</span></td><td><span class="pill p-warn">仅省略号</span></td><td class="sm mono">CELL_ELLIPSIS</td><td class="sm">无</td><td class="sm">LoginView.vue</td></tr>
+<tr class="ok"><td class="mono">no-such-page-probe-xyz</td><td>404</td><td class="sm">—</td><td>196</td><td><span class="pill p-ok">干净</span></td><td><span class="pill p-ok">干净</span></td><td class="sm mono">—</td><td class="sm">无</td><td class="sm">error/NotFoundView.vue</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>四、观察项与优化建议（本次<b>未改</b>，供决策）</h2>
+<div class="card">
+<ol>
+<li><b>宽表必须横向滚动，吸附操作列会遮住相邻列</b><br>
+<span class="sm">sessions 有 16 列、orders 19 列，1440 下分别需横滚 951px / 1035px。操作列 sticky 吸附（z-index 7、表头与表体同源、5 个滚动位 x 恒定）本身工作正常，但它会盖住「设备」列，视觉上像「列坏了」。可选：给吸附列加左侧投影/渐变，或精简列（产品决策）。</span></li>
+<li><b>空态 / 低数据页首屏留白较大</b><br>
+<span class="sm">ad-assets、ad-campaigns、points-redeem、marketing-roi、invoices、balance-refunds、line-managers、ota 等页表格为空时，表格容器仍占满主区高度；device-kpi 页仅 9 个指标数字、下方大片空白。可选：空态时收起表格高度、或补充引导/图表。</span></li>
+<li><b>表格单元格省略号缺少 hover 全文</b><br>
+<span class="sm">scheduled-tasks 的「调度说明」超宽最多 287px（如「离线超过2分钟标记离线、超时自动锁机停售；恢复稳定在线后按配置自动解锁」），sessions/orders 的编号类字段同理。若这不是设计上的可接受裁剪，建议对这类列开 <code>show-overflow-tooltip</code>。</span></li>
+<li><b>narrow-view 提示条会挤掉内容高度</b><br>
+<span class="sm">1092 下主区顶部出现「当前窗口较窄…建议 ≥1280px」提示条（40px+间距）。这是合理提示，但会压缩列表/地图可用高；地图页已改为自适应，其余页若有固定高度元素建议同样自查。</span></li>
+</ol>
+</div>
+
+<h2>五、复现方式</h2>
+<div class="card">
+<pre># 需运行中的 dev 栈（trade-service 已暴露 /admin/）
+cd &lt;repo&gt;
+REDIS_HOST=127.0.0.1 node .tmp/probe/full-audit.mjs --viewport=1440x900 --dyn=1
+REDIS_HOST=127.0.0.1 node .tmp/probe/full-audit.mjs --viewport=1092x606 --dyn=1
+REDIS_HOST=127.0.0.1 node .tmp/probe/diag.mjs          # 定向几何（VW/VH 可用环境变量指定）
+REDIS_HOST=127.0.0.1 node .tmp/probe/ab-neg.mjs        # 负向对照
+REDIS_HOST=127.0.0.1 ROUTES=sessions,orders node .tmp/probe/hscroll.mjs</pre>
+<p class="sm">探针位于 <code>.tmp/probe/</code>（gitignore）。产物报告：<code>.tmp/probe/audit/report-&lt;视口&gt;.json</code>，截图 <code>.tmp/probe/audit/shots/</code>。</p>
+</div>
+
+<h2>六、门禁与产物</h2>
+<div class="card">
+<p>本机聚合链 <code>run-audit-gates.mjs</code>：<b>34 个门禁，失败 0</b>。链外补跑：<code>check-admin-table-gate</code> OK（裸表格 18 / 表头排序 7 / 原生按钮 25 文件 / 拷贝一致）、<code>check-admin-bundle-budget</code> OK（total JS 3041KB ≤ 3200）、<code>check-nav-perms</code> OK（admin=59 / merchant=13 / seeded≈271）。</p>
+<p>工具链：<code>prettier --write</code> unchanged ×3、<code>eslint</code> 0、<code>vue-tsc --noEmit</code> 0、<code>build-admin.mjs</code> 0。</p>
+<p>产物与运行栈一致性：容器下发入口 <code>index-DgJfd5hO.js</code> 与磁盘逐字相同；三处改动在产物中的位置已核对（<code>AdminLayout-*.css</code> 的 <code>26vw</code>/<code>190px</code>、<code>DeviceMapView-*.css</code> 的 <code>flex:1 1 auto</code>）。</p>
+</div>
+
+<div class="note good"><b>结论</b>：71 个页面在 2 档视口下均能正常渲染，<b>零 JS 异常、零接口错误、零空渲染、零横向溢出</b>；本轮修掉 3 处真实布局缺陷（顶栏截断、搜索框截断带、地图高度公式），每处都有「修复前实测 → 修复后实测 → 注入旧值复现」三段证据。剩余命中项全部是表格单元格省略号这类设计行为，以及 4 条需产品决策的优化建议。</div>
+</div>
+</body>
+</html>

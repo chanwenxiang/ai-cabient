@@ -450,22 +450,20 @@ onBeforeUnmount(() => {
 .map-page {
   position: relative;
   /**
-   * 🔴 高度要跟着视口走，但**必须同时挡住 flex 压缩** —— 少一个就会塌成一条线。
-   *
-   * 父级 `.layout-main-scroll` 是 `display:flex; flex-direction:column`，而
-   * `.layout-main-scroll > *` 只声明了 `width/max-width/min-width`，**没有 `flex-shrink:0`**
-   * ⇒ 页面根节点是**可压缩**的 flex 子项：`height` 只当 flex-basis 用，空间不足时
-   *    会被压到 `min-height:auto`（＝内容最小高度）；而本容器内部是 absolute 的 Leaflet 元素
-   *    ⇒ 内容最小高度 ≈ 0 ⇒ **地图被压成十几像素的细带**（实测截图就是一条瓦片线）。
-   *
-   * 旧版 `calc(100vh - 120px); min-height: 560px` 是靠 min-height **顺带**挡住压缩的。
-   * 上一轮为修「底边越出视口」把它换成纯 `height: clamp(...)`，等于拆掉唯一的抗压保护
-   * ⇒ 引入塌陷回归。因此这里两件都要写：
-   *   `flex: none` —— 对 flex 父级明确声明「不参与伸缩」（真正的修法）；
-   *   `min-height` —— 兜底（覆盖 flex 之外的压缩场景）。
+   * 🔴 高度必须跟着「主区剩余空间」走，**不能拿视口高减常数**。三轮实测：
+   *    · 旧版 `height: calc(100vh - 120px); min-height: 560px` ⇒ 1440×900 底边越出视口；
+   *    · 换成 `height: clamp(320px, calc(100vh - 170px), 1200px)` 后又两头不对：
+   *      ① 1440×900：可用高 770，公式只给 730 ⇒ 底部**留 40px 空白带**；
+   *      ② 1092×606：主区里会多出一条窄屏提示条（`.el-alert.narrow-view*`，40px + 间距），
+   *         地图可用高只剩 426，而公式仍按视口算 476 ⇒ **底边越出 50px**（比旧版更差）。
+   *    · 根因：`100vh` 减常数无法反映「顶栏 / 面包屑 / 标签栏 / 窄屏提示条 / 主区内边距」
+   *      在不同视口下的实际占位（1440 顶偏移 106，1092 是 156）。
+   *    ⇒ 改用 `flex: 1 1 auto`：主区 `.layout-main-scroll` 是 column flex，
+   *      让地图**吃掉剩余空间** —— 有富余就拉伸、无富余才被压缩，两个视口自动都对。
+   *    · `min-height: 320px` 仍必须保留：本容器内部是 absolute 的 Leaflet 元素，
+   *      内容最小高度 ≈ 0，只写 flex 会被压成一条细带（这条回归踩过一次）。
    */
-  flex: none;
-  height: clamp(320px, calc(100vh - 170px), 1200px);
+  flex: 1 1 auto;
   min-height: 320px;
   border-radius: 10px;
   overflow: hidden;
