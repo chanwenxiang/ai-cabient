@@ -24,6 +24,7 @@
     "./ui-copy": "./src/ui-copy.ts",
     "./privacy-consent": "./src/privacy-consent.ts",
     "./use-privacy-consent": "./src/use-privacy-consent.ts",
+    "./auto-refresh": "./src/auto-refresh.ts",
     "./components/app-button.vue": "./src/components/app-button.vue",
     "./components/app-nav-bar.vue": "./src/components/app-nav-bar.vue",
     "./components/empty-state.vue": "./src/components/empty-state.vue",

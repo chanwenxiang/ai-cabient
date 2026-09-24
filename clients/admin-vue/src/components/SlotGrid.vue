@@ -21,14 +21,21 @@
 <script setup lang="ts">
 import type { DeviceSlot } from '@aicabinet/shared-types';
 
-defineProps<{ slots: DeviceSlot[]; editable?: boolean }>();
+const props = defineProps<{ slots: DeviceSlot[]; editable?: boolean }>();
 const emit = defineEmits<{ edit: [DeviceSlot] }>();
 
 function cellClass(slot: DeviceSlot) {
   const st = (slot.stockStatus || '').toLowerCase();
   const cap = slot.maxLevel || slot.parLevel || 0;
   const over = cap > 0 && slot.bookQty > cap;
-  return { [`status-${st}`]: !!st, over, mismatch: slot.hasDiscrepancy, clickable: true };
+  // clickable 原先恒为 true ⇒ 无编辑权限时仍是手型 + hover 变蓝框，
+  // 但 @click 被 `editable &&` 拦下，变成「看着能点、点了没反应」。改为跟随 editable。
+  return {
+    [`status-${st}`]: !!st,
+    over,
+    mismatch: slot.hasDiscrepancy,
+    clickable: !!props.editable
+  };
 }
 </script>
 

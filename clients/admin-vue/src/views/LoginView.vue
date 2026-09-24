@@ -11,7 +11,7 @@
       <i v-for="p in particles" :key="p.left" class="fx-particle" :style="p.style" />
     </div>
     <div class="login-overlay" aria-hidden="true" />
-    <div id="main-content" class="login-card" tabindex="-1">
+    <div id="main-content" ref="cardEl" class="login-card" tabindex="-1">
       <div class="card-header">
         <div v-if="brand.logoUrl" class="brand-mark brand-mark--img" aria-hidden="true">
           <img :src="brand.logoUrl" alt="" />
@@ -221,10 +221,108 @@ const router = useRouter();
 const route = useRoute();
 
 let caretFixTimers: number[] = [];
+/** 承载原生监听的卡片容器（稳定存在，不随 2FA 分支重建）。 */
+const cardEl = ref<HTMLElement | null>(null);
+let boundCard: HTMLElement | null = null;
 
-onUnmounted(() => {
+/** 兜底轮询：自动填充可能不派发任何事件，见 startCaretWatch 注释。 */
+let caretWatchTimer: number | null = null;
+let caretWatchTicks = 0;
+const CARET_WATCH_INTERVAL_MS = 400;
+/** 0.4s × 15 ≈ 6s，覆盖浏览器自动填充任意晚到的时序；只在登录页停留期间跑。 */
+const CARET_WATCH_MAX_TICKS = 15;
+
+/**
+ * 用户一旦自己定位过密码框（指针点击 / 键盘移动），就**永久**退出自动 caret 补偿。
+ * 语义分界：程序化填入（自动填充、自动聚焦）⇒ 光标落到末尾；用户亲手指定的位置 ⇒ 一律不抢。
+ * 缺了这一条，用户点击框中部想改一个字时会被强行弹到末尾。
+ */
+let caretAssistStopped = false;
+
+function clearCaretFixTimers() {
   for (const id of caretFixTimers) window.clearTimeout(id);
   caretFixTimers = [];
+}
+
+function stopCaretWatch() {
+  if (caretWatchTimer !== null) {
+    window.clearInterval(caretWatchTimer);
+    caretWatchTimer = null;
+  }
+}
+
+function stopCaretAssist() {
+  if (caretAssistStopped) return;
+  caretAssistStopped = true;
+  clearCaretFixTimers();
+  stopCaretWatch();
+}
+
+const isPasswordInput = (t: EventTarget | null): t is HTMLInputElement =>
+  t instanceof HTMLInputElement && t.type === 'password';
+
+/**
+ * CSS 早就埋了自动填充钩子（`input:-webkit-autofill { animation-name: onAutoFillStart }`，注释还写着
+ * 「便于 JS 在自动填充后把光标挪到末尾」），但**从来没有 JS 监听它**——钩子埋了、线没接。
+ * 浏览器静默填值不派发 input 事件，这个动画是唯一可靠的「值刚被填进来」信号。
+ */
+function onCardAutofill(e: AnimationEvent) {
+  if (e.animationName !== 'onAutoFillStart' || !isPasswordInput(e.target)) return;
+  placePasswordCaretAtEnd();
+}
+
+function onCardPointerDown(e: Event) {
+  if (isPasswordInput(e.target)) stopCaretAssist();
+}
+
+function onCardKeydown(e: Event) {
+  if (isPasswordInput(e.target)) stopCaretAssist();
+}
+
+function bindCardAssist() {
+  const card = cardEl.value;
+  if (!card || boundCard === card) return;
+  boundCard = card;
+  card.addEventListener('pointerdown', onCardPointerDown, { passive: true });
+  card.addEventListener('keydown', onCardKeydown);
+  // animationstart 冒泡，故挂容器即可覆盖 v-if 重建出来的密码框
+  card.addEventListener('animationstart', onCardAutofill);
+}
+
+/**
+ * 静默兜底。实测（.tmp/probe/login-caret-timing.mjs）：
+ * 自动填充若**不派发 input 事件**且晚于挂载期那次固定轮询窗口到达，caret 会永久停在开头
+ * （t≥800ms 的全部样本 NOT_CURED）——正是用户截图所见。
+ * 这里用低频轮询补上，判据收得很紧：有值 + 仍聚焦 + caret 恰在 0 + 用户未接管。命中一次即停表。
+ */
+function startCaretWatch() {
+  stopCaretWatch();
+  caretWatchTicks = 0;
+  const tick = () => {
+    if (caretAssistStopped || caretWatchTicks >= CARET_WATCH_MAX_TICKS) {
+      stopCaretWatch();
+      return;
+    }
+    caretWatchTicks += 1;
+    const el = nativeOf(passwordInput.value);
+    if (!el?.value || document.activeElement !== el) return;
+    if (el.selectionStart !== 0 || el.selectionEnd !== 0) return;
+    placePasswordCaretAtEnd();
+    stopCaretWatch();
+  };
+  caretWatchTimer = window.setInterval(tick, CARET_WATCH_INTERVAL_MS);
+  tick();
+}
+
+onUnmounted(() => {
+  clearCaretFixTimers();
+  stopCaretWatch();
+  if (boundCard) {
+    boundCard.removeEventListener('pointerdown', onCardPointerDown);
+    boundCard.removeEventListener('keydown', onCardKeydown);
+    boundCard.removeEventListener('animationstart', onCardAutofill);
+    boundCard = null;
+  }
 });
 
 function nativeOf(input: InputInstance | null | undefined): HTMLInputElement | null {
@@ -235,8 +333,10 @@ function nativeOf(input: InputInstance | null | undefined): HTMLInputElement | n
 /**
  * 保留 type=password 以便浏览器自动填充密码。
  * 填充后可视光标常停在开头：清空再写回 + setSelectionRange 推到末尾。
+ * 用户已自行定位过（caretAssistStopped）时直接让位，不再干预。
  */
 function placePasswordCaretAtEnd() {
+  if (caretAssistStopped) return;
   const el = nativeOf(passwordInput.value);
   if (!el?.value) return;
   const apply = () => {
@@ -320,15 +420,10 @@ onMounted(async () => {
   await loadCaptcha();
   await nextTick();
   applyLoginAutofocus();
-  // 自动填充可能晚于挂载：轮询一小会儿，有值就把光标推到末尾
-  for (const ms of [50, 100, 200, 400, 800, 1200]) {
-    caretFixTimers.push(
-      window.setTimeout(() => {
-        const el = nativeOf(passwordInput.value);
-        if (el?.value) placePasswordCaretAtEnd();
-      }, ms)
-    );
-  }
+  // 自动填充可能晚于挂载、且不一定派发任何事件：靠「自动填充动画 + 低频轮询」兜底，
+  // 两者都在用户接管密码框（caretAssistStopped）或超窗后自动退出。
+  bindCardAssist();
+  startCaretWatch();
 });
 
 async function finishLogin(normalizedPhone: string) {

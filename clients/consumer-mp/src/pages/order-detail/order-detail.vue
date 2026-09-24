@@ -354,7 +354,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
 import { skuImageFor } from '@aicabinet/shared-uni/product-image';
@@ -366,6 +366,7 @@ import {
   fmtMoney
 } from '@aicabinet/shared-uni/format';
 import { queryGet } from '@aicabinet/shared-uni/query';
+import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { AccountDto, OrderDetailDto } from '@aicabinet/shared-types';
 import { payChannelSelectEnabled, seedConsumerFlags } from '@/utils/feature-flags';
 import {
@@ -506,6 +507,25 @@ onUnmounted(() => {
     globalThis.removeEventListener('hashchange', onHashChange);
   }
 });
+
+// 后端结果是异步到达的（落单 → 审核 → 扣款 → 退款）：未到终态就每 3 秒静默跟进一次。
+// reload() 本身可静默重入（已有单时不闪 loading、失败不覆盖画面），直接作为 tick 动作。
+useAutoRefresh({
+  intervalMs: 3000,
+  load: reload,
+  shouldContinue: () => !isOrderTerminal(order.value?.status),
+  maxDurationMs: 180_000,
+  canRefresh: () =>
+    !showDispute.value &&
+    !showInvoice.value &&
+    !showPayChannel.value &&
+    !disputeLoading.value &&
+    !refundLoading.value &&
+    !paying.value &&
+    !invoiceLoading.value
+});
+
+onPullDownRefresh(() => reload().finally(() => uni.stopPullDownRefresh()));
 
 async function loadSupportPhone() {
   try {

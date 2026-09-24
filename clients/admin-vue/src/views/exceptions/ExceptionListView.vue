@@ -74,6 +74,7 @@
         <div class="table-scroll-inner">
           <CrudTable
             :table="crud"
+            auto-refresh
             row-key="exceptionId"
             manage-table="ops_exception"
             selectable

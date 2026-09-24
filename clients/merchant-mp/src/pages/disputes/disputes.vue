@@ -247,6 +247,7 @@
 import { ref, computed } from 'vue';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
@@ -323,6 +324,19 @@ onLoad((opt) => {
 });
 onShow(() => load());
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+
+/**
+ * 争议结案由运营侧异步处理：列表里还有未结案工单时每 10 秒静默跟进一次，结案即停表。
+ * 已翻页 / 详情抽屉打开时不轮询（load() 会重置回第一页，会吞掉翻页结果与打断阅读）。
+ */
+useAutoRefresh({
+  intervalMs: 10_000,
+  load,
+  shouldContinue: () => list.value.some((t) => !isTerminalDispute(t.status)),
+  maxDurationMs: 300_000,
+  canRefresh: () =>
+    !loading.value && !loadingMore.value && pageIndex.value === 0 && !detailVisible.value
+});
 
 function switchTab(key: string) {
   activeTab.value = key;

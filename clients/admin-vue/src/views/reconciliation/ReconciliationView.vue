@@ -87,6 +87,7 @@
       <div class="table-scroll-inner">
         <CrudTable
           :table="crud"
+          auto-refresh
           row-key="reconId"
           selectable
           :actions="rowActions"

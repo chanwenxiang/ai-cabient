@@ -138,7 +138,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
-import { onShow } from '@dcloudio/uni-app';
+// 🔴 组件里必须用 onPageShow：小程序端 uni 运行时把组件的 pageLifetimes.show 映射成
+// onPageShow，组件级的 onShow 永远不会被调用（页面级 onShow 只对页面实例生效）。
+import { onPageShow } from '@dcloudio/uni-app';
+import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
 import {
   emptyDisplay,
@@ -338,7 +341,23 @@ async function submitWithdraw() {
   }
 }
 
-onShow(load);
+onPageShow(load);
+
+/**
+ * 提现审核 / 打款由运营与支付通道异步处理：还有未到终态的提现单时每 10 秒静默跟进一次，
+ * 全部到终态即停表。load() 在已有快照时不闪 loading，可安全重复调用。
+ */
+const TERMINAL_WITHDRAW_STATUSES = ['PAID', 'REJECTED', 'FAILED'];
+useAutoRefresh({
+  intervalMs: 10_000,
+  load,
+  shouldContinue: () =>
+    (overview.value?.recentWithdraws || []).some(
+      (w) => !TERMINAL_WITHDRAW_STATUSES.includes(String(w.status || '').toUpperCase())
+    ),
+  maxDurationMs: 300_000,
+  canRefresh: () => !submitting.value && isMerchantLoggedIn()
+});
 </script>
 
 <style scoped>

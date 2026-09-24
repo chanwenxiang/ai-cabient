@@ -168,4 +168,92 @@ describe('useCrudTable', () => {
     expect(crud.page).toBe(1);
     expect(params.size).toBe(50); // ADMIN_LIST_MAX_PAGE_SIZE
   });
+
+  // ---- 自动刷新（CrudTable 的 auto-refresh）走的静默通道 ----
+  // 自动刷新是**后台行为**：不能闪 loading、不能清掉运营正在勾的行、失败不能弹提示，
+  // 否则「每 30 秒把正在审单的人打断一次」，开关本身就是个坑。
+
+  it('silentRefresh：不置 loading、不清选择、保留当前页', async () => {
+    const rows = makeRows([1, 2]);
+    const fetchPage = vi.fn().mockResolvedValue(rows);
+    const crud = useCrudTable<Row>({ rowKey: (r) => r.id, fetchPage, autoLoad: false });
+
+    await crud.load();
+    crud.onSelectionChange([rows[0]]);
+    crud.page = 3;
+    expect(crud.selectedKeys).toEqual([1]);
+
+    await crud.silentRefresh();
+
+    expect(crud.loading).toBe(false); // 全程没有 loading 态（不闪遮罩）
+    expect(crud.selectedKeys).toEqual([1]); // 勾选保留
+    expect(crud.page).toBe(3); // 当前页保留
+    const params = fetchPage.mock.calls[fetchPage.mock.calls.length - 1]![0] as CrudPageParams;
+    expect(params.page).toBe(2); // wire 页码 = 前端页 - 1
+  });
+
+  it('silentRefresh 失败：不弹提示、不残留 loading', async () => {
+    const fetchPage = vi.fn().mockRejectedValue(new Error('后台超时'));
+    const crud = useCrudTable<Row>({ rowKey: (r) => r.id, fetchPage, autoLoad: false });
+
+    await crud.silentRefresh();
+
+    expect(ElMessage.error).not.toHaveBeenCalled();
+    expect(crud.loading).toBe(false);
+  });
+
+  it('refresh（手动按钮）：仍会闪 loading 并清选择 —— 与静默通道刻意区分', async () => {
+    const rows = makeRows([1, 2]);
+    const fetchPage = vi.fn().mockResolvedValue(rows);
+    const crud = useCrudTable<Row>({ rowKey: (r) => r.id, fetchPage, autoLoad: false });
+
+    await crud.load();
+    crud.onSelectionChange([rows[0]]);
+    await crud.refresh();
+
+    expect(crud.selectedKeys).toEqual([]);
+  });
+
+  // ---- 勾选复原快照 ----
+  // ⚠️ 本层测不出真实勾选是否被冲掉：`<el-table>` 在 `:data` 换新数组实例时会**自己**
+  //    store.clearSelection()（与我们的 selectedKeys 无关），这一层根本看不到。
+  //    所以这里只固化「快照协议」；端到端「tick 后勾选还在」由
+  //    `.tmp/mp-auto/probe-admin-auto-refresh.mjs` 在真实浏览器里判（B7/C2）。
+  it('silentRefresh：留下勾选快照，供组件层复原（一次性消费）', async () => {
+    const rows = makeRows([1, 2]);
+    const fetchPage = vi.fn().mockResolvedValue(rows);
+    const crud = useCrudTable<Row>({ rowKey: (r) => r.id, fetchPage, autoLoad: false });
+
+    await crud.load();
+    crud.onSelectionChange([rows[0], rows[1]]);
+    await crud.silentRefresh();
+
+    expect(crud.takeSelectionRestore()).toEqual([1, 2]);
+    expect(crud.takeSelectionRestore()).toBeNull(); // 消费一次即失效，避免污染下一次数据变更
+  });
+
+  it('普通 load：不留快照（翻页/筛选仍按既有行为清空勾选）', async () => {
+    const rows = makeRows([1, 2]);
+    const fetchPage = vi.fn().mockResolvedValue(rows);
+    const crud = useCrudTable<Row>({ rowKey: (r) => r.id, fetchPage, autoLoad: false });
+
+    await crud.load();
+    crud.onSelectionChange([rows[0]]);
+    await crud.load();
+
+    expect(crud.takeSelectionRestore()).toBeNull();
+  });
+
+  it('静默刷新后紧跟一次普通 load：陈旧快照被丢弃（不到下一次翻页才被消费）', async () => {
+    const rows = makeRows([1, 2]);
+    const fetchPage = vi.fn().mockResolvedValue(rows);
+    const crud = useCrudTable<Row>({ rowKey: (r) => r.id, fetchPage, autoLoad: false });
+
+    await crud.load();
+    crud.onSelectionChange([rows[0]]);
+    await crud.silentRefresh(); // 留下 [1] 快照（模拟组件层还没消费：如请求后被竞态提前 return）
+    await crud.load(); // 非静默路径应顺手丢弃
+
+    expect(crud.takeSelectionRestore()).toBeNull();
+  });
 });

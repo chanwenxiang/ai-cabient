@@ -249,6 +249,7 @@
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import { computed, ref } from 'vue';
 import { consumerApi, ensureConsumerAuth, isConsumerLoggedIn } from '@/utils/consumer-api';
 import { loadConsumerFlags, orderSearchEnabled } from '@/utils/feature-flags';
@@ -630,6 +631,26 @@ onShow(() => {
   });
 });
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+
+/**
+ * 后端结果是异步到达的（落单 → 审核 → 扣款 / 争议结案）：列表里只要还有未到终态的行，
+ * 就每 10 秒静默跟进一次，用户不必手动下拉。
+ *
+ * 只在「还没翻过页」时轮询：load() 会把列表重置回第一页，若用户已经「加载更多」，
+ * 轮询就会把他的翻页结果吞掉。翻过页后仍可手动下拉刷新。
+ */
+useAutoRefresh({
+  intervalMs: 10_000,
+  load,
+  shouldContinue: () =>
+    orders.value.some((o) => !isOrderTerminal(o.status)) ||
+    disputes.value.some((d) => {
+      const s = String(d.status || '').toUpperCase();
+      return s !== 'RESOLVED' && s !== 'CLOSED';
+    }),
+  maxDurationMs: 300_000,
+  canRefresh: () => authed.value && pageIndex.value === 0 && !loading.value && !loadingMore.value
+});
 </script>
 
 <style scoped>

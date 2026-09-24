@@ -68,8 +68,23 @@ export interface CrudTableController<T> {
   /** 翻转升降序；server 模式自动重查，local 模式由 displayItems 自动重排 */
   toggleSortDir: () => void;
   defaultSort?: { prop: string; order: 'ascending' | 'descending' };
-  load: (opts?: { resetPage?: boolean }) => Promise<void>;
+  load: (opts?: { resetPage?: boolean; silent?: boolean }) => Promise<void>;
   refresh: () => Promise<void>;
+  /**
+   * 静默重拉当前页：**不闪 loading、失败不弹提示**，并在数据落地后**复原**刷新前的勾选。
+   * 供「自动刷新」这类后台行为使用 —— 用 refresh() 会把运营的勾选和滚动周期性地冲掉。
+   *
+   * ⚠️ 「复原勾选」不能只靠「不调 clearSelection()」：`<el-table>` 在 `:data` 换成**新数组实例**
+   *   时会自己 `store.clearSelection()`（element-plus `table/src/store/index.mjs:36`：未开
+   *   reserve-selection 且 data 实例变了 ⇒ clearSelection），把 selectedKeys 一并清空。
+   *   所以这里只负责**留下快照**，由 CrudTable 在数据落地后按快照 toggleRowSelection 复原。
+   */
+  silentRefresh: () => Promise<void>;
+  /**
+   * 取走一次性「勾选复原快照」（消费后即清空）。
+   * 仅 `silentRefresh()` 会留下快照；CrudTable 在 items 变化后调用它决定「复原」还是「照旧清空」。
+   */
+  takeSelectionRestore: () => Array<string | number> | null;
   search: () => Promise<void>;
   onSizeChange: () => Promise<void>;
   onSortChange: (payload: Sort) => void;
@@ -114,11 +129,17 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
     };
   });
 
-  async function load(opts?: { resetPage?: boolean }) {
+  async function load(opts?: { resetPage?: boolean; silent?: boolean }) {
     if (opts?.resetPage) page.value = 1;
+    const silent = !!opts?.silent;
+    // 非静默路径不参与「勾选复原」，顺手丢掉可能残留的旧快照，
+    // 否则一次失败的静默刷新会把快照留到下一次翻页时才被消费（复原出早已过期的勾选）。
+    if (!silent) selectionRestore = null;
     const seq = loadSeq.begin();
-    loading.value = true;
-    clearSelection();
+    if (!silent) {
+      loading.value = true;
+      clearSelection();
+    }
     try {
       const data = await options.fetchPage({
         page: page.value - 1,
@@ -132,11 +153,13 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
       total.value = norm.total;
     } catch (e) {
       if (!loadSeq.isCurrent(seq)) return;
-      ElMessage.error(e instanceof Error ? e.message : options.errorMessage || '加载失败');
+      // 静默刷新失败不弹提示：运营没主动点，弹窗只会打断
+      if (!silent)
+        ElMessage.error(e instanceof Error ? e.message : options.errorMessage || '加载失败');
     } finally {
       if (!loadSeq.isCurrent(seq)) return;
       hydrated.value = true;
-      loading.value = false;
+      if (!silent) loading.value = false;
     }
   }
 
@@ -157,6 +180,23 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
   function onSizeChange() {
     size.value = clampAdminPageSize(size.value);
     return load({ resetPage: true });
+  }
+
+  /**
+   * 一次性「勾选复原快照」：静默刷新出发前拍下 selectedKeys，等数据落地后由 CrudTable 复原。
+   * 用**闭包变量**而不是 ref：它不参与渲染，读写都在同一次 items 变化周期内完成。
+   */
+  let selectionRestore: Array<string | number> | null = null;
+
+  function silentRefresh() {
+    selectionRestore = [...selectedKeys.value];
+    return load({ silent: true });
+  }
+
+  function takeSelectionRestore() {
+    const keys = selectionRestore;
+    selectionRestore = null;
+    return keys;
   }
 
   if (options.autoLoad !== false) {
@@ -184,6 +224,8 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
     defaultSort,
     load,
     refresh: () => load(),
+    silentRefresh,
+    takeSelectionRestore,
     search: () => load({ resetPage: true }),
     onSizeChange,
     onSortChange,

@@ -394,10 +394,26 @@ watch(
 .address-picker {
   width: 100%;
 }
+/*
+ * 🔴 这一行必须能**换行**，且级联区必须**可收缩**（`flex: 0 1 340px`，不是 0 0）。
+ *
+ * 起因（2026-09-24，用户报「地址这块有问题」）真机取证（.tmp/probe/wh-ui.log，「编辑仓库」弹窗 480px）：
+ *   弹窗内容宽 448，`label-width="auto"` 再吃掉标签 ⇒ 表单内容只剩 **338px**；
+ *   而级联区写死 340px + flex-shrink:0 ⇒ 一行最小 340+8=348 > 338：
+ *     · 详细地址框被压成 **宽 0**（实测 detail.width = 0px）
+ *     · 它的字数计数器 `.el-input__count` 是绝对定位（EP 写在 0 宽包裹盒里）⇒
+ *       **飘到弹窗外面**（实测 count.x=1077 > 弹窗右边界 1070）—— 截图上就是那个跑到
+ *       「保存」按钮右侧的「0 / 255」小方块。
+ * 原来的 @media (max-width: 900px) 兜底判断的是**视口**宽，而这里是「视口 1440 但弹窗窄」
+ * ⇒ 永远不触发。改成按**容器**自适应：
+ *   放得下一行（宽弹窗）⇒ 级联 340 + 详细地址吃满剩余；
+ *   放不下 ⇒ 级联先缩到容器宽、详细地址整行换到下一行（与窄视口时的观感一致，绝不溢出）。
+ */
 .address-picker__row {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
   width: 100%;
 }
 .address-picker__region {
@@ -406,16 +422,17 @@ watch(
    * 直接把 `.address-picker__region` 写在 `el-cascader` 上是**无效**的 —— 它是多根组件，
    * 拿不到 scoped 的 `data-v`（见模板里的长注释与 `diag-width.mjs` 实测）。
    *
-   * 260px 也装不下三级全名：「广东省 / 深圳市 / 罗湖区」需要约 155px 文本宽 +
-   * 箭头/内边距。给足即可；窄屏由下方 @media 回落成全宽。
+   * 340px 装得下「广东省 / 深圳市 / 罗湖区」这类三级全名；窄容器下由 flex-shrink 让位
+   * （min-width 兜住可用宽度，宁可让级联文本省略，也不能把详细地址挤出容器）。
    */
-  flex: 0 0 auto;
+  flex: 0 1 340px;
   width: 340px;
-  min-width: 0;
+  min-width: 200px;
 }
 .address-picker__detail {
-  flex: 1 1 auto;
-  min-width: 0;
+  /* 240px 起才够看到「0 / 255」与「详细地址」占位符；放不下时整行换行（见 .address-picker__row） */
+  flex: 1 1 240px;
+  min-width: 160px;
 }
 .address-picker__hint {
   margin-top: 4px;
@@ -427,10 +444,9 @@ watch(
   color: var(--el-color-warning);
 }
 @media (max-width: 900px) {
-  .address-picker__row {
-    flex-wrap: wrap;
-  }
+  /* flex-wrap 已是默认（见 .address-picker__row）；这里只管「窄屏直接上下两行」 */
   .address-picker__region {
+    flex-basis: 100%;
     width: 100%;
   }
 }

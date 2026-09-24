@@ -83,6 +83,7 @@
       <div class="table-scroll-inner">
         <CrudTable
           :table="crud"
+          auto-refresh
           row-key="sessionId"
           selectable
           :empty-text="emptyHint"

@@ -30,6 +30,7 @@
       <div class="table-scroll-inner">
         <CrudTable
           :table="crud"
+          auto-refresh
           selectable
           :actions="rowActions"
           :action-width="100"

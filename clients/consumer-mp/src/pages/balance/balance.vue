@@ -50,7 +50,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { showError } from '@/utils/notify';
-import { onShow } from '@dcloudio/uni-app';
+import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { formatDateTimeShort, fmtMoney, displayBizNo } from '@aicabinet/shared-uni/format';
 import { consumerApi, ensureConsumerAuth, isConsumerLoggedIn } from '@/utils/consumer-api';
@@ -66,6 +67,11 @@ const transactions = ref<BalanceTransactionDto[]>([]);
 const page = ref(0);
 const hasMore = ref(false);
 
+async function refreshAll() {
+  await loadAccount();
+  await loadTransactions(true);
+}
+
 onShow(async () => {
   if (!(await ensureConsumerAuth()) || !isConsumerLoggedIn()) {
     uni.navigateTo({
@@ -73,9 +79,23 @@ onShow(async () => {
     });
     return;
   }
-  await loadAccount();
-  await loadTransactions(true);
+  await refreshAll();
 });
+
+/**
+ * 充值到账 / 扣款落账都是后端异步回调（微信支付回调通常几秒内到账）：进页面后 60 秒内
+ * 每 8 秒静默跟进一次，之后自动停表 —— 不必手动下拉才看得到余额变化。
+ *
+ * 已「加载更多」时不轮询：refreshAll 会把列表重置回第一页，会吞掉用户的翻页结果。
+ */
+useAutoRefresh({
+  intervalMs: 8000,
+  load: refreshAll,
+  maxDurationMs: 60_000,
+  canRefresh: () => !loading.value && page.value === 0
+});
+
+onPullDownRefresh(() => refreshAll().finally(() => uni.stopPullDownRefresh()));
 
 async function loadAccount() {
   try {

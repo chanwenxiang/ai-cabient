@@ -1013,7 +1013,9 @@
               @click="applyTemplate"
               >套用模板</el-button
             >
-            <el-button size="small" :icon="Refresh" @click="loadDetail">刷新货道</el-button>
+            <el-button size="small" :icon="Refresh" :loading="slotsRefreshing" @click="refreshSlots"
+              >刷新货道</el-button
+            >
           </div>
           <SlotGrid
             v-if="slotsHydrated && slots.length"
@@ -1299,27 +1301,35 @@
         <el-form-item :label="displayLabel('enable_status', 'ACTIVE')"
           ><el-switch v-model="editForm.enabled"
         /></el-form-item>
-        <el-divider content-position="left">现场盘点</el-divider>
-        <el-form-item label="账面库存">
-          <span>{{ editForm.bookQty }}</span>
-          <span v-if="editForm.hasDiscrepancy" class="slot-diff warn">
-            · 账实差异 {{ editForm.qtyDiff }}</span
-          >
-        </el-form-item>
-        <el-form-item label="实盘数量">
-          <el-input-number v-model="editForm.physicalQty" :min="0" />
-        </el-form-item>
-        <el-form-item label="调账面">
-          <el-checkbox v-model="editForm.adjustBookQty">按实盘回写该货道批次库存</el-checkbox>
-        </el-form-item>
+        <!-- 🔴 2026-09-24：整块按 canStocktake 隐藏。无 `ops:replenishment:edit` 时
+             这三个字段点下去只会 403（后端 stocktake 要该权限），且「保存配置」也提交不了它们
+             ⇒ 与其给一个改不生效的输入框，不如根本不渲染（连分割线一起）。
+             判据：后端 OpsReplenishmentController#stocktakeSlot 的 @RequiresPermissions。 -->
+        <template v-if="canStocktake">
+          <el-divider content-position="left">现场盘点</el-divider>
+          <el-form-item label="账面库存">
+            <span>{{ editForm.bookQty }}</span>
+            <span v-if="editForm.hasDiscrepancy" class="slot-diff warn">
+              · 账实差异 {{ editForm.qtyDiff }}</span
+            >
+          </el-form-item>
+          <el-form-item label="实盘数量">
+            <el-input-number v-model="editForm.physicalQty" :min="0" />
+          </el-form-item>
+          <el-form-item label="调账面">
+            <el-checkbox v-model="editForm.adjustBookQty">按实盘回写该货道批次库存</el-checkbox>
+          </el-form-item>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="editorVisible = false">取消</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" :loading="stocktaking" @click="stocktakeSlot"
+        <!-- 权限只由 canStocktake 一处表达（= ops:replenishment:edit），不再叠 v-hasPermi，
+             避免「同一权限两条通道」再次各自漂移。 -->
+        <el-button v-if="canStocktake" :loading="stocktaking" @click="stocktakeSlot"
           >仅记实盘</el-button
         >
         <el-button
-          v-hasPermi="['ops:device:edit']"
+          v-if="canStocktake"
           type="warning"
           :loading="stocktaking"
           @click="stocktakeAndAdjust"
@@ -1502,6 +1512,12 @@ function envUnit(type: string) {
 }
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
+/**
+ * 盘点 / 调账的权限口径**必须与后端一致**：`OpsReplenishmentController.stocktakeSlot`
+ * 要的是 `ops:replenishment:edit`，而模板里两个实盘按钮原先用 `ops:device:edit` 判显隐 ——
+ * 有 device:edit 没有 replenishment:edit 的账号会「按钮可见、点了 403」。
+ */
+const canStocktake = computed(() => auth.hasPerm('ops:replenishment:edit'));
 const sessionTotal = ref(0);
 const orderTotal = ref(0);
 const hardwareResetLoading = ref(false);
@@ -1545,6 +1561,7 @@ const lifecycleHydrated = ref(false);
 const repairHydrated = ref(false);
 const slotsHydrated = ref(false);
 const applying = ref(false);
+const slotsRefreshing = ref(false);
 const saving = ref(false);
 const stocktaking = ref(false);
 const assetSaving = ref(false);
@@ -1709,10 +1726,22 @@ const editForm = reactive({
   enabled: true,
   bookQty: 0,
   physicalQty: 0,
+  /**
+   * 打开弹窗那一刻的实盘快照。
+   * 「保存配置」原先只提交 6 个配置字段，把同表单里的「实盘数量」「调账面」整个丢掉 ——
+   * 用户改完实盘点「保存配置」，toast 说「已保存」，实盘却没落库（2026-09-24 真机复现）。
+   * 有了快照才能区分「用户真的改了实盘」与「只是原样带出来」，避免每次保存都多发一次盘点请求。
+   */
+  originPhysicalQty: null as number | null,
   qtyDiff: 0,
   hasDiscrepancy: false,
   adjustBookQty: false
 });
+
+/** 用户是否改过实盘数量（决定「保存配置」要不要连带提交盘点）。 */
+const physicalQtyChanged = computed(
+  () => editForm.originPhysicalQty !== null && editForm.physicalQty !== editForm.originPhysicalQty
+);
 
 async function loadAsset() {
   const row = await api.request<OpenApiAdminDeviceDto>(AdminEndpoints.device(deviceId), 'GET');
@@ -2243,12 +2272,28 @@ async function applyTemplate() {
   applying.value = true;
   try {
     const n = await api.request<number>(AdminEndpoints.deviceSlotsApplyTemplate(deviceId), 'POST');
-    ElMessage.success(`已套用模板，新增 ${n} 个货道`);
+    // n=0 说明货道已与模板一致（接口幂等）。原先统一提示「新增 0 个货道」，读起来像失败。
+    ElMessage.success(n > 0 ? `已套用模板，新增 ${n} 个货道` : '货道已与模板一致，无需新增');
     await loadDetail();
   } catch (e) {
     ElMessage.error(errorMessage(e, '套用失败'));
   } finally {
     applying.value = false;
+  }
+}
+
+/**
+ * 「刷新货道」：`loadDetail()` 一次会发 6 条请求（detail / lifecycle / 工单 / asset / configs / policy），
+ * 原先直接 `@click="loadDetail"` 且无 loading ⇒ 点完界面毫无变化，容易被当成「按钮没用」。
+ */
+async function refreshSlots() {
+  slotsRefreshing.value = true;
+  try {
+    await loadDetail();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '刷新失败'));
+  } finally {
+    slotsRefreshing.value = false;
   }
 }
 
@@ -2263,10 +2308,43 @@ function openEditor(slot: DeviceSlot) {
   editForm.bookQty = slot.bookQty ?? 0;
   editForm.physicalQty =
     slot.lastPhysicalQty == null ? (slot.bookQty ?? 0) : Number(slot.lastPhysicalQty);
+  editForm.originPhysicalQty = editForm.physicalQty;
   editForm.qtyDiff = slot.qtyDiff ?? 0;
   editForm.hasDiscrepancy = !!slot.hasDiscrepancy;
   editForm.adjustBookQty = false;
   editorVisible.value = true;
+}
+
+/** 盘点提交：实盘数量落库；`adjustBookQty=true` 时同时按实盘回写批次账面。 */
+async function submitPhysicalQty(adjustBookQty: boolean) {
+  const updated = await api.request<DeviceSlot>(
+    AdminEndpoints.deviceSlotsStocktake(deviceId),
+    'POST',
+    {
+      slotCode: editForm.slotCode,
+      physicalQty: editForm.physicalQty,
+      adjustBookQty
+    }
+  );
+  editForm.bookQty = updated.bookQty ?? editForm.physicalQty;
+  editForm.qtyDiff = updated.qtyDiff ?? 0;
+  editForm.hasDiscrepancy = !!updated.hasDiscrepancy;
+  editForm.originPhysicalQty = editForm.physicalQty;
+  editForm.adjustBookQty = false;
+}
+
+/** 调账前的二次确认（改批次库存是不可逆重操作）；返回 false 表示用户放弃。 */
+async function confirmAdjustBookQty(): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(
+      `确认将货道 ${editForm.slotCode} 账面按实盘 ${editForm.physicalQty} 回写？\n将调整该货道绑定 SKU 的批次库存。`,
+      '按实盘调账面',
+      { type: 'warning', confirmButtonText: '确认调账' }
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function runStocktake(adjustBookQty: boolean) {
@@ -2278,33 +2356,11 @@ async function runStocktake(adjustBookQty: boolean) {
     ElMessage.warning('货道未绑定商品，无法调账面');
     return;
   }
-  if (adjustBookQty) {
-    try {
-      await ElMessageBox.confirm(
-        `确认将货道 ${editForm.slotCode} 账面按实盘 ${editForm.physicalQty} 回写？\n将调整该货道绑定 SKU 的批次库存。`,
-        '按实盘调账面',
-        { type: 'warning', confirmButtonText: '确认调账' }
-      );
-    } catch {
-      return;
-    }
-  }
+  if (adjustBookQty && !(await confirmAdjustBookQty())) return;
   stocktaking.value = true;
   try {
-    const updated = await api.request<DeviceSlot>(
-      AdminEndpoints.deviceSlotsStocktake(deviceId),
-      'POST',
-      {
-        slotCode: editForm.slotCode,
-        physicalQty: editForm.physicalQty,
-        adjustBookQty
-      }
-    );
+    await submitPhysicalQty(adjustBookQty);
     ElMessage.success(adjustBookQty ? '已按实盘调账面' : '已记录实盘数量');
-    editForm.bookQty = updated.bookQty ?? editForm.physicalQty;
-    editForm.qtyDiff = updated.qtyDiff ?? 0;
-    editForm.hasDiscrepancy = !!updated.hasDiscrepancy;
-    editForm.adjustBookQty = false;
     await loadDetail();
   } catch (e) {
     ElMessage.error(errorMessage(e, '盘点失败'));
@@ -2321,7 +2377,26 @@ async function stocktakeAndAdjust() {
   await runStocktake(true);
 }
 
+/**
+ * 「保存配置」= 保存这个弹窗表单的**全部**改动。
+ *
+ * 🔴 2026-09-24 修复：原实现只 PUT 6 个配置字段，把同一表单里的「实盘数量」「调账面」
+ * 静默丢掉 —— 用户改完实盘点「保存配置」，toast 弹「已保存」，服务端却没变
+ * （真机复现：实盘 8→5 后保存，PUT body 无该字段，lastPhysicalQty 仍 8）。
+ * 现在：实盘改动过就一并提交；勾了「调账面」则先确认再提交。
+ */
 async function saveSlot() {
+  // 现场盘点那三个字段在无 `ops:replenishment:edit` 时**整块不渲染**（模板 v-if="canStocktake"），
+  // 所以正常路径下 physicalQty 不可能被改。此处保留一道防御：万一真出现「改过实盘但无权限」，
+  // 必须**说出来**且**不许假装成功** —— 旧实现正是「静默丢弃字段 + 弹『已保存』」。
+  const withStocktake = physicalQtyChanged.value;
+  const stocktakeSaved = withStocktake && canStocktake.value;
+  if (withStocktake && !canStocktake.value) {
+    ElMessage.warning('无盘点权限：仅保存货道配置，实盘数量未保存');
+  }
+  if (stocktakeSaved && editForm.adjustBookQty) {
+    if (!(await confirmAdjustBookQty())) return;
+  }
   saving.value = true;
   const body: UpsertDeviceSlotRequest[] = [
     {
@@ -2339,8 +2414,12 @@ async function saveSlot() {
       'PUT',
       body
     );
+    if (stocktakeSaved) {
+      await submitPhysicalQty(editForm.adjustBookQty);
+    }
     editorVisible.value = false;
-    ElMessage.success('已保存');
+    // 成功文案必须与「到底保存了什么」一致，否则又是「说成功了其实没保存」。
+    ElMessage.success(stocktakeSaved ? '已保存（含实盘数量）' : '已保存');
     await loadDetail();
   } catch (e) {
     ElMessage.error(errorMessage(e, '保存失败'));

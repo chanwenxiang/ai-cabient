@@ -85,6 +85,7 @@
       <div class="table-scroll-inner">
         <CrudTable
           :table="crud"
+          auto-refresh
           row-key="sessionId"
           selectable
           manage-table="shopping_session"

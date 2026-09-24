@@ -82,6 +82,16 @@
           >刷新</el-button
         >
         <!--
+          自动刷新（默认关，按路由持久化）：只给**数据会自己变**的待办型列表开
+          （争议 / 异常 / 上传队列 / OTA 下发…）。tick 走 table.silentRefresh() ——
+          不闪 loading、不清勾选；否则每次到点都会把运营正在勾的行与滚动位置冲掉。
+        -->
+        <AutoRefreshToggle
+          v-if="autoRefresh"
+          :storage-key="autoRefreshStorageKey"
+          :refresh="onAutoRefreshTick"
+        />
+        <!--
           列设置（显示/隐藏 + 顺序）—— 对标主流 SaaS 后台的列表页标配。
           起因：本仓宽表极宽（开门记录 16 列 / 订单 19 列，1440 下需横滚 950–1035px），
           运营每次都要横滚找列；勾掉不关心的列、把常看的列拖到前面，即可一屏看完，
@@ -297,6 +307,7 @@ import {
 } from '@element-plus/icons-vue';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import AutoRefreshToggle from '@/components/AutoRefreshToggle.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
 import { ADMIN_LIST_PAGE_SIZES } from '@/utils/admin-list-pager';
@@ -356,6 +367,11 @@ const props = withDefaults(
     /** 是否内建刷新按钮 */
     showRefresh?: boolean;
     /**
+     * 是否内建「自动刷新」开关（默认关）。
+     * 只对**数据会自己变**的待办型列表开启；用户选择按路由持久化。
+     */
+    autoRefresh?: boolean;
+    /**
      * 通用数据管理表名（传入即在行操作内建 删除/批量删除，挂 ops:data:manage）。
      * 只读 + 删：原始表的写入口已撤掉（2026-09-23 决策，见模板顶部说明）。
      */
@@ -371,6 +387,7 @@ const props = withDefaults(
     csv: undefined,
     sortFieldLabel: '',
     showRefresh: true,
+    autoRefresh: false,
     manageTable: ''
   }
 );
@@ -385,32 +402,95 @@ const tableRef = ref<TableInstance>();
 const tableWrapRef = ref<HTMLElement>();
 
 /**
- * 右侧吸附列的分隔过渡带是否该显示 —— 由**真实滚动容器**驱动，而非 EP 的 is-scrolling-* 状态类。
+ * 右侧吸附列的阴影该用**加重档**吗 —— 由**真实滚动容器**驱动，而非 EP 的 is-scrolling-* 状态类。
  *
  * 🔴 EP 那个状态类在本仓失效：横向滚动被收在 `.crud-table__table`（见模板上方注释），
  *    EP 自己的滚动事件收不到 ⇒ 实测 `el-table` 上的 class **恒为 `is-scrolling-left`**
  *    （横滚到最右也不变，见 .tmp/probe 实测：scrolledTo=476 后 classes 仍只有 is-scrolling-left）。
- *    后果：main.css 里「压根不可横滚 / 已滚到最右」两条规则**永不触发**，
- *    吸附列左缘在任何位置都挂着过渡带 —— 与那两条规则写明的原意正相反。
- * 判据（与那两条规则同义）：可横滚 **且** 未滚到最右 ⇒ 吸附列下面确实压着内容 ⇒ 显示。
+ *    后果：main.css 里「压根不可横滚 / 已滚到最右」两条规则**永不触发**。
+ * 判据（与那两条规则同义）：可横滚 **且** 未滚到最右 ⇒ 吸附列下面确实压着内容 ⇒ 升加重档。
+ *
+ * ⚠️ 本 ref **不再**决定「有没有阴影」：2026-09-24 起固定列常驻一条很轻的阴影
+ *    （产品要求，见 main.css「固定操作列的分隔」），它只负责在两档之间切换。
+ *    故此 ref 为 false 时不是「无阴影」，而是「回到常驻档」。
  */
 const fixShadowEnabled = ref(false);
 function syncFixShadow() {
   const el = tableWrapRef.value;
   if (!el) return;
-  const scrollable = el.scrollWidth > el.clientWidth + 1;
+  /**
+   * 🔴 「可横滚」判据必须看**内层真实表宽（EP 把列宽之和写在 table 上）**，
+   *    不能用容器自己的 `scrollWidth`。
+   *
+   * 实测（.tmp/probe/wh-diag-spy2.log + wh-diag-signal.log，/replenishment@1092×606）：
+   *   容器 `scrollWidth` 会因「吸附单元格瞬移到表格右缘外」那一帧虚增到 899（真实 799），
+   *   而容器与 .el-table__inner-wrapper 的尺寸**始终没变** ⇒ 没有任何 ResizeObserver 会再被叫醒，
+   *   于是这个瞬时值把 `is-fixshadow` 永远钉在「真」上（真机连续采样 2.8s 都是
+   *   wrapSw=799/wrapCw=799 却挂着 is-fixshadow）。
+   *   换成内层 table 宽（同场景恒为 799）后判据稳定；宽表（商品库 1104 / 订单 2182 / 设备 2436）
+   *   两侧判据一致，且滚到最右仍能正确回落。
+   */
+  let tableW = 0;
+  for (const t of Array.from(el.querySelectorAll('table'))) {
+    tableW = Math.max(tableW, t.getBoundingClientRect().width);
+  }
+  if (!tableW) tableW = el.scrollWidth; // 表还没渲染出来时退回容器口径
+  const scrollable = tableW > el.clientWidth + 1;
   const atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
   fixShadowEnabled.value = scrollable && !atEnd;
 }
+
+/**
+ * 🔴 只在 mount / scroll / resize / items / 列变化时算是不够的 —— 宽度可能由**别处**改掉：
+ * EP 的列宽是异步落定的（table-layout.mjs：bodyMinWidth ≤ bodyWidth 时把差值摊给弹性列），
+ * 容器变窄/变宽、侧栏折叠、列显隐都会让「是否能横滚」翻转。故用 ResizeObserver 盯住
+ * **所有可能变宽的元素**：
+ *  · 内滚容器本体 —— 可视宽（clientWidth）变化；
+ *  · 内层 table（可能两张：表头 + 表体）—— EP 往它写列宽之和，判据就是读它（见 syncFixShadow）；
+ *  · .el-table__inner-wrapper —— EP 写 inline width 的那层。
+ * 表元素**可能晚于本组件挂载才出现**，所以回调里再补挂一次（只挂一次列表会漏）。
+ * box-shadow 不影响布局 ⇒ 不会与 RO 自激。
+ */
+let wrapResizeObserver: ResizeObserver | null = null;
+const observedTargets = new Set<Element>();
+function observeWrapSize() {
+  if (typeof ResizeObserver === 'undefined' || !tableWrapRef.value) return;
+  const collect = (): Element[] => {
+    const el = tableWrapRef.value;
+    if (!el) return [];
+    const list: Element[] = [el, ...Array.from(el.querySelectorAll('table'))];
+    const innerWrap = el.querySelector('.el-table__inner-wrapper');
+    if (innerWrap) list.push(innerWrap);
+    return list;
+  };
+  wrapResizeObserver = new ResizeObserver(() => {
+    for (const t of collect()) {
+      if (!observedTargets.has(t)) {
+        observedTargets.add(t);
+        wrapResizeObserver?.observe(t);
+      }
+    }
+    syncFixShadow();
+  });
+  for (const t of collect()) {
+    observedTargets.add(t);
+    wrapResizeObserver.observe(t);
+  }
+}
+
 onMounted(() => {
   calcMaxHeight();
   window.addEventListener('resize', calcMaxHeight);
   tableWrapRef.value?.addEventListener('scroll', syncFixShadow, { passive: true });
   syncFixShadow();
+  observeWrapSize();
 });
 onBeforeUnmount(() => {
   window.removeEventListener('resize', calcMaxHeight);
   tableWrapRef.value?.removeEventListener('scroll', syncFixShadow);
+  wrapResizeObserver?.disconnect();
+  wrapResizeObserver = null;
+  observedTargets.clear();
   // 拖动到一半被卸载（弹层关闭 / 路由切换）：挂在 window 上的监听必须摘掉，否则残留到下次拖动
   detachDragListeners();
 });
@@ -424,11 +504,49 @@ watch(
 );
 // ⚠️ 「列显示/隐藏 ⇒ 重算可横滚性」的那个 watch 放在列设置代码块之后
 //    （filteredCols 在那一块才声明，提前引用会 TS2448/TDZ）
-// 每次拉取新数据后同步清空勾选（与既有页面行为一致：跨页不保留选择）
+/**
+ * 数据换新后勾选怎么处理。
+ *
+ * 默认沿用既有行为：**清空**（翻页 / 筛选 / 手动刷新一律跨页不保留选择）。
+ * 但**静默刷新**（自动刷新 tick）不清 —— 运营一个动作都没做，勾选被冲掉就是干扰。
+ *
+ * 🔴 光「不调 clearSelection()」是不够的，必须**主动复原**，两条清空链路都要盖住：
+ *   1) 本文件下面这行 `tableRef.clearSelection()`（历史行为）；
+ *   2) `<el-table>` **自己**在 `:data` 换新数组实例时 `store.clearSelection()`
+ *      （element-plus `table/src/store/index.mjs:36`：未开 reserve-selection 且 data 实例变了 ⇒ 清），
+ *      并 emit `selection-change([])`，把 useCrudTable 的 selectedKeys 一起抹掉。
+ *   所以用 `flush: 'post'`：EP 的 data watcher 是 pre，本 watcher 跑在它**之后**，
+ *   复原结果才不会被随后再清一次。
+ *
+ * 实测（`.tmp/mp-auto/probe-admin-auto-refresh.mjs`）：只加 silent 参数、不做复原时，
+ * 每次 tick 后 `checked=0`、「已选 N 项」消失（B7/C2 红）。
+ */
 watch(
   () => table.items,
-  () => tableRef.value?.clearSelection()
+  () => {
+    const restore =
+      typeof table.takeSelectionRestore === 'function' ? table.takeSelectionRestore() : null;
+    if (restore?.length) {
+      restoreRowSelection(restore);
+      return;
+    }
+    tableRef.value?.clearSelection();
+  },
+  { flush: 'post' }
 );
+
+/**
+ * 按主键快照复原勾选：只复原**当前页仍存在**的行（已消失的行自然丢弃，
+ * 随后 EP 的 selection-change 会把 selectedKeys 收敛成本次实际勾中的集合）。
+ */
+function restoreRowSelection(keys: Array<string | number>) {
+  const ref = tableRef.value;
+  if (!ref) return;
+  const want = new Set(keys.map(String));
+  for (const row of table.displayItems) {
+    if (want.has(rowId(row))) ref.toggleRowSelection(row, true);
+  }
+}
 
 const auth = useAuthStore();
 
@@ -614,6 +732,15 @@ const hasActions = computed(() => typeof props.actions === 'function');
 const slots = useSlots();
 const route = useRoute();
 const ACTION_COL_KEY = '__action__';
+
+/**
+ * 自动刷新开关的持久化键：按**路由**隔离，各列表页各自记住自己的开关与间隔。
+ * tick 优先走 `silentRefresh()`（不闪 loading、不清勾选），旧控制器没有该方法时退回 refresh。
+ */
+const autoRefreshStorageKey = computed(() => `admin:auto-refresh:${route.path}`);
+async function onAutoRefreshTick() {
+  await (typeof table.silentRefresh === 'function' ? table.silentRefresh() : table.refresh());
+}
 /** 界面偏好的名字（键 = `admin.ui.<name>:<routePath>`，读写收口见 utils/ui-prefs） */
 const PREF_HIDDEN = 'hiddenCols';
 const PREF_ORDER = 'colOrder';
@@ -1102,7 +1229,10 @@ function bindCsvInput(el: Element | ComponentPublicInstance | null) {
   bottom: 0;
   z-index: 20;
   background: var(--layout-card, var(--el-bg-color, #fff));
-  padding: 3px 0 2px;
+  /* 上内边距收到 0：它与内层 .page-pager 的 margin-top 叠起来会把分页整体推低，
+     真机量出来就是「表体底边→分页内容」23px 纯白，看着像表格底下多一行空行
+     （用户报「他们之间有空行」，取证见 .tmp/probe/wh-blank.log） */
+  padding: 0 0 2px;
   border-top: 1px solid var(--layout-border, var(--el-border-color-light));
 }
 /*

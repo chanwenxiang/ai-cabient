@@ -13,6 +13,16 @@
         <app-button variant="ghost" label="查看订单" @click="goOrders" />
       </view>
     </view>
+    <view v-else-if="recognizing" class="card pending-card">
+      <text class="pending-icon">…</text>
+      <text class="pending-title">账单生成中</text>
+      <text class="pending-detail"
+        >已收到您的购物记录，正在识别商品并结算。本页会自动刷新，请稍候…</text
+      >
+      <view class="btn-slot">
+        <app-button variant="ghost" label="查看订单" @click="goOrders" />
+      </view>
+    </view>
     <view v-else-if="order">
       <view class="status-header" :class="'tone-' + statusTone">
         <text class="status-icon">{{ statusIcon }}</text>
@@ -235,13 +245,14 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
 import { fmtMoney, formatDateTimeMinute, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import { parseQuery } from '@aicabinet/shared-uni/query';
+import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { OrderDetailDto, OrderLineDto } from '@aicabinet/shared-types';
 import {
   DISPUTE_REASON_CHIPS,
@@ -261,6 +272,8 @@ import {
 
 const loading = ref(true);
 const error = ref('');
+// 后端还在识别/生成账单：不是错误，本页会自动轮询跟进（见 useAutoRefresh）
+const recognizing = ref(false);
 const order = ref<OrderDetailDto | null>(null);
 const statusLabel = ref('');
 const statusTone = computed(() => {
@@ -358,6 +371,7 @@ onLoad((opts) => {
   void bootstrap(opts as Record<string, string>);
 });
 
+let pageShowCount = 0;
 onShow(() => {
   // H5 同页换 query 时 onLoad 不重跑；微信 onShow 无入参，空 query 不得冲掉已有单号
   const merged = { ...readHashQuery(), ...currentPageOptions() };
@@ -369,7 +383,30 @@ onShow(() => {
       return;
     }
   }
-  void bootstrap(merged);
+  pageShowCount += 1;
+  // 首屏由 onLoad 负责（同刻再拉一次纯属重复请求）；此后每次回到本页都必须重新拉，
+  // 否则会一直显示进页那一刻的快照 —— bootstrap 的 loadedKey 早退会把刷新整个挡掉。
+  if (pageShowCount === 1) return;
+  const nextKey = `${String(merged.orderId || '').trim()}|${String(merged.sessionId || '').trim()}`;
+  if (nextKey !== loadedKey) {
+    void bootstrap(merged);
+    return;
+  }
+  void refreshQuietly();
+});
+
+// 后端结果是异步到达的（识别 → 落单 → 审核 → 扣款）：未到终态就每 3 秒静默跟进一次，
+// 用户不必手动下拉；进入终态 / 切到后台 / 超过 3 分钟自动停表。
+useAutoRefresh({
+  intervalMs: 3000,
+  load: refreshQuietly,
+  shouldContinue: () => !isOrderTerminal(order.value?.status),
+  maxDurationMs: 180_000,
+  canRefresh: () => !showDispute.value && !disputeLoading.value && !refundLoading.value
+});
+
+onPullDownRefresh(() => {
+  void refreshQuietly().finally(() => uni.stopPullDownRefresh());
 });
 
 function readHashQuery(): Record<string, string> {
@@ -416,16 +453,36 @@ async function bootstrap(opts?: Record<string, string>) {
   await loadBySession(nextSession);
 }
 
+/** 把订单快照写进视图状态（唯一入口，避免三处各自维护导致状态分叉） */
+function applyOrderSnapshot(next: OrderDetailDto) {
+  order.value = next;
+  error.value = '';
+  recognizing.value = false;
+  statusLabel.value = orderStatusLabel(next?.status);
+  sessionId = next?.sessionId || sessionId;
+  deviceId.value = next?.deviceId || deviceId.value;
+  if (next?.status === 'DISPUTED') disputeFiled.value = true;
+  if (next?.status === 'REFUNDED') {
+    refundDone.value = true;
+    disputeFiled.value = true;
+  }
+}
+
 async function loadBySession(sid: string) {
   try {
     const sess = await consumerApi.getSession(sid);
     deviceId.value = sess.deviceId || '';
-    order.value = await consumerApi.getSessionOrder(sid);
-    statusLabel.value = orderStatusLabel(order.value?.status);
-    if (order.value?.status === 'DISPUTED') disputeFiled.value = true;
-    if (order.value?.status === 'REFUNDED') {
-      refundDone.value = true;
-      disputeFiled.value = true;
+    try {
+      const found = await consumerApi.getSessionOrder(sid);
+      if (found?.orderId) {
+        applyOrderSnapshot(found);
+      } else {
+        // 后端识别/结算还没落单：这不是错误，交给轮询跟进，
+        // 别把「稍等一下」渲染成「加载失败」让用户去手动刷新。
+        recognizing.value = true;
+      }
+    } catch {
+      recognizing.value = true;
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败';
@@ -436,19 +493,30 @@ async function loadBySession(sid: string) {
 
 async function loadByOrderId(oid: string) {
   try {
-    order.value = await consumerApi.getOrder(oid);
-    statusLabel.value = orderStatusLabel(order.value?.status);
-    sessionId = order.value?.sessionId || sessionId;
-    deviceId.value = order.value?.deviceId || deviceId.value;
-    if (order.value?.status === 'DISPUTED') disputeFiled.value = true;
-    if (order.value?.status === 'REFUNDED') {
-      refundDone.value = true;
-      disputeFiled.value = true;
-    }
+    applyOrderSnapshot(await consumerApi.getOrder(oid));
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
+  }
+}
+
+/**
+ * 静默重拉：不碰 loading、失败不弹提示。
+ * 供「轮询」与「重新回到本页」使用 —— 后端的处理结果到了，页面自己跟上。
+ */
+async function refreshQuietly() {
+  try {
+    const oid = String(order.value?.orderId || '').trim();
+    if (oid) {
+      applyOrderSnapshot(await consumerApi.getOrder(oid));
+      return;
+    }
+    if (!sessionId) return;
+    const found = await consumerApi.getSessionOrder(sessionId);
+    if (found?.orderId) applyOrderSnapshot(found);
+  } catch {
+    /* 账单尚未生成：保持当前画面，等下一次 tick */
   }
 }
 
@@ -1047,6 +1115,33 @@ function goHelp() {
   margin: 24rpx;
   padding: 40rpx 28rpx;
   text-align: center;
+}
+/* 后端尚未吐出账单（识别/结算中）：不是错误态，页面会自动轮询跟进 */
+.pending-card {
+  margin: 24rpx;
+  padding: 64rpx 32rpx;
+  text-align: center;
+}
+.pending-icon {
+  display: block;
+  font-size: 56rpx;
+  line-height: 1;
+  color: var(--brand, #0f766e);
+  opacity: 0.55;
+}
+.pending-title {
+  display: block;
+  margin-top: 20rpx;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+}
+.pending-detail {
+  display: block;
+  margin-top: 12rpx;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-muted, #64748b);
 }
 /*
  * 块级按钮槽：小程序自定义组件默认 inline 级，而 .app-btn--block 宽 100%

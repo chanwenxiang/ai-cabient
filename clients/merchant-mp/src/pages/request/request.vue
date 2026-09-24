@@ -174,6 +174,7 @@
 import { computed, ref, watch } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
@@ -273,6 +274,19 @@ onPullDownRefresh(() => {
   bootstrap()
     .finally(() => uni.stopPullDownRefresh())
     .catch(() => {});
+});
+
+/**
+ * 补货申请的审核（接单 / 驳回）由运营侧异步处理：列表里还有 SUBMITTED 时
+ * 每 10 秒静默跟进一次，全部有结论即停表 —— 商户不必手动下拉才知道过没过。
+ */
+useAutoRefresh({
+  intervalMs: 10_000,
+  load: () => (mode.value === 'list' ? loadRequests() : Promise.resolve()),
+  shouldContinue: () =>
+    requests.value.some((r) => String(r.status || '').toUpperCase() === 'SUBMITTED'),
+  maxDurationMs: 300_000,
+  canRefresh: () => mode.value === 'list' && !listLoading.value && !submitting.value
 });
 
 watch(selectedDeviceId, (id, prev) => {

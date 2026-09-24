@@ -122,7 +122,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { consumerApi, isConsumerLoggedIn, requireConsumerAuth } from '@/utils/consumer-api';
 import {
   consumerDisputeReviewCopy,
@@ -231,6 +232,24 @@ onShow(() => {
   void bootstrap();
   loadServicePhone();
 });
+
+/**
+ * 争议结案是运营侧异步处理的：只要还没到 RESOLVED / CLOSED 就每 8 秒静默跟进一次，
+ * 结案后自动停表（用户不必反复退出重进才知道结果）。
+ * reload() 已可静默重入（已有单时不闪 loading）。
+ */
+useAutoRefresh({
+  intervalMs: 8000,
+  load: reload,
+  shouldContinue: () => {
+    const s = String(ticket.value?.status || '').toUpperCase();
+    return s !== 'RESOLVED' && s !== 'CLOSED';
+  },
+  maxDurationMs: 300_000,
+  canRefresh: () => !!ticketId.value || !!sessionId.value
+});
+
+onPullDownRefresh(() => reload().finally(() => uni.stopPullDownRefresh()));
 
 function currentPageOptions(): Record<string, string> {
   const pages = getCurrentPages();

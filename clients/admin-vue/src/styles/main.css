@@ -905,7 +905,16 @@ select {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-top: var(--admin-space-md, 12px);
+  /*
+   * 🔴 上间距只留一条 6px 呼吸缝（原 12px margin + 8px padding-top + CrudTable 外壳 3px
+   *    ⇒ 表体底边到分页内容共 23px 纯白）。
+   *    真机像素取证（.tmp/probe/wh-blank.log + 用户截图按 2x 反算）：
+   *    仓库概览 tailBlank=0、分页内容顶距表体 24px；供应商裸表 21px ——
+   *    与「工具行↔表头」的 5px 完全不是一个量级，看起来就是**表格下面多出一整行空行**
+   *    （用户原话「他们之间有空行」）。
+   *    下间距不动：卡片底那截留白是有意的（含 .el-card__body 的 padding-bottom）。
+   */
+  margin-top: var(--admin-space-sm, 6px);
   max-width: 100%;
   /*
    * 勿 overflow-x:hidden：会把 overflow-y 算成 auto，裁掉「前往 n 页」底部笔画。
@@ -918,7 +927,7 @@ select {
   flex-shrink: 0;
   isolation: isolate;
   background: var(--layout-card, var(--el-bg-color, #fff));
-  padding: 8px 0 12px;
+  padding: 0 0 12px;
   min-height: 44px;
   box-sizing: border-box;
 }
@@ -1578,13 +1587,14 @@ a:focus-visible {
   > .el-tabs:not(.status-tabs)
   .page-pager {
   flex-shrink: 0;
-  margin-top: 12px;
+  /* 与 .page-pager 基准一致：表体↔分页只留 6px（原 12px 看着像多一行空行，见 .page-pager 注释） */
+  margin-top: var(--admin-space-sm, 6px);
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .page-pager,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .page-pager {
   flex-shrink: 0;
-  margin-top: 12px;
+  margin-top: var(--admin-space-sm, 6px);
   margin-bottom: 0;
   padding-bottom: 4px;
 }
@@ -2425,9 +2435,20 @@ a:focus-visible {
    * （截图像素扫描：x=532–544 在表头与每一行都非白；吸附列本体从 x=545 开始）。
    * 用户原话就是「为什么他们之间有条线？」——它看起来像表格被切成两块。
    * 收到 8px/8px/-8px、alpha .16 ⇒ 只剩 2–3px 的软过渡，仍能表达「列被钉住」但不再是灰条。
+   *
+   * 🔴 2026-09-24：在它之外再拆两档（见下方「固定操作列的分隔」注释）。
+   *   两条共用同一几何（8/8/-8），只差 alpha：
+   *     · 本行 = **常驻档**（任何固定列都有，弱到只当锚点）
+   *     · -strong = **加重档**（确有内容被压在下面时）
+   *
+   * 🔴 2026-09-24 追加：真机看过后用户要求更明显 ⇒ 常驻档 alpha **.16 → .20**（左/右同步，保持
+   *   共用几何与左右对称）。**几何未动**（仍是 8/8/-8）⇒ 不会退回「13px 灰带」——那条灰带是
+   *   `10/14/-6` 的**几何**造成的，不是 alpha 造成的。-strong 保持 .30（与常驻档仍差 50%，加重仍可辨）；
+   *   深色档（0.5 / 0.72）不变——它是**独立刻度**，本就比浅色档强，不受浅色档调值影响。
    */
-  --el-table-fixed-right-column: inset -8px 0 8px -8px rgba(15, 23, 42, 0.16);
-  --el-table-fixed-left-column: inset 8px 0 8px -8px rgba(15, 23, 42, 0.16);
+  --el-table-fixed-right-column: inset -8px 0 8px -8px rgba(15, 23, 42, 0.2);
+  --el-table-fixed-left-column: inset 8px 0 8px -8px rgba(15, 23, 42, 0.2);
+  --el-table-fixed-right-column-strong: inset -8px 0 8px -8px rgba(15, 23, 42, 0.3);
 }
 
 /*
@@ -2439,6 +2460,7 @@ a:focus-visible {
 [data-theme='dark'] .report-page .el-table {
   --el-table-fixed-right-column: inset -8px 0 8px -8px rgba(0, 0, 0, 0.5);
   --el-table-fixed-left-column: inset 8px 0 8px -8px rgba(0, 0, 0, 0.5);
+  --el-table-fixed-right-column-strong: inset -8px 0 8px -8px rgba(0, 0, 0, 0.72);
 }
 
 /* 旧版 patch 表（兼容） */
@@ -2452,42 +2474,56 @@ a:focus-visible {
 }
 
 /*
- * 右侧吸附列的分隔：**只保留「确有内容被压在下面」时的那条提示**。
+ * 固定操作列的分隔：**常驻 + 加重 两档**。
  *
- * EP 自己就是这么做的（is-scrolling-left/middle 才加），我们曾把它强行改成常驻，
- * 结果 `is-scrolling-none`（压根没有横滚）与 `is-scrolling-right`（已滚到最右）
- * 这两种「下面什么都没有」的情况也画阴影 ⇒ 纯属凭空的竖线。
+ * 沿革（三版，别只改一半）：
+ *  ① EP 原版：只在 is-scrolling-left/middle 时画 ⇒ 本仓横向滚动被收在
+ *     .crud-table__table，EP 收不到滚动事件，状态类失灵（实测滚到最右仍是 is-scrolling-left）。
+ *  ② 2026-09-23：改为由 CrudTable 的 syncFixShadow() 按**真实滚动容器**驱动
+ *     （可横滚 且 未到最右 ⇒ .is-fixshadow），并把「下面什么都没有」的两种情况置为 none。
+ *  ③ 2026-09-24（本次）：运营报「操作列固定时没有阴影」。真机取证（.tmp/probe/wh-fixshadow.mjs）：
+ *     仓库概览（5 列 / scrollWidth 799 == clientWidth 799，压根不可横滚）⇒ boxShadow=none，
+ *     而同页的供应商裸表（862>799 可横滚）⇒ 有阴影。**同类页面观感不一致**是真正被报的问题。
+ *     ⇒ 拆两档：固定列**永远**有常驻档（弱到只是「这列被钉住」的锚点，
+ *       alpha .16 即 ②的实测值——它已验证过「不会看成一条灰线」，见上方 2424 行注释）；
+ *       确有内容被压在下面时才升到加重档。
  *
- * 判据可验：关掉本规则的 box-shadow 后，吸附列左缘的非白像素区段从 13px 塌到 0。
+ * 判据（改完必须逐条真机复量，负向对照见 .tmp/probe/wh-neg.mjs）：
+ *   · 不可横滚的 CrudTable：td::before 有 box-shadow（常驻档 alpha .16）—— 本次要修的点
+ *   · 可横滚且未到最右：升到加重档（alpha .3）
+ *   · 可横滚且已到最右：回常驻档（下面确实没内容了）
  */
 .el-table .el-table-fixed-column--right.is-first-column::before {
   box-shadow: var(--el-table-fixed-right-column) !important;
   pointer-events: none;
 }
-.el-table.is-scrolling-none .el-table-fixed-column--right.is-first-column::before,
-.el-table.is-scrolling-right .el-table-fixed-column--right.is-first-column::before {
-  box-shadow: none !important;
+/*
+ * 加重档。两条来源分开写，**不能合并成一条**：
+ *  · CrudTable 页：EP 的状态类失效（恒为 is-scrolling-left），只能认 .is-fixshadow；
+ *  · 裸 el-table 页：认 EP 自己的 is-scrolling-left/middle。
+ * 🔴 若把 is-scrolling-left 也并进 CrudTable 那一支（曾经这么写过），CrudTable 页就会**恒**命中
+ *    加重档 —— 真机实测（.tmp/probe/wh-verify.log 首次运行）：商品库滚到最右后
+ *    is-fixshadow 已正确摘掉，阴影却仍是 0.3 —— 因为那条分支还在匹配。
+ *    故裸表分支必须显式排除「壳内含 CrudTable」的页面（与 .table-scroll:has(.crud-table) 同一判据）。
+ */
+.crud-table__table.is-fixshadow .el-table-fixed-column--right.is-first-column::before,
+.table-scroll:not(:has(.crud-table))
+  .el-table.is-scrolling-left
+  .el-table-fixed-column--right.is-first-column::before,
+.table-scroll:not(:has(.crud-table))
+  .el-table.is-scrolling-middle
+  .el-table-fixed-column--right.is-first-column::before {
+  box-shadow: var(
+    --el-table-fixed-right-column-strong,
+    var(--el-table-fixed-right-column)
+  ) !important;
 }
 
 /*
- * CrudTable 场景：上面的 EP 状态类**失效**，改由真实滚动位置说了算。
- *
- * 实测（.tmp/probe/fix-diag.mjs，1440×900 / 开门记录）：横滚到 scrollLeft=476 后
- * `el-table` 上的 class 仍只有 `is-scrolling-left` —— 因为横向滚动被收在
- * `.crud-table__table`（见组件内注释），EP 的滚动监听收不到事件。
- * 于是「已滚到最右该收阴影」那条规则永不触发，吸附列左缘在最右端也挂着过渡带，
- * 与那两条规则写明的原意相反。
- *
- * 修法：由 CrudTable 的 syncFixShadow() 按**真实滚动容器**增减 `.is-fixshadow`，
- * 这里显式声明正反两面，不再依赖 EP 状态类。特异性与上面两条同为 (0,4,1)，
- * 位置更靠后 ⇒ 必然胜出。
+ * CrudTable 场景下 EP 的滚动状态类**失效**（横向滚动收在 .crud-table__table，见组件内注释），
+ * 故加重档的上/下沿改由 syncFixShadow() 维护的 .is-fixshadow 决定；
+ * 这里不再写「:not(.is-fixshadow) ⇒ none」——常驻档就是它的兜底（③）。
  */
-.crud-table__table.is-fixshadow .el-table-fixed-column--right.is-first-column::before {
-  box-shadow: var(--el-table-fixed-right-column) !important;
-}
-.crud-table__table:not(.is-fixshadow) .el-table-fixed-column--right.is-first-column::before {
-  box-shadow: none !important;
-}
 
 /*
  * EP 给固定列写了 background:inherit（特异性更高），sticky 时 inherit 易透视。

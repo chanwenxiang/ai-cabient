@@ -12,7 +12,12 @@
       </view>
       <text
         class="app-nav-title"
-        :style="{ color: color, lineHeight: rowStyle.height, paddingRight: sidePad }"
+        :style="{
+          color: color,
+          lineHeight: rowStyle.height,
+          paddingLeft: titlePad,
+          paddingRight: titlePad
+        }"
         >{{ title }}</text
       >
       <view
@@ -91,6 +96,17 @@ const rowStyle = computed(() => ({
 
 const sidePad = layout.sideMin;
 
+/**
+ * 标题两侧留白**必须等宽**：标题是 absolute left:0/right:0 + text-align:center，
+ * 左右 padding 不等 ⇒ 文字中心离屏幕中线偏移 (右-左)/2。历史上左固定 52px、右为
+ * sidePad（胶囊避让≈90~102px），标题被整体推左 ≈25px，各页面标题表现为「不居中」。
+ * 取两侧较大者做等宽留白，既不压胶囊也不偏左。
+ */
+const titlePad = computed(() => {
+  const reserve = Math.max(52, Math.ceil(Number.parseFloat(layout.sideMin) || 0));
+  return `${reserve}px`;
+});
+
 function onBack() {
   navigateBackOrHome(props.homeUrl);
 }
@@ -162,7 +178,7 @@ export default { name: 'AppNavBar' };
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
-  padding-left: 52px;
+  /* 左右留白由内联 titlePad 等宽设置（避让返回键 + 微信胶囊），此处不得单边硬编码 */
   box-sizing: border-box;
 }
 </style>
