@@ -108,6 +108,8 @@
 | 100 | GHA runner | actions/checkout@v5 在 self-hosted runner 上 14 秒即崩 node24 not supported | actions 运行时版本要求 runner ≥ 2.327，而镜像 pinned 2.321 | 升级 action 前核对 runner 版本兼容表；self-hosted 镜像 FROM 版本随 action 升级同步动 | `.github/workflows/sonar.yml`、`github-runner.Dockerfile` |
 | 101 | Sonar 25.x 凭据 | 旧 bcrypt 密码重置法失效、旧 token 401、admin 走 Basic 认证也 401 | 25.x 本地账号改 PBKDF2（SHA-512/100k/512bit，crypted=iterations$b64）；token 存 SHA-384；admin 禁 Basic 仅表单可用 | 凭据操作先读 `TokenGeneratorImpl`/`CredentialsLocalAuthentication` 源码定格式；DB 注入 token=sha384(明文) 写 user_tokens | `infra/sonarqube/`、`scripts/ci/setup-sonar-quality-gate.sh` |
 
+| 102 | admin 顶栏 | 刷新后顶栏一条品牌色绿线，点一下才消失 | 路由 NProgress：`start()` 后若重定向到当前页则 `afterEach` 不跑；或首屏 `done()` 后 CSS 过渡未卸 DOM | 用 `finishRouteProgress`（`done` + `setTimeout(done(true))`）；同路径重定向前先收条 | `router/index.ts` |
+
 ## 追加模板
 
 ```md

@@ -10,7 +10,14 @@ import { useBrandStore } from '@/stores/brand';
 import { safeRedirectPath } from '@/utils/safe-redirect';
 import { resolveHomePath } from '@/composables/useNavAccess';
 
-NProgress.configure({ showSpinner: false, trickleSpeed: 200, minimum: 0.08 });
+NProgress.configure({ showSpinner: false, trickleSpeed: 200, minimum: 0.08, speed: 200 });
+
+/** 关掉顶栏进度条；force 可清掉硬刷新后偶发卡在顶栏的残条 */
+function finishRouteProgress() {
+  NProgress.done();
+  // 下一 macrotask 再强制收一次：部分浏览器在首屏 done() 后 CSS 过渡未触发移除
+  window.setTimeout(() => NProgress.done(true), 0);
+}
 
 const bizChildren: RouteRecordRaw[] = [
   {
@@ -469,7 +476,7 @@ const router = createRouter({
   ]
 });
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   NProgress.start();
   if (to.name === 'login' && isLoggedIn()) {
     const auth = useAuthStore();
@@ -480,11 +487,19 @@ router.beforeEach(async (to) => {
     const requested = safeRedirectPath(to.query.redirect, home);
     const nav = findNavByPath(requested);
     const ok = !!nav && (!nav.perm || auth.canAccessNav(nav));
-    return { path: ok ? requested : home };
+    const dest = ok ? requested : home;
+    // 已在目标页时再「重定向到自己」不会触发 afterEach → 进度条会卡死
+    if (dest === from.path || dest === from.fullPath) {
+      finishRouteProgress();
+    }
+    return { path: dest };
   }
   if (to.meta.public) return true;
   if (!isLoggedIn()) {
     const redirect = safeRedirectPath(to.fullPath, '/dashboard');
+    if (from.name === 'login') {
+      finishRouteProgress();
+    }
     return { name: 'login', query: { redirect } };
   }
 
@@ -512,7 +527,9 @@ router.beforeEach(async (to) => {
   if (requiredPerm && !auth.hasPerm(requiredPerm)) {
     // 默认工作台等落页无权限时，落到首个可进菜单（补货员等），避免一登录就「无权」
     if (to.path === '/dashboard' || to.path === '/') {
-      return { path: resolveHomePath(auth), replace: true };
+      const home = resolveHomePath(auth);
+      if (home === from.path || home === from.fullPath) finishRouteProgress();
+      return { path: home, replace: true };
     }
     return {
       name: 'forbidden',
@@ -525,7 +542,9 @@ router.beforeEach(async (to) => {
   }
   if (nav?.perm && !auth.canAccessNav(nav)) {
     if (to.path === '/dashboard' || to.path === '/') {
-      return { path: resolveHomePath(auth), replace: true };
+      const home = resolveHomePath(auth);
+      if (home === from.path || home === from.fullPath) finishRouteProgress();
+      return { path: home, replace: true };
     }
     return {
       name: 'forbidden',
@@ -540,8 +559,9 @@ router.beforeEach(async (to) => {
 });
 
 // 动态页面标题：每个路由的 meta.title 会拼到浏览器标签页上；切页后把焦点落到主内容（键盘/读屏）
-router.afterEach((to) => {
-  NProgress.done();
+router.afterEach((to, _from, _failure) => {
+  // 含导航失败：Vue Router 4 仍会进 afterEach，但须无条件收条（failure 时也要 done）
+  finishRouteProgress();
   const brand = useBrandStore();
   const base = brand.documentBaseTitle || 'AI开门柜 · 运营管理系统';
   const pageTitle = to.meta.title as string | undefined;
@@ -558,7 +578,7 @@ router.afterEach((to) => {
 });
 
 router.onError(() => {
-  NProgress.done();
+  finishRouteProgress();
 });
 
 export default router;
