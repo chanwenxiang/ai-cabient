@@ -691,7 +691,7 @@
                     v-if="row.replenishmentTaskId"
                     link
                     type="primary"
-                    @click="goRequestTask(row)"
+                    @click="onRequestAction(row, 'view-task')"
                     >{{ row.replenishmentTaskId }}</el-button
                   >
                   <span v-else class="muted">无</span>
@@ -1223,112 +1223,35 @@
           >
         </div>
         <div v-else-if="requestFlowRow.replenishmentTaskId" class="request-flow-actions">
-          <el-button type="primary" @click="goRequestTask(requestFlowRow)">查看补货任务</el-button>
+          <el-button type="primary" @click="onRequestAction(requestFlowRow, 'view-task')">查看补货任务</el-button>
         </div>
       </div>
     </ResizableDrawer>
 
-    <el-dialog
+    <ReplenishmentPlanRouteDialog
       v-model="planDialog"
-      title="规划补货路线"
-      class="dialog-wide"
-      append-to-body
-      destroy-on-close
-      data-testid="plan-route-dialog"
-    >
-      <el-form label-width="auto" class="plan-form">
-        <el-form-item label="路线名称" required>
-          <el-input
-            v-model="planForm.routeName"
-            maxlength="80"
-            placeholder="例如：浦东早班补货路线"
-            data-testid="plan-route-name"
-          />
-        </el-form-item>
-        <el-form-item label="计划日期">
-          <input
-            v-model="planForm.plannedDate"
-            class="native-date"
-            type="date"
-            data-testid="plan-route-date"
-          />
-        </el-form-item>
-        <el-form-item label="负责人">
-          <el-select
-            v-model="planForm.assigneeUserId"
-            filterable
-            clearable
-            placeholder="选择负责人"
-            style="width: 100%"
-            :loading="assigneeLoading"
-            data-testid="plan-assignee-select"
-          >
-            <el-option
-              v-for="op in assigneeOptions"
-              :key="op.userId"
-              :label="assigneeOptionLabel(op)"
-              :value="op.userId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="目标设备" required>
-          <!-- 勾选列表替代下拉：热区更大，Browser 不易难点选 -->
-          <div class="plan-device-list" data-testid="plan-device-select">
-            <el-checkbox-group v-model="planForm.deviceIds" class="plan-device-group">
-              <!-- div 而非 label：避免外层 label 与 el-checkbox 内部 label 双绑导致偶发点选无效 -->
-              <div
-                v-for="device in devices"
-                :key="device.deviceId"
-                class="plan-device-option"
-                :data-testid="`plan-device-option-${device.deviceId}`"
-              >
-                <el-checkbox :label="device.deviceId">
-                  {{ planDeviceLabel(device) }}
-                </el-checkbox>
-              </div>
-            </el-checkbox-group>
-          </div>
-          <div v-if="!shortageDevices.length" class="plan-hint">
-            当前无缺货建议：满柜时无法规划。请先盘点/消费产生缺口，或
-            <el-button link type="primary" native-type="button" @click="goShortageFromPlan"
-              >查看缺货建议</el-button
-            >、
-            <el-button link type="primary" native-type="button" @click="goStockHealthFromPlan"
-              >库存健康</el-button
-            >。
-          </div>
-          <div v-else-if="selectedDevicesWithoutShortage.length" class="plan-hint">
-            所选设备中
-            {{ selectedDevicesWithoutShortage.join('、') }} 不在缺货建议内，满柜可能无法生成出库单。
-          </div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <div class="plan-dialog-footer">
-          <el-button native-type="button" @click="planDialog = false">取消</el-button>
-          <el-button
-            type="primary"
-            native-type="button"
-            class="plan-create-btn"
-            :loading="saving"
-            :disabled="!planForm.deviceIds.length || saving"
-            data-testid="plan-create-route"
-            @click.stop="createPlan"
-          >
-            创建路线
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
+      :plan-form="planForm"
+      :plan-saving="planSaving"
+      :assignee-loading="assigneeLoading"
+      :assignee-options="assigneeOptions"
+      :devices="devices"
+      :shortage-device-ids="shortageDeviceIds"
+      :selected-devices-without-shortage="selectedDevicesWithoutShortage"
+      :assignee-option-label="assigneeOptionLabel"
+      :plan-device-label="planDeviceLabel"
+      @create="createPlan"
+      @go-shortage="goShortageFromPlan"
+      @go-stock-health="goStockHealthFromPlan"
+    />
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Check, Close, Goods, View } from '@element-plus/icons-vue';
+import { Goods } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api, authFetch, downloadAuthFile } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import type { TableAction } from '@/components/TableActions.vue';
 import CrudTable from '@/components/CrudTable.vue';
@@ -1336,6 +1259,11 @@ import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
+import { useReplenishmentRequestFlow } from '@/composables/replenishment/useReplenishmentRequestFlow';
+import { useReplenishmentTaskActions } from '@/composables/replenishment/useReplenishmentTaskActions';
+import { useReplenishmentTaskLines } from '@/composables/replenishment/useReplenishmentTaskLines';
+import { useReplenishmentRoutePlanning } from '@/composables/replenishment/useReplenishmentRoutePlanning';
+import ReplenishmentPlanRouteDialog from '@/components/replenishment/ReplenishmentPlanRouteDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
@@ -1344,20 +1272,12 @@ import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
-import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 多 tab 动态行，字段随业务表变化
 type Row = Record<string, any>;
 
-interface AssigneeOption {
-  userId: number;
-  name?: string;
-  phoneNumber?: string;
-  status?: string;
-}
 const route = useRoute();
 const router = useRouter();
 const { goPath } = useNavAccess();
@@ -1392,12 +1312,7 @@ function markTabsLoading(names: string[], on: boolean) {
   loadingTabs.value = next;
 }
 
-const saving = ref(false);
 const expiryActingId = ref<number | null>(null);
-const openDoorLoading = ref<number | null>(null);
-const checkInLoading = ref<number | null>(null);
-const completeLoading = ref<number | null>(null);
-const cancelRouteLoading = ref<number | null>(null);
 const tab = ref('routes');
 const SERVER_PAGINATED_TABS = new Set(['routes', 'fulfillment', 'requests', 'expiry', 'shortage']);
 const tabTotals = ref<Record<string, number>>({});
@@ -1420,49 +1335,8 @@ const devices = ref<Row[]>([]);
 const shortages = ref<Row[]>([]);
 const shortageDeviceIds = ref<string[]>([]);
 const expiryAlerts = ref<Row[]>([]);
-const linesDrawer = ref(false);
-const requestFlowDrawer = ref(false);
-const requestFlowRow = ref<Row | null>(null);
-const requestEvidence = ref<
-  {
-    fileId: number;
-    fileName?: string;
-    fileSize?: number;
-    contentType?: string;
-    previewUrl?: string;
-  }[]
->([]);
-const requestEvidenceObjectUrls = ref<string[]>([]);
-const linesLoading = ref(false);
-const slotSaving = ref(false);
-const linesTask = ref<Row | null>(null);
-const taskLines = ref<Row[]>([]);
-const deviceSlots = ref<Row[]>([]);
-const taskUnassignedHint = ref<Record<number, boolean>>({});
-const taskEvidence = ref<
-  {
-    fileId: number;
-    fileName?: string;
-    fileSize?: number;
-    contentType?: string;
-    previewUrl?: string;
-  }[]
->([]);
-const evidenceObjectUrls = ref<string[]>([]);
 
 const shortageDevices = computed(() => shortageDeviceIds.value);
-const planDialog = ref(false);
-const assigneeOptions = ref<AssigneeOption[]>([]);
-const assigneeLoading = ref(false);
-const planForm = reactive({
-  routeName: '',
-  plannedDate: '',
-  assigneeUserId: currentAssigneeId() as number | undefined,
-  deviceIds: [] as string[]
-});
-const selectedDevicesWithoutShortage = computed(() =>
-  planForm.deviceIds.filter((id) => !shortageDevices.value.includes(id))
-);
 
 const requests = computed(() => allRequests.value);
 const pendingRequestCount = computed(() => summary.value.pendingRequestCount);
@@ -1494,23 +1368,6 @@ const {
   filterByKeyword: filterFulfillmentByKeyword
 } = useAdminListTable<Row>((r) => r.taskId);
 
-const fulfillmentTasks = computed(() => {
-  let rows = fulfillmentTasksBase.value;
-  if (fulfillmentUnassignedOnly.value) {
-    rows = rows.filter((t) => taskUnassignedHint.value[Number(t.taskId)]);
-  }
-  return filterFulfillmentByKeyword(rows, (row, kw) => {
-    const taskMatch = String(row.taskId ?? '').includes(kw);
-    const deviceIdMatch = String(row.deviceId ?? '')
-      .toLowerCase()
-      .includes(kw);
-    const deviceNameMatch = deviceName(row.deviceId, row.deviceName).toLowerCase().includes(kw);
-    return taskMatch || deviceIdMatch || deviceNameMatch;
-  });
-});
-const unassignedHintCount = computed(
-  () => fulfillmentTasksBase.value.filter((t) => taskUnassignedHint.value[Number(t.taskId)]).length
-);
 const fulfilledCount = computed(() => summary.value.fulfilledTaskCount);
 const fulfillmentEmptyText = computed(() => {
   if (focusDeviceId.value.trim()) return `设备 ${focusDeviceId.value} 暂无履约记录`;
@@ -1533,75 +1390,6 @@ const tabTotal = computed(() => {
 });
 
 const pagedFulfillment = computed(() => sortTasksById(fulfillmentTasks.value));
-const linesDrawerTitle = computed(() =>
-  linesTask.value?.taskId ? `理货明细 · 任务 ${linesTask.value.taskId}` : '理货明细'
-);
-const restockQtyTotal = computed(() =>
-  taskLines.value
-    .filter((l) => String(l.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK')
-    .reduce((sum, l) => sum + (Number(l.quantity) || 0), 0)
-);
-const editableRestockLines = computed(() =>
-  taskLines.value.filter(
-    (l) =>
-      !l.applied &&
-      String(l.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK' &&
-      String(linesTask.value?.status || '') !== 'COMPLETED'
-  )
-);
-const editablePendingLines = computed(() =>
-  taskLines.value.filter((l) => !l.applied && String(linesTask.value?.status || '') !== 'COMPLETED')
-);
-const unassignedRestockCount = computed(
-  () => editableRestockLines.value.filter((l) => !String(l.slotId || '').trim()).length
-);
-
-function isRestockLine(row: Row) {
-  return String(row.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK';
-}
-
-function canAssignSlot(row: Row) {
-  return (
-    canEdit.value &&
-    !!linesTask.value &&
-    String(linesTask.value.status || '') !== 'COMPLETED' &&
-    !row.applied &&
-    isRestockLine(row)
-  );
-}
-
-function slotRoom(slot: Row) {
-  const maxLevel = Number(slot.maxLevel) || 0;
-  const bookQty = Number(slot.bookQty) || 0;
-  if (maxLevel <= 0) return 99;
-  return Math.max(0, maxLevel - bookQty);
-}
-
-function slotOptionsForLine(row: Row) {
-  const skuId = String(row.skuId || '');
-  return deviceSlots.value
-    .filter((s) => s.enabled !== false)
-    .filter((s) => !s.assignedSkuId || String(s.assignedSkuId) === skuId)
-    .map((s) => ({
-      slotCode: String(s.slotCode || '').toUpperCase(),
-      room: slotRoom(s)
-    }))
-    .filter((s) => !!s.slotCode)
-    .sort((a, b) => b.room - a.room || a.slotCode.localeCompare(b.slotCode));
-}
-
-function onSlotAssign(row: Row, slotCode: string | null | undefined) {
-  const code = String(slotCode || '')
-    .trim()
-    .toUpperCase();
-  row.slotId = code || undefined;
-  if (!code) return;
-  const opt = slotOptionsForLine(row).find((o) => o.slotCode === code);
-  if (opt && Number(row.quantity) > opt.room) {
-    row.quantity = opt.room;
-    ElMessage.info(`已按货道余量调至 ${opt.room}`);
-  }
-}
 
 watch([focusDeviceId, fulfillmentStatus, requestStatusFilter], () => {
   page.value = 1;
@@ -1610,30 +1398,6 @@ watch([focusDeviceId, fulfillmentStatus, requestStatusFilter], () => {
   }
 });
 
-watch(linesDrawer, (open) => {
-  if (!open) revokeEvidencePreviews();
-});
-
-const requestActions: TableAction[] = [
-  { key: 'accept', label: '接单', icon: Check, type: 'primary' },
-  { key: 'reject', label: '驳回', icon: Close, type: 'danger' }
-];
-
-function requestActionsFor(row: Row): TableAction[] {
-  const acts: TableAction[] = [{ key: 'flow', label: '审批流', icon: View, type: 'info' }];
-  if (canEdit.value && row.status === 'SUBMITTED') {
-    acts.push(...requestActions);
-  }
-  if (row.replenishmentTaskId && (row.status === 'ACCEPTED' || row.status === 'COMPLETED')) {
-    acts.push({ key: 'view-task', label: '查看任务', icon: View, type: 'primary' });
-  }
-  return acts;
-}
-
-const showRequestActionColumn = computed(() =>
-  requests.value.some((row) => requestActionsFor(row).length > 0)
-);
-
 /** 缺货建议行操作（迁入 CrudTable 固定操作列；整列随 canEdit 显隐） */
 function shortageRowActions(_row: Row): TableAction[] {
   return [{ key: 'restock', label: '补货', icon: Goods, type: 'primary' }];
@@ -1641,10 +1405,6 @@ function shortageRowActions(_row: Row): TableAction[] {
 
 function onShortageAction({ row }: { key: string; row: Row }) {
   planSingleDevice(row.deviceId);
-}
-
-function onRequestRowAction({ key, row }: { key: string; row: Row }) {
-  void onRequestAction(row, key);
 }
 
 // ── 主列表状态机统一交给 CrudTable（分页 / 多选 / 升降序 / 竞态 / 空态 内建）────────────
@@ -1912,52 +1672,6 @@ function currentAssigneeId() {
   return Number.isFinite(id) && id > 0 ? id : 1;
 }
 
-function assigneeOptionLabel(op: AssigneeOption) {
-  const name = (op.name || '').trim() || '未命名';
-  const phone = (op.phoneNumber || '').trim();
-  return phone ? `${name}（${phone}）` : `${name}（${op.userId}）`;
-}
-
-function assigneeLabel(userId?: number | string | null, empty = '未分配') {
-  if (userId == null || userId === '') return empty;
-  const id = Number(userId);
-  if (!Number.isFinite(id) || id <= 0) return empty;
-  const op = assigneeOptions.value.find((item) => item.userId === id);
-  if (op) return assigneeOptionLabel(op);
-  return String(id);
-}
-
-function ensureAssigneeOption(userId: number, name?: string) {
-  if (!userId || assigneeOptions.value.some((item) => item.userId === userId)) return;
-  assigneeOptions.value = [{ userId, name: name || '当前账号' }, ...assigneeOptions.value];
-}
-
-async function loadAssignees() {
-  const seq = loadSeq.begin('loadAssignees');
-  if (assigneeLoading.value) return;
-  assigneeLoading.value = true;
-  try {
-    const data = await api.request<PageResult<AssigneeOption>>(
-      AdminEndpoints.rbacOperatorsPage(0, 100),
-      'GET'
-    );
-    const items = (data.items || []).filter((item) => !item.status || item.status === 'ACTIVE');
-    assigneeOptions.value = items;
-    ensureAssigneeOption(currentAssigneeId(), auth.displayName);
-  } catch {
-    if (!loadSeq.isCurrent(seq, 'loadAssignees')) return;
-    ensureAssigneeOption(currentAssigneeId(), auth.displayName);
-    if (!assigneeOptions.value.length) {
-      assigneeOptions.value = [
-        { userId: currentAssigneeId(), name: auth.displayName || '当前账号' }
-      ];
-    }
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadAssignees')) return;
-    assigneeLoading.value = false;
-  }
-}
-
 /** Prefer API snapshot name; fall back to shortage/device list join. */
 function isGarbledDeviceName(name?: string | null): boolean {
   const s = name != null ? String(name).trim() : '';
@@ -1980,14 +1694,6 @@ function deviceName(deviceId?: string, snapshot?: string | null) {
   return id;
 }
 
-function planDeviceLabel(device: Row) {
-  return `${deviceName(device.deviceId, device.deviceName)}（${device.deviceId}）`;
-}
-function localDate() {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
-
 function stockLabel(row: Row) {
   const code = String(row.stockStatus || '').toUpperCase();
   if (code === 'OOS' || (row.bookQty ?? 0) <= 0) return '缺货';
@@ -2005,31 +1711,6 @@ function stockTagType(row: Row) {
 function goDevice(deviceId?: string) {
   if (!deviceId) return;
   goPath(`/devices/${encodeURIComponent(deviceId)}`);
-}
-
-function openPlan() {
-  void loadDeviceRefs();
-  Object.assign(planForm, {
-    routeName: `${new Date().toLocaleDateString('zh-CN')} 补货路线`,
-    plannedDate: localDate(),
-    assigneeUserId: currentAssigneeId(),
-    deviceIds: focusDeviceId.value.trim() ? [focusDeviceId.value.trim()] : []
-  });
-  void loadAssignees();
-  planDialog.value = true;
-}
-
-function goShortageFromPlan() {
-  planDialog.value = false;
-  tab.value = 'shortage';
-  page.value = 1;
-  syncRouteQuery();
-  void loadTab('shortage', true);
-}
-
-function goStockHealthFromPlan() {
-  planDialog.value = false;
-  router.push('/stock-health');
 }
 
 function syncRouteQuery() {
@@ -2103,7 +1784,7 @@ async function loadFulfillment() {
   fulfillmentTasksList.value = data.items || [];
   tabTotals.value = { ...tabTotals.value, fulfillment: Number(data.total) || 0 };
   clearFulfillmentSelection();
-  void prefetchUnassignedHints();
+  void prefetchUnassignedHints(fulfillmentTasksList.value);
 }
 
 async function loadDeviceRefs() {
@@ -2141,6 +1822,187 @@ async function loadTab(name: string, force = false) {
   }
 }
 
+const reloadCurrentTab = () => loadTab(tab.value, true);
+
+const {
+  linesDrawer,
+  linesLoading,
+  slotSaving,
+  linesTask,
+  taskLines,
+  deviceSlots,
+  taskUnassignedHint,
+  taskEvidence,
+  linesDrawerTitle,
+  restockQtyTotal,
+  editablePendingLines,
+  unassignedRestockCount,
+  isRestockLine,
+  canAssignSlot,
+  slotOptionsForLine,
+  onSlotAssign,
+  formatFileSize,
+  openEvidencePreview,
+  openTaskLines,
+  saveTaskSlots,
+  prefetchUnassignedHints
+} = useReplenishmentTaskLines({ canEdit, loadSeq });
+
+function findTaskById(taskId: number | string | undefined | null): Row | null {
+  if (taskId == null || taskId === '') return null;
+  const id = Number(taskId);
+  for (const routeRow of routes.value) {
+    for (const task of routeRow.tasks || []) {
+      if (Number(task.taskId) === id) {
+        return {
+          ...task,
+          routeId: routeRow.routeId,
+          routeName: routeRow.routeName,
+          assigneeUserId: task.assigneeUserId || routeRow.assigneeUserId
+        };
+      }
+    }
+  }
+  return null;
+}
+
+async function openLinkedTask(taskId: number | string) {
+  let task = findTaskById(taskId);
+  if (!task) {
+    await reloadCurrentTab();
+    task = findTaskById(taskId);
+  }
+  if (!task) {
+    ElMessage.warning(`未找到补货任务 ${taskId}，请到履约记录中查找`);
+    tab.value = 'fulfillment';
+    syncRouteQuery();
+    return;
+  }
+  tab.value = 'fulfillment';
+  syncRouteQuery();
+  await openTaskLines(task);
+}
+
+const {
+  requestFlowDrawer,
+  requestFlowRow,
+  requestEvidence,
+  requestActionsFor,
+  showRequestActionColumn,
+  requestFlowTitle,
+  requestFlowActiveStep,
+  requestFlowProcessStatus,
+  requestFlowSubmitDesc,
+  requestFlowReviewDesc,
+  requestFlowFulfillDesc,
+  formatRequestLines,
+  openRequestFlow,
+  onRequestAction,
+  onRequestRowAction
+} = useReplenishmentRequestFlow({
+  canEdit,
+  allRequests,
+  deviceName,
+  reloadCurrentTab,
+  loadSeq,
+  openLinkedTask
+});
+
+const {
+  openDoorLoading,
+  checkInLoading,
+  completeLoading,
+  cancelRouteLoading,
+  deviceOnline,
+  deviceSalesLocked,
+  canOpenRestock,
+  canCheckInTask,
+  canCompleteTask,
+  openDoorHint,
+  checkInRestockTask,
+  canCancelEmptyRoute,
+  showRouteCancelColumn,
+  cancelEmptyRoute,
+  openRestockDoor,
+  completeRestockTask
+} = useReplenishmentTaskActions({
+  devices,
+  routes,
+  canEdit,
+  deviceName,
+  reloadCurrentTab
+});
+
+const {
+  planDialog,
+  planSaving,
+  planForm,
+  assigneeOptions,
+  assigneeLoading,
+  selectedDevicesWithoutShortage,
+  assigneeLabel,
+  assigneeOptionLabel,
+  planDeviceLabel,
+  loadAssignees,
+  openPlan,
+  closePlan,
+  maybeAutoPlanFromQuery,
+  planFromShortage,
+  planSingleDevice,
+  createPlan
+} = useReplenishmentRoutePlanning({
+  loadSeq,
+  canEdit,
+  focusDeviceId,
+  shortageDeviceIds,
+  devices,
+  currentUserId: currentAssigneeId,
+  currentUserName: () => auth.displayName || '',
+  loadDeviceRefs,
+  deviceName,
+  onRouteCreated: async () => {
+    tab.value = 'routes';
+    syncRouteQuery();
+    await loadTab(tab.value, true);
+  },
+  readPlanQuery: () => ({
+    plan: String(route.query.plan || ''),
+    deviceIds: typeof route.query.deviceIds === 'string' ? route.query.deviceIds : ''
+  }),
+  clearPlanQuery: () => syncRouteQuery()
+});
+
+function goShortageFromPlan() {
+  closePlan();
+  tab.value = 'shortage';
+  page.value = 1;
+  syncRouteQuery();
+  void loadTab('shortage', true);
+}
+
+function goStockHealthFromPlan() {
+  closePlan();
+  router.push('/stock-health');
+}
+
+const fulfillmentTasks = computed(() => {
+  let rows = fulfillmentTasksBase.value;
+  if (fulfillmentUnassignedOnly.value) {
+    rows = rows.filter((t) => taskUnassignedHint.value[Number(t.taskId)]);
+  }
+  return filterFulfillmentByKeyword(rows, (row, kw) => {
+    const taskMatch = String(row.taskId ?? '').includes(kw);
+    const deviceIdMatch = String(row.deviceId ?? '')
+      .toLowerCase()
+      .includes(kw);
+    const deviceNameMatch = deviceName(row.deviceId, row.deviceName).toLowerCase().includes(kw);
+    return taskMatch || deviceIdMatch || deviceNameMatch;
+  });
+});
+const unassignedHintCount = computed(
+  () => fulfillmentTasksBase.value.filter((t) => taskUnassignedHint.value[Number(t.taskId)]).length
+);
+
 function clearDeviceFocus() {
   focusDeviceId.value = '';
   syncRouteQuery();
@@ -2167,84 +2029,10 @@ function applyRouteQuery() {
   return changed;
 }
 
-/** 从库存健康/设备详情带入：自动打开规划对话框 */
-async function maybeAutoPlanFromQuery() {
-  if (String(route.query.plan || '') !== '1') return;
-  if (!canEdit.value) return;
-  const rawIds = typeof route.query.deviceIds === 'string' ? route.query.deviceIds : '';
-  const ids = rawIds
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const focus = focusDeviceId.value.trim();
-  let target: string[];
-  if (ids.length) {
-    target = ids;
-  } else if (focus) {
-    target = [focus];
-  } else {
-    target = shortageDevices.value;
-  }
-  if (!target.length) {
-    ElMessage.warning('暂无缺货柜机可规划，请先刷新缺货建议');
-    syncRouteQuery();
-    return;
-  }
-  Object.assign(planForm, {
-    routeName: `${new Date().toLocaleDateString('zh-CN')} 缺货补货`,
-    plannedDate: localDate(),
-    assigneeUserId: currentAssigneeId(),
-    deviceIds: target
-  });
-  void loadAssignees();
-  planDialog.value = true;
-  syncRouteQuery();
-}
-
-async function planFromShortage() {
-  const ids = shortageDevices.value;
-  if (!ids.length) return ElMessage.warning('当前无缺货设备');
-  await loadDeviceRefs();
-  Object.assign(planForm, {
-    routeName: `${new Date().toLocaleDateString('zh-CN')} 缺货补货`,
-    plannedDate: localDate(),
-    assigneeUserId: currentAssigneeId(),
-    deviceIds:
-      focusDeviceId.value && ids.includes(focusDeviceId.value) ? [focusDeviceId.value] : ids
-  });
-  void loadAssignees();
-  planDialog.value = true;
-}
-
-function planSingleDevice(deviceId: string) {
-  if (!deviceId) return;
-  void loadDeviceRefs();
-  Object.assign(planForm, {
-    routeName: `${new Date().toLocaleDateString('zh-CN')} ${deviceId} 补货`,
-    plannedDate: localDate(),
-    assigneeUserId: currentAssigneeId(),
-    deviceIds: [deviceId]
-  });
-  void loadAssignees();
-  planDialog.value = true;
-}
-
 function goWarehouse(deviceId?: string) {
   const query: Record<string, string> = { tab: 'transit' };
   if (deviceId) query.deviceId = deviceId;
   goPath('/warehouse', query);
-}
-
-function deviceOnline(deviceId?: string) {
-  if (!deviceId) return false;
-  const d = devices.value.find((item) => item.deviceId === deviceId);
-  return String(d?.onlineStatus || '').toUpperCase() === 'ONLINE';
-}
-
-function deviceSalesLocked(deviceId?: string) {
-  if (!deviceId) return false;
-  const d = devices.value.find((item) => item.deviceId === deviceId);
-  return !!(d as { salesLocked?: boolean } | undefined)?.salesLocked;
 }
 
 function formatCheckInGps(row: Row) {
@@ -2352,13 +2140,6 @@ function lineTypeLabel(type?: string) {
   return displayLabel('restock_line_type', code, '未知');
 }
 
-function formatFileSize(size?: number) {
-  if (size == null || size <= 0) return '无';
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
 function expiryRestockEnabled(row: Row) {
   const headroom = Number(row?.restockHeadroom);
   return Number.isFinite(headroom) ? headroom > 0 : true;
@@ -2392,627 +2173,6 @@ async function createFromExpiry(row: Row, lineType: 'PULL_OFF' | 'RESTOCK') {
   }
 }
 
-async function openTaskLines(task: Row) {
-  if (!task?.taskId) return;
-  linesTask.value = task;
-  taskLines.value = [];
-  deviceSlots.value = [];
-  revokeEvidencePreviews();
-  taskEvidence.value = [];
-  linesDrawer.value = true;
-  linesLoading.value = true;
-  try {
-    const [lines, evidence, slots] = await Promise.all([
-      api.request<Row[]>(AdminEndpoints.replenishmentTaskLines(task.taskId), 'GET'),
-      api
-        .request<{ fileId: number; fileName?: string; fileSize?: number; contentType?: string }[]>(
-          AdminEndpoints.replenishmentTaskEvidence(task.taskId),
-          'GET'
-        )
-        .catch(() => []),
-      task.deviceId
-        ? api
-            .request<Row[]>(AdminEndpoints.deviceSlots(String(task.deviceId)), 'GET')
-            .catch(() => [])
-        : Promise.resolve([])
-    ]);
-    taskLines.value = (lines || []).map((l) => ({ ...l }));
-    deviceSlots.value = slots || [];
-    taskEvidence.value = evidence || [];
-    const unassigned = (lines || []).some(
-      (l) =>
-        !l.applied &&
-        String(l.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK' &&
-        !String(l.slotId || '').trim()
-    );
-    taskUnassignedHint.value = {
-      ...taskUnassignedHint.value,
-      [Number(task.taskId)]: unassigned && String(task.status) !== 'COMPLETED'
-    };
-    await loadEvidencePreviews(task.taskId, taskEvidence.value);
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '理货明细加载失败');
-  } finally {
-    linesLoading.value = false;
-  }
-}
-
-async function saveTaskSlots() {
-  if (!linesTask.value?.taskId || slotSaving.value) return;
-  if (unassignedRestockCount.value) {
-    ElMessage.warning('请先为待分配行选择货道');
-    return;
-  }
-  const pending = editablePendingLines.value;
-  if (!pending.length) {
-    ElMessage.info('没有可保存的明细行');
-    return;
-  }
-  slotSaving.value = true;
-  try {
-    const saved = await api.request<Row[]>(
-      AdminEndpoints.replenishmentTaskLines(linesTask.value.taskId),
-      'POST',
-      {
-        lines: pending.map((l) => ({
-          lineType: l.lineType || 'RESTOCK',
-          skuId: l.skuId,
-          batchNo: l.batchNo || null,
-          productionDate: l.productionDate || null,
-          expiryDate: l.expiryDate || null,
-          quantity: Number(l.quantity) || 0,
-          slotId:
-            String(l.slotId || '')
-              .trim()
-              .toUpperCase() || null,
-          applied: false
-        }))
-      }
-    );
-    taskLines.value = saved || [];
-    taskUnassignedHint.value = {
-      ...taskUnassignedHint.value,
-      [Number(linesTask.value.taskId)]: false
-    };
-    ElMessage.success('货道已保存');
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '保存货道失败');
-  } finally {
-    slotSaving.value = false;
-  }
-}
-
-function revokeEvidencePreviews() {
-  for (const url of evidenceObjectUrls.value) {
-    URL.revokeObjectURL(url);
-  }
-  evidenceObjectUrls.value = [];
-}
-
-async function loadEvidencePreviews(
-  taskId: number,
-  files: {
-    fileId: number;
-    fileName?: string;
-    fileSize?: number;
-    contentType?: string;
-    previewUrl?: string;
-  }[]
-) {
-  const seq = loadSeq.begin();
-  const base = globalThis.location.origin;
-  const next: typeof files = [];
-  const urls: string[] = [];
-  for (const f of files) {
-    const item = { ...f };
-    const looksImage =
-      String(f.contentType || '').startsWith('image/') ||
-      /\.(png|jpe?g|gif|webp|bmp)$/i.test(String(f.fileName || ''));
-    if (looksImage) {
-      try {
-        const res = await authFetch(
-          `${base}${AdminEndpoints.replenishmentTaskEvidenceFile(taskId, f.fileId)}`
-        );
-        if (res.ok) {
-          const blob = await res.blob();
-          if (!loadSeq.isCurrent(seq)) return;
-          const url = URL.createObjectURL(blob);
-          urls.push(url);
-          item.previewUrl = url;
-        }
-      } catch {
-        if (!loadSeq.isCurrent(seq)) return;
-        /* list-only fallback */
-      }
-    }
-    next.push(item);
-  }
-  evidenceObjectUrls.value = urls;
-  taskEvidence.value = next;
-}
-
-function openEvidencePreview(f: { previewUrl?: string; fileName?: string }) {
-  if (!f.previewUrl) return;
-  globalThis.open(f.previewUrl, '_blank');
-}
-
-function canOpenRestock(task: Row) {
-  if (!task?.taskId || !task?.deviceId) return false;
-  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return false;
-  return !!task.checkInAt && deviceOnline(task.deviceId);
-}
-
-function canCheckInTask(task: Row) {
-  if (!task?.taskId || !task?.deviceId) return false;
-  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return false;
-  return !task.checkInAt;
-}
-
-/** 已签到且未完成的任务可「完成上架」（后端亦校验签到）。 */
-function canCompleteTask(task: Row) {
-  if (!task?.taskId) return false;
-  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return false;
-  return !!task.checkInAt;
-}
-
-function openDoorHint(task: Row) {
-  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return '无';
-  if (!task.checkInAt) return '需先签到';
-  if (!deviceOnline(task.deviceId)) return '设备离线';
-  if (deviceSalesLocked(task.deviceId)) return '停售中可补货';
-  return '无';
-}
-
-async function checkInRestockTask(task: Row) {
-  if (!task?.taskId) return;
-  if (task.checkInAt) {
-    ElMessage.info('该任务已签到');
-    return;
-  }
-  try {
-    await ElMessageBox.confirm(
-      `确认对 ${deviceName(task.deviceId, task.deviceName)}（任务 ${task.taskId}）做运营代签到？\n现场补货员应在商户小程序带 GPS 签到；后台代签到用于应急，不校验 GPS。`,
-      '补货签到',
-      { type: 'warning', confirmButtonText: '确认签到' }
-    );
-  } catch {
-    return;
-  }
-  checkInLoading.value = task.taskId;
-  try {
-    await api.request(AdminEndpoints.replenishmentTaskCheckIn(task.taskId), 'POST', {});
-    ElMessage.success(`任务 ${task.taskId} 已签到，可补货开门`);
-    await loadTab(tab.value, true);
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '签到失败');
-  } finally {
-    checkInLoading.value = null;
-  }
-}
-
-function canCancelEmptyRoute(row: Row) {
-  if (!row?.routeId) return false;
-  if (String(row.status || '') === 'COMPLETED') return false;
-  // CANCELLED：仍可幂等收口历史脏出库/在途
-  if (String(row.status || '') === 'CANCELLED') return true;
-  const tasks: Row[] = row.tasks || [];
-  if (!tasks.length) return true;
-  return tasks.every((t) => {
-    if (['COMPLETED', 'CANCELLED'].includes(String(t.status || ''))) return true;
-    return !t.checkInAt;
-  });
-}
-
-const showRouteCancelColumn = computed(
-  () => canEdit.value && routes.value.some((row) => canCancelEmptyRoute(row))
-);
-
-async function cancelEmptyRoute(row: Row) {
-  if (!row?.routeId) return;
-  const orphanCleanup = String(row.status || '') === 'CANCELLED';
-  try {
-    await ElMessageBox.confirm(
-      orphanCleanup
-        ? `确认收口路线 ${row.routeId} 的脏出库/在途？\n已发运未签收将回仓并取消在途。`
-        : `确认取消空路线 ${row.routeId}（${row.routeName || ''}）？\n仅未签到且未交接的任务可取消；已发运未签收会回仓。`,
-      orphanCleanup ? '收口脏出库' : '取消空路线',
-      { type: 'warning', confirmButtonText: orphanCleanup ? '确认收口' : '确认取消' }
-    );
-  } catch {
-    return;
-  }
-  cancelRouteLoading.value = row.routeId;
-  try {
-    await api.request(AdminEndpoints.replenishmentRouteCancelEmpty(row.routeId), 'POST');
-    ElMessage.success(
-      orphanCleanup ? `路线 ${row.routeId} 脏出库已收口` : `路线 ${row.routeId} 已取消`
-    );
-    await loadTab(tab.value, true);
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '取消失败');
-  } finally {
-    cancelRouteLoading.value = null;
-  }
-}
-
-async function openRestockDoor(task: Row) {
-  if (!task?.checkInAt) {
-    ElMessage.warning('请先到店签到后再补货开门');
-    return;
-  }
-  if (!deviceOnline(task.deviceId)) {
-    ElMessage.warning(`${deviceName(task.deviceId, task.deviceName)} 当前离线，无法下发补货开门`);
-    return;
-  }
-  const locked = deviceSalesLocked(task.deviceId);
-  try {
-    await ElMessageBox.confirm(
-      `确认对 ${deviceName(task.deviceId, task.deviceName)}（${task.deviceId}）下发补货开门？\n将绑定任务 ${task.taskId}，不产生消费者账单。\n（与设备详情「远程开门」不同）` +
-        (locked
-          ? '\n\n注意：该柜当前锁机停售，消费者无法开门；补货开门仅供上架，完成后请视情况解锁恢复售卖。'
-          : ''),
-      locked ? '补货开门（停售中）' : '补货开门',
-      { type: 'warning', confirmButtonText: '开门' }
-    );
-  } catch {
-    return;
-  }
-  openDoorLoading.value = task.taskId;
-  try {
-    const session = await api.request<{ sessionId?: string }>(
-      '/api/v2/ops/restock/open-door',
-      'POST',
-      { deviceId: task.deviceId, taskId: task.taskId }
-    );
-    ElMessage.success({
-      message: session?.sessionId ? `开门已下发（${session.sessionId}）` : '开门指令已下发',
-      duration: 4000
-    });
-    await loadTab(tab.value, true);
-  } catch (error) {
-    ElMessage.error({
-      message: error instanceof Error ? error.message : '开门失败',
-      duration: 5000
-    });
-  } finally {
-    openDoorLoading.value = null;
-  }
-}
-
-async function completeRestockTask(task: Row) {
-  if (!task?.taskId) return;
-  if (!task.checkInAt) {
-    ElMessage.warning('请先到店签到后再完成上架');
-    return;
-  }
-  try {
-    await ElMessageBox.confirm(
-      `确认完成任务 ${task.taskId}（${deviceName(task.deviceId, task.deviceName)}）上架？\n未签到将被后端拒绝；完成后将写入库存。`,
-      '完成上架',
-      { type: 'warning', confirmButtonText: '确认完成' }
-    );
-  } catch {
-    return;
-  }
-  completeLoading.value = task.taskId;
-  try {
-    await api.request(AdminEndpoints.replenishmentTaskComplete(task.taskId), 'POST');
-    ElMessage.success(`任务 ${task.taskId} 已完成上架`);
-    await loadTab(tab.value, true);
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '完成上架失败');
-  } finally {
-    completeLoading.value = null;
-  }
-}
-
-async function createPlan() {
-  if (!planForm.routeName.trim()) return ElMessage.warning('请填写路线名称');
-  if (!planForm.assigneeUserId) return ElMessage.warning('请选择负责人');
-  if (!planForm.deviceIds.length) return ElMessage.warning('请至少选择一台设备');
-  saving.value = true;
-  try {
-    const route = await api.request<Row>(AdminEndpoints.replenishmentPlan, 'POST', {
-      ...planForm,
-      startLatitude: null,
-      startLongitude: null
-    });
-    planDialog.value = false;
-    tab.value = 'routes';
-    syncRouteQuery();
-    await loadTab(tab.value, true);
-    const outbounds =
-      (
-        await api
-          .request<{ items: Row[] }>(AdminEndpoints.warehouseOutboundsAll, 'GET')
-          .catch(() => ({ items: [] as Row[] }))
-      ).items || [];
-    const linked = (outbounds || []).filter((o) => o.routeId === route?.routeId);
-    if (linked.length) {
-      ElMessage.success({
-        message: `路线已创建，出库单 ${linked[0].outboundId} 待拣货发运（仓库页）`,
-        duration: 5000
-      });
-    } else {
-      ElMessage.warning({
-        message: '路线已创建，但未生成出库明细（仓库可用库存不足），可现场补录上架',
-        duration: 5000
-      });
-    }
-  } catch (error) {
-    ElMessage.error({
-      message: error instanceof Error ? error.message : '路线创建失败',
-      duration: 5000
-    });
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function acceptReplenishmentRequest(row: Row) {
-  const linesPreview = formatRequestLines(row);
-  await ElMessageBox.confirm(
-    `确认接单要货 ${row.requestId}？\n设备：${deviceName(row.deviceId, row.deviceName)}（${row.deviceId}）\n明细：${linesPreview}`,
-    '接单',
-    { type: 'warning', confirmButtonText: '确认接单' }
-  );
-  const accepted = await api.request<{
-    requestId?: number;
-    outboundId?: number | null;
-    replenishmentTaskId?: number | null;
-    reviewerId?: number;
-    reviewerName?: string;
-    reviewedAt?: string;
-    status?: string;
-  }>(AdminEndpoints.replenishmentRequestAccept(row.requestId), 'POST');
-  if (accepted?.outboundId) {
-    ElMessage.success(
-      `已接单，出库 ${accepted.outboundId}，补货任务 ${accepted.replenishmentTaskId ?? '无'}`
-    );
-  } else {
-    ElMessage.success(
-      `已接单，无仓配库存，已建现场补货任务 ${accepted?.replenishmentTaskId ?? '无'}`
-    );
-  }
-}
-
-async function rejectReplenishmentRequest(row: Row) {
-  const { value } = await ElMessageBox.prompt('请填写驳回原因', '驳回要货', {
-    inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
-    confirmButtonText: '确认驳回',
-    type: 'warning'
-  });
-  await api.request(AdminEndpoints.replenishmentRequestReject(row.requestId), 'POST', {
-    reason: value
-  });
-  ElMessage.success(displayLabel('replenishment_request_status', 'REJECTED'));
-}
-
-function refreshRequestFlowDrawer(row: Row) {
-  if (!requestFlowDrawer.value || requestFlowRow.value?.requestId !== row.requestId) return;
-  const updated = allRequests.value.find((r) => r.requestId === row.requestId);
-  if (updated) requestFlowRow.value = updated;
-  else requestFlowDrawer.value = false;
-}
-
-async function onRequestAction(row: Row, key: string) {
-  try {
-    if (key === 'flow') {
-      openRequestFlow(row);
-      return;
-    }
-    if (key === 'view-task') {
-      await goRequestTask(row);
-      return;
-    }
-    if (key === 'accept') {
-      await acceptReplenishmentRequest(row);
-    } else if (key === 'reject') {
-      await rejectReplenishmentRequest(row);
-    }
-    await loadTab(tab.value, true);
-    refreshRequestFlowDrawer(row);
-  } catch (e: unknown) {
-    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '操作失败'));
-  }
-}
-
-function findTaskById(taskId: number | string | undefined | null): Row | null {
-  if (taskId == null || taskId === '') return null;
-  const id = Number(taskId);
-  for (const routeRow of routes.value) {
-    for (const task of routeRow.tasks || []) {
-      if (Number(task.taskId) === id) {
-        return {
-          ...task,
-          routeId: routeRow.routeId,
-          routeName: routeRow.routeName,
-          assigneeUserId: task.assigneeUserId || routeRow.assigneeUserId
-        };
-      }
-    }
-  }
-  return null;
-}
-
-async function goRequestTask(row: Row) {
-  const taskId = row.replenishmentTaskId;
-  if (!taskId) {
-    ElMessage.info('该要货尚未关联补货任务');
-    return;
-  }
-  let task = findTaskById(taskId);
-  if (!task) {
-    await loadTab(tab.value, true);
-    task = findTaskById(taskId);
-  }
-  if (!task) {
-    ElMessage.warning(`未找到补货任务 ${taskId}，请到履约记录中查找`);
-    tab.value = 'fulfillment';
-    syncRouteQuery();
-    return;
-  }
-  tab.value = 'fulfillment';
-  syncRouteQuery();
-  await openTaskLines(task);
-}
-
-function formatRequestLines(row: Row) {
-  const lines = (row.lines || []) as { skuName?: string; skuId?: string; requestedQty?: number }[];
-  if (!lines.length) return '无明细';
-  return lines.map((l) => `${l.skuName || l.skuId || '无'}×${l.requestedQty ?? 0}`).join('、');
-}
-
-const requestFlowTitle = computed(() =>
-  requestFlowRow.value?.requestId ? `审批流 · 要货 ${requestFlowRow.value.requestId}` : '审批流'
-);
-
-const requestFlowActiveStep = computed(() => {
-  const status = String(requestFlowRow.value?.status || '');
-  if (status === 'SUBMITTED') return 0;
-  if (status === 'REJECTED') return 1;
-  if (status === 'ACCEPTED') return 2;
-  if (status === 'COMPLETED') return 3;
-  return 0;
-});
-
-const requestFlowProcessStatus = computed(() =>
-  String(requestFlowRow.value?.status || '') === 'REJECTED' ? 'error' : 'process'
-);
-
-const requestFlowSubmitDesc = computed(() => {
-  const row = requestFlowRow.value;
-  if (!row) return '';
-  const who = row.createdByName || row.createdBy || '商户';
-  const when = row.submittedAt || row.createdAt;
-  return when ? `${who}\n${formatDateTime(when)}` : String(who);
-});
-
-const requestFlowReviewDesc = computed(() => {
-  const row = requestFlowRow.value;
-  if (!row) return '';
-  const status = String(row.status || '');
-  if (status === 'SUBMITTED') return '等待运营接单/驳回';
-  const who = row.reviewerName || row.reviewerId || '审核人';
-  const result =
-    status === 'REJECTED'
-      ? displayLabel('replenishment_request_status', 'REJECTED')
-      : displayLabel('replenishment_request_status', 'ACCEPTED');
-  const when = row.reviewedAt ? formatDateTime(row.reviewedAt) : '';
-  return when ? `${who} · ${result}\n${when}` : `${who} · ${result}`;
-});
-
-const requestFlowFulfillDesc = computed(() => {
-  const row = requestFlowRow.value;
-  if (!row) return '';
-  const status = String(row.status || '');
-  if (status === 'REJECTED') return '已终止';
-  if (status === 'SUBMITTED') return '审核通过后生成补货任务';
-  if (row.replenishmentTaskId) {
-    return status === 'COMPLETED'
-      ? `任务 ${row.replenishmentTaskId} · 已完成`
-      : `任务 ${row.replenishmentTaskId} · 履约中`;
-  }
-  return '待生成补货任务';
-});
-
-function openRequestFlow(row: Row) {
-  requestFlowRow.value = row;
-  requestFlowDrawer.value = true;
-  void loadRequestEvidence(row);
-}
-
-function revokeRequestEvidenceUrls() {
-  for (const url of requestEvidenceObjectUrls.value) {
-    URL.revokeObjectURL(url);
-  }
-  requestEvidenceObjectUrls.value = [];
-  requestEvidence.value = [];
-}
-
-async function loadRequestEvidence(row: Row) {
-  const seq = loadSeq.begin('loadRequestEvidence');
-  revokeRequestEvidenceUrls();
-  const requestId = Number(row.requestId);
-  if (!requestId) return;
-  try {
-    const files = await api.request<
-      { fileId: number; fileName?: string; fileSize?: number; contentType?: string; url?: string }[]
-    >(AdminEndpoints.replenishmentRequestEvidence(requestId), 'GET');
-    if (!loadSeq.isCurrent(seq, 'loadRequestEvidence')) return;
-    if (!files?.length) return;
-    const base = globalThis.location.origin;
-    const urls: string[] = [];
-    const mapped = await Promise.all(
-      files.map(async (f) => {
-        const fileId = Number(f.fileId);
-        const item = { ...f, previewUrl: f.url };
-        const looksImage =
-          String(f.contentType || '').startsWith('image/') ||
-          /\.(png|jpe?g|gif|webp|bmp)$/i.test(String(f.fileName || ''));
-        if (looksImage) {
-          try {
-            const res = await authFetch(
-              `${base}${AdminEndpoints.replenishmentRequestEvidenceFile(requestId, fileId)}`
-            );
-            if (res.ok) {
-              const blob = await res.blob();
-              if (!loadSeq.isCurrent(seq, 'loadRequestEvidence')) return item;
-              const objectUrl = URL.createObjectURL(blob);
-              urls.push(objectUrl);
-              item.previewUrl = objectUrl;
-            }
-          } catch {
-            /* list-only fallback */
-          }
-        }
-        return item;
-      })
-    );
-    if (!loadSeq.isCurrent(seq, 'loadRequestEvidence')) return;
-    requestEvidenceObjectUrls.value = urls;
-    requestEvidence.value = mapped;
-  } catch {
-    if (!loadSeq.isCurrent(seq, 'loadRequestEvidence')) return;
-    requestEvidence.value = [];
-  }
-}
-/** 履约开放任务：预拉明细，标出待分配货道红点（最多 24 个，避免打爆接口） */
-async function prefetchUnassignedHints() {
-  const open = fulfillmentTasksBase.value
-    .filter((t) => {
-      const st = String(t.status || '');
-      return t.taskId && st !== 'COMPLETED' && st !== 'CANCELLED';
-    })
-    .slice(0, 24);
-  if (!open.length) return;
-  const next: Record<number, boolean> = { ...taskUnassignedHint.value };
-  const chunkSize = 6;
-  for (let i = 0; i < open.length; i += chunkSize) {
-    const chunk = open.slice(i, i + chunkSize);
-    await Promise.all(
-      chunk.map(async (task) => {
-        const taskId = Number(task.taskId);
-        try {
-          const lines = await api.request<Row[]>(
-            AdminEndpoints.replenishmentTaskLines(taskId),
-            'GET'
-          );
-          next[taskId] = (lines || []).some(
-            (l) =>
-              !l.applied &&
-              String(l.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK' &&
-              !String(l.slotId || '').trim()
-          );
-        } catch {
-          /* keep previous hint */
-        }
-      })
-    );
-  }
-  taskUnassignedHint.value = next;
-}
-
 async function reloadFromRouteQuery() {
   applyRouteQuery();
   page.value = 1;
@@ -3026,10 +2186,6 @@ watch(
     void reloadFromRouteQuery();
   }
 );
-
-watch(requestFlowDrawer, (open) => {
-  if (!open) revokeRequestEvidenceUrls();
-});
 
 // 各列表控制器均 autoLoad:false：首查须在路由查询参数（tab/deviceId/plan）应用后由 loadTab 显式触发
 onMounted(async () => {
@@ -3302,73 +2458,6 @@ onActivated(() => {
 .expiry-restock-wrap {
   display: inline-flex;
   vertical-align: middle;
-}
-.plan-hint {
-  margin-top: 6px;
-  font-size: var(--admin-font-size-sm);
-  color: var(--el-color-warning);
-  line-height: 1.4;
-}
-.plan-form {
-  margin-top: 4px;
-}
-.plan-device-list {
-  width: 100%;
-  max-height: 220px;
-  overflow: auto;
-  border: 1px solid var(--layout-border);
-  border-radius: 6px;
-  padding: 4px 0;
-  background: var(--layout-card);
-}
-.plan-device-group {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-.plan-device-option {
-  display: flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 6px 12px;
-  cursor: pointer;
-  box-sizing: border-box;
-}
-.plan-device-option:hover {
-  background: var(--el-fill-color-light);
-}
-.plan-device-option :deep(.el-checkbox) {
-  width: 100%;
-  height: auto;
-  margin-right: 0;
-}
-.plan-device-option :deep(.el-checkbox__label) {
-  white-space: normal;
-  line-height: 1.35;
-}
-.plan-dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  position: relative;
-  z-index: 2;
-}
-.plan-create-btn {
-  position: relative;
-  z-index: 3;
-  min-width: 96px;
-  min-height: 36px;
-  pointer-events: auto;
-}
-.native-date {
-  width: 100%;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--layout-border);
-  border-radius: 4px;
-  color: var(--layout-text);
-  background: var(--layout-card);
-  box-sizing: border-box;
 }
 @media (max-width: 760px) {
   .route-detail {
