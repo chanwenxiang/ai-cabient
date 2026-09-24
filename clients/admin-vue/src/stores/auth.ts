@@ -14,7 +14,35 @@ import { isNavMenuActiveFor, permissionsAfterSoftFail } from '@/utils/rbac-cache
 
 const PERM_KEY = 'admin_permissions';
 const NAV_KEY = 'admin_active_nav';
+/** 2FA 中间态 challenge：仅 sessionStorage（tab 关闭即清；禁止再写 localStorage，见 debt-tracker D9） */
 const TWO_FACTOR_KEY = 'admin_2fa_challenge';
+
+/** 权限/导航缓存键：只删不写（曾死写抬权风险，debt-tracker D10） */
+function clearLegacyRbacCache() {
+  localStorage.removeItem(PERM_KEY);
+  localStorage.removeItem(NAV_KEY);
+}
+
+function setTwoFactorChallenge(token: string) {
+  sessionStorage.setItem(TWO_FACTOR_KEY, token);
+  localStorage.removeItem(TWO_FACTOR_KEY);
+}
+
+function readTwoFactorChallenge(): string | null {
+  const current = sessionStorage.getItem(TWO_FACTOR_KEY);
+  if (current) return current;
+  // 兼容升级前写入 localStorage 的遗留值（读一次后迁走并清除）
+  const legacy = localStorage.getItem(TWO_FACTOR_KEY);
+  if (!legacy) return null;
+  sessionStorage.setItem(TWO_FACTOR_KEY, legacy);
+  localStorage.removeItem(TWO_FACTOR_KEY);
+  return legacy;
+}
+
+function clearTwoFactorChallenge() {
+  sessionStorage.removeItem(TWO_FACTOR_KEY);
+  localStorage.removeItem(TWO_FACTOR_KEY);
+}
 
 export interface OpsProfile {
   userId: string;
@@ -72,7 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
     const data = await api.loginByPassword(phoneNumber, password, captcha);
     if (data.twoFactorRequired) {
       // 密码已通过：保存短时 challenge，待动态码验证后完成登录
-      localStorage.setItem(TWO_FACTOR_KEY, data.token);
+      setTwoFactorChallenge(data.token);
       phone.value = phoneNumber;
       return { twoFactorRequired: true };
     }
@@ -84,14 +112,14 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function completeTwoFactor(code: string, recovery: boolean) {
-    const challenge = localStorage.getItem(TWO_FACTOR_KEY);
+    const challenge = readTwoFactorChallenge();
     if (!challenge) {
       throw new Error('登录状态已失效，请重新登录');
     }
     const data = recovery
       ? await api.recoveryTwoFactor(challenge, code)
       : await api.verifyTwoFactor(challenge, code);
-    localStorage.removeItem(TWO_FACTOR_KEY);
+    clearTwoFactorChallenge();
     applyLoginSession(data);
     userId.value = data.userId;
     await Promise.all([loadPermissions(), loadActiveNav(), loadProfile(), loadRuntimeDict()]);
@@ -102,14 +130,14 @@ export const useAuthStore = defineStore('auth', () => {
       const perms = await api.request<string[]>(AdminEndpoints.rbacMePermissions, 'GET');
       permissions.value = perms || [];
       rbacHydrated.value = true;
-      localStorage.setItem(PERM_KEY, JSON.stringify(permissions.value));
+      clearLegacyRbacCache();
     } catch (e) {
       // 401 already clears session via ApiClient; keep token only for soft failures
       const msg = e instanceof Error ? e.message : '';
       if (/401|登录|未授权|失效/i.test(msg) || !isLoggedIn()) {
         permissions.value = [];
         rbacHydrated.value = false;
-        localStorage.setItem(PERM_KEY, '[]');
+        clearLegacyRbacCache();
         return;
       }
       permissions.value = permissionsAfterSoftFail(rbacHydrated.value, permissions.value);
@@ -121,13 +149,13 @@ export const useAuthStore = defineStore('auth', () => {
       const codes = await api.request<string[]>(AdminEndpoints.rbacMeNav, 'GET');
       activeNavPerms.value = codes || [];
       activeNavLoaded.value = true;
-      localStorage.setItem(NAV_KEY, JSON.stringify(activeNavPerms.value));
+      clearLegacyRbacCache();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (/401|登录|未授权|失效/i.test(msg) || !isLoggedIn()) {
         activeNavPerms.value = [];
         activeNavLoaded.value = false;
-        localStorage.setItem(NAV_KEY, '[]');
+        clearLegacyRbacCache();
         return;
       }
       // 未同步过：fail-closed（空 ACTIVE 列表），避免未加载时 isNavMenuActive 全放行
@@ -238,8 +266,8 @@ export const useAuthStore = defineStore('auth', () => {
     phone.value = '';
     profile.value = null;
     profileHydrated.value = false;
-    localStorage.removeItem(NAV_KEY);
-    localStorage.removeItem(PERM_KEY);
+    clearLegacyRbacCache();
+    clearTwoFactorChallenge();
   }
 
   function hasPerm(code?: string | null) {
