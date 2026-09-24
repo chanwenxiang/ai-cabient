@@ -601,11 +601,11 @@ const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } 
 
 /** 真机：标题从微信胶囊下方起排，避免顶穿状态栏 */
 const landingHeadStyle = ref({
-  paddingTop: getBelowCapsulePadPx(10) + 'px'
+  paddingTop: getBelowCapsulePadPx(28) + 'px'
 });
 function refreshLandingPad() {
   landingHeadStyle.value = {
-    paddingTop: getBelowCapsulePadPx(10) + 'px'
+    paddingTop: getBelowCapsulePadPx(28) + 'px'
   };
 }
 /** H5 无可靠扫码时提供手输；微信小程序主路径仅扫码（对齐竞品，不展示开发入口） */
@@ -2421,7 +2421,8 @@ function stopDevicePoll() {
   width: 100%;
 }
 .brand {
-  font-size: var(--font-size-h2);
+  /* 落地页主标题：真机反馈偏小，从 --font-size-h2(40rpx) 提到 52rpx */
+  font-size: 52rpx;
   font-weight: 700;
   color: var(--white);
   display: block;
@@ -2429,7 +2430,8 @@ function stopDevicePoll() {
   line-height: 1.25;
 }
 .tagline {
-  font-size: var(--font-size-body);
+  /* 真机反馈偏小：26rpx -> 30rpx */
+  font-size: 30rpx;
   color: rgba(255, 255, 255, var(--on-deep-opacity-92));
   margin-top: 14rpx;
   display: block;
