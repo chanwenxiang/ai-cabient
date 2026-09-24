@@ -835,11 +835,16 @@ onShareTimeline(() => ({ title: SHARE_TITLE }));
 function syncLandingTabBar() {
   if (showLanding.value) {
     uni.hideTabBar({ animation: false });
-    // 隐藏底栏后视口变化/底部安全区露出的「窗口底色」改用品牌深色，避免落地页底部出现白条
-    uni.setBackgroundColor({ backgroundColor: '#134e4a' });
+    // 隐藏底栏后视口底部安全区「窗口底色」改品牌深色，消落地页白条。
+    // 仅微信小程序有此 API；H5 无实现 → 直接调用会抛 TypeError，拖垮 e2e TC-QUAL-001。
+    if (typeof uni.setBackgroundColor === 'function') {
+      uni.setBackgroundColor({ backgroundColor: '#134e4a' });
+    }
   } else {
     uni.showTabBar({ animation: false });
-    uni.setBackgroundColor({ backgroundColor: '#ffffff' });
+    if (typeof uni.setBackgroundColor === 'function') {
+      uni.setBackgroundColor({ backgroundColor: '#ffffff' });
+    }
   }
 }
 

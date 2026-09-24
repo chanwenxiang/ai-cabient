@@ -148,6 +148,7 @@
 | 136 | admin 设备远程运维埋 View | 指令/退款/策略锁/维修与详情同文件，改开门易误伤温控 | D22 只抽了关联单据；运维写路径仍在 SFC | **必须**写路径走 `useDeviceRemoteOps`；UI 走 `DeviceRemoteOpsCard`；`cmdLoading` 与温控 SET_TEMP 共用同一 ref；禁止再把运维卡塞回 DeviceDetailView；进度 D23 done | `useDeviceRemoteOps.ts`、`DeviceRemoteOpsCard.vue` |
 | 137 | admin 设备温控 Tab markup | 温控计划/环境表与详情同文件，改排程易误伤货道 | 逻辑已在 `useDeviceTempEnv`，UI 未抽 | **必须**温控 Tab UI 走 `DeviceTempEnvTab`；首屏即时设温可留 hero；禁止再把计划/环境表塞回 DeviceDetailView；进度 D24 done | `DeviceTempEnvTab.vue` |
 | 138 | admin 补货 View 误回退 | 未提交的 D13 接线被 `git checkout` 冲掉，View 回到 ~3378 | 破坏性 patch 失败后 checkout 整文件 | **禁止**对未提交大改 View 用整文件 checkout 恢复；失败应用局部替换；恢复 → D25 done（~2467 + 规划对话框） | `ReplenishmentView.vue`、`useReplenishmentRoutePlanning.ts` |
+| 139 | consumer H5 / CI | e2e `TC-QUAL-001`：`uni.setBackgroundColor is not a function` | 落地页沉浸用了微信小程序专用 API，H5 运行时无实现 | **必须**调用前 `typeof uni.setBackgroundColor === 'function'`（同 `getMenuButtonBoundingClientRect`）；**禁止**在 H5 共用路径裸调小程序专属 `uni.*` | `pages/index/index.vue` `syncLandingTabBar` |
 
 ## 追加模板
 
