@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onPageShow, onShow } from '@dcloudio/uni-app';
 import {
   isMerchantLoggedIn,
   merchantApi,
@@ -81,16 +81,25 @@ export async function refreshMerchantMe(): Promise<MerchantMe> {
 }
 
 export function useMerchantMe() {
-  onShow(() => {
-    if (isMerchantLoggedIn()) {
-      refreshMerchantMe().catch(() => {
-        // 软失败不回读 storage 里的 permissions（可被篡改抬权）；仅保留本会话已成功拉取的内存态
-        if (!isMerchantLoggedIn()) {
-          meRef.value = null;
-        }
-      });
-    }
-  });
+  /**
+   * 🔴 两套钩子都必须注册：本函数的宿主既可能是**页面**（`onShow` 生效），
+   * 也可能被**自定义组件**调用 —— 实测 `components/WalletPage.vue` 就是组件宿主。
+   * 小程序端 uni 运行时只对**页面实例**派发 `onShow`；组件可见时走的是
+   * `pageLifetimes.show` → `onPageShow`。只注册 `onShow` 时，组件宿主的这段刷新
+   * **永远不执行**（与 WalletPage 曾经的 `onShow(load)` 是同一个坑，见 lessons #111）。
+   * 重复触发无副作用：`refreshMerchantMe` 入口有 inflight 单飞，两套钩子同刻触发只发一个请求。
+   */
+  const refreshIfLoggedIn = () => {
+    if (!isMerchantLoggedIn()) return;
+    refreshMerchantMe().catch(() => {
+      // 软失败不回读 storage 里的 permissions（可被篡改抬权）；仅保留本会话已成功拉取的内存态
+      if (!isMerchantLoggedIn()) {
+        meRef.value = null;
+      }
+    });
+  };
+  onShow(refreshIfLoggedIn);
+  onPageShow(refreshIfLoggedIn);
 
   return {
     me: meRef,

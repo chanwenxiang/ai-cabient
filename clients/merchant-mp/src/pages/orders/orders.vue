@@ -175,6 +175,7 @@ import {
   isMerchantLoggedIn
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { MerchantMe, OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
 import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -324,6 +325,19 @@ onShow(() => {
   load();
 });
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+
+/**
+ * 订单列表是分页的：load() 会把列表重置回第一页 ⇒ 已翻页时必须停表，否则把用户的翻页吞掉。
+ * 有未到终态的订单时每 10 秒静默跟进，全部到终态即停表。
+ */
+useAutoRefresh({
+  intervalMs: 10_000,
+  load,
+  shouldContinue: () => list.value.some((o) => !isOrderTerminal(o.status)),
+  maxDurationMs: 300_000,
+  canRefresh: () =>
+    !loading.value && !loadingMore.value && pageIndex.value === 0 && !exporting.value
+});
 
 async function ensureOrdersMerchantMe(seq: number): Promise<boolean> {
   try {

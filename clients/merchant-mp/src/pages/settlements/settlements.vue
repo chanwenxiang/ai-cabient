@@ -186,6 +186,7 @@ import {
   isMerchantLoggedIn
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import { isSettlementBatchTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import type {
   MerchantDailySettlement,
   MerchantMe,
@@ -276,6 +277,20 @@ function onEndDate(e: unknown) {
 
 onShow(() => load());
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+
+/**
+ * 批次未到终态时每 15 秒静默跟进一次（结算按天聚合，比订单慢，不必 3 秒）。
+ * 终态集合放在共享原语里，并由单测断言「与 shared-dict 的 settlement_batch_status 双向全覆盖」——
+ * 字典新增状态时测试会红，逼人显式判断它算不算终态，而不是静默漏轮询。
+ * 日期非法时 load() 会短路，这里也一并挡住，避免空转。
+ */
+useAutoRefresh({
+  intervalMs: 15_000,
+  load,
+  shouldContinue: () => batches.value.some((b) => !isSettlementBatchTerminal(b.batchStatus)),
+  maxDurationMs: 300_000,
+  canRefresh: () => !loading.value && !isSettlementRangeInvalid(startDate.value, endDate.value)
+});
 
 const EMPTY_SETTLEMENT_SUMMARY = {
   gross: '0.00',

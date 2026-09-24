@@ -128,7 +128,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { showError } from '@/utils/notify';
-import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 import {
@@ -140,6 +140,7 @@ import {
 } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -202,12 +203,39 @@ const canShowVideo = computed(() => {
   return s === 'PAID' || s === 'COMPLETED' || s === 'REFUNDED' || s === 'PARTIAL_REFUNDED';
 });
 
+/**
+ * 首屏由 onLoad 负责；onShow 只在「已初始化」后补拉。
+ * 用一个布尔闸门而不是比对 orderId：H5 同页改 hash/query 时 onLoad 可能不触发，
+ * 直接比对会漏掉「同一单切回本页」这条路径。
+ */
+let booted = false;
 onLoad((opt) => {
   const q = (opt || {}) as Record<string, string | undefined>;
   orderId.value = String(q.orderId || q.id || '').trim();
+  booted = true;
   void load();
 });
+/**
+ * 🔴 从订单列表返回 / 切回前台必须重拉：订单状态、退款金额由后端异步推进，
+ * 只在 onLoad 拉一次的话，回到本页看到的仍是进入时那份旧快照（lessons #110）。
+ * load() 在已有 order 时不置 loading，可安全重复调用。
+ */
+onShow(() => {
+  if (booted && orderId.value) void load();
+});
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+
+/**
+ * 支付/退款异步流转：未到终态时每 3 秒静默跟进一次，到终态即停表。
+ * canRefresh 里额外判 canList：无权限时 load() 会 navigateBack，轮询重复触发会连续弹「无订单权限」。
+ */
+useAutoRefresh({
+  intervalMs: 3000,
+  load,
+  shouldContinue: () => !isOrderTerminal(order.value?.status),
+  maxDurationMs: 180_000,
+  canRefresh: () => !!orderId.value && isMerchantLoggedIn() && canList.value
+});
 
 async function load() {
   if (!isMerchantLoggedIn()) {

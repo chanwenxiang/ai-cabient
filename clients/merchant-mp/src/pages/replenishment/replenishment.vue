@@ -362,6 +362,7 @@ import ReplenishLinesSection from '@/components/ReplenishLinesSection.vue';
 import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
 import { hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import { useReplenishmentDoorState } from '@/composables/useReplenishmentDoorState';
 import { useReplenishmentDetail } from '@/composables/useReplenishmentDetail';
@@ -620,6 +621,19 @@ onShow(() => {
   void load();
 });
 onPullDownRefresh(load);
+
+/**
+ * 补货任务的「待处理」计数由后端推进（提交后等审核 / 等他人处理）：
+ * 还有未完成任务时每 10 秒静默跟进，全部完成即停表。
+ * canRefresh 排除执行中的交互（提交 / 扫码 / 详情弹层），避免刷新把用户正在填的表单冲掉。
+ */
+useAutoRefresh({
+  intervalMs: 10_000,
+  load,
+  shouldContinue: () => pendingCount.value > 0,
+  maxDurationMs: 300_000,
+  canRefresh: () => !loading.value && !submitting.value && !scanning.value && !detailVisible.value
+});
 </script>
 
 <style scoped>

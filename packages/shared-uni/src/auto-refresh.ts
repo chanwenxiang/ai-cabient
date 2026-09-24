@@ -136,3 +136,27 @@ export function isOrderTerminal(status?: string | null): boolean {
   if (!s) return false;
   return (ORDER_TERMINAL_STATUSES as readonly string[]).includes(s);
 }
+
+/**
+ * 结算批次（`settlement_batch_status`）的终态：批次推进到钱已结清 / 已支付之后再无可期待的变更。
+ * 「部分失败」也算终态 —— 失败部分不会自行重试成功，要等人工或下一批次，继续轮询只是空转。
+ */
+export const SETTLEMENT_BATCH_TERMINAL_STATUSES = [
+  'SETTLED',
+  'PAID',
+  'FAILED',
+  'PARTIAL_FAILED',
+  'COMPLETED'
+] as const;
+
+/** 结算批次的未终态：后端定时任务正在推进，值得继续轮询 */
+export const SETTLEMENT_BATCH_PENDING_STATUSES = ['PENDING', 'PROCESSING'] as const;
+
+/** 结算批次是否已进入终态（空 / 未知状态一律视为未终态，继续等） */
+export function isSettlementBatchTerminal(status?: string | null): boolean {
+  const s = String(status || '')
+    .trim()
+    .toUpperCase();
+  if (!s) return false;
+  return (SETTLEMENT_BATCH_TERMINAL_STATUSES as readonly string[]).includes(s);
+}

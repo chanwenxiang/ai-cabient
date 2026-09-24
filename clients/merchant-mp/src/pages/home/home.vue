@@ -277,6 +277,7 @@ import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { menuIcon } from '@/utils/menu-icon';
 import { useHomeWorkbench } from '@/composables/useHomeWorkbench';
+import { useAutoRefresh } from '@/composables/use-auto-refresh';
 
 const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } =
   usePrivacyConsentModal();
@@ -337,6 +338,20 @@ onShow(() => {
   void load();
 });
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+
+/**
+ * 工作台是 tabBar 常驻页，用户会长时间停在这里等「待办 / 柜机离线」计数变化。
+ * 只有确实存在待跟进项时才轮询（计数归零即停表），避免无人看时也一直打接口。
+ * 15 秒：工作台聚合了多个接口，比订单详情放宽。
+ */
+useAutoRefresh({
+  intervalMs: 15_000,
+  load,
+  shouldContinue: () =>
+    pendingCount.value > 0 || pendingTaskCount.value > 0 || offlineCount.value > 0,
+  maxDurationMs: 300_000,
+  canRefresh: () => !loading.value && !scanning.value
+});
 </script>
 
 <style scoped>

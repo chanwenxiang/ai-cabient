@@ -92,6 +92,7 @@ import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { promptText } from '@/utils/text-prompt';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
@@ -350,6 +351,23 @@ async function resolveInventory(item: { exceptionId?: string; deviceId?: string 
 
 onShow(load);
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+
+/**
+ * 待办由系统持续派发（低库存 / 设备离线 / 盘点差异 / 争议），停在待办页时新任务
+ * 不会自己出现 ⇒ 每 10 秒静默跟进一次。
+ *
+ * 与其它页不同，这里**没有「终态」可等**：空列表恰恰是「在等第一个待办」的状态，
+ * 所以 shouldContinue 恒真，由 maxDurationMs 封顶（5 分钟）。切后台即停表，
+ * 回前台重新计时 —— 避免用户挂机时无限烧接口。
+ * load() 已有列表时不闪 loading，也不重置 onlyPreferred 本地筛选。
+ */
+useAutoRefresh({
+  intervalMs: 10_000,
+  load,
+  shouldContinue: () => true,
+  maxDurationMs: 300_000,
+  canRefresh: () => !loading.value && isMerchantLoggedIn()
+});
 </script>
 
 <style scoped>

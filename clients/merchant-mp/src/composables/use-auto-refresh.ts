@@ -3,7 +3,10 @@ import { onHide, onPageHide, onPageShow, onShow, onUnload } from '@dcloudio/uni-
 import {
   createAutoRefresher,
   isOrderTerminal,
+  isSettlementBatchTerminal,
   ORDER_TERMINAL_STATUSES,
+  SETTLEMENT_BATCH_PENDING_STATUSES,
+  SETTLEMENT_BATCH_TERMINAL_STATUSES,
   type AutoRefreshHandle,
   type AutoRefreshOptions
 } from '@aicabinet/shared-uni/auto-refresh';
@@ -34,5 +37,12 @@ export function useAutoRefresh(options: AutoRefreshOptions): AutoRefreshHandle {
   return refresher;
 }
 
-export { createAutoRefresher, isOrderTerminal, ORDER_TERMINAL_STATUSES };
+export {
+  createAutoRefresher,
+  isOrderTerminal,
+  isSettlementBatchTerminal,
+  ORDER_TERMINAL_STATUSES,
+  SETTLEMENT_BATCH_PENDING_STATUSES,
+  SETTLEMENT_BATCH_TERMINAL_STATUSES
+};
 export type { AutoRefreshHandle, AutoRefreshOptions };
