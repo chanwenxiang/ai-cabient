@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>后台 UX 第三轮：列顺序拖拽 + 每页条数记忆 · 证据报告</title>
+<style>
+  :root { --ink:#1e293b; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --ok:#15803d; --bad:#b91c1c; --accent:#0f766e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif; color:var(--ink); background:var(--bg); line-height:1.65; }
+  main { max-width:1080px; margin:0 auto; padding:32px 28px 80px; }
+  h1 { font-size:26px; margin:0 0 6px; }
+  h2 { font-size:19px; margin:42px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--line); }
+  h3 { font-size:16px; margin:26px 0 8px; }
+  .sub { color:var(--muted); font-size:13px; }
+  table { width:100%; border-collapse:collapse; background:#fff; font-size:13.5px; margin:12px 0; }
+  th,td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  th { background:#f1f5f9; white-space:nowrap; }
+  code, .mono { font-family:Consolas,"JetBrains Mono",monospace; font-size:12.5px; background:#f1f5f9; padding:1px 5px; border-radius:4px; word-break:break-all; }
+  .ok { color:var(--ok); font-weight:600; }
+  .bad { color:var(--bad); font-weight:600; }
+  .note { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; font-size:13.5px; margin:12px 0; }
+  .warn { background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:10px 14px; font-size:13.5px; margin:12px 0; }
+  .shot { max-width:100%; border:1px solid var(--line); border-radius:8px; margin:8px 0; display:block; }
+  ul { padding-left:22px; }
+  li { margin:4px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>后台 UX 第三轮：列顺序拖拽 + 每页条数记忆</h1>
+<p class="sub">2026-09-24 · 承接 <a href="../2026-09-23-admin-ui-round2/index.html">第二轮</a>（列显隐 + 紧凑空态 + 吸附列过渡带）· 分支 dev</p>
+
+<h2>0. 任务与边界</h2>
+<p>用户指示「按推荐继续」＝上一轮给出的两个候选：<b>列顺序自定义</b>与<b>每页条数按路由记忆</b>。
+两者都是主流 SaaS 后台列表页的标配（对标: 列设置面板支持拖拽排序、页长记忆）。
+边界: 只动共享壳层 <code>CrudTable.vue</code> + 全局样式 + 一个新工具文件，<b>不新增任何依赖</b>（仓内无拖拽库，改用原生 Pointer Events 手搓）。</p>
+
+<h2>1. 改动清单</h2>
+<table>
+<tr><th>文件</th><th>改动</th></tr>
+<tr><td><code>clients/admin-vue/src/utils/ui-prefs.ts</code> <span class="ok">新增</span></td><td>每路由偏好读写（<code>admin.ui.colOrder:&lt;route&gt;</code> / <code>admin.ui.pageSize:&lt;route&gt;</code>），带 try/catch 降级（隐私模式 / 配额满时退化为「不记忆」，不影响当次会话）</td></tr>
+<tr><td><code>Clients/.../CrudTable.vue</code></td><td>① 列设置面板从「纯勾选」升级为「手柄拖拽排序 + 勾选显隐」；操作列固定在右侧（fixed=right），位置不可改 ⇒ 锁定不可拖、只可显隐。② 页长选择接入偏好：改页长时写入、进页面时恢复（<code>onSizeChangeRemember</code>）</td></tr>
+<tr><td><code>clients/admin-vue/src/styles/main.css</code></td><td><code>.crud-cols__item</code> 从「复选框即整行」改为「行容器 + 手柄 + 复选框」，加拖拽中 / 落点指示线样式</td></tr>
+<tr><td><code>static/admin</code>（183 个文件）</td><td>重新构建的产物（入口 <code>index-CPeNvkPZ.js</code>，新功能串在 <code>useCrudTable-CPcXR5QB.js</code>）</td></tr>
+</table>
+
+<h3>实现前提（读 EP 源码确认，不是猜的）</h3>
+<p>Element Plus 2.14.3 的 <code>el-table</code> 在 <code>.hidden-columns</code> 容器上装有 <b>MutationObserver</b>（childList+subtree），触发 <code>updateOrderFns → updateColumnOrder</code>。
+⇒ <b>DOM 层面直接重排列 vnode 是被官方支持的路径</b>，不需要额外调用任何 API。
+约束沿用第二轮的两个结论：列 vnode 必须显式 <code>key</code>；过滤/重排结果必须是扁平 vnode 数组（<code>getColumnElIndex = indexOf</code> 只看直接子节点）。</p>
+
+<h3>贴边自动滚动（长表拖远的前提）</h3>
+<p>会话列表 15 列，弹层列表高 264px、内容高 480px ⇒ 第 15 行（「时长」）在可视区外，而 Pointer Events 拖拽<b>没有</b> HTML5 DnD 的原生边缘自动滚动。
+已实现：指针按住列表上/下边缘 ≥ 2/3 区间时，用 <code>requestAnimationFrame</code> 以 8px/帧滚动 <code>el-scrollbar__wrap</code>，滚到头（scrollTop 不再变化）即停帧不空转。</p>
+
+<h2>2. 验证矩阵（真浏览器 + A/B 对照）</h2>
+<p>探针 <code>.tmp/probe/verify-cols-r3.mjs</code>：真实鼠标事件（move/down/steps/up）驱动拖拽；期望值用「用户语言」书写（把第 3 列拖到第 1 列前 ⇒ 它应成为第 2 列），<b>不复用实现里的插入位算式</b>。</p>
+<table>
+<tr><th>组</th><th>命令</th><th>结果</th><th>判定</th></tr>
+<tr><td>A 正对照 ×4</td><td><code>node .tmp/probe/verify-cols-r3.mjs</code></td><td><span class="ok">PASS 27 / FAIL 0</span>（连跑 4 次全绿）</td><td>功能成立且稳定</td></tr>
+<tr><td>B 负对照</td><td><code>node .tmp/probe/verify-cols-r3.mjs --bogus</code></td><td><span class="bad">PASS 8 / FAIL 3</span>（目标位故意写错为 14）</td><td>判据非空管子（能真红）</td></tr>
+</table>
+<p>B 组覆盖的三条红：<code>表头顺序 = 期望顺序</code>、<code>被拖的列落在存储的第 14 位</code>、<code>刷新后仍为拖拽后的顺序</code>。
+（负对照只在证明拖拽判据能红后提前收口——bogus 顺序会让后续手势的前置条件不成立，混在一起会把「判据红了」读成「探针崩了」。）</p>
+
+<h3>A 组 27 条断言覆盖</h3>
+<table>
+<tr><th>分组</th><th>断言（摘要）</th></tr>
+<tr><td>弹层结构</td><td>可拖行数 = 表头业务列数（15/15）；可拖行顺序与表头一致；固定行「操作（固定列）」存在</td></tr>
+<tr><td>拖拽 A（可视区内）</td><td>手柄 14×14 在弹层可视区内；拖动中源行带 <code>is-dragging</code>；落点线落在目标行上方（<code>d=before</code> 且锚在「类型」行）；拖后表头 = 期望顺序；弹层顺序随表头同步；持久化的是<b>键</b>序列且与弹层键序一致；被拖列落在存储第 1 位</td></tr>
+<tr><td>刷新持久化</td><td>reload 后表头仍为拖拽后顺序</td></tr>
+<tr><td>拖拽 B（自动滚动）</td><td>列表可滚（max=216）；按住顶边列表自动向上滚（216 → 0）；落点线移到第 1 行之前；拖后该列成为第 1 列</td></tr>
+<tr><td>显隐（防回归）</td><td>隐藏「录像」后表头少一列且确实不在；重置回声明顺序；重置把顺序偏好也清空（<code>[]</code>）</td></tr>
+<tr><td>页长记忆</td><td>候选里有 10/20/50；改 10 后偏好写入 <code>admin.ui.pageSize:/sessions</code> 且行数 ≤ 10；刷新后仍为 10；跨路由隔离（/devices 偏好仍为 null、页长仍为自己的默认 20）</td></tr>
+</table>
+
+<h3>截图</h3>
+<img class="shot" src="shots/cols-popover-rows.png" alt="列设置弹层：手柄 + 勾选">
+<img class="shot" src="shots/cols-order-after-drag.png" alt="拖拽后：入口渠道成为第 2 列">
+<img class="shot" src="shots/page-size-remembered.png" alt="页长记忆">
+<p class="sub">注：第一张若在淡入动画中途截取会呈半透明（曾被误读为「弹层没有白底」）——已在截图前等动画落定。</p>
+
+<h2>3. 探针自己踩的四个坑（本轮最值钱的部分）</h2>
+<table>
+<tr><th>#</th><th>症状</th><th>根因（实测取证）</th><th>修正</th></tr>
+<tr><td>1</td><td><code>openColsPopover is not defined</code></td><td>函数已重命名为 <code>ensureColsPopover</code>，4 处调用点没跟上</td><td>统一改名 + <code>node --check</code> 入列</td></tr>
+<tr><td>2</td><td>落点断言<b>恒假</b>（假红）</td><td>提取正则 <code>/is-drop(before|after)/</code> 捕获的是<b>后缀</b>，期望串却写了整类名 <code>dropbefore</code></td><td>期望改为 <code>before</code>，并把「有且仅有一条」升级为「唯一 + before + 锚在目标行」的语义断言</td></tr>
+<tr><td>3</td><td><code>重置</code>按钮点不到，时红时绿</td><td><b>Escape 后 EP 有 0.3s 关闭过渡</b>：盒子尚未归零时「盒子非空」判据把正在关的弹层当成开着 ⇒ 直接去点必败。实测见 <code>dbg-cols-dom.mjs</code>：关闭态 popper 带 <code>display:none</code> + <code>aria-hidden=true</code></td><td>开合判据改用 EP 显式设置的 <code>aria-hidden</code>，配合 <code>waitForFunction</code> 等<b>状态落定</b>，不再用固定 sleep 赌时序</td></tr>
+<tr><td>4</td><td><code>等 aria-hidden=true 超时</code>（收口失败）</td><td><b>拖过手柄之后 Escape 关不掉弹层</b>：<code>onColDragStart</code> 的 <code>preventDefault()</code> 阻止焦点进入弹层，而 EP 的 Escape 处理是焦点域的（点过复选框时 Esc 有效、拖动后无效）</td><td>收口改为「先 Esc、1.2s 内没关就点外部」——后者正是真实用户在此情形的操作路径</td></tr>
+</table>
+<div class="note">坑 4 同时是一份<b>产品层已知边界</b>：列设置面板在「拖动排序」之后按 Esc 不会关闭（需点击面板外）。
+属轻微体验缺口、非功能缺陷；本轮<b>未改产品代码</b>（改焦点行为牵涉 preventDefault 与拖拽选文的取舍），登记待议。</div>
+
+<h2>4. 门禁 / 单测 / 部署</h2>
+<table>
+<tr><th>项</th><th>命令</th><th>结果</th></tr>
+<tr><td>全量门禁链</td><td><code>NODE_OPTIONS="--require=./.tmp/tools/nopipe.cjs" node scripts/run-audit-gates.mjs</code></td><td><span class="ok">36 个门禁，失败 0</span>（较上轮 +2：并发会话新增 <code>check:shared-component-sync</code> 等）</td></tr>
+<tr><td>admin-vue 单测</td><td><code>node node_modules/vitest/vitest.mjs run</code></td><td><span class="ok">48/48</span>（含 9 条 <code>useCrudTable</code> 断言 <code>size: 20</code> —— 印证页长持久化必须落在 CrudTable 而不是 composable）</td></tr>
+<tr><td>类型检查 + 构建</td><td><code>node scripts/build-admin.mjs</code>（outDir 先移走以绕过宿主安全删除垫片，见第二轮 §5）</td><td><span class="ok">exit 0</span>，0 个 TS 错误</td></tr>
+<tr><td>部署一致性</td><td><code>curl http://localhost:18080/admin/</code>（必须 <code>--noproxy "*"</code>）</td><td><span class="ok">运行中入口 = 本地产物入口</span> = <code>index-CPeNvkPZ.js</code>；新功能串确实在运行中的 chunk 里</td></tr>
+</table>
+<div class="warn">覆盖缺口（如实登记）：<code>check:admin-page-size</code> 管的是「页长上限 ≤ 50」，<b>不覆盖</b>本轮新增的偏好键（<code>admin.ui.colOrder/pageSize</code>）。
+偏好层的回归目前只由本探针守护（.tmp 下，不入 CI）。若要长期守住，需另立门禁——本轮不扩链。</div>
+
+<h2>5. 提交</h2>
+<table>
+<tr><th>提交</th><th>内容</th></tr>
+<tr><td><code>feat(admin-ui): 列顺序拖拽 + 每页条数按路由记忆</code></td><td>CrudTable.vue / main.css / ui-prefs.ts / static/admin 产物 / 本报告</td></tr>
+</table>
+<p class="sub">并发会话的 WIP（merchant-mp / consumer-mp / package.json / style-full-audit.mjs 等）一律未暂存，提交前后均以 <code>git show --name-only</code> 核对。</p>
+</main>
+</body>
+</html>

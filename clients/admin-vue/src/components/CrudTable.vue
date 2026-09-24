@@ -82,16 +82,17 @@
           >刷新</el-button
         >
         <!--
-          列设置（显示/隐藏）—— 对标主流 SaaS 后台的列表页标配。
+          列设置（显示/隐藏 + 顺序）—— 对标主流 SaaS 后台的列表页标配。
           起因：本仓宽表极宽（开门记录 16 列 / 订单 19 列，1440 下需横滚 950–1035px），
-          运营每次都要横滚找列；勾掉不关心的列即可一屏看完，选择按**路由**持久化。
+          运营每次都要横滚找列；勾掉不关心的列、把常看的列拖到前面，即可一屏看完，
+          两项选择都按**路由**持久化。
           ⚠️ 不做「行密度切换」：本仓已按实测定过行高（TableActions 里 24px 按钮＝行高旋钮，
              再压会「观感偏挤」）—— 加个切换开关只会是无效花架子。
         -->
         <el-popover
           v-if="configurableCols.length >= 2"
           trigger="click"
-          :width="260"
+          :width="264"
           placement="bottom-end"
         >
           <template #reference>
@@ -108,20 +109,56 @@
                 link
                 type="primary"
                 size="small"
-                :disabled="!hiddenCount"
+                :disabled="!isColsCustomized"
                 @click="resetCols"
                 >重置</el-button
               >
             </div>
+            <p class="crud-cols__hint">拖动左侧手柄调整列顺序，勾选控制显示</p>
             <el-scrollbar max-height="264px">
-              <el-checkbox
-                v-for="c in configurableCols"
-                :key="c.key"
-                class="crud-cols__item"
-                :model-value="!hiddenCols.has(c.key)"
-                @change="(v: unknown) => toggleCol(c.key, v)"
-                >{{ c.label }}</el-checkbox
-              >
+              <!-- ref 挂在「只包住可拖行」的容器上：拖动时按本组件自己的行取坐标
+                   （见 onColDragMove 关于 el-popover 留在 DOM 里的注释） -->
+              <div ref="colsListRef">
+                <div
+                  v-for="(c, i) in orderedCols"
+                  :key="c.key"
+                  :data-col-key="c.key"
+                  class="crud-cols__item"
+                  :class="{
+                    'is-dragging': dragKey === c.key,
+                    'is-dropbefore': dropIndex === i,
+                    'is-dropafter': dropIndex >= orderedCols.length && i === orderedCols.length - 1
+                  }"
+                >
+                  <el-icon
+                    class="crud-cols__handle"
+                    :title="`拖动「${c.label}」调整顺序`"
+                    @pointerdown="onColDragStart($event, c.key)"
+                  >
+                    <Rank />
+                  </el-icon>
+                  <el-checkbox
+                    :model-value="!hiddenCols.has(c.key)"
+                    :title="c.label"
+                    @change="(v: unknown) => toggleCol(c.key, v)"
+                    >{{ c.label }}</el-checkbox
+                  >
+                </div>
+                <!-- 操作列固定在右侧（fixed=right），位置不可改 ⇒ 不可拖，只可显隐 -->
+                <div v-if="hasActions" class="crud-cols__item crud-cols__item--fixed">
+                  <el-icon
+                    class="crud-cols__handle crud-cols__handle--off"
+                    title="操作列固定在右侧，不可移动"
+                  >
+                    <Lock />
+                  </el-icon>
+                  <el-checkbox
+                    :model-value="!hiddenCols.has(ACTION_COL_KEY)"
+                    @change="(v: unknown) => toggleCol(ACTION_COL_KEY, v)"
+                    >操作（固定列）</el-checkbox
+                  >
+                </div>
+              </div>
             </el-scrollbar>
           </div>
         </el-popover>
@@ -223,7 +260,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         background
         @current-change="table.load()"
-        @size-change="table.onSizeChange()"
+        @size-change="onSizeChangeRemember"
       />
     </div>
   </div>
@@ -247,11 +284,22 @@ import {
 } from 'vue';
 import { useRoute } from 'vue-router';
 import type { TableInstance } from 'element-plus';
-import { CaretBottom, CaretTop, Delete, Files, Operation, Refresh } from '@element-plus/icons-vue';
+import {
+  CaretBottom,
+  CaretTop,
+  Delete,
+  Files,
+  Lock,
+  Operation,
+  Rank,
+  Refresh
+} from '@element-plus/icons-vue';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
+import { ADMIN_LIST_PAGE_SIZES } from '@/utils/admin-list-pager';
+import { readUiPref, readUiPrefList, writeUiPref } from '@/utils/ui-prefs';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -362,6 +410,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', calcMaxHeight);
   tableWrapRef.value?.removeEventListener('scroll', syncFixShadow);
+  // 拖动到一半被卸载（弹层关闭 / 路由切换）：挂在 window 上的监听必须摘掉，否则残留到下次拖动
+  detachDragListeners();
 });
 watch(
   () => table.items,
@@ -563,7 +613,10 @@ const hasActions = computed(() => typeof props.actions === 'function');
 const slots = useSlots();
 const route = useRoute();
 const ACTION_COL_KEY = '__action__';
-const COL_STORE = 'admin.crudTable.hiddenCols';
+/** 界面偏好的名字（键 = `admin.ui.<name>:<routePath>`，读写收口见 utils/ui-prefs） */
+const PREF_HIDDEN = 'hiddenCols';
+const PREF_ORDER = 'colOrder';
+const PREF_PAGE_SIZE = 'pageSize';
 
 type ColEntry = { key: string; label: string; node: VNode };
 
@@ -582,26 +635,17 @@ function flattenColVNodes(nodes: unknown[], out: VNode[] = []): VNode[] {
   return out;
 }
 
-function routeColKey(): string {
-  return `${COL_STORE}:${route.path}`;
-}
+const hiddenCols = ref<Set<string>>(new Set(readUiPrefList(route.path, PREF_HIDDEN)));
+/** 用户拖出来的列顺序（键数组）；空数组 = 未自定义，用页面的声明顺序 */
+const colOrder = ref<string[]>(readUiPrefList(route.path, PREF_ORDER));
 
-function readHiddenCols(): Set<string> {
-  try {
-    const raw = localStorage.getItem(routeColKey());
-    const arr: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(arr) ? arr.map(String) : []);
-  } catch {
-    // localStorage 不可用（隐私模式/配额满）时降级为「不记忆」，不影响本次会话内的切换
-    return new Set();
-  }
-}
-
-const hiddenCols = ref<Set<string>>(readHiddenCols());
+// 路由变化（含 keep-alive 复用同一实例）时整套偏好跟着换页 ——
+// 否则会把上一页的列显示/顺序套到这一页（两页列集合不同，表现出来就是「列莫名其妙少了」）
 watch(
   () => route.path,
   () => {
-    hiddenCols.value = readHiddenCols();
+    hiddenCols.value = new Set(readUiPrefList(route.path, PREF_HIDDEN));
+    colOrder.value = readUiPrefList(route.path, PREF_ORDER);
   }
 );
 
@@ -622,15 +666,37 @@ const allCols = computed<ColEntry[]>(() => {
   });
 });
 
-/** 供弹层列出的可配置列（含本组件自渲染的操作列） */
+/**
+ * 把用户保存的顺序套到**当前声明集合**上。
+ * - 已记录的键按保存顺序排在前；
+ * - **未记录的新列**（页面后来新增了列，或列名改了导致旧键失效）保持声明顺序排在最后 ——
+ *   既不打断用户已排好的相对顺序，也不会因为多一列就把整套顺序冲掉。
+ * 同 rank 时比声明下标（显式稳定排序，不依赖 Array#sort 的稳定性保证）。
+ */
+const orderedCols = computed<ColEntry[]>(() => {
+  const all = allCols.value;
+  if (colOrder.value.length === 0) return all;
+  const rankOf = new Map<string, number>();
+  colOrder.value.forEach((k, i) => rankOf.set(k, i));
+  return all
+    .map((col, declIndex) => ({
+      col,
+      declIndex,
+      rank: rankOf.get(col.key) ?? Number.MAX_SAFE_INTEGER
+    }))
+    .sort((a, b) => a.rank - b.rank || a.declIndex - b.declIndex)
+    .map((x) => x.col);
+});
+
+/** 弹层列出的可配置列（业务列 + 本组件自渲染的操作列）；只用于计数与「至少留一列」判定 */
 const configurableCols = computed(() => {
-  const list = allCols.value.map(({ key, label }) => ({ key, label }));
+  const list = orderedCols.value.map(({ key, label }) => ({ key, label }));
   if (hasActions.value) list.push({ key: ACTION_COL_KEY, label: '操作（固定列）' });
   return list;
 });
 
 const filteredCols = computed(() =>
-  allCols.value.filter((c) => !hiddenCols.value.has(c.key)).map((c) => c.node)
+  orderedCols.value.filter((c) => !hiddenCols.value.has(c.key)).map((c) => c.node)
 );
 
 /** 函数式组件：返回 vnode 数组 ⇒ Fragment，不引入任何 DOM 层级 */
@@ -641,11 +707,7 @@ const hiddenCount = computed(
 );
 
 function persistHiddenCols() {
-  try {
-    localStorage.setItem(routeColKey(), JSON.stringify([...hiddenCols.value]));
-  } catch {
-    // 同 readHiddenCols：写不进去只影响下次记忆
-  }
+  writeUiPref(route.path, PREF_HIDDEN, [...hiddenCols.value]);
 }
 
 function toggleCol(key: string, visible: unknown) {
@@ -665,9 +727,166 @@ function toggleCol(key: string, visible: unknown) {
   persistHiddenCols();
 }
 
+/** 被用户改过（隐藏过列 或 调过顺序）⇒ 决定「重置」是否可点 */
+const isColsCustomized = computed(() => hiddenCount.value > 0 || colOrder.value.length > 0);
+
 function resetCols() {
   hiddenCols.value = new Set();
+  colOrder.value = [];
   persistHiddenCols();
+  writeUiPref(route.path, PREF_ORDER, []);
+}
+
+/* ── 列顺序拖拽 ─────────────────────────────────────────────────────────────
+ * 为什么不引拖拽库：本仓 admin 依赖表里没有拖拽/排序库，为「十来个复选框排序」引一个库
+ * 不划算（还会进产物预算）。自己写这几十行足够，且行为完全可控。
+ *
+ * 交互模型＝「插入位 + 落点线」，**不是**边拖边换位：
+ *  · 后者要按指针坐标实时反推行号，列表一滚就漂；且行在指针下互换会自激振荡
+ *    （换位后指针又落到原来那行上，来回跳）；
+ *  · 这里拖动期间列表**不动**，落点由每行的实际矩形（getBoundingClientRect，已含滚动位移）
+ *    判定 ⇒ 与列表滚动位置、行高都无关；松手才落地，一次成型。
+ * 落点线用 inset box-shadow 画而不用 border：不改行高 ⇒ 拖动全程零布局抖动。
+ *
+ * 目标行必须按**本组件**的弹层取（el-popover 默认 teleport 到 body，且 persistent 默认 true
+ * ⇒ 同页若有第二个 CrudTable，它的弹层内容打开过一次后仍留在 DOM 里，
+ * 用 document.querySelectorAll 会把两套列表混在一起、算出行号错误）。
+ */
+const colsListRef = ref<HTMLElement>();
+const dragKey = ref('');
+/** 插入位 0..n（n = 业务列数，表示排到最后） */
+const dropIndex = ref(-1);
+
+/** 列表的滚动容器（el-scrollbar 的内层 wrap）—— 自动滚动要滚它，不是滚内容 div */
+function dragScrollEl(): HTMLElement | null {
+  return colsListRef.value?.closest('.el-scrollbar__wrap') as HTMLElement | null;
+}
+
+/** 指针 y → 插入位。行矩形（getBoundingClientRect）已含滚动位移 ⇒ 与滚到哪儿无关。 */
+function updateDropIndex(y: number) {
+  const rows = colsListRef.value?.querySelectorAll<HTMLElement>('.crud-cols__item[data-col-key]');
+  if (!rows?.length) return;
+  let idx = rows.length;
+  for (let i = 0; i < rows.length; i += 1) {
+    const rect = rows[i]!.getBoundingClientRect();
+    if (y < rect.top + rect.height / 2) {
+      idx = i;
+      break;
+    }
+  }
+  dropIndex.value = idx;
+}
+
+/*
+ * 拖拽期「贴边自动滚动」。
+ *
+ * 🔴 必须有：本仓最长 19 列 ⇒ 列表 570px，而弹层可视高只有 264px。
+ *    「把最后一列拖到最前」这类操作，在指针拖拽下**不会**自动滚（原生边缘滚动是 HTML5 DnD 的特性，
+ *    而这里用的是 pointer 事件）⇒ 不自己驱动就只能拖到可视区内，长表等于不能排序。
+ * 做法：指针停在可视区上下 24px 内 ⇒ 每帧滚 8px，并用**上一帧的指针 y** 重算插入位
+ *      （指针不动时不会再收到 pointermove，插入位必须跟着滚动自己走）。
+ */
+let dragRaf = 0;
+let dragAutoDir = 0;
+let dragLastY = 0;
+
+function autoScrollTick() {
+  dragRaf = 0;
+  const wrap = dragScrollEl();
+  if (!dragKey.value || !wrap || dragAutoDir === 0) return;
+  const before = wrap.scrollTop;
+  wrap.scrollTop = before + dragAutoDir * 8;
+  // 已经滚到头（scrollTop 不再变）⇒ 自行收摊，别留一个 60fps 空转 rAF
+  if (wrap.scrollTop === before) {
+    dragAutoDir = 0;
+    return;
+  }
+  updateDropIndex(dragLastY);
+  dragRaf = requestAnimationFrame(autoScrollTick);
+}
+
+function syncAutoScroll(y: number) {
+  dragLastY = y;
+  const wrap = dragScrollEl();
+  if (!wrap) return;
+  const rect = wrap.getBoundingClientRect();
+  const EDGE = 24;
+  const dir = y < rect.top + EDGE ? -1 : y > rect.bottom - EDGE ? 1 : 0;
+  const atTop = wrap.scrollTop <= 0;
+  const atBottom = wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 1;
+  dragAutoDir = (dir === -1 && atTop) || (dir === 1 && atBottom) ? 0 : dir;
+  if (dragAutoDir !== 0 && !dragRaf) dragRaf = requestAnimationFrame(autoScrollTick);
+}
+
+function stopAutoScroll() {
+  if (dragRaf) cancelAnimationFrame(dragRaf);
+  dragRaf = 0;
+  dragAutoDir = 0;
+}
+
+function detachDragListeners() {
+  window.removeEventListener('pointermove', onColDragMove);
+  window.removeEventListener('pointerup', onColDragEnd);
+  window.removeEventListener('pointercancel', onColDragEnd);
+  stopAutoScroll();
+}
+
+function onColDragStart(e: Event, key: string) {
+  if (orderedCols.value.length < 2) return;
+  e.preventDefault(); // 顺带阻止拖动过程中选中文本
+  dragKey.value = key;
+  dragLastY = e instanceof MouseEvent ? e.clientY : 0;
+  dropIndex.value = orderedCols.value.findIndex((c) => c.key === key);
+  window.addEventListener('pointermove', onColDragMove, { passive: true });
+  window.addEventListener('pointerup', onColDragEnd);
+  window.addEventListener('pointercancel', onColDragEnd);
+}
+
+function onColDragMove(e: PointerEvent) {
+  if (!dragKey.value) return;
+  updateDropIndex(e.clientY);
+  syncAutoScroll(e.clientY);
+}
+
+function onColDragEnd() {
+  detachDragListeners();
+  const key = dragKey.value;
+  const to = dropIndex.value;
+  dragKey.value = '';
+  dropIndex.value = -1;
+  if (!key || to < 0) return;
+  const keys = orderedCols.value.map((c) => c.key);
+  const from = keys.indexOf(key);
+  if (from < 0) return;
+  const next = keys.filter((k) => k !== key);
+  // to 是「移除前」的插入位 ⇒ 往后拖（to > from）时左移一位
+  next.splice(to > from ? to - 1 : to, 0, key);
+  // 只是点了一下手柄、顺序没变：不写偏好，避免把「没改过」误记成「已自定义」（重置按钮会因此常亮）
+  if (next.join('\u0000') === keys.join('\u0000')) return;
+  colOrder.value = next;
+  writeUiPref(route.path, PREF_ORDER, next);
+}
+
+/* ── 每页条数按路由记忆（与列设置共用同一套「按路由隔离的界面偏好」）───────────
+ * 为什么在这里读、而不放进 useCrudTable：那个 composable 有单测在**无组件上下文**下直接调用它
+ * （useCrudTable.test.ts 不 mount，并断言默认 size=20），在里面调 useRoute() 取不到路由。
+ *
+ * 时序：本组件 setup 早于页面的 onMounted / onActivated（全仓列表页的首查都在这两个钩子里，
+ * 没有任何页面在 setup 体内直接 load）⇒ 此处改写 table.size 时**首查尚未发出**，
+ * 不会出现「先按默认 20 查一次、再按记忆重查一次」的双请求。
+ *
+ * 只接受 ADMIN_LIST_PAGE_SIZES 里的值：脏数据（手改 / 旧版遗留）时回落页面默认值，
+ * 顺便保证下拉候选与当前值一致（否则 EP 会显示一个不在候选里的条数）。
+ */
+const rememberedSize = Number(readUiPref<unknown>(route.path, PREF_PAGE_SIZE, 0));
+if ((ADMIN_LIST_PAGE_SIZES as readonly number[]).includes(rememberedSize)) {
+  table.size = rememberedSize;
+}
+
+/** 改每页条数：先记偏好，钳制与重查仍交给控制器（不在组件里重复实现） */
+function onSizeChangeRemember(next: number) {
+  writeUiPref(route.path, PREF_PAGE_SIZE, next);
+  void table.onSizeChange();
 }
 
 // 列显示/隐藏会改变列宽总和 ⇒ 可横滚性与「是否已到最右」都会变，须重算吸附列过渡带
