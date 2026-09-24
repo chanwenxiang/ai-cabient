@@ -209,7 +209,7 @@
         </view>
       </view>
 
-      <view class="shopping-banner" :class="stateTone">
+      <view v-if="shoppingBannerVisible" class="shopping-banner" :class="stateTone">
         <text class="shopping-banner-title">{{ shoppingBannerTitle }}</text>
         <text class="shopping-banner-sub">{{ shoppingBannerSub }}</text>
       </view>
@@ -906,6 +906,9 @@ const flowOverlayHint = computed(() => {
   if (opening.value) return '正在连接柜机并验证开门资格…';
   return '请稍候';
 });
+
+/** SHOPPING 态隐藏大 banner：设备栏「门已开·购物中」已表达同义信息，页面上半部留白给商品列表（真机反馈信息过多） */
+const shoppingBannerVisible = computed(() => state.value !== 'SHOPPING');
 
 const shoppingBannerTitle = computed(() => {
   if (state.value === 'SHOPPING') return '柜门已开，请取货';
