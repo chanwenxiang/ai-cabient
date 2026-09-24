@@ -1,0 +1,29 @@
+{
+  "at": "2026-09-24T01:18:01.938Z",
+  "device": {
+    "model": "iPhone 12/13 (Pro)",
+    "w": 390,
+    "h": 762,
+    "SDK": "3.3.5"
+  },
+  "pagePath": "pages/nearby/nearby",
+  "stateError": null,
+  "listCount": 0,
+  "emptyStatePresent": true,
+  "statePlain": "附近 5km 暂无柜机\n可扩大搜索范围，或直接扫码开门购物\n扫码购物",
+  "state": "empty",
+  "emptyText": "附近 5km 暂无柜机\n可扩大搜索范围，或直接扫码开门购物",
+  "ctaLabels": [
+    "扫码购物"
+  ],
+  "ctaOffset": {
+    "left": 148.4934539794922,
+    "top": 350.37017822265625
+  },
+  "navBg": "rgb(15, 118, 110)",
+  "navRefresh": {
+    "left": 254.0891876220703,
+    "top": 58.23002624511719
+  },
+  "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\.tmp\\nearby-verify\\nearby-empty.png"
+}

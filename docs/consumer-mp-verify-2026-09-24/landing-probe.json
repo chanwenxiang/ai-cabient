@@ -1,0 +1,37 @@
+{
+  "at": "2026-09-24T01:15:00.355Z",
+  "device": {
+    "model": "iPhone 12/13 (Pro)",
+    "w": 390,
+    "h": 762,
+    "SDK": "3.3.5",
+    "pixelRatio": 3
+  },
+  "stackAtStart": [
+    "pages/index/index"
+  ],
+  "pagePath": "pages/index/index",
+  "landingPresent": true,
+  "shopPresent": false,
+  "scanCircleInner": {
+    "background-color": "rgba(0, 0, 0, 0)",
+    "background-image": "linear-gradient(158deg, rgb(15, 118, 110) 0%, rgb(15, 63, 60) 100%)",
+    "border-top-color": "rgba(255, 255, 255, 0.42)",
+    "border-top-width": "0.550964px",
+    "box-shadow": "rgba(4, 47, 36, 0.45) 0px 7px 18px 0px, rgba(255, 255, 255, 0.14) 0px 0px 0px 6px",
+    "width": "134.995px",
+    "height": "134.995px"
+  },
+  "scanCornerTL": {
+    "border-top-color": "rgb(255, 255, 255)",
+    "border-left-color": "rgb(255, 255, 255)"
+  },
+  "scanLine": {
+    "background-color": "rgb(255, 255, 255)"
+  },
+  "scanCircleOffset": {
+    "left": 126.98863220214844,
+    "top": 399.9827880859375
+  },
+  "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\.tmp\\landing-verify\\01-index-landing.png"
+}

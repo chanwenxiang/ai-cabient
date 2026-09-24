@@ -1,0 +1,197 @@
+{
+  "at": "2026-09-24T01:18:49.784Z",
+  "pages": [
+    {
+      "name": "01-index",
+      "path": "/pages/index/index",
+      "actualPath": "pages/index/index",
+      "shot": "shots\\01-index.png"
+    },
+    {
+      "name": "02-orders",
+      "path": "/pages/orders/orders",
+      "actualPath": "pages/orders/orders",
+      "shot": "shots\\02-orders.png"
+    },
+    {
+      "name": "03-mine",
+      "path": "/pages/mine/mine",
+      "actualPath": "pages/mine/mine",
+      "shot": "shots\\03-mine.png"
+    },
+    {
+      "name": "04-login",
+      "path": "/pages/login/login",
+      "actualPath": "pages/index/index",
+      "shot": "shots\\04-login.png"
+    },
+    {
+      "name": "05-verify",
+      "path": "/pages/verify/verify",
+      "actualPath": "pages/verify/verify",
+      "shot": "shots\\05-verify.png"
+    },
+    {
+      "name": "06-result",
+      "path": "/pages/result/result",
+      "actualPath": "pages/result/result",
+      "shot": "shots\\06-result.png"
+    },
+    {
+      "name": "07-order-detail",
+      "path": "/pages/order-detail/order-detail",
+      "actualPath": "pages/order-detail/order-detail",
+      "shot": "shots\\07-order-detail.png"
+    },
+    {
+      "name": "08-video",
+      "path": "/pages/video/video",
+      "actualPath": "pages/video/video",
+      "shot": "shots\\08-video.png"
+    },
+    {
+      "name": "09-dispute-detail",
+      "path": "/pages/dispute/detail",
+      "actualPath": "pages/dispute/detail",
+      "shot": "shots\\09-dispute-detail.png"
+    },
+    {
+      "name": "10-recharge",
+      "path": "/pages/recharge/recharge",
+      "actualPath": "pages/recharge/recharge",
+      "shot": "shots\\10-recharge.png"
+    },
+    {
+      "name": "11-balance",
+      "path": "/pages/balance/balance",
+      "actualPath": "pages/balance/balance",
+      "shot": "shots\\11-balance.png"
+    },
+    {
+      "name": "12-nearby",
+      "path": "/pages/nearby/nearby",
+      "actualPath": "pages/nearby/nearby",
+      "shot": "shots\\12-nearby.png"
+    },
+    {
+      "name": "13-marketing",
+      "path": "/pages/marketing/index",
+      "actualPath": "pages/marketing/index",
+      "shot": "shots\\13-marketing.png"
+    },
+    {
+      "name": "14-member",
+      "path": "/pages/member/index",
+      "actualPath": "pages/member/index",
+      "shot": "shots\\14-member.png"
+    },
+    {
+      "name": "15-points",
+      "path": "/pages/points/points",
+      "actualPath": "pages/points/points",
+      "shot": "shots\\15-points.png"
+    },
+    {
+      "name": "16-points-redeem",
+      "path": "/pages/points/redeem",
+      "actualPath": "pages/points/redeem",
+      "shot": "shots\\16-points-redeem.png"
+    },
+    {
+      "name": "17-coupons",
+      "path": "/pages/coupons/coupons",
+      "actualPath": "pages/coupons/coupons",
+      "shot": "shots\\17-coupons.png"
+    },
+    {
+      "name": "18-messages",
+      "path": "/pages/messages/messages",
+      "actualPath": "pages/messages/messages",
+      "shot": "shots\\18-messages.png"
+    },
+    {
+      "name": "19-announcements",
+      "path": "/pages/announcements/announcements",
+      "actualPath": "pages/announcements/announcements",
+      "shot": "shots\\19-announcements.png"
+    },
+    {
+      "name": "20-announcement-detail",
+      "path": "/pages/announcements/detail",
+      "actualPath": "pages/announcements/detail",
+      "shot": "shots\\20-announcement-detail.png"
+    },
+    {
+      "name": "21-help",
+      "path": "/pages/help/help",
+      "actualPath": "pages/help/help",
+      "shot": "shots\\21-help.png"
+    },
+    {
+      "name": "22-policy-detail",
+      "path": "/pages/policy/detail",
+      "actualPath": "pages/policy/detail",
+      "shot": "shots\\22-policy-detail.png"
+    },
+    {
+      "name": "23-report",
+      "path": "/pages/report/report",
+      "actualPath": "pages/report/report",
+      "shot": "shots\\23-report.png"
+    },
+    {
+      "name": "24-feedback",
+      "path": "/pages/feedback/feedback",
+      "actualPath": "pages/feedback/feedback",
+      "shot": "shots\\24-feedback.png"
+    }
+  ],
+  "device": {
+    "model": "iPhone 12/13 (Pro)",
+    "w": 390,
+    "h": 762,
+    "SDK": "3.3.5",
+    "pixelRatio": 3
+  },
+  "tokenProbe": {
+    "_page": "pages/index/index",
+    "_sel": ".page-root",
+    "--brand": null,
+    "--brand-deep": null,
+    "--warning-soft": null,
+    "--color-border-subtle": null,
+    "--accent-orange": null,
+    "--card-border": null,
+    "--info": null
+  },
+  "navProbe": [
+    {
+      "label": "nearby",
+      "_page": "pages/nearby/nearby",
+      "navBg": "rgb(15, 118, 110)",
+      "navBgImage": "none",
+      "navHeight": 83,
+      "navTop": 0,
+      "titleTop": 51,
+      "hasBack": true,
+      "hasRefresh": true
+    },
+    {
+      "label": "result",
+      "_page": "pages/result/result",
+      "navBg": "rgb(15, 118, 110)",
+      "navBgImage": "none",
+      "navHeight": 83,
+      "navTop": 0,
+      "titleTop": 51,
+      "hasBack": true,
+      "hasRefresh": false
+    }
+  ],
+  "couponProbe": {
+    "path": "pages/coupons/coupons",
+    "leftBgImage": "no-el",
+    "leftBgColor": "no-el",
+    "cardCount": 0
+  }
+}

@@ -13,6 +13,10 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DATE = new Date().toISOString().slice(0, 10);
+// `--check`：只做门禁判定（共享组件副本一致性），不写报告、不落盘。
+// 报告 §机制 里早就写着「拷贝组件一致性校验纳入 CI：identical 必须为 true」，
+// 但从未实现 ⇒ 该条一直只停留在纸面（「写了没跑」＝不存在）。
+const CHECK = process.argv.includes('--check');
 
 const APPS = {
   'admin-vue': {
@@ -355,25 +359,18 @@ function lcsDiffCount(a, b) {
   return m + n - 2 * dp[m][n];
 }
 
-/** 去掉拷贝副本头部的同步提示注释块与 Canonical 行，只比真实代码 */
+/** 去掉文件头部的整块同步提示注释（`<!-- … -->`），只比真实代码。
+ *  🔴 不要按注释内的**文案**逐行匹配：文案一改（`Keep in sync` / `Keep this file identical`），
+ *  剥离就会半途而废，剩下的 `-->` 行被当成真实代码 ⇒ 该组件**恒报 DIFF 2**（假红）。
+ *  实测：蓝本 error-state.vue 无头注释、副本有 4 行头 ⇒ 旧实现恒 DIFF 2，与代码是否真同步无关。 */
 const stripCopyComments = (lines) => {
-  const out = [];
-  let inHeadComment = true;
-  for (const l of lines) {
-    const t = l.trim();
-    if (
-      inHeadComment &&
-      (t === '' ||
-        t === '<!--' ||
-        t === '-->' ||
-        t.includes('Keep this file identical') ||
-        t.includes('Canonical:'))
-    )
-      continue;
-    inHeadComment = false;
-    out.push(l);
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  if (i < lines.length && lines[i].trim().startsWith('<!--')) {
+    while (i < lines.length && !lines[i].includes('-->')) i++;
+    if (i < lines.length) i++; // 连同 `-->` 那一行一起吃掉
   }
-  return out;
+  return lines.slice(i);
 };
 
 const CANON = join(ROOT, 'packages/shared-uni/src/components');
@@ -636,6 +633,29 @@ function buildMarkdown(result) {
   L.push('- stylelint 禁止新增裸 hex 与字面 border-radius（白名单 theme.css/main.css/App.vue）。');
   L.push('');
   return L.join('\n');
+}
+
+// ── --check 模式：共享组件「副本 vs 蓝本」一致性门禁，不写报告 ─────────────
+if (CHECK) {
+  const drifted = result.copySync.filter((c) => !c.identical);
+  if (drifted.length) {
+    console.error(
+      `[style-full-audit --check] FAIL：共享组件副本与蓝本不一致 ${drifted.length}/${result.copySync.length}\n` +
+        drifted
+          .map(
+            (c) =>
+              `    - ${c.app}/${c.component}  DIFF ${c.diffLines} 行（蓝本 packages/shared-uni/src/components/${c.component}）`
+          )
+          .join('\n') +
+        '\n  修法：**以蓝本为准**改副本（easycom 需本地路径，故副本必须与蓝本逐字一致）。\n' +
+        '  🔴 只改副本、不改蓝本 = 蓝本仍带缺陷，下次「同步」就把缺陷带回来（实测已发生）。'
+    );
+    process.exit(1);
+  }
+  console.log(
+    `[style-full-audit --check] OK：${result.copySync.length} 个共享组件副本与蓝本逐字一致`
+  );
+  process.exit(0);
 }
 
 writeFileSync(

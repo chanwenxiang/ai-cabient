@@ -1,0 +1,21 @@
+{
+  "at": "2026-09-24T01:43:55.527Z",
+  "device": {
+    "model": "iPhone 12/13 (Pro)",
+    "w": 390,
+    "h": 762,
+    "SDK": "3.3.5",
+    "pixelRatio": 3
+  },
+  "page": "pages/index/index",
+  "hasLanding": true,
+  "hasDisk": true,
+  "diskCssSize": {
+    "w": 136,
+    "h": 136
+  },
+  "diskBgImage": "radial-gradient(120% 100% at 30% 20%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 62%), linear-gradient(158deg, rgb(20, 168, 155) 0%, rgb(15, 118, 110) 52%, rgb(15, 63, 60) 100%)",
+  "diskBoxShadow": "rgba(255, 255, 255, 0.26) 0px 1px 1px 0px inset, rgba(4, 47, 36, 0.48) 0px 7px 18px 0px, rgba(20, 168, 155, 0.16) 0px 0px 0px 7px",
+  "overlayBgImage": "linear-gradient(rgba(19, 78, 74, 0.84), rgba(19, 78, 74, 0.76) 45%, rgba(19, 78, 74, 0.92))",
+  "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\.tmp\\scan-palette-verify\\after.png"
+}

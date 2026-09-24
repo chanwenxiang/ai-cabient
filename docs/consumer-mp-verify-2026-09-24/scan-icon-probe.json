@@ -1,0 +1,113 @@
+{
+  "at": "2026-09-24T01:31:58.915Z",
+  "device": {
+    "model": "iPhone 12/13 (Pro)",
+    "w": 390,
+    "h": 762,
+    "SDK": "3.3.5",
+    "pixelRatio": 3
+  },
+  "rpxToPt": 0.52,
+  "stackAtStart": [
+    "pages/index/index"
+  ],
+  "pagePath": "pages/index/index",
+  "landingPresent": true,
+  "scanCircleInner": {
+    "background-color": "rgba(0, 0, 0, 0)",
+    "background-image": "radial-gradient(120% 100% at 30% 22%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 58%), linear-gradient(158deg, rgb(15, 118, 110) 0%, rgb(15, 63, 60) 100%)",
+    "border-top-color": "rgba(255, 255, 255, 0.42)",
+    "border-top-width": "0.550964px",
+    "box-shadow": "rgba(255, 255, 255, 0.22) 0px 1px 1px 0px inset, rgba(4, 47, 36, 0.45) 0px 7px 18px 0px, rgba(255, 255, 255, 0.14) 0px 0px 0px 6px",
+    "width": "134.995px",
+    "height": "134.995px"
+  },
+  "scanIconBox": {
+    "width": "78.9945px",
+    "height": "78.9945px"
+  },
+  "scanCorner": {
+    "width": "27.9959px",
+    "height": "27.9959px",
+    "border-top-width": "2.75482px",
+    "border-top-left-radius": "8px",
+    "border-top-color": "rgb(255, 255, 255)"
+  },
+  "scanLine": {
+    "width": "46.9955px",
+    "height": "3.99449px",
+    "background-color": "rgb(255, 255, 255)",
+    "border-radius": "4px",
+    "animation-name": "scan-sweep-9af8335b",
+    "animation-duration": "2.4s",
+    "animation-timing-function": "ease-in-out",
+    "animation-iteration-count": "infinite"
+  },
+  "lineIsHorizontal": true,
+  "lineAspect": 11.77,
+  "rpxCalibration": [
+    {
+      "name": "scan-circle-inner width",
+      "rpx": 260,
+      "px": 134.995,
+      "ratio": 0.5192
+    },
+    {
+      "name": "scan-icon-box width",
+      "rpx": 152,
+      "px": 78.9945,
+      "ratio": 0.5197
+    },
+    {
+      "name": "scan-corner width",
+      "rpx": 54,
+      "px": 27.9959,
+      "ratio": 0.5184
+    },
+    {
+      "name": "scan-line width",
+      "rpx": 92,
+      "px": 46.9955,
+      "ratio": 0.5108
+    },
+    {
+      "name": "scan-line height",
+      "rpx": 8,
+      "px": 3.99449,
+      "ratio": 0.4993
+    },
+    {
+      "name": "scan-corner border-top-width",
+      "rpx": 7,
+      "px": 2.75482,
+      "ratio": 0.3935
+    },
+    {
+      "name": "scan-circle-inner border-top-width",
+      "rpx": 2,
+      "px": 0.550964,
+      "ratio": 0.2755
+    },
+    {
+      "name": "scan-corner border-top-left-radius",
+      "rpx": 16,
+      "px": 8,
+      "ratio": 0.5
+    }
+  ],
+  "animName": "scan-sweep-9af8335b",
+  "animDuration": "2.4s",
+  "lineTops": [
+    445.221,
+    470.498,
+    484.677,
+    449.297
+  ],
+  "lineMoves": true,
+  "lineSwing": 39.456,
+  "scanCircleOffset": {
+    "left": 126.98863220214844,
+    "top": 399.9827880859375
+  },
+  "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\.tmp\\scan-icon-verify\\index-landing.png"
+}
