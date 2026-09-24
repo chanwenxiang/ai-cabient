@@ -11,12 +11,14 @@ alwaysApply: true
 
 1. **Skills**：先看本仓库 `.cursor/skills/`（含 `ai-cabinet-dev-test` 路由），再看会话 `available_skills` 与 `~/.cursor/skills/`。按任务关键词匹配 `description`，命中则先 `Read` 其 `SKILL.md` 并严格按步骤执行。
 2. **MCP**：查看当前已启用 MCP 与工具。能用工具完成的（查文档、查库、浏览器验证、错误追踪等）优先走 MCP，不要用猜测替代。
-3. **本仓快捷入口**：涉及写代码 / 测试 / 联调时，优先 `Read` `.cursor/skills/ai-cabinet-dev-test/SKILL.md`。
+3. **本仓快捷入口**：新开对话先读仓库根 `AGENTS.md` + `docs/PROJECT_KNOWLEDGE.md`；写代码/测试再读 `.cursor/skills/ai-cabinet-dev-test/SKILL.md`。
 
 ## 2. 常见匹配（示例，非穷尽）
 
 | 场景 | 优先 |
 |------|------|
+| **全局活文档读/补** | `project-knowledge` + `docs/PROJECT_KNOWLEDGE.md`（规则 `project-knowledge-living`） |
+| **套用已解决问题 / 封装** | `solved-problems-playbook` → `encapsulate-solved-problem` |
 | **本仓开发/测试总路由** | `ai-cabinet-dev-test`（`.cursor/skills/`） |
 | **安全扫描** | `security-scan` → `security-best-practices` |
 | **代码质量审查** | `code-review` |

@@ -32,6 +32,8 @@
 
 完整模块说明见 **[docs/MODULES.md](docs/MODULES.md)**。
 
+> **Agent / 新会话入口**：[AGENTS.md](AGENTS.md)  
+> **全局共享活文档**：[docs/PROJECT_KNOWLEDGE.md](docs/PROJECT_KNOWLEDGE.md)  
 > **测试与优化底稿**：[docs/CODEBASE_FOUNDATION.md](docs/CODEBASE_FOUNDATION.md)  
 > **文件级代码清单（精确测试点名）**：[docs/CODEBASE_INVENTORY.md](docs/CODEBASE_INVENTORY.md)
 

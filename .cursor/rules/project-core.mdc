@@ -5,13 +5,16 @@ alwaysApply: true
 
 # AI Cabinet 核心约定
 
+- **先判断再执行**：用户要求先评估是否合理并给建议，禁止盲目照做（规则 `critical-judgment`）。
+- **跨会话入口**：新开对话先读仓库根 `AGENTS.md` 与 `docs/PROJECT_KNOWLEDGE.md`（含 WorkBuddy §7.4）；规则 `project-knowledge-living`（alwaysApply）。
 - 生产标准写代码（鉴权、内部 API、权限隔离）；本地默认 `dev` + mock，不要为图省事关掉安全边界。
 - 模块：`clients/admin-vue`、`clients/consumer-mp`、`clients/merchant-mp`、`packages/shared-*`、`services/trade-service`、`services/device-service`、`services/common/common-core`、`vision-service`、`infra/`。
 - 对外 HTTP 多为 `/api/v2/...`；服务间 `/internal/v1/...`，请求头 `X-Internal-Api-Key`。
 - 统一响应：`com.aicabinet.common.dto.ApiResponse`（`code=0` 成功）与 `PageResult`；DTO 放 `common-core`。
-- DB：PostgreSQL（默认 `localhost:15433/aicabinet`），schema 变更只用 Flyway `V{n}__*.sql`（当前已到 V125+）。
+- DB：PostgreSQL（默认 `localhost:15433/aicabinet`），schema 变更只用 Flyway `V{n}__*.sql`（当前约 **V286+**，以 `docs/PROJECT_KNOWLEDGE.md` §2 为准）。
 - 改 API 时同步：`common-core` DTO、调用方、必要时 `packages/shared-types`；不要另起一套类型体系。
 - 禁止提交密钥；配置用环境变量（`INTERNAL_API_KEY`、`JWT_SECRET`、`VISION_API_KEY` 等）。
 - **前台用户可见文案须中文**（按钮/提示/空态/状态标签等）；详见 `ui-copy-zh` 规则。
 - **UI Token 日常三约定**（禁裸业务 hex、`z-index` 用 `--z-*`、表格列挂语义 class）：详见 `ui-token-conventions`；合入靠 `pnpm check`。
-- **踩坑必记**：易复发问题须写「现象 → 根因 → 必须怎么做」（规则 `record-lessons-learned`；总册 `docs/engineering/lessons-learned.md`；后台布局见表 `admin-layout-anti-jitter`）。
+- **全局活文档**：会话相关任务先读并持续补充 `docs/PROJECT_KNOWLEDGE.md`（规则 `project-knowledge-living`；Skill `project-knowledge`）。
+- **踩坑必记**：易复发问题须写「现象 → 根因 → 必须怎么做」（规则 `record-lessons-learned`；总册 `docs/engineering/lessons-learned.md`；后台布局见表 `admin-layout-anti-jitter`；封装走 `encapsulate-solved-problem`）。

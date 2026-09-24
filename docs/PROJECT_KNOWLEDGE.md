@@ -1,0 +1,284 @@
+# AI Cabinet 全局共享项目知识（Living Doc）
+
+> **地位**：本仓 Agent / 人工协作的**唯一总入口**。细则仍散落在规则、Skill、专题文档里；本文件负责**索引 + 现状摘要 + 变更账本**。  
+> **维护规则**：`.cursor/rules/project-knowledge-living.mdc`（每次相关对话必读、必补）。  
+> **维护 Skill**：`.cursor/skills/project-knowledge/SKILL.md`  
+> **已解决问题 Skill**：`.cursor/skills/solved-problems-playbook/SKILL.md`  
+> **封装流程 Skill**：`.cursor/skills/encapsulate-solved-problem/SKILL.md`  
+> **最后校准**：2026-09-24
+
+---
+
+## 0. 会话开工清单（Agent 必做）
+
+```
+1. Read 本文件（至少 §1–§4、§7、§9、§7.4）
+2. 若任务涉及近期改动/未决项：Read `.workbuddy/memory/MEMORY.md` + 当日 `YYYY-MM-DD.md`
+3. 按任务命中领域 → 读对应 .mdc / Skill / 专题 doc / PROJECT-REFERENCE §n
+4. 改代码 → 实测 → 若有新坑：记 lessons + 补本文件 Changelog
+5. 可复用流程 → encapsulate-solved-problem 升格为 Skill / 门禁
+```
+
+**禁止**：只靠训练记忆或旧会话结论宣称「项目现在如何」；规模与端口以本文件 + 实测为准。  
+**禁止**：只采信他 AI 文档里的 `[x]` / 自报绿——须按 MEMORY 纪律重新取证。
+
+---
+
+## 1. 一句话定位
+
+**AI 开门柜**：消费者扫码开门取货 → 视觉/端侧识别 → 自动结算扣款；运营后台管设备/SKU/争议/财务；商户端管补货/定价/钱包。独立于旧仓 `ego-automat`（只读参考）。
+
+---
+
+## 2. 仓库现状速览（2026-09-24 校准）
+
+| 维度 | 当前值 | 备注 |
+|------|--------|------|
+| Flyway 迁移 | **286** 个脚本，最新约 **V286** | 合入前查重号；勿再写已占用版本号 |
+| trade Controllers | ~**84** | `*Controller.java` |
+| trade 单测 | ~**299** `*Test.java` | 含大量并发测 |
+| admin-vue 业务视图 | ~**71** `.vue` | `src/views` |
+| consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
+| shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
+| 踩坑总册条目 | **≥101** | `docs/engineering/lessons-learned.md` |
+| 审计门禁 | `pnpm check:audit-gates` | 新建脚本须进 `ci.yml` |
+
+更细文件级清单：[CODEBASE_INVENTORY.md](CODEBASE_INVENTORY.md)；测试底稿：[CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)。
+
+---
+
+## 3. 模块地图
+
+```
+clients/admin-vue          运营控制台 → 构建进 trade static/admin
+clients/consumer-mp        消费者小程序（扫码开门/订单/充值）
+clients/merchant-mp        商户小程序（补货/定价/钱包/分账）
+packages/shared-*          共享类型 / API / 字典 / RBAC / uni
+services/trade-service     领域大脑（会话·结算·支付·RBAC·仓储）
+services/device-service    MQTT 桥（不下业务库）
+services/common/common-core 共享 DTO / 枚举 / 内部鉴权
+vision-service             FastAPI mock 识别 + 争议辅助
+edge/*                     柜机端 / 模拟器
+infra/                     Compose、网关、监控
+```
+
+完整表：[MODULES.md](MODULES.md)。
+
+---
+
+## 4. 关键约定（不可破）
+
+| 主题 | 约定 |
+|------|------|
+| 对外 API | `/api/v2/...`；成功 `ApiResponse.code=0` |
+| 服务间 | `/internal/v1/...` + `X-Internal-Api-Key` |
+| DB | Postgres `localhost:15433/aicabinet`；只许 Flyway |
+| 鉴权 | 生产标准；本地 `dev` + mock，禁关安全边界图省事 |
+| 文案 | 用户可见须中文（`ui-copy-zh`） |
+| UI Token | 禁裸业务 hex；`z-index` 用 `--z-*`；表格列语义 class |
+| 改 API | common-core DTO + 调用方 + `shared-types` 同步 |
+| 密钥 | 环境变量；禁止提交 |
+
+核心规则：`.cursor/rules/project-core.mdc`。
+
+---
+
+## 5. 本地两种模式（测试前先选）
+
+| 模式 | 启动 | trade 端口 |
+|------|------|------------|
+| **A. IDEA + 仅 infra**（日常推荐） | `docker compose -p ai-cabinet -f infra/docker-compose.yml up -d` + IDEA + vision | **:8080** |
+| **B. 全栈 Docker** | `.\docker-up.ps1` | **:18080** |
+
+**禁止** A/B 混开双 trade。速查：[STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)。
+
+| 面 | URL / 账号 |
+|----|------------|
+| 运营后台 | `http://localhost/admin/index.html` 或 `:8080/admin/...`；`13900000001` / `123456` + 验证码 |
+| 消费者 H5 | `:3002` |
+| 商户 H5 | `:3001` |
+| Admin 构建 | `node scripts/build-admin.mjs`（Cursor 下 `pnpm run build:admin` 可能因 script-shell 失败） |
+
+---
+
+## 6. 核心业务链路（金钱正确性最高优先级）
+
+```
+扫码/登录 → POST /api/v2/sessions → 预授权 → MQTT 开门
+  → SHOPPING → 关门 + 视频 → Settlement → Vision/端侧识别
+  → 高置信：出单 + 扣库存 + 扣款
+  → 低置信/失败：DISPUTED（通常先不扣款）
+```
+
+会话状态机：`CREATED → OPENING → SHOPPING → WAITING_UPLOAD → RECOGNIZING → SETTLING → COMPLETED`（旁路禁 `setState`，走 `SessionService.transition`）。
+
+分布式锁前缀 `aicabinet:lock:`（开门 / 会话 / 结算 / 支付等），详见 [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) §3。
+
+---
+
+## 7. 文档与规则索引
+
+### 7.1 必读专题
+
+| 文档 | 何时读 |
+|------|--------|
+| [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md) | 起服务 / 端口 / 账号 |
+| [LOCAL_SETUP.md](LOCAL_SETUP.md) | 完整联调 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 服务边界 / 识别链路 |
+| [FRONTEND_PRODUCT_DECISIONS.md](FRONTEND_PRODUCT_DECISIONS.md) | 三端产品边界 |
+| [engineering/lessons-learned.md](engineering/lessons-learned.md) | 踩坑总册 |
+| [CODE_FIX_CHECKLIST.md](CODE_FIX_CHECKLIST.md) | 改完自检 |
+| [TROUBLESHOOTING_GUIDE.md](TROUBLESHOOTING_GUIDE.md) | 联调排障 |
+
+### 7.2 Cursor 规则（`.cursor/rules/`）
+
+| 规则 | 作用 |
+|------|------|
+| `project-knowledge-living` | **本活文档**：必读必补 |
+| `project-core` | 模块 / API / Flyway / 文案 |
+| `record-lessons-learned` | 踩坑三列表 |
+| `use-skills-and-mcp` / `dev-test-toolchain` | Skill+MCP 路由 |
+| `playwright-ui-testing` | UI 验收优先 Playwright |
+| `admin-layout-anti-jitter` | 后台布局防抖硬约束 |
+| `admin-vue` / `uni-app` / `java-backend` | 分端约定 |
+| `ui-token-conventions` / `ui-copy-zh` | Token 与中文文案 |
+| `iot-cabinet-business-standards` | 开门柜并发 / 支付 / 硬件 |
+
+### 7.3 本仓 Skills（`.cursor/skills/`）
+
+| Skill | Trigger |
+|-------|---------|
+| `ai-cabinet-dev-test` | 写代码 / 测试总路由 |
+| `project-knowledge` | 读/更新本活文档 |
+| `solved-problems-playbook` | 套用已解决问题配方 |
+| `encapsulate-solved-problem` | 修完后封装为记录+Skill |
+| `browser-real-testing` | UI 真机验收 |
+| `verification-before-completion` | 宣称完成前验证 |
+| 其余 | 见 `ai-cabinet-dev-test` 路由表 |
+
+### 7.4 WorkBuddy 全量落点（其他 AI 总结 — **最新在这里**）
+
+> WorkBuddy 写入；**`.gitignore` 含 `.workbuddy/`**（不进 git，但本机可读）。  
+> Cursor **不会自动注入**这些文件，须主动 Read。  
+> 纪律：不采信文档 `[x]` / 自报绿——只当线索，结论靠源码+实跑。
+
+#### A. 本仓库（日常最新 · 优先）
+
+路径根：`ai-cabinet/.workbuddy/`
+
+| 路径 | 内容 | 何时读 |
+|------|------|--------|
+| `memory/MEMORY.md` | 项目长期铁律索引（门禁/测试/提交/XXL…，`§n`→REFERENCE） | **每会话开工** |
+| `memory/PROJECT-REFERENCE.md` | 外置详情大手册（环境/构建/OpenAPI/取证 §11…） | MEMORY 指到 `§n` 或构建/门禁细节 |
+| `memory/YYYY-MM-DD.md` | **按日工作日志（最新会话总结）** | 查近期改动/未决；**优先最新日期文件** |
+| `memory/EDGE-ANDROID-GRADLE.md` | 边缘端 Gradle | 动 `edge/android-app` |
+| `handoff-prompt-*.md` | 交接开场提示词模板 | 开新会话接手时 |
+| `cleanup-*.md` | 清理/划界笔记 | 清 scratch 前 |
+
+**读序**：`MEMORY.md` → 最新 `YYYY-MM-DD.md` →（按指针）`PROJECT-REFERENCE.md` §n。
+
+#### B. 用户主目录（跨项目 · 工具链）
+
+路径根：`C:\Users\cwx\.workbuddy\`（`~/.workbuddy/`）
+
+| 路径 | 内容 | 何时读 |
+|------|------|--------|
+| `MEMORY.md` | **跨项目**铁律（pnpm 假绿、Maven/PS、沙箱…） | Windows 工具链异常、门禁假绿/假红 |
+| `CROSS-PROJECT-REFERENCE.md` | 跨项目细节层（`§n` 展开） | 主 MEMORY 指到细节层时 |
+| `USER.md` / `SOUL.md` / `IDENTITY.md` | 用户偏好 / 人格 | 极少；非业务 |
+| `memory/<uuid>_memory.md` | **云端托管缓存** | ⚠️ **禁止本地当下沉目标**（会被覆盖） |
+
+#### C. WorkBuddy 工作区快照（早期成文报告）
+
+路径根：`C:\Users\cwx\WorkBuddy\`（按会话时间戳分子目录）
+
+| 路径 | 内容 | 何时读 |
+|------|------|--------|
+| `2026-09-03-11-04-19/ai-cabinet*.md` | 审查/整改/Checklist/测试设计等成批报告 | 查 09-03～09-06 历史结论（**易过期**） |
+| `2026-09-03-11-04-19/执行台账-*.md` | 执行/复测台账 | 对照当时是否跑过 |
+| `2026-09-18-14-27-59/.workbuddy/memory/` | 该会话副本记忆 | 仅追溯 09-18 会话 |
+| 其它 `2026-09-*-*/` | 会话工作副本 | 一般**不必读**；以本仓 `.workbuddy/memory` 为准 |
+
+代表报告（均在 `WorkBuddy\2026-09-03-11-04-19\`）：  
+`ai-cabinet代码审查报告` / `管理后台前端` / `小程序端` / `三端之外` / `业务流程审查` / `最终整改报告` / `已修未修三态总账` / `修复核查结论` / `上线前Checklist` / `真实测试设计` / `开发环境可执行测试手册` / `最终测试执行文档` / `清库重置与浏览器实测方案` 等。
+
+#### D. 仓内沉淀（可 git / 对外）
+
+| 路径 | 何时读 |
+|------|--------|
+| `docs/CONSUMER_MP_OPTIMIZATION_REPORT_2026-09-24.md` | consumer-mp UI |
+| `docs/pass-notes/PASS_3A`～`3F` | 金钱/争议/MQTT/库存/钱包/运营 |
+| `docs/evidence/YYYY-MM-DD-*/` | 单项留证 |
+| `docs/README_DOCS.md` | 仓内文档总索引 |
+
+#### E. 2026-09-24 最新（mtime 校准）
+
+- 本仓：`memory/2026-09-24.md`、`MEMORY.md`、`PROJECT-REFERENCE.md`（同日）
+- 跨项目：`~/.workbuddy/MEMORY.md`（09-23）、`CROSS-PROJECT-REFERENCE.md`（09-23）
+- 仓内报告：`docs/CONSUMER_MP_OPTIMIZATION_REPORT_2026-09-24.md`
+
+---
+
+## 8. 已解决问题领域地图（→ Skill / 规则）
+
+| 领域 | 代表问题（总册 #） | 落地处 |
+|------|-------------------|--------|
+| admin 布局防抖 | 操作列 sticky、抽屉弹宽、滚动条挤内容、tooltip 盖列 (#1–5,33,38,46) | `admin-layout-anti-jitter.mdc` + `check:admin-anti-jitter` |
+| admin 鉴权/RBAC | 双 toast、菜单 fail-open、JWT storage、端点字面量 (#9,14,36–37,41,54–55,72–87) | `AdminEndpoints`、`check:admin-*` |
+| 结算/会话拆分 | Settlement / Session 上帝类 (#28,31) | 各 `*Service` 委托 |
+| MQ / 视觉 | 吞异常丢消息、auto-commit、DLT、超时 (#19,22,45,75,95) | Kafka listener + vision worker |
+| 资金/幂等 | 渠道事务顺序、幂等键可变、限额 (#17,96–97) | Payment / Refund 服务 |
+| 小程序性能 | 分包、N+1、列表 pageSize (#18,27,29,60,63) | pages.json + API 聚合 |
+| CI / DevOps | OpenAPI 过期、门禁未进 CI、runner/Sonar (#12–13,89,99–101) | `ci.yml` + devops 脚本 |
+| Edge | MQTT 队列丢事件、TLS truststore、Prefs apply (#88,91,94) | android-app |
+
+**配方级复用**：优先 `solved-problems-playbook` Skill，再下钻总册行号。
+
+---
+
+## 9. Changelog（只追加，新在上）
+
+| 日期 | 变更摘要 | 证据 / PR / 会话 |
+|------|----------|------------------|
+| 2026-09-24 | 规则 `critical-judgment`：用户要求先判断合理性并建议，禁止盲目服从；冲突优先级改为铁律 > 知情覆盖 | alwaysApply |
+| 2026-09-24 | 加仓库根 `AGENTS.md`；加固 `project-knowledge-living`（跨会话 alwaysApply 开工三连） | 保证新会话注入 |
+| 2026-09-24 | 补全 WorkBuddy 三层落点：本仓 `.workbuddy/`、用户 `~/.workbuddy/`、工作区 `~/WorkBuddy/` 历史报告 | §7.4 A–E |
+| 2026-09-24 | 索引 WorkBuddy 总结落点：`.workbuddy/memory/`（MEMORY / PROJECT-REFERENCE / 按日日志）+ 仓内 REPORT/pass-notes/evidence | §7.4 |
+| 2026-09-24 | 建立本活文档 + `project-knowledge-living` 规则 + 三个维护/封装 Skill；校准 Flyway≈V286、Controllers≈84、单测≈299、视图≈71 | 本提交 |
+| 2026-09-24 | admin UI round3 / 设备地图相关留证目录存在 | `docs/evidence/2026-09-24-*` |
+| 2026-09 | 踩坑总册累计至 #101（Sonar 凭据、GHA runner、Windows pathconv 等） | `lessons-learned.md` |
+
+### 追加模板
+
+```md
+| YYYY-MM-DD | 一句话：改了什么 / 学到什么 | 链接到 lessons #N / evidence / Skill |
+```
+
+---
+
+## 10. 待完善 / 已知缺口（主动补全区）
+
+> Agent 发现过时或空白时**必须**改本节或升级为 Changelog 已解决项。
+
+| ID | 缺口 | 建议动作 |
+|----|------|----------|
+| G1 | `CODEBASE_FOUNDATION` 仍写 Flyway V265 / Controllers~69 | 下次大盘点时同步数字，或以本文件 §2 为准 |
+| G2 | 设备地图抖动若已修，总册尚无专行 | 确认根因后写入 lessons + 本 Changelog |
+| G3 | 部分 evidence 未回链到总册行号 | 修相关域时顺手补「门禁/文件」列 |
+
+---
+
+## 11. 与其它文档的关系
+
+| 文档 | 关系 |
+|------|------|
+| 本文件 | **总入口 / 活索引 / 变更账本** |
+| `AGENTS.md` | **跨会话一页纸**（新对话先读） |
+| `.cursor/rules/project-knowledge-living.mdc` | alwaysApply：强制读本文件 + WorkBuddy |
+| `lessons-learned.md` | 现象→根因→必须怎么做 **明细表** |
+| `CODEBASE_FOUNDATION.md` | 测试设计底稿（可滞后，以本文件校准为准） |
+| `.cursor/rules/*.mdc` | 可执行硬约束 |
+| `.cursor/skills/*/SKILL.md` | 可执行流程 |
+
+冲突时：**安全/资金/门禁铁律 > 用户知情后的明确覆盖 > 用户一般偏好 > 本活文档最新 Changelog > WorkBuddy > 旧专题数字**。  
+用户要求若不合理：按 `critical-judgment` 先谏言，勿盲目执行。

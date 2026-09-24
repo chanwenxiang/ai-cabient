@@ -10,10 +10,12 @@ description: >-
 
 开工先读本 skill，再按表加载对应 skill / MCP。**项目规则优先于通用 skill**（UI 优先 Playwright MCP / CLI，见 `playwright-ui-testing`）。
 
+**全局活文档**：先 `Read docs/PROJECT_KNOWLEDGE.md`（Skill `project-knowledge`）；已解决问题套用 `solved-problems-playbook`；修完封装走 `encapsulate-solved-problem`。
+
 ## 1. 必做顺序
 
 ```
-匹配本表 → Read 命中的 SKILL.md → 调 MCP 取事实 → 再改代码 → 用 MCP/脚本验收 → verification-before-completion
+读 PROJECT_KNOWLEDGE → 匹配本表 → Read 命中的 SKILL.md → 调 MCP 取事实 → 再改代码 → 用 MCP/脚本验收 → verification-before-completion → 补 Changelog/lessons
 ```
 
 ## 2. 四类推荐工具（每类选一个，均免费）
@@ -31,7 +33,9 @@ description: >-
 
 | 场景 | Skill | MCP |
 |------|-------|-----|
-| 开工路由 | **本 skill** | — |
+| 开工路由 | **本 skill** + `project-knowledge` | — |
+| 套用已解决问题 | `solved-problems-playbook` | — |
+| 修完封装记录 | `encapsulate-solved-problem` | — |
 | 安全扫描 / SQLi / XSS | `security-scan` | fetch（拉 guidelines） |
 | 提交/PR 前审查 | `code-review` | GitHub（PR） |
 | 管理后台 / H5 UI 验收 | `browser-real-testing` / `playwright` | **Playwright MCP/CLI**（回退 IDE Browser） |

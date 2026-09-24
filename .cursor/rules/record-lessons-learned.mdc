@@ -31,12 +31,16 @@ alwaysApply: true
 1. **已有领域规则表**：能归入则追加一行（例：后台布局 → `admin-layout-anti-jitter.mdc`）。
 2. **总册**：否则追加到 `docs/engineering/lessons-learned.md`。
 3. **可机器检查的**：同步改 `scripts/check-*.mjs` 或现有 `pnpm check:*`，避免只靠文档。
+4. **活文档**：`docs/PROJECT_KNOWLEDGE.md` §9 Changelog 追加一行（索引，不复制整表）。
+5. **可复用流程**：执行 Skill `encapsulate-solved-problem`（更新 `solved-problems-playbook` 或新建 Skill）。
 
 ## 修完自检
 
 - [ ] 三列表格已写入规则或总册  
-- [ ] 若能量化，门禁/脚本已加  
-- [ ] 回复用户时可一句话指向「已写入某某规则，防再犯」
+- [ ] 活文档 Changelog 已追加  
+- [ ] 若能量化，门禁/脚本已加（并进 CI）  
+- [ ] 高频配方已进 `solved-problems-playbook`（或新 Skill）  
+- [ ] 回复用户时可一句话指向「已写入某某规则/Skill，防再犯」
 
 ## 禁止
 

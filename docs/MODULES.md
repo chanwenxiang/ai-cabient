@@ -64,6 +64,7 @@
 | 文档 | 内容 |
 |------|------|
 | [README.md](../README.md) | 项目总览 |
+| [PROJECT_KNOWLEDGE.md](PROJECT_KNOWLEDGE.md) | **全局共享活文档**：Agent/协作总入口、Changelog、已解决问题索引 |
 | [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) | **全仓底稿**：架构、关键链路、测试资产、优化热点、验证矩阵 |
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 本地联调 |
 | [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md) | 端口 / 账号速查 |

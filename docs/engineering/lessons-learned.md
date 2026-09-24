@@ -1,7 +1,8 @@
 # 工程踩坑总册（现象 → 根因 → 必须怎么做）
 
 > 由规则 `record-lessons-learned` 维护。能归入领域 `.mdc` 的优先写领域表；此处收跨模块或尚未单独立规的条目。  
-> 后台布局专表见：`.cursor/rules/admin-layout-anti-jitter.mdc`。
+> 后台布局专表见：`.cursor/rules/admin-layout-anti-jitter.mdc`。  
+> **全局索引 / Changelog**：[`docs/PROJECT_KNOWLEDGE.md`](../PROJECT_KNOWLEDGE.md)。配方复用：Skill `solved-problems-playbook`；封装流程：`encapsulate-solved-problem`。
 
 | # | 领域 | 现象 | 根因 | 必须怎么做 | 门禁/文件 |
 |---|------|------|------|------------|-----------|

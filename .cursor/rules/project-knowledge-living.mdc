@@ -1,0 +1,37 @@
+---
+description: 跨会话强制：新开对话必须先读 PROJECT_KNOWLEDGE 与 WorkBuddy；活文档必补
+alwaysApply: true
+---
+
+# 全局项目知识（Living Doc）— 跨会话必读必补
+
+> **本规则 alwaysApply=true**：每个新 Cursor 会话都会注入，不依赖聊天历史。
+
+## 开工三连（任何写代码/问答项目现状前）
+
+1. Read `docs/PROJECT_KNOWLEDGE.md`（§0–§4、§7、§9；WorkBuddy 全图在 §7.4）
+2. Read `AGENTS.md`（仓库根，一页纸入口）
+3. 若存在：Read `.workbuddy/memory/MEMORY.md` + 最新 `.workbuddy/memory/YYYY-MM-DD.md`
+
+跨项目工具链假绿/假红时再读：`C:\Users\cwx\.workbuddy\MEMORY.md`。
+
+## 读完怎么做
+
+1. 按 `PROJECT_KNOWLEDGE` §7 跳转 `.mdc` / Skill / 专题 doc。
+2. 开发测试走 Skill `ai-cabinet-dev-test`；UI 优先 Playwright。
+3. 已解决问题套用 `solved-problems-playbook`；修完走 `encapsulate-solved-problem`。
+
+## 任务结束必须落盘（禁止只留在聊天）
+
+| 触发 | 写到哪里 |
+|------|----------|
+| 架构/端口/模块/规模变了 | `PROJECT_KNOWLEDGE` §2/§3/§5 |
+| 修完易复发问题 | lessons 三列表 + §9 Changelog |
+| 流程可复用 | `encapsulate-solved-problem` → Skill |
+| 文档缺口 | §10 |
+
+## 禁止
+
+- 未读活文档就大段实现或宣称「项目现状」
+- 只采信 WorkBuddy/`[x]`/CI 自报绿（须源码+实跑）
+- 新知识只写在对话里不落 `docs/` / `.cursor/rules/` / Skills
