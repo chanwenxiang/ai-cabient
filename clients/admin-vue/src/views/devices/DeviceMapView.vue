@@ -411,17 +411,34 @@ function focusPoint(p: MapPoint) {
   const openSelected = () => {
     const m = markerById.get(p.deviceId);
     if (!m || !map || !cluster) return;
+    // 🔴 幂等护栏：moveend 与下面的 setTimeout 双路径都会进到这里。
+    //  popup 重复 openPopup 会再次触发 autoPan 平移 —— 用户看到的就是「还是抖」。
+    if (m.isPopupOpen()) return;
     // 若仍被聚合包住，先缩放到能看到单点
     const visible = cluster.getVisibleParent?.(m);
     if (visible && visible !== m) {
-      cluster.zoomToShowLayer?.(m, () => m.openPopup());
+      cluster.zoomToShowLayer?.(m, () => {
+        if (!m.isPopupOpen()) m.openPopup();
+      });
     } else {
       m.openPopup();
     }
   };
-  map.once('moveend', openSelected);
-  setTimeout(openSelected, 700);
+  // 🔴 快速连点两个点位时：上一次的 moveend 监听 + 定时器还挂着，
+  //  旧的 openSelected 会在新点位 flyTo 落定后把**旧 popup** 打开再被新的顶掉 —— 同样表现为抖。
+  //  每次进入先清掉上一轮的挂起回调。
+  pendingFocus?.();
+  const onMoveEnd = () => openSelected();
+  map.once('moveend', onMoveEnd);
+  const timer = setTimeout(onMoveEnd, 700);
+  pendingFocus = () => {
+    map?.off('moveend', onMoveEnd);
+    clearTimeout(timer);
+  };
 }
+
+/** focusPoint 挂起的 openSelected 回调清理器（见函数内注释） */
+let pendingFocus: (() => void) | null = null;
 
 function escapeHtml(s: string) {
   return s.replaceAll(
