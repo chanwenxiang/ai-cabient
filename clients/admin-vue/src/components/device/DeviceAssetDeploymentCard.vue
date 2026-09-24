@@ -4,8 +4,10 @@ import type { DeviceAssetForm } from '@/composables/device/useDeviceAsset';
 import { dictOptions } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
+/** 父组件拥有 reactive 表单；字段级编辑走 defineModel（同 Warehouse*Dialogs） */
+const asset = defineModel<DeviceAssetForm>('asset', { required: true });
+
 defineProps<{
-  asset: DeviceAssetForm;
   canEditDevice: boolean;
   canRegenerateDeviceId: boolean;
   assetSaving: boolean;

@@ -7,6 +7,6 @@
  * - 多 Tab 聚合列表、带 UI 附加字段的 reactive 表单：用本类型
  *
  * 值类型暂保留宽松索引（与历史行为一致）；继续收紧见 D15 完成记录。
+ * `any` 仅允许出现在本别名；业务文件禁止再写 `Record<string, any>`。
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 动态列集中逃逸口；禁止在业务文件再写 any
 export type AdminDynamicRow = Record<string, any>;

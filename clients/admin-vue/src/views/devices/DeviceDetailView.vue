@@ -325,7 +325,7 @@
     </div>
 
     <DeviceAssetDeploymentCard
-      :asset="asset"
+      v-model:asset="asset"
       :can-edit-device="canEditDevice"
       :can-regenerate-device-id="canRegenerateDeviceId"
       :asset-saving="assetSaving"
@@ -364,7 +364,7 @@
       :refund-draft-hint="refundDraftHint"
       :refund-priority-hint="refundPriorityHint"
       :device-refund-policy="device?.refundPolicy"
-      :policy="policy"
+      v-model:policy="policy"
       :repair-tickets="repairTickets"
       :repair-hydrated="repairHydrated"
       :policy-label="policyLabel"

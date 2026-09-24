@@ -1232,7 +1232,7 @@
 
     <ReplenishmentPlanRouteDialog
       v-model="planDialog"
-      :plan-form="planForm"
+      v-model:plan-form="planForm"
       :plan-saving="planSaving"
       :assignee-loading="assigneeLoading"
       :assignee-options="assigneeOptions"
@@ -1252,7 +1252,7 @@
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Goods } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import type { TableAction } from '@/components/TableActions.vue';
@@ -1340,7 +1340,6 @@ const expiryAlerts = ref<Row[]>([]);
 
 const shortageDevices = computed(() => shortageDeviceIds.value);
 
-const requests = computed(() => allRequests.value);
 const pendingRequestCount = computed(() => summary.value.pendingRequestCount);
 const requestsEmptyText = computed(() => {
   switch (requestStatusFilter.value) {
@@ -1832,7 +1831,6 @@ const {
   slotSaving,
   linesTask,
   taskLines,
-  deviceSlots,
   taskUnassignedHint,
   taskEvidence,
   linesDrawerTitle,
@@ -1898,7 +1896,6 @@ const {
   requestFlowReviewDesc,
   requestFlowFulfillDesc,
   formatRequestLines,
-  openRequestFlow,
   onRequestAction,
   onRequestRowAction
 } = useReplenishmentRequestFlow({

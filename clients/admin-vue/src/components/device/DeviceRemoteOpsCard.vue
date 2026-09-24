@@ -6,6 +6,9 @@ import type {
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
+/** 父组件拥有 reactive 策略对象；开关编辑走 defineModel */
+const policy = defineModel<DeviceRemoteOpsPolicy | null>('policy', { required: true });
+
 defineProps<{
   canEditDevice: boolean;
   canAccessReplenishment: boolean;
@@ -20,7 +23,6 @@ defineProps<{
   refundDraftHint: string;
   refundPriorityHint: string;
   deviceRefundPolicy?: string | null;
-  policy: DeviceRemoteOpsPolicy | null;
   repairTickets: DeviceRepairTicketRow[];
   repairHydrated: boolean;
   policyLabel: (policyCode?: string | null) => string;

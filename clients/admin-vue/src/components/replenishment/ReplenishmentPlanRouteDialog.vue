@@ -2,14 +2,16 @@
 import type { ReplenishmentAssigneeOption } from '@/composables/replenishment/useReplenishmentRoutePlanning';
 import type { ReplenishmentDeviceRef } from '@/composables/replenishment/useReplenishmentTaskActions';
 
+/** 父组件拥有 reactive 规划表单；字段编辑走 defineModel */
+const planForm = defineModel<{
+  routeName: string;
+  plannedDate: string;
+  assigneeUserId: number | undefined;
+  deviceIds: string[];
+}>('planForm', { required: true });
+
 defineProps<{
   modelValue: boolean;
-  planForm: {
-    routeName: string;
-    plannedDate: string;
-    assigneeUserId: number | undefined;
-    deviceIds: string[];
-  };
   planSaving: boolean;
   assigneeLoading: boolean;
   assigneeOptions: ReplenishmentAssigneeOption[];
