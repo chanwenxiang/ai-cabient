@@ -36,7 +36,8 @@ public class DeviceCatalogService {
     }
 
     /**
-     * 消费者可见商品库存：与运营后台货道「账面」同源（可售批次 ON_SALE/NEAR_EXPIRY）。
+     * 消费者可见商品库存：与运营后台货道「账面」同源（可售批次 ON_SALE/NEAR_EXPIRY），
+     * 但**只统计启用货道** —— 运营在设备详情里关掉的货道，其商品不再对消费者可见。
      * 若柜机尚无批次账本，则回退到 device_sku_inventory（旧数据兼容）。
      */
     @Transactional(readOnly = true)
@@ -46,7 +47,7 @@ public class DeviceCatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "deviceId required");
         }
 
-        Map<String, Integer> qtyBySku = sellableQtyBySku(dev);
+        Map<String, Integer> qtyBySku = sellableQtyBySkuOnEnabledSlots(dev);
         boolean useLots = !lotRepository.findByDeviceId(dev).isEmpty();
         if (!useLots) {
             qtyBySku = inventoryQtyBySku(dev);
@@ -86,9 +87,15 @@ public class DeviceCatalogService {
         return result;
     }
 
-    private Map<String, Integer> sellableQtyBySku(String deviceId) {
+    /**
+     * 消费者口径的可售量：**只统计启用货道**上的批次。
+     *
+     * <p>刻意不复用 {@code sumSellableBySku}（运营口径的物理库存全量）：那个口径下禁用货道也要算，
+     * 拿来当消费者可见量会让「禁用货道」开关失效 —— 禁用后小程序照样显示（线上实测过）。
+     */
+    private Map<String, Integer> sellableQtyBySkuOnEnabledSlots(String deviceId) {
         Map<String, Integer> map = new HashMap<>();
-        for (Object[] row : lotRepository.sumSellableBySku(deviceId)) {
+        for (Object[] row : lotRepository.sumSellableBySkuOnEnabledSlots(deviceId)) {
             if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
                 continue;
             }

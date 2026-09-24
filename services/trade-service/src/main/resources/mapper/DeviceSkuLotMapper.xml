@@ -11,12 +11,41 @@
     ]]>
   </select>
 
+  <!--
+    运营口径：该柜机所有在售批次的物理库存全量（不看货道是否启用）。
+    禁用货道也要能看见账面、能补货、能盘点，所以这里**不能**加货道过滤。
+    消费者口径见下面的 selectSumSellableBySkuOnEnabledSlots。
+  -->
   <select id="selectSumSellableBySku" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.sku_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
     FROM device_sku_lot l
     WHERE l.device_id = #{deviceId}
       AND l.status IN ('ON_SALE', 'NEAR_EXPIRY') AND l.quantity > 0
+    GROUP BY l.sku_id
+    ]]>
+  </select>
+
+  <!--
+    消费者口径：在「在售批次」基础上**排除已禁用货道**上的批次。
+
+    LEFT JOIN 而非 INNER JOIN：批次没绑货道（slot_id 为空）或对不上 device_slot 时，
+    按可用处理（COALESCE 兜底为 true），避免历史数据因为缺绑定让整个柜机的商品集体消失。
+    只排除「明确绑到一条已禁用货道」的批次。
+
+    UPPER() 两侧归一化：slot_code 写入时被 toUpperCase 了，slot_id 是调用方直接写的，
+    不保证大小写一致。
+  -->
+  <select id="selectSumSellableBySkuOnEnabledSlots" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT l.sku_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
+    FROM device_sku_lot l
+    LEFT JOIN device_slot s
+           ON s.device_id = l.device_id
+          AND UPPER(s.slot_code) = UPPER(l.slot_id)
+    WHERE l.device_id = #{deviceId}
+      AND l.status IN ('ON_SALE', 'NEAR_EXPIRY') AND l.quantity > 0
+      AND COALESCE(s.enabled, true) = true
     GROUP BY l.sku_id
     ]]>
   </select>

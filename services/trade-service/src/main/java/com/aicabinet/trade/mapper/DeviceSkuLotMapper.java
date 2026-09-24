@@ -77,10 +77,29 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
 
     int sumSellableQuantity(@Param("deviceId") String deviceId, @Param("skuId") String skuId);
 
+    /** 该柜机所有在售批次的物理库存全量（**运营口径**，不含货道启用过滤）。 */
     List<LinkedHashMap<String, Object>> selectSumSellableBySku(@Param("deviceId") String deviceId);
 
     default List<Object[]> sumSellableBySku(String deviceId) {
         return ColumnMapRows.toObjectRows(selectSumSellableBySku(deviceId), 2);
+    }
+
+    /**
+     * 消费者口径的可售量：排除**已禁用货道**上的批次。
+     *
+     * <p>两个方法只差「货道启用与否」一个条件，但口径用途完全不同，别互相替换：
+     * <ul>
+     *   <li>{@link #sumSellableBySku}＝运营侧（账面/盘点/补货/资产），禁用的货道照样要算，
+     *       否则货在柜里却从报表上消失；</li>
+     *   <li>本方法＝消费者侧（小程序商品列表），禁用的货道不再对外可售。</li>
+     * </ul>
+     * 用错一边就是「禁用开关失效（小程序照旧显示）」或「运营报表凭空少货」。
+     */
+    List<LinkedHashMap<String, Object>> selectSumSellableBySkuOnEnabledSlots(
+            @Param("deviceId") String deviceId);
+
+    default List<Object[]> sumSellableBySkuOnEnabledSlots(String deviceId) {
+        return ColumnMapRows.toObjectRows(selectSumSellableBySkuOnEnabledSlots(deviceId), 2);
     }
 
     long countNearExpiry(@Param("today") LocalDate today, @Param("nearDate") LocalDate nearDate);
