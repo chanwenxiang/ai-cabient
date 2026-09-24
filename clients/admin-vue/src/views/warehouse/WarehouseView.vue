@@ -645,31 +645,59 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { type CrudRowAction } from '@/components/CrudTable.vue';
 import type { TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import WarehouseBinDialogs from '@/components/warehouse/WarehouseBinDialogs.vue';
-import WarehouseBinsTab from '@/components/warehouse/WarehouseBinsTab.vue';
 import WarehouseEntityDialogs from '@/components/warehouse/WarehouseEntityDialogs.vue';
-import WarehouseInventoryTab from '@/components/warehouse/WarehouseInventoryTab.vue';
-import WarehouseMovementsTab from '@/components/warehouse/WarehouseMovementsTab.vue';
 import WarehouseOutboundDialogs from '@/components/warehouse/WarehouseOutboundDialogs.vue';
-import WarehouseOutboundsTab from '@/components/warehouse/WarehouseOutboundsTab.vue';
-import WarehouseOverviewTab from '@/components/warehouse/WarehouseOverviewTab.vue';
-import WarehousePayablesTab from '@/components/warehouse/WarehousePayablesTab.vue';
 import WarehousePurchaseDialogs from '@/components/warehouse/WarehousePurchaseDialogs.vue';
-import WarehousePurchaseOrdersTab from '@/components/warehouse/WarehousePurchaseOrdersTab.vue';
-import WarehousePurchaseReturnsTab from '@/components/warehouse/WarehousePurchaseReturnsTab.vue';
 import WarehouseStocktakeDialogs from '@/components/warehouse/WarehouseStocktakeDialogs.vue';
-import WarehouseStocktakesTab from '@/components/warehouse/WarehouseStocktakesTab.vue';
-import WarehouseSuggestionsTab from '@/components/warehouse/WarehouseSuggestionsTab.vue';
-import WarehouseSuppliersTab from '@/components/warehouse/WarehouseSuppliersTab.vue';
 import WarehouseTransferDialogs from '@/components/warehouse/WarehouseTransferDialogs.vue';
-import WarehouseTransfersTab from '@/components/warehouse/WarehouseTransfersTab.vue';
-import WarehouseTransitTab from '@/components/warehouse/WarehouseTransitTab.vue';
+
+/** Tab 懒加载：压 WarehouseView 路由 chunk 进 ≤150KB 门禁（sync 时 151.7KB OVER） */
+const WarehouseBinsTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseBinsTab.vue')
+);
+const WarehouseInventoryTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseInventoryTab.vue')
+);
+const WarehouseMovementsTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseMovementsTab.vue')
+);
+const WarehouseOutboundsTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseOutboundsTab.vue')
+);
+const WarehouseOverviewTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseOverviewTab.vue')
+);
+const WarehousePayablesTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehousePayablesTab.vue')
+);
+const WarehousePurchaseOrdersTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehousePurchaseOrdersTab.vue')
+);
+const WarehousePurchaseReturnsTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehousePurchaseReturnsTab.vue')
+);
+const WarehouseStocktakesTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseStocktakesTab.vue')
+);
+const WarehouseSuggestionsTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseSuggestionsTab.vue')
+);
+const WarehouseSuppliersTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseSuppliersTab.vue')
+);
+const WarehouseTransfersTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseTransfersTab.vue')
+);
+const WarehouseTransitTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseTransitTab.vue')
+);
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';

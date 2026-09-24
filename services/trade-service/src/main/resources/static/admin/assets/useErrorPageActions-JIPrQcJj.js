@@ -1,1 +1,0 @@
-import{j as c}from"./ui-vendor-D8W4rDag.js";import{c as s,I as a}from"./index-Cjl757ua.js";function k(){const o=c(),n=s();function t(){return a(n)}function r(){o.replace(t())}function u(){var e;if(((e=window.history.state)==null?void 0:e.back)!=null){o.back();return}r()}return{resolveHome:t,goHome:r,goBack:u}}export{k as u};
