@@ -36,6 +36,7 @@ description: >-
 | 开工路由 | **本 skill** + `project-knowledge` | — |
 | 套用已解决问题 | `solved-problems-playbook` | — |
 | 修完封装记录 | `encapsulate-solved-problem` | — |
+| **git push 前** | `pre-push-ci-preflight`（`node scripts/pre-push-ci-preflight.mjs`） | — |
 | 安全扫描 / SQLi / XSS | `security-scan` | fetch（拉 guidelines） |
 | 提交/PR 前审查 | `code-review` | GitHub（PR） |
 | 管理后台 / H5 UI 验收 | `browser-real-testing` / `playwright` | **Playwright MCP/CLI**（回退 IDE Browser） |

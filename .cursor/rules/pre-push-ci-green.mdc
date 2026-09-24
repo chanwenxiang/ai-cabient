@@ -1,0 +1,50 @@
+---
+description: 推送前必须跑 CI 预检（format/lint/audit-gates）；禁止未绿就 git push
+alwaysApply: true
+---
+
+# 推送前 CI 预检（禁止盲推）
+
+用户要求「每次推送保证 CI 不报错 + 格式检查」→ **推前必须跑本地预检**，不能只靠「感觉能过」。
+
+## 铁律
+
+```
+git push 之前：node scripts/pre-push-ci-preflight.mjs 必须 exit 0
+```
+
+（等价：`pnpm preflight`；本机 pnpm 假绿时**只认** `node scripts/…`。）
+
+## 默认跑什么
+
+| 档 | 命令 | 覆盖 |
+|----|------|------|
+| 默认 | `node scripts/pre-push-ci-preflight.mjs` | format:check、eslint、audit-gates、migration-safety、flyway-seed；admin 源码改了则 build-admin + 产物干净 |
+| 快 | `… --quick` | 仅 format + line-endings（仅文档小改可用） |
+| 满 | `… --full` | 默认 + OpenAPI 提示/校验（有 live-openapi 时） |
+
+失败：先 `node node_modules/prettier/bin/prettier.cjs --write <文件>` / `eslint --fix`，或按脚本报错修，**禁止**为绿关掉门禁。
+
+## 诚实边界（勿对用户撒谎）
+
+预检**不能**保证整条 CI 绿：
+
+- `e2e-h5`（需 Postgres/Redis + 起服务）
+- `mvn verify` / Docker IT
+
+这些仍看 Actions。预检通过后可推；若仅 e2e 红，按日志修，**禁止上调** `UAT_MAX_FAIL_*`。
+
+## Agent 推送流程
+
+1. 改完 → 预检 exit 0（本回合实跑，贴关键输出）
+2. commit
+3. 再预检一次若 commit 钩子改了文件
+4. `git push`
+5. 用 `gh run list` / `gh run watch` 看结果；红了继续修
+
+## 禁止
+
+- 未跑预检就 push
+- 用 `pnpm run` 绿灯当证据（须看 prettier/eslint/gate 真实输出）
+- 预检红仍推「先上看看」
+- 宣称「CI 一定绿」仅因预检过

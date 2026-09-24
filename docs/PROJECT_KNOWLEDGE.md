@@ -148,6 +148,7 @@ infra/                     Compose、网关、监控
 
 | Skill | Trigger |
 |-------|---------|
+| `pre-push-ci-preflight` | **git push 前** format/lint/门禁预检 |
 | `ai-cabinet-dev-test` | 写代码 / 测试总路由 |
 | `project-knowledge` | 读/更新本活文档 |
 | `solved-problems-playbook` | 套用已解决问题配方 |
@@ -240,6 +241,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-24 | 推送前强制预检：`scripts/pre-push-ci-preflight.mjs` + 规则 `pre-push-ci-green` + Skill；覆盖 format/lint/audit-gates/migration；不谎称含 e2e-h5 | alwaysApply |
 | 2026-09-24 | 规则 `critical-judgment`：用户要求先判断合理性并建议，禁止盲目服从；冲突优先级改为铁律 > 知情覆盖 | alwaysApply |
 | 2026-09-24 | 加仓库根 `AGENTS.md`；加固 `project-knowledge-living`（跨会话 alwaysApply 开工三连） | 保证新会话注入 |
 | 2026-09-24 | 补全 WorkBuddy 三层落点：本仓 `.workbuddy/`、用户 `~/.workbuddy/`、工作区 `~/WorkBuddy/` 历史报告 | §7.4 A–E |
