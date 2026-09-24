@@ -23,6 +23,31 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
+    /**
+     * 纯冻结/释放类型：只改账户 {@code frozen_cents}，可用余额前后一致（before == after），
+     * 对用户不构成「余额变动」，因此不进「余额明细」。
+     * <p>与 {@code BalanceLedgerService#holdSignedAmount} 的类型集合必须保持一致。</p>
+     */
+    java.util.List<String> HOLD_OPERATION_TYPES = java.util.List.of(
+            "PREAUTH_FREEZE", "PREAUTH_RELEASE", "BALANCE_REFUND_FREEZE", "BALANCE_REFUND_RELEASE");
+
+    /**
+     * 余额明细可见流水：在 {@link #findByUserIdOrderByCreatedAtDesc} 基础上剔除纯冻结/释放流水。
+     * <p>过滤必须落在 SQL：明细分页取 20 条，若在内存里剔除，整页可能被 19 条冻结/释放占满，
+     * 表现为「页内几乎空白 + total 与实际不符 + 加载更多点不动」。逐笔留痕不丢——
+     * {@code payment_operation} 仍有全量行（运营/审计侧），会话级冻结另有
+     * {@code consumer_preauth_hold} 逐会话一行。</p>
+     */
+    default Page<PaymentOperation> findVisibleByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable) {
+        var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<PaymentOperation>(
+                pageable.getPageNumber() + 1L, pageable.getPageSize());
+        var result = selectPage(mpPage, Wrappers.<PaymentOperation>lambdaQuery()
+                .eq(PaymentOperation::getUserId, userId)
+                .notIn(PaymentOperation::getOperationType, HOLD_OPERATION_TYPES)
+                .orderByDesc(PaymentOperation::getCreatedAt));
+        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
     default long countRefundsSince(Long userId, java.time.Instant since) {
         Long n = selectCount(Wrappers.<PaymentOperation>lambdaQuery()
                 .eq(PaymentOperation::getUserId, userId)

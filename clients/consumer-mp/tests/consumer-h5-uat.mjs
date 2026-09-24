@@ -1722,11 +1722,12 @@ async function main() {
       e19d
     );
 
-    // —— TC-BAL-002 冻结/释放类流水金额非零渲染（W-4 防回归）——
-    // W-4：PREAUTH_FREEZE/RELEASE 等只改冻结额的流水，后端按 (after-before) 算金额恒为 0，
-    // 前端于是把 89% 的流水渲染成「¥0.00」。修复后这类流水取操作金额 + 方向符号。
-    // 断言按**行内标题**定位，只约束冻结/释放四类，不会因将来出现合法的零金额流水而误报。
-    let holdZero = [];
+    // —— TC-BAL-002 余额明细不含纯冻结/释放噪音行 ——
+    // 契约变更（原 W-4 用例作废）：纯冻结/释放（PREAUTH_FREEZE/RELEASE、BALANCE_REFUND_FREEZE/RELEASE）
+    // 只改账户 frozen_cents、可用余额前后一致，已由后端 PaymentOperationMapper#findVisibleByUserIdOrderByCreatedAtDesc
+    // 从明细分页里剔除（否则一次「开门准备→超时释放」就往明细写两条金额相同、余额不变的行）。
+    // 原断言「冻结/释放行金额非零」在过滤后必然 SKIP——永久 SKIP 等于没有判据，故改为断言它们不再出现。
+    let holdRows = [];
     let holdTotal = 0;
     if (!balEmpty && balRows > 0) {
       const rows = await page.evaluate(() => {
@@ -1739,18 +1740,16 @@ async function main() {
           .filter((r) => HOLD_LABELS.includes(r.label));
       });
       holdTotal = rows.length;
-      holdZero = rows
-        .filter((r) => /^[+-]?¥?0\.00$/.test(r.amount.replace(/\s/g, '')))
-        .map((r) => r.label);
+      holdRows = rows.map((r) => `${r.label} ${r.amount}`);
     }
     const e19e = await shot(page, '19e-balance-hold-amounts');
     record(
       'TC-BAL-002',
-      '冻结/释放流水金额非零（W-4）',
+      '余额明细不含纯冻结/释放行（可用余额未变的流水不进明细）',
       '功能',
-      // 无冻结/释放数据时记 SKIP（而不是静默 PASS），避免"没数据"被当成"验过了"
-      holdTotal === 0 ? 'SKIP' : holdZero.length === 0 ? 'PASS' : 'FAIL',
-      `冻结/释放行=${holdTotal} 其中显示 ¥0.00 的=${holdZero.length}${holdZero.length ? ' -> ' + holdZero.join(',') : ''}`,
+      // 明细为空态时无判据可谈，记 SKIP（而不是静默 PASS）
+      balEmpty ? 'SKIP' : holdTotal === 0 ? 'PASS' : 'FAIL',
+      `可见流水=${balRows} 其中纯冻结/释放残留=${holdTotal}${holdTotal ? ' -> ' + holdRows.join(',') : ''}`,
       e19e
     );
 

@@ -66,6 +66,9 @@ class BalanceLedgerServiceTest {
 
     // ---- W-4：余额明细的「带符号金额」映射 ----
     // 纯冻结/释放类只改冻结额，可用余额前后一致；若沿用余额差算法会全部显示 ¥0.00。
+    // 注：自「明细剔除纯冻结/释放」起，这类行已不再从 list() 返回（过滤在 SQL，见
+    // PaymentOperationMapper#findVisibleByUserIdOrderByCreatedAtDesc）；下面 4 个用例
+    // 保留为 resolveSignedAmount 的防御性覆盖——若哪天放宽过滤，金额不能再退回 ¥0.00。
 
     @Test void list_pureFreeze_amountsFromOperationNotZero() {
         stubTransactions(freeze("PREAUTH_FREEZE", 5000, 50000, 50000));
@@ -114,8 +117,16 @@ class BalanceLedgerServiceTest {
         assertEquals(-350, firstAmount());
     }
 
+    /** 明细必须走「可见流水」查询（已在 SQL 剔除纯冻结/释放），不得退回未过滤版本。 */
+    @Test void list_usesVisibleQueryNotRawQuery() {
+        stubTransactions(freeze("CHARGE", 350, 1000, 650));
+        service.list(7L, 0, 20);
+        verify(operationRepository).findVisibleByUserIdOrderByCreatedAtDesc(eq(7L), any());
+        verify(operationRepository, never()).findByUserIdOrderByCreatedAtDesc(eq(7L), any());
+    }
+
     private void stubTransactions(PaymentOperation operation) {
-        when(operationRepository.findByUserIdOrderByCreatedAtDesc(eq(7L), any()))
+        when(operationRepository.findVisibleByUserIdOrderByCreatedAtDesc(eq(7L), any()))
                 .thenReturn(new PageImpl<>(List.of(operation)));
     }
 

@@ -167,9 +167,19 @@ public class BalanceLedgerService {
         return trim(base + " " + suffix);
     }
 
+    /**
+     * 用户可见的「余额明细」：只含真正改变可用余额的流水。
+     *
+     * <p>纯冻结/释放（{@code PREAUTH_FREEZE} / {@code PREAUTH_RELEASE} /
+     * {@code BALANCE_REFUND_FREEZE} / {@code BALANCE_REFUND_RELEASE}）只动账户
+     * {@code frozen_cents}，可用余额前后一致，被排除在列表外——否则一次「开门准备 → 超时释放」
+     * 就往明细里写两条金额相同、余额不变的行，多次开门后用户看到的全是这种噪音
+     * （实测 user 10003：21 条流水里 20 条是冻结/释放对）。
+     * 冻结状态改由明细页顶部「冻结 ¥x」表达。</p>
+     */
     @Transactional(readOnly = true)
     public PageResult<BalanceTransactionDto> list(Long userId, int page, int size) {
-        var result = operationRepository.findByUserIdOrderByCreatedAtDesc(
+        var result = operationRepository.findVisibleByUserIdOrderByCreatedAtDesc(
                 userId, PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100)));
         return new PageResult<>(result.getContent().stream().map(this::toDto).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements());
