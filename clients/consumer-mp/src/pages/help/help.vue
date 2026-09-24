@@ -1,126 +1,129 @@
 <template>
-  <view class="page">
+  <!-- 导航条必须在带横向 padding 的 .page 之外，否则绿条两侧漏白底（真机实锤） -->
+  <view class="page-outer">
     <app-nav-bar title="帮助中心" />
 
-    <view class="card">
-      <text class="card-title">联系客服</text>
-      <view
-        class="support-row"
-        role="button"
-        aria-label="拨打客服热线"
-        hover-class="support-row-hover"
-        @click="callSupport"
-      >
-        <view class="support-icon support-icon--phone" aria-hidden="true" />
-        <view class="support-main">
-          <text class="support-label">客服热线</text>
-          <text class="support-value">{{ supportPhoneDisplay }}</text>
+    <view class="page">
+      <view class="card">
+        <text class="card-title">联系客服</text>
+        <view
+          class="support-row"
+          role="button"
+          aria-label="拨打客服热线"
+          hover-class="support-row-hover"
+          @click="callSupport"
+        >
+          <view class="support-icon support-icon--phone" aria-hidden="true" />
+          <view class="support-main">
+            <text class="support-label">客服热线</text>
+            <text class="support-value">{{ supportPhoneDisplay }}</text>
+          </view>
+          <view class="support-action">拨打</view>
         </view>
-        <view class="support-action">拨打</view>
-      </view>
-      <view
-        v-if="supportEmail"
-        class="support-row"
-        role="button"
-        aria-label="复制客服邮箱"
-        hover-class="support-row-hover"
-        @click="copySupportEmail"
-      >
-        <view class="support-icon support-icon--mail" aria-hidden="true" />
-        <view class="support-main">
-          <text class="support-label">客服邮箱</text>
-          <text class="support-value">{{ supportEmail }}</text>
+        <view
+          v-if="supportEmail"
+          class="support-row"
+          role="button"
+          aria-label="复制客服邮箱"
+          hover-class="support-row-hover"
+          @click="copySupportEmail"
+        >
+          <view class="support-icon support-icon--mail" aria-hidden="true" />
+          <view class="support-main">
+            <text class="support-label">客服邮箱</text>
+            <text class="support-value">{{ supportEmail }}</text>
+          </view>
+          <view class="support-action">复制</view>
         </view>
-        <view class="support-action">复制</view>
-      </view>
-      <view
-        class="support-row"
-        role="button"
-        aria-label="查看平台公告"
-        hover-class="support-row-hover"
-        @click="goAnnouncements"
-      >
-        <view class="support-icon support-icon--notice" aria-hidden="true" />
-        <view class="support-main">
-          <text class="support-label">平台公告</text>
-          <text class="support-value">维护通知、活动与规则变更</text>
+        <view
+          class="support-row"
+          role="button"
+          aria-label="查看平台公告"
+          hover-class="support-row-hover"
+          @click="goAnnouncements"
+        >
+          <view class="support-icon support-icon--notice" aria-hidden="true" />
+          <view class="support-main">
+            <text class="support-label">平台公告</text>
+            <text class="support-value">维护通知、活动与规则变更</text>
+          </view>
+          <view class="support-action">去查看</view>
         </view>
-        <view class="support-action">去查看</view>
-      </view>
-      <view
-        class="support-row"
-        role="button"
-        aria-label="在线留言反馈"
-        hover-class="support-row-hover"
-        @click="goFeedback"
-      >
-        <view class="support-icon support-icon--chat" aria-hidden="true" />
-        <view class="support-main">
-          <text class="support-label">在线留言</text>
-          <text class="support-value">意见反馈，运营将跟进回复</text>
+        <view
+          class="support-row"
+          role="button"
+          aria-label="在线留言反馈"
+          hover-class="support-row-hover"
+          @click="goFeedback"
+        >
+          <view class="support-icon support-icon--chat" aria-hidden="true" />
+          <view class="support-main">
+            <text class="support-label">在线留言</text>
+            <text class="support-value">意见反馈，运营将跟进回复</text>
+          </view>
+          <view class="support-action">去反馈</view>
         </view>
-        <view class="support-action">去反馈</view>
-      </view>
-      <view
-        class="support-row"
-        role="button"
-        aria-label="报修柜机故障"
-        hover-class="support-row-hover"
-        @click="goReport"
-      >
-        <view class="support-icon support-icon--wrench" aria-hidden="true" />
-        <view class="support-main">
-          <text class="support-label">柜机故障</text>
-          <text class="support-value">打不开门、关不上门等</text>
+        <view
+          class="support-row"
+          role="button"
+          aria-label="报修柜机故障"
+          hover-class="support-row-hover"
+          @click="goReport"
+        >
+          <view class="support-icon support-icon--wrench" aria-hidden="true" />
+          <view class="support-main">
+            <text class="support-label">柜机故障</text>
+            <text class="support-value">打不开门、关不上门等</text>
+          </view>
+          <view class="support-action">去报修</view>
         </view>
-        <view class="support-action">去报修</view>
-      </view>
-      <view
-        class="support-row"
-        role="button"
-        aria-label="打开消息中心"
-        hover-class="support-row-hover"
-        @click="goMessages"
-      >
-        <view class="support-icon support-icon--bell" aria-hidden="true" />
-        <view class="support-main">
-          <text class="support-label">消息中心</text>
-          <text class="support-value">订单、售后与优惠提醒</text>
+        <view
+          class="support-row"
+          role="button"
+          aria-label="打开消息中心"
+          hover-class="support-row-hover"
+          @click="goMessages"
+        >
+          <view class="support-icon support-icon--bell" aria-hidden="true" />
+          <view class="support-main">
+            <text class="support-label">消息中心</text>
+            <text class="support-value">订单、售后与优惠提醒</text>
+          </view>
+          <view class="support-action">去查看</view>
         </view>
-        <view class="support-action">去查看</view>
       </view>
-    </view>
 
-    <view class="card">
-      <text class="card-title">常见问题</text>
-      <view
-        v-for="(item, idx) in faqs"
-        :key="item.q"
-        class="faq-item"
-        role="button"
-        :aria-expanded="openIdx === idx ? 'true' : 'false'"
-        :aria-label="item.q"
-        @click="toggle(idx)"
-      >
-        <view class="faq-head">
-          <text class="faq-q">{{ item.q }}</text>
-          <view
-            class="faq-toggle app-icon app-icon--chevron"
-            :class="{ 'is-down': openIdx === idx }"
-            aria-hidden="true"
-          />
+      <view class="card">
+        <text class="card-title">常见问题</text>
+        <view
+          v-for="(item, idx) in faqs"
+          :key="item.q"
+          class="faq-item"
+          role="button"
+          :aria-expanded="openIdx === idx ? 'true' : 'false'"
+          :aria-label="item.q"
+          @click="toggle(idx)"
+        >
+          <view class="faq-head">
+            <text class="faq-q">{{ item.q }}</text>
+            <view
+              class="faq-toggle app-icon app-icon--chevron"
+              :class="{ 'is-down': openIdx === idx }"
+              aria-hidden="true"
+            />
+          </view>
+          <text v-if="openIdx === idx" class="faq-a">{{ item.a }}</text>
         </view>
-        <text v-if="openIdx === idx" class="faq-a">{{ item.a }}</text>
       </view>
-    </view>
 
-    <view class="card tip-card">
-      <text class="tip-title">账单有疑问？</text>
-      <text class="tip-body"
-        >可在「订单详情」或购物结果页提交申诉。审核通过后会退回余额或原支付渠道，通常 24
-        小时内处理。</text
-      >
-      <app-button label="查看我的订单" aria-label="查看我的订单" @click="goOrders" />
+      <view class="card tip-card">
+        <text class="tip-title">账单有疑问？</text>
+        <text class="tip-body"
+          >可在「订单详情」或购物结果页提交申诉。审核通过后会退回余额或原支付渠道，通常 24
+          小时内处理。</text
+        >
+        <app-button label="查看我的订单" aria-label="查看我的订单" @click="goOrders" />
+      </view>
     </view>
   </view>
 </template>
@@ -229,6 +232,10 @@ function goOrders() {
 </script>
 
 <style scoped>
+.page-outer {
+  min-height: 100%;
+  background: var(--color-bg-card, #ffffff);
+}
 .page {
   min-height: 100%;
   padding: 0 var(--page-gutter) calc(var(--spacing-lg) * 2);
@@ -373,15 +380,11 @@ function goOrders() {
   line-height: 1.4;
 }
 .faq-toggle {
-  flex: 0 0 26rpx;
-  width: 26rpx;
-  height: 26rpx;
+  /* 与全 App 箭头同款：theme 0.55em 盒子（≈15.4rpx），不再覆写尺寸——
+     实测 26rpx 盒子的展开 V 视觉宽 58px，是收起 > 的两倍，真机显大 */
+  flex: 0 0 28rpx;
   color: var(--color-link, var(--brand, #0f766e));
   font-size: var(--font-size-md);
-}
-.faq-toggle.app-icon--chevron {
-  border-right-width: 3rpx;
-  border-bottom-width: 3rpx;
 }
 .faq-toggle.app-icon--chevron {
   transform: rotate(-45deg);

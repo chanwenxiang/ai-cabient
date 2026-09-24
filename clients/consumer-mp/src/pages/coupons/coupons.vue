@@ -32,13 +32,11 @@
         :hint="emptyHint"
       >
         <app-button label="扫码购物" @click="goShop" />
-        <!-- gap 在部分安卓 WebView 不生效 ⇒ 用 margin 兜底，避免两按钮贴死 -->
-        <app-button
-          class="empty-btn-second"
-          variant="ghost"
-          label="看热门活动"
-          @click="goMarketing"
-        />
+        <!-- 间距兜底：flex gap 部分安卓 WebView 不生效；margin 也不能挂在组件标签上
+            （落在 inline 的自定义组件 wrapper 上垂直 margin 无效），必须包块级 view -->
+        <view class="empty-btn-second">
+          <app-button variant="ghost" label="看热门活动" @click="goMarketing" />
+        </view>
       </empty-state>
       <view v-else>
         <view
