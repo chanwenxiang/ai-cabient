@@ -640,32 +640,6 @@ export const consumerApi = {
     deviceId: string,
     body: { campaignId: number; assetId: number; eventType: 'IMPRESSION' | 'COMPLETE' | 'CLICK' }
   ) => request<null>(`/api/v2/devices/${encodeURIComponent(deviceId)}/ad-play`, 'POST', body),
-  nearbyDevices: (q: { lat: number; lng: number; radiusKm?: number; limit?: number }) => {
-    const radiusKm = q.radiusKm ?? 5;
-    const limit = q.limit ?? 20;
-    return request<
-      Array<{
-        deviceId: string;
-        deviceName?: string;
-        address?: string;
-        latitude?: number;
-        longitude?: number;
-        distanceMeters: number;
-        onlineStatus?: string;
-        available: boolean;
-        sellableSkuCount: number;
-        sellableItemCount: number;
-        previewSkus?: Array<{
-          skuId: string;
-          skuName?: string;
-          quantity: number;
-          unitPriceCents: number;
-        }>;
-      }>
-    >(
-      `/api/v2/devices/nearby?lat=${encodeURIComponent(String(q.lat))}&lng=${encodeURIComponent(String(q.lng))}&radiusKm=${radiusKm}&limit=${limit}`
-    );
-  },
   createSession: async (deviceId: string, entryChannel?: string | null) => {
     const attempt = getOrCreateOpenAttempt(deviceId);
     const body: {

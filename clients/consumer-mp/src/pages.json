@@ -113,19 +113,6 @@
       ]
     },
     {
-      "root": "pages/nearby",
-      "pages": [
-        {
-          "path": "nearby",
-          "style": {
-            "navigationBarTitleText": "附近柜机",
-            "backgroundColor": "#f5f7f6",
-            "navigationStyle": "custom"
-          }
-        }
-      ]
-    },
-    {
       "root": "pages/marketing",
       "pages": [
         {

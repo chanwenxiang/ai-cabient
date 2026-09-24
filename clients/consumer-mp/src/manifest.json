@@ -22,12 +22,6 @@
       "postcss": true
     },
     "usingComponents": true,
-    "lazyCodeLoading": "requiredComponents",
-    "permission": {
-      "scope.userLocation": {
-        "desc": "用于按当前位置为你推荐附近柜机"
-      }
-    },
-    "requiredPrivateInfos": ["getLocation"]
+    "lazyCodeLoading": "requiredComponents"
   }
 }

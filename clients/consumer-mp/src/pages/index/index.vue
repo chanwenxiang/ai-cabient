@@ -48,7 +48,7 @@
                   class="error-action"
                   @click="
                     landingError = '';
-                    goNearby();
+                    onScan();
                   "
                   >换一台</text
                 >
@@ -83,19 +83,6 @@
             <text class="scan-circle-text">{{ opening ? '连接中…' : '扫码购物' }}</text>
           </button>
           <text class="scan-tip">对准柜门二维码，即可开门取货</text>
-          <view
-            v-if="lastDeviceId"
-            role="button"
-            class="resume-card"
-            @click="startShoppingFlow(lastDeviceId)"
-          >
-            <text class="resume-title">继续在本柜购物</text>
-            <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
-          </view>
-          <view class="nearby-link" role="button" @click="goNearby">
-            <text>附近找柜</text>
-            <view class="app-icon app-icon--chevron" aria-hidden="true" />
-          </view>
           <!-- 扩展功能 consumer.coupon_entry.enabled：券包入口前置到首页；默认关闭 ⇒ 不渲染 -->
           <view
             v-if="couponEntryVisible"
@@ -713,8 +700,6 @@ const adBannerVisible = ref(false);
 const detailProduct = ref<DeviceProduct | null>(null);
 const openingSeconds = ref(90);
 const brokenThumbs = ref<Record<string, boolean>>({});
-const lastDeviceId = ref('');
-const lastDeviceName = ref('');
 const authPromptVisible = ref(false);
 const showPrepDrawer = ref(false);
 const prepAccount = ref<AccountDto | null>(null);
@@ -836,8 +821,11 @@ onShareTimeline(() => ({ title: SHARE_TITLE }));
 function syncLandingTabBar() {
   if (showLanding.value) {
     uni.hideTabBar({ animation: false });
+    // 隐藏底栏后视口变化/底部安全区露出的「窗口底色」改用品牌深色，避免落地页底部出现白条
+    uni.setBackgroundColor({ backgroundColor: '#134e4a' });
   } else {
     uni.showTabBar({ animation: false });
+    uni.setBackgroundColor({ backgroundColor: '#ffffff' });
   }
 }
 
@@ -1034,8 +1022,6 @@ onShow(async () => {
   refreshPrivacyGate();
   syncLandingTabBar();
   refreshLandingPad();
-  lastDeviceId.value = uni.getStorageSync('last_device_id') || '';
-  lastDeviceName.value = uni.getStorageSync('last_device_name') || '';
   await loadConsumerConfig();
   if (seq !== showSeq) return;
   await ensureConsumerAuth();
@@ -1420,10 +1406,6 @@ function goRechargeFromError() {
   uni.navigateTo({ url: '/pages/recharge/recharge' });
 }
 
-function goNearby() {
-  uni.navigateTo({ url: '/pages/nearby/nearby' });
-}
-
 /** 扩展功能：首页券包入口前置（`consumer.coupon_entry.enabled`）。 */
 function goCoupons() {
   uni.navigateTo({ url: '/pages/coupons/coupons' });
@@ -1770,8 +1752,6 @@ async function showDeviceCatalog(id: string) {
     clampSelectionToStock();
     uni.setStorageSync('last_device_id', cabinetId);
     uni.setStorageSync('last_device_name', deviceName.value);
-    lastDeviceId.value = cabinetId;
-    lastDeviceName.value = deviceName.value;
   } catch (e) {
     showError(formatError(e));
   } finally {
@@ -2103,8 +2083,6 @@ async function finishSession(sessionState: string, sid: string) {
       if (deviceId.value) {
         uni.setStorageSync('last_device_id', deviceId.value);
         uni.setStorageSync('last_device_name', deviceName.value || deviceId.value);
-        lastDeviceId.value = deviceId.value;
-        lastDeviceName.value = deviceName.value || deviceId.value;
       }
       clearSessionUi();
       let totalCents = 0;
@@ -2477,33 +2455,6 @@ function stopDevicePoll() {
   font-size: var(--font-size-xs);
 }
 
-.resume-card {
-  margin-top: 28rpx;
-  width: 100%;
-  max-width: 520rpx;
-  background: var(--white, #ffffff);
-  border-radius: var(--radius-card, 24rpx);
-  padding: 16rpx 20rpx;
-  border: 1rpx solid rgba(15, 118, 110, 0.18);
-  box-shadow: 0 8rpx 24rpx rgba(19, 78, 74, 0.22);
-  box-sizing: border-box;
-  text-align: center;
-}
-.resume-title {
-  font-size: var(--font-size-body);
-  font-weight: 600;
-  color: var(--brand-deep, #134e4a);
-  display: block;
-  text-align: center;
-}
-.resume-sub {
-  font-size: var(--font-size-sm);
-  color: rgba(15, 118, 110, 0.72);
-  margin-top: 2rpx;
-  display: block;
-  text-align: center;
-}
-
 .landing-action {
   flex: 1;
   min-height: 0;
@@ -2511,6 +2462,8 @@ function stopDevicePoll() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  /* 扫码盘下移：真机反馈位置偏高；顶部留白把盘压向中下部（删除 resume/nearby 后组的重心也自然下落） */
+  padding-top: 16vh;
   width: 100%;
 }
 .scan-circle {
@@ -2605,24 +2558,6 @@ function stopDevicePoll() {
   border-radius: var(--radius-pill);
   background: rgba(19, 78, 74, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
-}
-.nearby-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10rpx;
-  margin: 20rpx auto 0;
-  padding: 8rpx 4rpx;
-  text-align: center;
-  font-size: var(--font-size-body);
-  color: rgba(255, 255, 255, var(--on-deep-opacity-92));
-  text-decoration: none;
-}
-.nearby-link .app-icon--chevron {
-  width: 0.45em;
-  height: 0.45em;
-  border-width: 2rpx;
-  opacity: 0.9;
 }
 /* 扩展功能：首页券包入口（consumer.coupon_entry.enabled；默认关闭 ⇒ 不渲染） */
 .coupon-link {

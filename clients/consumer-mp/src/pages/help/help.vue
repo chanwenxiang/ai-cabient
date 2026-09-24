@@ -89,20 +89,6 @@
         </view>
         <view class="support-action">去查看</view>
       </view>
-      <view
-        class="support-row"
-        role="button"
-        aria-label="查找附近柜机"
-        hover-class="support-row-hover"
-        @click="goNearby"
-      >
-        <view class="support-icon support-icon--pin" aria-hidden="true" />
-        <view class="support-main">
-          <text class="support-label">附近柜机</text>
-          <text class="support-value">按距离找可开门的柜</text>
-        </view>
-        <view class="support-action">去找柜</view>
-      </view>
     </view>
 
     <view class="card">
@@ -181,7 +167,7 @@ const faqs = [
   },
   {
     q: '附近没有柜机怎么办？',
-    a: '可在「附近柜机」扩大搜索半径，或直接扫描柜门二维码；离线/停售柜会标注状态，请选择在线可开门的柜。'
+    a: '可直接扫描柜门上的二维码开门购物；如遇到离线或停售的柜，请换一台在线可开门的柜。'
   }
 ];
 
@@ -235,10 +221,6 @@ function goReport() {
 
 function goMessages() {
   uni.navigateTo({ url: '/pages/messages/messages' });
-}
-
-function goNearby() {
-  uni.navigateTo({ url: '/pages/nearby/nearby' });
 }
 
 function goOrders() {
@@ -331,10 +313,6 @@ function goOrders() {
 .support-icon--bell::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E");
-}
-.support-icon--pin::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E");
 }
 .support-main {
   /* 0 基准 + 可伸缩：避免 H5/小程序里内容宽度把中间列压成「客…」 */
