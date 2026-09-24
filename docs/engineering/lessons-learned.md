@@ -109,6 +109,7 @@
 | 101 | Sonar 25.x 凭据 | 旧 bcrypt 密码重置法失效、旧 token 401、admin 走 Basic 认证也 401 | 25.x 本地账号改 PBKDF2（SHA-512/100k/512bit，crypted=iterations$b64）；token 存 SHA-384；admin 禁 Basic 仅表单可用 | 凭据操作先读 `TokenGeneratorImpl`/`CredentialsLocalAuthentication` 源码定格式；DB 注入 token=sha384(明文) 写 user_tokens | `infra/sonarqube/`、`scripts/ci/setup-sonar-quality-gate.sh` |
 
 | 102 | admin 顶栏 | 硬刷新后任意页顶栏一条品牌色绿线，点一下才消失 | 路由 NProgress：首屏 `start()` 与 restore/重定向竞态，残条挂到二次交互；`:18080` 走 trade JAR 旧静态、`:80` 走 nginx 挂载 | **禁止**再用 NProgress；已从 router/CSS/依赖拆除。验收用 `http://localhost/admin`（勿用 `:18080` 旧 JAR）硬刷 | `router/index.ts` |
+| 103 | admin 主内容区 | NProgress 拆除后硬刷新仍在标签行下方有一条彩线（颜色随浏览器主题），点一下才消失 | `router.afterEach` 对 `#main-content`（`tabindex="-1"`）程序化 `focus()`；页面加载后无用户交互时 Chrome 按 spec 启发式判 `:focus-visible` 成立 ⇒ UA 焦点环绕整块 el-main 一周，顶边露在标签行下方（Playwright 硬刷实测 `activeElement=#main-content fv=true outline=auto`） | 程序化聚焦目标不进 Tab 序列，焦点环对视觉用户是噪音 ⇒ `.layout-main-scroll:focus,:focus-visible{outline:none}`；改动后产物级验证 served CSS 含规则 | `router/index.ts:551`、`styles/main.css`、`.tmp/probe/green-line-reload.mjs` |
 
 ## 追加模板
 

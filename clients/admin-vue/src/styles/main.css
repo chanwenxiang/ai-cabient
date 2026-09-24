@@ -1177,6 +1177,15 @@ a:focus-visible {
   scrollbar-gutter: stable;
 }
 
+/* #main-content 由 router.afterEach 程序化聚焦（tabindex="-1"，不进 Tab 序列）：
+   硬刷新后 Chrome 对「无用户交互时的脚本聚焦」判 :focus-visible 成立，
+   UA 焦点环绕整块主内容区一周 ⇒ 顶边露出一条品牌色横线贴在标签行下方（lessons #103）。
+   键盘用户本就到不了它，焦点环对视觉用户是噪音 ⇒ 去掉 */
+.layout-main-scroll:focus,
+.layout-main-scroll:focus-visible {
+  outline: none;
+}
+
 .layout-main-scroll > .page-card.el-card,
 .layout-main-scroll > .page-fill > .page-card.el-card {
   /* 高度只跟内容走；min-height:100% 会与主区 padding 叠出多余可滚空白，并导致底部分页贴边被裁 */
