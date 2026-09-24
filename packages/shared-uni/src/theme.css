@@ -201,20 +201,29 @@ uni-button {
 /*
  * 文字链尾箭头（G08）：去掉字面量 ›，用伪元素画 chevron。
  * 用法：class 增加 app-link-chevron；文案不再含 ›
+ *
+ * 🔴 伪元素必须自带 display:inline-block，且间距用 margin-left（不用 gap）。
+ * 原因（真机实测）：`.app-link-chevron` 只是宿主的附加类，宿主自己的类若声明了
+ * display:block / inline-block（本项目实测 7 处），按特异性会压掉这里的 inline-flex；
+ * 此时伪元素退回**非 atomic inline 级** ⇒ width/height 失效、transform 不生效，
+ * chevron 塌成一条 2px 竖线（只剩 border-right），且 gap 一并失效。
+ * 自带 inline-block 后，宿主无论什么 display 都能画出正确的 ›。
  */
 .app-link-chevron {
   display: inline-flex;
   align-items: center;
-  gap: 0.35em;
 }
 .app-link-chevron::after {
   content: '';
+  display: inline-block;
   width: 0.45em;
   height: 0.45em;
+  margin-left: 0.35em;
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: rotate(-45deg);
   flex-shrink: 0;
+  vertical-align: middle;
   opacity: 0.88;
 }
 

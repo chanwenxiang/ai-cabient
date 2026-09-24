@@ -6,8 +6,12 @@
     >
     <view v-else-if="error" class="card error-card">
       <text class="err">{{ error }}</text>
-      <app-button label="回首页" @click="goHome" />
-      <app-button variant="ghost" label="查看订单" @click="goOrders" />
+      <view class="btn-slot">
+        <app-button label="回首页" @click="goHome" />
+      </view>
+      <view class="btn-slot">
+        <app-button variant="ghost" label="查看订单" @click="goOrders" />
+      </view>
     </view>
     <view v-else-if="order">
       <view class="status-header" :class="'tone-' + statusTone">
@@ -136,8 +140,12 @@
     <view v-else class="card btn-stack">
       <text class="empty-title">暂无结算结果</text>
       <text class="empty-desc">订单尚未生成或已失效，可回首页继续购物，或到订单列表查看</text>
-      <app-button label="回首页" @click="goHome" />
-      <app-button variant="ghost" label="查看订单" @click="goOrders" />
+      <view class="btn-slot">
+        <app-button label="回首页" @click="goHome" />
+      </view>
+      <view class="btn-slot">
+        <app-button variant="ghost" label="查看订单" @click="goOrders" />
+      </view>
     </view>
 
     <view
@@ -1040,11 +1048,14 @@ function goHelp() {
   padding: 40rpx 28rpx;
   text-align: center;
 }
-.error-card .action-btn {
-  margin-top: 12rpx;
-}
-.error-card .ghost-btn {
-  margin-top: 16rpx;
+/*
+ * 块级按钮槽：小程序自定义组件默认 inline 级，而 .app-btn--block 宽 100%
+ * ⇒ 两个相邻 app-button 会各自独占一行且零间距贴死（真机实测 gap=0）。
+ * 原 `.error-card .action-btn/.ghost-btn` 想给组件内部节点定间距 —— 页面 scoped
+ * 样式跨不过组件边界，是死规则，一并删除。
+ */
+.btn-slot {
+  margin-top: 20rpx;
 }
 
 .dispute-mask {

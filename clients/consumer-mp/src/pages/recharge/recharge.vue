@@ -81,47 +81,56 @@
         <text v-if="customAmountError" class="custom-error">{{ customAmountError }}</text>
       </view>
 
-      <app-button
-        v-if="wechatPayLive || wechatRechargeEnabled"
-        variant="wechat"
-        :disabled="!selectedAmount || loading"
-        :loading="loading"
-        :label="
-          loading
-            ? '处理中…'
-            : selectedAmount
-              ? `${wechatPayLive ? '微信支付' : '微信充值'} ${fmtMoney(selectedAmount)}`
-              : '微信充值'
-        "
-        @click="onWeChatRecharge"
-      />
-      <app-button
-        v-if="devTools && mockEnabled"
-        :disabled="!selectedAmount || loading"
-        :loading="loading"
-        :label="
-          loading
-            ? '充值中…'
-            : selectedAmount
-              ? `确认充值 ${fmtMoney(selectedAmount)}`
-              : '请选择金额'
-        "
-        @click="onRecharge"
-      />
-      <app-button
-        v-if="devTools && alipayRechargeEnabled"
-        variant="alipay"
-        :disabled="!selectedAmount || loading"
-        :loading="loading"
-        :label="
-          loading
-            ? '处理中…'
-            : selectedAmount
-              ? `支付宝充值 ${fmtMoney(selectedAmount)}`
-              : '支付宝充值'
-        "
-        @click="onAlipayRecharge"
-      />
+      <!--
+        🔴 相邻按钮必须各自包一层块级 view：小程序自定义组件默认 inline 级，
+        而 .app-btn--block 宽度 100% ⇒ 两个 app-button 会各自独占一行且**零间距贴死**
+        （真机实测 top/bottom 相接）。间距不能靠组件自身 margin —— 组件的内部节点
+        选不中，兄弟选择器也跨不过组件边界。
+      -->
+      <view v-if="wechatPayLive || wechatRechargeEnabled" class="btn-slot">
+        <app-button
+          variant="wechat"
+          :disabled="!selectedAmount || loading"
+          :loading="loading"
+          :label="
+            loading
+              ? '处理中…'
+              : selectedAmount
+                ? `${wechatPayLive ? '微信支付' : '微信充值'} ${fmtMoney(selectedAmount)}`
+                : '微信充值'
+          "
+          @click="onWeChatRecharge"
+        />
+      </view>
+      <view v-if="devTools && mockEnabled" class="btn-slot">
+        <app-button
+          :disabled="!selectedAmount || loading"
+          :loading="loading"
+          :label="
+            loading
+              ? '充值中…'
+              : selectedAmount
+                ? `确认充值 ${fmtMoney(selectedAmount)}`
+                : '请选择金额'
+          "
+          @click="onRecharge"
+        />
+      </view>
+      <view v-if="devTools && alipayRechargeEnabled" class="btn-slot">
+        <app-button
+          variant="alipay"
+          :disabled="!selectedAmount || loading"
+          :loading="loading"
+          :label="
+            loading
+              ? '处理中…'
+              : selectedAmount
+                ? `支付宝充值 ${fmtMoney(selectedAmount)}`
+                : '支付宝充值'
+          "
+          @click="onAlipayRecharge"
+        />
+      </view>
 
       <view
         v-if="!wechatPayLive && !wechatRechargeEnabled && !(devTools && mockEnabled)"
@@ -763,6 +772,14 @@ async function onAlipayRecharge() {
   width: 100%;
   font-size: var(--font-size-sm);
   color: var(--color-danger);
+}
+/*
+ * 块级按钮槽：相邻两个 app-button 之间补竖向间距。
+ * 用相邻兄弟选择器（作用于 wrapper，不是组件内部节点）——小程序里组件内部节点选不中，
+ * 只有 wrapper 层级可靠。
+ */
+.btn-slot + .btn-slot {
+  margin-top: 20rpx;
 }
 .app-btn[disabled] {
   opacity: 0.5;

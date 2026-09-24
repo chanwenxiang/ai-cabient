@@ -84,17 +84,21 @@
           <text class="status-label">支付宝免密</text>
           <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
         </view>
-        <app-button
-          :loading="signing"
-          :label="signing ? '开通中…' : '开通微信支付分'"
-          @click="onSignPayScore"
-        />
-        <app-button
-          variant="alipay"
-          :loading="signingAlipay"
-          :label="signingAlipay ? '开通中…' : '开通支付宝免密'"
-          @click="onSignAlipay"
-        />
+        <view class="btn-slot">
+          <app-button
+            :loading="signing"
+            :label="signing ? '开通中…' : '开通微信支付分'"
+            @click="onSignPayScore"
+          />
+        </view>
+        <view class="btn-slot">
+          <app-button
+            variant="alipay"
+            :loading="signingAlipay"
+            :label="signingAlipay ? '开通中…' : '开通支付宝免密'"
+            @click="onSignAlipay"
+          />
+        </view>
         <view role="button" class="link app-link-chevron" @click="goRecharge"
           >余额不足？去充值</view
         >
@@ -378,6 +382,13 @@ function goShop() {
   margin: 0;
   border: none;
   box-shadow: none;
+}
+/*
+ * 块级按钮槽：小程序自定义组件默认 inline 级 + .app-btn--block 宽 100%
+ * ⇒ 相邻两个 app-button 零间距贴死；页面样式进不去组件内部，间距只能挂在 wrapper 上。
+ */
+.btn-slot + .btn-slot {
+  margin-top: 20rpx;
 }
 .card-title {
   font-size: var(--font-size-xl);

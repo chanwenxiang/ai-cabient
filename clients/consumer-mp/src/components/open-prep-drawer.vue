@@ -47,21 +47,23 @@
             >
           </view>
         </view>
-        <app-button
-          v-if="showWechatSign"
-          :loading="busy"
-          :disabled="busy"
-          :label="busy ? '开通中…' : '开通微信支付分'"
-          @click="onSignPayScore"
-        />
-        <app-button
-          v-if="showAlipaySign"
-          variant="alipay"
-          :loading="busy"
-          :disabled="busy"
-          :label="busy ? '开通中…' : '开通支付宝免密'"
-          @click="onSignAlipay"
-        />
+        <view v-if="showWechatSign" class="btn-slot">
+          <app-button
+            :loading="busy"
+            :disabled="busy"
+            :label="busy ? '开通中…' : '开通微信支付分'"
+            @click="onSignPayScore"
+          />
+        </view>
+        <view v-if="showAlipaySign" class="btn-slot">
+          <app-button
+            variant="alipay"
+            :loading="busy"
+            :disabled="busy"
+            :label="busy ? '开通中…' : '开通支付宝免密'"
+            @click="onSignAlipay"
+          />
+        </view>
         <view class="fallback-block">
           <text class="fallback-title">或使用余额开门</text>
           <view class="balance-row">
@@ -75,36 +77,39 @@
           <text v-if="balanceInsufficient" class="balance-warning">
             可用余额不足预授权 ¥{{ needYuan }}，请先充值或开通免密后再开门
           </text>
-          <app-button
-            v-if="wechatPayLive || (devTools && wechatRechargeEnabled)"
-            variant="wechat"
-            :loading="busy"
-            :disabled="busy"
-            :label="
-              busy
-                ? '处理中…'
-                : wechatPayLive
-                  ? `微信支付充值 ¥${quickRechargeYuan}`
-                  : `微信充值 ¥${quickRechargeYuan}`
-            "
-            @click="onWeChatRecharge"
-          />
-          <app-button
-            v-if="devTools && mockRechargeEnabled"
-            variant="soft"
-            :loading="busy"
-            :disabled="busy"
-            :label="busy ? '发放中…' : `余额充值 ¥${quickRechargeYuan}`"
-            @click="onMockRecharge"
-          />
-          <app-button
-            v-if="devTools && alipayRechargeEnabled"
-            variant="alipay"
-            :loading="busy"
-            :disabled="busy"
-            :label="busy ? '处理中…' : `支付宝充值 ¥${quickRechargeYuan}`"
-            @click="onAlipayRecharge"
-          />
+          <view v-if="wechatPayLive || (devTools && wechatRechargeEnabled)" class="btn-slot">
+            <app-button
+              variant="wechat"
+              :loading="busy"
+              :disabled="busy"
+              :label="
+                busy
+                  ? '处理中…'
+                  : wechatPayLive
+                    ? `微信支付充值 ¥${quickRechargeYuan}`
+                    : `微信充值 ¥${quickRechargeYuan}`
+              "
+              @click="onWeChatRecharge"
+            />
+          </view>
+          <view v-if="devTools && mockRechargeEnabled" class="btn-slot">
+            <app-button
+              variant="soft"
+              :loading="busy"
+              :disabled="busy"
+              :label="busy ? '发放中…' : `余额充值 ¥${quickRechargeYuan}`"
+              @click="onMockRecharge"
+            />
+          </view>
+          <view v-if="devTools && alipayRechargeEnabled" class="btn-slot">
+            <app-button
+              variant="alipay"
+              :loading="busy"
+              :disabled="busy"
+              :label="busy ? '处理中…' : `支付宝充值 ¥${quickRechargeYuan}`"
+              @click="onAlipayRecharge"
+            />
+          </view>
           <view role="button" class="support-link app-link-chevron" @click="goRechargePage"
             >去充值页选择金额</view
           >
@@ -479,6 +484,13 @@ function onCancel() {
 }
 .drawer-body {
   margin-top: 8rpx;
+}
+/*
+ * 块级按钮槽：小程序自定义组件默认 inline 级 + .app-btn--block 宽 100%
+ * ⇒ 相邻两个 app-button 零间距贴死（真机实测）；间距只能挂在 wrapper 上。
+ */
+.btn-slot + .btn-slot {
+  margin-top: 20rpx;
 }
 .field-label {
   font-size: var(--font-size-body);

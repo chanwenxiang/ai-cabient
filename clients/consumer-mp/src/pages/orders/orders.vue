@@ -10,8 +10,12 @@
       :title="UI_COPY.loadFailed"
       :hint="error"
     >
-      <app-button :label="UI_COPY.retry" @click="load" />
-      <app-button variant="ghost" label="扫码购物" @click="goShop" />
+      <view class="btn-slot">
+        <app-button :label="UI_COPY.retry" @click="load" />
+      </view>
+      <view class="btn-slot">
+        <app-button variant="ghost" label="扫码购物" @click="goShop" />
+      </view>
     </empty-state>
     <empty-state
       v-else-if="!authed"
@@ -19,8 +23,12 @@
       title="登录后查看订单"
       hint="登录后可查看购物账单与审核进度"
     >
-      <app-button label="去登录" @click="onAuth" />
-      <app-button variant="ghost" label="扫码购物" @click="goShop" />
+      <view class="btn-slot">
+        <app-button label="去登录" @click="onAuth" />
+      </view>
+      <view class="btn-slot">
+        <app-button variant="ghost" label="扫码购物" @click="goShop" />
+      </view>
     </empty-state>
     <view v-else class="orders-main">
       <!-- 关注区 + 筛选 + 列表同一滚动，避免上半区固定挤占购买记录 -->
@@ -689,6 +697,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .state-wrap.compact {
   padding: 32rpx 24rpx;
+}
+/*
+ * 块级按钮槽：.state-wrap 虽是 flex column 但**没有 gap**，两个 app-button 会零间距贴死
+ * （小程序自定义组件默认 inline 级 + .app-btn--block 宽 100%）。
+ * 间距只能落在页面的块级 wrapper 上——组件内部节点选不中。
+ */
+.btn-slot + .btn-slot {
+  margin-top: 20rpx;
 }
 .meta {
   color: var(--text-muted, #849087);
