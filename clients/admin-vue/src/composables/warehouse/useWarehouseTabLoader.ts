@@ -4,10 +4,12 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import { adminDevWarn } from '@/utils/admin-dev-log';
+import { softFallback, reportSoftFail } from '@/utils/soft-fallback';
 import type { createLoadSeq } from '@/composables/createLoadSeq';
+import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 
-/** 仓储多 Tab 共用行（字段随业务表变化） */
-export type WarehouseTabRow = Record<string, any>;
+/** 仓储动态行（D15：禁止散落 Record<string, any>） */
+export type WarehouseTabRow = AdminDynamicRow;
 
 export type UseWarehouseTabLoaderDeps = {
   loadSeq: ReturnType<typeof createLoadSeq>;
@@ -58,17 +60,21 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
       if (!deps.hasDeviceListPerm()) {
         deps.devices.value = [];
       } else {
-        deps.devices.value = await api
-          .request<WarehouseTabRow[]>(AdminEndpoints.devicesRef, 'GET')
-          .catch(() => []);
+        deps.devices.value = await softFallback(
+          api.request<WarehouseTabRow[]>(AdminEndpoints.devicesRef, 'GET'),
+          [],
+          '设备参照'
+        );
       }
     }
     if (!deps.skus.value.length) {
       deps.skus.value =
         (
-          await api
-            .request<{ items: WarehouseTabRow[] }>(AdminEndpoints.skusCatalogPage, 'GET')
-            .catch(() => ({ items: [] as WarehouseTabRow[] }))
+          await softFallback(
+            api.request<{ items: WarehouseTabRow[] }>(AdminEndpoints.skusCatalogPage, 'GET'),
+            { items: [] as WarehouseTabRow[] },
+            'SKU 目录'
+          )
         ).items || [];
     }
   }
@@ -111,9 +117,10 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
       );
       if (!deps.loadSeq.isCurrent(seq, 'loadWarehousesSoft')) return;
       deps.warehouses.value = data.items || [];
-    } catch {
+    } catch (e) {
       if (!deps.loadSeq.isCurrent(seq, 'loadWarehousesSoft')) return;
-      /* 筛选用元数据失败时保留旧列表，不拖垮库存/出库主数据 */
+      /* 筛选用元数据失败时保留旧列表，不拖垮库存/出库主数据；须可见提示（D3） */
+      reportSoftFail(e, '仓库筛选项');
     }
   }
 
@@ -315,9 +322,11 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
 
   async function loadPayableSummary() {
     const seq = deps.loadSeq.begin('loadPayableSummary');
-    const rows = await api
-      .request<WarehouseTabRow[]>(AdminEndpoints.suppliersPayablesSummary, 'GET')
-      .catch(() => []);
+    const rows = await softFallback(
+      api.request<WarehouseTabRow[]>(AdminEndpoints.suppliersPayablesSummary, 'GET'),
+      [],
+      '应付汇总'
+    );
     if (!deps.loadSeq.isCurrent(seq, 'loadPayableSummary')) return;
     deps.payableSummary.value = rows;
   }

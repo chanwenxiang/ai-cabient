@@ -1,9 +1,10 @@
 import { type Ref } from 'vue';
 import type { Router } from 'vue-router';
 import { displayLabel } from '@aicabinet/shared-dict';
+import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 
-/** 仓储多 Tab 共用行（字段随业务表变化） */
-export type WarehouseLabelRow = Record<string, any>;
+/** 仓储动态行（D15：禁止散落 Record<string, any>） */
+export type WarehouseLabelRow = AdminDynamicRow;
 
 export type UseWarehouseLabelsDeps = {
   suppliers: Ref<WarehouseLabelRow[]>;

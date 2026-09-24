@@ -1,7 +1,8 @@
 import { computed, type Ref } from 'vue';
+import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 
-/** 仓储多 Tab 共用行（字段随业务表变化） */
-export type WarehouseFilterRow = Record<string, any>;
+/** 仓储动态行（D15：禁止散落 Record<string, any>） */
+export type WarehouseFilterRow = AdminDynamicRow;
 
 export type UseWarehouseListFiltersDeps = {
   tab: Ref<string>;

@@ -309,54 +309,11 @@
 
       <el-tabs v-model="tab" @tab-change="onTabChange">
         <el-tab-pane v-if="tabGroup === 'overview'" label="仓库概览" name="warehouses">
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <!-- 主列表统一表格壳：多选/升降序切换/固定操作列/分页/空态/刷新内建 -->
-              <CrudTable
-                :table="crud"
-                row-key="warehouseId"
-                selectable
-                :actions="warehouseRowActions"
-                :action-width="88"
-                sort-field-label="仓库编号"
-                empty-text="暂无仓库"
-                @action="onWarehouseAction"
-              >
-                <el-table-column
-                  prop="warehouseId"
-                  label="仓库编号"
-                  min-width="120"
-                  class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    <span class="cell-id">{{ row.warehouseId }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="仓库" min-width="140" class-name="col-text">
-                  <template #default="{ row }">{{ row.warehouseName || '无' }}</template>
-                </el-table-column>
-                <el-table-column
-                  prop="address"
-                  label="地址"
-                  min-width="220"
-                  class-name="col-text"
-                />
-                <el-table-column
-                  label="状态"
-                  width="100"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag :type="dictTagType(row.status)" size="small">
-                      {{ dictLabel('warehouse_status', row.status || 'ACTIVE') }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-              </CrudTable>
-            </div>
-          </div>
+          <WarehouseOverviewTab
+            :table="crud"
+            :actions="warehouseRowActions"
+            @action="onWarehouseAction"
+          />
         </el-tab-pane>
 
         <el-tab-pane
@@ -364,138 +321,18 @@
           label="仓间调拨"
           name="transfers"
         >
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                v-loading="isTabLoading('transfers')"
-                :data="transfers"
-                stripe
-                border
-                class="report-table"
-                empty-text=" "
-              >
-                <template #empty>
-                  <el-empty
-                    v-if="hydratedTabs.has('transfers') && !isTabLoading('transfers')"
-                    description="暂无调拨单"
-                  />
-                </template>
-                <el-table-column prop="transferNo" label="调拨单号" min-width="160" />
-                <el-table-column label="调出仓" min-width="120">
-                  <template #default="{ row }">{{
-                    warehouseName(row.fromWarehouseId) || row.fromWarehouseId
-                  }}</template>
-                </el-table-column>
-                <el-table-column label="调入仓" min-width="120">
-                  <template #default="{ row }">{{
-                    warehouseName(row.toWarehouseId) || row.toWarehouseId
-                  }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="状态"
-                  width="100"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag size="small" effect="plain">{{
-                      transferStatusLabel(row.status)
-                    }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column label="明细" min-width="180" class-name="col-text">
-                  <template #default="{ row }">
-                    <span
-                      class="cell-ellipsis"
-                      :title="
-                        (row.lines || [])
-                          .map(
-                            (l: WarehouseLine) =>
-                              `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
-                          )
-                          .join(' · ') || ''
-                      "
-                      >{{
-                        (row.lines || [])
-                          .map(
-                            (l: WarehouseLine) =>
-                              `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
-                          )
-                          .join(' · ') || ''
-                      }}</span
-                    >
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="发运"
-                  width="150"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <span class="cell-datetime">{{
-                      row.shippedAt ? formatDateTime(row.shippedAt) : ''
-                    }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="收货"
-                  width="150"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <span class="cell-datetime">{{
-                      row.receivedAt ? formatDateTime(row.receivedAt) : ''
-                    }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="备注" min-width="100" class-name="col-text">
-                  <template #default="{ row }">
-                    <span class="cell-ellipsis" :title="row.notes || ''">{{
-                      row.notes || ''
-                    }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  v-if="canWarehouseEdit"
-                  label="操作"
-                  width="200"
-                  align="center"
-                  fixed="right"
-                  class-name="col-action"
-                  label-class-name="col-action"
-                >
-                  <template #default="{ row }">
-                    <el-button
-                      v-if="row.status === 'DRAFT'"
-                      link
-                      type="primary"
-                      @click="shipTransfer(row)"
-                      >发运</el-button
-                    >
-                    <el-button
-                      v-if="row.status === 'SHIPPED'"
-                      link
-                      type="success"
-                      @click="receiveTransfer(row)"
-                      >收货</el-button
-                    >
-                    <el-button
-                      v-if="row.status === 'DRAFT'"
-                      link
-                      type="danger"
-                      @click="cancelTransfer(row)"
-                      >取消</el-button
-                    >
-                  </template>
-                </el-table-column>
-              </el-table>
-            </div>
-          </div>
+          <WarehouseTransfersTab
+            :loading="isTabLoading('transfers')"
+            :hydrated="hydratedTabs.has('transfers')"
+            :rows="transfers"
+            :can-warehouse-edit="canWarehouseEdit"
+            :warehouse-name="warehouseName"
+            :sku-name="skuName"
+            :transfer-status-label="transferStatusLabel"
+            @ship="shipTransfer"
+            @receive="receiveTransfer"
+            @cancel="cancelTransfer"
+          />
         </el-tab-pane>
 
         <el-tab-pane
@@ -503,100 +340,16 @@
           label="供应商"
           name="suppliers"
         >
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('suppliers')"
-                :data="pagedSuppliers"
-                :default-sort="supplierIdDefaultSort"
-                @sort-change="onSupplierIdSortChange"
-                stripe
-                border
-                row-key="supplierId"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  prop="supplierId"
-                  label="供应商编号"
-                  min-width="120"
-                  class-name="col-text"
-                  sortable="custom"
-                >
-                  <template #default="{ row }">
-                    <span class="cell-id">{{ row.supplierId }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="供应商" min-width="140" class-name="col-text">
-                  <template #default="{ row }">{{ row.supplierName || '无' }}</template>
-                </el-table-column>
-                <el-table-column
-                  prop="contactName"
-                  label="联系人"
-                  min-width="120"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  prop="contactPhone"
-                  label="联系电话"
-                  min-width="150"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                />
-                <el-table-column
-                  prop="paymentTermsDays"
-                  label="账期(天)"
-                  min-width="96"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="状态"
-                  min-width="100"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag :type="dictTagType(row.status)" size="small">{{
-                      dictLabel('supplier_status', row.status)
-                    }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  v-if="canEdit"
-                  label="操作"
-                  width="88"
-                  class-name="col-action"
-                  align="center"
-                  fixed="right"
-                >
-                  <template #default="{ row }">
-                    <TableActions
-                      :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
-                      @action="() => openSupplier(row)"
-                    />
-                  </template>
-                </el-table-column>
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('suppliers') && !isTabLoading('suppliers')"
-                    description="暂无供应商"
-                /></template>
-              </el-table>
-            </div>
-          </div>
+          <WarehouseSuppliersTab
+            :loading="isTabLoading('suppliers')"
+            :hydrated="hydratedTabs.has('suppliers')"
+            :rows="pagedSuppliers"
+            :can-edit="canEdit"
+            :default-sort="supplierIdDefaultSort"
+            @selection-change="onSelectionChange"
+            @sort-change="onSupplierIdSortChange"
+            @edit="openSupplier"
+          />
         </el-tab-pane>
 
         <el-tab-pane
@@ -604,222 +357,23 @@
           label="采购单"
           name="purchase"
         >
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('purchase')"
-                :data="pagedPurchaseOrders"
-                stripe
-                border
-                row-key="purchaseOrderId"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  type="expand"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <div class="expand-panel">
-                      <el-table :data="row.lines || []" size="small" border class="line-table">
-                        <el-table-column
-                          label="商品"
-                          min-width="180"
-                          class-name="col-text"
-                          label-class-name="col-text"
-                        >
-                          <template #default="scope">
-                            {{ skuName(scope.row.skuId) }}
-                          </template>
-                        </el-table-column>
-                        <el-table-column
-                          prop="batchNo"
-                          label="批次"
-                          min-width="140"
-                          class-name="col-text"
-                          label-class-name="col-text"
-                        />
-                        <el-table-column
-                          prop="orderedQty"
-                          label="采购数"
-                          min-width="88"
-                          align="center"
-                          class-name="col-status"
-                          label-class-name="col-status"
-                        />
-                        <el-table-column
-                          prop="receivedQty"
-                          label="已收数"
-                          min-width="88"
-                          align="center"
-                          class-name="col-status"
-                          label-class-name="col-status"
-                        />
-                        <el-table-column
-                          prop="returnedQty"
-                          label="已退数"
-                          min-width="88"
-                          align="center"
-                          class-name="col-status"
-                          label-class-name="col-status"
-                        />
-                        <el-table-column
-                          label="成本"
-                          min-width="96"
-                          align="center"
-                          class-name="col-money"
-                          label-class-name="col-money"
-                        >
-                          <template #default="scope"
-                            >¥{{ money(scope.row.unitCostCents) }}</template
-                          >
-                        </el-table-column>
-                        <el-table-column
-                          prop="expiryDate"
-                          label="到期日期"
-                          min-width="120"
-                          align="center"
-                          class-name="col-status"
-                          label-class-name="col-status"
-                        />
-                      </el-table>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  prop="purchaseOrderId"
-                  label="采购单"
-                  min-width="96"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  prop="refNo"
-                  label="外部单号"
-                  min-width="140"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <span v-if="row.refNo">{{ row.refNo }}</span>
-                    <span v-else class="muted">未填写</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="供应商"
-                  min-width="160"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    {{ supplierName(row.supplierId) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="入库仓库"
-                  min-width="160"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    {{ warehouseName(row.warehouseId) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="状态"
-                  min-width="120"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag :type="dictTagType(row.status)" size="small">{{
-                      dictLabel('purchase_order_status', row.status)
-                    }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  v-if="canProcurementList"
-                  label="审批节点"
-                  min-width="140"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <template
-                      v-if="row.status === 'PENDING_APPROVAL' && row.approvalCurrentNodeName"
-                    >
-                      <span>{{ row.approvalCurrentNodeName }}</span>
-                      <span v-if="row.approvalPendingForMe === false" class="muted">
-                        （待他人处理）
-                      </span>
-                    </template>
-                    <span v-else-if="row.status === 'PENDING_APPROVAL'" class="muted">待审批</span>
-                    <span v-else class="muted">—</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  v-if="canEdit"
-                  label="操作"
-                  min-width="220"
-                  class-name="col-action"
-                  align="center"
-                  fixed="right"
-                >
-                  <template #default="{ row }">
-                    <el-button
-                      v-if="row.status !== 'PENDING_APPROVAL'"
-                      link
-                      type="primary"
-                      class="print-btn"
-                      @click="openPrint('purchase', { purchaseOrderId: row.purchaseOrderId })"
-                      >打印收货单</el-button
-                    >
-                    <el-button
-                      v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchaseRow(row)"
-                      link
-                      type="success"
-                      @click="reviewPurchase(row, true)"
-                      >通过</el-button
-                    >
-                    <el-button
-                      v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchaseRow(row)"
-                      link
-                      type="danger"
-                      @click="reviewPurchase(row, false)"
-                      >驳回</el-button
-                    >
-                    <el-button
-                      v-if="['CREATED', 'PARTIAL_RECEIVED'].includes(row.status)"
-                      link
-                      type="primary"
-                      @click="openReceive(row)"
-                      >采购收货</el-button
-                    >
-                  </template>
-                </el-table-column>
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('purchase') && !isTabLoading('purchase')"
-                    description="暂无采购单"
-                /></template>
-              </el-table>
-            </div>
-          </div>
+          <WarehousePurchaseOrdersTab
+            :loading="isTabLoading('purchase')"
+            :hydrated="hydratedTabs.has('purchase')"
+            :rows="pagedPurchaseOrders"
+            :can-edit="canEdit"
+            :can-procurement-list="canProcurementList"
+            :sku-name="skuName"
+            :supplier-name="supplierName"
+            :warehouse-name="warehouseName"
+            :money="money"
+            :can-review-purchase-row="canReviewPurchaseRow"
+            @selection-change="onSelectionChange"
+            @print="(row) => openPrint('purchase', { purchaseOrderId: row.purchaseOrderId })"
+            @review-approve="(row) => reviewPurchase(row, true)"
+            @review-reject="(row) => reviewPurchase(row, false)"
+            @receive="openReceive"
+          />
         </el-tab-pane>
 
         <el-tab-pane
@@ -827,154 +381,14 @@
           label="采购建议"
           name="suggestions"
         >
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('suggestions')"
-                :data="pagedSuggestions"
-                stripe
-                border
-                row-key="skuId"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="商品"
-                  min-width="170"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">{{ skuName(row.skuId) }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="近7日销量"
-                  prop="soldQty7d"
-                  min-width="96"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="近14日销量"
-                  prop="soldQty14d"
-                  min-width="104"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="日均销量"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    {{ Number(row.avgDailySales ?? 0).toFixed(2) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="预测日均"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    {{ Number(row.forecastDailySales ?? row.avgDailySales ?? 0).toFixed(2) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="日均趋势"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <span v-if="Number(row.trendPerDay ?? 0) > 0" class="trend-up"
-                      >+{{ Number(row.trendPerDay).toFixed(2) }}</span
-                    >
-                    <span v-else-if="Number(row.trendPerDay ?? 0) < 0" class="trend-down">{{
-                      Number(row.trendPerDay).toFixed(2)
-                    }}</span>
-                    <span v-else>暂无</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="仓库库存"
-                  prop="onHandQty"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="待收采购"
-                  prop="pendingPoQty"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="覆盖天数"
-                  prop="coverageDays"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="建议采购量"
-                  min-width="104"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    <span class="cell-id">{{ row.suggestQty }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="安全库存"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    {{ row.safetyStockQty ?? 0 }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="建议理由"
-                  min-width="110"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag size="small" type="warning">
-                      {{ suggestionReasonText(row.suggestReason) }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('suggestions') && !isTabLoading('suggestions')"
-                    description="暂无采购建议（近 14 日有动销且库存不足的商品才会出现）"
-                /></template>
-              </el-table>
-            </div>
-          </div>
+          <WarehouseSuggestionsTab
+            :loading="isTabLoading('suggestions')"
+            :hydrated="hydratedTabs.has('suggestions')"
+            :rows="pagedSuggestions"
+            :sku-name="skuName"
+            :suggestion-reason-text="suggestionReasonText"
+            @selection-change="onSelectionChange"
+          />
         </el-tab-pane>
 
         <el-tab-pane
@@ -982,127 +396,16 @@
           label="采购退货"
           name="returns"
         >
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('returns')"
-                :data="pagedPurchaseReturns"
-                stripe
-                border
-                row-key="returnId"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  type="expand"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <div class="expand-panel">
-                      <el-table :data="row.lines || []" size="small" border class="line-table">
-                        <el-table-column
-                          label="商品"
-                          min-width="180"
-                          class-name="col-text"
-                          label-class-name="col-text"
-                        >
-                          <template #default="scope">
-                            {{ skuName(scope.row.skuId) }}
-                          </template>
-                        </el-table-column>
-                        <el-table-column
-                          prop="batchNo"
-                          label="批次"
-                          min-width="140"
-                          class-name="col-text"
-                          label-class-name="col-text"
-                        />
-                        <el-table-column
-                          prop="quantity"
-                          label="退货数"
-                          min-width="88"
-                          align="center"
-                          class-name="col-status"
-                          label-class-name="col-status"
-                        />
-                      </el-table>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  prop="returnId"
-                  label="退货单"
-                  min-width="96"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  prop="purchaseOrderId"
-                  label="采购单"
-                  min-width="96"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="供应商"
-                  min-width="160"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    {{ supplierName(row.supplierId) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="仓库"
-                  min-width="160"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    {{ warehouseName(row.warehouseId) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="状态"
-                  min-width="100"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag type="success" size="small">{{ returnStatusLabel(row.status) }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="创建时间"
-                  min-width="170"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-                </el-table-column>
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('returns') && !isTabLoading('returns')"
-                    description="暂无采购退货"
-                /></template>
-              </el-table>
-            </div>
-          </div>
+          <WarehousePurchaseReturnsTab
+            :loading="isTabLoading('returns')"
+            :hydrated="hydratedTabs.has('returns')"
+            :rows="pagedPurchaseReturns"
+            :sku-name="skuName"
+            :supplier-name="supplierName"
+            :warehouse-name="warehouseName"
+            :return-status-label="returnStatusLabel"
+            @selection-change="onSelectionChange"
+          />
         </el-tab-pane>
 
         <el-tab-pane
@@ -1110,184 +413,18 @@
           label="应付账款"
           name="payables"
         >
-          <el-alert
-            v-if="hydratedTabs.has('payables') && !isTabLoading('payables')"
-            :closable="false"
-            show-icon
-            type="info"
-            class="payable-summary"
-            :title="payableSummaryText"
+          <WarehousePayablesTab
+            :loading="isTabLoading('payables')"
+            :hydrated="hydratedTabs.has('payables')"
+            :rows="pagedPayables"
+            :summary-text="payableSummaryText"
+            :can-edit="canEdit"
+            :money="money"
+            :payable-status-type="payableStatusType"
+            :payable-status-text="payableStatusText"
+            @selection-change="onSelectionChange"
+            @pay="openPay"
           />
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('payables')"
-                :data="pagedPayables"
-                stripe
-                border
-                row-key="payableId"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <el-table-column
-                  type="expand"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <div class="expand-panel">
-                      <el-table
-                        v-if="row.payments?.length"
-                        :data="row.payments"
-                        size="small"
-                        border
-                        class="line-table"
-                      >
-                        <el-table-column
-                          label="付款时间"
-                          min-width="170"
-                          align="center"
-                          class-name="col-status"
-                          label-class-name="col-status"
-                        >
-                          <template #default="scope">
-                            {{ formatDateTime(scope.row.createdAt) }}
-                          </template>
-                        </el-table-column>
-                        <el-table-column
-                          label="付款金额"
-                          min-width="110"
-                          align="center"
-                          class-name="col-money"
-                          label-class-name="col-money"
-                        >
-                          <template #default="scope">¥{{ money(scope.row.amountCents) }}</template>
-                        </el-table-column>
-                        <el-table-column
-                          prop="notes"
-                          label="备注"
-                          min-width="180"
-                          class-name="col-text"
-                          label-class-name="col-text"
-                        />
-                      </el-table>
-                      <el-empty v-else description="暂无付款记录" :image-size="60" />
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="供应商"
-                  min-width="150"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">{{ row.supplierName }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="关联采购单"
-                  min-width="110"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    <span class="cell-id">{{ row.purchaseOrderId }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="应付金额"
-                  min-width="110"
-                  align="center"
-                  class-name="col-money"
-                  label-class-name="col-money"
-                >
-                  <template #default="{ row }">¥{{ money(row.amountCents) }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="已付"
-                  min-width="100"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">¥{{ money(row.paidAmountCents) }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="未付余额"
-                  min-width="110"
-                  align="center"
-                  class-name="col-money"
-                  label-class-name="col-money"
-                >
-                  <template #default="{ row }">
-                    <span class="cell-id">{{ money(row.balanceCents) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="到期日"
-                  min-width="110"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{ row.dueDate || '暂无' }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="状态"
-                  min-width="100"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag :type="payableStatusType(row.status)" size="small">
-                      {{ payableStatusText(row.status) }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="逾期"
-                  min-width="116"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag v-if="row.overdue" type="danger" size="small">
-                      逾期 {{ row.overdueDays }} 天
-                    </el-tag>
-                    <span v-else class="muted">未逾期</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  v-if="canEdit"
-                  label="操作"
-                  width="100"
-                  align="center"
-                  fixed="right"
-                  class-name="col-action"
-                  label-class-name="col-action"
-                >
-                  <template #default="{ row }">
-                    <el-button
-                      link
-                      type="primary"
-                      :disabled="row.balanceCents <= 0 || ['PAID', 'CLOSED'].includes(row.status)"
-                      data-testid="pay-payable"
-                      @click="openPay(row)"
-                      >登记付款</el-button
-                    >
-                  </template>
-                </el-table-column>
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('payables') && !isTabLoading('payables')"
-                    description="暂无应付账款"
-                /></template>
-              </el-table>
-            </div>
-          </div>
         </el-tab-pane>
 
         <el-tab-pane
@@ -1295,802 +432,91 @@
           label="盘点单"
           name="stocktakes"
         >
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('stocktakes')"
-                :data="pagedStocktakes"
-                stripe
-                border
-                row-key="stocktakeId"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="盘点单号"
-                  min-width="160"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <span class="cell-id">{{ row.stocktakeNo }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="仓库"
-                  min-width="140"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">{{ row.warehouseName }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="模式"
-                  min-width="80"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{ stocktakeModeText(row.mode) }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="状态"
-                  min-width="100"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag :type="stocktakeStatusType(row.status)" size="small">
-                      {{ stocktakeStatusText(row.status) }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="账面件数"
-                  prop="bookQty"
-                  min-width="90"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="实盘件数"
-                  prop="countedQty"
-                  min-width="90"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="差异件数"
-                  min-width="90"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{ row.diffQty }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="差异行数"
-                  prop="diffLineCount"
-                  min-width="90"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="创建时间"
-                  min-width="160"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-                </el-table-column>
-                <el-table-column
-                  v-if="canWarehouseEdit"
-                  label="操作"
-                  width="110"
-                  align="center"
-                  fixed="right"
-                  class-name="col-action"
-                  label-class-name="col-action"
-                >
-                  <template #default="{ row }">
-                    <el-button link type="primary" @click="openStocktakeDetail(row)">
-                      {{ ['DRAFT', 'IN_PROGRESS'].includes(row.status) ? '盘点' : '查看/调整' }}
-                    </el-button>
-                  </template>
-                </el-table-column>
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('stocktakes') && !isTabLoading('stocktakes')"
-                    description="暂无盘点单"
-                /></template>
-              </el-table>
-            </div>
-          </div>
+          <WarehouseStocktakesTab
+            :loading="isTabLoading('stocktakes')"
+            :hydrated="hydratedTabs.has('stocktakes')"
+            :rows="pagedStocktakes"
+            :can-warehouse-edit="canWarehouseEdit"
+            :stocktake-mode-text="stocktakeModeText"
+            :stocktake-status-type="stocktakeStatusType"
+            :stocktake-status-text="stocktakeStatusText"
+            @selection-change="onSelectionChange"
+            @detail="openStocktakeDetail"
+          />
         </el-tab-pane>
 
         <el-tab-pane v-if="tabGroup === 'inventory' && canWarehouseList" label="货位" name="bins">
-          <div class="section-title">货位档案</div>
-          <div class="table-scroll compact">
-            <el-table
-              v-loading="isTabLoading('bins')"
-              :data="bins"
-              stripe
-              border
-              size="small"
-              empty-text=" "
-            >
-              <el-table-column
-                label="货位编码"
-                min-width="110"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <span class="cell-id">{{ row.binCode }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                prop="binName"
-                label="货位名称"
-                min-width="140"
-                class-name="col-text"
-                label-class-name="col-text"
-              >
-                <template #default="{ row }">{{ row.binName || '暂无' }}</template>
-              </el-table-column>
-              <el-table-column
-                label="仓库"
-                min-width="140"
-                class-name="col-text"
-                label-class-name="col-text"
-              >
-                <template #default="{ row }">{{ row.warehouseName }}</template>
-              </el-table-column>
-              <el-table-column
-                label="状态"
-                min-width="90"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                    {{ displayLabel('enable_status', row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column
-                v-if="canWarehouseEdit"
-                label="操作"
-                width="80"
-                align="center"
-                fixed="right"
-                class-name="col-action"
-                label-class-name="col-action"
-              >
-                <template #default="{ row }">
-                  <el-button link type="primary" @click="openBinDialog(row)">编辑</el-button>
-                </template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('bins') && !isTabLoading('bins')"
-                  description="暂无货位，请先新增货位"
-                  :image-size="60"
-              /></template>
-            </el-table>
-          </div>
-          <div class="section-title">货位库存</div>
-          <div class="table-scroll">
-            <el-table
-              v-loading="isTabLoading('bins')"
-              :data="pagedBinStock"
-              stripe
-              border
-              empty-text=" "
-            >
-              <el-table-column
-                label="货位"
-                min-width="100"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <span class="cell-id">{{ row.binCode }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                label="商品"
-                min-width="170"
-                class-name="col-text"
-                label-class-name="col-text"
-              >
-                <template #default="{ row }">{{ row.skuName }}</template>
-              </el-table-column>
-              <el-table-column
-                prop="batchNo"
-                label="批次"
-                min-width="130"
-                class-name="col-text"
-                label-class-name="col-text"
-              />
-              <el-table-column
-                prop="productionDate"
-                label="生产日期"
-                min-width="110"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column
-                prop="expiryDate"
-                label="到期日"
-                min-width="110"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column
-                prop="quantity"
-                label="数量"
-                min-width="80"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('bins') && !isTabLoading('bins')"
-                  description="暂无货位库存"
-                  :image-size="60"
-              /></template>
-            </el-table>
-          </div>
+          <WarehouseBinsTab
+            :loading="isTabLoading('bins')"
+            :hydrated="hydratedTabs.has('bins')"
+            :bins="bins"
+            :bin-stock="pagedBinStock"
+            :can-warehouse-edit="canWarehouseEdit"
+            @edit="openBinDialog"
+          />
         </el-tab-pane>
 
         <el-tab-pane v-if="tabGroup === 'fulfillment'" label="出库单" name="outbounds">
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('outbounds')"
-                :data="pagedOutbounds"
-                stripe
-                border
-                row-key="outboundId"
-                :row-class-name="outboundRowClassName"
-                data-testid="outbound-table"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  type="expand"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <div class="expand-panel" :data-testid="`outbound-expand-${row.outboundId}`">
-                      <el-table :data="row.lines || []" size="small" border class="line-table">
-                        <el-table-column
-                          label="目标设备"
-                          min-width="180"
-                          align="center"
-                          class-name="col-status"
-                          label-class-name="col-status"
-                        >
-                          <template #default="scope">
-                            {{ deviceName(scope.row.deviceId, scope.row.deviceName) }}
-                          </template>
-                        </el-table-column>
-                        <el-table-column
-                          label="商品"
-                          min-width="180"
-                          class-name="col-text"
-                          label-class-name="col-text"
-                        >
-                          <template #default="scope">
-                            {{ skuName(scope.row.skuId) }}
-                          </template>
-                        </el-table-column>
-                        <el-table-column
-                          label="货道"
-                          min-width="88"
-                          class-name="col-text"
-                          label-class-name="col-text"
-                        >
-                          <template #default="scope">{{ scope.row.slotId || '无' }}</template>
-                        </el-table-column>
-                        <el-table-column
-                          prop="batchNo"
-                          label="批次"
-                          min-width="140"
-                          class-name="col-text"
-                          label-class-name="col-text"
-                        />
-                        <el-table-column
-                          prop="quantity"
-                          label="数量"
-                          min-width="88"
-                          align="center"
-                          class-name="col-status"
-                          label-class-name="col-status"
-                        />
-                        <el-table-column
-                          label="交接状态"
-                          min-width="110"
-                          align="center"
-                          class-name="col-status"
-                          label-class-name="col-status"
-                        >
-                          <template #default="scope">{{
-                            dictLabel('handover_status', scope.row.handoverStatus || 'PENDING')
-                          }}</template>
-                        </el-table-column>
-                      </el-table>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="出库单"
-                  min-width="110"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    <span :data-testid="`outbound-id-${row.outboundId}`" class="outbound-id-cell">{{
-                      row.outboundId
-                    }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  prop="routeId"
-                  label="路线"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="出库仓库"
-                  min-width="160"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    {{ warehouseName(row.warehouseId) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="状态"
-                  min-width="110"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag :type="dictTagType(row.status)" size="small">{{
-                      dictLabel('warehouse_outbound_status', row.status)
-                    }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="创建时间"
-                  min-width="170"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-                </el-table-column>
-                <el-table-column
-                  v-if="canEdit"
-                  label="操作"
-                  min-width="240"
-                  class-name="col-action"
-                  align="center"
-                  fixed="right"
-                >
-                  <template #default="{ row }">
-                    <div :data-testid="`outbound-row-${row.outboundId}`">
-                      <el-button
-                        v-if="row.lines?.length"
-                        link
-                        type="primary"
-                        class="print-btn"
-                        @click="openPrint('picking', { outboundId: row.outboundId })"
-                        >打印拣货单</el-button
-                      >
-                      <el-button
-                        v-if="row.status === 'DRAFT' && row.lines?.length"
-                        link
-                        type="primary"
-                        class="print-btn"
-                        :data-testid="`outbound-${row.outboundId}-pick`"
-                        @click="changeOutbound(row, 'pick')"
-                        >确认拣货</el-button
-                      >
-                      <el-button
-                        v-if="row.status === 'PICKED' && row.lines?.length"
-                        link
-                        type="danger"
-                        class="print-btn"
-                        :data-testid="`outbound-${row.outboundId}-ship`"
-                        @click="changeOutbound(row, 'ship')"
-                        >确认发运</el-button
-                      >
-                      <TableActions
-                        v-if="outboundSecondaryActions(row).length"
-                        :actions="outboundSecondaryActions(row)"
-                        :test-id-prefix="`outbound-${row.outboundId}`"
-                        @action="(k) => changeOutbound(row, String(k) as 'cancel-unreceived')"
-                      />
-                      <span v-else-if="!row.lines?.length && row.status !== 'SHIPPED'" class="muted"
-                        >无明细</span
-                      >
-                      <span v-else-if="row.status === 'SHIPPED'" class="muted">已发运</span>
-                    </div>
-                  </template>
-                </el-table-column>
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('outbounds') && !isTabLoading('outbounds')"
-                    description="暂无出库单"
-                /></template>
-              </el-table>
-            </div>
-          </div>
+          <WarehouseOutboundsTab
+            :loading="isTabLoading('outbounds')"
+            :hydrated="hydratedTabs.has('outbounds')"
+            :rows="pagedOutbounds"
+            :can-edit="canEdit"
+            :sku-name="skuName"
+            :warehouse-name="warehouseName"
+            :device-name="deviceName"
+            :outbound-row-class-name="outboundRowClassName"
+            :outbound-secondary-actions="outboundSecondaryActions"
+            @selection-change="onSelectionChange"
+            @print="(row) => openPrint('picking', { outboundId: row.outboundId })"
+            @pick="(row) => changeOutbound(row, 'pick')"
+            @ship="(row) => changeOutbound(row, 'ship')"
+            @cancel-unreceived="(row) => changeOutbound(row, 'cancel-unreceived')"
+          />
         </el-tab-pane>
 
-        <el-tab-pane v-if="tabGroup === 'fulfillment'" label="在途" name="transit">
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('transit')"
-                :data="pagedInTransit"
-                stripe
-                border
-                :row-key="transitRowKey"
-                :row-class-name="transitRowClassName"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('transit') && !isTabLoading('transit')"
-                    :description="transitEmptyHint"
-                /></template>
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  prop="outboundId"
-                  label="出库单"
-                  min-width="96"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                />
-                <el-table-column
-                  label="目标设备"
-                  min-width="180"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    {{ deviceName(row.deviceId, row.deviceName) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="商品"
-                  min-width="180"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    {{ skuName(row.skuId) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  prop="batchNo"
-                  label="批次"
-                  min-width="140"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                />
-                <el-table-column
-                  prop="quantity"
-                  label="数量"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="状态"
-                  min-width="110"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag :type="dictTagType(row.status)" size="small">{{
-                      dictLabel('in_transit_status', row.status)
-                    }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  align="center"
-                  label="在途 / 时限"
-                  min-width="160"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <div class="sla-cell">
-                      <template v-if="isTransitOverdue(row)">
-                        <el-tag type="danger" size="small">到柜超时</el-tag>
-                        <small class="sla-meta danger"
-                          >超 {{ formatAge(transitOverdueMs(row)) }}</small
-                        >
-                      </template>
-                      <template v-else-if="isTransitDueSoon(row)">
-                        <el-tag type="warning" size="small">临近超时</el-tag>
-                        <small class="sla-meta"
-                          >已运 {{ formatAge(transitAgeMs(row)) }} · 剩
-                          {{ formatAge(transitRemainMs(row)) }}</small
-                        >
-                      </template>
-                      <template v-else>
-                        <span class="cell-datetime">已运 {{ formatAge(transitAgeMs(row)) }}</span>
-                        <small class="sla-meta">待补货员到柜完成</small>
-                      </template>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="发运时间"
-                  min-width="170"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-                </el-table-column>
-              </el-table>
-            </div>
-          </div>
+                <el-tab-pane v-if="tabGroup === 'fulfillment'" label="在途" name="transit">
+          <WarehouseTransitTab
+            :loading="isTabLoading('transit')"
+            :hydrated="hydratedTabs.has('transit')"
+            :rows="pagedInTransit"
+            :empty-hint="transitEmptyHint"
+            :row-key="transitRowKey"
+            :row-class-name="transitRowClassName"
+            :device-name="deviceName"
+            :sku-name="skuName"
+            :is-transit-overdue="isTransitOverdue"
+            :is-transit-due-soon="isTransitDueSoon"
+            :format-age="formatAge"
+            :transit-age-ms="transitAgeMs"
+            :transit-remain-ms="transitRemainMs"
+            :transit-overdue-ms="transitOverdueMs"
+            @selection-change="onSelectionChange"
+          />
         </el-tab-pane>
 
         <el-tab-pane v-if="tabGroup === 'inventory'" label="批次库存" name="inventory">
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('inventory')"
-                :data="pagedInventory"
-                stripe
-                border
-                :row-key="inventoryRowKey"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="仓库"
-                  min-width="140"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="商品"
-                  min-width="180"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    {{ skuName(row.skuId) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  prop="batchNo"
-                  label="批次"
-                  min-width="150"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                />
-                <el-table-column
-                  prop="productionDate"
-                  label="生产日期"
-                  min-width="120"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  prop="expiryDate"
-                  label="到期日期"
-                  min-width="120"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  prop="quantity"
-                  label="库存"
-                  min-width="88"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="效期"
-                  min-width="100"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">
-                    <el-tag :type="expiryType(row.expiryDate)" size="small">{{
-                      expiryText(row.expiryDate)
-                    }}</el-tag>
-                  </template>
-                </el-table-column>
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('inventory') && !isTabLoading('inventory')"
-                    description="暂无库存"
-                /></template>
-              </el-table>
-            </div>
-          </div>
+          <WarehouseInventoryTab
+            :loading="isTabLoading('inventory')"
+            :hydrated="hydratedTabs.has('inventory')"
+            :rows="pagedInventory"
+            :row-key="inventoryRowKey"
+            :warehouse-name="warehouseName"
+            :sku-name="skuName"
+            :expiry-type="expiryType"
+            :expiry-text="expiryText"
+            @selection-change="onSelectionChange"
+          />
         </el-tab-pane>
 
         <el-tab-pane v-if="tabGroup === 'inventory'" label="库存流水" name="movements">
-          <p class="muted tip">仅显示最近 100 条</p>
-          <div class="table-scroll">
-            <div class="table-scroll-inner">
-              <el-table
-                class="report-table"
-                v-loading="isTabLoading('movements')"
-                :data="pagedMovements"
-                stripe
-                border
-                row-key="movementId"
-                @selection-change="onSelectionChange"
-                empty-text=" "
-              >
-                <el-table-column
-                  type="selection"
-                  width="48"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  prop="movementId"
-                  label="流水"
-                  min-width="90"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                />
-                <el-table-column
-                  label="类型"
-                  min-width="130"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{
-                    dictLabel('warehouse_movement_type', row.movementType)
-                  }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="商品"
-                  min-width="180"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="{ row }">
-                    {{ skuName(row.skuId) }}
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  prop="batchNo"
-                  label="批次"
-                  min-width="140"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                />
-                <el-table-column
-                  prop="deltaQty"
-                  label="变动"
-                  min-width="88"
-                  align="center"
-                  class-name="col-money"
-                  label-class-name="col-money"
-                >
-                  <template #default="{ row }">
-                    <span :class="row.deltaQty >= 0 ? 'positive' : 'negative'"
-                      >{{ row.deltaQty > 0 ? '+' : '' }}{{ row.deltaQty }}</span
-                    >
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  label="关联业务"
-                  min-width="140"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{
-                    dictLabel('business_reference_type', row.refType)
-                  }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="关联单号"
-                  min-width="120"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{ displayBizNo(row.refId, '无') }}</template>
-                </el-table-column>
-                <el-table-column
-                  label="时间"
-                  min-width="170"
-                  align="center"
-                  class-name="col-status"
-                  label-class-name="col-status"
-                >
-                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-                </el-table-column>
-                <template #empty
-                  ><el-empty
-                    v-if="hydratedTabs.has('movements') && !isTabLoading('movements')"
-                    description="暂无流水"
-                /></template>
-              </el-table>
-            </div>
-          </div>
+          <WarehouseMovementsTab
+            :loading="isTabLoading('movements')"
+            :hydrated="hydratedTabs.has('movements')"
+            :rows="pagedMovements"
+            :sku-name="skuName"
+            @selection-change="onSelectionChange"
+          />
         </el-tab-pane>
       </el-tabs>
       <!-- 仓库主 tab 的分页已内建 CrudTable；共享分页器仅服务其余 tab -->
@@ -2222,15 +648,28 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
-import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
-import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { type CrudRowAction } from '@/components/CrudTable.vue';
+import type { TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import WarehouseBinDialogs from '@/components/warehouse/WarehouseBinDialogs.vue';
+import WarehouseBinsTab from '@/components/warehouse/WarehouseBinsTab.vue';
 import WarehouseEntityDialogs from '@/components/warehouse/WarehouseEntityDialogs.vue';
+import WarehouseInventoryTab from '@/components/warehouse/WarehouseInventoryTab.vue';
+import WarehouseMovementsTab from '@/components/warehouse/WarehouseMovementsTab.vue';
 import WarehouseOutboundDialogs from '@/components/warehouse/WarehouseOutboundDialogs.vue';
+import WarehouseOutboundsTab from '@/components/warehouse/WarehouseOutboundsTab.vue';
+import WarehouseOverviewTab from '@/components/warehouse/WarehouseOverviewTab.vue';
+import WarehousePayablesTab from '@/components/warehouse/WarehousePayablesTab.vue';
 import WarehousePurchaseDialogs from '@/components/warehouse/WarehousePurchaseDialogs.vue';
+import WarehousePurchaseOrdersTab from '@/components/warehouse/WarehousePurchaseOrdersTab.vue';
+import WarehousePurchaseReturnsTab from '@/components/warehouse/WarehousePurchaseReturnsTab.vue';
 import WarehouseStocktakeDialogs from '@/components/warehouse/WarehouseStocktakeDialogs.vue';
+import WarehouseStocktakesTab from '@/components/warehouse/WarehouseStocktakesTab.vue';
+import WarehouseSuggestionsTab from '@/components/warehouse/WarehouseSuggestionsTab.vue';
+import WarehouseSuppliersTab from '@/components/warehouse/WarehouseSuppliersTab.vue';
 import WarehouseTransferDialogs from '@/components/warehouse/WarehouseTransferDialogs.vue';
+import WarehouseTransfersTab from '@/components/warehouse/WarehouseTransfersTab.vue';
+import WarehouseTransitTab from '@/components/warehouse/WarehouseTransitTab.vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -2252,21 +691,13 @@ import { useWarehouseStocktakes } from '@/composables/warehouse/useWarehouseStoc
 import { useWarehouseTabLoader } from '@/composables/warehouse/useWarehouseTabLoader';
 import { useWarehouseTransfers } from '@/composables/warehouse/useWarehouseTransfers';
 import { useAuthStore } from '@/stores/auth';
-import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
-import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
+import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 
 const loadSeq = createLoadSeq();
 
-/** 仓储调拨明细行 */
-type WarehouseLine = {
-  skuId?: string;
-  quantity?: number;
-  batchNo?: string;
-  expiryDate?: string;
-};
-/** 仓储多 Tab 共用行（字段随业务表变化） */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Row = Record<string, any>;
+/** 仓储动态行（D15：禁止散落 Record<string, any>） */
+type Row = AdminDynamicRow;
 
 const route = useRoute();
 const router = useRouter();
@@ -3018,16 +1449,6 @@ const {
 </script>
 
 <style scoped>
-.trend-up {
-  color: var(--el-color-danger);
-  font-weight: 600;
-}
-
-.trend-down {
-  color: var(--el-color-success);
-  font-weight: 600;
-}
-
 .page-card-head {
   display: flex;
   justify-content: space-between;

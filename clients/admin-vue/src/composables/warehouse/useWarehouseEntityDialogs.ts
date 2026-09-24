@@ -4,9 +4,10 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
 import { errorMessage } from '@/utils/error-message';
+import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 
-/** 仓储多 Tab 共用行（字段随业务表变化） */
-export type WarehouseEntityRow = Record<string, any>;
+/** 仓储动态行（D15：禁止散落 Record<string, any>） */
+export type WarehouseEntityRow = AdminDynamicRow;
 
 export type UseWarehouseEntityDialogsDeps = {
   saving: Ref<boolean>;

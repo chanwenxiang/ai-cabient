@@ -2,9 +2,10 @@ import { onActivated, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import type { RouteLocationNormalizedLoaded, Router } from 'vue-router';
 import { onPurchaseOrderReviewed } from '@/utils/purchase-order-sync';
 import { adminDevWarn } from '@/utils/admin-dev-log';
+import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 
-/** 仓储多 Tab 共用行（字段随业务表变化） */
-export type WarehouseRouteRow = Record<string, any>;
+/** 仓储动态行（D15：禁止散落 Record<string, any>） */
+export type WarehouseRouteRow = AdminDynamicRow;
 
 export type WarehouseTabGroup = 'overview' | 'procurement' | 'inventory' | 'fulfillment';
 

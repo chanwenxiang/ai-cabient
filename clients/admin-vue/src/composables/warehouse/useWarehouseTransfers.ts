@@ -4,9 +4,10 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import { displayLabel } from '@aicabinet/shared-dict';
+import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 
-/** 仓储多 Tab 共用行（字段随业务表变化） */
-export type WarehouseTransferRow = Record<string, any>;
+/** 仓储动态行（D15：禁止散落 Record<string, any>） */
+export type WarehouseTransferRow = AdminDynamicRow;
 
 export type UseWarehouseTransfersDeps = {
   saving: Ref<boolean>;
