@@ -28,6 +28,41 @@
         </view>
       </view>
 
+      <!--
+        经营概览前置（对标竞品首页信息架构）：
+        竞品（友宝/丰e足食等）商户端首页第一屏即为「今日营收」，而本页原先把该卡片排在
+        页尾第 8 位，需滚动 2-3 屏才能看到 —— 商户打开 App 最想看的数字反而最难找到。
+        数据源未变（useHomeWorkbench.applyHomeFinanceKpis 早已提供 revenueToday/trendBars），
+        此处仅调整 DOM 顺序。无财务权限时回落到「柜机概况」，不会出现空白区块。
+      -->
+      <view v-if="canFinanceKpi || canDevices" class="card section-card">
+        <text class="section">{{ canFinanceKpi ? '近7日营收' : '柜机概况' }}</text>
+        <view class="kpi-mini">
+          <view v-if="canFinanceKpi">
+            <text class="kpi-label">今日营收</text>
+            <text class="kpi-value">{{ revenueToday }}</text>
+          </view>
+          <view v-if="canFinanceKpi">
+            <text class="kpi-label">商户收入</text>
+            <text class="kpi-value">{{ incomeToday }}</text>
+          </view>
+          <view v-if="canFinanceKpi && avgOrderToday !== '暂无'">
+            <text class="kpi-label">近{{ analyticsDays }}日客单</text>
+            <text class="kpi-value">{{ avgOrderToday }}</text>
+          </view>
+          <view>
+            <text class="kpi-label">在线柜机</text>
+            <text class="kpi-value">{{ onlineText }}</text>
+          </view>
+        </view>
+        <view v-if="canFinanceKpi && trendBars.length" class="bars">
+          <view v-for="b in trendBars" :key="b.date" class="bar-wrap">
+            <view class="bar" :style="{ height: b.height + 'rpx' }" />
+            <text class="bar-label">{{ b.label }}</text>
+          </view>
+        </view>
+      </view>
+
       <!-- 竞品式主路径：扫码到柜 → 补货/查看（无补货权限时不展示，避免财务误操作） -->
       <view v-if="canReplenishment" class="scan-card">
         <view class="scan-copy">
@@ -56,7 +91,7 @@
         <view class="notice-more app-icon app-icon--chevron" aria-hidden="true" />
       </view>
 
-      <view v-if="canReplenishment || canDevices || canAlerts" class="quick-row">
+      <view v-if="canReplenishment || canDevices || canAlerts || canBusiness" class="quick-row">
         <view
           v-if="canReplenishment"
           class="quick-item primary"
@@ -104,6 +139,22 @@
           <text class="quick-label">待办事项</text>
           <text v-if="pendingCount" class="quick-badge">{{ pendingCount }}</text>
         </view>
+        <!-- 竞品惯例：经营/营收入口应在首屏可及，而非只藏在页尾「经营工具」网格里 -->
+        <view
+          v-if="canBusiness"
+          class="quick-item"
+          role="button"
+          aria-label="经营分析"
+          @click="goBusiness"
+        >
+          <image
+            class="quick-icon"
+            :src="menuIcon('business')"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
+          <text class="quick-label">经营分析</text>
+        </view>
       </view>
 
       <view v-if="canReplenishment" class="card section-card">
@@ -129,14 +180,9 @@
           :title="homeEmptyTitle"
           :hint="homeEmptyHint"
         >
+          <!-- 只保留主路径：另两个按钮（柜机列表 / 查看记录）与同一屏内的 quick-row、
+               本卡片 section-head「全部」跳转目标完全重复，属冗余入口，收敛以压缩空态高度 -->
           <app-button label="扫码到柜" :loading="scanning" @click="onScan" />
-          <app-button
-            v-if="canDevices"
-            variant="ghost"
-            label="柜机列表"
-            @click="goTab('/pages/devices/devices')"
-          />
-          <app-button variant="ghost" label="查看记录" @click="goReplenishment()" />
         </empty-state>
         <block v-else>
           <view
@@ -175,7 +221,7 @@
         <view
           v-for="item in actionItems"
           role="button"
-          :key="item.type + item.title"
+          :key="item.type"
           class="todo-row"
           hover-class="todo-row-hover"
           @click.stop="goTab('/pages/alerts/alerts')"
@@ -210,34 +256,6 @@
           </view>
           <view v-if="canBusiness" role="button" class="ops-card" @click="goBusiness">
             <text class="ops-label">经营分析</text>
-          </view>
-        </view>
-      </view>
-
-      <view v-if="canFinanceKpi || canDevices" class="card section-card">
-        <text class="section">{{ canFinanceKpi ? '近7日营收' : '柜机概况' }}</text>
-        <view class="kpi-mini">
-          <view v-if="canFinanceKpi">
-            <text class="kpi-label">今日营收</text>
-            <text class="kpi-value">{{ revenueToday }}</text>
-          </view>
-          <view v-if="canFinanceKpi">
-            <text class="kpi-label">商户收入</text>
-            <text class="kpi-value">{{ incomeToday }}</text>
-          </view>
-          <view v-if="canFinanceKpi && avgOrderToday !== '暂无'">
-            <text class="kpi-label">近{{ analyticsDays }}日客单</text>
-            <text class="kpi-value">{{ avgOrderToday }}</text>
-          </view>
-          <view>
-            <text class="kpi-label">在线柜机</text>
-            <text class="kpi-value">{{ onlineText }}</text>
-          </view>
-        </view>
-        <view v-if="canFinanceKpi && trendBars.length" class="bars">
-          <view v-for="b in trendBars" :key="b.date" class="bar-wrap">
-            <view class="bar" :style="{ height: b.height + 'rpx' }" />
-            <text class="bar-label">{{ b.label }}</text>
           </view>
         </view>
       </view>
@@ -299,7 +317,6 @@ const {
   canSettlements,
   canDisputes,
   canBusiness,
-  canTrend,
   canFinanceKpi,
   deviceLabel,
   statusLabel,
@@ -440,7 +457,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   gap: 12rpx;
   background: var(--brand-soft, #ecfdf5);
-  border: 1rpx solid color-mix(in srgb, var(--brand, #0f766e) 18%, transparent);
+  border: 1rpx solid rgba(15, 118, 110, 0.18);
   border-radius: var(--radius-control);
 }
 .notice-tag {
@@ -760,7 +777,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin: 16rpx 24rpx 0;
   padding: 18rpx 22rpx;
   border-radius: var(--radius-panel);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
+  background: #f9eded;
   color: var(--color-danger);
   font-size: var(--font-size-caption);
   display: flex;

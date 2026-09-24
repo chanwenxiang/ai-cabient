@@ -75,11 +75,11 @@ onLoad((query) => {
 }
 .tag.high {
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
 }
 .tag.urgent {
   color: var(--color-danger);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, var(--white));
+  background: #f7e4e4;
 }
 .time {
   color: var(--text-subtle);

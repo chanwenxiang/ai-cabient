@@ -694,7 +694,7 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
 .card-status {
   font-size: var(--font-size-sm);
   color: var(--warning, #92400e);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
   flex-shrink: 0;

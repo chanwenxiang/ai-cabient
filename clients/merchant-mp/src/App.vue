@@ -215,7 +215,7 @@ input {
   max-width: 100%;
   box-sizing: border-box;
   box-shadow: var(--shadow-card);
-  border: 1rpx solid color-mix(in srgb, var(--brand) 6%, transparent);
+  border: 1rpx solid rgba(15, 118, 110, 0.06);
 }
 
 .page-body {

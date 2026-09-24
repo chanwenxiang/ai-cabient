@@ -625,7 +625,7 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   text-align: center;
   font-size: var(--font-size-sm);
   color: var(--warning, #92400e);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
   box-sizing: border-box;

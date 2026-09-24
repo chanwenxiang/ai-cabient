@@ -748,8 +748,13 @@ async function onAlipayRecharge() {
 .custom-input {
   flex: 1;
   min-width: 200rpx;
-  background: var(--page-bg, #f8faf9);
-  border: 1rpx solid var(--color-border-subtle);
+  /*
+   * 输入框必须与白卡片底可区分。
+   * 消费端 App.vue 把 --page-bg 定为 #ffffff，与 .custom-row 的 --card-bg 同色 ⇒ 白底白框看不见；
+   * 故改用 --surface-muted 作填充，描边取品牌色低透明度（与 App.vue 的 .filter-chip 同一口径）。
+   */
+  background: var(--surface-muted, #f4f7f5);
+  border: 1rpx solid rgba(15, 118, 110, 0.18);
   border-radius: var(--radius-control);
   padding: 16rpx 20rpx;
   font-size: var(--font-size-md);

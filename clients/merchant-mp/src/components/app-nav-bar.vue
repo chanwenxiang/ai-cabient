@@ -15,7 +15,10 @@
         :style="{ color: color, lineHeight: rowStyle.height, paddingRight: sidePad }"
         >{{ title }}</text
       >
-      <view class="app-nav-side" :style="{ minWidth: sidePad, height: rowStyle.height }">
+      <view
+        class="app-nav-side"
+        :style="{ minWidth: sidePad, height: rowStyle.height, paddingRight: sidePad }"
+      >
         <slot name="right" />
       </view>
     </view>
@@ -127,6 +130,14 @@ export default { name: 'AppNavBar' };
 }
 .app-nav-side {
   justify-content: flex-end;
+  /*
+   * 插槽内容必须避让微信胶囊按钮。
+   * 胶囊占据右上角 menu.left→winW（实测 390 宽机：296→382），而 sidePad = winW-menu.left+8。
+   * 若只给 min-width: sidePad 并把内容 flex-end 对齐，内容会贴到导航栏右缘(382) —— 整段压在胶囊下面
+   * （nearby 的「刷新」实测 left=356，完全落在 296→382 内）。
+   * 故：flex:1 撑满返回键右侧的全部空间，再用 padding-right: sidePad 把内容推到胶囊左缘之前。
+   */
+  flex: 1;
 }
 /* 与共享 .app-icon--back 对齐，保留尺寸以贴近系统返回键 */
 .app-nav-arrow {

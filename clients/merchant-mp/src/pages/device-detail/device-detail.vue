@@ -4,7 +4,13 @@
     <view class="page-body">
       <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
       <view v-else-if="loading && !deviceName" class="card">{{ UI_COPY.loading }}</view>
-      <error-state v-else-if="error && !deviceName" :title="error" @retry="loadDetail" />
+      <error-state
+        v-else-if="error && !deviceName"
+        :title="error"
+        :hint="loadErrorHint"
+        :show-retry="canRetryLoad"
+        @retry="loadDetail"
+      />
       <view v-else-if="deviceName || !loading">
         <view class="card">
           <image
@@ -265,6 +271,18 @@ const canEditDevice = computed(() => hasPerm(me.value, 'merchant:devices:edit'))
 const canEditSlots = computed(() => canEditPlanogramForMerchant(me.value, merchantId.value));
 const canReplenishView = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
+
+/**
+ * deviceId 缺失属于「入口参数问题」，不是网络故障：
+ *   - 旧行为：走 error-state 默认 hint「请检查网络后重试」+ 显示「重试」按钮，
+ *     但重试读的是同一个空 deviceId ⇒ **永远不可能成功**，文案与按钮都在骗用户。
+ *   - 现行为：指路到柜机列表，并撤掉无效的重试按钮；真实网络失败仍保留重试。
+ */
+const missingDeviceId = computed(() => !deviceId.value);
+const loadErrorHint = computed(() =>
+  missingDeviceId.value ? '请从柜机列表重新进入' : '请检查网络后重试'
+);
+const canRetryLoad = computed(() => !missingDeviceId.value);
 
 onLoad((opts) => {
   if (!isMerchantLoggedIn()) {
@@ -570,7 +588,7 @@ async function saveSlots() {
 .velocity-data .rop {
   color: var(--warning, #b45309);
   font-weight: 700;
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  background: #f9f1eb;
   padding: 2rpx 10rpx;
   border-radius: var(--radius-pill);
 }
@@ -610,7 +628,7 @@ async function saveSlots() {
   margin-top: 12rpx;
   padding: 12rpx 16rpx;
   border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
   color: var(--warning, #92400e);
   font-size: var(--font-size-caption);
   line-height: 1.4;

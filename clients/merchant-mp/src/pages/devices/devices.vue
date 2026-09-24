@@ -125,6 +125,7 @@
             {{ UI_COPY.replenishing }}
           </text>
           <text
+            v-if="!d.salesLocked"
             class="app-status"
             :class="d.online ? 'status-on is-online' : 'status-off is-offline'"
           >
@@ -395,7 +396,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .replenish-btn {
   background: var(--color-bg-card, #fff);
   color: var(--brand, #0f766e);
-  border: 1rpx solid color-mix(in srgb, var(--brand, #0f766e) 22%, transparent);
+  border: 1rpx solid rgba(15, 118, 110, 0.22);
 }
 .scan-btn::after,
 .replenish-btn::after {
@@ -535,6 +536,11 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .online-dot.off {
   background: var(--text-subtle, #cbd5e1);
 }
+/* 每个 meta 独占一行：小程序 <text> 默认 inline，缺 display 会与相邻 text 连排
+   （真机实测「…入库 · 8°C固件 1.0.0」连成一句；.meta.addr 的 max-width 对 inline 亦无效） */
+.meta {
+  display: block;
+}
 .name {
   font-weight: 600;
   display: block;
@@ -552,7 +558,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   color: var(--warning, #b45309);
   font-weight: 700;
   font-size: var(--font-size-caption);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
 }

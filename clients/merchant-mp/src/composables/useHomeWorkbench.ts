@@ -19,7 +19,13 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
-import { mergeTodoItems, type TodoSourceException, type TodoSourceExpiry } from '@/utils/todo-list';
+import {
+  mergeTodoItems,
+  summarizeTodoItems,
+  type TodoSourceException,
+  type TodoSourceExpiry,
+  type TodoSummaryItem
+} from '@/utils/todo-list';
 import type {
   AnnouncementDto,
   MerchantMe,
@@ -86,9 +92,7 @@ export function useHomeWorkbench() {
   const pendingCount = ref(0);
   const offlineCount = ref(0);
   const pendingTaskCount = ref(0);
-  const actionItems = ref<{ type: string; title: string; detail?: string; deviceId?: string }[]>(
-    []
-  );
+  const actionItems = ref<TodoSummaryItem[]>([]);
   const taskPreview = ref<TaskRow[]>([]);
   const deviceMap = ref<Record<string, string>>({});
   const stats = ref<Record<string, unknown>>({});
@@ -300,14 +304,9 @@ export function useHomeWorkbench() {
       : [];
     pendingCount.value = mergedTodos.length;
     setAlertsTabBadge(pendingCount.value);
-    actionItems.value = canAlerts.value
-      ? mergedTodos.slice(0, 3).map((a) => ({
-          type: a.type,
-          title: a.title,
-          detail: a.detail,
-          deviceId: a.deviceId
-        }))
-      : [];
+    // 按类型聚合再截断：直接 slice 会让同柜机同类工单（如 9 张待审核单）占满首屏，
+    // 把柜机离线/库存偏低挤到看不见（详见 utils/todo-list.ts:summarizeTodoItems）
+    actionItems.value = canAlerts.value ? summarizeTodoItems(mergedTodos, 3) : [];
   }
 
   function applyTaskPreview(tasks: TaskRow[]) {

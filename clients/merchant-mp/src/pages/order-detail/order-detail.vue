@@ -334,12 +334,9 @@ function playVideo() {
   border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .status-bar.s-disputed {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)),
-    var(--white)
-  );
-  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
+  /* 静态色值：WXSS 不支持 color-mix，保留该声明会把属性重置为初始值（真机实测 background 变透明） */
+  background: linear-gradient(135deg, #f9f1eb, var(--white));
+  border-color: #eacfba;
 }
 .status-bar.s-refunded,
 .status-bar.s-partial_refunded {

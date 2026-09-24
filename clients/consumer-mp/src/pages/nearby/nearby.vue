@@ -1,12 +1,11 @@
 <template>
   <view class="page page-fill">
-    <view class="nav" :style="{ paddingTop: statusBarPad + 'px' }">
-      <view class="nav-back" role="button" aria-label="返回" @click="goBack">
-        <view class="app-icon app-icon--back" aria-hidden="true" />
-      </view>
-      <text class="nav-title">附近柜机</text>
-      <text role="button" class="nav-action" @click="reload">刷新</text>
-    </view>
+    <!-- 复用全站 AppNavBar：颜色走 --nav-bar-bg（=--brand），胶囊对齐/行高/返回逻辑与其余 20 页一致 -->
+    <app-nav-bar title="附近柜机">
+      <template #right>
+        <text role="button" class="nav-refresh" aria-label="刷新" @click="reload">刷新</text>
+      </template>
+    </app-nav-bar>
 
     <view class="toolbar">
       <text class="loc-hint">{{ locHint }}</text>
@@ -30,8 +29,13 @@
       <app-button variant="ghost" label="重试" @click="reload" />
     </view>
     <view v-else-if="!list.length" class="state">
-      <text>附近 {{ radiusKm }}km 暂无柜机</text>
-      <text class="sub">可扩大范围，或扫柜门二维码开门</text>
+      <!-- 竞品空态均带「下一步动作」；此处原本只有两行文字，用户到此即为死胡同 -->
+      <empty-state
+        kind="devices"
+        :title="`附近 ${radiusKm}km 暂无柜机`"
+        hint="可扩大搜索范围，或直接扫码开门购物"
+      />
+      <app-button label="扫码购物" @click="goShop" />
     </view>
     <scroll-view v-else class="list" scroll-y>
       <view v-for="d in list" role="button" :key="d.deviceId" class="card" @click="openDevice(d)">
@@ -81,15 +85,25 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { showError } from '@/utils/notify';
 import { consumerApi } from '@/utils/consumer-api';
-import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 
 type NearbyDevice = Awaited<ReturnType<typeof consumerApi.nearbyDevices>>[number];
 
-const statusBarPad = getBelowCapsulePadPx(8);
+/*
+ * F3 原生分享（竞品标配，本仓此前 0 命中）。
+ * 只做「无奖励的转发」——不带 invite 关系、不发券，避免重蹈 V128 删除裂变模块的覆辙；
+ * 先拿到分享量数据，再决定是否上「分享领券」。
+ */
+const SHARE_TITLE = 'AI开门柜 · 扫码开门，拿了就走';
+const SHARE_PATH = '/pages/index/index';
+
+onShareAppMessage(() => ({ title: SHARE_TITLE, path: SHARE_PATH }));
+onShareTimeline(() => ({ title: SHARE_TITLE }));
+
 const radiusOptions = [2, 5, 10, 20];
 const radiusKm = ref(5);
 const loading = ref(true);
@@ -122,13 +136,14 @@ function setRadius(r: number) {
   void loadList();
 }
 
-function goBack() {
-  uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/index/index' }) });
-}
-
 function openDevice(d: NearbyDevice) {
   uni.setStorageSync('reopen_device_id', d.deviceId);
   if (d.deviceName) uni.setStorageSync('reopen_device_name', d.deviceName);
+  uni.switchTab({ url: '/pages/index/index' });
+}
+
+/** 空态兜底出口：附近无柜机时引导回首页扫码，避免用户停在无出口的页面 */
+function goShop() {
   uni.switchTab({ url: '/pages/index/index' });
 }
 
@@ -223,37 +238,12 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
 }
-.nav {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px 12px;
-  background: var(--brand-deep);
-  color: #fff;
-}
-.nav-back {
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-}
-.nav-back .app-icon--back {
-  width: 10px;
-  height: 10px;
-  border-width: 2px;
-}
-.nav-title {
-  flex: 1;
-  text-align: center;
-  font-size: 17px;
-  font-weight: 600;
-}
-.nav-action {
-  width: 48px;
-  text-align: right;
+/* AppNavBar 右侧插槽内的「刷新」：口径对齐既有先例 messages.vue 的 .nav-read-all */
+.nav-refresh {
   font-size: 13px;
-  opacity: 0.9;
+  color: var(--white);
+  opacity: 0.92;
+  white-space: nowrap;
 }
 .toolbar {
   padding: 12px 16px 4px;
@@ -277,7 +267,7 @@ onMounted(() => {
   font-size: 12px;
 }
 .radius-chip.on {
-  background: var(--brand-deep);
+  background: var(--brand);
   color: #fff;
 }
 .state {
@@ -292,10 +282,6 @@ onMounted(() => {
 }
 .state.error {
   color: var(--color-danger);
-}
-.state .sub {
-  font-size: 12px;
-  color: var(--text-subtle);
 }
 .retry {
   margin-top: 8px;

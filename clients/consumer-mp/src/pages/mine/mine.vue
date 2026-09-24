@@ -798,7 +798,7 @@ async function onLogout() {
   border-radius: var(--radius-control);
   background: var(--brand, #0f766e);
   border: 1rpx solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 6rpx 16rpx rgba(6, 78, 59, 0.16);
+  box-shadow: 0 6rpx 16rpx rgba(19, 78, 74, 0.16);
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -430,7 +430,7 @@ async function savePrice(p: MerchantSkuPricing) {
   margin-top: 6rpx;
   font-size: var(--font-size-xs);
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
   padding: 2rpx 10rpx;
   border-radius: var(--radius-tag);
 }
@@ -463,7 +463,7 @@ async function savePrice(p: MerchantSkuPricing) {
   margin: 0 0 12rpx;
   padding: 16rpx 20rpx;
   border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
+  background: #f9eded;
   color: var(--color-danger);
   font-size: var(--font-size-caption);
   display: flex;

@@ -36,7 +36,13 @@ uni-page-body {
   --brand-wx: #07c160;
   --brand-soft: #ecfdf5;
   --brand-mist: #ccfbf1;
-  /* 小程序端 theme.css 的 :root 不生效（WXSS 不支持 :root），页面用到的核心 token 在此补齐 */
+  /*
+   * 令牌兜底：theme.css 把令牌声明在 :root 上。
+   * WebView 渲染器（本项目 app.json 未开 skyline）下 :root 命中 <html>，可正常继承；
+   * 但 Skyline 的官方「选择器支持」表列出的伪类只有 :first-child/:last-child/:not/
+   * :only-child/:empty/:nth-child，不含 :root（CSS 变量本身是支持的），届时 :root 上的声明会静默失效。
+   * 故在 page 上把页面实际用到的令牌补齐。值须与 theme.css 逐字一致，改一处必须同步另一处。
+   */
   --white: #ffffff;
   --card-bg: #ffffff;
   --surface-muted: #f4f7f5;
@@ -92,6 +98,40 @@ uni-page-body {
   --radius-tag: 8rpx;
   --card-radius: var(--radius-card);
   --text-primary: #14201b;
+  /* —— 令牌兜底（值同 shared-uni/theme.css :root，逐字复制；勿只改一侧）—— */
+  --app-font-mono:
+    'SF Mono', 'Cascadia Mono', 'Consolas', 'Sarasa Mono SC', ui-monospace, monospace;
+  --el-font-family: var(--app-font);
+  --app-font-size-root: 14px;
+  --brand-alipay: #1677ff;
+  --accent-orange: #c2410c;
+  --info: #0369a1;
+  --info-soft: #e0f2fe;
+  --warning-soft: #fff7ed;
+  --danger-soft: #fef2f2;
+  --accent-rose: #be185d;
+  --accent-rose-soft: #fce7f3;
+  --page-tint: #f0fdfa;
+  --chart-1: #2dd4bf;
+  --chart-2: #60a5fa;
+  --chart-3: #fbbf24;
+  --chart-4: #a78bfa;
+  --chart-5: #f97316;
+  --color-white: var(--white);
+  --card-border: #e2e8f0;
+  --section-gap: 20rpx;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-body: 1.5;
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-bg-card: var(--card-bg);
+  --color-border: var(--card-border);
+  --color-border-subtle: #f3f4f6;
   height: 100%;
   /* 默认白底；首页沉浸绿由 pages.json backgroundColor + 页内样式覆盖 */
   background-color: var(--page-bg);

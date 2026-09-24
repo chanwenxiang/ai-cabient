@@ -635,6 +635,6 @@ async function onLogout() {
   background: #fffafa;
 }
 .danger-cell .menu-icon {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
+  background: #f9eded;
 }
 </style>

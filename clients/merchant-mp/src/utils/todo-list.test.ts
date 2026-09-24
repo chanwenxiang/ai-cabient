@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mergeTodoItems } from './todo-list';
-import type { TodoSourceAction, TodoSourceException, TodoSourceExpiry } from './todo-list';
+import { mergeTodoItems, summarizeTodoItems } from './todo-list';
+import type {
+  TodoListItem,
+  TodoSourceAction,
+  TodoSourceException,
+  TodoSourceExpiry
+} from './todo-list';
 
 /**
  * 只替换掉会牵出 uni 网络栈的两个展示函数，合并/去重逻辑全部走真实实现；
@@ -194,5 +199,118 @@ describe('mergeTodoItems · 去重', () => {
       actionItems: [action({ title: '甲' }), action({ title: '乙' })]
     });
     expect(items).toHaveLength(2);
+  });
+});
+
+function todo(over: Partial<TodoListItem> = {}): TodoListItem {
+  return {
+    type: 'DISPUTE',
+    typeLabel: 'L:DISPUTE',
+    title: '待审核争议',
+    detail: '模拟/兜底识别结果，非生产精度，需人工审核',
+    deviceId: 'D1',
+    ...over
+  };
+}
+
+describe('summarizeTodoItems · 首屏待办聚合', () => {
+  it('空输入返回空数组；limit 为 0 时不返回任何项', () => {
+    expect(summarizeTodoItems([])).toEqual([]);
+    expect(summarizeTodoItems([todo()], 0)).toEqual([]);
+  });
+
+  it('单条时原样透传 detail 与 deviceId（单条场景行为零变化）', () => {
+    const [row] = summarizeTodoItems([
+      todo({ type: 'LOW_STOCK', deviceId: 'D9', detail: 'SKU 当前 2 / 阈值 2' })
+    ]);
+    expect(row.count).toBe(1);
+    expect(row.deviceCount).toBe(1);
+    expect(row.detail).toBe('SKU 当前 2 / 阈值 2');
+    expect(row.deviceId).toBe('D9');
+  });
+
+  it('同类型同柜机的多条合并为一行并报数量（回归：9 张待审核单曾占满首屏三行）', () => {
+    const items = Array.from({ length: 9 }, (_, i) =>
+      todo({ type: 'DISPUTE', deviceId: 'D1', title: `待审核争议${i}` })
+    );
+    const rows = summarizeTodoItems(items, 3);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].count).toBe(9);
+    expect(rows[0].deviceCount).toBe(1);
+    expect(rows[0].detail).toBe('共 9 件待处理');
+    expect(rows[0].deviceId).toBe('D1');
+  });
+
+  it('同类型跨多台柜机时 deviceId 置空、detail 同时报件数与台数（避免只指其中一台）', () => {
+    const rows = summarizeTodoItems(
+      [
+        todo({ type: 'DISPUTE', deviceId: 'D1' }),
+        todo({ type: 'DISPUTE', deviceId: 'D2' }),
+        todo({ type: 'DISPUTE', deviceId: 'D2' })
+      ],
+      3
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].count).toBe(3);
+    expect(rows[0].deviceCount).toBe(2);
+    expect(rows[0].detail).toBe('共 3 件 · 2 台柜机');
+    expect(rows[0].deviceId).toBeUndefined();
+  });
+
+  it('按类型聚合后，首屏 3 行覆盖 3 个不同类型（不再三行同文）', () => {
+    const rows = summarizeTodoItems(
+      [
+        ...Array.from({ length: 9 }, () => todo({ type: 'DISPUTE', deviceId: 'D1' })),
+        ...Array.from({ length: 3 }, () => todo({ type: 'DISPUTE', deviceId: 'D2' })),
+        todo({
+          type: 'DEVICE_OFFLINE',
+          deviceId: 'D2',
+          title: '柜机离线',
+          detail: '浏览器自动发号柜'
+        }),
+        todo({
+          type: 'LOW_STOCK',
+          deviceId: 'D1',
+          title: '库存偏低',
+          detail: 'SKU 当前 2 / 阈值 2'
+        })
+      ],
+      3
+    );
+    expect(rows.map((r) => r.type)).toEqual(['DEVICE_OFFLINE', 'DISPUTE', 'LOW_STOCK']);
+    expect(new Set(rows.map((r) => r.type)).size).toBe(3);
+  });
+
+  it('设备不可用类排在积压工单之前（离线 1 条也优先于 12 条争议）', () => {
+    const rows = summarizeTodoItems(
+      [
+        ...Array.from({ length: 12 }, () => todo({ type: 'DISPUTE', deviceId: 'D1' })),
+        todo({ type: 'DEVICE_FAULT', title: '柜机故障' })
+      ],
+      3
+    );
+    expect(rows[0].type).toBe('DEVICE_FAULT');
+    expect(rows[1].type).toBe('DISPUTE');
+  });
+
+  it('同优先级按条数降序，未知类型排最后', () => {
+    const rows = summarizeTodoItems(
+      [
+        todo({ type: 'SOMETHING_NEW', title: '新类型' }),
+        todo({ type: 'LOW_STOCK', title: '库存偏低' }),
+        todo({ type: 'LOW_STOCK', title: '库存偏低' }),
+        todo({ type: 'LOW_STOCK', title: '库存偏低' })
+      ],
+      3
+    );
+    expect(rows.map((r) => r.type)).toEqual(['LOW_STOCK', 'SOMETHING_NEW']);
+  });
+
+  it('type 聚合后唯一 ⇒ 可作为列表 key（原 key `type+title` 在三行同文时会重复）', () => {
+    const rows = summarizeTodoItems(
+      Array.from({ length: 5 }, () => todo({ type: 'DISPUTE', title: '待审核争议' })),
+      3
+    );
+    expect(new Set(rows.map((r) => r.type)).size).toBe(rows.length);
   });
 });

@@ -110,3 +110,94 @@ export function mergeTodoItems(input: {
     return true;
   });
 }
+
+export type TodoSummaryItem = {
+  type: string;
+  typeLabel: string;
+  title: string;
+  detail: string;
+  deviceId?: string;
+  /** 该类型下待办条数（聚合前） */
+  count: number;
+  /** 涉及的柜机台数 */
+  deviceCount: number;
+};
+
+/** 「设备不可用」类优先暴露：这类事项直接损失营收，比积压工单更该被先看到 */
+const TODO_TYPE_RANK: Record<string, number> = {
+  DEVICE_FAULT: 0,
+  DEVICE_OFFLINE: 0,
+  SALES_LOCKED: 0
+};
+
+function typeRank(type?: string) {
+  return TODO_TYPE_RANK[typeKey(type)] ?? 1;
+}
+
+/**
+ * 首页「优先待办」摘要：按事项**类型**聚合。
+ *
+ * 动机（实测缺陷）：`workbench` 曾一次返回 9 张同柜机的 `DISPUTE` 待审核单，
+ * 直接 `slice(0, 3)` 会让首屏三行**文字完全相同**，而「柜机离线」「库存偏低」
+ * 被挤到看不见 —— 看起来像「后端重复数据」，其实是**列表没聚合**。
+ *
+ * 契约：
+ * - `count === 1` 时**原样透传** detail/deviceId（单条场景行为零变化）
+ * - 多条的 detail 只报数量，不再泄漏某一条的明细（避免误导）
+ * - 排序：设备不可用类优先，其后按条数降序
+ */
+export function summarizeTodoItems(items: TodoListItem[], limit = 3): TodoSummaryItem[] {
+  const groups = new Map<string, TodoSummaryItem & { devices: Set<string> }>();
+  for (const it of items || []) {
+    const k = typeKey(it.type);
+    let g = groups.get(k);
+    if (!g) {
+      g = {
+        type: it.type,
+        typeLabel: it.typeLabel,
+        title: it.title,
+        detail: it.detail,
+        deviceId: it.deviceId,
+        count: 0,
+        deviceCount: 0,
+        devices: new Set<string>()
+      };
+      groups.set(k, g);
+    }
+    g.count += 1;
+    const d = deviceKey(it.deviceId);
+    if (d) g.devices.add(d);
+  }
+
+  const list = [...groups.values()].map((g) => {
+    const deviceCount = g.devices.size;
+    let { detail, deviceId } = g;
+    if (g.count > 1) {
+      // 多台柜机时 deviceId 行会误导（只指其中一台），改为在 detail 里报台数
+      if (deviceCount > 1) {
+        detail = `共 ${g.count} 件 · ${deviceCount} 台柜机`;
+        deviceId = undefined;
+      } else {
+        detail = `共 ${g.count} 件待处理`;
+      }
+    }
+    return {
+      type: g.type,
+      typeLabel: g.typeLabel,
+      title: g.title,
+      detail,
+      deviceId,
+      count: g.count,
+      deviceCount
+    } as TodoSummaryItem;
+  });
+
+  list.sort((a, b) => {
+    const r = typeRank(a.type) - typeRank(b.type);
+    if (r !== 0) return r;
+    if (b.count !== a.count) return b.count - a.count;
+    return a.title.localeCompare(b.title);
+  });
+
+  return list.slice(0, Math.max(0, limit));
+}

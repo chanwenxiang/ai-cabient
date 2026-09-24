@@ -782,7 +782,7 @@ function goReplenish(req: OpenApiMerchantReplenishmentRequestDto) {
   font-size: var(--font-size-sm);
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
   color: var(--warning, #92400e);
 }
 .status.accepted {
@@ -790,7 +790,7 @@ function goReplenish(req: OpenApiMerchantReplenishmentRequestDto) {
   color: var(--brand-deep, #166534);
 }
 .status.rejected {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, var(--white));
+  background: #f7e4e4;
   color: var(--danger, #991b1b);
 }
 .status.completed {

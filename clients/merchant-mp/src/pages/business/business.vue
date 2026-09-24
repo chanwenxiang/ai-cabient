@@ -692,7 +692,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   flex: 1;
   padding: 14rpx;
   border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  background: #f9f1eb;
 }
 .expiry-n,
 .expiry-l {
@@ -931,8 +931,8 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   margin: 12rpx 24rpx;
   padding: 24rpx;
   border-radius: 18rpx;
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
-  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
+  background: #f9f1eb;
+  border: 1rpx solid #eacfba;
 }
 .risk-title {
   display: block;

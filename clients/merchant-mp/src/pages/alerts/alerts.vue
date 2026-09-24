@@ -483,7 +483,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   pointer-events: none;
 }
 .tag.dispute {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));
+  background: #f2d6d6;
   color: var(--color-danger);
 }
 .tag.offline {

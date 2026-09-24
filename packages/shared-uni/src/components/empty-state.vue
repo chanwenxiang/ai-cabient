@@ -120,8 +120,13 @@ export default { name: 'EmptyState' };
   top: 50%;
   transform: translate(-50%, -50%);
   box-sizing: border-box;
-  border: 3rpx solid currentColor;
-  opacity: 0.7;
+  border: 4rpx solid currentColor;
+  /*
+   * 原为 0.7：叠在 --brand-soft/#ecfdf5 圆底上仅 ≈2.98:1，低于非文本图形 3:1 下限；
+   * 真机空态截图放大后确认字形发虚到几乎不可见（圆底本身对白底也只有 1.05:1）。
+   * 取 1 ⇒ 5.21:1。圆底保持浅色调（软底是刻意选择），由字形承担可辨识度。
+   */
+  opacity: 1;
 }
 .empty-glyph--default::after {
   width: 28rpx;
@@ -157,7 +162,7 @@ export default { name: 'EmptyState' };
   border-radius: 6rpx;
 }
 .kind-alerts .empty-icon {
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
   color: var(--warning, #b45309);
 }
 .kind-orders .empty-icon {

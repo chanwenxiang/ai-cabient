@@ -85,17 +85,17 @@ export default { name: 'AppButton' };
 .app-btn--primary {
   background: var(--brand, #0f766e);
   color: var(--white);
-  box-shadow: 0 8rpx 20rpx color-mix(in srgb, var(--brand, #0f766e) 28%, transparent);
+  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.28);
 }
 .app-btn--ghost {
   background: var(--brand-soft, #ecfdf5);
   color: var(--brand, #0f766e);
-  border-color: color-mix(in srgb, var(--brand, #0f766e) 18%, transparent);
+  border-color: rgba(15, 118, 110, 0.18);
 }
 .app-btn--outline {
   background: transparent;
   color: var(--brand, #0f766e);
-  border-color: color-mix(in srgb, var(--brand, #0f766e) 35%, transparent);
+  border-color: rgba(15, 118, 110, 0.35);
 }
 .app-btn--danger {
   background: var(--danger, #b91c1c);
@@ -123,7 +123,7 @@ export default { name: 'AppButton' };
 .app-btn--soft {
   background: var(--brand-soft, #ecfdf5);
   color: var(--brand-deep, #134e4a);
-  border-color: color-mix(in srgb, var(--brand, #0f766e) 16%, transparent);
+  border-color: rgba(15, 118, 110, 0.16);
 }
 .app-btn.is-disabled {
   opacity: 0.55;

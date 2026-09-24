@@ -354,11 +354,11 @@ function skuKey(line: Line) {
 }
 .line-cap.warn {
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  background: #f9f1eb;
 }
 .line-cap.full {
   color: var(--color-danger);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
+  background: #f9eded;
 }
 .product-thumb {
   position: relative;

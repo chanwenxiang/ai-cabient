@@ -85,7 +85,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
-import { onShow } from '@dcloudio/uni-app';
+import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
   isConsumerLoggedIn,
@@ -95,6 +95,17 @@ import {
 } from '@/utils/consumer-api';
 import { menuIcon } from '@/utils/menu-icon';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+
+/*
+ * F3 原生分享（竞品标配，本仓此前两端 0 命中）。
+ * 活动页是对外扩散价值最高的一页，故除首页外先补这里；同样是「无奖励转发」，
+ * 不带 invite/归因参数 —— 先量化分享量，再决定是否上「分享领券」。
+ */
+const SHARE_TITLE = 'AI开门柜 · 领券与热门活动';
+const SHARE_PATH = '/pages/marketing/index';
+
+onShareAppMessage(() => ({ title: SHARE_TITLE, path: SHARE_PATH }));
+onShareTimeline(() => ({ title: SHARE_TITLE }));
 
 const banners = ref<MarketingBannerDto[]>([]);
 const campaigns = ref<MarketingCampaignDto[]>([]);
@@ -341,7 +352,7 @@ function remainText(end?: string) {
   width: 96rpx;
   height: 96rpx;
   border-radius: var(--radius-card);
-  background: rgba(6, 78, 59, 0.55);
+  background: rgba(19, 78, 74, 0.55);
   border: 2rpx solid rgba(255, 255, 255, 0.28);
   display: flex;
   align-items: center;

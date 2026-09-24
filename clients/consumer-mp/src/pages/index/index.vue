@@ -2,15 +2,9 @@
   <view class="page-root page-fill" :class="{ 'is-landing': showLanding }">
     <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
     <view v-if="showLanding" class="landing">
-      <view class="bg-decor" aria-hidden="true">
-        <view class="bg-orb o1" />
-        <view class="bg-orb o2" />
-        <view class="bg-ring r1" />
-        <view class="bg-ring r2" />
-        <view class="bg-dot d1" />
-        <view class="bg-dot d2" />
-        <view class="bg-dot d3" />
-      </view>
+      <image class="landing-bg" :src="landingBgUrl" mode="aspectFill" aria-hidden="true" />
+      <view class="landing-overlay" />
+
       <view class="landing-content">
         <view class="landing-top">
           <view class="landing-head" :style="landingHeadStyle">
@@ -550,7 +544,15 @@
 </template>
 
 <script setup lang="ts">
-import { onHide, onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
+import {
+  onHide,
+  onLoad,
+  onReady,
+  onShareAppMessage,
+  onShareTimeline,
+  onShow,
+  onUnload
+} from '@dcloudio/uni-app';
 import { computed, ref, watch } from 'vue';
 import OpenPrepDrawer from '@/components/open-prep-drawer.vue';
 import DeviceAdBanner from '@/components/device-ad-banner.vue';
@@ -565,6 +567,7 @@ import {
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
+import landingBgUrl from '@/static/bg-shop-indoor.jpg';
 import {
   sessionStateHint,
   sessionStateLabel,
@@ -815,6 +818,19 @@ function resetCatalogFilter() {
 }
 
 const showLanding = computed(() => !scanned.value && !enteringFlow.value);
+
+/*
+ * F3 原生分享（竞品标配，本仓此前两端 0 命中）。
+ * 刻意「不带 deviceId」：parseLaunchOptions 只要见到 deviceId 就把 autoOpen 判为 true
+ * （shared-uni/qrcode.ts:199-202 用的是 `||` 短路，无法用 autoOpen=0 关掉），
+ * 好友点开会被直接拽进开门流程 —— 而好友显然不在柜机前。
+ * 故只分享首页入口：先把分享量数据拿到手，再谈「分享领券」那一档。
+ */
+const SHARE_TITLE = 'AI开门柜 · 扫码开门，拿了就走';
+const SHARE_PATH = '/pages/index/index';
+
+onShareAppMessage(() => ({ title: SHARE_TITLE, path: SHARE_PATH }));
+onShareTimeline(() => ({ title: SHARE_TITLE }));
 
 /** 对齐扫码开门竞品：落地页全屏沉浸隐藏底栏；进入柜机流程后再显示 */
 function syncLandingTabBar() {
@@ -2349,7 +2365,7 @@ function stopDevicePoll() {
   position: relative;
 }
 .page-root.is-landing {
-  background: linear-gradient(168deg, #0d9488 0%, #0f766e 46%, #115e59 100%);
+  background: var(--brand-deep, #134e4a);
 }
 
 .landing {
@@ -2360,77 +2376,43 @@ function stopDevicePoll() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* 设计背景：右上青光主光源 + 左侧青雾 + 底部深潭渐隐，叠品牌绿基色（竞品同款多层光效） */
-  background:
-    radial-gradient(110% 75% at 88% -8%, rgba(52, 211, 183, 0.5) 0%, rgba(52, 211, 183, 0) 58%),
-    radial-gradient(85% 55% at -12% 28%, rgba(94, 234, 212, 0.2) 0%, rgba(94, 234, 212, 0) 62%),
-    radial-gradient(140% 95% at 50% 118%, rgba(3, 42, 39, 0.9) 0%, rgba(3, 42, 39, 0) 68%),
-    linear-gradient(170deg, #159d8d 0%, #0f766e 46%, #0c554e 100%);
+  background: var(--brand-deep, #134e4a);
 }
-.bg-decor {
+.landing-bg {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
   z-index: 0;
-  pointer-events: none;
 }
-.bg-orb {
+.landing-overlay {
   position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 70%);
-}
-.bg-orb.o1 {
-  width: 540rpx;
-  height: 540rpx;
-  right: -150rpx;
-  top: -130rpx;
-}
-.bg-orb.o2 {
-  width: 320rpx;
-  height: 320rpx;
-  left: -90rpx;
-  top: 36%;
-}
-.bg-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 2rpx solid rgba(255, 255, 255, 0.13);
-}
-.bg-ring.r1 {
-  width: 560rpx;
-  height: 560rpx;
-  right: -190rpx;
-  top: 100rpx;
-}
-.bg-ring.r2 {
-  width: 300rpx;
-  height: 300rpx;
-  left: -100rpx;
-  bottom: 320rpx;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-.bg-dot {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35);
-}
-.bg-dot.d1 {
-  width: 10rpx;
-  height: 10rpx;
-  left: 18%;
-  top: 24%;
-}
-.bg-dot.d2 {
-  width: 6rpx;
-  height: 6rpx;
-  right: 22%;
-  top: 17%;
-}
-.bg-dot.d3 {
-  width: 8rpx;
-  height: 8rpx;
-  right: 30%;
-  bottom: 25%;
-  background: rgba(255, 255, 255, 0.22);
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  /*
+   * 蒙层改用品牌青绿 --brand-deep #134e4a 的 rgb(19,78,74)（H≈176）。
+   *
+   * 原值 rgba(6,78,59) 即 #064e3b，H≈164 偏黄，再叠暖调实景照片，
+   * 真机实测背景落到 H≈147~154；而扫码盘用品牌色 --brand H≈175 —— 相差 21~28°，
+   * 这正是「盘的颜色和背景不符」的根因：盘是青绿、背景是橄榄绿，且二者明度几乎相同
+   * （实测盘心 L=0.107 / 背景 L=0.114），同亮度上换色相 ⇒ 眼睛读成「脏」。
+   *
+   * 中间档不透明度 0.45 → 0.62 → 0.76：压低照片暖色的权重，把背景拉回品牌色相。
+   * 第一轮只提到 0.62 时，真机实测背景仅到 H=163.8（目标 ≥167，ΔH 11.1° 仍超 8° 判据），
+   * 余量不够 —— 照片在该高度（人物/柜机区）比「盘上区」更暖。0.76 是实测能达标的最小值：
+   * 再低则 ΔH 越界，再高则实景照片被压成版画、失去落地页的实景说明性。
+   * 三档仍同色同源、只调不透明度，保留照片的实景感而不出现灰绿/青绿断层。
+   */
+  background: linear-gradient(
+    180deg,
+    rgba(19, 78, 74, 0.84) 0%,
+    rgba(19, 78, 74, 0.76) 45%,
+    rgba(19, 78, 74, 0.92) 100%
+  );
 }
 .landing-content {
   position: relative;
@@ -2503,7 +2485,7 @@ function stopDevicePoll() {
   border-radius: var(--radius-card, 24rpx);
   padding: 16rpx 20rpx;
   border: 1rpx solid rgba(15, 118, 110, 0.18);
-  box-shadow: 0 8rpx 24rpx rgba(6, 78, 59, 0.22);
+  box-shadow: 0 8rpx 24rpx rgba(19, 78, 74, 0.22);
   box-sizing: border-box;
   text-align: center;
 }
@@ -2540,6 +2522,10 @@ function stopDevicePoll() {
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* hover-class 切换时给一点过渡，否则 scale 跳变、缺少按压反馈 */
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 .scan-circle::after {
   border: none;
@@ -2552,19 +2538,38 @@ function stopDevicePoll() {
   width: 260rpx;
   height: 260rpx;
   border-radius: 50%;
-  /* 白底与深绿页面强对比，取景角用品牌绿，扫一扫认知更明确 */
-  background: var(--white, #ffffff);
-  border: 2rpx solid rgba(15, 118, 110, 0.18);
+  /*
+   * 品牌青绿渐变盘。两轮真机反馈的收敛点：
+   *   ① 纯白圆面 → 全页只有它是白底，在深绿照片上像贴上去的贴纸；
+   *   ② 只用 --brand→--brand-ink（H175）→ 与当时偏黄的背景（H150）色相差 29°，
+   *      且明度几乎相同（盘心 L=0.107 / 背景 L=0.114）⇒ 读成「颜色和背景不符」。
+   * 现在背景已统一到品牌青绿（见 .landing-overlay），色相差 ≤ 5°，于是分层改由**明度**承担：
+   * 渐变顶端加一档品牌亮阶 #14a89b（H174.5 / V0.647），与背景（V≈0.36~0.41）拉开 ≥ 0.23 的明度差，
+   * 底端仍收到 --brand-ink，保留球体受光感。三档色相全部落在 174~176°，不引入新色系。
+   *
+   * 取景角/扫描线保持白：白 on --brand-ink #0f3f3c ≈ 11.6:1，白 on --brand #0f766e ≈ 5.5:1，
+   * 既是「扫一扫」的通用认知，也是这个盘唯一的强对比来源。
+   *
+   * 外圈原为 rgba(255,255,255,0.14) 白晕 —— 真机实测渲染成 rgb(116,148,146)（灰青，S 仅 0.216），
+   * 在照片背景上是一圈脏灰。改为品牌青绿柔光 rgba(20,168,155,0.16)：光晕参与品牌色相，
+   * 让盘「从背景里亮起来」而不是「被一圈白隔开」。
+   */
+  background:
+    radial-gradient(120% 100% at 30% 20%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(158deg, #14a89b 0%, var(--brand, #0f766e) 52%, var(--brand-ink, #0f3f3c) 100%);
+  border: 2rpx solid rgba(255, 255, 255, 0.42);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 12rpx 32rpx rgba(6, 78, 59, 0.35),
-    0 0 0 12rpx rgba(255, 255, 255, 0.18);
+    inset 0 2rpx 1rpx rgba(255, 255, 255, 0.26),
+    0 14rpx 36rpx rgba(4, 47, 36, 0.48),
+    0 0 0 14rpx rgba(20, 168, 155, 0.16);
 }
 .scan-icon-box {
-  width: 132rpx;
-  height: 132rpx;
+  /* 152rpx / 260rpx ≈ 58%：原 132rpx 只占 51%，框在圆里显得空、四角像四枚孤立钉子 */
+  width: 152rpx;
+  height: 152rpx;
   position: relative;
   display: flex;
   align-items: center;
@@ -2598,7 +2603,7 @@ function stopDevicePoll() {
   color: var(--white);
   padding: 8rpx 20rpx;
   border-radius: var(--radius-pill);
-  background: rgba(6, 78, 59, 0.55);
+  background: rgba(19, 78, 74, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 .nearby-link {
@@ -2627,7 +2632,7 @@ function stopDevicePoll() {
   margin: 12rpx auto 0;
   padding: 8rpx 24rpx;
   border-radius: var(--radius-pill);
-  background: rgba(6, 78, 59, 0.55);
+  background: rgba(19, 78, 74, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
   font-size: var(--font-size-sm);
   color: var(--white);
@@ -2638,40 +2643,64 @@ function stopDevicePoll() {
 
 .scan-corner {
   position: absolute;
-  width: 44rpx;
-  height: 44rpx;
-  border-color: var(--brand, #0f766e);
+  /* 54rpx 角长配 152rpx 框：原 44rpx 在 132rpx 框里过短，四角读起来像孤立钉子而非「取景框」 */
+  width: 54rpx;
+  height: 54rpx;
+  /* 与盘底反色：盘为品牌绿渐变，取景角取白（白 on --brand-ink ≈ 11.6:1） */
+  border-color: var(--white, #ffffff);
   border-style: solid;
 }
 .scan-corner.tl {
   top: 0;
   left: 0;
-  border-width: 6rpx 0 0 6rpx;
-  border-radius: 4rpx 0 0 0;
+  border-width: 7rpx 0 0 7rpx;
+  border-radius: 16rpx 0 0 0;
 }
 .scan-corner.tr {
   top: 0;
   right: 0;
-  border-width: 6rpx 6rpx 0 0;
-  border-radius: 0 4rpx 0 0;
+  border-width: 7rpx 7rpx 0 0;
+  border-radius: 0 16rpx 0 0;
 }
 .scan-corner.bl {
   bottom: 0;
   left: 0;
-  border-width: 0 0 6rpx 6rpx;
-  border-radius: 0 0 0 4rpx;
+  border-width: 0 0 7rpx 7rpx;
+  border-radius: 0 0 0 16rpx;
 }
 .scan-corner.br {
   bottom: 0;
   right: 0;
-  border-width: 0 6rpx 6rpx 0;
-  border-radius: 0 0 4rpx 0;
+  border-width: 0 7rpx 7rpx 0;
+  border-radius: 0 0 16rpx 0;
 }
 .scan-line {
-  width: 10rpx;
-  height: 64rpx;
-  background: var(--brand, #0f766e);
-  border-radius: 6rpx;
+  /*
+   * 横向扫描线 —— 方向是这里的关键：原实现为竖棒（width 10rpx / height 64rpx），
+   * 在方框里读起来像数字「1」或一根钉子，与「扫一扫横线扫过二维码」的通用认知**相反**。
+   * 现改为横线（92rpx × 8rpx 圆头），并加 2.4s 上下缓动，让 CTA 从静止图标变成活体扫描。
+   *
+   * 8rpx 而非 5rpx：真机实测 5rpx 只渲染出 ≈2px 厚，比 7rpx 的取景角（≈2.75px）更细，
+   * 视觉上这条「运动物」反而比静止的框还弱，读起来是一段虚弱的短横。
+   * 92rpx 而非 100rpx：两端收进角竖边之内，避免摆到上下极点时与左右角挤在一起。
+   */
+  width: 92rpx;
+  height: 8rpx;
+  /* 同取景角：白线叠品牌绿盘底 */
+  background: var(--white, #ffffff);
+  border-radius: 8rpx;
+  animation: scan-sweep 2.4s ease-in-out infinite;
+}
+@keyframes scan-sweep {
+  0%,
+  100% {
+    transform: translateY(-42rpx);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translateY(42rpx);
+    opacity: 1;
+  }
 }
 
 .shop {
@@ -3544,12 +3573,13 @@ function stopDevicePoll() {
   border: 1rpx solid rgba(255, 255, 255, 0.32);
   color: var(--white);
   font-size: var(--font-size-sm);
-  background: rgba(6, 78, 59, 0.55);
+  background: rgba(19, 78, 74, 0.55);
 }
 .error-action.primary {
   border-color: rgba(255, 255, 255, 0.4);
   color: var(--white);
-  background: rgba(4, 120, 87, 0.55);
+  /* 原为 rgba(4,120,87) #047857（H≈164，偏黄），统一到品牌青绿 --brand */
+  background: rgba(15, 118, 110, 0.65);
 }
 .error-close {
   padding: 0 4rpx;

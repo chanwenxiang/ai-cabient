@@ -825,7 +825,7 @@ onPullDownRefresh(load);
 .patrol-count {
   padding: 6rpx 14rpx;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  background: #f9f1eb;
   color: var(--warning, #b45309);
   font-size: var(--font-size-sm);
   font-weight: 700;
@@ -834,11 +834,11 @@ onPullDownRefresh(load);
   margin-top: 18rpx;
   padding: 18rpx 20rpx;
   border-radius: 18rpx;
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  background: #f9f1eb;
   cursor: pointer;
 }
 .patrol-row-hover {
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
 }
 .patrol-name {
   flex: 1;
@@ -857,7 +857,7 @@ onPullDownRefresh(load);
 .patrol-badge {
   padding: 6rpx 12rpx;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
   color: var(--warning, #b45309);
   font-size: var(--font-size-xs);
   font-weight: 700;
@@ -1006,17 +1006,17 @@ onPullDownRefresh(load);
   border-radius: var(--radius-pill);
   /* 默认=待处理：警告橙仅给 PENDING，避免 CANCELLED 误用警告色（R3-M01） */
   color: var(--warning, #92400e);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
   font-size: var(--font-size-sm);
   font-weight: 600;
 }
 .status.pending {
   color: var(--warning, #92400e);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
 }
 .status.in_progress {
   color: var(--brand-deep, #134e4a);
-  background: color-mix(in srgb, var(--brand, #0f766e) 14%, var(--white));
+  background: #ddeceb;
 }
 .status.completed {
   color: var(--brand-deep, #166534);
@@ -1024,7 +1024,7 @@ onPullDownRefresh(load);
 }
 .status.cancelled {
   color: var(--text-muted, #64748b);
-  background: color-mix(in srgb, var(--text-muted, #64748b) 12%, var(--white));
+  background: #eceef1;
 }
 .task-meta {
   margin-top: 16rpx;
