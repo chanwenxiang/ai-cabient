@@ -213,7 +213,7 @@
         <text class="shopping-banner-title">{{ shoppingBannerTitle }}</text>
         <text class="shopping-banner-sub">{{ shoppingBannerSub }}</text>
       </view>
-      <view class="catalog-notice">
+      <view v-if="catalogNotice" class="catalog-notice">
         <text>{{ catalogNotice }}</text>
       </view>
 
@@ -364,6 +364,15 @@
               <text class="cart-shop-amt">{{ shoppingCartAmount }}</text>
             </view>
           </view>
+          <text
+            v-if="mockEnabled && shoppingCartQty > 0"
+            role="button"
+            class="cart-clear-btn"
+            data-testid="cart-clear"
+            aria-label="清空购物车"
+            @click.stop="clearSelectedCart"
+            >清空</text
+          >
           <button
             v-if="mockEnabled"
             class="cart-close-btn"
@@ -918,8 +927,9 @@ const shoppingBannerSub = computed(() => {
 });
 
 const catalogNotice = computed(() => {
+  // SHOPPING 态顶部 banner 已表达同一意思，不再重复一条橙色提示（真机反馈信息过多）
   if (mockEnabled.value && state.value === 'SHOPPING') {
-    return '点选数量加入清单，关门后结算';
+    return '';
   }
   if (canReopen.value) {
     return '上一单已结束，再买请再次开门';
@@ -2000,6 +2010,23 @@ async function refreshLiveCart() {
   } catch {
     // 识别推送未就绪时忽略
   }
+}
+
+/** 清空本次点选清单（演示模式才有「点选」概念；真实识别模式不可清）。 */
+function clearSelectedCart() {
+  if (!selectedCount.value) return;
+  uni.showModal({
+    title: '清空购物车',
+    content: '将移除本次已点选的全部商品',
+    confirmText: '清空',
+    cancelText: '取消',
+    success: (r) => {
+      if (r.confirm) {
+        selected.value = {};
+        uni.showToast({ title: '已清空', icon: 'none' });
+      }
+    }
+  });
 }
 
 /** 演示关门：先把点选同步到会话购物车，再触发关门结算（后端 mockEnabled 才放行）。 */
@@ -3154,6 +3181,15 @@ function stopDevicePoll() {
 }
 .cart-cta::after {
   border: none;
+}
+.cart-clear-btn {
+  flex-shrink: 0;
+  margin-right: 16rpx;
+  padding: 10rpx 22rpx;
+  font-size: var(--font-size-sm);
+  color: var(--brand-deep, #134e4a);
+  background: rgba(19, 78, 74, 0.08);
+  border-radius: var(--radius-pill);
 }
 .cart-close-btn {
   margin: 0;
