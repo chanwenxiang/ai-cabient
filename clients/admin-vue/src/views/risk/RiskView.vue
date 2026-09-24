@@ -229,7 +229,11 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
-import type { OpenApiRiskEventDto, OpenApiUserBlacklistDto, PageResult } from '@aicabinet/shared-types';
+import type {
+  OpenApiRiskEventDto,
+  OpenApiUserBlacklistDto,
+  PageResult
+} from '@aicabinet/shared-types';
 import {
   dictLabel,
   dictTagType,

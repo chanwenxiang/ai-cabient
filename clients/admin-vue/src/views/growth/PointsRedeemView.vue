@@ -345,9 +345,8 @@ function onAction({ key, row }: { key: string; row: RedeemItem }) {
 async function loadCouponDefs() {
   try {
     couponDefs.value =
-      (
-        await api.request<{ items: CouponDef[] }>(AdminEndpoints.couponDefinitionsCatalog, 'GET')
-      ).items || [];
+      (await api.request<{ items: CouponDef[] }>(AdminEndpoints.couponDefinitionsCatalog, 'GET'))
+        .items || [];
   } catch {
     couponDefs.value = [];
   }

@@ -60,11 +60,7 @@ export function useDeviceLifecycleActions(deps: UseDeviceLifecycleActionsDeps) {
   }
 
   function lifecycleDisabledReason(action: string) {
-    return lifecycleDisabledReasonFor(
-      action,
-      deps.asset.lifecycleStatus,
-      deps.asset.merchantId
-    );
+    return lifecycleDisabledReasonFor(action, deps.asset.lifecycleStatus, deps.asset.merchantId);
   }
 
   async function openBindDialog() {

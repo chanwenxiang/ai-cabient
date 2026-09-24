@@ -29,12 +29,7 @@ const emit = defineEmits<{
         empty-text="暂无仓库"
         @action="emit('action', $event)"
       >
-        <el-table-column
-          prop="warehouseId"
-          label="仓库编号"
-          min-width="120"
-          class-name="col-text"
-        >
+        <el-table-column prop="warehouseId" label="仓库编号" min-width="120" class-name="col-text">
           <template #default="{ row }">
             <span class="cell-id">{{ row.warehouseId }}</span>
           </template>

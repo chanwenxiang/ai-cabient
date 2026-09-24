@@ -769,11 +769,7 @@ async function load() {
     soft(api.request<Workbench>(AdminEndpoints.workbench, 'GET'), null, '工作台'),
     soft(api.request<SlaMetrics>(AdminEndpoints.sla, 'GET'), null, 'SLA'),
     soft(api.request<FinanceStats>(AdminEndpoints.financeStats, 'GET'), null, '财务统计'),
-    soft(
-      api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(10), 'GET'),
-      null,
-      '趋势'
-    ),
+    soft(api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(10), 'GET'), null, '趋势'),
     soft(
       api
         .request<{ items: DeviceRank[]; total: number }>(

@@ -581,24 +581,15 @@ const wdCrud = useCrudTable<Withdraw>({
 const withdrawStatusOptions = useDictOptions('merchant_withdraw_status');
 
 function canReviewWithdraw(row: Withdraw) {
-  return canReviewMerchantWithdraw(
-    row.status,
-    auth.hasPerm('ops:merchant-withdraw:review')
-  );
+  return canReviewMerchantWithdraw(row.status, auth.hasPerm('ops:merchant-withdraw:review'));
 }
 
 function canRetryWithdrawPayout(row: Withdraw) {
-  return canRetryMerchantWithdrawPayout(
-    row.status,
-    auth.hasPerm('ops:merchant-withdraw:review')
-  );
+  return canRetryMerchantWithdrawPayout(row.status, auth.hasPerm('ops:merchant-withdraw:review'));
 }
 
 function canCancelFailedWithdraw(row: Withdraw) {
-  return canCancelFailedMerchantWithdraw(
-    row.status,
-    auth.hasPerm('ops:merchant-withdraw:review')
-  );
+  return canCancelFailedMerchantWithdraw(row.status, auth.hasPerm('ops:merchant-withdraw:review'));
 }
 
 function walletRowActions(_row: WalletRow): CrudRowAction[] {

@@ -26,14 +26,10 @@ const emit = defineEmits<{
   cancel: [row: WarehouseTransferRow];
 }>();
 
-function linesSummary(
-  lines: TransferLine[] | undefined,
-  skuName: (skuId?: string) => string
-) {
+function linesSummary(lines: TransferLine[] | undefined, skuName: (skuId?: string) => string) {
   return (lines || [])
     .map(
-      (l) =>
-        `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
+      (l) => `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
     )
     .join(' · ');
 }
@@ -42,14 +38,7 @@ function linesSummary(
 <template>
   <div class="table-scroll">
     <div class="table-scroll-inner">
-      <el-table
-        v-loading="loading"
-        :data="rows"
-        stripe
-        border
-        class="report-table"
-        empty-text=" "
-      >
+      <el-table v-loading="loading" :data="rows" stripe border class="report-table" empty-text=" ">
         <template #empty>
           <el-empty v-if="hydrated && !loading" description="暂无调拨单" />
         </template>
@@ -77,11 +66,9 @@ function linesSummary(
         </el-table-column>
         <el-table-column label="明细" min-width="180" class-name="col-text">
           <template #default="{ row }">
-            <span
-              class="cell-ellipsis"
-              :title="linesSummary(row.lines, skuName) || ''"
-              >{{ linesSummary(row.lines, skuName) || '' }}</span
-            >
+            <span class="cell-ellipsis" :title="linesSummary(row.lines, skuName) || ''">{{
+              linesSummary(row.lines, skuName) || ''
+            }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -125,11 +112,7 @@ function linesSummary(
           label-class-name="col-action"
         >
           <template #default="{ row }">
-            <el-button
-              v-if="row.status === 'DRAFT'"
-              link
-              type="primary"
-              @click="emit('ship', row)"
+            <el-button v-if="row.status === 'DRAFT'" link type="primary" @click="emit('ship', row)"
               >发运</el-button
             >
             <el-button
@@ -139,11 +122,7 @@ function linesSummary(
               @click="emit('receive', row)"
               >收货</el-button
             >
-            <el-button
-              v-if="row.status === 'DRAFT'"
-              link
-              type="danger"
-              @click="emit('cancel', row)"
+            <el-button v-if="row.status === 'DRAFT'" link type="danger" @click="emit('cancel', row)"
               >取消</el-button
             >
           </template>

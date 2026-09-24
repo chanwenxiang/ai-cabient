@@ -463,7 +463,9 @@
               (p) =>
                 goPath(
                   '/sessions',
-                  p.sessionId ? { deviceId: p.deviceId, sessionId: p.sessionId } : { deviceId: p.deviceId }
+                  p.sessionId
+                    ? { deviceId: p.deviceId, sessionId: p.sessionId }
+                    : { deviceId: p.deviceId }
                 )
             "
             @open-orders="(p) => goPath('/orders', { deviceId: p.deviceId })"
@@ -713,28 +715,21 @@ const {
   cmdLoading,
   loadDetail: () => loadDetail()
 });
-const {
-  asset,
-  assetSaving,
-  geoConfigured,
-  fillAsset,
-  loadAsset,
-  saveAsset,
-  loadGeoStatus
-} = useDeviceAsset({
-  deviceId,
-  canEditDevice,
-  onDeviceSynced: (row) => {
-    if (!device.value) return;
-    device.value = {
-      ...device.value,
-      merchantId: row.merchantId || device.value.merchantId,
-      merchantName: row.merchantName || device.value.merchantName,
-      deviceName: row.deviceName || device.value.deviceName,
-      onlineStatus: row.onlineStatus || device.value.onlineStatus
-    };
-  }
-});
+const { asset, assetSaving, geoConfigured, fillAsset, loadAsset, saveAsset, loadGeoStatus } =
+  useDeviceAsset({
+    deviceId,
+    canEditDevice,
+    onDeviceSynced: (row) => {
+      if (!device.value) return;
+      device.value = {
+        ...device.value,
+        merchantId: row.merchantId || device.value.merchantId,
+        merchantName: row.merchantName || device.value.merchantName,
+        deviceName: row.deviceName || device.value.deviceName,
+        onlineStatus: row.onlineStatus || device.value.onlineStatus
+      };
+    }
+  });
 const canRegenerateDeviceId = computed(
   () =>
     canEditDevice.value &&

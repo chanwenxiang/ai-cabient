@@ -21,10 +21,10 @@ export function canRefundOrderStatus(status?: string | null): boolean {
   );
 }
 
-export function buildOrderRefundBody(input: {
+export function buildOrderRefundBody(input: { reason: string; restoreInventory: boolean }): {
   reason: string;
   restoreInventory: boolean;
-}): { reason: string; restoreInventory: boolean } {
+} {
   return {
     reason: input.reason,
     restoreInventory: input.restoreInventory
@@ -81,12 +81,6 @@ export function buildMerchantWithdrawReviewBody(
   const batch = options?.batch === true;
   return {
     approve,
-    remark: batch
-      ? approve
-        ? '批量审核通过'
-        : '批量审核驳回'
-      : approve
-        ? '审核通过'
-        : '审核驳回'
+    remark: batch ? (approve ? '批量审核通过' : '批量审核驳回') : approve ? '审核通过' : '审核驳回'
   };
 }

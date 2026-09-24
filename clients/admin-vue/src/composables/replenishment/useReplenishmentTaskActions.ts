@@ -18,7 +18,8 @@ export type ReplenishmentDeviceRef = {
 export type ReplenishmentTaskRow = OpenApiReplenishmentTaskDto;
 export type ReplenishmentRouteRow = OpenApiReplenishmentRouteDto;
 /** @deprecated 用 Task/Route/DeviceRef；保留别名兼容旧 import */
-export type ReplenishmentRow = ReplenishmentTaskRow | ReplenishmentRouteRow | ReplenishmentDeviceRef;
+export type ReplenishmentRow =
+  ReplenishmentTaskRow | ReplenishmentRouteRow | ReplenishmentDeviceRef;
 
 export type UseReplenishmentTaskActionsDeps = {
   devices: Ref<ReplenishmentDeviceRef[]>;

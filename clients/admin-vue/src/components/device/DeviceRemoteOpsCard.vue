@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import type { DeviceRemoteOpsPolicy, DeviceRepairTicketRow } from '@/composables/device/useDeviceRemoteOps';
+import type {
+  DeviceRemoteOpsPolicy,
+  DeviceRepairTicketRow
+} from '@/composables/device/useDeviceRemoteOps';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -102,7 +105,9 @@ const emit = defineEmits<{
 
         <div class="cmd-section-label">补货入口</div>
         <div class="cmd-bar">
-          <el-button v-if="canAccessReplenishment" @click="emit('go-replenish')">缺货建议</el-button>
+          <el-button v-if="canAccessReplenishment" @click="emit('go-replenish')"
+            >缺货建议</el-button
+          >
           <el-button
             v-if="canAccessReplenishment && oosSlotCount > 0"
             v-hasPermi="['ops:replenishment:edit']"
@@ -229,7 +234,11 @@ const emit = defineEmits<{
     <div class="cmd-section-label">维修工单</div>
     <div class="cmd-bar">
       <el-button v-if="canAccessRepairTickets" @click="emit('go-repair-list')">工单列表</el-button>
-      <el-button v-hasPermi="['ops:repair:edit']" type="primary" plain @click="emit('create-repair')"
+      <el-button
+        v-hasPermi="['ops:repair:edit']"
+        type="primary"
+        plain
+        @click="emit('create-repair')"
         >新建工单</el-button
       >
     </div>

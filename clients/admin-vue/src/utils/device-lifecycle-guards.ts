@@ -4,13 +4,7 @@
  */
 
 export type DeviceLifecycleAction =
-  | 'BIND'
-  | 'UNBIND'
-  | 'DEPLOY'
-  | 'UNDEPLOY'
-  | 'RETURN'
-  | 'RETIRE'
-  | 'INBOUND';
+  'BIND' | 'UNBIND' | 'DEPLOY' | 'UNDEPLOY' | 'RETURN' | 'RETIRE' | 'INBOUND';
 
 export function normalizeLifecycleStatus(status?: string | null): string {
   return String(status || '')

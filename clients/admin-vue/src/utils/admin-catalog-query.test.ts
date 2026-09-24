@@ -18,11 +18,7 @@ describe('admin-catalog-query', () => {
   });
 
   it('附加过滤且跳过空值', () => {
-    expect(adminCatalogQuery({ status: 'ACTIVE', q: '' })).toBe(
-      'page=0&size=500&status=ACTIVE'
-    );
-    expect(adminOptionsQuery({ returnableOnly: true })).toBe(
-      'page=0&size=200&returnableOnly=true'
-    );
+    expect(adminCatalogQuery({ status: 'ACTIVE', q: '' })).toBe('page=0&size=500&status=ACTIVE');
+    expect(adminOptionsQuery({ returnableOnly: true })).toBe('page=0&size=200&returnableOnly=true');
   });
 });

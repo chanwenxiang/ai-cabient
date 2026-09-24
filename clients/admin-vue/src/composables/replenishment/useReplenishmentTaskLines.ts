@@ -52,7 +52,9 @@ export function useReplenishmentTaskLines(deps: UseReplenishmentTaskLinesDeps) {
     )
   );
   const editablePendingLines = computed(() =>
-    taskLines.value.filter((l) => !l.applied && String(linesTask.value?.status || '') !== 'COMPLETED')
+    taskLines.value.filter(
+      (l) => !l.applied && String(linesTask.value?.status || '') !== 'COMPLETED'
+    )
   );
   const unassignedRestockCount = computed(
     () => editableRestockLines.value.filter((l) => !String(l.slotId || '').trim()).length

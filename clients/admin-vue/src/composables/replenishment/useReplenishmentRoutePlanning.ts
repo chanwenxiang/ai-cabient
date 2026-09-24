@@ -108,10 +108,7 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     return `${deps.deviceName(String(device.deviceId || ''), device.deviceName as string | undefined)}（${device.deviceId}）`;
   }
 
-  function fillPlanForm(partial: {
-    routeName: string;
-    deviceIds: string[];
-  }) {
+  function fillPlanForm(partial: { routeName: string; deviceIds: string[] }) {
     Object.assign(planForm, {
       routeName: partial.routeName,
       plannedDate: localDate(),

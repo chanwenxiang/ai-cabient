@@ -77,12 +77,7 @@ const emit = defineEmits<{
           <el-form-item label="IMEI">
             <div class="imei-field">
               <el-tag v-if="!asset.imei" type="info" effect="plain">未绑定</el-tag>
-              <el-input
-                v-else
-                :model-value="asset.imei"
-                disabled
-                placeholder="柜机心跳自动绑定"
-              />
+              <el-input v-else :model-value="asset.imei" disabled placeholder="柜机心跳自动绑定" />
             </div>
             <p v-if="canEditDevice" class="form-hint muted">
               仅柜机联网上报或「解绑硬件」后重新绑定

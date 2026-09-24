@@ -196,7 +196,11 @@ export function useDeviceRemoteOps(deps: UseDeviceRemoteOpsDeps) {
   async function savePolicy() {
     if (!policy.value || !deps.canEditDevice.value) return;
     try {
-      policy.value = await api.request(AdminEndpoints.devicePolicy(deps.deviceId), 'PUT', policy.value);
+      policy.value = await api.request(
+        AdminEndpoints.devicePolicy(deps.deviceId),
+        'PUT',
+        policy.value
+      );
       ElMessage.success('策略已更新');
       await deps.loadDetail();
     } catch (e) {

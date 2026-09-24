@@ -754,10 +754,7 @@ import type {
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
-import {
-  buildOrderRefundBody,
-  canRefundOrderStatus
-} from '@/utils/money-ui-contracts';
+import { buildOrderRefundBody, canRefundOrderStatus } from '@/utils/money-ui-contracts';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
@@ -1204,7 +1201,11 @@ async function refundOrder(row: { orderId: string; status?: string }) {
       message?: string;
       refundedCents?: number;
       inventoryRestored?: boolean;
-    }>(AdminEndpoints.orderRefund(row.orderId), 'POST', buildOrderRefundBody({ reason, restoreInventory }));
+    }>(
+      AdminEndpoints.orderRefund(row.orderId),
+      'POST',
+      buildOrderRefundBody({ reason, restoreInventory })
+    );
     ElMessage.success(result.message || '退款成功');
     if (detailOpen.value && detail.value?.orderId === row.orderId) {
       await openDetail(row as OrderSummary);

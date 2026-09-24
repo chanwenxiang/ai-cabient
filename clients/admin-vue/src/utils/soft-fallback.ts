@@ -14,11 +14,7 @@ export function reportSoftFail(error: unknown, label: string) {
  * 禁止 `.catch(() => [])` 静默空列表（运营会当成「暂无数据」），见 lessons #116 / debt-tracker D3。
  * 会话失效类错误不 toast（退出登录在途请求）。
  */
-export async function softFallback<T>(
-  promise: Promise<T>,
-  fallback: T,
-  label: string
-): Promise<T> {
+export async function softFallback<T>(promise: Promise<T>, fallback: T, label: string): Promise<T> {
   try {
     return await promise;
   } catch (e) {

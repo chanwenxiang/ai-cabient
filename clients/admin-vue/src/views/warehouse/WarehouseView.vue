@@ -475,7 +475,7 @@
           />
         </el-tab-pane>
 
-                <el-tab-pane v-if="tabGroup === 'fulfillment'" label="在途" name="transit">
+        <el-tab-pane v-if="tabGroup === 'fulfillment'" label="在途" name="transit">
           <WarehouseTransitTab
             :loading="isTabLoading('transit')"
             :hydrated="hydratedTabs.has('transit')"

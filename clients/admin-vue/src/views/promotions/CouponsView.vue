@@ -404,7 +404,10 @@ async function batchDisable() {
       type: 'warning'
     });
     for (const row of targets) {
-      await api.request(AdminEndpoints.couponDefinitionStatus(row.couponDefId ?? 0, 'INACTIVE'), 'PUT');
+      await api.request(
+        AdminEndpoints.couponDefinitionStatus(row.couponDefId ?? 0, 'INACTIVE'),
+        'PUT'
+      );
     }
     ElMessage.success(`已停用 ${targets.length} 张优惠券`);
     crud.clearSelection();

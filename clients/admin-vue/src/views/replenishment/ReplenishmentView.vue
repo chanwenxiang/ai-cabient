@@ -1223,7 +1223,9 @@
           >
         </div>
         <div v-else-if="requestFlowRow.replenishmentTaskId" class="request-flow-actions">
-          <el-button type="primary" @click="onRequestAction(requestFlowRow, 'view-task')">查看补货任务</el-button>
+          <el-button type="primary" @click="onRequestAction(requestFlowRow, 'view-task')"
+            >查看补货任务</el-button
+          >
         </div>
       </div>
     </ResizableDrawer>

@@ -72,9 +72,7 @@ export function useReplenishmentRequestFlow(deps: UseReplenishmentRequestFlowDep
   );
 
   const requestFlowTitle = computed(() =>
-    requestFlowRow.value?.requestId
-      ? `审批流 · 要货 ${requestFlowRow.value.requestId}`
-      : '审批流'
+    requestFlowRow.value?.requestId ? `审批流 · 要货 ${requestFlowRow.value.requestId}` : '审批流'
   );
 
   const requestFlowActiveStep = computed(() => {
