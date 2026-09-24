@@ -47,7 +47,10 @@
           <!-- 按钮放在页面层，与 banner/entry 同一包含块，避免自定义组件内 width:100% 撑出 page-body -->
           <view class="market-actions">
             <app-button label="扫码购物" @click="goShop" />
-            <app-button variant="ghost" label="去领券" @click="goCoupons" />
+            <!-- 间距必须落在块级 view 上：页面样式进不去 app-button 组件内部（真机贴死实锤） -->
+            <view class="market-btn-second">
+              <app-button variant="ghost" label="去领券" @click="goCoupons" />
+            </view>
           </view>
         </view>
         <view v-else>
@@ -497,17 +500,10 @@ function remainText(end?: string) {
   box-sizing: border-box;
   margin-top: 8rpx;
 }
-.market-actions .app-btn + .app-btn {
-  margin-top: 24rpx !important;
-}
-/* 高度/通栏由 App.vue / AppButton 统一（微信 88rpx 触控） */
-.market-actions .app-btn {
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  align-self: stretch !important;
-  box-sizing: border-box !important;
+/* 按钮间距落在块级 view 上：页面 scoped 样式无法进入 app-button 组件内部，
+   原先的 `.market-actions .app-btn + .app-btn { margin-top }` 是死规则（真机两按钮贴死实锤）。
+   通栏/高度由 AppButton 自身 block 默认值统一（微信 88rpx 触控）。 */
+.market-btn-second {
+  margin-top: 24rpx;
 }
 </style>

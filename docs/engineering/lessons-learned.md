@@ -110,6 +110,8 @@
 
 | 102 | admin 顶栏 | 硬刷新后任意页顶栏一条品牌色绿线，点一下才消失 | 路由 NProgress：首屏 `start()` 与 restore/重定向竞态，残条挂到二次交互；`:18080` 走 trade JAR 旧静态、`:80` 走 nginx 挂载 | **禁止**再用 NProgress；已从 router/CSS/依赖拆除。验收用 `http://localhost/admin`（勿用 `:18080` 旧 JAR）硬刷 | `router/index.ts` |
 | 103 | admin 主内容区 | NProgress 拆除后硬刷新仍在标签行下方有一条彩线（颜色随浏览器主题），点一下才消失 | `router.afterEach` 对 `#main-content`（`tabindex="-1"`）程序化 `focus()`；页面加载后无用户交互时 Chrome 按 spec 启发式判 `:focus-visible` 成立 ⇒ UA 焦点环绕整块 el-main 一周，顶边露在标签行下方（Playwright 硬刷实测 `activeElement=#main-content fv=true outline=auto`） | 程序化聚焦目标不进 Tab 序列，焦点环对视觉用户是噪音 ⇒ `.layout-main-scroll:focus,:focus-visible{outline:none}`；改动后产物级验证 served CSS 含规则 | `router/index.ts:551`、`styles/main.css`、`.tmp/probe/green-line-reload.mjs` |
+| 104 | 小程序自定义组件边界 | 两处「按钮贴死」修了两次才生效：`.xxx .app-btn + .app-btn{margin-top}`、把 class/margin 挂在 `<app-button>` 标签上 | ① **页面 scoped WXSS 进不去自定义组件内部**（`.market-actions .app-btn` 是死规则）；② 挂在组件标签上的 class 落在 **inline 的自定义组件 wrapper** 节点，垂直 margin 无效（`dist/.../coupons.wxml` 实证 class 在 wrapper） | 组件之间的间距**一律包块级 `<view>` 再把 margin 写在 view 上**；禁止用页面选择器穿透 `.app-btn`/`uni-button` 等组件内部类 | `pages/marketing/index.vue`、`pages/coupons/coupons.vue` |
+| 105 | 小程序箭头图标 | FAQ 展开箭头反复「和别的不一样/显大」 | `.app-icon--chevron` 是**旋转方盒只画两边**：朝右 `>` 字形窄而高（30×60px），朝下 `v` 宽而扁（58×32px）——同一个盒子，两个方向的视觉 footprint 差 2 倍，越调盒子越难对齐 | 展开/收起要同形的场景**改用 SVG 遮罩图标**（`mask-image` + `background-color:currentColor`，同 `support-icon` 技术）：同 path 旋转 -90°，两态尺寸完全一致 | `pages/help/help.vue`（`.faq-toggle`） |
 
 ## 追加模板
 

@@ -106,11 +106,7 @@
         >
           <view class="faq-head">
             <text class="faq-q">{{ item.q }}</text>
-            <view
-              class="faq-toggle app-icon app-icon--chevron"
-              :class="{ 'is-down': openIdx === idx }"
-              aria-hidden="true"
-            />
+            <view class="faq-toggle" :class="{ 'is-down': openIdx === idx }" aria-hidden="true" />
           </view>
           <text v-if="openIdx === idx" class="faq-a">{{ item.a }}</text>
         </view>
@@ -379,19 +375,28 @@ function goOrders() {
   font-weight: 600;
   line-height: 1.4;
 }
+/* FAQ 展开箭头：用 SVG 遮罩画（与客服图标同技术）。
+   原因：旋转方盒（.app-icon--chevron）只画两边，朝下的 v 视觉宽≈2 倍、扁而宽，
+   和全 App 的朝右箭头永远不同形；遮罩图标朝下/朝右同一形状，尺寸完全一致 */
 .faq-toggle {
-  /* 与全 App 箭头同款：theme 0.55em 盒子（≈15.4rpx），不再覆写尺寸——
-     实测 26rpx 盒子的展开 V 视觉宽 58px，是收起 > 的两倍，真机显大 */
   flex: 0 0 28rpx;
-  color: var(--color-link, var(--brand, #0f766e));
-  font-size: var(--font-size-md);
-}
-.faq-toggle.app-icon--chevron {
-  transform: rotate(-45deg);
+  width: 28rpx;
+  height: 28rpx;
+  background-color: var(--color-link, var(--brand, #0f766e));
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  /* 收起=朝右、展开=朝下：同一形状旋转，视觉尺寸不随状态变化 */
+  transform: rotate(-90deg);
   transition: transform 0.18s ease;
 }
-.faq-toggle.app-icon--chevron.is-down {
-  transform: rotate(45deg);
+.faq-toggle.is-down {
+  transform: rotate(0deg);
 }
 .faq-a {
   display: block;
