@@ -161,6 +161,8 @@
 
     <!-- 购物页：开门后展示参考价目 -->
     <view v-if="scanned" class="shop">
+      <!-- 沉浸式绿色顶带：垫在状态栏/胶囊后面（navigationStyle=custom 页面从 y=0 起排） -->
+      <view class="shop-status-pad" :style="{ height: shopTopPadPx }" />
       <view class="device-bar">
         <view class="device-info">
           <text class="device-name">{{ deviceName || deviceId }}</text>
@@ -617,6 +619,9 @@ function refreshLandingPad() {
     paddingTop: getBelowCapsulePadPx(28) + 'px'
   };
 }
+/** 购物页顶部绿色占位带高度：状态栏 + 胶囊下 8px（landing 同款工具） */
+const shopTopPadPx = ref(getBelowCapsulePadPx(8) + 'px');
+
 /** H5 无可靠扫码时提供手输；微信小程序主路径仅扫码（对齐竞品，不展示开发入口） */
 const isH5 = ref(false);
 // #ifdef H5
@@ -2676,15 +2681,19 @@ function stopDevicePoll() {
   display: flex;
   flex-direction: column;
 }
-/* 顶部设备栏＝品牌绿头部（对齐参考竞品；与落地页同色系），文字转白 */
+/* 顶部绿色占位带：只垫状态栏/胶囊区域，设备栏保持白卡 */
+.shop-status-pad {
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #0d9488, var(--brand, #0f766e));
+}
 .device-bar {
   flex-shrink: 0;
   margin: 14rpx 24rpx 0;
   padding: 18rpx 22rpx;
-  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand-deep, #134e4a));
-  border: none;
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--color-border-subtle, #edf2ef);
   border-radius: var(--radius-card, 24rpx);
-  box-shadow: 0 10rpx 26rpx rgba(19, 78, 74, 0.3);
+  box-shadow: 0 9rpx 28rpx rgba(15, 23, 42, 0.055);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2692,18 +2701,13 @@ function stopDevicePoll() {
 .device-name {
   font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--white, #ffffff);
+  color: var(--text-primary, #14201b);
   display: block;
 }
 .device-status {
   font-size: var(--font-size-caption);
   display: inline-flex;
   margin-top: 7rpx;
-  color: rgba(255, 255, 255, 0.92);
-}
-.device-status.is-offline,
-.device-status.is-warn {
-  color: #fde68a;
 }
 .device-status:not(.is-offline):not(.is-warn):not(.is-online) {
   color: var(--brand, #0f766e);
@@ -2716,12 +2720,12 @@ function stopDevicePoll() {
 }
 .device-change {
   font-size: var(--font-size-body);
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--color-link, var(--brand, #0f766e));
   font-weight: 500;
 }
 .device-report {
   font-size: var(--font-size-body);
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--color-link, var(--brand, #0f766e));
   font-weight: 500;
 }
 
