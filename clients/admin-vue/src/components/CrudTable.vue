@@ -133,6 +133,7 @@
                   <el-icon
                     class="crud-cols__handle"
                     :title="`拖动「${c.label}」调整顺序`"
+                    tabindex="-1"
                     @pointerdown="onColDragStart($event, c.key)"
                   >
                     <Rank />
@@ -789,6 +790,7 @@ function updateDropIndex(y: number) {
 let dragRaf = 0;
 let dragAutoDir = 0;
 let dragLastY = 0;
+let dragHandleEl: HTMLElement | null = null;
 
 function autoScrollTick() {
   dragRaf = 0;
@@ -834,6 +836,10 @@ function detachDragListeners() {
 function onColDragStart(e: Event, key: string) {
   if (orderedCols.value.length < 2) return;
   e.preventDefault(); // 顺带阻止拖动过程中选中文本
+  // preventDefault 同时挡掉了 pointerdown 的默认聚焦 ⇒ 拖完后焦点域丢在弹层外，
+  // EP 弹层的 Esc 关闭收不到 keydown（实测：拖一下手柄后 Esc 失效，只能点外部关闭）。
+  // 记住手柄，onColDragEnd 里把焦点还回去；tabindex="-1" 使其可编程聚焦但不进 Tab 序列。
+  dragHandleEl = e.currentTarget instanceof HTMLElement ? e.currentTarget : null;
   dragKey.value = key;
   dragLastY = e instanceof MouseEvent ? e.clientY : 0;
   dropIndex.value = orderedCols.value.findIndex((c) => c.key === key);
@@ -850,6 +856,9 @@ function onColDragMove(e: PointerEvent) {
 
 function onColDragEnd() {
   detachDragListeners();
+  // 先还焦点再改状态：后面任何分支 return 都不能跳过它（否则 Esc 又失效）
+  dragHandleEl?.focus();
+  dragHandleEl = null;
   const key = dragKey.value;
   const to = dropIndex.value;
   dragKey.value = '';

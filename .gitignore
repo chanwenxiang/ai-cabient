@@ -226,3 +226,6 @@ infra/docker/emqx/auth-bootstrap.production.csv
 # 🔴 必须保持忽略：CI 的 admin-artifacts 判据是 `git status --porcelain -uall -- static/admin`
 #    须为空，而该命令**不显示被忽略的文件** ⇒ 放行它等于把 key 提交进仓库、并让判据变红。
 services/trade-service/src/main/resources/static/admin/runtime-config.json
+
+# 仓库根的小程序预览二维码（临时产物，不入库）
+/_preview-qr.jpg

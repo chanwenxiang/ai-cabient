@@ -1777,6 +1777,11 @@ a:focus-visible {
 .crud-cols__handle:hover {
   color: var(--el-text-color-regular);
 }
+/* 手柄 tabindex="-1"（拖拽结束后编程聚焦、让 Esc 能关弹层，见 CrudTable onColDragEnd）：
+   只能编程聚焦、不进 Tab 序列，:focus 焦点环对鼠标用户是噪音 ⇒ 去掉；键盘用户本就到不了它 */
+.crud-cols__handle:focus {
+  outline: none;
+}
 .crud-cols__handle--off {
   cursor: default;
   opacity: 0.45;
