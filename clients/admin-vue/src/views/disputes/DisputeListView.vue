@@ -711,6 +711,7 @@ import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { disputeAmountDiffNote } from '@/utils/dispute-amount-note';
+import { buildDisputeResolveBody, type DisputeResolutionType } from '@/utils/money-ui-contracts';
 import type {
   DevRecognitionPreviewDto,
   DisputeTicketDto,
@@ -767,7 +768,7 @@ const crud = useCrudTable<DisputeTicketDto>({
   autoLoad: false,
   fetchPage: async (params) => {
     const data = await api.request<PageResult<DisputeTicketDto>>(
-      `/api/v2/ops/disputes?${buildDisputeListQuery(params.page, params.size)}`,
+      AdminEndpoints.disputesList(buildDisputeListQuery(params.page, params.size)),
       'GET'
     );
     // 关键词若是工单号（雪花）被当成 sessionId 会空；回退按 ticketId 拉详情
@@ -1051,7 +1052,7 @@ async function closeTicket(row: DisputeTicketDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/disputes/${encodeURIComponent(row.ticketId)}/close`, 'POST', {});
+    await api.request(AdminEndpoints.disputeClose(row.ticketId), 'POST', {});
     ElMessage.success('已关闭');
     await crud.load();
     await openFocusedTicket(); // 原 load() 收尾：深链工单号自动打开工作台
@@ -1067,11 +1068,7 @@ async function reopenTicket(row: DisputeTicketDto) {
     return;
   }
   try {
-    await api.request(
-      `/api/v2/ops/disputes/${encodeURIComponent(row.ticketId)}/reopen`,
-      'POST',
-      {}
-    );
+    await api.request(AdminEndpoints.disputeReopen(row.ticketId), 'POST', {});
     ElMessage.success('已重开');
     await crud.load();
     await openFocusedTicket(); // 原 load() 收尾：深链工单号自动打开工作台
@@ -1183,7 +1180,7 @@ async function onDisputeImagePick(ev: Event) {
     const form = new FormData();
     form.append('deviceId', selected.value.deviceId);
     form.append('image', file);
-    const res = await authFetch(`${base}/api/v2/ops/dispute-suggest`, {
+    const res = await authFetch(`${base}${AdminEndpoints.disputeSuggest}`, {
       method: 'POST',
       body: form
     });
@@ -1237,8 +1234,6 @@ function validateResolveVideoReview(): boolean {
   );
   return false;
 }
-
-type DisputeResolutionType = 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST';
 
 function resolveActionLabel(resolutionType: DisputeResolutionType): string {
   if (resolutionType === 'WAIVE') {
@@ -1316,14 +1311,16 @@ async function submitDisputeResolve(
 ) {
   if (!selected.value) return;
   const result = await api.request<ResolveDisputeResultDto>(
-    `/api/v2/ops/disputes/${encodeURIComponent(selected.value.ticketId)}/resolve`,
+    AdminEndpoints.disputeResolve(selected.value.ticketId),
     'POST',
-    {
+    buildDisputeResolveBody({
       resolutionType,
       restoreInventory,
       items:
-        resolutionType === 'ADJUST' || resolutionType === 'CONFIRM' ? draftConfirmItems.value : []
-    }
+        resolutionType === 'ADJUST' || resolutionType === 'CONFIRM'
+          ? draftConfirmItems.value
+          : undefined
+    })
   );
   applyResolvedTicket(result);
   ElMessage.success(result.message || '争议已处理');
@@ -1334,7 +1331,7 @@ async function claimSelected() {
   claiming.value = true;
   try {
     const updated = await api.request<DisputeTicketDto>(
-      `/api/v2/ops/disputes/${encodeURIComponent(selected.value.ticketId)}/claim`,
+      AdminEndpoints.disputeClaim(selected.value.ticketId),
       'POST'
     );
     selected.value = updated;
@@ -1448,10 +1445,7 @@ function buildDisputeListQuery(page0: number, pageSize: number): URLSearchParams
 async function tryLoadTicketByNumericKeyword(raw: string): Promise<DisputeTicketDto | null> {
   if (!/^\d{10,}$/.test(raw)) return null;
   try {
-    const byTicket = await api.request<DisputeTicketDto>(
-      `/api/v2/ops/disputes/${encodeURIComponent(raw)}`,
-      'GET'
-    );
+    const byTicket = await api.request<DisputeTicketDto>(AdminEndpoints.dispute(raw), 'GET');
     return byTicket?.ticketId ? byTicket : null;
   } catch {
     return null;
@@ -1570,7 +1564,7 @@ async function openFocusedTicket() {
   if (!row) {
     try {
       row = await api.request<DisputeTicketDto>(
-        `/api/v2/ops/disputes/${encodeURIComponent(focusDisputeId.value)}`,
+        AdminEndpoints.dispute(focusDisputeId.value),
         'GET'
       );
     } catch {

@@ -346,10 +346,7 @@ async function loadCouponDefs() {
   try {
     couponDefs.value =
       (
-        await api.request<{ items: CouponDef[] }>(
-          '/api/v2/coupons/definitions?page=0&size=500',
-          'GET'
-        )
+        await api.request<{ items: CouponDef[] }>(AdminEndpoints.couponDefinitionsCatalog, 'GET')
       ).items || [];
   } catch {
     couponDefs.value = [];

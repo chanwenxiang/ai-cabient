@@ -225,6 +225,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import type { OpenApiAnnouncement, OpenApiPageResultAnnouncement } from '@aicabinet/shared-types';
 import { get, post, put } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
@@ -270,7 +271,7 @@ const crud = useCrudTable<OpenApiAnnouncement>({
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     if (statusFilter.value) q.set('status', statusFilter.value);
     if (priorityFilter.value) q.set('priority', priorityFilter.value);
-    const res = await get<OpenApiPageResultAnnouncement>(`/api/v2/ops/announcements?${q}`);
+    const res = await get<OpenApiPageResultAnnouncement>(AdminEndpoints.announcementsList(q));
     return res.data;
   },
   // 公告编号本地排序（替代原 useIdColumnSort 表头排序，改由壳内「按公告编号 升/降序」切换）
@@ -338,7 +339,7 @@ const csvOptions: CrudCsvOptions = {
       const title = row['标题'] || row.title;
       if (!title?.trim()) continue;
       // 后端 create 固定为 DRAFT，忽略 body.publishAt；需发布时再调 publish
-      const created = await post<OpenApiAnnouncement>('/api/v2/ops/announcements', {
+      const created = await post<OpenApiAnnouncement>(AdminEndpoints.announcements, {
         title: title.trim(),
         content: row['内容'] || row.content || '',
         targetScope: scopeCodeByLabel[row['目标'] || row.targetScope] || 'ALL',
@@ -348,7 +349,7 @@ const csvOptions: CrudCsvOptions = {
       const status = statusCodeByLabel[statusRaw] || statusRaw.toUpperCase();
       const announceId = created?.data?.announceId;
       if (status === 'PUBLISHED' && announceId != null) {
-        await post(`/api/v2/ops/announcements/${announceId}/publish`);
+        await post(AdminEndpoints.announcementPublish(announceId));
       }
       ok++;
     }
@@ -491,7 +492,7 @@ async function onSaveSubmit() {
   if (!editingId.value) return;
   saving.value = true;
   try {
-    await put(`/api/v2/ops/announcements/${editingId.value}`, formBody());
+    await put(AdminEndpoints.announcement(editingId.value), formBody());
     ElMessage.success('已保存');
     showForm.value = false;
     editingId.value = null;
@@ -511,10 +512,10 @@ async function onPublishSubmit() {
   }
   saving.value = true;
   try {
-    const res = await post<OpenApiAnnouncement>('/api/v2/ops/announcements', formBody());
+    const res = await post<OpenApiAnnouncement>(AdminEndpoints.announcements, formBody());
     const id = res?.data?.announceId;
     if (id) {
-      await post(`/api/v2/ops/announcements/${id}/publish`);
+      await post(AdminEndpoints.announcementPublish(id));
     }
     ElMessage.success('发布成功');
     showForm.value = false;
@@ -535,7 +536,7 @@ function onPreview(row: OpenApiAnnouncement) {
 
 async function onPublish(row: OpenApiAnnouncement) {
   try {
-    await post(`/api/v2/ops/announcements/${row.announceId ?? 0}/publish`);
+    await post(AdminEndpoints.announcementPublish(row.announceId ?? 0));
     ElMessage.success('发布成功');
     void crud.load();
   } catch (e: unknown) {
@@ -546,7 +547,7 @@ async function onPublish(row: OpenApiAnnouncement) {
 async function onArchive(row: OpenApiAnnouncement) {
   try {
     await ElMessageBox.confirm(`确认归档公告「${row.title}」？`, '归档公告');
-    await post(`/api/v2/ops/announcements/${row.announceId ?? 0}/archive`);
+    await post(AdminEndpoints.announcementArchive(row.announceId ?? 0));
     ElMessage.success('归档成功');
     await crud.load();
   } catch (e: unknown) {

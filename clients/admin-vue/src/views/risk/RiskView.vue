@@ -229,7 +229,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
-import type { PageResult } from '@aicabinet/shared-types';
+import type { OpenApiRiskEventDto, OpenApiUserBlacklistDto, PageResult } from '@aicabinet/shared-types';
 import {
   dictLabel,
   dictTagType,
@@ -253,7 +253,8 @@ function dispositionTag(s?: string) {
   return 'warning';
 }
 
-type Row = Record<string, any>;
+type RiskEventRow = OpenApiRiskEventDto;
+type BlacklistRow = OpenApiUserBlacklistDto;
 const route = useRoute();
 const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
@@ -272,19 +273,22 @@ const addRules: FormRules = {
 };
 
 // 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 全部内建
-const eventsCrud = useCrudTable<Row>({
-  rowKey: (r) => r.eventId,
+const eventsCrud = useCrudTable<RiskEventRow>({
+  rowKey: (r) => r.eventId ?? '',
   errorMessage: '风险事件加载失败',
   // 首查依赖路由 query.tab 的解析结果，故关闭自动加载，onMounted 里显式首查当前 Tab
   autoLoad: false,
   fetchPage: (params) => {
     const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
-    return api.request<PageResult<Row> | Row[]>(AdminEndpoints.riskEventsList(q), 'GET');
+    return api.request<PageResult<RiskEventRow> | RiskEventRow[]>(
+      AdminEndpoints.riskEventsList(q),
+      'GET'
+    );
   }
 });
 
-const blacklistCrud = useCrudTable<Row>({
-  rowKey: (r) => r.userId,
+const blacklistCrud = useCrudTable<BlacklistRow>({
+  rowKey: (r) => r.userId ?? '',
   errorMessage: '黑名单加载失败',
   // 首查延迟到首次切到黑名单 Tab（loaded 懒加载约定），同样关闭自动加载
   autoLoad: false,
@@ -295,7 +299,7 @@ const blacklistCrud = useCrudTable<Row>({
       return { items: [], total: 0 };
     }
     const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
-    const data = await api.request<PageResult<Row> | Row[]>(
+    const data = await api.request<PageResult<BlacklistRow> | BlacklistRow[]>(
       AdminEndpoints.riskBlacklistList(q),
       'GET'
     );
@@ -386,11 +390,11 @@ function onTabChange(name: string | number) {
   }
 }
 
-function blacklistActions(_row: Row): CrudRowAction[] {
+function blacklistActions(_row: BlacklistRow): CrudRowAction[] {
   return [{ key: 'remove', label: '移出', icon: Delete, type: 'danger' }];
 }
 
-function onBlacklistAction({ key, row }: { key: string; row: Row }) {
+function onBlacklistAction({ key, row }: { key: string; row: BlacklistRow }) {
   if (key === 'remove') void removeBlacklist(row);
 }
 
@@ -427,7 +431,11 @@ async function saveBlacklist() {
   }
 }
 
-async function removeBlacklist(row: Row) {
+async function removeBlacklist(row: BlacklistRow) {
+  if (row.userId == null) {
+    ElMessage.error('缺少用户 ID');
+    return;
+  }
   try {
     await ElMessageBox.confirm(`确认将用户 ${row.userId} 移出黑名单？`, '移出黑名单', {
       type: 'warning'

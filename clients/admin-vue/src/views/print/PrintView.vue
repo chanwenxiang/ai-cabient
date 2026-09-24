@@ -131,6 +131,7 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { adminDevError } from '@/utils/admin-dev-log';
+import { softFallback } from '@/utils/soft-fallback';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type Row = Record<string, any>;
@@ -195,15 +196,21 @@ async function load() {
       if (!outboundId) throw new Error('缺少出库单 ID');
       const [ob, whs, devs, skuRows] = await Promise.all([
         api.request<Row>(AdminEndpoints.warehouseOutbound(outboundId), 'GET'),
-        api
-          .request<{ items: Row[] }>(AdminEndpoints.warehouseListAll, 'GET')
-          .catch(() => ({ items: [] as Row[] }))
-          .then((r) => r.items || []),
-        api.request<Row[]>(AdminEndpoints.devicesRef, 'GET').catch(() => []),
-        api
-          .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
-          .catch(() => ({ items: [] as Row[] }))
-          .then((r) => r.items || [])
+        softFallback(
+          api
+            .request<{ items: Row[] }>(AdminEndpoints.warehouseListAll, 'GET')
+            .then((r) => r.items || []),
+          [] as Row[],
+          '仓库列表'
+        ),
+        softFallback(api.request<Row[]>(AdminEndpoints.devicesRef, 'GET'), [] as Row[], '设备参照'),
+        softFallback(
+          api
+            .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
+            .then((r) => r.items || []),
+          [] as Row[],
+          '商品目录'
+        )
       ]);
       outbound.value = ob;
       warehouses.value = whs;
@@ -214,18 +221,27 @@ async function load() {
       if (!purchaseOrderId) throw new Error('缺少采购单 ID');
       const [po, sups, whs, skuRows] = await Promise.all([
         api.request<Row>(AdminEndpoints.purchaseOrder(purchaseOrderId), 'GET'),
-        api
-          .request<{ items: Row[] }>(AdminEndpoints.suppliersListAll, 'GET')
-          .catch(() => ({ items: [] as Row[] }))
-          .then((r) => r.items || []),
-        api
-          .request<{ items: Row[] }>(AdminEndpoints.warehouseListAll, 'GET')
-          .catch(() => ({ items: [] as Row[] }))
-          .then((r) => r.items || []),
-        api
-          .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
-          .catch(() => ({ items: [] as Row[] }))
-          .then((r) => r.items || [])
+        softFallback(
+          api
+            .request<{ items: Row[] }>(AdminEndpoints.suppliersListAll, 'GET')
+            .then((r) => r.items || []),
+          [] as Row[],
+          '供应商列表'
+        ),
+        softFallback(
+          api
+            .request<{ items: Row[] }>(AdminEndpoints.warehouseListAll, 'GET')
+            .then((r) => r.items || []),
+          [] as Row[],
+          '仓库列表'
+        ),
+        softFallback(
+          api
+            .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
+            .then((r) => r.items || []),
+          [] as Row[],
+          '商品目录'
+        )
       ]);
       purchase.value = po;
       suppliers.value = sups;
@@ -240,9 +256,11 @@ async function load() {
       );
       const rows =
         (
-          await api
-            .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
-            .catch(() => ({ items: [] as Row[] }))
+          await softFallback(
+            api.request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET'),
+            { items: [] as Row[] },
+            '商品目录'
+          )
         ).items || [];
       labels.value = rows.filter((r) => ids.has(String(r.skuId)));
     }

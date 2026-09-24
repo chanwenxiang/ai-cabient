@@ -291,7 +291,7 @@ const crud = useCrudTable<OpenApiPromotionActivityDto>({
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     if (statusFilter.value) q.set('status', statusFilter.value);
     return api.request<{ items: OpenApiPromotionActivityDto[]; total: number }>(
-      `/api/v2/ops/promotions?${q}`,
+      AdminEndpoints.promotionsList(q),
       'GET'
     );
   },
@@ -485,10 +485,10 @@ async function onSubmit() {
   saving.value = true;
   try {
     if (editingId.value) {
-      await api.request(`/api/v2/ops/promotions/${editingId.value}`, 'PUT', body);
+      await api.request(AdminEndpoints.promotion(editingId.value), 'PUT', body);
       ElMessage.success('已更新');
     } else {
-      await api.request('/api/v2/ops/promotions', 'POST', body);
+      await api.request(AdminEndpoints.promotions, 'POST', body);
       ElMessage.success('创建成功');
     }
     showDialog.value = false;
@@ -508,9 +508,9 @@ async function onToggleStatus(row: OpenApiPromotionActivityDto) {
       type: 'warning'
     });
     if (enable) {
-      await api.request(`/api/v2/ops/promotions/${row.activityId}/launch`, 'POST');
+      await api.request(AdminEndpoints.promotionLaunch(row.activityId ?? 0), 'POST');
     } else {
-      await api.request(`/api/v2/ops/promotions/${row.activityId}/stop`, 'POST');
+      await api.request(AdminEndpoints.promotionStop(row.activityId ?? 0), 'POST');
     }
     ElMessage.success(`已${action}`);
     await crud.load();
@@ -529,7 +529,7 @@ async function batchDisable() {
   try {
     await ElMessageBox.confirm(`确认停用选中的 ${targets.length} 个活动？`, '批量停用');
     for (const row of targets) {
-      await api.request(`/api/v2/ops/promotions/${row.activityId}/stop`, 'POST');
+      await api.request(AdminEndpoints.promotionStop(row.activityId ?? 0), 'POST');
     }
     ElMessage.success(`已停用 ${targets.length} 个活动`);
     await crud.load();
@@ -578,7 +578,7 @@ const csvOptions: CrudCsvOptions = {
         throw new Error(`活动「${name}」时间无效`);
       }
       const created = await api.request<OpenApiPromotionActivityDto>(
-        '/api/v2/ops/promotions',
+        AdminEndpoints.promotions,
         'POST',
         {
           activityName: name,
@@ -594,7 +594,7 @@ const csvOptions: CrudCsvOptions = {
         }
       );
       if (wantsEnabled(row['状态'] || row.status) && created?.activityId) {
-        await api.request(`/api/v2/ops/promotions/${created.activityId}/launch`, 'POST');
+        await api.request(AdminEndpoints.promotionLaunch(created.activityId), 'POST');
       }
       ok++;
     }

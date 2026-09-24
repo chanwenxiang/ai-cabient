@@ -1428,7 +1428,7 @@ async function openAssignDevices(row: MerchantDto) {
     }
     if (!allDevices.value.length) {
       const page = await api.request<PageResult<AssignDeviceRow> | AssignDeviceRow[]>(
-        AdminEndpoints.devicesList('page=0&size=200'),
+        AdminEndpoints.devicesOptions,
         'GET'
       );
       allDevices.value = Array.isArray(page) ? page : page?.items || [];

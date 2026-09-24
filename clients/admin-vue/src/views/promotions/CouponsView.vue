@@ -320,6 +320,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { yuanToCents } from '@/utils/display';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
@@ -350,7 +351,7 @@ const crud = useCrudTable<OpenApiCouponDefinitionDto>({
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     if (statusFilter.value) q.set('status', statusFilter.value);
     return api.request<{ items: OpenApiCouponDefinitionDto[]; total: number }>(
-      `/api/v2/coupons/definitions?${q}`,
+      AdminEndpoints.couponDefinitionsList(q),
       'GET'
     );
   },
@@ -362,7 +363,7 @@ async function loadActiveCoupons() {
     activeCoupons.value =
       (
         await api.request<{ items: OpenApiCouponDefinitionDto[] }>(
-          '/api/v2/coupons/definitions?status=ACTIVE&page=0&size=500',
+          AdminEndpoints.couponDefinitionsActive,
           'GET'
         )
       ).items || [];
@@ -376,7 +377,7 @@ async function loadActivityOptions() {
     activityOptions.value =
       (
         await api.request<{ items: OpenApiPromotionActivityDto[] }>(
-          '/api/v2/ops/promotions?page=0&size=200',
+          AdminEndpoints.promotionsOptions,
           'GET'
         )
       ).items || [];
@@ -403,10 +404,7 @@ async function batchDisable() {
       type: 'warning'
     });
     for (const row of targets) {
-      await api.request(
-        `/api/v2/coupons/definitions/${row.couponDefId}/status?status=INACTIVE`,
-        'PUT'
-      );
+      await api.request(AdminEndpoints.couponDefinitionStatus(row.couponDefId ?? 0, 'INACTIVE'), 'PUT');
     }
     ElMessage.success(`已停用 ${targets.length} 张优惠券`);
     crud.clearSelection();
@@ -501,7 +499,7 @@ const csvOptions: CrudCsvOptions = {
       const name = row['名称'] || row.couponName;
       if (!name?.trim()) continue;
       const created = await api.request<OpenApiCouponDefinitionDto>(
-        '/api/v2/coupons/definitions',
+        AdminEndpoints.couponDefinitions,
         'POST',
         {
           couponName: name.trim(),
@@ -520,7 +518,7 @@ const csvOptions: CrudCsvOptions = {
         statusRaw === displayLabel('enable_status', 'ACTIVE');
       if (!wantsActive && created?.couponDefId) {
         await api.request(
-          `/api/v2/coupons/definitions/${created.couponDefId}/status?status=INACTIVE`,
+          AdminEndpoints.couponDefinitionStatus(created.couponDefId, 'INACTIVE'),
           'PUT'
         );
       }
@@ -636,10 +634,10 @@ async function onCreateSubmit() {
       activityId: form.activityId || null
     };
     if (editingId.value) {
-      await api.request(`/api/v2/coupons/definitions/${editingId.value}`, 'PUT', body);
+      await api.request(AdminEndpoints.couponDefinition(editingId.value), 'PUT', body);
       ElMessage.success('已更新');
     } else {
-      await api.request('/api/v2/coupons/definitions', 'POST', body);
+      await api.request(AdminEndpoints.couponDefinitions, 'POST', body);
       ElMessage.success('创建成功');
     }
     showCreate.value = false;
@@ -668,7 +666,7 @@ async function onIssueSubmit() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/coupons/issue', 'POST', issueForm.value);
+    await api.request(AdminEndpoints.couponIssue, 'POST', issueForm.value);
     ElMessage.success('发券成功');
     showIssue.value = false;
   } catch (e) {
@@ -708,7 +706,7 @@ async function onBatchIssueSubmit() {
   }
   saving.value = true;
   try {
-    await api.request('/api/v2/coupons/batch-issue', 'POST', {
+    await api.request(AdminEndpoints.couponBatchIssue, 'POST', {
       couponDefId: batchForm.value.couponDefId,
       userIds
     });
@@ -728,10 +726,7 @@ async function onToggleStatus(row: OpenApiCouponDefinitionDto) {
     await ElMessageBox.confirm(`确认${action}优惠券「${row.couponName}」？`, '优惠券状态', {
       type: 'warning'
     });
-    await api.request(
-      `/api/v2/coupons/definitions/${row.couponDefId ?? 0}/status?status=${next}`,
-      'PUT'
-    );
+    await api.request(AdminEndpoints.couponDefinitionStatus(row.couponDefId ?? 0, next), 'PUT');
     ElMessage.success(`已${action}`);
     await crud.load();
     await loadActiveCoupons();

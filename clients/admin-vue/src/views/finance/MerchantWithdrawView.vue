@@ -483,6 +483,12 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { yuanToCents } from '@/utils/display';
+import {
+  buildMerchantWithdrawReviewBody,
+  canCancelFailedMerchantWithdraw,
+  canRetryMerchantWithdrawPayout,
+  canReviewMerchantWithdraw
+} from '@/utils/money-ui-contracts';
 
 // loadSeq 仅剩打款模式提示在用；两个列表的分页/多选/竞态已由 useCrudTable 收口
 const loadSeq = createLoadSeq();
@@ -575,18 +581,24 @@ const wdCrud = useCrudTable<Withdraw>({
 const withdrawStatusOptions = useDictOptions('merchant_withdraw_status');
 
 function canReviewWithdraw(row: Withdraw) {
-  return row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:merchant-withdraw:review');
+  return canReviewMerchantWithdraw(
+    row.status,
+    auth.hasPerm('ops:merchant-withdraw:review')
+  );
 }
 
 function canRetryWithdrawPayout(row: Withdraw) {
-  return (
-    (row.status === 'APPROVED' || row.status === 'FAILED') &&
+  return canRetryMerchantWithdrawPayout(
+    row.status,
     auth.hasPerm('ops:merchant-withdraw:review')
   );
 }
 
 function canCancelFailedWithdraw(row: Withdraw) {
-  return row.status === 'FAILED' && auth.hasPerm('ops:merchant-withdraw:review');
+  return canCancelFailedMerchantWithdraw(
+    row.status,
+    auth.hasPerm('ops:merchant-withdraw:review')
+  );
 }
 
 function walletRowActions(_row: WalletRow): CrudRowAction[] {
@@ -783,10 +795,11 @@ async function review(row: Withdraw, approve: boolean) {
       approve ? '通过并打款' : '驳回申请',
       { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
     );
-    await api.request(AdminEndpoints.merchantWithdrawReview(row.requestId), 'POST', {
-      approve,
-      remark: approve ? '审核通过' : '审核驳回'
-    });
+    await api.request(
+      AdminEndpoints.merchantWithdrawReview(row.requestId),
+      'POST',
+      buildMerchantWithdrawReviewBody(approve)
+    );
     ElMessage.success(approve ? '已通过' : '已驳回');
     await wdCrud.load();
   } catch (e: unknown) {
@@ -797,7 +810,11 @@ async function review(row: Withdraw, approve: boolean) {
 }
 
 async function batchReviewWithdraws(approve: boolean) {
-  const targets = wdCrud.pickSelected(wdCrud.items).filter((r) => r.status === 'PENDING_REVIEW');
+  const targets = wdCrud
+    .pickSelected(wdCrud.items)
+    .filter((r) =>
+      canReviewMerchantWithdraw(r.status, auth.hasPerm('ops:merchant-withdraw:review'))
+    );
   if (!targets.length) {
     ElMessage.warning('请先勾选待审核提现申请');
     return;
@@ -818,10 +835,11 @@ async function batchReviewWithdraws(approve: boolean) {
   try {
     const results = await Promise.allSettled(
       targets.map((row) =>
-        api.request(AdminEndpoints.merchantWithdrawReview(row.requestId), 'POST', {
-          approve,
-          remark: approve ? '批量审核通过' : '批量审核驳回'
-        })
+        api.request(
+          AdminEndpoints.merchantWithdrawReview(row.requestId),
+          'POST',
+          buildMerchantWithdrawReviewBody(approve, { batch: true })
+        )
       )
     );
     const ok = results.filter((r) => r.status === 'fulfilled').length;

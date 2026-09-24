@@ -742,7 +742,7 @@ async function loadMerchants() {
   const seq = loadSeq.begin('loadMerchants');
   try {
     const data = await api.request<{ items?: MerchantRow[] }>(
-      AdminEndpoints.merchantsList('page=0&size=500'),
+      AdminEndpoints.merchantsCatalog,
       'GET'
     );
     merchants.value = data.items || [];
@@ -1029,7 +1029,7 @@ async function openDevices(row: OperatorRow) {
     if (!allDevices.value.length) {
       type DeviceListItem = { deviceId: string; deviceName?: string; routeCode?: string };
       const list = await api.request<{ items?: DeviceListItem[] }>(
-        AdminEndpoints.devicesList('page=0&size=200'),
+        AdminEndpoints.devicesOptions,
         'GET'
       );
       allDevices.value = (list.items || []).map((d) => ({

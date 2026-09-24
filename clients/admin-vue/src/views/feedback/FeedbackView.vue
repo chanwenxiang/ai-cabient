@@ -157,14 +157,16 @@ import { useRoute } from 'vue-router';
 import { ChatDotRound, Delete } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import type { UserFeedbackDto } from '@aicabinet/shared-types';
 
-type Row = Record<string, any>;
+type Row = UserFeedbackDto;
 const route = useRoute();
 const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
@@ -190,7 +192,7 @@ const crud = useCrudTable<Row>({
       size: String(params.size)
     });
     if (status.value) q.set('status', status.value);
-    return api.request<{ items: Row[]; total: number }>(`/api/v2/ops/feedback?${q}`, 'GET');
+    return api.request<{ items: Row[]; total: number }>(AdminEndpoints.feedbackList(q), 'GET');
   },
   // 反馈编号本地排序（替代原 useIdColumnSort 表头排序，改由壳内「按反馈编号 升/降序」切换）
   sort: { prop: 'feedbackId', mode: 'local' }
@@ -286,7 +288,7 @@ async function removeFeedback(row: Row) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/feedback/${row.feedbackId}`, 'DELETE');
+    await api.request(AdminEndpoints.feedback(row.feedbackId), 'DELETE');
     ElMessage.success('已删除');
     await crud.load();
   } catch (e) {
@@ -299,7 +301,7 @@ async function submitReply() {
   if (!replyText.value.trim()) return ElMessage.warning('请填写回复内容');
   saving.value = true;
   try {
-    await api.request(`/api/v2/ops/feedback/${current.value.feedbackId}/reply`, 'POST', {
+    await api.request(AdminEndpoints.feedbackReply(current.value.feedbackId), 'POST', {
       reply: replyText.value.trim()
     });
     replyDialog.value = false;

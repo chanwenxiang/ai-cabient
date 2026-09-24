@@ -181,6 +181,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import { createSoftFailCollector } from '@/utils/soft-fallback';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo } from '@aicabinet/shared-uni/format';
 import {
@@ -762,33 +763,47 @@ function daysAgoStr(days: number) {
 async function load() {
   loading.value = true;
   const today = daysAgoStr(0);
+  const { soft, flush } = createSoftFailCollector();
   const [s, w, sl, f, t, dr, cr, mp, scope] = await Promise.all([
-    api.request<AdminStats>(AdminEndpoints.stats, 'GET').catch(() => null),
-    api.request<Workbench>(AdminEndpoints.workbench, 'GET').catch(() => null),
-    api.request<SlaMetrics>(AdminEndpoints.sla, 'GET').catch(() => null),
-    api.request<FinanceStats>(AdminEndpoints.financeStats, 'GET').catch(() => null),
-    api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(10), 'GET').catch(() => null),
-    api
-      .request<{ items: DeviceRank[]; total: number }>(
-        AdminEndpoints.reportsDevicesList('page=0&size=50'),
-        'GET'
-      )
-      .then((r) => r?.items ?? [])
-      .catch(() => []),
-    api
-      .request<{ items: CategoryRow[]; total: number }>(
-        AdminEndpoints.salesReportsList(
-          `dim=CATEGORY&fromDate=${daysAgoStr(29)}&toDate=${today}&page=0&size=50`
-        ),
-        'GET'
-      )
-      .then((r) => r?.items ?? [])
-      .catch(() => []),
-    api.request<MapPoint[]>(AdminEndpoints.devicesMapPoints(''), 'GET').catch(() => []),
-    api
-      .request<{ demoData?: boolean; label?: string }>(AdminEndpoints.dataScope, 'GET')
-      .catch(() => null)
+    soft(api.request<AdminStats>(AdminEndpoints.stats, 'GET'), null, '运营统计'),
+    soft(api.request<Workbench>(AdminEndpoints.workbench, 'GET'), null, '工作台'),
+    soft(api.request<SlaMetrics>(AdminEndpoints.sla, 'GET'), null, 'SLA'),
+    soft(api.request<FinanceStats>(AdminEndpoints.financeStats, 'GET'), null, '财务统计'),
+    soft(
+      api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(10), 'GET'),
+      null,
+      '趋势'
+    ),
+    soft(
+      api
+        .request<{ items: DeviceRank[]; total: number }>(
+          AdminEndpoints.reportsDevicesList('page=0&size=50'),
+          'GET'
+        )
+        .then((r) => r?.items ?? []),
+      [] as DeviceRank[],
+      '设备报表'
+    ),
+    soft(
+      api
+        .request<{ items: CategoryRow[]; total: number }>(
+          AdminEndpoints.salesReportsList(
+            `dim=CATEGORY&fromDate=${daysAgoStr(29)}&toDate=${today}&page=0&size=50`
+          ),
+          'GET'
+        )
+        .then((r) => r?.items ?? []),
+      [] as CategoryRow[],
+      '品类销售'
+    ),
+    soft(api.request<MapPoint[]>(AdminEndpoints.devicesMapPoints(''), 'GET'), [], '地图点位'),
+    soft(
+      api.request<{ demoData?: boolean; label?: string }>(AdminEndpoints.dataScope, 'GET'),
+      null,
+      '数据范围'
+    )
   ]);
+  flush();
   stats.value = s;
   workbench.value = w;
   sla.value = sl;
