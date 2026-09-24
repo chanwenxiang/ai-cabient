@@ -1057,7 +1057,7 @@ function onBoardTab(name: string | number) {
 async function loadMerchants() {
   try {
     const data = await api.request<{ items?: MerchantOption[] }>(
-      AdminEndpoints.merchantsList('page=0&size=500'),
+      AdminEndpoints.merchantsCatalog,
       'GET'
     );
     merchantOptions.value = data.items || [];
