@@ -2,7 +2,21 @@
  * A-P2-005 试点：运营后台高频端点集中定义。
  * 新调用优先从此处取路径，禁止业务层再散落同款裸字符串。
  * 与后端 `ApiVersions.PATH_PREFIX` / shared-api `API_PREFIX` 对齐（当前 v2）。
+ *
+ * ## 前缀约定（debt-tracker D12）
+ * | 前缀 | 用途 |
+ * |------|------|
+ * | `/api/v2/ops/admin/*` | 运营后台主域（设备/订单/仓配/RBAC…） |
+ * | `/api/v2/ops/disputes*`、`/ops/restock/*`、`/ops/dispute-suggest` | 争议/补货开门等非 admin 子路径 |
+ * | `/api/v2/coupons/*` | 优惠券定义与发放 |
+ * | `/api/v2/ops/promotions|announcements|feedback` | 活动/公告/反馈 |
+ * | `/api/v2/auth/*` | 登录登出（见 `AuthEndpoints`） |
+ * | `/api/v2/public/*`（若出现） | 无鉴权公开面，禁止混进需登录写路径 |
+ *
+ * 门禁：`scripts/check-admin-endpoints.mjs` 扫 views/composables 裸字面量 + `ADMIN_ENDPOINT_PILOT_LITERALS`。
  */
+import { adminCatalogQuery, adminOptionsQuery } from '../utils/admin-catalog-query';
+
 export const API_PREFIX = '/api/v2' as const;
 
 const ops = `${API_PREFIX}/ops/admin` as const;
@@ -13,23 +27,10 @@ export const AuthEndpoints = {
 } as const;
 
 export const AdminEndpoints = {
-  dataTables: `${API_PREFIX}/ops/admin/data/tables`,
   /** 表名 → 是否允许删除（后端由 pg_constraint 推导，前端据此隐藏注定失败的入口） */
   dataCapabilities: `${API_PREFIX}/ops/admin/data/capabilities`,
   dataDelete: (table: string, id: string) =>
     `${API_PREFIX}/ops/admin/data/${table}/${encodeURIComponent(id)}`,
-  dataUpdate: (table: string, id: string) =>
-    `${API_PREFIX}/ops/admin/data/${table}/${encodeURIComponent(id)}`,
-  dataCreate: (table: string) => `${API_PREFIX}/ops/admin/data/${table}`,
-  /**
-   * 列元数据：列名 / 类型 / 可空 / 有默认 / 主键。
-   * ⚠️ 前端**已无调用方**（2026-09-23 撤掉原始表写入口，见 CrudTable 顶部说明），
-   * 保留是因为后端接口仍在：这份对象是「API 镜像」，不是「用到的接口清单」。
-   */
-  dataSchema: (table: string) => `${API_PREFIX}/ops/admin/data/schema/${table}`,
-  /** 单行原始列值（{@code ::text} 口径）；键 = 数据库列名，与写入侧校验同源。同上，前端已无调用方 */
-  dataRow: (table: string, id: string) =>
-    `${API_PREFIX}/ops/admin/data/row/${table}/${encodeURIComponent(id)}`,
   /** 工作台 KPI */
   stats: `${ops}/stats`,
   workbench: `${ops}/workbench`,
@@ -107,6 +108,8 @@ export const AdminEndpoints = {
   devices: `${ops}/devices`,
   devicesList: (query: URLSearchParams | string) =>
     typeof query === 'string' ? `${ops}/devices?${query}` : `${ops}/devices?${query.toString()}`,
+  /** 轻量选项下拉（size=200，见 admin-catalog-query / D7） */
+  devicesOptions: `${ops}/devices?${adminOptionsQuery()}`,
   devicesMapPoints: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/devices/map-points?${query}`
@@ -143,6 +146,8 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/merchants?${query}`
       : `${ops}/merchants?${query.toString()}`,
+  /** 商户目录下拉（size=500，见 admin-catalog-query / D7） */
+  merchantsCatalog: `${ops}/merchants?${adminCatalogQuery()}`,
   merchantsProfitSharingStatus: `${ops}/merchants/profit-sharing/status`,
   merchantsRevenueSplits: (query: URLSearchParams | string) =>
     typeof query === 'string'
@@ -175,7 +180,7 @@ export const AdminEndpoints = {
   skus: `${ops}/skus`,
   skusList: (query: URLSearchParams | string) =>
     typeof query === 'string' ? `${ops}/skus?${query}` : `${ops}/skus?${query.toString()}`,
-  skusCatalogPage: `${ops}/skus?page=0&size=500`,
+  skusCatalogPage: `${ops}/skus?${adminCatalogQuery()}`,
   sku: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}`,
   skusImage: `${ops}/skus/image`,
 
@@ -184,7 +189,7 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/sku-vision/rows?${query}`
       : `${ops}/sku-vision/rows?${query.toString()}`,
-  skuVisionRowsAll: `${ops}/sku-vision/rows?status=ALL&page=0&size=500`,
+  skuVisionRowsAll: `${ops}/sku-vision/rows?${adminCatalogQuery({ status: 'ALL' })}`,
   skuVisionEnroll: `${ops}/sku-vision/enroll`,
   skuVisionPipeline: `${ops}/sku-vision/pipeline`,
   skuVisionSuggestClass: `${ops}/sku-vision/suggest-class`,
@@ -250,7 +255,7 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/warehouse/list?${query}`
       : `${ops}/warehouse/list?${query.toString()}`,
-  warehouseListAll: `${ops}/warehouse/list?page=0&size=500`,
+  warehouseListAll: `${ops}/warehouse/list?${adminCatalogQuery()}`,
   warehouseItem: (warehouseId: string) => `${ops}/warehouse/${encodeURIComponent(warehouseId)}`,
   warehouseExport: (tab: string) => `${ops}/warehouse/export?tab=${encodeURIComponent(tab)}`,
   warehouseInbound: `${ops}/warehouse/inbound`,
@@ -258,7 +263,7 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/warehouse/outbounds?${query}`
       : `${ops}/warehouse/outbounds?${query.toString()}`,
-  warehouseOutboundsAll: `${ops}/warehouse/outbounds?page=0&size=500`,
+  warehouseOutboundsAll: `${ops}/warehouse/outbounds?${adminCatalogQuery()}`,
   warehouseOutbound: (outboundId: string | number) =>
     `${ops}/warehouse/outbounds/${encodeURIComponent(String(outboundId))}`,
   warehouseOutboundAction: (outboundId: string | number, action: string) =>
@@ -315,7 +320,7 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/suppliers?${query}`
       : `${ops}/suppliers?${query.toString()}`,
-  suppliersListAll: `${ops}/suppliers?page=0&size=500`,
+  suppliersListAll: `${ops}/suppliers?${adminCatalogQuery()}`,
   supplier: (supplierId: string) => `${ops}/suppliers/${encodeURIComponent(supplierId)}`,
   suppliersPayables: (query: URLSearchParams | string) =>
     typeof query === 'string'
@@ -329,7 +334,7 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/purchase-orders?${query}`
       : `${ops}/purchase-orders?${query.toString()}`,
-  purchaseOrdersReturnable: `${ops}/purchase-orders?returnableOnly=true&page=0&size=500`,
+  purchaseOrdersReturnable: `${ops}/purchase-orders?${adminCatalogQuery({ returnableOnly: true })}`,
   purchaseOrder: (purchaseOrderId: string | number) =>
     `${ops}/purchase-orders/${encodeURIComponent(String(purchaseOrderId))}`,
   purchaseOrderReview: (purchaseOrderId: string | number) =>
@@ -708,7 +713,79 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/recharges?${query}`
       : `${ops}/recharges?${query.toString()}`,
-  rechargeRefund: (orderId: string) => `${ops}/recharge/${encodeURIComponent(orderId)}/refund`
+  rechargeRefund: (orderId: string) => `${ops}/recharge/${encodeURIComponent(orderId)}/refund`,
+
+  /**
+   * 争议 / 补货开门（路径在 `/api/v2/ops/...`，**不**在 `/ops/admin` 下）。
+   * A-P2-005 扩展：钱/柜门写路径同样必须走本目录，禁止 views 裸字面量（debt-tracker D1）。
+   */
+  disputesList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${API_PREFIX}/ops/disputes?${query}`
+      : `${API_PREFIX}/ops/disputes?${query.toString()}`,
+  dispute: (ticketId: string) => `${API_PREFIX}/ops/disputes/${encodeURIComponent(ticketId)}`,
+  disputeClaim: (ticketId: string) =>
+    `${API_PREFIX}/ops/disputes/${encodeURIComponent(ticketId)}/claim`,
+  disputeResolve: (ticketId: string) =>
+    `${API_PREFIX}/ops/disputes/${encodeURIComponent(ticketId)}/resolve`,
+  disputeClose: (ticketId: string) =>
+    `${API_PREFIX}/ops/disputes/${encodeURIComponent(ticketId)}/close`,
+  disputeReopen: (ticketId: string) =>
+    `${API_PREFIX}/ops/disputes/${encodeURIComponent(ticketId)}/reopen`,
+  disputeSuggest: `${API_PREFIX}/ops/dispute-suggest`,
+  restockOpenDoor: `${API_PREFIX}/ops/restock/open-door`,
+
+  /**
+   * 券 / 活动 / 公告 / 反馈（路径不在 `/ops/admin` 下）。
+   * debt-tracker D2 / lessons #115：views 禁止再散落同款裸字面量。
+   */
+  couponDefinitionsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${API_PREFIX}/coupons/definitions?${query}`
+      : `${API_PREFIX}/coupons/definitions?${query.toString()}`,
+  couponDefinitionsActive: `${API_PREFIX}/coupons/definitions?${adminCatalogQuery({ status: 'ACTIVE' })}`,
+  couponDefinitionsCatalog: `${API_PREFIX}/coupons/definitions?${adminCatalogQuery()}`,
+  couponDefinitions: `${API_PREFIX}/coupons/definitions`,
+  couponDefinition: (couponDefId: string | number) =>
+    `${API_PREFIX}/coupons/definitions/${encodeURIComponent(String(couponDefId))}`,
+  couponDefinitionStatus: (couponDefId: string | number, status: string) =>
+    `${API_PREFIX}/coupons/definitions/${encodeURIComponent(String(couponDefId))}/status?status=${encodeURIComponent(status)}`,
+  couponIssue: `${API_PREFIX}/coupons/issue`,
+  couponBatchIssue: `${API_PREFIX}/coupons/batch-issue`,
+
+  promotionsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${API_PREFIX}/ops/promotions?${query}`
+      : `${API_PREFIX}/ops/promotions?${query.toString()}`,
+  promotionsOptions: `${API_PREFIX}/ops/promotions?${adminOptionsQuery()}`,
+  promotions: `${API_PREFIX}/ops/promotions`,
+  promotion: (activityId: string | number) =>
+    `${API_PREFIX}/ops/promotions/${encodeURIComponent(String(activityId))}`,
+  promotionLaunch: (activityId: string | number) =>
+    `${API_PREFIX}/ops/promotions/${encodeURIComponent(String(activityId))}/launch`,
+  promotionStop: (activityId: string | number) =>
+    `${API_PREFIX}/ops/promotions/${encodeURIComponent(String(activityId))}/stop`,
+
+  announcementsList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${API_PREFIX}/ops/announcements?${query}`
+      : `${API_PREFIX}/ops/announcements?${query.toString()}`,
+  announcements: `${API_PREFIX}/ops/announcements`,
+  announcement: (announceId: string | number) =>
+    `${API_PREFIX}/ops/announcements/${encodeURIComponent(String(announceId))}`,
+  announcementPublish: (announceId: string | number) =>
+    `${API_PREFIX}/ops/announcements/${encodeURIComponent(String(announceId))}/publish`,
+  announcementArchive: (announceId: string | number) =>
+    `${API_PREFIX}/ops/announcements/${encodeURIComponent(String(announceId))}/archive`,
+
+  feedbackList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${API_PREFIX}/ops/feedback?${query}`
+      : `${API_PREFIX}/ops/feedback?${query.toString()}`,
+  feedback: (feedbackId: string | number) =>
+    `${API_PREFIX}/ops/feedback/${encodeURIComponent(String(feedbackId))}`,
+  feedbackReply: (feedbackId: string | number) =>
+    `${API_PREFIX}/ops/feedback/${encodeURIComponent(String(feedbackId))}/reply`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */
@@ -775,5 +852,14 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/geo',
   '/api/v2/ops/admin/device-ops',
   '/api/v2/ops/admin/recharges',
-  '/api/v2/ops/admin/recharge'
+  '/api/v2/ops/admin/recharge',
+  // 非 /ops/admin 前缀：争议与补货开门（debt-tracker D1 / lessons #115）
+  '/api/v2/ops/disputes',
+  '/api/v2/ops/dispute-suggest',
+  '/api/v2/ops/restock/open-door',
+  // 券 / 活动 / 公告 / 反馈（debt-tracker D2）
+  '/api/v2/coupons',
+  '/api/v2/ops/promotions',
+  '/api/v2/ops/announcements',
+  '/api/v2/ops/feedback'
 ] as const;

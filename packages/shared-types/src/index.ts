@@ -986,6 +986,26 @@ export interface UserFeedbackDto {
 /** @deprecated 使用 OpenApiAnnouncement（springdoc Announcement） */
 export type AnnouncementDto = import('./generated/admin-models').OpenApiAnnouncement;
 
+export type OpenApiRiskEventDto =
+  import('./generated/openapi').components['schemas']['RiskEventDto'];
+export type OpenApiUserBlacklistDto =
+  import('./generated/openapi').components['schemas']['UserBlacklistDto'];
+
+export type OpenApiReplenishmentRouteDto =
+  import('./generated/openapi').components['schemas']['ReplenishmentRouteDto'];
+export type OpenApiWarehouseDto =
+  import('./generated/openapi').components['schemas']['WarehouseDto'];
+export type OpenApiWarehouseOutboundDto =
+  import('./generated/openapi').components['schemas']['WarehouseOutboundDto'];
+export type OpenApiWarehouseTransferDto =
+  import('./generated/openapi').components['schemas']['WarehouseTransferDto'];
+export type OpenApiWarehouseBinDto =
+  import('./generated/openapi').components['schemas']['WarehouseBinDto'];
+export type OpenApiStocktakeDto =
+  import('./generated/openapi').components['schemas']['StocktakeDto'];
+export type OpenApiPurchaseOrderDto =
+  import('./generated/openapi').components['schemas']['PurchaseOrderDto'];
+
 /** @deprecated 使用 OpenApiCouponDefinitionDto（springdoc CouponDefinitionDto） */
 export type CouponDefinitionDto = import('./generated/admin-models').OpenApiCouponDefinitionDto;
 
