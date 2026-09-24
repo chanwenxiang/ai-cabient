@@ -2682,9 +2682,10 @@ function stopDevicePoll() {
   flex-direction: column;
 }
 /* 顶部绿色占位带：只垫状态栏/胶囊区域，设备栏保持白卡 */
+/* 与 AppNavBar 同色（--nav-bar-bg=--brand=#0f766e），全 App 头部绿一致 */
 .shop-status-pad {
   flex-shrink: 0;
-  background: linear-gradient(180deg, #0d9488, var(--brand, #0f766e));
+  background: var(--nav-bar-bg, var(--brand, #0f766e));
 }
 .device-bar {
   flex-shrink: 0;

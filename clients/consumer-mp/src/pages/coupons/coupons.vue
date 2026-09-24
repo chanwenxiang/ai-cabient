@@ -32,7 +32,13 @@
         :hint="emptyHint"
       >
         <app-button label="扫码购物" @click="goShop" />
-        <app-button variant="ghost" label="看热门活动" @click="goMarketing" />
+        <!-- gap 在部分安卓 WebView 不生效 ⇒ 用 margin 兜底，避免两按钮贴死 -->
+        <app-button
+          class="empty-btn-second"
+          variant="ghost"
+          label="看热门活动"
+          @click="goMarketing"
+        />
       </empty-state>
       <view v-else>
         <view
@@ -345,5 +351,10 @@ function pickForNextOpen(c: CouponDto) {
 .coupon-status-badge.expired {
   background: var(--color-border-subtle);
   color: var(--text-muted, #475569);
+}
+
+/* 旧 WebView 不支持 flex gap：第二个空态按钮的间距兜底 */
+.empty-btn-second {
+  margin-top: 16rpx;
 }
 </style>

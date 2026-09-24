@@ -373,11 +373,15 @@ function goOrders() {
   line-height: 1.4;
 }
 .faq-toggle {
-  flex: 0 0 48rpx;
-  width: 48rpx;
-  height: 48rpx;
+  flex: 0 0 26rpx;
+  width: 26rpx;
+  height: 26rpx;
   color: var(--color-link, var(--brand, #0f766e));
   font-size: var(--font-size-md);
+}
+.faq-toggle.app-icon--chevron {
+  border-right-width: 3rpx;
+  border-bottom-width: 3rpx;
 }
 .faq-toggle.app-icon--chevron {
   transform: rotate(-45deg);
