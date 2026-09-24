@@ -2676,28 +2676,34 @@ function stopDevicePoll() {
   display: flex;
   flex-direction: column;
 }
+/* 顶部设备栏＝品牌绿头部（对齐参考竞品；与落地页同色系），文字转白 */
 .device-bar {
   flex-shrink: 0;
-  margin: 18rpx 20rpx 0;
-  padding: 25rpx;
-  background: var(--card-bg, #fff);
-  border: 1rpx solid var(--color-border-subtle, #edf2ef);
+  margin: 14rpx 24rpx 0;
+  padding: 18rpx 22rpx;
+  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand-deep, #134e4a));
+  border: none;
   border-radius: var(--radius-card, 24rpx);
-  box-shadow: 0 9rpx 28rpx rgba(15, 23, 42, 0.055);
+  box-shadow: 0 10rpx 26rpx rgba(19, 78, 74, 0.3);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .device-name {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--text-primary, #14201b);
+  color: var(--white, #ffffff);
   display: block;
 }
 .device-status {
   font-size: var(--font-size-caption);
   display: inline-flex;
   margin-top: 7rpx;
+  color: rgba(255, 255, 255, 0.92);
+}
+.device-status.is-offline,
+.device-status.is-warn {
+  color: #fde68a;
 }
 .device-status:not(.is-offline):not(.is-warn):not(.is-online) {
   color: var(--brand, #0f766e);
@@ -2710,12 +2716,12 @@ function stopDevicePoll() {
 }
 .device-change {
   font-size: var(--font-size-body);
-  color: var(--color-link, var(--brand, #0f766e));
+  color: rgba(255, 255, 255, 0.92);
   font-weight: 500;
 }
 .device-report {
   font-size: var(--font-size-body);
-  color: var(--color-link, var(--brand, #0f766e));
+  color: rgba(255, 255, 255, 0.92);
   font-weight: 500;
 }
 
@@ -2761,13 +2767,13 @@ function stopDevicePoll() {
 }
 
 .catalog-tools {
-  padding: 0 16rpx 4rpx;
+  padding: 0 24rpx 4rpx;
 }
 .search-box {
   position: relative;
   display: flex;
   align-items: center;
-  height: 72rpx;
+  height: 64rpx;
   padding: 0 28rpx;
   border-radius: var(--radius-card);
   background: var(--card-bg, #fff);
@@ -2794,16 +2800,16 @@ function stopDevicePoll() {
   display: flex;
   flex-wrap: nowrap;
   white-space: nowrap;
-  margin-top: 16rpx;
+  margin-top: 12rpx;
   width: 100%;
-  height: 64rpx;
+  height: 60rpx;
   box-sizing: border-box;
 }
 .category-chip {
   display: inline-flex;
   align-items: center;
-  height: 56rpx;
-  padding: 0 26rpx;
+  height: 52rpx;
+  padding: 0 22rpx;
   margin-right: 12rpx;
   border-radius: var(--radius-card);
   background: var(--color-border-subtle, #f1f5f9);
@@ -2821,7 +2827,7 @@ function stopDevicePoll() {
   flex: 1;
   height: 0;
   min-height: 0;
-  margin-top: 12rpx;
+  margin-top: 8rpx;
 }
 .list-bottom {
   height: 16rpx;
