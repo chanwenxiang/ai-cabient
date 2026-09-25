@@ -192,12 +192,16 @@ import {
   setPreferredDeviceId
 } from '@/utils/preferred-device';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
+import { resolveMerchantIdForDevice } from '@/utils/device-settings';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 import type {
   DeviceSlot,
   DeviceTemperatureReading,
+  MerchantDeviceInfo,
   MerchantMe,
-  MerchantSkuVelocity
+  MerchantSkuVelocity,
+  OpenApiMerchantDeviceSettingsDto,
+  OpenApiUpdateMerchantDeviceSettingsRequest
 } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -306,38 +310,29 @@ function formatTempDisplay(value: number | null | undefined, emptyLabel: string)
   return value == null ? emptyLabel : `${value}°C`;
 }
 
-function readExtendedDeviceFields(
-  settings: Awaited<ReturnType<typeof merchantApi.deviceSettings>>
-) {
-  const ext = settings as {
-    salesLocked?: boolean;
-    salesLockReason?: string;
-    address?: string;
-    routeCode?: string;
-    lifecycleStatus?: string;
-    firmwareVersion?: string;
-    latitude?: number | null;
-    longitude?: number | null;
-  };
+function readExtendedDeviceFields(settings: OpenApiMerchantDeviceSettingsDto) {
   return {
-    salesLocked: !!ext.salesLocked,
-    salesLockReason: String(ext.salesLockReason || ''),
-    address: String(ext.address || ''),
-    routeCode: String(ext.routeCode || ''),
-    lifecycleStatus: String(ext.lifecycleStatus || ''),
-    firmwareVersion: String(ext.firmwareVersion || ''),
+    salesLocked: !!settings.salesLocked,
+    salesLockReason: String(settings.salesLockReason || ''),
+    address: String(settings.address || ''),
+    routeCode: String(settings.routeCode || ''),
+    lifecycleStatus: String(settings.lifecycleStatus || ''),
+    firmwareVersion: String(settings.firmwareVersion || ''),
     latitude:
-      ext.latitude == null || Number.isNaN(Number(ext.latitude)) ? null : Number(ext.latitude),
+      settings.latitude == null || Number.isNaN(Number(settings.latitude))
+        ? null
+        : Number(settings.latitude),
     longitude:
-      ext.longitude == null || Number.isNaN(Number(ext.longitude)) ? null : Number(ext.longitude)
+      settings.longitude == null || Number.isNaN(Number(settings.longitude))
+        ? null
+        : Number(settings.longitude)
   };
 }
 
-function applyDeviceSettings(settings: Awaited<ReturnType<typeof merchantApi.deviceSettings>>) {
+function applyDeviceSettings(settings: OpenApiMerchantDeviceSettingsDto) {
   const ext = readExtendedDeviceFields(settings);
-  merchantId.value = (settings.merchantId as string) || '';
-  deviceName.value = (settings.deviceName as string) || deviceId.value;
-  online.value = ((settings.onlineStatus as string) || '').toUpperCase() === 'ONLINE';
+  deviceName.value = settings.deviceName || deviceId.value;
+  online.value = String(settings.onlineStatus || '').toUpperCase() === 'ONLINE';
   salesLocked.value = ext.salesLocked;
   salesLockReason.value = ext.salesLockReason;
   address.value = ext.address;
@@ -346,12 +341,11 @@ function applyDeviceSettings(settings: Awaited<ReturnType<typeof merchantApi.dev
   firmwareVersion.value = ext.firmwareVersion;
   latitude.value = ext.latitude;
   longitude.value = ext.longitude;
-  // settings 是 Record<string, unknown>；温度字段需显式收窄（同下方 deviceName/opsRemark 的既有写法）
-  currentTemp.value = formatTempDisplay(settings.currentTempC as number | null | undefined, '暂无');
-  targetTemp.value = formatTempDisplay(settings.targetTempC as number | null | undefined, '未设置');
-  formName.value = (settings.deviceName as string) || '';
+  currentTemp.value = formatTempDisplay(settings.currentTempC, '暂无');
+  targetTemp.value = formatTempDisplay(settings.targetTempC, '未设置');
+  formName.value = settings.deviceName || '';
   formTargetTemp.value = settings.targetTempC == null ? '' : String(settings.targetTempC);
-  formRemark.value = (settings.opsRemark as string) || '';
+  formRemark.value = settings.opsRemark || '';
 }
 
 function applySlotParLevels(list: DeviceSlot[]) {
@@ -416,8 +410,16 @@ async function loadDetail() {
   if (!deviceName.value) loading.value = true;
   error.value = '';
   try {
-    const settings = await merchantApi.deviceSettings(deviceId.value);
+    const [settings, devices] = await Promise.all([
+      merchantApi.deviceSettings(deviceId.value),
+      softFallback(merchantApi.devices(), [] as MerchantDeviceInfo[], '柜机列表')
+    ]);
     if (seq !== loadSeq) return;
+    merchantId.value = resolveMerchantIdForDevice({
+      deviceId: deviceId.value,
+      devices,
+      me: me.value
+    });
     applyDeviceSettings(settings);
     await loadDeviceExtras(seq);
   } catch (e) {
@@ -465,9 +467,9 @@ function goRequest() {
 
 async function saveSettings() {
   if (saving.value) return;
-  const body: Record<string, unknown> = {
-    deviceName: formName.value.trim() || null,
-    opsRemark: formRemark.value.trim() || null
+  const body: OpenApiUpdateMerchantDeviceSettingsRequest = {
+    deviceName: formName.value.trim() || undefined,
+    opsRemark: formRemark.value.trim() || undefined
   };
   if (formTargetTemp.value !== '') {
     const temp = Number(formTargetTemp.value);

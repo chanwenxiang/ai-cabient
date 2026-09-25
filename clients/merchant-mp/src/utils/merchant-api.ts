@@ -389,9 +389,18 @@ export const merchantApi = {
   devices: () =>
     request<import('@aicabinet/shared-types').MerchantDeviceInfo[]>('/api/v2/merchant/devices'),
   deviceSettings: (id: string) =>
-    request<Record<string, unknown>>(`/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`),
-  updateDeviceSettings: (id: string, body: Record<string, unknown>) =>
-    request(`/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`, 'PATCH', body),
+    request<import('@aicabinet/shared-types').OpenApiMerchantDeviceSettingsDto>(
+      `/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`
+    ),
+  updateDeviceSettings: (
+    id: string,
+    body: import('@aicabinet/shared-types').OpenApiUpdateMerchantDeviceSettingsRequest
+  ) =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantDeviceSettingsDto>(
+      `/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`,
+      'PATCH',
+      body
+    ),
   deviceSlots: (id: string) =>
     request<import('@aicabinet/shared-types').DeviceSlot[]>(
       `/api/v2/merchant/devices/${encodeURIComponent(id)}/slots`

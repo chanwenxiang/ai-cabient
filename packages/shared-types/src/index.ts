@@ -222,6 +222,14 @@ export type DeviceInfo = import('./generated/admin-models').OpenApiAdminDeviceDt
 export type MerchantDeviceInfo =
   import('./generated/openapi').components['schemas']['MerchantDeviceDto'];
 
+/** 商户柜机设置读模型（`GET .../devices/{id}/settings`） */
+export type OpenApiMerchantDeviceSettingsDto =
+  import('./generated/openapi').components['schemas']['MerchantDeviceSettingsDto'];
+
+/** 商户柜机设置写请求（`PATCH .../devices/{id}/settings`） */
+export type OpenApiUpdateMerchantDeviceSettingsRequest =
+  import('./generated/openapi').components['schemas']['UpdateMerchantDeviceSettingsRequest'];
+
 export interface DeviceSlot {
   deviceId: string;
   slotCode: string;
