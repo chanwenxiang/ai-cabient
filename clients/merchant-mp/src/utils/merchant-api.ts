@@ -714,7 +714,7 @@ export const merchantApi = {
       'PATCH',
       body
     ),
-  disputes: (status?: string, page = 0, size = 100) =>
+  disputes: (status?: string, page = 0, size = 50) =>
     request<
       import('@aicabinet/shared-types').PageResult<
         import('@aicabinet/shared-types').OpenApiMerchantDisputeSummaryDto

@@ -161,6 +161,8 @@
 | 149 | merchant 补货壳弱类型+肥样式 | devices 用 `Record<string, unknown>`；深链 `open: any`；SFC style ~500 行 | 类型与 OpenAPI 脱节；样式堆同文件 | **必须**devices 用 `MerchantDeviceInfo`；深链参数用 Task；样式外置 page.css；履约逻辑禁止回流 SFC；进度 M5 done | `useReplenishment{List,Shell,Scan}`、`replenishment.page.css` |
 | 150 | consumer 退款/申诉双份逻辑 | order-detail 与 result 平行 seed/校验/body，改一处易漏 | 无共享 appeal 模块 | **必须**种子/原因校验/证据上传中/fileDispute body 走 `order-appeal`；禁止两页再各写一套；UI 弹层可后拆（C6b）；进度 C6 首刀 done | `order-appeal.ts`、order-detail、result |
 | 151 | merchant 经营页手写分转元 | business 多处 `(cents/100).toFixed(2)` 与 `fmtMoney` 双轨 | 局部 `money()` 与模板内联除法并存 | **必须**展示走 `fmtMoney`（含客单/报损）；禁止页内再手写 `/100`；肥页拆分另开 M6b；进度 M6 首刀 done | `business.vue`、`@aicabinet/shared-uni/format` |
+| 152 | consumer 我的页内嵌体验充值文案 | mine 散落 ¥20 确认/幂等键，与 recharge/prep 易漂 | 无共享 copy 模块；样式堆同 SFC | **必须**确认文案/金额/幂等键走 `mine-recharge-copy`；样式外置 page.css；禁止同 PR 改布局；续拆 orders 等 → C7b；进度 C7 首刀 done | `mine-recharge-copy.ts`、`mine.page.css` |
+| 153 | merchant 争议首屏拉 100 | 列表卡顿；硬编码 `disputes(...,0,100)` 与 PAGE_SIZE 脱节 | 默认 size=100；无深链翻页 | **必须**`DISPUTES_PAGE_SIZE=50`；首屏/翻页同常量；session 深链有限翻页；禁止回退 minio:// 播放；样式外置；进度 M7 首刀 done | `dispute-list.ts`、`disputes.page.css` |
 
 ## 追加模板
 

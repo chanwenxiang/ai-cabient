@@ -310,7 +310,13 @@ import {
   resolveClientPreauthCents
 } from '@/utils/account';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
-import { secureRandomToken } from '@/utils/secure-id';
+import {
+  MINE_DEV_RECHARGE_CENTS,
+  mineAlipayRechargeConfirm,
+  mineMockRechargeConfirm,
+  mineRechargeIdempotencyKey,
+  mineWechatRechargeConfirm
+} from '@/utils/mine-recharge-copy';
 import {
   resolveMockEnabled,
   resolveSandboxRecharge,
@@ -477,18 +483,12 @@ async function refreshAccount() {
 
 async function onWeChatRecharge() {
   if (rechargeLoading.value) return;
-  const confirmed = await showConfirm({
-    title: wechatPayLive.value ? '微信支付充值' : '微信充值',
-    content: wechatPayLive.value
-      ? '将调起微信支付充值 ¥20.00。'
-      : '将充值 ¥20.00 到余额（体验到账，不会真实扣款）。',
-    confirmText: '确认'
-  });
+  const confirmed = await showConfirm(mineWechatRechargeConfirm(wechatPayLive.value));
   if (!confirmed) return;
   rechargeLoading.value = true;
   try {
-    const key = `mine-wechat-${Date.now()}-${secureRandomToken(6)}`;
-    await runWeChatRecharge(2000, key);
+    const key = mineRechargeIdempotencyKey('wechat');
+    await runWeChatRecharge(MINE_DEV_RECHARGE_CENTS, key);
     await refreshAccount();
     showSuccess('充值成功');
   } catch (error) {
@@ -501,18 +501,12 @@ async function onWeChatRecharge() {
 async function onAlipayRecharge() {
   if (rechargeLoading.value) return;
   const isMock = mockRechargeEnabled.value;
-  const confirmed = await showConfirm({
-    title: '支付宝充值',
-    content: isMock
-      ? '将充值 ¥20.00 到余额（体验到账，不会真实扣款）。'
-      : '将跳转支付宝支付页充值 ¥20.00。',
-    confirmText: isMock ? '确认到账' : '去支付'
-  });
+  const confirmed = await showConfirm(mineAlipayRechargeConfirm(isMock));
   if (!confirmed) return;
   rechargeLoading.value = true;
   try {
-    const key = `alipay-recharge-${Date.now()}-${secureRandomToken(6)}`;
-    const { mode } = await runAlipayRecharge(2000, key);
+    const key = mineRechargeIdempotencyKey('alipay');
+    const { mode } = await runAlipayRecharge(MINE_DEV_RECHARGE_CENTS, key);
     if (mode === 'live') {
       showError('请在支付宝完成支付');
       return;
@@ -528,16 +522,12 @@ async function onAlipayRecharge() {
 
 async function onMockRecharge() {
   if (rechargeLoading.value) return;
-  const confirmed = await showConfirm({
-    title: '确认充值',
-    content: '将向当前账户发放 ¥20.00 余额（体验到账，不会真实扣款）。',
-    confirmText: '确认发放'
-  });
+  const confirmed = await showConfirm(mineMockRechargeConfirm());
   if (!confirmed) return;
   rechargeLoading.value = true;
   try {
-    const key = `mock-recharge-${Date.now()}-${secureRandomToken(6)}`;
-    const prepay = await consumerApi.createMockRecharge(2000, key);
+    const key = mineRechargeIdempotencyKey('mock');
+    const prepay = await consumerApi.createMockRecharge(MINE_DEV_RECHARGE_CENTS, key);
     await consumerApi.confirmMockRecharge(prepay.orderId);
     await refreshAccount();
     showSuccess('余额已到账');
@@ -635,396 +625,4 @@ async function onLogout() {
 }
 </script>
 
-<style scoped>
-.mine-page {
-  min-height: 100%;
-  box-sizing: border-box;
-  /* 原生 tabBar 已在页面外占位，只需少量底距 */
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: var(--card-bg, #ffffff);
-}
-.profile-header {
-  position: relative;
-  overflow: hidden;
-  margin: 0;
-  padding: 0;
-  border-radius: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  width: 100%;
-  box-sizing: border-box;
-  background: linear-gradient(145deg, var(--brand, #0f766e) 0%, #14b8a6 100%);
-  box-shadow: none;
-  color: var(--white);
-}
-.profile-main {
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 20rpx;
-  z-index: 1;
-  padding: 12rpx 28rpx 36rpx;
-  box-sizing: border-box;
-  width: 100%;
-}
-.profile-orb {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.09);
-  pointer-events: none;
-  z-index: 0;
-}
-.orb-a {
-  width: 180rpx;
-  height: 180rpx;
-  right: -60rpx;
-  top: -90rpx;
-}
-.orb-b {
-  width: 100rpx;
-  height: 100rpx;
-  right: 100rpx;
-  bottom: -60rpx;
-}
-.avatar {
-  position: relative;
-  width: 128rpx;
-  height: 128rpx;
-  border-radius: 50%;
-  border: 3rpx solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.18);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-display);
-  font-weight: 700;
-  flex-shrink: 0;
-  z-index: 1;
-}
-.profile-mid {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
-  z-index: 1;
-  overflow: hidden;
-}
-.hello {
-  display: block;
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.guest-hint {
-  display: block;
-  margin-top: 10rpx;
-  font-size: var(--font-size-sm);
-  opacity: 0.82;
-  line-height: 1.35;
-}
-.balance-side {
-  position: relative;
-  flex: 0 0 auto;
-  margin-left: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  z-index: 1;
-  min-width: 180rpx;
-}
-.balance-label {
-  font-size: var(--font-size-sm);
-  opacity: 0.72;
-  letter-spacing: 0.5rpx;
-  text-align: right;
-}
-.balance-number {
-  margin-top: 4rpx;
-  font-size: var(--font-size-h2);
-  font-weight: 800;
-  letter-spacing: -1rpx;
-  line-height: 1.15;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
-}
-.balance-meta {
-  margin-top: 4rpx;
-  font-size: var(--font-size-xs);
-  opacity: 0.72;
-  text-align: right;
-}
-.balance-action {
-  margin-top: 12rpx;
-  padding: 8rpx 22rpx;
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--brand-deep, #134e4a);
-  background: rgba(255, 255, 255, var(--on-deep-opacity-92));
-  text-align: center;
-}
-.tags {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8rpx;
-  margin-top: 12rpx;
-}
-.tag {
-  flex-shrink: 0;
-  font-size: var(--font-size-xs);
-  padding: 4rpx 12rpx;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.2);
-  white-space: nowrap;
-}
-.tag.ok {
-  background: rgba(255, 255, 255, 0.32);
-}
-.tag.warn {
-  background: var(--brand-soft, #ecfdf5);
-  color: var(--brand);
-}
-.setup-banner {
-  margin: 12rpx 24rpx 0;
-  padding: 14rpx 18rpx;
-  border-radius: var(--radius-control);
-  background: var(--brand, #0f766e);
-  border: 1rpx solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 6rpx 16rpx rgba(19, 78, 74, 0.16);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--white);
-}
-.setup-title {
-  font-size: var(--font-size-md);
-  font-weight: 600;
-  color: var(--white);
-  display: block;
-}
-.setup-desc {
-  font-size: var(--font-size-sm);
-  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
-  display: block;
-  margin-top: 2rpx;
-}
-.setup-arrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8rpx;
-  color: var(--white);
-  font-size: var(--font-size-body);
-  font-weight: 500;
-  white-space: nowrap;
-  margin-left: 12rpx;
-}
-.setup-arrow .app-icon--chevron {
-  width: 0.45em;
-  height: 0.45em;
-  border-width: 2rpx;
-}
-
-.pay-pref-card {
-  margin: 12rpx 24rpx 0;
-  padding: 22rpx 24rpx 20rpx;
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-control);
-  border: 1rpx solid var(--color-border-subtle, #edf1ef);
-}
-.pay-pref-title {
-  display: block;
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  color: var(--text-primary, #223029);
-}
-.pay-pref-hint {
-  display: block;
-  margin-top: 6rpx;
-  font-size: var(--font-size-sm);
-  color: var(--text-muted, #849087);
-  line-height: 1.45;
-}
-.pay-pref-chips {
-  display: flex;
-  margin-top: 16rpx;
-}
-.pay-pref-chip {
-  flex: 1;
-  text-align: center;
-  padding: 16rpx 8rpx;
-  margin-right: 12rpx;
-  border-radius: var(--radius-control);
-  background: var(--surface-muted);
-  color: var(--text-muted);
-  font-size: var(--font-size-caption);
-  border: 2rpx solid transparent;
-  box-sizing: border-box;
-}
-.pay-pref-chip:last-child {
-  margin-right: 0;
-}
-.pay-pref-chip.on {
-  background: var(--brand-soft);
-  color: var(--brand);
-  border-color: var(--success);
-  font-weight: 700;
-}
-.pay-pref-chip.disabled {
-  opacity: 0.45;
-}
-.pay-pref-chip.busy {
-  opacity: 0.7;
-}
-.pay-pref-unsign-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 16rpx;
-  padding-top: 14rpx;
-  border-top: 1rpx solid var(--color-border-subtle, #edf1ef);
-}
-.pay-pref-unsign {
-  font-size: var(--font-size-caption);
-  color: var(--text-muted, #849087);
-  text-decoration: underline;
-}
-.pay-pref-unsign.busy {
-  opacity: 0.5;
-}
-.pay-pref-unsign-hint {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted, #849087);
-}
-
-.quick-grid {
-  margin: 12rpx 24rpx 0;
-  padding: 18rpx 4rpx;
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-control);
-  display: flex;
-}
-.quick-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6rpx;
-}
-.quick-icon {
-  width: 48rpx;
-  height: 48rpx;
-}
-.quick-label {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted, #334155);
-  font-weight: 500;
-}
-
-.menu-list {
-  margin: 12rpx 24rpx 0;
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-control);
-  overflow: hidden;
-}
-.logout-wrap {
-  margin-top: 12rpx;
-  padding-bottom: 8rpx;
-}
-.menu-cell {
-  background: transparent;
-  margin-bottom: 0;
-  padding: 22rpx 24rpx;
-  border: none;
-  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
-  border-radius: 0;
-  box-shadow: none;
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  min-height: 88rpx;
-  box-sizing: border-box;
-}
-.menu-cell:last-child {
-  border-bottom: none;
-}
-.menu-cell.highlight {
-  border: none;
-  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
-  background: #f8fffb;
-}
-.menu-cell.disabled {
-  opacity: 0.6;
-  pointer-events: none;
-}
-.menu-icon {
-  display: flex;
-  width: 40rpx;
-  height: 40rpx;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.menu-text {
-  flex: 1;
-  min-width: 0;
-}
-.menu-title {
-  font-size: var(--font-size-md);
-  font-weight: 500;
-  color: var(--text-primary, #0f172a);
-  display: block;
-  line-height: 1.3;
-}
-.menu-desc {
-  margin-top: 2rpx;
-  color: var(--text-subtle);
-  font-size: var(--font-size-sm);
-  display: block;
-  line-height: 1.3;
-}
-.menu-arrow {
-  color: var(--text-subtle, #cbd5e1);
-  flex-shrink: 0;
-  width: 0.55em;
-  height: 0.55em;
-  font-size: var(--font-size-md);
-  margin-left: 8rpx;
-}
-.menu-badge {
-  font-size: var(--font-size-sm);
-  color: var(--danger, #991b1b);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
-  padding: 4rpx 12rpx;
-  border-radius: var(--radius-pill);
-}
-.danger {
-  color: var(--color-danger);
-}
-.danger-cell {
-  background: #fffafa;
-}
-.danger-cell .menu-icon {
-  background: transparent;
-  color: var(--color-danger);
-}
-
-.dev-section {
-  margin: 8rpx 24rpx 0;
-  padding: 16rpx 0 0;
-}
-.dev-label {
-  display: block;
-  margin: 0 8rpx 12rpx;
-  font-size: var(--font-size-sm);
-  color: var(--text-subtle);
-  letter-spacing: 1rpx;
-}
-</style>
+<style scoped src="./mine.page.css"></style>
