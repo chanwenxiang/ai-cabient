@@ -6,19 +6,15 @@ import { isMerchantLoggedIn } from '@/utils/merchant-api';
 import { seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { setSkipCheckInLocation } from '@/utils/checkin-location-pref';
 import { isPullOffType } from '@/composables/useReplenishmentDisplay';
-import type { MerchantMe } from '@aicabinet/shared-types';
+import type { MerchantMe, MerchantDeviceInfo } from '@aicabinet/shared-types';
 
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
 
-type DeviceMeta = {
-  deviceId?: string;
-  deviceName?: string;
-  address?: string;
-  routeCode?: string;
-  latitude?: number;
-  longitude?: number;
-};
+type DeviceMeta = Pick<
+  MerchantDeviceInfo,
+  'deviceId' | 'deviceName' | 'address' | 'routeCode' | 'latitude' | 'longitude'
+>;
 
 /**
  * 补货页壳：Hero/空态文案、设备导航、列表加载与步骤态。
@@ -37,7 +33,7 @@ export function useReplenishmentShell(opts: {
   focusTaskId: Ref<number | null>;
   canSkipLocation: boolean;
   canReplenish: ComputedRef<boolean>;
-  devices: Ref<Record<string, unknown>[]>;
+  devices: Ref<MerchantDeviceInfo[]>;
   efficiency: Ref<{ completionRatePercent?: number } | null | undefined>;
   emptyHintForDeviceFilter: () => string;
   emptyHintForStatusFilter: () => string;
@@ -51,7 +47,7 @@ export function useReplenishmentShell(opts: {
   isLatestLoad: (seq: number) => boolean;
   refreshMe: () => Promise<unknown>;
   resolveDeepLinkOpenTask: () => unknown;
-  handleDeepLinkAfterLoad: (open: any, wantedTaskId: number | null) => Promise<void>;
+  handleDeepLinkAfterLoad: (open: Task | undefined, wantedTaskId: number | null) => Promise<void>;
 }) {
   const heroSubtitle = computed(() => '扫码到柜 → 签到 → 开门 → 核对履约');
   const efficiencyRateText = computed(() =>
@@ -101,7 +97,7 @@ export function useReplenishmentShell(opts: {
 
   function deviceMeta(id?: string): DeviceMeta | undefined {
     if (!id) return undefined;
-    return opts.devices.value.find((item) => item.deviceId === id) as DeviceMeta | undefined;
+    return opts.devices.value.find((item) => item.deviceId === id);
   }
 
   function deviceName(id?: string, snapshot?: string) {

@@ -3,14 +3,10 @@ import { showError, showSuccess } from '@/utils/notify';
 import { merchantApi } from '@/utils/merchant-api';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { promptText } from '@/utils/text-prompt';
-import type { MerchantSkuPricing } from '@aicabinet/shared-types';
+import type { MerchantDeviceInfo, MerchantSkuPricing } from '@aicabinet/shared-types';
 
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
-
-type DeviceMeta = {
-  deviceId?: string;
-};
 
 type AskConfirm = (opts: {
   title: string;
@@ -23,7 +19,7 @@ type AskConfirm = (opts: {
  * 补货扫柜 / 扫商品条码。
  */
 export function useReplenishmentScan(opts: {
-  devices: Ref<Record<string, unknown>[]>;
+  devices: Ref<MerchantDeviceInfo[]>;
   skus: Ref<MerchantSkuPricing[]>;
   allTasks: Ref<Task[]>;
   selected: Ref<Task | null>;
@@ -45,7 +41,7 @@ export function useReplenishmentScan(opts: {
     if (!id) return false;
     const localHit = opts.devices.value.some(
       (d) =>
-        String((d as DeviceMeta).deviceId || '')
+        String(d.deviceId || '')
           .trim()
           .toUpperCase() === id
     );

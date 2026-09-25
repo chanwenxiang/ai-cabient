@@ -3,6 +3,7 @@ import { showError } from '@/utils/notify';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { isMerchantLoggedIn, merchantApi, softFallback } from '@/utils/merchant-api';
 import type {
+  MerchantDeviceInfo,
   MerchantSkuPricing,
   OpenApiDeviceInventoryDto,
   OpenApiMerchantReplenishmentEfficiencyDto
@@ -57,7 +58,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
   const allTasks = ref<Task[]>([]);
   const evidenceCountMap = ref<Record<number, number>>({});
   const lineSummaryMap = ref<Record<number, string>>({});
-  const devices = ref<Record<string, unknown>[]>([]);
+  const devices = ref<MerchantDeviceInfo[]>([]);
   /** SKU 目录（缩略图/条码）按需懒加载，禁止列表 onShow 全量拉 pricing。 */
   const skus = ref<MerchantSkuPricing[]>([]);
   let skuCatalogPromise: Promise<void> | null = null;
@@ -127,7 +128,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
 
   function applyReplenishmentListData(
     taskRows: Task[],
-    deviceRows: Record<string, unknown>[],
+    deviceRows: MerchantDeviceInfo[],
     eff: OpenApiMerchantReplenishmentEfficiencyDto | null,
     lowStockRows: OpenApiDeviceInventoryDto[]
   ) {
@@ -218,7 +219,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
       const taskRows = await merchantApi.replenishmentTasks();
       if (seq !== loadSeq) return { seq, aborted: true };
       const [deviceRows, eff, lowStockRows] = await Promise.all([
-        softFallback(merchantApi.devices(), [] as Record<string, unknown>[], '柜机列表'),
+        softFallback(merchantApi.devices(), [] as MerchantDeviceInfo[], '柜机列表'),
         softFallback(merchantApi.myReplenishmentEfficiency(), null, '补货效率'),
         softFallback(merchantApi.lowStockDevices(), [] as OpenApiDeviceInventoryDto[], '缺货柜机')
       ]);
