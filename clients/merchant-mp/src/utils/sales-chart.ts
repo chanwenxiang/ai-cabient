@@ -9,6 +9,7 @@
  * ⚠️ 金额字段单位是**分**（`revenueCents` / `marginCents`），展示前由 `formatSalesMetric` 换算。
  */
 import type { EChartsOption } from 'echarts';
+import { fmtMoney } from '@aicabinet/shared-uni/format';
 
 export type SalesChartMetric = 'revenue' | 'margin' | 'qty' | 'orders';
 
@@ -63,7 +64,7 @@ export function formatSalesMetric(value: number, metric: SalesChartMetric): stri
   const v = num(value);
   if (metric === 'qty') return `${v} 件`;
   if (metric === 'orders') return `${v} 单`;
-  return `¥${(v / 100).toFixed(2)}`;
+  return fmtMoney(v);
 }
 
 /**

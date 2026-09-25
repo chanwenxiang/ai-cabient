@@ -41,12 +41,11 @@
           </view>
           <text class="title">订单 {{ displayBizNo(s.orderId) }}</text>
           <text class="meta"
-            >柜机 {{ emptyDisplay(s.deviceName || s.deviceId, 'device') }} · 商户所得 ¥{{
-              money(s.merchantCents)
-            }}</text
+            >柜机 {{ emptyDisplay(s.deviceName || s.deviceId, 'device') }} · 商户所得
+            {{ money(s.merchantCents) }}</text
           >
           <text class="meta"
-            >毛额 ¥{{ money(s.grossCents) }} · 平台 ¥{{ money(s.platformCents) }}</text
+            >毛额 {{ money(s.grossCents) }} · 平台 {{ money(s.platformCents) }}</text
           >
           <text v-if="s.wechatOutOrderNo" class="meta">外部单 {{ s.wechatOutOrderNo }}</text>
           <text v-if="s.failureReason" class="fail">失败原因：{{ s.failureReason }}</text>
@@ -67,7 +66,12 @@ import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, displayBizNo, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import {
+  emptyDisplay,
+  displayBizNo,
+  formatDateTimeMinute,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
 import type { RevenueSplit } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -151,7 +155,7 @@ function retryLoad() {
 }
 
 function money(cents = 0) {
-  return ((Number(cents) || 0) / 100).toFixed(2);
+  return fmtMoney(cents);
 }
 
 function formatTime(t?: string) {

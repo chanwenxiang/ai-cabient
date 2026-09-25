@@ -260,10 +260,11 @@ async function onSignAlipay() {
     const res = await consumerApi.signAlipayAgreement();
     if (res.pending && res.signFormHtml) {
       // 生产：支付宝内 H5 自动提交签约表单；微信小程序不内嵌支付宝签约
-      const platform = String((import.meta as any).env?.UNI_PLATFORM || '').toLowerCase();
-      const isH5 =
-        platform === 'h5' || (typeof globalThis !== 'undefined' && !!(globalThis as any).document);
-      if (isH5 && typeof document !== 'undefined') {
+      let isH5Runtime = false;
+      // #ifdef H5
+      isH5Runtime = true;
+      // #endif
+      if (isH5Runtime && typeof document !== 'undefined') {
         const blob = new Blob([res.signFormHtml], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         globalThis.location.href = url;

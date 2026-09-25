@@ -20,11 +20,11 @@
           <text class="name">{{ displayName }}</text>
           <view class="bal-row">
             <text class="bal-label">可用余额</text>
-            <text class="bal-value">¥{{ yuan(overview.availableCents) }}</text>
+            <text class="bal-value">{{ fmtMoney(overview.availableCents) }}</text>
           </view>
           <view class="bal-sub">
-            <text>账面 ¥{{ yuan(overview.balanceCents) }}</text>
-            <text>冻结 ¥{{ yuan(overview.frozenCents) }}</text>
+            <text>账面 {{ fmtMoney(overview.balanceCents) }}</text>
+            <text>冻结 {{ fmtMoney(overview.frozenCents) }}</text>
           </view>
         </view>
 
@@ -38,9 +38,7 @@
               placeholder-class="amount-ph"
             />
           </view>
-          <text v-if="maxWithdrawYuan" class="withdraw-hint"
-            >最多可提现 ¥{{ maxWithdrawYuan }}</text
-          >
+          <text v-if="maxWithdrawHint" class="withdraw-hint">{{ maxWithdrawHint }}</text>
           <!-- H53：绑定多商户时必须显式选择提现商户（后端未指定且多绑定返回 400「请指定提现商户」） -->
           <picker
             v-if="multiMerchant"
@@ -63,7 +61,7 @@
           <text class="section-title">最近提现</text>
           <view v-for="w in overview.recentWithdraws || []" :key="w.requestId" class="row-item">
             <view class="row-main">
-              <text>¥{{ yuan(w.amountCents) }}</text>
+              <text>{{ fmtMoney(w.amountCents) }}</text>
               <text class="status">{{ withdrawStatus(w.status) }}</text>
             </view>
             <text class="row-sub"
@@ -77,10 +75,11 @@
               {{
                 w.feeCents == null
                   ? '—'
-                  : `¥${yuan(w.feeCents)}${Number(w.feeCents) === 0 ? '（免收）' : ''}`
+                  : `${fmtMoney(w.feeCents)}${Number(w.feeCents) === 0 ? '（免收）' : ''}`
               }}
-              · 到账 ¥{{
-                yuan(Math.max(0, Number(w.amountCents ?? 0) - Number(w.feeCents ?? 0)))
+              · 到账
+              {{
+                fmtMoney(Math.max(0, Number(w.amountCents ?? 0) - Number(w.feeCents ?? 0)))
               }}</text
             >
             <text v-if="w.payoutRef || w.payoutMessage" class="row-sub"
@@ -114,7 +113,7 @@
             <text class="row-sub">{{ emptyDisplay(l.remark, 'text') }}</text>
             <text v-if="l.refId" class="row-sub">{{ ledgerRef(l) }}</text>
             <text v-if="l.balanceAfter != null" class="row-sub"
-              >余额后 ¥{{ yuan(l.balanceAfter) }} · 冻结后 ¥{{ yuan(l.frozenAfter) }}</text
+              >余额后 {{ fmtMoney(l.balanceAfter) }} · 冻结后 {{ fmtMoney(l.frozenAfter) }}</text
             >
             <text v-if="cfg.showLedgerTime && l.createdAt" class="row-sub">{{
               formatTime(l.createdAt)
@@ -147,6 +146,7 @@ import {
   emptyDisplay,
   formatDateTimeMinute,
   formatDateTimeShort,
+  fmtMoney,
   yuanToCents
 } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
@@ -207,8 +207,10 @@ const submitting = ref(false);
 const loadError = ref('');
 const amountYuan = ref('');
 const overview = ref<Overview | null>(null);
-const maxWithdrawYuan = computed(() =>
-  overview.value?.availableCents == null ? '' : yuan(overview.value.availableCents)
+const maxWithdrawHint = computed(() =>
+  overview.value?.availableCents == null
+    ? ''
+    : `最多可提现 ${fmtMoney(overview.value.availableCents)}`
 );
 
 // H53：多商户绑定时的提现商户选择；单商户不渲染选择器、请求也不带 merchantId
@@ -251,17 +253,10 @@ function formatTime(t?: string) {
   return props.role === 'merchant' ? formatDateTimeShort(t, '') : formatDateTimeMinute(t, '暂无');
 }
 
-function yuan(cents?: number) {
-  return ((Number(cents) || 0) / 100).toFixed(2);
-}
-
 function formatSigned(cents?: number) {
   const n = Number(cents) || 0;
-  const abs = Math.abs(n) / 100;
-  let sign = '';
-  if (n > 0) sign = '+';
-  else if (n < 0) sign = '-';
-  return `${sign}¥${abs.toFixed(2)}`;
+  if (n > 0) return `+${fmtMoney(n)}`;
+  return fmtMoney(n);
 }
 
 function withdrawStatus(status?: string) {
@@ -317,7 +312,7 @@ async function submitWithdraw() {
     return;
   }
   if (amountErr === 'EXCEEDS_AVAILABLE') {
-    showError(`超出可提现余额（最多 ¥${yuan(available)}）`);
+    showError(`超出可提现余额（最多 ${fmtMoney(available)}）`);
     return;
   }
   const merchantErr = validateWalletWithdrawMerchant({

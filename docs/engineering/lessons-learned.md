@@ -167,6 +167,8 @@
 | 155 | 柜机详情货道编辑门闩假死 | `settings.merchantId` 恒空 ⇒ `canEditSlots` 永 false | settings DTO 无 merchantId，却当 Record 强读 | **必须**`deviceSettings`/`updateDeviceSettings` 用 OpenAPI DTO；merchantId 从 `devices` 列表或 me 解析；进度 M8 done | `device-settings.ts`、`device-detail.vue`、`merchant-api.ts` |
 | 156 | consumer 次级肥页样式堆 SFC | orders/login/recharge 各近千行，改逻辑难 diff | 样式与脚本同文件 | **必须**scoped 样式外置 `*.page.css`；禁止同 PR 改支付/登录主路径；进度 C7b done | `orders/login/recharge.page.css` |
 | 157 | merchant 要货页下拉空 catch | `onPullDownRefresh` `.catch(() => {})` 吞错 | bootstrap 失败无日志无 toast | **必须**`void bootstrap().finally(stopRefresh)`；禁止空 catch；样式外置；进度 M10 首刀 done | `request.vue`、`request.page.css` |
+| 158 | merchant 金钱展示双轨 | pricing/splits/钱包/构成图手写 `/100` | 与 `fmtMoney` 并存易漂 | **必须**展示走 `fmtMoney`；表单草稿可裸元；禁止页内再拼 `¥`+toFixed；进度 M11 done | `pricing`/`splits`/`WalletPage`/`sales-chart` |
+| 159 | consumer verify 用 as any 判 H5 | `import.meta as any` / `globalThis as any` | 弱类型口袋；条件编译更稳 | **必须**平台分支用 `#ifdef H5`；禁止为读 env 再 `as any`；进度 C8 done | `verify.vue` |
 
 ## 追加模板
 

@@ -101,7 +101,7 @@ import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/empty-state.vue';
 import AppSheet from '@/components/AppSheet.vue';
-import { yuanToCents } from '@aicabinet/shared-uni/format';
+import { yuanToCents, fmtMoney } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
   useMerchantMe,
@@ -150,8 +150,7 @@ function draftKey(p: { skuId: string; deviceId: string }) {
 }
 
 function money(cents?: number | null) {
-  if (cents == null || Number.isNaN(Number(cents))) return '暂无';
-  return `¥${(Number(cents) / 100).toFixed(2)}`;
+  return fmtMoney(cents);
 }
 
 function formatTime(iso?: string) {
@@ -288,11 +287,11 @@ async function savePrice(p: MerchantSkuPricing) {
     return;
   }
   if (p.minPriceCents != null && priceCents != null && priceCents < p.minPriceCents) {
-    showError(`不低于 ¥${(p.minPriceCents / 100).toFixed(2)}`);
+    showError(`不低于 ${fmtMoney(p.minPriceCents)}`);
     return;
   }
   if (p.maxPriceCents != null && priceCents != null && priceCents > p.maxPriceCents) {
-    showError(`不高于 ¥${(p.maxPriceCents / 100).toFixed(2)}`);
+    showError(`不高于 ${fmtMoney(p.maxPriceCents)}`);
     return;
   }
   const prev = draftValueFor(p);
