@@ -150,6 +150,7 @@
 | 138 | admin 补货 View 误回退 | 未提交的 D13 接线被 `git checkout` 冲掉，View 回到 ~3378 | 破坏性 patch 失败后 checkout 整文件 | **禁止**对未提交大改 View 用整文件 checkout 恢复；失败应用局部替换；恢复 → D25 done（~2467 + 规划对话框） | `ReplenishmentView.vue`、`useReplenishmentRoutePlanning.ts` |
 | 139 | consumer H5 / CI | e2e `TC-QUAL-001`：`uni.setBackgroundColor is not a function` | 落地页沉浸用了微信小程序专用 API，H5 运行时无实现 | **必须**调用前 `typeof uni.setBackgroundColor === 'function'`（同 `getMenuButtonBoundingClientRect`）；**禁止**在 H5 共用路径裸调小程序专属 `uni.*` | `pages/index/index.vue` `syncLandingTabBar` |
 | 140 | CI / UAT | `T-A02/T-A04`：`rows=0 hydratedEmpty=false` 尽管空表已渲染 | CrudTable 空态已改 `.crud-empty`，`ui-assert` 仍只认 `.el-empty` | **必须**水合空态同时认 `.crud-empty` 与 `.el-empty`；改 CrudTable 空态选择器时同步 `scripts/lib/ui-assert.mjs` | `ui-assert.mjs` `adminPageState` |
+| 141 | 双端小程序 soft-fail | 可选接口失败被当成「暂无数据 / 暂无任务」 | consumer 用 `.catch(() => [])`；merchant `softFallback` 曾静默吞错；补货主列表也曾 soft 成 `[]` | **必须**可选依赖走 `utils/soft-fallback`（必带中文 label + toast；401/会话失效不 toast）；**禁止**主列表 soft 成空；补货任务列表硬失败；进度 C1/M1 done | `clients/*/src/utils/soft-fallback.ts`、`useReplenishmentList` |
 
 ## 追加模板
 
