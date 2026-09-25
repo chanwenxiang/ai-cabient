@@ -78,10 +78,10 @@ describe('money-ui-contracts · 退款请求体', () => {
     expect(
       buildOrderRefundBody({
         reason: '没拿',
-        evidenceFileIds: ['f1'],
+        evidenceFileIds: [1],
         restoreInventory: true
       })
-    ).toEqual({ reason: '没拿', evidenceFileIds: ['f1'], restoreInventory: true });
+    ).toEqual({ reason: '没拿', evidenceFileIds: [1], restoreInventory: true });
     expect(buildOrderRefundBody({ reason: '没拿', evidenceFileIds: [] })).toEqual({
       reason: '没拿',
       evidenceFileIds: []

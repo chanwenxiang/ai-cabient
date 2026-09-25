@@ -45,18 +45,18 @@ export type OrderRefundLine = {
 
 export function buildOrderRefundBody(input: {
   reason: string;
-  evidenceFileIds: string[];
+  evidenceFileIds: number[];
   restoreInventory?: boolean;
   lines?: OrderRefundLine[];
 }): {
   reason: string;
-  evidenceFileIds: string[];
+  evidenceFileIds: number[];
   restoreInventory?: boolean;
   lines?: OrderRefundLine[];
 } {
   const body: {
     reason: string;
-    evidenceFileIds: string[];
+    evidenceFileIds: number[];
     restoreInventory?: boolean;
     lines?: OrderRefundLine[];
   } = {
