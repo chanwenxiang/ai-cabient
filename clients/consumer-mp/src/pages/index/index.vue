@@ -577,6 +577,17 @@ import {
   fmtMoney,
   type OpenErrorKind
 } from '@aicabinet/shared-uni/format';
+import {
+  ACTIVE_SESSION_KEY,
+  REVIEW_SESSION_KEY,
+  SESSION_ACTIVE_STATES,
+  blockedDeviceLandingError,
+  isAdoptableSession,
+  isCabinetIdInvalid,
+  normalizeCabinetId,
+  settleWithin,
+  sleep
+} from '@/utils/landing-session';
 import { parseQuery } from '@aicabinet/shared-uni/query';
 import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
@@ -663,8 +674,6 @@ const landingError = ref('');
 const landingErrorKind = ref<OpenErrorKind>('other');
 const lastFailedDeviceId = ref('');
 const lastFailedChannel = ref<string | null>(null);
-const ACTIVE_SESSION_KEY = 'active_session_id';
-const REVIEW_SESSION_KEY = 'last_disputed_session_id';
 const reviewSessionId = ref(String(uni.getStorageSync(REVIEW_SESSION_KEY) || ''));
 
 function setActiveSession(id: string) {
@@ -751,20 +760,6 @@ const recognitionSlow = computed(
     ['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value) &&
     recognitionElapsedSec.value >= 90
 );
-
-/**
- * 会话「进行中」状态集合（非终态）。
- * 轮询恢复、孤儿会话接管、重复开门拦截共用同一份定义，避免多处字面量各写一份导致漂移
- * （C-1/C-2/C-3 三条缺陷都依赖「会话是否仍进行中」这个判据）。
- */
-const SESSION_ACTIVE_STATES: readonly string[] = [
-  'CREATED',
-  'OPENING',
-  'SHOPPING',
-  'RECOGNIZING',
-  'WAITING_UPLOAD',
-  'SETTLING'
-];
 
 /**
  * 「柜机被他人占用」的展示文案（补货中 / 暂停营业 / 使用中）。
@@ -1120,14 +1115,6 @@ type DeviceAvailability = {
   blocked: boolean;
 };
 
-function normalizeCabinetId(id: string): string {
-  return id.trim().toUpperCase();
-}
-
-function isCabinetIdInvalid(cabinetId: string): boolean {
-  return !/^[A-Z0-9][A-Z0-9_-]{1,63}$/.test(cabinetId);
-}
-
 function applyDeviceAvailability(
   status: Awaited<ReturnType<typeof consumerApi.deviceStatus>>
 ): DeviceAvailability {
@@ -1148,41 +1135,6 @@ function applyDeviceAvailability(
   return { online, reason, blocked: !online || status.available === false };
 }
 
-function blockedDeviceLandingError(
-  online: boolean,
-  reason: string
-): { kind: OpenErrorKind; msg: string; toastTitle: string } {
-  if (!online) {
-    return {
-      kind: 'other',
-      msg: '该柜机当前离线，请稍后再试或更换其他柜机。',
-      toastTitle: '暂时无法开门'
-    };
-  }
-  if (reason === 'LOCKED') {
-    return {
-      kind: 'device_paused',
-      msg: '柜机已暂停营业，请稍后再试或换一台',
-      toastTitle: '柜机暂停营业'
-    };
-  }
-  if (reason === 'REPLENISHMENT') {
-    return {
-      kind: 'device_busy',
-      msg: '柜机正在补货，请稍后再试',
-      toastTitle: '柜机正忙'
-    };
-  }
-  if (reason === 'SESSION') {
-    return {
-      kind: 'device_busy',
-      msg: '柜机正在被使用，请稍后再试',
-      toastTitle: '柜机正忙'
-    };
-  }
-  return { kind: 'other', msg: deviceStatusText.value, toastTitle: '暂时无法开门' };
-}
-
 function markOpenFailed(cabinetId: string) {
   scanned.value = false;
   deviceId.value = '';
@@ -1193,7 +1145,7 @@ function markOpenFailed(cabinetId: string) {
 function rejectBlockedDevice(cabinetId: string, avail: DeviceAvailability): boolean {
   if (!avail.blocked) return false;
   markOpenFailed(cabinetId);
-  const err = blockedDeviceLandingError(avail.online, avail.reason);
+  const err = blockedDeviceLandingError(avail.online, avail.reason, deviceStatusText.value);
   setLandingError(err.msg, err.kind);
   showError(err.toastTitle);
   return true;
@@ -1217,28 +1169,6 @@ function adoptSession(s: SessionDto) {
   setActiveSession(s.sessionId);
   applySessionView(s);
   startPoll();
-}
-
-/** 该会话能否被本次开门接管：同柜机且处于非终态。 */
-function isAdoptableSession(s: SessionDto | null | undefined, cabinetId: string): boolean {
-  if (!s) return false;
-  const same =
-    String(s.deviceId || '')
-      .trim()
-      .toUpperCase() ===
-    String(cabinetId || '')
-      .trim()
-      .toUpperCase();
-  return same && SESSION_ACTIVE_STATES.includes(String(s.state || ''));
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** 在 ms 内 settle 则返回结果，否则返回 null（给在途请求一个宽限期）。 */
-function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race<T | null>([promise.catch(() => null), sleep(ms).then(() => null)]);
 }
 
 /**
