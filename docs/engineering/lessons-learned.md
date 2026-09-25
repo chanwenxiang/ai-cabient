@@ -151,6 +151,8 @@
 | 139 | consumer H5 / CI | e2e `TC-QUAL-001`：`uni.setBackgroundColor is not a function` | 落地页沉浸用了微信小程序专用 API，H5 运行时无实现 | **必须**调用前 `typeof uni.setBackgroundColor === 'function'`（同 `getMenuButtonBoundingClientRect`）；**禁止**在 H5 共用路径裸调小程序专属 `uni.*` | `pages/index/index.vue` `syncLandingTabBar` |
 | 140 | CI / UAT | `T-A02/T-A04`：`rows=0 hydratedEmpty=false` 尽管空表已渲染 | CrudTable 空态已改 `.crud-empty`，`ui-assert` 仍只认 `.el-empty` | **必须**水合空态同时认 `.crud-empty` 与 `.el-empty`；改 CrudTable 空态选择器时同步 `scripts/lib/ui-assert.mjs` | `ui-assert.mjs` `adminPageState` |
 | 141 | 双端小程序 soft-fail | 可选接口失败被当成「暂无数据 / 暂无任务」 | consumer 用 `.catch(() => [])`；merchant `softFallback` 曾静默吞错；补货主列表也曾 soft 成 `[]` | **必须**可选依赖走 `utils/soft-fallback`（必带中文 label + toast；401/会话失效不 toast）；**禁止**主列表 soft 成空；补货任务列表硬失败；进度 C1/M1 done | `clients/*/src/utils/soft-fallback.ts`、`useReplenishmentList` |
+| 142 | consumer 端点散落 | pages 旁路拼 `/api/v2`，无门禁 | 仅有 admin `check-admin-endpoints`；video/dict 裸路径 | **必须**新路径进 `ConsumerEndpoints`；pages/composables 试点字面量走 `check-consumer-endpoints`；`consumer-api` 批量迁入另开 C2b；进度 C2 done | `api/endpoints.ts`、`check-consumer-endpoints.mjs` |
+| 143 | merchant 金钱写无契约 | 提现/争议结案体散落 View，回归靠手点 | 无 money-ui-contracts；状态门闩与 body 易漂 | **必须**提现校验/body、争议 resolve body/门闩走 `money-ui-contracts` + vitest；禁止 View 再手写一套；进度 M2 done | `money-ui-contracts.ts`、WalletPage、disputes |
 
 ## 追加模板
 

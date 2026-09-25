@@ -27,7 +27,7 @@
 | ID | 优先级 | 状态 | 问题摘要 | 主要证据 | 完成记录 |
 |----|--------|------|----------|----------|----------|
 | M1 | P0 | done | 主路径 `softFallback` 静默吞错 → 故障被当成「暂无数据」（对齐 admin D3） | `merchant-api.ts` `softFallback` = `promise.catch(() => fallback)` **无 toast**；`useReplenishmentList` tasks/devices/lowStock → `[]`；`business.vue` 五路 softFallback；对比 `useHomeWorkbench.softErr` **会 toast** | 2026-09-25：`utils/soft-fallback.ts` 必带 label+toast；补货**主列表**硬失败；其余调用点补中文 label；3 测 |
-| M2 | P0 | open | 钱包提现 / 争议 resolve 无前端金钱契约测（对齐 admin D5） | `WalletPage.vue` 提现；`disputes.vue` KEEP/WAIVE/CONFIRM；单测仅工具层，无 wallet/dispute money 测 | |
+| M2 | P0 | done | 钱包提现 / 争议 resolve 无前端金钱契约测（对齐 admin D5） | `WalletPage.vue` 提现；`disputes.vue` KEEP/WAIVE/CONFIRM；单测仅工具层，无 wallet/dispute money 测 | 2026-09-25：`money-ui-contracts.ts` + 8 测；WalletPage/disputes 接线 |
 | M3 | P1 | open | `merchantApi` 上帝模块：大量 `/api/v2` 字面量，无 `MerchantEndpoints` / 门禁 | `utils/merchant-api.ts` ~785 行；`video.vue` 另拼订单视频 URL；仅有 admin 端点门禁 | |
 | M4 | P1 | open | 列表扇出 / 类 N+1：首页多路并行 + `openExceptions` 多页串行 | `useHomeWorkbench.fetchHomeDashboardBundle` 约 9 路；`openExceptions` OPEN+PROCESSING 各最多 3 页；补货详情证据逐文件 download | |
 | M5 | P1 | open | 补货页仍肥 + 壳层弱类型残留 | `replenishment.vue` ~1130 行（style 过半）；`useReplenishmentShell` `devices: Ref<Record<string, unknown>[]>`、`open: any` | |
@@ -44,9 +44,7 @@
 ## 建议首期切片
 
 ```
-M1（主列表 soft-fail 可见化）
- → M2（金钱契约测）
- → M3（Endpoints + 门禁，含 video）
+M3（Endpoints + 门禁，含 video）
  → M4（首页/异常扇出）
  → M5（补货类型 + 样式拆）
  → M6 / M7（business / disputes）
