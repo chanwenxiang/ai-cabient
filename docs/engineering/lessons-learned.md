@@ -155,6 +155,8 @@
 | 143 | merchant 金钱写无契约 | 提现/争议结案体散落 View，回归靠手点 | 无 money-ui-contracts；状态门闩与 body 易漂 | **必须**提现校验/body、争议 resolve body/门闩走 `money-ui-contracts` + vitest；禁止 View 再手写一套；进度 M2 done | `money-ui-contracts.ts`、WalletPage、disputes |
 | 144 | consumer JWT expires 只写不读 | 过期 token 仍被 `isConsumerLoggedIn` 当成已登录 | `EXPIRES_KEY` 写入后无人读 | **必须**`getConsumerToken` 读 expires；Bearer 到期 `clearConsumerSession`；Cookie 会话不硬清；进度 C3 done | `consumer-session.ts`、`consumer-api.ts` |
 | 145 | merchant 端点散落 | pages 旁路拼 `/api/v2/merchant/...`，无门禁 | 仅有 admin/consumer 门禁；video 裸路径 | **必须**新路径进 `MerchantEndpoints`；pages/composables 试点走 `check-merchant-endpoints`；`merchant-api` 批量迁入另开 M3b；进度 M3 done | `api/endpoints.ts`、`check-merchant-endpoints.mjs` |
+| 146 | consumer 金钱写无契约 | 退款/充值/余额退体散落页内，回归靠手点 | 无 money-ui-contracts | **必须**退款门闩/body、充值预下单、余额退申请走 `money-ui-contracts` + vitest；进度 C4 done | `money-ui-contracts.ts`、order-detail/result/recharge |
+| 147 | merchant 异常列表扇出 | 首页拉 OPEN+PROCESSING 各最多 3 页，却只展示 3 条摘要 | `openExceptions` 固定 max 3；首页与待办同预算 | **必须**首页 `maxPages=1`；页预算走 `exception-pages`；同状态补页可并行；进度 M4 done（证据下载 → M4b） | `exception-pages.ts`、`useHomeWorkbench`、`merchant-api` |
 
 ## 追加模板
 

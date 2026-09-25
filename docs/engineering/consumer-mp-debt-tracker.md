@@ -29,7 +29,7 @@
 | C1 | P0 | done | Soft-fail 把可选接口失败伪装成「无数据」 | `member/index.vue` `myCoupons().catch(() => [])`；`messages/messages.vue` `pendingOrderCount().catch(() => ({ count: 0 }))`；`verify/verify.vue` `consumerPublicConfig().catch(() => null)` | 2026-09-25：新增 `utils/soft-fallback.ts`（label+toast，401 不 toast）；三处改 `softFallback(...)`；4 测 |
 | C2 | P0 | done | 无 `ConsumerEndpoints` + 无门禁；路径散落字面量 | `utils/consumer-api.ts`（大量 `/api/v2`）；`dict-runtime.ts`；`video/video.vue` 页内裸拼；仅有 `check-admin-endpoints`，无 consumer 等价 | 2026-09-25：`api/endpoints.ts` + `check-consumer-endpoints`（扫 pages/composables）；修 video/dict；`consumer-api` 批量迁入 → C2b |
 | C3 | P0 | done | JWT 进 Storage；`expires` 只写不读 | `consumer-api.ts` `EXPIRES_KEY` 写入 `applyTokenSession`；`isConsumerLoggedIn()` 只看 token / Cookie 标记，**不校验过期** | 2026-09-25：`getConsumerToken` 读 expires，Bearer 到期清会话；Cookie 路径不硬清；`consumer-session` 2 测 |
-| C4 | P1 | open | 金钱写路径无前端契约测（对标 admin D5） | 已有 `account`/`pay-channel`/`dispute-form` 测；**无**充值/退款/余额退申请契约测；写路径在 `recharge.ts`、`order-detail`/`result`/`recharge.vue` | |
+| C4 | P1 | done | 金钱写路径无前端契约测（对标 admin D5） | 已有 `account`/`pay-channel`/`dispute-form` 测；**无**充值/退款/余额退申请契约测；写路径在 `recharge.ts`、`order-detail`/`result`/`recharge.vue` | 2026-09-25：`money-ui-contracts` + 8 测；order-detail/result/recharge/consumer-api 接线 |
 | C5 | P1 | open | `pages/index/index.vue` 上帝页 | 约 **3400+** 行（script 约 1800+）；扫码/鉴权/开门/目录/live-cart/轮询一体 | |
 | C6 | P1 | open | 退款/申诉 UI 与逻辑在 order-detail ↔ result 双份 | `order-detail.vue` ~1350；`result.vue` ~1200；平行 `submitRefund` / 确认文案 | |
 | C7 | P1 | open | 次级肥页：orders / mine / recharge / login | 行数均约 950–1150；`mine` 内嵌 mock 充值 | |
@@ -44,8 +44,8 @@
 ## 建议首期切片
 
 ```
-C4（金钱契约测）→ C5 首刀 composable（禁改视觉）→ C6（退款双份）
- → C7 / C10 穿插；C2b / C8 / C11 / C12 延后；C9 保持 deferred
+C5 首刀 composable（禁改视觉）→ C6（退款双份）→ C7 / C10 穿插；
+C2b / C8 / C11 / C12 延后；C9 保持 deferred
 ```
 
 **C5 首刀边界**：只抽无 UI 的会话/开门 composable；**禁止**同 PR 改落地页布局与视觉。  

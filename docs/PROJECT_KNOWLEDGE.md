@@ -244,6 +244,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-25 | consumer C4：金钱 UI 契约；merchant M4：首页异常 `maxPages=1` | debt-tracker C4/M4、lessons #146/#147 |
 | 2026-09-25 | consumer C3：Bearer expires 读校验；merchant M3：`MerchantEndpoints` + 门禁 | debt-tracker C3/M3、lessons #144/#145 |
 | 2026-09-25 | consumer C2：`ConsumerEndpoints` + `check-consumer-endpoints`；merchant M2：`money-ui-contracts` | debt-tracker C2/M2、lessons #142/#143 |
 | 2026-09-25 | consumer C1 + merchant M1：soft-fail 可见化（label+toast）；补货主列表硬失败 | debt-tracker C1/M1、lessons #141、`utils/soft-fallback.ts` |
@@ -312,8 +313,8 @@ infra/                     Compose、网关、监控
 | G2 | 设备地图抖动若已修，总册尚无专行 | 确认根因后写入 lessons + 本 Changelog |
 | G3 | 部分 evidence 未回链到总册行号 | 修相关域时顺手补「门禁/文件」列 |
 | G4 | admin-vue 技术债 | D1–D25 **已清**（见 `admin-vue-debt-tracker`） |
-| G5 | consumer-mp 技术债 | C1–C3 **done**；建议顺序 C4→C5→C6（C2b=consumer-api 端点迁入） |
-| G6 | merchant-mp 技术债 | M1–M3 **done**；建议顺序 M4→M5→M6（M3b=merchant-api 端点迁入） |
+| G5 | consumer-mp 技术债 | C1–C4 **done**；建议顺序 C5→C6→C7 |
+| G6 | merchant-mp 技术债 | M1–M4 **done**；建议顺序 M5→M6→M7 |
 
 ---
 
