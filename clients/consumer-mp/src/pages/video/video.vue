@@ -72,6 +72,7 @@ import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '@/config/api';
+import { ConsumerEndpoints } from '@/api/endpoints';
 import { downloadAuthedFile, getConsumerToken } from '@/utils/consumer-api';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -147,7 +148,7 @@ async function loadOrderVideo(oid: string) {
   src.value = '';
   imageSrc.value = '';
   mediaKind.value = '';
-  const apiUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/v2/orders/${encodeURIComponent(oid)}/video`;
+  const apiUrl = `${API_BASE_URL.replace(/\/$/, '')}${ConsumerEndpoints.orderVideo(oid)}`;
   copyTarget.value = apiUrl;
   const token = getConsumerToken();
   try {

@@ -1,10 +1,11 @@
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
+import { ConsumerEndpoints } from '@/api/endpoints';
 import { getConsumerToken, request } from '@/utils/consumer-api';
 
 export function loadRuntimeDict() {
   return sharedLoadRuntimeDict({
     getToken: getConsumerToken,
-    fetchRuntime: () => request('/api/v2/dicts/runtime', 'GET')
+    fetchRuntime: () => request(ConsumerEndpoints.dictsRuntime, 'GET')
   });
 }
 
