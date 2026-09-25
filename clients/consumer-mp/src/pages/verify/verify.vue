@@ -129,6 +129,7 @@ import { showSuccess, showConfirm } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
+import { softFallback } from '@/utils/soft-fallback';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import {
   availableCents,
@@ -199,7 +200,7 @@ onShow(async () => {
   try {
     const [acc, cfg] = await Promise.all([
       consumerApi.account(),
-      consumerApi.consumerPublicConfig().catch(() => null)
+      softFallback(consumerApi.consumerPublicConfig(), null, '公开配置')
     ]);
     account.value = acc;
     const p = Number(cfg?.preauthCents);

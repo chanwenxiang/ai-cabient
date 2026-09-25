@@ -121,6 +121,7 @@ import { showError } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, type MemberProfileDto } from '@/utils/consumer-api';
 import { menuIcon } from '@/utils/menu-icon';
+import { softFallback } from '@/utils/soft-fallback';
 
 const profile = ref<MemberProfileDto | null>(null);
 const couponCount = ref(0);
@@ -196,7 +197,7 @@ async function load() {
     const [p, count, coupons] = await Promise.all([
       consumerApi.memberProfile(),
       consumerApi.couponCount(),
-      consumerApi.myCoupons().catch(() => [])
+      softFallback(consumerApi.myCoupons(), [], '优惠券')
     ]);
     profile.value = p;
     couponCount.value = Number(count) || 0;

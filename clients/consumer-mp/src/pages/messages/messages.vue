@@ -92,6 +92,7 @@ import {
   type NotificationDto,
   type NotifyPrefDto
 } from '@/utils/consumer-api';
+import { softFallback } from '@/utils/soft-fallback';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   displayBizNo,
@@ -206,7 +207,7 @@ async function load() {
       consumerApi.notificationUnreadCount(),
       consumerApi.notifyPrefs(),
       consumerApi.consumerPublicConfig(),
-      consumerApi.pendingOrderCount().catch(() => ({ count: 0 }))
+      softFallback(consumerApi.pendingOrderCount(), { count: 0 }, '待支付数')
     ]);
     if (seq !== loadSeq) return;
     list.value = rows;
