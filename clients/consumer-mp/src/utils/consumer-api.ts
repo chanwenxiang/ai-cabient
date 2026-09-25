@@ -15,6 +15,7 @@ import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
 import { secureRandomToken } from '@/utils/secure-id';
 import { showConfirm } from '@/utils/notify';
+import { isConsumerBearerExpired, parseConsumerExpiresAt } from '@/utils/consumer-session';
 
 const BASE_URL = API_BASE_URL;
 
@@ -64,7 +65,15 @@ const mpApiSession: MpApiSession = {
 };
 
 export function getConsumerToken() {
-  return uni.getStorageSync(TOKEN_KEY) || '';
+  const token = uni.getStorageSync(TOKEN_KEY) || '';
+  if (!token) return '';
+  // C3：Bearer 路径必须读 expires；到期清会话，禁止过期 JWT 仍当已登录
+  const expiresAt = parseConsumerExpiresAt(uni.getStorageSync(EXPIRES_KEY));
+  if (isConsumerBearerExpired(expiresAt)) {
+    clearConsumerSession();
+    return '';
+  }
+  return token;
 }
 
 /** 带鉴权下载到本地临时路径（小程序 video/导出等无法带 Authorization 的场景） */
