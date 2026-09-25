@@ -260,6 +260,11 @@ import {
   inferRestoreInventory,
   type DisputeReasonChip
 } from '@/utils/dispute-form';
+import {
+  buildOrderRefundBody,
+  canRefundOnResultPage,
+  resultRefundConfirmContent
+} from '@/utils/money-ui-contracts';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
@@ -317,14 +322,15 @@ const selectedCategory = ref('USER_APPEAL');
 const selectedChip = ref<DisputeReasonChip | null>(null);
 const evidence = ref<LocalEvidence[]>([]);
 
-const canRefundNow = computed(
-  () =>
-    !!order.value?.orderId &&
-    !refundDone.value &&
-    !disputeFiled.value &&
-    Number(order.value?.totalAmountCents ?? 0) > 0 &&
-    order.value?.refundPolicy !== 'DISPUTE_ONLY' &&
-    ['PAID', 'COMPLETED'].includes(String(order.value?.status || ''))
+const canRefundNow = computed(() =>
+  canRefundOnResultPage({
+    status: order.value?.status,
+    orderId: order.value?.orderId,
+    refundDone: refundDone.value,
+    disputeFiled: disputeFiled.value,
+    totalAmountCents: order.value?.totalAmountCents,
+    refundPolicy: order.value?.refundPolicy
+  })
 );
 
 const payChannelText = computed(() => {
@@ -628,22 +634,20 @@ async function submitRefund() {
   const restoreInventory = inferRestoreInventory(reason, selectedChip.value);
   const confirmed = await showConfirm({
     title: '确认退款',
-    content:
-      restoreInventory == null
-        ? '将立即退款；是否回库由平台规则判定。是否继续？'
-        : restoreInventory
-          ? '将立即退款，并把本单商品回库（适用于没拿/误识别）。是否继续？'
-          : '将立即退款，但库存不回库（货已拿走/仅退款）。是否继续？',
+    content: resultRefundConfirmContent(restoreInventory),
     confirmText: '确认退款'
   });
   if (!confirmed) return;
   refundLoading.value = true;
   try {
-    const result = await consumerApi.refundOrder(oid, {
-      reason,
-      evidenceFileIds: evidenceFileIds(evidence.value),
-      ...(restoreInventory != null ? { restoreInventory } : {})
-    });
+    const result = await consumerApi.refundOrder(
+      oid,
+      buildOrderRefundBody({
+        reason,
+        evidenceFileIds: evidenceFileIds(evidence.value),
+        restoreInventory
+      })
+    );
     refundDone.value = true;
     disputeFiled.value = true;
     showDispute.value = false;

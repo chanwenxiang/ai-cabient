@@ -11,6 +11,7 @@ import {
   refreshTokenSilently as sharedRefreshToken,
   type MpApiSession
 } from '@aicabinet/shared-uni/request';
+import { buildRechargePrepayBody } from '@/utils/money-ui-contracts';
 import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
 import { secureRandomToken } from '@/utils/secure-id';
@@ -555,11 +556,7 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').RechargePrepayResponse>(
       '/api/v2/payment/recharge/prepay',
       'POST',
-      {
-        channel,
-        amountCents,
-        idempotencyKey
-      }
+      buildRechargePrepayBody({ channel, amountCents, idempotencyKey })
     ),
   getRechargeOrder: (orderId: string) =>
     request<import('@aicabinet/shared-types').RechargeOrderDto>(
@@ -569,11 +566,7 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').RechargePrepayResponse>(
       '/api/v2/payment/recharge/prepay',
       'POST',
-      {
-        channel: 'WECHAT',
-        amountCents,
-        idempotencyKey
-      }
+      buildRechargePrepayBody({ channel: 'WECHAT', amountCents, idempotencyKey })
     ),
   confirmMockRecharge: (orderId: string) =>
     request<import('@aicabinet/shared-types').RechargeOrderDto>(

@@ -379,6 +379,12 @@ import {
   inferRestoreInventory,
   type DisputeReasonChip
 } from '@/utils/dispute-form';
+import {
+  buildOrderRefundBody,
+  buildOrderRefundLines,
+  canRefundOnOrderDetail,
+  refundConfirmContent
+} from '@/utils/money-ui-contracts';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
@@ -631,15 +637,14 @@ const canShowVideo = computed(() => {
   return s === 'PAID' || s === 'COMPLETED' || s === 'REFUNDED' || s === 'PARTIAL_REFUNDED';
 });
 
-const canRefund = computed(() => {
-  const s = order.value?.status;
-  return (
-    autoRefundEnabled.value &&
-    !!order.value?.orderId &&
-    !refundDone.value &&
-    (s === 'PAID' || s === 'COMPLETED' || s === 'PARTIAL_REFUNDED')
-  );
-});
+const canRefund = computed(() =>
+  canRefundOnOrderDetail({
+    status: order.value?.status,
+    orderId: order.value?.orderId,
+    refundDone: refundDone.value,
+    refundPolicy: order.value?.refundPolicy
+  })
+);
 
 const canInvoice = computed(() => {
   const s = order.value?.status;
@@ -885,26 +890,12 @@ async function submitDispute() {
   }
 }
 
-function refundConfirmContent(
+function orderRefundConfirmContent(
   isPartial: boolean,
   restoreInventory: boolean | undefined,
   lineCount: number
 ): string {
-  if (restoreInventory == null) {
-    return isPartial
-      ? `将退款所选 ${lineCount} 行商品；是否回库由平台规则判定。是否继续？`
-      : '将立即全额退款；是否回库由平台规则判定。是否继续？';
-  }
-  if (isPartial) {
-    if (restoreInventory) {
-      return `将退款所选 ${lineCount} 行商品并回库。是否继续？`;
-    }
-    return `将退款所选 ${lineCount} 行商品（不回库）。是否继续？`;
-  }
-  if (restoreInventory) {
-    return '将立即全额退款，并把本单商品回库（适用于没拿/误识别）。是否继续？';
-  }
-  return '将立即全额退款，但库存不回库（货已拿走/仅退款）。是否继续？';
+  return refundConfirmContent({ isPartial, restoreInventory, lineCount });
 }
 
 async function submitRefund() {
@@ -923,28 +914,28 @@ async function submitRefund() {
     return;
   }
   const restoreInventory = inferRestoreInventory(reason, selectedChip.value);
-  const lines = refundLineRows.value
-    .filter((r) => r.qty > 0)
-    .map((r) => ({
-      skuId: r.skuId,
-      quantity: r.qty,
-      ...(restoreInventory != null ? { restoreInventory } : {})
-    }));
+  const lines = buildOrderRefundLines({
+    rows: refundLineRows.value.map((r) => ({ skuId: r.skuId, qty: r.qty })),
+    restoreInventory
+  });
   const isPartial = lines.length > 0;
   const confirmed = await showConfirm({
     title: isPartial ? '确认按行退款' : '确认退款',
-    content: refundConfirmContent(isPartial, restoreInventory, lines.length),
+    content: orderRefundConfirmContent(isPartial, restoreInventory, lines.length),
     confirmText: '确认退款'
   });
   if (!confirmed) return;
   refundLoading.value = true;
   try {
-    const result = await consumerApi.refundOrder(oid, {
-      reason,
-      evidenceFileIds: evidenceFileIds(evidence.value),
-      ...(restoreInventory != null ? { restoreInventory } : {}),
-      ...(isPartial ? { lines } : {})
-    });
+    const result = await consumerApi.refundOrder(
+      oid,
+      buildOrderRefundBody({
+        reason,
+        evidenceFileIds: evidenceFileIds(evidence.value),
+        restoreInventory,
+        lines: isPartial ? lines : undefined
+      })
+    );
     refundDone.value = true;
     disputeFiled.value = true;
     showDispute.value = false;

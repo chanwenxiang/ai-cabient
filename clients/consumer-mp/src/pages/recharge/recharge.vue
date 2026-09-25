@@ -212,6 +212,7 @@ import {
 import { displayLabel } from '@aicabinet/shared-dict';
 import type { RechargeOrderDto, BalanceRefundRequestDto } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import { buildBalanceRefundBody } from '@/utils/money-ui-contracts';
 import {
   resolveMockEnabled,
   resolveSandboxRecharge,
@@ -341,7 +342,8 @@ async function onApplyRefund() {
   refundBusy.value = true;
   refundError.value = '';
   try {
-    await consumerApi.applyBalanceRefund(refundAmountCents.value, '用户申请退可用余额');
+    const body = buildBalanceRefundBody({ amountCents: refundAmountCents.value });
+    await consumerApi.applyBalanceRefund(body.amountCents, body.reason);
     showSuccess('已提交审核');
     refundYuan.value = '';
     refundAmountCents.value = 0;
