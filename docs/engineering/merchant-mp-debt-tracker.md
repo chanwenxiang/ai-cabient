@@ -30,7 +30,7 @@
 | M2 | P0 | done | 钱包提现 / 争议 resolve 无前端金钱契约测（对齐 admin D5） | `WalletPage.vue` 提现；`disputes.vue` KEEP/WAIVE/CONFIRM；单测仅工具层，无 wallet/dispute money 测 | 2026-09-25：`money-ui-contracts.ts` + 8 测；WalletPage/disputes 接线 |
 | M3 | P1 | done | `merchantApi` 上帝模块：大量 `/api/v2` 字面量，无 `MerchantEndpoints` / 门禁 | `utils/merchant-api.ts` ~785 行；`video.vue` 另拼订单视频 URL；仅有 admin 端点门禁 | 2026-09-25：`api/endpoints.ts` + `check-merchant-endpoints`；修 video；`merchant-api` 批量迁入 → M3b |
 | M4 | P1 | done | 列表扇出 / 类 N+1：首页多路并行 + `openExceptions` 多页串行 | `useHomeWorkbench.fetchHomeDashboardBundle` 约 9 路；`openExceptions` OPEN+PROCESSING 各最多 3 页；补货详情证据逐文件 download | 2026-09-25：首页 `maxPages=1`；页内并行补页；`exception-pages` 3 测；证据下载 → M4b |
-| M5 | P1 | open | 补货页仍肥 + 壳层弱类型残留 | `replenishment.vue` ~1130 行（style 过半）；`useReplenishmentShell` `devices: Ref<Record<string, unknown>[]>`、`open: any` | |
+| M5 | P1 | done | 补货页仍肥 + 壳层弱类型残留 | `replenishment.vue` ~1130 行（style 过半）；`useReplenishmentShell` `devices: Ref<Record<string, unknown>[]>`、`open: any` | 2026-09-25：devices→`MerchantDeviceInfo`；深链 `Task`；样式外置 `replenishment.page.css`（~1131→~605 行） |
 | M6 | P1 | open | `business.vue` 上帝页 + 静默 softFallback + 手写 `/100` 金钱展示 | ~948 行；load 五路 softFallback；多处 `(cents/100).toFixed(2)` 未统一 `fmtMoney` | |
 | M7 | P1 | open | `disputes.vue` 上帝页；首屏 `size=100`；列表+详情+resolve 同文件 | ~839 行；`disputes(..., 0, 100)`；写路径无测 → M2 | |
 | M8 | P2 | open | device-detail / 补货侧弱类型：`Record<string, unknown>` settings/devices | `merchant-api` deviceSettings；`useReplenishmentList` devices；slots PUT 无泛型 | |
@@ -44,9 +44,8 @@
 ## 建议首期切片
 
 ```
-M5（补货类型 + 样式拆）
- → M6 / M7（business / disputes）
- → M8 → M9 → M10 / M11 → M12；M3b / M4b（证据下载）穿插
+M6 / M7（business / disputes）
+ → M8 → M9 → M10 / M11 → M12；M3b / M4b 穿插
 ```
 
 **M1 首刀边界**：补货任务主列表 + 待办主列表；失败 → 可见 error-state / toast；**禁止** `[]` 伪装空。勿动履约写路径。  

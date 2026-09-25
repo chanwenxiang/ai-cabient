@@ -157,6 +157,8 @@
 | 145 | merchant 端点散落 | pages 旁路拼 `/api/v2/merchant/...`，无门禁 | 仅有 admin/consumer 门禁；video 裸路径 | **必须**新路径进 `MerchantEndpoints`；pages/composables 试点走 `check-merchant-endpoints`；`merchant-api` 批量迁入另开 M3b；进度 M3 done | `api/endpoints.ts`、`check-merchant-endpoints.mjs` |
 | 146 | consumer 金钱写无契约 | 退款/充值/余额退体散落页内，回归靠手点 | 无 money-ui-contracts | **必须**退款门闩/body、充值预下单、余额退申请走 `money-ui-contracts` + vitest；进度 C4 done | `money-ui-contracts.ts`、order-detail/result/recharge |
 | 147 | merchant 异常列表扇出 | 首页拉 OPEN+PROCESSING 各最多 3 页，却只展示 3 条摘要 | `openExceptions` 固定 max 3；首页与待办同预算 | **必须**首页 `maxPages=1`；页预算走 `exception-pages`；同状态补页可并行；进度 M4 done（证据下载 → M4b） | `exception-pages.ts`、`useHomeWorkbench`、`merchant-api` |
+| 148 | consumer 落地页上帝类 | 开门/会话判据散落 3400+ 行 SFC，改开门易误伤目录 UI | 无独立 session 纯模块 | **必须**柜机 ID/可接管会话/`settleWithin`/阻断文案走 `landing-session`；禁止同 PR 改布局；进度 C5 首刀 done（开门流 → C5b） | `landing-session.ts`、`pages/index/index.vue` |
+| 149 | merchant 补货壳弱类型+肥样式 | devices 用 `Record<string, unknown>`；深链 `open: any`；SFC style ~500 行 | 类型与 OpenAPI 脱节；样式堆同文件 | **必须**devices 用 `MerchantDeviceInfo`；深链参数用 Task；样式外置 page.css；履约逻辑禁止回流 SFC；进度 M5 done | `useReplenishment{List,Shell,Scan}`、`replenishment.page.css` |
 
 ## 追加模板
 
