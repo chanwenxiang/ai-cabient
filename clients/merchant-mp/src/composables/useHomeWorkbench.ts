@@ -5,6 +5,7 @@
 import { computed, ref, type Ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { hasPerm, isMerchantLoggedIn, merchantApi, softFallback } from '@/utils/merchant-api';
+import { OPEN_EXCEPTIONS_HOME_MAX_PAGES } from '@/utils/exception-pages';
 import {
   canAccessNav,
   hasPack,
@@ -227,7 +228,12 @@ export function useHomeWorkbench() {
 
   async function fetchHomeExceptions() {
     if (!canAlerts.value) return { items: [], total: 0 };
-    return softErr(merchantApi.openExceptions(100), { items: [], total: 0 }, '异常加载失败');
+    // M4：首页只摘要 3 条待办，每状态最多 1 页，避免 OPEN+PROCESSING 各串行最多 3 页
+    return softErr(
+      merchantApi.openExceptions(100, { maxPages: OPEN_EXCEPTIONS_HOME_MAX_PAGES }),
+      { items: [], total: 0 },
+      '异常加载失败'
+    );
   }
 
   async function fetchHomeExpiryRows() {

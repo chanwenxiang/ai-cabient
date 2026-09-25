@@ -22,6 +22,11 @@ import type {
   OpenApiDisputeTicketDto,
   OpenApiMerchantDisputeSummaryDto
 } from '@aicabinet/shared-types';
+import {
+  exceptionPageCount,
+  mergeExceptionRowsById,
+  OPEN_EXCEPTIONS_DEFAULT_MAX_PAGES
+} from '@/utils/exception-pages';
 
 const TOKEN_KEY = 'merchant_token';
 const USER_KEY = 'merchant_user_id';
@@ -479,20 +484,23 @@ export const merchantApi = {
         import('@aicabinet/shared-types').OpenApiOpsExceptionDto
       >
     >(`/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}&page=${page}&size=${size}`),
-  /** OPEN + PROCESSING；最多拉 3 页（300 条），返回去重后的 items 与合计 total */
-  openExceptions: async (pageSize = 100) => {
+  /** OPEN + PROCESSING；默认最多各拉 3 页；首页可传 maxPages=1 降扇出（M4） */
+  openExceptions: async (pageSize = 100, options?: { maxPages?: number }) => {
     type ExRow = import('@aicabinet/shared-types').OpenApiOpsExceptionDto;
     const size = Math.min(Math.max(pageSize, 1), 100);
-    const MAX_PAGES = 3;
+    const maxPages = options?.maxPages ?? OPEN_EXCEPTIONS_DEFAULT_MAX_PAGES;
     const mergePages = async (status: string) => {
       const first = await merchantApi.exceptions(status, 0, size);
       const items: ExRow[] = [...(first.items || [])];
       const total = first.total ?? items.length;
-      // 限制页数，避免异常量大时首页/待办请求风暴；超出部分以后端聚合接口为准
-      const pages = Math.min(Math.ceil(total / size), MAX_PAGES);
-      for (let p = 1; p < pages; p++) {
-        const next = await merchantApi.exceptions(status, p, size);
-        items.push(...(next.items || []));
+      const pages = exceptionPageCount({ total, pageSize: size, maxPages });
+      if (pages > 1) {
+        const rest = await Promise.all(
+          Array.from({ length: pages - 1 }, (_, i) => merchantApi.exceptions(status, i + 1, size))
+        );
+        for (const next of rest) {
+          items.push(...(next.items || []));
+        }
       }
       return { items, total };
     };
@@ -506,12 +514,8 @@ export const merchantApi = {
       const reason = settled[0].reason;
       throw reason instanceof Error ? reason : new Error('异常列表加载失败');
     }
-    const byId = new Map<string, ExRow>();
-    for (const row of [...open.items, ...processing.items]) {
-      if (row?.exceptionId) byId.set(row.exceptionId, row);
-    }
     return {
-      items: [...byId.values()],
+      items: mergeExceptionRowsById(open.items, processing.items),
       total: (open.total || 0) + (processing.total || 0)
     };
   },
