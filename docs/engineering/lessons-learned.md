@@ -153,6 +153,8 @@
 | 141 | 双端小程序 soft-fail | 可选接口失败被当成「暂无数据 / 暂无任务」 | consumer 用 `.catch(() => [])`；merchant `softFallback` 曾静默吞错；补货主列表也曾 soft 成 `[]` | **必须**可选依赖走 `utils/soft-fallback`（必带中文 label + toast；401/会话失效不 toast）；**禁止**主列表 soft 成空；补货任务列表硬失败；进度 C1/M1 done | `clients/*/src/utils/soft-fallback.ts`、`useReplenishmentList` |
 | 142 | consumer 端点散落 | pages 旁路拼 `/api/v2`，无门禁 | 仅有 admin `check-admin-endpoints`；video/dict 裸路径 | **必须**新路径进 `ConsumerEndpoints`；pages/composables 试点字面量走 `check-consumer-endpoints`；`consumer-api` 批量迁入另开 C2b；进度 C2 done | `api/endpoints.ts`、`check-consumer-endpoints.mjs` |
 | 143 | merchant 金钱写无契约 | 提现/争议结案体散落 View，回归靠手点 | 无 money-ui-contracts；状态门闩与 body 易漂 | **必须**提现校验/body、争议 resolve body/门闩走 `money-ui-contracts` + vitest；禁止 View 再手写一套；进度 M2 done | `money-ui-contracts.ts`、WalletPage、disputes |
+| 144 | consumer JWT expires 只写不读 | 过期 token 仍被 `isConsumerLoggedIn` 当成已登录 | `EXPIRES_KEY` 写入后无人读 | **必须**`getConsumerToken` 读 expires；Bearer 到期 `clearConsumerSession`；Cookie 会话不硬清；进度 C3 done | `consumer-session.ts`、`consumer-api.ts` |
+| 145 | merchant 端点散落 | pages 旁路拼 `/api/v2/merchant/...`，无门禁 | 仅有 admin/consumer 门禁；video 裸路径 | **必须**新路径进 `MerchantEndpoints`；pages/composables 试点走 `check-merchant-endpoints`；`merchant-api` 批量迁入另开 M3b；进度 M3 done | `api/endpoints.ts`、`check-merchant-endpoints.mjs` |
 
 ## 追加模板
 
