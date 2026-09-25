@@ -282,11 +282,9 @@ function parseFileAttachmentDto(
 }
 
 /**
- * M-P2-11：并行可选依赖软失败放在页面/composable；禁止在 merchantApi 方法体内吞错回 [].
+ * @deprecated 请从 `@/utils/soft-fallback` 导入；此处 re-export 兼容旧引用。
  */
-export function softFallback<T>(promise: Promise<T>, fallback: T): Promise<T> {
-  return promise.catch(() => fallback);
-}
+export { softFallback } from '@/utils/soft-fallback';
 
 /** 鉴权 multipart 上传；两处凭证上传共用，避免重复 try/catch 解析。 */
 function uploadMerchantAuthedFile(

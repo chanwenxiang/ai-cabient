@@ -203,24 +203,32 @@ async function load() {
   error.value = '';
   try {
     const [wb, exceptionPage, expiryRows, slotRows] = await Promise.all([
-      softFallback(merchantApi.workbench(), {
-        offlineDevices: 0,
-        openDisputes: 0,
-        lowStockItems: 0,
-        expiryAlerts: 0,
-        slotDiscrepancies: 0,
-        actionItems: [] as {
-          type: string;
-          title: string;
-          detail?: string;
-          deviceId?: string;
-          ticketId?: string;
-          exceptionId?: string;
-        }[]
-      }),
-      softFallback(merchantApi.openExceptions(100), { items: [], total: 0 }),
-      softFallback(merchantApi.expiryAlerts(), []),
-      softFallback(merchantApi.slotDiscrepancies(), [] as OpenApiSlotDiscrepancyAlertDto[])
+      softFallback(
+        merchantApi.workbench(),
+        {
+          offlineDevices: 0,
+          openDisputes: 0,
+          lowStockItems: 0,
+          expiryAlerts: 0,
+          slotDiscrepancies: 0,
+          actionItems: [] as {
+            type: string;
+            title: string;
+            detail?: string;
+            deviceId?: string;
+            ticketId?: string;
+            exceptionId?: string;
+          }[]
+        },
+        '工作台'
+      ),
+      softFallback(merchantApi.openExceptions(100), { items: [], total: 0 }, '异常列表'),
+      softFallback(merchantApi.expiryAlerts(), [], '效期告警'),
+      softFallback(
+        merchantApi.slotDiscrepancies(),
+        [] as OpenApiSlotDiscrepancyAlertDto[],
+        '货道差异'
+      )
     ]);
     if (seq !== loadSeq) return;
     const deduped = mergeTodoItems({

@@ -422,9 +422,10 @@ async function loadDraft() {
     const [suggest, slots] = await Promise.all([
       softFallback(
         merchantApi.replenishmentSuggestions(deviceId),
-        [] as OpenApiReplenishmentSuggestDto[]
+        [] as OpenApiReplenishmentSuggestDto[],
+        '补货建议'
       ),
-      softFallback(merchantApi.deviceSlots(deviceId), [] as DeviceSlot[])
+      softFallback(merchantApi.deviceSlots(deviceId), [] as DeviceSlot[], '货道')
     ]);
     if (seq !== draftSeq) return;
     const suggestMap = buildSuggestMap(suggest);

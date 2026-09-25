@@ -259,7 +259,7 @@ export function useHomeWorkbench() {
       fetchHomeExpiryRows(),
       fetchHomeDevices(),
       fetchHomeReplenishmentTasks(),
-      softFallback(merchantApi.listAnnouncements(), []),
+      softFallback(merchantApi.listAnnouncements(), [], '公告'),
       fetchHomeAnalytics()
     ]);
   }

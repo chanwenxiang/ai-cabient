@@ -214,11 +214,13 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     }
     if (!allTasks.value.length) loading.value = true;
     try {
-      const [taskRows, deviceRows, eff, lowStockRows] = await Promise.all([
-        softFallback(merchantApi.replenishmentTasks(), [] as Task[]),
-        softFallback(merchantApi.devices(), [] as Record<string, unknown>[]),
-        softFallback(merchantApi.myReplenishmentEfficiency(), null),
-        softFallback(merchantApi.lowStockDevices(), [] as OpenApiDeviceInventoryDto[])
+      // 主列表硬失败：禁止 soft 成 [] 伪装「暂无补货任务」（M1）
+      const taskRows = await merchantApi.replenishmentTasks();
+      if (seq !== loadSeq) return { seq, aborted: true };
+      const [deviceRows, eff, lowStockRows] = await Promise.all([
+        softFallback(merchantApi.devices(), [] as Record<string, unknown>[], '柜机列表'),
+        softFallback(merchantApi.myReplenishmentEfficiency(), null, '补货效率'),
+        softFallback(merchantApi.lowStockDevices(), [] as OpenApiDeviceInventoryDto[], '缺货柜机')
       ]);
       if (seq !== loadSeq) return { seq, aborted: true };
       applyReplenishmentListData(taskRows, deviceRows, eff, lowStockRows);

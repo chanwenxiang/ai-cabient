@@ -159,8 +159,8 @@ export function useReplenishmentDetail(opts: {
     if (typeof taskId !== 'number') return;
     const [taskLines, slots, evidence] = await Promise.all([
       merchantApi.replenishmentTaskLines(taskId) as Promise<Line[]>,
-      softFallback(merchantApi.deviceSlots(task.deviceId!), [] as DeviceSlot[]),
-      softFallback(merchantApi.listReplenishmentEvidence(taskId), [])
+      softFallback(merchantApi.deviceSlots(task.deviceId!), [] as DeviceSlot[], '货道'),
+      softFallback(merchantApi.listReplenishmentEvidence(taskId), [], '补货凭证')
     ]);
     opts.lines.value = taskLines;
     opts.deviceSlotsList.value = (slots || []) as DeviceSlot[];

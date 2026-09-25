@@ -527,11 +527,11 @@ async function load(soft = false) {
   error.value = '';
   try {
     const [a, s, ai, ex, reports] = await Promise.all([
-      softFallback(merchantApi.analytics(days.value), null),
-      softFallback(merchantApi.settlements(), null),
-      softFallback(merchantApi.aiInsight(days.value), null),
-      softFallback(merchantApi.expirySummary(), null),
-      softFallback(merchantApi.deviceReports(), [] as OpenApiMerchantDeviceReportDto[])
+      softFallback(merchantApi.analytics(days.value), null, '经营分析'),
+      softFallback(merchantApi.settlements(), null, '结算'),
+      softFallback(merchantApi.aiInsight(days.value), null, 'AI洞察'),
+      softFallback(merchantApi.expirySummary(), null, '效期汇总'),
+      softFallback(merchantApi.deviceReports(), [] as OpenApiMerchantDeviceReportDto[], '柜机报表')
     ]);
     if (seq !== loadSeq) return;
     if (!a && !s) {

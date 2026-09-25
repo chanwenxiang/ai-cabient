@@ -374,12 +374,13 @@ function syncPreferredFlag() {
 
 async function loadDeviceExtras(seq: number) {
   const [list, temps, vel] = await Promise.all([
-    softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[]),
+    softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[], '货道'),
     softFallback(
       merchantApi.deviceTemperatureHistory(deviceId.value, 24),
-      [] as DeviceTemperatureReading[]
+      [] as DeviceTemperatureReading[],
+      '温度'
     ),
-    softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[])
+    softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
   ]);
   if (seq !== loadSeq) return;
   slots.value = list;
