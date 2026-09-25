@@ -165,6 +165,8 @@
 | 153 | merchant 争议首屏拉 100 | 列表卡顿；硬编码 `disputes(...,0,100)` 与 PAGE_SIZE 脱节 | 默认 size=100；无深链翻页 | **必须**`DISPUTES_PAGE_SIZE=50`；首屏/翻页同常量；session 深链有限翻页；禁止回退 minio:// 播放；样式外置；进度 M7 首刀 done | `dispute-list.ts`、`disputes.page.css` |
 | 154 | 小程序共享 UI 靠手拷贝 | 改 shared-uni 易忘同步两端副本，历史已漂 | easycom 强制本地路径；无同步脚本 | **必须**改蓝本后跑 `node scripts/sync-shared-uni-components.mjs`；`check:shared-component-sync` 含 `--check`；禁止手拷；easycom 直指 package → C10b/M9；进度 C10 首刀 done | `sync-shared-uni-components.mjs`、`style-full-audit --check` |
 | 155 | 柜机详情货道编辑门闩假死 | `settings.merchantId` 恒空 ⇒ `canEditSlots` 永 false | settings DTO 无 merchantId，却当 Record 强读 | **必须**`deviceSettings`/`updateDeviceSettings` 用 OpenAPI DTO；merchantId 从 `devices` 列表或 me 解析；进度 M8 done | `device-settings.ts`、`device-detail.vue`、`merchant-api.ts` |
+| 156 | consumer 次级肥页样式堆 SFC | orders/login/recharge 各近千行，改逻辑难 diff | 样式与脚本同文件 | **必须**scoped 样式外置 `*.page.css`；禁止同 PR 改支付/登录主路径；进度 C7b done | `orders/login/recharge.page.css` |
+| 157 | merchant 要货页下拉空 catch | `onPullDownRefresh` `.catch(() => {})` 吞错 | bootstrap 失败无日志无 toast | **必须**`void bootstrap().finally(stopRefresh)`；禁止空 catch；样式外置；进度 M10 首刀 done | `request.vue`、`request.page.css` |
 
 ## 追加模板
 
