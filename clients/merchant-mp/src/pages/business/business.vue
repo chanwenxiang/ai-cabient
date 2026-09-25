@@ -181,8 +181,7 @@
               ><text class="expiry-l">报损件数</text></view
             >
             <view class="expiry-cell"
-              ><text class="expiry-n"
-                >¥{{ (expirySummary.writeOffCostCents30d / 100).toFixed(2) }}</text
+              ><text class="expiry-n">{{ fmtMoney(expirySummary.writeOffCostCents30d) }}</text
               ><text class="expiry-l">报损成本</text></view
             >
           </view>
@@ -250,13 +249,13 @@
             </view>
             <view class="report-data">
               <text
-                >今日 {{ num(r.orderToday) }} 单 · ¥{{ (num(r.revenueTodayCents) / 100).toFixed(2)
+                >今日 {{ num(r.orderToday) }} 单 · {{ fmtMoney(num(r.revenueTodayCents))
                 }}{{
                   avgOrderText(r.revenueTodayCents, r.avgOrderValueTodayCents, r.orderToday)
                 }}</text
               >
               <text
-                >累计 {{ num(r.orderTotal) }} 单 · ¥{{ (num(r.revenueTotalCents) / 100).toFixed(2)
+                >累计 {{ num(r.orderTotal) }} 单 · {{ fmtMoney(num(r.revenueTotalCents))
                 }}{{
                   avgOrderText(r.revenueTotalCents, r.avgOrderValueTotalCents, r.orderTotal)
                 }}</text
@@ -285,6 +284,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { UI_COPY, onlineLabel, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
+import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import UniEcharts from 'uni-echarts';
@@ -426,7 +426,7 @@ function avgOrderText(
   const o = num(orders);
   if (o <= 0) return '';
   const avg = num(avgCents) || num(revenueCents) / o;
-  return ` · 客单 ¥${(avg / 100).toFixed(2)}`;
+  return ` · 客单 ${fmtMoney(avg)}`;
 }
 const reportDims = [
   { value: 'PRODUCT', label: '商品' },
@@ -457,7 +457,7 @@ const marginRate = computed(() =>
     ? `${((analytics.value.grossMarginCents / analytics.value.revenueCents) * 100).toFixed(1)}%`
     : '暂无'
 );
-const money = (cents = 0) => `¥${((Number(cents) || 0) / 100).toFixed(2)}`;
+const money = (cents = 0) => fmtMoney(cents);
 function formatChange(pct?: number | null) {
   if (pct == null || Number.isNaN(pct)) return '暂无';
   const sign = pct > 0 ? '+' : '';

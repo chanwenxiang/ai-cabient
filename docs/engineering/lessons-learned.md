@@ -159,6 +159,8 @@
 | 147 | merchant 异常列表扇出 | 首页拉 OPEN+PROCESSING 各最多 3 页，却只展示 3 条摘要 | `openExceptions` 固定 max 3；首页与待办同预算 | **必须**首页 `maxPages=1`；页预算走 `exception-pages`；同状态补页可并行；进度 M4 done（证据下载 → M4b） | `exception-pages.ts`、`useHomeWorkbench`、`merchant-api` |
 | 148 | consumer 落地页上帝类 | 开门/会话判据散落 3400+ 行 SFC，改开门易误伤目录 UI | 无独立 session 纯模块 | **必须**柜机 ID/可接管会话/`settleWithin`/阻断文案走 `landing-session`；禁止同 PR 改布局；进度 C5 首刀 done（开门流 → C5b） | `landing-session.ts`、`pages/index/index.vue` |
 | 149 | merchant 补货壳弱类型+肥样式 | devices 用 `Record<string, unknown>`；深链 `open: any`；SFC style ~500 行 | 类型与 OpenAPI 脱节；样式堆同文件 | **必须**devices 用 `MerchantDeviceInfo`；深链参数用 Task；样式外置 page.css；履约逻辑禁止回流 SFC；进度 M5 done | `useReplenishment{List,Shell,Scan}`、`replenishment.page.css` |
+| 150 | consumer 退款/申诉双份逻辑 | order-detail 与 result 平行 seed/校验/body，改一处易漏 | 无共享 appeal 模块 | **必须**种子/原因校验/证据上传中/fileDispute body 走 `order-appeal`；禁止两页再各写一套；UI 弹层可后拆（C6b）；进度 C6 首刀 done | `order-appeal.ts`、order-detail、result |
+| 151 | merchant 经营页手写分转元 | business 多处 `(cents/100).toFixed(2)` 与 `fmtMoney` 双轨 | 局部 `money()` 与模板内联除法并存 | **必须**展示走 `fmtMoney`（含客单/报损）；禁止页内再手写 `/100`；肥页拆分另开 M6b；进度 M6 首刀 done | `business.vue`、`@aicabinet/shared-uni/format` |
 
 ## 追加模板
 

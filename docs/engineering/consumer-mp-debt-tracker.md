@@ -31,7 +31,7 @@
 | C3 | P0 | done | JWT 进 Storage；`expires` 只写不读 | `consumer-api.ts` `EXPIRES_KEY` 写入 `applyTokenSession`；`isConsumerLoggedIn()` 只看 token / Cookie 标记，**不校验过期** | 2026-09-25：`getConsumerToken` 读 expires，Bearer 到期清会话；Cookie 路径不硬清；`consumer-session` 2 测 |
 | C4 | P1 | done | 金钱写路径无前端契约测（对标 admin D5） | 已有 `account`/`pay-channel`/`dispute-form` 测；**无**充值/退款/余额退申请契约测；写路径在 `recharge.ts`、`order-detail`/`result`/`recharge.vue` | 2026-09-25：`money-ui-contracts` + 8 测；order-detail/result/recharge/consumer-api 接线 |
 | C5 | P1 | done | `pages/index/index.vue` 上帝页 | 约 **3400+** 行（script 约 1800+）；扫码/鉴权/开门/目录/live-cart/轮询一体 | 2026-09-25：首刀抽 `landing-session`（柜机 ID/可接管会话/settleWithin/阻断文案）+ 5 测；**未改布局**；续拆开门流 → C5b |
-| C6 | P1 | open | 退款/申诉 UI 与逻辑在 order-detail ↔ result 双份 | `order-detail.vue` ~1350；`result.vue` ~1200；平行 `submitRefund` / 确认文案 | |
+| C6 | P1 | done | 退款/申诉 UI 与逻辑在 order-detail ↔ result 双份 | `order-detail.vue` ~1350；`result.vue` ~1200；平行 `submitRefund` / 确认文案 | 2026-09-26：抽 `utils/order-appeal`（seed/校验/buildFileDisputeBody）+ 3 测；order-detail/result 共用；UI 模板仍双份 → C6b |
 | C7 | P1 | open | 次级肥页：orders / mine / recharge / login | 行数均约 950–1150；`mine` 内嵌 mock 充值 | |
 | C8 | P2 | open | 弱类型口袋（规模小于 admin） | 少量 `as any`（如 `order-detail`、`verify`）；query/flag 的 `Record<string, string>` 可保留 | |
 | C9 | P2 | deferred | 平台敏感 `uni.*` 缺守卫（mp 权威；H5 deferred） | `scanCode`/`makePhoneCall`/`setClipboardData`/`chooseImage` 等；支付已有 `#ifdef MP-WEIXIN`；H5 崩溃仅 CI 相关（已有 `setBackgroundColor` 先例 lessons #139） | 知情延后：本表验收不认 H5；仅当 CI 再红或抽 `safeUniCall` 时开 |
@@ -44,10 +44,11 @@
 ## 建议首期切片
 
 ```
-C6（退款双份）→ C7 / C10 穿插；C5b（开门流 composable）/ C2b / C8 / C11 / C12 延后；C9 保持 deferred
+C7 / C10 穿插；C6b（申诉 UI 组件化）/ C5b（开门流）/ C2b / C8 / C11 / C12 延后；C9 保持 deferred
 ```
 
 **C5 首刀边界**：只抽无 UI 的会话/开门 composable；**禁止**同 PR 改落地页布局与视觉。  
+**C6 首刀边界**：只抽表单种子/校验/请求体；**禁止**同 PR 大改申诉弹层布局。  
 **C1 边界**：勿改 `orders.vue` 主 `load()`（已有 try/catch + error）；勿动 index 幽灵会话 `settleWithin`（→ C11）。
 
 ---

@@ -385,6 +385,13 @@ import {
   canRefundOnOrderDetail,
   refundConfirmContent
 } from '@/utils/money-ui-contracts';
+import {
+  appealReasonError,
+  buildFileDisputeBody,
+  evidenceUploadingError,
+  seedDisputeForm,
+  seedRefundForm
+} from '@/utils/order-appeal';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
@@ -768,19 +775,21 @@ function playVideo() {
 }
 
 function openDispute() {
-  refundMode.value = false;
-  disputeReason.value = '';
-  selectedCategory.value = 'USER_APPEAL';
-  selectedChip.value = null;
+  const seed = seedDisputeForm();
+  refundMode.value = seed.refundMode;
+  disputeReason.value = seed.disputeReason;
+  selectedCategory.value = seed.selectedCategory;
+  selectedChip.value = seed.selectedChip;
   evidence.value = [];
   showDispute.value = true;
 }
 
 function openRefund() {
-  refundMode.value = true;
-  disputeReason.value = '申请退回本单已扣款项';
-  selectedCategory.value = 'USER_APPEAL';
-  selectedChip.value = DISPUTE_REASON_CHIPS.find((c) => c.label === '申请退款') || null;
+  const seed = seedRefundForm();
+  refundMode.value = seed.refundMode;
+  disputeReason.value = seed.disputeReason;
+  selectedCategory.value = seed.selectedCategory;
+  selectedChip.value = seed.selectedChip;
   evidence.value = [];
   syncRefundLines();
   showDispute.value = true;
@@ -862,23 +871,26 @@ async function submitDispute() {
     showError('缺少订单信息');
     return;
   }
-  if (reason.length < 4) {
-    showError('请至少填写 4 个字');
+  const reasonErr = appealReasonError(reason, 'dispute');
+  if (reasonErr) {
+    showError(reasonErr);
     return;
   }
-  if (evidence.value.some((e) => e.uploading)) {
-    showError('图片仍在上传');
+  const uploadErr = evidenceUploadingError(evidence.value);
+  if (uploadErr) {
+    showError(uploadErr);
     return;
   }
   disputeLoading.value = true;
   try {
-    await consumerApi.fileDispute({
-      sessionId,
-      reason,
-      category: selectedCategory.value || 'USER_APPEAL',
-      priority: 'NORMAL',
-      evidenceFileIds: evidenceFileIds(evidence.value)
-    });
+    await consumerApi.fileDispute(
+      buildFileDisputeBody({
+        sessionId,
+        reason,
+        category: selectedCategory.value,
+        evidenceFileIds: evidenceFileIds(evidence.value)
+      })
+    );
     disputeFiled.value = true;
     showDispute.value = false;
     showSuccess('申诉已提交');
@@ -905,12 +917,14 @@ async function submitRefund() {
     showError('缺少订单编号');
     return;
   }
-  if (reason.length < 4) {
-    showError('请至少填写 4 字退款原因');
+  const reasonErr = appealReasonError(reason, 'refund');
+  if (reasonErr) {
+    showError(reasonErr);
     return;
   }
-  if (evidence.value.some((e) => e.uploading)) {
-    showError('图片仍在上传');
+  const uploadErr = evidenceUploadingError(evidence.value);
+  if (uploadErr) {
+    showError(uploadErr);
     return;
   }
   const restoreInventory = inferRestoreInventory(reason, selectedChip.value);
