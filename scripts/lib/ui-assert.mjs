@@ -9,7 +9,8 @@
  * 于是**内容区整块没渲染也照样绿**：判据测的是导航栏，不是页面。
  *
  * 这里改为断言「该页面专属的结构确实存在且已水合」：
- *   运营端 = 内容区标题精确匹配 + `.report-table` 存在 + 有数据行或已水合的 el-empty + 不在 loading
+ *   运营端 = 内容区标题精确匹配 + `.report-table` 存在 + 有数据行或已水合空态
+ *           （`.el-empty` 或 CrudTable `.crud-empty`）+ 不在 loading
  *   H5 端 = 页面专属内容容器存在 + 有列表项或空态 + 无可见错误态
  * 这类判据是**可以变红**的：改错期望标题/选择器即失败（见证据文档的 A/B 反证）。
  */
@@ -52,9 +53,14 @@ export async function adminPageState(
         const table = document.querySelector(tableSel);
         const tablePresent = !!table;
         const rows = table ? table.querySelectorAll('.el-table__body tr.el-table__row').length : 0;
-        // el-table 的 #empty 插槽在本项目里被 `v-if="listHydrated && !loading"` 门控
-        // ⇒ 它的出现等价于「列表已水合」，而 `empty-text=" "` 的默认空块不算。
-        const hydratedEmpty = !!(table && table.querySelector('.el-table__empty-block .el-empty'));
+        // #empty 插槽被 `v-if="hydrated && !loading"` 门控 ⇒ 出现即已水合；
+        // `empty-text=" "` 的默认空块不算。CrudTable 紧凑空态用 `.crud-empty`
+        // （替代大图 el-empty）；少数手写页仍用 `.el-empty`。
+        const emptyBlock = table?.querySelector('.el-table__empty-block');
+        const hydratedEmpty = !!(
+          emptyBlock &&
+          (emptyBlock.querySelector('.crud-empty') || emptyBlock.querySelector('.el-empty'))
+        );
         const mask = table ? table.querySelector('.el-loading-mask') : null;
         const loading = !!mask && getComputedStyle(mask).display !== 'none';
 

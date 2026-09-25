@@ -409,7 +409,7 @@ async function main() {
       // 🔴 旧判据 `p.re.test(bodyText)` 是**恒真**的：`src/config/menu.ts:94/108/115` 的侧栏
       // 菜单标题就是「订单管理 / 争议审核 / 异常中心」，内容区整块没渲染也照样命中。
       // 改判：内容区标题（`.page-card-head__title .title`，仅 src/views/** 使用、侧栏不引用）
-      // **精确**等于期望值，且该页 `.report-table` 已水合（有数据行或已渲染 el-empty）。
+      // **精确**等于期望值，且该页 `.report-table` 已水合（有数据行或 `.crud-empty`/`.el-empty`）。
       for (const p of [
         { id: 'T-A02', name: '争议审核', path: '/disputes', title: '争议审核' },
         { id: 'T-A03', name: '异常中心', path: '/exceptions', title: '异常中心' },
