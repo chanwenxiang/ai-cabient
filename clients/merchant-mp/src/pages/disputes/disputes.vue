@@ -263,6 +263,13 @@ import {
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { promptText } from '@/utils/text-prompt';
 import type { MerchantMe } from '@aicabinet/shared-types';
+import {
+  buildMerchantDisputeResolveBody,
+  canReplyMerchantDispute,
+  canResolveMerchantDispute,
+  isTerminalDisputeStatus,
+  type MerchantDisputeResolutionType
+} from '@/utils/money-ui-contracts';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -344,12 +351,11 @@ function switchTab(key: string) {
 }
 
 function isTerminalDispute(status?: string | null) {
-  const s = (status || '').toUpperCase();
-  return s === 'RESOLVED' || s === 'CLOSED';
+  return isTerminalDisputeStatus(status);
 }
 
 function canReplyTicket(item: MerchantDisputeTicket | MerchantDisputeDetailView) {
-  return canReply.value && (item.status || '').toUpperCase() === 'OPEN';
+  return canReplyMerchantDispute({ status: item.status, hasReplyPerm: canReply.value });
 }
 
 async function refreshDisputesMerchantMe(seq: number): Promise<boolean> {
@@ -487,10 +493,11 @@ async function onDetail(item: MerchantDisputeTicket | MerchantDisputeDetailView)
   moreActionsOpen.value = false;
   canReplyDetail.value =
     canReplyFromApi == null ? canReplyTicket(row) : canReplyFromApi && canReply.value;
-  canResolveDetail.value =
-    canResolveFromApi == null
-      ? canResolve.value && (row.status || '').toUpperCase() === 'OPEN'
-      : !!canResolveFromApi && canResolve.value;
+  canResolveDetail.value = canResolveMerchantDispute({
+    status: row.status,
+    hasResolvePerm: canResolve.value,
+    canResolveFromApi
+  });
   detailVisible.value = true;
 }
 
@@ -509,7 +516,7 @@ async function claimFromDetail() {
   }
 }
 
-async function resolveFromDetail(type: 'KEEP' | 'WAIVE' | 'CONFIRM') {
+async function resolveFromDetail(type: MerchantDisputeResolutionType) {
   if (!detail.value?.ticketId || resolving.value) return;
   const labels = {
     KEEP: displayLabel('dispute_resolution', 'KEEP'),
@@ -526,11 +533,7 @@ async function resolveFromDetail(type: 'KEEP' | 'WAIVE' | 'CONFIRM') {
   if (!ok) return;
   resolving.value = true;
   try {
-    const body: {
-      resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM';
-      restoreInventory?: boolean;
-    } = { resolutionType: type };
-    if (type === 'WAIVE') body.restoreInventory = false;
+    const body = buildMerchantDisputeResolveBody({ resolutionType: type });
     const res = await merchantApi.disputeResolve(detail.value.ticketId, body);
     showSuccess(res.message || displayLabel('dispute_status', 'RESOLVED'));
     detailVisible.value = false;

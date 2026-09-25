@@ -157,6 +157,13 @@ import type {
   OpenApiMerchantWalletOverviewDto
 } from '@aicabinet/shared-types';
 import { secureRandomToken } from '@/utils/secure-id';
+import {
+  buildWalletWithdrawBody,
+  buildWalletWithdrawRequestNo,
+  isTerminalWithdrawStatus,
+  validateWalletWithdrawAmount,
+  validateWalletWithdrawMerchant
+} from '@/utils/money-ui-contracts';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 export type WalletPageRole = 'merchant' | 'line';
@@ -303,30 +310,40 @@ async function load() {
 
 async function submitWithdraw() {
   const amountCents = yuanToCents(amountYuan.value);
-  if (amountCents == null || amountCents <= 0) {
+  const available = Number(overview.value?.availableCents ?? 0);
+  const amountErr = validateWalletWithdrawAmount({ amountCents, availableCents: available });
+  if (amountErr === 'INVALID_AMOUNT') {
     showError('请输入金额');
     return;
   }
-  const available = Number(overview.value?.availableCents ?? 0);
-  if (amountCents > available) {
+  if (amountErr === 'EXCEEDS_AVAILABLE') {
     showError(`超出可提现余额（最多 ¥${yuan(available)}）`);
+    return;
+  }
+  const merchantErr = validateWalletWithdrawMerchant({
+    role: props.role,
+    boundMerchantCount: boundMerchants.value.length,
+    merchantId: selectedMerchantId.value
+  });
+  if (merchantErr === 'MERCHANT_REQUIRED') {
+    showError('请先选择提现商户');
     return;
   }
   submitting.value = true;
   try {
-    const body: { amountCents: number; requestNo: string; merchantId?: string } = {
-      amountCents,
-      requestNo: cfg.value.requestNoPrefix + Date.now() + '-' + secureRandomToken(5)
-    };
+    // H53：多商户绑定必须显式指定提现商户；单商户/未知绑定交由后端自动解析
+    const body = buildWalletWithdrawBody({
+      role: props.role,
+      amountCents: amountCents!,
+      requestNo: buildWalletWithdrawRequestNo({
+        prefix: cfg.value.requestNoPrefix,
+        nowMs: Date.now(),
+        randomSuffix: secureRandomToken(5)
+      }),
+      merchantId: selectedMerchantId.value || undefined,
+      boundMerchantCount: boundMerchants.value.length
+    });
     if (props.role === 'merchant') {
-      // H53：多商户绑定必须显式指定提现商户；单商户/未知绑定交由后端自动解析
-      if (multiMerchant.value) {
-        if (!selectedMerchantId.value) {
-          showError('请先选择提现商户');
-          return;
-        }
-        body.merchantId = selectedMerchantId.value;
-      }
       await merchantApi.walletWithdraw(body);
     } else {
       await merchantApi.lineWalletWithdraw(body);
@@ -347,14 +364,11 @@ onPageShow(load);
  * 提现审核 / 打款由运营与支付通道异步处理：还有未到终态的提现单时每 10 秒静默跟进一次，
  * 全部到终态即停表。load() 在已有快照时不闪 loading，可安全重复调用。
  */
-const TERMINAL_WITHDRAW_STATUSES = ['PAID', 'REJECTED', 'FAILED'];
 useAutoRefresh({
   intervalMs: 10_000,
   load,
   shouldContinue: () =>
-    (overview.value?.recentWithdraws || []).some(
-      (w) => !TERMINAL_WITHDRAW_STATUSES.includes(String(w.status || '').toUpperCase())
-    ),
+    (overview.value?.recentWithdraws || []).some((w) => !isTerminalWithdrawStatus(w.status)),
   maxDurationMs: 300_000,
   canRefresh: () => !submitting.value && isMerchantLoggedIn()
 });
