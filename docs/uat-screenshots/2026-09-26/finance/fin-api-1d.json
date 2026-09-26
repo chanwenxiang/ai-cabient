@@ -1,0 +1,38 @@
+﻿{
+    "code":  0,
+    "message":  "ok",
+    "data":  {
+                 "summary":  {
+                                 "revenueTodayCents":  350,
+                                 "cogsTodayCents":  190,
+                                 "grossMarginTodayCents":  160,
+                                 "writeOffTodayCents":  0,
+                                 "writeOffTodayQty":  0,
+                                 "orderToday":  2,
+                                 "averageOrderValueTodayCents":  175,
+                                 "grossMarginRateToday":  0.45714285714285713,
+                                 "revenueTotalCents":  3350,
+                                 "cogsTotalCents":  1900,
+                                 "grossMarginTotalCents":  1450
+                             },
+                 "daily":  [
+                               {
+                                   "date":  "2026-09-26",
+                                   "revenueCents":  350,
+                                   "cogsCents":  190,
+                                   "grossMarginCents":  160,
+                                   "writeOffCents":  0
+                               }
+                           ],
+                 "topSkus":  [
+                                 {
+                                     "skuId":  "SKU-DEMO-001",
+                                     "skuName":  "å¯å£å¯ä¹ 330ml",
+                                     "qtySold":  1,
+                                     "revenueCents":  350,
+                                     "cogsCents":  190,
+                                     "grossMarginCents":  160
+                                 }
+                             ]
+             }
+}

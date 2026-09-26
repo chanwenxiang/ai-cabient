@@ -56,6 +56,7 @@
 |---|------|------|------|
 | KPI-01 | 页加载 | ✓ | 设备总数 3；平均锁定/恢复「暂无样本」；`ds-kpi-01.png` |
 | KPI-02 | 刷新 | ✓ | 可点 |
+| KPI-03 | 单页深测 | ✓ | 见 [`DEVICE_KPI_FULL_BROWSER_UAT.md`](../../../uat/DEVICE_KPI_FULL_BROWSER_UAT.md) · `device-kpi/` |
 
 ---
 
@@ -66,6 +67,7 @@
 | REP-01 | 列表 | ✓ | 共 1 条「已完成」；`ds-rep-01.png` |
 | REP-02 | 新建工单 → 取消 | ✓ | 弹层「新建维修工单」→ 取消；`ds-rep-02-new.png` |
 | REP-03 | 查询/刷新/列设置/批量指派 | ✓ 可见 | 未勾选时批量合理 disabled |
+| REP-04 | 单页深测 | ✓ | 见 [`REPAIR_TICKETS_FULL_BROWSER_UAT.md`](../../../uat/REPAIR_TICKETS_FULL_BROWSER_UAT.md) · `repair-tickets/` |
 
 ---
 
@@ -78,6 +80,7 @@
 | SKU-03 | 勾选后批量下架 → 取消 | ✓ | 「确认将 1 个商品下架？」；`ds-sku-03-offline.png` |
 | SKU-04 | 「识别入驻」 | ✓ | → `/sku-vision` |
 | SKU-05 | 新建/导出/导入/下载模板/刷新/查询/重置 | ✓ 可见 | |
+| SKU-06 | 单页深测 | ✓ | 见 [`SKUS_FULL_BROWSER_UAT.md`](../../../uat/SKUS_FULL_BROWSER_UAT.md) · `skus/` |
 
 ---
 

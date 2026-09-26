@@ -2192,13 +2192,15 @@ watch(
   }
 );
 
-// 各列表控制器均 autoLoad:false：首查须在路由查询参数（tab/deviceId/plan）应用后由 loadTab 显式触发
+// 各列表控制器均 autoLoad:false：首查须在路由查询参数（tab/deviceId/plan）应用后由 loadTab 显式触发。
+// ⚠️ 不可在 maybeAutoPlanFromQuery 之前 syncRouteQuery：后者只保留 tab/deviceId，会清掉 plan/deviceIds，
+// 导致库存健康「一键补货规划」与设备详情「一键规划补货」深链打不开规划弹层（2026-09-26 UAT 复现）。
 onMounted(async () => {
   applyRouteQuery();
-  syncRouteQuery();
   void loadAssignees();
   await loadTab(tab.value, true);
   await maybeAutoPlanFromQuery();
+  syncRouteQuery();
 });
 onActivated(() => {
   void reloadFromRouteQuery();

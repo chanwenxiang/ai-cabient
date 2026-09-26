@@ -84,7 +84,7 @@
         >
           隐藏零元单
           <el-tooltip
-            content="多为开门未取货结案（金额为 0），开启后列表与导出均不展示"
+            content="多为开门未取货结案（金额为 0），开启后列表与导出均不展示；已退款 Tab 仍显示有退款额的单"
             placement="top"
           >
             <span class="hide-zero-hint">?</span>
@@ -921,6 +921,12 @@ const { onExport: exportSelectedCsv } = useListCsv({
       ])
 });
 
+/** 全额退款后 total=0；「已退款」须仍可见（lessons #204） */
+function shouldApplyExcludeZero(): boolean {
+  if (statusTab.value === 'REFUNDED' || status.value === 'REFUNDED') return false;
+  return hideZeroOrders.value;
+}
+
 function appendOrderFilters(q: URLSearchParams) {
   if (keyword.value.trim()) q.set('q', keyword.value.trim());
   if (payChannel.value) q.set('payChannel', payChannel.value);
@@ -930,7 +936,7 @@ function appendOrderFilters(q: URLSearchParams) {
     if (Number.isFinite(fromMs)) q.set('from', new Date(fromMs).toISOString());
     if (Number.isFinite(toMs)) q.set('to', new Date(toMs).toISOString());
   }
-  if (hideZeroOrders.value) q.set('excludeZero', '1');
+  if (shouldApplyExcludeZero()) q.set('excludeZero', '1');
 }
 
 async function onExportMode(mode: string) {
@@ -1401,7 +1407,7 @@ function syncRouteQuery() {
   if (payChannel.value) query.payChannel = payChannel.value;
   if (status.value) query.status = status.value;
   if (statusTab.value === 'PENDING' && overdueOnly.value) query.overdue = '1';
-  if (hideZeroOrders.value) query.excludeZero = '1';
+  if (shouldApplyExcludeZero()) query.excludeZero = '1';
   if (focusOrderId.value) query.orderId = focusOrderId.value;
   router.replace({ query });
 }

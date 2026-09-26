@@ -1,0 +1,31 @@
+﻿{
+    "code":  0,
+    "message":  "ok",
+    "data":  {
+                 "activeUsers7d":  2,
+                 "activeUsers30d":  2,
+                 "newUsers7d":  2,
+                 "newUsers30d":  2,
+                 "repeatBuyer7d":  1,
+                 "repeatPurchaseRate7d":  0.5,
+                 "dormantUsers30d":  0,
+                 "totalUsers":  2,
+                 "totalOrders":  24,
+                 "totalRevenueCents":  3350,
+                 "avgOrderValueCents":  139.58333333333334,
+                 "topRepeatBuyers":  [
+                                         {
+                                             "userId":  10001,
+                                             "phone":  "13800138000",
+                                             "name":  "éæ",
+                                             "orderCount":  23,
+                                             "totalSpent":  33.50,
+                                             "totalSpentCents":  3350,
+                                             "lastOrderAt":  "2026-09-26T10:56:55.095233Z"
+                                         }
+                                     ],
+                 "dormantUsers":  [
+
+                                  ]
+             }
+}

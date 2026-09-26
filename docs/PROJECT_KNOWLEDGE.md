@@ -245,6 +245,25 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-26 | 商品管理单页深测：关键词q/深链/编辑·下架取消/识别入驻 | `SKUS_FULL_BROWSER_UAT.md`、`skus/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 维修工单单页深测：筛选/深链/详情流转/新建·指派取消；lesson #209 EP option | `REPAIR_TICKETS_FULL_BROWSER_UAT.md`、`repair-tickets/BUTTONS`/`FINDINGS`、`lessons-learned` #209 |
+| 2026-09-26 | 设备可用性单页深测：9卡/日期快照/暂无样本·无解锁空态 | `DEVICE_KPI_FULL_BROWSER_UAT.md`、`device-kpi/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 投放地图单页深测：默认ALL/投放筛/在线自营地区/详情深链 | `DEVICE_MAP_FULL_BROWSER_UAT.md`、`device-map/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 设备管理单页深测：看板/六态Tab/深链/批量取消/详情/导出 | `DEVICES_FULL_BROWSER_UAT.md`、`devices/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 设备运维单页深测：筛选/导出/中文码；修关键词空表 total #208 | `DEVICE_OPS_FULL_BROWSER_UAT.md`、`device-ops/BUTTONS`/`FINDINGS`、lessons #208 |
+| 2026-09-26 | 异常中心单页深测：OPEN/ALL/深链/五类写取消；修「全部」回弹 OPEN #207 | `EXCEPTIONS_FULL_BROWSER_UAT.md`、`exceptions/BUTTONS`/`FINDINGS`、lessons #207 |
+| 2026-09-26 | 争议审核单页深测：OPEN中文/认领/免单取消/深链；视口钉 1366（窄抽检禁 goto 冲掉） | `DISPUTES_FULL_BROWSER_UAT.md`、`disputes/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 开门记录单页深测：十一Tab/滞留#195/导出/时间线链；修类型筛选 total 空表矛盾 #205 | `SESSIONS_FULL_BROWSER_UAT.md`、`sessions/BUTTONS`/`FINDINGS`、lessons #205 |
+| 2026-09-26 | 订单管理单页深测：Tab/筛选/双导出/抽屉退款取消/会话设备链；修已退款+隐藏零元滤空 #204 | `ORDERS_FULL_BROWSER_UAT.md`、`orders/BUTTONS`/`FINDINGS`、lessons #204 |
+| 2026-09-26 | 用户分析单页深测：KPI=API、days/双导出、复购TOP、沉睡空态+召回disabled门控 | `USER_ANALYSIS_FULL_BROWSER_UAT.md`、`user-analysis/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 修补货深链不弹「规划补货路线」：onMounted 须先 maybeAutoPlan 再 syncRouteQuery；五入口弹层→取消复测 | lessons #203、`ReplenishmentView`、`stock-health/sh-plan-*` |
+| 2026-09-26 | 库存健康单页深测：默认投放空态 vs ALL(断货6/低1)、一键规划2台、双导出、行设备/补货 | `STOCK_HEALTH_FULL_BROWSER_UAT.md`、`stock-health/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 销售报表单页深测：五维/快捷/柜机筛选¥7→¥3.50、双路径导出、深链 skus/devices/merchants | `SALES_REPORTS_FULL_BROWSER_UAT.md`、`sales-reports/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 财务毛利单页深测：KPI×6=API(350¢)、days/固化取消、图型、导出CSV、深链 analytics/orders/skus | `FINANCE_FULL_BROWSER_UAT.md`、`finance/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 设备详情按钮 100% 清点：保存资产/退款/策略拨回/温控全按钮/一键规划(造缺货还原)/货道弹窗/解锁营业 | `device-detail/BUTTONS` 全表、`dd-G-*`、FINDINGS |
+| 2026-09-26 | 设备详情单页深测：概览/QR/资产生命周期/远程指令/四Tab/货道/导航；硬写确认取消；DPR=1 | `DEVICE_DETAIL_FULL_BROWSER_UAT.md`、`device-detail/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 设备报表单页深测：关键词/重置、URL·KPI 离线筛选、详情深链、今日营收¥3.50 | `DEVICE_REPORT_FULL_BROWSER_UAT.md`、`device-report/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 客流坪效单页深测：days/刷新、KPI×6=API、转化「—」、窄视口无整页横滚 | `FOOTFALL_FULL_BROWSER_UAT.md`、`footfall/BUTTONS`/`FINDINGS` |
 | 2026-09-26 | 数据分析单页深测：KPI×4 深链、days/图型、侧栏离线/争议/毛利、三端营收350¢ | `ANALYTICS_FULL_BROWSER_UAT.md`、`analytics/BUTTONS`/`FINDINGS` |
 | 2026-09-26 | 运营大屏单页深测：刷新/全屏/返回、KPI×6 口径、三端营收350¢；排行仅投放说明 | `BIG_SCREEN_FULL_BROWSER_UAT.md`、`big-screen/BUTTONS`/`FINDINGS` |
 | 2026-09-26 | 运营工作台缺口收口：§2.6 全7条、零计数UI点击、KPI键盘、分账行查看、诚实空态 | `workbench/BUTTONS` B.3～B.7、`wb-x02`～`wb-x07` 截图 |

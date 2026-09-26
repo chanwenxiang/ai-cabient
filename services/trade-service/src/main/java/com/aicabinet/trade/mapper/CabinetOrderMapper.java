@@ -279,9 +279,12 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
         if (criteria.payChannel() != null && !criteria.payChannel().isBlank()) {
             q.eq(CabinetOrder::getPayChannel, criteria.payChannel().trim());
         }
-        // 零元单多为开门未取货结案；运营列表可屏蔽以免淹没真实成交
+        // 零元单多为开门未取货结案；运营列表可屏蔽以免淹没真实成交。
+        // 全额退款后 total=0 但 refundedCents>0，须保留（否则「已退款」Tab 被滤空，#204）。
         if (criteria.excludeZeroAmount()) {
-            q.gt(CabinetOrder::getTotalAmountCents, 0);
+            q.and(w -> w.gt(CabinetOrder::getTotalAmountCents, 0)
+                    .or()
+                    .gt(CabinetOrder::getRefundedCents, 0));
         }
     }
 

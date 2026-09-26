@@ -256,7 +256,13 @@ const crud = useCrudTable<OpsEvent>({
       'GET'
     );
     const items = data.items || [];
-    return { items: filterByKeyword(items), total: Number(data.total ?? items.length) };
+    const filtered = filterByKeyword(items);
+    const serverTotal = Number(data.total ?? items.length);
+    // 关键词为前端本页过滤：有剔除时 total 必须跟可见行一致，禁空表仍显示服务端全量（同 lessons #205/#208）
+    return {
+      items: filtered,
+      total: filtered.length === items.length ? serverTotal : filtered.length
+    };
   },
   // 后端固定按 eventId 排序、仅接收方向（默认升序）；方向由壳内「升/降序」按钮驱动重查
   sort: { prop: 'eventId', mode: 'server', defaultDir: 'asc' }

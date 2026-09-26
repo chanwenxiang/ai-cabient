@@ -52,6 +52,8 @@
 
 ### 3.1 订单 `/orders`
 
+> **单页深测真源**（2026-09-26）：[`ORDERS_FULL_BROWSER_UAT.md`](./ORDERS_FULL_BROWSER_UAT.md) · `orders/BUTTONS`/`FINDINGS`（含 #204 已退款+隐藏零元）。
+
 | ID | 检查 | 期望 |
 |----|------|------|
 | FULFILL-ORD-01 | 列表加载 | 有行或中文空态；金额 `¥x.xx` |
@@ -65,6 +67,8 @@
 
 ### 3.2 开门 `/sessions`
 
+> **单页深测真源**（2026-09-26）：[`SESSIONS_FULL_BROWSER_UAT.md`](./SESSIONS_FULL_BROWSER_UAT.md) · `sessions/BUTTONS`/`FINDINGS`（含 #195 滞留、#205 类型 total）。
+
 | ID | 检查 | 期望 |
 |----|------|------|
 | FULFILL-SES-01 | 列表 | total 与 API 一致量级 |
@@ -74,6 +78,8 @@
 
 ### 3.3 争议 `/disputes`
 
+> **单页深测真源**（2026-09-26）：[`DISPUTES_FULL_BROWSER_UAT.md`](./DISPUTES_FULL_BROWSER_UAT.md) · `disputes/BUTTONS`/`FINDINGS`。
+
 | ID | 检查 | 期望 |
 |----|------|------|
 | FULFILL-DSP-01 | OPEN 筛选 | 中文「待审核」 |
@@ -82,10 +88,13 @@
 
 ### 3.4 异常 `/exceptions`
 
+> 单页深测真源：[`EXCEPTIONS_FULL_BROWSER_UAT.md`](./EXCEPTIONS_FULL_BROWSER_UAT.md)
+
 | ID | 检查 | 期望 |
 |----|------|------|
 | FULFILL-EXC-01 | OPEN Tab | 计数 ↔ API |
 | FULFILL-EXC-02 | 详情/处理 | 抽屉或页可开；无白屏 |
+| FULFILL-EXC-03 | 「全部」Tab | URL `status=ALL`；total↔无 status API（禁回弹 OPEN，#207） |
 
 ### 3.5 录像上传 `/upload-queue`
 

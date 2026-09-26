@@ -495,7 +495,11 @@ const crud = useCrudTable<SessionRow>({
     await maybeOpenFocusedSession(rows);
 
     if (kindFilter.value) {
+      const before = rows.length;
       rows = rows.filter((r) => (r.sessionKind || 'CONSUMER') === kindFilter.value);
+      // 本页有剔除 → total 跟过滤后（禁「共 N + 空表」#205）；全保留 → 仍用服务端 total 以翻页
+      const total = rows.length < before ? rows.length : (data.total ?? 0);
+      return { items: rows, total };
     }
     return { items: rows, total: data.total ?? 0 };
   },

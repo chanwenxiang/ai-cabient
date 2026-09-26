@@ -1025,8 +1025,10 @@ function goDisputes(sessionId?: string) {
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
+  // 「全部」必须显式写入 status=ALL：省略 status 时 applyRouteQuery 会回落 OPEN，
+  // 导致点「全部」后 Tab/列表仍停在待处理（见 lessons #207）。
   if (status.value === 'ARCHIVED') query.archived = '1';
-  else if (status.value && status.value !== 'ALL') query.status = status.value;
+  else if (status.value) query.status = status.value;
   if (severity.value) query.severity = severity.value;
   if (overdueOnly.value) query.overdue = '1';
   router.replace({ query });
@@ -1388,8 +1390,8 @@ function applyRouteQuery() {
   const qSeverity = typeof route.query.severity === 'string' ? route.query.severity : '';
   const qOverdue = route.query.overdue === '1' || route.query.overdue === 'true';
   const qArchived = route.query.archived === '1' || route.query.archived === 'true';
-  // Keep default OPEN when query omits status (matches page default).
-  const nextStatus = qArchived ? 'ARCHIVED' : qStatus || 'OPEN';
+  // 缺省 OPEN（侧栏首进）；显式 status=ALL 表示全部（勿把缺省当成 ALL）。
+  const nextStatus = qArchived ? 'ARCHIVED' : String(qStatus || 'OPEN').toUpperCase();
   if (nextStatus !== status.value) {
     status.value = nextStatus;
     changed = true;

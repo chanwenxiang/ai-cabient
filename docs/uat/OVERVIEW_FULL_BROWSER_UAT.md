@@ -279,6 +279,8 @@ UI 展示值  ⇄  同页 Network 响应（或已知聚合 API）  ⇄  对照�
 
 ### 4.4 客流坪效 · `OV-FF`
 
+> **单页深测册**：[`FOOTFALL_FULL_BROWSER_UAT.md`](./FOOTFALL_FULL_BROWSER_UAT.md) · 截图 [`footfall/`](../uat-screenshots/2026-09-26/footfall/)
+
 | 项 | 值 |
 |----|-----|
 | 路径 | `/footfall` |
@@ -299,6 +301,8 @@ UI 展示值  ⇄  同页 Network 响应（或已知聚合 API）  ⇄  对照�
 ---
 
 ### 4.5 设备报表 · `OV-DR`
+
+> **单页深测册**：[`DEVICE_REPORT_FULL_BROWSER_UAT.md`](./DEVICE_REPORT_FULL_BROWSER_UAT.md) · 截图 [`device-report/`](../uat-screenshots/2026-09-26/device-report/)
 
 | 项 | 值 |
 |----|-----|
@@ -321,6 +325,8 @@ UI 展示值  ⇄  同页 Network 响应（或已知聚合 API）  ⇄  对照�
 
 ### 4.6 财务毛利 · `OV-FIN`
 
+> **单页深测册**：[`FINANCE_FULL_BROWSER_UAT.md`](./FINANCE_FULL_BROWSER_UAT.md) · 截图 [`finance/`](../uat-screenshots/2026-09-26/finance/)
+
 | 项 | 值 |
 |----|-----|
 | 路径 | `/finance` |
@@ -340,6 +346,8 @@ UI 展示值  ⇄  同页 Network 响应（或已知聚合 API）  ⇄  对照�
 ---
 
 ### 4.7 销售报表 · `OV-SR`
+
+> **单页深测册**：[`SALES_REPORTS_FULL_BROWSER_UAT.md`](./SALES_REPORTS_FULL_BROWSER_UAT.md) · 截图 [`sales-reports/`](../uat-screenshots/2026-09-26/sales-reports/)
 
 | 项 | 值 |
 |----|-----|
@@ -368,6 +376,8 @@ UI 展示值  ⇄  同页 Network 响应（或已知聚合 API）  ⇄  对照�
 
 ### 4.8 库存健康 · `OV-SH`
 
+> **单页深测册**：[`STOCK_HEALTH_FULL_BROWSER_UAT.md`](./STOCK_HEALTH_FULL_BROWSER_UAT.md) · 截图 [`stock-health/`](../uat-screenshots/2026-09-26/stock-health/)
+
 | 项 | 值 |
 |----|-----|
 | 路径 | `/stock-health` |
@@ -390,6 +400,8 @@ UI 展示值  ⇄  同页 Network 响应（或已知聚合 API）  ⇄  对照�
 ---
 
 ### 4.9 用户分析 · `OV-UA`
+
+> **单页深测册**：[`USER_ANALYSIS_FULL_BROWSER_UAT.md`](./USER_ANALYSIS_FULL_BROWSER_UAT.md) · 截图 [`user-analysis/`](../uat-screenshots/2026-09-26/user-analysis/)
 
 | 项 | 值 |
 |----|-----|

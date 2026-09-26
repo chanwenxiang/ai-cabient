@@ -1,0 +1,33 @@
+﻿{
+    "code":  0,
+    "message":  "ok",
+    "data":  {
+                 "items":  [
+                               {
+                                   "dimKey":  "SKU-DEMO-001",
+                                   "dimLabel":  "å¯å£å¯ä¹ 330ml",
+                                   "orderCount":  2,
+                                   "qty":  2,
+                                   "revenueCents":  700,
+                                   "cogsCents":  380,
+                                   "marginCents":  320,
+                                   "refundedCents":  0,
+                                   "refundOrderCount":  0
+                               }
+                           ],
+                 "page":  0,
+                 "size":  20,
+                 "total":  1,
+                 "summary":  {
+                                 "rowCount":  1,
+                                 "orderCount":  2,
+                                 "qty":  2,
+                                 "revenueCents":  700,
+                                 "refundedCents":  0,
+                                 "refundOrderCount":  0,
+                                 "netRevenueCents":  700,
+                                 "cogsCents":  380,
+                                 "marginCents":  320
+                             }
+             }
+}

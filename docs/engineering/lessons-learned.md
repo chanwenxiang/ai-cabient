@@ -213,6 +213,13 @@
 | 200 | Playwright 点弹窗「取消」像关不掉 | UAT 判定取消失效；原生 `el.click()` 却能关 | 点在 `dialog-fade-enter-*`、opacity≈0 阶段；EP 入场未完时 Playwright 点击不触发关闭 | **必须**点 footer 前等 overlay `opacity>0.99` 且 class 无 `enter-from`/`enter-active`；禁 open 后立刻点取消当失败 | UAT Playwright；`BUTTONS.md` |
 | 201 | 工作台告警「15 条」但分页共 10、翻不了页 | 分账等行在第 11+ 条不可达 | `fetchPage` 返回纯数组 → `normalizeListPage` 把本页 length 当 total | **必须**前端切片回传 `{ items, total: 全量长度 }`；禁把 slice 数组直接当 PageResult | `DashboardView.vue` queueCrud |
 | 202 | 履约异常区角标 > 区内各项之和 | 例：区卡 12+8 却显示 32 | `workZones.fulfill.total` 已含「异常中心」count 后又 `+ openExceptionCount` | **必须**区卡 total = items.reduce 一次；禁对已计入的 count 再加 | `DashboardView.vue` workZones |
+| 203 | 库存健康/设备详情「一键规划」只跳 shortage、不弹「规划补货路线」 | 深链 `?plan=1&deviceIds=` 落地后无弹层 | `onMounted` 先 `syncRouteQuery()` 清掉 plan/deviceIds，再 `maybeAutoPlanFromQuery` | **必须**先 `maybeAutoPlanFromQuery` 再 `syncRouteQuery`；UAT 须断言弹层可见再取消 | `ReplenishmentView.vue` |
+| 204 | 「已退款」Tab +「隐藏零元」空表，像丢退款单 | 全额退后 `totalAmountCents=0`，`excludeZero` 仍 `gt(total,0)` | **必须**：REFUNDED 查询不传 `excludeZero`；后端 `excludeZero` 保留 `refundedCents>0`；UAT 勾隐藏再切已退款须有行 | `OrderListView`、`CabinetOrderMapper` |
+| 205 | 开门记录类型选「补货」空表仍「共 57 条」 | `kindFilter` 只滤本页 items，total 仍用服务端全量 | **必须**本页有剔除时 total=过滤后长度；全保留才用服务端 total；UAT 断言空表↔共 0 | `SessionListView.vue` |
+| 206 | Playwright 量到视口仍是 1366，窄屏截图「比例不对」 | 长脚本里 `setViewportSize` 后又 `goto`/多 tab，视口被冲回 | **必须**主测用 MCP `browser_resize` 钉死；窄/宽：先到页 → resize → 立刻截图，**禁止中间 goto** | UAT 各册；`disputes/FINDINGS` |
+| 207 | 异常中心点「全部」仍停在「待处理」，total=12≠111 | `syncRouteQuery` 对 ALL 省略 `status` → 路由 watch/`applyRouteQuery` 缺省回落 `OPEN` | **必须**「全部」写显式 `status=ALL`；缺省无 query 才默认 OPEN；UAT 断言 URL+total↔无 status API | `ExceptionListView.vue` |
+| 208 | 设备运维关键词滤空仍「共 N 条」 | 关键词仅前端本页过滤，`total` 仍用服务端全量 | **必须**本页有剔除时 total=过滤后长度；全保留才用服务端 total；UAT 无匹配→共 0 | `DeviceOpsMonitorView.vue` |
+| 209 | Playwright 点 EP 下拉「已完成」超时 | 脚本找 `.el-option`，EP 实际是 `.el-select-dropdown__item` / `[role=option]` | **必须**先点 `.el-select__wrapper`，用 `aria-controls` 定位 listbox，再点 `[role=option]`；禁写 `.el-option` | UAT Playwright；`repair-tickets/FINDINGS` |
 
 ## 追加模板
 

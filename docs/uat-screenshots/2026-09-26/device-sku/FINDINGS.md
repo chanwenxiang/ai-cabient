@@ -17,9 +17,9 @@
 | 设备运维 | **完成** | B.1；64 条；导出 CSV |
 | 设备管理 | **完成** | B.2；Tab/KPI/深链；批量解锁取消；详情锁机取消 |
 | 投放地图 | **完成** | B.3；3 落点 Leaflet；详情→设备 |
-| 设备可用性 | **完成** | B.4；总数 3；「暂无样本」诚实 |
-| 维修工单 | **完成** | B.5；新建弹层取消 |
-| 商品管理 | **完成** | B.6；编辑/下架取消；链识别入驻 |
+| 设备可用性 | **完成** | B.4；总数 3；「暂无样本」诚实；深测见 [`DEVICE_KPI_FULL_BROWSER_UAT.md`](../../../uat/DEVICE_KPI_FULL_BROWSER_UAT.md) |
+| 维修工单 | **完成** | B.5；新建弹层取消；深测见 [`REPAIR_TICKETS_FULL_BROWSER_UAT.md`](../../../uat/REPAIR_TICKETS_FULL_BROWSER_UAT.md) |
+| 商品管理 | **完成** | B.6；编辑/下架取消；链识别入驻；深测见 [`SKUS_FULL_BROWSER_UAT.md`](../../../uat/SKUS_FULL_BROWSER_UAT.md) |
 | 选品诊断 | **完成** | B.7；诊断完成；批量下架取消 |
 | 识别入驻 | **完成** | B.8；入驻配置取消 |
 | 识别映射 | **完成** | B.9；4 映射；新增取消；阿里云空态 |
@@ -40,9 +40,9 @@
 | DEV-LIST-batch | PASS | 批量解锁确认 → **取消** |
 | DEV-DETAIL-lock | PASS | 锁机停售确认 → **取消**；`ds-dev-05-unlock-confirm.png` |
 | DEV-MAP-01 | PASS | 3 落点；Leaflet；`ds-map-01.png` |
-| DEV-KPI-01 | PASS | 总数 3；暂无样本；`ds-kpi-01.png` |
-| DEV-REP-01 | PASS | 1 条已完成；新建「新建维修工单」→ 取消 |
-| SKU-01 | PASS | 6 商品；¥3.50；编辑/下架取消 |
+| DEV-KPI-01 | PASS | 总数 3；暂无样本；`ds-kpi-01.png`；深测 `DEVICE_KPI_FULL_BROWSER_UAT` |
+| DEV-REP-01 | PASS | 1 条已完成；新建取消；深测 `REPAIR_TICKETS_FULL_BROWSER_UAT` |
+| SKU-01 | PASS | 6 商品；¥3.50；编辑/下架取消；深测 `SKUS_FULL_BROWSER_UAT` |
 | SKU-review | PASS | 诊断「诊断完成」；批量下架取消 |
 | SKU-vision | PASS | 6 行草稿；入驻配置 Esc |
 | SKU-mapping | PASS | `/vision-mappings` 4 条；新增映射取消；`ds-mapg-*.png` |

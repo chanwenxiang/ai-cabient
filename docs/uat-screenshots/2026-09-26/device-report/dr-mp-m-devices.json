@@ -1,0 +1,58 @@
+{
+  "route": "pages/devices/devices",
+  "loginOk": true,
+  "stats": {
+    "code": 0,
+    "message": "ok",
+    "data": [
+      {
+        "deviceId": "777740024057",
+        "deviceName": "浏览器自动发号柜",
+        "deviceType": "AI_CABINET_V1",
+        "onlineStatus": "OFFLINE",
+        "merchantId": "MCH-DEFAULT",
+        "merchantName": "默认演示商户",
+        "activeSessionId": null,
+        "activeSessionState": null,
+        "updatedAt": "2026-09-24T08:28:07.957283Z",
+        "replenishmentInProgress": false,
+        "salesLocked": true,
+        "address": "上海市黄浦区演示点位 D",
+        "routeCode": null,
+        "currentTempC": 8,
+        "targetTempC": null,
+        "lifecycleStatus": "DEPLOYED",
+        "lowStockSlotCount": null,
+        "oosSlotCount": null,
+        "salesLockReason": "policy:salesLocked=on",
+        "latitude": 31.238,
+        "longitude": 121.48,
+        "firmwareVersion": "1.0.0"
+      },
+      {
+        "deviceId": "330449777078",
+        "deviceName": "330449777078",
+        "deviceType": "AI_CABINET_V1",
+        "onlineStatus": "ONLINE",
+        "merchantId": "MCH-DEFAULT",
+        "merchantName": "默认演示商户",
+        "activeSessionId": null,
+        "activeSessionState": null,
+        "updatedAt": "2026-09-26T12:11:17.621926Z",
+        "replenishmentInProgress": false,
+        "salesLocked": false,
+        "address": "广东省深圳市罗湖区中民时代广场",
+        "routeCode": null,
+        "currentTempC": 8,
+        "targetTempC": null,
+        "lifecycleStatus": "INBOUND",
+        "lowStockSlotCount": null,
+        "oosSlotCount": null,
+        "salesLockReason": null,
+        "latitude": 22.556793,
+        "longitude": 114.105426,
+        "firmwareVersion": "1.0.0"
+      }
+    ]
+  }
+}

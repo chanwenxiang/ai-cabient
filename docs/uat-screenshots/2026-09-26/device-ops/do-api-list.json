@@ -1,0 +1,6 @@
+﻿{
+  "all": { "status": 200, "code": 0, "total": 69 },
+  "typeOffline": { "total": 29 },
+  "severityWarn": { "total": 39 },
+  "device7777": { "total": 40 }
+}

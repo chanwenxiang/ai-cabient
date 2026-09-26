@@ -35,11 +35,17 @@ ID 前缀：`DEV-*` · `SKU-*`
 |----|-----|------|
 | DEV-LIST-01 | 设备列表 | 行数/lifecycle 筛选；禁默认演示污染（CAB-001 勿当投放主路径） |
 | DEV-LIST-02 | 深链 | `lifecycleStatus=DEPLOYED&online=OFFLINE` 筛选回显 |
+| DEV-LIST-03 | 列表深测 | 见 [`DEVICES_FULL_BROWSER_UAT.md`](./DEVICES_FULL_BROWSER_UAT.md) |
 | DEV-MAP-01 | 地图 | 点位加载或诚实空；图例与 KPI 不混读 |
+| DEV-MAP-02 | 地图深测 | 见 [`DEVICE_MAP_FULL_BROWSER_UAT.md`](./DEVICE_MAP_FULL_BROWSER_UAT.md) |
 | DEV-KPI-01 | 可用性 | KPI 有数或空态中文 |
+| DEV-KPI-02 | 可用性深测 | 见 [`DEVICE_KPI_FULL_BROWSER_UAT.md`](./DEVICE_KPI_FULL_BROWSER_UAT.md)（日期快照/介入率空态） |
 | DEV-OPS-01 | 运维 | 列表可开；锁机操作须确认 |
+| DEV-OPS-02 | 运维深测 | 见 [`DEVICE_OPS_FULL_BROWSER_UAT.md`](./DEVICE_OPS_FULL_BROWSER_UAT.md)（筛选/关键词 total #208） |
 | DEV-REP-01 | 维修 | 列表/新建入口可见 |
+| DEV-REP-02 | 维修深测 | 见 [`REPAIR_TICKETS_FULL_BROWSER_UAT.md`](./REPAIR_TICKETS_FULL_BROWSER_UAT.md)（筛选/深链/新建取消） |
 | SKU-01 | 商品 | 列表金额/条码可读；编辑点到弹层可取消 |
+| SKU-02 | 商品深测 | 见 [`SKUS_FULL_BROWSER_UAT.md`](./SKUS_FULL_BROWSER_UAT.md)（关键词 `q`/深链/下架取消） |
 | SKU-MAP-01 | 识别映射 | 类名→商品列表；新增可取消 |
 
 ---
