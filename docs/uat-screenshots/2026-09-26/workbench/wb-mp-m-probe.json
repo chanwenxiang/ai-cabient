@@ -1,0 +1,29 @@
+{
+  "summary": {
+    "at": "2026-09-26T10:42:32.531Z",
+    "login": {
+      "hasToken": false
+    },
+    "workbench": {
+      "keys": []
+    },
+    "disputesTotal": 0,
+    "devicesTotal": 0,
+    "device7777": null,
+    "shots": [
+      "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\workbench\\wb-mp-m-home.png",
+      "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\workbench\\wb-mp-m-devices.png",
+      "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\workbench\\wb-mp-m-disputes.png"
+    ]
+  },
+  "raw": {
+    "at": "2026-09-26T10:42:32.531Z",
+    "end": "merchant-mp-weixin",
+    "login": {
+      "hasToken": false
+    },
+    "homeShot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\workbench\\wb-mp-m-home.png",
+    "devicesShot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\workbench\\wb-mp-m-devices.png",
+    "disputesShot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\workbench\\wb-mp-m-disputes.png"
+  }
+}

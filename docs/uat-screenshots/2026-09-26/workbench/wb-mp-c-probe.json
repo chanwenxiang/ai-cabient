@@ -1,0 +1,120 @@
+{
+  "out": {
+    "login": {
+      "status": 200,
+      "hasToken": true,
+      "code": 0
+    },
+    "ordersStatus": 200,
+    "sample": {
+      "orderId": "1790242775512664013757",
+      "status": "REFUNDED"
+    },
+    "count": 5
+  },
+  "orders": {
+    "status": 200,
+    "data": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "items": [
+          {
+            "orderId": "1790242775512664013757",
+            "sessionId": "1789268787236878929",
+            "deviceId": "777740024057",
+            "deviceName": "浏览器自动发号柜",
+            "merchantName": "默认演示商户",
+            "totalAmountCents": 0,
+            "originalAmountCents": 0,
+            "couponDiscountCents": 0,
+            "memberDiscountCents": 0,
+            "status": "REFUNDED",
+            "payChannel": "BALANCE",
+            "lineCount": 0,
+            "lineSummary": "",
+            "paymentOperationId": "1790242775672724768316",
+            "refundedAt": "2026-09-26T06:13:33.455059Z",
+            "refundedCents": 350,
+            "createdAt": "2026-09-24T09:39:35.621647Z"
+          },
+          {
+            "orderId": "1790242469027192236737",
+            "sessionId": "1789223073659165081",
+            "deviceId": "777740024057",
+            "deviceName": "浏览器自动发号柜",
+            "merchantName": "默认演示商户",
+            "totalAmountCents": 350,
+            "originalAmountCents": 350,
+            "couponDiscountCents": 0,
+            "memberDiscountCents": 0,
+            "status": "PAID",
+            "payChannel": "BALANCE",
+            "lineCount": 1,
+            "lineSummary": "可口可乐 330ml x1 ·货道A1 @B-DEMO-01",
+            "paymentOperationId": "1790242469239228878704",
+            "refundedCents": 0,
+            "createdAt": "2026-09-24T09:34:29.151836Z"
+          },
+          {
+            "orderId": "1789830779488265753766",
+            "sessionId": "1789830778248602719681",
+            "deviceId": "330449777078",
+            "deviceName": "330449777078",
+            "merchantName": "默认演示商户",
+            "totalAmountCents": 350,
+            "originalAmountCents": 350,
+            "couponDiscountCents": 0,
+            "memberDiscountCents": 0,
+            "status": "PAID",
+            "payChannel": "BALANCE",
+            "lineCount": 1,
+            "lineSummary": "可口可乐 330ml x1 ·货道A1 @B-DEMO-01",
+            "paymentOperationId": "1789830779575803637932",
+            "refundedCents": 0,
+            "createdAt": "2026-09-19T15:12:59.542943Z"
+          },
+          {
+            "orderId": "1789830647582270225241",
+            "sessionId": "1789830646265281902918",
+            "deviceId": "330449777078",
+            "deviceName": "330449777078",
+            "merchantName": "默认演示商户",
+            "totalAmountCents": 350,
+            "originalAmountCents": 350,
+            "couponDiscountCents": 0,
+            "memberDiscountCents": 0,
+            "status": "PAID",
+            "payChannel": "BALANCE",
+            "lineCount": 1,
+            "lineSummary": "可口可乐 330ml x1 ·货道A1 @B-DEMO-01",
+            "paymentOperationId": "1789830647683775141614",
+            "refundedCents": 0,
+            "createdAt": "2026-09-19T15:10:47.634712Z"
+          },
+          {
+            "orderId": "1789826604704233023310",
+            "sessionId": "1789826603465737808511",
+            "deviceId": "330449777078",
+            "deviceName": "330449777078",
+            "merchantName": "默认演示商户",
+            "totalAmountCents": 350,
+            "originalAmountCents": 350,
+            "couponDiscountCents": 0,
+            "memberDiscountCents": 0,
+            "status": "PAID",
+            "payChannel": "BALANCE",
+            "lineCount": 1,
+            "lineSummary": "可口可乐 330ml x1 ·货道A1 @B-DEMO-01",
+            "paymentOperationId": "1789826604787756598869",
+            "refundedCents": 0,
+            "createdAt": "2026-09-19T14:03:24.750441Z"
+          }
+        ],
+        "page": 0,
+        "size": 5,
+        "total": 21
+      }
+    }
+  }
+}

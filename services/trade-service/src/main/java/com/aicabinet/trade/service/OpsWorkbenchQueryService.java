@@ -147,7 +147,9 @@ public class OpsWorkbenchQueryService {
         if (scopedDevices == null) {
             return globalStats(todayStart, since24h, operatorId);
         }
-        List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
+        List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId).stream()
+                .filter(OpsWorkbenchQueryService::isDeployedDevice)
+                .toList();
         long deviceTotal = devices.size();
         long deviceOnline = devices.stream()
                 .filter(d -> CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus()))
@@ -249,6 +251,8 @@ public class OpsWorkbenchQueryService {
     private void collectOfflineDeviceItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
         deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
+                // 与缺货口径一致：入库/退役等非投放柜不进运营待办（如演示孤儿 CAB-001）
+                .filter(OpsWorkbenchQueryService::isDeployedDevice)
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DEVICE_OFFLINE",
                         offlineSeverity(d),
@@ -499,9 +503,17 @@ public class OpsWorkbenchQueryService {
         var slaRealtime = slaMetricsService.realtimeMetrics(operatorId);
         long sessionActive = sessionRepository.countByStateIn(ACTIVE_STATES);
         long deviceOccupied = countOccupiedDevices(null);
+        // 在线率分子/分母仅投放柜（与离线待办 #193、库存健康默认 DEPLOYED 对齐）
+        List<DeviceInfo> deployedDevices = deviceRepository.findAllOrderByDeviceIdAsc().stream()
+                .filter(OpsWorkbenchQueryService::isDeployedDevice)
+                .toList();
+        long deviceTotal = deployedDevices.size();
+        long deviceOnline = deployedDevices.stream()
+                .filter(d -> CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus()))
+                .count();
         return new AdminStatsDto(
-                deviceRepository.count(),
-                deviceRepository.countByOnlineStatus(CabinetConstants.DEVICE_ONLINE),
+                deviceTotal,
+                deviceOnline,
                 sessionActive,
                 deviceOccupied,
                 sessionRepository.countByCreatedAtAfter(todayStart),
@@ -560,10 +572,17 @@ public class OpsWorkbenchQueryService {
     }
 
     private long countOfflineDevices(Set<String> scopedDevices) {
-        if (scopedDevices == null) {
-            return deviceRepository.countByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE);
-        }
-        return deviceRepository.countByDeviceIdInAndOnlineStatusNot(scopedDevices, CabinetConstants.DEVICE_ONLINE);
+        // 计数与告警明细同一过滤：仅投放柜离线（避免 INBOUND 孤儿柜抬高「离线设备」）
+        return deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE).stream()
+                .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
+                .filter(OpsWorkbenchQueryService::isDeployedDevice)
+                .count();
+    }
+
+    /** 运营工作台设备类待办只认投放柜（与库存健康默认 lifecycle=DEPLOYED 对齐）。 */
+    static boolean isDeployedDevice(DeviceInfo device) {
+        return "DEPLOYED".equals(DeviceAssetService.normalizeLifecycle(
+                device == null ? null : device.getLifecycleStatus()));
     }
 
     private long countWaitingUploads(Set<String> scopedDevices) {

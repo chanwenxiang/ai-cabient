@@ -47,7 +47,7 @@
           {{ pct(data.realtime.deviceOnlineRateNow) }}
         </el-descriptions-item>
         <el-descriptions-item label="24h 开门均时长">
-          {{ data.realtime.avgRecognizeMs24h ?? 0 }} ms
+          {{ formatDoorDurationMs(data.realtime.avgRecognizeMs24h) }}
         </el-descriptions-item>
         <el-descriptions-item label="争议时限达标率">
           {{ pct(data.realtime.disputeSlaCompliance24h) }}
@@ -104,6 +104,18 @@ function pct(v?: number | null) {
   return `${(v * 100).toFixed(1)}%`;
 }
 
+/** 开门时长常含超时关门样本，禁止只丢裸毫秒让运营误读成「识别慢」。 */
+function formatDoorDurationMs(ms?: number | null) {
+  const n = Number(ms ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return '0 ms';
+  if (n < 1000) return `${Math.round(n)} ms`;
+  const sec = Math.round(n / 1000);
+  if (sec < 60) return `${sec} 秒`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s ? `${m} 分 ${s} 秒` : `${m} 分`;
+}
+
 const statTiles = computed(() => {
   const d = data.value;
   return [
@@ -120,8 +132,8 @@ const statTiles = computed(() => {
       label: '设备在线率',
       value: (d?.deviceTotal ?? 0) === 0 ? '暂无' : pct(d?.deviceOnlineRate)
     },
-    { label: '开门均时长', value: `${d?.avgRecognizeMs ?? 0} ms` },
-    { label: '开门时长 P95', value: `${d?.p95RecognizeMs ?? 0} ms` },
+    { label: '开门均时长', value: formatDoorDurationMs(d?.avgRecognizeMs) },
+    { label: '开门时长 P95', value: formatDoorDurationMs(d?.p95RecognizeMs) },
     { label: '设备总数', value: String(d?.deviceTotal ?? 0) },
     { label: '在线峰值', value: String(d?.deviceOnlinePeak ?? 0) }
   ];

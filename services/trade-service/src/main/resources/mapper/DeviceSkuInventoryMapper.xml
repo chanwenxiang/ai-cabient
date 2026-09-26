@@ -23,6 +23,25 @@
     (<include refid="effectiveSellableQty"/>) <![CDATA[ <= i.low_threshold ]]>
   </sql>
 
+  <!--
+    与库存健康页默认生命周期「投放」、DeviceAssetService.normalizeLifecycle 对齐：
+    空白/未知态视为 DEPLOYED；仅统计投放柜，避免工作台「缺货 N」点进投放筛选却为空。
+  -->
+  <sql id="normalizedLifecycle">
+    CASE
+      WHEN d.lifecycle_status IS NULL OR TRIM(d.lifecycle_status) = '' THEN 'DEPLOYED'
+      WHEN UPPER(TRIM(d.lifecycle_status)) IN ('INBOUND', 'IDLE', 'DEPLOYED', 'RETURNING', 'RETIRED')
+        THEN UPPER(TRIM(d.lifecycle_status))
+      ELSE 'DEPLOYED'
+    END
+  </sql>
+
+  <sql id="deployedDeviceOnly">
+    INNER JOIN device_info d ON d.device_id = i.device_id
+    WHERE <include refid="normalizedLifecycle"/> = 'DEPLOYED'
+      AND <include refid="lowStockPredicate"/>
+  </sql>
+
   <sql id="inventorySelectEffective">
     i.device_id,
     i.sku_id,
@@ -34,13 +53,13 @@
 
   <select id="countLowStock" resultType="long">
     SELECT COUNT(*) FROM device_sku_inventory i
-    WHERE <include refid="lowStockPredicate"/>
+    <include refid="deployedDeviceOnly"/>
   </select>
 
   <select id="findLowStock" resultType="com.aicabinet.trade.domain.DeviceSkuInventory">
     SELECT <include refid="inventorySelectEffective"/>
     FROM device_sku_inventory i
-    WHERE <include refid="lowStockPredicate"/>
+    <include refid="deployedDeviceOnly"/>
     ORDER BY quantity ASC, i.device_id, i.sku_id
     LIMIT 500
   </select>
@@ -48,14 +67,16 @@
   <select id="findLowStockLimit" resultType="com.aicabinet.trade.domain.DeviceSkuInventory">
     SELECT <include refid="inventorySelectEffective"/>
     FROM device_sku_inventory i
-    WHERE <include refid="lowStockPredicate"/>
+    <include refid="deployedDeviceOnly"/>
     ORDER BY quantity ASC, i.device_id, i.sku_id
     LIMIT #{limit}
   </select>
 
   <select id="countLowStockByDeviceIds" resultType="long">
     SELECT COUNT(*) FROM device_sku_inventory i
-    WHERE <include refid="lowStockPredicate"/>
+    INNER JOIN device_info d ON d.device_id = i.device_id
+    WHERE <include refid="normalizedLifecycle"/> = 'DEPLOYED'
+      AND <include refid="lowStockPredicate"/>
       AND i.device_id IN
     <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
       #{id}

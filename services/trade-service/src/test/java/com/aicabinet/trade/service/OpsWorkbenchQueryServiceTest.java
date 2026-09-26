@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.AdminStatsDto;
 import com.aicabinet.common.dto.OpsActionItemDto;
+import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
@@ -99,6 +100,21 @@ class OpsWorkbenchQueryServiceTest {
         assertEquals("IN_TRANSIT_OVERDUE", items.get(0).type());
         assertEquals("HIGH", items.get(0).severity());
         assertTrue(items.get(0).detail().contains("共 9 件"));
+    }
+
+    @Test
+    void isDeployedDevice_onlyDeployedLifecycle() {
+        DeviceInfo deployed = new DeviceInfo();
+        deployed.setLifecycleStatus("DEPLOYED");
+        DeviceInfo inbound = new DeviceInfo();
+        inbound.setLifecycleStatus("INBOUND");
+        DeviceInfo blank = new DeviceInfo();
+        blank.setLifecycleStatus(null);
+
+        assertTrue(OpsWorkbenchQueryService.isDeployedDevice(deployed));
+        assertTrue(!OpsWorkbenchQueryService.isDeployedDevice(inbound));
+        // normalizeLifecycle(null) → DEPLOYED（与 DeviceAssetService 一致）
+        assertTrue(OpsWorkbenchQueryService.isDeployedDevice(blank));
     }
 
     private static WarehouseInTransit line(Long transitId, Long outboundId, String deviceId,

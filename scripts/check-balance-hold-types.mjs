@@ -6,17 +6,14 @@
  * 「余额差」算金额（否则恒为 ¥0.00），而是取操作金额 + 业务方向；前端对这类流水
  * 也不带正负号展示（否则「冻结 -¥50.00」与并列的「余额 ¥500.00」互相矛盾）。
  *
- * 这条语义由两端各自维护一份类型清单，跨越 Java / TypeScript 两种语言，
- * 一旦漂移就会出现下列回归：
- *   - 后端新增、前端漏加 → 前端不带符号，后端金额却为 0 → 又回到「¥0.00」
- *   - 前端新增、后端漏加 → 前端隐藏符号，后端金额本应带方向 → 方向丢失
- * 因此用门禁把两份清单钉死。
+ * 这条语义由三处各自维护一份类型清单，跨越 Java / TypeScript：
+ *   1. BalanceLedgerService#holdSignedAmount — 明细金额符号
+ *   2. balance.vue#isHoldType — 前端是否隐藏正负号
+ *   3. PaymentOperationMapper.HOLD_OPERATION_TYPES — SQL notIn 过滤（不进余额明细）
+ * 一旦漂移就会出现：金额为 0、方向丢失、或明细里凭空多/少一种流水。
+ * 因此用门禁把三份清单钉死（只钉两处会漏掉 SQL 过滤假绿）。
  *
  *   node scripts/check-balance-hold-types.mjs
- *
- * 两份真源：
- *   services/trade-service/.../BalanceLedgerService.java  → holdSignedAmount(...)
- *   clients/consumer-mp/src/pages/balance/balance.vue      → isHoldType(...)
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -38,7 +35,22 @@ const JAVA_FILE = join(
   'service',
   'BalanceLedgerService.java'
 );
+const MAPPER_FILE = join(
+  root,
+  'services',
+  'trade-service',
+  'src',
+  'main',
+  'java',
+  'com',
+  'aicabinet',
+  'trade',
+  'mapper',
+  'PaymentOperationMapper.java'
+);
 const VUE_FILE = join(root, 'clients', 'consumer-mp', 'src', 'pages', 'balance', 'balance.vue');
+
+const TYPE_LITERAL = /"([A-Z][A-Z0-9_]*)"/g;
 
 /** 从 fromIndex 之后的第一个 '{' 起，按花括号配平截取整个方法体。 */
 function braceBlock(source, fromIndex) {
@@ -56,22 +68,40 @@ function braceBlock(source, fromIndex) {
   return null;
 }
 
+/** 从 fromIndex 之后的第一个 '(' 起，按圆括号配平截取（用于 List.of(...)）。 */
+function parenBlock(source, fromIndex) {
+  const open = source.indexOf('(', fromIndex);
+  if (open < 0) return null;
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === '(') depth += 1;
+    else if (ch === ')') {
+      depth -= 1;
+      if (depth === 0) return source.slice(open, i + 1);
+    }
+  }
+  return null;
+}
+
 function fail(message, details = []) {
   console.error(`${TAG} FAIL: ${message}`);
   for (const line of details) console.error(`  ${line}`);
   process.exit(1);
 }
 
-function extractTypes(file, anchor, pattern, label) {
-  let source;
+function readSource(file, label) {
   try {
-    source = readFileSync(file, 'utf8');
+    return readFileSync(file, 'utf8');
   } catch (error) {
     fail(`无法读取 ${label}`, [`${file}`, String(error.message)]);
   }
+}
+
+function extractTypesFromBrace(file, anchor, pattern, label) {
+  const source = readSource(file, label);
   const anchorIndex = source.indexOf(anchor);
   if (anchorIndex < 0) {
-    // 锚点消失通常意味着方法被重命名/搬迁，门禁必须显式失败而不是静默放过
     fail(`${label} 中找不到锚点 ${JSON.stringify(anchor)}，门禁已失效，请同步更新本脚本`);
   }
   const body = braceBlock(source, anchorIndex);
@@ -85,33 +115,72 @@ function extractTypes(file, anchor, pattern, label) {
   return types;
 }
 
-const javaTypes = extractTypes(
+function extractHoldOperationTypes(file, label) {
+  const source = readSource(file, label);
+  const anchor = 'HOLD_OPERATION_TYPES';
+  const anchorIndex = source.indexOf(anchor);
+  if (anchorIndex < 0) {
+    fail(`${label} 中找不到锚点 ${JSON.stringify(anchor)}，门禁已失效，请同步更新本脚本`);
+  }
+  const listOf = source.indexOf('List.of', anchorIndex);
+  if (listOf < 0 || listOf - anchorIndex > 200) {
+    fail(`${label} 中 ${anchor} 附近找不到 List.of(...)，门禁已失效`);
+  }
+  const body = parenBlock(source, listOf);
+  if (!body) {
+    fail(`${label} 中无法解析 ${anchor} 的 List.of(...)`);
+  }
+  const types = new Set([...body.matchAll(TYPE_LITERAL)].map((match) => match[1]));
+  if (types.size === 0) {
+    fail(`${label} 的 ${anchor} 未解析出任何业务类型，门禁已失效`);
+  }
+  return types;
+}
+
+function sorted(set) {
+  return [...set].sort();
+}
+
+function missing(from, against) {
+  return [...from].filter((type) => !against.has(type));
+}
+
+const javaTypes = extractTypesFromBrace(
   JAVA_FILE,
   'holdSignedAmount(String operationType',
-  /"([A-Z][A-Z0-9_]*)"/g,
+  TYPE_LITERAL,
   'BalanceLedgerService.java'
 );
 
-const vueTypes = extractTypes(
+const vueTypes = extractTypesFromBrace(
   VUE_FILE,
   'function isHoldType',
   /type\s*===\s*'([A-Z][A-Z0-9_]*)'/g,
   'balance.vue'
 );
 
-const missingInVue = [...javaTypes].filter((type) => !vueTypes.has(type));
-const missingInJava = [...vueTypes].filter((type) => !javaTypes.has(type));
+const mapperTypes = extractHoldOperationTypes(MAPPER_FILE, 'PaymentOperationMapper.java');
 
-if (missingInVue.length || missingInJava.length) {
-  fail(
-    '两端「纯冻结/释放」类型集合不一致',
-    [
-      `后端 holdSignedAmount: ${[...javaTypes].sort().join(', ')}`,
-      `前端 isHoldType:       ${[...vueTypes].sort().join(', ')}`,
-      missingInVue.length ? `前端缺少: ${missingInVue.join(', ')}` : '',
-      missingInJava.length ? `后端缺少: ${missingInJava.join(', ')}` : ''
-    ].filter(Boolean)
-  );
+const drift = [
+  ['holdSignedAmount → isHoldType', missing(javaTypes, vueTypes), '前端缺少'],
+  ['isHoldType → holdSignedAmount', missing(vueTypes, javaTypes), '后端 holdSignedAmount 缺少'],
+  ['holdSignedAmount → HOLD_OPERATION_TYPES', missing(javaTypes, mapperTypes), 'SQL 清单缺少'],
+  [
+    'HOLD_OPERATION_TYPES → holdSignedAmount',
+    missing(mapperTypes, javaTypes),
+    'holdSignedAmount 缺少（SQL 多出）'
+  ],
+  ['isHoldType → HOLD_OPERATION_TYPES', missing(vueTypes, mapperTypes), 'SQL 清单缺少（相对前端）'],
+  ['HOLD_OPERATION_TYPES → isHoldType', missing(mapperTypes, vueTypes), '前端缺少（相对 SQL）']
+].filter(([, list]) => list.length > 0);
+
+if (drift.length) {
+  fail('三处「纯冻结/释放」类型集合不一致', [
+    `后端 holdSignedAmount:              ${sorted(javaTypes).join(', ')}`,
+    `前端 isHoldType:                    ${sorted(vueTypes).join(', ')}`,
+    `SQL HOLD_OPERATION_TYPES:           ${sorted(mapperTypes).join(', ')}`,
+    ...drift.flatMap(([, list, label]) => [`${label}: ${list.join(', ')}`])
+  ]);
 }
 
-console.log(`${TAG} OK (${javaTypes.size} types: ${[...javaTypes].sort().join(', ')})`);
+console.log(`${TAG} OK (${javaTypes.size} types: ${sorted(javaTypes).join(', ')})`);

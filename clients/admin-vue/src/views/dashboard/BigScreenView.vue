@@ -91,11 +91,19 @@
         />
         <div ref="mapRef" class="bs-map-canvas" />
         <div v-if="!hydrated" class="bs-map-loading">地图数据加载中…</div>
-        <div v-else-if="!mapPoints.length" class="bs-map-empty">暂无设备点位（含坐标）</div>
+        <div v-else-if="!mappedPoints.length" class="bs-map-empty">暂无设备点位（含坐标）</div>
         <div class="bs-map-legend">
-          <span><i class="lg-dot lg-online" />{{ onlineLabel('ONLINE') }} {{ onlineCount }}</span>
           <span
-            ><i class="lg-dot lg-offline" />{{ onlineLabel('OFFLINE') }} {{ offlineCount }}</span
+            ><i class="lg-dot lg-online" />点位{{ onlineLabel('ONLINE') }} {{ onlineCount }}</span
+          >
+          <span
+            ><i class="lg-dot lg-offline" />点位{{ onlineLabel('OFFLINE') }}
+            {{ offlineCount }}</span
+          >
+          <span
+            class="bs-map-legend-meta"
+            :title="'有坐标的投放点位 / 投放柜总数（与 KPI 售货机总数、在线率同口径）'"
+            >有坐标 {{ mappedPoints.length }}/{{ fleetDeviceTotal }}</span
           >
         </div>
       </div>
@@ -149,7 +157,9 @@
 
         <div class="bs-panel" style="flex: 1">
           <div class="bs-panel-title">
-            <i class="bs-arrow" />待办 / 告警<i class="bs-title-line" />
+            <i class="bs-arrow" />待办 / 告警<span v-if="actionItemsTotal" class="bs-title-meta"
+              >前 {{ actionItems.length }} · 共 {{ actionItemsTotal }}</span
+            ><i class="bs-title-line" />
           </div>
           <div class="bs-panel-body bs-panel-body--list">
             <div
@@ -299,12 +309,17 @@ let amapInfoWindow: AmapInfoWindow | null = null;
 const amapMarkers: AmapMarkerLike[] = [];
 
 /* ---------- KPI ---------- */
+/** 仅统计带经纬度的点位，避免与 KPI「全量货柜」在线率混读。 */
+const mappedPoints = computed(() =>
+  mapPoints.value.filter((p) => p.latitude != null && p.longitude != null)
+);
 const onlineCount = computed(
-  () => mapPoints.value.filter((p) => p.onlineStatus === 'ONLINE').length
+  () => mappedPoints.value.filter((p) => p.onlineStatus === 'ONLINE').length
 );
 const offlineCount = computed(
-  () => mapPoints.value.filter((p) => p.onlineStatus !== 'ONLINE').length
+  () => mappedPoints.value.filter((p) => p.onlineStatus !== 'ONLINE').length
 );
+const fleetDeviceTotal = computed(() => stats.value?.deviceTotal ?? mapPoints.value.length);
 const kpis = computed(() => [
   {
     icon: KPI_ICONS.Monitor,
@@ -339,7 +354,7 @@ const kpis = computed(() => [
     tone: '#fbbf24',
     label: '设备在线率',
     value: pct(sla.value?.deviceOnlineRate),
-    hint: `离线 ${workbench.value?.offlineDevices ?? 0}`
+    hint: `投放离线 ${workbench.value?.offlineDevices ?? 0}`
   },
   {
     icon: KPI_ICONS.Warning,
@@ -478,7 +493,7 @@ const regionOption = computed<EChartsOption | null>(() => {
   if (!hydrated.value) return null;
   const revenueByRoute = new Map<string, number>();
   const routeOf = new Map(mapPoints.value.map((p) => [p.deviceId, p.routeCode || '']));
-  for (const d of deviceRanks.value) {
+  for (const d of deployedRanks.value) {
     const label = routeOf.get(d.deviceId) || '未分组';
     revenueByRoute.set(label, (revenueByRoute.get(label) ?? 0) + d.revenueTodayCents);
   }
@@ -503,8 +518,21 @@ const regionOption = computed<EChartsOption | null>(() => {
 });
 
 /* ---------- 排行 / 明细 / 告警 ---------- */
+/**
+ * 大屏货柜口径与 KPI 一致：仅投放（DEPLOYED）。
+ * 设备报表接口默认含入库柜，必须用投放 ID 集过滤后再排行。
+ */
+const deployedDeviceIds = ref<Set<string>>(new Set());
+const deployedRanks = computed(() => {
+  const ids = deployedDeviceIds.value;
+  if (ids.size) return deviceRanks.value.filter((d) => ids.has(d.deviceId));
+  // 投放清单 soft-fail 时退化为地图点位（后端 map-points 默认 DEPLOYED）
+  const fromMap = new Set(mapPoints.value.map((p) => p.deviceId));
+  if (fromMap.size) return deviceRanks.value.filter((d) => fromMap.has(d.deviceId));
+  return [];
+});
 const topDevices = computed(() =>
-  [...deviceRanks.value].sort((a, b) => b.revenueTodayCents - a.revenueTodayCents).slice(0, 5)
+  [...deployedRanks.value].sort((a, b) => b.revenueTodayCents - a.revenueTodayCents).slice(0, 5)
 );
 /** 地图上常显标注的点位（营收 TOP3）。 */
 const top3DeviceIds = computed(() => new Set(topDevices.value.slice(0, 3).map((d) => d.deviceId)));
@@ -532,7 +560,9 @@ const detailRows = computed(() =>
     .slice(0, 7)
 );
 
-const actionItems = computed(() => (workbench.value?.actionItems ?? []).slice(0, 6));
+const ACTION_PREVIEW = 6;
+const actionItemsTotal = computed(() => workbench.value?.actionItems?.length ?? 0);
+const actionItems = computed(() => (workbench.value?.actionItems ?? []).slice(0, ACTION_PREVIEW));
 function severityClass(severity?: string) {
   const s = (severity || '').toUpperCase();
   if (s === 'CRITICAL' || s === 'HIGH') return 'is-danger';
@@ -577,7 +607,7 @@ function escapeHtml(v: string): string {
 
 function renderMarkers() {
   const pts = mapPoints.value.filter((p) => p.latitude != null && p.longitude != null);
-  const maxRev = Math.max(1, ...deviceRanks.value.map((d) => d.revenueTodayCents));
+  const maxRev = Math.max(1, ...deployedRanks.value.map((d) => d.revenueTodayCents));
   const revOf = rankByDevice.value;
   if (mapEngine === 'amap') {
     renderMarkersAmap(pts, maxRev, revOf);
@@ -764,7 +794,7 @@ async function load() {
   loading.value = true;
   const today = daysAgoStr(0);
   const { soft, flush } = createSoftFailCollector();
-  const [s, w, sl, f, t, dr, cr, mp, scope] = await Promise.all([
+  const [s, w, sl, f, t, dr, cr, mp, deployed, scope] = await Promise.all([
     soft(api.request<AdminStats>(AdminEndpoints.stats, 'GET'), null, '运营统计'),
     soft(api.request<Workbench>(AdminEndpoints.workbench, 'GET'), null, '工作台'),
     soft(api.request<SlaMetrics>(AdminEndpoints.sla, 'GET'), null, 'SLA'),
@@ -792,7 +822,22 @@ async function load() {
       [] as CategoryRow[],
       '品类销售'
     ),
-    soft(api.request<MapPoint[]>(AdminEndpoints.devicesMapPoints(''), 'GET'), [], '地图点位'),
+    // 默认 lifecycle=DEPLOYED（后端）；显式传入避免与设备地图「全部」混读
+    soft(
+      api.request<MapPoint[]>(AdminEndpoints.devicesMapPoints('lifecycleStatus=DEPLOYED'), 'GET'),
+      [],
+      '地图点位'
+    ),
+    soft(
+      api
+        .request<{ items: { deviceId: string }[]; total: number }>(
+          AdminEndpoints.devicesList('lifecycleStatus=DEPLOYED&page=0&size=100'),
+          'GET'
+        )
+        .then((r) => new Set((r?.items ?? []).map((d) => d.deviceId).filter(Boolean))),
+      new Set<string>(),
+      '投放柜清单'
+    ),
     soft(
       api.request<{ demoData?: boolean; label?: string }>(AdminEndpoints.dataScope, 'GET'),
       null,
@@ -808,8 +853,9 @@ async function load() {
   deviceRanks.value = dr;
   categoryRows.value = cr;
   mapPoints.value = Array.isArray(mp) ? mp : [];
+  deployedDeviceIds.value = deployed instanceof Set ? deployed : new Set();
   const rankMap = new Map<string, DeviceRank>();
-  for (const d of deviceRanks.value) rankMap.set(d.deviceId, d);
+  for (const d of deployedRanks.value) rankMap.set(d.deviceId, d);
   rankByDevice.value = rankMap;
   demoBanner.value = scope?.demoData ? scope.label || '演示数据' : '';
   hydrated.value = true;
@@ -1184,6 +1230,13 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid rgba(64, 144, 255, 0.14);
   white-space: nowrap;
 }
+.bs-title-meta {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #8fa8c7;
+}
 .bs-arrow {
   width: 0;
   height: 0;
@@ -1330,6 +1383,10 @@ onBeforeUnmount(() => {
   background: rgba(8, 22, 42, 0.8);
   border: 1px solid rgba(64, 144, 255, 0.28);
   border-radius: 999px;
+}
+.bs-map-legend-meta {
+  color: rgba(215, 231, 255, 0.72);
+  white-space: nowrap;
 }
 .lg-dot {
   display: inline-block;

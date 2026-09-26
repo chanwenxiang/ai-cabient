@@ -28,13 +28,32 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ENFORCED = ['packages/shared-uni/src', 'clients/merchant-mp/src'];
 /**
  * 已知欠账（**不静默豁免**）：消费端小程序同名缺陷尚未修。
- * 原因：`clients/consumer-mp` 正被另一会话改造（`index.vue` / `marketing` / `nearby` / `recharge`
- * 等均在其在制品内），并发改写同一批 `<style>` 会互相覆盖；且该项超出「商家后台」任务范围。
- * 命中时**逐条播报**（不阻断），待其修完后把该目录移入 ENFORCED。
+ * 命中时**逐条播报**；`expiresOn`（含当日）过后若仍有命中 ⇒ **FAIL**，禁止永久挂警告。
+ * 修完后：把目录移入 ENFORCED，或从 PENDING 删除。
  */
 const PENDING = [
-  { dir: 'clients/consumer-mp/src', reason: '并发会话在制品 + 超出本次商家后台范围' }
+  {
+    dir: 'clients/consumer-mp/src',
+    reason: '并发会话在制品时未强制；到期后必须修完或移入 ENFORCED',
+    /** ISO 日期 YYYY-MM-DD（本地日历日），含当日仍 warn；次日起有命中即红。 */
+    expiresOn: '2026-10-10'
+  }
 ];
+
+/** @returns {'missing'|'invalid'|'active'|'expired'} */
+function pendingExpiryStatus(entry, todayYmd) {
+  if (!entry || typeof entry.expiresOn !== 'string' || !entry.expiresOn.trim()) return 'missing';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(entry.expiresOn.trim())) return 'invalid';
+  return entry.expiresOn.trim() < todayYmd ? 'expired' : 'active';
+}
+
+function todayLocalYmd() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 const COLOR_MIX = /color-mix\s*\(/i;
 
@@ -88,19 +107,59 @@ function scan(base) {
 const violations = [];
 for (const base of ENFORCED) violations.push(...scan(base));
 
-const pendingHits = [];
-for (const { dir, reason } of PENDING) {
+const todayYmd = todayLocalYmd();
+const pendingExpiredFail = [];
+const pendingWarn = [];
+
+for (const entry of PENDING) {
+  const { dir, reason } = entry;
+  const status = pendingExpiryStatus(entry, todayYmd);
+  if (status === 'missing' || status === 'invalid') {
+    console.error(
+      `[check-wxss-no-color-mix] FAIL：PENDING 项 ${JSON.stringify(dir)} 必须带合法 expiresOn（YYYY-MM-DD），禁止无到期豁免`
+    );
+    process.exit(1);
+  }
   const hits = scan(dir);
-  if (hits.length) pendingHits.push({ dir, reason, hits });
+  if (!hits.length) {
+    console.warn(
+      `[check-wxss-no-color-mix] ⚠️  PENDING ${dir} 已无 color-mix()：请从 PENDING 删除或移入 ENFORCED（expiresOn=${entry.expiresOn}）`
+    );
+    continue;
+  }
+  if (status === 'expired') {
+    pendingExpiredFail.push({ dir, reason, expiresOn: entry.expiresOn, hits });
+  } else {
+    pendingWarn.push({ dir, reason, expiresOn: entry.expiresOn, hits });
+  }
 }
 
-if (pendingHits.length) {
-  console.warn('[check-wxss-no-color-mix] ⚠️  未强制范围存在同类缺陷（已知欠账，不阻断）：');
-  for (const { dir, reason, hits } of pendingHits) {
-    console.warn(`  - ${dir}：${hits.length} 处（${reason}）`);
+if (pendingWarn.length) {
+  console.warn('[check-wxss-no-color-mix] ⚠️  未强制范围存在同类缺陷（已知欠账，到期前不阻断）：');
+  for (const { dir, reason, expiresOn, hits } of pendingWarn) {
+    console.warn(
+      `  - ${dir}：${hits.length} 处（${reason}；expiresOn=${expiresOn}，今日=${todayYmd}）`
+    );
     for (const h of hits.slice(0, 5)) console.warn(`      ${h}`);
     if (hits.length > 5) console.warn(`      … 另 ${hits.length - 5} 处`);
   }
+}
+
+if (pendingExpiredFail.length) {
+  console.error(
+    `[check-wxss-no-color-mix] FAIL：PENDING 已过期仍有 color-mix()（禁止永久警告）：${pendingExpiredFail.length} 目录`
+  );
+  for (const { dir, reason, expiresOn, hits } of pendingExpiredFail) {
+    console.error(
+      `  - ${dir}：${hits.length} 处（${reason}；expiresOn=${expiresOn} < 今日 ${todayYmd}）`
+    );
+    for (const h of hits.slice(0, 8)) console.error(`      ${h}`);
+    if (hits.length > 8) console.error(`      … 另 ${hits.length - 8} 处`);
+  }
+  console.error(
+    '  修法：改为静态值后移入 ENFORCED，或从 PENDING 删除；禁止只改长 expiresOn 拖延。'
+  );
+  process.exit(1);
 }
 
 if (violations.length > 0) {

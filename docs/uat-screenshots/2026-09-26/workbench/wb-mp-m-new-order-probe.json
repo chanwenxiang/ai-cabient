@@ -1,0 +1,7 @@
+{
+  "orderId": "1790420215052990851425",
+  "side": "merchant",
+  "path": "pages/orders/orders",
+  "apiErr": "await is only valid in async functions and the top level bodies of modules",
+  "shot": true
+}

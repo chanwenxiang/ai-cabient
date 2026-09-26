@@ -13,8 +13,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class OpsAnalyticsQueryServiceTest {
 
     @Test
-    void normalizeTrendDays_snapsTo7_30_90() {
-        assertEquals(7, OpsAnalyticsQueryService.normalizeTrendDays(1));
+    void normalizeTrendDays_keepsTodayAndSnapsTo7_30_90() {
+        assertEquals(1, OpsAnalyticsQueryService.normalizeTrendDays(1));
+        assertEquals(1, OpsAnalyticsQueryService.normalizeTrendDays(0));
         assertEquals(7, OpsAnalyticsQueryService.normalizeTrendDays(7));
         assertEquals(7, OpsAnalyticsQueryService.normalizeTrendDays(29));
         assertEquals(30, OpsAnalyticsQueryService.normalizeTrendDays(30));

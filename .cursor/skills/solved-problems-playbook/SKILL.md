@@ -27,11 +27,39 @@ description: >-
 |------|------|
 | 操作列横滑跑走 | 右侧 `fixed-column--right` **sticky**；禁为防抖改 static |
 | 抽屉松手变宽 | 先钉 `finalW` + `nextTick`；禁 pointerup 清空 width |
-| 点滚动条内容闪缩 | body `overflow-y:scroll` + `scrollbar-gutter:stable`；禁 `auto` |
+| 点滚动条内容闪缩 | body `overflow-y:scroll` + `scrollbar-gutter:stable`；禁 `auto`（含客流页 `:has(.footfall-page)` 覆盖） |
 | 长文案悬停盖邻列 | **禁** `show-overflow-tooltip`；用 native title / cell-ellipsis |
 | 列表卡顿 pageSize=100 | `ADMIN_LIST_PAGE_SIZES`，最大 50 |
 
 规则：`admin-layout-anti-jitter.mdc`。门禁：`pnpm check:admin-anti-jitter`。
+
+### A2. 工作台设备 KPI / 待办口径
+
+| 症状 | 必须 |
+|------|------|
+| 缺货 N 点进库存健康空页 | 计数与深链均限 `lifecycleStatus=DEPLOYED`（#186） |
+| 离线待办出现 CAB-001 / INBOUND | 离线计数与告警明细仅 `isDeployedDevice`（#193） |
+| 在线率 1/3 分母含入库柜 | `stats`/`globalStats` 分子分母仅投放柜；深链带 `lifecycleStatus=DEPLOYED`（#194） |
+| SLA 在线率仍 33% / 开门时长裸 ms | SLA 与工作台同口径仅 `isDeployedDevice`；时长 `formatDoorDurationMs`（#198） |
+| 大屏总数 1 但排行 3 台 | 排行/区域营收须滤投放柜 ID；禁直接用全量 `reports/devices`（#199） |
+| 「仅滞留」仍见已完成单 | `stuckOnly` 必须活跃态 ∩ `updatedBefore`；禁只按时间（#195） |
+| 订单详情 lines 为 `[{}]` | 嵌套 `OrderLineDto` 必须标 `@JsonView(Public)`（#196） |
+
+### A3. 弹窗 UAT「取消关不掉」假红
+
+| 症状 | 必须 |
+|------|------|
+| Playwright 点「取消」弹窗仍在；`el.click()` 却能关 | 等 overlay `opacity>0.99` 且无 `dialog-fade-enter-*` 再点（#200） |
+| open 后 300–700ms 内点 footer | **禁止**；入场 opacity≈0 时点击不可靠 |
+
+### A4. 一致性巡检演示脏数据
+
+| 症状 | 必须 |
+|------|------|
+| 未通过含库存汇总≠批次 | 可点「修复」：汇总改对齐在架批次（#CAB-001 类） |
+| 积分恒等式 total≠三分项 | 「修复」按 available+used+expired 回写累计 |
+| 退款字段≠流水 / 结案争议无订单 / 缺 SALE 流水 | **不可**点修复；退款对齐 `refunded_cents`；孤儿 RESOLVED 争议可删；SALE 补 `inventory_movement` |
+| 修完不验收 | **必须**再点「立即巡检」至「全部通过」 |
 
 ### B. Admin 鉴权 / RBAC / 端点
 
@@ -60,6 +88,7 @@ description: >-
 | 渠道失败本地已提交 | 渠道前置或两段式 CHARGE_PENDING；禁先落库后调渠道无补偿 |
 | 重试双扣双退 | 幂等键只含不变要素；禁 reason/随机尾缀 |
 | 前端限额被绕过 | 服务端同款 `max_cents` + 单测 |
+| 按行退款一键落账 | 提交前必须 `ElMessageBox.confirm`；弹层 `append-to-body`（#197） |
 
 总册 #17,96–97。
 

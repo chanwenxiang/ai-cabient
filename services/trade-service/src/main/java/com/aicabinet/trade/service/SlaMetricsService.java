@@ -69,14 +69,17 @@ public class SlaMetricsService {
     @Transactional(readOnly = true)
     public SlaMetricsDto current(Long operatorId) {
         SlaRealtimeDto realtime = self.realtimeMetrics(operatorId);
-        int currentOnline = (int) deviceRepository.countByOnlineStatus(CabinetConstants.DEVICE_ONLINE);
-        int deviceTotal = (int) deviceRepository.count();
+        // 在线率与工作台 KPI 对齐：仅投放柜（#194/#198）
+        DeviceCounts deployed = countDeployedOnline();
+        int currentOnline = deployed.online();
+        int deviceTotal = deployed.total();
         return snapshotRepository.findFirstByOrderBySnapshotDateDesc()
                 .map(s -> {
                     int snapPeak = s.getDeviceOnlinePeak();
                     // OBS-011：峰值至少不低于当前在线，避免快照 0 与在线率矛盾
                     int peak = Math.max(snapPeak, currentOnline);
-                    int total = s.getDeviceTotal() > 0 ? s.getDeviceTotal() : deviceTotal;
+                    // 在线率/设备总数一律用当前投放口径（快照里可能仍含历史入库柜）
+                    float onlineRate = deviceTotal == 0 ? 0f : (float) currentOnline / deviceTotal;
                     return new SlaMetricsDto(
                             s.getSnapshotDate(),
                             s.getDoorOpenAttempts(),
@@ -84,9 +87,9 @@ public class SlaMetricsService {
                             s.getDoorSuccessRate() != null ? s.getDoorSuccessRate() : 0,
                             s.getAvgRecognizeMs() != null ? s.getAvgRecognizeMs() : 0,
                             s.getP95RecognizeMs() != null ? s.getP95RecognizeMs() : 0,
-                            total,
+                            deviceTotal,
                             peak,
-                            s.getDeviceOnlineRate() != null ? s.getDeviceOnlineRate() : 0,
+                            onlineRate,
                             realtime
                     );
                 })
@@ -134,9 +137,7 @@ public class SlaMetricsService {
         long avgMs = nz(sessionRepository.avgDoorOpenMsBetween(start, end));
         long p95 = nz(sessionRepository.p95DoorOpenMsBetween(start, end));
 
-        int deviceTotal = (int) deviceRepository.count();
-        int online = (int) deviceRepository.countByOnlineStatus(CabinetConstants.DEVICE_ONLINE);
-
+        DeviceCounts deployed = countDeployedOnline();
         SlaDailySnapshot snap = new SlaDailySnapshot();
         snap.setSnapshotDate(date);
         snap.setDoorOpenAttempts(attempts);
@@ -144,9 +145,9 @@ public class SlaMetricsService {
         snap.setDoorSuccessRate(attempts > 0 ? (float) success / attempts : 0f);
         snap.setAvgRecognizeMs(avgMs);
         snap.setP95RecognizeMs(p95);
-        snap.setDeviceTotal(deviceTotal);
-        snap.setDeviceOnlinePeak(online);
-        snap.setDeviceOnlineRate(deviceTotal == 0 ? 0f : (float) online / deviceTotal);
+        snap.setDeviceTotal(deployed.total());
+        snap.setDeviceOnlinePeak(deployed.online());
+        snap.setDeviceOnlineRate(deployed.total() == 0 ? 0f : (float) deployed.online() / deployed.total());
         return snap;
     }
 
@@ -224,13 +225,17 @@ public class SlaMetricsService {
         long online;
         long totalDevices;
         if (scopedDeviceList != null) {
-            totalDevices = scopedDeviceList.size();
-            online = scopedDeviceList.stream()
+            List<DeviceInfo> deployedOnly = scopedDeviceList.stream()
+                    .filter(SlaMetricsService::isDeployedDevice)
+                    .toList();
+            totalDevices = deployedOnly.size();
+            online = deployedOnly.stream()
                     .filter(d -> CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus()))
                     .count();
         } else {
-            totalDevices = deviceRepository.count();
-            online = deviceRepository.countByOnlineStatus(CabinetConstants.DEVICE_ONLINE);
+            DeviceCounts deployed = countDeployedOnline();
+            totalDevices = deployed.total();
+            online = deployed.online();
         }
         double onlineRate = totalDevices == 0 ? 0 : (double) online / totalDevices;
 
@@ -241,6 +246,23 @@ public class SlaMetricsService {
 
         return new SlaRealtimeDto(doorRate, avg, onlineRate, disputeOpen, disputeOverdue,
                 disputeResolved24h, disputeSlaCompliance);
+    }
+
+    private record DeviceCounts(int total, int online) {}
+
+    private DeviceCounts countDeployedOnline() {
+        List<DeviceInfo> deployed = deviceRepository.findAllOrderByDeviceIdAsc().stream()
+                .filter(SlaMetricsService::isDeployedDevice)
+                .toList();
+        int online = (int) deployed.stream()
+                .filter(d -> CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus()))
+                .count();
+        return new DeviceCounts(deployed.size(), online);
+    }
+
+    /** 与工作台设备 KPI 一致：仅投放柜。 */
+    static boolean isDeployedDevice(DeviceInfo device) {
+        return OpsWorkbenchQueryService.isDeployedDevice(device);
     }
 
     private static long nz(Long v) {

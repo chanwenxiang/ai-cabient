@@ -437,6 +437,7 @@ const STALE_MINUTES = 30;
 const STALE_MS = STALE_MINUTES * 60 * 1000;
 const DUE_SOON_MS = 10 * 60 * 1000;
 const ACTIVE_STATES = new Set([
+  'CREATED',
   'OPENING',
   'OPEN',
   'DOOR_OPEN',

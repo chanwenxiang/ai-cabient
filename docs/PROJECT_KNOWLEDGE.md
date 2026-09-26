@@ -123,6 +123,7 @@ infra/                     Compose、网关、监控
 | 文档 | 何时读 |
 |------|--------|
 | [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md) | 起服务 / 端口 / 账号 |
+| [uat/OVERVIEW_FULL_BROWSER_UAT.md](uat/OVERVIEW_FULL_BROWSER_UAT.md) | 概览 9 页全量浏览器 UAT：数据/排版/UX/三端口径 + 全按钮生效 |
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 完整联调 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 服务边界 / 识别链路 |
 | [FRONTEND_PRODUCT_DECISIONS.md](FRONTEND_PRODUCT_DECISIONS.md) | 三端产品边界 |
@@ -244,9 +245,49 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-26 | 数据分析单页深测：KPI×4 深链、days/图型、侧栏离线/争议/毛利、三端营收350¢ | `ANALYTICS_FULL_BROWSER_UAT.md`、`analytics/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 运营大屏单页深测：刷新/全屏/返回、KPI×6 口径、三端营收350¢；排行仅投放说明 | `BIG_SCREEN_FULL_BROWSER_UAT.md`、`big-screen/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 运营工作台缺口收口：§2.6 全7条、零计数UI点击、KPI键盘、分账行查看、诚实空态 | `workbench/BUTTONS` B.3～B.7、`wb-x02`～`wb-x07` 截图 |
+| 2026-09-26 | 造单 ¥3.50 三端对齐 + admin 静态复测：分页共15/10可翻页、履约角标20=12+8 | `workbench/FINDINGS` C2、`wb-dash-page2-badge.png`、`wb-new-order-three-end.json` |
+| 2026-09-26 | 运营工作台单页深测：按钮/深链/三端 mp 口径；修分页 total 与履约角标双计；禁 PowerShell 改 vendor.js | `WORKBENCH_FULL_BROWSER_UAT.md`、`workbench/FINDINGS.md`、lessons #201/#202 |
+| 2026-09-26 | DevOps/日志中心按钮级：无观测栈诚实空态；七册+一致性+devops 收口总览 | `system/DEVOPS_BUTTONS.md`、`UAT_CLOSEOUT.md` |
+| 2026-09-26 | 一致性脏数据清零：UI 修复库存/积分 + DB 退款对齐/删孤儿争议/补 SALE 流水；巡检全部通过 | finance-merchant/FINDINGS、consistency 回归 |
+| 2026-09-26 | 系统侧栏十二页+DevOps/日志按概览同款复测；七册侧栏复测收口 | `system/BUTTONS.md`、FINDINGS、UAT_CLOSEOUT、SYSTEM v1.1 |
+| 2026-09-26 | 增长风控侧栏十一页按概览同款复测；发券/加黑/回复等均取消 | `growth-risk/BUTTONS.md`、FINDINGS、GROWTH_RISK v1.1 |
+| 2026-09-26 | 财务商户侧栏十一页按概览同款复测；一致性巡检全部通过；写路径均取消 | `finance-merchant/BUTTONS.md`、FINDINGS、FINANCE_MERCHANT v1.1 |
+| 2026-09-26 | 履约仓储侧栏五页按概览同款复测（含补货员效率）；写路径均取消 | `warehouse/BUTTONS.md`、FINDINGS、WAREHOUSE v1.1 |
+| 2026-09-26 | 设备商品侧栏十页按概览同款复测（含识别映射）；写路径均取消 | `device-sku/BUTTONS.md`、FINDINGS、DEVICE_SKU v1.1 |
+| 2026-09-26 | 履约侧栏四页按概览同款复测：附录 B 编号 + FINDINGS + `ff-*.png`；资金确认均取消 | `fulfillment/BUTTONS.md`、FINDINGS、FULFILLMENT §0/§5 |
+| 2026-09-26 | Phase7 系统按钮级清点 Done；七册按钮级全收口 | `system/BUTTONS.md`、各分册 BUTTONS |
+| 2026-09-26 | Phase6 增长风控按钮级清点 Done（发券/加黑/回复均取消） | `growth-risk/BUTTONS.md` |
+| 2026-09-26 | Phase5 财务商户按钮级清点 Done（调账/对账均取消） | `finance-merchant/BUTTONS.md` |
+| 2026-09-26 | Phase4 仓储按钮级清点 Done；弹窗取消须等 enter 动画（#200） | `warehouse/BUTTONS.md`、lessons #200 |
+| 2026-09-26 | SLA 在线率仅投放柜 + 开门时长可读；Phase4 仓储冒烟 PASS | lessons #198、SlaMetricsService/SlaView、`warehouse/FINDINGS.md` |
+| 2026-09-26 | Phase5 财务商户分册 + 11 页冒烟；一致性见退款/争议脏数据 | `FINANCE_MERCHANT_FULL_BROWSER_UAT.md`、finance-merchant/FINDINGS |
+| 2026-09-26 | Phase6 增长风控分册 + 11 页冒烟 | `GROWTH_RISK_FULL_BROWSER_UAT.md`、growth-risk/FINDINGS |
+| 2026-09-26 | Phase7 系统分册 + 12 页冒烟（devops SKIP） | `SYSTEM_FULL_BROWSER_UAT.md`、system/FINDINGS |
+| 2026-09-26 | 概览 Phase1 按钮级清点结案（附录 B / Done 勾选） | `overview/BUTTONS.md`、OVERVIEW UAT §0/§10 |
+| 2026-09-26 | 履约 Phase2 按钮级清点结案（资金路径均取消） | `fulfillment/BUTTONS.md`、FULFILLMENT Done |
+| 2026-09-26 | 大屏口径对齐：排行仅投放柜；待办显示「前 n · 共 N」 | lessons #199、BigScreenView |
+| 2026-09-26 | 设备商品 Phase3 按钮级清点结案（锁机/下架均取消） | `device-sku/BUTTONS.md`、DEVICE_SKU Done |
+| 2026-09-26 | 审债务补钉：冻结类型三处门禁 + 货道可售 SQL IT + color-mix PENDING 到期 | lessons #188–#190；`DeviceSkuLotEnabledSlotSqlIT` 2/0；A/B GHOST/过期均红 |
+| 2026-09-26 | 防回归：客流页主区 `overflow-y` 从 auto 改回 scroll（点滚动条挤内容） | lessons #187、`admin-layout-anti-jitter` 表 D、`check:admin-anti-jitter` |
 | 2026-09-26 | 修 CI：business `num` 别名 + 隐私弹层 package import + C5c/C6c 类型 | lessons #184/#185、Actions mini-programs/e2e-h5 |
 | 2026-09-26 | merchant M10c：要货提交门闩；M6d：经营 load 决策 | debt-tracker M10/M6、lessons #182/#183 |
 | 2026-09-26 | merchant M4b：补货证据映射；consumer C12d：登录落盘规划 | debt-tracker M4/C12、lessons #180/#181 |
+| 2026-09-26 | 按行退款补二次确认 + append-to-body；Phase3 设备商品冒烟 | lessons #197、OrderListView、DEVICE_SKU UAT |
+| 2026-09-26 | 订单详情 lines 空 `{}`：OrderLineDto 补 @JsonView(Public) | lessons #196、OrderLineDto |
+| 2026-09-26 | Phase2 履约分册 + 订单/开门/异常/上传队列浏览器冒烟 | `FULFILLMENT_FULL_BROWSER_UAT.md`、fulfillment/FINDINGS |
+| 2026-09-26 | 「仅滞留」须活跃态+超时，禁止只按 updatedBefore | lessons #195、OpsSessionOrderQueryService |
+| 2026-09-26 | 工作台在线率仅投放柜（0/1 非 1/3）；深链带 lifecycleStatus=DEPLOYED | lessons #194、OpsWorkbenchQueryService、DashboardView |
+| 2026-09-26 | 工作台离线仅投放柜（剔 CAB-001）；争议操作列安全边距 | lessons #193、OpsWorkbenchQueryService、DisputeListView/main.css |
+| 2026-09-26 | 概览 UX：大屏图例点位口径；客流有单无开门转化「—」；去掉告警头重复进件按钮 | lessons #191/#192、BigScreen/Footfall/Dashboard |
+| 2026-09-26 | 概览 UAT 三端口径：订单 1790…3757 Admin/DB/消费 mp/商户 mp 均为 ¥3.50；H5≠mp 验收权威 | FINDINGS、微信开发者工具 automator |
+| 2026-09-26 | 修分析口径 P1：normalizeTrendDays(1) 不再抬成 7；销售默认近7天；进件空态「暂无待办」 | lessons #190、Analytics/Sales/Dashboard |
+| 2026-09-26 | 修 P0 缺货口径：countLowStock 仅投放柜 + 工作台深链带 lifecycleStatus=DEPLOYED | lessons #186、`DeviceSkuInventoryMapper.xml`、`DashboardView.vue` |
+| 2026-09-26 | 概览 UAT 开跑（Playwright）：工作台深链多数生效；P0 缺货 4→库存健康空页（lifecycle=投放 vs CAB-001）；分析今日营收0 vs 近1天渠道有额 | `docs/uat-screenshots/2026-09-26/overview/FINDINGS.md` |
+| 2026-09-26 | 概览 UAT v1.1：补数据三角对照、排版/UX、三端口径、全按钮生效协议与附录 B/C | `docs/uat/OVERVIEW_FULL_BROWSER_UAT.md` |
+| 2026-09-26 | 开写「概览」全量浏览器 UAT 真源：侧栏 9 页按钮/深链/小程序挂钩；强制 Playwright 实测 | `docs/uat/OVERVIEW_FULL_BROWSER_UAT.md` |
 | 2026-09-26 | merchant M7c：争议结案门闩；consumer C5c：开门/轮询编排决策 | debt-tracker M7/C5、lessons #178/#179 |
 | 2026-09-26 | merchant M6c：business 样式外置 + 税档纯函数；consumer C6c：OrderAppealSheet | debt-tracker M6/C6、lessons #176/#177 |
 | 2026-09-26 | merchant M3e：扫完 merchant-api 字面量；consumer C12c：鉴权下载纯函数 | debt-tracker M3/C12、lessons #174/#175 |

@@ -82,7 +82,7 @@
           manage-table="dispute_ticket"
           selectable
           :actions="rowActions"
-          :action-width="220"
+          :action-width="168"
           :empty-text="emptyHint"
           sort-field-label="工单号"
           :csv="csvOptions"

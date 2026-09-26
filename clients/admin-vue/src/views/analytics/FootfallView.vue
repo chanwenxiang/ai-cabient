@@ -59,7 +59,10 @@
         </div>
       </div>
 
-      <h4 class="section-title">柜机坪效排行（营收/开门/转化）</h4>
+      <h4 class="section-title">
+        柜机坪效排行（营收/开门/转化）
+        <span class="section-hint">开门=统计窗内会话；有单无开门时转化显示「—」</span>
+      </h4>
       <!-- 不要再套带白底/边框的 table-scroll：边框就是 el-table 自己的 border，不会和内容脱节 -->
       <div class="footfall-table-wrap">
         <el-table
@@ -93,7 +96,15 @@
             class-name="col-status"
             label-class-name="col-status"
           >
-            <template #default="{ row }">{{ (row.conversionRate ?? 0).toFixed(1) }}%</template>
+            <template #default="{ row }">
+              <span
+                v-if="(row.opens ?? 0) === 0 && (row.orders ?? 0) > 0"
+                class="conv-na"
+                title="统计窗内无开门会话，但有支付订单（订单可能关联更早会话）；转化率不适用"
+                >—</span
+              >
+              <span v-else>{{ (row.conversionRate ?? 0).toFixed(1) }}%</span>
+            </template>
           </el-table-column>
           <el-table-column
             label="营收"
@@ -314,6 +325,16 @@ function barHeight(orders: number) {
   margin: 16px 0 10px;
   font-size: var(--admin-font-size-title);
   font-weight: 600;
+}
+.section-hint {
+  margin-left: 8px;
+  font-size: var(--admin-font-size-sm);
+  font-weight: 400;
+  color: var(--el-text-color-secondary);
+}
+.conv-na {
+  color: var(--el-text-color-secondary);
+  cursor: help;
 }
 .section-title--inline {
   margin: 0;

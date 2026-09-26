@@ -126,6 +126,15 @@ const GUARDED = new Map([
         '同左：surefire + build job 守卫的自动扫；守通用数据管理的**列名/键名契约**：' +
         '编辑框预填若用接口 DTO 驼峰名，写入侧（只认 information_schema 的 snake_case）必判「未知列」⇒ 保存必 400'
     }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/DeviceSkuLotEnabledSlotSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '钉可售量 SQL 排除已禁用货道批次（JOIN device_slot + COALESCE enabled）'
+    }
   ]
 ]);
 

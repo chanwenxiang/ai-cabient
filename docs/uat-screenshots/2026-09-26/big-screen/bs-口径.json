@@ -1,0 +1,17 @@
+﻿{
+    "note":  "排行仅投放柜 777740024057；成交柜 330449777078 若非投放则不进排行（见 FINDINGS）",
+    "bigScreen":  {
+                      "deviceTotal":  1,
+                      "orderToday":  2,
+                      "openDisputes":  8,
+                      "revenueTodayCents":  350,
+                      "actionPreview":  "前 6 · 共 15",
+                      "offlineDevices":  1
+                  },
+    "workbench":  {
+                      "revenueTodayCents":  350,
+                      "openDisputes":  8,
+                      "offlineDevices":  1
+                  },
+    "disputesList":  "共 8 条"
+}

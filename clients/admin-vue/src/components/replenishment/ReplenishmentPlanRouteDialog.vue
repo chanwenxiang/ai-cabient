@@ -2,7 +2,8 @@
 import type { ReplenishmentAssigneeOption } from '@/composables/replenishment/useReplenishmentRoutePlanning';
 import type { ReplenishmentDeviceRef } from '@/composables/replenishment/useReplenishmentTaskActions';
 
-/** 父组件拥有 reactive 规划表单；字段编辑走 defineModel */
+/** 可见性与规划表单均走 defineModel，避免 footer「取消」只 emit 却不同步关闭 */
+const visible = defineModel<boolean>({ required: true });
 const planForm = defineModel<{
   routeName: string;
   plannedDate: string;
@@ -11,7 +12,6 @@ const planForm = defineModel<{
 }>('planForm', { required: true });
 
 defineProps<{
-  modelValue: boolean;
   planSaving: boolean;
   assigneeLoading: boolean;
   assigneeOptions: ReplenishmentAssigneeOption[];
@@ -23,22 +23,24 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'update:modelValue': [value: boolean];
   create: [];
   'go-shortage': [];
   'go-stock-health': [];
 }>();
+
+function closeDialog() {
+  visible.value = false;
+}
 </script>
 
 <template>
   <el-dialog
-    :model-value="modelValue"
+    v-model="visible"
     title="规划补货路线"
     class="dialog-wide"
     append-to-body
     destroy-on-close
     data-testid="plan-route-dialog"
-    @update:model-value="emit('update:modelValue', $event)"
   >
     <el-form label-width="auto" class="plan-form">
       <el-form-item label="路线名称" required>
@@ -109,7 +111,9 @@ const emit = defineEmits<{
     </el-form>
     <template #footer>
       <div class="plan-dialog-footer">
-        <el-button native-type="button" @click="emit('update:modelValue', false)">取消</el-button>
+        <el-button native-type="button" data-testid="plan-route-cancel" @click.stop="closeDialog"
+          >取消</el-button
+        >
         <el-button
           type="primary"
           native-type="button"

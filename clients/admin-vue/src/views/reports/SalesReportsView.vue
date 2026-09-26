@@ -313,7 +313,7 @@ const { canAccessPath, goPath } = useNavAccess();
 
 const dim = ref('PRODUCT');
 const deviceId = ref('');
-const rangePreset = ref<RangePreset>('today');
+const rangePreset = ref<RangePreset>('7d');
 const summary = ref<SalesSummary | null>(null);
 // 服务端多列排序（营收/退款/毛利三列表头点击）：useCrudTable 单字段排序无法表达，保留页面级实现
 const sortBy = ref<SortProp>('');
@@ -339,7 +339,8 @@ function rangeForPreset(preset: RangePreset): [string, string] {
   return [today, today];
 }
 
-const range = ref<[string, string] | null>(rangeForPreset('today'));
+// 默认近 7 天：今日无单时默认「今日」整页空态，易被当成坏了（与设备报表累计营收矛盾）
+const range = ref<[string, string] | null>(rangeForPreset('7d'));
 
 function queryParams(params?: CrudPageParams) {
   const q = new URLSearchParams({ dim: dim.value });
@@ -561,8 +562,8 @@ function onRangePicked() {
 function reset() {
   dim.value = 'PRODUCT';
   deviceId.value = '';
-  rangePreset.value = 'today';
-  range.value = rangeForPreset('today');
+  rangePreset.value = '7d';
+  range.value = rangeForPreset('7d');
   sortBy.value = '';
   sortDir.value = '';
   void crud.search();

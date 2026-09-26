@@ -1,9 +1,8 @@
 <template>
   <el-dialog
-    :model-value="warehouseDialog"
+    v-model="warehouseDialog"
     :title="warehouseForm.editing ? '编辑仓库' : '新增仓库'"
     destroy-on-close
-    @update:model-value="emit('update:warehouseDialog', $event)"
   >
     <el-form label-width="auto">
       <el-form-item label="仓库 ID" required>
@@ -28,16 +27,17 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:warehouseDialog', false)">取消</el-button>
+      <el-button data-testid="warehouse-dialog-cancel" @click.stop="warehouseDialog = false"
+        >取消</el-button
+      >
       <el-button type="primary" :loading="saving" @click="emit('saveWarehouse')">保存</el-button>
     </template>
   </el-dialog>
 
   <el-dialog
-    :model-value="supplierDialog"
+    v-model="supplierDialog"
     :title="supplierForm.editing ? '编辑供应商' : '新增供应商'"
     destroy-on-close
-    @update:model-value="emit('update:supplierDialog', $event)"
   >
     <el-form label-width="auto">
       <el-form-item label="供应商 ID"
@@ -75,17 +75,14 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:supplierDialog', false)">取消</el-button>
+      <el-button data-testid="supplier-dialog-cancel" @click.stop="supplierDialog = false"
+        >取消</el-button
+      >
       <el-button type="primary" :loading="saving" @click="emit('saveSupplier')">保存</el-button>
     </template>
   </el-dialog>
 
-  <el-dialog
-    :model-value="paymentDialog"
-    title="登记付款"
-    destroy-on-close
-    @update:model-value="emit('update:paymentDialog', $event)"
-  >
+  <el-dialog v-model="paymentDialog" title="登记付款" destroy-on-close>
     <el-form label-width="auto">
       <el-form-item label="供应商">{{ payTarget.supplierName }}</el-form-item>
       <el-form-item label="关联采购单">
@@ -108,18 +105,14 @@
       /></el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:paymentDialog', false)">取消</el-button>
+      <el-button data-testid="payment-dialog-cancel" @click.stop="paymentDialog = false"
+        >取消</el-button
+      >
       <el-button type="primary" :loading="saving" @click="emit('savePayment')">确认付款</el-button>
     </template>
   </el-dialog>
 
-  <el-dialog
-    :model-value="inboundDialog"
-    title="其他入库"
-    class="dialog-wide"
-    destroy-on-close
-    @update:model-value="emit('update:inboundDialog', $event)"
-  >
+  <el-dialog v-model="inboundDialog" title="其他入库" class="dialog-wide" destroy-on-close>
     <el-form v-loading="dialogBootLoading" label-width="auto">
       <div class="form-grid">
         <el-form-item label="仓库" required>
@@ -178,7 +171,9 @@
       </div>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:inboundDialog', false)">取消</el-button>
+      <el-button data-testid="inbound-dialog-cancel" @click.stop="inboundDialog = false"
+        >取消</el-button
+      >
       <el-button
         type="primary"
         :loading="saving"
@@ -195,11 +190,13 @@ import { dictOptions } from '@aicabinet/shared-dict';
 import AddressPicker from '@/components/AddressPicker.vue';
 import type { WarehouseEntityRow } from '@/composables/warehouse/useWarehouseEntityDialogs';
 
+/** 可见性走 defineModel，避免 props+emit 在 footer「取消」上不同步关闭 */
+const warehouseDialog = defineModel<boolean>('warehouseDialog', { required: true });
+const supplierDialog = defineModel<boolean>('supplierDialog', { required: true });
+const paymentDialog = defineModel<boolean>('paymentDialog', { required: true });
+const inboundDialog = defineModel<boolean>('inboundDialog', { required: true });
+
 defineProps<{
-  warehouseDialog: boolean;
-  supplierDialog: boolean;
-  paymentDialog: boolean;
-  inboundDialog: boolean;
   saving: boolean;
   dialogBootLoading: boolean;
   payTarget: WarehouseEntityRow;
@@ -213,10 +210,6 @@ const supplierForm = defineModel<WarehouseEntityRow>('supplierForm', { required:
 const paymentForm = defineModel<WarehouseEntityRow>('paymentForm', { required: true });
 const inboundForm = defineModel<WarehouseEntityRow>('inboundForm', { required: true });
 const emit = defineEmits<{
-  'update:warehouseDialog': [value: boolean];
-  'update:supplierDialog': [value: boolean];
-  'update:paymentDialog': [value: boolean];
-  'update:inboundDialog': [value: boolean];
   saveWarehouse: [];
   saveSupplier: [];
   savePayment: [];

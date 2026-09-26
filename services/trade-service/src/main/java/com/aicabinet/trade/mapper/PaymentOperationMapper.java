@@ -26,7 +26,8 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
     /**
      * 纯冻结/释放类型：只改账户 {@code frozen_cents}，可用余额前后一致（before == after），
      * 对用户不构成「余额变动」，因此不进「余额明细」。
-     * <p>与 {@code BalanceLedgerService#holdSignedAmount} 的类型集合必须保持一致。</p>
+     * <p>与 {@code BalanceLedgerService#holdSignedAmount}、前端 {@code isHoldType} 必须保持一致；
+     * 由 {@code scripts/check-balance-hold-types.mjs} 三处互比，禁止只改本清单。</p>
      */
     java.util.List<String> HOLD_OPERATION_TYPES = java.util.List.of(
             "PREAUTH_FREEZE", "PREAUTH_RELEASE", "BALANCE_REFUND_FREEZE", "BALANCE_REFUND_RELEASE");

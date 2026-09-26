@@ -1,0 +1,9 @@
+{
+  "side": "merchant",
+  "start": "pages/login/login",
+  "afterHome": "pages/login/login",
+  "/pages/wallet/wallet": "ERR:timeout waiting for automator response",
+  "/pages/splits/splits": "ERR:timeout waiting for automator response",
+  "/pages/replenishment/replenishment": "ERR:timeout waiting for automator response",
+  "/pages/devices/devices": "ERR:can not navigateTo a tabbar page"
+}

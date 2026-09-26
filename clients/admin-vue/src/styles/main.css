@@ -658,7 +658,8 @@ select {
   overflow: visible;
   text-overflow: clip;
   /* 上下 2px：这层 padding 会叠在按钮高度上一起决定整表行高，见上面 td 段的说明 */
-  padding: 2px 6px;
+  /* 右侧 12px：sticky 操作列贴容器右缘时给图标留安全边距（UAT 1366） */
+  padding: 2px 12px 2px 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1279,8 +1280,9 @@ a:focus-visible {
  */
 .layout-main-scroll:has(> .footfall-page),
 .layout-main-scroll:has(> .page-fill > .footfall-page) {
+  /* 禁横滑保住左右边框；纵滚仍须 scroll（禁 auto），否则点滚动条会挤内容抖一下 */
   overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
 }
 .layout-main-scroll > .page-card.footfall-page,
 .layout-main-scroll > .page-fill > .page-card.footfall-page {

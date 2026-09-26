@@ -195,6 +195,24 @@
 | 183 | business load 决策埋页 | soft 刷新/过期序/硬失败难回归 | M6c 只样式税档 | **必须**`business-load`；禁止改 softFallback 语义；进度 M6d done | `business-load.ts` |
 | 184 | M6b 后 business 模板仍调 num | H5 UAT M-14 `num is not a function` | 展示函数迁 `businessNum` 未留模板别名 | **必须**`const num = businessNum` 或模板改 `businessNum`；改完跑 merchant type-check / UAT | `business.vue` |
 | 185 | 隐私弹层相对 import 在客户端副本失效 | consumer `vue-tsc` 找不到 `../privacy-consent` | 蓝本相对路径只在 package 内成立 | **必须**蓝本用 `@aicabinet/shared-uni/privacy-consent`；同步后两端一致 | `privacy-consent-modal.vue` |
+| 186 | 工作台缺货与库存健康空页 | 快捷「缺货 N」点进投放筛选却「暂无」 | `countLowStock` 含非投放柜（如 CAB-001）；页默认 lifecycle=DEPLOYED | **必须**低库存计数/待办只统计投放柜（与 `normalizeLifecycle` 一致）；深链带 `lifecycleStatus=DEPLOYED` | `DeviceSkuInventoryMapper.xml`、`DashboardView.vue` |
+| 187 | admin 客流页点滚动条内容闪缩 | 为禁整页横滑用 `:has(.footfall-page){overflow-y:auto !important}` 盖掉主区 scroll | **必须**纵滚仍 `overflow-y:scroll`；禁横滑只用 `overflow-x:hidden`；门禁拦 footfall auto | `main.css`、`check:admin-anti-jitter` |
+| 190 | 数据分析今天/近1天口径 | 顶栏今日营收 ¥0，渠道块「近 1 天」却有额 | `normalizeTrendDays(1)` 被抬成 7；文案写「近 N 天」 | **必须** days=1 保持 1；UI days=1 显示「今天」；单测钉死 | `OpsAnalyticsQueryService`、`AnalyticsView.vue` |
+| 188 | 禁用货道仍可售靠信 SQL | Mockito 只钉调用方，JOIN/COALESCE 无判据 | `DeviceCatalogServiceTest` mock mapper | **必须**有真跑 SQL 的 IT：启用/禁用/未绑货道三种 fixture；禁只靠人眼信 XML | `DeviceSkuLotEnabledSlotSqlIT` |
+| 189 | 冻结类型门禁假绿 | 第三处 SQL 清单不在判据内 | `check-balance-hold-types` 只比 Java↔Vue | **必须**三处互比（`holdSignedAmount` / `isHoldType` / `HOLD_OPERATION_TYPES`）；注入只改 SQL 须红 | `check-balance-hold-types.mjs` |
+| 190 | color-mix PENDING 永挂警告 | 手写欠账单无到期 | PENDING 只 warn 不红 | **必须**每项带 `expiresOn`；到期仍有命中 FAIL；禁无到期豁免 | `check-wxss-no-color-mix.mjs` |
+| 191 | 大屏地图在线数 ≠ KPI 在线率 | 图例「在线0离线1」vs KPI「在线率33%/离线2」 | 图例按**有坐标点位**计数，KPI 按**全量货柜** | **必须**图例写「点位在线/离线」+「有坐标 n/N」；禁与 KPI 共用无说明的「在线/离线」文案 | `BigScreenView.vue` |
+| 199 | 大屏 KPI 总数 1、排行却列 3 台 | 售货机总数/地图仅投放，排行用全量设备报表 | `reports/devices` 含 INBOUND；未与 DEPLOYED 对齐 | **必须**大屏排行/区域营收仅投放柜；图例 title 写「投放」；待办写「前 n · 共 N」 | `BigScreenView.vue` |
+| 192 | 客流「开门0/订单2」转化0%误导 | 窗内无会话却有支付单 | 订单 `created_at` 在窗内，关联会话更早 | **必须** opens=0 且 orders>0 时转化显示「—」并 title 说明；禁当 0% 解读 | `FootfallView.vue` |
+| 193 | 工作台离线待办含 CAB-001 | 告警明细出现入库孤儿柜 | `collectOfflineDeviceItems` / `countOfflineDevices` 未限制 lifecycle | **必须**仅 `DEPLOYED`（`DeviceAssetService.normalizeLifecycle`）；与缺货口径一致 | `OpsWorkbenchQueryService` |
+| 194 | 工作台在线率含 INBOUND | KPI 显示 1/3（33%）抬高分母 | `globalStats`/`stats` 用全量 `count`/`countByOnlineStatus` | **必须**分子分母仅投放柜；深链带 `lifecycleStatus=DEPLOYED` | `OpsWorkbenchQueryService`、`DashboardView` |
+| 195 | 「仅滞留」列出已完成历史单 | 勾选后仍共 55 条，含已完成/已取消 | `stuckOnly` 只加 `updatedBefore`，未限活跃态 | **必须**滞留 = 活跃态 ∩ updated_at 早于阈值（与工作台 staleSessions 同口径） | `OpsSessionOrderQueryService`、`ShoppingSessionMapper` |
+| 196 | 订单详情商品行为空 `{}` | 抽屉行显示「暂无 / ¥0」；列表摘要却有可乐 | `OrderLineDto` 字段无 `@JsonView`，详情 `@JsonView(Admin)` 序列化嵌套对象变空 | **必须**嵌套 DTO 组件也标 `OrderViews.Public`（或所属 View） | `OrderLineDto` |
+| 197 | 按行退款无二次确认 | 点「确认按行退款」直接扣款；UAT 误退演示单 | `submitPartialRefund` 未走 `ElMessageBox.confirm` | **必须**资金写前二次确认（与全额退款一致）；弹层 `append-to-body` | `OrderListView.vue` |
+| 198 | SLA 在线率含入库柜 + 开门时长裸 ms | SLA「设备在线率 33.3%」；开门均时长显示 572880 | `SlaMetricsService` 在线分母未限 `DEPLOYED`（与 #194 不一致）；前端直接渲染超大 ms | **必须** SLA 设备在线分子分母仅投放柜（`isDeployedDevice`）；开门时长用 `formatDoorDurationMs`（分/秒），禁裸超大 ms 当「识别慢」 | `SlaMetricsService.java`、`SlaView.vue` |
+| 200 | Playwright 点弹窗「取消」像关不掉 | UAT 判定取消失效；原生 `el.click()` 却能关 | 点在 `dialog-fade-enter-*`、opacity≈0 阶段；EP 入场未完时 Playwright 点击不触发关闭 | **必须**点 footer 前等 overlay `opacity>0.99` 且 class 无 `enter-from`/`enter-active`；禁 open 后立刻点取消当失败 | UAT Playwright；`BUTTONS.md` |
+| 201 | 工作台告警「15 条」但分页共 10、翻不了页 | 分账等行在第 11+ 条不可达 | `fetchPage` 返回纯数组 → `normalizeListPage` 把本页 length 当 total | **必须**前端切片回传 `{ items, total: 全量长度 }`；禁把 slice 数组直接当 PageResult | `DashboardView.vue` queueCrud |
+| 202 | 履约异常区角标 > 区内各项之和 | 例：区卡 12+8 却显示 32 | `workZones.fulfill.total` 已含「异常中心」count 后又 `+ openExceptionCount` | **必须**区卡 total = items.reduce 一次；禁对已计入的 count 再加 | `DashboardView.vue` workZones |
 
 ## 追加模板
 

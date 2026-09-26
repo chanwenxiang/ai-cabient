@@ -190,7 +190,11 @@
               <span>{{ item.label }}</span>
               <strong>{{ listHydrated ? item.count : '…' }}</strong>
             </button>
-            <p v-if="listHydrated && !zone.items.length" class="zone-empty">无权限或暂无入口</p>
+            <p v-if="listHydrated && !zone.items.length" class="zone-empty">
+              {{
+                zone.extraPath && canAccessPath(zone.extraPath) ? '暂无待办' : '无权限或暂无入口'
+              }}
+            </p>
           </div>
           <el-button
             v-if="zone.extraPath && canAccessPath(zone.extraPath)"
@@ -216,13 +220,7 @@
           </div>
           <div class="page-card-head__actions">
             <el-checkbox v-model="showZeroLinks">分区显示 0 待办</el-checkbox>
-            <el-button
-              v-if="canAccessPath('/merchant-onboarding')"
-              plain
-              @click="goPath('/merchant-onboarding')"
-            >
-              进件工作台
-            </el-button>
+            <!-- 进件入口只保留上方「进件待办」区卡的「进件工作台」，避免告警头再放一颗同文案按钮 -->
           </div>
         </div>
       </template>
@@ -380,16 +378,17 @@ const quickLinks = computed<QuickLink[]>(() => [
   },
   {
     label: '缺货柜/SKU',
-    // 与 countLowStock（quantity <= low_threshold，含断货）对齐；勿用 LOW（会排除 qty=0）
+    // 与 countLowStock（投放柜 · quantity <= low_threshold，含断货）对齐；勿用 LOW（会排除 qty=0）
+    // lifecycleStatus=DEPLOYED 必须与库存健康默认筛选一致，避免「有数点进却空」
     count: stats.value.lowStockSkuCount || workbench.value?.lowStockItems || 0,
     path: '/stock-health',
-    query: { dimension: 'ALL' }
+    query: { dimension: 'ALL', lifecycleStatus: 'DEPLOYED' }
   },
   {
     label: '临期批次',
     count: stats.value.nearExpiryLotCount || 0,
     path: '/stock-health',
-    query: { dimension: 'NEAR_EXPIRY' }
+    query: { dimension: 'NEAR_EXPIRY', lifecycleStatus: 'DEPLOYED' }
   },
   {
     label: '补货任务',
@@ -471,7 +470,8 @@ const workZones = computed(() => {
       title: '履约异常',
       hint: '争议 · 上传 · 补货 · 在途',
       items: fulfill,
-      total: fulfill.reduce((s, i) => s + i.count, 0) + openExceptionCount.value,
+      // 异常中心 count 已含 openExceptionCount，勿再加一次（否则角标双计）
+      total: fulfill.reduce((s, i) => s + i.count, 0),
       extraPath: '/exceptions',
       extraLabel: '异常中心',
       extraQuery: { status: 'OPEN' }
@@ -568,7 +568,9 @@ const queueCrud = useCrudTable<OpsActionItem>({
   pageSize: 10,
   fetchPage: async ({ page, size }) => {
     const start = page * size;
-    return filteredActions.value.slice(start, start + size);
+    const items = filteredActions.value.slice(start, start + size);
+    // 须回传全量 total；纯数组会被 normalizeListPage 当成「本页条数=total」，导致无法翻页
+    return { items, total: filteredActions.value.length };
   }
 });
 
@@ -644,7 +646,11 @@ function goExceptions() {
 
 function goDevicesByOnlineRate() {
   const offline = workbench.value?.offlineDevices || 0;
-  goPath('/devices', offline > 0 ? { online: 'OFFLINE' } : { online: 'ONLINE' });
+  // 与 KPI 仅投放柜口径一致，避免点进含 INBOUND 孤儿柜
+  goPath('/devices', {
+    lifecycleStatus: 'DEPLOYED',
+    ...(offline > 0 ? { online: 'OFFLINE' } : { online: 'ONLINE' })
+  });
 }
 
 function queryOf(row: OpsActionItem): Record<string, string> {

@@ -106,7 +106,7 @@
     <div class="trend-toolbar">
       <div>
         <span class="trend-title">趋势与渠道</span>
-        <span class="header-hint">当前范围：近 {{ days }} 天</span>
+        <span class="header-hint">当前范围：{{ rangeLabel }}</span>
       </div>
       <el-radio-group v-model="days" size="default" @change="onDaysChange">
         <el-radio-button :value="1">今天</el-radio-button>
@@ -117,7 +117,7 @@
     </div>
 
     <div class="chart-grid chart-grid--2">
-      <ChartPanel title="营收趋势" :hint="`近 ${days} 天 · 元`">
+      <ChartPanel title="营收趋势" :hint="`${rangeLabel} · 元`">
         <template #actions>
           <fieldset class="chart-type-switch" aria-label="图表类型">
             <button
@@ -159,7 +159,7 @@
         </template>
       </ChartPanel>
 
-      <ChartPanel title="订单量" :hint="`近 ${days} 天 · 单`">
+      <ChartPanel title="订单量" :hint="`${rangeLabel} · 单`">
         <template #actions>
           <fieldset class="chart-type-switch" aria-label="图表类型">
             <button
@@ -203,7 +203,7 @@
     </div>
 
     <div class="chart-grid chart-grid--2">
-      <ChartPanel title="订单支付渠道" :hint="`近 ${days} 天 · 按金额`" donut>
+      <ChartPanel title="订单支付渠道" :hint="`${rangeLabel} · 按金额`" donut>
         <div class="donut-layout">
           <EChart
             :option="orderChannelOption"
@@ -224,7 +224,7 @@
         </div>
       </ChartPanel>
 
-      <ChartPanel title="充值渠道" :hint="`近 ${days} 天 · 已到账`" donut>
+      <ChartPanel title="充值渠道" :hint="`${rangeLabel} · 已到账`" donut>
         <div class="donut-layout">
           <EChart
             :option="rechargeChannelOption"
@@ -247,7 +247,7 @@
     </div>
 
     <div class="chart-grid chart-grid--split">
-      <ChartPanel title="识别质量" :hint="`近 ${days} 天 · 识别率 vs 争议率`">
+      <ChartPanel title="识别质量" :hint="`${rangeLabel} · 识别率 vs 争议率`">
         <template #actions>
           <fieldset class="chart-type-switch" aria-label="图表类型">
             <button type="button" :class="{ active: opsKind === 'line' }" @click="opsKind = 'line'">
@@ -438,6 +438,9 @@ const channels = ref<ChannelBreakdown>({});
 const revenueKind = ref<ChartKind>('area');
 const orderKind = ref<ChartKind>('bar');
 const opsKind = ref<ChartKind>('line');
+
+/** days=1 对应单选「今天」，禁止再写「近 1 天」造成与顶栏今日 KPI 误解 */
+const rangeLabel = computed(() => (days.value === 1 ? '今天' : `近 ${days.value} 天`));
 
 function parseDays(raw: unknown): number {
   const n = Number(raw);

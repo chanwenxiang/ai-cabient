@@ -663,7 +663,13 @@
       </div>
     </ResizableDrawer>
 
-    <el-dialog v-model="partialOpen" title="按行部分退款" class="dialog-wide" destroy-on-close>
+    <el-dialog
+      v-model="partialOpen"
+      title="按行部分退款"
+      class="dialog-wide"
+      destroy-on-close
+      append-to-body
+    >
       <p class="partial-hint">
         指定要退的 SKU 数量；可按行选择是否回库（退货退款 / 仅退款不回库）。
       </p>
@@ -1279,6 +1285,16 @@ async function submitPartialRefund() {
   const reason = partialReason.value.trim();
   if (reason.length < 4) {
     ElMessage.warning('请填写至少4字退款原因');
+    return;
+  }
+  const qtySum = lines.reduce((s, l) => s + l.quantity, 0);
+  try {
+    await ElMessageBox.confirm(
+      `确认按行退款订单 ${partialOrderId.value}？共 ${lines.length} 个 SKU、${qtySum} 件。该操作会写入资金与审计记录。`,
+      '确认按行退款',
+      { type: 'warning', confirmButtonText: '确认退款', cancelButtonText: '取消' }
+    );
+  } catch {
     return;
   }
   try {

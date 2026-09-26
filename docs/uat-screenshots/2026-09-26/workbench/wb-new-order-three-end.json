@@ -1,0 +1,32 @@
+﻿{
+    "orderId":  "1790420215052990851425",
+    "sessionId":  "1790420129220699554144",
+    "deviceId":  "330449777078",
+    "status":  "PAID",
+    "totalAmountCents":  350,
+    "sku":  "SKU-DEMO-001",
+    "threeEnd":  {
+                     "admin":  {
+                                   "status":  "PAID",
+                                   "cents":  350,
+                                   "source":  "ops/admin/orders + dashboard 今日营收 ¥3.50"
+                               },
+                     "merchant":  {
+                                      "first":  {
+                                                    "orderId":  "1790420215052990851425",
+                                                    "status":  "PAID",
+                                                    "totalAmountCents":  350
+                                                },
+                                      "source":  "GET /api/v2/merchant/orders"
+                                  },
+                     "consumerMp":  {
+                                        "ui":  "已支付 ¥3.50 可口可乐",
+                                        "source":  "DevTools screenshot wb-mp-c-new-order.png"
+                                    }
+                 },
+    "dashboardRetest":  {
+                            "staticChunk":  "DashboardView-jvDvQRVa.js",
+                            "fulfillBadge":  "20 = 异常中心12 + 待审争议8（无双计）",
+                            "pager":  "共15条 10条/页 第2页可点→5行 下一页disabled"
+                        }
+}

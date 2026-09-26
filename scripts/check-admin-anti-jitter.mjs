@@ -144,6 +144,15 @@ if (/workbench-media-actions[\s\S]{0,220}flex-wrap\s*:\s*wrap/.test(mainCss)) {
 if (!/workbench-media-actions[\s\S]{0,220}flex-wrap\s*:\s*nowrap/.test(mainCss)) {
   fail('D: main.css .workbench-media-actions 须 flex-wrap: nowrap');
 }
+// 客流页曾用 overflow-y:auto !important 覆盖主区，点滚动条会挤内容（同表 D）
+{
+  const footBody = ruleBodies(['layout-main-scroll', 'footfall-page']);
+  if (footBody && /overflow-y\s*:\s*auto/i.test(footBody)) {
+    fail(
+      'D: main.css 客流页 .layout-main-scroll:has(.footfall-page) 禁止 overflow-y:auto（须 scroll）'
+    );
+  }
+}
 
 // ——— E) 描述表：内容可换行且不溢出盖邻格 ———
 {

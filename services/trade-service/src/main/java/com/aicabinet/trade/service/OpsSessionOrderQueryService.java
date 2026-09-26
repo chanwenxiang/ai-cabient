@@ -46,6 +46,11 @@ public class OpsSessionOrderQueryService {
     public static final int UNPAID_OPS_OVERDUE_MINUTES = 30;
     private static final String STATUS_PENDING = "PENDING";
     private static final String CREATEDAT = "createdAt";
+    /** 与工作台 staleSessions / 前端「仅滞留」一致：仅未终态活跃会话。 */
+    static final List<SessionState> STUCK_ACTIVE_STATES = List.of(
+            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
+            SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING
+    );
 
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
@@ -101,10 +106,14 @@ public class OpsSessionOrderQueryService {
         Instant updatedBefore = query.stuckOnly()
                 ? Instant.now().minus(Math.max(query.stuckMinutes(), 1), ChronoUnit.MINUTES)
                 : null;
+        // 滞留 = 活跃态 + updated_at 早于阈值；禁止只按时间，否则已完成历史单全进「仅滞留」
+        Collection<SessionState> stuckStates = query.stuckOnly() && query.state() == null
+                ? STUCK_ACTIVE_STATES
+                : null;
         Page<ShoppingSession> result = querySessions(
                 operatorId,
                 new SessionQueryCriteria(
-                        query.deviceId(), query.state(), query.sessionId(), query.userId(),
+                        query.deviceId(), query.state(), stuckStates, query.sessionId(), query.userId(),
                         query.from(), query.to(), query.keyword(), blankToNull(query.uploadStatus()), updatedBefore),
                 pageable);
         return new PageResult<>(
@@ -347,10 +356,13 @@ public class OpsSessionOrderQueryService {
         Instant updatedBefore = query.stuckOnly()
                 ? Instant.now().minus(Math.max(query.stuckMinutes(), 1), ChronoUnit.MINUTES)
                 : null;
+        Collection<SessionState> stuckStates = query.stuckOnly() && query.state() == null
+                ? STUCK_ACTIVE_STATES
+                : null;
         Page<ShoppingSession> page = querySessions(
                 operatorId,
                 new SessionQueryCriteria(
-                        query.deviceId(), query.state(), query.sessionId(), query.userId(),
+                        query.deviceId(), query.state(), stuckStates, query.sessionId(), query.userId(),
                         query.from(), query.to(), query.keyword(), null, updatedBefore),
                 pageable);
         StringBuilder sb = new StringBuilder(
@@ -385,7 +397,8 @@ public class OpsSessionOrderQueryService {
     }
 
     private record SessionQueryCriteria(
-            String deviceId, SessionState state, String sessionId, Long userId,
+            String deviceId, SessionState state, Collection<SessionState> states,
+            String sessionId, Long userId,
             Instant from, Instant to, String keyword, String uploadStatus, Instant updatedBefore) {}
 
     private record OrderQueryCriteria(
@@ -407,6 +420,7 @@ public class OpsSessionOrderQueryService {
                         deviceFilter,
                         scopeFilter,
                         criteria.state(),
+                        criteria.states(),
                         blankToNull(criteria.sessionId()),
                         criteria.userId(),
                         criteria.from(),

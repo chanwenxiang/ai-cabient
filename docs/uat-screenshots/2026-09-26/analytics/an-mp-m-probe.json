@@ -1,0 +1,161 @@
+{
+  "at": "2026-09-26T11:44:34.835Z",
+  "end": "merchant-mp-weixin",
+  "login": {
+    "hasToken": false
+  },
+  "homeShot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\analytics\\an-mp-m-home.png",
+  "route": "pages/home/home",
+  "homeData": {
+    "eO": "",
+    "uR": "",
+    "uRIF": "",
+    "uI": "",
+    "uT": "",
+    "uP": "",
+    "uS": [],
+    "a": false,
+    "b": "加载中…",
+    "c": "",
+    "aB": "e17",
+    "aC": "e18",
+    "aD": "75,3,1",
+    "r0": 1,
+    "f": "",
+    "i": "默认商户管理员",
+    "j": "默认演示商户",
+    "k": "",
+    "l": "0",
+    "m": "18",
+    "n": 1,
+    "o": "1",
+    "p": "padding-top:90px;",
+    "q": true,
+    "r": "近7日营收",
+    "s": true,
+    "t": "¥3.50",
+    "v": true,
+    "w": "¥3.15",
+    "x": true,
+    "A": "1 / 2",
+    "B": 7,
+    "D": true,
+    "E": "e0",
+    "F": "75,0,1",
+    "K": true,
+    "L": true,
+    "M": "/static/menu/replenish.png",
+    "N": 0,
+    "P": "e2",
+    "Q": true,
+    "R": "/static/menu/cabinet.png",
+    "S": "e3",
+    "T": true,
+    "U": "/static/menu/pending.png",
+    "V": 18,
+    "X": "e4",
+    "Y": true,
+    "Z": "/static/menu/business.png",
+    "aa": "e5",
+    "ab": true,
+    "ac": "e6",
+    "ad": "",
+    "af": false,
+    "ag": "任务加载中…",
+    "ah": true,
+    "am": 3,
+    "ap": true,
+    "aq": true,
+    "ar": "e12",
+    "as": true,
+    "at": "e13",
+    "av": true,
+    "aw": "e14",
+    "ax": true,
+    "ay": "e15",
+    "az": true,
+    "aA": "e16",
+    "y": "7",
+    "z": "¥1.40",
+    "C": [
+      {
+        "a": "16rpx",
+        "b": "09-20",
+        "c": "2026-09-20"
+      },
+      {
+        "a": "16rpx",
+        "b": "09-21",
+        "c": "2026-09-21"
+      },
+      {
+        "a": "16rpx",
+        "b": "09-22",
+        "c": "2026-09-22"
+      },
+      {
+        "a": "16rpx",
+        "b": "09-23",
+        "c": "2026-09-23"
+      },
+      {
+        "a": "120rpx",
+        "b": "09-24",
+        "c": "2026-09-24"
+      },
+      {
+        "a": "16rpx",
+        "b": "09-25",
+        "c": "2026-09-25"
+      },
+      {
+        "a": "120rpx",
+        "b": "09-26",
+        "c": "2026-09-26"
+      }
+    ],
+    "G": {
+      "announceId": 1,
+      "title": "完整轮公告-665162",
+      "content": "MASTER完整轮消息公告写路径验收：创建并发布。",
+      "announceType": "SYSTEM",
+      "targetScope": "ALL",
+      "priority": "NORMAL",
+      "publishAt": "2026-09-13T03:37:45.207485Z",
+      "expireAt": null
+    },
+    "H": "完整轮公告-665162",
+    "I": "公告：完整轮公告-665162",
+    "J": "e1",
+    "W": "18",
+    "ai": "e7",
+    "aj": "75,1,1",
+    "ak": "75,2,1",
+    "an": [
+      {
+        "a": "柜机离线",
+        "b": "777740024057",
+        "c": "777740024057",
+        "d": "连续 2 分钟未收到心跳",
+        "e": "连续 2 分钟未收到心跳",
+        "f": "DEVICE_OFFLINE",
+        "g": "e8_DEVICE_OFFLINE"
+      },
+      {
+        "a": "待审核争议",
+        "d": "共 8 件 · 2 台柜机",
+        "e": "共 8 件 · 2 台柜机",
+        "f": "DISPUTE",
+        "g": "e9_DISPUTE"
+      },
+      {
+        "a": "识别结果需人工审核",
+        "d": "共 8 件 · 2 台柜机",
+        "e": "共 8 件 · 2 台柜机",
+        "f": "RECOGNITION_FAILED",
+        "g": "e10_RECOGNITION_FAILED"
+      }
+    ],
+    "ao": "e11"
+  }
+}

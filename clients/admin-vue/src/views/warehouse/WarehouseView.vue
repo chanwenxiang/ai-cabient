@@ -533,10 +533,10 @@
       />
 
       <WarehouseEntityDialogs
-        v-model:warehouse-dialog="warehouseDialog"
-        v-model:supplier-dialog="supplierDialog"
-        v-model:payment-dialog="paymentDialog"
-        v-model:inbound-dialog="inboundDialog"
+        :warehouse-dialog="warehouseDialog"
+        :supplier-dialog="supplierDialog"
+        :payment-dialog="paymentDialog"
+        :inbound-dialog="inboundDialog"
         :saving="saving"
         :dialog-boot-loading="dialogBootLoading"
         v-model:warehouse-form="warehouseForm"
@@ -547,6 +547,10 @@
         :pay-max-yuan="payMaxYuan"
         :active-warehouses="activeWarehouses"
         :skus="skus"
+        @update:warehouse-dialog="setWarehouseDialog"
+        @update:supplier-dialog="setSupplierDialog"
+        @update:payment-dialog="setPaymentDialog"
+        @update:inbound-dialog="setInboundDialog"
         @save-warehouse="saveWarehouse"
         @save-supplier="saveSupplier"
         @save-payment="savePayment"
@@ -1474,6 +1478,20 @@ const {
   loadWarehousesSoft,
   ensureMeta
 });
+
+/** 显式 .value，避免模板 v-model 编译成 isRef?ref.value=v:null 在边界情况下空操作导致「取消」关不掉 */
+function setWarehouseDialog(open: boolean) {
+  warehouseDialog.value = open;
+}
+function setSupplierDialog(open: boolean) {
+  supplierDialog.value = open;
+}
+function setPaymentDialog(open: boolean) {
+  paymentDialog.value = open;
+}
+function setInboundDialog(open: boolean) {
+  inboundDialog.value = open;
+}
 </script>
 
 <style scoped>

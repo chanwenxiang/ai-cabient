@@ -94,6 +94,16 @@ class OpsSessionOrderQueryServiceTest {
         assertEquals(ApiMessages.SESSION_FINISHED, ex.getReason());
     }
 
+    @Test
+    void stuckActiveStates_excludesTerminal() {
+        assertTrue(OpsSessionOrderQueryService.STUCK_ACTIVE_STATES.contains(SessionState.WAITING_UPLOAD));
+        assertTrue(OpsSessionOrderQueryService.STUCK_ACTIVE_STATES.contains(SessionState.SHOPPING));
+        assertTrue(!OpsSessionOrderQueryService.STUCK_ACTIVE_STATES.contains(SessionState.COMPLETED));
+        assertTrue(!OpsSessionOrderQueryService.STUCK_ACTIVE_STATES.contains(SessionState.CANCELLED));
+        assertTrue(!OpsSessionOrderQueryService.STUCK_ACTIVE_STATES.contains(SessionState.FAILED));
+        assertTrue(!OpsSessionOrderQueryService.STUCK_ACTIVE_STATES.contains(SessionState.DISPUTED));
+    }
+
     private static CabinetOrderLine line(String sku, String name, int qty, String batch) {
         CabinetOrderLine l = new CabinetOrderLine();
         l.setSkuId(sku);

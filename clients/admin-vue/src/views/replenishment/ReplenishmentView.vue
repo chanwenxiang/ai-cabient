@@ -1231,7 +1231,7 @@
     </ResizableDrawer>
 
     <ReplenishmentPlanRouteDialog
-      v-model="planDialog"
+      :model-value="planDialog"
       v-model:plan-form="planForm"
       :plan-saving="planSaving"
       :assignee-loading="assigneeLoading"
@@ -1241,6 +1241,7 @@
       :selected-devices-without-shortage="selectedDevicesWithoutShortage"
       :assignee-option-label="assigneeOptionLabel"
       :plan-device-label="planDeviceLabel"
+      @update:model-value="setPlanDialog"
       @create="createPlan"
       @go-shortage="goShortageFromPlan"
       @go-stock-health="goStockHealthFromPlan"
@@ -1970,6 +1971,11 @@ const {
   }),
   clearPlanQuery: () => syncRouteQuery()
 });
+
+/** 显式 .value，避免模板 v-model 对解构 ref 赋值空操作导致「取消」关不掉 */
+function setPlanDialog(open: boolean) {
+  planDialog.value = open;
+}
 
 function goShortageFromPlan() {
   closePlan();

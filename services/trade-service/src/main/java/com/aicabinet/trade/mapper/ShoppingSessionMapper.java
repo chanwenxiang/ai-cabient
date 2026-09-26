@@ -323,6 +323,8 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             String deviceId,
             Collection<String> deviceIds,
             SessionState state,
+            /** 多状态（如滞留仅活跃态）；与 {@code state} 互斥，优先 {@code state}。 */
+            Collection<SessionState> states,
             String sessionId,
             Long userId,
             java.time.Instant createdFrom,
@@ -368,6 +370,8 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             SessionFilterCriteria criteria) {
         if (criteria.state() != null) {
             q.eq(ShoppingSession::getState, criteria.state());
+        } else if (criteria.states() != null && !criteria.states().isEmpty()) {
+            q.in(ShoppingSession::getState, criteria.states());
         }
         if (criteria.sessionId() != null && !criteria.sessionId().isBlank()) {
             q.eq(ShoppingSession::getSessionId, criteria.sessionId().trim());

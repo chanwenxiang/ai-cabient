@@ -16,7 +16,7 @@ alwaysApply: false
 | A | 操作列横滑时跑走 | 为「防抖」把右侧 `sticky` 改成 `static` | **右侧必须** `.table-scroll … fixed-column--right { position: sticky; right: 0 }` + 不透明底；左侧 fixed 仍可 `static` |
 | B | 抽屉拉窄松手后自动变宽 | 松手先清 `style.width`，EP 短暂用回旧 `:size` | 先 `style.width=finalW` + `width.value=finalW` → `nextTick` 再去 `.is-resizing`；**禁止** pointerup 清空 inline width |
 | C | 拖抽屉时下半区（调整明细）抖 | 每帧写 Vue `width` / 缺回滞 / 内部重排 | 拖动只改 DOM；`Math.round` + ≥2px 回滞；`.is-resizing` 冻结 transition / contain |
-| D | 单点抽屉纵向滚动条：内容往左缩再弹回；按钮折行闪 | Win 叠加滚动条 overlay→经典条吃宽；`overflow-y:auto` + `flex-wrap:wrap` | body：`overflow-y: **scroll**`（禁 auto）+ `scrollbar-gutter: stable` + `overflow-anchor: none`；`.workbench-media-actions`：`flex-wrap: **nowrap**`（过窄横滑） |
+| D | 单点抽屉/主区纵向滚动条：内容往左缩再弹回；按钮折行闪 | Win 叠加滚动条 overlay→经典条吃宽；`overflow-y:auto` + `flex-wrap:wrap`（含客流页曾 `!important` 覆盖主区为 auto） | 主区与抽屉 body：`overflow-y: **scroll**`（禁 auto）+ `scrollbar-gutter: stable` + `overflow-anchor: none`；`.workbench-media-actions`：`flex-wrap: **nowrap**`；客流禁横滑可用 `overflow-x:hidden`，纵滚仍须 scroll |
 | E | 描述表「异常类型/关联设备」等盖住邻格标签 | 窄格 + Tag/`overflow:visible` 溢出绘制 | 标签 `nowrap`；**内容**格内换行 + `overflow:hidden`；`.el-tag`/`link-cell` `max-width:100%` + `white-space:normal` |
 | F | 调整明细数量框挡住「删除」 | grid 数量列 132px < EP `input-number`（右控件）默认 ~150px | `.manual-line`：`… 150px max-content`；`.el-input-number { width/max-width:100% }` |
 | H | 长文案悬停浮层盖住邻列/操作列 | `show-overflow-tooltip` 的 EP 浮层挂在表内，横滚+sticky 时错位 | **全后台禁止** `show-overflow-tooltip`；全局 `installTableCellNativeTitle`；可选手写 `.cell-ellipsis` + `:title` |

@@ -144,7 +144,11 @@ public class OpsAnalyticsQueryService {
         if (days >= 30) {
             return 30;
         }
-        return 7;
+        if (days >= 7) {
+            return 7;
+        }
+        // 前端「今天」传 days=1；不得再抬成 7，否则与顶栏「今日营收」口径打架
+        return Math.max(1, days);
     }
 
     static List<AdminOpsDailyDto> toOpsDailyPoints(Map<LocalDate, long[]> buckets) {

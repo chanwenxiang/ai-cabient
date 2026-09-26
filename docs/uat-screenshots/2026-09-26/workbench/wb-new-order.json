@@ -1,0 +1,33 @@
+﻿{
+    "orderId":  "1790420215052990851425",
+    "sessionId":  "1790420129220699554144",
+    "deviceId":  "330449777078",
+    "deviceName":  "330449777078",
+    "merchantName":  "é»è®¤æ¼ç¤ºåæ·",
+    "totalAmountCents":  350,
+    "originalAmountCents":  350,
+    "couponDiscountCents":  0,
+    "memberDiscountCents":  0,
+    "status":  "PAID",
+    "payChannel":  "BALANCE",
+    "lineCount":  1,
+    "lineSummary":  "å¯å£å¯ä¹ 330ml x1 Â·è´§éA1 @B-DEMO-01",
+    "paymentOperationId":  "1790420215113914436230",
+    "refundedCents":  0,
+    "refundPolicy":  "AUTO_REFUND",
+    "createdAt":  "2026-09-26T10:56:55.095233Z",
+    "paidAt":  "2026-09-26T10:56:55.114332Z",
+    "lines":  [
+                  {
+                      "skuId":  "SKU-DEMO-001",
+                      "skuName":  "å¯å£å¯ä¹ 330ml",
+                      "quantity":  1,
+                      "unitPriceCents":  350,
+                      "lineAmountCents":  350,
+                      "batchNo":  "B-DEMO-01",
+                      "slotId":  "A1"
+                  }
+              ],
+    "balanceBeforeCents":  19650,
+    "balanceAfterCents":  19300
+}
