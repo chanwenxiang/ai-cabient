@@ -244,6 +244,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-26 | merchant M6b：business-display；consumer C5b：开门可用性/超时纯函数 | debt-tracker M6/C5、lessons #170/#171 |
 | 2026-09-26 | merchant M7b：争议分页/详情纯函数；consumer C6b：申诉弹层文案收口 | debt-tracker M7/C6、lessons #168/#169 |
 | 2026-09-26 | consumer C2c：扫完 consumer-api 字面量；merchant M10b：request-draft 纯函数 | debt-tracker C2/M10、lessons #166/#167 |
 | 2026-09-26 | consumer C2b：auth/account/orders/sessions 迁 Endpoints；merchant M3c：orders/disputes/wallet | debt-tracker C2/M3、lessons #164/#165 |

@@ -1,5 +1,5 @@
 /**
- * 落地页会话/开门纯逻辑（debt-tracker C5 首刀）。
+ * 落地页会话/开门纯逻辑（debt-tracker C5 → C5b）。
  * 禁止把 UI 状态写进本模块；index.vue 只改 import，不改布局/视觉。
  */
 import type { OpenErrorKind } from '@aicabinet/shared-uni/format';
@@ -19,6 +19,24 @@ export const SESSION_ACTIVE_STATES: readonly string[] = [
   'WAITING_UPLOAD',
   'SETTLING'
 ];
+
+/** 终态：恢复轮询 / finishSession 分支共用。 */
+export const SESSION_TERMINAL_STATES: readonly string[] = [
+  'COMPLETED',
+  'FAILED',
+  'CANCELLED',
+  'DISPUTED'
+];
+
+/**
+ * C-2：开门超时后给「仍在途的 createSession」的宽限期，以及随后轮询 /sessions/active 的退避间隔。
+ * 依据：request 层单次超时 12s + 内部失败重试 600ms + 再 12s ⇒ 最长约 24.6s 才有结论，
+ * 而开门侧的 withTimeout 在 20s 就放弃了等待。
+ */
+export const ORPHAN_GRACE_MS = 5000;
+export const ORPHAN_ADOPT_BACKOFF_MS: readonly number[] = [0, 1000, 2000];
+export const OPEN_TIMEOUT_MS = 20_000;
+export const POLL_FAIL_WARN_AT = 3;
 
 export function normalizeCabinetId(id: string): string {
   return id.trim().toUpperCase();
@@ -57,6 +75,110 @@ export function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | nu
     ),
     sleep(ms).then(() => null)
   ]);
+}
+
+/**
+ * 放弃等待（超时 reject），底层 Promise 仍可在途成功——与 settleWithin（失败→null）不同。
+ * 用于 createSession / deviceProducts 的开门超时。
+ */
+export function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  timeoutMessage: string
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+export type DeviceAvailability = {
+  online: boolean;
+  reason: string;
+  blocked: boolean;
+};
+
+/** 从 deviceStatus DTO 解析可用性（不含 UI 赋值）。 */
+export function parseDeviceAvailability(status: {
+  online?: boolean | null;
+  onlineStatus?: string | null;
+  busyReason?: string | null;
+  available?: boolean | null;
+}): DeviceAvailability {
+  const online = status.online === true || (status.onlineStatus || '').toUpperCase() === 'ONLINE';
+  const reason = String(status.busyReason || '').toUpperCase();
+  return { online, reason, blocked: !online || status.available === false };
+}
+
+/**
+ * 柜机状态短文案（page 赋给 deviceStatusText）。
+ * labels 由调用方传入 UI_COPY，避免本模块依赖文案包。
+ */
+export function deviceStatusLabel(
+  status: {
+    online?: boolean | null;
+    onlineStatus?: string | null;
+    busyReason?: string | null;
+    available?: boolean | null;
+  },
+  labels: {
+    offline: string;
+    paused: string;
+    replenishing: string;
+    inUse: string;
+    onlineReady: string;
+  }
+): string {
+  const avail = parseDeviceAvailability(status);
+  if (!avail.online) return labels.offline;
+  if (status.available === false && avail.reason === 'LOCKED') return labels.paused;
+  if (status.available === false && avail.reason === 'REPLENISHMENT') return labels.replenishing;
+  if (status.available === false || avail.reason === 'SESSION') return labels.inUse;
+  return labels.onlineReady;
+}
+
+export type ConcurrentEntryDecision = 'allow' | 'same_cabinet' | 'other_cabinet';
+
+/** C-3：已有进行中会话时是否拦截开门（不含 toast/导航）。 */
+export function concurrentEntryDecision(
+  sessionActive: boolean,
+  currentDeviceId: string,
+  targetCabinetId: string
+): ConcurrentEntryDecision {
+  if (!sessionActive) return 'allow';
+  const current = normalizeCabinetId(currentDeviceId || '');
+  const target = normalizeCabinetId(targetCabinetId || '');
+  if (current && current === target) return 'same_cabinet';
+  return 'other_cabinet';
+}
+
+export function isNetworkishErrorMessage(msg: string): boolean {
+  return /超时|timeout|网络|无法连接|request:fail|ECONN|ENOTFOUND|abort/i.test(msg);
+}
+
+/** 轮询失败提示文案（不含 formatError）。 */
+export function pollErrorMessage(
+  failStreak: number,
+  isNetwork: boolean,
+  formattedError: string,
+  warnAt: number = POLL_FAIL_WARN_AT
+): string {
+  if (failStreak >= warnAt) {
+    return isNetwork
+      ? '网络不稳定，正在自动重试。可点「刷新会话状态」或检查网络后再试。'
+      : formattedError;
+  }
+  if (isNetwork) return '网络波动，正在重试…';
+  return formattedError;
 }
 
 export type BlockedDeviceLandingError = {

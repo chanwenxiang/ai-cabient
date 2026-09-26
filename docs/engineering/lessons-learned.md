@@ -179,6 +179,8 @@
 | 167 | 要货草稿合并埋在 request.vue | 建议/货道合并无法单测 | 页内函数 | **必须**`request-draft` 纯函数 + 测；禁止同 PR 改提交写路径；进度 M10b done | `request-draft.ts`、`request.vue` |
 | 168 | merchant 争议分页/详情逻辑埋页 | 深链扫描与权限投影难测 | disputes.vue 内联 | **必须**`dispute-list`/`dispute-detail` 纯函数；禁止同 PR 挪结案写路径；进度 M7b done | `dispute-list.ts`、`dispute-detail.ts` |
 | 169 | 申诉弹层文案双份 | order-detail/result 标题副文不一致易漂 | 仅 C6 种子 | **必须**`appealPanelTitle/Subtitle` 等按 surface；模板壳另开 C6c；进度 C6b done | `order-appeal.ts` |
+| 170 | business 展示公式埋页 | 环比/客单/毛利难测 | business.vue 内联 | **必须**`business-display` 纯函数；禁止同 PR 改税档/load；进度 M6b done | `business-display.ts` |
+| 171 | 开门超时/可用性逻辑埋 index | 常量与弱网文案难回归 | index 内联 | **必须**延展 `landing-session`；禁止同 PR 挪 createSession 编排；进度 C5b done | `landing-session.ts` |
 
 ## 追加模板
 

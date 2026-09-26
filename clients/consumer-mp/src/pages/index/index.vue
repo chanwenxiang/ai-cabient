@@ -579,14 +579,25 @@ import {
 } from '@aicabinet/shared-uni/format';
 import {
   ACTIVE_SESSION_KEY,
+  ORPHAN_ADOPT_BACKOFF_MS,
+  ORPHAN_GRACE_MS,
+  OPEN_TIMEOUT_MS,
+  POLL_FAIL_WARN_AT,
   REVIEW_SESSION_KEY,
   SESSION_ACTIVE_STATES,
   blockedDeviceLandingError,
+  concurrentEntryDecision,
+  deviceStatusLabel,
   isAdoptableSession,
   isCabinetIdInvalid,
+  isNetworkishErrorMessage,
   normalizeCabinetId,
+  parseDeviceAvailability,
+  pollErrorMessage,
   settleWithin,
-  sleep
+  sleep,
+  withTimeout,
+  type DeviceAvailability
 } from '@/utils/landing-session';
 import { parseQuery } from '@aicabinet/shared-uni/query';
 import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
@@ -740,14 +751,6 @@ let pollInFlight = false;
 /** 连续轮询失败次数；达到阈值后升级弱网提示 */
 let pollFailStreak = 0;
 const SESSION_POLL_MS = 2000;
-const POLL_FAIL_WARN_AT = 3;
-/**
- * C-2：开门超时后给「仍在途的 createSession」的宽限期，以及随后轮询 /sessions/active 的退避间隔。
- * 依据：request 层单次超时 12s + 内部失败重试 600ms + 再 12s ⇒ 最长约 24.6s 才有结论，
- * 而开门侧的 withTimeout 在 20s 就放弃了等待。
- */
-const ORPHAN_GRACE_MS = 5000;
-const ORPHAN_ADOPT_BACKOFF_MS: readonly number[] = [0, 1000, 2000];
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let prepResolve: ((ok: boolean) => void) | null = null;
@@ -1109,30 +1112,19 @@ async function resetDevice() {
   resetCatalogFilter();
 }
 
-type DeviceAvailability = {
-  online: boolean;
-  reason: string;
-  blocked: boolean;
-};
-
 function applyDeviceAvailability(
   status: Awaited<ReturnType<typeof consumerApi.deviceStatus>>
 ): DeviceAvailability {
-  const online = status.online === true || (status.onlineStatus || '').toUpperCase() === 'ONLINE';
-  const reason = String(status.busyReason || '').toUpperCase();
-  deviceOffline.value = !online;
-  if (!online) {
-    deviceStatusText.value = UI_COPY.offline;
-  } else if (status.available === false && reason === 'LOCKED') {
-    deviceStatusText.value = UI_COPY.paused;
-  } else if (status.available === false && reason === 'REPLENISHMENT') {
-    deviceStatusText.value = UI_COPY.replenishing;
-  } else if (status.available === false || reason === 'SESSION') {
-    deviceStatusText.value = UI_COPY.inUse;
-  } else {
-    deviceStatusText.value = UI_COPY.onlineReady;
-  }
-  return { online, reason, blocked: !online || status.available === false };
+  const avail = parseDeviceAvailability(status);
+  deviceOffline.value = !avail.online;
+  deviceStatusText.value = deviceStatusLabel(status, {
+    offline: UI_COPY.offline,
+    paused: UI_COPY.paused,
+    replenishing: UI_COPY.replenishing,
+    inUse: UI_COPY.inUse,
+    onlineReady: UI_COPY.onlineReady
+  });
+  return avail;
 }
 
 function markOpenFailed(cabinetId: string) {
@@ -1247,9 +1239,9 @@ function resetDeviceOnOpenFailure(cabinetId: string) {
  * canReopen 要求 !sessionActive，因此「再次开门」按钮不会被本拦截误伤。
  */
 function rejectEntryWhenSessionActive(cabinetId: string): boolean {
-  if (!sessionActive.value) return false;
-  const current = normalizeCabinetId(deviceId.value || '');
-  if (current && current === cabinetId) {
+  const decision = concurrentEntryDecision(sessionActive.value, deviceId.value || '', cabinetId);
+  if (decision === 'allow') return false;
+  if (decision === 'same_cabinet') {
     showError('当前柜机购物进行中，请先完成结算', 2400);
     return true;
   }
@@ -1311,7 +1303,6 @@ async function openDeviceSession(cabinetId: string) {
   productsLoading.value = true;
   // M25：createSession 即将发出，进入「取消不可用」窗口直至请求有结论
   openCreateInFlight.value = true;
-  const OPEN_TIMEOUT_MS = 20000;
   // C-2：先留下 createSession 的 promise 引用——超时只代表「放弃等待」，它仍可能在途并最终成功
   const createSessionPromise = consumerApi.createSession(cabinetId, entryChannel.value);
   const [productsResult, sessionResult] = await Promise.allSettled([
@@ -1362,22 +1353,6 @@ function goRechargeFromError() {
 /** 扩展功能：首页券包入口前置（`consumer.coupon_entry.enabled`）。 */
 function goCoupons() {
   uni.navigateTo({ url: '/pages/coupons/coupons' });
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      }
-    );
-  });
 }
 
 function retryLastOpen() {
@@ -2230,8 +2205,7 @@ async function refreshSessionNow() {
 }
 
 function isNetworkishError(e: unknown): boolean {
-  const msg = formatError(e);
-  return /超时|timeout|网络|无法连接|request:fail|ECONN|ENOTFOUND|abort/i.test(msg);
+  return isNetworkishErrorMessage(formatError(e));
 }
 
 async function pollSessionOnce() {
@@ -2264,15 +2238,12 @@ async function pollSessionOnce() {
     }
   } catch (e) {
     pollFailStreak += 1;
-    if (pollFailStreak >= POLL_FAIL_WARN_AT) {
-      pollError.value = isNetworkishError(e)
-        ? '网络不稳定，正在自动重试。可点「刷新会话状态」或检查网络后再试。'
-        : formatError(e);
-    } else if (isNetworkishError(e)) {
-      pollError.value = '网络波动，正在重试…';
-    } else {
-      pollError.value = formatError(e);
-    }
+    pollError.value = pollErrorMessage(
+      pollFailStreak,
+      isNetworkishError(e),
+      formatError(e),
+      POLL_FAIL_WARN_AT
+    );
   }
 }
 

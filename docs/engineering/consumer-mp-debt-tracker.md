@@ -30,7 +30,7 @@
 | C2 | P0 | done | 无 `ConsumerEndpoints` + 无门禁；路径散落字面量 | `utils/consumer-api.ts`（大量 `/api/v2`）；`dict-runtime.ts`；`video/video.vue` 页内裸拼；仅有 `check-admin-endpoints`，无 consumer 等价 | 2026-09-25：Endpoints+门禁；C2b 核心域；2026-09-26 C2c：devices/member/marketing/coupons/feedback/announcements 迁入；`consumer-api` 无余 `/api/v2` 字面量 |
 | C3 | P0 | done | JWT 进 Storage；`expires` 只写不读 | `consumer-api.ts` `EXPIRES_KEY` 写入 `applyTokenSession`；`isConsumerLoggedIn()` 只看 token / Cookie 标记，**不校验过期** | 2026-09-25：`getConsumerToken` 读 expires，Bearer 到期清会话；Cookie 路径不硬清；`consumer-session` 2 测 |
 | C4 | P1 | done | 金钱写路径无前端契约测（对标 admin D5） | 已有 `account`/`pay-channel`/`dispute-form` 测；**无**充值/退款/余额退申请契约测；写路径在 `recharge.ts`、`order-detail`/`result`/`recharge.vue` | 2026-09-25：`money-ui-contracts` + 8 测；order-detail/result/recharge/consumer-api 接线 |
-| C5 | P1 | done | `pages/index/index.vue` 上帝页 | 约 **3400+** 行（script 约 1800+）；扫码/鉴权/开门/目录/live-cart/轮询一体 | 2026-09-25：首刀抽 `landing-session`（柜机 ID/可接管会话/settleWithin/阻断文案）+ 5 测；**未改布局**；续拆开门流 → C5b |
+| C5 | P1 | done | `pages/index/index.vue` 上帝页 | 约 **3400+** 行（script 约 1800+）；扫码/鉴权/开门/目录/live-cart/轮询一体 | 2026-09-25：landing-session；2026-09-26 C5b：开门常量/withTimeout/可用性/并发拦截/弱网文案纯函数 + 测；编排仍页内 → C5c |
 | C6 | P1 | done | 退款/申诉 UI 与逻辑在 order-detail ↔ result 双份 | `order-detail.vue` ~1350；`result.vue` ~1200；平行 `submitRefund` / 确认文案 | 2026-09-26：order-appeal 种子/校验；C6b：弹层标题/副文/证据/提交文案 + validateAppealForm；模板壳仍双份 → C6c |
 | C7 | P1 | done | 次级肥页：orders / mine / recharge / login | 行数均约 950–1150；`mine` 内嵌 mock 充值 | 2026-09-26：mine 首刀 + C7b：orders/login/recharge 样式外置（1140/1034/960→663/518/576）；逻辑拆分另开 |
 | C8 | P2 | done | 弱类型口袋（规模小于 admin） | 少量 `as any`（如 `order-detail`、`verify`）；query/flag 的 `Record<string, string>` 可保留 | 2026-09-26：verify 支付宝签约去 `import.meta as any`，改 `#ifdef H5`；order-detail 已无 `as any`；query `Record` 保留 |
@@ -44,10 +44,11 @@
 ## 建议首期切片
 
 ```
-C6c / C5b / C12b；C10b（easycom 直指 package）与 M9 对齐（mp 风险知情延后）；C9 保持 deferred
+C6c / C5c / C12b；C10b（easycom 直指 package）与 M9 对齐（mp 风险知情延后）；C9 保持 deferred
 ```
 
 **C5 首刀边界**：只抽无 UI 的会话/开门 composable；**禁止**同 PR 改落地页布局与视觉。  
+**C5b 边界**：开门常量 + withTimeout/可用性/并发决策/弱网文案；**禁止**同 PR 挪 createSession/轮询编排（→ C5c）；**禁止**改 settleWithin 语义。  
 **C6 首刀边界**：只抽表单种子/校验/请求体；**禁止**同 PR 大改申诉弹层布局。  
 **C6b 边界**：弹层标题/副文/证据/提交文案 + `validateAppealForm`；**禁止**同 PR 抽 `OrderAppealSheet`（→ C6c）。  
 **C7 边界**：体验充值文案/键 + 次级肥页样式外置；**禁止**同 PR 改支付主路径与登录鉴权。  

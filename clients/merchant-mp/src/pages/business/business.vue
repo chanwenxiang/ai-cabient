@@ -150,7 +150,7 @@
         <view v-if="aiInsight?.insight" class="card">
           <view class="section-head"
             ><text class="section-title">AI 经营洞察</text
-            ><text class="section-sub">{{ formatTime(aiInsight.generatedAt) }}</text></view
+            ><text class="section-sub">{{ formatInsightTime(aiInsight.generatedAt) }}</text></view
           >
           <text class="insight-text">{{ aiInsight.insight }}</text>
           <view v-for="p in aiInsight.skuPerformance || []" :key="p.skuId" class="insight-sku">
@@ -296,6 +296,18 @@ import {
   buildSalesChartOption,
   type SalesChartMetric
 } from '@/utils/sales-chart';
+import {
+  avgOrderText,
+  changeClass,
+  formatChange,
+  formatInsightTime,
+  marginRatePercent,
+  performanceLabel,
+  reportDateRange,
+  rowAov,
+  skuMarginRate,
+  skuUnitPrice
+} from '@/utils/business-display';
 
 // O5：把**按需注册**的 echarts 实例注入 uni-echarts 组件。文档允许由 Vite 插件代劳，
 // 这里显式调用是为了不依赖插件的隐式行为（插件失效时图表会静默不渲染，极难排查）。
@@ -313,7 +325,6 @@ import type {
   MerchantAnalyticsOverview,
   MerchantMe,
   MerchantSettlementOverview,
-  MerchantSkuSales,
   MerchantAiInsight,
   MerchantExpirySummary,
   OpenApiMerchantDeviceReportDto
@@ -411,23 +422,8 @@ const aiInsight = ref<MerchantAiInsight | null>(null);
 const expirySummary = ref<MerchantExpirySummary | null>(null);
 const deviceReports = ref<OpenApiMerchantDeviceReportDto[]>([]);
 
-/** 报表数值兜底：生成类型里这些字段全部可选，缺字段按 0，避免 NaN 进入展示。 */
-function num(v?: number | null) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
+/** 报表数值兜底已迁 business-display（M6b）。 */
 
-/** 「今日 / 累计」右侧的客单文案；单量为 0 时返回空串（与原逻辑一致）。 */
-function avgOrderText(
-  revenueCents?: number | null,
-  avgCents?: number | null,
-  orders?: number | null
-) {
-  const o = num(orders);
-  if (o <= 0) return '';
-  const avg = num(avgCents) || num(revenueCents) / o;
-  return ` · 客单 ${fmtMoney(avg)}`;
-}
 const reportDims = [
   { value: 'PRODUCT', label: '商品' },
   { value: 'CABINET', label: '货柜' },
@@ -453,48 +449,9 @@ const chartTitle = computed(
 /** O5：构成图 option（ECharts）。取值/格式化全在 `buildSalesChartOption`，组件只负责挂载。 */
 const chartOption = computed(() => buildSalesChartOption(salesRows.value || [], chartMetric.value));
 const marginRate = computed(() =>
-  analytics.value.revenueCents
-    ? `${((analytics.value.grossMarginCents / analytics.value.revenueCents) * 100).toFixed(1)}%`
-    : '暂无'
+  marginRatePercent(analytics.value.revenueCents, analytics.value.grossMarginCents)
 );
 const money = (cents = 0) => fmtMoney(cents);
-function formatChange(pct?: number | null) {
-  if (pct == null || Number.isNaN(pct)) return '暂无';
-  const sign = pct > 0 ? '+' : '';
-  return `${sign}${pct.toFixed(1)}%`;
-}
-function changeClass(pct?: number | null) {
-  if (pct == null || Number.isNaN(pct) || pct === 0) return '';
-  return pct > 0 ? 'up' : 'down';
-}
-function skuUnitPrice(sku: MerchantSkuSales) {
-  return sku.qtySold > 0 ? Math.round(sku.revenueCents / sku.qtySold) : 0;
-}
-function rowAov(r: { orderCount?: number; revenueCents?: number }) {
-  const orders = Number(r.orderCount || 0);
-  return orders > 0 ? Math.round(Number(r.revenueCents || 0) / orders) : 0;
-}
-function formatTime(iso?: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-function performanceLabel(level?: string) {
-  const m: Record<string, string> = {
-    NORMAL: '正常',
-    SLOW_MOVER: '滞销',
-    NO_SALES: '无销量',
-    HOT: '热销',
-    TOP: '爆款'
-  };
-  return (level && m[level]) || '暂无';
-}
-function skuMarginRate(sku: MerchantSkuSales) {
-  return sku.revenueCents
-    ? `${((sku.grossMarginCents / sku.revenueCents) * 100).toFixed(1)}%`
-    : '暂无';
-}
 
 async function ensureAccess() {
   if (!isMerchantLoggedIn()) {
@@ -552,19 +509,14 @@ async function load(soft = false) {
   }
 }
 
-function reportDateRange() {
-  const to = new Date();
-  const from = new Date();
-  from.setDate(to.getDate() - (days.value - 1));
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return { fromDate: fmt(from), toDate: fmt(to) };
+function reportDateRangeForDays() {
+  return reportDateRange(days.value);
 }
 
 async function loadSalesReports() {
   reportLoading.value = true;
   try {
-    const { fromDate, toDate } = reportDateRange();
+    const { fromDate, toDate } = reportDateRangeForDays();
     salesRows.value = await merchantApi.salesReports(reportDim.value, fromDate, toDate);
   } catch {
     salesRows.value = [];

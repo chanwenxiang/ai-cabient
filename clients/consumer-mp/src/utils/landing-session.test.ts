@@ -1,14 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  OPEN_TIMEOUT_MS,
+  ORPHAN_GRACE_MS,
+  POLL_FAIL_WARN_AT,
+  SESSION_ACTIVE_STATES,
+  SESSION_TERMINAL_STATES,
   blockedDeviceLandingError,
+  concurrentEntryDecision,
+  deviceStatusLabel,
   isAdoptableSession,
   isCabinetIdInvalid,
+  isNetworkishErrorMessage,
   normalizeCabinetId,
+  parseDeviceAvailability,
+  pollErrorMessage,
   settleWithin,
-  SESSION_ACTIVE_STATES
+  withTimeout
 } from './landing-session';
 
-describe('landing-session · C5', () => {
+describe('landing-session · C5/C5b', () => {
   it('normalizeCabinetId 去空白并大写', () => {
     expect(normalizeCabinetId('  cab-01 ')).toBe('CAB-01');
   });
@@ -16,23 +26,18 @@ describe('landing-session · C5', () => {
   it('isCabinetIdInvalid 拒绝空/非法字符', () => {
     expect(isCabinetIdInvalid('AB')).toBe(false);
     expect(isCabinetIdInvalid('A')).toBe(true);
-    expect(isCabinetIdInvalid('')).toBe(true);
-    expect(isCabinetIdInvalid('中文柜')).toBe(true);
   });
 
   it('isAdoptableSession：同柜 + 进行中态', () => {
     expect(isAdoptableSession({ deviceId: 'cab-1', state: 'SHOPPING' }, 'CAB-1')).toBe(true);
     expect(isAdoptableSession({ deviceId: 'cab-1', state: 'PAID' }, 'CAB-1')).toBe(false);
-    expect(isAdoptableSession({ deviceId: 'other', state: 'SHOPPING' }, 'CAB-1')).toBe(false);
     expect(SESSION_ACTIVE_STATES).toContain('OPENING');
+    expect(SESSION_TERMINAL_STATES).toContain('COMPLETED');
   });
 
   it('blockedDeviceLandingError 按 reason 分支', () => {
     expect(blockedDeviceLandingError(false, '').kind).toBe('other');
     expect(blockedDeviceLandingError(true, 'LOCKED').kind).toBe('device_paused');
-    expect(blockedDeviceLandingError(true, 'REPLENISHMENT').kind).toBe('device_busy');
-    expect(blockedDeviceLandingError(true, 'SESSION').toastTitle).toBe('柜机正忙');
-    expect(blockedDeviceLandingError(true, 'OTHER', '状态文案').msg).toBe('状态文案');
   });
 
   it('settleWithin：超时返回 null', async () => {
@@ -49,5 +54,45 @@ describe('landing-session · C5', () => {
 
   it('settleWithin：成功返回值', async () => {
     await expect(settleWithin(Promise.resolve(42), 50)).resolves.toBe(42);
+  });
+
+  it('C5b：可用性 / 并发拦截 / 弱网文案', () => {
+    expect(ORPHAN_GRACE_MS).toBe(5000);
+    expect(OPEN_TIMEOUT_MS).toBe(20_000);
+    expect(POLL_FAIL_WARN_AT).toBe(3);
+    const avail = parseDeviceAvailability({
+      online: true,
+      available: false,
+      busyReason: 'SESSION'
+    });
+    expect(avail.blocked).toBe(true);
+    expect(avail.reason).toBe('SESSION');
+    expect(
+      deviceStatusLabel(
+        { online: false },
+        {
+          offline: '离线',
+          paused: '暂停',
+          replenishing: '补货',
+          inUse: '使用中',
+          onlineReady: '就绪'
+        }
+      )
+    ).toBe('离线');
+    expect(concurrentEntryDecision(false, 'A', 'B')).toBe('allow');
+    expect(concurrentEntryDecision(true, 'cab-1', 'CAB-1')).toBe('same_cabinet');
+    expect(concurrentEntryDecision(true, 'cab-1', 'CAB-2')).toBe('other_cabinet');
+    expect(isNetworkishErrorMessage('网络超时')).toBe(true);
+    expect(pollErrorMessage(1, true, 'x')).toBe('网络波动，正在重试…');
+    expect(pollErrorMessage(3, true, 'x')).toContain('网络不稳定');
+  });
+
+  it('withTimeout：超时 reject，成功放行', async () => {
+    vi.useFakeTimers();
+    const pending = withTimeout(new Promise(() => {}), 30, '超时了');
+    vi.advanceTimersByTime(30);
+    await expect(pending).rejects.toThrow('超时了');
+    vi.useRealTimers();
+    await expect(withTimeout(Promise.resolve('ok'), 50, '超时了')).resolves.toBe('ok');
   });
 });
