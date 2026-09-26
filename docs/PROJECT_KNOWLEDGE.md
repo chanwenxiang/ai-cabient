@@ -244,6 +244,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-26 | consumer C2c：扫完 consumer-api 字面量；merchant M10b：request-draft 纯函数 | debt-tracker C2/M10、lessons #166/#167 |
 | 2026-09-26 | consumer C2b：auth/account/orders/sessions 迁 Endpoints；merchant M3c：orders/disputes/wallet | debt-tracker C2/M3、lessons #164/#165 |
 | 2026-09-26 | consumer C12 首刀：orderVideoUrl；merchant M3b：证据/导出/me 迁 Endpoints | debt-tracker C12/M3、lessons #162/#163 |
 | 2026-09-26 | consumer C11：settleWithin 语义钉死；merchant M12：orderVideoUrl 收口 | debt-tracker C11/M12、lessons #160/#161 |

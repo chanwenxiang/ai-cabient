@@ -189,18 +189,16 @@ import type {
   OpenApiReplenishmentSuggestDto
 } from '@aicabinet/shared-types';
 import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
+import {
+  appendOrphanSuggestions,
+  buildSuggestMap,
+  mergeSlotDraftLine,
+  sortDraftLines,
+  suggestReasonLabel,
+  type RequestDraftLine
+} from '@/utils/request-draft';
 
-type DraftLine = {
-  skuId: string;
-  skuName: string;
-  currentQty: number;
-  capacity: number;
-  suggestQty: number;
-  soldQty7d: number;
-  suggestReason: string;
-  qty: number;
-  selected: boolean;
-};
+type DraftLine = RequestDraftLine;
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const preferredId = ref(getPreferredDeviceId());
@@ -244,15 +242,6 @@ const selectedCount = computed(
 const canSubmit = computed(
   () => canRequest.value && !!selectedDeviceId.value && selectedCount.value > 0
 );
-
-/** 补货建议理由：PAR=目标库存，ROP=销量再订货点 */
-function suggestReasonLabel(code?: string) {
-  const c = String(code || '').toUpperCase();
-  if (!c || c === 'PAR') return '';
-  if (c === 'ROP') return '按销量补货';
-  if (c === 'PAR+ROP') return '目标库存+销量';
-  return code || '';
-}
 
 onLoad((opts) => {
   if (!isMerchantLoggedIn()) {
@@ -340,74 +329,6 @@ function changeListStatus(status: string) {
   void loadRequests();
 }
 
-function buildSuggestMap(items: OpenApiReplenishmentSuggestDto[]) {
-  const suggestMap = new Map<string, OpenApiReplenishmentSuggestDto>();
-  for (const s of items || []) {
-    if (!s?.skuId) continue;
-    const prev = suggestMap.get(s.skuId);
-    if (!prev || (s.suggestQty || 0) > (prev.suggestQty || 0)) suggestMap.set(s.skuId, s);
-  }
-  return suggestMap;
-}
-
-function mergeSlotDraftLine(
-  bySku: Map<string, DraftLine>,
-  slot: DeviceSlot,
-  sug: OpenApiReplenishmentSuggestDto | undefined
-) {
-  const skuId = String(slot.assignedSkuId || '').trim();
-  if (!skuId) return;
-  const book = Number(slot.bookQty) || 0;
-  const capacity = Number(slot.maxLevel ?? slot.parLevel) || 0;
-  const suggestQty = Number(sug?.suggestQty) || 0;
-  const soldQty7d = Number(sug?.soldQty7d) || 0;
-  const suggestReason = String(sug?.suggestReason || '');
-  const existing = bySku.get(skuId);
-  if (existing) {
-    existing.currentQty += book;
-    existing.capacity += capacity;
-    existing.suggestQty = Math.max(existing.suggestQty, suggestQty);
-    existing.soldQty7d = Math.max(existing.soldQty7d, soldQty7d);
-    if (suggestReason) existing.suggestReason = suggestReason;
-    return skuId;
-  }
-  const defaultQty = suggestQty > 0 ? suggestQty : Math.max(0, (Number(slot.parLevel) || 0) - book);
-  bySku.set(skuId, {
-    skuId,
-    skuName: String(slot.assignedSkuName || skuId),
-    currentQty: book,
-    capacity,
-    suggestQty,
-    soldQty7d,
-    suggestReason,
-    qty: defaultQty,
-    selected: defaultQty > 0
-  });
-  return skuId;
-}
-
-function appendOrphanSuggestions(
-  bySku: Map<string, DraftLine>,
-  suggestMap: Map<string, OpenApiReplenishmentSuggestDto>
-) {
-  for (const [skuId, sug] of suggestMap) {
-    if (bySku.has(skuId)) continue;
-    const suggestQty = Number(sug.suggestQty) || 0;
-    const qty = suggestQty > 0 ? suggestQty : 0;
-    bySku.set(skuId, {
-      skuId,
-      skuName: skuId,
-      currentQty: Number(sug.currentQty) || 0,
-      capacity: Number(sug.capacity) || 0,
-      suggestQty,
-      soldQty7d: Number(sug.soldQty7d) || 0,
-      suggestReason: String(sug.suggestReason || ''),
-      qty,
-      selected: suggestQty > 0
-    });
-  }
-}
-
 async function loadDraft() {
   const deviceId = selectedDeviceId.value;
   if (!deviceId) {
@@ -438,10 +359,7 @@ async function loadDraft() {
     }
     appendOrphanSuggestions(bySku, suggestMap);
     if (seq !== draftSeq) return;
-    draftLines.value = [...bySku.values()].sort((a, b) => {
-      if (a.selected !== b.selected) return a.selected ? -1 : 1;
-      return b.suggestQty - a.suggestQty;
-    });
+    draftLines.value = sortDraftLines([...bySku.values()]);
   } catch (e) {
     if (seq !== draftSeq) return;
     draftLines.value = [];

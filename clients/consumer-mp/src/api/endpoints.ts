@@ -18,7 +18,8 @@
  * | `/api/v2/dicts/*` | 运行时字典 |
  *
  * 门禁：`scripts/check-consumer-endpoints.mjs` 扫 pages/composables + `CONSUMER_ENDPOINT_PILOT_LITERALS`。
- * `utils/consumer-api.ts`：C2b 已迁 auth/account/payment/orders/sessions；余营销/会员 → C2c。
+ * `utils/consumer-api.ts`：C2b 已迁 auth/account/payment/orders/sessions/disputes；
+ * C2c 已迁 devices/account-invoices/public/feedback/member/marketing/coupons/announcements；余 → C2d。
  */
 export const API_PREFIX = '/api/v2' as const;
 
@@ -82,8 +83,48 @@ export const ConsumerEndpoints = {
   disputesMine: `${API_PREFIX}/disputes/mine`,
   disputesMineDetail: (query?: string) =>
     query ? `${API_PREFIX}/disputes/mine/detail?${query}` : `${API_PREFIX}/disputes/mine/detail`,
-  /** 券（开门选券） */
-  couponsUnused: `${API_PREFIX}/coupons?status=UNUSED`
+  /** 柜机 */
+  deviceStatus: (deviceId: string) =>
+    `${API_PREFIX}/devices/${encodeURIComponent(deviceId)}/status`,
+  deviceProducts: (deviceId: string) =>
+    `${API_PREFIX}/devices/${encodeURIComponent(deviceId)}/products`,
+  deviceScreenContent: (deviceId: string) =>
+    `${API_PREFIX}/devices/${encodeURIComponent(deviceId)}/screen-content`,
+  deviceAdPlay: (deviceId: string) =>
+    `${API_PREFIX}/devices/${encodeURIComponent(deviceId)}/ad-play`,
+  deviceFaultReport: (deviceId: string) =>
+    `${API_PREFIX}/devices/${encodeURIComponent(deviceId)}/fault-report`,
+  /** 账户发票 */
+  accountInvoices: `${API_PREFIX}/account/invoices`,
+  /** 公开配置（无鉴权） */
+  publicConsumerConfig: `${API_PREFIX}/public/consumer-config`,
+  /** 反馈 */
+  feedback: `${API_PREFIX}/feedback`,
+  feedbackMine: `${API_PREFIX}/feedback/mine`,
+  /** 会员 / 积分 / 通知 */
+  memberProfile: `${API_PREFIX}/member/profile`,
+  memberPoints: `${API_PREFIX}/member/points`,
+  memberPointsLog: (limit: number) => `${API_PREFIX}/member/points/log?limit=${limit}`,
+  memberRedeemItems: `${API_PREFIX}/member/redeem/items`,
+  memberRedeem: `${API_PREFIX}/member/redeem`,
+  memberNotifications: (limit: number) => `${API_PREFIX}/member/notifications?limit=${limit}`,
+  memberNotificationsUnreadCount: `${API_PREFIX}/member/notifications/unread-count`,
+  memberNotificationRead: (id: number) => `${API_PREFIX}/member/notifications/${id}/read`,
+  memberNotificationsReadAll: `${API_PREFIX}/member/notifications/read-all`,
+  memberNotificationPrefs: `${API_PREFIX}/member/notifications/prefs`,
+  /** 营销 */
+  marketingBanners: `${API_PREFIX}/marketing/banners`,
+  marketingCampaignsActive: `${API_PREFIX}/marketing/campaigns/active`,
+  marketingCampaignClaim: (activityId: number) =>
+    `${API_PREFIX}/marketing/campaigns/${activityId}/claim`,
+  /** 券 */
+  coupons: (status?: string) =>
+    status ? `${API_PREFIX}/coupons?status=${encodeURIComponent(status)}` : `${API_PREFIX}/coupons`,
+  couponsCount: `${API_PREFIX}/coupons/count`,
+  couponsUnused: `${API_PREFIX}/coupons?status=UNUSED`,
+  /** 公告 */
+  announcements: `${API_PREFIX}/announcements`,
+  announcement: (id: number) => `${API_PREFIX}/announcements/${id}`
 } as const;
 
 /**

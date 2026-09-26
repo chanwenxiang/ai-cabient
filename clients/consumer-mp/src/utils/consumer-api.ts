@@ -631,20 +631,20 @@ export const consumerApi = {
     ),
   deviceStatus: (deviceId: string) =>
     request<import('@aicabinet/shared-types').DeviceStatusDto>(
-      `/api/v2/devices/${encodeURIComponent(deviceId)}/status`
+      ConsumerEndpoints.deviceStatus(deviceId)
     ),
   deviceProducts: (deviceId: string) =>
     request<import('@aicabinet/shared-types').DeviceProduct[]>(
-      `/api/v2/devices/${encodeURIComponent(deviceId)}/products`
+      ConsumerEndpoints.deviceProducts(deviceId)
     ),
   screenContent: (deviceId: string) =>
     request<import('@aicabinet/shared-types').ScreenContentDto>(
-      `/api/v2/devices/${encodeURIComponent(deviceId)}/screen-content`
+      ConsumerEndpoints.deviceScreenContent(deviceId)
     ),
   reportAdPlay: (
     deviceId: string,
     body: { campaignId: number; assetId: number; eventType: 'IMPRESSION' | 'COMPLETE' | 'CLICK' }
-  ) => request<null>(`/api/v2/devices/${encodeURIComponent(deviceId)}/ad-play`, 'POST', body),
+  ) => request<null>(ConsumerEndpoints.deviceAdPlay(deviceId), 'POST', body),
   createSession: async (deviceId: string, entryChannel?: string | null) => {
     const attempt = getOrCreateOpenAttempt(deviceId);
     const body: {
@@ -806,61 +806,72 @@ export const consumerApi = {
         amountCents: number;
         status: string;
       }>
-    >('/api/v2/account/invoices'),
+    >(ConsumerEndpoints.accountInvoices),
   consumerPublicConfig: () =>
-    request<Record<string, string>>('/api/v2/public/consumer-config', 'GET', null, false),
+    request<Record<string, string>>(ConsumerEndpoints.publicConsumerConfig, 'GET', null, false),
   reportDeviceFault: (
     deviceId: string,
     body: import('@aicabinet/shared-types').DeviceFaultReportRequest
   ) =>
     request<{ reportId: string; message: string }>(
-      `/api/v2/devices/${encodeURIComponent(deviceId)}/fault-report`,
+      ConsumerEndpoints.deviceFaultReport(deviceId),
       'POST',
       body
     ),
   submitFeedback: (body: import('@aicabinet/shared-types').SubmitFeedbackRequest) =>
-    request<import('@aicabinet/shared-types').UserFeedbackDto>('/api/v2/feedback', 'POST', body),
+    request<import('@aicabinet/shared-types').UserFeedbackDto>(
+      ConsumerEndpoints.feedback,
+      'POST',
+      body
+    ),
   listMyFeedback: () =>
-    request<import('@aicabinet/shared-types').UserFeedbackDto[]>('/api/v2/feedback/mine'),
+    request<import('@aicabinet/shared-types').UserFeedbackDto[]>(ConsumerEndpoints.feedbackMine),
 
-  memberProfile: () => request<MemberProfileDto>('/api/v2/member/profile'),
-  memberPoints: () => request<MemberPointsSummaryDto>('/api/v2/member/points'),
+  memberProfile: () => request<MemberProfileDto>(ConsumerEndpoints.memberProfile),
+  memberPoints: () => request<MemberPointsSummaryDto>(ConsumerEndpoints.memberPoints),
   memberPointsLog: (limit = 50) =>
-    request<MemberPointsLogDto[]>(`/api/v2/member/points/log?limit=${limit}`),
-  redeemItems: () => request<PointsRedeemItemDto[]>('/api/v2/member/redeem/items'),
-  redeemPoints: (itemId: number) => request<CouponDto>('/api/v2/member/redeem', 'POST', { itemId }),
+    request<MemberPointsLogDto[]>(ConsumerEndpoints.memberPointsLog(limit)),
+  redeemItems: () => request<PointsRedeemItemDto[]>(ConsumerEndpoints.memberRedeemItems),
+  redeemPoints: (itemId: number) =>
+    request<CouponDto>(ConsumerEndpoints.memberRedeem, 'POST', { itemId }),
   notifications: (limit = 50) =>
-    request<NotificationDto[]>(`/api/v2/member/notifications?limit=${limit}`),
+    request<NotificationDto[]>(ConsumerEndpoints.memberNotifications(limit)),
   notificationUnreadCount: () =>
-    request<{ count: number }>('/api/v2/member/notifications/unread-count'),
+    request<{ count: number }>(ConsumerEndpoints.memberNotificationsUnreadCount),
   markNotificationRead: (id: number) =>
-    request<void>(`/api/v2/member/notifications/${id}/read`, 'POST'),
-  markAllNotificationsRead: () => request<void>('/api/v2/member/notifications/read-all', 'POST'),
-  notifyPrefs: () => request<NotifyPrefDto[]>('/api/v2/member/notifications/prefs'),
+    request<void>(ConsumerEndpoints.memberNotificationRead(id), 'POST'),
+  markAllNotificationsRead: () =>
+    request<void>(ConsumerEndpoints.memberNotificationsReadAll, 'POST'),
+  notifyPrefs: () => request<NotifyPrefDto[]>(ConsumerEndpoints.memberNotificationPrefs),
   updateNotifyPref: (category: string, enabled: boolean) =>
-    request<NotifyPrefDto>('/api/v2/member/notifications/prefs', 'PUT', { category, enabled }),
+    request<NotifyPrefDto>(ConsumerEndpoints.memberNotificationPrefs, 'PUT', {
+      category,
+      enabled
+    }),
   marketingBanners: () =>
-    request<MarketingBannerDto[]>('/api/v2/marketing/banners', 'GET', undefined, false),
+    request<MarketingBannerDto[]>(ConsumerEndpoints.marketingBanners, 'GET', undefined, false),
   // auth=true：有 token 时带上，后端可返回「已领取/查看券包」；无 token 仍可游客浏览
   marketingCampaigns: () =>
-    request<MarketingCampaignDto[]>('/api/v2/marketing/campaigns/active', 'GET', undefined, true),
-  claimCampaign: (activityId: number) =>
-    request<CouponDto>(`/api/v2/marketing/campaigns/${activityId}/claim`, 'POST'),
-  myCoupons: (status?: string) =>
-    request<CouponDto[]>(
-      status ? `/api/v2/coupons?status=${encodeURIComponent(status)}` : '/api/v2/coupons'
+    request<MarketingCampaignDto[]>(
+      ConsumerEndpoints.marketingCampaignsActive,
+      'GET',
+      undefined,
+      true
     ),
-  couponCount: () => request<number>('/api/v2/coupons/count'),
+  claimCampaign: (activityId: number) =>
+    request<CouponDto>(ConsumerEndpoints.marketingCampaignClaim(activityId), 'POST'),
+  myCoupons: (status?: string) => request<CouponDto[]>(ConsumerEndpoints.coupons(status)),
+  couponCount: () => request<number>(ConsumerEndpoints.couponsCount),
   listAnnouncements: () =>
     request<import('@aicabinet/shared-types').AnnouncementDto[]>(
-      '/api/v2/announcements',
+      ConsumerEndpoints.announcements,
       'GET',
       undefined,
       false
     ),
   getAnnouncement: (id: number) =>
     request<import('@aicabinet/shared-types').AnnouncementDto>(
-      `/api/v2/announcements/${id}`,
+      ConsumerEndpoints.announcement(id),
       'GET',
       undefined,
       false
