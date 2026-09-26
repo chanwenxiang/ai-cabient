@@ -16,6 +16,14 @@ import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
 import { showConfirm } from '@/utils/notify';
 import { isConsumerBearerExpired, parseConsumerExpiresAt } from '@/utils/consumer-session';
+import {
+  alipayLoginBody,
+  passwordLoginBody,
+  planTokenSessionApply,
+  smsLoginBody,
+  wxH5LoginBody,
+  wxLoginBody
+} from '@/utils/consumer-auth-session';
 import { AuthEndpoints, ConsumerEndpoints } from '@/api/endpoints';
 import { clearOpenAttempt, getOrCreateOpenAttempt } from '@/utils/consumer-open-attempt';
 import { buildBearerDownloadHeader, classifyDownloadResult } from '@/utils/consumer-download';
@@ -133,31 +141,24 @@ export function clearConsumerSession() {
 }
 
 function applyTokenSession(data: LoginResponse) {
+  const plan = planTokenSessionApply(data, {
+    isH5: isConsumerH5Runtime(),
+    alreadyCookieAuth: isConsumerCookieAuth()
+  });
   uni.removeStorageSync(SKIP_SILENT_AUTH_KEY);
-  if (
-    data.expiresInSeconds == null ||
-    !Number.isFinite(Number(data.expiresInSeconds)) ||
-    Number(data.expiresInSeconds) <= 0
-  ) {
-    throw new Error('登录响应缺少有效过期时间');
-  }
-  // H5 + cookieEnabled（或已在 Cookie 会话中刷新）：不落 JWT，凭 HttpOnly Cookie；MP 仍存 Storage
-  if (isConsumerH5Runtime() && (data.cookieEnabled || isConsumerCookieAuth())) {
+  if (plan.mode === 'cookie') {
     uni.removeStorageSync(TOKEN_KEY);
     uni.setStorageSync(COOKIE_AUTH_KEY, '1');
-  } else if (data.token) {
-    uni.setStorageSync(TOKEN_KEY, data.token);
-    uni.removeStorageSync(COOKIE_AUTH_KEY);
   } else {
-    throw new Error('登录响应缺少 token');
+    uni.setStorageSync(TOKEN_KEY, plan.token);
+    uni.removeStorageSync(COOKIE_AUTH_KEY);
   }
-  if (data.userId) {
-    uni.setStorageSync(USER_KEY, data.userId);
+  if (plan.userId) {
+    uni.setStorageSync(USER_KEY, plan.userId);
   }
-  const ms = Number(data.expiresInSeconds) * 1000;
-  uni.setStorageSync(EXPIRES_KEY, String(Date.now() + ms));
-  if (data.serverBootEpoch != null) {
-    uni.setStorageSync('consumer_server_boot', data.serverBootEpoch);
+  uni.setStorageSync(EXPIRES_KEY, String(plan.expiresAtMs));
+  if (plan.serverBootEpoch != null) {
+    uni.setStorageSync('consumer_server_boot', plan.serverBootEpoch);
   }
   void sharedLoadRuntimeDict({
     getToken: getConsumerToken,
@@ -276,7 +277,7 @@ export function consumerPasswordLogin(phone: string, password: string) {
   return request<LoginResponse>(
     AuthEndpoints.passwordLogin,
     'POST',
-    { phoneNumber: phone, password },
+    passwordLoginBody(phone, password),
     false
   ).then((data) => {
     applyTokenSession(data);
@@ -285,22 +286,19 @@ export function consumerPasswordLogin(phone: string, password: string) {
 }
 
 export function consumerSmsLogin(phone: string, code: string) {
-  return request<LoginResponse>(
-    AuthEndpoints.login,
-    'POST',
-    { phoneNumber: phone, code },
-    false
-  ).then((data) => {
-    applyTokenSession(data);
-    return data;
-  });
+  return request<LoginResponse>(AuthEndpoints.login, 'POST', smsLoginBody(phone, code), false).then(
+    (data) => {
+      applyTokenSession(data);
+      return data;
+    }
+  );
 }
 
 export function consumerWxLogin(code: string, phoneNumber?: string) {
   return request<LoginResponse>(
     AuthEndpoints.wxLogin,
     'POST',
-    { code, phoneNumber: phoneNumber || undefined },
+    wxLoginBody(code, phoneNumber),
     false
   ).then((data) => {
     applyTokenSession(data);
@@ -309,20 +307,25 @@ export function consumerWxLogin(code: string, phoneNumber?: string) {
 }
 
 export function consumerAlipayLogin(authCode: string) {
-  return request<LoginResponse>(AuthEndpoints.alipayLogin, 'POST', { authCode }, false).then(
+  return request<LoginResponse>(
+    AuthEndpoints.alipayLogin,
+    'POST',
+    alipayLoginBody(authCode),
+    false
+  ).then((data) => {
+    applyTokenSession(data);
+    return data;
+  });
+}
+
+/** H5 微信网页授权登录（公众号 OAuth code）。 */
+export function consumerWxH5Login(code: string) {
+  return request<LoginResponse>(AuthEndpoints.wxH5Login, 'POST', wxH5LoginBody(code), false).then(
     (data) => {
       applyTokenSession(data);
       return data;
     }
   );
-}
-
-/** H5 微信网页授权登录（公众号 OAuth code）。 */
-export function consumerWxH5Login(code: string) {
-  return request<LoginResponse>(AuthEndpoints.wxH5Login, 'POST', { code }, false).then((data) => {
-    applyTokenSession(data);
-    return data;
-  });
 }
 
 function readQueryParam(name: string): string {

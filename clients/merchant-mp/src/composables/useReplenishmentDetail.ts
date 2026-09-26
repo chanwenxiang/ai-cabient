@@ -3,6 +3,10 @@ import { showError } from '@/utils/notify';
 import { merchantApi, softFallback } from '@/utils/merchant-api';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import type { DeviceSlot } from '@aicabinet/shared-types';
+import {
+  mapReplenishmentEvidenceItems,
+  mergeEvidenceCountMap
+} from '@/utils/replenishment-evidence';
 
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
@@ -140,17 +144,14 @@ export function useReplenishmentDetail(opts: {
   }
 
   async function mapEvidenceFiles(task: Task, evidence: { fileId?: number; url?: string }[]) {
-    return Promise.all(
-      (evidence || []).map(async (f) => {
-        const fileId = f.fileId;
-        if (!fileId) return { localPath: f.url || '', fileId };
-        try {
-          const localPath = await merchantApi.downloadReplenishmentEvidence(task.taskId!, fileId);
-          return { localPath, fileId };
-        } catch {
-          return { localPath: f.url || '', fileId };
-        }
-      })
+    const taskId = task.taskId;
+    if (typeof taskId !== 'number') {
+      return mapReplenishmentEvidenceItems(evidence, async () => {
+        throw new Error('missing taskId');
+      });
+    }
+    return mapReplenishmentEvidenceItems(evidence, (fileId) =>
+      merchantApi.downloadReplenishmentEvidence(taskId, fileId)
     );
   }
 
@@ -166,10 +167,11 @@ export function useReplenishmentDetail(opts: {
     opts.deviceSlotsList.value = (slots || []) as DeviceSlot[];
     const mapped = await mapEvidenceFiles(task, evidence || []);
     opts.evidenceItems.value = mapped;
-    opts.evidenceCountMap.value = {
-      ...opts.evidenceCountMap.value,
-      [taskId]: mapped.length
-    };
+    opts.evidenceCountMap.value = mergeEvidenceCountMap(
+      opts.evidenceCountMap.value,
+      taskId,
+      mapped.length
+    );
     opts.slotCaps.value = buildSlotCapsFromSlots(opts.deviceSlotsList.value);
     await opts.syncDoorStateFromServer(taskId);
   }
@@ -235,10 +237,11 @@ export function useReplenishmentDetail(opts: {
         await assertLocalImageSize(path);
         const uploaded = await merchantApi.uploadReplenishmentEvidence(taskId, path);
         opts.evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
-        opts.evidenceCountMap.value = {
-          ...opts.evidenceCountMap.value,
-          [taskId]: opts.evidenceItems.value.length
-        };
+        opts.evidenceCountMap.value = mergeEvidenceCountMap(
+          opts.evidenceCountMap.value,
+          taskId,
+          opts.evidenceItems.value.length
+        );
       } catch (e) {
         showError(e instanceof Error ? e.message : '上传失败');
         break;

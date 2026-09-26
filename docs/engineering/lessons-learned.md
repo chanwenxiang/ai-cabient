@@ -156,7 +156,7 @@
 | 144 | consumer JWT expires 只写不读 | 过期 token 仍被 `isConsumerLoggedIn` 当成已登录 | `EXPIRES_KEY` 写入后无人读 | **必须**`getConsumerToken` 读 expires；Bearer 到期 `clearConsumerSession`；Cookie 会话不硬清；进度 C3 done | `consumer-session.ts`、`consumer-api.ts` |
 | 145 | merchant 端点散落 | pages 旁路拼 `/api/v2/merchant/...`，无门禁 | 仅有 admin/consumer 门禁；video 裸路径 | **必须**新路径进 `MerchantEndpoints`；pages/composables 试点走 `check-merchant-endpoints`；`merchant-api` 批量迁入另开 M3b；进度 M3 done | `api/endpoints.ts`、`check-merchant-endpoints.mjs` |
 | 146 | consumer 金钱写无契约 | 退款/充值/余额退体散落页内，回归靠手点 | 无 money-ui-contracts | **必须**退款门闩/body、充值预下单、余额退申请走 `money-ui-contracts` + vitest；进度 C4 done | `money-ui-contracts.ts`、order-detail/result/recharge |
-| 147 | merchant 异常列表扇出 | 首页拉 OPEN+PROCESSING 各最多 3 页，却只展示 3 条摘要 | `openExceptions` 固定 max 3；首页与待办同预算 | **必须**首页 `maxPages=1`；页预算走 `exception-pages`；同状态补页可并行；进度 M4 done（证据下载 → M4b） | `exception-pages.ts`、`useHomeWorkbench`、`merchant-api` |
+| 147 | merchant 异常列表扇出 | 首页拉 OPEN+PROCESSING 各最多 3 页，却只展示 3 条摘要 | `openExceptions` 固定 max 3；首页与待办同预算 | **必须**首页 `maxPages=1`；页预算走 `exception-pages`；同状态补页可并行；进度 M4 done；证据映射 M4b done | `exception-pages.ts`、`replenishment-evidence.ts` |
 | 148 | consumer 落地页上帝类 | 开门/会话判据散落 3400+ 行 SFC，改开门易误伤目录 UI | 无独立 session 纯模块 | **必须**柜机 ID/可接管会话/`settleWithin`/阻断文案走 `landing-session`；禁止同 PR 改布局；进度 C5 首刀 done（开门流 → C5b） | `landing-session.ts`、`pages/index/index.vue` |
 | 149 | merchant 补货壳弱类型+肥样式 | devices 用 `Record<string, unknown>`；深链 `open: any`；SFC style ~500 行 | 类型与 OpenAPI 脱节；样式堆同文件 | **必须**devices 用 `MerchantDeviceInfo`；深链参数用 Task；样式外置 page.css；履约逻辑禁止回流 SFC；进度 M5 done | `useReplenishment{List,Shell,Scan}`、`replenishment.page.css` |
 | 150 | consumer 退款/申诉双份逻辑 | order-detail 与 result 平行 seed/校验/body，改一处易漏 | 无共享 appeal 模块 | **必须**种子/原因校验/证据上传中/fileDispute body 走 `order-appeal`；禁止两页再各写一套；UI 弹层可后拆（C6b）；进度 C6 首刀 done | `order-appeal.ts`、order-detail、result |
@@ -189,6 +189,8 @@
 | 177 | 申诉弹层模板双份 | order-detail/result 壳漂移 | C6b 只收口文案 | **必须**`OrderAppealSheet` + surface 修饰；partial 用 slot；禁止同 PR 挪提交写路径；进度 C6c done | `order-appeal-sheet.vue` |
 | 178 | 争议结案写路径门闩埋页 | 认领/结案/回复难单测 | M7b 只列表详情 | **必须**`dispute-actions` 门闩+导航；API/确认框仍页内；进度 M7c done | `dispute-actions.ts` |
 | 179 | 开门轮询编排决策埋 index | 终态/恢复分支难回归 | C5b 只常量与可用性 | **必须**延展 `landing-session` 编排决策；禁止同 PR 挪定时器/createSession；进度 C5c done | `landing-session.ts` |
+| 180 | 补货证据下载映射埋详情 | 失败回退/张数 map 难测 | M4 只页预算 | **必须**`replenishment-evidence`；download 注入；禁止同 PR 改上传；进度 M4b done | `replenishment-evidence.ts` |
+| 181 | 登录落盘分支埋 consumer-api | cookie/bearer/过期难单测 | C12c 只下载头 | **必须**`consumer-auth-session` plan/body；落盘仍 api；进度 C12d done | `consumer-auth-session.ts` |
 
 ## 追加模板
 
