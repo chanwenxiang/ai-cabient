@@ -14,10 +14,12 @@ import {
 import { buildRechargePrepayBody } from '@/utils/money-ui-contracts';
 import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
-import { secureRandomToken } from '@/utils/secure-id';
 import { showConfirm } from '@/utils/notify';
 import { isConsumerBearerExpired, parseConsumerExpiresAt } from '@/utils/consumer-session';
 import { AuthEndpoints, ConsumerEndpoints } from '@/api/endpoints';
+import { clearOpenAttempt, getOrCreateOpenAttempt } from '@/utils/consumer-open-attempt';
+
+export { clearOpenAttempt, getOrCreateOpenAttempt } from '@/utils/consumer-open-attempt';
 
 const BASE_URL = API_BASE_URL;
 
@@ -29,7 +31,6 @@ const USER_KEY = 'consumer_user_id';
 const EXPIRES_KEY = 'consumer_token_expires';
 /** H5：服务端已写 HttpOnly Cookie 时的本地会话标记（不落 JWT） */
 const COOKIE_AUTH_KEY = 'consumer_cookie_auth';
-const OPEN_ATTEMPT_KEY = 'consumer_open_attempt';
 /** 用户主动退出后禁止静默微信建档，直到再次点登录 */
 const SKIP_SILENT_AUTH_KEY = 'consumer_skip_silent_auth';
 const REQUEST_TIMEOUT_MS = 12_000;
@@ -121,37 +122,8 @@ export function clearConsumerSession() {
   uni.removeStorageSync(COOKIE_AUTH_KEY);
   uni.removeStorageSync('consumer_server_boot');
   uni.removeStorageSync('active_session_id');
-  uni.removeStorageSync(OPEN_ATTEMPT_KEY);
+  clearOpenAttempt();
   clearDictOverrides();
-}
-
-type OpenAttempt = { deviceId: string; idempotencyKey: string; createdAt: number };
-
-function isOpenAttempt(value: unknown): value is OpenAttempt {
-  if (!value || typeof value !== 'object') return false;
-  const row = value as OpenAttempt;
-  return typeof row.deviceId === 'string' && typeof row.idempotencyKey === 'string';
-}
-
-function randomId() {
-  return `${Date.now().toString(36)}-${secureRandomToken(6)}-${secureRandomToken(6)}`;
-}
-
-export function getOrCreateOpenAttempt(deviceId: string): OpenAttempt {
-  const normalized = deviceId.trim().toUpperCase();
-  const saved = uni.getStorageSync(OPEN_ATTEMPT_KEY);
-  if (isOpenAttempt(saved) && saved.deviceId === normalized && saved.idempotencyKey) return saved;
-  const attempt = {
-    deviceId: normalized,
-    idempotencyKey: `consumer-open-${randomId()}`,
-    createdAt: Date.now()
-  };
-  uni.setStorageSync(OPEN_ATTEMPT_KEY, attempt);
-  return attempt;
-}
-
-export function clearOpenAttempt() {
-  uni.removeStorageSync(OPEN_ATTEMPT_KEY);
 }
 
 function applyTokenSession(data: LoginResponse) {

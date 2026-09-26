@@ -545,33 +545,33 @@ export const merchantApi = {
     }),
   analytics: (days = 30) =>
     request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(
-      `/api/v2/merchant/analytics/overview?days=${days}`
+      MerchantEndpoints.analyticsOverview(days)
     ),
   salesReports: (dim = 'PRODUCT', fromDate?: string, toDate?: string) =>
     request<import('@aicabinet/shared-types').OpenApiSalesReportRowDto[]>(
-      withQuery('/api/v2/merchant/analytics/sales-reports', { dim, fromDate, toDate })
+      withQuery(MerchantEndpoints.analyticsSalesReports, { dim, fromDate, toDate })
     ),
   /**
    * 商户端公开配置（只含非敏感 UI 开关，如经营分析图表）。
    * 走匿名端点，故 `auth=false`。
    */
   merchantPublicConfig: () =>
-    request<Record<string, string>>('/api/v2/public/merchant-config', 'GET', null, false),
+    request<Record<string, string>>(MerchantEndpoints.publicMerchantConfig, 'GET', null, false),
   skuSales: (days = 30, deviceId?: string) =>
     request<import('@aicabinet/shared-types').MerchantSkuSales[]>(
-      withQuery('/api/v2/merchant/analytics/sku-sales', { days, deviceId })
+      withQuery(MerchantEndpoints.analyticsSkuSales, { days, deviceId })
     ),
   skuVelocity: (deviceId: string) =>
     request<import('@aicabinet/shared-types').MerchantSkuVelocity[]>(
-      `/api/v2/merchant/analytics/velocity?deviceId=${encodeURIComponent(deviceId)}`
+      MerchantEndpoints.analyticsVelocity(deviceId)
     ),
   aiInsight: (days = 30) =>
     request<import('@aicabinet/shared-types').MerchantAiInsight>(
-      `/api/v2/merchant/analytics/ai-insight?days=${days}`
+      MerchantEndpoints.analyticsAiInsight(days)
     ),
   expirySummary: () =>
     request<import('@aicabinet/shared-types').MerchantExpirySummary>(
-      '/api/v2/merchant/analytics/expiry-summary'
+      MerchantEndpoints.analyticsExpirySummary
     ),
   deviceTemperatureHistory: (deviceId: string, hours = 24) =>
     request<import('@aicabinet/shared-types').DeviceTemperatureReading[]>(
@@ -618,41 +618,36 @@ export const merchantApi = {
   /** 订单购物视频绝对 URL（页内禁止再拼 API_BASE + path） */
   orderVideoUrl: merchantOrderVideoUrl,
   replenishmentSuggestions: (deviceId: string) =>
-    request<OpenApiReplenishmentSuggestDto[]>(
-      `/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`
-    ),
+    request<OpenApiReplenishmentSuggestDto[]>(MerchantEndpoints.replenishmentSuggestions(deviceId)),
   getTaxProfile: (merchantId: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantTaxProfileDto>(
-      `/api/v2/merchant/tax-profile?merchantId=${encodeURIComponent(merchantId)}`
+      MerchantEndpoints.taxProfileByMerchant(merchantId)
     ),
   saveTaxProfile: (body: import('@aicabinet/shared-types').OpenApiMerchantTaxProfileDto) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantTaxProfileDto>(
-      '/api/v2/merchant/tax-profile',
+      MerchantEndpoints.taxProfile,
       'PUT',
       body
     ),
   myReplenishmentEfficiency: () =>
-    request<OpenApiMerchantReplenishmentEfficiencyDto>(
-      '/api/v2/merchant/replenishment/my-efficiency'
-    ),
+    request<OpenApiMerchantReplenishmentEfficiencyDto>(MerchantEndpoints.replenishmentEfficiency),
   /** 缺货巡柜：全部低库存 SKU 明细（按柜聚合由页面完成） */
-  lowStockDevices: () =>
-    request<OpenApiDeviceInventoryDto[]>('/api/v2/merchant/inventory?lowStockOnly=true'),
+  lowStockDevices: () => request<OpenApiDeviceInventoryDto[]>(MerchantEndpoints.inventoryLowStock),
   replenishmentRequests: (status?: string, deviceId?: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentRequestDto[]>(
-      withQuery('/api/v2/merchant/replenishment/requests', { status, deviceId })
+      withQuery(MerchantEndpoints.replenishmentRequests, { status, deviceId })
     ),
   submitReplenishmentRequest: (
     body: import('@aicabinet/shared-types').OpenApiCreateMerchantReplenishmentRequest
   ) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentRequestDto>(
-      '/api/v2/merchant/replenishment/requests',
+      MerchantEndpoints.replenishmentRequests,
       'POST',
       body
     ),
   listReplenishmentRequestEvidence: (requestId: number) =>
     request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
-      `/api/v2/merchant/replenishment/requests/${requestId}/evidence`
+      MerchantEndpoints.replenishmentRequestEvidenceList(requestId)
     ),
   uploadReplenishmentRequestEvidence: (filePath: string) =>
     uploadReplenishmentRequestEvidenceFile(filePath),
@@ -660,37 +655,37 @@ export const merchantApi = {
     downloadReplenishmentRequestEvidenceFile(requestId, fileId),
   replenishmentTasks: (status?: string) => {
     const path = status
-      ? `/api/v2/merchant/replenishment/tasks?status=${encodeURIComponent(status)}`
-      : '/api/v2/merchant/replenishment/tasks';
+      ? MerchantEndpoints.replenishmentTasksByStatus(status)
+      : MerchantEndpoints.replenishmentTasks;
     return request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto[]>(path);
   },
   /** 扫码柜机归属校验：须在当前账号 FIELD 管辖范围 */
   assertReplenishmentDeviceAccess: (deviceId: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentDeviceAccessDto>(
-      `/api/v2/merchant/replenishment/devices/${encodeURIComponent(deviceId)}/access`
+      MerchantEndpoints.replenishmentDeviceAccess(deviceId)
     ),
   /** 补货开门状态：以服务端会话为准 */
   replenishmentDoorSession: (taskId: number) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentDoorSessionDto>(
-      `/api/v2/merchant/replenishment/tasks/${taskId}/door-session`
+      MerchantEndpoints.replenishmentDoorSession(taskId)
     ),
   replenishmentTaskLines: (taskId: number) =>
     request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto[]>(
-      `/api/v2/merchant/replenishment/tasks/${taskId}/lines`
+      MerchantEndpoints.replenishmentTaskLines(taskId)
     ),
   checkInReplenishmentTask: (
     taskId: number,
     body?: import('@aicabinet/shared-types').OpenApiReplenishmentCheckInRequest
   ) =>
     request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto>(
-      `/api/v2/merchant/replenishment/tasks/${taskId}/check-in`,
+      MerchantEndpoints.replenishmentTaskCheckIn(taskId),
       'POST',
       body || {}
     ),
   /** 补货员开门：签到后调用，绑定补货任务，不产生消费者账单 */
   openReplenishmentDoor: (taskId: number) =>
     request<import('@aicabinet/shared-types').OpenApiSessionDto>(
-      `/api/v2/merchant/replenishment/tasks/${taskId}/open-door`,
+      MerchantEndpoints.replenishmentTaskOpenDoor(taskId),
       'POST'
     ),
   confirmReplenishmentLines: (
@@ -698,18 +693,18 @@ export const merchantApi = {
     lines: import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto[]
   ) =>
     request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto[]>(
-      `/api/v2/merchant/replenishment/tasks/${taskId}/lines`,
+      MerchantEndpoints.replenishmentTaskLines(taskId),
       'POST',
       { lines } satisfies import('@aicabinet/shared-types').OpenApiSubmitReplenishmentLinesRequest
     ),
   completeReplenishmentTask: (taskId: number) =>
     request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto>(
-      `/api/v2/merchant/replenishment/tasks/${taskId}/complete`,
+      MerchantEndpoints.replenishmentTaskComplete(taskId),
       'POST'
     ),
   listReplenishmentEvidence: (taskId: number) =>
     request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
-      `/api/v2/merchant/replenishment/tasks/${taskId}/evidence`
+      MerchantEndpoints.replenishmentTaskEvidence(taskId)
     ),
   uploadReplenishmentEvidence: (taskId: number, filePath: string) =>
     uploadReplenishmentEvidenceFile(taskId, filePath),

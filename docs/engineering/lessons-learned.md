@@ -181,6 +181,8 @@
 | 169 | 申诉弹层文案双份 | order-detail/result 标题副文不一致易漂 | 仅 C6 种子 | **必须**`appealPanelTitle/Subtitle` 等按 surface；模板壳另开 C6c；进度 C6b done | `order-appeal.ts` |
 | 170 | business 展示公式埋页 | 环比/客单/毛利难测 | business.vue 内联 | **必须**`business-display` 纯函数；禁止同 PR 改税档/load；进度 M6b done | `business-display.ts` |
 | 171 | 开门超时/可用性逻辑埋 index | 常量与弱网文案难回归 | index 内联 | **必须**延展 `landing-session`；禁止同 PR 挪 createSession 编排；进度 C5b done | `landing-session.ts` |
+| 172 | merchant 补货/分析仍字面量 | M3c 后补货域未进 Endpoints | 仅订单钱包 | **必须**补货/分析进 `MerchantEndpoints`；设备/团队另开 M3e；进度 M3d done | `api/endpoints.ts`、`merchant-api.ts` |
+| 173 | 开门幂等埋在 consumer-api | 上帝模块难拆 | open-attempt 内联 | **必须**`consumer-open-attempt`；api 仍 re-export；进度 C12b done | `consumer-open-attempt.ts` |
 
 ## 追加模板
 

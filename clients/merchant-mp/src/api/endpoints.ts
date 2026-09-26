@@ -14,7 +14,7 @@
  * | `/api/v2/dicts/*`、`/public/merchant-config` | 字典 / 公开配置 |
  *
  * 门禁：`scripts/check-merchant-endpoints.mjs` 扫 pages/composables + `MERCHANT_ENDPOINT_PILOT_LITERALS`。
- * `utils/merchant-api.ts`：M3b 证据/导出/me；M3c 订单/争议/钱包/结算；余 → M3d。
+ * `utils/merchant-api.ts`：M3b 证据/导出/me；M3c 订单/争议/钱包；M3d 补货/分析/公开配置；余 → M3e。
  */
 export const API_PREFIX = '/api/v2' as const;
 
@@ -29,6 +29,7 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/orders/${encodeURIComponent(orderId)}/video`,
   /** 运行时字典 */
   dictsRuntime: `${API_PREFIX}/dicts/runtime`,
+  publicMerchantConfig: `${API_PREFIX}/public/merchant-config`,
   /** 商户 me / 工作台 */
   me: `${API_PREFIX}/merchant/me`,
   stats: `${API_PREFIX}/merchant/stats`,
@@ -57,6 +58,41 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/settlements/daily?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
   settlementsBatches: (from: string, to: string) =>
     `${API_PREFIX}/merchant/settlements/batches?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  /** 经营分析 */
+  analyticsOverview: (days: number) => `${API_PREFIX}/merchant/analytics/overview?days=${days}`,
+  analyticsSalesReports: `${API_PREFIX}/merchant/analytics/sales-reports`,
+  analyticsSkuSales: `${API_PREFIX}/merchant/analytics/sku-sales`,
+  analyticsVelocity: (deviceId: string) =>
+    `${API_PREFIX}/merchant/analytics/velocity?deviceId=${encodeURIComponent(deviceId)}`,
+  analyticsAiInsight: (days: number) => `${API_PREFIX}/merchant/analytics/ai-insight?days=${days}`,
+  analyticsExpirySummary: `${API_PREFIX}/merchant/analytics/expiry-summary`,
+  /** 税档 / 库存 */
+  taxProfile: `${API_PREFIX}/merchant/tax-profile`,
+  taxProfileByMerchant: (merchantId: string) =>
+    `${API_PREFIX}/merchant/tax-profile?merchantId=${encodeURIComponent(merchantId)}`,
+  inventoryLowStock: `${API_PREFIX}/merchant/inventory?lowStockOnly=true`,
+  /** 补货 JSON */
+  replenishmentSuggestions: (deviceId: string) =>
+    `${API_PREFIX}/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`,
+  replenishmentEfficiency: `${API_PREFIX}/merchant/replenishment/my-efficiency`,
+  replenishmentRequests: `${API_PREFIX}/merchant/replenishment/requests`,
+  replenishmentRequestEvidenceList: (requestId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/requests/${encodeURIComponent(String(requestId))}/evidence`,
+  replenishmentTasks: `${API_PREFIX}/merchant/replenishment/tasks`,
+  replenishmentTasksByStatus: (status: string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks?status=${encodeURIComponent(status)}`,
+  replenishmentDeviceAccess: (deviceId: string) =>
+    `${API_PREFIX}/merchant/replenishment/devices/${encodeURIComponent(deviceId)}/access`,
+  replenishmentDoorSession: (taskId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/door-session`,
+  replenishmentTaskLines: (taskId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/lines`,
+  replenishmentTaskCheckIn: (taskId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/check-in`,
+  replenishmentTaskOpenDoor: (taskId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/open-door`,
+  replenishmentTaskComplete: (taskId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/complete`,
   /** 补货证据上传/下载（非 JSON，仍走 Endpoints 防裸拼） */
   replenishmentTaskEvidence: (taskId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence`,
@@ -77,7 +113,7 @@ export const MerchantEndpoints = {
 
 /**
  * 试点：pages/composables 不得再出现这些字面量前缀。
- * 扩表时同步把对应路径迁入 MerchantEndpoints（见 M3b/M3c）。
+ * 扩表时同步把对应路径迁入 MerchantEndpoints（见 M3b/M3c/M3d）。
  */
 export const MERCHANT_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/merchant/orders',
@@ -89,5 +125,6 @@ export const MERCHANT_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/dicts/runtime',
   '/api/v2/public/merchant-config',
   '/api/v2/merchant/settlements',
-  '/api/v2/merchant/pricing/'
+  '/api/v2/merchant/pricing/',
+  '/api/v2/merchant/analytics/'
 ] as const;
