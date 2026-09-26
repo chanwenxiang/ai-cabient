@@ -171,6 +171,8 @@
 | 159 | consumer verify 用 as any 判 H5 | `import.meta as any` / `globalThis as any` | 弱类型口袋；条件编译更稳 | **必须**平台分支用 `#ifdef H5`；禁止为读 env 再 `as any`；进度 C8 done | `verify.vue` |
 | 160 | settleWithin 像 soft-fail | `.catch(() => null)` 易被改成 toast 空失败 | 孤儿开门宽限期故意吞错 | **必须**保留「失败/超时→null」；调用方必须续查 activeSession；禁止当 softFallback；进度 C11 done | `landing-session.ts`、`index.vue` adoptOrphanSession |
 | 161 | merchant 视频页拼绝对 URL | 页内 `API_BASE`+path，易与 Endpoints 脱节 | 媒体流旁路 JSON API | **必须**`merchantOrderVideoUrl` / `MerchantEndpoints.orderVideo`；禁止页内再拼 base；进度 M12 done | `order-video-url.ts`、`video.vue` |
+| 162 | consumer 视频页拼绝对 URL | 同 M12，双端漂移 | video 自拼 API_BASE | **必须**`consumerOrderVideoUrl` / `normalizeMediaUrl`；禁止页内再拼 base；api 拆分另开 C12b；进度 C12 首刀 done | `order-video-url.ts`、`video.vue` |
+| 163 | merchant-api 路径字面量堆肥 | 导出/证据/me 等散落 `/api/v2/merchant/...` | Endpoints 只覆盖试点 | **必须**新路径与证据/导出/me·stats·devices 进 `MerchantEndpoints`；余 JSON 续迁 M3c；进度 M3b 首刀 done | `api/endpoints.ts`、`merchant-api.ts` |
 
 ## 追加模板
 

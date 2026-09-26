@@ -71,9 +71,8 @@
 import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
-import { API_BASE_URL } from '@/config/api';
-import { ConsumerEndpoints } from '@/api/endpoints';
 import { downloadAuthedFile, getConsumerToken } from '@/utils/consumer-api';
+import { consumerOrderVideoUrl, normalizeMediaUrl } from '@/utils/order-video-url';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const src = ref('');
@@ -127,11 +126,7 @@ const metaLine = computed(() => {
 });
 
 function normalizeVideoUrl(url: string): string {
-  const trimmed = String(url || '').trim();
-  if (!trimmed) return '';
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  const base = API_BASE_URL.replace(/\/$/, '');
-  return trimmed.startsWith('/') ? base + trimmed : `${base}/${trimmed}`;
+  return normalizeMediaUrl(url);
 }
 
 function revokeBlob() {
@@ -148,7 +143,7 @@ async function loadOrderVideo(oid: string) {
   src.value = '';
   imageSrc.value = '';
   mediaKind.value = '';
-  const apiUrl = `${API_BASE_URL.replace(/\/$/, '')}${ConsumerEndpoints.orderVideo(oid)}`;
+  const apiUrl = consumerOrderVideoUrl(oid);
   copyTarget.value = apiUrl;
   const token = getConsumerToken();
   try {

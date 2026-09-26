@@ -28,7 +28,7 @@
 |----|--------|------|----------|----------|----------|
 | M1 | P0 | done | 主路径 `softFallback` 静默吞错 → 故障被当成「暂无数据」（对齐 admin D3） | `merchant-api.ts` `softFallback` = `promise.catch(() => fallback)` **无 toast**；`useReplenishmentList` tasks/devices/lowStock → `[]`；`business.vue` 五路 softFallback；对比 `useHomeWorkbench.softErr` **会 toast** | 2026-09-25：`utils/soft-fallback.ts` 必带 label+toast；补货**主列表**硬失败；其余调用点补中文 label；3 测 |
 | M2 | P0 | done | 钱包提现 / 争议 resolve 无前端金钱契约测（对齐 admin D5） | `WalletPage.vue` 提现；`disputes.vue` KEEP/WAIVE/CONFIRM；单测仅工具层，无 wallet/dispute money 测 | 2026-09-25：`money-ui-contracts.ts` + 8 测；WalletPage/disputes 接线 |
-| M3 | P1 | done | `merchantApi` 上帝模块：大量 `/api/v2` 字面量，无 `MerchantEndpoints` / 门禁 | `utils/merchant-api.ts` ~785 行；`video.vue` 另拼订单视频 URL；仅有 admin 端点门禁 | 2026-09-25：`api/endpoints.ts` + `check-merchant-endpoints`；修 video；`merchant-api` 批量迁入 → M3b |
+| M3 | P1 | done | `merchantApi` 上帝模块：大量 `/api/v2` 字面量，无 `MerchantEndpoints` / 门禁 | `utils/merchant-api.ts` ~785 行；`video.vue` 另拼订单视频 URL；仅有 admin 端点门禁 | 2026-09-25：Endpoints+门禁；2026-09-26 M3b 首刀：me/stats/devices、补货证据 up/down、导出 URL 迁入 `MerchantEndpoints`；余 JSON 路径续迁 → M3c |
 | M4 | P1 | done | 列表扇出 / 类 N+1：首页多路并行 + `openExceptions` 多页串行 | `useHomeWorkbench.fetchHomeDashboardBundle` 约 9 路；`openExceptions` OPEN+PROCESSING 各最多 3 页；补货详情证据逐文件 download | 2026-09-25：首页 `maxPages=1`；页内并行补页；`exception-pages` 3 测；证据下载 → M4b |
 | M5 | P1 | done | 补货页仍肥 + 壳层弱类型残留 | `replenishment.vue` ~1130 行（style 过半）；`useReplenishmentShell` `devices: Ref<Record<string, unknown>[]>`、`open: any` | 2026-09-25：devices→`MerchantDeviceInfo`；深链 `Task`；样式外置 `replenishment.page.css`（~1131→~605 行） |
 | M6 | P1 | done | `business.vue` 上帝页 + 静默 softFallback + 手写 `/100` 金钱展示 | ~948 行；load 五路 softFallback；多处 `(cents/100).toFixed(2)` 未统一 `fmtMoney` | 2026-09-26：`money`/客单/报损成本统一 `fmtMoney`；softFallback 已有中文 label（M1）；肥页拆分 → M6b |
@@ -44,7 +44,7 @@
 ## 建议首期切片
 
 ```
-M9 / C10b（easycom→package）→ M10b / M7b / M6b → M3b / M4b
+M9 / C10b（easycom→package）→ M10b / M7b / M6b → M3c / M4b
 ```
 
 **M1 首刀边界**：补货任务主列表 + 待办主列表；失败 → 可见 error-state / toast；**禁止** `[]` 伪装空。勿动履约写路径。  
@@ -54,7 +54,8 @@ M9 / C10b（easycom→package）→ M10b / M7b / M6b → M3b / M4b
 **M8 首刀边界**：deviceSettings 接 OpenAPI；merchantId 从柜机列表解析；**禁止**同 PR 大改货道写路径。  
 **M10 首刀边界**：禁空 catch + 样式外置；**禁止**同 PR 大拆要货写路径。  
 **M11 边界**：展示一律 `fmtMoney`；表单输入可保留裸元字符串。  
-**M12 边界**：视频绝对 URL 走 `merchantOrderVideoUrl`；媒体流可旁路 JSON request。
+**M12 边界**：视频绝对 URL 走 `merchantOrderVideoUrl`；媒体流可旁路 JSON request。  
+**M3b 边界**：证据/导出/me·stats·devices 进 Endpoints；**禁止**同 PR 扫完全部 merchant-api 字面量。
 
 ---
 

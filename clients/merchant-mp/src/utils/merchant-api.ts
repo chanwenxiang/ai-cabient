@@ -28,8 +28,14 @@ import {
   OPEN_EXCEPTIONS_DEFAULT_MAX_PAGES
 } from '@/utils/exception-pages';
 import { merchantOrderVideoUrl } from '@/utils/order-video-url';
+import { MerchantEndpoints } from '@/api/endpoints';
 
 export { merchantOrderVideoUrl } from '@/utils/order-video-url';
+
+/** 相对 MerchantEndpoints 路径 → 绝对 URL（上传/下载/导出）。 */
+function merchantAbsUrl(path: string): string {
+  return `${API_BASE_URL.replace(/\/$/, '')}${path}`;
+}
 
 const TOKEN_KEY = 'merchant_token';
 const USER_KEY = 'merchant_user_id';
@@ -351,7 +357,7 @@ export function uploadReplenishmentEvidenceFile(
   filePath: string
 ): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
   return uploadMerchantAuthedFile(
-    `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence`,
+    merchantAbsUrl(MerchantEndpoints.replenishmentTaskEvidence(taskId)),
     filePath
   );
 }
@@ -360,37 +366,39 @@ export function uploadReplenishmentRequestEvidenceFile(
   filePath: string
 ): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
   return uploadMerchantAuthedFile(
-    `${API_BASE_URL}/api/v2/merchant/replenishment/requests/evidence`,
+    merchantAbsUrl(MerchantEndpoints.replenishmentRequestEvidence),
     filePath
   );
 }
 
 /** Auth-aware download for evidence stream URLs (image tags cannot send Bearer). */
 export function downloadReplenishmentEvidenceFile(taskId: number, fileId: number): Promise<string> {
-  const url = `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence/${fileId}`;
-  return downloadAuthedFile(url);
+  return downloadAuthedFile(
+    merchantAbsUrl(MerchantEndpoints.replenishmentTaskEvidenceFile(taskId, fileId))
+  );
 }
 
 export function downloadReplenishmentRequestEvidenceFile(
   requestId: number,
   fileId: number
 ): Promise<string> {
-  const url = `${API_BASE_URL}/api/v2/merchant/replenishment/requests/${requestId}/evidence/${fileId}`;
-  return downloadAuthedFile(url);
+  return downloadAuthedFile(
+    merchantAbsUrl(MerchantEndpoints.replenishmentRequestEvidenceFile(requestId, fileId))
+  );
 }
 
 export const merchantApi = {
-  me: () => request<import('@aicabinet/shared-types').MerchantMe>('/api/v2/merchant/me'),
+  me: () => request<import('@aicabinet/shared-types').MerchantMe>(MerchantEndpoints.me),
   stats: () =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDashboardStatsDto>(
-      '/api/v2/merchant/stats'
+      MerchantEndpoints.stats
     ),
   trend: (days = 7) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantTrendDto>(
       `/api/v2/merchant/trend?days=${days}`
     ),
   devices: () =>
-    request<import('@aicabinet/shared-types').MerchantDeviceInfo[]>('/api/v2/merchant/devices'),
+    request<import('@aicabinet/shared-types').MerchantDeviceInfo[]>(MerchantEndpoints.devices),
   deviceSettings: (id: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDeviceSettingsDto>(
       `/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`
@@ -604,12 +612,9 @@ export const merchantApi = {
       import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').RevenueSplit>
     >(withQuery('/api/v2/merchant/revenue-splits', { page, size, status, from, to })),
   exportSettlementsUrl: (from: string, to: string) =>
-    `${API_BASE_URL}/api/v2/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-  exportOrdersUrl: (deviceId?: string) => {
-    const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
-    return `${API_BASE_URL}/api/v2/merchant/orders/export${q}`;
-  },
-  exportDeviceReportsUrl: () => `${API_BASE_URL}/api/v2/merchant/device-reports/export`,
+    merchantAbsUrl(MerchantEndpoints.settlementsExport(from, to)),
+  exportOrdersUrl: (deviceId?: string) => merchantAbsUrl(MerchantEndpoints.ordersExport(deviceId)),
+  exportDeviceReportsUrl: () => merchantAbsUrl(MerchantEndpoints.deviceReportsExport),
   /** 订单购物视频绝对 URL（页内禁止再拼 API_BASE + path） */
   orderVideoUrl: merchantOrderVideoUrl,
   replenishmentSuggestions: (deviceId: string) =>

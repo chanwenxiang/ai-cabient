@@ -14,7 +14,7 @@
  * | `/api/v2/dicts/*`、`/public/merchant-config` | 字典 / 公开配置 |
  *
  * 门禁：`scripts/check-merchant-endpoints.mjs` 扫 pages/composables + `MERCHANT_ENDPOINT_PILOT_LITERALS`。
- * `utils/merchant-api.ts` 首期不扫，路径迁移按域分批（M3b）。
+ * `utils/merchant-api.ts` 按域分批迁入（M3b 已迁 me/stats/devices/证据/导出；余 → M3c）。
  */
 export const API_PREFIX = '/api/v2' as const;
 
@@ -28,7 +28,27 @@ export const MerchantEndpoints = {
   orderVideo: (orderId: string) =>
     `${API_PREFIX}/merchant/orders/${encodeURIComponent(orderId)}/video`,
   /** 运行时字典 */
-  dictsRuntime: `${API_PREFIX}/dicts/runtime`
+  dictsRuntime: `${API_PREFIX}/dicts/runtime`,
+  /** 商户 me / 工作台 */
+  me: `${API_PREFIX}/merchant/me`,
+  stats: `${API_PREFIX}/merchant/stats`,
+  devices: `${API_PREFIX}/merchant/devices`,
+  /** 补货证据上传/下载（非 JSON，仍走 Endpoints 防裸拼） */
+  replenishmentTaskEvidence: (taskId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence`,
+  replenishmentTaskEvidenceFile: (taskId: number | string, fileId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence/${encodeURIComponent(String(fileId))}`,
+  replenishmentRequestEvidence: `${API_PREFIX}/merchant/replenishment/requests/evidence`,
+  replenishmentRequestEvidenceFile: (requestId: number | string, fileId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/requests/${encodeURIComponent(String(requestId))}/evidence/${encodeURIComponent(String(fileId))}`,
+  /** 导出（绝对 URL 由 merchant-api 拼 base） */
+  settlementsExport: (from: string, to: string) =>
+    `${API_PREFIX}/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  ordersExport: (deviceId?: string) => {
+    const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
+    return `${API_PREFIX}/merchant/orders/export${q}`;
+  },
+  deviceReportsExport: `${API_PREFIX}/merchant/device-reports/export`
 } as const;
 
 /**
