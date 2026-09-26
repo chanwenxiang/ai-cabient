@@ -275,6 +275,17 @@ import {
   playablePlaybackUrl
 } from '@/utils/dispute-list';
 import { mergeDisputeDetailRow, resolveDisputeDetailPermissions } from '@/utils/dispute-detail';
+import {
+  DISPUTE_REPLY_DENIED_MESSAGE,
+  DISPUTE_REPLY_PROMPT,
+  canStartDisputeClaim,
+  canStartDisputeResolve,
+  disputeActionErrorMessage,
+  disputeDeviceDetailUrl,
+  disputeOrderDetailUrl,
+  disputeResolveTypeLabels,
+  mergeClaimedDisputeDetail
+} from '@/utils/dispute-actions';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -513,27 +524,24 @@ async function onDetail(item: MerchantDisputeTicket | MerchantDisputeDetailView)
 }
 
 async function claimFromDetail() {
-  if (!detail.value?.ticketId || claiming.value) return;
+  if (!canStartDisputeClaim({ ticketId: detail.value?.ticketId, claiming: claiming.value })) return;
   claiming.value = true;
   try {
-    const ticket = await merchantApi.disputeClaim(detail.value.ticketId);
-    detail.value = { ...detail.value, ...ticket };
+    const ticket = await merchantApi.disputeClaim(detail.value!.ticketId!);
+    detail.value = mergeClaimedDisputeDetail(detail.value!, ticket);
     showSuccess('已认领');
     await load();
   } catch (e) {
-    showError(e instanceof Error ? e.message : '认领失败');
+    showError(disputeActionErrorMessage(e, '认领失败'));
   } finally {
     claiming.value = false;
   }
 }
 
 async function resolveFromDetail(type: MerchantDisputeResolutionType) {
-  if (!detail.value?.ticketId || resolving.value) return;
-  const labels = {
-    KEEP: displayLabel('dispute_resolution', 'KEEP'),
-    WAIVE: displayLabel('dispute_resolution', 'WAIVE'),
-    CONFIRM: displayLabel('dispute_resolution', 'CONFIRM')
-  };
+  if (!canStartDisputeResolve({ ticketId: detail.value?.ticketId, resolving: resolving.value }))
+    return;
+  const labels = disputeResolveTypeLabels(displayLabel);
   const ok = await showConfirm({
     title: labels[type],
     content: merchantDisputeResolveConfirmContent(type, labels[type])
@@ -542,12 +550,12 @@ async function resolveFromDetail(type: MerchantDisputeResolutionType) {
   resolving.value = true;
   try {
     const body = buildMerchantDisputeResolveBody({ resolutionType: type });
-    const res = await merchantApi.disputeResolve(detail.value.ticketId, body);
+    const res = await merchantApi.disputeResolve(detail.value!.ticketId!, body);
     showSuccess(res.message || displayLabel('dispute_status', 'RESOLVED'));
     detailVisible.value = false;
     await load();
   } catch (e) {
-    showError(e instanceof Error ? e.message : '结案失败');
+    showError(disputeActionErrorMessage(e, '结案失败'));
   } finally {
     resolving.value = false;
   }
@@ -563,9 +571,7 @@ function goOrderFromDetail() {
   const oid = detail.value?.orderId;
   detailVisible.value = false;
   if (oid) {
-    uni.navigateTo({
-      url: `/pages/order-detail/order-detail?orderId=${encodeURIComponent(oid)}`
-    });
+    uni.navigateTo({ url: disputeOrderDetailUrl(oid) });
   }
 }
 
@@ -587,7 +593,7 @@ async function loadMore() {
     pageIndex.value = page.pageIndex;
     hasMore.value = page.hasMore;
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载失败');
+    showError(disputeActionErrorMessage(e, '加载失败'));
   } finally {
     loadingMore.value = false;
   }
@@ -597,34 +603,24 @@ function goDeviceFromDetail() {
   const deviceId = detail.value?.deviceId;
   detailVisible.value = false;
   if (deviceId) {
-    uni.navigateTo({
-      url: `/pages/device-detail/device-detail?id=${encodeURIComponent(deviceId)}`
-    });
+    uni.navigateTo({ url: disputeDeviceDetailUrl(deviceId) });
   }
 }
 
 async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) {
   if (!canReply.value) {
-    showError('无回复权限');
+    showError(DISPUTE_REPLY_DENIED_MESSAGE);
     return;
   }
   if (!item.ticketId) return;
-  const body = await promptText({
-    title: '回复争议',
-    hint: '回复内容将同步给消费者与运营',
-    placeholder: '填写商户回复内容',
-    required: true,
-    requiredMessage: '请填写回复内容',
-    maxLength: 200,
-    testId: 'dispute-reply-prompt'
-  });
+  const body = await promptText({ ...DISPUTE_REPLY_PROMPT });
   if (body == null) return;
   try {
     await merchantApi.disputeReply(item.ticketId, body);
     showSuccess('已回复');
     await load();
   } catch (e) {
-    showError(e instanceof Error ? e.message : '回复失败');
+    showError(disputeActionErrorMessage(e, '回复失败'));
   }
 }
 </script>

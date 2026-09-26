@@ -32,7 +32,7 @@
 | M4 | P1 | done | 列表扇出 / 类 N+1：首页多路并行 + `openExceptions` 多页串行 | `useHomeWorkbench.fetchHomeDashboardBundle` 约 9 路；`openExceptions` OPEN+PROCESSING 各最多 3 页；补货详情证据逐文件 download | 2026-09-25：首页 `maxPages=1`；页内并行补页；`exception-pages` 3 测；证据下载 → M4b |
 | M5 | P1 | done | 补货页仍肥 + 壳层弱类型残留 | `replenishment.vue` ~1130 行（style 过半）；`useReplenishmentShell` `devices: Ref<Record<string, unknown>[]>`、`open: any` | 2026-09-25：devices→`MerchantDeviceInfo`；深链 `Task`；样式外置 `replenishment.page.css`（~1131→~605 行） |
 | M6 | P1 | done | `business.vue` 上帝页 + 静默 softFallback + 手写 `/100` 金钱展示 | ~948 行；load 五路 softFallback；多处 `(cents/100).toFixed(2)` 未统一 `fmtMoney` | 2026-09-26：fmtMoney；M6b：`business-display`；M6c：`business.page.css` + `business-tax` 表单校验/body + 测；load 编排仍页内 → 可续 M6d |
-| M7 | P1 | done | `disputes.vue` 上帝页；首屏 `size=100`；列表+详情+resolve 同文件 | ~839 行；`disputes(..., 0, 100)`；写路径无测 → M2 | 2026-09-26：PAGE_SIZE=50+样式；M7b：分页/SLA/详情合并/结案确认纯函数 + 测；resolve/reply/claim 仍页内 → M7c |
+| M7 | P1 | done | `disputes.vue` 上帝页；首屏 `size=100`；列表+详情+resolve 同文件 | ~839 行；`disputes(..., 0, 100)`；写路径无测 → M2 | 2026-09-26：PAGE_SIZE=50+样式；M7b：分页/SLA/详情；M7c：`dispute-actions` 认领/结案/回复门闩+导航 + 测；API/确认框仍页内 |
 | M8 | P2 | done | device-detail / 补货侧弱类型：`Record<string, unknown>` settings/devices | `merchant-api` deviceSettings；`useReplenishmentList` devices；slots PUT 无泛型 | 2026-09-26：settings/PATCH → OpenAPI DTO；`resolveMerchantIdForDevice`（修 settings 无 merchantId 门闩假死）+ 3 测；devices 已 `MerchantDeviceInfo`（M5）；slots PUT 已有泛型 |
 | M9 | P2 | open | 共享 UI 副本未切到 `shared-uni`（易再漂） | 本地 easycom 副本；同步脚本已有（C10）；直指 package → C10b | |
 | M10 | P2 | done | `request.vue` 仍大；draft/suggest softFallback；下拉 refresh 空 catch | ~856 行；`.catch(() => {})`；与补货域重叠未进 composable | 2026-09-26：去空 catch+样式外置；M10b：`request-draft` 纯函数（suggest/merge/orphan/sort）+ 3 测；写路径/证据仍页内 → M10c |
@@ -44,7 +44,7 @@
 ## 建议首期切片
 
 ```
-M9 / C10b（easycom→package，mp 风险知情延后）→ M7c → M4b / M10c
+M9 / C10b（easycom→package，mp 风险知情延后）→ M4b / M10c
 ```
 
 **M1 首刀边界**：补货任务主列表 + 待办主列表；失败 → 可见 error-state / toast；**禁止** `[]` 伪装空。勿动履约写路径。  
@@ -54,6 +54,7 @@ M9 / C10b（easycom→package，mp 风险知情延后）→ M7c → M4b / M10c
 **M6c 边界**：样式外置 + 税档表单纯函数；**禁止**同 PR 大拆 `load()`/图表编排（→ M6d）。  
 **M7 首刀边界**：`PAGE_SIZE≤50` + 样式外置 + 可播放 URL 纯函数；**禁止**同 PR 大改结案写路径（已有 M2 契约）。  
 **M7b 边界**：分页/SLA/详情合并/结案确认纯函数；**禁止**同 PR 挪 resolve/reply/claim（→ M7c）。  
+**M7c 边界**：认领/结案/回复门闩与导航纯函数；**禁止**同 PR 把 merchantApi 调用挪进 util（确认框/API 仍页内）。  
 **M8 首刀边界**：deviceSettings 接 OpenAPI；merchantId 从柜机列表解析；**禁止**同 PR 大改货道写路径。  
 **M10 首刀边界**：禁空 catch + 样式外置；**禁止**同 PR 大拆要货写路径。  
 **M10b 边界**：只抽草稿合并纯函数 + 单测；**禁止**同 PR 改提交/证据上传写路径。  

@@ -585,16 +585,22 @@ import {
   POLL_FAIL_WARN_AT,
   REVIEW_SESSION_KEY,
   SESSION_ACTIVE_STATES,
+  SESSION_POLL_MS,
+  abortSessionFallbackHint,
+  beginCabinetEntryGate,
   blockedDeviceLandingError,
+  classifyPollSessionState,
   concurrentEntryDecision,
   deviceStatusLabel,
   isAdoptableSession,
-  isCabinetIdInvalid,
   isNetworkishErrorMessage,
+  isTerminalSessionState,
   normalizeCabinetId,
   parseDeviceAvailability,
   pollErrorMessage,
+  sessionOpenDecision,
   settleWithin,
+  shouldResumeSessionPolling,
   sleep,
   withTimeout,
   type DeviceAvailability
@@ -750,7 +756,6 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let pollInFlight = false;
 /** 连续轮询失败次数；达到阈值后升级弱网提示 */
 let pollFailStreak = 0;
-const SESSION_POLL_MS = 2000;
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let prepResolve: ((ok: boolean) => void) | null = null;
@@ -1206,8 +1211,8 @@ async function handleSessionOpenResult(
   sessionResult: PromiseSettledResult<SessionDto>,
   pendingCreate?: Promise<SessionDto>
 ): Promise<boolean> {
-  if (sessionResult.status === 'fulfilled') {
-    adoptSession(sessionResult.value);
+  if (sessionOpenDecision(sessionResult.status) === 'adopt_fulfilled') {
+    adoptSession((sessionResult as PromiseFulfilledResult<SessionDto>).value);
     return true;
   }
   if (await adoptOrphanSession(cabinetId, { pendingCreate })) return true;
@@ -1258,9 +1263,19 @@ function rejectEntryWhenSessionActive(cabinetId: string): boolean {
 }
 
 function beginCabinetEntry(cabinetId: string, scanChannel?: string | null): boolean {
-  if (!cabinetId || opening.value || enteringFlow.value) return false;
-  if (rejectEntryWhenSessionActive(cabinetId)) return false;
-  if (isCabinetIdInvalid(cabinetId)) {
+  const concurrent = concurrentEntryDecision(sessionActive.value, deviceId.value || '', cabinetId);
+  const gate = beginCabinetEntryGate({
+    cabinetId,
+    opening: opening.value,
+    enteringFlow: enteringFlow.value,
+    concurrent
+  });
+  if (gate === 'busy') return false;
+  if (gate === 'concurrent_blocked') {
+    rejectEntryWhenSessionActive(cabinetId);
+    return false;
+  }
+  if (gate === 'invalid_cabinet_id') {
     // 编号形态允许字母+连字符（CAB-001），文案写「数字编号」会与校验规则矛盾。
     setLandingError('柜机编号无效，请扫描柜门二维码或核对编号后重试。', 'device_not_found');
     lastFailedDeviceId.value = '';
@@ -2127,8 +2142,7 @@ function stopOpeningCountdown() {
  * startPoll() 自身先 stopPoll()，重复调用只是重启定时器，幂等安全。
  */
 function resumeSessionPollingIfActive(): boolean {
-  if (!sessionId.value) return false;
-  if (!SESSION_ACTIVE_STATES.includes(state.value)) return false;
+  if (!shouldResumeSessionPolling(sessionId.value, state.value)) return false;
   startPoll();
   return true;
 }
@@ -2143,7 +2157,7 @@ async function restoreActiveSession() {
   try {
     const s = saved ? await consumerApi.getSession(saved) : await consumerApi.activeSession();
     if (!s) return;
-    if (['COMPLETED', 'FAILED', 'CANCELLED', 'DISPUTED'].includes(s.state)) {
+    if (isTerminalSessionState(s.state)) {
       clearActiveSession();
       clearOpenAttempt();
       if (s.state === 'DISPUTED') {
@@ -2215,7 +2229,8 @@ async function pollSessionOnce() {
     applySessionView(s);
     pollFailStreak = 0;
     pollError.value = '';
-    if (s.state === 'SHOPPING') {
+    const outcome = classifyPollSessionState(s.state);
+    if (outcome.kind === 'shopping') {
       await refreshLiveCart();
     } else {
       liveCartQty.value = 0;
@@ -2223,14 +2238,13 @@ async function pollSessionOnce() {
       liveCartItems.value = [];
       cartSheetVisible.value = false;
     }
-    if (s.state === 'COMPLETED' || s.state === 'DISPUTED') {
+    if (outcome.kind === 'finish') {
       stopPoll();
       const sid = sessionId.value;
-      await finishSession(s.state, sid);
-    } else if (['FAILED', 'CANCELLED'].includes(s.state)) {
+      await finishSession(outcome.state, sid);
+    } else if (outcome.kind === 'abort') {
       stopPoll();
-      const hint =
-        sessionStateHint(s.state) || (s.state === 'CANCELLED' ? '会话已取消' : '购物未完成');
+      const hint = sessionStateHint(outcome.state) || abortSessionFallbackHint(outcome.state);
       clearActiveSession();
       clearOpenAttempt();
       clearSessionUi();

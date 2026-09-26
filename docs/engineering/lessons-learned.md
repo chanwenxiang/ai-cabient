@@ -187,6 +187,8 @@
 | 175 | 鉴权下载头埋在 downloadAuthedFile | 401/2xx 分支难单测 | consumer-api 内联 | **必须**`consumer-download` 纯函数；进度 C12c done | `consumer-download.ts` |
 | 176 | business 样式/税档埋页 | 350 行 scoped + 税档校验难单测 | M6b 只展示公式 | **必须**`business.page.css` + `business-tax`；禁止同 PR 大拆 load；进度 M6c done | `business.page.css`、`business-tax.ts` |
 | 177 | 申诉弹层模板双份 | order-detail/result 壳漂移 | C6b 只收口文案 | **必须**`OrderAppealSheet` + surface 修饰；partial 用 slot；禁止同 PR 挪提交写路径；进度 C6c done | `order-appeal-sheet.vue` |
+| 178 | 争议结案写路径门闩埋页 | 认领/结案/回复难单测 | M7b 只列表详情 | **必须**`dispute-actions` 门闩+导航；API/确认框仍页内；进度 M7c done | `dispute-actions.ts` |
+| 179 | 开门轮询编排决策埋 index | 终态/恢复分支难回归 | C5b 只常量与可用性 | **必须**延展 `landing-session` 编排决策；禁止同 PR 挪定时器/createSession；进度 C5c done | `landing-session.ts` |
 
 ## 追加模板
 

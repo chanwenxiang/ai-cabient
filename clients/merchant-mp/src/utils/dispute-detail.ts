@@ -1,6 +1,6 @@
 /**
  * 争议详情合并与权限投影（debt-tracker M7b）。
- * 纯函数：禁止改写 resolve/reply/claim 写路径。
+ * 认领/结案/回复门闩见 `dispute-actions`（M7c）。
  */
 import { canReplyMerchantDispute, canResolveMerchantDispute } from '@/utils/money-ui-contracts';
 

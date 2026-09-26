@@ -1,6 +1,7 @@
 /**
- * 落地页会话/开门纯逻辑（debt-tracker C5 → C5b）。
+ * 落地页会话/开门纯逻辑（debt-tracker C5 → C5b → C5c）。
  * 禁止把 UI 状态写进本模块；index.vue 只改 import，不改布局/视觉。
+ * C5c：轮询/开门编排决策纯函数；定时器与 API 调用仍在页内。
  */
 import type { OpenErrorKind } from '@aicabinet/shared-uni/format';
 
@@ -37,6 +38,8 @@ export const ORPHAN_GRACE_MS = 5000;
 export const ORPHAN_ADOPT_BACKOFF_MS: readonly number[] = [0, 1000, 2000];
 export const OPEN_TIMEOUT_MS = 20_000;
 export const POLL_FAIL_WARN_AT = 3;
+/** 会话状态轮询间隔（ms）。 */
+export const SESSION_POLL_MS = 2000;
 
 export function normalizeCabinetId(id: string): string {
   return id.trim().toUpperCase();
@@ -222,4 +225,64 @@ export function blockedDeviceLandingError(
     };
   }
   return { kind: 'other', msg: fallbackStatusText, toastTitle: '暂时无法开门' };
+}
+
+export function isTerminalSessionState(
+  state: string | null | undefined,
+  terminal: readonly string[] = SESSION_TERMINAL_STATES
+): boolean {
+  return terminal.includes(String(state || ''));
+}
+
+/** C-1：本地已有进行中会话时是否应恢复轮询（不含 startPoll 副作用）。 */
+export function shouldResumeSessionPolling(
+  sessionId: string | null | undefined,
+  state: string | null | undefined,
+  active: readonly string[] = SESSION_ACTIVE_STATES
+): boolean {
+  return Boolean(sessionId) && active.includes(String(state || ''));
+}
+
+export type PollSessionOutcome =
+  | { kind: 'shopping' }
+  | { kind: 'active_other' }
+  | { kind: 'finish'; state: 'COMPLETED' | 'DISPUTED' }
+  | { kind: 'abort'; state: 'FAILED' | 'CANCELLED' };
+
+/** 单次 getSession 后的分支决策（不含 API / 定时器）。 */
+export function classifyPollSessionState(state: string | null | undefined): PollSessionOutcome {
+  const s = String(state || '').toUpperCase();
+  if (s === 'SHOPPING') return { kind: 'shopping' };
+  if (s === 'COMPLETED' || s === 'DISPUTED') return { kind: 'finish', state: s };
+  if (s === 'FAILED' || s === 'CANCELLED') return { kind: 'abort', state: s };
+  return { kind: 'active_other' };
+}
+
+/** 终态会话中止时的兜底提示（优先用 sessionStateHint）。 */
+export function abortSessionFallbackHint(state: 'FAILED' | 'CANCELLED'): string {
+  return state === 'CANCELLED' ? '会话已取消' : '购物未完成';
+}
+
+export type BeginCabinetEntryGate = 'ok' | 'busy' | 'concurrent_blocked' | 'invalid_cabinet_id';
+
+/**
+ * 开门入口门闩（不含 toast / 写 entryChannel）。
+ * concurrent 由 concurrentEntryDecision 算出后传入。
+ */
+export function beginCabinetEntryGate(input: {
+  cabinetId: string;
+  opening: boolean;
+  enteringFlow: boolean;
+  concurrent: ConcurrentEntryDecision;
+}): BeginCabinetEntryGate {
+  if (!input.cabinetId || input.opening || input.enteringFlow) return 'busy';
+  if (input.concurrent !== 'allow') return 'concurrent_blocked';
+  if (isCabinetIdInvalid(input.cabinetId)) return 'invalid_cabinet_id';
+  return 'ok';
+}
+
+export type SessionOpenDecision = 'adopt_fulfilled' | 'try_orphan';
+
+export function sessionOpenDecision(resultStatus: 'fulfilled' | 'rejected'): SessionOpenDecision {
+  return resultStatus === 'fulfilled' ? 'adopt_fulfilled' : 'try_orphan';
 }

@@ -4,21 +4,28 @@ import {
   ORPHAN_GRACE_MS,
   POLL_FAIL_WARN_AT,
   SESSION_ACTIVE_STATES,
+  SESSION_POLL_MS,
   SESSION_TERMINAL_STATES,
+  abortSessionFallbackHint,
+  beginCabinetEntryGate,
   blockedDeviceLandingError,
+  classifyPollSessionState,
   concurrentEntryDecision,
   deviceStatusLabel,
   isAdoptableSession,
   isCabinetIdInvalid,
   isNetworkishErrorMessage,
+  isTerminalSessionState,
   normalizeCabinetId,
   parseDeviceAvailability,
   pollErrorMessage,
+  sessionOpenDecision,
   settleWithin,
+  shouldResumeSessionPolling,
   withTimeout
 } from './landing-session';
 
-describe('landing-session · C5/C5b', () => {
+describe('landing-session · C5/C5b/C5c', () => {
   it('normalizeCabinetId 去空白并大写', () => {
     expect(normalizeCabinetId('  cab-01 ')).toBe('CAB-01');
   });
@@ -94,5 +101,58 @@ describe('landing-session · C5/C5b', () => {
     await expect(pending).rejects.toThrow('超时了');
     vi.useRealTimers();
     await expect(withTimeout(Promise.resolve('ok'), 50, '超时了')).resolves.toBe('ok');
+  });
+
+  it('C5c：轮询/开门编排决策', () => {
+    expect(SESSION_POLL_MS).toBe(2000);
+    expect(isTerminalSessionState('COMPLETED')).toBe(true);
+    expect(isTerminalSessionState('SHOPPING')).toBe(false);
+    expect(shouldResumeSessionPolling('s1', 'SHOPPING')).toBe(true);
+    expect(shouldResumeSessionPolling('', 'SHOPPING')).toBe(false);
+    expect(classifyPollSessionState('SHOPPING').kind).toBe('shopping');
+    expect(classifyPollSessionState('COMPLETED')).toEqual({
+      kind: 'finish',
+      state: 'COMPLETED'
+    });
+    expect(classifyPollSessionState('CANCELLED')).toEqual({
+      kind: 'abort',
+      state: 'CANCELLED'
+    });
+    expect(abortSessionFallbackHint('CANCELLED')).toBe('会话已取消');
+    expect(abortSessionFallbackHint('FAILED')).toBe('购物未完成');
+    expect(
+      beginCabinetEntryGate({
+        cabinetId: 'CAB-01',
+        opening: false,
+        enteringFlow: false,
+        concurrent: 'allow'
+      })
+    ).toBe('ok');
+    expect(
+      beginCabinetEntryGate({
+        cabinetId: 'CAB-01',
+        opening: true,
+        enteringFlow: false,
+        concurrent: 'allow'
+      })
+    ).toBe('busy');
+    expect(
+      beginCabinetEntryGate({
+        cabinetId: 'CAB-01',
+        opening: false,
+        enteringFlow: false,
+        concurrent: 'other_cabinet'
+      })
+    ).toBe('concurrent_blocked');
+    expect(
+      beginCabinetEntryGate({
+        cabinetId: 'X',
+        opening: false,
+        enteringFlow: false,
+        concurrent: 'allow'
+      })
+    ).toBe('invalid_cabinet_id');
+    expect(sessionOpenDecision('fulfilled')).toBe('adopt_fulfilled');
+    expect(sessionOpenDecision('rejected')).toBe('try_orphan');
   });
 });
