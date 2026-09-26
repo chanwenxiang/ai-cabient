@@ -314,6 +314,13 @@ import {
   mapTaxProfileToForm,
   taxProfileFormError
 } from '@/utils/business-tax';
+import {
+  BUSINESS_BUNDLE_HARD_FAIL_MESSAGE,
+  businessLoadErrorMessage,
+  coalesceBusinessBundle,
+  isStaleBusinessLoad,
+  shouldShowBusinessFullLoading
+} from '@/utils/business-load';
 
 // O5：把**按需注册**的 echarts 实例注入 uni-echarts 组件。文档允许由 Vite 插件代劳，
 // 这里显式调用是为了不依赖插件的隐式行为（插件失效时图表会静默不渲染，极难排查）。
@@ -467,11 +474,13 @@ async function ensureAccess() {
 async function load(soft = false) {
   const seq = ++loadSeq;
   if (!(await ensureAccess())) {
-    if (seq === loadSeq) loading.value = false;
+    if (!isStaleBusinessLoad(seq, loadSeq)) loading.value = false;
     return;
   }
-  if (seq !== loadSeq) return;
-  if (!soft || !analytics.value.topSkus?.length) loading.value = true;
+  if (isStaleBusinessLoad(seq, loadSeq)) return;
+  if (shouldShowBusinessFullLoading(soft, analytics.value.topSkus?.length || 0)) {
+    loading.value = true;
+  }
   error.value = '';
   try {
     const [a, s, ai, ex, reports] = await Promise.all([
@@ -481,22 +490,28 @@ async function load(soft = false) {
       softFallback(merchantApi.expirySummary(), null, '效期汇总'),
       softFallback(merchantApi.deviceReports(), [] as OpenApiMerchantDeviceReportDto[], '柜机报表')
     ]);
-    if (seq !== loadSeq) return;
-    if (!a && !s) {
-      error.value = '经营数据加载失败';
+    if (isStaleBusinessLoad(seq, loadSeq)) return;
+    const merged = coalesceBusinessBundle({
+      analytics: a,
+      settlement: s,
+      prevAnalytics: analytics.value,
+      prevSettlement: settlement.value
+    });
+    if (merged.hardFail) {
+      error.value = BUSINESS_BUNDLE_HARD_FAIL_MESSAGE;
       return;
     }
-    analytics.value = a || analytics.value;
-    settlement.value = s || settlement.value;
+    analytics.value = merged.analytics;
+    settlement.value = merged.settlement;
     aiInsight.value = ai;
     expirySummary.value = ex;
     deviceReports.value = reports || [];
     await Promise.all([loadTaxProfile(), loadSalesReports()]);
   } catch (e) {
-    if (seq !== loadSeq) return;
-    error.value = e instanceof Error ? e.message : '加载失败';
+    if (isStaleBusinessLoad(seq, loadSeq)) return;
+    error.value = businessLoadErrorMessage(e);
   } finally {
-    if (seq === loadSeq) loading.value = false;
+    if (!isStaleBusinessLoad(seq, loadSeq)) loading.value = false;
   }
 }
 

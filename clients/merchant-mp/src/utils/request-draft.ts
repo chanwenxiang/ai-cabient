@@ -1,5 +1,6 @@
 /**
  * 要货申请草稿行合并（debt-tracker M10b）。
+ * 提交/证据门闩见 `request-submit`（M10c）。
  * 纯函数：货道 + 补货建议 → DraftLine；禁止依赖 uni / merchantApi。
  */
 import type { DeviceSlot, OpenApiReplenishmentSuggestDto } from '@aicabinet/shared-types';

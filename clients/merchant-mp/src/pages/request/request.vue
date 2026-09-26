@@ -197,6 +197,19 @@ import {
   suggestReasonLabel,
   type RequestDraftLine
 } from '@/utils/request-draft';
+import {
+  REQUEST_EVIDENCE_MAX,
+  applyAdjustDraftQty,
+  applyToggleDraftLine,
+  buildSubmitReplenishmentRequestBody,
+  canAddRequestEvidence,
+  canGoReplenishFromRequest,
+  canStartRequestSubmit,
+  evidencePreviewUrls,
+  remainingEvidenceSlots,
+  requestActionErrorMessage,
+  selectedRequestLines
+} from '@/utils/request-submit';
 
 type DraftLine = RequestDraftLine;
 
@@ -370,43 +383,37 @@ async function loadDraft() {
 }
 
 function toggleLine(line: DraftLine) {
-  line.selected = !line.selected;
-  if (line.selected && line.qty <= 0) {
-    line.qty = line.suggestQty > 0 ? line.suggestQty : 0;
-    if (line.qty <= 0) {
-      showError('请填写要货数量');
-    }
-  }
+  const toast = applyToggleDraftLine(line);
+  if (toast) showError(toast);
 }
 
 function adjustQty(line: DraftLine, delta: number) {
-  const next = Math.max(0, (line.qty || 0) + delta);
-  line.qty = next;
-  if (next > 0) line.selected = true;
-  else line.selected = false;
+  applyAdjustDraftQty(line, delta);
 }
 
 async function submit() {
-  if (!canSubmit.value || submitting.value) return;
-  const deviceId = selectedDeviceId.value;
-  const lines = draftLines.value
-    .filter((l) => l.selected && l.qty > 0)
-    .map((l) => ({ skuId: l.skuId, requestedQty: l.qty }));
-  if (!lines.length) {
+  const lines = selectedRequestLines(draftLines.value);
+  const gate = canStartRequestSubmit({
+    canSubmit: canSubmit.value,
+    submitting: submitting.value,
+    lineCount: lines.length
+  });
+  if (gate === 'blocked') return;
+  if (gate === 'no_lines') {
     showError('请选择要货商品');
     return;
   }
+  const deviceId = selectedDeviceId.value;
   submitting.value = true;
   try {
-    const evidenceFileIds = evidenceItems.value
-      .map((item) => item.fileId)
-      .filter((id): id is number => typeof id === 'number' && id > 0);
-    const created = await merchantApi.submitReplenishmentRequest({
-      deviceId,
-      notes: notes.value.trim() || undefined,
-      lines,
-      evidenceFileIds: evidenceFileIds.length ? evidenceFileIds : undefined
-    });
+    const created = await merchantApi.submitReplenishmentRequest(
+      buildSubmitReplenishmentRequestBody({
+        deviceId,
+        notes: notes.value,
+        lines,
+        evidenceItems: evidenceItems.value
+      })
+    );
     showSuccess(`已提交 #${created.requestId}`);
     notes.value = '';
     evidenceItems.value = [];
@@ -414,21 +421,25 @@ async function submit() {
     listStatus.value = 'SUBMITTED';
     await loadRequests();
   } catch (e) {
-    showError(e instanceof Error ? e.message : '提交失败');
+    showError(requestActionErrorMessage(e, '提交失败'));
   } finally {
     submitting.value = false;
   }
 }
 
 async function addEvidence() {
-  if (!canRequest.value) return;
-  if (evidenceItems.value.length >= 5) {
-    showError('最多 5 张');
+  const gate = canAddRequestEvidence({
+    canRequest: canRequest.value,
+    currentCount: evidenceItems.value.length
+  });
+  if (gate === 'denied') return;
+  if (gate === 'full') {
+    showError(`最多 ${REQUEST_EVIDENCE_MAX} 张`);
     return;
   }
   const paths = await new Promise<string[]>((resolve) => {
     uni.chooseImage({
-      count: 5 - evidenceItems.value.length,
+      count: remainingEvidenceSlots(evidenceItems.value.length),
       sizeType: ['compressed'],
       sourceType: ['album', 'camera'],
       success: (res) => {
@@ -444,14 +455,14 @@ async function addEvidence() {
       const uploaded = await merchantApi.uploadReplenishmentRequestEvidence(path);
       evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
     } catch (e) {
-      showError(e instanceof Error ? e.message : '上传失败');
+      showError(requestActionErrorMessage(e, '上传失败'));
       break;
     }
   }
 }
 
 function previewEvidence(index: number) {
-  const urls = evidenceItems.value.map((i) => i.localPath).filter(Boolean);
+  const urls = evidencePreviewUrls(evidenceItems.value);
   if (!urls.length) return;
   uni.previewImage({ urls, current: urls[index] || urls[0] });
 }
@@ -467,7 +478,7 @@ async function loadRequests() {
     requests.value = rows;
   } catch (e) {
     if (seq !== listSeq) return;
-    listError.value = e instanceof Error ? e.message : '加载失败';
+    listError.value = requestActionErrorMessage(e, '加载失败');
     requests.value = [];
   } finally {
     if (seq === listSeq) listLoading.value = false;
@@ -479,7 +490,7 @@ function formatTime(value?: string) {
 }
 
 function canGoReplenish(req: OpenApiMerchantReplenishmentRequestDto) {
-  return req.status === 'ACCEPTED' && !!req.replenishmentTaskId;
+  return canGoReplenishFromRequest(req);
 }
 
 function onRequestCard(req: OpenApiMerchantReplenishmentRequestDto) {
