@@ -28,7 +28,7 @@ import {
   OPEN_EXCEPTIONS_DEFAULT_MAX_PAGES
 } from '@/utils/exception-pages';
 import { merchantOrderVideoUrl } from '@/utils/order-video-url';
-import { MerchantEndpoints } from '@/api/endpoints';
+import { AuthEndpoints, MerchantEndpoints } from '@/api/endpoints';
 
 export { merchantOrderVideoUrl } from '@/utils/order-video-url';
 
@@ -263,7 +263,7 @@ export function request<T>(
 
 export function merchantLogin(phone: string, password: string) {
   return request<LoginResponse>(
-    '/api/v2/auth/merchant-password-login',
+    AuthEndpoints.merchantPasswordLogin,
     'POST',
     { phoneNumber: phone, password },
     false
@@ -271,7 +271,7 @@ export function merchantLogin(phone: string, password: string) {
     applyLoginSession(data);
     await sharedLoadRuntimeDict({
       getToken: getToken,
-      fetchRuntime: () => request('/api/v2/dicts/runtime', 'GET')
+      fetchRuntime: () => request(MerchantEndpoints.dictsRuntime, 'GET')
     });
     return data;
   });
@@ -583,29 +583,29 @@ export const merchantApi = {
     ),
   settlements: () =>
     request<import('@aicabinet/shared-types').MerchantSettlementOverview>(
-      '/api/v2/merchant/settlements/overview'
+      MerchantEndpoints.settlementsOverview
     ),
   lineWallet: () =>
     request<import('@aicabinet/shared-types').OpenApiLineWalletOverviewDto>(
-      '/api/v2/merchant/line-wallet'
+      MerchantEndpoints.lineWallet
     ),
   lineWalletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
-    request('/api/v2/merchant/line-wallet/withdraw', 'POST', body),
+    request(MerchantEndpoints.lineWalletWithdraw, 'POST', body),
   /** 多商户绑定时可指定 merchantId（后端 merchantOverview 校验归属） */
   wallet: (merchantId?: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantWalletOverviewDto>(
-      withQuery('/api/v2/merchant/wallet', { merchantId })
+      withQuery(MerchantEndpoints.wallet, { merchantId })
     ),
   /** 多商户绑定时必须显式带 merchantId，否则后端 400「请指定提现商户」（H53） */
   walletWithdraw: (body: { amountCents: number; requestNo?: string; merchantId?: string }) =>
-    request('/api/v2/merchant/wallet/withdraw', 'POST', body),
+    request(MerchantEndpoints.walletWithdraw, 'POST', body),
   dailySettlements: (from: string, to: string) =>
     request<import('@aicabinet/shared-types').MerchantDailySettlement[]>(
-      `/api/v2/merchant/settlements/daily?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+      MerchantEndpoints.settlementsDaily(from, to)
     ),
   settlementBatches: (from: string, to: string) =>
     request<import('@aicabinet/shared-types').MerchantSettlementBatch[]>(
-      `/api/v2/merchant/settlements/batches?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+      MerchantEndpoints.settlementsBatches(from, to)
     ),
   revenueSplits: (page = 0, size = 50, status?: string, from?: string, to?: string) =>
     request<
@@ -738,7 +738,7 @@ export const merchantApi = {
       import('@aicabinet/shared-types').PageResult<
         import('@aicabinet/shared-types').OpenApiMerchantDisputeSummaryDto
       >
-    >(withQuery('/api/v2/merchant/disputes', { page, size, status })),
+    >(withQuery(MerchantEndpoints.disputes, { page, size, status })),
   orders: (
     opts: {
       deviceId?: string;
@@ -756,7 +756,7 @@ export const merchantApi = {
         import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant
       >
     >(
-      withQuery('/api/v2/merchant/orders', {
+      withQuery(MerchantEndpoints.orders, {
         page,
         size,
         deviceId,
@@ -769,15 +769,15 @@ export const merchantApi = {
   },
   orderDetail: (orderId: string) =>
     request<import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant>(
-      `/api/v2/merchant/orders/${encodeURIComponent(orderId)}`
+      MerchantEndpoints.orderDetail(orderId)
     ),
   disputeDetail: (ticketId: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDisputeDetailDto>(
-      `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}`
+      MerchantEndpoints.disputeDetail(ticketId)
     ),
   disputeReply: (ticketId: string, body: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDisputeDetailDto>(
-      `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/reply`,
+      MerchantEndpoints.disputeReply(ticketId),
       'POST',
       { body }
     ),
@@ -790,13 +790,13 @@ export const merchantApi = {
     }
   ) =>
     request<{ message?: string; resolutionType?: string }>(
-      `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/resolve`,
+      MerchantEndpoints.disputeResolve(ticketId),
       'POST',
       body
     ),
   disputeClaim: (ticketId: string) =>
     request<import('@aicabinet/shared-types').OpenApiDisputeTicketDto>(
-      `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/claim`,
+      MerchantEndpoints.disputeClaim(ticketId),
       'POST'
     ),
   notifications: (limit = 50) =>

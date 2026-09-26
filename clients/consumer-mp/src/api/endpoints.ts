@@ -18,12 +18,20 @@
  * | `/api/v2/dicts/*` | 运行时字典 |
  *
  * 门禁：`scripts/check-consumer-endpoints.mjs` 扫 pages/composables + `CONSUMER_ENDPOINT_PILOT_LITERALS`。
- * `utils/consumer-api.ts` 首期不扫，路径迁移按域分批（C2b）。
+ * `utils/consumer-api.ts`：C2b 已迁 auth/account/payment/orders/sessions；余营销/会员 → C2c。
  */
 export const API_PREFIX = '/api/v2' as const;
 
 /** 鉴权相关（与 ConsumerEndpoints 并列）。 */
 export const AuthEndpoints = {
+  serverBoot: `${API_PREFIX}/auth/server-boot`,
+  passwordLogin: `${API_PREFIX}/auth/password-login`,
+  login: `${API_PREFIX}/auth/login`,
+  wxLogin: `${API_PREFIX}/auth/wx-login`,
+  alipayLogin: `${API_PREFIX}/auth/alipay/login`,
+  wxH5Login: `${API_PREFIX}/auth/wx-h5-login`,
+  captcha: `${API_PREFIX}/auth/captcha`,
+  smsCode: (query: string) => `${API_PREFIX}/auth/sms-code?${query}`,
   logout: `${API_PREFIX}/auth/logout`
 } as const;
 
@@ -31,7 +39,51 @@ export const ConsumerEndpoints = {
   /** 订单购物视频（旁路 fetch / download，禁止页内裸拼） */
   orderVideo: (orderId: string) => `${API_PREFIX}/orders/${encodeURIComponent(orderId)}/video`,
   /** 运行时字典 */
-  dictsRuntime: `${API_PREFIX}/dicts/runtime`
+  dictsRuntime: `${API_PREFIX}/dicts/runtime`,
+  /** 账户 / 充值 */
+  account: `${API_PREFIX}/account`,
+  accountVerify: `${API_PREFIX}/account/verify`,
+  accountTransactions: (page: number, size: number) =>
+    `${API_PREFIX}/account/transactions?page=${page}&size=${size}`,
+  payscoreSign: `${API_PREFIX}/account/payscore/sign`,
+  alipayAgreementSign: `${API_PREFIX}/account/alipay-agreement/sign`,
+  payContractUnsign: `${API_PREFIX}/account/pay-contract/unsign`,
+  payPreferred: `${API_PREFIX}/account/pay-preferred`,
+  balanceRefunds: `${API_PREFIX}/account/balance-refunds`,
+  rechargePrepay: `${API_PREFIX}/payment/recharge/prepay`,
+  rechargeOrder: (orderId: string) =>
+    `${API_PREFIX}/payment/recharge/${encodeURIComponent(orderId)}`,
+  rechargeCancel: (orderId: string) =>
+    `${API_PREFIX}/payment/recharge/${encodeURIComponent(orderId)}/cancel`,
+  recharges: (page: number, size: number) =>
+    `${API_PREFIX}/payment/recharges?page=${page}&size=${size}`,
+  mockRechargeSuccess: (orderId: string) =>
+    `${API_PREFIX}/dev/payment/recharge/${encodeURIComponent(orderId)}/mock-success`,
+  /** 会话 */
+  sessions: `${API_PREFIX}/sessions`,
+  sessionsActive: `${API_PREFIX}/sessions/active`,
+  session: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}`,
+  sessionCancel: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}/cancel`,
+  sessionCart: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}/cart`,
+  sessionDemoClose: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}/demo-close`,
+  sessionOrder: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}/order`,
+  sessionLiveCart: (sessionId: string) =>
+    `${API_PREFIX}/sessions/${encodeURIComponent(sessionId)}/live-cart`,
+  /** 订单 */
+  orders: (page: number, size: number) => `${API_PREFIX}/orders?page=${page}&size=${size}`,
+  ordersPendingCount: `${API_PREFIX}/orders/pending-count`,
+  orderDetail: (orderId: string) => `${API_PREFIX}/orders/${orderId}`,
+  orderPay: (orderId: string) => `${API_PREFIX}/orders/${encodeURIComponent(orderId)}/pay`,
+  orderRefund: (orderId: string) => `${API_PREFIX}/orders/${encodeURIComponent(orderId)}/refund`,
+  orderInvoice: (orderId: string) => `${API_PREFIX}/orders/${encodeURIComponent(orderId)}/invoice`,
+  /** 争议 */
+  disputes: `${API_PREFIX}/disputes`,
+  disputesEvidence: `${API_PREFIX}/disputes/evidence`,
+  disputesMine: `${API_PREFIX}/disputes/mine`,
+  disputesMineDetail: (query?: string) =>
+    query ? `${API_PREFIX}/disputes/mine/detail?${query}` : `${API_PREFIX}/disputes/mine/detail`,
+  /** 券（开门选券） */
+  couponsUnused: `${API_PREFIX}/coupons?status=UNUSED`
 } as const;
 
 /**

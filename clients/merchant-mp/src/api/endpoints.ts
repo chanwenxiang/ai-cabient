@@ -14,7 +14,7 @@
  * | `/api/v2/dicts/*`、`/public/merchant-config` | 字典 / 公开配置 |
  *
  * 门禁：`scripts/check-merchant-endpoints.mjs` 扫 pages/composables + `MERCHANT_ENDPOINT_PILOT_LITERALS`。
- * `utils/merchant-api.ts` 按域分批迁入（M3b 已迁 me/stats/devices/证据/导出；余 → M3c）。
+ * `utils/merchant-api.ts`：M3b 证据/导出/me；M3c 订单/争议/钱包/结算；余 → M3d。
  */
 export const API_PREFIX = '/api/v2' as const;
 
@@ -33,6 +33,30 @@ export const MerchantEndpoints = {
   me: `${API_PREFIX}/merchant/me`,
   stats: `${API_PREFIX}/merchant/stats`,
   devices: `${API_PREFIX}/merchant/devices`,
+  /** 订单（withQuery 拼分页/筛选） */
+  orders: `${API_PREFIX}/merchant/orders`,
+  orderDetail: (orderId: string) => `${API_PREFIX}/merchant/orders/${encodeURIComponent(orderId)}`,
+  /** 争议 */
+  disputes: `${API_PREFIX}/merchant/disputes`,
+  disputeDetail: (ticketId: string) =>
+    `${API_PREFIX}/merchant/disputes/${encodeURIComponent(ticketId)}`,
+  disputeReply: (ticketId: string) =>
+    `${API_PREFIX}/merchant/disputes/${encodeURIComponent(ticketId)}/reply`,
+  disputeResolve: (ticketId: string) =>
+    `${API_PREFIX}/merchant/disputes/${encodeURIComponent(ticketId)}/resolve`,
+  disputeClaim: (ticketId: string) =>
+    `${API_PREFIX}/merchant/disputes/${encodeURIComponent(ticketId)}/claim`,
+  /** 钱包 / 线路钱包 */
+  lineWallet: `${API_PREFIX}/merchant/line-wallet`,
+  lineWalletWithdraw: `${API_PREFIX}/merchant/line-wallet/withdraw`,
+  wallet: `${API_PREFIX}/merchant/wallet`,
+  walletWithdraw: `${API_PREFIX}/merchant/wallet/withdraw`,
+  /** 结算概览 / 日结 / 批次（导出另见 settlementsExport） */
+  settlementsOverview: `${API_PREFIX}/merchant/settlements/overview`,
+  settlementsDaily: (from: string, to: string) =>
+    `${API_PREFIX}/merchant/settlements/daily?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  settlementsBatches: (from: string, to: string) =>
+    `${API_PREFIX}/merchant/settlements/batches?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
   /** 补货证据上传/下载（非 JSON，仍走 Endpoints 防裸拼） */
   replenishmentTaskEvidence: (taskId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence`,
@@ -53,7 +77,7 @@ export const MerchantEndpoints = {
 
 /**
  * 试点：pages/composables 不得再出现这些字面量前缀。
- * 扩表时同步把对应路径迁入 MerchantEndpoints（见 M3b）。
+ * 扩表时同步把对应路径迁入 MerchantEndpoints（见 M3b/M3c）。
  */
 export const MERCHANT_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/merchant/orders',

@@ -173,6 +173,8 @@
 | 161 | merchant 视频页拼绝对 URL | 页内 `API_BASE`+path，易与 Endpoints 脱节 | 媒体流旁路 JSON API | **必须**`merchantOrderVideoUrl` / `MerchantEndpoints.orderVideo`；禁止页内再拼 base；进度 M12 done | `order-video-url.ts`、`video.vue` |
 | 162 | consumer 视频页拼绝对 URL | 同 M12，双端漂移 | video 自拼 API_BASE | **必须**`consumerOrderVideoUrl` / `normalizeMediaUrl`；禁止页内再拼 base；api 拆分另开 C12b；进度 C12 首刀 done | `order-video-url.ts`、`video.vue` |
 | 163 | merchant-api 路径字面量堆肥 | 导出/证据/me 等散落 `/api/v2/merchant/...` | Endpoints 只覆盖试点 | **必须**新路径与证据/导出/me·stats·devices 进 `MerchantEndpoints`；余 JSON 续迁 M3c；进度 M3b 首刀 done | `api/endpoints.ts`、`merchant-api.ts` |
+| 164 | consumer-api 核心域仍字面量 | auth/account/orders/sessions 散落 `/api/v2/...` | Endpoints 仅 video/dicts | **必须**核心域进 `ConsumerEndpoints`/`AuthEndpoints`；设备/会员/营销另开 C2c；进度 C2b done | `api/endpoints.ts`、`consumer-api.ts` |
+| 165 | merchant 订单/钱包/争议仍字面量 | 金钱写读路径未进 Endpoints | M3b 只迁证据/me | **必须**orders/disputes/wallet/settlements 进 `MerchantEndpoints`；补货/分析另开 M3d；进度 M3c done | `api/endpoints.ts`、`merchant-api.ts` |
 
 ## 追加模板
 
