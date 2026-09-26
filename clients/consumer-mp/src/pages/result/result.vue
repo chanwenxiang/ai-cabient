@@ -158,83 +158,22 @@
       </view>
     </view>
 
-    <view
-      v-if="showDispute"
-      role="button"
-      aria-label="关闭"
-      class="dispute-mask"
-      @click="closeDispute"
-    >
-      <view role="button" class="dispute-panel" @click.stop>
-        <text class="dispute-title">{{ appealPanelTitle(refundMode, 'result') }}</text>
-        <text class="dispute-sub">
-          {{ appealPanelSubtitle(refundMode, 'result') }}
-        </text>
-        <view class="chip-row">
-          <text
-            v-for="chip in reasonChips"
-            role="button"
-            :key="chip.label"
-            class="reason-chip"
-            :class="{ on: selectedCategory === chip.category }"
-            @click="pickChip(chip)"
-            >{{ chip.label }}</text
-          >
-        </view>
-        <text class="field-label">申诉说明</text>
-        <textarea
-          v-model="disputeReason"
-          class="dispute-input"
-          maxlength="200"
-          aria-label="申诉说明"
-          placeholder="例如：我没有拿这个商品 / 数量不对…"
-        />
-        <view class="evidence-block">
-          <text class="evidence-label">{{ appealEvidenceLabel('result') }}</text>
-          <view class="evidence-row">
-            <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
-              <image
-                class="evidence-img"
-                :src="previewEvidenceSrc(img)"
-                mode="aspectFill"
-                :aria-label="`证据图 ${idx + 1}`"
-              />
-              <text
-                class="evidence-del"
-                role="button"
-                aria-label="删除证据图"
-                @click="removeEvidence(idx)"
-                >×</text
-              >
-              <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
-            </view>
-            <view
-              v-if="evidence.length < 5"
-              class="evidence-add"
-              role="button"
-              aria-label="添加证据图"
-              @click="onAddEvidence"
-              >+</view
-            >
-          </view>
-        </view>
-        <app-button
-          :loading="disputeLoading || refundLoading"
-          :disabled="disputeLoading || refundLoading"
-          :label="
-            appealSubmitLabel({
-              refundMode,
-              refundLoading,
-              disputeLoading
-            })
-          "
-          @click="submitAction"
-        />
-        <text role="button" class="dispute-cancel" aria-label="取消申诉" @click="closeDispute"
-          >取消</text
-        >
-      </view>
-    </view>
+    <OrderAppealSheet
+      :visible="showDispute"
+      surface="result"
+      :refund-mode="refundMode"
+      :reason="disputeReason"
+      :selected-category="selectedCategory"
+      :evidence="evidence"
+      :dispute-loading="disputeLoading"
+      :refund-loading="refundLoading"
+      @close="closeDispute"
+      @submit="submitAction"
+      @update:reason="(v) => (disputeReason = v)"
+      @pick-chip="pickChip"
+      @add-evidence="onAddEvidence"
+      @remove-evidence="removeEvidence"
+    />
   </view>
 </template>
 
@@ -249,7 +188,6 @@ import { parseQuery } from '@aicabinet/shared-uni/query';
 import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { OrderDetailDto, OrderLineDto } from '@aicabinet/shared-types';
 import {
-  DISPUTE_REASON_CHIPS,
   appendChipToReason,
   inferRestoreInventory,
   type DisputeReasonChip
@@ -260,10 +198,6 @@ import {
   resultRefundConfirmContent
 } from '@/utils/money-ui-contracts';
 import {
-  appealEvidenceLabel,
-  appealPanelSubtitle,
-  appealPanelTitle,
-  appealSubmitLabel,
   buildFileDisputeBody,
   seedDisputeForm,
   seedRefundForm,
@@ -274,10 +208,10 @@ import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   pickAndUploadEvidence,
   evidenceFileIds,
-  previewEvidenceSrc,
   removeEvidenceAt,
   type LocalEvidence
 } from '@/utils/dispute-evidence';
+import OrderAppealSheet from '@/components/order-appeal-sheet.vue';
 
 const loading = ref(true);
 const error = ref('');
@@ -321,7 +255,6 @@ const disputeLoading = ref(false);
 const refundLoading = ref(false);
 const disputeFiled = ref(false);
 const refundDone = ref(false);
-const reasonChips = DISPUTE_REASON_CHIPS;
 const selectedCategory = ref('USER_APPEAL');
 const selectedChip = ref<DisputeReasonChip | null>(null);
 const evidence = ref<LocalEvidence[]>([]);
@@ -1022,85 +955,6 @@ function goHelp() {
 .refund-submit {
   background: var(--color-danger);
 }
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-  margin-bottom: 16rpx;
-}
-.reason-chip {
-  padding: 10rpx 18rpx;
-  border-radius: var(--radius-pill);
-  background: var(--color-border-subtle);
-  color: var(--text-primary);
-  font-size: var(--font-size-caption);
-  border: 1rpx solid transparent;
-}
-.reason-chip.on {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
-  color: var(--color-danger);
-  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));
-}
-.evidence-block {
-  margin-bottom: 16rpx;
-}
-.evidence-label {
-  display: block;
-  font-size: var(--font-size-caption);
-  color: var(--text-subtle, #888);
-  margin-bottom: 10rpx;
-}
-.evidence-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14rpx;
-}
-.evidence-item {
-  position: relative;
-  width: 120rpx;
-  height: 120rpx;
-}
-.evidence-img {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: var(--radius-tag);
-  background: var(--color-border-subtle);
-}
-.evidence-del {
-  position: absolute;
-  top: -8rpx;
-  right: -8rpx;
-  width: 32rpx;
-  height: 32rpx;
-  border-radius: 50%;
-  background: var(--text-primary);
-  color: var(--white);
-  text-align: center;
-  line-height: 32rpx;
-  font-size: var(--font-size-sm);
-}
-.evidence-uploading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  color: var(--white);
-  font-size: var(--font-size-xs);
-  border-radius: var(--radius-tag);
-}
-.evidence-add {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: var(--radius-tag);
-  border: 2rpx dashed var(--card-border);
-  color: var(--text-subtle);
-  font-size: var(--font-size-h2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 .dispute-done {
   text-align: center;
   font-size: var(--font-size-body);
@@ -1156,58 +1010,5 @@ function goHelp() {
  */
 .btn-slot {
   margin-top: 20rpx;
-}
-
-.dispute-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 300;
-  display: flex;
-  align-items: flex-end;
-}
-.dispute-panel {
-  width: 100%;
-  max-width: 520px;
-  margin: 0 auto;
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-card) 30rpx 0 0;
-  padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
-  box-sizing: border-box;
-  max-height: 90vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.dispute-title {
-  font-size: var(--font-size-h3);
-  font-weight: 700;
-  display: block;
-  text-align: center;
-}
-.dispute-sub {
-  font-size: var(--font-size-body);
-  color: var(--text-subtle, #888);
-  display: block;
-  text-align: center;
-  margin: 12rpx 0 24rpx;
-}
-.dispute-input {
-  width: 100%;
-  min-height: 180rpx;
-  background: var(--page-bg, #f8faf9);
-  border: 1rpx solid var(--color-border-subtle);
-  border-radius: var(--radius-control);
-  padding: 20rpx;
-  font-size: var(--font-size-md);
-  box-sizing: border-box;
-  margin-bottom: 20rpx;
-}
-.dispute-cancel {
-  display: block;
-  text-align: center;
-  color: var(--text-subtle, #888);
-  font-size: var(--font-size-md);
-  margin-top: 16rpx;
-  padding: 12rpx;
 }
 </style>

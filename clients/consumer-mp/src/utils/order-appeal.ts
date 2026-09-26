@@ -1,6 +1,6 @@
 /**
- * 订单申诉/退款表单种子与校验（debt-tracker C6 → C6b）。
- * order-detail 与 result 共用，禁止再各写一套 openDispute/openRefund/校验文案。
+ * 订单申诉/退款表单种子、校验与弹层文案（debt-tracker C6 → C6b → C6c）。
+ * 模板壳：`components/order-appeal-sheet.vue`；提交写路径仍在 order-detail / result。
  */
 import { DISPUTE_REASON_CHIPS, type DisputeReasonChip } from '@/utils/dispute-form';
 

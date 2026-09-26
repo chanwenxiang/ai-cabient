@@ -185,6 +185,8 @@
 | 173 | 开门幂等埋在 consumer-api | 上帝模块难拆 | open-attempt 内联 | **必须**`consumer-open-attempt`；api 仍 re-export；进度 C12b done | `consumer-open-attempt.ts` |
 | 174 | merchant-api 余域字面量 | devices/team/notify 未进 Endpoints | M3d 只补货分析 | **必须**扫完进 `MerchantEndpoints`；进度 M3e done | `api/endpoints.ts`、`merchant-api.ts` |
 | 175 | 鉴权下载头埋在 downloadAuthedFile | 401/2xx 分支难单测 | consumer-api 内联 | **必须**`consumer-download` 纯函数；进度 C12c done | `consumer-download.ts` |
+| 176 | business 样式/税档埋页 | 350 行 scoped + 税档校验难单测 | M6b 只展示公式 | **必须**`business.page.css` + `business-tax`；禁止同 PR 大拆 load；进度 M6c done | `business.page.css`、`business-tax.ts` |
+| 177 | 申诉弹层模板双份 | order-detail/result 壳漂移 | C6b 只收口文案 | **必须**`OrderAppealSheet` + surface 修饰；partial 用 slot；禁止同 PR 挪提交写路径；进度 C6c done | `order-appeal-sheet.vue` |
 
 ## 追加模板
 

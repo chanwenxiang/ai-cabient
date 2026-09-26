@@ -1,0 +1,360 @@
+/* 扩展功能：经营分析图表（仅 merchant.charts.enabled=true 时渲染） */
+.chart-block {
+  margin-top: 16rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background: var(--card-bg, #ffffff);
+}
+
+.chart-title {
+  display: block;
+  font-size: var(--font-size-sm, 26rpx);
+  color: var(--text-secondary, #6b7280);
+  margin-bottom: 12rpx;
+}
+
+/* O5：指标切换（营收/毛利/销量/订单），视觉与页面既有 report-dim 保持一致 */
+.chart-metrics {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.chart-metric {
+  padding: 6rpx 18rpx;
+  border-radius: var(--radius-card);
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
+  font-size: var(--font-size-xs, 24rpx);
+}
+
+.chart-metric.active {
+  background: var(--brand);
+  color: var(--white);
+}
+
+/*
+ * O5：ECharts 画布的尺寸**不在这里定义**。
+ * 组件根节点属于 `uni-echarts` 自己的作用域，本页 scoped 规则匹配不到它（编译产物为
+ * `.chart.data-v-<本页>`，而节点上是 `data-v-<组件>`）。故尺寸写在模板的 `custom-style` 上
+ * （见 `<uni-echarts custom-style="...">`），这里不再保留同名空规则以免误导。
+ */
+
+.insight-text {
+  display: block;
+  margin-top: 8rpx;
+  font-size: var(--font-size-body);
+  line-height: 1.6;
+  color: var(--text-muted, #334155);
+}
+.insight-sku {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-top: 12rpx;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
+}
+.insight-sku:last-child {
+  border-bottom: none;
+}
+.expiry-grid {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+.expiry-cell {
+  flex: 1;
+  padding: 14rpx;
+  border-radius: var(--radius-control);
+  background: #f9f1eb;
+}
+.expiry-n,
+.expiry-l {
+  display: block;
+}
+.expiry-n {
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  color: var(--warning, #b45309);
+}
+.expiry-l {
+  margin-top: 4rpx;
+  font-size: var(--font-size-sm);
+  color: var(--warning, #92400e);
+}
+.report-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
+}
+.report-row:last-child {
+  border-bottom: none;
+}
+.report-main {
+  flex: 1;
+  min-width: 0;
+}
+.report-data {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.page {
+  padding: 0;
+  padding-bottom: 24rpx;
+}
+.periods {
+  display: flex;
+  gap: 12rpx;
+  padding: 20rpx 24rpx 8rpx;
+}
+.period {
+  padding: 12rpx 24rpx;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
+}
+.period.active {
+  background: var(--brand);
+  color: var(--white);
+}
+.report-dims {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+.report-dim {
+  padding: 8rpx 20rpx;
+  border-radius: var(--radius-card);
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
+  font-size: var(--font-size-sm);
+}
+.report-dim.active {
+  background: var(--brand);
+  color: var(--white);
+}
+.state {
+  margin: 24rpx;
+  padding: 80rpx 24rpx;
+  text-align: center;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
+  color: var(--text-muted);
+}
+.hero {
+  margin: 12rpx 24rpx;
+  padding: 32rpx;
+  border-radius: var(--radius-card);
+  color: var(--text-primary, #0f172a);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
+  border: 1rpx solid var(--brand-soft, #d1fae5);
+}
+.hero-label {
+  display: block;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
+}
+.hero-value {
+  display: block;
+  font-size: 56rpx;
+  font-weight: 800;
+  margin-top: 8rpx;
+  color: var(--brand);
+}
+.hero-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 22rpx;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #475569);
+}
+.hero-row.muted {
+  margin-top: 10rpx;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.hero-row .up {
+  color: var(--brand);
+  font-weight: 600;
+}
+.hero-row .down {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+.hero-row .loss {
+  color: var(--warning, #b45309);
+  font-weight: 600;
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12rpx;
+  margin: 12rpx 24rpx;
+}
+.metric {
+  background: var(--card-bg, #fff);
+  border-radius: 18rpx;
+  padding: 24rpx;
+  text-align: center;
+}
+.metric-value {
+  display: block;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  text-align: center;
+}
+.metric-value.warn {
+  color: var(--warning, #d97706);
+}
+.metric-value.danger {
+  color: var(--color-danger);
+}
+.metric-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: 6rpx;
+  text-align: center;
+}
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 10rpx;
+}
+.section-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+.section-sub {
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
+}
+.tax-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+.tax-input {
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 16rpx 20rpx;
+  font-size: var(--font-size-body);
+}
+.tax-save {
+  margin-top: 8rpx;
+  background: var(--brand);
+  color: var(--white);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-body);
+}
+.tax-save::after {
+  border: none;
+}
+.sku-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 22rpx 0;
+  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
+}
+.sku-main {
+  min-width: 0;
+  flex: 1;
+}
+.sku-name {
+  display: block;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+.sku-rec {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
+  margin-top: 5rpx;
+}
+.sku-data {
+  text-align: right;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.sku-money {
+  display: block;
+  color: var(--text-primary, #0f172a);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  margin-top: 5rpx;
+}
+.empty {
+  text-align: center;
+  padding: 40rpx;
+  color: var(--text-subtle);
+}
+.risk-card {
+  margin: 12rpx 24rpx;
+  padding: 24rpx;
+  border-radius: 18rpx;
+  background: #f9f1eb;
+  border: 1rpx solid #eacfba;
+}
+.risk-title {
+  display: block;
+  color: var(--accent-orange, #c2410c);
+  font-weight: 700;
+}
+.risk-desc {
+  display: block;
+  color: var(--accent-orange, #9a3412);
+  font-size: var(--font-size-sm);
+  margin-top: 6rpx;
+}
+.actions {
+  padding: 12rpx 24rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.btn-outline {
+  width: 100%;
+  min-height: 80rpx;
+  height: 80rpx;
+  line-height: 1.2;
+  border: 2rpx solid var(--brand);
+  color: var(--brand);
+  border-radius: var(--radius-pill);
+  background: var(--card-bg, #fff);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+}
+.btn-outline::after {
+  border: none;
+}
+.card {
+  margin: 12rpx 24rpx;
+  padding: 24rpx;
+  background: var(--card-bg, #fff);
+  border-radius: 18rpx;
+}
+.page-body {
+  padding: 0 0 calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}

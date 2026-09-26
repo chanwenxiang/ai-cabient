@@ -218,37 +218,23 @@
         </view>
       </view>
 
-      <view
-        v-if="showDispute"
-        role="button"
-        aria-label="关闭"
-        class="dispute-mask"
-        @click="closeDispute"
+      <OrderAppealSheet
+        :visible="showDispute"
+        surface="order-detail"
+        :refund-mode="refundMode"
+        :reason="disputeReason"
+        :selected-category="selectedCategory"
+        :evidence="evidence"
+        :dispute-loading="disputeLoading"
+        :refund-loading="refundLoading"
+        @close="closeDispute"
+        @submit="submitAction"
+        @update:reason="(v) => (disputeReason = v)"
+        @pick-chip="pickChip"
+        @add-evidence="onAddEvidence"
+        @remove-evidence="removeEvidence"
       >
-        <view role="button" class="dispute-panel" @click.stop>
-          <text class="dispute-title">{{ appealPanelTitle(refundMode, 'order-detail') }}</text>
-          <text class="dispute-sub">
-            {{ appealPanelSubtitle(refundMode, 'order-detail') }}
-          </text>
-          <view class="chip-row">
-            <text
-              v-for="chip in reasonChips"
-              role="button"
-              :key="chip.label"
-              class="reason-chip"
-              :class="{ on: selectedCategory === chip.category }"
-              @click="pickChip(chip)"
-              >{{ chip.label }}</text
-            >
-          </view>
-          <text class="field-label">申诉说明</text>
-          <textarea
-            v-model="disputeReason"
-            class="dispute-input"
-            maxlength="200"
-            aria-label="申诉说明"
-            placeholder="例如：我没有拿这个商品 / 数量不对…"
-          />
+        <template #partial>
           <view v-if="refundMode && refundLineRows.length" class="partial-block">
             <text class="field-label">按行退款（不选则全额退）</text>
             <view v-for="row in refundLineRows" :key="row.skuId" class="partial-row">
@@ -262,52 +248,8 @@
               />
             </view>
           </view>
-          <view class="evidence-block">
-            <text class="evidence-label">{{ appealEvidenceLabel('order-detail') }}</text>
-            <view class="evidence-row">
-              <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
-                <image
-                  class="evidence-img"
-                  :src="previewEvidenceSrc(img)"
-                  mode="aspectFill"
-                  :alt="`证据图 ${idx + 1}`"
-                />
-                <text
-                  class="evidence-del"
-                  role="button"
-                  aria-label="删除证据图"
-                  @click="removeEvidence(idx)"
-                  >×</text
-                >
-                <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
-              </view>
-              <view
-                v-if="evidence.length < 5"
-                class="evidence-add"
-                role="button"
-                aria-label="添加证据图"
-                @click="onAddEvidence"
-                >+</view
-              >
-            </view>
-          </view>
-          <app-button
-            :loading="disputeLoading || refundLoading"
-            :disabled="disputeLoading || refundLoading"
-            :label="
-              appealSubmitLabel({
-                refundMode,
-                refundLoading,
-                disputeLoading
-              })
-            "
-            @click="submitAction"
-          />
-          <text role="button" class="dispute-cancel" aria-label="取消申诉" @click="closeDispute"
-            >取消</text
-          >
-        </view>
-      </view>
+        </template>
+      </OrderAppealSheet>
 
       <view
         v-if="showPayChannel"
@@ -368,7 +310,6 @@ import {
   shouldAskPayChannel
 } from '@/utils/pay-channel';
 import {
-  DISPUTE_REASON_CHIPS,
   appendChipToReason,
   inferRestoreInventory,
   type DisputeReasonChip
@@ -380,10 +321,6 @@ import {
   refundConfirmContent
 } from '@/utils/money-ui-contracts';
 import {
-  appealEvidenceLabel,
-  appealPanelSubtitle,
-  appealPanelTitle,
-  appealSubmitLabel,
   buildFileDisputeBody,
   seedDisputeForm,
   seedRefundForm,
@@ -394,11 +331,10 @@ import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   pickAndUploadEvidence,
   evidenceFileIds,
-  previewEvidenceSrc,
   removeEvidenceAt,
   type LocalEvidence
 } from '@/utils/dispute-evidence';
-
+import OrderAppealSheet from '@/components/order-appeal-sheet.vue';
 const orderId = ref('');
 const order = ref<OrderDetailDto | null>(null);
 const loading = ref(true);
@@ -424,7 +360,6 @@ const showInvoice = ref(false);
 const invoiceTitle = ref('');
 const invoiceTaxNo = ref('');
 const invoiceEmail = ref('');
-const reasonChips = DISPUTE_REASON_CHIPS;
 const selectedCategory = ref('USER_APPEAL');
 const selectedChip = ref<DisputeReasonChip | null>(null);
 const evidence = ref<LocalEvidence[]>([]);
@@ -1271,66 +1206,6 @@ function callSupport() {
   box-sizing: border-box;
   font-size: var(--font-size-md);
   margin-bottom: 16rpx;
-}
-.evidence-block {
-  margin-bottom: 20rpx;
-}
-.evidence-label {
-  display: block;
-  font-size: var(--font-size-caption);
-  color: var(--text-muted);
-  margin-bottom: 12rpx;
-}
-.evidence-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
-}
-.evidence-item {
-  position: relative;
-  width: 140rpx;
-  height: 140rpx;
-}
-.evidence-img {
-  width: 140rpx;
-  height: 140rpx;
-  border-radius: var(--radius-control);
-  background: var(--color-border-subtle);
-}
-.evidence-del {
-  position: absolute;
-  top: -8rpx;
-  right: -8rpx;
-  width: 36rpx;
-  height: 36rpx;
-  border-radius: 50%;
-  background: var(--text-primary);
-  color: var(--white);
-  text-align: center;
-  line-height: 36rpx;
-  font-size: var(--font-size-caption);
-}
-.evidence-uploading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  color: var(--white);
-  font-size: var(--font-size-sm);
-  border-radius: var(--radius-control);
-}
-.evidence-add {
-  width: 140rpx;
-  height: 140rpx;
-  border-radius: var(--radius-control);
-  border: 2rpx dashed var(--card-border);
-  color: var(--text-subtle);
-  font-size: var(--font-size-display);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .btn-submit {
   width: 100%;
