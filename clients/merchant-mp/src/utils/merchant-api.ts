@@ -395,33 +395,31 @@ export const merchantApi = {
     ),
   trend: (days = 7) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantTrendDto>(
-      `/api/v2/merchant/trend?days=${days}`
+      MerchantEndpoints.trend(days)
     ),
   devices: () =>
     request<import('@aicabinet/shared-types').MerchantDeviceInfo[]>(MerchantEndpoints.devices),
   deviceSettings: (id: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDeviceSettingsDto>(
-      `/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`
+      MerchantEndpoints.deviceSettings(id)
     ),
   updateDeviceSettings: (
     id: string,
     body: import('@aicabinet/shared-types').OpenApiUpdateMerchantDeviceSettingsRequest
   ) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDeviceSettingsDto>(
-      `/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`,
+      MerchantEndpoints.deviceSettings(id),
       'PATCH',
       body
     ),
   deviceSlots: (id: string) =>
-    request<import('@aicabinet/shared-types').DeviceSlot[]>(
-      `/api/v2/merchant/devices/${encodeURIComponent(id)}/slots`
-    ),
+    request<import('@aicabinet/shared-types').DeviceSlot[]>(MerchantEndpoints.deviceSlots(id)),
   upsertSlots: (id: string, body: import('@aicabinet/shared-types').UpsertDeviceSlotRequest[]) =>
-    request(`/api/v2/merchant/devices/${encodeURIComponent(id)}/slots`, 'PUT', body),
+    request(MerchantEndpoints.deviceSlots(id), 'PUT', body),
   pricing: (deviceId?: string) => {
     const path = deviceId
-      ? `/api/v2/merchant/pricing/skus?deviceId=${encodeURIComponent(deviceId)}`
-      : '/api/v2/merchant/pricing/skus';
+      ? MerchantEndpoints.pricingSkusByDevice(deviceId)
+      : MerchantEndpoints.pricingSkus;
     return request<import('@aicabinet/shared-types').MerchantSkuPricing[]>(path);
   },
   updatePricing: (
@@ -429,22 +427,20 @@ export const merchantApi = {
     body: { deviceId: string; priceCents: number | null; expectedVersion?: number | null }
   ) =>
     request<import('@aicabinet/shared-types').MerchantSkuPricing>(
-      `/api/v2/merchant/pricing/skus/${encodeURIComponent(skuId)}`,
+      MerchantEndpoints.pricingSku(skuId),
       'PATCH',
       body
     ),
   workbench: () =>
-    request<import('@aicabinet/shared-types').MerchantWorkbench>('/api/v2/merchant/workbench'),
+    request<import('@aicabinet/shared-types').MerchantWorkbench>(MerchantEndpoints.workbench),
   listAnnouncements: () =>
-    request<import('@aicabinet/shared-types').AnnouncementDto[]>('/api/v2/merchant/announcements'),
+    request<import('@aicabinet/shared-types').AnnouncementDto[]>(MerchantEndpoints.announcements),
   getAnnouncement: (id: number) =>
-    request<import('@aicabinet/shared-types').AnnouncementDto>(
-      `/api/v2/merchant/announcements/${id}`
-    ),
+    request<import('@aicabinet/shared-types').AnnouncementDto>(MerchantEndpoints.announcement(id)),
   teamUsers: () =>
-    request<import('@aicabinet/shared-types').MerchantUserDto[]>('/api/v2/merchant/team/users'),
+    request<import('@aicabinet/shared-types').MerchantUserDto[]>(MerchantEndpoints.teamUsers),
   teamRoles: () =>
-    request<import('@aicabinet/shared-types').MerchantTeamRoleDto[]>('/api/v2/merchant/team/roles'),
+    request<import('@aicabinet/shared-types').MerchantTeamRoleDto[]>(MerchantEndpoints.teamRoles),
   createTeamUser: (body: {
     phoneNumber: string;
     password: string;
@@ -452,39 +448,39 @@ export const merchantApi = {
     roleKey?: string;
   }) =>
     request<import('@aicabinet/shared-types').MerchantUserDto>(
-      '/api/v2/merchant/team/users',
+      MerchantEndpoints.teamUsers,
       'POST',
       body
     ),
   updateTeamUser: (userId: number, body: { displayName?: string; roleKey?: string }) =>
     request<import('@aicabinet/shared-types').MerchantUserDto>(
-      `/api/v2/merchant/team/users/${userId}`,
+      MerchantEndpoints.teamUser(userId),
       'PATCH',
       body
     ),
   disableTeamUser: (userId: number) =>
     request<import('@aicabinet/shared-types').MerchantUserDto>(
-      `/api/v2/merchant/team/users/${userId}/disable`,
+      MerchantEndpoints.teamUserDisable(userId),
       'POST'
     ),
   enableTeamUser: (userId: number) =>
     request<import('@aicabinet/shared-types').MerchantUserDto>(
-      `/api/v2/merchant/team/users/${userId}/enable`,
+      MerchantEndpoints.teamUserEnable(userId),
       'POST'
     ),
   resetTeamUserPassword: (userId: number, password: string) =>
     request<import('@aicabinet/shared-types').MerchantUserDto>(
-      `/api/v2/merchant/team/users/${userId}/reset-password`,
+      MerchantEndpoints.teamUserResetPassword(userId),
       'POST',
       { password }
     ),
   notifyPrefs: () =>
     request<import('@aicabinet/shared-types').OpenApiMerchantNotifyPrefDto>(
-      '/api/v2/merchant/notify/prefs'
+      MerchantEndpoints.notifyPrefs
     ),
   notifyWxBind: (code: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantNotifyPrefDto>(
-      '/api/v2/merchant/notify/wx-bind',
+      MerchantEndpoints.notifyWxBind,
       'POST',
       {
         code
@@ -492,7 +488,7 @@ export const merchantApi = {
     ),
   notifySubscribe: (alertTypes: string[]) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantNotifyPrefDto>(
-      '/api/v2/merchant/notify/subscribe',
+      MerchantEndpoints.notifySubscribe,
       'POST',
       {
         alertTypes
@@ -503,7 +499,7 @@ export const merchantApi = {
       import('@aicabinet/shared-types').PageResult<
         import('@aicabinet/shared-types').OpenApiOpsExceptionDto
       >
-    >(`/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}&page=${page}&size=${size}`),
+    >(MerchantEndpoints.exceptions(status, page, size)),
   /** OPEN + PROCESSING；默认最多各拉 3 页；首页可传 maxPages=1 降扇出（M4） */
   openExceptions: async (pageSize = 100, options?: { maxPages?: number }) => {
     type ExRow = import('@aicabinet/shared-types').OpenApiOpsExceptionDto;
@@ -540,7 +536,7 @@ export const merchantApi = {
     };
   },
   resolveInventoryException: (id: string, resolution: string) =>
-    request(`/api/v2/merchant/exceptions/${encodeURIComponent(id)}/resolve`, 'POST', {
+    request(MerchantEndpoints.exceptionResolve(id), 'POST', {
       resolution
     }),
   analytics: (days = 30) =>
@@ -575,11 +571,11 @@ export const merchantApi = {
     ),
   deviceTemperatureHistory: (deviceId: string, hours = 24) =>
     request<import('@aicabinet/shared-types').DeviceTemperatureReading[]>(
-      `/api/v2/merchant/devices/${encodeURIComponent(deviceId)}/temperature-history?hours=${hours}`
+      MerchantEndpoints.deviceTemperatureHistory(deviceId, hours)
     ),
   pricingHistory: (deviceId?: string, skuId?: string) =>
     request<import('@aicabinet/shared-types').MerchantSkuPriceChange[]>(
-      withQuery('/api/v2/merchant/pricing/history', { deviceId, skuId })
+      withQuery(MerchantEndpoints.pricingHistory, { deviceId, skuId })
     ),
   settlements: () =>
     request<import('@aicabinet/shared-types').MerchantSettlementOverview>(
@@ -610,7 +606,7 @@ export const merchantApi = {
   revenueSplits: (page = 0, size = 50, status?: string, from?: string, to?: string) =>
     request<
       import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').RevenueSplit>
-    >(withQuery('/api/v2/merchant/revenue-splits', { page, size, status, from, to })),
+    >(withQuery(MerchantEndpoints.revenueSplits, { page, size, status, from, to })),
   exportSettlementsUrl: (from: string, to: string) =>
     merchantAbsUrl(MerchantEndpoints.settlementsExport(from, to)),
   exportOrdersUrl: (deviceId?: string) => merchantAbsUrl(MerchantEndpoints.ordersExport(deviceId)),
@@ -712,19 +708,22 @@ export const merchantApi = {
     downloadReplenishmentEvidenceFile(taskId, fileId),
   expiryAlerts: () =>
     request<import('@aicabinet/shared-types').OpenApiPullOffTaskDto[]>(
-      '/api/v2/merchant/expiry-alerts'
+      MerchantEndpoints.expiryAlerts
     ),
   slotDiscrepancies: (deviceId?: string) => {
-    const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
-    return request<OpenApiSlotDiscrepancyAlertDto[]>(`/api/v2/merchant/slot-discrepancies${q}`);
+    return request<OpenApiSlotDiscrepancyAlertDto[]>(
+      deviceId
+        ? MerchantEndpoints.slotDiscrepanciesByDevice(deviceId)
+        : MerchantEndpoints.slotDiscrepancies
+    );
   },
   deviceReports: () =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDeviceReportDto[]>(
-      '/api/v2/merchant/device-reports'
+      MerchantEndpoints.deviceReports
     ),
   updateMerchantProfile: (body: OpenApiUpdateMerchantProfileRequest) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDto[]>(
-      '/api/v2/merchant/profile',
+      MerchantEndpoints.profile,
       'PATCH',
       body
     ),
@@ -795,11 +794,11 @@ export const merchantApi = {
       'POST'
     ),
   notifications: (limit = 50) =>
-    request<OpenApiNotificationDto[]>(`/api/v2/merchant/notifications?limit=${limit}`),
+    request<OpenApiNotificationDto[]>(MerchantEndpoints.notifications(limit)),
   notificationUnreadCount: () =>
-    request<{ count: number }>('/api/v2/merchant/notifications/unread-count'),
+    request<{ count: number }>(MerchantEndpoints.notificationsUnreadCount),
   markNotificationRead: (id: number) =>
-    request<void>(`/api/v2/merchant/notifications/${id}/read`, 'POST')
+    request<void>(MerchantEndpoints.notificationRead(id), 'POST')
 };
 
 /**

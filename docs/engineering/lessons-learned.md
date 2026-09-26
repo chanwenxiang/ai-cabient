@@ -183,6 +183,8 @@
 | 171 | 开门超时/可用性逻辑埋 index | 常量与弱网文案难回归 | index 内联 | **必须**延展 `landing-session`；禁止同 PR 挪 createSession 编排；进度 C5b done | `landing-session.ts` |
 | 172 | merchant 补货/分析仍字面量 | M3c 后补货域未进 Endpoints | 仅订单钱包 | **必须**补货/分析进 `MerchantEndpoints`；设备/团队另开 M3e；进度 M3d done | `api/endpoints.ts`、`merchant-api.ts` |
 | 173 | 开门幂等埋在 consumer-api | 上帝模块难拆 | open-attempt 内联 | **必须**`consumer-open-attempt`；api 仍 re-export；进度 C12b done | `consumer-open-attempt.ts` |
+| 174 | merchant-api 余域字面量 | devices/team/notify 未进 Endpoints | M3d 只补货分析 | **必须**扫完进 `MerchantEndpoints`；进度 M3e done | `api/endpoints.ts`、`merchant-api.ts` |
+| 175 | 鉴权下载头埋在 downloadAuthedFile | 401/2xx 分支难单测 | consumer-api 内联 | **必须**`consumer-download` 纯函数；进度 C12c done | `consumer-download.ts` |
 
 ## 追加模板
 

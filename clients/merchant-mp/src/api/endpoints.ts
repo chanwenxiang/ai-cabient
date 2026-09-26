@@ -14,7 +14,7 @@
  * | `/api/v2/dicts/*`、`/public/merchant-config` | 字典 / 公开配置 |
  *
  * 门禁：`scripts/check-merchant-endpoints.mjs` 扫 pages/composables + `MERCHANT_ENDPOINT_PILOT_LITERALS`。
- * `utils/merchant-api.ts`：M3b 证据/导出/me；M3c 订单/争议/钱包；M3d 补货/分析/公开配置；余 → M3e。
+ * `utils/merchant-api.ts`：M3b–M3d；M3e 扫完 devices/pricing/team/notify/exceptions/通知；merchant-api 字面量应收口。
  */
 export const API_PREFIX = '/api/v2' as const;
 
@@ -108,7 +108,47 @@ export const MerchantEndpoints = {
     const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
     return `${API_PREFIX}/merchant/orders/export${q}`;
   },
-  deviceReportsExport: `${API_PREFIX}/merchant/device-reports/export`
+  deviceReportsExport: `${API_PREFIX}/merchant/device-reports/export`,
+  /** 趋势 / 设备设置货道 / 定价 */
+  trend: (days: number) => `${API_PREFIX}/merchant/trend?days=${days}`,
+  deviceSettings: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/settings`,
+  deviceSlots: (id: string) => `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/slots`,
+  deviceTemperatureHistory: (deviceId: string, hours: number) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(deviceId)}/temperature-history?hours=${hours}`,
+  pricingSkus: `${API_PREFIX}/merchant/pricing/skus`,
+  pricingSkusByDevice: (deviceId: string) =>
+    `${API_PREFIX}/merchant/pricing/skus?deviceId=${encodeURIComponent(deviceId)}`,
+  pricingSku: (skuId: string) => `${API_PREFIX}/merchant/pricing/skus/${encodeURIComponent(skuId)}`,
+  pricingHistory: `${API_PREFIX}/merchant/pricing/history`,
+  workbench: `${API_PREFIX}/merchant/workbench`,
+  announcements: `${API_PREFIX}/merchant/announcements`,
+  announcement: (id: number | string) => `${API_PREFIX}/merchant/announcements/${id}`,
+  teamUsers: `${API_PREFIX}/merchant/team/users`,
+  teamUser: (userId: number | string) => `${API_PREFIX}/merchant/team/users/${userId}`,
+  teamUserDisable: (userId: number | string) =>
+    `${API_PREFIX}/merchant/team/users/${userId}/disable`,
+  teamUserEnable: (userId: number | string) => `${API_PREFIX}/merchant/team/users/${userId}/enable`,
+  teamUserResetPassword: (userId: number | string) =>
+    `${API_PREFIX}/merchant/team/users/${userId}/reset-password`,
+  teamRoles: `${API_PREFIX}/merchant/team/roles`,
+  notifyPrefs: `${API_PREFIX}/merchant/notify/prefs`,
+  notifyWxBind: `${API_PREFIX}/merchant/notify/wx-bind`,
+  notifySubscribe: `${API_PREFIX}/merchant/notify/subscribe`,
+  exceptions: (status: string, page: number, size: number) =>
+    `${API_PREFIX}/merchant/exceptions?status=${encodeURIComponent(status)}&page=${page}&size=${size}`,
+  exceptionResolve: (id: string) =>
+    `${API_PREFIX}/merchant/exceptions/${encodeURIComponent(id)}/resolve`,
+  revenueSplits: `${API_PREFIX}/merchant/revenue-splits`,
+  expiryAlerts: `${API_PREFIX}/merchant/expiry-alerts`,
+  slotDiscrepancies: `${API_PREFIX}/merchant/slot-discrepancies`,
+  slotDiscrepanciesByDevice: (deviceId: string) =>
+    `${API_PREFIX}/merchant/slot-discrepancies?deviceId=${encodeURIComponent(deviceId)}`,
+  deviceReports: `${API_PREFIX}/merchant/device-reports`,
+  profile: `${API_PREFIX}/merchant/profile`,
+  notifications: (limit: number) => `${API_PREFIX}/merchant/notifications?limit=${limit}`,
+  notificationsUnreadCount: `${API_PREFIX}/merchant/notifications/unread-count`,
+  notificationRead: (id: number | string) => `${API_PREFIX}/merchant/notifications/${id}/read`
 } as const;
 
 /**
@@ -126,5 +166,9 @@ export const MERCHANT_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/public/merchant-config',
   '/api/v2/merchant/settlements',
   '/api/v2/merchant/pricing/',
-  '/api/v2/merchant/analytics/'
+  '/api/v2/merchant/analytics/',
+  '/api/v2/merchant/team/',
+  '/api/v2/merchant/notify/',
+  '/api/v2/merchant/exceptions',
+  '/api/v2/merchant/notifications'
 ] as const;

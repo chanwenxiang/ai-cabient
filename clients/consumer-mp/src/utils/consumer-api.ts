@@ -18,6 +18,7 @@ import { showConfirm } from '@/utils/notify';
 import { isConsumerBearerExpired, parseConsumerExpiresAt } from '@/utils/consumer-session';
 import { AuthEndpoints, ConsumerEndpoints } from '@/api/endpoints';
 import { clearOpenAttempt, getOrCreateOpenAttempt } from '@/utils/consumer-open-attempt';
+import { buildBearerDownloadHeader, classifyDownloadResult } from '@/utils/consumer-download';
 
 export { clearOpenAttempt, getOrCreateOpenAttempt } from '@/utils/consumer-open-attempt';
 
@@ -86,9 +87,7 @@ export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<str
       reject(new Error('请先登录'));
       return;
     }
-    const header: Record<string, string> = { 'X-Requested-With': 'XMLHttpRequest' };
-    const token = getConsumerToken();
-    if (token) header.Authorization = `Bearer ${token}`;
+    const header = buildBearerDownloadHeader(getConsumerToken());
     uni.downloadFile({
       url,
       header,
@@ -97,16 +96,23 @@ export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<str
       // #endif
       timeout: timeoutMs,
       success(res) {
-        if (res.statusCode === 401) {
+        const classified = classifyDownloadResult(res.statusCode, Boolean(res.tempFilePath));
+        if (classified.unauthorized) {
           clearConsumerSession();
-          reject(createMpApiError(localizeApiMessage('', '登录已失效'), 401, 'UNAUTHORIZED'));
+          reject(
+            createMpApiError(
+              localizeApiMessage('', classified.message || '登录已失效'),
+              401,
+              'UNAUTHORIZED'
+            )
+          );
           return;
         }
-        if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
+        if (classified.ok && res.tempFilePath) {
           resolve(res.tempFilePath);
           return;
         }
-        reject(new Error(`下载失败 (${res.statusCode})`));
+        reject(new Error(classified.message || `下载失败 (${res.statusCode})`));
       },
       fail(err) {
         reject(new Error(err.errMsg || '下载失败'));

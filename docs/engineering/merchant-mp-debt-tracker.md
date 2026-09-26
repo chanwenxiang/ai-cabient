@@ -28,7 +28,7 @@
 |----|--------|------|----------|----------|----------|
 | M1 | P0 | done | 主路径 `softFallback` 静默吞错 → 故障被当成「暂无数据」（对齐 admin D3） | `merchant-api.ts` `softFallback` = `promise.catch(() => fallback)` **无 toast**；`useReplenishmentList` tasks/devices/lowStock → `[]`；`business.vue` 五路 softFallback；对比 `useHomeWorkbench.softErr` **会 toast** | 2026-09-25：`utils/soft-fallback.ts` 必带 label+toast；补货**主列表**硬失败；其余调用点补中文 label；3 测 |
 | M2 | P0 | done | 钱包提现 / 争议 resolve 无前端金钱契约测（对齐 admin D5） | `WalletPage.vue` 提现；`disputes.vue` KEEP/WAIVE/CONFIRM；单测仅工具层，无 wallet/dispute money 测 | 2026-09-25：`money-ui-contracts.ts` + 8 测；WalletPage/disputes 接线 |
-| M3 | P1 | done | `merchantApi` 上帝模块：大量 `/api/v2` 字面量，无 `MerchantEndpoints` / 门禁 | `utils/merchant-api.ts` ~785 行；`video.vue` 另拼订单视频 URL；仅有 admin 端点门禁 | 2026-09-25：Endpoints+门禁；M3b/M3c；2026-09-26 M3d：补货/分析/税档/库存/公开配置迁入；余设备设置/团队/通知 → M3e |
+| M3 | P1 | done | `merchantApi` 上帝模块：大量 `/api/v2` 字面量，无 `MerchantEndpoints` / 门禁 | `utils/merchant-api.ts` ~785 行；`video.vue` 另拼订单视频 URL；仅有 admin 端点门禁 | 2026-09-25：Endpoints+门禁；M3b–M3d；2026-09-26 M3e：扫完 devices/pricing/team/notify/exceptions/通知；`merchant-api` 无余 `/api/v2` 字面量 |
 | M4 | P1 | done | 列表扇出 / 类 N+1：首页多路并行 + `openExceptions` 多页串行 | `useHomeWorkbench.fetchHomeDashboardBundle` 约 9 路；`openExceptions` OPEN+PROCESSING 各最多 3 页；补货详情证据逐文件 download | 2026-09-25：首页 `maxPages=1`；页内并行补页；`exception-pages` 3 测；证据下载 → M4b |
 | M5 | P1 | done | 补货页仍肥 + 壳层弱类型残留 | `replenishment.vue` ~1130 行（style 过半）；`useReplenishmentShell` `devices: Ref<Record<string, unknown>[]>`、`open: any` | 2026-09-25：devices→`MerchantDeviceInfo`；深链 `Task`；样式外置 `replenishment.page.css`（~1131→~605 行） |
 | M6 | P1 | done | `business.vue` 上帝页 + 静默 softFallback + 手写 `/100` 金钱展示 | ~948 行；load 五路 softFallback；多处 `(cents/100).toFixed(2)` 未统一 `fmtMoney` | 2026-09-26：fmtMoney；M6b：`business-display` 环比/客单/毛利/报表区间纯函数 + 4 测；load/税档仍页内 → M6c |
@@ -60,7 +60,8 @@ M9 / C10b（easycom→package，mp 风险知情延后）→ M6c / M7c → M3d / 
 **M12 边界**：视频绝对 URL 走 `merchantOrderVideoUrl`；媒体流可旁路 JSON request。  
 **M3b 边界**：证据/导出/me·stats·devices 进 Endpoints；**禁止**同 PR 扫完全部 merchant-api 字面量。  
 **M3c 边界**：orders/disputes/wallet/settlements/auth·dicts；**禁止**同 PR 扫补货/分析/团队字面量（→ M3d）。  
-**M3d 边界**：补货/分析/税档/库存/公开配置；**禁止**同 PR 扫设备设置/团队/通知（→ M3e）。
+**M3d 边界**：补货/分析/税档/库存/公开配置；**禁止**同 PR 扫设备设置/团队/通知（→ M3e）。  
+**M3e 边界**：扫完 merchant-api 字面量（devices/pricing/team/notify/exceptions/通知）；新路径必须进 Endpoints。
 
 ---
 
