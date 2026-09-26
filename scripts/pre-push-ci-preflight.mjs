@@ -3,9 +3,9 @@
  * 推送前 CI 预检（本机可跑的子集，与 ci.yml 对齐口径）。
  *
  * 用法：
- *   node scripts/pre-push-ci-preflight.mjs           # 默认：format + lint + audit-gates + CI-only 门禁
- *   node scripts/pre-push-ci-preflight.mjs --quick   # 仅 format + lint + line-endings
- *   node scripts/pre-push-ci-preflight.mjs --full    # 默认 + 改动面类型检查 / admin 产物
+ *   node scripts/pre-push-ci-preflight.mjs           # 默认：format + mp type-check + lint + audit-gates + CI-only 门禁
+ *   node scripts/pre-push-ci-preflight.mjs --quick   # 仅 format + line-endings
+ *   node scripts/pre-push-ci-preflight.mjs --full    # 默认 + admin 产物 / openapi regen 校验
  *
  * 设计：
  * - 一律 `node …` / `node node_modules/…` 直调，避免本机 pnpm script-shell 假绿（见 ~/.workbuddy MEMORY）。
@@ -28,7 +28,7 @@ function run(label, cmd, cmdArgs, opts = {}) {
   console.log(`\n── ${label} ──`);
   console.log(`$ ${cmd} ${cmdArgs.join(' ')}`);
   const r = spawnSync(cmd, cmdArgs, {
-    cwd: root,
+    cwd: opts.cwd ?? root,
     stdio: 'inherit',
     shell: false,
     env: { ...process.env, ...opts.env }
@@ -68,6 +68,27 @@ function gitDiffNames(pattern) {
   return [...names].filter((n) => pattern.test(n));
 }
 
+/**
+ * 小程序 type-check（对齐 ci.yml `mini-programs` 的 Consumer/Merchant MP type-check 两步）。
+ *
+ * 🔴 一律直调 `clients/<mp>/node_modules/vue-tsc/bin/vue-tsc.js --noEmit`：
+ *    - cwd 必须是该 mp 目录（tsconfig 相对路径），不能从仓库根跑；
+ *    - 本机 `pnpm --filter … run type-check` 会空转却 exit 0（假绿，见 ~/.workbuddy MEMORY §1）；
+ *    - 缺 vue-tsc 一律 fail-closed（exit 1），绝不静默跳过。
+ *
+ * 背景：2026-09-25 23:41 → 09-26 11:22 曾连续 20 个 run 挂在 Consumer type-check，
+ * 而预检当时只打印「请另跑」并不执行，只能等每轮 6 分钟的 CI 反馈。
+ */
+function runMpTypeCheck(mp) {
+  const cwd = resolve(root, 'clients', mp);
+  const bin = resolve(cwd, 'node_modules/vue-tsc/bin/vue-tsc.js');
+  if (!existsSync(bin)) {
+    console.error(`\n✗ FAIL: ${mp} type-check —— 缺少 ${bin}（先 pnpm install）`);
+    process.exit(1);
+  }
+  run(`${mp} type-check`, node, [bin, '--noEmit'], { cwd });
+}
+
 const prettier = resolve(root, 'node_modules/prettier/bin/prettier.cjs');
 const eslint = resolve(root, 'node_modules/eslint/bin/eslint.js');
 
@@ -94,17 +115,23 @@ if (quick) {
   process.exit(0);
 }
 
-// 2) Lint（与 ci `pnpm lint` 对齐：eslint .）
+// 2) 小程序 type-check（对齐 ci.yml mini-programs job；无条件跑，约 7s/端）
+//    ⚠️ 不能改成「仅打印提示」：本机与 CI 同源（已负向验证注入错误必红），
+//       打印提示等于把 20 连红的历史重演一遍。
+runMpTypeCheck('consumer-mp');
+runMpTypeCheck('merchant-mp');
+
+// 3) Lint（与 ci `pnpm lint` 对齐：eslint .）
 run('lint', node, [eslint, '.']);
 
-// 3) 审计门禁链（解析 package.json check:audit-gates）
+// 4) 审计门禁链（解析 package.json check:audit-gates）
 run('audit-gates', node, [resolve(root, 'scripts/run-audit-gates.mjs')]);
 
-// 4) CI-only 门禁（不在本机聚合链内，但 build job 会跑）
+// 5) CI-only 门禁（不在本机聚合链内，但 build job 会跑）
 run('migration-safety', node, [resolve(root, 'scripts/check-migration-safety.mjs')]);
 run('flyway-seed-separation', node, [resolve(root, 'scripts/check-flyway-seed-separation.mjs')]);
 
-// 5) 按改动面加检
+// 6) 按改动面加检
 const changed = gitDiffNames();
 const adminSrcChanged = changed.some((n) => n.startsWith('clients/admin-vue/src/'));
 const openApiSurface = changed.some(
@@ -155,22 +182,10 @@ if (openApiSurface) {
   }
 }
 
-if (full) {
-  const mpChanged = changed.some((n) => n.includes('consumer-mp') || n.includes('merchant-mp'));
-  if (mpChanged) {
-    console.log('\n⚠ mp 源码有改动：请本机另跑（对齐 CI mini-programs）：');
-    console.log('  pnpm --filter @aicabinet/consumer-mp run type-check');
-    console.log('  pnpm --filter @aicabinet/merchant-mp run type-check');
-    console.log(
-      '  （本机 pnpm 不可靠时，进对应 clients/*-mp 用其 package.json type-check 脚本直调）'
-    );
-  }
-}
-
 console.log(`
 ════════════════════════════════════════
-✓ 预检通过（format / lint / audit-gates / migration 门禁${adminSrcChanged || full ? ' / admin 产物' : ''}）
-仍不覆盖: e2e-h5、mvn verify、真 Docker IT。
+✓ 预检通过（format / mp type-check / lint / audit-gates / migration 门禁${adminSrcChanged || full ? ' / admin 产物' : ''}）
+仍不覆盖: mp H5 build、e2e-h5、mvn verify、真 Docker IT。
 推送后请看 Actions；若仅 e2e-h5 红，按该 job 日志修，勿上调 UAT_MAX_FAIL。
 ════════════════════════════════════════
 `);
