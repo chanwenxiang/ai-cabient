@@ -46,6 +46,7 @@ ID 前缀：`DEV-*` · `SKU-*`
 | DEV-REP-02 | 维修深测 | 见 [`REPAIR_TICKETS_FULL_BROWSER_UAT.md`](./REPAIR_TICKETS_FULL_BROWSER_UAT.md)（筛选/深链/新建取消） |
 | SKU-01 | 商品 | 列表金额/条码可读；编辑点到弹层可取消 |
 | SKU-02 | 商品深测 | 见 [`SKUS_FULL_BROWSER_UAT.md`](./SKUS_FULL_BROWSER_UAT.md)（关键词 `q`/深链/下架取消） |
+| SKU-REV-01 | 选品深测 | 见 [`SKU_REVIEW_FULL_BROWSER_UAT.md`](./SKU_REVIEW_FULL_BROWSER_UAT.md)（关键词 total #210） |
 | SKU-MAP-01 | 识别映射 | 类名→商品列表；新增可取消 |
 
 ---

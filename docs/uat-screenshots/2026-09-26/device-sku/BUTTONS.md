@@ -93,6 +93,7 @@
 | REV-03 | 勾选后批量下架 → 取消 | ✓ | 「确认批量下架 1 个 SKU？」；`ds-rev-02-offline.png` |
 | REV-04 | 批量下架/保留（未勾选） | SKIP | disabled 合理 |
 | REV-05 | 导出/刷新/查询/重置 | ✓ 可见 | |
+| REV-06 | 单页深测 | ✓ | 见 [`SKU_REVIEW_FULL_BROWSER_UAT.md`](../../../uat/SKU_REVIEW_FULL_BROWSER_UAT.md) · `sku-review/`（#210 total） |
 
 ---
 

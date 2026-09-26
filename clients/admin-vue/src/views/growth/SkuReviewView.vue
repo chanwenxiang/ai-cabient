@@ -197,7 +197,11 @@ const crud = useCrudTable<ReviewRow>({
     const data = await api.request<{ items: ReviewRow[]; total: number }>(
       AdminEndpoints.growthSkuReviewList(q)
     );
-    return { items: filterByKeyword(data.items || []), total: Number(data.total) || 0 };
+    const raw = data.items || [];
+    const items = filterByKeyword(raw);
+    // 关键词仅前端本页过滤：有剔除时 total=过滤后长度，避免空表仍「共 N 条」（同 lessons #208）
+    const total = items.length === raw.length ? Number(data.total) || 0 : items.length;
+    return { items, total };
   }
 });
 

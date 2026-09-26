@@ -245,6 +245,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-26 | 选品诊断深测：关键词 total 假绿→#210 修复；批量下架/保留取消 | `SKU_REVIEW_FULL_BROWSER_UAT.md`、`sku-review/`、`SkuReviewView`、lessons #210 |
 | 2026-09-26 | 商品管理单页深测：关键词q/深链/编辑·下架取消/识别入驻 | `SKUS_FULL_BROWSER_UAT.md`、`skus/BUTTONS`/`FINDINGS` |
 | 2026-09-26 | 维修工单单页深测：筛选/深链/详情流转/新建·指派取消；lesson #209 EP option | `REPAIR_TICKETS_FULL_BROWSER_UAT.md`、`repair-tickets/BUTTONS`/`FINDINGS`、`lessons-learned` #209 |
 | 2026-09-26 | 设备可用性单页深测：9卡/日期快照/暂无样本·无解锁空态 | `DEVICE_KPI_FULL_BROWSER_UAT.md`、`device-kpi/BUTTONS`/`FINDINGS` |

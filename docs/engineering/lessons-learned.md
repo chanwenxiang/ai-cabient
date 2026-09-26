@@ -220,6 +220,7 @@
 | 207 | 异常中心点「全部」仍停在「待处理」，total=12≠111 | `syncRouteQuery` 对 ALL 省略 `status` → 路由 watch/`applyRouteQuery` 缺省回落 `OPEN` | **必须**「全部」写显式 `status=ALL`；缺省无 query 才默认 OPEN；UAT 断言 URL+total↔无 status API | `ExceptionListView.vue` |
 | 208 | 设备运维关键词滤空仍「共 N 条」 | 关键词仅前端本页过滤，`total` 仍用服务端全量 | **必须**本页有剔除时 total=过滤后长度；全保留才用服务端 total；UAT 无匹配→共 0 | `DeviceOpsMonitorView.vue` |
 | 209 | Playwright 点 EP 下拉「已完成」超时 | 脚本找 `.el-option`，EP 实际是 `.el-select-dropdown__item` / `[role=option]` | **必须**先点 `.el-select__wrapper`，用 `aria-controls` 定位 listbox，再点 `[role=option]`；禁写 `.el-option` | UAT Playwright；`repair-tickets/FINDINGS` |
+| 210 | 选品诊断关键词滤空仍「共 N 条」 | 同 #208：`filterByKeyword` 后仍回传服务端 total | **必须**有剔除时 total=过滤后长度；UAT 可乐→共1、无匹配→共0 | `SkuReviewView.vue` |
 
 ## 追加模板
 
