@@ -44,13 +44,12 @@
             <text>{{ item.deviceName || item.deviceId || '无柜机' }}</text>
             <text>{{ formatTime(item.createdAt) }}</text>
             <text :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
-              isTerminalDispute(item.status)
-                ? displayLabel('dispute_status', 'RESOLVED')
-                : item.slaOverdue
-                  ? '已超时'
-                  : item.slaHoursRemaining == null
-                    ? displayLabel('order_status', 'PROCESSING')
-                    : `剩余 ${item.slaHoursRemaining} 小时`
+              disputeSlaListLabel(
+                item,
+                isTerminalDispute(item.status),
+                displayLabel('dispute_status', 'RESOLVED'),
+                displayLabel('order_status', 'PROCESSING')
+              )
             }}</text>
           </view>
           <view
@@ -143,11 +142,7 @@
             >
               <text class="detail-lbl">处理时限</text
               ><text class="detail-val" :class="detail?.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
-                detail?.slaOverdue
-                  ? '已超时'
-                  : detail?.slaHoursRemaining != null
-                    ? `剩余 ${detail.slaHoursRemaining} 小时`
-                    : '暂无'
+                disputeSlaDetailLabel(detail || {})
               }}</text>
             </view>
             <view v-if="detail?.lastMessage" class="detail-row"
@@ -266,15 +261,20 @@ import type { MerchantMe } from '@aicabinet/shared-types';
 import {
   buildMerchantDisputeResolveBody,
   canReplyMerchantDispute,
-  canResolveMerchantDispute,
   isTerminalDisputeStatus,
   type MerchantDisputeResolutionType
 } from '@/utils/money-ui-contracts';
 import {
   DISPUTES_FOCUS_SCAN_MAX_PAGES,
   DISPUTES_PAGE_SIZE,
+  appendDisputePageItems,
+  applyDisputesFirstPage,
+  disputeSlaDetailLabel,
+  disputeSlaListLabel,
+  merchantDisputeResolveConfirmContent,
   playablePlaybackUrl
 } from '@/utils/dispute-list';
+import { mergeDisputeDetailRow, resolveDisputeDetailPermissions } from '@/utils/dispute-detail';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -376,15 +376,11 @@ async function refreshDisputesMerchantMe(seq: number): Promise<boolean> {
 function applyDisputesResponse(
   res: MerchantDisputeTicket[] | { items?: MerchantDisputeTicket[]; total?: number }
 ) {
-  if (Array.isArray(res)) {
-    list.value = res;
-    listTotal.value = res.length;
-  } else {
-    list.value = res?.items || [];
-    listTotal.value = res?.total ?? list.value.length;
-  }
-  pageIndex.value = 0;
-  hasMore.value = list.value.length < listTotal.value;
+  const next = applyDisputesFirstPage(res);
+  list.value = next.list;
+  listTotal.value = next.total;
+  pageIndex.value = next.pageIndex;
+  hasMore.value = next.hasMore;
 }
 
 function denyDisputesAccess() {
@@ -409,18 +405,18 @@ async function handlePendingSessionId(seq: number) {
   for (let p = 1; matched.length === 0 && p < DISPUTES_FOCUS_SCAN_MAX_PAGES && hasMore.value; p++) {
     const res = await merchantApi.disputes(activeTab.value, p, PAGE_SIZE);
     if (seq !== loadSeq) return;
-    const items = Array.isArray(res) ? res : res?.items || [];
-    if (!items.length) {
-      hasMore.value = false;
-      break;
-    }
-    const seen = new Set(list.value.map((t) => t.ticketId));
-    const appended = items.filter((t) => t.ticketId && !seen.has(t.ticketId));
-    list.value = list.value.concat(appended);
-    pageIndex.value = p;
-    const total = Array.isArray(res) ? list.value.length : Number(res?.total ?? list.value.length);
-    listTotal.value = total;
-    hasMore.value = list.value.length < total && items.length >= PAGE_SIZE;
+    const next = appendDisputePageItems({
+      list: list.value,
+      pageIndex: p,
+      res,
+      pageSize: PAGE_SIZE,
+      previousTotal: listTotal.value
+    });
+    list.value = next.list;
+    listTotal.value = next.total;
+    pageIndex.value = next.pageIndex;
+    hasMore.value = next.hasMore;
+    if (!next.appended && !next.hasMore) break;
     matched = list.value.filter((t) => t.sessionId === sid);
   }
   if (matched.length === 1) {
@@ -494,30 +490,25 @@ function formatTime(t?: string) {
 
 async function onDetail(item: MerchantDisputeTicket | MerchantDisputeDetailView) {
   if (!item.ticketId) return;
-  let row: MerchantDisputeDetailView = { ...item };
-  let canReplyFromApi: boolean | undefined;
-  let canResolveFromApi: boolean | undefined;
+  let apiSlice: Parameters<typeof mergeDisputeDetailRow>[1] = null;
   try {
     const res = await merchantApi.disputeDetail(item.ticketId);
-    if (res?.ticket) row = { ...item, ...res.ticket };
-    canReplyFromApi = res?.canReply;
-    canResolveFromApi = res?.canResolve;
-    const lastMsg = res?.messages?.length
-      ? res.messages[res.messages.length - 1]?.body
-      : row.lastMessage;
-    if (lastMsg) row = { ...row, lastMessage: lastMsg };
+    apiSlice = res;
   } catch {
     // 列表摘要兜底
   }
+  const row = mergeDisputeDetailRow(item, apiSlice);
   detail.value = row;
   moreActionsOpen.value = false;
-  canReplyDetail.value =
-    canReplyFromApi == null ? canReplyTicket(row) : canReplyFromApi && canReply.value;
-  canResolveDetail.value = canResolveMerchantDispute({
+  const perms = resolveDisputeDetailPermissions({
     status: row.status,
-    hasResolvePerm: canResolve.value,
-    canResolveFromApi
+    canReplyFromApi: apiSlice?.canReply,
+    canResolveFromApi: apiSlice?.canResolve,
+    hasReplyPerm: canReply.value,
+    hasResolvePerm: canResolve.value
   });
+  canReplyDetail.value = perms.canReplyDetail;
+  canResolveDetail.value = perms.canResolveDetail;
   detailVisible.value = true;
 }
 
@@ -545,10 +536,7 @@ async function resolveFromDetail(type: MerchantDisputeResolutionType) {
   };
   const ok = await showConfirm({
     title: labels[type],
-    content:
-      type === 'WAIVE'
-        ? '确认免单并原路退款？货已离柜请选「仅退款」逻辑由系统按默认处理。'
-        : `确认${labels[type]}？`
+    content: merchantDisputeResolveConfirmContent(type, labels[type])
   });
   if (!ok) return;
   resolving.value = true;
@@ -587,18 +575,17 @@ async function loadMore() {
   try {
     const next = pageIndex.value + 1;
     const res = await merchantApi.disputes(activeTab.value, next, PAGE_SIZE);
-    const items = Array.isArray(res) ? res : res?.items || [];
-    if (!items.length) {
-      hasMore.value = false;
-      return;
-    }
-    const seen = new Set(list.value.map((t) => t.ticketId));
-    const appended = items.filter((t) => t.ticketId && !seen.has(t.ticketId));
-    list.value = list.value.concat(appended);
-    pageIndex.value = next;
-    const total = Array.isArray(res) ? list.value.length : Number(res?.total ?? list.value.length);
-    listTotal.value = total;
-    hasMore.value = list.value.length < total && items.length >= PAGE_SIZE;
+    const page = appendDisputePageItems({
+      list: list.value,
+      pageIndex: next,
+      res,
+      pageSize: PAGE_SIZE,
+      previousTotal: listTotal.value
+    });
+    list.value = page.list;
+    listTotal.value = page.total;
+    pageIndex.value = page.pageIndex;
+    hasMore.value = page.hasMore;
   } catch (e) {
     showError(e instanceof Error ? e.message : '加载失败');
   } finally {

@@ -166,13 +166,9 @@
       @click="closeDispute"
     >
       <view role="button" class="dispute-panel" @click.stop>
-        <text class="dispute-title">{{ refundMode ? '立即退款' : '账单申诉' }}</text>
+        <text class="dispute-title">{{ appealPanelTitle(refundMode, 'result') }}</text>
         <text class="dispute-sub">
-          {{
-            refundMode
-              ? '将原路退回本单已扣款项，可上传凭证图片'
-              : '提交申诉后由运营审核；可上传凭证图片'
-          }}
+          {{ appealPanelSubtitle(refundMode, 'result') }}
         </text>
         <view class="chip-row">
           <text
@@ -194,7 +190,7 @@
           placeholder="例如：我没有拿这个商品 / 数量不对…"
         />
         <view class="evidence-block">
-          <text class="evidence-label">申诉附图（选填）</text>
+          <text class="evidence-label">{{ appealEvidenceLabel('result') }}</text>
           <view class="evidence-row">
             <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
               <image
@@ -226,13 +222,11 @@
           :loading="disputeLoading || refundLoading"
           :disabled="disputeLoading || refundLoading"
           :label="
-            refundMode
-              ? refundLoading
-                ? '退款中…'
-                : '确认退款'
-              : disputeLoading
-                ? '提交中…'
-                : '提交申诉'
+            appealSubmitLabel({
+              refundMode,
+              refundLoading,
+              disputeLoading
+            })
           "
           @click="submitAction"
         />
@@ -266,11 +260,14 @@ import {
   resultRefundConfirmContent
 } from '@/utils/money-ui-contracts';
 import {
-  appealReasonError,
+  appealEvidenceLabel,
+  appealPanelSubtitle,
+  appealPanelTitle,
+  appealSubmitLabel,
   buildFileDisputeBody,
-  evidenceUploadingError,
   seedDisputeForm,
-  seedRefundForm
+  seedRefundForm,
+  validateAppealForm
 } from '@/utils/order-appeal';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -591,14 +588,9 @@ async function submitDispute() {
     showError('缺少订单信息');
     return;
   }
-  const reasonErr = appealReasonError(reason, 'dispute');
-  if (reasonErr) {
-    showError(reasonErr);
-    return;
-  }
-  const uploadErr = evidenceUploadingError(evidence.value);
-  if (uploadErr) {
-    showError(uploadErr);
+  const formErr = validateAppealForm(reason, evidence.value, 'dispute');
+  if (formErr) {
+    showError(formErr);
     return;
   }
   disputeLoading.value = true;
@@ -635,14 +627,9 @@ async function submitRefund() {
     showError('缺少订单编号');
     return;
   }
-  const reasonErr = appealReasonError(reason, 'refund');
-  if (reasonErr) {
-    showError(reasonErr);
-    return;
-  }
-  const uploadErr = evidenceUploadingError(evidence.value);
-  if (uploadErr) {
-    showError(uploadErr);
+  const formErr = validateAppealForm(reason, evidence.value, 'refund');
+  if (formErr) {
+    showError(formErr);
     return;
   }
   const restoreInventory = inferRestoreInventory(reason, selectedChip.value);
