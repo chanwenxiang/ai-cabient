@@ -193,6 +193,8 @@
 | 181 | 登录落盘分支埋 consumer-api | cookie/bearer/过期难单测 | C12c 只下载头 | **必须**`consumer-auth-session` plan/body；落盘仍 api；进度 C12d done | `consumer-auth-session.ts` |
 | 182 | 要货提交/证据门闩埋页 | body 与选中调量难测 | M10b 只草稿合并 | **必须**`request-submit`；上传 API 仍页内；进度 M10c done | `request-submit.ts` |
 | 183 | business load 决策埋页 | soft 刷新/过期序/硬失败难回归 | M6c 只样式税档 | **必须**`business-load`；禁止改 softFallback 语义；进度 M6d done | `business-load.ts` |
+| 184 | M6b 后 business 模板仍调 num | H5 UAT M-14 `num is not a function` | 展示函数迁 `businessNum` 未留模板别名 | **必须**`const num = businessNum` 或模板改 `businessNum`；改完跑 merchant type-check / UAT | `business.vue` |
+| 185 | 隐私弹层相对 import 在客户端副本失效 | consumer `vue-tsc` 找不到 `../privacy-consent` | 蓝本相对路径只在 package 内成立 | **必须**蓝本用 `@aicabinet/shared-uni/privacy-consent`；同步后两端一致 | `privacy-consent-modal.vue` |
 
 ## 追加模板
 

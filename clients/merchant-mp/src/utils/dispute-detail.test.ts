@@ -11,7 +11,7 @@ describe('dispute-detail · M7b', () => {
       }
     );
     expect(row.lastMessage).toBe('最新一条');
-    expect(row.reason).toBe('新原因');
+    expect((row as { reason?: string }).reason).toBe('新原因');
   });
 
   it('权限：API 显式 false 压过列表兜底', () => {

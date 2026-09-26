@@ -138,8 +138,9 @@ function previewSrc(img: LocalEvidence): string {
   return previewEvidenceSrc(img);
 }
 
-function onReasonInput(e: { detail?: { value?: string } }) {
-  emit('update:reason', e?.detail?.value ?? '');
+function onReasonInput(e: unknown) {
+  const detail = (e as { detail?: { value?: string } } | null)?.detail;
+  emit('update:reason', detail?.value ?? '');
 }
 </script>
 

@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { acceptPrivacyConsent } from '../privacy-consent';
+import { acceptPrivacyConsent } from '@aicabinet/shared-uni/privacy-consent';
 
 const props = defineProps<{
   visible: boolean;

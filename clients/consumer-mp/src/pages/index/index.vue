@@ -1217,7 +1217,8 @@ async function handleSessionOpenResult(
   }
   if (await adoptOrphanSession(cabinetId, { pendingCreate })) return true;
   markOpenFailed(cabinetId);
-  const failReason = sessionResult.reason;
+  const failReason =
+    sessionResult.status === 'rejected' ? sessionResult.reason : new Error('开门失败');
   const kind = classifyOpenError(failReason);
   setLandingError(formatError(failReason), kind);
   showError(landingError.value);

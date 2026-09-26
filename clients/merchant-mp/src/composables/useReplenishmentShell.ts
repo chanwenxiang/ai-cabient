@@ -46,7 +46,7 @@ export function useReplenishmentShell(opts: {
   }) => Promise<{ aborted?: boolean } | null | undefined>;
   isLatestLoad: (seq: number) => boolean;
   refreshMe: () => Promise<unknown>;
-  resolveDeepLinkOpenTask: () => unknown;
+  resolveDeepLinkOpenTask: () => Task | undefined;
   handleDeepLinkAfterLoad: (open: Task | undefined, wantedTaskId: number | null) => Promise<void>;
 }) {
   const heroSubtitle = computed(() => '扫码到柜 → 签到 → 开门 → 核对履约');

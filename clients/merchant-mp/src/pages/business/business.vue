@@ -298,6 +298,7 @@ import {
 } from '@/utils/sales-chart';
 import {
   avgOrderText,
+  businessNum,
   changeClass,
   formatChange,
   formatInsightTime,
@@ -421,6 +422,7 @@ const expirySummary = ref<MerchantExpirySummary | null>(null);
 const deviceReports = ref<OpenApiMerchantDeviceReportDto[]>([]);
 
 /** 报表数值兜底已迁 business-display（M6b）。 */
+const num = businessNum;
 
 const reportDims = [
   { value: 'PRODUCT', label: '商品' },
