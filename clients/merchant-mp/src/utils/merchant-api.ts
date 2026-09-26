@@ -27,6 +27,9 @@ import {
   mergeExceptionRowsById,
   OPEN_EXCEPTIONS_DEFAULT_MAX_PAGES
 } from '@/utils/exception-pages';
+import { merchantOrderVideoUrl } from '@/utils/order-video-url';
+
+export { merchantOrderVideoUrl } from '@/utils/order-video-url';
 
 const TOKEN_KEY = 'merchant_token';
 const USER_KEY = 'merchant_user_id';
@@ -607,6 +610,8 @@ export const merchantApi = {
     return `${API_BASE_URL}/api/v2/merchant/orders/export${q}`;
   },
   exportDeviceReportsUrl: () => `${API_BASE_URL}/api/v2/merchant/device-reports/export`,
+  /** 订单购物视频绝对 URL（页内禁止再拼 API_BASE + path） */
+  orderVideoUrl: merchantOrderVideoUrl,
   replenishmentSuggestions: (deviceId: string) =>
     request<OpenApiReplenishmentSuggestDto[]>(
       `/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`

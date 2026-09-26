@@ -37,14 +37,14 @@
 | M9 | P2 | open | 共享 UI 副本未切到 `shared-uni`（易再漂） | 本地 easycom 副本；同步脚本已有（C10）；直指 package → C10b | |
 | M10 | P2 | done | `request.vue` 仍大；draft/suggest softFallback；下拉 refresh 空 catch | ~856 行；`.catch(() => {})`；与补货域重叠未进 composable | 2026-09-26：去掉下拉空 catch；样式外置（~895→~577）；softFallback 已有 label（M1）；composable 拆分 → M10b |
 | M11 | P2 | done | 金钱展示双轨：`fmtMoney` vs 手写 `/100` | `pricing`/`splits`/`WalletPage`/`sales-chart` 手写；`business` 已收口（M6）；orders/disputes/home 已用 `fmtMoney` | 2026-09-26：上述四处展示统一 `fmtMoney`；pricing 表单草稿仍用裸元 `toFixed(2)`（输入非展示） |
-| M12 | P3 | open | video 旁路拼 URL；api 面仍大 | `video.vue` 自拼 + Bearer；宜并入 Endpoints（承接 M3） | |
+| M12 | P3 | done | video 旁路拼 URL；api 面仍大 | `video.vue` 自拼 + Bearer；宜并入 Endpoints（承接 M3） | 2026-09-26：`MerchantEndpoints.orderVideo` + `merchantOrderVideoUrl`；页内禁拼 base；媒体流仍旁路 fetch/download（非 JSON API）；api 面瘦身 → M3b |
 
 ---
 
 ## 建议首期切片
 
 ```
-M9 / C10b（easycom→package）→ M10b / M7b / M6b → M12；M3b / M4b 穿插
+M9 / C10b（easycom→package）→ M10b / M7b / M6b → M3b / M4b
 ```
 
 **M1 首刀边界**：补货任务主列表 + 待办主列表；失败 → 可见 error-state / toast；**禁止** `[]` 伪装空。勿动履约写路径。  
@@ -53,7 +53,8 @@ M9 / C10b（easycom→package）→ M10b / M7b / M6b → M12；M3b / M4b 穿插
 **M7 首刀边界**：`PAGE_SIZE≤50` + 样式外置 + 可播放 URL 纯函数；**禁止**同 PR 大改结案写路径（已有 M2 契约）。  
 **M8 首刀边界**：deviceSettings 接 OpenAPI；merchantId 从柜机列表解析；**禁止**同 PR 大改货道写路径。  
 **M10 首刀边界**：禁空 catch + 样式外置；**禁止**同 PR 大拆要货写路径。  
-**M11 边界**：展示一律 `fmtMoney`；表单输入可保留裸元字符串。
+**M11 边界**：展示一律 `fmtMoney`；表单输入可保留裸元字符串。  
+**M12 边界**：视频绝对 URL 走 `merchantOrderVideoUrl`；媒体流可旁路 JSON request。
 
 ---
 

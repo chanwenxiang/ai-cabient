@@ -169,6 +169,8 @@
 | 157 | merchant 要货页下拉空 catch | `onPullDownRefresh` `.catch(() => {})` 吞错 | bootstrap 失败无日志无 toast | **必须**`void bootstrap().finally(stopRefresh)`；禁止空 catch；样式外置；进度 M10 首刀 done | `request.vue`、`request.page.css` |
 | 158 | merchant 金钱展示双轨 | pricing/splits/钱包/构成图手写 `/100` | 与 `fmtMoney` 并存易漂 | **必须**展示走 `fmtMoney`；表单草稿可裸元；禁止页内再拼 `¥`+toFixed；进度 M11 done | `pricing`/`splits`/`WalletPage`/`sales-chart` |
 | 159 | consumer verify 用 as any 判 H5 | `import.meta as any` / `globalThis as any` | 弱类型口袋；条件编译更稳 | **必须**平台分支用 `#ifdef H5`；禁止为读 env 再 `as any`；进度 C8 done | `verify.vue` |
+| 160 | settleWithin 像 soft-fail | `.catch(() => null)` 易被改成 toast 空失败 | 孤儿开门宽限期故意吞错 | **必须**保留「失败/超时→null」；调用方必须续查 activeSession；禁止当 softFallback；进度 C11 done | `landing-session.ts`、`index.vue` adoptOrphanSession |
+| 161 | merchant 视频页拼绝对 URL | 页内 `API_BASE`+path，易与 Endpoints 脱节 | 媒体流旁路 JSON API | **必须**`merchantOrderVideoUrl` / `MerchantEndpoints.orderVideo`；禁止页内再拼 base；进度 M12 done | `order-video-url.ts`、`video.vue` |
 
 ## 追加模板
 

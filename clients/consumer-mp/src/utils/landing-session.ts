@@ -43,9 +43,20 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** 在 ms 内 settle 则返回结果，否则返回 null（给在途请求一个宽限期）。 */
+/**
+ * 孤儿开门宽限期：在 ms 内成功则返回结果。
+ * 超时 **或** 在途 Promise 失败均返回 null（故意）：调用方必须继续 `/sessions/active` 轮询。
+ * 禁止把本函数当成 softFallback（空列表伪装）；语义是「放弃等这一次 Promise」。
+ * @see adoptOrphanSession（index.vue C-2）
+ */
 export function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race<T | null>([promise.catch(() => null), sleep(ms).then(() => null)]);
+  return Promise.race<T | null>([
+    promise.then(
+      (value) => value,
+      () => null
+    ),
+    sleep(ms).then(() => null)
+  ]);
 }
 
 export type BlockedDeviceLandingError = {

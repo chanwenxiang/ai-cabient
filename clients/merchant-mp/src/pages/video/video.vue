@@ -50,9 +50,8 @@
 import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
-import { API_BASE_URL } from '@/config/api';
-import { MerchantEndpoints } from '@/api/endpoints';
 import { downloadAuthedFile, getToken } from '@/utils/merchant-api';
+import { merchantOrderVideoUrl } from '@/utils/order-video-url';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const src = ref('');
@@ -82,7 +81,7 @@ async function loadOrderVideo(oid: string) {
   error.value = '';
   revokeBlob();
   src.value = '';
-  const apiUrl = `${API_BASE_URL.replace(/\/$/, '')}${MerchantEndpoints.orderVideo(oid)}`;
+  const apiUrl = merchantOrderVideoUrl(oid);
   copyTarget.value = apiUrl;
   const token = getToken();
   try {

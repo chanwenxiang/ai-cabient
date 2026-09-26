@@ -42,4 +42,12 @@ describe('landing-session · C5', () => {
     await expect(p).resolves.toBeNull();
     vi.useRealTimers();
   });
+
+  it('settleWithin：在途失败也返回 null（故意，非 softFallback）', async () => {
+    await expect(settleWithin(Promise.reject(new Error('boom')), 50)).resolves.toBeNull();
+  });
+
+  it('settleWithin：成功返回值', async () => {
+    await expect(settleWithin(Promise.resolve(42), 50)).resolves.toBe(42);
+  });
 });

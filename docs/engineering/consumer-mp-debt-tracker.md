@@ -36,7 +36,7 @@
 | C8 | P2 | done | 弱类型口袋（规模小于 admin） | 少量 `as any`（如 `order-detail`、`verify`）；query/flag 的 `Record<string, string>` 可保留 | 2026-09-26：verify 支付宝签约去 `import.meta as any`，改 `#ifdef H5`；order-detail 已无 `as any`；query `Record` 保留 |
 | C9 | P2 | deferred | 平台敏感 `uni.*` 缺守卫（mp 权威；H5 deferred） | `scanCode`/`makePhoneCall`/`setClipboardData`/`chooseImage` 等；支付已有 `#ifdef MP-WEIXIN`；H5 崩溃仅 CI 相关（已有 `setBackgroundColor` 先例 lessons #139） | 知情延后：本表验收不认 H5；仅当 CI 再红或抽 `safeUniCall` 时开 |
 | C10 | P2 | done | easycom 本地镜像 vs `shared-uni`；`error-state` 已漂移 | `app-nav-bar`/`empty-state`/`app-button` 三端曾对齐；`error-state` consumer≡merchant≠shared；注释要求 Keep in sync | 2026-09-26：正文已与蓝本一致；新增 `sync-shared-uni-components` + `--check` 并入 `check:shared-component-sync`；easycom 仍本地路径 → C10b/M9 |
-| C11 | P3 | open | `settleWithin` / 开门超时吞错易被误改成「空失败」 | `index.vue` `promise.catch(() => null)` + 幽灵会话注释；与 C1 外观相似、意图不同 | |
+| C11 | P3 | done | `settleWithin` / 开门超时吞错易被误改成「空失败」 | `index.vue` `promise.catch(() => null)` + 幽灵会话注释；与 C1 外观相似、意图不同 | 2026-09-26：`settleWithin` 文档化「故意失败→null」+ 失败/成功单测；语义≠ softFallback；调用方仍走 activeSession 轮询 |
 | C12 | P3 | open | `consumer-api` 上帝模块 + 页面外裸 URL | `consumer-api.ts` ~886 行；`video.vue` 绕开 API 层 | |
 
 ---
@@ -44,7 +44,7 @@
 ## 建议首期切片
 
 ```
-C6b / C5b / C2b / C11 / C12 延后；C10b（easycom 直指 package）与 M9 对齐；C9 保持 deferred
+C6b / C5b / C2b / C12 延后；C10b（easycom 直指 package）与 M9 对齐；C9 保持 deferred
 ```
 
 **C5 首刀边界**：只抽无 UI 的会话/开门 composable；**禁止**同 PR 改落地页布局与视觉。  
@@ -52,7 +52,8 @@ C6b / C5b / C2b / C11 / C12 延后；C10b（easycom 直指 package）与 M9 对�
 **C7 边界**：体验充值文案/键 + 次级肥页样式外置；**禁止**同 PR 改支付主路径与登录鉴权。  
 **C8 边界**：去运行时 `as any`；平台分支用 `#ifdef`；query `Record` 可保留。  
 **C10 首刀边界**：同步脚本 + 门禁；**禁止**同 PR 改 easycom 指向（mp 风险 → C10b）。  
-**C1 边界**：勿改 `orders.vue` 主 `load()`（已有 try/catch + error）；勿动 index 幽灵会话 `settleWithin`（→ C11）。
+**C11 边界**：`settleWithin` 失败/超时→null 是孤儿开门故意语义；**禁止**改成 toast softFallback；**禁止**删掉后续 activeSession 轮询。  
+**C1 边界**：勿改 `orders.vue` 主 `load()`（已有 try/catch + error）；孤儿会话宽限期见 C11（已 done）。
 
 ---
 
