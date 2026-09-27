@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 export type WarehouseTransferRow = AdminDynamicRow;
 
@@ -42,7 +42,11 @@ function linesSummary(lines: TransferLine[] | undefined, skuName: (skuId?: strin
         <template #empty>
           <el-empty v-if="hydrated && !loading" description="暂无调拨单" />
         </template>
-        <el-table-column prop="transferNo" label="调拨单号" min-width="160" />
+        <el-table-column prop="transferNo" label="调拨单号" min-width="160">
+          <template #default="{ row }">
+            <span class="cell-id">{{ displayBizNo(row.transferNo) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="调出仓" min-width="120">
           <template #default="{ row }">{{
             warehouseName(String(row.fromWarehouseId || '')) || row.fromWarehouseId

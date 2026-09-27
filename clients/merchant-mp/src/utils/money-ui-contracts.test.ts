@@ -51,10 +51,13 @@ describe('money-ui-contracts · 钱包提现', () => {
     ).toBeNull();
   });
 
-  it('requestNo = prefix + nowMs + - + suffix', () => {
+  it('requestNo = 纯数字 nowMs + 数字后缀', () => {
     expect(
       buildWalletWithdrawRequestNo({ prefix: 'MW-', nowMs: 1700000000000, randomSuffix: 'abc12' })
-    ).toBe('MW-1700000000000-abc12');
+    ).toBe('1700000000000000012');
+    expect(buildWalletWithdrawRequestNo({ nowMs: 1700000000000, randomSuffix: '99' })).toBe(
+      '1700000000000000099'
+    );
   });
 
   it('提现体：多商户带 merchantId；单商户/线长不带', () => {

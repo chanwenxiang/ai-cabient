@@ -558,7 +558,9 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }">{{ row.settlementBatchNo || '暂无' }}</template>
+                <template #default="{ row }">{{
+                  row.settlementBatchNo ? displayBizNo(row.settlementBatchNo) : '暂无'
+                }}</template>
               </el-table-column>
               <el-table-column
                 label="状态"

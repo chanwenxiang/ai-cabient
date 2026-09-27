@@ -183,7 +183,7 @@ public class ProcurementService {
         order.setStatus(PENDING_APPROVAL);
         order = purchaseOrderRepository.save(order);
         if (order.getRefNo() == null || order.getRefNo().isBlank()) {
-            order.setRefNo("PO-" + order.getPurchaseOrderId());
+            order.setRefNo(String.valueOf(order.getPurchaseOrderId()));
             order = purchaseOrderRepository.save(order);
         }
 

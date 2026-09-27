@@ -107,7 +107,7 @@ public class RevenueSplitService {
         split.setPlatformCents(platform);
         split.setMerchantCents(merchantShare);
         split.setSettleAfter(LocalDate.now().plusDays(1));
-        split.setSettlementBatchNo("MS-" + LocalDate.now() + "-" + merchant.getMerchantId());
+        split.setSettlementBatchNo(BizIds.nextNumeric());
         if (merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
             split.setStatus(LEDGER_ONLY);
         } else if (!profitSharingService.isApiReady()) {
@@ -248,7 +248,7 @@ public class RevenueSplitService {
         long merchantShare = gross - platform;
         long returnCents = Math.max(0, oldMerchantCents - merchantShare);
         if (returnCents > 0 && merchant != null) {
-            String outReturnNo = "PSR" + split.getSplitId() + ":g" + merchantShare;
+            String outReturnNo = BizIds.nextNumeric();
             applyWeChatReturnOutcome(split, outReturnNo, returnCents,
                     profitSharingService.returnMerchantShare(
                             split, merchant, returnCents, outReturnNo, "部分退款分账回退 " + order.getOrderId()),
@@ -314,7 +314,7 @@ public class RevenueSplitService {
         if (merchant == null) {
             return;
         }
-        String outReturnNo = "PSR-FULL-" + split.getSplitId();
+        String outReturnNo = BizIds.nextNumeric();
         applyWeChatReturnOutcome(split, outReturnNo, amount,
                 profitSharingService.returnMerchantShare(
                         split, merchant, amount, outReturnNo, "全额退款分账回退 " + split.getOrderId()),

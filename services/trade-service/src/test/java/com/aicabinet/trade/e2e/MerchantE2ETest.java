@@ -22,6 +22,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import com.aicabinet.trade.service.DemoDataService;
+import com.aicabinet.trade.support.DemoFixture;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +80,9 @@ class MerchantE2ETest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private DemoDataService demoDataService;
+
     private static String storeManagerToken;
     private static String replenisherToken;
 
@@ -113,7 +119,8 @@ class MerchantE2ETest {
     @Order(3)
     @DisplayName("店长可查看柜机详情")
     void storeManager_deviceDetail() throws Exception {
-        mockMvc.perform(get("/api/v2/merchant/devices/CAB-001")
+        String deviceId = DemoFixture.requireDeviceId(demoDataService);
+        mockMvc.perform(get("/api/v2/merchant/devices/" + deviceId)
                         .header("Authorization", "Bearer " + storeManagerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
@@ -171,7 +178,8 @@ class MerchantE2ETest {
     @Order(9)
     @DisplayName("店长无权修改柜机设置 → 403")
     void storeManager_updateDeviceSettingsForbidden() throws Exception {
-        mockMvc.perform(patch("/api/v2/merchant/devices/CAB-001/settings")
+        String deviceId = DemoFixture.requireDeviceId(demoDataService);
+        mockMvc.perform(patch("/api/v2/merchant/devices/" + deviceId + "/settings")
                         .header("Authorization", "Bearer " + storeManagerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))

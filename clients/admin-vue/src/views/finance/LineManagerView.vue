@@ -297,7 +297,11 @@
               min-width="160"
               class-name="col-text"
               label-class-name="col-text"
-            />
+            >
+              <template #default="{ row }">
+                <span class="cell-id">{{ displayBizNo(row.requestNo) }}</span>
+              </template>
+            </el-table-column>
             <el-table-column
               prop="managerName"
               label="线长"
@@ -359,7 +363,9 @@
               align="center"
               class-name="col-status"
               label-class-name="col-status"
-            />
+            >
+              <template #default="{ row }">{{ displayBizNo(row.payoutRef, '无') }}</template>
+            </el-table-column>
             <el-table-column
               prop="payoutMessage"
               label="打款说明"
@@ -689,7 +695,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';

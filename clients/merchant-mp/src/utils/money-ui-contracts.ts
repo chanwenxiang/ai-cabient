@@ -39,12 +39,18 @@ export function validateWalletWithdrawMerchant(input: {
   return null;
 }
 
+/**
+ * 提现业务单号：纯数字（毫秒 + 后缀数字），与后端 BizIds.nextNumeric / 订单号口径一致。
+ * `prefix` 已废弃，保留参数以免旧调用方编译失败。
+ */
 export function buildWalletWithdrawRequestNo(input: {
-  prefix: string;
+  prefix?: string;
   nowMs: number;
   randomSuffix: string;
 }): string {
-  return `${input.prefix}${input.nowMs}-${input.randomSuffix}`;
+  const digits = String(input.randomSuffix || '').replace(/\D/g, '');
+  const suffix = (digits || String(input.nowMs % 1_000_000)).padStart(6, '0').slice(-6);
+  return `${input.nowMs}${suffix}`;
 }
 
 export function buildWalletWithdrawBody(input: {

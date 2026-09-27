@@ -11,6 +11,7 @@ import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.OptimisticLocking;
+import com.aicabinet.trade.util.BizIds;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +19,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Supplier;
 
 @Service
@@ -66,7 +66,7 @@ public class InventoryOpsService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid write-off reason");
         }
 
-        String refId = "WO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String refId = BizIds.nextNumeric();
         lotService.writeOffLots(request.deviceId(), request.skuId(), request.batchNo(),
                 request.quantity(), operatorId, refId);
 
@@ -136,7 +136,7 @@ public class InventoryOpsService {
             return inv;
         }
 
-        String refId = "ST-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String refId = BizIds.nextNumeric();
         lotService.stocktakeAdjust(request.deviceId(), request.skuId(),
                 request.countedQuantity(), operatorId, refId);
 

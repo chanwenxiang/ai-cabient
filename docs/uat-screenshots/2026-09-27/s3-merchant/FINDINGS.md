@@ -43,7 +43,7 @@ Merchant H5：`/merchant/` nginx **302→/admin/**（未挂载）→ UI **SKIP**
 | `POST /merchant/wallet/withdraw` ¥1 | 低于审核阈值 → **自动 MOCK PAID**（无法走「确认→取消」） |
 | 余额 | 540 → **440**（−100） |
 | Admin 商户钱包 | S1 · 余额/可用 **4.40** |
-| Admin 提现审核 | `MW-S3C5-27b9e23f` · ¥1.00 · **已打款** · 备注「低于审核阈值自动通过」 |
+| Admin 提现审核 | 业务单号展示纯数字（历史库值 `MW-S3C5-…` → `displayBizNo`）· ¥1.00 · **已打款** |
 
 截图：`s3c-05-admin-withdraw.png` · `s3c-05b-withdraw-audit.png`
 

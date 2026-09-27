@@ -88,7 +88,7 @@ public class WarehouseTransferService {
         warehouseMapper.findById(to).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "调入仓不存在"));
 
         WarehouseTransferOrder order = new WarehouseTransferOrder();
-        order.setTransferNo("WTF" + BizIds.nextNumeric());
+        order.setTransferNo(BizIds.nextNumeric());
         order.setFromWarehouseId(from);
         order.setToWarehouseId(to);
         order.setStatus(CabinetConstants.PROMOTION_STATUS_DRAFT);

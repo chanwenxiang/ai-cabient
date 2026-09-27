@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
+import { displayBizNo } from '@aicabinet/shared-uni/format';
 
 export type WarehousePurchaseOrderRow = AdminDynamicRow;
 
@@ -134,7 +135,7 @@ const emit = defineEmits<{
           label-class-name="col-status"
         >
           <template #default="{ row }">
-            <span v-if="row.refNo">{{ row.refNo }}</span>
+            <span v-if="row.refNo" class="cell-id">{{ displayBizNo(row.refNo) }}</span>
             <span v-else class="muted">未填写</span>
           </template>
         </el-table-column>

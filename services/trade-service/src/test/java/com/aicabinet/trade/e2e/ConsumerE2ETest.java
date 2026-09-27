@@ -28,6 +28,8 @@ import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.service.DemoDataService;
+import com.aicabinet.trade.support.DemoFixture;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -100,6 +102,9 @@ class ConsumerE2ETest {
     @Autowired
     private ShoppingSessionMapper shoppingSessionMapper;
 
+    @Autowired
+    private DemoDataService demoDataService;
+
     /** 本用例**直插**的订单号（见 {@link #insertNeverChargedPendingOrder}），用于用例结束后的清理。 */
     private final List<String> f6InsertedOrderIds = new ArrayList<>();
 
@@ -151,7 +156,8 @@ class ConsumerE2ETest {
     @Test
     @DisplayName("消费者可浏览柜机状态")
     void consumer_deviceStatus() throws Exception {
-        mockMvc.perform(get("/api/v2/devices/CAB-001/status")
+        String deviceId = DemoFixture.requireDeviceId(demoDataService);
+        mockMvc.perform(get("/api/v2/devices/" + deviceId + "/status")
                         .header("Authorization", "Bearer " + consumerToken()))
                 .andExpect(status().isOk());
     }
@@ -159,7 +165,8 @@ class ConsumerE2ETest {
     @Test
     @DisplayName("消费者可浏览柜机商品")
     void consumer_deviceProducts() throws Exception {
-        mockMvc.perform(get("/api/v2/devices/CAB-001/products")
+        String deviceId = DemoFixture.requireDeviceId(demoDataService);
+        mockMvc.perform(get("/api/v2/devices/" + deviceId + "/products")
                         .header("Authorization", "Bearer " + consumerToken()))
                 .andExpect(status().isOk());
     }
@@ -226,8 +233,15 @@ class ConsumerE2ETest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        // 3) 设备心跳置为在线（种子数据 CAB-001 为 OFFLINE，开柜校验要求在线）
-        mockMvc.perform(post("/internal/v1/devices/CAB-001/heartbeat")
+        // 3) 演示柜心跳置为在线（DemoData 新建柜默认 OFFLINE，开柜校验要求在线）
+        // V287 已删除孤儿 CAB-001；禁止写死柜号（见 DemoFixture / lessons #212/#224）
+        DemoDataService.DemoContext demo = DemoFixture.requireDemo(demoDataService);
+        String deviceId = demo.deviceId();
+        String cartSkuId = demo.fallbackSkuId();
+        assertNotNull(cartSkuId);
+        assertTrue(!cartSkuId.isBlank(), "demo fallbackSku blank");
+
+        mockMvc.perform(post("/internal/v1/devices/" + deviceId + "/heartbeat")
                         .header("X-Internal-Api-Key", internalApiKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
@@ -238,7 +252,7 @@ class ConsumerE2ETest {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "deviceId", "CAB-001",
+                                "deviceId", deviceId,
                                 "idempotencyKey", "e2e-session-" + System.currentTimeMillis()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
@@ -246,11 +260,12 @@ class ConsumerE2ETest {
         String sessionId = objectMapper.readTree(sessionResult.getResponse().getContentAsString())
                 .path("data").path("sessionId").asText();
 
-        // 5) 购物车（mock 结算按购物车扣款）
+        // 5) 购物车（mock 结算按购物车扣款；SKU 取柜上可售兜底，禁写死 SKU-WATER-001）
         mockMvc.perform(put("/api/v2/sessions/" + sessionId + "/cart")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"items\":[{\"skuId\":\"SKU-WATER-001\",\"qty\":1}]}"))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "items", List.of(Map.of("skuId", cartSkuId, "qty", 1))))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
@@ -260,7 +275,7 @@ class ConsumerE2ETest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "sessionId", sessionId,
-                                "deviceId", "CAB-001",
+                                "deviceId", deviceId,
                                 "doorState", "CLOSED"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
@@ -433,7 +448,7 @@ class ConsumerE2ETest {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("E2EF6S" + UUID.randomUUID().toString().replace("-", "").substring(0, 21));
         session.setUserId(userId);
-        session.setDeviceId("CAB-001");
+        session.setDeviceId(DemoFixture.requireDeviceId(demoDataService));
         session.setState(SessionState.COMPLETED);
         session.setIdempotencyKey("e2e-f6-session-" + UUID.randomUUID());
         // 直插时显式赋值即可：MybatisMetaObjectHandler.insertFill 走 strictInsertFill，
@@ -462,7 +477,7 @@ class ConsumerE2ETest {
         order.setOrderId("E2EF6" + UUID.randomUUID().toString().replace("-", "").substring(0, 22));
         order.setSessionId(sessionId);
         order.setUserId(userId);
-        order.setDeviceId("CAB-001");
+        order.setDeviceId(DemoFixture.requireDeviceId(demoDataService));
         order.setTotalAmountCents(amountCents);
         order.setStatus("PENDING");
         order.setPayChannel(sentinelChannel);

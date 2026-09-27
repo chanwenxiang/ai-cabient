@@ -150,8 +150,8 @@ async function review(row: BalanceRefundRequestDto, approve: boolean) {
   try {
     const { value } = await ElMessageBox.prompt(
       approve
-        ? `确认通过申请 ${row.requestNo}？将按充值单 FIFO 原路退回微信/支付宝 ¥${yuan(row.amountCents)}，并扣减用户余额。`
-        : `确认驳回申请 ${row.requestNo}？将释放冻结金额。`,
+        ? `确认通过申请 ${displayBizNo(row.requestNo)}？将按充值单 FIFO 原路退回微信/支付宝 ¥${yuan(row.amountCents)}，并扣减用户余额。`
+        : `确认驳回申请 ${displayBizNo(row.requestNo)}？将释放冻结金额。`,
       action,
       {
         confirmButtonText: action,

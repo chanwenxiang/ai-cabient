@@ -317,7 +317,7 @@ public class OrderPaymentService {
         }
         try {
             PayScoreOrder psOrder = new PayScoreOrder();
-            psOrder.setPayscoreOrderId("PSO-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase());
+            psOrder.setPayscoreOrderId(BizIds.nextNumeric());
             psOrder.setOrderId(order.getOrderId());
             psOrder.setUserId(order.getUserId());
             psOrder.setOpenId(user.getWxOpenId() == null ? "" : user.getWxOpenId());
@@ -656,7 +656,7 @@ public class OrderPaymentService {
             return;
         }
         PaymentOperation op = new PaymentOperation();
-        op.setOperationId("ADJ-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
+        op.setOperationId(BizIds.nextNumeric());
         op.setOrderId(order.getOrderId());
         op.setOperationType(ADJUST_CHARGE);
         op.setAmountCents(deltaCents);
@@ -834,9 +834,11 @@ public class OrderPaymentService {
         paymentOperationRepository.save(op);
     }
 
+    /** 幂等退款单号：纯数字（由 idempotencyKey 稳定派生，禁 RF+字母）。 */
     private static String deterministicRefundNo(String idempotencyKey) {
-        String suffix = Integer.toUnsignedString(idempotencyKey.hashCode(), 36).toUpperCase();
-        return ("RF" + suffix + "00000000000000").substring(0, 16);
+        long h1 = Integer.toUnsignedLong(idempotencyKey.hashCode());
+        long h2 = Integer.toUnsignedLong(java.util.Objects.hash(idempotencyKey, "outRefund"));
+        return String.format("%010d%010d", h1 % 10_000_000_000L, h2 % 10_000_000_000L);
     }
 
     private static String reasonKey(String reason) {
@@ -847,10 +849,8 @@ public class OrderPaymentService {
     }
 
     private static String resolveOperationId(String type, String channel) {
-        if (PayChannels.BALANCE.equalsIgnoreCase(channel)) {
-            return BizIds.nextNumeric();
-        }
-        return type + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
+        // type/channel 保留签名兼容调用方；单号统一纯数字
+        return BizIds.nextNumeric();
     }
 
     /**

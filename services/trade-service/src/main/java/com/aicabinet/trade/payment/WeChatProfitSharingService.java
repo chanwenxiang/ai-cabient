@@ -90,7 +90,7 @@ public class WeChatProfitSharingService {
 
         String outOrderNo = split.getWechatOutOrderNo();
         if (outOrderNo == null || outOrderNo.isBlank()) {
-            outOrderNo = "PS" + split.getSplitId();
+            outOrderNo = split.getSplitId();
             split.setWechatOutOrderNo(outOrderNo);
         }
 
@@ -165,10 +165,10 @@ public class WeChatProfitSharingService {
         }
         String outOrderNo = split.getWechatOutOrderNo();
         if (outOrderNo == null || outOrderNo.isBlank()) {
-            outOrderNo = "PS" + split.getSplitId();
+            outOrderNo = split.getSplitId();
         }
         String returnNo = outReturnNo == null || outReturnNo.isBlank()
-                ? "PSR" + split.getSplitId()
+                ? com.aicabinet.trade.util.BizIds.nextNumeric()
                 : outReturnNo.trim();
         if (profitSharingProperties.mockEnabled()) {
             log.info("mock profit sharing return splitId={} orderId={} amount={} outReturnNo={}",

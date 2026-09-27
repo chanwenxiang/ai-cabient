@@ -195,7 +195,11 @@
               min-width="160"
               class-name="col-text"
               label-class-name="col-text"
-            />
+            >
+              <template #default="{ row }">
+                <span class="cell-id">{{ displayBizNo(row.requestNo) }}</span>
+              </template>
+            </el-table-column>
             <el-table-column
               prop="merchantId"
               label="商户编号"
@@ -257,7 +261,9 @@
               align="center"
               class-name="col-status"
               label-class-name="col-status"
-            />
+            >
+              <template #default="{ row }">{{ displayBizNo(row.payoutRef, '无') }}</template>
+            </el-table-column>
             <el-table-column
               prop="payoutMessage"
               label="打款说明"
@@ -347,7 +353,7 @@
               <small class="muted">{{
                 displayLabel('wallet_ref_type', row.refType, '关联')
               }}</small>
-              {{ row.refId }}
+              {{ displayBizNo(row.refId) }}
             </span>
             <span v-else class="muted">暂无</span>
           </template>
@@ -479,7 +485,7 @@ import { useAuthStore } from '@/stores/auth';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { yuanToCents } from '@/utils/display';

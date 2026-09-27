@@ -233,6 +233,8 @@
 | 220 | marketing-recharge mock 到账 404 | 脚本打 `/api/v2/payment/recharge/{id}/mock-success` | 真路径在 `/api/v2/dev/payment/recharge/{id}/mock-success` | **必须**走 `/dev/` 前缀（与 consumer-mp、demo-smoke 一致） | `e2e-consumer-marketing-recharge.ps1` |
 | 221 | Wipe 后商户端 `/merchant/me` 403 | WipePlatform `DELETE ops_user_merchant`；演示账号无绑定 ⇒ `isGlobalScope` 空 | 门户 guard 拒访问 | **必须**S1 建商户后 `INSERT ops_user_merchant` 绑 `13800138001`/`13800138002`；闸门/搭台脚本写死此步；禁假定 RBAC 角色 alone 够用 | `cleanup-test-data.ps1`、`MerchantScopeService`、`s3-merchant/FINDINGS` |
 | 222 | 商户改价 PATCH 400/409 | body 缺 `deviceId` 或已有覆盖价缺/错 `expectedVersion` | 乐观锁校验 | **必须**`{deviceId, priceCents, expectedVersion}`；version=列表 `priceVersion`；单元素列表勿用 PS unwrap | `UpdateMerchantSkuPriceRequest`、`MerchantSkuPricingService` |
+| 223 | 业务单号露出字母前缀（MW/RF/PO/STK…） | 多处服务端 `前缀+UUID` 发号；Admin 部分列裸绑未走 `displayBizNo` | 与订单/柜机纯数字口径冲突 | **必须**用户可见业务单号用 `BizIds.nextNumeric()`；列表/详情走 `displayBizNo`；**勿**改 SKU/批次/渠道协议号（PSC/ALI-AG）与微信 nonce | `BizIds`、`PaymentService`、`OrderPaymentService`、仓配/分账/提现视图 |
+| 224 | Java E2E/IT 写死 CAB-001 后 CI 红 | V287 删孤儿柜后仍心跳/开柜/插会话用 `CAB-001` | 心跳 `registerUnknown` 造无库存柜→购物车 409「库存不足」；插会话 FK 失败；商户详情 403 | **必须**`DemoFixture.requireDeviceId/requireDemo`（`DemoDataService.ensureDemoData()`）；购物车 SKU 用 `fallbackSkuId`；禁写死 CAB-* / 固定 12 位柜号 | `DemoFixture`、`ConsumerE2ETest`、`MerchantE2ETest`、`ReconciliationIntegrationTest` |
 
 ## 追加模板
 

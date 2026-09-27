@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
+import com.aicabinet.trade.util.BizIds;
 
 @Service
 public class MerchantWithdrawPayoutService {
@@ -28,7 +28,7 @@ public class MerchantWithdrawPayoutService {
     public PayoutResult payout(MerchantWithdrawRequest request, Merchant merchant) {
         long netCents = WithdrawFeeCalculator.netPayoutCents(request.getAmountCents(), request.getFeeCents());
         if (properties.mockEnabled()) {
-            String ref = "MOCK-MW-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+            String ref = BizIds.nextNumeric();
             log.info("Mock merchant withdraw payout: requestId={}, merchantId={}, amountCents={}, feeCents={}, netCents={}, ref={}",
                     request.getRequestId(), merchant.getMerchantId(), request.getAmountCents(),
                     request.getFeeCents(), netCents, ref);

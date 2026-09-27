@@ -183,7 +183,7 @@ public class InventoryService {
         }
         if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
             return inventoryLotService.restoreToBatch(deviceId, item.skuId(),
-                    "ADJ-" + item.skuId(), item.quantity(), ORDER, null);
+                    com.aicabinet.trade.util.BizIds.nextNumeric(), item.quantity(), ORDER, null);
         }
         applyDelta(deviceId, item.skuId(), item.quantity());
         return null;

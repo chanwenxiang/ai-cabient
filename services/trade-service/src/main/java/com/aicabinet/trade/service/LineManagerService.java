@@ -235,7 +235,7 @@ public class LineManagerService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能为 0");
         }
         return runWithLineWalletLock(managerId, () -> {
-            String refId = "ADJ-" + operatorId + "-" + System.currentTimeMillis();
+            String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
             if (amountCents > 0) {
                 lineWalletService.credit(managerId, amountCents, "ADJUST", "OPS_ADJUST", refId, remark);
             } else {

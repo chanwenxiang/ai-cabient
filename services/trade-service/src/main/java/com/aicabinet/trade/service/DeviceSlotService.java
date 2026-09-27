@@ -771,7 +771,7 @@ public class DeviceSlotService {
             if (skuId == null || skuId.isBlank()) {
                 throw badRequest("货道未绑定商品，无法按实盘调账面");
             }
-            String refId = "ST-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
             inventoryLotService.stocktakeAdjustForSlot(
                     deviceId, skuId.trim(), slotCode, request.physicalQty(), operatorId, refId);
             log.info("slot stocktake adjusted device={} slot={} sku={} physical={} ref={}",
@@ -805,7 +805,7 @@ public class DeviceSlotService {
     private int doClampDeviceOverCapacity(String deviceId) {
         requireDevice(deviceId);
         int slotsFixed = 0;
-        String refId = "CLAMP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
         for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
             if (clampSingleSlotIfOverCapacity(deviceId, slot, refId)) {
                 slotsFixed++;

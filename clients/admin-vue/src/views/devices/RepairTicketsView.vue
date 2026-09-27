@@ -116,7 +116,11 @@
             width="88"
             class-name="col-text"
             label-class-name="col-text"
-          />
+          >
+            <template #default="{ row }">
+              <span class="cell-id">{{ displayBizNo(row.ticketId) }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="deviceId"
             label="设备"
@@ -298,7 +302,9 @@
       <div v-loading="!detailHydrated" class="repair-detail-pane">
         <template v-if="detail">
           <el-descriptions :column="1" border>
-            <el-descriptions-item label="工单号">{{ detail.ticket.ticketId }}</el-descriptions-item>
+            <el-descriptions-item label="工单号">{{
+              displayBizNo(detail.ticket.ticketId)
+            }}</el-descriptions-item>
             <el-descriptions-item label="设备">{{
               detail.ticket.deviceName || detail.ticket.deviceId
             }}</el-descriptions-item>
@@ -394,7 +400,7 @@ import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 

@@ -609,7 +609,7 @@ public class PaymentService {
                     "充值单可退金额不足（剩余 ¥" + String.format("%.2f", refundable / 100.0) + "）");
         }
         String refundNo = outRefundNo == null || outRefundNo.isBlank()
-                ? "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase()
+                ? BizIds.nextNumeric()
                 : outRefundNo.trim();
         return new ChannelPartialRefundPrep(order, order.getChannel(), refundNo, already);
     }
@@ -632,7 +632,7 @@ public class PaymentService {
 
     private void refundWeChatPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo) {
         String refundNo = outRefundNo == null || outRefundNo.isBlank()
-                ? "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase()
+                ? BizIds.nextNumeric()
                 : outRefundNo;
         String idemKey = rechargeRefundIdempotencyKey(order.getOrderId(), refundCents, refundNo);
         if (weChatPayProperties.isConfigured()) {
@@ -662,7 +662,7 @@ public class PaymentService {
 
     private void refundAlipayPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo) {
         String refundNo = outRefundNo == null || outRefundNo.isBlank()
-                ? "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase()
+                ? BizIds.nextNumeric()
                 : outRefundNo;
         String idemKey = rechargeRefundIdempotencyKey(order.getOrderId(), refundCents, refundNo);
         if (alipayPayClient.isConfigured()) {
@@ -797,7 +797,7 @@ public class PaymentService {
             return;
         }
         PaymentOperation op = new PaymentOperation();
-        op.setOperationId("REFUND-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
+        op.setOperationId(BizIds.nextNumeric());
         // 充值单号不属于 cabinet_order；order_id 置空避免 FK payment_operation_order_id_fkey 失败（见 V98）
         op.setOrderId(null);
         op.setUserId(order.getUserId());

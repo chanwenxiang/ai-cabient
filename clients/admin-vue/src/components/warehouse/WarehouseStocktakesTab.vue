@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 export type WarehouseStocktakeRow = AdminDynamicRow;
 
@@ -48,7 +48,7 @@ const emit = defineEmits<{
           label-class-name="col-status"
         >
           <template #default="{ row }">
-            <span class="cell-id">{{ row.stocktakeNo }}</span>
+            <span class="cell-id">{{ displayBizNo(row.stocktakeNo) }}</span>
           </template>
         </el-table-column>
         <el-table-column

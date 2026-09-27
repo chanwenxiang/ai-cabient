@@ -11,6 +11,7 @@ import com.aicabinet.trade.domain.LineWithdrawRequest;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
 import com.aicabinet.trade.mapper.LineWithdrawRequestMapper;
+import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -28,7 +29,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 public class LineWithdrawService {
@@ -453,7 +453,7 @@ public class LineWithdrawService {
         if (requestNo != null && !requestNo.isBlank()) {
             return requestNo.trim();
         }
-        return "LW-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
+        return BizIds.nextNumeric();
     }
 
     private static long value(Long value) {

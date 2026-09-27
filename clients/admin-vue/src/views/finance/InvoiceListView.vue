@@ -330,7 +330,7 @@ function onStatusChange() {
             class-name="col-status"
             label-class-name="col-status"
           >
-            <template #default="{ row }">{{ row.invoiceId }}</template>
+            <template #default="{ row }">{{ displayBizNo(row.invoiceId) }}</template>
           </el-table-column>
           <el-table-column label="订单" min-width="140">
             <template #default="{ row }">{{ displayBizNo(row.orderId) }}</template>

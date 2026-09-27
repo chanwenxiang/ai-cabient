@@ -6,7 +6,9 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.service.DemoDataService;
 import com.aicabinet.trade.service.ReconciliationService;
+import com.aicabinet.trade.support.DemoFixture;
 import com.aicabinet.common.enums.SessionState;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,15 +66,20 @@ class ReconciliationIntegrationTest {
     @Autowired
     private PaymentOperationMapper paymentOperationRepository;
 
+    @Autowired
+    private DemoDataService demoDataService;
+
     @Test
     void mockReconciliation_matchesInsertedOrder() {
         // 与 ReconciliationService / MockPlatformBillProvider 日界一致（勿用系统默认时区）
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
         Instant now = Instant.now();
+        // V287 删除 CAB-001；会话/订单 device_id 有 FK，必须用 DemoData 真实柜号
+        String deviceId = DemoFixture.requireDeviceId(demoDataService);
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("IT-SES-1");
         session.setUserId(10001L);
-        session.setDeviceId("CAB-001");
+        session.setDeviceId(deviceId);
         session.setState(SessionState.COMPLETED);
         session.setIdempotencyKey("it-reconciliation-session");
         sessionRepository.save(session);
@@ -81,7 +88,7 @@ class ReconciliationIntegrationTest {
         order.setOrderId("IT-ORD-" + System.currentTimeMillis());
         order.setSessionId("IT-SES-1");
         order.setUserId(10001L);
-        order.setDeviceId("CAB-001");
+        order.setDeviceId(deviceId);
         order.setTotalAmountCents(350);
         order.setStatus("PAID");
         // mock 通道账单只纳入网关支付渠道订单；缺省 null 会被排除 → MISMATCH

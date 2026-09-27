@@ -65,7 +65,7 @@
               <text class="status">{{ withdrawStatus(w.status) }}</text>
             </view>
             <text class="row-sub"
-              >{{ emptyDisplay(w.requestNo, 'order')
+              >{{ displayBizNo(w.requestNo)
               }}{{
                 w.payChannel ? ` · ${displayLabel('pay_channel', w.payChannel, w.payChannel)}` : ''
               }}</text
@@ -83,7 +83,7 @@
               }}</text
             >
             <text v-if="w.payoutRef || w.payoutMessage" class="row-sub"
-              >回执 {{ w.payoutRef || w.payoutMessage }}</text
+              >回执 {{ w.payoutRef ? displayBizNo(w.payoutRef) : w.payoutMessage }}</text
             >
             <text v-if="w.reviewRemark" class="row-sub fail">备注 {{ w.reviewRemark }}</text>
             <text v-if="w.paidAt || w.createdAt" class="row-sub">{{
@@ -143,6 +143,7 @@ import { onPageShow } from '@dcloudio/uni-app';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
 import {
+  displayBizNo,
   emptyDisplay,
   formatDateTimeMinute,
   formatDateTimeShort,
@@ -182,7 +183,6 @@ const cfg = computed(() =>
         roleTag: '商户 · 可自主提现',
         tip: '分账入账后可提现；大额需运营审核，到账以银行/微信回执为准。',
         withdrawStatusDict: 'merchant_withdraw_status',
-        requestNoPrefix: 'MW-',
         ledgerEmptyHint: '分账入账与提现变动会显示在这里',
         showLedgerTime: false,
         showRefType: true
@@ -195,7 +195,6 @@ const cfg = computed(() =>
         roleTag: '线长 · 可自主提现',
         tip: '提交后由运营审核；到账以银行/微信回执为准。',
         withdrawStatusDict: 'line_withdraw_status',
-        requestNoPrefix: 'MP-',
         ledgerEmptyHint: '佣金入账与提现变动会显示在这里',
         showLedgerTime: true,
         showRefType: false
@@ -331,7 +330,6 @@ async function submitWithdraw() {
       role: props.role,
       amountCents: amountCents!,
       requestNo: buildWalletWithdrawRequestNo({
-        prefix: cfg.value.requestNoPrefix,
         nowMs: Date.now(),
         randomSuffix: secureRandomToken(5)
       }),

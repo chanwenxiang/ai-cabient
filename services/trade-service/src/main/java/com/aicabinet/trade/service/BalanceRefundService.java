@@ -12,6 +12,7 @@ import com.aicabinet.trade.mapper.BalanceRefundRequestMapper;
 import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.slf4j.Logger;
@@ -27,7 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -160,7 +160,7 @@ public class BalanceRefundService {
 
         Instant now = Instant.now();
         BalanceRefundRequest req = new BalanceRefundRequest();
-        req.setRequestNo("BR" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+        req.setRequestNo(BizIds.nextNumeric());
         req.setUserId(userId);
         req.setAmountCents(amountCents);
         req.setStatus(STATUS_PENDING);
@@ -542,7 +542,7 @@ public class BalanceRefundService {
                 if (channel != null) {
                     int slice = Math.min(remain, refundable);
                     sliceIndex++;
-                    String outRefundNo = "BR" + req.getRequestId() + "-S" + sliceIndex;
+                    String outRefundNo = BizIds.nextNumeric();
                     BalanceRefundAllocation alloc = new BalanceRefundAllocation();
                     alloc.setRequestId(req.getRequestId());
                     alloc.setRechargeOrderId(order.getOrderId());

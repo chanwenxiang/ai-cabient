@@ -14,6 +14,7 @@ import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.MerchantWalletAccountMapper;
 import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
+import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.slf4j.Logger;
@@ -31,7 +32,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 public class MerchantWithdrawService {
@@ -140,7 +140,7 @@ public class MerchantWithdrawService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能为 0");
         }
         return runWithMerchantWalletLock(merchantId, () -> {
-            String refId = "ADJ-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+            String refId = BizIds.nextNumeric();
             String note = remark == null || remark.isBlank() ? "运营调账" : remark.trim();
             if (amountCents > 0) {
                 merchantWalletService.credit(merchantId, amountCents, "ADJUST", "OPS_ADJUST", refId, note);
@@ -633,7 +633,8 @@ public class MerchantWithdrawService {
         if (requestNo != null && !requestNo.isBlank()) {
             return requestNo.trim();
         }
-        return "MW-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
+        // 与订单/会话一致：纯数字业务单号（禁 MW- 字母前缀）
+        return BizIds.nextNumeric();
     }
 
     private static long value(Long value) {

@@ -235,7 +235,8 @@ export function orderStatusLabel(status?: string) {
  * 订单号 / 会话号 / 充值单 / 支付流水 / 异常单 / 分账单等「字母+十六进制」业务编号 → 纯数字展示。
  * 不转换柜机编号、SKU、配置键等业务编码。导航/接口仍用原始 id。
  */
-const LEDGER_OR_PAYMENT_OP_PREFIX = /^(?:MOCK-[A-Z]+-)?(?:BL|MW|LW|RF|ADJ|EX|ADM|CHARGE|REFUND)-?/i;
+const LEDGER_OR_PAYMENT_OP_PREFIX =
+  /^(?:MOCK-[A-Z]+-)?(?:BL|BR|MW|LW|MP|RF|ADJ|EX|ADM|CHARGE|REFUND|PSO|PSC|PO|PSR-FULL|PSR|PS|MS|WTF|STK|WO|ST|CLAMP|EXT|ALI-AG|PREVIEW)-?/i;
 
 export function displayBizNo(id?: string | number | null, empty: string = EMPTY.order): string {
   if (id == null) return empty;
@@ -252,7 +253,10 @@ export function displayBizNo(id?: string | number | null, empty: string = EMPTY.
   }
 
   const withoutMock = raw.replace(/^MOCK-[A-Z]+-/i, '');
-  const withoutLedgerPrefix = withoutMock.replace(/^(BL|MW|LW|RF|ADJ|EX|ADM|CHARGE|REFUND)-?/i, '');
+  const withoutLedgerPrefix = withoutMock.replace(
+    /^(BL|BR|MW|LW|MP|RF|ADJ|EX|ADM|CHARGE|REFUND|PSO|PSC|PO|PSR-FULL|PSR|PS|MS|WTF|STK|WO|ST|CLAMP|EXT|ALI-AG|PREVIEW)-?/i,
+    ''
+  );
   const body =
     withoutLedgerPrefix !== withoutMock
       ? withoutLedgerPrefix.replace(/-/g, '')
@@ -260,6 +264,9 @@ export function displayBizNo(id?: string | number | null, empty: string = EMPTY.
           .replace(/^(PSC|ALI-AG|PREVIEW)-?/i, '')
           .replace(/^[A-Z]+-?/i, '')
           .replace(/-/g, '');
+
+  // 前缀剥掉后已是纯数字（如历史 PO-12）→ 直接展示数字
+  if (/^\d+$/.test(body) && body.length >= 1) return body;
 
   const hex = body.replace(/[^0-9A-Fa-f]/g, '');
   if (hex.length >= 8 && /^[0-9A-Fa-f]+$/i.test(hex)) {

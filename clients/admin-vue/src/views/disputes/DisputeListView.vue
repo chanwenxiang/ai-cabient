@@ -90,8 +90,8 @@
         >
           <el-table-column prop="ticketId" label="工单号" min-width="140" class-name="col-text">
             <template #default="{ row }">
-              <span class="cell-id cell-ellipsis" :title="String(row.ticketId || '')">{{
-                row.ticketId
+              <span class="cell-id cell-ellipsis" :title="displayBizNo(row.ticketId)">{{
+                displayBizNo(row.ticketId)
               }}</span>
             </template>
           </el-table-column>
