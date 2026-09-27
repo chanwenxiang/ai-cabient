@@ -790,6 +790,22 @@ export const consumerApi = {
     >(ConsumerEndpoints.accountInvoices),
   consumerPublicConfig: () =>
     request<Record<string, string>>(ConsumerEndpoints.publicConsumerConfig, 'GET', null, false),
+  consumerPublicHelp: () =>
+    request<{
+      supportPhone: string;
+      supportEmail: string;
+      faqs: { q: string; a: string }[];
+    }>(ConsumerEndpoints.publicHelp, 'GET', null, false),
+  consumerPublicPolicies: () =>
+    request<
+      {
+        type: string;
+        title: string;
+        version: string;
+        updatedAt: string;
+        sections: { title: string; paragraphs: string[] }[];
+      }[]
+    >(ConsumerEndpoints.publicPolicies, 'GET', null, false),
   reportDeviceFault: (
     deviceId: string,
     body: import('@aicabinet/shared-types').DeviceFaultReportRequest

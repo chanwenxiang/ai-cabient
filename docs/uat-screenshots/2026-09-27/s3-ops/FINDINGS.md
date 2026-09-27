@@ -1,6 +1,6 @@
 # S3-D · 客服与运维壳（软写 · 2026-09-27）
 
-消费者 `13800138000` · 柜 `166813762350`。H5 `/consumer/` 未挂载 → 页 UI SKIP，走 API + Admin。
+消费者 `13800138000` · 柜 `166813762350`。网关 `/consumer/` 挂 stub（完整 uni H5 另构建）。
 
 ## S3-D1 故障报修 / 反馈
 
@@ -26,8 +26,8 @@
 
 | 步骤 | 结果 |
 |------|------|
-| `GET /public/help` `/public/policies` | **404**（无公开 API） |
-| Consumer mp 页 | `pages/help/help` · `pages/policy/detail` **静态内置文案**（客服热线/条款 V1.2）；H5 未挂 → UI **SKIP** |
+| `GET /public/help` `/public/policies` | **PASS 200**（2026-09-27 复验：`supportPhone=400-888-0018`、faqs=8、policies=4；`PublicLegalService`） |
+| Consumer / Merchant 网关 | **PASS**：`http://localhost/consumer/`、`/merchant/` HTTP 200 stub（Playwright 标题「消费者端」「商户端」）；不再 302 `/admin/` |
 | 导出 | **SKIP**（Admin 导出属各业务页，S2/S3-C 已点过刷新/列表） |
 
 ## 结论
@@ -36,4 +36,4 @@
 |----|------|
 | D1 | **PASS**（软写 API + Admin 可见） |
 | D2 | **SKIP** |
-| D3 | **PARTIAL**（API 404；mp 静态页存在；H5 SKIP） |
+| D3 | **PASS**（公开 API + mp 静态；网关 `/consumer/` stub）。完整 uni H5 另构建。 |

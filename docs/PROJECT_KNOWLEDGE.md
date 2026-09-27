@@ -245,6 +245,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-27 | 收 S3 PARTIAL：公开 `GET /api/v2/public/help` `/policies`；网关 `/consumer/` `/merchant/` 不再 302 后台；G5/G6 对齐债表 | `PublicLegalService`、`nginx-full.conf`、`mp-h5/*/index.html` |
 | 2026-09-27 | S0–S3+整轮回归收口：`08fca633` push；CI `36316095037` 绿；会话提示词标 DONE | `SESSION_PROMPT_S3_CONTINUE.md`、`full-regression/FINDINGS.md` |
 | 2026-09-27 | 整轮回归：KeepPlatform→milk PASS=10/FAIL=1（对账假红）→修 `@()`+run；finance 复验绿；#228 | `full-regression/FINDINGS.md`、`e2e-full-flow-milk.ps1` |
 | 2026-09-27 | S3 后台子复检：mp-seed-gate pass（柜 1668… ONLINE、余额 19750、钱包 50440；未 Wipe） | `s3-mp/GATE_CHECK.md`、`.tmp/mp-seed-gate.json` |
@@ -479,8 +480,9 @@ infra/                     Compose、网关、监控
 | G2 | 设备地图抖动若已修，总册尚无专行 | 确认根因后写入 lessons + 本 Changelog |
 | G3 | 部分 evidence 未回链到总册行号 | 修相关域时顺手补「门禁/文件」列 |
 | G4 | admin-vue 技术债 | D1–D25 **已清**（见 `admin-vue-debt-tracker`） |
-| G5 | consumer-mp 技术债 | C1–C5 **done**（C5 首刀）；建议顺序 C6→C7→C5b |
-| G6 | merchant-mp 技术债 | M1–M5 **done**；建议顺序 M6→M7→M8 |
+| G5 | consumer-mp 技术债 | C1–C12 **done**（C9 deferred）；余 **C10b** easycom→package（mp 风险知情延后） |
+| G6 | merchant-mp 技术债 | M1–M12 **done**（除 M9）；余 **M9** 与 C10b 对齐 |
+| G7 | 灰度真金 vision | mock 仍开；关 `VISION_MOCK_ENABLED` 须边侧识别就绪，禁止本机 UAT 假关 |
 
 ---
 

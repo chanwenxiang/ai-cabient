@@ -1,12 +1,16 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.ConsumerHelpDto;
+import com.aicabinet.common.dto.ConsumerPolicyDto;
 import com.aicabinet.common.dto.OpsBrandDto;
+import com.aicabinet.trade.service.PublicLegalService;
 import com.aicabinet.trade.service.SystemConfigService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -14,9 +18,12 @@ import java.util.Map;
 public class PublicConfigController {
 
     private final SystemConfigService systemConfigService;
+    private final PublicLegalService publicLegalService;
 
-    public PublicConfigController(SystemConfigService systemConfigService) {
+    public PublicConfigController(
+            SystemConfigService systemConfigService, PublicLegalService publicLegalService) {
         this.systemConfigService = systemConfigService;
+        this.publicLegalService = publicLegalService;
     }
 
     @GetMapping("/consumer-config")
@@ -37,5 +44,17 @@ public class PublicConfigController {
     @GetMapping("/ops-branding")
     public ApiResponse<OpsBrandDto> opsBranding() {
         return ApiResponse.ok(systemConfigService.opsBrandPublic());
+    }
+
+    /** 帮助中心（FAQ + 客服热线），游客可读。 */
+    @GetMapping("/help")
+    public ApiResponse<ConsumerHelpDto> help() {
+        return ApiResponse.ok(publicLegalService.help());
+    }
+
+    /** 用户协议 / 隐私 / 退款 / 账单条款列表，游客可读。 */
+    @GetMapping("/policies")
+    public ApiResponse<List<ConsumerPolicyDto>> policies() {
+        return ApiResponse.ok(publicLegalService.policies());
     }
 }

@@ -26,7 +26,7 @@
 ## 已完成（勿重做，除非 CI 再红或用户点名复测）
 - Commit/push：`559ed362` docs(uat) S3；`08fca633` fix milk 对账假红；CI run `36316095037` **success**
 - 业务单号：库内/系统发号纯数字 + Admin `displayBizNo`；**渠道协议号禁止改数字**（#225）
-- S3 Admin 软写：A1–A6、B1–B3、C1–C6、D1；D2 SKIP；D3 PARTIAL（公开 help/policy API 404，mp 静态存在）
+- S3 Admin 软写：A1–A6、B1–B3、C1–C6、D1；D2 SKIP；D3 公开 help/policies API + 网关 `/consumer/` stub
 - 附录 A mp：消费/商户各 22 路由 L1 PASS（DevTools；sync 优先 127.0.0.1，#226）
 - device-detail query `id=`（#227）；兑换须 `couponDefId`；仓配采购/调拨号纯数字 soft-cancel
 - 整轮回归：KeepPlatform → gate → `e2e-full-flow-milk -SkipCleanup`；主链绿；对账假红已修（#228）
@@ -34,7 +34,8 @@
 - 柜/商户运行时号（例柜 `166813762350`），**禁止写死 CAB-001**
 
 ## 已知非阻断 / 未挂载
-- H5 `/consumer/` nginx 未挂：SKIP（权威仍 mp-weixin DevTools）
+- H5 `/consumer/` nginx：**已挂 stub**（`http://localhost/consumer/` 不再 302 后台）。完整包 `node scripts/build-mp-h5-gateway.mjs`；权威仍 mp-weixin DevTools
+- 公开帮助/条款：`GET /api/v2/public/help`、`/policies`（trade 重建后生效）
 - Gray CheckOnly：vision mock / open disputes 残留等为 dev 项，不挡 milk
 - sim 购物常 DISPUTED→内部关门兜底（主链仍能出单）
 

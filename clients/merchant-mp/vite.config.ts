@@ -129,6 +129,7 @@ function patchUniEchartsToValue(): Plugin {
 }
 
 export default defineConfig({
+  base: process.env.UNI_H5_BASE || '/',
   // ⚠️ `UniEcharts()` 必须排在 `uni()` 之前：npm 上的 `uni-echarts` 是**未编译的 .vue**
   // 发布物，插件内部会为它补 `optimizeDeps.exclude`，否则 Vite 预构建会复制出**第二份 echarts**，
   // 图表在小程序端会静默不渲染（见 https://uni-echarts.xiaohe.ink/guide/getting-started）。

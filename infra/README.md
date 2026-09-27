@@ -36,6 +36,9 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 | 服务 | 地址 |
 |------|------|
 | 运营后台 | http://localhost/admin/index.html |
+| 消费者 H5（网关） | http://localhost/consumer/（stub；完整包 `node scripts/build-mp-h5-gateway.mjs`） |
+| 商户 H5（网关） | http://localhost/merchant/ |
+| 消费者 H5（开发） | http://127.0.0.1:3002/ |
 | trade API（经 Gateway） | http://localhost/api/... |
 | trade 直连 | http://localhost:8080 |
 | Grafana | http://localhost:13000 (admin/admin，可通过 GRAFANA_PORT 修改) |

@@ -98,6 +98,8 @@ export const ConsumerEndpoints = {
   accountInvoices: `${API_PREFIX}/account/invoices`,
   /** 公开配置（无鉴权） */
   publicConsumerConfig: `${API_PREFIX}/public/consumer-config`,
+  publicHelp: `${API_PREFIX}/public/help`,
+  publicPolicies: `${API_PREFIX}/public/policies`,
   /** 反馈 */
   feedback: `${API_PREFIX}/feedback`,
   feedbackMine: `${API_PREFIX}/feedback/mine`,
@@ -142,6 +144,8 @@ export const CONSUMER_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/coupons',
   '/api/v2/member/',
   '/api/v2/public/consumer-config',
+  '/api/v2/public/help',
+  '/api/v2/public/policies',
   '/api/v2/dicts/runtime',
   '/api/v2/marketing/',
   '/api/v2/feedback',

@@ -32,6 +32,7 @@ function ensureLazyCodeLoading(): Plugin {
 }
 
 export default defineConfig({
+  base: process.env.UNI_H5_BASE || '/',
   plugins: [uni(), ensureLazyCodeLoading()],
   server: {
     host: '127.0.0.1',
