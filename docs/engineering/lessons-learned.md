@@ -236,6 +236,8 @@
 | 223 | 业务单号露出字母前缀（MW/RF/PO/STK…） | 多处服务端 `前缀+UUID` 发号；Admin 部分列裸绑未走 `displayBizNo` | 与订单/柜机纯数字口径冲突 | **必须**用户可见业务单号用 `BizIds.nextNumeric()`；列表/详情走 `displayBizNo`；**勿**改 SKU/批次/渠道协议号（PSC/ALI-AG）与微信 nonce | `BizIds`、`PaymentService`、`OrderPaymentService`、仓配/分账/提现视图 |
 | 224 | Java E2E/IT 写死 CAB-001 后 CI 红 | V287 删孤儿柜后仍心跳/开柜/插会话用 `CAB-001` | 心跳 `registerUnknown` 造无库存柜→购物车 409「库存不足」；插会话 FK 失败；商户详情 403 | **必须**`DemoFixture.requireDeviceId/requireDemo`（`DemoDataService.ensureDemoData()`）；购物车 SKU 用 `fallbackSkuId`；禁写死 CAB-* / 固定 12 位柜号 | `DemoFixture`、`ConsumerE2ETest`、`MerchantE2ETest`、`ReconciliationIntegrationTest` |
 | 225 | 业务单号扫尾误伤渠道幂等号 | `outRefundNo`/`outReturnNo` 也改成 `BizIds.nextNumeric` | 微信退款/分账回退幂等键失效；单测仍断言 `BR{id}-S{n}` / `PSR…` | **必须**仅用户可见单号用纯数字；**禁止**改 `out_refund_no` / `out_return_no` / PSC/ALI-AG / nonce（沿用稳定协议格式） | `BalanceRefundService`、`RevenueSplitService`、lesson #223 |
+| 226 | 微信开发者工具模拟器「像没样式/空数据」+ console `ERR_CONNECTION_TIMED_OUT` 打到 `192.168.x.x` | `sync-consumer-mp-api.mjs` 优先写局域网 IP，探测失败仍落死 IP；本机模拟器打不到该网卡 | 页面壳在、接口全超时 ⇒ 余额/积分空白像样式坏了 | **必须**先探测可达基址；默认优先 `127.0.0.1`/`localhost`；LAN 不可达禁止写入；真机才 `MP_API_USE_LAN=1`；改完须重建 dist 且 DevTools `quit` 后再开（见 #113） | `scripts/sync-consumer-mp-api.mjs`、`.env.development`、`dist/dev/mp-weixin` |
+| 227 | 商户 mp 柜机详情 automator 一直「加载中」 | 页 `onLoad` 只读 query **`id`**，脚本误传 `deviceId=` | deviceId 空 ⇒ 永不请求详情 | **必须** `/pages/device-detail/device-detail?id=`；列表进详情勿拼错参 | `device-detail.vue`、`s3-mp/FINDINGS` |
 
 ## 追加模板
 

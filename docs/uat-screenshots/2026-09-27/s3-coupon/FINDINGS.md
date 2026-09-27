@@ -24,3 +24,26 @@ Admin 优惠券页：定义「S3…」满减券 1/100 已发；订单页 **¥2.5
 
 - 首次重购失败因模拟器门停在 OPEN（等 `/close`）；关闸后 PASS。
 - `e2e-shopping` 会把余额重置为 20000（覆盖 S3 充值余额）。
+
+---
+
+## S3-B2 会员 / 积分（抽样）
+
+| 步骤 | 结果 |
+|------|------|
+| `GET /member/points` | available **35** · level **普通会员** · EARN 流水可见 |
+| Admin `/admin/member-levels` | 普通/银卡/金卡/白金 **启用**（只读抽样） |
+| Admin `/admin/points-redeem` | 续测软写项 **#4** `S3-soft-redeem` · 9999 分 · **停用**（须 `couponDefId`；见 `s3-mp/FINDINGS`） |
+
+截图：`s3b2-member-levels.png` · `s3b2-points-redeem.png`
+
+## S3-B3 消息 / 公告
+
+| 步骤 | 结果 |
+|------|------|
+| Admin `/admin/announcements` | **暂无公告** · 共 0（Wipe 后未重建） |
+| 「发布公告」→ **取消** | 弹窗关闭；列表仍 0（软写） |
+| `GET /api/v2/announcements` · `/merchant/announcements` | 空列表 PASS |
+| Consumer/Merchant 公告页 UI | **SKIP**（H5 未挂） |
+
+截图：`s3b3-announcements.png` · `s3b3-announce-create-cancel.png`

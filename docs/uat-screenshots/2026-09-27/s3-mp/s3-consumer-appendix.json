@@ -1,0 +1,31 @@
+{
+  "at": "2026-09-27T10:48:00.000Z",
+  "side": "consumer",
+  "orderId": "1790493168114576060218",
+  "deviceId": "166813762350",
+  "note": "Synthesized from automator console + resume scan (feedback/help/policy). Screenshots under s3-c-*.png.",
+  "results": [
+    { "id": "login", "ok": true, "size": 557756, "layer": "L1", "hint": "扫码购物" },
+    { "id": "index", "ok": true, "size": 558249, "layer": "L1", "hint": "扫码购物" },
+    { "id": "orders", "ok": true, "size": 150640, "layer": "L2", "yuan": ["¥2.50", "¥3.50"] },
+    { "id": "order-detail", "ok": true, "size": 156268, "layer": "L2", "yuan": ["¥2.50"] },
+    { "id": "video", "ok": true, "size": 43619, "layer": "L1", "hint": "下载失败" },
+    { "id": "dispute", "ok": true, "size": 36718, "layer": "L1", "hint": "缺少审核单参数" },
+    { "id": "mine", "ok": true, "size": 185047, "layer": "L2", "yuan": ["¥197.50"] },
+    { "id": "balance", "ok": true, "size": 88676, "layer": "L2", "yuan": ["¥197.50"] },
+    { "id": "recharge", "ok": true, "size": 157873, "layer": "L2", "yuan": ["¥197.50"] },
+    { "id": "verify", "ok": true, "size": 71724, "layer": "L1" },
+    { "id": "result", "ok": true, "size": 39905, "layer": "L1", "hint": "缺少订单信息" },
+    { "id": "marketing", "ok": true, "size": 111921, "layer": "L1" },
+    { "id": "member", "ok": true, "size": 151207, "layer": "L1" },
+    { "id": "points", "ok": true, "size": 141734, "layer": "L1" },
+    { "id": "redeem", "ok": true, "size": 57702, "layer": "L1" },
+    { "id": "coupons", "ok": true, "size": 46078, "layer": "L1" },
+    { "id": "messages", "ok": true, "size": 101468, "layer": "L1" },
+    { "id": "announcements", "ok": true, "size": 39723, "layer": "L1" },
+    { "id": "report", "ok": true, "size": 113718, "layer": "L1" },
+    { "id": "feedback", "ok": true, "size": 98123, "layer": "L1" },
+    { "id": "help", "ok": true, "size": 138364, "layer": "L1" },
+    { "id": "policy", "ok": true, "size": 269451, "layer": "L1" }
+  ]
+}

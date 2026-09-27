@@ -1,0 +1,561 @@
+{
+  "at": "2026-09-27T10:56:05.331Z",
+  "side": "merchant",
+  "orderId": "1790493168114576060218",
+  "deviceId": "166813762350",
+  "results": [
+    {
+      "id": "login",
+      "path": "/pages/login/login",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-login.png",
+      "size": 844134,
+      "meta": {
+        "route": "pages/login/login",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [],
+        "bytesHint": 242
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "home",
+      "path": "/pages/home/home",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-home.png",
+      "size": 162361,
+      "meta": {
+        "route": "pages/home/home",
+        "yuan": [
+          "¥6.00",
+          "¥5.40",
+          "¥3.00"
+        ],
+        "badNet": false,
+        "zhHints": [
+          "加载中",
+          "默认商户管理员",
+          "演示商户",
+          "日营收",
+          "任务加载中",
+          "消费者柜机报修",
+          "问题类型",
+          "打不开门",
+          "补充说明",
+          "问题类型",
+          "打不开门",
+          "补充说明"
+        ],
+        "bytesHint": 1486
+      },
+      "layer": "L2?"
+    },
+    {
+      "id": "alerts",
+      "path": "/pages/alerts/alerts",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-alerts.png",
+      "size": 89030,
+      "meta": {
+        "route": "pages/alerts/alerts",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "加载中",
+          "柜机故障",
+          "消费者柜机报修",
+          "问题类型",
+          "打不开门",
+          "补充说明",
+          "问题类型",
+          "打不开门",
+          "补充说明",
+          "查看柜机",
+          "查看柜机",
+          "低库存"
+        ],
+        "bytesHint": 694
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "devices",
+      "path": "/pages/devices/devices",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-devices.png",
+      "size": 81083,
+      "meta": {
+        "route": "pages/devices/devices",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "全部",
+          "在线",
+          "离线",
+          "停售",
+          "加载中",
+          "演示柜",
+          "南山区科技园演示点",
+          "南山区科技园演示点",
+          "投放",
+          "投放",
+          "投放",
+          "设为常驻柜"
+        ],
+        "bytesHint": 812
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "device-detail",
+      "path": "/pages/device-detail/device-detail?deviceId=166813762350",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-device-detail.png",
+      "size": 30556,
+      "meta": {
+        "route": "pages/device-detail/device-detail",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "加载中"
+        ],
+        "bytesHint": 150
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "replenishment",
+      "path": "/pages/replenishment/replenishment",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-replenishment.png",
+      "size": 138863,
+      "meta": {
+        "route": "pages/replenishment/replenishment",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "扫码到柜",
+          "签到",
+          "开门",
+          "核对履约",
+          "全部",
+          "待处理",
+          "进行中",
+          "已完成",
+          "无柜机",
+          "任务加载中",
+          "演示柜"
+        ],
+        "bytesHint": 989
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "orders",
+      "path": "/pages/orders/orders",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-orders.png",
+      "size": 139628,
+      "meta": {
+        "route": "pages/orders/orders",
+        "yuan": [
+          "¥1.00",
+          "¥2.50",
+          "¥3.50",
+          "¥2.50",
+          "¥3.50",
+          "¥3.50"
+        ],
+        "badNet": false,
+        "zhHints": [
+          "加载中",
+          "导出",
+          "全部",
+          "已支付",
+          "已退款",
+          "争议中",
+          "已取消",
+          "全部柜机",
+          "全部柜机",
+          "演示柜",
+          "全部时间",
+          "今天"
+        ],
+        "bytesHint": 1534
+      },
+      "layer": "L2?"
+    },
+    {
+      "id": "order-detail",
+      "path": "/pages/order-detail/order-detail?orderId=1790493168114576060218",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-order-detail.png",
+      "size": 121008,
+      "meta": {
+        "route": "pages/order-detail/order-detail",
+        "yuan": [
+          "¥2.50",
+          "¥3.50",
+          "¥3.50",
+          "¥3.50",
+          "¥1.00",
+          "¥2.50"
+        ],
+        "badNet": false,
+        "zhHints": [
+          "加载中",
+          "已支付",
+          "纯牛奶",
+          "货道",
+          "批次",
+          "演示柜",
+          "余额",
+          "仅记账",
+          "自助退",
+          "演示柜",
+          "演示商户",
+          "纯牛奶"
+        ],
+        "bytesHint": 1410
+      },
+      "layer": "L2?"
+    },
+    {
+      "id": "video",
+      "path": "/pages/video/video?orderId=1790493168114576060218",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-video.png",
+      "size": 42728,
+      "meta": {
+        "route": "pages/video/video",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "下载失败",
+          "加载中",
+          "下载失败"
+        ],
+        "bytesHint": 278
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "wallet",
+      "path": "/pages/wallet/wallet",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-wallet.png",
+      "size": 132167,
+      "meta": {
+        "route": "pages/wallet/wallet",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [],
+        "bytesHint": 79
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "splits",
+      "path": "/pages/splits/splits",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-splits.png",
+      "size": 44643,
+      "meta": {
+        "route": "pages/splits/splits",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "加载中"
+        ],
+        "bytesHint": 167
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "settlements",
+      "path": "/pages/settlements/settlements",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-settlements.png",
+      "size": 178692,
+      "meta": {
+        "route": "pages/settlements/settlements",
+        "yuan": [
+          "¥3.00",
+          "¥0.60",
+          "¥5.40",
+          "¥0.00",
+          "¥5.40",
+          "¥0.00",
+          "¥5.40",
+          "¥5.40"
+        ],
+        "badNet": false,
+        "zhHints": [
+          "分账",
+          "已启用",
+          "提交分账会模拟成功",
+          "非真实微信分账",
+          "待结算",
+          "计划",
+          "结算数据加载中",
+          "批次加载中",
+          "分账",
+          "已启用",
+          "提交分账会模拟成功",
+          "非真实微信分账"
+        ],
+        "bytesHint": 829
+      },
+      "layer": "L2?"
+    },
+    {
+      "id": "disputes",
+      "path": "/pages/disputes/disputes",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-disputes.png",
+      "size": 44016,
+      "meta": {
+        "route": "pages/disputes/disputes",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "待审核",
+          "已结案",
+          "已关闭",
+          "未知状态",
+          "暂无说明",
+          "无单号",
+          "未知状态",
+          "无柜机",
+          "加载中"
+        ],
+        "bytesHint": 490
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "request",
+      "path": "/pages/request/request",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-request.png",
+      "size": 138311,
+      "meta": {
+        "route": "pages/request/request",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "演示柜",
+          "演示柜",
+          "纯牛奶",
+          "建议加载中"
+        ],
+        "bytesHint": 2024
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "business",
+      "path": "/pages/business/business",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-business.png",
+      "size": 104435,
+      "meta": {
+        "route": "pages/business/business",
+        "yuan": [
+          "¥7.00",
+          "¥7.00",
+          "¥3.00",
+          "¥3.50",
+          "¥3.00",
+          "¥7.00",
+          "¥0.00",
+          "¥5.40"
+        ],
+        "badNet": false,
+        "zhHints": [
+          "暂无",
+          "暂无",
+          "纯牛奶",
+          "商品",
+          "货柜",
+          "毛利",
+          "报表加载中",
+          "纯牛奶",
+          "本期共分析",
+          "个商品",
+          "其中畅销",
+          "慢销"
+        ],
+        "bytesHint": 1920
+      },
+      "layer": "L2?"
+    },
+    {
+      "id": "pricing",
+      "path": "/pages/pricing/pricing",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-pricing.png",
+      "size": 155571,
+      "meta": {
+        "route": "pages/pricing/pricing",
+        "yuan": [
+          "¥3.50",
+          "¥3.50",
+          "¥0.01",
+          "¥7.00",
+          "¥3.50",
+          "¥6.50",
+          "¥3.60",
+          "¥13.00"
+        ],
+        "badNet": false,
+        "zhHints": [
+          "全部柜机",
+          "全部柜机",
+          "演示柜",
+          "加载中",
+          "纯牛奶",
+          "演示柜",
+          "覆盖",
+          "原味薯片",
+          "演示柜",
+          "无覆盖",
+          "可口可乐",
+          "演示柜"
+        ],
+        "bytesHint": 2219
+      },
+      "layer": "L2?"
+    },
+    {
+      "id": "team",
+      "path": "/pages/team/team",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-team.png",
+      "size": 58742,
+      "meta": {
+        "route": "pages/team/team",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "加载中",
+          "商户管理员",
+          "店长",
+          "财务",
+          "补货员",
+          "店员",
+          "成员",
+          "商户管理员",
+          "店长",
+          "财务",
+          "补货员",
+          "店员"
+        ],
+        "bytesHint": 1375
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "line-wallet",
+      "path": "/pages/line-wallet/line-wallet",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-line-wallet.png",
+      "size": 45537,
+      "meta": {
+        "route": "pages/line-wallet/line-wallet",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [],
+        "bytesHint": 79
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "messages",
+      "path": "/pages/messages/messages",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-messages.png",
+      "size": 49183,
+      "meta": {
+        "route": "pages/messages/messages",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "全部",
+          "未读",
+          "补货",
+          "争议",
+          "订单",
+          "结算",
+          "钱包",
+          "其他",
+          "暂无消息",
+          "加载中"
+        ],
+        "bytesHint": 571
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "announcements",
+      "path": "/pages/announcements/announcements",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-announcements.png",
+      "size": 38750,
+      "meta": {
+        "route": "pages/announcements/announcements",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "加载中"
+        ],
+        "bytesHint": 129
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "mine",
+      "path": "/pages/mine/mine",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-mine.png",
+      "size": 180225,
+      "meta": {
+        "route": "pages/mine/mine",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [
+          "默认商户管理员",
+          "演示商户",
+          "补货任务",
+          "扫码到柜",
+          "签到",
+          "核对上架",
+          "扫码到柜",
+          "签到",
+          "核对上架",
+          "柜机管理",
+          "在线状态",
+          "货道库存"
+        ],
+        "bytesHint": 2635
+      },
+      "layer": "L1"
+    },
+    {
+      "id": "policy",
+      "path": "/pages/policy/privacy",
+      "ok": true,
+      "shot": "docs/uat-screenshots/2026-09-27/s3-mp/s3-m-policy.png",
+      "size": 139860,
+      "meta": {
+        "route": "pages/policy/privacy",
+        "yuan": [],
+        "badNet": false,
+        "zhHints": [],
+        "bytesHint": 80
+      },
+      "layer": "L1"
+    }
+  ]
+}

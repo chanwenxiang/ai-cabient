@@ -1,0 +1,447 @@
+{
+  "at": "2026-09-27T10:31:26.622Z",
+  "userId": 10001,
+  "results": [
+    {
+      "id": "login",
+      "path": "/pages/login/login",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-login.png",
+      "meta": {
+        "route": "pages/login/login",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "g",
+          "h",
+          "i",
+          "j",
+          "k",
+          "l",
+          "m"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"/static/bg-cooler.jpg\",\"b\":\"微信授权登录\",\"c\":\"\",\"d\":\"e0\",\"e\":\"收起\",\"f\":\"true\",\"g\":\"收起\",\"h\":\"e1\",\"i\":true,\"j\":\"on\",\"k\":\"tru"
+      }
+    },
+    {
+      "id": "index",
+      "path": "/pages/index/index",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-index.png",
+      "meta": {
+        "route": "pages/index/index",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "d",
+          "p",
+          "q",
+          "r",
+          "s",
+          "v",
+          "x",
+          "C",
+          "K",
+          "bd"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":true,\"b\":\"/static/bg-shop-indoor.jpg\",\"c\":\"padding-top:110px;\",\"d\":\"\",\"p\":\"扫码购物\",\"q\":false,\"r\":\"e0\",\"s\":false,\"v\":fal"
+      }
+    },
+    {
+      "id": "orders",
+      "path": "/pages/orders/orders",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-orders.png",
+      "meta": {
+        "route": "pages/orders/orders",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "d",
+          "j",
+          "r0"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"4,0,0\",\"b\":true,\"c\":\"加载中…\",\"d\":\"\",\"j\":true,\"r0\":1}"
+      }
+    },
+    {
+      "id": "mine",
+      "path": "/pages/mine/mine",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-mine.png",
+      "meta": {
+        "route": "pages/mine/mine",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "h",
+          "m",
+          "n",
+          "o",
+          "p",
+          "s",
+          "I",
+          "J",
+          "K",
+          "L"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"我\",\"b\":\"未登录\",\"c\":false,\"h\":false,\"m\":\"padding-top:90px;\",\"n\":true,\"o\":\"e0\",\"p\":true,\"s\":false,\"I\":\"/static/menu/orde"
+      }
+    },
+    {
+      "id": "balance",
+      "path": "/pages/balance/balance",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-balance.png",
+      "meta": {
+        "route": "pages/balance/balance",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "e",
+          "f",
+          "h",
+          "r0"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"7,0,0\",\"b\":\"--\",\"c\":false,\"e\":\"e0\",\"f\":false,\"h\":true,\"r0\":1}"
+      }
+    },
+    {
+      "id": "recharge",
+      "path": "/pages/recharge/recharge",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-recharge.png",
+      "meta": {
+        "route": "pages/recharge/recharge",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "g",
+          "i",
+          "k",
+          "l",
+          "m",
+          "n",
+          "p"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"9,0,0\",\"b\":\"0.00\",\"c\":\"\",\"d\":\"e0\",\"e\":\"e1\",\"f\":\"9,1,0\",\"g\":\"\",\"i\":0,\"k\":[{\"a\":\"¥10.00\",\"b\":1000,\"c\":\"\",\"d\":\"e2_1000\""
+      }
+    },
+    {
+      "id": "verify",
+      "path": "/pages/verify/verify",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-verify.png",
+      "meta": {
+        "route": "pages/verify/verify",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "g",
+          "h",
+          "i",
+          "j",
+          "k",
+          "l",
+          "m"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"14,0,0\",\"b\":\"1\",\"c\":\"\",\"d\":1,\"e\":\"\",\"f\":\"2\",\"g\":\"\",\"h\":\"\",\"i\":true,\"j\":\"\",\"k\":\"e0\",\"l\":\"\",\"m\":\"e1\",\"n\":\"e2\",\"o\":\"14,"
+      }
+    },
+    {
+      "id": "result",
+      "path": "/pages/result/result",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-result.png",
+      "meta": {
+        "route": "pages/result/result",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "d",
+          "j",
+          "ai",
+          "aj",
+          "ak",
+          "al",
+          "am",
+          "an",
+          "ao",
+          "r0"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"17,0,1\",\"b\":false,\"c\":\"加载中…\",\"d\":\"缺少订单信息\",\"j\":false,\"ai\":\"e2\",\"aj\":\"e3\",\"ak\":\"e4\",\"al\":\"e5\",\"am\":\"e6\",\"an\":\"e7\",\"ao\""
+      }
+    },
+    {
+      "id": "marketing",
+      "path": "/pages/marketing/index",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-marketing.png",
+      "meta": {
+        "route": "pages/marketing/index",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "i",
+          "j",
+          "k",
+          "l",
+          "m",
+          "h",
+          "r0"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"22,0,1\",\"b\":[],\"c\":\"/static/menu/gift.png\",\"d\":\"0 张可用 · 结算时自动选用最优券抵扣\",\"e\":\"e0\",\"f\":true,\"i\":\"22,1,0\",\"j\":\"e1\",\"k\":\"2"
+      }
+    },
+    {
+      "id": "member",
+      "path": "/pages/member/index",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-member.png",
+      "meta": {
+        "route": "pages/member/index",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "d",
+          "h",
+          "i",
+          "l",
+          "n",
+          "p",
+          "q",
+          "r",
+          "s",
+          "t"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"27,0,0\",\"b\":\"普通会员\",\"c\":\"¥0.00\",\"d\":\"0%\",\"h\":\"0\",\"i\":\"e0\",\"l\":false,\"n\":false,\"p\":\"lv-normal\",\"q\":\"/static/menu/coupo"
+      }
+    },
+    {
+      "id": "points",
+      "path": "/pages/points/points",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-points.png",
+      "meta": {
+        "route": "pages/points/points",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "d",
+          "e",
+          "f",
+          "g",
+          "h",
+          "i",
+          "l",
+          "m",
+          "r0"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"29,0,0\",\"b\":false,\"d\":\"0\",\"e\":\"0\",\"f\":\"0\",\"g\":\"\",\"h\":\"普通会员\",\"i\":\"1\",\"l\":\"e0\",\"m\":true,\"r0\":1}"
+      }
+    },
+    {
+      "id": "redeem",
+      "path": "/pages/points/redeem",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-redeem.png",
+      "meta": {
+        "route": "pages/points/redeem",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "d",
+          "f",
+          "r0"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"31,0,0\",\"b\":\"0\",\"c\":\"e0\",\"d\":false,\"f\":true,\"r0\":1}"
+      }
+    },
+    {
+      "id": "coupons",
+      "path": "/pages/coupons/coupons",
+      "ok": true,
+      "shot": "docs\\uat-screenshots\\2026-09-27\\s3-mp\\s3-c-coupons.png",
+      "meta": {
+        "route": "pages/coupons/coupons",
+        "dataKeys": [
+          "eO",
+          "uR",
+          "uRIF",
+          "uI",
+          "uT",
+          "uP",
+          "uS",
+          "a",
+          "b",
+          "c",
+          "j",
+          "k",
+          "l",
+          "m",
+          "n",
+          "e",
+          "i",
+          "r0"
+        ],
+        "wxmlLen": 0,
+        "snippet": "{\"eO\":\"\",\"uR\":\"\",\"uRIF\":\"\",\"uI\":\"\",\"uT\":\"\",\"uP\":\"\",\"uS\":[],\"a\":\"33,0,0\",\"b\":[{\"a\":\"全部\",\"b\":\"\",\"c\":1,\"d\":\"e0_\"},{\"a\":\"未使用\",\"b\":\"UNUSED\",\"c\":\"\",\"d\":\"e1_UNUSED\"},{\"a\":\"已使用\",\"b\":\"USED\""
+      }
+    },
+    {
+      "id": "messages",
+      "path": "/pages/messages/messages",
+      "ok": false,
+      "error": "Connection closed, check if wechat web devTools is still running"
+    },
+    {
+      "id": "announcements",
+      "path": "/pages/announcements/announcements",
+      "ok": false,
+      "error": "Connection closed, check if wechat web devTools is still running"
+    },
+    {
+      "id": "help",
+      "path": "/pages/help/help",
+      "ok": false,
+      "error": "Connection closed, check if wechat web devTools is still running"
+    },
+    {
+      "id": "policy",
+      "path": "/pages/policy/detail",
+      "ok": false,
+      "error": "Connection closed, check if wechat web devTools is still running"
+    },
+    {
+      "id": "report",
+      "path": "/pages/report/report",
+      "ok": false,
+      "error": "Connection closed, check if wechat web devTools is still running"
+    },
+    {
+      "id": "feedback",
+      "path": "/pages/feedback/feedback",
+      "ok": false,
+      "error": "Connection closed, check if wechat web devTools is still running"
+    }
+  ]
+}

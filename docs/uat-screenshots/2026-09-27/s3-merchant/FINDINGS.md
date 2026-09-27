@@ -10,6 +10,7 @@
 |------|------|
 | `POST /merchant/replenishment/requests` | requestId **2** · **SUBMITTED** |
 | Admin `/admin/replenishment?tab=requests` | 要货待审 **1** · 同单可见；**未审核** |
+| 更多操作 → 驳回 → **取消** | 弹窗关闭；单仍 **待审核**（软写） |
 
 截图：`s3c-01-admin-requests.png`
 
@@ -36,16 +37,19 @@ Merchant H5：`/merchant/` nginx **302→/admin/**（未挂载）→ UI **SKIP**
 |------|------|
 | `GET /merchant/team/users` | 2 人：100000030（self）+ 100000036 · ACTIVE |
 
-## S3-C5 提现（软写意图 → 阈值自动打款）
+## S3-C5 提现（软写意图 → 阈值自动打款 → 待审驳回取消）
 
 | 步骤 | 结果 |
 |------|------|
-| `POST /merchant/wallet/withdraw` ¥1 | 低于审核阈值 → **自动 MOCK PAID**（无法走「确认→取消」） |
+| `POST /merchant/wallet/withdraw` ¥1 | 低于审核阈值（默认 **¥500**）→ **自动 MOCK PAID** |
 | 余额 | 540 → **440**（−100） |
-| Admin 商户钱包 | S1 · 余额/可用 **4.40** |
-| Admin 提现审核 | 业务单号展示纯数字（历史库值 `MW-S3C5-…` → `displayBizNo`）· ¥1.00 · **已打款** |
+| Admin 提现审核（历史） | 业务单号 **`4145309934143`** · ¥1.00 · **已打款**；无 `MW-` 前缀 |
+| Admin 调账 +¥500 → 提现 ¥500 | requestId **3** · **PENDING_REVIEW**（≥阈值不自动过） |
+| 行「驳回」→ 确认框 → **取消** | 仍 **待审核**；冻结 ¥500 保留（软写未落驳回） |
+| 续测清理：API `review approved=false` | 单 **REJECTED** · 冻结归零 · 可用 **50440** |
+| 业务单号展示 | 自定义 `requestNo=UAT-C5-…` 时 **原样展示**（非系统发号，`displayBizNo` 不剥前缀） |
 
-截图：`s3c-05-admin-withdraw.png` · `s3c-05b-withdraw-audit.png`
+截图：`s3c-05-admin-withdraw.png` · `s3c-05b-withdraw-audit.png` · `s3c-05c-withdraw-bizno-recheck.png` · `s3c5-reject-cancel.png`
 
 ## S3-C6 货道差异 / 临期
 
@@ -62,13 +66,34 @@ Merchant H5：`/merchant/` nginx **302→/admin/**（未挂载）→ UI **SKIP**
 
 截图：`s3c-org-merchants.png`
 
+## 仓配业务单号（数字展示）
+
+| 步骤 | 结果 |
+|------|------|
+| `POST /warehouse/stocktakes`（软写 DRAFT） | stocktakeNo **`1790502046806410365000`**（纯数字，无 `STK-`） |
+| Admin `/warehouse?tab=stocktakes` | 列表同号纯数字；随后 **cancel** → CANCELLED |
+| 采购单 / 调拨 | 续测软写：**PASS** · 采购单列 `4` 已驳回；调拨号 `1790507082502743938921` cancel（见 `s3-mp/FINDINGS`） |
+
+截图：`s3-wh-stocktake-digits.png`
+
 ## 结论
 
 | ID | 结果 | 备注 |
 |----|------|------|
-| C1 | **PASS**（软） | Admin 待审未点写 |
+| C1 | **PASS**（软） | 驳回→取消仍待审 |
 | C2 | **PASS** | API |
 | C3 | **PASS**（API） | H5 SKIP；须 version |
 | C4 | **PASS** | API |
-| C5 | **PARTIAL** | 自动 PAID，未测驳回/取消 |
+| C5 | **PASS**（软） | ¥1 自动 PAID；¥500 待审驳回→取消 |
 | C6 | **PASS** | 空态 |
+| 仓配单号 | **PASS** | 盘点纯数字；采购列`4`/调拨`1790…8921` 续测软写 PASS |
+| 线长钱包 | **PASS**（空壳） | 暂无线长 · 共 0；新建→取消 |
+
+## 线长钱包（附录 SKIP 对照 · Admin 仅）
+
+| 步骤 | 结果 |
+|------|------|
+| Admin `/admin/line-managers` | hint 正确 · **暂无线长 · 共 0** |
+| 「新建线长」→ **取消** | 软写 PASS |
+
+截图：`s3-line-managers-empty.png`

@@ -26,7 +26,8 @@
 
 | 步骤 | 结果 |
 |------|------|
-| `GET /public/help` `/public/policies` | **404**（无公开 API 或路径变更） |
+| `GET /public/help` `/public/policies` | **404**（无公开 API） |
+| Consumer mp 页 | `pages/help/help` · `pages/policy/detail` **静态内置文案**（客服热线/条款 V1.2）；H5 未挂 → UI **SKIP** |
 | 导出 | **SKIP**（Admin 导出属各业务页，S2/S3-C 已点过刷新/列表） |
 
 ## 结论
@@ -35,4 +36,4 @@
 |----|------|
 | D1 | **PASS**（软写 API + Admin 可见） |
 | D2 | **SKIP** |
-| D3 | **PARTIAL**（帮助/条款 API 404；未深测静态页） |
+| D3 | **PARTIAL**（API 404；mp 静态页存在；H5 SKIP） |

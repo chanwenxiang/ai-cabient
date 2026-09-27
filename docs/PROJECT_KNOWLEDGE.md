@@ -245,6 +245,14 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-27 | S3 后台子复检：mp-seed-gate pass（柜 1668… ONLINE、余额 19750、钱包 50440；未 Wipe） | `s3-mp/GATE_CHECK.md`、`.tmp/mp-seed-gate.json` |
+| 2026-09-27 | S3 缺口收口：device-detail `?id=`；采购单4/调拨号纯数字 cancel；兑换#4 须 couponDefId；#227 | `s3-mp/FINDINGS.md`、`s3-wh-*-soft.png`、`s3-b2-points-redeem-soft.png` |
+| 2026-09-27 | S3 附录 A mp 页矩阵：消费/商户各 22 路由 L1 PASS（多页 L2）；余额 ¥197.50；商户「补货与运营」 | `s3-mp/FINDINGS.md`、`s3-c-*.png`、`s3-m-*.png` |
+| 2026-09-27 | S3 mp：DevTools 超时打到死局域网 IP（像没样式）；sync 优先 127.0.0.1；lesson #226 | `sync-consumer-mp-api.mjs`、`s3-mp/FINDINGS.md`、`s3-c-mine-api-fix.png` |
+| 2026-09-27 | S3 续测：用户余额 L3 ¥197.50↔19750；积分兑换/线长/公告新建→取消；C5 待审已驳回解冻 | `s3-users-balance-l3.png` · `s3b2-points-redeem.png` · `s3-line-managers-empty.png` |
+| 2026-09-27 | S3 收口：A6 开票空壳；C1/C5 驳回→取消软写（¥500 待审）；D3 帮助/条款为 mp 静态、公开 API 404 | `s3a6-invoices-empty.png` · `s3c5-reject-cancel.png` |
+| 2026-09-27 | S3 缺口补测：A3 驳回→取消仍待审；A5 账户 payscore 就绪（H5 SKIP）；B2 积分35+会员等级；B3 公告空；仓配盘点号 `1790502046806410365000` 纯数字后 cancel | `s3-recharge/` · `s3-coupon/` · `s3-wh-stocktake-digits.png` |
+| 2026-09-27 | UAT 复检：商户提现业务单号 `4145309934143`、余额退款 `157961441034125857` 均为纯数字；CI build 绿（Emqx IT 曾抖后 rerun 全绿） | `s3c-05c-withdraw-bizno-recheck.png`、`s3a3-balance-refund-digits.png` |
 | 2026-09-27 | fix：渠道幂等号勿改纯数字（还原 BR/PSR）；STK 单测改数字断言；lesson #225 | `BalanceRefundService`、`RevenueSplitService`、`WarehouseStocktakeServiceTest` |
 | 2026-09-27 | fix(test)：V287 后 Java E2E/IT 禁写死 CAB-001；`DemoFixture` + Consumer/Merchant/Reconciliation；lesson #224 | `DemoFixture.java`、三测类、`lessons-learned.md` |
 | 2026-09-27 | 业务单号纯数字扫尾：支付退款/调账/仓配/盘点/分账批次/报废等发号 + Admin 漏列 displayBizNo；SKU/批次/协议号不动；#223 | `BizIds`、`PaymentService`、仓配/分账视图 |
