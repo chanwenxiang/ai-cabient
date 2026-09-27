@@ -190,15 +190,27 @@ try {
             phoneNumber = "13900000001"; password = "123456"
         }
         $h = @{ Authorization = "Bearer $($ops.token)" }
-        $recon = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/ops/admin/reconciliation?page=0&size=5" -Headers $h
+        # KeepPlatform/FullBusiness 清掉对账批次后列表为空；先跑当日 BALANCE 再断言（与 full-round-t5 一致）
+        $reconDate = (Get-Date).ToString("yyyy-MM-dd")
+        try {
+            Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+                -Path "/api/v2/ops/admin/reconciliation/run?date=$reconDate&channel=BALANCE" `
+                -Headers $h | Out-Null
+        } catch {
+            Write-Warning "reconciliation/run skipped: $($_.Exception.Message)"
+        }
+        # GET /reconciliation 返回 data=数组；Invoke-E2eApi 解包后单元素会被 PS 拆成对象，禁读 .items
+        $reconBatches = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+            -Path "/api/v2/ops/admin/reconciliation?page=0&size=5" -Headers $h |
+            Where-Object { $null -ne $_ })
         $splits = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/ops/admin/merchants/revenue-splits?page=0&size=3" -Headers $h
         $orders = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/ops/admin/orders?page=0&size=3&payChannel=BALANCE" -Headers $h
         $numericFlow = $true
-        foreach ($o in $orders.items) {
+        foreach ($o in @($orders.items)) {
             if ($o.paymentOperationId -and $o.paymentOperationId -notmatch '^\d+$') { $numericFlow = $false }
         }
-        Record-Step "6-reconciliation" ($recon.items.Count -ge 1) "batches=$($recon.items.Count)"
-        Record-Step "6-splits" ($splits.items.Count -ge 1) "count=$($splits.items.Count)"
+        Record-Step "6-reconciliation" ($reconBatches.Count -ge 1) "batches=$($reconBatches.Count)"
+        Record-Step "6-splits" (@($splits.items).Count -ge 1) "count=$(@($splits.items).Count)"
         Record-Step "6-flow-numeric" $numericFlow "recent balance orders"
     } catch {
         Record-Step "6-finance-api" $false $_.Exception.Message

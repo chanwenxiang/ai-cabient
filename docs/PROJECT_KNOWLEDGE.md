@@ -245,6 +245,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-27 | 整轮回归：KeepPlatform→milk PASS=10/FAIL=1（对账假红）→修 `@()`+run；finance 复验绿；#228 | `full-regression/FINDINGS.md`、`e2e-full-flow-milk.ps1` |
 | 2026-09-27 | S3 后台子复检：mp-seed-gate pass（柜 1668… ONLINE、余额 19750、钱包 50440；未 Wipe） | `s3-mp/GATE_CHECK.md`、`.tmp/mp-seed-gate.json` |
 | 2026-09-27 | S3 缺口收口：device-detail `?id=`；采购单4/调拨号纯数字 cancel；兑换#4 须 couponDefId；#227 | `s3-mp/FINDINGS.md`、`s3-wh-*-soft.png`、`s3-b2-points-redeem-soft.png` |
 | 2026-09-27 | S3 附录 A mp 页矩阵：消费/商户各 22 路由 L1 PASS（多页 L2）；余额 ¥197.50；商户「补货与运营」 | `s3-mp/FINDINGS.md`、`s3-c-*.png`、`s3-m-*.png` |

@@ -238,6 +238,7 @@
 | 225 | 业务单号扫尾误伤渠道幂等号 | `outRefundNo`/`outReturnNo` 也改成 `BizIds.nextNumeric` | 微信退款/分账回退幂等键失效；单测仍断言 `BR{id}-S{n}` / `PSR…` | **必须**仅用户可见单号用纯数字；**禁止**改 `out_refund_no` / `out_return_no` / PSC/ALI-AG / nonce（沿用稳定协议格式） | `BalanceRefundService`、`RevenueSplitService`、lesson #223 |
 | 226 | 微信开发者工具模拟器「像没样式/空数据」+ console `ERR_CONNECTION_TIMED_OUT` 打到 `192.168.x.x` | `sync-consumer-mp-api.mjs` 优先写局域网 IP，探测失败仍落死 IP；本机模拟器打不到该网卡 | 页面壳在、接口全超时 ⇒ 余额/积分空白像样式坏了 | **必须**先探测可达基址；默认优先 `127.0.0.1`/`localhost`；LAN 不可达禁止写入；真机才 `MP_API_USE_LAN=1`；改完须重建 dist 且 DevTools `quit` 后再开（见 #113） | `scripts/sync-consumer-mp-api.mjs`、`.env.development`、`dist/dev/mp-weixin` |
 | 227 | 商户 mp 柜机详情 automator 一直「加载中」 | 页 `onLoad` 只读 query **`id`**，脚本误传 `deviceId=` | deviceId 空 ⇒ 永不请求详情 | **必须** `/pages/device-detail/device-detail?id=`；列表进详情勿拼错参 | `device-detail.vue`、`s3-mp/FINDINGS` |
+| 228 | milk `6-reconciliation` 假红 `batches=0` | 库有对账批次仍 FAIL | `GET /reconciliation` 返回 `data=[]` 数组；`Invoke-E2eApi` 解包后单元素被 PS 拆成对象，`$x.items` 恒 0 | **必须** `@($api)` 再 `.Count`；禁对裸数组读 `.items`；KeepPlatform 清数后先 `POST .../reconciliation/run` | `e2e-full-flow-milk.ps1`、`Invoke-E2eApi` |
 
 ## 追加模板
 
