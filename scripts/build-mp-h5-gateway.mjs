@@ -23,11 +23,15 @@ function buildApp(app, base, destRel) {
   const dest = join(root, destRel);
   patchManifest(app, base);
   try {
-    const r = spawnSync(process.execPath, ['./node_modules/@dcloudio/vite-plugin-uni/bin/uni.js', 'build'], {
-      cwd: join(root, 'clients', app),
-      env: { ...process.env, UNI_H5_BASE: base },
-      stdio: 'inherit'
-    });
+    const r = spawnSync(
+      process.execPath,
+      ['./node_modules/@dcloudio/vite-plugin-uni/bin/uni.js', 'build'],
+      {
+        cwd: join(root, 'clients', app),
+        env: { ...process.env, UNI_H5_BASE: base },
+        stdio: 'inherit'
+      }
+    );
     if (r.status !== 0) {
       throw new Error(`${app} H5 build failed`);
     }
