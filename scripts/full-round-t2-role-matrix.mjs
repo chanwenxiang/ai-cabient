@@ -19,18 +19,6 @@ function resolveMerchantId() {
   if (!id) throw new Error('resolveMerchantId: no merchant');
   return id;
 }
-function resolveDeviceId() {
-  if (process.env.DEVICE_ID) return process.env.DEVICE_ID.trim();
-  if (process.env.E2E_DEVICE_ID) return process.env.E2E_DEVICE_ID.trim();
-  const sql =
-    "SELECT d.device_id FROM device_info d WHERE d.device_id IS NOT NULL AND d.device_id !~ '^CAB-' ORDER BY CASE WHEN d.device_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, d.device_id LIMIT 1;";
-  const id = execSync(
-    `docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`,
-    { encoding: 'utf8' }
-  ).trim();
-  if (!id) throw new Error('resolveDeviceId: no device');
-  return id;
-}
 const OUT = 'docs/uat-screenshots/2026-09-12';
 const UI = `${OUT}/browser-ui`;
 
