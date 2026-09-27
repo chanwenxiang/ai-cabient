@@ -231,6 +231,8 @@
 | 218 | WipePlatform 后又冒出默认演示商户/柜 | `DemoDataBootstrap` 在 mock 启动时 `ensureDemoData()` | 重建/重启 trade 会把空台再种满 | **严格空台 S0→S1：Wipe 后禁止重启 trade**；清前停模拟器；需改 jar 时先 wipe，再手工搭台，勿依赖启动种子 | `DemoDataBootstrap`、`cleanup-test-data.ps1` |
 | 219 | KeepSimulator 二次购物 session=FAILED | 模拟器日志 `waiting for HTTP /close (no auto-close)`，门停 OPEN | 上轮未关门或 MQTT close 丢失 | **必须**重购前 `POST http://127.0.0.1:18089/close`（或清阻塞会话）；禁假定 KeepSimulator 门已关 | device-simulator、`e2e-shopping -KeepSimulator` |
 | 220 | marketing-recharge mock 到账 404 | 脚本打 `/api/v2/payment/recharge/{id}/mock-success` | 真路径在 `/api/v2/dev/payment/recharge/{id}/mock-success` | **必须**走 `/dev/` 前缀（与 consumer-mp、demo-smoke 一致） | `e2e-consumer-marketing-recharge.ps1` |
+| 221 | Wipe 后商户端 `/merchant/me` 403 | WipePlatform `DELETE ops_user_merchant`；演示账号无绑定 ⇒ `isGlobalScope` 空 | 门户 guard 拒访问 | **必须**S1 建商户后 `INSERT ops_user_merchant` 绑 `13800138001`/`13800138002`；闸门/搭台脚本写死此步；禁假定 RBAC 角色 alone 够用 | `cleanup-test-data.ps1`、`MerchantScopeService`、`s3-merchant/FINDINGS` |
+| 222 | 商户改价 PATCH 400/409 | body 缺 `deviceId` 或已有覆盖价缺/错 `expectedVersion` | 乐观锁校验 | **必须**`{deviceId, priceCents, expectedVersion}`；version=列表 `priceVersion`；单元素列表勿用 PS unwrap | `UpdateMerchantSkuPriceRequest`、`MerchantSkuPricingService` |
 
 ## 追加模板
 

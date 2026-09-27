@@ -245,6 +245,8 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-27 | S3-D1 软写：反馈#13 PENDING + 报修→异常中心待处理；D2/D3 SKIP/PARTIAL；H5 未挂 | `s3-ops/FINDINGS.md` |
+| 2026-09-27 | S3-C 商户旁路：要货软写待审 / 分析 / 改价 version / 团队 / 提现阈值自动 PAID / 临期空；Wipe 后须重绑 ops_user_merchant（#221/#222） | `s3-merchant/FINDINGS.md` |
 | 2026-09-27 | 订单列表「商品 / 货道」分列：从 lineSummary 解析 `·货道A1`，商品只留名×量 | `OrderListView.vue`、`order-line-summary.ts` |
 | 2026-09-27 | lessons #219 sim 门卡 OPEN 须 `/close`；#220 recharge mock 路径须 `/dev/` | `lessons-learned.md` |
 | 2026-09-27 | S3-B1 发券抵扣 PASS：AMOUNT_OFF ¥1 发至用户→二次购物原¥3.50实付¥2.50；券 USED；sim 门卡 OPEN 需 `/close` | `s3-coupon/FINDINGS.md` |
