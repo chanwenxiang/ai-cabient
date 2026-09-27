@@ -177,6 +177,32 @@
             </template>
           </el-table-column>
           <el-table-column
+            label="货道"
+            width="80"
+            align="center"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
+            <template #default="{ row }">
+              <div
+                v-for="(disp, idx) in [goodsDisplay(row)]"
+                :key="`${row.orderId}-slot-${idx}`"
+                class="goods-cell"
+              >
+                <template v-if="disp.lines.length">
+                  <div
+                    v-for="(slot, i) in disp.slots"
+                    :key="`${row.orderId}-slot-${i}`"
+                    class="goods-line"
+                  >
+                    <span :class="slot ? 'goods-name' : 'muted'">{{ slot || '暂无' }}</span>
+                  </div>
+                </template>
+                <span v-else class="muted">暂无</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column
             label="金额"
             width="110"
             align="center"
@@ -761,41 +787,18 @@ import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
 import { buildOrderRefundBody, canRefundOrderStatus } from '@/utils/money-ui-contracts';
+import { parseGoodsLines } from '@/utils/order-line-summary';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
-type GoodsLine = { title: string; qty: string };
-
-function parseGoodsLines(summary: string | null | undefined): GoodsLine[] {
-  if (!summary?.trim()) return [];
-  const trimmed = summary.trim();
-  const extraSuffix = /等\d{1,4}种\s*$/.exec(trimmed);
-  const base = (extraSuffix ? trimmed.slice(0, extraSuffix.index) : trimmed).trim();
-  if (!base) return [];
-  return base
-    .split('、')
-    .map((part) => {
-      const raw = part.trim();
-      // 后端摘要形如：可口可乐 330ml x1 @L07-...；列表只展示名称与数量
-      const atIdx = raw.lastIndexOf(' @');
-      const withoutLoc = atIdx > 0 ? raw.slice(0, atIdx).trim() : raw;
-      const xIdx = withoutLoc.lastIndexOf(' x');
-      if (xIdx > 0) {
-        const qtyPart = withoutLoc.slice(xIdx + 2);
-        if (/^\d{1,6}$/.test(qtyPart)) {
-          return { title: withoutLoc.slice(0, xIdx).trim(), qty: qtyPart };
-        }
-      }
-      return { title: withoutLoc.trim(), qty: '' };
-    })
-    .filter((g) => g.title);
-}
-
 function goodsDisplay(row: OrderSummary) {
   const summary = row.lineSummary || '';
-  const extraMatch = /等(\d{1,4})种\s*$/.exec(summary);
+  const lines = parseGoodsLines(summary);
+  const extraMatch = /等(\d{1,4})(?:种|件)\s*$/.exec(summary);
   return {
-    lines: parseGoodsLines(summary),
+    lines,
+    /** 与商品行一一对齐（无货道则为空串） */
+    slots: lines.map((g) => g.slot),
     extraKinds: extraMatch ? Number(extraMatch[1]) : null,
     total: row.lineCount ?? 0
   };

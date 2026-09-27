@@ -245,6 +245,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-27 | 订单列表「商品 / 货道」分列：从 lineSummary 解析 `·货道A1`，商品只留名×量 | `OrderListView.vue`、`order-line-summary.ts` |
 | 2026-09-27 | lessons #219 sim 门卡 OPEN 须 `/close`；#220 recharge mock 路径须 `/dev/` | `lessons-learned.md` |
 | 2026-09-27 | S3-B1 发券抵扣 PASS：AMOUNT_OFF ¥1 发至用户→二次购物原¥3.50实付¥2.50；券 USED；sim 门卡 OPEN 需 `/close` | `s3-coupon/FINDINGS.md` |
 | 2026-09-27 | S3-A1..A4：充值+¥10 / 流水 API / 退余额软写待审 / 支付分开通后优先渠道可改回；H5 consumer 未挂 | `s3-recharge/FINDINGS.md`、`e2e-consumer-marketing-recharge.ps1` |
