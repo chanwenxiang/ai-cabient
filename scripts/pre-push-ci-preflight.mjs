@@ -168,16 +168,21 @@ if (adminSrcChanged || full) {
 }
 
 if (openApiSurface) {
-  console.log('\n⚠ 检测到 Controller/DTO/generated 改动。');
-  console.log('  CI 会跑 check:openapi-types（可能要起 trade 拉 /v3/api-docs）。');
-  console.log('  请确认已: 起 trade → pnpm gen:api-types → 提交 packages/shared-types。');
+  console.log(
+    '\n检测到 Controller/DTO/generated 改动，先跑结构档 openapi 门禁（X1 修复：此前仅打印提示）；'
+  );
+  console.log(
+    '  live 比对（起 trade 拉 /v3/api-docs）仍由 CI regen 负责。请确认已: pnpm gen:api-types → 提交 shared-types。'
+  );
+  // X1：结构档不再只是提示——generated 与别名组的结构性漂移在推送前即失败。
+  run('openapi-types', node, [resolve(root, 'scripts/check-openapi-types.mjs')]);
   if (full && existsSync(resolve(root, '.tmp/live-openapi.json'))) {
-    run('openapi-types', node, [resolve(root, 'scripts/check-openapi-types.mjs')], {
+    run('openapi-types-regen', node, [resolve(root, 'scripts/check-openapi-types.mjs')], {
       env: { OPENAPI_CHECK_REGEN: '1', OPENAPI_FILE: '.tmp/live-openapi.json' }
     });
   } else if (full) {
     console.warn(
-      '  --full 但缺少 .tmp/live-openapi.json，跳过 regen 校验（结构性 gate 仍建议本地 pnpm check:openapi-types）。'
+      '  --full 但缺少 .tmp/live-openapi.json，跳过 regen 校验（结构性 gate 已在上方强制执行）。'
     );
   }
 }
