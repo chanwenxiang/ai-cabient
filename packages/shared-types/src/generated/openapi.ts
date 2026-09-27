@@ -4937,6 +4937,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/public/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["policies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/public/ops-branding": {
         parameters: {
             query?: never;
@@ -4961,6 +4977,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["merchantConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/public/help": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["help"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12655,6 +12687,23 @@ export interface components {
             /** Format: int32 */
             quantity?: number;
         };
+        ApiResponseListConsumerPolicyDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ConsumerPolicyDto"][];
+        };
+        ConsumerPolicyDto: {
+            type?: string;
+            title?: string;
+            version?: string;
+            updatedAt?: string;
+            sections?: components["schemas"]["ConsumerPolicySectionDto"][];
+        };
+        ConsumerPolicySectionDto: {
+            title?: string;
+            paragraphs?: string[];
+        };
         ApiResponseOpsBrandDto: {
             /** Format: int32 */
             code?: number;
@@ -12666,6 +12715,21 @@ export interface components {
             subtitle?: string;
             sidebarTitle?: string;
             logoUrl?: string;
+        };
+        ApiResponseConsumerHelpDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ConsumerHelpDto"];
+        };
+        ConsumerHelpDto: {
+            supportPhone?: string;
+            supportEmail?: string;
+            faqs?: components["schemas"]["ConsumerHelpFaqDto"][];
+        };
+        ConsumerHelpFaqDto: {
+            q?: string;
+            a?: string;
         };
         ApiResponsePageResultRechargeOrderDto: {
             /** Format: int32 */
@@ -25244,6 +25308,26 @@ export interface operations {
             };
         };
     };
+    policies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListConsumerPolicyDto"];
+                };
+            };
+        };
+    };
     opsBranding: {
         parameters: {
             query?: never;
@@ -25280,6 +25364,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMapStringString"];
+                };
+            };
+        };
+    };
+    help: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseConsumerHelpDto"];
                 };
             };
         };
