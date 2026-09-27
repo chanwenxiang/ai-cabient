@@ -79,8 +79,17 @@ async function main() {
 
   // 隔离商户 B：按名称查找；不存在则系统发号新建（禁止手填 MCH-*）
   const MCH_B_NAME = '演示商户B';
-  let mch = await api(token, 'GET', `/api/v2/ops/admin/merchants?q=${encodeURIComponent(MCH_B_NAME)}&page=0&size=50`);
-  const mchList = mch.data?.data?.list || mch.data?.data?.records || mch.data?.data?.items || mch.data?.data || [];
+  let mch = await api(
+    token,
+    'GET',
+    `/api/v2/ops/admin/merchants?q=${encodeURIComponent(MCH_B_NAME)}&page=0&size=50`
+  );
+  const mchList =
+    mch.data?.data?.list ||
+    mch.data?.data?.records ||
+    mch.data?.data?.items ||
+    mch.data?.data ||
+    [];
   let mchB = (Array.isArray(mchList) ? mchList : []).find(
     (m) => m.merchantName === MCH_B_NAME || m.merchantId === 'MCH-OTHER'
   );

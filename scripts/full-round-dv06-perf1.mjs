@@ -19,7 +19,9 @@ function sh(cmd, opts = {}) {
 }
 
 function resolvePgId(sql, label) {
-  const id = sh(`docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`);
+  const id = sh(
+    `docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`
+  );
   if (!id || !String(id).trim()) throw new Error(`${label}: empty`);
   return String(id).trim();
 }

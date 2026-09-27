@@ -305,7 +305,8 @@
           </el-radio-button>
         </el-radio-group>
         <span class="tab-group-hint"
-          >当前「{{ currentTabGroupLabel }}」· {{ currentGroupTabCount }}个列表（角标不是库存/单据条数）</span
+          >当前「{{ currentTabGroupLabel }}」·
+          {{ currentGroupTabCount }}个列表（角标不是库存/单据条数）</span
         >
       </div>
 

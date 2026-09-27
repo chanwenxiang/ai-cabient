@@ -42,12 +42,13 @@ let DEVICE_ID = process.env.DEMO_DEVICE_ID || process.env.E2E_DEVICE_ID || '';
 
 async function resolveDemoDeviceId() {
   if (DEVICE_ID) return DEVICE_ID;
-  const tradeBase = process.env.E2E_BASE_URL || process.env.TRADE_BASE_URL || 'http://127.0.0.1:8080';
+  const tradeBase =
+    process.env.E2E_BASE_URL || process.env.TRADE_BASE_URL || 'http://127.0.0.1:8080';
   const key = process.env.INTERNAL_API_KEY || 'dev-internal-key-change-me';
   try {
     const r = await fetch(`${tradeBase}/internal/v1/demo/ensure`, {
       method: 'POST',
-      headers: { 'X-Internal-Api-Key': key },
+      headers: { 'X-Internal-Api-Key': key }
     });
     const j = await r.json().catch(() => null);
     if (j?.code === 0 && j?.data?.deviceId) {

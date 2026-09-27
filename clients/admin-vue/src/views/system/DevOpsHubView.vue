@@ -66,7 +66,9 @@
       <template #header>
         <div class="grafana-panel-head">
           <span>Grafana · AI Cabinet 运营概览</span>
-          <span class="hint">同源嵌入；本地需先登录一次 Grafana（默认 admin/admin），其后 iframe 共用会话</span>
+          <span class="hint"
+            >同源嵌入；本地需先登录一次 Grafana（默认 admin/admin），其后 iframe 共用会话</span
+          >
         </div>
       </template>
       <div class="grafana-frame-wrap">

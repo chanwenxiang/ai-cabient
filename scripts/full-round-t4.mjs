@@ -9,16 +9,24 @@ const BASE = 'http://127.0.0.1';
 
 function resolveMerchantId() {
   if (process.env.E2E_MERCHANT_ID) return process.env.E2E_MERCHANT_ID.trim();
-  const sql = "SELECT merchant_id FROM merchant WHERE merchant_id IS NOT NULL AND merchant_id <> '' ORDER BY CASE WHEN UPPER(COALESCE(status,'')) = 'ACTIVE' THEN 0 ELSE 1 END, CASE WHEN merchant_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, merchant_id LIMIT 1;";
-  const id = execSync(`docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`, { encoding: 'utf8' }).trim();
+  const sql =
+    "SELECT merchant_id FROM merchant WHERE merchant_id IS NOT NULL AND merchant_id <> '' ORDER BY CASE WHEN UPPER(COALESCE(status,'')) = 'ACTIVE' THEN 0 ELSE 1 END, CASE WHEN merchant_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, merchant_id LIMIT 1;";
+  const id = execSync(
+    `docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`,
+    { encoding: 'utf8' }
+  ).trim();
   if (!id) throw new Error('resolveMerchantId: no merchant');
   return id;
 }
 function resolveDeviceId() {
   if (process.env.DEVICE_ID) return process.env.DEVICE_ID.trim();
   if (process.env.E2E_DEVICE_ID) return process.env.E2E_DEVICE_ID.trim();
-  const sql = "SELECT d.device_id FROM device_info d WHERE d.device_id IS NOT NULL AND d.device_id !~ '^CAB-' ORDER BY CASE WHEN d.device_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, d.device_id LIMIT 1;";
-  const id = execSync(`docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`, { encoding: 'utf8' }).trim();
+  const sql =
+    "SELECT d.device_id FROM device_info d WHERE d.device_id IS NOT NULL AND d.device_id !~ '^CAB-' ORDER BY CASE WHEN d.device_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, d.device_id LIMIT 1;";
+  const id = execSync(
+    `docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`,
+    { encoding: 'utf8' }
+  ).trim();
   if (!id) throw new Error('resolveDeviceId: no device');
   return id;
 }
