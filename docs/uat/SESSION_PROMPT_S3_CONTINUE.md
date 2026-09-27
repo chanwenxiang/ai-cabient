@@ -1,6 +1,7 @@
 # 新会话续测提示词（S3 旁路 + 业务单号 · 2026-09-27）
 
-> 复制下方「提示词」整块到新 Cursor 会话即可。本文件可 `@docs/uat/SESSION_PROMPT_S3_CONTINUE.md`。
+> 复制下方「提示词」整块到新 Cursor 会话即可。本文件可 `@docs/uat/SESSION_PROMPT_S3_CONTINUE.md`。  
+> **本轮已收口**：S0–S3 + 附录 A + 整轮 milk 回归 + push CI 绿。新会话勿重复空测；有新缺口再开任务。
 
 ---
 
@@ -18,37 +19,38 @@
    - `docs/uat-screenshots/2026-09-27/s3-coupon/FINDINGS.md`
    - `docs/uat-screenshots/2026-09-27/s3-merchant/FINDINGS.md`
    - `docs/uat-screenshots/2026-09-27/s3-ops/FINDINGS.md`
-5. lessons：`docs/engineering/lessons-learned.md`（#212–#225，尤其 DemoData/柜号、渠道协议号、sim 门 /close）
+   - `docs/uat-screenshots/2026-09-27/s3-mp/FINDINGS.md` + `GATE_CHECK.md`
+   - `docs/uat-screenshots/2026-09-27/full-regression/FINDINGS.md`
+5. lessons：`docs/engineering/lessons-learned.md`（#212–#228，尤其柜号、渠道协议号、sim `/close`、mp API 127.0.0.1、milk 对账 `@()`）
 
-## 已完成（勿重做代码主线，除非 CI 再红）
-- CI：`b43d3283` 已绿（`DemoFixture` 替 CAB-001；渠道 `outRefundNo`/`outReturnNo` 保持 BR/PSR，勿改纯数字）
-- 业务单号：库内/系统发号纯数字 + Admin `displayBizNo`；**渠道协议号禁止改数字**
-- trade 本地曾 Flyway V287 checksum repair；Docker trade `:18080` / Admin `http://localhost/admin/`
-- S3 Admin 软写抽样基本收口（见各 FINDINGS）：
-  - A1–A6、B1–B3、C1–C6、D1；D2 SKIP；D3 PARTIAL（公开 help/policy API 404，mp 静态页存在）
-  - 用户余额 L3：10001 ¥197.50 ↔ 19750
-  - C5：¥1 自动 PAID；¥500 曾待审→软取消→后 API 驳回解冻（可用约 50440）
-  - 仓配：盘点号纯数字已验；采购/调拨库空 SKIP
+## 已完成（勿重做，除非 CI 再红或用户点名复测）
+- Commit/push：`559ed362` docs(uat) S3；`08fca633` fix milk 对账假红；CI run `36316095037` **success**
+- 业务单号：库内/系统发号纯数字 + Admin `displayBizNo`；**渠道协议号禁止改数字**（#225）
+- S3 Admin 软写：A1–A6、B1–B3、C1–C6、D1；D2 SKIP；D3 PARTIAL（公开 help/policy API 404，mp 静态存在）
+- 附录 A mp：消费/商户各 22 路由 L1 PASS（DevTools；sync 优先 127.0.0.1，#226）
+- device-detail query `id=`（#227）；兑换须 `couponDefId`；仓配采购/调拨号纯数字 soft-cancel
+- 整轮回归：KeepPlatform → gate → `e2e-full-flow-milk -SkipCleanup`；主链绿；对账假红已修（#228）
 - 演示账号：运营 `13900000001`/`123456`；消费者 `13800138000`；商户 `13800138001`
-- 柜/商户为运行时号（例柜 `166813762350`、商户 `892485912248`），**禁止写死 CAB-001**
+- 柜/商户运行时号（例柜 `166813762350`），**禁止写死 CAB-001**
 
-## 当前缺口（按优先级做）
-1. ~~H5/mp UI / 附录页矩阵~~ → **DONE**
-2. ~~仓配采购/调拨~~ → **DONE**（采购单列 `4`；调拨 `1790507082502743938921` cancel）
-3. ~~S3-B2 兑换写路径~~ → **DONE**（项#4 INACTIVE；须 couponDefId）
-4. ~~商户 device-detail~~ → **DONE**（query `id=`；lesson #227）
-5. **文档提交**（仅当用户明确要求 commit）：UAT 截图 + FINDINGS + Changelog；推前 `node scripts/pre-push-ci-preflight.mjs`。
-6. ~~台子复检~~ → **DONE** `mp-seed-gate` pass（未 Wipe）；见 `s3-mp/GATE_CHECK.md`。整轮回归再 `-CleanupFirst` + `e2e-full-flow-milk`（会动账）。
+## 已知非阻断 / 未挂载
+- H5 `/consumer/` nginx 未挂：SKIP（权威仍 mp-weixin DevTools）
+- Gray CheckOnly：vision mock / open disputes 残留等为 dev 项，不挡 milk
+- sim 购物常 DISPUTED→内部关门兜底（主链仍能出单）
+
+## 若用户要求「再回归」
+1. `cleanup-test-data.ps1 -KeepPlatform -RestoreBalanceCents 50000`（保台子）
+2. `mp-seed-gate.ps1`（勿盲目 Wipe）
+3. `e2e-full-flow-milk.ps1 -SkipCleanup`
+4. 推前：`node scripts/pre-push-ci-preflight.mjs`
 
 ## 铁律
-- UI 验收优先 Playwright MCP；禁止只 curl 宣称 UI 通过
-- 视口：先最大化窗口，再把视口对齐 outer（约 1395×794）；**禁止**把视口硬设成 1920 而窗口只有 ~1425（会灰边裁切）
-- 软写默认：确认框点取消；硬写须用户明示
-- 前台文案中文；密钥不入库
-- 改完易复发问题写 lessons 三列表 + Changelog
+- UI 验收优先 Playwright MCP；mp 用 DevTools/automator，禁 H5 冒充 PASS
+- 软写默认；硬写须用户明示
+- 前台文案中文；密钥不入库；改易复发问题写 lessons + Changelog
 
 ## 本轮请你直接做
-从「当前缺口」第 1 或第 2 条开始续测；每完成一块更新对应 FINDINGS + `PROJECT_KNOWLEDGE` §9 一行。不要复述旧会话长史，以仓库文件为准。
+本文件对应链路**已收口**。仅当用户给出新缺口（新页/新 bug/再跑 CI）时动手；否则先读 FINDINGS 回答现状，勿空转复测。
 ```
 
 ---
@@ -57,10 +59,11 @@
 
 | 项 | 状态 |
 |----|------|
-| CI `b43d3283` | 绿 |
-| S3 Admin 软写 | 基本收口 |
-| 业务单号数字展示 | 提现/退款/盘点已验 |
-| H5 nginx | 仍未挂载（不测） |
-| mp 附录 A | **PASS**（DevTools；见 `s3-mp/FINDINGS`） |
+| CI `08fca633` | **绿**（run 36316095037） |
+| S3 Admin 软写 | 收口 |
+| 业务单号数字展示 | 已验；渠道协议号勿动 |
+| H5 nginx | 未挂载（不测） |
+| mp 附录 A | **PASS** |
 | 仓配/兑换软写 | **PASS** |
-| 未 commit 的 UAT 文档/截图 | 工作区仍有未提交改动，commit 须用户明示 |
+| 整轮 milk | **主链 PASS**；对账断言已修 |
+| 文档/修复 | 已 push `origin/dev` |
