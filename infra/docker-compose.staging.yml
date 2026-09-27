@@ -29,6 +29,11 @@ services:
       CHECKOUT_BALANCE_ONLY: ${CHECKOUT_BALANCE_ONLY:-true}
       RECON_MOCK_ENABLED: ${RECON_MOCK_ENABLED:-true}
       SMS_WEBHOOK_URL: http://sms-webhook-mock:8099/send
+      # X2：环境层显式钉死支付/分账/提现 mock（防假成功纵深；validator 仍另强校验）
+      PAYSCORE_MOCK_ENABLED: ${PAYSCORE_MOCK_ENABLED:-false}
+      PROFIT_SHARING_MOCK_ENABLED: ${PROFIT_SHARING_MOCK_ENABLED:-false}
+      LINE_WITHDRAW_MOCK_ENABLED: ${LINE_WITHDRAW_MOCK_ENABLED:-false}
+      MERCHANT_WITHDRAW_MOCK_ENABLED: ${MERCHANT_WITHDRAW_MOCK_ENABLED:-false}
     depends_on:
       sms-webhook-mock:
         condition: service_healthy
@@ -42,4 +47,6 @@ services:
       # H69：让 vision-service 识别 staging 为安全环境（拒 MOCK/默认 Key、关 /docs）
       APP_ENV: staging
       MOCK_ENABLED: ${VISION_MOCK_ENABLED:-false}
+      # X2：staging 不允许 apps 层的 mock 默认回落（staging 意图 YOLO）
+      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-yolo}
       YOLO_AUTO_DOWNLOAD: "true"

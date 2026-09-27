@@ -13,6 +13,13 @@ services:
       AICABINET_STAGING_MODE: "false"
       AICABINET_MOCK_ENABLED: "false"
       AICABINET_SECURITY_MOCK_ENABLED: "false"
+      # V1：生产每日对账与退款 PROCESSING 推进必须启用（此前默认 false=永不执行）
+      RECON_SCHEDULED_ENABLED: "true"
+      # X2：环境层钉死支付/分账/提现 mock（validator 另有强校验，双保险）
+      PAYSCORE_MOCK_ENABLED: "false"
+      PROFIT_SHARING_MOCK_ENABLED: "false"
+      LINE_WITHDRAW_MOCK_ENABLED: "false"
+      MERCHANT_WITHDRAW_MOCK_ENABLED: "false"
       # B-6：生产须显式配置内部 API CIDR
       INTERNAL_API_ALLOWED_CIDRS: ${INTERNAL_API_ALLOWED_CIDRS:?set INTERNAL_API_ALLOWED_CIDRS in .env.production}
       XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:?set XXL_JOB_ACCESS_TOKEN in .env.production}

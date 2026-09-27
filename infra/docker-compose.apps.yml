@@ -32,6 +32,8 @@ services:
           sleep 2
         done
         mc mb --ignore-existing "local/$$MINIO_BUCKET"
+        # V4：桶显式私有——对象读取一律走后端流式/presign，禁桶级匿名
+        mc anonymous set none "local/$$MINIO_BUCKET" || true
         mc ilm add --prefix 'sim/' --expire-days "$${MINIO_SIM_RETENTION_DAYS:-7}" "local/$$MINIO_BUCKET" || true
         mc ilm add --prefix 'videos/' --expire-days "$${MINIO_VIDEO_RETENTION_DAYS:-30}" "local/$$MINIO_BUCKET" || true
         mc ilm add --prefix 'archive/' --expire-days "$${MINIO_ARCHIVE_RETENTION_DAYS:-180}" "local/$$MINIO_BUCKET" || true

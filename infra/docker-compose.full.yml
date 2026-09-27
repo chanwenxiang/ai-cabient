@@ -67,7 +67,7 @@ services:
     image: minio/mc:latest
     depends_on: [minio]
     entrypoint: ["/bin/sh", "-c"]
-    command: ["until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin}; do sleep 2; done; mc mb --ignore-existing local/${MINIO_BUCKET:-cabinet-videos}; mc ilm add --prefix 'sim/' --expire-days '${MINIO_SIM_RETENTION_DAYS:-7}' local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'videos/' --expire-days '${MINIO_VIDEO_RETENTION_DAYS:-30}' local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'archive/' --expire-days '${MINIO_ARCHIVE_RETENTION_DAYS:-180}' local/${MINIO_BUCKET:-cabinet-videos} || true"]
+    command: ["until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin}; do sleep 2; done; mc mb --ignore-existing local/${MINIO_BUCKET:-cabinet-videos}; mc anonymous set none local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'sim/' --expire-days '${MINIO_SIM_RETENTION_DAYS:-7}' local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'videos/' --expire-days '${MINIO_VIDEO_RETENTION_DAYS:-30}' local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'archive/' --expire-days '${MINIO_ARCHIVE_RETENTION_DAYS:-180}' local/${MINIO_BUCKET:-cabinet-videos} || true"]
 
   redpanda:
     stop_grace_period: 60s
@@ -197,7 +197,7 @@ services:
       XXL_JOB_EXECUTOR_PORT: ${XXL_JOB_EXECUTOR_PORT:-9999}
       # 容器内 app 用户对 /app 无写权限，日志落到 /tmp
       XXL_JOB_EXECUTOR_LOG_PATH: ${XXL_JOB_EXECUTOR_LOG_PATH:-/tmp/xxl-job/jobhandler}
-    ports: ["127.0.0.1:18080:8080", "${XXL_JOB_EXECUTOR_PORT:-9999}:9999"]
+    ports: ["127.0.0.1:18080:8080", "127.0.0.1:${XXL_JOB_EXECUTOR_PORT:-9999}:9999"]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
@@ -307,6 +307,8 @@ services:
       - "../services/trade-service/src/main/resources/static/admin:/usr/share/nginx/html/admin:ro"
       - "./gateway/mp-h5/consumer:/usr/share/nginx/html/consumer:ro"
       - "./gateway/mp-h5/merchant:/usr/share/nginx/html/merchant:ro"
+      # V2/V3：与 apps 栈同款 Grafana Basic（消除 full 栈无 auth_basic 的漂移）
+      - "./gateway/grafana.htpasswd:/etc/nginx/grafana.htpasswd:ro"
     depends_on: [trade-service]
 
   prometheus:
@@ -321,7 +323,7 @@ services:
   grafana:
     stop_grace_period: 30s
     image: grafana/grafana:10.4.0
-    ports: ["${GRAFANA_PORT:-13000}:3000"]
+    ports: ["127.0.0.1:${GRAFANA_PORT:-13000}:3000"]
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
