@@ -1,0 +1,30 @@
+﻿{
+  "snapshotDate": "2026-09-24",
+  "doorOpenAttempts": 8,
+  "doorOpenSuccess": 2,
+  "doorSuccessRate": 0.25,
+  "avgRecognizeMs": 572880,
+  "p95RecognizeMs": 671747,
+  "deviceTotal": 1,
+  "deviceOnlinePeak": 1,
+  "deviceOnlineRate": 0,
+  "realtime": {
+    "doorSuccessRate24h": 1,
+    "avgRecognizeMs24h": 102,
+    "deviceOnlineRateNow": 0,
+    "disputeOpen": 8,
+    "disputeOverdue": 8,
+    "disputeResolved24h": 1,
+    "disputeSlaCompliance24h": 1
+  },
+  "uiTiles": {
+    "快照日期": "2026-09-24",
+    "开门成功率": "25.0%",
+    "开门成功/尝试": "2/8",
+    "设备在线率": "0.0%",
+    "开门均时长": "9 分 33 秒",
+    "开门时长 P95": "11 分 12 秒",
+    "设备总数": "1",
+    "在线峰值": "1"
+  }
+}

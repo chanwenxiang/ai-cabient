@@ -19,6 +19,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
@@ -43,6 +45,7 @@ class MerchantConcurrencyTest {
     @Mock private WeChatProfitSharingService profitSharingService;
     @Mock private RevenueSplitService revenueSplitService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private MerchantIdService merchantIdService;
 
     private MerchantService service;
 
@@ -52,11 +55,14 @@ class MerchantConcurrencyTest {
                 permissionService, auditService, merchantScopeService, profitSharingService,
                 revenueSplitService, new ProfitSharingProperties(false, false, false, 20),
                 new WeChatPayProperties(false, "", "", "", "", "", "", "", true),
-                distributedLockService);
+                distributedLockService, merchantIdService);
     }
 
     @Test
     void upsertMerchant_whenLockBusy_rejectsWithConflict() {
+        Merchant existing = new Merchant();
+        existing.setMerchantId("M-1");
+        when(merchantRepository.findById("M-1")).thenReturn(Optional.of(existing));
         when(distributedLockService.tryLock(
                 MerchantService.merchantLockKey("M-1"), 60L, 5L))
                 .thenReturn(false);
@@ -71,6 +77,9 @@ class MerchantConcurrencyTest {
 
     @Test
     void upsertMerchant_whenPermissionDenied_unlocksLock() {
+        Merchant existing = new Merchant();
+        existing.setMerchantId("M-2");
+        when(merchantRepository.findById("M-2")).thenReturn(Optional.of(existing));
         when(distributedLockService.tryLock(
                 MerchantService.merchantLockKey("M-2"), 60L, 5L))
                 .thenReturn(true);
@@ -83,5 +92,19 @@ class MerchantConcurrencyTest {
                                 "ACTIVE", null, null, null, null, null, null, null)));
 
         verify(distributedLockService).unlock(MerchantService.merchantLockKey("M-2"));
+    }
+
+    @Test
+    void upsertMerchant_createWithHandFilledId_rejected() {
+        when(merchantRepository.findById("MCH-EAST")).thenReturn(Optional.empty());
+        when(merchantIdService.resolveForCreate("MCH-EAST"))
+                .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户编号由系统自动生成，不可指定"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsertMerchant(1L,
+                        new UpsertMerchantRequest("MCH-EAST", "华东", null, 1000, null,
+                                "ACTIVE", null, null, null, null, null, null, null)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
 }

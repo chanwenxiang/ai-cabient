@@ -33,8 +33,6 @@ public class WarehouseService {
     private static final String READY = "READY";
 
 
-    public static final String DEFAULT_WAREHOUSE_ID = "WH-DEMO-001";
-
     private final WarehouseMapper warehouseRepository;
     private final WarehouseInventoryMapper inventoryRepository;
     private final WarehouseInboundMapper inboundRepository;
@@ -52,12 +50,13 @@ public class WarehouseService {
     private final InventoryLotService inventoryLotService;
     private final DistributedLockService distributedLockService;
     private final DisplaySnapshotHelper displaySnapshotHelper;
+    private final WarehouseSupplierIdService warehouseSupplierIdService;
     private final WarehouseService self;
 
     public WarehouseService(WarehouseMapper warehouseRepository,
                             WarehouseInventoryMapper inventoryRepository,
                             WarehouseInboundMapper inboundRepository,
-                            WarehouseInboundLineMapper inboundLineRepository,
+                            WarehouseInboundLineMapper inboundLineMapper,
                             WarehouseOutboundMapper outboundRepository,
                             WarehouseOutboundLineMapper outboundLineRepository,
                             WarehouseMovementMapper movementRepository,
@@ -71,11 +70,12 @@ public class WarehouseService {
                             InventoryLotService inventoryLotService,
                             DistributedLockService distributedLockService,
                             DisplaySnapshotHelper displaySnapshotHelper,
+                            WarehouseSupplierIdService warehouseSupplierIdService,
                             @Lazy WarehouseService self) {
         this.warehouseRepository = warehouseRepository;
         this.inventoryRepository = inventoryRepository;
         this.inboundRepository = inboundRepository;
-        this.inboundLineRepository = inboundLineRepository;
+        this.inboundLineRepository = inboundLineMapper;
         this.outboundRepository = outboundRepository;
         this.outboundLineRepository = outboundLineRepository;
         this.movementRepository = movementRepository;
@@ -89,6 +89,7 @@ public class WarehouseService {
         this.inventoryLotService = inventoryLotService;
         this.distributedLockService = distributedLockService;
         this.displaySnapshotHelper = displaySnapshotHelper;
+        this.warehouseSupplierIdService = warehouseSupplierIdService;
         this.self = self;
     }
 
@@ -1206,8 +1207,25 @@ public class WarehouseService {
     }
 
     private String resolveWarehouseId(String warehouseId) {
-        if (warehouseId != null && !warehouseId.isBlank()) return warehouseId.trim();
-        return DEFAULT_WAREHOUSE_ID;
+        if (warehouseId != null && !warehouseId.isBlank()) {
+            return warehouseId.trim();
+        }
+        return resolveDefaultWarehouseId();
+    }
+
+    /** 空白仓 ID：取库内 ACTIVE 仓（标准 12 位优先），禁止回退写死 WH-DEMO-001。 */
+    public String resolveDefaultWarehouseId() {
+        return warehouseRepository.findAll().stream()
+                .filter(w -> w.getWarehouseId() != null && !w.getWarehouseId().isBlank())
+                .filter(w -> w.getStatus() == null || "ACTIVE".equalsIgnoreCase(w.getStatus()))
+                .map(Warehouse::getWarehouseId)
+                .min((a, b) -> {
+                    int std = Boolean.compare(
+                            WarehouseSupplierIdService.isStandardId(b),
+                            WarehouseSupplierIdService.isStandardId(a));
+                    return std != 0 ? std : a.compareTo(b);
+                })
+                .orElseThrow(() -> badRequest("未配置仓库，请先新建仓库"));
     }
 
     static String outboundLockKey(Long outboundId) {
@@ -1293,17 +1311,23 @@ public class WarehouseService {
 
     @Transactional
     public WarehouseDto upsertWarehouse(String warehouseId, String warehouseName, String address, String status) {
-        if (warehouseId == null || warehouseId.isBlank()) {
-            throw badRequest("warehouseId required");
-        }
         if (warehouseName == null || warehouseName.isBlank()) {
             throw badRequest("warehouseName required");
         }
-        String id = warehouseId.trim();
+        String raw = warehouseId != null ? warehouseId.trim() : "";
+        boolean createToken = raw.isEmpty() || "new".equalsIgnoreCase(raw) || "_".equals(raw);
+        boolean exists = !createToken && warehouseRepository.findById(raw).isPresent();
+        final String id;
+        if (exists) {
+            id = raw;
+        } else {
+            id = warehouseSupplierIdService.resolveWarehouseIdForCreate(createToken ? null : raw);
+        }
         Warehouse warehouse = warehouseRepository.findById(id).orElseGet(Warehouse::new);
         boolean creating = warehouse.getWarehouseId() == null || warehouse.getWarehouseId().isBlank();
         warehouse.setWarehouseId(id);
         warehouse.setWarehouseName(warehouseName.trim());
+        // 地址由运营填写（AddressPicker）；禁止种子写死城市
         warehouse.setAddress(address == null || address.isBlank() ? null : address.trim());
         String st = status == null || status.isBlank() ? "ACTIVE" : status.trim().toUpperCase();
         if (!"ACTIVE".equals(st) && !"INACTIVE".equals(st)) {

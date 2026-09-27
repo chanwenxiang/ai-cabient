@@ -4,6 +4,8 @@ param([string]$BaseUrl = "")
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$DeviceId = Resolve-E2eTestDevice -UnlockSales
+$E2eSku = Resolve-E2eTestSku -DeviceId $DeviceId
 $InternalKey = "dev-internal-key-change-me"
 $passed = 0
 $failed = 0
@@ -47,8 +49,8 @@ function OpsLogin([string]$phone = "13900000001") {
     }
 }
 
-Write-Host "==> API tests against $BaseUrl"
-Clear-E2eDeviceBlockingSessions -DeviceId "CAB-001" | Out-Null
+Write-Host "==> API tests against $BaseUrl (device=$DeviceId sku=$E2eSku)"
+Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
 Write-Host ""
 
 try {
@@ -97,18 +99,18 @@ try {
 
 try {
     $sess = Invoke-Api POST "/api/v2/sessions" $auth @{
-        deviceId = "CAB-001"
+        deviceId = $DeviceId
         idempotencyKey = "api-smoke-open-$([guid]::NewGuid().ToString('N'))"
     }
     $sid = $sess.sessionId
     Record "TC-PFREE-003" "Password-free open door" ($null -ne $sid) "session=$sid state=$($sess.state)"
     $headers = @{ "X-Internal-Api-Key" = $InternalKey }
     Invoke-Api POST "/internal/v1/sessions/door-event" $headers @{
-        sessionId = $sid; deviceId = "CAB-001"; doorState = "OPEN"
+        sessionId = $sid; deviceId = $DeviceId; doorState = "OPEN"
         timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     } | Out-Null
     Invoke-Api POST "/internal/v1/sessions/door-event" $headers @{
-        sessionId = $sid; deviceId = "CAB-001"; doorState = "CLOSED"
+        sessionId = $sid; deviceId = $DeviceId; doorState = "CLOSED"
         timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         uploadStatus = "LOCAL_QUEUED"
     } | Out-Null
@@ -117,7 +119,7 @@ try {
 }
 
 try {
-    $dev = Invoke-Api GET "/api/v2/devices/CAB-001/status" $auth
+    $dev = Invoke-Api GET "/api/v2/devices/$DeviceId/status" $auth
     Record "TC-DEV-002" "Device status" ($dev.online -eq $true) "online=$($dev.online) available=$($dev.available)"
 } catch {
     Record "TC-DEV-002" "Device status" $false $_.Exception.Message
@@ -128,8 +130,8 @@ try {
         $grav = Invoke-RestMethod -Method POST -Uri "$BaseUrl/internal/v1/sessions/gravity-deltas" `
             -Headers @{ "X-Internal-Api-Key" = $InternalKey; "Content-Type" = "application/json" } `
             -Body (@{
-                sessionId = $sid; deviceId = "CAB-001"
-                deltas = @(@{ skuId = "SKU-DEMO-001"; delta = 1 })
+                sessionId = $sid; deviceId = $DeviceId
+                deltas = @(@{ skuId = $E2eSku; delta = 1 })
             } | ConvertTo-Json -Compress)
         Record "TC-GRAV-001" "Gravity deltas attach" ($grav.code -eq 0) "session=$sid"
     } else {

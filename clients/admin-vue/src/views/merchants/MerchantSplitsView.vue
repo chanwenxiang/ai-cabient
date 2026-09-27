@@ -637,12 +637,11 @@
         10%）。非营业状态会拦截消费者开门购物（运维/补货开门不受影响）。
       </p>
       <el-form label-position="top">
-        <el-form-item label="商户编号" required>
-          <el-input
-            v-model="orgForm.merchantId"
-            :disabled="orgForm.editing"
-            placeholder="业务编号，如 MCH-EAST"
-          />
+        <el-form-item v-if="orgForm.editing" label="商户编号">
+          <el-input v-model="orgForm.merchantId" disabled />
+        </el-form-item>
+        <el-form-item v-else label="商户编号">
+          <el-input :model-value="'保存后由系统自动生成 12 位数字编号'" disabled />
         </el-form-item>
         <el-form-item label="名称" required>
           <el-input v-model="orgForm.merchantName" placeholder="组织 / 商户名称" />
@@ -1382,15 +1381,21 @@ function openOrgEdit(row?: MerchantDto) {
 
 async function saveOrg() {
   const f = orgForm.value;
-  if (!f.merchantId.trim() || !f.merchantName.trim()) {
-    ElMessage.warning('请填写商户编号与名称');
+  if (!f.merchantName.trim()) {
+    ElMessage.warning('请填写商户名称');
+    return;
+  }
+  if (f.editing && !f.merchantId.trim()) {
+    ElMessage.warning('缺少商户编号');
     return;
   }
   orgSaving.value = true;
   try {
-    const existing = merchants.value.find((m) => m.merchantId === f.merchantId.trim());
+    const existing = f.editing
+      ? merchants.value.find((m) => m.merchantId === f.merchantId.trim())
+      : undefined;
     await api.request(AdminEndpoints.merchants, 'POST', {
-      merchantId: f.merchantId.trim(),
+      merchantId: f.editing ? f.merchantId.trim() : null,
       merchantName: f.merchantName.trim(),
       contactPhone: f.contactPhone.trim() || null,
       platformRateBps: f.platformRateBps,
@@ -1404,7 +1409,7 @@ async function saveOrg() {
       packBizEnabled: existing?.packBizEnabled !== false,
       packTeamEnabled: existing?.packTeamEnabled !== false
     });
-    ElMessage.success('已保存组织');
+    ElMessage.success(f.editing ? '已保存组织' : '已创建商户（编号由系统分配）');
     orgDialog.value = false;
     await loadMerchants();
   } catch (e) {

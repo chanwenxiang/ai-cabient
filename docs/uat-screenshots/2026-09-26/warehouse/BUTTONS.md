@@ -46,6 +46,7 @@
 | OTA-01 | 空态 | ✓ | 「暂无固件版本」+「暂无升级进度上报」；`wh-ota-01.png` |
 | OTA-02 | 发布版本 → 取消 | ✓ | 「发布固件版本」；`wh-ota-02-publish.png` |
 | OTA-03 | 批量下架 / 导出 / 刷新 / 列设置 | ✓ 可见 | |
+| OTA-04 | 单页深测 | ✓ | 见 [`OTA_FULL_BROWSER_UAT.md`](../../../uat/OTA_FULL_BROWSER_UAT.md) · `ota/` |
 
 ---
 
@@ -58,6 +59,7 @@
 | SLA-03 | 开门成功率 | ✓ | 25.0%（2/8） |
 | SLA-04 | 刷新 | ✓ | 可点 |
 | SLA-05 | 实时「24h 开门均时长」 | ✓ | `0 ms` 可读（非五位以上裸数） |
+| SLA-06 | 单页深测 | ✓ | 见 [`SLA_FULL_BROWSER_UAT.md`](../../../uat/SLA_FULL_BROWSER_UAT.md) · `sla/` |
 
 ---
 
@@ -68,6 +70,7 @@
 | STAFF-01 | 列表 | ✓ | 共 1 条；完成率 60%；`wh-staff-01.png` |
 | STAFF-02 | 近 7/30/90 天 | ✓ 可见 | |
 | STAFF-03 | 查询/重置/导出/刷新/列设置 | ✓ | 导出 CSV 触发 |
+| STAFF-04 | 单页深测 | ✓ | 见 [`REPLENISHMENT_STAFF_FULL_BROWSER_UAT.md`](../../../uat/REPLENISHMENT_STAFF_FULL_BROWSER_UAT.md) · `replenishment-staff/` |
 
 ---
 

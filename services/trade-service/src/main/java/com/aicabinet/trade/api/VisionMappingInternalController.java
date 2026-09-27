@@ -50,8 +50,11 @@ public class VisionMappingInternalController {
     /** vision-service mock 兜底：返回柜内可结算 SKU（来自库存，非硬编码）。 */
     @GetMapping("/default-sku")
     public ApiResponse<DefaultSkuDto> defaultSku(@RequestParam(required = false) String deviceId) {
-        String skuId = demoDataService.resolveFallbackSku(deviceId);
-        return ApiResponse.ok(new DefaultSkuDto(skuId, deviceId != null ? deviceId : DemoDataService.DEMO_DEVICE_ID));
+        String resolvedDevice = deviceId != null && !deviceId.isBlank()
+                ? deviceId.trim()
+                : demoDataService.getContext().deviceId();
+        String skuId = demoDataService.resolveFallbackSku(resolvedDevice);
+        return ApiResponse.ok(new DefaultSkuDto(skuId, resolvedDevice));
     }
 
     public record DefaultSkuDto(String skuId, String deviceId) {}

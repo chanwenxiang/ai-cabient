@@ -104,7 +104,7 @@ try {
     if (-not $Phone) { $Phone = $demoCtx.consumerPhone }
     if (-not $DeviceId) { $DeviceId = $demoCtx.deviceId }
     $sku = [string]$demoCtx.fallbackSkuId
-    if (-not $sku) { $sku = "SKU-DEMO-001" }
+    if (-not $sku) { $sku = Resolve-E2eTestSku -DeviceId $DeviceId }
 
     Write-Host ("==> Login consumer={0} device={1} sku={2}" -f $Phone, $DeviceId, $sku)
     $login = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/password-login" -Body @{

@@ -1,6 +1,10 @@
 # Security / concurrency / reconciliation / dirty-data inventory tests
 $ErrorActionPreference = 'Continue'
 $Base = 'http://localhost'
+. (Join-Path $PSScriptRoot 'e2e-lib.ps1')
+# RBAC deny probe: synthetic device id (must not be a real demo cabinet id)
+$RbacProbeDeviceId = '900000000099'
+$DeviceId = try { Resolve-E2eTestDevice } catch { $RbacProbeDeviceId }
 $Report = New-Object System.Collections.Generic.List[string]
 function Log([string]$s) { [void]$Report.Add($s); Write-Host $s }
 
@@ -124,7 +128,7 @@ Expect-Status 'viewer GET /orders' (ApiCall GET '/api/v2/ops/admin/orders?page=1
 Expect-Status 'viewer POST /reconciliation/run' (ApiCall POST '/api/v2/ops/admin/reconciliation/run?date=2026-08-05&channel=WECHAT' $tokens.viewer $null) @(403)
 Expect-Status 'viewer GET /reconciliation' (ApiCall GET '/api/v2/ops/admin/reconciliation' $tokens.viewer) @(403)
 Expect-Status 'viewer GET /rbac/me/nav' (ApiCall GET '/api/v2/ops/admin/rbac/me/nav' $tokens.viewer) @(200)
-Expect-Status 'viewer POST /repair-tickets' (ApiCall POST '/api/v2/ops/admin/repair-tickets' $tokens.viewer @{ deviceId = 'CAB-001'; title = 'rbac-probe'; faultType = 'OTHER'; priority = 'LOW'; remark = 'no-op' }) @(403)
+Expect-Status 'viewer POST /repair-tickets' (ApiCall POST '/api/v2/ops/admin/repair-tickets' $tokens.viewer @{ deviceId = $RbacProbeDeviceId; title = 'rbac-probe'; faultType = 'OTHER'; priority = 'LOW'; remark = 'no-op' }) @(403)
 
 Expect-Status 'finance GET /reconciliation' (ApiCall GET '/api/v2/ops/admin/reconciliation' $tokens.finance) @(200)
 Expect-Status 'finance GET /orders' (ApiCall GET '/api/v2/ops/admin/orders?page=1&size=5' $tokens.finance) @(403)
@@ -213,8 +217,8 @@ try {
   $idem = "CONC-TEST-$(Get-Date -Format 'yyyyMMddHHmmss')"
   $jobs = 1..5 | ForEach-Object {
     Start-Job -ScriptBlock {
-      param($BaseUrl, $Token, $IdemKey)
-      $body = @{ deviceId = 'CAB-001'; idempotencyKey = $IdemKey } | ConvertTo-Json
+      param($BaseUrl, $Token, $IdemKey, $DevId)
+      $body = @{ deviceId = $DevId; idempotencyKey = $IdemKey } | ConvertTo-Json
       try {
         $r = Invoke-WebRequest -Uri "$BaseUrl/api/v2/sessions" -Method POST `
           -Headers @{ Authorization = "Bearer $Token" } -ContentType 'application/json' -Body $body -UseBasicParsing
@@ -231,7 +235,7 @@ try {
         }
         return "ERR|$st|$raw"
       }
-    } -ArgumentList $Base, $ct, $idem
+    } -ArgumentList $Base, $ct, $idem, $DeviceId
   }
   $results = $jobs | Wait-Job | Receive-Job
   $jobs | Remove-Job

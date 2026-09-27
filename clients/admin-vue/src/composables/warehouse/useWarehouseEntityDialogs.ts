@@ -95,18 +95,22 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
   }
 
   async function saveWarehouse() {
-    if (!warehouseForm.warehouseId.trim() || !warehouseForm.warehouseName.trim()) {
-      return ElMessage.warning('请填写仓库 ID 和名称');
+    if (!warehouseForm.warehouseName.trim()) {
+      return ElMessage.warning('请填写仓库名称');
+    }
+    if (warehouseForm.editing && !warehouseForm.warehouseId.trim()) {
+      return ElMessage.warning('缺少仓库编号');
     }
     deps.saving.value = true;
     try {
-      await api.request(AdminEndpoints.warehouseItem(warehouseForm.warehouseId.trim()), 'PUT', {
+      const idPath = warehouseForm.editing ? warehouseForm.warehouseId.trim() : 'new';
+      await api.request(AdminEndpoints.warehouseItem(idPath), 'PUT', {
         warehouseName: warehouseForm.warehouseName.trim(),
         address: warehouseForm.address,
         status: warehouseForm.status
       });
       warehouseDialog.value = false;
-      ElMessage.success('仓库已保存');
+      ElMessage.success(warehouseForm.editing ? '仓库已保存' : '仓库已创建（编号由系统分配）');
       deps.loadedTabs.value.delete('warehouses');
       await deps.loadTab('warehouses', true);
     } catch (e) {
@@ -131,13 +135,17 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
   }
 
   async function saveSupplier() {
-    if (!supplierForm.supplierId.trim() || !supplierForm.supplierName.trim()) {
-      return ElMessage.warning('请填写供应商 ID 和名称');
+    if (!supplierForm.supplierName.trim()) {
+      return ElMessage.warning('请填写供应商名称');
+    }
+    if (supplierForm.editing && !supplierForm.supplierId.trim()) {
+      return ElMessage.warning('缺少供应商编号');
     }
     deps.saving.value = true;
     try {
-      await api.request(AdminEndpoints.supplier(supplierForm.supplierId.trim()), 'PUT', {
-        supplierId: supplierForm.supplierId.trim(),
+      const idPath = supplierForm.editing ? supplierForm.supplierId.trim() : 'new';
+      await api.request(AdminEndpoints.supplier(idPath), 'PUT', {
+        supplierId: idPath,
         supplierName: supplierForm.supplierName.trim(),
         contactName: supplierForm.contactName,
         contactPhone: supplierForm.contactPhone,
@@ -146,7 +154,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
         status: supplierForm.status
       });
       supplierDialog.value = false;
-      ElMessage.success('供应商已保存');
+      ElMessage.success(supplierForm.editing ? '供应商已保存' : '供应商已创建（编号由系统分配）');
       deps.loadedTabs.value.delete('suppliers');
       await deps.loadTab('suppliers', true);
     } catch (e) {

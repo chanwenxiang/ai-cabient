@@ -51,6 +51,7 @@ public class MerchantService {
     private final ProfitSharingProperties profitSharingProperties;
     private final WeChatPayProperties weChatPayProperties;
     private final DistributedLockService distributedLockService;
+    private final MerchantIdService merchantIdService;
 
     public MerchantService(MerchantMapper merchantRepository,
                            DeviceInfoMapper deviceRepository,
@@ -62,7 +63,8 @@ public class MerchantService {
                            RevenueSplitService revenueSplitService,
                            ProfitSharingProperties profitSharingProperties,
                            WeChatPayProperties weChatPayProperties,
-                           DistributedLockService distributedLockService) {
+                           DistributedLockService distributedLockService,
+                           MerchantIdService merchantIdService) {
         this.merchantRepository = merchantRepository;
         this.deviceRepository = deviceRepository;
         this.splitRepository = splitRepository;
@@ -74,6 +76,7 @@ public class MerchantService {
         this.profitSharingProperties = profitSharingProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.distributedLockService = distributedLockService;
+        this.merchantIdService = merchantIdService;
     }
 
     @Transactional(readOnly = true)
@@ -121,7 +124,15 @@ public class MerchantService {
 
     @Transactional
     public MerchantDto upsertMerchant(Long operatorId, UpsertMerchantRequest request) {
-        String merchantId = request.merchantId().trim();
+        String rawId = request.merchantId() != null ? request.merchantId().trim() : "";
+        boolean exists = !rawId.isBlank() && merchantRepository.findById(rawId).isPresent();
+        final String merchantId;
+        if (exists) {
+            merchantId = rawId;
+        } else {
+            // 新建：禁止手填（含历史风格 MCH-*）；空串由系统发 12 位号
+            merchantId = merchantIdService.resolveForCreate(rawId.isBlank() ? null : rawId);
+        }
         return runWithMerchantLock(merchantId, () -> doUpsertMerchant(operatorId, request, merchantId));
     }
 

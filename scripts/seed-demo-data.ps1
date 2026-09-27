@@ -25,11 +25,13 @@ try {
 }
 
 if (-not $ctx) {
+    $fallbackDevice = ""
+    try { $fallbackDevice = Resolve-E2eTestDevice } catch { }
     $ctx = [PSCustomObject]@{
-        deviceId              = "CAB-001"
+        deviceId              = $fallbackDevice
         consumerPhone         = "13800138000"
         consumerUserId        = 10001
-        fallbackSkuId         = "SKU-DEMO-001"
+        fallbackSkuId         = $(try { Resolve-E2eTestSku -DeviceId $fallbackDevice } catch { "" })
         skuCount              = 0
         deviceInventoryLines  = 0
         warehouseLotCount     = 0

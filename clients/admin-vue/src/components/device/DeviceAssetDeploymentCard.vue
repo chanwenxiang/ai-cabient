@@ -200,7 +200,7 @@ const emit = defineEmits<{
               :precision="6"
               :step="0.0001"
               style="width: 100%"
-              placeholder="如 31.230400"
+              placeholder="纬度（部署必填）"
             />
           </el-form-item>
         </el-col>
@@ -213,7 +213,7 @@ const emit = defineEmits<{
               :precision="6"
               :step="0.0001"
               style="width: 100%"
-              placeholder="如 121.473700"
+              placeholder="经度（部署必填）"
             />
           </el-form-item>
         </el-col>

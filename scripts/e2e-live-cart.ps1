@@ -10,6 +10,7 @@ $lock = Enter-E2eLock -Owner "live-cart"
 try {
     $demo = & (Join-Path $PSScriptRoot "seed-demo-data.ps1") -BaseUrl $BaseUrl -InternalApiKey $InternalKey -Ensure
     $DeviceId = $demo.deviceId
+$E2eSku = if ($demo.fallbackSkuId) { [string]$demo.fallbackSkuId } else { Resolve-E2eTestSku -DeviceId $DeviceId }
     $Phone = $demo.consumerPhone
     $login = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/password-login" -Body @{
         phoneNumber = $Phone; password = "123456"
@@ -41,7 +42,7 @@ try {
         -Path ("/internal/v1/sessions/" + $sid + "/live-cart") -Headers $internal -Body @{
         mode = "REPLACE"
         items = @(
-            @{ skuId = "SKU-DEMO-001"; skuName = "Demo Drink"; quantity = 2; unitPriceCents = 350 }
+            @{ skuId = $E2eSku; skuName = "E2E Item"; quantity = 2; unitPriceCents = 350 }
         )
     }
     Write-Host ("push qty=" + $push.totalQty + " amount=" + $push.totalAmountCents)
@@ -50,7 +51,7 @@ try {
         -Path ("/internal/v1/sessions/" + $sid + "/live-cart") -Headers $internal -Body @{
         mode = "DELTA"
         items = @(
-            @{ skuId = "SKU-DEMO-001"; quantity = -1; unitPriceCents = 350 }
+            @{ skuId = $E2eSku; quantity = -1; unitPriceCents = 350 }
         )
     }
     Write-Host ("delta qty=" + $delta.totalQty + " amount=" + $delta.totalAmountCents)

@@ -1,0 +1,21 @@
+{
+  "days30": {
+    "len": 1,
+    "sample": {
+      "userId": 100000030,
+      "name": "默认商户管理员",
+      "phone": "13800138001",
+      "totalTasks": 5,
+      "completedTasks": 3,
+      "completionRate": 0.6,
+      "avgDurationMinutes": 0,
+      "openTasks": 2,
+      "avgDailyTasks": 0.17
+    }
+  },
+  "days7": { "len": 0 },
+  "days90": { "len": 1 },
+  "uiDefault": { "total": 1, "completionRate": "60.0%" },
+  "keywordEmptyTotal": 0,
+  "export": "补货员效率_*.csv"
+}

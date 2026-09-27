@@ -28,6 +28,8 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class WarehouseServiceTest {
 
+    private static final String TEST_WAREHOUSE_ID = "900000000001";
+
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private WarehouseInventoryMapper inventoryRepository;
     @Mock private WarehouseInboundMapper inboundRepository;
@@ -55,8 +57,12 @@ class WarehouseServiceTest {
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
-                displaySnapshotHelper, null);
+                displaySnapshotHelper, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(warehouseService, "self", warehouseService);
+        Warehouse defaultWh = new Warehouse();
+        defaultWh.setWarehouseId(TEST_WAREHOUSE_ID);
+        defaultWh.setStatus("ACTIVE");
+        when(warehouseRepository.findAll()).thenReturn(List.of(defaultWh));
     }
 
     @Test
@@ -98,7 +104,7 @@ class WarehouseServiceTest {
     void tryCreateOutboundFromLines_returnsNull_whenZeroStock() {
         stubOutboundSave(501L);
         when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(
-                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of());
+                TEST_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of());
 
         Long id = warehouseService.tryCreateOutboundFromLines(
                 1L, null, 100L, Map.of("SKU-1", 5), null);
@@ -113,9 +119,9 @@ class WarehouseServiceTest {
         stubOutboundSave(502L);
         WarehouseInventory lot = inventoryLot("SKU-1", "B1", 3);
         when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(
-                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of(lot));
+                TEST_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of(lot));
         when(outboundLineRepository.sumAllocatedQty(
-                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(0);
+                TEST_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(0);
 
         Long id = warehouseService.tryCreateOutboundFromLines(
                 2L, null, 100L, Map.of("SKU-1", 10), null);
@@ -132,9 +138,9 @@ class WarehouseServiceTest {
         stubOutboundSave(503L);
         WarehouseInventory lot = inventoryLot("SKU-1", "B1", 10);
         when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(
-                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of(lot));
+                TEST_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of(lot));
         when(outboundLineRepository.sumAllocatedQty(
-                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(0);
+                TEST_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(0);
 
         Long id = warehouseService.tryCreateOutboundFromLines(
                 3L, null, 100L, new LinkedHashMap<>(Map.of("SKU-1", 5)), null);
@@ -153,11 +159,11 @@ class WarehouseServiceTest {
         WarehouseInventory far = inventoryLot("SKU-1", "FAR", 10, LocalDate.now().plusMonths(6));
         // Repository contract: already ordered by expiry ASC
         when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(
-                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of(near, far));
+                TEST_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of(near, far));
         when(outboundLineRepository.sumAllocatedQty(
-                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1", "NEAR")).thenReturn(0);
+                TEST_WAREHOUSE_ID, "SKU-1", "NEAR")).thenReturn(0);
         when(outboundLineRepository.sumAllocatedQty(
-                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1", "FAR")).thenReturn(0);
+                TEST_WAREHOUSE_ID, "SKU-1", "FAR")).thenReturn(0);
 
         Long id = warehouseService.tryCreateOutboundFromLines(
                 4L, null, 100L, new LinkedHashMap<>(Map.of("SKU-1", 5)), null);
@@ -206,7 +212,7 @@ class WarehouseServiceTest {
 
     private static WarehouseInventory inventoryLot(String skuId, String batchNo, int qty, LocalDate expiryDate) {
         WarehouseInventory lot = new WarehouseInventory();
-        lot.setWarehouseId(WarehouseService.DEFAULT_WAREHOUSE_ID);
+        lot.setWarehouseId(TEST_WAREHOUSE_ID);
         lot.setSkuId(skuId);
         lot.setBatchNo(batchNo);
         lot.setExpiryDate(expiryDate);

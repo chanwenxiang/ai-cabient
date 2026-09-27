@@ -299,11 +299,13 @@
         <el-radio-group v-model="tabGroup" size="small" @change="onTabGroupChange">
           <el-radio-button v-for="g in visibleTabGroups" :key="g.id" :value="g.id">
             {{ g.label }}
-            <span class="tab-group-count">{{ g.count }}</span>
+            <span class="tab-group-count" :title="'本组含 ' + g.count + ' 个列表（非数据条数）'"
+              >{{ g.count }}个列表</span
+            >
           </el-radio-button>
         </el-radio-group>
         <span class="tab-group-hint"
-          >当前「{{ currentTabGroupLabel }}」· 共 {{ currentGroupTabCount }} 个列表</span
+          >当前「{{ currentTabGroupLabel }}」· {{ currentGroupTabCount }}个列表（角标不是库存/单据条数）</span
         >
       </div>
 

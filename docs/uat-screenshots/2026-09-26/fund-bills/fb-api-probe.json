@@ -1,0 +1,22 @@
+{
+  "dailyBills": {
+    "total": 5,
+    "sample": {
+      "bizDate": "2026-09-26",
+      "merchantId": "MCH-DEFAULT",
+      "orderPaidCents": 350,
+      "platformFeeCents": 35,
+      "channelFeeCents": 2,
+      "creditedCents": 315,
+      "pendingCents": 0,
+      "orderCount": 2,
+      "solidified": false
+    }
+  },
+  "ledger": {
+    "total": 62,
+    "typeFilterOrderPayment": 22
+  },
+  "rangeGateToast": "账期跨度不能超过 90 天（支持跨月）",
+  "exports": ["fund-daily-bills.csv", "资金账务明细_*.csv"]
+}

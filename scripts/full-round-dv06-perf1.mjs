@@ -7,15 +7,42 @@ import fs from 'node:fs';
 
 const BASE = process.env.API_BASE || 'http://127.0.0.1';
 const TRADE = process.env.TRADE_BASE || 'http://127.0.0.1:18080';
-const MAIN = process.env.DEVICE_ID || '777740024057';
-const SECOND = process.env.SECOND_DEVICE_ID || 'CAB-001';
+let MAIN = process.env.DEVICE_ID || process.env.E2E_DEVICE_ID || '';
+let SECOND = process.env.SECOND_DEVICE_ID || '';
 const OUT = 'docs/uat-screenshots/2026-09-12';
 const NET = process.env.DOCKER_NET || 'ai-cabinet_default';
 const SIM_IMAGE = process.env.SIM_IMAGE || 'ai-cabinet-device-simulator:latest';
-const SECOND_NAME = 'ai-cabinet-device-simulator-cab001';
+const SECOND_NAME = process.env.SECOND_SIM_NAME || 'ai-cabinet-device-simulator-second';
 
 function sh(cmd, opts = {}) {
   return execSync(cmd, { encoding: 'utf8', timeout: opts.timeout ?? 60000, ...opts }).trim();
+}
+
+function resolvePgId(sql, label) {
+  const id = sh(`docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`);
+  if (!id || !String(id).trim()) throw new Error(`${label}: empty`);
+  return String(id).trim();
+}
+function ensureMainDevice() {
+  if (MAIN) return MAIN;
+  return resolvePgId(
+    "SELECT d.device_id FROM device_info d WHERE d.device_id IS NOT NULL AND d.device_id !~ '^CAB-' AND coalesce(d.merchant_id,'') <> '' ORDER BY CASE WHEN d.device_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, d.device_id LIMIT 1;",
+    'MAIN device'
+  );
+}
+function ensureSecondDevice(mainId) {
+  if (SECOND) return SECOND;
+  return resolvePgId(
+    `SELECT d.device_id FROM device_info d WHERE d.device_id IS NOT NULL AND d.device_id <> '${mainId}' AND d.device_id !~ '^CAB-' ORDER BY CASE WHEN d.device_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, d.device_id LIMIT 1;`,
+    'SECOND device'
+  );
+}
+function ensureMerchantId() {
+  if (process.env.E2E_MERCHANT_ID) return process.env.E2E_MERCHANT_ID.trim();
+  return resolvePgId(
+    "SELECT merchant_id FROM merchant WHERE merchant_id IS NOT NULL AND merchant_id <> '' ORDER BY CASE WHEN UPPER(COALESCE(status,'')) = 'ACTIVE' THEN 0 ELSE 1 END, CASE WHEN merchant_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, merchant_id LIMIT 1;",
+    'merchant'
+  );
 }
 
 function redisCaptcha(id) {
@@ -174,9 +201,12 @@ function note(s) {
   console.log('NOTE', s);
 }
 
+MAIN = ensureMainDevice();
+SECOND = ensureSecondDevice(MAIN);
+note(`resolved devices MAIN=${MAIN} SECOND=${SECOND}`);
 const tok = await opsLogin();
 
-// --- bind CAB-001 if needed ---
+// --- bind SECOND cabinet if needed ---
 const before = psql(
   `SELECT device_id||'|'||coalesce(merchant_id,'')||'|'||coalesce(lifecycle_status,'')||'|'||coalesce(online_status,'') FROM device_info WHERE device_id='${SECOND}'`
 );
@@ -197,13 +227,13 @@ if (!merchantId) {
   }
   const b = await api(tok, 'POST', `/api/v2/ops/admin/devices/${SECOND}/lifecycle`, {
     action: 'BIND',
-    merchantId: 'MCH-DEFAULT',
+    merchantId: ensureMerchantId(),
     remark: 'dv06-dual-cab'
   });
-  if (b.data?.code === 0) pass('bind-cab001', 'MCH-DEFAULT');
-  else fail('bind-cab001', JSON.stringify(b.data));
+  if (b.data?.code === 0) pass('bind-second', 'resolved merchant');
+  else fail('bind-second', JSON.stringify(b.data));
 } else {
-  pass('bind-cab001', `already ${merchantId}`);
+  pass('bind-second', `already ${merchantId}`);
 }
 
 const sim = ensureSecondSimulator();

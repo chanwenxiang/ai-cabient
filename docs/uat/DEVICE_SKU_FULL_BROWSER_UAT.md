@@ -47,7 +47,9 @@ ID 前缀：`DEV-*` · `SKU-*`
 | SKU-01 | 商品 | 列表金额/条码可读；编辑点到弹层可取消 |
 | SKU-02 | 商品深测 | 见 [`SKUS_FULL_BROWSER_UAT.md`](./SKUS_FULL_BROWSER_UAT.md)（关键词 `q`/深链/下架取消） |
 | SKU-REV-01 | 选品深测 | 见 [`SKU_REVIEW_FULL_BROWSER_UAT.md`](./SKU_REVIEW_FULL_BROWSER_UAT.md)（关键词 total #210） |
-| SKU-MAP-01 | 识别映射 | 类名→商品列表；新增可取消 |
+| SKU-VIS-01 | 识别入驻深测 | 见 [`SKU_VISION_FULL_BROWSER_UAT.md`](./SKU_VISION_FULL_BROWSER_UAT.md)（Chip/q/配置取消/识别测试） |
+| SKU-MAP-01 | 识别映射深测 | 见 [`VISION_MAPPINGS_FULL_BROWSER_UAT.md`](./VISION_MAPPINGS_FULL_BROWSER_UAT.md)（关键词q/深链/新增·编辑·删除取消） |
+| SKU-UQ-01 | 录像上传深测 | 见 [`UPLOAD_QUEUE_FULL_BROWSER_UAT.md`](./UPLOAD_QUEUE_FULL_BROWSER_UAT.md)（空态/仅滞留/深链/别名路由） |
 
 ---
 

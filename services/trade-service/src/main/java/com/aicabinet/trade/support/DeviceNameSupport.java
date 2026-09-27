@@ -1,25 +1,15 @@
 package com.aicabinet.trade.support;
 
-import java.util.Map;
-
 /**
  * Normalizes device display names when DB rows were corrupted by encoding issues.
  *
- * <p>本表是这些柜机显示名的**唯一运行时权威**：种子（{@code DemoDataService}）与迁移
- * （{@code V286__rename_demo_fixtures.sql}）都对齐这里，改名字只改这一处。
- *
- * <p>2026-09-23：名称由「测试柜-001 / 测试柜-OTHER」改为拟真名 —— 旧名会随 V2/V57
- * 落到任何环境（含生产），上线时还得再改一次（见 V286 头注释）。
+ * <p>柜机编号由系统随机分配（见 {@code DeviceIdService}），此处<strong>不</strong>再按固定
+ * deviceId 映射显示名。演示默认名仅作损坏名修复时的兜底文案。
  */
 public final class DeviceNameSupport {
 
-    public static final String DEMO_DEVICE_NAME = "门店一号柜";
+    public static final String DEMO_DEVICE_NAME = "演示智能柜";
     public static final String DEMO_DEVICE_NAME_OTHER = "门店二号柜";
-
-    private static final Map<String, String> KNOWN_NAMES = Map.of(
-            "CAB-001", DEMO_DEVICE_NAME,
-            "CAB-OTHER", DEMO_DEVICE_NAME_OTHER
-    );
 
     private DeviceNameSupport() {
     }
@@ -35,9 +25,8 @@ public final class DeviceNameSupport {
         if (storedName != null && !storedName.isBlank() && !isCorrupted(storedName)) {
             return storedName;
         }
-        String known = KNOWN_NAMES.get(deviceId);
-        if (known != null) {
-            return known;
+        if (isCorrupted(storedName)) {
+            return DEMO_DEVICE_NAME;
         }
         if (storedName != null && !storedName.isBlank()) {
             return storedName;
@@ -45,11 +34,14 @@ public final class DeviceNameSupport {
         return deviceId != null ? deviceId : "";
     }
 
-    /** Returns canonical demo name when stored value is corrupted; otherwise null. */
+    /**
+     * Returns {@link #DEMO_DEVICE_NAME} when stored value is corrupted; otherwise null
+     * （调用方据此判断「无需写库」）。
+     */
     public static String canonicalIfCorrupted(String deviceId, String storedName) {
         if (!isCorrupted(storedName)) {
             return null;
         }
-        return KNOWN_NAMES.get(deviceId);
+        return DEMO_DEVICE_NAME;
     }
 }

@@ -1,5 +1,5 @@
 /**
- * 重建完整轮所需演示账号：viewer 13900000005 + MCH-OTHER / 13800138003
+ * 重建完整轮所需演示账号：viewer 13900000005 + 演示商户B / 13800138003
  * 用法：node scripts/rebuild-demo-rbac-accounts.mjs
  */
 import { execSync } from 'node:child_process';
@@ -77,21 +77,28 @@ async function main() {
   out.roles = { viewer: viewer?.roleId, merchant: merchant?.roleId };
   if (!viewer?.roleId || !merchant?.roleId) throw new Error('missing viewer/merchant role');
 
-  // MCH-OTHER
-  let mch = await api(token, 'GET', '/api/v2/ops/admin/merchants?q=MCH-OTHER&page=0&size=20');
-  const mchList = mch.data?.data?.list || mch.data?.data?.records || mch.data?.data || [];
-  const hasMch = (Array.isArray(mchList) ? mchList : []).some((m) => m.merchantId === 'MCH-OTHER');
-  if (!hasMch) {
+  // 隔离商户 B：按名称查找；不存在则系统发号新建（禁止手填 MCH-*）
+  const MCH_B_NAME = '演示商户B';
+  let mch = await api(token, 'GET', `/api/v2/ops/admin/merchants?q=${encodeURIComponent(MCH_B_NAME)}&page=0&size=50`);
+  const mchList = mch.data?.data?.list || mch.data?.data?.records || mch.data?.data?.items || mch.data?.data || [];
+  let mchB = (Array.isArray(mchList) ? mchList : []).find(
+    (m) => m.merchantName === MCH_B_NAME || m.merchantId === 'MCH-OTHER'
+  );
+  if (!mchB) {
     const created = await api(token, 'POST', '/api/v2/ops/admin/merchants', {
-      merchantId: 'MCH-OTHER',
-      merchantName: '演示商户B',
+      merchantName: MCH_B_NAME,
       platformRateBps: 1500,
-      remark: '完整轮数据隔离'
+      remark: '完整轮数据隔离',
+      status: 'ACTIVE'
     });
     out.steps.push({ createMerchant: created.status, body: created.data });
+    mchB = created.data?.data;
   } else {
-    out.steps.push({ createMerchant: 'exists' });
+    out.steps.push({ createMerchant: 'exists', merchantId: mchB.merchantId });
   }
+  const mchBId = mchB?.merchantId;
+  if (!mchBId) throw new Error('demo merchant B missing after create/lookup');
+  out.merchantBId = mchBId;
 
   // viewer
   let viewerUser = await findOperator(token, '13900000005');
@@ -138,7 +145,7 @@ async function main() {
       token,
       'PUT',
       `/api/v2/ops/admin/rbac/users/${mchAdmin.userId}/merchants`,
-      ['MCH-OTHER']
+      [`${mchBId}`]
     );
     out.steps.push({
       bindRoles: rolesPut.status,

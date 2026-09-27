@@ -23,12 +23,14 @@ $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
 $demoCtx = $null
+$E2eSku = ""
 
 if (-not $Phone -or -not $DeviceId) {
     $demoCtx = & (Join-Path $PSScriptRoot "seed-demo-data.ps1") -BaseUrl $BaseUrl -InternalApiKey $InternalApiKey -Ensure
     if (-not $Phone) { $Phone = $demoCtx.consumerPhone }
     if (-not $DeviceId) { $DeviceId = $demoCtx.deviceId }
     Write-Host "==> Demo context from DB: device=$DeviceId phone=$Phone fallbackSku=$($demoCtx.fallbackSkuId)"
+    if ($demoCtx.fallbackSkuId) { $E2eSku = [string]$demoCtx.fallbackSkuId }
 }
 
 $expectedChannel = if ($Channel) { $Channel.ToUpper() } else { "" }
@@ -36,6 +38,7 @@ $simProc = $null
 $startedSimulator = $false
 $e2eLock = Enter-E2eLock -Owner "e2e-shopping"
 try {
+    if ([string]::IsNullOrWhiteSpace($E2eSku)) { $E2eSku = Resolve-E2eTestSku -DeviceId $DeviceId }
     Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
 
     Write-Host "==> 1. Login"
@@ -59,7 +62,7 @@ try {
     Write-Host "    balanceCents=$($before.balanceCents) passwordFree=$($before.passwordFreeReady) preferred=$($before.payPreferredChannel)"
 
     Write-Host "==> 3. Preset simulator cart"
-    & (Join-Path $PSScriptRoot "set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 20 -NoRecreate
+    & (Join-Path $PSScriptRoot "set-simulator-cart.ps1") -Items @("${E2eSku}:1") -ShoppingSeconds 20 -NoRecreate
     $dev = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/devices/$DeviceId/status" -Headers $auth
     if (-not $dev.available) {
         Write-Host "    device busy after cart setup; restarting simulator"
@@ -94,7 +97,7 @@ try {
         $ticketId = $tickets[0].ticketId
         Write-Host "    ticket=$ticketId reviewCode=$($tickets[0].reviewCode)"
         # 优先用票上建议商品 / demoCtx 兜底 SKU，避免硬编码与库存不一致
-        $confirmSku = "SKU-DEMO-001"
+        $confirmSku = $E2eSku
         $confirmQty = 1
         $suggested = @()
         if ($tickets[0].suggestedItems) { $suggested = @($tickets[0].suggestedItems) }

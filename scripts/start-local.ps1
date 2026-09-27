@@ -47,9 +47,34 @@ if (-not $TradeOnly) {
         8082
 
     if (-not $NoSimulator) {
-        Start-Sleep -Seconds 5
-        Start-LocalService "DeviceSimulator CAB-001" `
-            "mvn.cmd --% -f edge/device-simulator/pom.xml exec:java -Dexec.mainClass=com.aicabinet.simulator.DeviceSimulator -Dexec.args=CAB-001"
+        . (Join-Path $PSScriptRoot "e2e-lib.ps1")
+        $tradeBase = "http://127.0.0.1:8080"
+        $simDevice = ""
+        Write-Host "==> Waiting for trade-service to resolve a demo device (no hard-coded cabinet id)..."
+        for ($i = 0; $i -lt 45; $i++) {
+            if (Test-ServiceHealth -Url "$tradeBase/actuator/health" -TimeoutSec 2) {
+                try {
+                    $resp = Invoke-RestMethod -Method POST -Uri "$tradeBase/internal/v1/demo/ensure" `
+                        -Headers @{ "X-Internal-Api-Key" = "dev-internal-key-change-me" } -TimeoutSec 10
+                    if ($resp.code -eq 0 -and $resp.data.deviceId) {
+                        $simDevice = [string]$resp.data.deviceId
+                        break
+                    }
+                } catch { }
+                try {
+                    $simDevice = Resolve-E2eTestDevice
+                    break
+                } catch { }
+            }
+            Start-Sleep -Seconds 2
+        }
+        if ([string]::IsNullOrWhiteSpace($simDevice)) {
+            Write-Host "==> Skip DeviceSimulator (no device resolved; set DEVICE_ID later)" -ForegroundColor Yellow
+        } else {
+            Write-Host "==> DeviceSimulator will use deviceId=$simDevice"
+            Start-LocalService "DeviceSimulator $simDevice" `
+                "mvn.cmd --% -f edge/device-simulator/pom.xml exec:java -Dexec.mainClass=com.aicabinet.simulator.DeviceSimulator -Dexec.args=$simDevice"
+        }
     }
 }
 

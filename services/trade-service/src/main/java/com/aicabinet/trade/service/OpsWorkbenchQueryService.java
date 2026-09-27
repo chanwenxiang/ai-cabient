@@ -251,7 +251,7 @@ public class OpsWorkbenchQueryService {
     private void collectOfflineDeviceItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
         deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
-                // 与缺货口径一致：入库/退役等非投放柜不进运营待办（如演示孤儿 CAB-001）
+                // 与缺货口径一致：入库/退役等非投放柜不进运营待办（孤儿柜已禁止再种）
                 .filter(OpsWorkbenchQueryService::isDeployedDevice)
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DEVICE_OFFLINE",

@@ -159,7 +159,7 @@ public class WeChatMiniAppClient {
      * 生成小程序 URL Link；未配置或调用失败返回 empty（调用方回落到 H5）。
      *
      * @param path  小程序页面路径，勿带 query
-     * @param query 如 deviceId=CAB-001&amp;channel=WECHAT&amp;autoOpen=1
+     * @param query 如 deviceId=330449777078&amp;channel=WECHAT&amp;autoOpen=1
      * @param envVersion release / trial / develop
      */
     public java.util.Optional<String> generateUrlLink(String path, String query, String envVersion) {

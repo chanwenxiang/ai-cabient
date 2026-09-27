@@ -7,8 +7,8 @@
 
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "330449777078",
-    [string]$SkuId = "SKU-WATER-001",
+    [string]$DeviceId = "",
+    [string]$SkuId = "",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [string]$MerchantPhone = "13800138001",
@@ -28,6 +28,8 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
+if ([string]::IsNullOrWhiteSpace($SkuId)) { $SkuId = Resolve-E2eTestSku -DeviceId $DeviceId }
 
 $script:Pass = 0
 $script:Fail = 0

@@ -9,7 +9,7 @@
 # Set -WithOpenDoor to also POST /api/v2/sessions then cancel (needs DeviceSimulator ONLINE).
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "330449777078",
+    [string]$DeviceId = "",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [string]$MerchantPhone = "13800138001",
@@ -22,6 +22,7 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
 
 $pass = 0
 $fail = 0

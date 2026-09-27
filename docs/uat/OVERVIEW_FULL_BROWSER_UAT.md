@@ -496,6 +496,8 @@ UI 展示值  ⇄  同页 Network 响应（或已知聚合 API）  ⇄  对照�
 
 原则：**上一 Phase 深链落入的目标页，在本 Phase 必须再跑一遍按钮级用例**（避免「只点到门口」）。
 
+**小程序回补总表**（Admin 深测后欠 mp-weixin 的模块）：[`MINIPROGRAM_BACKLOG.md`](./MINIPROGRAM_BACKLOG.md) — 测小程序时按该表回填，禁止 H5 冒充 PASS。
+
 ---
 
 ## 9. 执行日志模板

@@ -161,5 +161,5 @@ Write-Host "Manual checks:"
 Write-Host "  Admin:   http://localhost:3000/  or  $BaseUrl/admin/index.html  (13900000001 / 123456)"
 Write-Host "  Consumer H5: http://127.0.0.1:3002/"
 Write-Host "  Merchant H5: http://127.0.0.1:3001/"
-Write-Host "  Simulator: DeviceSimulator CAB-001 for device ONLINE"
+Write-Host "  Simulator: DeviceSimulator <resolved-deviceId> for device ONLINE (via demo/ensure or E2E_DEVICE_ID)"
 exit 0

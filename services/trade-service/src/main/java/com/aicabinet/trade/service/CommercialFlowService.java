@@ -73,12 +73,17 @@ public class CommercialFlowService {
         mark(steps, "DEMO_CONTEXT", "DONE", "Demo catalog, device, warehouse and user are ready");
 
         String batchNo = "FLOW-" + LocalDate.now() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        procurementService.upsertSupplier(operatorId, new SupplierDto(
-                "SUP-DEMO-001", "演示饮品供应商", "Demo Buyer", "13800138001",
+        String warehouseId = demo.warehouseId();
+        if (warehouseId == null || warehouseId.isBlank()) {
+            warehouseId = warehouseService.resolveDefaultWarehouseId();
+        }
+        final String flowWarehouseId = warehouseId;
+        SupplierDto supplier = procurementService.upsertSupplier(operatorId, new SupplierDto(
+                "new", "演示饮品供应商", null, null,
                 "ACTIVE", 30, null, null));
         PurchaseOrderDto purchase = procurementService.createPurchaseOrder(operatorId, new CreatePurchaseOrderRequest(
-                "SUP-DEMO-001",
-                DemoDataService.DEMO_WAREHOUSE_ID,
+                supplier.supplierId(),
+                flowWarehouseId,
                 "FLOW-PO-" + batchNo,
                 "commercial full-flow rehearsal",
                 List.of(new PurchaseOrderLineDto(
@@ -115,7 +120,7 @@ public class CommercialFlowService {
         ));
         mark(steps, "REPLENISHMENT_ROUTE", "DONE", "Route planned with " + route.tasks().size() + " task(s)");
 
-        WarehouseOutboundDto outbound = ensureOutbound(operatorId, route.routeId());
+        WarehouseOutboundDto outbound = ensureOutbound(operatorId, route.routeId(), flowWarehouseId);
         mark(steps, "WAREHOUSE_OUTBOUND", "DONE", "Outbound created: " + outbound.outboundId());
 
         outbound = warehouseService.markPicked(outbound.outboundId());
@@ -166,13 +171,13 @@ public class CommercialFlowService {
         );
     }
 
-    private WarehouseOutboundDto ensureOutbound(Long operatorId, Long routeId) {
+    private WarehouseOutboundDto ensureOutbound(Long operatorId, Long routeId, String warehouseId) {
         return warehouseService.listOutbounds().stream()
                 .filter(o -> routeId.equals(o.routeId()))
                 .filter(o -> o.lines() != null && !o.lines().isEmpty())
                 .findFirst()
                 .orElseGet(() -> warehouseService.createOutboundForRoute(
-                        routeId, DemoDataService.DEMO_WAREHOUSE_ID, operatorId));
+                        routeId, warehouseId, operatorId));
     }
 
     private static void mark(List<CommercialFlowStepDto> steps, String code, String status, String message) {

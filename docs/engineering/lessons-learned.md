@@ -221,6 +221,16 @@
 | 208 | 设备运维关键词滤空仍「共 N 条」 | 关键词仅前端本页过滤，`total` 仍用服务端全量 | **必须**本页有剔除时 total=过滤后长度；全保留才用服务端 total；UAT 无匹配→共 0 | `DeviceOpsMonitorView.vue` |
 | 209 | Playwright 点 EP 下拉「已完成」超时 | 脚本找 `.el-option`，EP 实际是 `.el-select-dropdown__item` / `[role=option]` | **必须**先点 `.el-select__wrapper`，用 `aria-controls` 定位 listbox，再点 `[role=option]`；禁写 `.el-option` | UAT Playwright；`repair-tickets/FINDINGS` |
 | 210 | 选品诊断关键词滤空仍「共 N 条」 | 同 #208：`filterByKeyword` 后仍回传服务端 total | **必须**有剔除时 total=过滤后长度；UAT 可乐→共1、无匹配→共0 | `SkuReviewView.vue` |
+| 211 | mp automator 首页截到白屏（~15KB） | `switchTab/reLaunch` 后 ≤2s 截屏赶上首帧空白；重测 sleep≥3.5s 后首页正常（~550KB） | **必须**截首页/登录等重视觉页 wait≥3.5s；文件过小当 FAIL 重截；禁以首帧白屏判首页挂 | `.tmp/mp-auto/probe-mp-smoke-*.cjs`、`mp-smoke/c-home-recheck*.png` |
+| 212 | 演示/UAT 再写死柜号 | 曾用 CAB-001 或 330449777078 当「演示柜」 | 柜号由 `DeviceIdService` 12 位随机发号 | **禁止**任何固定 deviceId；DemoData 选库内合格柜否则发号；脚本用 `Resolve-E2eTestDevice` / `demo/ensure` | `DemoDataService`、`DeviceIdService`、`e2e-lib`、`start-local.ps1` |
+| 213 | 商户号手填 MCH-* | 与柜机竞品口径不一致；脚本/UI 教人写死 | 新建仍接收客户端 merchantId | **必须**`MerchantIdService` 12 位发号；新建禁手填；Admin 新建不填编号；脚本 `Resolve-E2eTestMerchant`；历史 MCH-* 只读兼容 | `MerchantIdService`、`MerchantService`、`MerchantSplitsView`、`DemoDataService` |
+| 214 | 演示地址/仓/供应商/货道 SKU 写死 | Demo 填上海坐标；空白仓回落 WH-DEMO；货道模板嵌 SKU-DEMO | 假点位污染地图/围栏；演示 ID 进生产路径 | **禁止**种子写死城市坐标；仓/供应商新建系统发号；空白仓解析库内 ACTIVE；货道模板只建骨架不绑 SKU；登录演示手机可保留 | `DemoDataService`、`WarehouseService`、`ProcurementService`、`PlanogramTemplateService`、`WarehouseSupplierIdService` |
+| 215 | E2E/完整轮脚本默认柜号商户号 | 脚本 param 默认 330449…/7777…/`MCH-DEFAULT`；Admin placeholder 教 CAB-001/上海坐标 | 默认值等于写死，换库即假绿/绑错柜 | **必须**默认空 + `Resolve-E2eTestDevice/Merchant/Warehouse/Supplier`（或 env）；mjs 启动时库内解析；Admin 占位禁示例柜号/城市坐标；删 `DEFAULT_WAREHOUSE_ID`/`DEMO_WAREHOUSE_ID` 常量 | `e2e-*.ps1`、`full-round-*.mjs`、`e2e-lib`、Admin 设备/视觉页 |
+| 216 | E2E 购物/补货写死 SKU-DEMO | 模拟器购物车/重力/门关闭默认 `SKU-DEMO-001`；补货批次表写死 `B-WH-*` | 换库无该 SKU 或柜上无库存 ⇒ 假红；CSV 模板教人写演示码 | **必须**`Resolve-E2eTestSku`（柜库存优先）+ `Resolve-E2eTestBatch`；脚本默认空；Demo 兜底无货返空串；Admin CSV 样例用 `SKU-EXAMPLE-*` | `e2e-lib`、`e2e-*.ps1`、`DemoDataService`、`SkuVisionEnrollView` |
+| 217 | PS 购物车 Items 空串 | `"$E2eSku:1"` 传给 set-simulator-cart 变空 | PowerShell 把 `$E2eSku:1` 解析成作用域变量 | **必须**写 `"${E2eSku}:1"`（花括号包变量名） | 凡 `set-simulator-cart -Items` |
+| 218 | WipePlatform 后又冒出默认演示商户/柜 | `DemoDataBootstrap` 在 mock 启动时 `ensureDemoData()` | 重建/重启 trade 会把空台再种满 | **严格空台 S0→S1：Wipe 后禁止重启 trade**；清前停模拟器；需改 jar 时先 wipe，再手工搭台，勿依赖启动种子 | `DemoDataBootstrap`、`cleanup-test-data.ps1` |
+| 219 | KeepSimulator 二次购物 session=FAILED | 模拟器日志 `waiting for HTTP /close (no auto-close)`，门停 OPEN | 上轮未关门或 MQTT close 丢失 | **必须**重购前 `POST http://127.0.0.1:18089/close`（或清阻塞会话）；禁假定 KeepSimulator 门已关 | device-simulator、`e2e-shopping -KeepSimulator` |
+| 220 | marketing-recharge mock 到账 404 | 脚本打 `/api/v2/payment/recharge/{id}/mock-success` | 真路径在 `/api/v2/dev/payment/recharge/{id}/mock-success` | **必须**走 `/dev/` 前缀（与 consumer-mp、demo-smoke 一致） | `e2e-consumer-marketing-recharge.ps1` |
 
 ## 追加模板
 

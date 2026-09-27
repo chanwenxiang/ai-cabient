@@ -5,12 +5,11 @@
     destroy-on-close
   >
     <el-form label-width="auto">
-      <el-form-item label="仓库 ID" required>
-        <el-input
-          v-model="warehouseForm.warehouseId"
-          :disabled="warehouseForm.editing"
-          placeholder="如 WH-SH-001"
-        />
+      <el-form-item v-if="warehouseForm.editing" label="仓库编号">
+        <el-input v-model="warehouseForm.warehouseId" disabled />
+      </el-form-item>
+      <el-form-item v-else label="仓库编号">
+        <el-input :model-value="'保存后由系统自动生成 12 位数字编号'" disabled />
       </el-form-item>
       <el-form-item label="名称" required>
         <el-input v-model="warehouseForm.warehouseName" maxlength="64" />
@@ -40,9 +39,12 @@
     destroy-on-close
   >
     <el-form label-width="auto">
-      <el-form-item label="供应商 ID"
-        ><el-input v-model="supplierForm.supplierId" :disabled="supplierForm.editing"
-      /></el-form-item>
+      <el-form-item v-if="supplierForm.editing" label="供应商编号">
+        <el-input v-model="supplierForm.supplierId" disabled />
+      </el-form-item>
+      <el-form-item v-else label="供应商编号">
+        <el-input :model-value="'保存后由系统自动生成 12 位数字编号'" disabled />
+      </el-form-item>
       <el-form-item label="供应商名称"
         ><el-input v-model="supplierForm.supplierName"
       /></el-form-item>

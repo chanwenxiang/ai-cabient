@@ -8,7 +8,7 @@ param(
     [string]$MqttBroker = "tcp://localhost:11883",
     [string]$EnvFile = "",
     [string]$VideoFile = "/testdata/take-one-shelf.mp4",
-    [string[]]$GravityItems = @("SKU-DEMO-001:1"),
+    [string[]]$GravityItems = @(),
     [ValidateSet("COMPLETED", "DISPUTED", "ANY")]
     [string]$ExpectedState = "COMPLETED",
     [switch]$SkipFetchTestdata,
@@ -45,6 +45,9 @@ if (-not $Phone -or -not $DeviceId) {
     $demoCtx = & (Join-Path $PSScriptRoot "seed-demo-data.ps1") -BaseUrl $BaseUrl -InternalApiKey $InternalApiKey -Ensure
     if (-not $Phone) { $Phone = $demoCtx.consumerPhone }
     if (-not $DeviceId) { $DeviceId = $demoCtx.deviceId }
+}
+if ($GravityItems.Count -eq 0) {
+    $GravityItems = @((Resolve-E2eTestSku -DeviceId $DeviceId) + ':1')
 }
 
 Write-Host "==> Vision + gravity E2E"

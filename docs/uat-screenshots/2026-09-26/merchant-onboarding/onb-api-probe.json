@@ -1,0 +1,17 @@
+{
+  "listTotal": 0,
+  "emptyText": "暂无进件记录",
+  "liveHints": {
+    "registryOnly": true,
+    "mockEnabled": true,
+    "wechatPayLive": false,
+    "alipayPayLive": false,
+    "payScoreLive": false,
+    "hint": "仅登记：进件状态与外部门店号只留痕，不调用微信/支付宝进件 OpenAPI"
+  },
+  "channelOptions": ["微信", "支付宝", "支付分"],
+  "statusOptions": ["草稿", "已提交", "已生效", "已驳回"],
+  "softCancel": ["新建进件"],
+  "skippedRowActions": ["编辑", "通过", "驳回"],
+  "validateToast": "请填写商户与渠道"
+}

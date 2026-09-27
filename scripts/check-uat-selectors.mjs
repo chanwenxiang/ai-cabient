@@ -313,7 +313,8 @@ function extractSelectorGroups(text) {
 // ---------------------------------------------------------------------------
 // placeholder 校验
 //
-// 同一类失效还有第二种形态：`fillPlaceholder(page, '例如 CAB-001', ...)`
+// 同一类失效还有第二种形态：`fillPlaceholder(page, '12 位柜机编号', ...)`
+// （历史曾用「例如 CAB-001」，已禁写死柜号示例）
 // 里的字符串**在目标页面根本不存在**。`TC-RPT-002` 就是这样：它填的是 admin 端
 // SkuVisionEnrollView 的 placeholder，而 consumer 报修页的 placeholder 是
 // 「请输入柜机编号」→ 输入框永远填不进值 → 用例恒红、白占基线额度；

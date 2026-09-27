@@ -16,6 +16,7 @@
 | FB-03 | 导出 | ✓ | `资金账务明细_*.csv` |
 | FB-04 | 查询 / 刷新 | ✓ | 可点 |
 | FB-05 | 重置 / 列设置 | ✓ 可见 | |
+| FB-06 | 单页深测 | ✓ | 见 [`FUND_BILLS_FULL_BROWSER_UAT.md`](../../../uat/FUND_BILLS_FULL_BROWSER_UAT.md) · `fund-bills/`（日5/明细62） |
 
 ---
 
@@ -29,6 +30,7 @@
 | MCH-04 | Tab 分账明细 | ✓ | 共 22 条；`fm-mch-04-splits.png` |
 | MCH-05 | 新建商户 → 取消 | ✓ | 「新建商户」；`fm-mch-03-new.png` |
 | MCH-06 | 导出 / 刷新 | ✓ 可见 | |
+| MCH-07 | 单页深测 | ✓ | 见 [`MERCHANTS_FULL_BROWSER_UAT.md`](../../../uat/MERCHANTS_FULL_BROWSER_UAT.md) · `merchants/`（四Tab/弹层取消/深链） |
 
 ---
 
@@ -39,6 +41,7 @@
 | ONB-01 | 空态 | ✓ | 「暂无进件记录」；`fm-onb-01.png` |
 | ONB-02 | 新建进件 → 取消 | ✓ | 「新建进件」；`fm-onb-02-new.png` |
 | ONB-03 | 批量通过 / 批量驳回 | ✓ 可见 | 空列表未勾选 |
+| ONB-04 | 单页深测 | ✓ | 见 [`MERCHANT_ONBOARDING_FULL_BROWSER_UAT.md`](../../../uat/MERCHANT_ONBOARDING_FULL_BROWSER_UAT.md) · `merchant-onboarding/` |
 
 ---
 
@@ -120,6 +123,7 @@
 | USR-02 | 关键词查询 | ✓ | `13800138000` → 共 1（陈晓 ¥196.50）；`fm-usr-02-search.png` |
 | USR-03 | 调整余额 → 取消 | ✓ | 「调整用户余额」→ 取消；`fm-usr-03-adj.png` |
 | USR-04 | 导出 / 刷新 / 重置 | ✓ 可见 | |
+| USR-05 | **单页深测 FIN-USR-02** | ✓ | [`USERS_FULL_BROWSER_UAT.md`](../../../uat/USERS_FULL_BROWSER_UAT.md) · `users/`（核验取消/深链/导出） |
 
 ---
 

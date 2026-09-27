@@ -782,10 +782,29 @@ public class DeviceSimulator implements MqttCallbackExtended {
     public void deliveryComplete(IMqttDeliveryToken token) {}
 
     public static void main(String[] args) throws Exception {
-        String deviceId = args.length > 0 ? args[0] : "CAB-001";
+        String deviceId = args.length > 0 ? args[0] : firstNonBlank(
+                System.getenv("DEVICE_ID"),
+                System.getenv("E2E_DEVICE_ID"));
+        if (deviceId == null || deviceId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "DeviceSimulator needs deviceId: pass arg[0] or set DEVICE_ID / E2E_DEVICE_ID "
+                            + "(cabinet ids are system-allocated 12-digit, never hardcode)");
+        }
         String broker = args.length > 1 ? args[1] : "tcp://localhost:11883";
-        new DeviceSimulator(deviceId).start(broker);
+        new DeviceSimulator(deviceId.trim()).start(broker);
         Thread.currentThread().join();
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v.trim();
+            }
+        }
+        return null;
     }
 
     private record VideoPayload(String primaryUri, String clipsJson, String fusionMode) {}

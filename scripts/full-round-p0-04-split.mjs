@@ -24,6 +24,26 @@ function psql(sql) {
   ).trim();
 }
 
+function resolveMerchantId() {
+  if (process.env.E2E_MERCHANT_ID) return process.env.E2E_MERCHANT_ID.trim();
+  const id = psql(
+    "SELECT merchant_id FROM merchant WHERE merchant_id IS NOT NULL AND merchant_id <> '' ORDER BY CASE WHEN UPPER(COALESCE(status,'')) = 'ACTIVE' THEN 0 ELSE 1 END, CASE WHEN merchant_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, merchant_id LIMIT 1;"
+  );
+  if (!id) throw new Error('resolveMerchantId: no merchant');
+  return id;
+}
+function resolveDeviceId() {
+  if (process.env.DEVICE_ID) return process.env.DEVICE_ID.trim();
+  if (process.env.E2E_DEVICE_ID) return process.env.E2E_DEVICE_ID.trim();
+  const id = psql(
+    "SELECT d.device_id FROM device_info d WHERE d.device_id IS NOT NULL AND d.device_id !~ '^CAB-' ORDER BY CASE WHEN d.device_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, d.device_id LIMIT 1;"
+  );
+  if (!id) throw new Error('resolveDeviceId: no device');
+  return id;
+}
+const MERCHANT = resolveMerchantId();
+const DEVICE = resolveDeviceId();
+
 async function adminLogin() {
   const cap = await fetch(`${BASE}/api/v2/auth/captcha`).then((r) => r.json());
   const id = cap.data.captchaId;
@@ -142,7 +162,7 @@ push('P0-04-ledger-link', ledgerAligned ? 'PASS' : 'FAIL', {
 
 // wallet balance = sum credits + withdraws
 const bal = Number(
-  psql("SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='MCH-DEFAULT'")
+  psql(`SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='${MERCHANT}'`)
 );
 const expectedBal =
   ledgerRows.reduce((s, r) => s + r.amount, 0) +
@@ -186,7 +206,7 @@ const creditCountBefore = Number(
   )
 );
 const balBefore = Number(
-  psql("SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='MCH-DEFAULT'")
+  psql(`SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='${MERCHANT}'`)
 );
 
 const confirm1 = await api(
@@ -212,7 +232,7 @@ const creditCountAfter = Number(
   )
 );
 const balAfter = Number(
-  psql("SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='MCH-DEFAULT'")
+  psql(`SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='${MERCHANT}'`)
 );
 const statusAfter = psql(`SELECT status FROM order_revenue_split WHERE split_id='${splitId}'`);
 
@@ -222,7 +242,7 @@ let ukDenied = false;
 let ukMsg = '';
 try {
   psql(
-    `INSERT INTO order_revenue_split (split_id, order_id, merchant_id, device_id, gross_cents, platform_cents, merchant_cents, status) VALUES ('9999999999999999999', '${orderId}', 'MCH-DEFAULT', '777740024057', 1, 0, 1, 'LEDGER_ONLY')`
+    `INSERT INTO order_revenue_split (split_id, order_id, merchant_id, device_id, gross_cents, platform_cents, merchant_cents, status) VALUES ('9999999999999999999', '${orderId}', '${MERCHANT}', '${DEVICE}', 1, 0, 1, 'LEDGER_ONLY')`
   );
 } catch (e) {
   ukDenied = /unique|duplicate|uk_order_revenue_split/i.test(String(e.message || e));

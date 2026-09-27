@@ -399,7 +399,7 @@
       />
       <el-form label-width="auto">
         <el-form-item label="设备 ID">
-          <el-input v-model="testForm.deviceId" placeholder="例如 CAB-001" />
+          <el-input v-model="testForm.deviceId" placeholder="12 位柜机编号" />
         </el-form-item>
         <el-form-item label="测试图片">
           <input ref="testImageInput" type="file" accept="image/*" @change="onTestImagePick" />
@@ -729,8 +729,8 @@ const csvOptions: CrudCsvOptions = {
     '检测阈值'
   ],
   templateSample: [
-    'SKU-DEMO-001',
-    '示例商品',
+    'SKU-EXAMPLE-001',
+    '示例商品（导入时请改）',
     '3.50',
     '',
     '饮料',

@@ -1,0 +1,258 @@
+{
+  "at": "2026-09-27T04:26:22.092Z",
+  "side": "consumer-mp-weixin",
+  "softWrite": true,
+  "steps": [
+    {
+      "id": "C-login",
+      "target": "/pages/login/login",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-login.png",
+      "path": "pages/index/index",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-home",
+      "target": "/pages/index/index",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-home.png",
+      "path": "pages/index/index",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-orders",
+      "target": "/pages/orders/orders",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-orders.png",
+      "path": "pages/orders/orders",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-mine",
+      "target": "/pages/mine/mine",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-mine.png",
+      "path": "pages/mine/mine",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-balance",
+      "target": "/pages/balance/balance",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-balance.png",
+      "path": "pages/balance/balance",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-recharge",
+      "target": "/pages/recharge/recharge",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-recharge.png",
+      "path": "pages/recharge/recharge",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "softWriteNote": "停留充值页，未点微信支付/确认充值",
+      "hasPayCta": false,
+      "ok": true
+    },
+    {
+      "id": "C-marketing",
+      "target": "/pages/marketing/index",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-marketing.png",
+      "path": "pages/marketing/index",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-member",
+      "target": "/pages/member/index",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-member.png",
+      "path": "pages/member/index",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-points",
+      "target": "/pages/points/points",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-points.png",
+      "path": "pages/points/points",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-redeem",
+      "target": "/pages/points/redeem",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-redeem.png",
+      "path": "pages/points/redeem",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-coupons",
+      "target": "/pages/coupons/coupons",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-coupons.png",
+      "path": "pages/coupons/coupons",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-messages",
+      "target": "/pages/messages/messages",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-messages.png",
+      "path": "pages/messages/messages",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-announcements",
+      "target": "/pages/announcements/announcements",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-announcements.png",
+      "path": "pages/announcements/announcements",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-help",
+      "target": "/pages/help/help",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-help.png",
+      "path": "pages/help/help",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-report",
+      "target": "/pages/report/report",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-report.png",
+      "path": "pages/report/report",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-feedback",
+      "target": "/pages/feedback/feedback",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-feedback.png",
+      "path": "pages/feedback/feedback",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-policy",
+      "target": "/pages/policy/detail",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-policy.png",
+      "path": "pages/policy/detail",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-verify",
+      "target": "/pages/verify/verify",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-verify.png",
+      "path": "pages/verify/verify",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    },
+    {
+      "id": "C-result",
+      "target": "/pages/result/result",
+      "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-c-result.png",
+      "path": "pages/result/result",
+      "text": "",
+      "hasYuan": false,
+      "emptyHonest": false,
+      "layer": "L1",
+      "ok": true
+    }
+  ],
+  "orderDetail": {
+    "orderId": "1790420215052990851425",
+    "path": "pages/order-detail/order-detail",
+    "text": "",
+    "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-order-detail.png",
+    "hasYuan": false,
+    "layer": "L1"
+  },
+  "video": {
+    "path": "pages/video/video",
+    "text": "",
+    "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-video.png",
+    "playOrHonestFail": false
+  },
+  "dispute": {
+    "path": "pages/dispute/detail",
+    "text": "",
+    "shot": "C:\\Users\\cwx\\OneDrive\\Desktop\\demo\\ai-cabinet\\docs\\uat-screenshots\\2026-09-26\\mp-smoke\\c-dispute.png",
+    "softWrite": "未提交申诉"
+  },
+  "startPath": "pages/index/index",
+  "startHint": "",
+  "ordersText": "",
+  "ordersApi": {
+    "status": 200,
+    "code": 0,
+    "first": {
+      "orderId": "1790420215052990851425",
+      "status": "PAID",
+      "sessionId": "1790420129220699554144"
+    },
+    "count": 5
+  },
+  "summary": {
+    "pagesTried": 19,
+    "pagesOk": 19,
+    "hasOrderDetail": true,
+    "layerHint": "L1"
+  },
+  "pass": true
+}

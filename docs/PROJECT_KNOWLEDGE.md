@@ -34,7 +34,7 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **286** 个脚本，最新约 **V286** | 合入前查重号；勿再写已占用版本号 |
+| Flyway 迁移 | **287** 个脚本，最新约 **V287** | 合入前查重号；勿再写已占用版本号 |
 | trade Controllers | ~**84** | `*Controller.java` |
 | trade 单测 | ~**299** `*Test.java` | 含大量并发测 |
 | admin-vue 业务视图 | ~**71** `.vue` | `src/views` |
@@ -245,6 +245,76 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-27 | lessons #219 sim 门卡 OPEN 须 `/close`；#220 recharge mock 路径须 `/dev/` | `lessons-learned.md` |
+| 2026-09-27 | S3-B1 发券抵扣 PASS：AMOUNT_OFF ¥1 发至用户→二次购物原¥3.50实付¥2.50；券 USED；sim 门卡 OPEN 需 `/close` | `s3-coupon/FINDINGS.md` |
+| 2026-09-27 | S3-A1..A4：充值+¥10 / 流水 API / 退余额软写待审 / 支付分开通后优先渠道可改回；H5 consumer 未挂 | `s3-recharge/FINDINGS.md`、`e2e-consumer-marketing-recharge.ps1` |
+| 2026-09-27 | S3-A1 充值 PASS：mock +¥10→20650；Admin 充值管理同单；H5 `/consumer/` 未挂载 SKIP；修 marketing-recharge mock 路径 `/dev/` | `s3-recharge/FINDINGS.md`、`e2e-consumer-marketing-recharge.ps1` |
+| 2026-09-27 | S2 购物主链 PASS：BALANCE 出单 ¥3.50→分账仅记账商户¥3.15→钱包 3.15；A1 6→5；Admin 订单/分账/钱包/财务/工作台截图 | `s2-shop/FINDINGS.md`、`.tmp/s2-order.json` |
+| 2026-09-27 | S1 空台搭完：商户/仓/供/SKU/柜+A1 库存6；模拟器用运行时柜号上线（禁 compose 写死号）；`.tmp/s1-merchant.json` | `s1-stage/`、device-simulator |
+| 2026-09-27 | 严格空台→S1：Wipe 后勿重启 trade（DemoDataBootstrap 会回种）；浏览器搭商户/仓/SKU/柜；lessons #218 | `DemoDataBootstrap`、`.tmp/s1-merchant.json`、`s1-stage/` |
+| 2026-09-27 | WipePlatform 再扩：补货路线/券定义/对账/一致性/公告；清前停模拟器防柜机复活；仓库角标标明「个列表」非条数 | `cleanup-test-data.ps1`、`WarehouseView.vue` |
+| 2026-09-27 | S0 默认 WipePlatform：清柜/商户/SKU/仓/供应商+余额归零，从空台子进 S1；`-KeepPlatform` 保留旧行为 | `cleanup-test-data.ps1`、场景真源 S0 |
+| 2026-09-27 | FullBusiness 清数扩围：支付流水/事件/库存流水/仓批/柜库存清零（台子主数据保留） | `cleanup-test-data.ps1`、场景真源 S0 |
+| 2026-09-27 | PS 购物车 `"$E2eSku:1"` 作用域坑 → `"${E2eSku}:1"`；lessons #217 | `e2e-shopping` 等 set-simulator-cart 调用点 |
+| 2026-09-27 | 脚本漏网清完：three-end/SKU、run-api-tests/柜号、security 并发幂等、gray 灰度柜均走 Resolve | `e2e-three-end`、`run-api-tests`、`security-concurrency-recon-test`、`phase-f-gray-launch` |
+| 2026-09-27 | E2E SKU/批次运行时解析：`Resolve-E2eTestSku/Batch`；脚本去 SKU-DEMO；Admin CSV 样例改 EXAMPLE；lessons #216 | `e2e-lib`、`e2e-*.ps1`、`SkuVisionEnrollView`、`DemoDataService` |
+| 2026-09-27 | E2E/完整轮去写死默认柜商户仓：Resolve + 删 WH 废弃常量；Admin 占位清 CAB/上海坐标；lessons #215 | `e2e-lib`、`e2e-*.ps1`、`full-round-*.mjs`、Admin 设备/视觉页 |
+| 2026-09-27 | 去写死点位/仓/供应商/货道 SKU：Demo 不填上海地址；仓供 12 位发号；货道模板空陈列；lessons #214 | `DemoDataService`、`WarehouseSupplierIdService`、`PlanogramTemplateService` |
+| 2026-09-27 | 商户号对齐柜机：系统 12 位发号、新建禁手填；Demo/脚本动态解析；lessons #213 | `MerchantIdService`、`MerchantService`、`MerchantSplitsView`、`e2e-lib` |
+| 2026-09-27 | 柜机号禁止写死：DemoData 选库内柜否则 `allocateRandomDeviceId`；模拟器/脚本走 resolve；V287 剔孤儿 CAB-001；lessons #212 | `DemoDataService`、`DeviceIdService`、`start-local.ps1`、`V287` |
+| 2026-09-27 | 清数默认 FullBusiness；柜机 `Resolve-E2eTestDevice` 不写死；闸门读动态 deviceId | `cleanup-test-data.ps1`、`e2e-lib`、`mp-seed-gate.ps1`、场景真源 S0 |
+| 2026-09-27 | 场景真源改价值链：S0清数→S1台子→S2主链→S3旁路 + 页矩阵附录；闸门支持 `-CleanupFirst` | `MP_THREE_END_SCENARIOS.md`、`mp-seed-gate.ps1`、`cleanup-test-data.ps1` |
+| 2026-09-27 | 三端场景清单 P0/P1/P2（46）+ 造数闸门 `mp-seed-gate.ps1`；自动化前须闸门绿 | `MP_THREE_END_SCENARIOS.md`、`scripts/mp-seed-gate.ps1` |
+| 2026-09-27 | 双端 mp 基础烟测 PASS（各 19 页 L1+多页 L2；软写；未启 H5）；视频 404 诚实失败；首页首帧白屏记 #211 | `mp-smoke/FINDINGS.md`、`MINIPROGRAM_BACKLOG` PARTIAL 回填 |
+| 2026-09-27 | 新会话提示词：先双端 mp 烟测再写三端脚本；L1/L2/L3 + 软写约定 | `docs/uat/MP_SMOKE_SESSION_PROMPT.md` |
+| 2026-09-27 | 小程序回补 P0#1：消费者余额/充值 ¥193.00↔Admin；充值单号一致；未硬充 | `recharges/MP_BACKFILL.md`、`mp-c-p0-*.png`、`MINIPROGRAM_BACKLOG` |
+| 2026-09-27 | 观测栈在线：Grafana/Prom iframe 实嵌；DevOps hint 改为需登录一次；SYS-DEVOPS/OBS-03 | `OBS_STACK_ONLINE.md`、`dv-online-*`/`ob-online-*`、`DevOpsHubView.vue` |
+| 2026-09-27 | 日志中心 hint「5→6」已修 + admin-static 复核；Phase7 十四入口单页深测收口 | `ObservabilityView.vue`、`ob-fix-hint6.png`、`UAT_CLOSEOUT` |
+| 2026-09-27 | 日志中心单页深测：六签/Grafana 空；SYS-OBS-02（F1 后闭） | `OBSERVABILITY_FULL_BROWSER_UAT.md`、`observability/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | DevOps 中心单页深测：四卡/PromQL stub/Grafana 空/Sonar 禁用；SYS-DEVOPS-02 | `DEVOPS_FULL_BROWSER_UAT.md`、`devops/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 审计日志单页深测：共244/筛/仅看我的98/导出；SYS-AUD-02 | `AUDIT_FULL_BROWSER_UAT.md`、`audit/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 通知公告单页深测：共1/发布编辑归档取消/导出；SYS-ANN-02 | `ANNOUNCEMENTS_FULL_BROWSER_UAT.md`、`announcements/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 组织与点位单页深测：三Tab/组织写取消/合同空/账单出账取消；SYS-ORG-02 | `ORG_SITES_FULL_BROWSER_UAT.md`、`org-sites/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 定时任务单页深测：共32/新建编辑执行批取消/开关未拨；SYS-TASK-02 | `SCHEDULED_TASKS_FULL_BROWSER_UAT.md`、`scheduled-tasks/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 告警规则单页深测：共25/新增toast/编辑删取消/测试SKIP；SYS-ALERT-02 | `ALERT_RULES_FULL_BROWSER_UAT.md`、`alert-rules/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 参数配置单页深测：共76/品牌未硬写/三写取消/历史空态/导出；SYS-CFG-02 | `SYSTEM_CONFIGS_FULL_BROWSER_UAT.md`、`system-configs/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 字典管理单页深测：类型89/六写取消/导出模板/导入SKIP；SYS-DICT-02 | `DICTS_FULL_BROWSER_UAT.md`、`dicts/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 菜单管理单页深测：运营194/商户39/四写取消/导出；SYS-MENU-02 | `MENUS_FULL_BROWSER_UAT.md`、`menus/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 审批流配置单页深测：共7/展开/新建编辑流程图删除取消；SYS-APR-02 | `APPROVALS_FULL_BROWSER_UAT.md`、`approvals/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 部门管理单页深测：共6/新建编辑成员批停取消；SYS-DEPT-02 | `DEPARTMENTS_FULL_BROWSER_UAT.md`、`departments/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 角色管理单页深测：共12/筛/编辑权限抽屉停用取消/导出模板；SYS-ROLE-02 | `ROLES_FULL_BROWSER_UAT.md`、`roles/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 运营账号单页深测：共11/手机脱敏筛/六写取消/导出模板；SYS-OP-02；系统册开测 | `OPERATORS_FULL_BROWSER_UAT.md`、`operators/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 用户反馈单页深测：共8/状态筛深链/回复删取消/用户设备链/导出；GR-FB-02；增长风控十一页深测收口 | `FEEDBACK_FULL_BROWSER_UAT.md`、`feedback/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 消息记录单页深测：共2/发送编辑删批删取消/导出/受众OPS裸码·业务未知FINDING；GR-NTF-02 | `NOTIFICATIONS_FULL_BROWSER_UAT.md`、`notifications/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 活动效果分析单页深测：空态0/近7·30·90切档/导出空toast；GR-ROI-02 | `MARKETING_ROI_FULL_BROWSER_UAT.md`、`marketing-roi/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 会员等级规则单页深测：共4/新建编辑取消/批停取消/行启停无确认FINDING；GR-ML-02 | `MEMBER_LEVELS_FULL_BROWSER_UAT.md`、`member-levels/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 积分兑换管理单页深测：空态0/新建取消/行启停无确认FINDING；GR-PTS-02 | `POINTS_REDEEM_FULL_BROWSER_UAT.md`、`points-redeem/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 投放计划单页深测：空态0/新建取消/行上线停止无确认FINDING；GR-CAMP-02 | `AD_CAMPAIGNS_FULL_BROWSER_UAT.md`、`ad-campaigns/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 素材库单页深测：空态0/上传面板取消(stub文件框)/批停无确认FINDING；GR-AD-02 | `AD_ASSETS_FULL_BROWSER_UAT.md`、`ad-assets/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 优惠券单页深测：共1完整轮满减券/新建手动批量发券编辑停用批停均取消/深链；GR-CPN-02 | `COUPONS_FULL_BROWSER_UAT.md`、`coupons/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 营销活动单页深测：空态0/状态中文/新建取消/深链/下载模板/导入SKIP；GR-PROMO-02 | `PROMOTIONS_FULL_BROWSER_UAT.md`、`promotions/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 风控单页深测：事件24/用户链/黑名单空/加黑取消(userId未预填)/深链/双导出；GR-RISK-02 | `RISK_FULL_BROWSER_UAT.md`、`risk/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 手机验证流水单页深测：共81/渠道中文四档/登记编辑删除取消/导出；GR-PV-02 | `PHONE_VERIFY_FULL_BROWSER_UAT.md`、`phone-verify/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 用户余额单页深测：共15/关键词空命中/调账取消/核验取消/深链/导出；FIN-USR-02 | `USERS_FULL_BROWSER_UAT.md`、`users/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 开票申请单页深测：空态0/仅状态Alert/状态中文筛/批量disabled/行写SKIP | `INVOICES_FULL_BROWSER_UAT.md`、`invoices/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 余额退款单页深测：五Tab空态0/批量disabled/行审核SKIP | `BALANCE_REFUNDS_FULL_BROWSER_UAT.md`、`balance-refunds/BUTTONS`/`FINDINGS` |
+| 2026-09-27 | 开单小程序回补待办：Admin 已深测模块按 P0/SKIP 分类；测 mp 时按表回填 | `docs/uat/MINIPROGRAM_BACKLOG.md`、OVERVIEW §8 链、FINANCE 元信息 |
+| 2026-09-26 | 充值管理单页深测：共3/状态筛深链/退款取消/userId正整数校验/导出 | `RECHARGES_FULL_BROWSER_UAT.md`、`recharges/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 数据一致性单页深测：空态0/类型21中文/关键词前端滤/立即巡检全部通过 | `CONSISTENCY_FULL_BROWSER_UAT.md`、`consistency/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 对账单页深测：2批/执行取消/渠道筛OK；status·keyword后端未滤FINDING | `RECONCILIATION_FULL_BROWSER_UAT.md`、`reconciliation/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 商户提现单页深测：钱包2/提现1已打款/调账代提现取消/批量disabled；`?tab=`未切FINDING | `MERCHANT_WITHDRAW_FULL_BROWSER_UAT.md`、`merchant-withdraw/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 线长钱包单页深测：三Tab空态/新建取消/地推toast门控/批量disabled；`?tab=`未切FINDING | `LINE_MANAGERS_FULL_BROWSER_UAT.md`、`line-managers/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 进件工作台单页深测：空态0/仅登记hints/新建取消/渠道状态中文筛/批量disabled | `MERCHANT_ONBOARDING_FULL_BROWSER_UAT.md`、`merchant-onboarding/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 商户与分账单页深测：四Tab/新建编辑挂载取消/确认完结取消/功能包未拨/深链splits | `MERCHANTS_FULL_BROWSER_UAT.md`、`merchants/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 资金账单单页深测：日5/明细62/¥/90天门控/关键词hint/双导出 | `FUND_BILLS_FULL_BROWSER_UAT.md`、`fund-bills/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 补货员效率单页深测：7/30/90、关键词total诚实、导出CSV、无硬写 | `REPLENISHMENT_STAFF_FULL_BROWSER_UAT.md`、`replenishment-staff/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 服务时限单页深测：8KPI↔API/#198投放分母/时长可读/实时六项/仅刷新 | `SLA_FULL_BROWSER_UAT.md`、`sla/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 固件版本单页深测：双空态/发布确认取消/进度中文筛/窄视口 | `OTA_FULL_BROWSER_UAT.md`、`ota/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 仓库单页深测：四分组13Tab/新建弹层取消/清理空草稿取消/在途overdue深链 | `WAREHOUSE_VIEW_FULL_BROWSER_UAT.md`、`warehouse-view/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 补货调度单页深测：KPI↔summary/五Tab/规划·空路线取消/#203深链弹层/要货筛 | `REPLENISHMENT_FULL_BROWSER_UAT.md`、`replenishment/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 录像上传单页深测：WAITING_UPLOAD 空态/仅滞留/状态下拉中文/device·session 深链/videos 重定向 | `UPLOAD_QUEUE_FULL_BROWSER_UAT.md`、`upload-queue/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 识别映射单页深测：关键词q/深链/YOLO新增·编辑·删除取消/阿里云空态 | `VISION_MAPPINGS_FULL_BROWSER_UAT.md`、`vision-mappings/BUTTONS`/`FINDINGS` |
+| 2026-09-26 | 识别入驻单页深测：Chip/Tab/关键词q/配置·编辑·批量下架取消/识别测试关闭 | `SKU_VISION_FULL_BROWSER_UAT.md`、`sku-vision/BUTTONS`/`FINDINGS` |
 | 2026-09-26 | 选品诊断深测：关键词 total 假绿→#210 修复；批量下架/保留取消 | `SKU_REVIEW_FULL_BROWSER_UAT.md`、`sku-review/`、`SkuReviewView`、lessons #210 |
 | 2026-09-26 | 商品管理单页深测：关键词q/深链/编辑·下架取消/识别入驻 | `SKUS_FULL_BROWSER_UAT.md`、`skus/BUTTONS`/`FINDINGS` |
 | 2026-09-26 | 维修工单单页深测：筛选/深链/详情流转/新建·指派取消；lesson #209 EP option | `REPAIR_TICKETS_FULL_BROWSER_UAT.md`、`repair-tickets/BUTTONS`/`FINDINGS`、`lessons-learned` #209 |

@@ -1,18 +1,13 @@
 package com.aicabinet.trade.support;
 
-import java.util.Map;
-
 /**
- * 商户展示名规范化：库中因编码损坏出现 {@code ????} 时，回退到已知中文名。
+ * 商户展示名规范化：库中因编码损坏出现 {@code ????} 时，回退到可读中文名。
  * 源文件请保持 UTF-8，避免再次写入乱码。
+ *
+ * <p>新商户编号由系统发 12 位数字（见 {@code MerchantIdService}）；历史 {@code MCH-*}
+ * 仅作损坏名回退映射，新建禁止再手填。
  */
 public final class MerchantNameSupport {
-
-    private static final Map<String, String> KNOWN_NAMES = Map.of(
-            "MCH-DEFAULT", "默认直营商户",
-            "MCH-EAST", "华东演示商户",
-            "MCH-OTHER", "演示商户B"
-    );
 
     private MerchantNameSupport() {
     }
@@ -28,17 +23,22 @@ public final class MerchantNameSupport {
         return name.contains("???") || name.chars().filter(ch -> ch == '?').count() >= 2;
     }
 
-    /** 解析可展示的商户名；损坏时优先用已知映射。 */
+    /** 解析可展示的商户名；损坏时用通用兜底（不再依赖固定 MCH-* 主键）。 */
     public static String resolve(String merchantId, String storedName) {
         if (storedName != null && !storedName.isBlank() && !isCorrupted(storedName)) {
             return storedName;
         }
-        String known = KNOWN_NAMES.get(merchantId);
-        if (known != null) {
-            return known;
-        }
-        if (storedName != null && !storedName.isBlank() && !isCorrupted(storedName)) {
-            return storedName;
+        if (isCorrupted(storedName)) {
+            if ("MCH-DEFAULT".equals(merchantId)) {
+                return "默认直营商户";
+            }
+            if ("MCH-EAST".equals(merchantId)) {
+                return "华东演示商户";
+            }
+            if ("MCH-OTHER".equals(merchantId)) {
+                return "演示商户B";
+            }
+            return "演示商户";
         }
         if (merchantId != null && !merchantId.isBlank()) {
             return "演示商户-" + merchantId;

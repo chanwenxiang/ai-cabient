@@ -6,6 +6,22 @@ import fs from 'node:fs';
 import { chromium } from 'playwright';
 
 const BASE = 'http://127.0.0.1';
+
+function resolveMerchantId() {
+  if (process.env.E2E_MERCHANT_ID) return process.env.E2E_MERCHANT_ID.trim();
+  const sql = "SELECT merchant_id FROM merchant WHERE merchant_id IS NOT NULL AND merchant_id <> '' ORDER BY CASE WHEN UPPER(COALESCE(status,'')) = 'ACTIVE' THEN 0 ELSE 1 END, CASE WHEN merchant_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, merchant_id LIMIT 1;";
+  const id = execSync(`docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`, { encoding: 'utf8' }).trim();
+  if (!id) throw new Error('resolveMerchantId: no merchant');
+  return id;
+}
+function resolveDeviceId() {
+  if (process.env.DEVICE_ID) return process.env.DEVICE_ID.trim();
+  if (process.env.E2E_DEVICE_ID) return process.env.E2E_DEVICE_ID.trim();
+  const sql = "SELECT d.device_id FROM device_info d WHERE d.device_id IS NOT NULL AND d.device_id !~ '^CAB-' ORDER BY CASE WHEN d.device_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, d.device_id LIMIT 1;";
+  const id = execSync(`docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`, { encoding: 'utf8' }).trim();
+  if (!id) throw new Error('resolveDeviceId: no device');
+  return id;
+}
 const OUT = 'docs/uat-screenshots/2026-09-12';
 const UI = `${OUT}/browser-ui`;
 
@@ -85,7 +101,7 @@ for (const [id, method, path, body] of [
     'T2-viewer-device-create',
     'POST',
     '/api/v2/ops/admin/devices',
-    { deviceName: 'x', merchantId: 'MCH-DEFAULT' }
+    { deviceName: 'x', merchantId: resolveMerchantId() }
   ],
   [
     'T2-viewer-withdraw-list',
@@ -126,7 +142,7 @@ for (const [id, method, path, body] of [
 {
   const r = await api(viewerTok, 'POST', '/api/v2/ops/admin/devices', {
     deviceName: 'should-deny',
-    merchantId: 'MCH-DEFAULT'
+    merchantId: resolveMerchantId()
   });
   report.cases.push({
     id: 'T2-viewer-write-403',
@@ -140,7 +156,9 @@ for (const [id, method, path, body] of [
   const devices = await api(mchBTok, 'GET', '/api/v2/merchant/devices?page=0&size=20');
   const list = devices.data?.data?.list || devices.data?.data?.records || devices.data?.data || [];
   const arr = Array.isArray(list) ? list : [];
-  const leaked = arr.some((d) => d.deviceId === '777740024057' || d.merchantId === 'MCH-DEFAULT');
+  const defaultMerchant = resolveMerchantId();
+  const defaultDevice = resolveDeviceId();
+  const leaked = arr.some((d) => d.deviceId === defaultDevice || d.merchantId === defaultMerchant);
   report.cases.push({
     id: 'T2-mchB-no-default-device',
     status: !leaked ? 'PASS' : 'FAIL',
@@ -307,7 +325,9 @@ const mchBDevices = await page.evaluate(() =>
 await page.screenshot({ path: `${UI}/t2-mchB-devices.png` });
 report.cases.push({
   id: 'T2-mchB-devices-ui',
-  status: !/777740024057/.test(mchBDevices) ? 'PASS' : 'FAIL',
+  status: !new RegExp(resolveDeviceId().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(mchBDevices)
+    ? 'PASS'
+    : 'FAIL',
   note: mchBDevices.slice(0, 160)
 });
 

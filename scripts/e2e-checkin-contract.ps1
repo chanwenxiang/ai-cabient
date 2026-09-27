@@ -11,7 +11,8 @@
 #
 # 用法：
 #   .\scripts\e2e-checkin-contract.ps1
-#   .\scripts\e2e-checkin-contract.ps1 -BaseUrl http://localhost:18080 -DeviceId 777740024057
+#   .\scripts\e2e-checkin-contract.ps1 -BaseUrl http://localhost:18080
+#   .\scripts\e2e-checkin-contract.ps1 -DeviceId <12位柜号>   # 可选；空则 Resolve-E2eTestDevice
 #   .\scripts\e2e-checkin-contract.ps1 -NoFixture        # 只用库里已有的可签到任务，绝不造数据
 #
 # ⚠️ 本脚本会在**目标任务**上真的签到一次，并在用例 8 里把它空取消。

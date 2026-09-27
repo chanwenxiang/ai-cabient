@@ -31,8 +31,11 @@ public class DemoDataService {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataService.class);
 
-    public static final String DEMO_DEVICE_ID = "CAB-001";
-    public static final String DEMO_WAREHOUSE_ID = "WH-DEMO-001";
+    /**
+     * 演示柜编号<strong>不写死</strong>：复用库里已有合格柜机，否则
+     * {@link DeviceIdService#allocateRandomDeviceId()} 发 12 位号。
+     * 历史常量已删除；调用方请读 {@link DemoContext#deviceId()} / {@link DemoContext#warehouseId()}。
+     */
     public static final long DEMO_CONSUMER_USER_ID = 10001L;
     public static final String DEMO_CONSUMER_PHONE = "13800138000";
     /**
@@ -43,6 +46,9 @@ public class DemoDataService {
      * 历史行由 {@code V286__rename_demo_fixtures.sql} 一次性改写。
      */
     public static final String DEMO_CONSUMER_NAME = "陈晓";
+    /** 遗留孤儿前缀，永不选作演示柜。 */
+    private static final String LEGACY_ORPHAN_PREFIX = "CAB-";
+    private static final String DEMO_MERCHANT_DISPLAY_NAME = "默认演示商户";
 
     private final SecurityProperties securityProperties;
     private final SkuCatalogMapper skuCatalogRepository;
@@ -53,8 +59,12 @@ public class DemoDataService {
     private final SkuVisionMappingMapper skuVisionMappingRepository;
     private final UserInfoMapper userInfoRepository;
     private final UserAccountMapper userAccountRepository;
+    private final MerchantMapper merchantRepository;
     private final DeviceSlotService deviceSlotService;
     private final InventoryLotService inventoryLotService;
+    private final DeviceIdService deviceIdService;
+    private final MerchantIdService merchantIdService;
+    private final WarehouseSupplierIdService warehouseSupplierIdService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DemoDataService self;
 
@@ -67,8 +77,13 @@ public class DemoDataService {
                            SkuVisionMappingMapper skuVisionMappingRepository,
                            UserInfoMapper userInfoRepository,
                            UserAccountMapper userAccountRepository,
+                           MerchantMapper merchantRepository,
                            DeviceSlotService deviceSlotService,
-                           InventoryLotService inventoryLotService, @Lazy DemoDataService self) {
+                           InventoryLotService inventoryLotService,
+                           DeviceIdService deviceIdService,
+                           MerchantIdService merchantIdService,
+                           WarehouseSupplierIdService warehouseSupplierIdService,
+                           @Lazy DemoDataService self) {
         this.securityProperties = securityProperties;
         this.skuCatalogRepository = skuCatalogRepository;
         this.deviceInfoRepository = deviceInfoRepository;
@@ -78,32 +93,40 @@ public class DemoDataService {
         this.skuVisionMappingRepository = skuVisionMappingRepository;
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
+        this.merchantRepository = merchantRepository;
         this.deviceSlotService = deviceSlotService;
         this.inventoryLotService = inventoryLotService;
+        this.deviceIdService = deviceIdService;
+        this.merchantIdService = merchantIdService;
+        this.warehouseSupplierIdService = warehouseSupplierIdService;
         this.self = self;
     }
 
     @Transactional
     public DemoContext ensureDemoData() {
         if (!securityProperties.mockEnabled()) {
-            return buildContext();
+            String deviceId = resolveExistingDemoDeviceId().orElse("");
+            String warehouseId = resolveExistingWarehouseId().orElse("");
+            return buildContext(deviceId, warehouseId);
         }
         ensureSkus();
-        ensureDevice();
-        ensureDeviceInventory();
-        deviceSlotService.ensureDefaultSlots(DEMO_DEVICE_ID);
-        ensureWarehouse();
+        String deviceId = ensureDevice();
+        ensureDeviceInventory(deviceId);
+        deviceSlotService.ensureDefaultSlots(deviceId);
+        String warehouseId = ensureWarehouse();
         ensureVisionMappings();
         ensureConsumerUser();
-        DemoContext ctx = buildContext();
-        log.info("demo data ensured device={} skus={} fallbackSku={} warehouseLots={}",
-                ctx.deviceId(), ctx.skuCount(), ctx.fallbackSkuId(), ctx.warehouseLotCount());
+        DemoContext ctx = buildContext(deviceId, warehouseId);
+        log.info("demo data ensured device={} warehouse={} skus={} fallbackSku={} warehouseLots={}",
+                ctx.deviceId(), ctx.warehouseId(), ctx.skuCount(), ctx.fallbackSkuId(), ctx.warehouseLotCount());
         return ctx;
     }
 
     @Transactional(readOnly = true)
     public DemoContext getContext() {
-        return buildContext();
+        return buildContext(
+                resolveExistingDemoDeviceId().orElse(""),
+                resolveExistingWarehouseId().orElse(""));
     }
 
     /**
@@ -111,7 +134,16 @@ public class DemoDataService {
      */
     @Transactional(readOnly = true)
     public String resolveFallbackSku(String deviceId) {
-        String targetDevice = deviceId != null && !deviceId.isBlank() ? deviceId.trim() : DEMO_DEVICE_ID;
+        String targetDevice = deviceId != null && !deviceId.isBlank()
+                ? deviceId.trim()
+                : resolveExistingDemoDeviceId().orElse("");
+        if (targetDevice.isBlank()) {
+            return skuCatalogRepository.findAll().stream()
+                    .filter(this::isChargeableSkuEntity)
+                    .map(SkuCatalog::getSkuId)
+                    .findFirst()
+                    .orElse("");
+        }
         Optional<String> fromInventory = deviceSlotService.inventorySnapshot(targetDevice).stream()
                 .map(SkuQuantityDto::skuId)
                 .filter(this::isChargeableSku)
@@ -123,7 +155,7 @@ public class DemoDataService {
                 .filter(this::isChargeableSkuEntity)
                 .map(SkuCatalog::getSkuId)
                 .findFirst()
-                .orElse(SKU_DEMO_001);
+                .orElse("");
     }
 
     private boolean isChargeableSku(String skuId) {
@@ -134,19 +166,24 @@ public class DemoDataService {
         return sku.isVisionEnabled() && "ACTIVE".equalsIgnoreCase(sku.getStatus());
     }
 
-    private DemoContext buildContext() {
-        String fallback = self.resolveFallbackSku(DEMO_DEVICE_ID);
+    private DemoContext buildContext(String deviceId, String warehouseId) {
+        String id = deviceId != null ? deviceId : "";
+        String wh = warehouseId != null ? warehouseId : "";
+        String fallback = self.resolveFallbackSku(id.isBlank() ? null : id);
         long skuCount = skuCatalogRepository.count();
-        long invLines = deviceSkuInventoryRepository.findByIdDeviceId(DEMO_DEVICE_ID).size();
-        long warehouseLots = warehouseInventoryRepository.findByWarehouseIdOrderByExpiryDateAsc(DEMO_WAREHOUSE_ID).size();
+        long invLines = id.isBlank() ? 0L : deviceSkuInventoryRepository.findByIdDeviceId(id).size();
+        long warehouseLots = wh.isBlank()
+                ? 0L
+                : warehouseInventoryRepository.findByWarehouseIdOrderByExpiryDateAsc(wh).size();
         return new DemoContext(
-                DEMO_DEVICE_ID,
+                id,
                 DEMO_CONSUMER_PHONE,
                 DEMO_CONSUMER_USER_ID,
                 fallback,
                 skuCount,
                 invLines,
-                warehouseLots
+                warehouseLots,
+                wh
         );
     }
 
@@ -179,47 +216,115 @@ public class DemoDataService {
         }
     }
 
-    private void ensureDevice() {
-        DeviceInfo device = deviceInfoRepository.findById(DEMO_DEVICE_ID).orElse(null);
-        if (device == null) {
-            device = new DeviceInfo();
-            device.setDeviceId(DEMO_DEVICE_ID);
-            device.setDeviceName(DeviceNameSupport.DEMO_DEVICE_NAME);
-            device.setDeviceType("AI_CABINET_V1");
-            device.setOnlineStatus("OFFLINE");
-            device.setLatitude(31.2304);
-            device.setLongitude(121.4737);
-            device.setAddress("上海市黄浦区演示点位");
-            deviceInfoRepository.save(device);
-            return;
-        }
-        String repaired = DeviceNameSupport.canonicalIfCorrupted(DEMO_DEVICE_ID, device.getDeviceName());
-        boolean dirty = repaired != null;
-        if (repaired != null) {
-            device.setDeviceName(repaired);
-        }
-        if (device.getLatitude() == null || device.getLongitude() == null) {
-            device.setLatitude(31.2304);
-            device.setLongitude(121.4737);
-            if (device.getAddress() == null || device.getAddress().isBlank()) {
-                device.setAddress("上海市黄浦区演示点位");
+    /**
+     * 选已有合格柜，或系统发号新建。返回最终演示用 deviceId。
+     */
+    private String ensureDevice() {
+        Optional<DeviceInfo> existing = pickExistingDemoDevice();
+        if (existing.isPresent()) {
+            DeviceInfo device = existing.get();
+            // 不写死经纬度/地址：点位由运营建档；仅修复损坏显示名
+            if (DeviceNameSupport.isCorrupted(device.getDeviceName())
+                    || device.getDeviceName() == null
+                    || device.getDeviceName().isBlank()) {
+                device.setDeviceName(DeviceNameSupport.DEMO_DEVICE_NAME);
+                deviceInfoRepository.save(device);
             }
-            dirty = true;
+            return device.getDeviceId();
         }
-        if (dirty) {
-            deviceInfoRepository.save(device);
-        }
+
+        String deviceId = deviceIdService.allocateRandomDeviceId();
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId(deviceId);
+        device.setDeviceName(DeviceNameSupport.DEMO_DEVICE_NAME);
+        device.setDeviceType("AI_CABINET_V1");
+        device.setOnlineStatus("OFFLINE");
+        // 地址/坐标留空，投放前由运营补录（与竞品「点位主数据」一致）
+        device.setMerchantId(ensureDemoMerchantId());
+        device.setLifecycleStatus("DEPLOYED");
+        deviceInfoRepository.save(device);
+        log.info("demo device allocated deviceId={} merchantId={}", deviceId, device.getMerchantId());
+        return deviceId;
     }
 
-    private void ensureDeviceInventory() {
-        boolean lotLedger = inventoryLotService.deviceUsesLotLedger(DEMO_DEVICE_ID);
+    /**
+     * 演示商户：复用库内已有 ACTIVE 商户，否则系统发 12 位号新建。
+     * 不写死 {@code MCH-*}。
+     */
+    private String ensureDemoMerchantId() {
+        Optional<Merchant> existing = merchantRepository.findAll().stream()
+                .filter(m -> m.getMerchantId() != null && !m.getMerchantId().isBlank())
+                .filter(m -> m.getStatus() == null || "ACTIVE".equalsIgnoreCase(m.getStatus()))
+                .sorted((a, b) -> {
+                    // 优先已有标准 12 位号，其次任意稳定排序
+                    int std = Boolean.compare(
+                            MerchantIdService.isStandardMerchantId(b.getMerchantId()),
+                            MerchantIdService.isStandardMerchantId(a.getMerchantId()));
+                    if (std != 0) {
+                        return std;
+                    }
+                    return a.getMerchantId().compareTo(b.getMerchantId());
+                })
+                .findFirst();
+        if (existing.isPresent()) {
+            return existing.get().getMerchantId();
+        }
+        String merchantId = merchantIdService.allocateRandomMerchantId();
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId(merchantId);
+        merchant.setMerchantName(DEMO_MERCHANT_DISPLAY_NAME);
+        merchant.setStatus("ACTIVE");
+        merchant.setPlatformRateBps(1000);
+        merchantRepository.save(merchant);
+        log.info("demo merchant allocated merchantId={}", merchantId);
+        return merchantId;
+    }
+
+    /** 只读挑选：有商户、非 CAB-*；ONLINE / DEPLOYED 优先。 */
+    private Optional<String> resolveExistingDemoDeviceId() {
+        return pickExistingDemoDevice().map(DeviceInfo::getDeviceId);
+    }
+
+    private Optional<DeviceInfo> pickExistingDemoDevice() {
+        List<DeviceInfo> all = deviceInfoRepository.findAllOrderByDeviceIdAsc();
+        return all.stream()
+                .filter(d -> d.getDeviceId() != null && !d.getDeviceId().startsWith(LEGACY_ORPHAN_PREFIX))
+                .filter(d -> d.getMerchantId() != null && !d.getMerchantId().isBlank())
+                .min(this::compareDemoDevicePreference)
+                .or(() -> all.stream()
+                        .filter(d -> d.getDeviceId() != null && !d.getDeviceId().startsWith(LEGACY_ORPHAN_PREFIX))
+                        .min(this::compareDemoDevicePreference));
+    }
+
+    private int compareDemoDevicePreference(DeviceInfo a, DeviceInfo b) {
+        int online = Boolean.compare(isOnline(b), isOnline(a));
+        if (online != 0) {
+            return online;
+        }
+        int deployed = Boolean.compare(isDeployed(b), isDeployed(a));
+        if (deployed != 0) {
+            return deployed;
+        }
+        return a.getDeviceId().compareTo(b.getDeviceId());
+    }
+
+    private static boolean isOnline(DeviceInfo d) {
+        return d.getOnlineStatus() != null && "ONLINE".equalsIgnoreCase(d.getOnlineStatus());
+    }
+
+    private static boolean isDeployed(DeviceInfo d) {
+        return d.getLifecycleStatus() != null && "DEPLOYED".equalsIgnoreCase(d.getLifecycleStatus());
+    }
+
+    private void ensureDeviceInventory(String deviceId) {
+        boolean lotLedger = inventoryLotService.deviceUsesLotLedger(deviceId);
         for (DemoInvSeed seed : DEMO_INVENTORY) {
-            DeviceSkuInventoryId id = new DeviceSkuInventoryId(DEMO_DEVICE_ID, seed.skuId());
+            DeviceSkuInventoryId id = new DeviceSkuInventoryId(deviceId, seed.skuId());
             var existing = deviceSkuInventoryRepository.findById(id);
             if (existing.isPresent()) {
                 // 已有行：不覆盖 quantity/capacity/lowThreshold；有批次账本时只同步可售汇总
                 if (lotLedger) {
-                    inventoryLotService.syncAggregateInventory(DEMO_DEVICE_ID, seed.skuId());
+                    inventoryLotService.syncAggregateInventory(deviceId, seed.skuId());
                 }
                 continue;
             }
@@ -230,26 +335,50 @@ public class DemoDataService {
             inv.setLowThreshold(seed.lowThreshold());
             deviceSkuInventoryRepository.save(inv);
             if (lotLedger) {
-                inventoryLotService.syncAggregateInventory(DEMO_DEVICE_ID, seed.skuId());
+                inventoryLotService.syncAggregateInventory(deviceId, seed.skuId());
             }
         }
     }
 
-    private void ensureWarehouse() {
-        if (!warehouseRepository.existsById(DEMO_WAREHOUSE_ID)) {
-            Warehouse wh = new Warehouse();
-            wh.setWarehouseId(DEMO_WAREHOUSE_ID);
-            wh.setWarehouseName("演示中心仓");
-            wh.setAddress("上海市浦东新区");
-            warehouseRepository.save(wh);
+    private String ensureWarehouse() {
+        Optional<String> existing = resolveExistingWarehouseId();
+        if (existing.isPresent()) {
+            seedWarehouseLotsIfEmpty(existing.get());
+            return existing.get();
         }
+        String warehouseId = warehouseSupplierIdService.allocateWarehouseId();
+        Warehouse wh = new Warehouse();
+        wh.setWarehouseId(warehouseId);
+        wh.setWarehouseName("演示中心仓");
+        // 地址不写死城市；运营后续用 AddressPicker 补
+        wh.setStatus("ACTIVE");
+        warehouseRepository.save(wh);
+        log.info("demo warehouse allocated warehouseId={}", warehouseId);
+        seedWarehouseLotsIfEmpty(warehouseId);
+        return warehouseId;
+    }
+
+    private Optional<String> resolveExistingWarehouseId() {
+        return warehouseRepository.findAll().stream()
+                .filter(w -> w.getWarehouseId() != null && !w.getWarehouseId().isBlank())
+                .filter(w -> w.getStatus() == null || "ACTIVE".equalsIgnoreCase(w.getStatus()))
+                .map(Warehouse::getWarehouseId)
+                .min((a, b) -> {
+                    int std = Boolean.compare(
+                            WarehouseSupplierIdService.isStandardId(b),
+                            WarehouseSupplierIdService.isStandardId(a));
+                    return std != 0 ? std : a.compareTo(b);
+                });
+    }
+
+    private void seedWarehouseLotsIfEmpty(String warehouseId) {
         LocalDate today = LocalDate.now();
         for (DemoWhSeed seed : DEMO_WAREHOUSE_LOTS) {
             if (warehouseInventoryRepository
-                    .findByWarehouseIdAndSkuIdAndBatchNo(DEMO_WAREHOUSE_ID, seed.skuId(), seed.batchNo())
+                    .findByWarehouseIdAndSkuIdAndBatchNo(warehouseId, seed.skuId(), seed.batchNo())
                     .isEmpty()) {
                 WarehouseInventory lot = new WarehouseInventory();
-                lot.setWarehouseId(DEMO_WAREHOUSE_ID);
+                lot.setWarehouseId(warehouseId);
                 lot.setSkuId(seed.skuId());
                 lot.setBatchNo(seed.batchNo());
                 lot.setProductionDate(today.minusDays(seed.productionDaysAgo()));
@@ -299,7 +428,8 @@ public class DemoDataService {
             String fallbackSkuId,
             long skuCount,
             long deviceInventoryLines,
-            long warehouseLotCount
+            long warehouseLotCount,
+            String warehouseId
     ) {}
 
     private record DemoSkuSeed(

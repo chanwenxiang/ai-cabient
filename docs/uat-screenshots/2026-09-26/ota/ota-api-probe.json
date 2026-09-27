@@ -1,0 +1,10 @@
+﻿{
+  "releases": 0,
+  "reports": 0,
+  "reportsFailed": 0,
+  "uiTotal": 0,
+  "emptyFirmware": true,
+  "emptyProgress": true,
+  "progressOptions": ["全部状态", "空闲", "下载中", "安装中", "已成功", "失败"],
+  "note": "progress select value='' shows 请选择 instead of 全部状态 (EP empty-string quirk)"
+}

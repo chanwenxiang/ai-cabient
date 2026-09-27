@@ -55,7 +55,7 @@ class ProcurementReceiveWarehouseTest {
         service = new ProcurementService(permissionService, supplierRepository,
                 purchaseOrderRepository, purchaseOrderLineRepository, purchaseReturnRepository,
                 purchaseReturnLineRepository, warehouseRepository, skuCatalogRepository,
-                warehouseService, supplierPayableService, distributedLockService, null, null, null);
+                warehouseService, supplierPayableService, distributedLockService, null, null, null, null);
         lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
     }
 

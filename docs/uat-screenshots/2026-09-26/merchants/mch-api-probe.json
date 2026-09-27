@@ -1,0 +1,15 @@
+{
+  "orgTreeNodes": 2,
+  "merchants": {
+    "total": 2,
+    "ids": ["MCH-DEFAULT", "MCH-OTHER"]
+  },
+  "splits": {
+    "total": 24,
+    "sampleStatus": "LEDGER_ONLY"
+  },
+  "softCancel": ["新建商户", "编辑商户组织", "挂载货柜", "确认仅记账完结"],
+  "skippedImmediateWrites": ["功能包开关", "运营配置保存"],
+  "export": "分账明细_*.csv",
+  "deeplink": "?tab=splits"
+}

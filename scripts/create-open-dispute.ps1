@@ -1,4 +1,4 @@
-﻿# Create one OPEN recognition dispute for CAB-001 (leave unresolved for UI UAT).
+﻿# Create one OPEN recognition dispute for a resolved demo cabinet (leave unresolved for UI UAT).
 # Usage:
 #   .\scripts\create-open-dispute.ps1
 #   $env:E2E_BASE_URL='http://127.0.0.1:18080'; .\scripts\create-open-dispute.ps1
@@ -12,7 +12,7 @@
 # 现在把「保证记录里的工单当前有效」做成脚本自身的职责。
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "330449777078",
+    [string]$DeviceId = "",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [string]$OperatorPhone = "13900000001",
@@ -32,6 +32,11 @@ New-Item -ItemType Directory -Force -Path (Split-Path $outFile) | Out-Null
 if (-not (Test-ServiceHealth -Url "$BaseUrl/actuator/health")) {
     throw "trade-service not healthy at $BaseUrl"
 }
+
+if ([string]::IsNullOrWhiteSpace($DeviceId)) {
+    $DeviceId = Resolve-E2eTestDevice -UnlockSales
+}
+$E2eSku = Resolve-E2eTestSku -DeviceId $DeviceId
 
 $e2eLock = Enter-E2eLock -Owner "create-open-dispute"
 $reused = $false
@@ -79,7 +84,7 @@ try {
 
         Set-E2eVisionForceNeedReview -Enabled $true -VisionUrl $VisionUrl -VisionApiKey $VisionApiKey | Out-Null
         try {
-            & (Join-Path $PSScriptRoot "set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 8 -NoRecreate | Out-Null
+            & (Join-Path $PSScriptRoot "set-simulator-cart.ps1") -Items @("${E2eSku}:1") -ShoppingSeconds 8 -NoRecreate | Out-Null
             $login = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/password-login" -Body @{
                 phoneNumber = $ConsumerPhone; password = $ConsumerPassword
             }

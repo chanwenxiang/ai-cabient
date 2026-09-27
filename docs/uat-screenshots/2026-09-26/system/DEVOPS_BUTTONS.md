@@ -33,9 +33,13 @@
 | ID | 判定 |
 |----|------|
 | SYS-DEVOPS-01 | **PASS***（页可用 + 无观测栈时诚实空态/禁用；未真跑 Sonar） |
-| SYS-OBS-01 | **PASS***（五主题可切 + Grafana 未起空态） |
+| SYS-DEVOPS-02 | **PASS**（2026-09-27 单页深测：[`DEVOPS_FULL_BROWSER_UAT.md`](../../../uat/DEVOPS_FULL_BROWSER_UAT.md) · `devops/`） |
+| SYS-OBS-01 | **PASS***（主题可切 + Grafana 未起空态；当时记×5） |
+| SYS-OBS-02 | **PASS**（2026-09-27 单页深测：[`OBSERVABILITY_FULL_BROWSER_UAT.md`](../../../uat/OBSERVABILITY_FULL_BROWSER_UAT.md) · **6** 签 · hint F1 已修） |
+| SYS-DEVOPS-03 | **PASS**（观测栈在线 iframe：[`OBS_STACK_ONLINE.md`](./OBS_STACK_ONLINE.md) · `dv-online-*`） |
+| SYS-OBS-03 | **PASS**（观测栈在线六签实嵌：同册 · `ob-online-*`） |
 
-\* 深测依赖 `infra` 观测栈（Grafana `:13000` 等）时再验 iframe 实嵌。
+\* 离线空态用例保留；实嵌见 SYS-*-03。
 
 ## Phase 7 附录 Done
 

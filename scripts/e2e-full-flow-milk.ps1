@@ -5,11 +5,11 @@
 #        .\scripts\e2e-full-flow-milk.ps1 -FromStep replenishment   # resume after interrupt
 
 param(
-    [string]$SkuId = "SKU-MILK-001",
-    [string]$BatchNo = "B-WH-MILK-01",
-    [string]$DeviceId = "330449777078",
-    [string]$SupplierId = "SUP-DEMO-001",
-    [string]$WarehouseId = "WH-DEMO-001",
+    [string]$SkuId = "",
+    [string]$BatchNo = "",
+    [string]$DeviceId = "",
+    [string]$SupplierId = "",
+    [string]$WarehouseId = "",
     [int]$ProcurementQty = 12,
     [ValidateSet("", "cleanup", "procurement", "replenishment", "three-end", "fund-safety", "shopping", "partial-refund", "finance", "gray", "api-tests")]
     [string]$FromStep = "",
@@ -21,6 +21,11 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl ""
+$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
+$WarehouseId = Resolve-E2eTestWarehouse -WarehouseId $WarehouseId
+$SupplierId = Resolve-E2eTestSupplier -SupplierId $SupplierId
+if ([string]::IsNullOrWhiteSpace($SkuId)) { $SkuId = Resolve-E2eTestSku -DeviceId $DeviceId }
+if ([string]::IsNullOrWhiteSpace($BatchNo)) { $BatchNo = Resolve-E2eTestBatch -SkuId $SkuId -WarehouseId $WarehouseId }
 
 $summary = @()
 function Record-Step([string]$Id, [bool]$Ok, [string]$Detail = "") {

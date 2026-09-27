@@ -1,7 +1,7 @@
 # Create disputed/unpaid shopping order for coupon redeem; do NOT settle.
 param(
     [string]$BaseUrl = "http://127.0.0.1:18080",
-    [string]$DeviceId = "777740024057",
+    [string]$DeviceId = "",
     [string]$ConsumerToken = "",
     [string]$InternalApiKey = "dev-internal-key-change-me",
     [string]$MqttBroker = "tcp://localhost:11883"
@@ -9,13 +9,15 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
+$E2eSku = Resolve-E2eTestSku -DeviceId $DeviceId
 if ([string]::IsNullOrWhiteSpace($ConsumerToken)) { throw "ConsumerToken required" }
 
 Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
 $auth = @{ Authorization = "Bearer $ConsumerToken" }
 
 try {
-    & (Join-Path $PSScriptRoot "set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 20 -NoRecreate
+    & (Join-Path $PSScriptRoot "set-simulator-cart.ps1") -Items @("${E2eSku}:1") -ShoppingSeconds 20 -NoRecreate
 } catch {
     Write-Warning "set-simulator-cart: $_"
 }

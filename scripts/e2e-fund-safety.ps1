@@ -1,7 +1,7 @@
 ﻿# Fund safety E2E: balance insufficient, trade-service outage recovery, idempotency checks
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "330449777078",
+    [string]$DeviceId = "",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [switch]$SkipBalanceTest,
@@ -12,6 +12,8 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
+$E2eSku = Resolve-E2eTestSku -DeviceId $DeviceId
 
 function Get-E2eAuth {
     param([string]$Phone, [string]$Password, [int]$MaxAttempts = 5)
@@ -76,7 +78,7 @@ try {
         $pinned = (docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c `
             "SELECT balance_cents FROM user_account WHERE user_id=10001;").Trim()
         if ($pinned -ne "$pinBalance") { throw "Failed to pin balance at $pinBalance, got $pinned" }
-        & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("SKU-DEMO-001:2") -ShoppingSeconds 8
+        & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("${E2eSku}:2") -ShoppingSeconds 8
 
         $result = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `
             -RepoRoot $RepoRoot -KeepSimulator
@@ -114,7 +116,7 @@ WHERE ss.session_id = '$sessionId' AND ua.user_id = 10001;
         Write-Host "`n--- TC-6.1-01 Trade-service outage during shopping ---"
         Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
         Set-E2eConsumerBalance -BalanceCents 11300 | Out-Null
-        & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 30
+        & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("${E2eSku}:1") -ShoppingSeconds 30
 
         $dev = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/devices/$DeviceId/status" -Headers $auth
         if (-not $dev.available) {

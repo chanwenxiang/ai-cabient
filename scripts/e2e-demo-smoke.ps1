@@ -8,7 +8,7 @@
 param(
     [string]$BaseUrl = "",
     [string]$VisionUrl = "",
-    [string]$DeviceId = "330449777078",
+    [string]$DeviceId = "",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [string]$OperatorPhone = "13900000001",
@@ -25,6 +25,8 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
+$E2eSku = Resolve-E2eTestSku -DeviceId $DeviceId
 if ([string]::IsNullOrWhiteSpace($VisionUrl)) { $VisionUrl = Get-E2eVisionUrl }
 if ([string]::IsNullOrWhiteSpace($VisionApiKey)) { $VisionApiKey = Get-E2eVisionApiKey }
 
@@ -82,9 +84,9 @@ if (-not $SkipShopping) {
         # IDEA stack (:8080): only export env for local DeviceSimulator process.
         $useDockerSim = ($BaseUrl -match ':18080$') -or ($env:E2E_USE_DOCKER_SIMULATOR -eq '1')
         if ($useDockerSim) {
-            & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 8
+            & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("${E2eSku}:1") -ShoppingSeconds 8
         } else {
-            & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 8 -SkipDocker
+            & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("${E2eSku}:1") -ShoppingSeconds 8 -SkipDocker
         }
         $auth = Get-ConsumerAuth
         $result = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `
@@ -156,7 +158,7 @@ Write-Host "          $adminOrigin/admin/exceptions?status=OPEN"
 Write-Host "==> Resolve $Resolution"
 $body = @{ resolutionType = $Resolution; items = @() }
 if ($Resolution -eq "CONFIRM") {
-    $body.items = @(@{ skuId = "SKU-DEMO-001"; quantity = 1 })
+    $body.items = @(@{ skuId = $E2eSku; quantity = 1 })
 }
 $resolve = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
     -Path "/api/v2/ops/disputes/$ticketId/resolve" -Headers $ops -Body $body

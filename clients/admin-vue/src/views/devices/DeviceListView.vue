@@ -449,7 +449,7 @@
               :min="-90"
               :max="90"
               style="width: 100%"
-              placeholder="纬度，如 31.230400"
+              placeholder="纬度"
             />
             <el-input-number
               v-model="createForm.longitude"
@@ -459,7 +459,7 @@
               :min="-180"
               :max="180"
               style="width: 100%"
-              placeholder="经度，如 121.473700"
+              placeholder="经度"
             />
           </div>
           <p class="form-hint muted">

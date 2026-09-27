@@ -65,9 +65,9 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
     onImportRows: async (rows) => {
       let ok = 0;
       for (const row of rows) {
-        const warehouseId = (row['仓库编号'] || row.warehouseId || '').trim();
+        const warehouseId = (row['仓库编号'] || row.warehouseId || '').trim() || 'new';
         const warehouseName = (row['仓库名称'] || row.warehouseName || '').trim();
-        if (!warehouseId || !warehouseName) continue;
+        if (!warehouseName) continue;
         await api.request(AdminEndpoints.warehouseItem(warehouseId), 'PUT', {
           warehouseName,
           address: (row['地址'] || row.address || '').trim(),
@@ -104,9 +104,9 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
     onImportRows: async (rows) => {
       let ok = 0;
       for (const row of rows) {
-        const supplierId = (row['供应商编号'] || row.supplierId || '').trim();
+        const supplierId = (row['供应商编号'] || row.supplierId || '').trim() || 'new';
         const supplierName = (row['供应商'] || row.supplierName || '').trim();
-        if (!supplierId || !supplierName) continue;
+        if (!supplierName) continue;
         await api.request(AdminEndpoints.supplier(supplierId), 'PUT', {
           supplierId,
           supplierName,
@@ -128,16 +128,16 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
     if (deps.tab.value === 'warehouses') {
       downloadWarehouseTemplate([
         '示例中心仓',
-        'WH-DEMO-001',
-        '上海市示例路 1 号',
+        '', // 留空：导入时系统发 12 位编号
+        '', // 地址用运营 AddressPicker/导入填写，勿写死城市
         displayLabel('warehouse_status', 'ACTIVE')
       ]);
     } else if (deps.tab.value === 'suppliers') {
       downloadSupplierTemplate([
         '示例饮品供应商',
-        'SUP-DEMO-001',
-        '张三',
-        '13800000000',
+        '', // 留空：导入时系统发号
+        '',
+        '',
         displayLabel('supplier_status', 'ACTIVE')
       ]);
     }

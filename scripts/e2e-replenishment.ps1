@@ -29,7 +29,7 @@
 
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "330449777078",
+    [string]$DeviceId = "",
     [string]$OpsPhone = "13900000001",
     [string]$OpsPassword = "123456",
     [string]$MerchantPhone = "13800138001",
@@ -40,7 +40,7 @@ param(
     #    `replenishment_route_assignee_user_id_fkey` ⇒ 500「系统繁忙」，
     #    真实的「指派人不存在」被完全盖住（2026-09-18 实测，追踪号 ecbe4dedbcc8）。
     [long]$MerchantUserId = 0,
-    [string]$SkuId = "SKU-DEMO-001",
+    [string]$SkuId = "",
     [string]$SlotId = "A1",
     [int]$Quantity = 1,
     [string]$InternalApiKey = "dev-internal-key-change-me",
@@ -52,6 +52,8 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
+if ([string]::IsNullOrWhiteSpace($SkuId)) { $SkuId = Resolve-E2eTestSku -DeviceId $DeviceId }
 
 function Invoke-E2eRestockDoorCycle {
     param(

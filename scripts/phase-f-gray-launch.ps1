@@ -5,7 +5,7 @@ param(
     [string]$ConsumerPhone = "13800138000",
     [string]$OperatorPhone = "13900000001",
     [string]$PostgresContainer = "ai-cabinet-postgres-1",
-    [string[]]$GrayDeviceIds = @("CAB-001"),
+    [string[]]$GrayDeviceIds = @(),
     [int]$ObservationDays = 14,
     [int]$MinGrayBalanceCents = 500,
     [switch]$CheckOnly
@@ -14,8 +14,13 @@ param(
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
+$BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+if (-not $GrayDeviceIds -or $GrayDeviceIds.Count -eq 0 -or [string]::IsNullOrWhiteSpace($GrayDeviceIds[0])) {
+    $GrayDeviceIds = @((Resolve-E2eTestDevice))
+}
 
 Write-Host "========== Phase F Gray Launch Checklist =========="
+Write-Host "    grayDevices=$($GrayDeviceIds -join ',')"
 
 $checks = @()
 

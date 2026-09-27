@@ -27,7 +27,7 @@ if (-not $EnvFile) {
 $slotNumber = 1
 $deltas = foreach ($item in $Items) {
     if ($item -notmatch '^([^:]+):(\d+)$') {
-        throw "Invalid item format: $item. Use SKU:quantity, for example SKU-WATER-001:2"
+        throw "Invalid item format: $item. Use SKU:quantity, for example <skuId>:2"
     }
     $skuId = $Matches[1].Trim().ToUpperInvariant()
     $quantity = [int]$Matches[2]

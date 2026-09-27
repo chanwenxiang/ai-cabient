@@ -162,11 +162,14 @@ WHERE phone_number = '$Phone';
 
 function Get-E2eSimVideoKey {
     param(
-        [string]$DeviceId = "330449777078",
+        [string]$DeviceId = "",
         [long]$UserId = 0,
         [string]$SessionId,
         [string]$Camera = "top"
     )
+    if ([string]::IsNullOrWhiteSpace($DeviceId)) {
+        $DeviceId = Resolve-E2eTestDevice
+    }
     $tz = [TimeZoneInfo]::FindSystemTimeZoneById("China Standard Time")
     $now = [TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $tz)
     $date = $now.ToString("yyyy/MM/dd")
@@ -596,10 +599,13 @@ function New-E2eCheckInFixtureTask {
     param(
         [string]$DeviceId,
         [long]$AssigneeUserId = 0,
-        [string]$SkuId = "SKU-MILK-001",
+        [string]$SkuId = "",
         [string]$PostgresContainer = ""
     )
     if ([string]::IsNullOrWhiteSpace($DeviceId)) { throw "缺少 DeviceId" }
+    if ([string]::IsNullOrWhiteSpace($SkuId)) {
+        $SkuId = Resolve-E2eTestSku -DeviceId $DeviceId
+    }
     # applied 留 false 是刻意的：assertTaskCancellableEmpty 只在「已上架」时拒绝空取消，
     # 夹具必须能被 cancel-empty 解冻 —— 那正是本套用例要复现的运营手段。
     $assignee = if ($AssigneeUserId -gt 0) { "$AssigneeUserId" } else { "NULL" }
@@ -639,59 +645,338 @@ DELETE FROM replenishment_task WHERE task_id = $TaskId;
     Write-Host "    fixture task=$TaskId 已卸载"
 }
 
-function Clear-E2eDeviceBlockingSessions {
+function Get-E2ePostgresContainer {
+    param([string]$PostgresContainer = "")
+    if (-not [string]::IsNullOrWhiteSpace($PostgresContainer)) { return $PostgresContainer }
+    $found = docker ps `
+        --filter "label=com.docker.compose.service=postgres" `
+        --format "{{.Names}}" 2>$null | Select-Object -First 1
+    if (-not [string]::IsNullOrWhiteSpace($found)) { return $found }
+    foreach ($candidate in @("ai-cabinet-postgres-1", "infra-postgres-1")) {
+        $running = docker ps --filter "name=^/$candidate$" --format "{{.Names}}" 2>$null
+        if ($running -eq $candidate) { return $candidate }
+    }
+    return ""
+}
+
+# Pick a test cabinet at runtime. Never require a hard-coded device id.
+# Priority: explicit param > env E2E_DEVICE_ID > DB score (ONLINE + inventory + merchant, skip CAB-001).
+function Resolve-E2eTestDevice {
     param(
-        [string]$DeviceId = "330449777078",
+        [string]$DeviceId = "",
+        [string]$PostgresContainer = "",
+        [switch]$UnlockSales
+    )
+    if (-not [string]::IsNullOrWhiteSpace($DeviceId)) {
+        return $DeviceId.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:E2E_DEVICE_ID)) {
+        return $env:E2E_DEVICE_ID.Trim()
+    }
+    $PostgresContainer = Get-E2ePostgresContainer -PostgresContainer $PostgresContainer
+    if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
+        throw "Resolve-E2eTestDevice: postgres not running; pass -DeviceId or set E2E_DEVICE_ID"
+    }
+    $sql = @"
+SELECT d.device_id
+FROM device_info d
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(GREATEST(quantity,0)),0)::bigint AS qty
+  FROM device_sku_inventory i
+  WHERE i.device_id = d.device_id
+) inv ON TRUE
+WHERE d.device_id IS NOT NULL
+  AND d.device_id <> 'CAB-001'
+  AND COALESCE(d.merchant_id,'') <> ''
+ORDER BY
+  CASE WHEN UPPER(COALESCE(d.online_status,'')) = 'ONLINE' THEN 0 ELSE 1 END,
+  CASE WHEN UPPER(COALESCE(d.lifecycle_status,'')) = 'DEPLOYED' THEN 0 ELSE 1 END,
+  COALESCE(inv.qty,0) DESC,
+  d.device_id
+LIMIT 1;
+"@
+    $picked = (docker exec $PostgresContainer psql -U aicabinet -d aicabinet -t -A -c $sql 2>$null)
+    if ($picked) { $picked = $picked.Trim() }
+    if ([string]::IsNullOrWhiteSpace($picked)) {
+        throw "Resolve-E2eTestDevice: no eligible device (need merchant-bound, not CAB-001)"
+    }
+    if ($UnlockSales) {
+        docker exec $PostgresContainer psql -U aicabinet -d aicabinet -c `
+            "UPDATE device_info SET sales_locked=false WHERE device_id='$picked';" | Out-Null
+    }
+    Write-Host "==> Resolved test device: $picked"
+    return $picked
+}
+
+# Pick a merchant at runtime. Never require a hard-coded merchant id (MCH-*).
+# Priority: explicit param > env E2E_MERCHANT_ID > DB (ACTIVE first, then any).
+function Resolve-E2eTestMerchant {
+    param(
+        [string]$MerchantId = "",
         [string]$PostgresContainer = ""
     )
-    if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
-        $PostgresContainer = docker ps `
-            --filter "label=com.docker.compose.service=postgres" `
-            --format "{{.Names}}" 2>$null | Select-Object -First 1
+    if (-not [string]::IsNullOrWhiteSpace($MerchantId)) {
+        return $MerchantId.Trim()
     }
+    if (-not [string]::IsNullOrWhiteSpace($env:E2E_MERCHANT_ID)) {
+        return $env:E2E_MERCHANT_ID.Trim()
+    }
+    $PostgresContainer = Get-E2ePostgresContainer -PostgresContainer $PostgresContainer
     if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
-        foreach ($candidate in @("ai-cabinet-postgres-1", "infra-postgres-1")) {
-            $running = docker ps --filter "name=^/$candidate$" --format "{{.Names}}" 2>$null
-            if ($running -eq $candidate) {
-                $PostgresContainer = $candidate
-                break
-            }
+        throw "Resolve-E2eTestMerchant: postgres not running; pass -MerchantId or set E2E_MERCHANT_ID"
+    }
+    $sql = @"
+SELECT merchant_id
+FROM merchant
+WHERE merchant_id IS NOT NULL AND merchant_id <> ''
+ORDER BY
+  CASE WHEN UPPER(COALESCE(status,'')) = 'ACTIVE' THEN 0 ELSE 1 END,
+  CASE WHEN merchant_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END,
+  merchant_id
+LIMIT 1;
+"@
+    $picked = (docker exec $PostgresContainer psql -U aicabinet -d aicabinet -t -A -c $sql 2>$null)
+    if ($picked) { $picked = $picked.Trim() }
+    if ([string]::IsNullOrWhiteSpace($picked)) {
+        throw "Resolve-E2eTestMerchant: no merchant in DB"
+    }
+    Write-Host "==> Resolved test merchant: $picked"
+    return $picked
+}
+
+
+# Pick warehouse at runtime. Never hard-code WH-DEMO-*.
+# Priority: explicit param > env E2E_WAREHOUSE_ID > DB (ACTIVE + 12-digit first).
+function Resolve-E2eTestWarehouse {
+    param(
+        [string]$WarehouseId = "",
+        [string]$PostgresContainer = ""
+    )
+    if (-not [string]::IsNullOrWhiteSpace($WarehouseId)) {
+        return $WarehouseId.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:E2E_WAREHOUSE_ID)) {
+        return $env:E2E_WAREHOUSE_ID.Trim()
+    }
+    $PostgresContainer = Get-E2ePostgresContainer -PostgresContainer $PostgresContainer
+    if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
+        throw "Resolve-E2eTestWarehouse: postgres not running; pass -WarehouseId or set E2E_WAREHOUSE_ID"
+    }
+    $sql = @"
+SELECT warehouse_id
+FROM warehouse
+WHERE warehouse_id IS NOT NULL AND warehouse_id <> ''
+ORDER BY
+  CASE WHEN UPPER(COALESCE(status,'')) = 'ACTIVE' THEN 0 ELSE 1 END,
+  CASE WHEN warehouse_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END,
+  warehouse_id
+LIMIT 1;
+"@
+    $picked = (docker exec $PostgresContainer psql -U aicabinet -d aicabinet -t -A -c $sql 2>$null)
+    if ($picked) { $picked = $picked.Trim() }
+    if ([string]::IsNullOrWhiteSpace($picked)) {
+        throw "Resolve-E2eTestWarehouse: no warehouse in DB"
+    }
+    Write-Host "==> Resolved test warehouse: $picked"
+    return $picked
+}
+
+# Pick supplier at runtime. Never hard-code SUP-DEMO-*.
+function Resolve-E2eTestSupplier {
+    param(
+        [string]$SupplierId = "",
+        [string]$PostgresContainer = ""
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SupplierId)) {
+        return $SupplierId.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:E2E_SUPPLIER_ID)) {
+        return $env:E2E_SUPPLIER_ID.Trim()
+    }
+    $PostgresContainer = Get-E2ePostgresContainer -PostgresContainer $PostgresContainer
+    if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
+        throw "Resolve-E2eTestSupplier: postgres not running; pass -SupplierId or set E2E_SUPPLIER_ID"
+    }
+    $sql = @"
+SELECT supplier_id
+FROM supplier
+WHERE supplier_id IS NOT NULL AND supplier_id <> ''
+ORDER BY
+  CASE WHEN UPPER(COALESCE(status,'')) = 'ACTIVE' THEN 0 ELSE 1 END,
+  CASE WHEN supplier_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END,
+  supplier_id
+LIMIT 1;
+"@
+    $picked = (docker exec $PostgresContainer psql -U aicabinet -d aicabinet -t -A -c $sql 2>$null)
+    if ($picked) { $picked = $picked.Trim() }
+    if ([string]::IsNullOrWhiteSpace($picked)) {
+        throw "Resolve-E2eTestSupplier: no supplier in DB"
+    }
+    Write-Host "==> Resolved test supplier: $picked"
+    return $picked
+}
+
+
+# Pick SKU at runtime. Never hard-code SKU-DEMO-* / SKU-MILK-* as defaults.
+# Priority: explicit > env E2E_SKU_ID > device sellable inventory (ACTIVE+vision) > any catalog ACTIVE+vision.
+function Resolve-E2eTestSku {
+    param(
+        [string]$SkuId = "",
+        [string]$DeviceId = "",
+        [string]$PostgresContainer = ""
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SkuId)) {
+        return $SkuId.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:E2E_SKU_ID)) {
+        return $env:E2E_SKU_ID.Trim()
+    }
+    $PostgresContainer = Get-E2ePostgresContainer -PostgresContainer $PostgresContainer
+    if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
+        throw "Resolve-E2eTestSku: postgres not running; pass -SkuId or set E2E_SKU_ID"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($DeviceId)) {
+        $dev = $DeviceId.Trim().Replace("'", "''")
+        $sqlInv = @"
+SELECT i.sku_id
+FROM device_sku_inventory i
+JOIN sku_catalog s ON s.sku_id = i.sku_id
+WHERE i.device_id = '$dev'
+  AND COALESCE(i.quantity,0) > 0
+  AND UPPER(COALESCE(s.status,'')) = 'ACTIVE'
+  AND COALESCE(s.vision_enabled,false) = true
+ORDER BY i.quantity DESC, i.sku_id
+LIMIT 1;
+"@
+        $picked = (docker exec $PostgresContainer psql -U aicabinet -d aicabinet -t -A -c $sqlInv 2>$null)
+        if ($picked) { $picked = $picked.Trim() }
+        if (-not [string]::IsNullOrWhiteSpace($picked)) {
+            Write-Host "==> Resolved test sku (device inventory): $picked"
+            return $picked
         }
     }
+    $sqlCat = @"
+SELECT sku_id
+FROM sku_catalog
+WHERE UPPER(COALESCE(status,'')) = 'ACTIVE'
+  AND COALESCE(vision_enabled,false) = true
+ORDER BY
+  CASE WHEN sku_id !~ '^SKU-(DEMO|MILK|SODA|WATER|SNACK|NOODLE)-' THEN 0 ELSE 1 END,
+  sku_id
+LIMIT 1;
+"@
+    $picked = (docker exec $PostgresContainer psql -U aicabinet -d aicabinet -t -A -c $sqlCat 2>$null)
+    if ($picked) { $picked = $picked.Trim() }
+    if ([string]::IsNullOrWhiteSpace($picked)) {
+        # last resort: any ACTIVE sku
+        $sqlAny = @"
+SELECT sku_id FROM sku_catalog
+WHERE UPPER(COALESCE(status,'')) = 'ACTIVE'
+ORDER BY sku_id LIMIT 1;
+"@
+        $picked = (docker exec $PostgresContainer psql -U aicabinet -d aicabinet -t -A -c $sqlAny 2>$null)
+        if ($picked) { $picked = $picked.Trim() }
+    }
+    if ([string]::IsNullOrWhiteSpace($picked)) {
+        throw "Resolve-E2eTestSku: no eligible SKU in DB"
+    }
+    Write-Host "==> Resolved test sku (catalog): $picked"
+    return $picked
+}
+
+# Pick batch for a SKU. Priority: explicit > env E2E_BATCH_NO > warehouse lots > E2E-<sku>.
+function Resolve-E2eTestBatch {
+    param(
+        [string]$BatchNo = "",
+        [string]$SkuId = "",
+        [string]$WarehouseId = "",
+        [string]$PostgresContainer = ""
+    )
+    if (-not [string]::IsNullOrWhiteSpace($BatchNo)) {
+        return $BatchNo.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:E2E_BATCH_NO)) {
+        return $env:E2E_BATCH_NO.Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($SkuId)) {
+        throw "Resolve-E2eTestBatch: SkuId required when BatchNo empty"
+    }
+    $PostgresContainer = Get-E2ePostgresContainer -PostgresContainer $PostgresContainer
+    if (-not [string]::IsNullOrWhiteSpace($PostgresContainer)) {
+        $sku = $SkuId.Trim().Replace("'", "''")
+        $whFilter = ""
+        if (-not [string]::IsNullOrWhiteSpace($WarehouseId)) {
+            $wh = $WarehouseId.Trim().Replace("'", "''")
+            $whFilter = "AND warehouse_id = '$wh'"
+        }
+        $sql = @"
+SELECT batch_no
+FROM warehouse_inventory
+WHERE sku_id = '$sku'
+  AND COALESCE(quantity,0) > 0
+  AND batch_no IS NOT NULL AND batch_no <> ''
+  $whFilter
+ORDER BY expiry_date NULLS LAST, batch_no
+LIMIT 1;
+"@
+        $picked = (docker exec $PostgresContainer psql -U aicabinet -d aicabinet -t -A -c $sql 2>$null)
+        if ($picked) { $picked = $picked.Trim() }
+        if (-not [string]::IsNullOrWhiteSpace($picked)) {
+            Write-Host "==> Resolved test batch: $picked (sku=$SkuId)"
+            return $picked
+        }
+    }
+    $fallback = "E2E-$($SkuId.Trim())"
+    Write-Host "==> Resolved test batch (synthetic): $fallback"
+    return $fallback
+}
+
+function Clear-E2eDeviceBlockingSessions {
+    param(
+        [string]$DeviceId = "",
+        [string]$PostgresContainer = "",
+        [switch]$AllDevices
+    )
+    $PostgresContainer = Get-E2ePostgresContainer -PostgresContainer $PostgresContainer
     if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
         Write-Warning "Clear-E2eDeviceBlockingSessions: no running postgres container found"
         return $false
     }
 
-    $states = @("CREATED", "OPENING", "SHOPPING", "RECOGNIZING", "WAITING_UPLOAD", "SETTLING")
+    $states = @("CREATED", "OPENING", "SHOPPING", "RECOGNIZING", "WAITING_UPLOAD", "SETTLING", "DISPUTED")
     $inList = ($states | ForEach-Object { "'$_'" }) -join ","
+    $deviceFilter = ""
+    $scopeLabel = "ALL devices"
+    if (-not $AllDevices) {
+        if ([string]::IsNullOrWhiteSpace($DeviceId)) {
+            $DeviceId = Resolve-E2eTestDevice -PostgresContainer $PostgresContainer
+        }
+        $deviceFilter = "AND device_id = '$DeviceId'"
+        $scopeLabel = $DeviceId
+    }
+
     $sql = @"
 UPDATE shopping_session
 SET state = 'CANCELLED',
     fail_reason = COALESCE(NULLIF(fail_reason, ''), 'e2e-cleanup'),
     updated_at = NOW()
-WHERE device_id = '$DeviceId'
-  AND state IN ($inList);
+WHERE state IN ($inList)
+  $deviceFilter;
 
 UPDATE replenishment_task
 SET status = 'CANCELLED'
-WHERE device_id = '$DeviceId'
-  AND status = 'IN_PROGRESS';
+WHERE status IN ('IN_PROGRESS','PENDING','ASSIGNED')
+  $deviceFilter;
 
 DELETE FROM user_blacklist
 WHERE user_id IN (SELECT user_id FROM user_info WHERE phone_number = '13800138000');
-
-UPDATE shopping_session
-SET created_at = created_at - INTERVAL '2 hours'
-WHERE user_id IN (SELECT user_id FROM user_info WHERE phone_number = '13800138000')
-  AND created_at > NOW() - INTERVAL '1 hour';
 "@
     $out = docker exec $PostgresContainer psql -U aicabinet -d aicabinet -c $sql 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Clear-E2eDeviceBlockingSessions: postgres cleanup failed: $out"
         return $false
     }
-    Write-Host "==> Cleared blocking sessions on $DeviceId via $PostgresContainer"
+    Write-Host "==> Cleared blocking sessions on $scopeLabel via $PostgresContainer"
     return $true
 }
 
@@ -724,7 +1009,7 @@ function Start-E2eDeviceSimulator {
     $env:MINIO_ACCESS_KEY = "minioadmin"
     $env:MINIO_SECRET_KEY = "minioadmin"
     if ([string]::IsNullOrWhiteSpace($env:AICABINET_SIM_GRAVITY_SKU)) {
-        $env:AICABINET_SIM_GRAVITY_SKU = "SKU-DEMO-001"
+        $env:AICABINET_SIM_GRAVITY_SKU = Resolve-E2eTestSku -DeviceId $DeviceId
     }
     if ([string]::IsNullOrWhiteSpace($env:AICABINET_SIM_SHOPPING_MS)) {
         $env:AICABINET_SIM_SHOPPING_MS = "5000"
@@ -1009,14 +1294,20 @@ function Invoke-E2eInternalDoorClose {
     param(
         [string]$BaseUrl,
         [string]$SessionId,
-        [string]$DeviceId = "330449777078",
+        [string]$DeviceId = "",
         [long]$UserId = 0,
-        [string]$SkuId = "SKU-DEMO-001",
+        [string]$SkuId = "",
         [int]$Quantity = 1,
         [string]$UploadStatus = "UPLOADED",
         [string]$VideoUri = "",
         [string]$InternalApiKey = "dev-internal-key-change-me"
     )
+    if ([string]::IsNullOrWhiteSpace($DeviceId)) {
+        $DeviceId = Resolve-E2eTestDevice
+    }
+    if ([string]::IsNullOrWhiteSpace($SkuId)) {
+        $SkuId = Resolve-E2eTestSku -DeviceId $DeviceId
+    }
     # Gateway blocks /internal/* — always hit trade-service directly.
     $internalBase = Resolve-E2eBaseUrl $BaseUrl
     $headers = @{ "X-Internal-Api-Key" = $InternalApiKey }
@@ -1156,9 +1447,10 @@ function Prepare-E2eReplenishmentPlan {
         [string]$BaseUrl,
         [hashtable]$OpsAuth,
         [string]$DeviceId,
-        [string]$WarehouseId = "WH-DEMO-001",
+        [string]$WarehouseId = "",
         [switch]$ForceGap
     )
+    $WarehouseId = Resolve-E2eTestWarehouse -WarehouseId $WarehouseId
     $slots = @(Ensure-E2eDeviceSlots -BaseUrl $BaseUrl -OpsAuth $OpsAuth -DeviceId $DeviceId)
     $suggestions = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
         -Path "/api/v2/ops/admin/replenishment/suggest?deviceId=$DeviceId" -Headers $OpsAuth)
@@ -1212,14 +1504,6 @@ function Prepare-E2eReplenishmentPlan {
             $batchBySku[$sku] = [string]$row.batchNo
         }
     }
-    $defaultBatch = @{
-        "SKU-MILK-001"   = "B-WH-MILK-01"
-        "SKU-SNACK-001"  = "B-WH-CHIPS-01"
-        "SKU-DEMO-001"   = "B-DEMO-01"
-        "SKU-SODA-001"   = "B-WH-SODA-01"
-        "SKU-WATER-001"  = "B-WH-WATER-01"
-        "SKU-NOODLE-001" = "B-WH-NOODLE-01"
-    }
     $inboundLines = @()
     foreach ($s in $suggestions) {
         $sku = [string]$s.skuId
@@ -1229,8 +1513,7 @@ function Prepare-E2eReplenishmentPlan {
         if ($have -ge $need) { continue }
         $gap = $need - $have + 2
         $batch = $batchBySku[$sku]
-        if (-not $batch) { $batch = $defaultBatch[$sku] }
-        if (-not $batch) { $batch = "E2E-$sku" }
+        if (-not $batch) { $batch = Resolve-E2eTestBatch -SkuId $sku -WarehouseId $WarehouseId }
         Write-Host "    replenishment prep: sku=$sku suggest=$need warehouse=$have inbound=$gap batch=$batch"
         $inboundLines += @{
             skuId          = $sku

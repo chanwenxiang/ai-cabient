@@ -6,7 +6,17 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 
 const BASE = process.env.API_BASE || 'http://127.0.0.1';
-const DEVICE = process.env.DEVICE_ID || '777740024057';
+let DEVICE = process.env.DEVICE_ID || process.env.E2E_DEVICE_ID || '';
+
+function resolveDeviceFromDb() {
+  if (DEVICE) return DEVICE;
+  if (process.env.E2E_DEVICE_ID) return process.env.E2E_DEVICE_ID.trim();
+  const sql = "SELECT d.device_id FROM device_info d WHERE d.device_id IS NOT NULL AND d.device_id !~ '^CAB-' ORDER BY CASE WHEN d.device_id ~ '^[0-9]{12}$' THEN 0 ELSE 1 END, d.device_id LIMIT 1;";
+  const id = execSync(`docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c ${JSON.stringify(sql)}`, { encoding: 'utf8' }).trim();
+  if (!id) throw new Error('DEVICE_ID required (no eligible device in DB)');
+  return id;
+}
+DEVICE = resolveDeviceFromDb();
 const OUT = 'docs/uat-screenshots/2026-09-12/full-round-perf2-light.json';
 
 async function consumerLogin() {

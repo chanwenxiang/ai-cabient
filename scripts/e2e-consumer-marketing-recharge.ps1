@@ -52,7 +52,7 @@ $prepayMock = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/paymen
     idempotencyKey = $key
 }
 Assert-True ($null -ne $prepayMock.orderId) "mock prepay orderId"
-Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/payment/recharge/$($prepayMock.orderId)/mock-success" -Headers $h | Out-Null
+Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/dev/payment/recharge/$($prepayMock.orderId)/mock-success" -Headers $h | Out-Null
 $accAfter = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/account" -Headers $h
 Assert-True (([int]$accAfter.balanceCents) -eq ($balBefore + 1000)) "mock recharge +¥10 ($balBefore -> $($accAfter.balanceCents))"
 

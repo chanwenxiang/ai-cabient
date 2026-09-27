@@ -38,6 +38,7 @@ public class ProcurementService {
     private final DistributedLockService distributedLockService;
     private final ApprovalWorkflowService approvalWorkflowService;
     private final AdminAuditService auditService;
+    private final WarehouseSupplierIdService warehouseSupplierIdService;
     private final ProcurementService self;
 
     private static final String BIZ_PURCHASE_ORDER = "PURCHASE_ORDER";
@@ -55,6 +56,7 @@ public class ProcurementService {
                               DistributedLockService distributedLockService,
                               ApprovalWorkflowService approvalWorkflowService,
                               AdminAuditService auditService,
+                              WarehouseSupplierIdService warehouseSupplierIdService,
                               @Lazy ProcurementService self) {
         this.permissionService = permissionService;
         this.supplierRepository = supplierRepository;
@@ -69,6 +71,7 @@ public class ProcurementService {
         this.distributedLockService = distributedLockService;
         this.approvalWorkflowService = approvalWorkflowService;
         this.auditService = auditService;
+        this.warehouseSupplierIdService = warehouseSupplierIdService;
         this.self = self;
     }
 
@@ -92,11 +95,17 @@ public class ProcurementService {
     @Transactional
     public SupplierDto upsertSupplier(Long operatorId, SupplierDto request) {
         requireWarehouseWrite(operatorId);
-        if (request.supplierId() == null || request.supplierId().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "supplierId required");
+        String raw = request.supplierId() != null ? request.supplierId().trim() : "";
+        boolean createToken = raw.isEmpty() || "new".equalsIgnoreCase(raw) || "_".equals(raw);
+        boolean exists = !createToken && supplierRepository.findById(raw).isPresent();
+        final String supplierId;
+        if (exists) {
+            supplierId = raw;
+        } else {
+            supplierId = warehouseSupplierIdService.resolveSupplierIdForCreate(createToken ? null : raw);
         }
-        Supplier supplier = supplierRepository.findById(request.supplierId().trim()).orElse(new Supplier());
-        supplier.setSupplierId(request.supplierId().trim());
+        Supplier supplier = supplierRepository.findById(supplierId).orElseGet(Supplier::new);
+        supplier.setSupplierId(supplierId);
         supplier.setSupplierName(required(request.supplierName(), "supplierName"));
         supplier.setContactName(trimToNull(request.contactName()));
         supplier.setContactPhone(trimToNull(request.contactPhone()));
@@ -157,7 +166,7 @@ public class ProcurementService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "supplier inactive");
         }
         String warehouseId = request.warehouseId() != null && !request.warehouseId().isBlank()
-                ? request.warehouseId().trim() : WarehouseService.DEFAULT_WAREHOUSE_ID;
+                ? request.warehouseId().trim() : warehouseService.resolveDefaultWarehouseId();
         if (!warehouseRepository.existsById(warehouseId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "warehouse not found");
         }

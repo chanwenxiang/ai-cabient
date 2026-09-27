@@ -104,7 +104,7 @@
           <el-input v-model="sendForm.userId" placeholder="如 10001" />
         </el-form-item>
         <el-form-item v-else label="商户编号" required>
-          <el-input v-model="sendForm.merchantId" placeholder="如 MCH-DEFAULT" />
+          <el-input v-model="sendForm.merchantId" placeholder="商户 12 位编号（列表中复制）" />
         </el-form-item>
         <el-form-item label="标题" required>
           <el-input v-model="sendForm.title" maxlength="80" show-word-limit />

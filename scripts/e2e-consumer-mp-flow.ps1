@@ -2,7 +2,7 @@
 
 param(
     [string]$BaseUrl = "",
-    [string]$DeviceId = "330449777078",
+    [string]$DeviceId = "",
     [string]$DistDir = ""
 )
 
@@ -13,6 +13,7 @@ if (-not $DistDir) {
 }
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
 
 $pass = 0
 $fail = 0

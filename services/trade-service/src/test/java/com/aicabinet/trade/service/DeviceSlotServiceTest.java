@@ -161,7 +161,6 @@ class DeviceSlotServiceTest {
         when(deviceRepository.findById(DEVICE_ID)).thenReturn(Optional.of(device));
         when(slotRepository.countByIdDeviceIdAndEnabledTrue(DEVICE_ID)).thenReturn(0L);
         when(slotRepository.existsById(any())).thenReturn(false);
-        when(skuCatalogRepository.findById(anyString())).thenReturn(Optional.empty());
 
         assertDoesNotThrow(() -> deviceSlotService.ensureDefaultSlots(DEVICE_ID));
 

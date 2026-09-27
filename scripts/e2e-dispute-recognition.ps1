@@ -3,7 +3,7 @@
 param(
     [string]$BaseUrl = "",
     [string]$VisionUrl = "",
-    [string]$DeviceId = "330449777078",
+    [string]$DeviceId = "",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
     [string]$VisionApiKey = ""
@@ -14,6 +14,8 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
+$E2eSku = Resolve-E2eTestSku -DeviceId $DeviceId
 if ([string]::IsNullOrWhiteSpace($VisionUrl)) { $VisionUrl = Get-E2eVisionUrl }
 if ([string]::IsNullOrWhiteSpace($VisionApiKey)) { $VisionApiKey = Get-E2eVisionApiKey }
 
@@ -45,7 +47,7 @@ if (-not $toggle.mock_force_need_review) {
 Write-Host "    mock_force_need_review=$($toggle.mock_force_need_review)"
 
 try {
-    & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 8 -NoRecreate
+    & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("${E2eSku}:1") -ShoppingSeconds 8 -NoRecreate
     $auth = Get-E2eAuth
 
     $result = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `

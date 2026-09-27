@@ -12,7 +12,18 @@
 | 4 | Warehouse | Done | **复测 Done** | #198/#200；含补货员效率 |
 | 5 | Finance/Merchant | Done | **复测 Done** | 一致性 **全部通过** |
 | 6 | Growth/Risk | Done | **复测 Done** | 发券/加黑/回复均取消 |
-| 7 | System + DevOps/日志 | Done | **复测 Done** | Grafana 未启诚实空；`sys-*.png` |
+| 7 | System + DevOps/日志 | Done | **复测 Done** + **2026-09-27 单页深测 Done** | Grafana 未启诚实空；十四入口 `*_FULL_BROWSER_UAT`；OBS hint F1 已修 |
+
+## 2026-09-27 系统单页深测收口
+
+| 入口 | 深测册 | SYS-*-02 |
+|------|--------|----------|
+| operators…audit | 各 `*_FULL_BROWSER_UAT.md` | 已登 SYSTEM |
+| `/devops` | `DEVOPS_FULL_BROWSER_UAT.md` | SYS-DEVOPS-02 |
+| `/observability` | `OBSERVABILITY_FULL_BROWSER_UAT.md` | SYS-OBS-02（F1 已修） |
+
+七册 Admin 侧栏深测（冒烟 + 按钮复测 + 系统单页深测）**至此收口**。  
+**2026-09-27 观测栈在线复核**：Grafana/Prometheus + Loki 已起 → iframe 实嵌 PASS（须 Grafana 登录一次）；见 [`system/OBS_STACK_ONLINE.md`](./system/OBS_STACK_ONLINE.md)。残留：小程序回补见 `MINIPROGRAM_BACKLOG.md`。
 
 ## 一致性
 
