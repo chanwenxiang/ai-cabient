@@ -127,6 +127,7 @@ infra/                     Compose、网关、监控
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 完整联调 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 服务边界 / 识别链路 |
 | [FRONTEND_PRODUCT_DECISIONS.md](FRONTEND_PRODUCT_DECISIONS.md) | 三端产品边界 |
+| [THREE_END_FULL_REVIEW_2026-09-27.md](THREE_END_FULL_REVIEW_2026-09-27.md) | 三端全面审查结论（无 P0/11 P1）、mock 开关总表、接真前 checklist | 排修复计划 / 接小程序号·支付·硬件·识别前 |
 | [engineering/lessons-learned.md](engineering/lessons-learned.md) | 踩坑总册 |
 | [engineering/admin-vue-debt-tracker.md](engineering/admin-vue-debt-tracker.md) | 运营后台技术债进度（D1–D25 已清） |
 | [engineering/consumer-mp-debt-tracker.md](engineering/consumer-mp-debt-tracker.md) | 消费端小程序技术债（C1–C12，mp-weixin 权威） |
@@ -245,6 +246,11 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-27 | 三端全面审查（6 路并行只读+主审复核）：产品代码**无 P0**；11 P1（资金 F1 竞态多付/F2 超时免单旁路/F3 提现盲置 FAILED、安全 S1 设备共享 MQTT 凭据/S2 GET token/S3 CSV 注入/S4 full 栈 Grafana、admin A1、consumer C1/C2、跨端 X1 preflight 盲区/X2 staging mock env）；mock 矩阵与 dev-only 面确认收口；文档漂移修正（admin 登录=密码+图形验证码+2FA 非短信码；286 迁移/85 Controller） | `docs/THREE_END_FULL_REVIEW_2026-09-27.md` |
+| 2026-09-27 | 同日第二轮验证清零（原未验证项全部关闭）：preflight 全绿 47s、audit-gates 39/39、admin 84/84+consumer 121/121+merchant 130/130 单测、三端 type-check 绿、**实时 OpenAPI 与 generated 逐字节一致**、production compose `:?` fail-loud 实证；新 P0（full 栈 Grafana admin/admin 实测可登，环境级）、新 P1×3（RECON_SCHEDULED_ENABLED 默认关=对账与退款推进不执行、nginx 三份漂移、9999/13000 绑 0.0.0.0）、新 P2×22（含 shared-rbac/dict dist 陈旧、rbac dist 缺 B-13）；85 Controller RBAC 全表无漏保护写端点；lessons #230/#231 | 报告 §10、`lessons-learned.md` #230-231 |
+| 2026-09-27 | 复查子代理「不可验」清单：4 项实为本机可验并补验——**新 P1：MinIO cabinet-videos 桶匿名可读可列举（含会话视频，媒体白名单被绕过）**、htpasswd 非弱口令、XXL 调度健康（30s 真实触发）、CORS dev 值 localhost；**撤回「xxl_job_log 2612 污染」误报**（DATETIME 口径+UTC 错位，lessons #232）；「开门全链不可验」改为已由模拟器 E2E 覆盖；§10.5 重分类收口 | 报告 §10.3·§10.5、`lessons-learned.md` #232 |
+| 2026-09-27 | 可做未做执行+亲验对账：mvn verify **1344 用例全绿**；admin 侧 6 UAT 实浏览器全过（role-regression 2 数据态软挂）；**补偿链合成任务运行时实证**；并发冒烟 30/0（并发开门锁生效、零重复开门）；第一轮 11 P1 全亲验、第二轮修正确认 2 处（xxl 污染撤回、rbac:assign:device 降级为双轨不一致）；**口径确认：mp-weixin 验收权威，H5 不作 mp 验收** | 报告 §10.1/§10.5、`lessons-learned.md` #230-232 |
+| 2026-09-27 | **修复轮**（§11）：P0 Grafana（强口令+端口回环+网关 Basic，实测 401/200）✅；P1 MinIO 匿名桶收紧（匿名 403）✅；V1 RECON 默认 true+production 钉死；X2 staging 钉四 mock+RECOGNIZER；**F2 免单旁路**（状态机加 SHOPPING→DISPUTED+C09 对齐争议单）；F3 提现 sweep 仅 MOCK+转人工+PAYING 60 分钟语义；X1 preflight 结构档默认强制；S2 删 GET query token（全仓无消费方）；P2：CsvCells 中和、MISMATCH 告警、A1 充值契约、三端门禁扫描根、C1/C2、WalletPage 前置校验、BigScreen 重入、shared dist 重建。**三端 tsc+84/121/130 单测全绿；预检 47✓+1 待提交**。未修：F1/S1/PII 尾巴（§11.3） | 报告 §11、`SessionState/SessionExpireService/WithdrawService/CsvCells` 等 |
 | 2026-09-27 | 收 S3 PARTIAL：公开 `GET /api/v2/public/help` `/policies`；网关 `/consumer/` `/merchant/` 不再 302 后台；G5/G6 对齐债表 | `PublicLegalService`、`nginx-full.conf`、`mp-h5/*/index.html` |
 | 2026-09-27 | S0–S3+整轮回归收口：`08fca633` push；CI `36316095037` 绿；会话提示词标 DONE | `SESSION_PROMPT_S3_CONTINUE.md`、`full-regression/FINDINGS.md` |
 | 2026-09-27 | 整轮回归：KeepPlatform→milk PASS=10/FAIL=1（对账假红）→修 `@()`+run；finance 复验绿；#228 | `full-regression/FINDINGS.md`、`e2e-full-flow-milk.ps1` |
