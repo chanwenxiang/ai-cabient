@@ -75,7 +75,9 @@ class WarehouseStocktakeServiceTest {
         assertEquals(1, dto.lines().size());
         assertEquals(Integer.valueOf(12), dto.lines().get(0).countedQty());
         assertEquals("PENDING", dto.lines().get(0).status());
-        assertTrue(dto.stocktakeNo().startsWith("STK"));
+        // 业务单号纯数字（BizIds.nextNumeric）；禁 STK 前缀
+        assertTrue(dto.stocktakeNo() != null && dto.stocktakeNo().matches("\\d+"),
+                "stocktakeNo should be numeric, was: " + dto.stocktakeNo());
         verify(permissionService).requirePermission(1L, "ops:warehouse:edit");
     }
 

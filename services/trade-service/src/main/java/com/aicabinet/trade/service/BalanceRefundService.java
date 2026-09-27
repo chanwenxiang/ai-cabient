@@ -542,7 +542,8 @@ public class BalanceRefundService {
                 if (channel != null) {
                     int slice = Math.min(remain, refundable);
                     sliceIndex++;
-                    String outRefundNo = BizIds.nextNumeric();
+                    // 渠道幂等号（微信 out_refund_no）：稳定 BR{requestId}-S{n}，非用户可见业务单号
+                    String outRefundNo = "BR" + req.getRequestId() + "-S" + sliceIndex;
                     BalanceRefundAllocation alloc = new BalanceRefundAllocation();
                     alloc.setRequestId(req.getRequestId());
                     alloc.setRechargeOrderId(order.getOrderId());

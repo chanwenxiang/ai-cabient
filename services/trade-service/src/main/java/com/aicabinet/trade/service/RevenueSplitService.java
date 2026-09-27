@@ -248,7 +248,8 @@ public class RevenueSplitService {
         long merchantShare = gross - platform;
         long returnCents = Math.max(0, oldMerchantCents - merchantShare);
         if (returnCents > 0 && merchant != null) {
-            String outReturnNo = BizIds.nextNumeric();
+            // 微信分账回退 out_return_no：协议幂等键，勿改成纯数字业务单号（lesson #223）
+            String outReturnNo = "PSR" + split.getSplitId() + ":g" + merchantShare;
             applyWeChatReturnOutcome(split, outReturnNo, returnCents,
                     profitSharingService.returnMerchantShare(
                             split, merchant, returnCents, outReturnNo, "部分退款分账回退 " + order.getOrderId()),
@@ -314,7 +315,7 @@ public class RevenueSplitService {
         if (merchant == null) {
             return;
         }
-        String outReturnNo = BizIds.nextNumeric();
+        String outReturnNo = "PSR-FULL-" + split.getSplitId();
         applyWeChatReturnOutcome(split, outReturnNo, amount,
                 profitSharingService.returnMerchantShare(
                         split, merchant, amount, outReturnNo, "全额退款分账回退 " + split.getOrderId()),

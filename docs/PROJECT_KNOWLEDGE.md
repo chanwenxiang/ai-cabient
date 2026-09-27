@@ -245,6 +245,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-27 | fix：渠道幂等号勿改纯数字（还原 BR/PSR）；STK 单测改数字断言；lesson #225 | `BalanceRefundService`、`RevenueSplitService`、`WarehouseStocktakeServiceTest` |
 | 2026-09-27 | fix(test)：V287 后 Java E2E/IT 禁写死 CAB-001；`DemoFixture` + Consumer/Merchant/Reconciliation；lesson #224 | `DemoFixture.java`、三测类、`lessons-learned.md` |
 | 2026-09-27 | 业务单号纯数字扫尾：支付退款/调账/仓配/盘点/分账批次/报废等发号 + Admin 漏列 displayBizNo；SKU/批次/协议号不动；#223 | `BizIds`、`PaymentService`、仓配/分账视图 |
 | 2026-09-27 | S3-D1 软写：反馈#13 PENDING + 报修→异常中心待处理；D2/D3 SKIP/PARTIAL；H5 未挂 | `s3-ops/FINDINGS.md` |
