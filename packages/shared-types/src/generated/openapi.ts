@@ -10216,6 +10216,7 @@ export interface components {
             deviceInventoryLines?: number;
             /** Format: int64 */
             warehouseLotCount?: number;
+            warehouseId?: string;
         };
         CreateSessionRequest: {
             deviceId: string;
@@ -11524,7 +11525,7 @@ export interface components {
             blacklist?: boolean;
         };
         UpsertMerchantRequest: {
-            merchantId: string;
+            merchantId?: string;
             merchantName: string;
             contactPhone?: string;
             /** Format: int32 */
