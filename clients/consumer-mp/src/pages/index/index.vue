@@ -597,6 +597,7 @@ import {
   isTerminalSessionState,
   normalizeCabinetId,
   parseDeviceAvailability,
+  pollDurationExceeded,
   pollErrorMessage,
   sessionOpenDecision,
   settleWithin,
@@ -2186,18 +2187,30 @@ async function restoreActiveSession() {
   }
 }
 
+// C2：每个会话只允许一个轮询窗口；到上限停表提示去订单页，同会话不再重燃
+let pollStartedAt = 0;
+let pollCappedSessionId = '';
+
 function startPoll() {
+  if (sessionId.value && pollCappedSessionId === sessionId.value) return;
   stopPoll();
   pollError.value = '';
   pollFailStreak = 0;
+  pollStartedAt = Date.now();
   // 立即拉一次，避免弱网下再等一个 interval 才知道状态
   void tickPoll();
   pollTimer = setInterval(() => void tickPoll(), SESSION_POLL_MS);
 }
 
-/** 单次会话轮询：防并发堆积；连续失败升级弱网文案。 */
+/** 单次会话轮询：防并发堆积；连续失败升级弱网文案；C2 总时长到期停表转订单页。 */
 async function tickPoll() {
   if (!sessionId.value || pollInFlight) return;
+  if (pollStartedAt > 0 && pollDurationExceeded(pollStartedAt)) {
+    pollCappedSessionId = sessionId.value;
+    stopPoll();
+    showError('状态更新较慢，请稍后在「订单」查看', 2800);
+    return;
+  }
   pollInFlight = true;
   try {
     await pollSessionOnce();

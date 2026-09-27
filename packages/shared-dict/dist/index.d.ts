@@ -560,6 +560,7 @@ export declare const DICT: {
     readonly ops_alert_type: {
         readonly DISPUTE: "账单争议";
         readonly DEVICE_OFFLINE: "设备离线";
+        readonly SALES_LOCKED: "柜机停售";
         readonly UPLOAD_STUCK: "录像滞留";
         readonly SESSION_STALE: "会话超时";
         readonly LOW_STOCK: "库存不足";
@@ -567,6 +568,12 @@ export declare const DICT: {
         readonly RECON_MISMATCH: "对账差异";
         readonly RECONCILIATION_MISMATCH: "对账差异";
         readonly SPLIT_EXCEPTION: "分账异常";
+        readonly PROFIT_SHARING_RETURN_FAILED: "分账回退失败";
+        readonly PROFIT_SHARING_MANUAL_SUPPLEMENT: "分账需人工补账";
+        readonly PROFIT_SHARING_RETURN_SUBMIT_FAILED: "分账回退提交失败";
+        readonly XXL_JOB_WIRING_BROKEN: "XXL-JOB 执行器接线异常";
+        readonly SCHEDULED_TASK_STALE: "定时任务停摆";
+        readonly VISION_ANOMALY: "视觉异常告警";
         readonly IN_TRANSIT_OVERDUE: "签收超时";
     };
     readonly ad_asset_type: {
@@ -634,6 +641,26 @@ export declare const DICT: {
         readonly ACTIVE: "有效";
         readonly EXPIRING: "临期";
         readonly EXPIRED: "已到期";
+    };
+    /** 场地租金账单状态（V255 / SiteRentBillService，值同 CabinetConstants.FEE_BILL_STATUS_*） */
+    readonly site_rent_bill_status: {
+        readonly UNPAID: "待付";
+        readonly PAID: "已付";
+        readonly VOID: "已作废";
+    };
+    /** 柜机流量费账单状态（V256 / DeviceDataFeeBillService，值同 FEE_BILL_STATUS_*） */
+    readonly device_data_fee_bill_status: {
+        readonly UNPAID: "待付";
+        readonly PAID: "已付";
+        readonly VOID: "已作废";
+    };
+    /** 场地租金分账角色（SiteRentSplitService.PARTIES） */
+    readonly site_rent_party_type: {
+        readonly LANDLORD: "场地主";
+        readonly PLATFORM: "平台";
+        readonly MERCHANT: "商户";
+        readonly FRANCHISE: "加盟";
+        readonly OTHER: "其他";
     };
     readonly device_env_type: {
         readonly HUMIDITY: "湿度";

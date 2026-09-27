@@ -7,6 +7,7 @@ import {
   createMpApiError,
   formatMpRequestError,
   isMpAuthFailure,
+  isRetriableMpTransportError,
   mpRequest,
   refreshTokenSilently as sharedRefreshToken,
   type MpApiSession
@@ -671,6 +672,11 @@ export const consumerApi = {
         body
       );
     } catch (firstError) {
+      // C1：仅超时/网络层错误才重试；余额不足、柜机忙、频控等确定性业务错误直接抛出，
+      // 避免对 POST /sessions 二次提交（有 idempotencyKey 兜底，但仍会触发频控/风控）
+      if (!isRetriableMpTransportError(firstError)) {
+        throw firstError;
+      }
       await new Promise((resolve) => setTimeout(resolve, 600));
       try {
         return await request<import('@aicabinet/shared-types').SessionDto>(

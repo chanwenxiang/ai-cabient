@@ -488,6 +488,8 @@ export const AdminEndpoints = {
     `${ops}/dicts/${encodeURIComponent(dictType)}/items/${encodeURIComponent(String(dictDataId))}`,
   dictItemById: (dictDataId: string | number) =>
     `${ops}/dicts/items/${encodeURIComponent(String(dictDataId))}`,
+  /** 字典运行时覆盖（登录后拉取；stores/dict-runtime 消费） */
+  dictRuntime: `${API_PREFIX}/dicts/runtime`,
   scheduledTasks: `${ops}/scheduled-tasks`,
   scheduledTask: (taskKey: string) => `${ops}/scheduled-tasks/${encodeURIComponent(taskKey)}`,
   scheduledTaskEnabled: (taskKey: string) =>

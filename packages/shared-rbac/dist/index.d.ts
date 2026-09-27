@@ -16,7 +16,7 @@ export declare const OPS_ADMIN_PERM = "ops:admin";
 /**
  * 若依风格：精确码，或分段通配（a:b:c ← a:b:* / a:*）。
  * @param granted 用户已授权权限码列表
- * @param code 待校验权限码；空/缺省视为通过（前端「无 perm 约束」）
+ * @param code 待校验权限码；空/缺省视为「无约束」通过（菜单项未声明 perm）
  */
 export declare function matchPermission(granted: readonly string[] | null | undefined, code?: string | null): boolean;
 /** 权限码所属域；无法识别则 null */

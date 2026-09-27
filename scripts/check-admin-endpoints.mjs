@@ -8,7 +8,9 @@ import path from 'node:path';
 const endpointsFile = path.resolve('clients/admin-vue/src/api/endpoints.ts');
 const scanRoots = [
   path.resolve('clients/admin-vue/src/views'),
-  path.resolve('clients/admin-vue/src/composables')
+  path.resolve('clients/admin-vue/src/composables'),
+  // P2：stores 曾漏扫（dict-runtime 裸路径漏网即此处盲区）
+  path.resolve('clients/admin-vue/src/stores')
 ];
 
 const text = fs.readFileSync(endpointsFile, 'utf8');

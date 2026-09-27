@@ -791,6 +791,8 @@ function daysAgoStr(days: number) {
 }
 
 async function load() {
+  // P2：30s 轮询无重入保护——后端慢时两轮 Promise.all 交叠、后写覆盖先写
+  if (loading.value) return;
   loading.value = true;
   const today = daysAgoStr(0);
   const { soft, flush } = createSoftFailCollector();

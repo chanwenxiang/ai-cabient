@@ -8,7 +8,10 @@ import path from 'node:path';
 const endpointsFile = path.resolve('clients/merchant-mp/src/api/endpoints.ts');
 const scanRoots = [
   path.resolve('clients/merchant-mp/src/pages'),
-  path.resolve('clients/merchant-mp/src/composables')
+  path.resolve('clients/merchant-mp/src/composables'),
+  // P2：utils 曾漏扫（dict-runtime 裸路径漏网即此处盲区）
+  path.resolve('clients/merchant-mp/src/utils'),
+  path.resolve('clients/merchant-mp/src/components')
 ];
 
 const text = fs.readFileSync(endpointsFile, 'utf8');

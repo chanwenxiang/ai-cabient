@@ -5,6 +5,7 @@ import {
   buildOverridesFromRuntime
 } from '@aicabinet/shared-dict-core';
 import { api, isLoggedIn } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 
 /**
  * 每次 runtime 拉取/清空后递增，供下拉 computed / 响应式 dictOptions 依赖。
@@ -29,7 +30,7 @@ export async function loadRuntimeDict() {
     return;
   }
   try {
-    const data = await api.request('/api/v2/dicts/runtime', 'GET');
+    const data = await api.request(AdminEndpoints.dictRuntime, 'GET');
     setDictOverrides(
       buildOverridesFromRuntime(data as Parameters<typeof buildOverridesFromRuntime>[0]),
       {

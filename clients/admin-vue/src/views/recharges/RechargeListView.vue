@@ -156,6 +156,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
+import { REFUNDABLE_RECHARGE_STATUSES, canRefundRechargeStatus } from '@/utils/money-ui-contracts';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
@@ -201,9 +202,11 @@ function money(cents: unknown) {
   return ((Number(cents) || 0) / 100).toFixed(2);
 }
 
+/** A1：可退款判定收口到 money-ui-contracts（充值域独立状态集） */
 function isRefundable(row: Record<string, unknown>) {
-  const s = String(row.status || '').toUpperCase();
-  return s === 'PAID' || s === 'SUCCESS';
+  return canRefundRechargeStatus(
+    String(row.status || '').toUpperCase() as (typeof REFUNDABLE_RECHARGE_STATUSES)[number]
+  );
 }
 
 /** 当前页无可退款行时整列隐藏（保持原行为：操作列按需出现） */

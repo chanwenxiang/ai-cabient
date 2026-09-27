@@ -21,6 +21,16 @@ export function canRefundOrderStatus(status?: string | null): boolean {
   );
 }
 
+/**
+ * 充值单可退款状态（充值域独立状态集，与订单域不同）——
+ * RechargeListView 必须复用本判定，禁止再手写（A1 复审发现）。
+ */
+export const REFUNDABLE_RECHARGE_STATUSES = ['PAID', 'SUCCESS'] as const;
+
+export function canRefundRechargeStatus(status?: string | null): boolean {
+  return status === 'PAID' || status === 'SUCCESS';
+}
+
 export function buildOrderRefundBody(input: { reason: string; restoreInventory: boolean }): {
   reason: string;
   restoreInventory: boolean;

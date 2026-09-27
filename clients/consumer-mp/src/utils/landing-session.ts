@@ -40,6 +40,12 @@ export const OPEN_TIMEOUT_MS = 20_000;
 export const POLL_FAIL_WARN_AT = 3;
 /** 会话状态轮询间隔（ms）。 */
 export const SESSION_POLL_MS = 2000;
+/** C2：首页会话轮询总时长上限——柜机长期停在非终态时停表转「稍后在订单查看」，防永续轮询。 */
+export const SESSION_POLL_MAX_DURATION_MS = 10 * 60 * 1000;
+
+export function pollDurationExceeded(startedAt: number, now: number = Date.now()): boolean {
+  return now - startedAt >= SESSION_POLL_MAX_DURATION_MS;
+}
 
 export function normalizeCabinetId(id: string): string {
   return id.trim().toUpperCase();

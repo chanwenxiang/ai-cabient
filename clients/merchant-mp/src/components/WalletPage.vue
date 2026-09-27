@@ -151,7 +151,7 @@ import {
   yuanToCents
 } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
-import { merchantApi, isMerchantLoggedIn, handleUnauthorized } from '@/utils/merchant-api';
+import { merchantApi, isMerchantLoggedIn, handleUnauthorized, hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type {
   OpenApiLineWalletOverviewDto,
@@ -303,11 +303,27 @@ async function load() {
 }
 
 async function submitWithdraw() {
+  // P2：权限前置裁剪——无权用户提交前提示，而非点击后才吃后端 403
+  const requiredPerm =
+    props.role === 'merchant' ? 'merchant:wallet:apply' : 'merchant:line-wallet:withdraw';
+  if (!hasPerm(me.value, requiredPerm)) {
+    showError('当前账号没有提现权限，请联系管理员');
+    return;
+  }
   const amountCents = yuanToCents(amountYuan.value);
   const available = Number(overview.value?.availableCents ?? 0);
-  const amountErr = validateWalletWithdrawAmount({ amountCents, availableCents: available });
+  const amountErr = validateWalletWithdrawAmount({
+    amountCents,
+    availableCents: available,
+    // 与后端 withdraw.min-amount-cents 默认（¥1）对齐的客户端预检
+    minAmountCents: 100
+  });
   if (amountErr === 'INVALID_AMOUNT') {
     showError('请输入金额');
+    return;
+  }
+  if (amountErr === 'BELOW_MIN_AMOUNT') {
+    showError('最低提现 ¥1.00');
     return;
   }
   if (amountErr === 'EXCEEDS_AVAILABLE') {

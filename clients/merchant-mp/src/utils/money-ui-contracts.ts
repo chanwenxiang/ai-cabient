@@ -6,14 +6,19 @@
 export type WalletWithdrawRole = 'merchant' | 'line';
 
 export type WalletWithdrawValidationError =
-  'INVALID_AMOUNT' | 'EXCEEDS_AVAILABLE' | 'MERCHANT_REQUIRED';
+  'INVALID_AMOUNT' | 'BELOW_MIN_AMOUNT' | 'EXCEEDS_AVAILABLE' | 'MERCHANT_REQUIRED';
 
 export function validateWalletWithdrawAmount(input: {
   amountCents: number | null | undefined;
   availableCents: number;
+  /** 与后端 withdraw.min-amount-cents（默认 ¥1）对齐的客户端预检（P2）。 */
+  minAmountCents?: number;
 }): WalletWithdrawValidationError | null {
   if (input.amountCents == null || !Number.isFinite(input.amountCents) || input.amountCents <= 0) {
     return 'INVALID_AMOUNT';
+  }
+  if (input.minAmountCents != null && input.amountCents < input.minAmountCents) {
+    return 'BELOW_MIN_AMOUNT';
   }
   if (input.amountCents > input.availableCents) {
     return 'EXCEEDS_AVAILABLE';

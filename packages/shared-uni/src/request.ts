@@ -196,7 +196,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isRetriableMpTransportError(err: unknown): boolean {
+export function isRetriableMpTransportError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   // 鉴权失败不重试；仅超时/网络层
   if (isMpAuthFailure(err)) return false;
