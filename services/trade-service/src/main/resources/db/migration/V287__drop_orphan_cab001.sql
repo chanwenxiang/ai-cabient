@@ -1,4 +1,5 @@
 -- V287: remove orphan demo cabinet CAB-001 (never use as shopping/demo path).
+-- MIGRATION_KIND: backfill
 -- Keeps real demo device 330449777078. Safe if CAB-001 already absent.
 
 -- RESTRICT / NO ACTION children (must delete before device_info)
