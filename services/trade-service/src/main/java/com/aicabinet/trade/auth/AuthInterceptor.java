@@ -33,14 +33,9 @@ public class AuthInterceptor implements HandlerInterceptor {
             if (cookieToken != null) {
                 auth = BEARER + cookieToken;
                 viaCookie = true;
-            } else if ("GET".equalsIgnoreCase(request.getMethod())) {
-                // 仅 GET 允许 query access_token（小程序下载争议证据等 <a>/<img> 场景），
-                // 避免写操作/敏感请求把 token 泄漏到访问日志或浏览器历史。
-                String queryToken = request.getParameter("access_token");
-                if (queryToken != null && !queryToken.isBlank()) {
-                    auth = BEARER + queryToken.trim();
-                }
             }
+            // S2：已移除 GET ?access_token= 后备——token 会进访问日志/浏览器历史；
+            // 前端下载一律走 Bearer 下载（uni.downloadFile/downloadAuthFile）或 presigned URL。
         }
         if (auth == null || !auth.startsWith(BEARER)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.MISSING_TOKEN);

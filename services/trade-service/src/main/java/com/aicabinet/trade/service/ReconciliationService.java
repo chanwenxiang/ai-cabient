@@ -37,13 +37,16 @@ public class ReconciliationService {
     private final PaymentReconciliationMapper reconRepository;
     private final ReconciliationServiceSupport support;
     private final ReconciliationService self;
+    private final OpsAlertDispatcher alertDispatcher;
 
     public ReconciliationService(PaymentReconciliationMapper reconRepository,
                                  ReconciliationServiceSupport support,
-                                 @Lazy ReconciliationService self) {
+                                 @Lazy ReconciliationService self,
+                                 OpsAlertDispatcher alertDispatcher) {
         this.reconRepository = reconRepository;
         this.support = support;
         this.self = self;
+        this.alertDispatcher = alertDispatcher;
     }
 
     @Transactional(readOnly = true)
@@ -188,6 +191,20 @@ public class ReconciliationService {
                 ? "MATCHED" : "MISMATCH");
         if ("MISMATCH".equals(recon.getStatus())) {
             support.cabinetMetrics().recordReconciliationMismatch();
+            // V1：仅打指标运营无感知——补发运营告警（dispatcher 投递失败内部自吞，不影响主流程）
+            if (alertDispatcher != null) {
+                try {
+                    alertDispatcher.send("RECON_MISMATCH", "对账差异待人工处置",
+                            "date=" + date + " channel=" + channel
+                                    + " platformTotal=" + platformTotal
+                                    + " ledgerTotal=" + ledgerTotal
+                                    + " diffCents=" + recon.getDiffCents()
+                                    + " unmatched=" + unmatched
+                                    + "，请到运营后台对账页查看明细");
+                } catch (Exception alertEx) {
+                    log.warn("recon mismatch alert failed", alertEx);
+                }
+            }
         }
         recon.setCompletedAt(Instant.now());
         try {

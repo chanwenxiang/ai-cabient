@@ -388,13 +388,7 @@ public class MerchantDevicePortalService {
     }
 
     private static String csv(String value) {
-        if (value == null) return "";
-        if (value.matches("^[=+\\-@].*")) {
-            value = "'" + value;
-        }
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
+        // S3：统一走 CsvCells（原实现已有公式中和，补齐 \t\r 前缀覆盖）
+        return com.aicabinet.trade.support.CsvCells.escape(value);
     }
 }

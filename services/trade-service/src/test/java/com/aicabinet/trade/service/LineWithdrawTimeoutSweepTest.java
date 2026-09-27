@@ -62,6 +62,7 @@ class LineWithdrawTimeoutSweepTest {
         stale.setManagerId(8L);
         stale.setAmountCents(10_000L);
         stale.setStatus("PAYING");
+        stale.setPayChannel("MOCK");
         when(withdrawMapper.findByStatusAndUpdatedAtBefore(eq("PAYING"), any())).thenReturn(List.of(stale));
         when(withdrawMapper.findById(55L)).thenReturn(Optional.of(stale));
 
@@ -69,6 +70,26 @@ class LineWithdrawTimeoutSweepTest {
 
         assertEquals("FAILED", stale.getStatus());
         verify(lineWalletService).releaseFrozen(eq(8L), eq(10_000L), eq("WITHDRAW"), eq("55"), anyString());
+    }
+
+    /** F3：真实渠道 PAYING 超时禁止自动置失败（防「已出款+已解冻」双重支出），转人工核对。 */
+    @Test
+    void failStalePayingWithdraws_realChannel_skipsAutoFail() {
+        LineWithdrawRequest stale = new LineWithdrawRequest();
+        stale.setRequestId(57L);
+        stale.setManagerId(8L);
+        stale.setAmountCents(10_000L);
+        stale.setStatus("PAYING");
+        stale.setPayChannel("WECHAT");
+        when(withdrawMapper.findByStatusAndUpdatedAtBefore(eq("PAYING"), any())).thenReturn(List.of(stale));
+        when(withdrawMapper.findById(57L)).thenReturn(Optional.of(stale));
+
+        assertEquals(0, service.failStalePayingWithdraws());
+
+        assertEquals("PAYING", stale.getStatus());
+        verify(lineWalletService, never()).releaseFrozen(anyLong(), anyLong(), anyString(), anyString(), anyString());
+        verify(auditService).appendLog(eq(0L), eq("LINE_WITHDRAW_PAYOUT_STALE_MANUAL"),
+                eq("LINE_WITHDRAW"), eq("57"), anyString());
     }
 
     @Test

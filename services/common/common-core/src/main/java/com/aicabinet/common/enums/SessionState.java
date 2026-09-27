@@ -29,6 +29,7 @@ public enum SessionState {
             case SHOPPING -> target == RECOGNIZING
                     || target == WAITING_UPLOAD
                     || target == COMPLETED
+                    || target == DISPUTED
                     || target == FAILED
                     || target == CANCELLED;
             case WAITING_UPLOAD -> target == RECOGNIZING

@@ -473,18 +473,19 @@ public class MerchantWithdrawService {
         }
     }
 
-    /** 打款卡 PAYING 的超时阈值：超过即由对账调度兜底置 FAILED 并解冻（H38）。 */
+    /** 打款卡 PAYING 的超时阈值：超过即由对账调度兜底处置（H38；真实渠道转人工，MOCK 自动失败）。 */
     static final long PAYING_TIMEOUT_MINUTES = 60;
 
     /**
-     * PAYING 超过 {@link #PAYING_TIMEOUT_MINUTES} 分钟的提现单视为打款失败：
-     * 置 FAILED 并按 cancelFailed 同口径解冻；之后可走 payout() 重试（重试会重新冻结）。
+     * PAYING 超过 {@link #PAYING_TIMEOUT_MINUTES} 分钟的提现单兜底处置：
+     * MOCK 渠道置 FAILED 并按 cancelFailed 同口径解冻（之后可走 payout() 重试，重试会重新冻结）；
+     * 真实渠道不自动置失败（F3：回执丢失时自动失败会造成「已出款+已解冻」双重支出），转人工核对渠道单。
      *
      * @return 本次处理单数
      */
     @Transactional
     public int failStalePayingWithdraws() {
-        Instant cutoff = Instant.now().minus(PAYING_TIMEOUT_MINUTES, java.time.temporal.ChronoUnit.HOURS);
+        Instant cutoff = Instant.now().minus(PAYING_TIMEOUT_MINUTES, java.time.temporal.ChronoUnit.MINUTES);
         List<MerchantWithdrawRequest> stale =
                 withdrawMapper.findByStatusAndUpdatedAtBefore("PAYING", cutoff);
         int failed = 0;
@@ -505,6 +506,16 @@ public class MerchantWithdrawService {
         return runWithMerchantWalletLock(requireRequest(requestId).getMerchantId(), () -> {
             MerchantWithdrawRequest request = requireRequest(requestId);
             if (!"PAYING".equals(request.getStatus())) {
+                return false;
+            }
+            // F3：真实渠道回执丢失时自动置 FAILED = 解冻+已到账双重支出，禁止；转人工核对渠道单
+            if (!"MOCK".equals(request.getPayChannel())) {
+                log.warn("stale PAYING merchant withdraw on real channel left for manual reconciliation requestId={} channel={}",
+                        requestId, request.getPayChannel());
+                auditService.appendLog(0L, "MERCHANT_WITHDRAW_PAYOUT_STALE_MANUAL", BIZ_MERCHANT_WITHDRAW,
+                        String.valueOf(requestId),
+                        "PAYING 超时但渠道=" + request.getPayChannel()
+                                + "，禁止自动置失败，请人工核对渠道打款结果后处置；金额(分)=" + request.getAmountCents());
                 return false;
             }
             request.setStatus("FAILED");

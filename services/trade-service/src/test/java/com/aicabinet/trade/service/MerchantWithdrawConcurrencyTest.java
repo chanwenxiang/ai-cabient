@@ -187,7 +187,7 @@ class MerchantWithdrawConcurrencyTest {
         verify(merchantWalletService).consumeFrozen(eq("M-1"), eq(10_000L), eq("WITHDRAW"), eq("88"), anyString());
     }
 
-    /** H38：PAYING 超过 1 小时的提现单被兜底置 FAILED 并解冻。 */
+    /** H38：PAYING 超过阈值的 MOCK 提现单被兜底置 FAILED 并解冻。 */
     @Test
     void failStalePayingWithdraws_marksFailedAndReleases() {
         MerchantWithdrawRequest stale = new MerchantWithdrawRequest();
@@ -196,6 +196,7 @@ class MerchantWithdrawConcurrencyTest {
         stale.setMerchantId("M-1");
         stale.setAmountCents(10_000L);
         stale.setStatus("PAYING");
+        stale.setPayChannel("MOCK");
 
         when(withdrawMapper.findByStatusAndUpdatedAtBefore(eq("PAYING"), any())).thenReturn(List.of(stale));
         when(withdrawMapper.findById(66L)).thenReturn(Optional.of(stale));
@@ -207,6 +208,31 @@ class MerchantWithdrawConcurrencyTest {
 
         assertEquals("FAILED", stale.getStatus());
         verify(merchantWalletService).releaseFrozen(eq("M-1"), eq(10_000L), eq("WITHDRAW"), eq("66"), anyString());
+    }
+
+    /** F3：真实渠道 PAYING 超时禁止自动置失败（防「已出款+已解冻」双重支出），转人工核对。 */
+    @Test
+    void failStalePayingWithdraws_realChannel_skipsAutoFail() {
+        MerchantWithdrawRequest stale = new MerchantWithdrawRequest();
+        stale.setRequestId(67L);
+        stale.setRequestNo("REQ-STALE-REAL");
+        stale.setMerchantId("M-1");
+        stale.setAmountCents(10_000L);
+        stale.setStatus("PAYING");
+        stale.setPayChannel("WECHAT");
+
+        when(withdrawMapper.findByStatusAndUpdatedAtBefore(eq("PAYING"), any())).thenReturn(List.of(stale));
+        when(withdrawMapper.findById(67L)).thenReturn(Optional.of(stale));
+        when(distributedLockService.tryLock(
+                MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
+                .thenReturn(true);
+
+        assertEquals(0, service.failStalePayingWithdraws());
+
+        assertEquals("PAYING", stale.getStatus());
+        verify(merchantWalletService, never()).releaseFrozen(anyString(), anyLong(), anyString(), anyString(), anyString());
+        verify(auditService).appendLog(eq(0L), eq("MERCHANT_WITHDRAW_PAYOUT_STALE_MANUAL"),
+                eq("MERCHANT_WITHDRAW"), eq("67"), anyString());
     }
 
     /** H53：绑定多个商户且未指定 merchantId 时拒绝申请，显式指定合法商户可提现。 */

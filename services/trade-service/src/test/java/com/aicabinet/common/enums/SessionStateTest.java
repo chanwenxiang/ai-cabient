@@ -26,6 +26,8 @@ class SessionStateTest {
         assertTrue(SessionState.DISPUTED.canTransitionTo(SessionState.RECOGNIZING));
         assertTrue(SessionState.COMPLETED.canTransitionTo(SessionState.DISPUTED));
         assertTrue(SessionState.FAILED.canTransitionTo(SessionState.COMPLETED));
+        // F2：开门超时免单旁路修复——购物中可直接转人工争议
+        assertTrue(SessionState.SHOPPING.canTransitionTo(SessionState.DISPUTED));
     }
 
     @Test

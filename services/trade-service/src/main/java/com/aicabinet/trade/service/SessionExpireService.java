@@ -379,7 +379,9 @@ public class SessionExpireService {
     }
 
     /**
-     * 消费者购物开门超时：加会话锁 + 行锁后取消，释放预授权与设备占用。
+     * 消费者购物开门超时：加会话锁 + 行锁后转人工审核（F2 免单旁路修复）。
+     * 对齐识别超时路径（C09）：释放预授权冻结 → 转 DISPUTED → 开超时争议单——
+     * 避免取货后拖住门不开即免单；货品核验后由人工裁定补扣或放行。
      */
     private boolean expireOneStaleConsumerShoppingSession(String sessionId, Instant cutoff) {
         if (!distributedLockService.tryLock(SessionService.sessionLifeLockKey(sessionId), 30, 0)) {
@@ -400,23 +402,47 @@ public class SessionExpireService {
             if (locked.getOpenTime() != null && locked.getOpenTime().isAfter(cutoff)) {
                 return false;
             }
-            consumerPreauthService.releaseIfFrozen(locked);
-            locked.setFailReason("开门超时自动关闭（超过" + sessionExpireProperties.consumerDoorOpenMinutes() + "分钟未关门）");
+            // C09 同款：升级前释放预授权冻结；失败只记 error，不阻断状态迁移
+            try {
+                consumerPreauthService.releaseIfFrozen(locked);
+            } catch (Exception e) {
+                log.error("开门超时释放预授权失败 sessionId={}", locked.getSessionId(), e);
+            }
+            locked.setFailReason("开门超时自动关闭（超过" + sessionExpireProperties.consumerDoorOpenMinutes() + "分钟未关门），已转人工审核");
             if (locked.getCloseTime() == null) {
                 locked.setCloseTime(Instant.now());
             }
-            sessionService.transition(locked, SessionState.CANCELLED);
+            boolean disputed = false;
+            if (locked.getState().canTransitionTo(SessionState.DISPUTED)) {
+                try {
+                    sessionService.transition(locked, SessionState.DISPUTED);
+                    disputed = true;
+                } catch (Exception transitionEx) {
+                    log.error("开门超时转 DISPUTED 失败，回退 CANCELLED sessionId={}", locked.getSessionId(), transitionEx);
+                }
+            }
+            if (disputed) {
+                try {
+                    disputeService.createTimeoutTicket(locked,
+                            "开门超时（超过" + sessionExpireProperties.consumerDoorOpenMinutes() + "分钟未关门），货品核验后人工结算");
+                } catch (Exception ticketEx) {
+                    log.warn("开门超时争议单创建失败 {}", SessionLogContext.of(locked), ticketEx);
+                }
+            } else {
+                sessionService.transition(locked, SessionState.CANCELLED);
+            }
             opsExceptionService.report(
                     "DOOR_OPEN_TOO_LONG",
                     "CRITICAL",
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
                     "柜门长时间未关闭",
-                    "柜门开启超过 " + sessionExpireProperties.consumerDoorOpenMinutes() + " 分钟，已自动关闭会话并释放设备");
+                    "柜门开启超过 " + sessionExpireProperties.consumerDoorOpenMinutes()
+                            + " 分钟，已自动关闭会话并转人工审核");
             opsExceptionService.resolveSystem(
                     "DOOR_OPEN_TOO_LONG",
                     locked.getSessionId(),
-                    "开门超时已自动关闭会话并释放设备");
+                    "开门超时已自动关闭会话并转人工审核");
             log.warn("consumer shopping session expired {}", SessionLogContext.of(locked));
             return true;
         } finally {

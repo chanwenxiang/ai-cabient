@@ -411,13 +411,8 @@ public class MerchantService {
     }
 
     private static String csv(String value) {
-        if (value == null || "null".equals(value)) {
-            return "";
-        }
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
+        // S3：统一走 CsvCells——补公式注入中和（=+-@ 前缀在 Excel 中可执行）
+        return com.aicabinet.trade.support.CsvCells.escape(value);
     }
 
     static String merchantLockKey(String merchantId) {

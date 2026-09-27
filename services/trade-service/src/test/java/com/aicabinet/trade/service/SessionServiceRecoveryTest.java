@@ -133,7 +133,7 @@ class SessionServiceRecoveryTest {
     }
 
     @Test
-    void expireStaleConsumerShopping_cancelsAndResolvesDoorOpenAlert() {
+    void expireStaleConsumerShopping_disputesAndResolvesDoorOpenAlert() {
         ShoppingSession stale = session("S-OPEN", 7L, "CAB-001", SessionState.SHOPPING);
         stale.setOpenTime(java.time.Instant.now().minus(java.time.Duration.ofMinutes(11)));
         when(taskService.tryBegin("session-door-open-expire", 600)).thenReturn(true);
@@ -146,9 +146,12 @@ class SessionServiceRecoveryTest {
 
         expireService.expireStaleConsumerShoppingSessions();
 
-        assertEquals(SessionState.CANCELLED, stale.getState());
-        assertEquals("开门超时自动关闭（超过10分钟未关门）", stale.getFailReason());
+        // F2 免单旁路修复：开门超时转 DISPUTED 并开超时争议单（对齐识别超时路径），不再直接 CANCELLED
+        assertEquals(SessionState.DISPUTED, stale.getState());
+        assertEquals("开门超时自动关闭（超过10分钟未关门），已转人工审核", stale.getFailReason());
         verify(consumerPreauthService).releaseIfFrozen(stale);
+        verify(disputeService).createTimeoutTicket(org.mockito.ArgumentMatchers.eq(stale),
+                org.mockito.ArgumentMatchers.contains("开门超时"));
         verify(repository).save(stale);
         verify(opsExceptionService).report(
                 org.mockito.ArgumentMatchers.eq("DOOR_OPEN_TOO_LONG"),
@@ -157,7 +160,7 @@ class SessionServiceRecoveryTest {
                 org.mockito.ArgumentMatchers.eq("柜门长时间未关闭"),
                 org.mockito.ArgumentMatchers.contains("已自动关闭会话"));
         verify(opsExceptionService).resolveSystem("DOOR_OPEN_TOO_LONG", "S-OPEN",
-                "开门超时已自动关闭会话并释放设备");
+                "开门超时已自动关闭会话并转人工审核");
         verify(taskService).finish(
                 org.mockito.ArgumentMatchers.eq("session-door-open-expire"),
                 org.mockito.ArgumentMatchers.eq("SUCCESS"),
