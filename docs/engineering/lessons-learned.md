@@ -250,3 +250,5 @@
 ```md
 | N | 领域 | 一句话现象 | 一句话根因（有证据） | 禁止/必须… | 脚本或路径 |
 ```
+
+| 234 | WipePlatform 重建后台子后，运营订单「货道」列全是「暂无」 | 两层原因叠加：①demo/ensure 只造 `device_sku_inventory`（按 SKU），不绑 `device_slot`（按货道），模板本身空陈列（#214）；②补绑时 1 个 SKU 绑了 A/B 两排，而结算回填 slot 的前提是「SKU **唯一**绑定某货道」（`inferSlotBySku` 对多货道 SKU 置 null） | **必须** demo/ensure 重建库存后把有货 SKU **1 SKU=1 货道**依序绑空货道；绑完自查「每 SKU 仅一个货道」；订单货道判据走 `cabinet_order_line.slot_id` 非空 | `DemoDataService.bindInventorySkuToSlots`、`SettlementOrderSupport.inferSlotBySku` |
