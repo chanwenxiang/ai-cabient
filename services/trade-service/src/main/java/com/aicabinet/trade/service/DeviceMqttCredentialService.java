@@ -57,22 +57,24 @@ public class DeviceMqttCredentialService {
         String hash = sha256Hex(secret);
         Instant now = Instant.now();
 
-        DeviceMqttCredential cred = repository.findById(id).orElseGet(() -> {
-            DeviceMqttCredential c = new DeviceMqttCredential();
-            c.setDeviceId(id);
-            c.setIssuedAt(now);
-            return c;
-        });
-        boolean rotation = cred.getMqttSecret() != null;
-        cred.setMqttUsername(id);
-        cred.setMqttSecret(secret);
-        cred.setSecretSha256(hash);
-        cred.setStatus(STATUS_ACTIVE);
-        cred.setIssuedBy(operatorId);
-        cred.setRevokedAt(null);
-        cred.setRevokeReason(null);
-        cred.setRotatedAt(rotation ? now : null);
-        repository.save(cred);
+        DeviceMqttCredential existing = repository.findById(id).orElse(null);
+        boolean rotation = existing != null && existing.getMqttSecret() != null;
+
+        if (rotation) {
+            // 轮换须显式清撤销标记：updateById 忽略 null 字段（check-mybatis-null-clear 门禁），
+            // set(null)+save 清不掉 revoked_at/revoke_reason。
+            repository.clearRevocationAndRotate(id, id, secret, hash, operatorId, now);
+        } else {
+            DeviceMqttCredential cred = new DeviceMqttCredential();
+            cred.setDeviceId(id);
+            cred.setMqttUsername(id);
+            cred.setMqttSecret(secret);
+            cred.setSecretSha256(hash);
+            cred.setStatus(STATUS_ACTIVE);
+            cred.setIssuedBy(operatorId);
+            cred.setIssuedAt(now);
+            repository.save(cred);
+        }
         log.info("device mqtt credential issued deviceId={} rotated={} by={}", id, rotation, operatorId);
         return new IssuedCredential(id, id, secret, hash, now);
     }
