@@ -274,11 +274,16 @@ export async function bootstrapConsumerSession() {
   }
 }
 
-export function consumerPasswordLogin(phone: string, password: string) {
+export function consumerPasswordLogin(
+  phone: string,
+  password: string,
+  // P2：连续失败后后端要求图形验证码
+  captcha?: { captchaId: string; captchaCode: string }
+) {
   return request<LoginResponse>(
     AuthEndpoints.passwordLogin,
     'POST',
-    passwordLoginBody(phone, password),
+    passwordLoginBody(phone, password, captcha),
     false
   ).then((data) => {
     applyTokenSession(data);

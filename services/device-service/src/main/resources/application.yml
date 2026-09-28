@@ -10,6 +10,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # L2-4：Redis 密码（dev 默认 devredis；生产 compose 强制强口令）
+      password: ${REDIS_PASSWORD:}
 
 aicabinet:
   internal-api:

@@ -261,11 +261,26 @@ export function request<T>(
   );
 }
 
-export function merchantLogin(phone: string, password: string) {
+/** L2-2：图形验证码（连续登录失败后后端强制校验）。 */
+export function fetchCaptcha() {
+  return request<{ captchaId: string; imageBase64: string }>(
+    AuthEndpoints.captcha,
+    'GET',
+    null,
+    false
+  );
+}
+
+export function merchantLogin(
+  phone: string,
+  password: string,
+  // L2-2：连续失败后后端要求图形验证码
+  captcha?: { captchaId: string; captchaCode: string }
+) {
   return request<LoginResponse>(
     AuthEndpoints.merchantPasswordLogin,
     'POST',
-    { phoneNumber: phone, password },
+    { phoneNumber: phone, password, ...(captcha ?? {}) },
     false
   ).then(async (data) => {
     applyLoginSession(data);

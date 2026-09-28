@@ -66,8 +66,12 @@ export function planTokenSessionApply(
   };
 }
 
-export function passwordLoginBody(phone: string, password: string) {
-  return { phoneNumber: phone, password };
+export function passwordLoginBody(
+  phone: string,
+  password: string,
+  captcha?: { captchaId: string; captchaCode: string }
+) {
+  return { phoneNumber: phone, password, ...(captcha ?? {}) };
 }
 
 export function smsLoginBody(phone: string, code: string) {

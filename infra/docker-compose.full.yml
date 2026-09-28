@@ -120,6 +120,8 @@ services:
       REDIS_PORT: "6379"
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
+      # L2-4：Redis 密码（与 base redis --requirepass 对齐）
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
       KAFKA_BOOTSTRAP: redpanda:9092
       AICABINET_DEVICE_SERVICE_URL: http://device-service:8081
       AICABINET_VISION_SERVICE_URL: http://vision-service:8082
@@ -253,6 +255,7 @@ services:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
     ports: ["127.0.0.1:18081:8081"]
     depends_on:
       emqx: { condition: service_started }

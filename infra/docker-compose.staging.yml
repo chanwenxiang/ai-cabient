@@ -34,6 +34,8 @@ services:
       PROFIT_SHARING_MOCK_ENABLED: ${PROFIT_SHARING_MOCK_ENABLED:-false}
       LINE_WITHDRAW_MOCK_ENABLED: ${LINE_WITHDRAW_MOCK_ENABLED:-false}
       MERCHANT_WITHDRAW_MOCK_ENABLED: ${MERCHANT_WITHDRAW_MOCK_ENABLED:-false}
+      # L2-4：staging 也必须显式配置 Redis 密码（fail-loud）
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.staging}
     depends_on:
       sms-webhook-mock:
         condition: service_healthy

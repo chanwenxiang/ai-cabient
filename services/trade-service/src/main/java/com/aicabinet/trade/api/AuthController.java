@@ -11,6 +11,7 @@ import com.aicabinet.common.dto.RecoveryTwoFactorRequest;
 import com.aicabinet.common.dto.VerifyTwoFactorRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
+import com.aicabinet.trade.auth.LoginThrottleService;
 import com.aicabinet.trade.auth.SessionCookieService;
 import com.aicabinet.trade.service.AuthService;
 import com.aicabinet.trade.service.CaptchaService;
@@ -33,17 +34,29 @@ public class AuthController {
     private final CaptchaService captchaService;
     private final SessionCookieService sessionCookieService;
     private final OpsTwoFactorService opsTwoFactorService;
+    private final LoginThrottleService loginThrottleService;
+
+    /** L2-2：密码登录连续失败达到该次数后，必须携带图形验证码（拦撞库；正常用户无感）。 */
+    private static final int CAPTCHA_AFTER_FAILURES = 2;
 
     public AuthController(AuthService authService,
                           JwtService jwtService,
                           CaptchaService captchaService,
                           SessionCookieService sessionCookieService,
-                          OpsTwoFactorService opsTwoFactorService) {
+                          OpsTwoFactorService opsTwoFactorService,
+                          LoginThrottleService loginThrottleService) {
         this.authService = authService;
         this.jwtService = jwtService;
         this.captchaService = captchaService;
         this.sessionCookieService = sessionCookieService;
         this.opsTwoFactorService = opsTwoFactorService;
+        this.loginThrottleService = loginThrottleService;
+    }
+
+    private void verifyCaptchaIfThrottled(PasswordLoginRequest request) {
+        if (loginThrottleService.failureCount(request.phoneNumber()) >= CAPTCHA_AFTER_FAILURES) {
+            captchaService.verifyOrThrow(request.captchaId(), request.captchaCode());
+        }
     }
 
     @GetMapping("/captcha")
@@ -78,6 +91,7 @@ public class AuthController {
     @PostMapping("/password-login")
     public ApiResponse<LoginResponse> passwordLogin(@Valid @RequestBody PasswordLoginRequest request,
                                                     HttpServletResponse response) {
+        verifyCaptchaIfThrottled(request);
         return ApiResponse.ok(withSessionCookie(response, authService.loginByPassword(request),
                 SessionCookieService.Realm.CONSUMER));
     }
@@ -116,10 +130,11 @@ public class AuthController {
         return ApiResponse.ok(null);
     }
 
-    /** 商户端密码登录：同运营鉴权边界，但不要求图形验证码。 */
+    /** 商户端密码登录：同运营鉴权边界；连续失败后升级图形验证码（L2-2）。 */
     @PostMapping("/merchant-password-login")
     public ApiResponse<LoginResponse> merchantPasswordLogin(@Valid @RequestBody PasswordLoginRequest request,
                                                             HttpServletResponse response) {
+        verifyCaptchaIfThrottled(request);
         return ApiResponse.ok(withSessionCookie(response, authService.adminLoginByPassword(request),
                 SessionCookieService.Realm.ADMIN));
     }

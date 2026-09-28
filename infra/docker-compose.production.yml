@@ -17,6 +17,8 @@ services:
       AUTH_COOKIE_SECURE: "true"
       # V1：生产每日对账与退款 PROCESSING 推进必须启用（此前默认 false=永不执行）
       RECON_SCHEDULED_ENABLED: "true"
+      # L2-4：生产 Redis 强口令必填
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.production}
       # X2：环境层钉死支付/分账/提现 mock（validator 另有强校验，双保险）
       PAYSCORE_MOCK_ENABLED: "false"
       PROFIT_SHARING_MOCK_ENABLED: "false"
@@ -49,6 +51,8 @@ services:
       # M20：device 与 trade 同样强制显式内部 API CIDR
       INTERNAL_API_ALLOWED_CIDRS: ${INTERNAL_API_ALLOWED_CIDRS:?set INTERNAL_API_ALLOWED_CIDRS in .env.production}
       INTERNAL_API_TRUSTED_PROXY_CIDRS: ${INTERNAL_API_TRUSTED_PROXY_CIDRS:-}
+      # L2-4：device 与 trade 同样强制显式 Redis 密码
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.production}
 
   emqx:
     stop_grace_period: 30s

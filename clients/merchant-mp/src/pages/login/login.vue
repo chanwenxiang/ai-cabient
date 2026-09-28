@@ -56,6 +56,35 @@
           />
         </view>
 
+        <!-- L2-2：连续登录失败后后端要求图形验证码，按需出现 -->
+        <view v-if="captchaRequired" class="field">
+          <text class="field-label">图形验证码</text>
+          <view :style="{ display: 'flex', gap: '8px', alignItems: 'center' }">
+            <input
+              v-model="captchaCode"
+              class="input"
+              aria-label="图形验证码"
+              placeholder="图形验证码"
+              placeholder-class="ph"
+              :style="{ flex: '1' }"
+              data-testid="login-captcha"
+              @confirm="onLogin"
+            />
+            <image
+              v-if="captchaImage"
+              :src="captchaImage"
+              mode="aspectFit"
+              aria-label="点击刷新图形验证码"
+              data-testid="login-captcha-image"
+              :style="{ width: '120px', height: '40px' }"
+              @click="loadCaptcha"
+            />
+            <text v-else data-testid="login-captcha-placeholder" @click="loadCaptcha">{{
+              captchaLoading ? '加载中…' : '点击获取'
+            }}</text>
+          </view>
+        </view>
+
         <view class="remember-row" data-testid="login-remember">
           <view
             class="remember-box"
@@ -98,6 +127,7 @@ import { showDevTools } from '@/utils/runtime-flags';
 import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
 import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';
 import loginBgUrl from '@/static/bg-vending-night.jpg';
+import { fetchCaptcha } from '@/utils/merchant-api';
 
 const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } =
   usePrivacyConsentModal();
@@ -107,6 +137,28 @@ onShow(refreshPrivacyGate);
 const PHONE_KEY = 'merchant_login_phone';
 const PW_STORE_KEY = 'merchant_login_password';
 const REMEMBER_KEY = 'merchant_remember_credentials';
+
+// L2-2：连续登录失败后后端要求图形验证码
+const captchaRequired = ref(false);
+const captchaId = ref('');
+const captchaImage = ref('');
+const captchaCode = ref('');
+const captchaLoading = ref(false);
+
+async function loadCaptcha() {
+  captchaLoading.value = true;
+  try {
+    const data = await fetchCaptcha();
+    captchaId.value = data.captchaId || '';
+    captchaImage.value = data.imageBase64 || '';
+    captchaCode.value = '';
+  } catch {
+    captchaId.value = '';
+    captchaImage.value = '';
+  } finally {
+    captchaLoading.value = false;
+  }
+}
 
 function readStorage(key: string): string {
   try {
@@ -171,7 +223,14 @@ async function onLogin() {
   loading.value = true;
   err.value = '';
   try {
-    await merchantLogin(phoneNumber, pwd);
+    await merchantLogin(
+      phoneNumber,
+      pwd,
+      captchaRequired.value
+        ? { captchaId: captchaId.value, captchaCode: captchaCode.value }
+        : undefined
+    );
+    captchaRequired.value = false;
     persistCredentials(phoneNumber, pwd);
     try {
       const me = await merchantApi.me();
@@ -181,6 +240,9 @@ async function onLogin() {
     }
     uni.switchTab({ url: '/pages/home/home' });
   } catch (e) {
+    // L2-2：连续失败后需图形验证码；验证码一次性消费，失败后必须刷新
+    captchaRequired.value = true;
+    void loadCaptcha();
     err.value = e instanceof Error ? e.message : '登录失败';
   } finally {
     loading.value = false;

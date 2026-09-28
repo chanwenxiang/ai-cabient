@@ -96,6 +96,36 @@
               @input="password = eventInputValue($event)"
             />
           </view>
+          <!-- P2：连续登录失败后后端要求图形验证码（拦撞库），仅在密码模式按需出现 -->
+          <view v-if="mode === 'password' && captchaRequired" class="field field-auth">
+            <text class="field-label">图形验证码</text>
+            <view class="row">
+              <input
+                class="input flex"
+                maxlength="8"
+                :value="captchaCode"
+                placeholder="图形验证码"
+                placeholder-class="ph"
+                @input="captchaCode = eventInputValue($event)"
+              />
+              <view
+                class="btn-captcha"
+                role="button"
+                aria-label="刷新图形验证码"
+                @click="loadCaptcha"
+              >
+                <image
+                  v-if="captchaImage"
+                  class="captcha-img"
+                  :src="captchaImage"
+                  mode="aspectFit"
+                />
+                <text v-else class="captcha-placeholder">{{
+                  captchaLoading ? UI_COPY.loading : '点击获取'
+                }}</text>
+              </view>
+            </view>
+          </view>
           <template v-else>
             <view class="field field-auth">
               <text class="field-label">图形验证码</text>
@@ -239,6 +269,8 @@ const code = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');
 const captchaCode = ref('');
+// P2：连续登录失败后后端要求图形验证码（拦撞库）
+const captchaRequired = ref(false);
 const captchaLoading = ref(false);
 const loading = ref(false);
 const sendingCode = ref(false);
@@ -268,7 +300,9 @@ async function loadCaptcha() {
 }
 
 watch(
-  () => showPhoneForm.value && mode.value === 'sms',
+  () =>
+    showPhoneForm.value &&
+    (mode.value === 'sms' || (mode.value === 'password' && captchaRequired.value)),
   (need) => {
     if (need && !captchaImage.value && !captchaLoading.value) {
       void loadCaptcha();
@@ -492,7 +526,20 @@ async function bindWeixinIfPossible(phoneNum: string) {
 
 async function performPhoneLogin(phoneNum: string) {
   if (mode.value === 'password') {
-    await consumerPasswordLogin(phoneNum, password.value);
+    try {
+      await consumerPasswordLogin(
+        phoneNum,
+        password.value,
+        captchaRequired.value
+          ? { captchaId: captchaId.value, captchaCode: captchaCode.value }
+          : undefined
+      );
+    } catch (e) {
+      // P2：连续失败后后端要求验证码；且验证码一次性消费，失败后必须刷新
+      captchaRequired.value = true;
+      void loadCaptcha();
+      throw e;
+    }
   } else {
     await consumerSmsLogin(phoneNum, code.value.trim());
   }

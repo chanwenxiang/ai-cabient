@@ -49,6 +49,14 @@ public class LoginThrottleService {
         redisson.getAtomicLong(KEY_PREFIX + phone).delete();
     }
 
+    /** 连续失败次数（成功登录清零）；供「失败后升级图形验证码」判定（L2-2）。 */
+    public long failureCount(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return 0;
+        }
+        return redisson.getAtomicLong(KEY_PREFIX + phone).get();
+    }
+
     private int maxFailures() {
         return authProperties.loginMaxFailures() > 0 ? authProperties.loginMaxFailures() : 5;
     }

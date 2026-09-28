@@ -20,7 +20,9 @@ export const API_PREFIX = '/api/v2' as const;
 
 /** 鉴权相关（与 MerchantEndpoints 并列）。 */
 export const AuthEndpoints = {
-  merchantPasswordLogin: `${API_PREFIX}/auth/merchant-password-login`
+  merchantPasswordLogin: `${API_PREFIX}/auth/merchant-password-login`,
+  /** L2-2：图形验证码（连续登录失败后强制校验） */
+  captcha: `${API_PREFIX}/auth/captcha`
 } as const;
 
 export const MerchantEndpoints = {

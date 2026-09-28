@@ -26,9 +26,13 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
+    # L2-4：Redis 启用密码（dev 默认 devredis，production overlay 强制 :? 强口令）；
+    # 使用方经 SPRING_DATA_REDIS_PASSWORD / REDIS_PASSWORD 对齐，忘记配会让依赖服务启动即报错（fail-loud）。
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-devredis}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
       interval: 10s
       timeout: 3s
       retries: 10

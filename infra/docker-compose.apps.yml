@@ -67,6 +67,8 @@ services:
       REDIS_PORT: "6379"
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
+      # L2-4：Redis 密码（与 base redis --requirepass 对齐）
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
       KAFKA_BOOTSTRAP: redpanda:9092
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
@@ -160,6 +162,7 @@ services:
       AICABINET_TRADE_SERVICE_URL: http://trade-service:8080
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
     depends_on:
       emqx:
         condition: service_started
