@@ -40,6 +40,8 @@ export function useSessionVideo() {
    * blob URL 在标签关闭时回收，兜底 10 分钟 TTL（不再用固定 60s 断链）。
    */
   async function playSessionVideo(sessionId?: string | null) {
+    // 此处必须保留 opener 句柄：后续 win.location.href 指向 blob URL 并挂 beforeunload 回收，
+    // noopener 会让 open 返回 null 导致播放失效。目标是同源 blob，不存在 reverse tabnabbing 风险。
     const win = globalThis.open('about:blank', '_blank');
     try {
       const { url, revoke } = await fetchSessionVideoBlob(sessionId);

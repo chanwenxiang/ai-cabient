@@ -1669,9 +1669,10 @@ async function onExport() {
   await exportRoutesTab();
 }
 
-function currentAssigneeId() {
+function currentAssigneeId(): number | null {
   const id = Number(auth.userId || localStorage.getItem('admin_userId') || 0);
-  return Number.isFinite(id) && id > 0 ? id : 1;
+  // P2：拿不到登录用户时返回 null 由调用方校验，绝不能静默兜底成 userId=1 误写负责人
+  return Number.isFinite(id) && id > 0 ? id : null;
 }
 
 /** Prefer API snapshot name; fall back to shortage/device list join. */

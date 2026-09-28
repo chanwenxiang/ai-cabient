@@ -165,7 +165,8 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
   }
 
   function openPay(row: WarehouseEntityRow) {
-    Object.assign(payTarget.value, row);
+    // P2：整行替换而非合并——Object.assign 会残留上一行字段造成串显
+    payTarget.value = { ...row };
     paymentForm.payableId = row.payableId;
     paymentForm.amountYuan = Number((Number(row.balanceCents) || 0) / 100);
     paymentForm.notes = '';

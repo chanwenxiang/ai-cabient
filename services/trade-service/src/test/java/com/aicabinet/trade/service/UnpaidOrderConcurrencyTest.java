@@ -93,4 +93,30 @@ class UnpaidOrderConcurrencyTest {
         org.mockito.Mockito.verify(orderRepository).findByIdForUpdate("O-OK");
         org.mockito.Mockito.verify(distributedLockService).unlock(OrderPaymentService.orderPaymentLockKey("O-OK"));
     }
+
+    /** F1 防回归护栏：PENDING 单已有已完成支付流水（净额≠0）时，补扣必须 CONFLICT 且不触发扣款。 */
+    @Test
+    void collectByUser_whenNetAlreadyPaid_rejectsAndSkipsCharge() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-PAID-TWICE");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setSessionId("S-2");
+        order.setTotalAmountCents(350);
+
+        when(distributedLockService.tryLock(
+                OrderPaymentService.orderPaymentLockKey("O-PAID-TWICE"), 60L, 5L))
+                .thenReturn(true);
+        when(orderRepository.findByIdForUpdate("O-PAID-TWICE")).thenReturn(Optional.of(order));
+        when(orderPaymentService.netCompletedCents("O-PAID-TWICE")).thenReturn(200);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.collectByUser(10001L, "O-PAID-TWICE", null));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        org.mockito.Mockito.verify(orderPaymentService, org.mockito.Mockito.never())
+                .chargeOrder(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(distributedLockService).unlock(
+                OrderPaymentService.orderPaymentLockKey("O-PAID-TWICE"));
+    }
 }

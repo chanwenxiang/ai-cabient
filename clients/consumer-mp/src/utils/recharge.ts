@@ -263,7 +263,10 @@ export async function runWeChatRecharge(
   mode: 'mock' | 'live';
 }> {
   const prepay = await consumerApi.createRechargePrepay('WECHAT', amountCents, idempotencyKey);
-  const mode = wxPayMode(prepay) === 'live' ? 'live' : 'mock';
+  const rawMode = wxPayMode(prepay);
+  // P2：live 后端必带 wxPay 签名。字段丢失时按 live 兜底（fail-safe），防止误调 mock 确认接口
+  const mode: 'mock' | 'live' =
+    rawMode === 'mock' ? 'mock' : rawMode === 'live' || prepay.wxPay ? 'live' : 'mock';
   if (mode === 'live' && prepay.wxPay) {
     savePendingRechargeOrder(prepay.orderId);
     await invokeWxRequestPayment(prepay.wxPay as WxPayLike);

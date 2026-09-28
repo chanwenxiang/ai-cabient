@@ -141,13 +141,13 @@ public class OpsGapFeaturesController {
 
     // ---- M2 ----
 
-    @RequiresPermissions("ops:rbac:assign")
+    @RequiresPermissions(value = {"ops:rbac:assign", "ops:rbac:assign:device"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/rbac/users/{userId}/devices")
     public ApiResponse<OpsUserDeviceScopeDto> userDevices(HttpServletRequest request, @PathVariable Long userId) {
         return ApiResponse.ok(gapService.getUserDeviceScope(operatorId(request), userId));
     }
 
-    @RequiresPermissions("ops:rbac:assign")
+    @RequiresPermissions(value = {"ops:rbac:assign", "ops:rbac:assign:device"}, logical = RequiresPermissions.Logical.OR)
     @PutMapping("/rbac/users/{userId}/devices")
     public ApiResponse<OpsUserDeviceScopeDto> assignDevices(
             HttpServletRequest request,

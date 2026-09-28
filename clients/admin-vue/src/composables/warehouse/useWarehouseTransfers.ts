@@ -54,6 +54,15 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
       ElMessage.warning('请填写调出/调入仓与 SKU');
       return;
     }
+    // P2：数量必须为正整数；后端是最后防线，客户端先拦一道
+    if (!Number.isInteger(transferForm.quantity) || (transferForm.quantity ?? 0) <= 0) {
+      ElMessage.warning('调拨数量必须为正整数');
+      return;
+    }
+    if (transferForm.fromWarehouseId === transferForm.toWarehouseId) {
+      ElMessage.warning('调出仓与调入仓不能相同');
+      return;
+    }
     deps.saving.value = true;
     try {
       await api.request(AdminEndpoints.warehouseTransfers(), 'POST', {

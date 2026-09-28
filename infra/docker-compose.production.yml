@@ -13,6 +13,8 @@ services:
       AICABINET_STAGING_MODE: "false"
       AICABINET_MOCK_ENABLED: "false"
       AICABINET_SECURITY_MOCK_ENABLED: "false"
+      # P2：生产 HTTPS 下会话 Cookie 必须 Secure（validator 亦有强校验）
+      AUTH_COOKIE_SECURE: "true"
       # V1：生产每日对账与退款 PROCESSING 推进必须启用（此前默认 false=永不执行）
       RECON_SCHEDULED_ENABLED: "true"
       # X2：环境层钉死支付/分账/提现 mock（validator 另有强校验，双保险）

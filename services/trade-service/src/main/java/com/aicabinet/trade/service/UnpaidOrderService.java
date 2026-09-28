@@ -254,6 +254,13 @@ public class UnpaidOrderService {
 
     private void markPaid(CabinetOrder order, String requestedChannel) {
         hydrate(order);
+        // F1 防回归护栏：PENDING 单理应没有任何已完成支付流水。若净额≠0（如未来预授权冲抵
+        // 意外脱离结算事务独立提交），此处必须响亮失败而不是按全额重复扣款造成用户多付。
+        int alreadyPaidCents = orderPaymentService.netCompletedCents(order.getOrderId());
+        if (alreadyPaidCents != 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "订单存在已完成支付流水（净额 " + alreadyPaidCents + " 分），禁止重复补扣");
+        }
         // 创建 PENDING 时未占券；补扣时再选最优券后扣款并核销
         CouponService.BestCoupon applied = applyBestCouponForCollect(order);
         orderPaymentService.chargeOrder(order, requestedChannel);

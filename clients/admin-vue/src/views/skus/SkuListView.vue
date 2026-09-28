@@ -659,7 +659,7 @@ function openPrintLabels(ids: Array<string | number>) {
     name: 'print',
     query: { type: 'labels', ids: list.join(',') }
   }).href;
-  globalThis.open(url, '_blank');
+  globalThis.open(url, '_blank', 'noopener,noreferrer');
 }
 function printSelectedLabels() {
   openPrintLabels(crud.selectedKeys);

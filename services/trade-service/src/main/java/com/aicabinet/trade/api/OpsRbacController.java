@@ -177,7 +177,9 @@ public class OpsRbacController {
         return ApiResponse.ok(null);
     }
 
-    @RequiresPermissions("ops:rbac:assign")
+    // P2：与 CompetitiveGapService 的 requireAnyPermission 对齐——assign 与 assign:device 双轨均放行，
+    // 避免仅授 device 细分码的角色读得到范围编辑器、保存却 403
+    @RequiresPermissions(value = {"ops:rbac:assign", "ops:rbac:assign:device"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/rbac/users/{userId}/roles")
     public ApiResponse<OpsUserRolesDto> userRoles(HttpServletRequest request, @PathVariable Long userId) {
         return ApiResponse.ok(rbacService.getUserRoles(operatorId(request), userId));
@@ -192,7 +194,7 @@ public class OpsRbacController {
         return ApiResponse.ok(rbacService.assignRoles(operatorId(request), userId, roleIds));
     }
 
-    @RequiresPermissions("ops:rbac:assign")
+    @RequiresPermissions(value = {"ops:rbac:assign", "ops:rbac:assign:device"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/rbac/users/{userId}/merchants")
     public ApiResponse<OpsUserMerchantsDto> userMerchants(HttpServletRequest request, @PathVariable Long userId) {
         return ApiResponse.ok(rbacService.getUserMerchants(operatorId(request), userId));

@@ -153,6 +153,13 @@ export function useWarehouseBins(deps: UseWarehouseBinsDeps) {
     ) {
       return ElMessage.warning('请完整填写仓库、货位、商品、批次和到期日');
     }
+    // P2：入库数量必须为正整数（原 `Number(...) || 0` 可提交 0）
+    if (
+      !Number.isInteger(Number(binInboundForm.quantity)) ||
+      Number(binInboundForm.quantity) <= 0
+    ) {
+      return ElMessage.warning('入库数量必须为正整数');
+    }
     deps.saving.value = true;
     try {
       await api.request(AdminEndpoints.warehouseBinsStockInbound, 'POST', {
@@ -202,6 +209,13 @@ export function useWarehouseBins(deps: UseWarehouseBinsDeps) {
       !binMoveForm.batchNo.trim()
     ) {
       return ElMessage.warning('请完整填写源/目标货位、商品和批次');
+    }
+    // P2：数量正整数 + 源/目标货位不得相同
+    if (!Number.isInteger(Number(binMoveForm.quantity)) || Number(binMoveForm.quantity) <= 0) {
+      return ElMessage.warning('移库数量必须为正整数');
+    }
+    if (binMoveForm.fromBinId === binMoveForm.toBinId) {
+      return ElMessage.warning('源货位与目标货位不能相同');
     }
     deps.saving.value = true;
     try {

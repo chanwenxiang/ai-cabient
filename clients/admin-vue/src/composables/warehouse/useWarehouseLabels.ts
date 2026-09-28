@@ -114,7 +114,7 @@ export function useWarehouseLabels(deps: UseWarehouseLabelsDeps) {
 
   function openPrint(type: string, query: Record<string, string | number>) {
     const url = deps.router.resolve({ name: 'print', query: { type, ...query } }).href;
-    globalThis.open(url, '_blank');
+    globalThis.open(url, '_blank', 'noopener,noreferrer');
   }
 
   function expiryDays(value: string) {

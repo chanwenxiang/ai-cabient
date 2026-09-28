@@ -144,19 +144,25 @@ export function useReplenishmentTaskLines(deps: UseReplenishmentTaskLinesDeps) {
             item.previewUrl = url;
           }
         } catch {
-          if (!deps.loadSeq.isCurrent(seq, 'loadTaskEvidence')) return;
+          if (!deps.loadSeq.isCurrent(seq, 'loadTaskEvidence')) {
+            // P2：竞态早退时已创建的 blob URL 必须回收，避免泄漏
+            urls.forEach((u) => URL.revokeObjectURL(u));
+            return;
+          }
           /* list-only fallback */
         }
       }
       next.push(item);
     }
+    // P2：覆盖前回收上一轮 blob URL，防快速切换任务时累积泄漏
+    evidenceObjectUrls.value.forEach((u) => URL.revokeObjectURL(u));
     evidenceObjectUrls.value = urls;
     taskEvidence.value = next;
   }
 
   function openEvidencePreview(f: { previewUrl?: string; fileName?: string }) {
     if (!f.previewUrl) return;
-    globalThis.open(f.previewUrl, '_blank');
+    globalThis.open(f.previewUrl, '_blank', 'noopener,noreferrer');
   }
 
   async function openTaskLines(task: ReplenishmentTaskLineRow) {

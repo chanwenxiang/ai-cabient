@@ -20,7 +20,8 @@ export type UseReplenishmentRoutePlanningDeps = {
   focusDeviceId: Ref<string>;
   shortageDeviceIds: Ref<string[]>;
   devices: Ref<ReplenishmentDeviceRef[]>;
-  currentUserId: () => number;
+  /** P2：拿不到登录用户时返回 null（调用侧必须让用户显式选择负责人，禁止兜底 userId=1） */
+  currentUserId: () => number | null;
   currentUserName: () => string;
   loadDeviceRefs: () => Promise<void>;
   deviceName: (deviceId?: string, snapshot?: string | null) => string;
@@ -73,7 +74,7 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     return String(id);
   }
 
-  function ensureAssigneeOption(userId: number, name?: string) {
+  function ensureAssigneeOption(userId: number | null, name?: string) {
     if (!userId || assigneeOptions.value.some((item) => item.userId === userId)) return;
     assigneeOptions.value = [{ userId, name: name || '当前账号' }, ...assigneeOptions.value];
   }
@@ -94,9 +95,10 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
       if (!deps.loadSeq.isCurrent(seq, 'loadAssignees')) return;
       ensureAssigneeOption(deps.currentUserId(), deps.currentUserName());
       if (!assigneeOptions.value.length) {
-        assigneeOptions.value = [
-          { userId: deps.currentUserId(), name: deps.currentUserName() || '当前账号' }
-        ];
+        const cur = deps.currentUserId();
+        if (cur != null) {
+          assigneeOptions.value = [{ userId: cur, name: deps.currentUserName() || '当前账号' }];
+        }
       }
     } finally {
       if (!deps.loadSeq.isCurrent(seq, 'loadAssignees')) return;
@@ -112,7 +114,8 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     Object.assign(planForm, {
       routeName: partial.routeName,
       plannedDate: localDate(),
-      assigneeUserId: deps.currentUserId(),
+      // 0 = 未知当前用户：后端校验会拒绝，强制用户显式选择负责人
+      assigneeUserId: deps.currentUserId() ?? 0,
       deviceIds: partial.deviceIds
     });
   }
