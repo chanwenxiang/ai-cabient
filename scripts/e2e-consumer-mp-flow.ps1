@@ -74,7 +74,7 @@ Assert "wx-login" ($wx.token -and $wx.userId) "userId=$($wx.userId)"
 $acc = Api -Method GET -Path "/api/v2/account" -Headers $auth
 Assert "account" ($null -ne $acc.balanceCents) "verified=$($acc.verified) balance=$($acc.balanceCents)"
 
-$verified = Api -Method POST -Path "/api/v2/account/verify" -Headers $auth -Body @{ realName = "E2E User"; idCardLast4 = "1234" }
+$verified = Api -Method POST -Path "/api/v2/account/verify" -Headers $auth -Body @{ realName = "回归测试用户"; idCardLast4 = "1234" }
 Assert "verify identity" ($verified.verified -eq $true)
 
 $acc2 = Api -Method GET -Path "/api/v2/account" -Headers $auth

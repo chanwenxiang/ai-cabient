@@ -105,7 +105,8 @@ if (-not $MerchantUserId -or $MerchantUserId -le 0) {
 Write-Host "    merchantUserId=$MerchantUserId"
 
 $today = (Get-Date).ToString("yyyy-MM-dd")
-$routeName = "E2E replenishment $today $([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+# 用户可见名须中文（ui-copy-zh）；时间戳保唯一性
+$routeName = "回归补货路线 $today $([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
 
 Write-Host "==> 2b. Ensure warehouse stock for device replenishment gaps$(if ($ForceGap) { ' [-ForceGap: may zero a slot]' })"
 Prepare-E2eReplenishmentPlan -BaseUrl $BaseUrl -OpsAuth $opsAuth -DeviceId $DeviceId -ForceGap:$ForceGap

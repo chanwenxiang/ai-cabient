@@ -42,7 +42,7 @@ $E2eSku = if ($demo.fallbackSkuId) { [string]$demo.fallbackSkuId } else { Resolv
         -Path ("/internal/v1/sessions/" + $sid + "/live-cart") -Headers $internal -Body @{
         mode = "REPLACE"
         items = @(
-            @{ skuId = $E2eSku; skuName = "E2E Item"; quantity = 2; unitPriceCents = 350 }
+            @{ skuId = $E2eSku; skuName = "回归测试商品"; quantity = 2; unitPriceCents = 350 }
         )
     }
     Write-Host ("push qty=" + $push.totalQty + " amount=" + $push.totalAmountCents)
