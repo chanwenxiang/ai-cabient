@@ -100,10 +100,30 @@ if (seeded.size === 0) {
   fail(`未能在 ${MIGRATION_DIR} 解析出任何 scheduled_task 种子行，锚点可能已被重写`);
 }
 
+// ── 2.5 显式移除：后续迁移里的 DELETE FROM scheduled_task … task_key = '…' ──
+// 任务下线时登记行由迁移删除（如 V288 删 compensation-retry）；门禁必须跟随，
+// 否则已删除的登记行会被规则二误判为「残留登记行」。要求显式按 key 删除（禁不带 WHERE 的清表）。
+const SQL_DELETE_RE =
+  /DELETE\s+FROM\s+scheduled_task\s+WHERE\s+(?:\(?deploy_env\)?\s*=\s*'[^']*'\s*AND\s+)?task_key\s*=\s*'([a-z0-9][a-z0-9_-]*)'/gi;
+const removedKeys = new Map();
+for (const file of walk(MIGRATION_DIR, (f) => f.endsWith('.sql'))) {
+  const fileName = file.split(/[\\/]/).pop();
+  for (const m of read(file).matchAll(SQL_DELETE_RE)) {
+    removedKeys.set(m[1], fileName);
+    seeded.delete(m[1]);
+  }
+}
+
 // ── 3. 规则一：注册表任务必须有种子行（运营台必须看得见）──────────────────
 const missingSeed = [];
 for (const [key, meta] of registry) {
   if (!seeded.has(key)) {
+    if (removedKeys.has(key)) {
+      fail(
+        `注册表任务 ${key} 的种子行已被迁移删除（${removedKeys.get(key)}），` +
+          `但 ScheduledTaskRegistry 仍注册该任务 —— 请同步移除注册项`
+      );
+    }
     missingSeed.push(`${key}（${meta.name}）`);
   }
 }
