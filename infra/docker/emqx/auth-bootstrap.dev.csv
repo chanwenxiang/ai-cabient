@@ -1,3 +1,4 @@
 user_id,password,is_superuser
 aicabinet-backend,dev-mqtt-backend-pass,false
 aicabinet-device,dev-mqtt-device-pass,false
+898548016998,dev-device-uat-pass-9527,false
