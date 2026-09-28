@@ -2,11 +2,9 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.trade.domain.CompensationTask;
-import com.aicabinet.trade.domain.DistributedTransaction;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.mapper.CompensationTaskMapper;
-import com.aicabinet.trade.mapper.DistributedTransactionMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
@@ -21,50 +19,42 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 补偿任务调度。TCC/分布式事务死代码已于 L2-3 下线（无业务写入方，历史见
+ * docs/THREE_END_FULL_REVIEW_2026-09-27.md §10.2）；当前唯一活跃补偿语义是
+ * 分账回退重试（{@code PROFIT_SHARING_RETURN}）。
+ */
 @Service
 public class CompensationTaskScheduler {
     private static final String COMPENSATION_PROCESS = "compensation-process";
-    private static final String COMPENSATION_RETRY = "compensation-retry";
     private static final String STATUS_COMPLETED = "COMPLETED";
-    private static final String TX_STATUS_NEED_MANUAL = "NEED_MANUAL";
-    private static final String ALERT_TYPE_COMPENSATION_TX_STUCK = "COMPENSATION_TX_STUCK";
-    private static final String CANCEL = "CANCEL";
 
     private static final Logger log = LoggerFactory.getLogger(CompensationTaskScheduler.class);
 
     static final int PROFIT_SHARING_RETURN_MAX_RETRIES = 5;
 
     private final CompensationTaskMapper taskRepository;
-    private final DistributedTransactionMapper txRepository;
-    private final TccTransactionCoordinator txCoordinator;
     private final ScheduledTaskService taskService;
     private final OrderRevenueSplitMapper splitRepository;
     private final MerchantMapper merchantRepository;
     private final WeChatProfitSharingService profitSharingService;
     private final ProfitSharingReturnAlertService profitSharingReturnAlertService;
-    private final OpsAlertDispatcher alertDispatcher;
     /** 自注入：保证 processTask 上的 @Transactional 经 Spring 代理生效。 */
     private final CompensationTaskScheduler self;
 
     public CompensationTaskScheduler(CompensationTaskMapper taskRepository,
-                                       DistributedTransactionMapper txRepository,
-                                       TccTransactionCoordinator txCoordinator,
                                        ScheduledTaskService taskService,
                                        OrderRevenueSplitMapper splitRepository,
                                        MerchantMapper merchantRepository,
                                        WeChatProfitSharingService profitSharingService,
                                        ProfitSharingReturnAlertService profitSharingReturnAlertService,
-                                       OpsAlertDispatcher alertDispatcher,
                                        @Lazy CompensationTaskScheduler self) {
         this.taskRepository = taskRepository;
-        this.txRepository = txRepository;
-        this.txCoordinator = txCoordinator;
         this.taskService = taskService;
         this.splitRepository = splitRepository;
         this.merchantRepository = merchantRepository;
         this.profitSharingService = profitSharingService;
         this.profitSharingReturnAlertService = profitSharingReturnAlertService;
-        this.alertDispatcher = alertDispatcher;
         this.self = self;
     }
     @Scheduled(fixedDelay = 30000)
@@ -89,39 +79,16 @@ public class CompensationTaskScheduler {
             throw e;
         }
     }
-    
+
     @Transactional
     public void processTask(CompensationTask task) {
         if (ProfitSharingReturnCompensationService.TASK_TYPE.equals(task.getTaskType())) {
             processProfitSharingReturnTask(task);
             return;
         }
-        task.setStatus("PROCESSING");
-        taskRepository.save(task);
-        
-        try {
-            DistributedTransaction tx = txRepository.findById(task.getTxId()).orElse(null);
-            if (tx == null) {
-                task.setStatus(CabinetConstants.ORDER_STATUS_FAILED);
-                task.setResult("Transaction not found");
-                taskRepository.save(task);
-                return;
-            }
-            
-            executeCompensation(tx);
-
-            task.setStatus(STATUS_COMPLETED);
-            task.setResult("Compensation executed successfully");
-            task.setExecutedAt(Instant.now());
-            taskRepository.save(task);
-
-            log.info("Compensation task completed: taskId={}", task.getTaskId());
-        } catch (Exception e) {
-            task.setStatus(CabinetConstants.ORDER_STATUS_FAILED);
-            task.setResult("Error: " + e.getMessage());
-            taskRepository.save(task);
-            log.error("Compensation task error: taskId={}", task.getTaskId(), e);
-        }
+        // L2-3：TCC/分布式事务语义下线后，其余任务类型没有可自动执行的动作，防御性终态
+        finishCompensationTask(task, CabinetConstants.ORDER_STATUS_FAILED,
+                "unsupported task type: " + task.getTaskType());
     }
 
     private void processProfitSharingReturnTask(CompensationTask task) {
@@ -203,47 +170,6 @@ public class CompensationTaskScheduler {
         taskRepository.save(task);
         log.info("profit sharing return compensation finished taskId={} status={}", task.getTaskId(), status);
     }
-    
-    private void executeCompensation(DistributedTransaction tx) {
-        if (CANCEL.equals(tx.getCompensationSql())) {
-            txCoordinator.cancelTransaction(tx.getTxId());
-        }
-    }
-    
-    public void scheduleCompensation(String txId, String taskType, int delaySeconds) {
-        CompensationTask task = new CompensationTask();
-        task.setTxId(txId);
-        task.setTaskType(taskType);
-        task.setScheduledAt(Instant.now().plusSeconds(delaySeconds));
-        task.setPriority(0);
-        task.setStatus("PENDING");
-        taskRepository.save(task);
-        
-        log.info("Compensation scheduled: txId={}, type={}, delay={}s", txId, taskType, delaySeconds);
-    }
-    
-    @Scheduled(fixedDelay = 60000)
-    public void retryFailedTransactions() {
-        long start = System.nanoTime();
-        if (!taskService.tryBegin(COMPENSATION_RETRY, 600)) {
-            return;
-        }
-        try {
-            List<DistributedTransaction> retryable = txRepository.findRetryableTransactions();
-            log.info("Found {} transactions to retry", retryable.size());
-
-            for (DistributedTransaction tx : retryable) {
-                retryTransactionSafely(tx);
-            }
-            String summary = retryable.isEmpty()
-                    ? "本次无待重试事务"
-                    : "重试分布式事务 " + retryable.size() + " 条";
-            taskService.finish(COMPENSATION_RETRY, "SUCCESS", summary, start);
-        } catch (Exception e) {
-            taskService.finish(COMPENSATION_RETRY, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
-            throw e;
-        }
-    }
 
     private void processTaskSafely(CompensationTask task) {
         try {
@@ -251,74 +177,5 @@ public class CompensationTaskScheduler {
         } catch (Exception e) {
             log.error("Failed to process compensation task: {}", task.getTaskId(), e);
         }
-    }
-
-    /**
-     * C18：PENDING 分布式事务的真实重试。
-     *
-     * <p>系统实际产生的补偿语义只有 {@code compensationSql=CANCEL}（见 {@link #executeCompensation}），
-     * 对这类事务真实执行 TCC cancel（成功后由 coordinator 落 CANCELLED 终态，不再回到待重试池）；
-     * 其余 txType 没有可自动重放的业务动作，不做「只计数不动作」的空转，直接置 NEED_MANUAL 并告警。
-     * 重试失败按 retryCount 推进，超过 maxRetry 同样落 NEED_MANUAL 并告警（COMPENSATION_TX_STUCK）。</p>
-     */
-    private void retryTransactionSafely(DistributedTransaction tx) {
-        try {
-            if (CANCEL.equals(tx.getCompensationSql())) {
-                try {
-                    retryCancelCompensation(tx);
-                } catch (Exception e) {
-                    log.warn("Transaction compensation retry error: txId={}", tx.getTxId(), e);
-                    deferOrEscalate(tx, "retry error: " + e.getMessage());
-                }
-                return;
-            }
-            markTxNeedManual(tx, "no auto-retryable action for txType=" + tx.getTxType());
-        } catch (Exception e) {
-            // 保底：单条失败不阻断整批（与 processTaskSafely 同语义）
-            log.error("Failed to retry transaction: {}", tx.getTxId(), e);
-        }
-    }
-
-    private void retryCancelCompensation(DistributedTransaction tx) {
-        log.info("Retrying transaction compensation: txId={}, type={}, attempt={}",
-                tx.getTxId(), tx.getTxType(), tx.getRetryCount() + 1);
-        txCoordinator.cancelTransaction(tx.getTxId());
-        DistributedTransaction latest = txRepository.findById(tx.getTxId()).orElse(null);
-        if (latest != null && TccTransactionCoordinator.STATUS_CANCELLED.equals(latest.getStatus())) {
-            log.info("Transaction compensation retry succeeded: txId={}, status={}",
-                    tx.getTxId(), latest.getStatus());
-            return;
-        }
-        deferOrEscalate(tx, "compensation retry did not complete, status="
-                + (latest == null ? "GONE" : latest.getStatus()));
-    }
-
-    /** 重试失败：retryCount 推进；到达 maxRetry 置 NEED_MANUAL 并告警，否则留待下一轮。 */
-    private void deferOrEscalate(DistributedTransaction tx, String reason) {
-        int attempt = Math.max(0, tx.getRetryCount()) + 1;
-        int maxRetry = tx.getMaxRetry() == null ? 5 : tx.getMaxRetry();
-        tx.setRetryCount(attempt);
-        tx.setUpdatedAt(Instant.now());
-        if (attempt >= maxRetry) {
-            markTxNeedManual(tx, reason + " (attempts=" + attempt + ")");
-            return;
-        }
-        txRepository.save(tx);
-        log.info("Transaction compensation retry deferred: txId={} attempt={}/{} reason={}",
-                tx.getTxId(), attempt, maxRetry, reason);
-    }
-
-    private void markTxNeedManual(DistributedTransaction tx, String reason) {
-        tx.setStatus(TX_STATUS_NEED_MANUAL);
-        tx.setErrorMessage(reason);
-        tx.setUpdatedAt(Instant.now());
-        txRepository.save(tx);
-        log.warn("Compensation tx requires manual handling: txId={} type={} reason={}",
-                tx.getTxId(), tx.getTxType(), reason);
-        alertDispatcher.trySend(ALERT_TYPE_COMPENSATION_TX_STUCK,
-                "分布式事务补偿停滞，需人工处理",
-                "txId=" + tx.getTxId() + " type=" + tx.getTxType() + " reason=" + reason,
-                Map.of("txId", String.valueOf(tx.getTxId()),
-                        "txType", String.valueOf(tx.getTxType())));
     }
 }

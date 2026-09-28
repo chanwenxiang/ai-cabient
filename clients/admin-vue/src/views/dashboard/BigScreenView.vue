@@ -790,6 +790,18 @@ function daysAgoStr(days: number) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** L2-6：分页循环拉全——防 size 上限静默截断（投放柜>100 台时排行/区域图丢点）。 */
+async function fetchAllPages<T>(buildPath: (page: number) => string, maxPages = 20): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const r = await api.request<{ items: T[]; total?: number }>(buildPath(page), 'GET');
+    const items = r?.items ?? [];
+    out.push(...items);
+    if (items.length === 0 || (r?.total != null && out.length >= r.total)) break;
+  }
+  return out;
+}
+
 async function load() {
   // P2：30s 轮询无重入保护——后端慢时两轮 Promise.all 交叠、后写覆盖先写
   if (loading.value) return;
@@ -803,12 +815,9 @@ async function load() {
     soft(api.request<FinanceStats>(AdminEndpoints.financeStats, 'GET'), null, '财务统计'),
     soft(api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(10), 'GET'), null, '趋势'),
     soft(
-      api
-        .request<{ items: DeviceRank[]; total: number }>(
-          AdminEndpoints.reportsDevicesList('page=0&size=50'),
-          'GET'
-        )
-        .then((r) => r?.items ?? []),
+      fetchAllPages<DeviceRank>((page) =>
+        AdminEndpoints.reportsDevicesList(`page=${page}&size=100`)
+      ),
       [] as DeviceRank[],
       '设备报表'
     ),
@@ -831,12 +840,9 @@ async function load() {
       '地图点位'
     ),
     soft(
-      api
-        .request<{ items: { deviceId: string }[]; total: number }>(
-          AdminEndpoints.devicesList('lifecycleStatus=DEPLOYED&page=0&size=100'),
-          'GET'
-        )
-        .then((r) => new Set((r?.items ?? []).map((d) => d.deviceId).filter(Boolean))),
+      fetchAllPages<{ deviceId: string }>((page) =>
+        AdminEndpoints.devicesList(`lifecycleStatus=DEPLOYED&page=${page}&size=100`)
+      ).then((items) => new Set(items.map((d) => d.deviceId).filter(Boolean))),
       new Set<string>(),
       '投放柜清单'
     ),

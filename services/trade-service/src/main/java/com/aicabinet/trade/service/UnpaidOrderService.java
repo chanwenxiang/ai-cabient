@@ -65,6 +65,7 @@ public class UnpaidOrderService {
     private final NotificationService notificationService;
     private final DistributedLockService distributedLockService;
     private final ApiRateLimitService apiRateLimitService;
+    private final OpsExceptionService opsExceptionService;
 
     public UnpaidOrderService(CabinetOrderMapper orderRepository,
                               CabinetOrderLineMapper orderLineRepository,
@@ -86,7 +87,8 @@ public class UnpaidOrderService {
                               ConsumerPreauthService consumerPreauthService,
                               NotificationService notificationService,
                               DistributedLockService distributedLockService,
-                              ApiRateLimitService apiRateLimitService) {
+                              ApiRateLimitService apiRateLimitService,
+                              OpsExceptionService opsExceptionService) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.userInfoRepository = userInfoRepository;
@@ -108,6 +110,7 @@ public class UnpaidOrderService {
         this.notificationService = notificationService;
         this.distributedLockService = distributedLockService;
         this.apiRateLimitService = apiRateLimitService;
+        this.opsExceptionService = opsExceptionService;
     }
 
     /**
@@ -228,7 +231,43 @@ public class UnpaidOrderService {
         if (n > 0) {
             log.info("auto cancelled unpaid orders count={} hours={}", n, hours);
         }
+        // L2-1：顺带巡检渠道扣款痕迹（CHARGE_PENDING 是 H41 事务外痕迹，正常几秒内收口）
+        try {
+            alertStaleChargePendingOps();
+        } catch (Exception ex) {
+            log.warn("stale CHARGE_PENDING alert sweep failed", ex);
+        }
         return n;
+    }
+
+    /** CHARGE_PENDING 超过该分钟数仍未收口即告警转人工（正常回执为秒级）。 */
+    static final int CHARGE_PENDING_ALERT_MINUTES = 60;
+
+    /**
+     * 渠道扣款痕迹超时巡检：CHARGE_PENDING 长期不收口 = 渠道回执丢失或进程中断，
+     * 订单卡在无主状态。发 HIGH 告警转人工核对，不自动改单（金额未知，禁止程序臆断）。
+     *
+     * @return 本次告警单数
+     */
+    public int alertStaleChargePendingOps() {
+        Instant cutoff = Instant.now().minus(CHARGE_PENDING_ALERT_MINUTES, ChronoUnit.MINUTES);
+        List<com.aicabinet.trade.domain.PaymentOperation> stale =
+                orderPaymentService.findStaleChargePending(cutoff, 20);
+        for (com.aicabinet.trade.domain.PaymentOperation op : stale) {
+            opsExceptionService.report(
+                    "CHARGE_PENDING_STALE",
+                    "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            null, null, op.getOrderId(), op.getUserId()),
+                    "渠道扣款回执超时",
+                    "订单 " + op.getOrderId() + " 的 CHARGE_PENDING 已超过 "
+                            + CHARGE_PENDING_ALERT_MINUTES + " 分钟未收口（渠道="
+                            + op.getChannel() + "，金额(分)=" + op.getAmountCents()
+                            + "），请人工核对渠道订单状态后处置");
+            log.warn("stale CHARGE_PENDING op orderId={} channel={} amount={}",
+                    op.getOrderId(), op.getChannel(), op.getAmountCents());
+        }
+        return stale.size();
     }
 
     private boolean cancelSingleExpiredOrder(CabinetOrder order, int hours, boolean autoBlacklist) {

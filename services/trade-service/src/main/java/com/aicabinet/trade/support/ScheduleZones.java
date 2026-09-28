@@ -66,7 +66,7 @@ public final class ScheduleZones {
             Map.entry("data-consistency", "0 0/5 * * * ?"),
             Map.entry("ops-exception-scanner", "0/30 * * * * ?"),
             Map.entry("compensation-process", "0/30 * * * * ?"),
-            Map.entry("compensation-retry", "0 0/1 * * * ?"),
+            // L2-3：compensation-retry 已随 TCC 死代码下线移除
             Map.entry("merchant-notify", "0 0/15 * * * ?"),
             Map.entry("dispute-sla", "0 0/15 * * * ?"),
             Map.entry("replenishment-timeout", "0 0/1 * * * ?"),
@@ -113,7 +113,6 @@ public final class ScheduleZones {
             Map.entry("data-consistency", Duration.ofMinutes(20)),             // 5min ×4
             Map.entry("ops-exception-scanner", Duration.ofMinutes(5)),         // 30s ×10
             Map.entry("compensation-process", Duration.ofMinutes(5)),          // 30s ×10
-            Map.entry("compensation-retry", Duration.ofMinutes(10)),           // 60s ×10
             Map.entry("merchant-notify", Duration.ofMinutes(45)),              // 15min ×3
             Map.entry("dispute-sla", Duration.ofMinutes(45)),                  // 15min ×3
             Map.entry("replenishment-timeout", Duration.ofMinutes(10)),        // 60s ×10

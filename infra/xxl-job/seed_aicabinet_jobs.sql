@@ -93,9 +93,7 @@ INSERT INTO `xxl_job_info`(
 (123, 10, '补偿任务处理', now(), now(), 'aicabinet', '',
  'CRON', '0/30 * * * * ?', 'DO_NOTHING', 'FAILOVER',
  'compensationProcessJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
-(124, 10, '补偿任务重试', now(), now(), 'aicabinet', '',
- 'CRON', '0 0/1 * * * ?', 'DO_NOTHING', 'FAILOVER',
- 'compensationRetryJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+-- L2-3：124 补偿任务重试（compensationRetryJob）已随 TCC/分布式事务死代码下线移除
 (125, 10, '商户工作台通知', now(), now(), 'aicabinet', '',
  'CRON', '0 0/15 * * * ?', 'DO_NOTHING', 'FAILOVER',
  'merchantNotifyJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),

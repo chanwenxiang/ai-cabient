@@ -187,4 +187,15 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
                                                              @Param("end") java.time.Instant end,
                                                              @Param("channel") String channel);
 
+    /** L2-1：卡在 CHARGE_PENDING 超过阈值的渠道扣款痕迹（回执丢失/进程中断），供告警巡检。 */
+    @Select("""
+            SELECT * FROM payment_operation
+            WHERE status = 'CHARGE_PENDING'
+              AND created_at < #{cutoff}
+            ORDER BY created_at ASC
+            LIMIT #{limit}
+            """)
+    java.util.List<PaymentOperation> findStaleChargePending(@Param("cutoff") java.time.Instant cutoff,
+                                                            @Param("limit") int limit);
+
 }

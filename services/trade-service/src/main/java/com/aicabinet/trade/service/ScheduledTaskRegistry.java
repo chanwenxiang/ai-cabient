@@ -89,8 +89,7 @@ public class ScheduledTaskRegistry {
                 opsExceptionScannerService::scan);
         register("compensation-process", "补偿任务处理", SYSTEM, V_30, 600,
                 compensationTaskScheduler::processCompensationTasks);
-        register("compensation-retry", "补偿任务重试", SYSTEM, V_60, 600,
-                compensationTaskScheduler::retryFailedTransactions);
+        // L2-3：compensation-retry 注册项已随 TCC/分布式事务死代码下线移除（V288 清 scheduled_task 行）
         register("replenishment-timeout", "补货超时收口", "WAREHOUSE", V_60, 600,
                 replenishmentTimeoutScheduler::expireStaleCheckedInTasks);
         // 必须走 performConsistencyCheck（含 tryBegin/finish），不能直接 runConsistencyCheck，否则手动触发不写耗时/结果说明

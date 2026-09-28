@@ -152,10 +152,7 @@ public class ScheduledTaskXxlJobHandler {
         runKey("compensation-process");
     }
 
-    @XxlJob("compensationRetryJob")
-    public void compensationRetryJob() {
-        runKey("compensation-retry");
-    }
+    // L2-3：compensationRetryJob 已随 TCC/分布式事务死代码下线（seed 与 live xxl_job_info 同步移除）
 
     @XxlJob("merchantNotifyJob")
     public void merchantNotifyJob() {

@@ -405,6 +405,11 @@ public class OrderPaymentService {
         return paymentOperationRepository.netCompletedCents(orderId);
     }
 
+    /** L2-1：卡单痕迹查询（CHARGE_PENDING 超时告警巡检用）。 */
+    public java.util.List<PaymentOperation> findStaleChargePending(java.time.Instant cutoff, int limit) {
+        return paymentOperationRepository.findStaleChargePending(cutoff, limit);
+    }
+
     private void releaseSessionPreauth(CabinetOrder order) {
         if (order.getSessionId() == null || order.getSessionId().isBlank()) {
             return;

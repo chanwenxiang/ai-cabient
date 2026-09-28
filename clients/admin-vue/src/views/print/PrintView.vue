@@ -188,6 +188,21 @@ function scheduleAutoPrint() {
   });
 }
 
+/** L2-6：>500 SKU 时分页拉全，防标签静默缺失（softFallback 包裹降级不变）。 */
+async function fetchAllSkus(): Promise<Row[]> {
+  const out: Row[] = [];
+  for (let page = 0; page < 20; page++) {
+    const r = await api.request<{ items: Row[]; total?: number }>(
+      `${AdminEndpoints.skus}?page=${page}&size=500`,
+      'GET'
+    );
+    const items = r?.items ?? [];
+    out.push(...items);
+    if (items.length === 0 || (r?.total != null && out.length >= r.total)) break;
+  }
+  return out;
+}
+
 async function load() {
   let ok = false;
   try {
@@ -204,13 +219,7 @@ async function load() {
           '仓库列表'
         ),
         softFallback(api.request<Row[]>(AdminEndpoints.devicesRef, 'GET'), [] as Row[], '设备参照'),
-        softFallback(
-          api
-            .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
-            .then((r) => r.items || []),
-          [] as Row[],
-          '商品目录'
-        )
+        softFallback(fetchAllSkus(), [] as Row[], '商品目录')
       ]);
       outbound.value = ob;
       warehouses.value = whs;
@@ -235,13 +244,7 @@ async function load() {
           [] as Row[],
           '仓库列表'
         ),
-        softFallback(
-          api
-            .request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET')
-            .then((r) => r.items || []),
-          [] as Row[],
-          '商品目录'
-        )
+        softFallback(fetchAllSkus(), [] as Row[], '商品目录')
       ]);
       purchase.value = po;
       suppliers.value = sups;
@@ -254,14 +257,7 @@ async function load() {
           .map((s) => s.trim())
           .filter(Boolean)
       );
-      const rows =
-        (
-          await softFallback(
-            api.request<{ items: Row[] }>(AdminEndpoints.skusCatalogPage, 'GET'),
-            { items: [] as Row[] },
-            '商品目录'
-          )
-        ).items || [];
+      const rows = await softFallback(fetchAllSkus(), [] as Row[], '商品目录');
       labels.value = rows.filter((r) => ids.has(String(r.skuId)));
     }
     ok = hasPrintableData();
