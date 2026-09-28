@@ -1,4 +1,5 @@
 import { normalizeDeviceId, parseCabinetScan } from '@aicabinet/shared-uni/qrcode';
+import { safeScanCode } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError } from '@/utils/notify';
 import { promptText } from '@/utils/text-prompt';
 
@@ -36,38 +37,24 @@ async function promptManualDeviceId(hint?: string): Promise<string> {
 }
 
 /** 扫柜门二维码，返回柜机编号；失败时 toast 并返回空串；H5 可手输 */
-export function scanCabinetDeviceId(): Promise<string> {
-  return new Promise((resolve) => {
-    uni.scanCode({
-      onlyFromCamera: false,
-      scanType: ['qrCode', 'barCode'],
-      success(res) {
-        const parsed = parseCabinetScan(res.result || '');
-        const id = parsed.deviceId || '';
-        if (!id) {
-          if (isBrowserH5()) {
-            void promptManualDeviceId().then(resolve);
-            return;
-          }
-          showError('未识别到柜机编号');
-          resolve('');
-          return;
-        }
-        resolve(id);
-      },
-      fail(err) {
-        const msg = err?.errMsg || '';
-        if (/cancel|取消/i.test(msg)) {
-          resolve('');
-          return;
-        }
-        if (isBrowserH5()) {
-          void promptManualDeviceId().then(resolve);
-          return;
-        }
-        showError('扫码失败，请重试');
-        resolve('');
-      }
-    });
-  });
+export async function scanCabinetDeviceId(): Promise<string> {
+  // C9：无扫码实现（H5）直接走手输降级
+  const raw = await safeScanCode();
+  if (!raw) {
+    if (isBrowserH5()) {
+      return promptManualDeviceId();
+    }
+    showError('扫码取消或失败');
+    return '';
+  }
+  const parsed = parseCabinetScan(raw);
+  const id = parsed.deviceId || '';
+  if (!id) {
+    if (isBrowserH5()) {
+      return promptManualDeviceId();
+    }
+    showError('未识别到柜机编号');
+    return '';
+  }
+  return id;
 }

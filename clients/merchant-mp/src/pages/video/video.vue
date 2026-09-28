@@ -48,6 +48,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { safeSetClipboardData } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { downloadAuthedFile, getToken } from '@/utils/merchant-api';
@@ -135,10 +136,7 @@ function onError() {
 function copyUrl() {
   const data = copyTarget.value || src.value;
   if (!data) return;
-  uni.setClipboardData({
-    data,
-    success: () => showSuccess('视频链接已复制')
-  });
+  safeSetClipboardData(data, () => showSuccess('视频链接已复制'));
 }
 
 function goOrder() {

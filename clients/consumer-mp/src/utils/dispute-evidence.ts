@@ -1,3 +1,4 @@
+import { safeChooseImage } from '@aicabinet/shared-uni/safe-uni-call';
 import { consumerApi, getConsumerToken } from '@/utils/consumer-api';
 import { showError } from '@/utils/notify';
 import { API_BASE_URL } from '@/config/api';
@@ -25,19 +26,8 @@ export async function pickAndUploadEvidence(
     showError(`最多 ${maxCount} 张`);
     return current;
   }
-  const paths = await new Promise<string[]>((resolve) => {
-    uni.chooseImage({
-      count: remain,
-      sizeType: ['compressed'],
-      sourceType: ['album', 'camera'],
-      success: (res) => {
-        // @dcloudio/types 中 tempFilePaths 声明为 string | string[]，统一归一化为数组
-        const raw = res.tempFilePaths || [];
-        resolve(Array.isArray(raw) ? raw : [raw]);
-      },
-      fail: () => resolve([])
-    });
-  });
+  // C9：H5 无选图实现，返回空数组走「未添加」分支
+  const paths = await safeChooseImage(remain);
   if (!paths.length) return current;
   const next = [...current];
   const notify = () => onChange?.([...next]);

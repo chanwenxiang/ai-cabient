@@ -352,7 +352,7 @@ import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';
-import EmptyState from '@/components/empty-state.vue';
+import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import ReplenishActionDock from '@/components/ReplenishActionDock.vue';
 import ReplenishCabinetCard from '@/components/ReplenishCabinetCard.vue';

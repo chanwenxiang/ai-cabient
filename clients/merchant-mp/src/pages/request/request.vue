@@ -172,6 +172,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { safeChooseImage } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
@@ -437,18 +438,7 @@ async function addEvidence() {
     showError(`最多 ${REQUEST_EVIDENCE_MAX} 张`);
     return;
   }
-  const paths = await new Promise<string[]>((resolve) => {
-    uni.chooseImage({
-      count: remainingEvidenceSlots(evidenceItems.value.length),
-      sizeType: ['compressed'],
-      sourceType: ['album', 'camera'],
-      success: (res) => {
-        const raw = res.tempFilePaths || [];
-        resolve(Array.isArray(raw) ? raw : [raw]);
-      },
-      fail: () => resolve([])
-    });
-  });
+  const paths = await safeChooseImage(remainingEvidenceSlots(evidenceItems.value.length));
   for (const path of paths) {
     try {
       await assertLocalImageSize(path);

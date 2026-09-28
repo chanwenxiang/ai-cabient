@@ -1,4 +1,5 @@
 import { computed, type ComputedRef, type Ref } from 'vue';
+import { safeSetClipboardData } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError, showSuccess } from '@/utils/notify';
 import { dictOptions } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
@@ -122,10 +123,7 @@ export function useReplenishmentShell(opts: {
   function copyDeviceId(id?: string) {
     const code = String(id || opts.selected.value?.deviceId || '').trim();
     if (!code) return;
-    uni.setClipboardData({
-      data: code,
-      success: () => showSuccess('已复制柜机编号')
-    });
+    safeSetClipboardData(code, () => showSuccess('已复制柜机编号'));
   }
 
   function navigateToDevice(id?: string) {

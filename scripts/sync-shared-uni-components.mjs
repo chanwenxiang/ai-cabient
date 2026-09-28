@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * 将 packages/shared-uni/src/components 权威蓝本同步到两端小程序本地副本。
- * uni easycom 需本地路径（pages.json），禁止靠手拷贝（C10 / M9）。
+ * shared-uni 组件分发守卫（C10/M9/C10b）。
  *
- *   node scripts/sync-shared-uni-components.mjs
- *   node scripts/sync-shared-uni-components.mjs --check   # 仅断言一致，exit 1 若漂移
+ * C10b 后 easycom 与显式 import **直指 `@aicabinet/shared-uni/components/*`**（package exports），
+ * 两端 src/components **不再持有本地副本**。本脚本转为「反漂移守卫」：
+ *   --check：断言两端 components 目录不存在任何与蓝本同名的本地副本（存在即漂移，exit 1）。
+ *   默认模式：输出指引（不再写副本——历史同步行为已废弃，恢复副本=开倒车）。
  */
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,23 +18,6 @@ const TARGETS = [
   join(ROOT, 'clients/merchant-mp/src/components')
 ];
 const CHECK = process.argv.includes('--check');
-const HEADER = `<!--
-  Canonical: packages/shared-uni/src/components/{name}
-  Keep in sync (uni easycom 需本地路径). 同步：node scripts/sync-shared-uni-components.mjs
--->
-`;
-
-function sha(s) {
-  return createHash('sha256').update(s).digest('hex').slice(0, 12);
-}
-
-function stripHeader(src) {
-  return src.replace(/^<!--[\s\S]*?-->\s*/, '').replace(/\r\n/g, '\n');
-}
-
-function withHeader(name, body) {
-  return HEADER.replace('{name}', name) + body.replace(/\r\n/g, '\n').replace(/^\uFEFF/, '');
-}
 
 if (!existsSync(CANON)) {
   console.error('[sync-shared-uni-components] FAIL: missing', CANON);
@@ -42,45 +25,33 @@ if (!existsSync(CANON)) {
 }
 
 const names = readdirSync(CANON).filter((n) => n.endsWith('.vue'));
-let drifted = 0;
-let written = 0;
+const stale = [];
 
 for (const name of names) {
-  const canonBody = stripHeader(readFileSync(join(CANON, name), 'utf8'));
-  const next = withHeader(name, canonBody);
   for (const dir of TARGETS) {
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     const dest = join(dir, name);
-    const prev = existsSync(dest) ? readFileSync(dest, 'utf8') : '';
-    const same = stripHeader(prev) === canonBody;
-    if (!same) {
-      drifted++;
-      if (CHECK) {
-        console.error(
-          `[sync-shared-uni-components] DRIFT ${relative(ROOT, dest)} (canon=${sha(canonBody)} local=${sha(stripHeader(prev))})`
-        );
-      } else {
-        writeFileSync(dest, next.endsWith('\n') ? next : next + '\n');
-        written++;
-        console.log(`[sync-shared-uni-components] wrote ${relative(ROOT, dest)}`);
-      }
+    if (existsSync(dest)) {
+      stale.push(relative(ROOT, dest));
     }
   }
 }
 
+if (stale.length) {
+  const msg =
+    `${stale.length} 个本地副本不应存在（C10b：easycom/import 直指 @aicabinet/shared-uni）：\n` +
+    stale.map((p) => `  - ${p}`).join('\n') +
+    `\n恢复副本=开倒车。请删除这些文件；若确需本地覆盖，先改本守卫与 debt-tracker 并留痕。`;
+  console.error(`[sync-shared-uni-components] FAIL: ${msg}`);
+  process.exit(1);
+}
+
 if (CHECK) {
-  if (drifted) {
-    console.error(
-      `[sync-shared-uni-components] FAIL: ${drifted} 处副本与蓝本不一致；请运行 node scripts/sync-shared-uni-components.mjs`
-    );
-    process.exit(1);
-  }
   console.log(
-    `[sync-shared-uni-components] OK：${names.length} 组件 × ${TARGETS.length} 端与蓝本一致`
+    `[sync-shared-uni-components] OK：${names.length} 组件均直指 package，${TARGETS.length} 端无本地副本（C10b/M9 收口）`
   );
   process.exit(0);
 }
 
 console.log(
-  `[sync-shared-uni-components] done：蓝本 ${names.length}，写入 ${written}，已一致跳过 ${names.length * TARGETS.length - written}`
+  `[sync-shared-uni-components] done：蓝本 ${names.length} 组件经 package exports 分发（easycom + 显式 import），无需本地副本`
 );

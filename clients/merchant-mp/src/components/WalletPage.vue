@@ -150,7 +150,7 @@ import {
   fmtMoney,
   yuanToCents
 } from '@aicabinet/shared-uni/format';
-import EmptyState from '@/components/empty-state.vue';
+import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import { merchantApi, isMerchantLoggedIn, handleUnauthorized, hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type {

@@ -246,7 +246,7 @@ import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
-import EmptyState from '@/components/empty-state.vue';
+import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import AppSheet from '@/components/AppSheet.vue';
 import {
   hasPerm,

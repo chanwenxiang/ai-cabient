@@ -174,7 +174,7 @@
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
-import EmptyState from '@/components/empty-state.vue';
+import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';

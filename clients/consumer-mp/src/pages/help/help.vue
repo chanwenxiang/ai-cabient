@@ -126,6 +126,7 @@
 
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
+import { safeMakePhoneCall, safeSetClipboardData } from '@aicabinet/shared-uni/safe-uni-call';
 import { ref } from 'vue';
 import { consumerApi } from '@/utils/consumer-api';
 import { showError, showSuccess } from '@/utils/notify';
@@ -190,20 +191,17 @@ function toggle(idx: number) {
 }
 
 function callSupport() {
-  uni.makePhoneCall({
-    phoneNumber: supportPhoneDial.value,
-    fail: () => showError(`请拨打 ${supportPhoneDisplay.value}`)
-  });
+  if (!safeMakePhoneCall(supportPhoneDial.value)) {
+    showError(`请拨打 ${supportPhoneDisplay.value}`);
+  }
 }
 
 function copySupportEmail() {
   const email = supportEmail.value;
   if (!email) return;
-  uni.setClipboardData({
-    data: email,
-    success: () => showSuccess('邮箱已复制'),
-    fail: () => showError(email)
-  });
+  if (!safeSetClipboardData(email, () => showSuccess('邮箱已复制'))) {
+    showError(email);
+  }
 }
 
 function goAnnouncements() {

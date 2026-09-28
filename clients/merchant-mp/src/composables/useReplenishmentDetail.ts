@@ -1,4 +1,5 @@
 import { nextTick, type ComputedRef, type Ref } from 'vue';
+import { safeChooseImage } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError } from '@/utils/notify';
 import { merchantApi, softFallback } from '@/utils/merchant-api';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
@@ -220,18 +221,7 @@ export function useReplenishmentDetail(opts: {
       showError('最多 5 张');
       return;
     }
-    const paths = await new Promise<string[]>((resolve) => {
-      uni.chooseImage({
-        count: 5 - opts.evidenceItems.value.length,
-        sizeType: ['compressed'],
-        sourceType: ['album', 'camera'],
-        success: (res) => {
-          const raw = res.tempFilePaths || [];
-          resolve(Array.isArray(raw) ? raw : [raw]);
-        },
-        fail: () => resolve([])
-      });
-    });
+    const paths = await safeChooseImage(5 - opts.evidenceItems.value.length);
     for (const path of paths) {
       try {
         await assertLocalImageSize(path);

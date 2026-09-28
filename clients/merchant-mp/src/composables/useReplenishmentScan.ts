@@ -1,4 +1,5 @@
 import type { ComputedRef, Ref } from 'vue';
+import { safeScanCode } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError, showSuccess } from '@/utils/notify';
 import { merchantApi } from '@/utils/merchant-api';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
@@ -116,15 +117,9 @@ export function useReplenishmentScan(opts: {
 
   async function readProductBarcode(): Promise<string | null> {
     try {
-      const res = await new Promise<{ result?: string }>((resolve, reject) => {
-        uni.scanCode({
-          onlyFromCamera: false,
-          scanType: ['barCode', 'qrCode'],
-          success: (r) => resolve(r as { result?: string }),
-          fail: reject
-        });
-      });
-      return String(res.result || '').trim() || null;
+      // C9：无扫码实现（H5）返回 null，走既有「手输条码」降级
+      const res = await safeScanCode();
+      return res?.trim() || null;
     } catch (err) {
       const msg = String((err as { errMsg?: string })?.errMsg || '');
       if (/cancel|取消/i.test(msg)) return null;

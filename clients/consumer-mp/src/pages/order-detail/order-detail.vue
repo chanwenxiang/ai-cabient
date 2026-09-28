@@ -289,6 +289,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { safeMakePhoneCall } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -899,10 +900,9 @@ function goHelp() {
 }
 
 function callSupport() {
-  uni.makePhoneCall({
-    phoneNumber: supportPhoneDial.value,
-    fail: () => showError(`请拨打 ${supportPhoneDisplay.value}`)
-  });
+  if (!safeMakePhoneCall(supportPhoneDial.value)) {
+    showError(`请拨打 ${supportPhoneDisplay.value}`);
+  }
 }
 </script>
 

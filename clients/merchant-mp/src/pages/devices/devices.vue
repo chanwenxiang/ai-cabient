@@ -149,7 +149,7 @@
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
-import EmptyState from '@/components/empty-state.vue';
+import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';

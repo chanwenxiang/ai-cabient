@@ -21,6 +21,7 @@
     "./upload-limits": "./src/upload-limits.ts",
     "./theme.css": "./src/theme.css",
     "./navigate-back": "./src/navigate-back.ts",
+    "./safe-uni-call": "./src/safe-uni-call.ts",
     "./ui-copy": "./src/ui-copy.ts",
     "./privacy-consent": "./src/privacy-consent.ts",
     "./use-privacy-consent": "./src/use-privacy-consent.ts",

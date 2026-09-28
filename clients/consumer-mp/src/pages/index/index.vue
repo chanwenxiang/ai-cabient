@@ -564,6 +564,11 @@ import {
   isConsumerLoggedIn
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
+import {
+  safeMakePhoneCall,
+  safeScanCode,
+  safeSetClipboardData
+} from '@aicabinet/shared-uni/safe-uni-call';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import landingBgUrl from '@/static/bg-shop-indoor.jpg';
 import {
@@ -1420,10 +1425,9 @@ async function onLiveNeedHelp() {
     showError('暂无客服电话，请到帮助页查看');
     return;
   }
-  uni.makePhoneCall({
-    phoneNumber: phone,
-    fail: () => showError(`请拨打 ${servicePhone.value}`)
-  });
+  if (!safeMakePhoneCall(phone)) {
+    showError(`请拨打 ${servicePhone.value}`);
+  }
 }
 
 async function loadConsumerConfig() {
@@ -1520,39 +1524,31 @@ function onPrepCancel() {
   prepResolve = null;
 }
 
-function onScan() {
-  uni.scanCode({
-    onlyFromCamera: false,
-    scanType: ['qrCode', 'barCode'],
-    success(res) {
-      const raw = String(res.result || res.path || '').trim();
-      if (!raw) {
-        showError('未识别到有效内容，请对准柜门二维码');
-        return;
-      }
-      const parsed = parseCabinetScan(raw);
-      if (parsed.alipayOnly) {
-        showError('请使用支付宝扫码');
-        return;
-      }
-      if (!parsed.deviceId) {
-        landingError.value = '无法识别柜机二维码，请扫描柜门上的专用码。';
-        landingErrorKind.value = 'device_not_found';
-        if (showManualEntry.value) showManual.value = true;
-        showError('无法识别柜机二维码');
-        return;
-      }
-      startShoppingFlow(parsed.deviceId, parsed.channel);
-    },
-    fail() {
-      if (isH5.value) {
-        showManual.value = true;
-        showError('浏览器请手动输入柜机编号');
-        return;
-      }
-      showError('扫码取消或失败');
+async function onScan() {
+  // C9：H5 无扫码实现，降级手动输入
+  const raw = (await safeScanCode())?.trim() || '';
+  if (!raw) {
+    if (isH5.value) {
+      showManual.value = true;
+      showError('浏览器请手动输入柜机编号');
+      return;
     }
-  });
+    showError('扫码取消或失败');
+    return;
+  }
+  const parsed = parseCabinetScan(raw);
+  if (parsed.alipayOnly) {
+    showError('请使用支付宝扫码');
+    return;
+  }
+  if (!parsed.deviceId) {
+    landingError.value = '无法识别柜机二维码，请扫描柜门上的专用码。';
+    landingErrorKind.value = 'device_not_found';
+    if (showManualEntry.value) showManual.value = true;
+    showError('无法识别柜机二维码');
+    return;
+  }
+  startShoppingFlow(parsed.deviceId, parsed.channel);
 }
 
 function confirmDevice() {

@@ -99,7 +99,7 @@
 import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
-import EmptyState from '@/components/empty-state.vue';
+import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import AppSheet from '@/components/AppSheet.vue';
 import { yuanToCents, fmtMoney } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';

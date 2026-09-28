@@ -320,10 +320,10 @@
   "easycom": {
     "autoscan": true,
     "custom": {
-      "^empty-state$": "@/components/empty-state.vue",
-      "^error-state$": "@/components/error-state.vue",
-      "^app-nav-bar$": "@/components/app-nav-bar.vue",
-      "^app-button$": "@/components/app-button.vue"
+      "^empty-state$": "@aicabinet/shared-uni/components/empty-state.vue",
+      "^error-state$": "@aicabinet/shared-uni/components/error-state.vue",
+      "^app-nav-bar$": "@aicabinet/shared-uni/components/app-nav-bar.vue",
+      "^app-button$": "@aicabinet/shared-uni/components/app-button.vue"
     }
   },
   "globalStyle": {

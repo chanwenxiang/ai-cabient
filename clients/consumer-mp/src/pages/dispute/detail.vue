@@ -140,6 +140,7 @@ import {
   fmtMoney
 } from '@aicabinet/shared-uni/format';
 import { parseQuery } from '@aicabinet/shared-uni/query';
+import { safeMakePhoneCall, safeSetClipboardData } from '@aicabinet/shared-uni/safe-uni-call';
 import type { DisputeTicketDto, FileAttachmentDto, OrderLineDto } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -474,17 +475,18 @@ function goOrders() {
 }
 
 function contactOps() {
-  uni.makePhoneCall({ phoneNumber: servicePhone.value });
+  // C9：H5 无拨号实现，降级提示
+  if (!safeMakePhoneCall(servicePhone.value)) {
+    showError(`请拨打 ${servicePhone.value}`);
+  }
 }
 
 function copySupportEmail() {
   const email = supportEmail.value;
   if (!email) return;
-  uni.setClipboardData({
-    data: email,
-    success: () => showSuccess('邮箱已复制'),
-    fail: () => showError(email)
-  });
+  if (!safeSetClipboardData(email, () => showSuccess('邮箱已复制'))) {
+    showError(email);
+  }
 }
 
 function previewEvidence(img: FileAttachmentDto) {
