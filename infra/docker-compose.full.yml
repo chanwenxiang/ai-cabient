@@ -24,6 +24,15 @@ services:
     stop_grace_period: 30s
     image: redis:7-alpine
     ports: ["127.0.0.1:6379:6379"]
+    # L2-4：Redis 密码（dev 默认 devredis；与 trade/device 的 SPRING_DATA_REDIS_PASSWORD 对齐）
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-devredis}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   emqx:
     stop_grace_period: 30s
