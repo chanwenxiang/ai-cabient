@@ -441,6 +441,34 @@ X1（preflight 强制 `check:openapi-types`）、X2（staging overlay 钉死 moc
 
 ## 附：审查执行记录
 
+---
+
+## 十二、第一层+第二层执行（2026-09-28）
+
+### 12.1 第一层：运行栈对齐最新代码 ✅
+trade+device 双镜像重建、redis/trade/device 协调替换。运行时取证：redis 密码生效（无凭据 NOAUTH/带凭据 PONG）、ops 登录链路通、一致性 FAIL=0、Flyway V288 已应用。
+
+### 12.2 第二层：批次一（提交 `630e6b75`）✅
+1. **L2-1 CHARGE_PENDING 超时告警**：`alertStaleChargePendingOps()` 搭载 unpaidCancel 15 分钟任务；>60 分钟未收口发 `CHARGE_PENDING_STALE` HIGH 告警（不自动改单）。
+2. **L2-3 TCC/分布式事务死代码下线**：删 `TccTransactionCoordinator`/`DistributedTransaction`/Mapper（含 .xml——**MyBatis XML 扫描漏删曾致启动失败，已修**）、`retryFailedTransactions` 全链、XXL handler/种子/注册表/KEYS/ScheduleZones 五处同步；`V288` DROP 两张死表+清 scheduled_task 行；**live xxl_job_info 已删 compensationRetryJob**。调度器仅保留分账回退补偿（测试 5 用例含未知类型防御）。
+
+### 12.3 第二层：批次二（提交 `e5913e64`）✅
+3. **L2-2 登录验证码（失败升级式）**：连续失败 ≥2 次后 `password-login`/`merchant-password-login` 强制图形验证码；双端登录页按需显示验证码 UI、失败后自动刷新。**首登用户与全部 e2e 脚本零破坏**（首试成功不触发）。
+4. **L2-4 Redis 密码**：base+full compose `--requirepass`（dev 默认 `devredis`）；trade/device application.yml + 全 overlay env 对齐；staging/production `:?` 强制强口令。
+5. **L2-6 BigScreen/PrintView 截断**：`fetchAllPages`/`fetchAllSkus` 分页拉全。
+6. **L2-10 merchant `build:mp-weixin:dev` 脚本化**（含 appjson patch，补齐与 consumer 的链路差）。
+
+### 12.4 门禁演进（提交 `411e5796`）
+`check-scheduled-task-seed` 新增规则 2.5：识别后续迁移中的 `DELETE FROM scheduled_task … task_key='…'`（V288 模式），任务下线时登记行删除不再误判「残留登记行」；注册表仍注册已删 key 则报错。
+
+### 12.5 插曲与教训
+- 删 Mapper **接口**时漏删同名 **.xml**（MyBatis 扫描 resources/mapper/*.xml 解析失败 → trade 启动崩）——本地实测+CI e2e-h5 双双当场暴露，fix-forward 修复（`93a1d336`）。教训：删 Java Mapper 必同查 `resources/mapper/*.xml`。
+- L2-4 部署时发现 full 栈 redis 定义是**自包含覆盖**（不经 base compose）——改 base 不够，须同步 full.yml（两处已一致）。
+- 推送前漏跑完整预检一次（批次二），补跑后以 gate 修复 fix-forward 收口；后续严格维持「push 前预检」铁律。
+
+### 12.6 L2 未做（维持挂账）
+媒体 fileId 随机化（MinIO 私有化后降级）、临期 tab 服务端过滤、履约 N+1 聚合、alert-channel UAT 接 CI（需先验证 CI 无外网时 AC-05 行为）、mp dev watch 链 lazyCodeLoading。
+
 - 方式：6 路 Explore 并行只读审查（约 2.7M–4.4M tokens/路），主审对 5 项载荷结论复核源码坐实（validator mock 拒绝、超时取消无争议、MQTT ACL、createSession 重试、preflight 警告档）。
 - 工作树：审查时点 git clean（`8feb079a`）。
 - 本报告结论有效期：至下次大规模改动；引用行号以审查时点为准。

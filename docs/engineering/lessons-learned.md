@@ -243,6 +243,7 @@
 | 230 | `NODE_OPTIONS="--require .tmp/tools/nopipe.cjs"` 秒退 exit 1 `MODULE_NOT_FOUND` | Node v24 下 `--require` **相对路径必失效**（按 CWD 解析失败即终止进程），与「EBUSY 全红假红」是两种故障 | **必须**用绝对路径：`NODE_OPTIONS="--require $(pwd)/.tmp/tools/nopipe.cjs"`；`nopipe.cjs` 不存在时先建（内容只吞 EPIPE） | `scripts/pre-push-ci-preflight.mjs`、`.tmp/tools/nopipe.cjs` |
 | 231 | `shared-rbac/dist`、`shared-dict/dist` 提交产物落后 src（27 天/6 天） | `check:shared` 只 `build:packages` 重建不比对 ⇒ 门禁恒绿挡不住 dist 陈旧；rbac dist 缺 B-13 修复（`ops:admin` 无条件放行） | **必须**改 shared-* src 后 `pnpm build:packages` 并连同 dist 一起提交；两端应用靠 vite 别名到 src 兜底，node 直消费 dist 的脚本会拿到旧逻辑 | `packages/shared-rbac/dist`、`packages/shared-dict/dist`、`scripts/check-shared-*` |
 | 232 | 查 `xxl_job_log` 误判「2612 年测试污染」+「最近 10 分钟 1037 条」 | `trigger_time` 是 **DATETIME** 列，却按毫秒数 `FROM_UNIXTIME(trigger_time/1000)`（渲染出垃圾年份）比较过滤；且 **mysql 容器=UTC 而 XXL 日志=+08**，8 小时错位使「NOW()-N MINUTE」窗口实际匹配 8 小时 | **必须**用 DATETIME 语义查（`trigger_time > NOW() - INTERVAL n MINUTE` 直比、`MAX(trigger_time)` 直读），**禁** `FROM_UNIXTIME` 套 DATETIME；跨容器比对时间先 `SELECT NOW()` 对表；「测试污染」结论须先排除口径错位再下 | `xxl_job_log`、`docker exec ai-cabinet-xxl-job-mysql-1 mysql` |
+| 233 | 删 `DistributedTransactionMapper.java` 后 trade 启动即崩 | MyBatis 除 Java 接口外还有 **`resources/mapper/*.xml`**（typeAlias 引用已删实体 → SqlSessionFactory 解析失败）；本地实测与 CI e2e-h5 双双当场暴露 | **必须**删 Mapper 时同步查 `src/main/resources/mapper/*.xml`（`ls resources/mapper \| grep -i 同名`）；「编译绿」证明不了 XML 扫描面；启动失败先看 `Failed to parse mapping resource` | `DistributedTransactionMapper.xml`、V288 |
 
 ## 追加模板
 
