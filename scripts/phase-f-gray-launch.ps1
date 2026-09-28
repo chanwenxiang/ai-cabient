@@ -38,7 +38,7 @@ function Invoke-GrayApi {
             throw "captcha fetch failed: $($capResp.message)"
         }
         $capId = $capResp.data.captchaId
-        $code = (docker exec ai-cabinet-redis-1 redis-cli GET "aicabinet:captcha:$capId" 2>&1).Trim()
+        $code = (docker exec ai-cabinet-redis-1 redis-cli --no-auth-warning -a devredis GET "aicabinet:captcha:$capId" 2>&1).Trim()
         if ([string]::IsNullOrWhiteSpace($code)) { throw "captcha redis miss: $capId" }
         $sep = if ($Path.Contains('?')) { '&' } else { '?' }
         $Path = "$Path$sep" + "captchaId=$([uri]::EscapeDataString($capId))&captchaCode=$([uri]::EscapeDataString($code))"

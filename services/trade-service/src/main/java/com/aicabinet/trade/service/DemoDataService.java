@@ -65,6 +65,8 @@ public class DemoDataService {
     private final DeviceIdService deviceIdService;
     private final MerchantIdService merchantIdService;
     private final WarehouseSupplierIdService warehouseSupplierIdService;
+    private final SupplierMapper supplierRepository;
+    private final DeviceSlotMapper deviceSlotMapper;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DemoDataService self;
 
@@ -83,6 +85,8 @@ public class DemoDataService {
                            DeviceIdService deviceIdService,
                            MerchantIdService merchantIdService,
                            WarehouseSupplierIdService warehouseSupplierIdService,
+                           SupplierMapper supplierRepository,
+                           DeviceSlotMapper deviceSlotMapper,
                            @Lazy DemoDataService self) {
         this.securityProperties = securityProperties;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -99,6 +103,8 @@ public class DemoDataService {
         this.deviceIdService = deviceIdService;
         this.merchantIdService = merchantIdService;
         this.warehouseSupplierIdService = warehouseSupplierIdService;
+        this.supplierRepository = supplierRepository;
+        this.deviceSlotMapper = deviceSlotMapper;
         this.self = self;
     }
 
@@ -113,7 +119,9 @@ public class DemoDataService {
         String deviceId = ensureDevice();
         ensureDeviceInventory(deviceId);
         deviceSlotService.ensureDefaultSlots(deviceId);
+        bindInventorySkuToSlots(deviceId);
         String warehouseId = ensureWarehouse();
+        ensureSupplier();
         ensureVisionMappings();
         ensureConsumerUser();
         DemoContext ctx = buildContext(deviceId, warehouseId);
@@ -356,6 +364,65 @@ public class DemoDataService {
         log.info("demo warehouse allocated warehouseId={}", warehouseId);
         seedWarehouseLotsIfEmpty(warehouseId);
         return warehouseId;
+    }
+
+    /** S1 台子补齐：演示供应商（采购/应付链路依赖；WipePlatform 会清掉，ensure 时重建）。 */
+    private void ensureSupplier() {
+        boolean exists = supplierRepository.findAll().stream()
+                .anyMatch(s -> s.getSupplierId() != null && !s.getSupplierId().isBlank());
+        if (exists) {
+            return;
+        }
+        Supplier supplier = new Supplier();
+        supplier.setSupplierId(warehouseSupplierIdService.allocateSupplierId());
+        supplier.setSupplierName("演示供应商");
+        supplier.setContactName("演示联系人");
+        supplier.setContactPhone("13800000001");
+        supplier.setStatus("ACTIVE");
+        supplier.setPaymentTermsDays(30);
+        supplierRepository.insert(supplier);
+        log.info("demo supplier allocated supplierId={}", supplier.getSupplierId());
+    }
+
+    /**
+     * S1 台子补齐：把有库存的 SKU 依序绑到空货道（A1、A2…）。
+     * 模板默认空陈列（lessons #214），但订单行的货道号来自下单时的 slot 绑定——
+     * 不绑的话运营订单列表「货道」列永远「暂无」，且购物流程无法按货道出库。
+     * 🔴 必须 1 SKU=1 货道：结算回填 slot 的前提是「SKU 唯一绑定某货道」
+     *（SettlementOrderSupport.inferSlotBySku 对多货道 SKU 置 null）。
+     * 只填空货道、不动已有绑定；库存为 0 的 SKU 不绑（避免可售假象）。
+     */
+    private void bindInventorySkuToSlots(String deviceId) {
+        List<DeviceSlot> slots = deviceSlotMapper.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId);
+        java.util.LinkedHashMap<String, Integer> qtyBySku = new java.util.LinkedHashMap<>();
+        deviceSkuInventoryRepository.findByIdDeviceId(deviceId).forEach(inv ->
+                qtyBySku.put(inv.getSkuId(), inv.getQuantity()));
+        java.util.Set<String> usedSkus = new java.util.HashSet<>();
+        for (DeviceSlot slot : slots) {
+            if (slot.getAssignedSkuId() != null && !slot.getAssignedSkuId().isBlank()) {
+                usedSkus.add(slot.getAssignedSkuId());
+                continue;
+            }
+            String skuId = nextAvailableSku(qtyBySku, usedSkus);
+            if (skuId == null) {
+                break;
+            }
+            slot.setAssignedSkuId(skuId);
+            usedSkus.add(skuId);
+            deviceSlotMapper.save(slot);
+            log.info("demo slot bound device={} slot={} sku={}", deviceId, slot.getSlotCode(), skuId);
+        }
+    }
+
+    /** 取下一个有库存且未被占用（1 SKU=1 货道）的 SKU。 */
+    private String nextAvailableSku(java.util.LinkedHashMap<String, Integer> qtyBySku,
+                                    java.util.Set<String> usedSkus) {
+        for (java.util.Map.Entry<String, Integer> e : qtyBySku.entrySet()) {
+            if (!usedSkus.contains(e.getKey()) && e.getValue() != null && e.getValue() > 0) {
+                return e.getKey();
+            }
+        }
+        return null;
     }
 
     private Optional<String> resolveExistingWarehouseId() {

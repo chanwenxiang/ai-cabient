@@ -195,7 +195,7 @@ function Invoke-E2eApi {
                 throw "captcha fetch failed: $($capResp.message)"
             }
             $capId = $capResp.data.captchaId
-            $code = (docker exec ai-cabinet-redis-1 redis-cli GET "aicabinet:captcha:$capId" 2>&1).Trim()
+            $code = (docker exec ai-cabinet-redis-1 redis-cli --no-auth-warning -a devredis GET "aicabinet:captcha:$capId" 2>&1).Trim()
             if ([string]::IsNullOrWhiteSpace($code)) {
                 throw "captcha code not found in redis for id=$capId"
             }
@@ -213,7 +213,7 @@ function Invoke-E2eApi {
                 throw "captcha fetch failed: $($capResp.message)"
             }
             $capId = $capResp.data.captchaId
-            $code = (docker exec ai-cabinet-redis-1 redis-cli GET "aicabinet:captcha:$capId" 2>&1).Trim()
+            $code = (docker exec ai-cabinet-redis-1 redis-cli --no-auth-warning -a devredis GET "aicabinet:captcha:$capId" 2>&1).Trim()
             if ([string]::IsNullOrWhiteSpace($code)) {
                 throw "captcha code not found in redis for id=$capId"
             }
@@ -1545,7 +1545,7 @@ function Get-E2eAdminCaptchaCode {
     if ([string]::IsNullOrWhiteSpace($CaptchaId)) {
         throw "CaptchaId required"
     }
-    $raw = docker exec $RedisContainer redis-cli GET "aicabinet:captcha:$CaptchaId" 2>&1
+    $raw = docker exec $RedisContainer redis-cli --no-auth-warning -a devredis GET "aicabinet:captcha:$CaptchaId" 2>&1
     $code = [string]$raw
     if ($code -match '^\s*$' -or $code -match 'nil|ERR') {
         throw "Captcha not found in redis for id=$CaptchaId"

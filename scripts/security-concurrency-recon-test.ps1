@@ -11,7 +11,7 @@ function Log([string]$s) { [void]$Report.Add($s); Write-Host $s }
 function Get-Captcha {
   $c = Invoke-RestMethod -Uri "$Base/api/v2/auth/captcha" -Method GET
   $id = $c.data.captchaId
-  $code = docker exec ai-cabinet-redis-1 redis-cli GET "aicabinet:captcha:$id"
+  $code = docker exec ai-cabinet-redis-1 redis-cli --no-auth-warning -a devredis GET "aicabinet:captcha:$id"
   if (-not $code) { throw "captcha redis miss: $id" }
   return @{ id = $id; code = "$code".Trim() }
 }

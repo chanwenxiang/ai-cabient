@@ -21,11 +21,8 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl ""
-$DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
-$WarehouseId = Resolve-E2eTestWarehouse -WarehouseId $WarehouseId
-$SupplierId = Resolve-E2eTestSupplier -SupplierId $SupplierId
-if ([string]::IsNullOrWhiteSpace($SkuId)) { $SkuId = Resolve-E2eTestSku -DeviceId $DeviceId }
-if ([string]::IsNullOrWhiteSpace($BatchNo)) { $BatchNo = Resolve-E2eTestBatch -SkuId $SkuId -WarehouseId $WarehouseId }
+# 注意：设备/仓/供应商/SKU 的运行时 Resolve 延迟到 cleanup+demo-ensure 之后执行
+# （WipePlatform 会清空台子，先 resolve 必然空库失败）。
 
 $summary = @()
 function Record-Step([string]$Id, [bool]$Ok, [string]$Detail = "") {
@@ -52,7 +49,19 @@ try {
         Write-Host "`n--- S-06 cleanup-test-data ---"
         & (Join-Path $PSScriptRoot "cleanup-test-data.ps1") -RestoreBalanceCents 50000
         Record-Step "S-06-cleanup" $true "blocking sessions + disputes"
+        # S0→S1 衔接：WipePlatform 清空台子后重建演示业务上下文（柜/商户/仓/SKU/供应商），
+        # 否则下方 Resolve-E2eTest* 因空库全部失败（内部端点绕网关直连 trade）。
+        Write-Host "`n--- S-06b demo ensure (rebuild S1 stage) ---"
+        & (Join-Path $PSScriptRoot "seed-demo-data.ps1") -Ensure
+        Record-Step "S-06b-demo-ensure" $true "rebuild S1 stage after wipe"
     }
+
+    # S1 台子就绪后运行时解析测试实体（禁写死柜/商户/SKU，lessons #212-#215）
+    $DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales
+    $WarehouseId = Resolve-E2eTestWarehouse -WarehouseId $WarehouseId
+    $SupplierId = Resolve-E2eTestSupplier -SupplierId $SupplierId
+    if ([string]::IsNullOrWhiteSpace($SkuId)) { $SkuId = Resolve-E2eTestSku -DeviceId $DeviceId }
+    if ([string]::IsNullOrWhiteSpace($BatchNo)) { $BatchNo = Resolve-E2eTestBatch -SkuId $SkuId -WarehouseId $WarehouseId }
 
     if (StepEnabled "procurement") {
     Write-Host "`n--- 1. 采购下单 + 仓储收货 ---"
@@ -135,7 +144,7 @@ try {
         $opsPrep = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/admin-password-login" -Body @{
             phoneNumber = "13900000001"; password = "123456"
         }
-        Prepare-E2eReplenishmentPlan -BaseUrl $BaseUrl -OpsAuth @{ Authorization = "Bearer $($opsPrep.token)" } -DeviceId $DeviceId -WarehouseId $WarehouseId
+        Prepare-E2eReplenishmentPlan -BaseUrl $BaseUrl -OpsAuth @{ Authorization = "Bearer $($opsPrep.token)" } -DeviceId $DeviceId -WarehouseId $WarehouseId -ForceGap
         & (Join-Path $PSScriptRoot "e2e-replenishment.ps1") -SkuId $SkuId -Quantity 10 -DeviceId $DeviceId
         Record-Step "2-replenishment" $true "warehouse outbound + merchant restock"
     } catch {

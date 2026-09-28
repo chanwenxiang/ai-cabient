@@ -32,7 +32,7 @@ function Login([string]$phone = "13800138000") {
         $capResp = Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v2/auth/captcha" -ContentType "application/json"
         if ($capResp.code -ne 0) { throw "captcha fetch failed" }
         $capId = $capResp.data.captchaId
-        $capCode = (docker exec ai-cabinet-redis-1 redis-cli GET "aicabinet:captcha:$capId" 2>&1).Trim()
+        $capCode = (docker exec ai-cabinet-redis-1 redis-cli --no-auth-warning -a devredis GET "aicabinet:captcha:$capId" 2>&1).Trim()
         if ([string]::IsNullOrWhiteSpace($capCode)) { throw "captcha redis miss" }
         $q = "phoneNumber=$([uri]::EscapeDataString($phone))&captchaId=$([uri]::EscapeDataString($capId))&captchaCode=$([uri]::EscapeDataString($capCode))"
         Invoke-Api POST "/api/v2/auth/sms-code?$q" @{} $null | Out-Null
