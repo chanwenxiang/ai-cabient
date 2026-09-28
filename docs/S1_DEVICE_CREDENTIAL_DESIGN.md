@@ -1,6 +1,6 @@
 # 设备侧凭据重构设计（S1 · 接真硬件前置）
 
-> 依据：`docs/THREE_END_FULL_REVIEW_2026-09-27.md` §10.3 S1。状态：**设计稿，未实施**。
+> 依据：`docs/THREE_END_FULL_REVIEW_2026-09-27.md` §10.3 S1。状态：**已实施（2026-09-28，除 APK 现场装机页）**——实施摘要与本文件 SOP 见文末「§7 实施记录」。
 > 触发条件：接真实硬件前必须完成；纯 dev/模拟器阶段不阻塞。
 
 ## 1. 现状与风险
@@ -58,3 +58,40 @@
 - [ ] EMQX 5 file authorizer 能否表达 `clientid == username`（不能则改内置库授权或 per-device 规则）。
 - [ ] EMQX 内置库 bootstrap 的 PBKDF2 参数与生成工具对齐（`password_hash_format` 配置）。
 - [ ] 现场弱网下装机配置页的重试/断点体验。
+
+---
+
+## 7. 实施记录（2026-09-28）
+
+| 项 | 状态 | 落点 |
+|---|---|---|
+| A 凭据模型 | ✅ | `V290__device_mqtt_credential.sql` + `DeviceMqttCredentialService`（issue/revoke/status；明文 secret 仅签发响应返回一次，表内明文仅用于 bootstrap 导出，敏感级同 CSV） |
+| B ACL 绑定 | ✅ | `aicabinet-acl.conf` 新增 `{allow, all, all, ["cabinet/${username}/#"]}`——username=deviceId 命名空间。⚠ 实测 EMQX 5.8.6 file authorizer 的 who 位不接受 `{all}` 元组（invalid_client_match_condition），须写裸 `all` |
+| C 签发 API | ✅ | `POST/DELETE/GET /api/v2/ops/admin/devices/{deviceId}/mqtt-credential`（ops:device:edit / ops:device:list；审计 `DEVICE_MQTT_CREDENTIAL_ISSUE/REVOKE`） |
+| 生成器 | ✅ | `-IncludeDevicesFromDb`：docker exec psql 读 trade 库 ACTIVE 行（明文不出库容器）逐设备一行；共享账号默认**不进 bootstrap**（`-KeepSharedDevice` 仅回退） |
+| 伪装 UAT | ✅ | §6 |
+| ACL 生效方式 | ✅ 实测 | dev 侧改 ACL 文件后必须 `--force-recreate emqx`（文件挂载不热加载；EMQX 5.8.6 对 `{all}` who 位会 schema 校验失败拒启，改裸 `all` 通过） |
+| APK 装机页 | ⏳ | 需真机联调；现有 SharedPreferences 注入机制兼容（username=deviceId + 一次性 secret），生产 bootstrap 不含共享账号即可生效 |
+
+### 伪装 UAT 实测（dev 栈，mosquitto 客户端，QoS1 + 订阅端双验证）
+
+| 用例 | 结果 |
+|---|---|
+| 设备凭据（user=898548016998）发本柜 `cabinet/898548016998/door/state` QoS1 | ✅ 订阅端收到 `POSITIVE-SELF` |
+| 同凭据发他柜 `cabinet/166813762350/door/state` | ✅ 拒发+断连（`Error: The connection was lost`；EMQX 日志 `cannot_publish_to_topic_due_to_not_authorized`） |
+| 同凭据发 `cabinet/backend/x` | ✅ 同上拒发断连 |
+| 共享模拟器账号（dev 仅存）收发 | ✅ 不破坏既有 dev 流程 |
+
+### 运维 SOP（签发 → 生效）
+
+1. 运营台/`POST /api/v2/ops/admin/devices/{deviceId}/mqtt-credential` 签发 → **响应里的 secret 只出现一次**，随派工单交现场。
+2. `pwsh scripts/gen-emqx-auth-bootstrap.ps1 -EnvFile .env.production -IncludeDevicesFromDb` 重新生成 bootstrap CSV（含该设备行）。
+3. 重建 emqx 容器（bootstrap 仅启动导入）。
+4. 现场装机：设备注入 username=deviceId + secret（SharedPreferences）。
+吊销：`DELETE …/mqtt-credential?reason=…` → 重跑步骤 2–3。
+
+### 遗留/后续
+
+- EMQX 内库 REST 同步（运行时签发免重建 emqx）——硬化路径，非必需。
+- APK「装机配置页」UI——需真机。
+- 生产部署时 `.env.production` 增加 `MQTT_DEVICE_PASSWORD` 的历史行可移除（共享账号已不进生产 bootstrap）。
