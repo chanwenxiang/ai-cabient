@@ -252,3 +252,5 @@
 ```
 
 | 234 | WipePlatform 重建后台子后，运营订单「货道」列全是「暂无」 | 两层原因叠加：①demo/ensure 只造 `device_sku_inventory`（按 SKU），不绑 `device_slot`（按货道），模板本身空陈列（#214）；②补绑时 1 个 SKU 绑了 A/B 两排，而结算回填 slot 的前提是「SKU **唯一**绑定某货道」（`inferSlotBySku` 对多货道 SKU 置 null） | **必须** demo/ensure 重建库存后把有货 SKU **1 SKU=1 货道**依序绑空货道；绑完自查「每 SKU 仅一个货道」；订单货道判据走 `cabinet_order_line.slot_id` 非空 | `DemoDataService.bindInventorySkuToSlots`、`SettlementOrderSupport.inferSlotBySku` |
+
+| 235 | UAT 软写把运营台可见的配置/说明字段打脏（system_config 说明=restored、approval_definition 备注=restored after A-05 等） | 测试 PUT/UPDATE 只回滚「值」，漏了同行的 description/remark；残留行长期挂在运营台 | **必须**测试写入前快照全行（值+说明+备注），恢复时逐字段还原；或固定用「前缀标记 + 定期清理」；审计类表（approval_instance/task）的英文 remark 是测试动作的真实痕迹，**禁止**事后改写 | `system_config`、`approval_definition`、`cleanup-test-data.ps1` |
