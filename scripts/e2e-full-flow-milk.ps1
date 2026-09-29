@@ -64,17 +64,35 @@ try {
         # 不重对齐则 open-door 指令发到无订阅主题 → 409。容器可能在清数时被停——
         # 无论 status 是否可达，都无条件按 ensured 柜重建。
         Write-Host "    simulator re-target → $ensuredDevice"
-        docker stop ai-cabinet-device-simulator-1 2>$null | Out-Null
-        docker rm ai-cabinet-device-simulator-1 2>$null | Out-Null
-        docker run -d --name ai-cabinet-device-simulator-1 --network ai-cabinet_default `
+        # rm -f = 停止+删除一条命令；PS5.1 下原生 stderr 在 EAP=Stop 会变终止错误，必须吞掉
+        try { docker rm -f ai-cabinet-device-simulator-1 2>$null | Out-Null } catch { }
+        try {
+            docker run -d --name ai-cabinet-device-simulator-1 --network ai-cabinet_default `
             -e MQTT_USERNAME=aicabinet-device -e MQTT_PASSWORD=dev-mqtt-device-pass `
             -e TRADE_SERVICE_URL=http://trade-service:8080 `
             -e INTERNAL_API_KEY=dev-internal-key-change-me `
             -e MINIO_ENDPOINT=http://minio:9000 -e MINIO_ACCESS_KEY=minioadmin `
             -e MINIO_SECRET_KEY=minioadmin -e MINIO_BUCKET=cabinet-videos `
             -e AICABINET_SIM_SHOPPING_MS=0 `
-            ai-cabinet/device-simulator:local $ensuredDevice tcp://emqx:1883 | Out-Null
-        Start-Sleep -Seconds 6
+            ai-cabinet-device-simulator $ensuredDevice tcp://emqx:1883 | Out-Null
+        } catch {
+            throw "simulator container recreate failed: $_"
+        }
+        # 等模拟器真上线（MQTT 握手完成后 device_info.online_status=ONLINE）。
+        # 固定 sleep 6s 冷启动时不够 ⇒ 补货 open-door 409「设备不在线」（2026-09-29 两连败，
+        # 跳过 ensure 重建的 -FromStep 复跑必过 ⇒ 竞态坐实）。轮询最长 90s。
+        $pgContainer = Get-E2ePostgresContainer
+        $onlineDeadline = (Get-Date).AddSeconds(90)
+        do {
+            Start-Sleep -Seconds 3
+            $onlineStatus = (docker exec $pgContainer psql -U aicabinet -d aicabinet -t -A -c `
+                "SELECT COALESCE(UPPER(online_status),'OFFLINE') FROM device_info WHERE device_id='$ensuredDevice';" 2>$null)
+            if ([string]::IsNullOrWhiteSpace($onlineStatus)) { $onlineStatus = 'UNKNOWN' }
+        } while ($onlineStatus -ne 'ONLINE' -and (Get-Date) -lt $onlineDeadline)
+        if ($onlineStatus -ne 'ONLINE') {
+            throw "simulator not ONLINE after 90s (device=$ensuredDevice last=$onlineStatus)"
+        }
+        Write-Host "    simulator ONLINE"
     }
 
     # 清 ensured 柜的阻塞会话：前轮购物可能留下 WAITING_UPLOAD 占用会话，

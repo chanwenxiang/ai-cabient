@@ -262,3 +262,5 @@
 | 237 | 新增 Spring 配置键（如订阅消息模板）容器里始终为空，功能静默不生效 | Spring yml 的 `${KEY:}` 占位符要生效必须由 compose environment 显式透传；full.yml trade 环境块漏了 `WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE` ⇒ 后端读到空串，`wechatSubscribeEnabled` 恒 false | **必须**新增配置键时同步在 docker-compose（base/apps/full/staging/production）environment 块补 `${KEY:-默认}` 透传；验证用 `/api/v2/public/consumer-config` 之类回显端点直查容器实际值 | `infra/docker-compose.full.yml`、`SystemConfigService.consumerPublicConfig` |
 
 | 238 | admin 移鼠标整页微抖（维修工单等同构列表） | 高 DPR（≈1.815）侧栏 `220px`→219.99，主列曾 `margin-left:-1px` 负间隙≈1px，鼠标移动时合成层亚像素重绘 | **必须**侧栏宽 `snapCssPx(devicePixelRatio)`；禁 `.layout-content{margin-left:-1px}`；壳高 `LAYOUT_VH_HYSTERESIS_PX≥2`；门禁 `check:admin-anti-jitter` 表 J | `AdminLayout.vue` |
+
+| 239 | milk 补货 open-door 连续 409「设备不在线」 | 桥里 docker run 写错镜像名 ai-cabinet/device-simulator:local（本机实际是 ai-cabinet-device-simulator，无斜杠），容器从未创建成功；旧 sim 指向被 wipe 的旧柜 ⇒ ensured 柜永远 OFFLINE；固定 sleep 6s 掩盖了容器根本没起来 | **必须** docker run 后轮询 device_info.online_status=ONLINE（≤90s）再继续，超时 fail-loud（fail-loud 守卫当场抓出镜像 403 拉取失败）；镜像名以 docker images 实际为准；PS5.1 原生 stderr 在 EAP=Stop 下会变终止错误，容器清理一律 try{docker rm -f 2>$null}catch{} | scripts/e2e-full-flow-milk.ps1 |
