@@ -735,9 +735,10 @@ async function main() {
     await clickByText(page, '我的', { exact: true });
     await page.waitForTimeout(1500);
     text = await bodyText(page);
-    // L2-身份展示后：登录态显示真实身份（姓名/昵称）+ 昵称编辑入口，不再落到「我的账户」兜底
+    // L2-身份展示后：登录态显示真实身份（姓名/昵称/掩码手机号）+ 昵称编辑入口；
+    // 断言结构而非具体名字——昵称是用户可改的（本地/CI 种子不同）
     const mineAuthed =
-      text.includes('陈晓') && /设昵称|改昵称/.test(text) && text.includes('退出登录');
+      /设昵称|改昵称/.test(text) && text.includes('138****8000') && text.includes('退出登录');
     const e9 = await shot(page, '09-mine-authed');
     record(
       'TC-MINE-001',

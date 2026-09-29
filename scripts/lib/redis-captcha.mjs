@@ -20,15 +20,21 @@ export function parseRespBulk(raw) {
   return raw.slice(nl + 2, nl + 2 + Number(raw.slice(1, nl)));
 }
 
-/** 最小 RESP 客户端：GET 单个 key，避免依赖 redis-cli / docker。 */
+/** 最小 RESP 客户端：GET 单个 key（可先 AUTH），避免依赖 redis-cli / docker。 */
 export function redisGetViaSocket(key) {
   return new Promise((resolve, reject) => {
+    const password = process.env.REDIS_PASSWORD || '';
+    const getFrame = `*2\r\n$3\r\nGET\r\n$${Buffer.byteLength(key)}\r\n${key}\r\n`;
+    const authFrame = password
+      ? `*2\r\n$4\r\nAUTH\r\n$${Buffer.byteLength(password)}\r\n${password}\r\n`
+      : '';
     const socket = net.createConnection({
       host: process.env.REDIS_HOST || '127.0.0.1',
       port: Number(process.env.REDIS_PORT || 6379)
     });
     let buffer = '';
     let settled = false;
+    let authed = !password;
     const finish = (fn, arg) => {
       if (settled) return;
       settled = true;
@@ -37,10 +43,22 @@ export function redisGetViaSocket(key) {
     };
     socket.setTimeout(5000);
     socket.on('connect', () => {
-      socket.write(`*2\r\n$3\r\nGET\r\n$${Buffer.byteLength(key)}\r\n${key}\r\n`);
+      // 本地开发栈自 S4 加固起 redis 带密码；不 AUTH 直接 GET 会 -NOAUTH（被当空串假缺失）
+      socket.write(authFrame || getFrame);
     });
     socket.on('data', (chunk) => {
       buffer += chunk.toString('utf8');
+      if (!authed) {
+        // AUTH 应答必须先于 GET 应答；+OK 之外一律视为认证失败
+        if (buffer.startsWith('+OK')) {
+          authed = true;
+          buffer = '';
+          socket.write(getFrame);
+        } else {
+          finish(reject, new Error(`redis AUTH failed: ${buffer.trim().slice(0, 60)}`));
+        }
+        return;
+      }
       // Redis 保持长连接不会主动 end，故收到首帧即视为回复完整（单条 GET 必在一个 TCP 段内）
       finish(resolve, parseRespBulk(buffer));
     });
@@ -56,7 +74,10 @@ export async function captchaFromRedis(captchaId) {
   const raw = process.env.REDIS_HOST
     ? await redisGetViaSocket(key)
     : execSync(
-        `docker exec ${process.env.REDIS_CONTAINER || DEFAULT_REDIS_CONTAINER} redis-cli GET ${key}`,
+        // 本地开发栈默认口令 devredis（compose ${REDIS_PASSWORD:-devredis}）；显式设空可覆盖
+        `docker exec ${process.env.REDIS_CONTAINER || DEFAULT_REDIS_CONTAINER} redis-cli --no-auth-warning -a ${
+          process.env.REDIS_PASSWORD || 'devredis'
+        } GET ${key}`,
         { encoding: 'utf8' }
       );
   const value = String(raw).trim();
