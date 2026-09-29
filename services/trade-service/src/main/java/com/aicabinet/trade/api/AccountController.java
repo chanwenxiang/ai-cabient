@@ -11,6 +11,7 @@ import com.aicabinet.trade.service.AccountService;
 import com.aicabinet.trade.service.InvoiceService;
 import com.aicabinet.trade.support.ApiMessages;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -47,6 +48,15 @@ public class AccountController {
             @RequestParam(defaultValue = "20") int size) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(accountService.transactions(userId, page, size));
+    }
+
+    /** 用户自助设置微信昵称（L2-身份展示）。登录用户只能改自己的昵称，无越权面。 */
+    @PutMapping("/nickname")
+    public ApiResponse<Void> updateNickname(HttpServletRequest request,
+                                            @RequestBody Map<String, String> body) {
+        Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        accountService.updateNickname(operatorId, body.get("nickname"));
+        return ApiResponse.ok(null);
     }
 
     @PostMapping("/verify")

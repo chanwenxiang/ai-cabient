@@ -57,6 +57,15 @@
             <template #default="{ row }">{{ userNameText(row) }}</template>
           </el-table-column>
           <el-table-column
+            label="昵称"
+            min-width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+            header-align="center"
+          >
+            <template #default="{ row }">{{ textOrNone(row.nickname) }}</template>
+          </el-table-column>
+          <el-table-column
             label="手机号"
             width="140"
             class-name="col-text"
@@ -212,6 +221,7 @@ interface UserRow {
   userId: number;
   phoneNumber?: string;
   name?: string;
+  nickname?: string;
   verified: boolean;
   balanceCents: number;
   role?: string;
@@ -278,12 +288,13 @@ const crud = useCrudTable<UserRow>({
 const csvOptions: CrudCsvOptions = {
   filePrefix: '用户余额',
   exportPerm: 'ops:user:export',
-  headers: ['用户ID', '手机号', '姓名', '角色', '实名', '余额', '注册时间'],
+  headers: ['用户ID', '手机号', '姓名', '昵称', '角色', '实名', '余额', '注册时间'],
   toRows: (rows) =>
     rows.map((row) => [
       row.userId,
       row.phoneNumber,
       userNameText(row),
+      row.nickname ?? '',
       roleLabel(row.role),
       row.verified ? '已实名' : '未实名',
       ((row.balanceCents || 0) / 100).toFixed(2),

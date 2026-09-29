@@ -5,7 +5,19 @@
         <view class="profile-orb orb-a" /><view class="profile-orb orb-b" />
         <view class="avatar">{{ avatarText }}</view>
         <view class="profile-mid">
-          <text class="hello">{{ authed ? displayName : '未登录' }}</text>
+          <view class="hello-row">
+            <text class="hello">{{ authed ? displayName : '未登录' }}</text>
+            <text
+              v-if="authed"
+              role="button"
+              class="hello-edit"
+              :class="{ busy: nicknameBusy }"
+              aria-label="设置昵称"
+              @click="onEditNickname"
+              >{{ account?.nickname ? '改昵称' : '设昵称' }}</text
+            >
+          </view>
+          <text v-if="authed && maskedPhone" class="hello-sub">{{ maskedPhone }}</text>
           <view v-if="authed" class="tags">
             <text class="tag" :class="verified ? 'ok' : 'warn'">{{
               verified ? '已实名' : '待实名'
@@ -348,8 +360,43 @@ const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCent
 const verified = computed(() => !!account.value?.verified);
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const needsSetup = computed(() => !verified.value || !payReady.value);
-const displayName = computed(() => account.value?.realName || '我的账户');
-const avatarText = computed(() => account.value?.realName?.slice(0, 1) || '我');
+const displayName = computed(
+  () => account.value?.nickname || account.value?.name || maskedPhone.value || '我的账户'
+);
+const avatarText = computed(() => displayName.value.slice(0, 1) || '我');
+/** 手机号掩码（138****8000）；微信用户 phoneNumber 是 openid 占位，不展示 */
+const maskedPhone = computed(() => {
+  if (!account.value || account.value.wechatUser) return '';
+  const p = String(account.value.phoneNumber || '');
+  return /^\d{11}$/.test(p) ? `${p.slice(0, 3)}****${p.slice(7)}` : '';
+});
+const nicknameBusy = ref(false);
+/** 微信昵称自助编辑（L2-身份展示）：系统弹窗输入，保存后整份刷新账户。 */
+async function onEditNickname() {
+  if (!authed.value || nicknameBusy.value) return;
+  const res = await new Promise<UniApp.ShowModalRes>((resolve) => {
+    uni.showModal({
+      title: '设置昵称',
+      editable: true,
+      placeholderText: '1-20 个字符',
+      content: account.value?.nickname || '',
+      success: resolve,
+      fail: () => resolve({ confirm: false, cancel: true, content: '' } as UniApp.ShowModalRes)
+    });
+  });
+  const nickname = String(res.content || '').trim();
+  if (!res.confirm || !nickname) return;
+  nicknameBusy.value = true;
+  try {
+    await consumerApi.updateNickname(nickname);
+    account.value = await consumerApi.account();
+    showSuccess('昵称已更新');
+  } catch (e) {
+    showError(e instanceof Error ? e.message : '昵称保存失败');
+  } finally {
+    nicknameBusy.value = false;
+  }
+}
 const payPreferred = computed(() => {
   const c = String(account.value?.payPreferredChannel || 'BALANCE').toUpperCase();
   if (c === 'WECHAT' || c === 'ALIPAY' || c === 'BALANCE') return c;

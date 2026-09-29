@@ -1,11 +1,6 @@
 <template>
   <el-container class="layout-main" :class="{ 'layout--fullscreen': isFullscreen }">
-    <el-aside
-      :width="sidebarWidthCss"
-      class="sidebar"
-      role="navigation"
-      aria-label="主导航"
-    >
+    <el-aside :width="sidebarWidthCss" class="sidebar" role="navigation" aria-label="主导航">
       <button
         type="button"
         class="brand"

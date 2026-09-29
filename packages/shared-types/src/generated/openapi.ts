@@ -793,6 +793,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/account/nickname": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateNickname"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/vision/edge-results": {
         parameters: {
             query?: never;
@@ -10001,6 +10017,9 @@ export interface components {
             /** Format: int64 */
             userId?: number;
             phoneNumber?: string;
+            name?: string;
+            nickname?: string;
+            wechatUser?: boolean;
             /** Format: int32 */
             balanceCents?: number;
             /** Format: int32 */
@@ -10932,6 +10951,7 @@ export interface components {
             userId?: number;
             phoneNumber?: string;
             name?: string;
+            nickname?: string;
             verified?: boolean;
             /** Format: int32 */
             balanceCents?: number;
@@ -18159,6 +18179,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseAccountDto"];
+                };
+            };
+        };
+    };
+    updateNickname: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
                 };
             };
         };

@@ -44,6 +44,7 @@ export const ConsumerEndpoints = {
   /** 账户 / 充值 */
   account: `${API_PREFIX}/account`,
   accountVerify: `${API_PREFIX}/account/verify`,
+  accountNickname: `${API_PREFIX}/account/nickname`,
   accountTransactions: (page: number, size: number) =>
     `${API_PREFIX}/account/transactions?page=${page}&size=${size}`,
   payscoreSign: `${API_PREFIX}/account/payscore/sign`,

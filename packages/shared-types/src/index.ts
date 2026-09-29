@@ -771,6 +771,12 @@ export interface MerchantSettlementBatch {
 export interface AccountDto {
   userId?: string | number;
   phoneNumber?: string;
+  /** 实名姓名（实名认证回填；微信用户未实名时后端默认「微信用户」） */
+  name?: string;
+  /** 微信昵称（用户在「我的」页自助填写，1-20 字符） */
+  nickname?: string;
+  /** 微信登录用户：phoneNumber 是 openid 占位（如 wx10004），不能当手机号展示 */
+  wechatUser?: boolean;
   balanceCents: number;
   /** 开门预授权等冻结金额（分）；与后端 AccountDto 同源 */
   frozenCents: number;
@@ -782,7 +788,6 @@ export interface AccountDto {
   payscoreEnabled?: boolean;
   alipayAgreementEnabled?: boolean;
   passwordFreeReady?: boolean;
-  realName?: string;
 }
 
 export interface BalanceTransactionDto {

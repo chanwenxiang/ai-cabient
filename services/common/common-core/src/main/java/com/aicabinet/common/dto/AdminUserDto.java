@@ -6,6 +6,7 @@ public record AdminUserDto(
         Long userId,
         String phoneNumber,
         String name,
+        String nickname,
         boolean verified,
         int balanceCents,
         String role,

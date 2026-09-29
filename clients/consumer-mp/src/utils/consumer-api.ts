@@ -606,6 +606,9 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').AccountDto>(ConsumerEndpoints.payPreferred, 'PUT', {
       channel
     }),
+  /** L2-身份展示：自助设置微信昵称（1-20 字符，后端校验；仅能改本人）。 */
+  updateNickname: (nickname: string) =>
+    request<void>(ConsumerEndpoints.accountNickname, 'PUT', { nickname }),
   listBalanceRefunds: () =>
     request<import('@aicabinet/shared-types').BalanceRefundRequestDto[]>(
       ConsumerEndpoints.balanceRefunds

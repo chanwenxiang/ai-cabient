@@ -231,7 +231,7 @@ public class OpsMemberFinanceAdminService {
     private AdminUserDto toUserDto(UserInfo u, int balance, Member member, boolean blacklisted) {
         String role = u.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START ? "OPERATOR" : "CONSUMER";
         return new AdminUserDto(
-                u.getUserId(), PhoneMask.mask(u.getPhoneNumber()), resolveUserDisplayName(u), u.isVerified(),
+                u.getUserId(), PhoneMask.mask(u.getPhoneNumber()), resolveUserDisplayName(u), u.getNickname(), u.isVerified(),
                 balance, role, u.getCreatedAt(),
                 member != null ? member.getMemberLevel() : "NORMAL",
                 member != null && member.getAvailablePoints() != null ? member.getAvailablePoints() : 0,

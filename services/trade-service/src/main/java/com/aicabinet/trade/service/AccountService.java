@@ -62,6 +62,9 @@ public class AccountService {
         return new AccountDto(
                 userId,
                 user.getPhoneNumber(),
+                user.getName(),
+                user.getNickname(),
+                user.getWxOpenId() != null && !user.getWxOpenId().isBlank(),
                 account.getBalanceCents(),
                 frozen,
                 available,
@@ -72,6 +75,19 @@ public class AccountService {
                 alipayReady,
                 payScoreService.isPasswordFreeReady(user)
         );
+    }
+
+    /** 用户自助设置微信昵称（「我的」页身份展示；openid 用户无手机号时的可辨识身份）。 */
+    @Transactional
+    public void updateNickname(Long userId, String nickname) {
+        UserInfo user = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        String trimmed = nickname == null ? "" : nickname.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 20) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "昵称需为 1-20 个字符");
+        }
+        user.setNickname(trimmed);
+        userInfoRepository.save(user);
     }
 
     @Transactional

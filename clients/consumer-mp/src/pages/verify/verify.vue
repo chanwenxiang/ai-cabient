@@ -159,7 +159,7 @@ const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCent
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const wechatReady = computed(() => !!account.value?.payscoreEnabled);
 const alipayReady = computed(() => !!account.value?.alipayAgreementEnabled);
-const maskedName = computed(() => maskRealName(account.value?.realName));
+const maskedName = computed(() => maskRealName(account.value?.name));
 const preferredPayText = computed(() => {
   const ch = String(account.value?.payPreferredChannel || '').toUpperCase();
   if (ch === 'WECHAT' || ch === 'WECHAT_PAYSCORE') return '微信支付分';
