@@ -1,7 +1,7 @@
 <template>
   <el-container class="layout-main" :class="{ 'layout--fullscreen': isFullscreen }">
     <el-aside
-      :width="sidebarCollapsed ? '64px' : '220px'"
+      :width="sidebarWidthCss"
       class="sidebar"
       role="navigation"
       aria-label="主导航"
@@ -713,10 +713,45 @@ function syncSidebarWithViewport() {
   narrowOpsViewport.value = globalThis.innerWidth < 1280;
 }
 
+/** 侧栏展开/收起设计宽（CSS px）；实际写入前按 devicePixelRatio 取整到设备像素 */
+const SIDEBAR_EXPANDED_PX = 220;
+const SIDEBAR_COLLAPSED_PX = 64;
+/** ≥2px 回滞：任务栏/浏览器栏边缘 1px 抖不改壳高，避免整页跟着微跳 */
+const LAYOUT_VH_HYSTERESIS_PX = 2;
+
+/**
+ * CSS px → 对齐设备像素。DPR≈1.25/1.5/1.75/1.81 时裸 `220px` 会落成 219.99，
+ * 再叠加主列 `margin-left:-1px` 会与侧栏重叠约 1px → 鼠标移动时合成层亚像素上下抖
+ *（维修工单等列表页同构；真机 127.0.0.1 实测 gap≈-1、dpr≈1.815）。
+ */
+function snapCssPx(cssPx: number): number {
+  const dpr = globalThis.devicePixelRatio || 1;
+  if (!Number.isFinite(dpr) || dpr <= 0) return cssPx;
+  return Math.round(cssPx * dpr) / dpr;
+}
+
+/** 触发 sidebarWidthCss 在 resize / DPR 变化后重算 */
+const layoutShellEpoch = ref(0);
+
+const sidebarWidthCss = computed(() => {
+  layoutShellEpoch.value;
+  const base = sidebarCollapsed.value ? SIDEBAR_COLLAPSED_PX : SIDEBAR_EXPANDED_PX;
+  const snapped = snapCssPx(base);
+  // 最多 3 位小数，避免 EP inline width 写成超长浮点
+  return `${Number(snapped.toFixed(3))}px`;
+});
+
+let lastPinnedLayoutVh = 0;
+
 /** 把壳层高度钉成整数 px，避免 svh 亚像素（如 882.767）在缩放/任务栏边缘来回抖 */
 function pinLayoutViewportHeight() {
   const h = Math.max(1, Math.round(globalThis.innerHeight || 0));
-  document.documentElement.style.setProperty('--layout-vh-px', `${h}px`);
+  if (!(lastPinnedLayoutVh > 0 && Math.abs(lastPinnedLayoutVh - h) < LAYOUT_VH_HYSTERESIS_PX)) {
+    lastPinnedLayoutVh = h;
+    document.documentElement.style.setProperty('--layout-vh-px', `${h}px`);
+  }
+  // resize 也可能只改 DPR/缩放：重算侧栏设备像素对齐宽
+  layoutShellEpoch.value += 1;
 }
 
 function onWindowFocus() {
@@ -798,9 +833,9 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   top: 0;
-  right: -1px;
+  right: -2px;
   bottom: 0;
-  width: 2px;
+  width: 3px;
   background: var(--layout-sidebar);
   pointer-events: none;
   z-index: 3;
@@ -913,7 +948,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   position: relative;
-  margin-left: -1px; /* 压住侧栏右缘亚像素缝 */
+  /* 禁止再与侧栏负 margin 重叠（高 DPR 下会负间隙≈1px，鼠标移动时整列合成层抖） */
+  margin-left: 0;
   background: var(--layout-bg);
   /* 与侧栏分层隔离，避免鼠标在侧栏移动时主内容合成层亚像素上下抖 */
   isolation: isolate;
@@ -926,7 +962,7 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 2px;
+  width: 3px;
   background: var(--layout-sidebar);
   pointer-events: none;
   z-index: 30;

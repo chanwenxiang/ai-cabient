@@ -246,6 +246,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-29 | 修移鼠标整页微抖：侧栏宽按 DPR 对齐设备像素 + 去掉主列 margin-left:-1px + 壳高回滞 | lessons #238、`AdminLayout.vue`、repair-tickets@127.0.0.1 dpr≈1.815 |
 | 2026-09-27 | 三端全面审查（6 路并行只读+主审复核）：产品代码**无 P0**；11 P1（资金 F1 竞态多付/F2 超时免单旁路/F3 提现盲置 FAILED、安全 S1 设备共享 MQTT 凭据/S2 GET token/S3 CSV 注入/S4 full 栈 Grafana、admin A1、consumer C1/C2、跨端 X1 preflight 盲区/X2 staging mock env）；mock 矩阵与 dev-only 面确认收口；文档漂移修正（admin 登录=密码+图形验证码+2FA 非短信码；286 迁移/85 Controller） | `docs/THREE_END_FULL_REVIEW_2026-09-27.md` |
 | 2026-09-27 | 同日第二轮验证清零（原未验证项全部关闭）：preflight 全绿 47s、audit-gates 39/39、admin 84/84+consumer 121/121+merchant 130/130 单测、三端 type-check 绿、**实时 OpenAPI 与 generated 逐字节一致**、production compose `:?` fail-loud 实证；新 P0（full 栈 Grafana admin/admin 实测可登，环境级）、新 P1×3（RECON_SCHEDULED_ENABLED 默认关=对账与退款推进不执行、nginx 三份漂移、9999/13000 绑 0.0.0.0）、新 P2×22（含 shared-rbac/dict dist 陈旧、rbac dist 缺 B-13）；85 Controller RBAC 全表无漏保护写端点；lessons #230/#231 | 报告 §10、`lessons-learned.md` #230-231 |
 | 2026-09-27 | 复查子代理「不可验」清单：4 项实为本机可验并补验——**新 P1：MinIO cabinet-videos 桶匿名可读可列举（含会话视频，媒体白名单被绕过）**、htpasswd 非弱口令、XXL 调度健康（30s 真实触发）、CORS dev 值 localhost；**撤回「xxl_job_log 2612 污染」误报**（DATETIME 口径+UTC 错位，lessons #232）；「开门全链不可验」改为已由模拟器 E2E 覆盖；§10.5 重分类收口 | 报告 §10.3·§10.5、`lessons-learned.md` #232 |

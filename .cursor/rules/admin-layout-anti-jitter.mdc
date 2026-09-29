@@ -20,6 +20,7 @@ alwaysApply: false
 | E | 描述表「异常类型/关联设备」等盖住邻格标签 | 窄格 + Tag/`overflow:visible` 溢出绘制 | 标签 `nowrap`；**内容**格内换行 + `overflow:hidden`；`.el-tag`/`link-cell` `max-width:100%` + `white-space:normal` |
 | F | 调整明细数量框挡住「删除」 | grid 数量列 132px < EP `input-number`（右控件）默认 ~150px | `.manual-line`：`… 150px max-content`；`.el-input-number { width/max-width:100% }` |
 | H | 长文案悬停浮层盖住邻列/操作列 | `show-overflow-tooltip` 的 EP 浮层挂在表内，横滚+sticky 时错位 | **全后台禁止** `show-overflow-tooltip`；全局 `installTableCellNativeTitle`；可选手写 `.cell-ellipsis` + `:title` |
+| J | 移鼠标（含维修工单等任意列表）整页微抖 | 高 DPR 下侧栏 `220px`→219.99，主列曾 `margin-left:-1px` 与侧栏重叠≈1px，合成层亚像素重绘 | 侧栏宽按 `devicePixelRatio` **对齐设备像素**；**禁止** `.layout-content{margin-left:-1px}`；交界用 cover 条；壳高 `pinLayoutViewportHeight` ≥2px 回滞 |
 
 ## 主区硬约束
 
@@ -30,7 +31,8 @@ alwaysApply: false
 5. 主区勿用 `transform: translateZ(0)`。  
 6. 主滚动：`overflow-y: scroll` + `scrollbar-gutter: stable` + `overflow-anchor: none`。  
 7. 浮动横滑条几何取整 + ≥2px 回滞。  
-8. 操作列右侧 sticky（见上表 A）；壳层高度整数 `--layout-vh-px`；侧栏滚动条隐藏。
+8. 操作列右侧 sticky（见上表 A）；壳层高度整数 `--layout-vh-px`（≥2px 回滞）；侧栏宽设备像素对齐；侧栏滚动条隐藏。  
+8b. **禁止** `.layout-content { margin-left: -1px }`（高 DPR 负间隙抖，见表 J）。
 
 ## 审单抽屉（ResizableDrawer）
 

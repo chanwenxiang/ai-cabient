@@ -235,6 +235,23 @@ for (const [name, src] of [
   }
 }
 
+// ——— J) 侧栏/主区交界：禁 margin-left:-1px；壳高须回滞；侧栏宽须 snap 设备像素 ———
+{
+  const layoutVue = stripComments(read('clients/admin-vue/src/layouts/AdminLayout.vue'));
+  if (/layout-content[\s\S]{0,400}margin-left\s*:\s*-1px/.test(layoutVue)) {
+    fail('J: AdminLayout .layout-content 禁止 margin-left:-1px（高 DPR 与侧栏重叠会抖）');
+  }
+  if (!/LAYOUT_VH_HYSTERESIS_PX\s*=\s*[2-9]/.test(layoutVue)) {
+    fail('J: AdminLayout 须 LAYOUT_VH_HYSTERESIS_PX ≥2（壳高回滞）');
+  }
+  if (!/snapCssPx/.test(layoutVue) || !/devicePixelRatio/.test(layoutVue)) {
+    fail('J: AdminLayout 侧栏宽须按 devicePixelRatio snapCssPx 对齐');
+  }
+  if (!/sidebarWidthCss/.test(layoutVue)) {
+    fail('J: AdminLayout el-aside 须绑 sidebarWidthCss（禁写死 220px/64px 字符串）');
+  }
+}
+
 if (errors.length) {
   console.error('[check-admin-anti-jitter] FAILED:');
   for (const e of errors) console.error(' -', e);
