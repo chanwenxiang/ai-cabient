@@ -729,7 +729,8 @@ function snapCssPx(cssPx: number): number {
 const layoutShellEpoch = ref(0);
 
 const sidebarWidthCss = computed(() => {
-  layoutShellEpoch.value;
+  // 读 epoch 建立响应依赖：resize/DPR 变化 → epoch+1 → 重算（_ 前缀是 lint 豁免约定）
+  const _epoch = layoutShellEpoch.value;
   const base = sidebarCollapsed.value ? SIDEBAR_COLLAPSED_PX : SIDEBAR_EXPANDED_PX;
   const snapped = snapCssPx(base);
   // 最多 3 位小数，避免 EP inline width 写成超长浮点
