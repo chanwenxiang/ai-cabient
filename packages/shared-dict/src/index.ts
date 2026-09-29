@@ -27,7 +27,12 @@ let runtimeLoaded = false;
  * 运营可配字典：下拉以运行时 ACTIVE 为准；拉成功且无项则空列表。
  * 系统状态枚举不要加入此集合。
  */
-export const OPS_MANAGED_DICT_TYPES: ReadonlySet<string> = new Set(['route_code', 'category_code']);
+export const OPS_MANAGED_DICT_TYPES: ReadonlySet<string> = new Set([
+  'route_code',
+  'category_code',
+  // 组织类型：运营可在字典管理增删（后端 OrgService 同样以其为写入白名单，两端口径须一致）
+  'org_node_type'
+]);
 
 export function isOpsManagedDict(type: string): boolean {
   return OPS_MANAGED_DICT_TYPES.has(type);
@@ -676,7 +681,13 @@ export const DICT = {
     SETTLEMENT_FAILED: '结算失败'
   },
   /** 商品类目：运营在字典管理维护；runtime 为准 */
-  category_code: {} as Record<string, string>
+  category_code: {} as Record<string, string>,
+  /** 组织类型（ops_org_node.node_type）：运营可增删；后端 OrgService 以其为写入白名单 */
+  org_node_type: {
+    HQ: '总部',
+    REGION: '区域',
+    BRANCH: '分公司'
+  }
 } as const;
 
 export type DictType = keyof typeof DICT;

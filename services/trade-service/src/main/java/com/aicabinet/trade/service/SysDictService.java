@@ -75,6 +75,8 @@ public class SysDictService {
 
   public static final String DEVICE_FAULT_ISSUE = "device_fault_issue";
 
+  public static final String ORG_NODE_TYPE = "org_node_type";
+
     /** 展示用：含已停用项，便于历史数据仍显示运营配置过的中文。 */
     @Transactional(readOnly = true)
     public String labelOf(String dictType, String value, String fallback) {
@@ -99,6 +101,21 @@ public class SysDictService {
         return dataRepository.findByDictTypeAndDictValue(type, key)
                 .filter(row -> CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(row.getStatus()))
                 .isPresent();
+    }
+
+    /**
+     * 字典类型是否已初始化（存在任意 ACTIVE 项）。
+     * 用途：业务侧做字典白名单校验时，若字典尚未 seed（迁移缺失/被清空）应降级放行，
+     * 避免「配置缺失」升级成「整个业务不可用」。
+     */
+    @Transactional(readOnly = true)
+    public boolean hasActiveItems(String dictType) {
+        if (dictType == null || dictType.isBlank()) {
+            return false;
+        }
+        String type = dictType.trim().toLowerCase();
+        return dataRepository.findByDictTypeOrderBySortOrderAscDictValueAsc(type).stream()
+                .anyMatch(row -> CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(row.getStatus()));
     }
 
     private DictDtos.DictRuntimeDto buildActiveRuntimeMap() {

@@ -366,6 +366,9 @@ public class SysDictBootstrap implements ApplicationRunner {
                 CabinetConstants.ORDER_STATUS_FAILED, "失败", "PARTIAL_FAILED", "部分失败", STATUS_COMPLETED, "已完成")));
         map.put("route_code", t("路线编码", m(
                 "R01", "路线 R01", "R-DEMO-01", "演示路线 01", "R-DEMO-02", "演示路线 02", "R-DEMO-X", "演示路线 X")));
+        // 组织类型（ops_org_node.node_type）：OrgService 以其为写入白名单，缺 seed 会降级放行
+        map.put(SysDictService.ORG_NODE_TYPE, t("组织类型", m(
+                "HQ", "总部", "REGION", "区域", "BRANCH", "分公司")));
         // 类目以运营字典为准；种子仅保证类型存在（项由运营后台维护）
         map.put("category_code", t("类目", m()));
         return map;

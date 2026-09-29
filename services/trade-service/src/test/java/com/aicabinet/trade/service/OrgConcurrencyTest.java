@@ -25,13 +25,14 @@ class OrgConcurrencyTest {
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private SysDictService sysDictService;
 
     private OrgService service;
 
     @BeforeEach
     void setUp() {
         service = new OrgService(nodeRepository, deviceOrgRepository, permissionService,
-                auditService, distributedLockService);
+                auditService, distributedLockService, sysDictService);
     }
 
     @Test

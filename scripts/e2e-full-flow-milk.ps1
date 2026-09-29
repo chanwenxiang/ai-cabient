@@ -49,12 +49,44 @@ try {
         Write-Host "`n--- S-06 cleanup-test-data ---"
         & (Join-Path $PSScriptRoot "cleanup-test-data.ps1") -RestoreBalanceCents 50000
         Record-Step "S-06-cleanup" $true "blocking sessions + disputes"
-        # S0→S1 衔接：WipePlatform 清空台子后重建演示业务上下文（柜/商户/仓/SKU/供应商），
-        # 否则下方 Resolve-E2eTest* 因空库全部失败（内部端点绕网关直连 trade）。
-        Write-Host "`n--- S-06b demo ensure (rebuild S1 stage) ---"
-        & (Join-Path $PSScriptRoot "seed-demo-data.ps1") -Ensure
+        # S0→S1 衔接：WipePlatform 清空台子后，直连 trade 重建演示业务上下文
+        # （柜/商户/仓/SKU/供应商/货道绑定/商户门户绑定/演示柜坐标）。
+        # 内部端点必须绕网关直连 :18080（网关对 /internal/ 一律 403）。
+        Write-Host "`n--- S-06b demo ensure (rebuild S1 stage, direct trade) ---"
+        $ctx = Invoke-RestMethod -Method POST -Uri "http://localhost:18080/internal/v1/demo/ensure" `
+            -Headers @{ "X-Internal-Api-Key" = "dev-internal-key-change-me" } -TimeoutSec 300
+        $ensuredDevice = [string]$ctx.data.deviceId
+        if ([string]::IsNullOrWhiteSpace($ensuredDevice)) { throw "demo/ensure 未返回 deviceId" }
+        Write-Host "    ensured device=$ensuredDevice skus=$($ctx.data.skuCount) inventoryLines=$($ctx.data.deviceInventoryLines)"
         Record-Step "S-06b-demo-ensure" $true "rebuild S1 stage after wipe"
+
+        # 模拟器容器对齐 ensured 柜：容器命令行写死的柜号在 wipe 后与新建柜不一致，
+        # 不重对齐则 open-door 指令发到无订阅主题 → 409。容器可能在清数时被停——
+        # 无论 status 是否可达，都无条件按 ensured 柜重建。
+        Write-Host "    simulator re-target → $ensuredDevice"
+        docker stop ai-cabinet-device-simulator-1 2>$null | Out-Null
+        docker rm ai-cabinet-device-simulator-1 2>$null | Out-Null
+        docker run -d --name ai-cabinet-device-simulator-1 --network ai-cabinet_default `
+            -e MQTT_USERNAME=aicabinet-device -e MQTT_PASSWORD=dev-mqtt-device-pass `
+            -e TRADE_SERVICE_URL=http://trade-service:8080 `
+            -e INTERNAL_API_KEY=dev-internal-key-change-me `
+            -e MINIO_ENDPOINT=http://minio:9000 -e MINIO_ACCESS_KEY=minioadmin `
+            -e MINIO_SECRET_KEY=minioadmin -e MINIO_BUCKET=cabinet-videos `
+            -e AICABINET_SIM_SHOPPING_MS=0 `
+            ai-cabinet/device-simulator:local $ensuredDevice tcp://emqx:1883 | Out-Null
+        Start-Sleep -Seconds 6
     }
+
+    # 清 ensured 柜的阻塞会话：前轮购物可能留下 WAITING_UPLOAD 占用会话，
+    # 不清则补货 open-door 409「设备使用中」。
+    Clear-E2eDeviceBlockingSessions -DeviceId $ensuredDevice | Out-Null
+    Write-Host "    cleared blocking sessions on $ensuredDevice"
+
+    # 限流计数清理：反复跑全链会把 session-create/open-door 的 20・5/小时配额打满 → 429 假红
+    docker exec ai-cabinet-redis-1 redis-cli --no-auth-warning -a devredis --scan --pattern "aicabinet:rate:*" 2>$null | ForEach-Object {
+        docker exec ai-cabinet-redis-1 redis-cli --no-auth-warning -a devredis DEL $_ | Out-Null
+    }
+    Write-Host "    rate-limit counters cleared"
 
     # S1 台子就绪后运行时解析测试实体（禁写死柜/商户/SKU，lessons #212-#215）
     $DeviceId = Resolve-E2eTestDevice -DeviceId $DeviceId -UnlockSales

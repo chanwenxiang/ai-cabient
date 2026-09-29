@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -36,6 +39,7 @@ class OrgServiceTest {
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private SysDictService sysDictService;
 
     private OrgService service;
 
@@ -46,7 +50,7 @@ class OrgServiceTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         service = new OrgService(nodeRepository, deviceOrgRepository, permissionService,
-                auditService, distributedLockService);
+                auditService, distributedLockService, sysDictService);
     }
 
     private static OpsOrgNode node(Long id, Long parent, String name) {
@@ -98,6 +102,9 @@ class OrgServiceTest {
             n.setNodeId(9L);
             return 1;
         });
+        // 字典已初始化且 REGION 为 ACTIVE 项
+        when(sysDictService.hasActiveItems(SysDictService.ORG_NODE_TYPE)).thenReturn(true);
+        when(sysDictService.isActiveDictValue(SysDictService.ORG_NODE_TYPE, "REGION")).thenReturn(true);
 
         OrgNodeDto dto = service.upsertNode(OPERATOR_ID,
                 new UpsertOrgNodeRequest(null, null, "西南区", "REGION", 2));
@@ -105,5 +112,50 @@ class OrgServiceTest {
         assertEquals("西南区", dto.name());
         assertEquals("REGION", dto.nodeType());
         verify(auditService).appendLog(anyLong(), any(), any(), any(), any());
+    }
+
+    /** 负向：字典已初始化时，字典外的类型必须被拒（否则字典白名单形同虚设）。 */
+    @Test
+    void upsertNode_shouldRejectNodeTypeOutsideDict() {
+        when(sysDictService.hasActiveItems(SysDictService.ORG_NODE_TYPE)).thenReturn(true);
+        when(sysDictService.isActiveDictValue(SysDictService.ORG_NODE_TYPE, "GALAXY")).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsertNode(OPERATOR_ID,
+                        new UpsertOrgNodeRequest(null, null, "乱写区", "GALAXY", 0)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    /** 字典尚未 seed（无任何 ACTIVE 项）时降级放行，避免配置缺失让组织功能整体不可用。 */
+    @Test
+    void upsertNode_shouldPassThroughWhenDictNotSeeded() {
+        when(nodeRepository.insert(any())).thenAnswer(inv -> {
+            OpsOrgNode n = inv.getArgument(0);
+            n.setNodeId(10L);
+            return 1;
+        });
+        when(sysDictService.hasActiveItems(SysDictService.ORG_NODE_TYPE)).thenReturn(false);
+
+        OrgNodeDto dto = service.upsertNode(OPERATOR_ID,
+                new UpsertOrgNodeRequest(null, null, "西南区", "REGION", 2));
+
+        assertEquals("REGION", dto.nodeType());
+    }
+
+    /** 编辑时未改类型：历史脏值不阻断改名保存。 */
+    @Test
+    void upsertNode_shouldKeepLegacyNodeTypeWhenUnchanged() {
+        OpsOrgNode legacy = node(2L, null, "老组织");
+        legacy.setNodeType("LEGACY_TYPE");
+        when(nodeRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(legacy));
+        when(sysDictService.hasActiveItems(SysDictService.ORG_NODE_TYPE)).thenReturn(true);
+        when(sysDictService.isActiveDictValue(SysDictService.ORG_NODE_TYPE, "LEGACY_TYPE")).thenReturn(false);
+
+        OrgNodeDto dto = service.upsertNode(OPERATOR_ID,
+                new UpsertOrgNodeRequest(2L, null, "老组织改名", "LEGACY_TYPE", 0));
+
+        assertEquals("LEGACY_TYPE", dto.nodeType());
+        assertEquals("老组织改名", dto.name());
     }
 }

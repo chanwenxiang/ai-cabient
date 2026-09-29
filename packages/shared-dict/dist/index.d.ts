@@ -721,6 +721,12 @@ export declare const DICT: {
     };
     /** 商品类目：运营在字典管理维护；runtime 为准 */
     readonly category_code: Record<string, string>;
+    /** 组织类型（ops_org_node.node_type）：运营可增删；后端 OrgService 以其为写入白名单 */
+    readonly org_node_type: {
+        readonly HQ: "总部";
+        readonly REGION: "区域";
+        readonly BRANCH: "分公司";
+    };
 };
 export type DictType = keyof typeof DICT;
 export type DictTagType = 'success' | 'warning' | 'danger' | 'info' | 'primary';

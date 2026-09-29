@@ -452,9 +452,12 @@
         </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="nodeForm.nodeType" style="width: 100%">
-            <el-option label="总部" value="HQ" />
-            <el-option label="区域" value="REGION" />
-            <el-option label="分公司" value="BRANCH" />
+            <el-option
+              v-for="opt in nodeTypeOptionsWithCurrent"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
           </el-select>
         </el-form-item>
       </el-form>
@@ -708,8 +711,10 @@ import type {
   SiteRentBillDto
 } from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
+import { useDictOptions } from '@/composables/useDictOptions';
 
 const FEE_KIND_RENT = 'SITE_RENT';
+const DICT_ORG_NODE_TYPE = 'org_node_type';
 const FEE_KIND_DATA = 'DATA_FEE';
 
 const auth = useAuthStore();
@@ -807,9 +812,27 @@ const nodeForm = ref<{
 }>({
   nodeId: null,
   name: '',
-  nodeType: 'BRANCH',
+  nodeType: '',
   parentId: null
 });
+
+// 组织类型下拉来自 org_node_type 字典（后台「字典管理」可配，禁用项自动消失）。
+const nodeTypeOptions = useDictOptions(DICT_ORG_NODE_TYPE);
+// 编辑态兜底：节点当前值若已不在字典 ACTIVE 项内（被禁用/删除的历史值），
+// 必须把它补进选项，否则 el-select 会静默落到第一项 —— 用户只是改个名字，类型却被悄悄改掉。
+const nodeTypeOptionsWithCurrent = computed(() => {
+  const opts = nodeTypeOptions.value;
+  const current = nodeForm.value.nodeType;
+  if (current && !opts.some((o) => o.value === current)) {
+    return [{ value: current, label: `${current}（已停用）` }, ...opts];
+  }
+  return opts;
+});
+// 默认值取自字典：优先 BRANCH，字典里没有则取首项（不再硬编码）。
+const defaultNodeType = () =>
+  nodeTypeOptions.value.some((o) => o.value === 'BRANCH')
+    ? 'BRANCH'
+    : (nodeTypeOptions.value[0]?.value ?? '');
 const assignVisible = ref(false);
 const assignNode = ref<OrgNodeDto | null>(null);
 const assignDeviceIds = ref<string[]>([]);
@@ -984,7 +1007,7 @@ function openNode(parent: OrgNodeDto | null) {
   nodeForm.value = {
     nodeId: null,
     name: '',
-    nodeType: 'BRANCH',
+    nodeType: defaultNodeType(),
     parentId: parent?.nodeId ?? null
   };
   nodeVisible.value = true;
@@ -994,7 +1017,7 @@ function openEditNode(node: OrgNodeDto) {
   nodeForm.value = {
     nodeId: node.nodeId,
     name: node.name,
-    nodeType: node.nodeType || 'BRANCH',
+    nodeType: node.nodeType || defaultNodeType(),
     parentId: node.parentId ?? null
   };
   nodeVisible.value = true;

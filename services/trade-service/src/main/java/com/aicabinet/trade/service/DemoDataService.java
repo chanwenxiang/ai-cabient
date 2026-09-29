@@ -67,6 +67,9 @@ public class DemoDataService {
     private final WarehouseSupplierIdService warehouseSupplierIdService;
     private final SupplierMapper supplierRepository;
     private final DeviceSlotMapper deviceSlotMapper;
+    private final OpsUserMerchantMapper userMerchantMapper;
+    private final OpsUserRoleMapper opsUserRoleMapper;
+    private final OpsRoleMapper opsRoleMapper;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DemoDataService self;
 
@@ -87,6 +90,9 @@ public class DemoDataService {
                            WarehouseSupplierIdService warehouseSupplierIdService,
                            SupplierMapper supplierRepository,
                            DeviceSlotMapper deviceSlotMapper,
+                           OpsUserMerchantMapper userMerchantMapper,
+                           OpsUserRoleMapper opsUserRoleMapper,
+                           OpsRoleMapper opsRoleMapper,
                            @Lazy DemoDataService self) {
         this.securityProperties = securityProperties;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -105,6 +111,9 @@ public class DemoDataService {
         this.warehouseSupplierIdService = warehouseSupplierIdService;
         this.supplierRepository = supplierRepository;
         this.deviceSlotMapper = deviceSlotMapper;
+        this.userMerchantMapper = userMerchantMapper;
+        this.opsUserRoleMapper = opsUserRoleMapper;
+        this.opsRoleMapper = opsRoleMapper;
         this.self = self;
     }
 
@@ -124,6 +133,7 @@ public class DemoDataService {
         ensureSupplier();
         ensureVisionMappings();
         ensureConsumerUser();
+        ensureMerchantPortalBindings(ensureDemoMerchantId());
         DemoContext ctx = buildContext(deviceId, warehouseId);
         log.info("demo data ensured device={} warehouse={} skus={} fallbackSku={} warehouseLots={}",
                 ctx.deviceId(), ctx.warehouseId(), ctx.skuCount(), ctx.fallbackSkuId(), ctx.warehouseLotCount());
@@ -226,6 +236,8 @@ public class DemoDataService {
 
     /**
      * 选已有合格柜，或系统发号新建。返回最终演示用 deviceId。
+     * 演示柜补坐标：补货签到契约（fail-closed）要求柜机必须有点位，否则 S3 补货链每次清数后都会断。
+     * 真实柜机仍遵循「点位由运营补录」。
      */
     private String ensureDevice() {
         Optional<DeviceInfo> existing = pickExistingDemoDevice();
@@ -238,6 +250,7 @@ public class DemoDataService {
                 device.setDeviceName(DeviceNameSupport.DEMO_DEVICE_NAME);
                 deviceInfoRepository.save(device);
             }
+            ensureDemoCoordinates(device);
             return device.getDeviceId();
         }
 
@@ -251,8 +264,24 @@ public class DemoDataService {
         device.setMerchantId(ensureDemoMerchantId());
         device.setLifecycleStatus("DEPLOYED");
         deviceInfoRepository.save(device);
+        ensureDemoCoordinates(device);
         log.info("demo device allocated deviceId={} merchantId={}", deviceId, device.getMerchantId());
         return deviceId;
+    }
+
+    /** 演示中心坐标（上海）：仅供 demo 柜满足补货签到契约；真实柜机坐标仍由运营补录。 */
+    private static final double DEMO_LAT = 31.2304;
+    private static final double DEMO_LNG = 121.4737;
+
+    private void ensureDemoCoordinates(DeviceInfo device) {
+        if (device.getLatitude() != null && device.getLongitude() != null) {
+            return;
+        }
+        device.setLatitude(DEMO_LAT);
+        device.setLongitude(DEMO_LNG);
+        deviceInfoRepository.save(device);
+        log.info("demo device coordinates seeded deviceId={} lat={} lng={}",
+                device.getDeviceId(), DEMO_LAT, DEMO_LNG);
     }
 
     /**
@@ -382,6 +411,46 @@ public class DemoDataService {
         supplier.setPaymentTermsDays(30);
         supplierRepository.insert(supplier);
         log.info("demo supplier allocated supplierId={}", supplier.getSupplierId());
+    }
+
+    /**
+     * S1 台子补齐：WipePlatform 会清 ops_user_merchant（商户门户账号↔商户绑定），
+     * 这里把持有商户角色的运营账号重新绑到演示商户，否则商户小程序登录即 403
+     *（MerchantPortalGuard.isGlobalScope 对无绑定账号拒门户）。
+     */
+    private void ensureMerchantPortalBindings(String demoMerchantId) {
+        java.util.Set<Long> merchantRoleIds = new java.util.HashSet<>();
+        for (OpsRole role : opsRoleMapper.selectList(null)) {
+            if (role.getRoleKey() != null && role.getRoleKey().startsWith("merchant")) {
+                merchantRoleIds.add(role.getRoleId());
+            }
+        }
+        if (merchantRoleIds.isEmpty()) {
+            return;
+        }
+        java.util.Set<Long> portalUserIds = new java.util.LinkedHashSet<>();
+        for (OpsUserRole ur : opsUserRoleMapper.selectList(null)) {
+            if (merchantRoleIds.contains(ur.getRoleId())) {
+                portalUserIds.add(ur.getUserId());
+            }
+        }
+        int bound = 0;
+        for (Long userId : portalUserIds) {
+            boolean already = userMerchantMapper.findByIdUserId(userId).stream()
+                    .anyMatch(b -> demoMerchantId.equals(b.getMerchantId()));
+            if (already) {
+                continue;
+            }
+            OpsUserMerchant binding = new OpsUserMerchant();
+            binding.setUserId(userId);
+            binding.setMerchantId(demoMerchantId);
+            userMerchantMapper.insert(binding);
+            bound++;
+            log.info("demo merchant portal binding rebuilt userId={} merchantId={}", userId, demoMerchantId);
+        }
+        if (bound > 0) {
+            log.info("merchant portal bindings rebuilt count={} merchantId={}", bound, demoMerchantId);
+        }
     }
 
     /**

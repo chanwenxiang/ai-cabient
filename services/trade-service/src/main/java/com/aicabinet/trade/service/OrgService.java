@@ -27,24 +27,52 @@ public class OrgService {
     private static final String ORG_NODE = "ORG_NODE";
     private static final String LITERAL = "组织不存在";
     private static final String NAME = "name=";
-
+    private static final String DEFAULT_NODE_TYPE = "BRANCH";
 
     private final OpsOrgNodeMapper nodeRepository;
     private final OpsDeviceOrgMapper deviceOrgRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    private final SysDictService sysDictService;
 
     public OrgService(OpsOrgNodeMapper nodeRepository,
                       OpsDeviceOrgMapper deviceOrgRepository,
                       PermissionService permissionService,
                       AdminAuditService auditService,
-                      DistributedLockService distributedLockService) {
+                      DistributedLockService distributedLockService,
+                      SysDictService sysDictService) {
         this.nodeRepository = nodeRepository;
         this.deviceOrgRepository = deviceOrgRepository;
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.sysDictService = sysDictService;
+    }
+
+    /**
+     * 组织类型以 org_node_type 字典为权威白名单（仅 ACTIVE 项可写）。
+     * 两处降级放行，避免「配置/历史数据问题」升级成「业务不可用」：
+     * ① 字典尚未初始化（无任何 ACTIVE 项）⇒ 放行；
+     * ② 值等于节点原值（本次并未改类型）⇒ 放行，历史脏数据仍可改名保存。
+     */
+    private String resolveNodeType(String raw, String current) {
+        String currentValue = current == null || current.isBlank() ? null : current.trim().toUpperCase();
+        if (raw == null || raw.isBlank()) {
+            // 未显式指定：编辑保持原值，新建落默认值（沿用既有行为，不引入新的失败）
+            return currentValue != null ? currentValue : DEFAULT_NODE_TYPE;
+        }
+        String value = raw.trim().toUpperCase();
+        if (value.equals(currentValue)) {
+            return value;
+        }
+        if (sysDictService.isActiveDictValue(SysDictService.ORG_NODE_TYPE, value)) {
+            return value;
+        }
+        if (!sysDictService.hasActiveItems(SysDictService.ORG_NODE_TYPE)) {
+            return value;
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "组织类型不合法：" + value);
     }
 
     @Transactional(readOnly = true)
@@ -97,8 +125,7 @@ public class OrgService {
             node = new OpsOrgNode();
             node.setName(name);
             node.setParentId(request.parentId());
-            node.setNodeType(request.nodeType() == null || request.nodeType().isBlank()
-                    ? "BRANCH" : request.nodeType().trim().toUpperCase());
+            node.setNodeType(resolveNodeType(request.nodeType(), null));
             node.setSortOrder(request.sortOrder());
             node.setEnabled(true);
             node.setCreatedAt(Instant.now());
@@ -111,8 +138,7 @@ public class OrgService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
             node.setName(name);
             node.setParentId(request.parentId());
-            node.setNodeType(request.nodeType() == null || request.nodeType().isBlank()
-                    ? node.getNodeType() : request.nodeType().trim().toUpperCase());
+            node.setNodeType(resolveNodeType(request.nodeType(), node.getNodeType()));
             node.setSortOrder(request.sortOrder());
             node.setUpdatedAt(Instant.now());
             nodeRepository.updateById(node);

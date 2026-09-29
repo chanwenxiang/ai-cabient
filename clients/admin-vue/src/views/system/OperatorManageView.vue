@@ -171,14 +171,16 @@
     </div>
 
     <el-dialog v-model="formDlg" :title="form.userId ? '编辑账号' : '新增账号'" destroy-on-close>
-      <el-form label-width="auto">
+      <el-form label-width="auto" class="account-form" autocomplete="off">
         <el-form-item label="姓名" required>
-          <el-input v-model="form.name" maxlength="64" />
+          <el-input v-model="form.name" name="ops-acc-name" autocomplete="off" maxlength="64" />
         </el-form-item>
         <el-form-item label="手机号" required>
           <el-input
             v-model="form.phoneNumber"
             type="tel"
+            name="ops-acc-phone"
+            autocomplete="off"
             maxlength="11"
             inputmode="numeric"
             placeholder="11位手机号"
@@ -189,6 +191,8 @@
           <el-input
             v-model="form.password"
             type="password"
+            name="ops-acc-new-password"
+            autocomplete="new-password"
             show-password
             placeholder="至少6位"
             maxlength="64"
@@ -1169,20 +1173,27 @@ onActivated(() => {
 .role-hint {
   margin-bottom: 12px;
 }
+.account-form :deep(.el-input__wrapper),
 .reset-pwd-form :deep(.el-input__wrapper) {
   background-color: var(--el-fill-color-blank);
 }
+.account-form :deep(.el-input__inner),
 .reset-pwd-form :deep(.el-input__inner) {
   background-color: transparent !important;
   box-shadow: none !important;
   caret-color: var(--el-text-color-primary);
   transition: background-color 99999s ease-out;
 }
+.account-form :deep(.el-input__inner::placeholder),
 .reset-pwd-form :deep(.el-input__inner::placeholder) {
   color: var(--el-text-color-placeholder);
   -webkit-text-fill-color: var(--el-text-color-placeholder);
   opacity: 1;
 }
+.account-form :deep(.el-input__inner:-webkit-autofill),
+.account-form :deep(.el-input__inner:-webkit-autofill:hover),
+.account-form :deep(.el-input__inner:-webkit-autofill:focus),
+.account-form :deep(input.el-input__inner:-webkit-autofill),
 .reset-pwd-form :deep(.el-input__inner:-webkit-autofill),
 .reset-pwd-form :deep(.el-input__inner:-webkit-autofill:hover),
 .reset-pwd-form :deep(.el-input__inner:-webkit-autofill:focus),
