@@ -442,8 +442,9 @@
   font-weight: 600;
 }
 :deep(.login-submit.app-btn) {
-  margin-top: 12rpx;
-  align-self: center;
+  /* 真机宿主节点不保证参与父级 flex，居中用块级 margin auto 而非 align-self */
+  display: block;
+  margin: 12rpx auto 0;
   width: 200px !important;
   max-width: 200px !important;
   min-width: 168px !important;
@@ -459,16 +460,14 @@
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
   box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .btn-code.disabled {
   opacity: 0.55;
   pointer-events: none;
 }
 :deep(.login-back.app-btn) {
-  margin-top: 20rpx;
+  display: block;
+  margin: 20rpx auto 0;
   text-align: center;
   color: var(--brand-mist, #99f6e4);
   font-size: var(--font-size-md);
@@ -476,7 +475,6 @@
   background: transparent;
   border: none;
   box-shadow: none;
-  align-self: center;
   min-height: auto;
   height: auto;
 }
