@@ -72,7 +72,7 @@
             label-class-name="col-text"
             header-align="center"
           >
-            <template #default="{ row }">{{ textOrNone(row.phoneNumber) }}</template>
+            <template #default="{ row }">{{ phoneText(row) }}</template>
           </el-table-column>
           <el-table-column
             label="角色"
@@ -166,9 +166,7 @@
   >
     <div v-if="adjustRow" class="adjust-user">
       <div class="adjust-user__name">{{ adjustRow.name || '未命名' }}</div>
-      <div class="adjust-user__id">
-        用户 {{ adjustRow.userId }} · {{ adjustRow.phoneNumber || '无手机号' }}
-      </div>
+      <div class="adjust-user__id">用户 {{ adjustRow.userId }} · {{ phoneText(adjustRow) }}</div>
       <div class="adjust-user__balance">
         当前余额 <b>¥{{ ((adjustRow.balanceCents || 0) / 100).toFixed(2) }}</b>
       </div>
@@ -235,6 +233,14 @@ function memberLevelLabel(level?: string) {
   return displayLabel('member_level', level, '普通');
 }
 
+/** wx+数字 是微信登录建号的占位标识（非真实手机号）；明确标注，避免「手机号带字母」误解 */
+function phoneText(row: UserRow) {
+  const p = String(row.phoneNumber || '').trim();
+  if (!p) return '暂无';
+  if (/^wx\d+$/i.test(p)) return '微信登录·未绑手机';
+  return p;
+}
+
 function userNameText(row: UserRow) {
   const name = row.name == null ? '' : String(row.name).trim();
   if (name) return name;
@@ -292,7 +298,7 @@ const csvOptions: CrudCsvOptions = {
   toRows: (rows) =>
     rows.map((row) => [
       row.userId,
-      row.phoneNumber,
+      phoneText(row),
       userNameText(row),
       row.nickname ?? '',
       roleLabel(row.role),
