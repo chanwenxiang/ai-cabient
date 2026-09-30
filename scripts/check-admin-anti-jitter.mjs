@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 运营后台布局防抖 / 审单工作台门禁。
- * 对照 .cursor/rules/admin-layout-anti-jitter.mdc 问题表 A～H。
+ * 对照 .cursor/rules/admin-layout-anti-jitter.mdc 问题表 A～K。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,6 +16,17 @@ function read(rel) {
 
 function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+function walkVue(dir, acc = []) {
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) {
+      if (ent.name === 'node_modules' || ent.name === 'dist') continue;
+      walkVue(p, acc);
+    } else if (ent.name.endsWith('.vue')) acc.push(p);
+  }
+  return acc;
 }
 
 function fail(msg) {
@@ -207,16 +218,6 @@ for (const [name, src] of [
 // ——— H) 全后台禁止 show-overflow-tooltip；须有原生 title 兜底 ———
 {
   const adminSrc = path.join(root, 'clients/admin-vue/src');
-  function walkVue(dir, acc = []) {
-    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-      const p = path.join(dir, ent.name);
-      if (ent.isDirectory()) {
-        if (ent.name === 'node_modules' || ent.name === 'dist') continue;
-        walkVue(p, acc);
-      } else if (ent.name.endsWith('.vue')) acc.push(p);
-    }
-    return acc;
-  }
   for (const abs of walkVue(adminSrc)) {
     const code = stripComments(fs.readFileSync(abs, 'utf8'));
     if (/show-overflow-tooltip/.test(code)) {
@@ -249,6 +250,42 @@ for (const [name, src] of [
   }
   if (!/sidebarWidthCss/.test(layoutVue)) {
     fail('J: AdminLayout el-aside 须绑 sidebarWidthCss（禁写死 220px/64px 字符串）');
+  }
+}
+
+// ——— K) EP 行悬停背景过渡 + 嵌套表禁硬编码 --h ———
+{
+  const mainCssRaw = read('clients/admin-vue/src/styles/main.css');
+  if (
+    !/el-table--enable-row-transition[\s\S]{0,320}transition\s*:\s*none\s*!important/.test(
+      mainCssRaw
+    ) ||
+    !/\.layout-main-scroll\s+\.el-table\s+\.el-table__body\s+td\.el-table__cell[\s\S]{0,200}transition\s*:\s*none\s*!important/.test(
+      mainCssRaw
+    )
+  ) {
+    fail(
+      'K: main.css 须对表体 td（含 .el-table--enable-row-transition）设 transition:none !important（禁 0.25s 背景缓动）'
+    );
+  }
+  const adminSrc = path.join(root, 'clients/admin-vue/src');
+  for (const abs of walkVue(adminSrc)) {
+    const code = stripComments(fs.readFileSync(abs, 'utf8'));
+    // 模板硬编码 class 含 table-scroll--h（JS 动态 toggle 不在模板字面量里）
+    if (/class\s*=\s*["'][^"']*table-scroll--h/.test(code)) {
+      fail(
+        `K: ${path.relative(root, abs)} 禁止硬编码 table-scroll--h（由 table-scroll-fit 按溢出加；嵌套子表用自管 overflow）`
+      );
+    }
+  }
+  const fitTs = stripComments(read('clients/admin-vue/src/utils/table-scroll-fit.ts'));
+  if (
+    !/clientW\s*<=\s*0/.test(fitTs) ||
+    !/classList\.remove\(\s*['"]table-scroll--h['"]/.test(fitTs)
+  ) {
+    fail(
+      'K: table-scroll-fit measureOverflow 须在 clientWidth≤0 时清 table-scroll--h 并返回 false'
+    );
   }
 }
 
