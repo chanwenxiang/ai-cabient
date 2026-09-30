@@ -4,10 +4,22 @@
   "libVersion": "3.3.5",
   "packOptions": {
     "ignore": [
-      { "type": "folder", "value": "output" },
-      { "type": "folder", "value": "node_modules" },
-      { "type": "folder", "value": "src" },
-      { "type": "folder", "value": "tests" }
+      {
+        "type": "folder",
+        "value": "output"
+      },
+      {
+        "type": "folder",
+        "value": "node_modules"
+      },
+      {
+        "type": "folder",
+        "value": "src"
+      },
+      {
+        "type": "folder",
+        "value": "tests"
+      }
     ],
     "include": []
   },
@@ -36,7 +48,9 @@
     "disableUseStrict": false,
     "useCompilerPlugins": false,
     "swc": false,
-    "disableSWC": true
+    "disableSWC": true,
+    "ignoreDevUnusedFiles": true,
+    "ignoreUploadUnusedFiles": true
   },
   "condition": {},
   "editorSetting": {
