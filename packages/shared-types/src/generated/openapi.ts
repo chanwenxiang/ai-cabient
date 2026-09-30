@@ -11195,6 +11195,7 @@ export interface components {
             lineId?: number;
             lineType?: string;
             skuId?: string;
+            skuName?: string;
             batchNo?: string;
             /** Format: date */
             productionDate?: string;
