@@ -34,6 +34,7 @@ public class DeviceSlotService {
     private final InventoryLotService inventoryLotService;
     private final MerchantOpsPolicyService opsPolicyService;
     private final DistributedLockService distributedLockService;
+    private final ShoppingSessionMapper shoppingSessionMapper;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DeviceSlotService self;
 
@@ -50,6 +51,7 @@ public class DeviceSlotService {
                              InventoryLotService inventoryLotService,
                              MerchantOpsPolicyService opsPolicyService,
                              DistributedLockService distributedLockService,
+                             ShoppingSessionMapper shoppingSessionMapper,
                              @Lazy DeviceSlotService self) {
         this.slotRepository = slotRepository;
         this.lotRepository = lotRepository;
@@ -64,6 +66,7 @@ public class DeviceSlotService {
         this.inventoryLotService = inventoryLotService;
         this.opsPolicyService = opsPolicyService;
         this.distributedLockService = distributedLockService;
+        this.shoppingSessionMapper = shoppingSessionMapper;
         this.self = self;
     }
 
@@ -83,7 +86,11 @@ public class DeviceSlotService {
         List<DeviceInventoryDto> skuInventory = inventoryRepository.findByIdDeviceId(deviceId).stream()
                 .map(inv -> toInventoryDto(inv, sellableBySku))
                 .toList();
-        return new DeviceDetailDto(toAdminDeviceDto(device), metrics, slotDtos, skuInventory);
+        // 「最近会话」语义=当前进行中的会话，没有则回落最近一次（含已完结），
+        // 否则详情页在有历史会话时也显示「无」（2026-09-30 用户实测反馈）。
+        var lastSession = shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(deviceId).orElse(null);
+        AdminDeviceDto deviceDto = toAdminDeviceDto(device, lastSession);
+        return new DeviceDetailDto(deviceDto, metrics, slotDtos, skuInventory);
     }
 
     @Transactional(readOnly = true)
@@ -1155,6 +1162,10 @@ public class DeviceSlotService {
     }
 
     private AdminDeviceDto toAdminDeviceDto(DeviceInfo d) {
+        return toAdminDeviceDto(d, null);
+    }
+
+    private AdminDeviceDto toAdminDeviceDto(DeviceInfo d, ShoppingSession lastSession) {
         String merchantName = d.getMerchantId() == null ? null
                 : merchantRepository.findById(d.getMerchantId())
                 .map(Merchant::getMerchantName).orElse(null);
@@ -1163,7 +1174,10 @@ public class DeviceSlotService {
                 : null;
         return new AdminDeviceDto(
                 d.getDeviceId(), d.getDeviceName(), d.getDeviceType(), d.getOnlineStatus(),
-                d.getMerchantId(), merchantName, null, null, d.getUpdatedAt(), false,
+                d.getMerchantId(), merchantName,
+                lastSession == null ? null : lastSession.getSessionId(),
+                lastSession == null ? null : lastSession.getState().name(),
+                d.getUpdatedAt(), false,
                 d.getRefundPolicy(), effective, d.salesLockedEnabled()
         );
     }

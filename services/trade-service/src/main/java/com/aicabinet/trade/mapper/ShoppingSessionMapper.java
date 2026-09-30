@@ -28,6 +28,11 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
     return Optional.ofNullable(selectOne(Wrappers.<ShoppingSession>lambdaQuery().eq(ShoppingSession::getUserId, userId).in(ShoppingSession::getState, states).orderByDesc(ShoppingSession::getCreatedAt).last("LIMIT 1")));
     }
 
+    /** 设备最近一次会话（任意状态，含已完结）——运营后台「最近会话」展示用。 */
+    default Optional<ShoppingSession> findFirstByDeviceIdOrderByCreatedAtDesc(String deviceId) {
+    return Optional.ofNullable(selectOne(Wrappers.<ShoppingSession>lambdaQuery().eq(ShoppingSession::getDeviceId, deviceId).orderByDesc(ShoppingSession::getCreatedAt).last("LIMIT 1")));
+    }
+
     default List<ShoppingSession> findByDeviceIdAndStateIn(String deviceId, List<SessionState> states) {
     return selectList(Wrappers.<ShoppingSession>lambdaQuery().eq(ShoppingSession::getDeviceId, deviceId).in(ShoppingSession::getState, states));
     }
