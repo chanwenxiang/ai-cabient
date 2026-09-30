@@ -421,7 +421,10 @@ public class OpsRbacService {
         ensureOperatorAccount(userId);
         UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        String phone = normalizePhone(request.phoneNumber());
+        // 手机号留空=保持原号（编辑弹窗里列表给的是脱敏号，不能回传）；要换绑才填新号并验证短信
+        String phone = request.phoneNumber() == null || request.phoneNumber().isBlank()
+                ? user.getPhoneNumber()
+                : normalizePhone(request.phoneNumber());
         if (!phone.equals(user.getPhoneNumber())) {
             // C14：换绑手机号必须先校验发往新号码的短信验证码
             verifyPhoneChangeSmsCode(phone, request.phoneSmsCode());

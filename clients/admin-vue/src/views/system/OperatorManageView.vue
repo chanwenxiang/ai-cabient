@@ -183,7 +183,7 @@
             autocomplete="off"
             maxlength="11"
             inputmode="numeric"
-            placeholder="11位手机号"
+            :placeholder="form.userId ? '留空保持原手机号；换绑请输入新号' : '11位手机号'"
             @input="form.phoneNumber = form.phoneNumber.replace(/\D/g, '')"
           />
         </el-form-item>
@@ -800,7 +800,8 @@ function openEdit(row: OperatorRow) {
   form.value = {
     userId: row.userId,
     name: row.name || '',
-    phoneNumber: row.phoneNumber || '',
+    // 列表给的是脱敏号（138****8007），回填必挂校验；留空=保持原号，换绑才输入
+    phoneNumber: '',
     password: '',
     status: row.status || 'ACTIVE',
     roleIds: [],
@@ -847,7 +848,12 @@ async function submitResetPassword() {
 async function saveForm() {
   const f = form.value;
   if (!f.name.trim()) return ElMessage.warning('请填写姓名');
-  if (!/^1\d{10}$/.test(f.phoneNumber.trim())) return ElMessage.warning('请填写正确手机号');
+  // 编辑：手机号留空=保持原号（列表只下发脱敏号）；填了就必须是合法 11 位（走换绑短信）
+  const phoneTrimmed = f.phoneNumber.trim();
+  if (phoneTrimmed && !/^1\d{10}$/.test(phoneTrimmed)) {
+    return ElMessage.warning('请填写正确手机号，或留空保持原号');
+  }
+  if (!f.userId && !phoneTrimmed) return ElMessage.warning('请填写正确手机号');
   if (!f.userId && (!f.password || f.password.length < 6)) return ElMessage.warning('密码至少6位');
   if (f.primaryDeptId != null && !f.deptIds.includes(f.primaryDeptId)) {
     return ElMessage.warning('主部门必须包含在所属部门中');
@@ -871,7 +877,7 @@ async function saveForm() {
     if (f.userId) {
       await api.request(AdminEndpoints.rbacOperator(f.userId), 'PUT', {
         name: f.name.trim(),
-        phoneNumber: f.phoneNumber.trim(),
+        ...(phoneTrimmed ? { phoneNumber: phoneTrimmed } : {}),
         status: f.status,
         deptIds: f.deptIds,
         primaryDeptId: f.primaryDeptId

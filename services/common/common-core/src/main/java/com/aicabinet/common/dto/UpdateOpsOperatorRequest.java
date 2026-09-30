@@ -10,7 +10,7 @@ import java.util.List;
  * <p>C14：换绑手机号需提供发往新号码的短信验证码（phoneSmsCode），手机号未变更时可不传。</p>
  */
 public record UpdateOpsOperatorRequest(
-        @NotBlank(message = "手机号不能为空")
+        // 可空：编辑弹窗里列表给的是脱敏手机号，留空=保持原号（换绑才填新号并带 phoneSmsCode）
         @Size(max = 32)
         String phoneNumber,
         @NotBlank(message = "姓名不能为空")
