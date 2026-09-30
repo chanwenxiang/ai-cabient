@@ -9359,7 +9359,7 @@ export interface components {
             status?: string;
         };
         UpdateOpsOperatorRequest: {
-            phoneNumber: string;
+            phoneNumber?: string;
             name: string;
             status?: string;
             deptIds?: number[];
