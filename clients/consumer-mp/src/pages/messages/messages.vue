@@ -220,7 +220,7 @@ async function load() {
     if (seq !== loadSeq) return;
     showError(e instanceof Error ? e.message : '加载失败');
   } finally {
-    if (seq === loadSeq) loading.value = false;
+    loading.value = false;
   }
 }
 

@@ -721,6 +721,8 @@ const auth = useAuthStore();
 const canEditOrg = computed(() => auth.hasPerm('ops:org:edit'));
 const loading = ref(false);
 const loadSeq = createLoadSeq();
+/** loading 在途数（loadAll/loadBills 共用；清理不受过时守卫影响，防遮罩卡死） */
+let loadingInflight = 0;
 const saving = ref(false);
 const tab = ref('org');
 const orgTree = ref<OrgNodeDto[]>([]);
@@ -945,6 +947,7 @@ watch(tab, (name) => {
 
 async function loadAll() {
   const seq = loadSeq.begin('loadAll');
+  loadingInflight += 1;
   loading.value = true;
   try {
     orgTree.value = (await api.request<OrgNodeDto[]>(AdminEndpoints.orgTree, 'GET')) || [];
@@ -956,8 +959,8 @@ async function loadAll() {
     if (!loadSeq.isCurrent(seq, 'loadAll')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
-    if (!loadSeq.isCurrent(seq, 'loadAll')) return;
-    loading.value = false;
+    loadingInflight = Math.max(0, loadingInflight - 1);
+    if (loadingInflight === 0) loading.value = false;
   }
 }
 
@@ -1262,6 +1265,7 @@ function onFeeBillKindChange() {
 
 async function loadBills() {
   const seq = loadSeq.begin('loadBills');
+  loadingInflight += 1;
   loading.value = true;
   try {
     // 账单接口约定 page 从 1 起（FeeBillMonthResolver.clampPage）；合约/事件等为 0 起，勿混用
@@ -1292,9 +1296,9 @@ async function loadBills() {
     if (!loadSeq.isCurrent(seq, 'loadBills')) return;
     ElMessage.error(e instanceof Error ? e.message : '账单加载失败');
   } finally {
-    if (!loadSeq.isCurrent(seq, 'loadBills')) return;
-    billsHydrated.value = true;
-    loading.value = false;
+    loadingInflight = Math.max(0, loadingInflight - 1);
+    if (loadingInflight === 0) loading.value = false;
+    if (loadSeq.isCurrent(seq, 'loadBills')) billsHydrated.value = true;
   }
 }
 

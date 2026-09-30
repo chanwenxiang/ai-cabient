@@ -779,8 +779,10 @@ const canSplit = computed(() => auth.hasPerm('ops:merchant:split'));
 const tab = ref('org');
 const loadSeq = createLoadSeq();
 const loadingMerchants = ref(false);
+let loadingMerchantsInflight = 0;
 const merchantsHydrated = ref(false);
 const loadingStatus = ref(false);
+let loadingStatusInflight = 0;
 const acting = ref(false);
 const status = ref('');
 const merchants = ref<MerchantDto[]>([]);
@@ -1085,6 +1087,7 @@ async function fetchAllMerchants(): Promise<MerchantDto[]> {
 async function loadMerchants() {
   const seq = loadSeq.begin('loadMerchants');
   loadingMerchants.value = true;
+  loadingMerchantsInflight += 1;
   try {
     merchants.value = await fetchAllMerchants();
     crudMerchants.clearSelection();
@@ -1092,9 +1095,9 @@ async function loadMerchants() {
     if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
     ElMessage.error(e instanceof Error ? e.message : '商户加载失败');
   } finally {
-    if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
-    merchantsHydrated.value = true;
-    loadingMerchants.value = false;
+    loadingMerchantsInflight = Math.max(0, loadingMerchantsInflight - 1);
+    if (loadingMerchantsInflight === 0) loadingMerchants.value = false;
+    if (loadSeq.isCurrent(seq, 'loadMerchants')) merchantsHydrated.value = true;
   }
 }
 
@@ -1102,6 +1105,7 @@ async function loadStatus() {
   const seq = loadSeq.begin('loadStatus');
   if (!canSplit.value) return;
   loadingStatus.value = true;
+  loadingStatusInflight += 1;
   try {
     psStatus.value = await api.request<ProfitSharingStatus>(
       AdminEndpoints.merchantsProfitSharingStatus,
@@ -1111,8 +1115,8 @@ async function loadStatus() {
     if (!loadSeq.isCurrent(seq, 'loadStatus')) return;
     psStatus.value = null;
   } finally {
-    if (!loadSeq.isCurrent(seq, 'loadStatus')) return;
-    loadingStatus.value = false;
+    loadingStatusInflight = Math.max(0, loadingStatusInflight - 1);
+    if (loadingStatusInflight === 0) loadingStatus.value = false;
   }
 }
 

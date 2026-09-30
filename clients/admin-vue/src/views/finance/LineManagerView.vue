@@ -776,7 +776,9 @@ const auth = useAuthStore();
 const tab = ref('managers');
 const payoutMode = ref<{ mockEnabled?: boolean; note?: string } | null>(null);
 const managersLoading = ref(false);
+let managersLoadingInflight = 0;
 const withdrawsLoading = ref(false);
+let withdrawsLoadingInflight = 0;
 const managersHydrated = ref(false);
 const withdrawsHydrated = ref(false);
 const saving = ref(false);
@@ -884,6 +886,7 @@ function promoStatusLabel(s?: string) {
 async function loadManagers() {
   const seq = loadSeq.begin('loadManagers');
   managersLoading.value = true;
+  managersLoadingInflight += 1;
   try {
     const q = new URLSearchParams({ page: String(mPage.value - 1), size: String(mSize.value) });
     if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
@@ -898,15 +901,16 @@ async function loadManagers() {
     if (!loadSeq.isCurrent(seq, 'loadManagers')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
-    if (!loadSeq.isCurrent(seq, 'loadManagers')) return;
-    managersHydrated.value = true;
-    managersLoading.value = false;
+    managersLoadingInflight = Math.max(0, managersLoadingInflight - 1);
+    if (managersLoadingInflight === 0) managersLoading.value = false;
+    if (loadSeq.isCurrent(seq, 'loadManagers')) managersHydrated.value = true;
   }
 }
 
 async function loadWithdraws() {
   const seq = loadSeq.begin('loadWithdraws');
   withdrawsLoading.value = true;
+  withdrawsLoadingInflight += 1;
   try {
     const q = new URLSearchParams({ page: String(wPage.value - 1), size: String(wSize.value) });
     if (wStatus.value) q.set('status', wStatus.value);
@@ -921,9 +925,11 @@ async function loadWithdraws() {
     if (!loadSeq.isCurrent(seq, 'loadWithdraws')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
-    if (!loadSeq.isCurrent(seq, 'loadWithdraws')) return;
-    withdrawsHydrated.value = true;
-    withdrawsLoading.value = false;
+    withdrawsLoadingInflight = Math.max(0, withdrawsLoadingInflight - 1);
+    if (withdrawsLoadingInflight === 0) withdrawsLoading.value = false;
+    if (loadSeq.isCurrent(seq, 'loadWithdraws')) {
+      withdrawsHydrated.value = true;
+    }
   }
 }
 

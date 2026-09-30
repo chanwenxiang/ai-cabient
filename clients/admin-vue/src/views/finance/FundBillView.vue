@@ -370,6 +370,7 @@ const MAX_RANGE_DAYS = 90;
 
 const tab = ref('bills');
 const ledgerLoading = ref(false);
+let ledgerLoadingInflight = 0;
 const ledgerHydrated = ref(false);
 const ledger = ref<LedgerRow[]>([]);
 // 账务明细 tab 仍为手写加载（未迁 CrudTable），保留独立竞态防护
@@ -545,6 +546,7 @@ async function loadLedger() {
   const seq = loadSeq.begin('loadLedger');
   if (!assertRangeOk()) return;
   ledgerLoading.value = true;
+  ledgerLoadingInflight += 1;
   try {
     const q = queryDates();
     if (financialType.value) q.set('financialType', financialType.value);
@@ -563,9 +565,9 @@ async function loadLedger() {
     if (!loadSeq.isCurrent(seq, 'loadLedger')) return;
     ElMessage.error(e instanceof Error ? e.message : '账务明细加载失败');
   } finally {
-    if (!loadSeq.isCurrent(seq, 'loadLedger')) return;
-    ledgerHydrated.value = true;
-    ledgerLoading.value = false;
+    ledgerLoadingInflight = Math.max(0, ledgerLoadingInflight - 1);
+    if (ledgerLoadingInflight === 0) ledgerLoading.value = false;
+    if (loadSeq.isCurrent(seq, 'loadLedger')) ledgerHydrated.value = true;
   }
 }
 

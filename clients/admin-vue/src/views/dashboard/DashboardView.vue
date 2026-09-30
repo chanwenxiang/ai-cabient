@@ -332,6 +332,8 @@ const loading = ref(false);
 /** 首屏未拉完前勿展示「0 / 运行正常」，避免与异常中心真实待办数闪错 */
 const listHydrated = ref(false);
 const loadSeq = createLoadSeq();
+/** loading 在途数（清理不受过时守卫影响，防遮罩卡死） */
+let dashboardLoadingInflight = 0;
 const stats = ref<OpsStats>({});
 const workbench = ref<OpsWorkbench | null>(null);
 const openExceptionCount = ref(0);
@@ -753,6 +755,7 @@ async function loadOnboardPending() {
 
 async function load(opts?: { silent?: boolean }) {
   const seq = loadSeq.begin();
+  dashboardLoadingInflight += 1;
   loading.value = true;
   try {
     let { s, wb, ex } = await fetchWorkbenchBundle();
@@ -782,9 +785,9 @@ async function load(opts?: { silent?: boolean }) {
       ElMessage.error(e instanceof Error ? e.message : '加载失败');
     }
   } finally {
-    if (!loadSeq.isCurrent(seq)) return;
-    listHydrated.value = true;
-    loading.value = false;
+    dashboardLoadingInflight = Math.max(0, dashboardLoadingInflight - 1);
+    if (dashboardLoadingInflight === 0) loading.value = false;
+    if (loadSeq.isCurrent(seq)) listHydrated.value = true;
   }
 }
 
