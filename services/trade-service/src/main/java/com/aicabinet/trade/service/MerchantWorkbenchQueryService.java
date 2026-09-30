@@ -349,8 +349,8 @@ public class MerchantWorkbenchQueryService {
         if (notes == null || notes.isBlank()) {
             return "状态 " + label;
         }
-        var seq = java.util.regex.Pattern.compile("seq=(\d+)").matcher(notes);
-        var dist = java.util.regex.Pattern.compile("dist=(\d+)m").matcher(notes);
+        var seq = java.util.regex.Pattern.compile("seq=([0-9]+)").matcher(notes);
+        var dist = java.util.regex.Pattern.compile("dist=([0-9]+)m").matcher(notes);
         if (seq.find()) {
             String stop = "路线第 " + seq.group(1) + " 站";
             if (dist.find()) {
