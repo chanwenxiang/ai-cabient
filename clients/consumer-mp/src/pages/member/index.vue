@@ -171,14 +171,13 @@ const benefits = computed(() => {
 });
 
 function formatYuan(n?: number | null) {
-  const v = Number.isFinite(n) ? Number(n) : 0;
-  return (
-    '¥' +
-    new Intl.NumberFormat('zh-CN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(v)
-  );
+  // 不用 Intl.NumberFormat：部分手机微信 JS 环境没有 Intl，渲染期抛错会中断整页渲染
+  //（真机会员页"动态值全空/已达最高等级"的根因怀疑点）。纯字符串实现，等价 zh-CN 两位小数+千分位。
+  const v = Number.isFinite(Number(n)) ? Number(n) : 0;
+  const fixed = (Math.round(v * 100) / 100).toFixed(2);
+  const [int, frac] = fixed.split('.');
+  const withSep = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `¥${withSep}.${frac}`;
 }
 const spentText = computed(() => formatYuan(Number(profile.value?.totalSpent || 0)));
 
