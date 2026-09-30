@@ -30,6 +30,7 @@ import com.aicabinet.trade.domain.ReplenishmentTaskLine;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
 
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 
 import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
@@ -122,6 +123,7 @@ public class ReplenishmentService {
     private final NotificationService notificationService;
     private final DistributedLockService distributedLockService;
     private final SystemConfigService systemConfigService;
+    private final SkuCatalogMapper skuCatalogMapper;
 
 
 
@@ -153,6 +155,7 @@ public class ReplenishmentService {
                                 NotificationService notificationService,
                                 DistributedLockService distributedLockService,
                                 SystemConfigService systemConfigService,
+            SkuCatalogMapper skuCatalogMapper,
                                 @Lazy ReplenishmentService self) {
 
         this.inventoryRepository = inventoryRepository;
@@ -183,6 +186,7 @@ public class ReplenishmentService {
         this.notificationService = notificationService;
         this.distributedLockService = distributedLockService;
         this.systemConfigService = systemConfigService;
+        this.skuCatalogMapper = skuCatalogMapper;
 
         this.self = self;
     }
@@ -1610,7 +1614,7 @@ public class ReplenishmentService {
 
         return new ReplenishmentTaskLineDto(
 
-                line.getLineId(), line.getLineType(), line.getSkuId(), line.getBatchNo(),
+                line.getLineId(), line.getLineType(), line.getSkuId(), resolveSkuName(line.getSkuId()), line.getBatchNo(),
 
                 line.getProductionDate(), line.getExpiryDate(), line.getQuantity(),
 
@@ -1618,6 +1622,13 @@ public class ReplenishmentService {
 
         );
 
+    }
+
+    /** 明细展示商品名（可口可乐 330ml）而非裸 skuId；目录缺失时回落编码。 */
+    private String resolveSkuName(String skuId) {
+        if (skuId == null || skuId.isBlank()) return null;
+        return skuCatalogMapper.selectById(skuId) == null ? null
+                : java.util.Optional.ofNullable(skuCatalogMapper.selectById(skuId).getSkuName()).orElse(skuId);
     }
 
 

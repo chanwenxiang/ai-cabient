@@ -10,6 +10,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.PullOffTaskMapper;
 import com.aicabinet.trade.mapper.ReplenishmentRouteMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.support.DeviceLocationSupport;
@@ -51,6 +52,7 @@ public class MerchantInventoryPortalService {
     private final ReplenishmentRouteMapper replenishmentRouteRepository;
     private final DeviceInfoMapper deviceRepository;
     private final FileAttachmentService fileAttachmentService;
+    private final SkuCatalogMapper skuCatalogMapper;
 
     public MerchantInventoryPortalService(PermissionService permissionService,
                                           MerchantPortalGuard merchantPortalGuard,
@@ -63,7 +65,8 @@ public class MerchantInventoryPortalService {
                                           ReplenishmentTaskLineMapper replenishmentTaskLineRepository,
                                           ReplenishmentRouteMapper replenishmentRouteRepository,
                                           DeviceInfoMapper deviceRepository,
-                                          FileAttachmentService fileAttachmentService) {
+                                          FileAttachmentService fileAttachmentService,
+                                          SkuCatalogMapper skuCatalogMapper) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -76,6 +79,7 @@ public class MerchantInventoryPortalService {
         this.replenishmentRouteRepository = replenishmentRouteRepository;
         this.deviceRepository = deviceRepository;
         this.fileAttachmentService = fileAttachmentService;
+        this.skuCatalogMapper = skuCatalogMapper;
     }
 
     @Transactional(readOnly = true)
@@ -333,8 +337,10 @@ public class MerchantInventoryPortalService {
     }
 
     private ReplenishmentTaskLineDto toReplenishmentLineDto(ReplenishmentTaskLine line) {
+        var catalog = line.getSkuId() == null ? null : skuCatalogMapper.selectById(line.getSkuId());
         return new ReplenishmentTaskLineDto(
-                line.getLineId(), line.getLineType(), line.getSkuId(), line.getBatchNo(),
+                line.getLineId(), line.getLineType(), line.getSkuId(),
+                catalog != null ? catalog.getSkuName() : null, line.getBatchNo(),
                 line.getProductionDate(), line.getExpiryDate(), line.getQuantity(),
                 line.getSlotId(), line.isApplied()
         );

@@ -6,6 +6,7 @@ public record ReplenishmentTaskLineDto(
         Long lineId,
         String lineType,
         String skuId,
+        String skuName,
         String batchNo,
         LocalDate productionDate,
         LocalDate expiryDate,

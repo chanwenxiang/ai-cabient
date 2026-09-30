@@ -52,7 +52,7 @@ class MerchantInventoryPortalServiceTest {
                 permissionService, merchantPortalGuard, merchantFeaturePackService,
                 inventoryRepository, inventoryLotService, pullOffTaskRepository, deviceSlotService,
                 replenishmentTaskRepository, replenishmentTaskLineRepository, replenishmentRouteRepository,
-                deviceRepository, fileAttachmentService);
+                deviceRepository, fileAttachmentService, null);
     }
 
     @Test
