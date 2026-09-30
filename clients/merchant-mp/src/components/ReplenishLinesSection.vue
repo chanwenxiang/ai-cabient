@@ -33,9 +33,11 @@
         </view>
         <view class="product-copy">
           <text class="sku-name">{{ displayName(line) }}</text>
-          <text v-if="line.skuId && line.skuName && line.skuName !== line.skuId" class="device-code">{{
-            line.skuId
-          }}</text>
+          <text
+            v-if="line.skuId && line.skuName && line.skuName !== line.skuId"
+            class="device-code"
+            >{{ line.skuId }}</text
+          >
         </view>
         <view v-if="canEditLine(line)" class="qty-actions">
           <view class="qty-stepper">

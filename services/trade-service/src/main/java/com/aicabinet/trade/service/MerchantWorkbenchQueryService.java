@@ -339,9 +339,28 @@ public class MerchantWorkbenchQueryService {
                 .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT", MEDIUM, "补货任务进行中",
-                        "状态 " + replenishmentStatusLabel(t.getStatus())
-                                + (t.getNotes() != null ? " · " + t.getNotes() : ""),
+                        replenishmentTodoDetail(t.getStatus(), t.getNotes()),
                         t.getDeviceId(), null, null, null, t.getTaskId(), t.getCreatedAt(), null)));
+    }
+
+    /** notes 里的 seq=/dist= 是路线规划内部字段；对外展示为「路线第 N 站（距上一站 X 米）」。 */
+    private static String replenishmentTodoDetail(String status, String notes) {
+        String label = replenishmentStatusLabel(status);
+        if (notes == null || notes.isBlank()) {
+            return "状态 " + label;
+        }
+        var seq = java.util.regex.Pattern.compile("seq=(\d+)").matcher(notes);
+        var dist = java.util.regex.Pattern.compile("dist=(\d+)m").matcher(notes);
+        if (seq.find()) {
+            String stop = "路线第 " + seq.group(1) + " 站";
+            if (dist.find()) {
+                long meters = Long.parseLong(dist.group(1));
+                return "状态 " + label + " · " + stop
+                        + (meters > 0 ? "（距上一站 " + meters + " 米）" : "");
+            }
+            return "状态 " + label + " · " + stop;
+        }
+        return "状态 " + label;
     }
 
     private String sessionDeviceId(String sessionId) {
