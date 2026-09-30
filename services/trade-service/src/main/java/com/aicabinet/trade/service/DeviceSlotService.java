@@ -1008,6 +1008,13 @@ public class DeviceSlotService {
                 .max(Instant::compareTo)
                 .orElseGet(() -> taskRepository.findLastCompletedAtByDeviceId(deviceId).orElse(null));
 
+        // 设备级告警联系人为空时回落显示绑定商户的联系人/电话（运营后台设备概览用）
+        var boundMerchant = device.getMerchantId() == null || device.getMerchantId().isBlank()
+                ? java.util.Optional.<Merchant>empty()
+                : merchantRepository.findById(device.getMerchantId());
+        String merchantContactName = boundMerchant.map(Merchant::getAlertContactName).orElse(null);
+        String merchantContactPhone = boundMerchant.map(Merchant::getContactPhone).orElse(null);
+
         return new DeviceOpsMetricsDto(
                 deviceId,
                 slots.size(),
@@ -1029,7 +1036,9 @@ public class DeviceSlotService {
                 device.getFirmwareVersion(),
                 device.getAlertContactName(),
                 device.getAlertContactPhone(),
-                countNearExpiryLots(deviceId)
+                countNearExpiryLots(deviceId),
+                merchantContactName,
+                merchantContactPhone
         );
     }
 

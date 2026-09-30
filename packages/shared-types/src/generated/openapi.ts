@@ -14919,6 +14919,8 @@ export interface components {
             alertContactPhone?: string;
             /** Format: int32 */
             nearExpiryLotCount?: number;
+            merchantContactName?: string;
+            merchantContactPhone?: string;
         };
         ApiResponseListDeviceRefDto: {
             /** Format: int32 */

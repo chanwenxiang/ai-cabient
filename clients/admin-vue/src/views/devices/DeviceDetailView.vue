@@ -86,13 +86,17 @@
           <div class="info-item">
             <span class="info-label">告警联系人</span>
             <span class="info-value">{{
-              metricsHydrated ? metrics?.alertContactName || '无' : UI_COPY.loading
+              metricsHydrated
+                ? metrics?.alertContactName || metrics?.merchantContactName || '无'
+                : UI_COPY.loading
             }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">联系电话</span>
             <span class="info-value">{{
-              metricsHydrated ? metrics?.alertContactPhone || '无' : UI_COPY.loading
+              metricsHydrated
+                ? metrics?.alertContactPhone || metrics?.merchantContactPhone || '无'
+                : UI_COPY.loading
             }}</span>
           </div>
           <div class="info-item">
@@ -617,6 +621,8 @@ interface Metrics {
   firmwareVersion?: string;
   alertContactName?: string;
   alertContactPhone?: string;
+  merchantContactName?: string;
+  merchantContactPhone?: string;
   lastRestockAt?: string;
   inventoryAccuracyPct?: number;
 }
