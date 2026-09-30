@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.SkuQuantityDto;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
@@ -70,6 +71,8 @@ public class DemoDataService {
     private final OpsUserMerchantMapper userMerchantMapper;
     private final OpsUserRoleMapper opsUserRoleMapper;
     private final OpsRoleMapper opsRoleMapper;
+    private final CouponDefinitionMapper couponDefinitionMapper;
+    private final PointsRedeemItemMapper pointsRedeemItemMapper;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DemoDataService self;
 
@@ -93,6 +96,8 @@ public class DemoDataService {
                            OpsUserMerchantMapper userMerchantMapper,
                            OpsUserRoleMapper opsUserRoleMapper,
                            OpsRoleMapper opsRoleMapper,
+                           CouponDefinitionMapper couponDefinitionMapper,
+                           PointsRedeemItemMapper pointsRedeemItemMapper,
                            @Lazy DemoDataService self) {
         this.securityProperties = securityProperties;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -114,6 +119,8 @@ public class DemoDataService {
         this.userMerchantMapper = userMerchantMapper;
         this.opsUserRoleMapper = opsUserRoleMapper;
         this.opsRoleMapper = opsRoleMapper;
+        this.couponDefinitionMapper = couponDefinitionMapper;
+        this.pointsRedeemItemMapper = pointsRedeemItemMapper;
         this.self = self;
     }
 
@@ -133,6 +140,7 @@ public class DemoDataService {
         ensureSupplier();
         ensureVisionMappings();
         ensureConsumerUser();
+        ensureMarketingSeeds();
         ensureMerchantPortalBindings(ensureDemoMerchantId());
         DemoContext ctx = buildContext(deviceId, warehouseId);
         log.info("demo data ensured device={} warehouse={} skus={} fallbackSku={} warehouseLots={}",
@@ -522,6 +530,57 @@ public class DemoDataService {
                 lot.setQuantity(seed.quantity());
                 warehouseInventoryRepository.save(lot);
             }
+        }
+    }
+
+    /**
+     * 会员积分兑换目录（V99 演示口径）：milk 清库会连 coupon_definition / points_redeem_item
+     * 一起清，而 V99 是已执行的历史迁移不会再跑 ⇒ 会员页兑换区空。在 demo/ensure 里自愈重建。
+     */
+    private void ensureMarketingSeeds() {
+        ensureRedeemItem("新人立减 ¥2", "无门槛，开门购物即可用",
+                "兑 ¥2 立减券", "无门槛 · 热门兑换", "🎫", 100, 200, 0, 5000, 2000, 1);
+        ensureRedeemItem("满减券 ¥5", "满 ¥20 可用",
+                "兑 ¥5 满减券", "满20可用 · 日常优选", "🥤", 300, 500, 2000, 5000, 1000, 2);
+        ensureRedeemItem("满减券 ¥10", "满 ¥50 可用",
+                "兑 ¥10 满减券", "满50可用 · 大额回馈", "🎁", 800, 1000, 5000, 3000, 500, 3);
+    }
+
+    private void ensureRedeemItem(String couponName, String couponDesc, String title, String subtitle,
+                                  String emoji, int pointsCost, int denominationCents, int minSpendCents,
+                                  int maxIssueCount, int stockTotal, int sortOrder) {
+        CouponDefinition coupon = couponDefinitionMapper.selectOne(
+                Wrappers.<CouponDefinition>lambdaQuery()
+                        .eq(CouponDefinition::getCouponName, couponName)
+                        .last("LIMIT 1"));
+        if (coupon == null) {
+            coupon = new CouponDefinition();
+            coupon.setCouponName(couponName);
+            coupon.setCouponType("AMOUNT_OFF");
+            coupon.setDenominationCents(denominationCents);
+            coupon.setMinSpendCents(minSpendCents);
+            coupon.setValidityDays(30);
+            coupon.setMaxIssueCount(maxIssueCount);
+            coupon.setIssuedCount(0);
+            coupon.setDeviceScope("ALL");
+            coupon.setStatus("ACTIVE");
+            coupon.setDescription(couponDesc);
+            couponDefinitionMapper.insert(coupon);
+        }
+        long exists = pointsRedeemItemMapper.selectCount(
+                Wrappers.<PointsRedeemItem>lambdaQuery().eq(PointsRedeemItem::getTitle, title));
+        if (exists == 0) {
+            PointsRedeemItem item = new PointsRedeemItem();
+            item.setTitle(title);
+            item.setSubtitle(subtitle);
+            item.setCoverEmoji(emoji);
+            item.setPointsCost(pointsCost);
+            item.setCouponDefId(coupon.getCouponDefId());
+            item.setStockTotal(stockTotal);
+            item.setRedeemedCount(0);
+            item.setSortOrder(sortOrder);
+            item.setStatus("ACTIVE");
+            pointsRedeemItemMapper.insert(item);
         }
     }
 

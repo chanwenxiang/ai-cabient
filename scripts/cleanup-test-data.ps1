@@ -306,6 +306,19 @@ UPDATE user_account SET balance_cents = 0, frozen_cents = 0, updated_at = NOW();
 COMMIT;
 "@)
     }
+    # 破坏性 wipe 前自动整库备份——2026-09-29 后台手工添加的设备/商户被清后无法找回的教训。
+    # 备份落在 .tmp/pre-wipe-backup-<时间戳>.sql；备份失败仅告警不阻断（回归仍可跑）。
+    if ($wipePlatform) {
+        $backupDir = Join-Path $PSScriptRoot "..\.tmp"
+        New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+        $backupFile = Join-Path $backupDir ("pre-wipe-backup-{0}.sql" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        cmd /c "docker exec $PostgresContainer pg_dump -U aicabinet -d aicabinet > `"$backupFile`" 2>nul"
+        if ((Test-Path $backupFile) -and (Get-Item $backupFile).Length -gt 0) {
+            Write-Host "==> Pre-wipe backup saved: $backupFile ($('{0:N0}' -f (Get-Item $backupFile).Length) bytes)"
+        } else {
+            Write-Warning "pre-wipe backup failed — continuing WITHOUT backup"
+        }
+    }
     $pout = docker exec $PostgresContainer psql -U aicabinet -d aicabinet -v ON_ERROR_STOP=1 -c $purge 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "FullBusiness purge failed: $pout"

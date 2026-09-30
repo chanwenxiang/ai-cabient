@@ -846,13 +846,23 @@ function syncLandingTabBar() {
     uni.hideTabBar({ animation: false });
     // 隐藏底栏后视口底部安全区「窗口底色」改品牌深色，消落地页白条。
     // 仅微信小程序有此 API；H5 无实现 → 直接调用会抛 TypeError，拖垮 e2e TC-QUAL-001。
+    // backgroundColorTop/Bottom：安卓手势条区域底色由 pages.json 页面级
+    // backgroundColorBottom 兜底（动态 API 部分 ROM 不生效，2026-09-30 实测）。
     if (typeof uni.setBackgroundColor === 'function') {
-      uni.setBackgroundColor({ backgroundColor: '#134e4a' });
+      uni.setBackgroundColor({
+        backgroundColor: '#134e4a',
+        backgroundColorTop: '#134e4a',
+        backgroundColorBottom: '#134e4a'
+      });
     }
   } else {
     uni.showTabBar({ animation: false });
     if (typeof uni.setBackgroundColor === 'function') {
-      uni.setBackgroundColor({ backgroundColor: '#ffffff' });
+      uni.setBackgroundColor({
+        backgroundColor: '#ffffff',
+        backgroundColorTop: '#ffffff',
+        backgroundColorBottom: '#ffffff'
+      });
     }
   }
 }

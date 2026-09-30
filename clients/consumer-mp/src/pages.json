@@ -6,6 +6,7 @@
         "navigationBarTitleText": "开门购物",
         "navigationStyle": "custom",
         "backgroundColor": "#0d9488",
+        "backgroundColorBottom": "#134e4a",
         "backgroundTextStyle": "light",
         "disableScroll": true
       }
