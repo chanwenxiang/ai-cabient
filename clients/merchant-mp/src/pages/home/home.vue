@@ -46,6 +46,10 @@
             <text class="kpi-label">商户收入</text>
             <text class="kpi-value">{{ incomeToday }}</text>
           </view>
+          <view v-if="canFinanceKpi && stats?.ordersToday != null">
+            <text class="kpi-label">今日订单</text>
+            <text class="kpi-value">{{ stats.ordersToday }}</text>
+          </view>
           <view v-if="canFinanceKpi && avgOrderToday !== '暂无'">
             <text class="kpi-label">近{{ analyticsDays }}日客单</text>
             <text class="kpi-value">{{ avgOrderToday }}</text>
@@ -298,6 +302,7 @@ const {
   revenueToday,
   incomeToday,
   avgOrderToday,
+  stats,
   analyticsDays,
   trendBars,
   pendingCount,
