@@ -320,7 +320,13 @@
         :title="tabDescription"
       />
 
-      <el-tabs v-model="tab" @tab-change="onTabChange">
+      <el-empty
+        v-if="onlyNoVisibleTabs"
+        description="当前账号无本页内容的查看权限，请联系管理员开通"
+        data-testid="warehouse-empty-perm"
+      />
+
+      <el-tabs v-if="!onlyNoVisibleTabs" v-model="tab" @tab-change="onTabChange">
         <el-tab-pane v-if="isPaneVisible('warehouses')" label="仓库概览" name="warehouses">
           <WarehouseOverviewTab
             :table="crud"
@@ -883,6 +889,22 @@ const TAB_DESC: Record<string, string> = {
   transit: '在途：已发往柜机、尚未完成补货签收的货（含到柜超时提醒）'
 };
 const tabDescription = computed(() => TAB_DESC[tab.value] || '');
+
+/** only 子页里因权限被全部隐藏时的兜底提示（避免空白页） */
+const permGatedTabs = computed<Record<string, boolean>>(() => ({
+  transfers: canWarehouseList.value,
+  suppliers: canProcurementList.value,
+  purchase: canProcurementList.value,
+  suggestions: canProcurementList.value,
+  returns: canProcurementList.value,
+  payables: canProcurementList.value,
+  stocktakes: canWarehouseList.value,
+  bins: canWarehouseList.value
+}));
+const onlyNoVisibleTabs = computed(() => {
+  if (!props.only?.length) return false;
+  return !props.only.some((name) => permGatedTabs.value[name] !== false);
+});
 
 /** loadTab / syncRouteQuery 在 loader、route lifecycle 之后赋值 */
 const loadTabHolder: { fn: (name: string, force?: boolean) => Promise<void> } = {

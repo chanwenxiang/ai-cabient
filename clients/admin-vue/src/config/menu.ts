@@ -208,6 +208,8 @@ const BASE_NAV: NavItem[] = [
     path: '/warehouse/procurement',
     title: '采购与供应商',
     group: '仓储',
+    // 与旧「仓库」菜单同码：V111 的采购权授予存在历史漂移（部分仓库角色没跟上），
+    // 若用 procurement:list 会让这些角色整页消失；页内 tab 级权限+空态提示兜底
     perm: 'ops:warehouse:list',
     keywords: ['采购', '供应商', '建议', '退货', '应付', 'procurement']
   },
