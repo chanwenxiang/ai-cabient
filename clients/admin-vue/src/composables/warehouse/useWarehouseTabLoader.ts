@@ -55,6 +55,9 @@ export type UseWarehouseTabLoaderDeps = {
  * 写路径弹窗仍由各 useWarehouse*  composable 负责。
  */
 export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
+  /** 每个 tab 的在途加载数（见 loadTab finally：loading 清理不受过时守卫影响） */
+  const tabInflight = new Map<string, number>();
+
   async function ensureMeta() {
     if (!deps.devices.value.length) {
       if (!deps.hasDeviceListPerm()) {
@@ -431,24 +434,33 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     if (!force && deps.loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements') {
       return;
     }
+    // 在途计数按 tab 维护：过时的请求也必须把自己那份 loading 关掉，
+    // 否则新旧请求交错后遮罩永久卡住（2026-09-30 用户实测整页假死）。过时守卫只保护数据标记。
+    tabInflight.set(name, (tabInflight.get(name) || 0) + 1);
     const nextLoading = new Set(deps.loadingTabs.value);
     nextLoading.add(name);
     deps.loadingTabs.value = nextLoading;
     try {
       await ensureMeta();
       await loadWarehouseTabData(name);
-      deps.loadedTabs.value.add(name);
+      if (deps.loadSeq.isCurrent(seq, 'loadTab')) deps.loadedTabs.value.add(name);
     } catch (e) {
       if (!deps.loadSeq.isCurrent(seq, 'loadTab')) return;
       ElMessage.error(errorMessage(e, '加载失败'));
     } finally {
-      if (!deps.loadSeq.isCurrent(seq, 'loadTab')) return;
-      const next = new Set(deps.hydratedTabs.value);
-      next.add(name);
-      deps.hydratedTabs.value = next;
-      const doneLoading = new Set(deps.loadingTabs.value);
-      doneLoading.delete(name);
-      deps.loadingTabs.value = doneLoading;
+      const left = Math.max(0, (tabInflight.get(name) || 1) - 1);
+      if (left === 0) tabInflight.delete(name);
+      else tabInflight.set(name, left);
+      if (left === 0) {
+        const doneLoading = new Set(deps.loadingTabs.value);
+        doneLoading.delete(name);
+        deps.loadingTabs.value = doneLoading;
+      }
+      if (deps.loadSeq.isCurrent(seq, 'loadTab')) {
+        const next = new Set(deps.hydratedTabs.value);
+        next.add(name);
+        deps.hydratedTabs.value = next;
+      }
     }
   }
 

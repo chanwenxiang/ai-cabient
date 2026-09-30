@@ -1301,6 +1301,8 @@ function sortedRouteTasks(tasks: Row[] | undefined | null): Row[] {
 const loadingTabs = ref(new Set<string>());
 const listHydrated = ref(false);
 const loadSeq = createLoadSeq();
+/** 每个 tab 的在途加载数（loadTab finally：loading 清理不受过时守卫影响） */
+const tabLoadInflight = new Map<string, number>();
 
 function isTabLoading(name: string) {
   return loadingTabs.value.has(name);
@@ -1804,6 +1806,8 @@ async function loadDeviceRefs() {
 async function loadTab(name: string, force = false) {
   const seq = loadSeq.begin('loadTab');
   if (!force && !SERVER_PAGINATED_TABS.has(name)) return;
+  // 在途计数：过时的请求也要关掉自己那份 loading（守卫只保护数据），否则遮罩永久卡死
+  tabLoadInflight.set(name, (tabLoadInflight.get(name) || 0) + 1);
   if (name === 'fulfillment') markTabsLoading(['fulfillment'], true);
   try {
     if (name === 'routes') await crudRoutes.search();
@@ -1819,9 +1823,11 @@ async function loadTab(name: string, force = false) {
     if (!loadSeq.isCurrent(seq, 'loadTab')) return;
     ElMessage.error(error instanceof Error ? error.message : '补货数据加载失败');
   } finally {
-    if (!loadSeq.isCurrent(seq, 'loadTab')) return;
-    listHydrated.value = true;
-    if (name === 'fulfillment') markTabsLoading(['fulfillment'], false);
+    const left = Math.max(0, (tabLoadInflight.get(name) || 1) - 1);
+    if (left === 0) tabLoadInflight.delete(name);
+    else tabLoadInflight.set(name, left);
+    if (left === 0 && name === 'fulfillment') markTabsLoading(['fulfillment'], false);
+    if (loadSeq.isCurrent(seq, 'loadTab')) listHydrated.value = true;
   }
 }
 

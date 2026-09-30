@@ -129,6 +129,11 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
     };
   });
 
+  /** 在途的非静默加载数。loading 的关闭只看它，**不**受过时守卫影响——
+   *  否则「保存/切页触发的更新请求把旧请求顶成过时」时，旧请求的 finally
+   *  连 loading=false 一起跳过，遮罩永久卡住，整页按钮假死只剩 F5（2026-09-30 用户实测）。 */
+  let nonSilentInflight = 0;
+
   async function load(opts?: { resetPage?: boolean; silent?: boolean }) {
     if (opts?.resetPage) page.value = 1;
     const silent = !!opts?.silent;
@@ -137,6 +142,7 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
     if (!silent) selectionRestore = null;
     const seq = loadSeq.begin();
     if (!silent) {
+      nonSilentInflight += 1;
       loading.value = true;
       clearSelection();
     }
@@ -157,9 +163,11 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
       if (!silent)
         ElMessage.error(e instanceof Error ? e.message : options.errorMessage || '加载失败');
     } finally {
-      if (!loadSeq.isCurrent(seq)) return;
-      hydrated.value = true;
-      if (!silent) loading.value = false;
+      if (!silent) {
+        nonSilentInflight = Math.max(0, nonSilentInflight - 1);
+        if (nonSilentInflight === 0) loading.value = false;
+      }
+      if (loadSeq.isCurrent(seq)) hydrated.value = true;
     }
   }
 
