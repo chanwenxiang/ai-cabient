@@ -120,8 +120,9 @@
                         }}</span
                       >
                     </div>
-                    <div class="route-task-scroll table-scroll table-scroll--h">
-                      <div class="table-scroll-inner route-task-scroll-inner">
+                    <!-- 嵌套子表自管横滚；勿挂 table-scroll/--h（未展开时 0 宽会被 fit 误测） -->
+                    <div class="route-task-scroll">
+                      <div class="route-task-scroll-inner">
                         <el-table
                           :data="sortedRouteTasks(row.tasks)"
                           size="small"

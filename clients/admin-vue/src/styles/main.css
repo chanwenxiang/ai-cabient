@@ -610,6 +610,18 @@ select {
   padding: 8px 0;
 }
 
+/*
+ * EP 首次 hover 后给表加 .el-table--enable-row-transition，td 默认
+ * transition: background-color .25s 1ms。高 DPR + sticky 操作列时，移鼠标换行
+ * 整行背景缓动像「页面在抖」（全站列表同构，不限补货调度）。行高亮瞬时即可。
+ * 不依赖该类是否已挂上：表体 td 一律禁过渡。
+ */
+.layout-main-scroll .el-table .el-table__body td.el-table__cell,
+.page-card .el-table .el-table__body td.el-table__cell,
+.el-table.el-table--enable-row-transition .el-table__body td.el-table__cell {
+  transition: none !important;
+}
+
 .layout-main-scroll .el-table th.el-table__cell,
 .page-card .el-table th.el-table__cell {
   text-align: center;
@@ -1006,14 +1018,12 @@ a:focus-visible {
 }
 .sidebar .brand-toggle,
 .sidebar-foot .el-icon {
-  transition:
-    color 0.15s ease,
-    transform 0.15s ease;
+  /* 禁 transform：侧栏图标 scale 在高 DPR 下像整页微抖（移鼠标进侧栏边缘时） */
+  transition: color 0.15s ease;
 }
 .sidebar .brand:hover .brand-toggle,
 .sidebar-foot:hover .el-icon {
   color: #f8fafc;
-  transform: scale(1.05);
 }
 
 .el-card {

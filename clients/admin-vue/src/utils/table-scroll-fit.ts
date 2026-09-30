@@ -111,6 +111,11 @@ function measureOverflow(el: HTMLElement): boolean {
   const table = el.querySelector<HTMLElement>('.el-table');
   const hadH = el.classList.contains('table-scroll--h');
   const clientW = el.clientWidth;
+  // 隐藏 tab / 未展开行 clientWidth=0：contentW>0 会误判溢出并锁死 --h
+  if (clientW <= 0) {
+    el.classList.remove('table-scroll--h');
+    return false;
+  }
   const enterPx = 2;
   const leavePx = 6;
 
