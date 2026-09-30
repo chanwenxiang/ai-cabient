@@ -3630,3 +3630,12 @@ function stopDevicePoll() {
   box-sizing: border-box;
 }
 </style>
+
+<style>
+/* 安卓真机已知基础库 bug：tab 页 hideTabBar 后底部残留区域显示 tabBar 默认白底；
+   json 的 backgroundColor/backgroundColorBottom 管不到 page 元素（2026-09-30 真机复验仍白）。
+   page 级背景与落地页同色兜底；购物态由 .page-root 白底、底栏区域由原生 tabBar 覆盖，不受影响。 */
+page {
+  background: #134e4a;
+}
+</style>
