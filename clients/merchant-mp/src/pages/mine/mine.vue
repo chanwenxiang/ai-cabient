@@ -622,11 +622,12 @@ async function onLogout() {
 }
 .save-btn {
   margin-top: 20rpx;
-  background: var(--brand, #0f766e);
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
   color: var(--white);
   border: none;
   border-radius: var(--radius-control);
   font-size: var(--font-size-md);
+  box-shadow: 0 8rpx 20rpx rgba(13, 148, 136, 0.32);
 }
 .danger {
   color: var(--color-danger);

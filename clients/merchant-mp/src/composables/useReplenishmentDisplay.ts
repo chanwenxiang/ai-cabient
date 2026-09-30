@@ -78,16 +78,20 @@ export function useReplenishmentDisplay(opts: {
     return Math.max(0, cap.maxLevel - cap.bookQty);
   }
 
-  function slotHint(line: Line): string {
+  function slotHintImpl(line: Line): string {
     if (isPullOffType(line.lineType)) return '';
     const code = String(line.slotId || '').toUpperCase();
     const cap = opts.slotCaps.value[code];
     if (!cap || cap.maxLevel <= 0) return '';
     const room = slotHeadroom(line);
-    if (room <= 0) return `货道已满（${cap.bookQty}/${cap.maxLevel}），请将数量调为 0 或换货道`;
+    if (room <= 0) return `这个货道已经放满，请把数量改为 0，或选其他货道`;
     if ((Number(line.quantity) || 0) > room)
-      return `超出容量：最多再补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
-    return `还可补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
+      return `这个货道最多再放 ${room} 件，现在填了 ${line.quantity} 件，请减少数量`;
+    return `这个货道还能再放 ${room} 件`;
+  }
+
+  function slotHint(line: Line): string {
+    return slotHintImpl(line);
   }
 
   function formatLineSummary(rows: Line[]): string {
@@ -115,12 +119,12 @@ export function useReplenishmentDisplay(opts: {
     const qty = Math.max(0, Number(line.quantity) || 0);
     if (isPullOffType(line.lineType)) {
       const after = Math.max(0, cap.bookQty - qty);
-      const capacityHint = cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : '';
-      return `账面 ${cap.bookQty} → 下架后 ${after}${capacityHint}`;
+      const capacityHint = cap.maxLevel > 0 ? `，货道容量 ${cap.maxLevel} 件` : '';
+      return `这个货道现有 ${cap.bookQty} 件，下架 ${qty} 件后剩 ${after} 件${capacityHint}`;
     }
     const after = cap.bookQty + qty;
-    const capacityHint = cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : '';
-    return `账面 ${cap.bookQty} → 补后 ${after}${capacityHint}`;
+    const capacityHint = cap.maxLevel > 0 ? `，货道容量 ${cap.maxLevel} 件` : '';
+    return `这个货道现有 ${cap.bookQty} 件，补 ${qty} 件后有 ${after} 件${capacityHint}`;
   }
 
   function lineTypeLabel(type?: string) {

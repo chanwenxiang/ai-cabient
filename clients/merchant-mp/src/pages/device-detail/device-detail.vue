@@ -132,26 +132,6 @@
           />
         </view>
 
-        <view v-if="tempHistory.length" class="card">
-          <view class="row">
-            <text class="section">温度历史（近 24h）</text>
-            <text class="meta">{{ tempSummaryText }}</text>
-          </view>
-          <view v-for="(r, i) in tempHistory" :key="i" class="temp-row">
-            <text class="meta">{{ formatTime(r.reportedAt) }}</text>
-            <text
-              class="temp-val"
-              :class="{
-                warn: targetTempNum != null && Math.abs(r.tempC - targetTempNum) > 2
-              }"
-              >{{ r.tempC }}°C</text
-            >
-            <text class="meta">{{
-              i > 0 ? (r.tempC >= tempHistory[i - 1].tempC ? '↑' : '↓') : '起'
-            }}</text>
-          </view>
-        </view>
-
         <view v-if="velocity.length" class="card">
           <view class="row">
             <text class="section">商品动销 / 补货点</text>
@@ -196,9 +176,7 @@ import { resolveMerchantIdForDevice } from '@/utils/device-settings';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 import type {
   DeviceSlot,
-  DeviceTemperatureReading,
   MerchantDeviceInfo,
-  MerchantMe,
   MerchantSkuVelocity,
   OpenApiMerchantDeviceSettingsDto,
   OpenApiUpdateMerchantDeviceSettingsRequest
@@ -229,7 +207,6 @@ const saving = ref(false);
 const savingSlots = ref(false);
 const slots = ref<DeviceSlot[]>([]);
 const slotPar = ref<Record<string, string>>({});
-const tempHistory = ref<DeviceTemperatureReading[]>([]);
 const velocity = ref<MerchantSkuVelocity[]>([]);
 const isPreferred = ref(false);
 
@@ -250,25 +227,6 @@ const slotStockHint = computed(() => {
   if (low > 0) return `低库存 ${low} 个货道`;
   return '';
 });
-
-const targetTempNum = computed(() => {
-  const n = Number(String(targetTemp.value).replace('°C', ''));
-  return Number.isFinite(n) ? n : null;
-});
-const tempSummaryText = computed(() => {
-  if (!tempHistory.value.length) return '暂无数据';
-  const temps = tempHistory.value.map((r) => r.tempC);
-  const min = Math.min(...temps);
-  const max = Math.max(...temps);
-  const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
-  return `最高 ${max}°C · 最低 ${min}°C · 均值 ${avg.toFixed(1)}°C`;
-});
-
-function formatTime(iso?: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 const canView = computed(() => hasPerm(me.value, 'merchant:devices:detail'));
 const canEditDevice = computed(() => hasPerm(me.value, 'merchant:devices:edit'));
@@ -367,18 +325,12 @@ function syncPreferredFlag() {
 }
 
 async function loadDeviceExtras(seq: number) {
-  const [list, temps, vel] = await Promise.all([
+  const [list, vel] = await Promise.all([
     softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[], '货道'),
-    softFallback(
-      merchantApi.deviceTemperatureHistory(deviceId.value, 24),
-      [] as DeviceTemperatureReading[],
-      '温度'
-    ),
     softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
   ]);
   if (seq !== loadSeq) return;
   slots.value = list;
-  tempHistory.value = temps;
   velocity.value = vel;
   applySlotParLevels(list);
   syncPreferredFlag();

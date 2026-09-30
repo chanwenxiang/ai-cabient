@@ -32,8 +32,10 @@
           <text v-else class="product-mark">{{ productGlyph(skuKey(line)) }}</text>
         </view>
         <view class="product-copy">
-          <text class="sku-name">{{ skuName(skuKey(line)) }}</text>
-          <text class="device-code">{{ line.skuId }}</text>
+          <text class="sku-name">{{ displayName(line) }}</text>
+          <text v-if="line.skuId && line.skuName && line.skuName !== line.skuId" class="device-code">{{
+            line.skuId
+          }}</text>
         </view>
         <view v-if="canEditLine(line)" class="qty-actions">
           <view class="qty-stepper">
@@ -166,6 +168,11 @@ function canEditLine(line: Line) {
 function skuKey(line: Line) {
   return line.skuId || '';
 }
+
+/** 显示名优先用后端下发的 skuName（任务明细自带），目录查不到时回落本地目录/编码 */
+function displayName(line: Line) {
+  return line.skuName || props.skuName(skuKey(line)) || line.skuId || '商品';
+}
 </script>
 
 <style scoped>
@@ -269,14 +276,14 @@ function skuKey(line: Line) {
   opacity: 0.5;
 }
 .qty-btn {
-  width: 88rpx;
-  height: 88rpx;
-  line-height: 88rpx;
+  width: 56rpx;
+  height: 56rpx;
+  line-height: 56rpx;
   text-align: center;
   border-radius: 50%;
   background: var(--card-bg, #fff);
   color: var(--brand);
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   font-weight: 700;
   box-shadow: 0 2rpx 8rpx rgba(15, 118, 110, 0.12);
 }

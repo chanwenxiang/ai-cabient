@@ -83,9 +83,10 @@ export default { name: 'AppButton' };
   padding: 0 28rpx;
 }
 .app-btn--primary {
-  background: var(--brand, #0f766e);
+  /* 品牌渐变：纯色深底在真机上观感沉闷（2026-09-30 商户端反馈） */
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
   color: var(--white);
-  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.28);
+  box-shadow: 0 8rpx 20rpx rgba(13, 148, 136, 0.32);
 }
 .app-btn--ghost {
   background: var(--brand-soft, #ecfdf5);

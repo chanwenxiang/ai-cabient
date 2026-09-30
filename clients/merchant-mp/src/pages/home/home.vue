@@ -240,7 +240,7 @@
         v-if="canPricing || canSettlements || canDisputes || canBusiness || canReplenishment"
         class="ops-block"
       >
-        <text class="ops-title">经营工具</text>
+        <text class="ops-title">更多功能</text>
         <view class="ops-grid">
           <view v-if="canReplenishment" role="button" class="ops-card" @click="goRequest">
             <text class="ops-label">要货申请</text>
@@ -576,7 +576,8 @@ useAutoRefresh({
 }
 .section-more {
   color: var(--brand, #0f766e);
-  font-size: var(--font-size-caption);
+  font-size: var(--font-size-body);
+  font-weight: 600;
 }
 .pref-tip {
   display: block;
@@ -713,6 +714,12 @@ useAutoRefresh({
 
 .ops-block {
   margin: 16rpx 20rpx 0;
+}
+.ops-block {
+  margin: 24rpx 24rpx 0;
+  padding: 20rpx 20rpx 8rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel, 24rpx);
 }
 .ops-title {
   display: block;
