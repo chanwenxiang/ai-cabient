@@ -82,6 +82,16 @@
       </div>
     </template>
 
+    <el-alert
+      v-if="tabDescription"
+      type="info"
+      :closable="false"
+      show-icon
+      class="tab-desc-hint"
+      data-testid="replenishment-tab-desc"
+      :title="tabDescription"
+    />
+
     <el-tabs v-model="tab" @tab-change="onTabChange">
       <el-tab-pane label="补货路线" name="routes">
         <div class="table-scroll">
@@ -550,7 +560,14 @@
                 label-class-name="col-text"
               >
                 <template #default="{ row }">
-                  <span v-if="row.outboundId" class="cell-id">{{ row.outboundId }}</span>
+                  <el-link
+                    v-if="row.outboundId"
+                    type="primary"
+                    :underline="false"
+                    title="去仓库·出库单查看"
+                    @click="goWarehouseOutbound(row.outboundId)"
+                    >{{ row.outboundId }}</el-link
+                  >
                   <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
@@ -1319,6 +1336,16 @@ function markTabsLoading(names: string[], on: boolean) {
 
 const expiryActingId = ref<number | null>(null);
 const tab = ref('routes');
+
+/** 每个 tab 的一句用途说明（补货域新手导航；改 tab 语义时同步改这里） */
+const TAB_DESC: Record<string, string> = {
+  routes: '补货路线与任务：把缺货设备串成路线并生成补货任务，派给现场人员执行',
+  fulfillment: '履约记录：签到 GPS、用时与现场照片，核对补货是否真实完成',
+  requests: '商户要货：商户/运营提交的要货需求，审核后并入补货计划',
+  shortage: '缺货建议：各柜机低于安全库存的商品，可一键生成补货规划',
+  expiry: '临期下架：仓库里临近有效期的批次，建议优先下架或换新'
+};
+const tabDescription = computed(() => TAB_DESC[tab.value] || '');
 const SERVER_PAGINATED_TABS = new Set(['routes', 'fulfillment', 'requests', 'expiry', 'shortage']);
 const tabTotals = ref<Record<string, number>>({});
 const summary = ref({
@@ -1855,6 +1882,11 @@ const {
   saveTaskSlots,
   prefetchUnassignedHints
 } = useReplenishmentTaskLines({ canEdit, loadSeq });
+
+/** 缝合补货动线：从任务直接跳到仓库·出库单 tab（出库单列表按时间排序，单号在首屏可查） */
+function goWarehouseOutbound(outboundId: string | number) {
+  void router.push({ path: '/warehouse', query: { tab: 'outbounds' } });
+}
 
 function findTaskById(taskId: number | string | undefined | null): Row | null {
   if (taskId == null || taskId === '') return null;
@@ -2477,5 +2509,11 @@ onActivated(() => {
   .route-detail {
     padding: 8px 12px;
   }
+}
+</style>
+
+<style scoped>
+.tab-desc-hint {
+  margin: 0 0 12px;
 }
 </style>

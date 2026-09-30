@@ -310,6 +310,16 @@
         >
       </div>
 
+      <el-alert
+        v-if="tabDescription"
+        type="info"
+        :closable="false"
+        show-icon
+        class="tab-desc-hint"
+        data-testid="warehouse-tab-desc"
+        :title="tabDescription"
+      />
+
       <el-tabs v-model="tab" @tab-change="onTabChange">
         <el-tab-pane v-if="tabGroup === 'overview'" label="仓库概览" name="warehouses">
           <WarehouseOverviewTab
@@ -833,6 +843,24 @@ function isTabLoading(name: string) {
 }
 const saving = ref(false);
 const tab = ref('warehouses');
+
+/** 每个 tab 的一句用途说明（给不熟悉仓储域的运营照着找；改 tab 语义时同步改这里） */
+const TAB_DESC: Record<string, string> = {
+  warehouses: '仓库主数据：维护收发货仓与地址，补货出库从这里发往各柜机',
+  suppliers: '供应商档案：采购下单前先在这里维护供应商与联系方式',
+  purchase: '采购单：向供应商下单，收货入库后形成批次与有效期',
+  suggestions: '采购建议：系统按设备缺货与销量算出的要货清单，可一键转采购单',
+  returns: '采购退货：把质量/临期问题的批次退回供应商并冲减应付',
+  payables: '应付账款：按采购单汇总尚未结清的供应商货款',
+  stocktakes: '盘点单：核对账面与实际数量，差异自动生成库存流水',
+  bins: '货位：仓库内存放位置编码，出入库单据会引用',
+  inventory: '批次库存：按批次查看各仓现存量与有效期，先进先出发货',
+  movements: '库存流水：每笔入库/出库/调拨/盘点的明细账，可对账追溯',
+  transfers: '仓间调拨：库存在两个仓库间的调拨，生成调拨单与双向流水',
+  outbounds: '出库单：补货发往柜机的发货单，补货任务关联的出库在这里',
+  transit: '在途：已发往柜机、尚未完成补货签收的货（含到柜超时提醒）'
+};
+const tabDescription = computed(() => TAB_DESC[tab.value] || '');
 
 /** loadTab / syncRouteQuery 在 loader、route lifecycle 之后赋值 */
 const loadTabHolder: { fn: (name: string, force?: boolean) => Promise<void> } = {
@@ -1504,6 +1532,9 @@ function setInboundDialog(open: boolean) {
   align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
+}
+.tab-desc-hint {
+  margin: 0 0 12px;
 }
 .warehouse-tab-groups {
   display: flex;
