@@ -563,7 +563,6 @@ import {
   ensureConsumerAuth,
   isConsumerLoggedIn
 } from '@/utils/consumer-api';
-import { syncCustomTabBar } from '@/utils/custom-tabbar';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
 import {
   safeMakePhoneCall,
@@ -843,8 +842,6 @@ onShareTimeline(() => ({ title: SHARE_TITLE }));
 
 /** 对齐扫码开门竞品：落地页全屏沉浸隐藏底栏；进入柜机流程后再显示 */
 function syncLandingTabBar() {
-  // 自定义 tabBar：隐藏/显示 + 高亮首页（landing 下组件不渲染，页面上不存在白条区域）
-  syncCustomTabBar(0, showLanding.value);
   if (showLanding.value) {
     uni.hideTabBar({ animation: false });
     // 隐藏底栏后视口底部安全区「窗口底色」改品牌深色，消落地页白条。
@@ -2322,10 +2319,6 @@ function stopDevicePoll() {
 }
 .page-root.is-landing {
   background: var(--brand-deep, #134e4a);
-}
-/* 自定义 tabBar 悬浮于页面之上（原生 tabBar 时代在页面外占位）；仅购物态预留 */
-.page-root:not(.is-landing) {
-  padding-bottom: calc(104rpx + env(safe-area-inset-bottom));
 }
 
 .landing {

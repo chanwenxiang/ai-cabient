@@ -249,7 +249,6 @@
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
-import { syncCustomTabBar } from '@/utils/custom-tabbar';
 import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import { computed, ref } from 'vue';
 import { consumerApi, ensureConsumerAuth, isConsumerLoggedIn } from '@/utils/consumer-api';
@@ -621,8 +620,6 @@ function applyPendingFilterFromStorage() {
 }
 
 onShow(() => {
-  syncCustomTabBar(1);
-
   uni.showTabBar({ animation: false });
   applyPendingFilterFromStorage();
   load();

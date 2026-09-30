@@ -314,7 +314,6 @@ import {
   logoutConsumerSession
 } from '@/utils/consumer-api';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
-import { syncCustomTabBar } from '@/utils/custom-tabbar';
 import { menuIcon } from '@/utils/menu-icon';
 import {
   availableCents,
@@ -474,8 +473,6 @@ function syncBalanceDisplay(acc: AccountDto | null) {
 }
 
 onShow(async () => {
-  syncCustomTabBar(2);
-
   uni.showTabBar({ animation: false });
   await ensureConsumerAuth();
   authed.value = isConsumerLoggedIn();

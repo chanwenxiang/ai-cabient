@@ -2,8 +2,7 @@
   min-height: 100%;
   box-sizing: border-box;
   /* 原生 tabBar 已在页面外占位，只需少量底距 */
-  /* 自定义 tabBar 悬浮页面之上：预留底栏高度（104rpx）+ 原底距 */
-  padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
   background: var(--card-bg, #ffffff);
 }
 .profile-header {
