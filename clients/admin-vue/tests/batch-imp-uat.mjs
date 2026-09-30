@@ -125,25 +125,23 @@ async function main() {
     loggedIn ? pass++ : fail++;
     if (!loggedIn) throw new Error('login failed');
 
-    // IMP-012 + transit-copy
+    // IMP-012 + transit-copy（仓储拆分后：/warehouse 重定向进子页，分组切换器已被子页模式取代）
     await page.goto(`${ADMIN}/warehouse?tab=transit`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2500);
     const wh = await page.evaluate(() => ({
-      groups: !!document.querySelector('[data-testid="warehouse-tab-groups"]'),
-      groupText: document.querySelector('[data-testid="warehouse-tab-groups"]')?.innerText || '',
+      tabs: [...document.querySelectorAll('.el-tabs__item')].map((t) => t.innerText.trim()),
+      desc: document.querySelector('[data-testid="warehouse-tab-desc"]')?.innerText || '',
       hint: document.querySelector('[data-testid="transit-flow-hint"]')?.innerText || '',
       pageHint: document.querySelector('.page-card-head .hint')?.innerText || '',
       overdueLabel:
         document.querySelector('[data-testid="transit-overdue-only"]')?.closest('label')
-          ?.innerText || '',
-      js:
-        [...document.querySelectorAll('script[src*="/assets/"]')]
-          .map((s) => s.getAttribute('src'))
-          .find((s) => /WarehouseView|index-/.test(s || '')) || ''
+          ?.innerText || ''
     }));
     const whOk =
-      wh.groups &&
-      /采购|库存|履约|基础/.test(wh.groupText) &&
+      wh.tabs.includes('仓间调拨') &&
+      wh.tabs.includes('出库单') &&
+      wh.tabs.includes('在途') &&
+      /调拨|出库|在途/.test(wh.desc) &&
       /在途|柜机|补货|回仓/.test(wh.hint) &&
       /仓→柜|在途/.test(wh.pageHint);
     const eWh = await shot(page, '01-warehouse-transit');
