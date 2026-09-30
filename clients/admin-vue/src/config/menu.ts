@@ -15,6 +15,7 @@ export const NAV_GROUPS = [
   '概览',
   '交易履约',
   '设备商品',
+  '仓储',
   '履约仓储',
   '财务商户',
   '增长风控',
@@ -197,11 +198,32 @@ const BASE_NAV: NavItem[] = [
     keywords: ['补货', '要货', '开门', '路线']
   },
   {
-    path: '/warehouse',
-    title: '仓库',
-    group: '履约仓储',
+    path: '/warehouse/master',
+    title: '仓库与库位',
+    group: '仓储',
     perm: 'ops:warehouse:list',
-    keywords: ['库存', '出库']
+    keywords: ['仓库', '库位', '货位', 'warehouse']
+  },
+  {
+    path: '/warehouse/procurement',
+    title: '采购与供应商',
+    group: '仓储',
+    perm: 'ops:warehouse:list',
+    keywords: ['采购', '供应商', '建议', '退货', '应付', 'procurement']
+  },
+  {
+    path: '/warehouse/stock',
+    title: '库存与盘点',
+    group: '仓储',
+    perm: 'ops:warehouse:list',
+    keywords: ['库存', '批次', '盘点', '流水', 'stock']
+  },
+  {
+    path: '/warehouse/fulfillment',
+    title: '调拨与在途',
+    group: '仓储',
+    perm: 'ops:warehouse:list',
+    keywords: ['调拨', '出库', '在途', '履约']
   },
   {
     path: '/ota',
@@ -521,9 +543,9 @@ export function findNavByPath(path: string) {
     return {
       path: '/print',
       title: '打印单据',
-      group: '履约仓储',
-      parentTitle: '仓储中心',
-      parentPath: '/warehouse',
+      group: '仓储',
+      parentTitle: '仓库与库位',
+      parentPath: '/warehouse/master',
       perm: 'ops:warehouse:list'
     };
   }

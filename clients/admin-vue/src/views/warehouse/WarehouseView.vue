@@ -292,7 +292,7 @@
       />
 
       <div
-        v-if="visibleTabGroups.length"
+        v-if="!props.only && visibleTabGroups.length"
         class="warehouse-tab-groups"
         data-testid="warehouse-tab-groups"
       >
@@ -321,7 +321,7 @@
       />
 
       <el-tabs v-model="tab" @tab-change="onTabChange">
-        <el-tab-pane v-if="tabGroup === 'overview'" label="仓库概览" name="warehouses">
+        <el-tab-pane v-if="isPaneVisible('warehouses')" label="仓库概览" name="warehouses">
           <WarehouseOverviewTab
             :table="crud"
             :actions="warehouseRowActions"
@@ -330,7 +330,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="tabGroup === 'fulfillment' && canWarehouseList"
+          v-if="isPaneVisible('transfers') && canWarehouseList"
           label="仓间调拨"
           name="transfers"
         >
@@ -349,7 +349,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="tabGroup === 'procurement' && canProcurementList"
+          v-if="isPaneVisible('suppliers') && canProcurementList"
           label="供应商"
           name="suppliers"
         >
@@ -366,7 +366,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="tabGroup === 'procurement' && canProcurementList"
+          v-if="isPaneVisible('purchase') && canProcurementList"
           label="采购单"
           name="purchase"
         >
@@ -390,7 +390,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="tabGroup === 'procurement' && canProcurementList"
+          v-if="isPaneVisible('suggestions') && canProcurementList"
           label="采购建议"
           name="suggestions"
         >
@@ -405,7 +405,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="tabGroup === 'procurement' && canProcurementList"
+          v-if="isPaneVisible('returns') && canProcurementList"
           label="采购退货"
           name="returns"
         >
@@ -422,7 +422,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="tabGroup === 'procurement' && canProcurementList"
+          v-if="isPaneVisible('payables') && canProcurementList"
           label="应付账款"
           name="payables"
         >
@@ -441,7 +441,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="tabGroup === 'inventory' && canWarehouseList"
+          v-if="isPaneVisible('stocktakes') && canWarehouseList"
           label="盘点单"
           name="stocktakes"
         >
@@ -458,7 +458,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane v-if="tabGroup === 'inventory' && canWarehouseList" label="货位" name="bins">
+        <el-tab-pane v-if="isPaneVisible('bins') && canWarehouseList" label="货位" name="bins">
           <WarehouseBinsTab
             :loading="isTabLoading('bins')"
             :hydrated="hydratedTabs.has('bins')"
@@ -469,7 +469,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane v-if="tabGroup === 'fulfillment'" label="出库单" name="outbounds">
+        <el-tab-pane v-if="isPaneVisible('outbounds')" label="出库单" name="outbounds">
           <WarehouseOutboundsTab
             :loading="isTabLoading('outbounds')"
             :hydrated="hydratedTabs.has('outbounds')"
@@ -488,7 +488,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane v-if="tabGroup === 'fulfillment'" label="在途" name="transit">
+        <el-tab-pane v-if="isPaneVisible('transit')" label="在途" name="transit">
           <WarehouseTransitTab
             :loading="isTabLoading('transit')"
             :hydrated="hydratedTabs.has('transit')"
@@ -508,7 +508,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane v-if="tabGroup === 'inventory'" label="批次库存" name="inventory">
+        <el-tab-pane v-if="isPaneVisible('inventory')" label="批次库存" name="inventory">
           <WarehouseInventoryTab
             :loading="isTabLoading('inventory')"
             :hydrated="hydratedTabs.has('inventory')"
@@ -522,7 +522,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane v-if="tabGroup === 'inventory'" label="库存流水" name="movements">
+        <el-tab-pane v-if="isPaneVisible('movements')" label="库存流水" name="movements">
           <WarehouseMovementsTab
             :loading="isTabLoading('movements')"
             :hydrated="hydratedTabs.has('movements')"
@@ -843,6 +843,28 @@ function isTabLoading(name: string) {
 }
 const saving = ref(false);
 const tab = ref('warehouses');
+
+/**
+ * 拆分「仓储」顶级模块后，4 个子页复用本组件，各自只渲染自己的 tab 子集：
+ * props.only = 允许的 tab 名；不传 = 全量 13 tab（旧 /warehouse 深链兼容）。
+ */
+const props = defineProps<{ only?: string[] }>();
+
+function isPaneVisible(name: string): boolean {
+  if (props.only?.length) return props.only.includes(name);
+  return tabGroup.value === tabGroupFor(name);
+}
+
+// only 模式：当前 tab 不在子集内（如深链带入别的 tab）时钳回子集第一个
+watch(
+  tab,
+  (name) => {
+    if (props.only?.length && !props.only.includes(name)) {
+      tab.value = props.only[0];
+    }
+  },
+  { immediate: true }
+);
 
 /** 每个 tab 的一句用途说明（给不熟悉仓储域的运营照着找；改 tab 语义时同步改这里） */
 const TAB_DESC: Record<string, string> = {

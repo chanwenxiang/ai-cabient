@@ -10,6 +10,23 @@ import { resolveHomePath } from '@/composables/useNavAccess';
 
 /** 已移除 NProgress：硬刷新时顶栏品牌色残条易卡住直到点击才消失（lessons #102） */
 
+/** 旧 /warehouse?tab=x 的 tab → 新仓储子页映射（拆分自 WarehouseView 13 tab） */
+const ROUTE_TAB_SUB: Record<string, string> = {
+  warehouses: 'master',
+  bins: 'master',
+  suppliers: 'procurement',
+  purchase: 'procurement',
+  suggestions: 'procurement',
+  returns: 'procurement',
+  payables: 'procurement',
+  stocktakes: 'stock',
+  inventory: 'stock',
+  movements: 'stock',
+  transfers: 'fulfillment',
+  outbounds: 'fulfillment',
+  transit: 'fulfillment'
+};
+
 const bizChildren: RouteRecordRaw[] = [
   {
     path: 'dashboard',
@@ -176,10 +193,39 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '数据一致性', group: '财务商户' }
   },
   {
+    // 旧 /warehouse 保留为兼容入口：按 ?tab= 归入新的仓储子页（侧栏不再出现）
     path: 'warehouse',
-    name: 'warehouse',
-    component: () => import('@/views/warehouse/WarehouseView.vue'),
-    meta: { title: '仓库', group: '履约仓储' }
+    name: 'warehouse-legacy',
+    redirect: (to) => {
+      const tab = String((to.query as Record<string, unknown>).tab || '');
+      const sub = ROUTE_TAB_SUB[tab] || 'master';
+      // 保留 query.tab：子页 WarehouseView 会用它落位到具体 tab（only 子集内自动钳制）
+      return { path: `/warehouse/${sub}`, query: { ...to.query } };
+    }
+  },
+  {
+    path: 'warehouse/master',
+    name: 'warehouse-master',
+    component: () => import('@/views/warehouse/WarehouseMasterPage.vue'),
+    meta: { title: '仓库与库位', group: '仓储' }
+  },
+  {
+    path: 'warehouse/procurement',
+    name: 'warehouse-procurement',
+    component: () => import('@/views/warehouse/WarehouseProcurementPage.vue'),
+    meta: { title: '采购与供应商', group: '仓储' }
+  },
+  {
+    path: 'warehouse/stock',
+    name: 'warehouse-stock',
+    component: () => import('@/views/warehouse/WarehouseStockPage.vue'),
+    meta: { title: '库存与盘点', group: '仓储' }
+  },
+  {
+    path: 'warehouse/fulfillment',
+    name: 'warehouse-fulfillment',
+    component: () => import('@/views/warehouse/WarehouseFulfillmentPage.vue'),
+    meta: { title: '调拨与在途', group: '仓储' }
   },
   {
     path: 'recharges',
