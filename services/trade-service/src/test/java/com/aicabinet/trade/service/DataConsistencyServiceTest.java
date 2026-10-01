@@ -798,4 +798,28 @@ class DataConsistencyServiceTest {
         assertEquals("8|CAB-B", captor.getAllValues().get(1).getCheckKey());
         assertTrue(captor.getAllValues().stream().allMatch(r -> r.getErrorMessage() != null));
     }
+
+    @Test
+    void checkWalletLedgerSumConsistency_recordsBothWalletsMismatch() {
+        // 两个检查按各自 SQL 关键字分开打桩（共享 anyString 桩会让每个检查都读到对方行）
+        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("merchant_wallet_account")))
+                .thenReturn(List.of(Map.of("merchant_id", "M-1", "expected", 700, "actual", 800)));
+        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("line_wallet_account")))
+                .thenReturn(List.of(Map.of("manager_id", 9L, "expected", 300, "actual", 250)));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkMerchantWalletLedgerSumConsistency();
+        service.checkLineWalletLedgerSumConsistency();
+
+        org.mockito.ArgumentCaptor<DataConsistencyRecord> captor =
+                org.mockito.ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, times(2)).save(captor.capture());
+        assertEquals("MERCHANT_WALLET_LEDGER_SUM", captor.getAllValues().get(0).getCheckType());
+        assertEquals("M-1", captor.getAllValues().get(0).getCheckKey());
+        assertEquals("LINE_WALLET_LEDGER_SUM", captor.getAllValues().get(1).getCheckType());
+        assertEquals("9", captor.getAllValues().get(1).getCheckKey());
+    }
 }

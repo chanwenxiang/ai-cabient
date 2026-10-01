@@ -55,6 +55,8 @@ public class DataConsistencyService {
     private static final String WAREHOUSE_NEGATIVE = "WAREHOUSE_NEGATIVE";
     private static final String WAREHOUSE_LEDGER = "WAREHOUSE_LEDGER";
     private static final String OUTBOUND_HANDOVER = "OUTBOUND_HANDOVER";
+    private static final String MERCHANT_WALLET_LEDGER_SUM = "MERCHANT_WALLET_LEDGER_SUM";
+    private static final String LINE_WALLET_LEDGER_SUM = "LINE_WALLET_LEDGER_SUM";
     private static final String DEVICE_LEDGER = "DEVICE_LEDGER";
     private static final String COUPON_OVER_QUOTA = "COUPON_OVER_QUOTA";
     private static final String TOTAL_AMOUNT_CENTS = "total_amount_cents";
@@ -196,6 +198,8 @@ public class DataConsistencyService {
             checkWalletBalanceConsistency();
             checkMerchantWalletConsistency();
             checkLineWalletConsistency();
+            checkMerchantWalletLedgerSumConsistency();
+            checkLineWalletLedgerSumConsistency();
             checkRefundAmountConsistency();
             checkOrderLineSumConsistency();
             checkCouponUsedLinkConsistency();
@@ -650,6 +654,58 @@ public class DataConsistencyService {
                     "已发数 " + row.get(ACTUAL) + " 超过发放上限 " + row.get(EXPECTED));
         }
         resolveStaleFailuresIfComplete(COUPON_OVER_QUOTA, failing, rows.size());
+    }
+
+    /**
+     * P3-1a：商户钱包「可用余额 = Σ流水」全史公式（现有 MERCHANT_WALLET 只比最近一条快照，
+     * 账本历史写错时两处同错=全绿）。口径依据：freeze 记 -x 不动 balance、release 记 +x 不动
+     * balance、consume 记 -x 且 balance/frozen 同减 ⇒ ledger.amount 恒为可用余额（balance-frozen）变动。
+     */
+    void checkMerchantWalletLedgerSumConsistency() {
+        String sql = "SELECT a.merchant_id, (a.balance_cents - a.frozen_cents) AS expected, "
+                + "COALESCE(SUM(l.amount_cents), 0) AS actual "
+                + "FROM merchant_wallet_account a "
+                + "LEFT JOIN merchant_wallet_ledger l ON l.merchant_id = a.merchant_id "
+                + "GROUP BY a.merchant_id, a.balance_cents, a.frozen_cents "
+                + "HAVING (a.balance_cents - a.frozen_cents) <> COALESCE(SUM(l.amount_cents), 0) "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String merchantId = String.valueOf(row.get("merchant_id"));
+            failing.add(merchantId);
+            recordInconsistency(MERCHANT_WALLET_LEDGER_SUM, "merchant_wallet_account",
+                    merchantId,
+                    String.valueOf(row.get(EXPECTED)),
+                    String.valueOf(row.get(ACTUAL)),
+                    "商户钱包可用余额 " + row.get(EXPECTED) + " ≠ 流水合计 " + row.get(ACTUAL));
+        }
+        resolveStaleFailuresIfComplete(MERCHANT_WALLET_LEDGER_SUM, failing, rows.size());
+    }
+
+    /** P3-1a：线长钱包「可用余额 = Σ流水」全史公式（口径同上）。 */
+    void checkLineWalletLedgerSumConsistency() {
+        String sql = "SELECT a.manager_id, (a.balance_cents - a.frozen_cents) AS expected, "
+                + "COALESCE(SUM(l.amount_cents), 0) AS actual "
+                + "FROM line_wallet_account a "
+                + "LEFT JOIN line_wallet_ledger l ON l.manager_id = a.manager_id "
+                + "GROUP BY a.manager_id, a.balance_cents, a.frozen_cents "
+                + "HAVING (a.balance_cents - a.frozen_cents) <> COALESCE(SUM(l.amount_cents), 0) "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String managerId = String.valueOf(row.get("manager_id"));
+            failing.add(managerId);
+            recordInconsistency(LINE_WALLET_LEDGER_SUM, "line_wallet_account",
+                    managerId,
+                    String.valueOf(row.get(EXPECTED)),
+                    String.valueOf(row.get(ACTUAL)),
+                    "线长钱包可用余额 " + row.get(EXPECTED) + " ≠ 流水合计 " + row.get(ACTUAL));
+        }
+        resolveStaleFailuresIfComplete(LINE_WALLET_LEDGER_SUM, failing, rows.size());
     }
 
     /** 商户钱包余额 vs 最近一条流水 balance_after。 */
