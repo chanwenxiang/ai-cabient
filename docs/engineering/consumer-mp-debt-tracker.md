@@ -38,7 +38,7 @@
 | C10 | P2 | done | easycom 本地镜像 vs `shared-uni`；`error-state` 已漂移 | `app-nav-bar`/`empty-state`/`app-button` 三端曾对齐；`error-state` consumer≡merchant≠shared；注释要求 Keep in sync | 2026-09-26：正文已与蓝本一致；新增 `sync-shared-uni-components` + `--check` 并入 `check:shared-component-sync`；easycom 仍本地路径 → C10b/M9 |
 | C11 | P3 | done | `settleWithin` / 开门超时吞错易被误改成「空失败」 | `index.vue` `promise.catch(() => null)` + 幽灵会话注释；与 C1 外观相似、意图不同 | 2026-09-26：`settleWithin` 文档化「故意失败→null」+ 失败/成功单测；语义≠ softFallback；调用方仍走 activeSession 轮询 |
 | C12 | P3 | done | `consumer-api` 上帝模块 + 页面外裸 URL | `consumer-api.ts` ~886 行；`video.vue` 绕开 API 层 | 2026-09-26：视频 URL；C12b open-attempt；C12c：download；C12d：`consumer-auth-session` 登录落盘规划/body + 测；apply 仍 api 内 |
-| C13 | P2 | partial | 首页上帝页二次拆解（C5 只拆了纯函数，页面 3641 行） | 切一：落地页抽 `HomeLanding.vue`（3641→3167）；切二：目录逻辑抽 `use-home-catalog.ts`+4 单测（→3120）；切三（2026-10-01）：购物车条抽 `components/HomeCartBar.vue`（模板+样式逐字搬移，shopping prop 收敛内联态判断，6 动作上抛编排不动，→2933）。待切四：开门/轮询编排抽 composable（涉资金，需设计先行） | 2026-10-01 切一~切三 |
+| C13 | P2 | partial | 首页上帝页二次拆解（C5 只拆了纯函数，页面 3641 行） | 切一：落地页抽 HomeLanding.vue（→3167）；切二：目录逻辑抽 use-home-catalog.ts+4 单测（→3120）；切三：购物车条抽 HomeCartBar.vue（→2933）；切四（2026-10-01）：轮询调度壳抽 `use-session-poll.ts`（设计契约=壳拥有单窗口/C2 上限/防并发/失败连击，onTick=会话状态机+结算留页，资金语义不搬；5 假定时器单测），index.vue →2868（累计 -21%）。余量=残余模板块与开门编排（与轮询不同：开门是一次性编排而非可复用调度壳，收益低于风险，评估结论=保留） | 2026-10-01 切一~切四 |
 
 ---
 

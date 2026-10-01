@@ -690,6 +690,7 @@ import {
   showConfirm
 } from '@/utils/notify';
 import { useHomeCatalog } from '@/composables/use-home-catalog';
+import { useSessionPoll } from '@/composables/use-session-poll';
 import type {
   AccountDto,
   DeviceProduct,
@@ -758,8 +759,6 @@ const cancelling = ref(false);
  * 只允许会话落号（sessionId 有值）后走取消接口，或等请求自然超时失败。
  */
 const openCreateInFlight = ref(false);
-const pollError = ref('');
-const pollRefreshing = ref(false);
 const landingError = ref('');
 const landingErrorKind = ref<OpenErrorKind>('other');
 const lastFailedDeviceId = ref('');
@@ -824,11 +823,8 @@ const mockEnabled = ref(false);
 const closingDoor = ref(false);
 const finishingSession = ref(false);
 let recognitionTimer: ReturnType<typeof setInterval> | null = null;
-let pollTimer: ReturnType<typeof setInterval> | null = null;
 /** 会话轮询进行中：弱网下 getSession 超时会超过 interval，跳过堆积请求 */
-let pollInFlight = false;
 /** 连续轮询失败次数；达到阈值后升级弱网提示 */
-let pollFailStreak = 0;
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let prepResolve: ((ok: boolean) => void) | null = null;
@@ -2200,62 +2196,13 @@ async function restoreActiveSession() {
   }
 }
 
-// C2：每个会话只允许一个轮询窗口；到上限停表提示去订单页，同会话不再重燃
-let pollStartedAt = 0;
-let pollCappedSessionId = '';
-
-function startPoll() {
-  if (sessionId.value && pollCappedSessionId === sessionId.value) return;
-  stopPoll();
-  pollError.value = '';
-  pollFailStreak = 0;
-  pollStartedAt = Date.now();
-  // 立即拉一次，避免弱网下再等一个 interval 才知道状态
-  void tickPoll();
-  pollTimer = setInterval(() => void tickPoll(), SESSION_POLL_MS);
-}
-
-/** 单次会话轮询：防并发堆积；连续失败升级弱网文案；C2 总时长到期停表转订单页。 */
-async function tickPoll() {
-  if (!sessionId.value || pollInFlight) return;
-  if (pollStartedAt > 0 && pollDurationExceeded(pollStartedAt)) {
-    pollCappedSessionId = sessionId.value;
-    stopPoll();
-    showError('状态更新较慢，请稍后在「订单」查看', 2800);
-    return;
-  }
-  pollInFlight = true;
-  try {
-    await pollSessionOnce();
-  } finally {
-    pollInFlight = false;
-  }
-}
-
-async function refreshSessionNow() {
-  if (!sessionId.value || pollRefreshing.value) return;
-  pollRefreshing.value = true;
-  try {
-    await tickPoll();
-    if (!pollError.value) {
-      showSuccess('状态已更新');
-    }
-  } finally {
-    pollRefreshing.value = false;
-  }
-}
-
-function isNetworkishError(e: unknown): boolean {
-  return isNetworkishErrorMessage(formatError(e));
-}
-
-async function pollSessionOnce() {
-  if (!sessionId.value) return;
-  try {
+// C13 切四：轮询调度壳搬入 useSessionPoll（单窗口/C2 上限/防并发/失败连击）；
+// onTick = 会话状态机 + 购物车联动 + finish/abort 处理（资金语义不搬，抛错=本次失败由壳记账）。
+const { pollError, pollRefreshing, startPoll, stopPoll, refreshSessionNow } = useSessionPoll({
+  getSessionId: () => sessionId.value || null,
+  onTick: async () => {
     const s = await consumerApi.getSession(sessionId.value);
     applySessionView(s);
-    pollFailStreak = 0;
-    pollError.value = '';
     const outcome = classifyPollSessionState(s.state);
     if (outcome.kind === 'shopping') {
       await refreshLiveCart();
@@ -2277,24 +2224,12 @@ async function pollSessionOnce() {
       clearSessionUi();
       showError(hint, 2800);
     }
-  } catch (e) {
-    pollFailStreak += 1;
-    pollError.value = pollErrorMessage(
-      pollFailStreak,
-      isNetworkishError(e),
-      formatError(e),
-      POLL_FAIL_WARN_AT
-    );
-  }
-}
-
-function stopPoll() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-  pollFailStreak = 0;
-}
+  },
+  pollMs: SESSION_POLL_MS,
+  failWarnAt: POLL_FAIL_WARN_AT,
+  onCapped: () => showError('状态更新较慢，请稍后在「订单」查看', 2800),
+  onRefreshOk: () => showSuccess('状态已更新')
+});
 
 function startDevicePoll() {
   stopDevicePoll();
