@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderRefundRequest;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
@@ -38,6 +39,15 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class DisputeOrderRefundTest {
+
+    static {
+        // M01：reopenUpdateWrapper 用 LambdaUpdateWrapper（null 列更新），
+        // 纯 Mockito 环境需手动初始化 TableInfo 缓存（存量坑，2026-10-01 补）
+        TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), ""),
+                DisputeTicket.class);
+    }
 
     @Mock DisputeTicketMapper disputeRepository;
     @Mock DisputeMessageMapper disputeMessageRepository;

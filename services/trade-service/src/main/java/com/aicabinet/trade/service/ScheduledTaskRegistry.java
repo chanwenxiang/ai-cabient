@@ -61,6 +61,7 @@ public class ScheduledTaskRegistry {
                                  ExpiryAlertScheduler expiryAlertScheduler,
                                  MerchantWorkbenchNotifyScheduler merchantWorkbenchNotifyScheduler,
                                  DisputeSlaScheduler disputeSlaScheduler,
+                                 DisputeAutoWaiveScheduler disputeAutoWaiveScheduler,
                                  ReplenishmentTimeoutScheduler replenishmentTimeoutScheduler,
                                  DataConsistencyService dataConsistencyService,
                                  DevicePresenceService devicePresenceService,
@@ -105,6 +106,8 @@ public class ScheduledTaskRegistry {
                 merchantWorkbenchNotifyScheduler::pushWorkbenchAlerts);
         register("dispute-sla", "争议 SLA 巡检", "OPS", V_15, 600,
                 disputeSlaScheduler::checkDisputeSla);
+        register("dispute-auto-waive", "争议超时自动免单", "OPS", V_15, 600,
+                disputeAutoWaiveScheduler::autoWaive);
         register("profit-sharing-retry", "分账重试", FINANCE, V_15, 600,
                 profitSharingRetryScheduler::retryFailedSplits);
         register("expiry-alert", "库存临期预警", "WAREHOUSE", "每 60 分钟", 600,

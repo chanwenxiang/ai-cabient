@@ -1,6 +1,6 @@
 # P3-4 争议「无证据超时自动免单」设计稿
 
-> **日期**：2026-10-01 ｜ **状态**：**待评审（涉资金链路，评审通过前不动码）**
+> **日期**：2026-10-01 ｜ **状态**：**已实施（2026-10-01 用户授权按建议判断；开关默认 OFF，dev 观察）**
 > **来源**：`docs/SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md` §6.3 / §14.1 P3-4——借鉴旧弹簧柜 `RyTask.refundForWaitingFall`（超 30s 未出货自动原路退款，`mis-quartz\RyTask.java:413-441`）的思想。
 > **纪律**：本文全部现状经源码核实（`文件:行号`）；资金路径必须有评审拍板后才实施。
 
@@ -54,7 +54,20 @@
 3. XXL 七处接线 + 两门禁绿；
 4. 回归：milk 全链（超时单场景）+ 一致性巡检绿。
 
-## 6. 待拍板问题
+## 6. 决策记录（2026-10-01 用户授权按建议与竞品惯例判断）
+
+1. **阈值 = 72h**：跨完整周末；行业争议处理 SLA 惯例 48–72h，自动层做最后兜底不抢人工；
+2. **防薅 = 滚动 7 天单用户 ≤3 次**（历史按 `operator_note='AUTO_WAIVE'` 统计）：电商自动退款防滥用常规口径，超限单留人工并发告警摘要；
+3. **灰度 = properties `aicabinet.dispute-auto-waive.enabled` 默认 false**（fail-closed）：dev 可开观察，production 评审后再开；XXL 任务即使被触发也在未启用时空转。
+
+## 7. 实施记录（2026-10-01）
+
+- `DisputeAutoWaiveProperties`（enabled/hours=72/maxPerRound=50/perUserMax=3/perUserWindowDays=7）；
+- `DisputeService.autoWaiveTicket`：跳过人工权限/设备范围校验，落账与状态对齐与人工 WAIVE 同链，`operatorNote='AUTO_WAIVE'` 标记；
+- `DisputeTicketMapper.findOpenTimeoutUnclaimedCreatedBefore`（OPEN+reason 前缀「识别超时」+assignee 为空+创建早于 cutoff）；
+- `DisputeAutoWaiveScheduler`（每 15min，单轮 ≤50，告警摘要）；
+- 七处接线：KEYS / ScheduleZones cron+静默阈值 / XXL handler `disputeAutoWaiveJob` / Registry 注册 / V297 登记 / seed_aicabinet_jobs id=133；
+- 测试：门控矩阵 4 用例（未启用不扫/正常免单+告警/防薅跳过/幂等返 null 不告警）+ 看护阈值表全量绿；两道接线门禁绿（31 托管任务全对齐）。
 
 1. 默认阈值 72h 是否合适（或 48h）？
 2. 单用户防薅窗口（7 天 ≤3 次）数值口径；

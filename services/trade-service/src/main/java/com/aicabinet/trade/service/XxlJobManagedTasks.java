@@ -75,6 +75,7 @@ public final class XxlJobManagedTasks {
             // L2-3：compensation-retry 已随 TCC/分布式事务死代码下线移除（V288 清 scheduled_task 行）
             "merchant-notify",
             "dispute-sla",
+            "dispute-auto-waive",
             "replenishment-timeout",
             "expiry-alert",
             "growth-log-archive",

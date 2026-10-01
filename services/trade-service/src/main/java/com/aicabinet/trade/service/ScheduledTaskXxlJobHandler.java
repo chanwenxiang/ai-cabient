@@ -159,6 +159,11 @@ public class ScheduledTaskXxlJobHandler {
         runKey("merchant-notify");
     }
 
+    @XxlJob("disputeAutoWaiveJob")
+    public void disputeAutoWaiveJob() {
+        runKey("dispute-auto-waive");
+    }
+
     @XxlJob("disputeSlaJob")
     public void disputeSlaJob() {
         runKey("dispute-sla");

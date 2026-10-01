@@ -568,6 +568,37 @@ public class DisputeService {
         return runWithDisputeTicketLock(ticketId, () -> doResolveTicket(operatorId, ticketId, request));
     }
 
+    /**
+     * P3-4：系统自动免单（争议超时兜底，docs/P3_4_DISPUTE_AUTO_WAIVE_DESIGN.md）。
+     * 跳过人工权限/设备范围校验——门控（超时来源/未认领/超时阈/防薅上限）由调度方负责；
+     * 落账与状态对齐与人工 WAIVE 完全同链（resolveWaive + recordRecognitionVerdict +
+     * 异常同步关闭 + 会话 COMPLETED + 订单对齐），operatorNote 打 AUTO_WAIVE 标记供防薅统计。
+     * 已结案（并发/重复扫描）幂等返回 null。
+     */
+    @Transactional
+    public ResolveDisputeResultDto autoWaiveTicket(String ticketId) {
+        return runWithDisputeTicketLock(ticketId, () -> {
+            DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
+            if (!DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())) {
+                return null;
+            }
+            ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            ResolveDisputeResultDto result =
+                    resolveWaive(SystemConfigService.SYSTEM_OPERATOR_ID, ticket, session, false);
+            ticket.setOperatorNote("AUTO_WAIVE");
+            disputeRepository.save(ticket);
+            recordRecognitionVerdict(ticket, WAIVE);
+            opsExceptionService.resolveOpenForSession(SystemConfigService.SYSTEM_OPERATOR_ID,
+                    session.getSessionId(), "争议结案(" + WAIVE + ")同步关闭异常");
+            sessionService.transition(session, SessionState.COMPLETED);
+            orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
+                    alignOrderStatusAfterDisputeResolve(order, WAIVE));
+            return result;
+        });
+    }
+
     private ResolveDisputeResultDto doResolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
         DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));

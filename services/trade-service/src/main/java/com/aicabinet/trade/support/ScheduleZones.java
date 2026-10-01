@@ -69,6 +69,7 @@ public final class ScheduleZones {
             // L2-3：compensation-retry 已随 TCC 死代码下线移除
             Map.entry("merchant-notify", "0 0/15 * * * ?"),
             Map.entry("dispute-sla", "0 0/15 * * * ?"),
+            Map.entry("dispute-auto-waive", "0 0/15 * * * ?"),
             Map.entry("replenishment-timeout", "0 0/1 * * * ?"),
             Map.entry("expiry-alert", "0 0 * * * ?"),
             Map.entry("growth-log-archive", "0 0 3 * * ?"),
@@ -115,6 +116,7 @@ public final class ScheduleZones {
             Map.entry("compensation-process", Duration.ofMinutes(5)),          // 30s ×10
             Map.entry("merchant-notify", Duration.ofMinutes(45)),              // 15min ×3
             Map.entry("dispute-sla", Duration.ofMinutes(45)),                  // 15min ×3
+            Map.entry("dispute-auto-waive", Duration.ofMinutes(45)),           // 15min ×3（P3-4）
             Map.entry("replenishment-timeout", Duration.ofMinutes(10)),        // 60s ×10
             Map.entry("expiry-alert", Duration.ofHours(3)),                    // 60min ×3
             Map.entry("growth-log-archive", Duration.ofHours(26)),             // 日 03:00 + 2h

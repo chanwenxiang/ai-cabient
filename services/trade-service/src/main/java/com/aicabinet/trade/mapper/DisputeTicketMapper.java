@@ -37,6 +37,18 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
     }
 
     /** SLA 扫描：仅拉取仍可能需要提醒/逾期告警的 OPEN 工单。 */
+    /** P3-4：超时来源 + 未认领 + 早于 cutoff 的 OPEN 单（自动免单候选，按创建时间正序）。 */
+    default List<DisputeTicket> findOpenTimeoutUnclaimedCreatedBefore(Instant cutoff, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        return selectList(Wrappers.<DisputeTicket>lambdaQuery()
+                .eq(DisputeTicket::getStatus, "OPEN")
+                .isNull(DisputeTicket::getAssignee)
+                .likeRight(DisputeTicket::getReason, "识别超时")
+                .lt(DisputeTicket::getCreatedAt, cutoff)
+                .orderByAsc(DisputeTicket::getCreatedAt)
+                .last("LIMIT " + lim));
+    }
+
     default List<DisputeTicket> findOpenNeedingSlaScan(int limit) {
         int lim = Math.max(1, Math.min(limit, 500));
         return selectList(Wrappers.<DisputeTicket>lambdaQuery()
