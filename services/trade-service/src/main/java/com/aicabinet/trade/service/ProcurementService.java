@@ -506,7 +506,11 @@ public class ProcurementService {
      */
     private void validatePurchaseLine(PurchaseOrderLineDto dto, boolean receiving) {
         if (dto.skuId() == null || dto.skuId().isBlank()) throw bad("skuId required");
-        if (!skuCatalogRepository.existsById(dto.skuId().trim())) throw bad("sku not found: " + dto.skuId());
+        // SKU 存在性只在下单路径校验：收货行必然引用已存在的订单行（SKU 下单时已验），
+        // 收货重验会改变行为（P1-1 引入收货校验时误带出，CI ProcurementReceiveWarehouseTest 抓出）
+        if (!receiving && !skuCatalogRepository.existsById(dto.skuId().trim())) {
+            throw bad("sku not found: " + dto.skuId());
+        }
         if (receiving) {
             if (dto.batchNo() == null || dto.batchNo().isBlank()) throw bad("批次号必填：下单未填时须在收货时录入");
             if (dto.expiryDate() == null) throw bad("到期日期必填：下单未填时须在收货时录入");
