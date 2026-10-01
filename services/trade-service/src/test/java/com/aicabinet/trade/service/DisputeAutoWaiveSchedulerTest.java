@@ -43,6 +43,7 @@ class DisputeAutoWaiveSchedulerTest {
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private OpsAlertDispatcher alertDispatcher;
     @Mock private ScheduledTaskService taskService;
+    @Mock private SystemConfigService systemConfigService;
 
     private DisputeAutoWaiveScheduler scheduler;
 
@@ -51,7 +52,10 @@ class DisputeAutoWaiveSchedulerTest {
         lenient().when(taskService.tryBegin(eq("dispute-auto-waive"), anyLong())).thenReturn(true);
         lenient().when(jdbcTemplate.query(anyString(), any(ResultSetExtractor.class), any(), any(), any()))
                 .thenReturn(0);
-        scheduler = new DisputeAutoWaiveScheduler(properties(false), disputeRepository,
+        // 配置缺省走 properties 兜底
+        lenient().when(systemConfigService.getInt(anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(inv -> inv.getArgument(1));
+        scheduler = new DisputeAutoWaiveScheduler(properties(false), systemConfigService, disputeRepository,
                 disputeService, sessionRepository, jdbcTemplate, alertDispatcher, taskService);
     }
 
@@ -77,7 +81,7 @@ class DisputeAutoWaiveSchedulerTest {
     }
 
     private void enable() {
-        scheduler = new DisputeAutoWaiveScheduler(properties(true), disputeRepository,
+        scheduler = new DisputeAutoWaiveScheduler(properties(true), systemConfigService, disputeRepository,
                 disputeService, sessionRepository, jdbcTemplate, alertDispatcher, taskService);
     }
 
@@ -122,6 +126,25 @@ class DisputeAutoWaiveSchedulerTest {
         verify(disputeService, times(2)).autoWaiveTicket(anyString());
         verify(disputeService, never()).autoWaiveTicket(eq("T-4"));
         verify(alertDispatcher).send(eq("DISPUTE"), anyString(), anyString());
+    }
+
+    @Test
+    void configOverridesProperties_horusThresholdFromSystemConfig() {
+        enable();
+        stubSession("S-1", 100L);
+        when(disputeRepository.findOpenTimeoutUnclaimedCreatedBefore(any(), eq(200)))
+                .thenReturn(List.of());
+        // 后台把阈值改成 999999 小时 ⇒ 4 天前的单不再够格（证明读的是配置而非 properties）
+        when(systemConfigService.getInt(
+                eq(SystemConfigService.DISPUTE_AUTO_WAIVE_HOURS), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(999999);
+
+        scheduler.autoWaive();
+
+        verify(disputeRepository).findOpenTimeoutUnclaimedCreatedBefore(
+                org.mockito.ArgumentMatchers.argThat(c -> c.isBefore(Instant.now().minus(365, java.time.temporal.ChronoUnit.DAYS))),
+                org.mockito.ArgumentMatchers.eq(200));
+        verify(alertDispatcher, never()).send(anyString(), anyString(), anyString());
     }
 
     @Test

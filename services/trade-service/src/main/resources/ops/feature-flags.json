@@ -182,6 +182,36 @@
       "description": "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）"
     },
     {
+      "key": "dispute.auto_waive.hours",
+      "group": "争议工单",
+      "type": "NUMBER",
+      "default": "72",
+      "description": "争议超时自动免单：OPEN 未认领超时单免单阈值（小时）；总开关在环境变量",
+      "unit": "小时"
+    },
+    {
+      "key": "dispute.auto_waive.max_per_round",
+      "group": "争议工单",
+      "type": "NUMBER",
+      "default": "50",
+      "description": "争议超时自动免单：单轮最多免单张数"
+    },
+    {
+      "key": "dispute.auto_waive.per_user_max",
+      "group": "争议工单",
+      "type": "NUMBER",
+      "default": "3",
+      "description": "争议超时自动免单：滚动窗口内单用户自动免单次数上限"
+    },
+    {
+      "key": "dispute.auto_waive.per_user_window_days",
+      "group": "争议工单",
+      "type": "NUMBER",
+      "default": "7",
+      "description": "争议超时自动免单：单用户防薅统计滚动窗口（天）",
+      "unit": "天"
+    },
+    {
       "key": "merchant.notify.incident_cooldown_minutes",
       "group": "商户",
       "type": "NUMBER",

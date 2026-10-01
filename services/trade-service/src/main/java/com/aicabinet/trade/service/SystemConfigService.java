@@ -144,6 +144,10 @@ public class SystemConfigService {
     public static final String MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES =
             "merchant.notify.incident_cooldown_minutes";
     public static final String DISPUTE_SLA_HOURS = "dispute.sla.hours";
+    public static final String DISPUTE_AUTO_WAIVE_HOURS = "dispute.auto_waive.hours";
+    public static final String DISPUTE_AUTO_WAIVE_MAX_PER_ROUND = "dispute.auto_waive.max_per_round";
+    public static final String DISPUTE_AUTO_WAIVE_PER_USER_MAX = "dispute.auto_waive.per_user_max";
+    public static final String DISPUTE_AUTO_WAIVE_PER_USER_WINDOW_DAYS = "dispute.auto_waive.per_user_window_days";
     public static final String DISPUTE_SLA_REMINDER_HOURS = "dispute.sla.reminder_hours";
     public static final String DISPUTE_SLA_WEBHOOK = "dispute.sla.webhook";
     public static final String OPS_ALERT_FEISHU_WEBHOOK = "ops.alert.feishu_webhook";
@@ -702,6 +706,15 @@ public class SystemConfigService {
         upsertIfAbsent(DISPUTE_SLA_HOURS, "48", "争议工单 SLA 处理时限（小时）");
         upsertIfAbsent(DISPUTE_SLA_REMINDER_HOURS, "12", "争议 SLA 到期前提醒提前量（小时）");
         upsertIfAbsent(DISPUTE_SLA_WEBHOOK, "", "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）");
+        // P3-4 争议超时自动免单：调参后台可调（总开关 enabled 留环境变量 AICABINET_DISPUTE_AUTO_WAIVE_ENABLED，fail-closed）
+        upsertIfAbsent(DISPUTE_AUTO_WAIVE_HOURS, "72",
+                "争议超时自动免单：OPEN 未认领超时单免单阈值（小时）");
+        upsertIfAbsent(DISPUTE_AUTO_WAIVE_MAX_PER_ROUND, "50",
+                "争议超时自动免单：单轮最多免单张数");
+        upsertIfAbsent(DISPUTE_AUTO_WAIVE_PER_USER_MAX, "3",
+                "争议超时自动免单：滚动窗口内单用户自动免单次数上限");
+        upsertIfAbsent(DISPUTE_AUTO_WAIVE_PER_USER_WINDOW_DAYS, "7",
+                "争议超时自动免单：单用户防薅统计滚动窗口（天）");
         upsertIfAbsent(OPS_ALERT_FEISHU_WEBHOOK, "",
                 "运营告警：飞书自定义机器人 Webhook URL（留空不推送）");
         upsertIfAbsent(OPS_ALERT_FEISHU_SIGN_SECRET, "",

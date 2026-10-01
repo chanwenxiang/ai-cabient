@@ -34,6 +34,7 @@ public class DisputeAutoWaiveScheduler {
     private static final int SCAN_BATCH = 200;
 
     private final DisputeAutoWaiveProperties properties;
+    private final SystemConfigService systemConfigService;
     private final DisputeTicketMapper disputeRepository;
     private final DisputeService disputeService;
     private final ShoppingSessionMapper sessionRepository;
@@ -42,6 +43,7 @@ public class DisputeAutoWaiveScheduler {
     private final ScheduledTaskService taskService;
 
     public DisputeAutoWaiveScheduler(DisputeAutoWaiveProperties properties,
+                                     SystemConfigService systemConfigService,
                                      DisputeTicketMapper disputeRepository,
                                      DisputeService disputeService,
                                      ShoppingSessionMapper sessionRepository,
@@ -49,6 +51,7 @@ public class DisputeAutoWaiveScheduler {
                                      OpsAlertDispatcher alertDispatcher,
                                      ScheduledTaskService taskService) {
         this.properties = properties;
+        this.systemConfigService = systemConfigService;
         this.disputeRepository = disputeRepository;
         this.disputeService = disputeService;
         this.sessionRepository = sessionRepository;
@@ -83,7 +86,16 @@ public class DisputeAutoWaiveScheduler {
 
     /** 单轮扫描：返回可读 summary（供 scheduled_task.last_run_at 与飞书告警）。 */
     private String runOnce() {
-        Instant cutoff = Instant.now().minus(properties.hours(), ChronoUnit.HOURS);
+        // P3-4 调参后台可调（系统配置页，即时生效）；properties 仅作兜底默认
+        int hours = systemConfigService.getInt(
+                SystemConfigService.DISPUTE_AUTO_WAIVE_HOURS, properties.hours());
+        int maxPerRound = Math.min(systemConfigService.getInt(
+                SystemConfigService.DISPUTE_AUTO_WAIVE_MAX_PER_ROUND, properties.maxPerRound()), SCAN_BATCH);
+        int perUserMax = systemConfigService.getInt(
+                SystemConfigService.DISPUTE_AUTO_WAIVE_PER_USER_MAX, properties.perUserMax());
+        int perUserWindowDays = systemConfigService.getInt(
+                SystemConfigService.DISPUTE_AUTO_WAIVE_PER_USER_WINDOW_DAYS, properties.perUserWindowDays());
+        Instant cutoff = Instant.now().minus(hours, ChronoUnit.HOURS);
         List<DisputeTicket> candidates =
                 disputeRepository.findOpenTimeoutUnclaimedCreatedBefore(cutoff, SCAN_BATCH);
         if (candidates.isEmpty()) {
@@ -94,12 +106,12 @@ public class DisputeAutoWaiveScheduler {
         int failures = 0;
         Map<Long, Integer> perUserThisRound = new HashMap<>();
         for (DisputeTicket ticket : candidates) {
-            if (waived >= properties.maxPerRound()) {
+            if (waived >= maxPerRound) {
                 break;
             }
             Long userId = resolveUserId(ticket);
-            if (userId != null && autoWaiveCountInWindow(userId)
-                    + perUserThisRound.getOrDefault(userId, 0) >= properties.perUserMax()) {
+            if (userId != null && autoWaiveCountInWindow(userId, perUserWindowDays)
+                    + perUserThisRound.getOrDefault(userId, 0) >= perUserMax) {
                 skippedAbuse++;
                 continue;
             }
@@ -135,8 +147,8 @@ public class DisputeAutoWaiveScheduler {
     }
 
     /** 滚动窗口内该用户已被自动免单的历史张数（operator_note 标记）。 */
-    private int autoWaiveCountInWindow(Long userId) {
-        Instant since = Instant.now().minus(properties.perUserWindowDays(), ChronoUnit.DAYS);
+    private int autoWaiveCountInWindow(Long userId, int perUserWindowDays) {
+        Instant since = Instant.now().minus(perUserWindowDays, ChronoUnit.DAYS);
         Integer count = jdbcTemplate.query(
                 "SELECT COUNT(*) FROM dispute_ticket t "
                         + "JOIN shopping_session s ON s.session_id = t.session_id "
