@@ -382,24 +382,24 @@ public class LineWithdrawService {
             if (!"PAYING".equals(request.getStatus())) {
                 return false;
             }
-            // F3：真实渠道回执丢失时自动置 FAILED = 解冻+已到账双重支出，禁止；转人工核对渠道单
-            if (!"MOCK".equals(request.getPayChannel())) {
+            // F3 判据单点化（P3-1b）：真实渠道回执丢失时自动置 FAILED = 双重支出，禁止
+            if (!WithdrawPayoutPolicy.mayAutoFailOnPayingTimeout(request.getPayChannel())) {
                 log.warn("stale PAYING line withdraw on real channel left for manual reconciliation requestId={} channel={}",
                         requestId, request.getPayChannel());
                 auditService.appendLog(0L, "LINE_WITHDRAW_PAYOUT_STALE_MANUAL", BIZ_LINE_WITHDRAW,
                         String.valueOf(requestId),
-                        "PAYING 超时但渠道=" + request.getPayChannel()
-                                + "，禁止自动置失败，请人工核对渠道打款结果后处置；金额(分)=" + request.getAmountCents());
+                        WithdrawPayoutPolicy.payingTimeoutManualNote(request.getPayChannel(), request.getAmountCents()));
                 return false;
             }
             request.setStatus("FAILED");
-            request.setPayoutMessage("PAYING 超过 " + PAYING_TIMEOUT_MINUTES + " 分钟未回执，自动置失败");
+            request.setPayoutMessage(WithdrawPayoutPolicy.payingTimeoutFailMessage(PAYING_TIMEOUT_MINUTES));
             request.setUpdatedAt(Instant.now());
             withdrawMapper.updateById(request);
             lineWalletService.releaseFrozen(request.getManagerId(), request.getAmountCents(),
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现打款超时释放");
             auditService.appendLog(0L, "LINE_WITHDRAW_PAYOUT_TIMEOUT", BIZ_LINE_WITHDRAW,
-                    String.valueOf(requestId), "PAYING 超时自动失败并解冻；金额(分)=" + request.getAmountCents());
+                    String.valueOf(requestId),
+                    WithdrawPayoutPolicy.payingTimeoutAutoNote(request.getAmountCents()));
             return true;
         });
     }
