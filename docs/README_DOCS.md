@@ -22,6 +22,7 @@
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 本地联调完整说明 |
 | [MODULES.md](MODULES.md) | 模块路径与职责 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 架构边界与识别策略 |
+| [SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md](SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md) | **新旧系统全面对比**：前海易购弹簧柜（D:\ideaCode\easygo）vs 本仓——仓储三域（采购入库/盘点/补货）+ 核心业务域（订单支付争议/钱包分账/营销/设备/对账）+ 客户端（旧 6 触点 vs 双小程序）逐域对比；P1/P2/P3 分级建议（批次后置收货、盘点口径合一、在途单向化、双钱包抽公共账本等）与「明确不抄」红线；含旧系统 M8=第一代开门柜的血缘论证 |
 | [DEMO_ACCOUNTS.md](DEMO_ACCOUNTS.md) | 演示账号矩阵 |
 | [BUSINESS_FULL_TEST_MATRIX.md](BUSINESS_FULL_TEST_MATRIX.md) | **全业务测试矩阵 v1.2**：页面+L3 挂钩+权限/字典/边界；含 **P0 子集/证据/环境/H5≠小程序/自动化对照** |
 | [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) | 最小浏览器 UAT（抽样） |
