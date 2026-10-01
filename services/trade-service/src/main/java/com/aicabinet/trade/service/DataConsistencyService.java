@@ -54,6 +54,7 @@ public class DataConsistencyService {
     private static final String SLOT_PHYSICAL = "SLOT_PHYSICAL";
     private static final String WAREHOUSE_NEGATIVE = "WAREHOUSE_NEGATIVE";
     private static final String WAREHOUSE_LEDGER = "WAREHOUSE_LEDGER";
+    private static final String OUTBOUND_HANDOVER = "OUTBOUND_HANDOVER";
     private static final String DEVICE_LEDGER = "DEVICE_LEDGER";
     private static final String COUPON_OVER_QUOTA = "COUPON_OVER_QUOTA";
     private static final String TOTAL_AMOUNT_CENTS = "total_amount_cents";
@@ -206,6 +207,7 @@ public class DataConsistencyService {
             checkWarehouseNegativeConsistency();
             checkWarehouseLedgerConsistency();
             checkDeviceLedgerConsistency();
+            checkOutboundHandoverConsistency();
             checkCrossLinkConsistency();
             log.info("数据一致性巡检结束");
         } catch (Exception e) {
@@ -893,6 +895,44 @@ public class DataConsistencyService {
                     "仓账余额 " + balance + " ≠ 流水合计 " + movementSum + "（期初缺口或漏记账）");
         }
         resolveStaleFailuresIfComplete(WAREHOUSE_LEDGER, failing, rows.size());
+    }
+
+    /**
+     * P1-3：仓配交接两账一致性——warehouse_in_transit（在途层）与
+     * warehouse_outbound_line.handover_status（交接层）必须同向：
+     * A. 在途有未签收行，但出库行侧已无任何未完成交接状态 ⇒ 签收漏了 in_transit；
+     * B. 出库行挂 IN_TRANSIT/PARTIAL，但在途层已无未签收行 ⇒ 签收漏了 handover。
+     */
+    void checkOutboundHandoverConsistency() {
+        String sql = "SELECT 'ORPHAN_TRANSIT' AS kind, t.outbound_id, t.device_id "
+                + "FROM (SELECT DISTINCT outbound_id, device_id FROM warehouse_in_transit "
+                + "  WHERE status = 'IN_TRANSIT') t "
+                + "WHERE NOT EXISTS (SELECT 1 FROM warehouse_outbound_line l "
+                + "  WHERE l.outbound_id = t.outbound_id AND l.device_id = t.device_id "
+                + "  AND l.handover_status IN ('PENDING','READY','IN_TRANSIT','PARTIAL')) "
+                + "UNION ALL "
+                + "SELECT 'STUCK_HANDOVER' AS kind, l.outbound_id, l.device_id "
+                + "FROM warehouse_outbound_line l "
+                + "WHERE l.handover_status IN ('IN_TRANSIT','PARTIAL') "
+                + "AND l.device_id IS NOT NULL AND l.device_id <> '' "
+                + "AND NOT EXISTS (SELECT 1 FROM warehouse_in_transit t "
+                + "  WHERE t.outbound_id = l.outbound_id AND t.device_id = l.device_id "
+                + "  AND t.status = 'IN_TRANSIT') "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String key = row.get("outbound_id") + "|" + row.get("device_id");
+            failing.add(key);
+            String kind = String.valueOf(row.get("kind"));
+            recordInconsistency(OUTBOUND_HANDOVER, "warehouse_outbound_line",
+                    key, kind, "MISMATCH",
+                    "ORPHAN_TRANSIT".equals(kind)
+                            ? "在途仍有未签收行，但出库行交接已全部收口（漏签 in_transit 或重复收口）"
+                            : "出库行交接挂起（IN_TRANSIT/PARTIAL），但在途层已无未签收行（漏调 markDeviceHandoverReceived）");
+        }
+        resolveStaleFailuresIfComplete(OUTBOUND_HANDOVER, failing, rows.size());
     }
 
     /**

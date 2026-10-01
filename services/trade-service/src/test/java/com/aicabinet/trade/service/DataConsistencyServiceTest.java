@@ -776,4 +776,26 @@ class DataConsistencyServiceTest {
         assertEquals("5", captor.getValue().getActualValue());
         assertTrue(captor.getValue().getErrorMessage().contains("批次余额"));
     }
+
+    @Test
+    void checkOutboundHandoverConsistency_recordsBothDriftDirections() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("kind", "ORPHAN_TRANSIT", "outbound_id", 7L, "device_id", "CAB-A"),
+                Map.of("kind", "STUCK_HANDOVER", "outbound_id", 8L, "device_id", "CAB-B")
+        ));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkOutboundHandoverConsistency();
+
+        org.mockito.ArgumentCaptor<DataConsistencyRecord> captor =
+                org.mockito.ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, times(2)).save(captor.capture());
+        assertEquals("OUTBOUND_HANDOVER", captor.getAllValues().get(0).getCheckType());
+        assertEquals("7|CAB-A", captor.getAllValues().get(0).getCheckKey());
+        assertEquals("8|CAB-B", captor.getAllValues().get(1).getCheckKey());
+        assertTrue(captor.getAllValues().stream().allMatch(r -> r.getErrorMessage() != null));
+    }
 }

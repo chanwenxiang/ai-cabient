@@ -830,9 +830,7 @@ public class ReplenishmentService {
         if (task.getOutboundId() != null
                 && inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
             int appliedQty = resolveAppliedQtyForCatchUpReceive(task, operatorId, taskId);
-            inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
-            warehouseService.markDeviceHandoverReceived(
-                    task.getOutboundId(), task.getDeviceId(), appliedQty);
+            receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), appliedQty);
         }
         return finishCompletedTaskSideEffects(task, taskId);
     }
@@ -886,6 +884,16 @@ public class ReplenishmentService {
     }
 
     /**
+     * P1-3：在途签收 + 交接收口的**唯一成对入口**——warehouse_in_transit 与
+     * outbound handover 两账必须成对收口（漏一半即脏账，一致性巡检 OUTBOUND_HANDOVER 兜底）。
+     * 新增签收场景一律调用本方法，禁止散写两个服务方法。
+     */
+    private void receiveHandoverPair(Long outboundId, String deviceId, int appliedQty) {
+        inTransitService.receiveForDevice(outboundId, deviceId);
+        warehouseService.markDeviceHandoverReceived(outboundId, deviceId, appliedQty);
+    }
+
+    /**
      * 仓配在途签收：按出库行上架；若已有现场 RESTOCK 行，则只补 SKU 差额。
      */
     private int receiveOutboundHandover(
@@ -900,9 +908,7 @@ public class ReplenishmentService {
         int fromOutbound = restockFromOutboundLines(
                 task, operatorId, "OB-" + task.getOutboundId(), appliedBySku);
         int totalRestock = pendingWasEmpty ? fromOutbound : appliedRestockQty + fromOutbound;
-        inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
-        warehouseService.markDeviceHandoverReceived(
-                task.getOutboundId(), task.getDeviceId(), totalRestock);
+        receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), totalRestock);
         return totalRestock;
     }
 
