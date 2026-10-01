@@ -38,6 +38,7 @@
 | C10 | P2 | done | easycom 本地镜像 vs `shared-uni`；`error-state` 已漂移 | `app-nav-bar`/`empty-state`/`app-button` 三端曾对齐；`error-state` consumer≡merchant≠shared；注释要求 Keep in sync | 2026-09-26：正文已与蓝本一致；新增 `sync-shared-uni-components` + `--check` 并入 `check:shared-component-sync`；easycom 仍本地路径 → C10b/M9 |
 | C11 | P3 | done | `settleWithin` / 开门超时吞错易被误改成「空失败」 | `index.vue` `promise.catch(() => null)` + 幽灵会话注释；与 C1 外观相似、意图不同 | 2026-09-26：`settleWithin` 文档化「故意失败→null」+ 失败/成功单测；语义≠ softFallback；调用方仍走 activeSession 轮询 |
 | C12 | P3 | done | `consumer-api` 上帝模块 + 页面外裸 URL | `consumer-api.ts` ~886 行；`video.vue` 绕开 API 层 | 2026-09-26：视频 URL；C12b open-attempt；C12c：download；C12d：`consumer-auth-session` 登录落盘规划/body + 测；apply 仍 api 内 |
+| C13 | P2 | partial | 首页上帝页二次拆解（C5 只拆了纯函数，页面 3641 行） | 切一（2026-10-01）：落地页整块抽 `components/HomeLanding.vue`（模板+~500 行样式+defineModel×3 语义不变，动作全上抛编排仍归首页），index.vue 3641→3167；待切二：shop 块（商品目录/购物车 UI）抽组件、开门/轮询编排抽 composable | 2026-10-01 切一 |
 
 ---
 
