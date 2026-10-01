@@ -665,6 +665,7 @@ import {
   showSuccess,
   showConfirm
 } from '@/utils/notify';
+import { useHomeCatalog } from '@/composables/use-home-catalog';
 import type {
   AccountDto,
   DeviceProduct,
@@ -702,9 +703,20 @@ const scanned = ref(false);
 const enteringFlow = ref(false);
 const showManual = ref(false);
 const products = ref<DeviceProduct[]>([]);
+
+// P3-3 切二：目录检索/分类/过滤逻辑收口 useHomeCatalog（datasetOf 供其余事件委托 handler 共用）
+const {
+  searchKeyword,
+  activeCategory,
+  productCategories,
+  filteredProducts,
+  resetCatalogFilter,
+  clearSearchKeyword,
+  clearCategory,
+  datasetOf,
+  onCategoryChipTap
+} = useHomeCatalog(products);
 const productsLoading = ref(false);
-const searchKeyword = ref('');
-const activeCategory = ref('');
 const deviceStatusText = ref('');
 const deviceOffline = ref(false);
 /** 本柜开门预授权门槛（分），来自 DeviceStatus.preauthCents */
@@ -825,36 +837,6 @@ const deviceBusy = computed(() => DEVICE_BUSY_STATUS_TEXTS.includes(deviceStatus
 const sessionActive = computed(
   () => !!sessionId.value && SESSION_ACTIVE_STATES.includes(state.value)
 );
-
-const productCategories = computed(() => {
-  const cats = new Set<string>();
-  for (const p of products.value) {
-    const cat = String(p.category || '').trim();
-    if (cat) cats.add(cat);
-  }
-  return Array.from(cats).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
-});
-
-const filteredProducts = computed(() => {
-  const kw = searchKeyword.value.trim().toLowerCase();
-  const cat = activeCategory.value;
-  return products.value.filter((p) => {
-    if (cat && String(p.category || '').trim() !== cat) return false;
-    if (
-      kw &&
-      !String(p.skuName || '')
-        .toLowerCase()
-        .includes(kw)
-    )
-      return false;
-    return true;
-  });
-});
-
-function resetCatalogFilter() {
-  searchKeyword.value = '';
-  activeCategory.value = '';
-}
 
 const showLanding = computed(() => !scanned.value && !enteringFlow.value);
 
@@ -1801,36 +1783,6 @@ function clearSessionUi() {
   liveCartItems.value = [];
   cartSheetVisible.value = false;
   stopRecognitionTimer();
-}
-
-function clearSearchKeyword() {
-  searchKeyword.value = '';
-}
-
-function clearCategory() {
-  activeCategory.value = '';
-}
-
-/**
- * 从 uni-app 事件里取 `currentTarget.dataset[key]`。
- *
- * 跨端唯一稳定的取数位置就是 `currentTarget.dataset`（H5 是 DOM 事件、小程序是自定义对象，
- * 其余字段两端不一致）。原先每个 handler 各自声明一套窄类型
- * `{ currentTarget?: { dataset?: Record<string, string> } }`，与 Vue 给原生元素 `@click`
- * 推导出的 `PointerEvent` 参数不兼容 → vue-tsc 报 TS2345（共 3 处模板命中）。
- * 收口成 `unknown` 入参 + 单点断言后，既满足模板类型，也消掉了 4 份重复声明。
- */
-function datasetOf(e: unknown, key: string): string {
-  const target = (e as { currentTarget?: { dataset?: Record<string, unknown> } } | null)
-    ?.currentTarget;
-  const value = target?.dataset?.[key];
-  return value == null ? '' : String(value);
-}
-
-function onCategoryChipTap(e: unknown) {
-  const cat = datasetOf(e, 'cat');
-  if (!cat) return;
-  activeCategory.value = activeCategory.value === cat ? '' : cat;
 }
 
 function productBySkuId(skuId: string): DeviceProduct | undefined {
