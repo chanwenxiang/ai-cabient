@@ -732,4 +732,48 @@ class DataConsistencyServiceTest {
         assertFalse(outcome.fixed());
         assertTrue(outcome.message().contains("人工"));
     }
+
+    @Test
+    void checkWarehouseLedgerConsistency_recordsBalanceMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("warehouse_id", "WH-1", "sku_id", "SKU-1", "batch_no", "B-1",
+                        "movement_sum", 10, "balance", 15)
+        ));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWarehouseLedgerConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals("WAREHOUSE_LEDGER", captor.getValue().getCheckType());
+        assertEquals("WH-1|SKU-1|B-1", captor.getValue().getCheckKey());
+        assertEquals("10", captor.getValue().getExpectedValue());
+        assertEquals("15", captor.getValue().getActualValue());
+        assertTrue(captor.getValue().getErrorMessage().contains("仓账余额"));
+    }
+
+    @Test
+    void checkDeviceLedgerConsistency_recordsBalanceMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("device_id", "DEV-1", "sku_id", "SKU-2", "batch_no", "B-2",
+                        "movement_sum", 7, "balance", 5)
+        ));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkDeviceLedgerConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals("DEVICE_LEDGER", captor.getValue().getCheckType());
+        assertEquals("DEV-1|SKU-2|B-2", captor.getValue().getCheckKey());
+        assertEquals("7", captor.getValue().getExpectedValue());
+        assertEquals("5", captor.getValue().getActualValue());
+        assertTrue(captor.getValue().getErrorMessage().contains("批次余额"));
+    }
 }

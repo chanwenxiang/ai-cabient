@@ -57,6 +57,7 @@ public class DemoDataService {
     private final DeviceSkuInventoryMapper deviceSkuInventoryRepository;
     private final WarehouseMapper warehouseRepository;
     private final WarehouseInventoryMapper warehouseInventoryRepository;
+    private final WarehouseMovementMapper warehouseMovementRepository;
     private final SkuVisionMappingMapper skuVisionMappingRepository;
     private final UserInfoMapper userInfoRepository;
     private final UserAccountMapper userAccountRepository;
@@ -82,6 +83,7 @@ public class DemoDataService {
                            DeviceSkuInventoryMapper deviceSkuInventoryRepository,
                            WarehouseMapper warehouseRepository,
                            WarehouseInventoryMapper warehouseInventoryRepository,
+                           WarehouseMovementMapper warehouseMovementRepository,
                            SkuVisionMappingMapper skuVisionMappingRepository,
                            UserInfoMapper userInfoRepository,
                            UserAccountMapper userAccountRepository,
@@ -105,6 +107,7 @@ public class DemoDataService {
         this.deviceSkuInventoryRepository = deviceSkuInventoryRepository;
         this.warehouseRepository = warehouseRepository;
         this.warehouseInventoryRepository = warehouseInventoryRepository;
+        this.warehouseMovementRepository = warehouseMovementRepository;
         this.skuVisionMappingRepository = skuVisionMappingRepository;
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
@@ -529,6 +532,16 @@ public class DemoDataService {
                 lot.setExpiryDate(today.plusDays(seed.expiryDaysAhead()));
                 lot.setQuantity(seed.quantity());
                 warehouseInventoryRepository.save(lot);
+                // 期初流水：播种库存必须进仓账（期初+Σ流水=余额 公式巡检 WAREHOUSE_LEDGER 依赖）
+                WarehouseMovement opening = new WarehouseMovement();
+                opening.setWarehouseId(warehouseId);
+                opening.setSkuId(lot.getSkuId());
+                opening.setBatchNo(lot.getBatchNo());
+                opening.setMovementType("MANUAL_INBOUND");
+                opening.setDeltaQty(seed.quantity());
+                opening.setRefType("DEMO_SEED");
+                opening.setRefId(warehouseId);
+                warehouseMovementRepository.save(opening);
             }
         }
     }

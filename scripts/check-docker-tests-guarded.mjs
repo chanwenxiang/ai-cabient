@@ -135,6 +135,15 @@ const GUARDED = new Map([
         'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
         '钉可售量 SQL 排除已禁用货道批次（JOIN device_slot + COALESCE enabled）'
     }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/WarehouseDeviceLedgerBalanceSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '钉仓账/柜账「期初+Σ流水=余额」公式巡检（WAREHOUSE_LEDGER/DEVICE_LEDGER，P3-6 前置安全网）'
+    }
   ]
 ]);
 

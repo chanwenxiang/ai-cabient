@@ -53,6 +53,8 @@ public class DataConsistencyService {
     private static final String SLOT_CAPACITY = "SLOT_CAPACITY";
     private static final String SLOT_PHYSICAL = "SLOT_PHYSICAL";
     private static final String WAREHOUSE_NEGATIVE = "WAREHOUSE_NEGATIVE";
+    private static final String WAREHOUSE_LEDGER = "WAREHOUSE_LEDGER";
+    private static final String DEVICE_LEDGER = "DEVICE_LEDGER";
     private static final String COUPON_OVER_QUOTA = "COUPON_OVER_QUOTA";
     private static final String TOTAL_AMOUNT_CENTS = "total_amount_cents";
     private static final String DATA_CONSISTENCY = "data-consistency";
@@ -202,6 +204,8 @@ public class DataConsistencyService {
             checkSlotCapacityConsistency();
             checkSlotPhysicalConsistency();
             checkWarehouseNegativeConsistency();
+            checkWarehouseLedgerConsistency();
+            checkDeviceLedgerConsistency();
             checkCrossLinkConsistency();
             log.info("数据一致性巡检结束");
         } catch (Exception e) {
@@ -858,6 +862,69 @@ public class DataConsistencyService {
                     "仓存数量为负 " + row.get(ACTUAL));
         }
         resolveStaleFailuresIfComplete(WAREHOUSE_NEGATIVE, failing, rows.size());
+    }
+
+    /**
+     * 仓账余额公式（借鉴旧弹簧柜月台账「期初 + Σ流水 = 应有」口径，见
+     * docs/SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md §5）：有流水的
+     * （仓库×SKU×批次）组，warehouse_inventory 余额必须等于 warehouse_movement.delta_qty
+     * 合计。无流水的组不检（期初缺口属于播种/修复问题，demo 播种已补记期初流水）。
+     */
+    void checkWarehouseLedgerConsistency() {
+        String sql = "SELECT g.warehouse_id, g.sku_id, g.batch_no, g.movement_sum, "
+                + "COALESCE(i.quantity, 0) AS balance FROM ( "
+                + "SELECT warehouse_id, sku_id, COALESCE(batch_no, '') AS batch_no, "
+                + "SUM(delta_qty) AS movement_sum FROM warehouse_movement "
+                + "GROUP BY warehouse_id, sku_id, COALESCE(batch_no, '') ) g "
+                + "LEFT JOIN warehouse_inventory i ON i.warehouse_id = g.warehouse_id "
+                + "AND i.sku_id = g.sku_id AND COALESCE(i.batch_no, '') = g.batch_no "
+                + "WHERE COALESCE(i.quantity, 0) <> g.movement_sum "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String key = row.get("warehouse_id") + "|" + row.get("sku_id") + "|" + row.get("batch_no");
+            failing.add(key);
+            String movementSum = String.valueOf(row.get("movement_sum"));
+            String balance = String.valueOf(row.get("balance"));
+            recordInconsistency(WAREHOUSE_LEDGER, "warehouse_inventory",
+                    key, movementSum, balance,
+                    "仓账余额 " + balance + " ≠ 流水合计 " + movementSum + "（期初缺口或漏记账）");
+        }
+        resolveStaleFailuresIfComplete(WAREHOUSE_LEDGER, failing, rows.size());
+    }
+
+    /**
+     * 柜机账余额公式：按（设备×SKU×批次）聚合 device_sku_lot 余额，必须等于
+     * inventory_movement.delta_qty 合计。批次可能拆多个货道 lot 行，故按批次组聚合。
+     */
+    void checkDeviceLedgerConsistency() {
+        String sql = "SELECT g.device_id, g.sku_id, g.batch_no, g.movement_sum, "
+                + "COALESCE(l.lot_qty, 0) AS balance FROM ( "
+                + "SELECT device_id, sku_id, COALESCE(batch_no, '') AS batch_no, "
+                + "SUM(delta_qty) AS movement_sum FROM inventory_movement "
+                + "GROUP BY device_id, sku_id, COALESCE(batch_no, '') ) g "
+                + "LEFT JOIN ( "
+                + "SELECT device_id, sku_id, COALESCE(batch_no, '') AS batch_no, "
+                + "SUM(quantity) AS lot_qty FROM device_sku_lot "
+                + "GROUP BY device_id, sku_id, COALESCE(batch_no, '') ) l "
+                + "ON l.device_id = g.device_id AND l.sku_id = g.sku_id AND l.batch_no = g.batch_no "
+                + "WHERE COALESCE(l.lot_qty, 0) <> g.movement_sum "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String key = row.get("device_id") + "|" + row.get("sku_id") + "|" + row.get("batch_no");
+            failing.add(key);
+            String movementSum = String.valueOf(row.get("movement_sum"));
+            String balance = String.valueOf(row.get("balance"));
+            recordInconsistency(DEVICE_LEDGER, "device_sku_lot",
+                    key, movementSum, balance,
+                    "批次余额 " + balance + " ≠ 流水合计 " + movementSum + "（漏记账或直接改库）");
+        }
+        resolveStaleFailuresIfComplete(DEVICE_LEDGER, failing, rows.size());
     }
 
     /**
