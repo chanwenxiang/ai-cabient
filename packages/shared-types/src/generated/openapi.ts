@@ -1545,6 +1545,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/warehouse/stocktakes/{stocktakeId}/complete-and-adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["completeAndAdjustStocktake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/warehouse/stocktakes/{stocktakeId}/cancel": {
         parameters: {
             query?: never;
@@ -19488,6 +19504,28 @@ export interface operations {
         };
     };
     completeStocktake: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stocktakeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseStocktakeDto"];
+                };
+            };
+        };
+    };
+    completeAndAdjustStocktake: {
         parameters: {
             query?: never;
             header?: never;
