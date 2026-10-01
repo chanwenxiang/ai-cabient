@@ -234,4 +234,44 @@ class ProcurementServiceTest {
         verify(warehouseService).receivePurchaseStock(org.mockito.ArgumentMatchers.any(
                 WarehouseService.PurchaseReceiveCommand.class));
     }
+
+    private PurchaseOrder pendingOrder() {
+        PurchaseOrder order = new PurchaseOrder();
+        order.setPurchaseOrderId(9L);
+        order.setSupplierId("SUP-1");
+        order.setWarehouseId("WH-1");
+        order.setStatus("PENDING_APPROVAL");
+        return order;
+    }
+
+    @Test
+    void reviewPurchaseOrder_withoutFlowDefinition_singleStepToCreated() {
+        PurchaseOrder order = pendingOrder();
+        when(purchaseOrderRepository.findByIdForUpdate(9L)).thenReturn(java.util.Optional.of(order));
+        when(purchaseOrderRepository.save(org.mockito.ArgumentMatchers.any(PurchaseOrder.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        // P2-4：库未配置 PURCHASE_ORDER 审批流（isDefinitionEnabled=false）
+        when(approvalWorkflowService.isDefinitionEnabled("PURCHASE_ORDER")).thenReturn(false);
+
+        var dto = service.reviewPurchaseOrder(1L, 9L, true, null);
+
+        assertEquals("CREATED", dto.status(), "无审批流配置必须单步直过，不得永久卡待审批");
+        verify(approvalWorkflowService).completeApproved(
+                org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq("PURCHASE_ORDER"),
+                org.mockito.ArgumentMatchers.eq("9"), org.mockito.ArgumentMatchers.isNull());
+    }
+
+    @Test
+    void reviewPurchaseOrder_withFlowButNotAllNodes_staysPending() {
+        PurchaseOrder order = pendingOrder();
+        when(purchaseOrderRepository.findByIdForUpdate(9L)).thenReturn(java.util.Optional.of(order));
+        when(purchaseOrderRepository.save(org.mockito.ArgumentMatchers.any(PurchaseOrder.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(approvalWorkflowService.isDefinitionEnabled("PURCHASE_ORDER")).thenReturn(true);
+        when(approvalWorkflowService.isInstanceApproved("PURCHASE_ORDER", "9")).thenReturn(false);
+
+        var dto = service.reviewPurchaseOrder(1L, 9L, true, null);
+
+        assertEquals("PENDING_APPROVAL", dto.status(), "多节点链未走完不得提前 CREATED");
+    }
 }

@@ -253,10 +253,14 @@ public class ProcurementService {
             auditService.appendLog(operatorId, "PURCHASE_ORDER_REJECT", BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
             return toPurchaseDto(order);
         }
+        // P2-4：无启用审批定义时单步直过——否则 isInstanceApproved 恒 false，
+        // 采购单会永远卡在 PENDING_APPROVAL（审了但状态不动）。配置了定义则走多节点链不变。
+        boolean hasFlow = approvalWorkflowService.isDefinitionEnabled(BIZ_PURCHASE_ORDER);
         approvalWorkflowService.completeApproved(operatorId, BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
-        if (approvalWorkflowService.isInstanceApproved(BIZ_PURCHASE_ORDER, bizId)) {
+        if (!hasFlow || approvalWorkflowService.isInstanceApproved(BIZ_PURCHASE_ORDER, bizId)) {
             order.setStatus("CREATED");
-            auditService.appendLog(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批通过");
+            auditService.appendLog(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId,
+                    hasFlow ? "审批通过" : "审批通过（无审批流配置，单步直过）");
         } else {
             auditService.appendLog(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批节点通过");
         }
