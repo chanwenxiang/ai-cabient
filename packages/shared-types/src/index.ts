@@ -198,6 +198,10 @@ export interface AdCampaignDto {
   name: string;
   status: string;
   deviceScope: string;
+  /** V296/P3-6：投放端 CABINET_SCREEN | MINI_PROGRAM */
+  channel?: string;
+  /** V296/P3-6：小程序轮播位点击深链 */
+  linkUrl?: string | null;
   startAt?: string;
   endAt?: string;
   assetIds: number[];

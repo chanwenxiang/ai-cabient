@@ -859,8 +859,23 @@ export const consumerApi = {
       category,
       enabled
     }),
-  marketingBanners: () =>
-    request<MarketingBannerDto[]>(ConsumerEndpoints.marketingBanners, 'GET', undefined, false),
+  marketingBanners: (deviceId?: string) =>
+    request<MarketingBannerDto[]>(
+      deviceId
+        ? `${ConsumerEndpoints.marketingBanners}?deviceId=${encodeURIComponent(deviceId)}`
+        : ConsumerEndpoints.marketingBanners,
+      'GET',
+      undefined,
+      false
+    ),
+  /** P3-6：小程序轮播位曝光/点击留痕（须登录；服务端 60s 窗口去重） */
+  marketingAdEvent: (campaignId: number, assetId: number, eventType: 'IMPRESSION' | 'CLICK') =>
+    request<void>(
+      ConsumerEndpoints.marketingAdEvent(campaignId),
+      'POST',
+      { assetId, eventType },
+      true
+    ),
   // auth=true：有 token 时带上，后端可返回「已领取/查看券包」；无 token 仍可游客浏览
   marketingCampaigns: () =>
     request<MarketingCampaignDto[]>(

@@ -7,6 +7,8 @@ import java.util.List;
 public record UpsertAdCampaignRequest(
         @NotBlank String name,
         String deviceScope,
+        String channel,
+        String linkUrl,
         Instant startAt,
         Instant endAt,
         List<Long> assetIds,

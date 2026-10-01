@@ -86,7 +86,20 @@
             label-class-name="col-status"
           >
             <template #default="{ row }">
-              {{ row.deviceScope === 'SPECIFIC' ? `${row.deviceIds.length} 台定向` : '全部设备' }}
+              <el-tag
+                :type="row.channel === 'MINI_PROGRAM' ? 'warning' : 'info'"
+                size="small"
+                style="margin-right: 6px"
+              >
+                {{ row.channel === 'MINI_PROGRAM' ? '小程序' : '柜机屏' }}
+              </el-tag>
+              {{
+                row.deviceScope === 'SPECIFIC'
+                  ? `${row.deviceIds.length} 台定向`
+                  : row.channel === 'MINI_PROGRAM'
+                    ? '全部场景'
+                    : '全部设备'
+              }}
             </template>
           </el-table-column>
           <el-table-column
@@ -166,10 +179,27 @@
         <el-form-item label="名称">
           <el-input v-model="form.name" placeholder="如：暑期饮料促销" />
         </el-form-item>
-        <el-form-item label="投放范围">
+        <el-form-item label="投放端">
+          <el-radio-group v-model="form.channel">
+            <el-radio value="CABINET_SCREEN">柜机屏</el-radio>
+            <el-radio value="MINI_PROGRAM">小程序轮播位</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="form.channel === 'MINI_PROGRAM'" label="跳转链接">
+          <el-input
+            v-model="form.linkUrl"
+            placeholder="/pages/coupons/coupons（小程序内深链，可空）"
+            style="max-width: 360px"
+          />
+        </el-form-item>
+        <el-form-item :label="form.channel === 'MINI_PROGRAM' ? '投放范围' : '投放范围（设备）'">
           <el-radio-group v-model="form.deviceScope">
-            <el-radio value="ALL">全部设备</el-radio>
-            <el-radio value="SPECIFIC">指定设备</el-radio>
+            <el-radio value="ALL">{{
+              form.channel === 'MINI_PROGRAM' ? '全部场景' : '全部设备'
+            }}</el-radio>
+            <el-radio value="SPECIFIC">{{
+              form.channel === 'MINI_PROGRAM' ? '指定柜机场景' : '指定设备'
+            }}</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="form.deviceScope === 'SPECIFIC'" label="选择设备">
@@ -288,10 +318,20 @@ const editingId = ref<number | null>(null);
 const form = ref<{
   name: string;
   deviceScope: string;
+  channel: string;
+  linkUrl: string;
   deviceIds: string[];
   assetIds: number[];
   window: [Date, Date] | null;
-}>({ name: '', deviceScope: 'ALL', deviceIds: [], assetIds: [], window: null });
+}>({
+  name: '',
+  deviceScope: 'ALL',
+  channel: 'CABINET_SCREEN',
+  linkUrl: '',
+  deviceIds: [],
+  assetIds: [],
+  window: null
+});
 
 // 列表首查由 useCrudTable autoLoad（默认 true）在挂载时执行；这里只拉弹窗所需的素材/设备选项
 onMounted(() => {
@@ -377,7 +417,15 @@ async function loadDevices() {
 
 function openCreate() {
   editingId.value = null;
-  form.value = { name: '', deviceScope: 'ALL', deviceIds: [], assetIds: [], window: null };
+  form.value = {
+    name: '',
+    deviceScope: 'ALL',
+    channel: 'CABINET_SCREEN',
+    linkUrl: '',
+    deviceIds: [],
+    assetIds: [],
+    window: null
+  };
   dialogVisible.value = true;
 }
 
@@ -386,6 +434,8 @@ function openEdit(row: AdCampaignDto) {
   form.value = {
     name: row.name,
     deviceScope: row.deviceScope,
+    channel: row.channel || 'CABINET_SCREEN',
+    linkUrl: row.linkUrl || '',
     deviceIds: [...row.deviceIds],
     assetIds: [...row.assetIds],
     window: row.startAt && row.endAt ? [new Date(row.startAt), new Date(row.endAt)] : null
@@ -411,6 +461,8 @@ async function save() {
     const body = {
       name: form.value.name.trim(),
       deviceScope: form.value.deviceScope,
+      channel: form.value.channel,
+      linkUrl: form.value.channel === 'MINI_PROGRAM' ? form.value.linkUrl.trim() || null : null,
       startAt: form.value.window?.[0]?.toISOString() ?? null,
       endAt: form.value.window?.[1]?.toISOString() ?? null,
       assetIds: form.value.assetIds,

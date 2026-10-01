@@ -19,6 +19,7 @@ import static org.mockito.Mockito.when;
 class ConsumerMarketingConcurrencyTest {
 
     @Mock private PromotionService promotionService;
+    @Mock private AdCampaignService adCampaignService;
     @Mock private PromotionActivityMapper activityRepository;
     @Mock private CouponDefinitionMapper couponDefinitionRepository;
     @Mock private UserCouponMapper userCouponRepository;
@@ -30,7 +31,7 @@ class ConsumerMarketingConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new ConsumerMarketingService(promotionService, activityRepository,
+        service = new ConsumerMarketingService(promotionService, adCampaignService, activityRepository,
                 couponDefinitionRepository, userCouponRepository, couponService, distributedLockService,
                 apiRateLimitService, "/pages/coupons/coupons");
     }

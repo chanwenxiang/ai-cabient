@@ -220,4 +220,103 @@ class AdCampaignServiceTest {
 
         verify(playEventRepository, times(2)).insert(any(AdPlayEvent.class));
     }
+
+    @Test
+    void screenContent_skipsMiniProgramChannel() {
+        AdCampaign campaign = campaign(9L, "RUNNING", "ALL");
+        campaign.setChannel(AdCampaignService.CHANNEL_MINI_PROGRAM);
+        when(campaignRepository.findRunningInWindow(any())).thenReturn(List.of(campaign));
+
+        ScreenContentDto out = service.screenContent("CAB-001");
+
+        assertEquals(null, out.campaignId(), "小程序渠道广告不得上柜机屏（V296/P3-6）");
+        assertEquals(0, out.items().size());
+    }
+
+    @Test
+    void upsert_rejectsUnknownChannel() {
+        when(assetRepository.findById(100L)).thenReturn(Optional.of(activeImage(100L)));
+        var request = new com.aicabinet.common.dto.UpsertAdCampaignRequest(
+                "x", "ALL", "TV", null, null, null, List.of(100L), null);
+
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> service.upsert(1L, null, request));
+    }
+
+    @Test
+    void listMiniProgramBanners_picksFirstActiveImage_skipsCabinetChannel() {
+        AdCampaign mp = campaign(7L, "RUNNING", "ALL");
+        mp.setChannel(AdCampaignService.CHANNEL_MINI_PROGRAM);
+        mp.setLinkUrl("/pages/coupons/coupons");
+        AdCampaign cabinet = campaign(8L, "RUNNING", "ALL"); // 柜机屏渠道，不得混入
+        when(campaignRepository.findRunningInWindow(any())).thenReturn(List.of(mp, cabinet));
+        AdCampaignItem item = new AdCampaignItem();
+        item.setItemId(70L);
+        item.setCampaignId(7L);
+        item.setAssetId(700L);
+        item.setSortOrder(0);
+        when(itemRepository.findByCampaignId(7L)).thenReturn(List.of(item));
+        when(assetRepository.findById(700L)).thenReturn(Optional.of(activeImage(700L)));
+
+        var banners = service.listMiniProgramBanners(5, null);
+
+        assertEquals(1, banners.size());
+        assertEquals(7L, banners.get(0).campaignId());
+        assertEquals(700L, banners.get(0).assetId());
+        assertEquals("/pages/coupons/coupons", banners.get(0).linkUrl());
+    }
+
+    @Test
+    void listMiniProgramBanners_specificScopeRequiresDeviceContext() {
+        AdCampaign scoped = campaign(6L, "RUNNING", "SPECIFIC");
+        scoped.setChannel(AdCampaignService.CHANNEL_MINI_PROGRAM);
+        when(campaignRepository.findRunningInWindow(any())).thenReturn(List.of(scoped));
+        when(deviceRepository.findByCampaignId(6L)).thenReturn(List.of(deviceOf("CAB-IN")));
+        AdCampaignItem item = new AdCampaignItem();
+        item.setItemId(60L);
+        item.setCampaignId(6L);
+        item.setAssetId(600L);
+        item.setSortOrder(0);
+        when(itemRepository.findByCampaignId(6L)).thenReturn(List.of(item));
+        when(assetRepository.findById(600L)).thenReturn(Optional.of(activeImage(600L)));
+
+        // 无柜码上下文（落地页）→ SPECIFIC 不出
+        assertEquals(0, service.listMiniProgramBanners(5, null).size());
+        // 柜码不在投放范围 → 不出
+        assertEquals(0, service.listMiniProgramBanners(5, "CAB-OUT").size());
+        // 柜码在投放范围 → 出
+        var banners = service.listMiniProgramBanners(5, "cab-in");
+        assertEquals(1, banners.size());
+        assertEquals(6L, banners.get(0).campaignId());
+    }
+
+    private static AdCampaignDevice deviceOf(String deviceId) {
+        AdCampaignDevice d = new AdCampaignDevice();
+        d.setDeviceId(deviceId);
+        return d;
+    }
+
+    @Test
+    void recordPlayEvent_miniProgramSkipsDeviceScope() {
+        AdCampaign campaign = campaign(5L, "RUNNING", "SPECIFIC");
+        campaign.setChannel(AdCampaignService.CHANNEL_MINI_PROGRAM);
+        when(campaignRepository.findById(5L)).thenReturn(Optional.of(campaign));
+        when(deviceRepository.findByCampaignId(5L)).thenReturn(List.of()); // 设备范围不含 MP-U1
+
+        service.recordPlayEvent("MP-U1", 5L, 500L, "IMPRESSION");
+
+        // 小程序渠道 deviceId=MP-U{userId} 语义，不受设备范围校验拦截（V296/P3-6）
+        verify(playEventRepository, times(1)).insert(any(AdPlayEvent.class));
+    }
+
+    private static MediaAsset activeImage(long assetId) {
+        MediaAsset asset = new MediaAsset();
+        asset.setAssetId(assetId);
+        asset.setTitle("A" + assetId);
+        asset.setAssetType("IMAGE");
+        asset.setStorageUri("minio://bucket/ad/" + assetId + ".png");
+        asset.setDurationSeconds(10);
+        asset.setStatus("ACTIVE");
+        return asset;
+    }
 }

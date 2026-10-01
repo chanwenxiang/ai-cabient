@@ -8,6 +8,8 @@ public record AdCampaignDto(
         String name,
         String status,
         String deviceScope,
+        String channel,
+        String linkUrl,
         Instant startAt,
         Instant endAt,
         List<Long> assetIds,
@@ -20,7 +22,7 @@ public record AdCampaignDto(
     public AdCampaignDto(Long campaignId, String name, String status, String deviceScope,
                          Instant startAt, Instant endAt, List<Long> assetIds, List<String> deviceIds,
                          Instant createdAt, Instant updatedAt) {
-        this(campaignId, name, status, deviceScope, startAt, endAt, assetIds, deviceIds,
+        this(campaignId, name, status, deviceScope, null, null, startAt, endAt, assetIds, deviceIds,
                 createdAt, updatedAt, 0, 0);
     }
 }

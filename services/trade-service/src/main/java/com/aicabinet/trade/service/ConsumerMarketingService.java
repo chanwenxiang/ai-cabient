@@ -42,6 +42,7 @@ public class ConsumerMarketingService {
     private static final String[] TONES = {"mint", "amber", "sky", "rose"};
 
     private final PromotionService promotionService;
+    private final AdCampaignService adCampaignService;
     private final PromotionActivityMapper activityRepository;
     private final CouponDefinitionMapper couponDefinitionRepository;
     private final UserCouponMapper userCouponRepository;
@@ -51,6 +52,7 @@ public class ConsumerMarketingService {
     private final String couponsPagePath;
 
     public ConsumerMarketingService(PromotionService promotionService,
+                                    AdCampaignService adCampaignService,
                                     PromotionActivityMapper activityRepository,
                                     CouponDefinitionMapper couponDefinitionRepository,
                                     UserCouponMapper userCouponRepository,
@@ -59,6 +61,7 @@ public class ConsumerMarketingService {
                                     ApiRateLimitService apiRateLimitService,
                                     @Value("${aicabinet.consumer.coupons-page-path:/pages/coupons/coupons}") String couponsPagePath) {
         this.promotionService = promotionService;
+        this.adCampaignService = adCampaignService;
         this.activityRepository = activityRepository;
         this.couponDefinitionRepository = couponDefinitionRepository;
         this.userCouponRepository = userCouponRepository;
@@ -85,10 +88,31 @@ public class ConsumerMarketingService {
     }
 
     public List<MarketingBannerDto> banners() {
-        List<MarketingCampaignDto> campaigns = activeCampaigns();
+        return banners(null);
+    }
+
+    /** P3-6：deviceId 可选——SPECIFIC 范围的小程序广告仅在对应柜机上下文返回。 */
+    public List<MarketingBannerDto> banners(String deviceId) {
         List<MarketingBannerDto> banners = new ArrayList<>();
+        // P3-6：广告轮播位优先（MINI_PROGRAM 渠道投放，真图+深链；范围按 device_scope 过滤）
+        for (AdCampaignService.MiniProgramBanner ad : adCampaignService.listMiniProgramBanners(5, deviceId)) {
+            banners.add(new MarketingBannerDto(
+                    ad.campaignId(),
+                    ad.title(),
+                    null,
+                    "ad",
+                    null,
+                    null,
+                    ad.linkUrl(),
+                    "/api/v2/media/ad-assets/" + ad.assetId(),
+                    ad.campaignId(),
+                    ad.assetId()
+            ));
+        }
+        // 活动横幅补位（剩余位置）
         int i = 0;
-        for (MarketingCampaignDto c : campaigns) {
+        for (MarketingCampaignDto c : activeCampaigns()) {
+            if (banners.size() >= 5) break;
             banners.add(new MarketingBannerDto(
                     c.id(),
                     c.title(),
@@ -99,7 +123,6 @@ public class ConsumerMarketingService {
                     c.ctaPath()
             ));
             i++;
-            if (banners.size() >= 5) break;
         }
         if (banners.isEmpty()) {
             banners.add(new MarketingBannerDto(

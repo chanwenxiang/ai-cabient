@@ -193,6 +193,12 @@
         ⚠️ 本开关只管「位置可见性」；广告收益对账/入账属 F4 后续切片，不在其语义内。
       -->
       <DeviceAdBanner v-if="deviceId && adBannerVisible" :device-id="deviceId" />
+      <!--
+        P3-6：营销轮播位（marketing/banners 的 MINI_PROGRAM 渠道广告）。
+        与上面设备位互斥：设备位关闭（开关关/无柜码）时顶上，避免同屏双轮播。
+        :device-id 供 SPECIFIC 投放范围过滤（无柜码时只出 ALL 范围广告）。
+      -->
+      <MarketingAdBanner v-else :device-id="deviceId" />
 
       <view
         v-if="reviewSessionId && !sessionActive"
@@ -554,6 +560,7 @@ import {
 import { computed, ref, watch } from 'vue';
 import OpenPrepDrawer from '@/components/open-prep-drawer.vue';
 import DeviceAdBanner from '@/components/device-ad-banner.vue';
+import MarketingAdBanner from '@/components/marketing-ad-banner.vue';
 import LiveCartSheet, { type LiveCartSheetLine } from '@/components/live-cart-sheet.vue';
 import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
 import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';

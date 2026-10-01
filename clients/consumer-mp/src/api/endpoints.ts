@@ -117,6 +117,8 @@ export const ConsumerEndpoints = {
   memberNotificationPrefs: `${API_PREFIX}/member/notifications/prefs`,
   /** 营销 */
   marketingBanners: `${API_PREFIX}/marketing/banners`,
+  /** P3-6：小程序轮播位曝光/点击留痕（须登录） */
+  marketingAdEvent: (campaignId: number) => `${API_PREFIX}/marketing/ads/${campaignId}/events`,
   marketingCampaignsActive: `${API_PREFIX}/marketing/campaigns/active`,
   marketingCampaignClaim: (activityId: number) =>
     `${API_PREFIX}/marketing/campaigns/${activityId}/claim`,

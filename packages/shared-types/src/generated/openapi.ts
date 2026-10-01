@@ -4105,6 +4105,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/marketing/ads/{campaignId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/feedback": {
         parameters: {
             query?: never;
@@ -9896,6 +9912,8 @@ export interface components {
         UpsertAdCampaignRequest: {
             name: string;
             deviceScope?: string;
+            channel?: string;
+            linkUrl?: string;
             /** Format: date-time */
             startAt?: string;
             /** Format: date-time */
@@ -9909,6 +9927,8 @@ export interface components {
             name?: string;
             status?: string;
             deviceScope?: string;
+            channel?: string;
+            linkUrl?: string;
             /** Format: date-time */
             startAt?: string;
             /** Format: date-time */
@@ -16021,6 +16041,11 @@ export interface components {
             /** Format: int64 */
             campaignId?: number;
             ctaPath?: string;
+            imageUrl?: string;
+            /** Format: int64 */
+            adCampaignId?: number;
+            /** Format: int64 */
+            assetId?: number;
         };
         ApiResponseListUserFeedbackDto: {
             /** Format: int32 */
@@ -24096,6 +24121,32 @@ export interface operations {
             };
         };
     };
+    adEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdPlayEventRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     submit: {
         parameters: {
             query?: never;
@@ -30269,7 +30320,9 @@ export interface operations {
     };
     banners: {
         parameters: {
-            query?: never;
+            query?: {
+                deviceId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

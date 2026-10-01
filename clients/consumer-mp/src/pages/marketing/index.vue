@@ -15,15 +15,24 @@
             <view
               role="button"
               class="banner-card"
-              :class="'tone-' + b.tone"
-              @click="openPath(b.ctaPath)"
+              :class="b.imageUrl ? 'banner-card--media' : 'tone-' + b.tone"
+              @click="onBannerTap(b)"
             >
+              <image v-if="b.imageUrl" class="banner-media" :src="b.imageUrl" mode="aspectFill" />
+              <view v-if="b.imageUrl" class="banner-scrim" aria-hidden="true" />
               <view class="banner-copy">
                 <text class="banner-title">{{ b.title }}</text>
-                <text class="banner-sub">{{ b.subtitle }}</text>
-                <text class="banner-cta app-link-chevron">立即查看</text>
+                <text v-if="b.subtitle" class="banner-sub">{{ b.subtitle }}</text>
+                <text class="banner-cta app-link-chevron">{{
+                  b.imageUrl ? '查看详情' : '立即查看'
+                }}</text>
               </view>
-              <image class="banner-mark" :src="menuIcon('gift')" mode="aspectFit" />
+              <image
+                v-if="!b.imageUrl"
+                class="banner-mark"
+                :src="menuIcon('gift')"
+                mode="aspectFit"
+              />
             </view>
           </swiper-item>
         </swiper>
@@ -111,6 +120,21 @@ onShareAppMessage(() => ({ title: SHARE_TITLE, path: SHARE_PATH }));
 onShareTimeline(() => ({ title: SHARE_TITLE }));
 
 const banners = ref<MarketingBannerDto[]>([]);
+/** P3-6：广告横幅曝光上报实例内去重（服务端另有 60s 窗口） */
+const impressedAds = new Set<string>();
+
+function reportAdEvent(b: MarketingBannerDto, eventType: 'IMPRESSION' | 'CLICK') {
+  if (!b.adCampaignId || !b.assetId) return;
+  const key = eventType + ':' + b.adCampaignId + ':' + b.assetId;
+  if (impressedAds.has(key)) return;
+  impressedAds.add(key);
+  consumerApi.marketingAdEvent(b.adCampaignId, b.assetId, eventType).catch(() => {});
+}
+
+function onBannerTap(b: MarketingBannerDto) {
+  reportAdEvent(b, 'CLICK');
+  openPath(b.ctaPath);
+}
 const campaigns = ref<MarketingCampaignDto[]>([]);
 const couponCount = ref(0);
 const authed = ref(false);
@@ -145,6 +169,8 @@ async function load() {
             ctaPath: '/pages/coupons/coupons'
           }
         ];
+    // P3-6：广告横幅曝光留痕（fire-and-forget，失败不打扰）
+    banners.value.forEach((banner) => reportAdEvent(banner, 'IMPRESSION'));
     // POINTS 已下线，兜底过滤（后端也会过滤）
     campaigns.value = (c || []).filter((x) => String(x.type || '').toUpperCase() !== 'POINTS');
     if (authed.value) {
@@ -315,6 +341,35 @@ function remainText(end?: string) {
   color: var(--white);
   background: linear-gradient(135deg, var(--brand-deep), var(--brand));
   box-sizing: border-box;
+}
+.banner-card--media {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  background: var(--brand-deep);
+}
+.banner-media {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+}
+.banner-scrim {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 40%, rgba(17, 24, 39, 0.55) 100%);
+}
+.banner-card--media .banner-copy {
+  position: absolute;
+  left: 28rpx;
+  right: 28rpx;
+  bottom: 24rpx;
 }
 .banner-card.tone-amber {
   background: linear-gradient(135deg, var(--warning, #92400e), var(--warning, #f59e0b));

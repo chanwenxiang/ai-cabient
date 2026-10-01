@@ -35,6 +35,9 @@ public class AdCampaignService {
     private static final Logger log = LoggerFactory.getLogger(AdCampaignService.class);
     private static final String AD_CAMPAIGN = "AD_CAMPAIGN";
     private static final String SPECIFIC = "SPECIFIC";
+    /** V296/P3-6：投放端=消费者小程序轮播位（与柜机屏投放互不可见） */
+    public static final String CHANNEL_MINI_PROGRAM = "MINI_PROGRAM";
+    public static final String CHANNEL_CABINET_SCREEN = "CABINET_SCREEN";
     private static final String LITERAL = "投放计划不存在";
     private static final String NAME = "name=";
 
@@ -104,6 +107,13 @@ public class AdCampaignService {
                 && (request.deviceIds() == null || request.deviceIds().isEmpty())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "指定设备投放需要选择设备");
         }
+        String channel = request.channel() == null || request.channel().isBlank()
+                ? CHANNEL_CABINET_SCREEN : request.channel().trim().toUpperCase();
+        if (!CHANNEL_CABINET_SCREEN.equals(channel) && !CHANNEL_MINI_PROGRAM.equals(channel)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "channel 仅支持 CABINET_SCREEN/MINI_PROGRAM");
+        }
+        String linkUrl = request.linkUrl() == null || request.linkUrl().isBlank()
+                ? null : request.linkUrl().trim();
         for (Long assetId : request.assetIds()) {
             assetRepository.findById(assetId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "素材不存在: " + assetId));
@@ -115,6 +125,8 @@ public class AdCampaignService {
             campaign.setName(request.name().trim());
             campaign.setStatus("DRAFT");
             campaign.setDeviceScope(scope);
+            campaign.setChannel(channel);
+            campaign.setLinkUrl(linkUrl);
             campaign.setStartAt(request.startAt());
             campaign.setEndAt(request.endAt());
             campaign.setCreatedBy(operatorId);
@@ -126,6 +138,8 @@ public class AdCampaignService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
             campaign.setName(request.name().trim());
             campaign.setDeviceScope(scope);
+            campaign.setChannel(channel);
+            campaign.setLinkUrl(linkUrl);
             campaign.setStartAt(request.startAt());
             campaign.setEndAt(request.endAt());
             campaign.setUpdatedAt(Instant.now());
@@ -188,6 +202,9 @@ public class AdCampaignService {
     public ScreenContentDto screenContent(String deviceId) {
         Instant now = Instant.now();
         for (AdCampaign campaign : campaignRepository.findRunningInWindow(now)) {
+            if (CHANNEL_MINI_PROGRAM.equals(campaign.getChannel())) {
+                continue; // 小程序渠道不上柜机屏（V296/P3-6）
+            }
             if (SPECIFIC.equals(campaign.getDeviceScope())
                     && deviceRepository.findByCampaignId(campaign.getCampaignId()).stream()
                     .noneMatch(d -> d.getDeviceId().equalsIgnoreCase(deviceId))) {
@@ -210,6 +227,53 @@ public class AdCampaignService {
             }
         }
         return new ScreenContentDto(null, null, List.of());
+    }
+
+    /** P3-6：小程序轮播位条目（每计划取首个 ACTIVE 的 IMAGE 素材）。 */
+    public record MiniProgramBanner(long campaignId, long assetId, String title, String linkUrl) {}
+
+    /**
+     * P3-6：消费者小程序轮播位内容——RUNNING 且档期内且 channel=MINI_PROGRAM，
+     * 按计划创建时间倒序、计划内素材顺序取首个可用图片。柜机屏渠道互不可见。
+     *
+     * <p>投放范围复用 device_scope/ad_campaign_device（V296 语义扩展）：
+     * ALL=全场景；SPECIFIC=仅限指定柜机上下文——deviceId 为空（落地页等无柜码场景）
+     * 或不在投放设备列表时不出。</p>
+     */
+    public List<MiniProgramBanner> listMiniProgramBanners(int limit, String deviceId) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        List<MiniProgramBanner> banners = new ArrayList<>();
+        for (AdCampaign campaign : campaignRepository.findRunningInWindow(Instant.now())) {
+            if (!CHANNEL_MINI_PROGRAM.equals(campaign.getChannel())) {
+                continue;
+            }
+            if (SPECIFIC.equals(campaign.getDeviceScope())) {
+                if (deviceId == null || deviceId.isBlank()) {
+                    continue;
+                }
+                boolean inScope = deviceRepository.findByCampaignId(campaign.getCampaignId()).stream()
+                        .anyMatch(d -> d.getDeviceId().equalsIgnoreCase(deviceId.trim()));
+                if (!inScope) {
+                    continue;
+                }
+            }
+            for (AdCampaignItem item : itemRepository.findByCampaignId(campaign.getCampaignId())) {
+                MediaAsset asset = assetRepository.findById(item.getAssetId()).orElse(null);
+                if (asset == null || !"ACTIVE".equals(asset.getStatus())
+                        || !"IMAGE".equals(asset.getAssetType())) {
+                    continue;
+                }
+                banners.add(new MiniProgramBanner(campaign.getCampaignId(), asset.getAssetId(),
+                        campaign.getName(), campaign.getLinkUrl()));
+                break;
+            }
+            if (banners.size() >= limit) {
+                break;
+            }
+        }
+        return banners;
     }
 
     /**
@@ -235,7 +299,8 @@ public class AdCampaignService {
                     campaignId, campaign.getStatus());
             return;
         }
-        if (SPECIFIC.equals(campaign.getDeviceScope())
+        if (!CHANNEL_MINI_PROGRAM.equals(campaign.getChannel())
+                && SPECIFIC.equals(campaign.getDeviceScope())
                 && deviceRepository.findByCampaignId(campaignId).stream()
                 .noneMatch(d -> d.getDeviceId().equalsIgnoreCase(deviceId.trim()))) {
             log.debug("ad play event dropped: device {} not in campaign {} device scope",
@@ -299,7 +364,8 @@ public class AdCampaignService {
                 .map(AdCampaignDevice::getDeviceId).toList();
         return new AdCampaignDto(
                 campaign.getCampaignId(), campaign.getName(), campaign.getStatus(),
-                campaign.getDeviceScope(), campaign.getStartAt(), campaign.getEndAt(),
+                campaign.getDeviceScope(), campaign.getChannel(), campaign.getLinkUrl(),
+                campaign.getStartAt(), campaign.getEndAt(),
                 assetIds, deviceIds, campaign.getCreatedAt(), campaign.getUpdatedAt(),
                 playEventRepository.countByCampaignAndType(campaign.getCampaignId(), "IMPRESSION"),
                 playEventRepository.countByCampaignAndType(campaign.getCampaignId(), "COMPLETE"));

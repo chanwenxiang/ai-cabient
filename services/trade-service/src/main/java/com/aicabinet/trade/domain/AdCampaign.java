@@ -17,6 +17,10 @@ public class AdCampaign {
     private String name;
     private String status = "DRAFT";
     private String deviceScope = "ALL";
+    /** 投放端：CABINET_SCREEN=柜机屏；MINI_PROGRAM=消费者小程序轮播位（V296，P3-6） */
+    private String channel = "CABINET_SCREEN";
+    /** 小程序轮播位点击跳转深链（可空） */
+    private String linkUrl;
     private Instant startAt;
     private Instant endAt;
     private Long createdBy;
