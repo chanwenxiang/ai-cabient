@@ -234,6 +234,11 @@ export const OPENAPI_ALIAS_GROUPS = [
         name: 'OpenApiMerchantTaxProfileDto',
         schema: 'MerchantTaxProfileDto',
         comment: '商户开票资料'
+      },
+      {
+        name: 'OpenApiMerchantOpsConfigDto',
+        schema: 'MerchantOpsConfigDto',
+        comment: '商户补货配置'
       }
     ]
   },

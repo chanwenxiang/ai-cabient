@@ -713,6 +713,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/ops-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMyOpsConfig"];
+        put: operations["saveMyOpsConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/devices/{deviceId}/slots": {
         parameters: {
             query?: never;
@@ -15315,6 +15331,8 @@ export interface components {
             slotDiscrepancies?: number;
             /** Format: int64 */
             pendingSplits?: number;
+            /** Format: int64 */
+            refundOrders?: number;
             actionItems?: components["schemas"]["OpsActionItemDto"][];
         };
         ApiResponseMerchantWalletOverviewDto: {
@@ -18014,6 +18032,54 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantTaxProfileDto"];
+                };
+            };
+        };
+    };
+    getMyOpsConfig: {
+        parameters: {
+            query?: {
+                merchantId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMerchantOpsConfigDto"];
+                };
+            };
+        };
+    };
+    saveMyOpsConfig: {
+        parameters: {
+            query?: {
+                merchantId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MerchantOpsConfigDto"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMerchantOpsConfigDto"];
                 };
             };
         };

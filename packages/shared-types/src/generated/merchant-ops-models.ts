@@ -14,7 +14,6 @@ export type OpenApiUpdateMerchantProfileRequest = components['schemas']['UpdateM
 export type OpenApiMerchantTrendDto = components['schemas']['MerchantTrendDto'];
 /** 商户日趋势点 */
 export type OpenApiMerchantDailyTrendDto = components['schemas']['MerchantDailyTrendDto'];
-export type OpenApiMerchantOpsConfigDto = components['schemas']['MerchantOpsConfigDto'];
 /** 商户工作台统计 */
 export type OpenApiMerchantDashboardStatsDto = components['schemas']['MerchantDashboardStatsDto'];
 /** 运营/商户异常工单 */
@@ -25,3 +24,5 @@ export type OpenApiSalesReportRowDto = components['schemas']['SalesReportRowDto'
 export type OpenApiMerchantDto = components['schemas']['MerchantDto'];
 /** 商户开票资料 */
 export type OpenApiMerchantTaxProfileDto = components['schemas']['MerchantTaxProfileDto'];
+/** 商户补货配置 */
+export type OpenApiMerchantOpsConfigDto = components['schemas']['MerchantOpsConfigDto'];
