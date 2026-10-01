@@ -46,4 +46,46 @@ class InventoryOpsConcurrencyTest {
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
+
+    @Test
+    void stocktakeAdjust_rejectsLotLedgerDeviceWithDirectionToSlotStocktake() {
+        org.mockito.Mockito.lenient()
+                .when(distributedLockService.tryLock(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
+        when(lotService.deviceUsesLotLedger("CAB-LOT")).thenReturn(true);
+
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> service.stocktakeAdjust(1L, new com.aicabinet.common.dto.StocktakeAdjustRequest(
+                        "CAB-LOT", "SKU-A", 5, null, null, null)));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                String.valueOf(ex.getReason()).contains("货道盘点"),
+                "P1-2：lot 账本设备整机盲调必须被拒并指向货道盘点");
+        org.mockito.Mockito.verifyNoInteractions(inventoryRepository);
+    }
+
+    @Test
+    void stocktakeAdjust_nonLotDevice_notBlockedByGate() {
+        org.mockito.Mockito.lenient()
+                .when(distributedLockService.tryLock(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
+        when(lotService.deviceUsesLotLedger("CAB-OLD")).thenReturn(false);
+        when(skuCatalogRepository.findById("SKU-A")).thenReturn(java.util.Optional.empty());
+
+        // 非 lot 设备不被闸门拦截；后续因 sku 不存在走 404（旧路径自洽）
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> service.stocktakeAdjust(1L, new com.aicabinet.common.dto.StocktakeAdjustRequest(
+                        "CAB-OLD", "SKU-A", 5, null, null, null)));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                org.springframework.http.HttpStatus.NOT_FOUND, ex.getStatusCode());
+    }
 }

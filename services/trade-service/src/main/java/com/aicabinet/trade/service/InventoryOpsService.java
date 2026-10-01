@@ -105,6 +105,13 @@ public class InventoryOpsService {
 
     private DeviceSkuInventory doStocktakeAdjust(Long operatorId, StocktakeAdjustRequest request) {
         deviceValidationService.requireDevice(request.deviceId());
+        // P1-2：lot 账本设备禁止整机盲调——直写汇总表会被下次 syncAggregateInventory
+        // 按 lot 汇总冲掉（静默丢账），且绕过货道真源；统一走货道盘点
+        // POST /devices/{id}/slots/stocktake（货道矩阵）。非 lot 设备保留旧路径兼容。
+        if (lotService.deviceUsesLotLedger(request.deviceId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该柜机已启用批次账本，整机盘点已停用；请使用货道盘点");
+        }
         opsPolicyService.requirePhotoEvidence(request.deviceId(), true, request.photoEvidenceUrl());
         skuCatalogRepository.findById(request.skuId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "sku not found"));
