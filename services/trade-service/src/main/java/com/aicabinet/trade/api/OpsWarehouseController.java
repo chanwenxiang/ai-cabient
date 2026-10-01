@@ -92,6 +92,13 @@ public class OpsWarehouseController {
     }
 
     @RequiresPermissions("ops:warehouse:edit")
+    /** P2-6：完成并过账（全行实盘校验 + 差异全量过账，一个动作）。 */
+    @PostMapping("/warehouse/stocktakes/{stocktakeId}/complete-and-adjust")
+    public ApiResponse<StocktakeDto> completeAndAdjustStocktake(
+            HttpServletRequest request, @PathVariable("stocktakeId") Long stocktakeId) {
+        return ApiResponse.ok(warehouseStocktakeService.completeAndAdjust(operatorId(request), stocktakeId));
+    }
+
     @PostMapping("/warehouse/stocktakes/{stocktakeId}/adjust")
     public ApiResponse<StocktakeDto> adjustStocktake(
             HttpServletRequest request,

@@ -160,6 +160,21 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     }
   }
 
+  /** P2-6：完成并过账（全行实盘校验 + 差异全量过账，一个动作） */
+  async function completeAndAdjustStocktakeAction() {
+    const id = stocktakeDetail.value.stocktakeId;
+    deps.saving.value = true;
+    try {
+      await api.request(AdminEndpoints.warehouseStocktakeCompleteAndAdjust(id), 'POST');
+      ElMessage.success('盘点已完成，差异已过账');
+      await reloadStocktakeDetail();
+    } catch (e) {
+      ElMessage.error(errorMessage(e, '完成并过账失败'));
+    } finally {
+      deps.saving.value = false;
+    }
+  }
+
   async function adjustStocktakeAction() {
     const id = stocktakeDetail.value.stocktakeId;
     deps.saving.value = true;
@@ -200,6 +215,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     onStocktakePhoto,
     saveStocktakeLines,
     completeStocktakeAction,
+    completeAndAdjustStocktakeAction,
     adjustStocktakeAction,
     cancelStocktakeAction
   };

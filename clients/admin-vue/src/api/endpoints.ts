@@ -294,6 +294,9 @@ export const AdminEndpoints = {
     `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/lines/${encodeURIComponent(String(lineId))}`,
   warehouseStocktakeComplete: (stocktakeId: string | number) =>
     `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/complete`,
+  /** P2-6：完成并过账（一个动作） */
+  warehouseStocktakeCompleteAndAdjust: (stocktakeId: string | number) =>
+    `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/complete-and-adjust`,
   warehouseStocktakeAdjust: (stocktakeId: string | number) =>
     `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/adjust`,
   warehouseStocktakeCancel: (stocktakeId: string | number) =>

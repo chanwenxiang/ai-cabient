@@ -129,6 +129,13 @@
           >完成盘点</el-button
         >
         <el-button
+          type="success"
+          plain
+          :loading="saving"
+          @click="emit('completeAndAdjustStocktake')"
+          >完成并过账</el-button
+        >
+        <el-button
           v-if="stocktakeDetail.status === 'DRAFT'"
           :loading="saving"
           @click="emit('cancelStocktake')"
@@ -178,6 +185,7 @@ const emit = defineEmits<{
   saveStocktake: [];
   saveStocktakeLines: [];
   completeStocktake: [];
+  completeAndAdjustStocktake: [];
   cancelStocktake: [];
   adjustStocktake: [];
   stocktakePhoto: [event: Event];

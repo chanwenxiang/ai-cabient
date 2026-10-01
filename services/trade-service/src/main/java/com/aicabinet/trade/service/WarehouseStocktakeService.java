@@ -209,6 +209,19 @@ public class WarehouseStocktakeService {
         return toDto(st);
     }
 
+    /**
+     * P2-6：完成并过账——同锁同事务串「全行实盘校验→COMPLETED」与「差异全量过账」，
+     * 消除「已完未调」中间态；需分步复核时仍可用 complete/adjust 独立动作。
+     */
+    @Transactional
+    public StocktakeDto completeAndAdjust(Long operatorId, Long stocktakeId) {
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
+        return runWithStocktakeLock(stocktakeId, () -> {
+            StocktakeDto completed = doComplete(stocktakeId);
+            return doAdjust(operatorId, stocktakeId, null);
+        });
+    }
+
     @Transactional
     public StocktakeDto adjust(Long operatorId, Long stocktakeId, AdjustStocktakeRequest request) {
         permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);

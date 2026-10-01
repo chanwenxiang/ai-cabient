@@ -594,6 +594,7 @@
         @save-stocktake="saveStocktake"
         @save-stocktake-lines="saveStocktakeLines"
         @complete-stocktake="completeStocktakeAction"
+        @complete-and-adjust-stocktake="completeAndAdjustStocktakeAction"
         @cancel-stocktake="cancelStocktakeAction"
         @adjust-stocktake="adjustStocktakeAction"
         @stocktake-photo="onStocktakePhoto"
@@ -1448,6 +1449,7 @@ const {
   onStocktakePhoto,
   saveStocktakeLines,
   completeStocktakeAction,
+  completeAndAdjustStocktakeAction,
   adjustStocktakeAction,
   cancelStocktakeAction
 } = useWarehouseStocktakes({

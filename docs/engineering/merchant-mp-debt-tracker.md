@@ -34,7 +34,7 @@
 | M6 | P1 | done | `business.vue` 上帝页 + 静默 softFallback + 手写 `/100` 金钱展示 | ~948 行；load 五路 softFallback；多处 `(cents/100).toFixed(2)` 未统一 `fmtMoney` | 2026-09-26：fmtMoney；M6b/M6c；M6d：`business-load` 首屏/过期序/硬失败合并 + 测；五路 API 仍页内 |
 | M7 | P1 | done | `disputes.vue` 上帝页；首屏 `size=100`；列表+详情+resolve 同文件 | ~839 行；`disputes(..., 0, 100)`；写路径无测 → M2 | 2026-09-26：PAGE_SIZE=50+样式；M7b：分页/SLA/详情；M7c：`dispute-actions` 认领/结案/回复门闩+导航 + 测；API/确认框仍页内 |
 | M8 | P2 | done | device-detail / 补货侧弱类型：`Record<string, unknown>` settings/devices | `merchant-api` deviceSettings；`useReplenishmentList` devices；slots PUT 无泛型 | 2026-09-26：settings/PATCH → OpenAPI DTO；`resolveMerchantIdForDevice`（修 settings 无 merchantId 门闩假死）+ 3 测；devices 已 `MerchantDeviceInfo`（M5）；slots PUT 已有泛型 |
-| M9 | P2 | open | 共享 UI 副本未切到 `shared-uni`（易再漂） | 本地 easycom 副本；同步脚本已有（C10）；直指 package → C10b | |
+| M9 | P2 | done | ~~共享 UI 副本未切到 shared-uni~~ | 2026-10-01 核实：pages.json easycom 四组件已直指 `@aicabinet/shared-uni/components/*`，本地副本已清（components/ 仅业务组件）——tracker 记录滞后，事实已收口 | 2026-10-01 |
 | M10 | P2 | done | `request.vue` 仍大；draft/suggest softFallback；下拉 refresh 空 catch | ~856 行；`.catch(() => {})`；与补货域重叠未进 composable | 2026-09-26：去空 catch+样式；M10b：request-draft；M10c：`request-submit` 提交/证据门闩 + 测；上传 API 仍页内 |
 | M11 | P2 | done | 金钱展示双轨：`fmtMoney` vs 手写 `/100` | `pricing`/`splits`/`WalletPage`/`sales-chart` 手写；`business` 已收口（M6）；orders/disputes/home 已用 `fmtMoney` | 2026-09-26：上述四处展示统一 `fmtMoney`；pricing 表单草稿仍用裸元 `toFixed(2)`（输入非展示） |
 | M12 | P3 | done | video 旁路拼 URL；api 面仍大 | `video.vue` 自拼 + Bearer；宜并入 Endpoints（承接 M3） | 2026-09-26：`MerchantEndpoints.orderVideo` + `merchantOrderVideoUrl`；页内禁拼 base；媒体流仍旁路 fetch/download（非 JSON API）；api 面瘦身 → M3b |
@@ -44,7 +44,7 @@
 ## 建议首期切片
 
 ```
-M9 / C10b（easycom→package，mp 风险知情延后）；主动债本表已清完（余延后项）
+C10b（easycom→package，mp 风险知情延后；M9 已于 2026-10-01 核实收口）；主动债本表已清完（余延后项）
 ```
 
 **M1 首刀边界**：补货任务主列表 + 待办主列表；失败 → 可见 error-state / toast；**禁止** `[]` 伪装空。勿动履约写路径。  

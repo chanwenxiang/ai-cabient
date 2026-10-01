@@ -270,4 +270,39 @@ class WarehouseStocktakeServiceTest {
         l.setStatus(status);
         return l;
     }
+
+    @Test
+    void completeAndAdjust_validatesAllCounted_thenPostsDifferencesInOneAction() {
+        WarehouseStocktake st = stocktake("DRAFT");
+        WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 12, null, "PENDING");
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
+        when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
+        stubInMemoryLines();
+        when(lineRepository.findById(1L)).thenReturn(Optional.of(line));
+        when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
+
+        service.updateLine(1L, 1L, 1L, new UpdateStocktakeLineRequest(10, null));
+
+        var dto = service.completeAndAdjust(1L, 1L);
+
+        // 全行已盘校验 → 完成；差异（12→10）直接过账，无「已完未调」中间态
+        assertEquals("ADJUSTED", dto.status());
+        verify(warehouseService).adjustStocktake(org.mockito.ArgumentMatchers.argThat(
+                cmd -> cmd.countedQty() == 10 && cmd.bookQty() == 12));
+        verify(lineRepository, org.mockito.Mockito.atLeastOnce()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void completeAndAdjust_rejectsWhenAnyLineUncounted() {
+        WarehouseStocktake st = stocktake("DRAFT");
+        WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 12, null, "PENDING");
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
+        when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
+        // 不录实盘 ⇒ 全行未盘，doComplete 直接 400，不落账
+
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> service.completeAndAdjust(1L, 1L));
+        verify(warehouseService, org.mockito.Mockito.never())
+                .adjustStocktake(org.mockito.ArgumentMatchers.any());
+    }
 }
