@@ -22,6 +22,7 @@
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 本地联调完整说明 |
 | [MODULES.md](MODULES.md) | 模块路径与职责 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 架构边界与识别策略 |
+| [P3_EVALUATIONS_WALLET_AND_MARKETING_2026-10-01.md](P3_EVALUATIONS_WALLET_AND_MARKETING_2026-10-01.md) | **P3-1/P3-2 评估报告**：双钱包 9 方法×2 同构量化与 C/B/A 分级建议（巡检立即/提现编排下迭代/泛型账本观望）；营销三轨=三类业务不收敛（关闭） |
 | [P3_4_DISPUTE_AUTO_WAIVE_DESIGN.md](P3_4_DISPUTE_AUTO_WAIVE_DESIGN.md) | **P3-4 超时争议自动免单设计稿（待评审）**：零资金移动论证、门控与防薅护栏、XXL 接线成本、三个待拍板问题 |
 | [SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md](SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md) | **新旧系统全面对比**：前海易购弹簧柜（D:\ideaCode\easygo）vs 本仓——仓储三域（采购入库/盘点/补货）+ 核心业务域（订单支付争议/钱包分账/营销/设备/对账）+ 客户端（旧 6 触点 vs 双小程序）逐域对比；P1/P2/P3 分级建议（批次后置收货、盘点口径合一、在途单向化、双钱包抽公共账本等）与「明确不抄」红线；含旧系统 M8=第一代开门柜的血缘论证 |
 | [DEMO_ACCOUNTS.md](DEMO_ACCOUNTS.md) | 演示账号矩阵 |
