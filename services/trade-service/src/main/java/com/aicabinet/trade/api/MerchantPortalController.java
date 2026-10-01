@@ -41,6 +41,24 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.getMe(userId(request)));
     }
 
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/ops-config")
+    public ApiResponse<MerchantOpsConfigDto> getMyOpsConfig(
+            HttpServletRequest request,
+            @RequestParam(name = "merchantId", required = false) String merchantId) {
+        return ApiResponse.ok(merchantPortalService.getMyOpsConfig(userId(request), merchantId));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @PutMapping("/ops-config")
+    public ApiResponse<MerchantOpsConfigDto> saveMyOpsConfig(
+            HttpServletRequest request,
+            @RequestParam(name = "merchantId", required = false) String merchantId,
+            @RequestBody MerchantOpsConfigDto body) {
+        return ApiResponse.ok(
+                merchantPortalService.saveMyOpsConfig(userId(request), merchantId, body));
+    }
+
     @RequiresPermissions("merchant:portal:access")
     @GetMapping("/stats")
     public ApiResponse<MerchantDashboardStatsDto> stats(HttpServletRequest request) {

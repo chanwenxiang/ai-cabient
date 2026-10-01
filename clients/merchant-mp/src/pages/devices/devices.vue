@@ -97,7 +97,10 @@
               <template v-if="d.currentTempC != null">{{ d.currentTempC }}°C</template>
             </text>
             <text v-if="stockSummary(d)" class="meta stock-warn">{{ stockSummary(d) }}</text>
-            <text v-if="d.firmwareVersion" class="meta">固件 {{ d.firmwareVersion }}</text>
+            <text v-if="canSeeRevenue" class="meta revenue"
+              >今日收入 ¥{{ ((revenueByDevice[d.deviceId ?? ''] || 0) / 100).toFixed(2) }}</text
+            >
+            <text v-else-if="d.firmwareVersion" class="meta">固件 {{ d.firmwareVersion }}</text>
           </view>
         </view>
         <view class="device-right">
@@ -151,6 +154,7 @@ import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
+import { softFallback } from '@/utils/soft-fallback';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import {
@@ -164,6 +168,11 @@ import type { MerchantDeviceInfo, MerchantMe } from '@aicabinet/shared-types';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
+/** 今日营业额仅报表可见角色展示（店长/财务；店员/补货员不展示，权限口径 2026-09-30 与运营确认） */
+const canSeeRevenue = computed(() =>
+  (me.value?.permissions || []).includes('merchant:reports:view')
+);
+const revenueByDevice = ref<Record<string, number>>({});
 const canListDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
 const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 
@@ -280,6 +289,18 @@ async function load() {
       ...d,
       online: (d.onlineStatus || '').toUpperCase() === 'ONLINE'
     }));
+    if (canSeeRevenue.value) {
+      softFallback(merchantApi.deviceReports(), [], '报表')
+        .then((rows) => {
+          if (seq !== loadSeq) return;
+          const map: Record<string, number> = {};
+          for (const r of rows as { deviceId?: string; revenueTodayCents?: number }[]) {
+            if (r.deviceId) map[r.deviceId] = Number(r.revenueTodayCents || 0);
+          }
+          revenueByDevice.value = map;
+        })
+        .catch(() => {});
+    }
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
@@ -573,6 +594,10 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 }
 .status-replenish {
   font-size: var(--font-size-caption);
+}
+.meta.revenue {
+  color: #d97706;
+  font-weight: 600;
 }
 .meta.stock-warn {
   color: var(--warning, #b45309);

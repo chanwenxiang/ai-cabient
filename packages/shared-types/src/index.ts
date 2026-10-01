@@ -445,7 +445,8 @@ export type {
   OpenApiOpsExceptionDto,
   OpenApiSalesReportRowDto,
   OpenApiMerchantDto,
-  OpenApiMerchantTaxProfileDto
+  OpenApiMerchantTaxProfileDto,
+  OpenApiMerchantOpsConfigDto
 } from './generated/merchant-ops-models';
 
 export type {
@@ -632,6 +633,7 @@ export interface MerchantWorkbench {
   expiryAlerts: number;
   slotDiscrepancies?: number;
   pendingSplits?: number;
+  refundOrders?: number;
   actionItems: {
     type: string;
     title: string;

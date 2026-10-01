@@ -9,3 +9,8 @@ WHERE r.role_key = 'merchant_replenisher'
     SELECT 1 FROM ops_role_permission rp
     WHERE rp.role_id = r.role_id AND rp.permission_id = p.permission_id
   );
+
+-- 店员不展示营业额/趋势（权限口径：店长✓ 财务✓ 补货员✓ 店员✗，2026-09-30 与运营确认）
+DELETE FROM ops_role_permission
+WHERE permission_id = (SELECT permission_id FROM ops_permission WHERE perm_code = 'merchant:trend:view')
+  AND role_id = (SELECT role_id FROM ops_role WHERE role_key = 'merchant_staff');

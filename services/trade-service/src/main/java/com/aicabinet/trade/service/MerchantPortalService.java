@@ -35,6 +35,7 @@ public class MerchantPortalService {
 
     private final PermissionService permissionService;
     private final MerchantFinanceService merchantFinanceService;
+    private final CompetitiveGapService competitiveGapService;
     private final MerchantScopeService merchantScopeService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final UserInfoMapper userInfoRepository;
@@ -74,6 +75,7 @@ public class MerchantPortalService {
     private final MerchantPortalService self;
 
     public MerchantPortalService(MerchantFinanceService merchantFinanceService,
+                                 @org.springframework.context.annotation.Lazy CompetitiveGapService competitiveGapService,
                                  PermissionService permissionService,
                                  MerchantScopeService merchantScopeService,
                                  MerchantPortalGuard merchantPortalGuard,
@@ -112,6 +114,7 @@ public class MerchantPortalService {
                                  SystemConfigService systemConfigService,
                                  @Lazy MerchantPortalService self) {
         this.merchantFinanceService = merchantFinanceService;
+        this.competitiveGapService = competitiveGapService;
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.merchantPortalGuard = merchantPortalGuard;
@@ -188,6 +191,37 @@ public class MerchantPortalService {
     @Transactional(readOnly = true)
     public MerchantDashboardStatsDto getStats(Long userId) {
         return workbenchQueryService.getStats(userId);
+    }
+
+    /** 商户自助读取补货配置（默认取其绑定的第一个商户；多商户可显式传 merchantId）。 */
+    @Transactional(readOnly = true)
+    public MerchantOpsConfigDto getMyOpsConfig(Long userId, String merchantId) {
+        merchantPortalGuard.requireAccess(userId);
+        String target = resolveMyMerchant(userId, merchantId);
+        return competitiveGapService.getOpsConfigInternal(target);
+    }
+
+    /** 商户自助保存补货配置（仅能操作自己绑定的商户；权限 merchant:replenishment:list 由控制器校验）。 */
+    @Transactional
+    public MerchantOpsConfigDto saveMyOpsConfig(Long userId, String merchantId, MerchantOpsConfigDto body) {
+        merchantPortalGuard.requireAccess(userId);
+        permissionService.requirePermission(userId, "merchant:replenishment:request");
+        String target = resolveMyMerchant(userId, merchantId);
+        return competitiveGapService.saveOpsConfigInternal(target, body);
+    }
+
+    private String resolveMyMerchant(Long userId, String merchantId) {
+        Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
+        if (merchantId != null && !merchantId.isBlank()) {
+            if (!allowed.contains(merchantId.trim())) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.FORBIDDEN, "无权操作该商户");
+            }
+            return merchantId.trim();
+        }
+        if (allowed.size() == 1) return allowed.iterator().next();
+        throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.BAD_REQUEST, "请选择商户");
     }
 
     @Transactional(readOnly = true)

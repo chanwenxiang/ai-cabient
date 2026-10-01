@@ -218,7 +218,7 @@ public class MerchantWorkbenchQueryService {
         if (deviceIds != null && deviceIds.isEmpty()
                 && bizDeviceIds != null && bizDeviceIds.isEmpty()
                 && merchantIds != null && merchantIds.isEmpty()) {
-            return new MerchantWorkbenchDto(0, 0, 0, 0, 0, 0, List.of());
+            return new MerchantWorkbenchDto(0, 0, 0, 0, 0, 0, 0, List.of());
         }
 
         List<OpsActionItemDto> items = new ArrayList<>();
@@ -236,9 +236,21 @@ public class MerchantWorkbenchQueryService {
                 .comparing((OpsActionItemDto i) -> severityRank(i.severity())).reversed()
                 .thenComparing(OpsActionItemDto::createdAt, Comparator.nullsLast(Comparator.reverseOrder())));
 
+        long refundOrders = merchantIds == null
+                ? orderRepository.selectCount(
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers.<com.aicabinet.trade.domain.CabinetOrder>lambdaQuery()
+                                .eq(com.aicabinet.trade.domain.CabinetOrder::getStatus, "REFUNDED"))
+                : merchantIds.isEmpty()
+                        ? 0
+                        : orderRepository.selectCount(
+                                com.baomidou.mybatisplus.core.toolkit.Wrappers.<com.aicabinet.trade.domain.CabinetOrder>lambdaQuery()
+                                        .eq(com.aicabinet.trade.domain.CabinetOrder::getStatus, "REFUNDED")
+                                        .in(com.aicabinet.trade.domain.CabinetOrder::getMerchantId, merchantIds));
+
         return new MerchantWorkbenchDto(
                 openDisputes, offline, lowStock, expiry,
                 discrepancies.size(), pendingSplits,
+                refundOrders,
                 items.stream().limit(100).toList()
         );
     }

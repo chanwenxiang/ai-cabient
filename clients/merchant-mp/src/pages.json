@@ -79,6 +79,17 @@
       ]
     },
     {
+      "root": "pages/ops-config",
+      "pages": [
+        {
+          "path": "ops-config",
+          "style": {
+            "navigationBarTitleText": "补货配置"
+          }
+        }
+      ]
+    },
+    {
       "root": "pages/request",
       "pages": [
         {

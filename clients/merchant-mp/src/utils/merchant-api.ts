@@ -448,6 +448,23 @@ export const merchantApi = {
     ),
   workbench: () =>
     request<import('@aicabinet/shared-types').MerchantWorkbench>(MerchantEndpoints.workbench),
+  opsConfig: (merchantId?: string) =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantOpsConfigDto>(
+      merchantId
+        ? `${MerchantEndpoints.opsConfig}?merchantId=${encodeURIComponent(merchantId)}`
+        : MerchantEndpoints.opsConfig
+    ),
+  saveOpsConfig: (
+    body: import('@aicabinet/shared-types').OpenApiMerchantOpsConfigDto,
+    merchantId?: string
+  ) =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantOpsConfigDto>(
+      merchantId
+        ? `${MerchantEndpoints.opsConfig}?merchantId=${encodeURIComponent(merchantId)}`
+        : MerchantEndpoints.opsConfig,
+      'PUT',
+      body
+    ),
   listAnnouncements: () =>
     request<import('@aicabinet/shared-types').AnnouncementDto[]>(MerchantEndpoints.announcements),
   getAnnouncement: (id: number) =>

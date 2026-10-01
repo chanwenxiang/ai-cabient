@@ -66,7 +66,8 @@ class MerchantPortalConcurrencyTest {
                 userInfoRepository, userAccountRepository, userMerchantRepository,
                 userRoleRepository, roleRepository, auditService, passwordEncoder,
                 operatorUserIdAllocator, distributedLockService);
-        service = new MerchantPortalService(merchantFinanceService, permissionService, merchantScopeService,
+        var competitiveGapService = new CompetitiveGapService(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        service = new MerchantPortalService(merchantFinanceService, competitiveGapService, permissionService, merchantScopeService,
                 merchantPortalGuard, userInfoRepository, userAccountRepository, userMerchantRepository,
                 userRoleRepository, roleRepository, permissionRepository, merchantRepository, deviceRepository,
                 orderRepository, splitRepository, sessionRepository, replenishmentTaskRepository,

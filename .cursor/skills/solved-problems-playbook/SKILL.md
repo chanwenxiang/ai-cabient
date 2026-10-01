@@ -29,6 +29,7 @@ description: >-
 | 抽屉松手变宽 | 先钉 `finalW` + `nextTick`；禁 pointerup 清空 width |
 | 点滚动条内容闪缩 | body `overflow-y:scroll` + `scrollbar-gutter:stable`；禁 `auto`（含客流页 `:has(.footfall-page)` 覆盖） |
 | 移鼠标整页微抖 | 侧栏宽按 DPR `snapCssPx`；禁 `.layout-content{margin-left:-1px}`；壳高 ≥2px 回滞 |
+| 列表移鼠标换行仍像抖（几何已稳） | 关 EP `.el-table--enable-row-transition` 的 td 背景过渡；禁模板硬编码 `table-scroll--h`；`measureOverflow` 在 `clientWidth≤0` 清 `--h`（表 K） |
 | 长文案悬停盖邻列 | **禁** `show-overflow-tooltip`；用 native title / cell-ellipsis |
 | 列表卡顿 pageSize=100 | `ADMIN_LIST_PAGE_SIZES`，最大 50 |
 

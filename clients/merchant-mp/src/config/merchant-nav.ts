@@ -47,6 +47,15 @@ export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
 
 export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
   {
+    key: 'ops-config',
+    title: '补货配置',
+    desc: '拍照 · 阈值 · 补货单',
+    url: '/pages/ops-config/ops-config',
+    perm: 'merchant:replenishment:list',
+    pack: 'field',
+    icon: 'replenish'
+  },
+  {
     key: 'messages',
     title: '消息中心',
     desc: '补货任务 · 结算到账 · 系统通知',

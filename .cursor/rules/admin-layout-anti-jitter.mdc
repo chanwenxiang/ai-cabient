@@ -21,6 +21,7 @@ alwaysApply: false
 | F | 调整明细数量框挡住「删除」 | grid 数量列 132px < EP `input-number`（右控件）默认 ~150px | `.manual-line`：`… 150px max-content`；`.el-input-number { width/max-width:100% }` |
 | H | 长文案悬停浮层盖住邻列/操作列 | `show-overflow-tooltip` 的 EP 浮层挂在表内，横滚+sticky 时错位 | **全后台禁止** `show-overflow-tooltip`；全局 `installTableCellNativeTitle`；可选手写 `.cell-ellipsis` + `:title` |
 | J | 移鼠标（含维修工单等任意列表）整页微抖 | 高 DPR 下侧栏 `220px`→219.99，主列曾 `margin-left:-1px` 与侧栏重叠≈1px，合成层亚像素重绘 | 侧栏宽按 `devicePixelRatio` **对齐设备像素**；**禁止** `.layout-content{margin-left:-1px}`；交界用 cover 条；壳高 `pinLayoutViewportHeight` ≥2px 回滞 |
+| K | 列表移鼠标换行仍像抖（几何已稳） | EP `.el-table--enable-row-transition` 给 td `background-color 0.25s`；sticky 操作列同步缓动；隐藏 tab/`clientWidth=0` 误加 `--h` | **必须** `main.css`：`.el-table--enable-row-transition … td { transition: none !important }`；嵌套子表**禁止**硬编码 `table-scroll--h`；`measureOverflow` 在 `clientWidth≤0` 时清 `--h` 返回 false |
 
 ## 主区硬约束
 
@@ -33,6 +34,7 @@ alwaysApply: false
 7. 浮动横滑条几何取整 + ≥2px 回滞。  
 8. 操作列右侧 sticky（见上表 A）；壳层高度整数 `--layout-vh-px`（≥2px 回滞）；侧栏宽设备像素对齐；侧栏滚动条隐藏。  
 8b. **禁止** `.layout-content { margin-left: -1px }`（高 DPR 负间隙抖，见表 J）。
+8c. **必须**关掉 EP 行悬停背景过渡（见表 K）；展开行内嵌套表勿硬编码 `.table-scroll--h`。
 
 ## 审单抽屉（ResizableDrawer）
 

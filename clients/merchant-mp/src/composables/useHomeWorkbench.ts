@@ -94,6 +94,11 @@ export function useHomeWorkbench() {
   const offlineCount = ref(0);
   const pendingTaskCount = ref(0);
   const actionItems = ref<TodoSummaryItem[]>([]);
+  const refundOrders = ref(0);
+  const slotDiscrepancyCount = ref(0);
+  const openDisputeCount = ref(0);
+  const lowStockCount = ref(0);
+  const expiryCount = ref(0);
   const taskPreview = ref<TaskRow[]>([]);
   const deviceMap = ref<Record<string, string>>({});
   const stats = ref<Record<string, unknown>>({});
@@ -301,6 +306,11 @@ export function useHomeWorkbench() {
     offlineCount.value = canAlerts.value
       ? workbench.offlineDevices || 0
       : Number(s.deviceOffline || 0);
+    refundOrders.value = canAlerts.value ? workbench.refundOrders || 0 : 0;
+    slotDiscrepancyCount.value = canAlerts.value ? workbench.slotDiscrepancies || 0 : 0;
+    openDisputeCount.value = canAlerts.value ? workbench.openDisputes || 0 : 0;
+    lowStockCount.value = canAlerts.value ? workbench.lowStockItems || 0 : 0;
+    expiryCount.value = canAlerts.value ? workbench.expiryAlerts || 0 : 0;
     const mergedTodos = canAlerts.value
       ? mergeTodoItems({
           exceptions: exceptionPage.items || [],
@@ -416,6 +426,11 @@ export function useHomeWorkbench() {
     analyticsDays,
     trendBars,
     pendingCount,
+    refundOrders,
+    slotDiscrepancyCount,
+    openDisputeCount,
+    lowStockCount,
+    expiryCount,
     offlineCount,
     pendingTaskCount,
     actionItems,

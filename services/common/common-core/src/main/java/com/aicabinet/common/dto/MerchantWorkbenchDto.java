@@ -9,5 +9,6 @@ public record MerchantWorkbenchDto(
         long expiryAlerts,
         long slotDiscrepancies,
         long pendingSplits,
+        long refundOrders,
         List<OpsActionItemDto> actionItems
 ) {}

@@ -246,6 +246,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-09-30 | 全站列表移鼠标「抖」：表体 td 禁背景过渡（不限补货）；侧栏图标禁 scale；隐藏 tab 勿误加 `--h` | lessons #240、`admin-layout-anti-jitter` 表 K；27 页 hover 探针 |
 | 2026-09-29 | milk 桥修复：模拟器镜像名笔误（ai-cabinet/device-simulator:local→ai-cabinet-device-simulator）致补货 409 两连败；docker run 后轮询 online_status=ONLINE ≤90s fail-loud（lessons #239）；昵称/身份展示上线（V293+PUT nickname+我的页+后台昵称列+wx 占位号显示「微信登录·未绑手机」） | `scripts/e2e-full-flow-milk.ps1`、milk 13/13 |
 | 2026-09-29 | 修移鼠标整页微抖：侧栏宽按 DPR 对齐设备像素 + 去掉主列 margin-left:-1px + 壳高回滞 | lessons #238、`AdminLayout.vue`、repair-tickets@127.0.0.1 dpr≈1.815 |
 | 2026-09-27 | 三端全面审查（6 路并行只读+主审复核）：产品代码**无 P0**；11 P1（资金 F1 竞态多付/F2 超时免单旁路/F3 提现盲置 FAILED、安全 S1 设备共享 MQTT 凭据/S2 GET token/S3 CSV 注入/S4 full 栈 Grafana、admin A1、consumer C1/C2、跨端 X1 preflight 盲区/X2 staging mock env）；mock 矩阵与 dev-only 面确认收口；文档漂移修正（admin 登录=密码+图形验证码+2FA 非短信码；286 迁移/85 Controller） | `docs/THREE_END_FULL_REVIEW_2026-09-27.md` |

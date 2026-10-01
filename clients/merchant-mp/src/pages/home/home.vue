@@ -28,6 +28,29 @@
         </view>
       </view>
 
+      <view class="card ops-overview">
+        <view class="ov-item">
+          <text class="ov-num warn">{{ openDisputeCount }}</text>
+          <text class="ov-label">待审核争议</text>
+        </view>
+        <view class="ov-item">
+          <text class="ov-num">{{ refundOrders }}</text>
+          <text class="ov-label">退款单</text>
+        </view>
+        <view class="ov-item">
+          <text class="ov-num">{{ lowStockCount }}</text>
+          <text class="ov-label">库存偏低</text>
+        </view>
+        <view class="ov-item">
+          <text class="ov-num">{{ expiryCount }}</text>
+          <text class="ov-label">临期提醒</text>
+        </view>
+        <view class="ov-item">
+          <text class="ov-num">{{ slotDiscrepancyCount }}</text>
+          <text class="ov-label">货道差异</text>
+        </view>
+      </view>
+
       <!--
         经营概览前置（对标竞品首页信息架构）：
         竞品（友宝/丰e足食等）商户端首页第一屏即为「今日营收」，而本页原先把该卡片排在
@@ -306,6 +329,11 @@ const {
   analyticsDays,
   trendBars,
   pendingCount,
+  refundOrders,
+  slotDiscrepancyCount,
+  openDisputeCount,
+  lowStockCount,
+  expiryCount,
   offlineCount,
   pendingTaskCount,
   actionItems,
@@ -717,6 +745,33 @@ useAutoRefresh({
   text-overflow: ellipsis;
 }
 
+.ops-overview {
+  display: flex;
+  margin: 16rpx 24rpx 0;
+  padding: 20rpx 8rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel, 24rpx);
+}
+.ov-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4rpx;
+  min-width: 0;
+}
+.ov-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+}
+.ov-num.warn {
+  color: #d97706;
+}
+.ov-label {
+  font-size: 11px;
+  color: var(--text-subtle);
+}
 .ops-block {
   margin: 16rpx 20rpx 0;
 }

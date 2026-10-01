@@ -16,7 +16,7 @@
           <image
             class="device-hero"
             src="/static/device-default.png"
-            mode="aspectFill"
+            mode="aspectFit"
             aria-hidden="true"
           />
           <text class="title">{{ deviceName }}</text>

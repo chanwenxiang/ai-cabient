@@ -190,6 +190,12 @@ public class CompetitiveGapService {
     public MerchantOpsConfigDto getOpsConfig(Long operatorId, String merchantId) {
         permissionService.requireAnyPermission(operatorId, "ops:merchant:list", "ops:merchant:edit");
         merchantScopeService.requireMerchantAccess(operatorId, merchantId);
+        return getOpsConfigInternal(merchantId);
+    }
+
+    /** 无权限检查版本：供商户门户复用（门户侧自行校验成员身份与商户范围）。 */
+    @Transactional(readOnly = true)
+    public MerchantOpsConfigDto getOpsConfigInternal(String merchantId) {
         return opsConfigMapper.findById(merchantId)
                 .map(this::toOpsConfigDto)
                 .orElseGet(() -> defaultOpsConfig(merchantId));
@@ -199,6 +205,12 @@ public class CompetitiveGapService {
     public MerchantOpsConfigDto saveOpsConfig(Long operatorId, String merchantId, MerchantOpsConfigDto body) {
         permissionService.requirePermission(operatorId, "ops:merchant:edit");
         merchantScopeService.requireMerchantAccess(operatorId, merchantId);
+        return saveOpsConfigInternal(merchantId, body);
+    }
+
+    /** 无权限检查版本：供商户门户复用（门户侧自行校验成员身份与商户范围）。 */
+    @Transactional
+    public MerchantOpsConfigDto saveOpsConfigInternal(String merchantId, MerchantOpsConfigDto body) {
         return runWithMerchantLock(merchantId, () -> doSaveOpsConfig(merchantId, body));
     }
 

@@ -124,6 +124,7 @@ export const MerchantEndpoints = {
   pricingSku: (skuId: string) => `${API_PREFIX}/merchant/pricing/skus/${encodeURIComponent(skuId)}`,
   pricingHistory: `${API_PREFIX}/merchant/pricing/history`,
   workbench: `${API_PREFIX}/merchant/workbench`,
+  opsConfig: `${API_PREFIX}/ops-config`,
   announcements: `${API_PREFIX}/merchant/announcements`,
   announcement: (id: number | string) => `${API_PREFIX}/merchant/announcements/${id}`,
   teamUsers: `${API_PREFIX}/merchant/team/users`,
