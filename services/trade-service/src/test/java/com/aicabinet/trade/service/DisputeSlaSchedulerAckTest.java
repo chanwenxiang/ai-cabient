@@ -69,7 +69,7 @@ class DisputeSlaSchedulerAckTest {
         scheduler.checkDisputeSla();
 
         assertNull(ticket.getSlaReminderAt(), "发送失败不得标记已提醒");
-        verify(disputeRepository, never()).save(ticket);
+        verify(disputeRepository, never()).updateSlaMarkers(anyString(), any(), any(), any());
     }
 
     @Test
@@ -81,7 +81,9 @@ class DisputeSlaSchedulerAckTest {
         scheduler.checkDisputeSla();
 
         assertNotNull(ticket.getSlaReminderAt(), "发送成功才落提醒标记");
-        verify(disputeRepository).save(ticket);
+        // P3-1b/C13 批次：SLA 标记必须走列级更新（整实体 save 会把并发旧 status 写回去）
+        verify(disputeRepository).updateSlaMarkers(
+                org.mockito.ArgumentMatchers.eq(ticket.getTicketId()), any(), any(), any());
     }
 
     @Test
@@ -96,6 +98,6 @@ class DisputeSlaSchedulerAckTest {
         scheduler.checkDisputeSla();
 
         assertNull(ticket.getSlaAlertedAt(), "发送失败不得标记已告警");
-        verify(disputeRepository, never()).save(ticket);
+        verify(disputeRepository, never()).updateSlaMarkers(anyString(), any(), any(), any());
     }
 }

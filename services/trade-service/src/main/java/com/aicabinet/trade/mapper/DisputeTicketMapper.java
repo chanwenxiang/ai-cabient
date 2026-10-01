@@ -37,6 +37,20 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
     }
 
     /** SLA 扫描：仅拉取仍可能需要提醒/逾期告警的 OPEN 工单。 */
+    /**
+     * 只写 SLA 三列（M01 同族：显式 set 可写 null）。🔴 DisputeSlaScheduler 禁止整实体
+     * save 回写——并发读到的旧 status 会踩掉同时段的结案写入（2026-10-01 dev 实测：
+     * SLA 扫描把 dispute-auto-waive 刚写的 RESOLVED 覆盖回 OPEN，resolved_at 却还在）。
+     */
+    default void updateSlaMarkers(String ticketId, java.time.Instant slaDueAt,
+                                  java.time.Instant slaReminderAt, java.time.Instant slaAlertedAt) {
+        update(Wrappers.<DisputeTicket>lambdaUpdate()
+                .eq(DisputeTicket::getTicketId, ticketId)
+                .set(DisputeTicket::getSlaDueAt, slaDueAt)
+                .set(DisputeTicket::getSlaReminderAt, slaReminderAt)
+                .set(DisputeTicket::getSlaAlertedAt, slaAlertedAt));
+    }
+
     /** P3-4：超时来源 + 未认领 + 早于 cutoff 的 OPEN 单（自动免单候选，按创建时间正序）。 */
     default List<DisputeTicket> findOpenTimeoutUnclaimedCreatedBefore(Instant cutoff, int limit) {
         int lim = Math.max(1, Math.min(limit, 500));

@@ -67,7 +67,10 @@ public class DisputeSlaScheduler {
             reminders += result.reminders();
             overdue += result.overdue();
             if (result.dirty()) {
-                disputeRepository.save(ticket);
+                // 🔴 只写 SLA 三列：整实体 save 会把并发读到的旧 status 写回去，
+                // 踩掉同时段的结案（2026-10-01 dev 实测踩掉 dispute-auto-waive 的 RESOLVED）
+                disputeRepository.updateSlaMarkers(ticket.getTicketId(),
+                        ticket.getSlaDueAt(), ticket.getSlaReminderAt(), ticket.getSlaAlertedAt());
             }
         }
         summary = "扫描 " + openTickets.size() + " 张，提醒 " + reminders + "，逾期 " + overdue;

@@ -121,6 +121,8 @@ services:
       dockerfile: infra/docker/trade-service.Dockerfile
     image: ai-cabinet/trade-service:${IMAGE_TAG:-local}
     environment:
+      # P3-4 dev 观察开关（production compose 不加，默认 OFF）：争议超时自动免单
+      AICABINET_DISPUTE_AUTO_WAIVE_ENABLED: "true"
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aicabinet
       SPRING_DATASOURCE_USERNAME: aicabinet
