@@ -118,18 +118,15 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
         err.skuId = true;
         ok = false;
       }
-      if (!String(line.batchNo || '').trim()) {
+      // P1-1：批次/效期下单选填（预估可填），收货时必填
+      if (line.batchNo != null && !String(line.batchNo).trim()) {
         err.batchNo = true;
-        ok = false;
-      }
-      if (!line.expiryDate) {
-        err.expiryDate = true;
         ok = false;
       }
       return err;
     });
     if (!ok) {
-      ElMessage.warning('请完整填写供应商、商品、批次和到期日期');
+      ElMessage.warning('请完整填写供应商与商品；批次/到期日可留空，收货时录入');
       nextTick(() => {
         document
           .querySelector('.purchase-line-card .field-invalid, .form-grid .field-invalid')
@@ -312,6 +309,16 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
 
   /** 采购收货确认（原 saveReceive） */
   async function receivePurchase() {
+    // P1-1：本次有新增收货的行必须已录入批次与到期日（下单未填时收货补录；也可覆盖原值）
+    const missingLot = (receiveForm.lines || []).some(
+      (l: WarehousePurchaseRow) =>
+        Number(l.receivedQty || 0) > Number(l.minReceived || 0) &&
+        (!String(l.batchNo || '').trim() || !l.expiryDate)
+    );
+    if (missingLot) {
+      ElMessage.warning('本次新增收货的行须录入批次与到期日');
+      return;
+    }
     deps.saving.value = true;
     try {
       await ElMessageBox.confirm('确认按累计收货数量入库？', '采购收货', {

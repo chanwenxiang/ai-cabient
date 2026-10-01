@@ -192,7 +192,8 @@ public class ProcurementService {
             PurchaseOrderLine line = new PurchaseOrderLine();
             line.setPurchaseOrderId(order.getPurchaseOrderId());
             line.setSkuId(lineDto.skuId().trim());
-            line.setBatchNo(lineDto.batchNo().trim());
+            // P1-1：批次/效期下单选填（真实采购下单时往往不知道批次），收货时必填可覆盖
+            line.setBatchNo(trimToNull(lineDto.batchNo()));
             line.setProductionDate(lineDto.productionDate());
             line.setExpiryDate(lineDto.expiryDate());
             line.setOrderedQty(lineDto.orderedQty());
@@ -388,6 +389,18 @@ public class ProcurementService {
     private long processReceiveLine(Long operatorId, PurchaseOrder order, List<PurchaseOrderLine> existing,
                                     PurchaseOrderLineDto receiveLine, String warehouseId) {
         PurchaseOrderLine line = matchLine(existing, receiveLine);
+        // P1-1：批次/效期收货可覆盖——请求值优先，缺省沿用订单行（下单预估/上次收货值）
+        String batchNo = receiveLine.batchNo() != null && !receiveLine.batchNo().isBlank()
+                ? receiveLine.batchNo().trim() : line.getBatchNo();
+        LocalDate expiryDate = receiveLine.expiryDate() != null
+                ? receiveLine.expiryDate() : line.getExpiryDate();
+        LocalDate productionDate = receiveLine.productionDate() != null
+                ? receiveLine.productionDate() : line.getProductionDate();
+        validatePurchaseLine(new PurchaseOrderLineDto(line.getLineId(), line.getSkuId(), batchNo,
+                productionDate, expiryDate, 0, 0, line.getUnitCostCents(), 0), true);
+        line.setBatchNo(batchNo);
+        line.setExpiryDate(expiryDate);
+        line.setProductionDate(productionDate);
         int qty = receiveLine.receivedQty() > 0 ? receiveLine.receivedQty() : line.getOrderedQty();
         if (qty <= 0 || qty > line.getOrderedQty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid receive qty for sku=" + line.getSkuId());
@@ -461,21 +474,48 @@ public class ProcurementService {
                     .findFirst()
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, PURCHASE_LINE_NOT_FOUND));
         }
-        return existing.stream()
-                .filter(l -> l.getSkuId().equals(dto.skuId()) && l.getBatchNo().equals(dto.batchNo()))
+        // P1-1：批次可空且收货可覆盖——请求批次先按 sku+batch 精确匹配；
+        // 失配（覆盖场景：请求带的是新批次）回退按 sku 匹配，同 sku 多行须传 lineId
+        List<PurchaseOrderLine> bySku = existing.stream()
+                .filter(l -> l.getSkuId().equals(dto.skuId()))
+                .toList();
+        if (dto.batchNo() != null && !dto.batchNo().isBlank()) {
+            java.util.Optional<PurchaseOrderLine> exact = bySku.stream()
+                    .filter(l -> dto.batchNo().equals(l.getBatchNo()))
+                    .findFirst();
+            if (exact.isPresent()) {
+                return exact.get();
+            }
+        }
+        if (bySku.size() > 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "同商品存在多行，请按 lineId 指定收货行: " + dto.skuId());
+        }
+        return bySku.stream()
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, PURCHASE_LINE_NOT_FOUND));
     }
 
+    /**
+     * P1-1：批次/效期两段语义——下单（receiving=false）选填（预估批次可填），
+     * 收货（receiving=true）必填且可覆盖（真实采购到货验收时才知道批次）。
+     */
     private void validatePurchaseLine(PurchaseOrderLineDto dto, boolean receiving) {
         if (dto.skuId() == null || dto.skuId().isBlank()) throw bad("skuId required");
         if (!skuCatalogRepository.existsById(dto.skuId().trim())) throw bad("sku not found: " + dto.skuId());
-        if (dto.batchNo() == null || dto.batchNo().isBlank()) throw bad("batchNo required");
-        if (dto.expiryDate() == null) throw bad("expiryDate required");
-        if (dto.productionDate() != null && dto.productionDate().isAfter(dto.expiryDate())) {
+        if (receiving) {
+            if (dto.batchNo() == null || dto.batchNo().isBlank()) throw bad("批次号必填：下单未填时须在收货时录入");
+            if (dto.expiryDate() == null) throw bad("到期日期必填：下单未填时须在收货时录入");
+        } else if (dto.batchNo() != null && dto.batchNo().isBlank()) {
+            throw bad("batchNo cannot be blank (omit instead)");
+        }
+        if (dto.expiryDate() != null && !dto.expiryDate().isAfter(LocalDate.now())) {
+            throw bad("expiryDate must be in future");
+        }
+        if (dto.productionDate() != null && dto.expiryDate() != null
+                && dto.productionDate().isAfter(dto.expiryDate())) {
             throw bad("productionDate cannot be after expiryDate");
         }
-        if (!dto.expiryDate().isAfter(LocalDate.now())) throw bad("expiryDate must be in future");
         if (!receiving && dto.orderedQty() <= 0) throw bad("orderedQty must be positive");
         if (dto.unitCostCents() <= 0) throw bad("unitCostCents must be positive");
     }

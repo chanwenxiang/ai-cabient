@@ -81,7 +81,7 @@
             class="line-field"
             :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.batchNo }"
           >
-            <span>批次号</span
+            <span>批次号（选填，收货时录入）</span
             ><el-input
               v-model="line.batchNo"
               @input="emit('clearPurchaseLineError', index, 'batchNo')"
@@ -108,7 +108,7 @@
           <label
             class="line-field"
             :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.expiryDate }"
-            ><span>到期日期</span
+            ><span>到期日期（选填，收货时录入）</span
             ><input
               v-model="line.expiryDate"
               class="native-date"
@@ -164,20 +164,30 @@
         </el-table-column>
         <el-table-column
           prop="batchNo"
-          label="批次"
-          min-width="120"
+          label="批次（收货必填）"
+          min-width="150"
           class-name="col-text"
           label-class-name="col-text"
-        />
+        >
+          <template #default="{ row }">
+            <el-input
+              v-model="row.batchNo"
+              size="small"
+              :placeholder="row.batchNo ? '' : '下单未填，收货必填'"
+            />
+          </template>
+        </el-table-column>
         <el-table-column
           prop="expiryDate"
-          label="到期日"
-          width="110"
+          label="到期日（收货必填）"
+          width="160"
           align="center"
           class-name="col-status"
           label-class-name="col-status"
         >
-          <template #default="{ row }">{{ row.expiryDate || '暂无' }}</template>
+          <template #default="{ row }">
+            <input v-model="row.expiryDate" class="native-date" type="date" />
+          </template>
         </el-table-column>
         <el-table-column
           prop="orderedQty"
