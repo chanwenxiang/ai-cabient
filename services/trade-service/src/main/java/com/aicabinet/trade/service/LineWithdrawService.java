@@ -263,7 +263,7 @@ public class LineWithdrawService {
         request.setAmountCents(amountCents);
         request.setFeeCents(WithdrawFeeCalculator.computeFeeCents(
                 amountCents, properties.feeCents(), properties.feeBps()));
-        request.setPayChannel(properties.mockEnabled() ? "MOCK" : "WECHAT");
+        request.setPayChannel(WithdrawPayoutPolicy.channelFor(properties.mockEnabled()));
         request.setCreatedAt(now);
         request.setUpdatedAt(now);
         if (amountCents >= properties.reviewThresholdCents()) {

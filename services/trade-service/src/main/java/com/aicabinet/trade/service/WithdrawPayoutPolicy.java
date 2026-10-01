@@ -32,4 +32,12 @@ public final class WithdrawPayoutPolicy {
     public static String payingTimeoutAutoNote(long amountCents) {
         return "PAYING 超时自动失败并解冻；金额(分)=" + amountCents;
     }
+
+    /**
+     * P3-1b 第二步：打款渠道决策单点化（mock 开关→MOCK/WECHAT 字面量）。
+     * 与 {@link #mayAutoFailOnPayingTimeout} 同族——MOCK 渠道语义的唯一出口。
+     */
+    public static String channelFor(boolean mockEnabled) {
+        return mockEnabled ? "MOCK" : "WECHAT";
+    }
 }

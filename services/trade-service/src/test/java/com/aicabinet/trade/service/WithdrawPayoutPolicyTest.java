@@ -20,6 +20,12 @@ class WithdrawPayoutPolicyTest {
     }
 
     @Test
+    void channelDecisionFollowsMockSwitch() {
+        assertEquals("MOCK", WithdrawPayoutPolicy.channelFor(true));
+        assertEquals("WECHAT", WithdrawPayoutPolicy.channelFor(false));
+    }
+
+    @Test
     void messagesCarryTimeoutAndAmount() {
         assertEquals("PAYING 超过 60 分钟未回执，自动置失败",
                 WithdrawPayoutPolicy.payingTimeoutFailMessage(60));
