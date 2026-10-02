@@ -246,6 +246,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-10-01 | **56 个 Skipped 测试盘点收官**：全部为 @Testcontainers(disabledWithoutDocker=true) （AdminE2E 5/ConsumerE2E 11/MerchantE2E 11/Reconciliation 1/WeChatNotify 1/DataManage 11+16 等），Docker 停机时按设计跳过；CI 集成 job 每次推送真跑全绿（上述类计数均 0 skip，run 36987395778 实证）——**非欠账**；本地想跑=启动 Docker Desktop。排查中曾误判 npipe 管道错位动过 ~/.testcontainers.properties，已还原 | run 36987395778 CI log |
 | 2026-10-01 | **P1-2/P1-3 落地**：P1-2 盘点口径合一闸门——lot 账本设备整机盲调 409 指向货道盘点（旧实现直写汇总会被 syncAggregate 静默冲掉=丢账，全库核实零 UI 调用方；slot 口径确认真源，2 用例）。P1-3 在途单向化——receiveHandoverPair 唯一成对入口（收敛两处散写，漏一半即脏账）+ 一致性巡检 OUTBOUND_HANDOVER 两向漂移检测（孤儿在途/挂起交接），真库存量绿（36+10+2 测全绿） | `InventoryOpsService`、`ReplenishmentService`、`DataConsistencyService` |
 | 2026-10-01 | **P2-4 审批单步直过落地（形态修正为缺陷修复）**：无启用审批定义时 review 直置 CREATED（原 isInstanceApproved 恒 false 会永久卡 PENDING_APPROVAL）；配置了定义走多节点链不变；8 单测全绿。P1/P2 全部收官，余 P3 评估级 | `ProcurementService` |
 | 2026-10-01 | **P3-4 设计稿成文待评审**：识别超时自动免单——关键资金事实核实=超时单从未扣款+预授权已释放（resolveWaive 对未扣款单返 0「无需扣款」），自动 WAIVE=零资金移动纯结案；方案 XXL dispute-auto-waive（超时+未认领+72h 门控、默认 OFF、单轮/单用户防薅上限、复用 resolveTicket）；三个待拍板问题（阈值/防薅口径/灰度节奏）见 §6 | `docs/P3_4_DISPUTE_AUTO_WAIVE_DESIGN.md` |
