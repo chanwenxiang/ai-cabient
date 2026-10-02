@@ -102,7 +102,9 @@ public class BalanceLedgerService {
 
     public record BalanceFreezeCommand(
             int amountCents, String businessType, String businessId, String idempotencyKey,
-            String reason, int balanceBefore, int balanceAfter) {}
+            String reason, int balanceBefore, int balanceAfter,
+            /** F1-A：订单冲抵类流水（PREAUTH_CAPTURE）须挂 orderId 供净额查询可见；其余为 null */
+            String orderId) {}
 
     private PaymentOperation doRecordFreezeOnly(Long userId, BalanceFreezeCommand command) {
         if (command.amountCents() <= 0) {
@@ -114,7 +116,8 @@ public class BalanceLedgerService {
         }
         PaymentOperation operation = new PaymentOperation();
         operation.setOperationId(BizIds.nextNumeric());
-        operation.setOrderId(null);
+        // F1-A：订单冲抵类流水（PREAUTH_CAPTURE）挂 orderId 供净额查询可见；其余保持 null
+        operation.setOrderId(command.orderId());
         operation.setOperationType(command.businessType());
         operation.setAmountCents(command.amountCents());
         operation.setChannel(PayChannels.BALANCE);

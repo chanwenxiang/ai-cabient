@@ -246,6 +246,7 @@ infra/                     Compose、网关、监控
 
 | 日期 | 变更摘要 | 证据 / PR / 会话 |
 |------|----------|------------------|
+| 2026-10-02 | **F1 余额扣款竞态修复落地（三端审查「上线前必改」项清零）**：源码级核实修正报告两点推断——①竞态真实症状是 rollback-only 全回滚（结算 500+假争议单）而非多付；②多付的雷藏在 PREAUTH_CAPTURE 行 order_id=null 使 netCompletedCents 失明（markPaid 护栏对 F1 场景失明）。实施净额口径三件套：F1-A 冲抵行挂单+计入净额 / F1-B 锁内预判不足信号化（chargeOrder noRollbackFor=BalanceInsufficientException，「capture 保留+PENDING」按设计意图达成，不再 500）/ F1-C markPaid 净额三分支+cancel 净额守卫（净入账单禁自动取消转人工）。全量 1382/0/0（Skipped=0，Docker E2E 本地真跑）；设计稿 docs/F1_BALANCE_CHARGE_RACE_DESIGN.md | `ConsumerPreauthService`、`OrderPaymentService`、`UnpaidOrderService` |
 | 2026-10-01 | **56 个 Skipped 测试盘点收官**：全部为 @Testcontainers(disabledWithoutDocker=true) （AdminE2E 5/ConsumerE2E 11/MerchantE2E 11/Reconciliation 1/WeChatNotify 1/DataManage 11+16 等），Docker 停机时按设计跳过；CI 集成 job 每次推送真跑全绿（上述类计数均 0 skip，run 36987395778 实证）——**非欠账**；本地想跑=启动 Docker Desktop。排查中曾误判 npipe 管道错位动过 ~/.testcontainers.properties，已还原 | run 36987395778 CI log |
 | 2026-10-01 | **P1-2/P1-3 落地**：P1-2 盘点口径合一闸门——lot 账本设备整机盲调 409 指向货道盘点（旧实现直写汇总会被 syncAggregate 静默冲掉=丢账，全库核实零 UI 调用方；slot 口径确认真源，2 用例）。P1-3 在途单向化——receiveHandoverPair 唯一成对入口（收敛两处散写，漏一半即脏账）+ 一致性巡检 OUTBOUND_HANDOVER 两向漂移检测（孤儿在途/挂起交接），真库存量绿（36+10+2 测全绿） | `InventoryOpsService`、`ReplenishmentService`、`DataConsistencyService` |
 | 2026-10-01 | **P2-4 审批单步直过落地（形态修正为缺陷修复）**：无启用审批定义时 review 直置 CREATED（原 isInstanceApproved 恒 false 会永久卡 PENDING_APPROVAL）；配置了定义走多节点链不变；8 单测全绿。P1/P2 全部收官，余 P3 评估级 | `ProcurementService` |

@@ -96,29 +96,53 @@ class UnpaidOrderConcurrencyTest {
         org.mockito.Mockito.verify(distributedLockService).unlock(OrderPaymentService.orderPaymentLockKey("O-OK"));
     }
 
-    /** F1 防回归护栏：PENDING 单已有已完成支付流水（净额≠0）时，补扣必须 CONFLICT 且不触发扣款。 */
+    /** F1-C 净额三分支①：冲抵净额已覆盖应付 ⇒ 直接收口 PAID，绝不重复扣款。 */
     @Test
-    void collectByUser_whenNetAlreadyPaid_rejectsAndSkipsCharge() {
+    void collectByUser_whenNetCoversFull_marksPaidWithoutCharge() {
         CabinetOrder order = new CabinetOrder();
-        order.setOrderId("O-PAID-TWICE");
+        order.setOrderId("O-NET-FULL");
         order.setUserId(10001L);
         order.setStatus("PENDING");
         order.setSessionId("S-2");
         order.setTotalAmountCents(350);
 
         when(distributedLockService.tryLock(
-                OrderPaymentService.orderPaymentLockKey("O-PAID-TWICE"), 60L, 5L))
+                OrderPaymentService.orderPaymentLockKey("O-NET-FULL"), 60L, 5L))
                 .thenReturn(true);
-        when(orderRepository.findByIdForUpdate("O-PAID-TWICE")).thenReturn(Optional.of(order));
-        when(orderPaymentService.netCompletedCents("O-PAID-TWICE")).thenReturn(200);
+        when(orderRepository.findByIdForUpdate("O-NET-FULL")).thenReturn(Optional.of(order));
+        when(orderPaymentService.netCompletedCents("O-NET-FULL")).thenReturn(350);
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.collectByUser(10001L, "O-PAID-TWICE", null));
+        service.collectByUser(10001L, "O-NET-FULL", null);
 
-        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals("PAID", order.getStatus(), "F1-C：净额覆盖应付必须直接收口");
         org.mockito.Mockito.verify(orderPaymentService, org.mockito.Mockito.never())
                 .chargeOrder(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         org.mockito.Mockito.verify(distributedLockService).unlock(
-                OrderPaymentService.orderPaymentLockKey("O-PAID-TWICE"));
+                OrderPaymentService.orderPaymentLockKey("O-NET-FULL"));
+    }
+
+    /** F1-C 净额三分支②：净额部分覆盖（F1 竞态单）⇒ 委托 chargeOrder 按净额口径只补差额。 */
+    @Test
+    void collectByUser_whenNetPartial_delegatesRemainderCharge() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-NET-PART");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setSessionId("S-2");
+        order.setTotalAmountCents(350);
+
+        when(distributedLockService.tryLock(
+                OrderPaymentService.orderPaymentLockKey("O-NET-PART"), 60L, 5L))
+                .thenReturn(true);
+        when(orderRepository.findByIdForUpdate("O-NET-PART")).thenReturn(Optional.of(order));
+        // 净额 200（F1 竞态保留的冲抵），差额 150 由 chargeOrder 净额口径补扣
+        when(orderPaymentService.netCompletedCents("O-NET-PART")).thenReturn(200);
+        when(couponService.selectBestCoupon(10001L, 350)).thenReturn(java.util.Optional.empty());
+
+        service.collectByUser(10001L, "O-NET-PART", null);
+
+        assertEquals("PAID", order.getStatus());
+        org.mockito.Mockito.verify(orderPaymentService, org.mockito.Mockito.times(1))
+                .chargeOrder(order, null);
     }
 }

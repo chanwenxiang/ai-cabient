@@ -170,6 +170,10 @@ public class SettlementOrderFinalizeService {
         try {
             orderPaymentService.chargeOrder(order);
             return true;
+        } catch (BalanceInsufficientException e) {
+            // F1-B：预授权冲抵已保留、差额转待支付——事务未被毒化（chargeOrder noRollbackFor），
+            // 「capture 保留 + PENDING」按设计意图达成（不再 500+假争议）
+            return finishUnpaidOrderAfterCharge(session, order, e.getMessage());
         } catch (ResponseStatusException e) {
             if (!isInsufficientBalance(e)) {
                 throw e;
@@ -185,6 +189,19 @@ public class SettlementOrderFinalizeService {
                     session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
             return false;
         }
+    }
+
+    /** F1-B：chargeOrder 信号化不足后的 PENDING 收尾（与 catch 路径共用）。 */
+    private boolean finishUnpaidOrderAfterCharge(ShoppingSession session, CabinetOrder order, String reason) {
+        clearCouponSelection(order);
+        order.setStatus("PENDING");
+        orderRepository.save(order);
+        session.setOrderId(order.getOrderId());
+        sessionRepository.save(session);
+        videoArchiveService.archiveAfterSettlement(session);
+        log.info("unpaid order after charge fail session={} order={} amount={} reason={}",
+                session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(), reason);
+        return false;
     }
 
     private static String yuan(int cents) {

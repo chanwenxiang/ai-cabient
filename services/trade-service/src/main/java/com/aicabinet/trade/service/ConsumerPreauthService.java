@@ -145,7 +145,7 @@ public class ConsumerPreauthService {
         sessionRepository.save(session);
         balanceLedgerService.recordFreezeOnly(session.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
                 amount, "PREAUTH_FREEZE", session.getSessionId(), "PREAUTH_FREEZE:" + session.getSessionId(),
-                "开门预授权冻结", account.getBalanceCents(), account.getBalanceCents()));
+                "开门预授权冻结", account.getBalanceCents(), account.getBalanceCents(), null));
         log.info("preauth frozen session={} user={} amount={}",
                 session.getSessionId(), session.getUserId(), amount);
     }
@@ -200,7 +200,7 @@ public class ConsumerPreauthService {
             if (release > 0) {
                 balanceLedgerService.recordFreezeOnly(session.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
                         release, "PREAUTH_RELEASE", session.getSessionId(), "PREAUTH_RELEASE:" + session.getSessionId(),
-                        "开门预授权释放", account.getBalanceCents(), account.getBalanceCents()));
+                        "开门预授权释放", account.getBalanceCents(), account.getBalanceCents(), null));
             }
         }
         session.setPreauthStatus(STATUS_RELEASED);
@@ -213,35 +213,42 @@ public class ConsumerPreauthService {
      * 余额扣款时冲抵预授权：先消费本会话冻结中的 min(order, held)，多余订单额再扣可用余额，剩余冻结释放。
      * 返回仍需从可用余额扣减的金额（分）。
      */
+    public record CaptureChargeResult(int capturedCents, int remainDebitCents, boolean remainderUnpaid) {}
+
+    /**
+     * 余额扣款时冲抵预授权（F1：返回结果对象；不足时零资金不变量由调用方转 PENDING 保留冲抵）。
+     *
+     * @param orderId 订单 id（冲抵流水挂单，供 netCompletedCents 可见）；可空（无单场景退化为旧行为）
+     */
     @Transactional
-    public int captureForCharge(ShoppingSession session, int orderAmountCents) {
+    public CaptureChargeResult captureForCharge(ShoppingSession session, int orderAmountCents, String orderId) {
         if (session == null || session.getSessionId() == null) {
-            return Math.max(0, orderAmountCents);
+            return new CaptureChargeResult(0, Math.max(0, orderAmountCents), false);
         }
         if (session.getUserId() == null) {
-            return Math.max(0, orderAmountCents);
+            return new CaptureChargeResult(0, Math.max(0, orderAmountCents), false);
         }
         return runWithPreauthLock(session.getUserId(),
-                () -> doCaptureForCharge(session.getSessionId(), orderAmountCents));
+                () -> doCaptureForCharge(session.getSessionId(), orderAmountCents, orderId));
     }
 
-    private int doCaptureForCharge(String sessionId, int orderAmountCents) {
+    private CaptureChargeResult doCaptureForCharge(String sessionId, int orderAmountCents, String orderId) {
         ShoppingSession session = reloadSession(sessionId).orElse(null);
         if (session == null) {
-            return Math.max(0, orderAmountCents);
+            return new CaptureChargeResult(0, Math.max(0, orderAmountCents), false);
         }
         ConsumerPreauthHold hold = holdRepository.findByIdForUpdate(sessionId).orElse(null);
         boolean sessionFrozen = STATUS_FROZEN.equalsIgnoreCase(blankToNone(session.getPreauthStatus()));
         boolean holdFrozen = hold != null && STATUS_FROZEN.equalsIgnoreCase(blankToNone(hold.getStatus()));
         if (!sessionFrozen && !holdFrozen) {
-            return Math.max(0, orderAmountCents);
+            return new CaptureChargeResult(0, Math.max(0, orderAmountCents), false);
         }
         int held = resolveSessionHoldCents(session, hold);
         if (held <= 0 || session.getUserId() == null) {
             session.setPreauthStatus(STATUS_CAPTURED);
             sessionRepository.save(session);
             markHoldTerminal(sessionId, STATUS_CAPTURED);
-            return Math.max(0, orderAmountCents);
+            return new CaptureChargeResult(0, Math.max(0, orderAmountCents), false);
         }
         UserAccount account = accountRepository.findByIdForUpdate(session.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
@@ -264,21 +271,26 @@ public class ConsumerPreauthService {
             balanceLedgerService.recordFreezeOnly(session.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
                     capture, "PREAUTH_CAPTURE", session.getSessionId(),
                     "PREAUTH_CAPTURE:" + session.getSessionId() + ":" + capture,
-                    "开门预授权冲抵订单", before, account.getBalanceCents()));
+                    "开门预授权冲抵订单", before, account.getBalanceCents(),
+                    // F1-A：冲抵行挂订单 → netCompletedCents 可见，补扣按净额不再多付
+                    orderId));
         }
         if (release > 0) {
             balanceLedgerService.recordFreezeOnly(session.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
                     release, "PREAUTH_RELEASE", session.getSessionId(),
                     "PREAUTH_RELEASE:" + session.getSessionId() + ":remain",
-                    "开门预授权剩余释放", account.getBalanceCents(), account.getBalanceCents()));
+                    "开门预授权剩余释放", account.getBalanceCents(), account.getBalanceCents(),
+                    null));
         }
         session.setPreauthStatus(STATUS_CAPTURED);
         sessionRepository.save(session);
         markHoldTerminal(sessionId, STATUS_CAPTURED);
         int remain = Math.max(0, orderAmountCents - capture);
-        log.info("preauth captured session={} orderAmount={} capture={} remainDebit={}",
-                session.getSessionId(), orderAmountCents, capture, remain);
-        return remain;
+        // F1-B：锁内预判余额是否够扣差额——不足是业务结果而非异常（异常穿越代理会毒化事务）
+        boolean remainderUnpaid = account.getBalanceCents() < remain;
+        log.info("preauth captured session={} orderAmount={} capture={} remainDebit={} remainderUnpaid={}",
+                session.getSessionId(), orderAmountCents, capture, remain, remainderUnpaid);
+        return new CaptureChargeResult(capture, remain, remainderUnpaid);
     }
 
     /** 按会话号释放预授权（待支付关单等）。 */

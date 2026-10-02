@@ -271,6 +271,20 @@ public class UnpaidOrderService {
     }
 
     private boolean cancelSingleExpiredOrder(CabinetOrder order, int hours, boolean autoBlacklist) {
+        // F1-C：净额>0 的 PENDING 单禁止自动取消——取消=货回库但冲抵款已扣（用户白付），
+        // 必须人工退款处置。转 HIGH 异常，单保持 PENDING。
+        if (orderPaymentService.netCompletedCents(order.getOrderId()) > 0) {
+            opsExceptionService.report(
+                    "UNPAID_CANCEL_NET_BLOCKED",
+                    "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            null, null, order.getOrderId(), order.getUserId()),
+                    "待支付单存在净入账，禁止自动取消",
+                    "订单 " + order.getOrderId() + " 净额 "
+                            + orderPaymentService.netCompletedCents(order.getOrderId())
+                            + " 分 > 0（预授权冲抵保留），自动取消会造成已扣款+已回库；请人工核对后退款处置");
+            return false;
+        }
         CabinetOrder cancelled = runWithOrderPaymentLock(order.getOrderId(), () -> {
             CabinetOrder locked = orderRepository.findByIdForUpdate(order.getOrderId()).orElse(null);
             if (locked == null || !STATUS_PENDING.equals(locked.getStatus())) {
@@ -293,12 +307,18 @@ public class UnpaidOrderService {
 
     private void markPaid(CabinetOrder order, String requestedChannel) {
         hydrate(order);
-        // F1 防回归护栏：PENDING 单理应没有任何已完成支付流水。若净额≠0（如未来预授权冲抵
-        // 意外脱离结算事务独立提交），此处必须响亮失败而不是按全额重复扣款造成用户多付。
+        // F1-C 净额三分支：PENDING 单可能带有预授权冲抵净额（F1 竞态保留），补扣只收差额。
+        // （原护栏按「净额≠0 即 CONFLICT」实现，但 PREAUTH_CAPTURE 行 order_id 曾为 null 使其失明——
+        //   2026-10-02 F1-A 挂单+计入净额后，此处升级为净额三分支。）
         int alreadyPaidCents = orderPaymentService.netCompletedCents(order.getOrderId());
-        if (alreadyPaidCents != 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "订单存在已完成支付流水（净额 " + alreadyPaidCents + " 分），禁止重复补扣");
+        if (alreadyPaidCents >= order.getTotalAmountCents()) {
+            // 冲抵已覆盖全额：直接收口，不再扣款、不再占券
+            order.setStatus("PAID");
+            orderRepository.save(order);
+            revenueSplitService.recordSplit(order);
+            auditService.appendLog(0L, "ORDER_COLLECT_NET_COVERED", ORDER, order.getOrderId(),
+                    "净额 " + alreadyPaidCents + " 分已覆盖应付，直接结单");
+            return;
         }
         // 创建 PENDING 时未占券；补扣时再选最优券后扣款并核销
         CouponService.BestCoupon applied = applyBestCouponForCollect(order);

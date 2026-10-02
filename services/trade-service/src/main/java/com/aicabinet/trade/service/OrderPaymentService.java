@@ -118,7 +118,7 @@ public class OrderPaymentService {
      * <p>渠道由服务端自动决策（用户偏好 → 扫码入口渠道 → 已签约渠道 → 余额兜底）；
      * 自动结算与运营代收走这条。
      */
-    @Transactional
+    @Transactional(noRollbackFor = BalanceInsufficientException.class)
     public void chargeOrder(CabinetOrder order) {
         chargeOrder(order, null);
     }
@@ -130,7 +130,7 @@ public class OrderPaymentService {
      * 即老客户端/老调用方行为不变；非空 ⇒ 只按该渠道扣款、**不降级**
      * （见 {@link #chargeWithSelectedChannel}）。
      */
-    @Transactional
+    @Transactional(noRollbackFor = BalanceInsufficientException.class)
     public void chargeOrder(CabinetOrder order, String requestedChannel) {
         if (order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             order.setPayChannel(PayChannels.BALANCE);
@@ -372,12 +372,24 @@ public class OrderPaymentService {
     }
 
     private void applyBalanceCharge(CabinetOrder order, ShoppingSession session, String idemKey) {
-        int remainDebit = order.getTotalAmountCents();
+        // F1 净额口径：本次应收 = 应付 − 已完成净额（fresh 结算=全额；F1 竞态 PENDING 补扣=冲抵后差额）
+        int chargeAmount = order.getTotalAmountCents() - netCompletedCents(order.getOrderId());
+        if (chargeAmount <= 0) {
+            // 冲抵已覆盖全额（F1 竞态后 collect 场景）：净额已含冲抵，无需再扣
+            return;
+        }
+        int remainDebit = chargeAmount;
         int capturedViaPreauth = 0;
         if (session != null) {
-            int orderAmount = order.getTotalAmountCents();
-            remainDebit = consumerPreauthService.captureForCharge(session, orderAmount);
-            capturedViaPreauth = Math.max(0, orderAmount - remainDebit);
+            var captureResult = consumerPreauthService.captureForCharge(session, chargeAmount, order.getOrderId());
+            remainDebit = captureResult.remainDebitCents();
+            capturedViaPreauth = Math.max(0, chargeAmount - captureResult.capturedCents());
+            // F1-B：锁内预判不足 → 业务信号（BalanceInsufficientException 由 chargeOrder noRollbackFor 放行，
+            // 上层转 PENDING 并保留冲抵；无异常穿越 txTemplate，事务不被毒化）
+            if (captureResult.remainderUnpaid()) {
+                throw new BalanceInsufficientException(
+                        "余额不足，开门预授权冲抵部分（" + capturedViaPreauth + " 分）已保留，差额转待支付");
+            }
         }
         if (capturedViaPreauth > 0 && remainDebit > 0) {
             String preauthChargeKey = "CHARGE:PREAUTH:" + order.getOrderId() + ":" + order.getTotalAmountCents();
@@ -395,7 +407,8 @@ public class OrderPaymentService {
             return;
         }
         if (!isCompleted(idemKey)) {
-            recordOperation(order, CHARGE, order.getTotalAmountCents(), PayChannels.BALANCE, idemKey,
+            // F1 净额口径：CHARGE 行记本次实收（净额），与 PREAUTH_CAPTURE 行合计=应付
+            recordOperation(order, CHARGE, chargeAmount, PayChannels.BALANCE, idemKey,
                     null, "order charge via preauth");
         }
     }

@@ -121,7 +121,9 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
         int net = 0;
         for (PaymentOperation op : findCompletedPaymentOpsByOrderId(orderId)) {
             net += switch (op.getOperationType()) {
-                case "CHARGE", "ADJUST_CHARGE" -> op.getAmountCents();
+                // F1-A：PREAUTH_CAPTURE 行已挂 orderId（冲抵流水），计入净额——
+                // 否则 markPaid 的补扣净额护栏对 F1 竞态单失明（冲抵部分被按全额重复扣）
+                case "CHARGE", "ADJUST_CHARGE", "PREAUTH_CAPTURE" -> op.getAmountCents();
                 case "REFUND" -> -op.getAmountCents();
                 default -> 0;
             };
