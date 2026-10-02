@@ -9,6 +9,7 @@ import com.aicabinet.trade.domain.OpsTwoFactorRecoveryCode;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.OpsTwoFactorRecoveryCodeMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +39,14 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class OpsTwoFactorServiceTest {
+
+    static {
+        // M01：LambdaUpdateWrapper 需要 TableInfo 缓存；单跑本类时无其他测试先行初始化（2026-10-01 全量回归抓出）
+        TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), ""),
+                com.aicabinet.trade.domain.UserInfo.class);
+    }
 
     private static final long OPERATOR_ID = 1900000001L;
     private static final String SECRET = "JBSWY3DPEHPK3PXP";

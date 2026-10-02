@@ -585,6 +585,13 @@ public class DisputeService {
             }
             ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            // 🔴 零资金不变量（结构性守卫）：自动免单仅限「从未扣款」的超时单（天然无订单）。
+            // 会话挂有订单 ⇒ 可能产生真实退款（PAID 单退款走渠道 HTTP）⇒ 一律留人工。
+            // 现状靠 assignee 门控「碰巧」挡住重开单（两条重开路径都不清认领人），此守卫把偶然变必然。
+            if (orderRepository.findBySessionId(ticket.getSessionId()).isPresent()) {
+                log.info("dispute auto-waive skipped (session has order, human only) ticket={}", ticketId);
+                return null;
+            }
             ResolveDisputeResultDto result =
                     resolveWaive(SystemConfigService.SYSTEM_OPERATOR_ID, ticket, session, false);
             ticket.setOperatorNote("AUTO_WAIVE");

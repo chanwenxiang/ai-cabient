@@ -29,6 +29,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
@@ -181,5 +182,49 @@ class DisputeOrderRefundTest {
         assertEquals(SessionState.COMPLETED, session.getState());
         verify(sessionService).transition(session, SessionState.COMPLETED);
         verify(settlementService, never()).waiveAndRefund(any(), anyBoolean());
+    }
+
+    @Test
+    void autoWaiveTicket_skipsWhenSessionHasOrder_zeroMoneyInvariant() {
+        DisputeTicket ticket = new DisputeTicket();
+        ticket.setTicketId("T-AW-1");
+        ticket.setSessionId("S-AW-1");
+        ticket.setStatus("OPEN");
+        ticket.setReason("识别超时，已转人工审核，本次暂未扣款");
+        when(disputeRepository.findByIdForUpdate("T-AW-1")).thenReturn(java.util.Optional.of(ticket));
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-AW-1");
+        when(sessionRepository.findById("S-AW-1")).thenReturn(java.util.Optional.of(session));
+        // 会话挂有订单（哪怕 PENDING/PAID）⇒ 零资金不变量：一律留人工
+        when(orderRepository.findBySessionId("S-AW-1"))
+                .thenReturn(java.util.Optional.of(new CabinetOrder()));
+
+        var result = service.autoWaiveTicket("T-AW-1");
+
+        assertNull(result);
+        assertEquals("OPEN", ticket.getStatus(), "有订单的票不得自动免单");
+        verify(settlementService, never()).waiveAndRefund(any(), org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @Test
+    void autoWaiveTicket_noOrder_waivesAndMarksAutoNote() {
+        DisputeTicket ticket = new DisputeTicket();
+        ticket.setTicketId("T-AW-2");
+        ticket.setSessionId("S-AW-2");
+        ticket.setStatus("OPEN");
+        ticket.setReason("识别超时，已转人工审核，本次暂未扣款");
+        when(disputeRepository.findByIdForUpdate("T-AW-2")).thenReturn(java.util.Optional.of(ticket));
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-AW-2");
+        when(sessionRepository.findById("S-AW-2")).thenReturn(java.util.Optional.of(session));
+        when(orderRepository.findBySessionId("S-AW-2")).thenReturn(java.util.Optional.empty());
+        when(settlementService.waiveAndRefund(any(), org.mockito.ArgumentMatchers.anyBoolean())).thenReturn(0);
+
+        var result = service.autoWaiveTicket("T-AW-2");
+
+        assertNotNull(result);
+        assertEquals("RESOLVED", ticket.getStatus());
+        assertEquals("AUTO_WAIVE", ticket.getOperatorNote());
+        verify(settlementService, times(1)).waiveAndRefund(any(), org.mockito.ArgumentMatchers.eq(false));
     }
 }
