@@ -32,6 +32,8 @@
 | [PRODUCTION.md](PRODUCTION.md) | 生产部署 |
 | [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) | 端侧识别对接（替代已删除的云端 YOLO 文档） |
 | [DEVOPS.md](DEVOPS.md) | 监控 / Sonar / Runner |
+| [ADMIN_QUERY_CONVENTIONS.md](ADMIN_QUERY_CONVENTIONS.md) | 运营后台查询规范（统计类默认当天等约定） |
+| [ADMIN_CRUD_TABLE.md](ADMIN_CRUD_TABLE.md) | CrudTable 统一表格壳（排序/多选/操作列/导入导出） |
 
 ---
 
