@@ -137,11 +137,12 @@ async function main() {
         document.querySelector('[data-testid="transit-overdue-only"]')?.closest('label')
           ?.innerText || ''
     }));
+    // 2026-10-03 在途页去重：transit 不再渲染通用 desc（专属 transit-flow-hint 承载全部语义，避免同屏双提示）
     const whOk =
       wh.tabs.includes('仓间调拨') &&
       wh.tabs.includes('出库单') &&
       wh.tabs.includes('在途') &&
-      /调拨|出库|在途/.test(wh.desc) &&
+      wh.desc === '' &&
       /在途|柜机|补货|回仓/.test(wh.hint) &&
       /仓→柜|在途/.test(wh.pageHint);
     const eWh = await shot(page, '01-warehouse-transit');
