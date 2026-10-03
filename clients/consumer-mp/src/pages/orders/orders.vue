@@ -139,6 +139,28 @@
           <app-button label="扫码购物" @click="goShop" />
         </empty-state>
         <view v-else class="list-inner">
+          <!-- F1-UX：有疑问视图下的无订单争议卡（与关注区同款，点击进争议详情） -->
+          <view
+            v-for="d in issueDisputeEntries"
+            :key="d.ticketId"
+            role="button"
+            class="review-card"
+            :class="'tone-' + reviewCopy(d).tone"
+            @click="goDisputeDetail(d)"
+          >
+            <view class="review-icon">{{ reviewCopy(d).icon }}</view>
+            <view class="review-body">
+              <view class="review-top">
+                <text class="review-title">{{ reviewCopy(d).title }}</text>
+                <text class="chip pending">{{ displayLabel('dispute_status', d.status) }}</text>
+              </view>
+              <text class="review-detail">{{ reviewCopy(d).detail }}</text>
+              <view class="review-foot">
+                <text class="review-time">{{ formatTime(d.createdAt) }}</text>
+                <text class="review-link app-link-chevron">查看详情</text>
+              </view>
+            </view>
+          </view>
           <view
             v-for="o in visibleOrders"
             role="button"
@@ -219,7 +241,7 @@
             </view>
           </view>
           <empty-state
-            v-if="!visibleOrders.length"
+            v-if="!visibleOrders.length && !issueDisputeEntries.length"
             compact
             title="当前筛选暂无订单"
             :hint="
@@ -304,6 +326,13 @@ const reviewingDisputesPreview = computed(() =>
 );
 const reviewingDisputesMore = computed(() =>
   Math.max(0, reviewingDisputes.value.length - REVIEW_PREVIEW_LIMIT)
+);
+/**
+ * F1-UX 修复：无订单争议（开门超时/识别转人工，结算未生成订单）在「有疑问」tab 下
+ * 以会话级卡片全量呈现——此前只引导「可在有疑问筛选查看」，但订单列表里永远为空。
+ */
+const issueDisputeEntries = computed(() =>
+  filter.value === 'issue' ? reviewingDisputes.value : []
 );
 const filters = [
   { label: '全部', value: 'all' as const },
@@ -396,12 +425,15 @@ function matchesFilter(order: OrderSummary, value: OrderStatusFilter) {
   return true;
 }
 function countBy(value: OrderStatusFilter) {
-  return orders.value.filter(
+  const orderCount = orders.value.filter(
     (order) =>
       matchesFilter(order, value) &&
       matchesTimeRange(order.createdAt, timeRange.value) &&
       matchesZeroFilter(order)
   ).length;
+  // F1-UX：「有疑问」计数包含无订单争议卡（与该 tab 实际呈现一致）
+  if (value === 'issue') return orderCount + reviewingDisputes.value.length;
+  return orderCount;
 }
 
 /** Avoid showing partial page counts as if they were globals while more pages remain. */
