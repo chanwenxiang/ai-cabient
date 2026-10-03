@@ -886,8 +886,8 @@ const TAB_DESC: Record<string, string> = {
   inventory: '批次库存：按批次查看各仓现存量与有效期，先进先出发货',
   movements: '库存流水：每笔入库/出库/调拨/盘点的明细账，可对账追溯',
   transfers: '仓间调拨：库存在两个仓库间的调拨，生成调拨单与双向流水',
-  outbounds: '出库单：补货发往柜机的发货单，补货任务关联的出库在这里',
-  transit: '在途：已发往柜机、尚未完成补货签收的货（含到柜超时提醒）'
+  outbounds: '出库单：补货发往柜机的发货单，补货任务关联的出库在这里'
+  // transit 不设通用描述：该 tab 有专属说明条（transit-flow-hint，含签收/上架/不办回仓语义），避免同屏双提示
 };
 const tabDescription = computed(() => TAB_DESC[tab.value] || '');
 
