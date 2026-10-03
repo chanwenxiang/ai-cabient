@@ -86,7 +86,10 @@
 
 1. 运营台/`POST /api/v2/ops/admin/devices/{deviceId}/mqtt-credential` 签发 → **响应里的 secret 只出现一次**，随派工单交现场。
 2. `pwsh scripts/gen-emqx-auth-bootstrap.ps1 -EnvFile .env.production -IncludeDevicesFromDb` 重新生成 bootstrap CSV（含该设备行）。
-3. 重建 emqx 容器（bootstrap 仅启动导入）。
+3. 重建 emqx 容器：**必须 `--force-recreate`，禁止仅 restart**。🔴 实测（2026-10-01 emqx 日志）：
+   内置认证库数据在容器层（compose 无 named volume），restart 保留数据 ⇒ bootstrap 对已存在
+   userid 导入失败（`import_an_exists_userid_into_authentication_database_failed`）且**旧密码继续有效**，
+   轮换静默失效；force-recreate 丢弃容器层数据 ⇒ 全量重导新口令生效。
 4. 现场装机：设备注入 username=deviceId + secret（SharedPreferences）。
 吊销：`DELETE …/mqtt-credential?reason=…` → 重跑步骤 2–3。
 
