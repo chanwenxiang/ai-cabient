@@ -29,7 +29,7 @@
       </view>
 
       <view class="card ops-overview">
-        <view class="ov-item">
+        <view class="ov-item" role="button" @click="onDisputeTap">
           <text class="ov-num warn">{{ openDisputeCount }}</text>
           <text class="ov-label">待审核争议</text>
         </view>
@@ -77,10 +77,21 @@
             <text class="kpi-label">近{{ analyticsDays }}日客单</text>
             <text class="kpi-value">{{ avgOrderToday }}</text>
           </view>
-          <view>
+          <view v-if="canFinanceKpi">
             <text class="kpi-label">在线柜机</text>
             <text class="kpi-value">{{ onlineText }}</text>
           </view>
+          <template v-else>
+            <!-- F1-UX：补货员无 finance 权限时概况卡补离线/停售，避免大卡空旷 -->
+            <view>
+              <text class="kpi-label">离线柜机</text>
+              <text class="kpi-value">{{ offlineCount }}</text>
+            </view>
+            <view>
+              <text class="kpi-label">停售柜机</text>
+              <text class="kpi-value">{{ lockedCount }}</text>
+            </view>
+          </template>
         </view>
         <view v-if="canFinanceKpi && trendBars.length" class="bars">
           <view v-for="b in trendBars" :key="b.date" class="bar-wrap">
@@ -207,9 +218,8 @@
           :title="homeEmptyTitle"
           :hint="homeEmptyHint"
         >
-          <!-- 只保留主路径：另两个按钮（柜机列表 / 查看记录）与同一屏内的 quick-row、
-               本卡片 section-head「全部」跳转目标完全重复，属冗余入口，收敛以压缩空态高度 -->
-          <app-button label="扫码到柜" :loading="scanning" @click="onScan" />
+          <!-- 同屏 scan-card 已有扫码主入口，空态不再重复放大按钮（样式收敛：三入口→一入口） -->
+          <text class="empty-scan-tip" role="button" @click="onScan">点此扫码到柜</text>
         </empty-state>
         <block v-else>
           <view
@@ -350,6 +360,7 @@ const {
   canPricing,
   canSettlements,
   canDisputes,
+  lockedCount,
   canBusiness,
   canFinanceKpi,
   deviceLabel,
@@ -365,6 +376,15 @@ const {
   onScan,
   load
 } = useHomeWorkbench();
+
+/** F1-UX：「无权限=看不见」——争议 KPI 点击按权限分流（补货员走柜机列表处理柜端） */
+function onDisputeTap() {
+  if (canDisputes.value) {
+    goDisputes();
+    return;
+  }
+  uni.switchTab({ url: '/pages/devices/devices' });
+}
 
 onShow(() => {
   refreshPrivacyGate();

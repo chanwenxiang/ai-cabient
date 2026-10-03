@@ -132,7 +132,7 @@
           />
         </view>
 
-        <view v-if="velocity.length" class="card">
+        <view v-if="canAnalytics && velocity.length" class="card">
           <view class="row">
             <text class="section">商品动销 / 补货点</text>
             <text class="meta">近 14 日</text>
@@ -325,9 +325,13 @@ function syncPreferredFlag() {
 }
 
 async function loadDeviceExtras(seq: number) {
+  // 「无权限=不展示」：无 analytics:view 时不发 velocity 请求（避免控制台 403 噪音）
+  const canAnalytics = hasPerm(me.value, 'merchant:analytics:view');
   const [list, vel] = await Promise.all([
     softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[], '货道'),
-    softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
+    canAnalytics
+      ? softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
+      : Promise.resolve([] as MerchantSkuVelocity[])
   ]);
   if (seq !== loadSeq) return;
   slots.value = list;

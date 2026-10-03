@@ -201,3 +201,39 @@ export function summarizeTodoItems(items: TodoListItem[], limit = 3): TodoSummar
 
   return list.slice(0, Math.max(0, limit));
 }
+
+/** 待办四卡归类类型集合（与待办页 KPI 卡一一对应；徽标=四类合计） */
+const TODO_CATEGORY_FAULT = [
+  'DEVICE_OFFLINE',
+  'DEVICE_FAULT',
+  'SALES_LOCKED',
+  'DOOR_OPEN_TOO_LONG',
+  'UPLOAD_STUCK'
+];
+const TODO_CATEGORY_STOCK = [
+  'LOW_STOCK',
+  'SLOT_DISCREPANCY',
+  'INVENTORY_MISMATCH',
+  'REPLENISHMENT',
+  'REPLENISHMENT_REQUIRED'
+];
+
+/**
+ * 四卡归类计数（审核/故障/库存/临期）。
+ * 徽标与页内四卡共用本函数——此前两处各自计数（全量 vs 归类）造成 15 vs 14 漂移。
+ */
+export function countTodoCategories(items: TodoListItem[]): {
+  disputes: number;
+  offline: number;
+  lowStock: number;
+  expiry: number;
+} {
+  const t = (x: string) => String(x || '').toUpperCase();
+  return {
+    disputes: items.filter((i) => t(i.type) === 'DISPUTE' || t(i.type).startsWith('RECOGNITION'))
+      .length,
+    offline: items.filter((i) => TODO_CATEGORY_FAULT.includes(t(i.type))).length,
+    lowStock: items.filter((i) => TODO_CATEGORY_STOCK.includes(t(i.type))).length,
+    expiry: items.filter((i) => t(i.type) === 'EXPIRY').length
+  };
+}

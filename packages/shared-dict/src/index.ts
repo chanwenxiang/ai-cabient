@@ -678,7 +678,13 @@ export const DICT = {
     DEVICE_OFFLINE: '柜机离线',
     DEVICE_FAULT: '柜机故障',
     DISPUTE: '消费争议',
-    SETTLEMENT_FAILED: '结算失败'
+    SETTLEMENT_FAILED: '结算失败',
+    RECOGNITION_FAILED: '识别结果需人工审核',
+    RECOGNITION_TIMEOUT: '识别超时',
+    RECOGNITION_NEEDS_REVIEW: '识别需人工审核',
+    UPLOAD_STUCK: '视频上传滞留',
+    SALES_LOCKED: '柜机停售',
+    DOOR_OPEN_TOO_LONG: '开门超时'
   },
   /** 商品类目：运营在字典管理维护；runtime 为准 */
   category_code: {} as Record<string, string>,

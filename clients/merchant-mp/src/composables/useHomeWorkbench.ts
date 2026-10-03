@@ -22,6 +22,7 @@ import { formatMerchantNames } from '@/utils/merchant-display';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import {
   mergeTodoItems,
+  countTodoCategories,
   summarizeTodoItems,
   type TodoSourceException,
   type TodoSourceExpiry,
@@ -92,6 +93,7 @@ export function useHomeWorkbench() {
   const trendBars = ref<{ date: string; label: string; height: number }[]>([]);
   const pendingCount = ref(0);
   const offlineCount = ref(0);
+  const lockedCount = ref(0);
   const pendingTaskCount = ref(0);
   const actionItems = ref<TodoSummaryItem[]>([]);
   const refundOrders = ref(0);
@@ -319,7 +321,14 @@ export function useHomeWorkbench() {
         })
       : [];
     pendingCount.value = mergedTodos.length;
-    setAlertsTabBadge(pendingCount.value);
+    // 徽标与四卡同源：共享 countTodoCategories（audit/fault/stock/expiry 为 alerts.vue 内联展示值，
+    // 此处以同函数计数，防两处口径漂移——此前徽标=全量、四卡=归类，出现过 15 vs 14）
+    const cat = countTodoCategories(mergedTodos);
+    setAlertsTabBadge(cat.disputes + cat.offline + cat.lowStock + cat.expiry);
+    // F1-UX：概况卡补货员分支需要「停售柜机」数
+    lockedCount.value = mergedTodos.filter(
+      (a) => String(a.type).toUpperCase() === 'SALES_LOCKED'
+    ).length;
     // 按类型聚合再截断：直接 slice 会让同柜机同类工单（如 9 张待审核单）占满首屏，
     // 把柜机离线/库存偏低挤到看不见（详见 utils/todo-list.ts:summarizeTodoItems）
     actionItems.value = canAlerts.value ? summarizeTodoItems(mergedTodos, 3) : [];
@@ -432,6 +441,7 @@ export function useHomeWorkbench() {
     lowStockCount,
     expiryCount,
     offlineCount,
+    lockedCount,
     pendingTaskCount,
     actionItems,
     taskPreview,

@@ -211,6 +211,11 @@ function navigateSettlement(id: string) {
 }
 
 function navigateWallet(_id: string) {
+  // 「无权限=看不见」：无 wallet:view 时入口不渲染，此守卫兜底消息深链直跳
+  if (!hasPerm(me.value, 'merchant:wallet:view')) {
+    showError('当前账号无钱包查看权限');
+    return;
+  }
   uni.navigateTo({ url: '/pages/wallet/wallet' });
 }
 

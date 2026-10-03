@@ -1,16 +1,25 @@
 <template>
   <view class="alerts-page">
     <app-nav-bar title="待办" />
-    <view v-if="preferredId" class="pref-bar">
-      <text>常驻柜优先：{{ preferredId }}</text>
-      <text
-        role="button"
-        class="pref-toggle"
-        :aria-label="onlyPreferred ? '显示全部待办' : '仅看常驻柜待办'"
-        @click="onlyPreferred = !onlyPreferred"
-      >
-        {{ onlyPreferred ? '显示全部' : '仅看常驻' }}
-      </text>
+    <view v-if="deviceChips.length" class="pref-bar">
+      <scroll-view scroll-x class="device-chips" :show-scrollbar="false">
+        <view
+          role="button"
+          class="device-chip"
+          :class="{ active: deviceFilter === '' }"
+          @click="deviceFilter = ''"
+          >全部</view
+        >
+        <view
+          v-for="c in deviceChips"
+          :key="c.deviceId"
+          role="button"
+          class="device-chip"
+          :class="{ active: deviceFilter === c.deviceId }"
+          @click="deviceFilter = c.deviceId"
+          >{{ c.label }}</view
+        >
+      </scroll-view>
     </view>
     <view class="kpi-grid">
       <view class="kpi-card dispute"
@@ -44,7 +53,7 @@
       >
         <text class="tag" :class="tagClass(a.type)">{{ a.typeLabel }}</text>
         <text class="title">{{ a.title }}</text>
-        <text v-if="a.deviceId" class="meta">柜机 {{ a.deviceId }}</text>
+        <text v-if="a.deviceId" class="meta">柜机 {{ deviceLabel(a.deviceId) }}</text>
         <text v-if="a.detail" class="meta">{{ a.detail }}</text>
         <text v-if="a.dueAt" class="meta due" :class="{ overdue: isOverdue(a.dueAt) }">{{
           dueText(a.dueAt)
@@ -125,9 +134,29 @@ const items = ref<
 >([]);
 let loadSeq = 0;
 
+const deviceFilter = ref('');
+const deviceNames = ref<Record<string, string>>({});
+
+const deviceChips = computed(() => {
+  const ids = new Set<string>();
+  for (const a of items.value) {
+    if (a.deviceId) ids.add(a.deviceId);
+  }
+  for (const s of slotDiscrepancies.value) {
+    if (s.deviceId) ids.add(s.deviceId);
+  }
+  return [...ids].map((id) => ({ deviceId: id, label: deviceNames.value[id] || id }));
+});
+
+function deviceLabel(deviceId?: string) {
+  if (!deviceId) return '';
+  return deviceNames.value[deviceId] || deviceId;
+}
+
 const visibleItems = computed(() => {
-  if (!onlyPreferred.value || !preferredId.value) return items.value;
-  return items.value.filter((a) => !a.deviceId || a.deviceId === preferredId.value);
+  // F1-UX：多柜筛选 chips（全部=不筛；选中某柜=仅看该柜与无柜归属条目）
+  if (!deviceFilter.value) return items.value;
+  return items.value.filter((a) => !a.deviceId || a.deviceId === deviceFilter.value);
 });
 
 function isOverdue(dueAt?: string) {
@@ -154,19 +183,32 @@ function severityText(sev?: string) {
 }
 
 function tagClass(type: string) {
-  if (type === 'DISPUTE') return 'dispute';
-  if (type === 'DEVICE_OFFLINE') return 'offline';
-  if (type === 'SALES_LOCKED' || type === 'DEVICE_FAULT') return 'offline';
-  if (type === 'LOW_STOCK') return 'stock';
-  if (type === 'EXPIRY') return 'expiry';
-  if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return 'stock';
+  const t = String(type || '').toUpperCase();
+  if (t === 'DISPUTE' || t.startsWith('RECOGNITION')) return 'dispute';
+  if (
+    t === 'DEVICE_OFFLINE' ||
+    t === 'DEVICE_FAULT' ||
+    t === 'SALES_LOCKED' ||
+    t === 'UPLOAD_STUCK'
+  )
+    return 'offline';
+  if (t === 'DOOR_OPEN_TOO_LONG') return 'offline';
+  if (t === 'LOW_STOCK' || t === 'REPLENISHMENT' || t === 'REPLENISHMENT_REQUIRED') return 'stock';
+  if (t === 'EXPIRY') return 'expiry';
   return 'default';
 }
 
 function actionHint(item: { type: string; deviceId?: string; ticketId?: string }) {
   const type = String(item.type || '').toUpperCase();
-  if (type === 'DISPUTE') return item.ticketId ? '去处理争议' : '查看争议';
-  if (type.startsWith('RECOGNITION')) return item.deviceId ? '查看柜机' : '查看争议';
+  // 「无权限=看不见」：无争议查看权限时入口不出现争议字样（点击走柜机详情）
+  if (type === 'DISPUTE') {
+    if (!hasPerm(me.value, 'merchant:disputes:view')) return item.deviceId ? '查看柜机' : '';
+    return item.ticketId ? '去处理争议' : '查看争议';
+  }
+  if (type.startsWith('RECOGNITION')) {
+    if (!hasPerm(me.value, 'merchant:disputes:view')) return item.deviceId ? '查看柜机' : '';
+    return item.deviceId ? '查看柜机' : '查看争议';
+  }
   if (type === 'EXPIRY') return '去处理临期任务';
   if (type === 'LOW_STOCK') return '去发起要货';
   if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '去补货任务';
@@ -202,7 +244,7 @@ async function load() {
   if (!items.value.length) loading.value = true;
   error.value = '';
   try {
-    const [wb, exceptionPage, expiryRows, slotRows] = await Promise.all([
+    const [wb, exceptionPage, expiryRows, slotRows, deviceRows] = await Promise.all([
       softFallback(
         merchantApi.workbench(),
         {
@@ -228,8 +270,15 @@ async function load() {
         merchantApi.slotDiscrepancies(),
         [] as OpenApiSlotDiscrepancyAlertDto[],
         '货道差异'
-      )
+      ),
+      // F1-UX：柜名映射——待办卡与筛选 chips 显示柜机名称而非 12 位编码
+      softFallback(merchantApi.devices(), [], '柜机列表')
     ]);
+    const nameMap: Record<string, string> = {};
+    for (const d of deviceRows || []) {
+      if (d.deviceId) nameMap[d.deviceId] = d.deviceName || d.deviceId;
+    }
+    deviceNames.value = nameMap;
     if (seq !== loadSeq) return;
     const deduped = mergeTodoItems({
       exceptions: exceptionPage.items || [],
@@ -252,9 +301,14 @@ async function load() {
       (a) => typeOf(a.type) === 'DISPUTE' || typeOf(a.type).startsWith('RECOGNITION')
     ).length;
     const fault = deduped.filter((a) =>
-      ['DEVICE_OFFLINE', 'DEVICE_FAULT', 'SALES_LOCKED', 'DOOR_OPEN_TOO_LONG'].includes(
-        typeOf(a.type)
-      )
+      [
+        'DEVICE_OFFLINE',
+        'DEVICE_FAULT',
+        'SALES_LOCKED',
+        'DOOR_OPEN_TOO_LONG',
+        // F1-UX：视频上传滞留属履约故障——此前未归类导致徽标(全量)与四卡(归类)计数漂移
+        'UPLOAD_STUCK'
+      ].includes(typeOf(a.type))
     ).length;
     const stock = deduped.filter((a) =>
       [
@@ -272,7 +326,8 @@ async function load() {
       lowStock: stock,
       expiry
     };
-    setAlertsTabBadge(deduped.length);
+    // 徽标与页内四卡同源（四类合计）——此前徽标=全量条数，未归类类型会造成 15 vs 14 漂移
+    setAlertsTabBadge(audit + fault + stock + expiry);
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
@@ -288,19 +343,31 @@ function handleItem(item: {
   exceptionId?: string;
 }) {
   const type = String(item.type || '').toUpperCase();
+  const canDisputes = hasPerm(me.value, 'merchant:disputes:view');
   if (type === 'DISPUTE') {
+    // 「无权限=看不见」：无争议权限时改走柜机详情（补货员可处理柜端）
+    if (!canDisputes) {
+      if (item.deviceId) {
+        uni.navigateTo({
+          url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}`
+        });
+      }
+      return;
+    }
     uni.navigateTo({ url: '/pages/disputes/disputes' });
     return;
   }
   if (type.startsWith('RECOGNITION')) {
-    // 识别存疑：有柜机则看柜机详情，否则进争议列表继续处理
+    // 识别存疑：有柜机则看柜机详情；无柜机且有争议权限才进争议列表
     if (item.deviceId) {
       uni.navigateTo({
         url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}`
       });
       return;
     }
-    uni.navigateTo({ url: '/pages/disputes/disputes' });
+    if (canDisputes) {
+      uni.navigateTo({ url: '/pages/disputes/disputes' });
+    }
     return;
   }
   if (type === 'EXPIRY' || type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') {

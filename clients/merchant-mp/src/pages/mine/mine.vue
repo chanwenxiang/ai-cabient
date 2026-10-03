@@ -106,7 +106,7 @@
           <text class="menu-desc">{{ notifyDesc }}</text>
         </view>
         <button
-          v-if="isMpWeixin"
+          v-if="isMpWeixin && subscribeReady"
           class="bind-btn"
           :loading="notifyBusy"
           :disabled="!subscribeReady"
@@ -114,23 +114,25 @@
         >
           {{ wxBound ? '重新绑定' : '开启提醒' }}
         </button>
-        <text v-else class="bind-h5-hint">请在微信小程序中开启</text>
+        <text v-else class="bind-h5-hint">仅微信端可用</text>
       </view>
-      <view v-if="isMpWeixin && !subscribeReady" class="notify-warn"
-        >未配置订阅消息模板，当前仅可保存偏好，无法向微信申请推送授权。</view
-      >
-      <view class="notify-types">
-        <view v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
-          <switch
-            :checked="enabledTypes.includes(t.value)"
-            color="var(--brand)"
-            :aria-label="t.label"
-            @change="(e) => onToggleType(t.value, switchEnabled(e))"
-          />
-          <text>{{ t.label }}</text>
+      <!-- 未配置订阅模板时偏好开关整体不可用，折叠避免占屏（保留标题+说明行） -->
+      <template v-if="subscribeReady">
+        <view class="notify-types">
+          <view v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
+            <switch
+              :checked="enabledTypes.includes(t.value)"
+              color="var(--brand)"
+              :aria-label="t.label"
+              @change="(e) => onToggleType(t.value, switchEnabled(e))"
+            />
+            <text>{{ t.label }}</text>
+          </view>
         </view>
-      </view>
-      <button class="save-btn" :loading="notifyBusy" @click="onSaveSubscribe">保存提醒偏好</button>
+        <button class="save-btn" :loading="notifyBusy" @click="onSaveSubscribe">
+          保存提醒偏好
+        </button>
+      </template>
     </view>
 
     <view v-if="bizNav.length" class="section-label">经营工具</view>
@@ -597,8 +599,7 @@ async function onLogout() {
   font-size: var(--font-size-caption);
   color: var(--text-muted, #64748b);
   line-height: 1.4;
-  max-width: 220rpx;
-  text-align: right;
+  white-space: nowrap;
 }
 .notify-warn {
   margin-bottom: 16rpx;
