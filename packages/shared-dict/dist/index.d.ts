@@ -718,6 +718,12 @@ export declare const DICT: {
         readonly DEVICE_FAULT: "柜机故障";
         readonly DISPUTE: "消费争议";
         readonly SETTLEMENT_FAILED: "结算失败";
+        readonly RECOGNITION_FAILED: "识别结果需人工审核";
+        readonly RECOGNITION_TIMEOUT: "识别超时";
+        readonly RECOGNITION_NEEDS_REVIEW: "识别需人工审核";
+        readonly UPLOAD_STUCK: "视频上传滞留";
+        readonly SALES_LOCKED: "柜机停售";
+        readonly DOOR_OPEN_TOO_LONG: "开门超时";
     };
     /** 商品类目：运营在字典管理维护；runtime 为准 */
     readonly category_code: Record<string, string>;
