@@ -278,7 +278,8 @@ services:
   device-simulator:
     stop_grace_period: 30s
     build: { context: .., dockerfile: edge/device-simulator/Dockerfile }
-    command: ["330449777078", "tcp://emqx:1883"]
+    # 模拟柜号 env 化（milk 教训：禁写死）：默认=前海易购测试柜（营业位），脚本可用 SIM_DEVICE_ID 覆盖
+    command: ["${SIM_DEVICE_ID:-719325384517}", "tcp://emqx:1883"]
     environment:
       MQTT_USERNAME: ${MQTT_DEVICE_USERNAME:-aicabinet-device}
       MQTT_PASSWORD: ${MQTT_DEVICE_PASSWORD:-dev-mqtt-device-pass}
