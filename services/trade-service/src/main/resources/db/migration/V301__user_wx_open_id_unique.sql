@@ -1,4 +1,9 @@
 -- MIGRATION_KIND: backfill
+-- MIGRATION_REVIEWED: yes
+-- TABLES: user_info (~演示数十行；生产按账号规模)
+-- LOCK_RISK: high
+-- ROLLBACK: 不可逆去重；可 DROP INDEX uk_user_wx_open_id
+-- NOTES: 先把重复 wx_open_id 置空再 UNIQUE；不与事务型语句拆 CONCURRENTLY。开发库小表可短锁；生产低峰执行。
 -- 开发者工具 mock 登录共用 mock_openid_10001；补货员号也写了同一 OpenID，
 -- findByWxOpenId 的 selectOne 会 500（expected 1, found 2）。
 WITH ranked AS (
