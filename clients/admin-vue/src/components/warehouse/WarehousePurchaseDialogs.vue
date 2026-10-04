@@ -24,7 +24,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="入库仓库">
-          <el-select v-model="purchaseForm.warehouseId" style="width: 100%">
+          <el-select v-model="purchaseForm.warehouseId" style="width: 100%" placeholder="仅已指定负责人的分仓">
             <el-option
               v-for="item in activeWarehouses"
               :key="item.warehouseId"
@@ -32,6 +32,7 @@
               :value="item.warehouseId"
             />
           </el-select>
+          <div class="form-hint">没有可选仓时，先到仓库概览绑定负责人。</div>
         </el-form-item>
         <el-form-item label="外部单号">
           <el-input
@@ -397,10 +398,10 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 16px;
+.form-hint {
+  margin-top: 6px;
+  font-size: var(--admin-font-size-caption, 12px);
+  color: var(--layout-muted);
 }
 .section-title {
   display: flex;

@@ -4,8 +4,10 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
+import com.aicabinet.trade.mapper.DeviceSlotMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.PullOffTaskMapper;
+import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.springframework.context.annotation.Lazy;
@@ -35,6 +37,7 @@ public class MerchantAnalyticsService {
     private final SalesVelocityService salesVelocityService;
     private final SkuCatalogMapper skuCatalogRepository;
     private final DeviceSkuInventoryMapper inventoryRepository;
+    private final DeviceSlotMapper slotRepository;
     private final InventoryLotService inventoryLotService;
     private final CompetitiveGapService competitiveGapService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
@@ -50,6 +53,7 @@ public class MerchantAnalyticsService {
                                     SalesVelocityService salesVelocityService,
                                     SkuCatalogMapper skuCatalogRepository,
                                     DeviceSkuInventoryMapper inventoryRepository,
+                                    DeviceSlotMapper slotRepository,
                                     InventoryLotService inventoryLotService,
                                     CompetitiveGapService competitiveGapService, @Lazy MerchantAnalyticsService self) {
         this.permissionService = permissionService;
@@ -62,6 +66,7 @@ public class MerchantAnalyticsService {
         this.salesVelocityService = salesVelocityService;
         this.skuCatalogRepository = skuCatalogRepository;
         this.inventoryRepository = inventoryRepository;
+        this.slotRepository = slotRepository;
         this.inventoryLotService = inventoryLotService;
         this.competitiveGapService = competitiveGapService;
         this.self = self;
@@ -69,9 +74,14 @@ public class MerchantAnalyticsService {
 
     @Transactional(readOnly = true)
     public MerchantAnalyticsOverviewDto overview(Long userId, int days) {
+        return overview(userId, days, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MerchantAnalyticsOverviewDto overview(Long userId, int days, String deviceId) {
         requireAnalytics(userId);
         int window = clampDays(days);
-        Set<String> deviceIds = requireScopedDevices(userId);
+        Set<String> deviceIds = resolveDeviceFilter(userId, deviceId);
         if (deviceIds.isEmpty()) {
             return emptyOverview(window);
         }
@@ -87,9 +97,9 @@ public class MerchantAnalyticsService {
         long prevCogs = lineRepository.sumCogsByDeviceIdsBetween(deviceIds, prevStart, since);
         long prevMargin = prevRevenue - prevCogs;
 
-        long orderCount = orderRepository.countByDeviceIdInAndCreatedAtBetween(
+        long orderCount = orderRepository.countBillableByDeviceIdInAndCreatedAtBetween(
                 deviceIds, since, Instant.now().plusSeconds(1));
-        // 与运营台客单口径一致：订单实付合计 / 订单数
+        // 客单 = 剩余实付合计 / 成交单数（零元单不进分母）
         long orderRevenue = orderRepository.sumTotalAmountByDeviceIdInSince(deviceIds, since);
         long avgOrder = orderCount > 0 ? orderRevenue / orderCount : 0;
 
@@ -101,7 +111,13 @@ public class MerchantAnalyticsService {
         long avgUnit = itemQty > 0 ? revenue / itemQty : 0;
 
         StockoutEstimate stockout = estimateStockoutLoss(deviceIds, skuRows, window);
-        List<MerchantSkuSalesDto> topSkus = mapSkuSales(skuRows, 20);
+        Set<String> onCabinet = currentCabinetSkuIds(deviceIds);
+        Map<String, String> catalogNames = catalogDisplayNames(onCabinet);
+        List<MerchantSkuSalesDto> topSkus = mapSkuSales(skuRows, 50).stream()
+                .filter(s -> onCabinet.contains(s.skuId()))
+                .map(s -> overlaySkuName(s, catalogNames))
+                .limit(20)
+                .toList();
 
         return new MerchantAnalyticsOverviewDto(
                 window,
@@ -176,8 +192,14 @@ public class MerchantAnalyticsService {
     /** 销售四表商户子集：商品 / 货柜 / 毛利。 */
     @Transactional(readOnly = true)
     public List<SalesReportRowDto> salesReports(Long userId, String dim, String fromDate, String toDate) {
+        return salesReports(userId, dim, fromDate, toDate, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SalesReportRowDto> salesReports(Long userId, String dim, String fromDate, String toDate,
+                                               String deviceId) {
         requireAnalytics(userId);
-        Set<String> deviceIds = requireScopedDevices(userId);
+        Set<String> deviceIds = resolveDeviceFilter(userId, deviceId);
         return competitiveGapService.salesReportForDevices(deviceIds, dim, fromDate, toDate);
     }
 
@@ -188,9 +210,14 @@ public class MerchantAnalyticsService {
 
     @Transactional(readOnly = true)
     public List<MerchantSkuPerformanceDto> skuPerformance(Long userId, int days) {
+        return skuPerformance(userId, days, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MerchantSkuPerformanceDto> skuPerformance(Long userId, int days, String deviceId) {
         requireAnalytics(userId);
         int window = clampDays(days);
-        Set<String> deviceIds = requireScopedDevices(userId);
+        Set<String> deviceIds = resolveDeviceFilter(userId, deviceId);
         if (deviceIds.isEmpty()) {
             return List.of();
         }
@@ -205,20 +232,26 @@ public class MerchantAnalyticsService {
         Map<String, Boolean> ledgerByDevice = new HashMap<>();
         Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
         for (var inv : inventoryRepository.findByIdDeviceIdIn(deviceIds)) {
-            String deviceId = inv.getId().getDeviceId();
+            String invDeviceId = inv.getId().getDeviceId();
             String skuId = inv.getId().getSkuId();
-            boolean ledger = ledgerByDevice.computeIfAbsent(deviceId, inventoryLotService::deviceUsesLotLedger);
+            boolean ledger = ledgerByDevice.computeIfAbsent(invDeviceId, inventoryLotService::deviceUsesLotLedger);
             int qty = ledger
-                    ? sellableByDevice.computeIfAbsent(deviceId, inventoryLotService::sellableQtyBySku)
+                    ? sellableByDevice.computeIfAbsent(invDeviceId, inventoryLotService::sellableQtyBySku)
                             .getOrDefault(skuId, 0)
                     : inv.getQuantity();
             stock.merge(skuId, (long) qty, Long::sum);
         }
-        Set<String> skuIds = new HashSet<>(stock.keySet());
-        skuIds.addAll(sales.keySet());
-        skuCatalogRepository.findAllById(skuIds).forEach(s -> names.put(s.getSkuId(), s.getSkuName()));
+        Set<String> skuIds = currentCabinetSkuIds(deviceIds);
+        if (skuIds.isEmpty()) {
+            return List.of();
+        }
+        skuCatalogRepository.findAllById(skuIds).forEach(s -> names.put(s.getSkuId(), skuDisplayName(s)));
 
-        List<Long> positiveSales = sales.values().stream().map(v -> v[0]).filter(v -> v > 0).sorted().toList();
+        List<Long> positiveSales = skuIds.stream()
+                .map(id -> sales.getOrDefault(id, new long[3])[0])
+                .filter(v -> v > 0)
+                .sorted()
+                .toList();
         long median = positiveSales.isEmpty() ? 0 : positiveSales.get(positiveSales.size() / 2);
         return skuIds.stream().map(skuId -> {
                     long[] value = sales.getOrDefault(skuId, new long[3]);
@@ -261,6 +294,76 @@ public class MerchantAnalyticsService {
             return Set.of(dev);
         }
         return requireScopedDevices(userId);
+    }
+
+    /**
+     * 当前柜在售商品：库存>0 或已绑启用货道。历史成交但已下架的 SKU 不进商品分析。
+     */
+    Set<String> currentCabinetSkuIds(Set<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> skuIds = new HashSet<>();
+        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
+        for (var inv : inventoryRepository.findByIdDeviceIdIn(deviceIds)) {
+            if (inv.getId() == null || inv.getId().getSkuId() == null) {
+                continue;
+            }
+            String invDeviceId = inv.getId().getDeviceId();
+            String skuId = inv.getId().getSkuId();
+            boolean ledger = ledgerByDevice.computeIfAbsent(invDeviceId, inventoryLotService::deviceUsesLotLedger);
+            int qty = ledger
+                    ? sellableByDevice.computeIfAbsent(invDeviceId, inventoryLotService::sellableQtyBySku)
+                            .getOrDefault(skuId, 0)
+                    : inv.getQuantity();
+            if (qty > 0) {
+                skuIds.add(skuId);
+            }
+        }
+        for (var slot : slotRepository.listByDeviceIds(deviceIds)) {
+            if (!slot.isEnabled()) {
+                continue;
+            }
+            String skuId = slot.getAssignedSkuId();
+            if (skuId != null && !skuId.isBlank()) {
+                skuIds.add(skuId.trim());
+            }
+        }
+        return skuIds;
+    }
+
+    private Map<String, String> catalogDisplayNames(Set<String> skuIds) {
+        if (skuIds == null || skuIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> names = new HashMap<>();
+        skuCatalogRepository.findAllById(skuIds).forEach(s -> names.put(s.getSkuId(), skuDisplayName(s)));
+        return names;
+    }
+
+    static String skuDisplayName(SkuCatalog sku) {
+        if (sku == null) {
+            return "";
+        }
+        String name = sku.getSkuName() == null ? "" : sku.getSkuName().trim();
+        String spec = sku.getSpec() == null ? "" : sku.getSpec().trim();
+        if (name.isEmpty()) {
+            return spec.isEmpty() ? String.valueOf(sku.getSkuId()) : spec;
+        }
+        if (spec.isEmpty() || name.contains(spec)) {
+            return name;
+        }
+        return name + " " + spec;
+    }
+
+    private static MerchantSkuSalesDto overlaySkuName(MerchantSkuSalesDto row, Map<String, String> catalogNames) {
+        String name = catalogNames.get(row.skuId());
+        if (name == null || name.isBlank()) {
+            return row;
+        }
+        return new MerchantSkuSalesDto(
+                row.skuId(), name, row.qtySold(), row.revenueCents(), row.cogsCents(), row.grossMarginCents());
     }
 
     private static int clampDays(int days) {

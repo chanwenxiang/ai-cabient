@@ -808,7 +808,7 @@ public class PaymentService {
         op.setIdempotencyKey(idempotencyKey);
         op.setGatewayTradeNo(gatewayTradeNo);
         String base = reasonOrDefault(reason);
-        String withRechargeId = base.contains(order.getOrderId()) ? base : (base + " #" + order.getOrderId());
+        String withRechargeId = base.contains(order.getOrderId()) ? base : (base + " " + order.getOrderId());
         op.setReason(withRechargeId.length() > 128 ? withRechargeId.substring(0, 128) : withRechargeId);
         paymentOperationRepository.save(op);
     }

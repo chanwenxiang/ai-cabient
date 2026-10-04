@@ -71,6 +71,12 @@ public final class ApiMessages {
     public static final String WAREHOUSE_OUTBOUND_CANCEL_BLOCKED =
             "出库单已有签收/部分签收记录，不能整单作废回仓";
     public static final String REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT = "仓库可用库存不足，未生成出库明细";
+    public static final String REPLENISHMENT_HOME_WAREHOUSE_REQUIRED = "请先给柜机指定所属仓库，不能从无主默认仓出库";
+    public static final String REPLENISHMENT_HOME_WAREHOUSE_MIXED = "同一路线的柜机必须归属同一仓库";
+    public static final String REPLENISHMENT_WAREHOUSE_UNMANAGED = "该仓库未指定负责人，不能作为日常出库仓";
+    /** 补货员侧采购：当前账号不是任何 ACTIVE 分仓负责人 */
+    public static final String SATELLITE_WAREHOUSE_REQUIRED = "没有已指定您为负责人的分仓，请先在仓库概览绑定后再采购入库";
+    public static final String SATELLITE_WAREHOUSE_MISMATCH = "只能向本人负责的分仓采购";
     /** %1$d=实际距离米；%2$d=系统允许上限米（replenishment.check_in.max_distance_m） */
     public static final String REPLENISHMENT_CHECK_IN_TOO_FAR =
             "签到位置距柜机约 %d 米，超出 %d 米范围，请到柜前再签到";
@@ -136,9 +142,10 @@ public final class ApiMessages {
 
     // 商品/运营
     public static final String SKU_NOT_FOUND = "商品不存在";
-    public static final String SKU_EXISTS = "商品编号已存在";
+    public static final String SKU_EXISTS = "SKU ID 已存在";
+    public static final String SKU_ID_NUMERIC = "SKU ID 须为纯数字";
     public static final String SKU_BARCODE_EXISTS = "条码已存在，请勿重复录入";
-    public static final String SKU_NAME_EXISTS = "商品名称已存在，请勿重复录入";
+    public static final String SKU_NAME_EXISTS = "同一名称+规格已存在，请勿重复录入";
     public static final String DEVICE_EXISTS = "设备编号已存在";
     public static final String ROLE_NOT_FOUND = "角色不存在";
     public static final String NOT_OPERATOR_ACCOUNT = "不是运营账号";

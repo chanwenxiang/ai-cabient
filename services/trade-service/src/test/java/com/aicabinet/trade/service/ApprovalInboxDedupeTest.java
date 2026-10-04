@@ -47,7 +47,7 @@ class ApprovalInboxDedupeTest {
         service = new ApprovalWorkflowService(
                 definitionRepository, nodeRepository, instanceRepository, taskRepository,
                 permissionRepository, userDepartmentRepository, notificationService,
-                permissionService, auditService, null);
+                permissionService, auditService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -105,7 +105,8 @@ class ApprovalInboxDedupeTest {
         assertEquals(1, inbox.recentMessages().size());
         assertEquals(3L, inbox.recentMessages().get(0).id());
         assertEquals(1L, inbox.unreadMessageCount());
-        assertTrue(inbox.pendingTasks().get(0).title().contains("#40"));
+        assertTrue(inbox.pendingTasks().get(0).title().contains("40"));
+        assertTrue(!inbox.pendingTasks().get(0).title().contains("#"));
         assertEquals(0, inbox.historyItems().size());
     }
 

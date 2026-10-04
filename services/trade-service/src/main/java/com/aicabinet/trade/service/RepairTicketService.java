@@ -295,9 +295,9 @@ public class RepairTicketService {
                     "repair-done#" + ticket.getTicketId(), true);
         }
         opsExceptionService.resolveSystem("DEVICE_FAULT", ticket.getDeviceId(),
-                "维修工单 #" + ticket.getTicketId() + " 完成并解锁");
+                "维修工单 " + ticket.getTicketId() + " 完成并解锁");
         opsExceptionService.resolveSystem("DEVICE_OFFLINE", ticket.getDeviceId(),
-                "维修工单 #" + ticket.getTicketId() + " 完成");
+                "维修工单 " + ticket.getTicketId() + " 完成");
     }
 
     /** 同设备是否还存在本工单之外的未完结维修工单。 */

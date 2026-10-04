@@ -9,6 +9,7 @@ import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.aicabinet.trade.storage.MinioVideoService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -71,6 +72,7 @@ public class MerchantPortalService {
     private final MerchantInventoryPortalService inventoryPortalService;
     private final MerchantTeamAdminService teamAdminService;
     private final SystemConfigService systemConfigService;
+    private final MinioVideoService minioVideoService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantPortalService self;
 
@@ -112,6 +114,7 @@ public class MerchantPortalService {
                                  MerchantInventoryPortalService inventoryPortalService,
                                  MerchantTeamAdminService teamAdminService,
                                  SystemConfigService systemConfigService,
+                                 MinioVideoService minioVideoService,
                                  @Lazy MerchantPortalService self) {
         this.merchantFinanceService = merchantFinanceService;
         this.competitiveGapService = competitiveGapService;
@@ -151,6 +154,7 @@ public class MerchantPortalService {
         this.inventoryPortalService = inventoryPortalService;
         this.teamAdminService = teamAdminService;
         this.systemConfigService = systemConfigService;
+        this.minioVideoService = minioVideoService;
         this.self = self;
     }
 
@@ -268,7 +272,7 @@ public class MerchantPortalService {
     @Transactional(readOnly = true)
     public PageResult<OrderReadModel> listOrders(Long userId, int page, int size, String deviceId) {
         return merchantFinanceService.listOrders(userId, new MerchantFinanceService.MerchantOrderListQuery(
-                page, size, deviceId, null, null, null, null));
+                page, size, deviceId, null, null, null, null, false));
     }
 
     @Transactional(readOnly = true)
@@ -462,33 +466,10 @@ public class MerchantPortalService {
         String deviceId = session != null ? session.getDeviceId() : null;
         String orderId = session != null ? session.getOrderId() : null;
         Integer billedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .map(o -> {
-                    int original = Math.max(0, o.getOriginalAmountCents());
-                    if (original > 0) {
-                        return original;
-                    }
-                    int total = Math.max(0, o.getTotalAmountCents());
-                    int refunded = Math.max(0, o.getRefundedCents());
-                    if (total <= 0 && refunded > 0) {
-                        return refunded;
-                    }
-                    return total > 0 ? total : null;
-                })
+                .map(disputeService::resolveBilledAmountCents)
                 .orElse(null);
         Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .map(o -> {
-                    int r = Math.max(0, o.getRefundedCents());
-                    if (r > 0) {
-                        return r;
-                    }
-                    if ("REFUNDED".equals(o.getStatus())) {
-                        int original = Math.max(0, o.getOriginalAmountCents());
-                        int total = Math.max(0, o.getTotalAmountCents());
-                        int amount = original > 0 ? original : total;
-                        return amount > 0 ? amount : null;
-                    }
-                    return null;
-                })
+                .map(disputeService::resolveRefundedAmountCents)
                 .orElse(null);
         Integer claimedAmountCents = disputeService.resolveClaimedAmountCents(ticket);
         Instant now = Instant.now();
@@ -508,8 +489,20 @@ public class MerchantPortalService {
                 refundedAmountCents,
                 session != null ? session.getDeviceName() : null,
                 claimedAmountCents,
-                session != null && session.getVideoUri() != null && !session.getVideoUri().isBlank()
+                sessionHasPlayableVideo(session)
         );
+    }
+
+    /** 列表「有录像」必须对象真实存在，会话里写了 videoUri 但 MinIO 404 不算。 */
+    private boolean sessionHasPlayableVideo(ShoppingSession session) {
+        if (session == null || minioVideoService == null) {
+            return false;
+        }
+        String uri = session.getVideoUri();
+        if (uri == null || uri.isBlank()) {
+            return false;
+        }
+        return minioVideoService.objectExists(uri);
     }
 
     private String sessionDeviceId(String sessionId) {

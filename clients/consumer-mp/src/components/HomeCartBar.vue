@@ -4,7 +4,7 @@
     shopping = 会话活跃且处于 SHOPPING 态（原模板内联判断收敛为 prop）；
     动作（开购物车/清空/关门结算/刷新/求助/再次开门）全部上抛，编排仍归首页。
   -->
-  <view class="cart-bar">
+  <view class="cart-bar" :class="{ 'cart-bar--above-tab': aboveTabBar }">
     <template v-if="shopping">
       <view
         role="button"
@@ -13,7 +13,12 @@
         @click="$emit('openCart')"
       >
         <view class="cart-icon-wrap">
-          <image class="cart-icon" src="/static/icon-cart.svg" mode="aspectFit" />
+          <image
+            class="cart-icon"
+            src="/static/icon-cart.svg"
+            mode="aspectFit"
+            style="width: 40rpx; height: 40rpx"
+          />
           <text class="cart-badge">{{ cartBadgeText }}</text>
         </view>
         <view class="cart-shop-text">
@@ -80,9 +85,12 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+withDefaults(
+  defineProps<{
   shopping: boolean;
   mockEnabled: boolean;
+  /** 贴在原生 tabBar 上方时不要再垫 safe-area，否则会多出一条空白 */
+  aboveTabBar?: boolean;
   sessionActive: boolean;
   canReopen: boolean;
   opening: boolean;
@@ -96,7 +104,9 @@ defineProps<{
   cartBarSub: string;
   cartBarAction: string;
   stateTone: string;
-}>();
+  }>(),
+  { aboveTabBar: false }
+);
 
 const emit = defineEmits<{
   openCart: [];
@@ -106,6 +116,13 @@ const emit = defineEmits<{
   needHelp: [];
   reopen: [];
 }>();
+</script>
+
+<script lang="ts">
+export default {
+  name: 'HomeCartBar',
+  options: { virtualHost: true, styleIsolation: 'apply-shared' }
+};
 </script>
 
 <style scoped>
@@ -124,6 +141,10 @@ const emit = defineEmits<{
   gap: 20rpx;
   border-top: 0;
   box-shadow: 0 -10rpx 32rpx rgba(15, 23, 42, 0.08);
+}
+.cart-bar--above-tab {
+  /* tabBar 已含底部安全区，这里只留按钮内边距 */
+  padding-bottom: 12rpx;
 }
 .cart-info {
   flex: 1;

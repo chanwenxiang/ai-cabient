@@ -228,6 +228,17 @@ public class OpsWarehouseController {
         return ApiResponse.ok(warehouseAdminService.warehouseMovementsPage(operatorId(request), warehouseId, q, page, size));
     }
 
+    /** 分仓月结一张表：应有/实盘/上柜件数，与结算 GMV 分开。 */
+    @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/warehouse/monthly-close")
+    public ApiResponse<WarehouseMonthlyCloseDto> warehouseMonthlyClose(
+            HttpServletRequest request,
+            @RequestParam String warehouseId,
+            @RequestParam(required = false) String yearMonth) {
+        return ApiResponse.ok(warehouseAdminService.warehouseMonthlyClose(
+                operatorId(request), warehouseId, yearMonth));
+    }
+
     @RequiresPermissions(value = {"ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping("/warehouse/inbound")
     public ApiResponse<WarehouseInboundRequest> warehouseInbound(

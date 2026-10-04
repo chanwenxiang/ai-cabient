@@ -64,6 +64,10 @@
             </span>
           </div>
           <div class="info-item">
+            <span class="info-label">所属仓库</span>
+            <span class="info-value">{{ homeWarehouseLabel }}</span>
+          </div>
+          <div class="info-item">
             <span class="info-label">经纬度</span>
             <span class="info-value cell-id">{{
               asset.latitude != null && asset.longitude != null
@@ -341,6 +345,7 @@
       :bind-merchant-id="bindMerchantId"
       :bind-merchants-loading="bindMerchantsLoading"
       :bind-merchant-options="bindMerchantOptions"
+      :warehouse-options="warehouseOptions"
       :lifecycle-label="lifecycleLabel"
       :can-lifecycle="canLifecycle"
       :lifecycle-disabled-reason="lifecycleDisabledReason"
@@ -594,6 +599,7 @@ interface DeviceRow {
   refundPolicy?: string | null;
   /** 已解析的生效策略 */
   effectiveRefundPolicy?: string;
+  homeWarehouseId?: string | null;
 }
 
 interface LifecycleEventRow {
@@ -721,8 +727,16 @@ const {
   cmdLoading,
   loadDetail: () => loadDetail()
 });
-const { asset, assetSaving, geoConfigured, fillAsset, loadAsset, saveAsset, loadGeoStatus } =
-  useDeviceAsset({
+const {
+  asset,
+  assetSaving,
+  geoConfigured,
+  fillAsset,
+  loadAsset,
+  saveAsset,
+  loadGeoStatus,
+  warehouseOptions
+} = useDeviceAsset({
     deviceId,
     canEditDevice,
     onDeviceSynced: (row) => {
@@ -732,10 +746,17 @@ const { asset, assetSaving, geoConfigured, fillAsset, loadAsset, saveAsset, load
         merchantId: row.merchantId || device.value.merchantId,
         merchantName: row.merchantName || device.value.merchantName,
         deviceName: row.deviceName || device.value.deviceName,
-        onlineStatus: row.onlineStatus || device.value.onlineStatus
+        onlineStatus: row.onlineStatus || device.value.onlineStatus,
+        homeWarehouseId: row.homeWarehouseId ?? device.value.homeWarehouseId
       };
     }
   });
+const homeWarehouseLabel = computed(() => {
+  const id = asset.homeWarehouseId || device.value?.homeWarehouseId;
+  if (!id) return '未归线';
+  const w = warehouseOptions.value.find((item) => item.warehouseId === id);
+  return w ? `${w.warehouseName || w.warehouseId}` : id;
+});
 const canRegenerateDeviceId = computed(
   () =>
     canEditDevice.value &&

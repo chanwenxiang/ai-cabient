@@ -86,8 +86,18 @@ export function applyAdjustDraftQty(line: RequestDraftLine, delta: number): void
 export function canGoReplenishFromRequest(req: {
   status?: string | null;
   replenishmentTaskId?: number | null;
+  outboundId?: number | string | null;
 }): boolean {
-  return req.status === 'ACCEPTED' && !!req.replenishmentTaskId;
+  return req.status === 'ACCEPTED' && !!req.replenishmentTaskId && !!req.outboundId;
+}
+
+/** 已接单且已有任务，但仓库尚未出库。 */
+export function isAwaitingWarehouseStock(req: {
+  status?: string | null;
+  replenishmentTaskId?: number | null;
+  outboundId?: number | string | null;
+}): boolean {
+  return req.status === 'ACCEPTED' && !!req.replenishmentTaskId && !req.outboundId;
 }
 
 export function requestActionErrorMessage(e: unknown, fallback: string): string {

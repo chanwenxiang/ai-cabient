@@ -19,4 +19,17 @@ public interface WarehouseMapper extends BaseTradeMapper<Warehouse> {
         }
         return selectPage(new Page<>(page + 1L, size), query);
     }
+
+    /** 负责人名下第一家启用仓（分仓日常采购默认入库）。 */
+    default java.util.Optional<Warehouse> findFirstActiveByManagerUserId(Long managerUserId) {
+        if (managerUserId == null) {
+            return java.util.Optional.empty();
+        }
+        Warehouse row = selectOne(Wrappers.<Warehouse>lambdaQuery()
+                .eq(Warehouse::getManagerUserId, managerUserId)
+                .eq(Warehouse::getStatus, "ACTIVE")
+                .orderByAsc(Warehouse::getWarehouseId)
+                .last("LIMIT 1"));
+        return java.util.Optional.ofNullable(row);
+    }
 }

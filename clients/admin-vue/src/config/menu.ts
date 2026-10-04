@@ -218,7 +218,7 @@ const BASE_NAV: NavItem[] = [
     title: '库存与盘点',
     group: '仓储',
     perm: 'ops:warehouse:list',
-    keywords: ['库存', '批次', '盘点', '流水', 'stock']
+    keywords: ['库存', '批次', '盘点', '流水', '月结', 'stock']
   },
   {
     path: '/warehouse/fulfillment',

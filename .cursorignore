@@ -1,0 +1,52 @@
+# Cursor 索引 / @引用 / Tab 补全：生成物与大体积产物不进上下文
+# 与 files.watcherExclude 配套；改完请 Reload Window
+
+# 依赖与包管理缓存（本仓根下误放的 pnpm store 约 3 万文件）
+node_modules/
+**/node_modules/
+.pnpm-store/
+**/.pnpm-store/
+
+# 构建产物
+**/dist/
+**/target/
+**/build/
+**/.gradle/
+**/*.tsbuildinfo
+
+# 后台静态包（由 build-admin 生成）
+services/trade-service/src/main/resources/static/admin/assets/
+
+# 浏览器/Agent 会话垃圾
+.playwright-mcp/
+**/.playwright-mcp/
+.playwright-cli/
+**/test-results/
+**/playwright-report/
+.tmp/
+.tmp-*/
+.ui-verification/
+
+# UAT 截图/压测（三百多 MB，不当源码索引）
+docs/uat-screenshots/
+docs/evidence/**/*.zip
+docs/archive/
+
+# 本地记忆 / IDE
+.workbuddy/
+.idea/
+.scannerwork/
+.venv/
+**/__pycache__/
+
+# Git 对象库
+.git/objects/
+.git/lfs/
+
+# 日志与临时
+*.log
+*.jtl
+*.lck
+*.pt
+vision-service/runs/
+vision-service/cache/

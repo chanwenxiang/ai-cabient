@@ -38,7 +38,11 @@ public class MerchantAiInsightService {
     }
 
     public MerchantAiInsightDto insight(Long userId, int days) {
-        List<MerchantSkuPerformanceDto> rows = analyticsService.skuPerformance(userId, days);
+        return insight(userId, days, null);
+    }
+
+    public MerchantAiInsightDto insight(Long userId, int days, String deviceId) {
+        List<MerchantSkuPerformanceDto> rows = analyticsService.skuPerformance(userId, days, deviceId);
         String fallback = ruleInsight(rows);
         if (!enabled || rows.isEmpty()) {
             return new MerchantAiInsightDto("RULE", null, fallback, Instant.now(), rows);

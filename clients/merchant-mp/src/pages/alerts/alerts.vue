@@ -1,43 +1,61 @@
 <template>
   <view class="alerts-page">
-    <app-nav-bar title="待办" />
-    <view v-if="deviceChips.length" class="pref-bar">
-      <scroll-view scroll-x class="device-chips" :show-scrollbar="false">
-        <view
-          role="button"
-          class="device-chip"
-          :class="{ active: deviceFilter === '' }"
-          @click="deviceFilter = ''"
-          >全部</view
-        >
-        <view
-          v-for="c in deviceChips"
-          :key="c.deviceId"
-          role="button"
-          class="device-chip"
-          :class="{ active: deviceFilter === c.deviceId }"
-          @click="deviceFilter = c.deviceId"
-          >{{ c.label }}</view
-        >
-      </scroll-view>
+    <view class="nav-place" :style="navPlaceStyle">
+      <app-nav-bar title="待办" home-url="/pages/home/home" />
+    </view>
+    <view v-if="deviceChips.length" class="device-tab-bar">
+      <app-underline-tabs
+        :items="deviceTabItems"
+        :value="deviceFilter"
+        layout="scroll"
+        @change="setAlertDeviceFilter"
+      />
     </view>
     <view class="kpi-grid">
-      <view class="kpi-card dispute"
-        ><text class="n">{{ counts.disputes }}</text
-        ><text class="l">审核</text></view
+      <view
+        role="button"
+        class="kpi-card dispute"
+        :class="{ active: categoryFilter === 'dispute' }"
+        hover-class="kpi-card-hover"
+        aria-label="审核待办"
+        @click="toggleKpi('dispute')"
       >
-      <view class="kpi-card offline"
-        ><text class="n">{{ counts.offline }}</text
-        ><text class="l">故障</text></view
+        <text class="n">{{ counts.disputes }}</text>
+        <text class="l">审核</text>
+      </view>
+      <view
+        role="button"
+        class="kpi-card offline"
+        :class="{ active: categoryFilter === 'offline' }"
+        hover-class="kpi-card-hover"
+        aria-label="故障待办"
+        @click="toggleKpi('offline')"
       >
-      <view class="kpi-card stock"
-        ><text class="n">{{ counts.lowStock }}</text
-        ><text class="l">库存</text></view
+        <text class="n">{{ counts.offline }}</text>
+        <text class="l">故障</text>
+      </view>
+      <view
+        role="button"
+        class="kpi-card stock"
+        :class="{ active: categoryFilter === 'stock' }"
+        hover-class="kpi-card-hover"
+        aria-label="库存待办"
+        @click="toggleKpi('stock')"
       >
-      <view class="kpi-card expiry"
-        ><text class="n">{{ counts.expiry }}</text
-        ><text class="l">临期</text></view
+        <text class="n">{{ counts.lowStock }}</text>
+        <text class="l">库存</text>
+      </view>
+      <view
+        role="button"
+        class="kpi-card expiry"
+        :class="{ active: categoryFilter === 'expiry' }"
+        hover-class="kpi-card-hover"
+        aria-label="临期待办"
+        @click="toggleKpi('expiry')"
       >
+        <text class="n">{{ counts.expiry }}</text>
+        <text class="l">临期</text>
+      </view>
     </view>
 
     <view v-if="loading && !items.length" class="card">{{ UI_COPY.loading }}</view>
@@ -52,9 +70,9 @@
         @click="handleItem(a)"
       >
         <text class="tag" :class="tagClass(a.type)">{{ a.typeLabel }}</text>
-        <text class="title">{{ a.title }}</text>
+        <text class="title">{{ sanitizeNotifyTitle(a.title) }}</text>
         <text v-if="a.deviceId" class="meta">柜机 {{ deviceLabel(a.deviceId) }}</text>
-        <text v-if="a.detail" class="meta">{{ a.detail }}</text>
+        <text v-if="a.detail" class="meta">{{ sanitizeNotifyTitle(a.detail) }}</text>
         <text v-if="a.dueAt" class="meta due" :class="{ overdue: isOverdue(a.dueAt) }">{{
           dueText(a.dueAt)
         }}</text>
@@ -72,15 +90,24 @@
         v-if="!visibleItems.length"
         kind="alerts"
         icon="/static/menu/check-circle.png"
-        title="暂无待办事项"
-        hint="争议、离线、低库存与临期告警都会集中显示在这里"
+        :title="categoryFilter ? '该类暂无待办' : '暂无待办事项'"
+        :hint="
+          categoryFilter
+            ? '再点上方卡片可取消筛选'
+            : '争议、离线、低库存与临期告警都会集中显示在这里'
+        "
       >
-        <app-button label="查看柜机" @click="goDevices" />
+        <app-button
+          v-if="categoryFilter"
+          label="查看全部"
+          @click="categoryFilter = ''"
+        />
+        <app-button v-else label="查看柜机" @click="goDevices" />
       </empty-state>
 
-      <view v-if="slotDiscrepancies.length" class="card section-card">
+      <view v-if="visibleSlotDiscrepancies.length" class="card section-card">
         <text class="section-title">货道差异（账实不符）</text>
-        <view v-for="(s, i) in slotDiscrepancies" :key="i" class="slot-row">
+        <view v-for="(s, i) in visibleSlotDiscrepancies" :key="i" class="slot-row">
           <view class="slot-main">
             <text class="slot-name">{{ s.deviceName || s.deviceId }} · {{ s.slotCode }}</text>
             <text class="slot-sku">{{ s.assignedSkuName || s.assignedSkuId || '未绑定商品' }}</text>
@@ -105,10 +132,18 @@ import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { promptText } from '@/utils/text-prompt';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
-import { mergeTodoItems } from '@/utils/todo-list';
+import {
+  countTodoCategories,
+  matchTodoKpiCategory,
+  mergeTodoItems,
+  type TodoKpiKey
+} from '@/utils/todo-list';
 import type { MerchantMe, OpenApiSlotDiscrepancyAlertDto } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import { sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
+import { getCustomNavPlaceStyle } from '@aicabinet/shared-uni/status-bar';
 
+const navPlaceStyle = getCustomNavPlaceStyle();
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
 const canResolveInventory = computed(() => hasPerm(me.value, 'merchant:inventory:view'));
@@ -117,24 +152,24 @@ const loading = ref(true);
 const error = ref('');
 const preferredId = ref('');
 const onlyPreferred = ref(false);
-const counts = ref({ disputes: 0, offline: 0, lowStock: 0, expiry: 0 });
 const slotDiscrepancies = ref<OpenApiSlotDiscrepancyAlertDto[]>([]);
-const items = ref<
-  {
-    type: string;
-    typeLabel: string;
-    title: string;
-    detail: string;
-    deviceId?: string;
-    ticketId?: string;
-    exceptionId?: string;
-    dueAt?: string;
-    severity?: string;
-  }[]
->([]);
+type AlertRow = {
+  type: string;
+  typeLabel: string;
+  title: string;
+  detail: string;
+  deviceId?: string;
+  ticketId?: string;
+  exceptionId?: string;
+  dueAt?: string;
+  severity?: string;
+};
+const items = ref<AlertRow[]>([]);
 let loadSeq = 0;
 
 const deviceFilter = ref('');
+/** 点四卡筛下方列表；再点同一卡取消 */
+const categoryFilter = ref<TodoKpiKey | ''>('');
 const deviceNames = ref<Record<string, string>>({});
 
 const deviceChips = computed(() => {
@@ -148,16 +183,44 @@ const deviceChips = computed(() => {
   return [...ids].map((id) => ({ deviceId: id, label: deviceNames.value[id] || id }));
 });
 
+const deviceTabItems = computed(() => [
+  { key: '', label: '全部' },
+  ...deviceChips.value.map((c) => ({ key: c.deviceId, label: c.label }))
+]);
+
+function setAlertDeviceFilter(key: string) {
+  deviceFilter.value = key;
+}
+
 function deviceLabel(deviceId?: string) {
   if (!deviceId) return '';
   return deviceNames.value[deviceId] || deviceId;
 }
 
+function matchDeviceFilter(deviceId?: string) {
+  // 全部：不过滤；选中某柜：只计该柜（无柜归属只出现在「全部」，避免切换 chip 数字不动）
+  if (!deviceFilter.value) return true;
+  return !!deviceId && deviceId === deviceFilter.value;
+}
+
+const deviceFilteredItems = computed(() =>
+  items.value.filter((a) => matchDeviceFilter(a.deviceId))
+);
+
 const visibleItems = computed(() => {
-  // F1-UX：多柜筛选 chips（全部=不筛；选中某柜=仅看该柜与无柜归属条目）
-  if (!deviceFilter.value) return items.value;
-  return items.value.filter((a) => !a.deviceId || a.deviceId === deviceFilter.value);
+  const rows = deviceFilteredItems.value;
+  if (!categoryFilter.value) return rows;
+  return rows.filter((a) => matchTodoKpiCategory(a.type, categoryFilter.value as TodoKpiKey));
 });
+
+const visibleSlotDiscrepancies = computed(() => {
+  // 货道差异归库存类；选了其它四卡时隐藏
+  if (categoryFilter.value && categoryFilter.value !== 'stock') return [];
+  return slotDiscrepancies.value.filter((s) => matchDeviceFilter(s.deviceId));
+});
+
+/** 四卡数字只跟柜机 chip，不跟类别筛选（避免点卡后其它卡变 0） */
+const counts = computed(() => countTodoCategories(deviceFilteredItems.value));
 
 function isOverdue(dueAt?: string) {
   if (!dueAt) return false;
@@ -296,38 +359,9 @@ async function load() {
     });
     items.value = deduped;
     slotDiscrepancies.value = slotRows || [];
-    const typeOf = (t: string) => String(t || '').toUpperCase();
-    const audit = deduped.filter(
-      (a) => typeOf(a.type) === 'DISPUTE' || typeOf(a.type).startsWith('RECOGNITION')
-    ).length;
-    const fault = deduped.filter((a) =>
-      [
-        'DEVICE_OFFLINE',
-        'DEVICE_FAULT',
-        'SALES_LOCKED',
-        'DOOR_OPEN_TOO_LONG',
-        // F1-UX：视频上传滞留属履约故障——此前未归类导致徽标(全量)与四卡(归类)计数漂移
-        'UPLOAD_STUCK'
-      ].includes(typeOf(a.type))
-    ).length;
-    const stock = deduped.filter((a) =>
-      [
-        'LOW_STOCK',
-        'SLOT_DISCREPANCY',
-        'INVENTORY_MISMATCH',
-        'REPLENISHMENT',
-        'REPLENISHMENT_REQUIRED'
-      ].includes(typeOf(a.type))
-    ).length;
-    const expiry = deduped.filter((a) => typeOf(a.type) === 'EXPIRY').length;
-    counts.value = {
-      disputes: audit,
-      offline: fault,
-      lowStock: stock,
-      expiry
-    };
-    // 徽标与页内四卡同源（四类合计）——此前徽标=全量条数，未归类类型会造成 15 vs 14 漂移
-    setAlertsTabBadge(audit + fault + stock + expiry);
+    // Tab 徽标始终按「全部」合计（与 useHomeWorkbench 同源函数），不随 chip 筛选缩小
+    const all = countTodoCategories(deduped);
+    setAlertsTabBadge(all.disputes + all.offline + all.lowStock + all.expiry);
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
@@ -393,6 +427,11 @@ function goDevices() {
   uni.switchTab({ url: '/pages/devices/devices' });
 }
 
+/** 点四卡：筛本页列表；再点取消。具体跳转仍点下方待办行。 */
+function toggleKpi(key: TodoKpiKey) {
+  categoryFilter.value = categoryFilter.value === key ? '' : key;
+}
+
 function isInventoryException(type: string) {
   return ['INVENTORY_MISMATCH', 'LOW_STOCK', 'REPLENISHMENT_REQUIRED'].includes(
     String(type || '').toUpperCase()
@@ -452,6 +491,9 @@ useAutoRefresh({
   box-sizing: border-box;
   background: var(--page-tint, #f0fdfa);
 }
+.nav-place {
+  width: 100%;
+}
 .section-card {
   margin-top: 18rpx;
 }
@@ -495,16 +537,10 @@ useAutoRefresh({
 }
 
 .pref-bar {
-  margin: 12rpx 20rpx 0;
-  padding: 16rpx 20rpx;
-  border-radius: var(--radius-panel);
+  display: none;
+}
+.device-tab-bar {
   background: var(--card-bg, #fff);
-  border: 1rpx solid var(--color-border);
-  color: var(--brand, #0f766e);
-  font-size: var(--font-size-caption);
-  display: flex;
-  justify-content: space-between;
-  gap: 12rpx;
 }
 .pref-toggle {
   color: var(--text-muted);
@@ -514,7 +550,7 @@ useAutoRefresh({
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12rpx;
-  margin: 12rpx 20rpx 0;
+  margin: 12rpx 24rpx 24rpx;
 }
 .kpi-card {
   border-radius: var(--radius-panel);
@@ -523,6 +559,15 @@ useAutoRefresh({
   background: var(--card-bg, #fff);
   border: 1rpx solid var(--color-border);
   box-shadow: 0 4rpx 14rpx rgba(15, 118, 110, 0.04);
+}
+.kpi-card-hover {
+  opacity: 0.88;
+  background: var(--page-bg, #f8fafc) !important;
+}
+.kpi-card.active {
+  border-color: var(--brand, #0f766e);
+  box-shadow: 0 0 0 2rpx var(--brand-mist, #99f6e4);
+  background: var(--brand-soft, #ecfdf5);
 }
 .kpi-card .n {
   color: var(--brand-deep, #134e4a);
@@ -560,9 +605,12 @@ useAutoRefresh({
   box-sizing: border-box;
 }
 .alert-card {
-  margin-top: 0;
+  margin-top: 16rpx;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+.alert-card:first-child {
+  margin-top: 0;
 }
 .alert-card-hover {
   background: var(--page-bg, #f8fafc) !important;

@@ -218,6 +218,18 @@ const TODO_CATEGORY_STOCK = [
   'REPLENISHMENT_REQUIRED'
 ];
 
+/** 待办页四卡：审核 / 故障 / 库存 / 临期 */
+export type TodoKpiKey = 'dispute' | 'offline' | 'stock' | 'expiry';
+
+/** 待办类型是否属于某一 KPI 卡（点卡筛列表用） */
+export function matchTodoKpiCategory(type: string | undefined, key: TodoKpiKey): boolean {
+  const t = typeKey(type);
+  if (key === 'dispute') return t === 'DISPUTE' || t.startsWith('RECOGNITION');
+  if (key === 'offline') return TODO_CATEGORY_FAULT.includes(t);
+  if (key === 'stock') return TODO_CATEGORY_STOCK.includes(t);
+  return t === 'EXPIRY';
+}
+
 /**
  * 四卡归类计数（审核/故障/库存/临期）。
  * 徽标与页内四卡共用本函数——此前两处各自计数（全量 vs 归类）造成 15 vs 14 漂移。
@@ -228,12 +240,10 @@ export function countTodoCategories(items: TodoListItem[]): {
   lowStock: number;
   expiry: number;
 } {
-  const t = (x: string) => String(x || '').toUpperCase();
   return {
-    disputes: items.filter((i) => t(i.type) === 'DISPUTE' || t(i.type).startsWith('RECOGNITION'))
-      .length,
-    offline: items.filter((i) => TODO_CATEGORY_FAULT.includes(t(i.type))).length,
-    lowStock: items.filter((i) => TODO_CATEGORY_STOCK.includes(t(i.type))).length,
-    expiry: items.filter((i) => t(i.type) === 'EXPIRY').length
+    disputes: items.filter((i) => matchTodoKpiCategory(i.type, 'dispute')).length,
+    offline: items.filter((i) => matchTodoKpiCategory(i.type, 'offline')).length,
+    lowStock: items.filter((i) => matchTodoKpiCategory(i.type, 'stock')).length,
+    expiry: items.filter((i) => matchTodoKpiCategory(i.type, 'expiry')).length
   };
 }

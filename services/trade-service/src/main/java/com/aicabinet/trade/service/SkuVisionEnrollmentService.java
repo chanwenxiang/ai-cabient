@@ -18,6 +18,7 @@ import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.SkuVisionMappingMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.SkuIds;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
@@ -163,9 +164,18 @@ public class SkuVisionEnrollmentService {
                 : skuCatalogRepository.findByIdForUpdate(requestedId).orElseGet(SkuCatalog::new);
         boolean created = sku.getSkuId() == null;
         if (created) {
-            long code = skuCatalogRepository.nextSkuCode();
-            String skuId = requestedId.isEmpty() ? "SKU-" + code : requestedId;
-            if (skuCatalogRepository.existsById(skuId)) {
+            String skuId;
+            long code;
+            if (requestedId.isEmpty()) {
+                code = skuCatalogRepository.nextSkuCode();
+                skuId = SkuIds.fromCode(code);
+            } else {
+                SkuIds.requireNumeric(requestedId);
+                skuId = requestedId;
+                code = Long.parseLong(requestedId);
+            }
+            if (skuCatalogRepository.existsById(skuId)
+                    || skuCatalogRepository.existsBySkuCode(code, null)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_EXISTS);
             }
             sku.setSkuId(skuId);
@@ -177,7 +187,7 @@ public class SkuVisionEnrollmentService {
         if (skuCatalogRepository.existsByBarcode(barcode, sku.getSkuId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_BARCODE_EXISTS);
         }
-        if (skuCatalogRepository.existsBySkuName(skuReq.skuName(), sku.getSkuId())) {
+        if (skuCatalogRepository.existsByNameAndSpec(skuReq.skuName(), skuReq.spec(), sku.getSkuId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_NAME_EXISTS);
         }
         String oldImageUrl = sku.getImageUrl();
@@ -416,7 +426,7 @@ public class SkuVisionEnrollmentService {
         sku.setCategory(trimToNull(skuReq.category()));
         sku.setBarcode(trimToNull(skuReq.barcode()));
         sku.setBrand(trimToNull(skuReq.brand()));
-        sku.setSpec(trimToNull(skuReq.spec()));
+        sku.setSpec(skuReq.spec() == null || skuReq.spec().isBlank() ? "" : skuReq.spec().trim());
         sku.setUnit(skuReq.unit() != null && !skuReq.unit().isBlank() ? skuReq.unit().trim() : "件");
         sku.setStatus(skuReq.status());
     }

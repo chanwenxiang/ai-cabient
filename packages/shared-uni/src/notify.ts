@@ -4,6 +4,18 @@ const SUBSCRIBE_TMPL_IDS = (import.meta.env.VITE_WX_SUBSCRIBE_TMPL_IDS || '')
   .map((s: string) => s.trim())
   .filter(Boolean);
 
+function mergeSubscribeTmplIds(extra?: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of [...SUBSCRIBE_TMPL_IDS, ...(extra || [])]) {
+    const trimmed = String(id || '').trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 /** 统一 Toast 时长（毫秒） */
 export const TOAST_DURATION_MS = 2000;
 export const TOAST_DURATION_LONG_MS = 2500;
@@ -66,9 +78,9 @@ export const MERCHANT_ALERT_TYPES = [
   { value: 'EXCEPTION', label: '识别/故障异常' }
 ] as const;
 
-/** True when WeChat subscribe template IDs are configured. */
-export function hasSubscribeTemplates() {
-  return SUBSCRIBE_TMPL_IDS.length > 0;
+/** True when compile-time and/or runtime WeChat subscribe template IDs exist. */
+export function hasSubscribeTemplates(extra?: string[]) {
+  return mergeSubscribeTmplIds(extra).length > 0;
 }
 
 /** 请求微信订阅授权（消费端）：无模板或非微信环境时静默跳过。 */
@@ -86,11 +98,14 @@ export async function requestOrderSubscribe() {
  * 请求微信订阅授权（商户端）。
  * @returns `'ok' | 'skipped' | 'failed'`
  */
-export async function requestMerchantSubscribe(): Promise<'ok' | 'skipped' | 'failed'> {
-  if (!canSubscribeMessage() || !SUBSCRIBE_TMPL_IDS.length) return 'skipped';
+export async function requestMerchantSubscribe(
+  extra?: string[]
+): Promise<'ok' | 'skipped' | 'failed'> {
+  const tmplIds = mergeSubscribeTmplIds(extra);
+  if (!canSubscribeMessage() || !tmplIds.length) return 'skipped';
   return await new Promise((resolve) => {
     uni.requestSubscribeMessage({
-      tmplIds: SUBSCRIBE_TMPL_IDS,
+      tmplIds,
       success: () => resolve('ok'),
       fail: () => resolve('failed'),
       complete: () => {}

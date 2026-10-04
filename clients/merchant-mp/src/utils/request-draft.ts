@@ -8,6 +8,8 @@ import type { DeviceSlot, OpenApiReplenishmentSuggestDto } from '@aicabinet/shar
 export type RequestDraftLine = {
   skuId: string;
   skuName: string;
+  /** 规格（如 250ml）；后端已拼进 skuName 时可为空 */
+  spec?: string;
   currentQty: number;
   capacity: number;
   suggestQty: number;
@@ -102,4 +104,37 @@ export function sortDraftLines(lines: RequestDraftLine[]): RequestDraftLine[] {
     if (a.selected !== b.selected) return a.selected ? -1 : 1;
     return b.suggestQty - a.suggestQty;
   });
+}
+
+type DevicePick = {
+  deviceId?: string;
+  oosSlotCount?: number | null;
+  lowStockSlotCount?: number | null;
+};
+
+/** 收藏/常驻柜优先，否则缺货货道最多（缺货+低库存）。 */
+export function pickDefaultDeviceIndex(list: DevicePick[], prefer?: string): number {
+  if (!list.length) return 0;
+  const preferKey = String(prefer || '')
+    .trim()
+    .toUpperCase();
+  if (preferKey) {
+    const idx = list.findIndex(
+      (d) =>
+        String(d.deviceId || '')
+          .trim()
+          .toUpperCase() === preferKey
+    );
+    if (idx >= 0) return idx;
+  }
+  let best = 0;
+  let bestScore = -1;
+  list.forEach((d, i) => {
+    const score = (Number(d.oosSlotCount) || 0) + (Number(d.lowStockSlotCount) || 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  });
+  return best;
 }

@@ -4,6 +4,7 @@ import com.aicabinet.trade.domain.DeviceSlot;
 import com.aicabinet.trade.domain.DeviceSlotId;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
@@ -33,6 +34,13 @@ public interface DeviceSlotMapper extends BaseTradeMapper<DeviceSlot> {
 
     default List<DeviceSlot> findByIdDeviceId(String deviceId) {
         return selectList(Wrappers.<DeviceSlot>lambdaQuery().eq(DeviceSlot::getDeviceId, deviceId));
+    }
+
+    default List<DeviceSlot> listByDeviceIds(Collection<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<DeviceSlot>lambdaQuery().in(DeviceSlot::getDeviceId, deviceIds));
     }
 
     /** Composite PK: (device_id, slot_code) — MyBatis-Plus selectById needs a single @TableId. */

@@ -131,6 +131,30 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
         return net;
     }
 
+    /** 已完成扣款合计（分），不含退款。 */
+    default int chargedCompletedCents(String orderId) {
+        int charged = 0;
+        for (PaymentOperation op : findCompletedPaymentOpsByOrderId(orderId)) {
+            if ("CHARGE".equals(op.getOperationType())
+                    || "ADJUST_CHARGE".equals(op.getOperationType())
+                    || "PREAUTH_CAPTURE".equals(op.getOperationType())) {
+                charged += Math.max(0, op.getAmountCents());
+            }
+        }
+        return charged;
+    }
+
+    /** 已完成退款合计（分）。 */
+    default int refundedCompletedCents(String orderId) {
+        int refunded = 0;
+        for (PaymentOperation op : findCompletedPaymentOpsByOrderId(orderId)) {
+            if ("REFUND".equals(op.getOperationType())) {
+                refunded += Math.max(0, op.getAmountCents());
+            }
+        }
+        return refunded;
+    }
+
     /**
      * 对账口径：已完成流水的净现金流入（购物 CHARGE/ADJUST + 充值 RECHARGE − 各类 REFUND）。
      */

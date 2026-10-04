@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
+import com.aicabinet.trade.support.SkuDisplayNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -101,6 +102,28 @@ public class DeviceSlotService {
         return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
                 .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0)))
                 .toList();
+    }
+
+    /**
+     * 柜机缺货/低库存货道计数（启用且有目标库存的货道）。
+     * 供商户柜机列表默认排序（收藏柜 → 缺货最多）使用。
+     */
+    @Transactional(readOnly = true)
+    public SlotStockCounts countSlotStock(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return SlotStockCounts.EMPTY;
+        }
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId.trim());
+        List<DeviceSlot> active = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId.trim()).stream()
+                .filter(s -> s.isEnabled() && s.getParLevel() > 0)
+                .toList();
+        SlotFillStats stats = accumulateSlotFillStats(active, bookBySlot);
+        return new SlotStockCounts(stats.oosCount(), stats.lowCount());
+    }
+
+    /** 缺货货道数 / 低库存货道数。 */
+    public record SlotStockCounts(int oosSlotCount, int lowStockSlotCount) {
+        public static final SlotStockCounts EMPTY = new SlotStockCounts(0, 0);
     }
 
     @Transactional
@@ -1106,7 +1129,8 @@ public class DeviceSlotService {
         String slotCode = slot.getId().getSlotCode();
         String skuId = slot.getAssignedSkuId();
         String skuName = skuId == null ? null : skuCatalogRepository.findById(skuId)
-                .map(SkuCatalog::getSkuName).orElse(null);
+                .map(SkuDisplayNames::of)
+                .orElse(null);
         int par = slot.getParLevel();
         int fillRate = par > 0 ? (Math.min(bookQty, par) * 100 / par) : 0;
         String stockStatus = resolveStockStatus(slot, bookQty);

@@ -1,13 +1,13 @@
 <template>
   <view>
-    <view class="section-heading">
+    <view class="section-heading recap">
       <view>
         <text class="section-title">现场照片</text>
         <text class="section-subtitle">{{ subtitle }}</text>
       </view>
       <text class="line-count" :class="{ warn: countWarn }">{{ items.length }} 张</text>
     </view>
-    <view class="evidence-row">
+    <view class="evidence-row recap">
       <view
         v-for="(item, idx) in items"
         :key="item.fileId || item.localPath || idx"
@@ -66,6 +66,7 @@ defineEmits<{
 
 const subtitle = computed(() => {
   if (!props.checkedIn) return '签到后可拍照留存，最多 5 张';
+  if (props.completed) return `已留存 ${props.items.length} 张`;
   if (props.items.length) return `已上传 ${props.items.length}/5 · 点图可放大核对`;
   return props.requireEvidence
     ? '须至少 1 张现场照片，最多 5 张'
@@ -96,6 +97,16 @@ const emptyTip = computed(() => {
   justify-content: space-between;
   margin: 28rpx 0 14rpx;
 }
+.section-heading.recap {
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+  text-align: center;
+}
+.section-heading.recap .section-title,
+.section-heading.recap .section-subtitle {
+  text-align: center;
+}
 .section-title {
   display: block;
   font-size: var(--font-size-md);
@@ -123,6 +134,9 @@ const emptyTip = computed(() => {
   flex-wrap: wrap;
   gap: 16rpx;
   margin-bottom: 20rpx;
+}
+.evidence-row.recap {
+  justify-content: center;
 }
 .evidence-thumb-wrap {
   width: 140rpx;
@@ -174,7 +188,9 @@ const emptyTip = computed(() => {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
   gap: 8rpx;
+  text-align: center;
 }
 .evidence-empty-title {
   font-size: var(--font-size-body);

@@ -108,11 +108,23 @@ class ProcurementServiceTest {
     }
 
     private void stubCreateHappyPath() {
+        stubActiveSupplier();
+        com.aicabinet.trade.domain.Warehouse warehouse = new com.aicabinet.trade.domain.Warehouse();
+        warehouse.setWarehouseId("WH-1");
+        warehouse.setStatus("ACTIVE");
+        warehouse.setManagerUserId(9L);
+        when(warehouseRepository.findById("WH-1")).thenReturn(java.util.Optional.of(warehouse));
+        stubCreateSaves();
+    }
+
+    private void stubActiveSupplier() {
         com.aicabinet.trade.domain.Supplier supplier = new com.aicabinet.trade.domain.Supplier();
         supplier.setSupplierId("SUP-1");
         supplier.setStatus("ACTIVE");
         when(supplierRepository.findById("SUP-1")).thenReturn(java.util.Optional.of(supplier));
-        when(warehouseRepository.existsById("WH-1")).thenReturn(true);
+    }
+
+    private void stubCreateSaves() {
         when(skuCatalogRepository.existsById(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
         when(purchaseOrderRepository.save(org.mockito.ArgumentMatchers.any(PurchaseOrder.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -138,6 +150,102 @@ class ProcurementServiceTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.eq(1L),
                 org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void createPurchaseOrder_rejectsWarehouseWithoutManager() {
+        com.aicabinet.trade.domain.Warehouse unmanaged = new com.aicabinet.trade.domain.Warehouse();
+        unmanaged.setWarehouseId("WH-1");
+        unmanaged.setManagerUserId(null);
+        when(warehouseRepository.findById("WH-1")).thenReturn(java.util.Optional.of(unmanaged));
+
+        var ex = assertThrows(ResponseStatusException.class, () -> service.createPurchaseOrder(1L,
+                new com.aicabinet.common.dto.CreatePurchaseOrderRequest(
+                        "SUP-1", "WH-1", null, null, List.of(lineDto("SKU-A", null, null, 10)))));
+        assertTrue(String.valueOf(ex.getReason()).contains("负责人"));
+    }
+
+    @Test
+    void createPurchaseOrder_usesOperatorWarehouseWhenOmitted() {
+        stubActiveSupplier();
+        stubCreateSaves();
+        com.aicabinet.trade.domain.Warehouse mine = new com.aicabinet.trade.domain.Warehouse();
+        mine.setWarehouseId("WH-MINE");
+        mine.setManagerUserId(1L);
+        mine.setStatus("ACTIVE");
+        when(warehouseRepository.findFirstActiveByManagerUserId(1L)).thenReturn(java.util.Optional.of(mine));
+
+        var dto = service.createPurchaseOrder(1L, new com.aicabinet.common.dto.CreatePurchaseOrderRequest(
+                "SUP-1", null, null, null, List.of(lineDto("SKU-A", null, null, 10))));
+        assertEquals("WH-MINE", dto.warehouseId());
+    }
+
+    @Test
+    void createPurchaseOrder_blankWarehouseWithoutManager_rejected() {
+        when(warehouseRepository.findFirstActiveByManagerUserId(1L)).thenReturn(java.util.Optional.empty());
+
+        var ex = assertThrows(ResponseStatusException.class, () -> service.createPurchaseOrder(1L,
+                new com.aicabinet.common.dto.CreatePurchaseOrderRequest(
+                        "SUP-1", null, null, null, List.of(lineDto("SKU-A", null, null, 10)))));
+        assertTrue(String.valueOf(ex.getReason()).contains("负责人"));
+    }
+
+    @Test
+    void createSatellitePurchaseOrder_doesNotRequireOpsPermission() {
+        stubActiveSupplier();
+        stubCreateSaves();
+        com.aicabinet.trade.domain.Warehouse mine = new com.aicabinet.trade.domain.Warehouse();
+        mine.setWarehouseId("WH-MINE");
+        mine.setManagerUserId(40L);
+        mine.setStatus("ACTIVE");
+        when(warehouseRepository.findFirstActiveByManagerUserId(40L)).thenReturn(java.util.Optional.of(mine));
+
+        var dto = service.createSatellitePurchaseOrder(40L, new com.aicabinet.common.dto.CreatePurchaseOrderRequest(
+                "SUP-1", null, null, null, List.of(lineDto("SKU-A", null, null, 8))));
+        assertEquals("WH-MINE", dto.warehouseId());
+        org.mockito.Mockito.verify(permissionService, org.mockito.Mockito.never())
+                .requirePermission(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void createSatellitePurchaseOrder_rejectsOtherWarehouse() {
+        com.aicabinet.trade.domain.Warehouse mine = new com.aicabinet.trade.domain.Warehouse();
+        mine.setWarehouseId("WH-MINE");
+        mine.setManagerUserId(40L);
+        when(warehouseRepository.findFirstActiveByManagerUserId(40L)).thenReturn(java.util.Optional.of(mine));
+
+        var ex = assertThrows(ResponseStatusException.class, () -> service.createSatellitePurchaseOrder(40L,
+                new com.aicabinet.common.dto.CreatePurchaseOrderRequest(
+                        "SUP-1", "WH-OTHER", null, null, List.of(lineDto("SKU-A", null, null, 8)))));
+        assertTrue(String.valueOf(ex.getReason()).contains("本人负责"));
+    }
+
+    @Test
+    void createSatellitePurchaseOrder_rejectsWhenNoManagedWarehouse() {
+        when(warehouseRepository.findFirstActiveByManagerUserId(40L)).thenReturn(java.util.Optional.empty());
+        var ex = assertThrows(ResponseStatusException.class, () -> service.createSatellitePurchaseOrder(40L,
+                new com.aicabinet.common.dto.CreatePurchaseOrderRequest(
+                        "SUP-1", null, null, null, List.of(lineDto("SKU-A", null, null, 8)))));
+        assertTrue(String.valueOf(ex.getReason()).contains("分仓"));
+    }
+
+    @Test
+    void receiveSatellitePurchaseOrder_rejectsForeignWarehouse() {
+        com.aicabinet.trade.domain.Warehouse mine = new com.aicabinet.trade.domain.Warehouse();
+        mine.setWarehouseId("WH-MINE");
+        mine.setManagerUserId(40L);
+        when(warehouseRepository.findFirstActiveByManagerUserId(40L)).thenReturn(java.util.Optional.of(mine));
+        PurchaseOrder order = new PurchaseOrder();
+        order.setPurchaseOrderId(9L);
+        order.setWarehouseId("WH-OTHER");
+        order.setStatus("CREATED");
+        when(purchaseOrderRepository.findByIdForUpdate(9L)).thenReturn(java.util.Optional.of(order));
+
+        var ex = assertThrows(ResponseStatusException.class, () -> service.receiveSatellitePurchaseOrder(
+                40L, 9L, new com.aicabinet.common.dto.ReceivePurchaseOrderRequest(List.of(), null, null)));
+        assertTrue(String.valueOf(ex.getReason()).contains("本人负责"));
+        org.mockito.Mockito.verify(permissionService, org.mockito.Mockito.never())
+                .requirePermission(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test

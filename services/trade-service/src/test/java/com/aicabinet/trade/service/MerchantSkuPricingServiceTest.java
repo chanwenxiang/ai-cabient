@@ -52,4 +52,16 @@ class MerchantSkuPricingServiceTest {
 
         MerchantSkuPricingService.requireMatchingExpectedVersion(3L, 3L);
     }
+
+    @Test
+    void displayPriceHistoryDetail_translatesAuditEnglish() {
+        assertEquals("覆盖价 无 → ¥3.60（基准 ¥3.50）",
+                MerchantSkuPricingService.displayPriceHistoryDetail("base=350 override null -> 360"));
+        assertEquals("覆盖价 ¥3.55 → ¥3.50（基准 ¥3.50）",
+                MerchantSkuPricingService.displayPriceHistoryDetail("base=350 override 355 -> 350"));
+        assertEquals("取消覆盖，恢复基准 ¥3.50（原覆盖 ¥3.60）",
+                MerchantSkuPricingService.displayPriceHistoryDetail("reset to base 350 (was override 360)"));
+        assertEquals("覆盖价 无 → ¥1.50（基准 ¥2.00）",
+                MerchantSkuPricingService.formatPriceChangeAuditDetail(200, null, 150));
+    }
 }

@@ -19,6 +19,7 @@ defineProps<{
   bindMerchantId: string;
   bindMerchantsLoading: boolean;
   bindMerchantOptions: Array<{ merchantId: string; merchantName?: string }>;
+  warehouseOptions: Array<{ warehouseId: string; warehouseName?: string }>;
   lifecycleLabel: (status?: string | null) => string;
   canLifecycle: (action: string) => boolean;
   lifecycleDisabledReason: (action: string) => string;
@@ -159,6 +160,25 @@ const emit = defineEmits<{
                 :key="item.value"
                 :label="`${item.label}（${item.value}）`"
                 :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="12" :md="8">
+          <el-form-item label="所属仓库">
+            <el-select
+              v-model="asset.homeWarehouseId"
+              :disabled="!canEditDevice"
+              filterable
+              clearable
+              placeholder="未归线"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="w in warehouseOptions"
+                :key="w.warehouseId"
+                :label="`${w.warehouseName || w.warehouseId}（${w.warehouseId}）`"
+                :value="w.warehouseId"
               />
             </el-select>
           </el-form-item>

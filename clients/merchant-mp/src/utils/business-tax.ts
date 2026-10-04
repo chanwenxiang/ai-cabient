@@ -1,6 +1,6 @@
 /**
  * 经营页税档表单纯函数（debt-tracker M6c）。
- * 禁止依赖 uni / merchantApi；保存/拉取编排仍在 business.vue。
+ * 禁止依赖 uni / merchantApi；保存/拉取编排在 pages/tax。
  */
 
 export type TaxProfileForm = {

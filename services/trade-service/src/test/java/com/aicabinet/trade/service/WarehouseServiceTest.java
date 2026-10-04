@@ -4,7 +4,10 @@ import com.aicabinet.trade.domain.Warehouse;
 import com.aicabinet.trade.domain.WarehouseInventory;
 import com.aicabinet.trade.domain.WarehouseOutbound;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
+import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.mapper.*;
+import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,10 +18,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import org.springframework.web.server.ResponseStatusException;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -47,6 +53,7 @@ class WarehouseServiceTest {
     @Mock private InventoryLotService inventoryLotService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private DisplaySnapshotHelper displaySnapshotHelper;
+    @Mock private DeviceInfoMapper deviceInfoRepository;
 
     private WarehouseService warehouseService;
 
@@ -57,12 +64,14 @@ class WarehouseServiceTest {
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
-                displaySnapshotHelper, null, null);
+                displaySnapshotHelper, deviceInfoRepository, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(warehouseService, "self", warehouseService);
         Warehouse defaultWh = new Warehouse();
         defaultWh.setWarehouseId(TEST_WAREHOUSE_ID);
         defaultWh.setStatus("ACTIVE");
+        defaultWh.setManagerUserId(9L);
         when(warehouseRepository.findAll()).thenReturn(List.of(defaultWh));
+        when(warehouseRepository.findById(TEST_WAREHOUSE_ID)).thenReturn(Optional.of(defaultWh));
     }
 
     @Test
@@ -107,7 +116,7 @@ class WarehouseServiceTest {
                 TEST_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of());
 
         Long id = warehouseService.tryCreateOutboundFromLines(
-                1L, null, 100L, Map.of("SKU-1", 5), null);
+                1L, null, 100L, Map.of("SKU-1", 5), TEST_WAREHOUSE_ID);
 
         assertNull(id);
         verify(outboundRepository).deleteById(501L);
@@ -124,7 +133,7 @@ class WarehouseServiceTest {
                 TEST_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(0);
 
         Long id = warehouseService.tryCreateOutboundFromLines(
-                2L, null, 100L, Map.of("SKU-1", 10), null);
+                2L, null, 100L, Map.of("SKU-1", 10), TEST_WAREHOUSE_ID);
 
         assertEquals(502L, id);
         ArgumentCaptor<WarehouseOutboundLine> lineCaptor = ArgumentCaptor.forClass(WarehouseOutboundLine.class);
@@ -143,7 +152,7 @@ class WarehouseServiceTest {
                 TEST_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(0);
 
         Long id = warehouseService.tryCreateOutboundFromLines(
-                3L, null, 100L, new LinkedHashMap<>(Map.of("SKU-1", 5)), null);
+                3L, null, 100L, new LinkedHashMap<>(Map.of("SKU-1", 5)), TEST_WAREHOUSE_ID);
 
         assertEquals(503L, id);
         ArgumentCaptor<WarehouseOutboundLine> lineCaptor = ArgumentCaptor.forClass(WarehouseOutboundLine.class);
@@ -166,7 +175,7 @@ class WarehouseServiceTest {
                 TEST_WAREHOUSE_ID, "SKU-1", "FAR")).thenReturn(0);
 
         Long id = warehouseService.tryCreateOutboundFromLines(
-                4L, null, 100L, new LinkedHashMap<>(Map.of("SKU-1", 5)), null);
+                4L, null, 100L, new LinkedHashMap<>(Map.of("SKU-1", 5)), TEST_WAREHOUSE_ID);
 
         assertEquals(504L, id);
         ArgumentCaptor<WarehouseOutboundLine> lineCaptor = ArgumentCaptor.forClass(WarehouseOutboundLine.class);
@@ -176,6 +185,55 @@ class WarehouseServiceTest {
         assertEquals(2, lines.get(0).getQuantity());
         assertEquals("FAR", lines.get(1).getBatchNo());
         assertEquals(3, lines.get(1).getQuantity());
+    }
+
+    @Test
+    void tryCreateOutboundFromLines_usesDeviceHomeWarehouse() {
+        stubOutboundSave(505L);
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-1");
+        device.setHomeWarehouseId("WH-SAT");
+        when(deviceInfoRepository.findById("CAB-1")).thenReturn(Optional.of(device));
+        Warehouse sat = new Warehouse();
+        sat.setWarehouseId("WH-SAT");
+        sat.setManagerUserId(40L);
+        sat.setStatus("ACTIVE");
+        when(warehouseRepository.findById("WH-SAT")).thenReturn(Optional.of(sat));
+        when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc("WH-SAT", "SKU-1"))
+                .thenReturn(List.of());
+
+        Long id = warehouseService.tryCreateOutboundFromLines(
+                5L, "CAB-1", 100L, Map.of("SKU-1", 2), null);
+
+        assertNull(id);
+        verify(inventoryRepository).findByWarehouseIdAndSkuIdOrderByExpiryDateAsc("WH-SAT", "SKU-1");
+    }
+
+    @Test
+    void resolveOutboundWarehouseId_rejectsUnmanagedAndMixedHomes() {
+        Warehouse unmanaged = new Warehouse();
+        unmanaged.setWarehouseId(TEST_WAREHOUSE_ID);
+        unmanaged.setManagerUserId(null);
+        when(warehouseRepository.findById(TEST_WAREHOUSE_ID)).thenReturn(Optional.of(unmanaged));
+        var unmanagedEx = assertThrows(ResponseStatusException.class,
+                () -> warehouseService.resolveOutboundWarehouseId(TEST_WAREHOUSE_ID, null, List.of()));
+        assertTrue(String.valueOf(unmanagedEx.getReason()).contains("负责人"));
+
+        DeviceInfo a = new DeviceInfo();
+        a.setDeviceId("A");
+        a.setHomeWarehouseId("WH-1");
+        DeviceInfo b = new DeviceInfo();
+        b.setDeviceId("B");
+        b.setHomeWarehouseId("WH-2");
+        when(deviceInfoRepository.findById("A")).thenReturn(Optional.of(a));
+        when(deviceInfoRepository.findById("B")).thenReturn(Optional.of(b));
+        ReplenishmentTask t1 = new ReplenishmentTask();
+        t1.setDeviceId("A");
+        ReplenishmentTask t2 = new ReplenishmentTask();
+        t2.setDeviceId("B");
+        var mixed = assertThrows(ResponseStatusException.class,
+                () -> warehouseService.resolveOutboundWarehouseId(null, null, List.of(t1, t2)));
+        assertEquals(ApiMessages.REPLENISHMENT_HOME_WAREHOUSE_MIXED, mixed.getReason());
     }
 
     private static Page<Warehouse> pageOf(Warehouse... rows) {
@@ -208,6 +266,50 @@ class WarehouseServiceTest {
 
     private static WarehouseInventory inventoryLot(String skuId, String batchNo, int qty) {
         return inventoryLot(skuId, batchNo, qty, LocalDate.now().plusMonths(6));
+    }
+
+    @Test
+    void upsertWarehouse_setsManager_whenPositiveId() {
+        Warehouse existing = existingWarehouse();
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
+        when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var dto = warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 42L);
+
+        assertEquals(42L, dto.managerUserId());
+    }
+
+    @Test
+    void upsertWarehouse_clearsManager_whenZero() {
+        Warehouse existing = existingWarehouse();
+        existing.setManagerUserId(9L);
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
+        when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var dto = warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 0L);
+
+        assertNull(dto.managerUserId());
+    }
+
+    @Test
+    void upsertWarehouse_keepsManager_whenOmitted() {
+        Warehouse existing = existingWarehouse();
+        existing.setManagerUserId(9L);
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
+        when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var dto = warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", null);
+
+        assertEquals(9L, dto.managerUserId());
+    }
+
+    private static Warehouse existingWarehouse() {
+        Warehouse existing = new Warehouse();
+        existing.setWarehouseId("WH-001");
+        existing.setWarehouseName("主仓库");
+        existing.setStatus("ACTIVE");
+        existing.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        return existing;
     }
 
     private static WarehouseInventory inventoryLot(String skuId, String batchNo, int qty, LocalDate expiryDate) {

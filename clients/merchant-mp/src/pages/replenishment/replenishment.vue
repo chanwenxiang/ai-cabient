@@ -66,7 +66,7 @@
         <view class="patrol-head">
           <view>
             <text class="patrol-title">缺货巡柜</text>
-            <text class="patrol-sub">按缺货严重度推荐，点此发起要货</text>
+            <text class="patrol-sub">查看缺口；日常补货等调度出库下发任务，不要用要货当日常入口</text>
           </view>
           <text class="patrol-count">{{ lowStockList.length }} 台</text>
         </view>
@@ -76,7 +76,7 @@
           class="patrol-row"
           hover-class="patrol-row-hover"
           role="button"
-          @click="goRequestForDevice(d.deviceId)"
+          @click="goDeviceShortage(d.deviceId)"
         >
           <view class="patrol-name">
             <text class="device-name">{{ deviceName(d.deviceId) }}</text>
@@ -89,17 +89,11 @@
         </view>
       </view>
 
-      <view class="filters tabs-pill">
-        <text
-          v-for="item in statusOptions"
-          role="button"
-          :key="item.value"
-          class="filter-chip"
-          :class="{ active: status === item.value }"
-          @click="changeStatus(item.value)"
-          >{{ item.label }}</text
-        >
-      </view>
+      <app-underline-tabs
+        :items="statusTabItems"
+        :value="status"
+        @change="changeStatus"
+      />
 
       <view v-if="loading && !allTasks.length" class="empty">{{ loadingLabel('任务') }}</view>
       <empty-state
@@ -135,8 +129,13 @@
         @click="openTask(task)"
       >
         <view class="task-accent" />
+        <view class="task-kicker">
+          <text>任务 {{ task.taskId }}</text>
+          <text class="task-kicker-dot">·</text>
+          <text>{{ formatTime(task.createdAt) }}</text>
+        </view>
         <view class="task-head">
-          <view>
+          <view class="task-head-main">
             <text class="device-name">{{ deviceName(task.deviceId, task.deviceName) }}</text>
             <text class="device-code">{{ task.deviceId }}</text>
             <text v-if="deviceAddressLine(task.deviceId)" class="task-addr">{{
@@ -147,48 +146,70 @@
             {{ displayLabel('replenishment_task_status', task.status, '未知状态') }}
           </text>
         </view>
-        <view class="task-meta">
-          <text>任务 #{{ task.taskId }}</text>
-          <text>{{ formatTime(task.createdAt) }}</text>
-        </view>
-        <view class="task-meta soft">
-          <text v-if="task.routeName || task.routeId">{{ routeLabel(task) }}</text>
-          <text v-if="task.plannedDate">计划 {{ formatDateOnly(task.plannedDate) }}</text>
-          <text v-if="task.checkInAt">已签到</text>
-          <text v-if="task.outboundId">出库 #{{ task.outboundId }}</text>
-          <text v-if="evidenceCountOf(task.taskId) > 0" class="evidence-badge"
-            >凭证 {{ evidenceCountOf(task.taskId) }} 张</text
+        <view
+          v-if="
+            routeLabel(task) ||
+            task.plannedDate ||
+            task.checkInAt ||
+            task.outboundId ||
+            evidenceCountOf(task.taskId) > 0 ||
+            task.status === 'COMPLETED'
+          "
+          class="task-chips"
+        >
+          <text v-if="routeLabel(task)" class="task-chip">{{ routeLabel(task) }}</text>
+          <text v-if="task.plannedDate" class="task-chip"
+            >计划 {{ formatDateOnly(task.plannedDate) }}</text
           >
-          <text v-else-if="task.status === 'COMPLETED'" class="evidence-badge muted"
-            >无现场照片</text
-          >
+          <text v-if="task.checkInAt" class="task-chip">已签到</text>
+          <text v-if="task.outboundId" class="task-chip">出库 {{ task.outboundId }}</text>
+          <text v-if="evidenceCountOf(task.taskId) > 0" class="task-chip">
+            凭证 {{ evidenceCountOf(task.taskId) }} 张
+          </text>
+          <text v-else-if="task.status === 'COMPLETED'" class="task-chip muted">无现场照片</text>
         </view>
-        <view v-if="lineSummaryOf(task.taskId)" class="task-lines">{{
-          lineSummaryOf(task.taskId)
-        }}</view>
         <view v-if="displayTaskNotes(task.notes)" class="task-note">{{
           displayTaskNotes(task.notes)
         }}</view>
-        <view class="detail-btn">
-          {{ taskActionLabel(task) }}
+        <view class="task-foot">
+          <text v-if="lineSummaryOf(task.taskId)" class="task-lines">{{
+            lineSummaryOf(task.taskId)
+          }}</text>
+          <view v-else class="task-lines-spacer" />
+          <view class="detail-link app-link-chevron">{{ taskActionLabel(task) }}</view>
         </view>
       </view>
 
       <ReplenishDetailSheet :visible="detailVisible" @close="closeDetail">
-        <view class="sheet-head">
-          <view>
-            <text class="sheet-title">{{
-              deviceName(selected?.deviceId, selected?.deviceName)
-            }}</text>
-            <text class="device-code">任务 #{{ selected?.taskId }} · {{ selected?.deviceId }}</text>
+        <view class="sheet-head recap">
+          <view class="sheet-head-main">
+            <view class="sheet-recap-stack">
+              <text class="sheet-title">{{
+                deviceName(selected?.deviceId, selected?.deviceName)
+              }}</text>
+              <text
+                v-if="selected?.status"
+                class="status"
+                :class="(selected.status || '').toLowerCase()"
+                >{{ displayLabel('replenishment_task_status', selected.status, '未知状态') }}</text
+              >
+            </view>
+            <text class="device-code">任务 {{ selected?.taskId }} · {{ selected?.deviceId }}</text>
             <text
-              v-if="selected && (selected.routeName || selected.routeId || selected.plannedDate)"
+              v-if="selected && (routeLabel(selected) || selected.plannedDate)"
               class="device-code"
-              >{{ routeLabel(selected)
-              }}{{
-                selected.plannedDate ? ` · 计划 ${formatDateOnly(selected.plannedDate)}` : ''
+              >{{
+                [
+                  routeLabel(selected),
+                  selected.plannedDate ? `计划 ${formatDateOnly(selected.plannedDate)}` : ''
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
               }}</text
             >
+            <text v-if="selected && displayTaskNotes(selected.notes)" class="device-code">{{
+              displayTaskNotes(selected.notes)
+            }}</text>
           </view>
           <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
         </view>
@@ -196,6 +217,8 @@
         <ReplenishCabinetCard
           :device-id="selected?.deviceId"
           :address-line="selected?.deviceId ? deviceAddressLine(selected.deviceId) : ''"
+          :hide-verify="selected?.status === 'COMPLETED'"
+          centered
           @copy="copyDeviceId(selected?.deviceId)"
           @navigate="navigateToDevice(selected?.deviceId)"
           @verify-scan="verifyCabinetScan"
@@ -228,14 +251,14 @@
           @click="toggleSkipLocation"
         >
           <view class="skip-loc-copy">
-            <text class="skip-loc-label">跳过定位采集</text>
-            <text class="skip-loc-hint"
-              >不获取 GPS，直接不带坐标提交；服务端要求定位时会拒签并给出原因</text
-            >
+            <view class="skip-loc-top">
+              <text class="skip-loc-label">跳过定位采集</text>
+              <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
+                skipLocationCheck ? '开' : '关'
+              }}</text>
+            </view>
+            <text class="skip-loc-hint">开发环境：不取 GPS，无坐标提交（正式环境服务端会拒签）</text>
           </view>
-          <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
-            skipLocationCheck ? '开' : '关'
-          }}</text>
         </view>
         <text
           v-if="
@@ -281,7 +304,7 @@
         <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
           只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
         </text>
-        <text v-if="doorOpened && openSessionId" class="door-tip">
+        <text v-if="doorOpened && openSessionId && selected?.status !== 'COMPLETED'" class="door-tip">
           已开门，关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
         </text>
 
@@ -308,7 +331,6 @@
           :product-glyph="productGlyph"
           :line-type-label="lineTypeLabel"
           :line-status-label="lineStatusLabel"
-          :stock-delta-text="stockDeltaText"
           :is-pull-off-type="isPullOffType"
           :slot-options-for="slotOptionsFor"
           :slot-hint="slotHint"
@@ -505,7 +527,6 @@ const {
   slotHeadroom,
   slotHint,
   formatLineSummary,
-  stockDeltaText,
   isPullOffType,
   lineTypeLabel,
   lineStatusLabel,
@@ -526,6 +547,7 @@ const {
   usePreferredDevice,
   goRequest,
   goRequestForDevice,
+  goDeviceShortage,
   deviceName,
   deviceAddressLine,
   toggleSkipLocation,
@@ -563,6 +585,10 @@ const {
   resolveDeepLinkOpenTask,
   handleDeepLinkAfterLoad
 });
+
+const statusTabItems = computed(() =>
+  statusOptions.value.map((s) => ({ key: s.value, label: s.label }))
+);
 
 const { checkIn, openDoor, adjustQty, confirmLines, completeTask } = useReplenishmentFulfillment({
   selected,

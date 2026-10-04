@@ -667,7 +667,7 @@ async function openDetail(row: Ticket) {
 async function promptRepairDoneUnlock(row: Ticket): Promise<boolean | null> {
   try {
     await ElMessageBox.confirm(
-      `工单 #${row.ticketId}（${row.deviceId}）标为完成。\n若柜机因故障/离线自动锁机，可同时解锁恢复售卖。`,
+      `工单 ${row.ticketId}（${row.deviceId}）标为完成。\n若柜机因故障/离线自动锁机，可同时解锁恢复售卖。`,
       '完成维修',
       {
         distinguishCancelAndClose: true,

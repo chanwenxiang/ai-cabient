@@ -8,5 +8,34 @@
     "css:S4653": {
       "level": "off"
     }
+  },
+  "search.followSymlinks": false,
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.pnpm-store": true,
+    "**/dist": true,
+    "**/target": true,
+    "**/.git": true,
+    "docs/uat-screenshots": true,
+    "**/.playwright-mcp": true,
+    "**/.tmp": true,
+    "**/playwright-report": true,
+    "**/test-results": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.pnpm-store/**": true,
+    "**/dist/**": true,
+    "**/target/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/lfs/**": true,
+    "docs/uat-screenshots/**": true,
+    "**/.playwright-mcp/**": true,
+    "**/.tmp/**": true,
+    "**/.idea/**": true,
+    "**/.gradle/**": true,
+    "**/playwright-report/**": true,
+    "**/test-results/**": true,
+    "services/trade-service/src/main/resources/static/admin/assets/**": true
   }
 }

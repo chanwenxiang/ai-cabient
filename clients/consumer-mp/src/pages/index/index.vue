@@ -1,211 +1,39 @@
 <template>
   <view class="page-root page-fill" :class="{ 'is-landing': showLanding }">
-    <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
-    <HomeLanding
-      v-if="showLanding"
-      v-model:landing-error="landingError"
-      v-model:show-manual="showManual"
-      v-model:device-input="deviceInput"
-      :landing-bg-url="landingBgUrl"
-      :landing-head-style="landingHeadStyle"
-      :landing-error-kind="landingErrorKind"
-      :landing-error-title="landingErrorTitle"
-      :last-failed-device-id="lastFailedDeviceId"
-      :coupon-entry-visible="couponEntryVisible"
-      :show-manual-entry="showManualEntry"
-      :auth-prompt-visible="authPromptVisible"
-      :opening="opening"
-      :entering-flow="enteringFlow"
-      @scan="onScan"
-      @retry="retryLastOpen"
-      @recharge="goRechargeFromError"
-      @coupons="goCoupons"
-      @login="goLoginFromScan"
-      @dismiss-auth-prompt="dismissAuthPrompt"
-      @confirm="confirmDevice"
-    />
-    <view v-if="showLanding" class="landing">
-      <image class="landing-bg" :src="landingBgUrl" mode="aspectFill" aria-hidden="true" />
-      <view class="landing-overlay" />
-
-      <view class="landing-content">
-        <view class="landing-top">
-          <view class="landing-head" :style="landingHeadStyle">
-            <text class="brand">AI开门柜</text>
-            <text class="tagline">扫码开门 · 拿了就走</text>
-            <view class="pay-badge">
-              <text class="pay-badge-icon">✓</text>
-              <text class="pay-badge-text">关门自动结算</text>
-            </view>
-          </view>
-
-          <view v-if="landingError" class="landing-error" :class="'kind-' + landingErrorKind">
-            <view class="error-icon">!</view>
-            <view class="error-copy">
-              <text class="error-title">{{ landingErrorTitle }}</text>
-              <text class="error-detail">{{ landingError }}</text>
-              <view class="error-actions">
-                <text
-                  v-if="landingErrorKind === 'balance'"
-                  role="button"
-                  class="error-action primary"
-                  @click="goRechargeFromError"
-                  >去充值</text
-                >
-                <text
-                  v-else-if="lastFailedDeviceId"
-                  role="button"
-                  class="error-action primary"
-                  @click="retryLastOpen"
-                  >重试开门</text
-                >
-                <text
-                  v-if="landingErrorKind === 'device_not_found'"
-                  role="button"
-                  class="error-action"
-                  @click="onScan"
-                  >重新扫码</text
-                >
-                <text
-                  role="button"
-                  class="error-action"
-                  @click="
-                    landingError = '';
-                    onScan();
-                  "
-                  >换一台</text
-                >
-              </view>
-            </view>
-            <text
-              class="error-close"
-              role="button"
-              aria-label="关闭错误提示"
-              @click="landingError = ''"
-              >×</text
-            >
-          </view>
-        </view>
-
-        <view class="landing-action">
-          <button
-            class="scan-circle"
-            hover-class="scan-circle-hover"
-            :disabled="opening || enteringFlow"
-            @click="onScan"
-          >
-            <view class="scan-circle-inner">
-              <view class="scan-icon-box">
-                <view class="scan-corner tl" />
-                <view class="scan-corner tr" />
-                <view class="scan-corner bl" />
-                <view class="scan-corner br" />
-                <view class="scan-line" />
-              </view>
-            </view>
-            <text class="scan-circle-text">{{ opening ? '连接中…' : '扫码购物' }}</text>
-          </button>
-          <text class="scan-tip">对准柜门二维码，即可开门取货</text>
-          <!-- 扩展功能 consumer.coupon_entry.enabled：券包入口前置到首页；默认关闭 ⇒ 不渲染 -->
-          <view
-            v-if="couponEntryVisible"
-            class="coupon-link"
-            role="button"
-            data-testid="landing-coupon-entry"
-            aria-label="我的券包"
-            @click="goCoupons"
-            >我的券包</view
-          >
-        </view>
-
-        <view v-if="showManualEntry && !showManual" class="landing-foot">
-          <text
-            class="manual-link"
-            role="button"
-            data-testid="manual-device-toggle"
-            @click="showManual = true"
-          >
-            手动输入柜机编号
-          </text>
-        </view>
-      </view>
-
-      <view
-        v-if="authPromptVisible"
-        role="button"
-        aria-label="关闭"
-        class="landing-mask"
-        @click="dismissAuthPrompt"
-      >
-        <view role="button" class="landing-sheet" @click.stop="noop">
-          <text class="landing-sheet-title">需要授权</text>
-          <text class="landing-sheet-body">扫码开门需先完成微信授权</text>
-          <view class="landing-sheet-actions">
-            <text role="button" class="landing-sheet-btn" @click="dismissAuthPrompt">取消</text>
-            <text role="button" class="landing-sheet-btn primary" @click="goLoginFromScan"
-              >去登录</text
-            >
-          </view>
-        </view>
-      </view>
-
-      <view
-        v-if="showManual"
-        role="button"
-        aria-label="关闭"
-        class="landing-mask"
-        @click="showManual = false"
-      >
-        <view role="button" class="landing-sheet" @click.stop="noop">
-          <text class="landing-sheet-title">手动输入柜机编号</text>
-          <text class="landing-sheet-label">柜机编号</text>
-          <input
-            v-model="deviceInput"
-            class="sheet-input"
-            data-testid="device-code-input"
-            aria-label="柜机编号"
-            placeholder="请输入柜机编号"
-            type="text"
-            placeholder-class="sheet-ph"
-          />
-          <app-button
-            data-testid="open-door-confirm"
-            :loading="opening"
-            :disabled="opening"
-            :label="opening ? '开门中…' : '确认并开门'"
-            @click="confirmDevice"
-          />
-          <view class="landing-sheet-cancel-wrap">
-            <text role="button" class="landing-sheet-cancel" @click="showManual = false">取消</text>
-          </view>
-        </view>
-      </view>
+    <view v-if="showLanding" class="landing-host">
+      <HomeLanding
+        v-model:landing-error="landingError"
+        v-model:show-manual="showManual"
+        v-model:device-input="deviceInput"
+        :landing-bg-url="landingBgUrl"
+        :landing-head-style="landingHeadStyle"
+        :landing-error-kind="landingErrorKind"
+        :landing-error-title="landingErrorTitle"
+        :last-failed-device-id="lastFailedDeviceId"
+        :coupon-entry-visible="couponEntryVisible"
+        :show-manual-entry="showManualEntry"
+        :auth-prompt-visible="authPromptVisible"
+        :opening="opening"
+        :entering-flow="enteringFlow"
+        @scan="onScan"
+        @retry="retryLastOpen"
+        @recharge="goRechargeFromError"
+        @coupons="goCoupons"
+        @login="goLoginFromScan"
+        @dismiss-auth-prompt="dismissAuthPrompt"
+        @confirm="confirmDevice"
+      />
     </view>
 
     <!-- 购物页：开门后展示参考价目 -->
     <view v-if="scanned" class="shop">
-      <!-- 沉浸式绿色顶带：垫在状态栏/胶囊后面（navigationStyle=custom 页面从 y=0 起排） -->
-      <view class="shop-status-pad" :style="{ height: shopTopPadPx }" />
-      <view class="device-bar">
-        <view class="device-info">
-          <text class="device-name">{{ deviceName || deviceId }}</text>
-          <text
-            class="device-status app-status"
-            :class="{
-              'is-offline': deviceOffline,
-              'is-warn': !deviceOffline && deviceBusy,
-              'is-online': !deviceOffline && !deviceBusy
-            }"
-          >
-            <text class="app-status-dot" aria-hidden="true" />
-            {{ deviceStatusText }}
-          </text>
-        </view>
-        <view class="device-actions">
-          <text class="device-report" role="button" aria-label="报修" @click="goReport">报修</text>
-          <text class="device-change" role="button" aria-label="换一台柜机" @click="resetDevice"
-            >换一台</text
-          >
+      <!-- 沉浸顶栏：状态在上、柜名在下，水平居中白字，与胶囊同行 -->
+      <view class="shop-nav" :style="shopNavWrapStyle">
+        <view class="shop-nav-row" :style="shopNavRowStyle">
+          <view class="shop-nav-center" :style="shopNavTitleStyle">
+            <text v-if="deviceStatusText" class="shop-nav-status">{{ deviceStatusText }}</text>
+            <text class="shop-nav-title">{{ deviceName || deviceId }}</text>
+          </view>
         </view>
       </view>
 
@@ -248,7 +76,13 @@
         <text>{{ catalogNotice }}</text>
       </view>
 
-      <scroll-view scroll-y class="product-scroll" :show-scrollbar="false" enhanced>
+      <scroll-view
+        scroll-y
+        class="product-scroll"
+        :show-scrollbar="false"
+        enable-flex
+        enhanced
+      >
         <view v-if="products.length" class="catalog-tools">
           <view class="search-box">
             <input
@@ -333,7 +167,6 @@
               </view>
               <text class="product-name">{{ p.skuName }}</text>
               <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
-              <text v-if="p.category" class="product-cat">{{ p.category }}</text>
               <text
                 v-if="detailVisible"
                 role="button"
@@ -346,12 +179,13 @@
               >
               <view
                 v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
-                role="button"
                 class="product-stepper"
+                :class="{ 'is-empty': selectedQty(p) <= 0 }"
                 @click.stop="noop"
               >
                 <text
-                  class="stepper-btn"
+                  v-if="selectedQty(p) > 0"
+                  class="stepper-btn minus"
                   role="button"
                   :aria-label="`减少 ${p.skuName}`"
                   :data-testid="`product-step-minus-${p.skuId}`"
@@ -359,7 +193,7 @@
                   @click.stop="onRemoveProductTap"
                   >−</text
                 >
-                <text class="stepper-qty">{{ selectedQty(p) }}/{{ stockOf(p) }}</text>
+                <text v-if="selectedQty(p) > 0" class="stepper-qty">{{ selectedQty(p) }}</text>
                 <text
                   class="stepper-btn plus"
                   :class="{ disabled: !canAddProduct(p) }"
@@ -378,7 +212,14 @@
         <view class="list-bottom" />
       </scroll-view>
 
+      <view class="shop-tools">
+        <text class="shop-tool" role="button" aria-label="报修" @click="goReport">报修</text>
+        <text class="shop-tools-sep">·</text>
+        <text class="shop-tool" role="button" aria-label="换一台柜机" @click="resetDevice">换一台</text>
+      </view>
+
       <HomeCartBar
+        above-tab-bar
         :shopping="sessionActive && state === 'SHOPPING'"
         :mock-enabled="mockEnabled"
         :session-active="sessionActive"
@@ -401,92 +242,15 @@
         @need-help="onLiveNeedHelp"
         @reopen="reopenShop"
       />
-      <view class="cart-bar">
-        <template v-if="sessionActive && state === 'SHOPPING'">
-          <view
-            role="button"
-            class="cart-shop-main"
-            data-testid="open-live-cart-sheet"
-            @click="openCartSheet"
-          >
-            <view class="cart-icon-wrap">
-              <image class="cart-icon" src="/static/icon-cart.svg" mode="aspectFit" />
-              <text class="cart-badge">{{ cartBadgeText }}</text>
-            </view>
-            <view class="cart-shop-text">
-              <text class="cart-shop-label">{{ shoppingCartLabel }}</text>
-              <text class="cart-shop-amt">{{ shoppingCartAmount }}</text>
-            </view>
-          </view>
-          <text
-            v-if="mockEnabled && shoppingCartQty > 0"
-            role="button"
-            class="cart-clear-btn"
-            data-testid="cart-clear"
-            aria-label="清空购物车"
-            @click.stop="clearSelectedCart"
-            >清空</text
-          >
-          <button
-            v-if="mockEnabled"
-            class="cart-close-btn"
-            hover-class="btn-hover"
-            :loading="closingDoor"
-            :disabled="closingDoor"
-            @click.stop="closeDoorDemo"
-          >
-            关门结算
-          </button>
-          <view v-else class="live-door-actions">
-            <view class="cart-status-chip soft">请关门</view>
-            <button
-              class="cart-help-btn"
-              hover-class="btn-hover"
-              :loading="pollRefreshing"
-              :disabled="pollRefreshing"
-              @click.stop="refreshSessionNow"
-            >
-              刷新状态
-            </button>
-            <button
-              class="cart-help-btn ghost"
-              hover-class="btn-hover"
-              @click.stop="onLiveNeedHelp"
-            >
-              未出账单？
-            </button>
-          </view>
-        </template>
-        <template v-else>
-          <view class="cart-info">
-            <text class="cart-hint">{{ cartBarHint }}</text>
-            <text v-if="cartBarSub" class="cart-sub">{{ cartBarSub }}</text>
-          </view>
-          <view v-if="sessionActive" class="cart-status-chip" :class="stateTone">
-            {{ cartBarAction }}
-          </view>
-          <button
-            v-else-if="canReopen"
-            class="cart-cta"
-            hover-class="btn-hover"
-            data-testid="open-door-again"
-            :loading="opening"
-            :disabled="opening"
-            @click="reopenShop"
-          >
-            {{ opening ? '开门中…' : '再次开门' }}
-          </button>
-        </template>
-      </view>
     </view>
 
     <LiveCartSheet
       :visible="cartSheetVisible"
       :items="shoppingCartLines"
-      :total-qty="shoppingCartQty"
-      :total-amount-cents="shoppingCartAmountCents"
       :mock-mode="mockEnabled"
+      :closing-door="closingDoor"
       @close="cartSheetVisible = false"
+      @settle="onCartSheetSettle"
     />
 
     <!-- 全屏开门/结算状态（竞品 openDoor 页） -->
@@ -624,7 +388,11 @@ import {
   safeScanCode,
   safeSetClipboardData
 } from '@aicabinet/shared-uni/safe-uni-call';
-import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
+import {
+  getBelowCapsulePadPx,
+  getCapsuleRightGutterPx,
+  getStatusBarPadPx
+} from '@aicabinet/shared-uni/status-bar';
 import landingBgUrl from '@/static/bg-shop-indoor.jpg';
 import {
   sessionStateHint,
@@ -705,13 +473,51 @@ const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } 
 const landingHeadStyle = ref({
   paddingTop: getBelowCapsulePadPx(28) + 'px'
 });
+/** 自定义顶栏：用胶囊 top/height 对齐，禁止再套一层 padding */
+function readShopNavMetrics() {
+  let paddingTop = getStatusBarPadPx();
+  let rowHeight = 32;
+  try {
+    if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
+      const menu = uni.getMenuButtonBoundingClientRect();
+      const top = Number(menu?.top) || 0;
+      const height = Number(menu?.height) || 0;
+      if (top > 0 && height > 0) {
+        paddingTop = Math.ceil(top);
+        rowHeight = Math.max(Math.ceil(height), 44);
+      }
+    }
+  } catch {
+    /* 用状态栏回退 */
+  }
+  const gutter = getCapsuleRightGutterPx();
+  return { paddingTop, rowHeight, gutter };
+}
+
 function refreshLandingPad() {
   landingHeadStyle.value = {
     paddingTop: getBelowCapsulePadPx(28) + 'px'
   };
+  applyShopNavMetrics();
 }
-/** 购物页顶部绿色占位带高度：状态栏 + 胶囊下 8px（landing 同款工具） */
-const shopTopPadPx = ref(getBelowCapsulePadPx(8) + 'px');
+
+function applyShopNavMetrics() {
+  const m = readShopNavMetrics();
+  shopNavWrapStyle.value = { paddingTop: `${m.paddingTop}px` };
+  shopNavRowStyle.value = { height: `${m.rowHeight}px` };
+  shopNavTitleStyle.value = {
+    paddingLeft: `${m.gutter}px`,
+    paddingRight: `${m.gutter}px`
+  };
+}
+
+const shopNavWrapStyle = ref({ paddingTop: '0px' });
+const shopNavRowStyle = ref({ height: '44px' });
+const shopNavTitleStyle = ref({
+  paddingLeft: '96px',
+  paddingRight: '96px'
+});
+applyShopNavMetrics();
 
 /** H5 无可靠扫码时提供手输；微信小程序主路径仅扫码（对齐竞品，不展示开发入口） */
 const isH5 = ref(false);
@@ -838,22 +644,6 @@ const recognitionSlow = computed(
     recognitionElapsedSec.value >= 90
 );
 
-/**
- * 「柜机被他人占用」的展示文案（补货中 / 暂停营业 / 使用中）。
- *
- * ⚠️ 必须显式标注为 `readonly string[]`：字面量数组会被推断成联合字面量元组，
- * 于是 `string` 类型的 `deviceStatusText` 传进 `includes()` 会报 TS2345
- * （vue-tsc 的模板检查会命中这一点）。
- */
-const DEVICE_BUSY_STATUS_TEXTS: readonly string[] = [
-  UI_COPY.replenishing,
-  UI_COPY.paused,
-  UI_COPY.inUse
-];
-
-/** 是否处于「他人占用」态；模板里原本把这个判断写了两遍。 */
-const deviceBusy = computed(() => DEVICE_BUSY_STATUS_TEXTS.includes(deviceStatusText.value));
-
 const sessionActive = computed(
   () => !!sessionId.value && SESSION_ACTIVE_STATES.includes(state.value)
 );
@@ -874,9 +664,34 @@ onShareAppMessage(() => ({ title: SHARE_TITLE, path: SHARE_PATH }));
 onShareTimeline(() => ({ title: SHARE_TITLE }));
 
 /** 对齐扫码开门竞品：落地页全屏沉浸隐藏底栏；进入柜机流程后再显示 */
+let hideTabBarTries = 0;
+function hideLandingTabBar() {
+  uni.hideTabBar({
+    animation: false,
+    fail: () => {
+      if (hideTabBarTries >= 6) return;
+      hideTabBarTries += 1;
+      setTimeout(hideLandingTabBar, 80);
+    },
+    success: () => {
+      hideTabBarTries = 0;
+    }
+  });
+}
+
+function showTabBarSafe() {
+  uni.showTabBar({
+    animation: false,
+    fail: () => {
+      /* 报修等非 Tab 页会报 fail not TabBar page */
+    }
+  });
+}
+
 function syncLandingTabBar() {
   if (showLanding.value) {
-    uni.hideTabBar({ animation: false });
+    hideTabBarTries = 0;
+    hideLandingTabBar();
     // 隐藏底栏后视口底部安全区「窗口底色」改品牌深色，消落地页白条。
     // 仅微信小程序有此 API；H5 无实现 → 直接调用会抛 TypeError，拖垮 e2e TC-QUAL-001。
     // backgroundColorTop/Bottom：安卓手势条区域底色由 pages.json 页面级
@@ -889,7 +704,7 @@ function syncLandingTabBar() {
       });
     }
   } else {
-    uni.showTabBar({ animation: false });
+    showTabBarSafe();
     if (typeof uni.setBackgroundColor === 'function') {
       uni.setBackgroundColor({
         backgroundColor: '#ffffff',
@@ -1057,7 +872,10 @@ onLoad(async (opts) => {
   }
 });
 
-onReady(() => refreshLandingPad());
+onReady(() => {
+  refreshLandingPad();
+  syncLandingTabBar();
+});
 
 async function resumeReopenDeviceFlow(): Promise<boolean> {
   const reopen = uni.getStorageSync('reopen_device_id');
@@ -1117,14 +935,14 @@ onHide(() => {
   stopPoll();
   stopRecognitionTimer();
   // 切到订单/我的时务必显示底栏（hideTabBar 是全局的）
-  uni.showTabBar({ animation: false });
+  showTabBarSafe();
 });
 onUnload(() => {
   stopPoll();
   stopDevicePoll();
   stopOpeningCountdown();
   stopRecognitionTimer();
-  uni.showTabBar({ animation: false });
+  showTabBarSafe();
 });
 
 function thumbTone(p: DeviceProduct) {
@@ -1904,7 +1722,9 @@ const selectedLines = computed<LiveCartSheetLine[]>(() => {
       skuName: p.skuName,
       quantity: qty,
       unitPriceCents: p.priceCents,
-      lineAmountCents: p.priceCents * qty
+      lineAmountCents: p.priceCents * qty,
+      imageUrl: productThumb(p),
+      glyph: productGlyph(p)
     });
   }
   return lines;
@@ -1934,6 +1754,11 @@ function openCartSheet() {
   cartSheetVisible.value = true;
 }
 
+function onCartSheetSettle() {
+  cartSheetVisible.value = false;
+  closeDoorDemo();
+}
+
 async function refreshLiveCart() {
   if (!sessionId.value || state.value !== 'SHOPPING' || mockEnabled.value) {
     return;
@@ -1944,13 +1769,19 @@ async function refreshLiveCart() {
     liveCartAmountCents.value = Number(cart?.totalAmountCents ?? 0);
     liveCartItems.value = (cart?.items || [])
       .filter((it) => Number(it.quantity) > 0)
-      .map((it) => ({
-        skuId: String(it.skuId),
-        skuName: it.skuName,
-        quantity: Number(it.quantity ?? 0),
-        unitPriceCents: Number(it.unitPriceCents ?? 0),
-        lineAmountCents: Number(it.lineAmountCents ?? 0)
-      }));
+      .map((it) => {
+        const skuId = String(it.skuId);
+        const p = products.value.find((row) => row.skuId === skuId);
+        return {
+          skuId,
+          skuName: it.skuName,
+          quantity: Number(it.quantity ?? 0),
+          unitPriceCents: Number(it.unitPriceCents ?? 0),
+          lineAmountCents: Number(it.lineAmountCents ?? 0),
+          imageUrl: p ? productThumb(p) : '',
+          glyph: p ? productGlyph(p) : String(it.skuName || '品').slice(0, 1)
+        };
+      });
   } catch {
     // 识别推送未就绪时忽略
   }
@@ -2262,6 +2093,24 @@ function stopDevicePoll() {
 .page-root.is-landing {
   background: var(--brand-deep, #134e4a);
 }
+.landing-host {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* mp 自定义组件默认包一层不撑高，背景图只铺上半、下面剩青绿空底 */
+.landing-host home-landing {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
 
 .shop {
   flex: 1;
@@ -2269,53 +2118,70 @@ function stopDevicePoll() {
   display: flex;
   flex-direction: column;
 }
-/* 顶部绿色占位带：只垫状态栏/胶囊区域，设备栏保持白卡 */
-/* 与 AppNavBar 同色（--nav-bar-bg=--brand=#0f766e），全 App 头部绿一致 */
-.shop-status-pad {
+.shop-nav {
   flex-shrink: 0;
   background: var(--nav-bar-bg, var(--brand, #0f766e));
 }
-.device-bar {
-  flex-shrink: 0;
-  margin: 14rpx 24rpx 0;
-  padding: 18rpx 22rpx;
-  background: var(--card-bg, #fff);
-  border: 1rpx solid var(--color-border-subtle, #edf2ef);
-  border-radius: var(--radius-card, 24rpx);
-  box-shadow: 0 9rpx 28rpx rgba(15, 23, 42, 0.055);
+.shop-nav-row {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
 }
-.device-name {
-  font-size: var(--font-size-lg);
+.shop-nav-center {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.shop-nav-status {
+  font-size: 20rpx;
+  color: var(--white, #fff);
+  opacity: 0.78;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  text-align: center;
+}
+.shop-nav-title {
+  max-width: 100%;
+  font-size: 30rpx;
   font-weight: 600;
-  color: var(--text-primary, #14201b);
-  display: block;
+  color: var(--white, #fff);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
-.device-status {
-  font-size: var(--font-size-caption);
-  display: inline-flex;
-  margin-top: 7rpx;
-}
-.device-status:not(.is-offline):not(.is-warn):not(.is-online) {
-  color: var(--brand, #0f766e);
-}
-.device-actions {
+.shop-tools {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 20rpx;
-  flex-shrink: 0;
+  justify-content: center;
+  gap: 12rpx;
+  padding: 8rpx 24rpx 10rpx;
 }
-.device-change {
-  font-size: var(--font-size-body);
-  color: var(--color-link, var(--brand, #0f766e));
-  font-weight: 500;
+.shop-tool {
+  font-size: 22rpx;
+  color: var(--text-subtle, #888);
 }
-.device-report {
-  font-size: var(--font-size-body);
-  color: var(--color-link, var(--brand, #0f766e));
-  font-weight: 500;
+.shop-tool:active {
+  opacity: 0.6;
+}
+.shop-tools-sep {
+  font-size: 22rpx;
+  color: var(--text-subtle, #ccc);
 }
 
 .shopping-banner {
@@ -2482,16 +2348,15 @@ function stopDevicePoll() {
   min-width: 0;
   background: var(--card-bg, #fff);
   border-radius: var(--radius-control);
-  padding: 12rpx;
+  padding: 12rpx 12rpx 14rpx;
   box-sizing: border-box;
   border: 2rpx solid var(--color-border-subtle);
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
 }
 .product-cell.selected .product-cell-inner {
-  border-color: var(--brand-wx, #07c160);
+  border-color: var(--brand);
   background: var(--brand-soft);
 }
 .product-thumb {
@@ -2569,23 +2434,17 @@ function stopDevicePoll() {
   overflow: hidden;
   min-height: 58rpx;
   margin-top: 8rpx;
+  text-align: center;
 }
-
 .product-price {
   font-size: var(--font-size-body);
   color: var(--brand, #0f766e);
   font-weight: 700;
-  margin-top: 4rpx;
+  margin-top: 6rpx;
+  text-align: center;
 }
-.product-cat {
-  font-size: 18rpx;
-  color: var(--text-subtle);
-  margin-top: 2rpx;
-  line-height: 1.2;
-}
-/* 扩展功能：商品详情入口与弹层（consumer.product_detail.enabled，关时入口不渲染） */
 .product-detail-btn {
-  margin-top: 4rpx;
+  margin: 6rpx auto 0;
   padding: 2rpx 14rpx;
   border-radius: 999rpx;
   background: var(--color-border-subtle, #f1f5f9);
@@ -2632,25 +2491,31 @@ function stopDevicePoll() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8rpx;
-  margin-top: 6rpx;
-  min-height: 72rpx;
+  margin-top: 10rpx;
+  min-height: 48rpx;
+}
+.product-stepper.is-empty {
+  justify-content: flex-end;
 }
 .stepper-btn {
-  flex: 0 0 72rpx;
-  width: 72rpx;
-  height: 72rpx;
+  width: 44rpx;
+  height: 44rpx;
   border-radius: 50%;
-  background: var(--brand-soft);
-  color: var(--brand, #0f766e);
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-  line-height: 72rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+  line-height: 42rpx;
   text-align: center;
+  box-sizing: border-box;
+}
+.stepper-btn.minus {
+  background: var(--white, #fff);
+  color: var(--text-muted, #666);
+  border: 1rpx solid var(--color-border, #ddd);
 }
 .stepper-btn.plus {
   background: var(--brand, #0f766e);
   color: var(--white);
+  border: 1rpx solid var(--brand, #0f766e);
 }
 .stepper-btn.plus.disabled {
   opacity: 0.35;
@@ -2660,9 +2525,10 @@ function stopDevicePoll() {
   flex: 1;
   min-width: 0;
   text-align: center;
-  font-size: var(--font-size-xs);
-  font-weight: 700;
+  font-size: 26rpx;
+  font-weight: 600;
   color: var(--text-primary);
+  line-height: 44rpx;
 }
 
 .settlement-review-card {
@@ -2864,5 +2730,14 @@ function stopDevicePoll() {
    page 级背景与落地页同色兜底；购物态由 .page-root 白底、底栏区域由原生 tabBar 覆盖，不受影响。 */
 page {
   background: #134e4a;
+}
+.landing-host,
+.landing-host home-landing {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 </style>

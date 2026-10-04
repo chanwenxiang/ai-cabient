@@ -175,6 +175,25 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
         return c == null ? 0 : c;
     }
 
+    /**
+     * 经营分析成交单数：排除开门未取货的零元单。
+     * 全额退款后 total=0 但 refundedCents>0，仍计入（与运营列表 excludeZeroAmount 同口径）。
+     */
+    default long countBillableByDeviceIdInAndCreatedAtBetween(
+            Collection<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return 0;
+        }
+        Long c = selectCount(Wrappers.<CabinetOrder>lambdaQuery()
+                .in(CabinetOrder::getDeviceId, deviceIds)
+                .ge(CabinetOrder::getCreatedAt, start)
+                .lt(CabinetOrder::getCreatedAt, end)
+                .and(w -> w.gt(CabinetOrder::getTotalAmountCents, 0)
+                        .or()
+                        .gt(CabinetOrder::getRefundedCents, 0)));
+        return c == null ? 0 : c;
+    }
+
     default List<CabinetOrder> findByDeviceIdInAndCreatedAtAfter(Collection<String> deviceIds, Instant since) {
     return selectList(Wrappers.<CabinetOrder>lambdaQuery().in(CabinetOrder::getDeviceId, deviceIds).gt(CabinetOrder::getCreatedAt, since));
     }

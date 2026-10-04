@@ -87,10 +87,9 @@ export function useHomeWorkbench() {
   const meName = ref('');
   const merchantNames = ref('');
   const revenueToday = ref('暂无');
-  const incomeToday = ref('暂无');
-  const avgOrderToday = ref('暂无');
+  /** 近 N 日销量件数（analytics.itemQtySold），首页「近7天销量」 */
+  const salesQty7d = ref('0');
   const analyticsDays = ref(7);
-  const trendBars = ref<{ date: string; label: string; height: number }[]>([]);
   const pendingCount = ref(0);
   const offlineCount = ref(0);
   const lockedCount = ref(0);
@@ -223,11 +222,6 @@ export function useHomeWorkbench() {
     }
   }
 
-  async function fetchHomeTrend() {
-    if (!canTrend.value) return { last7Days: [] as { date?: string; revenueCents?: number }[] };
-    return softErr(merchantApi.trend(7), { last7Days: [] }, '趋势加载失败');
-  }
-
   async function fetchHomeWorkbench() {
     if (!canAlerts.value) return EMPTY_WORKBENCH;
     return softErr(merchantApi.workbench(), EMPTY_WORKBENCH, '待办加载失败');
@@ -263,6 +257,11 @@ export function useHomeWorkbench() {
     return softErr(merchantApi.analytics(7), null, '经营数据加载失败');
   }
 
+  async function fetchHomeTrend() {
+    if (!canTrend.value) return { last7Days: [] as { date?: string; revenueCents?: number }[] };
+    return softErr(merchantApi.trend(7), { last7Days: [] }, '趋势加载失败');
+  }
+
   async function fetchHomeDashboardBundle() {
     return Promise.all([
       softErr(merchantApi.stats(), {} as OpenApiMerchantDashboardStatsDto, '统计加载失败'),
@@ -279,24 +278,18 @@ export function useHomeWorkbench() {
 
   function applyHomeFinanceKpis(
     s: OpenApiMerchantDashboardStatsDto,
-    analytics: { days?: number; avgOrderValueCents?: number | null } | null,
-    days: { date?: string; revenueCents?: number }[]
+    analytics: { days?: number; itemQtySold?: number | null } | null,
+    _days: { date?: string; revenueCents?: number }[] | null | undefined
   ) {
-    const maxRev = Math.max(...days.map((d) => Number(d.revenueCents || 0)), 1);
     revenueToday.value = canFinanceKpi.value ? fmtMoney(s.revenueTodayCents) : '暂无';
-    incomeToday.value = canFinanceKpi.value ? fmtMoney(s.merchantIncomeTodayCents) : '暂无';
     analyticsDays.value = Number(analytics?.days || 7);
-    avgOrderToday.value =
-      canBusiness.value && analytics?.avgOrderValueCents != null
-        ? fmtMoney(analytics.avgOrderValueCents)
-        : '暂无';
-    trendBars.value = canFinanceKpi.value
-      ? days.map((d) => ({
-          date: d.date || '',
-          label: (d.date || '').slice(5),
-          height: Math.max(16, Math.round((Number(d.revenueCents || 0) / maxRev) * 120))
-        }))
-      : [];
+    // 与昨晚删柱图后一致：销量走 overview.itemQtySold，不再展示商户收入/客单/趋势柱
+    salesQty7d.value =
+      canBusiness.value && analytics?.itemQtySold != null
+        ? String(Number(analytics.itemQtySold) || 0)
+        : canBusiness.value
+          ? '0'
+          : '暂无';
   }
 
   function applyHomeAlerts(
@@ -321,8 +314,7 @@ export function useHomeWorkbench() {
         })
       : [];
     pendingCount.value = mergedTodos.length;
-    // 徽标与四卡同源：共享 countTodoCategories（audit/fault/stock/expiry 为 alerts.vue 内联展示值，
-    // 此处以同函数计数，防两处口径漂移——此前徽标=全量、四卡=归类，出现过 15 vs 14）
+    // 徽标与待办四卡同源：共享 countTodoCategories（alerts 页也走此函数并按柜机 chip 重算）
     const cat = countTodoCategories(mergedTodos);
     setAlertsTabBadge(cat.disputes + cat.offline + cat.lowStock + cat.expiry);
     // F1-UX：概况卡补货员分支需要「停售柜机」数
@@ -380,7 +372,7 @@ export function useHomeWorkbench() {
     merchantNames.value = formatMerchantNames(profile.merchants);
     latestAnnouncement.value = announcements?.[0] || null;
     stats.value = s as Record<string, unknown>;
-    const days = trend.last7Days || [];
+    const days = trend?.last7Days || [];
     applyHomeFinanceKpis(s, analytics, days);
     applyHomeAlerts(s, workbench, exceptionPage, expiryRows);
 
@@ -430,10 +422,8 @@ export function useHomeWorkbench() {
     meName,
     merchantNames,
     revenueToday,
-    incomeToday,
-    avgOrderToday,
+    salesQty7d,
     analyticsDays,
-    trendBars,
     pendingCount,
     refundOrders,
     slotDiscrepancyCount,

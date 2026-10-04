@@ -1,19 +1,8 @@
 <template>
   <view class="page">
     <app-nav-bar title="要货申请" />
+    <app-underline-tabs :items="modeTabs" :value="mode" @change="onModeTab" />
     <view class="page-body">
-      <view class="tabs">
-        <view
-          role="button"
-          class="tab"
-          :class="{ active: mode === 'create' }"
-          @click="mode = 'create'"
-          >发起要货</view
-        >
-        <view role="button" class="tab" :class="{ active: mode === 'list' }" @click="switchToList"
-          >我的申请</view
-        >
-      </view>
 
       <view v-if="mode === 'create'" class="panel">
         <view class="card">
@@ -44,7 +33,7 @@
           >
             <view class="check" :class="{ on: line.selected }">{{ line.selected ? '✓' : '' }}</view>
             <view class="line-copy">
-              <text class="sku-name">{{ line.skuName }}</text>
+              <text class="sku-name">{{ formatSkuNameWithSpec(line.skuName, line.spec, line.skuId) }}</text>
               <text class="sku-meta">
                 {{ line.skuId }} · 库存 {{ line.currentQty }}/{{ line.capacity }}
                 <text v-if="line.suggestQty > 0"> · 建议 {{ line.suggestQty }}</text>
@@ -117,50 +106,46 @@
 
       <view v-else class="panel">
         <view class="filters">
-          <view
-            v-for="t in statusTabs"
-            role="button"
-            :key="t.value"
-            class="filter"
-            :class="{ active: listStatus === t.value }"
-            @click="changeListStatus(t.value)"
-            >{{ t.label }}</view
-          >
+          <app-underline-tabs
+            :items="listStatusTabs"
+            :value="listStatus"
+            @change="changeListStatus"
+          />
         </view>
         <view v-if="listLoading" class="empty-inline">{{ UI_COPY.loading }}</view>
         <view v-else-if="listError" class="empty-inline err">{{ listError }}</view>
         <view v-else-if="!requests.length" class="empty-inline">暂无要货申请</view>
-        <view
-          v-for="req in requests"
-          role="button"
-          :key="req.requestId"
-          class="card req-card"
-          :class="{ clickable: canGoReplenish(req) }"
-          :hover-class="canGoReplenish(req) ? 'req-card-hover' : ''"
-          @click="onRequestCard(req)"
-        >
-          <view class="row-between">
-            <text class="req-id">申请号 {{ req.requestId }}</text>
-            <text class="status" :class="(req.status || '').toLowerCase()">
-              {{ displayLabel('replenishment_request_status', req.status) }}
+        <view v-for="req in requests" :key="req.requestId" class="card req-card">
+          <view class="req-head">
+            <text class="req-id">申请 {{ req.requestId }}</text>
+            <view class="req-head-actions">
+              <text class="status" :class="requestStatusClass(req)">
+                {{ requestStatusLabel(req) }}
+              </text>
+              <view
+                v-if="canGoReplenish(req)"
+                role="button"
+                class="go-replenish app-link-chevron"
+                hover-class="req-card-hover"
+                @click.stop="goReplenish(req)"
+                >去补货</view
+              >
+            </view>
+          </view>
+          <text class="req-cabinet">{{ req.deviceName || req.deviceId }}</text>
+          <text class="req-meta">{{ req.deviceId }} · {{ formatTime(req.submittedAt) }}</text>
+          <view v-if="req.lines?.length" class="line-list">
+            <text v-for="l in req.lines" :key="l.lineId || l.skuId" class="line-item">
+              {{ formatReplenRequestLine(l) }}
             </text>
           </view>
-          <text class="sku-name">{{ req.deviceName || req.deviceId }}</text>
-          <text class="sku-meta">{{ req.deviceId }} · {{ formatTime(req.submittedAt) }}</text>
-          <view v-if="req.lines?.length" class="lines">
-            <text v-for="l in req.lines" :key="l.lineId || l.skuId" class="line-chip">
-              {{ l.skuName || l.skuId }} ×{{ l.requestedQty }}
-            </text>
-          </view>
-          <text v-if="req.reviewedAt" class="sku-meta">审核 {{ formatTime(req.reviewedAt) }}</text>
+          <text v-if="isAwaitingStock(req)" class="req-hint muted"
+            >附近仓库暂无库存，备货出库后再补</text
+          >
+          <text v-if="req.reviewedAt" class="req-meta">审核 {{ formatTime(req.reviewedAt) }}</text>
           <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
           <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
           <text v-if="req.evidenceCount" class="notes">附图 {{ req.evidenceCount }} 张</text>
-          <view
-            v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId"
-            class="detail-btn app-link-chevron"
-            >去补货</view
-          >
         </view>
         <text v-if="requests.length >= 100" class="trunc-hint"
           >已加载 {{ requests.length }} 条申请</text
@@ -177,15 +162,14 @@ import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { formatDateTimeShort, formatReplenRequestLine, formatSkuNameWithSpec } from '@aicabinet/shared-uni/format';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import { hasPerm, merchantApi, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import type {
-  DeviceInfo,
   DeviceSlot,
-  MerchantMe,
+  MerchantDeviceInfo,
   OpenApiMerchantReplenishmentRequestDto,
   OpenApiReplenishmentSuggestDto
 } from '@aicabinet/shared-types';
@@ -194,6 +178,7 @@ import {
   appendOrphanSuggestions,
   buildSuggestMap,
   mergeSlotDraftLine,
+  pickDefaultDeviceIndex,
   sortDraftLines,
   suggestReasonLabel,
   type RequestDraftLine
@@ -205,6 +190,7 @@ import {
   buildSubmitReplenishmentRequestBody,
   canAddRequestEvidence,
   canGoReplenishFromRequest,
+  isAwaitingWarehouseStock,
   canStartRequestSubmit,
   evidencePreviewUrls,
   remainingEvidenceSlots,
@@ -220,7 +206,7 @@ const canView = computed(() => hasPerm(me.value, 'merchant:replenishment:view'))
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
 
 const mode = ref<'create' | 'list'>('create');
-const devices = ref<DeviceInfo[]>([]);
+const devices = ref<MerchantDeviceInfo[]>([]);
 const deviceIndex = ref(0);
 const selectedDeviceId = computed(() => devices.value[deviceIndex.value]?.deviceId || '');
 const deviceLabels = computed(() =>
@@ -245,6 +231,11 @@ const statusTabs = [
   { value: 'ACCEPTED', label: '已接单' },
   { value: 'COMPLETED', label: '已完成' },
   { value: 'REJECTED', label: '已驳回' }
+];
+const listStatusTabs = statusTabs.map((t) => ({ key: t.value, label: t.label }));
+const modeTabs = [
+  { key: 'create', label: '发起要货' },
+  { key: 'list', label: '我的申请' }
 ];
 const listStatus = ref('');
 const listError = ref('');
@@ -313,18 +304,7 @@ async function bootstrap(preferDeviceId?: string) {
     devices.value = [];
   }
   const prefer = preferDeviceId || preferredId.value;
-  const preferKey = String(prefer || '')
-    .trim()
-    .toUpperCase();
-  const idx = preferKey
-    ? devices.value.findIndex(
-        (d) =>
-          String(d.deviceId || '')
-            .trim()
-            .toUpperCase() === preferKey
-      )
-    : -1;
-  deviceIndex.value = Math.max(0, idx);
+  deviceIndex.value = pickDefaultDeviceIndex(devices.value, prefer);
   if (mode.value === 'create') await loadDraft();
   else await loadRequests();
 }
@@ -336,6 +316,11 @@ function onDevicePick(e: { detail: { value: string } }) {
 function switchToList() {
   mode.value = 'list';
   void loadRequests();
+}
+
+function onModeTab(key: string) {
+  if (key === 'list') switchToList();
+  else mode.value = 'create';
 }
 
 function changeListStatus(status: string) {
@@ -415,7 +400,7 @@ async function submit() {
         evidenceItems: evidenceItems.value
       })
     );
-    showSuccess(`已提交 #${created.requestId}`);
+    showSuccess(`已提交 ${created.requestId}`);
     notes.value = '';
     evidenceItems.value = [];
     mode.value = 'list';
@@ -479,13 +464,26 @@ function formatTime(value?: string) {
   return formatDateTimeShort(value, '暂无');
 }
 
+
+
 function canGoReplenish(req: OpenApiMerchantReplenishmentRequestDto) {
   return canGoReplenishFromRequest(req);
 }
 
-function onRequestCard(req: OpenApiMerchantReplenishmentRequestDto) {
-  if (!canGoReplenish(req)) return;
-  goReplenish(req);
+function isAwaitingStock(req: OpenApiMerchantReplenishmentRequestDto) {
+  return isAwaitingWarehouseStock(req);
+}
+
+function requestStatusLabel(req: OpenApiMerchantReplenishmentRequestDto) {
+  if (canGoReplenish(req)) return '待补货';
+  if (isAwaitingStock(req)) return '待备货';
+  return displayLabel('replenishment_request_status', req.status);
+}
+
+function requestStatusClass(req: OpenApiMerchantReplenishmentRequestDto) {
+  if (canGoReplenish(req)) return 'accepted';
+  if (isAwaitingStock(req)) return 'awaiting';
+  return String(req.status || '').toLowerCase();
 }
 
 function goReplenish(req: OpenApiMerchantReplenishmentRequestDto) {

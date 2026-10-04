@@ -15,6 +15,7 @@ export type DeviceAssetForm = DeviceLifecycleAsset & {
   dataFeeCents: number | undefined;
   opsTags: string;
   routeCode: string;
+  homeWarehouseId: string;
   latitude: number | undefined;
   longitude: number | undefined;
   address: string;
@@ -42,6 +43,7 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
     dataFeeCents: undefined,
     opsTags: '',
     routeCode: '',
+    homeWarehouseId: '',
     latitude: undefined,
     longitude: undefined,
     address: '',
@@ -52,6 +54,8 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
   const assetSaving = ref(false);
   const geoConfigured = ref(false);
 
+  const warehouseOptions = ref<{ warehouseId: string; warehouseName?: string }[]>([]);
+
   function fillAsset(row: OpenApiAdminDeviceDto) {
     asset.lifecycleStatus = row.lifecycleStatus || '';
     asset.imei = row.imei || '';
@@ -61,12 +65,25 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
     asset.dataFeeCents = row.dataFeeCents == null ? undefined : Number(row.dataFeeCents);
     asset.opsTags = row.opsTags || '';
     asset.routeCode = row.routeCode || '';
+    asset.homeWarehouseId = row.homeWarehouseId || '';
     asset.latitude = row.latitude == null ? undefined : Number(row.latitude);
     asset.longitude = row.longitude == null ? undefined : Number(row.longitude);
     asset.address = row.address || '';
     asset.deployedAt = row.deployedAt;
     asset.lifecycleRemark = row.lifecycleRemark || '';
     asset.merchantId = row.merchantId || '';
+  }
+
+  async function loadWarehouses() {
+    try {
+      const data = await api.request<{ items?: { warehouseId: string; warehouseName?: string }[] }>(
+        AdminEndpoints.warehouseListAll,
+        'GET'
+      );
+      warehouseOptions.value = data.items || [];
+    } catch {
+      warehouseOptions.value = [];
+    }
   }
 
   async function loadAsset() {
@@ -76,6 +93,7 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
     );
     fillAsset(row);
     deps.onDeviceSynced?.(row);
+    void loadWarehouses();
   }
 
   async function saveAsset() {
@@ -92,6 +110,7 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
           dataFeeCents: asset.dataFeeCents ?? null,
           opsTags: asset.opsTags || null,
           routeCode: asset.routeCode || null,
+          homeWarehouseId: asset.homeWarehouseId || '',
           latitude: asset.latitude ?? null,
           longitude: asset.longitude ?? null,
           address: asset.address || null,
@@ -126,6 +145,8 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
     geoConfigured,
     fillAsset,
     loadAsset,
+    loadWarehouses,
+    warehouseOptions,
     saveAsset,
     loadGeoStatus
   };

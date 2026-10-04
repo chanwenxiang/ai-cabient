@@ -4,8 +4,10 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.MerchantPortalControllerSupport;
+import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
 import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
+import com.aicabinet.trade.service.ProcurementService;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,11 +31,14 @@ public class MerchantPortalController {
 
     private final MerchantPortalService merchantPortalService;
     private final MerchantPortalControllerSupport support;
+    private final ProcurementService procurementService;
 
     public MerchantPortalController(MerchantPortalService merchantPortalService,
-                                    MerchantPortalControllerSupport support) {
+                                    MerchantPortalControllerSupport support,
+                                    ProcurementService procurementService) {
         this.merchantPortalService = merchantPortalService;
         this.support = support;
+        this.procurementService = procurementService;
     }
 
     @GetMapping("/me")
@@ -141,10 +146,12 @@ public class MerchantPortalController {
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "from", required = false) String from,
             @RequestParam(name = "to", required = false) String to,
-            @RequestParam(name = "keyword", required = false) String keyword) {
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "excludeZero", required = false) String excludeZero) {
         return ApiResponse.ok(support.merchantFinanceService().listOrders(
                 userId(request), new MerchantFinanceService.MerchantOrderListQuery(
-                        page, size, deviceId, status, from, to, keyword)));
+                        page, size, deviceId, status, from, to, keyword,
+                        isExcludeZeroParam(excludeZero))));
     }
 
     @RequiresPermissions("merchant:orders:list")
@@ -207,6 +214,48 @@ public class MerchantPortalController {
             @PathVariable String ticketId,
             @Valid @RequestBody ResolveDisputeRequest body) {
         return ApiResponse.ok(support.disputeService().resolveAsMerchant(userId(request), ticketId, body));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/satellite-warehouse")
+    public ApiResponse<WarehouseDto> satelliteWarehouse(HttpServletRequest request) {
+        return ApiResponse.ok(procurementService.getSatelliteWarehouse(userId(request)));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/satellite-purchase/suppliers")
+    public ApiResponse<List<SupplierDto>> satellitePurchaseSuppliers(HttpServletRequest request) {
+        return ApiResponse.ok(procurementService.listSatelliteSuppliers(userId(request)));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/satellite-purchase/skus")
+    public ApiResponse<List<SatelliteSkuOptionDto>> satellitePurchaseSkus(HttpServletRequest request) {
+        return ApiResponse.ok(procurementService.listSatelliteSkus(userId(request)));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/satellite-purchase/orders")
+    public ApiResponse<List<PurchaseOrderDto>> satellitePurchaseOrders(HttpServletRequest request) {
+        return ApiResponse.ok(procurementService.listSatellitePurchaseOrders(userId(request)));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @PostMapping("/satellite-purchase/orders")
+    public ApiResponse<PurchaseOrderDto> createSatellitePurchaseOrder(
+            HttpServletRequest request,
+            @Valid @RequestBody CreatePurchaseOrderRequest body) {
+        return ApiResponse.ok(procurementService.createSatellitePurchaseOrder(userId(request), body));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @PostMapping("/satellite-purchase/orders/{purchaseOrderId}/receive")
+    public ApiResponse<PurchaseOrderDto> receiveSatellitePurchaseOrder(
+            HttpServletRequest request,
+            @PathVariable Long purchaseOrderId,
+            @Valid @RequestBody ReceivePurchaseOrderRequest body) {
+        return ApiResponse.ok(
+                procurementService.receiveSatellitePurchaseOrder(userId(request), purchaseOrderId, body));
     }
 
     @RequiresPermissions("merchant:inventory:view")
@@ -324,7 +373,7 @@ public class MerchantPortalController {
     @GetMapping("/tax-profile")
     public ApiResponse<MerchantTaxProfileDto> getTaxProfile(
             HttpServletRequest request,
-            @RequestParam String merchantId) {
+            @RequestParam(name = "merchantId") String merchantId) {
         return ApiResponse.ok(support.invoiceService().getTaxProfile(userId(request), merchantId));
     }
 
@@ -531,27 +580,30 @@ public class MerchantPortalController {
     @GetMapping("/analytics/overview")
     public ApiResponse<MerchantAnalyticsOverviewDto> analyticsOverview(
             HttpServletRequest request,
-            @RequestParam(name = "days", defaultValue = "30") int days) {
-        return ApiResponse.ok(support.merchantAnalyticsService().overview(userId(request), days));
+            @RequestParam(name = "days", defaultValue = "30") int days,
+            @RequestParam(name = "deviceId", required = false) String deviceId) {
+        return ApiResponse.ok(support.merchantAnalyticsService().overview(userId(request), days, deviceId));
     }
 
     @RequiresPermissions("merchant:analytics:view")
     @GetMapping("/analytics/sales-reports")
     public ApiResponse<List<SalesReportRowDto>> salesReports(
             HttpServletRequest request,
-            @RequestParam(defaultValue = "PRODUCT") String dim,
-            @RequestParam(required = false) String fromDate,
-            @RequestParam(required = false) String toDate) {
-        return ApiResponse.ok(support.merchantAnalyticsService().salesReports(userId(request), dim, fromDate, toDate));
+            @RequestParam(name = "dim", defaultValue = "PRODUCT") String dim,
+            @RequestParam(name = "fromDate", required = false) String fromDate,
+            @RequestParam(name = "toDate", required = false) String toDate,
+            @RequestParam(name = "deviceId", required = false) String deviceId) {
+        return ApiResponse.ok(support.merchantAnalyticsService().salesReports(
+                userId(request), dim, fromDate, toDate, deviceId));
     }
 
     @RequiresPermissions("merchant:reports:export")
     @GetMapping(value = "/analytics/sales-reports/export", produces = "text/csv")
     public ResponseEntity<byte[]> salesReportsExport(
             HttpServletRequest request,
-            @RequestParam(defaultValue = "PRODUCT") String dim,
-            @RequestParam(required = false) String fromDate,
-            @RequestParam(required = false) String toDate) {
+            @RequestParam(name = "dim", defaultValue = "PRODUCT") String dim,
+            @RequestParam(name = "fromDate", required = false) String fromDate,
+            @RequestParam(name = "toDate", required = false) String toDate) {
         String csv = support.merchantAnalyticsService().salesReportsCsv(userId(request), dim, fromDate, toDate);
         return csvAttachment("merchant-sales-reports.csv", csv.getBytes(StandardCharsets.UTF_8));
     }
@@ -583,8 +635,9 @@ public class MerchantPortalController {
     @GetMapping("/analytics/ai-insight")
     public ApiResponse<MerchantAiInsightDto> aiInsight(
             HttpServletRequest request,
-            @RequestParam(name = "days", defaultValue = "30") int days) {
-        return ApiResponse.ok(support.merchantAiInsightService().insight(userId(request), days));
+            @RequestParam(name = "days", defaultValue = "30") int days,
+            @RequestParam(name = "deviceId", required = false) String deviceId) {
+        return ApiResponse.ok(support.merchantAiInsightService().insight(userId(request), days, deviceId));
     }
 
     @RequiresPermissions("merchant:portal:access")
@@ -703,6 +756,14 @@ public class MerchantPortalController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
                 .body(csv);
+    }
+
+    private static boolean isExcludeZeroParam(String excludeZero) {
+        if (excludeZero == null || excludeZero.isBlank()) {
+            return false;
+        }
+        String v = excludeZero.trim();
+        return "1".equals(v) || "true".equalsIgnoreCase(v);
     }
 
     private static Long userId(HttpServletRequest request) {

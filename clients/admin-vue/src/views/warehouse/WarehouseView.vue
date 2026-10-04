@@ -125,6 +125,7 @@
           v-if="
             tab === 'inventory' ||
             tab === 'movements' ||
+            tab === 'monthly' ||
             tab === 'outbounds' ||
             tab === 'purchase' ||
             tab === 'suggestions' ||
@@ -147,6 +148,14 @@
               :value="w.warehouseId"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item v-if="tab === 'monthly'" label="月份">
+          <input
+            v-model="monthlyCloseYearMonth"
+            class="native-date"
+            type="month"
+            @change="onWarehouseFilter"
+          />
         </el-form-item>
         <el-form-item
           v-if="tab === 'suppliers' || tab === 'purchase' || tab === 'returns'"
@@ -331,6 +340,7 @@
           <WarehouseOverviewTab
             :table="crud"
             :actions="warehouseRowActions"
+            :manager-label="warehouseManagerLabel"
             @action="onWarehouseAction"
           />
         </el-tab-pane>
@@ -537,10 +547,18 @@
             @selection-change="onSelectionChange"
           />
         </el-tab-pane>
+        <el-tab-pane v-if="isPaneVisible('monthly')" label="月结" name="monthly">
+          <WarehouseMonthlyCloseTab
+            :loading="isTabLoading('monthly')"
+            :hydrated="hydratedTabs.has('monthly')"
+            :hint="monthlyCloseHint"
+            :rows="monthlyCloseLines"
+          />
+        </el-tab-pane>
       </el-tabs>
       <!-- 仓库主 tab 的分页已内建 CrudTable；共享分页器仅服务其余 tab -->
       <PagePager
-        v-if="tab !== 'warehouses'"
+        v-if="tab !== 'warehouses' && tab !== 'monthly'"
         :hydrated="hydratedTabs.has(tab)"
         v-model:current-page="page"
         v-model:page-size="size"
@@ -566,6 +584,9 @@
         :pay-max-yuan="payMaxYuan"
         :active-warehouses="activeWarehouses"
         :skus="skus"
+        :manager-options="managerOptions"
+        :manager-loading="managerLoading"
+        :manager-option-label="managerOptionLabel"
         @update:warehouse-dialog="setWarehouseDialog"
         @update:supplier-dialog="setSupplierDialog"
         @update:payment-dialog="setPaymentDialog"
@@ -633,7 +654,7 @@
         v-model:receive-form="receiveForm"
         v-model:return-form="returnForm"
         :active-suppliers="activeSuppliers"
-        :active-warehouses="activeWarehouses"
+        :active-warehouses="managedPurchaseWarehouses"
         :warehouses="warehouses"
         :skus="skus"
         :returnable-purchase-orders="returnablePurchaseOrders"
@@ -691,6 +712,9 @@ const WarehouseInventoryTab = defineAsyncComponent(
 );
 const WarehouseMovementsTab = defineAsyncComponent(
   () => import('@/components/warehouse/WarehouseMovementsTab.vue')
+);
+const WarehouseMonthlyCloseTab = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseMonthlyCloseTab.vue')
 );
 const WarehouseOutboundsTab = defineAsyncComponent(
   () => import('@/components/warehouse/WarehouseOutboundsTab.vue')
@@ -885,6 +909,7 @@ const TAB_DESC: Record<string, string> = {
   bins: '货位：仓库内存放位置编码，出入库单据会引用',
   inventory: '批次库存：按批次查看各仓现存量与有效期，先进先出发货',
   movements: '库存流水：每笔入库/出库/调拨/盘点的明细账，可对账追溯',
+  monthly: '月结一张表：本仓应有、实盘、上柜件数，与结算金额无关',
   transfers: '仓间调拨：库存在两个仓库间的调拨，生成调拨单与双向流水',
   outbounds: '出库单：补货发往柜机的发货单，补货任务关联的出库在这里'
   // transit 不设通用描述：该 tab 有专属说明条（transit-flow-hint，含签收/上架/不办回仓语义），避免同屏双提示
@@ -926,6 +951,7 @@ const TAB_GROUP_MAP: Record<string, WarehouseTabGroup> = {
   bins: 'inventory',
   inventory: 'inventory',
   movements: 'inventory',
+  monthly: 'inventory',
   transfers: 'fulfillment',
   outbounds: 'fulfillment',
   transit: 'fulfillment'
@@ -934,7 +960,7 @@ const TAB_GROUP_MAP: Record<string, WarehouseTabGroup> = {
 const TAB_GROUP_ORDER: Record<WarehouseTabGroup, string[]> = {
   overview: ['warehouses'],
   procurement: ['suppliers', 'purchase', 'suggestions', 'returns', 'payables'],
-  inventory: ['stocktakes', 'bins', 'inventory', 'movements'],
+  inventory: ['stocktakes', 'bins', 'inventory', 'movements', 'monthly'],
   fulfillment: ['transfers', 'outbounds', 'transit']
 };
 
@@ -1016,7 +1042,8 @@ const SERVER_PAGINATED_TABS = new Set([
   'transit',
   'transfers',
   'inventory',
-  'movements'
+  'movements',
+  'monthly'
 ]);
 const tabTotals = ref<Record<string, number>>({});
 const page = ref(1);
@@ -1070,6 +1097,11 @@ const outbounds = ref<Row[]>([]);
 const inTransit = ref<Row[]>([]);
 const inventory = ref<Row[]>([]);
 const movements = ref<Row[]>([]);
+const monthlyCloseLines = ref<Row[]>([]);
+const monthlyCloseHint = ref('');
+const monthlyCloseYearMonth = ref(
+  new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 7)
+);
 const suggestions = ref<Row[]>([]);
 const suggestionLeadTimeDays = ref(2);
 const suggestionCoverageDays = ref(14);
@@ -1206,6 +1238,8 @@ const tabSource = computed(() => {
       return inventory.value;
     case 'movements':
       return movements.value;
+    case 'monthly':
+      return monthlyCloseLines.value;
     default:
       return warehouses.value;
   }
@@ -1349,6 +1383,9 @@ const {
   inTransit,
   inventory,
   movements,
+  monthlyCloseLines,
+  monthlyCloseHint,
+  monthlyCloseYearMonth,
   suggestions,
   payables,
   payableSummary,
@@ -1385,6 +1422,7 @@ const {
   purchaseFieldErrors,
   receiveForm,
   returnForm,
+  managedPurchaseWarehouses,
   clearPurchaseLineError,
   patchPurchaseOrderRow,
   openPurchase,
@@ -1528,6 +1566,10 @@ const {
   paymentDialog,
   inboundDialog,
   warehouseForm,
+  managerOptions,
+  managerLoading,
+  managerOptionLabel,
+  warehouseManagerLabel,
   supplierForm,
   paymentForm,
   payTarget,

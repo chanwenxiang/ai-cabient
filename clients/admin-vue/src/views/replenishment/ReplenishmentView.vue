@@ -1039,7 +1039,7 @@
           </div>
         </div>
         <div class="table-scroll">
-          <el-table :data="taskLines" stripe border size="small" empty-text=" ">
+            <el-table :data="taskLines" stripe border size="small" empty-text=" " class="lines-table">
             <template #empty>
               <el-empty
                 v-if="!linesLoading"
@@ -1049,7 +1049,7 @@
             </template>
             <el-table-column
               label="类型"
-              width="72"
+              width="88"
               align="center"
               class-name="col-status"
               label-class-name="col-status"
@@ -1058,28 +1058,27 @@
             </el-table-column>
             <el-table-column
               label="商品"
-              min-width="120"
-              class-name="col-text"
-              label-class-name="col-text"
+              min-width="200"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
             >
-              <template #default="{ row }">
-                <div>{{ row.skuName || row.skuId || '无' }}</div>
-                <small v-if="row.skuName && row.skuId" class="muted mono">{{ row.skuId }}</small>
-              </template>
+              <template #default="{ row }">{{ formatReplenRequestProduct(row) }}</template>
             </el-table-column>
             <el-table-column
               prop="quantity"
               label="数量"
-              width="64"
+              width="88"
               align="center"
               class-name="col-status"
               label-class-name="col-status"
             />
             <el-table-column
               label="货道"
-              min-width="120"
-              class-name="col-text"
-              label-class-name="col-text"
+              min-width="168"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
             >
               <template #default="{ row }">
                 <el-select
@@ -1088,8 +1087,8 @@
                   clearable
                   filterable
                   size="small"
+                  class="slot-select"
                   placeholder="待分配"
-                  style="width: 110px"
                   @change="(v: string | null) => onSlotAssign(row, v)"
                 >
                   <el-option
@@ -1111,8 +1110,9 @@
             <el-table-column
               label="批次"
               min-width="90"
-              class-name="col-text"
-              label-class-name="col-text"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
             >
               <template #default="{ row }">{{ row.batchNo || '无' }}</template>
             </el-table-column>
@@ -1293,7 +1293,7 @@ import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { formatDateTime, formatReplenRequestProduct } from '@aicabinet/shared-uni/format';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 多 tab 动态行，字段随业务表变化
@@ -1892,6 +1892,8 @@ function goWarehouseOutbound(outboundId: string | number) {
 function findTaskById(taskId: number | string | undefined | null): Row | null {
   if (taskId == null || taskId === '') return null;
   const id = Number(taskId);
+  const fromFulfillment = fulfillmentTasksList.value.find((task) => Number(task.taskId) === id);
+  if (fromFulfillment) return fromFulfillment;
   for (const routeRow of routes.value) {
     for (const task of routeRow.tasks || []) {
       if (Number(task.taskId) === id) {
@@ -1907,11 +1909,19 @@ function findTaskById(taskId: number | string | undefined | null): Row | null {
   return null;
 }
 
-async function openLinkedTask(taskId: number | string) {
-  let task = findTaskById(taskId);
-  if (!task) {
-    await reloadCurrentTab();
-    task = findTaskById(taskId);
+async function openLinkedTask(
+  taskId: number | string,
+  extra?: { deviceId?: string; deviceName?: string }
+) {
+  const id = Number(taskId);
+  let task = findTaskById(id);
+  if (!task && extra?.deviceId) {
+    task = {
+      taskId: id,
+      deviceId: extra.deviceId,
+      deviceName: extra.deviceName,
+      status: 'PENDING'
+    };
   }
   if (!task) {
     ElMessage.warning(`未找到补货任务 ${taskId}，请到履约记录中查找`);
@@ -1919,8 +1929,6 @@ async function openLinkedTask(taskId: number | string) {
     syncRouteQuery();
     return;
   }
-  tab.value = 'fulfillment';
-  syncRouteQuery();
   await openTaskLines(task);
 }
 
@@ -2389,10 +2397,31 @@ onActivated(() => {
 .lines-summary {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   min-height: 24px;
   color: var(--layout-muted);
   font-size: var(--admin-font-size-table);
+}
+.slot-select {
+  width: 100%;
+  max-width: 168px;
+}
+.lines-drawer :deep(.el-table .cell) {
+  overflow: visible;
+  text-overflow: clip;
+}
+.lines-drawer :deep(.el-select) {
+  width: 100%;
+}
+.lines-drawer :deep(.el-select__wrapper),
+.lines-drawer :deep(.el-select .el-input__wrapper) {
+  width: 100%;
+}
+.lines-drawer :deep(.el-select__selected-item),
+.lines-drawer :deep(.el-select .el-select__selected-item span) {
+  overflow: visible;
+  text-overflow: clip;
 }
 .lines-meta {
   margin-bottom: 0;
@@ -2451,6 +2480,7 @@ onActivated(() => {
 .lines-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   margin-top: 14px;
 }

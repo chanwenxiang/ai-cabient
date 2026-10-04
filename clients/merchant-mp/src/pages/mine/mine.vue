@@ -1,17 +1,21 @@
 <template>
   <view class="page">
-    <view class="profile-header" :style="headerPadStyle">
-      <view class="profile-main">
-        <view class="avatar">{{ avatarText }}</view>
-        <view class="profile-info">
-          <text class="hello">{{ meName }}</text>
-          <text class="sub">{{ merchantNames }}</text>
-          <text v-if="phone" class="phone">{{ phone }}</text>
-        </view>
-        <text v-if="canEditProfile" role="button" class="edit-btn" @click="openProfileEdit"
-          >编辑资料</text
-        >
+    <app-nav-bar title="我的" hide-back home-url="/pages/home/home" />
+    <view
+      class="profile-cell"
+      :hover-class="canEditProfile ? 'wx-cell-hover' : ''"
+      :role="canEditProfile ? 'button' : undefined"
+      :aria-label="canEditProfile ? '编辑资料' : undefined"
+      @click="onProfileTap"
+    >
+      <view class="avatar">
+        <text class="avatar-text">{{ avatarText }}</text>
       </view>
+      <view class="profile-info">
+        <text class="hello">{{ meName }}</text>
+        <text class="sub">{{ profileSub }}</text>
+      </view>
+      <view v-if="canEditProfile" class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
     </view>
 
     <AppSheet
@@ -68,10 +72,46 @@
       </view>
     </view>
 
+    <view v-if="moreNav.length" class="section-label">更多功能</view>
+    <view v-if="moreNav.length" class="menu-list">
+      <view
+        v-for="item in moreNav"
+        role="button"
+        :key="item.key"
+        class="menu-cell"
+        @click="goNav(item)"
+      >
+        <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">{{ item.title }}</text>
+          <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
+    </view>
+
     <view v-if="teamNav.length" class="section-label">团队与设置</view>
     <view v-if="teamNav.length" class="menu-list">
       <view
         v-for="item in teamNav"
+        role="button"
+        :key="item.key"
+        class="menu-cell"
+        @click="goNav(item)"
+      >
+        <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">{{ item.title }}</text>
+          <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
+    </view>
+
+    <view v-if="docsNav.length" class="section-label">资料与报表</view>
+    <view v-if="docsNav.length" class="menu-list">
+      <view
+        v-for="item in docsNav"
         role="button"
         :key="item.key"
         class="menu-cell"
@@ -96,43 +136,6 @@
         </view>
         <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-    </view>
-
-    <view v-if="canAlerts" class="section-label">消息提醒</view>
-    <view v-if="canAlerts" class="menu-list notify-card">
-      <view class="notify-head">
-        <view class="menu-text">
-          <text class="menu-title">微信订阅提醒</text>
-          <text class="menu-desc">{{ notifyDesc }}</text>
-        </view>
-        <button
-          v-if="isMpWeixin && subscribeReady"
-          class="bind-btn"
-          :loading="notifyBusy"
-          :disabled="!subscribeReady"
-          @click="onBindWx"
-        >
-          {{ wxBound ? '重新绑定' : '开启提醒' }}
-        </button>
-        <text v-else class="bind-h5-hint">仅微信端可用</text>
-      </view>
-      <!-- 未配置订阅模板时偏好开关整体不可用，折叠避免占屏（保留标题+说明行） -->
-      <template v-if="subscribeReady">
-        <view class="notify-types">
-          <view v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
-            <switch
-              :checked="enabledTypes.includes(t.value)"
-              color="var(--brand)"
-              :aria-label="t.label"
-              @change="(e) => onToggleType(t.value, switchEnabled(e))"
-            />
-            <text>{{ t.label }}</text>
-          </view>
-        </view>
-        <button class="save-btn" :loading="notifyBusy" @click="onSaveSubscribe">
-          保存提醒偏好
-        </button>
-      </template>
     </view>
 
     <view v-if="bizNav.length" class="section-label">经营工具</view>
@@ -168,18 +171,9 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import AppSheet from '@/components/AppSheet.vue';
 import { clearSession, hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
-import {
-  hasSubscribeTemplates,
-  MERCHANT_ALERT_TYPES,
-  requestMerchantSubscribe,
-  wxLoginCode,
-  showError,
-  showSuccess,
-  showConfirm
-} from '@/utils/notify';
+import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import {
   canAccessNav,
   useMerchantMe,
@@ -188,16 +182,15 @@ import {
 import type { MerchantMe, OpenApiUpdateMerchantProfileRequest } from '@aicabinet/shared-types';
 import {
   MERCHANT_BIZ_NAV,
+  MERCHANT_DOCS_NAV,
   MERCHANT_FIELD_NAV,
+  MERCHANT_MORE_NAV,
+  MERCHANT_MORE_NAV_KEYS,
   MERCHANT_TEAM_NAV,
   type MerchantNavItem
 } from '@/config/merchant-nav';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
-
-const headerPadStyle = {
-  paddingTop: getBelowCapsulePadPx(8) + 'px'
-};
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const meName = ref('');
@@ -208,30 +201,18 @@ const profileEditVisible = ref(false);
 const profileSaving = ref(false);
 const profileForm = ref<OpenApiUpdateMerchantProfileRequest>({});
 const avatarText = computed(() => (meName.value || '商').slice(0, 1));
-const notifyBusy = ref(false);
-const wxBound = ref(false);
-const enabledTypes = ref<string[]>([]);
-const alertTypeOptions = MERCHANT_ALERT_TYPES;
-const subscribeReady = hasSubscribeTemplates();
-const isMpWeixin = (() => {
-  try {
-    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
-    return info.uniPlatform === 'mp-weixin';
-  } catch {
-    return false;
-  }
-})();
-const notifyDesc = computed(() => {
-  if (!isMpWeixin) return '微信订阅提醒仅支持小程序端';
-  if (!subscribeReady) return '未配置订阅模板，偏好可保存但无法申请微信推送授权';
-  if (wxBound.value) return '已绑定微信，可接收待办推送';
-  return '绑定微信后可接收待办推送';
+const profileSub = computed(() => {
+  const bits = [merchantNames.value, phone.value].filter((s) => String(s || '').trim());
+  return bits.join(' · ');
 });
 
 const fieldNav = computed(() => MERCHANT_FIELD_NAV.filter((i) => canAccessNav(me.value, i)));
-const bizNav = computed(() => MERCHANT_BIZ_NAV.filter((i) => canAccessNav(me.value, i)));
+const moreNav = computed(() => MERCHANT_MORE_NAV.filter((i) => canAccessNav(me.value, i)));
+const bizNav = computed(() =>
+  MERCHANT_BIZ_NAV.filter((i) => canAccessNav(me.value, i) && !MERCHANT_MORE_NAV_KEYS.has(i.key))
+);
 const teamNav = computed(() => MERCHANT_TEAM_NAV.filter((i) => canAccessNav(me.value, i)));
-const canAlerts = computed(() => fieldNav.value.some((i) => i.key === 'alerts'));
+const docsNav = computed(() => MERCHANT_DOCS_NAV.filter((i) => canAccessNav(me.value, i)));
 
 function goNav(item: MerchantNavItem) {
   if (item.tab) {
@@ -244,6 +225,11 @@ function goNav(item: MerchantNavItem) {
 function openProfileEdit() {
   profileForm.value = { contactPhone: '', alertContactName: '', alertContactPhone: '' };
   profileEditVisible.value = true;
+}
+
+function onProfileTap() {
+  if (!canEditProfile.value) return;
+  openProfileEdit();
 }
 
 async function saveProfileEdit() {
@@ -272,17 +258,6 @@ function goAnnouncements() {
   uni.navigateTo({ url: '/pages/announcements/announcements' });
 }
 
-async function loadNotifyPrefs() {
-  if (!canAlerts.value) return;
-  try {
-    const prefs = await merchantApi.notifyPrefs();
-    wxBound.value = !!prefs.wxBound;
-    enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
-  } catch {
-    /* ignore — page still usable */
-  }
-}
-
 onShow(async () => {
   if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
@@ -299,71 +274,7 @@ onShow(async () => {
   meName.value = profile.displayName || profile.phoneNumber || '商户';
   merchantNames.value = formatMerchantNames(profile.merchants, '未绑定');
   phone.value = profile.phoneNumber || '';
-  await loadNotifyPrefs();
 });
-
-function onToggleType(type: string, on: boolean) {
-  const set = new Set(enabledTypes.value);
-  if (on) set.add(type);
-  else set.delete(type);
-  enabledTypes.value = [...set];
-}
-
-function switchEnabled(e: unknown) {
-  const ev = e as { detail?: { value?: boolean } };
-  return !!ev?.detail?.value;
-}
-
-async function onBindWx() {
-  if (!isMpWeixin) {
-    showError('请在微信小程序中开启提醒');
-    return;
-  }
-  if (!subscribeReady) {
-    showError('未配置订阅模板，无法开启推送');
-    return;
-  }
-  notifyBusy.value = true;
-  try {
-    const sub = await requestMerchantSubscribe();
-    if (sub === 'failed') {
-      showError('微信授权未完成，仍可继续绑定账号');
-    }
-    const code = await wxLoginCode();
-    const prefs = await merchantApi.notifyWxBind(code);
-    wxBound.value = !!prefs.wxBound;
-    enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
-    showSuccess('已绑定微信提醒');
-  } catch (e) {
-    showError(e instanceof Error ? e.message : '绑定失败');
-  } finally {
-    notifyBusy.value = false;
-  }
-}
-
-async function onSaveSubscribe() {
-  notifyBusy.value = true;
-  try {
-    // M-P2-14：H5 无订阅授权能力，仅保存偏好，不调 requestSubscribeMessage
-    if (isMpWeixin && subscribeReady) {
-      const sub = await requestMerchantSubscribe();
-      if (sub === 'failed') {
-        showError('微信授权未完成，偏好仍会保存');
-      }
-    }
-    const prefs = await merchantApi.notifySubscribe(enabledTypes.value);
-    enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
-    if (!isMpWeixin) {
-      showSuccess('偏好已保存（推送请在微信小程序开启）');
-    } else {
-      showSuccess(subscribeReady ? '提醒偏好已保存' : '偏好已保存（未配置推送模板）');
-    }
-  } catch (e) {
-    showError(e instanceof Error ? e.message : '保存失败');
-  } finally {
-    notifyBusy.value = false;
-  }
-}
 
 async function onLogout() {
   const confirmed = await showConfirm({
@@ -378,15 +289,6 @@ async function onLogout() {
 </script>
 
 <style scoped>
-.edit-btn {
-  align-self: flex-start;
-  padding: 10rpx 22rpx;
-  border-radius: var(--radius-pill);
-  background: var(--brand-soft);
-  color: var(--brand, #0f766e);
-  font-size: var(--font-size-caption);
-  font-weight: 600;
-}
 .dialog-title {
   display: block;
   font-size: var(--font-size-xl);
@@ -424,7 +326,7 @@ async function onLogout() {
   background: var(--brand, #0f766e);
   color: var(--white);
   border: none;
-  border-radius: var(--radius-pill);
+  border-radius: 16rpx;
   font-size: var(--font-size-md);
   min-height: 80rpx;
   line-height: 1.2;
@@ -442,64 +344,56 @@ async function onLogout() {
 .page {
   min-height: 100%;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: var(--card-bg, #ffffff);
+  background: var(--page-bg, #ededed);
 }
-.profile-header {
-  margin: 0;
-  padding: 0;
-  border-radius: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  width: 100%;
-  box-sizing: border-box;
-  background: linear-gradient(
-    145deg,
-    var(--brand-deep, #134e4a),
-    var(--brand, #0f766e) 60%,
-    var(--brand, #0f766e)
-  );
-  box-shadow: none;
-  color: var(--white);
-}
-.profile-main {
+.profile-cell {
   display: flex;
   align-items: center;
-  gap: 14rpx;
-  padding: 12rpx 24rpx 24rpx;
+  gap: 24rpx;
+  margin: 0 0 16rpx;
+  padding: 32rpx 32rpx 36rpx;
+  background: #ffffff;
+  box-sizing: border-box;
 }
 .avatar {
-  width: 80rpx;
-  height: 80rpx;
+  width: 128rpx;
+  height: 128rpx;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
-  border: 2rpx solid rgba(255, 255, 255, 0.35);
+  background: var(--brand, #0f766e);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-size-h3);
-  font-weight: 700;
+  flex-shrink: 0;
+}
+.avatar-text {
+  color: #ffffff;
+  font-size: 48rpx;
+  font-weight: 600;
+  line-height: 1;
 }
 .profile-info {
   flex: 1;
   min-width: 0;
 }
 .hello {
-  font-size: var(--font-size-lg);
-  font-weight: 700;
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #181818;
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.35;
 }
 .sub {
-  font-size: var(--font-size-sm);
-  opacity: 0.9;
+  font-size: 26rpx;
+  color: #888888;
   display: block;
-  margin-top: 2rpx;
-}
-.phone {
-  font-size: var(--font-size-sm);
-  opacity: 0.75;
-  display: block;
-  margin-top: 2rpx;
+  margin-top: 8rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
 }
 .section-label {
   margin: 14rpx 28rpx 6rpx;
@@ -565,70 +459,6 @@ async function onLogout() {
   height: 0.55em;
   font-size: var(--font-size-md);
   margin-left: 8rpx;
-}
-.notify-card {
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-card);
-  padding: 24rpx;
-  margin: 0 var(--page-gutter) 12rpx;
-}
-.notify-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 16rpx;
-  margin-bottom: 16rpx;
-}
-.bind-btn {
-  flex-shrink: 0;
-  background: var(--brand-soft);
-  color: var(--brand, #0f766e);
-  border: none;
-  font-size: var(--font-size-caption);
-  font-weight: 600;
-  min-height: 72rpx;
-  height: 72rpx;
-  line-height: 72rpx;
-  padding: 0 24rpx;
-  border-radius: var(--radius-card);
-}
-.bind-btn::after {
-  border: none;
-}
-.bind-h5-hint {
-  flex-shrink: 0;
-  font-size: var(--font-size-caption);
-  color: var(--text-muted, #64748b);
-  line-height: 1.4;
-  white-space: nowrap;
-}
-.notify-warn {
-  margin-bottom: 16rpx;
-  padding: 12rpx 16rpx;
-  border-radius: var(--radius-control);
-  background: var(--brand-soft);
-  color: var(--brand, #0f766e);
-  font-size: var(--font-size-sm);
-  line-height: 1.4;
-}
-.notify-types {
-  display: grid;
-  gap: 12rpx;
-}
-.notify-type {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  font-size: var(--font-size-body);
-  color: var(--text-muted, #334155);
-}
-.save-btn {
-  margin-top: 20rpx;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
-  color: var(--white);
-  border: none;
-  border-radius: var(--radius-control);
-  font-size: var(--font-size-md);
-  box-shadow: 0 8rpx 20rpx rgba(13, 148, 136, 0.32);
 }
 .danger {
   color: var(--color-danger);

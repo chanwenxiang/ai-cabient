@@ -22,7 +22,7 @@
  *    `/api/v2/disputes/mine` 里按结论文挑（挑不到 → SKIP 并写明原因，不是 FAIL）。
  *
  * ③ 断言由「整页文本正则」换成「该页专属容器 + 与 API 真值等值」：
- *    结构锚点 `.status-title` / `.bill-row .bill-amount` / `.info-value.mono`(购物单号)，
+ *    结构锚点 `.status-title` / `.bill-row .bill-amount` / 购物单号 info-row，
  *    并**绑定实体**（金额、单号、标题都与该工单的详情接口返回值逐项对齐）。
  *    另加**反向对照**：纯扣款结案**必须没有**「退款渠道」行（`shouldShowConsumerRefundChannel`
  *    仅在终态且 `refundedAmountCents > 0` 时为真）。有/无两侧都断言，判据才有区分力。
@@ -166,7 +166,7 @@ async function readConsumerDetail(page) {
       statusTitle: t('.status-title'),
       billLabel: t('.bill-row .bill-label'),
       billAmount: t('.bill-row .bill-amount'),
-      bizNo: t('.info-value.mono'),
+      bizNo: infoRows.find((r) => r.label === '购物单号')?.value ?? '',
       refundRow: infoRows.find((r) => r.label === '退款渠道') || null,
       infoRows,
       notFound: (document.body?.innerText || '').includes('未找到审核单'),

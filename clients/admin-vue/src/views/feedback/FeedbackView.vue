@@ -281,7 +281,7 @@ function onFeedbackAction({ key, row }: { key: string; row: Row }) {
 
 async function removeFeedback(row: Row) {
   try {
-    await ElMessageBox.confirm(`确认删除反馈 #${row.feedbackId}？`, '删除反馈', {
+    await ElMessageBox.confirm(`确认删除反馈 ${row.feedbackId}？`, '删除反馈', {
       type: 'warning'
     });
   } catch {

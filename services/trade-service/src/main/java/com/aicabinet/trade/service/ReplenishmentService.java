@@ -5,6 +5,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceLocationSupport;
+import com.aicabinet.trade.support.SkuDisplayNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1630,11 +1631,16 @@ public class ReplenishmentService {
 
     }
 
-    /** 明细展示商品名（可口可乐 330ml）而非裸 skuId；目录缺失时回落编码。 */
+    /**
+     * 明细展示商品名：名称+规格（如东鹏特饮250ml），与要货明细 formatReplenRequestProduct 口径一致；
+     * 目录缺失时回落编码。
+     */
     private String resolveSkuName(String skuId) {
         if (skuId == null || skuId.isBlank()) return null;
-        return skuCatalogMapper.selectById(skuId) == null ? null
-                : java.util.Optional.ofNullable(skuCatalogMapper.selectById(skuId).getSkuName()).orElse(skuId);
+        var catalog = skuCatalogMapper.selectById(skuId);
+        if (catalog == null) return skuId;
+        String display = SkuDisplayNames.of(catalog);
+        return display != null ? display : skuId;
     }
 
 

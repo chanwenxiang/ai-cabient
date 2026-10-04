@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
 public record UpsertSkuRequest(
-        /** 内部主键；新建时可空，服务端生成 SKU-{skuCode} */
+        /** 内部主键；新建可空，服务端生成与 skuCode 相同的纯数字 ID */
         String skuId,
         @NotBlank String skuName,
         @Min(1) int priceCents,

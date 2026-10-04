@@ -7,6 +7,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ class OpsDeviceAdminServiceTest {
     @Mock DeviceSlotService deviceSlotService;
     @Mock AdminAuditService auditService;
     @Mock RefundPolicyService refundPolicyService;
+    @Mock WarehouseMapper warehouseRepository;
 
     private OpsDeviceAdminService service;
 
@@ -50,7 +52,8 @@ class OpsDeviceAdminServiceTest {
         service = new OpsDeviceAdminService(
                 permissionService, merchantScopeService, deviceRepository, sessionRepository,
                 merchantRepository, replenishmentTaskRepository, orderRepository,
-                deviceIdService, deviceIdRenameService, deviceSlotService, auditService, refundPolicyService);
+                deviceIdService, deviceIdRenameService, deviceSlotService, auditService, refundPolicyService,
+                warehouseRepository);
     }
 
     @Test

@@ -1,8 +1,10 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
+import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
+import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -160,54 +162,83 @@ public class ProcurementService {
     @Transactional
     public PurchaseOrderDto createPurchaseOrder(Long operatorId, CreatePurchaseOrderRequest request) {
         requireWarehouseWrite(operatorId);
-        Supplier supplier = supplierRepository.findById(required(request.supplierId(), "supplierId"))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "supplier not found"));
-        if (!"ACTIVE".equalsIgnoreCase(supplier.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "supplier inactive");
-        }
-        String warehouseId = request.warehouseId() != null && !request.warehouseId().isBlank()
-                ? request.warehouseId().trim() : warehouseService.resolveDefaultWarehouseId();
-        if (!warehouseRepository.existsById(warehouseId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "warehouse not found");
-        }
-        if (request.lines() == null || request.lines().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchase lines required");
-        }
+        String warehouseId = resolveManagedWarehouseId(operatorId, request.warehouseId());
+        return persistNewPurchaseOrder(operatorId, request, warehouseId);
+    }
 
-        PurchaseOrder order = new PurchaseOrder();
-        order.setSupplierId(supplier.getSupplierId());
-        order.setWarehouseId(warehouseId);
-        order.setRefNo(trimToNull(request.refNo()));
-        order.setNotes(trimToNull(request.notes()));
-        order.setOperatorId(operatorId);
-        order.setStatus(PENDING_APPROVAL);
-        order = purchaseOrderRepository.save(order);
-        if (order.getRefNo() == null || order.getRefNo().isBlank()) {
-            order.setRefNo(String.valueOf(order.getPurchaseOrderId()));
-            order = purchaseOrderRepository.save(order);
+    /**
+     * 补货员采购入库：不要求 ops:procurement:edit，强制入本人负责的 ACTIVE 分仓。
+     */
+    @Transactional
+    public PurchaseOrderDto createSatellitePurchaseOrder(Long operatorId, CreatePurchaseOrderRequest request) {
+        Warehouse mine = requireOperatorManagedWarehouse(operatorId);
+        if (request.warehouseId() != null && !request.warehouseId().isBlank()
+                && !mine.getWarehouseId().equals(request.warehouseId().trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.SATELLITE_WAREHOUSE_MISMATCH);
         }
+        List<PurchaseOrderLineDto> filled = fillSatelliteLineCosts(request.lines());
+        CreatePurchaseOrderRequest body = new CreatePurchaseOrderRequest(
+                request.supplierId(), mine.getWarehouseId(), request.refNo(), request.notes(), filled);
+        return persistNewPurchaseOrder(operatorId, body, mine.getWarehouseId());
+    }
 
-        for (PurchaseOrderLineDto lineDto : request.lines()) {
-            validatePurchaseLine(lineDto, false);
-            PurchaseOrderLine line = new PurchaseOrderLine();
-            line.setPurchaseOrderId(order.getPurchaseOrderId());
-            line.setSkuId(lineDto.skuId().trim());
-            // P1-1：批次/效期下单选填（真实采购下单时往往不知道批次），收货时必填可覆盖
-            line.setBatchNo(trimToNull(lineDto.batchNo()));
-            line.setProductionDate(lineDto.productionDate());
-            line.setExpiryDate(lineDto.expiryDate());
-            line.setOrderedQty(lineDto.orderedQty());
-            line.setReceivedQty(0);
-            line.setReturnedQty(0);
-            line.setUnitCostCents(lineDto.unitCostCents());
-            purchaseOrderLineRepository.save(line);
-        }
-        approvalWorkflowService.start(
-                BIZ_PURCHASE_ORDER,
-                String.valueOf(order.getPurchaseOrderId()),
-                operatorId,
-                "采购单 " + order.getRefNo());
-        return toPurchaseDto(order);
+    /**
+     * 补货员货到分仓收货：不要求运营采购权，只能收入本人负责的仓。
+     */
+    @Transactional
+    public PurchaseOrderDto receiveSatellitePurchaseOrder(
+            Long operatorId, Long purchaseOrderId, ReceivePurchaseOrderRequest request) {
+        Warehouse mine = requireOperatorManagedWarehouse(operatorId);
+        return runWithPurchaseOrderLock(purchaseOrderId, () -> {
+            PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, PURCHASE_ORDER_NOT_FOUND));
+            if (!mine.getWarehouseId().equals(order.getWarehouseId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.SATELLITE_WAREHOUSE_MISMATCH);
+            }
+            ReceivePurchaseOrderRequest forced = new ReceivePurchaseOrderRequest(
+                    request.lines(), request.notes(), mine.getWarehouseId());
+            return doReceivePurchaseOrder(operatorId, purchaseOrderId, forced);
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public WarehouseDto getSatelliteWarehouse(Long operatorId) {
+        Warehouse w = requireOperatorManagedWarehouse(operatorId);
+        return new WarehouseDto(
+                w.getWarehouseId(),
+                w.getWarehouseName(),
+                w.getAddress(),
+                w.getStatus(),
+                w.getCreatedAt(),
+                w.getManagerUserId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<SupplierDto> listSatelliteSuppliers(Long operatorId) {
+        requireOperatorManagedWarehouse(operatorId);
+        return supplierRepository.searchPage(null, 0, 100).getRecords().stream()
+                .filter(s -> s.getStatus() != null && "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .map(this::toSupplierDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PurchaseOrderDto> listSatellitePurchaseOrders(Long operatorId) {
+        Warehouse mine = requireOperatorManagedWarehouse(operatorId);
+        return purchaseOrderRepository.searchPage(null, mine.getWarehouseId(), false, false, 0, 50)
+                .getRecords().stream()
+                .map(this::toPurchaseDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SatelliteSkuOptionDto> listSatelliteSkus(Long operatorId) {
+        requireOperatorManagedWarehouse(operatorId);
+        return skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+                .filter(s -> s.getStatus() != null && "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .limit(80)
+                .map(s -> new SatelliteSkuOptionDto(s.getSkuId(), s.getSkuName(), catalogUnitCost(s)))
+                .toList();
     }
 
     @Transactional
@@ -374,7 +405,7 @@ public class ProcurementService {
         PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, PURCHASE_ORDER_NOT_FOUND));
         if (!"CREATED".equals(order.getStatus()) && !PARTIAL_RECEIVED.equals(order.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "purchase order state invalid");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前采购单不能收货");
         }
         List<PurchaseOrderLine> existing = purchaseOrderLineRepository
                 .findByPurchaseOrderIdOrderByLineIdAsc(purchaseOrderId);
@@ -407,7 +438,7 @@ public class ProcurementService {
         line.setProductionDate(productionDate);
         int qty = receiveLine.receivedQty() > 0 ? receiveLine.receivedQty() : line.getOrderedQty();
         if (qty <= 0 || qty > line.getOrderedQty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid receive qty for sku=" + line.getSkuId());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "收货数量不合法");
         }
         if (qty <= line.getReceivedQty()) {
             return 0L;
@@ -624,6 +655,115 @@ public class ProcurementService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private PurchaseOrderDto persistNewPurchaseOrder(
+            Long operatorId, CreatePurchaseOrderRequest request, String warehouseId) {
+        Supplier supplier = supplierRepository.findById(required(request.supplierId(), "supplierId"))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "supplier not found"));
+        if (!"ACTIVE".equalsIgnoreCase(supplier.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "supplier inactive");
+        }
+        if (request.lines() == null || request.lines().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchase lines required");
+        }
+
+        PurchaseOrder order = new PurchaseOrder();
+        order.setSupplierId(supplier.getSupplierId());
+        order.setWarehouseId(warehouseId);
+        order.setRefNo(trimToNull(request.refNo()));
+        order.setNotes(trimToNull(request.notes()));
+        order.setOperatorId(operatorId);
+        order.setStatus(PENDING_APPROVAL);
+        order = purchaseOrderRepository.save(order);
+        if (order.getRefNo() == null || order.getRefNo().isBlank()) {
+            order.setRefNo(String.valueOf(order.getPurchaseOrderId()));
+            order = purchaseOrderRepository.save(order);
+        }
+
+        for (PurchaseOrderLineDto lineDto : request.lines()) {
+            validatePurchaseLine(lineDto, false);
+            PurchaseOrderLine line = new PurchaseOrderLine();
+            line.setPurchaseOrderId(order.getPurchaseOrderId());
+            line.setSkuId(lineDto.skuId().trim());
+            line.setBatchNo(trimToNull(lineDto.batchNo()));
+            line.setProductionDate(lineDto.productionDate());
+            line.setExpiryDate(lineDto.expiryDate());
+            line.setOrderedQty(lineDto.orderedQty());
+            line.setReceivedQty(0);
+            line.setReturnedQty(0);
+            line.setUnitCostCents(lineDto.unitCostCents());
+            purchaseOrderLineRepository.save(line);
+        }
+        approvalWorkflowService.start(
+                BIZ_PURCHASE_ORDER,
+                String.valueOf(order.getPurchaseOrderId()),
+                operatorId,
+                "采购单 " + order.getRefNo());
+        return toPurchaseDto(order);
+    }
+
+    private Warehouse requireOperatorManagedWarehouse(Long operatorId) {
+        return warehouseRepository.findFirstActiveByManagerUserId(operatorId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, ApiMessages.SATELLITE_WAREHOUSE_REQUIRED));
+    }
+
+    private List<PurchaseOrderLineDto> fillSatelliteLineCosts(List<PurchaseOrderLineDto> lines) {
+        if (lines == null) {
+            return List.of();
+        }
+        return lines.stream().map(line -> {
+            int cost = line.unitCostCents();
+            if (cost <= 0 && line.skuId() != null && !line.skuId().isBlank()) {
+                cost = skuCatalogRepository.findById(line.skuId().trim())
+                        .map(ProcurementService::catalogUnitCost)
+                        .orElse(cost);
+            }
+            if (cost <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商品未维护采购价，无法下单");
+            }
+            return new PurchaseOrderLineDto(
+                    line.lineId(),
+                    line.skuId(),
+                    line.batchNo(),
+                    line.productionDate(),
+                    line.expiryDate(),
+                    line.orderedQty(),
+                    line.receivedQty(),
+                    cost,
+                    line.returnedQty());
+        }).toList();
+    }
+
+    private static int catalogUnitCost(SkuCatalog sku) {
+        if (sku.getPurchaseCostCents() != null && sku.getPurchaseCostCents() > 0) {
+            return sku.getPurchaseCostCents();
+        }
+        return Math.max(sku.getPriceCents(), 1);
+    }
+
+    /**
+     * 日常采购必须入「已指定负责人」的分仓。
+     * 未传仓库时，默认当前操作人作为负责人的仓；没有则拒绝（禁止落到无主中心仓）。
+     */
+    private String resolveManagedWarehouseId(Long operatorId, String requested) {
+        if (requested != null && !requested.isBlank()) {
+            Warehouse warehouse = warehouseRepository.findById(requested.trim())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "仓库不存在"));
+            requireManagedWarehouse(warehouse);
+            return warehouse.getWarehouseId();
+        }
+        return warehouseRepository.findFirstActiveByManagerUserId(operatorId)
+                .map(Warehouse::getWarehouseId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "没有已指定负责人的分仓，请先在仓库概览绑定负责人"));
+    }
+
+    private static void requireManagedWarehouse(Warehouse warehouse) {
+        if (warehouse.getManagerUserId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "该仓库未指定负责人，不能作为日常采购入库仓");
+        }
     }
 
     private void requireWarehouseRead(Long operatorId) {

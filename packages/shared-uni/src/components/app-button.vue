@@ -58,9 +58,9 @@ export default { name: 'AppButton' };
   min-height: 88rpx;
   height: 88rpx;
   padding: 0 36rpx;
-  border-radius: var(--radius-pill, 999rpx);
-  font-size: var(--font-size-md);
-  font-weight: 600;
+  border-radius: var(--radius-btn, 16rpx);
+  font-size: 34rpx;
+  font-weight: 500;
   line-height: 1.2;
   display: inline-flex;
   align-items: center;
@@ -83,10 +83,9 @@ export default { name: 'AppButton' };
   padding: 0 28rpx;
 }
 .app-btn--primary {
-  /* 品牌渐变：纯色深底在真机上观感沉闷（2026-09-30 商户端反馈） */
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  background: var(--brand, #0f766e);
   color: var(--white);
-  box-shadow: 0 8rpx 20rpx rgba(13, 148, 136, 0.32);
+  box-shadow: none;
 }
 .app-btn--ghost {
   background: var(--brand-soft, #ecfdf5);
@@ -94,9 +93,9 @@ export default { name: 'AppButton' };
   border-color: rgba(15, 118, 110, 0.18);
 }
 .app-btn--outline {
-  background: transparent;
+  background: var(--card-bg, #fff);
   color: var(--brand, #0f766e);
-  border-color: rgba(15, 118, 110, 0.35);
+  border-color: var(--color-border, rgba(15, 118, 110, 0.35));
 }
 .app-btn--danger {
   background: var(--danger, #b91c1c);

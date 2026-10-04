@@ -8997,6 +8997,8 @@ export interface components {
             warehouseName: string;
             address?: string;
             status?: string;
+            /** Format: int64; omit=keep; 0=clear */
+            managerUserId?: number | null;
         };
         ApiResponseWarehouseDto: {
             /** Format: int32 */
@@ -9011,6 +9013,8 @@ export interface components {
             status?: string;
             /** Format: date-time */
             createdAt?: string;
+            /** Format: int64 */
+            managerUserId?: number | null;
         };
         UpdateStocktakeLineRequest: {
             /** Format: int32 */
@@ -9030,6 +9034,7 @@ export interface components {
             stocktakeId?: number;
             skuId?: string;
             skuName?: string;
+            spec?: string;
             batchNo?: string;
             /** Format: date */
             productionDate?: string;
@@ -11390,6 +11395,7 @@ export interface components {
             lineId?: number;
             skuId?: string;
             skuName?: string;
+            spec?: string;
             /** Format: int32 */
             suggestedQty?: number;
             /** Format: int32 */
@@ -12090,6 +12096,7 @@ export interface components {
             /** Format: double */
             longitude?: number;
             address?: string;
+            homeWarehouseId?: string | null;
         };
         AdminDeviceDto: {
             deviceId?: string;
@@ -12132,6 +12139,7 @@ export interface components {
             targetTempC?: number;
             firmwareVersion?: string;
             salesLockReason?: string;
+            homeWarehouseId?: string | null;
         };
         ApiResponseAdminDeviceDto: {
             /** Format: int32 */
@@ -12568,6 +12576,8 @@ export interface components {
             /** Format: double */
             longitude?: number;
             address?: string;
+            /** empty string clears home warehouse */
+            homeWarehouseId?: string | null;
         };
         UpdateMerchantUserRequest: {
             displayName?: string;

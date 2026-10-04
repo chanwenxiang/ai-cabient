@@ -6,7 +6,7 @@ import type { createLoadSeq } from '@/composables/createLoadSeq';
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { formatDateTime, formatReplenRequestLine } from '@aicabinet/shared-uni/format';
 import type { TableAction } from '@/components/TableActions.vue';
 import { Check, Close, View } from '@element-plus/icons-vue';
 
@@ -19,7 +19,10 @@ export type UseReplenishmentRequestFlowDeps = {
   reloadCurrentTab: () => Promise<void>;
   loadSeq: ReturnType<typeof createLoadSeq>;
   /** 跳转并打开关联补货任务理货抽屉（View 持有路线/明细状态） */
-  openLinkedTask: (taskId: number | string) => Promise<void>;
+  openLinkedTask: (
+    taskId: number | string,
+    extra?: { deviceId?: string; deviceName?: string }
+  ) => Promise<void>;
 };
 
 /**
@@ -50,10 +53,19 @@ export function useReplenishmentRequestFlow(deps: UseReplenishmentRequestFlowDep
     const lines = (row.lines || []) as {
       skuName?: string;
       skuId?: string;
+      spec?: string;
       requestedQty?: number;
     }[];
     if (!lines.length) return '无明细';
-    return lines.map((l) => `${l.skuName || l.skuId || '无'}×${l.requestedQty ?? 0}`).join('、');
+    return lines
+      .map((l) => {
+        const name = l.skuName || l.skuId || '无';
+        const spec = String(l.spec || '').trim();
+        const sku = l.skuId ? `SKU ${l.skuId}` : '';
+        const meta = [spec, sku].filter(Boolean).join(' · ');
+        return meta ? `${name}（${meta}）×${l.requestedQty ?? 0}` : `${name}×${l.requestedQty ?? 0}`;
+      })
+      .join('、');
   }
 
   function requestActionsFor(row: ReplenishmentRequestRow): TableAction[] {

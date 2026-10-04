@@ -107,6 +107,9 @@ function closeDialog() {
           所选设备中
           {{ selectedDevicesWithoutShortage.join('、') }} 不在缺货建议内，满柜可能无法生成出库单。
         </div>
+        <div class="plan-hint plan-hint-info">
+          出库从柜机所属仓扣库存。请先在设备页指定所属仓库；同一路线柜机须同一仓。
+        </div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -136,6 +139,9 @@ function closeDialog() {
   font-size: var(--admin-font-size-sm);
   color: var(--el-color-warning);
   line-height: 1.4;
+}
+.plan-hint-info {
+  color: var(--layout-muted);
 }
 .plan-form {
   margin-top: 4px;

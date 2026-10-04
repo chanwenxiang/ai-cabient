@@ -9,6 +9,7 @@ export type WarehouseOverviewRow = AdminDynamicRow;
 defineProps<{
   table: object;
   actions: (row: WarehouseOverviewRow) => CrudRowAction[];
+  managerLabel: (userId?: number | string | null) => string;
 }>();
 
 const emit = defineEmits<{
@@ -37,7 +38,10 @@ const emit = defineEmits<{
         <el-table-column label="仓库" min-width="140" class-name="col-text">
           <template #default="{ row }">{{ row.warehouseName || '无' }}</template>
         </el-table-column>
-        <el-table-column prop="address" label="地址" min-width="220" class-name="col-text" />
+        <el-table-column label="地址" min-width="220" class-name="col-text" prop="address" />
+        <el-table-column label="负责人" min-width="140" class-name="col-text">
+          <template #default="{ row }">{{ managerLabel(row.managerUserId) }}</template>
+        </el-table-column>
         <el-table-column
           label="状态"
           width="100"

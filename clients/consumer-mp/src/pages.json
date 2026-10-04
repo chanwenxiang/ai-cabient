@@ -16,14 +16,16 @@
       "style": {
         "navigationBarTitleText": "我的订单",
         "navigationStyle": "custom",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "backgroundColor": "#ffffff"
       }
     },
     {
       "path": "pages/mine/mine",
       "style": {
         "navigationBarTitleText": "我的",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColor": "#ededed"
       }
     },
     {
@@ -291,9 +293,9 @@
   "globalStyle": {
     "navigationBarTextStyle": "white",
     "navigationBarBackgroundColor": "#0f766e",
-    "backgroundColor": "#ffffff",
+    "backgroundColor": "#ededed",
     "backgroundColorTop": "#0f766e",
-    "backgroundColorBottom": "#ffffff",
+    "backgroundColorBottom": "#ededed",
     "backgroundTextStyle": "dark"
   },
   "easycom": {
@@ -301,6 +303,7 @@
     "custom": {
       "^app-nav-bar$": "@aicabinet/shared-uni/components/app-nav-bar.vue",
       "^app-button$": "@aicabinet/shared-uni/components/app-button.vue",
+      "^app-underline-tabs$": "@aicabinet/shared-uni/components/app-underline-tabs.vue",
       "^empty-state$": "@aicabinet/shared-uni/components/empty-state.vue",
       "^error-state$": "@aicabinet/shared-uni/components/error-state.vue"
     }

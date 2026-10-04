@@ -1,6 +1,7 @@
 <template>
   <view class="page page-fill">
     <app-nav-bar title="我的订单" home-url="/pages/index/index" />
+    <app-underline-tabs :items="statusTabItems" :value="filter" @change="onStatusTab" />
     <view v-if="booting" class="state-wrap"
       ><text class="meta">{{ UI_COPY.loading }}</text></view
     >
@@ -92,35 +93,22 @@
               >清空</text
             >
           </view>
-          <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
-            <view class="order-filters">
-              <text
-                v-for="f in filters"
-                role="button"
-                :key="f.value"
-                class="filter-chip"
-                :class="{ active: filter === f.value }"
-                @click="filter = f.value"
-                >{{ f.label }}{{ filterCountSuffix(f.value) }}</text
-              >
-            </view>
-          </scroll-view>
-          <view class="order-filters time-row">
+          <view class="filter-aux">
             <text
               v-for="t in timeFilters"
               role="button"
               :key="t.value"
-              class="filter-chip time"
+              class="aux-link"
               :class="{ active: timeRange === t.value }"
               @click="timeRange = t.value"
               >{{ t.label }}</text
             >
             <text
               role="button"
-              class="filter-chip time zero-toggle"
+              class="aux-link"
               :class="{ active: hideZeroOrders }"
               @click="toggleHideZeroOrders"
-              >隐藏零元单</text
+              >{{ hideZeroOrders ? '隐藏零元单' : '零元单' }}</text
             >
           </view>
         </view>
@@ -166,6 +154,7 @@
             role="button"
             :key="o.orderId"
             class="order-card"
+            hover-class="wx-cell-hover"
             @click="goDetail(o)"
           >
             <view class="order-top">
@@ -348,6 +337,16 @@ const timeFilters = [
   { label: '近7天', value: '7d' as const },
   { label: '近30天', value: '30d' as const }
 ];
+const statusTabItems = computed(() =>
+  filters.map((f) => ({
+    key: f.value,
+    label: f.label,
+    badge: filterCountSuffix(f.value).trim() || undefined
+  }))
+);
+function onStatusTab(key: string) {
+  filter.value = key as OrderStatusFilter;
+}
 const visibleOrders = computed(() =>
   orders.value.filter(
     (o) =>

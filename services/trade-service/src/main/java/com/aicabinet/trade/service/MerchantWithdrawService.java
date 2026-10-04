@@ -150,11 +150,13 @@ public class MerchantWithdrawService {
             auditService.appendLog(operatorId, BIZ_WALLET_ADJUST, "MERCHANT_WALLET", merchantId,
                     "金额(分)=" + amountCents + "；备注=" + note);
             if (Math.abs(amountCents) >= properties.reviewThresholdCents()) {
+                Merchant merchant = requireMerchant(merchantId);
                 approvalWorkflowService.start(
                         BIZ_WALLET_ADJUST,
                         refId,
                         operatorId,
-                        "商户调账 " + merchantId + " ¥" + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
+                        "商户调账 " + merchant.getMerchantName() + " ¥"
+                                + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
             }
             return toAccountDto(requireMerchant(merchantId));
         });

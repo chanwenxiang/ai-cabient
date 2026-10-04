@@ -1,6 +1,9 @@
 /**
  * uni `build --mode development` 仍写入 dist/build/mp-weixin；
  * 真机调试通常导入 dist/dev/mp-weixin。本脚本把 build 同步到 dev，避免沿用过期产物。
+ *
+ * 注意：调用方应在 sync 之后再跑 patch-mp-weixin-appjson（拍平 shared-uni → /components），
+ * 否则 DevTools 锁目录导致 rm 降级覆盖时，可能短暂丢掉拍平组件 → Component is not found。
  */
 import { cpSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,7 +20,7 @@ try {
   rmSync(dst, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
 } catch (err) {
   console.warn(
-    `[sync-dev-dist] rm 失败（${err.code || err.errno}），降级为覆盖拷贝：dst 可能残留已删除页面的旧文件`
+    `[sync-dev-dist] rm 失败（${err.code || err.errno}），降级为覆盖拷贝：dst 可能残留已删除页面的旧文件；随后必须再跑 patch`
   );
 }
 cpSync(src, dst, { recursive: true, force: true });

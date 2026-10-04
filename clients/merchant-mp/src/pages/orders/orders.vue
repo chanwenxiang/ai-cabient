@@ -1,6 +1,7 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="柜机订单" />
+    <app-underline-tabs :items="statusTabItems" :value="status" @change="setStatus" />
     <view class="page-body">
       <view v-if="booting" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
@@ -15,26 +16,12 @@
           <input
             v-model="keyword"
             class="search-input"
-            placeholder="订单号 / 柜机 / 会话"
+            placeholder="搜订单号或柜机"
             confirm-type="search"
             aria-label="搜索订单"
             @confirm="applySearch"
           />
-          <button v-if="canExport" class="export-btn" :disabled="exporting" @click="exportOrders">
-            {{ exporting ? '导出中…' : '导出' }}
-          </button>
-          <view class="filter-row">
-            <text
-              v-for="s in statusOptions"
-              role="button"
-              :key="s.value"
-              class="filter-chip"
-              :class="{ active: status === s.value }"
-              @click="setStatus(s.value)"
-              >{{ s.label }}</text
-            >
-          </view>
-          <view class="filter-row">
+          <view class="filter-aux">
             <picker
               :range="deviceOptions"
               range-key="label"
@@ -47,60 +34,67 @@
               v-for="t in timeOptions"
               role="button"
               :key="t.value"
-              class="filter-chip"
+              class="aux-link"
               :class="{ active: timeRange === t.value }"
               @click="setTime(t.value)"
               >{{ t.label }}</text
             >
+            <text
+              role="button"
+              class="aux-link"
+              :class="{ active: showZeroOrders }"
+              :aria-label="showZeroOrders ? '隐藏零元单' : '显示零元单'"
+              @click="toggleZeroOrders"
+              >{{ showZeroOrders ? '隐藏零元单' : '零元单' }}</text
+            >
             <text role="button" class="filter-reset" aria-label="重置筛选" @click="resetFilters"
               >重置</text
             >
+          </view>
+          <view v-if="canExport" class="actions">
+            <app-button
+              variant="outline"
+              block
+              :loading="exporting"
+              :disabled="exporting"
+              :label="exporting ? '导出中…' : '导出'"
+              @click="exportOrders"
+            />
           </view>
         </view>
 
         <view v-if="loading" class="loading inline"><text>筛选中…</text></view>
         <error-state v-else-if="error" compact :title="error" @retry="load" />
         <empty-state
-          v-else-if="!list.length"
+          v-else-if="!visibleList.length"
           kind="orders"
           icon="/static/menu/orders.png"
           :title="filtersActive ? '当前筛选暂无订单' : '暂无柜机订单'"
-          :hint="filtersActive ? '试试切换状态或点「重置」' : '有成交后会显示在这里'"
+          :hint="filtersActive ? '试试切换状态、点「零元单」或「重置」' : '有成交后会显示在这里'"
         />
-        <view v-else>
+        <view v-else class="wx-cells">
           <view
-            v-for="item in list"
+            v-for="item in visibleList"
             :key="item.orderId"
-            class="card"
-            hover-class="card-hover"
+            class="wx-cell"
+            hover-class="wx-cell-hover"
             role="button"
             :aria-label="`订单 ${fullId(item.orderId)} ${statusText(item.status)} ${money(item.totalAmountCents)}`"
             @click="onDetail(item)"
           >
             <view class="card-header">
-              <text class="card-id">{{ fullId(item.orderId) }}</text>
+              <text class="card-device">{{
+                emptyDisplay(item.deviceName || item.deviceId, 'device')
+              }}</text>
               <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
             </view>
             <view class="card-main">
-              <image
-                class="card-thumb"
-                :src="skuImageFor('', '', item.lineSummary)"
-                mode="aspectFill"
-                aria-hidden="true"
-              />
               <view class="card-copy">
                 <text class="card-goods">{{ lineSummaryText(item) }}</text>
-                <text class="card-meta">
-                  {{ emptyDisplay(item.deviceName || item.deviceId, 'device') }} ·
-                  {{ item.lineCount ?? 0 }} 件 ·
-                  {{ channelText(item.payChannel) }}
-                </text>
-                <text v-if="item.splitStatus" class="card-meta"
+                <text class="card-meta">{{ channelText(item.payChannel) }} · {{ formatTime(item.createdAt) }}</text>
+                <text v-if="item.splitStatus && item.splitStatus !== 'LEDGER_ONLY'" class="card-meta"
                   >分账 {{ splitStatusText(item.splitStatus) }}</text
                 >
-                <text v-if="item.payTradeNo || item.paymentOperationId" class="card-meta mono">
-                  流水 {{ fullId(item.payTradeNo || item.paymentOperationId) }}
-                </text>
                 <text
                   v-if="
                     Number(item.couponDiscountCents ?? 0) + Number(item.memberDiscountCents ?? 0) >
@@ -131,7 +125,7 @@
                   }}{{ refundCents(item) > 0 ? ` ${money(refundCents(item))}` : ''
                   }}{{ item.refundedAt ? ` · ${formatTime(item.refundedAt)}` : '' }}
                 </text>
-                <text class="card-time">{{ formatTime(item.createdAt) }}</text>
+                <text class="card-id">单号 {{ fullId(item.orderId) }}</text>
               </view>
               <view class="card-amount-col">
                 <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
@@ -177,7 +171,7 @@ import {
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { MerchantMe, OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
-import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
+import { cleanLineSummary } from '@aicabinet/shared-uni/product-image';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -223,9 +217,14 @@ const keyword = ref('');
 const status = ref('');
 const timeRange = ref('all');
 const filterDeviceId = ref('');
+const showZeroOrders = ref(false);
 const filtersActive = computed(
   () =>
-    !!status.value || timeRange.value !== 'all' || !!filterDeviceId.value || !!keyword.value.trim()
+    !!status.value ||
+    timeRange.value !== 'all' ||
+    !!filterDeviceId.value ||
+    !!keyword.value.trim() ||
+    showZeroOrders.value
 );
 const deviceOptions = ref<{ label: string; value: string }[]>([]);
 const statusOptions = [
@@ -235,6 +234,7 @@ const statusOptions = [
   { value: 'DISPUTED', label: displayLabel('order_status', 'DISPUTED') },
   { value: 'CANCELLED', label: displayLabel('order_status', 'CANCELLED') }
 ];
+const statusTabItems = statusOptions.map((s) => ({ key: s.value, label: s.label }));
 const timeOptions = [
   { value: 'all', label: '全部时间' },
   { value: 'today', label: '今天' },
@@ -259,6 +259,20 @@ function dateStr(offsetDays: number) {
   return `${y}-${m}-${day}`;
 }
 
+function shouldExcludeZero() {
+  if (showZeroOrders.value) return false;
+  if (status.value === 'REFUNDED') return false;
+  return true;
+}
+
+function isZeroMoneyOrder(item: OpenApiOrderReadModelMerchant) {
+  return Number(item.totalAmountCents ?? 0) <= 0 && Number(item.refundedCents ?? 0) <= 0;
+}
+
+const visibleList = computed(() =>
+  shouldExcludeZero() ? list.value.filter((o) => !isZeroMoneyOrder(o)) : list.value
+);
+
 function orderParams(page = 0, size = PAGE_SIZE) {
   const params: Record<string, string | number> = { page, size };
   if (filterDeviceId.value) params.deviceId = filterDeviceId.value;
@@ -268,6 +282,7 @@ function orderParams(page = 0, size = PAGE_SIZE) {
   else if (timeRange.value === '30d') params.from = dateStr(29);
   const kw = keyword.value.trim();
   if (kw) params.keyword = kw;
+  if (shouldExcludeZero()) params.excludeZero = 1;
   return params;
 }
 
@@ -300,6 +315,11 @@ function setTime(value: string) {
   load();
 }
 
+function toggleZeroOrders() {
+  showZeroOrders.value = !showZeroOrders.value;
+  load();
+}
+
 function onDeviceChange(e: { detail: { value: number } }) {
   const opt = deviceOptions.value[e.detail.value];
   filterDeviceId.value = opt ? opt.value : '';
@@ -311,13 +331,17 @@ function resetFilters() {
   status.value = '';
   timeRange.value = 'all';
   filterDeviceId.value = '';
+  showZeroOrders.value = false;
   load();
 }
 
 function lineSummaryText(item: OpenApiOrderReadModelMerchant) {
   const summary = cleanLineSummary(item.lineSummary);
   if (summary) return summary;
-  return `${item.lineCount ?? 0} 件商品`;
+  const n = Number(item.lineCount ?? 0);
+  if (n <= 0 && Number(item.totalAmountCents ?? 0) <= 0) return '本次未取货';
+  if (n <= 0) return '无商品明细';
+  return `${n} 件商品`;
 }
 
 onShow(() => {
@@ -558,41 +582,36 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 }
 .filter-panel {
   background: var(--card-bg, #fff);
-  border-radius: var(--radius-card);
-  padding: 20rpx 20rpx 14rpx;
-  margin: 0 0 16rpx;
-  border: 1rpx solid var(--card-border, var(--color-border));
+  border-radius: 0;
+  padding: 20rpx 24rpx 14rpx;
+  margin: 0;
+  border: none;
+  border-bottom: 1rpx solid rgba(0, 0, 0, 0.08);
 }
 .search-input {
   height: 72rpx;
   box-sizing: border-box;
-  background: var(--page-bg, #f8fafc);
-  border: 1rpx solid var(--color-border);
-  border-radius: var(--radius-card);
+  background: #f7f7f7;
+  border: none;
+  border-radius: 8rpx;
   padding: 0 26rpx;
   font-size: var(--font-size-body);
 }
-.filter-row {
+.filter-aux {
   display: flex;
   align-items: center;
-  gap: 10rpx;
+  gap: 8rpx;
   flex-wrap: wrap;
   margin-top: 14rpx;
 }
-.filter-row + .filter-row {
-  margin-top: 12rpx;
-}
-.filter-chip {
-  padding: 8rpx 20rpx;
-  border-radius: var(--radius-pill);
+.aux-link {
+  padding: 8rpx 4rpx;
   font-size: var(--font-size-sm);
   color: var(--text-muted, #475569);
-  background: var(--color-border-subtle, #f1f5f9);
   flex-shrink: 0;
 }
-.filter-chip.active {
-  color: var(--white);
-  background: var(--brand);
+.aux-link.active {
+  color: var(--brand);
   font-weight: 600;
 }
 .filter-picker {
@@ -611,6 +630,10 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   color: var(--text-subtle);
   flex-shrink: 0;
 }
+.filter-panel .actions {
+  margin-top: 16rpx;
+  width: 100%;
+}
 .card {
   background: var(--card-bg, #fff);
   border-radius: var(--card-radius, 22rpx);
@@ -627,12 +650,21 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   margin-bottom: 10rpx;
 }
 .card-id {
+  display: block;
+  margin-top: 10rpx;
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
-  /* 完整 19 位订单号：允许收缩并在必要时换行，避免把状态标签挤出卡片 */
+  word-break: break-all;
+}
+.card-device {
   flex: 1;
   min-width: 0;
-  word-break: break-all;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .card-status {
   min-width: 108rpx;
@@ -724,7 +756,7 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   padding: 20rpx 0 8rpx;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 0 0 calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 </style>

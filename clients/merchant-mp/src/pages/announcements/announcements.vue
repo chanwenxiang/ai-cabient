@@ -10,13 +10,13 @@
         title="暂无平台公告"
         hint="运营发布的维护、活动与规则通知会出现在这里"
       />
-      <view v-else>
+      <view v-else class="wx-cells">
         <view
           v-for="item in list"
           role="button"
           :key="item.announceId"
-          class="card item"
-          hover-class="item-hover"
+          class="wx-cell"
+          hover-class="wx-cell-hover"
           @click="goDetail(item.announceId)"
         >
           <view class="head">
@@ -85,8 +85,8 @@ onPullDownRefresh(async () => {
   background: var(--card-bg, #fff);
   border-radius: var(--radius-card);
   padding: 28rpx;
-  margin-bottom: 16rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
+  margin-bottom: 0;
+  box-shadow: none;
 }
 .state {
   display: flex;
@@ -157,7 +157,7 @@ onPullDownRefresh(async () => {
   min-width: 140rpx;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  padding: 0 0 calc(24rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 </style>

@@ -205,7 +205,7 @@ export function useReplenishmentDetail(opts: {
     if (open) {
       await openTask(open);
     } else if (wantedTaskId) {
-      showError(`任务 #${wantedTaskId} 不可用或已取消`);
+      showError(`任务 ${wantedTaskId} 不可用或已取消`);
     }
   }
 

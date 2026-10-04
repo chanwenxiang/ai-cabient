@@ -15,9 +15,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -50,6 +52,7 @@ public class WarehouseService {
     private final InventoryLotService inventoryLotService;
     private final DistributedLockService distributedLockService;
     private final DisplaySnapshotHelper displaySnapshotHelper;
+    private final DeviceInfoMapper deviceInfoRepository;
     private final WarehouseSupplierIdService warehouseSupplierIdService;
     private final WarehouseService self;
 
@@ -70,6 +73,7 @@ public class WarehouseService {
                             InventoryLotService inventoryLotService,
                             DistributedLockService distributedLockService,
                             DisplaySnapshotHelper displaySnapshotHelper,
+                            DeviceInfoMapper deviceInfoRepository,
                             WarehouseSupplierIdService warehouseSupplierIdService,
                             @Lazy WarehouseService self) {
         this.warehouseRepository = warehouseRepository;
@@ -89,6 +93,7 @@ public class WarehouseService {
         this.inventoryLotService = inventoryLotService;
         this.distributedLockService = distributedLockService;
         this.displaySnapshotHelper = displaySnapshotHelper;
+        this.deviceInfoRepository = deviceInfoRepository;
         this.warehouseSupplierIdService = warehouseSupplierIdService;
         this.self = self;
     }
@@ -449,7 +454,7 @@ public class WarehouseService {
         if (skuQty == null || skuQty.isEmpty()) {
             return null;
         }
-        String wh = resolveWarehouseId(warehouseId);
+        String wh = resolveOutboundWarehouseId(warehouseId, deviceId, List.of());
         WarehouseOutbound outbound = new WarehouseOutbound();
         outbound.setWarehouseId(wh);
         outbound.setRouteId(routeId);
@@ -474,12 +479,12 @@ public class WarehouseService {
 
     @Transactional
     public WarehouseOutboundDto createOutboundForRoute(Long routeId, String warehouseId, Long assigneeUserId) {
-        String wh = resolveWarehouseId(warehouseId);
         clearEmptyDraftOutboundForRoute(routeId);
         List<ReplenishmentTask> tasks = taskRepository.findByRouteId(routeId);
         if (tasks.isEmpty()) {
             throw badRequest("route has no tasks");
         }
+        String wh = resolveOutboundWarehouseId(warehouseId, null, tasks);
 
         WarehouseOutbound outbound = new WarehouseOutbound();
         outbound.setWarehouseId(wh);
@@ -1206,6 +1211,55 @@ public class WarehouseService {
         }
     }
 
+    /**
+     * 日常出库必须从柜机所属仓扣库存：指定仓须已绑负责人；未指定则取柜机 home_warehouse_id。
+     * 禁止再落到无主默认仓。
+     */
+    String resolveOutboundWarehouseId(String requested, String deviceId, List<ReplenishmentTask> tasks) {
+        if (requested != null && !requested.isBlank()) {
+            return requireManagedOutboundWarehouse(requested.trim());
+        }
+        Set<String> homes = new LinkedHashSet<>();
+        List<String> deviceIds = new ArrayList<>();
+        if (deviceId != null && !deviceId.isBlank()) {
+            deviceIds.add(deviceId.trim());
+        }
+        if (tasks != null) {
+            for (ReplenishmentTask task : tasks) {
+                if (task.getDeviceId() != null && !task.getDeviceId().isBlank()) {
+                    deviceIds.add(task.getDeviceId().trim());
+                }
+            }
+        }
+        if (deviceInfoRepository == null) {
+            throw badRequest(ApiMessages.REPLENISHMENT_HOME_WAREHOUSE_REQUIRED);
+        }
+        for (String id : deviceIds) {
+            DeviceInfo device = deviceInfoRepository.findById(id)
+                    .orElseThrow(() -> badRequest(ApiMessages.DEVICE_NOT_FOUND));
+            if (device.getHomeWarehouseId() == null || device.getHomeWarehouseId().isBlank()) {
+                throw badRequest(ApiMessages.REPLENISHMENT_HOME_WAREHOUSE_REQUIRED);
+            }
+            homes.add(device.getHomeWarehouseId().trim());
+        }
+        if (homes.isEmpty()) {
+            throw badRequest(ApiMessages.REPLENISHMENT_HOME_WAREHOUSE_REQUIRED);
+        }
+        if (homes.size() > 1) {
+            throw badRequest(ApiMessages.REPLENISHMENT_HOME_WAREHOUSE_MIXED);
+        }
+        return requireManagedOutboundWarehouse(homes.iterator().next());
+    }
+
+    private String requireManagedOutboundWarehouse(String warehouseId) {
+        Warehouse warehouse = warehouseRepository.findById(warehouseId)
+                .orElseThrow(() -> badRequest("仓库不存在"));
+        if (warehouse.getManagerUserId() == null) {
+            throw badRequest(ApiMessages.REPLENISHMENT_WAREHOUSE_UNMANAGED);
+        }
+        return warehouse.getWarehouseId();
+    }
+
     private String resolveWarehouseId(String warehouseId) {
         if (warehouseId != null && !warehouseId.isBlank()) {
             return warehouseId.trim();
@@ -1289,7 +1343,13 @@ public class WarehouseService {
     }
 
     private WarehouseDto toWarehouseDto(Warehouse w) {
-        return new WarehouseDto(w.getWarehouseId(), w.getWarehouseName(), w.getAddress(), w.getStatus(), w.getCreatedAt());
+        return new WarehouseDto(
+                w.getWarehouseId(),
+                w.getWarehouseName(),
+                w.getAddress(),
+                w.getStatus(),
+                w.getCreatedAt(),
+                w.getManagerUserId());
     }
 
     private WarehouseInventoryDto toInventoryDto(WarehouseInventory i) {
@@ -1311,6 +1371,15 @@ public class WarehouseService {
 
     @Transactional
     public WarehouseDto upsertWarehouse(String warehouseId, String warehouseName, String address, String status) {
+        return upsertWarehouse(warehouseId, warehouseName, address, status, null);
+    }
+
+    /**
+     * @param managerUserId {@code null} 表示不改负责人（导入 CSV 可省略）；{@code 0} 表示清空；正数为绑定用户
+     */
+    @Transactional
+    public WarehouseDto upsertWarehouse(
+            String warehouseId, String warehouseName, String address, String status, Long managerUserId) {
         if (warehouseName == null || warehouseName.isBlank()) {
             throw badRequest("warehouseName required");
         }
@@ -1334,6 +1403,9 @@ public class WarehouseService {
             throw badRequest("status must be ACTIVE or INACTIVE");
         }
         warehouse.setStatus(st);
+        if (managerUserId != null) {
+            warehouse.setManagerUserId(managerUserId <= 0L ? null : managerUserId);
+        }
         if (creating || warehouse.getCreatedAt() == null) {
             warehouse.setCreatedAt(Instant.now());
         }

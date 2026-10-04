@@ -101,6 +101,7 @@ public class DisputeService {
     private final DistributedLockService distributedLockService;
     private final SessionService sessionService;
     private final CabinetMetrics metrics;
+    private final MerchantSkuPricingService skuPricingService;
 
     public DisputeService(DisputeTicketMapper disputeRepository,
                           DisputeMessageMapper disputeMessageRepository,
@@ -127,7 +128,8 @@ public class DisputeService {
                           SystemConfigService systemConfigService,
                           @Lazy DisputeService self,
                           @Lazy SessionService sessionService,
-                          CabinetMetrics metrics) {
+                          CabinetMetrics metrics,
+                          @Lazy MerchantSkuPricingService skuPricingService) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
@@ -154,6 +156,7 @@ public class DisputeService {
         this.self = self;
         this.sessionService = sessionService;
         this.metrics = metrics;
+        this.skuPricingService = skuPricingService;
     }
 
     @Transactional
@@ -919,16 +922,16 @@ public class DisputeService {
     }
 
     private DisputeTicketDto toDto(DisputeTicket ticket) {
-        List<OrderLineDto> suggested = enrichLines(parseItems(ticket.getItems()));
-        List<OrderLineDto> resolved = enrichLines(parseItems(ticket.getResolutionItems()));
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId()).orElse(null);
-        String videoUri = session != null ? session.getVideoUri() : null;
         String deviceId = session != null ? session.getDeviceId() : null;
+        List<OrderLineDto> suggested = enrichLines(parseItems(ticket.getItems()), deviceId);
+        List<OrderLineDto> resolved = enrichLines(parseItems(ticket.getResolutionItems()), deviceId);
+        String videoUri = session != null ? session.getVideoUri() : null;
         String sessionState = session != null ? session.getState().name() : null;
         String orderId = session != null ? session.getOrderId() : null;
         var orderOpt = orderRepository.findBySessionId(ticket.getSessionId());
-        Integer billedAmountCents = orderOpt.map(DisputeService::resolveBilledAmountCents).orElse(null);
-        Integer refundedAmountCents = orderOpt.map(DisputeService::resolveRefundedAmountCents).orElse(null);
+        Integer billedAmountCents = orderOpt.map(this::resolveBilledAmountCents).orElse(null);
+        Integer refundedAmountCents = orderOpt.map(this::resolveRefundedAmountCents).orElse(null);
         Integer claimedAmountCents = sumLineAmountCents(suggested);
         int memberDiscount = orderOpt.map(o -> o.getMemberDiscountCents()).orElse(0);
         int couponDiscount = orderOpt.map(o -> o.getCouponDiscountCents()).orElse(0);
@@ -1073,17 +1076,17 @@ public class DisputeService {
     }
 
     private DisputeTicketDto toMerchantDto(DisputeTicket ticket) {
-        List<OrderLineDto> suggested = enrichLines(parseItems(ticket.getItems()));
-        List<OrderLineDto> resolved = enrichLines(parseItems(ticket.getResolutionItems()));
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId()).orElse(null);
         String deviceId = session != null ? session.getDeviceId() : null;
+        List<OrderLineDto> suggested = enrichLines(parseItems(ticket.getItems()), deviceId);
+        List<OrderLineDto> resolved = enrichLines(parseItems(ticket.getResolutionItems()), deviceId);
         String sessionState = session != null ? session.getState().name() : null;
         String orderId = session != null ? session.getOrderId() : null;
         String videoUri = session != null ? session.getVideoUri() : null;
         String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
         var orderOpt = orderRepository.findBySessionId(ticket.getSessionId());
-        Integer billedAmountCents = orderOpt.map(DisputeService::resolveBilledAmountCents).orElse(null);
-        Integer refundedAmountCents = orderOpt.map(DisputeService::resolveRefundedAmountCents).orElse(null);
+        Integer billedAmountCents = orderOpt.map(this::resolveBilledAmountCents).orElse(null);
+        Integer refundedAmountCents = orderOpt.map(this::resolveRefundedAmountCents).orElse(null);
         Integer claimedAmountCents = sumLineAmountCents(suggested);
         int memberDiscount = orderOpt.map(o -> o.getMemberDiscountCents()).orElse(0);
         int couponDiscount = orderOpt.map(o -> o.getCouponDiscountCents()).orElse(0);
@@ -1127,28 +1130,36 @@ public class DisputeService {
                 amountDiff);
     }
 
-    private static Integer resolveBilledAmountCents(CabinetOrder order) {
+    Integer resolveBilledAmountCents(CabinetOrder order) {
         if (order == null) {
             return null;
+        }
+        int charged = Math.max(0, orderPaymentService.chargedCompletedCents(order.getOrderId()));
+        if (charged > 0) {
+            return charged;
         }
         int original = Math.max(0, order.getOriginalAmountCents());
         if (original > 0) {
             return original;
         }
         int total = Math.max(0, order.getTotalAmountCents());
-        int refunded = Math.max(0, order.getRefundedCents());
-        if (total <= 0 && refunded > 0) {
-            return refunded;
-        }
         return total > 0 ? total : null;
     }
 
-    private static Integer resolveRefundedAmountCents(CabinetOrder order) {
+    Integer resolveRefundedAmountCents(CabinetOrder order) {
         if (order == null) {
             return null;
         }
+        int refundedOps = Math.max(0, orderPaymentService.refundedCompletedCents(order.getOrderId()));
+        if (refundedOps > 0) {
+            return refundedOps;
+        }
         int refunded = Math.max(0, order.getRefundedCents());
         if (refunded > 0) {
+            int charged = Math.max(0, orderPaymentService.chargedCompletedCents(order.getOrderId()));
+            if (charged > 0) {
+                return Math.min(refunded, charged);
+            }
             return refunded;
         }
         if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
@@ -1179,7 +1190,10 @@ public class DisputeService {
         if (ticket == null) {
             return null;
         }
-        return sumLineAmountCents(enrichLines(parseItems(ticket.getItems())));
+        String deviceId = sessionRepository.findById(ticket.getSessionId())
+                .map(ShoppingSession::getDeviceId)
+                .orElse(null);
+        return sumLineAmountCents(enrichLines(parseItems(ticket.getItems()), deviceId));
     }
 
     private DisputeTicket requireTicket(String ticketId) {
@@ -1270,27 +1284,28 @@ public class DisputeService {
         }
     }
 
-    private List<OrderLineDto> enrichLines(List<OrderLineDto> lines) {
+    private List<OrderLineDto> enrichLines(List<OrderLineDto> lines, String deviceId) {
         if (lines.isEmpty()) {
             return lines;
         }
         List<String> skuIds = lines.stream().map(OrderLineDto::skuId).distinct().toList();
         var catalogs = skuCatalogRepository.findAllById(skuIds);
-        Map<String, String> names = catalogs.stream()
+        Map<String, com.aicabinet.trade.domain.SkuCatalog> byId = catalogs.stream()
                 .collect(Collectors.toMap(
                         com.aicabinet.trade.domain.SkuCatalog::getSkuId,
-                        com.aicabinet.trade.domain.SkuCatalog::getSkuName));
-        Map<String, Integer> prices = catalogs.stream()
-                .collect(Collectors.toMap(
-                        com.aicabinet.trade.domain.SkuCatalog::getSkuId,
-                        com.aicabinet.trade.domain.SkuCatalog::getPriceCents));
+                        c -> c,
+                        (a, b) -> a));
         return lines.stream()
                 .map(line -> {
-                    int unit = prices.getOrDefault(line.skuId(), 0);
+                    var sku = byId.get(line.skuId());
+                    int unit = sku != null ? Math.max(0, sku.getPriceCents()) : 0;
+                    if (skuPricingService != null && deviceId != null && !deviceId.isBlank() && sku != null) {
+                        unit = Math.max(0, skuPricingService.resolveUnitPriceCents(deviceId, sku));
+                    }
                     int qty = line.quantity();
                     return new OrderLineDto(
                             line.skuId(),
-                            names.getOrDefault(line.skuId(), line.skuName()),
+                            sku != null ? sku.getSkuName() : line.skuName(),
                             qty,
                             unit,
                             unit * qty,

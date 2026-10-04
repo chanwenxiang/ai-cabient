@@ -17,7 +17,7 @@
       />
     </view>
     <view v-if="completed" class="complete-banner">
-      {{ pullOff ? '任务已完成，下架库存已同步更新' : '任务已完成，商品库存和在途状态已同步更新' }}
+      {{ pullOff ? '下架流程已全部完成' : '补货流程已全部完成' }}
     </view>
   </view>
 </template>
@@ -55,12 +55,13 @@ defineEmits<{
   margin-top: 0;
 }
 .complete-banner {
-  margin-top: 22rpx;
-  padding: 22rpx;
+  margin-top: 8rpx;
+  padding: 18rpx 16rpx;
   border-radius: 18rpx;
   color: var(--brand-deep, #166534);
   background: var(--brand-soft, #dcfce7);
   text-align: center;
-  font-size: var(--font-size-caption);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
 }
 </style>

@@ -139,6 +139,65 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
   }
 ];
 
+export const MERCHANT_DOCS_NAV: MerchantNavItem[] = [
+  {
+    key: 'tax',
+    title: '税号',
+    desc: '月结开票用的公司名称和税号',
+    url: '/pages/tax/tax',
+    perm: ['merchant:profile:edit', 'merchant:analytics:view'],
+    pack: 'biz',
+    icon: 'settlements'
+  },
+  {
+    key: 'cabinet-reports',
+    title: '销售报表',
+    desc: '按货柜查商品与毛利明细、导出',
+    url: '/pages/cabinet-reports/cabinet-reports',
+    perm: ['merchant:analytics:view', 'merchant:reports:view'],
+    pack: 'biz',
+    icon: 'cabinet'
+  },
+  {
+    key: 'notify',
+    title: '微信提醒',
+    desc: '订阅柜机离线、缺货与订单推送',
+    url: '/pages/notify/notify',
+    perm: 'merchant:alerts:view',
+    pack: 'field',
+    icon: 'notice'
+  }
+];
+
+/** 原工作台「更多功能」；搬到「我的」，权限条目仍以 MERCHANT_BIZ_NAV 为准 */
+const MORE_FROM_BIZ_KEYS = ['pricing', 'settlements', 'disputes', 'business'] as const;
+
+export const MERCHANT_MORE_NAV: MerchantNavItem[] = [
+  {
+    key: 'purchase',
+    title: '采购入库',
+    desc: '货进本人负责的分仓，不是要货',
+    url: '/pages/purchase/purchase',
+    perm: 'merchant:replenishment:view',
+    pack: 'field',
+    icon: 'replenish'
+  },
+  {
+    key: 'request',
+    title: '要货申请',
+    desc: '向仓库提交补货要货',
+    url: '/pages/request/request',
+    perm: 'merchant:replenishment:view',
+    pack: 'field',
+    icon: 'replenish'
+  },
+  ...MORE_FROM_BIZ_KEYS.map((key) => MERCHANT_BIZ_NAV.find((i) => i.key === key)).filter(
+    (item): item is MerchantNavItem => Boolean(item)
+  )
+];
+
+export const MERCHANT_MORE_NAV_KEYS = new Set(MERCHANT_MORE_NAV.map((i) => i.key));
+
 export const MERCHANT_TEAM_NAV: MerchantNavItem[] = [
   {
     key: 'team',

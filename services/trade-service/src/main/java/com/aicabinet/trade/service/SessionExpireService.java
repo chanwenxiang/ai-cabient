@@ -424,7 +424,7 @@ public class SessionExpireService {
             if (disputed) {
                 try {
                     disputeService.createTimeoutTicket(locked,
-                            "开门超时（超过" + sessionExpireProperties.consumerDoorOpenMinutes() + "分钟未关门），货品核验后人工结算");
+                            "开门超时未关门，核验后人工结算");
                 } catch (Exception ticketEx) {
                     log.warn("开门超时争议单创建失败 {}", SessionLogContext.of(locked), ticketEx);
                 }

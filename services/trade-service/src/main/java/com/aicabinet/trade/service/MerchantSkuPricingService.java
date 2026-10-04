@@ -16,14 +16,18 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
 public class MerchantSkuPricingService {
     private static final String MERCHANT_SKU_PRICE = "MERCHANT_SKU_PRICE";
-
-
     private static final int DEFAULT_MAX_MULTIPLIER = 2;
+    private static final Pattern OVERRIDE_AUDIT =
+            Pattern.compile("^base=(\\d+)\\s+override\\s+(null|-?\\d+)\\s*->\\s*(-?\\d+)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern RESET_AUDIT =
+            Pattern.compile("^reset to base (\\d+)\\s*\\(was override (null|-?\\d+)\\)$", Pattern.CASE_INSENSITIVE);
 
     private final DeviceSkuPriceMapper priceRepository;
     private final DeviceSkuInventoryMapper inventoryRepository;
@@ -318,7 +322,7 @@ public class MerchantSkuPricingService {
         if (newPrice == null) {
             existing.ifPresent(priceRepository::delete);
             auditService.appendLog(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
-                    "reset to base " + sku.getPriceCents() + " (was override " + oldOverride + ")");
+                    formatPriceChangeAuditDetail(sku.getPriceCents(), oldOverride, null));
         } else {
             validatePrice(sku, newPrice);
             DeviceSkuPrice row = existing.orElseGet(DeviceSkuPrice::new);
@@ -332,7 +336,7 @@ public class MerchantSkuPricingService {
             row.setUpdatedByUserId(userId);
             priceRepository.save(row);
             auditService.appendLog(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
-                    "base=" + sku.getPriceCents() + " override " + oldOverride + " -> " + newPrice);
+                    formatPriceChangeAuditDetail(sku.getPriceCents(), oldOverride, newPrice));
         }
 
         int qty = inventoryLotService.deviceUsesLotLedger(deviceId)
@@ -378,16 +382,66 @@ public class MerchantSkuPricingService {
                         l.getTargetId(), requestedDeviceId, requestedSkuId, allowedDeviceIds))
                 .limit(50)
                 .map(l -> {
-                    String dev = l.getTargetId();
-                    String sku = null;
-                    if (dev != null && dev.contains(":")) {
-                        int idx = dev.indexOf(':');
-                        sku = dev.substring(idx + 1);
-                        dev = dev.substring(0, idx);
-                    }
-                    return new MerchantSkuPriceChangeDto(dev, sku, l.getDetail(), l.getCreatedAt());
+                    String[] parts = splitPriceHistoryTarget(l.getTargetId());
+                    String dev = parts == null ? null : parts[0];
+                    String sku = parts == null ? null : parts[1];
+                    return new MerchantSkuPriceChangeDto(
+                            dev, sku, displayPriceHistoryDetail(l.getDetail()), l.getCreatedAt());
                 })
                 .toList();
+    }
+
+    static String[] splitPriceHistoryTarget(String targetId) {
+        if (targetId == null) {
+            return null;
+        }
+        int separator = targetId.indexOf(':');
+        if (separator <= 0 || separator == targetId.length() - 1) {
+            return null;
+        }
+        return new String[] { targetId.substring(0, separator), targetId.substring(separator + 1) };
+    }
+
+    static String formatPriceChangeAuditDetail(Integer baseCents, Integer oldOverride, Integer newOverride) {
+        int base = baseCents == null ? 0 : baseCents;
+        if (newOverride == null) {
+            if (oldOverride == null) {
+                return "取消覆盖，恢复基准 " + yuanLabel(base);
+            }
+            return "取消覆盖，恢复基准 " + yuanLabel(base) + "（原覆盖 " + yuanLabel(oldOverride) + "）";
+        }
+        String from = oldOverride == null ? "无" : yuanLabel(oldOverride);
+        return "覆盖价 " + from + " → " + yuanLabel(newOverride) + "（基准 " + yuanLabel(base) + "）";
+    }
+
+    static String displayPriceHistoryDetail(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "暂无明细";
+        }
+        String trimmed = raw.trim();
+        Matcher override = OVERRIDE_AUDIT.matcher(trimmed);
+        if (override.matches()) {
+            Integer from = parseAuditCents(override.group(2));
+            return formatPriceChangeAuditDetail(
+                    Integer.parseInt(override.group(1)), from, Integer.parseInt(override.group(3)));
+        }
+        Matcher reset = RESET_AUDIT.matcher(trimmed);
+        if (reset.matches()) {
+            Integer from = parseAuditCents(reset.group(2));
+            return formatPriceChangeAuditDetail(Integer.parseInt(reset.group(1)), from, null);
+        }
+        return trimmed;
+    }
+
+    private static Integer parseAuditCents(String token) {
+        if (token == null || token.isBlank() || "null".equalsIgnoreCase(token.trim())) {
+            return null;
+        }
+        return Integer.parseInt(token.trim());
+    }
+
+    private static String yuanLabel(int cents) {
+        return String.format(Locale.CHINA, "¥%.2f", cents / 100.0);
     }
 
     /**

@@ -278,10 +278,19 @@ public class MerchantDevicePortalService {
                         m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
                                 m.getMerchantId(), m.getMerchantName()),
                         (a, b) -> a));
+        Map<String, DeviceSlotService.SlotStockCounts> stockByDevice = devices.stream()
+                .collect(Collectors.toMap(
+                        DeviceInfo::getDeviceId,
+                        d -> deviceSlotService.countSlotStock(d.getDeviceId()),
+                        (a, b) -> a));
 
         return devices.stream()
-                .map(d -> toDeviceDto(d, activeByDevice.get(d.getDeviceId()),
-                        replenishing.contains(d.getDeviceId()), merchantNames))
+                .map(d -> toDeviceDto(
+                        d,
+                        activeByDevice.get(d.getDeviceId()),
+                        replenishing.contains(d.getDeviceId()),
+                        merchantNames,
+                        stockByDevice.getOrDefault(d.getDeviceId(), DeviceSlotService.SlotStockCounts.EMPTY)))
                 .toList();
     }
 
@@ -300,7 +309,10 @@ public class MerchantDevicePortalService {
 
     private MerchantDeviceDto toDeviceDto(DeviceInfo d, ShoppingSession active,
                                        boolean replenishmentInProgress,
-                                       Map<String, String> merchantNames) {
+                                       Map<String, String> merchantNames,
+                                       DeviceSlotService.SlotStockCounts stock) {
+        DeviceSlotService.SlotStockCounts counts =
+                stock != null ? stock : DeviceSlotService.SlotStockCounts.EMPTY;
         return new MerchantDeviceDto(
                 d.getDeviceId(), DeviceNameSupport.resolve(d.getDeviceId(), d.getDeviceName()), d.getDeviceType(), d.getOnlineStatus(),
                 d.getMerchantId(),
@@ -314,8 +326,8 @@ public class MerchantDevicePortalService {
                 d.getCurrentTempC(),
                 d.getTargetTempC(),
                 d.getLifecycleStatus(),
-                null,
-                null,
+                counts.lowStockSlotCount(),
+                counts.oosSlotCount(),
                 d.getSalesLockReason(),
                 d.getLatitude(),
                 d.getLongitude(),

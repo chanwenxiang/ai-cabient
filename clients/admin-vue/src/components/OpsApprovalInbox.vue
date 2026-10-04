@@ -32,7 +32,7 @@
               :class="{ unread: !task.readAt }"
               @click="openTask(task)"
             >
-              <div class="item-title">{{ task.title || approvalBizLabel(task.bizType) }}</div>
+              <div class="item-title">{{ displayTaskTitle(task) }}</div>
               <div class="item-meta">
                 {{ task.nodeName }} · {{ formatDateTime(task.createdAt) }}
               </div>
@@ -85,7 +85,7 @@
                 <span class="status-chip" :class="historyChipClass(item)">{{
                   historyChipLabel(item)
                 }}</span>
-                {{ item.title || approvalBizLabel(item.bizType) }}
+                {{ displayTaskTitle(item) }}
               </div>
               <div class="item-meta">
                 {{ item.progressText }} · {{ formatDateTime(item.actedAt) }}
@@ -108,7 +108,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Bell } from '@element-plus/icons-vue';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { formatDateTime, sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api, isLoggedIn } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -278,13 +278,20 @@ function resolvePath(item: { actionPath?: string; bizType?: string; bizId?: stri
   return '/replenishment?tab=requests';
 }
 
+function displayTaskTitle(task: { title?: string; bizType?: string }): string {
+  return sanitizeNotifyTitle(task.title || approvalBizLabel(task.bizType));
+}
+
 /**
  * 历史数据可能仍为「待审批：」前缀，展示时统一成「审批提醒：」以免与上方待办混淆。
  * @param {string | undefined} title
  */
 function displayMessageTitle(title?: string): string {
   if (!title) return '';
-  return title.startsWith('待审批：') ? `审批提醒：${title.slice('待审批：'.length)}` : title;
+  const normalized = title.startsWith('待审批：')
+    ? `审批提醒：${title.slice('待审批：'.length)}`
+    : title;
+  return sanitizeNotifyTitle(normalized);
 }
 
 /**

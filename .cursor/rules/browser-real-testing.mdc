@@ -1,0 +1,49 @@
+---
+description: UI/页面相关改动与验收时，优先用 Playwright MCP/CLI 验证
+alwaysApply: true
+---
+
+# 浏览器真实测试
+
+采用「有条件必测」，**不是**「每次改代码都开浏览器」。
+
+## 何时必须做浏览器验证
+
+满足任一条件时，必须真实操作验证，禁止仅凭 curl、日志或代码推理宣称 UI 通过：
+
+1. 改动影响用户可见/可点内容：管理后台、H5、网关页面、前端交互、文案、布局
+2. 用户要求测试 / 验证 / 验收 / 回归 / 联调 / 冒烟
+3. 完成涉及 UI / 页面 / API 网关（对外可访问入口）的功能后需要自测
+
+## 何时不必强开 Browser
+
+| 改动类型 | 验证方式 |
+|---------|---------|
+| 纯后端、DB、Flyway、内部 API（`/internal/v1`）、无 UI 影响 | curl / health / actuator 即可 |
+| 纯重构、注释、与页面无关的类型/配置 | 可跳过浏览器 |
+| 用户明确说「暂时不需要浏览器测试」 | 跳过 |
+
+小程序（uni-app）若浏览器覆盖不足：能开 H5 入口则测 H5；无法覆盖的原生能力需说明限制，不要假装已全量浏览器验收。
+
+## 优先方式（按序）
+
+1. **Playwright MCP**（已启用时首选）
+2. **Playwright CLI**（`playwright-cli` / 对应 skill）
+3. **回退**：Cursor 内置 Browser（`cursor-ide-browser`：`browser_navigate` → `browser_snapshot` → `browser_lock` → 操作 → `browser_unlock`）
+
+## 必须做的（触发必测时）
+
+1. 确认服务已启动；未启动则先启动或告知用户。
+2. 打开真实 URL（常见入口）：
+   - 运营后台：`http://localhost/admin/index.html`（演示账号 `13900000001` / `123456`）
+   - Gateway：`http://localhost`
+   - trade-service：`http://localhost:8080`
+   - Grafana：`http://localhost:13000`
+3. 用 Playwright（或回退 Browser）逐步验证关键流程（登录、列表、表单、错误提示、跳转等）。
+4. 必要时截图留证；失败时说明实际与预期差异。
+
+## 禁止
+
+- 只跑单元测试或 curl 就报告「UI 测试通过」
+- 假设页面状态；元素失效时重新取快照/截图
+- 未实际打开页面却描述「页面正常」

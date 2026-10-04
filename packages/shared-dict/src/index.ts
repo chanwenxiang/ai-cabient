@@ -319,7 +319,11 @@ export const DICT = {
     WITHDRAW_RELEASE: '提现解冻',
     WITHDRAW_PAID: '提现打款',
     ADJUST: '调账',
-    REVERSE: '冲正'
+    REVERSE: '冲正',
+    SPLIT_CREDIT: '分账入账',
+    SPLIT_PARTIAL_CREDIT: '分账入账',
+    SPLIT_REVERSE: '分账冲正',
+    SPLIT_PARTIAL_REVERSE: '分账冲正'
   },
   fund_direction: {
     IN: '收入',
@@ -535,7 +539,9 @@ export const DICT = {
     WITHDRAW_RELEASE: '提现解冻',
     WITHDRAW_PAID: '提现打款',
     SPLIT_CREDIT: '分账入账',
-    SPLIT_REVERSE: '分账退回',
+    SPLIT_PARTIAL_CREDIT: '分账入账',
+    SPLIT_REVERSE: '分账冲正',
+    SPLIT_PARTIAL_REVERSE: '分账冲正',
     RECHARGE: '充值',
     RECHARGE_REFUND: '充值退款',
     BALANCE_REFUND: '余额退款',

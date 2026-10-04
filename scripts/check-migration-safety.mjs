@@ -8,7 +8,7 @@
  * 规则见 docs/MIGRATION_SAFETY.md
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -81,6 +81,27 @@ if (!diffList.ok && !untracked.ok) {
   );
 }
 
+const errors = [];
+const warnings = [];
+
+const versionFiles = new Map();
+try {
+  for (const name of readdirSync(migrationDir)) {
+    const m = /^V(\d+)__/.exec(name);
+    if (!m) continue;
+    const list = versionFiles.get(m[1]) || [];
+    list.push(name);
+    versionFiles.set(m[1], list);
+  }
+} catch (e) {
+  fail(`无法读取 migration 目录：${e instanceof Error ? e.message : e}`);
+}
+for (const [ver, list] of versionFiles) {
+  if (list.length > 1) {
+    errors.push(`duplicate Flyway version V${ver}: ${list.join(', ')}`);
+  }
+}
+
 const names = new Set(
   [
     ...(diffList.ok && diffList.out ? diffList.out.split(/\r?\n/).filter(Boolean) : []),
@@ -88,7 +109,7 @@ const names = new Set(
   ].filter((p) => /\.sql$/i.test(p))
 );
 const files = [...names];
-if (files.length === 0) {
+if (files.length === 0 && errors.length === 0) {
   console.log('[check-migration-safety] no new Flyway scripts vs baseline; OK');
   process.exit(0);
 }
@@ -96,9 +117,6 @@ if (files.length === 0) {
 function touchesHotTable(body) {
   return HOT_TABLES.some((t) => new RegExp(`\\b${t}\\b`, 'i').test(body));
 }
-
-const errors = [];
-const warnings = [];
 
 for (const rel of files) {
   const abs = join(root, rel);

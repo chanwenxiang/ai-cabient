@@ -5,6 +5,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
 import { errorMessage } from '@/utils/error-message';
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
+import type { PageResult } from '@aicabinet/shared-types';
 
 /** 仓储动态行（D15：禁止散落 Record<string, any>） */
 export type WarehouseEntityRow = AdminDynamicRow;
@@ -42,8 +43,13 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     warehouseId: '',
     warehouseName: '',
     address: '',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    managerUserId: null as number | null
   });
+  const managerOptions = ref<{ userId: number; name?: string; phoneNumber?: string; status?: string }[]>(
+    []
+  );
+  const managerLoading = ref(false);
   const supplierForm = reactive({
     editing: false,
     supplierId: '',
@@ -69,6 +75,39 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
 
   const payMaxYuan = computed(() => Number((payTarget.value.balanceCents || 0) / 100));
 
+  function managerOptionLabel(op: { userId: number; name?: string; phoneNumber?: string }) {
+    const name = (op.name || '').trim() || '未命名';
+    const phone = (op.phoneNumber || '').trim();
+    return phone ? `${name}（${phone}）` : `${name}（${op.userId}）`;
+  }
+
+  function warehouseManagerLabel(userId?: number | string | null) {
+    if (userId == null || userId === '') return '未绑定';
+    const id = Number(userId);
+    if (!Number.isFinite(id) || id <= 0) return '未绑定';
+    const op = managerOptions.value.find((item) => item.userId === id);
+    if (op) return managerOptionLabel(op);
+    return `用户 ${id}`;
+  }
+
+  async function loadManagerOptions() {
+    if (managerLoading.value) return;
+    managerLoading.value = true;
+    try {
+      const data = await api.request<PageResult<{ userId: number; name?: string; phoneNumber?: string; status?: string }>>(
+        AdminEndpoints.rbacOperatorsPage(0, 200),
+        'GET'
+      );
+      managerOptions.value = (data.items || []).filter((item) => !item.status || item.status === 'ACTIVE');
+    } catch {
+      /* 下拉空则仍可手看编号；保存不依赖名单 */
+    } finally {
+      managerLoading.value = false;
+    }
+  }
+
+  void loadManagerOptions();
+
   function newInboundLine() {
     return {
       skuId: deps.skus.value[0]?.skuId || '',
@@ -84,14 +123,17 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
   }
 
   function openWarehouse(row?: WarehouseEntityRow) {
+    const rawManager = Number(row?.managerUserId);
     Object.assign(warehouseForm, {
       editing: !!row,
       warehouseId: row?.warehouseId || '',
       warehouseName: row?.warehouseName || '',
       address: row?.address || '',
-      status: row?.status || 'ACTIVE'
+      status: row?.status || 'ACTIVE',
+      managerUserId: Number.isFinite(rawManager) && rawManager > 0 ? rawManager : null
     });
     warehouseDialog.value = true;
+    void loadManagerOptions();
   }
 
   async function saveWarehouse() {
@@ -107,7 +149,8 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
       await api.request(AdminEndpoints.warehouseItem(idPath), 'PUT', {
         warehouseName: warehouseForm.warehouseName.trim(),
         address: warehouseForm.address,
-        status: warehouseForm.status
+        status: warehouseForm.status,
+        managerUserId: Number(warehouseForm.managerUserId) > 0 ? Number(warehouseForm.managerUserId) : 0
       });
       warehouseDialog.value = false;
       ElMessage.success(warehouseForm.editing ? '仓库已保存' : '仓库已创建（编号由系统分配）');
@@ -264,6 +307,10 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     paymentDialog,
     inboundDialog,
     warehouseForm,
+    managerOptions,
+    managerLoading,
+    managerOptionLabel,
+    warehouseManagerLabel,
     supplierForm,
     paymentForm,
     payTarget,

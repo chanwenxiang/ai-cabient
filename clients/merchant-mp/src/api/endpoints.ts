@@ -61,12 +61,13 @@ export const MerchantEndpoints = {
   settlementsBatches: (from: string, to: string) =>
     `${API_PREFIX}/merchant/settlements/batches?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
   /** 经营分析 */
-  analyticsOverview: (days: number) => `${API_PREFIX}/merchant/analytics/overview?days=${days}`,
+  analyticsOverview: `${API_PREFIX}/merchant/analytics/overview`,
   analyticsSalesReports: `${API_PREFIX}/merchant/analytics/sales-reports`,
+  analyticsSalesReportsExport: `${API_PREFIX}/merchant/analytics/sales-reports/export`,
   analyticsSkuSales: `${API_PREFIX}/merchant/analytics/sku-sales`,
   analyticsVelocity: (deviceId: string) =>
     `${API_PREFIX}/merchant/analytics/velocity?deviceId=${encodeURIComponent(deviceId)}`,
-  analyticsAiInsight: (days: number) => `${API_PREFIX}/merchant/analytics/ai-insight?days=${days}`,
+  analyticsAiInsight: `${API_PREFIX}/merchant/analytics/ai-insight`,
   analyticsExpirySummary: `${API_PREFIX}/merchant/analytics/expiry-summary`,
   /** 税档 / 库存 */
   taxProfile: `${API_PREFIX}/merchant/tax-profile`,
@@ -124,7 +125,7 @@ export const MerchantEndpoints = {
   pricingSku: (skuId: string) => `${API_PREFIX}/merchant/pricing/skus/${encodeURIComponent(skuId)}`,
   pricingHistory: `${API_PREFIX}/merchant/pricing/history`,
   workbench: `${API_PREFIX}/merchant/workbench`,
-  opsConfig: `${API_PREFIX}/ops-config`,
+  opsConfig: `${API_PREFIX}/merchant/ops-config`,
   announcements: `${API_PREFIX}/merchant/announcements`,
   announcement: (id: number | string) => `${API_PREFIX}/merchant/announcements/${id}`,
   teamUsers: `${API_PREFIX}/merchant/team/users`,
@@ -151,7 +152,13 @@ export const MerchantEndpoints = {
   profile: `${API_PREFIX}/merchant/profile`,
   notifications: (limit: number) => `${API_PREFIX}/merchant/notifications?limit=${limit}`,
   notificationsUnreadCount: `${API_PREFIX}/merchant/notifications/unread-count`,
-  notificationRead: (id: number | string) => `${API_PREFIX}/merchant/notifications/${id}/read`
+  notificationRead: (id: number | string) => `${API_PREFIX}/merchant/notifications/${id}/read`,
+  satelliteWarehouse: `${API_PREFIX}/merchant/satellite-warehouse`,
+  satellitePurchaseSuppliers: `${API_PREFIX}/merchant/satellite-purchase/suppliers`,
+  satellitePurchaseSkus: `${API_PREFIX}/merchant/satellite-purchase/skus`,
+  satellitePurchaseOrders: `${API_PREFIX}/merchant/satellite-purchase/orders`,
+  satellitePurchaseReceive: (purchaseOrderId: number | string) =>
+    `${API_PREFIX}/merchant/satellite-purchase/orders/${encodeURIComponent(String(purchaseOrderId))}/receive`
 } as const;
 
 /**
@@ -173,5 +180,6 @@ export const MERCHANT_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/merchant/team/',
   '/api/v2/merchant/notify/',
   '/api/v2/merchant/exceptions',
-  '/api/v2/merchant/notifications'
+  '/api/v2/merchant/notifications',
+  '/api/v2/merchant/satellite-'
 ] as const;

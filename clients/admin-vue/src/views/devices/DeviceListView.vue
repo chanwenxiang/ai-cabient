@@ -329,6 +329,9 @@
           <el-table-column label="商户" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
+          <el-table-column label="所属仓库" min-width="140" class-name="col-text">
+            <template #default="{ row }">{{ warehouseLabel(row.homeWarehouseId) }}</template>
+          </el-table-column>
           <el-table-column
             align="center"
             label="退款方式"
@@ -427,6 +430,22 @@
               :key="m.merchantId"
               :label="`${m.merchantName || m.merchantId}（${m.merchantId}）`"
               :value="m.merchantId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="所属仓库">
+          <el-select
+            v-model="createForm.homeWarehouseId"
+            filterable
+            clearable
+            placeholder="未归线"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="w in warehouseOptions"
+              :key="w.warehouseId"
+              :label="`${w.warehouseName || w.warehouseId}（${w.warehouseId}）`"
+              :value="w.warehouseId"
             />
           </el-select>
         </el-form-item>
@@ -553,11 +572,18 @@ const createVisible = ref(false);
 const createSaving = ref(false);
 /** 高德是否已配置：决定要不要显示「解析坐标」（未配置时仍可手填经纬度） */
 const geoConfigured = ref(false);
+interface WarehouseOption {
+  warehouseId: string;
+  warehouseName?: string;
+}
+
 const merchantOptions = ref<MerchantOption[]>([]);
+const warehouseOptions = ref<WarehouseOption[]>([]);
 const createForm = reactive({
   deviceName: '',
   deviceType: '',
   merchantId: '',
+  homeWarehouseId: '',
   /** 点位坐标：填了商户即视为部署，此时经纬度必填（后端 createDevice 亦 fail-closed） */
   latitude: undefined as number | undefined,
   longitude: undefined as number | undefined,
@@ -670,6 +696,7 @@ applyRouteQuery();
 
 // 高德是否配置：拿不到就当未配置（只影响「解析坐标」按钮是否出现，手填经纬度始终可用）
 onMounted(async () => {
+  void loadWarehouses();
   try {
     const data = await api.request<{ configured: boolean }>(AdminEndpoints.geoStatus, 'GET');
     geoConfigured.value = !!data.configured;
@@ -729,6 +756,7 @@ const csvOptions: CrudCsvOptions = {
     '路线',
     '商户编号',
     '商户',
+    '所属仓库',
     '退款方式',
     '最近会话',
     '会话状态',
@@ -752,6 +780,7 @@ const csvOptions: CrudCsvOptions = {
       row.routeCode,
       row.merchantId,
       row.merchantName,
+      warehouseLabel(row.homeWarehouseId),
       `${policyLabel(effectivePolicy(row))}${row.refundPolicy ? '' : '(全局)'}`,
       row.activeSessionId,
       row.activeSessionState ? dictLabel('session_state', row.activeSessionState) : '无',
@@ -1054,6 +1083,24 @@ function onBoardTab(name: string | number) {
   void crud.search();
 }
 
+async function loadWarehouses() {
+  try {
+    const data = await api.request<{ items?: WarehouseOption[] }>(
+      AdminEndpoints.warehouseListAll,
+      'GET'
+    );
+    warehouseOptions.value = data.items || [];
+  } catch {
+    warehouseOptions.value = [];
+  }
+}
+
+function warehouseLabel(id?: string | null) {
+  if (!id) return '未归线';
+  const w = warehouseOptions.value.find((item) => item.warehouseId === id);
+  return w ? w.warehouseName || w.warehouseId : id;
+}
+
 async function loadMerchants() {
   try {
     const data = await api.request<{ items?: MerchantOption[] }>(
@@ -1074,11 +1121,13 @@ function openCreate() {
   createForm.deviceName = '';
   createForm.deviceType = '';
   createForm.merchantId = '';
+  createForm.homeWarehouseId = '';
   createForm.latitude = undefined;
   createForm.longitude = undefined;
   createForm.address = '';
   createVisible.value = true;
   void loadMerchants();
+  void loadWarehouses();
 }
 
 async function saveCreate() {
@@ -1124,7 +1173,8 @@ async function saveCreate() {
       merchantId: createForm.merchantId || undefined,
       latitude: createForm.latitude,
       longitude: createForm.longitude,
-      address: createForm.address.trim() || undefined
+      address: createForm.address.trim() || undefined,
+      homeWarehouseId: createForm.homeWarehouseId || undefined
     });
     ElMessage.success(`设备已创建，编号 ${created.deviceId}`);
     createVisible.value = false;

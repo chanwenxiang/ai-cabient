@@ -95,6 +95,9 @@ public class DeviceInfo {
 
     private String routeCode;
 
+    /** 所属分仓（补货归线）；空表示未归线 */
+    private String homeWarehouseId;
+
     private Instant deployedAt;
 
     private String lifecycleRemark;

@@ -79,7 +79,7 @@
         <el-input
           v-model="keyword"
           clearable
-          placeholder="编号 / 名称 / 条码 / 类名"
+          placeholder="SKU / 名称 / 条码 / 类名"
           style="width: 240px"
           @keyup.enter="search"
           @clear="search"
@@ -127,13 +127,13 @@
           :action-width="200"
           actions-testid="sku-vision-enroll"
           :empty-text="skuEmptyText"
-          sort-field-label="编号"
+          sort-field-label="SKU"
           :csv="csvOptions"
           @action="onAction"
         >
-          <el-table-column prop="skuCode" label="编号" width="100" class-name="col-text">
+          <el-table-column prop="skuId" label="SKU" width="120" class-name="col-text">
             <template #default="{ row }">
-              <span class="cell-id">{{ row.skuCode ?? '暂无' }}</span>
+              <span class="cell-id">{{ row.skuId || '暂无' }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -277,11 +277,9 @@
           </el-select>
           <div class="field-hint">没有商品？请先到「商品管理」新建主数据。</div>
         </el-form-item>
-        <el-form-item v-else label="数字编号">
+        <el-form-item v-else label="SKU">
           <el-input
-            :model-value="
-              enrollForm.skuCode != null ? String(enrollForm.skuCode) : enrollForm.skuId
-            "
+            :model-value="enrollForm.skuId || '保存后自动分配'"
             disabled
           />
         </el-form-item>
@@ -568,7 +566,7 @@ const crud = useCrudTable<SkuCatalog>({
     }
     return { items: (rowsRes.items || []).map((r) => r.sku), total: Number(rowsRes.total) || 0 };
   },
-  sort: { prop: 'skuCode', mode: 'local' }
+  sort: { prop: 'skuId', mode: 'local' }
 });
 
 function queryParams(page: number, size: number) {
@@ -717,7 +715,7 @@ const csvOptions: CrudCsvOptions = {
   exportPerm: 'ops:sku:export',
   importPerm: 'ops:sku:import',
   headers: [
-    '商品编号',
+    'SKU',
     '名称',
     '基准价',
     '成本',
@@ -729,7 +727,7 @@ const csvOptions: CrudCsvOptions = {
     '检测阈值'
   ],
   templateSample: [
-    'SKU-EXAMPLE-001',
+    '100001',
     '示例商品（导入时请改）',
     '3.50',
     '',
@@ -757,7 +755,7 @@ const csvOptions: CrudCsvOptions = {
   onImportRows: async (rows) => {
     let ok = 0;
     for (const row of rows) {
-      const skuId = (row['商品编号'] || row.skuId || '').trim();
+      const skuId = (row['SKU'] || row['商品编号'] || row.skuId || '').trim();
       const skuName = (row['名称'] || row.skuName || '').trim();
       if (!skuId || !skuName) continue;
       const yoloClassName =
@@ -1139,7 +1137,7 @@ async function saveEnroll() {
     const idx = crud.items.findIndex((i) => i.skuId === updated.skuId);
     if (idx >= 0) crud.items[idx] = updated;
     else crud.items.push(updated);
-    crud.items.sort((a, b) => (a.skuCode ?? 0) - (b.skuCode ?? 0));
+    crud.items.sort((a, b) => String(a.skuId || '').localeCompare(String(b.skuId || ''), 'zh-CN', { numeric: true }));
     enrollDialog.value = false;
     ElMessage.success('已保存识别入驻配置');
     await crud.load();

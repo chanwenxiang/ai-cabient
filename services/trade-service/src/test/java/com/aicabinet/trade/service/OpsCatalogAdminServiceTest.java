@@ -59,15 +59,58 @@ class OpsCatalogAdminServiceTest {
 
     @Test
     void createSku_duplicateId_conflicts() {
-        when(skuCatalogRepository.nextSkuCode()).thenReturn(9L);
-        when(skuCatalogRepository.existsById("SKU-DUP")).thenReturn(true);
+        when(skuCatalogRepository.nextSkuCode()).thenReturn(1001L);
+        when(skuCatalogRepository.existsById("1001")).thenReturn(true);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.createSku(10001L, minimalRequest("SKU-DUP")));
+                () -> service.createSku(10001L, minimalRequest(null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
         assertEquals(ApiMessages.SKU_EXISTS, ex.getReason());
         verify(skuCatalogRepository, never()).save(any());
+    }
+
+    @Test
+    void createSku_rejectsNonNumericId() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.createSku(10001L, minimalRequest("SKU-DUP")));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals(ApiMessages.SKU_ID_NUMERIC, ex.getReason());
+        verify(skuCatalogRepository, never()).save(any());
+    }
+
+    @Test
+    void createSku_duplicateNameAndSpec_conflicts() {
+        when(skuCatalogRepository.nextSkuCode()).thenReturn(42L);
+        when(skuCatalogRepository.existsById("42")).thenReturn(false);
+        when(skuCatalogRepository.existsBySkuCode(42L, null)).thenReturn(false);
+        when(skuCatalogRepository.existsByBarcode(null, null)).thenReturn(false);
+        when(skuCatalogRepository.existsByNameAndSpec("可乐", null, null)).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.createSku(10001L, minimalRequest(null)));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals(ApiMessages.SKU_NAME_EXISTS, ex.getReason());
+        verify(skuCatalogRepository, never()).save(any());
+    }
+
+    @Test
+    void createSku_assignsNumericId() {
+        when(skuCatalogRepository.nextSkuCode()).thenReturn(42L);
+        when(skuCatalogRepository.existsById("42")).thenReturn(false);
+        when(skuCatalogRepository.existsBySkuCode(42L, null)).thenReturn(false);
+        when(skuCatalogRepository.existsByBarcode(null, null)).thenReturn(false);
+        when(skuCatalogRepository.existsByNameAndSpec("可乐", null, null)).thenReturn(false);
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(userInfoRepository.findById(10001L)).thenReturn(java.util.Optional.empty());
+
+        var dto = service.createSku(10001L, minimalRequest(null));
+
+        assertEquals("42", dto.skuId());
+        assertEquals(42L, dto.skuCode());
+        verify(skuCatalogRepository).save(any());
     }
 
     private static UpsertSkuRequest minimalRequest(String skuId) {

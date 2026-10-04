@@ -39,6 +39,9 @@ export type UseWarehouseTabLoaderDeps = {
   payables: Ref<WarehouseTabRow[]>;
   payableSummary: Ref<WarehouseTabRow[]>;
   stocktakes: Ref<WarehouseTabRow[]>;
+  monthlyCloseLines: Ref<WarehouseTabRow[]>;
+  monthlyCloseHint: Ref<string>;
+  monthlyCloseYearMonth: Ref<string>;
   bins: Ref<WarehouseTabRow[]>;
   binStock: Ref<WarehouseTabRow[]>;
   transfers: Ref<WarehouseTabRow[]>;
@@ -262,6 +265,37 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     };
   }
 
+  async function loadMonthlyClose() {
+    const seq = deps.loadSeq.begin('loadMonthlyClose');
+    let warehouseId = deps.filterWarehouseId.value;
+    if (!warehouseId) {
+      const first = deps.warehouses.value[0]?.warehouseId;
+      if (first) {
+        deps.filterWarehouseId.value = String(first);
+        warehouseId = String(first);
+      }
+    }
+    if (!warehouseId) {
+      deps.monthlyCloseLines.value = [];
+      deps.monthlyCloseHint.value = '请先选择仓库';
+      deps.tabTotals.value = { ...deps.tabTotals.value, monthly: 0 };
+      return;
+    }
+    const q = new URLSearchParams({ warehouseId });
+    if (deps.monthlyCloseYearMonth.value) q.set('yearMonth', deps.monthlyCloseYearMonth.value);
+    const data = await api.request<{
+      formulaHint?: string;
+      lines?: WarehouseTabRow[];
+    }>(AdminEndpoints.warehouseMonthlyClose(q), 'GET');
+    if (!deps.loadSeq.isCurrent(seq, 'loadMonthlyClose')) return;
+    deps.monthlyCloseLines.value = data.lines || [];
+    deps.monthlyCloseHint.value = data.formulaHint || '';
+    deps.tabTotals.value = {
+      ...deps.tabTotals.value,
+      monthly: (data.lines || []).length
+    };
+  }
+
   async function loadMovements() {
     const seq = deps.loadSeq.begin('loadMovements');
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
@@ -423,7 +457,8 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
       transit: () => loadTransit(),
       transfers: () => Promise.all([loadTransfers(), loadWarehousesSoft()]),
       inventory: () => Promise.all([loadInventory(), loadWarehousesSoft()]),
-      movements: () => Promise.all([loadMovements(), loadWarehousesSoft()])
+      movements: () => Promise.all([loadMovements(), loadWarehousesSoft()]),
+      monthly: () => loadWarehousesSoft().then(() => loadMonthlyClose())
     };
     const loader = loaders[name];
     if (loader) await loader();
@@ -431,7 +466,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
 
   async function loadTab(name: string, force = false) {
     const seq = deps.loadSeq.begin('loadTab');
-    if (!force && deps.loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements') {
+    if (!force && deps.loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements' && name !== 'monthly') {
       return;
     }
     // 在途计数按 tab 维护：过时的请求也必须把自己那份 loading 关掉，
@@ -477,6 +512,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     loadTransit,
     loadInventory,
     loadMovements,
+    loadMonthlyClose,
     loadSuggestions,
     loadPayables,
     loadPayableSummary,

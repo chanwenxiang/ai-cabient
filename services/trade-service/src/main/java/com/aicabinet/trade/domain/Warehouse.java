@@ -21,6 +21,9 @@ public class Warehouse {
 
     private String status = "ACTIVE";
 
+    /** 分仓负责人（补货员）user_info.user_id；空表示未绑人 */
+    private Long managerUserId;
+
     private Instant createdAt;
 
 }

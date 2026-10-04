@@ -102,6 +102,9 @@ description: >-
 | 列表 N+1 / 预拉 pricing | 列表 DTO 聚合；详情懒加载 |
 | 拒定位仍见上海柜 | 无定位 error 空态；禁默认坐标假附近 |
 | H5 出「绑定微信」 | `v-if=isMpWeixin` |
+| 抽组件后巨型图标/双底栏 | 删页面底稿；`virtualHost`；图标写死宽高；`check:consumer-mp-extract-leftover`（#279） |
+| 购物车条和 Tab 之间一条空白 | 贴 tabBar 的底栏禁再垫 `safe-area-inset-bottom`（#281） |
+| 小程序两个 app-button 贴死 | 各自包块级 `.btn-slot`，间距写在 wrapper 上，禁指望组件内部 margin |
 
 ### F. CI / DevOps
 

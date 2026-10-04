@@ -228,23 +228,23 @@ function goOrders() {
 <style scoped>
 .page-outer {
   min-height: 100%;
-  background: var(--color-bg-card, #ffffff);
+  background: var(--page-bg, #ededed);
 }
 .page {
   min-height: 100%;
   padding: 0 var(--page-gutter) calc(var(--spacing-lg) * 2);
   box-sizing: border-box;
-  background: var(--color-bg-card, #ffffff);
+  background: transparent;
 }
 .card {
   background: var(--card-bg, #fff);
-  border-radius: var(--radius-card, 24rpx);
+  border-radius: 16rpx;
   padding: 24rpx;
   margin: 0 0 16rpx;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+  box-shadow: none;
 }
 .card-title {
   display: block;

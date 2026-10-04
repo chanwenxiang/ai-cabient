@@ -9,5 +9,6 @@ public record UpsertWarehouseRequest(
         String warehouseName,
         @Size(max = 255)
         String address,
-        String status
+        String status,
+        Long managerUserId
 ) {}

@@ -1,7 +1,9 @@
 package com.aicabinet.trade.mapper;
 
+import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.domain.UserInfo;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
@@ -23,7 +25,24 @@ public interface UserInfoMapper extends BaseTradeMapper<UserInfo> {
     }
 
     default Optional<UserInfo> findByWxOpenId(String wxOpenId) {
-    return Optional.ofNullable(selectOne(Wrappers.<UserInfo>lambdaQuery().eq(UserInfo::getWxOpenId, wxOpenId)));
+        if (wxOpenId == null || wxOpenId.isBlank()) {
+            return Optional.empty();
+        }
+        List<UserInfo> rows = selectList(Wrappers.<UserInfo>lambdaQuery()
+                .eq(UserInfo::getWxOpenId, wxOpenId));
+        return pickWxOpenIdMatch(rows);
+    }
+
+    /** 同一 OpenID 多行时优先消费者、再取较小 user_id；禁止 selectOne（重复会 500）。 */
+    static Optional<UserInfo> pickWxOpenIdMatch(List<UserInfo> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Optional.empty();
+        }
+        return rows.stream()
+                .min(Comparator
+                        .comparing((UserInfo u) ->
+                                CabinetConstants.ACCOUNT_TYPE_CONSUMER.equals(u.getAccountType()) ? 0 : 1)
+                        .thenComparing(UserInfo::getUserId, Comparator.nullsLast(Long::compareTo)));
     }
 
     default Optional<UserInfo> findByAlipayUserId(String alipayUserId) {

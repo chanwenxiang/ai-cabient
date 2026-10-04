@@ -522,7 +522,7 @@ export interface SkuVisionEnrollmentPipeline {
 }
 
 export interface UpsertSkuRequest {
-  /** 新建可空，服务端生成 SKU-{skuCode} */
+  /** 新建可空，服务端生成与 skuCode 相同的纯数字 ID */
   skuId?: string;
   skuName: string;
   priceCents: number;

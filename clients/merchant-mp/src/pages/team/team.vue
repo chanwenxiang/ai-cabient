@@ -2,16 +2,13 @@
   <view class="page">
     <app-nav-bar title="团队成员" />
     <view class="page-body">
-      <view class="toolbar">
-        <button
-          v-if="canInvite"
-          class="invite-btn"
-          size="mini"
-          :loading="saving"
-          @click="openInvite"
-        >
-          邀请成员
-        </button>
+      <view v-if="canInvite" class="invite-card" role="button" @click="openInvite">
+        <view class="invite-plus" aria-hidden="true">+</view>
+        <view class="invite-copy">
+          <text class="invite-title">邀请成员</text>
+          <text class="invite-desc">用手机号开通账号，同事即可登录协同</text>
+        </view>
+        <view class="invite-go app-link-chevron" aria-hidden="true">去邀请</view>
       </view>
 
       <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
@@ -21,31 +18,35 @@
         icon="/static/menu/team.png"
         title="暂无团队成员"
         hint="可邀请同事登录商户端协同补货与经营"
-      >
-        <app-button v-if="canInvite" label="邀请成员" @click="openInvite" />
-      </empty-state>
-      <view v-else>
+      />
+      <view v-else class="list">
+        <text class="list-count">共 {{ list.length }} 人</text>
         <view
           v-for="u in list"
           role="button"
           :key="u.userId"
           class="card row"
+          :class="{ inactive: u.status === 'INACTIVE' }"
           @click="openManage(u)"
         >
           <view class="avatar">{{ (u.displayName || u.phoneNumber || '员').slice(0, 1) }}</view>
           <view class="meta">
-            <text class="name">{{ u.displayName || u.phoneNumber || '用户 ' + u.userId }}</text>
-            <text class="sub"
-              >{{ u.phoneNumber || '无手机号' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text
-            >
-            <text class="sub status-line"
-              >{{ u.status === 'INACTIVE' ? '已停用' : '启用中'
-              }}{{ u.roleKey ? ` · ${u.roleKey}` : '' }}</text
-            >
-            <text v-if="u.status === 'INACTIVE'" class="inactive">点击可重新启用</text>
+            <view class="name-row">
+              <text class="name">{{
+                teamMemberTitle(u.displayName, u.phoneNumber, u.userId)
+              }}</text>
+              <text class="role-tag">{{ teamRoleLabel(u.roleKey, u.roleName) }}</text>
+            </view>
+            <text class="sub">{{ u.phoneNumber || '无手机号' }}</text>
+            <view class="status-row">
+              <text class="status-tag" :class="{ off: u.status === 'INACTIVE' }">{{
+                teamStatusLabel(u.status)
+              }}</text>
+              <text v-if="u.status === 'INACTIVE'" class="inactive">点击可重新启用</text>
+            </view>
           </view>
           <text v-if="u.self" class="self-tag">我</text>
-          <text v-else-if="canManage" class="more">管理</text>
+          <view v-else-if="canManage" class="more app-link-chevron">管理</view>
         </view>
       </view>
 
@@ -80,7 +81,7 @@
             class="role-chip"
             :class="{ active: form.roleKey === r.roleKey }"
             @click="form.roleKey = r.roleKey"
-            >{{ r.roleName }}</text
+            >{{ teamRoleLabel(r.roleKey, r.roleName) }}</text
           >
         </view>
         <view class="dialog-actions">
@@ -94,10 +95,12 @@
         aria-label="成员管理"
         @close="manageVisible = false"
       >
-        <text class="dialog-title">{{ manageUser?.displayName || manageUser?.phoneNumber }}</text>
+        <text class="dialog-title">{{
+          teamMemberTitle(manageUser?.displayName, manageUser?.phoneNumber, manageUser?.userId)
+        }}</text>
         <text class="hint"
-          >{{ manageUser?.phoneNumber }} ·
-          {{ manageUser?.roleName || roleLabel(manageUser?.roleKey) }}</text
+          >{{ manageUser?.phoneNumber || '无手机号' }} ·
+          {{ teamRoleLabel(manageUser?.roleKey, manageUser?.roleName) }}</text
         >
 
         <view v-if="canEdit" class="section">
@@ -110,7 +113,7 @@
               class="role-chip"
               :class="{ active: manageRoleKey === r.roleKey }"
               @click="manageRoleKey = r.roleKey"
-              >{{ r.roleName }}</text
+              >{{ teamRoleLabel(r.roleKey, r.roleName) }}</text
             >
           </view>
           <button class="btn block" :loading="saving" @click="onSaveRole">保存角色</button>
@@ -142,8 +145,8 @@
 
         <button class="btn ghost block" @click="manageVisible = false">关闭</button>
       </AppSheet>
-    </view></view
-  >
+    </view>
+  </view>
 </template>
 
 <script setup lang="ts">
@@ -153,8 +156,9 @@ import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import AppSheet from '@/components/AppSheet.vue';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
-import type { MerchantMe, MerchantTeamRoleDto, MerchantUserDto } from '@aicabinet/shared-types';
+import type { MerchantTeamRoleDto, MerchantUserDto } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import { teamMemberTitle, teamRoleLabel, teamStatusLabel } from '@/utils/team-display';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canInvite = computed(() => hasPerm(me.value, 'merchant:users:invite'));
@@ -207,14 +211,6 @@ function eventInput(e: unknown) {
   return String(ev?.detail?.value ?? ev?.target?.value ?? '');
 }
 
-function roleLabel(roleKey?: string) {
-  const hit = roles.value.find((r) => r.roleKey === roleKey);
-  if (hit) return hit.roleName;
-  if (roleKey === 'merchant_admin' || roleKey === 'merchant') return '商户管理员';
-  if (roleKey === 'merchant_staff') return '店员';
-  return roleKey || '成员';
-}
-
 function openInvite() {
   form.phoneNumber = '';
   form.password = '';
@@ -245,7 +241,12 @@ async function load() {
     if (canInvite.value || canEdit.value) {
       try {
         const rs = await merchantApi.teamRoles();
-        if (rs?.length) roles.value = rs;
+        if (rs?.length) {
+          roles.value = rs.map((r) => ({
+            ...r,
+            roleName: teamRoleLabel(r.roleKey, r.roleName)
+          }));
+        }
       } catch {
         /* keep defaults */
       }
@@ -356,186 +357,4 @@ async function onEnable() {
 }
 </script>
 
-<style scoped>
-.page {
-  padding: 0;
-  min-height: 100vh;
-  box-sizing: border-box;
-}
-.toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12rpx;
-}
-.invite-btn {
-  background: var(--brand);
-  color: var(--white);
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 0 28rpx;
-}
-.card {
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-card);
-  padding: 28rpx;
-  margin-bottom: 16rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
-}
-.state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16rpx;
-  color: var(--text-muted);
-}
-.row {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-}
-.avatar {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 50%;
-  background: var(--brand-mist);
-  color: var(--brand);
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.meta {
-  flex: 1;
-  min-width: 0;
-}
-.name {
-  display: block;
-  font-size: var(--font-size-lg);
-  font-weight: 650;
-  color: var(--brand-deep);
-}
-.sub {
-  display: block;
-  margin-top: 6rpx;
-  font-size: var(--font-size-caption);
-  color: var(--text-muted);
-}
-.status-line {
-  color: var(--text-subtle);
-}
-.inactive {
-  display: block;
-  margin-top: 4rpx;
-  font-size: var(--font-size-sm);
-  color: var(--color-danger);
-}
-.self-tag,
-.more {
-  font-size: var(--font-size-sm);
-  color: var(--brand);
-  background: var(--brand-soft);
-  padding: 6rpx 12rpx;
-  border-radius: var(--radius-pill);
-  font-weight: 600;
-}
-.more {
-  background: var(--color-border-subtle, #f1f5f9);
-  color: var(--text-muted);
-  min-width: 88rpx;
-  text-align: center;
-  box-sizing: border-box;
-}
-.dialog-title {
-  display: block;
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-  color: var(--brand-deep);
-  margin-bottom: 8rpx;
-}
-.hint {
-  display: block;
-  font-size: var(--font-size-caption);
-  color: var(--text-muted);
-  margin-bottom: 20rpx;
-}
-.input {
-  display: block;
-  width: 100%;
-  height: 80rpx;
-  min-height: 80rpx;
-  line-height: 80rpx;
-  box-sizing: border-box;
-  background: var(--page-bg, #f8fafc);
-  border: 1rpx solid var(--color-border);
-  border-radius: var(--radius-control);
-  padding: 0 20rpx;
-  margin-bottom: 16rpx;
-  font-size: var(--font-size-md);
-  color: var(--text-primary, #0f172a);
-}
-.role-row {
-  display: flex;
-  gap: 12rpx;
-  margin: 8rpx 0 24rpx;
-}
-.role-row.wrap {
-  flex-wrap: wrap;
-}
-.role-chip {
-  padding: 12rpx 24rpx;
-  border-radius: var(--radius-pill);
-  background: var(--color-border-subtle, #f1f5f9);
-  color: var(--text-muted);
-  font-size: var(--font-size-body);
-}
-.role-chip.active {
-  background: var(--brand-mist);
-  color: var(--brand);
-  font-weight: 650;
-}
-.dialog-actions {
-  display: flex;
-  gap: 16rpx;
-}
-.section {
-  margin-bottom: 28rpx;
-}
-.section-title {
-  display: block;
-  font-size: var(--font-size-body);
-  font-weight: 650;
-  color: var(--text-muted, #334155);
-  margin-bottom: 12rpx;
-}
-.btn {
-  flex: 1;
-  background: var(--brand);
-  color: var(--white);
-  border: none;
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-md);
-  min-height: 80rpx;
-  line-height: 1.2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.btn.block {
-  width: 100%;
-  margin-bottom: 12rpx;
-  flex: none;
-}
-.btn.ghost {
-  background: var(--color-border-subtle, #f1f5f9);
-  color: var(--text-muted, #475569);
-}
-.btn.danger {
-  background: var(--color-danger);
-}
-.page-body {
-  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
-  box-sizing: border-box;
-}
-</style>
+<style scoped src="./team.page.css"></style>

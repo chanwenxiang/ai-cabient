@@ -14,5 +14,18 @@ public record UpsertDeviceRequest(
         /** 点位经度，规则同 {@link #latitude}。 */
         Double longitude,
         /** 点位地址（可选，便于运营核对，不参与围栏计算）。 */
-        String address
-) {}
+        String address,
+        /** 所属分仓；空则未归线 */
+        String homeWarehouseId
+) {
+    public UpsertDeviceRequest(
+            String deviceId,
+            String deviceName,
+            String deviceType,
+            String merchantId,
+            Double latitude,
+            Double longitude,
+            String address) {
+        this(deviceId, deviceName, deviceType, merchantId, latitude, longitude, address, null);
+    }
+}

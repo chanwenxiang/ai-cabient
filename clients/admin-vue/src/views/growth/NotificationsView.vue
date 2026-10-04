@@ -68,7 +68,9 @@
             min-width="150"
             class-name="col-text"
             label-class-name="col-text"
-          />
+          >
+            <template #default="{ row }">{{ sanitizeNotifyTitle(row.title) }}</template>
+          </el-table-column>
           <el-table-column label="内容" min-width="240" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="rewriteBizNosInText(row.body) || ''">{{
@@ -157,7 +159,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
-import { displayBizNo, rewriteBizNosInText } from '@aicabinet/shared-uni/format';
+import { displayBizNo, rewriteBizNosInText, sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
 
 type NotificationRow = {
   id: number;
@@ -299,7 +301,7 @@ async function doSaveEdit() {
 
 async function removeRow(row: NotificationRow) {
   try {
-    await ElMessageBox.confirm(`确认删除消息 #${row.id}？`, '删除消息', { type: 'warning' });
+    await ElMessageBox.confirm(`确认删除消息 ${row.id}？`, '删除消息', { type: 'warning' });
   } catch {
     return;
   }

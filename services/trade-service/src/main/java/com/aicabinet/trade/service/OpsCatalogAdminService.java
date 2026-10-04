@@ -10,6 +10,7 @@ import com.aicabinet.trade.mapper.AliyunCategoryMappingMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.SkuIds;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -71,19 +72,13 @@ public class OpsCatalogAdminService {
     @Transactional
     public SkuCatalogDto createSku(Long operatorId, UpsertSkuRequest request) {
         permissionService.requirePermission(operatorId, "ops:sku:edit");
-        long code = skuCatalogRepository.nextSkuCode();
-        String skuId = request.skuId() != null && !request.skuId().isBlank()
-                ? request.skuId().trim()
-                : "SKU-" + code;
-        if (skuCatalogRepository.existsById(skuId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_EXISTS);
-        }
+        AllocatedSkuId allocated = allocateSkuId(request.skuId());
         String barcode = trimToNull(request.barcode());
         assertBarcodeUnique(barcode, null);
-        assertSkuNameUnique(request.skuName(), null);
+        assertNameSpecUnique(request.skuName(), request.spec(), null);
         SkuCatalog sku = new SkuCatalog();
-        sku.setSkuId(skuId);
-        sku.setSkuCode(code);
+        sku.setSkuId(allocated.skuId());
+        sku.setSkuCode(allocated.skuCode());
         applySkuRequest(sku, request);
         syncSkuCategoryId(sku);
         touchSkuUpdater(sku, operatorId);
@@ -104,7 +99,7 @@ public class OpsCatalogAdminService {
         String oldImageUrl = sku.getImageUrl();
         String barcode = trimToNull(request.barcode());
         assertBarcodeUnique(barcode, skuId);
-        assertSkuNameUnique(request.skuName(), skuId);
+        assertNameSpecUnique(request.skuName(), request.spec(), skuId);
         applySkuRequest(sku, request);
         syncSkuCategoryId(sku);
         touchSkuUpdater(sku, operatorId);
@@ -124,11 +119,31 @@ public class OpsCatalogAdminService {
         }
     }
 
-    private void assertSkuNameUnique(String skuName, String excludeSkuId) {
-        if (skuCatalogRepository.existsBySkuName(skuName, excludeSkuId)) {
+    private void assertNameSpecUnique(String skuName, String spec, String excludeSkuId) {
+        if (skuCatalogRepository.existsByNameAndSpec(skuName, spec, excludeSkuId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_NAME_EXISTS);
         }
     }
+
+    private AllocatedSkuId allocateSkuId(String requested) {
+        String trimmed = trimToNull(requested);
+        long code;
+        String skuId;
+        if (trimmed == null) {
+            code = skuCatalogRepository.nextSkuCode();
+            skuId = SkuIds.fromCode(code);
+        } else {
+            SkuIds.requireNumeric(trimmed);
+            skuId = trimmed;
+            code = Long.parseLong(trimmed);
+        }
+        if (skuCatalogRepository.existsById(skuId) || skuCatalogRepository.existsBySkuCode(code, null)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_EXISTS);
+        }
+        return new AllocatedSkuId(skuId, code);
+    }
+
+    private record AllocatedSkuId(String skuId, long skuCode) {}
 
     static void applySkuRequest(SkuCatalog sku, UpsertSkuRequest request) {
         sku.setSkuName(request.skuName().trim());
@@ -140,7 +155,7 @@ public class OpsCatalogAdminService {
         sku.setCategory(trimToNull(request.category()));
         sku.setBarcode(trimToNull(request.barcode()));
         sku.setBrand(trimToNull(request.brand()));
-        sku.setSpec(trimToNull(request.spec()));
+        sku.setSpec(request.spec() == null || request.spec().isBlank() ? "" : request.spec().trim());
         sku.setUnit(request.unit() != null && !request.unit().isBlank() ? request.unit().trim() : "件");
         sku.setStatus(request.status());
         sku.setShelfLifeDays(request.shelfLifeDays());

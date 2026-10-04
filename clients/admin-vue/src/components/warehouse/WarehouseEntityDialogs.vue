@@ -24,6 +24,23 @@
           <el-radio value="INACTIVE">停用</el-radio>
         </el-radio-group>
       </el-form-item>
+      <el-form-item label="负责人">
+        <el-select
+          v-model="warehouseForm.managerUserId"
+          filterable
+          clearable
+          placeholder="选择补货员"
+          :loading="managerLoading"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="op in managerOptions"
+            :key="op.userId"
+            :label="managerOptionLabel(op)"
+            :value="op.userId"
+          />
+        </el-select>
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button data-testid="warehouse-dialog-cancel" @click.stop="warehouseDialog = false"
@@ -205,6 +222,9 @@ defineProps<{
   payMaxYuan: number;
   activeWarehouses: WarehouseEntityRow[];
   skus: WarehouseEntityRow[];
+  managerOptions: { userId: number; name?: string; phoneNumber?: string }[];
+  managerLoading: boolean;
+  managerOptionLabel: (op: { userId: number; name?: string; phoneNumber?: string }) => string;
 }>();
 
 const warehouseForm = defineModel<WarehouseEntityRow>('warehouseForm', { required: true });

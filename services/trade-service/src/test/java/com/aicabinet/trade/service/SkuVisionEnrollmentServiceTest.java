@@ -65,25 +65,25 @@ class SkuVisionEnrollmentServiceTest {
 
     @Test
     void enrollSku_shouldPersistCatalogAndMapping() {
-        when(skuCatalogRepository.findByIdForUpdate("SKU-NEW-001")).thenReturn(Optional.empty());
         when(yoloRepository.findByIdForUpdate("cola_demo")).thenReturn(Optional.empty());
         when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(yoloRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(skuCatalogRepository.nextSkuCode()).thenReturn(100001L);
+        when(skuCatalogRepository.existsById("100001")).thenReturn(false);
+        when(skuCatalogRepository.existsBySkuCode(100001L, null)).thenReturn(false);
+        when(skuCatalogRepository.existsByBarcode(null, "100001")).thenReturn(false);
+        when(userInfoRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         var req = new UpsertSkuVisionEnrollmentRequest(
                 new UpsertSkuRequest(
-                        "SKU-NEW-001", "可乐演示", 350, null, true, null, null, null, null, "ACTIVE",
+                        null, "可乐演示", 350, null, true, null, null, null, null, "ACTIVE",
                         null, null, null, null, null, null, 0.92f, "cola_demo", "MAPPING", 0.5f, null,
                         null, null, null, null),
                 "cola_demo", "MAPPING", 0.5f, null, "YOLO_SKU");
 
-        when(skuCatalogRepository.nextSkuCode()).thenReturn(100001L);
-        when(skuCatalogRepository.existsById("SKU-NEW-001")).thenReturn(false);
-        when(skuCatalogRepository.existsByBarcode(null, "SKU-NEW-001")).thenReturn(false);
-
         var dto = service.enrollSku(1L, req);
 
-        assertEquals("SKU-NEW-001", dto.skuId());
+        assertEquals("100001", dto.skuId());
         assertEquals(100001L, dto.skuCode());
         assertEquals("MAPPING", dto.visionEnrollmentStatus());
         assertEquals("cola_demo", dto.yoloClassName());
@@ -92,7 +92,7 @@ class SkuVisionEnrollmentServiceTest {
         ArgumentCaptor<SkuVisionMapping> mapCap = ArgumentCaptor.forClass(SkuVisionMapping.class);
         verify(yoloRepository).save(mapCap.capture());
         assertEquals("cola_demo", mapCap.getValue().getClassName());
-        assertEquals("SKU-NEW-001", mapCap.getValue().getSkuId());
+        assertEquals("100001", mapCap.getValue().getSkuId());
     }
 
     @Test

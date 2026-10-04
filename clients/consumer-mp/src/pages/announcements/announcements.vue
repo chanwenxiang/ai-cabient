@@ -95,7 +95,7 @@ onShow(() => {
 .page {
   min-height: 100%;
   padding: 0;
-  background: var(--card-bg, #ffffff);
+  background: var(--page-bg, #ededed);
   box-sizing: border-box;
 }
 .page-body {
@@ -128,9 +128,9 @@ onShow(() => {
 }
 .card {
   background: var(--card-bg, #fff);
-  border-radius: var(--radius-card);
+  border-radius: 16rpx;
   padding: 28rpx 28rpx 24rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+  box-shadow: none;
 }
 .card-hover {
   opacity: 0.92;

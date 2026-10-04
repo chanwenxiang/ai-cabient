@@ -70,12 +70,13 @@ uni-page-body {
   --color-text-secondary: var(--text-muted, #64748b);
   --color-text-muted: var(--text-subtle, #94a3b8);
   --color-bg-page: var(--page-bg);
-  --page-bg: #ffffff;
+  --page-bg: #ededed;
   --page-gutter: 24rpx;
   --spacing-sm: 12rpx;
   --spacing-md: 16rpx;
   --spacing-lg: 24rpx;
-  --shadow-card: 0 8rpx 28rpx rgba(15, 118, 110, 0.08);
+  --shadow-card: none;
+  --radius-btn: 16rpx;
   --font-size-xs: 20rpx;
   --font-size-sm: 22rpx;
   --font-size-caption: 24rpx;
@@ -92,9 +93,9 @@ uni-page-body {
   --text-subtle: #94a3b8;
   /* 小程序圆角用 rpx，对齐共享 4 档 token */
   --radius-pill: 999rpx;
-  --radius-card: 24rpx;
+  --radius-card: 16rpx;
   --radius-panel: 16rpx;
-  --radius-control: 12rpx;
+  --radius-control: 16rpx;
   --radius-tag: 8rpx;
   --card-radius: var(--radius-card);
   --text-primary: #14201b;
@@ -258,11 +259,44 @@ input {
   border-radius: var(--radius-card);
   padding: 24rpx;
   margin: 0 0 16rpx;
-  width: 100%;
+  width: auto;
   max-width: 100%;
   box-sizing: border-box;
-  border: 1rpx solid rgba(15, 118, 110, 0.06);
-  box-shadow: 0 10rpx 32rpx rgba(15, 23, 42, 0.055);
+  border: none;
+  box-shadow: none;
+}
+
+.wx-cells {
+  margin: 16rpx 0 0;
+  background: #fff;
+  overflow: hidden;
+}
+.wx-cell {
+  position: relative;
+  padding: 32rpx;
+  background: #fff;
+  box-sizing: border-box;
+}
+.wx-cell + .wx-cell::before {
+  content: '';
+  position: absolute;
+  left: 32rpx;
+  right: 0;
+  top: 0;
+  height: 1rpx;
+  background: rgba(0, 0, 0, 0.1);
+  transform: scaleY(0.5);
+  transform-origin: 0 0;
+}
+.wx-cell-hover {
+  background: #ececec !important;
+}
+.wx-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 16rpx;
+  background: #fa5151;
+  flex-shrink: 0;
 }
 
 .page-body {
@@ -278,16 +312,22 @@ input {
 
 .cart-cta,
 .app-btn--primary {
-  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  background: var(--brand);
   color: var(--white);
   border: none;
-  border-radius: var(--radius-pill, 44rpx);
+  border-radius: var(--radius-btn, 16rpx);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.2);
+  font-weight: 500;
+  box-shadow: none;
   box-sizing: border-box;
+}
+
+.app-btn--outline {
+  background: #fff !important;
+  color: var(--brand);
+  border: 1rpx solid var(--color-border, #e5e5e5) !important;
 }
 
 .btn-block,

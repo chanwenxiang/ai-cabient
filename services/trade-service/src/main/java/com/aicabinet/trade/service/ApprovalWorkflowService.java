@@ -12,12 +12,22 @@ import com.aicabinet.trade.domain.ApprovalDefinition;
 import com.aicabinet.trade.domain.ApprovalInstance;
 import com.aicabinet.trade.domain.ApprovalNode;
 import com.aicabinet.trade.domain.ApprovalTask;
+import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.Merchant;
+import com.aicabinet.trade.domain.MerchantReplenishmentRequest;
+import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.Merchant;
+import com.aicabinet.trade.domain.MerchantReplenishmentRequest;
 import com.aicabinet.trade.mapper.ApprovalDefinitionMapper;
 import com.aicabinet.trade.mapper.ApprovalInstanceMapper;
 import com.aicabinet.trade.mapper.ApprovalNodeMapper;
 import com.aicabinet.trade.mapper.ApprovalTaskMapper;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
+import com.aicabinet.trade.mapper.MerchantReplenishmentRequestMapper;
 import com.aicabinet.trade.mapper.OpsPermissionMapper;
 import com.aicabinet.trade.mapper.OpsUserDepartmentMapper;
+import com.aicabinet.trade.support.DisplayIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -61,6 +71,9 @@ public class ApprovalWorkflowService {
     private final NotificationService notificationService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final MerchantReplenishmentRequestMapper replenRequestRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final MerchantMapper merchantRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final ApprovalWorkflowService self;
 
@@ -72,7 +85,11 @@ public class ApprovalWorkflowService {
                                      OpsUserDepartmentMapper userDepartmentRepository,
                                      NotificationService notificationService,
                                      PermissionService permissionService,
-                                     AdminAuditService auditService, @Lazy ApprovalWorkflowService self) {
+                                     AdminAuditService auditService,
+                                     MerchantReplenishmentRequestMapper replenRequestRepository,
+                                     DeviceInfoMapper deviceRepository,
+                                     MerchantMapper merchantRepository,
+                                     @Lazy ApprovalWorkflowService self) {
         this.definitionRepository = definitionRepository;
         this.nodeRepository = nodeRepository;
         this.instanceRepository = instanceRepository;
@@ -82,6 +99,9 @@ public class ApprovalWorkflowService {
         this.notificationService = notificationService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.replenRequestRepository = replenRequestRepository;
+        this.deviceRepository = deviceRepository;
+        this.merchantRepository = merchantRepository;
         this.self = self;
     }
 
@@ -268,6 +288,7 @@ public class ApprovalWorkflowService {
         int fetchCap = Math.min(100, Math.max(safeLimit * 3, safeLimit));
         List<NotificationDto> messages = notificationService.opsNotifications(userId, fetchCap).stream()
                 .filter(m -> shouldShowOpsMessage(m, pendingBizKeys))
+                .map(this::withDisplayTitle)
                 .limit(safeLimit)
                 .toList();
         long unreadMessages = notificationService.opsUnread(userId, 500).stream()
@@ -704,7 +725,10 @@ public class ApprovalWorkflowService {
         ApprovalInstance instance = instanceRepository.findById(task.getInstanceId()).orElse(null);
         String bizType = instance != null ? instance.getBizType() : "";
         String bizId = instance != null ? instance.getBizId() : "";
-        String title = instance != null ? instance.getTitle() : "";
+        String title = displayApprovalTitle(
+                instance != null ? instance.getBizType() : "",
+                instance != null ? instance.getBizId() : "",
+                instance != null ? instance.getTitle() : "");
         return new ApprovalTaskDto(
                 task.getTaskId(),
                 task.getInstanceId(),
@@ -723,7 +747,10 @@ public class ApprovalWorkflowService {
         ApprovalInstance instance = instanceRepository.findById(task.getInstanceId()).orElse(null);
         String bizType = instance != null ? instance.getBizType() : "";
         String bizId = instance != null ? instance.getBizId() : "";
-        String title = instance != null ? instance.getTitle() : "";
+        String title = displayApprovalTitle(
+                instance != null ? instance.getBizType() : "",
+                instance != null ? instance.getBizId() : "",
+                instance != null ? instance.getTitle() : "");
         String instanceStatus = instance != null ? instance.getStatus() : "";
         String currentNodeName = null;
         if (instance != null && STATUS_PENDING.equals(instance.getStatus())) {
@@ -813,6 +840,64 @@ public class ApprovalWorkflowService {
     static String normalizePassRule(String passRule) {
         return passRule == null || passRule.isBlank()
                 ? "ANY" : passRule.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private NotificationDto withDisplayTitle(NotificationDto message) {
+        if (message == null) {
+            return null;
+        }
+        String title = displayApprovalTitle(message.bizType(), message.bizId(), message.title());
+        if (title.equals(message.title() == null ? "" : message.title())) {
+            return message;
+        }
+        return new NotificationDto(
+                message.id(),
+                title,
+                message.body(),
+                message.templateCode(),
+                message.channel(),
+                message.audience(),
+                message.bizType(),
+                message.bizId(),
+                message.read(),
+                message.readAt(),
+                message.createdAt());
+    }
+
+    private String displayApprovalTitle(String bizType, String bizId, String rawTitle) {
+        String stripped = DisplayIds.stripHashIdMarkers(rawTitle);
+        if (replenRequestRepository == null || bizType == null || bizId == null) {
+            return stripped;
+        }
+        if (!"MERCHANT_REPLEN_REQUEST".equals(bizType.trim())) {
+            return stripped;
+        }
+        try {
+            long requestId = Long.parseLong(bizId.trim());
+            return replenRequestRepository.findById(requestId)
+                    .map(this::titleForReplenRequest)
+                    .orElse(stripped);
+        } catch (NumberFormatException ignored) {
+            return stripped;
+        }
+    }
+
+    private String titleForReplenRequest(MerchantReplenishmentRequest request) {
+        String deviceName = request.getDeviceId();
+        if (deviceRepository != null && request.getDeviceId() != null) {
+            deviceName = deviceRepository.findById(request.getDeviceId())
+                    .map(DeviceInfo::getDeviceName)
+                    .filter(name -> name != null && !name.isBlank())
+                    .orElse(request.getDeviceId());
+        }
+        String merchantName = request.getMerchantId();
+        if (merchantRepository != null && request.getMerchantId() != null) {
+            merchantName = merchantRepository.findById(request.getMerchantId())
+                    .map(Merchant::getMerchantName)
+                    .filter(name -> name != null && !name.isBlank())
+                    .orElse(request.getMerchantId());
+        }
+        return DisplayIds.merchantReplenApprovalTitle(request.getRequestId(), deviceName, merchantName);
     }
 
     private static String trim(String s) {

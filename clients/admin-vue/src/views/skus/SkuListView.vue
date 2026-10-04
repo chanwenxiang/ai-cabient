@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商品管理</span>
-            <span class="hint">主数据：编号 / 条码 / 品牌规格；识别类名与入驻请到「识别入驻」</span>
+            <span class="hint">主数据：SKU ID 纯数字且唯一，商品名称不可重复；识别入驻请到「识别入驻」</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -27,7 +27,7 @@
         <el-input
           v-model="keyword"
           clearable
-          placeholder="编号 / 名称 / 条码 / 品牌"
+          placeholder="SKU / 名称 / 条码 / 品牌"
           style="width: 240px"
           @keyup.enter="search"
           @clear="search"
@@ -82,13 +82,13 @@
           :action-width="96"
           actions-testid="sku"
           :empty-text="skuEmptyText"
-          sort-field-label="编号"
+          sort-field-label="SKU"
           :csv="csvOptions"
           @action="onAction"
         >
-          <el-table-column prop="skuCode" label="编号" width="84" class-name="col-text">
+          <el-table-column prop="skuId" label="SKU" width="120" class-name="col-text">
             <template #default="{ row }">
-              <span class="cell-id">{{ row.skuCode ?? '暂无' }}</span>
+              <span class="cell-id">{{ row.skuId || '暂无' }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -190,9 +190,9 @@
       class="dialog-wide"
     >
       <el-form label-width="auto">
-        <el-form-item label="数字编号">
+        <el-form-item label="SKU">
           <el-input
-            :model-value="form.skuCode ? String(form.skuCode) : '保存后自动分配'"
+            :model-value="form.existing ? form.skuId : '保存后自动分配（纯数字）'"
             disabled
           />
         </el-form-item>
@@ -207,6 +207,7 @@
         </el-form-item>
         <el-form-item label="规格">
           <el-input v-model="form.spec" placeholder="如 330ml" />
+          <div class="field-hint">同一名称可以有多种规格；名称+规格合在一起不能重复</div>
         </el-form-item>
         <el-form-item label="单位">
           <el-input v-model="form.unit" placeholder="件" style="width: 120px" />
@@ -332,7 +333,7 @@ const crud = useCrudTable<SkuCatalog>({
     api.request<{ items: SkuCatalog[]; total: number }>(
       AdminEndpoints.skusList(skuQueryParams(params.page, params.size))
     ),
-  sort: { prop: 'skuCode', mode: 'local' }
+  sort: { prop: 'skuId', mode: 'local' }
 });
 
 const csvOptions: CrudCsvOptions = {
@@ -340,7 +341,7 @@ const csvOptions: CrudCsvOptions = {
   exportPerm: 'ops:sku:export',
   importPerm: 'ops:sku:import',
   headers: [
-    '编号',
+    'SKU',
     '条码',
     '名称',
     '品牌',
@@ -367,7 +368,7 @@ const csvOptions: CrudCsvOptions = {
   ],
   toRows: (rows) =>
     rows.map((row) => [
-      row.skuCode == null ? '' : String(row.skuCode),
+      row.skuId || '',
       row.barcode || '',
       row.skuName,
       row.brand || '',
@@ -394,9 +395,18 @@ const csvOptions: CrudCsvOptions = {
         costRaw != null && String(costRaw).trim() !== ''
           ? (yuanToCents(costRaw) ?? undefined)
           : undefined;
-      const existing = barcode
-        ? crud.items.find((i) => i.barcode && i.barcode === barcode)
-        : undefined;
+      const existing = (() => {
+        if (barcode) {
+          const byBarcode = crud.items.find((i) => i.barcode && i.barcode === barcode);
+          if (byBarcode) return byBarcode;
+        }
+        const spec = (row['规格'] || row.spec || '').trim();
+        return crud.items.find(
+          (i) =>
+            (i.skuName || '').trim().toLowerCase() === skuName.toLowerCase() &&
+            (i.spec || '').trim().toLowerCase() === spec.toLowerCase()
+        );
+      })();
       const body: UpsertSkuRequest = {
         skuId: existing?.skuId,
         skuName,
@@ -734,6 +744,18 @@ async function saveEdit() {
     ElMessage.warning('请填写商品名称');
     return;
   }
+  const nameKey = form.skuName.trim().toLowerCase();
+  const specKey = (form.spec || '').trim().toLowerCase();
+  const dupName = crud.items.find(
+    (i) =>
+      (i.skuName || '').trim().toLowerCase() === nameKey &&
+      (i.spec || '').trim().toLowerCase() === specKey &&
+      (!form.existing || i.skuId !== form.skuId)
+  );
+  if (dupName) {
+    ElMessage.warning('同一名称+规格已存在，请勿重复录入');
+    return;
+  }
   if (!form.priceYuan || form.priceYuan <= 0) {
     ElMessage.warning('请填写有效售价');
     return;
@@ -784,10 +806,10 @@ async function saveEdit() {
     const idx = crud.items.findIndex((i) => i.skuId === updated.skuId);
     if (idx >= 0) crud.items[idx] = updated;
     else crud.items.push(updated);
-    crud.items.sort((a, b) => (a.skuCode ?? 0) - (b.skuCode ?? 0));
+    crud.items.sort((a, b) => String(a.skuId || '').localeCompare(String(b.skuId || ''), 'zh-CN', { numeric: true }));
     editDialog.value = false;
     ElMessage.success(
-      form.existing ? '已保存商品' : `已新建，编号 ${updated.skuCode ?? updated.skuId}`
+      form.existing ? '已保存商品' : `已新建，SKU ${updated.skuId}`
     );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');

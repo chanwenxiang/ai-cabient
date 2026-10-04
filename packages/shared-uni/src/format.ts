@@ -328,23 +328,100 @@ export function shortBizNo(
   return full.length <= maxLen ? full : full.slice(-maxLen);
 }
 
+/** 用户可见文案去掉「#16 / #{taskId}」前缀，保留编号本身。 */
+export function stripHashIdMarkers(text?: string | null): string {
+  if (text == null || text === '') return '';
+  return String(text)
+    .replace(/#\{\w+\}/gu, '')
+    .replace(/#(?=[\w.-])/gu, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 /** 把正文里嵌套的字母+十六进制业务号替换为纯数字（消息模板等） */
 export function rewriteBizNosInText(text?: string | null): string {
   if (text == null || text === '') return '';
-  return String(text).replace(
-    /\b(?:MOCK-[A-Z]+-)?(?:BL|MW|LW|RF|ADJ|EX|ADM)-?[0-9A-Fa-f]{8,}\b|\b[OSDR][0-9A-Fa-f]{10,}\b/g,
-    (m) => displayBizNo(m, m)
+  return stripHashIdMarkers(
+    String(text).replace(
+      /\b(?:MOCK-[A-Z]+-)?(?:BL|MW|LW|RF|ADJ|EX|ADM)-?[0-9A-Fa-f]{8,}\b|\b[OSDR][0-9A-Fa-f]{10,}\b/g,
+      (m) => displayBizNo(m, m)
+    )
   );
 }
 
 /**
- * 通知标题去掉末尾「 #单号 / #{var}」——编号改在「关联单号」行展示。
- * 例：「新补货任务 #16」→「新补货任务」
+ * 通知标题去掉「#单号 / #{var}」井号。
+ * 例：「新补货任务 #16」→「新补货任务 16」
  */
 export function sanitizeNotifyTitle(text?: string | null): string {
-  if (text == null || text === '') return '';
-  return String(text)
-    .replace(/\s*#\{\w+\}\s*$/u, '')
-    .replace(/\s*#[\w.-]+\s*$/u, '')
-    .trim();
+  return stripHashIdMarkers(text);
+}
+
+/** 商品名+规格（如东鹏特饮250ml）；名称已含规格时不重复拼接 */
+export function formatSkuNameWithSpec(
+  skuName?: string | null,
+  spec?: string | null,
+  skuIdFallback?: string | null
+): string {
+  const name = String(skuName || '').trim();
+  const trimmedSpec = String(spec || '').trim();
+  if (name && trimmedSpec && !name.includes(trimmedSpec)) {
+    return `${name}${trimmedSpec}`;
+  }
+  if (name) return name;
+  return String(skuIdFallback || '').trim() || '商品';
+}
+
+/** 要货/理货商品：`100179  东鹏特饮250ml` */
+export function formatReplenRequestProduct(line: {
+  skuId?: string | null;
+  skuName?: string | null;
+  spec?: string | null;
+}): string {
+  const skuId = String(line.skuId || '').trim();
+  const product = formatSkuNameWithSpec(line.skuName, line.spec, skuId);
+  if (skuId && product !== skuId) {
+    return `${skuId}\u00a0\u00a0${product}`;
+  }
+  return product;
+}
+
+/** 要货明细一行：`100179  东鹏特饮250ml  ×8` */
+export function formatReplenRequestLine(line: {
+  skuId?: string | null;
+  skuName?: string | null;
+  spec?: string | null;
+  requestedQty?: number | null;
+}): string {
+  const qty = line.requestedQty ?? 0;
+  return `${formatReplenRequestProduct(line)}\u00a0\u00a0×${qty}`;
+}
+
+function moneyOrNone(cents: number | null): string {
+  return cents == null ? '无' : fmtMoney(cents);
+}
+
+/**
+ * 调价历史明细：把审计原文 `base=350 override null -> 360` 转成可读中文。
+ * 已是中文的记录原样返回。
+ */
+export function formatMerchantPriceHistoryDetail(detail?: string | null): string {
+  const raw = String(detail || '').trim();
+  if (!raw) return '暂无明细';
+  const override = raw.match(/^base=(\d+)\s+override\s+(null|-?\d+)\s*->\s*(-?\d+)$/i);
+  if (override) {
+    const base = Number(override[1]);
+    const from = override[2].toLowerCase() === 'null' ? null : Number(override[2]);
+    const to = Number(override[3]);
+    return `覆盖价 ${moneyOrNone(from)} → ${fmtMoney(to)}（基准 ${fmtMoney(base)}）`;
+  }
+  const reset = raw.match(/^reset to base (\d+)\s*\(was override (null|-?\d+)\)$/i);
+  if (reset) {
+    const base = Number(reset[1]);
+    const from = reset[2].toLowerCase() === 'null' ? null : Number(reset[2]);
+    return from == null
+      ? `取消覆盖，恢复基准 ${fmtMoney(base)}`
+      : `取消覆盖，恢复基准 ${fmtMoney(base)}（原覆盖 ${fmtMoney(from)}）`;
+  }
+  return raw;
 }

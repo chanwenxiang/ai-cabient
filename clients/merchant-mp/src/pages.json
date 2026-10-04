@@ -21,6 +21,7 @@
       "style": {
         "navigationBarTitleText": "柜机",
         "navigationStyle": "custom",
+        "backgroundColor": "#134e4a",
         "enablePullDownRefresh": true
       }
     },
@@ -29,6 +30,7 @@
       "style": {
         "navigationBarTitleText": "待办",
         "navigationStyle": "custom",
+        "backgroundColor": "#134e4a",
         "enablePullDownRefresh": true
       }
     },
@@ -36,7 +38,8 @@
       "path": "pages/mine/mine",
       "style": {
         "navigationBarTitleText": "我的",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColor": "#ededed"
       }
     }
   ],
@@ -84,7 +87,8 @@
         {
           "path": "ops-config",
           "style": {
-            "navigationBarTitleText": "补货配置"
+            "navigationBarTitleText": "补货配置",
+            "navigationStyle": "custom"
           }
         }
       ]
@@ -103,6 +107,19 @@
       ]
     },
     {
+      "root": "pages/purchase",
+      "pages": [
+        {
+          "path": "purchase",
+          "style": {
+            "navigationBarTitleText": "采购入库",
+            "enablePullDownRefresh": true,
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
       "root": "pages/business",
       "pages": [
         {
@@ -110,6 +127,43 @@
           "style": {
             "navigationBarTitleText": "经营分析",
             "enablePullDownRefresh": true,
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/tax",
+      "pages": [
+        {
+          "path": "tax",
+          "style": {
+            "navigationBarTitleText": "税号",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/cabinet-reports",
+      "pages": [
+        {
+          "path": "cabinet-reports",
+          "style": {
+            "navigationBarTitleText": "销售报表",
+            "enablePullDownRefresh": true,
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/notify",
+      "pages": [
+        {
+          "path": "notify",
+          "style": {
+            "navigationBarTitleText": "微信提醒",
             "navigationStyle": "custom"
           }
         }
@@ -281,7 +335,7 @@
   "preloadRule": {
     "pages/home/home": {
       "network": "all",
-      "packages": ["pages/replenishment", "pages/request", "pages/business"]
+      "packages": ["pages/replenishment", "pages/request", "pages/purchase", "pages/business"]
     },
     "pages/devices/devices": {
       "network": "all",
@@ -293,7 +347,16 @@
     },
     "pages/mine/mine": {
       "network": "all",
-      "packages": ["pages/wallet", "pages/messages", "pages/announcements", "pages/policy"]
+      "packages": [
+        "pages/wallet",
+        "pages/messages",
+        "pages/announcements",
+        "pages/policy",
+        "pages/tax",
+        "pages/cabinet-reports",
+        "pages/notify",
+        "pages/purchase"
+      ]
     }
   },
   "tabBar": {
@@ -334,7 +397,8 @@
       "^empty-state$": "@aicabinet/shared-uni/components/empty-state.vue",
       "^error-state$": "@aicabinet/shared-uni/components/error-state.vue",
       "^app-nav-bar$": "@aicabinet/shared-uni/components/app-nav-bar.vue",
-      "^app-button$": "@aicabinet/shared-uni/components/app-button.vue"
+      "^app-button$": "@aicabinet/shared-uni/components/app-button.vue",
+      "^app-underline-tabs$": "@aicabinet/shared-uni/components/app-underline-tabs.vue"
     }
   },
   "globalStyle": {

@@ -34,7 +34,7 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **287** 个脚本，最新约 **V287** | 合入前查重号；勿再写已占用版本号 |
+| Flyway 迁移 | **303** 个脚本量级，最新 **V303** | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
 | trade Controllers | ~**84** | `*Controller.java` |
 | trade 单测 | ~**299** `*Test.java` | 含大量并发测 |
 | admin-vue 业务视图 | ~**71** `.vue` | `src/views` |
@@ -134,6 +134,7 @@ infra/                     Compose、网关、监控
 | [engineering/merchant-mp-debt-tracker.md](engineering/merchant-mp-debt-tracker.md) | 商户端小程序技术债（M1–M12，mp-weixin 权威） |
 | [CODE_FIX_CHECKLIST.md](CODE_FIX_CHECKLIST.md) | 改完自检 |
 | [TROUBLESHOOTING_GUIDE.md](TROUBLESHOOTING_GUIDE.md) | 联调排障 |
+| [SATELLITE_WAREHOUSE.md](SATELLITE_WAREHOUSE.md) | 分仓四步（人绑仓 → 采购进分仓 → 仓到柜 → 月结）；不要抄 easygo 批发、不要把要货当天入口 |
 
 ### 7.2 Cursor 规则（`.cursor/rules/`）
 
@@ -242,10 +243,48 @@ infra/                     Compose、网关、监控
 
 ---
 
-## 9. Changelog（只追加，新在上）
-
-| 日期 | 变更摘要 | 证据 / PR / 会话 |
-|------|----------|------------------|
+| 2026-10-05 | **补货员分仓收货**：待收货单在小程序确认入本人仓 | `receiveSatellitePurchaseOrder`、`pages/purchase` |
+| 2026-10-05 | **补货员采购入库**：商户端进本人分仓，不走运营采购权 | `ProcurementService.createSatellitePurchaseOrder`、`pages/purchase` |
+| 2026-10-05 | **分仓月结一张表**：应有/实盘/上柜件数，与结算金额分开 | `WarehouseMonthlyCloseService`、lessons #284 |
+| 2026-10-05 | **日常从仓到柜**：出库按柜机所属仓；无所属仓/混仓/无主仓拒绝 | `WarehouseService`、lessons #283、`docs/SATELLITE_WAREHOUSE.md` |
+| 2026-10-05 | **采购进分仓**：日常采购禁止入无主仓；未选仓默认当前人负责的仓 | `ProcurementService`、lessons #282、`docs/SATELLITE_WAREHOUSE.md` |
+| 2026-10-05 | **订单页白底**，去掉灰底 | `orders.page.css` |
+| 2026-10-05 | **报修编号居中**；「我的」资料补余额/登录说明；优先支付与快捷入口改通栏；非 Tab 页 showTabBar 静默失败 | `report.vue`、`mine`、`index.vue` |
+| 2026-10-05 | **购物页排版**：价格居中、去掉分类；加减改微信小圆钮；状态在柜名上；报修/换一台收到底栏上方 | `index.vue` |
+| 2026-10-05 | **账单审核说明单行**；柜机/购物单号去掉等宽怪字体，与正文同字号 | `dispute/detail.vue` |
+| 2026-10-04 | **购物清单贴内容**：缩略图+单价×件数+合计；继续选购/关门结算；不再撑半屏空白 | `live-cart-sheet.vue` |
+| 2026-10-04 | **购物清单一行**：品名×件数×金额；去掉底部「预估」 | `live-cart-sheet.vue` |
+| 2026-10-04 | **购物页柜名与胶囊同行居中**：去掉套层 padding；底栏不再叠 safe-area | lessons #281 |
+| 2026-10-04 | **购物页叠两套购物车条**：抽 `HomeCartBar` 后删 `index.vue` 底稿；图标钉宽高；充值按钮用 `.btn-slot` 拉开 | lessons #279 |
+| 2026-10-04 | **首页扫码压在底栏上**：预留 tabBar 底距，去掉 16vh 下压；hideTabBar 失败重试 | `HomeLanding.vue`、`index.vue` |
+| 2026-10-05 | **分仓柜机归线**：`device_info.home_warehouse_id`（V303）；后台设备列表/新建/资产保存所属仓 | `OpsDeviceAdminService`、`DeviceListView`、`DeviceAssetDeploymentCard` |
+| 2026-10-04 | **分仓第一步人绑仓**：`warehouse.manager_user_id`（V302，勿占 V301）；后台仓库可选负责人；CSV 省略字段不改绑人 | `WarehouseService`、`WarehouseEntityDialogs`、`docs/SATELLITE_WAREHOUSE.md` |
+| 2026-10-04 | **Flyway 禁止同号**：曾两份 V301（wx OpenID / 人绑仓）；门禁扫目录重复版本 | `check-migration-safety.mjs`、lessons #280 |
+| 2026-10-04 | **消费者 mp-weixin 禁 defineModel**：uni-mp-vue 3.0 无 `mergeModels`，HomeLanding 改 props+computed | `HomeLanding.vue` |
+| 2026-10-04 | **消费者小程序按微信灰底+下划线 Tab+白 cell**：订单/消息/优惠券 Tab；「我的」白资料行；列表页去薄荷渐变与投影；首页扫码仍青绿。品牌仍 #0f766e | `clients/consumer-mp` |
+| 2026-10-04 | **商户描边按钮白底**：微信默认 `#f2f2f2` + outline 透明会显灰；柜机订单加「零元单」（`excludeZero`，已退款 Tab 不滤） | `app-button.vue`、`App.vue`、`orders.vue`、`MerchantPortalController` |
+| 2026-10-04 | **补货配置/消息/钱包/柜机订单排版**：去双顶栏、流水「未知」、空态折行、订单信息层级 | `ops-config`、`WalletPage`、`messages`、`orders` |
+| 2026-10-04 | **销售报表按税号页同一套排版**：说明用途、去掉右侧重复柜名、件数接品名、导出用主按钮 | `cabinet-reports.vue` |
+| 2026-10-04 | **经营分析只列本柜在售商品**：件数接在品名后；刷新；AI/全店金额用问号说明（#263） | `business.vue`、`MerchantAnalyticsService` |
+| 2026-10-04 | **税号、销售报表放进「我的」**：经营分析不再挂税档/销售明细；入口在资料与报表 | `mine.vue`、`pages/tax`、`pages/cabinet-reports` |
+| 2026-10-04 | **商户门户热补丁必须 `-parameters`**（#262）：否则 sales-reports/tax-profile 400 | `MerchantPortalController` |
+| 2026-10-04 | **经营分析顶区收口**：去掉重复毛利/客单格子；主数字=毛利=营收−成本；无环比不展示「暂无」 | `business.vue` |
+| 2026-10-04 | **订单/争议金额以支付流水为准**：扣 8 退 4 不再显示退 12 / 顶卡 0（#257） | `OrderPaymentLedger`、`DisputeService`、`order-detail.vue` |
+| 2026-10-04 | **已退款顶卡不再显示 ¥0**：金额用 `refundedCents`；争议已扣禁止用退款额冒充（#257） | `order-detail.vue`、`DisputeService`、`MerchantPortalService` |
+| 2026-10-04 | **订单明细排版 + 争议「有录像」必须文件真实存在** | `order-detail.vue`、`MerchantPortalService`、lessons #256 |
+| 2026-10-04 | **商户订单详情单号字体**：去掉 `ui-monospace`（微信无此字体，19 位号显得又小又细） | `order-detail.vue` |
+| 2026-10-04 | **商户购物视频 404 文案**：无录像不再「下载失败/复制链接」；去掉 H5 video 属性以免 wx-video 崩 | `video.vue`、lessons #254 |
+| 2026-10-04 | **商户订单详情状态金额居中**（已退款等顶卡） | `order-detail.vue` |
+| 2026-10-04 | **商户争议列表改信息层级**：事由+SLA 置顶，工单号收到脚注（仍完整 19 位），回复改胶囊按钮 | `disputes.vue` |
+| 2026-10-04 | **结算对账 hot reload 崩**：`summary` 改 computed 后漏写 `summarizeDays`，且仍赋值 `summary.value` | `settlements.vue` |
+| 2026-10-04 | **结算对账区间条上下对调**：快捷「近7天/本月」在上、日期 picker 在下；默认隐藏 0 元行，可用「零元单」开关显示 | `settlements.vue` |
+| 2026-10-04 | **结算对账不展示 0 元订单行**（日汇总/批次）；0 元单不再建分账 | `settlements.vue`、`RevenueSplitService` |
+| 2026-10-04 | **结算批次 ¥0 不是算错**：9/30 四笔是 0 元已支付单；列表改标「0 元订单」，且不再为 0 元单建分账行 | `RevenueSplitService`、`settlements.vue`、lessons #253 |
+| 2026-10-04 | **结算对账去掉钱包/分账入口**：摘要只按所选日期汇总（营收−抽成=所得，待分/已结同源），不再混入全量待分/本月已结；白底卡 | `settlements.vue` |
+| 2026-10-04 | **商户结算对账去说明、资金三页顶部切换**：去掉 T+1/Mock 说明卡；对账/钱包/分账用 `finance-hub-switch` + `redirectTo` | `finance-hub-switch.vue`、settlements/wallet/splits |
+| 2026-10-04 | **商户「结算对账」改信息层级**：主数字=商户所得；营收−抽成；待分/已结/客单三格；按日/批次改台账行；日期只用小程序 `picker`（去掉 H5 `input type=date`）。微信开发者工具 automator 打开 `pages/settlements/settlements`，金额与用户截图一致（所得 ¥15.75） | `settlements.vue`；`docs/uat-screenshots/2026-10-04/settlements/` |
+| 2026-10-04 | **工程从 OneDrive 搬家事故恢复**：工作区改为 `D:\ai-generated code\ai-cabinet`；基线 GitHub `dev` `f030f09f`（10-03 15:18）；今晚未推送已盖回 `format.ts`/`V300`/`MerchantReplenishmentService` + 要货「待备货」；ZCode 商家首页样式放弃。完整对话拷贝在 `docs/recovery/` | 会话 a9f5b970 18:59 起 |
+| 2026-10-03 | **要货接单后须有出库才「去补货」**：已接单无 `outboundId` 显示「待备货」；明细用 `formatReplenRequestLine`；SKU 唯一性改为名称+规格（V300）；用户可见单号去掉 `#` | `request.vue`、`request-submit.ts`、`format.ts`、V300 |
 | 2026-10-02 | **S1 验收收官（上线前必改全部清零）**：S1 设备独立凭据已由并行会话 2026-09-28 实施（V290+签发 API+ACL ${username} 命名空间+mosquitto 伪装 UAT 三用例过）；本会话独立抽验=发现轮换 SOP 缺口（EMQX restart 不重导 bootstrap，旧密码静默有效）→ 设计稿 SOP 补 force-recreate 红线 + lessons #244。F1 亦同日落地（见 10-02 F1 行）。剩余=接真三件套（视觉/支付/硬件，含行政）与 P3-4 production 评审 | docs/S1_DEVICE_CREDENTIAL_DESIGN.md、lessons #244 |
 | 2026-10-02 | **F1 余额扣款竞态修复落地（三端审查「上线前必改」项清零）**：源码级核实修正报告两点推断——①竞态真实症状是 rollback-only 全回滚（结算 500+假争议单）而非多付；②多付的雷藏在 PREAUTH_CAPTURE 行 order_id=null 使 netCompletedCents 失明（markPaid 护栏对 F1 场景失明）。实施净额口径三件套：F1-A 冲抵行挂单+计入净额 / F1-B 锁内预判不足信号化（chargeOrder noRollbackFor=BalanceInsufficientException，「capture 保留+PENDING」按设计意图达成，不再 500）/ F1-C markPaid 净额三分支+cancel 净额守卫（净入账单禁自动取消转人工）。全量 1382/0/0（Skipped=0，Docker E2E 本地真跑）；设计稿 docs/F1_BALANCE_CHARGE_RACE_DESIGN.md | `ConsumerPreauthService`、`OrderPaymentService`、`UnpaidOrderService` |
 | 2026-10-01 | **56 个 Skipped 测试盘点收官**：全部为 @Testcontainers(disabledWithoutDocker=true) （AdminE2E 5/ConsumerE2E 11/MerchantE2E 11/Reconciliation 1/WeChatNotify 1/DataManage 11+16 等），Docker 停机时按设计跳过；CI 集成 job 每次推送真跑全绿（上述类计数均 0 skip，run 36987395778 实证）——**非欠账**；本地想跑=启动 Docker Desktop。排查中曾误判 npipe 管道错位动过 ~/.testcontainers.properties，已还原 | run 36987395778 CI log |

@@ -281,6 +281,10 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/warehouse/movements?${query}`
       : `${ops}/warehouse/movements?${query.toString()}`,
+  warehouseMonthlyClose: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/monthly-close?${query}`
+      : `${ops}/warehouse/monthly-close?${query.toString()}`,
   warehouseStocktakes: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/warehouse/stocktakes?${query}`

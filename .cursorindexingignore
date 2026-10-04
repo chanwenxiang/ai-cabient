@@ -1,0 +1,14 @@
+# 与 .cursorignore 同口径：禁止把生成物编进 Cursor codebase index
+node_modules/
+**/node_modules/
+.pnpm-store/
+**/dist/
+**/target/
+**/build/
+.playwright-mcp/
+.tmp/
+docs/uat-screenshots/
+.git/objects/
+services/trade-service/src/main/resources/static/admin/assets/
+.workbuddy/
+.idea/

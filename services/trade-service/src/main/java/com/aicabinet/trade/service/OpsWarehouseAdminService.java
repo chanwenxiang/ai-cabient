@@ -19,15 +19,18 @@ public class OpsWarehouseAdminService {
     private final WarehouseService warehouseService;
     private final ReplenishmentService replenishmentService;
     private final InTransitService inTransitService;
+    private final WarehouseMonthlyCloseService monthlyCloseService;
 
     public OpsWarehouseAdminService(PermissionService permissionService,
                                     WarehouseService warehouseService,
                                     ReplenishmentService replenishmentService,
-                                    InTransitService inTransitService) {
+                                    InTransitService inTransitService,
+                                    WarehouseMonthlyCloseService monthlyCloseService) {
         this.permissionService = permissionService;
         this.warehouseService = warehouseService;
         this.replenishmentService = replenishmentService;
         this.inTransitService = inTransitService;
+        this.monthlyCloseService = monthlyCloseService;
     }
 
     public List<WarehouseDto> listWarehouses(Long operatorId) {
@@ -44,7 +47,7 @@ public class OpsWarehouseAdminService {
     public WarehouseDto upsertWarehouse(Long operatorId, String warehouseId, UpsertWarehouseRequest body) {
         requireWarehouseWrite(operatorId);
         return warehouseService.upsertWarehouse(
-                warehouseId, body.warehouseName(), body.address(), body.status());
+                warehouseId, body.warehouseName(), body.address(), body.status(), body.managerUserId());
     }
 
     public List<WarehouseInventoryDto> warehouseInventory(Long operatorId, String warehouseId) {
@@ -67,6 +70,11 @@ public class OpsWarehouseAdminService {
             Long operatorId, String warehouseId, String keyword, int page, int size) {
         requireWarehouseRead(operatorId);
         return warehouseService.listMovementsPage(warehouseId, keyword, page, size);
+    }
+
+    public WarehouseMonthlyCloseDto warehouseMonthlyClose(Long operatorId, String warehouseId, String yearMonth) {
+        requireWarehouseRead(operatorId);
+        return monthlyCloseService.closeSheet(warehouseId, yearMonth);
     }
 
     public WarehouseInboundRequest warehouseInbound(Long operatorId, WarehouseInboundRequest body) {

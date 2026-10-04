@@ -240,17 +240,17 @@ function goMessages() {
 .page {
   min-height: 100%;
   padding: 0 0 48rpx;
-  background: var(--card-bg, #ffffff);
+  background: var(--page-bg, #ededed);
 }
 .hero {
   position: relative;
   overflow: hidden;
   margin: 24rpx 24rpx 0;
   padding: 36rpx 32rpx 28rpx;
-  border-radius: var(--radius-card);
+  border-radius: 16rpx;
   color: var(--text-primary, #14201b);
-  background: linear-gradient(135deg, var(--brand-soft), var(--white));
-  border: 1rpx solid var(--brand-soft, #d1fae5);
+  background: #ffffff;
+  border: none;
   box-shadow: none;
 }
 .hero.lv-silver {
@@ -427,7 +427,7 @@ function goMessages() {
   border-radius: var(--radius-card);
   background: var(--card-bg, #fff);
   text-align: center;
-  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
+  box-shadow: none;
 }
 .quick-mark {
   display: inline-flex;
@@ -461,7 +461,7 @@ function goMessages() {
   padding: 28rpx 24rpx;
   border-radius: var(--radius-card);
   background: var(--card-bg, #fff);
-  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
+  box-shadow: none;
 }
 .section-title {
   font-size: var(--font-size-lg);

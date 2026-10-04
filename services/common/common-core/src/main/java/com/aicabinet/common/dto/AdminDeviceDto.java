@@ -38,7 +38,9 @@ public record AdminDeviceDto(
         Integer targetTempC,
         String firmwareVersion,
         /** 锁机停售原因（运营态文案） */
-        String salesLockReason
+        String salesLockReason,
+        /** 所属分仓编号；空表示未归线 */
+        String homeWarehouseId
 ) {
     public AdminDeviceDto(
             String deviceId,
@@ -55,7 +57,7 @@ public record AdminDeviceDto(
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
                 null, null, false, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     public AdminDeviceDto(
@@ -76,7 +78,7 @@ public record AdminDeviceDto(
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
                 refundPolicy, effectiveRefundPolicy, false,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     public AdminDeviceDto(
@@ -98,6 +100,6 @@ public record AdminDeviceDto(
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
                 refundPolicy, effectiveRefundPolicy, salesLocked,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 }

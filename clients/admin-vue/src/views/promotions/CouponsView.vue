@@ -241,7 +241,7 @@
             <el-option
               v-for="a in activityOptions"
               :key="a.activityId"
-              :label="`${a.activityName} (#${a.activityId})`"
+              :label="`${a.activityName}（${a.activityId}）`"
               :value="a.activityId"
             />
           </el-select>
@@ -660,7 +660,7 @@ async function onIssueSubmit() {
   }
   try {
     await ElMessageBox.confirm(
-      `确认向用户 ${issueForm.value.userId} 发放优惠券 #${issueForm.value.couponDefId}？`,
+      `确认向用户 ${issueForm.value.userId} 发放优惠券 ${issueForm.value.couponDefId}？`,
       '发券确认',
       { type: 'warning' }
     );
@@ -700,7 +700,7 @@ async function onBatchIssueSubmit() {
   }
   try {
     await ElMessageBox.confirm(
-      `确认向 ${userIds.length} 个用户批量发放优惠券 #${batchForm.value.couponDefId}？`,
+      `确认向 ${userIds.length} 个用户批量发放优惠券 ${batchForm.value.couponDefId}？`,
       '批量发券确认',
       { type: 'warning' }
     );

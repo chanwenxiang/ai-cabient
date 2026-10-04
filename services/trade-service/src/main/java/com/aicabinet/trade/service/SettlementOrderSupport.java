@@ -187,13 +187,16 @@ public class SettlementOrderSupport {
                 ? refundPolicyService.resolveForDevice(order.getDeviceId()).name()
                 : null;
         String splitStatus = revenueSplitService.findStatusByOrderId(order.getOrderId()).orElse(null);
-        return orderViewAssembler.assembleDetail(
-                order,
-                order.getLines(),
-                splitStatus,
-                resolvePaidAt(order),
-                refundPolicy,
-                null);
+        return orderViewAssembler.applyPaymentLedger(
+                orderViewAssembler.assembleDetail(
+                        order,
+                        order.getLines(),
+                        splitStatus,
+                        resolvePaidAt(order),
+                        refundPolicy,
+                        null),
+                orderPaymentService.chargedCompletedCents(order.getOrderId()),
+                orderPaymentService.refundedCompletedCents(order.getOrderId()));
     }
 
     private Instant resolvePaidAt(CabinetOrder order) {

@@ -5,6 +5,7 @@
         <text v-if="unread > 0" class="nav-read-all" @click.stop="markAllRead">全部已读</text>
       </template>
     </app-nav-bar>
+    <app-underline-tabs :items="msgTabItems" :value="filter" @change="onMsgTab" />
     <view class="page-body">
       <view v-if="showSubscribeBanner" class="subscribe-banner">
         <view class="subscribe-copy">
@@ -24,23 +25,7 @@
         <text class="todo-go app-link-chevron">去处理</text>
       </view>
 
-      <view class="filter-row">
-        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
-          <view class="filter-inner">
-            <text
-              v-for="f in filters"
-              role="button"
-              :key="f.key"
-              class="filter-chip"
-              :class="{ active: filter === f.key }"
-              @click="filter = f.key"
-              >{{ f.label }}{{ filterCountSuffix(f.key) }}</text
-            >
-          </view>
-        </scroll-view>
-      </view>
-
-      <view v-if="loading && !list.length" class="loading"
+      <view v-if="loading && !list.length" class="loading">
         ><text>{{ UI_COPY.loading }}</text></view
       >
       <view v-else-if="!visibleList.length" class="empty">
@@ -52,8 +37,9 @@
           v-for="m in visibleList"
           role="button"
           :key="m.id"
-          class="msg-card"
+          class="msg-card wx-cell"
           :class="{ unread: !m.read }"
+          hover-class="wx-cell-hover"
           @click="onOpen(m)"
         >
           <view class="msg-head">
@@ -134,6 +120,16 @@ const filters: Array<{ key: MsgFilter; label: string }> = [
   { key: 'RECHARGE', label: '充值' },
   { key: 'OTHER', label: '其他' }
 ];
+const msgTabItems = computed(() =>
+  filters.map((f) => ({
+    key: f.key,
+    label: f.label,
+    badge: filterCountSuffix(f.key).replace(/^[\s·]+/, '') || undefined
+  }))
+);
+function onMsgTab(key: string) {
+  filter.value = key as MsgFilter;
+}
 
 function matchBizFilter(m: NotificationDto, key: MsgFilter) {
   const t = String(m.bizType || '').toUpperCase();
@@ -396,11 +392,11 @@ function formatTime(t?: string) {
 .page-root {
   min-height: 100%;
   padding: 0;
-  background: var(--card-bg, #ffffff);
+  background: var(--page-bg, #ededed);
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 16rpx 0 calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .nav-read-all {
@@ -409,40 +405,13 @@ function formatTime(t?: string) {
   opacity: 0.92;
   white-space: nowrap;
 }
-.filter-row {
-  margin-bottom: 8rpx;
-}
-.filter-scroll {
-  width: 100%;
-  white-space: nowrap;
-}
-.filter-inner {
-  display: inline-flex;
-  gap: 12rpx;
-  padding: 4rpx 0;
-}
-.filter-chip {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  padding: 10rpx 22rpx;
-  border-radius: var(--radius-pill);
-  background: var(--color-border-subtle, #f1f5f9);
-  color: var(--text-muted, #475569);
-  font-size: var(--font-size-caption);
-}
-.filter-chip.active {
-  background: var(--brand-soft);
-  color: var(--brand);
-  font-weight: 600;
-}
 .loading {
-  padding: 120rpx 0;
+  padding: 120rpx 32rpx;
   text-align: center;
   color: var(--text-muted, #8a968e);
 }
 .empty {
-  padding: 120rpx 0;
+  padding: 120rpx 32rpx;
   text-align: center;
 }
 .empty-title {
@@ -456,12 +425,15 @@ function formatTime(t?: string) {
   font-size: var(--font-size-sm);
   color: var(--text-subtle, #9aa4a0);
 }
+.msg-list {
+  background: #ffffff;
+}
 .msg-card {
-  margin-top: 18rpx;
-  padding: 26rpx 24rpx;
-  border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
-  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
+  margin: 0;
+  padding: 26rpx 32rpx;
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: none;
 }
 .msg-card.unread {
   border-left: 6rpx solid var(--brand);
@@ -513,10 +485,10 @@ function formatTime(t?: string) {
   color: var(--text-muted, #8a968e);
 }
 .card {
-  margin-top: 24rpx;
-  padding: 26rpx 24rpx;
-  border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  margin-top: 16rpx;
+  padding: 26rpx 32rpx;
+  border-radius: 0;
+  background: #ffffff;
 }
 .card-title {
   display: block;
@@ -549,21 +521,19 @@ function formatTime(t?: string) {
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
-  margin-bottom: 16rpx;
-  padding: 24rpx;
-  border-radius: var(--radius-card);
-  background: linear-gradient(135deg, var(--brand-soft), var(--white));
-  border: 1rpx solid var(--brand-soft, #d1fae5);
+  margin: 0 0 16rpx;
+  padding: 24rpx 32rpx;
+  border-radius: 0;
+  background: #ffffff;
 }
 .todo-banner {
   display: flex;
   align-items: center;
   gap: 16rpx;
-  margin-bottom: 16rpx;
-  padding: 24rpx;
-  border-radius: var(--radius-card);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
-  border: 1rpx solid #fdba74;
+  margin: 0 0 16rpx;
+  padding: 24rpx 32rpx;
+  border-radius: 0;
+  background: #ffffff;
 }
 .todo-copy {
   flex: 1;
@@ -606,13 +576,13 @@ function formatTime(t?: string) {
 .subscribe-btn {
   margin: 0;
   padding: 0 26rpx;
-  min-height: 60rpx;
-  height: 60rpx;
+  min-height: 64rpx;
+  height: 64rpx;
   line-height: 1.2;
-  border-radius: var(--radius-pill);
+  border-radius: 16rpx;
   font-size: var(--font-size-caption);
   color: var(--white);
-  background: linear-gradient(135deg, var(--brand), var(--brand));
+  background: var(--brand);
   display: flex;
   align-items: center;
   justify-content: center;

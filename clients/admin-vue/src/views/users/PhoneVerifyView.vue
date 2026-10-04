@@ -267,7 +267,7 @@ async function save() {
 
 async function removeRow(row: PhoneVerifyRow) {
   try {
-    await ElMessageBox.confirm(`确认删除验证记录 #${row.logId}？`, '删除记录', {
+    await ElMessageBox.confirm(`确认删除验证记录 ${row.logId}？`, '删除记录', {
       type: 'warning'
     });
   } catch {

@@ -571,13 +571,13 @@ export const merchantApi = {
     request(MerchantEndpoints.exceptionResolve(id), 'POST', {
       resolution
     }),
-  analytics: (days = 30) =>
+  analytics: (days = 30, deviceId?: string) =>
     request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(
-      MerchantEndpoints.analyticsOverview(days)
+      withQuery(MerchantEndpoints.analyticsOverview, { days, deviceId })
     ),
-  salesReports: (dim = 'PRODUCT', fromDate?: string, toDate?: string) =>
+  salesReports: (dim = 'PRODUCT', fromDate?: string, toDate?: string, deviceId?: string) =>
     request<import('@aicabinet/shared-types').OpenApiSalesReportRowDto[]>(
-      withQuery(MerchantEndpoints.analyticsSalesReports, { dim, fromDate, toDate })
+      withQuery(MerchantEndpoints.analyticsSalesReports, { dim, fromDate, toDate, deviceId })
     ),
   /**
    * 商户端公开配置（只含非敏感 UI 开关，如经营分析图表）。
@@ -593,9 +593,9 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantSkuVelocity[]>(
       MerchantEndpoints.analyticsVelocity(deviceId)
     ),
-  aiInsight: (days = 30) =>
+  aiInsight: (days = 30, deviceId?: string) =>
     request<import('@aicabinet/shared-types').MerchantAiInsight>(
-      MerchantEndpoints.analyticsAiInsight(days)
+      withQuery(MerchantEndpoints.analyticsAiInsight, { days, deviceId })
     ),
   expirySummary: () =>
     request<import('@aicabinet/shared-types').MerchantExpirySummary>(
@@ -643,6 +643,10 @@ export const merchantApi = {
     merchantAbsUrl(MerchantEndpoints.settlementsExport(from, to)),
   exportOrdersUrl: (deviceId?: string) => merchantAbsUrl(MerchantEndpoints.ordersExport(deviceId)),
   exportDeviceReportsUrl: () => merchantAbsUrl(MerchantEndpoints.deviceReportsExport),
+  exportSalesReportsUrl: (dim = 'PRODUCT', fromDate?: string, toDate?: string) =>
+    merchantAbsUrl(
+      withQuery(MerchantEndpoints.analyticsSalesReportsExport, { dim, fromDate, toDate })
+    ),
   /** 订单购物视频绝对 URL（页内禁止再拼 API_BASE + path） */
   orderVideoUrl: merchantOrderVideoUrl,
   replenishmentSuggestions: (deviceId: string) =>
@@ -772,11 +776,12 @@ export const merchantApi = {
       from?: string;
       to?: string;
       keyword?: string;
+      excludeZero?: boolean | number | string;
       page?: number;
       size?: number;
     } = {}
   ) => {
-    const { deviceId, status, from, to, keyword, page = 0, size = 50 } = opts;
+    const { deviceId, status, from, to, keyword, excludeZero, page = 0, size = 50 } = opts;
     return request<
       import('@aicabinet/shared-types').PageResult<
         import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant
@@ -789,7 +794,8 @@ export const merchantApi = {
         status,
         from,
         to,
-        keyword
+        keyword,
+        excludeZero: excludeZero ? 1 : undefined
       })
     );
   },
@@ -830,7 +836,69 @@ export const merchantApi = {
   notificationUnreadCount: () =>
     request<{ count: number }>(MerchantEndpoints.notificationsUnreadCount),
   markNotificationRead: (id: number) =>
-    request<void>(MerchantEndpoints.notificationRead(id), 'POST')
+    request<void>(MerchantEndpoints.notificationRead(id), 'POST'),
+  satelliteWarehouse: () =>
+    request<{
+      warehouseId: string;
+      warehouseName: string;
+      address?: string;
+      status?: string;
+    }>(MerchantEndpoints.satelliteWarehouse),
+  satellitePurchaseSuppliers: () =>
+    request<{ supplierId: string; supplierName: string; status?: string }[]>(
+      MerchantEndpoints.satellitePurchaseSuppliers
+    ),
+  satellitePurchaseSkus: () =>
+    request<{ skuId: string; skuName: string; unitCostCents: number }[]>(
+      MerchantEndpoints.satellitePurchaseSkus
+    ),
+  satellitePurchaseOrders: () =>
+    request<
+      {
+        purchaseOrderId: number;
+        supplierId: string;
+        warehouseId: string;
+        status: string;
+        refNo?: string;
+        notes?: string;
+        lines?: {
+          lineId?: number;
+          skuId: string;
+          orderedQty: number;
+          receivedQty?: number;
+          batchNo?: string;
+          expiryDate?: string;
+        }[];
+      }[]
+    >(MerchantEndpoints.satellitePurchaseOrders),
+  createSatellitePurchaseOrder: (body: {
+    supplierId: string;
+    warehouseId?: string;
+    notes?: string;
+    lines: { skuId: string; orderedQty: number; unitCostCents: number }[];
+  }) =>
+    request<{ purchaseOrderId: number; status: string; warehouseId: string }>(
+      MerchantEndpoints.satellitePurchaseOrders,
+      'POST',
+      body
+    ),
+  receiveSatellitePurchaseOrder: (
+    purchaseOrderId: number,
+    body: {
+      lines: {
+        lineId?: number;
+        skuId: string;
+        batchNo: string;
+        expiryDate: string;
+        receivedQty: number;
+      }[];
+    }
+  ) =>
+    request<{ purchaseOrderId: number; status: string }>(
+      MerchantEndpoints.satellitePurchaseReceive(purchaseOrderId),
+      'POST',
+      body
+    )
 };
 
 /**

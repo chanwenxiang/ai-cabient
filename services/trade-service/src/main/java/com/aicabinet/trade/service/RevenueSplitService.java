@@ -64,6 +64,10 @@ public class RevenueSplitService {
         if (order == null || order.getOrderId() == null || order.getOrderId().isBlank()) {
             return Optional.empty();
         }
+        if (order.getTotalAmountCents() <= 0) {
+            log.debug("skip revenue split: zero gross order {}", order.getOrderId());
+            return Optional.empty();
+        }
         return runWithOrderSplitLock(order.getOrderId(), () -> doRecordSplit(order));
     }
 

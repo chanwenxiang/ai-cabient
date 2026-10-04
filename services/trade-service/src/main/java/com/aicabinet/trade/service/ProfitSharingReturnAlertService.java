@@ -38,7 +38,7 @@ public class ProfitSharingReturnAlertService {
         String title = "[分账回退补偿失败]";
         long pendingCents = split.getWechatPendingReturnCents() != null ? split.getWechatPendingReturnCents() : 0L;
         String msg = String.format(
-                "补偿任务 #%s 已达最大重试 splitId=%s orderId=%s merchantId=%s 待回退=%d分 outReturnNo=%s failure=%s",
+                "补偿任务 %s 已达最大重试 splitId=%s orderId=%s merchantId=%s 待回退=%d分 outReturnNo=%s failure=%s",
                 task.getTaskId(),
                 split.getSplitId(),
                 split.getOrderId(),

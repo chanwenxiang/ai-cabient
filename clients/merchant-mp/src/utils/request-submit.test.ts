@@ -77,7 +77,10 @@ describe('request-submit · M10c', () => {
     applyAdjustDraftQty(a, -10);
     expect(a.qty).toBe(0);
     expect(a.selected).toBe(false);
-    expect(canGoReplenishFromRequest({ status: 'ACCEPTED', replenishmentTaskId: 1 })).toBe(true);
+    expect(
+      canGoReplenishFromRequest({ status: 'ACCEPTED', replenishmentTaskId: 1, outboundId: 9 })
+    ).toBe(true);
+    expect(canGoReplenishFromRequest({ status: 'ACCEPTED', replenishmentTaskId: 1 })).toBe(false);
     expect(canGoReplenishFromRequest({ status: 'SUBMITTED', replenishmentTaskId: 1 })).toBe(false);
     expect(requestActionErrorMessage(new Error('x'), 'f')).toBe('x');
     expect(evidencePreviewUrls([{ localPath: 'p' }, { localPath: '' }])).toEqual(['p']);

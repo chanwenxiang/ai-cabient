@@ -36,18 +36,21 @@ function resolvedDisputeSummary(ticket: MerchantDisputeCopyInput): string {
 }
 
 /**
- * 建议价与实扣不一致时的说明。
+ * 商户资金说明：已扣/已退/实收。识别参考是建议商品估价，禁止与实扣相减当「差额」。
  */
 export function merchantDisputeAmountDiffNote(ticket?: MerchantDisputeCopyInput | null): string {
   if (!ticket) return '';
-  const claimed = Number(ticket.claimedAmountCents ?? 0);
   const billed = Number(ticket.billedAmountCents ?? 0);
-  if (claimed <= 0 || billed < 0 || claimed === billed) return '';
-  const diff = claimed - billed;
-  if (diff > 0) {
-    return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（优惠/折扣 ${fmtMoney(diff)}）`;
+  const refunded = Number(ticket.refundedAmountCents ?? 0);
+  const claimed = Number(ticket.claimedAmountCents ?? 0);
+  if (billed > 0 && refunded > 0) {
+    const received = Math.max(0, billed - refunded);
+    return `已扣 ${fmtMoney(billed)}，已退 ${fmtMoney(refunded)}，实收 ${fmtMoney(received)}`;
   }
-  return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（差额 ${fmtMoney(Math.abs(diff))}）`;
+  if (claimed > 0 && billed > 0 && claimed !== billed) {
+    return '识别参考是建议商品估价，扣款以支付流水为准，两者不能相减';
+  }
+  return '';
 }
 
 /**

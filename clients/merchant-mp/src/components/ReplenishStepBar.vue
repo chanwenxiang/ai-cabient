@@ -50,9 +50,22 @@ function stepClass(step: number) {
   justify-content: space-between;
   gap: 8rpx;
   margin: 8rpx 0 20rpx;
+  position: relative;
+}
+.step-row.four::before {
+  content: '';
+  position: absolute;
+  top: 22rpx;
+  left: 12%;
+  right: 12%;
+  height: 2rpx;
+  background: var(--brand-mist, #99f6e4);
+  pointer-events: none;
 }
 .step-row.four .step {
   flex: 1;
+  position: relative;
+  z-index: 1;
 }
 .step {
   display: flex;
@@ -75,6 +88,7 @@ function stepClass(step: number) {
   font-weight: 700;
   color: var(--text-muted);
   background: var(--page-bg, #f1f5f9);
+  box-shadow: 0 0 0 8rpx var(--card-bg, #fff);
 }
 .step.active .step-num {
   color: #fff;

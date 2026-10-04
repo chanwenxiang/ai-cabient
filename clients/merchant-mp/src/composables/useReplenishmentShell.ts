@@ -96,6 +96,12 @@ export function useReplenishmentShell(opts: {
     });
   }
 
+  function goDeviceShortage(deviceId: string) {
+    uni.navigateTo({
+      url: `/pages/device-detail/device-detail?deviceId=${encodeURIComponent(deviceId)}`
+    });
+  }
+
   function deviceMeta(id?: string): DeviceMeta | undefined {
     if (!id) return undefined;
     return opts.devices.value.find((item) => item.deviceId === id);
@@ -161,11 +167,17 @@ export function useReplenishmentShell(opts: {
     return formatDateTimeShort(raw, raw).slice(0, 10);
   }
 
-  function routeLabel(task: { routeId?: number; routeName?: string }) {
-    if (task.routeName && String(task.routeName).trim()) {
-      return String(task.routeName).trim();
-    }
-    return task.routeId != null ? `线路 #${task.routeId}` : '';
+  function routeLabel(task: { routeId?: number; routeName?: string; deviceId?: string }) {
+    const name = String(task.routeName || '').trim();
+    const deviceId = String(task.deviceId || '');
+    // 日期+柜号垃圾串、审批主题（商户要货·柜名·申请 N）都不是线路名
+    const looksDump =
+      !!name &&
+      /\d{4}[/-]\d{1,2}[/-]\d{1,2}/.test(name) &&
+      (/\d{10,}/.test(name) || (!!deviceId && name.includes(deviceId)));
+    const looksApprovalTitle = /商户要货|申请\s*\d+/.test(name);
+    if (name && !looksDump && !looksApprovalTitle) return name;
+    return task.routeId != null ? `线路 ${task.routeId}` : '';
   }
 
   async function ensureReplenishmentMe(seq: number): Promise<boolean> {
@@ -230,6 +242,7 @@ export function useReplenishmentShell(opts: {
     usePreferredDevice,
     goRequest,
     goRequestForDevice,
+    goDeviceShortage,
     deviceName,
     deviceAddressLine,
     toggleSkipLocation,

@@ -2,28 +2,43 @@
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
-import { merchantApi } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
+import { seedMerchantMeDisplayCache, useMerchantMe } from '@/composables/useMerchantMe';
 
 type OpsConfig = import('@aicabinet/shared-types').OpenApiMerchantOpsConfigDto;
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const loading = ref(false);
 const saving = ref(false);
+const loadError = ref('');
 const merchantId = ref('');
 const merchantName = ref('');
 const cfg = ref<OpsConfig | null>(null);
-
 const thresholdPct = ref(50);
 
 onShow(async () => {
+  await load();
+});
+
+async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
-    await refreshMe();
+    if (!isMerchantLoggedIn()) {
+      uni.reLaunch({ url: '/pages/login/login' });
+      return;
+    }
+    try {
+      await refreshMe();
+    } catch {
+      if (!isMerchantLoggedIn()) return;
+      seedMerchantMeDisplayCache(me);
+    }
     const list = (me.value?.merchants || []) as { merchantId: string; merchantName?: string }[];
     const first = list[0];
     if (!first) {
-      showError('账号未绑定商户');
+      loadError.value = '账号未绑定商户';
+      cfg.value = null;
       return;
     }
     merchantId.value = first.merchantId;
@@ -31,11 +46,23 @@ onShow(async () => {
     cfg.value = await merchantApi.opsConfig(merchantId.value);
     thresholdPct.value = cfg.value?.stockoutThresholdPct ?? 50;
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载失败');
+    cfg.value = null;
+    loadError.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }
-});
+}
+
+function onPctInput(e: { detail?: { value?: string } }) {
+  const n = Number(e.detail?.value);
+  thresholdPct.value = Number.isFinite(n) ? Math.max(1, Math.min(100, n)) : 50;
+}
+
+function onFlagChange(key: 'photoReplenish' | 'photoStocktake' | 'useStockingList', e: unknown) {
+  if (!cfg.value) return;
+  const on = !!(e as { detail?: { value?: boolean } }).detail?.value;
+  cfg.value = { ...cfg.value, [key]: on };
+}
 
 async function save() {
   if (!cfg.value) return;
@@ -62,45 +89,47 @@ async function save() {
 <template>
   <view class="page">
     <app-nav-bar title="补货配置" />
-    <view v-if="merchantName" class="merchant-line">商户：{{ merchantName }}</view>
+    <view class="page-body">
+      <view class="intro">
+        <text class="intro-title">现场补货规则</text>
+        <text class="intro-desc">缺货提醒、拍照和是否按补货单执行。签到定位由平台统一设置。</text>
+      </view>
 
-    <view v-if="loading && !cfg" class="empty">加载中…</view>
-    <template v-else-if="cfg">
-      <view class="group">
+      <view v-if="loading && !cfg" class="card empty">正在加载配置…</view>
+      <error-state v-else-if="loadError && !cfg" :title="loadError" @retry="load" />
+      <view v-else-if="cfg" class="card">
+        <view class="status-row">
+          <text class="field-label">当前商户</text>
+          <text class="status-val">{{ merchantName || '未命名商户' }}</text>
+        </view>
+
         <view class="row">
           <view class="row-copy">
             <text class="row-title">缺货提醒阈值</text>
-            <text class="row-desc"
-              >货道库存低于容量的 {{ thresholdPct }}% 时记为缺货，进入补货建议</text
-            >
+            <text class="row-desc">货道库存低于容量的 {{ thresholdPct }}% 时记为缺货</text>
           </view>
-          <input
-            class="pct-input"
-            type="number"
-            :value="String(thresholdPct)"
-            maxlength="3"
-            @input="
-              (e: any) => {
-                const n = Number(e.detail.value);
-                thresholdPct = Number.isFinite(n) ? Math.max(1, Math.min(100, n)) : 50;
-              }
-            "
-          />
-          <text class="pct-sign">%</text>
+          <view class="pct-wrap">
+            <input
+              class="pct-input"
+              type="number"
+              :value="String(thresholdPct)"
+              maxlength="3"
+              @input="onPctInput"
+            />
+            <text class="pct-sign">%</text>
+          </view>
         </view>
-
         <view class="row">
           <view class="row-copy">
             <text class="row-title">补货后拍照</text>
-            <text class="row-desc">完成补货前需拍摄现场照片留存</text>
+            <text class="row-desc">完成补货前需拍摄现场照片</text>
           </view>
           <switch
             :checked="cfg.photoReplenish"
-            color="#0f766e"
-            @change="(e: any) => (cfg!.photoReplenish = e.detail.value)"
+            color="var(--brand)"
+            @change="(e) => onFlagChange('photoReplenish', e)"
           />
         </view>
-
         <view class="row">
           <view class="row-copy">
             <text class="row-title">盘点拍照</text>
@@ -108,115 +137,27 @@ async function save() {
           </view>
           <switch
             :checked="cfg.photoStocktake"
-            color="#0f766e"
-            @change="(e: any) => (cfg!.photoStocktake = e.detail.value)"
+            color="var(--brand)"
+            @change="(e) => onFlagChange('photoStocktake', e)"
           />
         </view>
-
         <view class="row">
           <view class="row-copy">
             <text class="row-title">按补货单补货</text>
-            <text class="row-desc">开启后补货须按系统生成的补货单执行</text>
+            <text class="row-desc">开启后须按系统补货单执行</text>
           </view>
           <switch
             :checked="cfg.useStockingList"
-            color="#0f766e"
-            @change="(e: any) => (cfg!.useStockingList = e.detail.value)"
+            color="var(--brand)"
+            @change="(e) => onFlagChange('useStockingList', e)"
           />
         </view>
+        <view class="actions">
+          <app-button variant="primary" block :loading="saving" label="保存" @click="save" />
+        </view>
       </view>
-
-      <view class="group tips">
-        <text class="tip">签到定位、开门核验要求由平台统一设置；如需调整请联系运营。</text>
-      </view>
-
-      <button class="save-btn" :loading="saving" @click="save">保存</button>
-    </template>
+    </view>
   </view>
 </template>
 
-<style scoped>
-.page {
-  min-height: 100vh;
-  padding: 24rpx;
-  box-sizing: border-box;
-  background: var(--page-bg, #f6f8f7);
-}
-.merchant-line {
-  margin-bottom: 16rpx;
-  font-size: 13px;
-  color: var(--text-subtle);
-}
-.group {
-  background: var(--card-bg, #fff);
-  border-radius: 18rpx;
-  padding: 8rpx 20rpx;
-  margin-bottom: 20rpx;
-}
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-  padding: 22rpx 0;
-  border-bottom: 1rpx solid var(--color-border, #eef2f1);
-}
-.row:last-child {
-  border-bottom: none;
-}
-.row-copy {
-  flex: 1;
-  min-width: 0;
-}
-.row-title {
-  display: block;
-  font-size: 15px;
-  font-weight: 600;
-}
-.row-desc {
-  display: block;
-  margin-top: 4rpx;
-  font-size: 12px;
-  color: var(--text-subtle);
-  line-height: 1.4;
-}
-.pct-input {
-  width: 96rpx;
-  height: 60rpx;
-  border: 1rpx solid var(--color-border, #eef2f1);
-  border-radius: 10rpx;
-  text-align: center;
-  font-size: 15px;
-}
-.pct-sign {
-  font-size: 13px;
-  color: var(--text-subtle);
-}
-.tips {
-  padding: 16rpx 20rpx;
-}
-.tip {
-  font-size: 12px;
-  color: var(--text-subtle);
-  line-height: 1.5;
-}
-.save-btn {
-  margin-top: 8rpx;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
-  color: #fff;
-  border: none;
-  border-radius: 999rpx;
-  font-size: 15px;
-  font-weight: 600;
-  box-shadow: 0 8rpx 20rpx rgba(13, 148, 136, 0.32);
-}
-.save-btn[disabled] {
-  opacity: 0.6;
-}
-.empty {
-  padding: 60rpx 0;
-  text-align: center;
-  color: var(--text-subtle);
-  font-size: 14px;
-}
-</style>
+<style scoped src="./ops-config.page.css"></style>

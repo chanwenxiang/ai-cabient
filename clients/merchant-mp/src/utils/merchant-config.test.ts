@@ -71,4 +71,36 @@ describe('商户端扩展功能开关读取器', () => {
     expect(merchantPublicConfig).toHaveBeenCalledTimes(1);
     expect(m.merchantChartsEnabled()).toBe(true);
   });
+
+  it('下发订阅模板 ID 后可读取；缺省为空串', async () => {
+    const empty = await fresh();
+    expect(empty.merchantSubscribeTemplateId()).toBe('');
+    merchantPublicConfig.mockResolvedValue({
+      wechatSubscribeTemplateId: ' tpl-merchant '
+    });
+    const m = await fresh();
+    await m.loadMerchantFlags();
+    expect(m.merchantSubscribeTemplateId()).toBe('tpl-merchant');
+  });
+
+  it('wechatSubscribeEnabled 按值判定，缺省关', async () => {
+    const empty = await fresh();
+    expect(empty.merchantSubscribeEnabled()).toBe(false);
+    merchantPublicConfig.mockResolvedValue({ wechatSubscribeEnabled: 'true' });
+    const m = await fresh();
+    await m.loadMerchantFlags();
+    expect(m.merchantSubscribeEnabled()).toBe(true);
+  });
+
+  it('refresh=true 会重新请求公开配置', async () => {
+    merchantPublicConfig
+      .mockResolvedValueOnce({ wechatSubscribeTemplateId: '' })
+      .mockResolvedValueOnce({ wechatSubscribeTemplateId: 'tpl-2' });
+    const m = await fresh();
+    await m.loadMerchantFlags();
+    expect(m.merchantSubscribeTemplateId()).toBe('');
+    await m.loadMerchantFlags({ refresh: true });
+    expect(merchantPublicConfig).toHaveBeenCalledTimes(2);
+    expect(m.merchantSubscribeTemplateId()).toBe('tpl-2');
+  });
 });

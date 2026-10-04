@@ -166,7 +166,9 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue';
+
+const props = defineProps<{
   landingBgUrl: string;
   landingHeadStyle: Record<string, string>;
   landingErrorKind: string;
@@ -177,6 +179,9 @@ defineProps<{
   authPromptVisible: boolean;
   opening: boolean;
   enteringFlow: boolean;
+  landingError: string;
+  showManual: boolean;
+  deviceInput: string;
 }>();
 
 const emit = defineEmits<{
@@ -187,15 +192,35 @@ const emit = defineEmits<{
   login: [];
   dismissAuthPrompt: [];
   confirm: [];
+  'update:landingError': [value: string];
+  'update:showManual': [value: boolean];
+  'update:deviceInput': [value: string];
 }>();
 
-const landingError = defineModel<string>('landingError', { required: true });
-const showManual = defineModel<boolean>('showManual', { required: true });
-const deviceInput = defineModel<string>('deviceInput', { required: true });
+/** uni-mp-vue 3.0 无 mergeModels，不能用 defineModel */
+const landingError = computed({
+  get: () => props.landingError,
+  set: (v: string) => emit('update:landingError', v)
+});
+const showManual = computed({
+  get: () => props.showManual,
+  set: (v: boolean) => emit('update:showManual', v)
+});
+const deviceInput = computed({
+  get: () => props.deviceInput,
+  set: (v: string) => emit('update:deviceInput', v)
+});
 
 function noop() {
   /* 阻止冒泡占位（原页面同名空函数） */
 }
+</script>
+
+<script lang="ts">
+export default {
+  name: 'HomeLanding',
+  options: { virtualHost: true, styleIsolation: 'apply-shared' }
+};
 </script>
 
 <style scoped>
@@ -203,6 +228,7 @@ function noop() {
   position: relative;
   flex: 1;
   min-height: 0;
+  width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -255,7 +281,8 @@ function noop() {
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  padding: 0 32rpx 12rpx;
+  /* 底栏未藏住时扫码文案会从 tabBar 上钻出来；预留原生 tabBar≈48px + 安全区 */
+  padding: 0 32rpx calc(112rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .landing-top {
@@ -277,7 +304,7 @@ function noop() {
   /* 落地页主标题：真机反馈偏小，从 --font-size-h2(40rpx) 提到 52rpx */
   font-size: 52rpx;
   font-weight: 700;
-  color: var(--white);
+  color: var(--white, #ffffff);
   display: block;
   letter-spacing: 1rpx;
   line-height: 1.25;
@@ -317,8 +344,6 @@ function noop() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* 扫码盘下移：真机反馈位置偏高；顶部留白把盘压向中下部（删除 resume/nearby 后组的重心也自然下落） */
-  padding-top: 16vh;
   width: 100%;
 }
 .scan-circle {

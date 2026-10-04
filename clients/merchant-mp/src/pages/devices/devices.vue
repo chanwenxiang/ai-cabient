@@ -1,25 +1,31 @@
 <template>
   <view class="page-root devices-page">
-    <app-nav-bar title="柜机" />
-    <view class="toolbar">
-      <app-button
-        class="scan-btn"
-        :block="false"
-        compact
-        :loading="scanning"
-        label="扫码到柜"
-        @click="onScan"
-      />
-      <app-button
-        v-if="canReplenishment"
-        class="replenish-btn"
-        variant="outline"
-        :block="false"
-        compact
-        label="补货任务"
-        @click="goReplenishment"
-      />
+    <view class="nav-place" :style="navPlaceStyle">
+      <app-nav-bar title="柜机" home-url="/pages/home/home" />
     </view>
+    <view class="toolbar">
+      <view
+        class="tool-item is-primary"
+        role="button"
+        aria-label="扫码到柜"
+        hover-class="tool-item-hover"
+        :class="{ 'is-busy': scanning }"
+        @click="onScan"
+      >
+        <text class="tool-label">{{ scanning ? '扫码中…' : '扫码到柜' }}</text>
+      </view>
+      <view
+        v-if="canReplenishment"
+        class="tool-item"
+        role="button"
+        aria-label="补货任务"
+        hover-class="tool-item-hover"
+        @click="goReplenishment"
+      >
+        <text class="tool-label">补货任务</text>
+      </view>
+    </view>
+    <app-underline-tabs :items="deviceStatusTabs" :value="filter" @change="setDeviceFilter" />
     <view class="filters">
       <input
         v-model="keyword"
@@ -27,22 +33,13 @@
         aria-label="搜索柜机名称或编号"
         placeholder="搜索柜机名称或编号…"
       />
-      <view class="chips">
-        <text
-          v-for="f in filters"
-          role="button"
-          :key="f.value"
-          class="chip"
-          :class="{ active: filter === f.value }"
-          @click="filter = f.value"
-          >{{ f.label }} {{ countFor(f.value) }}</text
-        >
+      <view class="filter-aux">
         <text
           role="button"
-          class="chip"
+          class="aux-link"
           :class="{ active: onlyPreferred }"
           @click="toggleOnlyPreferred"
-          >常驻柜 {{ preferredId ? '1' : '0' }}</text
+          >常驻柜</text
         >
       </view>
       <view v-if="preferredId" class="pref-hint">
@@ -68,73 +65,79 @@
         role="button"
         @click="goDetail(d.deviceId)"
       >
-        <view class="device-left">
-          <image
-            class="device-thumb"
-            src="/static/device-default.png"
-            mode="aspectFill"
-            aria-hidden="true"
-          />
-          <view class="online-dot" :class="d.online ? 'on' : 'off'" />
-          <view>
-            <text class="name">{{ d.deviceName || d.deviceId }}</text>
-            <text class="meta">{{ d.deviceId }}</text>
-            <text v-if="d.address" class="meta addr">{{ d.address }}</text>
-            <text
-              v-if="d.routeCode || lifecycleText(d.lifecycleStatus) || d.currentTempC != null"
-              class="meta"
-            >
-              <template v-if="d.routeCode">线路 {{ d.routeCode }}</template>
-              <template v-if="d.routeCode && lifecycleText(d.lifecycleStatus)"> · </template>
-              <template v-if="lifecycleText(d.lifecycleStatus)">{{
-                lifecycleText(d.lifecycleStatus)
-              }}</template>
-              <template
-                v-if="(d.routeCode || lifecycleText(d.lifecycleStatus)) && d.currentTempC != null"
+        <view class="device-main">
+          <view class="device-left">
+            <view class="thumb-wrap">
+              <image
+                class="device-thumb"
+                src="/static/device-default.png"
+                mode="aspectFill"
+                aria-hidden="true"
+              />
+              <view class="online-dot" :class="d.online ? 'on' : 'off'" />
+            </view>
+            <view class="device-info">
+              <text class="name">{{ d.deviceName || d.deviceId }}</text>
+              <text class="meta">{{ d.deviceId }}</text>
+              <text v-if="d.address" class="meta addr">{{ d.address }}</text>
+              <text
+                v-if="d.routeCode || lifecycleText(d.lifecycleStatus) || d.currentTempC != null"
+                class="meta"
               >
-                ·
-              </template>
-              <template v-if="d.currentTempC != null">{{ d.currentTempC }}°C</template>
-            </text>
-            <text v-if="stockSummary(d)" class="meta stock-warn">{{ stockSummary(d) }}</text>
-            <text v-if="canSeeRevenue" class="meta revenue"
-              >今日收入 ¥{{ ((revenueByDevice[d.deviceId ?? ''] || 0) / 100).toFixed(2) }}</text
+                <template v-if="d.routeCode">线路 {{ d.routeCode }}</template>
+                <template v-if="d.routeCode && lifecycleText(d.lifecycleStatus)"> · </template>
+                <template v-if="lifecycleText(d.lifecycleStatus)">{{
+                  lifecycleText(d.lifecycleStatus)
+                }}</template>
+                <template
+                  v-if="(d.routeCode || lifecycleText(d.lifecycleStatus)) && d.currentTempC != null"
+                >
+                  ·
+                </template>
+                <template v-if="d.currentTempC != null">{{ d.currentTempC }}°C</template>
+              </text>
+              <text v-if="stockSummary(d)" class="meta stock-warn">{{ stockSummary(d) }}</text>
+              <text v-if="canSeeRevenue" class="meta revenue"
+                >今日收入 ¥{{ ((revenueByDevice[d.deviceId ?? ''] || 0) / 100).toFixed(2) }}</text
+              >
+              <text v-else-if="d.firmwareVersion" class="meta">固件 {{ d.firmwareVersion }}</text>
+            </view>
+          </view>
+          <view class="device-right">
+            <text
+              class="star"
+              role="button"
+              :aria-label="preferredId === d.deviceId ? '取消常驻柜' : '设为常驻柜'"
+              :class="{ on: preferredId === d.deviceId }"
+              @click.stop="togglePreferred(d.deviceId)"
+              >★</text
             >
-            <text v-else-if="d.firmwareVersion" class="meta">固件 {{ d.firmwareVersion }}</text>
+            <text v-if="d.salesLocked" class="tag tag-lock">{{ UI_COPY.salesLocked }}</text>
+            <text v-else-if="d.replenishmentInProgress" class="tag tag-warn">{{
+              UI_COPY.replenishing
+            }}</text>
+            <text v-else class="tag" :class="d.online ? 'tag-on' : 'tag-off'">{{
+              onlineLabel(!!d.online)
+            }}</text>
           </view>
         </view>
-        <view class="device-right">
-          <text
-            class="star"
-            role="button"
-            :aria-label="preferredId === d.deviceId ? '取消常驻柜' : '设为常驻柜'"
-            :class="{ on: preferredId === d.deviceId }"
-            @click.stop="togglePreferred(d.deviceId)"
-            >★</text
-          >
-          <button
-            v-if="d.latitude != null && d.longitude != null"
-            class="nav-btn"
-            @click.stop="openNav(d)"
-          >
-            导航
-          </button>
-          <text v-if="d.salesLocked" class="status-locked">{{ UI_COPY.salesLocked }}</text>
-          <text v-if="d.salesLocked && d.salesLockReason" class="status-lock-reason">{{
+        <view
+          v-if="(d.salesLocked && d.salesLockReason) || (d.latitude != null && d.longitude != null)"
+          class="device-foot"
+        >
+          <text v-if="d.salesLocked && d.salesLockReason" class="device-note">{{
             d.salesLockReason
           }}</text>
-          <text v-if="d.replenishmentInProgress" class="status-replenish app-status is-warn">
-            <text class="app-status-dot" aria-hidden="true" />
-            {{ UI_COPY.replenishing }}
-          </text>
-          <text
-            v-if="!d.salesLocked"
-            class="app-status"
-            :class="d.online ? 'status-on is-online' : 'status-off is-offline'"
+          <view v-else class="device-note-spacer" />
+          <view
+            v-if="d.latitude != null && d.longitude != null"
+            class="nav-link app-link-chevron"
+            role="button"
+            aria-label="导航"
+            hover-class="nav-link-hover"
+            @click.stop="openNav(d)"
+            >导航</view
           >
-            <text class="app-status-dot" aria-hidden="true" />
-            {{ onlineLabel(!!d.online) }}
-          </text>
         </view>
       </view>
       <empty-state
@@ -166,7 +169,9 @@ import { dictLabel } from '@aicabinet/shared-dict';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import type { MerchantDeviceInfo, MerchantMe } from '@aicabinet/shared-types';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
+import { getCustomNavPlaceStyle } from '@aicabinet/shared-uni/status-bar';
 
+const navPlaceStyle = getCustomNavPlaceStyle();
 const { me, refresh: refreshMe } = useMerchantMe();
 /** 今日营业额仅报表可见角色展示（店长/财务；店员/补货员不展示，权限口径 2026-09-30 与运营确认） */
 const canSeeRevenue = computed(() =>
@@ -227,6 +232,18 @@ function countFor(value: 'all' | 'online' | 'offline' | 'locked') {
   if (value === 'all') return devices.value.length;
   if (value === 'locked') return devices.value.filter((d) => !!d.salesLocked).length;
   return devices.value.filter((d) => (value === 'online' ? d.online : !d.online)).length;
+}
+
+const deviceStatusTabs = computed(() =>
+  filters.map((f) => ({
+    key: f.value,
+    label: f.label,
+    badge: countFor(f.value) || undefined
+  }))
+);
+
+function setDeviceFilter(key: string) {
+  filter.value = key as typeof filter.value;
 }
 
 function toggleOnlyPreferred() {
@@ -391,37 +408,53 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   background: var(--page-tint, #f0fdfa);
   box-sizing: border-box;
 }
+.nav-place {
+  width: 100%;
+}
+/* 昨晚终态：白底文字操作条（主操作品牌色+底线，次操作灰字），不是渐变胶囊 */
 .toolbar {
   display: flex;
-  gap: 12rpx;
-  padding: 16rpx 24rpx 0;
-  background: var(--page-tint, #f0fdfa);
+  align-items: stretch;
+  background: var(--card-bg, #fff);
+  padding: 0 8rpx;
+  border-bottom: 1rpx solid var(--color-border-subtle, #e2e8f0);
 }
-.scan-btn,
-.replenish-btn {
+.tool-item {
   flex: 1 1 0;
-  width: 0;
   min-width: 0;
-  max-width: none;
-  margin: 0;
-  min-height: 72rpx;
-  height: 72rpx;
-  border-radius: var(--radius-card);
-  font-size: var(--font-size-body);
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22rpx 12rpx 18rpx;
+  position: relative;
 }
-.scan-btn {
-  background: var(--brand, #0f766e);
-  color: var(--white);
+.tool-label {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: var(--text-muted, #64748b);
+  line-height: 1.2;
 }
-.replenish-btn {
-  background: var(--color-bg-card, #fff);
+.tool-item.is-primary .tool-label {
   color: var(--brand, #0f766e);
-  border: 1rpx solid rgba(15, 118, 110, 0.22);
+  font-weight: 700;
 }
-.scan-btn::after,
-.replenish-btn::after {
-  border: none;
+.tool-item.is-primary::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 64rpx;
+  height: 6rpx;
+  margin-left: -32rpx;
+  border-radius: 6rpx;
+  background: var(--brand, #0f766e);
+}
+.tool-item.is-busy {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.tool-item-hover {
+  opacity: 0.72;
 }
 /* 无 page-body：卡片水平 gutter 由页面承担（对齐 M02） */
 .devices-page > .card,
@@ -434,8 +467,9 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 }
 .device-card {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -443,44 +477,99 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   background: var(--page-bg, #f8fafc) !important;
   opacity: 0.96;
 }
+.device-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+}
 .device-right {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 10rpx;
-  flex: 0 0 160rpx;
-  width: 160rpx;
-  max-width: 160rpx;
+  align-items: center;
+  gap: 16rpx;
+  flex: 0 0 128rpx;
+  width: 128rpx;
+  max-width: 128rpx;
+  box-sizing: border-box;
+  padding-top: 2rpx;
+}
+.tag {
+  display: inline-block;
+  min-width: 96rpx;
+  padding: 12rpx 20rpx;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
   box-sizing: border-box;
 }
-.nav-btn {
-  margin: 0;
-  padding: 0 20rpx;
-  min-height: 64rpx;
-  height: 64rpx;
-  font-size: var(--font-size-caption);
-  color: var(--brand);
-  background: var(--brand-soft);
-  border: 1rpx solid var(--brand-mist, #99f6e4);
-  border-radius: var(--radius-pill);
+.tag-lock {
+  min-width: 112rpx;
+  padding: 16rpx 22rpx;
+  font-size: 30rpx;
+  letter-spacing: 2rpx;
+  color: var(--warning, #b45309);
+  background: var(--warning-soft, #fff7ed);
 }
-.nav-btn::after {
-  border: none;
+.tag-warn {
+  color: var(--warning, #b45309);
+  background: var(--warning-soft, #fff7ed);
+}
+.tag-on {
+  color: var(--brand, #0f766e);
+  background: var(--brand-soft, #ecfdf5);
+}
+.tag-off {
+  color: var(--text-muted, #64748b);
+  background: var(--page-tint, #f0fdfa);
 }
 .star {
   color: var(--text-subtle, #cbd5e1);
-  font-size: var(--font-size-display-sm);
-  padding: 8rpx;
+  font-size: 36rpx;
+  line-height: 1;
+  padding: 0;
   position: relative;
   z-index: 1;
 }
 .star.on {
   color: var(--warning, #f59e0b);
 }
+.device-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-top: 16rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid var(--color-border-subtle, #e2e8f0);
+}
+.device-note {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-xs, 20rpx);
+  color: var(--warning, #b45309);
+  line-height: 1.4;
+}
+.device-note-spacer {
+  flex: 1;
+  min-width: 0;
+}
+.nav-link {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--brand, #0f766e);
+  line-height: 1.2;
+}
+.nav-link-hover {
+  opacity: 0.65;
+}
 .name,
 .meta,
-.status-on,
-.status-off,
 .online-dot {
   pointer-events: none;
 }
@@ -489,34 +578,32 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   top: 0;
   z-index: 5;
   isolation: isolate;
-  background: var(--page-tint, #f0fdfa);
+  background: var(--page-bg, #ededed);
   padding: 16rpx 24rpx 12rpx;
 }
 .search {
   height: 72rpx;
   box-sizing: border-box;
-  background: var(--card-bg, #fff);
-  border: 1rpx solid var(--brand-tint, var(--brand-mist));
-  border-radius: var(--radius-card);
+  background: #fff;
+  border: none;
+  border-radius: 8rpx;
   padding: 0 28rpx;
   font-size: var(--font-size-body);
 }
 .chips {
+  display: none;
+}
+.filter-aux {
   display: flex;
-  gap: 12rpx;
-  margin-top: 14rpx;
-  flex-wrap: wrap;
+  margin-top: 12rpx;
 }
-.chip {
-  padding: 10rpx 24rpx;
-  border-radius: var(--radius-card);
-  color: var(--text-muted);
-  background: var(--card-bg, #fff);
+.aux-link {
   font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
-.chip.active {
-  color: var(--white);
-  background: var(--brand, #0f766e);
+.aux-link.active {
+  color: var(--brand);
+  font-weight: 600;
 }
 .pref-hint {
   margin-top: 12rpx;
@@ -537,6 +624,11 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   align-items: center;
   gap: 16rpx;
   flex: 1;
+  min-width: 0;
+}
+.device-info {
+  flex: 1;
+  min-width: 0;
 }
 .device-thumb {
   width: 88rpx;
@@ -545,10 +637,20 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   background: var(--brand-soft);
   flex-shrink: 0;
 }
+.thumb-wrap {
+  position: relative;
+  width: 88rpx;
+  height: 88rpx;
+  flex-shrink: 0;
+}
 .online-dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
   width: 16rpx;
   height: 16rpx;
   border-radius: 50%;
+  border: 2rpx solid var(--card-bg, #fff);
 }
 .online-dot.on {
   background: var(--success, #16a34a);
@@ -566,37 +668,13 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   font-weight: 600;
   display: block;
   font-size: var(--font-size-md);
-  max-width: 360rpx;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.status-on,
-.status-off {
-  font-size: var(--font-size-body);
-}
-.status-locked {
-  color: var(--warning, #b45309);
-  font-weight: 700;
-  font-size: var(--font-size-caption);
-  background: #f5e7dd;
-  padding: 4rpx 12rpx;
-  border-radius: var(--radius-pill);
-}
-.status-lock-reason {
-  display: block;
-  margin-top: 6rpx;
-  font-size: var(--font-size-xs);
-  color: var(--warning, #b45309);
-  max-width: 200rpx;
-  text-align: right;
-  line-height: 1.3;
-}
-.status-replenish {
-  font-size: var(--font-size-caption);
-}
 .meta.revenue {
-  color: #d97706;
+  color: var(--warning, #d97706);
   font-weight: 600;
 }
 .meta.stock-warn {

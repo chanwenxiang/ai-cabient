@@ -12,20 +12,6 @@
       <view class="dash-header" :style="headerPadStyle">
         <text class="hello">你好，{{ meName }}</text>
         <text class="sub" :class="{ 'sub--unbound': isMerchantUnbound }">{{ headerSubLine }}</text>
-        <view class="header-stats">
-          <view class="h-stat">
-            <text class="h-val">{{ pendingTaskCount }}</text>
-            <text class="h-label">待补货</text>
-          </view>
-          <view class="h-stat">
-            <text class="h-val" :class="{ urgent: pendingCount > 0 }">{{ pendingCount }}</text>
-            <text class="h-label">待办</text>
-          </view>
-          <view class="h-stat">
-            <text class="h-val">{{ offlineCount }}</text>
-            <text class="h-label">离线柜</text>
-          </view>
-        </view>
       </view>
 
       <view class="card ops-overview">
@@ -55,33 +41,29 @@
         经营概览前置（对标竞品首页信息架构）：
         竞品（友宝/丰e足食等）商户端首页第一屏即为「今日营收」，而本页原先把该卡片排在
         页尾第 8 位，需滚动 2-3 屏才能看到 —— 商户打开 App 最想看的数字反而最难找到。
-        数据源未变（useHomeWorkbench.applyHomeFinanceKpis 早已提供 revenueToday/trendBars），
-        此处仅调整 DOM 顺序。无财务权限时回落到「柜机概况」，不会出现空白区块。
+        柱图已删：7 日里大多为 0、只剩一根柱，占位大且看不出趋势；数字 KPI 仍保留。
+        无财务权限时回落到「柜机概况」，不会出现空白区块。
       -->
       <view v-if="canFinanceKpi || canDevices" class="card section-card">
-        <text class="section">{{ canFinanceKpi ? '近7日营收' : '柜机概况' }}</text>
+        <text class="section">{{ canFinanceKpi ? '今日概况' : '柜机概况' }}</text>
         <view class="kpi-mini">
           <view v-if="canFinanceKpi">
             <text class="kpi-label">今日营收</text>
             <text class="kpi-value">{{ revenueToday }}</text>
           </view>
-          <view v-if="canFinanceKpi">
-            <text class="kpi-label">商户收入</text>
-            <text class="kpi-value">{{ incomeToday }}</text>
-          </view>
           <view v-if="canFinanceKpi && stats?.ordersToday != null">
             <text class="kpi-label">今日订单</text>
             <text class="kpi-value">{{ stats.ordersToday }}</text>
-          </view>
-          <view v-if="canFinanceKpi && avgOrderToday !== '暂无'">
-            <text class="kpi-label">近{{ analyticsDays }}日客单</text>
-            <text class="kpi-value">{{ avgOrderToday }}</text>
           </view>
           <view v-if="canFinanceKpi">
             <text class="kpi-label">在线柜机</text>
             <text class="kpi-value">{{ onlineText }}</text>
           </view>
-          <template v-else>
+          <view v-if="canFinanceKpi && canBusiness">
+            <text class="kpi-label">近{{ analyticsDays }}天销量</text>
+            <text class="kpi-value">{{ salesQty7d }}</text>
+          </view>
+          <template v-if="!canFinanceKpi">
             <!-- F1-UX：补货员无 finance 权限时概况卡补离线/停售，避免大卡空旷 -->
             <view>
               <text class="kpi-label">离线柜机</text>
@@ -93,12 +75,6 @@
             </view>
           </template>
         </view>
-        <view v-if="canFinanceKpi && trendBars.length" class="bars">
-          <view v-for="b in trendBars" :key="b.date" class="bar-wrap">
-            <view class="bar" :style="{ height: b.height + 'rpx' }" />
-            <text class="bar-label">{{ b.label }}</text>
-          </view>
-        </view>
       </view>
 
       <!-- 竞品式主路径：扫码到柜 → 补货/查看（无补货权限时不展示，避免财务误操作） -->
@@ -107,32 +83,22 @@
           <text class="scan-title">扫码到柜</text>
           <text class="scan-desc">扫描柜门二维码，查看库存或开始补货</text>
         </view>
-        <app-button
+        <button
           class="scan-btn"
-          :block="false"
-          compact
           :loading="scanning"
-          label="扫码"
+          :disabled="scanning"
+          aria-label="扫码"
+          hover-class="btn-hover"
           @click="onScan"
-        />
-      </view>
-
-      <view
-        v-if="latestAnnouncement"
-        class="notice-strip"
-        role="button"
-        :aria-label="`公告：${latestAnnouncement.title}`"
-        @click="goAnnouncementDetail"
-      >
-        <text class="notice-tag">公告</text>
-        <text class="notice-title">{{ latestAnnouncement.title }}</text>
-        <view class="notice-more app-icon app-icon--chevron" aria-hidden="true" />
+        >
+          扫码
+        </button>
       </view>
 
       <view v-if="canReplenishment || canDevices || canAlerts || canBusiness" class="quick-row">
         <view
           v-if="canReplenishment"
-          class="quick-item primary"
+          class="quick-item"
           role="button"
           aria-label="补货任务"
           @click="goReplenishment()"
@@ -198,12 +164,12 @@
       <view v-if="canReplenishment" class="card section-card">
         <view class="section-head">
           <text class="section">今日补货</text>
-          <text
+          <view
             role="button"
             aria-label="查看更多"
             class="section-more app-link-chevron"
             @click="goReplenishment()"
-            >全部</text
+            >全部</view
           >
         </view>
         <text v-if="preferredId" class="pref-tip">常驻柜 {{ preferredId }} 优先置顶</text>
@@ -253,7 +219,7 @@
       >
         <view class="section-head">
           <text class="section">优先待办</text>
-          <text class="section-more app-link-chevron">查看全部</text>
+          <view class="section-more app-link-chevron">查看全部</view>
         </view>
         <view
           v-for="item in actionItems"
@@ -265,36 +231,26 @@
         >
           <text class="todo-dot" />
           <view class="todo-copy">
-            <text class="todo-title">{{ item.title }}</text>
+            <text class="todo-title">{{ sanitizeNotifyTitle(item.title) }}</text>
             <text v-if="item.deviceId" class="todo-detail">柜机 {{ item.deviceId }}</text>
-            <text v-if="item.detail" class="todo-detail">{{ item.detail }}</text>
+            <text v-if="item.detail" class="todo-detail">{{ sanitizeNotifyTitle(item.detail) }}</text>
           </view>
           <text class="todo-go app-link-chevron">去处理</text>
         </view>
       </view>
 
       <view
-        v-if="canPricing || canSettlements || canDisputes || canBusiness || canReplenishment"
-        class="ops-block"
+        class="home-notice"
+        role="button"
+        :aria-label="latestAnnouncement ? `公告：${latestAnnouncement.title}` : '暂无通知'"
+        @click="goAnnouncementDetail"
       >
-        <text class="ops-title">更多功能</text>
-        <view class="ops-grid">
-          <view v-if="canReplenishment" role="button" class="ops-card" @click="goRequest">
-            <text class="ops-label">要货申请</text>
-          </view>
-          <view v-if="canPricing" role="button" class="ops-card" @click="goPricing">
-            <text class="ops-label">点位定价</text>
-          </view>
-          <view v-if="canSettlements" role="button" class="ops-card" @click="goSettlements">
-            <text class="ops-label">结算对账</text>
-          </view>
-          <view v-if="canDisputes" role="button" class="ops-card" @click="goDisputes">
-            <text class="ops-label">争议处理</text>
-          </view>
-          <view v-if="canBusiness" role="button" class="ops-card" @click="goBusiness">
-            <text class="ops-label">经营分析</text>
-          </view>
-        </view>
+        <image class="home-notice-icon" :src="menuIcon('notice')" mode="aspectFit" />
+        <text v-if="latestAnnouncement" class="home-notice-title">{{
+          latestAnnouncement.title
+        }}</text>
+        <text v-else class="home-notice-title home-notice-title--empty">暂无通知</text>
+        <view class="home-notice-more app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
   </view>
@@ -311,6 +267,7 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
 import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';
 import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
+import { sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { menuIcon } from '@/utils/menu-icon';
 import { useHomeWorkbench } from '@/composables/useHomeWorkbench';
@@ -333,11 +290,9 @@ const {
   error,
   meName,
   revenueToday,
-  incomeToday,
-  avgOrderToday,
+  salesQty7d,
   stats,
   analyticsDays,
-  trendBars,
   pendingCount,
   refundOrders,
   slotDiscrepancyCount,
@@ -411,7 +366,7 @@ useAutoRefresh({
 .page {
   min-height: 100%;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: var(--card-bg, #ffffff);
+  background: var(--page-bg, #f4faf7);
 }
 .dash-header {
   background: linear-gradient(
@@ -421,50 +376,28 @@ useAutoRefresh({
     var(--brand, #0f766e) 100%
   );
   padding: 12rpx 24rpx 28rpx;
-  color: var(--white);
+  color: #ffffff;
   border-radius: 0;
   margin: 0;
   box-sizing: border-box;
 }
+/* 微信 <text> 不继承父级 color，问候/统计必须显式白色 */
 .hello {
   font-size: var(--font-size-xl);
   font-weight: 700;
   display: block;
+  color: #ffffff;
 }
 .sub {
   font-size: var(--font-size-sm);
   opacity: 0.85;
   display: block;
   margin-top: 4rpx;
+  color: #ffffff;
 }
 .sub--unbound {
   opacity: 1;
-  color: var(--warning-soft);
-}
-.header-stats {
-  display: flex;
-  margin-top: 12rpx;
-  padding-top: 12rpx;
-  border-top: 1rpx solid rgba(255, 255, 255, 0.18);
-}
-.h-stat {
-  flex: 1;
-  text-align: center;
-}
-.h-val {
-  display: block;
-  font-size: var(--font-size-display-sm);
-  font-weight: 800;
-}
-.h-val.urgent {
-  color: var(--white);
-  text-shadow: 0 0 0 transparent;
-}
-.h-label {
-  display: block;
-  margin-top: 2rpx;
-  font-size: var(--font-size-xs);
-  opacity: 0.8;
+  color: var(--warning-soft, #fff7ed);
 }
 
 .scan-card {
@@ -498,18 +431,20 @@ useAutoRefresh({
   line-height: 1.35;
 }
 .scan-btn {
+  /* 与「我的 → 开启提醒」同款：浅底深字，避免实心主按钮抢视觉 */
   margin: 0;
   flex-shrink: 0;
   min-height: 72rpx;
   height: 72rpx;
   line-height: 72rpx;
   padding: 0 28rpx;
+  border: none;
   border-radius: var(--radius-card);
-  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  color: var(--white);
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.22);
+  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand, #0f766e);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  box-shadow: none;
 }
 .scan-btn::after {
   border: none;
@@ -518,61 +453,22 @@ useAutoRefresh({
   opacity: 0.88;
 }
 
-.notice-strip {
-  margin: 12rpx 20rpx 0;
-  padding: 14rpx 16rpx;
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  background: var(--brand-soft, #ecfdf5);
-  border: 1rpx solid rgba(15, 118, 110, 0.18);
-  border-radius: var(--radius-control);
-}
-.notice-tag {
-  flex-shrink: 0;
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  color: var(--brand, #0f766e);
-  background: var(--brand-tint, var(--brand-mist));
-  padding: 6rpx 10rpx;
-  border-radius: var(--radius-tag);
-}
-.notice-title {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-size-body);
-  color: var(--warning, #92400e);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.notice-more {
-  flex-shrink: 0;
-  color: var(--warning, #b45309);
-  width: 0.55em;
-  height: 0.55em;
-  font-size: var(--font-size-md);
-  font-weight: 600;
-}
-
 .quick-row {
   display: flex;
-  gap: 10rpx;
-  margin: 14rpx 20rpx 0;
+  gap: 12rpx;
+  margin: 14rpx 24rpx 0;
 }
 .quick-item {
   position: relative;
   flex: 1;
+  min-width: 0;
   background: var(--card-bg, #fff);
   border-radius: var(--radius-panel);
   padding: 18rpx 10rpx;
   text-align: center;
-  border: 1rpx solid var(--color-border);
-  box-shadow: 0 4rpx 14rpx rgba(15, 23, 42, 0.04);
-}
-.quick-item.primary {
-  border-color: var(--brand-soft, #99f6e4);
-  background: linear-gradient(180deg, var(--page-tint, #f0fdfa), var(--white));
+  border: none;
+  box-shadow: none;
+  box-sizing: border-box;
 }
 .quick-icon {
   display: block;
@@ -609,12 +505,52 @@ useAutoRefresh({
 }
 
 .card {
-  margin: 14rpx 20rpx 0;
-  padding: 20rpx 20rpx;
+  margin: 16rpx 24rpx 0;
+  padding: 32rpx;
+  width: auto;
+  max-width: none;
   background: var(--card-bg, #fff);
   border-radius: var(--radius-card);
-  border: 1rpx solid var(--color-border);
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+  border: none;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+.home-notice {
+  margin: 16rpx 24rpx 12rpx;
+  padding: 18rpx 20rpx;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
+  border: none;
+  box-shadow: none;
+}
+.home-notice-icon {
+  width: 40rpx;
+  height: 40rpx;
+  flex-shrink: 0;
+}
+.home-notice-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-notice-title--empty {
+  font-weight: 500;
+  color: var(--text-muted, #334155);
+}
+.home-notice-more {
+  flex-shrink: 0;
+  color: var(--text-subtle, #cbd5e1);
+  width: 0.55em;
+  height: 0.55em;
+  font-size: var(--font-size-md);
 }
 .section-head {
   display: flex;
@@ -628,9 +564,16 @@ useAutoRefresh({
   color: var(--text-primary, #0f172a);
 }
 .section-more {
+  /* 必须用 view 而不是 text：mp-weixin 的 text 不吃 inline-flex，::after 会被卡片圆角裁成另一种箭头 */
+  flex-shrink: 0;
   color: var(--brand, #0f766e);
   font-size: var(--font-size-body);
   font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.2;
+  /* 与「去处理」同一右缘：todo-go 实测箭头约在内容区右侧内 16px+，仅 32rpx 在真机上仍显贴边 */
+  box-sizing: border-box;
+  padding-right: 48rpx;
 }
 .pref-tip {
   display: block;
@@ -768,9 +711,11 @@ useAutoRefresh({
 .ops-overview {
   display: flex;
   margin: 16rpx 24rpx 0;
-  padding: 20rpx 8rpx;
+  padding: 28rpx 16rpx 24rpx;
   background: var(--card-bg, #fff);
   border-radius: var(--radius-panel, 24rpx);
+  width: auto;
+  box-sizing: border-box;
 }
 .ov-item {
   flex: 1;
@@ -789,42 +734,12 @@ useAutoRefresh({
   color: #d97706;
 }
 .ov-label {
-  font-size: 11px;
+  font-size: 20rpx;
   color: var(--text-subtle);
-}
-.ops-block {
-  margin: 16rpx 20rpx 0;
-}
-.ops-block {
-  margin: 24rpx 24rpx 0;
-  padding: 20rpx 20rpx 8rpx;
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-panel, 24rpx);
-}
-.ops-title {
-  display: block;
-  margin: 0 8rpx 10rpx;
-  font-size: var(--font-size-caption);
-  color: var(--text-subtle);
-  letter-spacing: 1rpx;
-}
-.ops-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10rpx;
-}
-.ops-card {
-  background: var(--card-bg, #fff);
-  border-radius: var(--radius-panel);
-  padding: 20rpx 16rpx;
   text-align: center;
-  border: 1rpx solid var(--color-border);
+  line-height: 1.3;
 }
-.ops-label {
-  font-size: var(--font-size-md);
-  color: var(--text-muted, #334155);
-  font-weight: 600;
-}
+
 
 .kpi-mini {
   display: flex;
@@ -848,29 +763,6 @@ useAutoRefresh({
   font-weight: 700;
   color: var(--brand, #0f766e);
   text-align: center;
-}
-.bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 8rpx;
-  height: 140rpx;
-}
-.bar-wrap {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.bar {
-  width: 100%;
-  background: linear-gradient(180deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  border-radius: var(--radius-tag) 6rpx 0 0;
-  min-height: 8rpx;
-}
-.bar-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  margin-top: 6rpx;
 }
 .err {
   color: var(--color-danger);

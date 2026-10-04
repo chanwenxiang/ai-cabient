@@ -19,7 +19,7 @@ public record MerchantDisputeSummaryDto(
         Integer refundedAmountCents,
         String deviceName,
         Integer claimedAmountCents,
-        /** 会话是否已有录像（列表「有录像」提示） */
+        /** 对象存储里真有可播文件才为 true（仅会话写了 videoUri 不够） */
         Boolean hasVideo
 ) {
     public MerchantDisputeSummaryDto(

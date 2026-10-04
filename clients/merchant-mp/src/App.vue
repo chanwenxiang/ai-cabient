@@ -68,13 +68,14 @@ uni-page-body {
   --color-text-secondary: var(--text-muted, #64748b);
   --color-text-muted: var(--text-subtle, #94a3b8);
   --color-bg-page: var(--page-bg);
-  --page-tint: #f0fdfa;
-  --page-bg: #ffffff;
+  --page-tint: #ededed;
+  --page-bg: #ededed;
+  --nav-bar-bg: #134e4a;
   --page-gutter: 24rpx;
   --spacing-sm: 12rpx;
   --spacing-md: 16rpx;
   --spacing-lg: 24rpx;
-  --shadow-card: 0 8rpx 28rpx rgba(15, 118, 110, 0.08);
+  --shadow-card: none;
   --font-size-xs: 20rpx;
   --font-size-sm: 22rpx;
   --font-size-caption: 24rpx;
@@ -87,15 +88,17 @@ uni-page-body {
   --font-size-h1: 44rpx;
   --font-size-display-sm: 36rpx;
   --font-size-display: 48rpx;
-  --text-muted: #64748b;
-  --text-subtle: #94a3b8;
-  /* 小程序圆角用 rpx，对齐共享 4 档 token */
+  --text-muted: #888888;
+  --text-subtle: #b2b2b2;
+  /* WeUI：分组 8px、控件 8px；胶囊只留给红点 */
   --radius-pill: 999rpx;
-  --radius-card: 24rpx;
+  --radius-btn: 16rpx;
+  --radius-card: 16rpx;
   --radius-panel: 16rpx;
-  --radius-control: 12rpx;
+  --radius-control: 16rpx;
   --radius-tag: 8rpx;
   --card-radius: var(--radius-card);
+  --card-border: rgba(0, 0, 0, 0.1);
   height: 100%;
   background: var(--page-bg);
   font-family: var(--app-font);
@@ -208,14 +211,47 @@ input {
  */
 .card {
   background: var(--color-bg-card, #fff);
-  border-radius: var(--radius-card, 24rpx);
-  padding: 24rpx;
+  border-radius: var(--radius-card, 16rpx);
+  padding: 32rpx;
   margin: 0 0 16rpx;
-  width: 100%;
+  width: auto;
   max-width: 100%;
   box-sizing: border-box;
-  box-shadow: var(--shadow-card);
-  border: 1rpx solid rgba(15, 118, 110, 0.06);
+  box-shadow: none;
+  border: none;
+}
+
+.wx-cells {
+  margin: 16rpx 0 0;
+  background: #fff;
+  overflow: hidden;
+}
+.wx-cell {
+  position: relative;
+  padding: 32rpx;
+  background: #fff;
+  box-sizing: border-box;
+}
+.wx-cell + .wx-cell::before {
+  content: '';
+  position: absolute;
+  left: 32rpx;
+  right: 0;
+  top: 0;
+  height: 1rpx;
+  background: rgba(0, 0, 0, 0.1);
+  transform: scaleY(0.5);
+  transform-origin: 0 0;
+}
+.wx-cell-hover {
+  background: #ececec !important;
+}
+.wx-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 16rpx;
+  background: #fa5151;
+  flex-shrink: 0;
 }
 
 .page-body {
@@ -225,20 +261,26 @@ input {
 }
 
 .app-btn--primary {
-  background: linear-gradient(135deg, var(--brand-deep), var(--brand));
+  background: var(--brand);
   color: var(--white);
   border: none;
-  border-radius: var(--radius-pill, 44rpx);
+  border-radius: var(--radius-btn, 16rpx);
   padding: 0 32rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 88rpx;
   text-align: center;
-  font-weight: 600;
-  font-size: 30rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
+  font-weight: 500;
+  font-size: 34rpx;
+  box-shadow: none;
   box-sizing: border-box;
+}
+
+.app-btn--outline {
+  background: #fff !important;
+  color: var(--brand);
+  border: 1rpx solid var(--color-border, #e5e5e5) !important;
 }
 
 .btn-block,

@@ -418,6 +418,16 @@ public class OrderPaymentService {
         return paymentOperationRepository.netCompletedCents(orderId);
     }
 
+    /** 已完成扣款合计（分），不含退款。 */
+    public int chargedCompletedCents(String orderId) {
+        return paymentOperationRepository.chargedCompletedCents(orderId);
+    }
+
+    /** 已完成退款合计（分）。 */
+    public int refundedCompletedCents(String orderId) {
+        return paymentOperationRepository.refundedCompletedCents(orderId);
+    }
+
     /** L2-1：卡单痕迹查询（CHARGE_PENDING 超时告警巡检用）。 */
     public java.util.List<PaymentOperation> findStaleChargePending(java.time.Instant cutoff, int limit) {
         return paymentOperationRepository.findStaleChargePending(cutoff, limit);

@@ -149,7 +149,9 @@
         <text>余额可用于未开通免密时的开门兜底；推荐优先开通微信支付分。</text>
       </view>
 
-      <app-button variant="ghost" label="返回我的" @click="goBack" />
+      <view class="btn-slot btn-slot--back">
+        <app-button variant="ghost" label="返回我的" @click="goBack" />
+      </view>
 
       <view class="recharge-list">
         <view class="section-head">

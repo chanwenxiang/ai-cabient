@@ -495,6 +495,11 @@ public class SystemConfigService {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("chartsEnabled",
                 String.valueOf(self.getBoolean(MERCHANT_CHARTS_ENABLED, false)));
+        String merchantTmpl = weChatMiniAppProperties.subscribeTemplateId();
+        boolean tmplOk = merchantTmpl != null && !merchantTmpl.isBlank();
+        map.put("wechatSubscribeEnabled",
+                String.valueOf(weChatMiniAppProperties.subscribeConfigured()));
+        map.put("wechatSubscribeTemplateId", tmplOk ? merchantTmpl.trim() : "");
         return map;
     }
 

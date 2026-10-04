@@ -1,10 +1,11 @@
-import { nextTick, reactive, ref, type ComputedRef, type Ref } from 'vue';
+import { nextTick, reactive, ref, computed, type ComputedRef, type Ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
 import { errorMessage } from '@/utils/error-message';
 import { adminDevWarn } from '@/utils/admin-dev-log';
+import { useAuthStore } from '@/stores/auth';
 import {
   emitPurchaseOrderReviewed,
   showPurchaseReviewToast,
@@ -50,6 +51,18 @@ function defaultPurchaseRefNo() {
   return `PO-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
+function hasWarehouseManager(row: WarehousePurchaseRow) {
+  return Number(row.managerUserId) > 0;
+}
+
+function isManagedWarehouseId(
+  warehouses: WarehousePurchaseRow[],
+  warehouseId: unknown
+) {
+  const id = String(warehouseId || '');
+  return !!id && warehouses.some((w) => String(w.warehouseId) === id);
+}
+
 /**
  * 采购单写路径：新建 / 建议生成 / 审批 / 收货 / 退货。
  * 列表加载与筛选项仍留在 WarehouseView。
@@ -70,6 +83,22 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
     supplierId: boolean;
     lineErrors: PurchaseLineFieldErrors[];
   }>({ supplierId: false, lineErrors: [] });
+
+  const managedPurchaseWarehouses = computed(() =>
+    deps.activeWarehouses.value.filter(hasWarehouseManager)
+  );
+
+  function preferredPurchaseWarehouseId() {
+    const managed = managedPurchaseWarehouses.value;
+    const filterId = deps.filterWarehouseId.value;
+    if (filterId && managed.some((w) => w.warehouseId === filterId)) {
+      return filterId;
+    }
+    const uid = Number(useAuthStore().userId);
+    const mine = managed.find((w) => Number(w.managerUserId) === uid);
+    if (mine?.warehouseId) return String(mine.warehouseId);
+    return managed[0]?.warehouseId ? String(managed[0].warehouseId) : '';
+  }
 
   const receiveForm = reactive<WarehousePurchaseRow>({
     purchaseOrderId: null,
@@ -112,6 +141,9 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
       purchaseFieldErrors.supplierId = true;
       ok = false;
     }
+    if (!isManagedWarehouseId(managedPurchaseWarehouses.value, purchaseForm.warehouseId)) {
+      ok = false;
+    }
     purchaseFieldErrors.lineErrors = purchaseForm.lines.map((line: WarehousePurchaseRow) => {
       const err: PurchaseLineFieldErrors = {};
       if (!line.skuId) {
@@ -126,7 +158,7 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
       return err;
     });
     if (!ok) {
-      ElMessage.warning('请完整填写供应商与商品；批次/到期日可留空，收货时录入');
+      ElMessage.warning('请完整填写供应商、已指定负责人的入库仓库与商品；批次/到期日可留空，收货时录入');
       nextTick(() => {
         document
           .querySelector('.purchase-line-card .field-invalid, .form-grid .field-invalid')
@@ -161,7 +193,10 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
     try {
       await Promise.all([deps.loadSuppliersSoft(), deps.loadWarehousesSoft(), deps.ensureMeta()]);
       purchaseForm.supplierId = deps.activeSuppliers.value[0]?.supplierId || '';
-      purchaseForm.warehouseId = deps.activeWarehouses.value[0]?.warehouseId || '';
+      purchaseForm.warehouseId = preferredPurchaseWarehouseId();
+      if (!purchaseForm.warehouseId) {
+        ElMessage.warning('没有已指定负责人的分仓，请先在仓库概览绑定负责人');
+      }
     } finally {
       deps.dialogBootLoading.value = false;
     }
@@ -202,8 +237,11 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
     try {
       await Promise.all([deps.loadSuppliersSoft(), deps.loadWarehousesSoft(), deps.ensureMeta()]);
       purchaseForm.supplierId = deps.activeSuppliers.value[0]?.supplierId || '';
+      if (!isManagedWarehouseId(managedPurchaseWarehouses.value, purchaseForm.warehouseId)) {
+        purchaseForm.warehouseId = preferredPurchaseWarehouseId();
+      }
       if (!purchaseForm.warehouseId) {
-        purchaseForm.warehouseId = deps.activeWarehouses.value[0]?.warehouseId || '';
+        ElMessage.warning('没有已指定负责人的分仓，请先在仓库概览绑定负责人');
       }
     } finally {
       deps.dialogBootLoading.value = false;
@@ -439,6 +477,7 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
     purchaseFieldErrors,
     receiveForm,
     returnForm,
+    managedPurchaseWarehouses,
     clearPurchaseLineError,
     patchPurchaseOrderRow,
     openPurchase,

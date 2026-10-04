@@ -86,6 +86,8 @@ class SystemConfigExtensionFlagsTest {
         assertEquals("false", consumer.get("couponEntryEnabled"));
         assertEquals("false", consumer.get("adBannerEnabled"));
         assertEquals("false", service.merchantPublicConfig().get("chartsEnabled"));
+        assertEquals("", service.merchantPublicConfig().get("wechatSubscribeTemplateId"));
+        assertEquals("false", service.merchantPublicConfig().get("wechatSubscribeEnabled"));
     }
 
     @Test
@@ -100,6 +102,27 @@ class SystemConfigExtensionFlagsTest {
         assertEquals("true", consumer.get("couponEntryEnabled"));
         assertEquals("true", consumer.get("adBannerEnabled"));
         assertEquals("true", service.merchantPublicConfig().get("chartsEnabled"));
+    }
+
+    @Test
+    void merchantPublicConfig_exposesSubscribeTemplateIdEvenIfMiniappNotFullyConfigured() {
+        service = new SystemConfigService(
+                repository,
+                historyRepository,
+                auditService,
+                new SecurityProperties(false),
+                new AlipayProperties(false, "", "", "", "", "", "", "", "", "", ""),
+                new WeChatPayProperties(false, "", "", "", "", "", "", "", true),
+                new PayScoreProperties(false, false, 550, false, "", ""),
+                new WeChatWebProperties(false, "", ""),
+                new WeChatMiniAppProperties(false, "", "", "tpl-merchant", "", "", ""),
+                new QrProperties("", "", "", "", ""),
+                distributedLockService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        var map = service.merchantPublicConfig();
+        assertEquals("tpl-merchant", map.get("wechatSubscribeTemplateId"));
+        assertEquals("false", map.get("wechatSubscribeEnabled"));
     }
 
     @Test

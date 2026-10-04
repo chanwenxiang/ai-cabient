@@ -146,6 +146,18 @@ class RevenueSplitServiceTest {
     }
 
     @Test
+    void recordSplit_zeroGross_skipsInsert() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-ZERO");
+        order.setDeviceId("CAB-1");
+        order.setTotalAmountCents(0);
+
+        assertEquals(Optional.empty(), service.recordSplit(order));
+        verify(splitRepository, never()).findByOrderIdForUpdate(any());
+        verify(splitRepository, never()).save(any());
+    }
+
+    @Test
     void recordSplit_alipayPaid_shouldAutoSubmitAccruedSplit() {
         CabinetOrder order = new CabinetOrder();
         order.setOrderId("O-ALI");

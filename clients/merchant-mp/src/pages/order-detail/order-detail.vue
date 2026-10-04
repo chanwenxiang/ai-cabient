@@ -9,7 +9,7 @@
       <view v-else-if="order">
         <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
           <text class="status-title">{{ statusText(order.status) }}</text>
-          <text class="status-amt">{{ money(order.totalAmountCents) }}</text>
+          <text class="status-amt">{{ money(heroAmountCents) }}</text>
         </view>
 
         <view class="section">
@@ -21,22 +21,20 @@
               mode="aspectFill"
               aria-hidden="true"
             />
-            <view class="line-info">
-              <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
-              <text class="line-qty"
-                >x{{ line.quantity }}{{ line.slotId ? ` · 货道 ${line.slotId}` : ''
-                }}{{ line.batchNo ? ` · 批次 ${line.batchNo}` : '' }}</text
-              >
-              <text v-if="line.unitPriceCents != null" class="line-unit"
-                >单价 {{ money(line.unitPriceCents) }}</text
-              >
+            <view class="line-main">
+              <view class="line-top">
+                <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
+                <text class="line-amt">{{ money(line.lineAmountCents) }}</text>
+              </view>
+              <text class="line-qty">{{ lineMeta(line) }}</text>
+              <text v-if="line.batchNo" class="line-qty">批次 {{ line.batchNo }}</text>
+              <text v-if="showLineUnit(line)" class="line-unit">单价 {{ money(line.unitPriceCents) }}</text>
             </view>
-            <text class="line-amt">{{ money(line.lineAmountCents) }}</text>
           </view>
-          <view v-if="!(order.lines || []).length" class="muted">无商品明细</view>
-          <view v-if="Number(order.originalAmountCents || 0) > 0" class="sum-row">
-            <text>原价</text>
-            <text>{{ money(order.originalAmountCents) }}</text>
+          <view v-if="!(order.lines || []).length" class="muted">{{ linesEmptyText }}</view>
+          <view v-if="chargedCents > 0" class="sum-row">
+            <text>已扣</text>
+            <text>{{ money(chargedCents) }}</text>
           </view>
           <view v-if="order.couponDiscountCents" class="sum-row">
             <text>券优惠</text>
@@ -46,9 +44,13 @@
             <text>会员优惠</text>
             <text>减{{ money(order.memberDiscountCents) }}</text>
           </view>
+          <view v-if="refundCents > 0" class="sum-row">
+            <text>已退</text>
+            <text>{{ money(refundCents) }}</text>
+          </view>
           <view class="sum-row strong">
-            <text>实付</text>
-            <text>{{ money(order.totalAmountCents) }}</text>
+            <text>实收</text>
+            <text>{{ money(receivedCents) }}</text>
           </view>
         </view>
 
@@ -56,15 +58,15 @@
           <text class="section-title">订单信息</text>
           <view class="info-row"
             ><text class="lbl">订单号</text
-            ><text class="val mono">{{ emptyDisplay(order.orderId, 'order') }}</text></view
+            ><text class="val">{{ emptyDisplay(order.orderId, 'order') }}</text></view
           >
           <view class="info-row"
             ><text class="lbl">会话</text
-            ><text class="val mono">{{ emptyDisplay(order.sessionId, 'session') }}</text></view
+            ><text class="val">{{ emptyDisplay(order.sessionId, 'session') }}</text></view
           >
           <view class="info-row"
             ><text class="lbl">柜机</text
-            ><text class="val mono">{{
+            ><text class="val">{{
               emptyDisplay(order.deviceName || order.deviceId, 'device')
             }}</text></view
           >
@@ -73,7 +75,7 @@
           >
           <view v-if="order.payTradeNo || order.paymentOperationId" class="info-row"
             ><text class="lbl">流水号</text
-            ><text class="val mono">{{
+            ><text class="val">{{
               displayBizNo(order.payTradeNo || order.paymentOperationId)
             }}</text></view
           >
@@ -190,9 +192,40 @@ const payChannelText = computed(() =>
 const refundCents = computed(() => {
   const o = order.value;
   if (!o) return 0;
-  // M-6：只信服务端 refundedCents
   const n = Number(o.refundedCents ?? 0);
   return Number.isFinite(n) && n > 0 ? n : 0;
+});
+
+const chargedCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  const original = Number(o.originalAmountCents || 0);
+  if (original > 0) return original;
+  return Number(o.totalAmountCents || 0) + refundCents.value;
+});
+
+/** 商户实收 = 已扣 − 已退（与支付流水净额一致）。 */
+const receivedCents = computed(() => Math.max(0, chargedCents.value - refundCents.value));
+
+/** 全额退展示退款额；其余展示实收。 */
+const heroAmountCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  const st = String(o.status || '').toUpperCase();
+  if (st === 'REFUNDED' && refundCents.value > 0) {
+    return refundCents.value;
+  }
+  return receivedCents.value;
+});
+
+const linesEmptyText = computed(() => {
+  if (receivedCents.value > 0 && refundCents.value > 0) {
+    return '剩余商品行缺失，实收以支付流水为准';
+  }
+  if (refundCents.value > 0) {
+    return '按行退款后已无剩余商品';
+  }
+  return '无商品明细';
 });
 
 /** 有会话且已产生账单的订单可查看录像（由后端 /merchant/orders/{id}/video 鉴权拉流） */
@@ -306,6 +339,19 @@ function money(cents?: number) {
   return fmtMoney(cents);
 }
 
+function lineMeta(line: OrderLine) {
+  const parts: string[] = [`x${line.quantity ?? 0}`];
+  if (line.slotId) parts.push(`货道 ${line.slotId}`);
+  return parts.join(' · ');
+}
+
+function showLineUnit(line: OrderLine) {
+  if (line.unitPriceCents == null) return false;
+  const qty = Number(line.quantity || 0);
+  if (qty <= 1 && Number(line.lineAmountCents) === Number(line.unitPriceCents)) return false;
+  return true;
+}
+
 function formatTime(t?: string) {
   return formatDateTimeShort(t, '暂无');
 }
@@ -360,6 +406,7 @@ function playVideo() {
   padding: 28rpx 24rpx;
   margin-bottom: 20rpx;
   border: 1rpx solid var(--brand-soft, #d1fae5);
+  text-align: center;
 }
 .status-bar.s-disputed {
   /* 静态色值：WXSS 不支持 color-mix，保留该声明会把属性重置为初始值（真机实测 background 变透明） */
@@ -405,35 +452,43 @@ function playVideo() {
 }
 .line {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12rpx 0;
+  align-items: flex-start;
+  padding: 16rpx 0;
   gap: 16rpx;
 }
 .line-thumb {
-  width: 80rpx;
-  height: 80rpx;
+  width: 96rpx;
+  height: 96rpx;
   border-radius: var(--radius-control);
   background: var(--brand-soft);
   flex-shrink: 0;
 }
-.line-info {
-  display: flex;
-  gap: 12rpx;
-  align-items: baseline;
+.line-main {
+  flex: 1;
   min-width: 0;
 }
+.line-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16rpx;
+}
 .line-name {
+  flex: 1;
+  min-width: 0;
   font-size: var(--font-size-md);
-  color: var(--text-primary, #0f172a);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 360rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-all;
 }
 .line-qty {
+  display: block;
+  margin-top: 6rpx;
   font-size: var(--font-size-caption);
   color: var(--text-subtle);
+  line-height: 1.4;
+  word-break: break-all;
 }
 .line-unit {
   display: block;
@@ -442,8 +497,9 @@ function playVideo() {
   color: var(--text-muted);
 }
 .line-amt {
+  flex-shrink: 0;
   font-size: var(--font-size-md);
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   font-weight: 600;
 }
 .sum-row {
@@ -475,10 +531,7 @@ function playVideo() {
   color: var(--text-primary, #0f172a);
   text-align: right;
   word-break: break-all;
-}
-.mono {
-  font-family: ui-monospace, monospace;
-  font-size: var(--font-size-caption);
+  font-size: var(--font-size-body);
 }
 .muted {
   color: var(--text-subtle);

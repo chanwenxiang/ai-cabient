@@ -134,9 +134,14 @@ public class SettlementPartialRefundService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         orderSupport.hydrateOrderLines(order);
         int refundCents = prep.refundCents();
+        int nextRefunded = prep.priorRefunded() + refundCents;
+        int charged = orderPaymentService.chargedCompletedCents(order.getOrderId());
+        if (charged > 0) {
+            nextRefunded = Math.min(nextRefunded, charged);
+        }
         // 支付层正常会累加 refundedCents；演示账号早退 / 历史路径漏写时在此兜底
-        if (order.getRefundedCents() < prep.priorRefunded() + refundCents) {
-            order.setRefundedCents(prep.priorRefunded() + refundCents);
+        if (order.getRefundedCents() < nextRefunded) {
+            order.setRefundedCents(nextRefunded);
         }
         if (order.getRefundedAt() == null) {
             order.setRefundedAt(java.time.Instant.now());

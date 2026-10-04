@@ -1,41 +1,47 @@
 <template>
   <view class="mine-page">
-    <view class="profile-header" :style="headerPadStyle">
-      <view class="profile-main">
-        <view class="profile-orb orb-a" /><view class="profile-orb orb-b" />
-        <view class="avatar">{{ avatarText }}</view>
-        <view class="profile-mid">
-          <view class="hello-row">
-            <text class="hello">{{ authed ? displayName : '未登录' }}</text>
-            <text
-              v-if="authed"
-              role="button"
-              class="hello-edit"
-              :class="{ busy: nicknameBusy }"
-              aria-label="设置昵称"
-              @click="onEditNickname"
-              >{{ account?.nickname ? '改昵称' : '设昵称' }}</text
-            >
-          </view>
-          <text v-if="authed && maskedPhone" class="hello-sub">{{ maskedPhone }}</text>
-          <view v-if="authed" class="tags">
-            <text class="tag" :class="verified ? 'ok' : 'warn'">{{
-              verified ? '已实名' : '待实名'
-            }}</text>
-            <text class="tag" :class="payReady ? 'ok' : 'warn'">{{
-              payReady ? '可开门' : '待开通支付'
-            }}</text>
-          </view>
-          <text v-else class="guest-hint">登录后可查看订单与余额</text>
-        </view>
-        <view v-if="authed" class="balance-side">
-          <text class="balance-label">可用余额</text>
-          <text class="balance-number">{{ balanceYuan }}</text>
-          <text v-if="frozenYuan !== '¥0.00'" class="balance-meta">冻结 {{ frozenYuan }}</text>
-          <text role="button" class="balance-action" @click="goRecharge">充值</text>
+    <app-nav-bar title="我的" hide-back home-url="/pages/index/index" />
+    <view
+      class="profile-cell"
+      hover-class="wx-cell-hover"
+      role="button"
+      :aria-label="authed ? '设置昵称' : '去登录'"
+      @click="onProfileTap"
+    >
+      <view class="avatar">
+        <text class="avatar-text">{{ avatarText }}</text>
+      </view>
+      <view class="profile-mid">
+        <text class="hello">{{ authed ? displayName : '未登录' }}</text>
+        <text class="hello-sub">{{ profileSub }}</text>
+        <view v-if="authed" class="tags">
+          <text class="tag" :class="verified ? 'ok' : 'warn'">{{
+            verified ? '已实名' : '待实名'
+          }}</text>
+          <text class="tag" :class="payReady ? 'ok' : 'warn'">{{
+            payReady ? '可开门' : '待开通支付'
+          }}</text>
         </view>
       </view>
+      <view v-if="authed" class="profile-side">
+        <text class="profile-bal">{{ balanceYuan }}</text>
+        <text class="profile-bal-hint">可用余额</text>
+      </view>
+      <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
     </view>
+
+    <view v-if="authed" class="menu-list wallet-row" role="button" @click="goRecharge">
+      <view class="menu-cell">
+        <view class="menu-text">
+          <text class="menu-title">可用余额</text>
+          <text v-if="frozenYuan !== '¥0.00'" class="menu-desc">冻结 {{ frozenYuan }}</text>
+        </view>
+        <text class="wallet-amt">{{ balanceYuan }}</text>
+        <text class="wallet-go">充值</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
+    </view>
+
 
     <view v-if="!authed" role="button" class="setup-banner" @click="goLogin">
       <view class="setup-text">
@@ -58,7 +64,8 @@
       </view>
     </view>
 
-    <view v-if="authed" class="pay-pref-card">
+    <view v-if="authed" class="menu-list pay-pref-block">
+      <view class="pay-pref-inner">
       <text class="pay-pref-title">优先支付方式</text>
       <text class="pay-pref-hint">关门结算时优先使用；选余额可先花掉账户余额</text>
       <view class="pay-pref-chips">
@@ -103,6 +110,7 @@
           >关闭免密支付</text
         >
         <text class="pay-pref-unsign-hint">关闭后可随时重新开通</text>
+      </view>
       </view>
     </view>
 
@@ -235,6 +243,7 @@
     <!-- 体验充值：仅 DEV 构建可见，生产包不打包展示 -->
     <view v-if="devTools && authed" class="dev-section">
       <text class="dev-label">体验充值</text>
+      <view class="menu-list">
       <view
         v-if="wechatRechargeEnabled"
         role="button"
@@ -288,6 +297,7 @@
         <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
+    </view>
 
     <view v-if="authed" class="menu-list logout-wrap">
       <view role="button" class="menu-cell danger-cell" @click="onLogout">
@@ -306,7 +316,6 @@ import { onShow } from '@dcloudio/uni-app';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
-import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
   consumerApi,
   ensureConsumerAuth,
@@ -336,10 +345,7 @@ import {
   showDevTools
 } from '@/utils/runtime-flags';
 
-/** 内容从胶囊下方开始，右侧余额/充值才不会顶到胶囊 */
-const headerPadStyle = {
-  paddingTop: getBelowCapsulePadPx(8) + 'px'
-};
+/** Tab「我的」：资料行点进去设昵称或登录 */
 
 const devTools = showDevTools();
 const balanceYuan = ref('--');
@@ -370,6 +376,12 @@ const maskedPhone = computed(() => {
   const p = String(account.value.phoneNumber || '');
   return /^\d{11}$/.test(p) ? `${p.slice(0, 3)}****${p.slice(7)}` : '';
 });
+const profileSub = computed(() => {
+  if (!authed.value) return '登录后可查看订单与余额';
+  if (maskedPhone.value) return maskedPhone.value;
+  if (account.value?.wechatUser) return '微信登录 · 可扫码开门';
+  return '已登录';
+});
 const nicknameBusy = ref(false);
 /** 微信昵称自助编辑（L2-身份展示）：系统弹窗输入，保存后整份刷新账户。 */
 async function onEditNickname() {
@@ -396,6 +408,14 @@ async function onEditNickname() {
   } finally {
     nicknameBusy.value = false;
   }
+}
+
+function onProfileTap() {
+  if (!authed.value) {
+    goLogin();
+    return;
+  }
+  void onEditNickname();
 }
 const payPreferred = computed(() => {
   const c = String(account.value?.payPreferredChannel || 'BALANCE').toUpperCase();

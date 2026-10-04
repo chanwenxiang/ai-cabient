@@ -1,18 +1,8 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="争议处理" />
+    <app-underline-tabs :items="tabs" :value="activeTab" @change="switchTab" />
     <view class="page-body">
-      <view class="tabs-pill">
-        <text
-          v-for="t in tabs"
-          role="button"
-          :key="t.key"
-          class="filter-chip"
-          :class="{ active: activeTab === t.key }"
-          @click="switchTab(t.key)"
-          >{{ t.label }}</text
-        >
-      </view>
 
       <view v-if="loading && !list.length" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
@@ -25,25 +15,19 @@
         :title="`暂无${activeTabLabel}争议`"
         hint="用户申诉与识别复核会显示在这里"
       />
-      <view v-else>
+      <view v-else class="wx-cells">
         <view
           v-for="item in list"
           :key="item.ticketId"
-          class="card"
-          hover-class="card-hover"
+          class="wx-cell"
+          hover-class="wx-cell-hover"
           role="button"
           :aria-label="`争议 ${fullId(item.ticketId)} ${statusText(item.status)}`"
           @click="onDetail(item)"
         >
-          <view class="card-header">
-            <text class="card-id">#{{ fullId(item.ticketId) }}</text>
-            <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
-          </view>
-          <text class="card-title">{{ merchantDisputeDisplayCopy(item) || '争议' }}</text>
-          <view class="card-meta">
-            <text>{{ item.deviceName || item.deviceId || '无柜机' }}</text>
-            <text>{{ formatTime(item.createdAt) }}</text>
-            <text :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
+          <view class="card-head">
+            <text class="card-title">{{ merchantDisputeDisplayCopy(item) || '争议' }}</text>
+            <text class="sla-chip" :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
               disputeSlaListLabel(
                 item,
                 isTerminalDispute(item.status),
@@ -51,6 +35,11 @@
                 displayLabel('order_status', 'PROCESSING')
               )
             }}</text>
+          </view>
+          <view class="card-meta">
+            <text class="card-device">{{ item.deviceName || item.deviceId || '无柜机' }}</text>
+            <text class="card-time">{{ formatTime(item.createdAt) }}</text>
+            <text v-if="item.hasVideo" class="video-pill">有录像</text>
           </view>
           <view
             v-if="
@@ -64,28 +53,25 @@
               >已扣 {{ fmtMoney(item.billedAmountCents) }}</text
             >
             <text v-if="item.claimedAmountCents != null"
-              >建议 {{ fmtMoney(item.claimedAmountCents) }}</text
+              >识别参考 {{ fmtMoney(item.claimedAmountCents) }}</text
             >
             <text v-if="item.refundedAmountCents != null"
               >已退 {{ fmtMoney(item.refundedAmountCents) }}</text
             >
-            <text v-if="item.orderId" class="card-order">订单 {{ fullId(item.orderId) }}</text>
           </view>
-          <!-- 列表行契约（MerchantDisputeSummaryDto）只有 hasVideo；videoUri / videoPreviewUrl
-               仅存在于**详情**契约，原先这里写成三选一的死条件（后两项恒为 undefined） -->
-          <view v-if="item.hasVideo" class="card-video-hint">有录像</view>
           <view v-if="item.lastMessage" class="card-msg"
-            ><text>{{ item.lastMessage }}</text></view
+            ><text>{{ sanitizeNotifyTitle(item.lastMessage) }}</text></view
           >
-          <view class="card-action">
+          <view class="card-foot">
+            <text class="card-id">工单 {{ fullId(item.ticketId) }}</text>
             <text
               v-if="canReplyTicket(item)"
               role="button"
-              class="reply-hint app-link-chevron"
+              class="reply-btn"
               @click.stop="onReply(item)"
               >回复</text
             >
-            <text v-else class="reply-hint app-link-chevron">查看详情</text>
+            <text v-else class="reply-btn reply-btn--ghost">详情</text>
           </view>
         </view>
         <view v-if="hasMore" class="load-more" role="button" @click="loadMore">
@@ -125,7 +111,7 @@
               ><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
             </view>
             <view v-if="detail?.claimedAmountCents != null" class="detail-row">
-              <text class="detail-lbl">建议金额</text
+              <text class="detail-lbl">识别参考</text
               ><text class="detail-val">{{ fmtMoney(detail.claimedAmountCents) }}</text>
             </view>
             <view v-if="detail?.refundedAmountCents != null" class="detail-row">
@@ -133,7 +119,7 @@
               ><text class="detail-val">{{ fmtMoney(detail.refundedAmountCents) }}</text>
             </view>
             <view v-if="detailAmountDiffNote" class="detail-row amount-diff-row">
-              <text class="detail-lbl">差额说明</text
+              <text class="detail-lbl">资金说明</text
               ><text class="detail-val amount-diff">{{ detailAmountDiffNote }}</text>
             </view>
             <view
@@ -147,13 +133,21 @@
             </view>
             <view v-if="detail?.lastMessage" class="detail-row"
               ><text class="detail-lbl">最新</text
-              ><text class="detail-val">{{ detail.lastMessage }}</text></view
+              ><text class="detail-val">{{ sanitizeNotifyTitle(detail.lastMessage) }}</text></view
             >
           </view>
           <view v-if="(detail?.suggestedItems || []).length" class="suggest-block">
-            <text class="detail-lbl">建议明细</text>
+            <text class="detail-lbl">识别参考明细</text>
             <view v-for="(it, i) in detail?.suggestedItems || []" :key="i" class="suggest-row">
-              <text>{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text>
+              <view class="suggest-top">
+                <text class="suggest-name">{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text>
+                <text class="suggest-amt">{{ fmtMoney(it.lineAmountCents) }}</text>
+              </view>
+              <text
+                v-if="showSuggestUnit(it)"
+                class="suggest-unit"
+                >柜机单价 {{ fmtMoney(it.unitPriceCents) }}</text
+              >
             </view>
           </view>
           <view v-if="playbackUrl" class="video-block">
@@ -244,7 +238,7 @@ import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort, fmtMoney, sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
 import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import AppSheet from '@/components/AppSheet.vue';
@@ -484,6 +478,15 @@ async function load() {
 
 function statusText(s?: string) {
   return displayLabel('dispute_status', s, '未知状态');
+}
+
+/** 一行一件且金额=柜机价时不再重复写「柜机价」。 */
+function showSuggestUnit(it: { quantity?: number; unitPriceCents?: number; lineAmountCents?: number }) {
+  const unit = Number(it.unitPriceCents || 0);
+  if (unit <= 0) return false;
+  const qty = Number(it.quantity || 0);
+  if (qty <= 1 && Number(it.lineAmountCents || 0) === unit) return false;
+  return true;
 }
 
 /**

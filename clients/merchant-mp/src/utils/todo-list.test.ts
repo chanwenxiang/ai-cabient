@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mergeTodoItems, summarizeTodoItems } from './todo-list';
+import { matchTodoKpiCategory, mergeTodoItems, summarizeTodoItems } from './todo-list';
 import type {
   TodoListItem,
   TodoSourceAction,
@@ -312,5 +312,16 @@ describe('summarizeTodoItems · 首屏待办聚合', () => {
       3
     );
     expect(new Set(rows.map((r) => r.type)).size).toBe(rows.length);
+  });
+});
+
+describe('matchTodoKpiCategory', () => {
+  it('maps dispute / offline / stock / expiry buckets', () => {
+    expect(matchTodoKpiCategory('DISPUTE', 'dispute')).toBe(true);
+    expect(matchTodoKpiCategory('RECOGNITION_LOW', 'dispute')).toBe(true);
+    expect(matchTodoKpiCategory('DEVICE_OFFLINE', 'offline')).toBe(true);
+    expect(matchTodoKpiCategory('LOW_STOCK', 'stock')).toBe(true);
+    expect(matchTodoKpiCategory('EXPIRY', 'expiry')).toBe(true);
+    expect(matchTodoKpiCategory('DISPUTE', 'stock')).toBe(false);
   });
 });

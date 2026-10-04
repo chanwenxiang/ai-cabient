@@ -1,42 +1,30 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="消息中心" />
+    <app-underline-tabs :items="filterTabs" :value="filter" @change="onFilterChange" />
     <view class="page-body">
-      <view class="filter-row">
-        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
-          <view class="filter-inner">
-            <text
-              v-for="f in filters"
-              role="button"
-              :key="f.key"
-              class="filter-chip"
-              :class="{ active: filter === f.key }"
-              @click="filter = f.key"
-              >{{ f.label }}{{ filterCountSuffix(f.key) }}</text
-            >
-          </view>
-        </scroll-view>
-      </view>
       <view v-if="loading && !list.length" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
       >
-      <view v-else-if="!visibleList.length" class="empty">
-        <text class="empty-title">{{ emptyTitle }}</text>
-        <text class="empty-hint"
-          >补货任务指派、结算到账等消息会出现在这里；争议/库存待办请看「待办」页</text
-        >
-      </view>
-      <view v-else class="msg-list">
+      <empty-state
+        v-else-if="!visibleList.length"
+        icon="/static/menu/notice.png"
+        :title="emptyTitle"
+        hint="补货、结算到账会出现在这里。争议和库存请去「待办」。"
+      />
+      <view v-else class="wx-cells">
         <view
           v-for="m in visibleList"
           role="button"
           :key="m.id"
-          class="msg-card"
+          class="wx-cell"
           :class="{ unread: !m.read }"
+          hover-class="wx-cell-hover"
           @click="onOpen(m)"
         >
           <view class="msg-head">
             <view class="msg-title-row">
+              <view v-if="!m.read" class="wx-dot" />
               <text v-if="bizTypeLabel(m.bizType)" class="biz-tag">{{
                 bizTypeLabel(m.bizType)
               }}</text>
@@ -56,8 +44,10 @@
 import { computed, ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { merchantApi } from '@/utils/merchant-api';
+import { merchantApi, hasPerm } from '@/utils/merchant-api';
+import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { OpenApiNotificationDto } from '@aicabinet/shared-types';
+import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   displayBizNo,
@@ -65,6 +55,8 @@ import {
   rewriteBizNosInText,
   sanitizeNotifyTitle
 } from '@aicabinet/shared-uni/format';
+
+const { me } = useMerchantMe();
 
 const loading = ref(false);
 const list = ref<OpenApiNotificationDto[]>([]);
@@ -109,23 +101,25 @@ const visibleList = computed(() => {
   return list.value.filter((m) => matchBizFilter(m, filter.value));
 });
 
+const unreadCount = computed(() => list.value.filter((m) => !m.read).length);
+const unreadBadge = computed(() => (unreadCount.value > 99 ? '99+' : String(unreadCount.value)));
+const filterTabs = computed(() =>
+  filters.map((f) => ({
+    key: f.key,
+    label: f.label,
+    badge: f.key === 'unread' && unreadCount.value > 0 ? unreadBadge.value : undefined
+  }))
+);
+
+function onFilterChange(key: string) {
+  filter.value = key as MsgFilter;
+}
+
 const emptyTitle = computed(() => {
   if (filter.value === 'unread') return '暂无未读消息';
   if (filter.value === 'all') return '暂无消息';
   return `暂无${filters.find((f) => f.key === filter.value)?.label || ''}消息`;
 });
-
-function filterCountSuffix(key: MsgFilter) {
-  if (key === 'all') return list.value.length ? ` ${list.value.length}` : '';
-  if (key === 'unread') {
-    const n = list.value.filter((m) => !m.read).length;
-    return n ? ` ${n}` : '';
-  }
-  const unreadN = list.value.filter((m) => !m.read && matchBizFilter(m, key)).length;
-  if (unreadN > 0) return ` ·${unreadN}`;
-  const n = list.value.filter((m) => matchBizFilter(m, key)).length;
-  return n ? ` ${n}` : '';
-}
 
 function applyEntryQuery(opts?: Record<string, string | undefined>) {
   const raw = String(opts?.filter || opts?.bizType || opts?.type || '')
@@ -261,33 +255,21 @@ function formatTime(t?: string) {
 .page-root {
   min-height: 100%;
   padding: 0;
-  background: var(--card-bg, #ffffff);
+  background: var(--page-bg, #ededed);
   box-sizing: border-box;
 }
-.filter-row {
-  margin-bottom: 8rpx;
+.page-body {
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
 }
-.filter-scroll {
-  width: 100%;
-  white-space: nowrap;
+.wx-cell-hover {
+  background: #ececec !important;
 }
-.filter-inner {
-  display: inline-flex;
-  gap: 12rpx;
-  padding: 4rpx 0 8rpx;
-}
-.filter-chip {
-  padding: 10rpx 22rpx;
-  border-radius: var(--radius-pill);
-  background: var(--color-border-subtle, #f1f5f9);
-  color: var(--text-muted, #475569);
-  font-size: var(--font-size-caption);
-  flex-shrink: 0;
-}
-.filter-chip.active {
-  background: var(--brand-soft);
-  color: var(--brand);
-  font-weight: 600;
+.msg-card.unread,
+.wx-cell.unread {
+  border-left: none;
 }
 .loading {
   padding: 120rpx 0;
@@ -295,29 +277,24 @@ function formatTime(t?: string) {
   color: var(--text-muted, #8a968e);
 }
 .empty {
-  padding: 120rpx 0;
+  padding: 80rpx 48rpx;
   text-align: center;
 }
 .empty-title {
   display: block;
   font-size: var(--font-size-md);
-  color: var(--text-muted, #4b5563);
+  color: var(--text-muted);
 }
 .empty-hint {
   display: block;
   margin-top: 8rpx;
+  padding: 0 24rpx;
   font-size: var(--font-size-sm);
-  color: var(--text-subtle, #9aa4a0);
+  color: var(--text-subtle);
+  line-height: 1.55;
 }
 .msg-card {
-  margin-top: 18rpx;
-  padding: 26rpx 24rpx;
-  border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
-  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
-}
-.msg-card.unread {
-  border-left: 6rpx solid var(--brand);
+  display: none;
 }
 .msg-head {
   display: flex;

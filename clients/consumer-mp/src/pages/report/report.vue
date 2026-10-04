@@ -14,6 +14,7 @@
           :value="deviceId"
           placeholder="请输入柜机编号"
           type="text"
+          :adjust-position="true"
           @input="onDeviceInput"
         />
 
@@ -191,10 +192,18 @@ function onSubmit() {
   margin-top: 8rpx;
 }
 .input {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
   background: var(--page-bg, #f5f7f8);
   border-radius: var(--radius-control);
-  padding: 22rpx 24rpx;
+  padding: 0 24rpx;
   font-size: var(--font-size-lg);
+  font-family: var(--app-font);
+  font-weight: 500;
+  color: var(--text-primary, #14201b);
+  text-align: center;
+  box-sizing: border-box;
   margin-bottom: 16rpx;
 }
 .issue-grid {

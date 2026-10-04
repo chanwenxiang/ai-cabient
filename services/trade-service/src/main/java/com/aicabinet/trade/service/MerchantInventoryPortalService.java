@@ -15,6 +15,7 @@ import com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.support.DeviceLocationSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.aicabinet.trade.support.SkuDisplayNames;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -338,9 +339,10 @@ public class MerchantInventoryPortalService {
 
     private ReplenishmentTaskLineDto toReplenishmentLineDto(ReplenishmentTaskLine line) {
         var catalog = line.getSkuId() == null ? null : skuCatalogMapper.selectById(line.getSkuId());
+        String displayName = catalog == null ? null : SkuDisplayNames.of(catalog);
         return new ReplenishmentTaskLineDto(
                 line.getLineId(), line.getLineType(), line.getSkuId(),
-                catalog != null ? catalog.getSkuName() : null, line.getBatchNo(),
+                displayName, line.getBatchNo(),
                 line.getProductionDate(), line.getExpiryDate(), line.getQuantity(),
                 line.getSlotId(), line.isApplied()
         );

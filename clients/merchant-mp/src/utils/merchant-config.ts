@@ -15,8 +15,14 @@ function enabled(raw: unknown): boolean {
   return raw === true || raw === 'true' || raw === '1';
 }
 
-/** 拉取并缓存公开配置（进程内一次）。失败时缓存空表 ⇒ 所有开关按「关」。 */
-export async function loadMerchantFlags(): Promise<Record<string, string>> {
+/** 拉取并缓存公开配置。失败时缓存空表 ⇒ 所有开关按「关」。 */
+export async function loadMerchantFlags(opts?: {
+  refresh?: boolean;
+}): Promise<Record<string, string>> {
+  if (opts?.refresh) {
+    cache = null;
+    inflight = null;
+  }
   if (cache) return cache;
   if (inflight) return inflight;
   inflight = merchantApi
@@ -38,4 +44,15 @@ export async function loadMerchantFlags(): Promise<Record<string, string>> {
 /** 商户端经营分析图表（`merchant.charts.enabled`）。 */
 export function merchantChartsEnabled(): boolean {
   return enabled(cache?.chartsEnabled);
+}
+
+/** 商户订阅消息模板 ID（公开配置下发，空串表示未配）。 */
+export function merchantSubscribeTemplateId(): string {
+  const raw = cache?.wechatSubscribeTemplateId;
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
+/** 后端是否已配齐小程序凭据 + 商户订阅模板（能真正下发推送）。 */
+export function merchantSubscribeEnabled(): boolean {
+  return enabled(cache?.wechatSubscribeEnabled);
 }

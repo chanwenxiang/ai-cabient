@@ -103,15 +103,15 @@
           <text class="section-title">最近流水</text>
           <view v-for="l in overview.recentLedgers || []" :key="l.ledgerId" class="row-item">
             <view class="row-main">
-              <text>{{ ledgerLabel(l.entryType) }}</text>
+              <text>{{ ledgerTitleOf(l) }}</text>
               <text
                 :class="{ credit: Number(l.amountCents) > 0, debit: Number(l.amountCents) < 0 }"
               >
                 {{ formatSigned(l.amountCents) }}
               </text>
             </view>
-            <text class="row-sub">{{ emptyDisplay(l.remark, 'text') }}</text>
-            <text v-if="l.refId" class="row-sub">{{ ledgerRef(l) }}</text>
+            <text v-if="ledgerRemarkOf(l)" class="row-sub">{{ ledgerRemarkOf(l) }}</text>
+            <text v-if="ledgerRefOf(l)" class="row-sub">{{ ledgerRefOf(l) }}</text>
             <text v-if="l.balanceAfter != null" class="row-sub"
               >余额后 {{ fmtMoney(l.balanceAfter) }} · 冻结后 {{ fmtMoney(l.frozenAfter) }}</text
             >
@@ -165,6 +165,11 @@ import {
   validateWalletWithdrawAmount,
   validateWalletWithdrawMerchant
 } from '@/utils/money-ui-contracts';
+import {
+  walletLedgerRefText,
+  walletLedgerRemark,
+  walletLedgerTitle
+} from '@/utils/wallet-display';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 export type WalletPageRole = 'merchant' | 'line';
@@ -184,7 +189,7 @@ const cfg = computed(() =>
         tip: '分账入账后可提现；大额需运营审核，到账以银行/微信回执为准。',
         withdrawStatusDict: 'merchant_withdraw_status',
         ledgerEmptyHint: '分账入账与提现变动会显示在这里',
-        showLedgerTime: false,
+        showLedgerTime: true,
         showRefType: true
       }
     : {
@@ -242,7 +247,7 @@ const displayName = computed(() => {
   if (!o) return '';
   if (props.role === 'merchant') {
     const m = o as OpenApiMerchantWalletOverviewDto;
-    return `${emptyDisplay(m.merchantName, 'text')} · ${emptyDisplay(m.merchantId, 'text')}`;
+    return emptyDisplay(m.merchantName, 'text');
   }
   const l = o as OpenApiLineWalletOverviewDto;
   return `${emptyDisplay(l.managerName, 'text')} · ${emptyDisplay(l.phone, 'text')}`;
@@ -262,15 +267,16 @@ function withdrawStatus(status?: string) {
   return displayLabel(cfg.value.withdrawStatusDict, status, '未知状态');
 }
 
-function ledgerLabel(type?: string) {
-  return displayLabel('wallet_ledger_type', type, emptyDisplay(type, 'text'));
+function ledgerTitleOf(l: { entryType?: string; remark?: string }) {
+  return walletLedgerTitle(l.entryType, l.remark);
 }
 
-function ledgerRef(l: { refId?: string; refType?: string }) {
-  if (cfg.value.showRefType) {
-    return `关联 ${l.refType || 'REF'} ${l.refId}`;
-  }
-  return `关联 ${l.refId}`;
+function ledgerRemarkOf(l: { entryType?: string; remark?: string }) {
+  return walletLedgerRemark(l.remark, walletLedgerTitle(l.entryType, l.remark));
+}
+
+function ledgerRefOf(l: { refType?: string; refId?: string }) {
+  return walletLedgerRefText(l.refType, l.refId);
 }
 
 async function load() {

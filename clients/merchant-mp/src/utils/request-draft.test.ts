@@ -4,6 +4,7 @@ import {
   appendOrphanSuggestions,
   buildSuggestMap,
   mergeSlotDraftLine,
+  pickDefaultDeviceIndex,
   sortDraftLines,
   suggestReasonLabel,
   type RequestDraftLine
@@ -64,5 +65,17 @@ describe('mergeSlotDraftLine + orphans', () => {
     expect(sorted[0]?.selected).toBe(true);
     expect(sorted[1]?.skuId).toBe('SKU2');
     expect(sorted[1]?.selected).toBe(true);
+  });
+});
+
+describe('pickDefaultDeviceIndex', () => {
+  it('prefers starred cabinet, else highest shortage', () => {
+    const list = [
+      { deviceId: 'A', oosSlotCount: 1, lowStockSlotCount: 0 },
+      { deviceId: 'B', oosSlotCount: 4, lowStockSlotCount: 2 },
+      { deviceId: 'C', oosSlotCount: 0, lowStockSlotCount: 1 }
+    ];
+    expect(pickDefaultDeviceIndex(list, 'C')).toBe(2);
+    expect(pickDefaultDeviceIndex(list)).toBe(1);
   });
 });

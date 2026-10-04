@@ -7,5 +7,6 @@ public record WarehouseDto(
         String warehouseName,
         String address,
         String status,
-        Instant createdAt
+        Instant createdAt,
+        Long managerUserId
 ) {}

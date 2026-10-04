@@ -192,7 +192,7 @@ function goRecharge() {
 .page-root {
   min-height: 100%;
   padding: 0;
-  background: var(--card-bg, #ffffff);
+  background: var(--page-bg, #ededed);
   box-sizing: border-box;
 }
 .page-body {
@@ -206,8 +206,8 @@ function goRecharge() {
   gap: 20rpx;
   padding: 32rpx;
   border-radius: var(--radius-card);
-  background: linear-gradient(135deg, var(--brand-soft), var(--white));
-  border: 1rpx solid var(--brand-soft, #d1fae5);
+  background: #ffffff;
+  border: none;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;

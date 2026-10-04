@@ -92,7 +92,7 @@ public class MerchantFinanceService {
         merchantPortalGuard.requireAccess(userId);
         Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
         Page<CabinetOrder> result = queryOrders(userId, query.deviceId(), query.status(),
-                query.fromDate(), query.toDate(), query.keyword(), pageable);
+                query.fromDate(), query.toDate(), query.keyword(), query.excludeZeroAmount(), pageable);
         List<String> orderIds = result.getContent().stream().map(CabinetOrder::getOrderId).toList();
         Map<String, List<CabinetOrderLine>> linesByOrder = orderLineRepository.findByOrderIds(orderIds)
                 .stream()
@@ -115,7 +115,8 @@ public class MerchantFinanceService {
     }
 
     public record MerchantOrderListQuery(
-            int page, int size, String deviceId, String status, String fromDate, String toDate, String keyword) {}
+            int page, int size, String deviceId, String status, String fromDate, String toDate, String keyword,
+            boolean excludeZeroAmount) {}
 
     @Transactional(readOnly = true)
     public OrderReadModel getOrder(Long userId, String orderId) {
@@ -155,7 +156,7 @@ public class MerchantFinanceService {
         permissionService.requirePermission(userId, "merchant:reports:export");
         merchantPortalGuard.requireAccess(userId);
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<CabinetOrder> page = queryOrders(userId, deviceId, null, null, null, null, pageable);
+        Page<CabinetOrder> page = queryOrders(userId, deviceId, null, null, null, null, false, pageable);
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
                 page.getContent().stream().map(CabinetOrder::getOrderId).toList());
         StringBuilder sb = new StringBuilder("orderId,sessionId,deviceId,totalAmountCents,status,lineCount,createdAt\n");
@@ -349,7 +350,8 @@ public class MerchantFinanceService {
     }
 
     private Page<CabinetOrder> queryOrders(Long userId, String deviceId, String status,
-                                           String fromDate, String toDate, String keyword, Pageable pageable) {
+                                           String fromDate, String toDate, String keyword,
+                                           boolean excludeZeroAmount, Pageable pageable) {
         String normalizedDeviceId = (deviceId == null || deviceId.isBlank()) ? null : deviceId.trim();
         if (normalizedDeviceId != null) {
             merchantFeaturePackService.requireDevicePack(userId, normalizedDeviceId, MerchantFeaturePacks.BIZ);
@@ -367,7 +369,7 @@ public class MerchantFinanceService {
         return orderRepository.findByFiltersOrderByCreatedAtDesc(
                 new CabinetOrderMapper.OrderFilterCriteria(
                         normalizedDeviceId, deviceScope, normalizedStatus, null, from, to,
-                        null, null, null, null, null, keyword, false),
+                        null, null, null, null, null, keyword, excludeZeroAmount),
                 pageable);
     }
 

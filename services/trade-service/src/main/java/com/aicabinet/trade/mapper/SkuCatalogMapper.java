@@ -40,11 +40,23 @@ public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
         return selectCount(q) > 0;
     }
 
-    default boolean existsBySkuName(String skuName, String excludeSkuId) {
+    default boolean existsByNameAndSpec(String skuName, String spec, String excludeSkuId) {
         if (skuName == null || skuName.isBlank()) {
             return false;
         }
-        var q = Wrappers.<SkuCatalog>lambdaQuery().eq(SkuCatalog::getSkuName, skuName.trim());
+        String name = skuName.trim().toLowerCase();
+        String normalizedSpec = spec == null ? "" : spec.trim().toLowerCase();
+        var q = Wrappers.<SkuCatalog>lambdaQuery()
+                .apply("LOWER(TRIM(sku_name)) = {0}", name)
+                .apply("LOWER(TRIM(COALESCE(spec, ''))) = {0}", normalizedSpec);
+        if (excludeSkuId != null && !excludeSkuId.isBlank()) {
+            q.ne(SkuCatalog::getSkuId, excludeSkuId.trim());
+        }
+        return selectCount(q) > 0;
+    }
+
+    default boolean existsBySkuCode(long skuCode, String excludeSkuId) {
+        var q = Wrappers.<SkuCatalog>lambdaQuery().eq(SkuCatalog::getSkuCode, skuCode);
         if (excludeSkuId != null && !excludeSkuId.isBlank()) {
             q.ne(SkuCatalog::getSkuId, excludeSkuId.trim());
         }

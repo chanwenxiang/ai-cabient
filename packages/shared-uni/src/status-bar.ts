@@ -40,3 +40,36 @@ export function getBelowCapsulePadPx(extraAfterCapsule = 8): number {
   }
   return 88 + extraAfterCapsule;
 }
+
+/** 自定义顶栏右侧避让微信胶囊的宽度（px）。 */
+export function getCapsuleRightGutterPx(): number {
+  try {
+    if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
+      const menu = uni.getMenuButtonBoundingClientRect();
+      const info = uni.getSystemInfoSync();
+      const winW = Number(info?.windowWidth) || 375;
+      const left = Number(menu?.left) || 0;
+      if (left > 0) return Math.max(16, Math.ceil(winW - left + 8));
+    }
+  } catch {
+    /* fall through */
+  }
+  return 96;
+}
+
+/** 自定义顶栏在页面上的原生占位：组件挂不上时也不能让正文顶进胶囊 */
+export function getCustomNavPlaceStyle(): {
+  minHeight: string;
+  background: string;
+  width: string;
+  boxSizing: 'border-box';
+  flexShrink: number;
+} {
+  return {
+    minHeight: `${getBelowCapsulePadPx(0)}px`,
+    background: '#134e4a',
+    width: '100%',
+    boxSizing: 'border-box',
+    flexShrink: 0
+  };
+}

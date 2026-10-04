@@ -49,7 +49,7 @@ class ApprovalNodeUpsertTest {
         service = new ApprovalWorkflowService(
                 definitionRepository, nodeRepository, instanceRepository, taskRepository,
                 permissionRepository, userDepartmentRepository, notificationService,
-                permissionService, auditService, null);
+                permissionService, auditService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

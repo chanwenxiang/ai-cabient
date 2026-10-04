@@ -1,20 +1,8 @@
 <template>
   <view class="page">
     <app-nav-bar title="分账明细" />
+    <app-underline-tabs :items="splitTabs" :value="tab" @change="switchTab" />
     <view class="page-body">
-      <view class="tabs">
-        <text
-          role="button"
-          class="tab"
-          :class="{ active: tab === 'FAILED' }"
-          @click="switchTab('FAILED')"
-          >失败</text
-        >
-        <text role="button" class="tab" :class="{ active: tab === 'ALL' }" @click="switchTab('ALL')"
-          >全部</text
-        >
-      </view>
-
       <view v-if="focusOrderId" class="focus-banner">
         <text class="focus-text">已定位订单 {{ displayBizNo(focusOrderId) }}</text>
         <text role="button" class="focus-clear" @click="clearFocusOrder">清除</text>
@@ -55,8 +43,8 @@
         }}</view>
         <text v-else-if="list.length && !focusOrderId" class="trunc-hint">{{ doneHint }}</text>
       </view>
-    </view></view
-  >
+    </view>
+  </view>
 </template>
 
 <script setup lang="ts">
@@ -84,6 +72,10 @@ const loading = ref(true);
 const loadingMore = ref(false);
 const error = ref('');
 const tab = ref<'FAILED' | 'ALL'>('FAILED');
+const splitTabs = [
+  { key: 'FAILED', label: '失败' },
+  { key: 'ALL', label: '全部' }
+];
 const list = ref<RevenueSplit[]>([]);
 const pageIndex = ref(0);
 const hasMore = ref(false);
@@ -139,9 +131,10 @@ onReachBottom(() => {
   if (!focusOrderId.value) void loadMore();
 });
 
-function switchTab(next: 'FAILED' | 'ALL') {
-  if (tab.value === next) return;
-  tab.value = next;
+function switchTab(next: string) {
+  const key = next === 'ALL' ? 'ALL' : 'FAILED';
+  if (tab.value === key) return;
+  tab.value = key;
   void load(true);
 }
 
@@ -337,25 +330,6 @@ async function loadMore() {
   padding: 0;
   min-height: 100vh;
   box-sizing: border-box;
-}
-.tabs {
-  display: flex;
-  gap: 12rpx;
-  margin-bottom: 16rpx;
-}
-.tab {
-  padding: 12rpx 28rpx;
-  border-radius: var(--radius-pill);
-  background: var(--card-bg, #fff);
-  color: var(--text-muted);
-  font-size: var(--font-size-body);
-  border: 1rpx solid var(--color-border);
-}
-.tab.active {
-  background: var(--brand);
-  color: var(--white);
-  border-color: var(--brand);
-  font-weight: 650;
 }
 .focus-banner {
   display: flex;

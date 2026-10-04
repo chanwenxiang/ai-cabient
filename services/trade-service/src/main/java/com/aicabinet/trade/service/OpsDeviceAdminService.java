@@ -17,6 +17,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.data.domain.PageRequest;
@@ -62,6 +63,7 @@ public class OpsDeviceAdminService {
     private final DeviceSlotService deviceSlotService;
     private final AdminAuditService auditService;
     private final RefundPolicyService refundPolicyService;
+    private final WarehouseMapper warehouseRepository;
 
     public OpsDeviceAdminService(PermissionService permissionService,
                                  MerchantScopeService merchantScopeService,
@@ -74,7 +76,8 @@ public class OpsDeviceAdminService {
                                  DeviceIdRenameService deviceIdRenameService,
                                  DeviceSlotService deviceSlotService,
                                  AdminAuditService auditService,
-                                 RefundPolicyService refundPolicyService) {
+                                 RefundPolicyService refundPolicyService,
+                                 WarehouseMapper warehouseRepository) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.deviceRepository = deviceRepository;
@@ -87,6 +90,7 @@ public class OpsDeviceAdminService {
         this.deviceSlotService = deviceSlotService;
         this.auditService = auditService;
         this.refundPolicyService = refundPolicyService;
+        this.warehouseRepository = warehouseRepository;
     }
 
     @Transactional(readOnly = true)
@@ -351,6 +355,7 @@ public class OpsDeviceAdminService {
             device.setLongitude(request.longitude());
         }
         device.setAddress(trimToNull(request.address()));
+        applyHomeWarehouse(device, request.homeWarehouseId(), false);
         if (deploying) {
             String merchantId = request.merchantId().trim();
             requireMerchant(merchantId);
@@ -427,6 +432,7 @@ public class OpsDeviceAdminService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         RefundPolicyPatch refundPatch = applyUpdateDeviceFields(operatorId, device, request);
+        boolean clearHomeWarehouse = applyHomeWarehouse(device, request.homeWarehouseId(), true);
         Instant now = Instant.now();
         device.setUpdatedAt(now);
         deviceRepository.save(device);
@@ -436,6 +442,14 @@ public class OpsDeviceAdminService {
                     .set(DeviceInfo::getRefundPolicy, refundPatch.stored())
                     .set(DeviceInfo::getUpdatedAt, now));
             device.setRefundPolicy(refundPatch.stored());
+            device.setUpdatedAt(now);
+        }
+        if (clearHomeWarehouse) {
+            deviceRepository.update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                    .eq(DeviceInfo::getDeviceId, deviceId)
+                    .set(DeviceInfo::getHomeWarehouseId, null)
+                    .set(DeviceInfo::getUpdatedAt, now));
+            device.setHomeWarehouseId(null);
             device.setUpdatedAt(now);
         }
         auditService.appendLog(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId,
@@ -602,7 +616,8 @@ public class OpsDeviceAdminService {
                 d.getCurrentTempC(),
                 d.getTargetTempC(),
                 d.getFirmwareVersion(),
-                d.getSalesLockReason()
+                d.getSalesLockReason(),
+                d.getHomeWarehouseId()
         );
     }
 
@@ -623,6 +638,29 @@ public class OpsDeviceAdminService {
         if (!merchantRepository.existsById(merchantId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
+    }
+
+    /**
+     * @param allowClear {@code true} 时空白字符串表示解绑所属仓（须随后 wrapper 写 null）
+     * @return 是否需要把 home_warehouse_id 显式写成 null
+     */
+    private boolean applyHomeWarehouse(DeviceInfo device, String homeWarehouseId, boolean allowClear) {
+        if (homeWarehouseId == null) {
+            return false;
+        }
+        String id = trimToNull(homeWarehouseId);
+        if (id == null) {
+            if (!allowClear) {
+                return false;
+            }
+            device.setHomeWarehouseId(null);
+            return true;
+        }
+        if (!warehouseRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "所属仓库不存在");
+        }
+        device.setHomeWarehouseId(id);
+        return false;
     }
 
     private static String trimToNull(String value) {

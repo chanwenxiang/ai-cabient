@@ -91,6 +91,11 @@ public class OrderViewAssembler {
         return assemble(order, lines, splitStatus, paidAt, refundPolicy, payTradeNo, true);
     }
 
+    /** 详情金额以支付流水覆盖订单表可能被写坏的 total/refunded。 */
+    public OrderReadModel applyPaymentLedger(OrderReadModel model, int chargedCents, int refundedCents) {
+        return OrderPaymentLedger.apply(model, chargedCents, refundedCents);
+    }
+
     /** 余额账本扣款以 BL- 操作号为准，与三端历史口径一致。 */
     public static String normalizePayChannel(CabinetOrder order) {
         String channel = order.getPayChannel();

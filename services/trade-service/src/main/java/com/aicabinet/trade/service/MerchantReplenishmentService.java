@@ -4,7 +4,9 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.DisplayIds;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.aicabinet.trade.support.SkuDisplayNames;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -343,7 +345,7 @@ public class MerchantReplenishmentService {
             MerchantReplenishmentRequestLine row = new MerchantReplenishmentRequestLine();
             row.setRequestId(request.getRequestId());
             row.setSkuId(sku.getSkuId());
-            row.setSkuName(sku.getSkuName());
+            row.setSkuName(SkuDisplayNames.of(sku));
             row.setSuggestedQty(suggestBySku.getOrDefault(sku.getSkuId(), 0));
             row.setRequestedQty(qty);
             requestLineRepository.save(row);
@@ -353,11 +355,15 @@ public class MerchantReplenishmentService {
         }
         auditService.appendLog(userId, MERCHANT_REPLEN_REQUEST, REPLEN_REQUEST,
                 String.valueOf(request.getRequestId()), "device=" + deviceId);
+        Merchant merchant = merchantRepository.findById(device.getMerchantId()).orElse(null);
         approvalWorkflowService.start(
                 MERCHANT_REPLEN_REQUEST,
                 String.valueOf(request.getRequestId()),
                 userId,
-                "商户要货 #" + request.getRequestId() + " · " + deviceId);
+                DisplayIds.merchantReplenApprovalTitle(
+                        request.getRequestId(),
+                        device.getDeviceName(),
+                        merchant != null ? merchant.getMerchantName() : device.getMerchantId()));
         if (body.evidenceFileIds() != null && !body.evidenceFileIds().isEmpty()) {
             fileAttachmentService.bindEvidenceToReplenishmentRequest(
                     userId, request.getRequestId(), body.evidenceFileIds());
@@ -404,8 +410,10 @@ public class MerchantReplenishmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "要货单无商品行");
         }
 
+        DeviceInfo device = deviceRepository.findById(request.getDeviceId()).orElse(null);
         ReplenishmentRoute route = new ReplenishmentRoute();
-        route.setRouteName("商户要货 #" + requestId);
+        route.setRouteName(DisplayIds.merchantReplenRouteName(
+                requestId, device != null ? device.getDeviceName() : request.getDeviceId()));
         route.setPlannedDate(LocalDate.now());
         route.setStatus("PLANNED");
         route = routeRepository.save(route);
@@ -532,10 +540,33 @@ public class MerchantReplenishmentService {
         UserInfo reviewer = request.getReviewerId() != null
                 ? userInfoRepository.findById(request.getReviewerId()).orElse(null)
                 : null;
-        List<MerchantReplenishmentRequestLineDto> lines = requestLineRepository
-                .findByRequestIdOrderByLineIdAsc(request.getRequestId()).stream()
-                .map(l -> new MerchantReplenishmentRequestLineDto(
-                        l.getLineId(), l.getSkuId(), l.getSkuName(), l.getSuggestedQty(), l.getRequestedQty()))
+        List<MerchantReplenishmentRequestLine> lineRows = requestLineRepository
+                .findByRequestIdOrderByLineIdAsc(request.getRequestId());
+        Set<String> skuIds = lineRows.stream()
+                .map(MerchantReplenishmentRequestLine::getSkuId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, SkuCatalog> catalogBySku = skuIds.isEmpty()
+                ? Map.of()
+                : skuCatalogRepository.findAllById(skuIds).stream()
+                        .filter(sku -> sku.getSkuId() != null)
+                        .collect(Collectors.toMap(SkuCatalog::getSkuId, sku -> sku, (a, b) -> a));
+        List<MerchantReplenishmentRequestLineDto> lines = lineRows.stream()
+                .map(l -> {
+                    SkuCatalog catalog = catalogBySku.get(l.getSkuId());
+                    String spec = catalog == null || catalog.getSpec() == null ? "" : catalog.getSpec().trim();
+                    String displayName = SkuDisplayNames.of(
+                            l.getSkuName(),
+                            spec,
+                            l.getSkuId());
+                    return new MerchantReplenishmentRequestLineDto(
+                            l.getLineId(),
+                            l.getSkuId(),
+                            displayName,
+                            spec,
+                            l.getSuggestedQty(),
+                            l.getRequestedQty());
+                })
                 .toList();
         return new MerchantReplenishmentRequestDto(
                 request.getRequestId(),

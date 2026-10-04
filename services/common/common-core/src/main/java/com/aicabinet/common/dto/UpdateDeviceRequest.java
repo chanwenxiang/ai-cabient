@@ -16,13 +16,15 @@ public record UpdateDeviceRequest(
         String lifecycleRemark,
         Double latitude,
         Double longitude,
-        String address
+        String address,
+        /** 所属分仓；空串清除，null 表示不改 */
+        String homeWarehouseId
 ) {
     public UpdateDeviceRequest(String deviceName, String deviceType, String merchantId) {
-        this(deviceName, deviceType, merchantId, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(deviceName, deviceType, merchantId, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public UpdateDeviceRequest(String deviceName, String deviceType, String merchantId, String refundPolicy) {
-        this(deviceName, deviceType, merchantId, refundPolicy, null, null, null, null, null, null, null, null, null, null, null);
+        this(deviceName, deviceType, merchantId, refundPolicy, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

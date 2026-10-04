@@ -2,6 +2,7 @@
   <view class="app-nav" :style="wrapStyle">
     <view class="app-nav-row" :style="rowStyle">
       <view
+        v-if="!hideBack"
         class="app-nav-back"
         hover-class="app-nav-back-hover"
         role="button"
@@ -10,6 +11,7 @@
       >
         <view class="app-nav-arrow app-icon app-icon--back" aria-hidden="true" />
       </view>
+      <view v-else class="app-nav-back" aria-hidden="true" />
       <text
         class="app-nav-title"
         :style="{
@@ -42,17 +44,24 @@ const props = withDefaults(
     color?: string;
     /** 无历史栈时回落的首页路径（各端默认不同，由本地副本覆写） */
     homeUrl?: string;
+    /** Tab 页「我的」等：不要返回键，标题仍按胶囊等宽留白居中 */
+    hideBack?: boolean;
   }>(),
   {
     title: '',
-    bg: 'var(--nav-bar-bg, var(--brand-deep))',
-    color: 'var(--white)',
-    homeUrl: '/pages/index/index'
+    bg: 'var(--nav-bar-bg, var(--brand-deep, #134e4a))',
+    // 小程序内联 style 对 CSS 变量偶发解析失败，标题会掉成正文深色；默认用实色白
+    color: '#ffffff',
+    homeUrl: '/pages/index/index',
+    hideBack: false
   }
 );
 
 /** 顶栏与微信胶囊对齐：paddingTop≈胶囊 top，行高≈胶囊高，右侧预留胶囊宽度 */
 function readCapsuleLayout() {
+  let paddingTop = 0;
+  let rowHeight = 0;
+  let sideMin = 96;
   try {
     if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
       const menu = uni.getMenuButtonBoundingClientRect();
@@ -61,21 +70,26 @@ function readCapsuleLayout() {
       const top = Number(menu?.top) || 0;
       const height = Number(menu?.height) || 0;
       const left = Number(menu?.left) || 0;
-      if (top > 0 && height > 0 && left > 0) {
-        return {
-          paddingTop: Math.ceil(top) + 'px',
-          rowHeight: Math.ceil(height) + 'px',
-          sideMin: Math.max(44, Math.ceil(winW - left + 8)) + 'px'
-        };
-      }
+      if (top > 0) paddingTop = Math.ceil(top);
+      if (height > 0) rowHeight = Math.ceil(height);
+      if (left > 0) sideMin = Math.max(44, Math.ceil(winW - left + 8));
     }
   } catch {
     /* fall through */
   }
+  if (paddingTop < 20) {
+    try {
+      paddingTop = getStatusBarPadPx();
+    } catch {
+      paddingTop = 44;
+    }
+  }
+  if (paddingTop < 20) paddingTop = 44;
+  if (rowHeight < 28) rowHeight = 32;
   return {
-    paddingTop: getStatusBarPadPx() + 'px',
-    rowHeight: '48px',
-    sideMin: '44px'
+    paddingTop: paddingTop + 'px',
+    rowHeight: rowHeight + 'px',
+    sideMin: sideMin + 'px'
   };
 }
 
@@ -113,7 +127,10 @@ function onBack() {
 </script>
 
 <script lang="ts">
-export default { name: 'AppNavBar' };
+export default {
+  name: 'AppNavBar',
+  options: { virtualHost: true, styleIsolation: 'apply-shared' }
+};
 </script>
 
 <style scoped>
@@ -122,6 +139,10 @@ export default { name: 'AppNavBar' };
   z-index: 20;
   width: 100%;
   margin: 0;
+  /* 胶囊几何失败时也不能塌成 0 高，否则搜索会顶进微信胶囊 */
+  min-height: 76px;
+  background: #134e4a;
+  color: #ffffff;
   border-bottom: 1rpx solid rgba(255, 255, 255, 0.12);
 }
 .app-nav-row {
@@ -162,7 +183,7 @@ export default { name: 'AppNavBar' };
   margin-left: 4px;
   border-left-width: 2.5px;
   border-bottom-width: 2.5px;
-  color: inherit;
+  color: #ffffff;
 }
 .app-nav-back-hover {
   opacity: 0.6;
@@ -174,6 +195,7 @@ export default { name: 'AppNavBar' };
   text-align: center;
   font-size: 17px;
   font-weight: 600;
+  color: #ffffff;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

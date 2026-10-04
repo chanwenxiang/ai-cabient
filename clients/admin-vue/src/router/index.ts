@@ -22,6 +22,7 @@ const ROUTE_TAB_SUB: Record<string, string> = {
   stocktakes: 'stock',
   inventory: 'stock',
   movements: 'stock',
+  monthly: 'stock',
   transfers: 'fulfillment',
   outbounds: 'fulfillment',
   transit: 'fulfillment'

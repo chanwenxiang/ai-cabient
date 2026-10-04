@@ -1,30 +1,17 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="我的优惠券" />
+    <app-underline-tabs :items="couponTabItems" :value="activeTab" @change="onCouponTab" />
     <view class="page-body">
-      <view class="tabs-pill">
-        <text
-          v-for="tab in tabs"
-          role="button"
-          :key="tab.key"
-          class="filter-chip"
-          :class="{ active: activeTab === tab.key }"
-          @click="activeTab = tab.key"
-          >{{ tab.label }}</text
-        >
-      </view>
-
       <view v-if="loading && !list.length" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
       >
-      <empty-state
+      <error-state
         v-else-if="loadError && !list.length"
-        icon="/static/menu/warning.png"
-        title="优惠券加载失败"
-        :hint="loadError"
-      >
-        <app-button label="重试" @click="load" />
-      </empty-state>
+        :title="loadError"
+        hint="请检查网络后重试"
+        @retry="load"
+      />
       <empty-state
         v-else-if="!list.length"
         icon="/static/menu/coupons.png"
@@ -98,6 +85,11 @@ const tabs = [
   { key: 'USED', label: '已使用' },
   { key: 'EXPIRED', label: '已过期' }
 ];
+
+const couponTabItems = computed(() => tabs.map((t) => ({ key: t.key, label: t.label })));
+function onCouponTab(key: string) {
+  activeTab.value = key;
+}
 
 const activeTab = ref('');
 const loading = ref(false);
@@ -225,15 +217,12 @@ function pickForNextOpen(c: CouponDto) {
 <style scoped>
 .page-root {
   padding: 0;
-  background: var(--card-bg, #ffffff);
+  background: var(--page-bg, #ededed);
   min-height: 100%;
 }
 .page-body {
-  padding: 20rpx 20rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 16rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
-}
-.tabs-pill {
-  margin-bottom: 20rpx;
 }
 .loading {
   text-align: center;
@@ -243,14 +232,14 @@ function pickForNextOpen(c: CouponDto) {
 .coupon-card {
   display: flex;
   background: var(--card-bg, #fff);
-  border-radius: var(--radius-panel);
+  border-radius: 16rpx;
   margin-bottom: 16rpx;
   overflow: hidden;
-  border: 2rpx solid transparent;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  border: none;
+  box-shadow: none;
 }
 .coupon-card.preferred {
-  border-color: var(--brand, #0f766e);
+  box-shadow: inset 0 0 0 2rpx var(--brand, #0f766e);
 }
 .coupon-card.expired,
 .coupon-card.used {

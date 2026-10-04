@@ -142,7 +142,7 @@ function goRedeem() {
 .page-root {
   min-height: 100%;
   padding: 0;
-  background: var(--card-bg, #ffffff);
+  background: var(--page-bg, #ededed);
   box-sizing: border-box;
 }
 .page-body {
@@ -161,8 +161,8 @@ function goRedeem() {
   padding: 32rpx;
   border-radius: var(--radius-card);
   color: var(--text-primary, #14201b);
-  background: linear-gradient(135deg, var(--brand-soft), var(--white));
-  border: 1rpx solid var(--brand-soft, #d1fae5);
+  background: #ffffff;
+  border: none;
   box-shadow: none;
   width: 100%;
   max-width: 100%;

@@ -9,6 +9,13 @@ import org.apache.ibatis.annotations.Mapper;
 @Mapper
 public interface WarehouseMovementMapper extends BaseTradeMapper<WarehouseMovement> {
 
+    default List<WarehouseMovement> findByWarehouseIdOrderByCreatedAtAsc(String warehouseId) {
+        return selectList(Wrappers.<WarehouseMovement>lambdaQuery()
+                .eq(WarehouseMovement::getWarehouseId, warehouseId)
+                .orderByAsc(WarehouseMovement::getCreatedAt)
+                .orderByAsc(WarehouseMovement::getMovementId));
+    }
+
     default List<WarehouseMovement> findTop100ByWarehouseIdOrderByCreatedAtDesc(String warehouseId) {
     return selectList(Wrappers.<WarehouseMovement>lambdaQuery().eq(WarehouseMovement::getWarehouseId, warehouseId).orderByDesc(WarehouseMovement::getCreatedAt).last("LIMIT 100"));
     }
@@ -28,4 +35,9 @@ public interface WarehouseMovementMapper extends BaseTradeMapper<WarehouseMoveme
         return selectPage(new Page<>(page + 1L, size), query);
     }
 
+    default java.util.List<WarehouseMovement> findByWarehouseId(String warehouseId) {
+        return selectList(Wrappers.<WarehouseMovement>lambdaQuery()
+                .eq(WarehouseMovement::getWarehouseId, warehouseId)
+                .orderByAsc(WarehouseMovement::getCreatedAt));
+    }
 }

@@ -1,5 +1,5 @@
 <template>
-  <view v-if="deviceId" class="cabinet-card">
+  <view v-if="deviceId" class="cabinet-card" :class="{ centered }">
     <text class="cabinet-addr">{{ addressLine || '暂无点位地址，请对照编号或扫码核对柜机' }}</text>
     <view class="cabinet-actions">
       <view
@@ -17,6 +17,7 @@
         >导航</view
       >
       <view
+        v-if="!hideVerify"
         class="cabinet-chip primary"
         role="button"
         data-testid="verify-cabinet-scan"
@@ -31,6 +32,8 @@
 defineProps<{
   deviceId?: string | null;
   addressLine?: string;
+  hideVerify?: boolean;
+  centered?: boolean;
 }>();
 defineEmits<{
   copy: [];
@@ -72,5 +75,11 @@ defineEmits<{
   background: var(--brand-soft);
   border-color: var(--brand);
   color: var(--brand);
+}
+.cabinet-card.centered {
+  text-align: center;
+}
+.cabinet-card.centered .cabinet-actions {
+  justify-content: center;
 }
 </style>

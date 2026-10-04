@@ -50,6 +50,7 @@ const FILTER_BAR_TABS = [
   'bins',
   'inventory',
   'movements',
+  'monthly',
   'outbounds',
   'transit'
 ] as const;

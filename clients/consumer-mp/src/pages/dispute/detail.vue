@@ -32,7 +32,9 @@
         </view>
         <view class="info-row">
           <text class="info-label">购物单号</text>
-          <text class="info-value mono">{{ idDisplay(ticket.sessionId) }}</text>
+          <text class="info-value" data-testid="dispute-session-no">{{
+            idDisplay(ticket.sessionId)
+          }}</text>
         </view>
         <view v-if="ticket.createdAt" class="info-row">
           <text class="info-label">提交时间</text>
@@ -569,6 +571,9 @@ function previewEvidence(img: FileAttachmentDto) {
   margin-top: 4rpx;
   font-size: var(--font-size-caption);
   color: var(--text-muted, #666);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .card {
   margin: 20rpx 24rpx 0;
@@ -641,30 +646,38 @@ function previewEvidence(img: FileAttachmentDto) {
 }
 .reason {
   display: block;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-body);
   color: var(--text-muted, #334155);
-  line-height: 1.55;
+  line-height: 1.4;
   margin-bottom: 16rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .info-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 24rpx;
   padding: 10rpx 0;
 }
 .info-label {
-  font-size: var(--font-size-caption);
+  font-size: var(--font-size-body);
   color: var(--text-subtle);
+  flex-shrink: 0;
 }
 .info-value {
-  font-size: var(--font-size-caption);
-  word-break: break-all;
-  color: var(--text-muted, #475569);
-  max-width: 70%;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  font-family: var(--app-font);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-primary, #14201b);
   text-align: right;
-}
-.info-value.mono {
-  font-family: var(--app-font-mono);
-  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .line {
   display: flex;
