@@ -22,7 +22,7 @@ export function absoluteImageUrl(url?: string | null): string {
   return `${base}${value.startsWith('/') ? value : '/' + value}`;
 }
 
-export function isPullOffType(type?: string) {
+export function isPullOffType(type?: string | null) {
   const code = String(type || 'RESTOCK').toUpperCase();
   return code === 'PULL_OFF' || code === 'REMOVE' || code === 'PULL';
 }
@@ -127,7 +127,7 @@ export function useReplenishmentDisplay(opts: {
     return `这个货道现有 ${cap.bookQty} 件，补 ${qty} 件后有 ${after} 件${capacityHint}`;
   }
 
-  function lineTypeLabel(type?: string) {
+  function lineTypeLabel(type?: string | null) {
     return isPullOffType(type) ? '下架' : '上架';
   }
 

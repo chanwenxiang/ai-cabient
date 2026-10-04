@@ -53,8 +53,8 @@ async function load() {
   }
 }
 
-function onPctInput(e: { detail?: { value?: string } }) {
-  const n = Number(e.detail?.value);
+function onPctInput(e: unknown) {
+  const n = Number((e as { detail?: { value?: string } })?.detail?.value);
   thresholdPct.value = Number.isFinite(n) ? Math.max(1, Math.min(100, n)) : 50;
 }
 

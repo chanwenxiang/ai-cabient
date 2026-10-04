@@ -211,8 +211,8 @@ function statusClass(status: string) {
   return 'awaiting';
 }
 
-function eventInput(e: { detail?: { value?: string } }) {
-  return String(e.detail?.value || '');
+function eventInput(e: unknown) {
+  return String((e as { detail?: { value?: string } })?.detail?.value || '');
 }
 
 function onExpiryPick(line: OrderLine, e: { detail?: { value?: string } }) {

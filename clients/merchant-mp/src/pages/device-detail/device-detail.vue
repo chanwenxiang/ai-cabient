@@ -233,6 +233,7 @@ const canEditDevice = computed(() => hasPerm(me.value, 'merchant:devices:edit'))
 const canEditSlots = computed(() => canEditPlanogramForMerchant(me.value, merchantId.value));
 const canReplenishView = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
+const canAnalytics = computed(() => hasPerm(me.value, 'merchant:analytics:view'));
 
 /**
  * deviceId 缺失属于「入口参数问题」，不是网络故障：
@@ -326,10 +327,10 @@ function syncPreferredFlag() {
 
 async function loadDeviceExtras(seq: number) {
   // 「无权限=不展示」：无 analytics:view 时不发 velocity 请求（避免控制台 403 噪音）
-  const canAnalytics = hasPerm(me.value, 'merchant:analytics:view');
+  const allowVelocity = hasPerm(me.value, 'merchant:analytics:view');
   const [list, vel] = await Promise.all([
     softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[], '货道'),
-    canAnalytics
+    allowVelocity
       ? softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
       : Promise.resolve([] as MerchantSkuVelocity[])
   ]);

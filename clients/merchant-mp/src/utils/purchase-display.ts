@@ -44,7 +44,7 @@ export function defaultSatelliteReceiveExpiry(now = new Date()): string {
 }
 
 export function canConfirmSatelliteReceive(
-  lines: { batchNo: string; expiryDate: string; receivedQty: number }[]
+  lines: { batchNo?: string; expiryDate?: string; receivedQty?: number }[]
 ): boolean {
   return lines.some(
     (line) =>
