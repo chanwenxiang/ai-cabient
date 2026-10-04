@@ -1,4 +1,4 @@
-async (page) => {
+export default async function adminRouteSmoke(page) {
   const paths = [
     '/reports',
     '/finance',
@@ -56,12 +56,13 @@ async (page) => {
       buttonCount: [...document.querySelectorAll('button')].filter(
         (button) => button instanceof HTMLElement && button.offsetParent !== null
       ).length,
-      visibleError:
-        [...document.querySelectorAll('[role="alert"],.el-alert--error,.el-result__subtitle')]
-          .map((node) => node.textContent?.trim())
-          .filter(Boolean)
-          .join(' | ')
-          .slice(0, 200)
+      visibleError: [
+        ...document.querySelectorAll('[role="alert"],.el-alert--error,.el-result__subtitle')
+      ]
+        .map((node) => node.textContent?.trim())
+        .filter(Boolean)
+        .join(' | ')
+        .slice(0, 200)
     }));
     page.off('console', onConsole);
     page.off('response', onResponse);

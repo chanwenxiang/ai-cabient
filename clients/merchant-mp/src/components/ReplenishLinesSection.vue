@@ -24,9 +24,9 @@
       <!-- 单行居中：名称 + 数量/扫码 + 货道标签，不再拆成多行堆叠 -->
       <view class="line-row">
         <image
-          v-if="skuThumb(skuKey(line))"
+          v-if="resolveSkuThumb(skuKey(line))"
           class="product-thumb-img"
-          :src="skuThumb(skuKey(line))"
+          :src="resolveSkuThumb(skuKey(line))"
           mode="aspectFill"
         />
         <view class="product-copy">
@@ -74,13 +74,13 @@
         <text v-if="recapSecondary(line)" class="recap-line muted">{{ recapSecondary(line) }}</text>
       </view>
       <view
-        v-if="isLineEditable(line) && !isPullOffType(line.lineType) && !line.slotId"
+        v-if="isLineEditable(line) && !resolveIsPullOff(line.lineType) && !line.slotId"
         class="slot-pick"
       >
         <text class="slot-pick-label">选择货道</text>
-        <view v-if="slotOptionsFor(line).length" class="slot-chips">
+        <view v-if="resolveSlotOptions(line).length" class="slot-chips">
           <text
-            v-for="opt in slotOptionsFor(line)"
+            v-for="opt in resolveSlotOptions(line)"
             role="button"
             :key="opt.slotCode"
             class="slot-chip"
@@ -96,10 +96,10 @@
         v-if="!completed && line.slotId && isCapacityWarn(line)"
         class="line-cap"
         :class="{
-          full: slotHeadroom(line) <= 0,
-          warn: slotHeadroom(line) > 0 && (line.quantity ?? 0) > slotHeadroom(line)
+          full: resolveSlotHeadroom(line) <= 0,
+          warn: resolveSlotHeadroom(line) > 0 && (line.quantity ?? 0) > resolveSlotHeadroom(line)
         }"
-        >{{ slotHint(line) }}</view
+        >{{ resolveSlotHint(line) }}</view
       >
     </view>
   </view>
@@ -153,7 +153,7 @@ function skuKey(line: Line) {
   return line.skuId || '';
 }
 
-function skuThumb(id: string) {
+function resolveSkuThumb(id: string) {
   return callFn(props.skuThumb, '', id);
 }
 
@@ -161,34 +161,34 @@ function displayName(line: Line) {
   return line.skuName || callFn(props.skuName, '', skuKey(line)) || line.skuId || '商品';
 }
 
-function isPullOffType(type?: string | null) {
+function resolveIsPullOff(type?: string | null) {
   return callFn(props.isPullOffType, lineIsPullOff(type), type);
 }
 
-function lineTypeLabel(type?: string | null) {
-  return callFn(props.lineTypeLabel, isPullOffType(type) ? '下架' : '上架', type);
+function resolveLineTypeLabel(type?: string | null) {
+  return callFn(props.lineTypeLabel, resolveIsPullOff(type) ? '下架' : '上架', type);
 }
 
-function lineStatusLabel(line: Line) {
+function resolveLineStatusLabel(line: Line) {
   const fallback = line.applied
-    ? isPullOffType(line.lineType)
+    ? resolveIsPullOff(line.lineType)
       ? '已下架'
       : '已入柜'
-    : isPullOffType(line.lineType)
+    : resolveIsPullOff(line.lineType)
       ? '待下架'
       : '待上架';
   return callFn(props.lineStatusLabel, fallback, line);
 }
 
-function slotOptionsFor(line: Line) {
+function resolveSlotOptions(line: Line) {
   return callFn(props.slotOptionsFor, [] as SlotOpt[], line);
 }
 
-function slotHeadroom(line: Line) {
+function resolveSlotHeadroom(line: Line) {
   return callFn(props.slotHeadroom, 0, line);
 }
 
-function slotHint(line: Line) {
+function resolveSlotHint(line: Line) {
   return callFn(props.slotHint, '', line);
 }
 
@@ -200,7 +200,7 @@ function isLineEditable(line: Line) {
 function recapPrimary(line: Line) {
   const parts = [
     line.slotId ? `货道 ${line.slotId}` : '',
-    lineTypeLabel(line.lineType),
+    resolveLineTypeLabel(line.lineType),
     `×${line.quantity ?? 0}`
   ].filter(Boolean);
   return parts.join(' · ');
@@ -208,6 +208,7 @@ function recapPrimary(line: Line) {
 
 function recapSecondary(line: Line) {
   return [
+    resolveLineStatusLabel(line),
     line.batchNo ? `批次 ${line.batchNo}` : '',
     line.productionDate ? `生产 ${line.productionDate}` : '',
     line.expiryDate ? `到期 ${line.expiryDate}` : ''
@@ -217,8 +218,8 @@ function recapSecondary(line: Line) {
 }
 
 function isCapacityWarn(line: Line) {
-  if (isPullOffType(line.lineType)) return false;
-  const room = slotHeadroom(line);
+  if (resolveIsPullOff(line.lineType)) return false;
+  const room = resolveSlotHeadroom(line);
   const qty = Number(line.quantity) || 0;
   return room <= 0 || qty > room;
 }
