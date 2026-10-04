@@ -1039,7 +1039,7 @@
           </div>
         </div>
         <div class="table-scroll">
-            <el-table :data="taskLines" stripe border size="small" empty-text=" " class="lines-table">
+          <el-table :data="taskLines" stripe border size="small" empty-text=" " class="lines-table">
             <template #empty>
               <el-empty
                 v-if="!linesLoading"

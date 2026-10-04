@@ -87,23 +87,23 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-  shopping: boolean;
-  mockEnabled: boolean;
-  /** 贴在原生 tabBar 上方时不要再垫 safe-area，否则会多出一条空白 */
-  aboveTabBar?: boolean;
-  sessionActive: boolean;
-  canReopen: boolean;
-  opening: boolean;
-  closingDoor: boolean;
-  pollRefreshing: boolean;
-  cartBadgeText: string;
-  shoppingCartLabel: string;
-  shoppingCartAmount: string;
-  shoppingCartQty: number;
-  cartBarHint: string;
-  cartBarSub: string;
-  cartBarAction: string;
-  stateTone: string;
+    shopping: boolean;
+    mockEnabled: boolean;
+    /** 贴在原生 tabBar 上方时不要再垫 safe-area，否则会多出一条空白 */
+    aboveTabBar?: boolean;
+    sessionActive: boolean;
+    canReopen: boolean;
+    opening: boolean;
+    closingDoor: boolean;
+    pollRefreshing: boolean;
+    cartBadgeText: string;
+    shoppingCartLabel: string;
+    shoppingCartAmount: string;
+    shoppingCartQty: number;
+    cartBarHint: string;
+    cartBarSub: string;
+    cartBarAction: string;
+    stateTone: string;
   }>(),
   { aboveTabBar: false }
 );

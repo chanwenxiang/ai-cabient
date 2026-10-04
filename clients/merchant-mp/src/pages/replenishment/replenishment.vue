@@ -66,7 +66,9 @@
         <view class="patrol-head">
           <view>
             <text class="patrol-title">缺货巡柜</text>
-            <text class="patrol-sub">查看缺口；日常补货等调度出库下发任务，不要用要货当日常入口</text>
+            <text class="patrol-sub"
+              >查看缺口；日常补货等调度出库下发任务，不要用要货当日常入口</text
+            >
           </view>
           <text class="patrol-count">{{ lowStockList.length }} 台</text>
         </view>
@@ -89,11 +91,7 @@
         </view>
       </view>
 
-      <app-underline-tabs
-        :items="statusTabItems"
-        :value="status"
-        @change="changeStatus"
-      />
+      <app-underline-tabs :items="statusTabItems" :value="status" @change="changeStatus" />
 
       <view v-if="loading && !allTasks.length" class="empty">{{ loadingLabel('任务') }}</view>
       <empty-state
@@ -257,7 +255,9 @@
                 skipLocationCheck ? '开' : '关'
               }}</text>
             </view>
-            <text class="skip-loc-hint">开发环境：不取 GPS，无坐标提交（正式环境服务端会拒签）</text>
+            <text class="skip-loc-hint"
+              >开发环境：不取 GPS，无坐标提交（正式环境服务端会拒签）</text
+            >
           </view>
         </view>
         <text
@@ -304,7 +304,10 @@
         <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
           只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
         </text>
-        <text v-if="doorOpened && openSessionId && selected?.status !== 'COMPLETED'" class="door-tip">
+        <text
+          v-if="doorOpened && openSessionId && selected?.status !== 'COMPLETED'"
+          class="door-tip"
+        >
           已开门，关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
         </text>
 

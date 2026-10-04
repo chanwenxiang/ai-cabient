@@ -3,7 +3,6 @@
     <app-nav-bar title="要货申请" />
     <app-underline-tabs :items="modeTabs" :value="mode" @change="onModeTab" />
     <view class="page-body">
-
       <view v-if="mode === 'create'" class="panel">
         <view class="card">
           <text class="label">目标柜机</text>
@@ -33,7 +32,9 @@
           >
             <view class="check" :class="{ on: line.selected }">{{ line.selected ? '✓' : '' }}</view>
             <view class="line-copy">
-              <text class="sku-name">{{ formatSkuNameWithSpec(line.skuName, line.spec, line.skuId) }}</text>
+              <text class="sku-name">{{
+                formatSkuNameWithSpec(line.skuName, line.spec, line.skuId)
+              }}</text>
               <text class="sku-meta">
                 {{ line.skuId }} · 库存 {{ line.currentQty }}/{{ line.capacity }}
                 <text v-if="line.suggestQty > 0"> · 建议 {{ line.suggestQty }}</text>
@@ -162,7 +163,11 @@ import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { formatDateTimeShort, formatReplenRequestLine, formatSkuNameWithSpec } from '@aicabinet/shared-uni/format';
+import {
+  formatDateTimeShort,
+  formatReplenRequestLine,
+  formatSkuNameWithSpec
+} from '@aicabinet/shared-uni/format';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import { hasPerm, merchantApi, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
@@ -463,8 +468,6 @@ async function loadRequests() {
 function formatTime(value?: string) {
   return formatDateTimeShort(value, '暂无');
 }
-
-
 
 function canGoReplenish(req: OpenApiMerchantReplenishmentRequestDto) {
   return canGoReplenishFromRequest(req);

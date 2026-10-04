@@ -50,12 +50,8 @@ describe('business-display · M6b', () => {
     const r = reportDateRange(7, new Date('2026-09-26T12:00:00'));
     expect(r.toDate).toBe('2026-09-26');
     expect(r.fromDate).toBe('2026-09-20');
-    expect(formatPeriodRangeLabel(7, new Date('2026-09-26T12:00:00'))).toBe(
-      '9月20日–9月26日'
-    );
-    expect(formatPeriodRangeLabel(30, new Date('2026-10-04T12:00:00'))).toBe(
-      '9月5日–10月4日'
-    );
+    expect(formatPeriodRangeLabel(7, new Date('2026-09-26T12:00:00'))).toBe('9月20日–9月26日');
+    expect(formatPeriodRangeLabel(30, new Date('2026-10-04T12:00:00'))).toBe('9月5日–10月4日');
   });
 
   it('货柜分析补全无成交的柜', () => {

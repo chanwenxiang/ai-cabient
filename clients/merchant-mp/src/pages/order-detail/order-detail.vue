@@ -28,7 +28,9 @@
               </view>
               <text class="line-qty">{{ lineMeta(line) }}</text>
               <text v-if="line.batchNo" class="line-qty">批次 {{ line.batchNo }}</text>
-              <text v-if="showLineUnit(line)" class="line-unit">单价 {{ money(line.unitPriceCents) }}</text>
+              <text v-if="showLineUnit(line)" class="line-unit"
+                >单价 {{ money(line.unitPriceCents) }}</text
+              >
             </view>
           </view>
           <view v-if="!(order.lines || []).length" class="muted">{{ linesEmptyText }}</view>

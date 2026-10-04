@@ -165,11 +165,7 @@ import {
   validateWalletWithdrawAmount,
   validateWalletWithdrawMerchant
 } from '@/utils/money-ui-contracts';
-import {
-  walletLedgerRefText,
-  walletLedgerRemark,
-  walletLedgerTitle
-} from '@/utils/wallet-display';
+import { walletLedgerRefText, walletLedgerRemark, walletLedgerTitle } from '@/utils/wallet-display';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 export type WalletPageRole = 'merchant' | 'line';

@@ -97,11 +97,7 @@
             : '争议、离线、低库存与临期告警都会集中显示在这里'
         "
       >
-        <app-button
-          v-if="categoryFilter"
-          label="查看全部"
-          @click="categoryFilter = ''"
-        />
+        <app-button v-if="categoryFilter" label="查看全部" @click="categoryFilter = ''" />
         <app-button v-else label="查看柜机" @click="goDevices" />
       </empty-state>
 

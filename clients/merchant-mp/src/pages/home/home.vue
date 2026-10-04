@@ -233,7 +233,9 @@
           <view class="todo-copy">
             <text class="todo-title">{{ sanitizeNotifyTitle(item.title) }}</text>
             <text v-if="item.deviceId" class="todo-detail">柜机 {{ item.deviceId }}</text>
-            <text v-if="item.detail" class="todo-detail">{{ sanitizeNotifyTitle(item.detail) }}</text>
+            <text v-if="item.detail" class="todo-detail">{{
+              sanitizeNotifyTitle(item.detail)
+            }}</text>
           </view>
           <text class="todo-go app-link-chevron">去处理</text>
         </view>
@@ -739,7 +741,6 @@ useAutoRefresh({
   text-align: center;
   line-height: 1.3;
 }
-
 
 .kpi-mini {
   display: flex;

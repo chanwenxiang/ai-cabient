@@ -46,9 +46,9 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     status: 'ACTIVE',
     managerUserId: null as number | null
   });
-  const managerOptions = ref<{ userId: number; name?: string; phoneNumber?: string; status?: string }[]>(
-    []
-  );
+  const managerOptions = ref<
+    { userId: number; name?: string; phoneNumber?: string; status?: string }[]
+  >([]);
   const managerLoading = ref(false);
   const supplierForm = reactive({
     editing: false,
@@ -94,11 +94,12 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     if (managerLoading.value) return;
     managerLoading.value = true;
     try {
-      const data = await api.request<PageResult<{ userId: number; name?: string; phoneNumber?: string; status?: string }>>(
-        AdminEndpoints.rbacOperatorsPage(0, 200),
-        'GET'
+      const data = await api.request<
+        PageResult<{ userId: number; name?: string; phoneNumber?: string; status?: string }>
+      >(AdminEndpoints.rbacOperatorsPage(0, 200), 'GET');
+      managerOptions.value = (data.items || []).filter(
+        (item) => !item.status || item.status === 'ACTIVE'
       );
-      managerOptions.value = (data.items || []).filter((item) => !item.status || item.status === 'ACTIVE');
     } catch {
       /* 下拉空则仍可手看编号；保存不依赖名单 */
     } finally {
@@ -150,7 +151,8 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
         warehouseName: warehouseForm.warehouseName.trim(),
         address: warehouseForm.address,
         status: warehouseForm.status,
-        managerUserId: Number(warehouseForm.managerUserId) > 0 ? Number(warehouseForm.managerUserId) : 0
+        managerUserId:
+          Number(warehouseForm.managerUserId) > 0 ? Number(warehouseForm.managerUserId) : 0
       });
       warehouseDialog.value = false;
       ElMessage.success(warehouseForm.editing ? '仓库已保存' : '仓库已创建（编号由系统分配）');

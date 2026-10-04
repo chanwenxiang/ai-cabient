@@ -36,7 +36,9 @@
             </view>
             <view class="hero-meta">
               <text>毛利率 {{ marginRate }}</text>
-              <text>成交 {{ analytics.orderCount || 0 }} 单 · {{ analytics.itemQtySold || 0 }} 件</text>
+              <text
+                >成交 {{ analytics.orderCount || 0 }} 单 · {{ analytics.itemQtySold || 0 }} 件</text
+              >
             </view>
             <view class="hero-meta">
               <text>客单 {{ money(analytics.avgOrderValueCents) }}</text>
@@ -55,7 +57,11 @@
             <view class="kpi-cell">
               <view class="kpi-label-row">
                 <text class="kpi-label">全店待结算</text>
-                <text class="help-q" role="button" aria-label="待结算说明" @click="explainSettlement"
+                <text
+                  class="help-q"
+                  role="button"
+                  aria-label="待结算说明"
+                  @click="explainSettlement"
                   >?</text
                 >
               </view>
@@ -179,12 +185,7 @@ import {
   isStaleBusinessLoad,
   shouldShowBusinessFullLoading
 } from '@/utils/business-load';
-import {
-  isMerchantLoggedIn,
-  hasPerm,
-  merchantApi,
-  softFallback
-} from '@/utils/merchant-api';
+import { isMerchantLoggedIn, hasPerm, merchantApi, softFallback } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type {
   MerchantAnalyticsOverview,

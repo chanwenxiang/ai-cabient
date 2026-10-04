@@ -3,7 +3,6 @@
     <app-nav-bar title="争议处理" />
     <app-underline-tabs :items="tabs" :value="activeTab" @change="switchTab" />
     <view class="page-body">
-
       <view v-if="loading && !list.length" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
       >
@@ -140,12 +139,12 @@
             <text class="detail-lbl">识别参考明细</text>
             <view v-for="(it, i) in detail?.suggestedItems || []" :key="i" class="suggest-row">
               <view class="suggest-top">
-                <text class="suggest-name">{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text>
+                <text class="suggest-name"
+                  >{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text
+                >
                 <text class="suggest-amt">{{ fmtMoney(it.lineAmountCents) }}</text>
               </view>
-              <text
-                v-if="showSuggestUnit(it)"
-                class="suggest-unit"
+              <text v-if="showSuggestUnit(it)" class="suggest-unit"
                 >柜机单价 {{ fmtMoney(it.unitPriceCents) }}</text
               >
             </view>
@@ -238,7 +237,12 @@ import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeShort, fmtMoney, sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
+import {
+  emptyDisplay,
+  formatDateTimeShort,
+  fmtMoney,
+  sanitizeNotifyTitle
+} from '@aicabinet/shared-uni/format';
 import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import AppSheet from '@/components/AppSheet.vue';
@@ -481,7 +485,11 @@ function statusText(s?: string) {
 }
 
 /** 一行一件且金额=柜机价时不再重复写「柜机价」。 */
-function showSuggestUnit(it: { quantity?: number; unitPriceCents?: number; lineAmountCents?: number }) {
+function showSuggestUnit(it: {
+  quantity?: number;
+  unitPriceCents?: number;
+  lineAmountCents?: number;
+}) {
   const unit = Number(it.unitPriceCents || 0);
   if (unit <= 0) return false;
   const qty = Number(it.quantity || 0);

@@ -111,9 +111,11 @@
       <view class="section">
         <text class="section-title">结算批次</text>
         <view v-if="batchWarn" class="section-warn">{{ batchWarn }}</view>
-        <view v-if="loading && !visibleBatches.length && !visibleDaily.length" class="loading-inline">{{
-          loadingLabel('批次')
-        }}</view>
+        <view
+          v-if="loading && !visibleBatches.length && !visibleDaily.length"
+          class="loading-inline"
+          >{{ loadingLabel('批次') }}</view
+        >
         <template v-else>
           <view v-for="b in visibleBatches" :key="b.batchNo" class="ledger-row">
             <view class="ledger-head">

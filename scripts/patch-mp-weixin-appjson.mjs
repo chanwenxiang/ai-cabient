@@ -37,12 +37,7 @@ const SHARED_COMPONENT_RE = /(?:^|\/)(?:packages|pkg)\/shared-uni\/src\/componen
 function walkJson(dir, out = []) {
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir)) {
-    if (
-      name === 'node-modules' ||
-      name === 'node_modules' ||
-      name === 'packages' ||
-      name === 'pkg'
-    )
+    if (name === 'node-modules' || name === 'node_modules' || name === 'packages' || name === 'pkg')
       continue;
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walkJson(p, out);

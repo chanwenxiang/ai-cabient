@@ -42,7 +42,6 @@
       </view>
     </view>
 
-
     <view v-if="!authed" role="button" class="setup-banner" @click="goLogin">
       <view class="setup-text">
         <text class="setup-title">微信授权登录</text>
@@ -66,51 +65,51 @@
 
     <view v-if="authed" class="menu-list pay-pref-block">
       <view class="pay-pref-inner">
-      <text class="pay-pref-title">优先支付方式</text>
-      <text class="pay-pref-hint">关门结算时优先使用；选余额可先花掉账户余额</text>
-      <view class="pay-pref-chips">
-        <text
-          role="button"
-          class="pay-pref-chip"
-          :class="{ on: payPreferred === 'BALANCE', busy: payPrefBusy }"
-          @click="onSetPayPreferred('BALANCE')"
-          >余额</text
-        >
-        <text
-          role="button"
-          class="pay-pref-chip"
-          :class="{
-            on: payPreferred === 'WECHAT',
-            disabled: !account?.payscoreEnabled,
-            busy: payPrefBusy
-          }"
-          @click="onSetPayPreferred('WECHAT')"
-          >微信免密</text
-        >
-        <text
-          role="button"
-          class="pay-pref-chip"
-          :class="{
-            on: payPreferred === 'ALIPAY',
-            disabled: !account?.alipayAgreementEnabled,
-            busy: payPrefBusy
-          }"
-          @click="onSetPayPreferred('ALIPAY')"
-          >支付宝免密</text
-        >
-      </view>
-      <!-- G9：免密代扣的用户自助解约入口。没有它，用户只能等渠道侧通知才能撤回授权。 -->
-      <view v-if="passwordFreeReady" class="pay-pref-unsign-row">
-        <text
-          role="button"
-          class="pay-pref-unsign"
-          :class="{ busy: payPrefBusy }"
-          aria-label="关闭免密支付"
-          @click="onUnsignPayContract"
-          >关闭免密支付</text
-        >
-        <text class="pay-pref-unsign-hint">关闭后可随时重新开通</text>
-      </view>
+        <text class="pay-pref-title">优先支付方式</text>
+        <text class="pay-pref-hint">关门结算时优先使用；选余额可先花掉账户余额</text>
+        <view class="pay-pref-chips">
+          <text
+            role="button"
+            class="pay-pref-chip"
+            :class="{ on: payPreferred === 'BALANCE', busy: payPrefBusy }"
+            @click="onSetPayPreferred('BALANCE')"
+            >余额</text
+          >
+          <text
+            role="button"
+            class="pay-pref-chip"
+            :class="{
+              on: payPreferred === 'WECHAT',
+              disabled: !account?.payscoreEnabled,
+              busy: payPrefBusy
+            }"
+            @click="onSetPayPreferred('WECHAT')"
+            >微信免密</text
+          >
+          <text
+            role="button"
+            class="pay-pref-chip"
+            :class="{
+              on: payPreferred === 'ALIPAY',
+              disabled: !account?.alipayAgreementEnabled,
+              busy: payPrefBusy
+            }"
+            @click="onSetPayPreferred('ALIPAY')"
+            >支付宝免密</text
+          >
+        </view>
+        <!-- G9：免密代扣的用户自助解约入口。没有它，用户只能等渠道侧通知才能撤回授权。 -->
+        <view v-if="passwordFreeReady" class="pay-pref-unsign-row">
+          <text
+            role="button"
+            class="pay-pref-unsign"
+            :class="{ busy: payPrefBusy }"
+            aria-label="关闭免密支付"
+            @click="onUnsignPayContract"
+            >关闭免密支付</text
+          >
+          <text class="pay-pref-unsign-hint">关闭后可随时重新开通</text>
+        </view>
       </view>
     </view>
 
@@ -244,59 +243,59 @@
     <view v-if="devTools && authed" class="dev-section">
       <text class="dev-label">体验充值</text>
       <view class="menu-list">
-      <view
-        v-if="wechatRechargeEnabled"
-        role="button"
-        class="menu-cell highlight"
-        :class="{ disabled: rechargeLoading }"
-        @click="onWeChatRecharge"
-      >
-        <image class="menu-icon" :src="menuIcon('wechat')" mode="aspectFit" />
-        <view class="menu-text">
-          <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信充值' }}</text>
-          <text class="menu-desc">{{ wechatPayLive ? '调起微信支付' : '体验到账 ¥20' }}</text>
+        <view
+          v-if="wechatRechargeEnabled"
+          role="button"
+          class="menu-cell highlight"
+          :class="{ disabled: rechargeLoading }"
+          @click="onWeChatRecharge"
+        >
+          <image class="menu-icon" :src="menuIcon('wechat')" mode="aspectFit" />
+          <view class="menu-text">
+            <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信充值' }}</text>
+            <text class="menu-desc">{{ wechatPayLive ? '调起微信支付' : '体验到账 ¥20' }}</text>
+          </view>
+          <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
         </view>
-        <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
-      </view>
-      <view
-        v-if="alipayRechargeEnabled"
-        role="button"
-        class="menu-cell highlight"
-        :class="{ disabled: rechargeLoading }"
-        @click="onAlipayRecharge"
-      >
-        <image class="menu-icon" :src="menuIcon('alipay')" mode="aspectFit" />
-        <view class="menu-text">
-          <text class="menu-title">支付宝充值</text>
-          <text class="menu-desc">{{
-            mockRechargeEnabled ? '体验到账 ¥20' : '跳转收银台充 ¥20'
-          }}</text>
+        <view
+          v-if="alipayRechargeEnabled"
+          role="button"
+          class="menu-cell highlight"
+          :class="{ disabled: rechargeLoading }"
+          @click="onAlipayRecharge"
+        >
+          <image class="menu-icon" :src="menuIcon('alipay')" mode="aspectFit" />
+          <view class="menu-text">
+            <text class="menu-title">支付宝充值</text>
+            <text class="menu-desc">{{
+              mockRechargeEnabled ? '体验到账 ¥20' : '跳转收银台充 ¥20'
+            }}</text>
+          </view>
+          <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
         </view>
-        <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
-      </view>
-      <view
-        v-if="mockRechargeEnabled"
-        role="button"
-        class="menu-cell highlight"
-        :class="{ disabled: rechargeLoading }"
-        @click="onMockRecharge"
-      >
-        <image class="menu-icon" :src="menuIcon('mock')" mode="aspectFit" />
-        <view class="menu-text">
-          <text class="menu-title">余额充值</text>
-          <text class="menu-desc">体验到账 ¥20，不真实扣款</text>
+        <view
+          v-if="mockRechargeEnabled"
+          role="button"
+          class="menu-cell highlight"
+          :class="{ disabled: rechargeLoading }"
+          @click="onMockRecharge"
+        >
+          <image class="menu-icon" :src="menuIcon('mock')" mode="aspectFit" />
+          <view class="menu-text">
+            <text class="menu-title">余额充值</text>
+            <text class="menu-desc">体验到账 ¥20，不真实扣款</text>
+          </view>
+          <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
         </view>
-        <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
-      </view>
-      <view role="button" class="menu-cell" @click="goLogin">
-        <image class="menu-icon" :src="menuIcon('phone')" mode="aspectFit" />
-        <view class="menu-text">
-          <text class="menu-title">手机号验证（兜底）</text>
-          <text class="menu-desc">短信 / 密码登录</text>
+        <view role="button" class="menu-cell" @click="goLogin">
+          <image class="menu-icon" :src="menuIcon('phone')" mode="aspectFit" />
+          <view class="menu-text">
+            <text class="menu-title">手机号验证（兜底）</text>
+            <text class="menu-desc">短信 / 密码登录</text>
+          </view>
+          <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
         </view>
-        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-    </view>
     </view>
 
     <view v-if="authed" class="menu-list logout-wrap">

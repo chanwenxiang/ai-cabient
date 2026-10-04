@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商品管理</span>
-            <span class="hint">主数据：SKU ID 纯数字且唯一，商品名称不可重复；识别入驻请到「识别入驻」</span>
+            <span class="hint"
+              >主数据：SKU ID 纯数字且唯一，商品名称不可重复；识别入驻请到「识别入驻」</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -806,11 +808,11 @@ async function saveEdit() {
     const idx = crud.items.findIndex((i) => i.skuId === updated.skuId);
     if (idx >= 0) crud.items[idx] = updated;
     else crud.items.push(updated);
-    crud.items.sort((a, b) => String(a.skuId || '').localeCompare(String(b.skuId || ''), 'zh-CN', { numeric: true }));
-    editDialog.value = false;
-    ElMessage.success(
-      form.existing ? '已保存商品' : `已新建，SKU ${updated.skuId}`
+    crud.items.sort((a, b) =>
+      String(a.skuId || '').localeCompare(String(b.skuId || ''), 'zh-CN', { numeric: true })
     );
+    editDialog.value = false;
+    ElMessage.success(form.existing ? '已保存商品' : `已新建，SKU ${updated.skuId}`);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {

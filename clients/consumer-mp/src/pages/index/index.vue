@@ -76,13 +76,7 @@
         <text>{{ catalogNotice }}</text>
       </view>
 
-      <scroll-view
-        scroll-y
-        class="product-scroll"
-        :show-scrollbar="false"
-        enable-flex
-        enhanced
-      >
+      <scroll-view scroll-y class="product-scroll" :show-scrollbar="false" enable-flex enhanced>
         <view v-if="products.length" class="catalog-tools">
           <view class="search-box">
             <input
@@ -215,7 +209,9 @@
       <view class="shop-tools">
         <text class="shop-tool" role="button" aria-label="报修" @click="goReport">报修</text>
         <text class="shop-tools-sep">·</text>
-        <text class="shop-tool" role="button" aria-label="换一台柜机" @click="resetDevice">换一台</text>
+        <text class="shop-tool" role="button" aria-label="换一台柜机" @click="resetDevice"
+          >换一台</text
+        >
       </view>
 
       <HomeCartBar

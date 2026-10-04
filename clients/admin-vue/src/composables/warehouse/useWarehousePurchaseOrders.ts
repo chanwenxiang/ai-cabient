@@ -55,10 +55,7 @@ function hasWarehouseManager(row: WarehousePurchaseRow) {
   return Number(row.managerUserId) > 0;
 }
 
-function isManagedWarehouseId(
-  warehouses: WarehousePurchaseRow[],
-  warehouseId: unknown
-) {
+function isManagedWarehouseId(warehouses: WarehousePurchaseRow[], warehouseId: unknown) {
   const id = String(warehouseId || '');
   return !!id && warehouses.some((w) => String(w.warehouseId) === id);
 }
@@ -158,7 +155,9 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
       return err;
     });
     if (!ok) {
-      ElMessage.warning('请完整填写供应商、已指定负责人的入库仓库与商品；批次/到期日可留空，收货时录入');
+      ElMessage.warning(
+        '请完整填写供应商、已指定负责人的入库仓库与商品；批次/到期日可留空，收货时录入'
+      );
       nextTick(() => {
         document
           .querySelector('.purchase-line-card .field-invalid, .form-grid .field-invalid')

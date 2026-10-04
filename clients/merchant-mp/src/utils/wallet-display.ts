@@ -37,7 +37,9 @@ export function walletLedgerTitle(entryType?: string | null, remark?: string | n
 export function walletLedgerRefText(refType?: string | null, refId?: string | null): string {
   const id = String(refId || '').trim();
   if (!id) return '';
-  const code = String(refType || '').trim().toUpperCase();
+  const code = String(refType || '')
+    .trim()
+    .toUpperCase();
   const kind = REF_TYPE_LABEL[code] || (code && !/^[A-Z0-9_]+$/.test(code) ? code : '关联单');
   return `${kind} ${displayBizNo(id)}`;
 }
@@ -46,7 +48,10 @@ export function walletLedgerRefText(refType?: string | null, refId?: string | nu
 export function walletLedgerRemark(remark?: string | null, title?: string): string {
   const raw = String(remark || '').trim();
   if (!raw) return '';
-  const stripped = raw.replace(/[0-9A-Z_:]{8,}/g, '').replace(/\s+/g, ' ').trim();
+  const stripped = raw
+    .replace(/[0-9A-Z_:]{8,}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!stripped) return '';
   if (title && (stripped === title || title.includes(stripped) || stripped.includes(title))) {
     return '';

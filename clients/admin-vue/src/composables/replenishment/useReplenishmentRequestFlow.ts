@@ -63,7 +63,9 @@ export function useReplenishmentRequestFlow(deps: UseReplenishmentRequestFlowDep
         const spec = String(l.spec || '').trim();
         const sku = l.skuId ? `SKU ${l.skuId}` : '';
         const meta = [spec, sku].filter(Boolean).join(' · ');
-        return meta ? `${name}（${meta}）×${l.requestedQty ?? 0}` : `${name}×${l.requestedQty ?? 0}`;
+        return meta
+          ? `${name}（${meta}）×${l.requestedQty ?? 0}`
+          : `${name}×${l.requestedQty ?? 0}`;
       })
       .join('、');
   }

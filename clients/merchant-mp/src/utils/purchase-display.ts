@@ -1,5 +1,7 @@
 export function satellitePurchaseStatusLabel(status: string): string {
-  const key = String(status || '').trim().toUpperCase();
+  const key = String(status || '')
+    .trim()
+    .toUpperCase();
   if (key === 'PENDING_APPROVAL') return '待审核';
   if (key === 'CREATED') return '待收货';
   if (key === 'PARTIAL_RECEIVED') return '部分收货';
@@ -19,7 +21,9 @@ export function canSubmitSatellitePurchase(input: {
 }
 
 export function canReceiveSatellitePurchase(status: string): boolean {
-  const key = String(status || '').trim().toUpperCase();
+  const key = String(status || '')
+    .trim()
+    .toUpperCase();
   return key === 'CREATED' || key === 'PARTIAL_RECEIVED';
 }
 
@@ -39,7 +43,9 @@ export function defaultSatelliteReceiveExpiry(now = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-export function canConfirmSatelliteReceive(lines: { batchNo: string; expiryDate: string; receivedQty: number }[]): boolean {
+export function canConfirmSatelliteReceive(
+  lines: { batchNo: string; expiryDate: string; receivedQty: number }[]
+): boolean {
   return lines.some(
     (line) =>
       String(line.batchNo || '').trim() &&

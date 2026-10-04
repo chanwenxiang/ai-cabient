@@ -278,10 +278,7 @@
           <div class="field-hint">没有商品？请先到「商品管理」新建主数据。</div>
         </el-form-item>
         <el-form-item v-else label="SKU">
-          <el-input
-            :model-value="enrollForm.skuId || '保存后自动分配'"
-            disabled
-          />
+          <el-input :model-value="enrollForm.skuId || '保存后自动分配'" disabled />
         </el-form-item>
         <el-form-item label="商品名称" required>
           <el-input
@@ -1137,7 +1134,9 @@ async function saveEnroll() {
     const idx = crud.items.findIndex((i) => i.skuId === updated.skuId);
     if (idx >= 0) crud.items[idx] = updated;
     else crud.items.push(updated);
-    crud.items.sort((a, b) => String(a.skuId || '').localeCompare(String(b.skuId || ''), 'zh-CN', { numeric: true }));
+    crud.items.sort((a, b) =>
+      String(a.skuId || '').localeCompare(String(b.skuId || ''), 'zh-CN', { numeric: true })
+    );
     enrollDialog.value = false;
     ElMessage.success('已保存识别入驻配置');
     await crud.load();

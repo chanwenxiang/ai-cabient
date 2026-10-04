@@ -26,7 +26,9 @@
           </view>
           <view class="sheet-row-copy">
             <text class="sheet-name">{{ line.skuName || line.skuId }}</text>
-            <text class="sheet-meta">{{ fmtMoney(line.unitPriceCents) }} × {{ line.quantity }}</text>
+            <text class="sheet-meta"
+              >{{ fmtMoney(line.unitPriceCents) }} × {{ line.quantity }}</text
+            >
           </view>
           <text class="sheet-line-amt">{{ fmtMoney(line.lineAmountCents) }}</text>
         </view>

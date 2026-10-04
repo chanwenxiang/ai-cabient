@@ -110,7 +110,12 @@ import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import AppSheet from '@/components/AppSheet.vue';
-import { yuanToCents, fmtMoney, formatSkuNameWithSpec, formatMerchantPriceHistoryDetail } from '@aicabinet/shared-uni/format';
+import {
+  yuanToCents,
+  fmtMoney,
+  formatSkuNameWithSpec,
+  formatMerchantPriceHistoryDetail
+} from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
   useMerchantMe,

@@ -61,7 +61,11 @@
         <view v-else-if="listLoading && !orders.length" class="card empty-inline">{{
           loadingLabel('采购单')
         }}</view>
-        <empty-state v-else-if="!orders.length" title="暂无采购单" desc="提交后在这里查看审核进度" />
+        <empty-state
+          v-else-if="!orders.length"
+          title="暂无采购单"
+          desc="提交后在这里查看审核进度"
+        />
         <view v-for="order in orders" :key="order.purchaseOrderId" class="card req-card">
           <view class="req-head">
             <text class="req-id">采购单 {{ order.purchaseOrderId }}</text>
@@ -71,7 +75,11 @@
           </view>
           <text class="req-meta">供应商 {{ supplierName(order.supplierId) }}</text>
           <view v-if="order.lines?.length" class="line-list">
-            <view v-for="line in order.lines" :key="line.skuId + String(line.lineId || '')" class="recv-line">
+            <view
+              v-for="line in order.lines"
+              :key="line.skuId + String(line.lineId || '')"
+              class="recv-line"
+            >
               <text class="line-item">{{ line.skuId }} × {{ line.orderedQty }}</text>
               <template v-if="canReceiveSatellitePurchase(order.status)">
                 <input
@@ -144,9 +152,7 @@ type SkuLine = {
 const suppliers = ref<SupplierRow[]>([]);
 const supplierIndex = ref(0);
 const skuLines = ref<SkuLine[]>([]);
-const supplierLabels = computed(() =>
-  suppliers.value.map((s) => s.supplierName || s.supplierId)
-);
+const supplierLabels = computed(() => suppliers.value.map((s) => s.supplierName || s.supplierId));
 
 type OrderLine = {
   lineId?: number;

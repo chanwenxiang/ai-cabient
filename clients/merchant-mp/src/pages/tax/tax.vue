@@ -63,7 +63,13 @@
             </view>
           </view>
           <view v-if="canEditProfile" class="actions">
-            <app-button variant="primary" block :loading="taxSaving" label="保存" @click="saveTax" />
+            <app-button
+              variant="primary"
+              block
+              :loading="taxSaving"
+              label="保存"
+              @click="saveTax"
+            />
           </view>
           <text v-else class="hint">当前账号不能改税号，请联系管理员</text>
         </view>

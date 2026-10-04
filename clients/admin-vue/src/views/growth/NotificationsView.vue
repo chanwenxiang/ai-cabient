@@ -159,7 +159,11 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
-import { displayBizNo, rewriteBizNosInText, sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  rewriteBizNosInText,
+  sanitizeNotifyTitle
+} from '@aicabinet/shared-uni/format';
 
 type NotificationRow = {
   id: number;

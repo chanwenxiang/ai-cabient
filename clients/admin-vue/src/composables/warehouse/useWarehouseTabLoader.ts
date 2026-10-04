@@ -466,7 +466,13 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
 
   async function loadTab(name: string, force = false) {
     const seq = deps.loadSeq.begin('loadTab');
-    if (!force && deps.loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements' && name !== 'monthly') {
+    if (
+      !force &&
+      deps.loadedTabs.value.has(name) &&
+      name !== 'inventory' &&
+      name !== 'movements' &&
+      name !== 'monthly'
+    ) {
       return;
     }
     // 在途计数按 tab 维护：过时的请求也必须把自己那份 loading 关掉，

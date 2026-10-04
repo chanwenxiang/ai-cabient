@@ -24,7 +24,12 @@ defineProps<{
         row-key="skuId"
         empty-text="本月无进出流水"
       >
-        <el-table-column label="商品" min-width="160" class-name="col-text" label-class-name="col-text">
+        <el-table-column
+          label="商品"
+          min-width="160"
+          class-name="col-text"
+          label-class-name="col-text"
+        >
           <template #default="{ row }">
             <div>{{ row.skuName || row.skuId }}</div>
             <small class="muted">{{ row.skuId }}</small>
@@ -86,10 +91,22 @@ defineProps<{
           class-name="col-num"
           label-class-name="col-num"
         />
-        <el-table-column label="实盘" min-width="72" class-name="col-num" label-class-name="col-num">
-          <template #default="{ row }">{{ row.countedQty == null ? '未盘' : row.countedQty }}</template>
+        <el-table-column
+          label="实盘"
+          min-width="72"
+          class-name="col-num"
+          label-class-name="col-num"
+        >
+          <template #default="{ row }">{{
+            row.countedQty == null ? '未盘' : row.countedQty
+          }}</template>
         </el-table-column>
-        <el-table-column label="差异" min-width="72" class-name="col-num" label-class-name="col-num">
+        <el-table-column
+          label="差异"
+          min-width="72"
+          class-name="col-num"
+          label-class-name="col-num"
+        >
           <template #default="{ row }">{{ row.gapQty == null ? '—' : row.gapQty }}</template>
         </el-table-column>
       </el-table>

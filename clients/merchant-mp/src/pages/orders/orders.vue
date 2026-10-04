@@ -91,8 +91,12 @@
             <view class="card-main">
               <view class="card-copy">
                 <text class="card-goods">{{ lineSummaryText(item) }}</text>
-                <text class="card-meta">{{ channelText(item.payChannel) }} · {{ formatTime(item.createdAt) }}</text>
-                <text v-if="item.splitStatus && item.splitStatus !== 'LEDGER_ONLY'" class="card-meta"
+                <text class="card-meta"
+                  >{{ channelText(item.payChannel) }} · {{ formatTime(item.createdAt) }}</text
+                >
+                <text
+                  v-if="item.splitStatus && item.splitStatus !== 'LEDGER_ONLY'"
+                  class="card-meta"
                   >分账 {{ splitStatusText(item.splitStatus) }}</text
                 >
                 <text

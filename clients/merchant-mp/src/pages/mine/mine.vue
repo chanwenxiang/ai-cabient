@@ -15,7 +15,11 @@
         <text class="hello">{{ meName }}</text>
         <text class="sub">{{ profileSub }}</text>
       </view>
-      <view v-if="canEditProfile" class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      <view
+        v-if="canEditProfile"
+        class="menu-arrow app-icon app-icon--chevron"
+        aria-hidden="true"
+      />
     </view>
 
     <AppSheet

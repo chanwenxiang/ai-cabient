@@ -24,7 +24,11 @@
           </el-select>
         </el-form-item>
         <el-form-item label="入库仓库">
-          <el-select v-model="purchaseForm.warehouseId" style="width: 100%" placeholder="仅已指定负责人的分仓">
+          <el-select
+            v-model="purchaseForm.warehouseId"
+            style="width: 100%"
+            placeholder="仅已指定负责人的分仓"
+          >
             <el-option
               v-for="item in activeWarehouses"
               :key="item.warehouseId"

@@ -45,7 +45,9 @@ describe('purchase-display', () => {
 
   it('receive confirm needs batch, expiry and qty', () => {
     expect(
-      canConfirmSatelliteReceive([{ batchNo: '20261005', expiryDate: '2026-12-31', receivedQty: 2 }])
+      canConfirmSatelliteReceive([
+        { batchNo: '20261005', expiryDate: '2026-12-31', receivedQty: 2 }
+      ])
     ).toBe(true);
     expect(
       canConfirmSatelliteReceive([{ batchNo: '', expiryDate: '2026-12-31', receivedQty: 2 }])

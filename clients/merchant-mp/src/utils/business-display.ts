@@ -112,10 +112,7 @@ export function reportDateRange(
 }
 
 /** 经营分析顶栏：把 YYYY-MM-DD 区间显示成「9月28日–10月4日」。 */
-export function formatPeriodRangeLabel(
-  days: number,
-  now: Date = new Date()
-): string {
+export function formatPeriodRangeLabel(days: number, now: Date = new Date()): string {
   const { fromDate, toDate } = reportDateRange(days, now);
   const md = (iso: string) => {
     const [, m, d] = iso.split('-');

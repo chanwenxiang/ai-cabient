@@ -737,20 +737,20 @@ const {
   loadGeoStatus,
   warehouseOptions
 } = useDeviceAsset({
-    deviceId,
-    canEditDevice,
-    onDeviceSynced: (row) => {
-      if (!device.value) return;
-      device.value = {
-        ...device.value,
-        merchantId: row.merchantId || device.value.merchantId,
-        merchantName: row.merchantName || device.value.merchantName,
-        deviceName: row.deviceName || device.value.deviceName,
-        onlineStatus: row.onlineStatus || device.value.onlineStatus,
-        homeWarehouseId: row.homeWarehouseId ?? device.value.homeWarehouseId
-      };
-    }
-  });
+  deviceId,
+  canEditDevice,
+  onDeviceSynced: (row) => {
+    if (!device.value) return;
+    device.value = {
+      ...device.value,
+      merchantId: row.merchantId || device.value.merchantId,
+      merchantName: row.merchantName || device.value.merchantName,
+      deviceName: row.deviceName || device.value.deviceName,
+      onlineStatus: row.onlineStatus || device.value.onlineStatus,
+      homeWarehouseId: row.homeWarehouseId ?? device.value.homeWarehouseId
+    };
+  }
+});
 const homeWarehouseLabel = computed(() => {
   const id = asset.homeWarehouseId || device.value?.homeWarehouseId;
   if (!id) return '未归线';
