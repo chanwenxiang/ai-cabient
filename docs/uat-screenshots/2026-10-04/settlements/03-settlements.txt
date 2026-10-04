@@ -1,0 +1,53 @@
+path=pages/settlements/settlements
+结算对账
+近7天
+本月
+零元单
+2026-09-27
+至
+2026-10-04
+所选区间 · 商户所得
+¥15.75
+区间营收 ¥17.50
+−
+平台抽成 ¥1.75
+待分账
+¥15.75
+已结算
+¥0.00
+客单价
+¥4.38
+按日汇总
+9月29日 周二
+4 笔 · 客单 ¥4.38
+¥15.75
+抽成 ¥1.75
+待分 ¥15.75
+已结 ¥0.00
+结算批次
+1790688195353210263767
+待结算 · 1 笔
+¥3.60
+已结 ¥0.00
+待分 ¥3.60
+计划 9-30 08:00
+1790688102788471045961
+待结算 · 1 笔
+¥4.05
+已结 ¥0.00
+待分 ¥4.05
+计划 9-30 08:00
+1790687819962161720262
+待结算 · 1 笔
+¥4.05
+已结 ¥0.00
+待分 ¥4.05
+计划 9-30 08:00
+1790687476808314007818
+待结算 · 1 笔
+¥4.05
+已结 ¥0.00
+待分 ¥4.05
+计划 9-30 08:00
+---wxml---
+<view class="page-root page-root data-v-592137d8 data-v-592137d8"><view class="app-nav bar--app-nav data-v-7f71fa3a bar--data-v-7f71fa3a" style="background:var(--nav-bar-bg, var(--brand-deep, #134e4a));color:#ffffff;padding-top:51px;box-sizing:border-box;width:100%;flex-shrink:0;"><view class="app-nav-row bar--app-nav-row data-v-7f71fa3a bar--data-v-7f71fa3a" style="height:31px;"><view aria-label="返回" class="app-nav-back bar--app-nav-back data-v-7f71fa3a bar--data-v-7f71fa3a" hover-class="app-nav-back-hover"><view aria-hidden="true" class="app-nav-arrow bar--app-nav-arrow app-icon bar--app-icon app-icon--back bar--app-icon--back data-v-7f71fa3a bar--data-v-7f71fa3a"></view></view><text class="app-nav-title bar--app-nav-title data-v-7f71fa3a bar--data-v-7f71fa3a" style="color:#ffffff;line-height:31px;padding-left:102px;padding-right:102px"></text><view class="app-nav-side bar--app-nav-side data-v-7f71fa3a bar--data-v-7f71fa3a" style="min-width:102px;height:31px;padding-right:102px"></view></view></view><view class="page-body page-body data-v-592137d8 data-v-592137d8"><view class="period-card period-card data-v-592137d8 data-v-592137d8"><view class="range-chips range-chips data-v-592137d8 data-v-592137d8"><view aria-label="近7天" class="range-chip range-chip data-v-592137d8 data-v-592137d8 active active"><text class="data-v-592137d8 data-v-592137d8"></text></view><view aria-label="本月" class="range-chip range-chip data-v-592137d8 data-v-592137d8"><text class="data-v-592137d8 data-v-592137d8"></text></view><view aria-label="显示零元单" class="range-chip range-chip data-v-592137d8 data-v-592137d8"><text class="data-v-592137d8 data-v-592137d8"></text></view></view><view class="date-bar date-bar data-v-592137d8 data-v-592137d8"><picker class="data-v-592137d8 data-v-592137d8" end="2026-10-04" mode="date" start="2020-01-01" value="2026-09-27" aria-haspopup="true"><view class="date-chip date-chip data-v-592137d8 data-v-592137d8"><text class="date-text date-text data-v-592137d8 data-v-592137d8"></text></view></picker><text class="date-sep date-sep data-v-592137d8 data-v-592137d8"></text><picker class="data-v-592137d8 data-v-592137d8" end="2035-12-31" mode="date" start="2026-09-27" value="2026-10-04" aria-haspopup="true"><view class="date-chip date-chip data-v-592137d8 data-v-592137d8"><text class="date-text date-text data-v-592137d8 data-v-592137d8"></text></view></picker></view></view><view class="summary-card summary-card data-v-592137d8 data-v-592137d8"><view class="hero hero data-v-592137d8 data-v-592137d8"><text class="hero-kicker hero-kicker data-v-592137d8 data-v-592137d8"></text><text class="hero-amount hero-amount data-v-592137d8 data-v-592137d8"></text><view class="hero-eq hero-eq data-v-592137d8 data-v-592137d8"><text class="data-v-592137d8 data-v-592137d8"></text><text class="hero-eq-op hero-eq-op data-v-592137d8 data-v-592137d8"></text><text class="data-v-592137d8 data-v-592137d8"></text></view></view><view class="kpi-grid kpi-grid data-v-592137d8 data-v-592137d8"><view class="kpi-cell kpi-cell data-v-592137d8 data-v-592137d8"><text class="kpi-label kpi-label data-v-592137d8 data-v-592137d8"></text><text class="kpi-value kpi-value data-v-592137d8 data-v-592137d8"></text></view><view class="kpi-cell kpi-cell data-v-592137d8 data-v-592137d8"><text class="kpi-label kpi-label data-v-592137d8 data-v-592137d8"></text><text class="kpi-value kpi-value data-v-592137d8 data-v-592137d8"></text></view><view class="kpi-cell kpi-cell data-v-592137d8 data-v-592137d8"><text class="kpi-label kpi-label data-v-592137d8 data-v-592137d8"></text><text class="kpi-value kpi-value data-v-592137d8 data-v-592137d8"></text></view></view></view><view class="section section data-v-592137d8 data-v-592137d8"><text class="section-title section-title data-v-592137d8 data-v-592137d8"></text><view class="ledger-row ledger-row data-v-592137d8 data-v-592137d8"><view class="ledger-head ledger-head data-v-592137d8 data-v-592137d8"><view class="ledger-title-wrap ledger-title-wrap data-v-592137d8 data-v-592137d8"><text class="ledger-title ledger-title data-v-592137d8 data-v-592137d8"></text><text class="ledger-sub ledger-sub data-v-592137d8 data-v-592137d8"></text></view><text class="ledger-amount ledger-amount data-v-592137d8 data-v-592137d8"></text></view><view class="meta-row meta-row data-v-592137d8 data-v-592137d8"><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text></view></view></view><view class="section section data-v-592137d8 data-v-592137d8"><text class="section-title section-title data-v-592137d8 data-v-592137d8"></text><view class="ledger-row ledger-row data-v-592137d8 data-v-592137d8"><view class="ledger-head ledger-head data-v-592137d8 data-v-592137d8"><view class="ledger-title-wrap ledger-title-wrap data-v-592137d8 data-v-592137d8"><text class="ledger-title ledger-title data-v-592137d8 data-v-592137d8"></text><text class="ledger-sub ledger-sub data-v-592137d8 data-v-592137d8"></text></view><text class="ledger-amount ledger-amount data-v-592137d8 data-v-592137d8"></text></view><view class="meta-row meta-row data-v-592137d8 data-v-592137d8"><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text></view><text class="ledger-time ledger-time data-v-592137d8 data-v-592137d8"></text></view><view class="ledger-row ledger-row data-v-592137d8 data-v-592137d8"><view class="ledger-head ledger-head data-v-592137d8 data-v-592137d8"><view class="ledger-title-wrap ledger-title-wrap data-v-592137d8 data-v-592137d8"><text class="ledger-title ledger-title data-v-592137d8 data-v-592137d8"></text><text class="ledger-sub ledger-sub data-v-592137d8 data-v-592137d8"></text></view><text class="ledger-amount ledger-amount data-v-592137d8 data-v-592137d8"></text></view><view class="meta-row meta-row data-v-592137d8 data-v-592137d8"><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text></view><text class="ledger-time ledger-time data-v-592137d8 data-v-592137d8"></text></view><view class="ledger-row ledger-row data-v-592137d8 data-v-592137d8"><view class="ledger-head ledger-head data-v-592137d8 data-v-592137d8"><view class="ledger-title-wrap ledger-title-wrap data-v-592137d8 data-v-592137d8"><text class="ledger-title ledger-title data-v-592137d8 data-v-592137d8"></text><text class="ledger-sub ledger-sub data-v-592137d8 data-v-592137d8"></text></view><text class="ledger-amount ledger-amount data-v-592137d8 data-v-592137d8"></text></view><view class="meta-row meta-row data-v-592137d8 data-v-592137d8"><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text></view><text class="ledger-time ledger-time data-v-592137d8 data-v-592137d8"></text></view><view class="ledger-row ledger-row data-v-592137d8 data-v-592137d8"><view class="ledger-head ledger-head data-v-592137d8 data-v-592137d8"><view class="ledger-title-wrap ledger-title-wrap data-v-592137d8 data-v-592137d8"><text class="ledger-title ledger-title data-v-592137d8 data-v-592137d8"></text><text class="ledger-sub ledger-sub data-v-592137d8 data-v-592137d8"></text></view><text class="ledger-amount ledger-amount data-v-592137d8 data-v-592137d8"></text></view><view class="meta-row meta-row data-v-592137d8 data-v-592137d8"><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text><text class="meta-pill meta-pill data-v-592137d8 data-v-592137d8"></text></view><text class="ledger-time ledger-time data-v-592137d8 data-v-592137d8"></text></view></view><view class="actions actions data-v-592137d8 data-v-592137d8"><app-button is="components/app-button" class="data-v-592137d8 data-v-592137d8"><button class="app-btn button--app

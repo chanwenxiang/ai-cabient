@@ -1,0 +1,16 @@
+# Ultralytics dataset config for cabinet SKU detector.
+# Replace `path` with your labeled dataset root (see datasets/README.md).
+
+path: ../datasets/cabinet-skus-v1
+train: images/train
+val: images/val
+test: images/test
+
+# Class names must match sku_vision_mapping.class_name (mapping_source=YOLO_SKU)
+names:
+  0: cola_330ml
+  1: sprite_500ml
+  2: water_550ml
+  3: chips_70g
+  4: milk_250ml
+  5: noodle_bowl
