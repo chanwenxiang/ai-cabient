@@ -870,65 +870,37 @@ async function main() {
       );
     }
 
-    // —— TC-VIDEO-001 购物视频播放页（本地 sample，禁止再用 example.com 假地址冒充通过）——
-    const demoVideoCandidates = [
-      `${BASE}/static/demo-shopping.mp4`,
-      `${BASE}/demo-shopping.mp4`,
-      'http://127.0.0.1:9000/cabinet-videos/demo/sample-shopping.mp4'
-    ];
-    let playableVideoUrl = '';
-    for (const candidate of demoVideoCandidates) {
-      try {
-        const head = await fetch(candidate, { method: 'HEAD' });
-        const ctype = (head.headers.get('content-type') || '').toLowerCase();
-        if (head.ok && ctype.includes('video')) {
-          playableVideoUrl = candidate;
-          break;
-        }
-      } catch {
-        /* try next */
-      }
-    }
-    if (!playableVideoUrl) {
-      playableVideoUrl = demoVideoCandidates[0];
-    }
-    await gotoPath(page, '/pages/video/video?url=' + encodeURIComponent(playableVideoUrl));
+    // —— TC-VIDEO-001 购物视频播放页（审计 P3-1 后的新契约）——
+    // 旧用例靠 ?url=<静态mp4> 播放——该裸 url 深链正是被移除的钓鱼承载面
+    // （官方页壳内可播任意视频），页面现在只认 orderId 后端鉴权拉流。
+    // 新契约两个确定性断言：
+    //   a) 无参数打开 → fail-closed 文案「缺少订单号，无法加载视频」；
+    //   b) 假单号打开 → 诚实失败 UI（该订单暂无购物视频 / 播放失败 / 无法访问），
+    //      证明 orderId 路径与鉴权拉流接线正常，且不再回退裸 url。
+    await gotoPath(page, '/pages/video/video');
+    await page.waitForTimeout(1500);
+    const noParamText = await bodyText(page);
+    const failClosedOk = /缺少订单号/.test(noParamText);
+
+    await gotoPath(page, '/pages/video/video?orderId=UAT-NO-SUCH-ORDER');
     await page.waitForTimeout(2500);
     text = await bodyText(page);
-    const videoState = await page.evaluate(() => {
+    const bogusOrderFailedUi = /该订单暂无购物视频|播放失败|视频地址无法访问/.test(text);
+    // 不得出现「能播」的假象：页面上不该有可播放的 video 元素
+    const hasPlayableVideo = await page.evaluate(() => {
       const v = document.querySelector('video');
-      if (!v) {
-        return {
-          hasVideo: false,
-          readyState: 0,
-          errCode: null,
-          failedUi: /视频加载失败|缺少视频地址/.test(document.body?.innerText || '')
-        };
-      }
-      return {
-        hasVideo: true,
-        readyState: v.readyState,
-        errCode: v.error ? v.error.code : null,
-        networkState: v.networkState,
-        currentSrc: v.currentSrc || v.src || '',
-        failedUi: /视频加载失败/.test(document.body?.innerText || '')
-      };
+      return Boolean(v && (v.currentSrc || v.src));
     });
-    // readyState >= 2 (HAVE_CURRENT_DATA) 视为可播放；无 error 且未展示失败态
-    const videoOk =
-      videoState.hasVideo &&
-      !videoState.failedUi &&
-      videoState.errCode == null &&
-      Number(videoState.readyState) >= 2;
+    const videoOk = failClosedOk && bogusOrderFailedUi && !hasPlayableVideo;
     const e10v = await shot(page, '10v-video-page');
     record(
       'TC-VIDEO-001',
-      '购物视频播放页',
+      '购物视频播放页（仅 orderId 鉴权拉流）',
       '功能',
       videoOk ? 'PASS' : 'FAIL',
       videoOk
-        ? `可播放 url=${playableVideoUrl} readyState=${videoState.readyState}`
-        : `不可播放 url=${playableVideoUrl} state=${JSON.stringify(videoState)} body=${text
+        ? `fail-closed 无参文案 ✓ / 假单号诚实失败 ✓ / 无裸 url 播放 ✓`
+        : `failClosed=${failClosedOk} bogusFailedUi=${bogusOrderFailedUi} playableVideo=${hasPlayableVideo} body=${text
             .split('\n')
             .slice(0, 6)
             .join(' | ')}`,
