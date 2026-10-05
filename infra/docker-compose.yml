@@ -11,7 +11,8 @@ services:
     environment:
       POSTGRES_DB: aicabinet
       POSTGRES_USER: aicabinet
-      POSTGRES_PASSWORD: aicabinet
+      # 审计 P2-21：读 env（dev 缺省不变）——原硬编码令 .env 里的 POSTGRES_PASSWORD 静默失效
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aicabinet}
     mem_limit: 1g
     cpus: 1.0
     ports:
@@ -81,8 +82,9 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      # 审计 P2-22：读 env（dev 缺省不变）——原硬编码令 .env 里的 MINIO_ROOT_PASSWORD 静默失效
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
       # Host defaults; on Windows if 9000–9039 is Hyper-V reserved, use
       # docker-compose.win-ports.yml (19000/19001) or set MINIO_API_PORT / MINIO_CONSOLE_PORT. 仅回环。

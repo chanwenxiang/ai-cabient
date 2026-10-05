@@ -7,6 +7,10 @@ RUN mvn -pl ${MODULE} -am package -DskipTests -Dskip.admin.build=true
 FROM eclipse-temurin:17-jre-jammy
 ARG MODULE
 WORKDIR /app
-COPY --from=build /workspace/${MODULE}/target/*.jar /app/app.jar
+# 审计 P3：非 root 运行（对齐 infra/docker/*.Dockerfile 的 USER app 约定）
+RUN useradd --system --create-home --shell /usr/sbin/nologin app \
+    && chown -R app:app /app
+COPY --from=build --chown=app:app /workspace/${MODULE}/target/*.jar /app/app.jar
 EXPOSE 8080
+USER app
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

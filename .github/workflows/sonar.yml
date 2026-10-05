@@ -22,6 +22,10 @@ concurrency:
   group: sonar-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# 审计 P3：GITHUB_TOKEN 最小权限（扫描只需读代码）
+permissions:
+  contents: read
+
 jobs:
   sonar:
     runs-on: [self-hosted, linux, ai-cabinet]

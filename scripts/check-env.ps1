@@ -120,6 +120,19 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
         if ($Env["MQTT_BROKER"] -match "^tcp://") {
             $errors += "MQTT_BROKER must use ssl:// in prod"
         }
+        # 审计 P1-6：EMQX 凭据轮换「restart ≠ 生效」护栏——bootstrap CSV 必须存在，
+        # 且与 .env.production 的 MQTT 账号一致（EMQX 内置库只在**首次创建**容器时导入 bootstrap，
+        # docker restart 后旧口令静默有效；轮换/吊销必须 --force-recreate emqx 并以本校验兜底）
+        $bootstrapCsv = Join-Path $Infra "docker\emqx\auth-bootstrap.production.csv"
+        if (-not (Test-Path $bootstrapCsv)) {
+            $errors += "EMQX bootstrap CSV missing: infra/docker/emqx/auth-bootstrap.production.csv — run scripts/gen-emqx-auth-bootstrap.ps1 first (P1-6)"
+        } else {
+            if ($Env["MQTT_USERNAME"] -and -not (Select-String -Path $bootstrapCsv -Pattern ("^" + [regex]::Escape($Env["MQTT_USERNAME"]) + ","))) {
+                $errors += "MQTT_USERNAME '$($Env['MQTT_USERNAME'])' not in auth-bootstrap.production.csv — regenerate CSV then docker compose ... up -d --force-recreate emqx (P1-6: restart does NOT reload bootstrap)"
+            }
+            $csvLines = (Get-Content $bootstrapCsv | Where-Object { $_ -match '\S' }).Count - 1  # minus header
+            Write-Host "  EMQX bootstrap CSV OK ($csvLines credential rows); rotation reminder: up -d --force-recreate emqx"
+        }
         if ($Env["CORS_ORIGIN"] -match "localhost") {
             $warnings += "CORS_ORIGIN still localhost"
         }

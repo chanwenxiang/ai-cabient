@@ -76,6 +76,15 @@ services:
     volumes:
       - ./docker/emqx/aicabinet-acl.conf:/opt/emqx/etc/aicabinet-acl.conf:ro
       - ./docker/emqx/auth-bootstrap.production.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
+    ports:
+      # 审计 P2-11：显式端口策略（原缺省=继承 base 层回环，真机接入必然手改、无门禁看护）。
+      # 设备 MQTT：TCP 1883 仅供不支持 TLS 的柜机过渡——绑业务网卡（env 可覆盖绑定地址）；
+      # TLS 8883 为目标形态（需先落地 truststore 供给链，见审计 P2-10）。
+      # Dashboard 18083 只许回环（运维本机访问，绝不暴露）。
+      # 轮换提醒（P1-6）：改凭据后必须 up -d --force-recreate emqx，restart 不会重导 bootstrap。
+      - "${EMQX_MQTT_BIND:-127.0.0.1}:${EMQX_MQTT_PORT:-11883}:1883"
+      - "${EMQX_MQTT_TLS_BIND:-127.0.0.1}:${EMQX_MQTT_TLS_PORT:-18883}:8883"
+      - "127.0.0.1:${EMQX_DASHBOARD_PORT:-18083}:18083"
 
   minio:
     stop_grace_period: 60s

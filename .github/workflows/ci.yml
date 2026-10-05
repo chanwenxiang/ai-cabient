@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, develop, dev]
 
+# 审计 P3：GITHUB_TOKEN 默认可能带写权限，CI 只需读代码——显式收敛到最小
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

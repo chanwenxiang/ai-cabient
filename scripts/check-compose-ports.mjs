@@ -16,8 +16,7 @@ const INFRA = 'infra';
 /** 豁免清单：键 = "文件名:宿主端口"，值 = 理由 */
 const ALLOWLIST = new Map([
   ['docker-compose.full.yml:80', 'gateway 业务入口（全栈部署对外唯一 HTTP）'],
-  ['docker-compose.yml:80', 'gateway 业务入口（base 栈）'],
-  ['docker-compose.staging.yml:8099', 'sms-webhook-mock 测试工具（staging 短信回调模拟，仅联调用）']
+  ['docker-compose.yml:80', 'gateway 业务入口（base 栈）']
 ]);
 
 const files = readdirSync(join(ROOT, INFRA))
