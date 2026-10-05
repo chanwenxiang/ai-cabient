@@ -195,13 +195,28 @@ public class MqttEventListener implements MqttCallbackExtended {
                 commandId, node.path("success").asBoolean(false));
     }
 
+    /**
+     * 审计 P2-12：body.deviceId 与 topic 来源不符时丢弃事件（对齐 {@link #handleDoorEvent} 的口径）。
+     * topic 来源解析不出（"unknown"）时保持旧行为放行——ACL 已把设备限定在 {@code cabinet/<自身>/#}。
+     */
+    private static boolean rejectDeviceIdMismatch(String topic, JsonNode node, String topicDeviceId, String kind) {
+        String bodyDeviceId = node.path("deviceId").asText("");
+        if (bodyDeviceId.isBlank() || "unknown".equals(topicDeviceId) || bodyDeviceId.equals(topicDeviceId)) {
+            return false;
+        }
+        log.warn("{} event deviceId mismatch topic={} body={} — dropped", kind, topicDeviceId, bodyDeviceId);
+        return true;
+    }
+
     /** H62a：edge 告警事件（如 EDGE_QUEUE_ABANDON）转发到运营告警通道（经 trade 内部端点）。 */
     private void handleAlert(String topic, JsonNode node) {
         String alertType = node.path("alertType").asText("");
         String message = node.path("message").asText("");
         String deviceId = extractDeviceId(topic);
-        if (node.has("deviceId")) {
-            deviceId = node.path("deviceId").asText(deviceId);
+        // 审计 P2-12：与 door 事件同口径——body.deviceId 与 topic 来源不符即丢弃，
+        // 防持本柜凭据者伪造他柜告警（刷飞书/运营通道噪音）
+        if (rejectDeviceIdMismatch(topic, node, deviceId, "alert")) {
+            return;
         }
         log.warn("edge alert received device={} alertType={} message={}", deviceId, alertType, message);
         tradeServiceClient.notifyOpsAlert(alertType, message, deviceId);
@@ -209,8 +224,9 @@ public class MqttEventListener implements MqttCallbackExtended {
 
     private void handleHeartbeat(String topic, JsonNode node) {
         String deviceId = extractDeviceId(topic);
-        if (node.has("deviceId")) {
-            deviceId = node.path("deviceId").asText(deviceId);
+        // 审计 P2-12：与 door 事件同口径——心跳不得用 body.deviceId 覆盖 topic 来源（伪造他柜在线状态）
+        if (rejectDeviceIdMismatch(topic, node, deviceId, "heartbeat")) {
+            return;
         }
         String appVersion = textOrNull(node, "appVersion");
         if (appVersion == null) {

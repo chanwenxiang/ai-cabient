@@ -70,6 +70,13 @@ public class VisionResultIngestService {
         String sessionId = request.sessionId().trim();
         ShoppingSession before = repository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        // 审计 P1-5：识别结果必须来自会话所属柜机。本端点是唯一「无设备凭据即可驱动结算」的入口，
+        // fleet 共享内部 key 一旦泄露，缺这层绑定时持 key 者可为任意 RECOGNIZING 会话伪造结果
+        // （多算=多扣顾客钱）。对齐 persistAttachedVideo / door 事件的设备绑定口径；
+        // 先于状态判定拒绝，避免向非归属方泄露会话状态。
+        if (isBlank(request.deviceId()) || !before.getDeviceId().equals(request.deviceId().trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_MISMATCH);
+        }
         SessionState stateBefore = before.getState();
 
         if (stateBefore != SessionState.RECOGNIZING) {

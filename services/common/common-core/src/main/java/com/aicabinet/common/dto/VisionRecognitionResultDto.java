@@ -11,6 +11,8 @@ import java.util.List;
  * 两种入口对同一份结果语义相同。
  *
  * @param sessionId        开门会话号（必填，结算主体）
+ * @param deviceId         上报端所属柜机号（**必填**，必须与 sessionId 会话的柜机一致；
+ *                         平台据此把「驱动结算的识别结果」绑定到持有该柜机凭据的上报者——审计 P1-5）
  * @param taskId           端侧识别任务号（可空，落库用于对账/排查）
  * @param traceId          端侧链路追踪号（可空，用于跨端串联日志）
  * @param items            识别到的商品行；识别为空时传空数组或 null
@@ -23,6 +25,7 @@ import java.util.List;
  */
 public record VisionRecognitionResultDto(
         String sessionId,
+        String deviceId,
         String taskId,
         String traceId,
         List<Item> items,

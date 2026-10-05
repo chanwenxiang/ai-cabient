@@ -45,6 +45,9 @@ public class VisionInternalController {
      * （`docs/COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md`：「阶段 A（`/internal/v1/vision/edge-results`
      * 端侧结果接入结算）」），第三方按文档接入即可直连。
      *
+     * <p><b>deviceId 必填且必须等于 sessionId 会话的柜机号</b>（审计 P1-5：识别结果是驱动结算的
+     * 输入，必须绑定到持有该柜机凭据的上报者；不符返回 400 DEVICE_MISMATCH）。
+     *
      * <p>回执 {@code accepted=false} 不代表失败，而是「本次未采纳」——端侧应按 {@code outcome}
      * 决定重发（TOO_EARLY 可稍后重试；ALREADY_HANDLED / CANCELLED 勿重发）。
      */

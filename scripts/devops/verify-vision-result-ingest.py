@@ -167,6 +167,7 @@ def main() -> int:
     print("\n== C/D 端侧直报识别结果 ==")
     payload = {
         "sessionId": sid,
+        "deviceId": DEVICE_ID,
         "taskId": f"EDGE-{sid}",
         "traceId": "edge-trace-verify",
         "items": [{"skuId": SKU, "quantity": 1, "confidence": 0.96}],
@@ -274,6 +275,16 @@ def main() -> int:
                 "needReview": False, "modelVersion": "X" * 65}
     code6, _ = ingest(too_long)
     check(code6 == 400, f"F5 modelVersion=65 字符（列宽 64）→ HTTP {code6}（400）")
+
+    # F6（审计 P1-5）：结果必须来自会话所属柜机——deviceId 与会话不符时拒绝，
+    # 防「fleet 共享内部 key 泄露后为任意会话伪造识别结果驱动结算」。
+    spoof = dict(payload)
+    spoof["deviceId"] = "SPOOFED-DEVICE-000"
+    code7, _ = ingest(spoof)
+    check(code7 == 400, f"F6 deviceId 与会话柜机不符 → HTTP {code7}（400）")
+    no_dev = {k: v for k, v in payload.items() if k != "deviceId"}
+    code8, _ = ingest(no_dev)
+    check(code8 == 400, f"F7 缺 deviceId → HTTP {code8}（400）")
 
     # ---- H 全表不变量：会话维度唯一 ----
     dup = psql("SELECT count(*) FROM (SELECT session_id FROM recognition_result "

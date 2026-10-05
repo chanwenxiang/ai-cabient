@@ -54,6 +54,9 @@ class VisionResultIngestServiceTest {
     @Mock private SessionService sessionService;
     @Mock private CabinetMetrics metrics;
 
+    /** 单测内自洽即可（mock 仓库无 DB）；禁止写死历史柜号（lessons #212/#224）。 */
+    private static final String DEVICE_ID = "DEV-UT-0001";
+
     private VisionResultIngestService service;
 
     @BeforeEach
@@ -92,7 +95,7 @@ class VisionResultIngestServiceTest {
         stubFindById("S-MAP", SessionState.RECOGNIZING, SessionState.COMPLETED);
 
         service.ingest(new VisionRecognitionResultDto(
-                "S-MAP", null, "trace-1",
+                "S-MAP", DEVICE_ID, null, "trace-1",
                 List.of(new VisionRecognitionResultDto.Item("SKU-A", 2, 0.93)),
                 0.93, false, "QUECTEL-EDGE-1.2", List.of("cola"), "QUECTEL", Instant.now()));
 
@@ -111,7 +114,7 @@ class VisionResultIngestServiceTest {
     void ingest_explicitTaskId_isPreserved() {
         stubFindById("S-TASK", SessionState.RECOGNIZING, SessionState.COMPLETED);
         VisionRecognitionResultDto request = new VisionRecognitionResultDto(
-                "S-TASK", "T-EDGE-9", null, List.of(), 0.0, true,
+                "S-TASK", DEVICE_ID, "T-EDGE-9", null, List.of(), 0.0, true,
                 "QUECTEL-EDGE-1.2", null, "QUECTEL", null);
 
         service.ingest(request);
@@ -123,7 +126,7 @@ class VisionResultIngestServiceTest {
     void ingest_nullItemsAndClasses_mapToEmptyCollections() {
         stubFindById("S-NULL", SessionState.RECOGNIZING, SessionState.DISPUTED);
         VisionRecognitionResultDto request = new VisionRecognitionResultDto(
-                "S-NULL", "T-1", null, null, 0.0, true, "QUECTEL-EDGE-1.2", null, null, null);
+                "S-NULL", DEVICE_ID, "T-1", null, null, 0.0, true, "QUECTEL-EDGE-1.2", null, null, null);
 
         service.ingest(request);
 
@@ -208,7 +211,7 @@ class VisionResultIngestServiceTest {
     @Test
     void ingest_blankModelVersion_rejected() {
         VisionRecognitionResultDto request = new VisionRecognitionResultDto(
-                "S-1", "T-1", null, List.of(), 0.9, false, "  ", List.of(), "QUECTEL", null);
+                "S-1", DEVICE_ID, "T-1", null, List.of(), 0.9, false, "  ", List.of(), "QUECTEL", null);
 
         ResponseStatusException thrown =
                 assertThrows(ResponseStatusException.class, () -> service.ingest(request));
@@ -221,7 +224,7 @@ class VisionResultIngestServiceTest {
     @Test
     void ingest_nullModelVersion_rejected() {
         VisionRecognitionResultDto request = new VisionRecognitionResultDto(
-                "S-1", "T-1", null, List.of(), 0.9, false, null, List.of(), "QUECTEL", null);
+                "S-1", DEVICE_ID, "T-1", null, List.of(), 0.9, false, null, List.of(), "QUECTEL", null);
 
         ResponseStatusException thrown =
                 assertThrows(ResponseStatusException.class, () -> service.ingest(request));
@@ -233,7 +236,7 @@ class VisionResultIngestServiceTest {
     @Test
     void ingest_blankSessionId_rejected() {
         VisionRecognitionResultDto request = new VisionRecognitionResultDto(
-                " ", "T-1", null, List.of(), 0.9, false, "v1", List.of(), "QUECTEL", null);
+                " ", DEVICE_ID, "T-1", null, List.of(), 0.9, false, "v1", List.of(), "QUECTEL", null);
 
         ResponseStatusException thrown =
                 assertThrows(ResponseStatusException.class, () -> service.ingest(request));
@@ -245,7 +248,7 @@ class VisionResultIngestServiceTest {
     @Test
     void ingest_blankSkuId_rejected() {
         VisionRecognitionResultDto request = new VisionRecognitionResultDto(
-                "S-1", "T-1", null, List.of(new VisionRecognitionResultDto.Item("  ", 1, 0.9)),
+                "S-1", DEVICE_ID, "T-1", null, List.of(new VisionRecognitionResultDto.Item("  ", 1, 0.9)),
                 0.9, false, "v1", List.of(), "QUECTEL", null);
 
         ResponseStatusException thrown =
@@ -259,7 +262,7 @@ class VisionResultIngestServiceTest {
     void ingest_nonPositiveQuantity_rejected() {
         for (int quantity : new int[]{0, -3}) {
             VisionRecognitionResultDto request = new VisionRecognitionResultDto(
-                    "S-1", "T-1", null,
+                    "S-1", DEVICE_ID, "T-1", null,
                     List.of(new VisionRecognitionResultDto.Item("SKU-A", quantity, 0.9)),
                     0.9, false, "v1", List.of(), "QUECTEL", null);
 
@@ -282,6 +285,40 @@ class VisionResultIngestServiceTest {
         verify(sessionService, never()).completeAsyncRecognition(any(), any());
     }
 
+    // ---------- 设备绑定（审计 P1-5）----------
+
+    @Test
+    void ingest_deviceIdMismatch_rejectedBeforeStateLeak() {
+        // 会话属于本测试柜机 DEVICE_ID；他柜（或持 fleet key 的攻击者）以别的 deviceId 上报必须被拒，
+        // 且不得向非归属方泄露会话状态（先于 outcome 判定抛出）
+        when(repository.findById("S-OK")).thenReturn(Optional.of(session("S-OK", SessionState.RECOGNIZING)));
+        VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                "S-OK", "DEV-UT-OTHER", "T-1", null,
+                List.of(new VisionRecognitionResultDto.Item("SKU-A", 1, 0.95)),
+                0.95, false, "QUECTEL-EDGE-1.2", null, "QUECTEL", Instant.now());
+
+        ResponseStatusException thrown =
+                assertThrows(ResponseStatusException.class, () -> service.ingest(request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+        verify(sessionService, never()).completeAsyncRecognition(any(), any());
+    }
+
+    @Test
+    void ingest_blankDeviceId_rejected() {
+        when(repository.findById("S-OK")).thenReturn(Optional.of(session("S-OK", SessionState.RECOGNIZING)));
+        VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                "S-OK", "  ", "T-1", null,
+                List.of(new VisionRecognitionResultDto.Item("SKU-A", 1, 0.95)),
+                0.95, false, "QUECTEL-EDGE-1.2", null, "QUECTEL", Instant.now());
+
+        ResponseStatusException thrown =
+                assertThrows(ResponseStatusException.class, () -> service.ingest(request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+        verify(sessionService, never()).completeAsyncRecognition(any(), any());
+    }
+
     // ---------- 辅助 ----------
 
     private VisionServiceClient.RecognitionResult capturedResult() {
@@ -301,7 +338,7 @@ class VisionResultIngestServiceTest {
 
     private static VisionRecognitionResultDto result(String sessionId) {
         return new VisionRecognitionResultDto(
-                sessionId, "T-1", "trace-1",
+                sessionId, DEVICE_ID, "T-1", "trace-1",
                 List.of(new VisionRecognitionResultDto.Item("SKU-A", 1, 0.95)),
                 0.95, false, "QUECTEL-EDGE-1.2", List.of("cola"), "QUECTEL", Instant.now());
     }
@@ -310,7 +347,7 @@ class VisionResultIngestServiceTest {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId(id);
         session.setUserId(7L);
-        session.setDeviceId("CAB-001");
+        session.setDeviceId(DEVICE_ID);
         session.setState(state);
         return session;
     }
