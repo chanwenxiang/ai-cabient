@@ -114,11 +114,12 @@ for (const m of merchantNavSrc.matchAll(
       codes.push(q[1] || q[2]);
     }
   }
-  for (const code of codes) {
-    const mapped = merchantPackForPerm(code);
-    if (mapped && mapped !== pack) {
-      errors.push(`merchant-nav pack ${pack} != MerchantFeaturePacks ${mapped} for ${code}`);
-    }
+  const mappedPacks = [...new Set(codes.map((code) => merchantPackForPerm(code)).filter(Boolean))];
+  // 税号等入口用 perm 数组做 OR（可编辑=team 或只读=biz），pack 只需落在其中一包
+  if (mappedPacks.length && !mappedPacks.includes(pack)) {
+    errors.push(
+      `merchant-nav pack ${pack} != MerchantFeaturePacks [${mappedPacks.join(',')}] for ${codes.join(',')}`
+    );
   }
 }
 

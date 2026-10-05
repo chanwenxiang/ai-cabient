@@ -273,7 +273,9 @@ class SettlementDisputeTest {
                 new VisionServiceClient.RecognitionResult("T-1", List.of(), 0.9f, false, "yolov8", List.of()));
 
         org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
-        verifyNoInteractions(orderPaymentService);
+        // toDto 会读已完成扣款/退款分位，不等于发起扣款
+        verify(orderPaymentService, never()).chargeOrder(any());
+        verify(orderPaymentService, never()).chargeOrder(any(), any());
     }
 
     /**

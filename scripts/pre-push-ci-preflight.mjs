@@ -142,29 +142,41 @@ const openApiSurface = changed.some(
 );
 
 if (adminSrcChanged || full) {
-  console.log('\n── admin 源码有改动 → 重建产物并核对（对齐 admin-artifacts job）──');
-  run('build-admin', node, [resolve(root, 'scripts/build-admin.mjs')]);
-  const st = spawnSync(
-    'git',
-    [
-      'status',
-      '--porcelain',
-      '-uall',
-      '--',
-      'services/trade-service/src/main/resources/static/admin'
-    ],
-    {
-      cwd: root,
-      encoding: 'utf8',
-      shell: false
+  if (process.platform === 'win32') {
+    console.log('\n── admin 源码有改动 ──');
+    console.log(
+      'Windows 跳过 build-admin 产物比对：Vite 内容哈希与 Linux CI 不同（lessons #287）。'
+    );
+    console.log('admin-artifacts 以 GitHub Linux 重建为准；提交产物请用 Docker node:24 构建。');
+  } else {
+    console.log('\n── admin 源码有改动 → 重建产物并核对（对齐 admin-artifacts job）──');
+    run('build-admin', node, [resolve(root, 'scripts/build-admin.mjs')]);
+    const st = spawnSync(
+      'git',
+      [
+        'status',
+        '--porcelain',
+        '-uall',
+        '--',
+        'services/trade-service/src/main/resources/static/admin'
+      ],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        shell: false
+      }
+    );
+    const dirty = (st.stdout || '')
+      .split(/\r?\n/)
+      .filter((line) => line && !line.includes('runtime-config.json'))
+      .join('\n')
+      .trim();
+    if (dirty) {
+      console.error('✗ static/admin 与源码不同步。请提交重建产物：\n' + dirty);
+      process.exit(1);
     }
-  );
-  const dirty = (st.stdout || '').trim();
-  if (dirty) {
-    console.error('✗ static/admin 与源码不同步。请提交重建产物：\n' + dirty);
-    process.exit(1);
+    console.log('✓ static/admin 与源码一致');
   }
-  console.log('✓ static/admin 与源码一致');
 }
 
 if (openApiSurface) {

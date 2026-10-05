@@ -295,6 +295,7 @@
 | 274 | 消费者 mp-weixin 编译 `mergeModels is not exported` | `HomeLanding` 用了 `defineModel`；uni-mp-vue 3.0 runtime 没有 `mergeModels`（Vue 3.4+ 编译器会生成该 import） | **必须**小程序组件用 props + `update:*` + computed get/set，禁止 `defineModel` | `HomeLanding.vue` |
 
 | 272 | 「我的」资料区和胶囊挤在一起 | 资料做在青绿顶栏里，按钮贴胶囊；微信「我」是白底资料行 | **必须** Tab「我的」用无返回键顶栏 + 白底资料 cell（点整行编辑），禁止青绿头图塞编辑按钮 | `mine.vue`、`app-nav-bar.vue` |
+| 287 | CI admin-artifacts | 本机 `build-admin` 后 git 干净，Linux CI 仍报 static/admin 不同步 | Windows / Linux 下 Vite 内容哈希不同，CI 重建后整目录 `??` 新 chunk | **必须**用 Linux（Docker/`node:24`）打 admin 产物再提交；禁止只拿 Windows 哈希过 `admin-artifacts` | `node scripts/build-admin.mjs`、`.github/workflows/ci.yml` |
 | 286 | 仓配收货 | 货到分仓仍只能运营后台点收货 | 收货接口绑 `ops:procurement:edit` | **必须**补货员 `receiveSatellitePurchaseOrder` 只收本人仓；禁止跨仓、禁止借运营权 | `MerchantPortalController` receive、`pages/purchase` |
 | 283 | 仓配出库 | 补货出库货从无主默认仓扣 | 规划路线 `createOutboundForRoute(..., null)` 走 `resolveDefaultWarehouseId()` | **必须**按柜机 `home_warehouse_id` 出库；混仓/未归线/无负责人拒绝。禁止默认无主仓 | `WarehouseService.resolveOutboundWarehouseId` |
 | 282 | 仓配采购 | 日常采购货进了无主中心仓 | 未选仓时 `resolveDefaultWarehouseId()` 落到未绑负责人的默认仓 | **必须**只入 `manager_user_id` 非空的仓；未选仓取操作人负责的仓；无则拒绝。禁止默认无主仓。热替换只 `jar uf` 变更 class，禁止整包 zip 重写 BOOT-INF/lib | `ProcurementService`、`WarehouseMapper.findFirstActiveByManagerUserId` |

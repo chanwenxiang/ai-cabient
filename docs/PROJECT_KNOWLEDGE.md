@@ -243,6 +243,7 @@ infra/                     Compose、网关、监控
 
 ---
 
+| 2026-10-05 | CI 红修：删遗留 OrderDto、余额不足单测不把 ledger 读取当扣款、nav 多 perm OR、我的页 UAT、补齐边缘 YOLO stub；admin 产物须 Linux 构建 | lessons #287 |
 | 2026-10-05 | **补货员分仓收货**：待收货单在小程序确认入本人仓 | `receiveSatellitePurchaseOrder`、`pages/purchase` |
 | 2026-10-05 | **补货员采购入库**：商户端进本人分仓，不走运营采购权 | `ProcurementService.createSatellitePurchaseOrder`、`pages/purchase` |
 | 2026-10-05 | **分仓月结一张表**：应有/实盘/上柜件数，与结算金额分开 | `WarehouseMonthlyCloseService`、lessons #284 |
