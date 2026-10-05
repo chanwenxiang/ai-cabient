@@ -80,7 +80,19 @@
               :key="line.skuId + String(line.lineId || '')"
               class="recv-line"
             >
-              <text class="line-item">{{ line.skuId }} × {{ line.orderedQty }}</text>
+              <view class="recv-line-head">
+                <text class="line-item">{{ line.skuId }} · 要货 {{ line.orderedQty }}</text>
+                <view
+                  v-if="canReceiveSatellitePurchase(order.status)"
+                  role="button"
+                  class="qty-box"
+                  @click.stop
+                >
+                  <text role="button" class="qty-btn" @click="adjustReceivedQty(line, -1)">−</text>
+                  <text class="qty-val">{{ line.receivedQty ?? line.orderedQty }}</text>
+                  <text role="button" class="qty-btn" @click="adjustReceivedQty(line, 1)">+</text>
+                </view>
+              </view>
               <template v-if="canReceiveSatellitePurchase(order.status)">
                 <input
                   class="input"
@@ -281,6 +293,18 @@ function supplierName(id: string) {
   return suppliers.value.find((s) => s.supplierId === id)?.supplierName || id;
 }
 
+/**
+ * 审计 P2-19 附加：实收数量可编辑（1..要货数，默认=要货数）。
+ * 竞品（easygo）入库一次性全额、实际到货数不入账——账实漂移根源，不可学；
+ * 后端分仓收货复用 processReceiveLine，本就支持部分收货（PARTIAL_RECEIVED）。
+ * 供应商少发/运输破损时按实收入账，剩余量可后续再收。
+ */
+function adjustReceivedQty(line: OrderLine, delta: number) {
+  const max = Math.max(1, line.orderedQty);
+  const current = Math.max(1, Number(line.receivedQty) || line.orderedQty);
+  line.receivedQty = Math.min(max, Math.max(1, current + delta));
+}
+
 async function receive(order: { purchaseOrderId: number; lines?: OrderLine[] }) {
   if (receivingId.value || !canConfirmSatelliteReceive(order.lines || [])) return;
   receivingId.value = order.purchaseOrderId;
@@ -291,7 +315,7 @@ async function receive(order: { purchaseOrderId: number; lines?: OrderLine[] }) 
         skuId: line.skuId,
         batchNo: String(line.batchNo || '').trim(),
         expiryDate: String(line.expiryDate || '').trim(),
-        receivedQty: Number(line.orderedQty) || 0
+        receivedQty: Math.max(1, Number(line.receivedQty) || line.orderedQty)
       }))
     });
     showSuccess(`已收货 采购单 ${order.purchaseOrderId}`);

@@ -46,10 +46,16 @@ export function defaultSatelliteReceiveExpiry(now = new Date()): string {
 export function canConfirmSatelliteReceive(
   lines: { batchNo?: string; expiryDate?: string; receivedQty?: number }[]
 ): boolean {
-  return lines.some(
-    (line) =>
-      String(line.batchNo || '').trim() &&
-      String(line.expiryDate || '').trim() &&
-      Number(line.receivedQty) > 0
+  // 审计 P2-19：门闩改 every——提交发全量行，用 some 时清空单行批次仍可整单提交（空批次照发）。
+  // 行字段由 hydrateReceiveLines 预填，正常整单全收恒通过；人工清掉某行批次/效期即应拦下。
+  // 空行数组保持不可提交（原 some() 对空数组为 false）。
+  return (
+    lines.length > 0 &&
+    lines.every(
+      (line) =>
+        String(line.batchNo || '').trim() &&
+        String(line.expiryDate || '').trim() &&
+        Number(line.receivedQty) > 0
+    )
   );
 }

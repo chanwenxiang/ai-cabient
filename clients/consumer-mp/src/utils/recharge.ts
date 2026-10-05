@@ -264,18 +264,20 @@ export async function runWeChatRecharge(
 }> {
   const prepay = await consumerApi.createRechargePrepay('WECHAT', amountCents, idempotencyKey);
   const rawMode = wxPayMode(prepay);
-  // P2：live 后端必带 wxPay 签名。字段丢失时按 live 兜底（fail-safe），防止误调 mock 确认接口
-  const mode: 'mock' | 'live' =
-    rawMode === 'mock' ? 'mock' : rawMode === 'live' || prepay.wxPay ? 'live' : 'mock';
-  if (mode === 'live' && prepay.wxPay) {
-    savePendingRechargeOrder(prepay.orderId);
-    await invokeWxRequestPayment(prepay.wxPay as WxPayLike);
-    await pollRechargePaid(prepay.orderId, 20, 1500);
-    clearPendingRechargeOrder();
-    return { orderId: prepay.orderId, mode };
+  // 审计 P2-16：mock 必须是后端显式声明（后端恒发 debugInfo.mode）。mode 缺失且无收银台签名、
+  // 或声明 live 却缺签名时一律 fail-closed 报错——歧义落到 mock 确认接口在生产是事故面。
+  if (rawMode === 'mock') {
+    await consumerApi.confirmMockRecharge(prepay.orderId);
+    return { orderId: prepay.orderId, mode: 'mock' };
   }
-  await consumerApi.confirmMockRecharge(prepay.orderId);
-  return { orderId: prepay.orderId, mode: 'mock' };
+  if (!prepay.wxPay) {
+    throw new Error('支付参数缺失：预下单未返回微信收银台签名，请稍后重试');
+  }
+  savePendingRechargeOrder(prepay.orderId);
+  await invokeWxRequestPayment(prepay.wxPay as WxPayLike);
+  await pollRechargePaid(prepay.orderId, 20, 1500);
+  clearPendingRechargeOrder();
+  return { orderId: prepay.orderId, mode: 'live' };
 }
 
 /**
@@ -291,15 +293,19 @@ export async function runAlipayRecharge(
   mode: 'mock' | 'live';
 }> {
   const prepay = await consumerApi.createRechargePrepay('ALIPAY', amountCents, idempotencyKey);
-  const mode = String(prepay.debugInfo?.mode || '').toLowerCase() === 'live' ? 'live' : 'mock';
-  if (mode === 'live') {
-    if (!prepay.alipayPay?.payFormHtml && !prepay.alipayPay?.payUrl) {
-      throw new Error('未获取到支付宝支付链接，请检查沙箱配置');
-    }
-    savePendingRechargeOrder(prepay.orderId);
-    openAlipayPrepay(prepay.alipayPay);
-    return { orderId: prepay.orderId, mode };
+  // 审计 P2-17：与微信侧同口径——mock 必须显式声明，缺失即 fail-closed（不再「非 live 即 mock」）
+  const rawMode = String(prepay.debugInfo?.mode || '').toLowerCase();
+  if (rawMode !== 'live' && rawMode !== 'mock') {
+    throw new Error('支付参数缺失：预下单未声明支付模式，请稍后重试');
   }
-  await consumerApi.confirmMockRecharge(prepay.orderId);
-  return { orderId: prepay.orderId, mode: 'mock' };
+  if (rawMode === 'mock') {
+    await consumerApi.confirmMockRecharge(prepay.orderId);
+    return { orderId: prepay.orderId, mode: 'mock' };
+  }
+  if (!prepay.alipayPay?.payFormHtml && !prepay.alipayPay?.payUrl) {
+    throw new Error('未获取到支付宝支付链接，请检查沙箱配置');
+  }
+  savePendingRechargeOrder(prepay.orderId);
+  openAlipayPrepay(prepay.alipayPay);
+  return { orderId: prepay.orderId, mode: 'live' };
 }

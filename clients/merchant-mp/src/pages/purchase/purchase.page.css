@@ -152,6 +152,17 @@
   flex-direction: column;
   gap: 10rpx;
 }
+/* 审计 P2-19 附加：收货行头（品名+要货数 左，实收 stepper 右） */
+.recv-line-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+.recv-line-head .line-item {
+  flex: 1;
+  min-width: 0;
+}
 .input {
   display: block;
   width: 100%;

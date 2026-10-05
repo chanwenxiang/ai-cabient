@@ -220,7 +220,7 @@
 
 <script setup lang="ts">
 import { onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
-import { showError, showSuccess } from '@/utils/notify';
+import { showSuccess } from '@/utils/notify';
 import { computed, ref, watch } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -238,7 +238,7 @@ import {
   sendSmsCode
 } from '@/utils/consumer-api';
 import { eventInputValue, readDomFieldValue, readDomPassword } from '@/utils/form-bind';
-import { showDevTools } from '@/utils/runtime-flags';
+import { isDevBuild, showDevTools } from '@/utils/runtime-flags';
 import loginBgUrl from '@/static/bg-cooler.jpg';
 
 const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } =
@@ -390,7 +390,9 @@ async function tryH5WechatOauth(): Promise<boolean> {
       globalThis.location.href = oauthUrl;
       return true;
     }
-    if (cfg?.wechatH5OauthEnabled === 'true') {
+    // 审计 P2-18：假授权码登录仅限 dev 构建——生产包不得仅凭公开配置开关触发
+    // （wechatH5OauthEnabled 是匿名可读的 public 配置，误置 true 时安全押在后端拒绝假 code 上）
+    if (isDevBuild && cfg?.wechatH5OauthEnabled === 'true') {
       loading.value = true;
       wxMode.value = true;
       err.value = '';

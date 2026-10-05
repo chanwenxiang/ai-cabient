@@ -340,7 +340,6 @@ const orderId = ref('');
 const order = ref<OrderDetailDto | null>(null);
 const loading = ref(true);
 const error = ref('');
-const videoUrl = ref('');
 const showDispute = ref(false);
 const refundMode = ref(false);
 const disputeReason = ref('');
@@ -516,7 +515,6 @@ async function reload() {
   error.value = '';
   try {
     order.value = await consumerApi.getOrder(orderId.value);
-    if (order.value?.videoUri) videoUrl.value = order.value.videoUri;
     if (order.value?.status === 'DISPUTED') disputeFiled.value = true;
     if (order.value?.status === 'REFUNDED') {
       refundDone.value = true;

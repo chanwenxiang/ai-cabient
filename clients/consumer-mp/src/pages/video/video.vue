@@ -73,7 +73,7 @@ import { safeSetClipboardData } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { downloadAuthedFile, getConsumerToken } from '@/utils/consumer-api';
-import { consumerOrderVideoUrl, normalizeMediaUrl } from '@/utils/order-video-url';
+import { consumerOrderVideoUrl } from '@/utils/order-video-url';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const src = ref('');
@@ -125,10 +125,6 @@ const metaLine = computed(() => {
   if (deviceId.value) parts.push(`柜机 ${deviceId.value}`);
   return parts.join(' · ');
 });
-
-function normalizeVideoUrl(url: string): string {
-  return normalizeMediaUrl(url);
-}
 
 function revokeBlob() {
   if (blobUrl) {
@@ -194,18 +190,13 @@ async function loadOrderVideo(oid: string) {
 onLoad(async (opts) => {
   orderId.value = String(opts?.orderId || '').trim();
   deviceId.value = String(opts?.deviceId || '').trim();
-  const raw = String(opts?.url || opts?.videoUrl || '').trim();
-
+  // 审计 P3-1：与商户端对齐——只接受 orderId 由后端鉴权拉流，不再接受任意 ?url=
+  // 深链（官方页壳内播放任意视频=钓鱼承载面）；仓内跳转本就只传 orderId。
   if (orderId.value) {
     await loadOrderVideo(orderId.value);
     return;
   }
-
-  src.value = normalizeVideoUrl(raw);
-  copyTarget.value = src.value;
-  if (!src.value) {
-    error.value = '缺少视频地址';
-  }
+  error.value = '缺少订单号，无法加载视频';
 });
 
 onUnload(() => revokeBlob());

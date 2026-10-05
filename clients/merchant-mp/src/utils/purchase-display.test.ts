@@ -54,6 +54,18 @@ describe('purchase-display', () => {
     ).toBe(false);
   });
 
+  it('receive confirm gates every line (audit P2-19) and rejects empty rows', () => {
+    // 提交发全量行：单行批次被清空时整单必须拦下（原 some() 会放行）
+    expect(
+      canConfirmSatelliteReceive([
+        { batchNo: 'B1', expiryDate: '2026-12-31', receivedQty: 2 },
+        { batchNo: '', expiryDate: '2026-12-31', receivedQty: 2 }
+      ])
+    ).toBe(false);
+    // 空行数组保持不可提交（every 对空数组为 true，需显式守卫）
+    expect(canConfirmSatelliteReceive([])).toBe(false);
+  });
+
   it('defaults batch to yyyymmdd and expiry about 90 days out', () => {
     const now = new Date('2026-10-05T00:00:00');
     expect(defaultSatelliteReceiveBatch(now)).toBe('20261005');

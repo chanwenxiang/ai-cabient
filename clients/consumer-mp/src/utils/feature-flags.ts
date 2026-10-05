@@ -3,8 +3,9 @@ import { consumerApi } from './consumer-api';
 /**
  * C 端「扩展功能」开关的进程内缓存。
  *
- * 背景：后端把开关值随 `GET /api/v2/public/consumer-config`（`SystemConfigService#consumerPublicConfig`）
- * 一起下发；但该接口原先只在首页被调用、且只取了客服电话等字段，别的页面拿不到开关。
+ * 背景：后端把开关值随公开配置接口（`SystemConfigService#consumerPublicConfig`，
+ * 路径见 ConsumerEndpoints.publicConsumerConfig）一起下发；但该接口原先只在首页被调用、
+ * 且只取了客服电话等字段，别的页面拿不到开关。
  * 这里做一次性缓存，任何页面都能同步读取，且不重复请求。
  *
  * 🔴 fail-closed：配置没取到（网络失败 / 字段缺失 / 值不是 true|1）时一律按「关」处理
@@ -41,7 +42,7 @@ export async function loadConsumerFlags(): Promise<Record<string, string>> {
  * 用页面里**已经**取到的公开配置预置缓存，避免同一页面为了读开关再发一次请求。
  *
  * 首页（`pages/index/index.vue`）与「我的」（`pages/mine/mine.vue`）本来就会拉
- * `GET /api/v2/public/consumer-config`，让它们把结果顺手喂进来即可。
+ * 公开配置（ConsumerEndpoints.publicConsumerConfig），让它们把结果顺手喂进来即可。
  *
  * 🔴 只接受成功响应：传 `null`/`undefined`（网络失败）时**不动缓存**，
  * 留给 `loadConsumerFlags()` 重试 —— 否则一次失败会把整个进程的开关永久钉死在「关」。
