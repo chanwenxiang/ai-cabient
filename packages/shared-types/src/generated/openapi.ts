@@ -11360,7 +11360,7 @@ export interface components {
             applied?: boolean;
         };
         SubmitReplenishmentLinesRequest: {
-            lines?: components["schemas"]["ReplenishmentTaskLineDto"][];
+            lines: components["schemas"]["ReplenishmentTaskLineDto"][];
         };
         ApiResponseListReplenishmentTaskLineDto: {
             /** Format: int32 */
