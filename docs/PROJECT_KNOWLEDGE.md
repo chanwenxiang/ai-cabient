@@ -75,6 +75,7 @@ infra/                     Compose、网关、监控
 | DB | Postgres `localhost:15433/aicabinet`；只许 Flyway |
 | 鉴权 | 生产标准；本地 `dev` + mock，禁关安全边界图省事 |
 | 文案 | 用户可见须中文（`ui-copy-zh`） |
+| 验收口径 | **mp-weixin 是双小程序唯一验收权威**（2026-09-26 定）；2026-10-05 收紧：**小程序 H5 不作验收面、不再为它投入修复**（dev:h5 起不来/双 vue 错配均不修）。注意：CI `e2e-h5` job 混装——consumer/merchant H5 两步可按冒烟看待，但同 job 内 three-end business / admin console / role-regression UAT 跑在**运营后台**，不受此口径影响、仍必须绿 |
 | UI Token | 禁裸业务 hex；`z-index` 用 `--z-*`；表格列语义 class |
 | 改 API | common-core DTO + 调用方 + `shared-types` 同步 |
 | 密钥 | 环境变量；禁止提交 |
@@ -243,6 +244,7 @@ infra/                     Compose、网关、监控
 
 ---
 
+| 2026-10-05 | **验收口径收紧（用户明确）**：小程序以 mp-weixin 为准，**H5 不再重要**——不作验收面、不为其修 bug/样式/用例（dev:h5 双 vue 错配不修）；e2e-h5 job 内 admin 控制台三步 UAT 与此无关仍必须绿。已落 §4 关键约定表 | 本行 + §4 |
 | 2026-10-05 | **审计修复第三批（收尾）**：P2-19 附加拍板——竞品 easygo 无实收数（账实漂移根源），本系统部分收货是正确优势，分仓收货页补实收 stepper（1..要货数，提交按实收，后端零改动）；P3 收尾：grafana.htpasswd 换 bcrypt（口令入本地 .env）、税号 18 位 USCC 校验+4 单测、消费者视频页删 `?url=` 深链（对齐商户端只认 orderId）、删过期 alipay-test×2（mp4 被门禁锚定保留、recovery/evidence 刻意保留）。merchant 154+consumer 135 单测+双端 tsc 绿。**本机 Grafana Basic（opsadmin）新口令在 `infra/.env` 的 `GRAFANA_BASIC_AUTH_PASSWORD`** | `docs/CODE_AUDIT_REPORT_2026-10-05.md` §10 |
 | 2026-10-05 | **审计修复第二批**：P1-2（V305 唯一索引，先检重再建）、P2-4（FAILED 预授权清扫器+V306 种子）、P2-2（退款去外层事务）、P2-3（补差失败 HIGH 告警）、P1-6（check-env bootstrap 护栏）、P2-11（生产 EMQX 端口策略+删共享账号误导行）、P2-8（入库默认仓收紧）、P2-14（endpoints 门禁改拒绝式+收口两漏网）、P2-15（线长提现契约化）、P2-23（修正：device_ratelimit 是死配置已删）、快赢 P3×5（CI permissions/Dockerfile USER+删 java-runtime/consumer 门禁扩根抓到 feature-flags 注释裸路径/videoUrl 死引用/showError import）。P1-9 处置：DeepSeek 确认废弃仅平台吊销+本地 key 已清；高德分两类 key（JS key 配域名白名单/Web key 无法配域名）。P2-9/P2-10 评估后保持接真前批次（EMQX hash bootstrap 可行但须实测认证）。验证：trade 1421/0/0+device 48+admin 84+merchant 153+consumer 135+41 门禁+三端 tsc 全绿 | `docs/CODE_AUDIT_REPORT_2026-10-05.md` §9 |
 | 2026-10-05 | **审计 P1/P2 首批修复落地**：P1-1（四包装器 rethrow BIE，F1-B 信号链恢复）/P1-3（盘点差量改当前账面基线）/P1-4（cleanupStaleOutbounds 去外层事务）/P1-7（9 份 csv() 收口 CsvCells + 新门禁 check:csv-escape）/P1-8（分仓单价服务端目录价无条件覆盖）/P1-5①（edge-results 新增必填 deviceId 强校验会话归属）；P2 快赢 13 条（userId 计入退款限额、收货仓负责人校验、作废行幻影占用、发运排序防死锁、心跳/告警 deviceId mismatch 丢弃、双充值 fail-closed、isDevBuild 前置、收货 every 门闩、staging 配置四件套）。验证：trade 全量 **1421/1421**（Skipped=0）+ device 24 + mp 288 单测 + 双端 tsc + 41 门禁全绿。**注意：VisionRecognitionResultDto 加了必填 deviceId（破坏契约，边缘接入方需同步）；mvn -pl 单模块跑测试须带 -am，否则 common-core 走 ~/.m2 旧快照**。余 P1-2（唯一索引迁移）/P1-6/P2-9/10/11（接真前）/P1-9（用户轮换凭据）见报告 §8 | `docs/CODE_AUDIT_REPORT_2026-10-05.md` §8 |
