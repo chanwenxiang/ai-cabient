@@ -34,7 +34,7 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **303** 个脚本量级，最新 **V303** | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
+| Flyway 迁移 | **304** 个脚本量级，最新 **V304** | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
 | trade Controllers | ~**84** | `*Controller.java` |
 | trade 单测 | ~**299** `*Test.java` | 含大量并发测 |
 | admin-vue 业务视图 | ~**71** `.vue` | `src/views` |
@@ -243,6 +243,7 @@ infra/                     Compose、网关、监控
 
 ---
 
+| 2026-10-05 | 后台商户权限树文案对齐小程序（不改 perm_code） | V304、`MenuManageView` |
 | 2026-10-05 | CI 红修续：OpenAPI 重生成含分仓采购/月结；商户 UAT M-09 改从「我的」进、无入口 SKIP | lessons #288–#289 |
 | 2026-10-05 | CI 红修：删遗留 OrderDto、余额不足单测不把 ledger 读取当扣款、nav 多 perm OR、我的页 UAT、补齐边缘 YOLO stub；admin 产物须 Linux 构建 | lessons #287 |
 | 2026-10-05 | **补货员分仓收货**：待收货单在小程序确认入本人仓 | `receiveSatellitePurchaseOrder`、`pages/purchase` |

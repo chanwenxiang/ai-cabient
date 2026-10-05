@@ -185,7 +185,7 @@ export const MERCHANT_MORE_NAV: MerchantNavItem[] = [
   {
     key: 'request',
     title: '要货申请',
-    desc: '向仓库提交补货要货',
+    desc: '柜缺货时向仓库喊一声，不是日常补货',
     url: '/pages/request/request',
     perm: 'merchant:replenishment:view',
     pack: 'field',

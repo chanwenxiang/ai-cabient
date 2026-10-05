@@ -296,6 +296,7 @@
 
 | 272 | 「我的」资料区和胶囊挤在一起 | 资料做在青绿顶栏里，按钮贴胶囊；微信「我」是白底资料行 | **必须** Tab「我的」用无返回键顶栏 + 白底资料 cell（点整行编辑），禁止青绿头图塞编辑按钮 | `mine.vue`、`app-nav-bar.vue` |
 | 287 | CI admin-artifacts | 本机 `build-admin` 后 git 干净，Linux CI 仍报 static/admin 不同步 | Windows / Linux 下 Vite 内容哈希不同，CI 重建后整目录 `??` 新 chunk | **必须**用 Linux（Docker/`node:24`）打 admin 产物再提交；禁止只拿 Windows 哈希过 `admin-artifacts` | `node scripts/build-admin.mjs`、`.github/workflows/ci.yml` |
+| 290 | 后台商户菜单 vs 小程序 | 小程序把定价/结算/争议挪到「我的」并加采购入库后，菜单管理仍显示旧名 | 商户树只做角色授权，小程序导航写死；只改了入口没改 perm_name | **必须**改入口时同步 `ops_permission.perm_name`；禁止为迁入口改 perm_code 或挪功能包；采购入库与补货任务共用 `replenishment:view` | V304、`merchant-nav.ts` |
 | 288 | CI e2e Merchant H5 UAT | M-09 要货/定价/结算/争议报「找不到入口」 | 入口已从工作台挪到「我的」，且无权限不展示 | **必须**从「我的」点；点不到记 SKIP 非 FAIL；禁止为绿上调 `UAT_MAX_FAIL_*` | `merchant-h5-uat.mjs`、`MERCHANT_MORE_NAV` |
 | 289 | CI OpenAPI types | 新增 satellite/monthly-close 后 `check:openapi-types` 脏 | 未用含新 Controller 的 jar 重生成 `openapi.ts` | **必须**起当前 jar（或 CI 刚构建的 jar）拉 `/v3/api-docs` 后 `gen-openapi-types` 并提交 `generated/`；别名进 `openapi-alias-groups.mjs` | `scripts/gen-openapi-types.mjs` |
 | 286 | 仓配收货 | 货到分仓仍只能运营后台点收货 | 收货接口绑 `ops:procurement:edit` | **必须**补货员 `receiveSatellitePurchaseOrder` 只收本人仓；禁止跨仓、禁止借运营权 | `MerchantPortalController` receive、`pages/purchase` |

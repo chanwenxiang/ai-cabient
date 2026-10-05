@@ -69,6 +69,10 @@ const packByKey = {
   replenishment: 'field',
   devices: 'field',
   alerts: 'field',
+  purchase: 'field',
+  request: 'field',
+  'ops-config': 'field',
+  notify: 'field',
   pricing: 'biz',
   settlements: 'biz',
   wallet: 'biz',
@@ -77,6 +81,9 @@ const packByKey = {
   orders: 'biz',
   disputes: 'biz',
   business: 'biz',
+  messages: 'biz',
+  tax: 'biz',
+  'cabinet-reports': 'biz',
   team: 'team'
 };
 

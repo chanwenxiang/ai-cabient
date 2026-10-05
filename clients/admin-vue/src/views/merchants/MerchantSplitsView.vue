@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -161,7 +161,7 @@
                     :model-value="row.packFieldEnabled !== false"
                     :disabled="!canEdit"
                     :aria-label="`${row.merchantName}功能包：现场作业`"
-                    title="功能包：柜机 / 补货 / 待办 / 库存"
+                    title="功能包：柜机 / 补货任务 / 待办；采购入库与要货入口同补货任务权"
                     @change="(v: boolean) => toggleFlag(row, 'packField', v)"
                   />
                 </template>
@@ -178,7 +178,7 @@
                     :model-value="row.packBizEnabled !== false"
                     :disabled="!canEdit"
                     :aria-label="`${row.merchantName}功能包：经营工具`"
-                    title="功能包：订单 / 结算 / 定价 / 争议 / 分析"
+                    title="功能包：订单钱包；点位定价 / 结算 / 争议 / 经营分析（小程序在「我的」）"
                     @change="(v: boolean) => toggleFlag(row, 'packBiz', v)"
                   />
                 </template>
