@@ -26,3 +26,9 @@ export type OpenApiMerchantDto = components['schemas']['MerchantDto'];
 export type OpenApiMerchantTaxProfileDto = components['schemas']['MerchantTaxProfileDto'];
 /** 商户补货配置 */
 export type OpenApiMerchantOpsConfigDto = components['schemas']['MerchantOpsConfigDto'];
+/** 补货员采购入库可选 SKU */
+export type OpenApiSatelliteSkuOptionDto = components['schemas']['SatelliteSkuOptionDto'];
+/** 分仓月结一张表 */
+export type OpenApiWarehouseMonthlyCloseDto = components['schemas']['WarehouseMonthlyCloseDto'];
+/** 分仓月结一行 */
+export type OpenApiWarehouseMonthlyCloseLineDto = components['schemas']['WarehouseMonthlyCloseLineDto'];

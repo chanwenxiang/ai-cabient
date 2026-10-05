@@ -13,9 +13,12 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OPENAPI_ALIAS_GROUPS, renderAliasGroupFile } from './openapi-alias-groups.mjs';
+
+const require = createRequire(import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -80,10 +83,14 @@ async function resolveSpecPath() {
 }
 
 const specPath = await resolveSpecPath();
-const result = spawnSync('pnpm', ['exec', 'openapi-typescript', specPath, '-o', outFile], {
+// Windows 路径含空格时：`pnpm exec … -o D:\ai-generated code\…` 经 shell 拆段会 ENOENT / mkdir D:\
+// 直调 openapi-typescript CLI（argv 不经 cmd 再拆）
+const openapiTsPkg = dirname(require.resolve('openapi-typescript/package.json'));
+const openapiTsBin = join(openapiTsPkg, 'bin', 'cli.js');
+const result = spawnSync(process.execPath, [openapiTsBin, specPath, '-o', outFile], {
   cwd: root,
   stdio: 'inherit',
-  shell: true
+  shell: false
 });
 
 if (result.status !== 0) {
@@ -110,10 +117,11 @@ for (const group of OPENAPI_ALIAS_GROUPS) {
 
 // dist 不入库：生成后本地/CI 同步编译，供 package.json main/types 消费
 const sharedTypesDir = join(root, 'packages', 'shared-types');
-const tsc = spawnSync('node', ['./node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], {
+const tscJs = join(sharedTypesDir, 'node_modules', 'typescript', 'bin', 'tsc');
+const tsc = spawnSync(process.execPath, [tscJs, '-p', 'tsconfig.json'], {
   cwd: sharedTypesDir,
   stdio: 'inherit',
-  shell: true
+  shell: false
 });
 if (tsc.status !== 0) {
   console.error('[gen-openapi-types] shared-types tsc 失败（src 已写入；请检查后重跑 build）');

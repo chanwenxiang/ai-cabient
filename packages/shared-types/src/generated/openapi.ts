@@ -3817,6 +3817,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/satellite-purchase/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["satellitePurchaseOrders"];
+        put?: never;
+        post: operations["createSatellitePurchaseOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/satellite-purchase/orders/{purchaseOrderId}/receive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["receiveSatellitePurchaseOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/replenishment/tasks/{taskId}/open-door": {
         parameters: {
             query?: never;
@@ -5409,6 +5441,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["warehouseMovements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/warehouse/monthly-close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["warehouseMonthlyClose"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7577,6 +7625,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/satellite-warehouse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["satelliteWarehouse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/satellite-purchase/suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["satellitePurchaseSuppliers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/satellite-purchase/skus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["satellitePurchaseSkus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/revenue-splits": {
         parameters: {
             query?: never;
@@ -8997,8 +9093,8 @@ export interface components {
             warehouseName: string;
             address?: string;
             status?: string;
-            /** Format: int64; omit=keep; 0=clear */
-            managerUserId?: number | null;
+            /** Format: int64 */
+            managerUserId?: number;
         };
         ApiResponseWarehouseDto: {
             /** Format: int32 */
@@ -9014,7 +9110,7 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
             /** Format: int64 */
-            managerUserId?: number | null;
+            managerUserId?: number;
         };
         UpdateStocktakeLineRequest: {
             /** Format: int32 */
@@ -9034,7 +9130,6 @@ export interface components {
             stocktakeId?: number;
             skuId?: string;
             skuName?: string;
-            spec?: string;
             batchNo?: string;
             /** Format: date */
             productionDate?: string;
@@ -12096,7 +12191,7 @@ export interface components {
             /** Format: double */
             longitude?: number;
             address?: string;
-            homeWarehouseId?: string | null;
+            homeWarehouseId?: string;
         };
         AdminDeviceDto: {
             deviceId?: string;
@@ -12139,7 +12234,7 @@ export interface components {
             targetTempC?: number;
             firmwareVersion?: string;
             salesLockReason?: string;
-            homeWarehouseId?: string | null;
+            homeWarehouseId?: string;
         };
         ApiResponseAdminDeviceDto: {
             /** Format: int32 */
@@ -12576,8 +12671,7 @@ export interface components {
             /** Format: double */
             longitude?: number;
             address?: string;
-            /** empty string clears home warehouse */
-            homeWarehouseId?: string | null;
+            homeWarehouseId?: string;
         };
         UpdateMerchantUserRequest: {
             displayName?: string;
@@ -13130,6 +13224,43 @@ export interface components {
             operatorId?: number;
             /** Format: date-time */
             createdAt?: string;
+        };
+        ApiResponseWarehouseMonthlyCloseDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["WarehouseMonthlyCloseDto"];
+        };
+        WarehouseMonthlyCloseDto: {
+            warehouseId?: string;
+            warehouseName?: string;
+            yearMonth?: string;
+            formulaHint?: string;
+            lines?: components["schemas"]["WarehouseMonthlyCloseLineDto"][];
+        };
+        WarehouseMonthlyCloseLineDto: {
+            skuId?: string;
+            skuName?: string;
+            /** Format: int32 */
+            openingQty?: number;
+            /** Format: int32 */
+            purchaseInQty?: number;
+            /** Format: int32 */
+            transferInQty?: number;
+            /** Format: int32 */
+            transferOutQty?: number;
+            /** Format: int32 */
+            restockQty?: number;
+            /** Format: int32 */
+            returnQty?: number;
+            /** Format: int32 */
+            lossQty?: number;
+            /** Format: int32 */
+            expectedQty?: number;
+            /** Format: int32 */
+            countedQty?: number;
+            /** Format: int32 */
+            gapQty?: number;
         };
         ApiResponsePageResultWarehouseDto: {
             /** Format: int32 */
@@ -15541,6 +15672,30 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["RevenueSplitDto"][];
+        };
+        ApiResponseListSupplierDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["SupplierDto"][];
+        };
+        ApiResponseListSatelliteSkuOptionDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["SatelliteSkuOptionDto"][];
+        };
+        SatelliteSkuOptionDto: {
+            skuId?: string;
+            skuName?: string;
+            /** Format: int32 */
+            unitCostCents?: number;
+        };
+        ApiResponseListPurchaseOrderDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PurchaseOrderDto"][];
         };
         ApiResponseMerchantReplenishmentDoorSessionDto: {
             /** Format: int32 */
@@ -23640,6 +23795,76 @@ export interface operations {
             };
         };
     };
+    satellitePurchaseOrders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListPurchaseOrderDto"];
+                };
+            };
+        };
+    };
+    createSatellitePurchaseOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePurchaseOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePurchaseOrderDto"];
+                };
+            };
+        };
+    };
+    receiveSatellitePurchaseOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purchaseOrderId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceivePurchaseOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePurchaseOrderDto"];
+                };
+            };
+        };
+    };
     openReplenishmentDoor: {
         parameters: {
             query?: never;
@@ -26149,6 +26374,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponsePageResultWarehouseMovementDto"];
+                };
+            };
+        };
+    };
+    warehouseMonthlyClose: {
+        parameters: {
+            query: {
+                warehouseId: string;
+                yearMonth?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWarehouseMonthlyCloseDto"];
                 };
             };
         };
@@ -29239,6 +29487,66 @@ export interface operations {
             };
         };
     };
+    satelliteWarehouse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWarehouseDto"];
+                };
+            };
+        };
+    };
+    satellitePurchaseSuppliers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListSupplierDto"];
+                };
+            };
+        };
+    };
+    satellitePurchaseSkus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListSatelliteSkuOptionDto"];
+                };
+            };
+        };
+    };
     revenueSplits_1: {
         parameters: {
             query?: {
@@ -29539,6 +29847,7 @@ export interface operations {
                 from?: string;
                 to?: string;
                 keyword?: string;
+                excludeZero?: string;
             };
             header?: never;
             path?: never;
@@ -30036,6 +30345,7 @@ export interface operations {
                 dim?: string;
                 fromDate?: string;
                 toDate?: string;
+                deviceId?: string;
             };
             header?: never;
             path?: never;
@@ -30082,6 +30392,7 @@ export interface operations {
         parameters: {
             query?: {
                 days?: number;
+                deviceId?: string;
             };
             header?: never;
             path?: never;
@@ -30124,6 +30435,7 @@ export interface operations {
         parameters: {
             query?: {
                 days?: number;
+                deviceId?: string;
             };
             header?: never;
             path?: never;

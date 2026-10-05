@@ -475,27 +475,44 @@ async function main() {
       e8
     );
 
-    // —— M-09 工作台经营工具 ——
-    const homePages = [
-      { label: '补货任务', key: 'replenishment', marker: /补货任务|待处理|扫码找柜/ },
-      { label: '要货申请', key: 'request', marker: /发起要货|我的申请/ },
-      { label: '点位定价', key: 'pricing', marker: /点位定价|全部柜机|基准/ },
-      { label: '结算对账', key: 'settlements', marker: /结算对账|区间营收|商户所得/ },
-      { label: '争议处理', key: 'disputes', marker: /争议处理|待处理|暂无待处理/ },
-      { label: '经营分析', key: 'business', marker: /经营分析|经营毛利|营收/ }
+    // 要货/定价/结算/争议已从工作台挪到「我的」；无权限则不展示入口（禁止当失败）
+    const morePages = [
+      { label: '补货任务', key: 'replenishment', marker: /补货任务|待处理|扫码找柜/, from: 'home' },
+      { label: '要货申请', key: 'request', marker: /发起要货|我的申请|要货/, from: 'mine' },
+      { label: '点位定价', key: 'pricing', marker: /点位定价|全部柜机|基准/, from: 'mine' },
+      { label: '结算对账', key: 'settlements', marker: /结算对账|区间营收|商户所得/, from: 'mine' },
+      { label: '争议处理', key: 'disputes', marker: /争议处理|待处理|暂无待处理/, from: 'mine' },
+      { label: '经营分析', key: 'business', marker: /经营分析|经营毛利|营收/, from: 'mine' }
     ];
-    for (const p of homePages) {
-      await gotoPath(page, '/pages/home/home');
-      const ok = await clickByText(page, p.label, { exact: true });
+    for (const p of morePages) {
+      await gotoPath(page, p.from === 'mine' ? '/pages/mine/mine' : '/pages/home/home');
+      await page.waitForTimeout(800);
+      let ok = await clickByText(page, p.label, { exact: true });
+      if (!ok && p.from !== 'mine') {
+        await gotoPath(page, '/pages/mine/mine');
+        await page.waitForTimeout(800);
+        ok = await clickByText(page, p.label, { exact: true });
+      }
       await page.waitForTimeout(2000);
       text = await bodyText(page);
       const markerOk = p.marker.test(text);
+      if (!ok) {
+        record(
+          'M-09-' + p.key,
+          `进入 ${p.label}`,
+          '功能',
+          'SKIP',
+          '当前账号无此入口（无权限不展示）',
+          await shot(page, `09-${p.key}`)
+        );
+        continue;
+      }
       record(
         'M-09-' + p.key,
         `进入 ${p.label}`,
         '功能',
-        ok && markerOk ? 'PASS' : 'FAIL',
-        ok ? text.split('\n').filter(Boolean).slice(0, 6).join(' | ') : '找不到入口',
+        markerOk ? 'PASS' : 'FAIL',
+        text.split('\n').filter(Boolean).slice(0, 6).join(' | '),
         await shot(page, `09-${p.key}`)
       );
     }

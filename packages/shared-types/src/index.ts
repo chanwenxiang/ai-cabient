@@ -450,7 +450,10 @@ export type {
   OpenApiSalesReportRowDto,
   OpenApiMerchantDto,
   OpenApiMerchantTaxProfileDto,
-  OpenApiMerchantOpsConfigDto
+  OpenApiMerchantOpsConfigDto,
+  OpenApiSatelliteSkuOptionDto,
+  OpenApiWarehouseMonthlyCloseDto,
+  OpenApiWarehouseMonthlyCloseLineDto
 } from './generated/merchant-ops-models';
 
 export type {

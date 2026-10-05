@@ -239,6 +239,21 @@ export const OPENAPI_ALIAS_GROUPS = [
         name: 'OpenApiMerchantOpsConfigDto',
         schema: 'MerchantOpsConfigDto',
         comment: '商户补货配置'
+      },
+      {
+        name: 'OpenApiSatelliteSkuOptionDto',
+        schema: 'SatelliteSkuOptionDto',
+        comment: '补货员采购入库可选 SKU'
+      },
+      {
+        name: 'OpenApiWarehouseMonthlyCloseDto',
+        schema: 'WarehouseMonthlyCloseDto',
+        comment: '分仓月结一张表'
+      },
+      {
+        name: 'OpenApiWarehouseMonthlyCloseLineDto',
+        schema: 'WarehouseMonthlyCloseLineDto',
+        comment: '分仓月结一行'
       }
     ]
   },

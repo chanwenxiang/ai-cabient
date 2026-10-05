@@ -296,6 +296,8 @@
 
 | 272 | 「我的」资料区和胶囊挤在一起 | 资料做在青绿顶栏里，按钮贴胶囊；微信「我」是白底资料行 | **必须** Tab「我的」用无返回键顶栏 + 白底资料 cell（点整行编辑），禁止青绿头图塞编辑按钮 | `mine.vue`、`app-nav-bar.vue` |
 | 287 | CI admin-artifacts | 本机 `build-admin` 后 git 干净，Linux CI 仍报 static/admin 不同步 | Windows / Linux 下 Vite 内容哈希不同，CI 重建后整目录 `??` 新 chunk | **必须**用 Linux（Docker/`node:24`）打 admin 产物再提交；禁止只拿 Windows 哈希过 `admin-artifacts` | `node scripts/build-admin.mjs`、`.github/workflows/ci.yml` |
+| 288 | CI e2e Merchant H5 UAT | M-09 要货/定价/结算/争议报「找不到入口」 | 入口已从工作台挪到「我的」，且无权限不展示 | **必须**从「我的」点；点不到记 SKIP 非 FAIL；禁止为绿上调 `UAT_MAX_FAIL_*` | `merchant-h5-uat.mjs`、`MERCHANT_MORE_NAV` |
+| 289 | CI OpenAPI types | 新增 satellite/monthly-close 后 `check:openapi-types` 脏 | 未用含新 Controller 的 jar 重生成 `openapi.ts` | **必须**起当前 jar（或 CI 刚构建的 jar）拉 `/v3/api-docs` 后 `gen-openapi-types` 并提交 `generated/`；别名进 `openapi-alias-groups.mjs` | `scripts/gen-openapi-types.mjs` |
 | 286 | 仓配收货 | 货到分仓仍只能运营后台点收货 | 收货接口绑 `ops:procurement:edit` | **必须**补货员 `receiveSatellitePurchaseOrder` 只收本人仓；禁止跨仓、禁止借运营权 | `MerchantPortalController` receive、`pages/purchase` |
 | 283 | 仓配出库 | 补货出库货从无主默认仓扣 | 规划路线 `createOutboundForRoute(..., null)` 走 `resolveDefaultWarehouseId()` | **必须**按柜机 `home_warehouse_id` 出库；混仓/未归线/无负责人拒绝。禁止默认无主仓 | `WarehouseService.resolveOutboundWarehouseId` |
 | 282 | 仓配采购 | 日常采购货进了无主中心仓 | 未选仓时 `resolveDefaultWarehouseId()` 落到未绑负责人的默认仓 | **必须**只入 `manager_user_id` 非空的仓；未选仓取操作人负责的仓；无则拒绝。禁止默认无主仓。热替换只 `jar uf` 变更 class，禁止整包 zip 重写 BOOT-INF/lib | `ProcurementService`、`WarehouseMapper.findFirstActiveByManagerUserId` |

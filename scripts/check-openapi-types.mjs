@@ -74,17 +74,17 @@ if (shouldRegen) {
     env.OPENAPI_IGNORE_CACHE = '1';
     console.log('[check-openapi-types] 忽略 .tmp 缓存，现抓 OPENAPI_URL 校验');
   }
-  const gen = spawnSync('node', [join(root, 'scripts', 'gen-openapi-types.mjs')], {
+  const gen = spawnSync(process.execPath, [join(root, 'scripts', 'gen-openapi-types.mjs')], {
     cwd: root,
     env,
     stdio: 'inherit',
-    shell: true
+    shell: false
   });
   if (gen.status !== 0) fail('gen:api-types failed');
   const diff = spawnSync(
     'git',
     ['diff', '--exit-code', '--', 'packages/shared-types/src/generated/'],
-    { cwd: root, stdio: 'inherit', shell: true }
+    { cwd: root, stdio: 'inherit', shell: false }
   );
   if (diff.status !== 0) {
     fail('generated OpenAPI types are stale; run pnpm gen:api-types and commit');
