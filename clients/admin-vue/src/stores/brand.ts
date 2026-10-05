@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 
 export interface OpsBrand {
   title: string;
@@ -40,7 +41,7 @@ export const useBrandStore = defineStore('brand', () => {
         subtitle?: string;
         sidebarTitle?: string;
         logoUrl?: string;
-      }>('/api/v2/public/ops-branding', 'GET');
+      }>(AdminEndpoints.opsBranding, 'GET');
       brand.value = {
         title: (data?.title || '').trim() || DEFAULT_BRAND.title,
         subtitle: (data?.subtitle || '').trim() || DEFAULT_BRAND.subtitle,

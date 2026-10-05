@@ -701,6 +701,12 @@ import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { yuanToCents } from '@/utils/display';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import {
+  buildLineWithdrawReviewBody,
+  canCancelFailedLineWithdraw,
+  canReviewLineWithdraw,
+  canRetryLineWithdrawPayout
+} from '@/utils/money-ui-contracts';
 
 const loadSeq = createLoadSeq();
 
@@ -800,19 +806,17 @@ const wSize = ref(20);
 const wTotal = ref(0);
 const wStatus = ref('');
 
+// 审计 P2-15：状态门闩/审核体一律走 money-ui-contracts（原手写与商户提现逐行重复，会改漏）
 function canReviewWithdraw(row: Withdraw) {
-  return row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:line-withdraw:review');
+  return canReviewLineWithdraw(row.status, auth.hasPerm('ops:line-withdraw:review'));
 }
 
 function canRetryWithdrawPayout(row: Withdraw) {
-  return (
-    (row.status === 'APPROVED' || row.status === 'FAILED') &&
-    auth.hasPerm('ops:line-withdraw:review')
-  );
+  return canRetryLineWithdrawPayout(row.status, auth.hasPerm('ops:line-withdraw:review'));
 }
 
 function canCancelFailedWithdraw(row: Withdraw) {
-  return row.status === 'FAILED' && auth.hasPerm('ops:line-withdraw:review');
+  return canCancelFailedLineWithdraw(row.status, auth.hasPerm('ops:line-withdraw:review'));
 }
 
 /** 当前页无可操作行时隐藏操作列，避免终态列表整列空白 */
@@ -1197,10 +1201,11 @@ async function review(row: Withdraw, approve: boolean) {
       approve ? '通过并打款' : '驳回申请',
       { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
     );
-    await api.request(AdminEndpoints.lineWithdrawReview(row.requestId), 'POST', {
-      approve,
-      remark: approve ? '审核通过' : '审核驳回'
-    });
+    await api.request(
+      AdminEndpoints.lineWithdrawReview(row.requestId),
+      'POST',
+      buildLineWithdrawReviewBody(approve)
+    );
     ElMessage.success(approve ? '已通过并尝试打款' : '已驳回');
     await loadWithdraws();
   } catch (e) {
@@ -1231,10 +1236,11 @@ async function batchReviewWithdraws(approve: boolean) {
   try {
     const results = await Promise.allSettled(
       targets.map((row) =>
-        api.request(AdminEndpoints.lineWithdrawReview(row.requestId), 'POST', {
-          approve,
-          remark: approve ? '批量审核通过' : '批量审核驳回'
-        })
+        api.request(
+          AdminEndpoints.lineWithdrawReview(row.requestId),
+          'POST',
+          buildLineWithdrawReviewBody(approve, { batch: true })
+        )
       )
     );
     const ok = results.filter((r) => r.status === 'fulfilled').length;

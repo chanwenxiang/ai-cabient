@@ -794,7 +794,11 @@ export const AdminEndpoints = {
   feedback: (feedbackId: string | number) =>
     `${API_PREFIX}/ops/feedback/${encodeURIComponent(String(feedbackId))}`,
   feedbackReply: (feedbackId: string | number) =>
-    `${API_PREFIX}/ops/feedback/${encodeURIComponent(String(feedbackId))}/reply`
+    `${API_PREFIX}/ops/feedback/${encodeURIComponent(String(feedbackId))}/reply`,
+
+  // 审计 P2-14 漏网收口（原为视图/Store 内裸字面量）
+  recognitionPreview: `${API_PREFIX}/ops/recognition-preview`,
+  opsBranding: `${API_PREFIX}/public/ops-branding`
 } as const;
 
 /** 门禁扫描用：这些字面量不得再出现在 views/composables（endpoints.ts 除外）。 */

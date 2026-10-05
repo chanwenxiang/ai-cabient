@@ -1242,7 +1242,7 @@ async function runTest() {
   testing.value = true;
   try {
     testPreview.value = await uploadMultipart<DevRecognitionPreviewDto>(
-      '/api/v2/ops/recognition-preview',
+      AdminEndpoints.recognitionPreview,
       {
         image: testImageFile.value,
         ...(testForm.deviceId.trim() ? { deviceId: testForm.deviceId.trim() } : {})

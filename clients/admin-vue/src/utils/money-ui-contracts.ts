@@ -94,3 +94,30 @@ export function buildMerchantWithdrawReviewBody(
     remark: batch ? (approve ? '批量审核通过' : '批量审核驳回') : approve ? '审核通过' : '审核驳回'
   };
 }
+
+// 审计 P2-15：线长提现与商户提现同族——状态机一致（PENDING_REVIEW/APPROVED/FAILED），
+// 审核体形状一致。契约单点化后，新增提现状态（如 PAYOUT_IN_PROGRESS）只改这里。
+export function canReviewLineWithdraw(
+  status: string | undefined | null,
+  hasReviewPerm: boolean
+): boolean {
+  return canReviewMerchantWithdraw(status, hasReviewPerm);
+}
+
+export function canRetryLineWithdrawPayout(
+  status: string | undefined | null,
+  hasReviewPerm: boolean
+): boolean {
+  return canRetryMerchantWithdrawPayout(status, hasReviewPerm);
+}
+
+export function canCancelFailedLineWithdraw(
+  status: string | undefined | null,
+  hasReviewPerm: boolean
+): boolean {
+  return canCancelFailedMerchantWithdraw(status, hasReviewPerm);
+}
+
+export function buildLineWithdrawReviewBody(approve: boolean, options?: { batch?: boolean }) {
+  return buildMerchantWithdrawReviewBody(approve, options);
+}
