@@ -37,6 +37,7 @@ public class SettlementConfirmDisputeService {
     private final SettlementService settlement;
     private final SettlementOrderSupport orderSupport;
     private final OpsAlertDispatcher alertDispatcher;
+    private final OpsExceptionService opsExceptionService;
     private final SettlementConfirmDisputeService self;
 
     public SettlementConfirmDisputeService(ShoppingSessionMapper sessionRepository,
@@ -46,6 +47,7 @@ public class SettlementConfirmDisputeService {
                                            UserValidationService userValidationService,
                                            RevenueSplitService revenueSplitService,
                                            OpsAlertDispatcher alertDispatcher,
+                                           OpsExceptionService opsExceptionService,
                                            @Lazy SettlementService settlement,
                                            SettlementOrderSupport orderSupport,
                                            @Lazy SettlementConfirmDisputeService self) {
@@ -58,6 +60,7 @@ public class SettlementConfirmDisputeService {
         this.settlement = settlement;
         this.orderSupport = orderSupport;
         this.alertDispatcher = alertDispatcher;
+        this.opsExceptionService = opsExceptionService;
         this.self = self;
     }
 
@@ -101,6 +104,11 @@ public class SettlementConfirmDisputeService {
                     + " final=" + prep.finalTotal() + "分"
                     + " cause=" + cause.getMessage();
             log.error("dispute confirm finalize failed after payment delta applied {}", summary, cause);
+            // 审计 P2-3 复核修正：除渠道广播外必须落 ops 异常留痕（HIGH），保证运营台可见可认领
+            opsExceptionService.report("DISPUTE_ADJUST_MISMATCH", "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            null, prep.session().getSessionId(), prep.order().getOrderId(), null),
+                    "争议补差账实漂移待人工", summary);
             alertDispatcher.send("DISPUTE", "争议补差账实漂移待人工", summary);
         } catch (RuntimeException alertEx) {
             log.warn("dispute adjust mismatch alert dispatch failed orderId={}: {}",

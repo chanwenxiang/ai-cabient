@@ -81,6 +81,17 @@ class OfflineUploadQueue(
                     userId
                 )
             )
+            // 审计 P1-9：离线队列必须有界——长期断网时队列 JSON 与待传视频文件双增，
+            // 可达「磁盘打满 → 录像写失败 → 门磁发不出」。超限淘汰最旧会话并告警
+            //（其文件仍在，空间释放后可由后续补传兜底）。
+            var dropped = 0
+            while (pending.size > MAX_PENDING_ITEMS) {
+                pending.removeAt(0)
+                dropped++
+            }
+            if (dropped > 0) {
+                Log.w(TAG, "offline upload queue overflow: dropped $dropped oldest sessions (cap=$MAX_PENDING_ITEMS)")
+            }
         }
         Log.i(TAG, "queued offline upload session=$sessionId files=${files.size} fusion=$fusionMode")
         executor.execute { processQueue() }
@@ -140,6 +151,7 @@ class OfflineUploadQueue(
     }
 
     companion object {
+        private const val MAX_PENDING_ITEMS = 50
         private const val TAG = "OfflineUploadQueue"
         private const val PREFS = "offline_upload_queue"
     }

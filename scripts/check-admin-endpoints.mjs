@@ -10,8 +10,15 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const srcRoot = path.resolve('clients/admin-vue/src');
+const srcRoot = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'clients',
+  'admin-vue',
+  'src'
+);
 const endpointsFile = path.join(srcRoot, 'api', 'endpoints.ts');
 const scanRoots = [
   path.join(srcRoot, 'views'),

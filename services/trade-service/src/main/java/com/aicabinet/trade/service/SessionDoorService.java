@@ -36,6 +36,7 @@ public class SessionDoorService {
     private final SessionRestockService sessionRestockService;
     private final CabinetMetrics cabinetMetrics;
     private final DomainEventPublisher domainEventPublisher;
+    private final com.aicabinet.trade.storage.MinioVideoService minioVideoService;
     private final SessionService sessionService;
     private final SessionDoorService self;
 
@@ -45,6 +46,7 @@ public class SessionDoorService {
                               SessionRestockService sessionRestockService,
                               CabinetMetrics cabinetMetrics,
                               DomainEventPublisher domainEventPublisher,
+                              com.aicabinet.trade.storage.MinioVideoService minioVideoService,
                               @Lazy SessionService sessionService,
                               @Lazy SessionDoorService self) {
         this.repository = repository;
@@ -53,6 +55,7 @@ public class SessionDoorService {
         this.sessionRestockService = sessionRestockService;
         this.cabinetMetrics = cabinetMetrics;
         this.domainEventPublisher = domainEventPublisher;
+        this.minioVideoService = minioVideoService;
         this.sessionService = sessionService;
         this.self = self;
     }
@@ -93,6 +96,13 @@ public class SessionDoorService {
         }
 
         if (event.videoUri() != null && !event.videoUri().isBlank()) {
+            // 审计 P0-1：门事件携带的 videoUri 必须是本平台 minio:// 对象路径。此前无 scheme
+            // 校验，柜机可写 file:///proc/self/environ 等任意路径，经消费者订单视频端点
+            // （streamMyOrderVideo → streamTo）回显 trade 进程任意文件（含密钥环境变量）。
+            if (minioVideoService == null || !minioVideoService.isPlatformObjectUri(event.videoUri())) {
+                throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                        "videoUri 必须为本平台对象存储路径（minio://）");
+            }
             session.setVideoUri(event.videoUri());
         }
         applyVideoMetadata(session, event.uploadStatus(), event.videoClipsJson(), event.cameraFusionMode());

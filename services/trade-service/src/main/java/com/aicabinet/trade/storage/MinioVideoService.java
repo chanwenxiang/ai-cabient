@@ -301,15 +301,9 @@ public class MinioVideoService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "外部视频请直接访问原链接");
         }
         if (videoUri.startsWith(FILE)) {
-            try {
-                streamLocalFile(videoUri, request, response);
-            } catch (ResponseStatusException e) {
-                throw e;
-            } catch (Exception e) {
-                log.warn("stream local file failed uri={}", videoUri, e);
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "视频文件不存在或无法读取");
-            }
-            return;
+            // 审计 P0-1：file:// 读取可回显进程任意文件（写入侧已只接受 minio://，
+            // 此处对存量/异常数据整体 fail-closed），不再提供本地文件流。
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file:// 视频不受支持");
         }
         ParsedUri parsed = parseUri(videoUri);
         if (parsed == null) {
@@ -365,39 +359,6 @@ public class MinioVideoService {
         }
     }
 
-    private void streamLocalFile(String videoUri, HttpServletRequest request, HttpServletResponse response)
-            throws java.io.IOException {
-        Path path = Paths.get(URI.create(videoUri));
-        if (!Files.isRegularFile(path)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "视频文件不存在");
-        }
-        long totalSize = Files.size(path);
-        String contentType = contentTypeForKey(path.getFileName().toString());
-        response.setHeader("Accept-Ranges", "bytes");
-        response.setHeader("Cache-Control", "private, max-age=3600");
-
-        Range range = parseRange(request.getHeader("Range"), totalSize);
-        if (range != null) {
-            long length = range.end - range.start + 1;
-            response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
-            response.setContentType(contentType);
-            response.setHeader("Content-Range",
-                    "bytes " + range.start + "-" + range.end + "/" + totalSize);
-            response.setContentLengthLong(length);
-            try (InputStream in = Files.newInputStream(path);
-                 OutputStream out = response.getOutputStream()) {
-                copyRange(in, out, range.start, length);
-            }
-        } else {
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.setContentType(contentType);
-            response.setContentLengthLong(totalSize);
-            try (InputStream in = Files.newInputStream(path);
-                 OutputStream out = response.getOutputStream()) {
-                in.transferTo(out);
-            }
-        }
-    }
 
     private static void copyRange(InputStream in, OutputStream out, long start, long length)
             throws java.io.IOException {

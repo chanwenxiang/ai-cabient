@@ -373,7 +373,7 @@ services:
       FEISHU_SIGN_SECRET: ${FEISHU_SIGN_SECRET:-}
     volumes:
       - "./monitoring/feishu-relay.py:/app/feishu-relay.py:ro"
-    ports: ["${FEISHU_RELAY_PORT:-18098}:8098"]
+    ports: ["127.0.0.1:${FEISHU_RELAY_PORT:-18098}:8098"]
 
   alertmanager:
     stop_grace_period: 30s
@@ -384,7 +384,7 @@ services:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
     volumes:
       - "./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"
-    ports: ["${ALERTMANAGER_PORT:-19093}:9093"]
+    ports: ["127.0.0.1:${ALERTMANAGER_PORT:-19093}:9093"]
     depends_on: [feishu-alert-relay]
 
 volumes:

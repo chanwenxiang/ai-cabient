@@ -379,37 +379,27 @@ public class OrderPaymentService {
             return;
         }
         int remainDebit = chargeAmount;
-        int capturedViaPreauth = 0;
+        int captured = 0;
         if (session != null) {
             var captureResult = consumerPreauthService.captureForCharge(session, chargeAmount, order.getOrderId());
             remainDebit = captureResult.remainDebitCents();
-            capturedViaPreauth = Math.max(0, chargeAmount - captureResult.capturedCents());
+            captured = Math.max(0, captureResult.capturedCents());
             // F1-B：锁内预判不足 → 业务信号（BalanceInsufficientException 由 chargeOrder noRollbackFor 放行，
             // 上层转 PENDING 并保留冲抵；无异常穿越 txTemplate，事务不被毒化）
             if (captureResult.remainderUnpaid()) {
                 throw new BalanceInsufficientException(
-                        "余额不足，开门预授权冲抵部分（" + capturedViaPreauth + " 分）已保留，差额转待支付");
+                        "余额不足，开门预授权冲抵部分（" + captured + " 分）已保留，差额转待支付");
             }
         }
-        if (capturedViaPreauth > 0 && remainDebit > 0) {
-            String preauthChargeKey = "CHARGE:PREAUTH:" + order.getOrderId() + ":" + order.getTotalAmountCents();
-            if (!isCompleted(preauthChargeKey)) {
-                recordOperation(order, CHARGE, capturedViaPreauth, PayChannels.BALANCE, preauthChargeKey,
-                        null, "order charge via preauth capture");
-            }
-        }
+        // 审计 P0-4 记账不变量：PREAUTH_CAPTURE 行（captureForCharge 内落账）与余额 CHARGE 行
+        // 合计必须恰为应付——此处不再另记任何 CHARGE（原「CHARGE:PREAUTH」块与终段全额 CHARGE
+        // 均为重复记账，实测净额 140/200/200，OrderPaymentChargeInvariantTest 钉住三场景）。
         if (remainDebit > 0) {
             var operation = balanceLedgerService.change(order.getUserId(), -remainDebit, CHARGE,
                     order.getOrderId(), idemKey, "order charge");
             order.setPaymentOperationId(operation.getOperationId());
             order.setBalanceBeforeCents(operation.getBalanceBeforeCents());
             order.setBalanceAfterCents(operation.getBalanceAfterCents());
-            return;
-        }
-        if (!isCompleted(idemKey)) {
-            // F1 净额口径：CHARGE 行记本次实收（净额），与 PREAUTH_CAPTURE 行合计=应付
-            recordOperation(order, CHARGE, chargeAmount, PayChannels.BALANCE, idemKey,
-                    null, "order charge via preauth");
         }
     }
 

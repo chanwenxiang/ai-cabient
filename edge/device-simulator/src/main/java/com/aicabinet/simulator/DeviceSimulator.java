@@ -403,7 +403,9 @@ public class DeviceSimulator implements MqttCallbackExtended {
             return;
         }
         try {
-            HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+            // 审计 P1-10：容器内必须绑 0.0.0.0（Docker 端口转发要求）；对宿主的暴露面由
+            // compose 的 127.0.0.1 发布前缀把守（check-compose-ports 门禁）。日志如实打印绑定。
+            HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
             server.createContext("/", this::handleHttpRoot);
             server.createContext("/status", this::handleHttpStatus);
             server.createContext("/close", this::handleHttpClose);
@@ -413,8 +415,8 @@ public class DeviceSimulator implements MqttCallbackExtended {
                 return t;
             }));
             server.start();
-            System.out.println("[simulator] HTTP control http://127.0.0.1:" + port
-                    + "/  (GET/POST /close, GET /status)");
+            System.out.println("[simulator] HTTP control bound 0.0.0.0:" + port
+                    + " (GET/POST /close, GET /status)；宿主暴露面由 compose 发布前缀（127.0.0.1）把守");
         } catch (Exception e) {
             System.err.println("[simulator] HTTP control failed: " + e.getMessage());
         }

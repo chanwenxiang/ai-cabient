@@ -33,7 +33,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class SessionDoorClosedIdempotencyTest {
 
-    @Mock ShoppingSessionMapper repository;
+        @Mock com.aicabinet.trade.storage.MinioVideoService minioVideoService;
+@Mock ShoppingSessionMapper repository;
     @Mock DeviceServiceClient deviceClient;
     @Mock UserValidationService userValidationService;
     @Mock DeviceValidationService deviceValidationService;
@@ -62,8 +63,11 @@ class SessionDoorClosedIdempotencyTest {
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
+        minioVideoService = org.mockito.Mockito.mock(com.aicabinet.trade.storage.MinioVideoService.class);
+        lenient().when(minioVideoService.isPlatformObjectUri(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(true);
         doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
-                cabinetMetrics, domainEventPublisher, service, null);
+                cabinetMetrics, domainEventPublisher, minioVideoService, service, null);
         org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionDoorService", doorService);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
@@ -151,5 +155,18 @@ class SessionDoorClosedIdempotencyTest {
 
         verify(cabinetMetrics, times(1)).recordDoorClose(true);
         verify(cabinetMetrics, never()).recordDoorClose(false);
+    }
+
+
+
+    /** 审计 P0-1：门事件 videoUri 非 minio:// 一律 400（file:///proc/self/environ 回显链入口）。 */
+    @org.junit.jupiter.api.Test
+    void doorEvent_withNonPlatformVideoUri_rejected() {
+        DoorEventRequest poison = new DoorEventRequest(
+                "S-Q3", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(),
+                "file:///proc/self/environ");
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> service.handleDoorEvent(poison));
     }
 }

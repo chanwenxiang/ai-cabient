@@ -78,6 +78,8 @@ services:
       ENTERPRISE_NAME: ""
     volumes:
       - runner_work:/tmp/runner/work
+      # 审计 P1-11：docker.sock 等价宿主 root——不可改 :ro（Unix socket connect 需写权限，
+      # :ro 会直接断 docker CLI）。真正缓解 = 本 runner 只跑受信分支代码；根治 = docker-socket-proxy。
       - /var/run/docker.sock:/var/run/docker.sock
       - ..:/workspace
       # 下面两处此前**只存在于手工 `docker run` 起的容器里、不在版本管理内** ⇒ 一旦用 compose

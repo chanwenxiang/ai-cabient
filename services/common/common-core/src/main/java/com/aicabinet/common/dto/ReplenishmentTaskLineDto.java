@@ -1,5 +1,7 @@
 package com.aicabinet.common.dto;
 
+import jakarta.validation.constraints.Min;
+
 import java.time.LocalDate;
 
 public record ReplenishmentTaskLineDto(
@@ -10,7 +12,7 @@ public record ReplenishmentTaskLineDto(
         String batchNo,
         LocalDate productionDate,
         LocalDate expiryDate,
-        int quantity,
+        @Min(0) int quantity,
         String slotId,
         boolean applied
 ) {}
