@@ -10200,6 +10200,7 @@ export interface components {
         };
         VisionRecognitionResultDto: {
             sessionId?: string;
+            deviceId?: string;
             taskId?: string;
             traceId?: string;
             items?: components["schemas"]["Item"][];
