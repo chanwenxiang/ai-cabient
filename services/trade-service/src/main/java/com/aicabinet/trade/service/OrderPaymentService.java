@@ -852,6 +852,9 @@ public class OrderPaymentService {
         PaymentOperation op = new PaymentOperation();
         op.setOperationId(resolveOperationId(type, channel));
         op.setOrderId(order.getOrderId());
+        // 审计 P2-1：渠道 CHARGE/REFUND/ADJUST_CHARGE 也挂 userId——
+        // countRefundsSince 按 user_id 统计「每日自助退款 ≤3 次」，缺 userId 时渠道退款绕过次数闸
+        op.setUserId(order.getUserId());
         op.setOperationType(type);
         op.setAmountCents(amountCents);
         op.setChannel(channel);
@@ -948,7 +951,9 @@ public class OrderPaymentService {
             CabinetOrder locked = cabinetOrderRepository.findByIdForUpdate(orderId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
             action.accept(locked);
-        } catch (ResponseStatusException e) {
+        } catch (ResponseStatusException | BalanceInsufficientException e) {
+            // BalanceInsufficientException 必须原样穿透：chargeOrder 的 noRollbackFor 按原始类型匹配，
+            // 包成 500 会毒化结算事务并打断「冲抵保留+差额转待支付」信号链（审计 P1-1）
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);

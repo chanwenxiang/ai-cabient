@@ -511,8 +511,8 @@ public class CompetitiveGapService {
     }
 
     private static String csv(String v) {
-        String s = v == null ? "" : v.replace("\"", "\"\"");
-        return "\"" + s + "\"";
+        // S3/审计 P1-7：统一走 CsvCells——补公式注入中和；引号包裹按需不再全量
+        return com.aicabinet.trade.support.CsvCells.escape(v);
     }
 
     @Transactional(readOnly = true)

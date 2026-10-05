@@ -199,6 +199,11 @@ class ProcurementServiceTest {
         mine.setManagerUserId(40L);
         mine.setStatus("ACTIVE");
         when(warehouseRepository.findFirstActiveByManagerUserId(40L)).thenReturn(java.util.Optional.of(mine));
+        // 审计 P1-8：分仓单价一律服务端目录价——夹具补目录（缺目录即 400 是预期行为）
+        com.aicabinet.trade.domain.SkuCatalog sku = new com.aicabinet.trade.domain.SkuCatalog();
+        sku.setSkuId("SKU-A");
+        sku.setPurchaseCostCents(120);
+        when(skuCatalogRepository.findById("SKU-A")).thenReturn(java.util.Optional.of(sku));
 
         var dto = service.createSatellitePurchaseOrder(40L, new com.aicabinet.common.dto.CreatePurchaseOrderRequest(
                 "SUP-1", null, null, null, List.of(lineDto("SKU-A", null, null, 8))));
@@ -256,6 +261,8 @@ class ProcurementServiceTest {
         order.setWarehouseId("WH-1");
         order.setStatus("CREATED");
         when(purchaseOrderRepository.findByIdForUpdate(1L)).thenReturn(java.util.Optional.of(order));
+        when(warehouseRepository.findById("WH-1"))
+                .thenReturn(java.util.Optional.of(managedWarehouse("WH-1")));
         PurchaseOrderLine line = new PurchaseOrderLine();
         line.setLineId(11L);
         line.setPurchaseOrderId(1L);
@@ -283,6 +290,8 @@ class ProcurementServiceTest {
         order.setWarehouseId("WH-1");
         order.setStatus("CREATED");
         when(purchaseOrderRepository.findByIdForUpdate(1L)).thenReturn(java.util.Optional.of(order));
+        when(warehouseRepository.findById("WH-1"))
+                .thenReturn(java.util.Optional.of(managedWarehouse("WH-1")));
         when(purchaseOrderRepository.save(org.mockito.ArgumentMatchers.any(PurchaseOrder.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         PurchaseOrderLine line = new PurchaseOrderLine();
@@ -318,6 +327,8 @@ class ProcurementServiceTest {
         order.setWarehouseId("WH-1");
         order.setStatus("CREATED");
         when(purchaseOrderRepository.findByIdForUpdate(1L)).thenReturn(java.util.Optional.of(order));
+        when(warehouseRepository.findById("WH-1"))
+                .thenReturn(java.util.Optional.of(managedWarehouse("WH-1")));
         when(purchaseOrderRepository.save(org.mockito.ArgumentMatchers.any(PurchaseOrder.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         PurchaseOrderLine line = new PurchaseOrderLine();
@@ -350,6 +361,15 @@ class ProcurementServiceTest {
         order.setWarehouseId("WH-1");
         order.setStatus("PENDING_APPROVAL");
         return order;
+    }
+
+    /** 审计 P2-5：收货仓必须有负责人——受管仓库夹具。 */
+    private com.aicabinet.trade.domain.Warehouse managedWarehouse(String id) {
+        com.aicabinet.trade.domain.Warehouse wh = new com.aicabinet.trade.domain.Warehouse();
+        wh.setWarehouseId(id);
+        wh.setStatus("ACTIVE");
+        wh.setManagerUserId(1L);
+        return wh;
     }
 
     @Test

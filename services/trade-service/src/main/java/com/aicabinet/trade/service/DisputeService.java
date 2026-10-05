@@ -238,8 +238,12 @@ public class DisputeService {
 
     /**
      * 运营后台退款（全额或按行部分退）。
+     *
+     * <p>审计 P2-2：刻意<b>不开外层事务</b>——下游 waiveAndRefund/partialRefund 自带
+     * 「prepare 短事务 → 渠道 HTTP（无事务）→ finalize 短事务」三段式；若在此套 @Transactional，
+     * 渠道退款成功后外层任何一步失败回滚，会让 REFUND 流水与订单 refundedCents 丢失
+     * （本地「未退」但钱已退）。幂等号 deterministicRefundNo 可防双退，但账实不一致需人工对账。</p>
      */
-    @Transactional
     public OrderRefundResultDto refundByOperator(Long operatorId, String orderId, OrderRefundRequest request) {
         permissionService.requirePermission(operatorId, "ops:order:refund");
         return runWithOrderPaymentLock(orderId, lockedOrder -> {
@@ -254,9 +258,8 @@ public class DisputeService {
     }
 
     /**
-     * 消费者自助退款：全额或按行（受限额策略约束）。
+     * 消费者自助退款：全额或按行（受限额策略约束）。无外层事务，理由同 {@link #refundByOperator}（审计 P2-2）。
      */
-    @Transactional
     public OrderRefundResultDto refundByConsumer(Long userId, String orderId, OrderRefundRequest request) {
         return runWithOrderPaymentLock(orderId, lockedOrder -> {
             if (!userId.equals(lockedOrder.getUserId())) {
@@ -1449,7 +1452,8 @@ public class DisputeService {
             CabinetOrder locked = orderRepository.findByIdForUpdate(orderId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
             return action.get(locked);
-        } catch (ResponseStatusException e) {
+        } catch (ResponseStatusException | BalanceInsufficientException e) {
+            // 原样穿透：同 OrderPaymentService（审计 P1-1），包成 500 会毒化事务并打断 F1-B 信号链
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
@@ -1464,7 +1468,8 @@ public class DisputeService {
         }
         try {
             return action.get();
-        } catch (ResponseStatusException e) {
+        } catch (ResponseStatusException | BalanceInsufficientException e) {
+            // 原样穿透：同 OrderPaymentService（审计 P1-1）
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);

@@ -226,13 +226,7 @@ public class OpsCsvExportService {
     }
 
     private static String csv(String value) {
-        if (value == null || "null".equals(value)) {
-            return "";
-        }
-        String v = value.replace("\"", "\"\"");
-        if (v.contains(",") || v.contains("\"") || v.contains("\n") || v.contains("\r")) {
-            return "\"" + v + "\"";
-        }
-        return v;
+        // S3/审计 P1-7：统一走 CsvCells——补公式注入中和（含商户提现导出）
+        return com.aicabinet.trade.support.CsvCells.escape(value);
     }
 }

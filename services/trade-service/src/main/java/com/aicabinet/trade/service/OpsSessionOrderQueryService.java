@@ -387,13 +387,8 @@ public class OpsSessionOrderQueryService {
     }
 
     private static String csv(String value) {
-        if (value == null || "null".equals(value)) {
-            return "";
-        }
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
+        // S3/审计 P1-7：统一走 CsvCells——补公式注入中和与 \r 覆盖（订单/开门记录导出，流量最大）
+        return com.aicabinet.trade.support.CsvCells.escape(value);
     }
 
     private record SessionQueryCriteria(

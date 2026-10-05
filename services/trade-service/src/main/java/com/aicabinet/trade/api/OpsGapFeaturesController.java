@@ -336,11 +336,7 @@ public class OpsGapFeaturesController {
     }
 
     private static String csv(String value) {
-        if (value == null) return "";
-        String v = value.replace("\"", "\"\"");
-        if (v.contains(",") || v.contains("\"") || v.contains("\n")) {
-            return "\"" + v + "\"";
-        }
-        return v;
+        // S3/审计 P1-7：统一走 CsvCells——补公式注入中和（=+-@/TAB/CR 前缀在 Excel 中可执行）
+        return com.aicabinet.trade.support.CsvCells.escape(value);
     }
 }

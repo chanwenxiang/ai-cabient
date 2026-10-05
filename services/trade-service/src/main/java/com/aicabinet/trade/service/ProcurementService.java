@@ -499,6 +499,11 @@ public class ProcurementService {
         if (target == null || target.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "收货仓库未指定");
         }
+        // 审计 P2-5：运营侧转投收货仓同样必须「已指定负责人」——货收入无主仓后
+        // resolveOutboundWarehouseId 会拒绝从无主仓出库，库存就此搁浅。
+        Warehouse targetWarehouse = warehouseRepository.findById(target)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "仓库不存在"));
+        requireManagedWarehouse(targetWarehouse);
         return target;
     }
 
@@ -714,15 +719,16 @@ public class ProcurementService {
             return List.of();
         }
         return lines.stream().map(line -> {
-            int cost = line.unitCostCents();
-            if (cost <= 0 && line.skuId() != null && !line.skuId().isBlank()) {
-                cost = skuCatalogRepository.findById(line.skuId().trim())
-                        .map(ProcurementService::catalogUnitCost)
-                        .orElse(cost);
+            if (line.skuId() == null || line.skuId().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商品未指定，无法下单");
             }
-            if (cost <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商品未维护采购价，无法下单");
-            }
+            // 审计 P1-8：分仓采购单价一律以服务端目录价为准。请求里的 unitCostCents 不作信任——
+            // 该路径面向无 ops:procurement:edit 权限的补货员，客户端传正单价照单全收会扭曲
+            // 供应商应付（receivedValueCents → recordReceive）与成本口径。
+            int cost = skuCatalogRepository.findById(line.skuId().trim())
+                    .map(ProcurementService::catalogUnitCost)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST, "商品未维护采购价，无法下单"));
             return new PurchaseOrderLineDto(
                     line.lineId(),
                     line.skuId(),

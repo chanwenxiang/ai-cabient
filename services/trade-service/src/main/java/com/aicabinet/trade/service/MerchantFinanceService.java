@@ -518,16 +518,8 @@ public class MerchantFinanceService {
     }
 
     private static String csv(String value) {
-        if (value == null) {
-            return "";
-        }
-        if (value.matches("^[=+\\-@].*")) {
-            value = "'" + value;
-        }
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
+        // S3/审计 P1-7：统一走 CsvCells——补 \t\r 前缀覆盖
+        return com.aicabinet.trade.support.CsvCells.escape(value);
     }
 
     private static Instant parseDateStart(String date) {

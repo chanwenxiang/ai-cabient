@@ -159,6 +159,12 @@ public class WarehouseService {
     public WarehouseInboundRequest inbound(Long operatorId, WarehouseInboundRequest request) {
         String wh = resolveWarehouseId(request.warehouseId());
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
+        // 审计 P2-8：与出库侧治理对齐——手工入库同样禁止落无主仓（货进无主仓后
+        // resolveOutboundWarehouseId 拒绝出库，库存搁浅）。显式指定仓 ID 时不拦（运营
+        // 明确选择即担责）；仅在「空白 → 默认仓兜底」路径收紧。
+        if (request.warehouseId() == null || request.warehouseId().isBlank()) {
+            requireManagedOutboundWarehouse(wh);
+        }
         if (request.lines() == null || request.lines().isEmpty()) {
             throw badRequest("lines required");
         }
@@ -238,23 +244,43 @@ public class WarehouseService {
                 new MovementSpec("PURCHASE_RETURN", -qty, refType, refId, operatorId));
     }
 
-    /** 盘点差异调整：把账面库存直接对齐到实盘数量，并记录库存流水。 */
+    /**
+     * 盘点差异调整：把账面库存直接对齐到实盘数量，并记录库存流水。
+     *
+     * <p>差量基准取<strong>过账时刻的当前账面</strong>（行锁内读取），不用建单时的快照
+     * {@code bookQty}：建单→过账窗口内的收货/发运若按快照差量二次应用会静默错账，
+     * 且 STOCKTAKE 流水恒自洽、「期初+Σ流水=余额」巡检无法发现（审计 P1-3）。</p>
+     */
     @Transactional
     public void adjustStocktake(StocktakeAdjustCommand command) {
-        int delta = command.countedQty() - command.bookQty();
-        if (delta == 0) {
-            return;
-        }
         String wh = resolveWarehouseId(command.warehouseId());
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
         LotSpec lot = command.lot();
-        if (delta > 0) {
-            addWarehouseStock(wh, lot.skuId(), lot.batchNo(), lot.productionDate(), lot.expiryDate(), delta);
-        } else {
-            deductWarehouseStock(wh, lot.skuId(), lot.batchNo(), -delta);
-        }
-        recordWarehouseMovement(wh, lot.skuId(), lot.batchNo(),
-                new MovementSpec("STOCKTAKE", delta, "STOCKTAKE", String.valueOf(command.stocktakeId()), command.operatorId()));
+        runWithStockLock(wh, lot.skuId(), lot.batchNo(), () -> {
+            WarehouseInventory inv = inventoryRepository
+                    .findByWarehouseIdAndSkuIdAndBatchNoForUpdate(wh, lot.skuId(), lot.batchNo())
+                    .orElseGet(() -> {
+                        WarehouseInventory n = new WarehouseInventory();
+                        n.setWarehouseId(wh);
+                        n.setSkuId(lot.skuId());
+                        n.setBatchNo(lot.batchNo());
+                        n.setProductionDate(lot.productionDate());
+                        n.setExpiryDate(lot.expiryDate());
+                        return n;
+                    });
+            int current = Math.max(0, inv.getQuantity());
+            int delta = command.countedQty() - current;
+            if (delta == 0) {
+                return null;
+            }
+            inv.setQuantity(current + delta);
+            if (inv.getProductionDate() == null) inv.setProductionDate(lot.productionDate());
+            if (inv.getExpiryDate() == null) inv.setExpiryDate(lot.expiryDate());
+            inventoryRepository.save(inv);
+            recordWarehouseMovement(wh, lot.skuId(), lot.batchNo(),
+                    new MovementSpec("STOCKTAKE", delta, "STOCKTAKE", String.valueOf(command.stocktakeId()), command.operatorId()));
+            return null;
+        });
     }
 
     public record LotSpec(String skuId, String batchNo, LocalDate productionDate, LocalDate expiryDate) {}
@@ -665,6 +691,13 @@ public class WarehouseService {
         if (lines.isEmpty()) {
             throw badRequest("货道已满，无可发运数量");
         }
+        // 审计 P2-7：扣库前按 (skuId,batchNo) 全局排序——两个发运单行序相反且共用批次时，
+        // 行级锁按同一顺序获取，消除 PG 死锁窗口（被 PG 中止的一方 500）
+        lines = lines.stream()
+                .sorted(java.util.Comparator.comparing(WarehouseOutboundLine::getSkuId)
+                        .thenComparing(WarehouseOutboundLine::getBatchNo,
+                                java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
+                .toList();
         for (WarehouseOutboundLine line : lines) {
             deductWarehouseStock(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(), line.getQuantity());
             recordWarehouseMovement(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
@@ -819,8 +852,11 @@ public class WarehouseService {
      * </ul>
      * COMPLETED 路线仍 SHIPPED 时：仅当关联任务全非 COMPLETED（多为已取消未签收）才收口，
      * 避免「任务已完成但交接态未回写」场景误回仓造成假满货。
+     *
+     * <p>本方法刻意<strong>不开外层事务</strong>：单条取消经 {@code self} 代理以 REQUIRED 自建事务，
+     * skip（拿不到锁/竞态撞 Cancel-BLOCKED）只影响当条；若套外层事务，内层抛 RSE 会把共享事务
+     * 标记 rollback-only，一条 skip 即令整批已成功的清理全部回滚并 500（审计 P1-4）。</p>
      */
-    @Transactional
     public WarehouseStaleCleanupResultDto cleanupStaleOutbounds(Long operatorId) {
         Map<Long, String> routeStatusById = routeRepository.findAllByOrderByRouteIdAsc().stream()
                 .filter(r -> r.getRouteId() != null)

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.Warehouse;
+import com.aicabinet.trade.domain.WarehouseMovement;
 import com.aicabinet.trade.mapper.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -79,8 +80,12 @@ class WarehouseStockConcurrencyTest {
                 .thenReturn(true);
         when(inventoryRepository.findByWarehouseIdAndSkuIdAndBatchNoForUpdate("WH-2", "SKU-2", "B-2"))
                 .thenReturn(Optional.empty());
+        // 审计 P1-3 后盘点按「当前账面」对齐实盘，构造上不可能把库存调负（实盘 ≥ 0）；
+        // 内层异常改由流水写入失败触发，回归点不变：锁必须在异常路径上释放。
+        when(movementRepository.save(org.mockito.ArgumentMatchers.any(WarehouseMovement.class)))
+                .thenThrow(new RuntimeException("movement write failed"));
 
-        assertThrows(ResponseStatusException.class,
+        assertThrows(RuntimeException.class,
                 () -> service.adjustStocktake(new WarehouseService.StocktakeAdjustCommand(
                         "WH-2", new WarehouseService.LotSpec("SKU-2", "B-2",
                                 LocalDate.now(), LocalDate.now().plusDays(30)),

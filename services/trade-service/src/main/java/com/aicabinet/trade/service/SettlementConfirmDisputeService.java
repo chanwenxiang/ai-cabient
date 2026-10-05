@@ -36,6 +36,7 @@ public class SettlementConfirmDisputeService {
     private final RevenueSplitService revenueSplitService;
     private final SettlementService settlement;
     private final SettlementOrderSupport orderSupport;
+    private final OpsAlertDispatcher alertDispatcher;
     private final SettlementConfirmDisputeService self;
 
     public SettlementConfirmDisputeService(ShoppingSessionMapper sessionRepository,
@@ -44,6 +45,7 @@ public class SettlementConfirmDisputeService {
                                            InventoryService inventoryService,
                                            UserValidationService userValidationService,
                                            RevenueSplitService revenueSplitService,
+                                           OpsAlertDispatcher alertDispatcher,
                                            @Lazy SettlementService settlement,
                                            SettlementOrderSupport orderSupport,
                                            @Lazy SettlementConfirmDisputeService self) {
@@ -55,12 +57,17 @@ public class SettlementConfirmDisputeService {
         this.revenueSplitService = revenueSplitService;
         this.settlement = settlement;
         this.orderSupport = orderSupport;
+        this.alertDispatcher = alertDispatcher;
         this.self = self;
     }
 
     /**
      * 争议确认清单。无外层长事务包裹支付渠道：
      * 首次落单仍同事务 {@code chargeOrder}；改单为库存短事务 → 支付差额 → 状态短事务。
+     *
+     * <p>审计 P2-3：{@code applyPaymentDelta} 内含独立短事务（渠道差额已扣/退即落账），若随后
+     * {@code finalizeConfirmDispute} 失败，出现「钱已动、订单行/状态未对齐」——此时必须发 HIGH
+     * 告警转人工，不能只把异常往上抛（原实现无任何告警，账实漂移隐形）。告警失败不影响异常传播。</p>
      */
     public SettlementService.ConfirmDisputeResult confirmDisputedItems(
             ShoppingSession session,
@@ -71,10 +78,34 @@ public class SettlementConfirmDisputeService {
                 return prep.result();
             }
             if (prep.paymentDelta() != 0) {
-                orderPaymentService.applyPaymentDelta(prep.order(), prep.paymentDelta());
+                try {
+                    orderPaymentService.applyPaymentDelta(prep.order(), prep.paymentDelta());
+                    return self.finalizeConfirmDispute(prep);
+                } catch (RuntimeException e) {
+                    alertOnAdjustMismatch(prep, e);
+                    throw e;
+                }
             }
             return self.finalizeConfirmDispute(prep);
         });
+    }
+
+    /** 渠道差额已落账后的收尾失败：检账并告警（ADJUST_CHARGE:FINALIZED 存在即「钱已动」）。 */
+    private void alertOnAdjustMismatch(ConfirmDisputePrep prep, RuntimeException cause) {
+        try {
+            orderSupport.hydrateOrderLines(prep.order());
+            String summary = "争议确认补差后收尾失败，需人工对账：orderId=" + prep.order().getOrderId()
+                    + " sessionId=" + prep.session().getSessionId()
+                    + " delta=" + prep.paymentDelta() + "分"
+                    + " original=" + prep.originalPayable() + "分"
+                    + " final=" + prep.finalTotal() + "分"
+                    + " cause=" + cause.getMessage();
+            log.error("dispute confirm finalize failed after payment delta applied {}", summary, cause);
+            alertDispatcher.send("DISPUTE", "争议补差账实漂移待人工", summary);
+        } catch (RuntimeException alertEx) {
+            log.warn("dispute adjust mismatch alert dispatch failed orderId={}: {}",
+                    prep.order().getOrderId(), alertEx.toString());
+        }
     }
 
     record ConfirmDisputePrep(

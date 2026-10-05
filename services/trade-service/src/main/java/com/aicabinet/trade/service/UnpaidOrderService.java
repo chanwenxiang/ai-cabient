@@ -447,7 +447,8 @@ public class UnpaidOrderService {
         }
         try {
             return action.get();
-        } catch (ResponseStatusException e) {
+        } catch (ResponseStatusException | BalanceInsufficientException e) {
+            // 原样穿透：同 OrderPaymentService（审计 P1-1），包成 500 会毒化事务并打断 F1-B 信号链
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);

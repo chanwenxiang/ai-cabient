@@ -138,6 +138,61 @@ public class SessionExpireService {
         }
     }
 
+    /** FAILED 清扫任务注册名（审计 P2-4）。 */
+    private static final String SESSION_FAILED_HOLDCLEAR = "session-failed-hold-clear";
+
+    /**
+     * 审计 P2-4：FAILED 会话的预授权冻结清扫。四个既有清扫器都不覆盖 FAILED——结算失败
+     * （如 P1-1 描述的异常路径）落 FAILED 时无人释放 FROZEN hold，用户冻结资金悬挂，
+     * 仅剩运维 forceCancelForOperations 人工路径。本清扫器对「FAILED 且 preauthStatus=FROZEN
+     * 且滞留超过 1 小时」的会话自动释放并报 HIGH 异常留痕（释放幂等：releaseIfFrozen 内部
+     * 只在仍 FROZEN 时改写）。滞后 1 小时是为了不与进行中的人工处置抢跑。
+     */
+    @Scheduled(fixedRate = 300_000)
+    @Transactional
+    public void releaseStaleFailedSessionHolds() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin(SESSION_FAILED_HOLDCLEAR, 600)) {
+            return;
+        }
+        boolean failed = false;
+        String summary = "本次无 FAILED 悬挂冻结";
+        try {
+            Instant cutoff = Instant.now().minus(1, ChronoUnit.HOURS);
+            var stale = repository.findByStateInAndUpdatedAtBefore(
+                    List.of(SessionState.FAILED), cutoff, 500).stream()
+                    .filter(s -> "FROZEN".equalsIgnoreCase(s.getPreauthStatus()))
+                    .toList();
+            int released = 0;
+            for (ShoppingSession s : stale) {
+                try {
+                    consumerPreauthService.releaseIfFrozen(s);
+                    released++;
+                    log.warn("FAILED 会话悬挂预授权已自动释放 sessionId={} updatedAt={}",
+                            s.getSessionId(), s.getUpdatedAt());
+                } catch (Exception one) {
+                    log.error("FAILED 会话预授权释放失败 sessionId={}", s.getSessionId(), one);
+                }
+            }
+            if (released > 0) {
+                summary = "释放 FAILED 悬挂预授权 " + released + " 个";
+                opsExceptionService.report("FAILED_SESSION_HOLD_CLEAR", "HIGH",
+                        new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                                null, null, null, null),
+                        "FAILED 会话预授权悬挂已自动清扫",
+                        summary + "；成因为结算失败路径漏释放（审计 P2-4），请核查对应结算失败日志");
+            }
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish(SESSION_FAILED_HOLDCLEAR, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish(SESSION_FAILED_HOLDCLEAR, STATUS_SUCCESS, summary, start);
+            }
+        }
+    }
+
     /**
      * 消费者购物态开门超时：自动关会话并释放设备占用（与 DOOR_OPEN_TOO_LONG 告警阈值对齐）。
      */

@@ -428,11 +428,8 @@ public class FundBillService {
     }
 
     private static String csv(String v) {
-        if (v == null) {
-            return "";
-        }
-        String s = v.replace("\"", "\"\"");
-        return s.contains(",") ? "\"" + s + "\"" : s;
+        // S3/审计 P1-7：统一走 CsvCells——原实现仅防逗号，补引号/换行包裹与公式注入中和
+        return com.aicabinet.trade.support.CsvCells.escape(v);
     }
 
     private static long sumScoped(Set<String> deviceIds,

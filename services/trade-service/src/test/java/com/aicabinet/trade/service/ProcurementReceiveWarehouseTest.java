@@ -57,6 +57,19 @@ class ProcurementReceiveWarehouseTest {
                 purchaseReturnLineRepository, warehouseRepository, skuCatalogRepository,
                 warehouseService, supplierPayableService, distributedLockService, null, null, null, null);
         lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
+        // 审计 P2-5：收货仓必须已指定负责人——默认给 WH-A / WH-B 受管仓库
+        lenient().when(warehouseRepository.findById("WH-A"))
+                .thenReturn(Optional.of(managedWarehouse("WH-A")));
+        lenient().when(warehouseRepository.findById("WH-B"))
+                .thenReturn(Optional.of(managedWarehouse("WH-B")));
+    }
+
+    private com.aicabinet.trade.domain.Warehouse managedWarehouse(String id) {
+        com.aicabinet.trade.domain.Warehouse wh = new com.aicabinet.trade.domain.Warehouse();
+        wh.setWarehouseId(id);
+        wh.setStatus("ACTIVE");
+        wh.setManagerUserId(1L);
+        return wh;
     }
 
     private PurchaseOrder order() {

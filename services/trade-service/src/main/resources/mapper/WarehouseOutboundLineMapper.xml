@@ -12,6 +12,7 @@
                           AND l.sku_id = #{skuId}
                           AND l.batch_no = #{batchNo}
                           AND o.status IN ('DRAFT', 'PICKED')
+                          AND l.handover_status <> 'CANCELLED'
     ]]>
   </select>
 </mapper>
