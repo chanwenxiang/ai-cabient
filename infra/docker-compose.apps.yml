@@ -12,7 +12,7 @@ services:
 
   minio-init:
     stop_grace_period: 10s
-    image: minio/mc:latest
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 # 审计批次4：钉 digest
     depends_on:
       minio:
         condition: service_started

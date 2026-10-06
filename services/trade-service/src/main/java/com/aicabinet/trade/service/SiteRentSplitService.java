@@ -89,7 +89,10 @@ public class SiteRentSplitService {
             row.setPartyType(r.partyType().trim().toUpperCase());
             row.setPartyId(blankToNull(r.partyId()));
             row.setShareBps(r.shareBps());
-            row.setFixedCents(Math.max(0, r.fixedCents()));
+            if (r.fixedCents() < 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fixedCents 非法（须 ≥ 0）");
+            }
+            row.setFixedCents(r.fixedCents());
             row.setStatus(r.status() == null || r.status().isBlank() ? "ACTIVE" : r.status().trim().toUpperCase());
             row.setEffectiveFrom(r.effectiveFrom());
             row.setEffectiveTo(r.effectiveTo());
