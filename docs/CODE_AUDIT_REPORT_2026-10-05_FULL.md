@@ -13,7 +13,7 @@
 | **P0** | **4** | 柜机可回显服务器任意文件（P0-1）；fleet 密钥硬编进每个 APK + 无鉴权开门端点（P0-2）；识别结果可伪造驱动扣款（P0-3）；**端口门禁只查 12/32 条、生产绑公网不报红（P0-6，主审负向验证实证）** |
 | **P0-4** | — | 预授权冲抵**三种场景全部**违反记账不变量（混合记 140、全额记 200、无预授权记 200）。**仍是真 P0**，但**修法已更正**（见 §1，初版给的改法会改出更糟的账） |
 | **P1** | 17 | 部分退款跨锁窗口、事务内抢锁拖垮连接池、APK 无签名+OTA 可 MITM、明文传输、离线队列无界、模拟器 `/close` 无鉴权、ps1 BOM 铁律违反、`docker.sock` 读写挂载等 |
-| **P2** | 22 | 分账费率静默归零、租金 fixedCents 无上限、在途无幂等、**结算事务内扣款后失败（原 P0-5，已降级）**、mybatis 门禁假绿窗口、admin 金额展示 12 处分叉等 |
+| **P2** | 21 | 分账费率静默归零、在途无幂等、**结算事务内扣款后失败（原 P0-5，已降级）**、mybatis 门禁假绿窗口、admin 金额展示 12 处分叉等 |
 | **P3** | 16 | 死代码、时区依赖、死 stub 端点、可维护性 |
 
 **一句话**：CI 门禁体系的诚实度**高于一般项目**（门禁全部有真实退出码、fail-closed 一致、本次 4 个关键门禁负向验证全部按预期变红）；真正的风险集中在**两处门禁管不到的地方** —— 资金记账的一处变量赋值错误（P0-4），和柜机↔云端信任边界的设计（fleet 共享密钥，P0-2/P0-3）。
@@ -288,7 +288,11 @@ revenueSplitService.recordSplit(order);
 
 ## 3. P2 — 中危（21 项，摘要）
 
-**后端**：佣金 job 长事务包 N×7 次锁（`LineCommissionJob.java:58-59`，失败全回滚）｜**结算事务内扣款后后续步骤失败（原 P0-5，已降级，见 §1 P0-5 节的完整证据）**｜`SiteRentBillService.allocate:219-230` `fixedCents` 额外叠加使总额超月费，`replaceRules:80` 只校验 `shareBps` 无 fixedCents 上限（**需先确认业务口径**）｜`OpsSessionOrderQueryService:571,581` 吞异常致 `paidAt` 静默回退到下单时间，**对账场景危险**｜`WarehouseMonthlyCloseMath:90-92` 归零在循环内（同一循环先减后加会少算）
+**后端**：佣金 job 长事务包 N×7 次锁（`LineCommissionJob.java:58-59`，失败全回滚）｜**结算事务内扣款后后续步骤失败（原 P0-5，已降级，见 §1 P0-5 节的完整证据）**｜~~`SiteRentBillService.allocate` `fixedCents` 无上限校验~~ **已定案并已改造（2026-10-06）**：原判「叠加总额超 base」为缺陷，据此改为「先扣 `Σfixed` → 剩余 `(base − Σfixed)` 按份额分 + 补 `Σfixed ≤ base` 校验」，不变式改为 **`Σ账单金额恒等于 base`**。
+- **产品依据**：叠加是产品明示意图（`OrgSitesView.vue:575`「按各方份额拆分合同月费，**并可叠加固定金额**」）。
+- **改造依据（本条已剔除错误来源）**：🔴 初版写的「业界通行做法是先扣后分（支付分账要求总额恒等、百分比租金的固定部分就是 base 本身）」是**跨域类比，不成立** —— ①支付分账的「总额恒等于订单金额」是**支付通道**规则，与**场地租金**不同域；②旧系统 easygo（同产品线上一代，实测在 `D:\ideaCode\easygo`）**没有场地租金分摊功能**（`grep 场地租金|房租|rentFee|siteRent` 零业务命中；`BillService.java:423-435` 仅「销售额−退款=利润」单层账单）⇒ 本产品线无先例；③同业柜机运营方（友宝/丰宜/哈哈零兽）公开资料只有「**销售额**分成比例」（15%–35% / 20%–25% / 20%–30%），**无「份额+固定额」双层结构** ⇒ 无同行先例支持「必须先扣后分」。
+- **保留改造的真正理由**：总额恒等于 base 时**不必逐单核对合同附加费条款**（改动前 Σ账单可超 base 90% 且无第二道校验），少一类资损来源。口径选择依据是**产品语义与资损风险**，不是「业界主流」这四个字。
+- **迁移说明**：改动前两表均 0 行、无历史账单 ⇒ 无需数据迁移；若后续已用旧口径出过账，改动即升级为数据迁移问题。｜`OpsSessionOrderQueryService:571,581` 吞异常致 `paidAt` 静默回退到下单时间，**对账场景危险**｜`WarehouseMonthlyCloseMath:90-92` 归零在循环内（同一循环先减后加会少算）
 
 **设备/边缘**：`aicabinet-device` 共享账号 ACL 用 `${clientid}` 命名空间（`aicabinet-acl.conf:16-17`）且被编进 APK 默认值 ⇒ 持共享账号者可自选 clientId 订阅他柜 cmd｜`DoorEventDeduplicator` 去重键含设备可控 `eventSeq`（`MqttEventListener.java:314-323`）⇒ 每次改值即绕过 60s 去重（资金侧有状态机兜底，但会刷告警）｜`rejectDeviceIdMismatch:202-209` 在 topic 无法解析时 `unknown` 走放行（**当前 ACL 下不可达**，ACL 一改宽即水平越权）｜`EdgeRuntimeConfig:159-174` Keystore 加密失败**静默回落明文**，且 `allowBackup="true"` 允许 adb 导出
 
@@ -477,5 +481,6 @@ revenueSplitService.recordSplit(order);
 - **P0-6 做了负向验证**（不是推理）：写探针复刻 `check-compose-ports.mjs:39` 的解析逻辑，统计出「32 条端口 / 只查 12 条」；再把生产 EMQX Dashboard 改成 `0.0.0.0` 实跑门禁 → 输出「OK：12 条全部绑回环」、exit 0。探针用完已删除，`infra/` 工作区已还原干净。
 - **P1/P2/P3** 由 5 个分区探查代理给出证据（均带 `文件:行`），主审抽样复核 `RevenueSplitService`、`OtaChecker`、`e2e-lib.ps1`、`AdminDeviceOpsService:105-135` 等，未发现编造行号。
 - **旧报告 55 条**由 3 个复核代理分域逐条复核（8 + 13 + 17 条，覆盖 P1/P2/P3 全部编号）+ 主审抽验；结论见 §7。
-- **未核实项**（诚实标注）：生产 profile 的 `aicabinet.security.mock-enabled` 取值（P1-16 需读 `application-prod.yml`）；`SiteRentBill.fixedCents` 是否为设计意图（需业务口径）。
+- **未核实项**（诚实标注）：生产 profile 的 `aicabinet.security.mock-enabled` 取值（P1-16 需读 `application-prod.yml`）。
+- **已定案并已改造**：`SiteRentBill.fixedCents` 语义 —— 原判「叠加使总额超 base」为缺陷，2026-10-06 已改为「先扣 `Σfixed`、剩余按份额分」，不变式 `Σ账单 ≡ base`，并补 `Σfixed > base ⇒ 400`。代码注释已同步（**已剔除「对齐业界主流」这条错误依据**，改写为产品语义 + 资损风险 + 三方无先例的实证）。
 - **本轮为只读审计**，未修改任何仓库文件（唯一例外是本报告本身，以及已删除的临时探针）。

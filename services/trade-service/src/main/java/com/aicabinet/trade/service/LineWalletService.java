@@ -326,19 +326,72 @@ public class LineWalletService {
 
                                  String refType, String refId, String remark) {
 
-        requirePositive(amountCents);
+        doConsumeFrozenSplit(managerId, amountCents, 0L, refType, refId, remark);
+
+    }
+
+
+
+    /**
+     * V308：打款成功时<b>拆分记账</b> —— 净额记「已出款」，手续费单列一行。
+     *
+     * <p>与 {@link MerchantWalletService#consumeFrozenSplit} <b>完全同构</b>：
+     * 余额与冻结<b>合计只扣一次 {@code net + fee}</b>（与拆分前扣毛额等价，不多扣不少扣），
+     * 流水拆 {@code WITHDRAW_PAID -net} + {@code WITHDRAW_FEE -fee}，两行相加 == 原毛额。
+     *
+     * <p>🔴 <b>为什么线长侧也要拆</b>：口径不统一会产生「同一个{@code WITHDRAW_PAID}
+     * 标签在商户侧是净额、在线长侧是毛额」的对账噩梦 —— 平台级汇总时无法直接相加。
+     *
+     * <p>⚠️ {@code feeCents = 0} 时<b>只记一行</b>，行为与拆分前完全一致。
+     */
+    @Transactional
+
+    public void consumeFrozenSplit(long managerId, long netCents, long feeCents,
+
+                                   String refType, String refId, String remark) {
+
+        runWithWalletLock(managerId, () -> {
+
+            doConsumeFrozenSplit(managerId, netCents, feeCents, refType, refId, remark);
+
+            return null;
+
+        });
+
+    }
+
+
+
+    private void doConsumeFrozenSplit(long managerId, long netCents, long feeCents,
+
+                                       String refType, String refId, String remark) {
+
+        long net = Math.max(0L, netCents);
+
+        long fee = Math.max(0L, feeCents);
+
+        long gross = net + fee;
+
+        // 🔴 溢出保护：net+fee 理论上来自同一笔毛额的拆分，但上游误传两个大数时仍要挡住
+        if (gross < 0L) {
+
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "提现金额不合法");
+
+        }
+
+        requirePositive(gross);
 
         LineWalletAccount account = reload(managerId);
 
-        if (value(account.getBalanceCents()) < amountCents || value(account.getFrozenCents()) < amountCents) {
+        if (value(account.getBalanceCents()) < gross || value(account.getFrozenCents()) < gross) {
 
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "冻结或余额不足");
 
         }
 
-        long balance = value(account.getBalanceCents()) - amountCents;
+        long balance = value(account.getBalanceCents()) - gross;
 
-        long frozen = value(account.getFrozenCents()) - amountCents;
+        long frozen = value(account.getFrozenCents()) - gross;
 
         account.setBalanceCents(balance);
 
@@ -348,8 +401,22 @@ public class LineWalletService {
 
         accountMapper.updateById(account);
 
-        appendLedger(new LedgerLine(managerId, "WITHDRAW_PAID", -amountCents,
-                new LedgerLine.BalanceSnapshot(balance, frozen), refType, refId, remark));
+        if (net > 0L) {
+
+            // 快照记「扣手续费之前」，两行的 balance_after 连起来才是完整轨迹
+            appendLedger(new LedgerLine(managerId, "WITHDRAW_PAID", -net,
+
+                    new LedgerLine.BalanceSnapshot(balance + fee, frozen + fee), refType, refId, remark));
+
+        }
+
+        if (fee > 0L) {
+
+            appendLedger(new LedgerLine(managerId, "WITHDRAW_FEE", -fee,
+
+                    new LedgerLine.BalanceSnapshot(balance, frozen), refType, refId, remark));
+
+        }
 
     }
 

@@ -5,6 +5,23 @@
 > **方法**：双代码库只读探索 + 关键论断逐条源码抽查（均给 `文件:行号` 证据，非文档自报）。
 > **结构**：Part I 仓储三域（采购入库/盘点/补货）→ Part II 核心业务域（订单支付争议/钱包分账/营销/设备/任务对账）→ Part III 客户端面（含双小程序）→ Part IV 汇总建议 → Part V 证据索引。
 
+> 🔴 **2026-10-06 17:35 补充说明（旧仓路径）**：本文引用的旧仓路径 `D:\ideaCode\easygo` **当日实测完整可读**
+> （含 `ego-automat/`、`mis-server/`、`ego-automat-operation/`、`m9managepro/`、`dvm/`、`dinngdang-wx/`）。
+> 当日上午本仓 `ARCHITECTURE.md` 曾写「旧仓已不在本机、无法取证」—— 该结论错误（只查了 `D:\ai-generated code\`，未查 `D:\ideaCode\`），现已更正。
+>
+> **本文 `文件:行号` 证据已抽样复核（3 处全部吻合）**：
+> ① §7.1 旧仓提现 `:157` 确为微信提现端点（`/opt/v2/withdrawal/wechat`），四渠道齐全
+>    （`:157` 微信、`:494` 支付宝、`:665` 支付宝转银行卡、`PFBAccountService` + `WithdrawalAutoRetryTask`）；
+> ② §7.1「运营商固定分成千分之 20」见 `BillGenerationTask.java:40`；
+> ③ §7.2「PAYING 超时语义…F3」标的 `MerchantWithdrawService.java:476-513` 是**新系统**代码（本仓），
+>    旧仓无对应实现 —— 引用时勿与旧系统条目混读。
+>
+> ⚠️ **一处覆盖缺口（本轮实测）**：旧仓**没有「场地租金多方分摊」功能** ——
+> `grep -rliE "场地租金|房租|rentFee|siteRent"` 零业务命中（仅支付宝 SDK 的 `ZhimaMerchantOrderRent*` 无关 model）；
+> `grep -rliE "分摊|splitRule|shareBps|bps"` 零业务命中；`BillService.java:423-435` 口径仅
+> `amountTotal = allSales - refund`（单层账单）。⇒ **本仓 `SiteRentBillService` 的多方分摊是新增领域，
+> 旧系统与同业柜机运营方均无先例可循**（同业公开资料只有「销售额分成比例」，无「份额+固定额」双层结构）。
+
 ---
 
 ## 0. 结论速览（TL;DR）

@@ -190,15 +190,33 @@ const data = await osvBatchFetch(queries);
 let hit = 0;
 const waived = [];
 const findings = [];
-// 豁免清单（风险接受留痕）：仅限「6.2.x 线无修复版 / 代码路径不可达」且有跟进项的 CVE。
-// 每条必须写明：不可利用依据 + 跟进动作。新增豁免须同步 docs/CODE_AUDIT 报告。
+// 豁免清单（风险接受留痕）：每条必须写明①不可利用依据 ②「是否临时」③跟进动作。
+// 新增豁免须同步 docs/CODE_AUDIT 报告。
 const WAIVED = new Set([
-  // GHSA-pc63-qcmh-9cmg / CVE-2026-47884：XsltView 路径穿越（CVSS 9.8）。
-  // 本项目全 @ResponseBody REST、无视图渲染、无 XsltView ⇒ 不可利用（实测全仓零命中）。
-  // 修复版：6.2.x 线 = 6.2.20，但**仅商业支持**（不上 Maven Central，实测 404）；
-  // OSS 可得修复 = Framework 7.0.9（7.0.x 线）。
-  // 跟进 = 升级 Boot 4.x（含 Framework 7.0.9+）时撤销本豁免；若中途引入视图渲染
-  //（Thymeleaf/XSLT），本 CVE 立即转为可利用，须先行处置。2026-10-06 风险接受。
+  // GHSA-pc63-qcmh-9cmg / CVE-2026-47884：XsltView 样式表路径穿越 → SSRF + 远程代码执行（CVSS 9.8）。
+  //
+  // ① 不可利用依据（结构性，非配置性）：
+  //    利用需三个条件同时成立——(a) 应用使用 XsltView；(b) 存在 /** 映射且会触发视图渲染；
+  //    (c) 视图名未被显式指定。本项目三条全部结构性不满足（2026-10-06 实测）：
+  //      · ViewResolver / XsltView / InternalResourceView / configureViewResolvers 全仓零命中；
+  //      · 唯一沾「Resource」的 AdminUiController:44-58 是 addResourceHandler("/admin/**") +
+  //        自定义 PathResourceResolver，返回静态文件 Resource，不产生视图渲染，与本攻击链无关；
+  //      · 全部对外接口为 @ResponseBody REST，admin 静态产物由该 ResourceHandler 转发，
+  //        不经 Spring 视图层。
+  //    ⇒ 只要保持「纯 REST + 静态资源转发」架构（不引入 Thymeleaf/Freemarker 等视图渲染、
+  //      不引入 XSLT 处理），本 CVE 无法被触发。
+  //
+  // ② 是否临时：**否**。这不是「等补丁」的临时缓解——Spring Framework 6.2 与 Boot 3.5 的
+  //    OSS 支持已于 2026-06-30 结束，且 3.5 是 3.x 末版（无 3.6）。6.2.20/6.2.21 确实存在，
+  //    但**仅商业支持分发**（实测 Maven Central 与 alimaven 均无该版本），6.2 线不会再有 OSS 补丁。
+  //    本项目已明确决策：**不采购商业订阅、不升级 Boot**，故本条为长期风险接受。
+  //
+  // ③ 跟进动作（触发式，非排期式）：
+  //    · 若将来引入视图渲染（Thymeleaf/Freemarker）或 XSLT 处理（如 XML→PDF 报表转换）
+  //      → 本 CVE 立即由「结构性不可达」转为「可利用」，**必须先行处置**（不得先上线后补）；
+  //    · 若将来因其他原因升级到 Boot 4.x（Framework 7.0.9+）→ 撤销本豁免并复验；
+  //    · 若安全审计/客户合规要求清零所有 high+ → 本条为唯一阻碍，需重新评估上述决策。
+  //    2026-10-06 风险接受（决策：不订阅、不升级；接受结构性不可达 + 长期无补丁）。
   'GHSA-pc63-qcmh-9cmg',
   'CVE-2026-47884'
 ]);

@@ -406,6 +406,11 @@ export const AdminEndpoints = {
       ? `${ops}/line-withdraws?${query}`
       : `${ops}/line-withdraws?${query.toString()}`,
   lineWithdrawsPayoutMode: `${ops}/line-withdraws/payout-mode`,
+  // V308：出款侧对账（本地自洽口径 —— **未与渠道账单比对**，scope 恒 LOCAL_SELF_CONSISTENT_ONLY）
+  payoutReconciliation: (date?: string) =>
+    date
+      ? `${ops}/merchant-withdraws/payout-reconciliation?date=${encodeURIComponent(date)}`
+      : `${ops}/merchant-withdraws/payout-reconciliation`,
   lineWithdrawReview: (requestId: string | number) =>
     `${ops}/line-withdraws/${encodeURIComponent(String(requestId))}/review`,
   lineWithdrawPayout: (requestId: string | number) =>

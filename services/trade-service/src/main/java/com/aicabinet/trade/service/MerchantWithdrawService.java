@@ -10,10 +10,17 @@ import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.MerchantWalletAccount;
 import com.aicabinet.trade.domain.MerchantWalletLedger;
 import com.aicabinet.trade.domain.MerchantWithdrawRequest;
+import com.aicabinet.trade.domain.PayoutAccount;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.MerchantWalletAccountMapper;
 import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
+import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
+import com.aicabinet.trade.mapper.PayoutAccountMapper;
+import com.aicabinet.trade.payout.PayoutChannel;
+import com.aicabinet.trade.payout.PayoutChannelLimits;
+import com.aicabinet.trade.payout.PayoutChannelRegistry;
+import com.aicabinet.trade.payout.PayoutConstants;
 import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -31,6 +38,7 @@ import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -54,6 +62,14 @@ public class MerchantWithdrawService {
     private final MerchantWalletService merchantWalletService;
     private final MerchantWithdrawPayoutService payoutService;
     private final MerchantWithdrawProperties properties;
+    private final PayoutAccountService payoutAccountService;
+    private final PayoutAccountMapper payoutAccountMapper;
+    /** V307：限额/费率解析（运营台配置优先于 yml，运行期生效）。 */
+    private final WithdrawPolicyResolver policy;
+    /** V308：渠道硬限额（单笔 / 单收款人单日 / 单通道当日总额）。 */
+    private final PayoutChannelRegistry payoutChannelRegistry;
+    /** V308：T+1 可提现闸门（已入钱包但未到可提现日的金额）。 */
+    private final OrderRevenueSplitMapper orderRevenueSplitMapper;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
@@ -65,7 +81,6 @@ public class MerchantWithdrawService {
 
     private static final String BIZ_MERCHANT_WITHDRAW = "MERCHANT_WITHDRAW";
     private static final String BIZ_WALLET_ADJUST = "MERCHANT_WALLET_ADJUST";
-
     public MerchantWithdrawService(MerchantWithdrawRequestMapper withdrawMapper,
                                    MerchantMapper merchantMapper,
                                    MerchantWalletAccountMapper accountMapper,
@@ -73,12 +88,17 @@ public class MerchantWithdrawService {
                                    MerchantWalletService merchantWalletService,
                                    MerchantWithdrawPayoutService payoutService,
                                    MerchantWithdrawProperties properties,
+                                   PayoutAccountService payoutAccountService,
+                                   PayoutAccountMapper payoutAccountMapper,
                                    MerchantFeaturePackService merchantFeaturePackService,
                                    MerchantScopeService merchantScopeService,
                                    PermissionService permissionService,
                                    AdminAuditService auditService,
                                    DistributedLockService distributedLockService,
                                    ApprovalWorkflowService approvalWorkflowService,
+                                   WithdrawPolicyResolver policy,
+                                   PayoutChannelRegistry payoutChannelRegistry,
+                                   OrderRevenueSplitMapper orderRevenueSplitMapper,
                                    @Lazy MerchantWithdrawService self) {
         this.withdrawMapper = withdrawMapper;
         this.merchantMapper = merchantMapper;
@@ -87,12 +107,17 @@ public class MerchantWithdrawService {
         this.merchantWalletService = merchantWalletService;
         this.payoutService = payoutService;
         this.properties = properties;
+        this.payoutAccountService = payoutAccountService;
+        this.payoutAccountMapper = payoutAccountMapper;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
         this.approvalWorkflowService = approvalWorkflowService;
+        this.policy = policy;
+        this.payoutChannelRegistry = payoutChannelRegistry;
+        this.orderRevenueSplitMapper = orderRevenueSplitMapper;
         this.self = self;
     }
 
@@ -149,7 +174,7 @@ public class MerchantWithdrawService {
             }
             auditService.appendLog(operatorId, BIZ_WALLET_ADJUST, "MERCHANT_WALLET", merchantId,
                     "金额(分)=" + amountCents + "；备注=" + note);
-            if (Math.abs(amountCents) >= properties.reviewThresholdCents()) {
+            if (Math.abs(amountCents) >= policy.merchantReviewThresholdCents()) {
                 Merchant merchant = requireMerchant(merchantId);
                 approvalWorkflowService.start(
                         BIZ_WALLET_ADJUST,
@@ -372,7 +397,11 @@ public class MerchantWithdrawService {
     @Transactional
     public PayoutGate persistWithdrawApplication(Merchant merchant, long amountCents, String requestNo,
                                                  Long submitterUserId) {
-        validateAmount(merchant.getMerchantId(), amountCents);
+        // V307：申请时锁定收款账户（不指定则用默认）—— 快照后历史不可变。
+        // 🔴 必须在 validateAmount 之前：限额校验依赖账户的 channel 与 accountId
+        //    （单收款人单日 / 单通道当日总额两个维度都要用到）。
+        PayoutAccount payeeAccount = resolvePayeeForApply(merchant.getMerchantId());
+        validateAmount(merchant.getMerchantId(), amountCents, payeeAccount);
         String no = normalizeRequestNo(requestNo);
         var existing = withdrawMapper.findByRequestNo(no);
         if (existing.isPresent()) {
@@ -385,13 +414,16 @@ public class MerchantWithdrawService {
         request.setMerchantName(merchant.getMerchantName());
         request.setAmountCents(amountCents);
         request.setFeeCents(WithdrawFeeCalculator.computeFeeCents(
-                amountCents, properties.feeCents(), properties.feeBps()));
-        request.setPayChannel(WithdrawPayoutPolicy.channelFor(properties.mockEnabled()));
+                amountCents, policy.merchantFeeCents(), policy.merchantFeeBps(), policy.merchantFeeCapCents()));
+        // 🔴 渠道取自「所选收款账户」，不再是 mock 开关的字面量：一个商户可按账户走不同通道
+        request.setPayChannel(payeeAccount.getChannel());
+        applyPayeeSnapshot(request, payeeAccount);
         request.setCreatedAt(now);
         request.setUpdatedAt(now);
-        if (amountCents >= properties.reviewThresholdCents()) {
+        if (amountCents >= policy.merchantReviewThresholdCents()) {
             request.setStatus("PENDING_REVIEW");
             withdrawMapper.insert(request);
+            applyIdemKey(request);
             merchantWalletService.freezeForWithdraw(merchant.getMerchantId(), amountCents,
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
             approvalWorkflowService.start(
@@ -406,19 +438,87 @@ public class MerchantWithdrawService {
         request.setReviewRemark("低于审核阈值自动通过");
         request.setReviewedAt(now);
         withdrawMapper.insert(request);
+        applyIdemKey(request);
         merchantWalletService.freezeForWithdraw(merchant.getMerchantId(), amountCents,
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
         return PayoutGate.needPayout(toDto(request));
     }
 
     /**
+     * 写打款幂等键。<b>必须在 insert 之后</b> —— 键里含 requestId（自增主键）。
+     *
+     * <p>形态：{@code MW:<requestId>:<随机>}。随机段是为了让「同一 requestId 的不同重试」
+     * 保持同一个键（重试不换键 ⇒ 渠道侧幂等），而不同单据天然不同。
+     */
+    private void applyIdemKey(MerchantWithdrawRequest request) {
+        request.setIdemKey(PayoutAccountService.newIdemKey(
+                MerchantWithdrawPayoutService.IDEM_PREFIX, request.getRequestId()));
+        withdrawMapper.updateById(request);
+    }
+
+    /**
+     * 取申请该用的收款账户。
+     *
+     * <p>🔴 <b>不提供「未装配 ⇒ 兜底」分支</b>：曾写过 {@code payoutAccountService == null ⇒ 抛 500}，
+     * 结果把并发测试的 4 个用例全拦成 500 —— 测的是「兜底生效」而非「提现流程正确」，
+     * 反而掩盖了真实问题。现在依赖由 Spring 保证装配，测试则显式注入 mock。
+     */
+    private PayoutAccount resolvePayeeForApply(String merchantId) {
+        return payoutAccountService.resolveForApply(
+                PayoutConstants.PAYEE_OWNER_MERCHANT, merchantId, null);
+    }
+
+    /**
+     * 把收款账户信息<b>快照</b>进提现单。
+     *
+     * <p>只写掩码，<b>永不写明文</b>：快照列可能被列表接口直接返回。
+     */
+    private void applyPayeeSnapshot(MerchantWithdrawRequest request, PayoutAccount account) {
+        request.setPayoutAccountId(account.getAccountId());
+        request.setPayeeAccountType(account.getAccountType());
+        request.setPayeeAccountName(account.getAccountName());
+        request.setPayeeAccountNoMask(account.getAccountNoMask());
+        request.setPayeeBankName(account.getBankName());
+        request.setPayeeTaxNo(account.getTaxNo());
+    }
+
+    /**
      * 短事务标 PAYING → 渠道打款（事务外）→ 短事务落 PAID/FAILED。
+     *
+     * <p>V307：打款时按 {@code payoutAccountId} 取<b>申请时快照</b>对应的账户；
+     * 若该账户已被物理删除（不应发生，仅数据损坏），回落查主体默认账户并留日志。
      */
     public MerchantWithdrawRequestDto executePayout(long requestId) {
         MerchantWithdrawRequest paying = self.markPaying(requestId);
         Merchant merchant = requireMerchant(paying.getMerchantId());
-        MerchantWithdrawPayoutService.PayoutResult result = payoutService.payout(paying, merchant);
+        PayoutAccount account = resolveSnapshotAccount(paying);
+        MerchantWithdrawPayoutService.PayoutResult result = payoutService.payout(paying, merchant, account);
         return self.finalizePayout(requestId, result);
+    }
+
+    /**
+     * 取本次提现单的收款账户快照源。
+     *
+     * <p>优先级：① 单据上的 payout_account_id（申请时用的那个，最准确）
+     * → ② 主体默认账户（老单无 id 时的兜底）。
+     *
+     * <p>⚠️ <b>不按快照内容出款</b>：快照的 {@code payee_*} 列只用于展示与对账，
+     * 真实出款必须解密账户密文（快照里没有明文）。
+     */
+    private PayoutAccount resolveSnapshotAccount(MerchantWithdrawRequest request) {
+        if (request.getPayoutAccountId() != null) {
+            Optional<PayoutAccount> snapshot =
+                    payoutAccountMapper.findByAccountId(request.getPayoutAccountId());
+            if (snapshot.isPresent()) {
+                return snapshot.get();
+            }
+            // 🔴 走到这里说明「申请时用的账户」被物理删除了（只停用不会）。
+            //    回落默认账户 + 留 warn：宁可打款到当前默认账户，也不要整笔卡在 PAYING。
+            log.warn("withdraw snapshot account missing, fallback to default: requestId={}, accountId={}",
+                    request.getRequestId(), request.getPayoutAccountId());
+        }
+        return payoutAccountService.resolveForApply(
+                PayoutConstants.PAYEE_OWNER_MERCHANT, request.getMerchantId(), null);
     }
 
     @Transactional
@@ -452,7 +552,12 @@ public class MerchantWithdrawService {
             request.setStatus("PAID");
             request.setPaidAt(now);
             withdrawMapper.updateById(request);
-            merchantWalletService.consumeFrozen(request.getMerchantId(), request.getAmountCents(),
+            // V308：拆分记账 —— 渠道实发净额，手续费单列一行（合计仍等于毛额）
+            long feeCents = request.getFeeCents() == null ? 0L : request.getFeeCents();
+            merchantWalletService.consumeFrozenSplit(
+                    request.getMerchantId(),
+                    WithdrawFeeCalculator.netPayoutCents(request.getAmountCents(), feeCents),
+                    feeCents,
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现打款成功");
             return toDto(request);
         }
@@ -532,21 +637,114 @@ public class MerchantWithdrawService {
         });
     }
 
-    private void validateAmount(String merchantId, long amountCents) {
-        if (amountCents < properties.minAmountCents()) {
+    private void validateAmount(String merchantId, long amountCents, PayoutAccount payeeAccount) {
+        if (amountCents < policy.merchantMinAmountCents()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "最低提现 " + (properties.minAmountCents() / 100.0) + " 元");
+                    "最低提现 " + (policy.merchantMinAmountCents() / 100.0) + " 元");
+        }        // V307 补单笔上限：原先只控下限与单日，运营手工输入大额无代码层拦截
+        if (policy.merchantMaxAmountCents() > 0 && amountCents > policy.merchantMaxAmountCents()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "单笔提现上限 " + (policy.merchantMaxAmountCents() / 100.0) + " 元");
         }
         MerchantWalletAccount account = merchantWalletService.ensureAccount(merchantId);
         long available = value(account.getBalanceCents()) - value(account.getFrozenCents());
-        if (available < amountCents) {
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "可用余额不足");
+        // 🔴 V308：扣掉「已入钱包但还没到 T+1 可提现日」的钱。
+        //    settleAfter 此前只是展示字段 —— creditWalletIfLedgerOnly 下单即入钱包，
+        //    商户能当天提走昨天货款，T+1 风控（等退款/争议窗口）形同虚设。
+        long pendingSettle = pendingSettleAmount(merchantId);
+        if (available - pendingSettle < amountCents) {
+            String extra = pendingSettle > 0
+                    ? "（含待结算 " + yuan(pendingSettle) + " 元，需到可提现日之后）"
+                    : "";
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "可用余额不足" + extra);
         }
         Instant start = LocalDate.now(ZONE).atStartOfDay(ZONE).toInstant();
         long used = withdrawMapper.sumAmountByMerchantSince(merchantId, start);
-        if (used + amountCents > properties.dailyLimitCents()) {
+        if (used + amountCents > policy.merchantDailyLimitCents()) {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "超过单日提现限额");
         }
+        validateChannelLimits(payeeAccount, amountCents, start);
+    }
+
+    /**
+     * 渠道维度限额校验（V308）。
+     *
+     * <p>🔴 <b>为什么必须在申请时拦，而不是等渠道拒</b>：渠道硬拒时钱已冻结、状态已 PAYING，
+     * 只能转人工释放冻结 —— 商户体验是「申请成功但迟迟不到账」。三个维度分别对应：
+     * <ol>
+     *   <li><b>单笔</b> —— 微信默认 ¥200（2026-10-06 用户纠正：200 是<b>单笔</b>，不是总额）；</li>
+     *   <li><b>单收款人单日</b> —— 同一收款账户当日累计（微信 ¥2000）；</li>
+     *   <li><b>单通道当日总额</b> —— 该打款通道<b>全平台</b>当日累计（微信单商户号 ¥5 万，
+     *       是<b>共享池</b>，不是每商户各一份）。</li>
+     * </ol>
+     *
+     * <p><b>限额取渠道硬限与运营限的更严者</b>（{@link PayoutChannelLimits#effective}）——
+     * 运营限额可以把渠道额度调更小，但<b>永远调不松</b>（那等于让商户撞渠道拒单）。
+     *
+     * <p>⚠️ 三维度都基于 {@code createdAt 当日 + 非终态单}统计，与
+     * {@link com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper} 内各查询口径一致；
+     * 打款失败置 FAILED 会<b>释放额度</b>（商户可重新申请），与商户维度日限额口径一致。
+     */
+    private void validateChannelLimits(PayoutAccount payeeAccount, long amountCents, Instant dayStart) {
+        if (payeeAccount == null || payeeAccount.getChannel() == null) {
+            return;
+        }
+        PayoutChannel channel = payoutChannelRegistry.find(payeeAccount.getChannel()).orElse(null);
+        if (channel == null) {
+            return;
+        }
+        PayoutChannelLimits opsLimits = new PayoutChannelLimits(
+                policy.merchantMaxAmountCents(), 0L, policy.merchantDailyLimitCents());
+        PayoutChannelLimits limits = channel.channelLimits().effective(opsLimits);
+
+        if (limits.hasSingleLimit() && amountCents > limits.singleCents()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    channel.channel() + " 单笔提现上限 " + yuan(limits.singleCents())
+                            + " 元（渠道额度限制，超出请分次提现或改用银行通道）");
+        }
+        if (limits.hasPerPayeeDailyLimit() && payeeAccount.getAccountId() != null) {
+            long payeeUsed = withdrawMapper.sumAmountByPayeeSince(payeeAccount.getAccountId(), dayStart);
+            if (payeeUsed + amountCents > limits.perPayeeDailyCents()) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                        "该收款账户今日已提现 " + yuan(payeeUsed) + " 元，"
+                                + channel.channel() + " 单收款人单日上限 " + yuan(limits.perPayeeDailyCents())
+                                + " 元（超出请明日再试或改用银行通道）");
+            }
+        }
+        if (limits.hasDailyTotalLimit()) {
+            long channelUsed = withdrawMapper.sumAmountByChannelSince(payeeAccount.getChannel(), dayStart);
+            if (channelUsed + amountCents > limits.dailyTotalCents()) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                        channel.channel() + " 今日额度已用尽（已用 " + yuan(channelUsed) + " 元 / 上限 "
+                                + yuan(limits.dailyTotalCents()) + " 元），请明日再试或改用银行通道");
+            }
+        }
+    }
+
+    private static String yuan(long cents) {
+        return String.format(Locale.ROOT, "%.2f", cents / 100.0);
+    }
+
+    /**
+     * 已入钱包但尚未到 T+1 可提现日的金额（分）。
+     *
+     * <p><b>为何做成「查询式扣减」而不是「入账时冻结」</b>：改入账路径要动分账主链路
+     * （含幂等、冲正、部分退款重算），风险面远大于收益；而且商户钱包的 {@code frozen_cents}
+     * 已被提现流程独占占用，再塞一种语义会让「提现冻结」与「待结算冻结」互相污染，
+     * 出问题时无法区分谁该解冻。
+     *
+     * <p><b>代价</b>：每次提现多一次 {@code order_revenue_split} 聚合查询。
+     * 提现是人工触发的低频操作，这个代价可接受（与 {@link WithdrawPolicyResolver}
+     * 每次读 SystemConfig 同理——都不缓存，避免「刚改的限额不生效」）。
+     *
+     * <p>⚠️ 依赖注入缺失时返回 0（=不拦截）而非抛错：这是<b>收紧</b>型闸门，
+     * 取 0 意味着回到接入前行为；反过来 fail-closed 会在装配异常时让所有提现全挂。
+     */
+    private long pendingSettleAmount(String merchantId) {
+        if (orderRevenueSplitMapper == null) {
+            return 0L;
+        }
+        return orderRevenueSplitMapper.sumWalletCreditedButNotYetWithdrawable(merchantId, LocalDate.now(ZONE));
     }
 
     private String resolveMerchantId(Long userId, String merchantIdParam) {
@@ -622,7 +820,16 @@ public class MerchantWithdrawService {
                 request.getPaidAt(),
                 request.getCreatedAt(),
                 request.getUpdatedAt(),
-                request.getFeeCents() == null ? 0L : request.getFeeCents()
+                request.getFeeCents() == null ? 0L : request.getFeeCents(),
+                // V307 收款方快照（payeeAccountNoMask 本身已是掩码，直接透传）
+                request.getPayoutAccountId(),
+                request.getPayeeAccountType(),
+                request.getPayeeAccountName(),
+                request.getPayeeAccountNoMask(),
+                request.getPayeeBankName(),
+                request.getIdemKey(),
+                request.getChannelOrderNo(),
+                request.getChannelBatchNo()
         );
     }
 

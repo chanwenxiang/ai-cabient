@@ -4,11 +4,33 @@
 
 ## 与旧系统关系
 
+> 🔴 **2026-10-06 17:35 二次更正（推翻同日上午的「已不在本机」结论）**
+>
+> 旧仓**一直在本机且完整可读**：`D:\ideaCode\easygo\`（含 `ego-automat/`、`mis-server/`、
+> `ego-automat-operation/`、`m9managepro/`、`dvm/`、`dinngdang-wx/` 等触点）。
+>
+> 同日上午的结论「旧仓已随 2026-10-04 搬迁而不可用」是**错的** ——
+> 当年只查了 `D:\ai-generated code\` 下的目录（那里确实只有 4 个 ai-cabinet 副本），
+> **没查 `D:\ideaCode\`**。据此得出的两条连带结论也一并作废：
+> ①「查旧系统实现须先获取代码副本」；②审计报告里「旧仓不存在，无法取证」的判断。
+>
+> ⇒ **查旧系统实现时请直接读 `D:\ideaCode\easygo`。** 若该路径失效，
+> 用 `ls -d /d/ideaCode/easygo` 确认后再下「不可用」结论 —— **不要凭印象说某目录不存在**。
+>
+> 本仓**不依赖旧仓代码**（业务与硬件协议仅为参考），旧系统对照结论已沉淀在
+> [SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md](SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md)，
+> 该文档中引用的 `文件:行号` 证据在旧仓可复核（2026-10-06 已抽查提现/账单/分账三处，全部吻合）。
+
 ```
-demo/
-├── easygo/ego-automat/     ← 旧系统，只读参考，不修改
-├── ego-automat-android/    ← 旧设备端，只读参考
-└── ai-cabinet/             ← 新系统（本项目）
+D:\ideaCode\easygo\                    # 旧系统仓（本机可读，只读参考）
+├── ego-automat/                       # 弹簧柜主系统 + 老管理后台 + 运营员 App 后端
+├── mis-server/ mis-web/               # 新一代运营后台（RuoYi-Vue-Plus）
+├── ego-automat-operation/             # 运营员/补货员 App 后端（含提现四渠道实现）
+├── m9managepro/                       # M9 生态 web 后台（品牌商/总监/经理/店长）
+├── dvm/ dinngdang-wx/                 # dvm 线（信箱柜/公益/信义卡/彩票/加盟）消费者端
+└── feishu-*/                          # 飞书侧工具（采购申请、报表、任务奖励）
+
+D:\ai-generated code\ai-cabinet\       # 新系统（本项目）
 ```
 
 ## 核心改进

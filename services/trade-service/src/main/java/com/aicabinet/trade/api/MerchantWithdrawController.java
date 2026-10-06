@@ -6,9 +6,14 @@ import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.MerchantWithdrawService;
+import com.aicabinet.trade.service.PayoutReconciliationService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 @RestController
@@ -16,9 +21,12 @@ import java.util.Map;
 public class MerchantWithdrawController {
 
     private final MerchantWithdrawService merchantWithdrawService;
+    private final PayoutReconciliationService payoutReconciliationService;
 
-    public MerchantWithdrawController(MerchantWithdrawService merchantWithdrawService) {
+    public MerchantWithdrawController(MerchantWithdrawService merchantWithdrawService,
+                                      PayoutReconciliationService payoutReconciliationService) {
         this.merchantWithdrawService = merchantWithdrawService;
+        this.payoutReconciliationService = payoutReconciliationService;
     }
 
     @RequiresPermissions(value = {
@@ -27,6 +35,33 @@ public class MerchantWithdrawController {
     @GetMapping("/payout-mode")
     public ApiResponse<Map<String, Object>> payoutMode(HttpServletRequest request) {
         return ApiResponse.ok(merchantWithdrawService.payoutMode(operator(request)));
+    }
+
+    /**
+     * V308：出款侧对账（本地自洽口径）。
+     *
+     * <p>🔴 <b>权限只给财务只读</b>，不给 {@code review}：对账报告能看出各通道出款总额，
+     * 属于资金敏感信息；能打款的人不需要靠它工作。
+     *
+     * <p>⚠️ 返回里的 {@code scope} 恒为 {@code LOCAL_SELF_CONSISTENT_ONLY} ——
+     * 真实通道未接通，<b>没有渠道账单可比</b>。运营不可把它当「与微信对平」的依据。
+     */
+    @RequiresPermissions("ops:finance:view")
+    @GetMapping("/payout-reconciliation")
+    public ApiResponse<Map<String, Object>> payoutReconciliation(
+            HttpServletRequest request,
+            @RequestParam(required = false) String date) {
+        LocalDate bizDate = null;
+        if (date != null && !date.isBlank()) {
+            try {
+                bizDate = LocalDate.parse(date.trim());
+            } catch (DateTimeParseException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "日期格式应为 yyyy-MM-dd");
+            }
+        }
+        PayoutReconciliationService.PayoutReconReport report =
+                payoutReconciliationService.reconcile(bizDate);
+        return ApiResponse.ok(report.detail());
     }
 
     @RequiresPermissions(value = {

@@ -8,9 +8,15 @@ import com.aicabinet.trade.domain.LineDevice;
 import com.aicabinet.trade.domain.LineManager;
 import com.aicabinet.trade.domain.LineWalletAccount;
 import com.aicabinet.trade.domain.LineWithdrawRequest;
+import com.aicabinet.trade.domain.PayoutAccount;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
 import com.aicabinet.trade.mapper.LineWithdrawRequestMapper;
+import com.aicabinet.trade.mapper.PayoutAccountMapper;
+import com.aicabinet.trade.payout.PayoutChannel;
+import com.aicabinet.trade.payout.PayoutChannelLimits;
+import com.aicabinet.trade.payout.PayoutChannelRegistry;
+import com.aicabinet.trade.payout.PayoutConstants;
 import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -28,6 +34,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -49,6 +56,14 @@ public class LineWithdrawService {
     private final LineWalletService lineWalletService;
     private final LineWithdrawPayoutService payoutService;
     private final LineWithdrawProperties properties;
+    /** V307：限额/费率解析（运营台配置优先于 yml，运行期生效）。 */
+    private final WithdrawPolicyResolver policy;
+    /** V308：收款账户管理（申请时锁定收款方）。 */
+    private final PayoutAccountService payoutAccountService;
+    /** V308：按申请时快照取回真实账户（出款要解密密文，快照里只有掩码）。 */
+    private final PayoutAccountMapper payoutAccountMapper;
+    /** V308：渠道硬限额（单笔 / 单收款人单日 / 单通道当日总额）。 */
+    private final PayoutChannelRegistry payoutChannelRegistry;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
@@ -57,7 +72,6 @@ public class LineWithdrawService {
     private final LineWithdrawService self;
 
     private static final String BIZ_LINE_WITHDRAW = "LINE_WITHDRAW";
-
     public LineWithdrawService(LineWithdrawRequestMapper withdrawMapper,
                                LineManagerMapper managerMapper,
                                LineDeviceMapper deviceMapper,
@@ -69,6 +83,10 @@ public class LineWithdrawService {
                                AdminAuditService auditService,
                                DistributedLockService distributedLockService,
                                ApprovalWorkflowService approvalWorkflowService,
+                               WithdrawPolicyResolver policy,
+                               PayoutAccountService payoutAccountService,
+                               PayoutAccountMapper payoutAccountMapper,
+                               PayoutChannelRegistry payoutChannelRegistry,
                                @Lazy LineWithdrawService self) {
         this.withdrawMapper = withdrawMapper;
         this.managerMapper = managerMapper;
@@ -77,6 +95,10 @@ public class LineWithdrawService {
         this.lineWalletService = lineWalletService;
         this.payoutService = payoutService;
         this.properties = properties;
+        this.policy = policy;
+        this.payoutAccountService = payoutAccountService;
+        this.payoutAccountMapper = payoutAccountMapper;
+        this.payoutChannelRegistry = payoutChannelRegistry;
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
@@ -250,7 +272,12 @@ public class LineWithdrawService {
     @Transactional
     public PayoutGate persistWithdrawApplication(LineManager manager, long amountCents, String requestNo,
                                                  Long submitterUserId) {
-        validateAmount(manager.getManagerId(), amountCents);
+        // V308：申请时锁定收款账户（不指定则用默认）—— 快照后历史不可变。
+        // 🔴 必须在 validateAmount 之前：渠道限额校验依赖账户的 channel 与 accountId
+        //    （单收款人单日 / 单通道当日总额两个维度都要用到）。
+        PayoutAccount payeeAccount = payoutAccountService.resolveForApply(
+                PayoutConstants.PAYEE_OWNER_LINE_MANAGER, String.valueOf(manager.getManagerId()), null);
+        validateAmount(manager.getManagerId(), amountCents, payeeAccount);
         String no = normalizeRequestNo(requestNo);
         var existing = withdrawMapper.findByRequestNo(no);
         if (existing.isPresent()) {
@@ -262,13 +289,16 @@ public class LineWithdrawService {
         request.setManagerId(manager.getManagerId());
         request.setAmountCents(amountCents);
         request.setFeeCents(WithdrawFeeCalculator.computeFeeCents(
-                amountCents, properties.feeCents(), properties.feeBps()));
-        request.setPayChannel(WithdrawPayoutPolicy.channelFor(properties.mockEnabled()));
+                amountCents, policy.lineFeeCents(), policy.lineFeeBps(), policy.lineFeeCapCents()));
+        // V308：渠道取自「所选收款账户」，不再由 mock 开关的字面量决定 —— 线长可按账户走不同通道
+        request.setPayChannel(payeeAccount.getChannel());
+        applyPayeeSnapshot(request, payeeAccount);
         request.setCreatedAt(now);
         request.setUpdatedAt(now);
-        if (amountCents >= properties.reviewThresholdCents()) {
+        if (amountCents >= policy.lineReviewThresholdCents()) {
             request.setStatus("PENDING_REVIEW");
             withdrawMapper.insert(request);
+            applyIdemKey(request);
             lineWalletService.freezeForWithdraw(manager.getManagerId(), amountCents,
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
             approvalWorkflowService.start(
@@ -283,16 +313,69 @@ public class LineWithdrawService {
         request.setReviewRemark("低于审核阈值自动通过");
         request.setReviewedAt(now);
         withdrawMapper.insert(request);
+        applyIdemKey(request);
         lineWalletService.freezeForWithdraw(manager.getManagerId(), amountCents,
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
         return PayoutGate.needPayout(toDto(request));
     }
 
+    /**
+     * 写打款幂等键。<b>必须在 insert 之后</b> —— 键里含 requestId（自增主键）。
+     *
+     * <p>形态：{@code LW:<requestId>:<随机>}。随机段让「同一 requestId 的不同重试」
+     * 保持同一个键（重试不换键⇒ 渠道侧幂等），而不同单据天然不同。
+     */
+    private void applyIdemKey(LineWithdrawRequest request) {
+        request.setIdemKey(PayoutAccountService.newIdemKey(
+                LineWithdrawPayoutService.IDEM_PREFIX, request.getRequestId()));
+        withdrawMapper.updateById(request);
+    }
+
+    /**
+     * 把收款账户信息<b>快照</b>进提现单。只写掩码，<b>永不写明文</b>：
+     * 快照列可能被列表接口直接返回。
+     */
+    private void applyPayeeSnapshot(LineWithdrawRequest request, PayoutAccount account) {
+        request.setPayoutAccountId(account.getAccountId());
+        request.setPayeeAccountType(account.getAccountType());
+        request.setPayeeAccountName(account.getAccountName());
+        request.setPayeeAccountNoMask(account.getAccountNoMask());
+        request.setPayeeBankName(account.getBankName());
+        request.setPayeeTaxNo(account.getTaxNo());
+    }
+
     public LineWithdrawRequestDto executePayout(long requestId) {
         LineWithdrawRequest paying = self.markPaying(requestId);
         LineManager manager = lineManagerService.requireManager(paying.getManagerId());
-        LineWithdrawPayoutService.PayoutResult result = payoutService.payout(paying, manager);
+        PayoutAccount account = resolveSnapshotAccount(paying);
+        LineWithdrawPayoutService.PayoutResult result = payoutService.payout(paying, manager, account);
         return self.finalizePayout(requestId, result);
+    }
+
+    /**
+     * V308：取本次提现单的收款账户快照源。
+     *
+     * <p>优先级：① 单据上的 {@code payout_account_id}（申请时用的那个，最准确）
+     * → ② 主体默认账户（V308 前的存量单无 id 时的兜底）。
+     *
+     * <p>⚠️ <b>不按快照内容出款</b>：快照的 {@code payee_*} 列只用于展示与对账，
+     * 真实出款必须解密账户密文（快照里没有明文）。
+     */
+    private PayoutAccount resolveSnapshotAccount(LineWithdrawRequest request) {
+        String ownerId = String.valueOf(request.getManagerId());
+        if (request.getPayoutAccountId() != null) {
+            Optional<PayoutAccount> snapshot =
+                    payoutAccountMapper.findByAccountId(request.getPayoutAccountId());
+            if (snapshot.isPresent()) {
+                return snapshot.get();
+            }
+            // 🔴 走到这里说明「申请时用的账户」被物理删除了（只停用不会）。
+            //    回落默认账户 + 留warn：宁可打款到当前默认账户，也不要整笔卡在 PAYING。
+            log.warn("line withdraw snapshot account missing, fallback to default: requestId={}, accountId={}",
+                    request.getRequestId(), request.getPayoutAccountId());
+        }
+        return payoutAccountService.resolveForApply(
+                PayoutConstants.PAYEE_OWNER_LINE_MANAGER, ownerId, null);
     }
 
     @Transactional
@@ -325,7 +408,12 @@ public class LineWithdrawService {
             request.setStatus("PAID");
             request.setPaidAt(now);
             withdrawMapper.updateById(request);
-            lineWalletService.consumeFrozen(request.getManagerId(), request.getAmountCents(),
+            // V308：拆分记账 —— 渠道实发净额，手续费单列一行（合计仍等于毛额）
+            long feeCents = request.getFeeCents() == null ? 0L : request.getFeeCents();
+            lineWalletService.consumeFrozenSplit(
+                    request.getManagerId(),
+                    WithdrawFeeCalculator.netPayoutCents(request.getAmountCents(), feeCents),
+                    feeCents,
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现打款成功");
             return toDto(request);
         }
@@ -404,10 +492,15 @@ public class LineWithdrawService {
         });
     }
 
-    private void validateAmount(long managerId, long amountCents) {
-        if (amountCents < properties.minAmountCents()) {
+    private void validateAmount(long managerId, long amountCents, PayoutAccount payeeAccount) {
+        if (amountCents < policy.lineMinAmountCents()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "最低提现 " + (properties.minAmountCents() / 100.0) + " 元");
+                    "最低提现 " + (policy.lineMinAmountCents() / 100.0) + " 元");
+        }
+        // V307 补单笔上限：原先线长侧只有下限+单日，运营手工输大额无代码层拦截
+        if (policy.lineMaxAmountCents() > 0 && amountCents > policy.lineMaxAmountCents()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "单笔提现上限 " + (policy.lineMaxAmountCents() / 100.0) + " 元");
         }
         long activeDevices = deviceMapper.selectCount(Wrappers.<LineDevice>lambdaQuery()
                 .eq(LineDevice::getManagerId, managerId)
@@ -427,9 +520,63 @@ public class LineWithdrawService {
         }
         Instant start = LocalDate.now(ZONE).atStartOfDay(ZONE).toInstant();
         long used = withdrawMapper.sumAmountByManagerSince(managerId, start);
-        if (used + amountCents > properties.dailyLimitCents()) {
+        if (used + amountCents > policy.lineDailyLimitCents()) {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "超过单日提现限额");
         }
+        validateChannelLimits(payeeAccount, amountCents, start);
+    }
+
+    /**
+     * V308：渠道维度限额校验，语义与商户侧完全一致（单笔 / 单收款人单日 / 单通道当日总额）。
+     *
+     * <p>🔴 <b>为什么线长侧也要有</b>：线长默认渠道是微信，而微信单笔默认上限只有 ¥200
+     * （{@code WeChatPayoutChannel.channelLimits()}）。若不校验，运营给线长批 ¥500 的提现
+     * 会在渠道侧被拒 ⇒ 单子卡PAYING 转人工。提前拦才能给出「单笔不能超 ¥200」的明确提示。
+     *
+     * <p>⚠️ <b>「单通道当日总额」是全平台共享池</b>：微信那个 5 万/日限制的是
+     * <b>整个商户号</b>，商户提现与线长提现<b>共用</b>同一个池子。
+     * 因此这里查的是该通道<b>所有主体</b>的当日累计（商户单+ 线长单都算）。
+     */
+    private void validateChannelLimits(PayoutAccount payeeAccount, long amountCents, Instant dayStart) {
+        if (payeeAccount == null || payeeAccount.getChannel() == null) {
+            return;
+        }
+        PayoutChannel channel = payoutChannelRegistry.find(payeeAccount.getChannel()).orElse(null);
+        if (channel == null) {
+            return;
+        }
+        PayoutChannelLimits opsLimits = new PayoutChannelLimits(
+                policy.lineMaxAmountCents(), 0L, policy.lineDailyLimitCents());
+        PayoutChannelLimits limits = channel.channelLimits().effective(opsLimits);
+
+        if (limits.hasSingleLimit() && amountCents > limits.singleCents()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    channel.channel() + " 单笔提现上限 " + yuan(limits.singleCents())
+                            + " 元（渠道额度限制，超出请分次提现或改用银行通道）");
+        }
+        if (limits.hasPerPayeeDailyLimit() && payeeAccount.getAccountId() != null) {
+            long payeeUsed = payoutAccountService.sumPaidAmountByAccountSince(
+                    payeeAccount.getAccountId(), dayStart);
+            if (payeeUsed + amountCents > limits.perPayeeDailyCents()) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                        "该收款账户今日已提现 " + yuan(payeeUsed) + " 元，"
+                                + channel.channel() + " 单收款人单日上限 " + yuan(limits.perPayeeDailyCents())
+                                + " 元（超出请明日再试或改用银行通道）");
+            }
+        }
+        if (limits.hasDailyTotalLimit()) {
+            long channelUsed = payoutAccountService.sumPaidAmountByChannelSince(
+                    payeeAccount.getChannel(), dayStart);
+            if (channelUsed + amountCents > limits.dailyTotalCents()) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                        channel.channel() + " 今日额度已用尽（已用 " + yuan(channelUsed) + " 元 / 上限 "
+                                + yuan(limits.dailyTotalCents()) + " 元），请明日再试或改用银行通道");
+            }
+        }
+    }
+
+    private static String yuan(long cents) {
+        return String.format(Locale.ROOT, "%.2f", cents / 100.0);
     }
 
     private LineWithdrawRequest requireRequest(long requestId) {
@@ -456,7 +603,15 @@ public class LineWithdrawService {
                 request.getPaidAt(),
                 request.getCreatedAt(),
                 request.getUpdatedAt(),
-                request.getFeeCents() == null ? 0L : request.getFeeCents()
+                request.getFeeCents() == null ? 0L : request.getFeeCents(),
+                // V308 收款方快照（payeeAccountNoMask 本身已是掩码，直接透传；永不返回明文）
+                request.getPayoutAccountId(),
+                request.getPayeeAccountType(),
+                request.getPayeeAccountName(),
+                request.getPayeeAccountNoMask(),
+                request.getPayeeBankName(),
+                request.getIdemKey(),
+                request.getChannelOrderNo()
         );
     }
 

@@ -40,8 +40,30 @@ public record LineWithdrawRequestDto(
 
         Instant updatedAt,
 
-        Long feeCents
+        Long feeCents,
 
+        // ============ V308：收款方快照（只读，历史不可变）============
+
+        /** 申请时使用的收款账户 ID */
+        Long payoutAccountId,
+
+        /** PAYEE_TYPE_COMPANY（对公）/ PAYEE_TYPE_PERSONAL（对私） */
+        String payeeAccountType,
+
+        /** 户名（对私=实名；对公=公司全称） */
+        String payeeAccountName,
+
+        /** 账号掩码 —— <b>永远是掩码，绝不是明文</b> */
+        String payeeAccountNoMask,
+
+        /** 开户行（BANK 通道用） */
+        String payeeBankName,
+
+        /** 打款幂等键 */
+        String idemKey,
+
+        /** 渠道单号（对账用） */
+        String channelOrderNo
 ) {
 
     public LineWithdrawRequestDto(
@@ -84,7 +106,7 @@ public record LineWithdrawRequestDto(
 
                 reviewerId, reviewRemark, reviewedAt, payoutRef, payoutMessage, paidAt,
 
-                createdAt, updatedAt, 0L);
+                createdAt, updatedAt, 0L, null, null, null, null, null, null, null);
 
     }
 

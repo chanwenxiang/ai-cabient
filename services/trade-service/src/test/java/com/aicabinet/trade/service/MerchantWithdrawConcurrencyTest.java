@@ -9,6 +9,11 @@ import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.MerchantWalletAccountMapper;
 import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
+import com.aicabinet.trade.domain.PayoutAccount;
+import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
+import com.aicabinet.trade.mapper.PayoutAccountMapper;
+import com.aicabinet.trade.payout.PayoutChannelRegistry;
+import com.aicabinet.trade.payout.PayoutConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,18 +53,73 @@ class MerchantWithdrawConcurrencyTest {
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
+    /**
+     * V307：申请时必须锁定收款账户（快照），故并发测试也要提供收款账户服务。
+     *
+     * <p>🔴 不用「半装配」测法：曾一度让生产服务在 {@code payoutAccountService == null} 时
+     * 抛 500 兜底，结果这几个用例全被兜底拦掉 —— 测的是「兜底生效」而非「提现流程正确」。
+     * 正确做法是注入 mock 并让它返回真实账户，让用例继续走完整路径。</p>
+     */
+    @Mock private PayoutAccountService payoutAccountService;
+    @Mock private PayoutAccountMapper payoutAccountMapper;
+    /**
+     * V308：渠道硬限额校验（单笔 / 单收款人单日 / 单通道当日总额）。
+     *
+     * <p>本组的收款账户走 {@link PayoutConstants#PAY_CHANNEL_BANK}（对公代付），
+     * 其 {@code channelDailyLimitCents()} 恒0 ⇒ 银行三维度全不限，
+     * 因此这里给一个<b>空注册表</b>（find 返空 ⇒ 跳过渠道限额）即可，
+     * 限额行为由 {@code MerchantWithdrawChannelLimitTest} 单独覆盖。</p>
+     */
+    @Mock private PayoutChannelRegistry payoutChannelRegistry;
+    @Mock private OrderRevenueSplitMapper orderRevenueSplitMapper;
 
     private MerchantWithdrawService service;
 
     @BeforeEach
     void setUp() {
-        MerchantWithdrawProperties properties = new MerchantWithdrawProperties(true, 100, 500_000, 50_000, 0, 0);
+        // V307：第 3 位是新增的 maxAmountCents（0 = 单笔不限）——
+        // 🔴 不能靠给 MerchantWithdrawProperties 加 6 参重载来让这里少写一个参数：
+        //    @ConfigurationProperties 的 record 一旦有多个构造器，Spring 的构造器绑定
+        //    就无法确定用哪个（实测抛 "No default constructor found"，整个应用上下文起不来）。
+        MerchantWithdrawProperties properties =
+                new MerchantWithdrawProperties(true, 100, 0L, 500_000, 50_000, 0, 0);
         service = new MerchantWithdrawService(
                 withdrawMapper, merchantMapper, accountMapper, ledgerMapper,
                 merchantWalletService, payoutService, properties,
+                payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, merchantScopeService, permissionService, auditService,
-                distributedLockService, null, null);
+                distributedLockService, null, WithdrawPolicyResolver.ymlOnly(properties),
+                payoutChannelRegistry, orderRevenueSplitMapper, null);
         ReflectionTestUtils.setField(service, "self", service);
+
+        // V307：所有用例共用一个可用的收款账户（默认对公 + BANK 通道）。
+        // 放在 setUp 而非各用例里：这几个用例测的是「并发/锁/冻结」语义，
+        // 收款方只是前置条件，逐用例重复 stub 只会淹没真正的断言。
+        //
+        // 🔴 用 lenient()：部分用例（锁冲突、驳回、陈旧扫描）**不会**走到申请落库，
+        //    严格模式下这类未被消费的 stub 会报 UnnecessaryStubbing 而让用例变红。
+        lenient().when(payoutAccountService.resolveForApply(any(), any(), any()))
+                .thenReturn(stubPayeeAccount());
+    }
+
+    /**
+     * 造一个可用的收款账户（BANK 对公），让「申请时锁定收款方」路径能走通。
+     *
+     * <p>只填与快照/打款相关的字段：{@code accountId}（快照回填）、{@code channel}（决定打款通道）、
+     * {@code accountNoMask}（快照列，测试断言只看这个掩码）。
+     */
+    private static PayoutAccount stubPayeeAccount() {
+        PayoutAccount account = new PayoutAccount();
+        account.setAccountId(1L);
+        account.setOwnerType(PayoutConstants.PAYEE_OWNER_MERCHANT);
+        account.setAccountType(PayoutConstants.PAYEE_TYPE_COMPANY);
+        account.setChannel(PayoutConstants.PAY_CHANNEL_BANK);
+        account.setAccountName("测试商户有限公司");
+        account.setAccountNo("6222021234567890123");
+        account.setAccountNoMask("****0123");
+        account.setStatus("ACTIVE");
+        account.setIsDefault(true);
+        return account;
     }
 
     @Test
@@ -103,7 +164,7 @@ class MerchantWithdrawConcurrencyTest {
             return 1;
         });
         when(withdrawMapper.findById(99L)).thenAnswer(inv -> Optional.ofNullable(stored.get()));
-        when(payoutService.payout(any(), eq(merchant))).thenReturn(
+        when(payoutService.payout(any(), eq(merchant), any())).thenReturn(
                 new MerchantWithdrawPayoutService.PayoutResult(true, "MOCK", "PAY-1", "ok"));
 
         MerchantWithdrawRequestDto dto = service.apply(1L, "M-1", 10_000L, "REQ-2");
@@ -140,7 +201,7 @@ class MerchantWithdrawConcurrencyTest {
             return 1;
         });
         when(withdrawMapper.findById(77L)).thenAnswer(inv -> Optional.ofNullable(stored.get()));
-        when(payoutService.payout(any(), eq(merchant))).thenReturn(
+        when(payoutService.payout(any(), eq(merchant), any())).thenReturn(
                 MerchantWithdrawPayoutService.PayoutResult.failure("WECHAT", null, "转账未接入"));
 
         MerchantWithdrawRequestDto failed = service.apply(1L, "M-1", 10_000L, "REQ-FAIL");
@@ -176,7 +237,7 @@ class MerchantWithdrawConcurrencyTest {
         when(distributedLockService.tryLock(
                 MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
                 .thenReturn(true);
-        when(payoutService.payout(any(), eq(merchant))).thenReturn(
+        when(payoutService.payout(any(), eq(merchant), any())).thenReturn(
                 new MerchantWithdrawPayoutService.PayoutResult(true, "MOCK", "PAY-2", "ok"));
 
         MerchantWithdrawRequestDto dto = service.payout(1L, 88L);
@@ -184,7 +245,11 @@ class MerchantWithdrawConcurrencyTest {
         assertEquals("PAID", dto.status());
         // FAILED → PAYING 时重新冻结 + PAID 时 consume
         verify(merchantWalletService).freezeForWithdraw(eq("M-1"), eq(10_000L), eq("WITHDRAW"), eq("88"), anyString());
-        verify(merchantWalletService).consumeFrozen(eq("M-1"), eq(10_000L), eq("WITHDRAW"), eq("88"), anyString());
+        // V308：打款成功改走拆分记账（净额 + 手续费单列）。本单 feeCents 未设置 ⇒ 0 ⇒
+        // 拆分后仍等价于「扣毛额」，但调用的是 consumeFrozenSplit。
+        verify(merchantWalletService).consumeFrozenSplit(eq("M-1"), eq(10_000L), eq(0L),
+                eq("WITHDRAW"), eq("88"), anyString());
+        verify(merchantWalletService, never()).consumeFrozen(anyString(), anyLong(), anyString(), anyString(), anyString());
     }
 
     /** H38：PAYING 超过阈值的 MOCK 提现单被兜底置 FAILED 并解冻。 */
@@ -267,7 +332,7 @@ class MerchantWithdrawConcurrencyTest {
             return 1;
         });
         when(withdrawMapper.findById(101L)).thenAnswer(inv -> Optional.ofNullable(stored.get()));
-        when(payoutService.payout(any(), eq(merchant))).thenReturn(
+        when(payoutService.payout(any(), eq(merchant), any())).thenReturn(
                 new MerchantWithdrawPayoutService.PayoutResult(true, "MOCK", "PAY-M2", "ok"));
 
         MerchantWithdrawRequestDto dto = service.merchantApply(9L, 10_000L, "REQ-M2", "M-2");

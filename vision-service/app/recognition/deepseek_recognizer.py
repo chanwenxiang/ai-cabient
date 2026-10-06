@@ -1,4 +1,17 @@
-"""DeepSeek 识别兜底：官方 API 当前仅文本；图片走 OCR + DeepSeek 文本匹配 SKU。"""
+"""DeepSeek **辅助建议**能力：官方 API 当前仅文本；图片走 OCR + DeepSeek 文本匹配 SKU。
+
+⚠️ **定位（勿当YOLO 残留删除，2026-10-06 用户拍板保留）**
+本类<b>不是</b>云端主识别引擎：
+- 主识别链路 = 端侧（将邑）推理 → /internal/v1/vision/edge-results → 结算扣款，
+  云端 vision-service 在此链路中<b>不做识别</b>（factory仅 mock / 端侧 provider 占位）；
+- 本类只服务两条<b>人工辅助</b>接口，且都是 admin 前端在用：
+  1. POST /api/v2/vision/suggest-class     —— SKU 建档时给候选类目；
+  2. POST /api/v2/vision/dispute-suggest —— 争议工单推荐可能 SKU；
+  两者都<b>人工确认后才生效</b>，错判只影响一次人工决策，不参与自动扣款。
+
+⇒删除前必须先确认 admin 的SKU 建档与争议推荐两处功能是否已改接将邑；
+  在那之前删除会直接打断两个在用功能。
+"""
 
 from __future__ import annotations
 

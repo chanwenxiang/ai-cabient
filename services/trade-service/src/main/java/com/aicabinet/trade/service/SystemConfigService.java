@@ -325,6 +325,47 @@ public class SystemConfigService {
      */
     public static final String OPS_CONFIG_AUDIT_ENABLED = "ops.config.audit.enabled";
 
+    // ── 商户/线长提现参数（V307）────────────────────────────────────────────
+    // 语义：默认取 application.yml 的同名配置（启动期可改），运营台改后**运行期生效**（免重启）。
+    // 取值优先级：SystemConfig（运营台）> application.yml > 代码兜底默认。
+    // 取 0 一律视为「不限制」，与既有 RECHARGE_MAX_CENTS 口径一致。
+    /** 商户提现单笔下限（分）。0=不限制。 */
+    public static final String MERCHANT_WITHDRAW_MIN_CENTS = "merchant.withdraw.min_cents";
+    /** 商户提现单笔上限（分）。0=不限制。对齐旧系统 easygo 的 ¥10000。 */
+    public static final String MERCHANT_WITHDRAW_MAX_CENTS = "merchant.withdraw.max_cents";
+    /** 商户提现单日累计上限（分）。0=不限制。旧系统为 ¥40000，本项目原默认 ¥5000 过紧。 */
+    public static final String MERCHANT_WITHDRAW_DAILY_LIMIT_CENTS = "merchant.withdraw.daily_limit_cents";
+    /** 商户提现免审自动通过阈值（分）；超过则进人工审核。0=全部人工审核。 */
+    public static final String MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS =
+            "merchant.withdraw.review_threshold_cents";
+    /** 商户提现手续费固定额（分），可与 fee_bps 叠加。0=免手续费。 */
+    public static final String MERCHANT_WITHDRAW_FEE_CENTS = "merchant.withdraw.fee_cents";
+    /** 商户提现手续费万分比（如 50=0.5%），可与固定额叠加。0=免手续费。 */
+    public static final String MERCHANT_WITHDRAW_FEE_BPS = "merchant.withdraw.fee_bps";
+    /**
+     * 商户提现手续费<b>单笔封顶</b>（分）。0=不封顶。
+     *
+     * <p>🔴 业界通行做法：支付宝余额提现 0.1%、<b>最高 ¥25</b>；拉卡拉提现 0.1%、<b>最高 ¥50</b>。
+     * 若不封顶，配 {@code fee_bps=50}（0.5%）提现 ¥10000 将扣 ¥50、提现 ¥100000 扣 ¥500 ——
+     * 远超业界封顶值，会被商户投诉「平台吃手续费」。**有 bps 时强烈建议同时配封顶。**</p>
+     */
+    public static final String MERCHANT_WITHDRAW_FEE_CAP_CENTS = "merchant.withdraw.fee_cap_cents";
+    /** 线长提现单笔下限（分）。0=不限制。 */
+    public static final String LINE_WITHDRAW_MIN_CENTS = "line.withdraw.min_cents";
+    /** 线长提现免审自动通过阈值（分）；超过则进人工审核。0=全部人工审核。 */
+    public static final String LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS =
+            "line.withdraw.review_threshold_cents";
+    /** 线长提现手续费固定额（分）。0=免手续费。 */
+    public static final String LINE_WITHDRAW_FEE_CENTS = "line.withdraw.fee_cents";
+    /** 线长提现手续费万分比（如 50=0.5%）。0=免手续费。 */
+    public static final String LINE_WITHDRAW_FEE_BPS = "line.withdraw.fee_bps";
+    /** 线长提现单笔上限（分）。0=不限制。 */
+    public static final String LINE_WITHDRAW_MAX_CENTS = "line.withdraw.max_cents";
+    /** 线长提现单日累计上限（分）。0=不限制。 */
+    public static final String LINE_WITHDRAW_DAILY_LIMIT_CENTS = "line.withdraw.daily_limit_cents";
+    /** 线长提现手续费单笔封顶（分）。0=不封顶。语义同 {@link #MERCHANT_WITHDRAW_FEE_CAP_CENTS}。 */
+    public static final String LINE_WITHDRAW_FEE_CAP_CENTS = "line.withdraw.fee_cap_cents";
+
     /** 配置审计的 {@code admin_audit_log.target_type} 取值（运营台审计页据此过滤）。 */
     public static final String CONFIG_AUDIT_TARGET_TYPE = "system_config";
     public static final String CONFIG_ACTION_UPSERT = "CONFIG_UPSERT";
@@ -673,6 +714,34 @@ public class SystemConfigService {
         upsertIfAbsent(UNPAID_AUTO_BLACKLIST, FALSE, "待支付超时关单时是否自动拉黑用户");
         upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");
         upsertIfAbsent(RECHARGE_MAX_CENTS, "500000", "单次充值上限（分），默认 ¥5000，0=不限制");
+        // ── 提现参数（V307）：seed 值刻意对齐旧系统 easygo 与行业惯例 ──
+        upsertIfAbsent(MERCHANT_WITHDRAW_MIN_CENTS, "1000",
+                "商户提现单笔下限（分），默认 ¥10（对齐旧系统 easygo 的 amount<1000 拒）；0=不限制");
+        upsertIfAbsent(MERCHANT_WITHDRAW_MAX_CENTS, "1000000",
+                "商户提现单笔上限（分），默认 ¥10000（对齐旧系统 easygo）；0=不限制");
+        upsertIfAbsent(MERCHANT_WITHDRAW_DAILY_LIMIT_CENTS, "4000000",
+                "商户提现单日累计上限（分），默认 ¥40000（对齐旧系统 easygo 的 4000000）；0=不限制");
+        upsertIfAbsent(MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS, "50000",
+                "商户提现免审自动通过阈值（分），默认 ¥500；0=全部转人工审核");
+        upsertIfAbsent(MERCHANT_WITHDRAW_FEE_CENTS, "0",
+                "商户提现手续费固定额（分），可与手续费比例叠加；0=免手续费");
+        upsertIfAbsent(MERCHANT_WITHDRAW_FEE_BPS, "0",
+                "商户提现手续费比例（万分比，如 50=0.5%），可与固定额叠加；0=免手续费");
+        upsertIfAbsent(MERCHANT_WITHDRAW_FEE_CAP_CENTS, "0",
+                "商户提现手续费单笔封顶（分），0=不封顶。行业参照：支付宝余额提现封顶 ¥25、拉卡拉提现封顶 ¥50 —— 配了手续费比例强烈建议同时配封顶");
+        upsertIfAbsent(LINE_WITHDRAW_MIN_CENTS, "1000",
+                "线长提现单笔下限（分），默认 ¥10；0=不限制");
+        upsertIfAbsent(LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS, "50000",
+                "线长提现免审自动通过阈值（分），默认 ¥500；0=全部转人工审核");
+        upsertIfAbsent(LINE_WITHDRAW_FEE_CENTS, "0", "线长提现手续费固定额（分）；0=免手续费");
+        upsertIfAbsent(LINE_WITHDRAW_FEE_BPS, "0",
+                "线长提现手续费比例（万分比，如 50=0.5%）；0=免手续费");
+        upsertIfAbsent(LINE_WITHDRAW_MAX_CENTS, "1000000",
+                "线长提现单笔上限（分），默认 ¥10000；0=不限制");
+        upsertIfAbsent(LINE_WITHDRAW_DAILY_LIMIT_CENTS, "4000000",
+                "线长提现单日累计上限（分），默认 ¥40000；0=不限制");
+        upsertIfAbsent(LINE_WITHDRAW_FEE_CAP_CENTS, "0",
+                "线长提现手续费单笔封顶（分），0=不封顶。行业参照：支付宝余额提现封顶 ¥25、拉卡拉提现封顶 ¥50");
         upsertIfAbsent(RECHARGE_BONUS_PERCENT, "0",
                 "充值赠送比例（百分比，充 100 送 10 即填 10），0=关闭（不赠送）；赠送额按分向下取整");
         upsertIfAbsent(BALANCE_REFUND_MAX_CENTS, "500000", "单次余额退款申请上限（分），默认 ¥5000，0=不限制");

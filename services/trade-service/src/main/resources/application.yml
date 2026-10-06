@@ -191,6 +191,8 @@ aicabinet:
   line-withdraw:
     mock-enabled: ${LINE_WITHDRAW_MOCK_ENABLED:${AICABINET_MOCK_ENABLED:true}}
     min-amount-cents: ${LINE_WITHDRAW_MIN_CENTS:100}
+    # V308：单笔上限（分）。0/缺省 = 不做代码层拦截，由运营人工把关
+    max-amount-cents: ${LINE_WITHDRAW_MAX_CENTS:0}
     daily-limit-cents: ${LINE_WITHDRAW_DAILY_LIMIT_CENTS:500000}
     review-threshold-cents: ${LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS:50000}
     fee-cents: ${LINE_WITHDRAW_FEE_CENTS:0}
@@ -198,10 +200,17 @@ aicabinet:
   merchant-withdraw:
     mock-enabled: ${MERCHANT_WITHDRAW_MOCK_ENABLED:${AICABINET_MOCK_ENABLED:true}}
     min-amount-cents: ${MERCHANT_WITHDRAW_MIN_CENTS:100}
+    # V307：单笔上限（分）。0/缺省 = 不做代码层拦截，由运营人工把关
+    max-amount-cents: ${MERCHANT_WITHDRAW_MAX_CENTS:0}
     daily-limit-cents: ${MERCHANT_WITHDRAW_DAILY_LIMIT_CENTS:500000}
     review-threshold-cents: ${MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS:50000}
     fee-cents: ${MERCHANT_WITHDRAW_FEE_CENTS:0}
     fee-bps: ${MERCHANT_WITHDRAW_FEE_BPS:0}
+  # V307：收款账号加密。密钥为 Base64 的 32 字节 AES 密钥（openssl rand -base64 32）。
+  # 🔴 无默认值：缺失时打款链路 fail-closed 拒收（绝不降级为明文落库/出款）。
+  # 生成后写入 infra/.env 与 CI secret，**禁止提交进 git**。
+  payout-encryption:
+    key: ${AICABINET_PAYOUT_ENCRYPTION_KEY:}
   qr:
     # auto = 自动探测本机局域网 IP（手机同网可扫）；也可写成 http://192.168.x.x
     public-host: ${QR_PUBLIC_HOST:auto}

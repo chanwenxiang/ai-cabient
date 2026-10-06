@@ -324,6 +324,12 @@ async def recognize_upload(
     return _to_response(session_id, f"upload://{file.filename}", out)
 
 
+# ⚠️ 以下两条是**人工辅助建议**接口（2026-10-06 用户拍板保留，勿当 YOLO/DeepSeek 残留删除）：
+#    suggest-class    → admin SKU 建档给候选类目
+#    dispute-suggest → 争议工单推荐可能 SKU
+# 二者都需人工确认才生效，**不参与自动扣款**；云端主识别 = 端侧（将邑）上报。
+#详见 app/recognition/deepseek_recognizer.py 模块 docstring。
+
 @app.post("/api/v2/vision/suggest-class")
 async def suggest_class(
     sku_name: str = Form(""),

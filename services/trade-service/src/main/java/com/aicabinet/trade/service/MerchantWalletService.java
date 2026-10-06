@@ -398,19 +398,75 @@ public class MerchantWalletService {
 
                                  String refType, String refId, String remark) {
 
-        requirePositive(amountCents);
+        doConsumeFrozenSplit(merchantId, amountCents, 0L, refType, refId, remark);
+
+    }
+
+    /**
+     * V308：打款成功时<b>拆分记账</b> —— 净额记「已出款」，手续费单列一行。
+     *
+     * <p>🔴 <b>先纠正一个常见误解</b>：手续费<b>本来就已被扣走</b>。申请时冻结的是<b>毛额</b>，
+     * 打款成功扣的也是毛额，而渠道实际只发 {@code netCents = 毛额 − 手续费}，
+     * 差额天然留在平台。真正缺的不是「把钱扣掉」，而是<b>可对账性</b>：
+     * <ul>
+     *   <li>拆分前商户流水只有一条 {@code WITHDRAW_PAID -毛额} ⇒ 商户对账单看不懂
+     *       「申请 100 元，为什么被扣的手续费查不到这一笔」；</li>
+     *   <li>平台侧也没有任何一行能汇总「今日手续费收入」⇒ 无法与渠道流水对账。</li>
+     * </ul>
+     *
+     * <p><b>本方法的口径</b>：余额与冻结<b>合计只扣一次 {@code netCents + feeCents}</b>
+     * （与拆分前扣毛额<b>完全等价</b>，不多扣也不少扣），但流水拆两行：
+     * {@code WITHDRAW_PAID -netCents} + {@code WITHDRAW_FEE -feeCents}。
+     * 两行相加 == 原毛额 ⇒ 账单总和不变，审计口径可验证。
+     *
+     * <p>⚠️ {@code feeCents = 0} 时<b>只记一行</b>（不留 0 元流水噪音），行为与拆分前完全一致。
+     */
+    @Transactional
+
+    public void consumeFrozenSplit(String merchantId, long netCents, long feeCents,
+
+                                   String refType, String refId, String remark) {
+
+        runWithWalletLock(merchantId, () -> {
+
+            doConsumeFrozenSplit(merchantId, netCents, feeCents, refType, refId, remark);
+
+            return null;
+
+        });
+
+    }
+
+    private void doConsumeFrozenSplit(String merchantId, long netCents, long feeCents,
+
+                                       String refType, String refId, String remark) {
+
+        long net = Math.max(0L, netCents);
+
+        long fee = Math.max(0L, feeCents);
+
+        long gross = net + fee;
+
+        // 🔴 溢出保护：net+fee 理论上来自同一笔毛额的拆分，但上游误传两个大数时仍要挡住
+        if (gross < 0L) {
+
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "提现金额不合法");
+
+        }
+
+        requirePositive(gross);
 
         MerchantWalletAccount account = reload(merchantId);
 
-        if (value(account.getBalanceCents()) < amountCents || value(account.getFrozenCents()) < amountCents) {
+        if (value(account.getBalanceCents()) < gross || value(account.getFrozenCents()) < gross) {
 
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "冻结或余额不足");
 
         }
 
-        long balance = value(account.getBalanceCents()) - amountCents;
+        long balance = value(account.getBalanceCents()) - gross;
 
-        long frozen = value(account.getFrozenCents()) - amountCents;
+        long frozen = value(account.getFrozenCents()) - gross;
 
         account.setBalanceCents(balance);
 
@@ -420,8 +476,22 @@ public class MerchantWalletService {
 
         accountMapper.updateById(account);
 
-        appendLedger(new LedgerLine(merchantId, "WITHDRAW_PAID", -amountCents,
-                new LedgerLine.BalanceSnapshot(balance, frozen), refType, refId, remark));
+        if (net > 0L) {
+
+            // 快照记「扣手续费之前」，两行的 balance_after 连起来才是完整轨迹
+            appendLedger(new LedgerLine(merchantId, "WITHDRAW_PAID", -net,
+
+                    new LedgerLine.BalanceSnapshot(balance + fee, frozen + fee), refType, refId, remark));
+
+        }
+
+        if (fee > 0L) {
+
+            appendLedger(new LedgerLine(merchantId, "WITHDRAW_FEE", -fee,
+
+                    new LedgerLine.BalanceSnapshot(balance, frozen), refType, refId, remark));
+
+        }
 
     }
 

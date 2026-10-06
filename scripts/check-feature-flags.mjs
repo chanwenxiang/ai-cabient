@@ -435,6 +435,13 @@ const EXPECTED_DYNAMIC_SITES = new Map([
       exprs: ['key', 'key', 'key'],
       why: '配置服务自身的 getInt/getBoolean/getDouble 转发 self.getValue(key, …)，key 由调用方传入'
     }
+  ],
+  [
+    'services/trade-service/src/main/java/com/aicabinet/trade/service/WithdrawPolicyResolver.java',
+    {
+      exprs: ['key'],
+      why: '提现限额/费率解析：pick(key, ymlValue, codeDefault) 的key 全部是 SystemConfigService 里的 MERCHANT_WITHDRAW_* / LINE_WITHDRAW_* 常量，14 个已全部登记在册（V308 补齐）'
+    }
   ]
 ]);
 

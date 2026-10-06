@@ -572,7 +572,7 @@
         type="info"
         :closable="false"
         show-icon
-        title="出账时按各方份额拆分合同月费，并可叠加固定金额。份额合计须为 100%。标记已付不会自动打款。"
+        title="出账时先从场地月费扣除各方固定金额，剩余部分按份额拆分（份额合计须为 100%）。分账合计恒等于场地月费。标记已付不会自动打款。"
         style="margin-bottom: 12px"
       />
       <div class="rent-sum" :class="{ 'is-ok': rentShareSumOk, 'is-bad': !rentShareSumOk }">

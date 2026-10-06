@@ -40,6 +40,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         ProfitSharingProperties.class,
         LineWithdrawProperties.class,
         MerchantWithdrawProperties.class,
+        // V307：收款账号 AES-256-GCM 加密密钥（来源 AICABINET_PAYOUT_ENCRYPTION_KEY，缺失即拒收打款）
+        com.aicabinet.trade.payout.PayoutEncryptionProperties.class,
         RiskControlProperties.class,
         com.aicabinet.trade.config.RateLimitProperties.class,
         com.aicabinet.trade.config.PayScoreProperties.class,

@@ -85,6 +85,104 @@
       "unit": "分"
     },
     {
+      "key": "merchant.withdraw.min_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "1000",
+      "description": "商户提现单笔下限（分），默认 ¥10；0=不限制"
+    },
+    {
+      "key": "merchant.withdraw.max_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "1000000",
+      "description": "商户提现单笔上限（分），默认 ¥10000；0=不限制。与渠道硬限额取更严者（V308）"
+    },
+    {
+      "key": "merchant.withdraw.daily_limit_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "4000000",
+      "description": "商户提现单日累计上限（分），默认 ¥40000；0=不限制"
+    },
+    {
+      "key": "merchant.withdraw.review_threshold_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "50000",
+      "description": "商户提现免审自动通过阈值（分），默认 ¥500；0=全部转人工审核"
+    },
+    {
+      "key": "merchant.withdraw.fee_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "商户提现手续费固定额（分），可与手续费比例叠加；0=免手续费"
+    },
+    {
+      "key": "merchant.withdraw.fee_bps",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "商户提现手续费比例（万分比，如 50=0.5%），可与固定额叠加；0=免手续费"
+    },
+    {
+      "key": "merchant.withdraw.fee_cap_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "商户提现手续费单笔封顶（分），0=不封顶。行业参照：支付宝封顶 ¥25、拉卡拉封顶 ¥50"
+    },
+    {
+      "key": "line.withdraw.min_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "1000",
+      "description": "线长提现单笔下限（分），默认 ¥10；0=不限制"
+    },
+    {
+      "key": "line.withdraw.max_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "1000000",
+      "description": "线长提现单笔上限（分），默认 ¥10000；0=不限制。与渠道硬限额取更严者（V308）"
+    },
+    {
+      "key": "line.withdraw.daily_limit_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "4000000",
+      "description": "线长提现单日累计上限（分），默认 ¥40000；0=不限制"
+    },
+    {
+      "key": "line.withdraw.review_threshold_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "50000",
+      "description": "线长提现免审自动通过阈值（分），默认 ¥500；0=全部转人工审核"
+    },
+    {
+      "key": "line.withdraw.fee_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "线长提现手续费固定额（分）；0=免手续费"
+    },
+    {
+      "key": "line.withdraw.fee_bps",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "线长提现手续费比例（万分比，如 50=0.5%）；0=免手续费"
+    },
+    {
+      "key": "line.withdraw.fee_cap_cents",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "线长提现手续费单笔封顶（分），0=不封顶"
+    },
+    {
       "key": "checkout.preauth_cents",
       "group": "交易与资金",
       "type": "NUMBER",

@@ -1,5 +1,6 @@
 package com.aicabinet.trade.architecture;
 
+import com.aicabinet.trade.config.AdminUiController;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.domain.JavaMethodCall;
@@ -52,6 +53,43 @@ class TradeArchitectureTest {
             classes().that().resideInAPackage("..service..")
                     .should(notCallRemoteMqttFromWriteTransactional())
                     .because("写事务内禁止 MQTT（开门/运维指令）；先短事务落库再下发");
+
+    /**
+     * 防 CVE-2026-47884 回潮：本仓<b>禁止引入 Spring 视图渲染</b>。
+     *
+     * <p>该 CVE（XsltView 样式表路径穿越 → SSRF + RCE，CVSS 9.8）需三个条件同时成立：
+     * (a) 应用使用 {@code XsltView}；(b) 存在 {@code /**} 映射且<b>会触发视图渲染</b>；
+     * (c) 视图名未被显式指定。本项目对外接口全部是 {@code @ResponseBody} REST，
+     * admin 静态产物由 {@code AdminUiController} 的 {@code addResourceHandler} 转发，
+     * 不经 Spring 视图层 ⇒ 结构性不可利用。</p>
+     *
+     * <p><b>为什么这条必须用门禁钉住、而不是只写豁免注释</b>：Spring Framework 6.2 /
+     * Boot 3.5 的 OSS 支持已于 2026-06-30 结束，6.2.20+ 仅商业支持分发，
+     * 6.2 线<b>不会再有 OSS 补丁</b>；本项目已决策不订阅、不升级。
+     * 因此「不引入视图渲染 / XSLT」不是临时状态，而是<b>长期安全边界</b>——
+     * 一旦有人为做后台页面引入 Thymeleaf，或为报表引入 XSLT（XML→PDF），
+     * 本条豁免立即失效且<b>无补丁可打</b>。这是「不可利用」变「可利用」的唯一入口，必须编译期拦。</p>
+     *
+     * <p>豁免：{@code AdminUiController} 的 {@code addResourceHandler("/admin/**") +
+     * PathResourceResolver} 返回静态文件 {@code Resource}，<b>不产生视图渲染</b>，
+     * 与 {@code XsltView} 攻击链无关，故显式排除该类。</p>
+     */
+    @ArchTest
+    static final ArchRule springViewRenderingMustNotBeIntroduced =
+            noClasses().that().resideInAPackage("com.aicabinet.trade..")
+                    .and().areNotAssignableTo(AdminUiController.class)
+                    .should().dependOnClassesThat().haveFullyQualifiedName(
+                            "org.springframework.web.servlet.View")
+                    .orShould().dependOnClassesThat().haveFullyQualifiedName(
+                            "org.springframework.web.servlet.ViewResolver")
+                    .orShould().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework.web.servlet.view..",
+                            "org.thymeleaf..",
+                            "org.freemarker..",
+                            "org.apache.velocity..",
+                            "org.mybatis.scripting..")
+                    .because("禁止引入 Spring 视图渲染/XSLT（CVE-2026-47884 结构性不可利用的前提；"
+                            + "6.2 线无 OSS 补丁，引入即永久失守。admin 静态转发走 ResourceHandler，不受此限）");
 
     /**
      * 本仓用 {@code ScheduledTaskService.tryBegin}（Redis）做多实例选举，作用等同 ShedLock；

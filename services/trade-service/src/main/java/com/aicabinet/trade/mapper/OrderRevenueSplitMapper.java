@@ -162,6 +162,38 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
     return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery().in(OrderRevenueSplit::getMerchantId, merchantIds).eq(OrderRevenueSplit::getSettlementBatchNo, settlementBatchNo).orderByDesc(OrderRevenueSplit::getCreatedAt));
     }
 
+    /**
+     * V308：某商户<b>已入钱包但尚未到可提现日</b>的金额合计（分）。
+     *
+     * <p>🔴 <b>为什么需要它</b>：T+1（{@code settleAfter}）此前只是个<b>展示字段</b>——
+     * {@code RevenueSplitService.creditWalletIfLedgerOnly} 在下单时就把钱打进钱包，
+     * 提现校验只看「余额 − 冻结」，于是商户能<b>当天提走昨天的钱</b>，
+     * 而 T+1 的风控意义（等退款/争议窗口过去）完全失效。
+     *
+     * <p><b>状态口径必须与入账口径一致</b>：只有真正入过钱包的
+     * {@code LEDGER_ONLY} / {@code SETTLED} 才算。
+     * 加上 {@code ACCRUED} 会把「走微信分账、钱直接到商户」的钱也算进冻结 ——
+     * 那笔钱<b>根本不在我们钱包里</b>，扣它会导致商户可提现额被凭空减少。
+     *
+     * @param settledBy 今日（含）为止的日期；{@code settleAfter > 该日期} 的才算未解冻
+     */
+    default long sumWalletCreditedButNotYetWithdrawable(String merchantId, java.time.LocalDate settledBy) {
+        if (merchantId == null) {
+            return 0L;
+        }
+        List<OrderRevenueSplit> rows = selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
+                .eq(OrderRevenueSplit::getMerchantId, merchantId)
+                .in(OrderRevenueSplit::getStatus, "LEDGER_ONLY", "SETTLED")
+                .isNotNull(OrderRevenueSplit::getSettleAfter)
+                .gt(OrderRevenueSplit::getSettleAfter, settledBy));
+        long sum = 0L;
+        for (OrderRevenueSplit row : rows) {
+            // merchantCents 是原始 long（非包装类型），不存在 null；负数按 0 处理
+            sum += Math.max(0L, row.getMerchantCents());
+        }
+        return sum;
+    }
+
     java.util.List<java.util.LinkedHashMap<String, Object>> selectAggregateDailyByMerchants(
             @org.springframework.data.repository.query.Param("merchantIds") Collection<String> merchantIds,
             @org.springframework.data.repository.query.Param("from") Instant from,
