@@ -90,6 +90,13 @@ message RebootCommand {
   string reason = 1;
 }
 
+// V308：远程触发设备自检。设备回 SELF_TEST_REPORT 事件（结构化指标），
+// 而非只回一条 ACK 文本 —— 后台要按时间序列看趋势并设阈值。
+message SelfTestCommand {
+  // 发起方（运维 userId / 系统），仅审计用；设备不必回显
+  string requested_by = 1;
+}
+
 // 信封字段 `type` 即 MQTT 报文里的 `type` 字段，取值 ∈ MQTT_CMD_*。
 message DeviceCommand {
   string command_id = 1;
@@ -101,6 +108,7 @@ message DeviceCommand {
     LockCommand lock = 12;
     UnlockCommand unlock = 13;
     RebootCommand reboot = 14;
+    SelfTestCommand self_test = 15;
   }
 }
 
@@ -143,6 +151,23 @@ message AlertEvent {
   int64 timestamp = 3;
 }
 
+// V308：设备自检结构化结果。
+//
+// 🔴 为什么要独立成事件而不是塞进 AlertEvent 的文本：后台要按时间序列做趋势与阈值告警
+// （可用存储连续下降、门状态反复异常），文本只能靠正则解析。
+//
+// 🔴 `items` 里**允许缺项/空值**：设备测不到的项目（如未接的摄像头）**不填而不是填 0** ——
+// 0 是有效值语义（RSSI 0dBm 极弱但合法），与「没测到」必须可区分。
+message SelfTestReport {
+  string command_id = 1;
+  bool healthy = 2;
+  // 测到的指标键值对（storage_free_mb / app_uptime_sec / door_state / network_rssi / …）
+  map<string, string> items = 3;
+  // 读取失败的项与原因（前端可展示，但不据此判定 healthy=false）
+  repeated string errors = 4;
+  int64 timestamp = 5;
+}
+
 // 信封字段 `type` 即 MQTT 报文里的 `type` 字段，取值 ∈ MQTT_EVENT_TYPE_*。
 message DeviceEvent {
   string device_id = 1;
@@ -153,6 +178,7 @@ message DeviceEvent {
     CommandAck ack = 11;
     Heartbeat heartbeat = 12;
     AlertEvent alert = 13;
+    SelfTestReport self_test_report = 14;
   }
 }
 
