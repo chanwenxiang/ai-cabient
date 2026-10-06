@@ -53,9 +53,13 @@ class CabinetController(
             }
         }
         OtaChecker.checkOnStartup(appContext)
+        // V308：运维指令执行器（LOCK/UNLOCK/REBOOT/SET_TARGET_TEMP/SELF_TEST）。
+        // 放在 MqttDeviceClient 之后创建（执行器内部通过 lambda 延迟取 mqtt，避免构造期空引用）。
+        val opsExecutor = OpsCommandExecutor(appContext, scope, lockDriver) { mqtt }
         mqtt = MqttDeviceClient(
             context = appContext,
-            onOpenDoor = { cmd -> handleOpenDoor(cmd) }
+            onOpenDoor = { cmd -> handleOpenDoor(cmd) },
+            onOpsCommand = { ops -> opsExecutor.handle(ops) }
         )
         // C22/H62a: 注入事件外发回调（离线上传成功补发关门事件 / 队列放弃告警），
         // MQTT 未连接时经 MqttDeviceClient 内部 OutboundMqttQueue 持久化补投。

@@ -6569,6 +6569,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/merchant-withdraws/payout-reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["payoutReconciliation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/merchant-withdraws/payout-mode": {
         parameters: {
             query?: never;
@@ -11861,6 +11877,15 @@ export interface components {
             updatedAt?: string;
             /** Format: int64 */
             feeCents?: number;
+            /** Format: int64 */
+            payoutAccountId?: number;
+            payeeAccountType?: string;
+            payeeAccountName?: string;
+            payeeAccountNoMask?: string;
+            payeeBankName?: string;
+            idemKey?: string;
+            channelOrderNo?: string;
+            channelBatchNo?: string;
         };
         ApiResponseMerchantWalletAccountDto: {
             /** Format: int32 */
@@ -11913,6 +11938,14 @@ export interface components {
             updatedAt?: string;
             /** Format: int64 */
             feeCents?: number;
+            /** Format: int64 */
+            payoutAccountId?: number;
+            payeeAccountType?: string;
+            payeeAccountName?: string;
+            payeeAccountNoMask?: string;
+            payeeBankName?: string;
+            idemKey?: string;
+            channelOrderNo?: string;
         };
         ApiResponseLineManagerDto: {
             /** Format: int32 */
@@ -28001,6 +28034,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponsePageResultMerchantWithdrawRequestDto"];
+                };
+            };
+        };
+    };
+    payoutReconciliation: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
                 };
             };
         };

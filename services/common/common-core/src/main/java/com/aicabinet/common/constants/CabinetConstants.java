@@ -61,12 +61,29 @@ public final class CabinetConstants {
      *  device-service `MqttEventListener` 也真的在分发它；此前只在监听器里**局部**定义过，
      *  与 CDC 契约（proto/edge）对不上账 ⇒ 收敛到这里。 */
     public static final String MQTT_EVENT_TYPE_ALERT = "ALERT";
+    /**
+     * V308：设备自检结构化结果（edge `publishSelfTestReport` 发）。
+     *
+     * <p>与 {@link #MQTT_EVENT_TYPE_ALERT} 的区别：ALERT 是<b>单次告警文本</b>，
+     * 本类型是<b>可聚合的健康指标快照</b>（可用存储 / 运行时长 / 门状态 / RSSI），
+     * 后台要按时间序列看趋势并设阈值 —— 混在 ALERT 文本里只能靠正则解析。
+     */
+    public static final String MQTT_EVENT_TYPE_SELF_TEST = "SELF_TEST_REPORT";
 
     public static final String MQTT_CMD_OPEN_DOOR = "OPEN_DOOR";
     public static final String MQTT_CMD_SET_TARGET_TEMP = "SET_TARGET_TEMP";
     public static final String MQTT_CMD_LOCK = "LOCK";
     public static final String MQTT_CMD_UNLOCK = "UNLOCK";
     public static final String MQTT_CMD_REBOOT = "REBOOT";
+    /**
+     * V308：远程触发设备自检。
+     *
+     * <p>🔴 此前 edge 端只认 {@link #MQTT_CMD_OPEN_DOOR}，本命令与上面 4 个运维指令
+     * 全部被静默丢弃、不回 ACK ⇒ 云端等满 15s {@code ACK_TIMEOUT_MS} 才置 TIMEOUT。
+     * V308 起这5 条在 edge 端都有明确分支（未装配执行器时回<b>失败</b> ACK，
+     * 而非静默丢弃 —— 静默丢弃会让运维误以为「下发成功、设备没动」）。
+     */
+    public static final String MQTT_CMD_SELF_TEST = "SELF_TEST";
 
     /** 万分比满额（100% = 10000 bps） */
     public static final int SHARE_BPS_FULL = 10_000;
