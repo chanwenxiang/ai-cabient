@@ -188,16 +188,38 @@ const queries = packages.map(([name, version]) => ({
 console.log(`\n=== OSV query (${packages.length} packages) ===`);
 const data = await osvBatchFetch(queries);
 let hit = 0;
+const waived = [];
 const findings = [];
+// 豁免清单（风险接受留痕）：仅限「6.2.x 线无修复版 / 代码路径不可达」且有跟进项的 CVE。
+// 每条必须写明：不可利用依据 + 跟进动作。新增豁免须同步 docs/CODE_AUDIT 报告。
+const WAIVED = new Set([
+  // GHSA-pc63-qcmh-9cmg / CVE-2026-47884：XsltView 路径穿越（CVSS 9.8）。
+  // 本项目全 @ResponseBody REST、无视图渲染、无 XsltView ⇒ 不可利用；
+  // 6.2.x 线无修复版（OSV last_affected=6.2.19，无 fixed；修复仅在 7.0.9），
+  // 跟进 = Boot 3.5 OSS EOL 后升级 4.x（含 Framework 7.0.9+）。2026-10-06 风险接受。
+  'GHSA-pc63-qcmh-9cmg',
+  'CVE-2026-47884'
+]);
 for (let i = 0; i < packages.length; i++) {
   const vulns = data.results?.[i]?.vulns || [];
   if (!vulns.length) continue;
-  hit += vulns.length;
   const [name, ver] = packages[i];
-  const ids = vulns.map((v) => v.id);
+  const unwaived = vulns.filter((v) => !WAIVED.has(v.id));
+  if (!unwaived.length) {
+    for (const v of vulns) waived.push({ name, ver, id: v.id });
+    continue;
+  }
+  hit += unwaived.length;
+  const ids = unwaived.map((v) => v.id);
   findings.push({ name, ver, ids });
   console.log(`[OSV] ${name}@${ver}`);
   for (const id of ids) console.log(`  - ${id}`);
+}
+if (waived.length) {
+  console.log(
+    `[OSV] ${waived.length} finding(s) waived (risk-accepted, see WAIVED in audit-backend-deps.mjs):`
+  );
+  for (const w of waived) console.log(`  ~ ${w.name}@${w.ver} ${w.id}`);
 }
 if (!hit) console.log('[OSV] no known vulns in scanned set');
 else {
