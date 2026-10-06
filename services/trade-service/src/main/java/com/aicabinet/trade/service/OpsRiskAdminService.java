@@ -36,6 +36,9 @@ public class OpsRiskAdminService {
 
     public PageResult<RiskEventDto> listRiskEvents(Long operatorId, int page, int size) {
         permissionService.requirePermission(operatorId, "ops:risk:list");
+        // 审计批次4：分页 size 钳到全仓统一上限（防 size=MAX_VALUE 拉全表 OOM）
+        size = Math.min(Math.max(size, 1), 100);
+        page = Math.max(page, 0);
         var p = riskEventRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size));
         return new PageResult<>(
                 p.getContent().stream().map(this::toRiskDto).toList(),

@@ -268,6 +268,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText } from '@/utils/display';
 import { computed, onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { TableColumnCtx } from 'element-plus';
@@ -390,8 +391,8 @@ const tableDefaultSort = computed(() => {
 });
 
 function yuan(cents?: number | null) {
-  if (cents == null || Number.isNaN(Number(cents))) return '¥0.00';
-  return `¥${(Number(cents) / 100).toFixed(2)}`;
+  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
+  return yuanText(cents, '¥0.00');
 }
 
 /** 净营收：优先用后端字段，否则营收 - 退款。 */

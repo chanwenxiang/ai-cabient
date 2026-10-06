@@ -1,4 +1,4 @@
-# Environment checklist for staging / production deploys
+﻿# Environment checklist for staging / production deploys
 # Usage:
 #   .\scripts\check-env.ps1 -CheckEnv -EnvFile infra\.env.staging.example
 #   .\scripts\check-env.ps1 -CheckEnv -Prod

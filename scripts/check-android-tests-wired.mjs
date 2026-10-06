@@ -185,6 +185,14 @@ if (testFiles.length === 0) {
       `测试源集有 ${testFiles.length} 个文件，但没有一个含 @Test 注解（注释里的字样不算，等于空跑）`
     );
   }
+  // 审计批次4：测试资产**数量基线**——删/挪走文件导致跌破基线即红（原规则只判「非零」，
+  // 移走 15/16 个文件仍绿）。上调基线 = 有意增测；下调须改此处并留理由。
+  const ANDROID_TEST_FILE_BASELINE = 16;
+  if (filesWithRealTests.length < ANDROID_TEST_FILE_BASELINE) {
+    problems.push(
+      `测试文件 ${filesWithRealTests.length} 个，低于基线 ${ANDROID_TEST_FILE_BASELINE}（删/挪测试须在此更新基线并说明）`
+    );
+  }
 }
 
 // ── 规则 2：测试运行时依赖必须声明在 testImplementation ────────────────────────

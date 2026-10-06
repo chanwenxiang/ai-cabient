@@ -23,10 +23,23 @@ function Enter-E2eLock {
 }
 
 function Exit-E2eLock {
+    # 审计批次4（TOCTOU 修复）：只按**本进程写入的句柄内容**删锁——先关句柄再核对
+    # 文件内容仍含本 PID 才删除。原实现无条件按路径删：A 在 B 拿锁后调 Exit 会把
+    # B 的锁删掉（第三者随后可同时入锁）；含 pid= 校验后 B 的锁不受影响。
+    # 残锁自愈：内容含本 PID 之外的 pid 且进程已死时，Enter-E2eLock 的 CreateNew
+    # 会在下次运行由人工/超时逻辑处理——此处不越权代删。
     param($LockHandle)
     if ($null -eq $LockHandle) { return }
+    $path = Get-E2eLockPath
     try { $LockHandle.Close() } catch { }
-    try { Remove-Item -Force (Get-E2eLockPath) -ErrorAction SilentlyContinue } catch { }
+    try {
+        if (Test-Path $path) {
+            $content = Get-Content $path -Raw -ErrorAction SilentlyContinue
+            if ($content -and $content -match "pid=$PID(\s|$)") {
+                Remove-Item -Force $path -ErrorAction SilentlyContinue
+            }
+        }
+    } catch { }
 }
 
 function Test-E2eHttpOk {

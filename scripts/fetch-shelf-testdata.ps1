@@ -1,4 +1,4 @@
-# 从网上下载真实柜内/货架图，并生成 delta 测试视频 take-one-shelf.mp4
+﻿# 从网上下载真实柜内/货架图，并生成 delta 测试视频 take-one-shelf.mp4
 param(
     [string]$OutDir = "",
     [switch]$SkipDownload

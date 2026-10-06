@@ -1,4 +1,4 @@
-# Production deployment checklist runner (does NOT deploy — validates env + docs)
+﻿# Production deployment checklist runner (does NOT deploy — validates env + docs)
 # Usage: .\scripts\deploy-production.ps1
 
 $ErrorActionPreference = "Stop"

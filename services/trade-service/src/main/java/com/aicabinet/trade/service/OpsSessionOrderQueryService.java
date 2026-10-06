@@ -41,6 +41,9 @@ import java.util.stream.Collectors;
 @Service
 public class OpsSessionOrderQueryService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(OpsSessionOrderQueryService.class);
+
     private static final int EXPORT_LIMIT = 5000;
     /** 工作台「待支付」与订单页 overdue=1 对齐：超过该分钟仍 PENDING 计入。 */
     public static final int UNPAID_OPS_OVERDUE_MINUTES = 30;
@@ -568,8 +571,9 @@ public class OpsSessionOrderQueryService {
                 if (at != null) {
                     return at;
                 }
-            } catch (Exception ignored) {
-                // fall through
+            } catch (Exception e) {
+                // 审计批次4：吞异常会让对账口径静默回退到「下单时间」——至少要留错误痕迹
+                log.error("resolve paidAt failed orderId={} opId={} — falling back to createdAt", o.getOrderId(), opId, e);
             }
         }
         return o.getCreatedAt();

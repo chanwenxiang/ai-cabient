@@ -1,4 +1,4 @@
-# Phase B E2E: 仓库入库 → 规划路线出库 → 补货上架 → 柜内商品 API
+﻿# Phase B E2E: 仓库入库 → 规划路线出库 → 补货上架 → 柜内商品 API
 
 param(
     [string]$BaseUrl = "http://localhost:8080",

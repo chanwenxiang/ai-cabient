@@ -1,4 +1,4 @@
-# Consumer regression: public config, marketing claim, mock recharge, Alipay prepay form, order points field
+﻿# Consumer regression: public config, marketing claim, mock recharge, Alipay prepay form, order points field
 # Usage: powershell -File scripts/e2e-consumer-marketing-recharge.ps1
 
 $ErrorActionPreference = "Stop"

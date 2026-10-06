@@ -1,4 +1,4 @@
-# 从项目根目录 ai-cabinet/ 构建镜像
+﻿# 从项目根目录 ai-cabinet/ 构建镜像
 
 param(
     [string]$Tag = "latest"

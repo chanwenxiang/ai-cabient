@@ -1,4 +1,4 @@
-# Production readiness gate for AI cabinet Step 4/5 hardening.
+﻿# Production readiness gate for AI cabinet Step 4/5 hardening.
 # It validates static release artifacts, optional environment settings,
 # targeted backend tests, device compilation, admin build, and optional runtime smoke checks.
 

@@ -617,6 +617,9 @@ watch(
  * 这里按「函数 → 字段名 → id」依次取值，取不到就返回空串（调用方 fail-closed）。
  */
 function rowId(row: any): string {
+  // 审计批次4 复核：此处保持「table.rowKey（函数）优先」——props.rowKey 是字符串字段名、
+  // 函数形态只在 useCrudTable 的 table 上（模板 :row-key 传给 el-table 的正是字符串）。
+  // 两处顺序不同是类型语义使然，非缺陷。
   const key = table.rowKey ?? props.rowKey;
   if (typeof key === 'function') return String(key(row) ?? '');
   if (typeof key === 'string' && key) return String(row?.[key] ?? '');

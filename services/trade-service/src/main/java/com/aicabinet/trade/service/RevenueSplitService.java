@@ -246,7 +246,13 @@ public class RevenueSplitService {
     private void resyncSubmittedSplitAfterPartialRefund(CabinetOrder order, OrderRevenueSplit split) {
         long oldMerchantCents = Math.max(0, split.getMerchantCents());
         Merchant merchant = merchantRepository.findById(split.getMerchantId()).orElse(null);
-        int rateBps = merchant != null ? merchant.getPlatformRateBps() : 0;
+        if (merchant == null || !"ACTIVE".equalsIgnoreCase(merchant.getStatus())) {
+            // 审计批次4：与首记口径一致——商户缺失/停用不做 0 费率重算（会把平台抽成静默
+            // 清零、商户多分），保留原拆分并留痕待人工。
+            log.warn("skip split resync (partial refund): merchant missing or inactive {}", split.getMerchantId());
+            return;
+        }
+        int rateBps = merchant.getPlatformRateBps();
         long gross = Math.max(0, order.getTotalAmountCents());
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
@@ -284,7 +290,12 @@ public class RevenueSplitService {
     private void resyncSubmittedSplitAfterIncrease(CabinetOrder order, OrderRevenueSplit split) {
         long oldMerchantCents = Math.max(0, split.getMerchantCents());
         Merchant merchant = merchantRepository.findById(split.getMerchantId()).orElse(null);
-        int rateBps = merchant != null ? merchant.getPlatformRateBps() : 0;
+        if (merchant == null || !"ACTIVE".equalsIgnoreCase(merchant.getStatus())) {
+            // 审计批次4：同上——缺失/停用不重算，保留原拆分。
+            log.warn("skip split resync (increase): merchant missing or inactive {}", split.getMerchantId());
+            return;
+        }
+        int rateBps = merchant.getPlatformRateBps();
         long gross = Math.max(0, order.getTotalAmountCents());
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
@@ -473,7 +484,13 @@ public class RevenueSplitService {
         }
         long oldMerchantCents = Math.max(0, split.getMerchantCents());
         Merchant merchant = merchantRepository.findById(split.getMerchantId()).orElse(null);
-        int rateBps = merchant != null ? merchant.getPlatformRateBps() : 0;
+        if (merchant == null || !"ACTIVE".equalsIgnoreCase(merchant.getStatus())) {
+            // 审计批次4：同上——缺失/停用不按 0 费率重算（钱包 clawback/credit 均会被扭曲），
+            // 保留原拆分并留痕待人工。
+            log.warn("skip split resync (local): merchant missing or inactive {}", split.getMerchantId());
+            return;
+        }
+        int rateBps = merchant.getPlatformRateBps();
         long gross = Math.max(0, order.getTotalAmountCents());
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;

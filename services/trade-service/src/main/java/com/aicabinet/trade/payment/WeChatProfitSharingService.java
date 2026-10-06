@@ -137,7 +137,14 @@ public class WeChatProfitSharingService {
             split.setFailureReason(truncate(e.getMessage()));
             log.warn("wechat profit sharing failed splitId={}", split.getSplitId(), e);
         }
-        return splitRepository.save(split);
+        splitRepository.save(split);
+        // 审计批次4（M01）：重提成功后 failure_reason 须真清列——updateById 忽略 null，
+        // 不补 wrapper 则上次失败文案残留在库。
+        splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                .<OrderRevenueSplit>lambdaUpdate()
+                .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                .set(OrderRevenueSplit::getFailureReason, null));
+        return split;
     }
 
     /**
@@ -417,6 +424,13 @@ public class WeChatProfitSharingService {
         split.setStatus(LEDGER_ONLY);
         split.setFailureReason(reason != null ? truncate(reason) : null);
         splitRepository.save(split);
+        if (split.getFailureReason() == null) {
+            // 审计批次4（M01）：同上，置 null 时补 wrapper 真清列。
+            splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                    .<OrderRevenueSplit>lambdaUpdate()
+                    .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                    .set(OrderRevenueSplit::getFailureReason, null));
+        }
     }
 
     private static String truncate(String message) {

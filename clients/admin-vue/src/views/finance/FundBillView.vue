@@ -326,6 +326,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText } from '@/utils/display';
 import { computed, ref, watch } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import CrudTable from '@/components/CrudTable.vue';
@@ -501,8 +502,9 @@ const { onExport: exportLedgerCsv } = useListCsv({
     ])
 });
 
-function yuan(cents: number) {
-  return ((cents || 0) / 100).toFixed(2);
+function yuan(cents?: number | null) {
+  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
+  return yuanText(cents, '¥0.00');
 }
 
 function formatTime(v?: string) {

@@ -1,4 +1,4 @@
-# Phase A E2E: replenishment lines, FEFO lots, expiry stats, MQTT shopping
+﻿# Phase A E2E: replenishment lines, FEFO lots, expiry stats, MQTT shopping
 
 param(
     [string]$BaseUrl = "http://localhost:8080",

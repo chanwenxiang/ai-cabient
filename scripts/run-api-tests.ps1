@@ -1,4 +1,4 @@
-# API-level smoke tests for local / staging stacks
+﻿# API-level smoke tests for local / staging stacks
 param([string]$BaseUrl = "")
 
 $ErrorActionPreference = "Stop"

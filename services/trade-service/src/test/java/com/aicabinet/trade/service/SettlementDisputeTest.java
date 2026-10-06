@@ -81,7 +81,7 @@ class SettlementDisputeTest {
                 sessionRepository, orderRepository, orderLineRepository, deviceValidationService,
                 inventoryService, orderPaymentService, userValidationService, couponService, memberService,
                 revenueSplitService, notificationService, videoArchiveService, displaySnapshotHelper,
-                orderSupport);
+                orderSupport, org.mockito.Mockito.mock(OpsExceptionService.class));
         SettlementRecognitionService recognitionSvc = new SettlementRecognitionService(
                 sessionRepository, orderRepository, confidenceService, gravityHelper,
                 securityProperties, stagingProperties, systemConfigService, skuVisionEnrollmentService,

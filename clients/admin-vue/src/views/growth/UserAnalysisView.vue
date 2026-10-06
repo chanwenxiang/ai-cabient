@@ -207,6 +207,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText } from '@/utils/display';
 import { computed, onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
@@ -337,9 +338,9 @@ function pct(v?: number) {
   if (v == null || !Number.isFinite(v)) return '暂无';
   return `${(v * 100).toFixed(1)}%`;
 }
-function yuan(cents?: number) {
-  if (cents == null) return '暂无';
-  return `¥${(cents / 100).toFixed(2)}`;
+function yuan(cents?: number | null) {
+  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
+  return yuanText(cents, '暂无');
 }
 function avgTicket(row: { orderCount?: number; totalSpentCents?: number; totalSpent?: number }) {
   const n = Number(row.orderCount || 0);

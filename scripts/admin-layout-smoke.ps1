@@ -1,4 +1,4 @@
-# Admin list layout / exception orderId smoke (API + optional Playwright).
+﻿# Admin list layout / exception orderId smoke (API + optional Playwright).
 # Asserts:
 #   1) RESOLVED exceptions can expose orderId (writeback/backfill path)
 #   2) If npx+playwright available: /orders /exceptions /sessions status-tabs height >= MinTabHeight

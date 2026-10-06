@@ -198,6 +198,9 @@ public class WarehouseService {
         }
         String wh = resolveWarehouseId(command.warehouseId());
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
+        // 审计批次4：治理收口到库存原语层（上游 ProcurementService 已挡，此处纵深）——
+        // 采购入库不允许落无主仓（与 inbound/P2-8 同宽严）。
+        requireManagedOutboundWarehouse(wh);
         LotSpec lot = command.lot();
         String refType = command.refType();
         String refId = command.refId();
@@ -237,6 +240,8 @@ public class WarehouseService {
         }
         String wh = resolveWarehouseId(warehouseId);
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
+        // 审计批次4：采购退货扣仓同受管仓校验（与 receivePurchaseStock 对称）。
+        requireManagedOutboundWarehouse(wh);
         deductWarehouseStock(wh, skuId, batchNo, qty);
         recordWarehouseMovement(wh, skuId, batchNo,
                 new MovementSpec("PURCHASE_RETURN", -qty, refType, refId, operatorId));
@@ -800,7 +805,14 @@ public class WarehouseService {
 
     private void cancelShippedDeviceLines(WarehouseOutbound outbound, List<WarehouseOutboundLine> deviceLines,
                                           String device, Long outboundId, Long operatorId) {
-        for (WarehouseOutboundLine line : deviceLines) {
+        // 审计批次4：与发运侧（doShipOutbound）同构——回仓加库存前按 (skuId,batchNo) 全局
+        // 排序，两个取消单行序相反且共用批次时按同序取锁，消除 PG 死锁窗口。
+        List<WarehouseOutboundLine> orderedLines = deviceLines.stream()
+                .sorted(java.util.Comparator.comparing(WarehouseOutboundLine::getSkuId)
+                        .thenComparing(WarehouseOutboundLine::getBatchNo,
+                                java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
+                .toList();
+        for (WarehouseOutboundLine line : orderedLines) {
             if (line.getQuantity() > 0) {
                 addWarehouseStock(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
                         null, line.getExpiryDate(), line.getQuantity());

@@ -1,4 +1,4 @@
-# 下载 Retail-OS / ShelfVision 76 类 YOLOv8m 权重 → vision-service/models/retail-os-v2.0.0.pt
+﻿# 下载 Retail-OS / ShelfVision 76 类 YOLOv8m 权重 → vision-service/models/retail-os-v2.0.0.pt
 # 官方 Google Drive（需可访问 drive.google.com，必要时 VPN）:
 #   https://drive.google.com/drive/folders/1kBSzd2xSj-QzwDbvjVIPaYZ6VpFTt6lI
 # 在文件夹内选择 Experiment 8「YOLOv8m Stratified + Oversample」的 best.pt

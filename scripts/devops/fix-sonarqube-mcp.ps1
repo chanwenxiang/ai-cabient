@@ -1,4 +1,4 @@
-# 修复 SonarLint「Configure MCP」把 Token 写成 null 的问题。
+﻿# 修复 SonarLint「Configure MCP」把 Token 写成 null 的问题。
 # 用法：.\scripts\devops\fix-sonarqube-mcp.ps1
 # 然后 Cursor：Ctrl+Shift+P → Developer: Reload Window
 $ErrorActionPreference = "Stop"

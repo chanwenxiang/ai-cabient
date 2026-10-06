@@ -158,6 +158,21 @@ for (const { name, dir, pkg } of targets) {
   if (files.length === 0) {
     problems.push(`${label}：声明了 vitest 但 src/** 下一个 *.test.ts 都没有（等于没测）`);
   }
+  // 审计批次4：数量基线——删测试跌破基线即红（原只判「非零」）。基线 = 2026-10-06 实测
+  //（consumer 20 / merchant 25 / admin 13，按本门禁 collectTestFiles 口径）；
+  // 上调随增测，下调须改此处并留理由。
+  const BASELINES = { consumer: 20, merchant: 25, admin: 13 };
+  const baseKey = label.includes('consumer')
+    ? 'consumer'
+    : label.includes('merchant')
+      ? 'merchant'
+      : 'admin';
+  const BASELINE = BASELINES[baseKey];
+  if (files.length < BASELINE) {
+    problems.push(
+      `${label}：测试文件 ${files.length} 个，低于基线 ${BASELINE}（删/挪测试须在此更新基线并说明）`
+    );
+  }
 
   // 规则 3：vitest.config.ts 必须存在，且 include **真的**匹配到这些文件
   const cfgPath = join(dir, 'vitest.config.ts');

@@ -746,7 +746,11 @@ public class ProcurementService {
         if (sku.getPurchaseCostCents() != null && sku.getPurchaseCostCents() > 0) {
             return sku.getPurchaseCostCents();
         }
-        return Math.max(sku.getPriceCents(), 1);
+        // 审计批次4（原 P3 升 P2）：售价兜底会把零售价当采购成本，虚增供应商应付与损耗
+        // 金额口径。Demo 种子/后台建 SKU 均已要求采购价，缺失即数据不完整——阻断下单
+        // 而非兜底（先补目录采购价再采购）。
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "商品「" + sku.getSkuName() + "」未维护采购价，请先在商品目录补录后再采购");
     }
 
     /**

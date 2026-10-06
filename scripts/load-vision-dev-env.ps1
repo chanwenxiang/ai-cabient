@@ -1,4 +1,4 @@
-# 加载 vision-service 真实识别环境变量（不影响 trade mock）
+﻿# 加载 vision-service 真实识别环境变量（不影响 trade mock）
 $Root = Split-Path $PSScriptRoot -Parent
 $EnvFile = Join-Path $Root "infra\.env.vision-dev"
 $Example = Join-Path $Root "infra\.env.vision-dev.example"

@@ -1,4 +1,4 @@
-# 识别 + mock 重力 E2E：vision-service mock，模拟器上报重力取货
+﻿# 识别 + mock 重力 E2E：vision-service mock，模拟器上报重力取货
 param(
     [string]$BaseUrl = "",
     [string]$Phone = "",

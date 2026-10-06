@@ -1,4 +1,4 @@
-# SKU 训练就绪检查（阶段 C — 需标注数据集后才能训练）
+﻿# SKU 训练就绪检查（阶段 C — 需标注数据集后才能训练）
 
 param(
     [string]$DatasetRoot = (Join-Path (Split-Path $PSScriptRoot -Parent) "vision-service\datasets\cabinet-skus-v1")

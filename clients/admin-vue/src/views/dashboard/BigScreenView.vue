@@ -185,6 +185,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText } from '@/utils/display';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import L from 'leaflet';
@@ -572,8 +573,8 @@ function severityClass(severity?: string) {
 
 /* ---------- 格式化 ---------- */
 function yuan(cents?: number | null) {
-  if (cents == null) return '暂无';
-  return `¥${(cents / 100).toFixed(2)}`;
+  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
+  return yuanText(cents, '暂无');
 }
 function yuanShort(cents: number) {
   const v = cents / 100;

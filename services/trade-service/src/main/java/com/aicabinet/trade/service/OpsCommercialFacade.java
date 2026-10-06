@@ -85,6 +85,9 @@ public class OpsCommercialFacade {
 
     public PageResult<RiskEventDto> listRiskEvents(Long operatorId, int page, int size) {
         permissionService.requirePermission(operatorId, "ops:risk:list");
+        // 审计批次4：同 OpsRiskAdminService——size 钳上限
+        size = Math.min(Math.max(size, 1), 100);
+        page = Math.max(page, 0);
         var p = riskEventRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size));
         return new PageResult<>(
                 p.getContent().stream().map(this::toRiskDto).toList(),

@@ -1,4 +1,4 @@
-# 训练开门柜 SKU 模型 cabinet-skus-v1.0.0.pt
+﻿# 训练开门柜 SKU 模型 cabinet-skus-v1.0.0.pt
 param(
     [int]$PerClass = 80,
     [int]$Epochs = 80

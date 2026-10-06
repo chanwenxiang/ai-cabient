@@ -107,14 +107,22 @@ public class SettlementSettleOrchestrator {
      *
      * @param allowDevFallback 为 false 时不注入 mock SKU（运营识别测试）
      */
-    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderReadModel processRecognitionResult(ShoppingSession session,
                                                    VisionServiceClient.RecognitionResult recognition,
                                                    boolean allowDevFallback) {
-        return settlement.runWithSessionSettleLock(session.getSessionId(), () -> {
-            sessionRepository.findByIdForUpdate(session.getSessionId());
-            return settlementRecognitionService.processRecognitionResultUnlocked(
-                    session, recognition, allowDevFallback);
-        });
+        // 审计批次4：**先抢锁、后开事务**（对齐 BalanceLedgerService 的锁外事务设计）——
+        // 原实现 @Transactional 包住 runWithSessionSettleLock，Redis 等锁期间每个请求挂死
+        // 一个 DB 连接，10 并发即耗尽连接池。事务边界移入 self 代理的 Tx 方法。
+        return settlement.runWithSessionSettleLock(session.getSessionId(), () ->
+                self.processRecognitionResultInTx(session, recognition, allowDevFallback));
+    }
+
+    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
+    public OrderReadModel processRecognitionResultInTx(ShoppingSession session,
+                                                       VisionServiceClient.RecognitionResult recognition,
+                                                       boolean allowDevFallback) {
+        sessionRepository.findByIdForUpdate(session.getSessionId());
+        return settlementRecognitionService.processRecognitionResultUnlocked(
+                session, recognition, allowDevFallback);
     }
 }

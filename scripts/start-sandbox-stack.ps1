@@ -1,4 +1,4 @@
-# 启动沙箱模拟全栈（真实 YOLO + 可选支付宝沙箱）
+﻿# 启动沙箱模拟全栈（真实 YOLO + 可选支付宝沙箱）
 param(
     [string]$EnvFile = "",
     [switch]$Build

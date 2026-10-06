@@ -1,4 +1,4 @@
-# Start Java/Python services locally for Step 2 (infra must already be running).
+﻿# Start Java/Python services locally for Step 2 (infra must already be running).
 # Usage:
 #   .\scripts\start-local.ps1           # start all in background windows
 #   .\scripts\start-local.ps1 -TradeOnly

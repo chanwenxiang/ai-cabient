@@ -1,4 +1,4 @@
-# Shopping E2E with real media in MinIO (Step 4)
+﻿# Shopping E2E with real media in MinIO (Step 4)
 # Requires trade + device + vision with YOLO loaded.
 # bus.jpg -> usually DISPUTED (no bottle SKU); bottle.jpg -> COMPLETED if MOCK_ENABLED=false.
 

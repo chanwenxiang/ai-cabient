@@ -1,4 +1,4 @@
-param(
+﻿param(
   [ValidateSet("dev", "main")]
   [string]$Branch = "dev",
   [string]$SonarHostUrl = $env:SONAR_HOST_URL,

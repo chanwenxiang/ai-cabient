@@ -481,7 +481,7 @@
                     <el-option
                       v-for="sku in skus"
                       :key="sku.skuId"
-                      :label="`${sku.skuName}（¥${(sku.priceCents / 100).toFixed(2)}）`"
+                      :label="`${sku.skuName}（¥${((sku.priceCents ?? 0) / 100).toFixed(2)}）`"
                       :value="sku.skuId"
                     />
                   </el-select>

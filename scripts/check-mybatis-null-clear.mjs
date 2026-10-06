@@ -23,6 +23,18 @@ const MODULES = [
 /** 豁免清单：键 = 模块相对路径（/ 分隔），值 = 为什么这不是清列意图 */
 const ALLOWLIST = new Map([
   [
+    'services/trade-service/src/main/java/com/aicabinet/trade/service/CouponService.java',
+    'order.setCouponId(null) 为内存投影；DB 清列由 SettlementOrderFinalizeService.clearCouponSelection 调用链负责（跨实体窗口误联）'
+  ],
+  [
+    'services/trade-service/src/main/java/com/aicabinet/trade/service/DisputeService.java',
+    '重开争议 set(ClosedAt,null) 的 DB 清列在 reopenUpdateWrapper（.set(ClosedAt,null)，距 set 点约 30 行超出窗口）'
+  ],
+  [
+    'services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java',
+    'RECHARGE_REFUND 为新建流水，order_id 置 null 是 FK 语义（V98），非 updateById 清列意图'
+  ],
+  [
     'services/trade-service/src/main/java/com/aicabinet/trade/service/DevicePresenceService.java',
     'set(null) 后紧跟 mapper 的 clearOnlineSince/clearSalesUnlockedAt 显式清列 SQL，净效果正确'
   ],
@@ -34,8 +46,6 @@ const ALLOWLIST = new Map([
 
 const SET_NULL = /\.set[A-Z]\w*\(\s*null\s*\)/;
 const PERSIST = /\.(updateById|save)\(/;
-/** 缓解信号：紧随其后出现 LambdaUpdateWrapper（update(null, ...)）即视为已显式清列 */
-const MITIGATION = /lambdaUpdate\(\)[\s\S]{0,400}?\.set\([\s\S]{0,80}?null\)/;
 
 function* walkJava(dir) {
   let entries;
@@ -61,12 +71,18 @@ for (const base of MODULES) {
     const lines = readFileSync(file, 'utf8').split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       if (!SET_NULL.test(lines[i])) continue;
-      for (let j = i + 1; j <= Math.min(i + 4, lines.length - 1); j++) {
+      // 审计批次4：窗口 4→12 行（原只查 4 行，跨 4 行的持久化漏检）。
+      // 缓解窗口 = set(null) → 持久化 → 后 8 行的**联合窗口**：标准 M01 模式是
+      // 「entity.set(null) → save（非空列）→ lambdaUpdate wrapper 显式 set(col,null) 清列」，
+      // wrapper 在持久化**之后**——缓解判定必须覆盖持久化后窗口，否则标准模式本身被误报。
+      for (let j = i + 1; j <= Math.min(i + 12, lines.length - 1); j++) {
         if (PERSIST.test(lines[j])) {
           if (ALLOWLIST.has(rel)) break;
-          // 缓解检测：set(null) 起点后 8 行内出现 lambdaUpdate wrapper 显式 set(null) → 已兜底
-          const mitigation = lines.slice(i + 1, i + 9).join('\n');
-          if (MITIGATION.test(mitigation)) break;
+          const window = lines.slice(i + 1, Math.min(j + 8, lines.length)).join('\n');
+          const mitigation =
+            (/lambdaUpdate\(\)/.test(window) && /\.set\([^)]*null\)/.test(window)) ||
+            /clear[A-Z]\w*\(/.test(window);
+          if (mitigation) break;
           violations.push(`${rel}:${i + 1}  set(null) → :${j + 1} 持久化`);
           break;
         }

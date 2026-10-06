@@ -54,8 +54,11 @@ class LineCommissionBackfillTest {
 
     @BeforeEach
     void setUp() {
+        org.springframework.transaction.PlatformTransactionManager txManager =
+                org.mockito.Mockito.mock(org.springframework.transaction.PlatformTransactionManager.class);
         job = new LineCommissionJob(managerMapper, deviceMapper, orderMapper,
-                commissionDailyMapper, lineWalletService, distributedLockService, taskService);
+                commissionDailyMapper, lineWalletService, distributedLockService, taskService,
+                new org.springframework.transaction.support.TransactionTemplate(txManager));
         lenient().when(taskService.tryBegin(eq("line-commission"), anyLong())).thenReturn(true);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
         LineDevice binding = new LineDevice();

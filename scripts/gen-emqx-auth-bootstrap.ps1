@@ -1,4 +1,4 @@
-# 生成生产环境 EMQX 认证种子文件 docker/emqx/auth-bootstrap.production.csv。
+﻿# 生成生产环境 EMQX 认证种子文件 docker/emqx/auth-bootstrap.production.csv。
 #
 # 背景：EMQX 5 未配置认证器时默认放行匿名连接；docker-compose.production.yml 通过
 # 内置数据库认证 + bootstrap 文件关闭匿名。bootstrap CSV 属敏感文件，已加入 .gitignore。

@@ -1,4 +1,4 @@
-# Shopping E2E — MQTT open-door with DB-backed demo context
+﻿# Shopping E2E — MQTT open-door with DB-backed demo context
 # Usage:
 #   .\scripts\e2e-shopping.ps1
 #   .\scripts\e2e-shopping.ps1 -Channel WECHAT

@@ -40,8 +40,11 @@ class LineCommissionConcurrencyTest {
 
     @BeforeEach
     void setUp() {
+        org.springframework.transaction.PlatformTransactionManager txManager =
+                org.mockito.Mockito.mock(org.springframework.transaction.PlatformTransactionManager.class);
         job = new LineCommissionJob(managerMapper, deviceMapper, orderMapper,
-                commissionDailyMapper, lineWalletService, distributedLockService, taskService);
+                commissionDailyMapper, lineWalletService, distributedLockService, taskService,
+                new org.springframework.transaction.support.TransactionTemplate(txManager));
         when(taskService.tryBegin("line-commission", 1800L)).thenReturn(true);
     }
 

@@ -1,4 +1,4 @@
-# Security / concurrency / reconciliation / dirty-data inventory tests
+﻿# Security / concurrency / reconciliation / dirty-data inventory tests
 $ErrorActionPreference = 'Continue'
 $Base = 'http://localhost'
 . (Join-Path $PSScriptRoot 'e2e-lib.ps1')

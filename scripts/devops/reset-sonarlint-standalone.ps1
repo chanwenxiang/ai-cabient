@@ -1,4 +1,4 @@
-# 清掉 SonarLint Connected Mode（Cursor 密钥库常失败 → verify token 死循环）
+﻿# 清掉 SonarLint Connected Mode（Cursor 密钥库常失败 → verify token 死循环）
 # 保留：本地 automatic analysis（写代码波浪线）+ MCP（AI 查 Sonar，走 fix-sonarqube-mcp.ps1）
 # 用法：.\scripts\devops\reset-sonarlint-standalone.ps1
 # 然后：完全退出 Cursor → 重新打开（不要只 Reload）

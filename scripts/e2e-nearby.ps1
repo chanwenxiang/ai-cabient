@@ -1,4 +1,4 @@
-# Nearby cabinets API smoke
+﻿# Nearby cabinets API smoke
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")

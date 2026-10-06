@@ -1,4 +1,4 @@
-# 真实 YOLO 购物 E2E — mock 关闭，simulator 上传图片/视频，vision 识别结算
+﻿# 真实 YOLO 购物 E2E — mock 关闭，simulator 上传图片/视频，vision 识别结算
 param(
     [string]$BaseUrl = "",
     [string]$Phone = "",

@@ -1,4 +1,4 @@
-# Staging deployment helper
+﻿# Staging deployment helper
 # Usage: .\scripts\deploy-staging.ps1 [-SkipE2e]
 
 param([switch]$SkipE2e)

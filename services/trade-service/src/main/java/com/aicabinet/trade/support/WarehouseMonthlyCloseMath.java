@@ -52,6 +52,14 @@ public final class WarehouseMonthlyCloseMath {
                 applyInMonth(acc, row.getMovementType(), row.getRefType(), delta);
             }
         }
+        // 审计批次4：restockQty 钳制移到**全部 movement 应用完之后**——原来在 applyInMonth
+        // 逐条末尾钳制，月内「先取消后发运」（OUTBOUND_CANCEL 使 restockQty 暂时为负）会被
+        // 过早钳回 0，后续发运再叠加 ⇒ 少算上柜量、应有量虚高。
+        for (Acc acc : bySku.values()) {
+            if (acc.restockQty < 0) {
+                acc.restockQty = 0;
+            }
+        }
         return bySku;
     }
 
@@ -86,9 +94,6 @@ public final class WarehouseMonthlyCloseMath {
                     acc.transferOutQty += -delta;
                 }
             }
-        }
-        if (acc.restockQty < 0) {
-            acc.restockQty = 0;
         }
     }
 }

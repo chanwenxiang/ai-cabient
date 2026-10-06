@@ -1,4 +1,4 @@
-# 重建带 Java/Maven/Sonar Scanner 的 self-hosted runner 镜像
+﻿# 重建带 Java/Maven/Sonar Scanner 的 self-hosted runner 镜像
 # 用法：.\scripts\devops\pull-gha-images.ps1
 $ErrorActionPreference = "Stop"
 $Root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent

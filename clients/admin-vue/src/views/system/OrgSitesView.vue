@@ -314,7 +314,9 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
+                <template #default="{ row }"
+                  >¥{{ ((row.amountCents ?? 0) / 100).toFixed(2) }}</template
+                >
               </el-table-column>
               <el-table-column
                 label="状态"
@@ -382,7 +384,9 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
+                <template #default="{ row }"
+                  >¥{{ ((row.amountCents ?? 0) / 100).toFixed(2) }}</template
+                >
               </el-table-column>
               <el-table-column
                 label="状态"

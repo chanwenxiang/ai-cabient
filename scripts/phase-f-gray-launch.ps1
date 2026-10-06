@@ -1,4 +1,4 @@
-# Phase F gray launch checklist runner (§12 / §14 / §10)
+﻿# Phase F gray launch checklist runner (§12 / §14 / §10)
 param(
     [string]$BaseUrl = "http://127.0.0.1:8080",
     [string]$VisionHealthUrl = "http://127.0.0.1:8082/health",

@@ -40,6 +40,7 @@ public class SettlementOrderFinalizeService {
     private final NotificationService notificationService;
     private final VideoArchiveService videoArchiveService;
     private final DisplaySnapshotHelper displaySnapshotHelper;
+    private final OpsExceptionService opsExceptionService;
     private final SettlementOrderSupport orderSupport;
 
     public SettlementOrderFinalizeService(ShoppingSessionMapper sessionRepository,
@@ -55,7 +56,8 @@ public class SettlementOrderFinalizeService {
                                           NotificationService notificationService,
                                           VideoArchiveService videoArchiveService,
                                           DisplaySnapshotHelper displaySnapshotHelper,
-                                          SettlementOrderSupport orderSupport) {
+                                          SettlementOrderSupport orderSupport,
+                                          OpsExceptionService opsExceptionService) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
@@ -70,6 +72,7 @@ public class SettlementOrderFinalizeService {
         this.videoArchiveService = videoArchiveService;
         this.displaySnapshotHelper = displaySnapshotHelper;
         this.orderSupport = orderSupport;
+        this.opsExceptionService = opsExceptionService;
     }
 
     OrderReadModel finalizeOrder(ShoppingSession session,
@@ -99,14 +102,29 @@ public class SettlementOrderFinalizeService {
         }
         orderRepository.save(order);
         if (appliedCoupon != null) {
-            couponService.markUsed(
-                    order.getUserId(),
-                    appliedCoupon.couponId(),
-                    order.getOrderId(),
-                    order.getDeviceId(),
-                    order.getCouponDiscountCents()
-            );
+            // 审计批次4（P0-5 降级后的健壮性建议）：券核销失败不回滚已成功扣款——
+            // 券未核销的后果是「券可再次使用」，比整笔结算失败（货款两空需人工）轻；
+            // 留 HIGH 痕迹交运营处理。
+            try {
+                couponService.markUsed(
+                        order.getUserId(),
+                        appliedCoupon.couponId(),
+                        order.getOrderId(),
+                        order.getDeviceId(),
+                        order.getCouponDiscountCents()
+                );
+            } catch (Exception e) {
+                log.error("coupon markUsed failed after charge orderId={} couponId={}",
+                        order.getOrderId(), appliedCoupon.couponId(), e);
+                opsExceptionService.report("COUPON_MARKUSED_FAILED", "HIGH",
+                        new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                                order.getDeviceId(), order.getSessionId(), order.getOrderId(), order.getUserId()),
+                        "券核销失败（扣款已完成）", "orderId=" + order.getOrderId()
+                                + " couponId=" + appliedCoupon.couponId() + " err=" + e.getMessage());
+            }
         }
+        // recordSplit 刻意**不**包 try：分账/钱包入账是资金动作，失败必须随结算事务整体
+        // 回滚（扣款一并回滚、结算可重试）——吞掉会留下「已扣款、无分账」的资损黑洞。
         revenueSplitService.recordSplit(order);
         session.setOrderId(order.getOrderId());
         sessionRepository.save(session);

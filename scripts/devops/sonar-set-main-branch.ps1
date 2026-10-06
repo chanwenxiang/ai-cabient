@@ -1,4 +1,4 @@
-# Rename SonarQube main branch to match repo default (dev).
+﻿# Rename SonarQube main branch to match repo default (dev).
 # Usage:
 #   $env:SONAR_ADMIN_USER = "admin"
 #   $env:SONAR_ADMIN_PASSWORD = "<your sonar admin password>"

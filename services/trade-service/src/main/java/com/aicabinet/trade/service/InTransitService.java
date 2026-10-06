@@ -61,6 +61,12 @@ public class InTransitService {
     }
 
     private void doRecordFromOutboundForDevice(Long outboundId, String deviceId, List<WarehouseOutboundLine> lines) {
+        // 审计批次4：幂等守卫——同一 outbound+device 已有在途行则整体跳过（当前唯一调用方
+        // 持出库行锁，此处为多调用方/重试场景的兜底，防双记在途虚库存）。
+        if (transitRepository.existsByOutboundIdAndDeviceIdAndStatus(outboundId, deviceId, STATUS_IN_TRANSIT)) {
+            log.warn("in-transit rows already exist for outbound={} device={} — skip re-record", outboundId, deviceId);
+            return;
+        }
         for (WarehouseOutboundLine line : lines) {
             if (line.getDeviceId() != null && !line.getDeviceId().isBlank()
                     && line.getQuantity() > 0

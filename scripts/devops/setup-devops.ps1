@@ -1,4 +1,4 @@
-# 启动 DevOps 栈（SonarQube + GHA self-hosted runner）
+﻿# 启动 DevOps 栈（SonarQube + GHA self-hosted runner）
 param(
     [switch]$WithRunner
 )

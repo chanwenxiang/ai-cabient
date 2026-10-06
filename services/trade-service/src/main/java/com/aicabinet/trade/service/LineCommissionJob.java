@@ -38,6 +38,7 @@ public class LineCommissionJob {
     private final LineWalletService lineWalletService;
     private final DistributedLockService distributedLockService;
     private final ScheduledTaskService taskService;
+    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 
     public LineCommissionJob(LineManagerMapper managerMapper,
                              LineDeviceMapper deviceMapper,
@@ -45,7 +46,8 @@ public class LineCommissionJob {
                              LineCommissionDailyMapper commissionDailyMapper,
                              LineWalletService lineWalletService,
                              DistributedLockService distributedLockService,
-                             ScheduledTaskService taskService) {
+                             ScheduledTaskService taskService,
+                             org.springframework.transaction.support.TransactionTemplate transactionTemplate) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.orderMapper = orderMapper;
@@ -53,10 +55,10 @@ public class LineCommissionJob {
         this.lineWalletService = lineWalletService;
         this.distributedLockService = distributedLockService;
         this.taskService = taskService;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @Scheduled(cron = "0 20 0 * * *", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
-    @Transactional
     public void postDailyCommission() {
         long taskStart = System.nanoTime();
         if (!taskService.tryBegin(LINE_COMMISSION, 1800)) {
@@ -122,7 +124,25 @@ public class LineCommissionJob {
             return false;
         }
         try {
-            if (commissionDailyMapper.findByManagerIdAndBizDateAndDeviceId(
+            // 审计批次4：事务在**锁内、按设备-日独立开启**——原类级 @Transactional 会让整个
+            // job（N 设备 × 7 天 × 每行多次行锁）包在单个长事务里，任一失败全回滚且长时间占
+            // 连接。拆为每设备-日一个短事务：单条失败仅该日跳过（下次回扫自愈）。
+            Boolean posted = transactionTemplate.execute(tx ->
+                    doPostCommissionTx(manager, binding, bizDate, start, end));
+            return Boolean.TRUE.equals(posted);
+        } catch (Exception e) {
+            log.warn("line commission device-day failed manager={} device={} date={}",
+                    manager.getManagerId(), binding.getDeviceId(), bizDate, e);
+            return false;
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
+    }
+
+    /** 单设备-日佣金入账（在 transactionTemplate 的独立事务内执行）。 */
+    private boolean doPostCommissionTx(LineManager manager, LineDevice binding, LocalDate bizDate,
+                                       java.time.Instant start, java.time.Instant end) {
+        if (commissionDailyMapper.findByManagerIdAndBizDateAndDeviceId(
                     manager.getManagerId(), bizDate, binding.getDeviceId()).isPresent()) {
                 return false;
             }
@@ -155,8 +175,5 @@ public class LineCommissionJob {
             lineWalletService.credit(manager.getManagerId(), commission, "COMMISSION",
                     "COMMISSION_DAILY", refId, "线长日佣金 " + bizDate + " " + binding.getDeviceId());
             return true;
-        } finally {
-            distributedLockService.unlock(lockKey);
-        }
     }
 }

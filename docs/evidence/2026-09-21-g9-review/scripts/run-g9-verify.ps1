@@ -1,4 +1,4 @@
-# G9 验证：编译 + 只跑 PayScoreContractCancelTest（-am 带上 common-core）
+﻿# G9 验证：编译 + 只跑 PayScoreContractCancelTest（-am 带上 common-core）
 # 判据：退出码 + surefire 报告里 <testcase> 元素个数（不看 "Tests run:" 行）
 $ErrorActionPreference = 'Continue'
 $repo = 'C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet'

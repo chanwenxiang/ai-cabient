@@ -1,4 +1,4 @@
-# 上传演示购物录像到 MinIO，并在指定会话上挂载 video_uri（容器重建后恢复 demo 用）。
+﻿# 上传演示购物录像到 MinIO，并在指定会话上挂载 video_uri（容器重建后恢复 demo 用）。
 # 用法：
 #   .\scripts\seed-demo-shopping-video.ps1
 #   .\scripts\seed-demo-shopping-video.ps1 -SessionId 1788233611382431271

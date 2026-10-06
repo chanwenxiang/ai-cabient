@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 # 放行本机网关/交易服务端口，供手机真机调试访问电脑局域网 IP。
 # 用法：右键「以管理员身份运行」PowerShell，执行：
 #   cd <repo>

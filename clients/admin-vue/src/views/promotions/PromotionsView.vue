@@ -266,7 +266,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { yuanToCents } from '@/utils/display';
+import { yuanText, yuanToCents } from '@/utils/display';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
@@ -332,8 +332,9 @@ const typeCodeByLabel: Record<string, string> = Object.fromEntries(
   )
 );
 
-function yuan(cents: number) {
-  return ((Number(cents) || 0) / 100).toFixed(2);
+function yuan(cents?: number | null) {
+  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
+  return yuanText(cents, '¥0.00');
 }
 function formatTime(t: string) {
   if (!t) return '';

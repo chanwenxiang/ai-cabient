@@ -150,6 +150,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText } from '@/utils/display';
 import { ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
@@ -237,8 +238,9 @@ function reset() {
 function typeLabel(t: string) {
   return displayLabel('promotion_type', t, '活动');
 }
-function yuan(cents?: number) {
-  return cents == null ? '暂无' : (cents / 100).toFixed(2);
+function yuan(cents?: number | null) {
+  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
+  return yuanText(cents, '暂无');
 }
 function pct(v?: number) {
   if (v == null || !Number.isFinite(v)) return '暂无';

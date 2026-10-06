@@ -1,4 +1,4 @@
-# 并发复测：商户财务改价接口在权限矩阵测试中偶现 500（预期 403 / 200）。
+﻿# 并发复测：商户财务改价接口在权限矩阵测试中偶现 500（预期 403 / 200）。
 # 复现方式：合法商户与无 merchant:pricing:edit 权限的运营账号并发 PATCH 同一 SKU 价格，
 # 统计返回状态码分布，观察是否有 500（疑似并发/锁竞争）。
 # 用法：.\scripts\repro-merchant-pricing-500.ps1 [-BaseUrl http://localhost:18080] [-Concurrency 30]

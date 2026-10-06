@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$NoBuild,
     [switch]$DevOps,
     # App stack only (default). DevOps = prometheus/grafana + optional sonarqube profile.

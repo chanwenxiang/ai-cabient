@@ -1,4 +1,4 @@
-# Quick port check for local / Docker Desktop host mappings
+﻿# Quick port check for local / Docker Desktop host mappings
 # Usage: .\scripts\check-ports.ps1
 #
 # Defaults match compose / .env.example Hyper-V-safe ports.

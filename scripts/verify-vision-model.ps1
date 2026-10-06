@@ -1,4 +1,4 @@
-# Vision SKU model + local video recognition verification
+﻿# Vision SKU model + local video recognition verification
 param(
     [string]$VisionHealthUrl = "http://127.0.0.1:8082/health",
     [string]$VisionUploadUrl = "http://127.0.0.1:8082/api/v2/vision/recognize/upload",

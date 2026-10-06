@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     PostgreSQL 数据库备份脚本 — 生产环境定时备份 + PITR 配置
 .DESCRIPTION

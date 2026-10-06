@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$SonarHostUrl = $env:SONAR_HOST_URL,
   [string]$SonarToken = $env:SONAR_TOKEN
 )
