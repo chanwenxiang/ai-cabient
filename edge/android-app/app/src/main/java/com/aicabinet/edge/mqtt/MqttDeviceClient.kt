@@ -25,10 +25,7 @@ class MqttDeviceClient(
      * 那属于 {@code CabinetController} 的组装职责。默认空实现 = 未装配时**明确回失败**，
      * 而<b>不是静默丢弃</b>（静默丢弃会让云端等满15 秒超时才知道）。
      */
-    private val onOpsCommand: (OpsCommand) -> Unit = { ops ->
-        Log.w(TAG, "ops command not wired: type=${ops.type} commandId=${ops.commandId}")
-        publishAck(ops.commandId, false, "运维指令执行器未装配")
-    }
+    private val onOpsCommand: ((OpsCommand) -> Unit)? = null
 ) : MqttCallbackExtended {
     private val appContext = context.applicationContext
     private val mapper = jacksonObjectMapper()
@@ -284,7 +281,8 @@ class MqttDeviceClient(
                 //    运维看到的是「下发成功 → 15 秒后失败」，且设备其实从没收到过。
                 //    现在每条都明确回 ACK（哪怕是「未装配执行器」这种失败），
                 //    让云端**立刻**拿到真实结论。
-                "LOCK", "UNLOCK", "REBOOT", "SET_TARGET_TEMP", "SELF_TEST" -> handleOpsCommand(node, type!!)
+                // 不需要 type!!：when 的分支条件已确保 type 非空（Kotlin 对 when 主体 smart-cast）
+                "LOCK", "UNLOCK", "REBOOT", "SET_TARGET_TEMP", "SELF_TEST" -> handleOpsCommand(node, type)
                 else -> Log.w(TAG, "unknown command type=$type, ignored (no ACK: 不是云端下发格式)")
             }
         } catch (e: Exception) {
@@ -341,7 +339,16 @@ class MqttDeviceClient(
             return
         }
         try {
-            onOpsCommand(ops)
+            val handler = onOpsCommand
+            if (handler == null) {
+                //🔴 未装配执行器：**明确回失败**，而不是静默丢弃让云端等满 15 秒。
+                //   （默认构造期lambda 里不能调成员函数 —— 此时 this 未初始化完 ——
+                //   所以兜底必须放在这里，message 要能让运营区分「未装配」与「执行失败」。）
+                Log.w(TAG, "ops command not wired: type=$type commandId=$commandId")
+                publishAck(commandId, false, "运维指令执行器未装配")
+                return
+            }
+            handler(ops)
         } catch (e: Exception) {
             Log.e(TAG, "ops command failed type=$type commandId=$commandId", e)
             publishAck(commandId, false, "执行异常: ${e.javaClass.simpleName}")

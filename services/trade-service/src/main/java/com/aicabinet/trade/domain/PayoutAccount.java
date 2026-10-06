@@ -52,6 +52,17 @@ public class PayoutAccount {
 
     private String bankName;
     private String bankBranch;
+    /**
+     * 联行号（CNAPS，通常 12 位数字）—— V309 新增。
+     * <p>银行代付只有「户名 + 账号 + 开户行」三要素时，部分银行<b>无法自动路由</b>，
+     * 打款被退回且失败原因常只写「收款行不匹配」—— 补这个字段是为了让出款能一次成功。
+     */
+    private String bankCode;
+    /**
+     * 开户行省市（如「广东省深圳市」）—— V309 新增。
+     * <p>部分渠道大额代付要求用它匹配清算网点。
+     */
+    private String bankProvinceCity;
     /** 纳税人识别号（对公代付必填） */
     private String taxNo;
 

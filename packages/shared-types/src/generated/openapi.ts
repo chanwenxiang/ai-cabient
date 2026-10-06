@@ -11274,11 +11274,19 @@ export interface components {
             status?: string;
             /** Format: date-time */
             paidAt?: string;
+            /** Format: int64 */
+            paidBy?: number;
+            paidVoucherNo?: string;
+            paidRemark?: string;
             remark?: string;
             /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        MarkSiteRentBillPaidRequest: {
+            voucherNo?: string;
+            remark?: string;
         };
         GenerateMonthlyFeeBillsRequest: {
             billMonth?: string;
@@ -20358,7 +20366,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MarkSiteRentBillPaidRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

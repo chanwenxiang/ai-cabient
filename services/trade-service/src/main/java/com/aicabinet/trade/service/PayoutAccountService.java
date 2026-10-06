@@ -182,6 +182,8 @@ public class PayoutAccountService {
         payee.channel = account.getChannel();
         payee.bankName = account.getBankName();
         payee.bankBranch = account.getBankBranch();
+        payee.bankCode = account.getBankCode();
+        payee.bankProvinceCity = account.getBankProvinceCity();
         payee.taxNo = account.getTaxNo();
         payee.accountNoMask = account.getAccountNoMask();
         payee.accountNoPlain = cipher.decrypt(account.getAccountNo());
@@ -308,6 +310,10 @@ public class PayoutAccountService {
         public String channel;
         public String bankName;
         public String bankBranch;
+        /** V309：联行号（可选）—— 银行代付路由用，见 {@link PayoutAccount#getBankCode()} */
+        public String bankCode;
+        /** V309：开户行省市（可选） */
+        public String bankProvinceCity;
         public String taxNo;
         public String accountNoMask;
         /** 明文账号 —— 仅传递给 {@link PayoutChannel} */

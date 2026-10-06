@@ -19,6 +19,13 @@ public record SiteRentBillDto(
         int amountCents,
         String status,
         Instant paidAt,
+        // ============ V309：付款留痕（对齐 DB 的 paid_by / paid_voucher_no / paid_remark）============
+        /** 付款操作人账号 ID（V309 新增；历史账单为 null） */
+        Long paidBy,
+        /** 付款凭证号（V309 新增；历史账单为 null） */
+        String paidVoucherNo,
+        /** 付款备注（V309 新增；历史账单为 null） */
+        String paidRemark,
         String remark,
         Instant createdAt,
         Instant updatedAt

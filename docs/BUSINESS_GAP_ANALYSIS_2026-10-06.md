@@ -183,9 +183,9 @@ fun detect(frame: Bitmap): List<Detection> {
 |---|---|---|
 | 1 | **P0-4** `NcnnYoloDetector` 逻辑倒置 + `available` 恒真（现在改成本极低，试点后改成本极高） | 极小 |
 | 2 | ~~**P0-2** 提现冻结改净额~~ → **已落地 V308**：冻结口径不动，改为拆分记账（`WITHDRAW_PAID` + `WITHDRAW_FEE`） | ✅ 完成 |
-| 3 | 补**联行号 `bankCode`** + 开户行省市（V307 未提交，现在改零成本） | 小 |
-| 4 | `channelFeeRate` 改可配（当前 `private static final 0.006`） | 极小 |
-| 5 | `site_rent_bill` 补审核人/审核时间/付款凭证三字段 | 小 |
+| 3 | ~~补**联行号 `bankCode`** + 开户行省市~~ → **已落地 V309**：`payout_account` 补 2 列并贯通到 `PayoutCommand` | ✅ 完成 |
+| 4 | ~~`channelFeeRate` 改可配~~ → **已落地 V309**：改 `fund.channel_fee_bps` 运营台配置（整数 bps + 上界钳制） | ✅ 完成 |
+| 5 | ~~`site_rent_bill` 补审核人/审核时间/付款凭证三字段~~ → **已落地 V309**：补 `paid_by`/`paid_voucher_no`/`paid_remark` 并写进审计日志 | ✅ 完成 |
 
 ### 第二批：需设计决策（接真前）
 
@@ -458,3 +458,102 @@ mqttConnected / doorState / activeSessionId / lastEvent / lastError
 | 阶段二：4 个运维指令骨架 + ACK | 小（0.5-1 人日） | 无（语义待补） |
 | 阶段二：真实动作实现 | 中 | **硬件方确认语义** |
 | 货道级故障遥测（带 `channelIndex`） | 中 | 需硬件协议 |
+
+---
+
+## 9. V309 落地：三处结构性缺失（2026-10-06 23:40）
+
+第一批的三项「零成本小项」已全部落地。共同特征：**能力/字段缺失会让他人无法复核或无法出款**，
+不是「体验不好」。
+
+### 9.1 收款账户补联行号与开户行省市
+
+| 层 | V309 前后 |
+|---|---|
+| `payout_account` | 只有 `bank_name`/`bank_branch` 文本 → 补 `bank_code`（联行号）+ `bank_province_city` |
+| `PayoutCommand` | 无联行号参数 → 新增 2 个字段 |
+| `ResolvedPayee` | 不携带 → 补2 个字段 |
+| 两侧 `*PayoutService` | 传 `bankName, bankBranch, taxNo` → 补传 `bankCode, bankProvinceCity` |
+
+**为什么必要**：银行代付只有「户名+账号+开户行」三要素时，部分银行**无法自动路由**，
+打款被退回且失败原因常只写「收款行不匹配」—— 排查成本高。竞品 `EgoOptPositionPayeeInfo:69`
+与 `TransferService:104` 都强制传联行号。
+
+⚠️ **刻意不设为必填**：强制会在未签约阶段把所有对公打款拦掉，而那时还不知道对方要哪几要素。
+先可选，接渠道时按实际要求再收紧。
+
+### 9.2 通道费率改运营台可配
+
+| | V309 前| V309 后 |
+|---|---|---|
+| 费率 | `private static final double CHANNEL_FEE_RATE = 0.006` | `fund.channel_fee_bps`（默认 60） |
+| 单位 | double 比例 | **整数万分比** |
+| 误填防护 | 无 | 上界 1000bps（10%）钳制，超界/负值/非数字**一律回落默认** |
+
+**为什么从 double 改成 bps**：运营手填 `0.006` 极易写成 `0.06`（放大 10 倍）或 `.6`（放大 100 倍），
+而这个数字**直接乘在商户结算金额上** —— 填错一行会让平台侧通道费虚高十倍并可能亏穿。
+整数 bps + 钳制后最坏情况也被限在 10% 内。
+
+⚠️ **口径未变**：这仍是**按实付金额的估算展示值**，不是渠道实际结算费率，
+真实费率以渠道账单为准。做成可配是为了让运营能按**实际签约费率校正展示值**。
+
+**容错取向**：配置缺失/非法时**回落默认而不是抛异常** —— 资金看板因为一个手填错的值
+整体打不开，比费率估错更糟。
+
+### 9.3 场地租金账单补付款留痕
+
+| | V309 前 | V309 后 |
+|---|---|---|
+| 标记已付 | 只写 `status` + `paid_at` | 追加 `paid_by` / `paid_voucher_no` / `paid_remark` |
+| 审计日志 | 不含凭证号 | detail 含凭证号 |
+| 接口 | `POST .../pay` 无请求体 | 请求体**可选**（`MarkSiteRentBillPaidRequest`） |
+
+**为什么必要**：场地租金是**对外付款**。原先运营点一下就成了「已付」——
+**谁付的、凭什么付的、凭证在哪，系统里一概没有**。财务审计里这等于「这笔钱说不清」。
+
+🔴 **留痕必须同时落业务表与审计日志**：只落业务表，将来无法自证凭证号是
+「付款时填的」还是「事后被人补上的」。审计日志的时序是唯一证据。
+
+🔴 **幂等不能被覆盖**：已付账单重复调用时**必须保留原凭证号**。
+若新调用传 null 就覆盖，等于「后来的运营无意抹掉了付款凭证」且无法恢复 ——
+已写成回归用例 `markPaid_alreadyPaid_isIdempotentAndKeepsOldVoucher`。
+
+### 9.4 顺带修掉的 5 个 Kotlin 编译错误（CI edge-android 抓出）
+
+上一批设备改动提交时**本机跑不了 Android 编译**（缺 SDK），只能靠 CI 兜。
+CI 报出 5 处编译错误：
+
+| 位置 | 错误 | 根因 |
+|---|---|---|
+| `MqttDeviceClient:30` | `Unresolved reference: publishAck` | 构造期lambda 里调成员函数（此时 `this` 未初始化完） |
+| `OpsCommandExecutor:106-107` | `Too many arguments for reboot` | `compileSdk 34` 只剩 `reboot(String?)`，旧 3 参是隐藏 API |
+| `OpsCommandExecutor:177` | `File(...)` 无匹配构造 | **`filesDir` 本身已是 File**，多包了一层 |
+| `OpsCommandExecutor:219` | `String?` 但需 `String` | `setError` 无「清空」重载，不该塞空串 |
+
+**第一处的修法值得说明**：原意是「未装配执行器也要回失败 ACK」，
+但构造期 lambda 里不能调成员函数。改为 `onOpsCommand: ((OpsCommand) -> Unit)? = null`，
+把「未装配」的失败 ACK 移到 `handleOpsCommand` 里兜 ——
+**行为不变，但挪到了this 已就绪的时机**。
+
+### 9.5 Android 本地验证配方（重要：以后改 edge 必须本地跑）
+
+```bash
+docker run --rm -v "D:/ai-generated code/ai-cabinet:/ws" \
+  -v aicabinet-android-sdk:/sdk -v aicabinet-gradle-home:/gradle-home \
+  node:24.18.0 sh -c "cd /ws && bash .tmp/android-build.sh"
+```
+
+**踩坑记录**：
+
+1. 🔴 **apt 装 JDK 会 502**（Debian 镜像在代理下不稳）⇒ 改**直下 Temurin tarball**
+   `github.com/adoptium/temurin17-binaries/.../OpenJDK17U-jdk_x64_linux_hotspot_17.0.20_8.tar.gz`。
+2. 🔴 **SDK 必须挂 docker 卷**（`aicabinet-android-sdk`），装在容器可写层会随容器销毁 ——
+   本次就是这样白装了一次。
+3. 🔴 **`docker run -v ... bash /ws/xxx.sh` 会被 Git Bash 转换路径**⇒ 改用
+   `sh -c "cd /ws && bash .tmp/xxx.sh"`。
+4. 🔴 **脚本里的 `$PATH`/`$JAVA_HOME` 会被宿主 Git Bash 展开**（注入 Windows 路径导致
+   `syntax error near unexpected token '('`）⇒ **必须写成脚本文件**，不要用 `bash -c "..."` 内联。
+5. Gradle 用 **8.9**（与 CI `gradle-version` 一致），缓存在 `aicabinet-gradle-home` 卷。
+
+**Gradle 与 Android SDK 已在卷里就绪**（`platforms;android-34` + `build-tools;34.0.0`），
+下次改 edge 代码可直接跑上面这条命令，**不必再等 CI 才发现编译错误**。

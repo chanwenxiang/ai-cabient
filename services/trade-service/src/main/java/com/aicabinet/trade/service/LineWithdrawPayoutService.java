@@ -118,7 +118,7 @@ public class LineWithdrawPayoutService {
         PayoutChannel.PayoutCommand command = new PayoutChannel.PayoutCommand(
                 request.getRequestId(), idemKey,
                 payee.accountType, payee.accountName, payee.accountNoPlain,
-                payee.bankName, payee.bankBranch, payee.taxNo,
+                payee.bankName, payee.bankBranch, payee.bankCode, payee.bankProvinceCity, payee.taxNo,
                 netCents, "线长提现 " + request.getRequestNo());
 
         try {

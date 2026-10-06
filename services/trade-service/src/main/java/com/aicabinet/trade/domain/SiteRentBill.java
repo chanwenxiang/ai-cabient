@@ -27,6 +27,15 @@ public class SiteRentBill {
     private int amountCents;
     private String status = "UNPAID";
     private Instant paidAt;
+    /**
+     * V309：付款操作人（运营/财务账号 ID）。
+     * 🔴 场地租金是<b>对外付款</b>，原先只有 status + paidAt ——「已付」不可复核（谁付的？）。
+     */
+    private Long paidBy;
+    /** V309：付款凭证号（银行流水号/发票号/线下单号），审计追溯用。 */
+    private String paidVoucherNo;
+    /** V309：付款备注（如「XX银行 2026-09 月租」）。 */
+    private String paidRemark;
     private String remark;
     private Instant createdAt = Instant.now();
     private Instant updatedAt = Instant.now();

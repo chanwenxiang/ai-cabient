@@ -113,8 +113,17 @@ public class SiteRentBillService {
         return created;
     }
 
+    /**
+     * V309：标记已付并写入付款留痕（操作人 / 凭证号 / 备注）。
+     *
+     * <p>原实现只写 {@code status} + {@code paidAt}，运营点一下就是「已付」——
+     * <b>谁付的、凭什么付的在系统里查不到</b>。场地租金是对外付款，必须可审计。
+     *
+     * @param voucherNo 付款凭证号，可为 null（兼容既有调用方不强填）
+     * @param remark     付款备注，可为 null
+     */
     @Transactional
-    public SiteRentBillDto markPaid(Long operatorId, Long billId) {
+    public SiteRentBillDto markPaid(Long operatorId, Long billId, String voucherNo, String remark) {
         permissionService.requirePermission(operatorId, "ops:org:edit");
         SiteRentBill bill = requireBill(billId);
         if (CabinetConstants.FEE_BILL_STATUS_VOID.equals(bill.getStatus())) {
@@ -126,11 +135,23 @@ public class SiteRentBillService {
         Instant now = Instant.now();
         bill.setStatus(CabinetConstants.FEE_BILL_STATUS_PAID);
         bill.setPaidAt(now);
+        // V309：留痕。审计日志里也带上凭证号 —— 只落业务表不落审计日志的话，
+        // 将来若有人质疑「凭证号是不是事后补的」，无法自证先后顺序。
+        bill.setPaidBy(operatorId);
+        bill.setPaidVoucherNo(blankToNull(voucherNo));
+        bill.setPaidRemark(blankToNull(remark));
         bill.setUpdatedAt(now);
         billMapper.updateById(bill);
         auditService.appendLog(operatorId, "SITE_RENT_BILL_PAID", "BILL", String.valueOf(billId),
-                "month=" + bill.getBillMonth() + " amount=" + bill.getAmountCents());
+                "month=" + bill.getBillMonth() + " amount=" + bill.getAmountCents()
+                        + " voucherNo=" + bill.getPaidVoucherNo());
         return toDto(bill);
+    }
+
+    /** 兼容旧签名（无凭证号）：委托到带留痕的重载。 */
+    @Transactional
+    public SiteRentBillDto markPaid(Long operatorId, Long billId) {
+        return markPaid(operatorId, billId, null, null);
     }
 
     @Transactional
@@ -332,7 +353,8 @@ public class SiteRentBillService {
                 b.getBillId(), b.getContractId(), b.getDeviceId(), b.getSiteName(), b.getBillMonth(),
                 b.getPartyType(), b.getPartyId(), b.getShareBps(), b.getFixedCents(),
                 b.getBaseFeeCents(), b.getAmountCents(), b.getStatus(),
-                b.getPaidAt(), b.getRemark(), b.getCreatedAt(), b.getUpdatedAt());
+                b.getPaidAt(), b.getPaidBy(), b.getPaidVoucherNo(), b.getPaidRemark(),
+                b.getRemark(), b.getCreatedAt(), b.getUpdatedAt());
     }
 
     private static String blankToNull(String v) {

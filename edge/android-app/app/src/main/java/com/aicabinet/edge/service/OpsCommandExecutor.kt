@@ -11,7 +11,6 @@ import com.aicabinet.edge.status.DeviceStatusHub
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
@@ -100,12 +99,11 @@ class OpsCommandExecutor(
             kotlinx.coroutines.delay(1_200)
             val pm = appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
             if (pm != null) {
+                // ⚠️ compileSdk 34：PowerManager 只剩 `reboot(String?)` 公开签名；
+                //   旧的 3 参重载 `reboot(reason, no, flags)` 是隐藏 API，普通 App 调不到。
+                //   （这一处曾按旧签名写，CI 编译期才发现 —— 本机跑不了 Android 编译是根因。）
                 val restarted = runCatching {
-                    pm.reboot(
-                        "REBOOT",
-                        null,
-                        0
-                    )
+                    pm.reboot("REBOOT: remote ops command")
                 }.isSuccess
                 if (restarted) return@launch
             }
@@ -174,7 +172,8 @@ class OpsCommandExecutor(
             val errors = mutableListOf<String>()
 
             runCatching {
-                val f = File(appContext.filesDir)
+                // 🔴 filesDir 本身已是 File，不要再包一层 File(...)（不存在 File(File) 构造）
+                val f = appContext.filesDir
                 items["storageFreeMb"] = f.usableSpace / 1024 / 1024
             }.onFailure { errors.add("storageFree 读取失败: ${it.message}") }
 
@@ -216,7 +215,11 @@ class OpsCommandExecutor(
                 }
             }
             Log.i(TAG, summary)
-            DeviceStatusHub.setError(if (errors.isEmpty()) null else errors.joinToString("; "))
+            // ⚠️ setError 只接受非空 String，没有「清空错误」的重载。
+            //   所以只在**真有异常**时上报，不要塞空串 —— 空串会被后台当真实错误显示。
+            if (errors.isNotEmpty()) {
+                DeviceStatusHub.setError(errors.joinToString("; "))
+            }
             // 失败项不影响 ACK 成功：自检「跑完了」就是成功，异常项在 message 里如实列出
             ack(ops.commandId, true, summary)
             // 同时把结构化结果单独发一条 SELF_TEST_REPORT 事件，便于后台长期趋势分析

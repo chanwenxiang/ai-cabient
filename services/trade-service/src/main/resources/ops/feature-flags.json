@@ -85,6 +85,13 @@
       "unit": "分"
     },
     {
+      "key": "fund.channel_fee_bps",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "60",
+      "description": "资金看板通道费估算费率（万分比，60=0.6%）；仅用于展示估算，真实费率以渠道账单为准；取值 0-1000，超界回落 60"
+    },
+    {
       "key": "merchant.withdraw.min_cents",
       "group": "交易与资金",
       "type": "NUMBER",

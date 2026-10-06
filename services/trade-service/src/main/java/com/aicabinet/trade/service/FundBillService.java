@@ -39,8 +39,23 @@ public class FundBillService {
 
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
-    /** 通道费按实付约 0.6% 估算展示（微信/支付宝常见费率量级） */
-    private static final double CHANNEL_FEE_RATE = 0.006;
+    /**
+     * V309：通道费费率（万分比）走运营台配置，不再硬编码。
+     *
+     * <p>🔴 <b>为什么用 bps（整数）而不是 double 比例</b>：运营手填 {@code 0.006} 极易写成
+     * {@code 0.06}（放大 10 倍）或 {@code .6}（放大 100 倍），而<b>这个数字直接乘在商户结算金额上</b>，
+     * 填错一行会让平台侧通道费虚高十倍并可能亏穿。整数万分比（60 = 0.6%）配合上界钳制后，
+     * 最坏情况也被限在 {@link #CHANNEL_FEE_BPS_MAX} 内。
+     *
+     * <p>⚠️ <b>口径提醒</b>：这是<b>按实付金额估算的展示值</b>，不是渠道实际结算出来的费率。
+     * 真实通道费应以渠道账单为准（与 {@code PayoutReconciliationService} 同源问题：
+     * 本地口径 ≠ 与渠道对平）。把它做成可配是为了让运营能按<b>实际签约费率</b>校正展示值，
+     * 而不是让运营只能看着一个写死的 0.6% 猜。
+     */
+    private static final int CHANNEL_FEE_BPS_DEFAULT = 60;
+    /** 费率上界 1000 bps = 10%。超过即视为误填并回落默认，避免一个 0 头失误算成通道费倒挂。 */
+    private static final int CHANNEL_FEE_BPS_MAX = 1000;
+
 
     private final OrderRevenueSplitMapper splitMapper;
     private final DeviceInfoMapper deviceInfoMapper;
@@ -52,6 +67,7 @@ public class FundBillService {
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final DistributedLockService distributedLockService;
+    private final SystemConfigService systemConfigService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final FundBillService self;
 
@@ -64,7 +80,9 @@ public class FundBillService {
                            InventoryWriteOffMapper writeOffMapper,
                            MerchantScopeService merchantScopeService,
                            PermissionService permissionService,
-                           DistributedLockService distributedLockService, @Lazy FundBillService self) {
+                           DistributedLockService distributedLockService,
+                           SystemConfigService systemConfigService,
+                           @Lazy FundBillService self) {
         this.splitMapper = splitMapper;
         this.deviceInfoMapper = deviceInfoMapper;
         this.merchantMapper = merchantMapper;
@@ -75,7 +93,34 @@ public class FundBillService {
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
         this.distributedLockService = distributedLockService;
+        this.systemConfigService = systemConfigService;
         this.self = self;
+    }
+
+    /**
+     * V309：读运营台配置的通道费率（bps）。
+     *
+     * <p>容错口径与 {@code WithdrawPolicyResolver.pick} 一致：配置缺失/非数字/超界都<b>回落默认 60bps</b>，
+     * 而不是抛异常 —— 资金看板因为一个手填错的值整体打不开，比费率估错更糟。
+     */
+    private int channelFeeBps() {
+        if (systemConfigService == null) {
+            return CHANNEL_FEE_BPS_DEFAULT;
+        }
+        // 用 SystemConfigService 的常量而非字面量 ⇒ 门禁 R4 能静态扫到，漏登记会红
+        int bps = systemConfigService.getInt(SystemConfigService.FUND_CHANNEL_FEE_BPS, CHANNEL_FEE_BPS_DEFAULT);
+        if (bps < 0 || bps > CHANNEL_FEE_BPS_MAX) {
+            return CHANNEL_FEE_BPS_DEFAULT;
+        }
+        return bps;
+    }
+
+    /** 按 bps 折算整数分：{@code gross * bps / 10000}，用 long 中间值避免 int 溢出。 */
+    private long estimateChannelFeeCents(long grossCents, int bps) {
+        if (grossCents <= 0 || bps <= 0) {
+            return 0L;
+        }
+        return Math.round((double) grossCents * bps / 10_000.0d);
     }
 
     @Transactional(readOnly = true)
@@ -127,7 +172,7 @@ public class FundBillService {
         List<FundDailyBillDto> out = new ArrayList<>();
         for (Map.Entry<Key, Agg> e : aggs.entrySet()) {
             Agg a = e.getValue();
-            long channelFee = Math.round(a.gross * CHANNEL_FEE_RATE);
+            long channelFee = estimateChannelFeeCents(a.gross, channelFeeBps());
             LocalDate biz = LocalDate.parse(e.getKey().date());
             out.add(new FundDailyBillDto(
                     e.getKey().date(),
@@ -229,7 +274,7 @@ public class FundBillService {
             if (s.getPlatformCents() > 0) {
                 rows.add(entry(s, "PLATFORM_FEE", "OUT", s.getPlatformCents(), merchantNames));
             }
-            long channel = Math.round(s.getGrossCents() * CHANNEL_FEE_RATE);
+            long channel = estimateChannelFeeCents(s.getGrossCents(), channelFeeBps());
             if (channel > 0) {
                 rows.add(entry(s, "CHANNEL_FEE", "OUT", channel, merchantNames));
             }

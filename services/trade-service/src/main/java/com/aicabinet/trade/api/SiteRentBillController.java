@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.GenerateMonthlyFeeBillsRequest;
+import com.aicabinet.common.dto.MarkSiteRentBillPaidRequest;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.SiteRentBillDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
@@ -63,10 +64,17 @@ public class SiteRentBillController {
                 body == null ? new GenerateMonthlyFeeBillsRequest(null) : body));
     }
 
+    /**
+     * V309：标记已付。<b>请求体可选</b> —— 传了就写入付款留痕（操作人/凭证号/备注），
+     * 不传则只改状态（兼容既有前端）。
+     */
     @RequiresPermissions("ops:org:edit")
     @PostMapping("/site-rent-bills/{billId}/pay")
-    public ApiResponse<SiteRentBillDto> markPaid(HttpServletRequest request, @PathVariable Long billId) {
-        return ApiResponse.ok(billService.markPaid(operatorId(request), billId));
+    public ApiResponse<SiteRentBillDto> markPaid(HttpServletRequest request, @PathVariable Long billId,
+                                                 @RequestBody(required = false) MarkSiteRentBillPaidRequest body) {
+        return ApiResponse.ok(body == null
+                ? billService.markPaid(operatorId(request), billId)
+                : billService.markPaid(operatorId(request), billId, body.voucherNo(), body.remark()));
     }
 
     @RequiresPermissions("ops:org:edit")

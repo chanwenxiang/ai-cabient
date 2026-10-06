@@ -73,6 +73,13 @@ public interface PayoutChannel {
      * @param accountNo    <b>明文账号</b>（由上层解密后传入；实现方不得落日志）
      * @param bankName     开户行（BANK 通道必填）
      * @param bankBranch   支行（可选）
+     * @param bankCode     <b>联行号</b>（CNAPS 12 位，可选）—— V309 新增。
+     *                     银行代付只有「户名+账号+开户行」三要素时，部分银行<b>无法自动路由</b>，
+     *                     打款会被退回且失败原因常只写「收款行不匹配」，排查成本高。
+     *                     大额/跨行代付基本必填。<b>不强制</b>：强制会在未签约阶段把所有
+     *                     对公打款拦掉，而那时我们还不知道对方到底要哪几要素。
+     * @param bankProvinceCity 开户行省市（如「广东省深圳市」，可选）——
+     *                     部分渠道大额代付要求用于匹配清算网点。
      * @param taxNo        纳税人识别号（对公代付必填）
      * @param netCents     实际出款金额（分）= 提现额 − 手续费，已由上游算好
      * @param remark       打款附言（展示给收款方）
@@ -85,6 +92,8 @@ public interface PayoutChannel {
             String accountNo,
             String bankName,
             String bankBranch,
+            String bankCode,
+            String bankProvinceCity,
             String taxNo,
             long netCents,
             String remark
