@@ -159,12 +159,10 @@ public class WarehouseService {
     public WarehouseInboundRequest inbound(Long operatorId, WarehouseInboundRequest request) {
         String wh = resolveWarehouseId(request.warehouseId());
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
-        // 审计 P2-8：与出库侧治理对齐——手工入库同样禁止落无主仓（货进无主仓后
-        // resolveOutboundWarehouseId 拒绝出库，库存搁浅）。显式指定仓 ID 时不拦（运营
-        // 明确选择即担责）；仅在「空白 → 默认仓兜底」路径收紧。
-        if (request.warehouseId() == null || request.warehouseId().isBlank()) {
-            requireManagedOutboundWarehouse(wh);
-        }
+        // 审计 P2-8（复核修正）：与出库侧/P2-5 同宽严——无论显式指定还是默认兜底，
+        // 手工入库一律禁止落无主仓（货进无主仓后 resolveOutboundWarehouseId 拒绝出库，
+        // 库存搁浅）。首版只拦「空白兜底」，显式传无主仓仍可入库。
+        requireManagedOutboundWarehouse(wh);
         if (request.lines() == null || request.lines().isEmpty()) {
             throw badRequest("lines required");
         }
@@ -285,7 +283,7 @@ public class WarehouseService {
 
     public record LotSpec(String skuId, String batchNo, LocalDate productionDate, LocalDate expiryDate) {}
 
-    public record StocktakeAdjustCommand(String warehouseId, LotSpec lot, int bookQty, int countedQty,
+    public record StocktakeAdjustCommand(String warehouseId, LotSpec lot, int countedQty,
                                          Long operatorId, Long stocktakeId) {}
 
     /** 货位操作同步仓库总库存：入库/出库调整仓库账面并记录流水；移库 delta=0 仅留痕。 */

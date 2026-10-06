@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { AdminEndpoints } from '@/api/endpoints';
 import {
   buildDisputeResolveBody,
+  buildLineWithdrawReviewBody,
   buildMerchantWithdrawReviewBody,
   buildOrderRefundBody,
+  canCancelFailedLineWithdraw,
   canCancelFailedMerchantWithdraw,
   canRefundOrderStatus,
-  canRetryMerchantWithdrawPayout,
-  canReviewMerchantWithdraw
+  canReviewLineWithdraw,
+  canReviewMerchantWithdraw,
+  canRetryLineWithdrawPayout,
+  canRetryMerchantWithdrawPayout
 } from './money-ui-contracts';
 
 describe('money-ui-contracts · 订单退款', () => {
@@ -112,5 +116,38 @@ describe('money-ui-contracts · 商户提现审核', () => {
     expect(AdminEndpoints.merchantWithdrawReview(42)).toBe(
       '/api/v2/ops/admin/merchant-withdraws/42/review'
     );
+  });
+});
+
+describe('money-ui-contracts · 线长提现（审计 P2-15 契约单点化）', () => {
+  it('canReviewLineWithdraw 与商户版同语义（PENDING_REVIEW + 权限）', () => {
+    expect(canReviewLineWithdraw('PENDING_REVIEW', true)).toBe(true);
+    expect(canReviewLineWithdraw('PENDING_REVIEW', false)).toBe(false);
+    expect(canReviewLineWithdraw('APPROVED', true)).toBe(false);
+  });
+
+  it('canRetryLineWithdrawPayout 仅 APPROVED/FAILED 可重试', () => {
+    expect(canRetryLineWithdrawPayout('APPROVED', true)).toBe(true);
+    expect(canRetryLineWithdrawPayout('FAILED', true)).toBe(true);
+    expect(canRetryLineWithdrawPayout('PENDING_REVIEW', true)).toBe(false);
+    expect(canRetryLineWithdrawPayout('FAILED', false)).toBe(false);
+  });
+
+  it('canCancelFailedLineWithdraw 仅 FAILED 可取消', () => {
+    expect(canCancelFailedLineWithdraw('FAILED', true)).toBe(true);
+    expect(canCancelFailedLineWithdraw('APPROVED', true)).toBe(false);
+  });
+
+  it('buildLineWithdrawReviewBody 与商户版同文案（单条/批量）', () => {
+    expect(buildLineWithdrawReviewBody(true)).toEqual({ approve: true, remark: '审核通过' });
+    expect(buildLineWithdrawReviewBody(false)).toEqual({ approve: false, remark: '审核驳回' });
+    expect(buildLineWithdrawReviewBody(true, { batch: true })).toEqual({
+      approve: true,
+      remark: '批量审核通过'
+    });
+    expect(buildLineWithdrawReviewBody(false, { batch: true })).toEqual({
+      approve: false,
+      remark: '批量审核驳回'
+    });
   });
 });

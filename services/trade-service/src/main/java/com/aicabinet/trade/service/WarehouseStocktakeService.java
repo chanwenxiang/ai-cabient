@@ -245,7 +245,7 @@ public class WarehouseStocktakeService {
                         st.getWarehouseId(),
                         new WarehouseService.LotSpec(line.getSkuId(), line.getBatchNo(),
                                 line.getProductionDate(), line.getExpiryDate()),
-                        line.getBookQty(), line.getCountedQty(), operatorId, st.getStocktakeId()));
+                        line.getCountedQty(), operatorId, st.getStocktakeId()));
                 line.setStatus(ADJUSTED);
                 line.setAdjustedAt(Instant.now());
                 lineRepository.save(line);

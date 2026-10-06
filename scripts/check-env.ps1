@@ -127,17 +127,36 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
         if (-not (Test-Path $bootstrapCsv)) {
             $errors += "EMQX bootstrap CSV missing: infra/docker/emqx/auth-bootstrap.production.csv — run scripts/gen-emqx-auth-bootstrap.ps1 first (P1-6)"
         } else {
-            if ($Env["MQTT_USERNAME"] -and -not (Select-String -Path $bootstrapCsv -Pattern ("^" + [regex]::Escape($Env["MQTT_USERNAME"]) + ","))) {
+            $csvRows = Get-Content $bootstrapCsv | Where-Object { $_ -match '\S' } | Select-Object -Skip 1
+            if ($Env["MQTT_USERNAME"] -and -not ($csvRows | Where-Object { $_.StartsWith($Env["MQTT_USERNAME"] + ",") })) {
                 $errors += "MQTT_USERNAME '$($Env['MQTT_USERNAME'])' not in auth-bootstrap.production.csv — regenerate CSV then docker compose ... up -d --force-recreate emqx (P1-6: restart does NOT reload bootstrap)"
             }
-            $csvLines = (Get-Content $bootstrapCsv | Where-Object { $_ -match '\S' }).Count - 1  # minus header
-            Write-Host "  EMQX bootstrap CSV OK ($csvLines credential rows); rotation reminder: up -d --force-recreate emqx"
+            # 审计 P1-6 复核补强：设备凭据行（12 位 deviceId）才是吊销的主战场——
+            # 原护栏只比对 backend 一行。这里做两层：
+            #   a) 共享设备账号（aicabinet-device）不得出现在生产 CSV（S1 吊销语义）；
+            #   b) CSV 与库内 ACTIVE 行的一致性需 DB（validate-production-readiness 阶段做，
+            #      见 scripts/verify-production-readiness.ps1 P1-6b 段）。
+            if ($csvRows | Where-Object { $_.StartsWith("aicabinet-device,") }) {
+                $warnings += "shared device account 'aicabinet-device' present in production bootstrap CSV (S1 revocation semantics violated) — regenerate without -KeepSharedDevice (P1-6)"
+            }
+            $deviceRows = @($csvRows | Where-Object { $_ -match '^\d{12},' })
+            $csvLines = $csvRows.Count
+            Write-Host "  EMQX bootstrap CSV OK ($csvLines rows, device rows: $($deviceRows.Count)); rotation reminder: up -d --force-recreate emqx"
+            Write-Host "  P1-6b: row-level consistency vs device_mqtt_credential is verified post-deploy by verify-production-readiness.ps1"
         }
         if ($Env["CORS_ORIGIN"] -match "localhost") {
             $warnings += "CORS_ORIGIN still localhost"
         }
         if ($Env["POSTGRES_PASSWORD"] -in @("aicabinet", "", $null)) {
             $errors += "POSTGRES_PASSWORD must be a strong password"
+        }
+        # 审计 P0-6 附带（env 化绑定设计的兜底）：compose 里 EMQX_MQTT_BIND / EMQX_MQTT_TLS_BIND
+        # 默认值是回环，但 env 一旦被设成 0.0.0.0，门禁的「默认值回环即合规」就会漏——在此显式拦截。
+        foreach ($bindKey in @("EMQX_MQTT_BIND", "EMQX_MQTT_TLS_BIND")) {
+            $v = $Env[$bindKey]
+            if ($v -and $v -notmatch "^(127\.0\.0\.1|::1)$") {
+                $errors += "$bindKey=$v is not loopback — device MQTT exposure must be reviewed + ALLOWLISTed deliberately (P0-6)"
+            }
         }
     }
 

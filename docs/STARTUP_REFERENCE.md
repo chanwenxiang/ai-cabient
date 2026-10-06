@@ -232,6 +232,23 @@ $env:APIFOX_PROJECT_ID = '8780097'   # 可选
 
 ---
 
+## 四A、staging 视觉栈启动方式（审计 P2-13 定案 · fail-loud 语义）
+
+staging（secure-env）的 vision-service **按默认配置必然启动失败**——这是设计而非故障：
+
+- `MOCK_ENABLED=true` 被 secure-env 双查硬拒（`main.py:44`）；
+- 云端识别已整体退役：`RECOGNIZER_BACKEND` 任何非 `quectel` 值都落 Mock（不可用），quectel stub 的 `available` 硬编码 `False`（`quectel_recognizer.py:33`）⇒ `main.py:49` 抛 `Recognizer unavailable while mock is disabled`。
+
+**正确姿势（按场景）**：
+
+| 场景 | 操作 |
+|------|------|
+| 非视觉 UAT（推荐） | `docker compose ... stop vision-service`——trade 对 vision 的依赖是健康探针与识别调用，视觉缺失走争议/人工路径 |
+| 视觉联调（dev 栈） | dev compose（非 secure-env）+ `MOCK_ENABLED=true`，或端侧直报 `/internal/v1/vision/edge-results` |
+| 生产 | 不部署云端识别；识别结果由柜机端直报（ deviceId 绑定强校验） |
+
+---
+
 ## 五、相关文档
 
 | 文档 | 内容 |

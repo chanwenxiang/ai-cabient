@@ -226,6 +226,42 @@ if (-not $SkipRuntime) {
     Add-Result "WARN" "Runtime smoke" "skipped"
 }
 
+# ---- 审计 P1-6b：设备凭据 CSV ↔ 库 一致性（吊销闭环的最后一步）----
+# 事前（check-env.ps1）只验 CSV 存在与 backend 行；这里部署后比对「库内 ACTIVE 设备行」
+# 与「CSV 设备行」逐行一致——不一致即"运营台吊销/签发后忘重跑生成器"，而 EMQX 旧口令
+# 因 restart 不重导 bootstrap 仍有效（原始 P1-6 后果）。
+$credCsv = Join-Path $Root "infra\docker\emqxuth-bootstrap.production.csv"
+if (Test-Path $credCsv) {
+    Write-Host "==> P1-6b: device credential CSV vs DB consistency"
+    $csvDeviceIds = @{}
+    Get-Content $credCsv | Select-Object -Skip 1 | ForEach-Object {
+        if ($_ -match '^(\d{12}),') { $csvDeviceIds[$Matches[1]] = $true }
+    }
+    $dbDeviceIds = @{}
+    try {
+        $rows = docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c `
+            "SELECT device_id FROM device_mqtt_credential WHERE status='ACTIVE'" 2>$null
+        foreach ($r in $rows) { if ($r -match '^\d{12}$') { $dbDeviceIds[$r] = $true } }
+    } catch {
+        Write-Host "  WARN: cannot read device_mqtt_credential (DB not reachable from this host) — skipping strict check" -ForegroundColor Yellow
+    }
+    if ($dbDeviceIds.Count -gt 0) {
+        $onlyCsv = @($csvDeviceIds.Keys | Where-Object { -not $dbDeviceIds.ContainsKey($_) })
+        $onlyDb = @($dbDeviceIds.Keys | Where-Object { -not $csvDeviceIds.ContainsKey($_) })
+        if ($onlyCsv.Count -gt 0) {
+            Write-Host "  FAIL: CSV has device rows absent/revoked in DB: $($onlyCsv -join ', ')" -ForegroundColor Red
+            Write-Host "        -> regenerate bootstrap + up -d --force-recreate emqx, or fix revocation state (P1-6)"
+            exit 1
+        }
+        if ($onlyDb.Count -gt 0) {
+            Write-Host "  FAIL: DB has ACTIVE device credentials missing from CSV: $($onlyDb -join ', ')" -ForegroundColor Red
+            Write-Host "        -> regenerate bootstrap (gen-emqx-auth-bootstrap.ps1 -IncludeDevicesFromDb) then --force-recreate emqx (P1-6)"
+            exit 1
+        }
+        Write-Host "  OK: CSV device rows match DB ACTIVE rows ($($csvDeviceIds.Count) devices)"
+    }
+}
+
 Write-Host ""
 Write-Host "==> Summary"
 $Results | Format-Table Status, Name, Detail -AutoSize

@@ -139,6 +139,7 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 import { UploadFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import type { DevRecognitionPreviewDto } from '@aicabinet/shared-types';
+import { AdminEndpoints } from '@/api/endpoints';
 import { authFetch } from '@/api/client';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { validateImageFile } from '@/utils/upload-validate';
@@ -212,7 +213,7 @@ async function runRecognize() {
     // OFFLINE），填它等于给识别结果挂一个不存在的柜机。该参数在服务端本就是
     // `required = false`（`OpsRecognitionController#preview`），本页也没有柜机选择器，
     // 因此不传才是准确语义（需要时再补一个柜机选择控件）。
-    const res = await authFetch(`${base}/api/v2/ops/recognition-preview`, {
+    const res = await authFetch(`${base}${AdminEndpoints.recognitionPreview}`, {
       method: 'POST',
       body: form
     });

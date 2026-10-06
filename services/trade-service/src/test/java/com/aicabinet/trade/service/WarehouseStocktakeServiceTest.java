@@ -153,7 +153,7 @@ class WarehouseStocktakeServiceTest {
 
         verify(warehouseService).adjustStocktake(new WarehouseService.StocktakeAdjustCommand(
                 "WH-001", new WarehouseService.LotSpec("SKU-A", "B1", null, null),
-                10, 7, 1L, 1L));
+                7, 1L, 1L));
         assertEquals("ADJUSTED", line.getStatus());
         assertEquals("ADJUSTED", st.getStatus());
         assertEquals(0, dto.diffLineCount());
@@ -288,7 +288,7 @@ class WarehouseStocktakeServiceTest {
         // 全行已盘校验 → 完成；差异（12→10）直接过账，无「已完未调」中间态
         assertEquals("ADJUSTED", dto.status());
         verify(warehouseService).adjustStocktake(org.mockito.ArgumentMatchers.argThat(
-                cmd -> cmd.countedQty() == 10 && cmd.bookQty() == 12));
+                cmd -> cmd.countedQty() == 10));
         verify(lineRepository, org.mockito.Mockito.atLeastOnce()).save(org.mockito.ArgumentMatchers.any());
     }
 

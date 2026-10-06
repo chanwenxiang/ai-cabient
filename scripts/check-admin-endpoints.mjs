@@ -60,8 +60,17 @@ for (const file of scanRoots.flatMap((r) => walk(r))) {
   const lines = body.split(/\n/);
   // 匹配字符串字面量里的 /api/ 路径（单/双/反引号）；模板串里 ${} 拼接同样算散落
   const litRe = /(['"`])((?:\/api\/)[^'"`\s]*)\1/g;
+  // 审计 P2-14 复核补强：模板串「${base}/api/...」形态——引号不紧邻 /api/，原正则放行
+  //（RecognitionDemoView.vue 实锤）。单独扫描 /api/ 前面紧跟模板表达式的情形。
+  const tplRe = /(\$\{[^}]*\})((?:\/api\/)[^'"\s]*)/g;
   lines.forEach((line, idx) => {
     let m;
+    while ((m = tplRe.exec(line)) !== null) {
+      const literal = m[1] + m[2];
+      offenders.push(
+        `${rel}:${idx + 1} bare ${literal} — template-string path（模板串形态也必须收口 AdminEndpoints）`
+      );
+    }
     while ((m = litRe.exec(line)) !== null) {
       const literal = m[2];
       // trend 查询串前缀也拦（历史规则保留）
