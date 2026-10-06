@@ -194,9 +194,11 @@ const findings = [];
 // 每条必须写明：不可利用依据 + 跟进动作。新增豁免须同步 docs/CODE_AUDIT 报告。
 const WAIVED = new Set([
   // GHSA-pc63-qcmh-9cmg / CVE-2026-47884：XsltView 路径穿越（CVSS 9.8）。
-  // 本项目全 @ResponseBody REST、无视图渲染、无 XsltView ⇒ 不可利用；
-  // 6.2.x 线无修复版（OSV last_affected=6.2.19，无 fixed；修复仅在 7.0.9），
-  // 跟进 = Boot 3.5 OSS EOL 后升级 4.x（含 Framework 7.0.9+）。2026-10-06 风险接受。
+  // 本项目全 @ResponseBody REST、无视图渲染、无 XsltView ⇒ 不可利用（实测全仓零命中）。
+  // 修复版：6.2.x 线 = 6.2.20，但**仅商业支持**（不上 Maven Central，实测 404）；
+  // OSS 可得修复 = Framework 7.0.9（7.0.x 线）。
+  // 跟进 = 升级 Boot 4.x（含 Framework 7.0.9+）时撤销本豁免；若中途引入视图渲染
+  //（Thymeleaf/XSLT），本 CVE 立即转为可利用，须先行处置。2026-10-06 风险接受。
   'GHSA-pc63-qcmh-9cmg',
   'CVE-2026-47884'
 ]);
