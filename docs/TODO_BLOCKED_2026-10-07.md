@@ -135,6 +135,48 @@ mvn -pl services/trade-service spring-boot:run
 
 ---
 
+
+---
+
+## 🔴 G. Android 侧遗留（G5-G7，2026-10-07 17:15 排查后更新）
+
+| # | 项 | 状态 | 解锁动作 |
+|---|---|---|---|
+| **G5** | `edge/android-app` Android 本地编译 | 🟡 **Gradle 已通**（用本地缓存 8.9）—— **卡在本机无 Android SDK** | 见下方排查 |
+| **G6** | OTA 签名校验**未装机验证** | ⬜ 待做（依赖 G5） | ① 旧 APK 能正常升级 ② **自签包被拒绝** |
+| **G7** | 正式**发布密钥**未生成 | ⬜ 待做（B3a） | 离线生成 + 加密备份，**不入仓库**；每次发布记录证书指纹 |
+
+### G5 排查进展（17:10-17:15）—— 一路排到最后一个卡点
+
+**✅ Gradle 本身已解决**
+- 仓库无 wrapper、系统无 gradle ⇒ 用**本地已缓存的 Gradle 8.9**
+- 证据：项目 `.gradle/8.9` 目录存在 ⇒ **之前确实用 8.9 构建过**
+- ⚠️ `gradle wrapper` 任务执行后**没生成** `gradlew`（PowerShell 未回显输出，
+  我没核实就当成功）⇒ 教训：**PowerShell 工具不回报 stdout，必须用 `ls` 核实产物**
+- ❌ 下载 Gradle 8.7 失败：`curl: (7) CONNECT tunnel failed, response 502`
+  （环境强制走代理、代理拒绝）
+  ⚠️ 第一次用 `curl -sL` **静默失败、11 秒返回、无文件** ——
+  只看「任务 completed」会误判成下载完成，**又一个假绿形态**
+
+**🔴 最终卡点：本机没有 Android SDK**
+- gradle 能启动、能读项目（报出 `compileDeviceDebugKotlin` 等任务
+  ⇒ **flavor 是 `device` / `mock` 两个**），但依赖解析阶段报 `SDK location not found`
+- 查遍 `LOCALAPPDATA/Android/Sdk`、`C:/Android/Sdk`、`D:/Android/Sdk`、
+  `ANDROID_HOME`/`ANDROID_SDK_ROOT`、全盘 `platform-tools` ⇒ **全部不存在**
+
+**⇒ 解锁动作（三选一）**
+1. 装 Android SDK（`sdkmanager` + platform 34 + build-tools）并设 `ANDROID_HOME`
+2. **在 CI 跑 `edge-android` job**（已在 `ci.yml` 里存在）—— **可能最省事**，
+   本地不通就不硬啃
+3. 容器方案（注意 MEMORY 铁律：**绝不挂载宿主目录进容器跑包管理器**）
+
+⚠️ **解锁前，V317 的 `ApkSignatureVerifier` 只算「人工核对通过」，不是「编译通过」**。
+已核对：`OtaInstallMode.FAILED` 存在、`@Suppress("DEPRECATION")` 位置覆盖到第 76 行
+与低版本分支、同 package 无需 import、未用的 `PackageInfo` import 已删。
+
+⚠️ **未核对**：`PackageManager.getPackageArchiveInfo(path, flags)` 的重载签名
+在 Kotlin 里能否这样调（Java 方法返回 `PackageInfo!`，Kotlin 侧类型推断是否成立）。
+
 ## 维护纪律
 
 1. **解锁一条就划掉一条**，并在 `docs/BUSINESS_GAP_ANALYSIS_2026-10-06.md` §11 的对照表更新状态。
