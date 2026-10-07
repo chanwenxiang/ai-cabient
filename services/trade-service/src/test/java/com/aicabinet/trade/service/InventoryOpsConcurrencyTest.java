@@ -42,7 +42,7 @@ class InventoryOpsConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.writeOff(1L, new WriteOffRequest("CAB-INV", "SKU1", null, 1, "EXPIRED")));
+                () -> service.writeOff(1L, new WriteOffRequest("CAB-INV", "SKU1", null, 1, "EXPIRED", null, null, null, null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

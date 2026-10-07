@@ -423,9 +423,46 @@ async function writeOffLot(row: StockHealthRow) {
     ElMessage.warning('报损数量须大于 0');
     return;
   }
+  // V311：先问「责任方」—— 这决定这笔损失找谁赔，是货损链路最关键的一环。
+  // ⚠️ 刻意**允许留空**（点取消即跳过）：「尚未认定责任方」是合法状态
+  // （null ≠ NONE=认定无责任方），强制填写反而会让人随便选一个污染数据。
+  let responsibleParty: string | null = null;
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '请选择责任方（留空表示尚未认定，后续可在对账时补）',
+      `报损 ${row.skuName || row.skuId} × ${qty}`,
+      {
+        confirmButtonText: '提交报损',
+        cancelButtonText: '取消',
+        inputType: 'text',
+        inputPlaceholder: '如 SUPPLIER / LOGISTICS / MERCHANT',
+        inputValue: '',
+        inputValidator: (v: string) => {
+          const t = (v || '').trim();
+          if (!t) return true; // 留空允许
+          return (
+            ['MERCHANT', 'SUPPLIER', 'LOGISTICS', 'NONE', 'UNDETERMINED'].includes(
+              t.toUpperCase()
+            ) || '仅支持 MERCHANT / SUPPLIER / LOGISTICS / NONE / UNDETERMINED（可留空）'
+          );
+        }
+      }
+    );
+    responsibleParty = (value || '').trim().toUpperCase() || null;
+  } catch (e) {
+    // 🔴 这里只有「用户点了取消/关闭」会进来。
+    //   `inputValidator` 校验失败时对话框**保持打开**、不会 reject，
+    //   所以不存在「校验失败被误判成取消」的情形。
+    //   点取消即视为放弃本次报损 —— 与用户「不填了、算了」的意图一致。
+    if (e === 'cancel' || e === 'close') return;
+    ElMessage.error(e instanceof Error ? e.message : '打开责任方输入失败');
+    return;
+  }
+
   try {
     await ElMessageBox.confirm(
-      `确认报损 ${row.skuName || row.skuId} × ${qty}？将直接扣减柜内批次库存。`,
+      `确认报损 ${row.skuName || row.skuId} × ${qty}？将直接扣减柜内批次库存。` +
+        (responsibleParty ? `\n责任方：${responsibleParty}` : '\n责任方：尚未认定'),
       '临期报损',
       { type: 'warning' }
     );
@@ -434,9 +471,11 @@ async function writeOffLot(row: StockHealthRow) {
       skuId: row.skuId,
       batchNo: row.batchNo || undefined,
       quantity: qty,
-      reason: 'EXPIRED'
+      reason: 'EXPIRED',
+      reasonCategory: 'EXPIRED', // 与 reason 一致；这个入口只做临期报损
+      responsibleParty: responsibleParty || undefined
     });
-    ElMessage.success('已报损');
+    ElMessage.success(responsibleParty ? '已报损（责任方已记录）' : '已报损（责任方待认定）');
     await crud.load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;

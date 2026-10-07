@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.StocktakeAdjustRequest;
 import com.aicabinet.common.dto.WriteOffDto;
+import com.aicabinet.common.constants.WriteOffReasonCategory;
 import com.aicabinet.common.dto.WriteOffRequest;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DeviceSkuInventoryId;
@@ -82,6 +83,25 @@ public class InventoryOpsService {
         writeOffEntry.setReason(reason);
         writeOffEntry.setCostCents(costCents);
         writeOffEntry.setOperatorId(operatorId);
+
+        // ---- V311：责任归属 + 原因分类 ----
+        // 🔴 分类**优先用调用方显式传入的**，没传才从 reason 推断。
+        //    为什么不直接用 reason 当分类：现有白名单只有 4 个值
+        //    （EXPIRED/DAMAGED/THEFT/OTHER），其中 OTHER 是「兜底桶」——
+        //    大量损耗都会落进它，**无法区分过期/破损/丢失**，责任判定就废了。
+        //    reasonCategory 补的是更细的分类维度（详见 WriteOffReasonCategory）。
+        String category = request.reasonCategory() != null && !request.reasonCategory().isBlank()
+                ? request.reasonCategory()
+                : WriteOffReasonCategory.infer(reason);
+        writeOffEntry.setReasonCategory(category);
+        writeOffEntry.setResponsibleParty(blankToNull(request.responsibleParty()));
+        writeOffEntry.setClaimNo(blankToNull(request.claimNo()));
+        // 🔴 索赔额**不得为负**：负数索赔会让供应商对账凭空减少应付。
+        if (request.claimAmountCents() != null && request.claimAmountCents() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "claimAmountCents must be >= 0");
+        }
+        writeOffEntry.setClaimAmountCents(request.claimAmountCents());
+
         writeOffEntry = writeOffRepository.save(writeOffEntry);
 
         return new WriteOffDto(
@@ -91,10 +111,19 @@ public class InventoryOpsService {
                 writeOffEntry.getBatchNo(),
                 writeOffEntry.getQuantity(),
                 writeOffEntry.getReason(),
+                writeOffEntry.getReasonCategory(),
+                writeOffEntry.getResponsibleParty(),
+                writeOffEntry.getClaimNo(),
+                writeOffEntry.getClaimAmountCents(),
                 writeOffEntry.getCostCents(),
                 writeOffEntry.getOperatorId(),
                 writeOffEntry.getCreatedAt()
         );
+    }
+
+    /** 空白串归一为 {@code null} —— 空串不是「值」，是「没填」。 */
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 
     @Transactional
