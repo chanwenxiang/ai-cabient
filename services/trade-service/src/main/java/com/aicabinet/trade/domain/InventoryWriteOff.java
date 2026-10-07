@@ -17,6 +17,9 @@ public class InventoryWriteOff {
 
     private String deviceId;
 
+    /** V313：仓库侧报损时填；与 deviceId 恰好一边非空（ck_write_off_location 兜底）。 */
+    private String warehouseId;
+
     private String skuId;
 
     private String batchNo;

@@ -5,7 +5,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record WriteOffRequest(
-        @NotBlank String deviceId,
+        /** V313：设备侧报损时填；与 {@code warehouseId} **恰好填一个**（两边都空/都填都会 400）。 */
+        String deviceId,
+        /** V313：仓库侧报损时填。仓库里的破损/过期/丢失此前无核销入口。 */
+        String warehouseId,
         @NotBlank String skuId,
         String batchNo,
         @NotNull @Min(1) Integer quantity,

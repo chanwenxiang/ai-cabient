@@ -5,6 +5,8 @@ import java.time.Instant;
 public record WriteOffDto(
         Long writeOffId,
         String deviceId,
+        /** V313：仓库侧报损时为仓库 ID，设备侧为 null（恰好一边非空）。 */
+        String warehouseId,
         String skuId,
         String batchNo,
         int quantity,
