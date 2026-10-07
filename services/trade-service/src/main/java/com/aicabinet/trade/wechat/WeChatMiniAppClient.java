@@ -203,7 +203,20 @@ public class WeChatMiniAppClient {
         }
     }
 
-    private String accessToken() {
+    /**
+ * 取小程序 {@code access_token}（带内存缓存，提前 120s 过期）。
+ *
+ * <p>V310：由private 提升为 **public** —— 广告收益对账（{@code publisher/stat}）
+ * 需要同一个 token。刻意<b>不新建第二个 token 管理器</b>：
+ * 微信对同一 appId 的 token 刷新有频率限制，两套缓存各自刷新会撞
+ * {@code 45009 请求过于频繁}，且两份缓存的过期判断会漂移。
+ *
+ * <p>⚠️ 调用方拿到的是<b>可能已过期但尚未到 120s 安全边界</b>的 token ——
+ * 遇到 {@code 40001} / {@code 42001}（token 失效类错误码）时应当
+ * <b>直接失败并等下次调度</b>，不要在客户端里做强制刷新：
+ * 强刷会让并发拉取的任务一起失效。
+ */
+public String accessToken() {
         CachedToken current = cachedToken.get();
         if (current != null && current.expiresAt.isAfter(Instant.now().plusSeconds(120))) {
             return current.token;

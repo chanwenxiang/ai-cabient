@@ -117,10 +117,39 @@ GET https://api.weixin.qq.com/publisher/stat
     |  action=publisher_settlement       # 结算收入 + 结算主体
 ```
 
-- 最大时间跨度 **90 天** ⇒ 需要**定期拉取并落库**，不能「需要时再拉历史」。
-- 🔴 ⚠️ 该文档发布在**小游戏**目录（`minigame/dev/guide/open-ability/ad/ad-data-interface.html`）；
-  小程序侧是否同样可用**必须在 E2 完成后实测确认**。若不可用，退路是人工导出后台数据
-  （**不要**先按「一定有接口」把账本设计死）。
+- 最大时间跨度 **90 天**（`publisher_adpos_general` / `publisher_adunit_general`；
+  `get_adunit_list` / `publisher_settlement` 无跨度限制）
+  ⇒ 需要**定期拉取并落库**，不能「需要时再拉历史」。
+
+#### ✅ 2026-10-07 核实：小程序侧可用（原文的「必须实测」顾虑已打消）
+
+原文曾写「文档在小游戏目录，小程序侧必须实测确认，若不可用退路是人工导出」。
+**已查证官方文档原文（`developers.weixin.qq.com/minigame/dev/guide/open-ability/ad/ad-data-interface.html`）**：
+
+> 「向所有成为流量主的**公众号、小程序、小游戏**开发者开放数据接口。」
+
+且广告位类型枚举里**明确含小程序广告位**，我们这个 Banner 位对应 `SLOT_ID_WEAPP_BANNER`
+（枚举同时含 `SLOT_ID_WEAPP_REWARD_VIDEO` / `_INTERSTITIAL` / `_BOX` / `_TEMPLATE` 等）。
+
+⇒ **接口与返回字段无需再验证，可直接按上述契约设计账本。**
+`publisher_adpos_general` 返回的 `list[]` 含
+`date` / `ad_slot` / `req_succ_count` / `exposure_count` / `click_count` / **`income`（分）** / **`ecpm`（分）**，
+外加 `summary` 汇总块 —— 这就是账本的数据源。
+
+⚠️ 保留两条实测项（**接口可用 ≠ 有数据**）：
+1. 需先开通流量主并创建广告位（`get_adunit_list` 有数据、`ad_unit_status = AD_UNIT_STATUS_ON`）；
+2. 错误码 `2009 无效的流量主` / `45010 无效的接口名` 需在拉取时**显式处理**并落日志 ——
+   未开通时接口会返回错误而不是空数据，**不能把错误当成「今天没收入」**。
+
+#### 关键字段与陷阱（拉取实现时必读）
+
+| 事项 | 结论 |
+|---|---|
+| 金额单位 | **`income` / `ecpm` 单位是「分」** ⇒ 落库用整数分，不要用 double存元 |
+| 分页 | 每页**最大 90 条**（不是 100），`total_num` 判是否还有下一页 |
+| `ad_slot` 传参 | 可选。不传返回**全部类型**；传了只返回该类型。我们只要小程序位⇒ 传 `SLOT_ID_WEAPP_BANNER` 可显著减少数据量 |
+| 结算数据 | `publisher_settlement` 按半月结算（`order=1 上半月 / 2 下半月`），`sett_status` 1 结算中/2,3 已结算/4 付款中/5 已付款 ⇒ **收入确认应以 `publisher_settlement` 为准，`publisher_adpos_general` 是预估** |
+| `settlement_list.slot_revenue` | 结算时**按广告位拆分明细** ⇒ 这是「哪个位置赚了多少」的唯一权威来源 |
 
 ### 4.3 激励视频服务端验证（若将来做「看广告得券」）
 
@@ -209,7 +238,7 @@ GET https://api.weixin.qq.com/publisher/stat
 |------|------|------------|------|
 | **1** | 位置门控 + 腾讯广告组件接入 + 优先级 + 占位图 | 否 | ✅ **已落地**（§11） |
 | **2** | **通电验证**：E1–E4 就绪后填 unit-id 开开关，在**开发者工具/体验版**确认广告真能出、错误码可观测 | 否 | ⬜ 阻塞于外部（E1–E4） |
-| **3** | **收益对账**：定时拉 `publisher/stat` 落库（限 90 天）+ 运营台看板 + 与后台数据核对 | 只读 | ⬜ 待做（先实测 §4.2 可用性） |
+| **3** | **收益对账**：定时拉 `publisher/stat` 落库（限 90 天）+ 运营台看板 + 与后台数据核对 | 只读 | 🔄 进行中（2026-10-07 接口可用性已核实，见 §4.2；账本按V310 落地中） |
 | **4** | **收入入账**：把结算收入记进平台收入侧（**独立账本**，见下）+ 对账门禁 | ✅ 是 | ⬜ 待做 |
 | **5** | 按收益结构再选形态：激励视频（含服务端回调）/ 插屏 / 原生模板 | 视形态 | ⬜ 待做 |
 
