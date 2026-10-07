@@ -4139,14 +4139,17 @@
         },
         {
           "file": "clients/consumer-mp/src/components/device-ad-banner.vue",
-          "loc": 287,
-          "hexBare": 1,
+          "loc": 342,
+          "hexBare": 2,
           "hexBareTop": {
+            "#fff": 1,
             "#e8eef5": 1
           },
           "hexFallback": 1,
-          "radiusLit": 0,
-          "radiusLitVals": {},
+          "radiusLit": 1,
+          "radiusLitVals": {
+            "8rpx": 1
+          },
           "inlineStyleHex": 0,
           "styleAttrAll": 0,
           "btnNative": 0,
@@ -4336,9 +4339,9 @@
       "totals": {
         "pages": 23,
         "otherFiles": 9,
-        "hexBare": 79,
+        "hexBare": 80,
         "hexFallback": 396,
-        "radiusLit": 37,
+        "radiusLit": 38,
         "inlineStyleHex": 0,
         "btnNative": 12,
         "btnApp": 58,

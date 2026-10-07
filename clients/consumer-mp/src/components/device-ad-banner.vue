@@ -58,15 +58,22 @@
       第三优先级：占位图（自有投放与腾讯广告都没有时）。
       🔴 刻意**不绑定任何点击、也不上报任何事件** —— 占位不是广告，不该产生计量数据
       （计量即计费依据，见 docs/AD_MONETIZATION_DESIGN.md §5）。
+
+      🔴 占位图要**标明是哪种来源**（2026-10-07 用户要求）：
+      同一个位置在「有自有活动」和「有腾讯广告」两种状态下都可能落到占位，
+      不标来源的话运营/用户会以为「投放已经配好了」，实际上是空的。
     -->
-    <image
-      v-else
-      class="ad-media"
-      mode="aspectFill"
-      :src="placeholderUrl"
-      alt="平台推广位（占位图）"
-      data-testid="device-ad-banner-placeholder"
-    />
+    <view v-else class="ad-placeholder-wrap">
+      <image
+        class="ad-media"
+        mode="aspectFill"
+        :src="placeholderUrl"
+        :alt="placeholderAlt"
+        data-testid="device-ad-banner-placeholder"
+      />
+      <!-- 来源角标：新品活动 / 流量主 -->
+      <text class="ad-source-badge" data-testid="device-ad-banner-source">{{ sourceLabel }}</text>
+    </view>
     <text v-if="campaignName" class="ad-caption">{{ campaignName }}</text>
   </view>
 </template>
@@ -118,6 +125,29 @@ const promoSource = computed(() =>
     wxAdAvailable
   })
 );
+
+/**
+ * 占位图上要**标明是哪种来源**（2026-10-07 用户要求）。
+ *
+ * <p>🔴 为什么必须标：这个位置在「有自有活动」与「有腾讯广告」两种状态下
+ * 都会落到占位图。不标的话，运营看到「有图」会以为**投放已配好**，
+ * 实际是空的 —— 这类「看起来配好了却没有内容」最难发现。
+ *
+ * <p>判定顺序与 {@link promoSource} 的优先级**保持一致**：
+ * 有自有内容 ⇒ 新品活动；否则腾讯广告开着 ⇒ 流量主；都没有 ⇒ 未配置。
+ */
+const sourceLabel = computed(() => {
+  if (promoSource.value === 'self') return '新品活动';
+  if (promoSource.value === 'wxAd') return '流量主';
+  return '未配置';
+});
+
+/** 无障碍文本：说明这个位置当前实际是什么。 */
+const placeholderAlt = computed(() => {
+  if (promoSource.value === 'self') return '平台推广位（新品活动占位，活动即将上线）';
+  if (promoSource.value === 'wxAd') return '平台推广位（广告位预留）';
+  return '平台推广位（未配置投放内容）';
+});
 
 const slideMs = computed(() => {
   const cur = items.value[currentIndex.value];
@@ -266,6 +296,31 @@ onBeforeUnmount(() => {
   height: 220rpx;
   display: block;
 }
+
+/*占位图容器：相对定位，供来源角标绝对定位。 */
+.ad-placeholder-wrap {
+  position: relative;
+  width: 100%;
+  height: 220rpx;
+}
+
+/*
+ * 来源角标（2026-10-07 用户要求：标明是新品活动还是流量主）。
+ * 🔴 刻意放右上角且不遮主体内容 —— 占位图本身是「暂无内容」的意思，
+ * 角标只做**来源说明**，不做点击入口（占位不产生任何行为）。
+ */
+.ad-source-badge {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 8rpx;
+  font-size: 22rpx;
+  line-height: 32rpx;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+}
+
 .ad-fallback {
   height: 220rpx;
   display: flex;

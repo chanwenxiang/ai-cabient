@@ -56,6 +56,19 @@ object OtaInstaller {
         if (!apk.isFile || apk.length() <= 0L) {
             return OtaInstallResult(OtaInstallMode.FAILED, "安装包不存在或为空")
         }
+        // 🔴 V317：安装**前**校验发布方签名。
+        //   SHA-256 已在 downloadAndVerify 校验过，但它**只防传输损坏/中间人篡改** ——
+        //   攻击者若控制下发通道，可以连同 SHA-256 一起改掉。
+        //   签名校验是唯一能挡住「攻击者自己造一个包推给设备」的手段
+        //   （依据 AOSP source.android.com/docs/core/ota/sign_builds：
+        //    test keys 公开 ⇒ 任何人都能签自己的 apk 替换应用）。
+        //   🔴 校验失败**直接拒绝**，不做「失败就放行」的降级 —— 降级等于关掉这个检查。
+        if (!ApkSignatureVerifier.verifyMatchesInstalled(context, apk.absolutePath)) {
+            return OtaInstallResult(
+                OtaInstallMode.FAILED,
+                "安装包签名与当前应用不一致（疑似非本方发布的包），已拒绝安装",
+            )
+        }
         if (!isDeviceOwner(context)) {
             return OtaInstallResult(
                 OtaInstallMode.NOT_DEVICE_OWNER,

@@ -1,7 +1,7 @@
 # 待完成清单（2026-10-07）
 
 > **为什么有这个文件**：不是「我不想做」，而是**客观条件不具备**（缺外部依赖 / 需业务决策 /
-> 环境停机）。每条都写明**阻塞原因**与**解锁条件**，避免下次重新评估一遍。
+> 环境停机）。每次条都写明**阻塞原因**与**解锁条件**，避免下次重新评估一遍。
 >
 > ⚠️ **纪律**：本清单里的项**不得被算作「已完成」**，也不得在汇报里被跳过。
 > 解锁后要做的事写清楚，解锁前的动作不要凭印象重排。
@@ -212,7 +212,7 @@ mvn -pl services/trade-service spring-boot:run
 | 「公开部署的镜像**必须**用只有你能访问的专属发布密钥签名」 | ⇒ **自建**，不用 test/debug key |
 | 密钥成对：**`.pk8`（私钥，必须保密）+ `.x509.pem`（公钥，可公开分发）** | 公钥内置到 APK ⇒ 设备用它验签 |
 | 「私钥可加密存放于代码管控，或**完全不同的位置（如 air-gapped 机器）**」 | 私钥**不入库、不进仓库**（`*.jks`/`*.keystore` 已 gitignore） |
-| 行业实践（GitHub 自更新方案）：「**必须用稳定的专用 keystore，不能用每台机器默认的 debug key**」，每次发布记录证书指纹做 paper trail | 证书丢了 = 无法给老设备发更新；指纹变更 = 老设备拒收 |
+| 行业实践（GitHub 自更新方案）：「**必须用稳定的专用 keystore，不能用每次台机器默认的 debug key**」，每次发布记录证书指纹做 paper trail | 证书丢了 = 无法给老设备发更新；指纹变更 = 老设备拒收 |
 
 **⇒ 决策建议（不需第三方托管）**：
 1. **自建发布密钥**（离线机器生成，私钥加密 + 异地/离线备份），**不进仓库**
@@ -266,3 +266,51 @@ mvn -pl services/trade-service spring-boot:run
 ⚠️ **唯一前置**：`ad_banner.enabled` 必须开（否则整个位置不渲染）。
 ⇒ 若要「先占位看效果」，**只开总闸、不配腾讯广告**即可：
 自有活动没配时显示占位图，**零资损风险**（不上报事件、不产生资金）。
+
+---
+
+## 📌 2026-10-07 16:55 追加：V316 打开推广位 / 占位图加来源角标 / V317 OTA 签名校验
+
+### 位置问题：流量主与新品活动**是同一个位置**
+`promo-slot.ts` 纯函数保证**同一时刻只渲染一种来源**（有单测）：
+`self`（自有活动）⇒ `wxAd`（腾讯广告）⇒ `placeholder`（占位图）。
+⇒ 两者**互斥**，不是上下两个坑位。
+
+### V316：打开 `consumer.ad_banner.enabled` 与 `consumer.wx_ad.enabled`
+🔴 **打开的是「展示」不是「资金」**：收入侧（V310 `ad_revenue_daily`）一行未动。
+因`consumer.wx_ad.unit_id` 仍为空 ⇒ 实际落到 **placeholder**，
+⇒ 用户看到的是**安全的空位 + 「未配置」角标**，不是空广告框（双重 fail-closed 生效）。
+
+### 占位图加来源角标（用户要求「标明是新品活动还是流量主」）
+`device-ad-banner.vue` 新增 `sourceLabel`：
+- `self` ⇒ 「新品活动」；`wxAd` ⇒ 「流量主」；都不在 ⇒ 「未配置」
+🔴 **为什么必须标**：这个位置在两种状态下都会落到占位图，
+不标的话运营看到「有图」会以为**投放已配好**，实际是空的。
+⚠️ 组件内广告加载失败会**隐藏自己**并落到占位 ⇒ 不会出现「标着广告、实际报错」的误导态。
+
+图**直接复用现成的 `static/ad/slot-placeholder.png`**（它本身就写了
+「平台推广位 / 更多优惠活动，敬请期待 / 占位图·配置后自动替换」）。
+⚠️ 试过自己生成，被用户否掉（"不行，就随便找一张就行"）——
+已删掉那个脚本，**不留半成品**。
+
+### V317：OTA **发布方签名校验**（B3 落地）
+新增 `ApkSignatureVerifier.kt`，接在 `OtaInstaller.install` **安装前**：
+- 比对基线 = **已安装应用自己的签名**（不需要内置指纹字符串，换密钥不必改代码）
+- 🔴 **失败直接拒绝，不做降级** —— 降级等于把这个检查关掉
+- 用**公开 API `getPackageArchiveInfo`**（API 28+ 用 `GET_SIGNING_CERTIFICATES`，
+  24–27 回退已废弃的 `GET_SIGNATURES`；`minSdk=24` 故回退分支必须能编译）
+
+🔴 **走过的弯路（记下来别再犯）**：第一版用了
+`android.app.AppGlobals.getPackageManager()` 读签名 ——
+那是**隐藏 API**，既编译不过也违规。已改公开 API。
+
+### 🔴🔴 Android 代码本地**无法编译验证**（诚实记录）
+`edge/android-app/` **没有 gradle wrapper**（只有 `build.gradle.kts`/`settings.gradle.kts`），
+且**系统无 gradle** ⇒ V317 的 Kotlin 代码**只做了人工核对，没有编译/测试证据**。
+人工核对项：`OtaInstallMode.FAILED` 存在、`@Suppress("DEPRECATION")` 位置覆盖到
+第 76 行与低版本分支、同 package 无需 import、删掉未用的 `PackageInfo` import。
+
+⇒ **诚实标注**：`ApkSignatureVerifier` **尚未编译验证**，上线前必须在有
+gradle wrapper 的环境（或 CI）跑一次 `assembleDebug` +装机验证「旧 APK 能升级、新签名包被拒」。
+EOF
+echo appended

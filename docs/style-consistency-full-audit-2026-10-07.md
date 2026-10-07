@@ -10,9 +10,9 @@
 |---|---|---|---|
 | 页面数 | 75 | 23 | 28 |
 | 组件/布局文件数 | 42 | 9 | 10 |
-| 裸 hex 色（待治理） | 234 | 79 | 56 |
+| 裸 hex 色（待治理） | 234 | 80 | 56 |
 | var() 兜底 hex | 71 | 396 | 239 |
-| 字面圆角（非 token） | 114 | 37 | 31 |
+| 字面圆角（非 token） | 114 | 38 | 31 |
 | 内联 style 带色值 | 9 | 0 | 0 |
 | 原生 <button> | 90 | 12 | 18 |
 | app-button 使用 | 0 | 58 | 36 |
@@ -181,7 +181,7 @@
 | consumer-mp | App.vue | 39 | 5 | · | · |
 | consumer-mp | components/HomeCartBar.vue | · | · | 4 | · |
 | consumer-mp | components/HomeLanding.vue | 7 | 7 | 1 | · |
-| consumer-mp | components/device-ad-banner.vue | 1 | · | · | · |
+| consumer-mp | components/device-ad-banner.vue | 2 | 1 | · | · |
 | consumer-mp | components/open-prep-drawer.vue | · | 3 | · | · |
 | consumer-mp | components/order-appeal-sheet.vue | · | 1 | · | · |
 | merchant-mp | App.vue | 16 | 6 | · | · |
