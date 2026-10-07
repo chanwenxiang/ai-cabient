@@ -99,7 +99,7 @@ mvn -pl services/trade-service spring-boot:run
 | E3 | 缺口 #8 供应商对账单 | **依赖 B1/B2** | 中 |
 | E4 | 缺口 #4 盘亏联动应付 | **依赖 B1/B2** | 中 |
 | E4a | 缺口 #4 的 C 方案：待索赔台账 | ✅ **已完成（后端 + UI）**：端点 `f70e3e8d` + 台账页 `WriteOffClaimLedgerView.vue`（含按责任方汇总） | — |
-| E5 | 缺口 #6 近效期预警 | ⚠️ **需先核实现有 `expiryAlerts` 是否覆盖仓库维度**（文档说不成立，端点已存在） | 小 |
+| E5 | 缺口 #6 近效期预警（仓库侧） | ✅ **已完成**：V320 `findExpiringPage` + 端点 `GET /api/v2/ops/admin/warehouse/expiry-alerts` + 独立页 `WarehouseExpiryAlertsView.vue`（含剩余天数/紧急度）。**刻意不物化预警任务表**（仓库侧无动作要驱动） | — |
 | E6 | 缺口 #7 采购退货原因分类 / 残次品处置 | ✅ **已完成（后端+UI）**：V318 三列（`reason_category`/`responsible_party`/`defective_flag`）+ 退货弹窗录入 | — |
 | E7 | 缺口 #9 仓库月结接财务结算 | 无 | 高 |
 | E8 | 缺口 #4 广告收入入账（切片 4，**动资金**） | 需先开通流量主（B5） | 中 |
@@ -112,8 +112,8 @@ mvn -pl services/trade-service spring-boot:run
 
 | # | 项 | 说明 |
 |---|---|---|
-| **F1** | **剩余缺口未逐条核实** | ⚠️ **本清单的可信度有限**。已核实 **10 项**（仓储 9 + 资金 1），其中**2 项文档不成立**、**1 项判断有误**（`reason` 其实已有白名单）。剩余项**不能假设都是真缺** —— 动手前必须先 grep。命中率参考：10 项里 3 项与文档不符（30%） |
-| F2 | 缺口 #11「无提现实名/KYB 校验」未核 | 只知`IdentityVerifyClient` 仅 C 端注册用，未逐行确认两套提现服务零引用 |
+| **F1** | 剩余缺口未逐条核实 |🟡 **进行中（2026-10-07 19:10）** —— 已核实 **12 项**，**3 项文档不成立/判断有误**（30% 命中率，见下方 §I） |
+| F2 | 缺口 #11「无提现实名/KYB 校验」 | ❌ **已核实：真缺，且比文档更严重（双重缺口）** —— 见下方 §I.1 |
 | F3 | `docs/PROJECT_KNOWLEDGE.md` §2「仓库现状速览」已过期 | 标注 2026-09-24，与 2026-10-05 实测差 4 处（迁移数 304→310+、测试数 299→320+等） |
 | F4 | `PROJECT-REFERENCE.md` 外置手册未重建 | 随2026-10-04 搬家丢失 |
 | F5 | `EDGE-ANDROID-GRADLE.md` 未建 | 本轮 Android 配方与 8 个坑已写进 `docs/..._2026-10-06.md` §9.5，可作素材 |
@@ -214,6 +214,59 @@ installed.any { it.contentEquals(cand) }
   真名是**环境变量 `OPENAPI_IGNORE_CACHE=1`**（`:35` 注释里写着，参数名要读源码）
 - 🔴「脚本 exit 0」**不能证明产物更新**。症状是「新字段不在产物里」。
   判据必须落在产物内容上。
+
+---
+
+## I. F1 逐条核实（2026-10-07 19:00-19:10）
+
+### 命中率仍约 30%：又核实 2 项，1 项与文档不符
+已核实 **12 项**（仓储 9 + 资金 1 + E5 + F2），其中**3 项文档不成立/判断有误**：
+⑥ 近效期端点「不成立」、`reason` 「自由文本」判断有误、E9 分享裂变**本来就没开**（死字段）。
+
+### I.1 🔴 F2「无提现实名/KYB 校验」—— **真缺，且是双重缺口**
+
+文档只说「无实名/KYB 校验」。逐层取证后发现**比那更严重**：
+
+| 层 | 事实 | 证据 |
+|---|---|---|
+| **数据表** | `user_realname_auth` **存在**（`real_name`/`id_card_type`/`id_card_number`） | `information_schema.columns` |
+| **表有无数据** | 🔴 **0 行** | `SELECT COUNT(*)` |
+| **有无写入方** | 🔴 **零Java 消费者**（grep `UserRealnameAuth` 只命中实体自身） | grep |
+| **实名采集** | 只调`identityVerifyClient.verify(realName, idCardLast4)`，然后 `user.setVerified(true)` | `AccountService:166-168` |
+|🔴 **落库去向** | **只写 `user.verified` 布尔位，不写 `user_realname_auth` 表** | 同上 |
+| **提现是否校验** | 🔴 **零引用**。`MerchantWithdrawService` / `LineWithdrawService` / `WithdrawPayoutPolicy` 都**不查 `verified`** | grep `isVerified` 在三个文件里 0 命中 |
+| **商户资质** | `merchant` 表有 `legal_person` / `business_license_url`，但🔴 **提现链路零引用** | grep |
+| **税务资质** | `merchant_tax_profile` 只被 `InvoiceService`（开票）用，提现零引用 | grep |
+
+**⇒ 结论：「实名」在这个系统里只是一个「能不能开柜门」的开关**，
+不是「能不能提现」的资质。它被 `UserValidationService:81` 用作**开门门禁**，
+而**提现这条真正的资金出口完全不看它**。
+
+### 🔴 为什么这一项优先级高于 E7/E9
+
+- 提现是**资金出账口**。未实名也能提现 ⇒ 平台承担冒名提现与洗钱风险，
+  且**事后无从追溯**（因为 `id_card_number` 根本没存）。
+- 相比之下 E7（月结）是**内部记账流程**，不出钱。
+
+### 建议落法（**不建议照抄补一个校验就够了**）
+必须**三段一起补**，否则补了仍会漏：
+1. **实名信息落库**：`AccountService` 采集后写 `user_realname_auth`
+   （现在只留`verified` 布尔位 ⇒ **等于没有证据**）
+2. **提现门禁**：`MerchantWithdrawService.merchantApply` / `LineWithdrawService` 入口
+   校验实名 + 商户资质，**并给出可读原因**（缺哪一项）
+3. 🔴 **存量用户的迁移策略**：库里**0 行**实名记录 ⇒ 上线后老用户全部会被拦。
+   需要决策：**宽限期**（先提醒后拦截）还是**硬拦**（老用户必须重新实名）。
+   ⇒ **这是业务决策，我不擅自定。**
+
+### I.2 E5「仓库侧近效期预警」—— **真缺**（不是文档说的「有端点」）
+- 系统唯一的 `expiryAlerts` 走 `PullOffTask`，而 `PullOffTask` 字段是
+  `deviceId`/`lotId` ⇒ **只覆盖设备侧**
+- `WarehouseService` 里`expiryDate` **只用于存取**，**没有任何筛选/预警查询**
+- ✅ 数据基础齐备：`warehouse_inventory.expiry_date` 有值 +索引
+  `idx_wh_inv_expiry (warehouse_id, expiry_date)` 已存在（等值列在前，顺序正确）
+
+⇒ **成本比预想低**：不需要新表（仓库侧只是「提醒哪些批次快到期」，
+**没有动作要驱动**，物化任务表反而会引入「过期了但任务还开着」的清理问题）。
 
 ---
 

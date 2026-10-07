@@ -281,6 +281,15 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/warehouse/movements?${query}`
       : `${ops}/warehouse/movements?${query.toString()}`,
+  /**
+   * V320 仓库侧近效期预警。
+   * 🔴 与 `expiryAlerts`（设备侧，走 PullOffTask）**不是同一份数据** ——
+   * 那个只看柜机批次，这个只看仓库库存。
+   */
+  warehouseExpiryAlerts: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/expiry-alerts?${query}`
+      : `${ops}/warehouse/expiry-alerts?${query.toString()}`,
   warehouseMonthlyClose: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/warehouse/monthly-close?${query}`

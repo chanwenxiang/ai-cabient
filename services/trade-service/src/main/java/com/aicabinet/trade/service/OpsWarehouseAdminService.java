@@ -61,6 +61,18 @@ public class OpsWarehouseAdminService {
         return warehouseService.listInventoryPage(warehouseId, keyword, page, size);
     }
 
+    /**
+     * V320 仓库侧近效期预警（缺口 #6）。
+     *
+     * <p>🔴 走 {@code requireWarehouseRead} —— 与既有 {@code warehouseInventoryPage}
+     * 保持同一套权限口径。
+     */
+    public PageResult<WarehouseExpiryAlertDto> warehouseExpiryAlertsPage(
+            Long operatorId, String warehouseId, Integer daysAhead, int page, int size) {
+        requireWarehouseRead(operatorId);
+        return warehouseService.listExpiryAlertsPage(warehouseId, daysAhead, page, size);
+    }
+
     public List<WarehouseMovementDto> warehouseMovements(Long operatorId, String warehouseId) {
         requireWarehouseRead(operatorId);
         return warehouseService.listMovements(warehouseId);

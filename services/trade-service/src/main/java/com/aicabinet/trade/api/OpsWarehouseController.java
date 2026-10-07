@@ -217,6 +217,26 @@ public class OpsWarehouseController {
         return ApiResponse.ok(warehouseAdminService.warehouseInventoryPage(operatorId(request), warehouseId, q, page, size));
     }
 
+    /**
+     * V320 仓库侧近效期预警（缺口 #6）。
+     *
+     * <p>🔴 系统原有的 {@code expiryAlerts} 走 {@code PullOffTask}，只覆盖**设备侧**。
+     * 仓库侧此前完全没有 ⇒ 仓库里的货到期了没人知道。
+     *
+     * <p>含**已过期**批次（{@code daysRemaining} 为负），否则过期那批永远查不出来。
+     */
+    @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/warehouse/expiry-alerts")
+    public ApiResponse<PageResult<WarehouseExpiryAlertDto>> warehouseExpiryAlerts(
+            HttpServletRequest request,
+            @RequestParam(required = false) String warehouseId,
+            @RequestParam(name = "daysAhead", required = false) Integer daysAhead,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(warehouseAdminService.warehouseExpiryAlertsPage(
+                operatorId(request), warehouseId, daysAhead, page, size));
+    }
+
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/warehouse/movements")
     public ApiResponse<PageResult<WarehouseMovementDto>> warehouseMovements(

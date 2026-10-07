@@ -224,6 +224,13 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '待索赔台账', group: '仓储' }
   },
   {
+    // V320（缺口 #6）：仓库侧近效期预警 —— 🔴 与设备侧的「补货预警」不是同一份数据
+    path: 'warehouse/expiry-alerts',
+    name: 'warehouse-expiry-alerts',
+    component: () => import('@/views/warehouse/WarehouseExpiryAlertsView.vue'),
+    meta: { title: '仓库近效期预警', group: '仓储' }
+  },
+  {
     path: 'warehouse/stock',
     name: 'warehouse-stock',
     component: () => import('@/views/warehouse/WarehouseStockPage.vue'),

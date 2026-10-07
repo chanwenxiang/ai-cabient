@@ -1907,6 +1907,32 @@
           "usesChart": false
         },
         {
+          "file": "clients/admin-vue/src/views/warehouse/WarehouseExpiryAlertsView.vue",
+          "loc": 201,
+          "hexBare": 0,
+          "hexBareTop": {},
+          "hexFallback": 0,
+          "radiusLit": 0,
+          "radiusLitVals": {},
+          "inlineStyleHex": 0,
+          "styleAttrAll": 3,
+          "btnNative": 0,
+          "btnApp": 0,
+          "emptyCmp": 0,
+          "emptyHw": 0,
+          "errCmp": 0,
+          "undefVars": [],
+          "ghostClasses": [
+            "page"
+          ],
+          "pageCard": 0,
+          "pcHead": 0,
+          "shadowNever": 0,
+          "shadowHover": 0,
+          "chartHexScript": 0,
+          "usesChart": false
+        },
+        {
           "file": "clients/admin-vue/src/views/warehouse/WarehouseFulfillmentPage.vue",
           "loc": 9,
           "hexBare": 0,
@@ -3180,6 +3206,7 @@
           "views/warehouse/WarehouseMasterPage.vue",
           "views/warehouse/WarehouseProcurementPage.vue",
           "views/warehouse/WriteOffClaimLedgerView.vue",
+          "views/warehouse/WarehouseExpiryAlertsView.vue",
           "views/warehouse/WarehouseStockPage.vue",
           "views/warehouse/WarehouseFulfillmentPage.vue",
           "views/recharges/RechargeListView.vue",
@@ -3235,7 +3262,7 @@
         "pageOverrides": []
       },
       "totals": {
-        "pages": 76,
+        "pages": 77,
         "otherFiles": 42,
         "hexBare": 234,
         "hexFallback": 71,

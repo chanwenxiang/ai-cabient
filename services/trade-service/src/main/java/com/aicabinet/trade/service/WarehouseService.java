@@ -135,6 +135,47 @@ public class WarehouseService {
         return new PageResult<>(items, p, s, result.getTotal());
     }
 
+    /**
+     * V320 仓库侧近效期预警（缺口 #6）。
+     *
+     * <p>🔴 <b>为什么不物化「预警任务表」</b>：设备侧的 `PullOffTask` 需要物化，
+     * 是因为它要**驱动「下架」这个动作**；仓库侧只是「提醒哪些批次快到期」，
+     * **没有动作要驱动**。物化反而会引入「过期了但任务还开着」的清理问题。
+     *
+     * <p>✅ 数据与索引都现成：`warehouse_inventory.expiry_date` 有值，
+     * 且有索引 {@code idx_wh_inv_expiry (warehouse_id, expiry_date)}。
+     *
+     * @param daysAhead 提前多少天算近效期；默认 30
+     */
+    @Transactional(readOnly = true)
+    public PageResult<WarehouseExpiryAlertDto> listExpiryAlertsPage(
+            String warehouseId, Integer daysAhead, int page, int size) {
+        int days = WarehouseExpiryAlert.clampDaysAhead(daysAhead);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = inventoryRepository.findExpiringPage(warehouseId, days, p, s);
+        java.time.LocalDate today = java.time.LocalDate.now();
+        List<WarehouseExpiryAlertDto> items = result.getRecords().stream()
+                .map(i -> toExpiryAlertDto(i, today))
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    /**
+     * 剩余天数与紧急度交给 {@link WarehouseExpiryAlert}——
+     * 🔴 刻意不写在这里：写成私有方法的话，测试只能「抄一份」，
+     * 而抄一份的测试改实现不会变红（假测试）。
+     */
+    private WarehouseExpiryAlertDto toExpiryAlertDto(WarehouseInventory i, java.time.LocalDate today) {
+        java.time.LocalDate expiry = i.getExpiryDate();
+        int days = WarehouseExpiryAlert.daysRemaining(today, expiry);
+        return new WarehouseExpiryAlertDto(
+                i.getInventoryId(), i.getWarehouseId(), i.getSkuId(), i.getBatchNo(),
+                expiry, i.getQuantity(), days,
+                WarehouseExpiryAlert.isExpired(days),
+                WarehouseExpiryAlert.urgency(days));
+    }
+
     @Transactional(readOnly = true)
     public List<WarehouseMovementDto> listMovements(String warehouseId) {
         String wh = resolveWarehouseId(warehouseId);

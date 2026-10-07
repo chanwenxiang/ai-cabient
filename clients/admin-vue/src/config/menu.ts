@@ -225,6 +225,15 @@ const BASE_NAV: NavItem[] = [
     keywords: ['报损', '索赔', '台账', '赔付', '责任', 'claim', 'write-off']
   },
   {
+    path: '/warehouse/expiry-alerts',
+    title: '仓库近效期预警',
+    group: '仓储',
+    // 🔴 与设备侧「补货预警」同用 `ops:warehouse:list`：看仓库里哪些批次快到期
+    //   是**仓库管理**的日常动作，不该只给补货调度角色。
+    perm: 'ops:warehouse:list',
+    keywords: ['效期', '过期', '临期', '预警', '批次', 'expiry', 'near-expiry']
+  },
+  {
     path: '/warehouse/stock',
     title: '库存与盘点',
     group: '仓储',
