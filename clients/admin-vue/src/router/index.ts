@@ -217,6 +217,13 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '采购与供应商', group: '仓储' }
   },
   {
+    //V311 配套（缺口 #4 方案 C）：待索赔台账 —— 谁该赔、赔多少钱
+    path: 'warehouse/claims',
+    name: 'warehouse-claims',
+    component: () => import('@/views/warehouse/WriteOffClaimLedgerView.vue'),
+    meta: { title: '待索赔台账', group: '仓储' }
+  },
+  {
     path: 'warehouse/stock',
     name: 'warehouse-stock',
     component: () => import('@/views/warehouse/WarehouseStockPage.vue'),

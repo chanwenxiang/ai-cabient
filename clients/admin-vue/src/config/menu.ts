@@ -214,6 +214,17 @@ const BASE_NAV: NavItem[] = [
     keywords: ['采购', '供应商', '建议', '退货', '应付', 'procurement']
   },
   {
+    path: '/warehouse/claims',
+    title: '待索赔台账',
+    group: '仓储',
+    // 🔴 刻意沿用 `ops:warehouse:list`（与「采购与供应商」同码），**不用**
+    //   `ops:replenishment:list` —— 后者只授予了补货调度角色，
+    //   而查「谁该赔钱」是**财务/仓库管理**的日常动作，不该只给补货员看。
+    //   页内 `v-if="canList"` + 空态提示兜底，权限不足时不至于白屏。
+    perm: 'ops:warehouse:list',
+    keywords: ['报损', '索赔', '台账', '赔付', '责任', 'claim', 'write-off']
+  },
+  {
     path: '/warehouse/stock',
     title: '库存与盘点',
     group: '仓储',

@@ -668,6 +668,22 @@ export const AdminEndpoints = {
       ? `${ops}/reports/stock-health/export?${query}`
       : `${ops}/reports/stock-health/export?${query.toString()}`,
   inventoryWriteOff: `${ops}/inventory/write-off`,
+  /**
+   * V311 配套：待索赔台账（缺口 #4 方案 C）。
+   *
+   * 🔴 只列「责任方非空 **且** 索赔额 > 0」的记录 —— 只有两项都填了才算**可追偿的主张**。
+   * 缺任一项的仍留在 `inventory_write_off`（可查、可补），但不该出现在「要向人追钱」的
+   * 清单里：混进来会让清单虚高、真正要追的钱被淹没。
+   */
+  inventoryWriteOffClaims: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/inventory/write-off/claims?${query}`
+      : `${ops}/inventory/write-off/claims?${query.toString()}`,
+  /** 待索赔台账按责任方汇总（谁该赔多少钱）。 */
+  inventoryWriteOffClaimsSummary: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/inventory/write-off/claims/summary?${query}`
+      : `${ops}/inventory/write-off/claims/summary?${query.toString()}`,
   salesReportsList: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/sales-reports?${query}`

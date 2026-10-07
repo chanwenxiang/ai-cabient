@@ -2031,6 +2031,32 @@
           "shadowHover": 0,
           "chartHexScript": 0,
           "usesChart": false
+        },
+        {
+          "file": "clients/admin-vue/src/views/warehouse/WriteOffClaimLedgerView.vue",
+          "loc": 262,
+          "hexBare": 0,
+          "hexBareTop": {},
+          "hexFallback": 0,
+          "radiusLit": 0,
+          "radiusLitVals": {},
+          "inlineStyleHex": 0,
+          "styleAttrAll": 4,
+          "btnNative": 0,
+          "btnApp": 0,
+          "emptyCmp": 0,
+          "emptyHw": 0,
+          "errCmp": 0,
+          "undefVars": [],
+          "ghostClasses": [
+            "claim-ledger"
+          ],
+          "pageCard": 0,
+          "pcHead": 0,
+          "shadowNever": 1,
+          "shadowHover": 0,
+          "chartHexScript": 0,
+          "usesChart": false
         }
       ],
       "others": [
@@ -3153,6 +3179,7 @@
           "views/consistency/ConsistencyView.vue",
           "views/warehouse/WarehouseMasterPage.vue",
           "views/warehouse/WarehouseProcurementPage.vue",
+          "views/warehouse/WriteOffClaimLedgerView.vue",
           "views/warehouse/WarehouseStockPage.vue",
           "views/warehouse/WarehouseFulfillmentPage.vue",
           "views/recharges/RechargeListView.vue",
@@ -3208,7 +3235,7 @@
         "pageOverrides": []
       },
       "totals": {
-        "pages": 75,
+        "pages": 76,
         "otherFiles": 42,
         "hexBare": 234,
         "hexFallback": 71,

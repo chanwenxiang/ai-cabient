@@ -8,7 +8,7 @@
 
 | 指标 | admin-vue | consumer-mp | merchant-mp |
 |---|---|---|---|
-| 页面数 | 75 | 23 | 28 |
+| 页面数 | 76 | 23 | 28 |
 | 组件/布局文件数 | 42 | 9 | 10 |
 | 裸 hex 色（待治理） | 234 | 80 | 56 |
 | var() 兜底 hex | 71 | 396 | 239 |
@@ -100,6 +100,7 @@
 | views/warehouse/WarehouseProcurementPage.vue | · | · | · | · | · | ✗ | · | · |
 | views/warehouse/WarehouseStockPage.vue | · | · | · | · | · | ✗ | · | · |
 | views/warehouse/WarehouseView.vue | 2 | 4 | 2 | · | · | ✓ | · | · |
+| views/warehouse/WriteOffClaimLedgerView.vue | · | · | · | · | · | ✗ | · | · |
 
 ## consumer-mp（消费者小程序 24 页）逐页矩阵
 
@@ -195,7 +196,7 @@
 
 ## 六、页面注册完整性（防漏页）
 
-- **admin-vue**：实际页面文件 75 个；注册/路由引用 74 个；缺失文件 0；未注册孤儿 1：clients/admin-vue/src/views/warehouse/WarehouseView.vue
+- **admin-vue**：实际页面文件 76 个；注册/路由引用 75 个；缺失文件 0；未注册孤儿 1：clients/admin-vue/src/views/warehouse/WarehouseView.vue
 - **consumer-mp**：实际页面文件 23 个；注册/路由引用 23 个；缺失文件 0；未注册孤儿 0
 - **merchant-mp**：实际页面文件 28 个；注册/路由引用 28 个；缺失文件 0；未注册孤儿 0
 
@@ -230,6 +231,7 @@
 - admin-vue · views/system/OrgSitesView.vue：rent-split-dialog
 - admin-vue · views/system/ScheduledTaskView.vue：cell-hint
 - admin-vue · views/vision/RecognitionDemoView.vue：demo-card、upload-panel、item-main
+- admin-vue · views/warehouse/WriteOffClaimLedgerView.vue：claim-ledger
 - admin-vue · components/CrudTable.vue：crud-cols、crud-cols__item--fixed
 - admin-vue · components/EChart.vue：echart-skeleton、echart-empty
 - admin-vue · components/SlotGrid.vue：slot-qty
