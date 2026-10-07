@@ -8,15 +8,51 @@
 
 ---
 
-## 🔴 A. 环境阻塞（可自动恢复，只需你开一下）
+## ✅ A. 环境阻塞 —— **已于 2026-10-07 14:51 全部解除**
 
-| # | 项 | 阻塞原因 | 解锁动作 |
-|---|---|---|---|
-| A1 | **V312 迁移实跑** | Docker Desktop 已停（你在清磁盘） | 起 Docker 后：`docker exec -i ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -v ON_ERROR_STOP=1 -f - < services/trade-service/src/main/resources/db/migration/V312__stocktake_diff_reason.sql` |
-| A2 | V312 回填逻辑验证 | 同上 | 与 A1 一并做：造 fixture 验证「有差异的行才允许有分类」 |
-| A3 | 后续所有迁移实跑 | 同上 | Docker 恢复后正常 |
+容器与镜像被清空后重建了 Postgres，并借机做了一件**更强**的事：
+**让 Flyway 从空库全量重放全部 311 个迁移**（不是只跑 V312）。
 
-⚠️ **未实跑的迁移不算完成**。V311/V310 已实跑通过，V312 **仅写了 SQL、逻辑未在真库验证**。
+| # | 项 | 结论 |
+|---|---|---|
+| A1 | **V312 迁移实跑** | ✅ `Successfully applied 311 migrations to schema "public", now at version v312`；158 张表、**0 失败** |
+| A2 | **V312 行为验证** | ✅ 三层全过：新列默认 NULL（＝未分类，**非 OTHER**）、`NORMAL_SHRINKAGE` 可写入、`VARCHAR(24)` 超长被拒 |
+| A3 | 后续迁移实跑 | ✅ 环境已恢复 |
+
+### 顺带得到的两个更强结论
+1. **311 个迁移从零全量重放成功** ⇒ 迁移链**无断裂、无相互依赖缺失**。
+   这比单独跑 V312 强得多 —— V312 依赖的 `warehouse_stocktake_line` 是 V3x 建的，
+   只跑 V312 证明不了它。
+2. 🔴 **V310/V311/V312 的列全部实测存在**（查 `information_schema.columns`，
+   **不采信日志**）：`ad_revenue_daily.income_cents` ✓、
+   `inventory_write_off` 的 4 个新列 ✓、`warehouse_stocktake_line.diff_reason` ✓。
+
+⚠️ 代价：本地旧种子数据随 `pgdata` 卷删除而丢失，需重跑种子。
+不影响代码结论（迁移链已全量重放证明）。
+
+### 重启 PostgreSQL 的配方（下次直接复用）
+```powershell
+docker compose -f infra/docker-compose.yml up -d postgres
+# 等 ready
+for i in $(seq 1 20); do docker exec ai-cabinet-postgres-1 pg_isready -U aicabinet -d aicabinet; done
+# 触发 Flyway 全量重放（**先 install common-core**）
+mvn -pl services/common/common-core install -DskipTests -o
+mvn -pl services/trade-service spring-boot:run
+```
+配环境变量：`SPRING_DATASOURCE_URL/ USERNAME / PASSWORD` + `SEED_ENV=local`，
+并加 `-Dspring-boot.run.arguments=--spring.main.web-application-type=none`。
+
+⚠️ 迁移完成后应用会因 `RedisConnectionException` 失败 —— **这是预期的**（Redis 未起），
+**不影响迁移结论**：Flyway 在 Redis 依赖之前已完成。
+
+**三个踩过的坑**：
+1. PowerShell 5.1 的 `Out-File -Encoding` **只认 `Unicode`**，不认 `utf16`。
+2. `mvn -pl services/trade-service **-am** spring-boot:run` 会跑在**父 pom** 上 →
+   报「找不到 mainClass」。`-am` 只能用于 `test`/`install`，**不能用于 `spring-boot:run`**。
+3. 造 fixture 前**必须先 `\d 表名` 看真实 schema** —— 我凭记忆写
+   `stocktake_name` 报「column does not exist」，实际是 `stocktake_no`。
+   又写 `sku_catalog(sku_id, sku_name)` 报 `price_cents` 非空。
+   ⇒ 与 MEMORY 里那条「包名/字段要从 jar 或实际数据读」同源。
 
 ---
 
@@ -75,7 +111,7 @@
 
 | # | 项 | 说明 |
 |---|---|---|
-| **F1** | **剩余 25 项缺口未逐条核实** | ⚠️ **本清单的可信度有限**。已核实 7 项（仓储 6 + 资金 1），证实**2 项文档不成立**。剩余 25 项**不能假设都是真缺** —— 动手前必须先 grep |
+| **F1** | **剩余缺口未逐条核实** | ⚠️ **本清单的可信度有限**。已核实 **10 项**（仓储 9 + 资金 1），其中**2 项文档不成立**、**1 项判断有误**（`reason` 其实已有白名单）。剩余项**不能假设都是真缺** —— 动手前必须先 grep。命中率参考：10 项里 3 项与文档不符（30%） |
 | F2 | 缺口 #11「无提现实名/KYB 校验」未核 | 只知`IdentityVerifyClient` 仅 C 端注册用，未逐行确认两套提现服务零引用 |
 | F3 | `docs/PROJECT_KNOWLEDGE.md` §2「仓库现状速览」已过期 | 标注 2026-09-24，与 2026-10-05 实测差 4 处（迁移数 304→310+、测试数 299→320+等） |
 | F4 | `PROJECT-REFERENCE.md` 外置手册未重建 | 随2026-10-04 搬家丢失 |
