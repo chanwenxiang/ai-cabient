@@ -198,3 +198,71 @@ mvn -pl services/trade-service spring-boot:run
 
 ⇒ **风险**：新柜若是 `jinyu2`/`yichu2` 系，**协议可能完全不同，我们无法直接驱动**。
 ⇒ **待你确认**：新柜机型号 —— 这是**采购前必须问清**的第一件事。
+
+---
+
+## 📌 2026-10-07 16:30 追加：B3 竞品做法 / B6 可配置化 / B4 开关现状 / 活动占位
+
+### B3 答案（依据 AOSP 官方 `source.android.com/docs/core/ota/sign_builds`）
+**业界标准做法 = 自建发布密钥 + 公钥内置 + 验签**：
+
+| 官方原文要点 | 对我们的映射 |
+|---|---|
+| 「test keys 公开 ⇒ 任何人可签自己的 apk 替换/劫持系统应用」 | 我们用 debug key 签名 = 同样的问题 |
+| 「公开部署的镜像**必须**用只有你能访问的专属发布密钥签名」 | ⇒ **自建**，不用 test/debug key |
+| 密钥成对：**`.pk8`（私钥，必须保密）+ `.x509.pem`（公钥，可公开分发）** | 公钥内置到 APK ⇒ 设备用它验签 |
+| 「私钥可加密存放于代码管控，或**完全不同的位置（如 air-gapped 机器）**」 | 私钥**不入库、不进仓库**（`*.jks`/`*.keystore` 已 gitignore） |
+| 行业实践（GitHub 自更新方案）：「**必须用稳定的专用 keystore，不能用每台机器默认的 debug key**」，每次发布记录证书指纹做 paper trail | 证书丢了 = 无法给老设备发更新；指纹变更 = 老设备拒收 |
+
+**⇒ 决策建议（不需第三方托管）**：
+1. **自建发布密钥**（离线机器生成，私钥加密 + 异地/离线备份），**不进仓库**
+2. 🔴 **OTA 补 `getPackageInfo(GET_SIGNING_CERTIFICATES)` 校验发布方签名** ——
+   这是**唯一**能防「攻击者自签 APK 推给设备」的手段
+   （SHA-256 会跟着攻击者一起改，挡不住）
+3. 公钥内置进 APK；**证书指纹写进文档并在每次发布时核对**
+
+### B6 —— 用户的判断正确：**不该写死，应做可配置**
+现状取证：`ChzhLockDriver.kt` 是**唯一**驱动，类名/chzh 写死，**全仓无 `DeviceModel` 枚举**。
+用户提议「先用旧代码里的型号，做成可配置」⇒ **方向对**。
+落点：把 `chzh/jinyu2/yichu2` 做成配置项（`system_config` 或 `gradle.properties`），
+驱动按配置选择；未知型号**显式拒绝**而不是静默用 chzh8。
+
+### B4 —— 6 个开关**都是可配置的**（无需改代码），且**已经全部关闭**
+| 开关 key | 语义 | 默认 |
+|---|---|---|
+| `consumer.order_search.enabled` | 订单列表搜索框 | false |
+| `consumer.coupon_entry.enabled` | 首页券包入口（关时仅「我的」有） | false |
+| `consumer.product_detail.enabled` | 商品详情弹层 | false |
+| `merchant.charts.enabled` | 商户经营分析图表 | false |
+| `consumer.pay_channel_select.enabled` | 结算页主动选支付方式 | false |
+| `consumer.ad_banner.enabled` | 首页推广位（总闸） | false |
+| `consumer.wx_ad.enabled` | 腾讯流量主广告 | false |
+| `consumer.wx_ad.unit_id` | 广告单元 ID | **空串** |
+
+🔴 **双重fail-closed 已就位**：即使误开`wx_ad.enabled`，
+`unit_id` 空串 ⇒ 前端 `wxAdAvailable = enabled && unitId !== ''` ⇒ **仍不渲染**。
+
+⚠️ **`ad_banner.enabled` 建议保持 false**，理由与流量主不同：
+它一开就会渲染**占位图**，而占位图对用户无价值、对我们也无收益
+（文档明确「占位不是广告，不上报任何事件」）。
+⇒ 占位只在「已决定要上这个位置、但还没投放内容」的过渡期才有意义。
+
+### 🎉 我们**已经有「新品打折活动占位」** —— `ad_campaign` 体系
+用户问「我们自己有活动占位吗？比如新品打折会出一个活动占位」⇒ **有，且已支持小程序端**：
+
+| 事实 | 证据 |
+|---|---|
+| 活动实体 | `AdCampaign`（name/status/deviceScope/**channel**/linkUrl/startAt/endAt）+ `AdCampaignDevice`（按柜） |
+| 素材实体 | `ScreenContentItemDto`（`durationSeconds` 支持轮播） |
+| 🔴 **channel 已支持 `MINI_PROGRAM`** | `AdCampaignService:39,112-113`（仅允许 `CABINET_SCREEN`/`MINI_PROGRAM`） |
+| 小程序端已接 | `device-ad-banner.vue:153` `consumerApi.screenContent(id)` |
+| 优先级纯函数 | `promo-slot.ts:34-36`：有自有内容 ⇒ `self`；否则腾讯；都没有 ⇒ `placeholder` |
+| 优先级有单测 | `promo-slot.test.ts` |
+
+⇒ **建「新品打折活动」的路径**：
+运营台建活动（`channel=MINI_PROGRAM`、状态生效、绑柜）→ 挂素材（图片/文案/链接）
+⇒ 小程序首页推广位**自动优先展示自有内容**，腾讯广告让位。
+
+⚠️ **唯一前置**：`ad_banner.enabled` 必须开（否则整个位置不渲染）。
+⇒ 若要「先占位看效果」，**只开总闸、不配腾讯广告**即可：
+自有活动没配时显示占位图，**零资损风险**（不上报事件、不产生资金）。
