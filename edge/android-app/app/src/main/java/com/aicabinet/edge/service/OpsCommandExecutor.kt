@@ -154,17 +154,37 @@ class OpsCommandExecutor(
     // ==================== SELF_TEST ====================
 
     /**
-     * 设备自检（V308 阶段一）。
+     * 设备自检（V308 阶段一，V310 扩充）。
      *
      * <p><b>只上报「能自检的项」，不编造「检测不了」的项</b>：
      * <ul>
-     *   <li>`storageFree` —— `File.usableSpace` 实测；</li>
+     *   <li>`storageUsableMb` / `storageTotalMb` —— `File.usableSpace` / `totalSpace` 实测
+ *（两个都要：只报 usable 会漏掉「总量已耗尽但还没被系统回收」）；</li>
      *   <li>`appUptimeSec` —— `SystemClock.elapsedRealtime` 实算；</li>
      *   <li>`doorState` —— 门状态回读（顺带验证锁驱动通信是否正常）；</li>
      *   <li>`networkRssi` —— 读系统 Wi-Fi RSSI（<b>拿不到就报 null，不填 0</b>：
      *       0 表示「信号强度为 0」，与「读不到」是两件事）。</li>
+     *   <li>`cameraPermissionGranted` / `cameraHardwarePresent` / `cameraUsable`
+     *       —— V310 新增。三项分报是因为「没授权」与「硬件不在」对运营是
+     *       <b>两种处置方式</b>（一个要改权限设置，一个要换板子）。</li>
+     *   <li>`mqttConnected` —— V310 新增。主动读 Paho 状态，
+     *       <b>不用 `DeviceStatusHub.status().mqttConnected`</b>（那个是被动更新的，
+     *       断线后若没有下一次 publish 会停留在陈旧的 true）。</li>
      * </ul>
-     * 未接入的部件（摄像头、主板温度、货道电机）**不在这里假装检测**。
+     *
+     * <p>🔴 <b>仍然不检测的三项及原因</b>（2026-10-07 实测确认，不是偷懒）：
+     * <ul>
+     *   <li><b>货道电机</b> —— 串口协议当前只有 `L1@200\r\n` 一个命令字（开门），
+     *       没有「查询某货道电机状态」的指令（`ChzhLockDriver.kt:94`）。
+     *       强行上报只能靠「发一次开门看有没有动」—— 那是**破坏性探测**，
+     *       会在用户购物过程中开柜门，绝不能做。</li>
+     *   <li><b>主板温度</b> —— Android 没有通用读温 API；
+     *       厂商要么给 `/sys/class/thermal` 节点（机型相关），
+     *       要么走串口协议 —— 两者都需要硬件方给文档。</li>
+     *   <li><b>压缩机 / 温控</b> —— `SET_TARGET_TEMP` 目前只落盘不控温（见handleSetTargetTemp），
+     *       没有可读的「当前温度」回读接口。</li>
+     * </ul>
+     * 这三项**要么等硬件协议、要么物理上不能安全检测**，所以宁可缺项也不填0。
      */
     private fun handleSelfTest(ops: MqttDeviceClient.OpsCommand) {
         scope.launch {
@@ -191,6 +211,42 @@ class OpsCommandExecutor(
             runCatching {
                 items["networkRssi"] = readWifiRssi()
             }.onFailure { items["networkRssi"] = null }
+
+            // ---- V310：新增三项「真实可测」的自检 ----
+            // 🔴 判据原则：**只报能实测的，测不到的不报**（而不是填 0 或填"正常"）。
+            //   下面三项的共同点：都不需要硬件方新增协议命令字，用 Android 现有 API 就能读真值。
+
+            runCatching {
+                // ① 相机：权限 granted **且** PackageManager 认到至少一个相机硬件。
+                //    两者都要查：只有权限没硬件是「给了权限也没用」，
+                //    只有硬件没权限是「有相机但开不了」—— 对运营是两回事。
+                val pkg = appContext.packageManager
+                val permissionGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    appContext, android.Manifest.permission.CAMERA
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val declaredCamera = pkg.hasSystemFeature(android.content.pm.PackageManager.FEATURE_CAMERA_ANY)
+                items["cameraPermissionGranted"] = permissionGranted
+                items["cameraHardwarePresent"] = declaredCamera
+                // 🔴 单独记一个可否用：两项都true 才算可用。
+                //   分开报是因为运营要能区分「没授权」与「硬件不在」——处置方式完全不同。
+                items["cameraUsable"] = permissionGranted && declaredCamera
+            }.onFailure { errors.add("相机检测失败: ${it.message}") }
+
+            runCatching {
+                // ② 存储：usableSpace 是「当前可用」，freeSpace 是「总剩余」。
+                //    只报前者会漏掉「总量已耗尽只是还没被系统回收」的情况。
+                val f = appContext.filesDir
+                items["storageUsableMb"] = f.usableSpace / 1024 / 1024
+                items["storageTotalMb"] = f.totalSpace / 1024 / 1024
+            }.onFailure { errors.add("存储检测失败: ${it.message}") }
+
+            runCatching {
+                // ③ MQTT 连通性：能不能连上 broker 是设备健康的第一判据，
+                //    比 RSSI 更直接（RSSI 强但连不上 broker 一样是坏的）。
+                //    这里只报**连接状态**，不发消息（自检不该产生业务流量）。
+                val m = mqtt()
+                items["mqttConnected"] = m.isConnected()
+            }.onFailure { items["mqttConnected"] = null }
 
             runCatching {
                 items["deviceModel"] = "${Build.MANUFACTURER} ${Build.MODEL}"

@@ -147,6 +147,20 @@ class MqttDeviceClient(
         publish("cabinet/$deviceId/evt", mapper.writeValueAsBytes(data))
     }
 
+    /**
+     * 当前是否真的连着 broker（**主动读 Paho 状态**）。
+     *
+     * <p>🔴 为什么不能直接用 `DeviceStatusHub.status().mqttConnected`：
+     * 那个值是**被动更新**的 —— `setMqttConnected` 只在 publish 失败或连接回调时才会被调，
+     * 断线后若没有下一次 publish，它会**停留在陈旧的 true**。
+     * 自检要报的是「此刻能不能连上」，所以必须直接问 Paho。
+     *
+     * <p>`client` 是 `lateinit`，未 connect 过就访问会抛
+     * `UninitializedPropertyAccessException` ⇒ 必须先判 `::client.isInitialized`。
+     */
+    fun isConnected(): Boolean =
+        runCatching { ::client.isInitialized && client.isConnected }.getOrDefault(false)
+
     /** H62a: 边缘侧告警事件（如队列放弃），未连接时经 OutboundMqttQueue 持久化补投。 */
     fun publishAlert(alertType: String, message: String) {
         val payload = mapper.writeValueAsBytes(mapOf(
