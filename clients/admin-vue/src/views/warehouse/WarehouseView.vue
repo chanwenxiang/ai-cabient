@@ -71,6 +71,20 @@
               @click="openInbound()"
               >其他入库</el-button
             >
+            <!--
+              V313 仓库侧报损：此前仓库里的破损/过期/丢失**没有核销入口**，
+              只能走盘点改账、无法记录「为什么损」。
+              🔴 刻意用danger 样式—— 报损不可逆（数量真扣），
+              而「其他入库」是可逆的补录，两者心理预期不同。
+            -->
+            <el-button
+              v-if="canEdit && tab === 'inventory'"
+              type="danger"
+              plain
+              data-testid="warehouse-write-off"
+              @click="openWriteOff()"
+              >批次报损</el-button
+            >
             <el-button
               v-if="canEdit && tab === 'outbounds'"
               :loading="cleanupStaleLoading"
@@ -685,6 +699,12 @@
         @submit="submitOutboundConfirm"
         @closed="onOutboundConfirmClosed"
       />
+
+      <!--
+        V313 仓库侧报损。`ref` 而非 `v-model`：它用`defineExpose({ open })`
+        命令式打开（需要先拿到选中的批次行，见 openWriteOff）。
+      -->
+      <WarehouseWriteOffDialog ref="writeOffDialogRef" @done="onWriteOffDone" />
     </el-card>
   </div>
 </template>
@@ -693,6 +713,7 @@
 import { computed, defineAsyncComponent, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 import { type CrudRowAction } from '@/components/CrudTable.vue';
 import type { TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -716,6 +737,11 @@ const WarehouseMovementsTab = defineAsyncComponent(
 const WarehouseMonthlyCloseTab = defineAsyncComponent(
   () => import('@/components/warehouse/WarehouseMonthlyCloseTab.vue')
 );
+/** V313 仓库侧报损：独立异步组件，守住 ≤150KB 的 route chunk 门禁 */
+const WarehouseWriteOffDialog = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseWriteOffDialog.vue')
+);
+
 const WarehouseOutboundsTab = defineAsyncComponent(
   () => import('@/components/warehouse/WarehouseOutboundsTab.vue')
 );
@@ -797,6 +823,8 @@ const canEdit = computed(() => {
 });
 const canImportMaster = computed(() => tab.value === 'warehouses' || tab.value === 'suppliers');
 const selectedKeys = ref<Array<string | number>>([]);
+/** V313 仓库侧报损对话框（命令式 open，见 openWriteOff）。 */
+const writeOffDialogRef = ref<InstanceType<typeof WarehouseWriteOffDialog> | null>(null);
 
 function rowKeyOf(row: Row): string | number {
   switch (tab.value) {
@@ -836,6 +864,43 @@ function inventoryRowKey(row: Row) {
 }
 function onSelectionChange(rows: Row[]) {
   selectedKeys.value = rows.map((r) => rowKeyOf(r)).filter((k) => k != null && k !== '');
+}
+
+/**
+ * V313 打开仓库侧报损对话框。
+ *
+ * <p>🔴 **一次只能报一个批次**（即使多选了也只取第一行）——
+ * 报损要填归因（原因分类/责任方），一批货一个归因。
+ * 多批次同因时让运营重复提交，比让一个对话框塞 N 行表单更不容易出错。
+ */
+function openWriteOff() {
+  const rows = pickSelected(inventory.value);
+  if (!rows.length) {
+    ElMessage.warning('请先在「批次库存」里勾选要报损的批次');
+    return;
+  }
+  if (rows.length > 1) {
+    ElMessage.info(`已选 ${rows.length} 个批次，请只勾选一个（每个批次要分别填归因）`);
+  }
+  const row = rows[0];
+  if (!row.warehouseId || !row.skuId) {
+    ElMessage.warning('该行缺少仓库或商品信息，无法报损');
+    return;
+  }
+  writeOffDialogRef.value?.open({
+    warehouseId: String(row.warehouseId),
+    skuId: String(row.skuId),
+    batchNo: row.batchNo ? String(row.batchNo) : '',
+    skuName: skuName(String(row.skuId)) || undefined,
+    quantity: row.quantity != null ? Number(row.quantity) : undefined
+  });
+}
+
+/** 报损后刷新批次库存 + 流水（报损会产生一条 WRITE_OFF 流水）。 */
+function onWriteOffDone() {
+  loadedTabs.value.delete('inventory');
+  loadedTabs.value.delete('movements');
+  void loadTab('inventory', true);
 }
 function pickSelected<T extends Row>(all: T[]): T[] {
   if (!selectedKeys.value.length) return all;

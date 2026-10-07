@@ -117,7 +117,10 @@ public class InventoryOpsService {
                 "WRITE_OFF", refId));
 
         InventoryWriteOff entry = new InventoryWriteOff();
-        entry.setDeviceId(null); // 仓库侧无设备
+        // 🔴 V313：仓库侧**不设** deviceId（保持 null），不显式 setDeviceId(null) ——
+        //   那是冗余的（新建对象字段本就为null），且会撞门禁
+        //   check:mybatis-null-clear（set(null)+save 是「清列误用」的典型形态）。
+        //   DB 侧由 ck_write_off_location 保证「恰好一边非空」。
         entry.setWarehouseId(warehouseId);
         entry.setSkuId(skuId);
         entry.setBatchNo(request.batchNo());
@@ -153,7 +156,7 @@ public class InventoryOpsService {
 
         InventoryWriteOff writeOffEntry = new InventoryWriteOff();
         writeOffEntry.setDeviceId(request.deviceId());
-        writeOffEntry.setWarehouseId(null); // 设备侧无仓库（ck_write_off_location 要求恰好一边非空）
+        // 🔴 V313：设备侧**不设** warehouseId（保持 null），理由同doWarehouseWriteOff。
         writeOffEntry.setSkuId(request.skuId());
         writeOffEntry.setBatchNo(request.batchNo());
         writeOffEntry.setQuantity(request.quantity());
