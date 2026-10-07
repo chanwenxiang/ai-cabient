@@ -51,7 +51,14 @@ object ApkSignatureVerifier {
             Log.e(TAG, "candidate APK has no readable signature — reject")
             return false
         }
-        val matched = candidate.any { cand -> installed.any { it.contentEquals(cand) } }
+                //🔴 逐项比 `toByteArray()`，**不用 `contentEquals`** ——
+        //   那是 `Array<Byte>` 的扩展函数，对 `List<Signature>` 不适用
+        //   （编译期报Unresolved reference + inferred type is Unit）。
+        //   同理 `Signature` 是 Java 类、不实现 `equals`，**直接用 `==` 比引用会永远不等**
+        //   ⇒ 必须比字节内容。这是本方法的全部判据，不能写错。
+        val matched = candidate.any { cand ->
+            installed.any { it.toByteArray().contentEquals(cand.toByteArray()) }
+        }
         if (!matched) {
             // 🔴 逐条打出指纹，便于现场判断「是换了密钥」还是「被攻击者替换」
             Log.e(TAG, "SIGNATURE MISMATCH — reject. installed=${installed.joinToString { it.fingerprint() }}")
