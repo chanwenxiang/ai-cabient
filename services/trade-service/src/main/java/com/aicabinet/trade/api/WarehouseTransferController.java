@@ -52,10 +52,15 @@ public class WarehouseTransferController {
         return ApiResponse.ok(transferService.ship(operatorId(request), transferId));
     }
 
+    /**
+     * V314：收货。body 可选 —— 传了就登记各行实收/损耗。
+     * <p>不传 body = 全部按「全部到齐」处理（向后兼容旧流程）。
+     */
     @RequiresPermissions("ops:warehouse:edit")
     @PostMapping("/{transferId}/receive")
-    public ApiResponse<WarehouseTransferDto> receive(HttpServletRequest request, @PathVariable Long transferId) {
-        return ApiResponse.ok(transferService.receive(operatorId(request), transferId));
+    public ApiResponse<WarehouseTransferDto> receive(HttpServletRequest request, @PathVariable Long transferId,
+                                                     @RequestBody(required = false) WarehouseTransferService.ReceiveCommand command) {
+        return ApiResponse.ok(transferService.receive(operatorId(request), transferId, command));
     }
 
     @RequiresPermissions("ops:warehouse:edit")

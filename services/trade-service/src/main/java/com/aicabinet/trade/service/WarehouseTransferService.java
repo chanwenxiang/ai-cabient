@@ -142,20 +142,53 @@ public class WarehouseTransferService {
 
     @Transactional
     public WarehouseTransferDto receive(Long operatorId, Long transferId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
-        return runWithTransferLock(transferId, () -> doReceive(operatorId, transferId));
+        return receive(operatorId, transferId, null);
     }
 
-    private WarehouseTransferDto doReceive(Long operatorId, Long transferId) {
+    /**
+     * V314：收货并登记在途损耗。
+     *
+     * @param command 各行实收/损耗登记；<b>null 或行缺项 = 该行视为全部到齐</b>
+     *                （向后兼容旧的「只点收货」流程，不强制登记）
+     */
+    @Transactional
+    public WarehouseTransferDto receive(Long operatorId, Long transferId, ReceiveCommand command) {
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
+        return runWithTransferLock(transferId, () -> doReceive(operatorId, transferId, command));
+    }
+
+    private WarehouseTransferDto doReceive(Long operatorId, Long transferId, ReceiveCommand command) {
         WarehouseTransferOrder order = requireOrderForUpdate(transferId);
         if (!"SHIPPED".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已发运可收货");
         }
+        // 运营登记的实收/ 损耗：key = lineId → 值。缺省的行按「全部到齐」处理。
+        var reported = command == null || command.lines() == null
+                ? java.util.Map.<Long, ReceiveLine>of()
+                : command.lines().stream().collect(java.util.stream.Collectors.toMap(
+                        ReceiveLine::lineId, l -> l, (a, b) -> a));
+
         for (WarehouseTransferLine line : lineMapper.findByTransferId(transferId)) {
-            warehouseService.binStockChange(new WarehouseService.BinStockChangeCommand(
-                    order.getToWarehouseId(),
-                    new WarehouseService.LotSpec(line.getSkuId(), line.getBatchNo(), null, line.getExpiryDate()),
-                    line.getQuantity(), operatorId, "TRANSFER_IN", String.valueOf(transferId)));
+            ReceiveLine r = reported.get(line.getLineId());
+            // 校验 + 归一化（算术护栏在 TransferLossValidator，可单测）
+            TransferLossValidator.Result res = TransferLossValidator.validate(
+                    line.getQuantity(),
+                    r == null ? null : r.receivedQty(),
+                    r == null ? null : r.lossQty(),
+                    r == null ? null : r.lossReason());
+            int received = res.received();
+
+            if (received > 0) {
+                warehouseService.binStockChange(new WarehouseService.BinStockChangeCommand(
+                        order.getToWarehouseId(),
+                        new WarehouseService.LotSpec(line.getSkuId(), line.getBatchNo(), null, line.getExpiryDate()),
+                        received, operatorId, "TRANSFER_IN", String.valueOf(transferId)));
+            }
+            line.setReceivedQty(received);
+            line.setLossQty(res.loss());
+            line.setLossReason(res.lossReason());
+            line.setLossNote(r == null ? null : blankToNull(r.lossNote()));
+            lineMapper.updateById(line);
         }
         order.setStatus("RECEIVED");
         order.setReceivedAt(Instant.now());
@@ -164,6 +197,13 @@ public class WarehouseTransferService {
         auditService.appendLog(operatorId, "WH_TRANSFER_RECEIVE", TRANSFER, order.getTransferNo(), null);
         return toDto(order);
     }
+
+    /** V314 收货登记：每行可填实收/ 损耗/ 原因；未登记的行按「全部到齐」。 */
+    public record ReceiveCommand(java.util.List<ReceiveLine> lines) {}
+
+    /** V314 单行收货登记。 */
+    public record ReceiveLine(Long lineId, Integer receivedQty, Integer lossQty,
+                              String lossReason, String lossNote) {}
 
     @Transactional
     public WarehouseTransferDto cancel(Long operatorId, Long transferId) {
@@ -218,7 +258,8 @@ public class WarehouseTransferService {
         List<WarehouseTransferDto.WarehouseTransferLineDto> lines = lineMapper.findByTransferId(order.getTransferId())
                 .stream()
                 .map(l -> new WarehouseTransferDto.WarehouseTransferLineDto(
-                        l.getLineId(), l.getSkuId(), l.getBatchNo(), l.getExpiryDate(), l.getQuantity()))
+                        l.getLineId(), l.getSkuId(), l.getBatchNo(), l.getExpiryDate(), l.getQuantity(),
+                        l.getReceivedQty(), l.getLossQty(), l.getLossReason(), l.getLossNote()))
                 .toList();
         return new WarehouseTransferDto(
                 order.getTransferId(), order.getTransferNo(),
