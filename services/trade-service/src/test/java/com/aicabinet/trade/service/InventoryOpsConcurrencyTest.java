@@ -26,13 +26,16 @@ class InventoryOpsConcurrencyTest {
     @Mock private InventoryWriteOffMapper writeOffRepository;
     @Mock private MerchantOpsPolicyService opsPolicyService;
     @Mock private DistributedLockService distributedLockService;
+    /** V313 仓库侧报损依赖；设备侧用例不会调用它，但构造器需要。 */
+    @Mock private WarehouseService warehouseService;
 
     private InventoryOpsService service;
 
     @BeforeEach
     void setUp() {
         service = new InventoryOpsService(lotService, deviceValidationService, skuCatalogRepository,
-                inventoryRepository, writeOffRepository, opsPolicyService, distributedLockService);
+                inventoryRepository, writeOffRepository, opsPolicyService, distributedLockService,
+                warehouseService);
     }
 
     @Test
@@ -42,7 +45,7 @@ class InventoryOpsConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.writeOff(1L, new WriteOffRequest("CAB-INV", "SKU1", null, 1, "EXPIRED", null, null, null, null)));
+                () -> service.writeOff(1L, new WriteOffRequest("CAB-INV", null, "SKU1", null, 1, "EXPIRED", null, null, null, null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
