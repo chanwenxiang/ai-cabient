@@ -64,6 +64,8 @@ class MerchantWithdrawChannelLimitTest {
     @Mock private PayoutAccountService payoutAccountService;
     @Mock private PayoutAccountMapper payoutAccountMapper;
     @Mock private PayoutChannelRegistry payoutChannelRegistry;
+    /** V321 提现资质门禁。 */
+    @Mock private WithdrawEligibilityService withdrawEligibilityService;
     @Mock private OrderRevenueSplitMapper orderRevenueSplitMapper;
 
     private MerchantWithdrawService service;
@@ -80,7 +82,7 @@ class MerchantWithdrawChannelLimitTest {
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, merchantScopeService, permissionService, auditService,
                 distributedLockService, null, WithdrawPolicyResolver.ymlOnly(properties),
-                payoutChannelRegistry, orderRevenueSplitMapper, null);
+                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         wechatAccount = new PayoutAccount();

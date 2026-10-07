@@ -49,6 +49,7 @@ public class LineWithdrawService {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
+    private final WithdrawEligibilityService withdrawEligibilityService;
     private final LineWithdrawRequestMapper withdrawMapper;
     private final LineManagerMapper managerMapper;
     private final LineDeviceMapper deviceMapper;
@@ -87,7 +88,9 @@ public class LineWithdrawService {
                                PayoutAccountService payoutAccountService,
                                PayoutAccountMapper payoutAccountMapper,
                                PayoutChannelRegistry payoutChannelRegistry,
+                               WithdrawEligibilityService withdrawEligibilityService,
                                @Lazy LineWithdrawService self) {
+        this.withdrawEligibilityService = withdrawEligibilityService;
         this.withdrawMapper = withdrawMapper;
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
@@ -134,6 +137,10 @@ public class LineWithdrawService {
 
     public LineWithdrawRequestDto apply(long managerId, long amountCents, String requestNo) {
         LineManager manager = lineManagerService.requireManager(managerId);
+        // 🔴 V321 线长实名门禁。必须在 createWithdraw 之前 ——
+        //    createWithdraw 会开钱包锁并可能直接打款。
+        //    校验依据是 manager.user_id（线长绑定的用户），不是 managerId 本身。
+        withdrawEligibilityService.requireLineWithdrawEligible(manager.getUserId());
         return createWithdraw(manager, amountCents, requestNo, null);
     }
 
@@ -143,6 +150,9 @@ public class LineWithdrawService {
         if (!LineManagerService.STATUS_ACTIVE.equalsIgnoreCase(manager.getStatus())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "线长账号不可用");
         }
+        // 🔴 V321：走 userId 找 线长时 userId 必然非空，但保留门禁以防将来
+        //    出现「线长记录存在、user_id 为空」的数据（当前 apply 路径已能拦）。
+        withdrawEligibilityService.requireLineWithdrawEligible(userId);
         return createWithdraw(manager, amountCents, requestNo, userId);
     }
 

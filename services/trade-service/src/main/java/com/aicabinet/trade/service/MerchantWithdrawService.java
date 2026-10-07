@@ -70,6 +70,8 @@ public class MerchantWithdrawService {
     private final PayoutChannelRegistry payoutChannelRegistry;
     /** V308：T+1 可提现闸门（已入钱包但未到可提现日的金额）。 */
     private final OrderRevenueSplitMapper orderRevenueSplitMapper;
+    /** V321 提现资质门禁（实名 + 商户主体资质）。 */
+    private final WithdrawEligibilityService withdrawEligibilityService;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
@@ -99,6 +101,7 @@ public class MerchantWithdrawService {
                                    WithdrawPolicyResolver policy,
                                    PayoutChannelRegistry payoutChannelRegistry,
                                    OrderRevenueSplitMapper orderRevenueSplitMapper,
+                                   WithdrawEligibilityService withdrawEligibilityService,
                                    @Lazy MerchantWithdrawService self) {
         this.withdrawMapper = withdrawMapper;
         this.merchantMapper = merchantMapper;
@@ -118,6 +121,7 @@ public class MerchantWithdrawService {
         this.policy = policy;
         this.payoutChannelRegistry = payoutChannelRegistry;
         this.orderRevenueSplitMapper = orderRevenueSplitMapper;
+        this.withdrawEligibilityService = withdrawEligibilityService;
         this.self = self;
     }
 
@@ -227,6 +231,10 @@ public class MerchantWithdrawService {
         permissionService.requirePermission(operatorId, "ops:merchant-withdraw:adjust");
         merchantScopeService.requireMerchantAccess(operatorId, merchantId);
         Merchant merchant = requireMerchant(merchantId);
+        // 🔴 V321 商户主体资质门禁（运营代提现场景同样要过）。
+        //    ⚠️ **不查申请人实名**：这里的 submitter 是**运营人员**（operatorId），
+        //    拿运营的实名状态去代表商户资质是错的 —— 商户主体资质与操作者实名是两件事。
+        withdrawEligibilityService.requireMerchantWithdrawEligible(merchantId, null);
         return createWithdraw(merchant, amountCents, requestNo, operatorId);
     }
 
@@ -240,6 +248,10 @@ public class MerchantWithdrawService {
     public MerchantWithdrawRequestDto merchantApply(Long userId, long amountCents, String requestNo, String merchantId) {
         String resolvedMerchantId = resolveMerchantId(userId, merchantId);
         Merchant merchant = requireMerchant(resolvedMerchantId);
+        // 🔴 V321 资质门禁：必须在 createWithdraw **之前** ——
+        //    createWithdraw 会开钱包锁、可能直接执行打款（gate.shouldPayout）。
+        //    资质不合格却先打款再报错，钱已经出去了。
+        withdrawEligibilityService.requireMerchantWithdrawEligible(resolvedMerchantId, userId);
         return createWithdraw(merchant, amountCents, requestNo, userId);
     }
 

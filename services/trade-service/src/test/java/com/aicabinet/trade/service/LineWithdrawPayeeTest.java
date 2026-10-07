@@ -69,6 +69,8 @@ class LineWithdrawPayeeTest {
     @Mock private PayoutAccountService payoutAccountService;
     @Mock private PayoutAccountMapper payoutAccountMapper;
     @Mock private PayoutChannelRegistry payoutChannelRegistry;
+    /** V321 提现资质门禁。 */
+    @Mock private WithdrawEligibilityService withdrawEligibilityService;
     @Mock private MerchantWithdrawRequestMapper merchantWithdrawMapper;
     @Mock private MerchantWalletLedgerMapper merchantWalletLedgerMapper;
 
@@ -85,7 +87,7 @@ class LineWithdrawPayeeTest {
                 lineWalletService, payoutService, properties,
                 permissionService, auditService, distributedLockService, approvalWorkflowService,
                 WithdrawPolicyResolver.ymlOnly(properties),
-                payoutAccountService, payoutAccountMapper, payoutChannelRegistry, null);
+                payoutAccountService, payoutAccountMapper, payoutChannelRegistry, withdrawEligibilityService, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         wechatAccount = new PayoutAccount();

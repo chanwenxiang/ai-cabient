@@ -71,6 +71,8 @@ class MerchantWithdrawConcurrencyTest {
      * 限额行为由 {@code MerchantWithdrawChannelLimitTest} 单独覆盖。</p>
      */
     @Mock private PayoutChannelRegistry payoutChannelRegistry;
+    /** V321 提现资质门禁。 */
+    @Mock private WithdrawEligibilityService withdrawEligibilityService;
     @Mock private OrderRevenueSplitMapper orderRevenueSplitMapper;
 
     private MerchantWithdrawService service;
@@ -89,7 +91,7 @@ class MerchantWithdrawConcurrencyTest {
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, merchantScopeService, permissionService, auditService,
                 distributedLockService, null, WithdrawPolicyResolver.ymlOnly(properties),
-                payoutChannelRegistry, orderRevenueSplitMapper, null);
+                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         // V307：所有用例共用一个可用的收款账户（默认对公 + BANK 通道）。

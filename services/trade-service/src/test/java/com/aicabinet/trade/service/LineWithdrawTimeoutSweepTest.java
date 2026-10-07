@@ -46,6 +46,8 @@ class LineWithdrawTimeoutSweepTest {
     @Mock private PayoutAccountService payoutAccountService;
     @Mock private PayoutAccountMapper payoutAccountMapper;
     @Mock private PayoutChannelRegistry payoutChannelRegistry;
+    /** V321 提现资质门禁。 */
+    @Mock private WithdrawEligibilityService withdrawEligibilityService;
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
@@ -61,7 +63,7 @@ class LineWithdrawTimeoutSweepTest {
                 lineManagerService, lineWalletService, payoutService, properties,
                 permissionService, auditService, distributedLockService, null,
                 WithdrawPolicyResolver.ymlOnly(properties),
-                payoutAccountService, payoutAccountMapper, payoutChannelRegistry, null);
+                payoutAccountService, payoutAccountMapper, payoutChannelRegistry, withdrawEligibilityService, null);
         // V308：申请时必须锁定收款账户（快照），故并发/超时测试也要提供收款账户服务。
         // 用 lenient()：部分用例（锁冲突、驳回、陈旧扫描）**不会**走到申请落库，
         //    严格模式下这类未被消费的 stub 会报 UnnecessaryStubbing 而让用例变红。

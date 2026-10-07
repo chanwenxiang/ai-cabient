@@ -63,6 +63,8 @@ class MerchantWithdrawSettleGateTest {
     @Mock private PayoutAccountService payoutAccountService;
     @Mock private PayoutAccountMapper payoutAccountMapper;
     @Mock private PayoutChannelRegistry payoutChannelRegistry;
+    /** V321 提现资质门禁。 */
+    @Mock private WithdrawEligibilityService withdrawEligibilityService;
     @Mock private OrderRevenueSplitMapper orderRevenueSplitMapper;
     @Mock private ApprovalWorkflowService approvalWorkflowService;
 
@@ -78,7 +80,7 @@ class MerchantWithdrawSettleGateTest {
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, merchantScopeService, permissionService, auditService,
                 distributedLockService, approvalWorkflowService, WithdrawPolicyResolver.ymlOnly(properties),
-                payoutChannelRegistry, orderRevenueSplitMapper, null);
+                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         PayoutAccount account = new PayoutAccount();
