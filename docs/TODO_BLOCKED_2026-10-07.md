@@ -94,10 +94,11 @@ mvn -pl services/trade-service spring-boot:run
 
 | # | 项 | 前置 | 成本 |
 |---|---|---|---|
-| E1 | 缺口 #3跨仓调拨在途损耗（`WarehouseTransferLine` 无 LOST/DAMAGED） | 无 | 中 |
-| E2 | 缺口 #5 仓库侧核销 | ✅ **已完成服务层**（V313，提交 `0380661c`）——见下方 G 类遗留 | — |
+| E1 | 缺口 #3 跨仓调拨在途损耗 | ✅ **已完成（含 UI）**：V314 后端 `a2a5f4ce` + admin 登记 `39fe2e6c` | — |
+| E2 | 缺口 #5 仓库侧核销 | ✅ **已完成（含 UI）**：V313 后端 `0380661c` + admin 入口 `6199ca1e` | — |
 | E3 | 缺口 #8 供应商对账单 | **依赖 B1/B2** | 中 |
 | E4 | 缺口 #4 盘亏联动应付 | **依赖 B1/B2** | 中 |
+| E4a | 缺口 #4 的 C 方案：待索赔台账（查询端点 + 视图，V311 数据已就绪） | 仅需 B1 拍板 | 小 |
 | E5 | 缺口 #6 近效期预警 | ⚠️ **需先核实现有 `expiryAlerts` 是否覆盖仓库维度**（文档说不成立，端点已存在） | 小 |
 | E6 | 缺口 #7 采购退货原因分类 / 残次品处置 | 无 | 小 |
 | E7 | 缺口 #9 仓库月结接财务结算 | 无 | 高 |
@@ -123,9 +124,10 @@ mvn -pl services/trade-service spring-boot:run
 
 | # | 项 | 状态 | 解锁动作 |
 |---|---|---|---|
-| **G1** | **V313 全量测试** | ⏳ 跑着（提交 `0380661c` 时未跑完，**故未推送**） | 测试绿后推送 |
-| **G2** | **`WarehouseService` 新增注入的循环依赖** | ⚠️ **编译过但未启动上下文验证**。Spring 的构造器循环依赖**编译期查不出来**，只在启动时抛 `BeanCurrentlyInCreationException` | 起一次 trade-service 上下文（或跑任何 `@SpringBootTest`）确认 |
-| G3 | 仓库侧报损的 admin UI 入口 | ⬜ 服务层已就绪，**UI 未接** —— 现有入口固定传 `deviceId` | 加一个仓库选择 + 切 `warehouseId` 的表单 |
+| **G4** | ~~admin 收货弹窗未接损耗登记~~ | ✅ **已完成**（`39fe2e6c`）：损耗列**只读自动推导**，运营只填实收 | — |
+| **G1** | **V313 全量测试** | ✅ 已过：clean 全量 **1534/0**（提交 `0380661c` 后补跑并推送） | — |
+| **G2** | **`WarehouseService` 新增注入的循环依赖** | ✅ **已实证排除**：全量 1534/0，日志中 `BeanCurrentlyInCreation`/`circular reference` **零命中**，且有 **7 个 `@SpringBootTest` 真建过完整上下文** | — |
+| **G3** | 仓库侧报损的 admin UI 入口 | ✅ **已完成**（`6199ca1e`）：独立异步组件 `WarehouseWriteOffDialog.vue` + `WarehouseView` 勾选触发；chunk 126.4KB ≤ 150KB | — |
 
 ⚠️ **G2 是本轮最需要盯的一项**：`InventoryOpsService` 现在依赖 `WarehouseService`，
 若后者（直接或间接）依赖前者 ⇒ 启动即失败。
