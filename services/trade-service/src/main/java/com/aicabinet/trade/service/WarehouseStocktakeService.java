@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 
+import com.aicabinet.common.constants.StocktakeDiffReason;
 import com.aicabinet.common.dto.AdjustStocktakeRequest;
 import com.aicabinet.common.dto.CreateStocktakeRequest;
 import com.aicabinet.common.dto.PageResult;
@@ -171,6 +172,17 @@ public class WarehouseStocktakeService {
         line.setDiffQty(counted - line.getBookQty());
         line.setStatus(line.getDiffQty() == 0 ? MATCHED : "DIFF");
         line.setNotes(trimToNull(request.notes()));
+        // 🔴 V312：录入时即落分类，并**在此处**校验方向一致性 ——
+        //   这是最早的拦截点（录入时就能发现填反），比等到过账时再拦友好得多。
+        //   方向填反时统计会把「货多了」算成「货少了」，报表上很难发现。
+        String diffReason = trimToNull(request.diffReason());
+        if (!StocktakeDiffReason.matchesDirection(line.getDiffQty(), diffReason)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "盘点差异原因与差异方向不匹配（diffQty=" + line.getDiffQty()
+                            + " 表示" + (line.getDiffQty() < 0 ? "盘亏" : "盘盈")
+                            + "，但分类是 " + diffReason + "）");
+        }
+        line.setDiffReason(diffReason);
         lineRepository.save(line);
 
         if (CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus())) {
@@ -241,11 +253,26 @@ public class WarehouseStocktakeService {
             if (line.getCountedQty() != null && line.getDiffQty() != 0
                     && !ADJUSTED.equals(line.getStatus())
                     && (selected == null || selected.contains(line.getLineId()))) {
+                // 🔴 V312：先校验分类与差异方向一致，**再**过账。
+                //   顺序不能反 —— 先过账后校验失败，库存已改、分类没落，
+                //   就会留下一条「账已调但无归因」的记录，且没法自动补。
+                //   ⚠️ diffQty 是「建单时快照」算出的，而 adjustStocktake 内部
+                //   按**过账时刻账面**重算 delta（见其注释：快照会静默错账）。
+                //   方向校验用哪个都要紧；这里用 line.getDiffQty() 是因为它能
+                //   在过账前就拦住明显填反的情况。
+                if (!StocktakeDiffReason.matchesDirection(line.getDiffQty(), line.getDiffReason())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "盘点差异原因与差异方向不匹配（行" + line.getLineId()
+                                    + " diffQty=" + line.getDiffQty()
+                                    + " 表示" + (line.getDiffQty() < 0 ? "盘亏" : "盘盈")
+                                    + "，但分类是 " + line.getDiffReason() + "）");
+                }
                 warehouseService.adjustStocktake(new WarehouseService.StocktakeAdjustCommand(
                         st.getWarehouseId(),
                         new WarehouseService.LotSpec(line.getSkuId(), line.getBatchNo(),
                                 line.getProductionDate(), line.getExpiryDate()),
-                        line.getCountedQty(), operatorId, st.getStocktakeId()));
+                        line.getCountedQty(), operatorId, st.getStocktakeId(),
+                        line.getDiffReason()));
                 line.setStatus(ADJUSTED);
                 line.setAdjustedAt(Instant.now());
                 lineRepository.save(line);
@@ -441,6 +468,7 @@ public class WarehouseStocktakeService {
                 line.getDiffQty(),
                 line.getStatus(),
                 line.getNotes(),
+                line.getDiffReason(),
                 line.getAdjustedAt());
     }
 

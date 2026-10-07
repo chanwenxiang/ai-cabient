@@ -65,7 +65,7 @@ class WarehouseStockConcurrencyTest {
                 () -> service.adjustStocktake(new WarehouseService.StocktakeAdjustCommand(
                         "WH-1", new WarehouseService.LotSpec("SKU-1", "B-1",
                                 LocalDate.now(), LocalDate.now().plusDays(30)),
-                        8, 1L, 99L)));
+                        8, 1L, 99L, null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
@@ -89,7 +89,7 @@ class WarehouseStockConcurrencyTest {
                 () -> service.adjustStocktake(new WarehouseService.StocktakeAdjustCommand(
                         "WH-2", new WarehouseService.LotSpec("SKU-2", "B-2",
                                 LocalDate.now(), LocalDate.now().plusDays(30)),
-                        5, 1L, 99L)));
+                        5, 1L, 99L, null)));
 
         verify(distributedLockService).unlock(WarehouseService.stockLockKey("WH-2", "SKU-2", "B-2"));
     }

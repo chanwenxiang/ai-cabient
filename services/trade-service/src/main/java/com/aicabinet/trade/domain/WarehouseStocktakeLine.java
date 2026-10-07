@@ -28,6 +28,16 @@ public class WarehouseStocktakeLine {
     private Integer countedQty;
     private int diffQty;
     private String status = "PENDING";
+    /**
+     * V312：盘点差异原因分类（受控枚举，见 StocktakeDiffReason）。
+     *
+     * <p>🔴 与 {@code inventory_write_off.reason_category} 是**两条链路**：
+     * 这里记「账实不符的原因」，那里记「主动核销的原因」。语义不同，混用会让统计失真。
+     *
+     * <p><b>null = 未分类</b>（要治理的问题），不等于 OTHER。
+     */
+    private String diffReason;
+
     private String notes;
     private Instant adjustedAt;
 

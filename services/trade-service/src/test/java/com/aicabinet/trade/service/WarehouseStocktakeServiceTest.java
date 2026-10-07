@@ -106,7 +106,7 @@ class WarehouseStocktakeServiceTest {
         when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
         when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
 
-        var dto = service.updateLine(1L, 1L, 1L, new UpdateStocktakeLineRequest(7, null));
+        var dto = service.updateLine(1L, 1L, 1L, new UpdateStocktakeLineRequest(7, null, null));
 
         assertEquals("DIFF", dto.status());
         assertEquals(-3, dto.diffQty());
@@ -153,7 +153,7 @@ class WarehouseStocktakeServiceTest {
 
         verify(warehouseService).adjustStocktake(new WarehouseService.StocktakeAdjustCommand(
                 "WH-001", new WarehouseService.LotSpec("SKU-A", "B1", null, null),
-                7, 1L, 1L));
+                7, 1L, 1L, line.getDiffReason()));
         assertEquals("ADJUSTED", line.getStatus());
         assertEquals("ADJUSTED", st.getStatus());
         assertEquals(0, dto.diffLineCount());
@@ -281,7 +281,7 @@ class WarehouseStocktakeServiceTest {
         when(lineRepository.findById(1L)).thenReturn(Optional.of(line));
         when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
 
-        service.updateLine(1L, 1L, 1L, new UpdateStocktakeLineRequest(10, null));
+        service.updateLine(1L, 1L, 1L, new UpdateStocktakeLineRequest(10, null, null));
 
         var dto = service.completeAndAdjust(1L, 1L);
 

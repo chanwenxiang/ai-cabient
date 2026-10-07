@@ -1275,7 +1275,7 @@
         },
         {
           "file": "clients/admin-vue/src/views/reports/StockHealthView.vue",
-          "loc": 653,
+          "loc": 692,
           "hexBare": 0,
           "hexBareTop": {},
           "hexFallback": 1,

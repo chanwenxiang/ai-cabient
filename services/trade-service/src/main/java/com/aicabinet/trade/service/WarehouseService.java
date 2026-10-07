@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 
+import com.aicabinet.common.constants.StocktakeDiffReason;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
@@ -276,6 +277,16 @@ public class WarehouseService {
             if (delta == 0) {
                 return null;
             }
+            // 🔴 V312：分类必须与差异方向一致。
+            //   把盘盈分类（MISENTRY_GAIN等）填到盘亏行上，统计会把「货多了」
+            //   算成「货少了」—— 方向直接反掉，且这种错误在报表上很难看出来。
+            //   校验放在改库存**之前**：错了就不该产生任何库存变动。
+            if (!StocktakeDiffReason.matchesDirection(delta, command.diffReason())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "盘点差异原因与差异方向不匹配（delta=" + delta
+                                + " 表示" + (delta < 0 ? "盘亏" : "盘盈")
+                                + "，但分类是 " + command.diffReason() + "）");
+            }
             inv.setQuantity(current + delta);
             if (inv.getProductionDate() == null) inv.setProductionDate(lot.productionDate());
             if (inv.getExpiryDate() == null) inv.setExpiryDate(lot.expiryDate());
@@ -289,7 +300,9 @@ public class WarehouseService {
     public record LotSpec(String skuId, String batchNo, LocalDate productionDate, LocalDate expiryDate) {}
 
     public record StocktakeAdjustCommand(String warehouseId, LotSpec lot, int countedQty,
-                                         Long operatorId, Long stocktakeId) {}
+                                         Long operatorId, Long stocktakeId,
+                                         /** V312盘点差异原因分类；null = 未分类（不强制填）。 */
+                                         String diffReason) {}
 
     /** 货位操作同步仓库总库存：入库/出库调整仓库账面并记录流水；移库 delta=0 仅留痕。 */
     @Transactional
