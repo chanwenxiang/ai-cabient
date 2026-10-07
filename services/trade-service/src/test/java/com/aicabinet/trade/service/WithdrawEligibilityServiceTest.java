@@ -123,6 +123,19 @@ class WithdrawEligibilityServiceTest {
     }
 
     @Test
+    @DisplayName("🔴 提示语必须给出**能去的地方**（原实现只说「去『我的』」，那是C 端页面，商户管理员未必有）")
+    void unverifiedMessage_pointsSomewhereReachable() {
+        when(merchantRepository.findById("MCH-A")).thenReturn(Optional.of(qualifiedMerchant()));
+        when(userInfoRepository.findById(1001L)).thenReturn(Optional.of(user(false)));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().requireMerchantWithdrawEligible("MCH-A", 1001L));
+        // 必须提到「换账号」这条路 —— 否则商户管理员只能反复点同一句错。
+        assertTrue(e.getReason().contains("账号"),
+                "应提示可改用已实名账号发起：" + e.getReason());
+    }
+
+    @Test
     @DisplayName("申请人账号不存在 ⇒ 403（不是 500，也不是静默放行）")
     void applicantNotFound_isRejected() {
         when(merchantRepository.findById("MCH-A")).thenReturn(Optional.of(qualifiedMerchant()));

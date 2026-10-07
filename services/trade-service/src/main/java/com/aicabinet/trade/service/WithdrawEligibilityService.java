@@ -96,8 +96,15 @@ public class WithdrawEligibilityService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, roleLabel + "账号不存在");
         }
         if (!u.isVerified()) {
+            // 🔴 提示语**按对象分层**，且指路必须正确。
+            //   提现是**商户侧**操作，而「我的」是**C 端消费者小程序**页面——
+            //   商户管理员未必有 C 端小程序，原来的「请先在『我的』完成实名认证」
+            //   会把人指到一个去不了的页面（最坏情况：反复点、反复看到同一句错）。
+            //   ⇒ 给出**双通道**：换商户/线长账号重试，或本人在小程序完成实名。
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    roleLabel + "尚未完成实名，无法发起提现；请先在「我的」完成实名认证");
+                    roleLabel + "尚未完成实名，无法发起提现。"
+                            + "请改用已完成实名的账号发起，"
+                            + "或由本人先在消费者小程序「我的」完成实名认证");
         }
     }
 }
