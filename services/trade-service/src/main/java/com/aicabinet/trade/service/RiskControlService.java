@@ -72,6 +72,45 @@ public class RiskControlService {
         }
     }
 
+    /**
+     * 🔴 记一笔「欠款（待支付）订单」风控事件。
+     *
+     * <p><b>为什么必须记</b>：欠款路径此前<b>完全不写</b> {@code RiskEvent}
+     * ⇒ 运营台的风控事件列表只能看到纠纷与黑名单命中，<b>看不到逃单</b>
+     * ⇒ 逃单在风控视角是「隐形」的，既没法主动催缴，也没法统计逃单率。
+     *
+     * <p><b>为什么统一收口到这里</b>：欠款有<b>三个</b>落库点
+     * （结算时余额不足、扣款失败转 PENDING、信号化不足收尾），
+     * 各自散着记会漏；统一走本方法 ⇒ 事件语义一致、便于统计。
+     *
+     * @param stage 触发阶段（决定 severity）：
+     *              {@code PRE_CHARGE} =扣款前就发现余额不足（还没扣）
+     *              {@code CHARGE_FAILED} = 扣款失败转 PENDING（已尝试扣）
+     * @param amountCents 欠款金额（分）
+     */
+    public void onUnpaidOrderCreated(Long userId,
+                                      String deviceId,
+                                      String orderId,
+                                      String stage,
+                                      long amountCents) {
+        if (userId == null) {
+            return;
+        }
+        // 🔴 刻意**只记不拦**：本方法绝不能抛异常 ——
+        //   它在结算主流程里被调用，抛异常会让「欠款」升级成「结算失败」，
+        //   而欠款本身是**可继续追缴的正常状态**，不该阻断交易收尾。
+        try {
+            recordEvent(userId, deviceId, "UNPAID_ORDER", "WARN", Map.of(
+                    "orderId", orderId == null ? "" : orderId,
+                    "stage", stage == null ? "" : stage,
+                    // 🔴 金额记「元」而非分：风控事件详情是给人看的，1334 分不直观
+                    "amountYuan", String.format("%.2f", amountCents / 100.0)));
+        } catch (RuntimeException e) {
+            log.warn("record UNPAID_ORDER risk event failed userId={} orderId={} err={}",
+                    userId, orderId, e.getMessage());
+        }
+    }
+
     public void onDisputeCreated(Long userId, String sessionId) {
         recordEvent(userId, null, "DISPUTE_CREATED", "INFO", Map.of("sessionId", sessionId));
         Instant since7d = Instant.now().minus(7, ChronoUnit.DAYS);

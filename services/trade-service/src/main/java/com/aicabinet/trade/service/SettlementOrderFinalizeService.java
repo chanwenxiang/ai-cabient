@@ -41,6 +41,8 @@ public class SettlementOrderFinalizeService {
     private final VideoArchiveService videoArchiveService;
     private final DisplaySnapshotHelper displaySnapshotHelper;
     private final OpsExceptionService opsExceptionService;
+    /** 记欠款风控事件（让逃单在运营台可见）。 */
+    private final RiskControlService riskControlService;
     private final SettlementOrderSupport orderSupport;
 
     public SettlementOrderFinalizeService(ShoppingSessionMapper sessionRepository,
@@ -57,7 +59,8 @@ public class SettlementOrderFinalizeService {
                                           VideoArchiveService videoArchiveService,
                                           DisplaySnapshotHelper displaySnapshotHelper,
                                           SettlementOrderSupport orderSupport,
-                                          OpsExceptionService opsExceptionService) {
+                                          OpsExceptionService opsExceptionService,
+                                          RiskControlService riskControlService) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
@@ -73,6 +76,7 @@ public class SettlementOrderFinalizeService {
         this.displaySnapshotHelper = displaySnapshotHelper;
         this.orderSupport = orderSupport;
         this.opsExceptionService = opsExceptionService;
+        this.riskControlService = riskControlService;
     }
 
     OrderReadModel finalizeOrder(ShoppingSession session,
@@ -95,6 +99,9 @@ public class SettlementOrderFinalizeService {
         persistOrderLines(order);
 
         if (unpaid) {
+            // 🔴 记风控事件：欠款在风控台必须可见（此前完全隐形，运营既没法催缴也没法统计）
+            riskControlService.onUnpaidOrderCreated(order.getUserId(), order.getDeviceId(),
+                    order.getOrderId(), "PRE_CHARGE", order.getTotalAmountCents());
             return finishUnpaidOrder(session, order);
         }
         if (!tryChargeSettledOrder(session, order)) {
@@ -200,6 +207,9 @@ public class SettlementOrderFinalizeService {
             clearCouponSelection(order);
             order.setStatus("PENDING");
             orderRepository.save(order);
+            // 🔴 记风控事件（阶段=CHARGE_FAILED：已尝试扣款但失败，与 PRE_CHARGE 语义不同）
+            riskControlService.onUnpaidOrderCreated(order.getUserId(), order.getDeviceId(),
+                    order.getOrderId(), "CHARGE_FAILED", order.getTotalAmountCents());
             session.setOrderId(order.getOrderId());
             sessionRepository.save(session);
             videoArchiveService.archiveAfterSettlement(session);
@@ -214,6 +224,9 @@ public class SettlementOrderFinalizeService {
         clearCouponSelection(order);
         order.setStatus("PENDING");
         orderRepository.save(order);
+        // 🔴 记风控事件（信号化不足：扣款已发出但没收到回执，欠款原因与前两者都不同）
+        riskControlService.onUnpaidOrderCreated(order.getUserId(), order.getDeviceId(),
+                order.getOrderId(), "CHARGE_UNCONFIRMED", order.getTotalAmountCents());
         session.setOrderId(order.getOrderId());
         sessionRepository.save(session);
         videoArchiveService.archiveAfterSettlement(session);
