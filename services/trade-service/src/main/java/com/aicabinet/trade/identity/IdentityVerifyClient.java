@@ -31,10 +31,37 @@ public class IdentityVerifyClient {
         this.properties = properties;
     }
 
-    public void verify(String realName, String idCardLast4) {
+    /**
+     * 核验结果。
+     *
+     * @param verified 核验是否真的通过了
+     * @param mock     是否是<b>开发/测试环境</b>的假通过（mock 开启时跳过了一切校验）
+     */
+    public record VerifyOutcome(boolean verified, boolean mock) {
+        /** 🔴 只有「真核验通过」才算实名；mock 通过<b>必须</b>由调用方区别对待。 */
+        public boolean trusted() {
+            return verified && !mock;
+        }
+    }
+
+    /**
+     * 核验身份。
+     *
+     * 🔴🔴 <b>mock 时返回 {@code mock=true} 而不是静默「通过」</b>。
+     *
+     * <p>旧实现是 {@code return;} —— 调用方无法区分「核验通过」与「什么都没做」，
+     * 于是 {@code user.setVerified(true)} 在开发环境里
+     * <b>输入任意姓名 + 4 位数字即实名成功</b> ⇒ 可开通免密支付 ⇒ 🔴 可白嫖。
+     * 而 staging 恰恰是做 soak 测试的环境，风险不是假想。
+     *
+     * @throws ResponseStatusException 503 未配置第三方且mock 关闭（fail-loud，不静默放行）
+     */
+    public VerifyOutcome verify(String realName, String idCardLast4) {
         if (securityProperties.mockEnabled()) {
-            log.debug("identity verify skipped (mock-enabled)");
-            return;
+            // ⚠️ 只打 debug 且**不记录 PII**；warn 会暴露「哪些环境没接实名」，
+            //    但这类信息不该出现在常态日志里。
+            log.debug("identity verify skipped (mock-enabled) —— 结果标记为 mock，调用方不得当作真核验");
+            return new VerifyOutcome(true, true);
         }
         if (!properties.isConfigured()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.IDENTITY_VERIFY_UNAVAILABLE);
@@ -44,6 +71,11 @@ public class IdentityVerifyClient {
         if (name.isEmpty() || last4.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.IDENTITY_VERIFY_FAILED);
         }
+        return new VerifyOutcome(doVerify(name, last4), false);
+    }
+
+    /** 真实核验：返回是否通过。失败与不可达分别抛400 / 502。 */
+    private boolean doVerify(String name, String last4) {
         try {
             var spec = restClient.post()
                     .uri(properties.baseUrl().trim())
@@ -60,6 +92,7 @@ public class IdentityVerifyClient {
                 log.warn("identity verify not passed: {}", body == null ? "empty body" : body.describe());
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.IDENTITY_VERIFY_FAILED);
             }
+            return true;
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {

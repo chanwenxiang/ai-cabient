@@ -11,6 +11,8 @@ import com.aicabinet.trade.identity.IdentityVerifyClient;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AccountService {
+
+    private static final Logger log = LoggerFactory.getLogger(AccountService.class);
 
     private final UserInfoMapper userInfoRepository;
     private final UserAccountMapper userAccountRepository;
@@ -163,9 +167,18 @@ public class AccountService {
         if (user.isVerified()) {
             return self.getAccount(userId);
         }
-        identityVerifyClient.verify(request.realName(), request.idCardLast4());
+        // 🔴 V322：mock 环境下verify 返回的是「假通过」。
+        //   **不能**因此 setVerified(true) ⇒ 否则开发/测试环境里
+        //   输入任意姓名 + 4 位数字即实名成功 ⇒ 可开通免密支付 ⇒ 🔴 白嫖。
+        //   staging 恰恰是做 soak 测试的环境，风险不是假想。
+        //   ⇒ mock 时只记姓名（便于调试），verified 保持 false。
+        var outcome = identityVerifyClient.verify(request.realName(), request.idCardLast4());
         user.setName(request.realName().trim());
-        user.setVerified(true);
+        if (outcome.trusted()) {
+            user.setVerified(true);
+        } else {
+            log.warn("identity verify not trusted (mock) userId={} —— 姓名已记录但未标记为已实名", userId);
+        }
         userInfoRepository.save(user);
         return self.getAccount(userId);
     }

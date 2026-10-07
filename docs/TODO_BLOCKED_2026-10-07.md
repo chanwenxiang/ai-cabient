@@ -366,6 +366,54 @@ V321 上线后发现：提现是**商户侧**操作，而原提示写「请先�
 |---|---|---|
 | **C5** | **第三方实名核验接口文档**（字段语义 / SLA / 核验强度） | 🔴 **未取**。拿到后需复核 `isOk()` 判据是否符合契约 |
 
+### I.6 🔴 用户追问「我们没对接第三方实名校验吧？微信授权不就能实名？」
+
+####核实结论 1：第三方实名字段**从未配置**（是占位）
+- `application.yml:96-98`：`base-url: ${IDENTITY_VERIFY_BASE_URL:}`（默认**空**）
+- `infra/.env.example:19-20`：两项**都是注释掉的**
+- `isConfigured()` = `baseUrl != null && !baseUrl.isBlank()`
+⇒ **第三方实名字段是占位，从未接入。**
+
+#### 🔴🔴 核实结论 2：已修的缺陷 —— mock 环境「随便填就实名成功」
+`AccountService.doVerifyIdentity` 原代码：
+```java
+identityVerifyClient.verify(name, idCardLast4);   // 内部若 mock → 直接 return
+user.setVerified(true);                            // 🔴 无条件置真
+```
+而 `AICABINET_MOCK_ENABLED` 默认 **true** ⇒ 开发/staging 里
+**输入任意姓名 + 4 位数字即`verified=true`** ⇒ 可开通免密支付 ⇒ 🔴 **可白嫖**。
+⚠️ staging 恰恰是做 soak 测试的环境，风险不是假想。
+（生产被 `ProductionStartupValidator:119` 拦下，不会带 mock 上线。）
+
+**V322 修法**：`verify` 改返回 `VerifyOutcome{verified, mock}`，
+`trusted() = verified && !mock`；调用方**只在 `trusted()` 时**才 `setVerified(true)`，
+mock 时只记姓名 + `warn` 日志（不打PII）。
+**负向对照**：`trusted()` 不再区分 mock ⇒ `mockPass_isNotTrusted` 恰好红。
+
+#### ✅ 核实结论 3：用户提的「微信授权即实名」——**方向对，但有前置**
+| 方案 | 机制 | 成本 | 前置 |
+|---|---|---|---|
+| **A 微信官方「实名信息校验」** | 用户填姓名 + **完整身份证号** → 跳「微信城市服务」授权页（固定 appid `wx308bd2aeb83d3345`）→ 回跳带 `code` → 后端调 `intp/realname/checkrealnameinfo` | **免费** | 🔴 **须用户已在微信支付实名**；否则 `verify_openid=V_OP_NA` 直接终止 |
+| **B 第三方人脸核身** | `wx.startFacialRecognitionVerify` 活体 + 第三方比对 | 0.2~0.5 元/次 | 无前置，适用强监管 |
+
+🔴 **关键差异**：A 是**「核对」微信支付已有的实名，不能「获取」** ——
+微信官方明确「**实名信息是获取不到的，只能获取昵称与绑定手机号**」。
+⚠️ 当前设计「只传后 4 位」**连 A 都走不通**（微信要完整 `cred_id`）。
+
+⇒ **需你拍板（B8）**：
+| 选项 | 成本 | 覆盖未实名用户 | 我们要改的 |
+|---|---|---|---|
+| 维持现状 | 0 | ✅ | 🔴 等于没实名 |
+| **A 微信官方** | 免费 | ❌ 仅已实名微信支付用户 | 收完整证件号（**转发不存**）+ 跳授权页 + 调微信接口 |
+| B 第三方人脸 | 按次 | ✅ | 接 SDK |
+| **A + B**（行业标准：轻用 A、重用 B） | 按次 | ✅ | A 为主 + B 兜底 |
+
+### B8 需你拍板：实名方案选哪条
+
+| # | 问 |
+|---|---|
+| **B8** | 实名走哪条？**A（微信官方免费、但只覆盖已实名微信支付用户）/ B（第三方人脸、按次收费）/ A+B 组合** |
+
 ---
 
 ## 维护纪律
