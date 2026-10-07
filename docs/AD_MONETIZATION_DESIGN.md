@@ -339,3 +339,41 @@ GET https://api.weixin.qq.com/publisher/stat
 | 「真实投放素材须补广告标识」（旧 §3 第 4 条） | ✅ **自动消失**：微信广告组件自带标识；自有活动不属于广告 |
 | `ad_revenue_ledger` 独立账本（不挂 `RevenueSplit`） | ✅ **仍成立**（账务结构问题，与商业模式无关），但金额来源改为**腾讯结算单** |
 | 服务端防刷为「生死线」 | ⚠️ 降级：自有内容不收费 ⇒ 影响的是投放数据可信度，不是钱 |
+
+---
+
+## 13. 📌 素材怎么替换（2026-10-07 用户问「以后换活动图在哪换」）
+
+### 结论：**两个界面都已有，不用改代码**
+| 要做的事 | 界面 | 路由视图 | 后端端点 |
+|---|---|---|---|
+| **上传/替换图片或视频** | 运营台 → 增长 → **广告素材** | `views/growth/AdAssetsView.vue`（470 行） | `GET/POST /api/v2/ops/admin/ad/assets`（multipart）|
+| **把素材挂到活动上** | 运营台 → 增长 → **广告投放** | `views/growth/AdCampaignsView.vue`（568 行） | `POST /api/v2/ops/admin/ad/campaigns` |
+| 启用/停用活动 | 同上（`launch` / `stop`） | — | `POST .../campaigns/{id}/launch|stop` |
+| 素材预览/播放 | 小程序端 | — | `GET /api/v2/media/ad-assets/{assetId}` |
+
+### 🔴 换活动图的正确姿势（**不用删活动重建**）
+1. **广告素材**页 → 上传新图（或替换旧素材的标题/状态）；
+2. **广告投放**页 → 编辑该活动 → 「轮播素材（按选择顺序）」里改选素材 → 保存；
+3. 若活动已 `launch`，**重新保存即生效**（`assetIds` 是活动的一个字段，
+   小程序端每次打开都重新拉 `screenContent`，不缓存旧素材）。
+
+### 数据模型（三张表的分工）
+| 表 | 作用 | 关键字段 |
+|---|---|---|
+| `media_asset` | **素材库**（图片/视频与业务无关） | assetId / title / assetType / storageUri / durationSeconds / status |
+| `ad_campaign` | **活动**（投放对象与周期） | name / status / **channel** / deviceScope / linkUrl / startAt / endAt |
+| `ad_campaign_item` | **关联表**（活动↔素材，多对多+顺序） | campaignId / assetId / **sortOrder** |
+
+⇒ 换图 = **换关联**，不动素材本体也不动活动本体 ⇒ 同一张图可被多个活动复用。
+
+### 🔴 换素材时必须注意的两个约束
+1. **`channel` 必须选 `MINI_PROGRAM`**（否则只有柜机屏能看到）——
+   `AdCampaignService:112-113` 只允许 `CABINET_SCREEN` / `MINI_PROGRAM`。
+2. **`status` 必须是生效态且在 `startAt ~ endAt` 内** ——
+   小程序端拉不到就落占位图（会显示「未配置」角标）。
+
+### 占位图与素材的关系（别搞混）
+- `static/ad/slot-placeholder.png` 是**代码里的兜底图**，**不在素材库里**、运营换不了；
+- 它的作用是「活动没配 / 广告没配」时让位置不空着；
+- 配了活动就显示活动素材，**占位图自动不用**（`promo-slot` 三态互斥）。
