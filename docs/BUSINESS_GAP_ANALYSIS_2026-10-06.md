@@ -727,3 +727,119 @@ ChzhLockDriver.kt:94  val UNLOCK_CMD: ByteArray = "L1@200\r\n".toByteArray()
 其中**立刻能做且不依赖外部的**只有：APK 凭据体系（1 项，但需你拍板方向）、
 分享裂变（1 项）、券范围维度（1 项）等 —— 而**仓储补货整域 9 项零进展**，
 是当前最被忽略的整块。
+
+---
+
+## 12. 🔴 取证 `ego-automat-android`：弹簧机的真实识别机制是**称重传感器**，不是视觉
+
+2026-10-07 用户拉到旧系统安卓端（`D:/ideaCode/ego-automat-android`，
+HEAD `6dc9198 versoin: 4.3.11`，216 个 kt/java 源文件）后逐文件取证，**结论推翻了一个隐含假设**。
+
+### 12.1 规模与结构
+| 项 | 事实 |
+|---|---|
+| 源文件 | 216 个（`app/src`），多模块：`android_serialport_api` / `greendao_generator` / `lib` / `keystore` |
+| 厂商驱动 | **3 套并存**：`chzh8`（723 行，我们用的是这套）/ `jinyu2`（2127 行）/ `yichu2`（867 行） |
+| 串口开门命令 | `ChzhDevice8.java:412` `String command = "L1@200" + "\r\n";`（同款`L1@200`，与我们 `ChzhLockDriver.kt:94` **完全一致**） |
+
+### 12.2 🔴 核心发现：它靠**称重传感器**判断「用户拿了什么」
+`ChzhDevice8.java` 里没有 YOLO、没有摄像头识别，取货判定是**每个货道的重量差**：
+
+```
+// ChzhDevice8.java:246-248
+float caculWeight = initWeightData.get(tag) - (Float.parseFloat(abStrData) * 1000);
+weightData.put(tag, caculWeight);
+
+// ChzhDevice8.java:294（注释原文）
+// 初始重量和当前重量差值（精确到 2% 左右）在 30以上:拿走的商品，-30以下:放进去的商品
+if (weightData.get(aisle) >= 20 || weightData.get(aisle) <= -20) { ... }
+```
+
+流程是**开门时记录每个货道的初始重量 → 关门后延迟 2 秒持续读重 → 差值 ≥20g 视为「拿走」**。
+
+⇒ **这不是「视觉识别」，是「重量传感」**。两个关键推论：
+
+1. 🔴 **它无法识别「拿走了哪一件具体商品」**，只知道「第 3 货道轻了 250 克」。
+   要落到 SKU 必须靠**货道→商品的绑定关系**（我们后端的 `slot` 模型），
+   而不是识别画面。所以**我们后端的货道-商品映射比视觉更关键**。
+2. 🔴 **它天然测不出「放回去」**（代码只处理 ±20 阈值，
+   `-30以下:放进去的商品` 这句注释有，但未见对应的负向业务处理）。
+   开门柜场景下「放回」是常见动作，这条路径缺失。
+
+### 12.3 🔴 这对「改造成开门柜 + 将邑识别」的影响
+**弹簧机改开门柜后，称重传感器不再是唯一通道**，但要判断**要不要留**：
+
+| 方案 | 说明 | 风险 |
+|---|---|---|
+| **纯视觉（将邑）** | 去掉称重，靠开门/关门两帧识别算增减 | 视觉拿不到「具体是哪一件」，只能靠 SKU 识别；<br>多件同款、遮挡、手持都会错 |
+| **称重 + 视觉双通道** | 称重给「第 N 货道变化量」，视觉给「具体 SKU」 | 需要两者对账，不一致时以谁为准要定|
+| **纯称重** | 沿用旧逻辑 | 开门柜无货道（用户在门口取），**称重失去货道归属** ⇒ 不可行 |
+
+⇒ **我的判断：弹簧机改开门柜必须走「视觉为主」，称重传感器在开门柜形态下
+失去货道归属，无法沿用。** 这条要在与将邑沟通时讲清楚 ——
+否则对方会以为我们有称重通道可以复用。
+
+### 12.4 门与称重的时序耦合（改造时最容易踩的坑）
+`ChzhDevice8.java:177-189`：
+```
+// 关门后延迟一秒再传关门信息，让重量继续读取。
+Observable.timer(2000, TimeUnit.MILLISECONDS)
+        .subscribe(aLong -> { Num8DeviceData result = Num8DeviceData.doorResult(false, returnWeightData); ... });
+```
+⇒ **关门瞬间读重量是不准的**，必须等约 2 秒让称重稳定。
+若开门柜改造后照搬「关门即结算」，会在重量未稳定时取数 ⇒ 差值偏小 ⇒ 少算购入。
+
+我们 V308 的 `handleSelfTest` 里已有一条同源教训：
+`doorState` 早关会把用户锁在流程外、晚关让会话一直挂着。
+**时序问题是这类设备的通用坑，不是我们独有的。**
+
+### 12.5 给将邑的清单（更新版，替换我上一轮的说法）
+**要给的**：
+1. **串口协议现状**：`L1@200\r\n` 开门 + `DOOR=C/0/CLOSED` 回包解析（`ChzhLockDriver.kt`）
+2. **云端协议事实来源**：`MqttTopics` + `MqttDeviceClient`
+3. **云端已就绪上报端点**：`POST /internal/v1/vision/edge-results`
+4. 🔴 **旧安卓端的货道称重协议**（`ChzhDevice8.java:246/294`，含±20g 阈值与 2 秒延迟）
+
+**不用给的**：`service` / `ota` / `upload` / `video`（应用层编排，与硬件无关）。
+⚠️ `vision/` 已于2026-10-07 删除（零调用方 + 逻辑倒置），不存在「破坏对接」的风险。
+
+**采购三问**（更新）：
+1. 中间件部署在原 Android 主板（aar/SDK）还是独立边缘盒（HTTP）？
+2. 🔴 **是否给「开门帧/关门帧」两帧**？只给最终 SKU 列表则
+   `SkuDeltaCalculator` 的两帧差分用不上（这条不变，但理由现在更硬 ——
+   旧系统证明了两帧差分是可行的行业做法）。
+3. 🔴 **称重通道要不要留**？见 12.3 分析 —— 开门柜形态下建议去掉。
+
+### 12.6 未核实项
+`jinyu2`（2127 行）与 `yichu2`（867 行）两套驱动**未逐行读** ——
+如果新柜机是这两个厂商的型号，协议可能完全不同。**采购时须先确认柜机型号**。
+
+---
+
+## 13. 仓储补货域 9 项逐条核实（2026-10-07）：**2 项文档说缺但实际已有**
+
+被 `ego-automat-android` 取证触动 —— 既然 vision 层能「整层都是死代码」，
+清单也可能有过期项。逐条 grep 后**证实 2 项不成立**：
+
+| # | 缺口 | 核实结论 |
+|---|---|---|
+| ① 货损责任归属 | ❌ **真缺** | `InventoryWriteOff` 只有 deviceId/skuId/batchNo/quantity/reason/costCents/operatorId，**无 merchantId/supplierId/理赔单号** |
+| ② 盘点差异无原因分类 | ❌ **真缺** | `WarehouseService:284` reason **硬编码 `"STOCKTAKE"`**，差异无分类 |
+| ③ 跨仓调拨在途无损耗 | ❌ **真缺** | `WarehouseTransferLine` 只有 skuId/batchNo/expiry/quantity，**无 LOST/DAMAGED** |
+| ④ 盘亏不联动供应商应付 | ❌ **真缺** | `SupplierPayableService` 只 import PaySupplier/SupplierPayable，**无 writeOff 引用** |
+| ⑤ 仓库侧无核销/报废 | ❌ **真缺（但比文档描述的好）** | `InventoryOpsService.writeOff` 有完整实现（`InventoryWriteOffMapper` 都在），但入口 `deviceValidationService.requireDevice(request.deviceId())` ⇒ **只支持设备侧，仓库侧确实没有**。文档「仅设备侧」表述准确 |
+| ⑥ 仓库侧无近效期预警阈值 | ⚠️ **文档不成立** | `OpsReplenishmentController:253` 与 `MerchantPortalController:272` **都有 `expiryAlerts` 端点**；`SkuCatalog:64` 有 `nearExpiryDays = 7` + `nearExpiryPriceCents`。⇒ 不是「只有索引没有预警」，而是**已有端点**，需核实是否覆盖仓库维度 |
+| ⑦ 采购退货无原因分类/残次品处置 | 待核 | — |
+| ⑧ 供应商无对账单 | 待核 | — |
+| ⑨ 仓库月结不接财务结算 | 待核 | — |
+
+### 13.1 🔴 方法论：这份清单必须逐条重核，不能照着改
+`ego-automat-android` 那次取证暴露了一件事：
+**「文档说缺」和「实际缺」是两件事**，而我此前的工作方式是**先写清单、后按清单施工**。
+这轮 vision 层（整层死代码）与 ⑥（端点已存在）都证明清单会过期。
+
+⇒ 后续动手前**每项先 grep 一次**，代价是 5 分钟，省掉的是「改完才发现本来就有」。
+
+⚠️ 风险面：§11 的清单还剩 31 项，**可能还有类似过期项**。
+本节只核了仓储域 6/9 项，剩余 25 项**未核** ——
+不能假设「它们都是真缺」。
