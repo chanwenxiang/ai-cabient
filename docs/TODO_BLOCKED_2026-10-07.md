@@ -308,6 +308,64 @@ V321 上线后发现：提现是**商户侧**操作，而原提示写「请先�
 **负向对照**：把文案改回旧版 ⇒ `unverifiedMessage_pointsSomewhereReachable` 恰好红，
 错误信息里能看到旧的错误文案。判据有效。
 
+### I.5 核实：「小程序的实名和后端的实名怎么确认是真的」
+
+**答案：我们不自己确认，委托第三方** —— 但核实查出一个**真缺陷并已修**。
+
+#### 完整链路
+```
+小程序 verify.vue / open-prep-drawer.vue
+  → POST /verify { realName, idCardLast4 }      ← 🔴 只传「姓名 + 证件后 4 位」
+  → AccountService.verifyIdentity
+  → IdentityVerifyClient.verify(...)
+      ├─ if (securityProperties.mockEnabled()) return;    ← 跳过校验
+      ├─ if (!isConfigured()) 503                          ← baseUrl 空则拒（fail-loud）
+      └─ POST 第三方 baseUrl + X-Api-Key
+           └─ IdentityVerifyResponse{ matched, success, passed } → isOk()
+  → user.setVerified(true)                    ← 🔴 只留布尔位，无留痕
+```
+
+#### 🔴 已修的真缺陷：`isOk()` 判据过宽（且此前**零测试覆盖**）
+旧代码：`passed || matched || **success**`
+🔴 多数第三方 API 里 `success` 语义是「**请求处理成功**」而非「核验通过」。
+若第三方返回 `{success:true, passed:false}`（请求成功但核验不通过）
+⇒ **未实名用户被标记为已实名** ⇒ 可开门、可提现。
+
+改为**保守判定（宁可拒不可放）**：
+1. 只认 `passed` / `matched` 为 true；
+2. 🔴 `success` **单独为 true 一律不算通过**；
+3. 🔴 `passed` 显式 false ⇒ **一律拒**（即使 `matched=true`）——
+   测试抓到这一条，是写完实现后跑测试才发现的；
+4. 全部缺失 ⇒ 拒（不猜「没报错就是过」）。
+
+**负向对照**：恢复旧判据 ⇒ **恰好 2 例红**
+（`successAlone_isRejected` / `successTrueMatchedFalse_isRejected`）。
+
+同时加 `describe()` 字段级日志（区分「明确不通过」与「字段全缺」——
+排查方向完全不同），且**不打姓名/证件号**（PII 禁止进日志，有测试钉住）。
+
+#### ✅ 核实后确认：防线是真的（我一度误判）
+`AICABINET_MOCK_ENABLED` 默认**true**（`application.yml:82`、
+`docker-compose.apps.yml:119` 也是 `:-true`）⇒ 第一反应是「生产会跳过实名校验」。
+
+**核实后不成立**：`ProductionStartupValidator:118-121`
+`rejectMockFlagsInStrictProfile()` 第一条就是
+`if (securityProperties.mockEnabled()) throw IllegalStateException(...)`
+⇒ **production/staging 启动即失败**。它同时还拦两套提现 mock 与对账 mock。
+⚠️ 教训：默认值看起来危险，**要查到「谁在拦它」再下结论**。
+
+#### ⚠️ 三个仍然存在的弱项（**取舍，不是 bug**）
+| 弱项 | 说明 |
+|---|---|
+| 🔴 **只传证件后 4 位** | 同名 + 末 4 位碰撞概率不低 ⇒ 第三方也只能做**弱核验**。这是**隐私 ↔ 核验强度**的取舍 |
+| 🔴 **无核验留痕** | 只存 `verified` 布尔位，无「谁何时通过哪渠道核验」⇒ 改包/重放可为任意姓名+后4位拿到 `verified=true`。缓解：接口需登录态；但**无「同一用户只能实名一次/变更需重验」限制** |
+| 🔴 **第三方字段契约未取证** | 改判据的前提是「第三方的核验通过落在 `passed`/`matched` 上」⇒ **必须拿到第三方接口文档确认**（见 C5） |
+
+#### 🔴 新增待办
+| # | 项 | 状态 |
+|---|---|---|
+| **C5** | **第三方实名核验接口文档**（字段语义 / SLA / 核验强度） | 🔴 **未取**。拿到后需复核 `isOk()` 判据是否符合契约 |
+
 ---
 
 ## 维护纪律
