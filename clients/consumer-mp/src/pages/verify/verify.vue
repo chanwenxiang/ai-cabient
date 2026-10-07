@@ -7,58 +7,31 @@
         <text class="hero-sub">完成后即可扫码开门，关门自动扣款</text>
       </view>
 
+      <!--
+        V326（CB-014）：**已去掉消费者实名一步**，只保留「开通免密支付」单步。
+        依据：① 五家同行（友宝/美智微/哈哈零兽/小麦便利/丰e足食）消费者流程都是
+        「扫码 → 开门 → 拿货 → 关门自动扣款」，无一家要消费者填身份证；
+        ② 《微信支付分用户服务协议》2.3：平台只返「是否可以使用服务的结果」，
+        不含身份信息与分值 ⇒ 商家侧实名无必要且越界；
+        ③ 多一步表单 = 一道流失点（用户原话：顾客购买要实名肯定不愿意，流失客源）。
+        ⚠️ **商家侧实名保留**（WithdrawEligibilityService，提现合规）——两者不要混为一谈。
+      -->
       <view class="steps">
-        <view class="step" :class="{ done: account?.verified, active: !account?.verified }">
-          <view class="step-dot">{{ account?.verified ? '✓' : '1' }}</view>
-          <text class="step-label">实名</text>
-        </view>
-        <view class="step-line" :class="{ done: account?.verified }" />
-        <view class="step" :class="{ done: payReady, active: !!account?.verified && !payReady }">
-          <view class="step-dot">{{ payReady ? '✓' : '2' }}</view>
-          <text class="step-label">免密支付</text>
+        <view class="step" :class="{ done: payReady, active: !payReady }">
+          <view class="step-dot">{{ payReady ? '✓' : '1' }}</view>
+          <text class="step-label">开通免密支付</text>
         </view>
       </view>
 
-      <view v-if="!account?.verified" class="card">
-        <text class="card-title">实名认证</text>
-        <text class="card-desc">用于保障交易安全，信息仅用于本柜购物核验</text>
-        <text class="field-label">真实姓名</text>
-        <input
-          v-model="realName"
-          class="input"
-          aria-label="真实姓名"
-          placeholder="真实姓名…"
-          maxlength="32"
-        />
-        <text class="field-label">身份证后四位</text>
-        <input
-          v-model="idCardLast4"
-          class="input"
-          type="number"
-          maxlength="4"
-          aria-label="身份证后四位"
-          placeholder="后四位…"
-        />
-        <app-button
-          :loading="verifying"
-          :label="verifying ? '提交中…' : '下一步'"
-          @click="onVerify"
-        />
-        <text v-if="devTools" class="hint">当前仅校验格式，正式环境将对接实名核验。</text>
-        <text v-if="err" class="err">{{ err }}</text>
-      </view>
-
-      <view v-else-if="!payReady" class="card btn-stack">
+      <view v-if="!payReady" class="card">
         <text class="card-title">开通免密支付</text>
         <text class="card-desc"
-          >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text
+          >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。开通后扫码即开门，
+          关门自动扣款。</text
         >
-        <view v-if="maskedName || account?.phoneNumber" class="status-row">
-          <text class="status-label">已实名</text>
-          <text class="status-val"
-            >{{ maskedName || '已认证'
-            }}{{ account?.phoneNumber ? ` · ${maskPhone(account.phoneNumber)}` : '' }}</text
-          >
+        <view v-if="account?.phoneNumber" class="status-row">
+          <text class="status-label">登录手机号</text>
+          <text class="status-val">{{ maskPhone(account.phoneNumber) }}</text>
         </view>
         <view class="status-row">
           <text class="status-label">可用余额</text>
@@ -114,7 +87,6 @@
         <text class="done-desc">扫柜门二维码即可开门取货</text>
         <view class="done-meta">
           <text>优先支付：{{ preferredPayText }}</text>
-          <text v-if="maskedName">实名：{{ maskedName }}</text>
           <text>可用余额 {{ balanceYuan }}</text>
         </view>
         <app-button label="去扫码开门" @click="goShop" />
@@ -141,9 +113,6 @@ import { showDevTools } from '@/utils/runtime-flags';
 
 const devTools = showDevTools();
 const account = ref<AccountDto | null>(null);
-const realName = ref('');
-const idCardLast4 = ref('');
-const verifying = ref(false);
 const signing = ref(false);
 const signingAlipay = ref(false);
 const err = ref('');
@@ -159,7 +128,6 @@ const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCent
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const wechatReady = computed(() => !!account.value?.payscoreEnabled);
 const alipayReady = computed(() => !!account.value?.alipayAgreementEnabled);
-const maskedName = computed(() => maskRealName(account.value?.name));
 const preferredPayText = computed(() => {
   const ch = String(account.value?.payPreferredChannel || '').toUpperCase();
   if (ch === 'WECHAT' || ch === 'WECHAT_PAYSCORE') return '微信支付分';
@@ -169,14 +137,6 @@ const preferredPayText = computed(() => {
   if (alipayReady.value) return '支付宝免密';
   return '余额兜底';
 });
-
-function maskRealName(name?: string) {
-  const n = String(name || '').trim();
-  if (!n) return '';
-  if (n.length === 1) return n;
-  if (n.length === 2) return n[0] + '*';
-  return n[0] + '*'.repeat(n.length - 2) + n[n.length - 1];
-}
 
 function maskPhone(phone?: string | number) {
   const p = String(phone || '').replaceAll(/\D/g, '');
@@ -209,32 +169,6 @@ onShow(async () => {
     err.value = e instanceof Error ? e.message : '加载账户失败';
   }
 });
-
-async function onVerify() {
-  const name = realName.value.trim();
-  const last4 = idCardLast4.value.trim();
-  if (name.length < 2) {
-    err.value = '请输入真实姓名';
-    return;
-  }
-  if (!/^\d{4}$/.test(last4)) {
-    err.value = '身份证后四位须为 4 位数字';
-    return;
-  }
-  verifying.value = true;
-  err.value = '';
-  try {
-    account.value = await consumerApi.verifyIdentity({ realName: name, idCardLast4: last4 });
-    showSuccess('实名成功');
-    if (payReady.value && fromOpen.value) {
-      setTimeout(goShop, 600);
-    }
-  } catch (e) {
-    err.value = e instanceof Error ? e.message : '认证失败';
-  } finally {
-    verifying.value = false;
-  }
-}
 
 async function onSignPayScore() {
   signing.value = true;

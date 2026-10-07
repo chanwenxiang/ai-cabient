@@ -3,30 +3,25 @@
     <view class="drawer-panel" role="dialog" aria-label="开通引导" @click.stop>
       <view class="drawer-handle" />
       <text class="drawer-title">开通后即可开门</text>
-      <text class="drawer-sub">首次使用需完成实名与免密支付</text>
+      <!--
+        V326（CB-014）：**已去掉消费者实名一步**。
+        竞品口径：友宝/美智微/哈哈零兽/小麦便利/丰e足食 五家消费者流程都是
+        「扫码 → 开门 → 拿货 → 关门自动扣款」，厂商写的是「支付授权 / 确认用户身份（=识别账号）」，
+        **没有一家要消费者填身份证**。多一步表单就是一道流失点。
+        官方依据：《微信支付分用户服务协议》2.3 —— 平台只返「是否可以使用服务的结果」，
+        不含身份信息与分值 ⇒ 商家侧实名既无必要也越界。
+        ⚠️ 商家侧实名**保留**（WithdrawEligibilityService，提现合规），与消费者无关。
+      -->
+      <text class="drawer-sub">首次使用需开通免密支付，之后扫码即开门</text>
 
       <view class="prep-steps">
-        <view class="prep-step" :class="{ done: account?.verified }">
-          <view class="prep-dot">{{ account?.verified ? '✓' : '1' }}</view>
-          <text>实名</text>
-        </view>
-        <view class="prep-line" :class="{ done: account?.verified }" />
-        <view class="prep-step" :class="{ done: payReady }">
-          <view class="prep-dot">{{ payReady ? '✓' : '2' }}</view>
-          <text>免密支付</text>
+        <view class="prep-step" :class="{ done: payReady, active: !payReady }">
+          <view class="prep-dot">{{ payReady ? '✓' : '1' }}</view>
+          <text>开通免密支付</text>
         </view>
       </view>
 
-      <view v-if="!account?.verified" class="drawer-body">
-        <text class="drawer-desc">用于保障交易安全，信息仅用于本柜购物核验</text>
-        <text class="field-label">真实姓名</text>
-        <input v-model="realName" class="input" placeholder="与身份证一致" maxlength="32" />
-        <text class="field-label">身份证后四位</text>
-        <input v-model="idCardLast4" class="input" type="number" maxlength="4" placeholder="0000" />
-        <app-button :loading="busy" :label="busy ? '提交中…' : '下一步'" @click="onVerify" />
-      </view>
-
-      <view v-else-if="!payReady" class="drawer-body">
+      <view v-if="!payReady" class="drawer-body">
         <text class="drawer-desc">{{ payDesc }}</text>
         <view v-if="!entryChannel" class="channel-pick">
           <text class="field-label">本次扫码渠道</text>
@@ -161,8 +156,6 @@ const emit = defineEmits<{
 
 const devTools = showDevTools();
 const account = ref<AccountDto | null>(props.account);
-const realName = ref('');
-const idCardLast4 = ref('');
 const busy = ref(false);
 const err = ref('');
 const mockRechargeEnabled = ref(false);
@@ -258,33 +251,11 @@ function goRechargePage() {
 }
 
 watch(payReady, (ready) => {
-  if (ready && account.value?.verified) {
+  // V326：不再以「已实名」为开通完成的前提，只看免密支付是否就绪（CB-014）
+  if (ready) {
     emit('done', entryChannel.value);
   }
 });
-
-async function onVerify() {
-  const name = realName.value.trim();
-  const last4 = idCardLast4.value.trim();
-  if (name.length < 2) {
-    err.value = '请输入真实姓名';
-    return;
-  }
-  if (!/^\d{4}$/.test(last4)) {
-    err.value = '身份证后四位须为 4 位数字';
-    return;
-  }
-  busy.value = true;
-  err.value = '';
-  try {
-    account.value = await consumerApi.verifyIdentity({ realName: name, idCardLast4: last4 });
-    if (payReady.value) emit('done', entryChannel.value);
-  } catch (e) {
-    err.value = e instanceof Error ? e.message : '认证失败';
-  } finally {
-    busy.value = false;
-  }
-}
 
 async function onSignPayScore() {
   if (busy.value) return;

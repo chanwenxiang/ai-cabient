@@ -76,11 +76,28 @@ public class UserValidationService {
         enforceUnpaidDebtBlock(userId);
         enforceMaxInflightOrders(userId, deviceId);
 
+        // 🔴 V326（CB-014）：**已移除 `user.verified` 硬拦开门**。
+        //
+        // 为什么移除（用户 2026-10-07 拍板 + 竞品与官方双重取证）：
+        //   ① 官方：《微信支付分用户服务协议》2.3 —— 平台向商户返回的是
+        //      「是否可以使用商户服务的结果（不含你的具体个人信息或微信支付分分值）」，
+        //      判据含「是否存在尚未支付订单 / 是否超出限额」。
+        //      ⇒ **准入与逃单风控由平台替我们做**，我们不需要、也不应该拿身份信息。
+        //   ② 竞品：友宝（刷脸即核身）/美智微/哈哈零兽/小麦便利/丰e足食 五家，
+        //      消费者流程都是 **扫码 → 开门 → 拿货 → 关门自动扣款**，
+        //      厂商口径是「支付授权 / 确认用户身份（=识别账号）」，**没有一家要消费者实名**。
+        //   ③ 转化：多一步实名表单就是一道流失点（用户原话「顾客购买要实名肯定不愿意，流失客源」）。
+        //   ④ 我们自己的核验通道**从未配置**（V322 已修：mock 恒不置 verified=true）
+        //      ⇒ 该拦截等于「开发环境必然 401」，功能实际不可用。
+        //
+        // ⚠️ `user.verified` **没有变成废字段**，它仍有两处正当用途：
+        //   - `WithdrawEligibilityService:98`：提现实名（**B 端/资金合规，必须保留**）
+        //   - admin 用户列表的实名标记（运营可见）
+        //   判据：字段应服务于「我们真的需要核验的场景」，而不是「开门看一眼」。
+
+        // ⚠️ 仍需取 user：判「免密代扣是否就绪」要用它的支付分/免密签约状态（不是实名）
         UserInfo user = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        if (!user.isVerified()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.USER_NOT_VERIFIED);
-        }
 
         // 真实业务：优先按扫码渠道的免密能力开门；余额仅兜底
         if (!checkoutProperties.balanceOnly()

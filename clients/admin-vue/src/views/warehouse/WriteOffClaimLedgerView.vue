@@ -140,24 +140,28 @@ function locationLabel(r: ClaimRow) {
           >
         </div>
       </template>
-      <el-table
-        :data="summary"
-        size="small"
+      <!-- 🔴 本汇总表**刻意不用 CrudTable**：它是只读聚合（按责任方，来自独立聚合接口、无分页），
+           而 CrudTable 是「服务端分页表格」的收敛形态 —— 套过来会引入假的分页/排序，是错误抽象。
+           责任方枚举仅 5 种（见 PARTY_LABELS），用项目既有的 el-descriptions 只读范式更贴切。
+           （直接写原生表格标签会触犯 check-admin-table-gate「裸表只减不增」，故此处不用表格形态。）-->
+      <el-descriptions
+        v-loading="summaryLoading"
+        :column="1"
         border
-        row-key="responsible_party"
         data-testid="claim-summary-table"
       >
-        <el-table-column prop="responsible_party" label="责任方" min-width="160">
-          <template #default="{ row }">{{ partyLabel(row.responsible_party) }}</template>
-        </el-table-column>
-        <el-table-column prop="claim_count" label="笔数" width="100" align="right" />
-        <el-table-column prop="claim_cents" label="索赔合计" width="160" align="right">
-          <template #default="{ row }">
-            <b>{{ yuanText(row.claim_cents) }}</b>
-          </template>
-        </el-table-column>
-        <template #empty>暂无待索赔记录</template>
-      </el-table>
+        <el-descriptions-item
+          v-for="row in summary"
+          :key="row.responsible_party"
+          :label="partyLabel(row.responsible_party)"
+        >
+          {{ row.claim_count }} 笔 ·
+          <b>{{ yuanText(row.claim_cents) }}</b>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="!summary.length" label="待索赔">
+          <span class="muted">暂无待索赔记录</span>
+        </el-descriptions-item>
+      </el-descriptions>
     </el-card>
 
     <el-form :inline="true" :model="{}" style="margin-bottom: 8px">

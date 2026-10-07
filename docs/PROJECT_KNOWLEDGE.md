@@ -5,7 +5,7 @@
 > **维护 Skill**：`.cursor/skills/project-knowledge/SKILL.md`  
 > **已解决问题 Skill**：`.cursor/skills/solved-problems-playbook/SKILL.md`  
 > **封装流程 Skill**：`.cursor/skills/encapsulate-solved-problem/SKILL.md`  
-> **最后校准**：2026-09-24
+> **最后校准**：2026-10-07（§2 规模数字已按当日实测回填）
 
 ---
 
@@ -34,14 +34,18 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **304** 个脚本量级，最新 **V304** | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
-| trade Controllers | ~**84** | `*Controller.java` |
-| trade 单测 | ~**299** `*Test.java` | 含大量并发测 |
-| admin-vue 业务视图 | ~**71** `.vue` | `src/views` |
+| Flyway 迁移 | **321** 个脚本，最新 **V325** | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
+| trade Controllers | **85** | `*Controller.java` |
+| trade 单测 | **333** `*Test.java` | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
+| admin-vue 业务视图 | **77** `.vue` | `src/views` |
 | consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
 | shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
-| 踩坑总册条目 | **≥101** | `docs/engineering/lessons-learned.md` |
+| 踩坑总册条目 | **≥223** | `docs/engineering/lessons-learned.md`（末条编号 L-223） |
+| 竞品对照台账 | **14 条 / 71 个 URL** | `docs/COMPETITOR_BENCHMARK.md`；门禁 `check:competitor-benchmark` |
 | 审计门禁 | `pnpm check:audit-gates` | 新建脚本须进 `ci.yml` |
+
+> **最后校准**：2026-10-07（本节数字为**当日实测**，非估算）。
+> ⚠️ **规模数字会漂移** —— 读到过期的数字时，先按上面的命令实测再下结论，不要引用历史值。
 
 更细文件级清单：[CODEBASE_INVENTORY.md](CODEBASE_INVENTORY.md)；测试底稿：[CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)。
 
@@ -142,6 +146,7 @@ infra/                     Compose、网关、监控
 | 规则 | 作用 |
 |------|------|
 | `project-knowledge-living` | **本活文档**：必读必补 |
+| `competitor-benchmark-before-code` | **写业务代码前先对照竞品/官方做法**；台账 [`COMPETITOR_BENCHMARK.md`](COMPETITOR_BENCHMARK.md)；门禁 `check:competitor-benchmark` |
 | `project-core` | 模块 / API / Flyway / 文案 |
 | `record-lessons-learned` | 踩坑三列表 |
 | `use-skills-and-mcp` / `dev-test-toolchain` | Skill+MCP 路由 |

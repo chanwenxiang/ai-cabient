@@ -35,6 +35,22 @@ public class RiskControlService {
     private final ObjectMapper objectMapper;
     private final DistributedLockService distributedLockService;
 
+    /**
+     * V325（CB-011）欠款催缴阶梯：判「是否已到冻结免密先享档」。
+     *
+     * <p>🔴 用 <b>setter 可选注入</b>而非构造器参数，原因是本类的既有单测
+     * （{@code RiskControlServiceUnpaidTest}）按 6 参构造器实例化；
+     * 改构造器会让「与本次改动无关的测试」被迫修改 ⇒ 掩盖真实破坏面。
+     * 为 null 时阶梯校验整体跳过（退化为 V324 的行为），不阻断既有用法。
+     */
+    private UnpaidDunningService unpaidDunningService;
+
+    /** 由 Spring 在容器装配完成后注入（{@code @Autowired(required=false)} 语义）。 */
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setUnpaidDunningService(UnpaidDunningService unpaidDunningService) {
+        this.unpaidDunningService = unpaidDunningService;
+    }
+
     public RiskControlService(RiskControlProperties properties,
                               UserBlacklistMapper blacklistRepository,
                               RiskEventMapper riskEventRepository,
@@ -62,6 +78,17 @@ public class RiskControlService {
                                 ? "" : "：" + bl.getReason()));
             }
         });
+
+        // V325（CB-011）：欠款阶梯达到「冻结免密先享」⇒ 限制再次开柜。
+        // 🔴 为什么在这里拦而不是下单时：CB-011 的判据是「累计欠款次数」，
+        //   而消费前那一刻用户还没产生新欠款，拦不住逃单 ⇒ 只能拦「再次开门」。
+        // 🔴 绝不越界（CB-011 合规红线）：只做**本平台**行为限制，
+        //   不跨商户/全平台、不上报征信 —— 我们无持牌资质。
+        if (unpaidDunningService != null && unpaidDunningService.isPreauthRestricted(userId)) {
+            recordEvent(userId, deviceId, "UNPAID_TIER_RESTRICTED", "WARN", Map.of());
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    ApiMessages.USER_BLACKLISTED + "（存在多笔未支付订单，请先结清）");
+        }
 
         Instant since1h = now.minus(1, ChronoUnit.HOURS);
         long recentOpens = sessionRepository.countByUserIdAndCreatedAtAfter(userId, since1h);

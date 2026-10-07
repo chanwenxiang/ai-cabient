@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/auth';
 import CrudTable from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 interface ExpiryAlertRow {
   inventoryId: number;
@@ -67,11 +68,13 @@ function daysText(row: ExpiryAlertRow): string {
   return `剩 ${d} 天`;
 }
 
+// 🔴 文案统一走 shared-dict（expiry_urgency），与后端 WarehouseExpiryAlert.urgency 一一对应。
+//    此前在此硬编码 4 个中文标签，触犯 local/no-hardcoded-status-label（CI lint 会红）。
 const URGENCY_LABEL: Record<string, string> = {
-  EXPIRED: '已过期',
-  URGENT: '紧急（≤7天）',
-  SOON: '临近（≤30天）',
-  NORMAL: '正常'
+  EXPIRED: displayLabel('expiry_urgency', 'EXPIRED'),
+  URGENT: displayLabel('expiry_urgency', 'URGENT'),
+  SOON: displayLabel('expiry_urgency', 'SOON'),
+  NORMAL: displayLabel('expiry_urgency', 'NORMAL')
 };
 
 function onFilterChange() {

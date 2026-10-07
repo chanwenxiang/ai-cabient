@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.UnpaidDunningRecordMapper">
+
+  <!--
+    行锁读取：阶梯递增必须串行。
+    为什么必须 FOR UPDATE：并发下两个欠款事件同时 read-modify-write 会丢计数
+    （铁律：并发路径先想清楚再写，别靠"概率低"）。
+    与 UserBlacklistMapper 同模式 —— 锁只在事务内有效，调用方须保证在 @Transactional 内。
+  -->
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.UnpaidDunningRecord">
+    <![CDATA[
+    SELECT d.* FROM unpaid_dunning_record d WHERE d.user_id = #{userId} FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

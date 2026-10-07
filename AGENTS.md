@@ -9,6 +9,7 @@
 3. 写代码/测试 → 跟 Skill [`ai-cabinet-dev-test`](.cursor/skills/ai-cabinet-dev-test/SKILL.md)
 4. 已解决问题 → Skill `solved-problems-playbook`；修完封装 → `encapsulate-solved-problem`
 5. **`git push` 前** → `node scripts/pre-push-ci-preflight.mjs`（规则 `pre-push-ci-green`；Skill `pre-push-ci-preflight`）
+6. **写业务代码前** → 先读 [`docs/COMPETITOR_BENCHMARK.md`](docs/COMPETITOR_BENCHMARK.md) 并按规则 `competitor-benchmark-before-code` 检索竞品/官方做法；新建业务表的迁移头必须写 `-- COMPETITOR_REF: CB-xxx`
 
 ## 强制规则（已 alwaysApply）
 
@@ -16,6 +17,7 @@
 |----------|------|
 | `.cursor/rules/pre-push-ci-green.mdc` | **推送前预检** format/lint/门禁；禁止盲推 |
 | `.cursor/rules/critical-judgment.mdc` | **先判断再执行**；不合理先建议，不盲目照做 |
+| `.cursor/rules/competitor-benchmark-before-code.mdc` | **写业务代码前先查竞品/官方做法**，结论入 `docs/COMPETITOR_BENCHMARK.md`；门禁 `check:competitor-benchmark` |
 | `.cursor/rules/project-knowledge-living.mdc` | 活文档必读必补 + WorkBuddy 索引 |
 | `.cursor/rules/project-core.mdc` | 模块 / API / Flyway |
 | `.cursor/rules/use-skills-and-mcp.mdc` | Skill+MCP 先匹配 |

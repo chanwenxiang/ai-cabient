@@ -141,6 +141,10 @@ aicabinet:
     consumer-subscribe-template-id: ${WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE:}
     consumer-notify-page: pages/messages/messages
   notify:
+    # 🔴 sms-enabled 是**欠款短信催缴的总闸**（V326）：开着才可能发催缴短信。
+    #    三道门全开才有短信：① 本开关 ② 模板 channels 含 SMS（V325 已 seed）③ 短信通道已配置
+    #    （`aicabinet.auth.sms.provider`）。默认 false = 只落站内信。
+    #    ⚠️ 运营台暂无该开关的图形入口，只能环境变量 + 重启（已知缺口）。
     wechat-enabled: ${NOTIFY_WECHAT_ENABLED:false}
     sms-enabled: ${NOTIFY_SMS_ENABLED:false}
     async-enabled: ${NOTIFY_ASYNC_ENABLED:false}

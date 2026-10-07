@@ -66,6 +66,7 @@ public class UnpaidOrderService {
     private final DistributedLockService distributedLockService;
     private final ApiRateLimitService apiRateLimitService;
     private final OpsExceptionService opsExceptionService;
+    private final UnpaidDunningService unpaidDunningService;
 
     public UnpaidOrderService(CabinetOrderMapper orderRepository,
                               CabinetOrderLineMapper orderLineRepository,
@@ -88,7 +89,8 @@ public class UnpaidOrderService {
                               NotificationService notificationService,
                               DistributedLockService distributedLockService,
                               ApiRateLimitService apiRateLimitService,
-                              OpsExceptionService opsExceptionService) {
+                              OpsExceptionService opsExceptionService,
+                              UnpaidDunningService unpaidDunningService) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.userInfoRepository = userInfoRepository;
@@ -111,10 +113,17 @@ public class UnpaidOrderService {
         this.distributedLockService = distributedLockService;
         this.apiRateLimitService = apiRateLimitService;
         this.opsExceptionService = opsExceptionService;
+        this.unpaidDunningService = unpaidDunningService;
     }
 
     /**
      * 催付：微信订阅消息在事务外发送，避免占用 DB 连接等待渠道。
+     *
+     * <p>V325：<b>新增短信通道</b>（{@link UnpaidDunningService#remindBySms}）。
+     * 原因（CB-003）：微信订阅消息<b>需用户主动订阅</b> ⇒ 最该被催的逃单者恰恰收不到；
+     * {@code user_info} 必有手机号（登录要短信验证码），短信是唯一无条件可达通道。
+     *
+     * <p>微信与短信都尝试：微信已订阅时命中率高，短信是无条件兜底。
      */
     public UnpaidOrderActionResultDto remind(Long operatorId, String orderId) {
         permissionService.requirePermission(operatorId, "ops:order:remind");
@@ -145,6 +154,15 @@ public class UnpaidOrderService {
                     ));
             message = sent ? "催付订阅消息已发送" : "催付发送失败（请检查小程序订阅配置），已记审计";
         }
+        // V325：微信没命中（或用户根本没订阅）时走短信兜底 —— 人工催缴 force=true 跳过 24h 节流
+        UnpaidDunningService.DunningResult sms = unpaidDunningService.remindBySms(order, true);
+        boolean wechatSent = sent;
+        if (sms.smsSent()) {
+            sent = true;
+            message = "催付短信已发送" + (wechatSent ? "（微信订阅消息亦已发送）" : "（微信未订阅，已用短信兜底）");
+        } else if (sms.message() != null && !sms.message().isBlank()) {
+            message = message + "；短信：" + sms.message();
+        }
         auditService.appendLog(operatorId, "ORDER_REMIND", ORDER, orderId, message);
         return new UnpaidOrderActionResultDto(orderId, order.getStatus(), message, sent, false);
     }
@@ -169,6 +187,9 @@ public class UnpaidOrderService {
             auditService.appendLog(operatorId, "ORDER_CANCEL_UNPAID", ORDER, orderId,
                     reason + (blacklist ? "；已拉黑用户 30 天" : ""));
             log.info("unpaid order cancelled order={} by={} blacklist={}", orderId, operatorId, blacklist);
+            // V325（CB-011）：关单是「欠款成立」的判定点 ⇒ 阶梯在此推进，而非下单时。
+            // 放在事务内是有意的：阶梯与关单要么都成、要么都回滚，避免「关了单但阶梯没涨」。
+            unpaidDunningService.recordUnpaidAndEscalate(order.getUserId());
             return new UnpaidOrderActionResultDto(orderId, STATUS_CANCELLED,
                     blacklist ? "已关单并拉黑用户 30 天" : "待支付订单已关闭，库存已回滚", false, blacklist);
         });
@@ -240,6 +261,50 @@ public class UnpaidOrderService {
         return n;
     }
 
+    /**
+     * 🔴 V325 自动短信催缴（CB-003）：扫 PENDING 欠款单，逐笔发催缴短信。
+     *
+     * <p>竞品依据：服务商侧实操是「每天自动重扣 + 每天催款短信」；支付宝芝麻先享
+     * 是「首次发起 7 天内未扣成即转已逾期」⇒ 催缴窗口应在超时关单（默认 48h）**之前**，
+     * 否则单子已被关掉、用户也没东西可缴了。
+     *
+     * <p>所以这里的取单窗口 = {@code [now - 关单阈值, now)} 之前**已存在**的 PENDING 单，
+     * 且逐笔由 {@code UnpaidDunningService} 做 24h 节流。
+     *
+     * @return 本次实际发出短信的笔数
+     */
+    public int autoRemindUnpaidOrders() {
+        int hours = systemConfigService.getInt(SystemConfigService.UNPAID_AUTO_CANCEL_HOURS, 48);
+        if (hours <= 0) {
+            // 自动关单已关闭 ⇒ 单子会一直 PENDING。此时仍需催缴，但不再以关单阈值当窗口上限。
+            hours = 72;
+        }
+        // 只催「刚超过最短催缴窗口」的单：0.5×阈值 起算，避免刚下单就被催（用户还没走到结算）
+        int windowHours = Math.max(1, hours / 2);
+        Instant since = Instant.now().minus(windowHours, ChronoUnit.HOURS);
+        List<CabinetOrder> candidates = orderRepository.findByStatusAndCreatedAtBefore(
+                STATUS_PENDING, Instant.now(), 200);
+        int sent = 0;
+        for (CabinetOrder order : candidates) {
+            if (order.getCreatedAt() == null || order.getCreatedAt().isAfter(since)) {
+                continue;
+            }
+            try {
+                // force=false：走 24h 节流，避免同一用户被反复短信轰炸（CB-004 法律红线）
+                if (unpaidDunningService.remindBySms(order, false).smsSent()) {
+                    sent++;
+                }
+            } catch (Exception ex) {
+                // 单笔失败不能中断整批：其余用户仍需被催到
+                log.warn("auto dunning failed order={}", order.getOrderId(), ex);
+            }
+        }
+        if (sent > 0) {
+            log.info("auto dunning sent count={} windowHours={}", sent, windowHours);
+        }
+        return sent;
+    }
+
     /** CHARGE_PENDING 超过该分钟数仍未收口即告警转人工（正常回执为秒级）。 */
     static final int CHARGE_PENDING_ALERT_MINUTES = 60;
 
@@ -307,6 +372,9 @@ public class UnpaidOrderService {
 
     private void markPaid(CabinetOrder order, String requestedChannel) {
         hydrate(order);
+        // V325（CB-011）：欠款还清 ⇒ 阶梯降级，让「反复逃单」可被识别的同时**允许用户恢复使用**
+        //（否则等于永久失信；CB-011 明确冻结的是「该平台免密能力」而非征信）。
+        unpaidDunningService.onUnpaidCleared(order.getUserId());
         // F1-C 净额三分支：PENDING 单可能带有预授权冲抵净额（F1 竞态保留），补扣只收差额。
         // （原护栏按「净额≠0 即 CONFLICT」实现，但 PREAUTH_CAPTURE 行 order_id 曾为 null 使其失明——
         //   2026-10-02 F1-A 挂单+计入净额后，此处升级为净额三分支。）

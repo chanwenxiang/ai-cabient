@@ -147,7 +147,13 @@ if (adminSrcChanged || full) {
     console.log(
       'Windows 跳过 build-admin 产物比对：Vite 内容哈希与 Linux CI 不同（lessons #287）。'
     );
-    console.log('admin-artifacts 以 GitHub Linux 重建为准；提交产物请用 Docker node:24 构建。');
+    console.log('admin-artifacts 以 GitHub Linux 重建为准。');
+    // 🔴 不能只写「请用 Docker 构建」——纯文字提示没有可执行入口，
+    //    实际结果是每次都漏提交产物、CI 的 admin-artifacts job 每次都红
+    //    （与「沉默开关」同型：能力存在但没人知道怎么用）。
+    console.log('Windows 本地重建产物（node:24容器，不碰宿主 node_modules，铁律 30）：');
+    console.log('    bash scripts/build-admin-docker.sh');
+    console.log('  然后**把 static/admin 一并提交** —— CI 会做字节比对。');
   } else {
     console.log('\n── admin 源码有改动 → 重建产物并核对（对齐 admin-artifacts job）──');
     run('build-admin', node, [resolve(root, 'scripts/build-admin.mjs')]);

@@ -48,6 +48,8 @@ class UnpaidOrderConcurrencyTest {
     @Mock private DistributedLockService distributedLockService;
     @Mock private ApiRateLimitService apiRateLimitService;
     @Mock private OpsExceptionService opsExceptionService;
+    /** V325：欠款催缴阶梯（CB-011）。用 mock 避免本测试关心短信副作用。 */
+    @Mock private UnpaidDunningService unpaidDunningService;
 
     private UnpaidOrderService service;
 
@@ -60,7 +62,7 @@ class UnpaidOrderConcurrencyTest {
                 riskControlService, systemConfigService, weChatMiniAppClient,
                 weChatMiniAppProperties, settlementService, consumerPreauthService,
                 notificationService, distributedLockService, apiRateLimitService,
-                opsExceptionService);
+                opsExceptionService, unpaidDunningService);
     }
 
     @Test
