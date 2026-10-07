@@ -106,6 +106,12 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
   const returnForm = reactive<WarehousePurchaseRow>({
     purchaseOrderId: null,
     notes: '',
+    // ---- V318 归因字段 ----
+    // 🔴 刻意**不给默认值**：空 =「未分类/未认定」，是需治理的状态；
+    //   默认填 OTHER 就是假数据，会让「退得最多的是谁」这个问题失去意义。
+    reasonCategory: null,
+    responsibleParty: null,
+    defective: null,
     lines: []
   });
 
@@ -383,6 +389,11 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
     Object.assign(returnForm, {
       purchaseOrderId: null,
       notes: '',
+      // 🔴 V318：归因字段**必须一起重置** —— 漏了会残留上一次填的值，
+      // 运营以为在给新单选分类、实际沿用旧的（这种「默认值残留」最难发现）。
+      reasonCategory: null,
+      responsibleParty: null,
+      defective: null,
       lines: []
     });
     returnDialog.value = true;
@@ -400,6 +411,11 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
       returnForm.purchaseOrderId = first?.purchaseOrderId || null;
       returnForm.notes = '';
       returnForm.lines = [];
+      // 🔴 同上：预载后**再重置一次**归因字段（Object.assign 已在开头做过，
+      //   但这段是预载成功后的兜底赋值，两处都要覆盖才算完整）。
+      returnForm.reasonCategory = null;
+      returnForm.responsibleParty = null;
+      returnForm.defective = null;
       if (first) onReturnPoChange(first.purchaseOrderId);
     } finally {
       deps.dialogBootLoading.value = false;
@@ -444,6 +460,11 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
       await api.request(AdminEndpoints.purchaseReturns, 'POST', {
         purchaseOrderId: returnForm.purchaseOrderId,
         notes: returnForm.notes,
+        // V318 归因字段：null 直传（后端 trimToNull 处理），
+        // **不用 `|| undefined`**—— 那会把「明确留空」与「没这个字段」混成一样。
+        reasonCategory: returnForm.reasonCategory || undefined,
+        responsibleParty: returnForm.responsibleParty || undefined,
+        defective: returnForm.defective ?? undefined,
         lines: lines.map((l: WarehousePurchaseRow) => ({
           purchaseLineId: l.purchaseLineId,
           quantity: l.quantity

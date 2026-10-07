@@ -2813,7 +2813,7 @@
         },
         {
           "file": "clients/admin-vue/src/components/warehouse/WarehousePurchaseDialogs.vue",
-          "loc": 480,
+          "loc": 551,
           "hexBare": 0,
           "hexBareTop": {},
           "hexFallback": 0,
@@ -2823,7 +2823,7 @@
             "4px": 1
           },
           "inlineStyleHex": 0,
-          "styleAttrAll": 6,
+          "styleAttrAll": 9,
           "btnNative": 0,
           "btnApp": 0,
           "emptyCmp": 0,

@@ -100,7 +100,7 @@ mvn -pl services/trade-service spring-boot:run
 | E4 | 缺口 #4 盘亏联动应付 | **依赖 B1/B2** | 中 |
 | E4a | 缺口 #4 的 C 方案：待索赔台账 | ✅ **已完成（后端 + UI）**：端点 `f70e3e8d` + 台账页 `WriteOffClaimLedgerView.vue`（含按责任方汇总） | — |
 | E5 | 缺口 #6 近效期预警 | ⚠️ **需先核实现有 `expiryAlerts` 是否覆盖仓库维度**（文档说不成立，端点已存在） | 小 |
-| E6 | 缺口 #7 采购退货原因分类 / 残次品处置 | 无 | 小 |
+| E6 | 缺口 #7 采购退货原因分类 / 残次品处置 | ✅ **已完成（后端+UI）**：V318 三列（`reason_category`/`responsible_party`/`defective_flag`）+ 退货弹窗录入 | — |
 | E7 | 缺口 #9 仓库月结接财务结算 | 无 | 高 |
 | E8 | 缺口 #4 广告收入入账（切片 4，**动资金**） | 需先开通流量主（B5） | 中 |
 | E9 | 分享/邀请裂变（`inviteCode`/`invitedBy` 仍是死字段） | 无 | 中 |

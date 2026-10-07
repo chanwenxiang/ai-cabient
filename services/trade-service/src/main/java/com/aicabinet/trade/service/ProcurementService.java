@@ -348,6 +348,12 @@ public class ProcurementService {
         ret.setSupplierId(order.getSupplierId());
         ret.setStatus("COMPLETED");
         ret.setNotes(trimToNull(request.notes()));
+        // ---- V318：退货原因分类 / 责任方 / 残次品标记 ----
+        // 🔴 不做校验也不给默认值：留 null = 「未分类/未认定」是**可治理的状态**，
+        //   填错成 OTHER 则是**假数据**（会让「退得最多的是谁」这个问题失去意义）。
+        ret.setReasonCategory(trimToNull(request.reasonCategory()));
+        ret.setResponsibleParty(trimToNull(request.responsibleParty()));
+        ret.setDefectiveFlag(request.defective());
         ret.setOperatorId(operatorId);
         ret.setCreatedAt(Instant.now());
         ret = purchaseReturnRepository.save(ret);
@@ -632,6 +638,11 @@ public class ProcurementService {
                 ret.getSupplierId(),
                 ret.getStatus(),
                 ret.getNotes(),
+                // V318：归因字段必须回传，否则前端看不到「填了没有」，
+                // 分类会退化成永远为空的死字段。
+                ret.getReasonCategory(),
+                ret.getResponsibleParty(),
+                ret.getDefectiveFlag(),
                 ret.getOperatorId(),
                 ret.getCreatedAt(),
                 purchaseReturnLineRepository.findByReturnIdOrderByLineIdAsc(ret.getReturnId()).stream()

@@ -273,6 +273,55 @@
         <el-form-item label="备注">
           <el-input v-model="returnForm.notes" type="textarea" placeholder="退货备注" />
         </el-form-item>
+        <!--
+          V318：退货原因分类 / 责任方 / 残次品。
+          🔴 三者都**允许留空** —— 「未分类/未认定」是可治理的状态，
+             强制填写会让人为过校验随便选一个，假分类会让「退得最多的是谁」失去意义。
+        -->
+        <el-form-item label="退货原因">
+          <el-select
+            v-model="returnForm.reasonCategory"
+            clearable
+            placeholder="未分类（待补）"
+            style="width: 100%"
+            data-testid="return-reason-category"
+          >
+            <el-option
+              v-for="(label, value) in RETURN_CATEGORY_LABELS"
+              :key="value"
+              :label="label"
+              :value="value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="责任方">
+          <el-select
+            v-model="returnForm.responsibleParty"
+            clearable
+            placeholder="尚未认定"
+            style="width: 100%"
+            data-testid="return-responsible-party"
+          >
+            <el-option
+              v-for="(label, value) in RETURN_PARTY_LABELS"
+              :key="value"
+              :label="label"
+              :value="value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="是否残次品">
+          <el-select
+            v-model="returnForm.defective"
+            clearable
+            placeholder="未标记"
+            style="width: 100%"
+            data-testid="return-defective"
+          >
+            <el-option :value="true" label="是（商品本身有问题，需供应商理赔）" />
+            <el-option :value="false" label="否（我方不要，如滞销/买多）" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <div class="table-scroll">
         <el-table :data="returnForm.lines" class="receive-table">
@@ -387,6 +436,28 @@ const purchaseFieldErrors = defineModel<{
 }>('purchaseFieldErrors', { required: true });
 const receiveForm = defineModel<WarehousePurchaseRow>('receiveForm', { required: true });
 const returnForm = defineModel<WarehousePurchaseRow>('returnForm', { required: true });
+
+/**
+ * V318：退货原因分类标签（枚举语义与后端 `WriteOffReasonCategory` **刻意对齐**，
+ * 这样「报废原因」在报损链路与退货链路上可合并统计）。
+ */
+const RETURN_CATEGORY_LABELS: Record<string, string> = {
+  EXPIRED: '过期/临期',
+  DAMAGED: '外力损坏',
+  LOST: '运输丢失',
+  SHORT_SUPPLIED: '错发/少发（供方责任）',
+  DAMAGED_IN_TRANSIT: '运输中破损',
+  OTHER: '其他'
+};
+
+/** V318：责任方。区分「尚未认定」与「认定无责任方」—— 追责只能对前者发起。 */
+const RETURN_PARTY_LABELS: Record<string, string> = {
+  SUPPLIER: '供应商',
+  LOGISTICS: '物流',
+  MERCHANT: '商户',
+  NONE: '无责任方（滞销/买多）',
+  UNDETERMINED: '待判定'
+};
 const emit = defineEmits<{
   'update:purchaseDialog': [value: boolean];
   'update:receiveDialog': [value: boolean];
