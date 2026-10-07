@@ -7,6 +7,7 @@ import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.OpsCsvExportService;
+import com.aicabinet.trade.service.WriteOffClaimLedgerService;
 import com.aicabinet.trade.service.OpsReplenishmentAdminService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +37,8 @@ class OpsReplenishmentControllerTest {
     @Mock OpsReplenishmentAdminService replenishmentAdminService;
     @Mock OpsCsvExportService csvExportService;
     @Mock FileAttachmentService fileAttachmentService;
+    /** V311 配套待索赔台账（缺口 #4 方案 C）。 */
+    @Mock WriteOffClaimLedgerService writeOffClaimLedgerService;
     @Mock HttpServletRequest request;
 
     private OpsReplenishmentController controller;
@@ -43,7 +46,7 @@ class OpsReplenishmentControllerTest {
     @BeforeEach
     void setUp() {
         controller = new OpsReplenishmentController(
-                replenishmentAdminService, csvExportService, fileAttachmentService);
+                replenishmentAdminService, csvExportService, fileAttachmentService, writeOffClaimLedgerService);
     }
 
     @Test

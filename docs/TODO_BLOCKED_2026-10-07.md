@@ -143,3 +143,58 @@ mvn -pl services/trade-service spring-boot:run
 3. **未实跑的迁移不算完成**（A1/A2）。
 4. **未启动验证的 Spring Bean 改动不算完成**（G2）—— 编译绿不等于上下文能建起来。
 5. **F1 是元问题**：如果 F1 做完发现清单大面积过期，本文件需整体重写。
+---
+
+## 📌 2026-10-07 16:10 追加：老系统取证 ⇒ B2 已答，A/C 方案定型
+
+### B2（批次→采购单追溯）—— **老系统给了答案：它压根没有采购模块**
+用户答「同 SKU 是多供应商」。我再去 `D:/ideaCode/easygo/ego-automat` 取证：
+
+| 事实 | 证据 |
+|---|---|
+| **20 个模块里零个采购/供应商模块** | `ls` 无 purchase/supplier/procure/stock 模块 |
+| 「Supplier」仅 3 处命中，**全是支付宝 SDK 无关类** | `AlipayEcoEduJzPostPublishModel` 等 |
+| 采购单 `ego_deliver_order` 关联的是 **`user_contect_mobile`（供货商手机号）** | `OptStockOptorRecordRepository:70`、`DeliverPurchaseOrder:42` |
+| 损耗记法：`stock_type in (-6,-7)` + `remark` 自由文本 | `getStockLoss` 查询 |
+
+🔴 **两个关键推论**：
+1. **老系统供货商是「按人/手机号」而非「按 SKU→供应商」**
+   ⇒ 它**没有**「同一 SKU 属于哪个供应商」的概念，**我们不该照抄这个模型**。
+2. **老系统也没有批次→采购单的追溯链**
+   ⇒ 方案 A（补`purchase_order_id`）是**我们比老系统更强的一步**，不是对齐。
+
+### A/C 方案定型（用户问「A 和 C 是什么」）
+| | 方案 A 治本 | 方案 B 近似（已否） | **方案 C（推荐，已确定走这条）** |
+|---|---|---|---|
+| 做什么 | 给`DeviceSkuLot`/`WarehouseInventory` 补 `purchase_order_id`，盘亏可**精确**冲减某个供应商应付 | 按 SKU 找未结清应付单冲减 | **先做「责任归属 + 待索赔台账」**（V311 已存 `responsible_party`/`claim_no`/`claim_amount_cents`），追偿实际发生再走支付 |
+| 前置 | 需业务确认「入库时能否确定采购单」 | 无 | **仅需 B1 拍板** |
+| 风险 | 若同 SKU 多供应商且合并入库 ⇒ **不成立** | 🔴 **可能冲错供应商的钱** | 零资损风险 |
+| 成本 | 中（2表 + 所有入库路径 + 回填） | 小 | **小**（查询端点 + 台账视图） |
+
+⇒ **用户已答「同 SKU 是多供应商」⇒ A 的精确归属不可靠**（一个批次可能横跨多个采购单）
+⇒ **确定：先C（待索赔台账），A 降级为「若将来单一 SKU 锁定单一供应商」时的可选项**。
+
+### B3（APK 签名）—— **已取证：SHA-256 有，APK 签名校验无**
+- `edge/android-app/app/build.gradle.kts`（97 行）**无 `signingConfigs` / `buildTypes.release` 配置**
+- `OtaChecker.downloadAndVerify`（`:202-208`）**只校验 SHA-256**，
+  不匹配就 `apk.delete()` —— 这一半做得对
+- 🔴 全仓 `GET_SIGNATURES` / `signingInfo` **零命中** ⇒ **下载的 APK 没有任何签名校验**
+
+⚠️ 风险分级（比原描述更精确）：
+| 威胁 | 是否成立 | 说明 |
+|---|---|---|
+| 下载被篡改 | ✅ **已防** | SHA-256 拦住 |
+| **任何人自己签名一个 APK 推给设备** | 🔴 **成立** | 攻击者控制下发通道即可；SHA-256 也会跟着他改 |
+| debug key 签名 | 🔴 **成立** | 正式上架/商用不可用 |
+
+⇒ **待你拍板**：(a) 签名证书怎么走（自建 / 第三方托管）；
+(b) OTA 是否补 `PackageManager.getPackageInfo(GET_SIGNING_CERTIFICATES)` 校验**发布方签名**。
+
+### B6（柜机型号）—— **已取证：我们只支持一套协议**
+- `ChzhLockDriver.kt:11,94` 注释与常量：`开锁 L1@200\r\n`，波特率 19200，**驱动类名就是 `chzh`**
+- 🔴 **全仓无 `DeviceModel` 枚举** ⇒ 代码层面**没有多型号支持**，
+  隐含假定「都是 chzh8 系」
+- 老系统有 `jinyu2`（2127 行）/ `yichu2`（867 行）两套未读驱动
+
+⇒ **风险**：新柜若是 `jinyu2`/`yichu2` 系，**协议可能完全不同，我们无法直接驱动**。
+⇒ **待你确认**：新柜机型号 —— 这是**采购前必须问清**的第一件事。
