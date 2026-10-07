@@ -47,15 +47,30 @@ UPDATE warehouse_transfer_line
 SET received_qty = quantity, loss_qty = 0
 WHERE received_qty = 0 AND loss_qty = 0;
 
+-- 🔴 以下三个约束都必须**可重入**（幂等）。
+--   PG 不支持 `ADD CONSTRAINT IF NOT EXISTS`，直接 ADD 在「对象已存在」时报错
+--   ⇒ 会让整个 Flyway 脚本失败。场景真实存在：本地调试手动跑过 psql
+--   （Flyway 无记录）→ 随后 Flyway 从零重放会撞上。
+--   统一做法：先 DROP CONSTRAINT IF EXISTS（本来就没有也不报错），再 ADD。
+
 -- 算术护栏：实收 + 损耗 = 发运量
+ALTER TABLE warehouse_transfer_line
+    DROP CONSTRAINT IF EXISTS chk_wh_transfer_loss;
+
 ALTER TABLE warehouse_transfer_line
     ADD CONSTRAINT chk_wh_transfer_loss CHECK (received_qty + loss_qty = quantity);
 
 -- 非负
 ALTER TABLE warehouse_transfer_line
+    DROP CONSTRAINT IF EXISTS chk_wh_transfer_loss_nonneg;
+
+ALTER TABLE warehouse_transfer_line
     ADD CONSTRAINT chk_wh_transfer_loss_nonneg CHECK (received_qty >= 0 AND loss_qty >= 0);
 
 -- 🔴 有损耗的行必须写原因（否则又是一笔「说不清」的损耗）
+ALTER TABLE warehouse_transfer_line
+    DROP CONSTRAINT IF EXISTS chk_wh_transfer_loss_reason;
+
 ALTER TABLE warehouse_transfer_line
     ADD CONSTRAINT chk_wh_transfer_loss_reason CHECK (
         loss_qty = 0 OR (loss_reason IS NOT NULL AND TRIM(loss_reason) <> '')

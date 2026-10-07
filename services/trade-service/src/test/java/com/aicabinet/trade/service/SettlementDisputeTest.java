@@ -302,7 +302,7 @@ class SettlementDisputeTest {
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(memberService.applyMemberPriceDiscount(any(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
-        when(couponService.selectPreferredOrBest(eq(10001L), any(), eq(700)))
+        when(couponService.selectPreferredOrBest(eq(10001L), any(), eq(700), any()))
                 .thenReturn(java.util.Optional.of(new CouponService.BestCoupon(42L, 100, "满减券")));
         when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(false);
         // 折后应付 600 仍不足
@@ -355,7 +355,7 @@ class SettlementDisputeTest {
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(memberService.applyMemberPriceDiscount(any(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
-        when(couponService.selectPreferredOrBest(eq(10001L), any(), eq(700)))
+        when(couponService.selectPreferredOrBest(eq(10001L), any(), eq(700), any()))
                 .thenReturn(java.util.Optional.of(new CouponService.BestCoupon(7L, 100, "券")));
         when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(false);
         // 预检通过（折后 600）
@@ -444,7 +444,7 @@ class SettlementDisputeTest {
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(memberService.applyMemberPriceDiscount(any(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
-        when(couponService.selectPreferredOrBest(eq(10001L), any(), eq(700)))
+        when(couponService.selectPreferredOrBest(eq(10001L), any(), eq(700), any()))
                 .thenReturn(java.util.Optional.of(new CouponService.BestCoupon(99L, 100, "满减")));
         when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(false);
         org.mockito.Mockito.doNothing().when(userValidationService)

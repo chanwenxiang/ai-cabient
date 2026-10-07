@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,8 @@ class CouponConcurrencyTest {
     @Mock private UserInfoMapper userInfoRepository;
     @Mock private CabinetOrderMapper orderRepository;
     @Mock private CabinetOrderLineMapper orderLineRepository;
+    /** V319：范围判定需要柜机所属商户。 */
+    @Mock private DeviceInfoMapper deviceInfoMapper;
     @Mock private DistributedLockService distributedLockService;
     @Mock private ScheduledTaskService taskService;
     @Mock private PromotionService promotionService;
@@ -36,7 +39,7 @@ class CouponConcurrencyTest {
     void setUp() {
         couponService = new CouponService(
                 taskService, definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
-                orderLineRepository, distributedLockService, promotionService, null);
+                orderLineRepository, distributedLockService, promotionService, deviceInfoMapper, null);
         org.springframework.test.util.ReflectionTestUtils.setField(couponService, "self", couponService);
     }
 

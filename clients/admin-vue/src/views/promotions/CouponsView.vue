@@ -249,6 +249,40 @@
         <el-form-item label="描述"
           ><el-input v-model="createForm.description" type="textarea"
         /></el-form-item>
+
+        <!-- 🔴 V319 券可用范围：迁移前 device_scope 是死字段（配了不生效），
+             V319 起由后端 CouponScopeValidator 真正参与判定。 -->
+        <el-form-item label="可用范围">
+          <el-select v-model="createForm.scopeType" style="width: 100%">
+            <el-option
+              v-for="o in SCOPE_TYPE_OPTIONS"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="createForm.scopeType === 'MERCHANT'" label="适用商户" required>
+          <el-input
+            v-model="createForm.scopeMerchantId"
+            placeholder="商户 ID，例如 MCH-DEFAULT"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item v-if="createForm.scopeType === 'DEVICE'" label="适用柜机">
+          <el-select
+            v-model="createForm.scopeDeviceIds"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="留空 = 不限制；输入柜机 ID 后回车添加"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <!-- ⚠️ 为什么不物化「商户/柜机」下拉而用文本输入：
+             那需要额外的联想端点与权限（ops:merchant:list / ops:device:list），
+             而券的运营者未必有这两项权限 ⇒ 用文本输入更安全（越权看不到列表）。 -->
       </el-form>
       <template #footer>
         <el-button @click="showCreate = false">取消</el-button>
@@ -430,6 +464,13 @@ const createForm = ref<{
   maxIssueCount: number;
   description: string;
   activityId: number | null;
+  // ---- V319 券可用范围 ----
+  /** ALL=全平台 / DEVICE=指定柜机 / MERCHANT=指定商户 */
+  scopeType: 'ALL' | 'DEVICE' | 'MERCHANT';
+  /** MERCHANT 范围时选中的商户 ID */
+  scopeMerchantId: string | null;
+  /** DEVICE 范围时选中的柜机 ID 集合（空 = 不限制） */
+  scopeDeviceIds: string[];
 }>({
   couponName: '',
   couponType: 'AMOUNT_OFF',
@@ -439,8 +480,21 @@ const createForm = ref<{
   validityDays: 30,
   maxIssueCount: 0,
   description: '',
-  activityId: null
+  activityId: null,
+  scopeType: 'ALL',
+  scopeMerchantId: null,
+  scopeDeviceIds: []
 });
+
+/**
+ * V319 范围类型的中文标签。🔴 刻意不在模板里内联字符串 ——
+ * 后端枚举是英文码，界面上暴露英文码会让运营以为要填代码。
+ */
+const SCOPE_TYPE_OPTIONS = [
+  { value: 'ALL', label: '全平台通用' },
+  { value: 'MERCHANT', label: '指定商户（该商户名下所有柜机）' },
+  { value: 'DEVICE', label: '指定柜机' }
+] as const;
 const issueForm = ref<{ couponDefId: number | null; userId: number | null }>({
   couponDefId: null,
   userId: null
@@ -579,7 +633,10 @@ function openCreate() {
     validityDays: 30,
     maxIssueCount: 0,
     description: '',
-    activityId: null
+    activityId: null,
+    scopeType: 'ALL',
+    scopeMerchantId: null,
+    scopeDeviceIds: []
   };
   void loadActivityOptions();
   showCreate.value = true;
@@ -596,7 +653,12 @@ function openEdit(row: OpenApiCouponDefinitionDto) {
     validityDays: row.validityDays || 30,
     maxIssueCount: row.maxIssueCount || 0,
     description: row.description || '',
-    activityId: row.activityId ?? null
+    activityId: row.activityId ?? null,
+    // 🔴 编辑时必须回填范围，否则一打开就看到「全平台通用」——
+    //    运营会以为范围没配过而重填一次（今天在退货那里踩过同类残留坑）。
+    scopeType: (row.scopeType as 'ALL' | 'DEVICE' | 'MERCHANT') || 'ALL',
+    scopeMerchantId: row.scopeMerchantId ?? null,
+    scopeDeviceIds: row.scopeDeviceIds ?? []
   };
   void loadActivityOptions();
   showCreate.value = true;
@@ -624,6 +686,10 @@ async function onCreateSubmit() {
   if (form.minSpendYuan != null && Number(form.minSpendYuan) < 0) {
     return ElMessage.warning('最低消费不能为负数');
   }
+  // 🔴 V319：范围自洽性在提交前拦一次（后端也会 400，但那时用户已经填完一堆字段）
+  if (form.scopeType === 'MERCHANT' && !(form.scopeMerchantId || '').trim()) {
+    return ElMessage.warning('范围选了「指定商户」，请填写商户 ID');
+  }
   saving.value = true;
   try {
     const body = {
@@ -635,7 +701,10 @@ async function onCreateSubmit() {
       validityDays: form.validityDays,
       maxIssueCount: form.maxIssueCount || 0,
       description: form.description,
-      activityId: form.activityId || null
+      activityId: form.activityId || null,
+      scopeType: form.scopeType,
+      scopeMerchantId: form.scopeType === 'MERCHANT' ? (form.scopeMerchantId || '').trim() : null,
+      scopeDeviceIds: form.scopeType === 'DEVICE' ? form.scopeDeviceIds : []
     };
     if (editingId.value) {
       await api.request(AdminEndpoints.couponDefinition(editingId.value), 'PUT', body);

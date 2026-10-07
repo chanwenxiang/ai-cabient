@@ -383,7 +383,8 @@ public class UnpaidOrderService {
             return new CouponService.BestCoupon(order.getCouponId(), discount, null);
         }
         order.setTotalAmountCents(subtotal);
-        var best = couponService.selectBestCoupon(order.getUserId(), subtotal);
+        // 🔴 V319：传 deviceId，否则范围判定被跳过（同 SettlementOrderFinalizeService）
+        var best = couponService.selectBestCoupon(order.getUserId(), subtotal, order.getDeviceId());
         if (best.isEmpty()) {
             return null;
         }

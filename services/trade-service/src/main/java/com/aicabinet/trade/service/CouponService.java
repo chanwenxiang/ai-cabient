@@ -39,6 +39,8 @@ public class CouponService {
     private final CabinetOrderLineMapper orderLineRepository;
     private final DistributedLockService distributedLockService;
     private final PromotionService promotionService;
+    /** V319：范围判定需要柜机所属商户。 */
+    private final DeviceInfoMapper deviceInfoMapper;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final CouponService self;
 
@@ -50,6 +52,7 @@ public class CouponService {
                          CabinetOrderLineMapper orderLineRepository,
                          DistributedLockService distributedLockService,
                          PromotionService promotionService,
+                         DeviceInfoMapper deviceInfoMapper,
                          @Lazy CouponService self) {
         this.taskService = taskService;
         this.definitionRepository = definitionRepository;
@@ -59,6 +62,9 @@ public class CouponService {
         this.orderLineRepository = orderLineRepository;
         this.distributedLockService = distributedLockService;
         this.promotionService = promotionService;
+        // 🔴 V319：范围判定需要「柜机 → 商户」映射（scope_type=MERCHANT 时比对）。
+        //    复用既有 mapper，不另建服务。
+        this.deviceInfoMapper = deviceInfoMapper;
         this.self = self;
     }
 
@@ -87,6 +93,7 @@ public class CouponService {
         def.setMaxIssueCount(Math.max(0, request.maxIssueCount()));
         def.setDescription(request.description());
         applyActivityId(def, request.activityId());
+        applyScope(def, request.scopeType(), request.scopeMerchantId(), request.scopeDeviceIds());
         def.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         definitionRepository.save(def);
         log.info("coupon definition created id={} name={} activityId={}",
@@ -118,6 +125,7 @@ public class CouponService {
         def.setMaxIssueCount(Math.max(0, request.maxIssueCount()));
         def.setDescription(request.description());
         applyActivityId(def, request.activityId());
+        applyScope(def, request.scopeType(), request.scopeMerchantId(), request.scopeDeviceIds());
         definitionRepository.save(def);
         log.info("coupon definition updated id={} name={}", def.getCouponDefId(), def.getCouponName());
         return toDefDto(def);
@@ -359,6 +367,15 @@ public class CouponService {
      * 自动挑选当前订单可用且抵扣最大的 UNUSED 优惠券。
      */
     public Optional<BestCoupon> selectBestCoupon(Long userId, int subtotalCents) {
+        return selectBestCoupon(userId, subtotalCents, null);
+    }
+
+    /**
+     * V319：带柜机上下文的选券。
+     *
+     * @param deviceId 当前操作的柜机；null = 不做范围限制（后台预览等无柜机场景）
+     */
+    public Optional<BestCoupon> selectBestCoupon(Long userId, int subtotalCents, String deviceId) {
         if (userId == null || subtotalCents <= 0) {
             return Optional.empty();
         }
@@ -367,9 +384,23 @@ public class CouponService {
                 userId, CabinetConstants.COUPON_STATUS_UNUSED);
         Map<Long, CouponDefinition> defs = loadDefinitionsByIds(
                 unused.stream().map(UserCoupon::getCouponDefId).toList());
+        // 🔴 商户反查只做一次：下面每张券都要判范围，逐张查 device_info 就是 N+1。
+        //   缓存放在本次调用的局部变量里（同一次选券 deviceId 不会变），
+        //   不用字段级缓存 —— 后者在并发下要处理跨请求污染。
+        String cachedMerchantId = null;
+        boolean merchantResolved = deviceId == null || deviceId.isBlank();
         BestCoupon best = null;
         for (UserCoupon uc : unused) {
-            Optional<BestCoupon> cand = evaluateCoupon(uc, defs.get(uc.getCouponDefId()), subtotalCents, now);
+            CouponDefinition def = defs.get(uc.getCouponDefId());
+            if (def == null) {
+                continue;
+            }
+            if (!merchantResolved) {
+                cachedMerchantId = merchantIdOf(deviceId);
+                merchantResolved = true;
+            }
+            Optional<BestCoupon> cand = evaluateCoupon(
+                    uc, def, subtotalCents, now, deviceId, cachedMerchantId);
             if (cand.isEmpty()) {
                 continue;
             }
@@ -383,16 +414,32 @@ public class CouponService {
 
     /** 优先使用指定券；不可用则回退自动择优。 */
     public Optional<BestCoupon> selectPreferredOrBest(Long userId, Long preferredCouponId, int subtotalCents) {
+        return selectPreferredOrBest(userId, preferredCouponId, subtotalCents, null);
+    }
+
+    /**
+     * V319：带柜机上下文的「优先指定券 → 自动择优」。
+     *
+     * <p>调用方（{@code SettlementOrderFinalizeService} /
+     * {@code UnpaidOrderService}）在结算时才有 deviceId ⇒ 范围能真正生效。
+     */
+    public Optional<BestCoupon> selectPreferredOrBest(Long userId,
+                                                      Long preferredCouponId,
+                                                      int subtotalCents,
+                                                      String deviceId) {
         if (preferredCouponId != null && userId != null && subtotalCents > 0) {
             UserCoupon uc = userCouponRepository.findById(preferredCouponId).orElse(null);
             if (uc != null && userId.equals(uc.getUserId()) && CabinetConstants.COUPON_STATUS_UNUSED.equalsIgnoreCase(uc.getStatus())) {
-                Optional<BestCoupon> preferred = evaluateCoupon(uc, subtotalCents, Instant.now());
+                CouponDefinition prefDef = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+                Optional<BestCoupon> preferred = evaluateCoupon(
+                        uc, prefDef, subtotalCents, Instant.now(), deviceId,
+                        deviceId == null || deviceId.isBlank() ? null : merchantIdOf(deviceId));
                 if (preferred.isPresent()) {
                     return preferred;
                 }
             }
         }
-        return selectBestCoupon(userId, subtotalCents);
+        return selectBestCoupon(userId, subtotalCents, deviceId);
     }
 
     private Optional<BestCoupon> evaluateCoupon(UserCoupon uc, int subtotalCents, Instant now) {
@@ -401,10 +448,35 @@ public class CouponService {
     }
 
     private Optional<BestCoupon> evaluateCoupon(UserCoupon uc, CouponDefinition def, int subtotalCents, Instant now) {
+        return evaluateCoupon(uc, def, subtotalCents, now, null, null);
+    }
+
+    /**
+     * V319：带柜机上下文的券可用性判定。
+     *
+     * <p>🔴 <b>这是范围唯一的生效点</b>。迁移前 {@code device_scope} 是死字段
+     * （服务不读、mapper 不筛、库里全 ALL）⇒ 运营配了范围用户侧毫无变化。
+     * 接入后范围才真正影响「这张券此刻能不能用」。
+     *
+     * @param deviceId          当前操作的柜机；null = 无柜机上下文（后台预览/活动发券）⇒ 不做范围限制
+     * @param resolvedMerchantId 已解析的柜机所属商户（由调用方解析并复用，避免 N+1）；可为 null
+     */
+    private Optional<BestCoupon> evaluateCoupon(UserCoupon uc,
+                                                 CouponDefinition def,
+                                                 int subtotalCents,
+                                                 Instant now,
+                                                 String deviceId,
+                                                 String resolvedMerchantId) {
         if (uc.getExpireAt() != null && uc.getExpireAt().isBefore(now)) {
             return Optional.empty();
         }
         if (def == null || !CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(def.getStatus())) {
+            return Optional.empty();
+        }
+        // ---- V319：范围判定放在金额判定之前 ----
+        // 🔴 顺序有讲究：范围是「这张券与这台柜机有没有关系」，比金额/过期更基础。
+        //    先判范围，日志与排查才不会误指向「算不出抵扣」。
+        if (!withinScope(def, deviceId, resolvedMerchantId)) {
             return Optional.empty();
         }
         if (subtotalCents < def.getMinSpendCents()) {
@@ -415,6 +487,33 @@ public class CouponService {
             return Optional.empty();
         }
         return Optional.of(new BestCoupon(uc.getCouponId(), discount, def.getCouponName()));
+    }
+
+    /**
+     * V319：范围判定。
+     *
+     * <p>商户反查由调用方完成并传入（见 {@code selectBestCoupon} 的局部缓存说明）。
+     */
+    private boolean withinScope(CouponDefinition def, String deviceId, String resolvedMerchantId) {
+        String type = def.getScopeType();
+        if (type == null || type.isBlank()
+                || com.aicabinet.common.constants.CouponScopeType.ALL.equalsIgnoreCase(type.trim())) {
+            return true; // ALL（存量默认）⇒ 不限制
+        }
+        return CouponScopeValidator.allowsDevice(
+                type, def.getScopeDeviceIds(), def.getScopeMerchantId(), deviceId, resolvedMerchantId);
+    }
+
+    /** 查柜机所属商户；查不到返回 null（判定侧会按「无法判定 ⇒ 不阻断」处理）。 */
+    private String merchantIdOf(String deviceId) {
+        try {
+            DeviceInfo dev = deviceInfoMapper.findByIdForUpdateRaw(deviceId);
+            return dev == null ? null : dev.getMerchantId();
+        } catch (RuntimeException e) {
+            // 🔴 查设备失败不能连带让「用券」失败 —— 那是可降级的元数据查询。
+            log.warn("V319 resolve merchant failed deviceId={} err={}", deviceId, e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -677,12 +776,43 @@ public class CouponService {
         def.setActivityId(activityId);
     }
 
+    /**
+     * V319：落库券的可用范围。
+     *
+     * <p>🔴 <b>写入时严格、判定时宽松</b>（分工见 {@link CouponScopeValidator}）：
+     * 这里对不自洽的配置直接 400（MERCHANT 却没选商户），因为「静默接受」会让人
+     * 以为范围配好了，实际判定时被跳过。
+     */
+    private void applyScope(CouponDefinition def,
+                            String scopeType,
+                            String scopeMerchantId,
+                            java.util.List<String> scopeDeviceIds) {
+        String type = com.aicabinet.common.constants.CouponScopeType.normalize(scopeType);
+        String[] ids = scopeDeviceIds == null || scopeDeviceIds.isEmpty()
+                ? new String[0]
+                : scopeDeviceIds.toArray(new String[0]);
+        String err = CouponScopeValidator.validate(type, ids, scopeMerchantId);
+        if (err != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, err);
+        }
+        def.setScopeType(type);
+        def.setScopeMerchantId(
+                com.aicabinet.common.constants.CouponScopeType.MERCHANT.equals(type)
+                        ? scopeMerchantId.trim() : null);
+        def.setScopeDeviceIds(ids);
+        // 🔴 同步清掉历史死字段，避免它与新范围并存造成「两处配置看起来矛盾」。
+        def.setDeviceScope(type);
+    }
+
     private CouponDefinitionDto toDefDto(CouponDefinition d) {
         return new CouponDefinitionDto(
                 d.getCouponDefId(), d.getCouponName(), d.getCouponType(),
                 d.getDenominationCents(), d.getMinSpendCents(), d.getDiscountPercent(),
                 d.getValidityDays(), d.getMaxIssueCount(), d.getIssuedCount(),
-                d.getStatus(), d.getDescription(), d.getActivityId());
+                d.getStatus(), d.getDescription(), d.getActivityId(),
+                com.aicabinet.common.constants.CouponScopeType.normalize(d.getScopeType()),
+                d.getScopeMerchantId(),
+                d.getScopeDeviceIds() == null ? java.util.List.of() : java.util.Arrays.asList(d.getScopeDeviceIds()));
     }
 
     private Map<Long, CouponDefinition> loadDefinitionsByIds(Collection<Long> defIds) {

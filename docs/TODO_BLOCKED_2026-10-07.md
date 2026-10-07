@@ -103,8 +103,8 @@ mvn -pl services/trade-service spring-boot:run
 | E6 | 缺口 #7 采购退货原因分类 / 残次品处置 | ✅ **已完成（后端+UI）**：V318 三列（`reason_category`/`responsible_party`/`defective_flag`）+ 退货弹窗录入 | — |
 | E7 | 缺口 #9 仓库月结接财务结算 | 无 | 高 |
 | E8 | 缺口 #4 广告收入入账（切片 4，**动资金**） | 需先开通流量主（B5） | 中 |
-| E9 | 分享/邀请裂变（`inviteCode`/`invitedBy` 仍是死字段） | 无 | 中 |
-| E10 | 券可用范围维度 | 无 | 中 |
+| E9 | 分享/邀请裂变 | 🚫 **用户决定不做**（2026-10-07）。取证：`Member.inviteCode`/`invitedBy` **零消费者**（仅域类自身）⇒ 是死字段，**没有运行中的功能需要「关闭」**。若将来要做，从零设计（邀请关系表 + 奖励规则） | — |
+| E10 | 券可用范围 | ✅ **已完成**（V319）：`scope_type`三型 + 商户/柜机集合 + **接入唯一拦截点** `CouponScopeValidator` + admin 建券表单 | — |
 
 ---
 
@@ -174,6 +174,48 @@ installed.any { it.contentEquals(cand) }
 这不是「编译不过」的小瑕疵，而是**能静默把功能打死**的坑。
 
 ⇒ Android 侧代码**没有编译证据就不算完成**；「未验证」要显式记进待完成。
+
+## 🔴 H. 迁移可重入性（2026-10-07 18:41发现并已修）
+
+**症状**：为抓 OpenAPI spec 起后端 → Flyway 报
+`Script V313__write_off_warehouse_scope.sql failed`
+→ `constraint "ck_write_off_location" ... already exists`，**整个上下文起不来**。
+
+**根因**：`ADD CONSTRAINT` 前没有 `DROP CONSTRAINT IF EXISTS`。
+🔴 PG **不支持** `ADD CONSTRAINT IF NOT EXISTS` ⇒ 手动跑过 psql（Flyway 无记录）
+后再从零重放，**必然**撞车。
+⚠️ **这不是本地环境问题** —— 任何走 Flyway 的干净库部署都会炸。
+
+**已修**：
+- `V313`：`ck_write_off_location` 前置 DROP
+- `V314`：三个 CHECK（`chk_wh_transfer_loss` / `_nonneg` / `_reason`）各前置 DROP
+- `V319`：本来就有 `DROP CONSTRAINT IF EXISTS`（写的时候就对了）
+
+**验证**：V313 / V314 / V319 **各连续跑两次**，均无 error ⇒幂等成立。
+（判据是「连跑两次」而不是「跑一次成功」—— 后者证明不了可重入。）
+
+⇒ 已写进**跨项目** `MEMORY.md`（不限本项目）。
+
+### 抓 OpenAPI spec 的完整配方（下次直接用）
+
+1. `docker compose -f infra/docker-compose.yml up -d postgres redis`
+   🔴 Redis 密码是 **`devredis`**（`infra/docker-compose.yml:32` `${REDIS_PASSWORD:-devredis}`），
+   设空串会报 `RedisConnectionException`
+2. `mvn -pl services/common/common-core install -DskipTests`（**必须**）
+   ⚠️ 不装则 trade-service 从本地仓库吃**旧 jar** ⇒ spec 里**缺新字段**，
+   而生成脚本照样「成功」
+3. `mvn -pl services/trade-service spring-boot:run "-Dspring-boot.run.arguments=--server.port=8080"`
+4. `OPENAPI_IGNORE_CACHE=1 OPENAPI_URL=http://127.0.0.1:8080/v3/api-docs node scripts/gen-openapi-types.mjs`
+   加 `NO_PROXY=127.0.0.1,localhost`，否则本地请求被代理截走返回 **502**
+5. **判据**：`node -e` 读 `.tmp/live-openapi.json` 确认新字段在
+
+🔴 **本轮踩的两个坑**（都写进跨项目记忆）：
+- `gen-openapi-types.mjs` **没有 `--fresh` 参数**（我凭记忆用的）⇒ 静默吃10/6 的旧缓存。
+  真名是**环境变量 `OPENAPI_IGNORE_CACHE=1`**（`:35` 注释里写着，参数名要读源码）
+- 🔴「脚本 exit 0」**不能证明产物更新**。症状是「新字段不在产物里」。
+  判据必须落在产物内容上。
+
+---
 
 ## 维护纪律
 

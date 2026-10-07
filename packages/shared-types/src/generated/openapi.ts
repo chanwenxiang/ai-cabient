@@ -6761,6 +6761,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/inventory/write-off/claims": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["writeOffClaims"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/inventory/write-off/claims/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["writeOffClaimsSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/growth/user-analysis": {
         parameters: {
             query?: never;
@@ -9132,6 +9164,7 @@ export interface components {
             /** Format: int32 */
             countedQty: number;
             notes?: string;
+            diffReason?: string;
         };
         ApiResponseStocktakeLineDto: {
             /** Format: int32 */
@@ -9159,6 +9192,7 @@ export interface components {
             diffQty?: number;
             status?: string;
             notes?: string;
+            diffReason?: string;
             /** Format: date-time */
             adjustedAt?: string;
         };
@@ -10149,6 +10183,9 @@ export interface components {
             description?: string;
             /** Format: int64 */
             activityId?: number;
+            scopeType?: string;
+            scopeMerchantId?: string;
+            scopeDeviceIds?: string[];
         };
         ApiResponseCouponDefinitionDto: {
             /** Format: int32 */
@@ -10177,6 +10214,9 @@ export interface components {
             description?: string;
             /** Format: int64 */
             activityId?: number;
+            scopeType?: string;
+            scopeMerchantId?: string;
+            scopeDeviceIds?: string[];
         };
         SetPayPreferredChannelRequest: {
             channel: string;
@@ -10927,6 +10967,25 @@ export interface components {
             expiryDate?: string;
             /** Format: int32 */
             quantity?: number;
+            /** Format: int32 */
+            receivedQty?: number;
+            /** Format: int32 */
+            lossQty?: number;
+            lossReason?: string;
+            lossNote?: string;
+        };
+        ReceiveCommand: {
+            lines?: components["schemas"]["ReceiveLine"][];
+        };
+        ReceiveLine: {
+            /** Format: int64 */
+            lineId?: number;
+            /** Format: int32 */
+            receivedQty?: number;
+            /** Format: int32 */
+            lossQty?: number;
+            lossReason?: string;
+            lossNote?: string;
         };
         CreateStocktakeRequest: {
             warehouseId: string;
@@ -11629,6 +11688,9 @@ export interface components {
             /** Format: int64 */
             purchaseOrderId: number;
             notes?: string;
+            reasonCategory?: string;
+            responsibleParty?: string;
+            defective?: boolean;
             lines: components["schemas"]["PurchaseReturnLineRequest"][];
         };
         PurchaseReturnLineRequest: {
@@ -11652,6 +11714,9 @@ export interface components {
             supplierId?: string;
             status?: string;
             notes?: string;
+            reasonCategory?: string;
+            responsibleParty?: string;
+            defective?: boolean;
             /** Format: int64 */
             operatorId?: number;
             /** Format: date-time */
@@ -11986,12 +12051,18 @@ export interface components {
             updatedAt?: string;
         };
         WriteOffRequest: {
-            deviceId: string;
+            deviceId?: string;
+            warehouseId?: string;
             skuId: string;
             batchNo?: string;
             /** Format: int32 */
             quantity: number;
             reason: string;
+            reasonCategory?: string;
+            responsibleParty?: string;
+            claimNo?: string;
+            /** Format: int64 */
+            claimAmountCents?: number;
         };
         ApiResponseWriteOffDto: {
             /** Format: int32 */
@@ -12003,11 +12074,17 @@ export interface components {
             /** Format: int64 */
             writeOffId?: number;
             deviceId?: string;
+            warehouseId?: string;
             skuId?: string;
             batchNo?: string;
             /** Format: int32 */
             quantity?: number;
             reason?: string;
+            reasonCategory?: string;
+            responsibleParty?: string;
+            claimNo?: string;
+            /** Format: int64 */
+            claimAmountCents?: number;
             /** Format: int32 */
             costCents?: number;
             /** Format: int64 */
@@ -12607,6 +12684,9 @@ export interface components {
             description?: string;
             /** Format: int64 */
             activityId?: number;
+            scopeType?: string;
+            scopeMerchantId?: string;
+            scopeDeviceIds?: string[];
         };
         BatchIssueCouponRequest: {
             /** Format: int64 */
@@ -14649,6 +14729,29 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["DeviceInventoryDto"][];
+        };
+        ApiResponsePageResultWriteOffDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PageResultWriteOffDto"];
+        };
+        PageResultWriteOffDto: {
+            items?: components["schemas"]["WriteOffDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        ApiResponseListMapStringObject: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: {
+                [key: string]: unknown;
+            }[];
         };
         ApiResponseUserBehaviorSummaryDto: {
             /** Format: int32 */
@@ -19597,7 +19700,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReceiveCommand"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -28316,6 +28423,55 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantTaxProfileDto"];
+                };
+            };
+        };
+    };
+    writeOffClaims: {
+        parameters: {
+            query?: {
+                party?: string;
+                from?: string;
+                to?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResultWriteOffDto"];
+                };
+            };
+        };
+    };
+    writeOffClaimsSummary: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMapStringObject"];
                 };
             };
         };

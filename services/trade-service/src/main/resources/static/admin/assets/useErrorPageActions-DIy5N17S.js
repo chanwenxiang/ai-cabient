@@ -1,1 +1,0 @@
-import{j as c}from"./ui-vendor-Bwl0sgUk.js";import{c as s,K as a}from"./index-BkaQ2ERr.js";function k(){const o=c(),n=s();function t(){return a(n)}function r(){o.replace(t())}function u(){var e;if(((e=window.history.state)==null?void 0:e.back)!=null){o.back();return}r()}return{resolveHome:t,goHome:r,goBack:u}}export{k as u};

@@ -247,7 +247,10 @@ public class SettlementOrderFinalizeService {
                     .map(ShoppingSession::getPreferredCouponId)
                     .orElse(null);
         }
-        var best = couponService.selectPreferredOrBest(order.getUserId(), preferred, subtotal);
+        // 🔴 V319：必须传 deviceId —— 不传则范围判定会被跳过（deviceId=null ⇒ 不限制），
+        //    「券限某商户/某柜机」就永远不会生效。
+        var best = couponService.selectPreferredOrBest(
+                order.getUserId(), preferred, subtotal, order.getDeviceId());
         if (best.isEmpty()) {
             return null;
         }

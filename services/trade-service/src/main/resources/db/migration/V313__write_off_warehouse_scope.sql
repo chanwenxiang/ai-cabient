@@ -34,6 +34,13 @@ ALTER TABLE inventory_write_off
     ALTER COLUMN device_id DROP NOT NULL;
 
 -- 恰好一边非空
+-- 🔴 可重入（幂等）：PG **不支持** `ADD CONSTRAINT IF NOT EXISTS`，
+--   直接 ADD 会在「对象已存在」时报错而让 Flyway 整脚本失败。
+--   场景真实存在：本地调试手动跑过 psql（Flyway 无记录）→ 随后 Flyway 从零重放会撞上。
+--   ⇒ 先 DROP 再 ADD。DROP IF EXISTS 保证「本来就没有」也不报错。
+ALTER TABLE inventory_write_off
+    DROP CONSTRAINT IF EXISTS ck_write_off_location;
+
 ALTER TABLE inventory_write_off
     ADD CONSTRAINT ck_write_off_location CHECK (
         (device_id IS NOT NULL AND warehouse_id IS NULL)

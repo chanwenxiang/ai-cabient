@@ -19,6 +19,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -87,7 +89,7 @@ class UnpaidOrderConcurrencyTest {
                 .thenReturn(true);
         when(orderRepository.findByIdForUpdate("O-OK")).thenReturn(Optional.of(order));
         when(orderLineRepository.findByOrderId("O-OK")).thenReturn(java.util.List.of());
-        when(couponService.selectBestCoupon(10001L, 500)).thenReturn(java.util.Optional.empty());
+        when(couponService.selectBestCoupon(eq(10001L), eq(500), any())).thenReturn(java.util.Optional.empty());
         when(settlementService.getOrderBySession("S-1")).thenReturn(null);
 
         service.collectByUser(10001L, "O-OK", null);
@@ -137,7 +139,7 @@ class UnpaidOrderConcurrencyTest {
         when(orderRepository.findByIdForUpdate("O-NET-PART")).thenReturn(Optional.of(order));
         // 净额 200（F1 竞态保留的冲抵），差额 150 由 chargeOrder 净额口径补扣
         when(orderPaymentService.netCompletedCents("O-NET-PART")).thenReturn(200);
-        when(couponService.selectBestCoupon(10001L, 350)).thenReturn(java.util.Optional.empty());
+        when(couponService.selectBestCoupon(eq(10001L), eq(350), any())).thenReturn(java.util.Optional.empty());
 
         service.collectByUser(10001L, "O-NET-PART", null);
 
