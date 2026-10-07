@@ -373,7 +373,7 @@
             :sku-name="skuName"
             :transfer-status-label="transferStatusLabel"
             @ship="shipTransfer"
-            @receive="receiveTransfer"
+            @receive="openTransferReceive"
             @cancel="cancelTransfer"
           />
         </el-tab-pane>
@@ -705,6 +705,8 @@
         命令式打开（需要先拿到选中的批次行，见 openWriteOff）。
       -->
       <WarehouseWriteOffDialog ref="writeOffDialogRef" @done="onWriteOffDone" />
+
+      <WarehouseTransferReceiveDialog ref="transferReceiveRef" @done="onTransferReceiveDone" />
     </el-card>
   </div>
 </template>
@@ -737,6 +739,13 @@ const WarehouseMovementsTab = defineAsyncComponent(
 const WarehouseMonthlyCloseTab = defineAsyncComponent(
   () => import('@/components/warehouse/WarehouseMonthlyCloseTab.vue')
 );
+/**
+ * V314 调拨收货损耗登记：独立异步组件（理由同V313 —— route chunk 门禁 ≤150KB）。
+ */
+const WarehouseTransferReceiveDialog = defineAsyncComponent(
+  () => import('@/components/warehouse/WarehouseTransferReceiveDialog.vue')
+);
+
 /** V313 仓库侧报损：独立异步组件，守住 ≤150KB 的 route chunk 门禁 */
 const WarehouseWriteOffDialog = defineAsyncComponent(
   () => import('@/components/warehouse/WarehouseWriteOffDialog.vue')
@@ -825,6 +834,8 @@ const canImportMaster = computed(() => tab.value === 'warehouses' || tab.value =
 const selectedKeys = ref<Array<string | number>>([]);
 /** V313 仓库侧报损对话框（命令式 open，见 openWriteOff）。 */
 const writeOffDialogRef = ref<InstanceType<typeof WarehouseWriteOffDialog> | null>(null);
+/** V314 调拨收货损耗登记对话框（命令式 open）。 */
+const transferReceiveRef = ref<InstanceType<typeof WarehouseTransferReceiveDialog> | null>(null);
 
 function rowKeyOf(row: Row): string | number {
   switch (tab.value) {
@@ -901,6 +912,40 @@ function onWriteOffDone() {
   loadedTabs.value.delete('inventory');
   loadedTabs.value.delete('movements');
   void loadTab('inventory', true);
+}
+
+/**
+ * V314 打开调拨收货登记弹窗。
+ *
+ * 🔴 不再「一点收货就按发运量全量入库」—— 那会让 B 仓虚增损耗件数。
+ * 弹窗里逐行填实收，损耗自动推导。
+ */
+function openTransferReceive(row: Row) {
+  const rawLines = (row.lines || []) as Array<{
+    lineId?: string | number;
+    skuId?: string;
+    batchNo?: string;
+    quantity?: number;
+  }>;
+  if (!Array.isArray(rawLines) || rawLines.length === 0) {
+    ElMessage.warning('该调拨单没有明细行，无法登记收货');
+    return;
+  }
+  transferReceiveRef.value?.open(
+    row.transferId,
+    row.transferNo || String(row.transferId ?? ''),
+    rawLines.map((l) => ({
+      lineId: l.lineId ?? '',
+      skuId: l.skuId,
+      batchNo: l.batchNo,
+      quantity: Number(l.quantity) || 0
+    }))
+  );
+}
+
+function onTransferReceiveDone() {
+  loadedTabs.value.delete('transfers');
+  void loadTab('transfers', true);
 }
 function pickSelected<T extends Row>(all: T[]): T[] {
   if (!selectedKeys.value.length) return all;

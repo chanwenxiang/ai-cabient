@@ -9,6 +9,15 @@ import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 /** 仓储动态行（D15：禁止散落 Record<string, any>） */
 export type WarehouseTransferRow = AdminDynamicRow;
 
+/** V314：收货登记的一行（实收/ 损耗/ 原因）。 */
+export interface ReceiveLineInput {
+  lineId: string | number;
+  receivedQty: number;
+  lossQty: number;
+  lossReason?: string;
+  lossNote?: string;
+}
+
 export type UseWarehouseTransfersDeps = {
   saving: Ref<boolean>;
   loadedTabs: Ref<Set<string>>;
@@ -95,8 +104,17 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
     await deps.loadTab('transfers', true);
   }
 
-  async function receiveTransfer(row: WarehouseTransferRow) {
-    await api.request(AdminEndpoints.warehouseTransferReceive(row.transferId), 'POST');
+  /**
+   * V314 真正收货（带损耗登记）。
+   *
+   * @param lines 各行实收/损耗；**缺省 = 全部按「全部到齐」**（旧的「只点收货」流程不受影响）
+   */
+  async function receiveTransfer(row: WarehouseTransferRow, lines?: ReceiveLineInput[]) {
+    await api.request(
+      AdminEndpoints.warehouseTransferReceive(row.transferId),
+      'POST',
+      lines && lines.length ? { lines } : undefined
+    );
     ElMessage.success('已收货入库');
     deps.loadedTabs.value.delete('transfers');
     await deps.loadTab('transfers', true);
