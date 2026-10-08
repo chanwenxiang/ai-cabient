@@ -108,6 +108,14 @@ const SUBJECT_ALIASES = [
   // 跨行业范式（cross）—— 借合规边界/做法形态，**不可顶替同行**
   { re: /哈啰|哈罗|hellobike|hello\b/i, id: '哈啰出行', kind: 'cross' },
   { re: /充电宝|街电|怪兽充电|美团充电/i, id: '共享充电宝', kind: 'cross' },
+  // 跨行业 ERP/进销存工具方（cross）—— CB-016 供应商对账的行业口径来源（官方帮助文档级）
+  { re: /勤策/i, id: '勤策ERP', kind: 'cross' },
+  { re: /简道云|飞优/i, id: '简道云', kind: 'cross' },
+  { re: /企畅通/i, id: '企畅通ERP', kind: 'cross' },
+  { re: /宏达|inmis/i, id: '宏达进销存', kind: 'cross' },
+  // 跨行业财务/进销存（cross）—— CB-017 盘点差异金额化的会计口径来源
+  { re: /管家婆/i, id: '管家婆', kind: 'cross' },
+  { re: /金蝶|kis/i, id: '金蝶', kind: 'cross' },
   // 行业研究机构（research）：给统计口径，不是自述主体
   { re: /中研普华|chinairn/i, id: '中研普华', kind: 'research' },
   { re: /沙利文|frost\s*sullivan|弗若斯特/i, id: '弗若斯特沙利文', kind: 'research' },

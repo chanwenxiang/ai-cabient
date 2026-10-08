@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DISPUTE_REASON_CHIPS, appendChipToReason, inferRestoreInventory } from './dispute-form';
+import {
+  applyChipToReason,
+  DEFAULT_DISPUTE_CATEGORY,
+  DISPUTE_REASON_CHIPS,
+  inferRestoreInventory
+} from './dispute-form';
 
 /**
  * 后端 DisputeReasonCategory 白名单：新增 chip 必须落在其中，
@@ -26,30 +31,32 @@ describe('DISPUTE_REASON_CHIPS', () => {
     const labels = DISPUTE_REASON_CHIPS.map((c) => c.label);
     expect(new Set(labels).size).toBe(labels.length);
   });
+
+  it('兜底分类 DEFAULT_DISPUTE_CATEGORY 在后端白名单内', () => {
+    expect(ALLOWED_CATEGORIES).toContain(DEFAULT_DISPUTE_CATEGORY);
+  });
 });
 
-describe('appendChipToReason', () => {
-  it('空输入直接落 chip 文案，不加分隔符', () => {
-    const chip = DISPUTE_REASON_CHIPS[0];
-    expect(appendChipToReason('', chip)).toBe(chip.text);
-    expect(appendChipToReason('   ', chip)).toBe(chip.text);
+describe('applyChipToReason（单选快填 + 可点掉，2026-10-08 用户定案）', () => {
+  const chip = DISPUTE_REASON_CHIPS[0];
+
+  it('未选中 → 选中：说明整体替换为 chip 文案（不再「；」追加）', () => {
+    expect(applyChipToReason('', chip, false)).toBe(chip.text);
+    expect(applyChipToReason('我自己写的说明', chip, false)).toBe(chip.text);
+    expect(applyChipToReason('我没拿这个商品，请核对识别结果；数量不对', chip, false)).toBe(
+      chip.text
+    );
   });
 
-  it('已有内容时用「；」追加', () => {
-    const chip = DISPUTE_REASON_CHIPS[1];
-    expect(appendChipToReason('我自己写的说明', chip)).toBe(`我自己写的说明；${chip.text}`);
+  it('已选中 → 取消：说明仍是 chip 原文（未编辑）则清空', () => {
+    expect(applyChipToReason(chip.text, chip, true)).toBe('');
+    expect(applyChipToReason(` ${chip.text} `, chip, true)).toBe('');
   });
 
-  it('重复点同一条 chip 保持幂等，不重复追加', () => {
-    const chip = DISPUTE_REASON_CHIPS[2];
-    const once = appendChipToReason('', chip);
-    expect(appendChipToReason(once, chip)).toBe(once);
-  });
-
-  it('文案已包含在自由文本里时不再追加（避免「；」堆积）', () => {
-    const chip = DISPUTE_REASON_CHIPS[0];
-    const current = `前缀说明；${chip.text}`;
-    expect(appendChipToReason(current, chip)).toBe(current);
+  it('已选中 → 取消：说明被用户编辑过则保留', () => {
+    expect(applyChipToReason(`${chip.text}，麻烦尽快核实`, chip, true)).toBe(
+      `${chip.text}，麻烦尽快核实`
+    );
   });
 });
 

@@ -7,6 +7,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.ProcurementService;
 import com.aicabinet.trade.service.PurchaseSuggestionService;
 import com.aicabinet.trade.service.SupplierPayableService;
+import com.aicabinet.trade.service.SupplierReconciliationService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class OpsProcurementControllerTest {
     @Mock ProcurementService procurementService;
     @Mock PurchaseSuggestionService purchaseSuggestionService;
     @Mock SupplierPayableService supplierPayableService;
+    @Mock SupplierReconciliationService supplierReconciliationService;
     @Mock HttpServletRequest request;
 
     private OpsProcurementController controller;
@@ -42,7 +44,8 @@ class OpsProcurementControllerTest {
     @BeforeEach
     void setUp() {
         controller = new OpsProcurementController(
-                procurementService, purchaseSuggestionService, supplierPayableService);
+                procurementService, purchaseSuggestionService, supplierPayableService,
+                supplierReconciliationService);
     }
 
     @Test

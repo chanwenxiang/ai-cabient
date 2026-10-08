@@ -2,7 +2,11 @@
  * 订单申诉/退款表单种子、校验与弹层文案（debt-tracker C6 → C6b → C6c）。
  * 模板壳：`components/order-appeal-sheet.vue`；提交写路径仍在 order-detail / result。
  */
-import { DISPUTE_REASON_CHIPS, type DisputeReasonChip } from '@/utils/dispute-form';
+import {
+  DEFAULT_DISPUTE_CATEGORY,
+  DISPUTE_REASON_CHIPS,
+  type DisputeReasonChip
+} from '@/utils/dispute-form';
 
 export const DEFAULT_REFUND_REASON = '申请退回本单已扣款项';
 export const DEFAULT_REFUND_CHIP_LABEL = '申请退款';
@@ -20,7 +24,7 @@ export function seedDisputeForm(): AppealFormSeed {
   return {
     refundMode: false,
     disputeReason: '',
-    selectedCategory: 'USER_APPEAL',
+    selectedCategory: DEFAULT_DISPUTE_CATEGORY,
     selectedChip: null
   };
 }
@@ -101,7 +105,7 @@ export function buildFileDisputeBody(input: {
   return {
     sessionId: input.sessionId,
     reason: input.reason.trim(),
-    category: input.category?.trim() || 'USER_APPEAL',
+    category: input.category?.trim() || DEFAULT_DISPUTE_CATEGORY,
     priority: 'NORMAL',
     evidenceFileIds: input.evidenceFileIds
   };

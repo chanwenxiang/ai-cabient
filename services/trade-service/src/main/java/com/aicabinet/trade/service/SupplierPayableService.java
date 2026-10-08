@@ -7,8 +7,10 @@ import com.aicabinet.common.dto.SupplierPayableSummaryDto;
 import com.aicabinet.common.dto.SupplierPaymentDto;
 import com.aicabinet.trade.domain.PurchaseOrder;
 import com.aicabinet.trade.domain.SupplierPayable;
+import com.aicabinet.trade.domain.SupplierPayableEntry;
 import com.aicabinet.trade.domain.SupplierPayment;
 import com.aicabinet.trade.mapper.SupplierMapper;
+import com.aicabinet.trade.mapper.SupplierPayableEntryMapper;
 import com.aicabinet.trade.mapper.SupplierPayableMapper;
 import com.aicabinet.trade.mapper.SupplierPaymentMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
@@ -43,6 +45,7 @@ public class SupplierPayableService {
     private final PermissionService permissionService;
     private final SupplierPayableMapper payableRepository;
     private final SupplierPaymentMapper paymentRepository;
+    private final SupplierPayableEntryMapper entryRepository;
     private final SupplierMapper supplierRepository;
     private final WarehouseMapper warehouseRepository;
     private final DistributedLockService distributedLockService;
@@ -51,6 +54,7 @@ public class SupplierPayableService {
     public SupplierPayableService(PermissionService permissionService,
                                   SupplierPayableMapper payableRepository,
                                   SupplierPaymentMapper paymentRepository,
+                                  SupplierPayableEntryMapper entryRepository,
                                   SupplierMapper supplierRepository,
                                   WarehouseMapper warehouseRepository,
                                   DistributedLockService distributedLockService,
@@ -58,6 +62,7 @@ public class SupplierPayableService {
         this.permissionService = permissionService;
         this.payableRepository = payableRepository;
         this.paymentRepository = paymentRepository;
+        this.entryRepository = entryRepository;
         this.supplierRepository = supplierRepository;
         this.warehouseRepository = warehouseRepository;
         this.distributedLockService = distributedLockService;
@@ -205,10 +210,10 @@ public class SupplierPayableService {
             return;
         }
         runWithPurchaseOrderLock(order.getPurchaseOrderId(),
-                () -> doRecordReceive(order, receivedValueCents));
+                () -> doRecordReceive(operatorId, order, receivedValueCents));
     }
 
-    private void doRecordReceive(PurchaseOrder order, long receivedValueCents) {
+    private void doRecordReceive(Long operatorId, PurchaseOrder order, long receivedValueCents) {
         SupplierPayable payable = payableRepository.findByPurchaseOrderIdForUpdate(order.getPurchaseOrderId())
                 .orElse(null);
         if (payable == null) {
@@ -226,6 +231,11 @@ public class SupplierPayableService {
         refreshStatus(payable);
         payable.setUpdatedAt(Instant.now());
         payableRepository.save(payable);
+        // V326 流水：与主表更新同事务。entry 记「主表实际增量」= receivedValueCents，
+        // 保证「Σ(RECEIVE+OPENING)−Σ(RETURN)−Σ付款 ≡ 主表余额」恒成立（对账交叉验证的根基）。
+        // payableId 必须在 save 之后取（新建时 id 由 BIGSERIAL 回填）。
+        insertEntry(payable, SupplierPayableEntry.TYPE_RECEIVE, receivedValueCents, operatorId,
+                "收货累加应付");
     }
 
     /** 采购退货冲减应付金额；金额归零后关闭应付单。 */
@@ -235,16 +245,21 @@ public class SupplierPayableService {
             return;
         }
         runWithPurchaseOrderLock(order.getPurchaseOrderId(),
-                () -> doRecordReturn(order, returnedValueCents));
+                () -> doRecordReturn(operatorId, order, returnedValueCents));
     }
 
-    private void doRecordReturn(PurchaseOrder order, long returnedValueCents) {
+    private void doRecordReturn(Long operatorId, PurchaseOrder order, long returnedValueCents) {
         SupplierPayable payable = payableRepository.findByPurchaseOrderIdForUpdate(order.getPurchaseOrderId())
                 .orElse(null);
         if (payable == null) {
             return;
         }
-        payable.setAmountCents(Math.max(0, payable.getAmountCents() - returnedValueCents));
+        // 🔴 RETURN entry 记「实际冲减额」（old−new），不是请求额 returnedValueCents：
+        // 主表用 Math.max(0,…) 截断时（超退/重复退），流水若记请求额会破坏
+        // 「流水推算余额 ≡ 主表余额」的不变量，对账单会出现假差异。
+        long oldAmount = payable.getAmountCents();
+        payable.setAmountCents(Math.max(0, oldAmount - returnedValueCents));
+        long actualReduced = oldAmount - payable.getAmountCents();
         if (payable.getAmountCents() <= 0) {
             payable.setStatus("CLOSED");
             payable.setPaidAt(Instant.now());
@@ -253,6 +268,25 @@ public class SupplierPayableService {
         }
         payable.setUpdatedAt(Instant.now());
         payableRepository.save(payable);
+        if (actualReduced > 0) {
+            insertEntry(payable, SupplierPayableEntry.TYPE_RETURN, actualReduced, operatorId,
+                    "退货冲减应付");
+        }
+    }
+
+    /** 插入应付流水；失败即整个事务回滚（主表与流水永远同生同死，不允许「改了账没留痕」）。 */
+    private void insertEntry(SupplierPayable payable, String entryType, long amountCents,
+                             Long operatorId, String notes) {
+        SupplierPayableEntry entry = new SupplierPayableEntry();
+        entry.setSupplierId(payable.getSupplierId());
+        entry.setPayableId(payable.getPayableId());
+        entry.setPurchaseOrderId(payable.getPurchaseOrderId());
+        entry.setEntryType(entryType);
+        entry.setAmountCents(amountCents);
+        entry.setOperatorId(operatorId);
+        entry.setNotes(notes);
+        entry.setCreatedAt(Instant.now());
+        entryRepository.insert(entry);
     }
 
     static String payableLockKey(Long payableId) {

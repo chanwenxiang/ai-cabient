@@ -16,12 +16,24 @@
           role="button"
           :key="chip.label"
           class="reason-chip"
-          :class="{ on: selectedCategory === chip.category }"
+          :class="{ on: selectedLabel === chip.label }"
           @click="emit('pick-chip', chip)"
           >{{ chip.label }}</text
         >
       </view>
-      <text class="field-label">申诉说明</text>
+      <!-- 清空按钮：申诉态与「立即退款」态共用本组件，两形态都可见；仅清说明+选中，不动证据图 -->
+      <view v-if="reason.trim() || selectedLabel" class="field-label-row">
+        <text class="field-label">申诉说明</text>
+        <text
+          role="button"
+          class="reason-clear"
+          :class="surfaceClass"
+          aria-label="清空申诉说明"
+          @click="emit('clear')"
+          >清空</text
+        >
+      </view>
+      <text v-else class="field-label">申诉说明</text>
       <textarea
         :value="reason"
         class="order-appeal-input"
@@ -106,7 +118,8 @@ const props = defineProps<{
   surface: AppealSurface;
   refundMode: boolean;
   reason: string;
-  selectedCategory: string;
+  /** 当前选中的快捷选项 label（单选；空串=全不亮）。🔴 不按 category 判亮：3 类 × 每类 2 条，按类会两条同亮，用户实测否决。 */
+  selectedLabel: string;
   evidence: LocalEvidence[];
   disputeLoading: boolean;
   refundLoading: boolean;
@@ -117,6 +130,7 @@ const emit = defineEmits<{
   submit: [];
   'update:reason': [value: string];
   'pick-chip': [chip: DisputeReasonChip];
+  clear: [];
   'add-evidence': [];
   'remove-evidence': [idx: number];
 }>();
@@ -223,6 +237,20 @@ function onReasonInput(e: unknown) {
   font-size: var(--font-size-caption);
   color: var(--text-muted);
   margin-bottom: 8rpx;
+}
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8rpx;
+}
+.field-label-row .field-label {
+  margin-bottom: 0;
+}
+.reason-clear {
+  color: var(--text-subtle, #888);
+  font-size: var(--font-size-caption);
+  padding: 4rpx 12rpx;
 }
 .order-appeal-input {
   width: 100%;

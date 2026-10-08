@@ -294,6 +294,20 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/warehouse/monthly-close?${query}`
       : `${ops}/warehouse/monthly-close?${query.toString()}`,
+  /** 月结单台账（V327，E7：两步法——生成草稿→审批锁单→逐行处置，CB-017）。 */
+  warehouseCloseSheets: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/warehouse/close-sheets?${query}`
+      : `${ops}/warehouse/close-sheets?${query.toString()}`,
+  warehouseCloseSheetsGenerate: `${ops}/warehouse/close-sheets/generate`,
+  warehouseCloseSheet: (closeId: string | number) =>
+    `${ops}/warehouse/close-sheets/${encodeURIComponent(String(closeId))}`,
+  warehouseCloseSheetApprove: (closeId: string | number) =>
+    `${ops}/warehouse/close-sheets/${encodeURIComponent(String(closeId))}/approve`,
+  warehouseCloseSheetDispose: (closeId: string | number, lineId: string | number) =>
+    `${ops}/warehouse/close-sheets/${encodeURIComponent(String(closeId))}/lines/${encodeURIComponent(String(lineId))}/disposition`,
+  warehouseCloseSheetDrift: (closeId: string | number) =>
+    `${ops}/warehouse/close-sheets/${encodeURIComponent(String(closeId))}/drift`,
   warehouseStocktakes: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/warehouse/stocktakes?${query}`
@@ -366,6 +380,11 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/procurement/suggestions?${query}`
       : `${ops}/procurement/suggestions?${query.toString()}`,
+  /** 供应商月度对账单（V326 流水口径，supplierId + month=yyyy-MM）。 */
+  supplierReconciliation: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/procurement/reconciliation?${query}`
+      : `${ops}/procurement/reconciliation?${query.toString()}`,
 
   /** 财务 / 资金 / 提现 / 发票 / 线长 */
   financeReport: (days: number | string) =>

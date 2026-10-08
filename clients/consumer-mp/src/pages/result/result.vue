@@ -163,13 +163,14 @@
       surface="result"
       :refund-mode="refundMode"
       :reason="disputeReason"
-      :selected-category="selectedCategory"
+      :selected-label="selectedChip?.label ?? ''"
       :evidence="evidence"
       :dispute-loading="disputeLoading"
       :refund-loading="refundLoading"
       @close="closeDispute"
       @submit="submitAction"
       @update:reason="(v) => (disputeReason = v)"
+      @clear="clearAppealText"
       @pick-chip="pickChip"
       @add-evidence="onAddEvidence"
       @remove-evidence="removeEvidence"
@@ -188,7 +189,8 @@ import { parseQuery } from '@aicabinet/shared-uni/query';
 import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { OrderDetailDto, OrderLineDto } from '@aicabinet/shared-types';
 import {
-  appendChipToReason,
+  applyChipToReason,
+  DEFAULT_DISPUTE_CATEGORY,
   inferRestoreInventory,
   type DisputeReasonChip
 } from '@/utils/dispute-form';
@@ -487,10 +489,27 @@ function closeDispute() {
   showDispute.value = false;
 }
 
+/**
+ * v2（2026-10-08 用户实测否决旧交互）：快捷选项=单选快填+可点掉。
+ * 旧版按 category 高亮（3 类 × 每类 2 条 ⇒ 点一条亮俩）且「；」追加永不取消。
+ */
 function pickChip(chip: DisputeReasonChip) {
-  selectedCategory.value = chip.category;
-  selectedChip.value = chip;
-  disputeReason.value = appendChipToReason(disputeReason.value, chip);
+  const wasSelected = selectedChip.value?.label === chip.label;
+  if (wasSelected) {
+    selectedChip.value = null;
+    selectedCategory.value = DEFAULT_DISPUTE_CATEGORY;
+  } else {
+    selectedCategory.value = chip.category;
+    selectedChip.value = chip;
+  }
+  disputeReason.value = applyChipToReason(disputeReason.value, chip, wasSelected);
+}
+
+/** 「清空」：仅清说明+取消选中（分类回落兜底）；证据图有独立删除流程，不在此清。 */
+function clearAppealText() {
+  disputeReason.value = '';
+  selectedChip.value = null;
+  selectedCategory.value = DEFAULT_DISPUTE_CATEGORY;
 }
 
 async function onAddEvidence() {

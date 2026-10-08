@@ -6,6 +6,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.ProcurementService;
 import com.aicabinet.trade.service.PurchaseSuggestionService;
 import com.aicabinet.trade.service.SupplierPayableService;
+import com.aicabinet.trade.service.SupplierReconciliationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -22,13 +23,16 @@ public class OpsProcurementController {
     private final ProcurementService procurementService;
     private final PurchaseSuggestionService purchaseSuggestionService;
     private final SupplierPayableService supplierPayableService;
+    private final SupplierReconciliationService supplierReconciliationService;
 
     public OpsProcurementController(ProcurementService procurementService,
                                     PurchaseSuggestionService purchaseSuggestionService,
-                                    SupplierPayableService supplierPayableService) {
+                                    SupplierPayableService supplierPayableService,
+                                    SupplierReconciliationService supplierReconciliationService) {
         this.procurementService = procurementService;
         this.purchaseSuggestionService = purchaseSuggestionService;
         this.supplierPayableService = supplierPayableService;
+        this.supplierReconciliationService = supplierReconciliationService;
     }
 
     // --- 采购 / 供应商 / 应付 ---
@@ -81,6 +85,22 @@ public class OpsProcurementController {
             HttpServletRequest request,
             @PathVariable Long purchaseOrderId) {
         return ApiResponse.ok(procurementService.getPurchaseOrder(operatorId(request), purchaseOrderId));
+    }
+
+    /**
+     * 供应商月度对账单（V326，E3 缺口 #8；行业公式与数据基础依据见
+     * {@code docs/COMPETITOR_BENCHMARK.md} CB-016）。
+     *
+     * <p>只读聚合，不动任何资金。{@code month} 格式 {@code yyyy-MM}。
+     */
+    @RequiresPermissions("ops:procurement:list")
+    @GetMapping("/procurement/reconciliation")
+    public ApiResponse<SupplierReconciliationDto> supplierReconciliation(
+            HttpServletRequest request,
+            @RequestParam String supplierId,
+            @RequestParam String month) {
+        return ApiResponse.ok(supplierReconciliationService.monthlyReconciliation(
+                operatorId(request), supplierId, month));
     }
 
     @RequiresPermissions("ops:procurement:list")

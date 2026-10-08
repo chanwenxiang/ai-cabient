@@ -193,15 +193,17 @@
           <text v-if="isDev && demoHint" class="dev-hint">{{ demoHint }}</text>
         </view>
 
-        <app-button
-          class="login-back"
-          variant="ghost"
-          size="md"
-          shape="pill"
-          label="返回"
-          @click="goBack"
-        />
         <text v-if="err" class="err">{{ err }}</text>
+        <!-- 返回用轻量文字链，不再占一整条 pill（真机截图反馈：双 pill 叠排视觉重） -->
+        <view
+          class="login-back"
+          role="button"
+          aria-label="返回"
+          hover-class="login-back-hover"
+          :hover-stay-time="80"
+          @click="goBack"
+          >返回</view
+        >
         <view class="legal-row">
           <text role="button" class="legal-link" @click="goPolicy('agreement')">用户协议</text>
           <text class="legal-dot">·</text>

@@ -224,6 +224,20 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '待索赔台账', group: '仓储' }
   },
   {
+    // V327（E7 缺口 #9）：月结单台账 —— 两步法（CB-017）：生成草稿→审批锁单→逐行处置
+    path: 'warehouse/monthly-close-sheets',
+    name: 'warehouse-monthly-close-sheets',
+    component: () => import('@/views/warehouse/WarehouseMonthlyCloseSheetsView.vue'),
+    meta: { title: '月结单台账', group: '仓储' }
+  },
+  {
+    // V326（E3 缺口 #8）：供应商月度对账单 —— 流水口径（V326 起有数据），期末=期初+应付−退货−付款
+    path: 'warehouse/reconciliation',
+    name: 'warehouse-reconciliation',
+    component: () => import('@/views/warehouse/SupplierReconciliationView.vue'),
+    meta: { title: '供应商对账单', group: '仓储' }
+  },
+  {
     // V320（缺口 #6）：仓库侧近效期预警 —— 🔴 与设备侧的「补货预警」不是同一份数据
     path: 'warehouse/expiry-alerts',
     name: 'warehouse-expiry-alerts',

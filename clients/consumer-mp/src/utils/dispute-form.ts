@@ -40,11 +40,25 @@ export const DISPUTE_REASON_CHIPS = [
 
 export type DisputeReasonChip = (typeof DISPUTE_REASON_CHIPS)[number];
 
-export function appendChipToReason(current: string, chip: DisputeReasonChip): string {
-  const base = current.trim();
-  if (!base) return chip.text;
-  if (base.includes(chip.text)) return base;
-  return `${base}；${chip.text}`;
+/**
+ * 无显式 chip 时的申诉分类兜底，须与后端 DisputeReasonCategory 白名单一致。
+ * 单源导出：seedDisputeForm 与 pickChip 的「取消选中」回落分支都引用它。
+ */
+export const DEFAULT_DISPUTE_CATEGORY = 'USER_APPEAL';
+
+/**
+ * 快捷选项点击后的申诉说明（2026-10-08 用户推翻旧「；追加」交互后定案）：
+ * - 未选中 → 选中：说明**整体替换**为该条 chip 文案（旧版「；」追加会无限堆积，用户实测否决）；
+ * - 已选中 → 取消：说明仍是该条 chip 原文（未被用户编辑过）则清空，已编辑则保留用户文本。
+ * 快捷选项语义是「单选快填」，不是「多选累加」。
+ */
+export function applyChipToReason(
+  current: string,
+  chip: DisputeReasonChip,
+  wasSelected: boolean
+): string {
+  if (!wasSelected) return chip.text;
+  return current.trim() === chip.text ? '' : current;
 }
 
 /** 与后端 RefundInventoryPolicy 对齐：仅信显式 chip；自由文本交服务端（C-10） */

@@ -6,6 +6,7 @@ import com.aicabinet.trade.domain.Supplier;
 import com.aicabinet.trade.domain.SupplierPayable;
 import com.aicabinet.trade.domain.SupplierPayment;
 import com.aicabinet.trade.mapper.SupplierMapper;
+import com.aicabinet.trade.mapper.SupplierPayableEntryMapper;
 import com.aicabinet.trade.mapper.SupplierPayableMapper;
 import com.aicabinet.trade.mapper.SupplierPaymentMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
@@ -43,6 +44,7 @@ class SupplierPayableServiceTest {
     @Mock private PermissionService permissionService;
     @Mock private SupplierPayableMapper payableRepository;
     @Mock private SupplierPaymentMapper paymentRepository;
+    @Mock private SupplierPayableEntryMapper entryRepository;
     @Mock private SupplierMapper supplierRepository;
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private DistributedLockService distributedLockService;
@@ -52,7 +54,8 @@ class SupplierPayableServiceTest {
     @BeforeEach
     void setUp() {
         service = new SupplierPayableService(permissionService, payableRepository,
-                paymentRepository, supplierRepository, warehouseRepository, distributedLockService, null);
+                paymentRepository, entryRepository, supplierRepository, warehouseRepository,
+                distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }

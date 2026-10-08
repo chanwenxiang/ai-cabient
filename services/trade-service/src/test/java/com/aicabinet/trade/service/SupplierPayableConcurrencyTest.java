@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.mapper.SupplierMapper;
+import com.aicabinet.trade.mapper.SupplierPayableEntryMapper;
 import com.aicabinet.trade.mapper.SupplierPayableMapper;
 import com.aicabinet.trade.mapper.SupplierPaymentMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
@@ -22,6 +23,7 @@ class SupplierPayableConcurrencyTest {
     @Mock private PermissionService permissionService;
     @Mock private SupplierPayableMapper payableRepository;
     @Mock private SupplierPaymentMapper paymentRepository;
+    @Mock private SupplierPayableEntryMapper entryRepository;
     @Mock private SupplierMapper supplierRepository;
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private DistributedLockService distributedLockService;
@@ -31,7 +33,7 @@ class SupplierPayableConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new SupplierPayableService(permissionService, payableRepository, paymentRepository,
-                supplierRepository, warehouseRepository, distributedLockService, null);
+                entryRepository, supplierRepository, warehouseRepository, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

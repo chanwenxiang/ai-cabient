@@ -6,6 +6,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.OpsWarehouseAdminService;
 import com.aicabinet.trade.service.OpsCsvExportService;
 import com.aicabinet.trade.service.WarehouseBinService;
+import com.aicabinet.trade.service.WarehouseMonthlyCloseSheetService;
 import com.aicabinet.trade.service.WarehouseStocktakeService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -32,15 +33,18 @@ public class OpsWarehouseController {
     private final WarehouseBinService warehouseBinService;
     private final OpsCsvExportService csvExportService;
     private final OpsWarehouseAdminService warehouseAdminService;
+    private final WarehouseMonthlyCloseSheetService monthlyCloseSheetService;
 
     public OpsWarehouseController(WarehouseStocktakeService warehouseStocktakeService,
                                   WarehouseBinService warehouseBinService,
                                   OpsCsvExportService csvExportService,
-                                  OpsWarehouseAdminService warehouseAdminService) {
+                                  OpsWarehouseAdminService warehouseAdminService,
+                                  WarehouseMonthlyCloseSheetService monthlyCloseSheetService) {
         this.warehouseStocktakeService = warehouseStocktakeService;
         this.warehouseBinService = warehouseBinService;
         this.csvExportService = csvExportService;
         this.warehouseAdminService = warehouseAdminService;
+        this.monthlyCloseSheetService = monthlyCloseSheetService;
     }
 
     // --- 整仓盘点 ---
@@ -330,4 +334,63 @@ public class OpsWarehouseController {
     private static Long operatorId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }
+
+    // --- 仓库月结单（V327，E7；两步法 CB-017：生成草稿→审批锁单→逐行处置）---
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/close-sheets/generate")
+    public ApiResponse<com.aicabinet.common.dto.WarehouseCloseSheetDto> generateCloseSheet(
+            HttpServletRequest request,
+            @RequestBody GenerateCloseSheetRequest body) {
+        return ApiResponse.ok(monthlyCloseSheetService.generateSheet(
+                operatorId(request), body.warehouseId(), body.yearMonth()));
+    }
+
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/close-sheets")
+    public ApiResponse<PageResult<com.aicabinet.common.dto.WarehouseCloseSheetDto>> closeSheets(
+            @RequestParam(required = false) String warehouseId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(monthlyCloseSheetService.listSheets(warehouseId, page, size));
+    }
+
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/close-sheets/{closeId}")
+    public ApiResponse<com.aicabinet.common.dto.WarehouseCloseSheetDto> closeSheetDetail(
+            @PathVariable Long closeId) {
+        return ApiResponse.ok(monthlyCloseSheetService.getSheet(closeId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/close-sheets/{closeId}/approve")
+    public ApiResponse<com.aicabinet.common.dto.WarehouseCloseSheetDto> approveCloseSheet(
+            HttpServletRequest request,
+            @PathVariable Long closeId) {
+        return ApiResponse.ok(monthlyCloseSheetService.approve(operatorId(request), closeId));
+    }
+
+    /** 差异处置（CB-017 两步法第二步）：CLAIM 进索赔台账 / NORMAL_LOSS 正常损耗 / SURPLUS 盘盈待查。 */
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/close-sheets/{closeId}/lines/{lineId}/disposition")
+    public ApiResponse<com.aicabinet.common.dto.WarehouseCloseSheetDto> disposeCloseLine(
+            HttpServletRequest request,
+            @PathVariable Long closeId,
+            @PathVariable Long lineId,
+            @RequestBody DisposeLineRequest body) {
+        return ApiResponse.ok(monthlyCloseSheetService.disposeLine(
+                operatorId(request), closeId, lineId, body.disposition(),
+                body.responsibleParty(), body.claimNo()));
+    }
+
+    /** 重算漂移核对：审批后底层数据是否又变动（不一致前端亮红）。 */
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/close-sheets/{closeId}/drift")
+    public ApiResponse<java.util.Map<String, Object>> closeSheetDrift(@PathVariable Long closeId) {
+        return ApiResponse.ok(monthlyCloseSheetService.recalcDrift(closeId));
+    }
+
+    public record GenerateCloseSheetRequest(String warehouseId, String yearMonth) {}
+
+    public record DisposeLineRequest(String disposition, String responsibleParty, String claimNo) {}
 }

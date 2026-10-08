@@ -47,6 +47,28 @@ android {
         }
     }
 
+    // ── B3/G7：release 正式签名（2026-10-08）─────────────────────────────
+    // 凭据全部走环境变量，绝不硬编码入库（铁律 27）；生成与备份规范见
+    // docs/SIGNING_AND_RELEASE.md。KSTOREFILE 未设置时保持空配置：
+    // debug 变体（mock/device 的日常构建）不受任何影响。
+    signingConfigs {
+        create("release") {
+            val kstoreFile = System.getenv("KSTOREFILE")
+            if (kstoreFile != null) {
+                storeFile = file(kstoreFile)
+                storePassword = System.getenv("KSTOREPWD")
+                keyAlias = System.getenv("KEYALIAS")
+                keyPassword = System.getenv("KEYPWD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
     buildFeatures {
         buildConfig = true
         viewBinding = true
@@ -65,6 +87,20 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+    }
+}
+
+// 🔴 防静默事故：release 变体构建时若签名凭据未配置，显式失败，
+// 而不是产出 unsigned 包（unsigned 包一旦被当正式包推 OTA，设备装不上且难排查）。
+// 「环境变量没配 → 拿 debug key 签了 release 包发出去」是这类配置最经典的事故。
+tasks.matching { it.name.startsWith("assemble") && it.name.contains("Release") }.configureEach {
+    doFirst {
+        if (System.getenv("KSTOREFILE") == null) {
+            throw GradleException(
+                "release 构建缺少签名凭据：请设置 KSTOREFILE / KSTOREPWD / KEYALIAS / KEYPWD" +
+                    "（密钥生成与备份见 edge/android-app/docs/SIGNING_AND_RELEASE.md §二/§三）",
+            )
+        }
     }
 }
 
