@@ -151,8 +151,15 @@ if (adminSrcChanged || full) {
     // 🔴 不能只写「请用 Docker 构建」——纯文字提示没有可执行入口，
     //    实际结果是每次都漏提交产物、CI 的 admin-artifacts job 每次都红
     //    （与「沉默开关」同型：能力存在但没人知道怎么用）。
-    console.log('Windows 本地重建产物（node:24容器，不碰宿主 node_modules，铁律 30）：');
-    console.log('    bash scripts/build-admin-docker.sh');
+    //
+    // 🔴 2026-10-08：入口改了。原先指的 build-admin-docker.sh 走「宿主工作区打包进容器」，
+    //    而工作区里有被 gitignore 的 clients/admin-vue/.env.local（VITE_DEV_PROXY 等），
+    //    vite 会把 VITE_* 内联进产物字节 ⇒ 产物与 CI 的干净检出不同 ⇒ 门禁必红。
+    //    该脚本连续两次「重建并提交」都没治好 CI，就是这个原因。
+    //    现指向 build-admin-ci-fidelity.sh：容器内 **git clone 干净检出** 后重建，与 CI 同源。
+    console.log('Windows 本地重建产物（从 git 干净检出重建，node:24.18.0 对齐 CI，不碰宿主 node_modules）：');
+    console.log('    bash scripts/build-admin-ci-fidelity.sh');
+    console.log('  （诊断产物门禁为何红：bash scripts/diag-admin-ci-replica.sh）');
     console.log('  然后**把 static/admin 一并提交** —— CI 会做字节比对。');
   } else {
     console.log('\n── admin 源码有改动 → 重建产物并核对（对齐 admin-artifacts job）──');
