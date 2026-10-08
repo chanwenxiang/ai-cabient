@@ -157,7 +157,9 @@ if (adminSrcChanged || full) {
     //    vite 会把 VITE_* 内联进产物字节 ⇒ 产物与 CI 的干净检出不同 ⇒ 门禁必红。
     //    该脚本连续两次「重建并提交」都没治好 CI，就是这个原因。
     //    现指向 build-admin-ci-fidelity.sh：容器内 **git clone 干净检出** 后重建，与 CI 同源。
-    console.log('Windows 本地重建产物（从 git 干净检出重建，node:24.18.0 对齐 CI，不碰宿主 node_modules）：');
+    console.log(
+      'Windows 本地重建产物（从 git 干净检出重建，node:24.18.0 对齐 CI，不碰宿主 node_modules）：'
+    );
     console.log('    bash scripts/build-admin-ci-fidelity.sh');
     console.log('  （诊断产物门禁为何红：bash scripts/diag-admin-ci-replica.sh）');
     console.log('  然后**把 static/admin 一并提交** —— CI 会做字节比对。');
