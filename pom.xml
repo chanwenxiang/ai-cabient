@@ -52,7 +52,7 @@
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <opentelemetry.version>1.62.0</opentelemetry.version>
         <bouncycastle.version>1.85</bouncycastle.version>
-        <lz4-java.version>1.11.1</lz4-java.version>
+        <lz4-java.version>1.11.4</lz4-java.version>
     </properties>
 
     <dependencyManagement>

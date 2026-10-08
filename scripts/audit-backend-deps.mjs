@@ -218,7 +218,34 @@ const WAIVED = new Set([
   //    · 若安全审计/客户合规要求清零所有 high+ → 本条为唯一阻碍，需重新评估上述决策。
   //    2026-10-06 风险接受（决策：不订阅、不升级；接受结构性不可达 + 长期无补丁）。
   'GHSA-pc63-qcmh-9cmg',
-  'CVE-2026-47884'
+  'CVE-2026-47884',
+
+  // GHSA-j9f9-w8pj-32f8：Spring MVC/WebFlux 在「SSE + 视图片段」下渲染流被破坏（CVSS 9.8，C/I/A 全高）。
+  // 2026-10-08 OSV 首次命中（advisory 2026-08-27 发布，仅在 OSV 全树扫到 spring-webmvc 6.2.19）。
+  //
+  // ① 不可利用依据（结构性，非配置性）：
+  //    触发需三个条件同时成立——(a) 应用使用 SSE（SseEmitter / ReactiveSseEmitter）；
+  //    (b) SSE 响应里渲染「视图片段」（fragment）；(c) 走 Spring 视图层。本项目三条全部不满足
+  //    （2026-10-08 全仓 grep 实测）：
+  //      · SseEmitter / ServerSentEvent / text/event-stream / webflux / reactor-core
+  //        在 src/ 下**零命中**（唯一 reactor-core 命中是 docs/evidence 下 2026-09 的历史
+  //        classpath 探测文本，非代码）；未引入 spring-boot-starter-webflux；
+  //      · 无任何视图片段渲染（同上一条豁免：ViewResolver/XsltView 全仓零命中）；
+  //      · 全部对外接口为 @ResponseBody REST + admin 静态资源转发，不经视图层。
+  //    ⇒ 保持「纯 REST + 静态资源转发」架构则本 CVE 不可达。
+  //
+  // ② 是否临时：**否**。OSV 数据面实测 affected = Framework 6.2.0–6.2.19 与 7.0.0–7.0.8，
+  //    **唯一修复版本是 7.0.9**（6.2 线无 fixed 事件）。6.2 OSS 已于 2026-06-30 EOL 且 3.5 是
+  //    3.x 末版，故 6.2 线不会再有 OSS 补丁。与上一条同族：出路只有①升 Boot 4/Framework 7.0.9+
+  //    ②Broadcom 企业订阅③第三方 backport，本项目决策为**不订阅、不升级**。
+  //
+  // ③ 跟进动作（触发式，非排期式）：
+  //    · 若将来引入 SSE（SseEmitter / WebFlux 响应流）**或**引入视图渲染 → 本条立即转为
+  //      「可利用」，**必须先行处置**（不得先上线后补）；
+  //    · 若升级到 Boot 4.x（Framework 7.0.9+）→ 撤销本豁免并复验；
+  //    · 与 GHSA-pc63-qcmh-9cmg 同为「Framework 6.2 EOL 线」风险，两条须一并复评。
+  //    2026-10-08 风险接受（决策：不订阅、不升级；接受结构性不可达 + 该线无 OSS 修复）。
+  'GHSA-j9f9-w8pj-32f8'
 ]);
 for (let i = 0; i < packages.length; i++) {
   const vulns = data.results?.[i]?.vulns || [];
