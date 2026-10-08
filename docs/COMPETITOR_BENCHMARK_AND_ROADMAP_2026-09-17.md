@@ -80,6 +80,19 @@
 
 - **P0 残留（09-18 逐条复核 + 当轮修复状态）**：
   - ✅ **假 appid 已清除 + 构建期注入点已建（09-18 第二轮）**：原 `clients/consumer-mp/project.config.json:2` 与 `clients/admin-vue/project.config.json:23` 里的 `wx5a5bc7b541b62a13` **是假值**（用户已确认尚未申请）——它最坏的地方不是「假」，而是 `validate-miniapp-env.mjs` **分辨不出真假**，于是那条「appid 校验」对 consumer 侧是**假绿**（旧 `:76` 取 `manifestAppId || projectAppId`，有值即过）。处置：① consumer 该字段置 `""`，恢复 fail-closed；② `clients/admin-vue/project.config.json` 与 admin 端**毫无关系**（admin 是 vite/vitest 纯 Web，无任何 uni / mp-weixin 依赖，全仓无引用），属**死文件**，已删除；③ 真值改由新增的 `scripts/inject-miniapp-env.mjs` 在构建期从 `MP_WEIXIN_APPID_{CONSUMER,MERCHANT}` / `MP_WEIXIN_APPID` 注入**构建产物** `dist/{dev,build}/mp-weixin/project.config.json`（该目录已被 `.gitignore:16` 忽略，账号资产不会误提交）。⚠️ 因为 uni 会把 appid 写进产物（实测产物里是 `touristappid`），所以注入必须发生在 **`uni build` 之后**，不能改 `manifest.json` 了事。
+
+    > 🔴 **2026-10-08 更正：本条「假值」判定已过期，勿再据此否定真实 appid。**
+    > 上面那句「是假值（用户已确认尚未申请）」记录的是 **09-18 那一刻**的状态，不是永久事实。
+    > 用户已于 09-18 之后**实际申请到该 appid**，并出示**微信后台截图**
+    > （`开发管理 → 开发者ID`，AppID = `wx5a5bc7b541b62a13`，页面有 AppSecret「重置」按钮）
+    > 确认为真实已注册的小程序账号。当前 `MP_WEIXIN_APPID_CONSUMER` 已设为该值，
+    > `clients/consumer-mp/dist/{dev,build}/mp-weixin/project.config.json` 实测 appid 即此值。
+    > ⚠️ **判「appid 真假」的依据是「是否具备真实账号证据」**（后台页可打开、有 AppSecret 重置按钮、
+    > 用户明确说明），**不是档案措辞**——状态类断言会过期，引用前必须核对记录日期。
+    > ⚠️ **另一条仍然成立**：一个 appid 唯一对应一个小程序账号，**两端不可共用**，
+    > 故`MP_WEIXIN_APPID_MERCHANT` 必须另申请独立 appid，且**禁止设兜底变量
+    > `MP_WEIXIN_APPID`**（`inject-miniapp-env.mjs:55` 的 `KEY || MP_WEIXIN_APPID`
+    > 会让两端拿到同一个 appid）。
   - ✅ **`urlCheck` 判据已从「源文件」移到「产物」（09-18 第二轮）**：源码必须长期 `false`（开发者工具要连 localhost/内网后端），发布期必须 `true`——同一文件放不下两种值，所以旧判据（`validate-miniapp-env.mjs:88` 要求**源文件**为 `true`）位置就是错的：它要么逼人把 `true` 提交进源码（破坏本地联调），要么只能被 `AICABINET_ALLOW_URL_CHECK_OFF=1` 绕过（**该 bypass 已删除**）。新判据在 `scripts/inject-miniapp-env.mjs`：**release 模式检查产物** `dist/*/mp-weixin/project.config.json` 的 `appid` 与 `setting.urlCheck`，不达标 `exit(1)`，并回读产物自检。这就是「按**有效值**判、按**最终产物**判」，而不是「按文件里写了什么判」。
   - **消费者端隐私授权声明缺失**：consumer-mp `src/manifest.json` 无 `__usePrivacyCheck__` / `requiredPrivateInfos`。⚠️ 但**隐私弹窗本身已实现**（`packages/shared-uni/src/components/privacy-consent-modal` + `privacy-consent.ts`，已挂 index/login），缺的只是微信侧声明开关与后台隐私协议配置——**勿当成「隐私功能未做」重做**。
   - ✅ **C-1/C-2/C-3 会话竞态三连 → 09-18 已修**（`clients/consumer-mp/src/pages/index/index.vue`）：
