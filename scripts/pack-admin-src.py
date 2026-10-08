@@ -6,7 +6,9 @@
    "This does not look like a tar archive"（实测 2026-10-08）。
    Python 的 tarfile 生成的是标准 POSIX ustar，容器内一定能解开。
 
-用法：python scripts/pack-admin-src.py <输出tar> [排除目录...]
+用法：python scripts/pack-admin-src.py <输出tar> [额外包含路径...]
+   额外包含路径用于诊断场景（如 `scripts`，让容器内能跑 node scripts/build-admin.mjs）。
+   不传则只含 INCLUDE（既有 build-admin-docker.sh 的行为不变）。
 """
 import os
 import sys
@@ -23,7 +25,13 @@ INCLUDE = [
     'packages',
     'clients/admin-vue',
 ]
-EXCLUDE_DIRS = {'node_modules', 'dist', '.git', '.vite', '.cache'}
+EXCLUDE_DIRS = {'node_modules', '.git', '.vite', '.cache'}
+# 🔴 **不要排除 dist**（实测 2026-10-08）：`packages/*/dist` 是**被 git 跟踪并提交**的
+#    （shared-rbac/shared-dict/shared-api 的 types 字段指向 ./dist/index.d.ts）。
+#    CI 的 admin-artifacts job 只跑 `pnpm install` + `node scripts/build-admin.mjs`、
+#    **没有** build:packages —— 它能过正是因为 checkout 出来的 dist 已在。
+#    若这里排掉 dist，容器里 vue-tsc 会报 TS2307 Cannot find module '@aicabinet/shared-rbac'，
+#    与 CI 行为不一致，诊断结论必然失真。
 EXCLUDE_SUFFIX = ('.log', '.tsbuildinfo', '.abtmp')
 
 
@@ -61,18 +69,20 @@ def add(tar: tarfile.TarFile, path: str) -> None:
 
 def main() -> int:
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, '.tmp', 'admin-src.tar')
+    extra = sys.argv[2:]           # 诊断用：额外要打进归档的路径（如 scripts）
     os.makedirs(os.path.dirname(out), exist_ok=True)
     if os.path.exists(out):
         os.remove(out)
 
-    missing = [p for p in INCLUDE if not os.path.exists(os.path.join(ROOT, p))]
+    include = list(INCLUDE) + [e for e in extra if e not in INCLUDE]
+    missing = [p for p in include if not os.path.exists(os.path.join(ROOT, p))]
     if missing:
         print(f'❌ 缺少必需路径：{missing}', file=sys.stderr)
         return 1
 
     # format=GNU_FORMAT 最兼容容器内 GNU tar；不用 gzip（省一次 CPU）
     with tarfile.open(out, 'w', format=tarfile.GNU_FORMAT) as tar:
-        for p in INCLUDE:
+        for p in include:
             add(tar, os.path.join(ROOT, p))
 
     size = os.path.getsize(out)
@@ -93,9 +103,11 @@ def main() -> int:
     if missing:
         print(f'❌ 归档缺少必需条目：{missing}', file=sys.stderr)
         return 1
-    # 顶层必须只有这 4 个 + packages/clients
+    # 顶层必须只有「本次要打的」那些 —— 白名单由 include 推导（加了额外路径也能自动放行，
+    # 但仍能拦住 arcname 退化产生的陌生顶层目录）。
+    allowed_tops = {p.split('/')[0] for p in include}
     tops = {n.split('/')[0] for n in names}
-    unexpected = tops - {'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml', '.npmrc', 'packages', 'clients'}
+    unexpected = tops - allowed_tops
     if unexpected:
         print(f'❌ 归档顶层出现意外目录（说明 arcname 退化了）：{sorted(unexpected)[:5]}', file=sys.stderr)
         return 1
