@@ -359,7 +359,58 @@ $env:MP_WEIXIN_APPID_CONSUMER="wxXXXXXXXXXXXXXXXX"; npm run build:mp-weixin
 > appid 申请下来后**不需要改任何代码**：在 CI 里把它配成 secret（`MP_WEIXIN_APPID_CONSUMER` / `MP_WEIXIN_APPID_MERCHANT`）即可。
 > `dev` 是 watch 模式，不会在结束时跑注入；首次编译后执行一次 `npm run inject:mp-weixin` 即可。
 
-### 6. 操作流程
+### 6. 编译产物自检（别只看退出码）
+
+`build:mp-weixin:dev` 会产出**两份**：`dist/dev/mp-weixin`（开发者工具导入这个）
+与 `dist/build/mp-weixin`。两端编译完成后按下面几项回读磁盘：
+
+| 检查项 | 怎么看 | 正常值 |
+|--------|--------|--------|
+| 四份产物都在 | `ls clients/*/dist/{dev,build}/mp-weixin` | consumer / merchant 各两份 |
+| appid 注入生效 | 读产物 `project.config.json` 的 `appid` | 有环境变量则真值，否则 `touristappid` |
+| 后端地址内联 | `grep -r "127.0.0.1" dist/dev/mp-weixin/common/vendor.js` | dev 应命中 `http://127.0.0.1` |
+| 源码没被污染 | `git status --porcelain` + 源码 `appid` 字段 | 只应看到 `docs/` 改动；源码 appid 仍为空 |
+
+两个容易误判的点：
+
+- **后端地址不在 `config/` 或 `api/` 目录**，而在 `common/vendor.js`（打包后内联）。
+  搜那两个目录搜不到就以为没写入，是误判。
+- `app.json` 里 `pages` 只有 5～6 条是**分包（subPackage）结构**的正常表现，
+  不是「页面丢失」。真实页面数 = `pages` 长度 + 各 `subPackages[].pages` 之和
+  （consumer 21 页 / merchant 27 页）。
+
+> `scripts/sync-consumer-mp-api.mjs` 的地址探测顺序是**回环地址优先、局域网 IP 兜底**
+> （真机预览才需要局域网 IP），所以在本机编译出 `http://127.0.0.1` 是符合设计的，不是没探测到。
+
+### 7. 编译报 `SAFE_DELETE_BULK_CONFIRM_REQUIRED` 怎么办
+
+若 `uni build` 在 `Compiling...` 后报：
+
+```text
+Error: [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":62,"threshold":50,...}
+  at checkBulkDeleteGuard (...\cli\vendor\shim\node-safe-delete-shim.cjs:239:19)
+  at emptyDir (...\node_modules\@dcloudio\uni-cli-shared\dist\fs.js:15:22)
+```
+
+这是**开发环境拦截，不是代码或依赖坏了**。成因：`uni build` 每次都要清空产物目录，
+而 CLI 里的删除动作触发了 IDE 的批量删除保护（阈值 50 个文件）。
+
+处理办法——把旧产物**移走**而不是删掉（移动不触发删除保护，且可逆）：
+
+```bash
+# 在仓库根目录执行；.tmp/ 已被 .gitignore 忽略
+mkdir -p .tmp/stale-backup
+mv clients/consumer-mp/dist/build/mp-weixin .tmp/stale-backup/consumer-mp-mp-weixin
+mv clients/merchant-mp/dist/build/mp-weixin .tmp/stale-backup/merchant-mp-mp-weixin
+```
+
+🔴 **必须整个 `mp-weixin` 目录一次移走**：uni 的 `emptyDir` 是**按子目录逐个清理**的
+（`fs.js:15` 里是 `for (readdirSync) → rmSync`），只移走 `components/` 会在下一个
+`pages/`（上百个文件）继续失败。移完直接重跑构建即可。
+
+确认新产物没问题后，`.tmp/stale-backup/` 下的旧文件可以自行清理。
+
+### 8. 操作流程
 
 1. 消费者端登录 → 设备 ID `CAB-001` → 开门购物
 2. 商户端登录 → 查看柜机 / 待办 / 定价（受平台开关控制）
@@ -583,6 +634,100 @@ Gateway 转发到 `host.docker.internal:8080`，需宿主机上 trade-service �
 ```powershell
 .\scripts\verify-local.ps1 -WithVision
 ```
+
+---
+
+## 附录：运营大屏底图（高德 JS API）
+
+大屏 `/big-screen` 的底图用高德 JS API 2.0；**未配置 key 时自动降级 Leaflet**（免 key 瓦片），
+功能一样、只是底图样式不同。所以这一步是**可选**的。
+
+### 两个 key 必须分清（控制台上是两个不同条目）
+
+| 键 | 平台类型 | 用途 | 填错的后果 |
+|---|---|---|---|
+| `AMAP_WEB_KEY` | **Web服务** | 服务端地理编码（`AmapGeocodeService`） | 大屏 JS 地图加载不了 |
+| `AMAP_JS_KEY` | **Web端(JS API)** | 浏览器加载暗色底图 | 大屏降级 Leaflet |
+
+🔴 **不可互相顶替**：拿 JS key 调 Web 服务接口会返回 `USERKEY_PLAT_NOMATCH`(10009)，
+这**不代表 key 失效**，只说明类型不匹配。
+
+### 配置步骤
+
+**最小可用只需第 2、3、4步**（填 `infra/.env` + 生成运行时配置 + 刷新页面）。
+第 1、5 步是**推荐**而非必需，理由见下方「实测踩过的坑」。
+
+1. **（推荐）hosts 加一条**（需管理员权限编辑 `C:\Windows\System32\drivers\etc\hosts`）：
+
+   ```
+   127.0.0.1    aicabinet.local
+   ```
+
+2. **（推荐）高德控制台** → 应用管理 → 对应 Key 的「设置」→ 域名白名单填：
+
+   ```
+   aicabinet.local
+   ```
+
+   ⚠️ 控制台**不接受** `localhost` / `127.0.0.1`（报「不符合规范的域名」），也不接受端口。
+   **但当前实测该白名单并未真正拦截 Referer**（见下），所以留空也能出图 ——
+   填它是为了防盗用、避免将来高德收紧校验。
+
+3. **`infra/.env`** 填两个值（未入库文件）——**这步是必需的**：
+
+   ```bash
+   AMAP_JS_KEY=<控制台「Web端(JS API)」那条的 Key>
+   AMAP_JS_SECURITY_CODE=<该key 配套的安全密钥>
+   ```
+
+4. **生成运行时配置**（gateway 会 bind-mount `static/admin`，所以**无需重建镜像**）：
+
+   ```powershell
+   node scripts\gen-admin-runtime-config.mjs
+   ```
+
+   期望输出 `amapJsKey: 已注入 (len=32, from infra/.env#AMAP_JS_KEY)`。
+   该 json 在 `.gitignore` 里 ⇒ **不参与** CI 的 admin-artifacts 逐字节比对。
+
+5. **访问大屏**（`localhost` / `127.0.0.1` / `aicabinet.local` 实测均可）：
+
+   ```
+   http://localhost/admin/big-screen
+   ```
+
+### 大屏底图的样子
+
+大屏传了 `mapStyle: 'amap://styles/blue'`（见 `BigScreenView.vue:724`），
+所以是**深蓝暗色**底图；控制台里默认预览的样式（浅绿/默认色）**与大屏不一致是正常的**。
+
+### 🔴 三个实测踩过的坑
+
+- **`localhost` / `127.0.0.1` 都会被控制台判「不符合规范的域名」**，端口也不行
+  （别写 `localhost:80`）—— 这是**保存白名单时**的格式校验，与能否出图无关。
+- 🔴 **白名单目前并不强制拦截 Referer**（2026-10-08 实测，勿依赖此行为）：
+  用 playwright 把 Referer 伪造成 `http://evil.example.com/x`，`AMapLoader.load()`
+  仍返回 `ok:true`、矢量瓦片仍全 200 ⇒ `localhost` 与 `127.0.0.1` 访问都能正常出高德图。
+  **白名单仍应填**（防止 key 被他人盗用、避免将来高德收紧校验），
+  但「填了才有图」是错误认知 —— 别为绕开它去改 hosts。
+- **`infra/.env` 可能落后于 `infra/.env.example`**（它是人工复制的）。
+  若新增了配置项而脚本报「未配置」，先diff 两边的键集合 —— 缺失项都有fallback 默认值，
+  补齐只为配置显式完整。可用 `.tmp/sync-env-keys.py` 的思路批量同步。
+
+### 为什么 key 放运行时而不是构建时
+
+JS key **禁止**写进 `clients/admin-vue/.env.local`：它在**所有 mode** 下加载，会被 vite 内联进
+产物字节；而 CI 检出里没有该文件 ⇒ 同一提交在两处构建得到不同 chunk 哈希，
+`admin-artifacts` 的「重建后 `git status` 必须为空」判据永远对不上。
+详见 `clients/admin-vue/src/utils/amap.ts` 顶部注释。
+
+### 怎么验证真的出图了（别用 curl）
+
+瓦片接口 `appmaptile` **不校验 Referer**，用 curl 测恒返回 200 ⇒ **无法证明白名单是否生效**。
+真判据是浏览器里 `AMapLoader.load()` 与 `web_map/get_tile` 是否 200（失败报`INVALID_USER_DOMAIN` 10008）。
+自动化验证需用最小独立页**同源**访问（`/admin/big-screen` 需 `ops:dashboard:view` 登录态，
+直接 goto `/admin/index.html` 会落到登录页 → 得到假阴性的 `hasAMap:false`）。
+
+---
 
 ---
 
