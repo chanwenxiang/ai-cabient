@@ -2,6 +2,7 @@
   <view>
     <view v-if="showDock" class="action-dock">
       <app-button
+        class="dock-btn"
         v-if="!linesConfirmed"
         variant="outline"
         data-testid="replenish-confirm-lines"
@@ -10,6 +11,7 @@
         @click="$emit('confirm-lines')"
       />
       <app-button
+        class="dock-btn"
         data-testid="replenish-complete"
         :disabled="submitting || !hasLines || !linesConfirmed"
         :label="pullOff ? '确认全部下架' : '确认全部上架'"
@@ -51,7 +53,8 @@ defineEmits<{
   flex-direction: column;
   gap: 16rpx;
 }
-.action-dock :deep(.app-btn) {
+/* 🔴 原 `.action-dock :deep(.app-btn)` 在小程序端永不命中（组件样式隔离，lessons #288）。 */
+.dock-btn {
   margin-top: 0;
 }
 .complete-banner {

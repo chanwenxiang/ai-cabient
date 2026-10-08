@@ -7,7 +7,7 @@
  *
  * 规则见 docs/MIGRATION_SAFETY.md
  */
-import { spawnSync } from 'node:child_process';
+import { gitAsync } from './lib/async-spawn.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,16 +42,20 @@ function fail(msg) {
   process.exit(1);
 }
 
+/**
+ * 跑一条 git 命令并拿回 stdout。
+ *
+ * 🔴 走共用的异步 spawn（`scripts/lib/async-spawn.mjs`）：WorkBuddy 环境下
+ * 同步子进程一律 `EBUSY`/`status=null`（lessons #292），会把「git 跑不起来」
+ * 误判成「没有新迁移」而静默放行。本门禁必须读到 git diff / ls-files 的**内容**，
+ * 降级 stdio 的垫片也解决不了（拿不到 stdout）。
+ */
 function git(args) {
-  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-  if (r.status !== 0) {
-    return { ok: false, out: (r.stdout || '') + (r.stderr || '') };
-  }
-  return { ok: true, out: (r.stdout || '').trim() };
+  return gitAsync(args, { cwd: root });
 }
 
 const baseRef = process.env.MIGRATION_BASE_REF || 'origin/dev';
-let diffList = git([
+let diffList = await git([
   'diff',
   '--name-only',
   '--diff-filter=A',
@@ -61,14 +65,14 @@ let diffList = git([
 ]);
 if (!diffList.ok) {
   // 无 remote 基线时：相对 HEAD 已暂存/未提交的新增
-  diffList = git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', migrationDir]);
+  diffList = await git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', migrationDir]);
 }
 // 刻意**不**加 --exclude-standard：migration 目录里任何未跟踪的 .sql 都是一次真实的新迁移，
 // 被 .gitignore 掉 != 不会被 Flyway 执行（例如 check-migration-reviewed-gate.test.mjs 写进去的
 // 临时脚本，已由 .gitignore 兜底防误提交）。带 --exclude-standard 会让这类文件对安全门禁**完全隐形** ——
 // 2026-09-16 实测：一旦把该临时文件名加进 .gitignore，本脚本就再也扫不到它，
 // 于是「空头 MIGRATION_REVIEWED 必须被拦」的自测直接退化成恒假。
-const untracked = git(['ls-files', '--others', '--', migrationDir]);
+const untracked = await git(['ls-files', '--others', '--', migrationDir]);
 
 // 🔴 枚举不到 ≠「没有新迁移」。沙箱/受限宿主下 spawn 会 EBUSY（status=null），git() 返回 ok=false；
 // 若两路都失败而这里默认放行，门禁就在**没看**的情况下报 OK —— 比漏检更糟（信号在骗读者）。

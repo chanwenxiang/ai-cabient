@@ -169,29 +169,50 @@
   display: flex;
   margin-top: 16rpx;
 }
+/*
+ * 三个 chip 的状态家族（2026-10-08 用户两轮反馈后统一定稿）：
+ *   · 未选中可选（余额）  ：**透明底 + 浅描边** —— 与「去开通」的虚线描边同族；
+ *     原先 `background: var(--surface-muted)` 灰底是全组唯一的实底灰块，
+ *     用户指「余额背景色还是灰色，和其他的不同」⇒ 就是它跟透明底的两个免密 chip 不一致。
+ *   · 选中（.on）         ：**品牌绿实底 + 白字** —— 用户指「不明显」：原先选中只是
+ *     淡绿底 + 绿描边，与旁边灰底/白底的对比太弱，三张 chip 排一起分不清哪个生效。
+ *     实底填充是分段选择器的通用强选中语义，扫一眼就知道当前用哪个。
+ *   · 未开通（.disabled） ：虚线描边 + 「去开通」文案，点击直达开通页（见 mine.vue）。
+ */
 .pay-pref-chip {
   flex: 1;
   text-align: center;
   padding: 16rpx 8rpx;
   margin-right: 12rpx;
   border-radius: var(--radius-control);
-  background: var(--surface-muted);
-  color: var(--text-muted);
+  background: transparent;
+  color: var(--text-secondary, #5f6b66);
   font-size: var(--font-size-caption);
-  border: 2rpx solid transparent;
+  border: 2rpx solid var(--color-border, rgba(15, 118, 110, 0.25));
   box-sizing: border-box;
 }
 .pay-pref-chip:last-child {
   margin-right: 0;
 }
 .pay-pref-chip.on {
-  background: var(--brand-soft);
-  color: var(--brand);
-  border-color: var(--success);
+  background: var(--brand, #0f766e);
+  color: var(--white, #ffffff);
+  border-color: var(--brand, #0f766e);
   font-weight: 700;
 }
+/*
+ * 「未开通」的免密 chip。2026-10-08 起它**不再是禁用态** ——
+ * 点它会直接跳到开通页（见 mine.vue 的 onSetPayPreferred），所以视觉必须表达
+ * 「点这里去开通」而非「这里不可点」。
+ * 🔴 原为 `opacity: 0.45`（禁用灰），与实际可点击的行为**自相矛盾**：
+ * 用户看到灰的以为坏了，于是只点「余额」，永远走不到开通流程。
+ * 改为虚线描边 + 保留完整不透明度：仍是次要态（区别于 .on 的实心高亮），
+ * 但一眼看出「可点、且点了会去开通」。
+ */
 .pay-pref-chip.disabled {
-  opacity: 0.45;
+  opacity: 1;
+  border: 2rpx dashed var(--text-muted);
+  background: transparent;
 }
 .pay-pref-chip.busy {
   opacity: 0.7;

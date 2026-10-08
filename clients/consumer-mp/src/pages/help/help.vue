@@ -118,7 +118,12 @@
           >可在「订单详情」或购物结果页提交申诉。审核通过后会退回余额或原支付渠道，通常 24
           小时内处理。</text
         >
-        <app-button label="查看我的订单" aria-label="查看我的订单" @click="goOrders" />
+        <app-button
+          class="tip-card-cta"
+          label="查看我的订单"
+          aria-label="查看我的订单"
+          @click="goOrders"
+        />
       </view>
     </view>
   </view>
@@ -421,7 +426,9 @@ function goOrders() {
   line-height: 1.55;
   opacity: 0.9;
 }
-.tip-card :deep(.app-btn) {
+/* 🔴 原 `.tip-card :deep(.app-btn)` 在小程序端永不命中（组件样式隔离，lessons #288）。
+ * 间距改加在宿主节点上。 */
+.tip-card-cta {
   margin-top: 20rpx;
 }
 </style>

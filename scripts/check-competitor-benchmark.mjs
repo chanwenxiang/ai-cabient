@@ -38,7 +38,7 @@
  *
  *   node scripts/check-competitor-benchmark.mjs
  */
-import { spawnSync } from 'node:child_process';
+import { gitAsync } from './lib/async-spawn.mjs';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -153,12 +153,16 @@ function fail(msg) {
   process.exit(1);
 }
 
+/**
+ * 跑一条 git 命令并拿回 stdout。
+ *
+ * 🔴 走共用的异步 spawn（`scripts/lib/async-spawn.mjs`）：WorkBuddy 环境下
+ * `spawnSync` 一律 `status=null` + `EBUSY`（lessons #292），会把「git 跑不起来」
+ * 误判成「没有新增迁移」而静默放行。本门禁必须读到 `git diff` / `git ls-files` 的**内容**，
+ * 所以降级 stdio 的垫片方案也解决不了（拿不到 stdout）。
+ */
 function git(args) {
-  const r = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
-  if (r.status !== 0) {
-    return { ok: false, out: (r.stdout || '') + (r.stderr || '') };
-  }
-  return { ok: true, out: (r.stdout || '').trim() };
+  return gitAsync(args, { cwd: ROOT });
 }
 
 const problems = [];
@@ -333,7 +337,7 @@ if (totalUrls < MIN_URLS) {
 
 // ══ R5/R6：新增迁移必须带竞品引用 ═════════════════════════════════════════
 const baseRef = process.env.MIGRATION_BASE_REF || 'origin/dev';
-let diff = git([
+let diff = await git([
   'diff',
   '--name-only',
   '--diff-filter=A',
@@ -342,11 +346,11 @@ let diff = git([
   MIGRATION_DIR
 ]);
 if (!diff.ok) {
-  diff = git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', MIGRATION_DIR]);
+  diff = await git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', MIGRATION_DIR]);
 }
 // 刻意不加 --exclude-standard：migration 目录里任何未跟踪 .sql 都是一次真实的新迁移
 // （与 check-migration-safety 同理，加了会让它对门禁隐形）。
-const untracked = git(['ls-files', '--others', '--', MIGRATION_DIR]);
+const untracked = await git(['ls-files', '--others', '--', MIGRATION_DIR]);
 if (!diff.ok && !untracked.ok) {
   fail(
     '无法枚举新增迁移（git 不可用或被环境阻断：spawn status=null / 非 0）。\n' +

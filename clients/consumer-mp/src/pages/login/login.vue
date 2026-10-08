@@ -183,7 +183,8 @@
           <app-button
             class="login-submit"
             data-testid="login-submit"
-            :block="false"
+            size="md"
+            shape="pill"
             :loading="loading && !wxMode"
             :disabled="loading"
             :label="loading && !wxMode ? '验证中…' : '验证并继续'"
@@ -195,7 +196,8 @@
         <app-button
           class="login-back"
           variant="ghost"
-          :block="false"
+          size="md"
+          shape="pill"
           label="返回"
           @click="goBack"
         />

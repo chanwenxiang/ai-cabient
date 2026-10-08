@@ -5,6 +5,7 @@
     <text v-if="hint" class="error-hint">{{ hint }}</text>
     <app-button
       v-if="showRetry"
+      class="error-retry"
       :label="retryText"
       :loading="retrying"
       aria-label="重试"
@@ -85,7 +86,9 @@ export default { name: 'ErrorState' };
   text-align: center;
   align-self: center;
 }
-.error-state :deep(.app-btn) {
+/* 🔴 原 `.error-state :deep(.app-btn)` 即使在本组件内也**穿透不了**另一个组件的样式隔离
+ * （app-button 带自己的 data-v-xxx，lessons #288）。间距加在宿主节点上。 */
+.error-retry {
   margin-top: 28rpx;
 }
 .error-actions {

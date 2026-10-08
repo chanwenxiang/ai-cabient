@@ -82,6 +82,17 @@
       </view>
 
       <!--
+      🔴 「返回我的」上移到充值按钮**之前**（2026-10-08 用户指位置不对）。
+      成因：它原先夹在「支付按钮组」与「充值记录」之间，读起来像**第三个支付操作**，
+      而它其实是「放弃充值、回到上一页」的导航 —— 位置本身在误导用户。
+      上移后页面结构变清晰：金额选择 → 返回我的 → 支付按钮 → 充值记录。
+      用 `variant="ghost"` 保持次要视觉（它不该与微信/支付宝按钮争主操作位）。
+    -->
+      <view class="btn-slot btn-slot--back">
+        <app-button variant="ghost" label="返回我的" @click="goBack" />
+      </view>
+
+      <!--
         🔴 相邻按钮必须各自包一层块级 view：小程序自定义组件默认 inline 级，
         而 .app-btn--block 宽度 100% ⇒ 两个 app-button 会各自独占一行且**零间距贴死**
         （真机实测 top/bottom 相接）。间距不能靠组件自身 margin —— 组件的内部节点
@@ -102,15 +113,26 @@
           @click="onWeChatRecharge"
         />
       </view>
+      <!--
+        🔴 「体验充值」按钮的文案必须与「微信支付」明确区分（2026-10-08 用户反馈两个按钮看不明白）。
+        成因：本按钮仅 `devTools && mockEnabled`（开发构建 + 后端 mock）才渲染，
+        但它与上面真实「微信支付」按钮**视觉形态完全一致**、且原文案「确认充值 X 元」
+        与「微信支付 X 元」句式几乎相同 ⇒ 在 dev 构建的页面上并排出现时，
+        用户分不清哪个是真付款、哪个是联调模拟。
+        改法：文案加「体验」前缀（`mock-recharge` 类名同步），并让 label 显式带上「联调」二字。
+        ⚠️ 生产构建下本按钮**不渲染**（`isDevBuild=false` ⇒ `devTools=false`），
+           不是漏删入口 —— 见 packages/shared-uni/src/runtime-flags.ts:10-16。
+      -->
       <view v-if="devTools && mockEnabled" class="btn-slot">
         <app-button
+          class="mock-recharge"
           :disabled="!selectedAmount || loading"
           :loading="loading"
           :label="
             loading
-              ? '充值中…'
+              ? '体验充值中…'
               : selectedAmount
-                ? `确认充值 ${fmtMoney(selectedAmount)}`
+                ? `体验充值 ${fmtMoney(selectedAmount)}`
                 : '请选择金额'
           "
           @click="onRecharge"
@@ -147,10 +169,6 @@
       </view>
       <view v-else class="channel-hint">
         <text>余额可用于未开通免密时的开门兜底；推荐优先开通微信支付分。</text>
-      </view>
-
-      <view class="btn-slot btn-slot--back">
-        <app-button variant="ghost" label="返回我的" @click="goBack" />
       </view>
 
       <view class="recharge-list">

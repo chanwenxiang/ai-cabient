@@ -3,6 +3,8 @@
     class="app-btn"
     :class="[
       `app-btn--${variant}`,
+      `app-btn--${size}`,
+      `app-btn--${shape}`,
       { 'app-btn--block': block, 'app-btn--compact': compact, 'is-disabled': disabled || loading }
     ]"
     :disabled="disabled || loading"
@@ -19,9 +21,25 @@
 export type AppButtonVariant =
   'primary' | 'ghost' | 'outline' | 'danger' | 'text' | 'alipay' | 'wechat' | 'soft';
 
+/**
+ * 尺寸档。`md` 是登录/表单类主按钮，`lg` 是常规行动点，`sm` 是窄按钮。
+ *
+ * 🔴 为什么需要它：小程序端自定义组件有**样式隔离**（`data-v-xxx` 各自独立），
+ * 页面里写 `:deep(.app-btn)` 只会被编译成 `.data-v-页面 .app-btn`（后代选择器），
+ * 而 `app-btn` 带的是**组件自己的**作用域标记 ⇒ 永远匹配不到。
+ * 结果是页面覆写静默失效、按钮按内容收缩。凡是要改按钮外观，必须走这里的 prop，
+ * 不要写 `:deep()`（lessons #288）。
+ */
+export type AppButtonSize = 'sm' | 'md' | 'lg';
+
+/** 圆角形状。`pill` 全圆角，`panel` 跟随 --radius-btn。 */
+export type AppButtonShape = 'pill' | 'panel';
+
 const props = withDefaults(
   defineProps<{
     variant?: AppButtonVariant;
+    size?: AppButtonSize;
+    shape?: AppButtonShape;
     label?: string;
     block?: boolean;
     compact?: boolean;
@@ -31,6 +49,8 @@ const props = withDefaults(
   }>(),
   {
     variant: 'primary',
+    size: 'lg',
+    shape: 'panel',
     label: '',
     block: true,
     compact: false,
@@ -75,6 +95,28 @@ export default { name: 'AppButton' };
 .app-btn--block {
   width: 100%;
   align-self: stretch;
+}
+/* size 档位：sm 72rpx / md 88rpx / lg 保持基线 88rpx。compact 是历史别名，仍受支持。 */
+.app-btn--sm {
+  min-height: 72rpx;
+  height: 72rpx;
+  font-size: var(--font-size-body);
+  padding: 0 28rpx;
+}
+.app-btn--md {
+  min-height: 88rpx;
+  height: 88rpx;
+}
+.app-btn--lg {
+  min-height: 88rpx;
+  height: 88rpx;
+}
+/* shape 档位：pill 全圆角（登录等主行动点），panel 跟随设计令牌。 */
+.app-btn--pill {
+  border-radius: var(--radius-pill);
+}
+.app-btn--panel {
+  border-radius: var(--radius-btn, 16rpx);
 }
 .app-btn--compact {
   min-height: 72rpx;

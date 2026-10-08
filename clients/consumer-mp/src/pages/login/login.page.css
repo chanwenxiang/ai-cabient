@@ -441,42 +441,27 @@
   color: var(--brand);
   font-weight: 600;
 }
-:deep(.login-submit.app-btn) {
-  /* 真机宿主节点不保证参与父级 flex，居中用块级 margin auto 而非 align-self */
-  display: block;
-  margin: 12rpx auto 0;
-  width: 200px !important;
-  max-width: 200px !important;
-  min-width: 168px !important;
-  padding: 0 !important;
-  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  color: var(--white);
-  border-radius: var(--radius-pill);
-  min-height: 88rpx;
-  height: 88rpx;
-  line-height: 1.2;
-  text-align: center;
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
-  box-sizing: border-box;
+/* 🔴 不要再给 .app-btn 写页面级覆写。
+ *
+ * 成因（2026-10-08 真机取证，lessons #288）：`:deep()` 在 uni-app **小程序端**
+ * 只会编译成 `.data-v-页面xxx .app-btn`（后代选择器），而按钮本体在
+ * `packages/shared-uni/components/app-button.vue` 内，带的是**组件自己的**作用域
+ * 标记（实测 `data-v-ca006858`）⇒ 两个标记不可能落在同一元素上，规则**永不命中**。
+ * 症状：按钮退回 `display:inline-flex` + `padding:0 36rpx`，按内容收缩、挤在左侧。
+ *
+ * ⇒ 改按钮外观请用组件 prop：`size`（sm/md/lg）、`shape`（pill/panel）、`variant`。
+ * 本页两个按钮已在 login.vue 里显式传 `size="md" shape="pill"`。
+ */
+/* 宿主节点（app-button 本身）可安全加间距：它带页面作用域标记，不涉及组件内样式隔离。 */
+.login-submit {
+  margin-top: 12rpx;
+}
+.login-back {
+  margin-top: 20rpx;
 }
 .btn-code.disabled {
   opacity: 0.55;
   pointer-events: none;
-}
-:deep(.login-back.app-btn) {
-  display: block;
-  margin: 20rpx auto 0;
-  text-align: center;
-  color: var(--brand-mist, #99f6e4);
-  font-size: var(--font-size-md);
-  padding: 8rpx;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  min-height: auto;
-  height: auto;
 }
 .err {
   color: var(--color-danger);

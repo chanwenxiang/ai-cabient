@@ -14,9 +14,9 @@
  *   node scripts/run-audit-gates.mjs
  */
 import { readFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runAsync } from './lib/async-spawn.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
@@ -32,6 +32,21 @@ if (names.length === 0) {
   process.exit(1);
 }
 
+/**
+ * 异步执行一条门禁命令。
+ *
+ * 🔴 走共用的异步 spawn（`scripts/lib/async-spawn.mjs`）：WorkBuddy 环境下
+ * `spawnSync` 无论 `shell:true/false`、无论是否间隔重试，一律 `status=null` +
+ * `EBUSY`（`execSync` 同样抛）⇒ 聚合链 44 个门禁**全部**打印 `exit=null`，
+ * 看起来像全红，实际一个都没跑（假红，方向与假绿同样危险）。
+ *
+ * 这里仍需 `shell: true`：门禁命令来自 package.json，是 `node scripts/x.mjs && …`
+ * 这样的**命令行串**（含 `&&`），必须交给 shell 解析。
+ */
+function runCommand(cmd, cwd) {
+  return runAsync(cmd, [], { cwd, inheritStdio: false, shell: true });
+}
+
 let failed = 0;
 for (const name of names) {
   const cmd = pkg.scripts[name];
@@ -40,7 +55,7 @@ for (const name of names) {
     failed++;
     continue;
   }
-  const result = spawnSync(cmd, { cwd: root, shell: true, encoding: 'utf8' });
+  const result = await runCommand(cmd, root);
   if (result.status === 0) {
     console.log(`✓ ${name}`);
   } else {
@@ -49,7 +64,8 @@ for (const name of names) {
       .split('\n')
       .slice(-3)
       .join(' / ');
-    console.log(`✗ ${name} exit=${result.status} :: ${tail}`);
+    const why = result.spawnError ? ` (spawn failed: ${result.spawnError})` : '';
+    console.log(`✗ ${name} exit=${result.status}${why} :: ${tail}`);
     failed++;
   }
 }

@@ -38,11 +38,22 @@
               <text class="meta-label">升级还差</text>
               <text class="meta-value warn">{{ summary.nextLevelPointsGap ?? 0 }} 积分</text>
             </view>
-            <view class="meta-row tip">
-              <text class="meta-label">说明</text>
-              <text class="meta-value tip">购物获积分，兑换券有门槛与有效期</text>
-            </view>
           </view>
+        </view>
+
+        <!--
+          🔴 「说明」单独占一行，**不塞进右侧 meta 栏**（2026-10-08 用户报「重新排版一下」）。
+          成因：meta 栏 `min-width: 210rpx`，里面三项都是「标签 + 短值」的横向对；
+          说明是 15 字整句，塞进去后旧样式给的是 `max-width: 140rpx` + 右对齐，
+          真机渲染成「购物获积分，兑 / 换券有门槛与有 / 效期」三行右对齐碎字，
+          左边标签「说明」还悬在第一行右侧，读起来完全断裂。
+          现在改为整卡宽度的独立条：标题在上、正文左对齐，句子一次读完。
+        -->
+        <view class="summary-note">
+          <text class="summary-note-title">积分说明</text>
+          <text class="summary-note-text"
+            >购物按实付金额累计积分；兑换券有使用门槛与有效期，逾期作废不作顺延。</text
+          >
         </view>
 
         <view class="card">
@@ -216,12 +227,33 @@ function goRedeem() {
 .meta-value.warn {
   color: var(--warning, #b45309);
 }
-.meta-row.tip .meta-value.tip {
-  color: var(--text-muted, #849087);
-  font-size: var(--font-size-xs);
-  text-align: right;
-  max-width: 140rpx;
-  line-height: 1.35;
+
+/*
+ * 「积分说明」独立条（2026-10-08）。
+ * 🔴 为什么不用 `.meta-row.tip`：那一行是「标签 + 值」的横向对布局，
+ * 值被限制在 140rpx 窄列里右对齐，整句会被折成三行碎字（见上方模板注释）。
+ * 说明是**整句**，不是可对照的短值 —— 版式必须给它整行宽度 + 左对齐。
+ */
+.summary-note {
+  margin-top: 16rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 18rpx;
+  background: var(--brand-soft, #f0fdf4);
+}
+.summary-note-title {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-muted, #5b6b62);
+}
+.summary-note-text {
+  display: block;
+  margin-top: 8rpx;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #7b8a81);
+  line-height: 1.6;
+  /* 说明句允许折行，但不允许截断：折行后仍须能读完整句 */
+  word-break: break-all;
 }
 .card {
   margin: 24rpx 0 0;

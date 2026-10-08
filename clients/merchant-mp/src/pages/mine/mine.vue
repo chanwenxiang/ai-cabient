@@ -400,13 +400,26 @@ async function onLogout() {
   line-height: 1.4;
 }
 .section-label {
-  margin: 14rpx 28rpx 6rpx;
+  /*
+   * 🔴 上边距（14rpx）是**组间距**的唯一来源：除「退出登录」外，每组菜单前面都有一行
+   * section-label，靠它把上一组卡片推开。退出登录组没有 label（见模板），
+   * 因此上一组与它之间**一点间距都没有** —— 两张白卡直接黏成一块（2026-10-08 用户报）。
+   * 故把组间距改为「上一组卡片 margin-bottom + label margin-top」两段共同承担。
+   */
+  margin: 10rpx 28rpx 6rpx;
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
   letter-spacing: 1rpx;
 }
 .menu-list {
-  margin: 0 24rpx;
+  /*
+   * 🔴 卡片自身必须带下边距，不能只靠 section-label 隔开：
+   * ① 「退出登录」组前面没有 label（模板里它是裸的 menu-list）；
+   * ② 任何一组被 v-if 裁掉（fieldNav/bizNav 等为空）时，label 也会一起消失，
+   *    只剩相邻两张 menu-list 贴在一起。
+   * 两条路径都会产生「两张卡片黏成一块」，所以间距放在**卡片**上而不是标签上。
+   */
+  margin: 0 24rpx 16rpx;
   background: var(--card-bg, #fff);
   border-radius: var(--radius-control);
   overflow: hidden;

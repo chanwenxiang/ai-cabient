@@ -1,10 +1,17 @@
 <template>
   <view class="page-root">
-    <app-nav-bar title="消息中心">
-      <template #right>
-        <text v-if="unread > 0" class="nav-read-all" @click.stop="markAllRead">全部已读</text>
-      </template>
-    </app-nav-bar>
+    <!--
+      🔴 顶栏「全部已读」按钮已移除（2026-10-08 用户要求；此前口述为「去掉通知」，实指本按钮）。
+      它挂在 nav-bar 的 #right 插槽上，紧贴标题右侧、真机视觉上像标题的一部分，
+      且与列表内既有的单条已读操作并列时功能重叠。
+      连带清理：markAllRead() 函数与 .nav-read-all 样式块。
+      ⚠️ 未动 `consumer-api.ts` 的 markAllNotificationsRead —— 它是公共 API 定义（:854），
+         本页只是不再调用，删定义会波及其他调用方。
+      ⚠️ 保留 messages 页自身的未读筛选（app-underline-tabs）与订阅提醒入口 —— 那是消息中心的
+      主体功能，不属于「通知按钮」。`unread` ref 也必须保留（未读筛选 / 单条已读后递减 / 卡片样式
+      共 8 处引用），只删按钮不删计数。
+    -->
+    <app-nav-bar title="消息中心" />
     <app-underline-tabs :items="msgTabItems" :value="filter" @change="onMsgTab" />
     <view class="page-body">
       <view v-if="showSubscribeBanner" class="subscribe-banner">
@@ -56,7 +63,20 @@
         </view>
       </view>
 
-      <view class="card prefs-card">
+      <!--
+        🔴 「通知偏好」只在「全部」档显示（2026-10-08 用户报「切换视图一直固定显示」）。
+        成因：这张卡片原先**无条件渲染**，而消息页有 8 个档位（全部/未读/订单/售后/
+        优惠券/积分/充值/其他）⇒ 切到任何一个档位，页尾都是同一张偏好卡，
+        看起来像「换了视图但内容没变」。它管理的是**跨档位的推送开关**
+        （六个类别一一对应下面六个档位），本身不属于任何单一档位的呈现内容。
+
+        ⚠️ 同页另外两个常驻块**刻意不改**：
+          · 订阅提醒横幅（:17）—— 已有 v-if 守卫（showSubscribeBanner），且是转化入口；
+          · 「待办 · 待支付账单」（:27）—— 虽同样无条件渲染，但它是**欠费催缴**，
+            收敛到「全部」档等于让用户在「未读」档看不到待支付账单。
+        ⇒ 判定依据不是「都常显」，而是「这张卡是否属于当前档位的语义」。
+      -->
+      <view v-if="filter === 'all'" class="card prefs-card">
         <text class="card-title">通知偏好</text>
         <text class="card-hint">关闭后对应类别的消息不再推送与提醒</text>
         <view v-for="p in prefs" :key="p.category" class="pref-row">
@@ -372,17 +392,6 @@ function bizTypeLabel(type?: string) {
   return '';
 }
 
-async function markAllRead() {
-  try {
-    await consumerApi.markAllNotificationsRead();
-    list.value.forEach((m) => (m.read = true));
-    unread.value = 0;
-    showSuccess('已全部标记为已读');
-  } catch (e) {
-    showError(e instanceof Error ? e.message : '操作失败');
-  }
-}
-
 function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无');
 }
@@ -398,12 +407,6 @@ function formatTime(t?: string) {
 .page-body {
   padding: 16rpx 0 calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
-}
-.nav-read-all {
-  font-size: var(--font-size-caption);
-  color: var(--white);
-  opacity: 0.92;
-  white-space: nowrap;
 }
 .loading {
   padding: 120rpx 32rpx;

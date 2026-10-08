@@ -57,20 +57,33 @@
           <text class="status-label">支付宝免密</text>
           <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
         </view>
-        <view class="btn-slot">
+        <!--
+          🔴 从「我的」页未开通 chip 跳转过来时（?channel=WECHAT/ALIPAY），高亮对应按钮。
+          成因取证（2026-10-08）：后端 24h 日志零签约请求 —— 用户到了开通页却没按
+          对应的签约按钮（两个大按钮并排，不知道按哪个）。⇒ 用包裹层脉冲描边 + 一行
+          提示把「下一步按哪个」指出来。⚠️ 脉冲加在**包裹层**上：app-button 是自定义
+          组件，mp 端样式隔离导致页面选择器选不中它内部（lessons #288）。
+        -->
+        <view class="btn-slot" :class="{ 'sign-pulse': pendingChannel === 'WECHAT' }">
           <app-button
             :loading="signing"
             :label="signing ? '开通中…' : '开通微信支付分'"
             @click="onSignPayScore"
           />
+          <text v-if="pendingChannel === 'WECHAT'" class="sign-pulse-hint"
+            >↑ 点这里开通微信免密</text
+          >
         </view>
-        <view class="btn-slot">
+        <view class="btn-slot" :class="{ 'sign-pulse': pendingChannel === 'ALIPAY' }">
           <app-button
             variant="alipay"
             :loading="signingAlipay"
             :label="signingAlipay ? '开通中…' : '开通支付宝免密'"
             @click="onSignAlipay"
           />
+          <text v-if="pendingChannel === 'ALIPAY'" class="sign-pulse-hint"
+            >↑ 点这里开通支付宝免密</text
+          >
         </view>
         <view role="button" class="link app-link-chevron" @click="goRecharge"
           >余额不足？去充值</view
@@ -117,6 +130,11 @@ const signing = ref(false);
 const signingAlipay = ref(false);
 const err = ref('');
 const fromOpen = ref(false);
+/**
+ * 从「我的」页未开通 chip 跳转时携带的目标渠道（?channel=WECHAT/ALIPAY）。
+ * 仅用于 UI 引导（高亮对应签约按钮）；该渠道开通成功后立即清除，提示不再显示。
+ */
+const pendingChannel = ref<'WECHAT' | 'ALIPAY' | ''>('');
 const configPreauthCents = ref<number | null>(null);
 
 const preauthCents = computed(() =>
@@ -146,6 +164,8 @@ function maskPhone(phone?: string | number) {
 
 onLoad((opts) => {
   fromOpen.value = opts?.from === 'open';
+  const ch = String(opts?.channel || '');
+  pendingChannel.value = ch === 'WECHAT' || ch === 'ALIPAY' ? ch : '';
 });
 
 onShow(async () => {
@@ -163,6 +183,9 @@ onShow(async () => {
       softFallback(consumerApi.consumerPublicConfig(), null, '公开配置')
     ]);
     account.value = acc;
+    // 目标渠道其实已开通（例如用户签完约返回本页）⇒ 引导提示立即失效
+    if (pendingChannel.value === 'WECHAT' && acc.payscoreEnabled) pendingChannel.value = '';
+    if (pendingChannel.value === 'ALIPAY' && acc.alipayAgreementEnabled) pendingChannel.value = '';
     const p = Number(cfg?.preauthCents);
     configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
   } catch (e) {
@@ -176,6 +199,7 @@ async function onSignPayScore() {
   try {
     const res = await consumerApi.signPayScore();
     account.value = await consumerApi.account();
+    if (pendingChannel.value === 'WECHAT') pendingChannel.value = '';
     showSuccess(res.message || '开通成功');
     if (fromOpen.value) {
       setTimeout(goShop, 600);
@@ -214,6 +238,7 @@ async function onSignAlipay() {
       return;
     }
     account.value = await consumerApi.account();
+    if (pendingChannel.value === 'ALIPAY') pendingChannel.value = '';
     showSuccess(res.message || '开通成功');
     if (fromOpen.value) {
       setTimeout(goShop, 600);
@@ -325,6 +350,35 @@ function goShop() {
  */
 .btn-slot + .btn-slot {
   margin-top: 20rpx;
+}
+/*
+ * 从「我的」页未开通 chip 跳转过来时的**目标按钮引导**（2026-10-08）。
+ * 取证：后端 24h 日志零签约请求 —— 用户到了开通页却没按对应按钮。两个大按钮并排，
+ * 「下一步按哪个」必须有显式指向。脉冲只加在包裹层（页面自有节点，无样式隔离问题）；
+ * app-button 内部选不中（lessons #288），所以用外圈描边 + 下方提示行。
+ */
+.btn-slot.sign-pulse {
+  border-radius: var(--radius-btn, 16rpx);
+  animation: sign-pulse-ring 1.6s ease-out infinite;
+}
+@keyframes sign-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 16rpx rgba(15, 118, 110, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0);
+  }
+}
+.sign-pulse-hint {
+  display: block;
+  margin-top: 10rpx;
+  text-align: center;
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  color: var(--brand, #0f766e);
 }
 .card-title {
   font-size: var(--font-size-xl);

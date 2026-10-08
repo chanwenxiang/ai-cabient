@@ -119,11 +119,7 @@
         >
         <view v-else-if="!products.length" class="card loading-card catalog-empty">
           <text class="empty-title">本柜暂无上架商品</text>
-          <text class="empty-hint">仍可开门购物；实付以关门识别为准。有疑问可故障报修或换一台</text>
-          <view class="empty-actions">
-            <text role="button" class="empty-link" @click="goReport">故障报修</text>
-            <text role="button" class="empty-link" @click="resetDevice">换一台</text>
-          </view>
+          <text class="empty-hint">仍可开门购物；实付以关门识别为准</text>
         </view>
         <view v-else-if="!filteredProducts.length" class="card loading-card catalog-empty">
           <text class="empty-title">未找到匹配商品</text>
@@ -206,12 +202,24 @@
         <view class="list-bottom" />
       </scroll-view>
 
-      <view class="shop-tools">
-        <text class="shop-tool" role="button" aria-label="报修" @click="goReport">报修</text>
-        <text class="shop-tools-sep">·</text>
-        <text class="shop-tool" role="button" aria-label="换一台柜机" @click="resetDevice"
-          >换一台</text
-        >
+      <!--
+        🔴 故障报修 / 换一台 —— **常态入口**（2026-10-08 用户澄清）。
+        成因是我上一轮把需求读反了：用户说的不是「两处重复所以删一个」，而是
+        「底部那组常驻条**难看**，空态那组才是要的，把它做成常态」。
+        ⇒ 这组从「只在空态卡内出现」提升为「页面常驻」；同时**换掉旧的常驻形态**。
+        为什么这两个操作值得常驻：报修与换柜是「设备出问题时的唯一自救路径」，
+        没有它们用户就只能找客服电话；而 `resetDevice` 全仓仅此一处入口
+        （报修另有 help/orders/mine 三处），降级到空态等于让正常状态下无法换柜。
+
+        形态取舍：旧常驻条是 描边胶囊 + 大字（font-weight 650 + 32rpx 横向内边距），
+        视觉重量和 HomeCartBar 同级 ⇒ 两组控件在底部互相打架，这是「难看」的真正来源。
+        现降为**一行小字辅助操作**：无描边、弱色、居中，字号仅 --font-size-caption。
+        它是「兜底能力」不是「主操作」，就该用主次分明的层级，而不是抢注意力。
+      -->
+      <view class="support-tools">
+        <text role="button" class="support-link" @click="goReport">故障报修</text>
+        <text class="support-sep" aria-hidden="true">·</text>
+        <text role="button" class="support-link" @click="resetDevice">换一台</text>
       </view>
 
       <HomeCartBar
@@ -2160,26 +2168,6 @@ function stopDevicePoll() {
   white-space: nowrap;
   text-align: center;
 }
-.shop-tools {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12rpx;
-  padding: 8rpx 24rpx 10rpx;
-}
-.shop-tool {
-  font-size: 22rpx;
-  color: var(--text-subtle, #888);
-}
-.shop-tool:active {
-  opacity: 0.6;
-}
-.shop-tools-sep {
-  font-size: 22rpx;
-  color: var(--text-subtle, #ccc);
-}
-
 .shopping-banner {
   margin: 12rpx 24rpx 0;
   padding: 22rpx 24rpx;
@@ -2316,6 +2304,35 @@ function stopDevicePoll() {
   font-size: var(--font-size-body);
   color: var(--brand, #0f766e);
   font-weight: 650;
+}
+
+/*
+ * 常驻的「故障报修 / 换一台」辅助操作条（2026-10-08）。
+ * 层级刻意压到最低：无描边、弱色、caption 字号。
+ * 旧常驻形态是描边胶囊 + 32rpx 内边距 + font-weight 650，视觉重量与 HomeCartBar 同级，
+ * 两组控件在页面底部互相争抢注意力 —— 这才是用户说「不好看」的成因，不是「重复」。
+ */
+.support-tools {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+  padding: 10rpx 24rpx 12rpx;
+}
+.support-link {
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #5f6b66);
+  line-height: 1.4;
+  /* 纯文字可点区域太窄，真机难点中：补内边距而不改视觉 */
+  padding: 8rpx 24rpx;
+}
+.support-link:active {
+  opacity: 0.6;
+}
+.support-sep {
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #9aa5a0);
 }
 
 .product-grid {

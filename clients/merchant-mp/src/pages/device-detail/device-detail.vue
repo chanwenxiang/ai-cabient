@@ -688,6 +688,8 @@ async function saveSlots() {
   width: 100%;
   box-sizing: border-box;
 }
+/* 宿主选择器与 `:deep()` 双写：只有**前者**在真机生效（`:deep()` 因组件样式隔离永不命中，
+ * lessons #288）。保留 `:deep()` 是为了 H5 端表现一致，不要当成"两处都有效"。 */
 .action-btn,
 .app-btn-flex,
 :deep(.action-btn),

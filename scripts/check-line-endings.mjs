@@ -39,7 +39,7 @@
  *
  *   node scripts/check-line-endings.mjs
  */
-import { execFileSync } from 'node:child_process';
+import { gitAsync } from './lib/async-spawn.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,21 +62,24 @@ const MIN_LF_MANAGED = 100;
 const DISK_BAD = new Set(['w/crlf', 'w/mixed']);
 const INDEX_BAD = new Set(['i/crlf', 'i/mixed']);
 
-/** 解析 `git ls-files --eol`：`i/lf  w/lf  attr/text=auto eol=lf\t<path>`。 */
-function scan() {
-  let raw;
-  try {
-    // ⚠️ 必须带 `--others`：默认只列**已跟踪**文件，而「新文件一落盘就是 CRLF」正是
-    // 最容易漏的一幕 —— 它在 `git status` 里显示为 `??`（不是 ` M`），谁都不会觉得有问题，
-    // 一旦提交就变成永久噪音。带 `--others` 才能在这条路径进仓库**之前**拦住它。
-    raw = execFileSync('git', ['ls-files', '--eol', '--cached', '--others', '--exclude-standard'], {
-      cwd: root,
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024
-    });
-  } catch (e) {
-    fail(`无法执行 \`git ls-files --eol\`：${e.message}`);
+/**
+ * 解析 `git ls-files --eol`：`i/lf  w/lf  attr/text=auto eol=lf\t<path>`。
+ *
+ * 🔴 走共用的异步 spawn（`scripts/lib/async-spawn.mjs`）：WorkBuddy 环境下
+ * 同步子进程一律 `EBUSY`/`status=null`（lessons #292），
+ * 原实现会把这个当「git 不可用」直接 fail ⇒ 在本机恒红，且掩盖真实行尾问题。
+ */
+async function scan() {
+  const r = await gitAsync(['ls-files', '--eol', '--cached', '--others', '--exclude-standard'], {
+    cwd: root
+  });
+  if (!r.ok) {
+    fail(`无法执行 \`git ls-files --eol\`：${r.out.trim()}`);
   }
+  return parseEolRows(r.out);
+}
+
+function parseEolRows(raw) {
   const rows = [];
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue;
@@ -93,7 +96,7 @@ function scan() {
   return rows;
 }
 
-const rows = scan();
+const rows = await scan();
 if (rows.length < MIN_SCANNED) {
   fail(
     `只解析出 ${rows.length} 个受版本控制的文件（期望 ≥ ${MIN_SCANNED}）：git ls-files --eol 的输出格式可能已变`
@@ -129,7 +132,7 @@ if (FIX && diskBad.length) {
       fixedCount++;
     }
   }
-  const after = scan();
+  const after = await scan();
   const stillBad = after.filter((r) => /eol=lf/.test(r.attr) && DISK_BAD.has(r.worktree));
   console.log(`${TAG} --fix 改写 ${fixedCount} 个文件，复查剩余磁盘 CRLF：${stillBad.length}`);
   if (stillBad.length) {

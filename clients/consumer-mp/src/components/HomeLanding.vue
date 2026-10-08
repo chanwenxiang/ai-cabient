@@ -68,24 +68,38 @@
       </view>
 
       <view class="landing-action">
+        <!--
+          扫码 CTA v6（2026-10-08 定稿）：**玻璃透圆 + 取景框图标 + 会动的扫描线 +
+          圆内白字**。用户先发参考图（橙圆+图标）要「动态的」，再从四个候选
+          （白圆绿标 / 品牌绿圆白标 / 玻璃透圆 / 白圆双环）中**显式选定玻璃透圆**。
+
+          🔴 依据留档：
+          · 图标+圆形形态：用户拍板（参考图），推翻 CB-015「同行 0/6 用取景框」的
+            「无图标」方向 —— 台账已记「有意不同」（用户决策优先于同行缺席结论）。
+          · 文案保留「扫码开门」不用参考图的「扫码购物」：动作导向有同行 3 家支撑，
+            且与首页 tagline「扫码开门 · 拿了就走」一致（用户未对文案提异议）。
+          · 配色：不照抄参考图的实色圆 —— 品牌绿实底会与 .landing-overlay
+            （rgba(19,78,74,·)）同色糊底（v3 教训）；玻璃白既轻盈又与白卡家族同源。
+
+          动效：图标内扫描线上下往复（1.6s，主动效）+ 阴影呼吸（2.8s，环境动效）。
+          仍用原生 button：自带按压态与无障碍语义。图标纯装饰 aria-hidden，
+          读屏只读文字。
+        -->
         <button
-          class="scan-circle"
-          hover-class="scan-circle-hover"
+          class="scan-cta"
+          hover-class="scan-cta-hover"
           :disabled="opening || enteringFlow"
           @click="$emit('scan')"
         >
-          <view class="scan-circle-inner">
-            <view class="scan-icon-box">
-              <view class="scan-corner tl" />
-              <view class="scan-corner tr" />
-              <view class="scan-corner bl" />
-              <view class="scan-corner br" />
-              <view class="scan-line" />
-            </view>
+          <view class="scan-icon" aria-hidden="true">
+            <view class="scan-corner scan-corner--tl" />
+            <view class="scan-corner scan-corner--tr" />
+            <view class="scan-corner scan-corner--bl" />
+            <view class="scan-corner scan-corner--br" />
+            <view class="scan-line" />
           </view>
-          <text class="scan-circle-text">{{ opening ? '连接中…' : '扫码购物' }}</text>
+          <text class="scan-cta-title">{{ opening ? '正在开门…' : '扫码开门' }}</text>
         </button>
-        <text class="scan-tip">对准柜门二维码，即可开门取货</text>
         <!-- 扩展功能 consumer.coupon_entry.enabled：券包入口前置到首页；默认关闭 ⇒ 不渲染 -->
         <view
           v-if="couponEntryVisible"
@@ -135,7 +149,7 @@
       v-if="showManual"
       role="button"
       aria-label="关闭"
-      class="landing-mask"
+      class="landing-mask landing-mask--centered"
       @click="showManual = false"
     >
       <view role="button" class="landing-sheet" @click.stop="noop">
@@ -251,24 +265,24 @@ export default {
   bottom: 0;
   z-index: 1;
   /*
-   * 蒙层改用品牌青绿 --brand-deep #134e4a 的 rgb(19,78,74)（H≈176）。
+   * 蒙层用品牌青绿 --brand-deep #134e4a 的 rgb(19,78,74)（H≈176）。
    *
-   * 原值 rgba(6,78,59) 即 #064e3b，H≈164 偏黄，再叠暖调实景照片，
+   * 色相为什么要压：原值 rgba(6,78,59) 即 #064e3b，H≈164 偏黄，再叠暖调实景照片，
    * 真机实测背景落到 H≈147~154；而扫码盘用品牌色 --brand H≈175 —— 相差 21~28°，
    * 这正是「盘的颜色和背景不符」的根因：盘是青绿、背景是橄榄绿，且二者明度几乎相同
    * （实测盘心 L=0.107 / 背景 L=0.114），同亮度上换色相 ⇒ 眼睛读成「脏」。
    *
-   * 中间档不透明度 0.45 → 0.62 → 0.76：压低照片暖色的权重，把背景拉回品牌色相。
-   * 第一轮只提到 0.62 时，真机实测背景仅到 H=163.8（目标 ≥167，ΔH 11.1° 仍超 8° 判据），
-   * 余量不够 —— 照片在该高度（人物/柜机区）比「盘上区」更暖。0.76 是实测能达标的最小值：
-   * 再低则 ΔH 越界，再高则实景照片被压成版画、失去落地页的实景说明性。
-   * 三档仍同色同源、只调不透明度，保留照片的实景感而不出现灰绿/青绿断层。
+   * 🔴 亮度：2026-10-08 用户真机反馈「首页背景太暗，希望和登录页一样亮」。
+   * 原三档 0.84/0.76/0.92 把实景照片压成了版画（注释里担心的后果真的发生了）。
+   * 现降到 0.58/0.44/0.66 —— 上半部让柜机与货架透出来，下半部仍压深以承载
+   * 扫码盘与文案（文案区若太亮会失去对比度）。**只降不透明度、不改色相**，
+   * 保住上面论证过的 H≈176 品牌色相，避免为提亮把色相又拉回橄榄绿。
    */
   background: linear-gradient(
     180deg,
-    rgba(19, 78, 74, 0.84) 0%,
-    rgba(19, 78, 74, 0.76) 45%,
-    rgba(19, 78, 74, 0.92) 100%
+    rgba(19, 78, 74, 0.58) 0%,
+    rgba(19, 78, 74, 0.44) 45%,
+    rgba(19, 78, 74, 0.66) 100%
   );
 }
 .landing-content {
@@ -343,83 +357,186 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /*
+   * 2026-10-08 用户指「放到下部分」：扫码按钮从垂直居中改为**沉底**——
+   * 参考图形态就是「圆钮坐在画面下部」，居中会悬在照片正中、与上方标题脱节。
+   * flex-end + 底部留白，让它贴近「故障报修/换一台」辅助条上方，
+   * 与底部导航之间仍留呼吸距离。
+   */
+  justify-content: flex-end;
+  padding-bottom: 56rpx;
   width: 100%;
 }
-.scan-circle {
+/*
+ * 扫码 CTA 演进史（决策依据都留档，防止后续轮次重复踩）：
+ *
+ * 🔴 v3（品牌绿实心 pill）被判「更丑了」，根因是**我算漏了背景色**：
+ *   `.landing-overlay` 的渐变三档全是 `rgba(19,78,74,·)`，而 `--brand-deep` 就是
+ *   `#134e4a = rgb(19,78,74)` —— **按钮底色与整页蒙层色完全相同**。
+ *   等于把同色块叠在同色背景上：白底时它是全页最亮块、天然焦点（v2 的判断正确），
+ *   换成品牌绿后焦点消失、按钮与背景糊在一起。
+ *   ⇒ v3 注释里写的「绿底与 .landing-head 品牌身份同源」并没错，
+ *     错在**只看了局部没看底色** —— 这条已写进 MEMORY 铁律（改主色必先核底色）。
+ *
+ * v4：底色回白 + 单行大字 + 无图标（竞品依据见模板注释）。
+ * v5：用户发参考图（橙圆+取景框图标）要「动态的」⇒ 加图标与扫描线。
+ * v6：**当前态** —— 用户从四个候选（白圆绿标/品牌绿圆白标/玻璃透圆/白圆双环）
+ *     中选定 **C 玻璃透圆**，形态与动效详见下方样式注释。
+ *
+ * ⚠️ 保留原生 button 元素（自带按压态与无障碍语义），::after 必须显式去边框。
+ */
+/*
+ * 扫码 CTA v6（2026-10-08 用户从四个候选中选定 **C 玻璃透圆**）。
+ * 四个候选（白圆绿标 / 品牌绿圆白标 / 玻璃透圆 / 白圆双环）以内联可视化给用户过目，
+ * 用户选 C：半透明白 + 白描边，最融入照片、最轻盈。
+ *
+ * 🔴 实现要点（与候选图的两处刻意差异）：
+ *   1. 不用 backdrop-filter 毛玻璃 —— mp-weixin 上 Android 端大面积支持不稳，
+ *      半透明白底本身已经读作「玻璃」，模糊只是锦上添花，不能依赖；
+ *   2. 描边从 1.5px 提到 3rpx 白（α .9）—— 玻璃态对比天然弱（候选图里已注明
+ *      「弱光环境辨识度下降」），白描边是玻璃圆在照片上的「定形线」，不能省。
+ * 动效只留两处：图标内扫描线上下往复（scan-icon-line，主动效）+ 阴影呼吸
+ * （环境动效）。v4/v5 的斜扫高光已删：玻璃面上再扫高光会像「破膜」，
+ * 且与扫描线互相抢注意力。
+ * ⚠️ 保留原生 button（自带按压态与无障碍语义），::after 必须显式去边框。
+ */
+.scan-cta {
   margin: 0;
   padding: 0;
-  background: transparent;
-  border: none;
+  width: 320rpx;
+  height: 320rpx;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.16);
+  border: 3rpx solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
   line-height: normal;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+  box-shadow: 0 16rpx 40rpx rgba(4, 47, 36, 0.35);
   /* hover-class 切换时给一点过渡，否则 scale 跳变、缺少按压反馈 */
   transition:
     opacity 0.18s ease,
     transform 0.18s ease;
+  /*
+   * 🔴 白圈雷达脉冲（2026-10-08 用户指「没特效」后加强）：
+   * v6 只有阴影呼吸（幅度小，静态截图/扫一眼几乎看不出）。
+   * 现改为从玻璃圆边缘向外扩散一圈白环（0→26rpx 渐隐），2.2s 一次，
+   * 静态截图上也能看到光圈痕迹，是四个方向里唯一「明显但不刺眼」的循环动效。
+   * 落扩散阴影（0 16rpx 40rpx）保留，脉冲只加在第四层 box-shadow 上。
+   */
+  animation: scan-cta-halo 2.2s ease-out infinite;
 }
-.scan-circle::after {
+@keyframes scan-cta-halo {
+  0% {
+    box-shadow:
+      0 16rpx 40rpx rgba(4, 47, 36, 0.35),
+      0 0 0 0 rgba(255, 255, 255, 0.32);
+  }
+  70% {
+    box-shadow:
+      0 16rpx 40rpx rgba(4, 47, 36, 0.35),
+      0 0 0 26rpx rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow:
+      0 16rpx 40rpx rgba(4, 47, 36, 0.35),
+      0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+/*
+ * 取景框图标（用户拍板要图标形态；CB-015 的「同行 0/6 用取景框」已被用户显式推翻，
+ * 台账记「有意不同」）。四个角括号 = 四个 view 各画两条边；中间的扫描线上下往复
+ * —— 它是「正在扫码」的动作隐喻，也是本按钮唯一的主动效。
+ */
+.scan-icon {
+  position: relative;
+  width: 120rpx;
+  height: 100rpx;
+}
+.scan-corner {
+  position: absolute;
+  width: 34rpx;
+  height: 34rpx;
+  border: 6rpx solid rgba(255, 255, 255, 0.95);
+}
+.scan-corner--tl {
+  top: 0;
+  left: 0;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 10rpx 0 0 0;
+}
+.scan-corner--tr {
+  top: 0;
+  right: 0;
+  border-left: none;
+  border-bottom: none;
+  border-radius: 0 10rpx 0 0;
+}
+.scan-corner--bl {
+  bottom: 0;
+  left: 0;
+  border-right: none;
+  border-top: none;
+  border-radius: 0 0 0 10rpx;
+}
+.scan-corner--br {
+  bottom: 0;
+  right: 0;
+  border-left: none;
+  border-top: none;
+  border-radius: 0 0 10rpx 0;
+}
+.scan-icon-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72rpx;
+  height: 8rpx;
+  border-radius: 4rpx;
+  background: rgba(255, 255, 255, 0.95);
+  transform: translate(-50%, -50%);
+  /* 2026-10-08 加强：行程 ±26→±34rpx、周期 1.6→1.3s，动效更可感知 */
+  animation: scan-icon-sweep 1.3s ease-in-out infinite;
+}
+@keyframes scan-icon-sweep {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(-34rpx);
+  }
+  50% {
+    transform: translate(-50%, -50%) translateY(34rpx);
+  }
+}
+/* 偏好减弱动效的系统设置下停掉循环动画（按钮本身功能不受影响） */
+@media (prefers-reduced-motion: reduce) {
+  .scan-cta,
+  .scan-icon-line {
+    animation: none;
+  }
+}
+/* 原生 button 的 ::after 是默认边框，必须显式去掉，否则圆角内出现一圈系统描边 */
+.scan-cta::after {
   border: none;
 }
-.scan-circle-hover {
-  opacity: 0.9;
-  transform: scale(0.98);
+.scan-cta-hover {
+  opacity: 0.88;
+  transform: scale(0.96);
 }
-.scan-circle-inner {
-  width: 260rpx;
-  height: 260rpx;
-  border-radius: 50%;
-  /*
-   * 品牌青绿渐变盘。两轮真机反馈的收敛点：
-   *   ① 纯白圆面 → 全页只有它是白底，在深绿照片上像贴上去的贴纸；
-   *   ② 只用 --brand→--brand-ink（H175）→ 与当时偏黄的背景（H150）色相差 29°，
-   *      且明度几乎相同（盘心 L=0.107 / 背景 L=0.114）⇒ 读成「颜色和背景不符」。
-   * 现在背景已统一到品牌青绿（见 .landing-overlay），色相差 ≤ 5°，于是分层改由**明度**承担：
-   * 渐变顶端加一档品牌亮阶 #14a89b（H174.5 / V0.647），与背景（V≈0.36~0.41）拉开 ≥ 0.23 的明度差，
-   * 底端仍收到 --brand-ink，保留球体受光感。三档色相全部落在 174~176°，不引入新色系。
-   *
-   * 取景角/扫描线保持白：白 on --brand-ink #0f3f3c ≈ 11.6:1，白 on --brand #0f766e ≈ 5.5:1，
-   * 既是「扫一扫」的通用认知，也是这个盘唯一的强对比来源。
-   *
-   * 外圈原为 rgba(255,255,255,0.14) 白晕 —— 真机实测渲染成 rgb(116,148,146)（灰青，S 仅 0.216），
-   * 在照片背景上是一圈脏灰。改为品牌青绿柔光 rgba(20,168,155,0.16)：光晕参与品牌色相，
-   * 让盘「从背景里亮起来」而不是「被一圈白隔开」。
-   */
-  background:
-    radial-gradient(120% 100% at 30% 20%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 62%),
-    linear-gradient(158deg, #14a89b 0%, var(--brand, #0f766e) 52%, var(--brand-ink, #0f3f3c) 100%);
-  border: 2rpx solid rgba(255, 255, 255, 0.42);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow:
-    inset 0 2rpx 1rpx rgba(255, 255, 255, 0.26),
-    0 14rpx 36rpx rgba(4, 47, 36, 0.48),
-    0 0 0 14rpx rgba(20, 168, 155, 0.16);
+/*
+ * 玻璃底上文字必须白：深色照片透过 16% 白底后底色仍是深绿，
+ * 白字对比最高；品牌深绿在玻璃上会消失（v3 同色教训的变体）。
+ */
+.scan-cta-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--white, #ffffff);
+  line-height: 1.2;
+  letter-spacing: 2rpx;
 }
-.scan-icon-box {
-  /* 152rpx / 260rpx ≈ 58%：原 132rpx 只占 51%，框在圆里显得空、四角像四枚孤立钉子 */
-  width: 152rpx;
-  height: 152rpx;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.scan-circle-text {
-  margin-top: 16rpx;
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  color: var(--white);
-}
-.scan-tip {
-  margin-top: 10rpx;
-  font-size: var(--font-size-sm);
-  color: rgba(255, 255, 255, var(--on-deep-opacity-88));
-}
-
 .landing-foot {
   flex-shrink: 0;
   padding: 4rpx 0 0;
@@ -456,67 +573,6 @@ export default {
   opacity: 0.85;
 }
 
-.scan-corner {
-  position: absolute;
-  /* 54rpx 角长配 152rpx 框：原 44rpx 在 132rpx 框里过短，四角读起来像孤立钉子而非「取景框」 */
-  width: 54rpx;
-  height: 54rpx;
-  /* 与盘底反色：盘为品牌绿渐变，取景角取白（白 on --brand-ink ≈ 11.6:1） */
-  border-color: var(--white, #ffffff);
-  border-style: solid;
-}
-.scan-corner.tl {
-  top: 0;
-  left: 0;
-  border-width: 7rpx 0 0 7rpx;
-  border-radius: 16rpx 0 0 0;
-}
-.scan-corner.tr {
-  top: 0;
-  right: 0;
-  border-width: 7rpx 7rpx 0 0;
-  border-radius: 0 16rpx 0 0;
-}
-.scan-corner.bl {
-  bottom: 0;
-  left: 0;
-  border-width: 0 0 7rpx 7rpx;
-  border-radius: 0 0 0 16rpx;
-}
-.scan-corner.br {
-  bottom: 0;
-  right: 0;
-  border-width: 0 7rpx 7rpx 0;
-  border-radius: 0 0 16rpx 0;
-}
-.scan-line {
-  /*
-   * 横向扫描线 —— 方向是这里的关键：原实现为竖棒（width 10rpx / height 64rpx），
-   * 在方框里读起来像数字「1」或一根钉子，与「扫一扫横线扫过二维码」的通用认知**相反**。
-   * 现改为横线（92rpx × 8rpx 圆头），并加 2.4s 上下缓动，让 CTA 从静止图标变成活体扫描。
-   *
-   * 8rpx 而非 5rpx：真机实测 5rpx 只渲染出 ≈2px 厚，比 7rpx 的取景角（≈2.75px）更细，
-   * 视觉上这条「运动物」反而比静止的框还弱，读起来是一段虚弱的短横。
-   * 92rpx 而非 100rpx：两端收进角竖边之内，避免摆到上下极点时与左右角挤在一起。
-   */
-  width: 92rpx;
-  height: 8rpx;
-  /* 同取景角：白线叠品牌绿盘底 */
-  background: var(--white, #ffffff);
-  border-radius: 8rpx;
-  animation: scan-sweep 2.4s ease-in-out infinite;
-}
-@keyframes scan-sweep {
-  0%,
-  100% {
-    transform: translateY(-42rpx);
-    opacity: 0.55;
-  }
-  50% {
-    transform: translateY(42rpx);
-    opacity: 1;
-  }
-}
 /* visual overrides (merged) */
 .landing-error {
   position: absolute;
@@ -622,6 +678,15 @@ export default {
   padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   background: rgba(4, 31, 26, 0.42);
+}
+/*
+ * 🔴 2026-10-08 用户真机反馈「授权弹窗位置太低」：默认贴底只留 32rpx，
+ * 在长屏上像「掉到地上」。两个表单类弹窗（授权提示、手动输入柜机编号）
+ * 显式加 `landing-mask--centered` 走垂直居中。
+ * 默认仍保留 flex-end —— 若日后新增真正的「底部抽屉」类弹窗，语义不必反转。
+ */
+.landing-mask--centered {
+  align-items: center;
 }
 .landing-sheet {
   width: 100%;

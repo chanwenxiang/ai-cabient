@@ -100,7 +100,10 @@
         </view>
 
         <app-button
+          class="login-submit"
           data-testid="login-submit"
+          size="md"
+          shape="pill"
           :loading="loading"
           :disabled="loading"
           :label="loading ? '登录中…' : '登录'"
@@ -546,31 +549,12 @@ async function onLogin() {
   font-size: var(--font-size-caption);
   line-height: 1.2;
 }
-:deep(.app-btn.app-btn--primary) {
+/* 🔴 不要用 `:deep(.app-btn…)` 改按钮外观 —— 小程序端自定义组件样式隔离使它**永不命中**
+ * （实测编译产物为 `.data-v-页面 .app-btn`，而按钮带组件自己的 `data-v-ca006858`）。
+ * 详见 packages/shared-uni/src/components/app-button.vue 的 size/shape 说明与 lessons #288。
+ * 尺寸/圆角走组件 prop；这里只给宿主节点加间距。 */
+.login-submit {
   margin-top: 12rpx;
-  align-self: stretch;
-  width: 100% !important;
-  max-width: none !important;
-  min-width: 0 !important;
-  padding: 0 !important;
-  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  color: var(--white);
-  border-radius: var(--radius-pill);
-  min-height: 80rpx;
-  height: 80rpx;
-  line-height: 1.2;
-  text-align: center;
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  box-shadow: 0 10rpx 28rpx rgba(15, 118, 110, 0.28);
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-:deep(.app-btn.is-disabled) {
-  opacity: 0.55;
-  pointer-events: none;
 }
 .err {
   color: var(--color-danger);

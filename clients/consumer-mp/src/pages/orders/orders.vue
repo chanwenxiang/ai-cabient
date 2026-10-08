@@ -40,7 +40,24 @@
         lower-threshold="120"
         @scrolltolower="loadMore"
       >
-        <view v-if="reviewingDisputes.length" class="review-section">
+        <!--
+          🔴 「需要关注」区在 issue 档必须整体隐藏（2026-10-08 用户报「我的订单重复了」）。
+          成因：两块渲染的是**同一个数组**——
+            · 关注区   → reviewingDisputesPreview（= reviewingDisputes 前 3 条）
+            · 下方列表 → issueDisputeEntries（filter==='issue' 时 = 整个 reviewingDisputes）
+          切到「有疑问」档时下方列表已全量呈现，关注区不撤 ⇒ 同一张「账单审核中」卡
+          在页面上出现两次（真机截图：有疑问 1 条，页面上却看到两张卡）。
+          下方列表是 issue 档的**正规呈现位置**（它才带筛选行与空态），故撤关注区而非撤列表。
+
+          ⚠️⚠️ 此处**必须**用 HTML 注释（尖括号 + 两个减号），**不可**用 JSX 式注释
+          （花括号包裹斜杠星号）。成因（2026-10-08 真机截图实测）：小程序编译器不识别后者，
+          把它当**普通文本节点**编译进 wxml，于是整段成因注释被原样渲染到用户界面上。
+          判据：产物 wxml 里该页的注释文本必须为 0 命中；
+          ⚠️ `vue-tsc` 与 `prettier` 都发现不了（语法合法，只是语义错），只有真机/产物才暴露。
+          已由 `scripts/check-mp-template-comments.mjs` 钉成可红的门禁（挂在 check:audit-gates）。
+          ⚠️ 该门禁按**模板区**扫描 —— 所以本段注释里也不能写出那个原始序列，否则会自触发。
+        -->
+        <view v-if="reviewingDisputes.length && filter !== 'issue'" class="review-section">
           <text class="section-label"
             >需要关注{{
               reviewingDisputes.length > 3 ? `（${reviewingDisputes.length}）` : ''

@@ -21,6 +21,13 @@
           <text class="tag" :class="payReady ? 'ok' : 'warn'">{{
             payReady ? '可开门' : '待开通支付'
           }}</text>
+          <!--
+            🔴 当前支付方式标签（2026-10-08 用户要求：「已实名 可开门」后面加当前支付方式）。
+            它是**状态展示**不是达标项 ⇒ 不用 ok/warn（那是「过/不过」的语义），
+            用默认灰即可；文案与下方「优先支付方式」区块同名（余额/微信免密/支付宝免密），
+            用户在两处看到的是同一个词，不会对不上。
+          -->
+          <text class="tag" aria-label="当前优先支付方式">{{ payPreferredLabel }}</text>
         </view>
       </view>
       <view v-if="authed" class="profile-side">
@@ -52,7 +59,7 @@
         <view class="app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
-    <view v-else-if="needsSetup" role="button" class="setup-banner" @click="goVerify">
+    <view v-else-if="needsSetup" role="button" class="setup-banner" @click="goVerify()">
       <view class="setup-text">
         <text class="setup-title">完成开门准备</text>
         <text class="setup-desc">{{ setupHint }}</text>
@@ -75,6 +82,12 @@
             @click="onSetPayPreferred('BALANCE')"
             >余额</text
           >
+          <!--
+          🔴 未开通的两个免密 chip：文案自带「去开通」，且点击**直接跳开通页**。
+          用户反馈「怎么开通」的根因是：灰字 + 短文案「微信免密」既没说状态、也没说能点。
+          这里用 aria-label 把语义补全（读屏会念「未开通，点击去开通」），
+          视觉由 .pay-pref-chip.disabled 的虚线描边承担（不再用禁用灰）。
+        -->
           <text
             role="button"
             class="pay-pref-chip"
@@ -83,8 +96,11 @@
               disabled: !account?.payscoreEnabled,
               busy: payPrefBusy
             }"
+            :aria-label="
+              account?.payscoreEnabled ? '设为优先支付方式：微信免密' : '未开通，点击去开通微信免密'
+            "
             @click="onSetPayPreferred('WECHAT')"
-            >微信免密</text
+            >{{ account?.payscoreEnabled ? '微信免密' : '微信免密 去开通' }}</text
           >
           <text
             role="button"
@@ -94,8 +110,13 @@
               disabled: !account?.alipayAgreementEnabled,
               busy: payPrefBusy
             }"
+            :aria-label="
+              account?.alipayAgreementEnabled
+                ? '设为优先支付方式：支付宝免密'
+                : '未开通，点击去开通支付宝免密'
+            "
             @click="onSetPayPreferred('ALIPAY')"
-            >支付宝免密</text
+            >{{ account?.alipayAgreementEnabled ? '支付宝免密' : '支付宝免密 去开通' }}</text
           >
         </view>
         <!-- G9：免密代扣的用户自助解约入口。没有它，用户只能等渠道侧通知才能撤回授权。 -->
@@ -421,6 +442,10 @@ const payPreferred = computed(() => {
   if (c === 'WECHAT' || c === 'ALIPAY' || c === 'BALANCE') return c;
   return 'BALANCE';
 });
+/** 身份标签行展示用：当前优先支付方式的中文（与「优先支付方式」区块用词一致）。 */
+const payPreferredLabel = computed(
+  () => ({ BALANCE: '余额支付', WECHAT: '微信免密', ALIPAY: '支付宝免密' })[payPreferred.value]
+);
 /** G9：是否已有生效的免密代扣（任一渠道）——决定是否显示「关闭免密支付」。 */
 const passwordFreeReady = computed(() => !!account.value?.passwordFreeReady);
 const setupHint = computed(() => {
@@ -431,12 +456,36 @@ const setupHint = computed(() => {
 async function onSetPayPreferred(channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') {
   if (!authed.value || payPrefBusy.value) return;
   if (channel === payPreferred.value) return;
+  /*
+   * 🔴 未开通免密时**直接跳到开通页**，不要用 toast 让用户自己找（2026-10-08 两轮反馈）。
+   *
+   * 成因（分两次，都是我判断错）：
+   *   v1 只弹「请先开通支付宝免密」—— 说清了「不能做」却没说「去哪做」；
+   *   v2 改成「未开通支付宝免密，请点上方『完成开门准备 → 去设置』」（24 字）
+   *       ⇒ 用户反馈**「还是不明白」**，且真机截图显示 toast 被**截断**成
+   *          「…请点上方『完成开门准备...」—— 微信 showToast 的 title 有长度上限，
+   *          长文案既读不完、又要用户自己在页面上找对应横幅。
+   * ⇒ 正解：**别让用户读路径，直接把他送到** pages/verify/verify（标题「开通支付」，
+   *    微信/支付宝两个开通按钮都在那里）。toast 只留一句短的过场提示。
+   *    开通页本身也能「返回」到本页，用户不会迷失。
+   *
+   * 后端链路是通的（签约端点见 ConsumerEndpoints.payscoreSign / alipayAgreementSign），
+   * 本地 mock 模式（infra/.env 的 AICABINET_MOCK_ENABLED=true）点一下即开通。
+   *
+   * v5（2026-10-08）：跳转带 `channel` 参数。用户实测反馈「开通后还是显示去开通」——
+   * 取证结论：后端 24h 日志里**零签约请求**（用户到了开通页但没按对应的签约按钮，
+   * 开通页有两个大按钮「开通微信支付分」「开通支付宝免密」，从 mine 跳过去后
+   * 用户不知道该按哪个 / 按了返回以为就算开通了）。⇒ 跳转时带上是哪个渠道，
+   * 开通页据此**高亮 + 脉冲提示**对应的按钮（见 verify.vue 的 pendingChannel）。
+   */
   if (channel === 'WECHAT' && !account.value?.payscoreEnabled) {
-    showError('请先开通微信支付分');
+    showError('请先开通');
+    goVerify(channel);
     return;
   }
   if (channel === 'ALIPAY' && !account.value?.alipayAgreementEnabled) {
-    showError('请先开通支付宝免密');
+    showError('请先开通');
+    goVerify(channel);
     return;
   }
   payPrefBusy.value = true;
@@ -604,8 +653,9 @@ async function onMockRecharge() {
   }
 }
 
-function goVerify() {
-  uni.navigateTo({ url: '/pages/verify/verify' });
+function goVerify(channel?: 'WECHAT' | 'ALIPAY') {
+  const query = channel ? `?channel=${channel}` : '';
+  uni.navigateTo({ url: '/pages/verify/verify' + query });
 }
 
 function goLogin() {

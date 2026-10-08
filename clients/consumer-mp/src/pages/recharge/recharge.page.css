@@ -203,8 +203,23 @@
 .btn-slot + .btn-slot {
   margin-top: 32rpx;
 }
+/*
+ * 「体验充值」按钮的视觉降级（2026-10-08）。
+ * 它只在 dev 构建 + 后端 mock 时渲染（见 recharge.vue 的 v-if），但形态与上面真实
+ * 「微信支付」按钮完全一致 ⇒ 用户分不清哪个是真付款。
+ * 降级手段：降低不透明度 + 去掉品牌底色，让它读作「联调用的次要入口」，
+ * 而不是第二个「充值」主按钮。生产构建下本按钮不渲染。
+ */
+.mock-recharge {
+  opacity: 0.82;
+}
+/*
+ * 「返回我的」上移后成为按钮组第一个（2026-10-08），
+ * 它上面是 .custom-row —— 需要一个比 .btn-slot 之间更小的间距，
+ * 否则会与金额区拉开过大距离、看起来像两段。
+ */
 .btn-slot--back {
-  margin-top: 32rpx;
+  margin-top: 20rpx;
 }
 .app-btn[disabled] {
   opacity: 0.5;

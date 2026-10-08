@@ -18,10 +18,10 @@
  * 🔴 历史 277 个迁移天然 grandfather：按「相对基线新增」判定，不回溯。
  *    改写已应用迁移 = checksum 漂移，需要每台环境 `flyway repair` —— 明确不做。
  */
-import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gitAsync } from './lib/async-spawn.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATION_DIR = 'services/trade-service/src/main/resources/db/migration';
@@ -43,9 +43,9 @@ function read(rel) {
   }
 }
 function git(args) {
-  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-  if (r.status !== 0) return { ok: false, out: (r.stdout || '') + (r.stderr || '') };
-  return { ok: true, out: (r.stdout || '').trim() };
+  // 🔴 异步 spawn：WorkBuddy 环境下 spawnSync 一律 EBUSY/status=null（lessons #292），
+  // 那样会让本门禁把「git 跑不起来」误判成「有不合规迁移」。
+  return gitAsync(args, { cwd: root });
 }
 
 /** 去 SQL 注释（`--` 行注释与块注释）。用于判「有没有真的写数据」。 */
@@ -83,7 +83,7 @@ if (prodYml && !/seed_env\s*:\s*none/.test(prodYml)) {
 
 // ── 新增文件（相对基线）─────────────────────────────────────────────────────
 const baseRef = process.env.MIGRATION_BASE_REF || 'origin/dev';
-let diff = git([
+let diff = await git([
   'diff',
   '--name-only',
   '--diff-filter=A',
@@ -93,10 +93,18 @@ let diff = git([
   SEED_DIR
 ]);
 if (!diff.ok) {
-  diff = git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', MIGRATION_DIR, SEED_DIR]);
+  diff = await git([
+    'diff',
+    '--name-only',
+    '--diff-filter=A',
+    'HEAD',
+    '--',
+    MIGRATION_DIR,
+    SEED_DIR
+  ]);
 }
 // 刻意不加 --exclude-standard：未跟踪的 .sql 同样是一次真实的新迁移（与 check:migration-safety 同口径）
-const untracked = git(['ls-files', '--others', '--', MIGRATION_DIR, SEED_DIR]);
+const untracked = await git(['ls-files', '--others', '--', MIGRATION_DIR, SEED_DIR]);
 if (!diff.ok && !untracked.ok) {
   err('git 不可用，无法判定新增迁移 —— 拒绝静默放行');
 }
