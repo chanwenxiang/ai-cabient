@@ -5529,6 +5529,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/warehouse/expiry-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["warehouseExpiryAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/warehouse/bins/stock": {
         parameters: {
             query?: never;
@@ -13458,6 +13474,36 @@ export interface components {
             /** Format: date-time */
             receivedAt?: string;
             deviceName?: string;
+        };
+        ApiResponsePageResultWarehouseExpiryAlertDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PageResultWarehouseExpiryAlertDto"];
+        };
+        PageResultWarehouseExpiryAlertDto: {
+            items?: components["schemas"]["WarehouseExpiryAlertDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        WarehouseExpiryAlertDto: {
+            /** Format: int64 */
+            inventoryId?: number;
+            warehouseId?: string;
+            skuId?: string;
+            batchNo?: string;
+            /** Format: date */
+            expiryDate?: string;
+            /** Format: int32 */
+            quantity?: number;
+            /** Format: int32 */
+            daysRemaining?: number;
+            expired?: boolean;
+            urgency?: string;
         };
         ApiResponseListWarehouseBinDto: {
             /** Format: int32 */
@@ -26645,6 +26691,31 @@ export interface operations {
                 };
                 content: {
                     "text/csv": string;
+                };
+            };
+        };
+    };
+    warehouseExpiryAlerts: {
+        parameters: {
+            query?: {
+                warehouseId?: string;
+                daysAhead?: number;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResultWarehouseExpiryAlertDto"];
                 };
             };
         };
