@@ -402,6 +402,30 @@ export function downloadReplenishmentRequestEvidenceFile(
   );
 }
 
+const disputeEvidenceLocalCache = new Map<string, string>();
+
+/**
+ * 争议证据图：带鉴权下载到本地临时路径（image 标签无法携带 Bearer）。
+ * 失败/无 url 返回 ''，由展示层回退占位——不把 token 拼进 URL（防泄露，对齐 C 端 dispute-evidence）。
+ */
+export async function downloadDisputeEvidence(img: {
+  fileId?: number;
+  url?: string;
+}): Promise<string> {
+  const url = String(img?.url || '').trim();
+  if (!url) return '';
+  const cacheKey = String(img.fileId ?? url);
+  const cached = disputeEvidenceLocalCache.get(cacheKey);
+  if (cached) return cached;
+  try {
+    const local = await downloadAuthedFile(merchantAbsUrl(url));
+    disputeEvidenceLocalCache.set(cacheKey, local);
+    return local;
+  } catch {
+    return '';
+  }
+}
+
 export const merchantApi = {
   me: () => request<import('@aicabinet/shared-types').MerchantMe>(MerchantEndpoints.me),
   stats: () =>

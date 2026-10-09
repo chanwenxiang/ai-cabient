@@ -74,6 +74,7 @@ public class MockPlatformBillProvider implements PlatformBillProvider {
                     order.getTotalAmountCents(),
                     order.getCreatedAt(),
                     "PAY",
+                    null,
                     "{\"source\":\"mock\",\"type\":\"order\",\"payChannel\":\""
                             + safeChannel(order.getPayChannel()) + "\"}"
             ));
@@ -85,6 +86,7 @@ public class MockPlatformBillProvider implements PlatformBillProvider {
                     recharge.getAmountCents(),
                     recharge.getPaidAt(),
                     "RECHARGE",
+                    null,
                     "{\"source\":\"mock\",\"type\":\"recharge\",\"status\":\""
                             + safeChannel(recharge.getStatus()) + "\"}"
             ));
@@ -99,6 +101,7 @@ public class MockPlatformBillProvider implements PlatformBillProvider {
                     -Math.abs(refund.getAmountCents()),
                     refund.getCreatedAt(),
                     "REFUND",
+                    null,
                     "{\"source\":\"mock\",\"type\":\"refund\",\"operationType\":\""
                             + safeChannel(refund.getOperationType()) + "\"}"
             ));

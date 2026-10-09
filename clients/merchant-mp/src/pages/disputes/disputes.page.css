@@ -292,6 +292,30 @@
   font-size: var(--font-size-caption);
   color: var(--text-muted, #334155);
 }
+.resolution-sub {
+  display: block;
+  margin-top: 8rpx;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #64748b);
+}
+.resolution-empty {
+  display: block;
+  margin-top: 12rpx;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #64748b);
+}
+.evidence-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 12rpx;
+}
+.evidence-img {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: var(--radius-control);
+  background: var(--color-border-subtle, #f1f5f9);
+}
 .page-body {
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;

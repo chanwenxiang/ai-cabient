@@ -27,7 +27,7 @@
       closable
       show-icon
       class="t1-alert"
-      title="T+1：当日流水通常次日入账；通道费约 0.6% 估算，平台抽成取自分账记账"
+      title="T+1：当日流水通常次日入账；通道费标注（实结）= 对账账单回填，未标注（估）= 按配置费率估算；平台抽成取自分账记账"
     />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onSearch">
@@ -118,13 +118,15 @@
                 <template #default="{ row }">¥{{ yuan(row.platformFeeCents) }}</template>
               </el-table-column>
               <el-table-column
-                label="通道费(估)"
+                label="通道费"
                 width="100"
                 align="center"
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }">¥{{ yuan(row.channelFeeCents) }}</template>
+                <template #default="{ row }">
+                  ¥{{ yuan(row.channelFeeCents) }}{{ row.channelFeeSource === 'ACTUAL' ? '（实结）' : '（估）' }}
+                </template>
               </el-table-column>
               <el-table-column
                 label="已入账"
@@ -350,6 +352,8 @@ interface BillRow {
   orderPaidCents: number;
   platformFeeCents: number;
   channelFeeCents: number;
+  /** CB-020③：ACTUAL=对账账单实结分摊；ESTIMATED/缺省=按配置 bps 估算 */
+  channelFeeSource?: string;
   creditedCents: number;
   pendingCents: number;
   orderCount: number;
@@ -479,7 +483,7 @@ const { onExport: exportBillsCsv } = useListCsv({
         row.merchantName,
         yuan(row.orderPaidCents),
         yuan(row.platformFeeCents),
-        yuan(row.channelFeeCents),
+        yuan(row.channelFeeCents) + (row.channelFeeSource === 'ACTUAL' ? '(实结)' : '(估)'),
         yuan(row.creditedCents),
         yuan(row.pendingCents),
         row.orderCount,

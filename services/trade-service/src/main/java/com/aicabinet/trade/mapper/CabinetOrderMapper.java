@@ -112,6 +112,14 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
         long sumAmountByDeviceIdSince(@Param("deviceId") String deviceId, @Param("since") Instant since);
 
+    /**
+     * CB-018①：柜机×日营收聚合，返回行 [c0=device_id, c1=Asia/Shanghai 日(java.sql.Date),
+     * c2=营收分, c3=订单数]。口径与 {@link #sumAmountByDeviceId} 一致（SUM(total_amount_cents)
+     * 不过滤状态），保证日序列求和可与报表「累计营收」对平；{@code deviceIds} 为 null=全部（scope 由调用方裁剪）。
+     */
+    List<java.util.LinkedHashMap<String, Object>> selectRevenueDailyByDeviceSince(
+            @Param("deviceIds") Collection<String> deviceIds, @Param("since") Instant since);
+
 
         long sumTotalAmountBetween(@Param("start") Instant start, @Param("end") Instant end);
 

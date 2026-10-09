@@ -35,6 +35,7 @@ class ReconciliationServiceTest {
     @Mock private PlatformBillProviderRegistry billProviderRegistry;
     @Mock private CabinetMetrics cabinetMetrics;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private SystemConfigService systemConfigService;
 
     private ReconciliationService service;
 
@@ -43,7 +44,7 @@ class ReconciliationServiceTest {
         ReconciliationServiceSupport support = new ReconciliationServiceSupport(
                 billLineRepository, paymentOperationRepository, rechargeRepository,
                 billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService);
-        service = new ReconciliationService(reconRepository, support, null, null);
+        service = new ReconciliationService(reconRepository, support, null, null, systemConfigService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
@@ -68,7 +69,7 @@ class ReconciliationServiceTest {
                 .thenReturn(List.of("ORD-1"));
         when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
-                new PlatformBillLine("P1", "ORD-1", 350, start, "PAY", "{}")
+                new PlatformBillLine("P1", "ORD-1", 350, start, "PAY", null, "{}")
         ));
         when(reconRepository.save(any())).thenAnswer(inv -> {
             var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
@@ -97,7 +98,7 @@ class ReconciliationServiceTest {
                 .thenReturn(List.of());
         when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
-                new PlatformBillLine("P9", "ORD-X", 500, Instant.now(), "WECHAT", "raw")
+                new PlatformBillLine("P9", "ORD-X", 500, Instant.now(), "WECHAT", null, "raw")
         ));
         when(reconRepository.save(any())).thenAnswer(inv -> {
             var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
@@ -148,8 +149,8 @@ class ReconciliationServiceTest {
                 .thenReturn(List.of("ORD-1"));
         when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of("RCH-1"));
         when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
-                new PlatformBillLine("P1", "ORD-1", 200, Instant.now(), "PAY", "{}"),
-                new PlatformBillLine("P2", "RCH-1", 150, Instant.now(), "PAY", "{}")
+                new PlatformBillLine("P1", "ORD-1", 200, Instant.now(), "PAY", null, "{}"),
+                new PlatformBillLine("P2", "RCH-1", 150, Instant.now(), "PAY", null, "{}")
         ));
         when(reconRepository.save(any())).thenAnswer(inv -> {
             var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
@@ -178,8 +179,8 @@ class ReconciliationServiceTest {
                 .thenReturn(List.of());
         when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of("RCH-1"));
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
-                new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", "{}"),
-                new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", "{}")
+                new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", null, "{}"),
+                new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", null, "{}")
         ));
         when(reconRepository.save(any())).thenAnswer(inv -> {
             var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
@@ -210,8 +211,8 @@ class ReconciliationServiceTest {
                 .thenReturn(List.of());
         when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of("RCH-1"));
         when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
-                new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", "{}"),
-                new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", "{}")
+                new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", null, "{}"),
+                new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", null, "{}")
         ));
         when(reconRepository.save(any())).thenAnswer(inv -> {
             var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
@@ -254,5 +255,85 @@ class ReconciliationServiceTest {
         verify(billLineRepository).deleteByReconId(9L);
         verify(reconRepository).delete(existing);
         verify(reconRepository).flush();
+    }
+
+    @Test
+    void runDaily_feeAggregatedIntoRecon() {
+        // CB-020③：微信账单行手续费 100+50=150 应聚合写入 recon.channelFeeCents，金额对平时 status 不受费率影响
+        LocalDate date = LocalDate.of(2024, 6, 5);
+        when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(1000L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
+                .thenReturn(List.of("ORD-1", "ORD-2"));
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
+                new PlatformBillLine("P1", "ORD-1", 600, Instant.now(), "PAY", 100L, "{}"),
+                new PlatformBillLine("P2", "ORD-2", 400, Instant.now(), "PAY", 50L, "{}")
+        ));
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) r.setReconId(20L);
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "WECHAT");
+
+        assertEquals("MATCHED", result.status());
+        verify(reconRepository, atLeastOnce()).save(argThat(r ->
+                Long.valueOf(150L).equals(r.getChannelFeeCents())));
+        verify(billLineRepository, atLeastOnce()).save(argThat(line ->
+                line.getFeeCents() != null && line.getFeeCents() == 100L));
+    }
+
+    @Test
+    void runDaily_feeNotProvidedStoresNullNotZero() {
+        // CB-020③：通道不提供手续费（Mock/支付宝未映射）⇒ 存 null（估算兜底信号），与「实结 0」严格区分
+        LocalDate date = LocalDate.of(2024, 6, 6);
+        when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(350L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
+                .thenReturn(List.of("ORD-1"));
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
+                new PlatformBillLine("P1", "ORD-1", 350, Instant.now(), "PAY", null, "{}")
+        ));
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) r.setReconId(21L);
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "MOCK");
+
+        assertEquals("MATCHED", result.status());
+        verify(reconRepository, atLeastOnce()).save(argThat(r -> r.getChannelFeeCents() == null));
+    }
+
+    @Test
+    void runDaily_feeRateAnomalyAlertsButKeepsMatchedStatus() {
+        // CB-020③：实结费率 1000bps vs 配置 60bps——告警+指标，但 status 仍 MATCHED（MISMATCH 语义只留给金额/单据不平）
+        LocalDate date = LocalDate.of(2024, 6, 7);
+        when(systemConfigService.getInt("fund.channel_fee_bps", 60)).thenReturn(60);
+        when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(1000L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
+                .thenReturn(List.of("ORD-1"));
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
+                new PlatformBillLine("P1", "ORD-1", 1000, Instant.now(), "PAY", 100L, "{}")
+        ));
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) r.setReconId(22L);
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "WECHAT");
+
+        assertEquals("MATCHED", result.status());
+        verify(cabinetMetrics, atLeastOnce()).recordReconciliationMismatch();
     }
 }

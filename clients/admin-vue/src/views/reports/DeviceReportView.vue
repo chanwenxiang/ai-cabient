@@ -27,6 +27,30 @@
       </button>
     </div>
 
+    <!-- CB-018①：柜机×日营收趋势（口径与累计/今日营收一致；选中柜机=该柜机序列，否则全站合计） -->
+    <div class="trend-card">
+      <div class="trend-head">
+        <span class="trend-title">
+          {{ deviceId ? '该柜机' : '全部柜机' }}近 {{ dailyRevenueDays }} 日营收
+        </span>
+        <el-select
+          v-model="dailyRevenueDays"
+          style="width: 110px"
+          @change="fetchDailyRevenue"
+        >
+          <el-option :value="7" label="近 7 日" />
+          <el-option :value="30" label="近 30 日" />
+          <el-option :value="90" label="近 90 日" />
+        </el-select>
+      </div>
+      <EChart
+        :option="dailyRevenueOption"
+        :loading="dailyRevenueLoading"
+        empty-text="暂无营收数据"
+        :height="280"
+      />
+    </div>
+
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="柜机">
         <el-select
@@ -119,6 +143,16 @@
                 {{ dictLabel('online_status', row.onlineStatus) }}
               </el-tag>
             </template>
+          </el-table-column>
+          <el-table-column
+            label="近7日在线率"
+            width="112"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <!-- CB-018 ②：device_daily_online_rate 近 7 日均值；无快照数据显示 — -->
+            <template #default="{ row }">{{ onlineRate7dText(row) }}</template>
           </el-table-column>
           <el-table-column
             label="商户"
@@ -254,12 +288,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { View } from '@element-plus/icons-vue';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import EChart from '@/components/EChart.vue';
+import { seriesOption, type EChartsOption } from '@/utils/echarts';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -285,6 +321,7 @@ interface DeviceReportRow {
   firmwareVersion?: string | null;
   avgOrderValueTodayCents?: number;
   avgOrderValueTotalCents?: number;
+  onlineRate7d?: number | null;
 }
 
 const route = useRoute();
@@ -335,6 +372,61 @@ const sum = computed(() =>
 );
 
 const pagePartial = computed(() => crud.total > crud.items.length);
+
+// CB-018①：柜机×日营收序列。口径与报表累计/今日营收一致（后端 SUM(total_amount_cents)），
+// deviceId 深链=单台设备序列，否则全站合计（前端按日求和）。
+interface DailyRevenueRow {
+  deviceId: string;
+  date: string;
+  revenueCents: number;
+  orderCount: number;
+}
+const dailyRevenueRows = ref<DailyRevenueRow[]>([]);
+const dailyRevenueDays = ref<7 | 30 | 90>(7);
+const dailyRevenueLoading = ref(false);
+
+async function fetchDailyRevenue() {
+  dailyRevenueLoading.value = true;
+  try {
+    dailyRevenueRows.value = await api.request<DailyRevenueRow[]>(
+      AdminEndpoints.reportsDevicesDailyRevenue(deviceId.value || undefined, dailyRevenueDays.value),
+      'GET'
+    );
+  } catch {
+    dailyRevenueRows.value = [];
+  } finally {
+    dailyRevenueLoading.value = false;
+  }
+}
+
+const dailyRevenueOption = computed<EChartsOption | null>(() => {
+  const rows = dailyRevenueRows.value;
+  if (!rows.length) return null;
+  const byDate = new Map<string, number>();
+  for (const r of rows) byDate.set(r.date, (byDate.get(r.date) || 0) + r.revenueCents);
+  const labels = [...byDate.keys()].sort();
+  return seriesOption({
+    labels,
+    series: [
+      {
+        name: deviceId.value ? '该柜机营收' : '全站营收',
+        values: labels.map((d) => (byDate.get(d) || 0) / 100),
+        color: '#2dd4bf'
+      }
+    ],
+    kind: 'bar',
+    formatY: (v) => `¥${Math.round(v)}`,
+    formatValue: (v) => `¥${v.toFixed(2)}`
+  });
+});
+
+watch(deviceId, fetchDailyRevenue);
+
+/** CB-018 ②：在线率 0-1 → 百分比文本；无快照数据（新设备/任务未跑）显示 — */
+function onlineRate7dText(row: DeviceReportRow) {
+  if (row.onlineRate7d == null) return '—';
+  return `${(row.onlineRate7d * 100).toFixed(1)}%`;
+}
 
 function deviceReportDeviceCountHint(ready: boolean) {
   if (!ready) return UI_COPY.loading;
@@ -505,6 +597,12 @@ function applyRouteQuery() {
     keyword.value = route.query.keyword;
     changed = true;
   }
+  // 深链 /reports?deviceId=xxx（设备地图等入口）：同步进柜机选择器，
+  // 标题切「该柜机」+ 趋势序列/列表筛选随 watch(deviceId) 与 fetchPage 生效
+  if (typeof route.query.deviceId === 'string' && route.query.deviceId !== deviceId.value) {
+    deviceId.value = route.query.deviceId;
+    changed = true;
+  }
   return changed;
 }
 
@@ -512,6 +610,7 @@ function applyRouteQuery() {
 onMounted(() => {
   void loadDeviceOptions();
   void loadOfflineTotal();
+  void fetchDailyRevenue();
 });
 onActivated(() => {
   if (applyRouteQuery()) {
@@ -521,6 +620,26 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.trend-card {
+  margin-bottom: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.trend-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.trend-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
 .report-page :deep(.el-card__body) {
   min-width: 0;
 }

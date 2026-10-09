@@ -202,6 +202,8 @@ export const AdminEndpoints = {
   /** 补货 / 效期 */
   replenishmentSummary: `${ops}/replenishment/summary`,
   replenishmentPlan: `${ops}/replenishment/plan`,
+  // CB-018①：按补货建议直接生成补货任务（不经路线规划）；body 可空 { deviceId, assigneeUserId? }
+  replenishmentSuggestCreateTask: `${ops}/replenishment/suggest/create-task`,
   replenishmentRequestsExport: `${ops}/replenishment/requests/export`,
   replenishmentRoutesExport: `${ops}/replenishment/routes/export`,
   replenishmentRoutes: (query: URLSearchParams | string) =>
@@ -687,6 +689,12 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/reports/devices?${query}`
       : `${ops}/reports/devices?${query.toString()}`,
+  // CB-018①：柜机×日营收序列（days 档位 7/30/90；deviceId 可选深链单台设备）
+  reportsDevicesDailyRevenue: (deviceId?: string, days = 7) => {
+    const q = new URLSearchParams({ days: String(days) });
+    if (deviceId) q.set('deviceId', deviceId);
+    return `${ops}/reports/devices/daily-revenue?${q.toString()}`;
+  },
   reportsStockHealthList: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/reports/stock-health?${query}`

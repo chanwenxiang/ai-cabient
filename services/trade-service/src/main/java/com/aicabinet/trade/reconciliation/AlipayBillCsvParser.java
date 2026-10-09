@@ -158,8 +158,9 @@ public final class AlipayBillCsvParser {
                     ? cols[header.amountCol()].trim()
                     : "0");
             Instant tradeTime = resolveTradeTime(cols, header.finishCol(), billDate, zone);
+            // CB-020③：支付宝账单手续费列未映射（表头动态），置 null 走估算兜底；接入时在此补列位
             return new PlatformBillLine(
-                    platformTradeNo, merchantOrderNo, amountCents, tradeTime, "ALIPAY", line
+                    platformTradeNo, merchantOrderNo, amountCents, tradeTime, "ALIPAY", null, line
             );
         } catch (Exception e) {
             log.debug("skip alipay bill line: {}", line);

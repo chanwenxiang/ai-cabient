@@ -38,15 +38,24 @@ public class ReconciliationService {
     private final ReconciliationServiceSupport support;
     private final ReconciliationService self;
     private final OpsAlertDispatcher alertDispatcher;
+    /** CB-020③：读配置通道费率（bps）做实结/配置差异告警；null 容错走默认 60bps（同 FundBillService）。 */
+    private final SystemConfigService systemConfigService;
+
+    /** 费率差异告警的绝对阈值（bps）：实结费率与配置费率差超过 1% 即提示复核。 */
+    static final long FEE_RATE_ALERT_ABS_BPS = 100;
+    /** 费率差异告警的相对阈值：超过配置费率的 25%（低费率下绝对 100bps 过钝的补充）。 */
+    static final double FEE_RATE_ALERT_REL_RATIO = 0.25d;
 
     public ReconciliationService(PaymentReconciliationMapper reconRepository,
                                  ReconciliationServiceSupport support,
                                  @Lazy ReconciliationService self,
-                                 OpsAlertDispatcher alertDispatcher) {
+                                 OpsAlertDispatcher alertDispatcher,
+                                 SystemConfigService systemConfigService) {
         this.reconRepository = reconRepository;
         this.support = support;
         this.self = self;
         this.alertDispatcher = alertDispatcher;
+        this.systemConfigService = systemConfigService;
     }
 
     @Transactional(readOnly = true)
@@ -144,6 +153,14 @@ public class ReconciliationService {
         long ledgerTotal = sumLedger(start, end, channel);
         List<PlatformBillLine> platformLines = support.billProviderRegistry().fetchBill(channel, date);
         long platformTotal = platformLines.stream().mapToLong(PlatformBillLine::amountCents).sum();
+        // CB-020③：实结手续费聚合。feeProvided=false（通道不提供，如 Mock/支付宝未映射）⇒ 存 null
+        // 与 0 区分——上层 FundBillService 据此走估算兜底而非误显示「实结 0 元」。
+        long feeTotalCents = platformLines.stream()
+                .map(PlatformBillLine::feeCents)
+                .filter(java.util.Objects::nonNull)
+                .mapToLong(Long::longValue)
+                .sum();
+        boolean feeProvided = platformLines.stream().anyMatch(l -> l.feeCents() != null);
 
         Set<String> ledgerOrderIds = collectLedgerOrderIds(start, end, channel);
         Set<String> platformOrderIds = new HashSet<>();
@@ -156,6 +173,7 @@ public class ReconciliationService {
         recon.setLedgerTotal(ledgerTotal);
         recon.setPlatformTotal(platformTotal);
         recon.setDiffCents(platformTotal - ledgerTotal);
+        recon.setChannelFeeCents(feeProvided ? feeTotalCents : null);
         recon = reconRepository.save(recon);
 
         for (PlatformBillLine line : platformLines) {
@@ -175,6 +193,7 @@ public class ReconciliationService {
             entity.setPlatformTradeNo(line.platformTradeNo());
             entity.setMerchantOrderNo(line.merchantOrderNo());
             entity.setAmountCents(line.amountCents());
+            entity.setFeeCents(line.feeCents());
             entity.setTradeTime(line.tradeTime());
             entity.setTradeType(line.tradeType());
             entity.setMatched(isMatched);
@@ -206,6 +225,11 @@ public class ReconciliationService {
                 }
             }
         }
+        // CB-020③：费率异常检测（金额对平≠费率正常）。只告警不改 status——MISMATCH 语义留给金额/单据不平，
+        // 费率异常复用 RECON_MISMATCH 告警通道投递（台账结论：差异告警复用 RECON_MISMATCH）。
+        if (feeProvided) {
+            checkChannelFeeAnomaly(recon, date, channel, platformTotal, feeTotalCents);
+        }
         recon.setCompletedAt(Instant.now());
         try {
             Map<String, Object> detail = new HashMap<>();
@@ -215,6 +239,8 @@ public class ReconciliationService {
             detail.put("ledgerOnlyCount", ledgerOnlyOrderIds.size());
             detail.put("ledgerOnlyOrderIds", ledgerOnlyOrderIds.stream().sorted().limit(50).toList());
             detail.put("mismatchCategories", categories);
+            detail.put("channelFeeCents", feeProvided ? feeTotalCents : null);
+            detail.put("channelFeeProvided", feeProvided);
             detail.put("reviewAction", categories.isEmpty()
                     ? "NONE"
                     : "FILTER_DETAIL_AND_RERUN_AFTER_GATEWAY_OR_LEDGER_FIX");
@@ -225,6 +251,46 @@ public class ReconciliationService {
         log.info("reconciliation date={} channel={} platform={} ledger={} diff={} matched={} unmatched={}",
                 date, channel, platformTotal, ledgerTotal, recon.getDiffCents(), matched, unmatched);
         return reconRepository.save(recon);
+    }
+
+    /**
+     * CB-020③：账单实结费率 vs 运营台配置费率的差异检测。
+     * <p>口径：{@code actualBps = feeTotal / platformTotal}（platformTotal 为当日账单净额，含退款负行，
+     * 与手续费同源同号）。告警条件（<b>同时</b>满足，双阈值互补防噪）：
+     * 绝对差 >{@link #FEE_RATE_ALERT_ABS_BPS}（1%，低配置费率下防 0.2% 级噪音）<b>且</b>
+     * 相对差 >{@link #FEE_RATE_ALERT_REL_RATIO}（配置的 25%，高配置费率下绝对阈值防钝）。
+     * <p>不比较 ledger 口径——费率是「渠道收了多少」的属性，与账本无关；platformTotal<=0（当日净退款）
+     * 费率无意义，跳过。阈值硬编码常量首版即定，detail/告警记录两侧 bps 供人工复核，配置化留后续需要。
+     */
+    private void checkChannelFeeAnomaly(PaymentReconciliation recon, LocalDate date, String channel,
+                                        long platformTotal, long feeTotalCents) {
+        if (platformTotal <= 0) {
+            return;
+        }
+        long actualBps = Math.round((double) feeTotalCents * 10_000d / (double) platformTotal);
+        long configBps = FundBillService.resolveChannelFeeBps(systemConfigService);
+        long absDiff = Math.abs(actualBps - configBps);
+        boolean anomalous = absDiff > FEE_RATE_ALERT_ABS_BPS
+                && absDiff > Math.round(configBps * FEE_RATE_ALERT_REL_RATIO);
+        log.info("reconciliation fee rate date={} channel={} actualBps={} configBps={}",
+                date, channel, actualBps, configBps);
+        if (!anomalous) {
+            return;
+        }
+        support.cabinetMetrics().recordReconciliationMismatch();
+        if (alertDispatcher != null) {
+            try {
+                alertDispatcher.send("RECON_MISMATCH", "渠道费率与配置差异待复核",
+                        "date=" + date + " channel=" + channel
+                                + " actualFeeBps=" + actualBps
+                                + " configFeeBps=" + configBps
+                                + " feeTotalCents=" + feeTotalCents
+                                + " platformTotalCents=" + platformTotal
+                                + "，请核对渠道账单手续费列与运营台费率配置");
+            } catch (Exception alertEx) {
+                log.warn("recon fee rate alert failed", alertEx);
+            }
+        }
     }
 
     private Map<String, Object> classifyMismatch(long diffCents, int platformUnmatched, int ledgerOnly) {

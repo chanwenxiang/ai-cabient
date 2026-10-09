@@ -134,6 +134,14 @@
               ><text class="detail-lbl">最新</text
               ><text class="detail-val">{{ sanitizeNotifyTitle(detail.lastMessage) }}</text></view
             >
+            <view v-if="detail?.assignee" class="detail-row"
+              ><text class="detail-lbl">处理人</text
+              ><text class="detail-val">{{ detail.assignee }}</text></view
+            >
+            <view v-if="detail?.operatorNote" class="detail-row"
+              ><text class="detail-lbl">运营备注</text
+              ><text class="detail-val">{{ detail.operatorNote }}</text></view
+            >
           </view>
           <view v-if="(detail?.suggestedItems || []).length" class="suggest-block">
             <text class="detail-lbl">识别参考明细</text>
@@ -147,6 +155,44 @@
               <text v-if="showSuggestUnit(it)" class="suggest-unit"
                 >柜机单价 {{ fmtMoney(it.unitPriceCents) }}</text
               >
+            </view>
+          </view>
+          <view
+            v-if="isTerminalDispute(detail?.status) && (detail?.resolutionItems || []).length"
+            class="suggest-block"
+          >
+            <text class="detail-lbl">人工判定明细</text>
+            <text class="resolution-sub">以下为运营人工审核判定结果，以判定金额为准</text>
+            <view v-for="(it, i) in detail?.resolutionItems || []" :key="'r-' + i" class="suggest-row">
+              <view class="suggest-top">
+                <text class="suggest-name"
+                  >{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text
+                >
+                <text class="suggest-amt">{{ fmtMoney(it.lineAmountCents) }}</text>
+              </view>
+            </view>
+          </view>
+          <view
+            v-else-if="isTerminalDispute(detail?.status) && !(detail?.resolutionItems || []).length"
+            class="suggest-block"
+          >
+            <text class="detail-lbl">人工判定明细</text>
+            <text class="resolution-sub">以下为运营人工审核判定结果，以判定金额为准</text>
+            <text class="resolution-empty">本次判定未计费商品（全额免责或退款）</text>
+          </view>
+          <view v-if="(detail?.evidence || []).length" class="video-block">
+            <text class="detail-lbl">申诉证据图</text>
+            <view class="evidence-row">
+              <image
+                v-for="img in detail?.evidence || []"
+                :key="evidenceKey(img)"
+                class="evidence-img"
+                :src="evidenceSrc(img)"
+                mode="aspectFill"
+                role="button"
+                aria-label="预览申诉证据图"
+                @click="previewEvidence(img)"
+              />
             </view>
           </view>
           <view v-if="playbackUrl" class="video-block">
@@ -247,6 +293,7 @@ import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/uti
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import AppSheet from '@/components/AppSheet.vue';
 import {
+  downloadDisputeEvidence,
   hasPerm,
   merchantApi,
   type MerchantDisputeTicket,
@@ -323,6 +370,46 @@ const detailAmountDiffNote = computed(() => merchantDisputeAmountDiffNote(detail
  * 所以这里只在地址真的可播放时才渲染播放器，否则给出明确提示。
  */
 const playbackUrl = computed(() => playablePlaybackUrl(detail.value?.videoPreviewUrl));
+/**
+ * 证据图 fileId/url -> 本地临时路径。
+ * image 标签无法携带 Authorization 头，直连证据流 URL 会 401；
+ * 统一经 downloadDisputeEvidence 带鉴权下载（merchant-api 层有模块级缓存），失败留空由占位兜底。
+ */
+const evidenceLocalSrc = ref<Record<string, string>>({});
+
+function evidenceKey(img: { fileId?: number; url?: string }) {
+  return String(img.fileId ?? img.url ?? '');
+}
+
+function evidenceSrc(img: { fileId?: number; url?: string }) {
+  const key = evidenceKey(img);
+  return (key && evidenceLocalSrc.value[key]) || '';
+}
+
+async function hydrateEvidenceLocal() {
+  const imgs = detail.value?.evidence || [];
+  if (!imgs.length) {
+    evidenceLocalSrc.value = {};
+    return;
+  }
+  const next: Record<string, string> = {};
+  await Promise.all(
+    imgs.map(async (img) => {
+      const key = evidenceKey(img);
+      if (!key) return;
+      const local = await downloadDisputeEvidence(img);
+      if (local) next[key] = local;
+    })
+  );
+  evidenceLocalSrc.value = next;
+}
+
+function previewEvidence(img: { fileId?: number; url?: string }) {
+  const src = evidenceSrc(img);
+  if (!src) return;
+  const urls = (detail.value?.evidence || []).map((e) => evidenceSrc(e)).filter(Boolean);
+  uni.previewImage({ urls: urls.length ? urls : [src], current: src });
+}
 const canReplyDetail = ref(false);
 const canResolveDetail = ref(false);
 const resolving = ref(false);
@@ -521,6 +608,7 @@ async function onDetail(item: MerchantDisputeTicket | MerchantDisputeDetailView)
   }
   const row = mergeDisputeDetailRow(item, apiSlice);
   detail.value = row;
+  void hydrateEvidenceLocal();
   moreActionsOpen.value = false;
   const perms = resolveDisputeDetailPermissions({
     status: row.status,

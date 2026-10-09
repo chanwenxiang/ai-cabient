@@ -55,8 +55,8 @@ class FundBillServiceTest {
     @Test
     void filterDailyBills_matchesMerchantAndDate() {
         var rows = List.of(
-                new FundDailyBillDto("2026-09-01", "M001", "默认直营商户", 100, 10, 1, 80, 0, 1, true),
-                new FundDailyBillDto("2026-08-31", "M002", "Demo Shop", 200, 20, 2, 160, 0, 2, true));
+                new FundDailyBillDto("2026-09-01", "M001", "默认直营商户", 100, 10, 1, "ESTIMATED", 80, 0, 1, true),
+                new FundDailyBillDto("2026-08-31", "M002", "Demo Shop", 200, 20, 2, "ESTIMATED", 160, 0, 2, true));
         assertEquals(1, FundBillService.filterDailyBills(rows, "默认").size());
         assertEquals(1, FundBillService.filterDailyBills(rows, "M002").size());
         assertEquals(1, FundBillService.filterDailyBills(rows, "2026-09").size());

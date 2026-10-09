@@ -28,6 +28,9 @@ public class PaymentReconciliation {
 
     private long diffCents;
 
+    /** CB-020③：当日账单实收手续费合计（分）；null=该次对账无手续费数据（历史行/Mock/支付宝未映射）。 */
+    private Long channelFeeCents;
+
     private int matchedCount;
 
     private int unmatchedCount;

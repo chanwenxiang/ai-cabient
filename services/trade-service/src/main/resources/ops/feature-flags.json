@@ -205,6 +205,13 @@
       "description": "C端客服电话"
     },
     {
+      "key": "merchant.service_phone",
+      "group": "客户端展示",
+      "type": "TEXT",
+      "default": "400-888-0018",
+      "description": "商户端客服电话（merchantPublicConfig 下发 servicePhone）"
+    },
+    {
       "key": "debt.block_open_on_pending",
       "group": "交易与资金",
       "type": "BOOLEAN",

@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.UpsertDeviceRequest;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.DeviceDailyOnlineRateMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +46,7 @@ class OpsDeviceAdminServiceTest {
     @Mock AdminAuditService auditService;
     @Mock RefundPolicyService refundPolicyService;
     @Mock WarehouseMapper warehouseRepository;
+    @Mock DeviceDailyOnlineRateMapper onlineRateRepository;
 
     private OpsDeviceAdminService service;
 
@@ -53,7 +56,7 @@ class OpsDeviceAdminServiceTest {
                 permissionService, merchantScopeService, deviceRepository, sessionRepository,
                 merchantRepository, replenishmentTaskRepository, orderRepository,
                 deviceIdService, deviceIdRenameService, deviceSlotService, auditService, refundPolicyService,
-                warehouseRepository);
+                warehouseRepository, onlineRateRepository);
     }
 
     @Test
@@ -116,5 +119,64 @@ class OpsDeviceAdminServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertEquals(ApiMessages.DEVICE_LOCATION_INVALID, ex.getReason());
         verify(deviceRepository, never()).save(any(DeviceInfo.class));
+    }
+
+    // ===== CB-018①：柜机×日营收序列 =====
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("CB-018①：聚合行转 DTO（含 BigDecimal→long 收敛），窗口与设备透传正确")
+    void deviceDailyRevenue_mapsRowsToDto() {
+        when(merchantScopeService.allowedDeviceIds(10001L)).thenReturn(null);
+        java.util.LinkedHashMap<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("c0", "CAB-001");
+        row.put("c1", java.sql.Date.valueOf("2026-10-08"));
+        row.put("c2", new java.math.BigDecimal("350"));
+        row.put("c3", 3L);
+        when(orderRepository.selectRevenueDailyByDeviceSince(any(), any()))
+                .thenReturn(List.of(row));
+
+        var result = service.deviceDailyRevenue(10001L, null, 7);
+
+        assertEquals(1, result.size());
+        assertEquals("CAB-001", result.get(0).deviceId());
+        assertEquals("2026-10-08", result.get(0).date());
+        assertEquals(350L, result.get(0).revenueCents());
+        assertEquals(3L, result.get(0).orderCount());
+        var idsCaptor = org.mockito.ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(orderRepository).selectRevenueDailyByDeviceSince(idsCaptor.capture(), any());
+        assertTrue(idsCaptor.getValue() == null); // scope null ⇒ 全量（deviceIds=null 不过滤）
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("CB-018①：scope 空集合 ⇒ 空列表且不查库")
+    void deviceDailyRevenue_emptyScope_returnsEmpty() {
+        when(merchantScopeService.allowedDeviceIds(10001L)).thenReturn(java.util.Set.of());
+
+        assertTrue(service.deviceDailyRevenue(10001L, null, 7).isEmpty());
+        verify(orderRepository, never()).selectRevenueDailyByDeviceSince(any(), any());
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("CB-018①：scope 外设备号深链 ⇒ 空列表不 404（防探测），不查库")
+    void deviceDailyRevenue_outOfScopeDeepLink_returnsEmpty() {
+        when(merchantScopeService.allowedDeviceIds(10001L)).thenReturn(java.util.Set.of("D-1"));
+
+        assertTrue(service.deviceDailyRevenue(10001L, "D-OTHER", 7).isEmpty());
+        verify(orderRepository, never()).selectRevenueDailyByDeviceSince(any(), any());
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("CB-018①：scope 内设备号深链 ⇒ mapper 只收该设备")
+    void deviceDailyRevenue_inScopeDeepLink_filtersToDevice() {
+        when(merchantScopeService.allowedDeviceIds(10001L)).thenReturn(java.util.Set.of("D-1", "D-2"));
+        when(orderRepository.selectRevenueDailyByDeviceSince(any(), any())).thenReturn(List.of());
+
+        service.deviceDailyRevenue(10001L, "D-1", 30);
+
+        @SuppressWarnings("unchecked")
+        var idsCaptor = (org.mockito.ArgumentCaptor<java.util.Collection<String>>)
+                (org.mockito.ArgumentCaptor<?>) org.mockito.ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(orderRepository).selectRevenueDailyByDeviceSince(idsCaptor.capture(), any());
+        assertEquals(List.of("D-1"), idsCaptor.getValue());
     }
 }

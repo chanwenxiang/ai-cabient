@@ -27,6 +27,9 @@ public class PaymentPlatformBillLine {
 
     private long amountCents;
 
+    /** CB-020③：渠道实收手续费（分）；null=该通道账单不提供手续费（历史行/Mock/支付宝未映射）。 */
+    private Long feeCents;
+
     private Instant tradeTime;
 
     private String tradeType;

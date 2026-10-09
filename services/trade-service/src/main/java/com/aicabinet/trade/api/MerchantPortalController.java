@@ -318,6 +318,17 @@ public class MerchantPortalController {
         return ApiResponse.ok(support.merchantFinanceService().listSettlementBatches(userId(request), fromDate, toDate));
     }
 
+    /** CB-020 ②：商户月度结算单（merchant_settlement_bill 物理表快照）。from/to 为 yyyy-MM。 */
+    @RequiresPermissions("merchant:settlements:view")
+    @GetMapping("/settlements/monthly-bills")
+    public ApiResponse<List<MerchantSettlementBillDto>> monthlySettlementBills(
+            HttpServletRequest request,
+            @RequestParam(name = "from", required = false) String fromMonth,
+            @RequestParam(name = "to", required = false) String toMonth) {
+        return ApiResponse.ok(support.merchantFinanceService()
+                .listMonthlySettlementBills(userId(request), fromMonth, toMonth));
+    }
+
     @RequiresPermissions("merchant:settlements:view")
     @GetMapping("/settlements/batches/{batchNo}")
     public ApiResponse<List<RevenueSplitDto>> settlementBatchDetail(

@@ -28,6 +28,23 @@
     ]]>
   </select>
 
+  <!-- CB-018①：柜机×日营收聚合（口径同 sumAmountByDeviceId，不过滤状态可对平报表累计）。
+       模板同 CabinetOrderLineMapper.selectSoldQtyDailySince（Postgres timezone 分桶 + c0/c1/c2/c3 列约定）。 -->
+  <select id="selectRevenueDailyByDeviceSince" resultType="java.util.LinkedHashMap">
+    SELECT o.device_id AS c0,
+           DATE(timezone('Asia/Shanghai', o.created_at)) AS c1,
+           COALESCE(SUM(o.total_amount_cents), 0) AS c2,
+           COUNT(*) AS c3
+    FROM cabinet_order o
+    WHERE o.created_at &gt;= #{since}
+    <if test="deviceIds != null">
+      AND o.device_id IN
+      <foreach collection="deviceIds" item="did" open="(" separator="," close=")">#{did}</foreach>
+    </if>
+    GROUP BY o.device_id, DATE(timezone('Asia/Shanghai', o.created_at))
+    ORDER BY c1 ASC, c0 ASC
+  </select>
+
   <select id="sumTotalAmountBetween" resultType="long">
     <![CDATA[
     SELECT COALESCE(SUM(o.total_amount_cents), 0) FROM cabinet_order o

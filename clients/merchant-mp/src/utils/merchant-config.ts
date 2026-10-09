@@ -56,3 +56,15 @@ export function merchantSubscribeTemplateId(): string {
 export function merchantSubscribeEnabled(): boolean {
   return enabled(cache?.wechatSubscribeEnabled);
 }
+
+/** CB-018④：商户端客服热线（`merchant.service_phone`；空串=未配置，前端不渲染入口）。 */
+export function merchantServicePhone(): string {
+  const raw = cache?.servicePhone;
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
+/** CB-018④：运营支持邮箱（`ops.support_email` 下发；空串=未配置）。 */
+export function merchantSupportEmail(): string {
+  const raw = cache?.supportEmail;
+  return typeof raw === 'string' ? raw.trim() : '';
+}

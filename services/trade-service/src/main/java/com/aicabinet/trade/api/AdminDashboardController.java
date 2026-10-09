@@ -509,6 +509,16 @@ public class AdminDashboardController {
                 operatorId(request), page, size, keyword, online, deviceId));
     }
 
+    /** CB-018①：柜机×日营收序列（days 归一化档位 7/30/90；deviceId 可深链单台设备）。 */
+    @RequiresPermissions("ops:report:device")
+    @GetMapping("/reports/devices/daily-revenue")
+    public ApiResponse<List<com.aicabinet.common.dto.AdminDeviceDailyRevenueDto>> deviceDailyRevenue(
+            HttpServletRequest request,
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "days", defaultValue = "7") int days) {
+        return ApiResponse.ok(adminService.deviceDailyRevenue(operatorId(request), deviceId, days));
+    }
+
     @RequiresPermissions("ops:audit:list")
     @GetMapping("/audit-logs")
     public ApiResponse<PageResult<AdminAuditLogDto>> auditLogs(

@@ -33,6 +33,8 @@ public class SystemConfigService {
 
 
     public static final String CONSUMER_SERVICE_PHONE = "consumer.service_phone";
+    /** CB-018④：商户端客服热线（merchantPublicConfig 下发 servicePhone；与 C 端分开可独立改号）。 */
+    public static final String MERCHANT_SERVICE_PHONE = "merchant.service_phone";
     public static final String OPS_SUPPORT_EMAIL = "ops.support_email";
     public static final String SETTLEMENT_MIN_CONFIDENCE = "settlement.min_confidence";
     public static final String DISPUTE_AUTO_OPEN = "dispute.auto_open";
@@ -542,6 +544,9 @@ public class SystemConfigService {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("chartsEnabled",
                 String.valueOf(self.getBoolean(MERCHANT_CHARTS_ENABLED, false)));
+        // CB-018④：商户端客服触点（「我的」页帮助与客服入口；空串 ⇒ 前端不渲染该入口，fail-closed）
+        map.put("servicePhone", self.getValue(MERCHANT_SERVICE_PHONE, "").trim());
+        map.put("supportEmail", self.getValue(OPS_SUPPORT_EMAIL, "").trim());
         String merchantTmpl = weChatMiniAppProperties.subscribeTemplateId();
         boolean tmplOk = merchantTmpl != null && !merchantTmpl.isBlank();
         map.put("wechatSubscribeEnabled",
@@ -699,6 +704,7 @@ public class SystemConfigService {
 
     private void ensureDefaults() {
         upsertIfAbsent(CONSUMER_SERVICE_PHONE, "400-888-0018", "C端客服电话");
+        upsertIfAbsent(MERCHANT_SERVICE_PHONE, "400-888-0018", "商户端客服电话");
         upsertIfAbsent(OPS_SUPPORT_EMAIL, "ops@aicabinet.local",
                 "运营支持邮箱（下发 C 端公开配置 supportEmail）");
         upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72",

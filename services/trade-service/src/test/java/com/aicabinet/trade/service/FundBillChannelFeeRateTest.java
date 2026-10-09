@@ -1,7 +1,9 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.FundDailyBillDto;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.domain.PaymentReconciliation;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
@@ -9,6 +11,7 @@ import com.aicabinet.trade.mapper.FinanceMarginDailyLockMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
+import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,13 +48,14 @@ class FundBillChannelFeeRateTest {
     @Mock private PermissionService permissionService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private SystemConfigService systemConfigService;
+    @Mock private PaymentReconciliationMapper reconMapper;
 
     private FundBillService service;
 
     @BeforeEach
     void setUp() {
         service = new FundBillService(splitMapper, deviceInfoMapper, merchantMapper,
-                marginLockMapper, orderMapper, lineMapper, writeOffMapper,
+                marginLockMapper, reconMapper, orderMapper, lineMapper, writeOffMapper,
                 merchantScopeService, permissionService, distributedLockService,
                 systemConfigService, null);
         // lenient：反射用例（noNegativeFee_edgeCases）不经过 service 主流程
@@ -125,7 +129,7 @@ class FundBillChannelFeeRateTest {
     @DisplayName("systemConfigService 为 null（测试/降级场景）⇒ 回落默认，不 NPE")
     void nullConfigService_fallsBackToDefault() {
         FundBillService noConfig = new FundBillService(splitMapper, deviceInfoMapper, merchantMapper,
-                marginLockMapper, orderMapper, lineMapper, writeOffMapper,
+                marginLockMapper, null, orderMapper, lineMapper, writeOffMapper,
                 merchantScopeService, permissionService, distributedLockService, null, null);
         when(splitMapper.selectList(any())).thenReturn(List.of(split()));
         var page = noConfig.listLedger(1L, "2026-08-01", "2026-08-31", null, null, null, 0, 100);
@@ -151,5 +155,66 @@ class FundBillChannelFeeRateTest {
         } catch (ReflectiveOperationException e) {
             throw new AssertionError("无法反射 estimateChannelFeeCents，方法可能被改名", e);
         }
+    }
+
+    @Test
+    @DisplayName("CB-020③：日账单通道费实结优先——按 gross 占比分摊，尾差挂最大商户行")
+    void dailyBill_actualFeeFromRecon_distributedByGrossShare() {
+        // 日实结 90 分；M-1 gross 10000（25%）、M-2 gross 30000（75%）
+        // 比例分摊：23 + 68 = 91 ≠ 90 → 尾差 −1 归当日最大 gross（M-2）⇒ 23 + 67 = 90（Σ 对平）
+        PaymentReconciliation recon = new PaymentReconciliation();
+        recon.setReconDate(java.time.LocalDate.of(2026, 8, 15));
+        recon.setChannel("WECHAT");
+        recon.setChannelFeeCents(90L);
+        when(reconMapper.findByReconDateBetweenOrderByReconDateDesc(any(), any()))
+                .thenReturn(List.of(recon));
+        OrderRevenueSplit m1 = split();
+        OrderRevenueSplit m2 = split();
+        m2.setMerchantId("M-2");
+        m2.setGrossCents(30_000L);
+        when(splitMapper.selectList(any())).thenReturn(List.of(m1, m2));
+        Merchant m2Merchant = new Merchant();
+        m2Merchant.setMerchantId("M-2");
+        m2Merchant.setMerchantName("商户二");
+        when(merchantMapper.findAll()).thenReturn(List.of(
+                merchant("M-1", "测试商户"), m2Merchant));
+
+        List<FundDailyBillDto> rows = service.listDailyBills(1L, "2026-08-01", "2026-08-31");
+
+        FundDailyBillDto rowM1 = rows.stream().filter(r -> "M-1".equals(r.merchantId()))
+                .findFirst().orElseThrow();
+        FundDailyBillDto rowM2 = rows.stream().filter(r -> "M-2".equals(r.merchantId()))
+                .findFirst().orElseThrow();
+        assertEquals(23L, rowM1.channelFeeCents());
+        assertEquals(67L, rowM2.channelFeeCents());
+        assertEquals(FundDailyBillDto.SOURCE_ACTUAL, rowM1.channelFeeSource());
+        assertEquals(FundDailyBillDto.SOURCE_ACTUAL, rowM2.channelFeeSource());
+        assertEquals(90L, rowM1.channelFeeCents() + rowM2.channelFeeCents());
+    }
+
+    @Test
+    @DisplayName("CB-020③：当日无实结（未对账/历史行 channelFeeCents=null）⇒ 回落 bps 估算并标 ESTIMATED")
+    void dailyBill_noActualFee_fallsBackToEstimate() {
+        // mock 未 stub 时 getInt 返回 int 默认 0（0bps ⇒ 估算 0），显式 stub 60 才是「默认费率」语义
+        when(systemConfigService.getInt("fund.channel_fee_bps", 60)).thenReturn(60);
+        PaymentReconciliation historical = new PaymentReconciliation();
+        historical.setReconDate(java.time.LocalDate.of(2026, 8, 15));
+        historical.setChannelFeeCents(null); // V331 之前的历史行：无实结数据 ≠ 实结 0
+        when(reconMapper.findByReconDateBetweenOrderByReconDateDesc(any(), any()))
+                .thenReturn(List.of(historical));
+        when(splitMapper.selectList(any())).thenReturn(List.of(split()));
+
+        List<FundDailyBillDto> rows = service.listDailyBills(1L, "2026-08-01", "2026-08-31");
+
+        assertEquals(1, rows.size());
+        assertEquals(60L, rows.get(0).channelFeeCents());
+        assertEquals(FundDailyBillDto.SOURCE_ESTIMATED, rows.get(0).channelFeeSource());
+    }
+
+    private static Merchant merchant(String id, String name) {
+        Merchant m = new Merchant();
+        m.setMerchantId(id);
+        m.setMerchantName(name);
+        return m;
     }
 }

@@ -2153,6 +2153,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/replenishment/suggest/create-task": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createTaskFromSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/replenishment/routes": {
         parameters: {
             query?: never;
@@ -6153,6 +6169,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/reports/devices/daily-revenue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deviceDailyRevenue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/replenishment/tasks/{taskId}/evidence": {
         parameters: {
             query?: never;
@@ -7729,6 +7761,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["settlementOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/settlements/monthly-bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["monthlySettlementBills"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11697,6 +11745,17 @@ export interface components {
             /** Format: double */
             longitude?: number;
         };
+        CreateFromSuggestionRequest: {
+            deviceId?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+        };
+        ApiResponseReplenishmentRouteDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ReplenishmentRouteDto"];
+        };
         ReplenishmentRouteDto: {
             /** Format: int64 */
             routeId?: number;
@@ -11724,12 +11783,6 @@ export interface components {
             address?: string;
             /** Format: int32 */
             distanceFromPrevM?: number;
-        };
-        ApiResponseReplenishmentRouteDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ReplenishmentRouteDto"];
         };
         RejectMerchantReplenishmentRequest: {
             reason?: string;
@@ -14278,6 +14331,8 @@ export interface components {
             avgOrderValueTodayCents?: number;
             /** Format: int64 */
             avgOrderValueTotalCents?: number;
+            /** Format: double */
+            onlineRate7d?: number;
         };
         ApiResponsePageResultAdminDeviceReportDto: {
             /** Format: int32 */
@@ -14293,6 +14348,20 @@ export interface components {
             size?: number;
             /** Format: int64 */
             total?: number;
+        };
+        AdminDeviceDailyRevenueDto: {
+            deviceId?: string;
+            date?: string;
+            /** Format: int64 */
+            revenueCents?: number;
+            /** Format: int64 */
+            orderCount?: number;
+        };
+        ApiResponseListAdminDeviceDailyRevenueDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["AdminDeviceDailyRevenueDto"][];
         };
         ApiResponseListFileAttachmentDto: {
             /** Format: int32 */
@@ -15222,6 +15291,7 @@ export interface components {
             platformFeeCents?: number;
             /** Format: int64 */
             channelFeeCents?: number;
+            channelFeeSource?: string;
             /** Format: int64 */
             creditedCents?: number;
             /** Format: int64 */
@@ -16028,6 +16098,38 @@ export interface components {
             failedSplitCount?: number;
             profitSharing?: components["schemas"]["ProfitSharingStatusDto"];
             recentFailures?: components["schemas"]["RevenueSplitDto"][];
+        };
+        ApiResponseListMerchantSettlementBillDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantSettlementBillDto"][];
+        };
+        MerchantSettlementBillDto: {
+            billNo?: string;
+            merchantId?: string;
+            merchantName?: string;
+            /** Format: date */
+            periodMonth?: string;
+            status?: string;
+            /** Format: int32 */
+            orderCount?: number;
+            /** Format: int64 */
+            grossCents?: number;
+            /** Format: int64 */
+            platformCents?: number;
+            /** Format: int64 */
+            merchantCents?: number;
+            /** Format: int64 */
+            settledCents?: number;
+            /** Format: int64 */
+            pendingCents?: number;
+            /** Format: int32 */
+            failedCount?: number;
+            /** Format: date-time */
+            computedAt?: string;
+            /** Format: date-time */
+            confirmedAt?: string;
         };
         ApiResponseListMerchantDailySettlementDto: {
             /** Format: int32 */
@@ -21129,6 +21231,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseReplenishmentTaskDto"];
+                };
+            };
+        };
+    };
+    createTaskFromSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateFromSuggestionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
                 };
             };
         };
@@ -27840,6 +27966,29 @@ export interface operations {
             };
         };
     };
+    deviceDailyRevenue: {
+        parameters: {
+            query?: {
+                deviceId?: string;
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListAdminDeviceDailyRevenueDto"];
+                };
+            };
+        };
+    };
     listTaskEvidence: {
         parameters: {
             query?: never;
@@ -30075,6 +30224,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantSettlementOverviewDto"];
+                };
+            };
+        };
+    };
+    monthlySettlementBills: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMerchantSettlementBillDto"];
                 };
             };
         };

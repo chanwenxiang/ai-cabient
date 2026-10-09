@@ -7,6 +7,7 @@ import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.FinanceMarginDailyLock;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.domain.PaymentReconciliation;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
@@ -14,6 +15,7 @@ import com.aicabinet.trade.mapper.FinanceMarginDailyLockMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
+import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.context.annotation.Lazy;
@@ -61,6 +63,8 @@ public class FundBillService {
     private final DeviceInfoMapper deviceInfoMapper;
     private final MerchantMapper merchantMapper;
     private final FinanceMarginDailyLockMapper marginLockMapper;
+    /** CB-020③：读对账主表取日实结通道费（channel_fee_cents），实结优先、估算兜底。 */
+    private final PaymentReconciliationMapper reconMapper;
     private final CabinetOrderMapper orderMapper;
     private final CabinetOrderLineMapper lineMapper;
     private final InventoryWriteOffMapper writeOffMapper;
@@ -75,6 +79,7 @@ public class FundBillService {
                            DeviceInfoMapper deviceInfoMapper,
                            MerchantMapper merchantMapper,
                            FinanceMarginDailyLockMapper marginLockMapper,
+                           PaymentReconciliationMapper reconMapper,
                            CabinetOrderMapper orderMapper,
                            CabinetOrderLineMapper lineMapper,
                            InventoryWriteOffMapper writeOffMapper,
@@ -87,6 +92,7 @@ public class FundBillService {
         this.deviceInfoMapper = deviceInfoMapper;
         this.merchantMapper = merchantMapper;
         this.marginLockMapper = marginLockMapper;
+        this.reconMapper = reconMapper;
         this.orderMapper = orderMapper;
         this.lineMapper = lineMapper;
         this.writeOffMapper = writeOffMapper;
@@ -102,8 +108,11 @@ public class FundBillService {
      *
      * <p>容错口径与 {@code WithdrawPolicyResolver.pick} 一致：配置缺失/非数字/超界都<b>回落默认 60bps</b>，
      * 而不是抛异常 —— 资金看板因为一个手填错的值整体打不开，比费率估错更糟。
+     *
+     * <p>CB-020③：static 化供 {@code ReconciliationService} 费率差异告警复用同一配置源，
+     * 避免「看板估算用一个 bps、对账告警用另一个 bps」的口径分裂。
      */
-    private int channelFeeBps() {
+    static int resolveChannelFeeBps(SystemConfigService systemConfigService) {
         if (systemConfigService == null) {
             return CHANNEL_FEE_BPS_DEFAULT;
         }
@@ -113,6 +122,10 @@ public class FundBillService {
             return CHANNEL_FEE_BPS_DEFAULT;
         }
         return bps;
+    }
+
+    private int channelFeeBps() {
+        return resolveChannelFeeBps(systemConfigService);
     }
 
     /** 按 bps 折算整数分：{@code gross * bps / 10000}，用 long 中间值避免 int 溢出。 */
@@ -169,11 +182,40 @@ public class FundBillService {
             }
         }
 
+        // CB-020③：日实结通道费 = 当日全部渠道对账主表 channel_fee_cents 非 null 合计。
+        // 实结是「日×渠道」粒度而账单行是「日×商户」——按当日各商户 gross 占比分摊，尾差挂当日最大商户行；
+        // 当日无任何实结（未对账/历史行/Mock 通道）⇒ 整日回落 bps 估算（SOURCE_ESTIMATED），前端可辨来源。
+        Map<String, Long> dailyActualFee = new HashMap<>();
+        if (reconMapper != null) {
+            for (PaymentReconciliation r : reconMapper.findByReconDateBetweenOrderByReconDateDesc(from, to)) {
+                if (r != null && r.getChannelFeeCents() != null && r.getReconDate() != null) {
+                    dailyActualFee.merge(r.getReconDate().toString(), r.getChannelFeeCents(), Long::sum);
+                }
+            }
+        }
+        Map<String, Long> dailyGross = new HashMap<>();
+        aggs.forEach((k, v) -> dailyGross.merge(k.date(), v.gross, Long::sum));
+        // 实结存在但当日无有效分账（全 VOIDED）⇒ 无分摊载体，丢弃避免除零
+        dailyActualFee.keySet().removeIf(d -> {
+            Long g = dailyGross.get(d);
+            return g == null || g <= 0;
+        });
+
         List<FundDailyBillDto> out = new ArrayList<>();
         for (Map.Entry<Key, Agg> e : aggs.entrySet()) {
             Agg a = e.getValue();
-            long channelFee = estimateChannelFeeCents(a.gross, channelFeeBps());
             LocalDate biz = LocalDate.parse(e.getKey().date());
+            Long dayActual = dailyActualFee.get(e.getKey().date());
+            long channelFee;
+            String source;
+            if (dayActual != null) {
+                source = FundDailyBillDto.SOURCE_ACTUAL;
+                long dayGross = dailyGross.get(e.getKey().date());
+                channelFee = Math.round((double) dayActual * a.gross / dayGross);
+            } else {
+                source = FundDailyBillDto.SOURCE_ESTIMATED;
+                channelFee = estimateChannelFeeCents(a.gross, channelFeeBps());
+            }
             out.add(new FundDailyBillDto(
                     e.getKey().date(),
                     e.getKey().merchantId(),
@@ -181,15 +223,55 @@ public class FundBillService {
                     a.gross,
                     a.platform,
                     channelFee,
+                    source,
                     a.credited,
                     a.pending,
                     a.orderCount,
                     locked.contains(biz) || biz.isBefore(LocalDate.now(ZONE))
             ));
         }
+        distributeActualFeeRemainder(out, dailyActualFee);
         out.sort(Comparator.comparing(FundDailyBillDto::bizDate).reversed()
                 .thenComparing(FundDailyBillDto::merchantId));
         return out;
+    }
+
+    /**
+     * CB-020③：把比例分摊的四舍五入尾差归到当日 gross 最大商户行，保证
+     * {@code Σmerchant.channelFeeCents == 当日实结合计}（对不平的账比不精确的分摊更糟）。
+     */
+    private static void distributeActualFeeRemainder(List<FundDailyBillDto> out, Map<String, Long> dailyActualFee) {
+        if (dailyActualFee.isEmpty()) {
+            return;
+        }
+        Map<String, List<Integer>> byDate = new HashMap<>();
+        for (int i = 0; i < out.size(); i++) {
+            byDate.computeIfAbsent(out.get(i).bizDate(), k -> new ArrayList<>()).add(i);
+        }
+        for (Map.Entry<String, List<Integer>> en : byDate.entrySet()) {
+            Long dayActual = dailyActualFee.get(en.getKey());
+            if (dayActual == null || en.getValue().size() < 2) {
+                continue;
+            }
+            long spread = 0;
+            int biggestIdx = -1;
+            for (int idx : en.getValue()) {
+                spread += out.get(idx).channelFeeCents();
+                if (biggestIdx < 0 || out.get(idx).orderPaidCents() > out.get(biggestIdx).orderPaidCents()) {
+                    biggestIdx = idx;
+                }
+            }
+            long remainder = dayActual - spread;
+            if (remainder != 0 && biggestIdx >= 0) {
+                FundDailyBillDto row = out.get(biggestIdx);
+                out.set(biggestIdx, new FundDailyBillDto(
+                        row.bizDate(), row.merchantId(), row.merchantName(),
+                        row.orderPaidCents(), row.platformFeeCents(),
+                        row.channelFeeCents() + remainder, row.channelFeeSource(),
+                        row.creditedCents(), row.pendingCents(), row.orderCount(), row.solidified()
+                ));
+            }
+        }
     }
 
     @Transactional(readOnly = true)
@@ -274,6 +356,9 @@ public class FundBillService {
             if (s.getPlatformCents() > 0) {
                 rows.add(entry(s, "PLATFORM_FEE", "OUT", s.getPlatformCents(), merchantNames));
             }
+            // CB-020③：逐单明细行维持估算——实结费在账单上虽有逐单粒度（账单行 merchantOrderNo ↔ 订单），
+            // 但需按 wechatTransactionId↔platformTradeNo 精确关联账单行，成本高；日账单（listDailyBills）
+            // 已实结优先，FundBillChannelFeeRateTest 钉住本行为估算口径（契约），逐单实结留后续增量。
             long channel = estimateChannelFeeCents(s.getGrossCents(), channelFeeBps());
             if (channel > 0) {
                 rows.add(entry(s, "CHANNEL_FEE", "OUT", channel, merchantNames));

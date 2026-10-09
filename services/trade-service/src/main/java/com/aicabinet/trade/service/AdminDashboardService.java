@@ -295,6 +295,12 @@ public class AdminDashboardService {
         return deviceAdminService.deviceReports(operatorId, page, size, keyword, online, deviceId);
     }
 
+    /** CB-018①：柜机×日营收序列（设备报表趋势图数据源）。 */
+    public List<com.aicabinet.common.dto.AdminDeviceDailyRevenueDto> deviceDailyRevenue(
+            Long operatorId, String deviceId, int days) {
+        return deviceAdminService.deviceDailyRevenue(operatorId, deviceId, days);
+    }
+
     /** @deprecated 兼容旧调用：返回全量列表 */
     @Deprecated(since = "2026-08", forRemoval = false)
     @SuppressWarnings("java:S1133")

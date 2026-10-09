@@ -51,6 +51,7 @@ public class MerchantFinanceService {
     private final ShoppingSessionMapper sessionRepository;
     private final MinioVideoService minioVideoService;
     private final OrderViewAssembler orderViewAssembler;
+    private final MerchantSettlementBillMapper settlementBillRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantFinanceService self;
 
@@ -68,6 +69,7 @@ public class MerchantFinanceService {
                                   ShoppingSessionMapper sessionRepository,
                                   MinioVideoService minioVideoService,
                                   OrderViewAssembler orderViewAssembler,
+                                  MerchantSettlementBillMapper settlementBillRepository,
                                   @Lazy MerchantFinanceService self) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -83,6 +85,7 @@ public class MerchantFinanceService {
         this.sessionRepository = sessionRepository;
         this.minioVideoService = minioVideoService;
         this.orderViewAssembler = orderViewAssembler;
+        this.settlementBillRepository = settlementBillRepository;
         this.self = self;
     }
 
@@ -234,6 +237,62 @@ public class MerchantFinanceService {
         return splitRepository.aggregateBatchByMerchants(merchantIds, from, to).stream()
                 .map(row -> toBatchSettlement(row, merchantNames))
                 .toList();
+    }
+
+    /**
+     * CB-020 ②：商户月度结算单（merchant_settlement_bill 物理表）。
+     * from/to 为 yyyy-MM（默认最近 12 个月；区间自动校正，上限 24 个月）。
+     * 与 /settlements/batches 的差别：批次视图逐单伪批次（batchNo 逐行发号），
+     * 本接口返回真正的「商户×账期月」对账单快照。
+     */
+    @Transactional(readOnly = true)
+    public List<MerchantSettlementBillDto> listMonthlySettlementBills(Long userId, String fromMonth, String toMonth) {
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
+        merchantPortalGuard.requireAccess(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
+        if (merchantIds == null || merchantIds.isEmpty()) {
+            return List.of();
+        }
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+        YearMonth from = parseYearMonthOrDefault(fromMonth, YearMonth.now(zone).minusMonths(11));
+        YearMonth to = parseYearMonthOrDefault(toMonth, YearMonth.now(zone));
+        if (to.isBefore(from)) {
+            YearMonth tmp = from;
+            from = to;
+            to = tmp;
+        }
+        if (from.plusMonths(24).isBefore(to)) {
+            from = to.minusMonths(23);
+        }
+        List<MerchantSettlementBill> bills = settlementBillRepository.listByMerchantsAndPeriodBetween(
+                merchantIds, from.atDay(1), to.plusMonths(1).atDay(1));
+        Map<String, String> merchantNames = merchantRepository.findAll().stream()
+                .filter(m -> merchantIds.contains(m.getMerchantId()))
+                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName));
+        return bills.stream()
+                .map(b -> toMonthlyBill(b, merchantNames))
+                .toList();
+    }
+
+    private static YearMonth parseYearMonthOrDefault(String raw, YearMonth fallback) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return YearMonth.parse(raw.trim());
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private MerchantSettlementBillDto toMonthlyBill(MerchantSettlementBill b, Map<String, String> merchantNames) {
+        return new MerchantSettlementBillDto(
+                b.getBillNo(), b.getMerchantId(), merchantNames.get(b.getMerchantId()),
+                b.getPeriodMonth(), b.getStatus(), b.getOrderCount(),
+                b.getGrossCents(), b.getPlatformCents(), b.getMerchantCents(),
+                b.getSettledCents(), b.getPendingCents(), b.getFailedCount(),
+                b.getComputedAt(), b.getConfirmedAt());
     }
 
     @Transactional(readOnly = true)

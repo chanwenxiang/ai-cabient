@@ -160,6 +160,39 @@
       </view>
     </view>
 
+    <!-- CB-018④：在线客服触点（热线来自 merchant.service_phone，未配置时整组不渲染） -->
+    <view v-if="supportPhone || supportEmail" class="section-label">帮助与客服</view>
+    <view v-if="supportPhone || supportEmail" class="menu-list">
+      <view
+        v-if="supportPhone"
+        role="button"
+        class="menu-cell"
+        aria-label="拨打客服热线"
+        @click="onContactSupport"
+      >
+        <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">客服热线</text>
+          <text class="menu-desc">{{ supportPhone }}</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
+      <view
+        v-if="supportEmail"
+        role="button"
+        class="menu-cell"
+        aria-label="复制客服邮箱"
+        @click="onCopySupportEmail"
+      >
+        <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">客服邮箱</text>
+          <text class="menu-desc">{{ supportEmail }}</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
+    </view>
+
     <view class="menu-list">
       <view role="button" class="menu-cell danger-cell" @click="onLogout">
         <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
@@ -194,6 +227,8 @@ import {
   type MerchantNavItem
 } from '@/config/merchant-nav';
 import { formatMerchantNames } from '@/utils/merchant-display';
+import { loadMerchantFlags, merchantServicePhone, merchantSupportEmail } from '@/utils/merchant-config';
+import { safeMakePhoneCall } from '@aicabinet/shared-uni/safe-uni-call';
 import { menuIcon } from '@/utils/menu-icon';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -262,6 +297,31 @@ function goAnnouncements() {
   uni.navigateTo({ url: '/pages/announcements/announcements' });
 }
 
+// ===== CB-018④：在线客服触点 =====
+const supportPhone = ref('');
+const supportEmail = ref('');
+
+/** 电话/邮箱来自公开配置；拨打走 safeMakePhoneCall（H5/非微信环境安全降级）。 */
+function loadSupportContacts() {
+  void loadMerchantFlags().then(() => {
+    supportPhone.value = merchantServicePhone();
+    supportEmail.value = merchantSupportEmail();
+  });
+}
+
+function onContactSupport() {
+  if (!supportPhone.value) return;
+  safeMakePhoneCall(supportPhone.value);
+}
+
+function onCopySupportEmail() {
+  if (!supportEmail.value) return;
+  uni.setClipboardData({
+    data: supportEmail.value,
+    success: () => showSuccess('邮箱已复制')
+  });
+}
+
 onShow(async () => {
   if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
@@ -278,6 +338,7 @@ onShow(async () => {
   meName.value = profile.displayName || profile.phoneNumber || '商户';
   merchantNames.value = formatMerchantNames(profile.merchants, '未绑定');
   phone.value = profile.phoneNumber || '';
+  loadSupportContacts();
 });
 
 async function onLogout() {

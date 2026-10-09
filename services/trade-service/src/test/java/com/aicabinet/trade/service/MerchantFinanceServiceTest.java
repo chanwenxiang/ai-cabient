@@ -9,6 +9,7 @@ import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
+import com.aicabinet.trade.mapper.MerchantSettlementBillMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
@@ -45,6 +46,7 @@ class MerchantFinanceServiceTest {
     @Mock WeChatPayProperties weChatPayProperties;
     @Mock ShoppingSessionMapper sessionRepository;
     @Mock MinioVideoService minioVideoService;
+    @Mock MerchantSettlementBillMapper settlementBillRepository;
 
     private MerchantFinanceService service;
 
@@ -55,7 +57,7 @@ class MerchantFinanceServiceTest {
                 orderRepository, orderLineRepository, splitRepository, merchantRepository,
                 settlementService, profitSharingService, profitSharingProperties, weChatPayProperties,
                 sessionRepository, minioVideoService,
-                new com.aicabinet.trade.service.view.OrderViewAssembler(), null);
+                new com.aicabinet.trade.service.view.OrderViewAssembler(), settlementBillRepository, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

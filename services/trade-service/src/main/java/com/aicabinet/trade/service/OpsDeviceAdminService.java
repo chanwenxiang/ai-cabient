@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.AdminDeviceDailyRevenueDto;
 import com.aicabinet.common.dto.AdminDeviceDto;
 import com.aicabinet.common.dto.AdminDeviceReportDto;
 import com.aicabinet.common.dto.DeviceMapPointDto;
@@ -13,6 +14,7 @@ import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.DeviceDailyOnlineRateMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
@@ -64,6 +66,7 @@ public class OpsDeviceAdminService {
     private final AdminAuditService auditService;
     private final RefundPolicyService refundPolicyService;
     private final WarehouseMapper warehouseRepository;
+    private final DeviceDailyOnlineRateMapper onlineRateRepository;
 
     public OpsDeviceAdminService(PermissionService permissionService,
                                  MerchantScopeService merchantScopeService,
@@ -77,7 +80,8 @@ public class OpsDeviceAdminService {
                                  DeviceSlotService deviceSlotService,
                                  AdminAuditService auditService,
                                  RefundPolicyService refundPolicyService,
-                                 WarehouseMapper warehouseRepository) {
+                                 WarehouseMapper warehouseRepository,
+                                 DeviceDailyOnlineRateMapper onlineRateRepository) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.deviceRepository = deviceRepository;
@@ -91,6 +95,7 @@ public class OpsDeviceAdminService {
         this.auditService = auditService;
         this.refundPolicyService = refundPolicyService;
         this.warehouseRepository = warehouseRepository;
+        this.onlineRateRepository = onlineRateRepository;
     }
 
     @Transactional(readOnly = true)
@@ -256,9 +261,16 @@ public class OpsDeviceAdminService {
                         m -> m.getMerchantName() == null ? "" : m.getMerchantName(),
                         (a, b) -> a));
 
+        // CB-018 ②：近 7 日在线率一次批量取（device_daily_online_rate，快照日=每日 01:10 落昨日），
+        // 避免逐设备查询；无样本的设备 onlineRate7d=null（前端显示 —）
+        Map<String, Double> onlineRate7d = java.util.Optional.ofNullable(
+                        onlineRateRepository.avgRateByDeviceSince(
+                                LocalDate.now(ZoneId.systemDefault()).minusDays(7)))
+                .orElse(Map.of());
+
         List<AdminDeviceReportDto> filtered = merchantScopeService.allowedDevices(operatorId).stream()
                 .filter(d -> matchesDeviceReportFilter(d, deviceFilter, onlineNorm, kw))
-                .map(d -> toDeviceReportDto(d, todayStart, activeByDevice, merchantNames))
+                .map(d -> toDeviceReportDto(d, todayStart, activeByDevice, merchantNames, onlineRate7d))
                 .sorted(Comparator.comparing(AdminDeviceReportDto::deviceId, Comparator.nullsLast(String::compareTo)))
                 .toList();
 
@@ -290,7 +302,8 @@ public class OpsDeviceAdminService {
             DeviceInfo d,
             Instant todayStart,
             Map<String, ShoppingSession> activeByDevice,
-            Map<String, String> merchantNames) {
+            Map<String, String> merchantNames,
+            Map<String, Double> onlineRate7d) {
         String id = d.getDeviceId();
         long orderTotal = orderRepository.countByDeviceId(id);
         long revenueTotal = orderRepository.sumAmountByDeviceId(id);
@@ -320,7 +333,8 @@ public class OpsDeviceAdminService {
                 d.getCurrentTempC(),
                 d.getFirmwareVersion(),
                 orderToday > 0 ? revenueToday / orderToday : 0,
-                orderTotal > 0 ? revenueTotal / orderTotal : 0
+                orderTotal > 0 ? revenueTotal / orderTotal : 0,
+                onlineRate7d.get(id)
         );
     }
 
@@ -329,6 +343,46 @@ public class OpsDeviceAdminService {
     @SuppressWarnings("java:S1133")
     public List<AdminDeviceReportDto> deviceReports(Long operatorId) {
         return deviceReports(operatorId, 0, 10_000, null, null, null).items();
+    }
+
+    /**
+     * CB-018①：柜机×日营收序列。口径与设备报表「累计/今日营收」一致（SUM(total_amount_cents)
+     * 不过滤状态），日序列求和可与累计对平；天数走 {@link OpsAnalyticsQueryService#normalizeTrendDays}
+     * 档位（7/30/90）。deviceId 参数可深链单台设备——scope 外的设备号<b>返回空列表不 404</b>，
+     * 与报表页「无权限设备不显示」行为一致，同时防设备号探测。
+     */
+    public List<AdminDeviceDailyRevenueDto> deviceDailyRevenue(Long operatorId, String deviceId, int days) {
+        permissionService.requirePermission(operatorId, "ops:report:device");
+        int window = OpsAnalyticsQueryService.normalizeTrendDays(days);
+        ZoneId zone = ZoneId.systemDefault();
+        Instant since = LocalDate.now(zone).minusDays(window - 1L).atStartOfDay(zone).toInstant();
+
+        Set<String> scoped = merchantScopeService.allowedDeviceIds(operatorId);
+        if (scoped != null && scoped.isEmpty()) {
+            return List.of();
+        }
+        String deviceFilter = deviceId == null || deviceId.isBlank() ? null : deviceId.trim();
+        if (deviceFilter != null && scoped != null && !scoped.contains(deviceFilter)) {
+            return List.of();
+        }
+        java.util.Collection<String> filter = deviceFilter != null ? List.of(deviceFilter) : scoped;
+        List<java.util.LinkedHashMap<String, Object>> rows =
+                orderRepository.selectRevenueDailyByDeviceSince(filter, since);
+        return rows.stream()
+                .map(r -> new AdminDeviceDailyRevenueDto(
+                        String.valueOf(r.get("c0")),
+                        String.valueOf(r.get("c1")),
+                        toLong(r.get("c2")),
+                        toLong(r.get("c3"))))
+                .toList();
+    }
+
+    /** PG SUM/COUNT 经 LinkedMap 返回可能是 Long/BigDecimal/Integer，统一收敛 long。 */
+    private static long toLong(Object v) {
+        if (v instanceof Number n) {
+            return n.longValue();
+        }
+        return 0L;
     }
 
     @Transactional
