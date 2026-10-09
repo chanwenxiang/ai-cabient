@@ -60,3 +60,38 @@
 - specialId 不采信（V16 §4.2.10 唯一出口、来源未定义）。
 - 二期：视频（getTempUploadToken/uploadVideoUrl 逗号拼接容错）、模型同步预生成映射、补货开门真路由。
 - 待办：`pnpm gen:api-types` 重跑（无新增对外 API，暂无影响）、真机联调回填识别率、商户端月度结算单 UI（另任务）。
+
+## 6. 本地模拟器联调结果（2026-10-09）
+
+### 6.1 正向链路（通过）
+
+登录（图形验证码→Redis 明文→mock 短信码 123456）→ 建 session（body 携带 deviceId+idempotencyKey）→ WS 下发 openDoor（msgContent=sessionId）→ 模拟器四步上报 → 结算。
+
+实测断言：session `COMPLETED`（openTime 建单后 136ms，未触发 15s watchdog）；订单 350 分 `PAID`/`BALANCE`；`device_sku_inventory` 10→9；识别 `SKU-WATER-001×1` 置信度 1.0；trade 日志 `async session completed`。closeTime−openTime≈3.08s（模拟器购物时长 3000ms，符合）。
+
+### 6.2 负向三连（fail-closed 全通过）
+
+| 用例 | 操作 | 实测 |
+| --- | --- | --- |
+| 映射未命中 | 模拟器 CLASS_ID=999 识别上报 | session→`DISPUTED`（暂未扣款）；`ops_exception`：`JIANGYI_CLASS_MAPPING_MISS`/HIGH + `RECOGNITION_STUCK`/HIGH；争议工单 OPEN/HIGH/RECOGNITION、SLA 48h |
+| 密钥未配置 | gateway 不带 `JIANGYI_JWT_SECRET` 启动 | token 端点 503（先于参数校验拒签，日志 `not configured`） |
+| 设备离线 | 停模拟器（WS 1006 断开） | gateway 即时 `ws offline reported` → `device_info.online_status=OFFLINE` → 建 session 409「设备离线」；同 idempotencyKey 重试仍 409，gateway 下行 0 次 openDoor（无重试） |
+
+### 6.3 联调暴露并落码的缺陷（①-⑦）
+
+| # | 缺陷 | 修复 |
+| --- | --- | --- |
+| ① | uploadLockState success 未 complete(OPEN) → watchdog 15s 误判超时 | 成功分支即 `commandTracker.complete(OPEN)` |
+| ② | `markOpenDoorFailed` CAS 只豁免终态 → RECOGNIZING 会话被腰斩 FAILED 并误释预授权 | CAS 改为仅 `CREATED`/`OPENING` 可置 FAILED |
+| ③ | 将邑合成 CLOSED 直接触发 `settleAfterClose` → edge-results 到达已 ALREADY_HANDLED | `handleDoorEvent` 对将邑设备关门后停在 RECOGNIZING（照 ops-remote 豁免模式） |
+| ④ | 心跳不回发 → 真机会判离线重连（V16 §4.3.1 服务端必须回 `{status:200,msgType:"heartBeat",msgContent:"PONG"}`） | WS handler 心跳分支回发 PONG |
+| ⑤ | uploadDoorState fail 只等 watchdog 兜底 | fail 分支即时 `postOpenFailed`（V16 §4.2.8：开门失败不上报订单结果） |
+| ⑥ | **在线状态链路断裂**：gateway `wsOnline` 是死代码且 trade 只写 `jiangyi_device`，而开门校验查 `device_info.online_status` → 恒 409「设备离线」 | gateway 建连/心跳节流(60s)/断开三时点上报；trade `wsOnline` 同步置 `device_info` ONLINE 刷 `updated_at`（对齐巡检 2min 判活）+ 新增 `ws-offline` 即时置离线 |
+| ⑦ | `TradeInternalClient` 两个 post 重载 `RestClient.body(null)` NPE（void 版 wsOnline/wsOffline/tokenIssued、泛型版 recognizeTimeout 全中） | body 为 null 时不设请求体 |
+
+### 6.4 联调操作注意
+
+- 模拟器不发心跳：建 session 须在 WS 建连后 2 分钟巡检窗口内（或后续给模拟器加 heartBeat 循环）。
+- 进程持锁时 `spring-boot:repackage` 可能 BUILD SUCCESS 但产物未落盘——重打包前先停服务，打包后校验产物内容（如提取 `BOOT-INF/lib/common-core-*.jar` 字节数、grep 类常量池标志）。
+- common-core 改动后须 `mvn -o -pl services/common/common-core install` 同步本地仓库，否则旧 fat jar 会嵌旧版（症状：运行时 `Lookup method resolution failed`）。
+- 种子五表（device_info→jiangyi_device→mapping→price→inventory）psql 直插、ON CONFLICT 幂等，不入仓库（铁律 #29 的 R__ 惯例保留给长期基线数据）。
