@@ -227,7 +227,11 @@ import {
   type MerchantNavItem
 } from '@/config/merchant-nav';
 import { formatMerchantNames } from '@/utils/merchant-display';
-import { loadMerchantFlags, merchantServicePhone, merchantSupportEmail } from '@/utils/merchant-config';
+import {
+  loadMerchantFlags,
+  merchantServicePhone,
+  merchantSupportEmail
+} from '@/utils/merchant-config';
 import { safeMakePhoneCall } from '@aicabinet/shared-uni/safe-uni-call';
 import { menuIcon } from '@/utils/menu-icon';
 

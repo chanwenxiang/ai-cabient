@@ -125,7 +125,8 @@
                 label-class-name="col-status"
               >
                 <template #default="{ row }">
-                  ¥{{ yuan(row.channelFeeCents) }}{{ row.channelFeeSource === 'ACTUAL' ? '（实结）' : '（估）' }}
+                  ¥{{ yuan(row.channelFeeCents)
+                  }}{{ row.channelFeeSource === 'ACTUAL' ? '（实结）' : '（估）' }}
                 </template>
               </el-table-column>
               <el-table-column

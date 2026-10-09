@@ -163,7 +163,11 @@
           >
             <text class="detail-lbl">人工判定明细</text>
             <text class="resolution-sub">以下为运营人工审核判定结果，以判定金额为准</text>
-            <view v-for="(it, i) in detail?.resolutionItems || []" :key="'r-' + i" class="suggest-row">
+            <view
+              v-for="(it, i) in detail?.resolutionItems || []"
+              :key="'r-' + i"
+              class="suggest-row"
+            >
               <view class="suggest-top">
                 <text class="suggest-name"
                   >{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text

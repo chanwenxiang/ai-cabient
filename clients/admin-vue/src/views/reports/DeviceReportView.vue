@@ -33,11 +33,7 @@
         <span class="trend-title">
           {{ deviceId ? '该柜机' : '全部柜机' }}近 {{ dailyRevenueDays }} 日营收
         </span>
-        <el-select
-          v-model="dailyRevenueDays"
-          style="width: 110px"
-          @change="fetchDailyRevenue"
-        >
+        <el-select v-model="dailyRevenueDays" style="width: 110px" @change="fetchDailyRevenue">
           <el-option :value="7" label="近 7 日" />
           <el-option :value="30" label="近 30 日" />
           <el-option :value="90" label="近 90 日" />
@@ -389,7 +385,10 @@ async function fetchDailyRevenue() {
   dailyRevenueLoading.value = true;
   try {
     dailyRevenueRows.value = await api.request<DailyRevenueRow[]>(
-      AdminEndpoints.reportsDevicesDailyRevenue(deviceId.value || undefined, dailyRevenueDays.value),
+      AdminEndpoints.reportsDevicesDailyRevenue(
+        deviceId.value || undefined,
+        dailyRevenueDays.value
+      ),
       'GET'
     );
   } catch {
