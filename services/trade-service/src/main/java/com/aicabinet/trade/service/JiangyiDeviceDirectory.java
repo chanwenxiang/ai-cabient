@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -60,5 +61,32 @@ public class JiangyiDeviceDirectory {
             cache.remove(deviceId);
             log.info("jiangyi device directory evicted deviceId={}", deviceId);
         }
+    }
+
+    // ---------- 设备面（CB-022 内部接口下沉：Controller 须经 Service，禁止直调 Mapper） ----------
+
+    /** 设备详情（gateway 校验 status=BOUND 后才服务该设备）。 */
+    public JiangyiDevice findDevice(String deviceId) {
+        return jiangyiDeviceMapper.selectById(deviceId);
+    }
+
+    /** 按 SN 查设备（gateway token 签发前校验主体）。 */
+    public JiangyiDevice findByDeviceSn(String deviceSn) {
+        return jiangyiDeviceMapper.findByDeviceSn(deviceSn);
+    }
+
+    /** token 签发回执：只记签发时间（吊销走 bumpTokenVersion，签发不 bump，方案 §3）。 */
+    public int markTokenIssued(String deviceId) {
+        return jiangyiDeviceMapper.markTokenIssued(deviceId, Instant.now());
+    }
+
+    /** token 吊销：token_version+1，该设备所有旧 token 即刻失效。 */
+    public int bumpTokenVersion(String deviceId) {
+        return jiangyiDeviceMapper.bumpTokenVersion(deviceId, Instant.now());
+    }
+
+    /** WS 在线回执：记 last_ws_online_at（device_info.online_status 由 DevicePresenceService.setWsPresence 同步维护）。 */
+    public int markWsOnline(String deviceId) {
+        return jiangyiDeviceMapper.markWsOnline(deviceId, Instant.now());
     }
 }

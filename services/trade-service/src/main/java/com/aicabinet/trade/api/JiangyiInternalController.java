@@ -1,9 +1,9 @@
 package com.aicabinet.trade.api;
 
-import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
+import com.aicabinet.trade.service.DevicePresenceService;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.List;
 
 /**
@@ -42,21 +41,18 @@ public class JiangyiInternalController {
     private final JiangyiClassMappingService jiangyiClassMappingService;
     private final JiangyiRecognitionTimeoutService jiangyiRecognitionTimeoutService;
     private final JiangyiOnboardingService jiangyiOnboardingService;
-    private final com.aicabinet.trade.mapper.JiangyiDeviceMapper jiangyiDeviceMapper;
-    private final com.aicabinet.trade.mapper.DeviceInfoMapper deviceInfoMapper;
+    private final DevicePresenceService devicePresenceService;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
                                      JiangyiRecognitionTimeoutService jiangyiRecognitionTimeoutService,
                                      JiangyiOnboardingService jiangyiOnboardingService,
-                                     com.aicabinet.trade.mapper.JiangyiDeviceMapper jiangyiDeviceMapper,
-                                     com.aicabinet.trade.mapper.DeviceInfoMapper deviceInfoMapper) {
+                                     DevicePresenceService devicePresenceService) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
         this.jiangyiOnboardingService = jiangyiOnboardingService;
-        this.jiangyiDeviceMapper = jiangyiDeviceMapper;
-        this.deviceInfoMapper = deviceInfoMapper;
+        this.devicePresenceService = devicePresenceService;
     }
 
     // ---------- 设备面 ----------
@@ -64,25 +60,25 @@ public class JiangyiInternalController {
     /** 设备详情（gateway 校验 status=BOUND 后才服务该设备）。 */
     @GetMapping("/devices/{deviceId}")
     public ApiResponse<JiangyiDevice> device(@PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(jiangyiDeviceMapper.selectById(deviceId));
+        return ApiResponse.ok(jiangyiDeviceDirectory.findDevice(deviceId));
     }
 
     /** 按 SN 查设备（gateway /jiangyi/api/token 签发前校验主体）。 */
     @GetMapping("/devices/by-sn/{deviceSn}")
     public ApiResponse<JiangyiDevice> deviceBySn(@PathVariable("deviceSn") String deviceSn) {
-        return ApiResponse.ok(jiangyiDeviceMapper.findByDeviceSn(deviceSn));
+        return ApiResponse.ok(jiangyiDeviceDirectory.findByDeviceSn(deviceSn));
     }
 
     /** token 签发回执：只记签发时间（吊销走 /token-revoke，签发不 bump，方案 §3）。 */
     @PostMapping("/devices/{deviceId}/token-issued")
     public ApiResponse<Integer> tokenIssued(@PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(jiangyiDeviceMapper.markTokenIssued(deviceId, Instant.now()));
+        return ApiResponse.ok(jiangyiDeviceDirectory.markTokenIssued(deviceId));
     }
 
     /** 吊销：token_version+1，该设备所有旧 token 即刻失效（审计由网关侧记录）。 */
     @PostMapping("/devices/{deviceId}/token-revoke")
     public ApiResponse<Integer> tokenRevoke(@PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(jiangyiDeviceMapper.bumpTokenVersion(deviceId, Instant.now()));
+        return ApiResponse.ok(jiangyiDeviceDirectory.bumpTokenVersion(deviceId));
     }
 
     /**
@@ -94,8 +90,8 @@ public class JiangyiInternalController {
     @PostMapping("/devices/{deviceId}/ws-online")
     @Transactional
     public ApiResponse<Integer> wsOnline(@PathVariable("deviceId") String deviceId) {
-        int rows = jiangyiDeviceMapper.markWsOnline(deviceId, Instant.now());
-        setDeviceInfoOnline(deviceId, true);
+        int rows = jiangyiDeviceDirectory.markWsOnline(deviceId);
+        devicePresenceService.setWsPresence(deviceId, true);
         return ApiResponse.ok(rows);
     }
 
@@ -103,25 +99,8 @@ public class JiangyiInternalController {
     @PostMapping("/devices/{deviceId}/ws-offline")
     @Transactional
     public ApiResponse<Integer> wsOffline(@PathVariable("deviceId") String deviceId) {
-        setDeviceInfoOnline(deviceId, false);
+        devicePresenceService.setWsPresence(deviceId, false);
         return ApiResponse.ok(1);
-    }
-
-    /** device_info 在线态维护（对齐 DevicePresenceService 心跳写法；updatedAt 显式刷新）。 */
-    private void setDeviceInfoOnline(String deviceId, boolean online) {
-        deviceInfoMapper.findByIdForUpdate(deviceId).ifPresent(d -> {
-            if (online) {
-                d.setOnlineStatus(CabinetConstants.DEVICE_ONLINE);
-                if (d.getOnlineSince() == null) {
-                    d.setOnlineSince(Instant.now());
-                }
-            } else {
-                d.setOnlineStatus("OFFLINE");
-                d.setOnlineSince(null);
-            }
-            d.setUpdatedAt(Instant.now());
-            deviceInfoMapper.save(d);
-        });
     }
 
     /** 路由判定（供诊断/联调核查，DeviceServiceClient 侧走本地 Directory）。 */

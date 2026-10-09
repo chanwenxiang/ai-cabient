@@ -178,6 +178,28 @@ public class DevicePresenceService {
         }
     }
 
+    /**
+     * 将邑开门柜 WS 在线态（CB-022，2026-10-09 联调缺陷⑥）：与 MQTT 心跳相互独立的
+     * 存活通道，只动 online_status/online_since/updated_at——不打 last_heartbeat_at、
+     * 不触发离线告警/恢复待办（两条链路语义不同）。开门校验 ensureDeviceOnline 查的是
+     * device_info.online_status，离线巡检按 updated_at 判活，故断开时必须即时刷 updated_at。
+     */
+    public void setWsPresence(String deviceId, boolean online) {
+        deviceRepository.findByIdForUpdate(deviceId).ifPresent(d -> {
+            if (online) {
+                d.setOnlineStatus(CabinetConstants.DEVICE_ONLINE);
+                if (d.getOnlineSince() == null) {
+                    d.setOnlineSince(Instant.now());
+                }
+            } else {
+                d.setOnlineStatus("OFFLINE");
+                d.setOnlineSince(null);
+            }
+            d.setUpdatedAt(Instant.now());
+            deviceRepository.save(d);
+        });
+    }
+
     private void markDeviceOffline(String deviceId) {
         DeviceInfo d = deviceRepository.findByIdForUpdate(deviceId).orElse(null);
         if (d == null || !CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus())) {
