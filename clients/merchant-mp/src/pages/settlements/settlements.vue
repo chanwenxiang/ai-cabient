@@ -148,6 +148,43 @@
         </template>
       </view>
 
+      <view class="section">
+        <text class="section-title">月度结算单</text>
+        <view v-if="billsWarn" class="section-warn">{{ billsWarn }}</view>
+        <view v-if="loading && !bills.length" class="loading-inline">{{
+          loadingLabel('月度结算单')
+        }}</view>
+        <template v-else>
+          <view v-for="b in bills" :key="b.billNo" class="ledger-row">
+            <view class="ledger-head">
+              <view class="ledger-title-wrap">
+                <text class="ledger-title">{{ billPeriodLabel(b.periodMonth) }}</text>
+                <text class="ledger-sub"
+                  >{{ billStatusLabel(b.status) }} · {{ b.orderCount }} 笔</text
+                >
+              </view>
+              <text class="ledger-amount">{{ money(b.merchantCents) }}</text>
+            </view>
+            <view class="meta-row">
+              <text class="meta-pill">营收 {{ money(b.grossCents) }}</text>
+              <text class="meta-pill">已结 {{ money(b.settledCents) }}</text>
+              <text class="meta-pill">待分 {{ money(b.pendingCents) }}</text>
+            </view>
+            <text v-if="b.failedCount" class="device-fail">失败 {{ b.failedCount }} 笔</text>
+            <text v-if="b.confirmedAt" class="ledger-time"
+              >确认于 {{ formatBatchTime(b.confirmedAt) }}</text
+            >
+          </view>
+          <empty-state
+            v-if="!bills.length"
+            compact
+            icon="/static/menu/orders.png"
+            title="暂无月度结算单"
+            hint="每月结算完成后，月度结算单会显示在这里"
+          />
+        </template>
+      </view>
+
       <view v-if="canExport" class="actions">
         <app-button variant="outline" label="导出对账单" @click="onExport" />
       </view>
@@ -172,7 +209,11 @@ import {
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { isSettlementBatchTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
-import type { MerchantDailySettlement, MerchantSettlementBatch } from '@aicabinet/shared-types';
+import type {
+  MerchantDailySettlement,
+  MerchantSettlementBatch,
+  MerchantSettlementBillDto
+} from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
@@ -187,6 +228,17 @@ function localDateISO(d: Date) {
 
 function batchStatusLabel(status?: string) {
   return displayLabel('settlement_batch_status', status, '未知状态');
+}
+
+/** 月度结算单状态（V330 PENDING/CONFIRMED），与批次状态是两套枚举 */
+function billStatusLabel(status?: string) {
+  return displayLabel('merchant_settlement_bill_status', status, '未知状态');
+}
+
+/** 后端 periodMonth 是 LocalDate（yyyy-MM-dd），账期月只展示 yyyy-MM */
+function billPeriodLabel(periodMonth?: string) {
+  const m = /^(\d{4}-\d{2})/.exec(String(periodMonth || '').trim());
+  return m ? `${m[1]} 账期` : '账期未知';
 }
 
 function isZeroMoneyRow(row: { grossCents?: number | null; merchantCents?: number | null }) {
@@ -253,6 +305,7 @@ const startDate = ref(sevenDaysAgo);
 const endDate = ref(today);
 const daily = ref<MerchantDailySettlement[]>([]);
 const batches = ref<MerchantSettlementBatch[]>([]);
+const bills = ref<MerchantSettlementBillDto[]>([]);
 const showZeroOrders = ref(false);
 const hasZeroRows = computed(
   () => daily.value.some(isZeroMoneyRow) || batches.value.some(isZeroMoneyRow)
@@ -287,6 +340,7 @@ const summary = computed(() => summarizeDays(visibleDaily.value));
 const loading = ref(false);
 const loadError = ref('');
 const batchWarn = ref('');
+const billsWarn = ref('');
 let loadSeq = 0;
 
 function onStartDate(e: unknown) {
@@ -348,12 +402,14 @@ function applyInvalidSettlementRange() {
   loadError.value = '开始日期不能晚于结束日期';
   daily.value = [];
   batches.value = [];
+  bills.value = [];
   loading.value = false;
 }
 
 function applySettlementResponses(
   daysRes: PromiseSettledResult<MerchantDailySettlement[]>,
-  batchRes: PromiseSettledResult<MerchantSettlementBatch[]>
+  batchRes: PromiseSettledResult<MerchantSettlementBatch[]>,
+  billsRes: PromiseSettledResult<MerchantSettlementBillDto[]>
 ) {
   if (daysRes.status === 'rejected') {
     throw daysRes.reason instanceof Error ? daysRes.reason : new Error('结算数据加载失败');
@@ -368,6 +424,14 @@ function applySettlementResponses(
     batches.value = [];
     batchWarn.value =
       batchRes.reason instanceof Error ? batchRes.reason.message : '结算批次加载失败';
+  }
+
+  if (billsRes.status === 'fulfilled') {
+    bills.value = billsRes.value || [];
+  } else {
+    bills.value = [];
+    billsWarn.value =
+      billsRes.reason instanceof Error ? billsRes.reason.message : '月度结算单加载失败';
   }
 }
 
@@ -398,13 +462,15 @@ async function load() {
   if (!daily.value.length) loading.value = true;
   loadError.value = '';
   batchWarn.value = '';
+  billsWarn.value = '';
   try {
-    const [daysRes, batchRes] = await Promise.allSettled([
+    const [daysRes, batchRes, billsRes] = await Promise.allSettled([
       merchantApi.dailySettlements(startDate.value, endDate.value),
-      merchantApi.settlementBatches(startDate.value, endDate.value)
+      merchantApi.settlementBatches(startDate.value, endDate.value),
+      merchantApi.monthlySettlementBills()
     ]);
     if (seq !== loadSeq) return;
-    applySettlementResponses(daysRes, batchRes);
+    applySettlementResponses(daysRes, batchRes, billsRes);
   } catch (e: unknown) {
     if (seq !== loadSeq) return;
     loadError.value = e instanceof Error ? e.message : '加载失败';

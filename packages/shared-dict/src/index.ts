@@ -502,6 +502,11 @@ export const DICT = {
     PARTIAL_FAILED: '部分失败',
     COMPLETED: '已完成'
   },
+  /** 商户月度结算单状态（V330，CB-020），与 settlement_batch_status 是两套枚举 */
+  merchant_settlement_bill_status: {
+    PENDING: '待确认',
+    CONFIRMED: '已确认'
+  },
   sku_status: { ACTIVE: '在售', INACTIVE: '停用', DISABLED: '禁售' },
   order_status: {
     PENDING: '待支付',

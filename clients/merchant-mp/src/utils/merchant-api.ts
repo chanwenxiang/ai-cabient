@@ -659,6 +659,11 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantSettlementBatch[]>(
       MerchantEndpoints.settlementsBatches(from, to)
     ),
+  /** 商户月度结算单（V330 CB-020）：from/to 为 yyyy-MM，可省略走后端默认近 12 个月 */
+  monthlySettlementBills: (from?: string, to?: string) =>
+    request<import('@aicabinet/shared-types').MerchantSettlementBillDto[]>(
+      withQuery(MerchantEndpoints.settlementsMonthlyBills, { from, to })
+    ),
   revenueSplits: (page = 0, size = 50, status?: string, from?: string, to?: string) =>
     request<
       import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').RevenueSplit>

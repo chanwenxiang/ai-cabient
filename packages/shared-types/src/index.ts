@@ -777,6 +777,26 @@ export interface MerchantSettlementBatch {
   batchStatus: string;
 }
 
+/** 商户月度结算单（V330，CB-020）：merchant×账期月唯一快照，后端幂等重建 */
+export interface MerchantSettlementBillDto {
+  billNo: string;
+  merchantId: string;
+  merchantName?: string;
+  /** 账期月首日 yyyy-MM-dd（Asia/Shanghai 日历月），UI 只展示 yyyy-MM */
+  periodMonth: string;
+  /** PENDING / CONFIRMED（V330 枚举） */
+  status: string;
+  orderCount: number;
+  grossCents: number;
+  platformCents: number;
+  merchantCents: number;
+  settledCents: number;
+  pendingCents: number;
+  failedCount: number;
+  computedAt?: string;
+  confirmedAt?: string;
+}
+
 export interface AccountDto {
   userId?: string | number;
   phoneNumber?: string;

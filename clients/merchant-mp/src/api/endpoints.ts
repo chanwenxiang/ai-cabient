@@ -60,6 +60,8 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/settlements/daily?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
   settlementsBatches: (from: string, to: string) =>
     `${API_PREFIX}/merchant/settlements/batches?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  /** 商户月度结算单（V330，CB-020）：from/to 为 yyyy-MM 可省略，后端默认近 12 个月 */
+  settlementsMonthlyBills: `${API_PREFIX}/merchant/settlements/monthly-bills`,
   /** 经营分析 */
   analyticsOverview: `${API_PREFIX}/merchant/analytics/overview`,
   analyticsSalesReports: `${API_PREFIX}/merchant/analytics/sales-reports`,
