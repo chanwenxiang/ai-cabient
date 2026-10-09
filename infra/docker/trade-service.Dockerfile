@@ -9,6 +9,8 @@ COPY services/common/common-core/pom.xml services/common/common-core/
 COPY services/trade-service/pom.xml services/trade-service/
 COPY services/device-service/pom.xml services/device-service/
 COPY edge/device-simulator/pom.xml edge/device-simulator/
+# 将邑 CB-022：trade 镜像 reactor 需要新模块 pom 存在才能解析（-pl trade -am 不构建 gateway，但根 pom 声明了该模块）
+COPY services/jiangyi-gateway/pom.xml services/jiangyi-gateway/
 
 COPY packages/shared-dict/package.json packages/shared-dict/
 COPY packages/shared-types/package.json packages/shared-types/
