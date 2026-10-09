@@ -601,6 +601,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/class-mappings/{classId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["upsertMapping"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/departments/{deptId}": {
         parameters: {
             query?: never;
@@ -1106,7 +1122,7 @@ export interface paths {
         };
         get: operations["mappings"];
         put?: never;
-        post: operations["upsertMapping"];
+        post: operations["upsertMapping_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3667,6 +3683,70 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["deviceLifecycle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retire_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["register_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/class-mappings/{classId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setMappingStatus_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/bind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["bind"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7545,6 +7625,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/env-readings": {
         parameters: {
             query?: never;
@@ -10388,6 +10484,34 @@ export interface components {
             message?: string;
             data?: components["schemas"]["DevicePolicyDto"];
         };
+        MappingUpsertRequest: {
+            skuId: string;
+            textName?: string;
+            modelName?: string;
+            active?: boolean;
+        };
+        ApiResponseJiangyiClassMappingDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["JiangyiClassMappingDto"];
+        };
+        JiangyiClassMappingDto: {
+            /** Format: int64 */
+            id?: number;
+            deviceId?: string;
+            /** Format: int32 */
+            classId?: number;
+            modelName?: string;
+            textName?: string;
+            skuId?: string;
+            status?: string;
+            source?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
         UpsertOpsDepartmentRequest: {
             deptKey?: string;
             deptName?: string;
@@ -10866,16 +10990,6 @@ export interface components {
             deviceSn?: string;
             domain?: string;
             socketUrl?: string;
-        };
-        MappingUpsertRequest: {
-            deviceId?: string;
-            /** Format: int32 */
-            classId?: number;
-            modelName?: string;
-            textName?: string;
-            skuId?: string;
-            status?: string;
-            source?: string;
         };
         ApiResponseJiangyiClassMapping: {
             /** Format: int32 */
@@ -12929,6 +13043,34 @@ export interface components {
             action?: string;
             merchantId?: string;
             remark?: string;
+        };
+        ApiResponseJiangyiDeviceDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["JiangyiDeviceDto"];
+        };
+        JiangyiDeviceDto: {
+            deviceId?: string;
+            deviceSn?: string;
+            identifier?: string;
+            modelName?: string;
+            classesVersion?: string;
+            status?: string;
+            /** Format: int64 */
+            tokenVersion?: number;
+            /** Format: date-time */
+            tokenIssuedAt?: string;
+            /** Format: date-time */
+            lastWsOnlineAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        BindRequest: {
+            domain: string;
+            socketUrl?: string;
         };
         ApiResponseDeviceDataFeeBillDto: {
             /** Format: int32 */
@@ -15841,6 +15983,16 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        ApiResponseJiangyiBindingViewDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["JiangyiBindingViewDto"];
+        };
+        JiangyiBindingViewDto: {
+            binding?: components["schemas"]["JiangyiDeviceDto"];
+            mappings?: components["schemas"]["JiangyiClassMappingDto"][];
+        };
         ApiResponseListDeviceEnvReadingDto: {
             /** Format: int32 */
             code?: number;
@@ -18726,6 +18878,33 @@ export interface operations {
             };
         };
     };
+    upsertMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+                classId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingUpsertRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiClassMappingDto"];
+                };
+            };
+        };
+    };
     update_4: {
         parameters: {
             query?: never;
@@ -19728,7 +19907,7 @@ export interface operations {
             };
         };
     };
-    upsertMapping: {
+    upsertMapping_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -24314,6 +24493,107 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseAdminDeviceDto"];
+                };
+            };
+        };
+    };
+    retire_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiDeviceDto"];
+                };
+            };
+        };
+    };
+    register_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiDeviceDto"];
+                };
+            };
+        };
+    };
+    setMappingStatus_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+                classId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseInteger"];
+                };
+            };
+        };
+    };
+    bind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BindRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiDeviceDto"];
                 };
             };
         };
@@ -30247,6 +30527,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListDeviceLifecycleEventDto"];
+                };
+            };
+        };
+    };
+    view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiBindingViewDto"];
                 };
             };
         };

@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.client.JiangyiMerchantClient;
 import com.aicabinet.trade.domain.JiangyiDevice;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,17 +34,20 @@ public class JiangyiOnboardingService {
     private static final Logger log = LoggerFactory.getLogger(JiangyiOnboardingService.class);
 
     private final JiangyiDeviceMapper jiangyiDeviceMapper;
+    private final DeviceInfoMapper deviceInfoMapper;
     private final JiangyiMerchantClient jiangyiMerchantClient;
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     private final long tenantId;
     private final String secret;
 
     public JiangyiOnboardingService(JiangyiDeviceMapper jiangyiDeviceMapper,
+                                    DeviceInfoMapper deviceInfoMapper,
                                     JiangyiMerchantClient jiangyiMerchantClient,
                                     JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                     @Value("${JIANGYI_TENANT_ID:0}") long tenantId,
                                     @Value("${JIANGYI_SECRET:}") String secret) {
         this.jiangyiDeviceMapper = jiangyiDeviceMapper;
+        this.deviceInfoMapper = deviceInfoMapper;
         this.jiangyiMerchantClient = jiangyiMerchantClient;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.tenantId = tenantId;
@@ -124,5 +128,35 @@ public class JiangyiOnboardingService {
         jiangyiDeviceDirectory.evict(deviceId);
         log.info("jiangyi device retired deviceId={}", deviceId);
         return device;
+    }
+
+    // ---------- 运营后台入口（CB-022 收尾：登记/绑定从手工 SQL 升级为后台 UI） ----------
+
+    /** 按我方柜机 ID 查绑定档案；null = 未登记（后台展示「未接入」态）。 */
+    public JiangyiDevice findByDeviceId(String deviceId) {
+        return deviceId == null || deviceId.isBlank() ? null : jiangyiDeviceMapper.selectById(deviceId);
+    }
+
+    /**
+     * 后台登记：前置校验柜机档案存在（防对不存在的 deviceId 造出孤儿绑定），
+     * 再走幂等 register（按 SN 判存）。
+     */
+    public JiangyiDevice registerForDevice(String deviceId, String deviceSn, String modelName) {
+        if (deviceId == null || deviceId.isBlank()) {
+            throw new IllegalArgumentException("deviceId 不能为空");
+        }
+        if (deviceInfoMapper.selectById(deviceId) == null) {
+            throw new IllegalArgumentException("柜机不存在，请先在设备管理创建柜机档案：" + deviceId);
+        }
+        return register(deviceId, deviceSn, modelName);
+    }
+
+    /** 后台绑定：deviceId → 已登记 SN → setDomain（将邑租户凭据 env-only）。 */
+    public JiangyiDevice bindForDevice(String deviceId, String domain, String socketUrl) {
+        JiangyiDevice device = findByDeviceId(deviceId);
+        if (device == null) {
+            throw new IllegalStateException("设备未登记，请先登记将邑 SN：deviceId=" + deviceId);
+        }
+        return bindDomain(device.getDeviceSn(), domain, socketUrl);
     }
 }

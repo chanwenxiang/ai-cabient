@@ -390,6 +390,9 @@
       @update:refund-policy-draft="refundPolicyDraft = $event"
     />
 
+    <!-- 将邑接入（CB-022 收尾）：未接入的普通柜机整卡展示「未接入」说明，可忽略 -->
+    <DeviceJiangyiCard :device-id="deviceId" :can-edit="canEditDevice" />
+
     <el-card class="page-card report-page" shadow="never">
       <el-tabs v-model="tab">
         <!--
@@ -572,6 +575,7 @@ import { api, authFetch, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import SlotGrid from '@/components/SlotGrid.vue';
 import DeviceAssetDeploymentCard from '@/components/device/DeviceAssetDeploymentCard.vue';
+import DeviceJiangyiCard from '@/components/device/DeviceJiangyiCard.vue';
 import DeviceRelatedRecordsTab from '@/components/device/DeviceRelatedRecordsTab.vue';
 import DeviceRemoteOpsCard from '@/components/device/DeviceRemoteOpsCard.vue';
 import DeviceTempEnvTab from '@/components/device/DeviceTempEnvTab.vue';

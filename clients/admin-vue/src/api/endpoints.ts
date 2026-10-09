@@ -140,6 +140,19 @@ export const AdminEndpoints = {
   deviceSlotsStocktake: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/slots/stocktake`,
 
+  /** 将邑接入（CB-022 收尾）：SN 登记 / setDomain 绑定 / 退役 / class 映射；库存走货道管理 */
+  deviceJiangyi: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi`,
+  deviceJiangyiRegister: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/register`,
+  deviceJiangyiBind: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/bind`,
+  deviceJiangyiRetire: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/retire`,
+  deviceJiangyiMapping: (deviceId: string, classId: number) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-mappings/${classId}`,
+  deviceJiangyiMappingStatus: (deviceId: string, classId: number) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-mappings/${classId}/status`,
+
   /** 商户 / 分账 */
   merchants: `${ops}/merchants`,
   merchantsList: (query: URLSearchParams | string) =>
