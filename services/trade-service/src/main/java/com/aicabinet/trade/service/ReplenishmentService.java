@@ -1341,6 +1341,49 @@ public class ReplenishmentService {
         return toRouteDto(route);
     }
 
+    /**
+     * CB-018 ①（2026-10-09）：补货建议一键生成补货任务。原链路建议只能看
+     * （GET /replenishment/suggest），运营要人工照抄到补货单——现一键转成
+     * 路线（PLANNED）+ 任务（PENDING）+ RESTOCK 行（货道分配与幂等复用
+     * {@link #seedDraftRestockLines}）。口径与建议页一致（fillToPar=false：
+     * 仅 minLevel/ROP 触发，在途已抵扣）；批次（batchNo/生产/效期）留空，
+     * 由仓配出库链路回填（generateLinesFromOutbound 已支持按出库行回写）。
+     * 不做防重：同设备可重复生成，任务 notes 带 from-suggest: 前缀便于甄别合并。
+     */
+    @Transactional
+    public ReplenishmentRouteDto createTaskFromSuggestion(Long operatorId, String deviceId, Long assigneeUserId) {
+        String dev = deviceId == null ? "" : deviceId.trim();
+        if (dev.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择设备");
+        }
+        Map<String, Integer> skuQty = new LinkedHashMap<>();
+        for (ReplenishmentSuggestDto s : warehouseService.suggestForDevice(dev)) {
+            if (s.suggestQty() > 0 && s.skuId() != null && !s.skuId().isBlank()) {
+                skuQty.merge(s.skuId(), s.suggestQty(), Integer::sum);
+            }
+        }
+        if (skuQty.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.REPLENISHMENT_NO_GAP);
+        }
+        ReplenishmentRoute route = new ReplenishmentRoute();
+        route.setRouteName("建议-" + dev + "-" + LocalDate.now());
+        route.setAssigneeUserId(assigneeUserId != null ? assigneeUserId : operatorId);
+        route.setPlannedDate(LocalDate.now());
+        route.setStatus(PLANNED);
+        route = routeRepository.save(route);
+
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setRouteId(route.getRouteId());
+        task.setDeviceId(dev);
+        task.setAssigneeUserId(route.getAssigneeUserId());
+        task.setStatus(STATUS_PENDING);
+        task.setNotes("from-suggest:" + dev);
+        task = taskRepository.save(task);
+        notifyTaskAssigned(task);
+        self.seedDraftRestockLines(task.getTaskId(), dev, skuQty);
+        return toRouteDto(route);
+    }
+
     private static String normalizePullOffLineType(CreateFromExpiryRequest request) {
         String lineType = request != null && request.lineType() != null
                 ? request.lineType().trim().toUpperCase(java.util.Locale.ROOT)

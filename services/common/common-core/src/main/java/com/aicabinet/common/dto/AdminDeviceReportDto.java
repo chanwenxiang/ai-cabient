@@ -23,7 +23,8 @@ public record AdminDeviceReportDto(
         Integer currentTempC,
         String firmwareVersion,
         long avgOrderValueTodayCents,
-        long avgOrderValueTotalCents
+        long avgOrderValueTotalCents,
+        Double onlineRate7d
 ) {
     /** 兼容旧 9 字段构造。 */
     public AdminDeviceReportDto(
@@ -56,7 +57,8 @@ public record AdminDeviceReportDto(
                 null,
                 null,
                 orderToday > 0 ? revenueTodayCents / orderToday : 0,
-                orderTotal > 0 ? revenueTotalCents / orderTotal : 0
+                orderTotal > 0 ? revenueTotalCents / orderTotal : 0,
+                null
         );
     }
 }

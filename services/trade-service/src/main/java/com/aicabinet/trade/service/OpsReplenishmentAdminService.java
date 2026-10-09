@@ -133,6 +133,12 @@ public class OpsReplenishmentAdminService {
         return replenishmentService.createTaskFromPullOff(operatorId, pullOffTaskId, body);
     }
 
+    /** CB-018 ①：补货建议一键生成补货任务（写操作，与计划补货同权限码）。 */
+    public ReplenishmentRouteDto createTaskFromSuggestion(Long operatorId, String deviceId, Long assigneeUserId) {
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
+        return replenishmentService.createTaskFromSuggestion(operatorId, deviceId, assigneeUserId);
+    }
+
     public List<ReplenishmentTaskDto> myReplenishmentTasks(Long userId) {
         permissionService.requireOperator(userId);
         return replenishmentService.myTasks(userId);

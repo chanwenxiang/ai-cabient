@@ -297,6 +297,17 @@ public class OpsReplenishmentController {
         return ApiResponse.ok(replenishmentAdminService.slotReplenishmentSuggest(operatorId(request), deviceId));
     }
 
+    /** CB-018 ①：补货建议一键生成补货任务（路线 + PENDING 任务 + RESTOCK 行）。 */
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/replenishment/suggest/create-task")
+    public ApiResponse<ReplenishmentRouteDto> createTaskFromSuggestion(
+            HttpServletRequest request,
+            @RequestBody(required = false) CreateFromSuggestionRequest body) {
+        CreateFromSuggestionRequest req = body != null ? body : new CreateFromSuggestionRequest(null, null);
+        return ApiResponse.ok(replenishmentAdminService.createTaskFromSuggestion(
+                operatorId(request), req.deviceId(), req.assigneeUserId()));
+    }
+
     @RequiresPermissions("ops:replenishment:edit")
     @PostMapping("/replenishment/tasks/{taskId}/check-in")
     public ApiResponse<ReplenishmentTaskDto> checkInTask(

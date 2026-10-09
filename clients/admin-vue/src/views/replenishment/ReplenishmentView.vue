@@ -1270,8 +1270,8 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Goods } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { Goods, Tickets } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import type { TableAction } from '@/components/TableActions.vue';
@@ -1343,7 +1343,7 @@ const TAB_DESC: Record<string, string> = {
   routes: '补货路线与任务：把缺货设备串成路线并生成补货任务，派给现场人员执行',
   fulfillment: '履约记录：签到 GPS、用时与现场照片，核对补货是否真实完成',
   requests: '商户要货：商户/运营提交的要货需求，审核后并入补货计划',
-  shortage: '缺货建议：各柜机低于安全库存的商品，可一键生成补货规划',
+  shortage: '缺货建议：各柜机低于安全库存的商品，可一键生成补货规划，或按设备直接生成补货任务',
   expiry: '临期下架：仓库里临近有效期的批次，建议优先下架或换新'
 };
 const tabDescription = computed(() => TAB_DESC[tab.value] || '');
@@ -1432,10 +1432,55 @@ watch([focusDeviceId, fulfillmentStatus, requestStatusFilter], () => {
 
 /** 缺货建议行操作（迁入 CrudTable 固定操作列；整列随 canEdit 显隐） */
 function shortageRowActions(_row: Row): TableAction[] {
-  return [{ key: 'restock', label: '补货', icon: Goods, type: 'primary' }];
+  return [
+    { key: 'restock', label: '补货（路线规划）', icon: Goods, type: 'primary' },
+    { key: 'create-task', label: '生成补货任务', icon: Tickets, type: 'success' }
+  ];
 }
 
-function onShortageAction({ row }: { key: string; row: Row }) {
+const creatingSuggestTask = ref(false);
+
+/**
+ * CB-018①：按补货建议直接生成补货任务（不经路线规划）。
+ * 后端按 suggestForDevice(deviceId) 的全部建议合并为一个 PENDING 任务（不做防重）；
+ * 缺货行是 设备×货道 粒度，同设备任意行的按钮效果一致——先弹确认说明范围，防误触重复建任务。
+ */
+async function createTaskFromSuggestion(deviceId: string) {
+  if (!deviceId || creatingSuggestTask.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `将按设备 ${deviceId} 的全部补货建议生成 1 个待执行补货任务（覆盖其所有缺货货道），确认生成？`,
+      '生成补货任务',
+      { confirmButtonText: '生成', cancelButtonText: '取消', type: 'info' }
+    );
+  } catch {
+    return; // 用户取消
+  }
+  creatingSuggestTask.value = true;
+  try {
+    const created = await api.request<{
+      routeId: number | string;
+      tasks?: { taskId?: number | string }[];
+    }>(AdminEndpoints.replenishmentSuggestCreateTask, 'POST', { deviceId });
+    const firstTaskId = created?.tasks?.[0]?.taskId;
+    ElMessage.success(
+      firstTaskId != null
+        ? `补货任务 ${firstTaskId} 已生成（待执行，路线 ${created.routeId}）`
+        : `补货路线 ${created?.routeId ?? ''} 已生成`
+    );
+    await crudShortages.search();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '补货任务生成失败');
+  } finally {
+    creatingSuggestTask.value = false;
+  }
+}
+
+async function onShortageAction({ key, row }: { key: string; row: Row }) {
+  if (key === 'create-task') {
+    await createTaskFromSuggestion(row.deviceId);
+    return;
+  }
   planSingleDevice(row.deviceId);
 }
 

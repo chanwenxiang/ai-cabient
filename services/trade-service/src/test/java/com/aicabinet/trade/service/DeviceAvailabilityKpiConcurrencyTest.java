@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.mapper.AdminAuditLogMapper;
 import com.aicabinet.trade.mapper.DeviceAvailabilityKpiDailyMapper;
+import com.aicabinet.trade.mapper.DeviceDailyOnlineRateMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,7 @@ class DeviceAvailabilityKpiConcurrencyTest {
     @Mock private OpsExceptionMapper exceptionRepository;
     @Mock private AdminAuditLogMapper auditRepository;
     @Mock private DeviceAvailabilityKpiDailyMapper kpiRepository;
+    @Mock private DeviceDailyOnlineRateMapper onlineRateRepository;
     @Mock private DistributedLockService distributedLockService;
 
     private DeviceAvailabilityKpiService service;
@@ -32,7 +34,7 @@ class DeviceAvailabilityKpiConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new DeviceAvailabilityKpiService(deviceRepository, exceptionRepository,
-                auditRepository, kpiRepository, distributedLockService, null);
+                auditRepository, kpiRepository, onlineRateRepository, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

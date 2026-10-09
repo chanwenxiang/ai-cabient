@@ -145,4 +145,16 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
         return ((Number) rows.get(0)).doubleValue();
     }
 
+    /**
+     * CB-018 ②：与日窗 [windowStart, windowEnd) 相交的离线区间（半开 [created_at, resolved_at)；
+     * resolved_at 为 null 表示仍在离线中，视为右端开放）。裁剪到窗口由调用方完成。
+     */
+    default List<OpsException> findOfflineSegmentsOverlapping(Instant windowStart, Instant windowEnd) {
+        return selectList(Wrappers.<OpsException>lambdaQuery()
+                .eq(OpsException::getExceptionType, "DEVICE_OFFLINE")
+                .lt(OpsException::getCreatedAt, windowEnd)
+                .and(w -> w.isNull(OpsException::getResolvedAt)
+                        .or(w2 -> w2.gt(OpsException::getResolvedAt, windowStart))));
+    }
+
 }
