@@ -49,6 +49,7 @@ class SessionDoorClosedIdempotencyTest {
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
     @Mock ConsumerPreauthService consumerPreauthService;
     @Mock DistributedLockService distributedLockService;
+    @Mock com.aicabinet.trade.service.JiangyiDeviceDirectory jiangyiDeviceDirectory;
 
     private SessionService service;
     private SessionDoorService doorService;
@@ -67,7 +68,7 @@ class SessionDoorClosedIdempotencyTest {
         lenient().when(minioVideoService.isPlatformObjectUri(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(true);
         doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
-                cabinetMetrics, domainEventPublisher, minioVideoService, service, null);
+                cabinetMetrics, domainEventPublisher, minioVideoService, service, null, jiangyiDeviceDirectory);
         org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionDoorService", doorService);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);

@@ -82,9 +82,14 @@ public class TradeInternalClient {
         post("/internal/v1/jiangyi/devices/{deviceId}/token-issued", null, deviceId);
     }
 
-    /** WS 在线回执。 */
+    /** WS 在线回执（建连 + 心跳节流上报；trade 侧据此置 device_info 在线）。 */
     public void wsOnline(String deviceId) {
         post("/internal/v1/jiangyi/devices/{deviceId}/ws-online", null, deviceId);
+    }
+
+    /** WS 断开回执（trade 侧据此置 device_info 离线，开门校验 ensureDeviceOnline 即时生效）。 */
+    public void wsOffline(String deviceId) {
+        post("/internal/v1/jiangyi/devices/{deviceId}/ws-offline", null, deviceId);
     }
 
     // ---------- 映射面 ----------
@@ -141,20 +146,27 @@ public class TradeInternalClient {
     }
 
     private void post(String path, Object body, Object... uriVars) {
-        restClient.post()
+        // 2026-10-09 联调缺陷⑦：无 body 的 POST（wsOnline/wsOffline/tokenIssued）传 null
+        // 会 NPE（RestClient body(null) → getClass()），导致 WS 在线回执静默失败、
+        // trade 开门校验恒判设备离线。body 为 null 时不设请求体。
+        var spec = restClient.post()
                 .uri(path, uriVars)
-                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
-                .body(body)
-                .retrieve()
-                .toBodilessEntity();
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key());
+        if (body != null) {
+            spec = spec.body(body);
+        }
+        spec.retrieve().toBodilessEntity();
     }
 
     private <T> ApiResponse<T> post(String path, Object body, Class<T> dataType, Object... uriVars) {
-        return restClient.post()
+        // 缺陷⑦同款：无 body 的 POST（recognizeTimeout）传 null 会 NPE，body 为 null 时不设请求体。
+        var spec = restClient.post()
                 .uri(path, uriVars)
-                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
-                .body(body)
-                .retrieve()
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key());
+        if (body != null) {
+            spec = spec.body(body);
+        }
+        return spec.retrieve()
                 .body(ParameterizedTypeReference.forType(apiResponseType(dataType)));
     }
 

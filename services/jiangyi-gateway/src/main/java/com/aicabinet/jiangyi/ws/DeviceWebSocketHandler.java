@@ -1,5 +1,6 @@
 package com.aicabinet.jiangyi.ws;
 
+import com.aicabinet.jiangyi.client.TradeInternalClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -23,8 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 本网关一律拒绝下发（一期边界，方案 §4A）。</p>
  *
  * <p>上行（设备 → 商户 WS）：模式一协议的状态/识别上报走 HTTP 面（uploadDoorState /
- * addRecognitionGoodsToOrder 等），WS 上行预期只有心跳/回执类消息——宽松解析记 debug，
- * 不做业务处理（铁律：未知消息宁可忽略也不误当业务数据）。</p>
+ * addRecognitionGoodsToOrder 等），WS 上行预期只有心跳/回执类消息——心跳按 V16 §4.3.1
+ * 回发 PONG 并节流转报 trade 维持在线态；其余宽松解析记 debug 不做业务处理
+ * （铁律：未知消息宁可忽略也不误当业务数据）。建连/断开同步 trade 设备在线状态。</p>
  */
 @Component
 public class DeviceWebSocketHandler extends TextWebSocketHandler {
@@ -35,8 +37,21 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private final TradeInternalClient tradeInternalClient;
+
     /** identifier → 在线 WS 会话（单设备单连接；新连接顶替旧连接）。 */
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
+
+    /** identifier → 上次 wsOnline 上报时刻（ms）。心跳桥接节流：60s 内不重复打 trade。 */
+    private final Map<String, Long> lastOnlineReportAt = new ConcurrentHashMap<>();
+
+    /** 心跳上报节流窗口：trade 巡检 2 分钟无 updated_at 刷新即判离线（DevicePresenceService），
+     *  60s 上报一次留足冗余；将邑真机心跳周期见 V16 §4.3.1。 */
+    private static final long ONLINE_REPORT_INTERVAL_MS = 60_000L;
+
+    public DeviceWebSocketHandler(TradeInternalClient tradeInternalClient) {
+        this.tradeInternalClient = tradeInternalClient;
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -56,6 +71,9 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         }
         log.info("jiangyi ws connected identifier={} session={} onlineDevices={}",
                 identifier, session.getId(), sessions.size());
+        // 2026-10-09 联调缺陷⑥：建连即上报 trade（此前 wsOnline 是死代码，trade 侧
+        // device_info.online_status 恒 OFFLINE → 开门 409「设备离线」）。失败不断连。
+        reportOnline(identifier, attrDeviceId(session));
     }
 
     @Override
@@ -66,8 +84,10 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         }
         // 只移除自己登记的那条（顶替语义下旧连接关闭不动新连接的登记）
         sessions.remove(identifier, session);
+        lastOnlineReportAt.remove(identifier);
         log.info("jiangyi ws disconnected identifier={} session={} status={} onlineDevices={}",
                 identifier, session.getId(), status, sessions.size());
+        reportOffline(identifier, attrDeviceId(session));
     }
 
     @Override
@@ -75,8 +95,22 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         String identifier = attrIdentifier(session);
         try {
             JsonNode node = objectMapper.readTree(message.getPayload());
+            // V16 §4.3.1 心跳契约：机器发 {msgType:"heartBeat",msgContent:"PONG"}，
+            // 服务端必须回发 {status:200,msgType:"heartBeat",msgContent:"PONG"}——
+            // 「心跳保持则机器在线，心跳断开机器离线」，不回发真机会判定离线重连。
+            // 此前「未知消息一律忽略」是对照方案摘要的漏判（2026-10-09 联调前对原文档核查补上）。
+            if ("heartBeat".equalsIgnoreCase(node.path("msgType").asText())) {
+                // 心跳桥接：V16「心跳保持则机器在线」→ trade 巡检按 device_info.updated_at
+                // 判活（2 分钟），节流转发心跳维持在线态（缺陷⑥ 的持续侧；断开侧见 closed）。
+                reportOnlineThrottled(identifier, attrDeviceId(session));
+                send(session, identifier, Map.of(
+                        "status", 200,
+                        "msgType", "heartBeat",
+                        "msgContent", node.path("msgContent").asText("PONG")));
+                return;
+            }
+            // 模式一业务上报全走 HTTP 面；WS 上行其余消息忽略（铁律：未知消息宁可忽略也不误当业务数据）
             log.debug("jiangyi ws upstream identifier={} payload={}", identifier, message.getPayload());
-            // 模式一业务上报全走 HTTP 面；WS 上行未知消息忽略（首行注释契约）
         } catch (Exception e) {
             log.debug("jiangyi ws upstream non-JSON identifier={} len={}",
                     identifier, message.getPayload().length());
@@ -137,5 +171,53 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         return Optional.ofNullable(session.getAttributes().get(DeviceHandshakeInterceptor.ATTR_IDENTIFIER))
                 .map(Object::toString)
                 .orElse(null);
+    }
+
+    private static String attrDeviceId(WebSocketSession session) {
+        return Optional.ofNullable(session.getAttributes().get(DeviceHandshakeInterceptor.ATTR_DEVICE_ID))
+                .map(Object::toString)
+                .orElse(null);
+    }
+
+    /** 建连/心跳 → trade ws-online；失败仅告警（WS 已建立，上报失败不应断开设备）。 */
+    private void reportOnline(String identifier, String deviceId) {
+        if (deviceId == null) {
+            return;
+        }
+        try {
+            tradeInternalClient.wsOnline(deviceId);
+            lastOnlineReportAt.put(identifier, System.currentTimeMillis());
+            log.info("jiangyi ws online reported deviceId={} identifier={}", deviceId, identifier);
+        } catch (Exception e) {
+            log.warn("jiangyi ws online report failed deviceId={} identifier={}: {}",
+                    deviceId, identifier, e.getMessage());
+        }
+    }
+
+    /** 心跳触发的节流版上报：窗口内不重复打 trade（心跳高频，内部接口要省）。 */
+    private void reportOnlineThrottled(String identifier, String deviceId) {
+        if (deviceId == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Long last = lastOnlineReportAt.get(identifier);
+        if (last != null && now - last < ONLINE_REPORT_INTERVAL_MS) {
+            return;
+        }
+        reportOnline(identifier, deviceId);
+    }
+
+    /** 断开 → trade ws-offline；失败仅告警（trade 巡检 2 分钟兜底置离线）。 */
+    private void reportOffline(String identifier, String deviceId) {
+        if (deviceId == null) {
+            return;
+        }
+        try {
+            tradeInternalClient.wsOffline(deviceId);
+            log.info("jiangyi ws offline reported deviceId={} identifier={}", deviceId, identifier);
+        } catch (Exception e) {
+            log.warn("jiangyi ws offline report failed deviceId={} identifier={}: {}",
+                    deviceId, identifier, e.getMessage());
+        }
     }
 }

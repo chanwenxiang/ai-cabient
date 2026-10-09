@@ -50,8 +50,10 @@ public class DeviceReportController {
     // ---------- §4.2.7 开锁状态 ----------
 
     /**
-     * lockStatus=fail → trade open-failed（markOpenDoorFailed 幂等：非 OPENING no-op）；
-     * lockStatus=success → 审计即可（开门会话由 doorState 事件推进）。
+     * V16 §4.2.7「可以根据该接口知道机器是否已经解锁」——lockStatus=success 即开门回执：
+     * complete(OPEN) 撤销 watchdog 15s 开门超时登记（联调实测缺陷：漏补导致已开锁会话被
+     * watchdog 误判「15秒无设备回执」腰斩成 FAILED）；fail → trade open-failed
+     * （markOpenDoorFailed 幂等）。开门会话状态由 doorState（门磁）事件推进。
      */
     @PostMapping("/jiangyi/api/device/uploadLockState")
     public Map<String, Object> uploadLockState(HttpServletRequest request,
@@ -59,6 +61,7 @@ public class DeviceReportController {
         String deviceId = device(request);
         boolean success = DoorStateNormalizer.isSuccess(body.lockStatus());
         if (success) {
+            commandTracker.complete(CommandTracker.Kind.OPEN, body.orderNo());
             log.info("jiangyi lock OK deviceId={} orderNo={}", deviceId, body.orderNo());
             return ok();
         }
@@ -87,7 +90,14 @@ public class DeviceReportController {
                                                @RequestBody DoorStateRequest body) {
         String deviceId = device(request);
         if (!DoorStateNormalizer.isSuccess(body.doorStatus())) {
-            log.warn("jiangyi door FAIL deviceId={} orderNo={} — session not advanced", deviceId, body.orderNo());
+            // V16 §4.2.8「如果开门失败，不会上报订单结果」——拉门失败的订单必然没有后续
+            // 识别上报，等 300s CLOSE 兜底纯属浪费：立即走 open-failed 转 FAILED（幂等）。
+            log.warn("jiangyi door FAIL deviceId={} orderNo={} — notify open-failed", deviceId, body.orderNo());
+            try {
+                tradeInternalClient.postOpenFailed(body.orderNo(), "将邑设备上报拉门失败");
+            } catch (Exception e) {
+                log.error("jiangyi open-failed notify failed orderNo={}", body.orderNo(), e);
+            }
             return ok();
         }
         try {

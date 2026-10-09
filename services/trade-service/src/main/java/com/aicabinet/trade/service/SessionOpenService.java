@@ -100,9 +100,13 @@ public class SessionOpenService {
             if (session == null) {
                 return;
             }
-            // 状态 CAS：终态（FAILED/CANCELLED/COMPLETED）不再迁移
-            if (session.getState() == SessionState.FAILED || session.getState() == SessionState.CANCELLED
-                    || session.getState() == SessionState.COMPLETED) {
+            // 状态 CAS：只有「门还没确认打开」的早期态允许标开门失败。SHOPPING 及之后
+            // （含 WAITING_UPLOAD/RECOGNIZING/SETTLING）说明设备已确认开锁/拉门（将邑
+            // lockStatus/doorStatus、edge ACK 均属开门确认），此时到达的开门超时必是误报
+            // ——2026-10-09 联调实测：将邑 watchdog 15s 兜底与识别链路赛跑，把 RECOGNIZING
+            // 会话腰斩成 FAILED 并误释预授权。终态同样不迁移。
+            if (session.getState() != SessionState.CREATED && session.getState() != SessionState.OPENING) {
+                log.info("mark open door failed skipped state={} session={}", session.getState(), sessionId);
                 return;
             }
             session.setFailReason(failReason);

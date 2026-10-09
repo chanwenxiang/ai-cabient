@@ -1,5 +1,6 @@
 package com.aicabinet.trade.api;
 
+import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
@@ -7,6 +8,7 @@ import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiRecognitionTimeoutService;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,17 +43,20 @@ public class JiangyiInternalController {
     private final JiangyiRecognitionTimeoutService jiangyiRecognitionTimeoutService;
     private final JiangyiOnboardingService jiangyiOnboardingService;
     private final com.aicabinet.trade.mapper.JiangyiDeviceMapper jiangyiDeviceMapper;
+    private final com.aicabinet.trade.mapper.DeviceInfoMapper deviceInfoMapper;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
                                      JiangyiRecognitionTimeoutService jiangyiRecognitionTimeoutService,
                                      JiangyiOnboardingService jiangyiOnboardingService,
-                                     com.aicabinet.trade.mapper.JiangyiDeviceMapper jiangyiDeviceMapper) {
+                                     com.aicabinet.trade.mapper.JiangyiDeviceMapper jiangyiDeviceMapper,
+                                     com.aicabinet.trade.mapper.DeviceInfoMapper deviceInfoMapper) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiDeviceMapper = jiangyiDeviceMapper;
+        this.deviceInfoMapper = deviceInfoMapper;
     }
 
     // ---------- 设备面 ----------
@@ -80,10 +85,43 @@ public class JiangyiInternalController {
         return ApiResponse.ok(jiangyiDeviceMapper.bumpTokenVersion(deviceId, Instant.now()));
     }
 
-    /** WS 在线回执（gateway onConnect/心跳时调用）。 */
+    /**
+     * WS 在线回执（gateway 建连/心跳节流时调用）。除 jiangyi_device.last_ws_online_at 外，
+     * 同步置 device_info.online_status=ONLINE 并刷新 updated_at——开门校验
+     * ensureDeviceOnline 查的是后者，离线巡检按 updated_at 判活（2 分钟）。
+     * 2026-10-09 联调缺陷⑥：此前只写 jiangyi_device，开门恒 409「设备离线」。
+     */
     @PostMapping("/devices/{deviceId}/ws-online")
+    @Transactional
     public ApiResponse<Integer> wsOnline(@PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(jiangyiDeviceMapper.markWsOnline(deviceId, Instant.now()));
+        int rows = jiangyiDeviceMapper.markWsOnline(deviceId, Instant.now());
+        setDeviceInfoOnline(deviceId, true);
+        return ApiResponse.ok(rows);
+    }
+
+    /** WS 断开回执：即时置 device_info 离线（不等巡检 2 分钟；巡检作为断开上报失败时的兜底）。 */
+    @PostMapping("/devices/{deviceId}/ws-offline")
+    @Transactional
+    public ApiResponse<Integer> wsOffline(@PathVariable("deviceId") String deviceId) {
+        setDeviceInfoOnline(deviceId, false);
+        return ApiResponse.ok(1);
+    }
+
+    /** device_info 在线态维护（对齐 DevicePresenceService 心跳写法；updatedAt 显式刷新）。 */
+    private void setDeviceInfoOnline(String deviceId, boolean online) {
+        deviceInfoMapper.findByIdForUpdate(deviceId).ifPresent(d -> {
+            if (online) {
+                d.setOnlineStatus(CabinetConstants.DEVICE_ONLINE);
+                if (d.getOnlineSince() == null) {
+                    d.setOnlineSince(Instant.now());
+                }
+            } else {
+                d.setOnlineStatus("OFFLINE");
+                d.setOnlineSince(null);
+            }
+            d.setUpdatedAt(Instant.now());
+            deviceInfoMapper.save(d);
+        });
     }
 
     /** 路由判定（供诊断/联调核查，DeviceServiceClient 侧走本地 Directory）。 */
