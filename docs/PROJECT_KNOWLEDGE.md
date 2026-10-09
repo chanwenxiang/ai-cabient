@@ -34,17 +34,18 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **321** 个脚本，最新 **V325** | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
+| Flyway 迁移 | **326** 个脚本，最新 **V332/V333（将邑，CB-022）**；dev 分支另有 V329–V331（CB-018~021），合并后台账 329 个 | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
 | trade Controllers | **85** | `*Controller.java` |
 | trade 单测 | **333** `*Test.java` | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
 | admin-vue 业务视图 | **77** `.vue` | `src/views` |
 | consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
 | shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
 | 踩坑总册条目 | **≥223** | `docs/engineering/lessons-learned.md`（末条编号 L-223） |
-| 竞品对照台账 | **14 条 / 71 个 URL** | `docs/COMPETITOR_BENCHMARK.md`；门禁 `check:competitor-benchmark` |
+| 竞品对照台账 | **18 条 / 96 行含 URL** | `docs/COMPETITOR_BENCHMARK.md`；门禁 `check:competitor-benchmark` |
 | 审计门禁 | `pnpm check:audit-gates` | 新建脚本须进 `ci.yml` |
+| 将邑开门柜接入 | `services/jiangyi-gateway` **:8083**（全栈 Docker `127.0.0.1:18084`） | 模式一外采套件，CB-022；方案+现状速查 `docs/JIANGYI_GATEWAY_DESIGN.md`；`JIANGYI_JWT_SECRET` 未配置则 fail-closed 503 |
 
-> **最后校准**：2026-10-07（本节数字为**当日实测**，非估算）。
+> **最后校准**：2026-10-09（本节数字为**当日实测**，非估算）。
 > ⚠️ **规模数字会漂移** —— 读到过期的数字时，先按上面的命令实测再下结论，不要引用历史值。
 
 更细文件级清单：[CODEBASE_INVENTORY.md](CODEBASE_INVENTORY.md)；测试底稿：[CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)。
@@ -60,6 +61,7 @@ clients/merchant-mp        商户小程序（补货/定价/钱包/分账）
 packages/shared-*          共享类型 / API / 字典 / RBAC / uni
 services/trade-service     领域大脑（会话·结算·支付·RBAC·仓储）
 services/device-service    MQTT 桥（不下业务库）
+services/jiangyi-gateway   将邑外采柜接入层（设备 token/WS/上报归一，CB-022）
 services/common/common-core 共享 DTO / 枚举 / 内部鉴权
 vision-service             FastAPI mock 识别 + 争议辅助
 edge/*                     柜机端 / 模拟器
@@ -96,6 +98,7 @@ infra/                     Compose、网关、监控
 | **B. 全栈 Docker** | `.\docker-up.ps1` | **:18080** |
 
 **禁止** A/B 混开双 trade。速查：[STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)。
+jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 compose 容器 `127.0.0.1:18084`），nginx `/jiangyi/` 与 `/websocket/` 均转发至该服务。
 
 | 面 | URL / 账号 |
 |----|------------|

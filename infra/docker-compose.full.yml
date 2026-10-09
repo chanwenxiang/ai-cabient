@@ -136,6 +136,8 @@ services:
       KAFKA_BOOTSTRAP: redpanda:9092
       AICABINET_DEVICE_SERVICE_URL: http://device-service:8081
       AICABINET_VISION_SERVICE_URL: http://vision-service:8082
+      # 将邑开门柜网关（CB-022）：将邑柜开门指令路由目标
+      AICABINET_JIANGYI_GATEWAY_URL: http://jiangyi-gateway:8083
       MINIO_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
@@ -275,6 +277,30 @@ services:
     depends_on:
       emqx: { condition: service_started }
       trade-service: { condition: service_started }
+    restart: unless-stopped
+
+  # 将邑开门柜接入网关（CB-022 模式一）：设备 HTTP 上报 + WS 长连接 + 开门下发。
+  # 🔴 JIANGYI_JWT_SECRET 无默认值（fail-closed）：不注入时设备 token 签发直接 503。
+  jiangyi-gateway:
+    stop_grace_period: 30s
+    build:
+      context: ..
+      dockerfile: Dockerfile.java-service
+      args: { MODULE: services/jiangyi-gateway }
+    environment:
+      SERVER_PORT: 8083
+      AICABINET_TRADE_SERVICE_URL: http://trade-service:8080
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
+      INTERNAL_API_ALLOWED_CIDRS: ${INTERNAL_API_ALLOWED_CIDRS:-}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
+      JIANGYI_JWT_SECRET: ${JIANGYI_JWT_SECRET:-}
+      JIANGYI_TOKEN_TTL_SECONDS: ${JIANGYI_TOKEN_TTL_SECONDS:-604800}
+    ports: ["127.0.0.1:18084:8083"]
+    depends_on:
+      trade-service: { condition: service_started }
+      redis: { condition: service_started }
     restart: unless-stopped
 
   device-simulator:
