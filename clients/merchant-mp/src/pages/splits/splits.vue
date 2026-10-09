@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="分账明细" />
+    <app-nav-bar title="分账明细" home-url="/pages/home/home" />
     <app-underline-tabs :items="splitTabs" :value="tab" @change="switchTab" />
     <view class="page-body">
       <view v-if="focusOrderId" class="focus-banner">

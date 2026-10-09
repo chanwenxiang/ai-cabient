@@ -1,6 +1,6 @@
 <template>
   <view class="page-root">
-    <app-nav-bar title="订单详情" />
+    <app-nav-bar title="订单详情" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="loading && !order" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view

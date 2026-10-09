@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="微信提醒" />
+    <app-nav-bar title="微信提醒" home-url="/pages/home/home" />
     <view class="page-body">
       <view class="intro">
         <text class="intro-title">订阅推送</text>

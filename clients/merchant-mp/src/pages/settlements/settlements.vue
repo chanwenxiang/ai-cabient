@@ -1,6 +1,6 @@
 <template>
   <view class="page-root">
-    <app-nav-bar title="结算对账" />
+    <app-nav-bar title="结算对账" home-url="/pages/home/home" />
     <app-underline-tabs :items="rangeTabs" :value="rangePreset" @change="onRangeTab" />
     <view class="page-body">
       <view class="period-card">

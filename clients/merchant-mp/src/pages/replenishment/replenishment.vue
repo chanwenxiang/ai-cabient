@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="补货任务" />
+    <app-nav-bar title="补货任务" home-url="/pages/home/home" />
     <view class="page-body">
       <view class="hero">
         <view class="hero-head">

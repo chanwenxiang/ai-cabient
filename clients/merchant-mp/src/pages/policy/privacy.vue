@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="隐私政策" />
+    <app-nav-bar title="隐私政策" home-url="/pages/home/home" />
     <view class="page-body">
       <view class="card">
         <text class="updated">更新日期：2026-09-13 · 商户端</text>

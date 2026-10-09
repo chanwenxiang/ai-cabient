@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="要货申请" />
+    <app-nav-bar title="要货申请" home-url="/pages/home/home" />
     <app-underline-tabs :items="modeTabs" :value="mode" @change="onModeTab" />
     <view class="page-body">
       <view v-if="mode === 'create'" class="panel">

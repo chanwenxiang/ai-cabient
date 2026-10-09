@@ -1,6 +1,6 @@
 <template>
   <view>
-    <app-nav-bar title="点位定价" />
+    <app-nav-bar title="点位定价" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="!canView" class="card">
         <text class="err">当前账号无定价查看权限</text>

@@ -1,6 +1,6 @@
 <template>
   <view class="page-root">
-    <app-nav-bar title="争议处理" />
+    <app-nav-bar title="争议处理" home-url="/pages/home/home" />
     <app-underline-tabs :items="tabs" :value="activeTab" @change="switchTab" />
     <view class="page-body">
       <view v-if="loading && !list.length" class="loading"

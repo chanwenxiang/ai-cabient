@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="公告详情" />
+    <app-nav-bar title="公告详情" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="loading && !item" class="card state">{{ UI_COPY.loading }}</view>
       <error-state v-else-if="error && !item" :title="error" @retry="() => load()" />

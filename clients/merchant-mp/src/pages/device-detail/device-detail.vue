@@ -1,6 +1,6 @@
 <template>
   <view>
-    <app-nav-bar title="柜机详情" />
+    <app-nav-bar title="柜机详情" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
       <view v-else-if="loading && !deviceName" class="card">{{ UI_COPY.loading }}</view>

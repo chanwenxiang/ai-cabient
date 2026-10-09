@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="团队成员" />
+    <app-nav-bar title="团队成员" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="canInvite" class="invite-card" role="button" @click="openInvite">
         <view class="invite-plus" aria-hidden="true">+</view>

@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="通知公告" />
+    <app-nav-bar title="通知公告" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
       <error-state v-else-if="error && !list.length" :title="error" @retry="load" />

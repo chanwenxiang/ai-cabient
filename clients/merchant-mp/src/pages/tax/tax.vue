@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="税号" />
+    <app-nav-bar title="税号" home-url="/pages/home/home" />
     <view class="page-body">
       <view class="intro">
         <text class="intro-title">开票抬头</text>

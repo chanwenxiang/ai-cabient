@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <app-nav-bar title="销售报表" />
+    <app-nav-bar title="销售报表" home-url="/pages/home/home" />
     <app-underline-tabs :items="periodTabs" :value="String(days)" @change="onPeriodTab" />
     <view class="page-body">
       <view class="intro">

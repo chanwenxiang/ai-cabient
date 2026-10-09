@@ -1,6 +1,6 @@
 <template>
   <view class="video-page">
-    <app-nav-bar title="购物视频" bg="#000000" color="#ffffff" />
+    <app-nav-bar title="购物视频" bg="#000000" color="#ffffff" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="loading" class="state">
         <text class="state-title">{{ UI_COPY.loading }}</text>

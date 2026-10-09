@@ -88,7 +88,7 @@ async function save() {
 
 <template>
   <view class="page">
-    <app-nav-bar title="补货配置" />
+    <app-nav-bar title="补货配置" home-url="/pages/home/home" />
     <view class="page-body">
       <view class="intro">
         <text class="intro-title">现场补货规则</text>
