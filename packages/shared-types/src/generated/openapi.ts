@@ -1673,6 +1673,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/warehouse/close-sheets/{closeId}/lines/{lineId}/disposition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["disposeCloseLine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/warehouse/close-sheets/{closeId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["approveCloseSheet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/warehouse/close-sheets/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["generateCloseSheet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/warehouse/bins/stock/move": {
         parameters: {
             query?: never;
@@ -5545,6 +5593,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/warehouse/close-sheets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["closeSheets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/warehouse/close-sheets/{closeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["closeSheetDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/warehouse/close-sheets/{closeId}/drift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["closeSheetDrift"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/warehouse/bins/stock": {
         parameters: {
             query?: never;
@@ -6433,6 +6529,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["purchaseSuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/procurement/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["supplierReconciliation"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11120,6 +11232,77 @@ export interface components {
             message?: string;
             data?: components["schemas"]["WarehouseInboundRequest"];
         };
+        DisposeLineRequest: {
+            disposition?: string;
+            responsibleParty?: string;
+            claimNo?: string;
+        };
+        ApiResponseWarehouseCloseSheetDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["WarehouseCloseSheetDto"];
+        };
+        WarehouseCloseSheetDto: {
+            /** Format: int64 */
+            closeId?: number;
+            warehouseId?: string;
+            warehouseName?: string;
+            yearMonth?: string;
+            status?: string;
+            /** Format: int32 */
+            lossQty?: number;
+            /** Format: int32 */
+            surplusQty?: number;
+            /** Format: int64 */
+            lossAmountCents?: number;
+            /** Format: int64 */
+            surplusAmountCents?: number;
+            /** Format: int32 */
+            lineCount?: number;
+            approvedByName?: string;
+            /** Format: date-time */
+            approvedAt?: string;
+            remark?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            lines?: components["schemas"]["WarehouseCloseSheetLineDto"][];
+        };
+        WarehouseCloseSheetLineDto: {
+            /** Format: int64 */
+            lineId?: number;
+            skuId?: string;
+            skuName?: string;
+            /** Format: int32 */
+            openingQty?: number;
+            /** Format: int32 */
+            purchaseInQty?: number;
+            /** Format: int32 */
+            transferInQty?: number;
+            /** Format: int32 */
+            transferOutQty?: number;
+            /** Format: int32 */
+            restockQty?: number;
+            /** Format: int32 */
+            returnQty?: number;
+            /** Format: int32 */
+            lossQty?: number;
+            /** Format: int32 */
+            expectedQty?: number;
+            /** Format: int32 */
+            countedQty?: number;
+            /** Format: int32 */
+            gapQty?: number;
+            /** Format: int64 */
+            gapAmountCents?: number;
+            gapDisposition?: string;
+            /** Format: int64 */
+            claimWriteOffId?: number;
+        };
+        GenerateCloseSheetRequest: {
+            warehouseId?: string;
+            yearMonth?: string;
+        };
         BinMoveRequest: {
             /** Format: int64 */
             fromBinId: number;
@@ -13505,6 +13688,21 @@ export interface components {
             expired?: boolean;
             urgency?: string;
         };
+        ApiResponsePageResultWarehouseCloseSheetDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PageResultWarehouseCloseSheetDto"];
+        };
+        PageResultWarehouseCloseSheetDto: {
+            items?: components["schemas"]["WarehouseCloseSheetDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
         ApiResponseListWarehouseBinDto: {
             /** Format: int32 */
             code?: number;
@@ -14503,6 +14701,32 @@ export interface components {
             /** Format: double */
             trendPerDay?: number;
             suggestReason?: string;
+        };
+        ApiResponseSupplierReconciliationDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["SupplierReconciliationDto"];
+        };
+        SupplierReconciliationDto: {
+            supplierId?: string;
+            supplierName?: string;
+            month?: string;
+            /** Format: int64 */
+            openingCents?: number;
+            /** Format: int64 */
+            receivedCents?: number;
+            /** Format: int64 */
+            returnedCents?: number;
+            /** Format: int64 */
+            paidCents?: number;
+            /** Format: int64 */
+            closingCents?: number;
+            /** Format: int64 */
+            ledgerBalanceCents?: number;
+            /** Format: int64 */
+            mainBalanceCents?: number;
+            ledgerConsistent?: boolean;
         };
         ApiResponsePageResultPhoneVerifyLogDto: {
             /** Format: int32 */
@@ -20061,6 +20285,79 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseWarehouseInboundRequest"];
+                };
+            };
+        };
+    };
+    disposeCloseLine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                closeId: number;
+                lineId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisposeLineRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWarehouseCloseSheetDto"];
+                };
+            };
+        };
+    };
+    approveCloseSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                closeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWarehouseCloseSheetDto"];
+                };
+            };
+        };
+    };
+    generateCloseSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateCloseSheetRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWarehouseCloseSheetDto"];
                 };
             };
         };
@@ -26720,6 +27017,74 @@ export interface operations {
             };
         };
     };
+    closeSheets: {
+        parameters: {
+            query?: {
+                warehouseId?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResultWarehouseCloseSheetDto"];
+                };
+            };
+        };
+    };
+    closeSheetDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                closeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWarehouseCloseSheetDto"];
+                };
+            };
+        };
+    };
+    closeSheetDrift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                closeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
+                };
+            };
+        };
+    };
     binStock: {
         parameters: {
             query?: {
@@ -27999,6 +28364,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponsePageResultPurchaseSuggestionDto"];
+                };
+            };
+        };
+    };
+    supplierReconciliation: {
+        parameters: {
+            query: {
+                supplierId: string;
+                month: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSupplierReconciliationDto"];
                 };
             };
         };
