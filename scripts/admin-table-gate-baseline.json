@@ -1,7 +1,6 @@
 {
   "rawElTableFiles": [
     "clients/admin-vue/src/views/analytics/FootfallView.vue",
-    "clients/admin-vue/src/views/devices/DeviceDetailView.vue",
     "clients/admin-vue/src/views/disputes/DisputeListView.vue",
     "clients/admin-vue/src/views/finance/FundBillView.vue",
     "clients/admin-vue/src/views/finance/LineManagerView.vue",
@@ -17,7 +16,7 @@
     "clients/admin-vue/src/views/system/OrgSitesView.vue",
     "clients/admin-vue/src/views/system/SystemConfigView.vue",
     "clients/admin-vue/src/views/vision/VisionMappingView.vue",
-    "clients/admin-vue/src/views/warehouse/WarehouseView.vue"
+    "clients/admin-vue/src/views/warehouse/WarehouseMonthlyCloseSheetsView.vue"
   ],
   "headerSortFiles": [
     "clients/admin-vue/src/views/finance/FundBillView.vue",

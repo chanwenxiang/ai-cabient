@@ -583,16 +583,18 @@ async function main() {
 
   try {
     // —— TC-HOME-001 落地页 ——
+    // 🔴 2026-10-08 扫码 CTA v6（CB-015 定案）：落地屏为动作导向文案「扫码开门 · 拿了就走」，
+    //    无品牌词/无副标题——旧断言（AI开门柜/扫码购物）随改版过期，此处对齐新 UI。
     await gotoPath(page, '/');
     let text = await bodyText(page);
-    const homeOk = text.includes('AI开门柜') && text.includes('扫码购物');
+    const homeOk = text.includes('扫码开门') && text.includes('拿了就走');
     const e1 = await shot(page, '01-home-landing');
     record(
       'TC-HOME-001',
       '首页落地页品牌与主 CTA 展示',
       '功能',
       homeOk ? 'PASS' : 'FAIL',
-      homeOk ? '品牌/扫码 CTA 可见' : `缺关键文案: ${text.slice(0, 200)}`,
+      homeOk ? '扫码 CTA 可见' : `缺关键文案: ${text.slice(0, 200)}`,
       e1
     );
 
