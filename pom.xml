@@ -14,6 +14,7 @@
         <module>services/common/common-core</module>
         <module>services/trade-service</module>
         <module>services/device-service</module>
+        <module>services/jiangyi-gateway</module>
         <module>edge/device-simulator</module>
     </modules>
 

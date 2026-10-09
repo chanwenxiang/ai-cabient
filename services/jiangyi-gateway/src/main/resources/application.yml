@@ -1,0 +1,44 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: jiangyi-gateway
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+aicabinet:
+  internal-api:
+    # trade → gateway 转发（如开门指令）经 InternalApiAuthInterceptor 校验同一把 key
+    key: ${INTERNAL_API_KEY:dev-internal-key-change-me}
+    allowed-cidrs: ${INTERNAL_API_ALLOWED_CIDRS:}
+    trusted-proxy-cidrs: ${INTERNAL_API_TRUSTED_PROXY_CIDRS:}
+  trade-service:
+    url: ${AICABINET_TRADE_SERVICE_URL:http://localhost:8080}
+  jiangyi:
+    # 设备 token 签发密钥（JWT HS256）。🔴 无默认值：未配置时 /jiangyi/api/token 返回 503
+    # fail-closed（方案 §3）；只在部署环境注入，不落仓库（铁律 #27）。
+    jwt-secret: ${JIANGYI_JWT_SECRET:}
+    # 设备 token 有效期（秒），默认 7 天
+    token-ttl-seconds: ${JIANGYI_TOKEN_TTL_SECONDS:604800}
+    # 识别上报 → 会话关门合成的轮询兜底（秒）：WS 无关门上报（模式一），
+    # 会话靠识别上报先行合成 door-event CLOSED，超时则由 trade 侧扫描兜底
+    session-open-timeout-seconds: ${JIANGYI_SESSION_OPEN_TIMEOUT_SECONDS:90}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"

@@ -39,6 +39,7 @@ public class SessionDoorService {
     private final com.aicabinet.trade.storage.MinioVideoService minioVideoService;
     private final SessionService sessionService;
     private final SessionDoorService self;
+    private final com.aicabinet.trade.service.JiangyiDeviceDirectory jiangyiDeviceDirectory;
 
     public SessionDoorService(ShoppingSessionMapper repository,
                               GravitySettlementHelper gravityHelper,
@@ -48,7 +49,8 @@ public class SessionDoorService {
                               DomainEventPublisher domainEventPublisher,
                               com.aicabinet.trade.storage.MinioVideoService minioVideoService,
                               @Lazy SessionService sessionService,
-                              @Lazy SessionDoorService self) {
+                              @Lazy SessionDoorService self,
+                              com.aicabinet.trade.service.JiangyiDeviceDirectory jiangyiDeviceDirectory) {
         this.repository = repository;
         this.gravityHelper = gravityHelper;
         this.restockSnapshotService = restockSnapshotService;
@@ -58,6 +60,7 @@ public class SessionDoorService {
         this.minioVideoService = minioVideoService;
         this.sessionService = sessionService;
         this.self = self;
+        this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
     }
 
     /**
@@ -69,6 +72,13 @@ public class SessionDoorService {
         if (event.doorState() == DoorState.CLOSED && afterDoor.state() != SessionState.WAITING_UPLOAD) {
             ShoppingSession session = repository.findById(event.sessionId()).orElse(null);
             if (session != null && DeviceValidationService.isOpsRemoteSession(session)) {
+                return afterDoor;
+            }
+            // 将邑（CB-022 模式一）：gateway 在识别上报到达时先合成 CLOSED 推进到 RECOGNIZING，
+            // 随后立刻转发 edge-results 结算。若此处走 settleAfterClose 会「空车结算」——
+            // 识别数据尚未入会话即完成结案，真正的 edge-results 到达时已终态被拒（ALREADY_HANDLED，
+            // 2026-10-09 联调实测）。将邑会话关门后停在 RECOGNIZING 等识别结果，与 ops-remote 同豁免模式。
+            if (session != null && jiangyiDeviceDirectory.isJiangyi(session.getDeviceId())) {
                 return afterDoor;
             }
             if (session != null && DeviceValidationService.isRestockSession(session)) {

@@ -784,6 +784,11 @@ public class DeviceSimulator implements MqttCallbackExtended {
     public void deliveryComplete(IMqttDeliveryToken token) {}
 
     public static void main(String[] args) throws Exception {
+        // 子命令分发：`jiangyi` 走将邑开门柜模拟器（HTTP+WS，CB-022）；缺省仍是 MQTT/chzh8 柜
+        if (args.length > 0 && "jiangyi".equalsIgnoreCase(args[0])) {
+            com.aicabinet.simulator.jiangyi.JiangyiDeviceSimulator.main(args);
+            return;
+        }
         String deviceId = args.length > 0 ? args[0] : firstNonBlank(
                 System.getenv("DEVICE_ID"),
                 System.getenv("E2E_DEVICE_ID"));

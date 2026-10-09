@@ -100,6 +100,9 @@ aicabinet:
     url: ${AICABINET_DEVICE_SERVICE_URL:http://localhost:8081}
   vision-service:
     url: ${AICABINET_VISION_SERVICE_URL:http://localhost:8082}
+  # 将邑开门柜网关（CB-022）：将邑柜开门指令路由目标（将邑柜单次下发不重试）
+  jiangyi-gateway:
+    url: ${AICABINET_JIANGYI_GATEWAY_URL:http://localhost:8083}
   auth:
     jwt-secret: ${JWT_SECRET:ai-cabinet-dev-secret-key-32bytes!!}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:1800}
