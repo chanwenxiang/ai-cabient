@@ -75,7 +75,8 @@ public class SiteContractService {
 
     @Transactional
     public SiteContractDto upsert(Long operatorId, String deviceId, UpsertSiteContractRequest request) {
-        String id = deviceId.trim().toUpperCase();
+        // deviceId 大小写敏感（与 device_info 原样一致）；旧版 toUpperCase 会把小写 ID 转成不存在的柜机
+        String id = deviceId.trim();
         return runWithContractLock(id, () -> doUpsert(operatorId, id, request));
     }
 

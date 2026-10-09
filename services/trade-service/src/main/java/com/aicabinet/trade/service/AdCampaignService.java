@@ -307,7 +307,7 @@ public class AdCampaignService {
                     deviceId, campaignId);
             return;
         }
-        String deviceKey = deviceId.trim().toUpperCase();
+        String deviceKey = deviceId.trim();
         // 窗口内重复上报：静默丢弃（同样不抛 4xx，理由与上面的越界丢弃一致）
         if (!playEventDeduplicator.tryAcquire(deviceKey, campaignId, assetId, type)) {
             log.debug("ad play event dropped: duplicate {} in dedup window (device={}, campaign={}, asset={})",
@@ -352,7 +352,8 @@ public class AdCampaignService {
             }
             AdCampaignDevice row = new AdCampaignDevice();
             row.setCampaignId(campaignId);
-            row.setDeviceId(deviceId.trim().toUpperCase());
+            // deviceId 大小写敏感：投放行按原样存，避免与 device_info 对不上（去重大小写各自独立窗口）
+            row.setDeviceId(deviceId.trim());
             deviceRepository.insert(row);
         }
     }

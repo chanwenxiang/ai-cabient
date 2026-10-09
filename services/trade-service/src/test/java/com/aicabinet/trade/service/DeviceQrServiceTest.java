@@ -21,9 +21,12 @@ class DeviceQrServiceTest {
         assertThrows(Exception.class, () -> DeviceQrService.normalizeDeviceId(" "));
     }
 
+    /** deviceId 大小写敏感（创建入口不转写）：小写必须原样保留，不得被转写成不存在的 ID。 */
     @Test
-    void normalizeDeviceId_uppercases() {
-        assertEquals("CAB-001", DeviceQrService.normalizeDeviceId("cab-001"));
+    void normalizeDeviceId_preservesCase() {
+        assertEquals("jiangyi-test-001", DeviceQrService.normalizeDeviceId(" jiangyi-test-001 "));
+        assertEquals("CAB-001", DeviceQrService.normalizeDeviceId("CAB-001"));
+        assertThrows(Exception.class, () -> DeviceQrService.normalizeDeviceId("柜机#1"));
     }
 
     @Test

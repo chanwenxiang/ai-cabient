@@ -187,10 +187,22 @@ class AdCampaignServiceTest {
 
         service.recordPlayEvent("CAB-DUP", 3L, 100L, "IMPRESSION");
         service.recordPlayEvent("CAB-DUP", 3L, 100L, "IMPRESSION");
-        // 大小写与空白不同，规范化后仍是同一组合 ⇒ 同样只记一次
-        service.recordPlayEvent("cab-dup", 3L, 100L, " impression ");
+        // 空白与 eventType 大小写被归一 ⇒ 同一组合只记一次；
+        // deviceId 大小写敏感（与 device_info 原样一致，旧版强转 toUpperCase 会把小写柜机转没）
+        service.recordPlayEvent(" CAB-DUP ", 3L, 100L, " impression ");
 
         verify(playEventRepository, times(1)).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void recordPlayEvent_caseDistinctDevicesCountSeparately() {
+        when(campaignRepository.findById(3L)).thenReturn(Optional.of(campaign(3L, "RUNNING", "ALL")));
+
+        service.recordPlayEvent("CAB-DUP", 3L, 100L, "IMPRESSION");
+        service.recordPlayEvent("cab-dup", 3L, 100L, "IMPRESSION");
+
+        // 大小写不同 = 两台不同柜机，各自计入（deviceId 大小写敏感契约）
+        verify(playEventRepository, times(2)).insert(any(AdPlayEvent.class));
     }
 
     @Test

@@ -65,12 +65,18 @@ public class DeviceQrService {
         return device;
     }
 
+    /**
+     * deviceId 大小写敏感：创建入口不转写、库查询按原样匹配（种子含小写如 jiangyi-test-001）。
+     * 成因注释：历史版本此处强转 toUpperCase，源于「deviceId 必大写」的旧约定，
+     * 但该约定从未在创建链路强制——小写 ID 柜机在二维码链路被转写成不存在的 ID，
+     * 设备详情页一打开（调 qr-link）即 404「柜机不存在」。现只 trim，不改大小写。
+     */
     public static String normalizeDeviceId(String raw) {
         if (raw == null || raw.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "deviceId 不能为空");
         }
-        String id = raw.trim().toUpperCase();
-        if (!id.matches("^[A-Z0-9][A-Z0-9_-]{1,63}$")) {
+        String id = raw.trim();
+        if (!id.matches("^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "deviceId 格式无效");
         }
         return id;
