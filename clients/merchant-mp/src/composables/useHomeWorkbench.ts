@@ -77,6 +77,13 @@ export function useHomeWorkbench() {
     () => hasPack(me.value, 'biz') && hasPerm(me.value, 'merchant:trend:view')
   );
   const canFinanceKpi = computed(() => canBusiness.value || canSettlements.value || canTrend.value);
+  /**
+   * 首页待办统计卡（待审核争议/退款单/库存偏低/临期提醒/货道差异）数据来自
+   * GET /merchant/stats，后端该端点要求 merchant:portal:access（MerchantPortalController.stats）。
+   * 无权限时接口 403 → softErr 回 {} → 五卡渲染全 0，点「待审核争议」又被争议页守卫弹回 ——
+   * 「看得见点不进」（2026-10-09 真机验收发现）。卡片可见性必须与数据源权限对齐。
+   */
+  const canPortalOverview = computed(() => hasPerm(me.value, 'merchant:portal:access'));
 
   const loading = ref(true);
   const taskPreviewLoading = ref(false);
@@ -440,6 +447,7 @@ export function useHomeWorkbench() {
     latestAnnouncement,
     onlineText,
     isMerchantUnbound,
+    canPortalOverview,
     headerSubLine,
     homeEmptyTitle,
     homeEmptyHint,

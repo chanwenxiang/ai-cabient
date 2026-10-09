@@ -14,7 +14,7 @@
         <text class="sub" :class="{ 'sub--unbound': isMerchantUnbound }">{{ headerSubLine }}</text>
       </view>
 
-      <view class="card ops-overview">
+      <view v-if="canPortalOverview" class="card ops-overview">
         <view class="ov-item" role="button" @click="onDisputeTap">
           <text class="ov-num warn">{{ openDisputeCount }}</text>
           <text class="ov-label">待审核争议</text>
@@ -308,6 +308,7 @@ const {
   latestAnnouncement,
   onlineText,
   isMerchantUnbound,
+  canPortalOverview,
   headerSubLine,
   homeEmptyTitle,
   homeEmptyHint,
