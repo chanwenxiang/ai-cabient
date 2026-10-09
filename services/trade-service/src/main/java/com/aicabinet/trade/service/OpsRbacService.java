@@ -26,6 +26,7 @@ import com.aicabinet.trade.mapper.FileAttachmentMapper;
 import com.aicabinet.trade.domain.FileAttachment;
 import com.aicabinet.trade.sms.SmsCodeService;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.PasswordPolicy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -114,10 +115,10 @@ public class OpsRbacService {
     public OpsRoleDto createRole(Long operatorId, CreateOpsRoleRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:role:add");
         String roleKey = request.roleKey().trim();
-        return runWithRoleKeyLock(roleKey, () -> doCreateRole(request, roleKey));
+        return runWithRoleKeyLock(roleKey, () -> doCreateRole(operatorId, request, roleKey));
     }
 
-    private OpsRoleDto doCreateRole(CreateOpsRoleRequest request, String roleKey) {
+    private OpsRoleDto doCreateRole(Long operatorId, CreateOpsRoleRequest request, String roleKey) {
         if (roleRepository.findByRoleKey(roleKey).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "角色标识已存在");
         }
@@ -130,16 +131,20 @@ public class OpsRbacService {
         role.setRemark(request.remark());
         role.setStatus(normalizeRoleStatus(request.status()));
         roleRepository.save(role);
+        // CB-021：角色/权限/分配类变更纳入审计留痕（此前仅禁用/重置密码留痕，
+        // 建角色、改权限树、改分配完全无痕，出事后无法回答「谁在什么时候改了什么」）
+        auditService.appendLog(operatorId, "OPS_ROLE_CREATE", "ROLE", String.valueOf(role.getRoleId()),
+                "roleKey=" + roleKey + ",roleName=" + role.getRoleName() + ",status=" + role.getStatus());
         return toRoleDto(role, 0);
     }
 
     @Transactional
     public OpsRoleDto updateRole(Long operatorId, Long roleId, UpdateOpsRoleRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:role:edit");
-        return runWithRoleLock(roleId, () -> doUpdateRole(roleId, request));
+        return runWithRoleLock(roleId, () -> doUpdateRole(operatorId, roleId, request));
     }
 
-    private OpsRoleDto doUpdateRole(Long roleId, UpdateOpsRoleRequest request) {
+    private OpsRoleDto doUpdateRole(Long operatorId, Long roleId, UpdateOpsRoleRequest request) {
         OpsRole role = roleRepository.findByIdForUpdate(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ROLE_NOT_FOUND));
         if (ADMIN.equals(role.getRoleKey()) && request.status() != null
@@ -152,6 +157,8 @@ public class OpsRbacService {
             role.setStatus(normalizeRoleStatus(request.status()));
         }
         roleRepository.save(role);
+        auditService.appendLog(operatorId, "OPS_ROLE_UPDATE", "ROLE", String.valueOf(roleId),
+                "roleKey=" + role.getRoleKey() + ",status=" + role.getStatus());
         int permCount = rolePermissionRepository.findPermissionIdsByRoleId(roleId).size();
         return toRoleDto(role, permCount);
     }
@@ -182,14 +189,14 @@ public class OpsRbacService {
     public OpsPermissionDto createPermission(Long operatorId, CreateOpsPermissionRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:menu:add");
         String permCode = request.permCode().trim();
-        return runWithPermissionCodeLock(permCode, () -> doCreatePermission(request, permCode));
+        return runWithPermissionCodeLock(permCode, () -> doCreatePermission(operatorId, request, permCode));
     }
 
     /** H65：运行时新建权限码必须是具体 ops 分段码，禁止通配（PermissionService 对 xxx:* 显式放行）。 */
     private static final java.util.regex.Pattern OPS_PERM_CODE_PATTERN =
             java.util.regex.Pattern.compile("^ops:[a-z0-9-]+(:[a-z0-9-]+)*$");
 
-    private OpsPermissionDto doCreatePermission(CreateOpsPermissionRequest request, String permCode) {
+    private OpsPermissionDto doCreatePermission(Long operatorId, CreateOpsPermissionRequest request, String permCode) {
         String permType = normalizePermType(request.permType());
         if (permCode == null || permCode.contains("*") || !OPS_PERM_CODE_PATTERN.matcher(permCode).matches()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -216,16 +223,18 @@ public class OpsRbacService {
         // 新建默认挂到超级管理员（复合主键实体用 insert，避免 save→selectById）
         roleRepository.findByRoleKey(ADMIN).ifPresent(admin ->
                 rolePermissionRepository.insert(new OpsRolePermission(admin.getRoleId(), p.getPermissionId())));
+        auditService.appendLog(operatorId, "OPS_PERM_CREATE", "PERMISSION", String.valueOf(p.getPermissionId()),
+                "permCode=" + permCode + ",type=" + permType);
         return toPermissionDto(p);
     }
 
     @Transactional
     public OpsPermissionDto updatePermission(Long operatorId, Long permissionId, UpdateOpsPermissionRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:menu:edit");
-        return runWithPermissionLock(permissionId, () -> doUpdatePermission(permissionId, request));
+        return runWithPermissionLock(permissionId, () -> doUpdatePermission(operatorId, permissionId, request));
     }
 
-    private OpsPermissionDto doUpdatePermission(Long permissionId, UpdateOpsPermissionRequest request) {
+    private OpsPermissionDto doUpdatePermission(Long operatorId, Long permissionId, UpdateOpsPermissionRequest request) {
         OpsPermission p = permissionRepository.findByIdForUpdate(permissionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "菜单权限不存在"));
         Long parentId = request.parentId() == null ? p.getParentId() : request.parentId();
@@ -244,6 +253,8 @@ public class OpsRbacService {
             p.setStatus(normalizeStatus(request.status()));
         }
         permissionRepository.save(p);
+        auditService.appendLog(operatorId, "OPS_PERM_UPDATE", "PERMISSION", String.valueOf(permissionId),
+                "permCode=" + p.getPermCode() + ",status=" + p.getStatus());
         return toPermissionDto(p);
     }
 
@@ -251,12 +262,12 @@ public class OpsRbacService {
     public void deletePermission(Long operatorId, Long permissionId) {
         permissionService.requirePermission(operatorId, "ops:rbac:menu:remove");
         runWithPermissionLock(permissionId, () -> {
-            doDeletePermission(permissionId);
+            doDeletePermission(operatorId, permissionId);
             return null;
         });
     }
 
-    private void doDeletePermission(Long permissionId) {
+    private void doDeletePermission(Long operatorId, Long permissionId) {
         OpsPermission p = permissionRepository.findByIdForUpdate(permissionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "菜单权限不存在"));
         long childCount = permissionRepository.countByParentIdAndStatus(permissionId, CabinetConstants.PROMOTION_STATUS_ACTIVE);
@@ -268,6 +279,9 @@ public class OpsRbacService {
         }
         p.setStatus(INACTIVE);
         permissionRepository.save(p);
+        // 实际是软删（置 INACTIVE），action 语义与 OPS_OPERATOR_DISABLE 对齐
+        auditService.appendLog(operatorId, "OPS_PERM_DISABLE", "PERMISSION", String.valueOf(permissionId),
+                "permCode=" + p.getPermCode());
     }
 
     private OpsPermissionDto toPermissionDto(OpsPermission p) {
@@ -336,6 +350,7 @@ public class OpsRbacService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_MODIFY_ADMIN_ROLE);
         }
         rolePermissionRepository.deleteByIdRoleId(roleId);
+        java.util.List<String> assignedCodes = new java.util.ArrayList<>();
         if (permissionIds != null) {
             for (Long permissionId : permissionIds) {
                 OpsPermission permission = permissionRepository.findById(permissionId)
@@ -347,8 +362,11 @@ public class OpsRbacService {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "保留权限不可分配给自定义角色");
                 }
                 rolePermissionRepository.insert(new OpsRolePermission(roleId, permissionId));
+                assignedCodes.add(code);
             }
         }
+        auditService.appendLog(operatorId, "OPS_ROLE_PERM_ASSIGN", "ROLE", String.valueOf(roleId),
+                "roleKey=" + role.getRoleKey() + ",perms=" + String.join(",", assignedCodes));
         return self.getRolePermissions(operatorId, roleId);
     }
 
@@ -386,6 +404,8 @@ public class OpsRbacService {
         if (userInfoRepository.findByPhoneNumber(phone).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.PHONE_ALREADY_EXISTS);
         }
+        // CB-021：新设运营账号此前完全没有密码校验（连长度都不查），统一走 PasswordPolicy
+        PasswordPolicy.validate(request.password());
         long newUserId = operatorUserIdAllocator.nextId();
         UserInfo user = new UserInfo();
         user.setUserId(newUserId);
@@ -408,6 +428,8 @@ public class OpsRbacService {
         if (request.deptIds() != null || request.primaryDeptId() != null) {
             departmentService.replaceUserDepartments(newUserId, request.deptIds(), request.primaryDeptId());
         }
+        auditService.appendLog(actorUserId, "OPS_OPERATOR_CREATE", "USER", String.valueOf(newUserId),
+                "phone=" + PhoneMask.mask(phone) + ",name=" + user.getName());
         return toOperatorDto(user);
     }
 
@@ -447,6 +469,9 @@ public class OpsRbacService {
         if (request.deptIds() != null || request.primaryDeptId() != null) {
             departmentService.replaceUserDepartments(userId, request.deptIds(), request.primaryDeptId());
         }
+        auditService.appendLog(operatorId, "OPS_OPERATOR_UPDATE", "USER", String.valueOf(userId),
+                "phone=" + PhoneMask.mask(phone) + ",name=" + user.getName()
+                        + (user.getStatus() == null ? "" : ",status=" + user.getStatus()));
         return toOperatorDto(user);
     }
 
@@ -495,9 +520,8 @@ public class OpsRbacService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "不允许禁用/重置超级管理员账号");
         }
         String password = request.password();
-        if (password == null || password.length() < 6 || password.length() > 64) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度需在 6-64 位之间");
-        }
+        // CB-021：原仅查长度（6-64 位），纯数字/纯字母弱密码可静默落库；统一走 PasswordPolicy
+        PasswordPolicy.validate(password);
         UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         user.setPasswordHash(passwordEncoder.encode(password));
@@ -514,9 +538,8 @@ public class OpsRbacService {
 
     private void doChangeMyPassword(Long operatorId, ChangePasswordRequest request) {
         String newPassword = request.newPassword();
-        if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 64) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度需在 6-64 位之间");
-        }
+        // CB-021：原仅查长度，统一走 PasswordPolicy（仅新设/改密生效，不锁存量）
+        PasswordPolicy.validate(newPassword);
         UserInfo user = userInfoRepository.findByIdForUpdate(operatorId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         String hash = user.getPasswordHash();
@@ -551,6 +574,8 @@ public class OpsRbacService {
     private void replaceUserRoles(Long actorUserId, Long userId, List<Long> roleIds) {
         if (roleIds == null) {
             userRoleRepository.deleteByIdUserId(userId);
+            auditService.appendLog(actorUserId, "OPS_USER_ROLE_ASSIGN", "USER", String.valueOf(userId),
+                    "roles=(清空)");
             return;
         }
         boolean assigningAdmin = false;
@@ -568,9 +593,16 @@ public class OpsRbacService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.CANNOT_ASSIGN_ADMIN_ROLE);
         }
         userRoleRepository.deleteByIdUserId(userId);
+        StringBuilder roleKeys = new StringBuilder();
         for (OpsRole role : resolved) {
             userRoleRepository.insert(new OpsUserRole(userId, role.getRoleId()));
+            if (roleKeys.length() > 0) {
+                roleKeys.append(',');
+            }
+            roleKeys.append(role.getRoleKey());
         }
+        auditService.appendLog(actorUserId, "OPS_USER_ROLE_ASSIGN", "USER", String.valueOf(userId),
+                "roles=" + roleKeys);
     }
 
     private boolean userHasRoleKey(Long userId, String roleKey) {
@@ -619,6 +651,8 @@ public class OpsRbacService {
                 userMerchantRepository.insert(new OpsUserMerchant(userId, id));
             }
         }
+        auditService.appendLog(operatorId, "OPS_USER_MERCHANT_ASSIGN", "USER", String.valueOf(userId),
+                "merchants=" + (merchantIds == null ? "(清空)" : String.join(",", merchantIds)));
         return self.getUserMerchants(operatorId, userId);
     }
 

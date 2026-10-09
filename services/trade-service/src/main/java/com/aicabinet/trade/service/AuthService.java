@@ -20,6 +20,7 @@ import com.aicabinet.trade.mapper.PhoneVerifyLogMapper;
 import com.aicabinet.trade.payment.AlipayOauthClient;
 import com.aicabinet.trade.sms.SmsCodeService;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.PasswordPolicy;
 import com.aicabinet.trade.support.ServerBootMarker;
 import com.aicabinet.trade.wechat.WeChatMiniAppClient;
 import com.aicabinet.trade.wechat.WeChatWebOAuthClient;
@@ -174,9 +175,8 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         String newPassword = request.newPassword();
-        if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 64) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度需在 6-64 位之间");
-        }
+        // CB-021：原仅查长度，统一走 PasswordPolicy（须同时含字母和数字；不锁存量）
+        PasswordPolicy.validate(newPassword);
         UserInfo user = requireExistingUser(phone);
         requireOperator(user);
         requireActiveAccount(user.getUserId());

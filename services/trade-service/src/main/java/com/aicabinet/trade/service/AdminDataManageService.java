@@ -329,6 +329,14 @@ public class AdminDataManageService {
         if (safe.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "没有可更新的列");
         }
+        // CB-021（2026-10-09）：审计补 before/after。原先 detail 只记列名（columns=a,b,c），
+        // 事后无法回答「这条数据被改成了什么」——审计只剩报警价值、没有还原价值。
+        // 现改为 UPDATE 前先按主键取旧值（::text，与写入侧 CAST 对称），记 col=old→new。
+        // 凭据列在 validatedColumns 已整列拒绝，safe 里不可能出现，故旧值回吐没有凭据泄露面。
+        // ⚠️ 旧行取不到时**不**提前抛 404：AdminDataManageBindingTest 钉住「值不可解析 →
+        // DataIntegrityViolation(class 22)」用不存在的行作载体，提前 404 会改变错误语义；
+        // 继续走 UPDATE 原有「0 行 → 404」路径，绑定类失败照常发生在 UPDATE 上。
+        Map<String, Object> oldRow = selectRowAsText(table, pk, id, safe.keySet());
         List<Object> params = new ArrayList<>();
         StringBuilder sql = new StringBuilder("UPDATE ").append(table).append(" SET ");
         for (Map.Entry<String, Object> e : safe.entrySet()) {
@@ -340,11 +348,60 @@ public class AdminDataManageService {
         params.add(id);
         int rows = jdbc.update(sql.toString(), params.toArray());
         if (rows == 0) {
+            // 并发下旧行在本事务 SELECT 后被删；兜底同 404（异常触发回滚，审计不会落库）
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "记录不存在：" + table + "." + id);
         }
         auditService.appendLog(operatorId, "DATA_UPDATE", table.toUpperCase(), id,
-                "columns=" + String.join(",", safe.keySet()));
+                changeDetail(safe, oldRow == null ? Map.of() : oldRow));
         return rows;
+    }
+
+    /**
+     * 按主键取指定列的旧值（统一 {@code ::text}，NULL 原样为 null）；行不存在返回 null。
+     * 仅用于审计：列名来自 {@link #validatedColumns} 白名单校验后的键集，无注入面。
+     */
+    private Map<String, Object> selectRowAsText(String table, PkColumn pk, String id, Set<String> columns) {
+        StringBuilder select = new StringBuilder();
+        for (String col : columns) {
+            if (select.length() > 0) {
+                select.append(", ");
+            }
+            select.append(col).append("::text AS ").append(col);
+        }
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT " + select + " FROM " + table
+                        + " WHERE " + pk.name() + " = " + placeholder(pk.udt()),
+                id);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /** 单值在审计 detail 里的截断上限：防长文本列撑爆 512 字符的 detail 字段。 */
+    private static final int AUDIT_VALUE_MAX = 120;
+
+    /** 审计值形态：null → "null"，超长截断并标注（appendLog 仍有 512 兜底）。 */
+    private static String auditValue(Object v) {
+        if (v == null) {
+            return "null";
+        }
+        String s = String.valueOf(v);
+        return s.length() <= AUDIT_VALUE_MAX ? s : s.substring(0, AUDIT_VALUE_MAX) + "...(截断)";
+    }
+
+    /**
+     * 审计 detail：{@code col=old→new} 逗号分隔。包级可见供纯逻辑单测直接钉住格式
+     * （不需要起 Spring / 连库即可验证截断与 null 形态）。
+     */
+    static String changeDetail(Map<String, Object> safe, Map<String, Object> oldRow) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Object> e : safe.entrySet()) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append(e.getKey()).append("=")
+                    .append(auditValue(oldRow.get(e.getKey()))).append("->")
+                    .append(auditValue(e.getValue()));
+        }
+        return sb.toString();
     }
 
     @Transactional

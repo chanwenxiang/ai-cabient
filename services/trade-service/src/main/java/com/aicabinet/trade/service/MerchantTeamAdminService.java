@@ -17,6 +17,7 @@ import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.aicabinet.trade.support.PasswordPolicy;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -203,9 +204,8 @@ public class MerchantTeamAdminService {
                                                  ResetMerchantUserPasswordRequest request) {
         permissionService.requirePermission(operatorId, "merchant:users:reset-password");
         merchantPortalGuard.requireAccess(operatorId);
-        if (request == null || request.password() == null || request.password().length() < 6) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
-        }
+        // CB-021：原仅查「至少 6 位」（连上限都没有），统一走 PasswordPolicy
+        PasswordPolicy.validate(request.password());
         return runWithTeamUserLock(targetUserId, () -> doResetTeamUserPassword(operatorId, targetUserId, request));
     }
 
@@ -227,9 +227,8 @@ public class MerchantTeamAdminService {
         if (request.phoneNumber() == null || request.phoneNumber().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
         }
-        if (request.password() == null || request.password().length() < 6) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
-        }
+        // CB-021：原仅查「至少 6 位」，统一走 PasswordPolicy
+        PasswordPolicy.validate(request.password());
         String phone = request.phoneNumber().trim();
         return runWithTeamPhoneLock(phone, () -> doCreateTeamUser(userId, request, phone));
     }
