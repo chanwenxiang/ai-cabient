@@ -134,7 +134,7 @@ class SettlementPartialRefundTest {
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
-        doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap());
+        doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
         doNothing().when(inventoryService).recordRefundKeptGoods(anyString(), anyList(), anyMap(), anyString());
 
         var result = settlementService.partialRefund(
@@ -154,7 +154,7 @@ class SettlementPartialRefundTest {
         assertEquals(300, order.getTotalAmountCents());
 
         verify(inventoryService).restoreForOrder(
-                eq("CAB-001"), argThat(list -> list != null && list.size() == 1), anyMap());
+                eq("CAB-001"), argThat(list -> list != null && list.size() == 1), anyMap(), eq("O-1"));
         verify(inventoryService).recordRefundKeptGoods(
                 eq("CAB-001"), argThat(list -> list != null && list.size() == 1), anyMap(), eq("O-1"));
         verify(revenueSplitService, never()).adjustSplitAfterPartialRefund(any(), eq(true));
@@ -200,7 +200,7 @@ class SettlementPartialRefundTest {
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(true));
-        doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap());
+        doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
 
         var result = settlementService.partialRefund(
                 order,
@@ -246,7 +246,7 @@ class SettlementPartialRefundTest {
         verify(orderRepository, never()).save(any());
         verify(orderRepository, never()).findByIdForUpdate(anyString());
         verify(orderLineRepository, never()).deleteByOrderId(anyString());
-        verify(inventoryService, never()).restoreForOrder(anyString(), anyList(), anyMap());
+        verify(inventoryService, never()).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
         verify(revenueSplitService, never()).adjustSplitAfterPartialRefund(any(), anyBoolean());
     }
 

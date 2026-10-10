@@ -621,6 +621,9 @@ class DataConsistencyServiceTest {
         assertTrue(sqls.get(0).contains("merchant_cents"));
         assertTrue(sqls.get(1).contains("order_revenue_split"));
         assertTrue(sqls.get(1).contains("PAID"));
+        // 0 元订单在 RevenueSplitService#recordSplit 里是有意跳过记账的，
+        // 巡检必须同样排除，否则这类订单每轮都被判 FAIL 且永远无法消解（假阳性）。
+        assertTrue(sqls.get(1).contains("total_amount_cents > 0"));
     }
 
     @Test
@@ -821,5 +824,32 @@ class DataConsistencyServiceTest {
         assertEquals("M-1", captor.getAllValues().get(0).getCheckKey());
         assertEquals("LINE_WALLET_LEDGER_SUM", captor.getAllValues().get(1).getCheckType());
         assertEquals("9", captor.getAllValues().get(1).getCheckKey());
+
+        // 口径钉死：剔除提现冻结/解冻备忘行，且以 balance_cents（非 balance-frozen）为期望值
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, times(2)).queryForList(sqlCaptor.capture());
+        for (String sql : sqlCaptor.getAllValues()) {
+            assertTrue(sql.contains("WITHDRAW_FREEZE"), sql);
+            assertTrue(sql.contains("WITHDRAW_RELEASE"), sql);
+            assertTrue(sql.contains("balance_cents"), sql);
+            assertFalse(sql.contains("frozen_cents"), sql);
+        }
+    }
+
+    @Test
+    void checkInventoryConsistency_onlyForLotLedgerDevices() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkInventoryConsistency();
+
+        // 口径钉死：只对已启用批次账本（存在任意 lot 行）的柜机校验，
+        // 否则无批次柜机（演示柜）会永久报「汇总≠批次」假阳性
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        assertTrue(sqlCaptor.getValue().contains("EXISTS (SELECT 1 FROM device_sku_lot"),
+                sqlCaptor.getValue());
+        assertTrue(sqlCaptor.getValue().contains("device_sku_inventory"));
     }
 }

@@ -78,7 +78,7 @@ class SettlementWaiveInventoryTest {
         when(orderRepository.findByIdForUpdate("O-I3")).thenReturn(Optional.of(order));
         when(orderPaymentService.netCompletedCents("O-I3")).thenReturn(0);
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap());
+        doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
         doNothing().when(revenueSplitService).voidSplitOnFullRefund("O-I3");
 
         int refunded = settlementService.waiveAndRefund(session, true);
@@ -91,7 +91,8 @@ class SettlementWaiveInventoryTest {
                 argThat(items -> items.size() == 1
                         && "SKU-A".equals(items.get(0).skuId())
                         && items.get(0).quantity() == 2),
-                argThat(batches -> "BATCH-A".equals(batches.get("SKU-A"))));
+                argThat(batches -> "BATCH-A".equals(batches.get("SKU-A"))),
+                eq("O-I3"));
         verify(inventoryService, never()).recordRefundKeptGoods(anyString(), anyList(), anyMap(), anyString());
         verify(revenueSplitService).voidSplitOnFullRefund("O-I3");
     }
@@ -117,7 +118,7 @@ class SettlementWaiveInventoryTest {
                 anyList(),
                 argThat(batches -> "BATCH-A".equals(batches.get("SKU-A"))),
                 eq("O-I4"));
-        verify(inventoryService, never()).restoreForOrder(anyString(), anyList(), anyMap());
+        verify(inventoryService, never()).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
     }
 
     private static ShoppingSession session(String id) {

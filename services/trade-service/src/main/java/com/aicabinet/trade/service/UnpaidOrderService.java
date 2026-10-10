@@ -475,7 +475,7 @@ public class UnpaidOrderService {
         Map<String, String> batchBySku = order.getLines().stream()
                 .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
                 .collect(Collectors.toMap(CabinetOrderLine::getSkuId, CabinetOrderLine::getBatchNo, (a, b) -> a));
-        inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku);
+        inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku, order.getOrderId());
         order.setInventoryDeducted(false);
     }
 

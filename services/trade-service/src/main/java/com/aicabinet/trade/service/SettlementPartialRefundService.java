@@ -213,7 +213,8 @@ public class SettlementPartialRefundService {
             return;
         }
         if (!partition.restoreItems().isEmpty()) {
-            inventoryService.restoreForOrder(order.getDeviceId(), partition.restoreItems(), partition.batchBySku());
+            inventoryService.restoreForOrder(
+                    order.getDeviceId(), partition.restoreItems(), partition.batchBySku(), order.getOrderId());
         }
         if (!partition.keptItems().isEmpty()) {
             inventoryService.recordRefundKeptGoods(

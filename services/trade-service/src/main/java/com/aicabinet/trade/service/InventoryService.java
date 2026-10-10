@@ -144,17 +144,21 @@ public class InventoryService {
         return batchBySku;
     }
 
+    /**
+     * @param orderId 库存流水 ref_id，应传 cabinet_order.order_id；
+     *                退货回库缺它会让 CROSS_LINK B（退款缺库存审计）永久 FAIL（V271 钱货约束）。
+     */
     @Transactional
     public void restoreForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
-                                Map<String, String> batchBySku) {
+                                Map<String, String> batchBySku, String orderId) {
         runWithDeviceLock(deviceId, () -> {
-            doRestoreForOrder(deviceId, items, batchBySku);
+            doRestoreForOrder(deviceId, items, batchBySku, orderId);
             return Map.<String, String>of();
         });
     }
 
     private void doRestoreForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
-                                   Map<String, String> batchBySku) {
+                                   Map<String, String> batchBySku, String orderId) {
         if (items == null || items.isEmpty()) {
             return;
         }
@@ -166,7 +170,7 @@ public class InventoryService {
                 continue;
             }
             skuQtyRestored.merge(item.skuId(), item.quantity(), Integer::sum);
-            String slotId = restoreSingleItem(deviceId, item, batchBySku, lotLedger);
+            String slotId = restoreSingleItem(deviceId, item, batchBySku, lotLedger, orderId);
             if (slotId != null && !slotId.isBlank()) {
                 slotQtyRestored.merge(slotId.trim().toUpperCase(), item.quantity(), Integer::sum);
             }
@@ -175,15 +179,17 @@ public class InventoryService {
     }
 
     private String restoreSingleItem(String deviceId, VisionServiceClient.RecognizedItem item,
-                                     Map<String, String> batchBySku, boolean lotLedger) {
+                                     Map<String, String> batchBySku, boolean lotLedger, String orderId) {
         String batch = batchBySku != null ? batchBySku.get(item.skuId()) : null;
+        // 回库审计必须挂 order_id：写侧 CROSS_LINK B 要求 inventory_movement.ref_id = 退款单号
+        String refId = (orderId != null && !orderId.isBlank()) ? orderId : null;
         if (batch != null && !batch.isBlank()) {
             return inventoryLotService.restoreToBatch(
-                    deviceId, item.skuId(), batch, item.quantity(), ORDER, null);
+                    deviceId, item.skuId(), batch, item.quantity(), ORDER, refId);
         }
         if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
             return inventoryLotService.restoreToBatch(deviceId, item.skuId(),
-                    com.aicabinet.trade.util.BizIds.nextNumeric(), item.quantity(), ORDER, null);
+                    com.aicabinet.trade.util.BizIds.nextNumeric(), item.quantity(), ORDER, refId);
         }
         applyDelta(deviceId, item.skuId(), item.quantity());
         return null;
@@ -305,7 +311,7 @@ public class InventoryService {
             }
         }
         doRestoreForOrder(deviceId,
-                List.of(new VisionServiceClient.RecognizedItem(skuId, -delta, 1f)), restoreBatch);
+                List.of(new VisionServiceClient.RecognizedItem(skuId, -delta, 1f)), restoreBatch, orderRefId);
     }
 
     private void applyDelta(String deviceId, String skuId, int delta) {

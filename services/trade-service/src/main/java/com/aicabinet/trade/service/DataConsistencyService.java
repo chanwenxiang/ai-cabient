@@ -75,6 +75,11 @@ public class DataConsistencyService {
     private static final String ACTUAL = "actual";
     private static final String LOT_ON_SALE_STATUSES =
             "UPPER(COALESCE(l.status, '')) IN ('ON_SALE', 'NEAR_EXPIRY')";
+    /**
+     * 钱包冻结/解冻的<b>备忘行</b>：只挪冻结维度、<b>不改变总余额</b>（freeze 不动 balance、
+     * release 亦不动），故对账「Σ资金流水 = 总余额」时必须剔除（见 checkMerchantWalletLedgerSumConsistency）。
+     */
+    private static final String LEDGER_MEMO_ENTRY_TYPES = "'WITHDRAW_FREEZE', 'WITHDRAW_RELEASE'";
 
     private static final Logger log = LoggerFactory.getLogger(DataConsistencyService.class);
 
@@ -340,6 +345,13 @@ public class DataConsistencyService {
     /**
      * 柜机 SKU 汇总库存 vs 在架批次合计（ON_SALE + NEAR_EXPIRY；临期仍占位可售）。
      * 只记录，不自动改库存（避免误伤 FEFO 批次）。
+     *
+     * <p>🔴 口径修正（2026-10-10）：仅对<b>已启用批次账本</b>的柜机校验 —— 判据用
+     * {@code EXISTS(device_sku_lot WHERE device_id = i.device_id)}，与写侧
+     * {@link InventoryLotService#deviceUsesLotLedger}（存在任意 lot 行）<b>同一条判据</b>。
+     * 无批次柜机（如演示柜 500909625160）售货/退货在 {@code InventoryService} 里走
+     * {@code applyDelta} 直改汇总表、批次表本就为空，旧判据会对它<b>永久</b>报
+     * 「汇总 ≠ 批次」假阳性（dev 库实测恒 6 条，永远消解不掉）。
      */
     void checkInventoryConsistency() {
         String sql = "SELECT i.device_id, i.sku_id, i.quantity AS expected_qty, "
@@ -347,6 +359,7 @@ public class DataConsistencyService {
                 + "FROM device_sku_inventory i "
                 + "LEFT JOIN device_sku_lot l ON l.device_id = i.device_id AND l.sku_id = i.sku_id "
                 + "AND " + LOT_ON_SALE_STATUSES + " "
+                + "WHERE EXISTS (SELECT 1 FROM device_sku_lot x WHERE x.device_id = i.device_id) "
                 + "GROUP BY i.device_id, i.sku_id, i.quantity "
                 + "HAVING i.quantity <> COALESCE(SUM(l.quantity), 0) "
                 + "LIMIT " + CHECK_BATCH;
@@ -657,17 +670,28 @@ public class DataConsistencyService {
     }
 
     /**
-     * P3-1a：商户钱包「可用余额 = Σ流水」全史公式（现有 MERCHANT_WALLET 只比最近一条快照，
-     * 账本历史写错时两处同错=全绿）。口径依据：freeze 记 -x 不动 balance、release 记 +x 不动
-     * balance、consume 记 -x 且 balance/frozen 同减 ⇒ ledger.amount 恒为可用余额（balance-frozen）变动。
+     * P3-1a：商户钱包「总余额 = Σ资金流水」全史公式（现有 MERCHANT_WALLET 只比最近一条快照，
+     * 账本历史写错时两处同错=全绿）。
+     *
+     * <p>🔴 口径修正（2026-10-10）：旧判据是 {@code (balance - frozen) == Σ全部流水}，
+     * 但写侧 {@code consumeFrozenSplit}（提现打款）把 balance 与 frozen <b>同减毛额</b>
+     * （⇒ 可用余额 balance-frozen 不变），流水却记 {@code WITHDRAW_PAID -净额} +
+     * {@code WITHDRAW_FEE -手续费}（合计 -毛额）；而 {@code WITHDRAW_FREEZE}（-毛额）/
+     * {@code WITHDRAW_RELEASE}（+毛额）是冻结维度的备忘行、<b>不动总余额</b>。
+     * ⇒ 每完成一笔提现，旧判据就永久差一个毛额（恒假阳性），与写侧记账口径不一致。
+     *
+     * <p>正确不变量：剔除冻结/解冻备忘行后，{@code Σ资金流水 == 总余额（balance_cents）}。
+     * 逐态校验：提现打款后 balance 减毛额、剔除后流水亦为 -毛额（绿）；提现冻结中 balance 不变、
+     * 剔除后流水为 0（绿）；提现取消 release 回退、剔除后流水仍为 0（绿）。
      */
     void checkMerchantWalletLedgerSumConsistency() {
-        String sql = "SELECT a.merchant_id, (a.balance_cents - a.frozen_cents) AS expected, "
-                + "COALESCE(SUM(l.amount_cents), 0) AS actual "
+        String sum = "COALESCE(SUM(CASE WHEN l.entry_type NOT IN (" + LEDGER_MEMO_ENTRY_TYPES + ") "
+                + "THEN l.amount_cents ELSE 0 END), 0)";
+        String sql = "SELECT a.merchant_id, a.balance_cents AS expected, " + sum + " AS actual "
                 + "FROM merchant_wallet_account a "
                 + "LEFT JOIN merchant_wallet_ledger l ON l.merchant_id = a.merchant_id "
-                + "GROUP BY a.merchant_id, a.balance_cents, a.frozen_cents "
-                + "HAVING (a.balance_cents - a.frozen_cents) <> COALESCE(SUM(l.amount_cents), 0) "
+                + "GROUP BY a.merchant_id, a.balance_cents "
+                + "HAVING a.balance_cents <> " + sum + " "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
@@ -679,19 +703,20 @@ public class DataConsistencyService {
                     merchantId,
                     String.valueOf(row.get(EXPECTED)),
                     String.valueOf(row.get(ACTUAL)),
-                    "商户钱包可用余额 " + row.get(EXPECTED) + " ≠ 流水合计 " + row.get(ACTUAL));
+                    "商户钱包余额 " + row.get(EXPECTED) + " ≠ 资金流水合计 " + row.get(ACTUAL));
         }
         resolveStaleFailuresIfComplete(MERCHANT_WALLET_LEDGER_SUM, failing, rows.size());
     }
 
-    /** P3-1a：线长钱包「可用余额 = Σ流水」全史公式（口径同上）。 */
+    /** P3-1a：线长钱包「总余额 = Σ资金流水」全史公式（口径与商户侧完全同构）。 */
     void checkLineWalletLedgerSumConsistency() {
-        String sql = "SELECT a.manager_id, (a.balance_cents - a.frozen_cents) AS expected, "
-                + "COALESCE(SUM(l.amount_cents), 0) AS actual "
+        String sum = "COALESCE(SUM(CASE WHEN l.entry_type NOT IN (" + LEDGER_MEMO_ENTRY_TYPES + ") "
+                + "THEN l.amount_cents ELSE 0 END), 0)";
+        String sql = "SELECT a.manager_id, a.balance_cents AS expected, " + sum + " AS actual "
                 + "FROM line_wallet_account a "
                 + "LEFT JOIN line_wallet_ledger l ON l.manager_id = a.manager_id "
-                + "GROUP BY a.manager_id, a.balance_cents, a.frozen_cents "
-                + "HAVING (a.balance_cents - a.frozen_cents) <> COALESCE(SUM(l.amount_cents), 0) "
+                + "GROUP BY a.manager_id, a.balance_cents "
+                + "HAVING a.balance_cents <> " + sum + " "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
@@ -703,7 +728,7 @@ public class DataConsistencyService {
                     managerId,
                     String.valueOf(row.get(EXPECTED)),
                     String.valueOf(row.get(ACTUAL)),
-                    "线长钱包可用余额 " + row.get(EXPECTED) + " ≠ 流水合计 " + row.get(ACTUAL));
+                    "线长钱包余额 " + row.get(EXPECTED) + " ≠ 资金流水合计 " + row.get(ACTUAL));
         }
         resolveStaleFailuresIfComplete(LINE_WALLET_LEDGER_SUM, failing, rows.size());
     }
@@ -790,11 +815,18 @@ public class DataConsistencyService {
         resolveStaleFailuresIfComplete(REVENUE_SPLIT_SUM, failing, rows.size());
     }
 
-    /** 已付/部分退订单缺少有效分账记录。 */
+    /**
+     * 已付/部分退订单缺少有效分账记录。
+     * <p><b>为什么排除 0 元订单。</b>{@code RevenueSplitService#recordSplit} 对
+     * {@code totalAmountCents <= 0} 是<b>有意跳过</b>记账的（零毛额无可分账金额，全额券抵扣即属此类），
+     * 所以「0 元已付订单没有分账记录」是正常业务态而非不一致。此前巡检未排除该口径，
+     * 导致此类订单被每轮巡检判为 FAIL 且永远无法消解（假阳性会淹没真正的不一致）。</p>
+     */
     void checkRevenueSplitMissingConsistency() {
         String sql = "SELECT o.order_id, o.total_amount_cents AS expected, 0 AS actual "
                 + "FROM cabinet_order o "
                 + "WHERE o.status IN ('PAID', 'PARTIAL_REFUNDED') "
+                + "AND o." + TOTAL_AMOUNT_CENTS + " > 0 "
                 + "AND NOT EXISTS ( "
                 + "  SELECT 1 FROM order_revenue_split s "
                 + "  WHERE s.order_id = o.order_id "

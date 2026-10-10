@@ -116,6 +116,21 @@ class InventoryServiceTest {
         verify(inventoryLotService, never()).deductFefo(any(), any(), anyInt(), any(), any(), any());
     }
 
+    /** 退货回库的库存流水必须挂 order_id（否则 CROSS_LINK B 退款缺审计永久 FAIL）。 */
+    @Test
+    void restoreForOrder_passesOrderIdAsMovementRef() {
+        when(inventoryLotService.restoreToBatch(
+                eq("CAB-001"), eq("SKU-DEMO-001"), eq("BATCH-A"), eq(2), eq("ORDER"), eq("O-777")))
+                .thenReturn("A1");
+
+        inventoryService.restoreForOrder("CAB-001",
+                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 1f)),
+                Map.of("SKU-DEMO-001", "BATCH-A"), "O-777");
+
+        verify(inventoryLotService).restoreToBatch(
+                "CAB-001", "SKU-DEMO-001", "BATCH-A", 2, "ORDER", "O-777");
+    }
+
     /** I1: 有 lot 账本可售不足时 409，禁止汇总表虚扣。 */
     @Test
     void deduct_lotLedgerInsufficient_doesNotTouchAggregateInventory() {

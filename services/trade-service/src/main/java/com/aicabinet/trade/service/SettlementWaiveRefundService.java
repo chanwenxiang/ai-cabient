@@ -138,7 +138,7 @@ public class SettlementWaiveRefundService {
                         CabinetOrderLine::getBatchNo,
                         (a, b) -> a));
         if (restoreInventory) {
-            inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku);
+            inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku, order.getOrderId());
             order.setInventoryDeducted(false);
             // C03：prepare 事务内立即持久化，否则 finalize 重查到的实体仍是 true，重试会重复回库
             orderRepository.save(order);
