@@ -81,6 +81,7 @@ public class DisputeService {
     private final SettlementService settlementService;
     private final ObjectMapper objectMapper;
     private final MinioVideoService minioVideoService;
+    private final JiangyiOrderVideoService jiangyiOrderVideoService;
     private final AdminAuditService auditService;
     private final RiskControlService riskControlService;
     private final PermissionService permissionService;
@@ -110,6 +111,7 @@ public class DisputeService {
                           SettlementService settlementService,
                           ObjectMapper objectMapper,
                           MinioVideoService minioVideoService,
+                          JiangyiOrderVideoService jiangyiOrderVideoService,
                           AdminAuditService auditService,
                           RiskControlService riskControlService,
                           PermissionService permissionService,
@@ -137,6 +139,7 @@ public class DisputeService {
         this.settlementService = settlementService;
         this.objectMapper = objectMapper;
         this.minioVideoService = minioVideoService;
+        this.jiangyiOrderVideoService = jiangyiOrderVideoService;
         this.auditService = auditService;
         this.riskControlService = riskControlService;
         this.permissionService = permissionService;
@@ -924,6 +927,35 @@ public class DisputeService {
         };
     }
 
+    /**
+     * 争议录像的将邑兜底（CB-030 一致性）。
+     *
+     * <p>旧边缘链路把购物录像写进 {@code shopping_session.video_uri}，而将邑柜机从不写这一列
+     * —— 它的取货视频落在 {@code jiangyi_order_video}（{@code order_no} 即我方 {@code sessionId}，
+     * 免映射枢纽约定）。所以只按会话列签发地址时，将邑柜机的争议页永远看不到录像，而同行与
+     * 我们自己（商户端订单录像）都已能看 ⇒ 这里回退取将邑台账第一条可播放分片。</p>
+     *
+     * <p>任何一步失败都返回 {@code null}：复核是「能看就更好」，不能让 OSS 不可达把整个争议
+     * 详情页拖垮（presign 走 gateway，存在真实网络调用）。</p>
+     */
+    private String jiangyiVideoFallbackUrl(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return null;
+        }
+        try {
+            for (JiangyiOrderVideoService.PlayUrlView view : jiangyiOrderVideoService.playByOrderNo(sessionId)) {
+                for (JiangyiOrderVideoService.PlayUrlItem item : view.items()) {
+                    if (item.playable() && item.url() != null && !item.url().isBlank()) {
+                        return item.url();
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("争议录像回退将邑台账失败 sessionId={} reason={}", sessionId, e.toString());
+        }
+        return null;
+    }
+
     private DisputeTicketDto toDto(DisputeTicket ticket) {
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId()).orElse(null);
         String deviceId = session != null ? session.getDeviceId() : null;
@@ -938,7 +970,8 @@ public class DisputeService {
         Integer claimedAmountCents = sumLineAmountCents(suggested);
         int memberDiscount = orderOpt.map(o -> o.getMemberDiscountCents()).orElse(0);
         int couponDiscount = orderOpt.map(o -> o.getCouponDiscountCents()).orElse(0);
-        String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
+        String previewUrl = minioVideoService.presignPlaybackUrl(videoUri)
+                .orElseGet(() -> jiangyiVideoFallbackUrl(ticket.getSessionId()));
         Instant now = Instant.now();
         boolean slaOverdue = DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
@@ -1086,7 +1119,8 @@ public class DisputeService {
         String sessionState = session != null ? session.getState().name() : null;
         String orderId = session != null ? session.getOrderId() : null;
         String videoUri = session != null ? session.getVideoUri() : null;
-        String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
+        String previewUrl = minioVideoService.presignPlaybackUrl(videoUri)
+                .orElseGet(() -> jiangyiVideoFallbackUrl(ticket.getSessionId()));
         var orderOpt = orderRepository.findBySessionId(ticket.getSessionId());
         Integer billedAmountCents = orderOpt.map(this::resolveBilledAmountCents).orElse(null);
         Integer refundedAmountCents = orderOpt.map(this::resolveRefundedAmountCents).orElse(null);

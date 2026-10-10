@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,6 +44,7 @@ class DisputeReviewCodeTest {
     @Mock CabinetOrderMapper orderRepository;
     @Mock SettlementService settlementService;
     @Mock MinioVideoService minioVideoService;
+    @Mock JiangyiOrderVideoService jiangyiOrderVideoService;
     @Mock AdminAuditService auditService;
     @Mock RiskControlService riskControlService;
     @Mock PermissionService permissionService;
@@ -63,7 +65,8 @@ class DisputeReviewCodeTest {
     @BeforeEach
     void setUp() {
         service = new DisputeService(disputeRepository, disputeMessageRepository, sessionRepository, orderRepository,
-                settlementService, new ObjectMapper(), minioVideoService, auditService, riskControlService,
+                settlementService, new ObjectMapper(), minioVideoService, jiangyiOrderVideoService, auditService,
+                riskControlService,
                 permissionService, merchantScopeService, null, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
                 fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService,
@@ -119,5 +122,38 @@ class DisputeReviewCodeTest {
         assertEquals("RECOGNITION", captor.getValue().getCategory());
         assertEquals("OPEN", captor.getValue().getStatus());
         assertEquals("MOCK", dto.reviewCode());
+    }
+
+    /**
+     * CB-030 一致性：将邑柜机不写 shopping_session.video_uri，只按会话列签发地址时争议页
+     * 永远看不到录像 —— 必须回退到 jiangyi_order_video 台账（order_no 即 sessionId）。
+     * 同时断言「失败片被跳过、取第一条可播放片」，避免把失败位当成可播地址给出。
+     */
+    @Test
+    void createTicket_fallsBackToJiangyiLedgerWhenSessionHasNoEdgeVideo() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-REV-JY");
+        session.setUserId(10002L);
+        session.setState(SessionState.DISPUTED);
+
+        when(disputeRepository.findBySessionId("S-REV-JY")).thenReturn(Optional.empty());
+        when(disputeRepository.save(any(DisputeTicket.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(sessionRepository.findById("S-REV-JY")).thenReturn(Optional.of(session));
+        when(orderRepository.findBySessionId("S-REV-JY")).thenReturn(Optional.empty());
+        // 边缘链路：会话没写 video_uri ⇒ 预签名必为空
+        when(minioVideoService.presignPlaybackUrl(any())).thenReturn(Optional.empty());
+        when(disputeMessageRepository.findByTicketIdOrderByCreatedAtAsc(anyString())).thenReturn(List.of());
+        when(fileAttachmentService.listDisputeEvidence(anyString())).thenReturn(List.of());
+        // 将邑台账：第 1 片失败、第 2 片可播 —— 期望取到第 2 片签名地址
+        when(jiangyiOrderVideoService.playByOrderNo("S-REV-JY")).thenReturn(List.of(
+                new JiangyiOrderVideoService.PlayUrlView(7L, "S-REV-JY", "DEV-JY", 1, 2, Instant.now(),
+                        List.of(
+                                new JiangyiOrderVideoService.PlayUrlItem(1, null, false, false, "该片生成或上传失败"),
+                                new JiangyiOrderVideoService.PlayUrlItem(
+                                        2, "https://oss.example/signed-2.mp4", true, true, null)))));
+
+        var dto = service.createTicket(session, null, "用户申诉");
+
+        assertEquals("https://oss.example/signed-2.mp4", dto.videoPreviewUrl());
     }
 }

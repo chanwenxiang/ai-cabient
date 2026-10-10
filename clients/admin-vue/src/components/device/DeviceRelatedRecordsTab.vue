@@ -80,17 +80,9 @@ function sessionKindLabel(kind?: string | null) {
               {{ displayLabel('pay_channel', row.entryChannel || row.payChannel, '暂无') }}
             </template>
           </el-table-column>
-          <el-table-column
-            align="center"
-            label="录像"
-            width="72"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">
-              {{ row.videoUri || row.uploadStatus === 'UPLOADED' ? '有' : '无' }}
-            </template>
-          </el-table-column>
+          <!-- 「录像」列已下线：判据是旧边缘链路的 shopping_session.video_uri/upload_status，
+               将邑柜机从不写这两列 ⇒ 恒显「无」，属误导性死信息。取货视频改在「订单 →
+               柜机取货视频」复核（CB-029，按订单 = sessionId 直查将邑台账）。 -->
           <el-table-column label="订单" min-width="120" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ displayBizNo(row.orderId, '无') }}</span>

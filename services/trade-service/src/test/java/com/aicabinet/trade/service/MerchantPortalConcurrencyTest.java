@@ -76,7 +76,7 @@ class MerchantPortalConcurrencyTest {
                 replenishmentTaskLineRepository, replenishmentRouteRepository, disputeRepository, inventoryRepository, pullOffTaskRepository,
                 deviceSlotService, inventoryLotService, auditService, passwordEncoder, temperatureReadingRepository,
                 deviceServiceClient, operatorUserIdAllocator, merchantSelfServiceGate, merchantFeaturePackService, distributedLockService,
-                disputeService, null, devicePortalService, null, teamAdminService, null, null, null);
+                disputeService, null, devicePortalService, null, teamAdminService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

@@ -74,6 +74,7 @@ public class MerchantPortalService {
     private final MerchantTeamAdminService teamAdminService;
     private final SystemConfigService systemConfigService;
     private final MinioVideoService minioVideoService;
+    private final JiangyiOrderVideoService jiangyiOrderVideoService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantPortalService self;
 
@@ -116,6 +117,7 @@ public class MerchantPortalService {
                                  MerchantTeamAdminService teamAdminService,
                                  SystemConfigService systemConfigService,
                                  MinioVideoService minioVideoService,
+                                 JiangyiOrderVideoService jiangyiOrderVideoService,
                                  @Lazy MerchantPortalService self) {
         this.merchantFinanceService = merchantFinanceService;
         this.competitiveGapService = competitiveGapService;
@@ -156,6 +158,7 @@ public class MerchantPortalService {
         this.teamAdminService = teamAdminService;
         this.systemConfigService = systemConfigService;
         this.minioVideoService = minioVideoService;
+        this.jiangyiOrderVideoService = jiangyiOrderVideoService;
         this.self = self;
     }
 
@@ -509,16 +512,20 @@ public class MerchantPortalService {
         );
     }
 
-    /** 列表「有录像」必须对象真实存在，会话里写了 videoUri 但 MinIO 404 不算。 */
+    /** 列表「有录像」判据：边缘链路对象真实存在，或将邑台账该订单有非空分片地址。 */
     private boolean sessionHasPlayableVideo(ShoppingSession session) {
-        if (session == null || minioVideoService == null) {
+        if (session == null) {
             return false;
         }
         String uri = session.getVideoUri();
-        if (uri == null || uri.isBlank()) {
-            return false;
+        if (uri != null && !uri.isBlank() && minioVideoService != null
+                && minioVideoService.objectExists(uri)) {
+            return true;
         }
-        return minioVideoService.objectExists(uri);
+        // 将邑柜机不写 shopping_session.video_uri（CB-030）：改判 jiangyi_order_video 台账。
+        // 只读库内 video_urls 是否非空，不做预签名（列表页不能有网络往返）。
+        return jiangyiOrderVideoService.findByOrderNo(session.getSessionId()).stream()
+                .anyMatch(r -> r.getVideoUrls() != null && !r.getVideoUrls().isBlank());
     }
 
     private String sessionDeviceId(String sessionId) {

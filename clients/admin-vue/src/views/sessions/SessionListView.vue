@@ -160,27 +160,6 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column
-            align="center"
-            label="录像"
-            width="88"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">
-              <el-tag
-                size="small"
-                :type="
-                  row.videoPreviewUrl || String(row.uploadStatus || '').toUpperCase() === 'UPLOADED'
-                    ? 'success'
-                    : 'info'
-                "
-                effect="plain"
-              >
-                {{ uploadStatusShort(row) }}
-              </el-tag>
-            </template>
-          </el-table-column>
           <el-table-column label="用户" width="88" class-name="col-text">
             <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
@@ -331,10 +310,6 @@
               )
             }}
           </el-descriptions-item>
-          <el-descriptions-item label="录像">
-            {{ uploadStatusShort(timelineRow) }}
-            <span v-if="timelineRow.videoUri" class="muted"> · 有文件</span>
-          </el-descriptions-item>
           <el-descriptions-item v-if="failReasonText(timelineRow) !== '无'" label="失败原因">
             {{ failReasonText(timelineRow) }}
           </el-descriptions-item>
@@ -356,17 +331,10 @@
             <div v-if="step.detail" class="tl-detail">{{ step.detail }}</div>
           </el-timeline-item>
         </el-timeline>
+        <!-- 会话级「播放录像」已下线：旧边缘链路的会话录像（shopping_session.video_uri）
+             对将邑柜机永不写入，按钮恒为死入口。取货视频复核统一走「订单 → 柜机取货视频」
+             （CB-029，按 sessionId 直查将邑台账 jiangyi_order_video）。 -->
         <div class="tl-actions">
-          <el-button
-            v-if="
-              timelineRow.sessionId &&
-              (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
-            "
-            type="warning"
-            :loading="videoLoading"
-            @click="playVideo(timelineRow.sessionId)"
-            >播放录像</el-button
-          >
           <el-button
             v-if="timelineRow.orderId && canAccessPath('/orders')"
             type="primary"
@@ -382,7 +350,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { CircleClose, Clock, CopyDocument, View, VideoCamera } from '@element-plus/icons-vue';
+import { CircleClose, Clock, CopyDocument, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
@@ -393,8 +361,6 @@ import { useCrudTable } from '@/composables/useCrudTable';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useSessionVideo } from '@/composables/useSessionVideo';
-import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
@@ -411,9 +377,6 @@ interface SessionRow {
   failReason?: string;
   openTime?: string;
   closeTime?: string;
-  uploadStatus?: string;
-  videoUri?: string;
-  videoPreviewUrl?: string;
   entryChannel?: string;
   payChannel?: string;
   preauthCents?: number;
@@ -444,9 +407,6 @@ const ACTIVE_STATES = new Set([
 
 const route = useRoute();
 const { router, canAccessPath, goPath } = useNavAccess();
-const { playSessionVideo } = useSessionVideo();
-const auth = useAuthStore();
-const videoLoading = ref(false);
 const keyword = ref('');
 const createdRange = ref<[string, string] | null>(null);
 const kindFilter = ref('');
@@ -653,29 +613,11 @@ function formatDurationMs(ms?: number | null) {
   return `${m}m${s}s`;
 }
 
-function uploadStatusShort(row: SessionRow) {
-  const st = String(row.uploadStatus || '').toUpperCase();
-  // M18：裸 videoUri（minio:// 内部地址）不代表可播放，预签名地址或后端 UPLOADED 状态才可信
-  if (row.videoPreviewUrl || st === 'UPLOADED') return '有录像';
-  if (st === 'UPLOADING' || st === 'LOCAL_QUEUED') return '上传中';
-  if (st.includes('FAIL')) return '失败';
-  if (st && st !== 'NONE') return displayLabel('upload_status', row.uploadStatus, '未知');
-  return '无';
-}
-
 function sessionDurationMs(row: SessionRow) {
   const start = parseTs(row.openTime || row.createdAt);
   const end = parseTs(row.closeTime || row.updatedAt);
   if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 0;
   return end - start;
-}
-
-function waitReasonForWaitingUpload(upload: string, stuck: boolean) {
-  if (upload === 'FAILED') return '录像上传失败，待设备侧重试';
-  if (upload === 'UPLOADING') return stuck ? '上传中断或极慢' : '等待录像上传完成';
-  if (upload === 'LOCAL_QUEUED')
-    return stuck ? '本地排队超时，可能弱网/离线' : '设备本地排队待推送';
-  return stuck ? '关门后长期待上传' : '关门后等待录像上报';
 }
 
 const ACTIVE_SESSION_HINTS: Record<string, (stuck: boolean) => string> = {
@@ -698,10 +640,11 @@ function waitReasonForActiveState(s: string, stuck: boolean, fail: string) {
 
 function waitReason(row: SessionRow) {
   const s = String(row.state || '').toUpperCase();
-  const upload = String(row.uploadStatus || '').toUpperCase();
   const stuck = isStuck(row);
   const fail = failReasonText(row);
-  if (s === 'WAITING_UPLOAD') return waitReasonForWaitingUpload(upload, stuck);
+  // WAITING_UPLOAD 属旧边缘链路（关门后等待柜机上传购物视频）。将邑柜机关门直接进
+  // RECOGNIZING，该态不可达 —— 这里只给存量/边缘柜机会话留一句可读说明。
+  if (s === 'WAITING_UPLOAD') return stuck ? '关门后长期未进入识别' : '等待柜机上传购物录像';
   const activeReason = waitReasonForActiveState(s, stuck, fail);
   if (activeReason) return activeReason;
   if (fail !== '无') return fail;
@@ -747,13 +690,6 @@ function rowActions(row: SessionRow): CrudRowAction[] {
   if (row.deviceId && canAccessPath('/devices')) {
     acts.push({ key: 'device', label: '看设备', icon: View, type: 'info' });
   }
-  acts.push({
-    key: 'play',
-    label: '播放录像',
-    icon: VideoCamera,
-    type: 'warning',
-    perm: ['ops:session:list', 'ops:session:upload']
-  });
   acts.push({ key: 'copy', label: '复制会话ID', icon: CopyDocument, type: 'info', overflow: true });
   if (canCancel(row.state)) {
     acts.push({
@@ -780,14 +716,6 @@ function sessionTimeline(row: SessionRow) {
     steps.push({ label: '开门', time: formatDateTime(row.openTime), type: 'success' });
   if (row.closeTime)
     steps.push({ label: '关门', time: formatDateTime(row.closeTime), type: 'success' });
-  if (row.uploadStatus && row.uploadStatus !== 'NONE') {
-    steps.push({
-      label: '录像上传',
-      time: formatDateTime(row.updatedAt),
-      type: String(row.uploadStatus).includes('FAIL') ? 'danger' : 'warning',
-      detail: displayLabel('upload_status', row.uploadStatus, '未知')
-    });
-  }
   if (row.orderId) {
     steps.push({
       label: '生成订单',
@@ -833,10 +761,6 @@ async function onAction({ key, row }: { key: string; row: SessionRow }) {
     goPath(`/devices/${encodeURIComponent(row.deviceId)}`);
     return;
   }
-  if (key === 'play') {
-    await playVideo(row.sessionId);
-    return;
-  }
   if (key === 'copy') {
     try {
       await navigator.clipboard.writeText(row.sessionId);
@@ -848,15 +772,6 @@ async function onAction({ key, row }: { key: string; row: SessionRow }) {
   }
   if (key === 'cancel') {
     await cancelSession(row.sessionId);
-  }
-}
-
-async function playVideo(sessionId?: string) {
-  videoLoading.value = true;
-  try {
-    await playSessionVideo(sessionId);
-  } finally {
-    videoLoading.value = false;
   }
 }
 

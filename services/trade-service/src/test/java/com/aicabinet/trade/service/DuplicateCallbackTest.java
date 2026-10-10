@@ -73,7 +73,7 @@ class DuplicateCallbackTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         disputeService = new DisputeService(
-                disputeRepository, null, repository, null, null, null, null, null,
+                disputeRepository, null, repository, null, null, null, null, null, null,
                 riskControlService, permissionService, null, null, null, null,
                 new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService, null, null,
                 videoArchiveService, orderPaymentService, null, null, null, null, cabinetMetrics, null);

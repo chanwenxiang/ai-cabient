@@ -42,6 +42,7 @@ class DisputeTicketSyncTest {
     @Mock CabinetOrderMapper orderRepository;
     @Mock SettlementService settlementService;
     @Mock MinioVideoService minioVideoService;
+    @Mock JiangyiOrderVideoService jiangyiOrderVideoService;
     @Mock AdminAuditService auditService;
     @Mock RiskControlService riskControlService;
     @Mock PermissionService permissionService;
@@ -69,7 +70,8 @@ class DisputeTicketSyncTest {
             return null;
         }).when(sessionService).transition(any(), any());
         service = new DisputeService(disputeRepository, disputeMessageRepository, sessionRepository, orderRepository,
-                settlementService, new ObjectMapper(), minioVideoService, auditService, riskControlService,
+                settlementService, new ObjectMapper(), minioVideoService, jiangyiOrderVideoService, auditService,
+                riskControlService,
                 permissionService, merchantScopeService, merchantFeaturePackService, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
                 fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService, null, null,

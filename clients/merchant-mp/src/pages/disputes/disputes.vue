@@ -222,10 +222,6 @@
               />
             </video>
           </view>
-          <view v-else-if="detail?.videoUri" class="video-block">
-            <text class="detail-lbl">购物录像</text>
-            <text class="video-unavailable">录像暂不可用（对象不存在或链接已过期）</text>
-          </view>
         </scroll-view>
         <view class="detail-actions">
           <app-button
@@ -366,12 +362,13 @@ const detailAmountDiffNote = computed(() => merchantDisputeAmountDiffNote(detail
 /**
  * 可播放的录像地址。
  *
- * `videoPreviewUrl` 是后端预签名后的 HTTP 地址；当对象不存在时后端**故意**返回空
- * （MinioVideoService.presignPlaybackUrl 的注释："对象不存在时不返回 URL，避免指向 404"）。
- * 旧模板在这种情况下回退到 `videoUri`，而它是一个 `minio://bucket/key` 私有协议地址，
- * 浏览器 `<video>` 解析不了 → 控制台报 `net::ERR_UNKNOWN_URL_SCHEME`、播放器显示黑屏 00:00。
- * 实测：`minio://cabinet-videos/sim/.../1789459576844846197-top.mp4`。
- * 所以这里只在地址真的可播放时才渲染播放器，否则给出明确提示。
+ * `videoPreviewUrl` 是后端签发的短时效 HTTP 地址（旧边缘链路取 MinIO 预签名；将邑柜机取
+ * 台账 `jiangyi_order_video` 里的分片地址 —— 桶私有，同样必须服务端签发），拿不到就返回空。
+ * 只在地址真的可播放时才渲染播放器。
+ *
+ * 旧模板在地址为空时回退到 `videoUri`，而它是 `minio://bucket/key` 私有协议地址，浏览器
+ * `<video>` 解析不了（`net::ERR_UNKNOWN_URL_SCHEME`、黑屏 00:00）—— 该回退块已删除，
+ * 因为把「不可播放」当成「有录像」展示本身就是误导。
  */
 const playbackUrl = computed(() => playablePlaybackUrl(detail.value?.videoPreviewUrl));
 /**
