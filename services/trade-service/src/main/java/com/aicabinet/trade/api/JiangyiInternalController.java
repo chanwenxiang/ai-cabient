@@ -4,13 +4,13 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiOrderVideo;
-import com.aicabinet.trade.mapper.JiangyiOrderVideoMapper;
 import com.aicabinet.trade.service.DevicePresenceService;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
 import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
+import com.aicabinet.trade.service.JiangyiOrderVideoService;
 import com.aicabinet.trade.service.JiangyiRecognitionTimeoutService;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.List;
 
 /**
@@ -49,7 +48,7 @@ public class JiangyiInternalController {
     private final DevicePresenceService devicePresenceService;
     private final JiangyiModelSyncService jiangyiModelSyncService;
     private final JiangyiGatherService jiangyiGatherService;
-    private final JiangyiOrderVideoMapper jiangyiOrderVideoMapper;
+    private final JiangyiOrderVideoService jiangyiOrderVideoService;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
@@ -58,7 +57,7 @@ public class JiangyiInternalController {
                                      DevicePresenceService devicePresenceService,
                                      JiangyiModelSyncService jiangyiModelSyncService,
                                      JiangyiGatherService jiangyiGatherService,
-                                     JiangyiOrderVideoMapper jiangyiOrderVideoMapper) {
+                                     JiangyiOrderVideoService jiangyiOrderVideoService) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
@@ -66,7 +65,7 @@ public class JiangyiInternalController {
         this.devicePresenceService = devicePresenceService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
         this.jiangyiGatherService = jiangyiGatherService;
-        this.jiangyiOrderVideoMapper = jiangyiOrderVideoMapper;
+        this.jiangyiOrderVideoService = jiangyiOrderVideoService;
     }
 
     // ---------- 设备面 ----------
@@ -161,16 +160,16 @@ public class JiangyiInternalController {
      */
     @PostMapping("/order-video-report")
     public ApiResponse<Boolean> orderVideoReport(@RequestBody OrderVideoReportRequest body) {
-        return ApiResponse.ok(jiangyiOrderVideoMapper.upsertReport(
+        return ApiResponse.ok(jiangyiOrderVideoService.upsertReport(
                 body.orderNo(), body.deviceId(), body.serialNum(),
-                body.videoQuantity(), body.videoUrls(), Instant.now()));
+                body.videoQuantity(), body.videoUrls()));
     }
 
     /** admin 视频复核：按订单查全部分片（serial 升序，失败片空串在列）。 */
     @GetMapping("/order-videos/by-order")
     public ApiResponse<List<JiangyiOrderVideo>> orderVideosByOrder(
             @RequestParam("orderNo") String orderNo) {
-        return ApiResponse.ok(jiangyiOrderVideoMapper.findByOrderNo(orderNo));
+        return ApiResponse.ok(jiangyiOrderVideoService.findByOrderNo(orderNo));
     }
 
     /** admin 视频复核：按设备查最近上报（设备详情卡片入口）。 */
@@ -178,7 +177,7 @@ public class JiangyiInternalController {
     public ApiResponse<List<JiangyiOrderVideo>> orderVideosByDevice(
             @RequestParam("deviceId") String deviceId,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
-        return ApiResponse.ok(jiangyiOrderVideoMapper.findRecentByDevice(deviceId, limit));
+        return ApiResponse.ok(jiangyiOrderVideoService.findRecentByDevice(deviceId, limit));
     }
 
     // ---------- 映射面 ----------

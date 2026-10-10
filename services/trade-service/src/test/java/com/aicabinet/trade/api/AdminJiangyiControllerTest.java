@@ -9,6 +9,7 @@ import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
+import com.aicabinet.trade.service.JiangyiOrderVideoService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -41,11 +42,11 @@ class AdminJiangyiControllerTest {
     @Mock private JiangyiClassMappingService mappingService;
     @Mock private JiangyiModelSyncService modelSyncService;
     @Mock private JiangyiGatherService gatherService;
-    @Mock private com.aicabinet.trade.mapper.JiangyiOrderVideoMapper orderVideoMapper;
+    @Mock private JiangyiOrderVideoService orderVideoService;
 
     private AdminJiangyiController controller() {
         return new AdminJiangyiController(onboardingService, mappingService,
-                modelSyncService, gatherService, orderVideoMapper);
+                modelSyncService, gatherService, orderVideoService);
     }
 
     private JiangyiDevice boundDevice() {

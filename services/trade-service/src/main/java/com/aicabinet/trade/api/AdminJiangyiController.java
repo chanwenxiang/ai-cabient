@@ -9,11 +9,11 @@ import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.domain.JiangyiOrderVideo;
-import com.aicabinet.trade.mapper.JiangyiOrderVideoMapper;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
+import com.aicabinet.trade.service.JiangyiOrderVideoService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,18 +47,18 @@ public class AdminJiangyiController {
     private final JiangyiClassMappingService jiangyiClassMappingService;
     private final JiangyiModelSyncService jiangyiModelSyncService;
     private final JiangyiGatherService jiangyiGatherService;
-    private final JiangyiOrderVideoMapper jiangyiOrderVideoMapper;
+    private final JiangyiOrderVideoService jiangyiOrderVideoService;
 
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
                                   JiangyiClassMappingService jiangyiClassMappingService,
                                   JiangyiModelSyncService jiangyiModelSyncService,
                                   JiangyiGatherService jiangyiGatherService,
-                                  JiangyiOrderVideoMapper jiangyiOrderVideoMapper) {
+                                  JiangyiOrderVideoService jiangyiOrderVideoService) {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
         this.jiangyiGatherService = jiangyiGatherService;
-        this.jiangyiOrderVideoMapper = jiangyiOrderVideoMapper;
+        this.jiangyiOrderVideoService = jiangyiOrderVideoService;
     }
 
     /** 视频复核：按订单查全部分片（serial 升序；video_urls 空串=该片生成/上传失败）。 */
@@ -66,7 +66,7 @@ public class AdminJiangyiController {
     @GetMapping("/jiangyi/order-videos/by-order")
     public ApiResponse<List<JiangyiOrderVideo>> orderVideosByOrder(
             @RequestParam("orderNo") String orderNo) {
-        return ApiResponse.ok(jiangyiOrderVideoMapper.findByOrderNo(orderNo));
+        return ApiResponse.ok(jiangyiOrderVideoService.findByOrderNo(orderNo));
     }
 
     /** 视频复核：按设备查最近上报（设备详情「将邑接入」卡片入口）。 */
@@ -75,7 +75,7 @@ public class AdminJiangyiController {
     public ApiResponse<List<JiangyiOrderVideo>> orderVideosByDevice(
             @RequestParam("deviceId") String deviceId,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
-        return ApiResponse.ok(jiangyiOrderVideoMapper.findRecentByDevice(deviceId, limit));
+        return ApiResponse.ok(jiangyiOrderVideoService.findRecentByDevice(deviceId, limit));
     }
 
     /** 绑定视图：binding=null = 未登记（前台展示「未接入」态 + 登记表单）。 */
