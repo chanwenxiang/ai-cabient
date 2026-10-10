@@ -188,6 +188,11 @@ BOOT-INF/
 **/build-err.txt
 **/build-out.txt
 
+# 将邑（供应商）对接资料原件：PDF/DOCX 合计约 129MB，不入库。
+# 正文要点已提炼进 docs/JIANGYI_SAAS_INTEGRATION_V16.md 与 docs/JIANGYI_GATEWAY_DESIGN.md。
+/将邑对接资料/
+
+
 # Windows absolute path accidentally materialized as a directory name (D:\...)
 /D*devTools*
 
