@@ -159,8 +159,23 @@ V16.0.0（110 页纯扫描件 0 文字层，PyMuPDF 渲染 + 视觉阅读）对�
 - classId 行号方向（0/1-based）→ **已实锤 0 起**（V16 第 98 页 §5.5.3 响应示例首商品 classId=0；1 起体系不会出现 0）。classIdBase 默认 0 与代码一致（AdminJiangyiController defaultValue="0"），预览人工确认兜底保留。
 - "76"/"88" 与主板对应关系 → **用户拍板默认登记 "88"**（2026-10-10：采集文档第 44 页 §4.4.4.5 示例 rk3588/rk3576 两型号均为 "88"，是当前证据下最合理取值）。校验机制不变：设备登记值与模型值字符串相等，不解释语义；若真机首推校验失败，改登记值即可，无需改代码。
 - ~~downloadModelNotify msgContent 真实结构~~ → **已由 PDF 原件核实**（§4.2.5：HTTP POST identifier+modelName），WS 分支仅兜底。
-- 采集期 WS 共存行为（采集开门时营业 WS 会话是否被将邑侧复用）。
+- 采集期 WS 共存行为 → **降级（2026-10-11）**：采集/学习为运营**现场**操作（人站柜机前），与顾客扫码撞车概率极低 ⇒ 不专门安排，**真机进场当天顺手测一次**即可（关注点：采集开门时营业 WS 会话是否被将邑侧复用）。
 - finishNotifyUrl 公网可达性 → **已完成**（2026-10-10 阶段 0 穿透联调，提交 `fcac1942`）：花生壳内网穿透 `130954bm9ka83.vicp.fun` → `192.168.0.26:80`（gateway）；经穿透 `POST /jiangyi/api/gather-finish-notify` 返回 **200**（body `{"msg":"accepted","status":202}` 静默语义），WS 升级亦到达应用层。`JIANGYI_PUBLIC_BASE_URL` 已入 `infra/.env`（gitignore）并经 `docker-compose.full.yml` 透传给 trade（重建后 printenv 确认）；`jiangyi-gateway` 重建后公开面白名单生效（此前旧镜像对回调 401）。⚠️ 依赖穿透客户端在线（花生壳 502 = 客户端离线）；正式上线建议换固定公网域名/专线。
-- §4.4.3 学习是否真的集合粒度（无 productId）。
+- ~~§4.4.3 学习是否真的集合粒度（无 productId）~~ → **已实锤：集合粒度**（2026-10-11 依据采集文档 p42-43 接口签名：`commitTrainingTenantOne` 请求体仅 modelName+finishNotifyUrl+finishNotifyId，**无任何商品参数**；产物 §4.4.4 = modelUrl + modelTextUrl 模型商品映射文件 + quantity 模型商品数量 ⇒ 触发学习即「整柜样本训练一个模型」，不存在单品下发选项）。
 - **设备端视频保留策略/容量上限**（2026-10-10 新增）：默认只上传识别异常单视频，正常单视频留柜机本地、WS 按单拉取复核；但协议全文无「设备存储容量 / 保留时长 / 覆盖清理策略」任何描述（doc_full_text.txt 全文检索 0 命中）。真机进场须问将邑：柜机本地能存多少条/多少 GB、最老视频多久被清、拉取指令能否指定超过保留期的单。若保留期短而抽检需求长，评估改 §4.2.13 全量上传 + OSS 生命周期规则兜底。
 - ~~视频链路是否纳入范围~~ → **CB-024 已实现**（2026-10-10）：§4.2.6 getTempUploadToken = gateway OSS STS AssumeRole（aliyun-java-sdk-core CommonRequest，inline Policy 收窄到 PutObject 桶/dirName* 前缀，15 分钟会话）+ §4.2.14 uploadVideoUrl = gateway 转发 trade jiangyi_order_video 落库（V338，uk(order_no,serial_num) 幂等）。bucket=ai-cabinet-by（oss-cn-shenzhen，用户已建）。**部署配置已完成（2026-10-10 实测 ALL GREEN）**：RAM 子账号（只授 AliyunSTSAssumeRoleAccess）+ 直传角色 jiangyivideoupload（信任=本账号 root sts:AssumeRole，权限策略 jiangyi-video-put=oss:PutObject 仅限 ai-cabinet-by/jiangyi-video/*）；JiangyiVideoUpload ARN 已填 infra/.env JIANGYI_OSS_*，gateway 容器重建后 env 注入确认。实测：AssumeRole 真实签发 ✓ / jiangyi-video/ 内 PutObject 200 ✓ / 目录外 PutObject 403（收窄生效）✓。MinIO 转存归档属二期可选。
+
+### 7.7 异常兜底实证：开锁未开门 / 指令无回执（2026-10-11 代码核证）
+
+真机前进场前专项核证「锁开了但门没开 / 指令发了设备不回」是否被兜住——结论：**三层兜底，不卡单、不误扣款**。下表每条均**读代码确认**（非转述）：
+
+| 层 | 位置 | 触发/机制 | 终态 |
+|---|---|---|---|
+| ① 网关 watchdog | `jiangyi-gateway` `SessionWatchdog.sweepOpen`（`@Scheduled` 每 10s） | 开门指令下发后 `OPEN_TIMEOUT_MS=15_000` 仍无任何设备回执（lockStatus/doorStatus 均未到） | `postOpenFailed("将邑柜开门指令15秒无设备回执")` → `SessionOpenService.markOpenDoorFailed` → **FAILED** |
+| ②a 锁回执 | `DeviceReportController.uploadLockState`（§4.2.7） | `lockStatus=success` → `CommandTracker.complete(OPEN)` **撤销 watchdog**（2026-10-09 联调缺陷：漏补导致已开锁会话被 15s 腰斩，已修）；`fail` | `fail` → `postOpenFailed("将邑设备上报开锁失败")` → **FAILED** |
+| ②b 门磁回执 | `DeviceReportController.uploadDoorState`（§4.2.8） | `doorStatus=success` = 用户拉门打开 → door-event OPEN（OPENING→SHOPPING）；`fail` = 拉门失败 | `fail` → **立即** `postOpenFailed("将邑设备上报拉门失败")` → **FAILED**（不等 300s CLOSE 兜底：§4.2.8「如果开门失败，不会上报订单结果」⇒ 必无后续识别上报） |
+| ③ trade 兜底清扫 | `trade-service` `SessionExpireService.expireStaleOpeningSessions`（`@Scheduled(fixedRate=30_000)`） | 覆盖「锁开了人走了、设备什么都不报」：对 `{OPENING, CREATED}` 且 createdAt 早于 `openingSeconds`（**90s**）的会话 | `releaseIfFrozen` + `transition(CANCELLED)` + 报 `OPEN_TIMEOUT`(HIGH) |
+
+**为什么不会误扣款**：`SessionOpenService.markOpenDoorFailed` 的状态 CAS 只允许 `CREATED/OPENING → FAILED`（`SHOPPING` 及之后一律跳过——防 watchdog 与识别链路赛跑腰斩，2026-10-09 实测教训已落码），且转 FAILED 时 `releaseIfFrozen` 释放预授权；扣款只发生在「识别结果 → 结算」链路，而拉门失败必然没有识别上报（§4.2.8 原文）。**设备「几秒后自动回锁」是将邑固件行为（协议未写秒数），我方状态机不依赖「锁回位」事件，对它完全透明。**
+
+> 核证附带修一处陈旧注释：`uploadDoorState` 上原**叠了两块 javadoc**、均写「fail → WARN 不推进（watchdog 兜底）」，与实现（立即转 FAILED）矛盾，已合并为一块与代码一致的说明。
