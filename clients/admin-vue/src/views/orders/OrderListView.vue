@@ -547,16 +547,11 @@
           </el-descriptions>
 
           <div class="drawer-actions">
-            <el-button
-              v-if="
-                detail.sessionId &&
-                (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
-              "
-              type="warning"
-              :loading="videoLoading"
-              @click="playVideo(detail.sessionId)"
-              >播放会话录像</el-button
-            >
+            <!-- 「播放会话录像」已下线：它走旧边缘链路 /ops/sessions/{id}/video，后端
+                 OpsSessionOrderQueryService.streamSessionVideo 只读 shopping_session.video_uri
+                 且无将邑回退（为空直接 404「该会话没有关联视频」）；将邑柜机从不写这一列 ⇒
+                 对现网全部柜机恒为死入口。取货视频复核统一走右侧「柜机取货视频」（CB-029，
+                 按 sessionId 直查将邑台账 jiangyi_order_video 并签发短时效播放地址）。 -->
             <el-button
               v-if="detail.sessionId && auth.hasPerm('ops:device:video')"
               type="warning"
@@ -785,7 +780,6 @@ import OrderJiangyiVideoDialog from '@/components/order/OrderJiangyiVideoDialog.
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useAuthStore } from '@/stores/auth';
 import type {
   OrderLineDto,
@@ -817,9 +811,7 @@ function goodsDisplay(row: OrderSummary) {
 
 const route = useRoute();
 const { router, goPath } = useNavAccess();
-const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
-const videoLoading = ref(false);
 const jiangyiVideoDialog = ref<InstanceType<typeof OrderJiangyiVideoDialog> | null>(null);
 const refundingId = ref('');
 const keyword = ref('');
@@ -1099,14 +1091,8 @@ function rowActions(row: OrderSummary): CrudRowAction[] {
     );
   }
   if (row.sessionId) {
-    actions.push({
-      key: 'video',
-      label: '录像',
-      icon: VideoCamera,
-      type: 'warning',
-      overflow: true,
-      perm: ['ops:session:list', 'ops:session:upload']
-    });
+    // 行操作「录像」已下线：与抽屉按钮同因（旧边缘 shopping_session.video_uri 无将邑回退，
+    // 对将邑柜机恒 404）。复核请用下面「柜机视频」（CB-029）。
     actions.push({
       key: 'cabinetVideo',
       label: '柜机视频',
@@ -1133,7 +1119,6 @@ function rowActions(row: OrderSummary): CrudRowAction[] {
 function onAction({ key, row }: { key: string; row: OrderSummary }) {
   if (key === 'detail') openDetail(row);
   if (key === 'refund') refundOrder(row);
-  if (key === 'video') playVideo(row.sessionId);
   if (key === 'cabinetVideo') openCabinetVideo(row);
   if (key === 'copy') copyOrderId(row.orderId);
   if (key === 'session') goSessions(row.deviceId, row.sessionId);
@@ -1150,15 +1135,6 @@ async function copyOrderId(orderId?: string) {
     ElMessage.success('订单号已复制');
   } catch {
     ElMessage.warning(id);
-  }
-}
-
-async function playVideo(sessionId?: string) {
-  videoLoading.value = true;
-  try {
-    await playSessionVideo(sessionId);
-  } finally {
-    videoLoading.value = false;
   }
 }
 
