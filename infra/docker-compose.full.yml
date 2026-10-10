@@ -300,6 +300,14 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
       JIANGYI_JWT_SECRET: ${JIANGYI_JWT_SECRET:-}
       JIANGYI_TOKEN_TTL_SECONDS: ${JIANGYI_TOKEN_TTL_SECONDS:-604800}
+      # OSS STS 直传（CB-024）：AK/RoleArn 只从宿主/infra/.env 注入，无默认值=fail-closed
+      JIANGYI_OSS_ACCESS_KEY_ID: ${JIANGYI_OSS_ACCESS_KEY_ID:-}
+      JIANGYI_OSS_ACCESS_KEY_SECRET: ${JIANGYI_OSS_ACCESS_KEY_SECRET:-}
+      JIANGYI_OSS_ROLE_ARN: ${JIANGYI_OSS_ROLE_ARN:-}
+      JIANGYI_OSS_REGION: ${JIANGYI_OSS_REGION:-cn-shenzhen}
+      JIANGYI_OSS_BUCKET: ${JIANGYI_OSS_BUCKET:-ai-cabinet-by}
+      JIANGYI_OSS_DIR_NAME: ${JIANGYI_OSS_DIR_NAME:-jiangyi-video/}
+      JIANGYI_OSS_SESSION_SECONDS: ${JIANGYI_OSS_SESSION_SECONDS:-900}
     ports: ["127.0.0.1:18084:8083"]
     depends_on:
       trade-service: { condition: service_started }

@@ -3,6 +3,8 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
+import com.aicabinet.trade.domain.JiangyiOrderVideo;
+import com.aicabinet.trade.mapper.JiangyiOrderVideoMapper;
 import com.aicabinet.trade.service.DevicePresenceService;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -46,6 +49,7 @@ public class JiangyiInternalController {
     private final DevicePresenceService devicePresenceService;
     private final JiangyiModelSyncService jiangyiModelSyncService;
     private final JiangyiGatherService jiangyiGatherService;
+    private final JiangyiOrderVideoMapper jiangyiOrderVideoMapper;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
@@ -53,7 +57,8 @@ public class JiangyiInternalController {
                                      JiangyiOnboardingService jiangyiOnboardingService,
                                      DevicePresenceService devicePresenceService,
                                      JiangyiModelSyncService jiangyiModelSyncService,
-                                     JiangyiGatherService jiangyiGatherService) {
+                                     JiangyiGatherService jiangyiGatherService,
+                                     JiangyiOrderVideoMapper jiangyiOrderVideoMapper) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
@@ -61,6 +66,7 @@ public class JiangyiInternalController {
         this.devicePresenceService = devicePresenceService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
         this.jiangyiGatherService = jiangyiGatherService;
+        this.jiangyiOrderVideoMapper = jiangyiOrderVideoMapper;
     }
 
     // ---------- 设备面 ----------
@@ -149,6 +155,32 @@ public class JiangyiInternalController {
         return ApiResponse.ok(null);
     }
 
+    /**
+     * 设备视频上报落库（CB-024 §4.2.14，gateway 转发）：
+     * uk(order_no, serial_num) upsert 幂等——设备重试重报以最后一次为准。
+     */
+    @PostMapping("/order-video-report")
+    public ApiResponse<Boolean> orderVideoReport(@RequestBody OrderVideoReportRequest body) {
+        return ApiResponse.ok(jiangyiOrderVideoMapper.upsertReport(
+                body.orderNo(), body.deviceId(), body.serialNum(),
+                body.videoQuantity(), body.videoUrls(), Instant.now()));
+    }
+
+    /** admin 视频复核：按订单查全部分片（serial 升序，失败片空串在列）。 */
+    @GetMapping("/order-videos/by-order")
+    public ApiResponse<List<JiangyiOrderVideo>> orderVideosByOrder(
+            @RequestParam("orderNo") String orderNo) {
+        return ApiResponse.ok(jiangyiOrderVideoMapper.findByOrderNo(orderNo));
+    }
+
+    /** admin 视频复核：按设备查最近上报（设备详情卡片入口）。 */
+    @GetMapping("/order-videos/by-device")
+    public ApiResponse<List<JiangyiOrderVideo>> orderVideosByDevice(
+            @RequestParam("deviceId") String deviceId,
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        return ApiResponse.ok(jiangyiOrderVideoMapper.findRecentByDevice(deviceId, limit));
+    }
+
     // ---------- 映射面 ----------
 
     /** ACTIVE 映射点查：data=null 即未命中（gateway 据此触发 recognize-timeout）。 */
@@ -228,4 +260,7 @@ public class JiangyiInternalController {
     record ModelConfirmedRequest(String modelName) {}
     record ModelPushTimeoutRequest(String reason) {}
     record GatherFinishNotifyRequest(String finishNotifyId, String msg) {}
+    /** 与 gateway TradeInternalClient.OrderVideoReportRequest 对齐（videoUrls 可空=该片失败留痕）。 */
+    record OrderVideoReportRequest(String deviceId, String orderNo, Integer serialNum,
+                                   Integer videoQuantity, List<String> videoUrls) {}
 }

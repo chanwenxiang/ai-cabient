@@ -2,6 +2,7 @@ package com.aicabinet.jiangyi;
 
 import com.aicabinet.common.security.InternalApiAuthInterceptor;
 import com.aicabinet.common.security.InternalApiProperties;
+import com.aicabinet.jiangyi.config.OssStsProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -18,7 +19,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @EnableScheduling
 @Import(InternalApiAuthInterceptor.class)
-@EnableConfigurationProperties(InternalApiProperties.class)
+@EnableConfigurationProperties({InternalApiProperties.class, OssStsProperties.class})
 public class JiangyiGatewayApplication {
 
     public static void main(String[] args) {

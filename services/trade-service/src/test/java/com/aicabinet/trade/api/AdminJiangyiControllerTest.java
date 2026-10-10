@@ -41,10 +41,11 @@ class AdminJiangyiControllerTest {
     @Mock private JiangyiClassMappingService mappingService;
     @Mock private JiangyiModelSyncService modelSyncService;
     @Mock private JiangyiGatherService gatherService;
+    @Mock private com.aicabinet.trade.mapper.JiangyiOrderVideoMapper orderVideoMapper;
 
     private AdminJiangyiController controller() {
         return new AdminJiangyiController(onboardingService, mappingService,
-                modelSyncService, gatherService);
+                modelSyncService, gatherService, orderVideoMapper);
     }
 
     private JiangyiDevice boundDevice() {

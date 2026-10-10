@@ -29,6 +29,16 @@ aicabinet:
     # 识别上报 → 会话关门合成的轮询兜底（秒）：WS 无关门上报（模式一），
     # 会话靠识别上报先行合成 door-event CLOSED，超时则由 trade 侧扫描兜底
     session-open-timeout-seconds: ${JIANGYI_SESSION_OPEN_TIMEOUT_SECONDS:90}
+    # OSS STS 直传凭证（CB-024 §4.2.6）。🔴 AK/RoleArn 无默认值：未配置时
+    # getTempUploadToken 返回 500 fail-closed（不影响购物主链路）；只在部署环境注入（铁律 #27）
+    oss:
+      access-key-id: ${JIANGYI_OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${JIANGYI_OSS_ACCESS_KEY_SECRET:}
+      role-arn: ${JIANGYI_OSS_ROLE_ARN:}
+      region: ${JIANGYI_OSS_REGION:cn-shenzhen}
+      bucket: ${JIANGYI_OSS_BUCKET:ai-cabinet-by}
+      dir-name: ${JIANGYI_OSS_DIR_NAME:jiangyi-video/}
+      session-seconds: ${JIANGYI_OSS_SESSION_SECONDS:900}
 
 management:
   endpoints:

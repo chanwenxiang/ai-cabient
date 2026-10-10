@@ -136,6 +136,17 @@ public class TradeInternalClient {
                 new GatherFinishNotifyRequest(finishNotifyId, msg));
     }
 
+    /** 设备视频上报转发（CB-024 §4.2.14）：trade 侧 uk(order_no, serial_num) upsert 幂等落库。 */
+    public void orderVideoReport(String deviceId, String orderNo, Integer serialNum,
+                                 Integer videoQuantity, java.util.List<String> videoUrls) {
+        post("/internal/v1/jiangyi/order-video-report",
+                new OrderVideoReportRequest(deviceId, orderNo, serialNum, videoQuantity, videoUrls));
+    }
+
+    /** 与 trade JiangyiInternalController.OrderVideoReportRequest 对齐。 */
+    record OrderVideoReportRequest(String deviceId, String orderNo, Integer serialNum,
+                                   Integer videoQuantity, java.util.List<String> videoUrls) {}
+
     /** 与 trade JiangyiInternalController.ModelConfirmedRequest 对齐。 */
     record ModelConfirmedRequest(String modelName) {}
 
