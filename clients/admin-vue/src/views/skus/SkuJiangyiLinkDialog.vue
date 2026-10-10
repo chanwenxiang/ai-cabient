@@ -211,49 +211,28 @@ defineExpose({ open });
     <div v-loading="loading">
       <div class="jy-link-section">
         <div class="jy-link-label">当前挂接</div>
-        <el-table :data="links" size="small" empty-text="未挂接任何将邑商品">
-          <el-table-column prop="jiangyiProductId" label="将邑商品 ID" width="110">
-            <template #default="{ row }">
-              <span class="jy-link-mono">{{ row.jiangyiProductId }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="jiangyiName" label="将邑名称" min-width="120">
-            <template #default="{ row }">{{ row.jiangyiName || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="jiangyiTextName" label="textName（classes 键）" min-width="130">
-            <template #default="{ row }">{{ row.jiangyiTextName || '未回填' }}</template>
-          </el-table-column>
-          <el-table-column prop="syncStatus" label="状态" width="90">
-            <template #default="{ row }">
-              <el-tag size="small" :type="syncStatusMeta[row.syncStatus]?.type || 'info'">
-                {{ syncStatusMeta[row.syncStatus]?.label || row.syncStatus }}
+        <div v-if="links.length === 0" class="jy-link-empty">未挂接任何将邑商品</div>
+        <div v-for="link in links" :key="link.id" class="jy-link-card">
+          <div class="jy-link-card-main">
+            <div class="jy-link-card-title">
+              <span class="jy-link-mono">{{ link.jiangyiProductId }}</span>
+              <el-tag size="small" :type="syncStatusMeta[link.syncStatus]?.type || 'info'">
+                {{ syncStatusMeta[link.syncStatus]?.label || link.syncStatus }}
               </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="150">
-            <template #default="{ row }">
-              <el-button
-                v-if="row.syncStatus !== 'RETIRED'"
-                link
-                type="primary"
-                size="small"
-                :loading="pulling"
-                @click="pullTextName"
-              >
-                回填 textName
-              </el-button>
-              <el-button
-                v-if="row.syncStatus !== 'RETIRED'"
-                link
-                type="danger"
-                size="small"
-                @click="unbind(row)"
-              >
-                解挂
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+            </div>
+            <div class="jy-link-card-line">{{ link.jiangyiName || '—' }}</div>
+            <div class="jy-link-card-sub">
+              textName（classes 键）：{{ link.jiangyiTextName || '未回填' }}
+              <template v-if="link.barCode">｜条码：{{ link.barCode }}</template>
+            </div>
+          </div>
+          <div v-if="link.syncStatus !== 'RETIRED'" class="jy-link-card-actions">
+            <el-button link type="primary" size="small" :loading="pulling" @click="pullTextName">
+              回填 textName
+            </el-button>
+            <el-button link type="danger" size="small" @click="unbind(link)">解挂</el-button>
+          </div>
+        </div>
       </div>
 
       <div class="jy-link-section">
@@ -268,35 +247,33 @@ defineExpose({ open });
           />
           <el-button type="primary" :loading="searching" @click="search">搜索</el-button>
         </div>
-        <el-table :data="searchResults" size="small" empty-text="输入名称后搜索（默认按我方条码）">
-          <el-table-column prop="id" label="ID" width="80">
-            <template #default="{ row }">
-              <span class="jy-link-mono">{{ row.id }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="name" label="名称" min-width="120" />
-          <el-table-column prop="barCode" label="条码" min-width="110">
-            <template #default="{ row }">{{ row.barCode || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="specs" label="规格" width="80">
-            <template #default="{ row }">{{ row.specs || '—' }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="90">
-            <template #default="{ row }">
-              <el-button
-                v-if="!row.linked"
-                link
-                type="primary"
-                size="small"
-                :loading="binding"
-                @click="bind(row)"
-              >
-                挂接
-              </el-button>
-              <el-tag v-else size="small" type="info">已挂接</el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div v-if="searchResults.length === 0" class="jy-link-empty">
+          输入名称后搜索（默认按我方条码）
+        </div>
+        <div v-for="item in searchResults" :key="item.id" class="jy-link-card">
+          <div class="jy-link-card-main">
+            <div class="jy-link-card-title">
+              <span class="jy-link-mono">#{{ item.id }}</span>
+              <el-tag v-if="item.linked" size="small" type="info">已挂接</el-tag>
+            </div>
+            <div class="jy-link-card-line">{{ item.name }}</div>
+            <div class="jy-link-card-sub">
+              条码：{{ item.barCode || '—' }}｜规格：{{ item.specs || '—' }}
+            </div>
+          </div>
+          <div class="jy-link-card-actions">
+            <el-button
+              v-if="!item.linked"
+              link
+              type="primary"
+              size="small"
+              :loading="binding"
+              @click="bind(item)"
+            >
+              挂接
+            </el-button>
+          </div>
+        </div>
       </div>
 
       <div class="jy-link-section">
@@ -357,6 +334,42 @@ defineExpose({ open });
 .jy-link-mono {
   font-family: var(--font-mono);
   font-size: 12px;
+}
+.jy-link-empty {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  padding: 8px 0;
+}
+.jy-link-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.jy-link-card-main {
+  min-width: 0;
+}
+.jy-link-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jy-link-card-line {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.jy-link-card-sub {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+.jy-link-card-actions {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .jy-link-hint {
   font-size: 12px;
