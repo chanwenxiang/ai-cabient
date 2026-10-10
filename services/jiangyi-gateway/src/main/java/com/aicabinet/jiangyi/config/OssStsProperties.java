@@ -1,12 +1,13 @@
 package com.aicabinet.jiangyi.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 
 /**
  * 将邑视频链路 OSS STS 配置（CB-024，V16 §4.2.6）。
  *
- * <p>全部走环境变量（infra/.env，gitignore，铁律 #27 密钥不入库）：</p>
+ * <p>注册走 JiangyiGatewayApplication 的 {@code @EnableConfigurationProperties}
+ * （本类不再标 @Configuration——双注册会导致 OssStsService 构造期 two-beans 冲突，
+ * 2026-10-10 实证）。全部走环境变量（infra/.env，gitignore，铁律 #27 密钥不入库）：</p>
  * <ul>
  *   <li>{@code JIANGYI_OSS_ACCESS_KEY_ID} / {@code JIANGYI_OSS_ACCESS_KEY_SECRET}：
  *       RAM 子账号 AK，只授 {@code sts:AssumeRole}（**禁用主账号 AK**）；</li>
@@ -20,7 +21,6 @@ import org.springframework.context.annotation.Configuration;
  * <p>enabled 由 accessKeyId/roleArn/bucket 三者齐备推导——任一缺失即未配置，
  * getTempUploadToken fail-closed 返回非 200（设备侧重试，不产生半可用凭证）。</p>
  */
-@Configuration
 @ConfigurationProperties(prefix = "aicabinet.jiangyi.oss")
 public class OssStsProperties {
 
