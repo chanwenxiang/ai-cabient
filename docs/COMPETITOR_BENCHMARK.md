@@ -911,9 +911,10 @@
   3. **采集编排只做我们侧可治理的部分**（触发学习+finishNotify 回调+审核/进度 admin 视图），
      4.3.x 采集批次操作留在将邑商户 App 人工完成——拍照采集是线下动作，编排价值低。
   4. **industrialControlModel 存原值不解释**（"76"/"88" 语义文档自证不了），下发校验用字符串相等。
-- **⚠️ 本条的已知局限**：
-  - classId↔classes.txt 行号方向（0/1-based）待真机实锤——设计以 classIdBase 可配+预览人工确认兜底。
-  - finishNotifyUrl 无鉴权是文档明文约束——防伪造依赖 finishNotifyId 一次性凭据+将邑侧反查交叉验证。
+- **⚠️ 本条的已知局限（2026-10-11 更新）**：
+  - classId↔classes.txt 行号方向 → **已定 0 起**（V16 第 98 页 §5.5.3 响应示例首商品 classId=0；1 起体系不会出现 0）；设计仍以 classIdBase 可配（默认 0）+ 预览人工确认兜底。
+  - industrialControlModel("76"/"88") → **已定默认登记 "88"**（采集文档 p44 §4.4.4.5 示例 rk3588/rk3576 两型号均 "88"）；存原值不解释，下发校验用字符串相等，真机首推失败改登记值即可。
+  - finishNotifyUrl **无鉴权是文档明文约束**（§4.4.3「此url不能有token及其他限制」）——防伪造依赖 finishNotifyId 一次性凭据+将邑侧反查交叉验证；其**公网可达性已完成**（花生壳穿透 + `JIANGYI_PUBLIC_BASE_URL`，`POST /jiangyi/api/gather-finish-notify` 200）。
   - 采集期将邑直接开门（§4.2.3 不经我方 gateway）与我方 WS 会话是否共存待真机验证。
 
 ---
