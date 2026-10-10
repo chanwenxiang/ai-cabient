@@ -4585,6 +4585,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/devices/{deviceId}/jiangyi/gather/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["jiangyiGatherStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/jiangyi/gather/exit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["jiangyiGatherExit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/member/redeem": {
         parameters: {
             query?: never;
@@ -8977,6 +9009,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["temperatureHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/jiangyi/gather/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["jiangyiGatherStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13675,6 +13723,9 @@ export interface components {
             canReply?: boolean;
             canResolve?: boolean;
         };
+        MerchantGatherStartRequest: {
+            doorPosition?: string;
+        };
         ApiResponseCouponDto: {
             /** Format: int32 */
             code?: number;
@@ -17368,6 +17419,16 @@ export interface components {
             tempC?: number;
             /** Format: date-time */
             reportedAt?: string;
+        };
+        ApiResponseMerchantGatherStatusDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantGatherStatusDto"];
+        };
+        MerchantGatherStatusDto: {
+            bound?: boolean;
+            gatherLocked?: boolean;
         };
         ApiResponseListMerchantDeviceReportDto: {
             /** Format: int32 */
@@ -26565,6 +26626,54 @@ export interface operations {
             };
         };
     };
+    jiangyiGatherStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MerchantGatherStartRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    jiangyiGatherExit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     redeem: {
         parameters: {
             query?: never;
@@ -32944,6 +33053,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListDeviceTemperatureReadingDto"];
+                };
+            };
+        };
+    };
+    jiangyiGatherStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMerchantGatherStatusDto"];
                 };
             };
         };

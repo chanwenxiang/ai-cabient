@@ -234,6 +234,11 @@ export type OpenApiMerchantDeviceSettingsDto =
 export type OpenApiUpdateMerchantDeviceSettingsRequest =
   import('./generated/openapi').components['schemas']['UpdateMerchantDeviceSettingsRequest'];
 
+/** 将邑采集模式状态（`GET .../devices/{id}/jiangyi/gather/status`，CB-023 商户端补充）：
+ * bound=false 表示非将邑绑定柜机（前端隐藏入口），gatherLocked=true 表示营业开门已被 409 闸断 */
+export type OpenApiMerchantGatherStatusDto =
+  import('./generated/openapi').components['schemas']['MerchantGatherStatusDto'];
+
 export interface DeviceSlot {
   deviceId: string;
   slotCode: string;

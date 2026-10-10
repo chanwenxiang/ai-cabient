@@ -5,6 +5,7 @@ import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.MerchantPortalControllerSupport;
 import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
 import com.aicabinet.trade.service.ProcurementService;
@@ -112,6 +113,45 @@ public class MerchantPortalController {
             @RequestBody UpdateMerchantDeviceSettingsRequest body) {
         return ApiResponse.ok(merchantPortalService.updateDeviceSettings(userId(request), deviceId, body));
     }
+
+    // ---------- 将邑采集模式（CB-023 商户端补充）：小程序设备详情页入口，409 闸门与 admin 共用 ----------
+
+    /** 采集模式状态：非将邑绑定柜机 bound=false（前端隐藏入口，不报错）。 */
+    @RequiresPermissions("merchant:devices:detail")
+    @GetMapping("/devices/{deviceId}/jiangyi/gather/status")
+    public ApiResponse<MerchantGatherStatusDto> jiangyiGatherStatus(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(
+                merchantPortalService.getJiangyiGatherStatus(userId(request), deviceId));
+    }
+
+    /** 进入采集模式（期间营业开门 409「设备商品采集中」；采集批次操作在将邑商户 App 完成）。 */
+    @RequiresPermissions("merchant:devices:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/gather/start")
+    public ApiResponse<Void> jiangyiGatherStart(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @RequestBody(required = false) MerchantGatherStartRequest body) {
+        merchantPortalService.startJiangyiGather(
+                userId(request), deviceId, body == null ? null : blankToNull(body.doorPosition()));
+        return ApiResponse.ok(null);
+    }
+
+    /** 退出采集模式（恢复营业）。 */
+    @RequiresPermissions("merchant:devices:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/gather/exit")
+    public ApiResponse<Void> jiangyiGatherExit(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        merchantPortalService.exitJiangyiGather(userId(request), deviceId);
+        return ApiResponse.ok(null);
+    }
+
+    private String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    /** 进入采集模式请求体（doorPosition 可选，与 admin 侧 GatherStartRequest 同形）。 */
+    public record MerchantGatherStartRequest(String doorPosition) {}
 
     @RequiresPermissions("merchant:slots:view")
     @GetMapping("/devices/{deviceId}/slots")

@@ -46,6 +46,7 @@ class MerchantPortalConcurrencyTest {
     @Mock private com.aicabinet.trade.client.DeviceServiceClient deviceServiceClient;
     @Mock private OperatorUserIdAllocator operatorUserIdAllocator;
     @Mock private MerchantSelfServiceGate merchantSelfServiceGate;
+    @Mock private JiangyiGatherService jiangyiGatherService;
     @Mock private MerchantFeaturePackService merchantFeaturePackService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private DisputeService disputeService;
@@ -60,7 +61,8 @@ class MerchantPortalConcurrencyTest {
                 permissionService, merchantPortalGuard, merchantFeaturePackService,
                 deviceRepository, deviceSlotService, auditService, temperatureReadingRepository,
                 deviceServiceClient, sessionRepository, orderRepository, replenishmentTaskRepository,
-                merchantRepository, distributedLockService, merchantSelfServiceGate);
+                merchantRepository, distributedLockService, merchantSelfServiceGate,
+                jiangyiGatherService);
         teamAdminService = new MerchantTeamAdminService(
                 permissionService, merchantPortalGuard, merchantFeaturePackService,
                 userInfoRepository, userAccountRepository, userMerchantRepository,

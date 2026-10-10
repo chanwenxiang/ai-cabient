@@ -17,6 +17,7 @@ import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +61,7 @@ public class MerchantDevicePortalService {
     private final MerchantMapper merchantRepository;
     private final DistributedLockService distributedLockService;
     private final MerchantSelfServiceGate merchantSelfServiceGate;
+    private final JiangyiGatherService jiangyiGatherService;
 
     public MerchantDevicePortalService(PermissionService permissionService,
                                        MerchantPortalGuard merchantPortalGuard,
@@ -74,7 +76,8 @@ public class MerchantDevicePortalService {
                                        ReplenishmentTaskMapper replenishmentTaskRepository,
                                        MerchantMapper merchantRepository,
                                        DistributedLockService distributedLockService,
-                                       MerchantSelfServiceGate merchantSelfServiceGate) {
+                                       MerchantSelfServiceGate merchantSelfServiceGate,
+                                       JiangyiGatherService jiangyiGatherService) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -89,6 +92,7 @@ public class MerchantDevicePortalService {
         this.merchantRepository = merchantRepository;
         this.distributedLockService = distributedLockService;
         this.merchantSelfServiceGate = merchantSelfServiceGate;
+        this.jiangyiGatherService = jiangyiGatherService;
     }
 
     @Transactional(readOnly = true)
@@ -114,6 +118,36 @@ public class MerchantDevicePortalService {
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         return toDeviceSettings(device);
+    }
+
+    // ---------- 将邑采集模式（CB-023 商户端补充）：与 admin 入口共用 JiangyiGatherService 与 409 闸门 ----------
+
+    /** 商户侧采集状态：非将邑绑定柜机返回 bound=false（前端隐藏入口，不报错）。 */
+    @Transactional(readOnly = true)
+    public MerchantGatherStatusDto getJiangyiGatherStatus(Long userId, String deviceId) {
+        permissionService.requirePermission(userId, "merchant:devices:detail");
+        merchantPortalGuard.requireAccess(userId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
+        return jiangyiGatherService.merchantStatus(deviceId);
+    }
+
+    /**
+     * 进入采集模式（柜机归属经 requireDevicePack 校验）。不加事务：markGatherLocked 落库与
+     * 将邑 HTTP 开门必须成对且失败回滚锁，长事务包外呼是反模式——与 admin 路径语义一致。
+     */
+    public void startJiangyiGather(Long userId, String deviceId, String doorPosition) {
+        permissionService.requirePermission(userId, "merchant:devices:edit");
+        merchantPortalGuard.requireAccess(userId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
+        jiangyiGatherService.startGather(deviceId, doorPosition);
+    }
+
+    /** 退出采集模式（恢复营业）。 */
+    public void exitJiangyiGather(Long userId, String deviceId) {
+        permissionService.requirePermission(userId, "merchant:devices:edit");
+        merchantPortalGuard.requireAccess(userId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
+        jiangyiGatherService.exitGatherMode(deviceId);
     }
 
     @Transactional

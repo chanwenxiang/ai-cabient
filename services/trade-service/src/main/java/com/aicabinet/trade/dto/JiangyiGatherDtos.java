@@ -28,4 +28,10 @@ public final class JiangyiGatherDtos {
     /** 采集审核项（§4.4.6.4：status pass|reject|wait，rejectCause 驳回原因）。 */
     public record GatherCheckItem(long id, long productId, String status,
                                   String rejectCause, String name, String picUrl) {}
+
+    /**
+     * 商户侧采集模式状态（小程序条件渲染）：非将邑绑定柜机 bound=false（前端据此隐藏入口，
+     * 不弹错）；gatherLocked=true 表示营业开门已被 409 闸断（DeviceValidationService）。
+     */
+    public record MerchantGatherStatusDto(boolean bound, boolean gatherLocked) {}
 }

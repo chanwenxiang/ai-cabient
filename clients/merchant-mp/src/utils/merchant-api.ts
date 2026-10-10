@@ -455,6 +455,13 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').DeviceSlot[]>(MerchantEndpoints.deviceSlots(id)),
   upsertSlots: (id: string, body: import('@aicabinet/shared-types').UpsertDeviceSlotRequest[]) =>
     request(MerchantEndpoints.deviceSlots(id), 'PUT', body),
+  jiangyiGatherStatus: (id: string) =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantGatherStatusDto>(
+      MerchantEndpoints.jiangyiGatherStatus(id)
+    ),
+  jiangyiGatherStart: (id: string, doorPosition?: string) =>
+    request(MerchantEndpoints.jiangyiGatherStart(id), 'POST', doorPosition ? { doorPosition } : {}),
+  jiangyiGatherExit: (id: string) => request(MerchantEndpoints.jiangyiGatherExit(id), 'POST', {}),
   pricing: (deviceId?: string) => {
     const path = deviceId
       ? MerchantEndpoints.pricingSkusByDevice(deviceId)

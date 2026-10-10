@@ -4,6 +4,7 @@ import com.aicabinet.trade.client.JiangyiGatherClient;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiTrainingTicket;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherCheckItem;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
@@ -55,6 +56,16 @@ public class JiangyiGatherService {
     public boolean isGatherLocked(String deviceId) {
         JiangyiDevice device = jiangyiDeviceMapper.selectById(deviceId);
         return device != null && device.getGatherLockedAt() != null;
+    }
+
+    /**
+     * 商户侧采集状态（小程序入口渲染判据，CB-023 商户端补充）：与 admin 入口共用
+     * startGather/exitGatherMode/409 闸门，权限与柜机归属由商户门户层把关（此处只看绑定态）。
+     */
+    public MerchantGatherStatusDto merchantStatus(String deviceId) {
+        JiangyiDevice device = jiangyiDeviceMapper.selectById(deviceId);
+        boolean bound = device != null && "BOUND".equals(device.getStatus());
+        return new MerchantGatherStatusDto(bound, bound && device.getGatherLockedAt() != null);
     }
 
     /** 进入采集模式：BOUND + 未锁 → 置锁 → 将邑侧采集开门（§4.2.3）。 */

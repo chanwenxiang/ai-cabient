@@ -118,6 +118,13 @@ export const MerchantEndpoints = {
   trend: (days: number) => `${API_PREFIX}/merchant/trend?days=${days}`,
   deviceSettings: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/settings`,
+  /** 将邑采集模式（CB-023 商户端补充）：状态 / 进入 / 退出 */
+  jiangyiGatherStatus: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/status`,
+  jiangyiGatherStart: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/start`,
+  jiangyiGatherExit: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/exit`,
   deviceSlots: (id: string) => `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/slots`,
   deviceTemperatureHistory: (deviceId: string, hours: number) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(deviceId)}/temperature-history?hours=${hours}`,

@@ -7,6 +7,7 @@ import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.storage.MinioVideoService;
@@ -257,6 +258,21 @@ public class MerchantPortalService {
     public MerchantDeviceSettingsDto updateDeviceSettings(Long userId, String deviceId,
                                                           UpdateMerchantDeviceSettingsRequest request) {
         return devicePortalService.updateDeviceSettings(userId, deviceId, request);
+    }
+
+    // ---------- 将邑采集模式（CB-023 商户端补充）：门面委托 ----------
+
+    @Transactional(readOnly = true)
+    public MerchantGatherStatusDto getJiangyiGatherStatus(Long userId, String deviceId) {
+        return devicePortalService.getJiangyiGatherStatus(userId, deviceId);
+    }
+
+    public void startJiangyiGather(Long userId, String deviceId, String doorPosition) {
+        devicePortalService.startJiangyiGather(userId, deviceId, doorPosition);
+    }
+
+    public void exitJiangyiGather(Long userId, String deviceId) {
+        devicePortalService.exitJiangyiGather(userId, deviceId);
     }
 
     @Transactional(readOnly = true)

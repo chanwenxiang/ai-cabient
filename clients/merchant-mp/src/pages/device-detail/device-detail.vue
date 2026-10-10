@@ -102,6 +102,34 @@
           />
         </view>
 
+        <!-- 将邑采集模式（CB-023 商户端补充）：仅将邑绑定柜机显示；409 营业闸门与 admin 共用 -->
+        <view v-if="jiangyiGather.bound" class="card">
+          <view class="row">
+            <text class="section">将邑识别采集</text>
+            <text class="meta" :class="{ 'gather-on': jiangyiGather.gatherLocked }">
+              {{ jiangyiGather.gatherLocked ? '采集中 · 停止营业' : '营业中' }}
+            </text>
+          </view>
+          <text class="gather-tip">
+            {{
+              jiangyiGather.gatherLocked
+                ? '采集模式下顾客无法开门购物。采集批次操作在将邑商户 App 完成，完成后退出采集模式恢复营业。'
+                : '上新商品需柜内采集学习：进入采集模式后柜机停止营业，放入实物由柜机摄像头自动拍摄，无需人工上传图片。'
+            }}
+          </text>
+          <view v-if="canEditDevice && !jiangyiGather.gatherLocked" class="field">
+            <text class="field-label">门位（选填）</text>
+            <input v-model="gatherDoorPosition" class="input" placeholder="例如 1" />
+          </view>
+          <app-button
+            v-if="canEditDevice"
+            :variant="jiangyiGather.gatherLocked ? 'primary' : 'danger'"
+            :loading="gatherBusy"
+            :label="jiangyiGather.gatherLocked ? '退出采集模式（恢复营业）' : '进入采集模式'"
+            @click="toggleGatherMode"
+          />
+        </view>
+
         <view class="card">
           <view class="row">
             <text class="section">货道</text>
@@ -151,6 +179,17 @@
           </view>
         </view>
       </view>
+
+      <!-- H5 可访问确认框：进入/退出采集模式前确认（退出营业影响大） -->
+      <AppConfirmDialog
+        :visible="confirmDialog.visible"
+        :title="confirmDialog.title"
+        :content="confirmDialog.content"
+        :confirm-text="confirmDialog.confirmText"
+        :cancel-text="confirmDialog.cancelText"
+        @confirm="resolveConfirm(true)"
+        @cancel="resolveConfirm(false)"
+      />
     </view>
   </view>
 </template>
@@ -174,6 +213,8 @@ import {
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import { resolveMerchantIdForDevice } from '@/utils/device-settings';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
+import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
+import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import type {
   DeviceSlot,
   MerchantDeviceInfo,
@@ -209,6 +250,12 @@ const slots = ref<DeviceSlot[]>([]);
 const slotPar = ref<Record<string, string>>({});
 const velocity = ref<MerchantSkuVelocity[]>([]);
 const isPreferred = ref(false);
+
+// 将邑采集模式（CB-023 商户端补充）：非将邑绑定柜机 bound=false → 卡片整体隐藏
+const jiangyiGather = ref({ bound: false, gatherLocked: false });
+const gatherDoorPosition = ref('');
+const gatherBusy = ref(false);
+const { confirmDialog, askConfirm, resolveConfirm } = useAppConfirmDialog();
 
 const lifecycleLabel = computed(() =>
   lifecycleStatus.value
@@ -328,17 +375,62 @@ function syncPreferredFlag() {
 async function loadDeviceExtras(seq: number) {
   // 「无权限=不展示」：无 analytics:view 时不发 velocity 请求（避免控制台 403 噪音）
   const allowVelocity = hasPerm(me.value, 'merchant:analytics:view');
-  const [list, vel] = await Promise.all([
+  // 采集状态只读权限 = 柜机详情权限（canView 已在此处为真）；非将邑柜机接口回 404 → 软兜底隐藏
+  const [list, vel, gather] = await Promise.all([
     softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[], '货道'),
     allowVelocity
       ? softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
-      : Promise.resolve([] as MerchantSkuVelocity[])
+      : Promise.resolve([] as MerchantSkuVelocity[]),
+    softFallback(
+      merchantApi.jiangyiGatherStatus(deviceId.value),
+      {
+        bound: false,
+        gatherLocked: false
+      } as import('@aicabinet/shared-types').OpenApiMerchantGatherStatusDto,
+      '采集状态'
+    )
   ]);
   if (seq !== loadSeq) return;
   slots.value = list;
   velocity.value = vel;
+  jiangyiGather.value = { bound: !!gather.bound, gatherLocked: !!gather.gatherLocked };
   applySlotParLevels(list);
   syncPreferredFlag();
+}
+
+/**
+ * 进入/退出采集模式。进入会停止营业（顾客开门 409），必须二次确认；
+ * 退出即恢复营业。成功后刷新状态（以服务端回包为准，不乐观更新）。
+ */
+async function toggleGatherMode() {
+  if (gatherBusy.value) return;
+  const entering = !jiangyiGather.value.gatherLocked;
+  const ok = await askConfirm({
+    title: entering ? '进入采集模式' : '退出采集模式',
+    content: entering
+      ? '进入后柜机停止营业，顾客无法开门购物，直到手动退出。确定继续？'
+      : '退出后恢复营业。确定继续？',
+    confirmText: entering ? '进入采集模式' : '退出'
+  });
+  if (!ok) return;
+  gatherBusy.value = true;
+  try {
+    if (entering) {
+      await merchantApi.jiangyiGatherStart(
+        deviceId.value,
+        gatherDoorPosition.value.trim() || undefined
+      );
+      showSuccess('已进入采集模式，柜机暂停营业');
+    } else {
+      await merchantApi.jiangyiGatherExit(deviceId.value);
+      showSuccess('已退出采集模式，恢复营业');
+    }
+    jiangyiGather.value.gatherLocked = entering;
+  } catch (e) {
+    showError(e instanceof Error ? e.message : '操作失败');
+  } finally {
+    gatherBusy.value = false;
+  }
 }
 
 async function refreshDeviceDetailMe(seq: number): Promise<boolean> {
@@ -602,6 +694,17 @@ async function saveSlots() {
   font-weight: 600;
   display: block;
   margin-bottom: 8rpx;
+}
+.meta.gather-on {
+  color: var(--warning, #b45309);
+  font-weight: 600;
+}
+.gather-tip {
+  display: block;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #475569);
+  line-height: 1.5;
+  margin-bottom: 12rpx;
 }
 .field {
   margin: 12rpx 0;
