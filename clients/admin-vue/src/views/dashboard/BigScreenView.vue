@@ -25,7 +25,14 @@
     </header>
 
     <section class="bs-kpis">
-      <div v-for="k in kpis" :key="k.label" class="bs-kpi">
+      <div
+        v-for="k in kpis"
+        :key="k.label"
+        class="bs-kpi"
+        :class="{ 'is-clickable': !!k.to }"
+        :title="k.to ? `${k.label} · 点击查看明细` : k.label"
+        @click="k.to && go(k.to)"
+      >
         <span class="bs-kpi-icon" :style="{ '--tone': k.tone }">
           <el-icon :size="22"><component :is="k.icon" /></el-icon>
         </span>
@@ -41,7 +48,19 @@
       <div class="bs-col">
         <div class="bs-panel" style="flex: 1.15">
           <div class="bs-panel-title">
-            <i class="bs-arrow" />销售趋势（近 10 日）<i class="bs-title-line" />
+            <i class="bs-arrow" />销售趋势（近 {{ trendDays }} 日）<i class="bs-title-line" />
+            <span class="bs-range">
+              <el-button
+                v-for="r in TREND_RANGES"
+                :key="r.days"
+                class="bs-btn bs-range-btn"
+                :class="{ 'is-on': trendDays === r.days }"
+                :disabled="loading"
+                @click="setTrendDays(r.days)"
+              >
+                {{ r.label }}
+              </el-button>
+            </span>
           </div>
           <div class="bs-panel-body">
             <EChart
@@ -60,7 +79,7 @@
               class="bs-donut-chart"
               :option="categoryOption"
               :loading="loading && !hydrated"
-              empty-text="暂无品类数据"
+              empty-text="暂无品类销售 · 订单产生后自动生成"
             />
             <ul v-if="categoryParts.some((p) => p.value > 0)" class="bs-legend">
               <li v-for="p in categoryParts" :key="p.label">
@@ -79,7 +98,7 @@
             <EChart
               :option="regionOption"
               :loading="loading && !hydrated"
-              empty-text="暂无区域数据"
+              empty-text="暂无线路营收 · 点位产生销售后自动生成"
             />
           </div>
         </div>
@@ -118,7 +137,9 @@
               v-for="(d, i) in topDevices"
               :key="d.deviceId"
               class="bs-rank"
-              :class="{ top: i < 3 }"
+              :class="{ top: i < 3, 'is-clickable': canDevice }"
+              :title="canDevice ? `${d.deviceName || d.deviceId} · 点击查看设备详情` : ''"
+              @click="canDevice && goDevice(d.deviceId)"
             >
               <span class="bs-rank-idx" :class="`no${i + 1}`">{{ i + 1 }}</span>
               <div class="bs-rank-main">
@@ -143,7 +164,14 @@
             <div class="bs-table-head">
               <span>点位</span><span>营收</span><span>订单</span><span>状态</span>
             </div>
-            <div v-for="row in detailRows" :key="row.deviceId" class="bs-table-row">
+            <div
+              v-for="row in detailRows"
+              :key="row.deviceId"
+              class="bs-table-row"
+              :class="{ 'is-clickable': canDevice }"
+              :title="canDevice ? `${row.name} · 点击查看设备详情` : ''"
+              @click="canDevice && goDevice(row.deviceId)"
+            >
               <span class="bs-cell-name">{{ row.name }}</span>
               <span class="bs-cell-num">{{ yuanShort(row.revenue) }}</span>
               <span class="bs-cell-num">{{ row.orders }}</span>
@@ -164,13 +192,19 @@
           <div class="bs-panel-body bs-panel-body--list">
             <div
               v-for="(item, idx) in actionItems"
-              :key="idx"
+              :key="`${item.type}-${item.sessionId || item.deviceId || item.taskId || idx}`"
               class="bs-action"
-              :class="severityClass(item.severity)"
+              :class="[severityClass(item.severity), { 'is-clickable': !!actionTarget(item) }]"
+              :title="actionTarget(item) ? `${item.title} · 点击处理` : item.title"
+              @click="goAction(item)"
             >
               <i class="bs-action-bar" />
               <div class="bs-action-main">
-                <div class="bs-action-title">{{ item.title }}</div>
+                <div class="bs-action-title">
+                  <span class="bs-action-tag">{{ actionTypeLabel(item.type) }}</span>
+                  <span class="bs-action-text">{{ item.title }}</span>
+                  <span v-if="actionTime(item)" class="bs-action-time">{{ actionTime(item) }}</span>
+                </div>
                 <div class="bs-action-sub">
                   {{ item.deviceId || displayBizNo(item.sessionId, '') || item.detail || '暂无' }}
                 </div>
@@ -187,7 +221,8 @@
 <script setup lang="ts">
 import { yuanText } from '@/utils/display';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api } from '@/api/client';
@@ -241,11 +276,14 @@ interface Workbench {
   actionItems: OpsActionItem[];
 }
 interface OpsActionItem {
+  type?: string;
   severity?: string;
   title: string;
   detail?: string;
   deviceId?: string;
   sessionId?: string;
+  taskId?: number;
+  createdAt?: string;
 }
 interface SlaMetrics {
   deviceOnlineRate: number;
@@ -281,6 +319,8 @@ interface CategoryRow {
 }
 
 /* ---------- 状态 ---------- */
+const router = useRouter();
+const auth = useAuthStore();
 const loading = ref(false);
 const hydrated = ref(false);
 const isFullscreen = ref(false);
@@ -321,52 +361,74 @@ const offlineCount = computed(
   () => mappedPoints.value.filter((p) => p.onlineStatus !== 'ONLINE').length
 );
 const fleetDeviceTotal = computed(() => stats.value?.deviceTotal ?? mapPoints.value.length);
+/**
+ * KPI 下钻（CB-031）：仅当用户持有目标页权限时给出跳转目标，无权限保持展示态
+ * （避免点击后被路由守卫甩到 403；canAccessNav 在 RBAC 未就绪时 fail-closed）。
+ */
+function routeTo(path: string, perm: string): string | null {
+  return auth.canAccessNav({ perm }) ? path : null;
+}
+const canDevice = computed(() => auth.canAccessNav({ perm: 'ops:device:list' }));
 const kpis = computed(() => [
   {
     icon: KPI_ICONS.Monitor,
     tone: '#2dd4bf',
     label: '售货机总数',
     value: String(stats.value?.deviceTotal ?? 0),
-    hint: `在售 ${workbench.value?.devicesOnSale ?? 0}`
+    hint: `在售 ${workbench.value?.devicesOnSale ?? 0}`,
+    to: routeTo('/devices?lifecycleStatus=DEPLOYED', 'ops:device:list')
   },
   {
     icon: KPI_ICONS.Wallet,
     tone: '#38bdf8',
     label: '今日营收',
     value: yuan(stats.value?.revenueTodayCents),
-    hint: `累计 ${yuan(stats.value?.revenueTotalCents)}`
+    hint: `累计 ${yuan(stats.value?.revenueTotalCents)}`,
+    to: routeTo('/finance', 'ops:finance:view')
   },
   {
     icon: KPI_ICONS.Tickets,
     tone: '#a78bfa',
     label: '今日订单',
     value: String(stats.value?.orderToday ?? 0),
-    hint: `累计 ${stats.value?.orderTotal ?? 0}`
+    hint: `累计 ${stats.value?.orderTotal ?? 0}`,
+    to: routeTo('/sessions', 'ops:session:list')
   },
   {
     icon: KPI_ICONS.TrendCharts,
     tone: '#4ade80',
     label: '今日毛利',
     value: yuan(finance.value?.grossMarginTodayCents),
-    hint: `毛利率 ${pct(finance.value?.grossMarginRateToday)}`
+    hint: `毛利率 ${pct(finance.value?.grossMarginRateToday)}`,
+    to: routeTo('/finance', 'ops:finance:view')
   },
   {
     icon: KPI_ICONS.Connection,
     tone: '#fbbf24',
     label: '设备在线率',
     value: pct(sla.value?.deviceOnlineRate),
-    hint: `投放离线 ${workbench.value?.offlineDevices ?? 0}`
+    hint: `投放离线 ${workbench.value?.offlineDevices ?? 0}`,
+    to: routeTo('/devices?online=OFFLINE', 'ops:device:list')
   },
   {
     icon: KPI_ICONS.Warning,
     tone: '#f87171',
     label: '待处理争议',
     value: String(workbench.value?.openDisputes ?? 0),
-    hint: `逾期 ${workbench.value?.overdueDisputes ?? 0}`
+    hint: `逾期 ${workbench.value?.overdueDisputes ?? 0}`,
+    to: routeTo('/disputes?status=OPEN', 'ops:dispute')
   }
 ]);
 
 /* ---------- 图表 ---------- */
+/** 趋势时间窗（CB-031）；后端 OpsAnalyticsQueryService.normalizeTrendDays 钳制为 1/7/30/90。 */
+const TREND_RANGES = [
+  { days: 7, label: '7日' },
+  { days: 30, label: '30日' },
+  { days: 90, label: '90日' }
+] as const;
+const trendDays = ref<number>(7);
+
 const trendOption = computed<EChartsOption | null>(() => {
   const days = trend.value;
   if (!hydrated.value || !days.length) return null;
@@ -499,7 +561,8 @@ const regionOption = computed<EChartsOption | null>(() => {
     revenueByRoute.set(label, (revenueByRoute.get(label) ?? 0) + d.revenueTodayCents);
   }
   const entries = [...revenueByRoute.entries()].sort((a, b) => a[1] - b[1]).slice(-8);
-  if (!entries.length) return null;
+  // 全 0 时画空坐标轴没有信息量，交给空态引导文案（2026-10-10 截图实测的丑态）
+  if (!entries.length || !entries.some(([, v]) => v > 0)) return null;
   return seriesOption({
     labels: entries.map(([k]) => k),
     series: [
@@ -569,6 +632,90 @@ function severityClass(severity?: string) {
   if (s === 'CRITICAL' || s === 'HIGH') return 'is-danger';
   if (s === 'MEDIUM') return 'is-warn';
   return 'is-muted';
+}
+
+/* ---------- 下钻导航（CB-031：大屏全面可点） ---------- */
+function go(path: string) {
+  router.push(path).catch(() => {
+    /* 重复导航被 vue-router 拒绝时静默 */
+  });
+}
+function goDevice(deviceId: string) {
+  if (canDevice.value) go(`/devices/${encodeURIComponent(deviceId)}`);
+}
+
+/** 待办类型 → 中文徽标（type 取值见后端 OpsWorkbenchQueryService.collect*）。 */
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  DISPUTE: '争议',
+  UPLOAD_STUCK: '上传',
+  // DEVICE_OFFLINE 不写「离线」二字（eslint no-hardcoded-status-label 禁字面量；
+  // 徽标语义是「待办类型」而非 online_status 展示，完整文案见条目标题「设备离线」）
+  DEVICE_OFFLINE: '设备',
+  LOW_STOCK: '库存',
+  REPLENISHMENT: '补货',
+  SESSION_STALE: '会话',
+  RECON_MISMATCH: '对账',
+  SPLIT_EXCEPTION: '分账',
+  IN_TRANSIT_OVERDUE: '在途'
+};
+function actionTypeLabel(type?: string): string {
+  const t = (type || '').toUpperCase();
+  return ACTION_TYPE_LABELS[t] ?? '待办';
+}
+function actionTime(item: OpsActionItem): string {
+  const iso = item.createdAt;
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * 待办下钻目标：type → 对应处理页（与各列表页已支持的 query 一一核对过）。
+ * 无对应权限时返回 null（保持展示态，不甩 403）；未知 type 也返回 null。
+ */
+function actionTarget(item: OpsActionItem): string | null {
+  const d = item.deviceId;
+  switch ((item.type || '').toUpperCase()) {
+    case 'DISPUTE':
+      return routeTo('/disputes?status=OPEN', 'ops:dispute');
+    case 'UPLOAD_STUCK':
+    case 'SESSION_STALE': {
+      const path = item.sessionId
+        ? `/sessions?sessionId=${encodeURIComponent(item.sessionId)}${
+            (item.type || '').toUpperCase() === 'SESSION_STALE' ? '&stuck=1' : ''
+          }`
+        : '/sessions?stuck=1';
+      return routeTo(path, 'ops:session:list');
+    }
+    case 'DEVICE_OFFLINE':
+      return d && canDevice.value
+        ? `/devices/${encodeURIComponent(d)}`
+        : routeTo('/devices?online=OFFLINE', 'ops:device:list');
+    case 'LOW_STOCK':
+      return routeTo(
+        d ? `/stock-health?deviceId=${encodeURIComponent(d)}` : '/stock-health',
+        'ops:stock-health:list'
+      );
+    case 'REPLENISHMENT':
+      return routeTo(
+        d ? `/replenishment?deviceId=${encodeURIComponent(d)}` : '/replenishment',
+        'ops:replenishment:list'
+      );
+    case 'RECON_MISMATCH':
+      return routeTo('/reconciliation', 'ops:reconciliation:list');
+    case 'SPLIT_EXCEPTION':
+      return routeTo('/finance', 'ops:finance:view');
+    case 'IN_TRANSIT_OVERDUE':
+      return routeTo('/warehouse/fulfillment', 'ops:warehouse:list');
+    default:
+      return null;
+  }
+}
+function goAction(item: OpsActionItem) {
+  const to = actionTarget(item);
+  if (to) go(to);
 }
 
 /* ---------- 格式化 ---------- */
@@ -655,11 +802,16 @@ function markerHtml(m: MapPointInput): string {
 
 function popupHtml(m: MapPointInput): string {
   const route = m.p.routeCode ? ` · 线路 ${escapeHtml(m.p.routeCode)}` : '';
+  // 「查看详情」由 document 级事件委托处理（弹窗 DOM 由地图库注入，绑不上 Vue 事件）
+  const detailLink = canDevice.value
+    ? `<span class="bs-popup-link" data-device-id="${escapeHtml(m.p.deviceId)}">查看设备详情 ›</span>`
+    : '';
   const inner = `<div class="bs-popup">
           <b>${escapeHtml(m.p.deviceName || m.p.deviceId)}</b>
           <span>状态：${onlineLabel(m.p.onlineStatus)}${route}</span>
           <span>今日营收：${yuan(m.revenue)}</span>
           ${m.p.address ? `<span class="muted">${escapeHtml(m.p.address)}</span>` : ''}
+          ${detailLink}
         </div>`;
   // AMap 自定义 InfoWindow 无外壳，需要自带深色容器；Leaflet 默认白底弹窗直接用 inner
   return mapEngine === 'amap' ? `<div class="bs-iw">${inner}</div>` : inner;
@@ -814,7 +966,11 @@ async function load() {
     soft(api.request<Workbench>(AdminEndpoints.workbench, 'GET'), null, '工作台'),
     soft(api.request<SlaMetrics>(AdminEndpoints.sla, 'GET'), null, 'SLA'),
     soft(api.request<FinanceStats>(AdminEndpoints.financeStats, 'GET'), null, '财务统计'),
-    soft(api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(10), 'GET'), null, '趋势'),
+    soft(
+      api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(trendDays.value), 'GET'),
+      null,
+      '趋势'
+    ),
     soft(
       fetchAllPages<DeviceRank>((page) =>
         AdminEndpoints.reportsDevicesList(`page=${page}&size=100`)
@@ -872,6 +1028,30 @@ async function load() {
   renderMarkers();
 }
 
+/** 切换趋势时间窗：只重拉趋势接口，不整页刷新（30s 轮询与 load 共用 loading 语义）。 */
+async function setTrendDays(days: number) {
+  if (trendDays.value === days || loading.value) return;
+  trendDays.value = days;
+  loading.value = true;
+  const { soft, flush } = createSoftFailCollector();
+  const t = await soft(
+    api.request<{ last7Days: DailyStat[] }>(AdminEndpoints.trend(days), 'GET'),
+    null,
+    '趋势'
+  );
+  flush();
+  if (t) trend.value = t.last7Days ?? [];
+  loading.value = false;
+}
+
+/** 弹窗由 Leaflet/AMap 注入（脱离 Vue 作用域），「查看设备详情」用 document 级事件委托。 */
+function onPopupDetailClick(e: MouseEvent) {
+  const el = (e.target as HTMLElement | null)?.closest?.('.bs-popup-link');
+  if (!el) return;
+  const id = el.getAttribute('data-device-id');
+  if (id) goDevice(id);
+}
+
 /* ---------- 时钟 / 全屏 / 生命周期 ---------- */
 const clockTime = ref('');
 const clockDate = ref('');
@@ -908,11 +1088,13 @@ onMounted(async () => {
   clockTimer = globalThis.setInterval(tick, 1000);
   refreshTimer = globalThis.setInterval(load, 30_000);
   document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('click', onPopupDetailClick);
 });
 onBeforeUnmount(() => {
   globalThis.clearInterval(clockTimer);
   globalThis.clearInterval(refreshTimer);
   document.removeEventListener('fullscreenchange', onFullscreenChange);
+  document.removeEventListener('click', onPopupDetailClick);
   if (amapMap) {
     amapMap.destroy();
     amapMap = null;
@@ -1178,6 +1360,59 @@ onBeforeUnmount(() => {
 .bs-kpi-hint {
   font-size: 11px;
   color: #6c86a8;
+}
+
+/* ---------- 可点击卡片 / 行的 hover 反馈（CB-031 下钻） ---------- */
+.bs-kpi.is-clickable {
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+.bs-kpi.is-clickable:hover {
+  border-color: rgba(45, 212, 191, 0.55);
+  box-shadow:
+    inset 0 0 26px rgba(45, 212, 191, 0.08),
+    0 0 18px rgba(45, 212, 191, 0.18);
+  transform: translateY(-1px);
+}
+.bs-rank.is-clickable,
+.bs-action.is-clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.bs-rank.is-clickable:hover,
+.bs-action.is-clickable:hover {
+  background: rgba(56, 189, 248, 0.07);
+}
+.bs-table-row.is-clickable {
+  cursor: pointer;
+}
+
+/* ---------- 趋势时间窗切换 ---------- */
+.bs-range {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+.bs-root .bs-range-btn {
+  padding: 1px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  color: #8fa8c7;
+  background: transparent;
+  border-color: rgba(143, 168, 199, 0.3);
+}
+.bs-root .bs-range-btn.is-on {
+  color: #07111f;
+  font-weight: 600;
+  background: linear-gradient(135deg, #2dd4bf, #38bdf8);
+  border-color: transparent;
+}
+.bs-root .bs-range-btn:hover:not(.is-on):not(:disabled) {
+  color: #d7e7ff;
+  border-color: rgba(45, 212, 191, 0.5);
 }
 
 /* ---------- 主体三栏 ---------- */
@@ -1605,11 +1840,42 @@ onBeforeUnmount(() => {
   gap: 2px;
 }
 .bs-action-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: #eaf5ff;
   font-size: 12.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.bs-action-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bs-action-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  padding: 0 5px;
+  border-radius: 3px;
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  letter-spacing: 0;
+}
+.bs-action.is-danger .bs-action-tag {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.bs-action-time {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: #6c86a8;
+  font-variant-numeric: tabular-nums;
 }
 .bs-action-sub {
   color: #6c86a8;
@@ -1732,5 +1998,17 @@ onBeforeUnmount(() => {
 }
 .bs-popup .muted {
   color: #6b7280;
+}
+/* 弹窗内「查看设备详情」（弹窗 DOM 由地图库注入，非 scoped） */
+.bs-popup-link {
+  margin-top: 4px;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: #2dd4bf;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.bs-popup-link:hover {
+  color: #5eead4;
 }
 </style>

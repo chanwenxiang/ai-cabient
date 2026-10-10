@@ -87,6 +87,9 @@ const SUBJECT_ALIASES = [
   { re: /美智微/i, id: '美智微', kind: 'peer' },
   { re: /宇脉/i, id: '宇脉电子', kind: 'peer' },
   { re: /合豚/i, id: '合豚', kind: 'peer' },
+  // CB-031：售货机行业平台/设备商（peer）—— 运营看板与告警交互对照
+  { re: /映翰通|inhand/i, id: '映翰通', kind: 'peer' },
+  { re: /nayax/i, id: 'Nayax', kind: 'peer' },
   { re: /将邑|hunanjysmart|jysmart/i, id: '将邑智能', kind: 'peer' },
   { re: /思迅/i, id: '思迅', kind: 'peer' },
   { re: /旺旺/i, id: '旺旺', kind: 'peer' },
