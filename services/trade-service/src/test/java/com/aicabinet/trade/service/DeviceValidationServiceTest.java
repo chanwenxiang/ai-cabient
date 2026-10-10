@@ -35,6 +35,8 @@ class DeviceValidationServiceTest {
     private ConsumerPreauthService consumerPreauthService;
     @Mock
     private MerchantMapper merchantRepository;
+    @Mock
+    private JiangyiGatherService jiangyiGatherService;
 
     private DeviceValidationService service;
 
@@ -42,7 +44,7 @@ class DeviceValidationServiceTest {
     void setUp() {
         service = new DeviceValidationService(
                 deviceInfoRepository, sessionRepository, replenishmentTaskRepository,
-                consumerPreauthService, merchantRepository);
+                consumerPreauthService, merchantRepository, jiangyiGatherService);
     }
 
     @Test

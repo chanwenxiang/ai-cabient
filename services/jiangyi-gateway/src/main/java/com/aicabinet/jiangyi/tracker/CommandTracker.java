@@ -32,9 +32,10 @@ public class CommandTracker {
     private static final String KEY_OPEN = "jiangyi:cmd:open:pending";
     private static final String KEY_CLOSE = "jiangyi:cmd:close:pending";
     private static final String KEY_DOING = "jiangyi:cmd:doing:pending";
+    private static final String KEY_MODEL = "jiangyi:cmd:model:pending";
     private static final String HASH_FMT = "jiangyi:cmd:%s:%s";
 
-    public enum Kind { OPEN, CLOSE, DOING }
+    public enum Kind { OPEN, CLOSE, DOING, MODEL }
 
     private final StringRedisTemplate redis;
 
@@ -95,6 +96,7 @@ public class CommandTracker {
             case OPEN -> KEY_OPEN;
             case CLOSE -> KEY_CLOSE;
             case DOING -> KEY_DOING;
+            case MODEL -> KEY_MODEL;
         };
     }
 

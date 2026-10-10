@@ -95,3 +95,59 @@
 - 进程持锁时 `spring-boot:repackage` 可能 BUILD SUCCESS 但产物未落盘——重打包前先停服务，打包后校验产物内容（如提取 `BOOT-INF/lib/common-core-*.jar` 字节数、grep 类常量池标志）。
 - common-core 改动后须 `mvn -o -pl services/common/common-core install` 同步本地仓库，否则旧 fat jar 会嵌旧版（症状：运行时 `Lookup method resolution failed`）。
 - 种子五表（device_info→jiangyi_device→mapping→price→inventory）psql 直插、ON CONFLICT 幂等，不入仓库（铁律 #29 的 R__ 惯例保留给长期基线数据）。
+
+## 7. 二期：采集→学习→模型闭环 + 商品库挂接 + 采集编排（CB-023，2026-10-10）
+
+### 7.1 依据与范围
+
+依据《将邑科技商品采集接口文档(移动端)v1.13.0》（**PDF 扫描件逐页视觉核对**——docx 转换稿有偏差：4.1.2.4 name 行串行错位、4.4.4 示例 industrialControlModel 陷阱）。范围 A+B+C 全量（用户拍板）：
+
+- **A 模型同步闭环**：模型列表预览 → classes.txt 解析 → 映射预生成（MODEL_SYNC/DISABLED）→ 人工激活 → WS updateModel 下发 → downloadModelNotify 回执回填。
+- **B 商品库挂接**：我方 SKU ↔ 将邑商品（新关联表，不动 sku_catalog 主数据）。
+- **C 采集编排**：进入/退出采集模式（营业开门 409）、触发学习（finishNotify 一次性凭据）、进度聚合、审核列表。
+
+### 7.2 关键设计决策（CB-023 台账）
+
+1. **industrialControlModel 存原值不解释**：PDF §4.4.4.5 示例中 rk3588.rknn 与 rk3576.rknn 的该字段**同为 "88"**，"76"/"88" 与主板的对应关系文档自证不了。下发校验用**字符串相等**（设备登记值 vs 模型值），不做语义映射。
+2. **预生成不自动生效**：预生成行 status=DISABLED，人工核对 classId↔textName↔SKU 对照后才激活——错位映射一旦激活直接错误扣款。classes 行数 ≠ 模型 quantity 即拒绝预生成（JiangyiClassesParser，含前后 3 行 diff 摘要）。
+3. **独立关联表**（V335 sku_jiangyi_link）：jiangyi_product_id UNIQUE（一个将邑商品至多挂一个我方 SKU，防识别歧义）；barCode 双方均非空且不等即拒（将邑 barCode 可空且 barCodeSource=manual 不可靠，仅作一致性校验不作唯一键）；RETIRED 留痕可复活。
+4. **采集只编排我方可治理部分**：4.3.x 采集批次操作留在将邑商户 App 人工完成；采集开门（§4.2.3）由将邑直接下发不经我方 gateway——采集模式锁（jiangyi_device.gather_locked_at）只管我方营业开门（DeviceValidationService 409「设备商品采集中」），账务天然隔离（将邑侧开门不产生我方会话）。
+5. **classIdBase 可配（0/1）**：classes 行号与 classId 的对应方向文档未明示（PDF 无说明），admin 预览人工确认为兜底。
+6. **finishNotify 三重防伪**（gateway 公开面 `/jiangyi/api/gather-finish-notify`，GatewayWebConfig 排除鉴权）：①finishNotifyId 必须命中 PENDING ticket 否则静默 202；②反查将邑 trainedProducts 交叉验证 productId；③CAS 一次性消费（PENDING→FINISHED/FAILED，重放 no-op）。回执到了但 trained 列表还没有 → 保留 PENDING（异步延迟容忍）。
+7. **学习范围=将邑侧已采集待学习集合**（§4.4.3 参数表无 productId，只有 modelName/finishNotifyUrl/finishNotifyId；文档参数表与请求示例自身不一致——按示例带 modelName，productId 语义待真机实锤）。
+8. **MODEL_SYNC 覆盖保留已挂 SKU**：Mapper.upsert 的 MP NOT_NULL 策略下 sku_id=null 不进 SET 子句，预生成覆盖 MANUAL 行不丢已挂 SKU。
+
+### 7.3 链路与时序
+
+```
+[admin] 模型预览 GET /jiangyi/models            ← JiangyiGatherClient.modelFiles + classes.txt 拉取解析
+[admin] 预生成 POST .../model-sync              ← jiangyi_class_mapping upsert(MODEL_SYNC/DISABLED)
+[admin] 激活  POST .../class-mappings/activate   ← activatePregenerated（DISABLED→ACTIVE）
+[admin] 下发  POST .../model-push               ← jiangyi_model_deployment(SENT) → gateway WS updateModel
+[gateway] tracker(MODEL kind) 600s 超时 → trade push-timeout → FAILED（幂等 CAS）
+[设备]   downloadModelNotify(WS 上行) → gateway → trade model-confirmed → CONFIRMED + jiangyi_device 回填
+[admin] 采集 start-gather → 置锁 → 将邑 gatherOpenDoor（失败回滚锁）
+[admin] 采集 start-training → ticket(UUID 凭据) → commitTraining(modelName, finishNotifyUrl, finishNotifyId)
+[将邑]   → finishNotifyUrl → gateway 公开面 → trade 三重防伪 → FINISHED
+```
+
+### 7.4 迁移与文件
+
+- **V335** sku_jiangyi_link；**V336** jiangyi_device +industrial_control_model +gather_locked_at、jiangyi_model_deployment、jiangyi_training_ticket。
+- trade 新增：JiangyiGatherClient / JiangyiGatewayClient / JiangyiClassesParser / JiangyiModelSyncService / SkuJiangyiLinkService / JiangyiGatherService / AdminJiangyiCatalogController；AdminJiangyiController +模型/采集面；JiangyiInternalController +model-confirmed / push-timeout / gather-finish-notify。
+- gateway 新增：ModelPushController / GatherNotifyController / DeviceWebSocketHandler +updateModel+downloadModelNotify / CommandTracker +Kind.MODEL / SessionWatchdog +sweepModel。
+- admin：DeviceJiangyiCard +模型同步/采集编排两区块；SkuJiangyiLinkDialog（搜索挂接/新增到将邑/回填 textName/解挂）+ SkuListView「将邑挂接」行操作。
+- 模拟器：updateModel 接收→模拟下载→WS 上行 downloadModelNotify；JIANGYI_SIM_TEXT_NAME 按 classes 行号对照取 classId（JIANGYI_SIM_CLASS_ID_BASE 可配）。
+
+### 7.5 单测
+
+trade 60 用例（JiangyiClassesParserTest 8 / JiangyiModelSyncServiceTest 12 / SkuJiangyiLinkServiceTest 12 / JiangyiGatherServiceTest 12 / AdminJiangyiControllerTest 12 / DeviceValidationServiceTest 4）+ gateway DeviceWebSocketHandlerTest 8（updateModel 报文契约 / downloadModelNotify 宽容解析 / 心跳 / 未知消息忽略）。
+
+### 7.6 待真机实锤清单
+
+- classId 行号方向（0/1-based）→ classIdBase 可配 + 预览人工确认兜底。
+- "76"/"88" 与主板对应关系 → 存原值字符串相等，不解释。
+- downloadModelNotify msgContent 真实结构 → gateway 宽容解析（对象/字符串均取 modelName）。
+- 采集期 WS 共存行为（采集开门时营业 WS 会话是否被将邑侧复用）。
+- finishNotifyUrl 公网可达性（需部署侧 JIANGYI_PUBLIC_BASE_URL + 反代 /jiangyi/api/gather-finish-notify）。
+- §4.4.3 学习是否真的集合粒度（无 productId）。

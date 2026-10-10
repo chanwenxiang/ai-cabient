@@ -6,6 +6,8 @@ import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.service.DevicePresenceService;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
+import com.aicabinet.trade.service.JiangyiGatherService;
+import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiRecognitionTimeoutService;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,17 +44,23 @@ public class JiangyiInternalController {
     private final JiangyiRecognitionTimeoutService jiangyiRecognitionTimeoutService;
     private final JiangyiOnboardingService jiangyiOnboardingService;
     private final DevicePresenceService devicePresenceService;
+    private final JiangyiModelSyncService jiangyiModelSyncService;
+    private final JiangyiGatherService jiangyiGatherService;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
                                      JiangyiRecognitionTimeoutService jiangyiRecognitionTimeoutService,
                                      JiangyiOnboardingService jiangyiOnboardingService,
-                                     DevicePresenceService devicePresenceService) {
+                                     DevicePresenceService devicePresenceService,
+                                     JiangyiModelSyncService jiangyiModelSyncService,
+                                     JiangyiGatherService jiangyiGatherService) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.devicePresenceService = devicePresenceService;
+        this.jiangyiModelSyncService = jiangyiModelSyncService;
+        this.jiangyiGatherService = jiangyiGatherService;
     }
 
     // ---------- 设备面 ----------
@@ -107,6 +115,38 @@ public class JiangyiInternalController {
     @GetMapping("/devices/{deviceId}/routable")
     public ApiResponse<Boolean> routable(@PathVariable("deviceId") String deviceId) {
         return ApiResponse.ok(jiangyiDeviceDirectory.isJiangyi(deviceId));
+    }
+
+    // ---------- 模型同步面（CB-023） ----------
+
+    /**
+     * 设备模型下发完成回执（V16 §4.2.5 downloadModelNotify，gateway WS 分支转发）：
+     * 回填 jiangyi_device.model_name/classes_version + deployment CONFIRMED；
+     * 无进行中 SENT 记录 → 409（疑似串包/重放，调用方记 warn 不重试）。
+     */
+    @PostMapping("/devices/{deviceId}/model-confirmed")
+    public ApiResponse<Void> modelConfirmed(@PathVariable("deviceId") String deviceId,
+                                            @RequestBody ModelConfirmedRequest body) {
+        jiangyiModelSyncService.confirmModel(deviceId, body.modelName());
+        return ApiResponse.ok(null);
+    }
+
+    /** 模型下发超时（watchdog MODEL kind）：deployment SENT → FAILED（幂等）。 */
+    @PostMapping("/model-deployments/{deploymentId}/push-timeout")
+    public ApiResponse<Void> modelPushTimeout(@PathVariable("deploymentId") long deploymentId,
+                                              @RequestBody ModelPushTimeoutRequest body) {
+        jiangyiModelSyncService.markPushTimeout(deploymentId, body.reason());
+        return ApiResponse.ok(null);
+    }
+
+    /**
+     * 将邑云学习完成回调（gateway 公开面转发）：finishNotifyId 一次性凭据防伪造 +
+     * 将邑侧反查交叉验证；未知/非 PENDING 凭据静默忽略（无鉴权面不回错误详情）。
+     */
+    @PostMapping("/gather-finish-notify")
+    public ApiResponse<Void> gatherFinishNotify(@RequestBody GatherFinishNotifyRequest body) {
+        jiangyiGatherService.handleFinishNotify(body.finishNotifyId(), body.msg());
+        return ApiResponse.ok(null);
     }
 
     // ---------- 映射面 ----------
@@ -185,4 +225,7 @@ public class JiangyiInternalController {
     record MappingStatusRequest(Boolean active) {}
     record RegisterRequest(String deviceId, String deviceSn, String modelName) {}
     record BindDomainRequest(String deviceSn, String domain, String socketUrl) {}
+    record ModelConfirmedRequest(String modelName) {}
+    record ModelPushTimeoutRequest(String reason) {}
+    record GatherFinishNotifyRequest(String finishNotifyId, String msg) {}
 }

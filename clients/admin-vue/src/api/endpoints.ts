@@ -153,6 +153,38 @@ export const AdminEndpoints = {
   deviceJiangyiMappingStatus: (deviceId: string, classId: number) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-mappings/${classId}/status`,
 
+  /** 将邑模型同步 / 采集编排（CB-023 二期）：classes 对照→预生成→激活→WS 下发→回执审计 */
+  jiangyiModels: `${ops}/jiangyi/models`,
+  deviceJiangyiModelSync: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-sync`,
+  deviceJiangyiMappingActivate: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-mappings/activate`,
+  deviceJiangyiModelPush: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-push`,
+  deviceJiangyiModelDeployments: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-deployments`,
+  deviceJiangyiGatherStart: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/start`,
+  deviceJiangyiGatherExit: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/exit`,
+  deviceJiangyiGatherProgress: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/progress`,
+  deviceJiangyiGatherTraining: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/training`,
+  jiangyiGatherCheck: `${ops}/jiangyi/gather-check`,
+
+  /** 将邑商品库挂接（CB-023 二期）：SKU ↔ 将邑商品关联 + 学习回填 */
+  skuJiangyiLink: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link`,
+  skuJiangyiLinkCreate: (skuId: string) =>
+    `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link/create`,
+  skuJiangyiLinkPullTextName: (skuId: string) =>
+    `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link/pull-text-name`,
+  jiangyiStdSkus: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/jiangyi/std-skus?${query}`
+      : `${ops}/jiangyi/std-skus?${query.toString()}`,
+  jiangyiProductCategories: `${ops}/jiangyi/product-categories`,
+
   /** 商户 / 分账 */
   merchants: `${ops}/merchants`,
   merchantsList: (query: URLSearchParams | string) =>

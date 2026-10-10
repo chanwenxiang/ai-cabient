@@ -116,6 +116,35 @@ public class TradeInternalClient {
                 new OpenDoorFailedRequest(reason), sessionId);
     }
 
+    // ---------- 模型同步面（CB-023） ----------
+
+    /** 设备 downloadModelNotify 回执转发：trade 回填 model_name/classes_version + deployment CONFIRMED。 */
+    public void modelConfirmed(String deviceId, String modelName) {
+        post("/internal/v1/jiangyi/devices/{deviceId}/model-confirmed",
+                new ModelConfirmedRequest(modelName), deviceId);
+    }
+
+    /** 模型下发超时（watchdog MODEL kind）：trade deployment → FAILED（幂等：非 SENT no-op）。 */
+    public void modelPushTimeout(long deploymentId, String reason) {
+        post("/internal/v1/jiangyi/model-deployments/{deploymentId}/push-timeout",
+                new ModelPushTimeoutRequest(reason), deploymentId);
+    }
+
+    /** 将邑云学习完成回调转发（无鉴权公开面收到的，trade 侧凭 finishNotifyId 一次性凭据防伪造）。 */
+    public void gatherFinishNotify(String finishNotifyId, String msg) {
+        post("/internal/v1/jiangyi/gather-finish-notify",
+                new GatherFinishNotifyRequest(finishNotifyId, msg));
+    }
+
+    /** 与 trade JiangyiInternalController.ModelConfirmedRequest 对齐。 */
+    record ModelConfirmedRequest(String modelName) {}
+
+    /** 与 trade JiangyiInternalController.ModelPushTimeoutRequest 对齐。 */
+    record ModelPushTimeoutRequest(String reason) {}
+
+    /** 与 trade JiangyiInternalController.GatherFinishNotifyRequest 对齐。 */
+    record GatherFinishNotifyRequest(String finishNotifyId, String msg) {}
+
     /** 与 trade SessionInternalController.OpenDoorFailedRequest 对齐。 */
     record OpenDoorFailedRequest(String reason) {}
 

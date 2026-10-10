@@ -37,6 +37,15 @@ public class JiangyiDevice {
     /** 模型 classes 版本（二期模型同步回填）。 */
     private String classesVersion;
 
+    /**
+     * 工控机机型——存将邑原值（"76"/"88"），不解释语义（CB-023：PDF §4.4.4.5 示例中
+     * rk3588/rk3576 两种主板该字段同为 "88"，映射关系文档自证不了）；模型下发校验用字符串相等。
+     */
+    private String industrialControlModel;
+
+    /** 采集模式锁（CB-023）：非空 = 采集中，营业开门 409；NULL = 正常营业。 */
+    private Instant gatherLockedAt;
+
     private String status;
 
     /** 每次经我方 /jiangyi/api/token 签发 token 时 +1，旧 token 随版本失效。 */

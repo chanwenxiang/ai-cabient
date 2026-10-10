@@ -47,4 +47,39 @@ public interface JiangyiDeviceMapper extends BaseTradeMapper<JiangyiDevice> {
                 .set(JiangyiDevice::getUpdatedAt, Instant.now())
                 .eq(JiangyiDevice::getDeviceId, deviceId));
     }
+
+    // ---------- 模型同步面（CB-023） ----------
+
+    /** 模型下发回执回填：model_name/classes_version（classes_version=我方计算的 classes.txt sha256 前 12 位）。 */
+    default int updateModelInfo(String deviceId, String modelName, String classesVersion, Instant at) {
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getModelName, modelName)
+                .set(JiangyiDevice::getClassesVersion, classesVersion)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId));
+    }
+
+    /** 登记工控机机型（将邑原值 "76"/"88"，admin 录入/采集链路回填）。 */
+    default int updateIndustrialControlModel(String deviceId, String industrialControlModel, Instant at) {
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getIndustrialControlModel, industrialControlModel)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId));
+    }
+
+    /** 进入采集模式（gather_locked_at=at，营业开门 409）。 */
+    default int markGatherLocked(String deviceId, Instant at) {
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getGatherLockedAt, at)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId));
+    }
+
+    /** 退出采集模式（清锁）。 */
+    default int markGatherUnlocked(String deviceId, Instant at) {
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getGatherLockedAt, null)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId));
+    }
 }

@@ -7,7 +7,10 @@ import com.aicabinet.common.dto.JiangyiDeviceDto;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
+import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
+import com.aicabinet.trade.service.JiangyiGatherService;
+import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -39,11 +43,17 @@ public class AdminJiangyiController {
 
     private final JiangyiOnboardingService jiangyiOnboardingService;
     private final JiangyiClassMappingService jiangyiClassMappingService;
+    private final JiangyiModelSyncService jiangyiModelSyncService;
+    private final JiangyiGatherService jiangyiGatherService;
 
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
-                                  JiangyiClassMappingService jiangyiClassMappingService) {
+                                  JiangyiClassMappingService jiangyiClassMappingService,
+                                  JiangyiModelSyncService jiangyiModelSyncService,
+                                  JiangyiGatherService jiangyiGatherService) {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
+        this.jiangyiModelSyncService = jiangyiModelSyncService;
+        this.jiangyiGatherService = jiangyiGatherService;
     }
 
     /** 绑定视图：binding=null = 未登记（前台展示「未接入」态 + 登记表单）。 */
@@ -113,6 +123,94 @@ public class AdminJiangyiController {
                 deviceId, classId, Boolean.TRUE.equals(body.active())));
     }
 
+    // ---------- 模型同步面（CB-023 二期） ----------
+
+    /** 将邑模型列表 + classes 解析预览（classId↔textName 对照表；rejectReason 非空=该模型解析被拒）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/jiangyi/models")
+    public ApiResponse<List<JiangyiModelSyncService.ModelPreview>> models(
+            @RequestParam(value = "classIdBase", defaultValue = "0") int classIdBase) {
+        return ApiResponse.ok(jiangyiModelSyncService.previewModels(classIdBase));
+    }
+
+    /** 映射预生成：模型 classes → 该设备 MODEL_SYNC/DISABLED 行（sku_id 保留既有）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/model-sync")
+    public ApiResponse<Integer> modelSync(@PathVariable("deviceId") String deviceId,
+                                          @Valid @RequestBody ModelSyncRequest body) {
+        return ApiResponse.ok(jiangyiModelSyncService.pregenerateForDevice(
+                deviceId, body.modelName().trim(), body.classIdBase() == null ? 0 : body.classIdBase()));
+    }
+
+    /** 批量激活某设备某模型的预生成行（人工确认对照表后一次性生效）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/class-mappings/activate")
+    public ApiResponse<Integer> activatePregenerated(@PathVariable("deviceId") String deviceId,
+                                                     @Valid @RequestBody ModelSyncRequest body) {
+        return ApiResponse.ok(jiangyiModelSyncService.activatePregenerated(
+                deviceId, body.modelName().trim()));
+    }
+
+    /** 下发模型到设备（BOUND+机型匹配+无未决 SENT；updateModel 经 gateway WS 下发）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/model-push")
+    public ApiResponse<Long> modelPush(@PathVariable("deviceId") String deviceId,
+                                       @Valid @RequestBody ModelSyncRequest body) {
+        return ApiResponse.ok(jiangyiModelSyncService.pushModel(deviceId, body.modelName().trim()));
+    }
+
+    /** 模型下发审计列表（SENT/CONFIRMED/FAILED + classes_version）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/model-deployments")
+    public ApiResponse<List<DeploymentDto>> modelDeployments(@PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiModelSyncService.listDeployments(deviceId).stream()
+                .map(AdminJiangyiController::toDto).toList());
+    }
+
+    // ---------- 采集编排面（CB-023 二期，范围 C） ----------
+
+    /** 进入采集模式：置锁（营业开门即 409）→ 将邑侧采集开门；开门失败自动回滚锁。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/gather/start")
+    public ApiResponse<Void> startGather(@PathVariable("deviceId") String deviceId,
+                                         @RequestBody(required = false) GatherStartRequest body) {
+        jiangyiGatherService.startGather(deviceId, body == null ? null : blankToNull(body.doorPosition()));
+        return ApiResponse.ok(null);
+    }
+
+    /** 退出采集模式（恢复营业）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/gather/exit")
+    public ApiResponse<Void> exitGather(@PathVariable("deviceId") String deviceId) {
+        jiangyiGatherService.exitGatherMode(deviceId);
+        return ApiResponse.ok(null);
+    }
+
+    /** 采集进度聚合：采集锁状态 + 开门状态 + 学习中 + 审核列表。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/gather/progress")
+    public ApiResponse<JiangyiGatherService.GatherProgress> gatherProgress(
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiGatherService.progress(deviceId));
+    }
+
+    /** 触发学习（幂等：同 SKU 有 PENDING 凭据直接返回既有 ticket）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/gather/training")
+    public ApiResponse<Long> startTraining(@PathVariable("deviceId") String deviceId,
+                                           @Valid @RequestBody TrainingRequest body) {
+        return ApiResponse.ok(jiangyiGatherService.startTraining(
+                deviceId, body.skuId().trim(), body.modelName().trim()).getId());
+    }
+
+    /** 审核列表（按挂接商品反查 productIds；skuId 缺省=全部）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/jiangyi/gather-check")
+    public ApiResponse<List<com.aicabinet.trade.dto.JiangyiGatherDtos.GatherCheckItem>> gatherCheck(
+            @RequestParam(value = "skuId", required = false) String skuId) {
+        return ApiResponse.ok(jiangyiGatherService.checkList(skuId));
+    }
+
     // ---------- 请求体 / 装配 ----------
 
     record RegisterRequest(@NotBlank(message = "设备 SN 不能为空") String deviceSn,
@@ -127,6 +225,26 @@ public class AdminJiangyiController {
                                 Boolean active) {}
 
     record MappingStatusRequest(Boolean active) {}
+
+    record ModelSyncRequest(@NotBlank(message = "模型名不能为空") String modelName,
+                            Integer classIdBase) {}
+
+    record GatherStartRequest(String doorPosition) {}
+
+    record TrainingRequest(@NotBlank(message = "SKU 不能为空") String skuId,
+                           @NotBlank(message = "模型名不能为空") String modelName) {}
+
+    private static DeploymentDto toDto(JiangyiModelDeployment d) {
+        return new DeploymentDto(d.getId(), d.getDeviceId(), d.getModelName(), d.getModelUrl(),
+                d.getIndustrialControlModel(), d.getClassesVersion(), d.getStatus(),
+                d.getSentAt(), d.getConfirmedAt(), d.getFailReason());
+    }
+
+    /** 下发审计行（openapi inline schema）。 */
+    public record DeploymentDto(Long id, String deviceId, String modelName, String modelUrl,
+                                String industrialControlModel, String classesVersion, String status,
+                                java.time.Instant sentAt, java.time.Instant confirmedAt,
+                                String failReason) {}
 
     private static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s.trim();

@@ -6,6 +6,8 @@ import com.aicabinet.common.dto.JiangyiDeviceDto;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
+import com.aicabinet.trade.service.JiangyiGatherService;
+import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,9 +39,12 @@ class AdminJiangyiControllerTest {
 
     @Mock private JiangyiOnboardingService onboardingService;
     @Mock private JiangyiClassMappingService mappingService;
+    @Mock private JiangyiModelSyncService modelSyncService;
+    @Mock private JiangyiGatherService gatherService;
 
     private AdminJiangyiController controller() {
-        return new AdminJiangyiController(onboardingService, mappingService);
+        return new AdminJiangyiController(onboardingService, mappingService,
+                modelSyncService, gatherService);
     }
 
     private JiangyiDevice boundDevice() {
@@ -173,5 +178,43 @@ class AdminJiangyiControllerTest {
                 new AdminJiangyiController.MappingStatusRequest(Boolean.FALSE));
 
         verify(mappingService).setStatus(DEVICE_ID, 101, false);
+    }
+
+    // ---------- 采集编排面（CB-023 二期） ----------
+
+    @Test
+    void startGather_nullBodyMeansNullDoorPosition() {
+        controller().startGather(DEVICE_ID, null);
+        verify(gatherService).startGather(DEVICE_ID, null);
+
+        controller().startGather(DEVICE_ID, new AdminJiangyiController.GatherStartRequest(" 1 "));
+        verify(gatherService).startGather(DEVICE_ID, "1");
+    }
+
+    @Test
+    void exitGatherDelegates() {
+        controller().exitGather(DEVICE_ID);
+        verify(gatherService).exitGatherMode(DEVICE_ID);
+    }
+
+    @Test
+    void startTrainingReturnsTicketId() {
+        com.aicabinet.trade.domain.JiangyiTrainingTicket ticket =
+                new com.aicabinet.trade.domain.JiangyiTrainingTicket();
+        ticket.setId(77L);
+        when(gatherService.startTraining(DEVICE_ID, "SKU-WATER-001", "JY-DOOR-01-model"))
+                .thenReturn(ticket);
+
+        Long id = controller().startTraining(DEVICE_ID,
+                new AdminJiangyiController.TrainingRequest(" SKU-WATER-001 ", " JY-DOOR-01-model ")).data();
+
+        assertEquals(77L, id);
+    }
+
+    @Test
+    void gatherCheckPassesSkuIdThrough() {
+        when(gatherService.checkList("SKU-WATER-001")).thenReturn(List.of());
+        controller().gatherCheck("SKU-WATER-001");
+        verify(gatherService).checkList("SKU-WATER-001");
     }
 }

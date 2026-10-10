@@ -34,6 +34,9 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(DeviceWebSocketHandler.class);
 
     public static final String MSG_TYPE_OPEN_DOOR = "openDoor";
+    public static final String MSG_TYPE_UPDATE_MODEL = "updateModel";
+    /** 设备模型下发完成回执（V16 §4.2.5 downloadModelNotify，成功后机器端重启）。 */
+    public static final String MSG_TYPE_DOWNLOAD_MODEL_NOTIFY = "downloadModelNotify";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -109,6 +112,27 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
                         "msgContent", node.path("msgContent").asText("PONG")));
                 return;
             }
+            // 模型下发完成回执（V16 §4.2.5）：宽容解析——只取 modelName，真实 msgContent
+            // 形态待真机实锤（对象/字符串都容忍），缺失记 debug 不崩（CB-023 台账局限 2）。
+            if (MSG_TYPE_DOWNLOAD_MODEL_NOTIFY.equalsIgnoreCase(node.path("msgType").asText())) {
+                String deviceId = attrDeviceId(session);
+                JsonNode content = node.path("msgContent");
+                String modelName = content.isObject()
+                        ? content.path("modelName").asText(null)
+                        : (content.isTextual() ? content.asText() : null);
+                if (deviceId != null && modelName != null && !modelName.isBlank()) {
+                    try {
+                        tradeInternalClient.modelConfirmed(deviceId, modelName);
+                        log.info("jiangyi ws model confirmed deviceId={} modelName={}", deviceId, modelName);
+                    } catch (Exception e) {
+                        log.warn("jiangyi ws model-confirmed report failed deviceId={}: {}", deviceId, e.getMessage());
+                    }
+                } else {
+                    log.debug("jiangyi ws downloadModelNotify without modelName identifier={} payload={}",
+                            identifier, message.getPayload());
+                }
+                return;
+            }
             // 模式一业务上报全走 HTTP 面；WS 上行其余消息忽略（铁律：未知消息宁可忽略也不误当业务数据）
             log.debug("jiangyi ws upstream identifier={} payload={}", identifier, message.getPayload());
         } catch (Exception e) {
@@ -142,6 +166,28 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         return send(session, identifier, Map.of(
                 "msgType", MSG_TYPE_OPEN_DOOR,
                 "msgContent", sessionId));
+    }
+
+    /**
+     * 下发模型更新指令（CB-023，V16 §4.3.2.9）：
+     * {@code {msgType:"updateModel", msgContent:{quantity,modelUrl,textUrl,modelName}}}。
+     * 发出 ≠ 设备已应用：回执走 WS 上行 downloadModelNotify（成功后机器端重启）。
+     */
+    public boolean sendModelUpdate(String identifier, String modelName, String modelUrl,
+                                   String textUrl, int quantity) {
+        WebSocketSession session = sessions.get(identifier);
+        if (session == null || !session.isOpen()) {
+            log.warn("jiangyi ws model-push skipped: device offline identifier={} modelName={}",
+                    identifier, modelName);
+            return false;
+        }
+        return send(session, identifier, Map.of(
+                "msgType", MSG_TYPE_UPDATE_MODEL,
+                "msgContent", Map.of(
+                        "quantity", quantity,
+                        "modelUrl", modelUrl == null ? "" : modelUrl,
+                        "textUrl", textUrl == null ? "" : textUrl,
+                        "modelName", modelName)));
     }
 
     /** 通用下发；强制开门（空 msgContent）在调用方已拒，此处不再开洞。 */

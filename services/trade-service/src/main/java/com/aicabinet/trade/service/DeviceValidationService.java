@@ -37,17 +37,20 @@ public class DeviceValidationService {
     private final ReplenishmentTaskMapper replenishmentTaskRepository;
     private final ConsumerPreauthService consumerPreauthService;
     private final MerchantMapper merchantRepository;
+    private final JiangyiGatherService jiangyiGatherService;
 
     public DeviceValidationService(DeviceInfoMapper deviceInfoRepository,
                                    ShoppingSessionMapper sessionRepository,
                                    ReplenishmentTaskMapper replenishmentTaskRepository,
                                    ConsumerPreauthService consumerPreauthService,
-                                   MerchantMapper merchantRepository) {
+                                   MerchantMapper merchantRepository,
+                                   JiangyiGatherService jiangyiGatherService) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.sessionRepository = sessionRepository;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.consumerPreauthService = consumerPreauthService;
         this.merchantRepository = merchantRepository;
+        this.jiangyiGatherService = jiangyiGatherService;
     }
 
     public DeviceInfo requireDevice(String deviceId) {
@@ -99,6 +102,10 @@ public class DeviceValidationService {
         ensureMerchantActiveForShopping(device);
         if (device.salesLockedEnabled()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "设备已暂停营业，请稍后再试");
+        }
+        // 将邑采集模式锁（CB-023）：非将邑设备查无登记即返回 false，一次低频点查可接受
+        if (jiangyiGatherService.isGatherLocked(deviceId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备商品采集中，暂停营业，请稍后再试");
         }
         ensureNoBlockingSession(deviceId);
         if (hasInProgressReplenishmentTask(deviceId)) {

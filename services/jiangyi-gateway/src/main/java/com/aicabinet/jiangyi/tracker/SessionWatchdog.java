@@ -31,6 +31,8 @@ public class SessionWatchdog {
     private static final long OPEN_TIMEOUT_MS = 15_000L;
     private static final long CLOSE_TIMEOUT_MS = 300_000L;
     private static final long DOING_TIMEOUT_MS = 600_000L;
+    /** 模型下发回执超时（rknn 下载 + 机器重启，远长于开门；与 ModelPushController 同值）。 */
+    private static final long MODEL_TIMEOUT_MS = 600_000L;
     private static final String WATCHDOG_LOCK = "jiangyi:watchdog:lock";
 
     private final CommandTracker commandTracker;
@@ -57,6 +59,7 @@ public class SessionWatchdog {
                 sweepOpen(now);
                 sweepClose(now);
                 sweepDoing(now);
+                sweepModel(now);
             } finally {
                 redis.delete(WATCHDOG_LOCK);
             }
@@ -109,6 +112,24 @@ public class SessionWatchdog {
                 continue;
             }
             commandTracker.evict(CommandTracker.Kind.DOING, p.sessionId());
+        }
+    }
+
+    /** 模型下发超时（CB-023）：tracker key = deploymentId，超时置 deployment FAILED。 */
+    private void sweepModel(long now) {
+        List<CommandTracker.Pending> due = commandTracker.due(
+                CommandTracker.Kind.MODEL, now - MODEL_TIMEOUT_MS);
+        for (CommandTracker.Pending p : due) {
+            log.warn("jiangyi watchdog MODEL timeout deploymentId={} deviceId={} — push-failed",
+                    p.sessionId(), p.deviceId());
+            try {
+                tradeInternalClient.modelPushTimeout(Long.parseLong(p.sessionId()),
+                        "模型下发10分钟无设备回执");
+            } catch (Exception e) {
+                log.error("jiangyi watchdog model-timeout notify failed deploymentId={}", p.sessionId(), e);
+                continue;
+            }
+            commandTracker.evict(CommandTracker.Kind.MODEL, p.sessionId());
         }
     }
 }

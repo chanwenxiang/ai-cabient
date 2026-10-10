@@ -29,6 +29,9 @@ import java.util.concurrent.CountDownLatch;
  *   <li>{@code JIANGYI_SIM_CLASS_ID} — 模拟识别 classId，默认 {@code 1}</li>
  *   <li>{@code JIANGYI_SIM_QTY} — 模拟数量，默认 {@code 1}</li>
  *   <li>{@code JIANGYI_SIM_SHOPPING_MS} — 拉门到识别上报的间隔，默认 {@code 3000}</li>
+ *   <li>{@code JIANGYI_SIM_TEXT_NAME} —（二期）按 textName 从 classes.txt 对照行号取 classId
+ *       （0-based，可用 {@code JIANGYI_SIM_CLASS_ID_BASE} 改 1-based）；设置后覆盖
+ *       {@code JIANGYI_SIM_CLASS_ID}。classes 内容来自 updateModel 下发的 textUrl</li>
  * </ul>
  *
  * <p>用法：{@code java -jar device-simulator.jar jiangyi}（模块 shade 入口见 pom exec 配置，
@@ -49,6 +52,11 @@ public class JiangyiDeviceSimulator implements WebSocket.Listener {
 
     private volatile String token;
     private volatile String identifier;
+    private volatile WebSocket ws;
+    /** 二期：最近一次 updateModel 的模型上下文（下载模拟 + classes 对照取 classId）。 */
+    private volatile String currentModelName;
+    private volatile String currentTextUrl;
+    private volatile List<String> classesRows = List.of();
     private final CountDownLatch keepAlive = new CountDownLatch(1);
 
     public JiangyiDeviceSimulator(String base, String deviceSn, int classId, int qty, long shoppingMs) {
@@ -89,16 +97,88 @@ public class JiangyiDeviceSimulator implements WebSocket.Listener {
                     body().put("orderNo", sessionId).put("doorStatus", "success"));
             log("已上报拉门 doorStatus=success，购物 " + shoppingMs + "ms…");
             Thread.sleep(shoppingMs);
+            int effectiveClassId = resolveClassId();
             ObjectNode form = MAPPER.createObjectNode();
-            form.put("classId", classId);
+            form.put("classId", effectiveClassId);
             form.put("quantity", qty);
             ArrayNode forms = MAPPER.createArrayNode().add(form);
             ObjectNode recognition = body().put("orderNo", sessionId);
             recognition.set("forms", forms);
             post("/jiangyi/api/orderProduct/addRecognitionGoodsToOrder", recognition);
-            log("已上报识别结果 forms=[{classId=" + classId + ", quantity=" + qty + "}]，流程结束（结算在 trade 侧）");
+            log("已上报识别结果 forms=[{classId=" + effectiveClassId + ", quantity=" + qty
+                    + "}]，流程结束（结算在 trade 侧）");
         } catch (Exception e) {
             log("模拟流程失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 二期：识别 classId 取值。设置 JIANGYI_SIM_TEXT_NAME 时按 classes.txt 行号对照
+     * （classes 源自最近一次 updateModel 的 textUrl）；行不存在/未拉到 classes 则回落
+     * 固定 JIANGYI_SIM_CLASS_ID 并告警。
+     */
+    private int resolveClassId() {
+        String textName = env("JIANGYI_SIM_TEXT_NAME", "");
+        if (textName.isBlank() || classesRows.isEmpty()) {
+            return classId;
+        }
+        int base = Integer.parseInt(env("JIANGYI_SIM_CLASS_ID_BASE", "0"));
+        for (int i = 0; i < classesRows.size(); i++) {
+            if (classesRows.get(i).equals(textName)) {
+                log("classes 对照：textName=\"" + textName + "\" → classId=" + (i + base)
+                        + "（行 " + (i + 1) + "，base=" + base + "）");
+                return i + base;
+            }
+        }
+        log("警告：classes 中未找到 textName=\"" + textName + "\"，回落固定 classId=" + classId);
+        return classId;
+    }
+
+    /** 二期（V16 §4.3.2.9）：收到 updateModel → 模拟下载 model/text → 上报 downloadModelNotify。 */
+    private void onUpdateModel(JsonNode content) {
+        try {
+            String modelName = content.path("modelName").asText("");
+            String modelUrl = content.path("modelUrl").asText("");
+            String textUrl = content.path("textUrl").asText("");
+            int quantity = content.path("quantity").asInt(-1);
+            log("收到 updateModel modelName=" + modelName + " quantity=" + quantity
+                    + " modelUrl=" + modelUrl);
+            // 模拟机器端下载：GET model 文件（只验证可达性，不落盘）
+            if (!modelUrl.isBlank()) {
+                HttpResponse<String> modelResp = http.send(HttpRequest.newBuilder()
+                                .uri(URI.create(modelUrl)).timeout(Duration.ofSeconds(30))
+                                .GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+                log("模拟下载模型 " + modelUrl + " → " + modelResp.statusCode());
+            }
+            // 拉 classes.txt 建立行号对照（识别 classId 用）
+            if (!textUrl.isBlank()) {
+                HttpResponse<String> textResp = http.send(HttpRequest.newBuilder()
+                                .uri(URI.create(textUrl)).timeout(Duration.ofSeconds(30))
+                                .GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+                if (textResp.statusCode() == 200 && textResp.body() != null) {
+                    classesRows = java.util.Arrays.stream(textResp.body().split("\r?\n"))
+                            .map(String::strip).filter(s -> !s.isEmpty()).toList();
+                    currentTextUrl = textUrl;
+                    log("classes 已缓存 " + classesRows.size() + " 行（前 3 行：" + classesRows.stream()
+                            .limit(3).toList() + "…）");
+                }
+            }
+            currentModelName = modelName;
+            // 回执（V16 §4.2.5）：downloadModelNotify 走 WS 上行（gateway DeviceWebSocketHandler 解析），
+            // 成功后机器端重启——模拟器不重启只回执；msgContent 形态按对象发（gateway 宽容解析兼容字符串）
+            WebSocket ws = this.ws;
+            if (ws != null) {
+                ws.sendText(MAPPER.writeValueAsString(body()
+                        .put("msgType", "downloadModelNotify")
+                        .putPOJO("msgContent", MAPPER.createObjectNode().put("modelName", modelName))), true);
+                log("已上报 downloadModelNotify（WS 上行）modelName=" + modelName);
+            } else {
+                log("WS 未连接，无法回执 downloadModelNotify");
+            }
+        } catch (Exception e) {
+            log("updateModel 模拟失败：" + e.getMessage());
         }
     }
 
@@ -163,6 +243,7 @@ public class JiangyiDeviceSimulator implements WebSocket.Listener {
     @Override
     public void onOpen(WebSocket webSocket) {
         WebSocket.Listener.super.onOpen(webSocket);
+        this.ws = webSocket;
         webSocket.request(1);
     }
 
@@ -170,13 +251,16 @@ public class JiangyiDeviceSimulator implements WebSocket.Listener {
     public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
         try {
             JsonNode node = MAPPER.readTree(data.toString());
-            if ("openDoor".equalsIgnoreCase(node.path("msgType").asText())) {
+            String msgType = node.path("msgType").asText();
+            if ("openDoor".equalsIgnoreCase(msgType)) {
                 String sessionId = node.path("msgContent").asText("");
                 if (sessionId.isBlank()) {
                     log("收到空 msgContent（强制开门）——一期不支持，忽略");
                 } else {
                     new Thread(() -> onOpenDoor(sessionId), "jiangyi-sim-flow").start();
                 }
+            } else if ("updateModel".equalsIgnoreCase(msgType)) {
+                new Thread(() -> onUpdateModel(node.path("msgContent")), "jiangyi-sim-model").start();
             } else {
                 log("WS 下行：" + data);
             }

@@ -289,19 +289,23 @@
         >
       </template>
     </el-dialog>
+
+    <!-- 将邑商品库挂接（CB-023 二期） -->
+    <SkuJiangyiLinkDialog ref="jiangyiLinkDialog" />
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onActivated, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Printer } from '@element-plus/icons-vue';
+import { EditPen, Link as LinkIcon, Printer } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import SkuJiangyiLinkDialog from './SkuJiangyiLinkDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useAuthStore } from '@/stores/auth';
@@ -315,6 +319,7 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:sku:edit'));
+const jiangyiLinkDialog = ref<InstanceType<typeof SkuJiangyiLinkDialog> | null>(null);
 
 const saving = ref(false);
 const imageUploading = ref(false);
@@ -651,6 +656,7 @@ function rowActions(_row: SkuCatalog): CrudRowAction[] {
   const acts: CrudRowAction[] = [];
   if (canEdit.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
+    acts.push({ key: 'jiangyi-link', label: '将邑挂接', icon: LinkIcon, type: 'primary' });
   }
   acts.push({ key: 'print-label', label: '打印标签', icon: Printer, type: 'primary' });
   return acts;
@@ -659,6 +665,7 @@ function rowActions(_row: SkuCatalog): CrudRowAction[] {
 function onAction({ key, row }: { key: string; row: SkuCatalog }) {
   if (key === 'edit') openEdit(row);
   else if (key === 'print-label') openPrintLabels([row.skuId]);
+  else if (key === 'jiangyi-link') jiangyiLinkDialog.value?.open(row);
 }
 
 function openPrintLabels(ids: Array<string | number>) {

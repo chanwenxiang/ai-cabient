@@ -33,7 +33,10 @@ public class GatewayWebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/internal/**");
         registry.addInterceptor(deviceAuthInterceptor)
                 .addPathPatterns("/jiangyi/api/**")
-                // 设备换 token 的免鉴权入口（文档路径 + 简短别名），排除缺口必须成对
-                .excludePathPatterns("/jiangyi/api/token/openDoorDeviceStatus", "/jiangyi/api/token");
+                // 设备换 token 的免鉴权入口（文档路径 + 简短别名），排除缺口必须成对；
+                // gather-finish-notify：将邑云学习完成回调（CB-023），将邑侧无法持设备 JWT，
+                // 防伪造由 trade 侧 finishNotifyId 一次性凭据 + 交叉验证承担
+                .excludePathPatterns("/jiangyi/api/token/openDoorDeviceStatus", "/jiangyi/api/token",
+                        "/jiangyi/api/gather-finish-notify");
     }
 }

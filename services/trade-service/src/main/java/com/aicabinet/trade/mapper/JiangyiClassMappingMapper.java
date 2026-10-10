@@ -58,4 +58,15 @@ public interface JiangyiClassMappingMapper extends BaseTradeMapper<JiangyiClassM
                 .eq(JiangyiClassMapping::getDeviceId, deviceId)
                 .eq(JiangyiClassMapping::getClassId, classId));
     }
+
+    /** 批量激活某设备某模型的全部预生成行（CB-023：人工确认后一次性生效）。 */
+    default int activatePregenerated(String deviceId, String modelName) {
+        return update(null, Wrappers.<JiangyiClassMapping>lambdaUpdate()
+                .set(JiangyiClassMapping::getStatus, "ACTIVE")
+                .set(JiangyiClassMapping::getUpdatedAt, Instant.now())
+                .eq(JiangyiClassMapping::getDeviceId, deviceId)
+                .eq(JiangyiClassMapping::getModelName, modelName)
+                .eq(JiangyiClassMapping::getSource, "MODEL_SYNC")
+                .eq(JiangyiClassMapping::getStatus, "DISABLED"));
+    }
 }
