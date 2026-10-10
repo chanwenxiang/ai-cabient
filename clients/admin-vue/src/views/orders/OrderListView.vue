@@ -558,6 +558,13 @@
               >播放会话录像</el-button
             >
             <el-button
+              v-if="detail.sessionId && auth.hasPerm('ops:device:video')"
+              type="warning"
+              plain
+              @click="openCabinetVideo(detail)"
+              >柜机取货视频</el-button
+            >
+            <el-button
               v-if="detail.status === 'PENDING' && auth.hasPerm('ops:order:remind')"
               type="warning"
               @click="remindOrder(detail)"
@@ -749,6 +756,9 @@
         >
       </template>
     </el-dialog>
+
+    <!-- 柜机取货视频（CB-029）：按订单调取将邑柜机上报的开柜视频（私有桶 → 后端签发短时效链接） -->
+    <OrderJiangyiVideoDialog ref="jiangyiVideoDialog" />
   </el-card>
 </template>
 
@@ -771,6 +781,7 @@ import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
+import OrderJiangyiVideoDialog from '@/components/order/OrderJiangyiVideoDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -809,6 +820,7 @@ const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
 const videoLoading = ref(false);
+const jiangyiVideoDialog = ref<InstanceType<typeof OrderJiangyiVideoDialog> | null>(null);
 const refundingId = ref('');
 const keyword = ref('');
 const payChannel = ref('');
@@ -1095,6 +1107,15 @@ function rowActions(row: OrderSummary): CrudRowAction[] {
       overflow: true,
       perm: ['ops:session:list', 'ops:session:upload']
     });
+    actions.push({
+      key: 'cabinetVideo',
+      label: '柜机视频',
+      icon: VideoCamera,
+      type: 'warning',
+      overflow: true,
+      // 交易视频独立权限点（CB-029）：与「看订单/看会话」分开授权
+      perm: 'ops:device:video'
+    });
   }
   if (canRefund(row.status)) {
     actions.push({
@@ -1113,6 +1134,7 @@ function onAction({ key, row }: { key: string; row: OrderSummary }) {
   if (key === 'detail') openDetail(row);
   if (key === 'refund') refundOrder(row);
   if (key === 'video') playVideo(row.sessionId);
+  if (key === 'cabinetVideo') openCabinetVideo(row);
   if (key === 'copy') copyOrderId(row.orderId);
   if (key === 'session') goSessions(row.deviceId, row.sessionId);
   if (key === 'remind') remindOrder(row);
@@ -1138,6 +1160,11 @@ async function playVideo(sessionId?: string) {
   } finally {
     videoLoading.value = false;
   }
+}
+
+/** 柜机取货视频复核（CB-029）：按订单（=sessionId）调取将邑柜机上报的开柜视频。 */
+function openCabinetVideo(order: { sessionId?: string | null }) {
+  jiangyiVideoDialog.value?.open(order);
 }
 
 function goDevice(id: string) {

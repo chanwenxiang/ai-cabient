@@ -31,6 +31,8 @@ public class OssStsProperties {
     private String bucket = "ai-cabinet-by";
     private String dirName = "jiangyi-video/";
     private long sessionSeconds = 900;
+    /** 预签名 GET URL 有效期（秒，CB-029 读路径）；夹在 [60, 3600]。 */
+    private long presignSeconds = 900;
 
     public boolean isConfigured() {
         return accessKeyId != null && !accessKeyId.isBlank()
@@ -103,5 +105,13 @@ public class OssStsProperties {
 
     public void setSessionSeconds(long sessionSeconds) {
         this.sessionSeconds = sessionSeconds;
+    }
+
+    public long getPresignSeconds() {
+        return presignSeconds;
+    }
+
+    public void setPresignSeconds(long presignSeconds) {
+        this.presignSeconds = presignSeconds;
     }
 }

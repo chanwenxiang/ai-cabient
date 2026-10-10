@@ -7513,6 +7513,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/jiangyi/order-videos/{id}/play-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orderVideoPlayUrl"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/jiangyi/order-videos/by-order": {
         parameters: {
             query?: never;
@@ -16094,6 +16110,33 @@ export interface components {
             /** Format: int64 */
             id?: number;
             name?: string;
+        };
+        ApiResponsePlayUrlView: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PlayUrlView"];
+        };
+        PlayUrlItem: {
+            /** Format: int32 */
+            index?: number;
+            url?: string;
+            signed?: boolean;
+            playable?: boolean;
+            reason?: string;
+        };
+        PlayUrlView: {
+            /** Format: int64 */
+            id?: number;
+            orderNo?: string;
+            deviceId?: string;
+            /** Format: int32 */
+            serialNum?: number;
+            /** Format: int32 */
+            videoQuantity?: number;
+            /** Format: date-time */
+            reportedAt?: string;
+            items?: components["schemas"]["PlayUrlItem"][];
         };
         ApiResponseListModelPreview: {
             /** Format: int32 */
@@ -31096,6 +31139,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListJiangyiCategory"];
+                };
+            };
+        };
+    };
+    orderVideoPlayUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePlayUrlView"];
                 };
             };
         };

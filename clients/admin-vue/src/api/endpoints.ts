@@ -173,6 +173,13 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/training`,
   jiangyiGatherCheck: `${ops}/jiangyi/gather-check`,
 
+  /** 将邑订单视频复核（CB-029）：按订单/设备查上报 → 取短时效播放地址（独立权限点 ops:device:video） */
+  jiangyiOrderVideosByOrder: (orderNo: string) =>
+    `${ops}/jiangyi/order-videos/by-order?orderNo=${encodeURIComponent(orderNo)}`,
+  jiangyiOrderVideosByDevice: (deviceId: string, limit = 20) =>
+    `${ops}/jiangyi/order-videos/by-device?deviceId=${encodeURIComponent(deviceId)}&limit=${limit}`,
+  jiangyiOrderVideoPlayUrl: (id: number) => `${ops}/jiangyi/order-videos/${id}/play-url`,
+
   /** 将邑商品库挂接（CB-023 二期）：SKU ↔ 将邑商品关联 + 学习回填 */
   skuJiangyiLink: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link`,
   skuJiangyiLinkCreate: (skuId: string) =>

@@ -61,7 +61,13 @@ public class AdminJiangyiController {
         this.jiangyiOrderVideoService = jiangyiOrderVideoService;
     }
 
-    /** 视频复核：按订单查全部分片（serial 升序；video_urls 空串=该片生成/上传失败）。 */
+    /**
+     * 视频复核：按订单查全部分片（serial 升序；video_urls 空串=该片生成/上传失败）。
+     *
+     * <p>🔴 参数 {@code orderNo} 传的是<b>将邑上报的订单编号</b>，它等于我方 {@code sessionId}
+     * （网关枢纽约定，V16 §4.3.2.7「商户服务器生成、需唯一」）——所以订单管理侧拿到
+     * sessionId 就能直接查，不需要额外映射表。</p>
+     */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/jiangyi/order-videos/by-order")
     public ApiResponse<List<JiangyiOrderVideo>> orderVideosByOrder(
@@ -76,6 +82,20 @@ public class AdminJiangyiController {
             @RequestParam("deviceId") String deviceId,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
         return ApiResponse.ok(jiangyiOrderVideoService.findRecentByDevice(deviceId, limit));
+    }
+
+    /**
+     * 视频复核：取该条上报的可播放地址（CB-029 读路径）。
+     *
+     * <p>🔴 <b>独立权限点</b> {@code ops:device:video}，刻意不复用 {@code ops:device:list}：
+     * 行业团标《智能柜用户交易视频隐私保护规范》把交易视频单列为受约束对象，
+     * 查看交易视频应与「看设备列表」分开授权（默认只给超级管理员与运营人员）。</p>
+     */
+    @RequiresPermissions("ops:device:video")
+    @GetMapping("/jiangyi/order-videos/{id}/play-url")
+    public ApiResponse<JiangyiOrderVideoService.PlayUrlView> orderVideoPlayUrl(
+            @PathVariable("id") long id) {
+        return ApiResponse.ok(jiangyiOrderVideoService.playUrls(id));
     }
 
     /** 绑定视图：binding=null = 未登记（前台展示「未接入」态 + 登记表单）。 */

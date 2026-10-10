@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -127,5 +128,82 @@ class OssStsServiceTest {
         OssStsService.OssUploadToken token = service.issueUploadToken("d1");
         Instant expiration = Instant.parse(token.expiration());
         assertTrue(expiration.isAfter(Instant.now()));
+    }
+
+    // ---------- CB-029 读路径（预签名 GET） ----------
+
+    /**
+     * 🔴 黄金值回归：签名串形状是「实测定出来的」（见 presignedGetUrl javadoc），
+     * 期望值是独立用 HMAC-SHA1 直接算出来的，固定输入+固定 token 才可比对 ——
+     * 改签名构造（加/减 x-oss-security-token 头行、是否并入 resource）必须让本用例变红。
+     */
+    @Test
+    void presignedUrlMatchesVerifiedAlgorithm() {
+        String url = OssStsService.presignedGetUrl("ai-cabinet-by", "cn-shenzhen", "jiangyi-video/a.mp4",
+                "STS.ak", "STS.sk", "TOKEN", 1_791_000_000L);
+        assertEquals("https://ai-cabinet-by.oss-cn-shenzhen.aliyuncs.com/jiangyi-video/a.mp4"
+                + "?OSSAccessKeyId=STS.ak&Expires=1791000000"
+                + "&Signature=bLhbnwcnCI%2Fa5RMA%2F3crueDwqZQ%3D&security-token=TOKEN", url);
+    }
+
+    @Test
+    void presignUsesReadOnlySessionOnDirPrefix() throws Exception {
+        StubStsService service = new StubStsService(props());
+        OssStsService.OssPresignUrl presigned = service.presignGet("jiangyi-video/a.mp4");
+        assertNotNull(presigned);
+        assertTrue(presigned.url().startsWith(
+                "https://ai-cabinet-by.oss-cn-shenzhen.aliyuncs.com/jiangyi-video/a.mp4?"), presigned.url());
+        assertTrue(presigned.url().contains("OSSAccessKeyId=STS.ak"));
+        assertTrue(presigned.url().contains("security-token=STS.token"));
+        // 读会话的 inline Policy 必须是 GetObject（与上传会话的 PutObject 对称收窄）
+        var policy = MAPPER.readTree(service.lastPolicy);
+        assertEquals("oss:GetObject", policy.path("Statement").get(0).path("Action").get(0).asText());
+        assertEquals("acs:oss:*:*:ai-cabinet-by/jiangyi-video/*",
+                policy.path("Statement").get(0).path("Resource").get(0).asText());
+        assertTrue(service.lastSessionName.startsWith("jy-presign-"), service.lastSessionName);
+    }
+
+    @Test
+    void presignFailsClosedWhenNotConfiguredOrKeyOutOfScope() {
+        assertNull(new OssStsService(new OssStsProperties()).presignGet("jiangyi-video/a.mp4"));
+        StubStsService service = new StubStsService(props());
+        // 不在 dirName 前缀下 → 拒绝签名（否则等于给了「签桶内任意对象」的能力）
+        assertNull(service.presignGet("other-dir/a.mp4"));
+        assertNull(service.presignGet("../jiangyi-video/a.mp4"));
+        assertNull(service.presignGet("   "));
+    }
+
+    @Test
+    void presignSecondsClampedToTightRange() {
+        OssStsProperties p = props();
+        p.setPresignSeconds(5);
+        assertEquals(60, new OssStsService(p).presignSeconds());
+        p.setPresignSeconds(99_999);
+        assertEquals(3_600, new OssStsService(p).presignSeconds());
+        p.setPresignSeconds(900);
+        assertEquals(900, new OssStsService(p).presignSeconds());
+    }
+
+    @Test
+    void resolveRefClassifiesOwnExternalAndInvalid() {
+        OssStsService service = new OssStsService(props());
+        // 虚拟主机式
+        assertEquals("jiangyi-video/a.mp4",
+                service.resolveRef("https://ai-cabinet-by.oss-cn-shenzhen.aliyuncs.com/jiangyi-video/a.mp4")
+                        .objectKey());
+        // 路径式（设备拿到的 endpoint 就是这种形态）
+        assertEquals("jiangyi-video/a.mp4",
+                service.resolveRef("http://oss-cn-shenzhen.aliyuncs.com/ai-cabinet-by/jiangyi-video/a.mp4")
+                        .objectKey());
+        // 裸 objectKey
+        assertEquals("jiangyi-video/a.mp4", service.resolveRef("jiangyi-video/a.mp4").objectKey());
+        // 别家域名 → EXTERNAL（原样使用，不签名、不算错）
+        assertEquals(OssStsService.RefKind.EXTERNAL,
+                service.resolveRef("https://cdn.example.com/jiangyi-video/a.mp4").kind());
+        // 本桶域名但不在授权前缀下 → INVALID（拒绝签名）
+        assertEquals(OssStsService.RefKind.INVALID,
+                service.resolveRef("https://ai-cabinet-by.oss-cn-shenzhen.aliyuncs.com/other/a.mp4").kind());
+        assertEquals(OssStsService.RefKind.INVALID, service.resolveRef("  ").kind());
+        assertEquals(OssStsService.RefKind.INVALID, service.resolveRef(null).kind());
     }
 }

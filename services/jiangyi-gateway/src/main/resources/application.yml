@@ -39,6 +39,8 @@ aicabinet:
       bucket: ${JIANGYI_OSS_BUCKET:ai-cabinet-by}
       dir-name: ${JIANGYI_OSS_DIR_NAME:jiangyi-video/}
       session-seconds: ${JIANGYI_OSS_SESSION_SECONDS:900}
+      # 预签名 GET URL 有效期（秒，CB-029 运营侧视频复核读路径），夹在 [60,3600]
+      presign-seconds: ${JIANGYI_OSS_PRESIGN_SECONDS:900}
 
 management:
   endpoints:
