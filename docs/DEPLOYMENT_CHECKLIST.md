@@ -60,9 +60,27 @@ copy infra\.env.production.example infra\.env.production
 - [ ] 微信支付 API v3 证书与 notify URL HTTPS
 - [ ] 小程序 `WECHAT_MINIAPP_ID` / `SECRET`
 - [ ] PostgreSQL 备份；Flyway 迁移至 V26+
-- [ ] MinIO/OSS 桶策略、CORS、视频生命周期
+- [ ] MinIO/OSS 桶策略、CORS、视频生命周期（**OSS 侧见 §3.1.1，必配**）
 - [ ] EMQX TLS（设备 MQTT）
 - [ ] Gateway HTTPS、CORS 仅运营域名
+
+### 3.1.1 OSS 交易录像生命周期（`jiangyi-video/` 前缀，必配）
+
+背景：CB-024 起，将邑柜机经 STS 直传的交易录像落在私有桶 `ai-cabinet-by`（`oss-cn-shenzhen`）的 `jiangyi-video/` 前缀下，运营侧经服务端预签名读（CB-029）。对象**只增不减** ⇒ 必须用 OSS **生命周期规则**兜底清理。
+
+- 🔴 **不要写成应用侧定时任务**：生命周期规则是**桶级配置**，由 OSS 服务自身执行，**不消耗我方角色权限**（与 `jiangyivideoupload` 是否有 `oss:DeleteObject` 无关），零代码零 UI。见铁律 #68。
+- 路径：**OSS 控制台 → `ai-cabinet-by` → 数据管理 → 生命周期 → 创建规则**
+
+| 规则项 | 取值 | 说明 |
+|---|---|---|
+| 应用前缀 | `jiangyi-video/` | 只作用于将邑录像，不碰桶内其它对象 |
+| 过期删除 | 对象创建后 **N 天**（⬜ 待定，见下） | 到点自动删除；⚠️ OSS 在规则生效后**次日**执行，非精确定时 |
+| 历史版本 | 不启用 | 桶未开版本控制 |
+| 碎片过期 | 建议一并配置（如 7 天） | 清理分片上传失败的残留碎片 |
+
+**N 取值**（与「设备端视频保留策略」一并定稿，见 `JIANGYI_GATEWAY_DESIGN.md §7.6`）：须 **≥** 运营抽检/争议追溯窗口。若设备端保留期短于抽检窗口 ⇒ 需先改 §4.2.13 为**全量上传**（默认只传异常单视频），再配本规则兜底。
+
+> 角色 `jiangyivideoupload` 的 `oss:DeleteObject` 权限（2026-10-11 已开通）**只**服务于「运营手动删单条」这类**服务端**调用——该能力**当前未开放**（无对应业务需求；且删对象会让 `jiangyi_order_video` 台账地址变死链，须同步处置台账）。保留期清理**一律走本生命周期规则**。
 
 ### 3.2 部署命令
 
