@@ -331,14 +331,20 @@
                     type="warning"
                     size="small"
                     :loading="videoLoading"
-                    @click="loadInlineVideo(detail.exception.sessionId, true)"
+                    @click="
+                      loadInlineVideo(
+                        detail.exception.sessionId,
+                        true,
+                        detail.exception.videoPreviewUrl
+                      )
+                    "
                     >{{ inlineVideoUrl ? '重新加载录像' : '加载会话录像' }}</el-button
                   >
                   <el-button
                     v-if="inlineVideoUrl"
                     link
                     type="primary"
-                    @click="playVideo(detail.exception.sessionId)"
+                    @click="playVideo(detail.exception.sessionId, detail.exception.videoPreviewUrl)"
                     >新窗口打开</el-button
                   >
                   <el-button
@@ -619,6 +625,11 @@ interface OpsException {
   detail?: string;
   deviceId?: string;
   sessionId?: string;
+  /**
+   * 服务端签发的会话录像可播地址：旧边缘 MinIO 预签名，或将邑柜机台账兜底（CB-030）。
+   * 服务端已算好（OpsExceptionService.toDto），前端直接用，不再回退请求独立授权端点。
+   */
+  videoPreviewUrl?: string;
   orderId?: string;
   userId?: number;
   assigneeUserId?: number;
@@ -890,7 +901,7 @@ function onExceptionAction({ key, row }: { key: string; row: OpsException }) {
   else if (key === 'repair') resolveWithRepairRow(row);
   else if (key === 'archive') archiveRow(row);
   else if (key === 'unarchive') unarchiveRow(row);
-  else if (key === 'video') playVideo(row.sessionId);
+  else if (key === 'video') playVideo(row.sessionId, row.videoPreviewUrl);
 }
 
 async function archiveRow(row: OpsException) {
@@ -935,11 +946,16 @@ async function unarchiveRow(row: OpsException) {
   }
 }
 
-async function playVideo(sessionId?: string) {
+async function playVideo(sessionId?: string, previewUrl?: string | null) {
+  // 服务端已下发可播地址时直接开新窗口，跳过必失败的 blob 拉流。
+  const direct = (previewUrl || '').trim();
+  if (direct) {
+    globalThis.open(direct, '_blank');
+    return;
+  }
   videoLoading.value = true;
   try {
-    // 旧边缘拉流失败时回退将邑柜机台账（CB-030/CB-029）
-    await playSessionVideo(sessionId, () => fetchJiangyiFallbackUrl(String(sessionId || '')));
+    await playSessionVideo(sessionId);
   } finally {
     videoLoading.value = false;
   }
@@ -978,66 +994,23 @@ async function removeManualLine(index: number) {
   }
 }
 
-interface JiangyiOrderVideoRow {
-  id: number;
-  videoUrls?: string | null;
-}
-interface JiangyiPlayUrlItem {
-  index?: number;
-  url?: string | null;
-  playable?: boolean;
-}
-interface JiangyiPlayUrlView {
-  id?: number;
-  items?: JiangyiPlayUrlItem[];
-}
-
-/**
- * 回退取址：按 sessionId（= 将邑上报的 orderNo，免映射，CB-029）查柜机台账，取首个可播分片地址。
- *
- * <p>🔴 将邑柜机从不写 shopping_session.video_uri（CB-030）⇒ 旧边缘 blob 拉流对将邑单必失败，
- * 不接这条回退运营侧就永远看不到录像。本页的 OpsExceptionDto 未下发视频地址（该 DTO 为列表/详情
- * 共用，不宜挂短时效直链），故在此按需取址。</p>
- */
-async function fetchJiangyiFallbackUrl(sessionId: string): Promise<string | null> {
-  const id = (sessionId || '').trim();
-  if (!id) return null;
-  const rows = await api.request<JiangyiOrderVideoRow[]>(
-    AdminEndpoints.jiangyiOrderVideosByOrder(id),
-    'GET'
-  );
-  for (const row of rows || []) {
-    const view = await api.request<JiangyiPlayUrlView>(
-      AdminEndpoints.jiangyiOrderVideoPlayUrl(row.id),
-      'GET'
-    );
-    const hit = (view?.items || []).find((it) => it.playable && it.url);
-    if (hit?.url) return hit.url;
-  }
-  return null;
-}
-
-async function loadInlineVideo(sessionId?: string, force = false) {
+async function loadInlineVideo(sessionId?: string, force = false, previewUrl?: string | null) {
   if (!sessionId) return;
   if (inlineVideoUrl.value && !force) return;
   clearInlineVideo();
   videoLoading.value = true;
   try {
-    try {
-      const { url, revoke } = await fetchSessionVideoBlob(sessionId);
-      inlineVideoUrl.value = url;
-      inlineVideoRevoke = revoke;
-    } catch (edgeErr) {
-      // 旧边缘录像不可用：回退将邑柜机台账。回退查询自身失败时保留原始错误（不掩盖真因）。
-      let fallback: string | null = null;
-      try {
-        fallback = await fetchJiangyiFallbackUrl(sessionId);
-      } catch {
-        /* 回退查询失败：保留下方 edgeErr */
-      }
-      if (!fallback) throw edgeErr;
-      inlineVideoUrl.value = fallback;
+    // 优先用服务端下发的可播地址（videoPreviewUrl：旧边缘 MinIO 预签名，或将邑柜机台账
+    // 兜底）。将邑柜机从不写 shopping_session.video_uri（CB-030）⇒ 对将邑单 blob 拉流必失败，
+    // 该字段是运营侧能看到将邑录像的唯一来源。地址已是短时效直链，直接喂 <video>。
+    const direct = (previewUrl || '').trim();
+    if (direct) {
+      inlineVideoUrl.value = direct;
+      return;
     }
+    const { url, revoke } = await fetchSessionVideoBlob(sessionId);
+    inlineVideoUrl.value = url;
+    inlineVideoRevoke = revoke;
   } catch (e) {
     inlineVideoError.value = e instanceof Error ? e.message : '播放失败';
     ElMessage.error(inlineVideoError.value);
@@ -1189,7 +1162,7 @@ async function openDetail(row: OpsException) {
     }
     const sid = detail.value?.exception?.sessionId;
     if (sid && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
-      void loadInlineVideo(sid);
+      void loadInlineVideo(sid, false, detail.value?.exception?.videoPreviewUrl);
     }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '详情加载失败');

@@ -4,9 +4,11 @@ import com.aicabinet.trade.mapper.AdminAuditLogMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.DisputeService;
+import com.aicabinet.trade.service.JiangyiOrderVideoService;
 import com.aicabinet.trade.service.RepairTicketService;
 import com.aicabinet.trade.service.SessionService;
 import com.aicabinet.trade.service.SettlementService;
+import com.aicabinet.trade.storage.MinioVideoService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +23,8 @@ public class OpsExceptionServiceSupport {
     private final DisputeService disputeService;
     private final RepairTicketService repairTicketService;
     private final SessionService sessionService;
+    private final MinioVideoService minioVideoService;
+    private final JiangyiOrderVideoService jiangyiOrderVideoService;
 
     public OpsExceptionServiceSupport(AdminAuditService auditService,
                                       AdminAuditLogMapper auditRepository,
@@ -28,7 +32,9 @@ public class OpsExceptionServiceSupport {
                                       @Lazy SettlementService settlementService,
                                       @Lazy DisputeService disputeService,
                                       RepairTicketService repairTicketService,
-                                      @Lazy SessionService sessionService) {
+                                      @Lazy SessionService sessionService,
+                                      @Lazy MinioVideoService minioVideoService,
+                                      @Lazy JiangyiOrderVideoService jiangyiOrderVideoService) {
         this.auditService = auditService;
         this.auditRepository = auditRepository;
         this.sessionRepository = sessionRepository;
@@ -36,6 +42,8 @@ public class OpsExceptionServiceSupport {
         this.disputeService = disputeService;
         this.repairTicketService = repairTicketService;
         this.sessionService = sessionService;
+        this.minioVideoService = minioVideoService;
+        this.jiangyiOrderVideoService = jiangyiOrderVideoService;
     }
 
     public AdminAuditService auditService() {
@@ -64,5 +72,13 @@ public class OpsExceptionServiceSupport {
 
     public SessionService sessionService() {
         return sessionService;
+    }
+
+    public MinioVideoService minioVideoService() {
+        return minioVideoService;
+    }
+
+    public JiangyiOrderVideoService jiangyiOrderVideoService() {
+        return jiangyiOrderVideoService;
     }
 }

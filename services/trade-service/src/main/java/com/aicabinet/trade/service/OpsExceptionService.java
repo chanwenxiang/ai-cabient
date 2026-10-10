@@ -20,12 +20,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 
 @Service
 public class OpsExceptionService {
+    private static final Logger log = LoggerFactory.getLogger(OpsExceptionService.class);
     private static final String OPS_EXCEPTION = "OPS_EXCEPTION";
     private static final String PROCESSING = "PROCESSING";
     private static final String STATUS_RESOLVED = "RESOLVED";
@@ -590,9 +593,12 @@ public class OpsExceptionService {
         boolean overdue = open && sla != null && Instant.now().isAfter(sla);
         String orderId = i.getOrderId();
         Long userId = i.getUserId();
-        // 审单落账后会话已有 orderId/userId，但历史异常行可能未回写；列表展示时从会话补齐
-        if (i.getSessionId() != null && !i.getSessionId().isBlank()
-                && ((orderId == null || orderId.isBlank()) || userId == null)) {
+        String videoPreviewUrl = null;
+        // 审单落账后会话已有 orderId/userId，但历史异常行可能未回写；列表展示时从会话补齐。
+        // 同时取会话录像地址：旧边缘 MinIO 预签名优先，将邑柜机台账兜底（将邑柜机不写
+        // shopping_session.video_uri，CB-030）—— 与争议工作台 DisputeService.toDto 同口径，
+        // 授权沿用本工作台既有的会话录像口径（ops:session:*），不改用 ops:device:video 独立授权。
+        if (i.getSessionId() != null && !i.getSessionId().isBlank()) {
             var session = support.sessionRepository().findById(i.getSessionId());
             if (orderId == null || orderId.isBlank()) {
                 orderId = session.map(ShoppingSession::getOrderId)
@@ -602,11 +608,37 @@ public class OpsExceptionService {
             if (userId == null) {
                 userId = session.map(ShoppingSession::getUserId).orElse(null);
             }
+            String videoUri = session.map(ShoppingSession::getVideoUri).orElse(null);
+            videoPreviewUrl = support.minioVideoService().presignPlaybackUrl(videoUri)
+                    .orElseGet(() -> jiangyiVideoFallbackUrl(i.getSessionId()));
         }
         return new OpsExceptionDto(i.getExceptionId(), i.getExceptionType(),
             i.getSeverity(), i.getStatus(), i.getDeviceId(), i.getSessionId(), orderId, userId,
             i.getTitle(), i.getDetail(), i.getAssigneeUserId(), i.getResolution(), i.getCreatedAt(), i.getUpdatedAt(),
-            i.getResolvedAt(), sla, overdue, Boolean.TRUE.equals(i.getArchived()), i.getArchivedAt());
+            i.getResolvedAt(), sla, overdue, Boolean.TRUE.equals(i.getArchived()), i.getArchivedAt(),
+            videoPreviewUrl);
+    }
+
+    /**
+     * 会话录像回退：按 sessionId（= 将邑上报 orderNo，免映射，CB-029）查柜机台账，取首个可播分片地址。
+     * 与 {@code DisputeService#jiangyiVideoFallbackUrl} 同形（暂未抽公共组件，避免改动既有构造契约）。
+     */
+    private String jiangyiVideoFallbackUrl(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return null;
+        }
+        try {
+            for (JiangyiOrderVideoService.PlayUrlView view : support.jiangyiOrderVideoService().playByOrderNo(sessionId)) {
+                for (JiangyiOrderVideoService.PlayUrlItem item : view.items()) {
+                    if (item.playable() && item.url() != null && !item.url().isBlank()) {
+                        return item.url();
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("异常复核录像回退将邑台账失败 sessionId={} reason={}", sessionId, e.toString());
+        }
+        return null;
     }
     private static String first(String... values) {
         for (String v : values) {

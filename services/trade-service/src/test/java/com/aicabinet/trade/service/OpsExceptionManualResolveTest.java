@@ -7,6 +7,7 @@ import com.aicabinet.trade.mapper.AdminAuditLogMapper;
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.service.support.OpsExceptionServiceSupport;
+import com.aicabinet.trade.storage.MinioVideoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +35,8 @@ class OpsExceptionManualResolveTest {
     @Mock RepairTicketService repairTicketService;
     @Mock DistributedLockService distributedLockService;
     @Mock SessionService sessionService;
+    @Mock MinioVideoService minioVideoService;
+    @Mock JiangyiOrderVideoService jiangyiOrderVideoService;
 
     private OpsExceptionService service;
 
@@ -47,10 +50,14 @@ class OpsExceptionManualResolveTest {
         }).when(sessionService).transition(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         OpsExceptionServiceSupport support = new OpsExceptionServiceSupport(
                 auditService, auditRepository, sessionRepository, settlementService, disputeService, repairTicketService,
-                sessionService);
+                sessionService, minioVideoService, jiangyiOrderVideoService);
         service = new OpsExceptionService(repository, permissionService, merchantScopeService, support,
                 distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        org.mockito.Mockito.lenient().when(minioVideoService.presignPlaybackUrl(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(Optional.empty());
+        org.mockito.Mockito.lenient().when(jiangyiOrderVideoService.playByOrderNo(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of());
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
