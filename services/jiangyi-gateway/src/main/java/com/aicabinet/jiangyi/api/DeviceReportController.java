@@ -77,12 +77,9 @@ public class DeviceReportController {
     // ---------- §4.2.8 门磁状态 ----------
 
     /**
-     * doorStatus=success（门已关上）→ 合成 door-event CLOSED 转发 trade；
-     * doorStatus=fail → WARN 不推进（fail-closed：无可信门状态不推进会话，watchdog 兜底）。
-     */
-    /**
      * §4.2.8「上报用户拉门状态」：doorStatus=success = 用户拉门打开（door-event OPEN，
-     * 会话 OPENING→SHOPPING）；fail = 拉门失败，WARN 不推进（watchdog 兜底）。
+     * 会话 OPENING→SHOPPING）；fail = 拉门失败 → **立即** postOpenFailed 转 FAILED（幂等），
+     * 不等 300s CLOSE 兜底（§4.2.8「如果开门失败，不会上报订单结果」⇒ 必无后续识别上报）。
      * 「关门」在模式一无独立上报——由识别上报到达时 gateway 统一合成 CLOSED（RECOGNIZING）。
      */
     @PostMapping("/jiangyi/api/device/uploadDoorState")
