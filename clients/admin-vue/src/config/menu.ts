@@ -1,5 +1,3 @@
-import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
-
 export interface NavItem {
   path: string;
   title: string;
@@ -182,14 +180,6 @@ const BASE_NAV: NavItem[] = [
     perm: 'ops:vision:list',
     keywords: ['映射', 'vision', '类名', '端侧']
   },
-  {
-    path: '/upload-queue',
-    title: '录像上传',
-    group: '设备商品',
-    perm: 'ops:session:upload',
-    keywords: ['上传', '视频', 'upload']
-  },
-
   {
     path: '/replenishment',
     title: '补货调度',
@@ -531,23 +521,7 @@ const BASE_NAV: NavItem[] = [
   { path: '/profile', title: '个人中心', group: '系统', keywords: ['账号', 'profile', '我'] }
 ];
 
-const DEMO_NAV: NavItem = {
-  path: '/recognition-demo',
-  title: '识别预览',
-  group: '设备商品',
-  perm: 'ops:recognition-demo:view',
-  keywords: ['识别', 'demo', '上传', 'yolo', '测试']
-};
-
-function buildNav(): NavItem[] {
-  if (!ENABLE_TEST_TOOLS) return BASE_NAV;
-  const items = [...BASE_NAV];
-  const idx = items.findIndex((n) => n.path === '/sku-vision');
-  items.splice(idx >= 0 ? idx + 1 : items.length, 0, DEMO_NAV);
-  return items;
-}
-
-export const NAV_ITEMS: NavItem[] = buildNav();
+export const NAV_ITEMS: NavItem[] = BASE_NAV;
 
 export function findNavByPath(path: string) {
   if (path.startsWith('/devices/') && path !== '/devices') {

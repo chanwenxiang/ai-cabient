@@ -2,7 +2,6 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { nextTick } from 'vue';
 import { isLoggedIn } from '@/api/client';
 import { findNavByPath } from '@/config/menu';
-import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
 import { safeRedirectPath } from '@/utils/safe-redirect';
@@ -118,14 +117,6 @@ const bizChildren: RouteRecordRaw[] = [
     name: 'sessions',
     component: () => import('@/views/sessions/SessionListView.vue'),
     meta: { title: '开门记录', group: '交易履约' }
-  },
-  { path: 'videos', redirect: '/upload-queue' },
-  { path: 'uploads', redirect: '/upload-queue' },
-  {
-    path: 'upload-queue',
-    name: 'upload-queue',
-    component: () => import('@/views/upload/UploadQueueView.vue'),
-    meta: { title: '录像上传', group: '设备商品' }
   },
   {
     path: 'orders',
@@ -487,16 +478,6 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '无权访问', group: '系统' }
   }
 ];
-
-if (ENABLE_TEST_TOOLS) {
-  const skusIdx = bizChildren.findIndex((r) => r.path === 'skus');
-  bizChildren.splice(skusIdx + 1, 0, {
-    path: 'recognition-demo',
-    name: 'recognition-demo',
-    component: () => import('@/views/vision/RecognitionDemoView.vue'),
-    meta: { title: '识别预览', group: '业务' }
-  });
-}
 
 const router = createRouter({
   history: createWebHistory('/admin/'),

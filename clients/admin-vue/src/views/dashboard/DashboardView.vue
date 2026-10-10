@@ -373,12 +373,6 @@ const quickLinks = computed<QuickLink[]>(() => [
     query: { online: 'OFFLINE' }
   },
   {
-    label: '待上传',
-    count: workbench.value?.waitingUploads || stats.value.sessionWaitingUpload || 0,
-    path: '/upload-queue',
-    query: { stuck: '1' }
-  },
-  {
     label: '缺货柜/SKU',
     // 与 countLowStock（投放柜 · quantity <= low_threshold，含断货）对齐；勿用 LOW（会排除 qty=0）
     // lifecycleStatus=DEPLOYED 必须与库存健康默认筛选一致，避免「有数点进却空」
@@ -506,7 +500,10 @@ function actionTargetPath(row: OpsActionItem) {
     case 'DISPUTE':
       return '/disputes';
     case 'UPLOAD_STUCK':
-      return '/upload-queue';
+      // 录像上传队列页已随旧边缘链路（chzh8 + MinIO 会话录像）下线：将邑柜机的视频走
+      // OSS 直传 + jiangyi_order_video 台账，WAITING_UPLOAD 状态对其不可达，该告警实际
+      // 不再产生。若命中历史数据，落到「开门记录」按会话排查，不要再指向已删除的队列页。
+      return '/sessions';
     case 'SESSION_STALE':
       return '/sessions';
     case 'LOW_STOCK':
@@ -674,7 +671,8 @@ function goAction(row: OpsActionItem) {
       router.push({ path: '/disputes', query: { status: 'OPEN', ...q } });
       return;
     case 'UPLOAD_STUCK':
-      router.push({ path: '/upload-queue', query: { stuck: '1', ...q } });
+      // 同 actionTargetPath：队列页已下线，改由「开门记录」按会话排查
+      router.push({ path: '/sessions', query: { stuck: '1', ...q } });
       return;
     case 'SESSION_STALE':
       // Do not force SHOPPING — stale scan covers WAITING_UPLOAD / RECOGNIZING / SETTLING.

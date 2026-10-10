@@ -49,8 +49,7 @@
     "clients/admin-vue/src/views/sessions/SessionListView.vue": 5,
     "clients/admin-vue/src/views/skus/SkuListView.vue": 1,
     "clients/admin-vue/src/views/sla/SlaView.vue": 1,
-    "clients/admin-vue/src/views/system/ApprovalConfigView.vue": 2,
-    "clients/admin-vue/src/views/upload/UploadQueueView.vue": 2
+    "clients/admin-vue/src/views/system/ApprovalConfigView.vue": 2
   },
   "copySyncDrift": []
 }

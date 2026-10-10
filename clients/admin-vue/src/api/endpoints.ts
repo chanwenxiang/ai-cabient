@@ -908,7 +908,6 @@ export const AdminEndpoints = {
     `${API_PREFIX}/ops/feedback/${encodeURIComponent(String(feedbackId))}/reply`,
 
   // 审计 P2-14 漏网收口（原为视图/Store 内裸字面量）
-  recognitionPreview: `${API_PREFIX}/ops/recognition-preview`,
   opsBranding: `${API_PREFIX}/public/ops-branding`
 } as const;
 

@@ -368,11 +368,6 @@
             >播放录像</el-button
           >
           <el-button
-            v-if="timelineRow.deviceId && canAccessPath('/upload-queue')"
-            @click="goPath('/upload-queue', { deviceId: timelineRow.deviceId })"
-            >录像上传队列</el-button
-          >
-          <el-button
             v-if="timelineRow.orderId && canAccessPath('/orders')"
             type="primary"
             @click="goOrders(timelineRow.deviceId)"
@@ -760,15 +755,6 @@ function rowActions(row: SessionRow): CrudRowAction[] {
     perm: ['ops:session:list', 'ops:session:upload']
   });
   acts.push({ key: 'copy', label: '复制会话ID', icon: CopyDocument, type: 'info', overflow: true });
-  if (row.deviceId && canAccessPath('/upload-queue')) {
-    acts.push({
-      key: 'video',
-      label: '录像队列',
-      icon: VideoCamera,
-      type: 'warning',
-      overflow: true
-    });
-  }
   if (canCancel(row.state)) {
     acts.push({
       key: 'cancel',
@@ -858,10 +844,6 @@ async function onAction({ key, row }: { key: string; row: SessionRow }) {
     } catch {
       ElMessage.error('复制失败');
     }
-    return;
-  }
-  if (key === 'video' && row.deviceId) {
-    goPath('/upload-queue', { deviceId: row.deviceId });
     return;
   }
   if (key === 'cancel') {
