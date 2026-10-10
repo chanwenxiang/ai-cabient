@@ -156,8 +156,8 @@ V16.0.0（110 页纯扫描件 0 文字层，PyMuPDF 渲染 + 视觉阅读）对�
 
 ### 7.6 待真机实锤清单
 
-- classId 行号方向（0/1-based）→ classIdBase 可配 + 预览人工确认兜底。
-- "76"/"88" 与主板对应关系 → 存原值字符串相等，不解释。
+- classId 行号方向（0/1-based）→ **已实锤 0 起**（V16 第 98 页 §5.5.3 响应示例首商品 classId=0；1 起体系不会出现 0）。classIdBase 默认 0 与代码一致（AdminJiangyiController defaultValue="0"），预览人工确认兜底保留。
+- "76"/"88" 与主板对应关系 → **用户拍板默认登记 "88"**（2026-10-10：采集文档第 44 页 §4.4.4.5 示例 rk3588/rk3576 两型号均为 "88"，是当前证据下最合理取值）。校验机制不变：设备登记值与模型值字符串相等，不解释语义；若真机首推校验失败，改登记值即可，无需改代码。
 - ~~downloadModelNotify msgContent 真实结构~~ → **已由 PDF 原件核实**（§4.2.5：HTTP POST identifier+modelName），WS 分支仅兜底。
 - 采集期 WS 共存行为（采集开门时营业 WS 会话是否被将邑侧复用）。
 - finishNotifyUrl 公网可达性（需部署侧 JIANGYI_PUBLIC_BASE_URL + 反代 /jiangyi/api/gather-finish-notify）。
