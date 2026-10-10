@@ -28,6 +28,9 @@ let runtimeLoaded = false;
 export const OPS_MANAGED_DICT_TYPES = new Set([
     'route_code',
     'category_code',
+    // 商品建档枚举：单位/品牌由运营在字典管理维护（CB-026）
+    'sku_unit',
+    'sku_brand',
     // 组织类型：运营可在字典管理增删（后端 OrgService 同样以其为写入白名单，两端口径须一致）
     'org_node_type'
 ]);
@@ -295,7 +298,11 @@ export const DICT = {
         WITHDRAW_RELEASE: '提现解冻',
         WITHDRAW_PAID: '提现打款',
         ADJUST: '调账',
-        REVERSE: '冲正'
+        REVERSE: '冲正',
+        SPLIT_CREDIT: '分账入账',
+        SPLIT_PARTIAL_CREDIT: '分账入账',
+        SPLIT_REVERSE: '分账冲正',
+        SPLIT_PARTIAL_REVERSE: '分账冲正'
     },
     fund_direction: {
         IN: '收入',
@@ -474,7 +481,24 @@ export const DICT = {
         PARTIAL_FAILED: '部分失败',
         COMPLETED: '已完成'
     },
+    /** 商户月度结算单状态（V330，CB-020），与 settlement_batch_status 是两套枚举 */
+    merchant_settlement_bill_status: {
+        PENDING: '待确认',
+        CONFIRMED: '已确认'
+    },
     sku_status: { ACTIVE: '在售', INACTIVE: '停用', DISABLED: '禁售' },
+    // 商品建档枚举字段走字典维护（CB-026，采纳银豹「单位/分类先维护再选择」范式）：
+    // sku_unit 基线给常见单位兜底，运营可在「字典管理」增删；sku_brand 是开放集，基线为空、完全由运营维护。
+    sku_unit: {
+        件: '件',
+        瓶: '瓶',
+        罐: '罐',
+        盒: '盒',
+        袋: '袋',
+        桶: '桶',
+        个: '个'
+    },
+    sku_brand: {},
     order_status: {
         PENDING: '待支付',
         PROCESSING: '处理中',
@@ -511,7 +535,9 @@ export const DICT = {
         WITHDRAW_RELEASE: '提现解冻',
         WITHDRAW_PAID: '提现打款',
         SPLIT_CREDIT: '分账入账',
-        SPLIT_REVERSE: '分账退回',
+        SPLIT_PARTIAL_CREDIT: '分账入账',
+        SPLIT_REVERSE: '分账冲正',
+        SPLIT_PARTIAL_REVERSE: '分账冲正',
         RECHARGE: '充值',
         RECHARGE_REFUND: '充值退款',
         BALANCE_REFUND: '余额退款',
@@ -631,6 +657,15 @@ export const DICT = {
         INBOUND: '入库'
     },
     stock_health_dim: { STOCKOUT: '断货', LOW: '低库存', NEAR_EXPIRY: '临期' },
+    // 🔴 近效期预警的紧急度分档（后端 WarehouseExpiryAlert.urgency 的唯一展示口径）。
+    //    阈值在后端（<0 已过期 / <=7 紧急 / <=30 临近 / 其余正常），**前端不得自行改文案**，
+    //    否则同一状态在不同页面显示不一致（V320 遗留的硬编码 '正常' 被 lint 门禁判红，见 ESlint local/no-hardcoded-status-label）。
+    expiry_urgency: {
+        EXPIRED: '已过期',
+        URGENT: '紧急（≤7天）',
+        SOON: '临近（≤30天）',
+        NORMAL: '正常'
+    },
     purchase_suggestion_reason: {
         SALES_DRIVEN: '销量驱动',
         TREND_FORECAST: '趋势预测',

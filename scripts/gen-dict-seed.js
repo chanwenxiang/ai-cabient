@@ -35,6 +35,8 @@ const typeNames = {
   ops_exception_action: '异常操作',
   reconciliation_status: '对账状态',
   sku_status: '商品状态',
+  sku_unit: '商品单位',
+  sku_brand: '商品品牌',
   order_status: '订单状态'
 };
 const sql = [];

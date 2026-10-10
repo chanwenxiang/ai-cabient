@@ -293,6 +293,10 @@ export declare const DICT: {
         readonly WITHDRAW_PAID: "提现打款";
         readonly ADJUST: "调账";
         readonly REVERSE: "冲正";
+        readonly SPLIT_CREDIT: "分账入账";
+        readonly SPLIT_PARTIAL_CREDIT: "分账入账";
+        readonly SPLIT_REVERSE: "分账冲正";
+        readonly SPLIT_PARTIAL_REVERSE: "分账冲正";
     };
     readonly fund_direction: {
         readonly IN: "收入";
@@ -492,11 +496,26 @@ export declare const DICT: {
         readonly PARTIAL_FAILED: "部分失败";
         readonly COMPLETED: "已完成";
     };
+    /** 商户月度结算单状态（V330，CB-020），与 settlement_batch_status 是两套枚举 */
+    readonly merchant_settlement_bill_status: {
+        readonly PENDING: "待确认";
+        readonly CONFIRMED: "已确认";
+    };
     readonly sku_status: {
         readonly ACTIVE: "在售";
         readonly INACTIVE: "停用";
         readonly DISABLED: "禁售";
     };
+    readonly sku_unit: {
+        readonly 件: "件";
+        readonly 瓶: "瓶";
+        readonly 罐: "罐";
+        readonly 盒: "盒";
+        readonly 袋: "袋";
+        readonly 桶: "桶";
+        readonly 个: "个";
+    };
+    readonly sku_brand: {};
     readonly order_status: {
         readonly PENDING: "待支付";
         readonly PROCESSING: "处理中";
@@ -533,7 +552,9 @@ export declare const DICT: {
         readonly WITHDRAW_RELEASE: "提现解冻";
         readonly WITHDRAW_PAID: "提现打款";
         readonly SPLIT_CREDIT: "分账入账";
-        readonly SPLIT_REVERSE: "分账退回";
+        readonly SPLIT_PARTIAL_CREDIT: "分账入账";
+        readonly SPLIT_REVERSE: "分账冲正";
+        readonly SPLIT_PARTIAL_REVERSE: "分账冲正";
         readonly RECHARGE: "充值";
         readonly RECHARGE_REFUND: "充值退款";
         readonly BALANCE_REFUND: "余额退款";
@@ -680,6 +701,12 @@ export declare const DICT: {
         readonly STOCKOUT: "断货";
         readonly LOW: "低库存";
         readonly NEAR_EXPIRY: "临期";
+    };
+    readonly expiry_urgency: {
+        readonly EXPIRED: "已过期";
+        readonly URGENT: "紧急（≤7天）";
+        readonly SOON: "临近（≤30天）";
+        readonly NORMAL: "正常";
     };
     readonly purchase_suggestion_reason: {
         readonly SALES_DRIVEN: "销量驱动";

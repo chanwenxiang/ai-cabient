@@ -228,6 +228,8 @@ export const AdminEndpoints = {
   skusCatalogPage: `${ops}/skus?${adminCatalogQuery()}`,
   sku: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}`,
   skusImage: `${ops}/skus/image`,
+  /** CB-025：条码查编码中心官方资料（商品建档自动带出名称/品牌/规格） */
+  skuBarcodeLookup: (code: string) => `${ops}/skus/barcode-lookup?code=${encodeURIComponent(code)}`,
 
   /** SKU 视觉建档 */
   skuVisionRows: (query: URLSearchParams | string) =>

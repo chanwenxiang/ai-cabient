@@ -522,6 +522,18 @@ export interface SkuVisionEnrollmentRow {
   nextStatus?: string | null;
 }
 
+/** 商品条码官方资料查询结果（CB-025，编码中心注册库聚合接口） */
+export interface BarcodeLookupDto {
+  found: boolean;
+  name?: string;
+  brand?: string;
+  spec?: string;
+  manufacturer?: string;
+  category?: string;
+  imageUrl?: string;
+  message?: string;
+}
+
 export interface SkuVisionEnrollmentPipeline {
   modelPipelineStatus: string;
   modelPipelineHint: string;

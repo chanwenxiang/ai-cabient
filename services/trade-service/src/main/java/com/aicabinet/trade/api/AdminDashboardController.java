@@ -5,6 +5,8 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.AdminDashboardControllerSupport;
+import com.aicabinet.trade.client.BarcodeLookupClient;
+import com.aicabinet.trade.dto.BarcodeLookupDto;
 import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.OpsDeviceAdminService;
 import com.aicabinet.trade.service.OpsSessionOrderQueryService;
@@ -14,10 +16,12 @@ import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -29,11 +33,14 @@ public class AdminDashboardController {
 
     private final AdminDashboardService adminService;
     private final AdminDashboardControllerSupport support;
+    private final BarcodeLookupClient barcodeLookupClient;
 
     public AdminDashboardController(AdminDashboardService adminService,
-                                    AdminDashboardControllerSupport support) {
+                                    AdminDashboardControllerSupport support,
+                                    BarcodeLookupClient barcodeLookupClient) {
         this.adminService = adminService;
         this.support = support;
+        this.barcodeLookupClient = barcodeLookupClient;
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
@@ -494,6 +501,16 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @RequestPart("file") MultipartFile file) {
         return ApiResponse.ok(support.fileAttachmentService().uploadSkuImage(operatorId(request), file));
+    }
+
+    /** CB-025：按条码查编码中心注册库官方资料（聚合接口代理），商品建档自动带出名称/品牌/规格。 */
+    @RequiresPermissions(value = {"ops:sku:edit", "ops:sku:import"}, logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/skus/barcode-lookup")
+    public ApiResponse<BarcodeLookupDto> barcodeLookup(@RequestParam("code") String code) {
+        if (!barcodeLookupClient.isValidBarcode(code)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "条码须为 8/12/13/14 位纯数字");
+        }
+        return ApiResponse.ok(barcodeLookupClient.lookup(code));
     }
 
     @RequiresPermissions("ops:report:device")

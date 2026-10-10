@@ -186,101 +186,240 @@
       </div>
     </div>
 
+    <!--
+      商品建档弹窗（CB-025 重设计）：基础信息 / 价格与效期 / 展示与备注 三组两列。
+      条码必填（国内包装商品均有 69 码）+「查官方资料」自动带出编码中心登记的名称/品牌/规格。
+      保质期/贮存方式/到期禁售是数据模型既有字段，此前漏了录入入口，一并补上。
+    -->
     <el-dialog
       v-model="editDialog"
       :title="form.existing ? '编辑商品' : '新建商品'"
       class="dialog-wide"
+      :close-on-click-modal="false"
     >
-      <el-form label-width="auto">
-        <el-form-item label="SKU">
-          <el-input
-            :model-value="form.existing ? form.skuId : '保存后自动分配（纯数字）'"
-            disabled
-          />
-        </el-form-item>
-        <el-form-item label="商品名称" required>
-          <el-input v-model="form.skuName" placeholder="如 可口可乐" />
-        </el-form-item>
-        <el-form-item label="条码">
-          <el-input v-model="form.barcode" placeholder="EAN / UPC，可空" />
-        </el-form-item>
-        <el-form-item label="品牌">
-          <el-input v-model="form.brand" />
-        </el-form-item>
-        <el-form-item label="规格">
-          <el-input v-model="form.spec" placeholder="如 330ml" />
-          <div class="field-hint">同一名称可以有多种规格；名称+规格合在一起不能重复</div>
-        </el-form-item>
-        <el-form-item label="单位">
-          <el-input v-model="form.unit" placeholder="件" style="width: 120px" />
-        </el-form-item>
-        <el-form-item label="售价(元)" required>
-          <el-input-number v-model="form.priceYuan" :min="0.01" :step="0.1" :precision="2" />
-        </el-form-item>
-        <el-form-item label="成本(元)">
-          <el-input-number v-model="form.costYuan" :min="0" :step="0.1" :precision="2" />
-        </el-form-item>
-        <el-form-item label="临期天数">
-          <el-input-number v-model="form.nearExpiryDays" :min="0" :max="365" />
-        </el-form-item>
-        <el-form-item label="临期价(元)">
-          <el-input-number
-            :model-value="
-              form.nearExpiryPriceCents == null ? undefined : form.nearExpiryPriceCents / 100
-            "
-            :min="0.01"
-            :step="0.1"
-            :precision="2"
-            @update:model-value="onNearExpiryPriceYuanChange"
-          />
-          <div class="field-hint">FEFO 首批可售库存处于临期窗口时，结算按临期价计费</div>
-        </el-form-item>
-        <el-form-item label="类目">
-          <el-select v-model="form.category" clearable placeholder="请选择类目" style="width: 100%">
-            <el-option
-              v-for="item in categoryOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="克重(g)">
-          <el-input-number v-model="form.weightGrams" :min="0" :step="1" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="form.status" style="width: 160px">
-            <el-option label="上架" value="ACTIVE" />
-            <el-option label="下架" value="INACTIVE" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="主图">
-          <div class="sku-image-field">
-            <el-upload
-              v-hasPermi="['ops:sku:edit']"
-              :show-file-list="false"
-              accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
-              :http-request="onImageUpload"
-              :disabled="imageUploading"
-            >
-              <el-button :loading="imageUploading" type="primary" plain>上传图片</el-button>
-            </el-upload>
-            <el-button v-if="form.imageUrl" link type="danger" @click="form.imageUrl = ''"
-              >清除</el-button
-            >
-            <div class="field-hint">支持 jpg/png/webp/gif，单张不超过 5MB</div>
-            <img
-              v-if="form.imageUrl.trim()"
-              :src="form.imageUrl.trim()"
-              alt="主图预览"
-              class="sku-preview"
-              referrerpolicy="no-referrer"
-            />
-          </div>
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="2" />
-        </el-form-item>
+      <el-form label-width="auto" class="sku-form" @submit.prevent>
+        <div class="form-group-title">基础信息</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="商品名称" required>
+              <el-input v-model="form.skuName" placeholder="如 农夫山泉饮用天然水" maxlength="60" />
+              <div v-if="!form.existing" class="field-hint">保存后系统自动分配纯数字编号</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="类目" required>
+              <el-select
+                v-model="form.category"
+                filterable
+                clearable
+                placeholder="请选择类目"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="item in categoryOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="14">
+            <el-form-item label="条码" required>
+              <div class="barcode-field">
+                <el-input
+                  v-model="form.barcode"
+                  placeholder="扫描或输入商品条码（国内多为 69 开头）"
+                  @keyup.enter="lookupBarcode"
+                />
+                <el-button :loading="barcodeLookingUp" @click="lookupBarcode">
+                  查官方资料
+                </el-button>
+              </div>
+              <div class="field-hint">
+                可接扫码枪直接扫包装；查询后自动填充名称 / 品牌 / 规格，已填过的内容不覆盖
+              </div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="10">
+            <el-form-item label="单位">
+              <!-- CB-026：单位走系统字典（字典管理可维护）；allow-create 兜底自定义输入 -->
+              <el-select
+                v-model="form.unit"
+                filterable
+                allow-create
+                default-first-option
+                placeholder="选择或输入单位"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="u in unitOptions"
+                  :key="u.value"
+                  :label="u.label"
+                  :value="u.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="品牌">
+              <!-- CB-026：品牌走系统字典（开放集，字典管理维护）；allow-create 兜底 -->
+              <el-select
+                v-model="form.brand"
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                placeholder="选择或输入品牌"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="b in brandOptions"
+                  :key="b.value"
+                  :label="b.label"
+                  :value="b.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="规格">
+              <el-input v-model="form.spec" placeholder="如 550ml" maxlength="40" />
+              <div class="field-hint">同一名称可以有多种规格；名称+规格合在一起不能重复</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">价格与效期</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="售价(元)" required>
+              <el-input-number
+                v-model="form.priceYuan"
+                :min="0.01"
+                :step="0.1"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="成本(元)">
+              <el-input-number
+                v-model="form.costYuan"
+                :min="0"
+                :step="0.1"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="保质期(天)">
+              <el-input-number
+                v-model="form.shelfLifeDays"
+                :min="1"
+                :step="1"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="贮存方式">
+              <el-select v-model="form.storageType" style="width: 100%">
+                <el-option
+                  v-for="opt in storageOptions"
+                  :key="opt.value"
+                  :label="opt.label"
+                  :value="opt.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="临期天数">
+              <el-input-number
+                v-model="form.nearExpiryDays"
+                :min="0"
+                :max="365"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="临期价(元)">
+              <el-input-number
+                :model-value="
+                  form.nearExpiryPriceCents == null ? undefined : form.nearExpiryPriceCents / 100
+                "
+                :min="0.01"
+                :step="0.1"
+                :precision="2"
+                style="width: 100%"
+                @update:model-value="onNearExpiryPriceYuanChange"
+              />
+              <div class="field-hint">
+                库存进入临期窗口后先过期先售，按临期价结算（不填则维持原价）
+              </div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="到期禁售(天)">
+              <el-input-number
+                v-model="form.blockSaleDaysBeforeExpiry"
+                :min="0"
+                :max="365"
+                style="width: 100%"
+              />
+              <div class="field-hint">距到期不足该天数时自动停售；0 = 不禁售</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">展示与备注</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="状态">
+              <el-select v-model="form.status" style="width: 100%">
+                <el-option label="上架" value="ACTIVE" />
+                <el-option label="下架" value="INACTIVE" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <!-- 克重(g) 输入项已移除（CB-027）：本项目无称重货道、无电商运费，weightGrams 全仓只写不读；
+               表单状态仍保留原值随保存回传，避免存量数据被后端 applySkuRequest 置空。 -->
+          <el-col :span="24">
+            <el-form-item label="主图">
+              <div class="sku-image-field">
+                <el-upload
+                  v-hasPermi="['ops:sku:edit']"
+                  :show-file-list="false"
+                  accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                  :http-request="onImageUpload"
+                  :disabled="imageUploading"
+                >
+                  <el-button :loading="imageUploading" type="primary" plain>上传图片</el-button>
+                </el-upload>
+                <el-button v-if="form.imageUrl" link type="danger" @click="form.imageUrl = ''"
+                  >清除</el-button
+                >
+                <div class="field-hint">支持 jpg/png/webp/gif，单张不超过 5MB</div>
+                <img
+                  v-if="form.imageUrl.trim()"
+                  :src="form.imageUrl.trim()"
+                  alt="主图预览"
+                  class="sku-preview"
+                  referrerpolicy="no-referrer"
+                />
+              </div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="描述">
+              <el-input v-model="form.description" type="textarea" :rows="2" maxlength="200" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="editDialog = false">取消</el-button>
@@ -313,7 +452,12 @@ import { findNavByPath } from '@/config/menu';
 import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
 import { yuanToCents } from '@/utils/display';
 import { validateImageFile } from '@/utils/upload-validate';
-import type { FileAttachmentDto, SkuCatalog, UpsertSkuRequest } from '@aicabinet/shared-types';
+import type {
+  BarcodeLookupDto,
+  FileAttachmentDto,
+  SkuCatalog,
+  UpsertSkuRequest
+} from '@aicabinet/shared-types';
 
 const route = useRoute();
 const router = useRouter();
@@ -329,6 +473,29 @@ const categoryFilter = ref('');
 const categoryOptions = useDictOptions('category_code');
 const saleTab = ref('ACTIVE');
 const editDialog = ref(false);
+const barcodeLookingUp = ref(false);
+
+/** 单位/品牌走系统字典（CB-026，字典管理可维护；allow-create 兜底自定义输入） */
+const unitOptions = useDictOptions('sku_unit');
+const brandOptions = useDictOptions('sku_brand');
+const storageOptions = [
+  { value: 'AMBIENT', label: '常温' },
+  { value: 'CHILLED', label: '冷藏' },
+  { value: 'FROZEN', label: '冷冻' }
+];
+
+/** 条码形态：EAN-8 / UPC-A / EAN-13 / ITF-14 纯数字（与后端 isValidBarcode 对齐） */
+const BARCODE_RE = /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/;
+
+/** GS1 校验位（从右起 1、3 交替加权，模 10 为 0）——拦截绝大多数输错/乱扫 */
+function barcodeChecksumValid(code: string): boolean {
+  let sum = 0;
+  for (let i = 0; i < code.length; i++) {
+    const digit = Number(code[code.length - 1 - i]);
+    sum += i % 2 === 0 ? digit : digit * 3;
+  }
+  return sum % 10 === 0;
+}
 
 // 路由深链筛选（keyword/category/sale）须在首查前生效：setup 期同步应用，配合 useCrudTable 自动首载
 applyRouteQuery();
@@ -475,6 +642,8 @@ const form = reactive({
   priceYuan: 3.5,
   costYuan: undefined as number | undefined,
   category: '',
+  // CB-027：表单不再暴露「克重」，但保留状态随编辑加载/保存回传 —— 后端 applySkuRequest
+  // 会无条件写入 weightGrams，不回传会把存量值置空；本项目无称重/运费链路，该字段无消费方。
   weightGrams: undefined as number | undefined,
   status: 'ACTIVE',
   imageUrl: '',
@@ -710,7 +879,7 @@ function openEdit(row?: SkuCatalog) {
     form.shelfLifeDays = row.shelfLifeDays;
     form.nearExpiryDays = row.nearExpiryDays;
     form.blockSaleDaysBeforeExpiry = row.blockSaleDaysBeforeExpiry;
-    form.storageType = row.storageType;
+    form.storageType = row.storageType || 'AMBIENT';
     form.nearExpiryPriceCents = row.nearExpiryPriceCents;
   } else {
     form.existing = false;
@@ -737,10 +906,53 @@ function openEdit(row?: SkuCatalog) {
     form.shelfLifeDays = undefined;
     form.nearExpiryDays = undefined;
     form.blockSaleDaysBeforeExpiry = undefined;
-    form.storageType = undefined;
+    form.storageType = 'AMBIENT';
     form.nearExpiryPriceCents = undefined;
   }
   editDialog.value = true;
+}
+
+/** 查官方资料（CB-025）：条码 → 编码中心注册库，只填空字段不覆盖已填内容 */
+async function lookupBarcode() {
+  const code = form.barcode.trim();
+  if (!code) {
+    ElMessage.warning('请先扫描或输入商品条码');
+    return;
+  }
+  if (!BARCODE_RE.test(code)) {
+    ElMessage.warning('条码须为 8 / 12 / 13 / 14 位纯数字');
+    return;
+  }
+  barcodeLookingUp.value = true;
+  try {
+    const res = await api.request<BarcodeLookupDto>(AdminEndpoints.skuBarcodeLookup(code));
+    if (!res.found) {
+      ElMessage.info(res.message || '编码中心未登记该条码，请手工填写资料');
+      return;
+    }
+    const filled: string[] = [];
+    if (!form.skuName.trim() && res.name) {
+      form.skuName = res.name;
+      filled.push('名称');
+    }
+    if (!form.brand.trim() && res.brand) {
+      form.brand = res.brand;
+      filled.push('品牌');
+    }
+    if (!form.spec.trim() && res.spec) {
+      form.spec = res.spec;
+      filled.push('规格');
+    }
+    ElMessage.success(
+      filled.length
+        ? `已自动填充：${filled.join('、')}`
+        : '已查到官方资料；名称/品牌/规格已填过，未覆盖'
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '查询失败');
+  } finally {
+    barcodeLookingUp.value = false;
+  }
 }
 
 function onNearExpiryPriceYuanChange(value: number | undefined) {
@@ -751,6 +963,24 @@ function onNearExpiryPriceYuanChange(value: number | undefined) {
 async function saveEdit() {
   if (!form.skuName.trim()) {
     ElMessage.warning('请填写商品名称');
+    return;
+  }
+  // 条码必填（CB-025 采纳银豹范式；国内包装商品均有 69 码。CSV 导入走后端不受此限）
+  const barcode = form.barcode.trim();
+  if (!barcode) {
+    ElMessage.warning('请填写商品条码；可扫包装上的 69 码后点「查官方资料」自动带出');
+    return;
+  }
+  if (!BARCODE_RE.test(barcode)) {
+    ElMessage.warning('条码须为 8 / 12 / 13 / 14 位纯数字');
+    return;
+  }
+  if (!barcodeChecksumValid(barcode)) {
+    ElMessage.warning('条码校验位不正确，请核对是否录入有误（可重新扫描确认）');
+    return;
+  }
+  if (!form.category || !normalizeCategoryToCode(form.category)) {
+    ElMessage.warning('请选择商品类目');
     return;
   }
   const nameKey = form.skuName.trim().toLowerCase();
@@ -780,7 +1010,7 @@ async function saveEdit() {
       skuId: form.existing ? form.skuId : undefined,
       skuName: form.skuName.trim(),
       priceCents,
-      barcode: form.barcode.trim() || undefined,
+      barcode: barcode,
       brand: form.brand.trim() || undefined,
       spec: form.spec.trim() || undefined,
       unit: form.unit.trim() || '件',
@@ -965,6 +1195,27 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: var(--admin-font-size-sm);
   line-height: 1.4;
+}
+/* 弹窗分组标题（基础信息/价格与效期/展示与备注），组间距放在标题上 */
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+/* 条码输入 + 查官方资料按钮同行；扫码枪回车即触发查询 */
+.barcode-field {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.barcode-field .el-input {
+  flex: 1;
 }
 .sku-preview {
   margin-top: 4px;
