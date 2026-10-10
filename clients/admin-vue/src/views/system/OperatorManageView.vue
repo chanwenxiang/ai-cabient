@@ -170,42 +170,60 @@
       </div>
     </div>
 
-    <el-dialog v-model="formDlg" :title="form.userId ? '编辑账号' : '新增账号'" destroy-on-close>
+    <el-dialog
+      v-model="formDlg"
+      :title="form.userId ? '编辑账号' : '新增账号'"
+      class="dialog-wide"
+      destroy-on-close
+    >
       <el-form label-width="auto" class="account-form" autocomplete="off">
-        <el-form-item label="姓名" required>
-          <el-input v-model="form.name" name="ops-acc-name" autocomplete="off" maxlength="64" />
-        </el-form-item>
-        <el-form-item label="手机号" required>
-          <el-input
-            v-model="form.phoneNumber"
-            type="tel"
-            name="ops-acc-phone"
-            autocomplete="off"
-            maxlength="11"
-            inputmode="numeric"
-            :placeholder="form.userId ? '留空保持原手机号；换绑请输入新号' : '11位手机号'"
-            @input="form.phoneNumber = form.phoneNumber.replace(/\D/g, '')"
-          />
-        </el-form-item>
-        <el-form-item v-if="!form.userId" label="密码" required>
-          <el-input
-            v-model="form.password"
-            type="password"
-            name="ops-acc-new-password"
-            autocomplete="new-password"
-            show-password
-            placeholder="至少6位"
-            maxlength="64"
-          />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="form.status">
-            <el-radio value="ACTIVE">正常</el-radio>
-            <el-radio value="INACTIVE" :disabled="form.userId === Number(auth.userId)"
-              >停用</el-radio
-            >
-          </el-radio-group>
-        </el-form-item>
+        <div class="form-group-title">基本信息</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="姓名" required>
+              <el-input v-model="form.name" name="ops-acc-name" autocomplete="off" maxlength="64" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="手机号" required>
+              <el-input
+                v-model="form.phoneNumber"
+                type="tel"
+                name="ops-acc-phone"
+                autocomplete="off"
+                maxlength="11"
+                inputmode="numeric"
+                :placeholder="form.userId ? '留空保持原手机号；换绑请输入新号' : '11位手机号'"
+                @input="form.phoneNumber = form.phoneNumber.replace(/\D/g, '')"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col v-if="!form.userId" :span="12">
+            <el-form-item label="密码" required>
+              <el-input
+                v-model="form.password"
+                type="password"
+                name="ops-acc-new-password"
+                autocomplete="new-password"
+                show-password
+                placeholder="至少6位"
+                maxlength="64"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="状态">
+              <el-radio-group v-model="form.status">
+                <el-radio value="ACTIVE">正常</el-radio>
+                <el-radio value="INACTIVE" :disabled="form.userId === Number(auth.userId)"
+                  >停用</el-radio
+                >
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">角色与组织</div>
         <el-form-item v-if="!form.userId" label="角色">
           <el-alert
             type="info"
@@ -215,61 +233,75 @@
             title="角色说明"
             description="新建默认不勾选任何角色。超级管理员不在此列出。两类补货员共用补货小程序现场作业，靠「商户范围」区分可见柜机/任务；后台仅做调度与仓库。选补货相关角色后请务必绑定商户。"
           />
-          <div class="role-group-title">平台角色（可登后台；补货员另须绑商户登小程序）</div>
-          <el-checkbox-group v-model="form.roleIds">
-            <el-checkbox
-              v-for="r in createOpsRoles"
-              :key="r.roleId"
-              :value="r.roleId"
-              style="display: block; margin: 6px 0"
-            >
-              {{ r.roleName }}（{{ r.roleKey }}）
-            </el-checkbox>
-          </el-checkbox-group>
-          <div class="role-group-title">商户团队角色（须绑定商户，登补货/商户小程序）</div>
-          <el-checkbox-group v-model="form.roleIds">
-            <el-checkbox
-              v-for="r in createMerchantRoles"
-              :key="r.roleId"
-              :value="r.roleId"
-              style="display: block; margin: 6px 0"
-            >
-              {{ r.roleName }}（{{ r.roleKey }}）
-            </el-checkbox>
-          </el-checkbox-group>
+          <el-row :gutter="16" class="role-cols">
+            <el-col :span="12">
+              <div class="role-group-title">平台角色（可登后台；补货员另须绑商户登小程序）</div>
+              <el-checkbox-group v-model="form.roleIds">
+                <el-checkbox
+                  v-for="r in createOpsRoles"
+                  :key="r.roleId"
+                  :value="r.roleId"
+                  :title="r.roleKey"
+                  style="display: block; margin: 6px 0"
+                >
+                  {{ r.roleName }}
+                </el-checkbox>
+              </el-checkbox-group>
+            </el-col>
+            <el-col :span="12">
+              <div class="role-group-title">商户团队角色（须绑定商户，登补货/商户小程序）</div>
+              <el-checkbox-group v-model="form.roleIds">
+                <el-checkbox
+                  v-for="r in createMerchantRoles"
+                  :key="r.roleId"
+                  :value="r.roleId"
+                  :title="r.roleKey"
+                  style="display: block; margin: 6px 0"
+                >
+                  {{ r.roleName }}
+                </el-checkbox>
+              </el-checkbox-group>
+            </el-col>
+          </el-row>
         </el-form-item>
-        <el-form-item label="所属部门">
-          <el-select
-            v-model="form.deptIds"
-            multiple
-            filterable
-            clearable
-            placeholder="可多选；审批按全部部门指派"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="d in activeDepartments"
-              :key="d.deptId"
-              :label="`${d.deptName} (${d.deptKey})`"
-              :value="d.deptId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="主部门">
-          <el-select
-            v-model="form.primaryDeptId"
-            clearable
-            placeholder="组织归属（若依式）"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="d in primaryDeptOptions"
-              :key="d.deptId"
-              :label="d.deptName"
-              :value="d.deptId"
-            />
-          </el-select>
-        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="所属部门">
+              <el-select
+                v-model="form.deptIds"
+                multiple
+                filterable
+                clearable
+                placeholder="可多选；审批按全部部门指派"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in activeDepartments"
+                  :key="d.deptId"
+                  :label="d.deptName"
+                  :value="d.deptId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="主部门">
+              <el-select
+                v-model="form.primaryDeptId"
+                clearable
+                placeholder="可选，主要用于审批与组织归属"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in primaryDeptOptions"
+                  :key="d.deptId"
+                  :label="d.deptName"
+                  :value="d.deptId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="formDlg = false">取消</el-button>
@@ -318,7 +350,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="roleDlg" title="分配角色" destroy-on-close>
+    <el-dialog v-model="roleDlg" title="分配角色" class="dialog-wide" destroy-on-close>
       <el-alert
         type="warning"
         :closable="false"
@@ -327,37 +359,46 @@
         title="请勿误绑超级管理员"
         description="超级管理员仅在下方单独列出。平台补货员与商户补货员共用小程序现场补货；保存角色后若涉及补货，请立即配置「商户范围」。"
       />
-      <div class="role-group-title">平台角色</div>
-      <el-checkbox-group v-model="roleIds">
-        <el-checkbox
-          v-for="r in assignOpsRoles"
-          :key="r.roleId"
-          :value="r.roleId"
-          style="display: block; margin: 8px 0"
-        >
-          {{ r.roleName }}（{{ r.roleKey }}）
-        </el-checkbox>
-      </el-checkbox-group>
-      <div class="role-group-title">商户团队角色</div>
-      <el-checkbox-group v-model="roleIds">
-        <el-checkbox
-          v-for="r in assignMerchantRoles"
-          :key="r.roleId"
-          :value="r.roleId"
-          style="display: block; margin: 8px 0"
-        >
-          {{ r.roleName }}（{{ r.roleKey }}）
-        </el-checkbox>
-      </el-checkbox-group>
+      <el-row :gutter="16" class="role-cols">
+        <el-col :span="12">
+          <div class="role-group-title">平台角色</div>
+          <el-checkbox-group v-model="roleIds">
+            <el-checkbox
+              v-for="r in assignOpsRoles"
+              :key="r.roleId"
+              :value="r.roleId"
+              :title="r.roleKey"
+              style="display: block; margin: 8px 0"
+            >
+              {{ r.roleName }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-col>
+        <el-col :span="12">
+          <div class="role-group-title">商户团队角色</div>
+          <el-checkbox-group v-model="roleIds">
+            <el-checkbox
+              v-for="r in assignMerchantRoles"
+              :key="r.roleId"
+              :value="r.roleId"
+              :title="r.roleKey"
+              style="display: block; margin: 8px 0"
+            >
+              {{ r.roleName }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-col>
+      </el-row>
       <div v-if="canAssignAdminRole" class="role-group-title danger">超级管理员（谨慎）</div>
       <el-checkbox-group v-if="canAssignAdminRole" v-model="roleIds">
         <el-checkbox
           v-for="r in assignAdminRoles"
           :key="r.roleId"
           :value="r.roleId"
+          :title="r.roleKey"
           style="display: block; margin: 8px 0"
         >
-          {{ r.roleName }}（{{ r.roleKey }}）
+          {{ r.roleName }}
         </el-checkbox>
       </el-checkbox-group>
       <template #footer>
@@ -383,8 +424,8 @@
         />
         <el-checkbox-group v-if="merchants.length" v-model="merchantIds" class="merchant-group">
           <el-checkbox v-for="m in merchants" :key="m.merchantId" :label="m.merchantId">
-            {{ m.merchantName }}（{{ m.merchantId }}）
-            <span class="muted">· {{ m.deviceCount ?? 0 }} 台设备</span>
+            {{ m.merchantName }}
+            <span class="muted">· 编号 {{ m.merchantId }} · {{ m.deviceCount ?? 0 }} 台设备</span>
           </el-checkbox>
         </el-checkbox-group>
         <el-empty v-else-if="!merchantScopeLoading" description="暂无商户可分配" :image-size="64" />
@@ -409,7 +450,7 @@
           show-icon
           class="scope-alert"
           title="人员货柜范围"
-          description="全部 = 商户范围内所有柜；勾选柜机 = 仅选中设备；线路 = 按设备 route_code 过滤。"
+          description="全部 = 商户范围内的所有柜；勾选柜机 = 仅限选中的设备；线路 = 按设备的线路编号筛选。"
         />
         <el-radio-group v-model="deviceScopeMode" style="margin: 12px 0">
           <el-radio value="ALL">全部货柜</el-radio>
@@ -422,7 +463,8 @@
           class="merchant-group"
         >
           <el-checkbox v-for="d in allDevices" :key="d.deviceId" :label="d.deviceId">
-            {{ d.deviceName || d.deviceId }}（{{ d.deviceId }}）
+            {{ d.deviceName || '未命名设备' }}
+            <span class="muted">· 编号 {{ d.deviceId }}</span>
           </el-checkbox>
         </el-checkbox-group>
         <el-empty
@@ -1217,5 +1259,21 @@ onActivated(() => {
 }
 .role-group-title.danger {
   color: var(--el-color-danger);
+}
+/* 弹窗分组标题（基本信息 / 角色与组织）；组间距放在标题上，与商品建档弹窗同口径 */
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+/* 角色勾选改两列后，左右两列的组标题对齐（首列标题不再额外上间距） */
+.role-cols .role-group-title:first-child {
+  margin-top: 4px;
 }
 </style>

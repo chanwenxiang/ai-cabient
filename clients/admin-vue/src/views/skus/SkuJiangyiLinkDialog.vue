@@ -133,7 +133,7 @@ async function bind(item: StdSkuView) {
 
 async function createInJiangyi() {
   if (!createForm.value.catId) {
-    ElMessage.warning('请填写将邑分类 ID（category 接口可查）');
+    ElMessage.warning('请填写将邑分类编号（可在将邑分类接口查询）');
     return;
   }
   try {
@@ -207,7 +207,11 @@ defineExpose({ open });
 </script>
 
 <template>
-  <el-dialog v-model="visible" :title="`将邑商品库挂接 — ${skuName}（${skuId}）`" width="760px">
+  <el-dialog
+    v-model="visible"
+    :title="`将邑商品库挂接 — ${skuName}（编号 ${skuId}）`"
+    class="dialog-wide"
+  >
     <div v-loading="loading">
       <div class="jy-link-section">
         <div class="jy-link-label">当前挂接</div>
@@ -222,13 +226,13 @@ defineExpose({ open });
             </div>
             <div class="jy-link-card-line">{{ link.jiangyiName || '—' }}</div>
             <div class="jy-link-card-sub">
-              textName（classes 键）：{{ link.jiangyiTextName || '未回填' }}
+              识别名称：{{ link.jiangyiTextName || '未回填' }}
               <template v-if="link.barCode">｜条码：{{ link.barCode }}</template>
             </div>
           </div>
           <div v-if="link.syncStatus !== 'RETIRED'" class="jy-link-card-actions">
             <el-button link type="primary" size="small" :loading="pulling" @click="pullTextName">
-              回填 textName
+              回填识别名称
             </el-button>
             <el-button link type="danger" size="small" @click="unbind(link)">解挂</el-button>
           </div>
@@ -253,7 +257,7 @@ defineExpose({ open });
         <div v-for="item in searchResults" :key="item.id" class="jy-link-card">
           <div class="jy-link-card-main">
             <div class="jy-link-card-title">
-              <span class="jy-link-mono">#{{ item.id }}</span>
+              <span class="jy-link-mono">编号 {{ item.id }}</span>
               <el-tag v-if="item.linked" size="small" type="info">已挂接</el-tag>
             </div>
             <div class="jy-link-card-line">{{ item.name }}</div>
@@ -278,38 +282,57 @@ defineExpose({ open });
 
       <div class="jy-link-section">
         <div class="jy-link-label">或：将我方商品新增到将邑商品库</div>
-        <div class="jy-link-row">
-          <el-input
-            v-model="createForm.specs"
-            placeholder="规格（默认 标准）"
-            style="width: 120px"
-          />
-          <el-input
-            v-model="createForm.brandName"
-            placeholder="品牌（默认 通用）"
-            style="width: 120px"
-          />
-          <el-input v-model="createForm.purchasePrice" placeholder="进货价" style="width: 100px" />
-          <el-input v-model="createForm.salePrice" placeholder="售价" style="width: 100px" />
-          <el-input-number
-            v-model="createForm.catId"
-            placeholder="分类 ID"
-            :min="1"
-            :controls="false"
-            style="width: 100px"
-          />
-          <el-select v-model="createForm.category" style="width: 100px">
-            <el-option label="bottle" value="bottle" />
-            <el-option label="box" value="box" />
-            <el-option label="bag" value="bag" />
-            <el-option label="bowl" value="bowl" />
-            <el-option label="egg" value="egg" />
-          </el-select>
-          <el-button type="primary" :loading="creating" @click="createInJiangyi">新增</el-button>
-        </div>
-        <div class="jy-link-hint">
-          分类 ID 可通过将邑分类接口查询；识别形态类别 bottle/box/bag/bowl/egg。
-        </div>
+        <el-form label-width="auto">
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="规格">
+                <el-input v-model="createForm.specs" placeholder="不填按「标准」提交" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="品牌">
+                <el-input v-model="createForm.brandName" placeholder="不填按「通用」提交" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="进货价(元)">
+                <el-input v-model="createForm.purchasePrice" placeholder="如 1.50" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="售价(元)">
+                <el-input v-model="createForm.salePrice" placeholder="如 3.00" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="分类编号">
+                <el-input-number
+                  v-model="createForm.catId"
+                  :min="1"
+                  :controls="false"
+                  placeholder="将邑分类编号"
+                  style="width: 100%"
+                />
+                <div class="jy-link-hint">可在将邑分类接口查询后填入</div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="识别形态">
+                <el-select v-model="createForm.category" style="width: 100%">
+                  <el-option label="瓶装" value="bottle" />
+                  <el-option label="盒装" value="box" />
+                  <el-option label="袋装" value="bag" />
+                  <el-option label="碗装" value="bowl" />
+                  <el-option label="蛋类" value="egg" />
+                </el-select>
+                <div class="jy-link-hint">用于将邑侧商品归类，不影响端侧识别</div>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </el-form>
+        <el-button type="primary" :loading="creating" @click="createInJiangyi"
+          >新增到将邑商品库</el-button
+        >
       </div>
     </div>
   </el-dialog>

@@ -166,40 +166,65 @@
     <el-dialog
       v-model="dialogVisible"
       :title="editing ? '编辑兑换项' : '新建兑换项'"
+      class="dialog-wide"
       destroy-on-close
     >
       <el-form :model="form" label-width="auto">
-        <el-form-item label="标题" required>
-          <el-input v-model="form.title" placeholder="如：满 20 减 5 券" />
-        </el-form-item>
-        <el-form-item label="副标题">
-          <el-input v-model="form.subtitle" placeholder="选填，展示在标题下方" />
-        </el-form-item>
-        <el-form-item label="图标（表情符号）">
-          <el-input v-model="form.coverEmoji" style="width: 120px" />
-        </el-form-item>
-        <el-form-item label="所需积分" required>
-          <el-input-number v-model="form.pointsCost" :min="1" />
-        </el-form-item>
-        <el-form-item label="兑换优惠券" required>
-          <el-select v-model="form.couponDefId" filterable style="width: 100%">
-            <el-option
-              v-for="c in couponDefs"
-              :key="c.couponDefId"
-              :label="`${c.couponName}（${(c.denominationCents / 100).toFixed(2)}元）`"
-              :value="c.couponDefId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="库存总量" required>
-          <el-input-number v-model="form.stockTotal" :min="0" />
-        </el-form-item>
-        <el-form-item label="排序">
-          <el-input-number v-model="form.sortOrder" :min="0" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-switch v-model="form.status" active-value="ACTIVE" inactive-value="INACTIVE" />
-        </el-form-item>
+        <div class="form-group-title">展示信息</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="标题" required>
+              <el-input v-model="form.title" placeholder="如：满 20 减 5 券" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="副标题">
+              <el-input v-model="form.subtitle" placeholder="选填，展示在标题下方" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="图标">
+              <el-input v-model="form.coverEmoji" placeholder="表情符号，如 🎁" />
+              <div class="field-hint">用表情符号作为列表图标</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="所需积分" required>
+              <el-input-number v-model="form.pointsCost" :min="1" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">兑换配置</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="兑换优惠券" required>
+              <el-select v-model="form.couponDefId" filterable style="width: 100%">
+                <el-option
+                  v-for="c in couponDefs"
+                  :key="c.couponDefId"
+                  :label="`${c.couponName}（${(c.denominationCents / 100).toFixed(2)}元）`"
+                  :value="c.couponDefId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="库存总量" required>
+              <el-input-number v-model="form.stockTotal" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="排序">
+              <el-input-number v-model="form.sortOrder" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="状态">
+              <el-switch v-model="form.status" active-value="ACTIVE" inactive-value="INACTIVE" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -453,6 +478,23 @@ async function batchToggle(status: 'ACTIVE' | 'INACTIVE') {
 </script>
 
 <style scoped>
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.field-hint {
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+  margin-top: 4px;
+}
 .cell-emoji {
   margin-right: 6px;
   font-size: var(--admin-font-size-display-sm);

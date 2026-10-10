@@ -94,32 +94,47 @@
       </div>
     </div>
 
-    <el-dialog v-model="sendVisible" title="发送站内信" destroy-on-close>
+    <el-dialog v-model="sendVisible" title="发送站内信" class="dialog-wide" destroy-on-close>
       <el-form label-width="auto">
-        <el-form-item label="受众" required>
-          <el-radio-group v-model="sendForm.audience">
-            <el-radio value="CONSUMER">消费者</el-radio>
-            <el-radio value="MERCHANT">商户</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="sendForm.audience === 'CONSUMER'" label="用户ID" required>
-          <el-input v-model="sendForm.userId" placeholder="如 10001" />
-        </el-form-item>
-        <el-form-item v-else label="商户编号" required>
-          <el-input v-model="sendForm.merchantId" placeholder="商户 12 位编号（列表中复制）" />
-        </el-form-item>
-        <el-form-item label="标题" required>
-          <el-input v-model="sendForm.title" maxlength="80" show-word-limit />
-        </el-form-item>
-        <el-form-item label="内容" required>
-          <el-input
-            v-model="sendForm.body"
-            type="textarea"
-            :rows="4"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
+        <div class="form-group-title">接收对象</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="受众" required>
+              <el-radio-group v-model="sendForm.audience">
+                <el-radio value="CONSUMER">消费者</el-radio>
+                <el-radio value="MERCHANT">商户</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item v-if="sendForm.audience === 'CONSUMER'" label="用户编号" required>
+              <el-input v-model="sendForm.userId" placeholder="如 10001" />
+            </el-form-item>
+            <el-form-item v-else label="商户编号" required>
+              <el-input v-model="sendForm.merchantId" placeholder="商户 12 位编号（列表中复制）" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">消息内容</div>
+        <el-row :gutter="16">
+          <el-col :span="24">
+            <el-form-item label="标题" required>
+              <el-input v-model="sendForm.title" maxlength="80" show-word-limit />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="内容" required>
+              <el-input
+                v-model="sendForm.body"
+                type="textarea"
+                :rows="4"
+                maxlength="500"
+                show-word-limit
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="sendVisible = false">取消</el-button>
@@ -353,3 +368,17 @@ function formatTime(t?: string) {
   )}`;
 }
 </script>
+
+<style scoped>
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+</style>

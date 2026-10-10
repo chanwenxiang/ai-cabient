@@ -71,13 +71,14 @@ export function useDeviceRemoteOps(deps: UseDeviceRemoteOpsDeps) {
       case 'DISPUTE_ONLY':
         return '本柜覆盖全局：消费者只能提交申诉，需运营核对录像后再退款。';
       default:
-        return `不单独设置本柜，沿用参数配置「refund.default_policy」：${policyLabel(globalRefundPolicy.value)}。`;
+        // 用户可见文案不暴露配置键（refund.default_policy）——键名留在 SystemConfigView 即可
+        return `不单独设置本柜，沿用系统默认：${policyLabel(globalRefundPolicy.value)}。`;
     }
   });
 
   const refundPriorityHint = computed(
     () =>
-      `全局默认「${policyLabel(globalRefundPolicy.value)}」。若本柜选择自助退款或仅申诉，则以本柜为准；选「跟随全局」则继承参数配置。`
+      `全局默认「${policyLabel(globalRefundPolicy.value)}」。本柜单独设置后以本柜为准；选「跟随全局」则用系统默认。`
   );
 
   function syncRefundDraftFromDevice(refundPolicy?: string | null) {

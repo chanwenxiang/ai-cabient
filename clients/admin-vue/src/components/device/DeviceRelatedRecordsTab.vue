@@ -41,9 +41,9 @@ function sessionKindLabel(kind?: string | null) {
           empty-text=" "
         >
           <template #empty
-            ><el-empty v-if="hydrated" description="暂无会话" :image-size="48"
+            ><el-empty v-if="hydrated" description="暂无开门记录" :image-size="48"
           /></template>
-          <el-table-column label="会话" min-width="160" class-name="col-text">
+          <el-table-column label="开门编号" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
             </template>

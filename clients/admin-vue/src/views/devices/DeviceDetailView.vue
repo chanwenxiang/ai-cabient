@@ -17,7 +17,7 @@
             }}</el-tag>
             <el-tag v-if="metrics?.salesLocked" type="danger" size="small">已锁机</el-tag>
           </div>
-          <span class="page-hint">设备 ID {{ deviceId }} · 资产投放与远程运维</span>
+          <span class="page-hint">设备编号 {{ deviceId }} · 资产投放与远程运维</span>
         </div>
       </template>
       <template #extra>
@@ -37,170 +37,16 @@
             <div class="page-card-head__meta">
               <div class="page-card-head__title">
                 <span class="title">设备概览</span>
-                <span class="hint">商户 / 投放位置 / 版本号 / 告警联系人 / 会话与补货</span>
+                <span class="hint">运营指标 / 基础信息 / 投放位置 / 运行状态</span>
               </div>
             </div>
           </div>
         </template>
 
-        <div class="info-grid">
-          <div class="info-item">
-            <span class="info-label">设备编号</span>
-            <span class="info-value cell-id">{{ device?.deviceId || deviceId }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">商户</span>
-            <span class="info-value">
-              <template v-if="metricsHydrated">
-                <strong v-if="device?.merchantName || device?.merchantId">{{
-                  device.merchantName || device.merchantId
-                }}</strong>
-                <span v-else class="muted">无</span>
-                <small v-if="device?.merchantName && device?.merchantId" class="cell-id info-sub">{{
-                  device.merchantId
-                }}</small>
-              </template>
-              <span v-else class="muted">{{ UI_COPY.loading }}</span>
-            </span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">所属仓库</span>
-            <span class="info-value">{{ homeWarehouseLabel }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">经纬度</span>
-            <span class="info-value cell-id">{{
-              asset.latitude != null && asset.longitude != null
-                ? `${asset.latitude}, ${asset.longitude}`
-                : '未采集'
-            }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">App 版本</span>
-            <span class="info-value">{{
-              metricsHydrated ? metrics?.appVersion || '无' : UI_COPY.loading
-            }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">固件版本</span>
-            <span class="info-value">{{
-              metricsHydrated ? metrics?.firmwareVersion || '无' : UI_COPY.loading
-            }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">告警联系人</span>
-            <span class="info-value">{{
-              metricsHydrated
-                ? metrics?.alertContactName || metrics?.merchantContactName || '无'
-                : UI_COPY.loading
-            }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">联系电话</span>
-            <span class="info-value">{{
-              metricsHydrated
-                ? metrics?.alertContactPhone || metrics?.merchantContactPhone || '无'
-                : UI_COPY.loading
-            }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">最近会话</span>
-            <span class="info-value cell-id">{{
-              metricsHydrated ? device?.activeSessionId || '无' : UI_COPY.loading
-            }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">会话状态</span>
-            <span class="info-value">
-              <template v-if="metricsHydrated">
-                <el-tag v-if="device?.activeSessionState" size="small" effect="plain">{{
-                  dictLabel('session_state', device.activeSessionState)
-                }}</el-tag>
-                <span v-else class="muted">暂无</span>
-              </template>
-              <span v-else class="muted">{{ UI_COPY.loading }}</span>
-            </span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">最近补货</span>
-            <span class="info-value cell-datetime">{{
-              metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : UI_COPY.loading
-            }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">温度上报</span>
-            <span class="info-value cell-datetime">{{
-              metricsHydrated ? formatDateTime(metrics?.tempReportedAt) || '无' : UI_COPY.loading
-            }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">库存准确率</span>
-            <span class="info-value">
-              {{
-                metricsHydrated
-                  ? metrics?.inventoryAccuracyPct != null
-                    ? `${metrics.inventoryAccuracyPct}%`
-                    : '无'
-                  : UI_COPY.loading
-              }}
-            </span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">退款规则</span>
-            <span class="info-value">
-              <el-tag
-                size="small"
-                :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
-              >
-                {{ policyLabel(effectiveRefundPolicy) }}
-              </el-tag>
-              <span class="inherit-hint">{{ device?.refundPolicy ? '本柜覆盖' : '跟随全局' }}</span>
-            </span>
-          </div>
-          <div class="info-item info-item--full">
-            <span class="info-label">投放地址</span>
-            <!-- 整行 + 允许换行：长地址（省市区+街道门牌+门店名）不再被格子截断 -->
-            <span class="info-value info-value--wrap">{{
-              metricsHydrated ? metrics?.address || '无' : UI_COPY.loading
-            }}</span>
-          </div>
-          <div class="info-item info-item--full">
-            <span class="info-label">目标温度</span>
-            <span class="info-value">
-              <span class="temp-set-row">
-                <el-input-number
-                  v-model="tempDraft"
-                  :min="-30"
-                  :max="30"
-                  :step="1"
-                  size="small"
-                  controls-position="right"
-                />
-                <span class="muted">°C</span>
-                <el-button
-                  v-hasPermi="['ops:device:edit']"
-                  type="primary"
-                  size="small"
-                  plain
-                  :loading="cmdLoading === 'SET_TEMP'"
-                  @click="setTargetTemp"
-                  >下发温度</el-button
-                >
-                <span class="muted"
-                  >柜内当前
-                  {{
-                    metricsHydrated
-                      ? metrics?.currentTempC != null
-                        ? `${metrics.currentTempC}°C`
-                        : '无'
-                      : UI_COPY.loading
-                  }}</span
-                >
-              </span>
-            </span>
-          </div>
-        </div>
-
+        <!--
+          首屏信息顺序＝运营阅读顺序（CB-024）：指标条 → 温度操作 → 分组信息。
+          原先 15 个信息格平铺在上、KPI 沉底，运营最关心的填充率/缺货要滚过整卡才看到。
+        -->
         <div class="kpi-grid">
           <div
             class="stat-tile"
@@ -284,6 +130,191 @@
             </div>
             <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
           </div>
+        </div>
+
+        <!-- 温度下发从信息格里拿出来：它是操作不是属性，混在只读格子里既难找又误触 -->
+        <div class="temp-action-bar">
+          <span class="temp-bar-label">温度设置</span>
+          <el-input-number
+            v-model="tempDraft"
+            :min="-30"
+            :max="30"
+            :step="1"
+            size="small"
+            controls-position="right"
+          />
+          <span class="muted">°C</span>
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            type="primary"
+            size="small"
+            plain
+            :loading="cmdLoading === 'SET_TEMP'"
+            @click="setTargetTemp"
+            >下发温度</el-button
+          >
+          <span class="muted"
+            >柜内当前
+            {{
+              metricsHydrated
+                ? metrics?.currentTempC != null
+                  ? `${metrics.currentTempC}°C`
+                  : '无'
+                : UI_COPY.loading
+            }}</span
+          >
+        </div>
+
+        <div class="info-groups">
+          <section class="info-group">
+            <div class="info-group-title">基础信息</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">设备编号</span>
+                <span class="info-value cell-id">{{ device?.deviceId || deviceId }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">所属仓库</span>
+                <span class="info-value">{{ homeWarehouseLabel }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">柜机软件版本</span>
+                <span class="info-value">{{
+                  metricsHydrated ? metrics?.appVersion || '无' : UI_COPY.loading
+                }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">固件版本</span>
+                <span class="info-value">{{
+                  metricsHydrated ? metrics?.firmwareVersion || '无' : UI_COPY.loading
+                }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="info-group">
+            <div class="info-group-title">投放位置</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">商户</span>
+                <span class="info-value">
+                  <template v-if="metricsHydrated">
+                    <strong v-if="device?.merchantName || device?.merchantId">{{
+                      device.merchantName || device.merchantId
+                    }}</strong>
+                    <span v-else class="muted">无</span>
+                    <small
+                      v-if="device?.merchantName && device?.merchantId"
+                      class="cell-id info-sub"
+                      >{{ device.merchantId }}</small
+                    >
+                  </template>
+                  <span v-else class="muted">{{ UI_COPY.loading }}</span>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">位置坐标</span>
+                <span class="info-value cell-id">{{
+                  asset.latitude != null && asset.longitude != null
+                    ? `${asset.latitude}, ${asset.longitude}`
+                    : '未采集'
+                }}</span>
+              </div>
+              <div class="info-item info-item--full">
+                <span class="info-label">投放地址</span>
+                <!-- 整行 + 允许换行：长地址（省市区+街道门牌+门店名）不再被格子截断 -->
+                <span class="info-value info-value--wrap">{{
+                  metricsHydrated ? metrics?.address || '无' : UI_COPY.loading
+                }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="info-group">
+            <div class="info-group-title">运行状态</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">最近开门</span>
+                <span class="info-value cell-id">{{
+                  metricsHydrated ? device?.activeSessionId || '无' : UI_COPY.loading
+                }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">开门状态</span>
+                <span class="info-value">
+                  <template v-if="metricsHydrated">
+                    <el-tag v-if="device?.activeSessionState" size="small" effect="plain">{{
+                      dictLabel('session_state', device.activeSessionState)
+                    }}</el-tag>
+                    <span v-else class="muted">暂无</span>
+                  </template>
+                  <span v-else class="muted">{{ UI_COPY.loading }}</span>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">最近补货</span>
+                <span class="info-value cell-datetime">{{
+                  metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : UI_COPY.loading
+                }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">温度上报</span>
+                <span class="info-value cell-datetime">{{
+                  metricsHydrated
+                    ? formatDateTime(metrics?.tempReportedAt) || '无'
+                    : UI_COPY.loading
+                }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">库存准确率</span>
+                <span class="info-value">
+                  {{
+                    metricsHydrated
+                      ? metrics?.inventoryAccuracyPct != null
+                        ? `${metrics.inventoryAccuracyPct}%`
+                        : '无'
+                      : UI_COPY.loading
+                  }}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section class="info-group">
+            <div class="info-group-title">售后与联系</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">退款规则</span>
+                <span class="info-value">
+                  <el-tag
+                    size="small"
+                    :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
+                  >
+                    {{ policyLabel(effectiveRefundPolicy) }}
+                  </el-tag>
+                  <span class="inherit-hint">{{
+                    device?.refundPolicy ? '本柜覆盖' : '跟随全局'
+                  }}</span>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">告警联系人</span>
+                <span class="info-value">{{
+                  metricsHydrated
+                    ? metrics?.alertContactName || metrics?.merchantContactName || '无'
+                    : UI_COPY.loading
+                }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">联系电话</span>
+                <span class="info-value">{{
+                  metricsHydrated
+                    ? metrics?.alertContactPhone || metrics?.merchantContactPhone || '无'
+                    : UI_COPY.loading
+                }}</span>
+              </div>
+            </div>
+          </section>
         </div>
       </el-card>
 
@@ -488,7 +519,7 @@
 
     <el-dialog v-model="editorVisible" :title="`编辑货道 ${editForm.slotCode}`">
       <el-form label-width="auto">
-        <el-form-item label="SKU">
+        <el-form-item label="商品">
           <el-select
             v-model="editForm.assignedSkuId"
             filterable
@@ -1043,24 +1074,35 @@ onActivated(() => {
   line-height: 1.4;
 }
 /* ── 首屏：左「设备概览」（信息 + 指标），右「柜机二维码」 ────────────────
-   窄屏回落单列；二维码卡片跟随内容高度，不拉伸。 */
+   窄屏回落单列。两卡等高：二维码卡拉伸填满右列，内部内容垂直居中，
+   避免概览较高时右列下方露出一片空白。 */
 .device-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 @media (max-width: 1280px) {
   .device-hero {
     grid-template-columns: minmax(0, 1fr);
   }
 }
-/* 关键信息：标签在上、值在下（堆叠式），避免 el-descriptions 半宽格把长地址截断 */
+/* 关键信息按业务分组（CB-024）：组标题 + 标签在上、值在下的堆叠式格子 */
+.info-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.info-group-title {
+  margin-bottom: 8px;
+  font-size: var(--admin-font-size-sm);
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
 .info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px 20px;
-  margin-bottom: 16px;
 }
 .info-item {
   display: flex;
@@ -1093,11 +1135,20 @@ onActivated(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   gap: 8px;
-  padding-top: 14px;
-  border-top: 1px solid var(--el-border-color-lighter);
 }
 .kpi-grid .stat-tile {
   margin-bottom: 0;
+}
+/* 二维码卡拉伸到与左侧概览等高：card 与 body 都走纵向 flex，
+   body 占满剩余高度，二维码 + 提示整体垂直居中 */
+.hero-qr {
+  display: flex;
+  flex-direction: column;
+}
+.hero-qr :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 .hero-qr .page-card-head {
   flex-wrap: wrap;
@@ -1106,8 +1157,22 @@ onActivated(() => {
 .hero-qr .qr-tips {
   max-width: 100%;
 }
+/* 温度操作条：紧贴指标条下方，操作与「柜内温度」指标相邻 */
+.temp-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+.temp-bar-label {
+  font-size: var(--admin-font-size-sm);
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
 /* 目标温度输入框给稳定宽度，避免值为空时被压成一个「小方块」 */
-.temp-set-row :deep(.el-input-number) {
+.temp-action-bar :deep(.el-input-number) {
   width: 120px;
 }
 .qr-card .qr-actions {
@@ -1116,9 +1181,11 @@ onActivated(() => {
   flex-wrap: wrap;
 }
 .qr-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 16px;
   text-align: center;
   padding: 8px 0 4px;
@@ -1267,12 +1334,6 @@ onActivated(() => {
   margin-left: 8px;
   font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
-}
-.temp-set-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 .life-event {
   display: flex;

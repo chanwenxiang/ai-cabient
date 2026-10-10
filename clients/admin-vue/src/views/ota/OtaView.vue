@@ -222,50 +222,103 @@
     </div>
   </el-card>
 
-  <el-dialog v-model="dialog" title="发布固件版本" destroy-on-close>
+  <el-dialog v-model="dialog" title="发布固件版本" class="dialog-wide" destroy-on-close>
     <el-form label-width="auto">
-      <el-form-item label="版本号" required>
-        <el-input v-model="form.appVersion" placeholder="例如 1.2.0…" />
-      </el-form-item>
-      <el-form-item label="渠道">
-        <el-input v-model="form.channel" placeholder="稳定版 / 测试版（stable / beta）…" />
-      </el-form-item>
-      <el-form-item label="下载地址" required>
-        <el-input v-model="form.downloadUrl" placeholder="https://cdn.example.com/app.apk…" />
-      </el-form-item>
-      <el-form-item label="校验和" required>
-        <el-input v-model="form.checksumSha256" placeholder="sha256（必填，64 位十六进制）…" />
-      </el-form-item>
-      <el-form-item label="最低版本">
-        <el-input v-model="form.minVersion" placeholder="可选…" />
-      </el-form-item>
-      <el-form-item label="灰度 %">
-        <el-input-number v-model="form.grayPercent" :min="1" :max="100" />
-      </el-form-item>
-      <el-form-item label="定向设备">
-        <el-select
-          v-model="form.deviceAllowlist"
-          multiple
-          filterable
-          clearable
-          placeholder="不选则全量 / 按灰度%"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="d in deviceOptions"
-            :key="d.deviceId"
-            :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
-            :value="d.deviceId"
-          />
-        </el-select>
-        <div class="field-hint">指定后仅这些柜机收到该版本（定向优先于灰度）</div>
-      </el-form-item>
-      <el-form-item label="强制升级">
-        <el-switch v-model="form.mandatory" />
-      </el-form-item>
-      <el-form-item label="说明">
-        <el-input v-model="form.releaseNotes" type="textarea" :rows="3" />
-      </el-form-item>
+      <div class="form-group-title">版本信息</div>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="版本号" required>
+            <el-input v-model="form.appVersion" placeholder="例如 1.2.0" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="发布渠道" required>
+            <el-select
+              v-model="form.channel"
+              allow-create
+              filterable
+              style="width: 100%"
+              placeholder="选择发布渠道"
+            >
+              <el-option label="稳定版" value="stable" />
+              <el-option label="测试版" value="beta" />
+              <el-option label="灰度版" value="canary" />
+              <el-option label="内部版" value="internal" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="最低兼容版本">
+            <el-input v-model="form.minVersion" placeholder="可选；低于该版本的柜机不推送" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="强制升级">
+            <el-switch v-model="form.mandatory" />
+            <span class="field-hint inline">开启后柜机须升级成功才能继续营业</span>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <div class="form-group-title">发布包</div>
+      <el-row :gutter="16">
+        <el-col :span="24">
+          <el-form-item label="下载地址" required>
+            <el-input
+              v-model="form.downloadUrl"
+              placeholder="固件安装包的公网下载地址（https://…）"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="24">
+          <el-form-item label="文件校验码" required>
+            <el-input
+              v-model="form.checksumSha256"
+              placeholder="64 位十六进制；柜机下载后用于校验固件是否完整"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <div class="form-group-title">发布范围</div>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="灰度比例">
+            <el-input-number v-model="form.grayPercent" :min="1" :max="100" style="width: 100%" />
+            <div class="field-hint">按比例随机抽取柜机试用，100 表示全量</div>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="定向设备">
+            <el-select
+              v-model="form.deviceAllowlist"
+              multiple
+              filterable
+              clearable
+              placeholder="留空则按灰度比例"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="d in deviceOptions"
+                :key="d.deviceId"
+                :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
+                :value="d.deviceId"
+              />
+            </el-select>
+            <div class="field-hint">指定后仅这些柜机收到该版本（优先于灰度比例）</div>
+          </el-form-item>
+        </el-col>
+        <el-col :span="24">
+          <el-form-item label="版本说明">
+            <el-input
+              v-model="form.releaseNotes"
+              type="textarea"
+              :rows="3"
+              placeholder="本次更新内容，展示在版本记录中"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
     </el-form>
     <template #footer>
       <el-button @click="dialog = false">取消</el-button>
@@ -619,10 +672,25 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
 .field-hint {
   font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
   line-height: 1.5;
   margin-top: 4px;
+}
+.field-hint.inline {
+  margin-top: 0;
+  margin-left: 8px;
 }
 </style>

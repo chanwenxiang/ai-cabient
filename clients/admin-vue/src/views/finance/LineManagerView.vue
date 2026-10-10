@@ -478,23 +478,72 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="createVisible" title="新建线长" destroy-on-close>
+    <el-dialog v-model="createVisible" title="新建线长" class="dialog-wide" destroy-on-close>
       <el-form label-width="auto">
-        <el-form-item label="姓名" required><el-input v-model="form.managerName" /></el-form-item>
-        <el-form-item label="手机" required><el-input v-model="form.phone" /></el-form-item>
-        <el-form-item label="组织"><el-input v-model="form.orgName" /></el-form-item>
-        <el-form-item label="微信 OpenID"
-          ><el-input v-model="form.wxOpenid" placeholder="提现到零钱"
-        /></el-form-item>
-        <el-form-item label="绑定用户ID"
-          ><el-input v-model="form.userId" placeholder="可选，商户小程序 userId"
-        /></el-form-item>
-        <el-form-item label="佣金比例（基点）"
-          ><el-input-number v-model="form.commissionRateBps" :min="0" :max="5000"
-        /></el-form-item>
-        <el-form-item label="固定分/单"
-          ><el-input-number v-model="form.commissionFixedCents" :min="0" :max="100000"
-        /></el-form-item>
+        <div class="form-group-title">身份信息</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="姓名" required>
+              <el-input v-model="form.managerName" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="手机号" required>
+              <el-input v-model="form.phone" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="所属组织">
+              <el-input v-model="form.orgName" placeholder="如 城东地推组" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="关联用户编号">
+              <el-input v-model="form.userId" placeholder="可不填，填商户小程序里的用户编号" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="微信收款账号">
+              <el-input
+                v-model="form.wxOpenid"
+                placeholder="用于提现到微信零钱，可从提现记录复制"
+              />
+              <div class="field-hint">该账号在微信侧的收款标识，提现打款到对应零钱账户</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">佣金计提</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="佣金比例(%)">
+              <el-input-number
+                v-model="commissionPercent"
+                :min="0"
+                :max="50"
+                :step="0.1"
+                :precision="2"
+                controls-position="right"
+                style="width: 100%"
+              />
+              <div class="field-hint">按成交金额计提，如填 2 表示抽 2%</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="每单固定佣金(元)">
+              <el-input-number
+                v-model="commissionFixedYuan"
+                :min="0"
+                :max="1000"
+                :step="0.5"
+                :precision="2"
+                controls-position="right"
+                style="width: 100%"
+              />
+              <div class="field-hint">每完成一单额外给固定金额，不填按 0 计</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
@@ -518,7 +567,7 @@
             <el-option
               v-for="d in deviceOptions"
               :key="d.deviceId"
-              :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
+              :label="`${d.deviceName || '未命名设备'}（编号 ${d.deviceId}）`"
               :value="d.deviceId"
             />
           </el-select>
@@ -655,24 +704,43 @@
       </div>
     </ResizableDrawer>
 
-    <el-dialog v-model="promoVisible" title="新建地推任务" destroy-on-close>
+    <el-dialog v-model="promoVisible" title="新建地推任务" class="dialog-wide" destroy-on-close>
       <el-form label-width="auto">
-        <el-form-item label="线长ID" required>
-          <el-input-number v-model="promoForm.managerId" :min="1" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="标题" required>
-          <el-input v-model="promoForm.title" />
-        </el-form-item>
-        <el-form-item label="线路">
-          <el-input v-model="promoForm.routeCode" />
-        </el-form-item>
-        <el-form-item label="目标数">
-          <el-input-number v-model="promoForm.targetQty" :min="0" />
-        </el-form-item>
-        <el-form-item label="奖金(分)">
-          <el-input-number v-model="promoForm.bountyCents" :min="0" />
-          <div class="field-hint">任务变为「已完成」后，赏金入账线长钱包（幂等，不重复发）</div>
-        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="线长编号" required>
+              <el-input-number v-model="promoForm.managerId" :min="1" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="任务标题" required>
+              <el-input v-model="promoForm.title" placeholder="如 城东片区新柜铺设" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="线路">
+              <el-input v-model="promoForm.routeCode" placeholder="如 线路编号或片区名" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="目标数量">
+              <el-input-number v-model="promoForm.targetQty" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="奖金(元)">
+              <el-input-number
+                v-model="bountyYuan"
+                :min="0"
+                :step="1"
+                :precision="2"
+                controls-position="right"
+                style="width: 100%"
+              />
+              <div class="field-hint">任务变为「已完成」后，赏金入账线长钱包（幂等，不重复发）</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="promoVisible = false">取消</el-button>
@@ -850,6 +918,13 @@ const promoForm = reactive({
   targetQty: 10,
   bountyCents: 0
 });
+/* 地推奖金同样按「元」录入、按「分」存储（后端契约不变） */
+const bountyYuan = computed({
+  get: () => (Number(promoForm.bountyCents) || 0) / 100,
+  set: (v: number | undefined) => {
+    promoForm.bountyCents = v == null ? 0 : Math.round(v * 100);
+  }
+});
 const form = reactive({
   managerName: '',
   phone: '',
@@ -858,6 +933,20 @@ const form = reactive({
   userId: '',
   commissionRateBps: 200,
   commissionFixedCents: 0
+});
+/* 录入按业务口径（百分比 / 元），存储仍是后端契约（万分比 / 分）：
+   佣金列表列本来就按 % 展示（commissionRateBps/100），表单若直接填 200 会与列表显示对不上。 */
+const commissionPercent = computed({
+  get: () => (Number(form.commissionRateBps) || 0) / 100,
+  set: (v: number | undefined) => {
+    form.commissionRateBps = v == null ? 0 : Math.round(v * 100);
+  }
+});
+const commissionFixedYuan = computed({
+  get: () => (Number(form.commissionFixedCents) || 0) / 100,
+  set: (v: number | undefined) => {
+    form.commissionFixedCents = v == null ? 0 : Math.round(v * 100);
+  }
 });
 const wdBatchLoading = ref<'approve' | 'reject' | ''>('');
 
@@ -1331,5 +1420,17 @@ onMounted(async () => {
   font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
   line-height: 1.4;
+}
+/* 弹窗分组标题（身份信息 / 佣金计提），与商品建档弹窗同口径 */
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>

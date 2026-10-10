@@ -6,7 +6,7 @@
           <div class="page-card-head__title">
             <span class="title">识别映射</span>
             <span class="hint">
-              将邑端侧识别 classId → SKU 的翻译表；激活的映射才参与结算推荐。识别能力在将邑侧，
+              端侧识别编号 → 商品的对应表；只有激活的映射参与结算推荐。识别在将邑端侧完成，
               云端不做识别；商品入驻流程见「识别入驻」
             </span>
           </div>
@@ -27,7 +27,7 @@
           <el-option
             v-for="d in deviceOptions"
             :key="d.deviceId"
-            :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
+            :label="`${d.deviceName || '未命名设备'}（编号 ${d.deviceId}）`"
             :value="d.deviceId"
           />
         </el-select>
@@ -48,7 +48,7 @@
         <div class="jy-device-item">
           <span class="jy-device-label">设备状态</span>
           <el-tag size="small" :type="binding.status === 'BOUND' ? 'success' : 'info'">
-            {{ binding.status }}
+            {{ binding.status === 'BOUND' ? '已接入' : '未接入' }}
           </el-tag>
         </div>
         <div class="jy-device-item">
@@ -56,11 +56,11 @@
           <span class="jy-mono">{{ binding.modelName || '未下发' }}</span>
         </div>
         <div class="jy-device-item">
-          <span class="jy-device-label">classes 版本</span>
+          <span class="jy-device-label">模型版本</span>
           <span class="jy-mono">{{ binding.classesVersion || '—' }}</span>
         </div>
         <div class="jy-device-item">
-          <span class="jy-device-label">最近 WS 在线</span>
+          <span class="jy-device-label">最近通信时间</span>
           <span>{{ formatInstant(binding.lastWsOnlineAt) }}</span>
         </div>
       </div>
@@ -73,8 +73,8 @@
               <div class="page-card-head__title">
                 <span class="title">模型同步</span>
                 <span class="hint">
-                  预生成后映射为停用态，人工核对 classId ↔ SKU 再激活；industrialControlModel
-                  按字符串相等校验，与设备登记值不一致将拒绝下发
+                  预生成后映射为停用态，人工核对「识别编号 ↔ 商品」再激活；机型参数按字符串
+                  相等校验，与设备登记值不一致将拒绝下发
                 </span>
               </div>
             </div>
@@ -102,8 +102,8 @@
               </el-option>
             </el-select>
           </el-form-item>
-          <el-form-item label="classId 基数">
-            <el-select v-model="classIdBase" style="width: 130px">
+          <el-form-item label="识别编号起始值">
+            <el-select v-model="classIdBase" style="width: 150px">
               <el-option label="0 起（第 1 行=0）" :value="0" />
               <el-option label="1 起（第 1 行=1）" :value="1" />
             </el-select>
@@ -116,7 +116,7 @@
         <template v-if="currentPreview">
           <div class="jy-preview-rows">
             <div v-for="row in currentPreview.rows" :key="row.classId" class="jy-preview-row">
-              <span class="jy-mono">classId={{ row.classId }}</span>
+              <span class="jy-mono">编号 {{ row.classId }}</span>
               <span>{{ row.textName }}</span>
             </div>
           </div>
@@ -148,7 +148,7 @@
         </template>
       </el-card>
 
-      <!-- classId 映射表 -->
+      <!-- 识别编号映射表 -->
       <div class="table-scroll">
         <div class="table-scroll-inner">
           <CrudTable
@@ -156,19 +156,19 @@
             :actions="rowActions"
             :action-width="150"
             empty-text="暂无映射；先在「模型同步」预生成，或到商品管理逐条挂接"
-            sort-field-label="classId"
+            sort-field-label="识别编号"
             :csv="csvOptions"
             @action="onAction"
           >
-            <el-table-column prop="classId" label="classId" width="100" class-name="col-text">
+            <el-table-column prop="classId" label="识别编号" width="100" class-name="col-text">
               <template #default="{ row }">
                 <span class="jy-mono">{{ row.classId }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="textName" label="textName（classes 键）" min-width="150">
+            <el-table-column prop="textName" label="识别名称" min-width="150">
               <template #default="{ row }">{{ row.textName || '—' }}</template>
             </el-table-column>
-            <el-table-column prop="skuId" label="SKU" min-width="120" class-name="col-text">
+            <el-table-column prop="skuId" label="商品编号" min-width="120" class-name="col-text">
               <template #default="{ row }">{{ row.skuId || '未挂接' }}</template>
             </el-table-column>
             <el-table-column prop="modelName" label="模型" min-width="130">
@@ -271,18 +271,19 @@
 
     <el-dialog v-model="editVisible" title="编辑映射" destroy-on-close>
       <el-form label-width="auto">
-        <el-form-item label="classId">
+        <el-form-item label="识别编号">
           <el-input :model-value="editForm.classId" disabled />
+          <div class="field-hint">模型文件里的编号，不可修改</div>
         </el-form-item>
-        <el-form-item label="textName">
-          <el-input v-model="editForm.textName" placeholder="classes 键（识别商品名）" />
+        <el-form-item label="识别名称">
+          <el-input v-model="editForm.textName" placeholder="模型输出的商品名，如 农夫山泉550ml" />
         </el-form-item>
-        <el-form-item label="SKU" required>
+        <el-form-item label="对应商品" required>
           <el-select v-model="editForm.skuId" filterable style="width: 100%">
             <el-option
               v-for="s in skuOptions"
               :key="s.skuId"
-              :label="`${s.skuName || s.skuId}（${s.skuId}）`"
+              :label="`${s.skuName || '未命名商品'}（编号 ${s.skuId}）`"
               :value="s.skuId"
             />
           </el-select>
@@ -708,6 +709,12 @@ onMounted(() => {
 .jy-device-label {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+.field-hint {
+  margin-top: 4px;
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
 }
 .jy-mono {
   font-family: var(--font-mono);

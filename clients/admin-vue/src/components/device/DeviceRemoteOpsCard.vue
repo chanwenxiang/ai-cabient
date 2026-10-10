@@ -50,15 +50,14 @@ const emit = defineEmits<{
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">远程运维</span>
-            <span class="hint">运维指令与补货开门是两条链路，请勿混用</span>
+            <span class="hint">远程指令 / 补货入口 / 退款与锁机 / 维修工单</span>
           </div>
         </div>
       </div>
     </template>
     <!--
-      远程运维分两列：左＝「要下发的动作」（运维指令 / 补货入口），右＝「柜机上的规则开关」
-      （退款规则 / 策略锁）。原先全部纵向堆叠，一屏里既有按钮又有表单，扫读成本高。
-      维修工单表列宽较大，单独放整行，避免被半列挤成横向滚动。
+      远程运维两列：左＝「要下发的动作」（运维指令 / 补货入口 / 维修工单），右＝「柜机上的规则」
+      （退款规则 / 策略锁）。维修工单归左列，避免左列只有几个按钮显得空、整卡高度失衡。
     -->
     <div class="ops-grid">
       <div class="ops-col">
@@ -68,8 +67,7 @@ const emit = defineEmits<{
           :closable="false"
           show-icon
           class="open-door-alert"
-          title="开门请分清场景"
-          description="「运维远程开门」：应急/检修，会创建运维会话（开门记录可筛「运维」），关门后不结算；不绑定补货任务。现场补货请用「补货调度 → 补货开门」或商户小程序（需先签到）。锁机停售时也可运维开门检修。"
+          title="「运维远程开门」只用于应急检修：开门不结算、不绑补货任务。日常补货请走「补货调度 → 补货开门」或商户小程序（需先签到）。"
         />
         <div class="cmd-bar">
           <el-button
@@ -128,18 +126,61 @@ const emit = defineEmits<{
           </el-button>
           <span v-else class="muted">无补货调度权限</span>
         </div>
+
+        <div class="cmd-section-label repair-section">维修工单</div>
+        <div class="cmd-bar">
+          <el-button v-if="canAccessRepairTickets" @click="emit('go-repair-list')"
+            >工单列表</el-button
+          >
+          <el-button
+            v-hasPermi="['ops:repair:edit']"
+            type="primary"
+            plain
+            @click="emit('create-repair')"
+            >新建工单</el-button
+          >
+        </div>
+        <el-table
+          v-if="repairTickets.length"
+          :data="repairTickets"
+          size="small"
+          class="repair-mini-table"
+        >
+          <el-table-column prop="ticketId" label="单号" width="70" class-name="col-text" />
+          <el-table-column prop="title" label="标题" min-width="140" class-name="col-text" />
+          <el-table-column
+            prop="status"
+            label="状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
+          </el-table-column>
+          <el-table-column
+            label="优先级"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
+          </el-table-column>
+          <el-table-column prop="createdAt" label="创建" width="150" class-name="col-text">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+          </el-table-column>
+          <el-table-column label="更新" width="150" class-name="col-text">
+            <template #default="{ row }">{{
+              row.updatedAt ? formatDateTime(row.updatedAt) : '暂无'
+            }}</template>
+          </el-table-column>
+        </el-table>
+        <div v-else class="muted">{{ repairHydrated ? '暂无最近工单' : UI_COPY.loading }}</div>
       </div>
 
       <div class="ops-col">
         <div class="cmd-section-label">退款规则</div>
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          class="policy-lock-alert"
-          title="柜机规则优先于全局"
-          :description="refundPriorityHint"
-        />
         <el-form label-width="auto" class="policy-form" @submit.prevent>
           <el-form-item label="本柜策略">
             <el-select
@@ -178,48 +219,43 @@ const emit = defineEmits<{
             </div>
           </el-form-item>
         </el-form>
+        <div class="field-hint policy-priority-hint">{{ refundPriorityHint }}</div>
 
-        <div class="cmd-section-label">柜机策略锁</div>
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          class="policy-lock-alert"
-          title="营业锁机与「锁机停售」同源"
-          description="打开营业锁机或禁售，会同步下发边端锁机；关闭营业锁机会解除边端锁并清除禁售。勿与运维按钮各改一套。"
-        />
+        <div class="cmd-section-label policy-lock-label">柜机策略锁</div>
         <el-form v-if="policy" label-width="auto" class="policy-form" @submit.prevent>
-          <el-form-item label="营业锁机">
-            <el-switch
-              v-model="policy.salesLocked"
-              :disabled="!canEditDevice"
-              @change="() => emit('save-policy')"
-            />
-          </el-form-item>
-          <el-form-item label="价格锁">
-            <el-switch
-              v-model="policy.priceLocked"
-              :disabled="!canEditDevice"
-              @change="() => emit('save-policy')"
-            />
-          </el-form-item>
-          <el-form-item label="禁改 SKU">
-            <el-switch
-              v-model="policy.skuEditForbidden"
-              :disabled="!canEditDevice"
-              @change="() => emit('save-policy')"
-            />
-          </el-form-item>
-          <el-form-item label="禁售">
-            <el-switch
-              v-model="policy.saleForbidden"
-              :disabled="!canEditDevice"
-              @change="() => emit('save-policy')"
-            />
-            <div class="field-hint">
-              禁售会同时营业锁机；停售期间仍可签到后补货开门（不产生消费者账单）
-            </div>
-          </el-form-item>
+          <div class="policy-switch-grid">
+            <el-form-item label="营业锁机">
+              <el-switch
+                v-model="policy.salesLocked"
+                :disabled="!canEditDevice"
+                @change="() => emit('save-policy')"
+              />
+            </el-form-item>
+            <el-form-item label="价格锁定">
+              <el-switch
+                v-model="policy.priceLocked"
+                :disabled="!canEditDevice"
+                @change="() => emit('save-policy')"
+              />
+            </el-form-item>
+            <el-form-item label="禁改商品">
+              <el-switch
+                v-model="policy.skuEditForbidden"
+                :disabled="!canEditDevice"
+                @change="() => emit('save-policy')"
+              />
+            </el-form-item>
+            <el-form-item label="禁售">
+              <el-switch
+                v-model="policy.saleForbidden"
+                :disabled="!canEditDevice"
+                @change="() => emit('save-policy')"
+              />
+            </el-form-item>
+          </div>
+          <div class="field-hint">
+            打开或关闭以上开关会同步到柜机立即生效；「禁售」会同时开启营业锁机。停售期间仍可签到后补货开门（不产生消费者账单）。
+          </div>
         </el-form>
 
         <el-alert
@@ -228,59 +264,10 @@ const emit = defineEmits<{
           :closable="false"
           show-icon
           class="lock-restock-hint"
-          title="当前已锁机停售：消费者无法开门；补货请走「补货调度 → 签到 → 补货开门」，或使用上方「运维远程开门」检修。"
+          title="当前已锁机停售：消费者无法开门；补货请走「补货调度 → 签到 → 补货开门」，或使用左侧「运维远程开门」检修。"
         />
       </div>
     </div>
-
-    <div class="cmd-section-label">维修工单</div>
-    <div class="cmd-bar">
-      <el-button v-if="canAccessRepairTickets" @click="emit('go-repair-list')">工单列表</el-button>
-      <el-button
-        v-hasPermi="['ops:repair:edit']"
-        type="primary"
-        plain
-        @click="emit('create-repair')"
-        >新建工单</el-button
-      >
-    </div>
-    <el-table
-      v-if="repairTickets.length"
-      :data="repairTickets"
-      size="small"
-      class="repair-mini-table"
-    >
-      <el-table-column prop="ticketId" label="单号" width="70" class-name="col-text" />
-      <el-table-column prop="title" label="标题" min-width="140" class-name="col-text" />
-      <el-table-column
-        prop="status"
-        label="状态"
-        width="100"
-        align="center"
-        class-name="col-status"
-        label-class-name="col-status"
-      >
-        <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
-      </el-table-column>
-      <el-table-column
-        label="优先级"
-        width="88"
-        align="center"
-        class-name="col-status"
-        label-class-name="col-status"
-      >
-        <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
-      </el-table-column>
-      <el-table-column prop="createdAt" label="创建" width="150" class-name="col-text">
-        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-      </el-table-column>
-      <el-table-column label="更新" width="150" class-name="col-text">
-        <template #default="{ row }">{{
-          row.updatedAt ? formatDateTime(row.updatedAt) : '暂无'
-        }}</template>
-      </el-table-column>
-    </el-table>
-    <div v-else class="muted">{{ repairHydrated ? '暂无最近工单' : UI_COPY.loading }}</div>
   </el-card>
 </template>
 
@@ -334,8 +321,25 @@ const emit = defineEmits<{
 .open-door-alert {
   margin-bottom: 14px;
 }
-.policy-lock-alert {
-  margin-bottom: 12px;
+.repair-section {
+  margin-top: 16px;
+}
+/* 策略锁 4 个开关 2×2 排布：原纵向一行一个，右列被撑得过长 */
+.policy-switch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+}
+@media (max-width: 640px) {
+  .policy-switch-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.policy-lock-label {
+  margin-top: 16px;
+}
+.policy-priority-hint {
+  margin: 0 0 4px;
 }
 .refund-save-btn {
   margin-left: 10px;

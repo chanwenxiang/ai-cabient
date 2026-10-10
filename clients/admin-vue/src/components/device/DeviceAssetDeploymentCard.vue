@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import AddressPicker from '@/components/AddressPicker.vue';
 import type { DeviceAssetForm } from '@/composables/device/useDeviceAsset';
 import { dictOptions } from '@aicabinet/shared-dict';
@@ -35,6 +36,23 @@ const emit = defineEmits<{
   'update:bindDialogVisible': [value: boolean];
   'update:bindMerchantId': [value: string];
 }>();
+
+/**
+ * 「分」是存储单位不是运营语言：押金/流量费在表单里以「元」编辑，
+ * 写回时四舍五入到分（避免 19.9 × 100 = 1989.99… 的浮点尾数）。
+ */
+const depositYuan = computed({
+  get: () => (asset.value.depositCents == null ? undefined : asset.value.depositCents / 100),
+  set: (v?: number) => {
+    asset.value.depositCents = v == null ? undefined : Math.round(v * 100);
+  }
+});
+const dataFeeYuan = computed({
+  get: () => (asset.value.dataFeeCents == null ? undefined : asset.value.dataFeeCents / 100),
+  set: (v?: number) => {
+    asset.value.dataFeeCents = v == null ? undefined : Math.round(v * 100);
+  }
+});
 </script>
 
 <template>
@@ -44,7 +62,7 @@ const emit = defineEmits<{
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">资产与投放</span>
-            <span class="hint">IMEI / 合作方式 / 路线与生命周期流转</span>
+            <span class="hint">设备档案 / 投放位置 / 费用 / 生命周期</span>
           </div>
         </div>
         <el-button
@@ -75,15 +93,16 @@ const emit = defineEmits<{
       </div>
     </template>
     <el-form label-width="auto" class="asset-form" @submit.prevent>
+      <div class="asset-group-title">设备档案</div>
       <el-row :gutter="12">
         <el-col :xs="24" :sm="12" :md="8">
-          <el-form-item label="IMEI">
+          <el-form-item label="设备序列号">
             <div class="imei-field">
               <el-tag v-if="!asset.imei" type="info" effect="plain">未绑定</el-tag>
               <el-input v-else :model-value="asset.imei" disabled placeholder="柜机心跳自动绑定" />
             </div>
             <p v-if="canEditDevice" class="form-hint muted">
-              仅柜机联网上报或「解绑硬件」后重新绑定
+              柜机联网后自动绑定；如需更换请联系平台解绑
             </p>
           </el-form-item>
         </el-col>
@@ -116,35 +135,7 @@ const emit = defineEmits<{
           </el-form-item>
         </el-col>
         <el-col :xs="24" :sm="12" :md="8">
-          <el-form-item label="开门押金(分)">
-            <el-input-number
-              v-model="asset.depositCents"
-              :disabled="!canEditDevice"
-              :min="0"
-              :step="100"
-              controls-position="right"
-              style="width: 100%"
-            />
-            <div class="field-hint">
-              &gt;0 时作为该柜开门预授权冻结额；否则用系统配置 checkout.preauth_cents（默认 2000）
-            </div>
-          </el-form-item>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="8">
-          <el-form-item label="流量费(分/月)">
-            <el-input-number
-              v-model="asset.dataFeeCents"
-              :disabled="!canEditDevice"
-              :min="0"
-              :step="100"
-              controls-position="right"
-              style="width: 100%"
-            />
-            <div class="field-hint">按月出账到「组织与点位 → 费用账单」；标记已付不自动扣款</div>
-          </el-form-item>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="8">
-          <el-form-item label="路线编码">
+          <el-form-item label="补货路线">
             <el-select
               v-model="asset.routeCode"
               :disabled="!canEditDevice"
@@ -193,6 +184,20 @@ const emit = defineEmits<{
             />
           </el-form-item>
         </el-col>
+        <el-col :xs="24" :sm="24" :md="16">
+          <el-form-item label="备注">
+            <el-input
+              v-model="asset.lifecycleRemark"
+              :disabled="!canEditDevice"
+              clearable
+              placeholder="投放/退役备注"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <div class="asset-group-title">投放位置</div>
+      <el-row :gutter="12">
         <el-col :xs="24" :sm="24" :md="24">
           <el-form-item label="投放地址">
             <AddressPicker
@@ -203,11 +208,8 @@ const emit = defineEmits<{
               @update:longitude="(v) => (asset.longitude = v ?? undefined)"
             />
             <div class="field-hint">
-              先选省 / 市 /
-              区，再填写详细地址：未限定行政区划的地址会被地图服务在全国范围内匹配到别的城市。
-              <template v-if="!geoConfigured">
-                当前未配置 AMAP_WEB_KEY，无法自动解析，可用下方经纬度手工填写。
-              </template>
+              先选省 / 市 / 区，再填写详细地址，否则容易被匹配到别的城市。
+              <template v-if="!geoConfigured">地图解析未启用时，可在下方直接填写坐标。</template>
             </div>
           </el-form-item>
         </el-col>
@@ -237,22 +239,46 @@ const emit = defineEmits<{
             />
           </el-form-item>
         </el-col>
+      </el-row>
+
+      <div class="asset-group-title">费用与状态</div>
+      <el-row :gutter="12">
+        <el-col :xs="24" :sm="12" :md="8">
+          <el-form-item label="开门押金（元）">
+            <el-input-number
+              v-model="depositYuan"
+              :disabled="!canEditDevice"
+              :min="0"
+              :precision="2"
+              :step="1"
+              controls-position="right"
+              style="width: 100%"
+            />
+            <div class="field-hint">
+              大于 0 时按此金额在顾客开门前预冻结；留空或 0 则用系统默认（20 元）
+            </div>
+          </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="12" :md="8">
+          <el-form-item label="流量费（元/月）">
+            <el-input-number
+              v-model="dataFeeYuan"
+              :disabled="!canEditDevice"
+              :min="0"
+              :precision="2"
+              :step="1"
+              controls-position="right"
+              style="width: 100%"
+            />
+            <div class="field-hint">按月计入「组织与点位 → 费用账单」；标记已付不会自动扣款</div>
+          </el-form-item>
+        </el-col>
         <el-col :xs="24" :sm="12" :md="8">
           <el-form-item label="生命周期">
             <el-tag size="small">{{ lifecycleLabel(asset.lifecycleStatus) }}</el-tag>
             <span v-if="asset.deployedAt" class="muted asset-deployed"
               >投放 {{ formatDateTime(asset.deployedAt) }}</span
             >
-          </el-form-item>
-        </el-col>
-        <el-col :xs="24" :sm="24" :md="16">
-          <el-form-item label="备注">
-            <el-input
-              v-model="asset.lifecycleRemark"
-              :disabled="!canEditDevice"
-              clearable
-              placeholder="投放/退役备注"
-            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -453,6 +479,17 @@ const emit = defineEmits<{
 }
 .asset-form {
   margin-bottom: 4px;
+}
+.asset-group-title {
+  margin: 2px 0 10px;
+  font-size: var(--admin-font-size-sm);
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
+.asset-group-title:not(:first-child) {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 .asset-deployed {
   margin-left: 8px;

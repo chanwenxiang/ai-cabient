@@ -232,58 +232,77 @@
       append-to-body
     >
       <el-form label-width="auto">
-        <el-form-item label="设备" required>
-          <el-select
-            v-model="form.deviceId"
-            filterable
-            clearable
-            placeholder="从设备列表选择"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="d in deviceOptions"
-              :key="d.deviceId"
-              :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
-              :value="d.deviceId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="标题" required>
-          <el-input v-model="form.title" />
-        </el-form-item>
-        <el-form-item label="故障类型">
-          <el-select
-            v-model="form.faultType"
-            filterable
-            allow-create
-            clearable
-            placeholder="选择或输入"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="item in faultOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="优先级">
-          <el-select v-model="form.priority" style="width: 100%">
-            <el-option
-              v-for="item in priorityOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="负责人">
-          <el-input v-model="form.assignee" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="3" />
-        </el-form-item>
+        <div class="form-group-title">工单信息</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="设备" required>
+              <el-select
+                v-model="form.deviceId"
+                filterable
+                clearable
+                placeholder="从设备列表选择"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in deviceOptions"
+                  :key="d.deviceId"
+                  :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
+                  :value="d.deviceId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="标题" required>
+              <el-input v-model="form.title" placeholder="一句话描述故障" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">故障与指派</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="故障类型">
+              <el-select
+                v-model="form.faultType"
+                filterable
+                allow-create
+                clearable
+                placeholder="选择或输入"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="item in faultOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="优先级">
+              <el-select v-model="form.priority" style="width: 100%">
+                <el-option
+                  v-for="item in priorityOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="负责人">
+              <el-input v-model="form.assignee" placeholder="维修人员/班组" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="备注">
+              <el-input v-model="form.remark" type="textarea" :rows="3" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
@@ -763,6 +782,17 @@ watch(
 </script>
 
 <style scoped>
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
 .page-card-head {
   display: flex;
   justify-content: space-between;

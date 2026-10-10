@@ -87,7 +87,7 @@ async function load() {
 async function doRegister() {
   const sn = registerForm.deviceSn.trim();
   if (!sn) {
-    ElMessage.warning('请填写工控机 SN');
+    ElMessage.warning('请填写设备序列号 SN');
     return;
   }
   registerSaving.value = true;
@@ -96,7 +96,7 @@ async function doRegister() {
       deviceSn: sn,
       modelName: registerForm.modelName.trim() || undefined
     });
-    ElMessage.success('已登记，可进行 setDomain 绑定');
+    ElMessage.success('已登记，请完成下方接入绑定');
     registerForm.deviceSn = '';
     registerForm.modelName = '';
     await load();
@@ -110,14 +110,14 @@ async function doRegister() {
 async function doBind() {
   const domain = bindForm.domain.trim();
   if (!domain) {
-    ElMessage.warning('请填写公网 domain（如 https://api.example.com）');
+    ElMessage.warning('请填写平台接口地址（如 https://api.example.com）');
     return;
   }
   try {
     await ElMessageBox.confirm(
-      '将调用将邑云 setDomain 把该设备 domain/socketUrl 指向我方，确认继续？',
-      '绑定确认',
-      { type: 'warning', confirmButtonText: '绑定', cancelButtonText: '取消' }
+      '将通知将邑平台，把该设备的服务地址切换到我方平台，确认继续？',
+      '接入确认',
+      { type: 'warning', confirmButtonText: '确认接入', cancelButtonText: '取消' }
     );
   } catch {
     return;
@@ -128,7 +128,7 @@ async function doBind() {
       domain,
       socketUrl: bindForm.socketUrl.trim() || undefined
     });
-    ElMessage.success('绑定完成，等待设备上电换取 token 并建立 WS 连接');
+    ElMessage.success('接入完成，等待柜机上电后自动连回平台');
     bindForm.domain = '';
     bindForm.socketUrl = '';
     await load();
@@ -156,11 +156,11 @@ async function saveMapping() {
   const classId = mappingForm.classId;
   const skuId = mappingForm.skuId.trim();
   if (classId == null || Number.isNaN(classId)) {
-    ElMessage.warning('请填写识别 classId（数字）');
+    ElMessage.warning('请填写识别编号（数字）');
     return;
   }
   if (!skuId) {
-    ElMessage.warning('请填写对应 SKU 编号');
+    ElMessage.warning('请填写对应商品编号');
     return;
   }
   mappingSaving.value = true;
@@ -171,7 +171,7 @@ async function saveMapping() {
       modelName: mappingForm.modelName.trim() || undefined,
       active: mappingForm.active
     });
-    ElMessage.success('映射已保存');
+    ElMessage.success('对照已保存');
     mappingForm.classId = undefined;
     mappingForm.skuId = '';
     mappingForm.textName = '';
@@ -179,7 +179,7 @@ async function saveMapping() {
     mappingForm.active = true;
     await load();
   } catch (e) {
-    ElMessage.error(errorMessage(e, '保存映射失败'));
+    ElMessage.error(errorMessage(e, '保存对照失败'));
   } finally {
     mappingSaving.value = false;
   }
@@ -195,7 +195,7 @@ async function toggleMapping(row: JiangyiClassMappingRow) {
     ElMessage.success(row.status === 'ACTIVE' ? '已停用，下次识别即生效' : '已启用');
     await load();
   } catch (e) {
-    ElMessage.error(errorMessage(e, '变更映射状态失败'));
+    ElMessage.error(errorMessage(e, '变更对照状态失败'));
   }
 }
 
@@ -259,9 +259,9 @@ function toggleModelSection() {
 async function doModelSync(row: JiangyiModelPreview) {
   try {
     await ElMessageBox.confirm(
-      `按「${row.modelName}」的 classes 生成该设备的预置映射（停用态，不会自动生效）。已有 MODEL_SYNC 行会被覆盖，但已挂 SKU 保留。`,
-      '预生成映射确认',
-      { type: 'warning', confirmButtonText: '预生成', cancelButtonText: '取消' }
+      `按「${row.modelName}」的识别类目生成该柜的商品对照表（生成后为停用状态，不会自动生效）。已自动生成的行会被覆盖，已手工挂接的商品保留。`,
+      '生成对照表确认',
+      { type: 'warning', confirmButtonText: '生成', cancelButtonText: '取消' }
     );
   } catch {
     return;
@@ -276,10 +276,10 @@ async function doModelSync(row: JiangyiModelPreview) {
         classIdBase: classIdBase.value
       }
     );
-    ElMessage.success(`已预生成 ${written} 行停用态映射，请核对后激活`);
+    ElMessage.success(`已生成 ${written} 行停用状态对照，请核对后启用`);
     await load();
   } catch (e) {
-    ElMessage.error(errorMessage(e, '预生成映射失败'));
+    ElMessage.error(errorMessage(e, '生成对照表失败'));
   } finally {
     modelSyncing.value = false;
   }
@@ -288,9 +288,9 @@ async function doModelSync(row: JiangyiModelPreview) {
 async function doActivate(row: JiangyiModelPreview) {
   try {
     await ElMessageBox.confirm(
-      `激活「${row.modelName}」的全部预置映射（启用后识别即按此对照结算）。确认对照表无误？`,
-      '激活确认',
-      { type: 'warning', confirmButtonText: '激活', cancelButtonText: '取消' }
+      `启用「${row.modelName}」的全部对照（启用后柜机识别的商品将按此对照结算）。确认对照表无误？`,
+      '启用确认',
+      { type: 'warning', confirmButtonText: '启用', cancelButtonText: '取消' }
     );
   } catch {
     return;
@@ -302,10 +302,10 @@ async function doActivate(row: JiangyiModelPreview) {
       'POST',
       { modelName: row.modelName }
     );
-    ElMessage.success(`已激活 ${n} 行映射`);
+    ElMessage.success(`已启用 ${n} 行对照`);
     await load();
   } catch (e) {
-    ElMessage.error(errorMessage(e, '激活映射失败'));
+    ElMessage.error(errorMessage(e, '启用对照失败'));
   } finally {
     activating.value = false;
   }
@@ -314,9 +314,9 @@ async function doActivate(row: JiangyiModelPreview) {
 async function doModelPush(row: JiangyiModelPreview) {
   try {
     await ElMessageBox.confirm(
-      `下发「${row.modelName}」到设备（经 WS updateModel；设备回执后生效）。确认下发？`,
-      '下发模型确认',
-      { type: 'warning', confirmButtonText: '下发', cancelButtonText: '取消' }
+      `将「${row.modelName}」发送到柜机（柜机确认后生效）。确认发送？`,
+      '发送模型确认',
+      { type: 'warning', confirmButtonText: '发送', cancelButtonText: '取消' }
     );
   } catch {
     return;
@@ -326,10 +326,10 @@ async function doModelPush(row: JiangyiModelPreview) {
     await api.request<number>(AdminEndpoints.deviceJiangyiModelPush(props.deviceId), 'POST', {
       modelName: row.modelName
     });
-    ElMessage.success('已下发，等待设备 downloadModelNotify 回执');
+    ElMessage.success('已发送，等待柜机确认回执');
     await loadDeployments();
   } catch (e) {
-    ElMessage.error(errorMessage(e, '下发模型失败'));
+    ElMessage.error(errorMessage(e, '发送模型失败'));
   } finally {
     pushing.value = false;
   }
@@ -343,7 +343,7 @@ async function loadDeployments() {
       'GET'
     );
   } catch (e) {
-    ElMessage.error(errorMessage(e, '加载下发记录失败'));
+    ElMessage.error(errorMessage(e, '加载发送记录失败'));
   } finally {
     deploymentsLoading.value = false;
   }
@@ -405,7 +405,7 @@ function toggleGatherSection() {
 async function doStartGather() {
   try {
     await ElMessageBox.confirm(
-      '进入采集模式后营业开门将被拒绝（409），直到手动退出。将同时调将邑侧采集开门。确认？',
+      '进入采集模式后，顾客将无法开门购物，直到手动退出。确认进入？',
       '进入采集模式',
       { type: 'warning', confirmButtonText: '进入', cancelButtonText: '取消' }
     );
@@ -443,7 +443,7 @@ async function doStartTraining() {
   const skuId = trainingForm.skuId.trim();
   const modelName = trainingForm.modelName.trim();
   if (!skuId || !modelName) {
-    ElMessage.warning('请填写 SKU 编号与模型名');
+    ElMessage.warning('请填写商品编号与模型名');
     return;
   }
   trainingSaving.value = true;
@@ -452,7 +452,7 @@ async function doStartTraining() {
       skuId,
       modelName
     });
-    ElMessage.success('学习已提交，等待将邑完成回调');
+    ElMessage.success('学习已提交，等待将邑完成训练');
     trainingForm.skuId = '';
     trainingForm.modelName = '';
     await loadGatherProgress();
@@ -474,8 +474,8 @@ onMounted(load);
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">将邑接入（开门柜套件）</span>
-            <span class="hint">SN 登记 → setDomain 绑定 → class 映射；库存走「货道管理」</span>
+            <span class="title">识别开门柜套件</span>
+            <span class="hint">登记设备 → 接入平台 → 配置商品对照；库存走「货道陈列」</span>
           </div>
         </div>
         <el-tag v-if="statusMeta" :type="statusMeta.type" size="small">{{
@@ -490,14 +490,14 @@ onMounted(load);
         type="info"
         :closable="false"
         show-icon
-        title="该柜机尚未接入将邑"
-        description="弹簧柜加装将邑工控机后变为开门柜：登记工控机 SN → 调将邑云 setDomain 指向我方 → 配置识别 classId 与 SKU 的映射。不接入的柜机可忽略本卡片。"
+        title="该柜机未启用识别开门套件"
+        description="加装识别套件后，顾客开门取货由摄像头自动识别结算。使用前需：登记设备序列号 → 接入我方平台 → 配置「识别编号 ↔ 商品」对照表。未启用的柜机可忽略本卡片。"
       />
       <div v-if="canEdit" class="jy-form-row">
         <el-input
           v-model="registerForm.deviceSn"
           class="jy-input-sn"
-          placeholder="工控机 SN（必填）"
+          placeholder="设备序列号 SN（必填）"
           clearable
         />
         <el-input
@@ -512,19 +512,19 @@ onMounted(load);
 
     <template v-else>
       <el-descriptions :column="3" border size="small">
-        <el-descriptions-item label="工控机 SN">
+        <el-descriptions-item label="设备序列号">
           <span class="jy-mono">{{ binding.deviceSn }}</span>
         </el-descriptions-item>
-        <el-descriptions-item label="identifier">
+        <el-descriptions-item label="设备标识">
           <span class="jy-mono">{{ binding.identifier || '未取得' }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="设备型号">{{
           binding.modelName || '无'
         }}</el-descriptions-item>
-        <el-descriptions-item label="token 版本">{{
+        <el-descriptions-item label="通信凭证版本">{{
           binding.tokenVersion ?? 0
         }}</el-descriptions-item>
-        <el-descriptions-item label="最近 WS 在线">{{
+        <el-descriptions-item label="最近在线">{{
           binding.lastWsOnlineAt ? formatDateTime(binding.lastWsOnlineAt) : '从未'
         }}</el-descriptions-item>
         <el-descriptions-item label="登记时间">{{
@@ -532,23 +532,23 @@ onMounted(load);
         }}</el-descriptions-item>
       </el-descriptions>
 
-      <!-- UNBOUND：补 setDomain 绑定表单 -->
+      <!-- UNBOUND：补接入绑定表单 -->
       <div v-if="binding.status === 'UNBOUND' && canEdit" class="jy-bind-block">
-        <div class="jy-section-label">setDomain 绑定（需部署侧已配置将邑租户凭据）</div>
+        <div class="jy-section-label">接入平台（把该设备的服务地址指向我方平台）</div>
         <div class="jy-form-row">
           <el-input
             v-model="bindForm.domain"
             class="jy-input-sn"
-            placeholder="公网 domain，如 https://api.example.com"
+            placeholder="平台接口地址，如 https://api.example.com"
             clearable
           />
           <el-input
             v-model="bindForm.socketUrl"
             class="jy-input-sn"
-            placeholder="WSS 地址（可选，默认 domain 推导）"
+            placeholder="长连接地址（可选，默认自动生成）"
             clearable
           />
-          <el-button type="primary" :loading="bindSaving" @click="doBind">绑定</el-button>
+          <el-button type="primary" :loading="bindSaving" @click="doBind">确认接入</el-button>
         </div>
       </div>
 
@@ -558,13 +558,13 @@ onMounted(load);
           :closable="false"
           show-icon
           title="设备已退役"
-          description="退役后将邑柜拒绝一切开门路由与识别上报；如需恢复请联系平台重新登记绑定。"
+          description="退役后该柜机停止识别开门与上报；如需恢复请联系平台重新登记接入。"
         />
       </div>
 
       <div v-if="binding.status === 'BOUND' && canEdit" class="jy-actions">
         <el-popconfirm
-          title="退役后该柜机拒绝一切开门路由与上报，确认退役？"
+          title="退役后该柜机停止识别开门与上报，确认退役？"
           confirm-button-text="退役"
           cancel-button-text="取消"
           @confirm="doRetire"
@@ -575,15 +575,19 @@ onMounted(load);
         </el-popconfirm>
       </div>
 
-      <!-- class 映射：识别上报只有 classId，结算前必须换算成 SKU -->
+      <!-- 商品对照：柜机识别上报的是「识别编号」，结算前必须换算成商品 -->
       <div class="jy-mapping-block">
-        <div class="jy-section-label">识别映射（classId → SKU）</div>
-        <el-table :data="mappings" size="small" empty-text="暂无映射；识别到未映射商品会转争议处理">
-          <el-table-column prop="classId" label="classId" width="90" />
+        <div class="jy-section-label">商品对照表（识别编号 ↔ 商品）</div>
+        <el-table
+          :data="mappings"
+          size="small"
+          empty-text="暂无对照；识别到未登记的商品会转争议处理"
+        >
+          <el-table-column prop="classId" label="识别编号" width="90" />
           <el-table-column prop="textName" label="商品名" min-width="140">
             <template #default="{ row }">{{ row.textName || '—' }}</template>
           </el-table-column>
-          <el-table-column prop="skuId" label="SKU" min-width="140">
+          <el-table-column prop="skuId" label="商品编号" min-width="140">
             <template #default="{ row }">
               <span class="jy-mono">{{ row.skuId || '—' }}</span>
             </template>
@@ -618,12 +622,12 @@ onMounted(load);
             class="jy-input-class"
             :min="0"
             :controls="false"
-            placeholder="classId"
+            placeholder="识别编号"
           />
           <el-input
             v-model="mappingForm.skuId"
             class="jy-input"
-            placeholder="SKU 编号（必填）"
+            placeholder="商品编号（必填）"
             clearable
           />
           <el-input
@@ -640,15 +644,15 @@ onMounted(load);
           />
           <el-checkbox v-model="mappingForm.active">保存即启用</el-checkbox>
           <el-button type="primary" :loading="mappingSaving" @click="saveMapping">
-            添加映射
+            添加对照
           </el-button>
         </div>
       </div>
 
-      <!-- 模型同步（CB-023 二期）：采集→学习→模型 → classes 对照预生成 → 人工激活 → WS 下发 -->
+      <!-- 模型同步（CB-023 二期）：采集→学习→模型 → 对照预生成 → 人工启用 → 发到柜机 -->
       <div v-if="binding.status === 'BOUND'" class="jy-mapping-block">
         <div class="jy-section-label jy-collapse-head" @click="toggleModelSection">
-          <span>模型同步（classes 对照 → 预生成 → 激活 → 下发）</span>
+          <span>识别模型同步（生成对照 → 核对启用 → 发到柜机）</span>
           <el-icon class="jy-collapse-arrow" :class="{ open: modelSection }">
             <component :is="modelSection ? 'el-icon-arrow-up' : 'el-icon-arrow-down'" />
           </el-icon>
@@ -659,12 +663,12 @@ onMounted(load);
             :closable="false"
             show-icon
             class="jy-tip"
-            title="预生成不自动生效：classes 行 ↔ SKU 挂接核对无误后手动激活，再经 WS 下发到设备"
+            title="生成对照不会自动生效：与商品核对无误后手动启用，再发送到柜机"
           />
           <div class="jy-form-row">
             <el-select v-model="classIdBase" class="jy-input-class" size="small">
-              <el-option label="classId 从 0 起" :value="0" />
-              <el-option label="classId 从 1 起" :value="1" />
+              <el-option label="识别编号从 0 起" :value="0" />
+              <el-option label="识别编号从 1 起" :value="1" />
             </el-select>
             <el-button size="small" :loading="modelsLoading" @click="loadModels">
               刷新模型列表
@@ -673,7 +677,7 @@ onMounted(load);
           <el-table
             :data="models"
             size="small"
-            empty-text="暂无模型；设备采集并学习成功后模型出现在将邑侧"
+            empty-text="暂无模型；柜机采集并学习成功后模型会出现在这里"
           >
             <el-table-column prop="modelName" label="模型" min-width="130" />
             <el-table-column prop="industrialControlModel" label="机型" width="70" />
@@ -694,7 +698,7 @@ onMounted(load);
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="classesVersion" label="classes 指纹" width="120">
+            <el-table-column prop="classesVersion" label="模型版本号" width="120">
               <template #default="{ row }">
                 <span class="jy-mono">{{ row.classesVersion || row.rejectReason || '—' }}</span>
               </template>
@@ -708,7 +712,7 @@ onMounted(load);
                   :loading="modelSyncing"
                   @click="doModelSync(row)"
                 >
-                  预生成映射
+                  生成对照
                 </el-button>
                 <el-button
                   link
@@ -717,7 +721,7 @@ onMounted(load);
                   :loading="activating"
                   @click="doActivate(row)"
                 >
-                  激活
+                  启用
                 </el-button>
                 <el-button
                   link
@@ -726,24 +730,22 @@ onMounted(load);
                   :loading="pushing"
                   @click="doModelPush(row)"
                 >
-                  下发
+                  发到柜机
                 </el-button>
               </template>
             </el-table-column>
           </el-table>
 
-          <div class="jy-section-label" style="margin-top: 12px">
-            下发记录（SENT 待回执 / CONFIRMED 已生效 / FAILED 失败）
-          </div>
+          <div class="jy-section-label" style="margin-top: 12px">发送记录</div>
           <div class="jy-form-row" style="margin-top: 0">
             <el-button size="small" :loading="deploymentsLoading" @click="loadDeployments">
-              刷新下发记录
+              刷新发送记录
             </el-button>
           </div>
-          <el-table :data="deployments" size="small" empty-text="暂无下发记录">
-            <el-table-column prop="id" label="ID" width="70" />
+          <el-table :data="deployments" size="small" empty-text="暂无发送记录">
+            <el-table-column prop="id" label="编号" width="70" />
             <el-table-column prop="modelName" label="模型" min-width="120" />
-            <el-table-column prop="classesVersion" label="classes 指纹" width="120">
+            <el-table-column prop="classesVersion" label="模型版本号" width="120">
               <template #default="{ row }">
                 <span class="jy-mono">{{ row.classesVersion || '—' }}</span>
               </template>
@@ -760,11 +762,17 @@ onMounted(load);
                         : 'warning'
                   "
                 >
-                  {{ row.status }}
+                  {{
+                    row.status === 'CONFIRMED'
+                      ? '已生效'
+                      : row.status === 'FAILED'
+                        ? '失败'
+                        : '等待回执'
+                  }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="sentAt" label="下发时间" min-width="140">
+            <el-table-column prop="sentAt" label="发送时间" min-width="140">
               <template #default="{ row }">
                 {{ row.sentAt ? formatDateTime(row.sentAt) : '—' }}
               </template>
@@ -776,10 +784,10 @@ onMounted(load);
         </template>
       </div>
 
-      <!-- 采集编排（CB-023 二期）：进入采集模式（营业开门 409）→ 学习 → 审核进度 -->
+      <!-- 采集编排（CB-023 二期）：进入采集模式（暂停营业）→ 学习 → 审核进度 -->
       <div v-if="binding.status === 'BOUND'" class="jy-mapping-block">
         <div class="jy-section-label jy-collapse-head" @click="toggleGatherSection">
-          <span>采集模式（新增商品采集 / 学习触发 / 审核进度）</span>
+          <span>商品采集（拍照采集 / 触发学习 / 审核进度）</span>
           <el-icon class="jy-collapse-arrow" :class="{ open: gatherSection }">
             <component :is="gatherSection ? 'el-icon-arrow-up' : 'el-icon-arrow-down'" />
           </el-icon>
@@ -790,7 +798,7 @@ onMounted(load);
             :closable="false"
             show-icon
             class="jy-tip"
-            title="采集模式下营业开门将被拒绝；采集开门由将邑 App 直接下发，批次操作在将邑商户 App 人工完成"
+            title="采集期间顾客无法开门购物；拍照采集等具体操作在将邑商户 App 完成"
           />
           <div class="jy-form-row">
             <el-input
@@ -827,7 +835,7 @@ onMounted(load);
             <el-input
               v-model="trainingForm.skuId"
               class="jy-input"
-              placeholder="SKU 编号"
+              placeholder="商品编号"
               clearable
             />
             <el-input

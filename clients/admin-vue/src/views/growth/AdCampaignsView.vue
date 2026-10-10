@@ -175,68 +175,99 @@
       :title="editingId ? '编辑投放' : '新建投放'"
       class="dialog-wide"
     >
-      <el-form label-position="top">
-        <el-form-item label="名称">
-          <el-input v-model="form.name" placeholder="如：暑期饮料促销" />
-        </el-form-item>
-        <el-form-item label="投放端">
-          <el-radio-group v-model="form.channel">
-            <el-radio value="CABINET_SCREEN">柜机屏</el-radio>
-            <el-radio value="MINI_PROGRAM">小程序轮播位</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="form.channel === 'MINI_PROGRAM'" label="跳转链接">
-          <el-input
-            v-model="form.linkUrl"
-            placeholder="/pages/coupons/coupons（小程序内深链，可空）"
-            style="max-width: 360px"
-          />
-        </el-form-item>
-        <el-form-item :label="form.channel === 'MINI_PROGRAM' ? '投放范围' : '投放范围（设备）'">
-          <el-radio-group v-model="form.deviceScope">
-            <el-radio value="ALL">{{
-              form.channel === 'MINI_PROGRAM' ? '全部场景' : '全部设备'
-            }}</el-radio>
-            <el-radio value="SPECIFIC">{{
-              form.channel === 'MINI_PROGRAM' ? '指定柜机场景' : '指定设备'
-            }}</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="form.deviceScope === 'SPECIFIC'" label="选择设备">
-          <el-select
-            v-model="form.deviceIds"
-            multiple
-            filterable
-            placeholder="选择柜机"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="d in deviceOptions"
-              :key="d.deviceId"
-              :label="d.deviceName || d.deviceId"
-              :value="d.deviceId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="投放时间窗（留空为不限）">
-          <el-date-picker
-            v-model="form.window"
-            type="datetimerange"
-            start-placeholder="开始"
-            end-placeholder="结束"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="轮播素材（按选择顺序）">
-          <el-select v-model="form.assetIds" multiple placeholder="选择素材" style="width: 100%">
-            <el-option
-              v-for="a in assets"
-              :key="a.assetId"
-              :label="`${a.title}（${typeLabel(a.assetType)}）`"
-              :value="a.assetId"
-            />
-          </el-select>
-        </el-form-item>
+      <el-form label-width="auto">
+        <div class="form-group-title">投放内容</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="名称">
+              <el-input v-model="form.name" placeholder="如：暑期饮料促销" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="投放端">
+              <el-radio-group v-model="form.channel">
+                <el-radio value="CABINET_SCREEN">柜机屏</el-radio>
+                <el-radio value="MINI_PROGRAM">小程序轮播位</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col v-if="form.channel === 'MINI_PROGRAM'" :span="24">
+            <el-form-item label="跳转链接">
+              <el-input
+                v-model="form.linkUrl"
+                placeholder="小程序内页面路径，如 /pages/coupons/coupons（可空）"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">投放范围</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="投放范围">
+              <el-radio-group v-model="form.deviceScope">
+                <el-radio value="ALL">{{
+                  form.channel === 'MINI_PROGRAM' ? '全部场景' : '全部设备'
+                }}</el-radio>
+                <el-radio value="SPECIFIC">{{
+                  form.channel === 'MINI_PROGRAM' ? '指定柜机场景' : '指定设备'
+                }}</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col v-if="form.deviceScope === 'SPECIFIC'" :span="12">
+            <el-form-item label="选择设备">
+              <el-select
+                v-model="form.deviceIds"
+                multiple
+                filterable
+                placeholder="选择柜机"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in deviceOptions"
+                  :key="d.deviceId"
+                  :label="d.deviceName || d.deviceId"
+                  :value="d.deviceId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">投放排期</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="投放时间窗">
+              <el-date-picker
+                v-model="form.window"
+                type="datetimerange"
+                start-placeholder="开始"
+                end-placeholder="结束"
+                style="width: 100%"
+              />
+              <div class="field-hint">留空表示不限时间</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="轮播素材">
+              <el-select
+                v-model="form.assetIds"
+                multiple
+                placeholder="选择素材"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="a in assets"
+                  :key="a.assetId"
+                  :label="`${a.title}（${typeLabel(a.assetType)}）`"
+                  :value="a.assetId"
+                />
+              </el-select>
+              <div class="field-hint">按选择顺序轮播</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -566,3 +597,23 @@ function formatRange(row: AdCampaignDto) {
   return `${f(row.startAt)} ~ ${f(row.endAt)}`;
 }
 </script>
+
+<style scoped>
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.field-hint {
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+</style>

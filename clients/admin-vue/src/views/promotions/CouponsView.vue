@@ -168,119 +168,156 @@
     <el-dialog
       v-model="showCreate"
       :title="editingId ? '编辑优惠券' : '新建优惠券'"
+      class="dialog-wide"
       destroy-on-close
     >
       <el-form :model="createForm" label-width="auto">
-        <el-form-item label="名称" required
-          ><el-input v-model="createForm.couponName"
-        /></el-form-item>
-        <el-form-item label="类型">
-          <el-select v-model="createForm.couponType" style="width: 100%">
-            <el-option
-              v-for="item in dictOptions('coupon_type')"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="createForm.couponType !== 'PERCENT_OFF'" label="面值(元)" required>
-          <el-input-number
-            v-model="createForm.denominationYuan"
-            :min="0.01"
-            :step="0.5"
-            :precision="2"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="最低消费(元)">
-          <el-input-number
-            v-model="createForm.minSpendYuan"
-            :min="0"
-            :step="1"
-            :precision="2"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item v-if="createForm.couponType === 'PERCENT_OFF'" label="折扣百分比" required>
-          <el-input-number
-            v-model="createForm.discountPercent"
-            :min="1"
-            :max="99"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="有效天数" required>
-          <el-input-number
-            v-model="createForm.validityDays"
-            :min="1"
-            :max="365"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="总量限制">
-          <el-input-number
-            v-model="createForm.maxIssueCount"
-            :min="0"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="绑定活动">
-          <el-select
-            v-model="createForm.activityId"
-            clearable
-            filterable
-            placeholder="可选，绑定后发券扣活动预算"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="a in activityOptions"
-              :key="a.activityId"
-              :label="`${a.activityName}（${a.activityId}）`"
-              :value="a.activityId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="描述"
-          ><el-input v-model="createForm.description" type="textarea"
-        /></el-form-item>
+        <div class="form-group-title">券面信息</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="名称" required>
+              <el-input v-model="createForm.couponName" placeholder="如 新人首单立减 3 元" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="类型">
+              <el-select v-model="createForm.couponType" style="width: 100%">
+                <el-option
+                  v-for="item in dictOptions('coupon_type')"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col v-if="createForm.couponType !== 'PERCENT_OFF'" :span="12">
+            <el-form-item label="面值(元)" required>
+              <el-input-number
+                v-model="createForm.denominationYuan"
+                :min="0.01"
+                :step="0.5"
+                :precision="2"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col v-if="createForm.couponType === 'PERCENT_OFF'" :span="12">
+            <el-form-item label="折扣百分比" required>
+              <el-input-number
+                v-model="createForm.discountPercent"
+                :min="1"
+                :max="99"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="最低消费(元)">
+              <el-input-number
+                v-model="createForm.minSpendYuan"
+                :min="0"
+                :step="1"
+                :precision="2"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="有效天数" required>
+              <el-input-number
+                v-model="createForm.validityDays"
+                :min="1"
+                :max="365"
+                controls-position="right"
+                style="width: 100%"
+              />
+              <div class="field-hint">自领取之日起算，到期自动失效</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="发放总量">
+              <el-input-number
+                v-model="createForm.maxIssueCount"
+                :min="0"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="描述">
+              <el-input
+                v-model="createForm.description"
+                type="textarea"
+                :rows="2"
+                placeholder="券的使用说明，展示给顾客"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="绑定活动">
+              <el-select
+                v-model="createForm.activityId"
+                clearable
+                filterable
+                placeholder="可不选，绑定后发券从该活动预算扣"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="a in activityOptions"
+                  :key="a.activityId"
+                  :label="a.activityName"
+                  :value="a.activityId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
 
+        <div class="form-group-title">使用范围</div>
         <!-- 🔴 V319 券可用范围：迁移前 device_scope 是死字段（配了不生效），
              V319 起由后端 CouponScopeValidator 真正参与判定。 -->
-        <el-form-item label="可用范围">
-          <el-select v-model="createForm.scopeType" style="width: 100%">
-            <el-option
-              v-for="o in SCOPE_TYPE_OPTIONS"
-              :key="o.value"
-              :label="o.label"
-              :value="o.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="createForm.scopeType === 'MERCHANT'" label="适用商户" required>
-          <el-input
-            v-model="createForm.scopeMerchantId"
-            placeholder="商户 ID，例如 MCH-DEFAULT"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item v-if="createForm.scopeType === 'DEVICE'" label="适用柜机">
-          <el-select
-            v-model="createForm.scopeDeviceIds"
-            multiple
-            filterable
-            allow-create
-            default-first-option
-            placeholder="留空 = 不限制；输入柜机 ID 后回车添加"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <!-- ⚠️ 为什么不物化「商户/柜机」下拉而用文本输入：
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="可用范围">
+              <el-select v-model="createForm.scopeType" style="width: 100%">
+                <el-option
+                  v-for="o in SCOPE_TYPE_OPTIONS"
+                  :key="o.value"
+                  :label="o.label"
+                  :value="o.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col v-if="createForm.scopeType === 'MERCHANT'" :span="12">
+            <el-form-item label="适用商户" required>
+              <el-input
+                v-model="createForm.scopeMerchantId"
+                placeholder="填商户编号，如 MCH-DEFAULT"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col v-if="createForm.scopeType === 'DEVICE'" :span="24">
+            <el-form-item label="适用设备">
+              <el-select
+                v-model="createForm.scopeDeviceIds"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                placeholder="留空 = 所有设备可用；输入设备编号后回车添加"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <!-- ⚠️ 为什么不物化「商户/设备」下拉而用文本输入：
              那需要额外的联想端点与权限（ops:merchant:list / ops:device:list），
              而券的运营者未必有这两项权限 ⇒ 用文本输入更安全（越权看不到列表）。 -->
       </el-form>
@@ -302,13 +339,14 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="用户ID">
+        <el-form-item label="用户编号">
           <el-input-number
             v-model="issueForm.userId"
             :min="1"
             controls-position="right"
             style="width: 100%"
           />
+          <div class="field-hint">在「用户管理」可查到该编号</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -329,12 +367,12 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="用户ID">
+        <el-form-item label="用户编号">
           <el-input
             v-model="batchForm.userIdsText"
             type="textarea"
             :rows="6"
-            placeholder="每行一个用户ID"
+            placeholder="每行一个用户编号，也可用逗号分隔"
           />
         </el-form-item>
       </el-form>
@@ -896,5 +934,22 @@ onActivated(() => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+/* 弹窗分组标题（券面信息 / 使用范围）与字段提示：与商品建档弹窗同一口径 */
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.field-hint {
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+  line-height: 1.4;
 }
 </style>

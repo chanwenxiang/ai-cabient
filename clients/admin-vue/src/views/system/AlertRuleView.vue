@@ -116,45 +116,78 @@
     <el-dialog
       v-model="dialogVisible"
       :title="creating ? '新增告警规则' : '编辑告警规则'"
+      class="dialog-wide"
       destroy-on-close
     >
       <el-form label-width="auto">
-        <el-form-item label="分组" required>
-          <el-select v-model="form.group" filterable style="width: 100%" :disabled="creating">
-            <el-option v-for="g in Object.keys(BUILTIN_GROUPS)" :key="g" :label="g" :value="g" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="配置键" required>
-          <el-select
-            v-if="creating"
-            v-model="form.configKey"
-            filterable
-            style="width: 100%"
-            placeholder="仅可选白名单键"
-            @change="onCreateKeyChange"
-          >
-            <el-option v-for="k in creatableBuiltinKeys" :key="k" :label="k" :value="k" />
-          </el-select>
-          <el-input v-else v-model="form.configKey" disabled />
-        </el-form-item>
-        <el-form-item label="当前值" required>
-          <el-switch
-            v-if="form.configKey.endsWith('_enabled')"
-            v-model="formEnabled"
-            active-text="开"
-            inactive-text="关"
-          />
-          <el-input
-            v-else
-            v-model="form.configValue"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入"
-          />
-        </el-form-item>
-        <el-form-item label="规则说明">
-          <el-input v-model="form.description" placeholder="展示在列表中的说明" />
-        </el-form-item>
+        <div class="form-group-title">规则标识</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="分组" required>
+              <el-select v-model="form.group" filterable style="width: 100%" :disabled="creating">
+                <el-option
+                  v-for="g in Object.keys(BUILTIN_GROUPS)"
+                  :key="g"
+                  :label="g"
+                  :value="g"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="配置键" required>
+              <el-select
+                v-if="creating"
+                v-model="form.configKey"
+                filterable
+                style="width: 100%"
+                placeholder="从白名单中选择配置项"
+                @change="onCreateKeyChange"
+              >
+                <el-option
+                  v-for="k in creatableBuiltinKeys"
+                  :key="k"
+                  :label="alertKeyLabel(k)"
+                  :value="k"
+                >
+                  <span>{{ alertKeyLabel(k) }}</span>
+                  <span class="option-key">{{ k }}</span>
+                </el-option>
+              </el-select>
+              <el-input
+                v-else
+                :model-value="`${alertKeyLabel(form.configKey)}（${form.configKey}）`"
+                disabled
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">取值与说明</div>
+        <el-row :gutter="16">
+          <el-col :span="24">
+            <el-form-item label="当前值" required>
+              <el-switch
+                v-if="form.configKey.endsWith('_enabled')"
+                v-model="formEnabled"
+                active-text="开"
+                inactive-text="关"
+              />
+              <el-input
+                v-else
+                v-model="form.configValue"
+                type="textarea"
+                :rows="3"
+                placeholder="请输入"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="规则说明">
+              <el-input v-model="form.description" placeholder="展示在列表中的说明" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -227,6 +260,38 @@ const BUILTIN_GROUPS: Record<string, string[]> = {
 
 const CUSTOM_GROUP_PREFIX = '自定义';
 const GROUP_META_KEY = 'ops.alert.rule_groups_json';
+
+/** 配置键 → 业务中文名（弹窗下拉展示用）。键名仍是唯一标识，故两者一并保留。 */
+const ALERT_KEY_LABELS: Record<string, string> = {
+  'device.offline.auto_sales_lock_minutes': '离线自动锁售时长',
+  'device.offline.manual_unlock_grace_minutes': '手动解锁宽限期',
+  'device.offline.auto_unlock_enabled': '离线自动解锁',
+  'device.offline.auto_unlock_stable_minutes': '离线稳定判定时长',
+  'device.temp.alert_max_c': '柜内温度报警上限',
+  'dispute.sla.hours': '争议处理时限',
+  'dispute.sla.reminder_hours': '争议超时提醒提前量',
+  'dispute.sla.webhook': '争议超时通知地址',
+  'ops.alert.feishu_webhook': '飞书告警地址',
+  'ops.alert.feishu_sign_secret': '飞书签名密钥',
+  'ops.alert.dingtalk_webhook': '钉钉告警地址',
+  'ops.alert.wecom_webhook': '企业微信告警地址',
+  'ops.alert.webhook': '通用告警回调地址',
+  'ops.alert.escalation_enabled': '告警升级链',
+  'ops.alert.escalation_types': '触发升级的告警类型',
+  'ops.alert.oncall_roster': '值班人员名单',
+  'ops.alert.escalation_sms_webhook': '短信升级通道地址',
+  'ops.alert.escalation_phone_webhook': '电话升级通道地址',
+  'ops.scan.door_open_minutes': '开门超时阈值',
+  'ops.scan.upload_stuck_minutes': '上传卡住阈值',
+  'ops.scan.recognition_stuck_minutes': '识别卡住阈值',
+  'ops.scan.settlement_stuck_minutes': '结算卡住阈值',
+  'order.unpaid.auto_cancel_hours': '未支付订单自动取消时长',
+  'recharge.pending.auto_cancel_minutes': '充值待处理自动取消时长'
+};
+
+function alertKeyLabel(key: string) {
+  return ALERT_KEY_LABELS[key] || key;
+}
 
 const auth = useAuthStore();
 const saving = ref(false);
@@ -582,3 +647,22 @@ function escapeHtml(s: string) {
   );
 }
 </script>
+
+<style scoped>
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.option-key {
+  margin-left: 8px;
+  color: var(--el-text-color-placeholder);
+  font-size: var(--admin-font-size-sm);
+}
+</style>

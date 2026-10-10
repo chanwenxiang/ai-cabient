@@ -349,7 +349,7 @@
               <span v-if="!row.refundPolicy" class="inherit-hint">全局默认</span>
             </template>
           </el-table-column>
-          <el-table-column label="最近会话" min-width="140" class-name="col-text">
+          <el-table-column label="最近开门" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span v-if="row.activeSessionId" class="mono">{{
                 displayBizNo(row.activeSessionId)
@@ -358,7 +358,7 @@
             </template>
           </el-table-column>
           <el-table-column
-            label="会话状态"
+            label="开门状态"
             min-width="100"
             align="center"
             class-name="col-status"
@@ -758,8 +758,8 @@ const csvOptions: CrudCsvOptions = {
     '商户',
     '所属仓库',
     '退款方式',
-    '最近会话',
-    '会话状态',
+    '最近开门',
+    '开门状态',
     '更新时间'
   ],
   // 选中优先由 CrudTable 内部处理（勾选了就只导选中行）

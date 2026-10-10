@@ -99,46 +99,58 @@
     </div>
   </el-card>
 
-  <el-dialog v-model="metaDlg" :title="creating ? '新增审批流' : '编辑审批流'" destroy-on-close>
+  <el-dialog
+    v-model="metaDlg"
+    :title="creating ? '新增审批流' : '编辑审批流'"
+    class="dialog-wide"
+    destroy-on-close
+  >
     <el-form label-width="auto">
-      <el-form-item label="业务类型" required>
-        <el-select
-          v-if="creating"
-          v-model="metaForm.bizType"
-          filterable
-          allow-create
-          default-first-option
-          placeholder="选择或输入业务码"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="opt in bizTypeOptions"
-            :key="opt.value"
-            :label="`${opt.label} (${opt.value})`"
-            :value="opt.value"
-          />
-        </el-select>
-        <el-input
-          v-else
-          :model-value="`${bizLabel(metaForm.bizType)} · ${metaForm.bizType}`"
-          disabled
-        />
-      </el-form-item>
-      <el-form-item label="名称" required>
-        <el-input v-model="metaForm.defName" placeholder="审批流名称" />
-      </el-form-item>
-      <el-form-item :label="displayLabel('enable_status', 'ACTIVE')">
-        <el-switch v-model="metaForm.enabled" />
-      </el-form-item>
-      <el-form-item label="备注">
-        <el-input
-          v-model="metaForm.remark"
-          type="textarea"
-          :rows="2"
-          maxlength="256"
-          show-word-limit
-        />
-      </el-form-item>
+      <div class="form-group-title">基础信息</div>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="业务类型" required>
+            <el-select
+              v-if="creating"
+              v-model="metaForm.bizType"
+              filterable
+              allow-create
+              default-first-option
+              placeholder="选择或输入业务类型"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="opt in bizTypeOptions"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-select>
+            <el-input v-else :model-value="bizLabel(metaForm.bizType)" disabled />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="名称" required>
+            <el-input v-model="metaForm.defName" placeholder="审批流名称" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="displayLabel('enable_status', 'ACTIVE')">
+            <el-switch v-model="metaForm.enabled" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="24">
+          <el-form-item label="备注">
+            <el-input
+              v-model="metaForm.remark"
+              type="textarea"
+              :rows="2"
+              maxlength="256"
+              show-word-limit
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
     </el-form>
     <template #footer>
       <el-button @click="metaDlg = false">取消</el-button>
@@ -234,7 +246,7 @@
               <el-option
                 v-for="d in departments"
                 :key="d.deptKey"
-                :label="`${d.deptName} (${d.deptKey})`"
+                :label="d.deptName"
                 :value="d.deptKey"
               />
             </el-select>
@@ -389,11 +401,11 @@ function assigneeBrief(n: ApprovalNode) {
 function assigneeValuePlaceholder(type: string) {
   switch (type) {
     case 'PERM':
-      return '权限码，如 ops:finance:review';
+      return '权限标识，如 ops:finance:review';
     case 'ROLE':
-      return '角色 key，如 finance';
+      return '角色标识，如 finance';
     case 'USER':
-      return '用户 ID，如 100000001';
+      return '用户编号，如 100000001';
     default:
       return '指派值';
   }
@@ -774,5 +786,16 @@ async function save() {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   width: min(420px, 100%);
+}
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>

@@ -37,7 +37,8 @@ const emit = defineEmits<{
         />
       </div>
       <p class="muted">
-        按当日分钟排程，调度器每分钟把当前时段目标温度下发到柜机；00:00 未设置时沿用前一日最后时段。
+        按时间段设置目标温度，系统会自动下发当前时段的温度到柜机；某天 00:00
+        未设置时沿用前一天最后时段。
       </p>
       <div v-for="(e, i) in tempPlanEntries" :key="i" class="temp-plan-row">
         <el-time-select
@@ -104,7 +105,7 @@ const emit = defineEmits<{
           <template #default="{ row }">{{ formatDateTime(row.reportedAt) }}</template>
         </el-table-column>
       </el-table>
-      <p v-if="!envRows.length" class="muted">暂无环境读数（设备心跳需携带湿度/电压/功耗字段）</p>
+      <p v-if="!envRows.length" class="muted">暂无环境数据（柜机尚未上报湿度 / 电压 / 电量）</p>
     </div>
   </div>
 </template>

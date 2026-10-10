@@ -128,55 +128,85 @@
       </div>
     </div>
 
-    <el-dialog v-model="dlg" :title="form.permissionId ? '编辑菜单' : '新增菜单'" destroy-on-close>
+    <el-dialog
+      v-model="dlg"
+      :title="form.permissionId ? '编辑菜单' : '新增菜单'"
+      class="dialog-wide"
+      destroy-on-close
+    >
       <el-form label-width="auto">
-        <el-form-item label="上级">
-          <el-select
-            v-model="form.parentId"
-            filterable
-            clearable
-            placeholder="顶级"
-            style="width: 100%"
-          >
-            <el-option :value="0" label="顶级目录" />
-            <el-option
-              v-for="p in parentOptions"
-              :key="p.permissionId"
-              :value="p.permissionId"
-              :label="parentOptionLabel(p)"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="类型" required>
-          <el-radio-group v-model="form.permType">
-            <el-radio value="M">目录</el-radio>
-            <el-radio value="C">菜单</el-radio>
-            <el-radio value="F">按钮</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="名称" required>
-          <el-input v-model="form.permName" maxlength="64" />
-        </el-form-item>
-        <el-form-item label="权限标识" required>
-          <el-input
-            v-model="form.permCode"
-            :disabled="!!form.permissionId"
-            :placeholder="scope === 'merchant' ? '如 merchant:devices:list' : '如 ops:device:list'"
-            maxlength="128"
-          />
-        </el-form-item>
-        <el-form-item v-if="form.permType !== 'F'" label="路由">
-          <el-input v-model="form.path" placeholder="如 /devices" maxlength="128" />
-        </el-form-item>
-        <el-form-item label="排序">
-          <el-input-number v-model="form.sortOrder" :min="0" :max="9999" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="form.status">
-            <el-radio value="ACTIVE">正常</el-radio>
-            <el-radio value="INACTIVE">停用</el-radio>
-          </el-radio-group>
-        </el-form-item>
+        <div class="form-group-title">基本信息</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="上级">
+              <el-select
+                v-model="form.parentId"
+                filterable
+                clearable
+                placeholder="顶级"
+                style="width: 100%"
+              >
+                <el-option :value="0" label="顶级目录" />
+                <el-option
+                  v-for="p in parentOptions"
+                  :key="p.permissionId"
+                  :value="p.permissionId"
+                  :label="parentOptionLabel(p)"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="类型" required>
+              <el-radio-group v-model="form.permType">
+                <el-radio value="M">目录</el-radio>
+                <el-radio value="C">菜单</el-radio>
+                <el-radio value="F">按钮</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="名称" required>
+              <el-input v-model="form.permName" maxlength="64" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="权限标识" required>
+              <el-input
+                v-model="form.permCode"
+                :disabled="!!form.permissionId"
+                :placeholder="
+                  scope === 'merchant'
+                    ? '商户端权限标识，如 merchant:devices:list'
+                    : '平台权限标识，如 ops:device:list'
+                "
+                maxlength="128"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">展示与顺序</div>
+        <el-row :gutter="16">
+          <el-col v-if="form.permType !== 'F'" :span="12">
+            <el-form-item label="路由">
+              <el-input v-model="form.path" placeholder="如 /devices" maxlength="128" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="排序">
+              <el-input-number v-model="form.sortOrder" :min="0" :max="9999" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="状态">
+              <el-radio-group v-model="form.status">
+                <el-radio value="ACTIVE">正常</el-radio>
+                <el-radio value="INACTIVE">停用</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="dlg = false">取消</el-button>
@@ -611,6 +641,17 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
 .page-card-head {
   display: flex;
   justify-content: space-between;

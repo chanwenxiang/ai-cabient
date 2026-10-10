@@ -127,63 +127,113 @@
       </div>
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑等级' : '新建等级'" destroy-on-close>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="editing ? '编辑等级' : '新建等级'"
+      class="dialog-wide"
+      destroy-on-close
+    >
       <el-form :model="form" label-width="auto">
-        <el-form-item label="等级编码" required>
-          <el-input
-            v-model="form.levelCode"
-            :disabled="editing"
-            placeholder="内部编码，如 GOLD"
-            style="text-transform: uppercase"
-          />
-          <div v-if="form.levelCode" class="form-hint">
-            展示名：{{ levelCodeLabel(form.levelCode, form.levelName) }}
-          </div>
-        </el-form-item>
-        <el-form-item label="等级名称" required>
-          <el-input v-model="form.levelName" placeholder="如 金卡会员" />
-        </el-form-item>
-        <el-form-item label="最低累计消费(元)">
-          <el-input-number v-model="form.minSpent" :min="0" :precision="2" />
-        </el-form-item>
-        <el-form-item label="最高累计消费(元)">
-          <el-input-number
-            v-model="form.maxSpent"
-            :min="0"
-            :precision="2"
-            :controls="false"
-            placeholder="留空表示不设上限"
-          />
-        </el-form-item>
-        <el-form-item label="最低累计积分">
-          <el-input-number v-model="form.minPoints" :min="0" />
-        </el-form-item>
-        <el-form-item label="最高累计积分">
-          <el-input-number
-            v-model="form.maxPoints"
-            :min="0"
-            :controls="false"
-            placeholder="留空表示不设上限"
-          />
-        </el-form-item>
-        <el-form-item label="积分倍率">
-          <el-input-number v-model="form.pointsRate" :min="0" :precision="2" :step="0.1" />
-        </el-form-item>
-        <el-form-item label="会员折扣(%)">
-          <el-input-number
-            v-model="form.priceDiscountPct"
-            :min="0"
-            :max="100"
-            :precision="2"
-            :step="1"
-          />
-        </el-form-item>
-        <el-form-item label="排序">
-          <el-input-number v-model="form.sortOrder" :min="0" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-switch v-model="form.status" active-value="ACTIVE" inactive-value="INACTIVE" />
-        </el-form-item>
+        <div class="form-group-title">等级信息</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="等级编码" required>
+              <el-input
+                v-model="form.levelCode"
+                :disabled="editing"
+                placeholder="大写字母，如 GOLD"
+                style="text-transform: uppercase"
+              />
+              <div v-if="form.levelCode" class="form-hint">
+                展示名：{{ levelCodeLabel(form.levelCode, form.levelName) }}
+              </div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="等级名称" required>
+              <el-input v-model="form.levelName" placeholder="如 金卡会员" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">升级门槛</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="最低累计消费(元)">
+              <el-input-number
+                v-model="form.minSpent"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="最高累计消费(元)">
+              <el-input-number
+                v-model="form.maxSpent"
+                :min="0"
+                :precision="2"
+                :controls="false"
+                placeholder="留空表示不设上限"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="最低累计积分">
+              <el-input-number v-model="form.minPoints" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="最高累计积分">
+              <el-input-number
+                v-model="form.maxPoints"
+                :min="0"
+                :controls="false"
+                placeholder="留空表示不设上限"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-group-title">权益与展示</div>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="积分倍率">
+              <el-input-number
+                v-model="form.pointsRate"
+                :min="0"
+                :precision="2"
+                :step="0.1"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="会员折扣(%)">
+              <el-input-number
+                v-model="form.priceDiscountPct"
+                :min="0"
+                :max="100"
+                :precision="2"
+                :step="1"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="排序">
+              <el-input-number v-model="form.sortOrder" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="状态">
+              <el-switch v-model="form.status" active-value="ACTIVE" inactive-value="INACTIVE" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -393,6 +443,17 @@ function yuan(v?: number) {
 </script>
 
 <style scoped>
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
 .form-hint {
   margin-top: 4px;
   font-size: var(--admin-font-size-sm);

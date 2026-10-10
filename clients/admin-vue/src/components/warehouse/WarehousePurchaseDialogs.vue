@@ -108,12 +108,16 @@
           </div>
           <label class="line-field"
             ><span>生产日期</span
-            ><input v-model="line.productionDate" class="native-date" type="date"
+            ><input
+              v-model="line.productionDate"
+              class="native-date"
+              type="date"
+              @change="onProductionDateChange(line)"
           /></label>
           <label
             class="line-field"
             :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.expiryDate }"
-            ><span>到期日期（选填，收货时录入）</span
+            ><span>到期日期（按保质期自动估算，可修改）</span
             ><input
               v-model="line.expiryDate"
               class="native-date"
@@ -413,7 +417,7 @@
 <script setup lang="ts">
 import type { WarehousePurchaseRow } from '@/composables/warehouse/useWarehousePurchaseOrders';
 
-defineProps<{
+const props = defineProps<{
   purchaseDialog: boolean;
   receiveDialog: boolean;
   returnDialog: boolean;
@@ -436,6 +440,24 @@ const purchaseFieldErrors = defineModel<{
 }>('purchaseFieldErrors', { required: true });
 const receiveForm = defineModel<WarehousePurchaseRow>('receiveForm', { required: true });
 const returnForm = defineModel<WarehousePurchaseRow>('returnForm', { required: true });
+
+/**
+ * CB-026：选了生产日期后按商品保质期自动预填到期日期（可手工修改）。
+ * 生产日期是批次属性，归采购入库/库存批次管，商品档案不放（每次到货日期不同）。
+ * 口径：到期日 = 生产日期 + 保质期天数（与手工录入惯例一致，估算值允许改）。
+ */
+function onProductionDateChange(line: {
+  skuId: string;
+  productionDate: string;
+  expiryDate: string;
+}) {
+  if (!line.productionDate) return;
+  const days = props.skus.find((s) => s.skuId === line.skuId)?.shelfLifeDays;
+  if (!days || days <= 0) return;
+  const d = new Date(line.productionDate);
+  d.setDate(d.getDate() + days);
+  line.expiryDate = d.toISOString().slice(0, 10);
+}
 
 /**
  * V318：退货原因分类标签（枚举语义与后端 `WriteOffReasonCategory` **刻意对齐**，
