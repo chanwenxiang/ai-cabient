@@ -11344,6 +11344,7 @@ export interface components {
             archived?: boolean;
             /** Format: date-time */
             archivedAt?: string;
+            videoPreviewUrl?: string;
         };
         OpenDoorFailedRequest: {
             reason?: string;
