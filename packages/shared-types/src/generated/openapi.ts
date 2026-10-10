@@ -1017,6 +1017,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/jiangyi/order-video-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["orderVideoReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/jiangyi/onboarding/{deviceId}/retire": {
         parameters: {
             query?: never;
@@ -5433,6 +5449,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/jiangyi/order-videos/by-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orderVideosByOrder"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/jiangyi/order-videos/by-device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orderVideosByDevice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/jiangyi/devices/{deviceId}": {
         parameters: {
             query?: never;
@@ -6401,6 +6449,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["sla"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/skus/barcode-lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["barcodeLookup"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7441,6 +7505,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/jiangyi/order-videos/by-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orderVideosByOrder_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/jiangyi/order-videos/by-device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orderVideosByDevice_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11337,6 +11433,15 @@ export interface components {
             message?: string;
             data?: boolean;
         };
+        OrderVideoReportRequest: {
+            deviceId?: string;
+            orderNo?: string;
+            /** Format: int32 */
+            serialNum?: number;
+            /** Format: int32 */
+            videoQuantity?: number;
+            videoUrls?: string[];
+        };
         ApiResponseJiangyiDevice: {
             /** Format: int32 */
             code?: number;
@@ -14073,6 +14178,25 @@ export interface components {
             code?: string;
             expiresAt?: string;
         };
+        ApiResponseListJiangyiOrderVideo: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["JiangyiOrderVideo"][];
+        };
+        JiangyiOrderVideo: {
+            /** Format: int64 */
+            id?: number;
+            orderNo?: string;
+            deviceId?: string;
+            /** Format: int32 */
+            serialNum?: number;
+            /** Format: int32 */
+            videoQuantity?: number;
+            videoUrls?: string;
+            /** Format: date-time */
+            reportedAt?: string;
+        };
         ApiResponseListJiangyiClassMapping: {
             /** Format: int32 */
             code?: number;
@@ -14936,6 +15060,22 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["JiangyiSkuJiangyiLink"][];
+        };
+        ApiResponseBarcodeLookupDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["BarcodeLookupDto"];
+        };
+        BarcodeLookupDto: {
+            found?: boolean;
+            name?: string;
+            brand?: string;
+            spec?: string;
+            manufacturer?: string;
+            category?: string;
+            imageUrl?: string;
+            message?: string;
         };
         ApiResponseSuggestClassDto: {
             /** Format: int32 */
@@ -20301,6 +20441,30 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseBoolean"];
+                };
+            };
+        };
+    };
+    orderVideoReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderVideoReportRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -28010,6 +28174,51 @@ export interface operations {
             };
         };
     };
+    orderVideosByOrder: {
+        parameters: {
+            query: {
+                orderNo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
+                };
+            };
+        };
+    };
+    orderVideosByDevice: {
+        parameters: {
+            query: {
+                deviceId: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
+                };
+            };
+        };
+    };
     device: {
         parameters: {
             query?: never;
@@ -29359,6 +29568,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseSlaMetricsDto"];
+                };
+            };
+        };
+    };
+    barcodeLookup: {
+        parameters: {
+            query: {
+                code: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseBarcodeLookupDto"];
                 };
             };
         };
@@ -30865,6 +31096,51 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListJiangyiCategory"];
+                };
+            };
+        };
+    };
+    orderVideosByOrder_1: {
+        parameters: {
+            query: {
+                orderNo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
+                };
+            };
+        };
+    };
+    orderVideosByDevice_1: {
+        parameters: {
+            query: {
+                deviceId: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
                 };
             };
         };
