@@ -5,210 +5,280 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">识别映射</span>
-            <span class="hint"
-              >端侧类名 → 商品；建档请在「商品管理 /
-              识别入驻」维护。生产=进入结算白名单；兜底结果或低置信仍进争议</span
-            >
+            <span class="hint">
+              将邑端侧识别 classId → SKU 的翻译表；激活的映射才参与结算推荐。识别能力在将邑侧，
+              云端不做识别；商品入驻流程见「识别入驻」
+            </span>
           </div>
-        </div>
-        <div class="page-card-head__actions">
-          <el-button v-if="canAccessPath('/skus')" @click="goPath('/skus')">商品管理</el-button>
-          <el-button v-if="canAccessPath('/sku-vision')" @click="goPath('/sku-vision')"
-            >识别入驻</el-button
-          >
-          <el-button v-hasPermi="['ops:vision:edit']" type="primary" @click="openCreate"
-            >新增映射</el-button
-          >
         </div>
       </div>
     </template>
 
-    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
-      <el-form-item label="关键词">
-        <el-input
-          v-model="keyword"
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="load()">
+      <el-form-item label="柜机">
+        <el-select
+          v-model="deviceId"
+          filterable
           clearable
-          placeholder="类别 / SKU / 商品名"
-          style="width: 220px"
-          @keyup.enter="search"
-          @clear="search"
-        />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="search">查询</el-button>
-        <el-button @click="reset">重置</el-button>
+          placeholder="选择将邑柜机"
+          style="width: 280px"
+          @change="load()"
+        >
+          <el-option
+            v-for="d in deviceOptions"
+            :key="d.deviceId"
+            :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
+            :value="d.deviceId"
+          />
+        </el-select>
       </el-form-item>
     </el-form>
 
-    <div class="table-scroll">
-      <div class="table-scroll-inner">
-        <CrudTable
-          :table="crud"
-          selectable
-          :actions="rowActions"
-          :action-width="120"
-          empty-text="暂无识别类名映射"
-          sort-field-label="类名"
-          :csv="csvOptions"
-          @action="onAction"
-        >
-          <el-table-column prop="className" label="类名" min-width="140" class-name="col-text">
-            <template #default="{ row }">
-              <span class="cell-id">{{ row.className || '无' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="商品" min-width="160" class-name="col-text">
-            <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
-          </el-table-column>
-          <el-table-column
-            label="入驻状态"
-            width="110"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">
-              <el-tag size="small" :type="enrollmentTagType(row.visionEnrollmentStatus)">
-                {{ enrollmentLabel(row.visionEnrollmentStatus) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column
-            align="center"
-            label="映射/模型"
-            min-width="140"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">
-              <div class="pipe-cell">
-                <el-tag size="small" :type="row.mappingEffective ? 'success' : 'info'">
-                  {{ row.mappingEffective ? '结算白名单' : '未进白名单' }}
-                </el-tag>
-                <el-tag size="small" type="warning" effect="plain">端侧质量门禁</el-tag>
+    <el-alert
+      v-if="deviceId && loaded && !binding"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="该柜机未接入将邑"
+      description="请先到设备详情的「将邑接入」卡片完成登记与绑定。"
+    />
+
+    <template v-if="binding">
+      <div class="jy-device-bar">
+        <div class="jy-device-item">
+          <span class="jy-device-label">设备状态</span>
+          <el-tag size="small" :type="binding.status === 'BOUND' ? 'success' : 'info'">
+            {{ binding.status }}
+          </el-tag>
+        </div>
+        <div class="jy-device-item">
+          <span class="jy-device-label">当前生效模型</span>
+          <span class="jy-mono">{{ binding.modelName || '未下发' }}</span>
+        </div>
+        <div class="jy-device-item">
+          <span class="jy-device-label">classes 版本</span>
+          <span class="jy-mono">{{ binding.classesVersion || '—' }}</span>
+        </div>
+        <div class="jy-device-item">
+          <span class="jy-device-label">最近 WS 在线</span>
+          <span>{{ formatInstant(binding.lastWsOnlineAt) }}</span>
+        </div>
+      </div>
+
+      <!-- 模型同步：预览 → 预生成 → 激活 → 下发（CB-023 链路） -->
+      <el-card class="jy-model-card" shadow="never">
+        <template #header>
+          <div class="page-card-head">
+            <div class="page-card-head__meta">
+              <div class="page-card-head__title">
+                <span class="title">模型同步</span>
+                <span class="hint">
+                  预生成后映射为停用态，人工核对 classId ↔ SKU 再激活；industrialControlModel
+                  按字符串相等校验，与设备登记值不一致将拒绝下发
+                </span>
               </div>
+            </div>
+          </div>
+        </template>
+
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
+          <el-form-item label="将邑模型">
+            <el-select
+              v-model="selectedModel"
+              placeholder="拉取模型列表"
+              style="width: 320px"
+              :loading="modelsLoading"
+            >
+              <el-option
+                v-for="m in modelPreviews"
+                :key="m.modelName"
+                :label="`${m.modelName}（${m.quantity} 类 · ${m.trainedMatchPercent}% 已挂接 · 机型 ${m.industrialControlModel}）`"
+                :value="m.modelName"
+                :disabled="Boolean(m.rejectReason)"
+              >
+                <template v-if="m.rejectReason">
+                  <span>{{ m.modelName }}（不可用：{{ m.rejectReason }}）</span>
+                </template>
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="classId 基数">
+            <el-select v-model="classIdBase" style="width: 130px">
+              <el-option label="0 起（第 1 行=0）" :value="0" />
+              <el-option label="1 起（第 1 行=1）" :value="1" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button :loading="modelsLoading" @click="loadModels()">刷新模型列表</el-button>
+          </el-form-item>
+        </el-form>
+
+        <template v-if="currentPreview">
+          <div class="jy-preview-rows">
+            <div v-for="row in currentPreview.rows" :key="row.classId" class="jy-preview-row">
+              <span class="jy-mono">classId={{ row.classId }}</span>
+              <span>{{ row.textName }}</span>
+            </div>
+          </div>
+          <div class="jy-model-actions">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              :loading="acting === 'sync'"
+              @click="doModelSync()"
+            >
+              预生成映射（停用态）
+            </el-button>
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              type="warning"
+              :loading="acting === 'activate'"
+              @click="doActivate()"
+            >
+              激活该模型预生成行
+            </el-button>
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              type="primary"
+              :loading="acting === 'push'"
+              @click="doPush()"
+            >
+              下发模型到柜机
+            </el-button>
+          </div>
+        </template>
+      </el-card>
+
+      <!-- classId 映射表 -->
+      <div class="table-scroll">
+        <div class="table-scroll-inner">
+          <CrudTable
+            :table="crud"
+            :actions="rowActions"
+            :action-width="150"
+            empty-text="暂无映射；先在「模型同步」预生成，或到商品管理逐条挂接"
+            sort-field-label="classId"
+            :csv="csvOptions"
+            @action="onAction"
+          >
+            <el-table-column prop="classId" label="classId" width="100" class-name="col-text">
+              <template #default="{ row }">
+                <span class="jy-mono">{{ row.classId }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="textName" label="textName（classes 键）" min-width="150">
+              <template #default="{ row }">{{ row.textName || '—' }}</template>
+            </el-table-column>
+            <el-table-column prop="skuId" label="SKU" min-width="120" class-name="col-text">
+              <template #default="{ row }">{{ row.skuId || '未挂接' }}</template>
+            </el-table-column>
+            <el-table-column prop="modelName" label="模型" min-width="130">
+              <template #default="{ row }">{{ row.modelName || '—' }}</template>
+            </el-table-column>
+            <el-table-column
+              prop="status"
+              label="状态"
+              width="100"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
+                  {{ row.status === 'ACTIVE' ? '已启用' : '已停用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="source"
+              label="来源"
+              width="110"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
+              <template #default="{ row }">
+                <el-tag size="small" type="warning" effect="plain">
+                  {{ row.source === 'MODEL_SYNC' ? '模型预生成' : '手工' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </CrudTable>
+        </div>
+      </div>
+
+      <!-- 下发审计 -->
+      <el-card class="jy-deploy-card" shadow="never">
+        <template #header>
+          <div class="page-card-head">
+            <div class="page-card-head__meta">
+              <div class="page-card-head__title">
+                <span class="title">下发记录</span>
+                <span class="hint"
+                  >SENT=已下发等待回执（600s 超时置 FAILED）；CONFIRMED=柜机已应用</span
+                >
+              </div>
+            </div>
+            <div class="page-card-head__actions">
+              <el-button size="small" @click="loadDeployments()">刷新</el-button>
+            </div>
+          </div>
+        </template>
+        <el-table :data="deployments" stripe border size="small">
+          <el-table-column prop="modelName" label="模型" min-width="140" />
+          <el-table-column prop="industrialControlModel" label="机型" width="90">
+            <template #default="{ row }">
+              <span class="jy-mono">{{ row.industrialControlModel || '—' }}</span>
             </template>
           </el-table-column>
           <el-table-column
-            label="最低置信度"
+            prop="status"
+            label="状态"
             width="120"
             align="center"
             class-name="col-status"
             label-class-name="col-status"
           >
-            <template #default="{ row }">{{ formatConfidence(row.minConfidence) }}</template>
+            <template #default="{ row }">
+              <el-tag
+                size="small"
+                :type="
+                  row.status === 'CONFIRMED'
+                    ? 'success'
+                    : row.status === 'FAILED'
+                      ? 'danger'
+                      : 'warning'
+                "
+              >
+                {{ row.status }}
+              </el-tag>
+            </template>
           </el-table-column>
-        </CrudTable>
-      </div>
-    </div>
+          <el-table-column label="下发时间" width="170">
+            <template #default="{ row }">{{ formatInstant(row.sentAt) }}</template>
+          </el-table-column>
+          <el-table-column label="确认时间" width="170">
+            <template #default="{ row }">{{ formatInstant(row.confirmedAt) || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="failReason" label="失败原因" min-width="160">
+            <template #default="{ row }">{{ row.failReason || '—' }}</template>
+          </el-table-column>
+          <template #empty><el-empty description="尚未下发过模型" /></template>
+        </el-table>
+      </el-card>
+    </template>
 
-    <el-card class="aliyun-card" shadow="never">
-      <template #header>
-        <div class="page-card-head">
-          <div class="page-card-head__meta">
-            <div class="page-card-head__title">
-              <span class="title">阿里云类目映射</span>
-              <span class="hint">阿里云商品类目 → SKU（categoryId 为类目 ID）</span>
-            </div>
-          </div>
-          <div class="page-card-head__actions">
-            <el-button v-hasPermi="['ops:vision:edit']" type="primary" @click="openAliyunCreate"
-              >新增映射</el-button
-            >
-          </div>
-        </div>
-      </template>
-      <el-table :data="aliyunMappings" stripe border size="small">
-        <el-table-column prop="categoryId" label="类目ID" width="150" class-name="col-text" />
-        <el-table-column prop="categoryName" label="类目名" min-width="150" />
-        <el-table-column prop="skuId" label="SKU" width="130" class-name="col-text" />
-        <el-table-column
-          label="最低置信度"
-          width="110"
-          align="center"
-          class-name="col-status"
-          label-class-name="col-status"
-        >
-          <template #default="{ row }">{{ row.minConfidence }}</template>
-        </el-table-column>
-        <el-table-column
-          label="操作"
-          width="150"
-          align="center"
-          fixed="right"
-          class-name="col-action"
-          label-class-name="col-action"
-        >
-          <template #default="{ row }">
-            <el-button v-hasPermi="['ops:vision:edit']" size="small" @click="openAliyunEdit(row)"
-              >编辑</el-button
-            >
-            <el-button
-              v-hasPermi="['ops:vision:edit']"
-              size="small"
-              type="danger"
-              @click="deleteAliyun(row)"
-              >删除</el-button
-            >
-          </template>
-        </el-table-column>
-        <template #empty><el-empty description="暂无阿里云类目映射" /></template>
-      </el-table>
-    </el-card>
+    <el-empty v-if="!deviceId" description="选择一台将邑柜机查看其识别映射与模型同步状态" />
 
-    <el-dialog
-      v-model="aliyunVisible"
-      :title="aliyunForm.categoryId ? '编辑阿里云映射' : '新增阿里云映射'"
-      destroy-on-close
-    >
-      <el-form label-position="top">
-        <el-form-item label="类目ID">
-          <el-input v-model="aliyunForm.categoryId" placeholder="阿里云类目 ID" />
-        </el-form-item>
-        <el-form-item label="类目名">
-          <el-input v-model="aliyunForm.categoryName" />
-        </el-form-item>
-        <el-form-item label="SKU">
-          <el-select v-model="aliyunForm.skuId" filterable style="width: 100%">
-            <el-option
-              v-for="s in skuOptions"
-              :key="s.skuId"
-              :label="`${s.skuName}（${s.skuId}）`"
-              :value="s.skuId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="最低置信度">
-          <el-input-number v-model="aliyunForm.minConfidence" :min="0" :max="1" :step="0.05" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="aliyunVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveAliyun">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog
-      v-model="dialogVisible"
-      :title="creating ? '新增识别映射' : '编辑识别映射'"
-      destroy-on-close
-    >
+    <el-dialog v-model="editVisible" title="编辑映射" destroy-on-close>
       <el-form label-width="auto">
-        <el-form-item label="类别" required>
-          <el-input
-            v-model="editForm.className"
-            :disabled="!creating"
-            placeholder="端侧类名，如 milk_box"
-          />
+        <el-form-item label="classId">
+          <el-input :model-value="editForm.classId" disabled />
         </el-form-item>
-        <el-form-item label="商品" required>
-          <el-select
-            v-model="editForm.skuId"
-            filterable
-            clearable
-            placeholder="选择 SKU"
-            style="width: 100%"
-          >
+        <el-form-item label="textName">
+          <el-input v-model="editForm.textName" placeholder="classes 键（识别商品名）" />
+        </el-form-item>
+        <el-form-item label="SKU" required>
+          <el-select v-model="editForm.skuId" filterable style="width: 100%">
             <el-option
               v-for="s in skuOptions"
               :key="s.skuId"
@@ -217,20 +287,9 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="最低置信度" required>
-          <el-input-number
-            v-model="editForm.minConfidence"
-            :min="0"
-            :max="1"
-            :step="0.01"
-            :precision="2"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="editVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveEdit">保存</el-button>
       </template>
     </el-dialog>
@@ -238,34 +297,77 @@
 </template>
 
 <script setup lang="ts">
-import { onActivated, onMounted, reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import { Delete, EditPen } from '@element-plus/icons-vue';
+import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { displayLabel } from '@aicabinet/shared-dict';
+import { CircleCheck, CircleClose, EditPen } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
-import { useNavAccess } from '@/composables/useNavAccess';
-import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { errorMessage } from '@/utils/error-message';
 
-interface YoloMappingRow {
-  className?: string;
-  skuId?: string;
-  skuName?: string;
-  minConfidence?: number | string;
-  visionEnrollmentStatus?: string;
-  mappingEffective?: boolean;
-  modelPipelineStatus?: string;
-  mappingSource?: string;
+/**
+ * 识别映射（CB-023 改造）：云端识别（YOLO/阿里云）方案已废弃，本页收编将邑
+ * classId 映射管理与模型同步链路（预览→预生成→激活→下发→审计）。
+ * 设备维度快捷操作仍在设备详情「将邑接入」卡片，两处共用同一组端点。
+ */
+
+interface JiangyiClassMappingRow {
+  id: number;
+  deviceId: string;
+  classId: number;
+  modelName: string | null;
+  textName: string | null;
+  skuId: string | null;
+  status: string;
+  source: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
-interface AliyunMappingRow {
-  categoryId: string;
-  categoryName?: string;
-  skuId: string;
-  minConfidence: number;
+interface JiangyiBindingInfo {
+  deviceId: string;
+  deviceSn: string | null;
+  identifier: string | null;
+  modelName: string | null;
+  classesVersion: string | null;
+  status: string;
+  lastWsOnlineAt: string | null;
+}
+
+interface ParsedClassRow {
+  classId: number;
+  textName: string;
+  lineNumber: number;
+}
+
+interface ModelPreview {
+  modelName: string;
+  industrialControlModel: string | null;
+  quantity: number;
+  modelTextUrl: string | null;
+  classesVersion: string | null;
+  fallbackVersion: string | null;
+  rows: ParsedClassRow[];
+  rejectReason: string | null;
+  trainedMatchPercent: number;
+}
+
+interface DeploymentRow {
+  id: number;
+  deviceId: string;
+  modelName: string;
+  industrialControlModel: string | null;
+  classesVersion: string | null;
+  status: string;
+  sentAt: string | null;
+  confirmedAt: string | null;
+  failReason: string | null;
+}
+
+interface DeviceOption {
+  deviceId: string;
+  deviceName?: string;
 }
 
 interface SkuOption {
@@ -273,119 +375,230 @@ interface SkuOption {
   skuName?: string;
 }
 
-const route = useRoute();
-const { router, canAccessPath, goPath } = useNavAccess();
-const saving = ref(false);
-const keyword = ref('');
-const aliyunMappings = ref<AliyunMappingRow[]>([]);
-const skuOptions = ref<SkuOption[]>([]);
-const dialogVisible = ref(false);
-const creating = ref(false);
-const aliyunVisible = ref(false);
-const aliyunForm = ref<AliyunMappingRow>({
-  categoryId: '',
-  categoryName: '',
-  skuId: '',
-  minConfidence: 0.8
-});
-const editForm = reactive({
-  className: '',
-  skuId: '',
-  minConfidence: 0.72,
-  mappingSource: '' as string | undefined
-});
+const deviceId = ref('');
+const deviceOptions = ref<DeviceOption[]>([]);
+const binding = ref<JiangyiBindingInfo | null>(null);
+const loaded = ref(false);
 
-// 列表状态机统一交给 CrudTable：分页 / 排序（按类名升/降序）/ 多选 / 竞态 / 空态 全部内建。
-// 首查依赖路由查询参数（keyword）先落位（crud 已配 autoLoad:false），onMounted 显式首查。
-const crud = useCrudTable<YoloMappingRow>({
-  rowKey: (r) => r.className || `${r.skuId}`,
-  errorMessage: '加载失败',
+const modelPreviews = ref<ModelPreview[]>([]);
+const modelsLoading = ref(false);
+const selectedModel = ref('');
+const classIdBase = ref(0);
+const acting = ref<'sync' | 'activate' | 'push' | ''>('');
+const deployments = ref<DeploymentRow[]>([]);
+const skuOptions = ref<SkuOption[]>([]);
+const saving = ref(false);
+const editVisible = ref(false);
+const editForm = ref({ classId: 0, textName: '', skuId: '' });
+
+const currentPreview = computed(
+  () => modelPreviews.value.find((m) => m.modelName === selectedModel.value) || null
+);
+
+const crud = useCrudTable<JiangyiClassMappingRow>({
+  rowKey: (r) => r.id,
+  errorMessage: '加载映射失败',
   autoLoad: false,
-  sort: { prop: 'className', mode: 'local' },
-  fetchPage: async (params) => {
-    const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
-    if (keyword.value.trim()) q.set('q', keyword.value.trim());
-    const yoloPage = await api.request<{ items?: YoloMappingRow[]; total?: number }>(
-      AdminEndpoints.visionMappingsYoloList(q),
-      'GET'
-    );
-    // 主列表刷新时同步刷新阿里云映射（保持迁移前 load() 的双路线行为）
-    const all = await api.request<{ aliyun?: AliyunMappingRow[] }>(
-      AdminEndpoints.visionMappings,
-      'GET'
-    );
-    aliyunMappings.value = all.aliyun || [];
-    return { items: yoloPage.items || [], total: yoloPage.total ?? 0 };
+  sort: { prop: 'classId', mode: 'local' },
+  fetchPage: async () => {
+    if (!deviceId.value) return { items: [], total: 0 };
+    const data = await api.request<{
+      binding: JiangyiBindingInfo | null;
+      mappings: JiangyiClassMappingRow[];
+    }>(AdminEndpoints.deviceJiangyi(deviceId.value), 'GET');
+    binding.value = data.binding;
+    return { items: data.mappings || [], total: (data.mappings || []).length };
   }
 });
 
 const csvOptions: CrudCsvOptions = {
-  filePrefix: '识别类名映射',
-  exportPerm: 'ops:vision:export',
-  headers: ['类别', 'SKU', '商品名', '最低置信度'],
+  filePrefix: '将邑识别映射',
+  exportPerm: 'ops:device:export',
+  headers: ['classId', 'textName', 'SKU', '模型', '状态', '来源'],
   toRows: (rows) =>
-    rows.map((row) => [
-      row.className ?? '',
-      row.skuId ?? '',
-      row.skuName ?? '',
-      row.minConfidence ?? ''
+    rows.map((r) => [
+      r.classId,
+      r.textName ?? '',
+      r.skuId ?? '',
+      r.modelName ?? '',
+      r.status,
+      r.source
     ])
 };
 
-function rowActions(_row: YoloMappingRow): CrudRowAction[] {
-  return [
-    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary', perm: 'ops:vision:edit' },
-    { key: 'delete', label: '删除', icon: Delete, type: 'danger', perm: 'ops:vision:edit' }
-  ];
-}
-
-function onAction({ key, row }: { key: string; row: YoloMappingRow }) {
-  if (key === 'edit') openEdit(row);
-  else if (key === 'delete') void onDelete(row);
-}
-
-function formatConfidence(v?: number | string) {
-  if (v == null || v === '') return '无';
-  const n = Number(v);
-  if (Number.isNaN(n)) return String(v);
-  return n <= 1 ? `${Math.round(n * 100)}%` : String(n);
-}
-
-function enrollmentLabel(status?: string) {
-  return displayLabel('sku_enrollment_status', status, '未知状态');
-}
-
-function enrollmentTagType(status?: string) {
-  if (status === 'PRODUCTION') return 'success';
-  if (status === 'TESTED') return 'warning';
-  return 'info';
-}
-
-function syncRouteQuery() {
-  const query: Record<string, string> = {};
-  if (keyword.value.trim()) query.keyword = keyword.value.trim();
-  router.replace({ query });
-}
-
-function applyRouteQuery() {
-  let changed = false;
-  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
-  if (qKeyword !== keyword.value) {
-    keyword.value = qKeyword;
-    changed = true;
+function rowActions(row: JiangyiClassMappingRow): CrudRowAction[] {
+  const acts: CrudRowAction[] = [];
+  if (row.status === 'ACTIVE') {
+    acts.push({
+      key: 'disable',
+      label: '停用',
+      icon: CircleClose,
+      type: 'warning',
+      perm: 'ops:device:edit'
+    });
+  } else {
+    acts.push({
+      key: 'enable',
+      label: '启用',
+      icon: CircleCheck,
+      type: 'primary',
+      perm: 'ops:device:edit'
+    });
   }
-  return changed;
+  acts.push({
+    key: 'edit',
+    label: '挂接 SKU',
+    icon: EditPen,
+    type: 'primary',
+    perm: 'ops:device:edit'
+  });
+  return acts;
 }
 
-function search() {
-  syncRouteQuery();
-  void crud.search();
+function onAction({ key, row }: { key: string; row: JiangyiClassMappingRow }) {
+  if (key === 'enable' || key === 'disable') void toggleStatus(row);
+  else if (key === 'edit') openEdit(row);
 }
 
-function reset() {
-  keyword.value = '';
-  syncRouteQuery();
-  void crud.search();
+async function loadDevices() {
+  try {
+    const list = await api.request<{ items?: DeviceOption[] }>(
+      AdminEndpoints.devicesOptions,
+      'GET'
+    );
+    deviceOptions.value = list.items || [];
+  } catch {
+    deviceOptions.value = [];
+  }
+}
+
+async function load() {
+  loaded.value = false;
+  binding.value = null;
+  if (!deviceId.value) return;
+  await crud.load({ resetPage: true });
+  loaded.value = true;
+  void loadDeployments();
+}
+
+async function loadModels() {
+  modelsLoading.value = true;
+  try {
+    const q = new URLSearchParams({ classIdBase: String(classIdBase.value) });
+    modelPreviews.value = await api.request<ModelPreview[]>(
+      `${AdminEndpoints.jiangyiModels}?${q.toString()}`,
+      'GET'
+    );
+    if (selectedModel.value && !currentPreview.value) selectedModel.value = '';
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '拉取将邑模型列表失败'));
+  } finally {
+    modelsLoading.value = false;
+  }
+}
+
+async function doModelSync() {
+  if (!ensureSelected()) return;
+  acting.value = 'sync';
+  try {
+    const n = await api.request<number>(
+      AdminEndpoints.deviceJiangyiModelSync(deviceId.value),
+      'POST',
+      {
+        modelName: selectedModel.value,
+        classIdBase: classIdBase.value
+      }
+    );
+    ElMessage.success(`已预生成 ${n} 行映射（停用态），请核对后激活`);
+    await crud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '预生成失败'));
+  } finally {
+    acting.value = '';
+  }
+}
+
+async function doActivate() {
+  if (!ensureSelected()) return;
+  try {
+    await ElMessageBox.confirm(
+      '激活后该模型全部预生成行立即参与结算推荐。已确认 classId ↔ SKU 对照无误？',
+      '激活确认',
+      { type: 'warning', confirmButtonText: '激活', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  acting.value = 'activate';
+  try {
+    const n = await api.request<number>(
+      AdminEndpoints.deviceJiangyiMappingActivate(deviceId.value),
+      'POST',
+      { modelName: selectedModel.value }
+    );
+    ElMessage.success(`已激活 ${n} 行映射`);
+    await crud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '激活失败'));
+  } finally {
+    acting.value = '';
+  }
+}
+
+async function doPush() {
+  if (!ensureSelected()) return;
+  try {
+    await ElMessageBox.confirm(
+      '下发前确认：① 映射已激活；② 设备登记机型与模型机型一致。柜机在线才会收到 WS 指令。确认下发？',
+      '下发确认',
+      { type: 'warning', confirmButtonText: '下发', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  acting.value = 'push';
+  try {
+    const id = await api.request<number>(
+      AdminEndpoints.deviceJiangyiModelPush(deviceId.value),
+      'POST',
+      {
+        modelName: selectedModel.value
+      }
+    );
+    ElMessage.success(`已下发（部署 #${id}），等待柜机回执`);
+    loadDeployments();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '下发失败'));
+  } finally {
+    acting.value = '';
+  }
+}
+
+async function loadDeployments() {
+  if (!deviceId.value) return;
+  try {
+    deployments.value = await api.request<DeploymentRow[]>(
+      AdminEndpoints.deviceJiangyiModelDeployments(deviceId.value),
+      'GET'
+    );
+  } catch {
+    deployments.value = [];
+  }
+}
+
+async function toggleStatus(row: JiangyiClassMappingRow) {
+  const next = row.status !== 'ACTIVE';
+  try {
+    await api.request(
+      AdminEndpoints.deviceJiangyiMappingStatus(deviceId.value, row.classId),
+      'POST',
+      { active: next }
+    );
+    ElMessage.success(next ? '已启用，下次识别即生效' : '已停用');
+    await crud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '变更映射状态失败'));
+  }
 }
 
 async function loadSkus() {
@@ -400,148 +613,54 @@ async function loadSkus() {
   }
 }
 
-function openCreate() {
-  creating.value = true;
-  editForm.className = '';
-  editForm.skuId = '';
-  editForm.minConfidence = 0.72;
-  editForm.mappingSource = undefined;
-  dialogVisible.value = true;
-}
-
-function openEdit(row: YoloMappingRow) {
-  creating.value = false;
-  editForm.className = row.className || '';
-  editForm.skuId = row.skuId || '';
-  const conf = Number(row.minConfidence);
-  if (!Number.isFinite(conf)) {
-    editForm.minConfidence = 0.72;
-  } else if (conf > 1) {
-    editForm.minConfidence = conf / 100;
-  } else {
-    editForm.minConfidence = conf;
-  }
-  editForm.mappingSource = row.mappingSource;
-  dialogVisible.value = true;
-}
-
-function openAliyunCreate() {
-  aliyunForm.value = { categoryId: '', categoryName: '', skuId: '', minConfidence: 0.8 };
-  aliyunVisible.value = true;
-}
-
-function openAliyunEdit(row: AliyunMappingRow) {
-  aliyunForm.value = { ...row };
-  aliyunVisible.value = true;
-}
-
-async function saveAliyun() {
-  if (!aliyunForm.value.categoryId.trim() || !aliyunForm.value.skuId) {
-    ElMessage.warning('请填写类目ID并选择SKU');
-    return;
-  }
-  saving.value = true;
-  try {
-    await api.request(AdminEndpoints.visionMappingsAliyun, 'POST', {
-      categoryId: aliyunForm.value.categoryId.trim(),
-      categoryName: aliyunForm.value.categoryName || undefined,
-      skuId: aliyunForm.value.skuId,
-      minConfidence: aliyunForm.value.minConfidence
-    });
-    ElMessage.success('已保存');
-    aliyunVisible.value = false;
-    await crud.load();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function deleteAliyun(row: AliyunMappingRow) {
-  try {
-    await ElMessageBox.confirm(`确认删除阿里云映射「${row.categoryId}」？`, '删除映射', {
-      type: 'warning'
-    });
-  } catch {
-    return;
-  }
-  try {
-    await api.request(AdminEndpoints.visionMappingAliyun(row.categoryId), 'DELETE');
-    ElMessage.success('已删除');
-    await crud.load();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '删除失败');
-  }
+function openEdit(row: JiangyiClassMappingRow) {
+  editForm.value = { classId: row.classId, textName: row.textName || '', skuId: row.skuId || '' };
+  editVisible.value = true;
 }
 
 async function saveEdit() {
-  const className = String(editForm.className || '').trim();
-  if (!className || !editForm.skuId) {
-    ElMessage.warning(creating.value ? '请填写类别并选择商品' : '请选择商品');
+  if (!editForm.value.skuId) {
+    ElMessage.warning('请选择 SKU');
     return;
   }
   saving.value = true;
   try {
-    await api.request(AdminEndpoints.visionMappingsYolo, 'POST', {
-      className,
-      skuId: editForm.skuId,
-      minConfidence: editForm.minConfidence,
-      mappingSource: editForm.mappingSource || undefined
-    });
-    ElMessage.success(creating.value ? '已新增' : '已保存');
-    dialogVisible.value = false;
+    await api.request(
+      AdminEndpoints.deviceJiangyiMapping(deviceId.value, editForm.value.classId),
+      'PUT',
+      {
+        skuId: editForm.value.skuId,
+        textName: editForm.value.textName || undefined
+      }
+    );
+    ElMessage.success('已保存');
+    editVisible.value = false;
     await crud.load();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     saving.value = false;
   }
 }
 
-async function onDelete(row: YoloMappingRow) {
-  const className = row.className;
-  if (!className) return;
-  try {
-    await ElMessageBox.confirm(`确认删除映射「${className}」？`, '删除识别映射', {
-      type: 'warning'
-    });
-    await api.request(AdminEndpoints.visionMappingYolo(className), 'DELETE');
-    ElMessage.success('已删除');
-    await crud.load();
-  } catch (e: unknown) {
-    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '删除失败'));
-  }
+function ensureSelected() {
+  if (selectedModel.value) return true;
+  ElMessage.warning('请先选择将邑模型');
+  return false;
 }
 
-async function reloadFromRouteQuery() {
-  if (!applyRouteQuery()) return;
-  await crud.load({ resetPage: true });
+function formatInstant(v?: string | null) {
+  if (!v) return '';
+  return String(v).replace('T', ' ').slice(0, 19);
 }
-
-watch(
-  () => route.query.keyword,
-  () => {
-    void reloadFromRouteQuery();
-  }
-);
 
 onMounted(() => {
-  // 首查前先把路由查询参数落到筛选状态（crud 已配 autoLoad:false），这里显式首查
-  applyRouteQuery();
+  void loadDevices();
   void loadSkus();
-  void crud.load();
-});
-onActivated(() => {
-  void reloadFromRouteQuery();
 });
 </script>
 
 <style scoped>
-.aliyun-card {
-  margin-top: 16px;
-}
-
 .page-card-head {
   display: flex;
   justify-content: space-between;
@@ -571,10 +690,50 @@ onActivated(() => {
   gap: 8px;
   flex-wrap: wrap;
 }
-.pipe-cell {
+.jy-device-bar {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.jy-device-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  align-items: center;
+  min-width: 120px;
+}
+.jy-device-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.jy-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.jy-model-card {
+  margin-bottom: 16px;
+}
+.jy-preview-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 6px 16px;
+  margin-bottom: 12px;
+}
+.jy-preview-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+}
+.jy-model-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.jy-deploy-card {
+  margin-top: 16px;
 }
 </style>

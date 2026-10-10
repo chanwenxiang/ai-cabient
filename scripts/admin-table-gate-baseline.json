@@ -11,7 +11,6 @@
     "clients/admin-vue/src/views/ota/OtaView.vue",
     "clients/admin-vue/src/views/reconciliation/ReconciliationView.vue",
     "clients/admin-vue/src/views/replenishment/ReplenishmentView.vue",
-    "clients/admin-vue/src/views/skus/SkuVisionEnrollView.vue",
     "clients/admin-vue/src/views/system/DictManageView.vue",
     "clients/admin-vue/src/views/system/OrgSitesView.vue",
     "clients/admin-vue/src/views/system/SystemConfigView.vue",
@@ -49,7 +48,6 @@
     "clients/admin-vue/src/views/risk/RiskView.vue": 3,
     "clients/admin-vue/src/views/sessions/SessionListView.vue": 5,
     "clients/admin-vue/src/views/skus/SkuListView.vue": 1,
-    "clients/admin-vue/src/views/skus/SkuVisionEnrollView.vue": 3,
     "clients/admin-vue/src/views/sla/SlaView.vue": 1,
     "clients/admin-vue/src/views/system/ApprovalConfigView.vue": 2,
     "clients/admin-vue/src/views/upload/UploadQueueView.vue": 2
