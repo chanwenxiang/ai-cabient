@@ -141,7 +141,7 @@
   flex-shrink: 0;
 }
 .tone-warn .review-icon {
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  background: #f9f1eb;
   color: var(--accent-orange, #c2410c);
 }
 .review-body {
@@ -342,7 +342,7 @@
 }
 .order-tag.soft {
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  background: #f9f1eb;
 }
 .order-amt-block {
   flex-shrink: 0;

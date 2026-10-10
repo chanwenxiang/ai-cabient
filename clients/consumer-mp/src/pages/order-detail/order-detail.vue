@@ -1187,9 +1187,9 @@ function callSupport() {
   border: 1rpx solid transparent;
 }
 .reason-chip.on {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
+  background: #f9eded;
   color: var(--color-danger);
-  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));
+  border-color: #f2d6d6;
 }
 .dispute-input {
   width: 100%;

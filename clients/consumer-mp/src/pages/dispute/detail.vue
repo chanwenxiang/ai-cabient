@@ -531,11 +531,7 @@ function previewEvidence(img: FileAttachmentDto) {
   background: linear-gradient(135deg, var(--brand-soft), var(--white));
 }
 .status-header.tone-warn {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)),
-    var(--white)
-  );
+  background: linear-gradient(135deg, #f9f1eb, var(--white));
 }
 .status-header.tone-success {
   background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), var(--white));

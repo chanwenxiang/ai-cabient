@@ -409,8 +409,8 @@ function goOrders() {
   line-height: 1.6;
 }
 .tip-card {
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
-  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
+  background: #f9f1eb;
+  border: 1rpx solid #eacfba;
 }
 .tip-title {
   display: block;

@@ -2176,8 +2176,8 @@ function stopDevicePoll() {
   border: 1rpx solid var(--brand-mist, #ccfbf1);
 }
 .shopping-banner.wait {
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
-  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
+  background: #f9f1eb;
+  border-color: #eacfba;
 }
 .shopping-banner-title {
   display: block;
@@ -2201,8 +2201,8 @@ function stopDevicePoll() {
 .catalog-notice {
   margin: 14rpx 20rpx 0;
   padding: 18rpx 20rpx;
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
-  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
+  background: #f9f1eb;
+  border: 1rpx solid #eacfba;
   border-radius: var(--radius-control, 12rpx);
   font-size: var(--font-size-caption);
   color: var(--warning, #b45309);
@@ -2549,13 +2549,9 @@ function stopDevicePoll() {
   gap: 18rpx;
   margin: 14rpx 20rpx 0;
   padding: 22rpx;
-  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
+  border: 1rpx solid #eacfba;
   border-radius: var(--radius-card);
-  background: linear-gradient(
-    135deg,
-    var(--warning-soft),
-    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white))
-  );
+  background: linear-gradient(135deg, var(--warning-soft), #f9f1eb);
   box-shadow: 0 9rpx 26rpx rgba(194, 65, 12, 0.08);
 }
 .settlement-review-card.tone-success {
@@ -2563,15 +2559,11 @@ function stopDevicePoll() {
   background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
 }
 .settlement-review-card.tone-wait {
-  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
-  background: linear-gradient(
-    135deg,
-    var(--warning-soft),
-    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white))
-  );
+  border-color: #eacfba;
+  background: linear-gradient(135deg, var(--warning-soft), #f9f1eb);
 }
 .settlement-review-card.tone-warn {
-  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));
+  border-color: #f2d6d6;
   background: linear-gradient(135deg, var(--danger-soft), var(--danger-soft));
 }
 .review-icon {

@@ -386,7 +386,7 @@ async function onSubmit() {
 }
 .history-status.pending {
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
 }
 .history-status.muted {
   color: var(--text-muted, #475569);

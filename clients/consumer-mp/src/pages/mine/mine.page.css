@@ -335,7 +335,7 @@
 .menu-badge {
   font-size: var(--font-size-sm);
   color: var(--danger, #991b1b);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
+  background: #f9eded;
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
 }

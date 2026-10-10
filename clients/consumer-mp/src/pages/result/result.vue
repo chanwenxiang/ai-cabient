@@ -652,11 +652,7 @@ function goHelp() {
   box-sizing: border-box;
 }
 .status-header.tone-warn {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)),
-    var(--white)
-  );
+  background: linear-gradient(135deg, #f9f1eb, var(--white));
 }
 .status-header.tone-refund {
   background: linear-gradient(135deg, var(--info-soft), var(--white));
@@ -944,7 +940,7 @@ function goHelp() {
 .ghost-btn.warn {
   color: var(--warning, #92400e);
   border: 1rpx solid var(--warning-soft);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  background: #f9f1eb;
 }
 .ghost-btn.subtle {
   color: var(--text-subtle, #999);

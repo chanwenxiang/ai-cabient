@@ -24,21 +24,20 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** 强制范围：本次修复范围（蓝本 + 商家小程序），命中即失败。 */
-const ENFORCED = ['packages/shared-uni/src', 'clients/merchant-mp/src'];
 /**
- * 已知欠账（**不静默豁免**）：消费端小程序同名缺陷尚未修。
+ * 强制范围：蓝本 + 两个小程序端，命中即失败。
+ * 消费端（clients/consumer-mp/src，30 处）已于 2026-10-11 到期日当天
+ * 按 merchant-mp 的同源蓝本做**等价替换**（静态 hex = 原 color-mix 在 sRGB 的精确插值，
+ * 因两侧 token 均为静态值：--white:#ffffff / --warning:#b45309 / --danger:#b91c1c），
+ * 故从 PENDING 移入 ENFORCED，防止回归。
+ */
+const ENFORCED = ['packages/shared-uni/src', 'clients/merchant-mp/src', 'clients/consumer-mp/src'];
+/**
+ * 已知欠账（**不静默豁免**）：当前为空。
  * 命中时**逐条播报**；`expiresOn`（含当日）过后若仍有命中 ⇒ **FAIL**，禁止永久挂警告。
  * 修完后：把目录移入 ENFORCED，或从 PENDING 删除。
  */
-const PENDING = [
-  {
-    dir: 'clients/consumer-mp/src',
-    reason: '并发会话在制品时未强制；到期后必须修完或移入 ENFORCED',
-    /** ISO 日期 YYYY-MM-DD（本地日历日），含当日仍 warn；次日起有命中即红。 */
-    expiresOn: '2026-10-10'
-  }
-];
+const PENDING = [];
 
 /** @returns {'missing'|'invalid'|'active'|'expired'} */
 function pendingExpiryStatus(entry, todayYmd) {

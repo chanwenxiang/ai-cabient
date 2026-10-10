@@ -482,7 +482,7 @@ function remainText(end?: string) {
 }
 .campaign-badge.tone-amber {
   color: var(--warning, #92400e);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
 }
 .campaign-badge.tone-sky {
   color: #075985;

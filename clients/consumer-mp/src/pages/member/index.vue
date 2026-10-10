@@ -258,11 +258,7 @@ function goMessages() {
   border-color: var(--color-border);
 }
 .hero.lv-gold {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)),
-    var(--white)
-  );
+  background: linear-gradient(135deg, #f9f1eb, var(--white));
   border-color: var(--warning-soft);
 }
 .hero.lv-platinum {
@@ -308,7 +304,7 @@ function goMessages() {
   background: var(--color-border-subtle, #f1f5f9);
 }
 .hero.lv-gold .spent-chip {
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
 }
 .hero.lv-platinum .spent-chip {
   background: #e0e7ff;
@@ -378,7 +374,7 @@ function goMessages() {
   background: var(--color-border-subtle, #f1f5f9);
 }
 .hero.lv-gold .points-chip {
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  background: #f5e7dd;
 }
 .hero.lv-platinum .points-chip {
   background: #e0e7ff;
