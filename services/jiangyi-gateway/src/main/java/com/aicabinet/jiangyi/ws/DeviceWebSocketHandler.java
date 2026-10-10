@@ -35,7 +35,8 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
 
     public static final String MSG_TYPE_OPEN_DOOR = "openDoor";
     public static final String MSG_TYPE_UPDATE_MODEL = "updateModel";
-    /** 设备模型下发完成回执（V16 §4.2.5 downloadModelNotify，成功后机器端重启）。 */
+    /** 设备模型下发完成回执。V16 §4.2.5 PDF 原件核对：主通道是设备 HTTP POST
+     * /deviceInfo/downloadModelNotify（DeviceInfoController）；本 WS 分支为宽容兜底。 */
     public static final String MSG_TYPE_DOWNLOAD_MODEL_NOTIFY = "downloadModelNotify";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -171,7 +172,8 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
     /**
      * 下发模型更新指令（CB-023，V16 §4.3.2.9）：
      * {@code {msgType:"updateModel", msgContent:{quantity,modelUrl,textUrl,modelName}}}。
-     * 发出 ≠ 设备已应用：回执走 WS 上行 downloadModelNotify（成功后机器端重启）。
+     * 发出 ≠ 设备已应用：回执主通道为 HTTP POST /deviceInfo/downloadModelNotify
+     * （§4.2.5 PDF 原件核对，DeviceInfoController）；此处 WS 分支为宽容兜底。
      */
     public boolean sendModelUpdate(String identifier, String modelName, String modelUrl,
                                    String textUrl, int quantity) {

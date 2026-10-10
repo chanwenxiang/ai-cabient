@@ -166,17 +166,12 @@ public class JiangyiDeviceSimulator implements WebSocket.Listener {
                 }
             }
             currentModelName = modelName;
-            // 回执（V16 §4.2.5）：downloadModelNotify 走 WS 上行（gateway DeviceWebSocketHandler 解析），
-            // 成功后机器端重启——模拟器不重启只回执；msgContent 形态按对象发（gateway 宽容解析兼容字符串）
-            WebSocket ws = this.ws;
-            if (ws != null) {
-                ws.sendText(MAPPER.writeValueAsString(body()
-                        .put("msgType", "downloadModelNotify")
-                        .putPOJO("msgContent", MAPPER.createObjectNode().put("modelName", modelName))), true);
-                log("已上报 downloadModelNotify（WS 上行）modelName=" + modelName);
-            } else {
-                log("WS 未连接，无法回执 downloadModelNotify");
-            }
+            // 回执（V16 §4.2.5 PDF 原件核对）：downloadModelNotify 是设备 HTTP POST
+            // 商户服务器 /deviceInfo/downloadModelNotify（Authorization 头 + identifier/modelName），
+            // 不是 WS 上行——真机固件按此实现，模拟器对齐真机行为；成功后机器端重启，模拟器不重启只回执
+            post("/jiangyi/api/deviceInfo/downloadModelNotify",
+                    body().put("identifier", identifier).put("modelName", modelName));
+            log("已上报 downloadModelNotify（HTTP §4.2.5）modelName=" + modelName);
         } catch (Exception e) {
             log("updateModel 模拟失败：" + e.getMessage());
         }
@@ -194,6 +189,15 @@ public class JiangyiDeviceSimulator implements WebSocket.Listener {
         this.token = data.path("token").asText();
         this.identifier = data.path("identifier").asText("");
         log("token 已获取 identifier=" + identifier);
+        // §4.2.4（PDF 原件核对）：真机取 token 后调 /deviceInfo/getDetail 换设备编码（WS 路径依此拼）；
+        // 模拟器走一遍验证该端点（返回的 identifier 应与 token data 一致，不一致以 getDetail 为准）
+        JsonNode detail = post("/jiangyi/api/deviceInfo/getDetail", MAPPER.createObjectNode());
+        String detailIdentifier = detail.path("data").path("identifier").asText("");
+        if (!detailIdentifier.isBlank() && !detailIdentifier.equals(identifier)) {
+            log("警告：getDetail identifier=" + detailIdentifier + " ≠ token identifier=" + identifier
+                    + "，以 getDetail 为准（§4.2.4 语义）");
+            this.identifier = detailIdentifier;
+        }
     }
 
     private void connectWebSocket() throws Exception {

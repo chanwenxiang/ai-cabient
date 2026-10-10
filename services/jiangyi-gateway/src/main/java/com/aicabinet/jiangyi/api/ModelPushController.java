@@ -17,7 +17,8 @@ import org.springframework.web.server.ResponseStatusException;
  * 将邑模型下发入口（CB-023，V16 §4.3.2.9）：trade 校验（BOUND/机型匹配/幂等）后路由至此，
  * gateway 经 WS 下发 {@code {msgType:"updateModel", msgContent:{quantity,modelUrl,textUrl,modelName}}}。
  *
- * <p>回执链：设备 WS 上行 {@code downloadModelNotify}（V16 §4.2.5，成功后机器端重启）→
+ * <p>回执链：设备 HTTP POST {@code /deviceInfo/downloadModelNotify}（V16 §4.2.5 PDF 原件
+ * 核对为主通道；WS 上行为宽容兜底，成功后机器端重启）→
  * 本网关转发 trade {@code /internal/v1/jiangyi/devices/{deviceId}/model-confirmed}；
  * {@value #MODEL_PUSH_TIMEOUT_MS} 无回执由 SessionWatchdog 置 deployment FAILED。</p>
  *

@@ -125,7 +125,7 @@
 [admin] 激活  POST .../class-mappings/activate   ← activatePregenerated（DISABLED→ACTIVE）
 [admin] 下发  POST .../model-push               ← jiangyi_model_deployment(SENT) → gateway WS updateModel
 [gateway] tracker(MODEL kind) 600s 超时 → trade push-timeout → FAILED（幂等 CAS）
-[设备]   downloadModelNotify(WS 上行) → gateway → trade model-confirmed → CONFIRMED + jiangyi_device 回填
+[设备]   downloadModelNotify(HTTP §4.2.5 主通道；WS 兜底) → gateway → trade model-confirmed → CONFIRMED + jiangyi_device 回填
 [admin] 采集 start-gather → 置锁 → 将邑 gatherOpenDoor（失败回滚锁）
 [admin] 采集 start-training → ticket(UUID 凭据) → commitTraining(modelName, finishNotifyUrl, finishNotifyId)
 [将邑]   → finishNotifyUrl → gateway 公开面 → trade 三重防伪 → FINISHED
@@ -135,19 +135,31 @@
 
 - **V335** sku_jiangyi_link；**V336** jiangyi_device +industrial_control_model +gather_locked_at、jiangyi_model_deployment、jiangyi_training_ticket。
 - trade 新增：JiangyiGatherClient / JiangyiGatewayClient / JiangyiClassesParser / JiangyiModelSyncService / SkuJiangyiLinkService / JiangyiGatherService / AdminJiangyiCatalogController；AdminJiangyiController +模型/采集面；JiangyiInternalController +model-confirmed / push-timeout / gather-finish-notify。
-- gateway 新增：ModelPushController / GatherNotifyController / DeviceWebSocketHandler +updateModel+downloadModelNotify / CommandTracker +Kind.MODEL / SessionWatchdog +sweepModel。
+- gateway 新增：ModelPushController / GatherNotifyController / DeviceInfoController（§4.2.4/5/13，PDF 复读补缺）/ DeviceWebSocketHandler +updateModel+downloadModelNotify(兜底) / CommandTracker +Kind.MODEL / SessionWatchdog +sweepModel。
 - admin：DeviceJiangyiCard +模型同步/采集编排两区块；SkuJiangyiLinkDialog（搜索挂接/新增到将邑/回填 textName/解挂）+ SkuListView「将邑挂接」行操作。
-- 模拟器：updateModel 接收→模拟下载→WS 上行 downloadModelNotify；JIANGYI_SIM_TEXT_NAME 按 classes 行号对照取 classId（JIANGYI_SIM_CLASS_ID_BASE 可配）。
+- 模拟器：updateModel 接收→模拟下载→HTTP POST downloadModelNotify（§4.2.5 对齐真机）；JIANGYI_SIM_TEXT_NAME 按 classes 行号对照取 classId（JIANGYI_SIM_CLASS_ID_BASE 可配）。
 
 ### 7.5 单测
 
-trade 60 用例（JiangyiClassesParserTest 8 / JiangyiModelSyncServiceTest 12 / SkuJiangyiLinkServiceTest 12 / JiangyiGatherServiceTest 12 / AdminJiangyiControllerTest 12 / DeviceValidationServiceTest 4）+ gateway DeviceWebSocketHandlerTest 8（updateModel 报文契约 / downloadModelNotify 宽容解析 / 心跳 / 未知消息忽略）。
+trade 60 用例（JiangyiClassesParserTest 8 / JiangyiModelSyncServiceTest 12 / SkuJiangyiLinkServiceTest 12 / JiangyiGatherServiceTest 12 / AdminJiangyiControllerTest 12 / DeviceValidationServiceTest 4）+ gateway DeviceWebSocketHandlerTest 8（updateModel 报文契约 / downloadModelNotify 宽容解析 / 心跳 / 未知消息忽略）+ DeviceInfoControllerTest 6（getDetail / HTTP 回执转发 / identifier 错配以 token 为准 / 空 modelName 不转发 / trade 失败仍 200 / 视频模式默认 false）。
+
+### 7.5.1 V16.0.0 PDF 原件复读修正（2026-10-10，继采集文档 PDF 教训后对 SAAS 对接文档同法核对）
+
+V16.0.0（110 页纯扫描件 0 文字层，PyMuPDF 渲染 + 视觉阅读）对照 docx 转换稿/一期实现，**一致项**：WS 路径 `/websocket/device/{identifier}?token=`、心跳契约（机器发 heartBeat/PONG、服务端回 `{status:200,msgType:"heartBeat",msgContent:"PONG"}`）、updateModel msgContent `{quantity,modelUrl,textUrl,modelName}`、uploadLockState/uploadDoorState/addRecognitionGoodsToOrder 参数、token 端点 `/token/openDoorDeviceStatus`。**偏差与补缺**：
+
+1. **downloadModelNotify 主通道是 HTTP 不是 WS**（§4.2.5）：设备 POST 商户服务器 `/deviceInfo/downloadModelNotify`（Authorization 头 + 参数 identifier/modelName，响应 `{status:200,data:"0"}`）。此前按转换稿走 WS 上行属误判；gateway 新增 `DeviceInfoController`（HTTP 主通道），WS 分支保留为宽容兜底；模拟器改为 HTTP 对齐真机。
+2. **§4.2.4 `/deviceInfo/getDetail` 一期缺失**：真机取 token 后须调它换「设备编码（identifier）」再拼 WS 路径——一期只靠 token 响应 data.identifier 自描述是文档没有的宽容。已补端点；模拟器启动序列对齐（token→getDetail→WS，不一致以 getDetail 为准）。
+3. **§4.2.13 `/deviceInfo/getArtificialCheckByIdentifier` 补 stub**：视频上传模式查询，默认 data=false（只传异常视频）。
+4. 视频链路 **§4.2.6 `/aliYunOss/getTempUploadToken`（OSS STS）+ §4.2.14 `/device/pokerOrderVideo/uploadVideoUrl`（分片 serialNum/videoQuantity/videoUrls 上下摄像头逗号分隔）未实现**——购买视频复核链路缺 OSS STS 支撑，是否补属范围决策（见 7.6）。
+5. §4.2.9 上报货柜正在使用中路径实为 `/order/openDoubleDoorError`（doorPosition R/L/D）——gateway 已有同路径端点，语义=上一笔未结算时上报，非错误。
+6. §4.2.11（进入大模型）与 §4.2.12（订单异常）**同一路径** `/device/pokerOrder/uploadOrderError`，靠 bigModel=doing 区分——gateway OrderErrorRequest 双字段归一实现正确。
 
 ### 7.6 待真机实锤清单
 
 - classId 行号方向（0/1-based）→ classIdBase 可配 + 预览人工确认兜底。
 - "76"/"88" 与主板对应关系 → 存原值字符串相等，不解释。
-- downloadModelNotify msgContent 真实结构 → gateway 宽容解析（对象/字符串均取 modelName）。
+- ~~downloadModelNotify msgContent 真实结构~~ → **已由 PDF 原件核实**（§4.2.5：HTTP POST identifier+modelName），WS 分支仅兜底。
 - 采集期 WS 共存行为（采集开门时营业 WS 会话是否被将邑侧复用）。
 - finishNotifyUrl 公网可达性（需部署侧 JIANGYI_PUBLIC_BASE_URL + 反代 /jiangyi/api/gather-finish-notify）。
 - §4.4.3 学习是否真的集合粒度（无 productId）。
+- 视频链路是否纳入范围：§4.2.6 OSS STS + §4.2.14 uploadVideoUrl 未实现，异常订单视频复核依赖此链路（用户决策）。
