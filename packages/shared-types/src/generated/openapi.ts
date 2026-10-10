@@ -5833,22 +5833,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/orders/{orderId}/video": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["streamVideo"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/orders/pending-count": {
         parameters: {
             query?: never;
@@ -8881,6 +8865,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/orders/{orderId}/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orderVideos"];
         put?: never;
         post?: never;
         delete?: never;
@@ -17457,6 +17457,27 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["OrderReadModel_Merchant"];
+        };
+        ApiResponseOrderVideoPlaylistDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["OrderVideoPlaylistDto"];
+        };
+        Clip: {
+            /** Format: int32 */
+            serialNum?: number;
+            /** Format: int32 */
+            total?: number;
+            /** Format: int32 */
+            channel?: number;
+            url?: string;
+            playable?: boolean;
+            reason?: string;
+        };
+        OrderVideoPlaylistDto: {
+            source?: string;
+            clips?: components["schemas"]["Clip"][];
         };
         ApiResponseListNotificationDto: {
             /** Format: int32 */
@@ -28738,26 +28759,6 @@ export interface operations {
             };
         };
     };
-    streamVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                orderId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     pendingCount: {
         parameters: {
             query?: never;
@@ -33070,6 +33071,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseOrderReadModel_Merchant"];
+                };
+            };
+        };
+    };
+    orderVideos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseOrderVideoPlaylistDto"];
                 };
             };
         };

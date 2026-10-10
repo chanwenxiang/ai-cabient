@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.*;
+import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.storage.MinioVideoService;
@@ -50,6 +51,7 @@ public class MerchantFinanceService {
     private final WeChatPayProperties weChatPayProperties;
     private final ShoppingSessionMapper sessionRepository;
     private final MinioVideoService minioVideoService;
+    private final JiangyiOrderVideoService jiangyiOrderVideoService;
     private final OrderViewAssembler orderViewAssembler;
     private final MerchantSettlementBillMapper settlementBillRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
@@ -68,6 +70,7 @@ public class MerchantFinanceService {
                                   WeChatPayProperties weChatPayProperties,
                                   ShoppingSessionMapper sessionRepository,
                                   MinioVideoService minioVideoService,
+                                  JiangyiOrderVideoService jiangyiOrderVideoService,
                                   OrderViewAssembler orderViewAssembler,
                                   MerchantSettlementBillMapper settlementBillRepository,
                                   @Lazy MerchantFinanceService self) {
@@ -84,6 +87,7 @@ public class MerchantFinanceService {
         this.weChatPayProperties = weChatPayProperties;
         this.sessionRepository = sessionRepository;
         this.minioVideoService = minioVideoService;
+        this.jiangyiOrderVideoService = jiangyiOrderVideoService;
         this.orderViewAssembler = orderViewAssembler;
         this.settlementBillRepository = settlementBillRepository;
         this.self = self;
@@ -152,6 +156,45 @@ public class MerchantFinanceService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该订单暂无购物视频");
         }
         minioVideoService.streamTo(videoUri, request, response);
+    }
+
+    /**
+     * 商户端取本商户订单的购物视频清单（CB-030）。
+     *
+     * <p>两条来源：会话上有 {@code video_uri} 属旧边缘链路，返回 {@code EDGE} 让前端走既有
+     * 字节流端点；否则回落将邑视频台账 {@code jiangyi_order_video}，逐片签发短时效预签名
+     * 地址（{@code JIANGYI}）—— 桶私有、直传角色只有 PutObject，原始地址必然 403。</p>
+     */
+    @Transactional(readOnly = true)
+    public OrderVideoPlaylistDto orderVideos(Long userId, String orderId) {
+        permissionService.requirePermission(userId, "merchant:orders:list");
+        merchantPortalGuard.requireAccess(userId);
+        CabinetOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        assertOrderBelongsToMerchant(userId, order);
+        String sessionId = order.getSessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_NONE, List.of());
+        }
+        ShoppingSession session = sessionRepository.findById(sessionId).orElse(null);
+        String videoUri = session == null ? null : session.getVideoUri();
+        if (videoUri != null && !videoUri.isBlank()) {
+            return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_EDGE, List.of());
+        }
+        List<JiangyiOrderVideoService.PlayUrlView> rows = jiangyiOrderVideoService.playByOrderNo(sessionId);
+        if (rows.isEmpty()) {
+            return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_NONE, List.of());
+        }
+        List<OrderVideoPlaylistDto.Clip> clips = new ArrayList<>();
+        for (JiangyiOrderVideoService.PlayUrlView row : rows) {
+            int total = row.videoQuantity() == null ? 0 : row.videoQuantity();
+            for (JiangyiOrderVideoService.PlayUrlItem item : row.items()) {
+                // channel 保留上报数组内位置：同片多摄像头时前端才能区分，不再出现两个同名「第 N 段」
+                clips.add(new OrderVideoPlaylistDto.Clip(row.serialNum(), total, item.index(),
+                        item.url(), item.playable(), item.reason()));
+            }
+        }
+        return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_JIANGYI, clips);
     }
 
     @Transactional(readOnly = true)

@@ -37,8 +37,6 @@ export const AuthEndpoints = {
 } as const;
 
 export const ConsumerEndpoints = {
-  /** 订单购物视频（旁路 fetch / download，禁止页内裸拼） */
-  orderVideo: (orderId: string) => `${API_PREFIX}/orders/${encodeURIComponent(orderId)}/video`,
   /** 运行时字典 */
   dictsRuntime: `${API_PREFIX}/dicts/runtime`,
   /** 账户 / 充值 */

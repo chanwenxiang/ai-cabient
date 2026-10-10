@@ -6,6 +6,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.MerchantPortalControllerSupport;
 import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
+import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
 import com.aicabinet.trade.service.ProcurementService;
@@ -209,6 +210,18 @@ public class MerchantPortalController {
             HttpServletResponse response,
             @PathVariable String orderId) {
         support.merchantFinanceService().streamOrderVideo(userId(request), orderId, request, response);
+    }
+
+    /**
+     * CB-030：订单购物视频清单。{@code EDGE} 走既有字节流端点，{@code JIANGYI} 给可直接
+     * 播放的预签名分片地址，{@code NONE} 表示无可用视频。
+     */
+    @RequiresPermissions("merchant:orders:list")
+    @GetMapping("/orders/{orderId}/videos")
+    public ApiResponse<OrderVideoPlaylistDto> orderVideos(
+            HttpServletRequest request,
+            @PathVariable String orderId) {
+        return ApiResponse.ok(support.merchantFinanceService().orderVideos(userId(request), orderId));
     }
 
     @RequiresPermissions("merchant:disputes:list")

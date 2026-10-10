@@ -87,11 +87,33 @@ public class JiangyiOrderVideoService {
         if (row == null) {
             throw new IllegalArgumentException("视频记录不存在: " + id);
         }
+        return toPlayUrlView(row);
+    }
+
+    /**
+     * 按订单号取全部分片的播放视图（CB-030 商户端回放）。
+     *
+     * <p>将邑上报的 {@code orderNo} 就是我方 {@code sessionId}（免映射枢纽约定，见
+     * {@code docs/JIANGYI_GATEWAY_DESIGN.md}），故订单侧凭会话号即可直取全部片。</p>
+     */
+    public List<PlayUrlView> playByOrderNo(String orderNo) {
+        if (orderNo == null || orderNo.isBlank()) {
+            return List.of();
+        }
+        return jiangyiOrderVideoMapper.findByOrderNo(orderNo).stream()
+                .map(this::toPlayUrlView)
+                .toList();
+    }
+
+    private PlayUrlView toPlayUrlView(JiangyiOrderVideo row) {
         String raw = row.getVideoUrls();
-        // '' / null 都是「单片失败」语义（协议 §4.2.14：[] = 视频生成或上传失败）→ 保留一个失败位
+        // '' / null 都是「单片失败」语义（协议 §4.2.14：[] = 视频生成或上传失败）→ 保留一个失败位。
+        // 🔴 split 必须带 limit=-1：写侧是 String.join(",", videoUrls)，原样保留末尾空项；
+        // 而 String.split(",") 会**丢弃末尾空串**，导致「最后一路摄像头/最后一片失败」在复核
+        // 清单里凭空消失（与本类注释承诺的「不静默丢弃失败片」相反）。2026-10-10 商户端 e2e 实测暴露。
         List<String> refs = (raw == null || raw.isBlank())
                 ? List.of("")
-                : Arrays.stream(raw.split(",")).map(String::trim).toList();
+                : Arrays.stream(raw.split(",", -1)).map(String::trim).toList();
         List<PlayUrlItem> items = new ArrayList<>(refs.size());
         for (int i = 0; i < refs.size(); i++) {
             items.add(playUrlItem(i + 1, refs.get(i)));

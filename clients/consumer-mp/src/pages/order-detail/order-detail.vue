@@ -135,12 +135,6 @@
             @click="payNow"
           />
           <app-button
-            v-if="canShowVideo"
-            variant="outline"
-            label="查看购物视频"
-            @click="playVideo"
-          />
-          <app-button
             v-if="canRefund"
             variant="danger"
             :disabled="refundLoading || disputeLoading"
@@ -569,14 +563,6 @@ const canDispute = computed(() => {
 
 const autoRefundEnabled = computed(() => order.value?.refundPolicy !== 'DISPUTE_ONLY');
 
-/** 有会话且已产生账单的订单可查看录像（由后端 /orders/{id}/video 鉴权拉流） */
-const canShowVideo = computed(() => {
-  const o = order.value;
-  if (!o?.sessionId || !o.orderId) return false;
-  const s = String(o.status || '').toUpperCase();
-  return s === 'PAID' || s === 'COMPLETED' || s === 'REFUNDED' || s === 'PARTIAL_REFUNDED';
-});
-
 const canRefund = computed(() =>
   canRefundOnOrderDetail({
     status: order.value?.status,
@@ -696,15 +682,6 @@ const payChannelOptions = computed(() => buildPayChannelOptions(account.value));
 
 function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无');
-}
-
-function playVideo() {
-  const oid = String(order.value?.orderId || '').trim();
-  if (!oid) return;
-  const did = encodeURIComponent(String(order.value?.deviceId || ''));
-  uni.navigateTo({
-    url: `/pages/video/video?orderId=${encodeURIComponent(oid)}&deviceId=${did}`
-  });
 }
 
 function openDispute() {

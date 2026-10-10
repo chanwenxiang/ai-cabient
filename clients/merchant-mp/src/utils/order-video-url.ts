@@ -34,3 +34,46 @@ export function merchantVideoErrorView(err: unknown): MerchantVideoErrorView {
     showCopy: false
   };
 }
+
+/** CB-030：视频来源。EDGE=旧边缘链路（走字节流端点）；JIANGYI=将邑台账（预签名直链）；NONE=无视频。 */
+export type OrderVideoSource = 'EDGE' | 'JIANGYI' | 'NONE';
+
+/** CB-030：单个可播放分片（对应后端 OrderVideoPlaylistDto.Clip）。 */
+export type OrderVideoClip = {
+  serialNum: number;
+  total: number;
+  /** 该片内摄像头通道序号（1 起）。同一 serialNum 可能有多个通道（协议：上下摄像头同片上报）。 */
+  channel: number;
+  url: string | null;
+  playable: boolean;
+  reason: string | null;
+};
+
+/** CB-030：订单购物视频清单（对应后端 OrderVideoPlaylistDto）。 */
+export type OrderVideoPlaylist = {
+  source: OrderVideoSource;
+  clips: OrderVideoClip[];
+};
+
+/**
+ * 从清单挑出真正可播放的片。后端对「该片生成/上传失败」会如实回 playable=false，
+ * 这里只用于播放列表，失败片由调用方按需提示，不静默当成功。
+ */
+export function pickPlayableClips(
+  playlist: OrderVideoPlaylist | null | undefined
+): OrderVideoClip[] {
+  return (playlist?.clips ?? []).filter((c) => c.playable && !!c.url);
+}
+
+/**
+ * CB-030：分片切换条上的标签。
+ *
+ * <p>单片单通道（当前主流形态）只显示「第 N 段」；同一片存在多通道时补上通道号，避免出现
+ * 两个同名「第 N 段」让人分不清播的是哪一路。不做「上/下」命名——协议未定义哪一路是上摄像头，
+ * 臆测会误导复核。</p>
+ */
+export function clipLabel(clip: OrderVideoClip, all: OrderVideoClip[]): string {
+  const base = `第 ${clip.serialNum} 段`;
+  const sameShard = all.filter((c) => c.serialNum === clip.serialNum).length;
+  return sameShard > 1 ? `${base} · 通道${clip.channel}` : base;
+}

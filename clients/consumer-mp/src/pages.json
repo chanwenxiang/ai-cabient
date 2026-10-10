@@ -66,21 +66,6 @@
       ]
     },
     {
-      "root": "pages/video",
-      "pages": [
-        {
-          "path": "video",
-          "style": {
-            "navigationBarTitleText": "购物视频",
-            "navigationBarBackgroundColor": "#000000",
-            "backgroundColor": "#000000",
-            "navigationStyle": "custom",
-            "backgroundColorTop": "#000000"
-          }
-        }
-      ]
-    },
-    {
       "root": "pages/dispute",
       "pages": [
         {

@@ -23,6 +23,17 @@
           :show-center-play-btn="true"
           :enable-progress-gesture="true"
         />
+        <view v-if="clips.length > 1" class="clip-bar">
+          <view
+            v-for="(clip, idx) in clips"
+            :key="`${clip.serialNum}-${clip.channel}-${idx}`"
+            role="button"
+            class="clip-chip"
+            :class="{ 'clip-chip--active': idx === activeClip }"
+            @click="selectClip(idx)"
+            >{{ clipLabel(clip, clips) }}</view
+          >
+        </view>
         <view class="tips">
           <text v-if="metaLine" class="meta">{{ metaLine }}</text>
         </view>
@@ -37,8 +48,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { downloadAuthedFile } from '@/utils/merchant-api';
-import { merchantOrderVideoUrl, merchantVideoErrorView } from '@/utils/order-video-url';
+import { downloadAuthedFile, request } from '@/utils/merchant-api';
+import { MerchantEndpoints } from '@/api/endpoints';
+import {
+  clipLabel,
+  merchantOrderVideoUrl,
+  merchantVideoErrorView,
+  pickPlayableClips,
+  type OrderVideoClip,
+  type OrderVideoPlaylist
+} from '@/utils/order-video-url';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const src = ref('');
@@ -46,6 +65,9 @@ const errorView = ref<ReturnType<typeof merchantVideoErrorView> | null>(null);
 const loading = ref(false);
 const orderId = ref('');
 const deviceId = ref('');
+/** CB-030：将邑多片清单（超过 1 片时展示切换） */
+const clips = ref<OrderVideoClip[]>([]);
+const activeClip = ref(0);
 
 const metaLine = computed(() => {
   const parts: string[] = [];
@@ -58,14 +80,47 @@ async function loadOrderVideo(oid: string) {
   loading.value = true;
   errorView.value = null;
   src.value = '';
-  const apiUrl = merchantOrderVideoUrl(oid);
+  clips.value = [];
+  activeClip.value = 0;
   try {
-    src.value = await downloadAuthedFile(apiUrl, 120_000);
+    // CB-030：先取清单决定走哪条链路。将邑柜机的视频不写会话（shopping_session.video_uri
+    // 只由旧边缘链路写入），必须回落到将邑视频台账拿预签名地址，否则永远「暂无购物视频」。
+    const playlist = await request<OrderVideoPlaylist>(MerchantEndpoints.orderVideos(oid), 'GET');
+    if (playlist?.source === 'JIANGYI') {
+      const playable = pickPlayableClips(playlist);
+      if (!playable.length) {
+        errorView.value = {
+          title: '暂无购物视频',
+          desc: '本单录像该片生成或上传失败，可稍后重试或联系运营核对。',
+          showCopy: false
+        };
+        return;
+      }
+      clips.value = playable;
+      src.value = playable[0].url || '';
+      return;
+    }
+    if (playlist?.source === 'EDGE') {
+      src.value = await downloadAuthedFile(merchantOrderVideoUrl(oid), 120_000);
+      return;
+    }
+    errorView.value = {
+      title: '暂无购物视频',
+      desc: '本单没有可播放的录像。超时免单、模拟柜或文件未上传时常见。',
+      showCopy: false
+    };
   } catch (e) {
     errorView.value = merchantVideoErrorView(e);
   } finally {
     loading.value = false;
   }
+}
+
+function selectClip(index: number) {
+  const clip = clips.value[index];
+  if (!clip?.url) return;
+  activeClip.value = index;
+  src.value = clip.url;
 }
 
 onLoad(async (opts) => {
@@ -148,5 +203,25 @@ function goOrder() {
 .back-link {
   color: var(--success);
   font-size: var(--font-size-body);
+}
+.clip-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+.clip-chip {
+  padding: 8rpx 24rpx;
+  border-radius: var(--radius-control);
+  border: 1rpx solid var(--text-subtle);
+  color: var(--text-subtle);
+  font-size: var(--font-size-xs);
+  opacity: 0.6;
+}
+.clip-chip--active {
+  color: var(--white);
+  border-color: var(--white);
+  opacity: 1;
 }
 </style>

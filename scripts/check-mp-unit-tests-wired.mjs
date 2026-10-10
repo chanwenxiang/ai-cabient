@@ -161,7 +161,9 @@ for (const { name, dir, pkg } of targets) {
   // 审计批次4：数量基线——删测试跌破基线即红（原只判「非零」）。基线 = 2026-10-06 实测
   //（consumer 20 / merchant 25 / admin 13，按本门禁 collectTestFiles 口径）；
   // 上调随增测，下调须改此处并留理由。
-  const BASELINES = { consumer: 20, merchant: 25, admin: 13 };
+  // 2026-10-10 下调 consumer 20→19：消费者端「购物视频」入口整体下线（台账 CB-030，
+  // 与 CB-029「只做运营侧复核」一致），连带删除 utils/order-video-url.test.ts。
+  const BASELINES = { consumer: 19, merchant: 25, admin: 13 };
   const baseKey = label.includes('consumer')
     ? 'consumer'
     : label.includes('merchant')
