@@ -872,42 +872,18 @@ async function main() {
       );
     }
 
-    // —— TC-VIDEO-001 购物视频播放页（审计 P3-1 后的新契约）——
-    // 旧用例靠 ?url=<静态mp4> 播放——该裸 url 深链正是被移除的钓鱼承载面
-    // （官方页壳内可播任意视频），页面现在只认 orderId 后端鉴权拉流。
-    // 新契约两个确定性断言：
-    //   a) 无参数打开 → fail-closed 文案「缺少订单号，无法加载视频」；
-    //   b) 假单号打开 → 诚实失败 UI（该订单暂无购物视频 / 播放失败 / 无法访问），
-    //      证明 orderId 路径与鉴权拉流接线正常，且不再回退裸 url。
-    await gotoPath(page, '/pages/video/video');
-    await page.waitForTimeout(1500);
-    const noParamText = await bodyText(page);
-    const failClosedOk = /缺少订单号/.test(noParamText);
-
-    await gotoPath(page, '/pages/video/video?orderId=UAT-NO-SUCH-ORDER');
-    await page.waitForTimeout(2500);
-    text = await bodyText(page);
-    const bogusOrderFailedUi = /该订单暂无购物视频|播放失败|视频地址无法访问/.test(text);
-    // 不得出现「能播」的假象：页面上不该有可播放的 video 元素
-    const hasPlayableVideo = await page.evaluate(() => {
-      const v = document.querySelector('video');
-      return Boolean(v && (v.currentSrc || v.src));
-    });
-    const videoOk = failClosedOk && bogusOrderFailedUi && !hasPlayableVideo;
-    const e10v = await shot(page, '10v-video-page');
-    record(
-      'TC-VIDEO-001',
-      '购物视频播放页（仅 orderId 鉴权拉流）',
-      '功能',
-      videoOk ? 'PASS' : 'FAIL',
-      videoOk
-        ? `fail-closed 无参文案 ✓ / 假单号诚实失败 ✓ / 无裸 url 播放 ✓`
-        : `failClosed=${failClosedOk} bogusFailedUi=${bogusOrderFailedUi} playableVideo=${hasPlayableVideo} body=${text
-            .split('\n')
-            .slice(0, 6)
-            .join(' | ')}`,
-      e10v
-    );
+    // —— TC-VIDEO-001 已删除（CB-030：消费者端购物视频能力**有意不开放**）——
+    // 原用例钉的是「购物视频播放页 + 仅 orderId 鉴权拉流」。该链路已整体下线：
+    //   ①前端删 pages/video 分包与订单详情「查看购物视频」入口；②后端删
+    //   GET /api/v2/orders/{orderId}/video（流式端点）。
+    // 🔴 为什么会删而不是改写：想验「某页已不存在」只有两条路，都不合格 ——
+    //   (a) 打开该路由：路由已从 pages.json 摘除，会落到容错页甚至抛 console 报错，
+    //       把 TC-QUAL-001（控制台严重错误）一起带红 —— 用脆弱手段验一个不存在的东西；
+    //   (b) 探测旧流式端点是否 404：未登录时任何 /api/v2/** 都返回 401（鉴权前置），
+    //       断言「不是 200」等于恒真 —— 假绿。
+    // 该「已下线」事实改由**离线可验证**的两处钉住：
+    //   · 后端端点：check-openapi-types（从运行容器重生成 openapi.ts 并 git diff）；
+    //   · 消费端面：scripts/check-consumer-endpoints.mjs 的 REMOVED_CONSUMER_SURFACES。
 
     // —— TC-IMP-025 已结案争议文案（扣款/退款渠道）——
     // 单号不再硬编码：旧常量 1788252219672817302 / 1788247248295553600 在演示库里**均 0 行命中**
