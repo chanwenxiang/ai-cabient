@@ -1076,6 +1076,11 @@ export interface DisputeTicketDto {
   sessionId?: string;
   deviceId?: string;
   deviceName?: string;
+  /**
+   * 服务端签发的可播地址：旧边缘 MinIO 预签名，或将邑柜机台账兜底（将邑柜机不写
+   * shopping_session.video_uri，CB-030）。运营侧争议工作台据此播放录像。
+   */
+  videoPreviewUrl?: string;
   reason?: string;
   status: string;
   createdAt?: string;

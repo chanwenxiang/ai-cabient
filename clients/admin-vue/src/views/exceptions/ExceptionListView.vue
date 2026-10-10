@@ -938,7 +938,8 @@ async function unarchiveRow(row: OpsException) {
 async function playVideo(sessionId?: string) {
   videoLoading.value = true;
   try {
-    await playSessionVideo(sessionId);
+    // 旧边缘拉流失败时回退将邑柜机台账（CB-030/CB-029）
+    await playSessionVideo(sessionId, () => fetchJiangyiFallbackUrl(String(sessionId || '')));
   } finally {
     videoLoading.value = false;
   }
@@ -977,15 +978,66 @@ async function removeManualLine(index: number) {
   }
 }
 
+interface JiangyiOrderVideoRow {
+  id: number;
+  videoUrls?: string | null;
+}
+interface JiangyiPlayUrlItem {
+  index?: number;
+  url?: string | null;
+  playable?: boolean;
+}
+interface JiangyiPlayUrlView {
+  id?: number;
+  items?: JiangyiPlayUrlItem[];
+}
+
+/**
+ * 回退取址：按 sessionId（= 将邑上报的 orderNo，免映射，CB-029）查柜机台账，取首个可播分片地址。
+ *
+ * <p>🔴 将邑柜机从不写 shopping_session.video_uri（CB-030）⇒ 旧边缘 blob 拉流对将邑单必失败，
+ * 不接这条回退运营侧就永远看不到录像。本页的 OpsExceptionDto 未下发视频地址（该 DTO 为列表/详情
+ * 共用，不宜挂短时效直链），故在此按需取址。</p>
+ */
+async function fetchJiangyiFallbackUrl(sessionId: string): Promise<string | null> {
+  const id = (sessionId || '').trim();
+  if (!id) return null;
+  const rows = await api.request<JiangyiOrderVideoRow[]>(
+    AdminEndpoints.jiangyiOrderVideosByOrder(id),
+    'GET'
+  );
+  for (const row of rows || []) {
+    const view = await api.request<JiangyiPlayUrlView>(
+      AdminEndpoints.jiangyiOrderVideoPlayUrl(row.id),
+      'GET'
+    );
+    const hit = (view?.items || []).find((it) => it.playable && it.url);
+    if (hit?.url) return hit.url;
+  }
+  return null;
+}
+
 async function loadInlineVideo(sessionId?: string, force = false) {
   if (!sessionId) return;
   if (inlineVideoUrl.value && !force) return;
   clearInlineVideo();
   videoLoading.value = true;
   try {
-    const { url, revoke } = await fetchSessionVideoBlob(sessionId);
-    inlineVideoUrl.value = url;
-    inlineVideoRevoke = revoke;
+    try {
+      const { url, revoke } = await fetchSessionVideoBlob(sessionId);
+      inlineVideoUrl.value = url;
+      inlineVideoRevoke = revoke;
+    } catch (edgeErr) {
+      // 旧边缘录像不可用：回退将邑柜机台账。回退查询自身失败时保留原始错误（不掩盖真因）。
+      let fallback: string | null = null;
+      try {
+        fallback = await fetchJiangyiFallbackUrl(sessionId);
+      } catch {
+        /* 回退查询失败：保留下方 edgeErr */
+      }
+      if (!fallback) throw edgeErr;
+      inlineVideoUrl.value = fallback;
+    }
   } catch (e) {
     inlineVideoError.value = e instanceof Error ? e.message : '播放失败';
     ElMessage.error(inlineVideoError.value);

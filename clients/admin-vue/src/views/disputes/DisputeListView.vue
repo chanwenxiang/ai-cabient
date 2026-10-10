@@ -371,7 +371,7 @@
                 type="warning"
                 size="small"
                 :loading="videoLoading"
-                @click="loadEmbedVideo(selected.sessionId, true)"
+                @click="loadEmbedVideo(selected.sessionId, true, selected.videoPreviewUrl)"
                 >重新加载录像</el-button
               >
               <el-button
@@ -381,7 +381,7 @@
                 "
                 link
                 type="primary"
-                @click="playVideo(selected.sessionId)"
+                @click="playVideo(selected.sessionId, selected.videoPreviewUrl)"
                 >新窗口打开</el-button
               >
               <el-checkbox v-model="videoReviewed" :disabled="!embedVideoUrl && !noVideoAck"
@@ -904,12 +904,20 @@ function onDetailClosed() {
   draftLines.value = [];
 }
 
-async function loadEmbedVideo(sessionId?: string, force = false) {
+async function loadEmbedVideo(sessionId?: string, force = false, previewUrl?: string | null) {
   if (!sessionId) return;
   if (embedVideoUrl.value && !force) return;
   videoLoading.value = true;
   try {
     clearEmbedVideo();
+    // 优先用服务端下发的可播地址（videoPreviewUrl：旧边缘 MinIO 预签名，或将邑柜机台账兜底）。
+    // 将邑柜机从不写 shopping_session.video_uri（CB-030）⇒ 对将邑单 blob 拉流必失败，
+    // 该字段是运营侧能看到将邑录像的唯一来源。地址已是短时效直链，直接喂 <video>。
+    const direct = (previewUrl || '').trim();
+    if (direct) {
+      embedVideoUrl.value = direct;
+      return;
+    }
     const { url, revoke } = await fetchSessionVideoBlob(sessionId);
     embedVideoUrl.value = url;
     embedVideoRevoke = revoke;
@@ -1035,7 +1043,7 @@ function rowActions(row: DisputeTicketDto): CrudRowAction[] {
 
 function onRowAction({ key, row }: { key: string; row: DisputeTicketDto }) {
   if (key === 'detail') openDetail(row);
-  if (key === 'video') playVideo(row.sessionId);
+  if (key === 'video') playVideo(row.sessionId, row.videoPreviewUrl);
   if (key === 'exception') goExceptions(row.deviceId);
   if (key === 'order') goOrders(row.deviceId, row.orderId);
   if (key === 'mapping') goVisionMapping(row);
@@ -1088,7 +1096,14 @@ function goVisionMapping(row?: DisputeTicketDto | null) {
   goPath('/vision-mappings', query);
 }
 
-async function playVideo(sessionId?: string) {
+async function playVideo(sessionId?: string, previewUrl?: string | null) {
+  // 服务端已下发可播地址（videoPreviewUrl：旧边缘 MinIO 预签名，或将邑柜机台账兜底，见 CB-030）
+  // 时直接开新窗口，跳过必失败的 blob 拉流。
+  const direct = (previewUrl || '').trim();
+  if (direct) {
+    globalThis.open(direct, '_blank');
+    return;
+  }
   videoLoading.value = true;
   try {
     await playSessionVideo(sessionId);
@@ -1134,7 +1149,7 @@ function openDetail(row: DisputeTicketDto) {
   resetDraftFromSuggested();
   void ensureSkusLoaded();
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
-    void loadEmbedVideo(row.sessionId);
+    void loadEmbedVideo(row.sessionId, false, row.videoPreviewUrl);
   }
 }
 
