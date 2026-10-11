@@ -1465,38 +1465,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/recognition-upload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["upload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/recognition-preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["preview"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/promotions": {
         parameters: {
             query?: never;
@@ -1619,22 +1587,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["claim"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/dispute-suggest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["disputeSuggest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11795,87 +11747,6 @@ export interface components {
             /** Format: int64 */
             taskId: number;
         };
-        ApiResponseDevRecognitionTestResponse: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DevRecognitionTestResponse"];
-        };
-        DevRecognitionItemDto: {
-            skuId?: string;
-            skuName?: string;
-            /** Format: int32 */
-            quantity?: number;
-            /** Format: float */
-            confidence?: number;
-            /** Format: int32 */
-            unitPriceCents?: number;
-            /** Format: int32 */
-            lineAmountCents?: number;
-        };
-        DevRecognitionPreviewDto: {
-            items?: components["schemas"]["DevRecognitionItemDto"][];
-            detectedClasses?: string[];
-            /** Format: float */
-            overallConfidence?: number;
-            needReview?: boolean;
-            modelVersion?: string;
-            hint?: string;
-        };
-        DevRecognitionTestResponse: {
-            session?: components["schemas"]["SessionDto"];
-            order?: components["schemas"]["OrderReadModel"];
-            videoUri?: string;
-            hint?: string;
-            recognition?: components["schemas"]["DevRecognitionPreviewDto"];
-        };
-        OrderReadModel: {
-            orderId?: string;
-            sessionId?: string;
-            /** Format: int64 */
-            userId?: number;
-            deviceId?: string;
-            merchantId?: string;
-            deviceName?: string;
-            merchantName?: string;
-            /** Format: int32 */
-            totalAmountCents?: number;
-            /** Format: int32 */
-            originalAmountCents?: number;
-            /** Format: int32 */
-            couponDiscountCents?: number;
-            /** Format: int32 */
-            memberDiscountCents?: number;
-            status?: string;
-            payChannel?: string;
-            /** Format: int32 */
-            lineCount?: number;
-            lineSummary?: string;
-            payTradeNo?: string;
-            paymentOperationId?: string;
-            /** Format: date-time */
-            refundedAt?: string;
-            /** Format: int32 */
-            refundedCents?: number;
-            inventoryDeducted?: boolean;
-            refundPolicy?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            paidAt?: string;
-            splitStatus?: string;
-            lines?: components["schemas"]["OrderLineDto_Consumer"][];
-            /** Format: int32 */
-            balanceBeforeCents?: number;
-            /** Format: int32 */
-            balanceAfterCents?: number;
-        };
-        ApiResponseDevRecognitionPreviewDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DevRecognitionPreviewDto"];
-        };
         ReplyFeedbackRequest: {
             reply: string;
         };
@@ -11922,6 +11793,47 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["ResolveDisputeResultDto"];
+        };
+        OrderReadModel: {
+            orderId?: string;
+            sessionId?: string;
+            /** Format: int64 */
+            userId?: number;
+            deviceId?: string;
+            merchantId?: string;
+            deviceName?: string;
+            merchantName?: string;
+            /** Format: int32 */
+            totalAmountCents?: number;
+            /** Format: int32 */
+            originalAmountCents?: number;
+            /** Format: int32 */
+            couponDiscountCents?: number;
+            /** Format: int32 */
+            memberDiscountCents?: number;
+            status?: string;
+            payChannel?: string;
+            /** Format: int32 */
+            lineCount?: number;
+            lineSummary?: string;
+            payTradeNo?: string;
+            paymentOperationId?: string;
+            /** Format: date-time */
+            refundedAt?: string;
+            /** Format: int32 */
+            refundedCents?: number;
+            inventoryDeducted?: boolean;
+            refundPolicy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            paidAt?: string;
+            splitStatus?: string;
+            lines?: components["schemas"]["OrderLineDto_Consumer"][];
+            /** Format: int32 */
+            balanceBeforeCents?: number;
+            /** Format: int32 */
+            balanceAfterCents?: number;
         };
         ResolveDisputeResultDto: {
             order?: components["schemas"]["OrderReadModel"];
@@ -21216,67 +21128,6 @@ export interface operations {
             };
         };
     };
-    upload: {
-        parameters: {
-            query: {
-                deviceId: string;
-                sessionId?: string;
-                mode?: string;
-                settle?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    image: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDevRecognitionTestResponse"];
-                };
-            };
-        };
-    };
-    preview: {
-        parameters: {
-            query?: {
-                deviceId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    image: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDevRecognitionPreviewDto"];
-                };
-            };
-        };
-    };
     listAll: {
         parameters: {
             query?: {
@@ -21492,35 +21343,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseDisputeTicketDto"];
-                };
-            };
-        };
-    };
-    disputeSuggest: {
-        parameters: {
-            query: {
-                deviceId: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    image: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDevRecognitionPreviewDto"];
                 };
             };
         };
