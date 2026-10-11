@@ -177,7 +177,8 @@ const BASE_NAV: NavItem[] = [
     path: '/vision-mappings',
     title: '识别映射',
     group: '设备商品',
-    perm: 'ops:vision:list',
+    // 旧 ops:vision:list 随旧映射控制器删除（批5）；页面数据源=AdminJiangyiController（ops:device:*）
+    perm: 'ops:device:list',
     keywords: ['映射', 'vision', '类名', '端侧']
   },
   {
