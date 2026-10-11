@@ -108,7 +108,7 @@ const scopeArgs = (serviceSource.match(/CoroutineScope\s*\(([^\n]*)/) || [])[1];
 if (scopeArgs === undefined) {
   fail(
     'service/CabinetService.kt 里找不到 `CoroutineScope(` —— ' +
-      '「CabinetController → offlineQueue.enqueue → 落盘」这条链的线程依据已无从判定，请同步本门禁'
+      '「出站队列落盘链」的线程依据已无从判定，请同步本门禁'
   );
 }
 if (/Dispatchers\s*\.\s*Main\b/.test(scopeArgs)) {
@@ -122,7 +122,7 @@ if (!/Dispatchers\s*\.\s*(Default|IO)\b/.test(scopeArgs)) {
   fail(
     `service/CabinetService.kt 的 CoroutineScope 实参里解析不出 Dispatchers.Default|IO：\n` +
       `    CoroutineScope(${scopeArgs.trim()})\n` +
-      `  这是「CabinetController → offlineQueue.enqueue → 落盘」链**不在主线程**的依据；\n` +
+      `  这是「出站队列落盘」链**不在主线程**的依据；\n` +
       `  解析不出就必须人工复核并同步本门禁，不能让判断凭默认值成立。`
   );
 }
@@ -145,28 +145,10 @@ const DECLARED = new Map([
   [
     'mqtt/OutboundMqttQueue.kt::size',
     'size() 内部调用，线程随调用方（见 MqttDeviceClient.kt::size）'
-  ],
-  [
-    'service/CabinetController.kt::enqueue',
-    'finishShoppingClose() ← handleOpenDoor 的 scope.launch（Dispatchers.Default）；' +
-      '此处只在上传失败分支触发，与同函数内的阻塞上传同一线程'
-  ],
-  [
-    'upload/OfflineUploadQueue.kt::mutate',
-    'enqueue() 内部调用，线程随调用方（见 CabinetController.kt::enqueue）'
-  ],
-  [
-    'upload/OfflineUploadQueue.kt::enqueue',
-    'enqueueSingle() 内部委托；enqueueSingle 当前无外部调用者（若将来接线，必须重新复核线程）'
-  ],
-  [
-    'upload/OfflineUploadQueue.kt::snapshot',
-    'processQueue() ← start() 在 offline-upload 单线程 executor 上调度（scheduleWithFixedDelay + execute）'
-  ],
-  [
-    'upload/OfflineUploadQueue.kt::replaceAll',
-    'processQueue() ← 同上（offline-upload 单线程 executor）'
   ]
+  // 2026-10-11 批6：OfflineUploadQueue（旧录像离线上传队列）随旧视频链退役，
+  // 其 5 条接触点清单与 CabinetController::enqueue 一并移除
+  // （docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批6）。
 ]);
 
 /** 写类 API：任意接收者。 */
@@ -229,7 +211,9 @@ for (const file of files) {
 }
 
 // 守卫门禁自身：接触点太少说明解析锚点被重写，门禁会静默变成「永远绿」。
-const MIN_CONTACT_POINTS = 8;
+// 2026-10-11 批6：OfflineUploadQueue（旧录像离线上传队列）随旧视频链退役，
+// 队列接触点 8 → 7（docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批6）。
+const MIN_CONTACT_POINTS = 7;
 const totalContacts = [...found.values()].reduce((sum, list) => sum + list.length, 0);
 if (totalContacts < MIN_CONTACT_POINTS) {
   fail(
