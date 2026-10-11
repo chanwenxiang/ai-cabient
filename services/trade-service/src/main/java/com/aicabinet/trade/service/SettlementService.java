@@ -75,14 +75,6 @@ public class SettlementService {
         return settleOrchestrator.processRecognitionAfterVision(session, recognition);
     }
 
-    /**
-     * 识别不可用：短事务建争议单后抛 {@link DisputeRequiredException}（方法签名供调用方 return）。
-     */
-    public OrderReadModel escalateVisionUnavailable(ShoppingSession session,
-                                                    VisionServiceClient.RecognitionResult unavailable) {
-        return settleOrchestrator.escalateVisionUnavailable(session, unavailable);
-    }
-
     public OrderReadModel processRecognitionResult(ShoppingSession session,
                                              VisionServiceClient.RecognitionResult recognition) {
         return settleOrchestrator.processRecognitionResult(session, recognition);

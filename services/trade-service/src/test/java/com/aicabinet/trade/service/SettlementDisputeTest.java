@@ -14,10 +14,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.aicabinet.trade.support.ApiMessages;
-import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -40,7 +40,6 @@ class SettlementDisputeTest {
     @Mock CabinetOrderMapper orderRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderLineMapper orderLineRepository;
     @Mock com.aicabinet.trade.mapper.DeviceSlotMapper slotRepository;
-    @Mock VisionServiceClient visionClient;
     @Mock DisputeService disputeService;
     @Mock SettlementVisionAsyncService settlementVisionAsyncService;
     @Mock RevenueSplitService revenueSplitService;
@@ -88,7 +87,7 @@ class SettlementDisputeTest {
                 securityProperties, stagingProperties, systemConfigService, skuVisionEnrollmentService,
                 disputeService, consumerPreauthService, settlementService, orderSupport, recognitionResultWriter);
         SettlementSettleOrchestrator settleOrchestrator = new SettlementSettleOrchestrator(
-                sessionRepository, orderRepository, visionClient, deviceValidationService,
+                sessionRepository, orderRepository, deviceValidationService,
                 recognitionSvc, settlementService, orderSupport, null);
         org.springframework.test.util.ReflectionTestUtils.setField(settleOrchestrator, "self", settleOrchestrator);
         org.springframework.test.util.ReflectionTestUtils.setField(
@@ -227,19 +226,23 @@ class SettlementDisputeTest {
     }
 
     @Test
-    void visionUnavailable_inMockMode_escalatesWithoutCharging() {
+    void legacyClose_cloudVisionRetired_escalatesWithoutCharging() {
+        // 旧云识别已退役（2026-10-11）：关门结算不再调用任何识别引擎，
+        // 占位「待人工审核」结果必须仍走 fail-closed 争议，且零资金移动。
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("S-VISION-DOWN");
         session.setUserId(13800138000L);
         session.setDeviceId("CAB-001");
 
         when(orderRepository.findBySessionId("S-VISION-DOWN")).thenReturn(java.util.Optional.empty());
-        when(visionClient.recognize(session)).thenThrow(new ResourceAccessException("vision down"));
+        when(systemConfigService.usesGravityFusion()).thenReturn(false);
 
         assertThrows(DisputeRequiredException.class, () -> settlementService.settle(session));
 
-        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
-                eq("识别服务暂时不可用，已转人工审核，本次暂未扣款"));
+        org.mockito.ArgumentCaptor<VisionServiceClient.RecognitionResult> captor =
+                org.mockito.ArgumentCaptor.forClass(VisionServiceClient.RecognitionResult.class);
+        verify(disputeService).createTicket(eq(session), captor.capture(), anyString());
+        assertEquals("cloud-vision-retired", captor.getValue().modelVersion());
         verifyNoInteractions(orderPaymentService, inventoryService, revenueSplitService);
     }
 

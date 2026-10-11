@@ -5,27 +5,21 @@ import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClientException;
 
 import java.util.List;
 
 /**
- * 结算入口编排（从 {@link SettlementService} 拆出）：视觉 HTTP 在事务外，
- * 分布式锁内再进入短事务识别落单。
+ * 结算入口编排（从 {@link SettlementService} 拆出）：锁内先判重/校验，
+ * 再进入短事务识别落单。识别来源见 {@link #settle}（旧云识别已退役）。
  */
 @Service
 public class SettlementSettleOrchestrator {
 
-    private static final Logger log = LoggerFactory.getLogger(SettlementSettleOrchestrator.class);
-
     private final ShoppingSessionMapper sessionRepository;
     private final CabinetOrderMapper orderRepository;
-    private final VisionServiceClient visionClient;
     private final DeviceValidationService deviceValidationService;
     private final SettlementRecognitionService settlementRecognitionService;
     private final SettlementService settlement;
@@ -35,7 +29,6 @@ public class SettlementSettleOrchestrator {
 
     public SettlementSettleOrchestrator(ShoppingSessionMapper sessionRepository,
                                         CabinetOrderMapper orderRepository,
-                                        VisionServiceClient visionClient,
                                         DeviceValidationService deviceValidationService,
                                         SettlementRecognitionService settlementRecognitionService,
                                         @Lazy SettlementService settlement,
@@ -43,7 +36,6 @@ public class SettlementSettleOrchestrator {
                                         @Lazy SettlementSettleOrchestrator self) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
-        this.visionClient = visionClient;
         this.deviceValidationService = deviceValidationService;
         this.settlementRecognitionService = settlementRecognitionService;
         this.settlement = settlement;
@@ -52,7 +44,19 @@ public class SettlementSettleOrchestrator {
     }
 
     /**
-     * 视觉识别 HTTP 在事务外；分布式锁内先识别再短事务落库/扣款，避免占用 DB 连接等待 vision。
+     * 关门结算入口（旧边缘链路残留路径）。
+     *
+     * <p>🔴 旧云识别已退役（2026-10-11 拍板，docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md）：
+     * 此处<b>不再调用任何识别引擎</b>，直接构造「待人工审核」占位结果进既有管道——</p>
+     * <ul>
+     *   <li>将邑会话根本不走本方法（{@code SessionDoorService} 对将邑豁免 settleAfterClose，
+     *       真识别经 edge-results → completeAsyncRecognition 带结果结算）；</li>
+     *   <li>生产非将邑会话已被 {@code DeviceValidationService.ensureJiangyiOnlyShopping}
+     *       挡在开门（批1），本方法在生产无新增流量；</li>
+     *   <li>mock 环境（CI/本地演示）由既有 dev-cart/gravity 证据短路成单（与此前
+     *       vision-service 不可达时的熔断回退完全同形，ConsumerE2E 即在该形态下常绿）。</li>
+     * </ul>
+     * 失败语义保持 fail-closed：无占位之外的识别，一律转人工审核，不扣款。
      */
     public OrderReadModel settle(ShoppingSession session) {
         return settlement.runWithSessionSettleLock(session.getSessionId(), () -> {
@@ -61,19 +65,10 @@ public class SettlementSettleOrchestrator {
             }
             deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
 
-            VisionServiceClient.RecognitionResult recognition;
-            try {
-                recognition = visionClient.recognize(session);
-                recognition = settlementRecognitionService.withGravityFallback(session, recognition);
-            } catch (RestClientException | IllegalStateException e) {
-                VisionServiceClient.RecognitionResult unavailable = new VisionServiceClient.RecognitionResult(
-                        "UNAVAILABLE-" + session.getSessionId(), List.of(), 0f, true,
-                        "vision-unavailable", List.of());
-                log.warn("vision unavailable session={}", session.getSessionId(), e);
-                // 经代理进入短事务写争议单，并抛出 DisputeRequiredException
-                return self.escalateVisionUnavailable(session, unavailable);
-            }
-            return self.processRecognitionAfterVision(session, recognition);
+            VisionServiceClient.RecognitionResult retired = new VisionServiceClient.RecognitionResult(
+                    "RETIRED-" + session.getSessionId(), List.of(), 0f, true,
+                    "cloud-vision-retired", List.of());
+            return self.processRecognitionAfterVision(session, retired);
         });
     }
 
@@ -83,17 +78,6 @@ public class SettlementSettleOrchestrator {
                                                         VisionServiceClient.RecognitionResult recognition) {
         sessionRepository.findByIdForUpdate(session.getSessionId());
         return settlementRecognitionService.processRecognitionResultUnlocked(session, recognition);
-    }
-
-    /**
-     * 识别不可用：短事务建争议单后抛 {@link DisputeRequiredException}（方法签名供调用方 return）。
-     */
-    @Transactional(noRollbackFor = {DisputeRequiredException.class})
-    public OrderReadModel escalateVisionUnavailable(ShoppingSession session,
-                                                    VisionServiceClient.RecognitionResult unavailable) {
-        settlementRecognitionService.escalateToDispute(session, unavailable,
-                "识别服务暂时不可用，已转人工审核，本次暂未扣款");
-        throw new IllegalStateException("unreachable after dispute escalate");
     }
 
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
