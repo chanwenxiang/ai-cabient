@@ -107,9 +107,20 @@ public class SkuJiangyiLinkService {
     /**
      * 我方商品新增到将邑商品库（§4.1.5）→ 成功才落 link(CREATED)，无半挂状态。
      * color 枚举 0-10 / category ∈ bottle|box|bag|bowl|egg 由服务层缺省兜底（color=0 其他）。
+     *
+     * <p>mainImg 将邑侧必填（采集文档 §4.1.5 商品主图 M）：请求未带时回退我方 SKU
+     * 的商品主图（imageUrl）；两边都没有则 409 提示先登记图片——此前弹窗恒发空串，
+     * 把「主图缺失」拖到将邑 500 才暴露，运营无从下手。</p>
      */
     public JiangyiSkuJiangyiLink createInJiangyi(String skuId, ProductCreateSpec spec) {
-        requireSku(skuId);
+        SkuCatalog sku = requireSku(skuId);
+        String mainImg = spec.mainImg() != null && !spec.mainImg().isBlank()
+                ? spec.mainImg().trim()
+                : (sku.getImageUrl() == null ? "" : sku.getImageUrl().trim());
+        if (mainImg.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "将邑要求商品主图：请先在商品管理登记该商品的图片，再新增到将邑商品库");
+        }
         Map<String, Object> body = new HashMap<>();
         body.put("name", spec.name());
         body.put("specs", spec.specs());
@@ -118,7 +129,7 @@ public class SkuJiangyiLinkService {
         body.put("brandName", spec.brandName());
         body.put("purchasePrice", spec.purchasePrice());
         body.put("salePrice", spec.salePrice());
-        body.put("mainImg", spec.mainImg());
+        body.put("mainImg", mainImg);
         body.put("color", spec.color() == null ? 0 : spec.color());
         body.put("applyMachineId", 21);
         body.put("category", spec.category());

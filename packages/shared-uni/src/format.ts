@@ -115,7 +115,13 @@ export function yuanToCents(yuan: unknown): number | null {
 }
 
 export type OpenErrorKind =
-  'balance' | 'device_not_found' | 'device_paused' | 'device_busy' | 'rate_limit' | 'other';
+  | 'balance'
+  | 'device_not_found'
+  | 'device_paused'
+  | 'device_gathering'
+  | 'device_busy'
+  | 'rate_limit'
+  | 'other';
 
 function errorText(err: unknown): string {
   if (!err) return '';
@@ -135,6 +141,9 @@ export function classifyOpenError(err: unknown): OpenErrorKind {
     return 'device_not_found';
   }
   if (/余额不足|请先充值|insufficient balance|BALANCE/i.test(msg)) return 'balance';
+  // 将邑采集模式锁（CB-023）的 409 文案是「设备商品采集中，暂停营业…」——
+  // 必须先于 /暂停营业/ 判定，否则消费者会把「采集中上新」误读成「柜机被锁机/停业」
+  if (/商品采集|采集中/i.test(msg)) return 'device_gathering';
   if (/暂停营业|已锁机|sales.?lock|LOCKED/i.test(msg)) return 'device_paused';
   if (/补货|使用中|占用|SESSION|REPLENISHMENT|正在购物/i.test(msg)) return 'device_busy';
   return 'other';
@@ -148,6 +157,7 @@ export function formatError(err: unknown): string {
     return '可用余额不足，请先充值后再开门（默认预授权约 ¥20，或开通免密支付）';
   if (kind === 'device_not_found') return '柜机不存在或编号有误，请重新扫描柜门二维码';
   if (kind === 'device_paused') return '柜机已暂停营业，请稍后再试或换一台';
+  if (kind === 'device_gathering') return '柜机正在商品采集上新，暂停开放，请稍后再试或换一台';
   if (kind === 'device_busy') return '柜机正在使用或补货中，请稍后再试';
   if (typeof err === 'string') return localizeApiMessage(err);
   const e = err as { message?: string; errMsg?: string };

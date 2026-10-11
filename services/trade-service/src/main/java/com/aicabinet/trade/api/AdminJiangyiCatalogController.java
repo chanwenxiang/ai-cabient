@@ -104,7 +104,8 @@ public class AdminJiangyiCatalogController {
                          @NotBlank(message = "品牌名称不能为空") String brandName,
                          @NotBlank(message = "进货价不能为空") String purchasePrice,
                          @NotBlank(message = "零售价不能为空") String salePrice,
-                         @NotBlank(message = "商品主图不能为空") String mainImg,
+                         // 将邑侧必填，但允许请求留空：服务层回退 SKU 主图后再校验（空串不再是恒 400）
+                         String mainImg,
                          Integer color,
                          @NotBlank(message = "包装类型不能为空") String category,
                          String barCode) {}

@@ -143,6 +143,38 @@ class SkuJiangyiLinkServiceTest {
     }
 
     @Test
+    void createInJiangyi_blankMainImgFallsBackToSkuImage() {
+        SkuCatalog s = sku("6901234567890");
+        s.setImageUrl("http://img/sku-main.png");
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
+        when(jiangyiGatherClient.productCreate(any())).thenReturn(123L);
+
+        service().createInJiangyi(SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
+                "农夫山泉 550ml", "550ml", 238L, "农夫山泉", "1.5", "2.0",
+                " ", null, "bottle", "6901234567890"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<String, Object>> body =
+                ArgumentCaptor.forClass(java.util.Map.class);
+        verify(jiangyiGatherClient).productCreate(body.capture());
+        assertEquals("http://img/sku-main.png", body.getValue().get("mainImg"));
+    }
+
+    @Test
+    void createInJiangyi_noImageAnywhereIs409WithoutCallingJiangyi() {
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().createInJiangyi(SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
+                        "农夫山泉 550ml", "550ml", 238L, "农夫山泉", "1.5", "2.0",
+                        "", null, "bottle", "6901234567890")));
+        assertEquals(409, e.getStatusCode().value());
+        assertTrue(e.getReason().contains("商品主图"));
+        verify(jiangyiGatherClient, never()).productCreate(any());
+        verify(linkMapper, never()).insert(any(JiangyiSkuJiangyiLink.class));
+    }
+
+    @Test
     void pullTextName_withoutOwnBarcodeIsRejected() {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku(null));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,

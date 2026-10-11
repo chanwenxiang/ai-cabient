@@ -60,18 +60,45 @@ const createForm = ref({
 });
 const creating = ref(false);
 
+// 将邑分类（CB-023 §4.1.4）：创建时 catId 必填，拉到列表就用下拉替代手填编号
+interface JiangyiCategory {
+  id: number;
+  name: string;
+}
+const categories = ref<JiangyiCategory[]>([]);
+
 const syncStatusMeta: Record<string, { label: string; type: 'success' | 'warning' | 'info' }> = {
   BOUND: { label: '已挂接', type: 'success' },
   CREATED: { label: '将邑新建', type: 'warning' },
   RETIRED: { label: '已解挂', type: 'info' }
 };
 
-function open(row: { skuId: string; barcode?: string | null; skuName?: string | null }) {
+function open(row: {
+  skuId: string;
+  barcode?: string | null;
+  skuName?: string | null;
+  imageUrl?: string | null;
+}) {
   skuId.value = row.skuId;
   skuBarcode.value = row.barcode || '';
   skuName.value = row.skuName || '';
+  // 主图默认取我方商品图（将邑侧必填；后端也会按 SKU 主图兜底，这里预填可核对/可改）
+  createForm.value.mainImg = row.imageUrl || '';
   visible.value = true;
   void load();
+  void loadCategories();
+}
+
+async function loadCategories() {
+  try {
+    categories.value = await api.request<JiangyiCategory[]>(
+      AdminEndpoints.jiangyiProductCategories,
+      'GET'
+    );
+  } catch {
+    // 拉取失败降级为手填编号（模板按 categories 为空切换），不阻断弹窗
+    categories.value = [];
+  }
 }
 
 async function load() {
@@ -133,7 +160,7 @@ async function bind(item: StdSkuView) {
 
 async function createInJiangyi() {
   if (!createForm.value.catId) {
-    ElMessage.warning('请填写将邑分类编号（可在将邑分类接口查询）');
+    ElMessage.warning('请选择将邑分类（列表加载失败时可手填编号）');
     return;
   }
   try {
@@ -305,15 +332,29 @@ defineExpose({ open });
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="分类编号">
+              <el-form-item label="分类">
+                <el-select
+                  v-if="categories.length > 0"
+                  v-model="createForm.catId"
+                  placeholder="选择将邑分类"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="cat in categories"
+                    :key="cat.id"
+                    :label="`${cat.name}（${cat.id}）`"
+                    :value="cat.id"
+                  />
+                </el-select>
                 <el-input-number
+                  v-else
                   v-model="createForm.catId"
                   :min="1"
                   :controls="false"
                   placeholder="将邑分类编号"
                   style="width: 100%"
                 />
-                <div class="jy-link-hint">可在将邑分类接口查询后填入</div>
+                <div class="jy-link-hint">将邑侧商品归类，不影响端侧识别</div>
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -326,6 +367,24 @@ defineExpose({ open });
                   <el-option label="蛋类" value="egg" />
                 </el-select>
                 <div class="jy-link-hint">用于将邑侧商品归类，不影响端侧识别</div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="24">
+              <el-form-item label="商品主图">
+                <div class="jy-link-img-row">
+                  <el-input
+                    v-model="createForm.mainImg"
+                    placeholder="默认取我方商品主图，可改为公网可访问的图片地址"
+                    clearable
+                  />
+                  <img
+                    v-if="createForm.mainImg.trim()"
+                    :src="createForm.mainImg.trim()"
+                    class="jy-link-img-preview"
+                    alt="主图预览"
+                  />
+                </div>
+                <div class="jy-link-hint">将邑要求必填；留空时后端自动回退我方商品主图</div>
               </el-form-item>
             </el-col>
           </el-row>
@@ -397,5 +456,19 @@ defineExpose({ open });
 .jy-link-hint {
   font-size: 12px;
   color: var(--color-text-tertiary);
+}
+.jy-link-img-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+.jy-link-img-preview {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 </style>

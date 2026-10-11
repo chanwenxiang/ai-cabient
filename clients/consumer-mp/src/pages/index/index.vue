@@ -729,6 +729,8 @@ const landingErrorTitle = computed(() => {
       return '柜机不存在';
     case 'device_paused':
       return '柜机暂停营业';
+    case 'device_gathering':
+      return '柜机采集上新中';
     case 'device_busy':
       return '柜机正忙';
     case 'rate_limit':
@@ -1522,7 +1524,9 @@ async function refreshDeviceStatus() {
     }
   } catch (e) {
     const kind = classifyOpenError(e);
-    deviceOffline.value = kind !== 'device_paused' && kind !== 'device_busy';
+    // 采集上新 ≠ 柜机离线：与停业/忙碌一样按「在线但暂不可开」展示
+    deviceOffline.value =
+      kind !== 'device_paused' && kind !== 'device_gathering' && kind !== 'device_busy';
     deviceStatusText.value = formatError(e);
   }
 }

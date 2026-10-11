@@ -621,7 +621,7 @@ function sessionDurationMs(row: SessionRow) {
 }
 
 const ACTIVE_SESSION_HINTS: Record<string, (stuck: boolean) => string> = {
-  RECOGNIZING: (stuck) => (stuck ? '识别滞留，需人工跟进' : '视觉识别处理中'),
+  RECOGNIZING: (stuck) => (stuck ? '识别滞留，需人工跟进' : '识别商品中'),
   SETTLING: (stuck) => (stuck ? '结算滞留，需核对扣款' : '订单结算中'),
   OPENING: (stuck) => (stuck ? '开门指令超时' : '开门指令下发中'),
   DISPUTED: () => '待人工审核'
