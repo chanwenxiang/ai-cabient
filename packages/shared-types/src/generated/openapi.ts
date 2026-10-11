@@ -921,38 +921,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/v1/sessions/video": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["attachVideo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/sessions/video-upload-url": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["presignVideoUpload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/internal/v1/sessions/gravity-deltas": {
         parameters: {
             query?: never;
@@ -6265,22 +6233,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/sessions/{sessionId}/video": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["sessionVideo"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/sessions/export": {
         parameters: {
             query?: never;
@@ -8561,22 +8513,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["orderVideos"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/orders/{orderId}/video": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["orderVideo"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11030,36 +10966,6 @@ export interface components {
             /** Format: int32 */
             lineAmountCents?: number;
         };
-        VideoAttachRequest: {
-            sessionId: string;
-            deviceId: string;
-            videoUri: string;
-            uploadStatus?: string;
-            videoClipsJson?: string;
-            cameraFusionMode?: string;
-        };
-        VideoUploadPresignRequest: {
-            sessionId: string;
-            deviceId: string;
-            /** Format: int64 */
-            userId: number;
-            camera?: string;
-            extension?: string;
-            sim?: boolean;
-        };
-        ApiResponseVideoUploadPresignResponse: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["VideoUploadPresignResponse"];
-        };
-        VideoUploadPresignResponse: {
-            objectKey?: string;
-            uploadUrl?: string;
-            videoUri?: string;
-            /** Format: int32 */
-            expiresInSeconds?: number;
-        };
         GravityDeltaItem: {
             skuId: string;
             /** Format: int32 */
@@ -11078,10 +10984,6 @@ export interface components {
             doorState: "UNKNOWN" | "OPEN" | "CLOSED" | "OPENING";
             /** Format: int64 */
             timestamp?: number;
-            videoUri?: string;
-            uploadStatus?: string;
-            videoClipsJson?: string;
-            cameraFusionMode?: string;
             gravityDeltasJson?: string;
         };
         EdgeAlertRequest: {
@@ -12091,7 +11993,6 @@ export interface components {
             videoUri?: string;
             uploadStatus?: string;
             cameraFusionMode?: string;
-            videoPreviewUrl?: string;
             failReason?: string;
             /** Format: date-time */
             createdAt?: string;
@@ -19789,54 +19690,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseLiveCartDto"];
-                };
-            };
-        };
-    };
-    attachVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VideoAttachRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseSessionDto"];
-                };
-            };
-        };
-    };
-    presignVideoUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VideoUploadPresignRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVideoUploadPresignResponse"];
                 };
             };
         };
@@ -28746,26 +28599,6 @@ export interface operations {
             };
         };
     };
-    sessionVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sessionId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     exportSessions: {
         parameters: {
             query?: {
@@ -32008,26 +31841,6 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["ApiResponseOrderVideoPlaylistDto"];
                 };
-            };
-        };
-    };
-    orderVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                orderId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
