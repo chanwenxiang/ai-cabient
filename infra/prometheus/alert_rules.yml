@@ -139,19 +139,6 @@ groups:
           description: "{{ $value }} 台在线设备的 firmware_version ≠ aicabinet.edge.expected-firmware，请安排固件升级或修正期望值"
 
       # ── 识别与结算 ──
-      - alert: RecognitionLatencyHigh
-        expr: |
-          rate(cabinet_recognize_duration_seconds_sum[5m])
-          / rate(cabinet_recognize_duration_seconds_count[5m]) > 5
-        for: 5m
-        labels:
-          severity: warning
-          team: backend
-          biz: vision
-        annotations:
-          summary: "视觉识别平均耗时超过 5 秒"
-          description: "请检查 vision-service 负载与模型"
-
       # ── 识别准确率（P0-1 阶段 B）────────────────────────────────────────────
       # **不做云端识别**：没有「端侧 vs 云端」的对照，故每条信号都来自真实落库/计数，真值口径如下：
       #   ① 人工复核结论（真值来源）：运营/商户对争议单的结案**本身就是标注** ——

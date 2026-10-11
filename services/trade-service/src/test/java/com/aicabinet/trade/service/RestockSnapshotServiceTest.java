@@ -1,7 +1,6 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.GravityDeltaRequest;
-import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.ShoppingSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,8 +29,6 @@ class RestockSnapshotServiceTest {
     @Mock
     private DeviceSlotService deviceSlotService;
     @Mock
-    private VisionServiceClient visionClient;
-    @Mock
     private DistributedLockService distributedLockService;
 
     private RestockSnapshotService restockSnapshotService;
@@ -46,7 +43,7 @@ class RestockSnapshotServiceTest {
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);
         restockSnapshotService = new RestockSnapshotService(
-                gravityHelper, deviceSlotService, visionClient, distributedLockService);
+                gravityHelper, deviceSlotService, distributedLockService);
     }
 
     @Test
@@ -70,37 +67,8 @@ class RestockSnapshotServiceTest {
         verify(deviceSlotService).applyPhysicalSnapshot(
                 eq("CAB-001"), physicalCaptor.capture(), eq("GRAVITY_SLOT"), eq("S-RESTOCK-1"));
         assertEquals(8, physicalCaptor.getValue().get("A1"));
-        verifyNoInteractions(visionClient);
     }
 
-    @Test
-    void applySnapshot_visionFallback_whenNoSlotDeltas() {
-        ShoppingSession session = new ShoppingSession();
-        session.setSessionId("S-RESTOCK-2");
-        session.setDeviceId("CAB-001");
-        session.setVideoUri("minio://videos/restock.mp4");
-        session.setGravityDeltas("[]");
-
-        when(gravityHelper.parse(any())).thenReturn(List.of());
-        when(gravityHelper.hasSlotSpecificDeltas(any())).thenReturn(false);
-        var recognition = new VisionServiceClient.RecognitionResult(
-                "T-1",
-                List.of(new VisionServiceClient.RecognizedItem("SKU-1", 4, 0.9f)),
-                0.9f,
-                false,
-                "yolov8-inventory-snapshot",
-                List.of());
-        when(visionClient.recognizeInventorySnapshot(session)).thenReturn(recognition);
-        when(deviceSlotService.allocateSkuCountsToSlots(
-                eq("CAB-001"), anyMap(), eq("VISION"), eq("S-RESTOCK-2"))).thenReturn(1);
-
-        int updated = restockSnapshotService.applySnapshot(session);
-
-        assertEquals(1, updated);
-        verify(visionClient).recognizeInventorySnapshot(session);
-        verify(deviceSlotService).allocateSkuCountsToSlots(
-                eq("CAB-001"), eq(Map.of("SKU-1", 4)), eq("VISION"), eq("S-RESTOCK-2"));
-    }
 
     @Test
     void applySnapshot_skuGravityNegative_distributesAcrossSlotsOnce() {
@@ -128,6 +96,5 @@ class RestockSnapshotServiceTest {
         Map<String, Integer> physical = physicalCaptor.getValue();
         assertEquals(9, physical.get("A1"));
         assertEquals(4, physical.get("A2"));
-        verifyNoInteractions(visionClient);
     }
 }

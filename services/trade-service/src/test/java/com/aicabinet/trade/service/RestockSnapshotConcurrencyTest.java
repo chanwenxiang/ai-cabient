@@ -1,6 +1,5 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.ShoppingSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,14 +18,13 @@ class RestockSnapshotConcurrencyTest {
 
     @Mock private GravitySettlementHelper gravityHelper;
     @Mock private DeviceSlotService deviceSlotService;
-    @Mock private VisionServiceClient visionClient;
     @Mock private DistributedLockService distributedLockService;
 
     private RestockSnapshotService service;
 
     @BeforeEach
     void setUp() {
-        service = new RestockSnapshotService(gravityHelper, deviceSlotService, visionClient, distributedLockService);
+        service = new RestockSnapshotService(gravityHelper, deviceSlotService, distributedLockService);
     }
 
     @Test

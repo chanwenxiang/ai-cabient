@@ -42,18 +42,3 @@ services:
     depends_on:
       sms-webhook-mock:
         condition: service_healthy
-
-  vision-service:
-    stop_grace_period: 30s
-    build:
-      args:
-        # 审计 P2-13：云端 YOLO 识别已退役（工厂仅剩 quectel/mock），不再安装无用 ML 依赖扩大镜像攻击面
-        INSTALL_ML: ${VISION_INSTALL_ML:-false}
-    environment:
-      # H69：让 vision-service 识别 staging 为安全环境（拒 MOCK/默认 Key、关 /docs）
-      APP_ENV: staging
-      MOCK_ENABLED: ${VISION_MOCK_ENABLED:-false}
-      # X2 + 审计 P2-13：云端识别已退役、生产识别走端侧直报（/internal/v1/vision/edge-results）。
-      # 默认 quectel（端侧 provider 占位）：其 stub available=false 会让启动 fail-loud——
-      # 这是「接真前云端识别不可用」的诚实姿态；原默认 yolo 已进弃用名单，按默认起必崩且误导排障。
-      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-quectel}

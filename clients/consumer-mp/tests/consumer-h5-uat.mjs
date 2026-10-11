@@ -454,30 +454,6 @@ async function gotoPath(page, pathname, wait = 1500) {
   await dismissPrivacyConsent(page);
 }
 
-/** 关闭 vision mock 强制人工审核，避免 UAT 开门后秒进争议页 */
-async function disableVisionForceNeedReview() {
-  const bases = [process.env.VISION_URL, 'http://127.0.0.1:18082', 'http://localhost:18082'].filter(
-    Boolean
-  );
-  const key = process.env.VISION_API_KEY || 'dev-internal-key-change-me';
-  for (const base of bases) {
-    try {
-      const r = await fetch(`${base.replace(/\/$/, '')}/api/v2/vision/debug/force-need-review`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Internal-Api-Key': key
-        },
-        body: JSON.stringify({ enabled: false })
-      });
-      if (r.ok) return true;
-    } catch {
-      /* try next */
-    }
-  }
-  return false;
-}
-
 /** 清理上次运行遗留的活动会话，保证开门用例可重复执行 */
 async function cancelActiveSession(page) {
   // 与争议种子探测同理：H5 走 HttpOnly Cookie，localStorage 里**没有 JWT**，
@@ -1170,8 +1146,7 @@ async function main() {
       e10d
     );
 
-    // —— 开门前置：关 mock 强制审核 + 清理遗留活动会话 ——
-    await disableVisionForceNeedReview();
+    // —— 开门前置：清理遗留活动会话 ——
     await ensureLoggedIn(page);
     await gotoPath(page, '/pages/index/index');
     await cancelActiveSession(page);

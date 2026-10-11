@@ -1,7 +1,6 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.GravityDeltaRequest;
-import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.ShoppingSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,8 +13,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 补货关门后：重力/视觉快照回写货道实测数量（不结算、不扣库存）。
- * 视觉识别 HTTP 在事务外；货道落库由 DeviceSlotService 短事务完成。
+ * 补货关门后：重力/记账快照回写货道实测数量（不结算、不扣库存）。
+ * 🔴 视觉快照分支已随旧云识别链退役（2026-10-11，docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md）：
+ * 有视频无重力证据的补货关门回落到记账同步（syncPhysicalFromBook），不再调用任何识别引擎；
+ * 将邑补货开门（二期）按协议走补货视频，另接。
  */
 @Service
 public class RestockSnapshotService {
@@ -25,16 +26,13 @@ public class RestockSnapshotService {
 
     private final GravitySettlementHelper gravityHelper;
     private final DeviceSlotService deviceSlotService;
-    private final VisionServiceClient visionClient;
     private final DistributedLockService distributedLockService;
 
     public RestockSnapshotService(GravitySettlementHelper gravityHelper,
                                   DeviceSlotService deviceSlotService,
-                                  VisionServiceClient visionClient,
                                   DistributedLockService distributedLockService) {
         this.gravityHelper = gravityHelper;
         this.deviceSlotService = deviceSlotService;
-        this.visionClient = visionClient;
         this.distributedLockService = distributedLockService;
     }
 
@@ -51,18 +49,6 @@ public class RestockSnapshotService {
             int n = applySlotGravity(deviceId, deltas, refId);
             log.info("restock slot-gravity snapshot device={} session={} slots={}", deviceId, refId, n);
             return n;
-        }
-
-        if (hasRecognizableVideo(session)) {
-            try {
-                VisionServiceClient.RecognitionResult result =
-                        visionClient.recognizeInventorySnapshot(session);
-                int n = applyVisionSkuCounts(deviceId, result.items(), refId);
-                log.info("restock vision snapshot device={} session={} slots={}", deviceId, refId, n);
-                return n;
-            } catch (Exception e) {
-                log.warn("restock vision snapshot failed session={}, fallback gravity", refId, e);
-            }
         }
 
         int n = applySkuGravity(deviceId, deltas, refId);
@@ -146,23 +132,6 @@ public class RestockSnapshotService {
             String code = ordered.get(0).slotCode();
             physical.put(code, Math.max(0, physical.getOrDefault(code, 0) - left));
         }
-    }
-
-    private int applyVisionSkuCounts(String deviceId,
-                                     List<VisionServiceClient.RecognizedItem> items,
-                                     String refId) {
-        Map<String, Integer> skuTotals = new HashMap<>();
-        for (VisionServiceClient.RecognizedItem item : items) {
-            if (item.quantity() <= 0) {
-                continue;
-            }
-            skuTotals.merge(item.skuId(), item.quantity(), Integer::sum);
-        }
-        return deviceSlotService.allocateSkuCountsToSlots(deviceId, skuTotals, "VISION", refId);
-    }
-
-    private static boolean hasRecognizableVideo(ShoppingSession session) {
-        return session.getVideoUri() != null && !session.getVideoUri().isBlank();
     }
 
     private <T> T runWithRestockSnapshotLock(String sessionId, java.util.function.Supplier<T> action) {

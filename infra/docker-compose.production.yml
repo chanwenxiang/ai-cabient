@@ -28,19 +28,6 @@ services:
       INTERNAL_API_ALLOWED_CIDRS: ${INTERNAL_API_ALLOWED_CIDRS:?set INTERNAL_API_ALLOWED_CIDRS in .env.production}
       XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:?set XXL_JOB_ACCESS_TOKEN in .env.production}
 
-  vision-service:
-    stop_grace_period: 30s
-    environment:
-      MOCK_ENABLED: "false"
-      # A-I1：生产禁止默认回落 mock
-      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:?set RECOGNIZER_BACKEND (not mock) in .env.production}
-      VISION_DISABLE_DOCS: "true"
-      # H52：生产强制显式来源 CIDR（叠加在 API Key 之上）
-      VISION_ALLOWED_CIDRS: ${VISION_ALLOWED_CIDRS:?set VISION_ALLOWED_CIDRS in .env.production}
-      VISION_TRUST_PROXY: ${VISION_TRUST_PROXY:-false}
-      KAFKA_ENABLED: ${KAFKA_ENABLED:-true}
-      KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-redpanda:9092}
-
   device-service:
     stop_grace_period: 30s
     environment:

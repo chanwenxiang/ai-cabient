@@ -94,7 +94,6 @@ Warn-DemoSecretsIfNeeded
 if ($Smoke) {
     Wait-ServiceHealthy "trade-service" $WaitSeconds
     Wait-ServiceHealthy "device-service" $WaitSeconds
-    Wait-ServiceHealthy "vision-service" $WaitSeconds
 
     $internalKey = $env:INTERNAL_API_KEY
     if (-not $internalKey) { $internalKey = Get-DotEnvValue "INTERNAL_API_KEY" }

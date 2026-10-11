@@ -309,13 +309,6 @@ jobs:
           path: target/osv-findings.json
           if-no-files-found: ignore
 
-      - name: Vision mock unit tests (pytest, no YOLO weights)
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest httpx
-          PYTHONPATH=vision-service pytest -q vision-service/tests/test_mock_recognizer.py vision-service/tests/test_ip_guard.py
-        working-directory: ${{ github.workspace }}
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v5
