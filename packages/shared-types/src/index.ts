@@ -505,21 +505,10 @@ export interface SkuCatalog {
   nearExpiryPriceCents?: number;
   maxPriceCents?: number;
   minChargeConfidence?: number;
-  yoloClassName?: string;
-  visionEnrollmentStatus?: string;
   detectionMinConfidence?: number;
-  referenceImageUrlsJson?: string;
   createdAt?: string;
   updatedByUserId?: number;
   updatedByName?: string;
-}
-
-export interface SkuVisionEnrollmentRow {
-  sku: SkuCatalog;
-  mappingEffective: boolean;
-  modelPipelineStatus: string;
-  nextAction: string;
-  nextStatus?: string | null;
 }
 
 /** 商品条码官方资料查询结果（CB-025，编码中心注册库聚合接口） */
@@ -532,13 +521,6 @@ export interface BarcodeLookupDto {
   category?: string;
   imageUrl?: string;
   message?: string;
-}
-
-export interface SkuVisionEnrollmentPipeline {
-  modelPipelineStatus: string;
-  modelPipelineHint: string;
-  statusOrder: string[];
-  steps: Array<{ status: string; label: string; description: string }>;
 }
 
 export interface UpsertSkuRequest {
@@ -563,39 +545,9 @@ export interface UpsertSkuRequest {
   purchaseCostCents?: number;
   nearExpiryPriceCents?: number;
   minChargeConfidence?: number;
-  yoloClassName?: string;
-  visionEnrollmentStatus?: string;
   detectionMinConfidence?: number;
-  referenceImageUrlsJson?: string;
   /** 只读；写入时服务端忽略 */
   skuCode?: number;
-}
-
-export interface UpsertSkuVisionEnrollmentRequest {
-  sku: UpsertSkuRequest;
-  yoloClassName?: string;
-  visionEnrollmentStatus?: string;
-  detectionMinConfidence?: number;
-  referenceImageUrlsJson?: string;
-  mappingSource?: string;
-}
-
-export interface DevRecognitionItemDto {
-  skuId: string;
-  skuName?: string;
-  quantity: number;
-  confidence: number;
-  unitPriceCents?: number;
-  lineAmountCents?: number;
-}
-
-export interface DevRecognitionPreviewDto {
-  items: DevRecognitionItemDto[];
-  detectedClasses?: string[];
-  overallConfidence?: number;
-  needReview?: boolean;
-  modelVersion?: string;
-  hint?: string;
 }
 
 export interface MerchantSkuPricing {
