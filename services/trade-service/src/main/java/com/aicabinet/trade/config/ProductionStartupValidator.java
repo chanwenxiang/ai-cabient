@@ -81,7 +81,7 @@ public class ProductionStartupValidator {
         rejectMockFlagsInStrictProfile();
         requireSecret(authProperties.jwtSecret(), DEV_JWT_SECRET, "JWT_SECRET / aicabinet.auth.jwt-secret");
         requireSecret(internalApiProperties.key(), DEV_INTERNAL_KEY, "INTERNAL_API_KEY / aicabinet.internal-api.key");
-        requireSecret(visionApiProperties.key(), DEV_VISION_KEY, "VISION_API_KEY / aicabinet.vision-api.key");
+        // VISION_API_KEY 强密钥检查已随旧云识别链退役删除（2026-10-11 批5/收尾）——消费方 VisionServiceClient 已不存在
         rejectDefaultDatasourcePassword();
         if (!authProperties.sms().hasWebhook()) {
             throw new IllegalStateException("Production/staging requires SMS webhook: aicabinet.auth.sms.webhook-url");

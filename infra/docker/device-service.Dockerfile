@@ -9,6 +9,11 @@ COPY services/device-service/pom.xml services/device-service/
 # Root pom lists all modules; Maven requires each module dir to exist even with -pl
 COPY services/trade-service/pom.xml services/trade-service/
 COPY edge/device-simulator/pom.xml edge/device-simulator/
+# 2026-10-11：根 POM 新增 services/jiangyi-gateway 模块（CB-022），缺目录则 mvn 解析即炸
+COPY services/jiangyi-gateway/pom.xml services/jiangyi-gateway/
+# device-service 测试依赖 device-simulator（test scope，SimulatorSupport 报文构造器）
+COPY edge/device-simulator/pom.xml edge/device-simulator/
+COPY edge/device-simulator/src edge/device-simulator/src
 COPY services/common/common-core/src services/common/common-core/src
 COPY services/device-service/src services/device-service/src
 
