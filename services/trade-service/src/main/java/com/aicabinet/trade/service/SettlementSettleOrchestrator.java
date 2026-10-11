@@ -1,7 +1,8 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderReadModel;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
@@ -65,7 +66,7 @@ public class SettlementSettleOrchestrator {
             }
             deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
 
-            VisionServiceClient.RecognitionResult retired = new VisionServiceClient.RecognitionResult(
+            RecognitionOutcome retired = new RecognitionOutcome(
                     "RETIRED-" + session.getSessionId(), List.of(), 0f, true,
                     "cloud-vision-retired", List.of());
             return self.processRecognitionAfterVision(session, retired);
@@ -75,14 +76,14 @@ public class SettlementSettleOrchestrator {
     /** 识别已完成：短事务内 forUpdate + 落单/扣款。 */
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderReadModel processRecognitionAfterVision(ShoppingSession session,
-                                                        VisionServiceClient.RecognitionResult recognition) {
+                                                        RecognitionOutcome recognition) {
         sessionRepository.findByIdForUpdate(session.getSessionId());
         return settlementRecognitionService.processRecognitionResultUnlocked(session, recognition);
     }
 
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderReadModel processRecognitionResult(ShoppingSession session,
-                                                   VisionServiceClient.RecognitionResult recognition) {
+                                                   RecognitionOutcome recognition) {
         return self.processRecognitionResult(session, recognition, true);
     }
 
@@ -92,7 +93,7 @@ public class SettlementSettleOrchestrator {
      * @param allowDevFallback 为 false 时不注入 mock SKU（运营识别测试）
      */
     public OrderReadModel processRecognitionResult(ShoppingSession session,
-                                                   VisionServiceClient.RecognitionResult recognition,
+                                                   RecognitionOutcome recognition,
                                                    boolean allowDevFallback) {
         // 审计批次4：**先抢锁、后开事务**（对齐 BalanceLedgerService 的锁外事务设计）——
         // 原实现 @Transactional 包住 runWithSessionSettleLock，Redis 等锁期间每个请求挂死
@@ -103,7 +104,7 @@ public class SettlementSettleOrchestrator {
 
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderReadModel processRecognitionResultInTx(ShoppingSession session,
-                                                       VisionServiceClient.RecognitionResult recognition,
+                                                       RecognitionOutcome recognition,
                                                        boolean allowDevFallback) {
         sessionRepository.findByIdForUpdate(session.getSessionId());
         return settlementRecognitionService.processRecognitionResultUnlocked(

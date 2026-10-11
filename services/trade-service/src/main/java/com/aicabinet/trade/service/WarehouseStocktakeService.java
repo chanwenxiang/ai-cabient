@@ -16,7 +16,6 @@ import com.aicabinet.trade.mapper.WarehouseInventoryMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.mapper.WarehouseStocktakeLineMapper;
 import com.aicabinet.trade.mapper.WarehouseStocktakeMapper;
-import com.aicabinet.trade.client.VisionServiceClient;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -52,7 +51,6 @@ public class WarehouseStocktakeService {
     private final WarehouseInventoryMapper inventoryRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
-    private final VisionServiceClient visionServiceClient;
     private final DistributedLockService distributedLockService;
     private final WarehouseStocktakeService self;
 
@@ -63,7 +61,6 @@ public class WarehouseStocktakeService {
                                      WarehouseInventoryMapper inventoryRepository,
                                      SkuCatalogMapper skuCatalogRepository,
                                      WarehouseService warehouseService,
-                                     VisionServiceClient visionServiceClient,
                                      DistributedLockService distributedLockService,
                                      @Lazy WarehouseStocktakeService self) {
         this.permissionService = permissionService;
@@ -73,7 +70,6 @@ public class WarehouseStocktakeService {
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.warehouseService = warehouseService;
-        this.visionServiceClient = visionServiceClient;
         this.distributedLockService = distributedLockService;
         this.self = self;
     }
@@ -302,67 +298,6 @@ public class WarehouseStocktakeService {
         st.setStatus("CANCELLED");
         stocktakeRepository.save(st);
         return toDto(st);
-    }
-
-    /**
-     * 拍照盘点：上传现场照片，由视觉服务识别商品并自动填入实盘数量。
-     * 只覆盖置信度达标的识别结果，未识别/低置信度的行保持原状由人工录入。
-     */
-    @Transactional
-    public StocktakeDto applyVisionCounts(Long operatorId, Long stocktakeId,
-                                          byte[] image, String filename) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
-        return runWithStocktakeLock(stocktakeId, () -> doApplyVisionCounts(stocktakeId, image, filename));
-    }
-
-    private StocktakeDto doApplyVisionCounts(Long stocktakeId, byte[] image, String filename) {
-        WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
-        if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus()) && !STATUS_IN_PROGRESS.equals(st.getStatus())) {
-            throw conflict("stocktake not editable");
-        }
-        VisionServiceClient.RecognitionResult result;
-        try {
-            result = visionServiceClient.recognizeUpload("STOCKTAKE-" + stocktakeId, image, filename);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "识别服务暂不可用，请手动录入实盘数");
-        }
-        if (result.items() == null || result.items().isEmpty()) {
-            return toDto(st);
-        }
-
-        Map<String, WarehouseStocktakeLine> bySku = indexStocktakeLinesBySku(stocktakeId);
-        for (VisionServiceClient.RecognizedItem item : result.items()) {
-            applyVisionItemToLine(item, bySku);
-        }
-        markStocktakeInProgressIfDraft(st);
-        refreshTotals(st);
-        stocktakeRepository.save(st);
-        return toDto(st);
-    }
-
-    private Map<String, WarehouseStocktakeLine> indexStocktakeLinesBySku(Long stocktakeId) {
-        Map<String, WarehouseStocktakeLine> bySku = new HashMap<>();
-        for (WarehouseStocktakeLine line : lineRepository.findByStocktakeIdOrderByLineIdAsc(stocktakeId)) {
-            bySku.put(line.getSkuId().toUpperCase(Locale.ROOT), line);
-        }
-        return bySku;
-    }
-
-    private void applyVisionItemToLine(VisionServiceClient.RecognizedItem item,
-                                       Map<String, WarehouseStocktakeLine> bySku) {
-        if (item.skuId() == null || item.confidence() < MIN_VISION_CONFIDENCE) {
-            return;
-        }
-        WarehouseStocktakeLine line = bySku.get(item.skuId().trim().toUpperCase(Locale.ROOT));
-        if (line == null) {
-            return;
-        }
-        int counted = Math.max(0, item.quantity());
-        line.setCountedQty(counted);
-        line.setDiffQty(counted - line.getBookQty());
-        line.setStatus(line.getDiffQty() == 0 ? MATCHED : "DIFF");
-        lineRepository.save(line);
     }
 
     private void markStocktakeInProgressIfDraft(WarehouseStocktake st) {

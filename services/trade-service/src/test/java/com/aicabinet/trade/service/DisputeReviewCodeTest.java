@@ -1,7 +1,8 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.enums.SessionState;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -77,21 +78,21 @@ class DisputeReviewCodeTest {
 
     @Test
     void reviewCodeFor_mockModel_yieldsMock() {
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "T1", List.of(), 0.1f, true, "mock-v1", List.of());
         assertEquals("MOCK", DisputeService.reviewCodeFor(recognition, "人工复核"));
     }
 
     @Test
     void reviewCodeFor_gravityMismatch_yieldsGravityMismatch() {
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "T2", List.of(), 0.2f, true, "gravity-mismatch", List.of());
         assertEquals("GRAVITY_MISMATCH", DisputeService.reviewCodeFor(recognition, "视觉与重力不一致"));
     }
 
     @Test
     void reviewCodeFor_gravityFill_yieldsGravityFill() {
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "T3", List.of(), 0.2f, true, "gravity-fill", List.of());
         assertEquals("GRAVITY_FILL", DisputeService.reviewCodeFor(recognition, "仅有重力信号"));
     }
@@ -111,7 +112,7 @@ class DisputeReviewCodeTest {
         when(disputeMessageRepository.findByTicketIdOrderByCreatedAtAsc(anyString())).thenReturn(List.of());
         when(fileAttachmentService.listDisputeEvidence(anyString())).thenReturn(List.of());
 
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "TASK-MOCK", List.of(), 0.05f, true, "mock-force-need-review", List.of("unknown"));
 
         var dto = service.createTicket(session, recognition, "模拟识别需人工复核（非生产精度）");

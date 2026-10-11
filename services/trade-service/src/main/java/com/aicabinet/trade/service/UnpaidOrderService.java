@@ -3,7 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.CancelUnpaidOrderRequest;
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.UnpaidOrderActionResultDto;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.AdminAuditLog;
 import com.aicabinet.trade.domain.CabinetOrder;
@@ -469,8 +470,8 @@ public class UnpaidOrderService {
         if (!order.isInventoryDeducted() || order.getLines() == null || order.getLines().isEmpty()) {
             return;
         }
-        List<VisionServiceClient.RecognizedItem> items = order.getLines().stream()
-                .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
+        List<RecognizedItem> items = order.getLines().stream()
+                .map(l -> new RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
                 .toList();
         Map<String, String> batchBySku = order.getLines().stream()
                 .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())

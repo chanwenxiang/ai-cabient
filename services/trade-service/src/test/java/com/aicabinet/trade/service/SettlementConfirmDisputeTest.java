@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -127,7 +128,7 @@ class SettlementConfirmDisputeTest {
 
         var result = settlementService.confirmDisputedItems(
                 session,
-                List.of(new VisionServiceClient.RecognizedItem("SKU-A", 2, 1f)));
+                List.of(new RecognizedItem("SKU-A", 2, 1f)));
 
         assertEquals(400, result.originalAmountCents());
         assertEquals(800, result.finalAmountCents());
@@ -172,7 +173,7 @@ class SettlementConfirmDisputeTest {
 
         var result = settlementService.confirmDisputedItems(
                 session,
-                List.of(new VisionServiceClient.RecognizedItem("SKU-A", 1, 1f)));
+                List.of(new RecognizedItem("SKU-A", 1, 1f)));
 
         assertEquals(800, result.originalAmountCents());
         assertEquals(400, result.finalAmountCents());
@@ -221,7 +222,7 @@ class SettlementConfirmDisputeTest {
 
         var result = settlementService.confirmDisputedItems(
                 session,
-                List.of(new VisionServiceClient.RecognizedItem("SKU-A", 3, 1f)));
+                List.of(new RecognizedItem("SKU-A", 3, 1f)));
 
         assertEquals(600, result.originalAmountCents());
         assertEquals(1000, result.finalAmountCents());
@@ -267,7 +268,7 @@ class SettlementConfirmDisputeTest {
 
         var result = settlementService.confirmDisputedItems(
                 session,
-                List.of(new VisionServiceClient.RecognizedItem("SKU-A", 3, 1f)));
+                List.of(new RecognizedItem("SKU-A", 3, 1f)));
 
         assertEquals(700, result.originalAmountCents());
         assertEquals(1100, result.finalAmountCents());
@@ -312,7 +313,7 @@ class SettlementConfirmDisputeTest {
         org.junit.jupiter.api.Assertions.assertThrows(BalanceInsufficientException.class,
                 () -> settlementService.confirmDisputedItems(
                         session,
-                        List.of(new VisionServiceClient.RecognizedItem("SKU-A", 2, 1f))));
+                        List.of(new RecognizedItem("SKU-A", 2, 1f))));
 
         verify(inventoryService, org.mockito.Mockito.never())
                 .adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any());
@@ -357,7 +358,7 @@ class SettlementConfirmDisputeTest {
                 org.springframework.web.server.ResponseStatusException.class,
                 () -> settlementService.confirmDisputedItems(
                         session,
-                        List.of(new VisionServiceClient.RecognizedItem("SKU-A", 2, 1f))));
+                        List.of(new RecognizedItem("SKU-A", 2, 1f))));
 
         verify(inventoryService, org.mockito.Mockito.never())
                 .adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any());

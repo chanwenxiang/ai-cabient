@@ -25,10 +25,7 @@ public record SkuCatalogDto(
         Integer nearExpiryPriceCents,
         Integer maxPriceCents,
         float minChargeConfidence,
-        String yoloClassName,
-        String visionEnrollmentStatus,
         Float detectionMinConfidence,
-        String referenceImageUrlsJson,
         Instant createdAt,
         Long updatedByUserId,
         String updatedByName

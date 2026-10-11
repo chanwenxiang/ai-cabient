@@ -4,7 +4,6 @@ import com.aicabinet.trade.mapper.WarehouseInventoryMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.mapper.WarehouseStocktakeLineMapper;
 import com.aicabinet.trade.mapper.WarehouseStocktakeMapper;
-import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +28,6 @@ class WarehouseStocktakeConcurrencyTest {
     @Mock private WarehouseInventoryMapper inventoryRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
-    @Mock private VisionServiceClient visionServiceClient;
     @Mock private DistributedLockService distributedLockService;
 
     private WarehouseStocktakeService service;
@@ -38,7 +36,7 @@ class WarehouseStocktakeConcurrencyTest {
     void setUp() {
         service = new WarehouseStocktakeService(permissionService, stocktakeRepository,
                 lineRepository, warehouseRepository, inventoryRepository, skuCatalogRepository,
-                warehouseService, visionServiceClient, distributedLockService, null);
+                warehouseService, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

@@ -167,17 +167,8 @@ public class OpsCatalogAdminService {
         if (request.minChargeConfidence() != null) {
             sku.setMinChargeConfidence(request.minChargeConfidence());
         }
-        if (request.yoloClassName() != null && !request.yoloClassName().isBlank()) {
-            sku.setYoloClassName(request.yoloClassName().trim());
-        }
-        if (request.visionEnrollmentStatus() != null && !request.visionEnrollmentStatus().isBlank()) {
-            sku.setVisionEnrollmentStatus(request.visionEnrollmentStatus().trim().toUpperCase());
-        }
         if (request.detectionMinConfidence() != null) {
             sku.setDetectionMinConfidence(request.detectionMinConfidence());
-        }
-        if (request.referenceImageUrlsJson() != null) {
-            sku.setReferenceImageUrlsJson(trimToNull(request.referenceImageUrlsJson()));
         }
     }
 

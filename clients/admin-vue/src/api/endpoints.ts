@@ -238,21 +238,6 @@ export const AdminEndpoints = {
   /** CB-025：条码查编码中心官方资料（商品建档自动带出名称/品牌/规格） */
   skuBarcodeLookup: (code: string) => `${ops}/skus/barcode-lookup?code=${encodeURIComponent(code)}`,
 
-  /** SKU 视觉建档 */
-  skuVisionRows: (query: URLSearchParams | string) =>
-    typeof query === 'string'
-      ? `${ops}/sku-vision/rows?${query}`
-      : `${ops}/sku-vision/rows?${query.toString()}`,
-  skuVisionRowsAll: `${ops}/sku-vision/rows?${adminCatalogQuery({ status: 'ALL' })}`,
-  skuVisionEnroll: `${ops}/sku-vision/enroll`,
-  skuVisionPipeline: `${ops}/sku-vision/pipeline`,
-  skuVisionSuggestClass: `${ops}/sku-vision/suggest-class`,
-  skuVisionSuggestClassName: (skuName: string) =>
-    `${ops}/sku-vision/suggest-class-name?skuName=${encodeURIComponent(skuName)}`,
-  skuVisionAdvance: (skuId: string) => `${ops}/sku-vision/${encodeURIComponent(skuId)}/advance`,
-  skuVisionStatus: (skuId: string, status: string) =>
-    `${ops}/sku-vision/${encodeURIComponent(skuId)}/status?status=${encodeURIComponent(status)}`,
-
   /** 补货 / 效期 */
   replenishmentSummary: `${ops}/replenishment/summary`,
   replenishmentPlan: `${ops}/replenishment/plan`,
@@ -371,8 +356,6 @@ export const AdminEndpoints = {
   warehouseStocktakesCreate: `${ops}/warehouse/stocktakes`,
   warehouseStocktake: (stocktakeId: string | number) =>
     `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}`,
-  warehouseStocktakeScanPhoto: (stocktakeId: string | number) =>
-    `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/scan-photo`,
   warehouseStocktakeLine: (stocktakeId: string | number, lineId: string | number) =>
     `${ops}/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/lines/${encodeURIComponent(String(lineId))}`,
   warehouseStocktakeComplete: (stocktakeId: string | number) =>
@@ -796,17 +779,6 @@ export const AdminEndpoints = {
   consistencyRun: `${ops}/consistency/run`,
   consistencyFix: (failureId: string | number) =>
     `${ops}/consistency/${encodeURIComponent(String(failureId))}/fix`,
-  visionMappings: `${ops}/vision-mappings`,
-  visionMappingsAliyun: `${ops}/vision-mappings/aliyun`,
-  visionMappingAliyun: (categoryId: string) =>
-    `${ops}/vision-mappings/aliyun/${encodeURIComponent(categoryId)}`,
-  visionMappingsYolo: `${ops}/vision-mappings/yolo`,
-  visionMappingsYoloList: (query: URLSearchParams | string) =>
-    typeof query === 'string'
-      ? `${ops}/vision-mappings/yolo?${query}`
-      : `${ops}/vision-mappings/yolo?${query.toString()}`,
-  visionMappingYolo: (className: string) =>
-    `${ops}/vision-mappings/yolo/${encodeURIComponent(className)}`,
   analyticsFootfall: (days: number) => `${ops}/analytics/footfall?days=${days}`,
   analyticsFootfallSlots: (deviceId: string, days: number) =>
     `${ops}/analytics/footfall/slots?deviceId=${encodeURIComponent(deviceId)}&days=${days}`,
@@ -969,7 +941,6 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/sales-reports',
   '/api/v2/ops/admin/reconciliation',
   '/api/v2/ops/admin/consistency',
-  '/api/v2/ops/admin/vision-mappings',
   '/api/v2/ops/admin/analytics',
   '/api/v2/ops/admin/geo',
   '/api/v2/ops/admin/device-ops',

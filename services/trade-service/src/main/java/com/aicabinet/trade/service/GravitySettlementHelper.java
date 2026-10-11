@@ -4,7 +4,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.GravityDeltaRequest;
 
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 
@@ -100,9 +101,9 @@ public class GravitySettlementHelper {
 
 
 
-    public List<VisionServiceClient.RecognizedItem> toRecognizedItems(String gravityDeltasJson) {
+    public List<RecognizedItem> toRecognizedItems(String gravityDeltasJson) {
 
-        List<VisionServiceClient.RecognizedItem> items = new ArrayList<>();
+        List<RecognizedItem> items = new ArrayList<>();
 
         for (GravityDeltaRequest.GravityDeltaItem delta : parse(gravityDeltasJson)) {
 
@@ -112,7 +113,7 @@ public class GravitySettlementHelper {
 
             }
 
-            items.add(new VisionServiceClient.RecognizedItem(delta.skuId(), -delta.delta(), 0.98f));
+            items.add(new RecognizedItem(delta.skuId(), -delta.delta(), 0.98f));
 
         }
 
@@ -122,9 +123,9 @@ public class GravitySettlementHelper {
 
 
 
-    public List<VisionServiceClient.RecognizedItem> mergeWithVision(String gravityDeltasJson,
+    public List<RecognizedItem> mergeWithVision(String gravityDeltasJson,
 
-                                                                    List<VisionServiceClient.RecognizedItem> visionItems) {
+                                                                    List<RecognizedItem> visionItems) {
 
         if (visionItems != null && !visionItems.isEmpty()) {
 
@@ -132,7 +133,7 @@ public class GravitySettlementHelper {
 
         }
 
-        List<VisionServiceClient.RecognizedItem> gravityItems = toRecognizedItems(gravityDeltasJson);
+        List<RecognizedItem> gravityItems = toRecognizedItems(gravityDeltasJson);
 
         if (!gravityItems.isEmpty()) {
 
@@ -152,15 +153,15 @@ public class GravitySettlementHelper {
 
      */
 
-    public VisionServiceClient.RecognitionResult reconcileWithGravity(
+    public RecognitionOutcome reconcileWithGravity(
 
             String gravityDeltasJson,
 
-            VisionServiceClient.RecognitionResult vision) {
+            RecognitionOutcome vision) {
 
-        List<VisionServiceClient.RecognizedItem> gravityItems = toRecognizedItems(gravityDeltasJson);
+        List<RecognizedItem> gravityItems = toRecognizedItems(gravityDeltasJson);
 
-        List<VisionServiceClient.RecognizedItem> visionItems =
+        List<RecognizedItem> visionItems =
 
                 vision.items() != null ? vision.items() : List.of();
 
@@ -176,11 +177,11 @@ public class GravitySettlementHelper {
 
             // 重力可填明细，但视觉为空不等于生产级识别：强制人工审核，禁止静默高置信扣款。
             float gravityConf = gravityItems.stream()
-                    .map(VisionServiceClient.RecognizedItem::confidence)
+                    .map(RecognizedItem::confidence)
                     .max(Float::compare)
                     .orElse(0.98f);
             log.info("vision empty; gravity fill items={} → need_review", gravityItems.size());
-            return new VisionServiceClient.RecognitionResult(
+            return new RecognitionOutcome(
                     vision.taskId(),
                     gravityItems,
                     gravityConf,
@@ -197,7 +198,7 @@ public class GravitySettlementHelper {
 
             log.warn("vision-gravity mismatch vision={} gravity={}", visionItems, gravityItems);
 
-            return new VisionServiceClient.RecognitionResult(
+            return new RecognitionOutcome(
 
                     vision.taskId(),
 
@@ -295,9 +296,9 @@ public class GravitySettlementHelper {
 
 
 
-    private static boolean quantitiesMatch(List<VisionServiceClient.RecognizedItem> visionItems,
+    private static boolean quantitiesMatch(List<RecognizedItem> visionItems,
 
-                                           List<VisionServiceClient.RecognizedItem> gravityItems) {
+                                           List<RecognizedItem> gravityItems) {
 
         Map<String, Integer> visionQty = aggregateBySku(visionItems);
 
@@ -309,11 +310,11 @@ public class GravitySettlementHelper {
 
 
 
-    private static Map<String, Integer> aggregateBySku(List<VisionServiceClient.RecognizedItem> items) {
+    private static Map<String, Integer> aggregateBySku(List<RecognizedItem> items) {
 
         Map<String, Integer> qty = new LinkedHashMap<>();
 
-        for (VisionServiceClient.RecognizedItem item : items) {
+        for (RecognizedItem item : items) {
 
             qty.merge(item.skuId(), item.quantity(), Integer::sum);
 

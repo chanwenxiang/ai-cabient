@@ -2,7 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.OrderRefundRequest;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
@@ -160,8 +161,8 @@ public class SettlementPartialRefundService {
     }
 
     private record PartialRefundPartition(
-            List<VisionServiceClient.RecognizedItem> restoreItems,
-            List<VisionServiceClient.RecognizedItem> keptItems,
+            List<RecognizedItem> restoreItems,
+            List<RecognizedItem> keptItems,
             Map<String, String> batchBySku,
             Map<String, Integer> refundQtyBySku,
             boolean anyRestored) {
@@ -182,8 +183,8 @@ public class SettlementPartialRefundService {
             List<OrderRefundRequest.PartialRefundLine> refundLines,
             boolean defaultRestore,
             Map<String, Integer> refundQtyBySku) {
-        List<VisionServiceClient.RecognizedItem> restoreItems = new java.util.ArrayList<>();
-        List<VisionServiceClient.RecognizedItem> keptItems = new java.util.ArrayList<>();
+        List<RecognizedItem> restoreItems = new java.util.ArrayList<>();
+        List<RecognizedItem> keptItems = new java.util.ArrayList<>();
         Map<String, String> batchBySku = new java.util.HashMap<>();
         boolean anyRestored = false;
         for (OrderRefundRequest.PartialRefundLine req : refundLines) {
@@ -196,7 +197,7 @@ public class SettlementPartialRefundService {
             if (line.getBatchNo() != null && !line.getBatchNo().isBlank()) {
                 batchBySku.putIfAbsent(sku, line.getBatchNo());
             }
-            var item = new VisionServiceClient.RecognizedItem(sku, req.quantity(), 1f);
+            var item = new RecognizedItem(sku, req.quantity(), 1f);
             if (restore) {
                 restoreItems.add(item);
                 anyRestored = true;

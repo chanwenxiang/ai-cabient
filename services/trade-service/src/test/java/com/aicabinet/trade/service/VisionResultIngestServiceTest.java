@@ -4,7 +4,8 @@ import com.aicabinet.common.dto.VisionRecognitionResultDto;
 import com.aicabinet.common.dto.VisionResultIngestResponseDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.common.enums.VisionIngestOutcome;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
@@ -99,7 +100,7 @@ class VisionResultIngestServiceTest {
                 List.of(new VisionRecognitionResultDto.Item("SKU-A", 2, 0.93)),
                 0.93, false, "QUECTEL-EDGE-1.2", List.of("cola"), "QUECTEL", Instant.now()));
 
-        VisionServiceClient.RecognitionResult sent = capturedResult();
+        RecognitionOutcome sent = capturedResult();
         assertEquals("T-S-MAP", sent.taskId(), "taskId 缺省时应与异步链路一致地补 T-<sessionId>");
         assertEquals(1, sent.items().size());
         assertEquals("SKU-A", sent.items().get(0).skuId());
@@ -130,7 +131,7 @@ class VisionResultIngestServiceTest {
 
         service.ingest(request);
 
-        VisionServiceClient.RecognitionResult sent = capturedResult();
+        RecognitionOutcome sent = capturedResult();
         assertEquals(List.of(), sent.items());
         assertEquals(List.of(), sent.detectedClasses());
         assertTrue(sent.needReview(), "端侧自认需复核必须原样传给结算（不得被降级为自动扣款）");
@@ -321,9 +322,9 @@ class VisionResultIngestServiceTest {
 
     // ---------- 辅助 ----------
 
-    private VisionServiceClient.RecognitionResult capturedResult() {
-        ArgumentCaptor<VisionServiceClient.RecognitionResult> captor =
-                ArgumentCaptor.forClass(VisionServiceClient.RecognitionResult.class);
+    private RecognitionOutcome capturedResult() {
+        ArgumentCaptor<RecognitionOutcome> captor =
+                ArgumentCaptor.forClass(RecognitionOutcome.class);
         verify(sessionService).completeAsyncRecognition(any(), captor.capture());
         return captor.getValue();
     }

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -42,10 +43,10 @@ class SettlementDecisionTest {
         assertEquals(reason, SettlementDecision.classify(r).reviewReason(r));
     }
 
-    private static VisionServiceClient.RecognitionResult recognition(boolean needReview, String version) {
-        return new VisionServiceClient.RecognitionResult(
+    private static RecognitionOutcome recognition(boolean needReview, String version) {
+        return new RecognitionOutcome(
                 "T-1",
-                List.of(new VisionServiceClient.RecognizedItem("SKU-A", 1, 0.9f)),
+                List.of(new RecognizedItem("SKU-A", 1, 0.9f)),
                 0.9f,
                 needReview,
                 version,

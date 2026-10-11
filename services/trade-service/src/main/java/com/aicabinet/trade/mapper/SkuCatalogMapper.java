@@ -65,11 +65,6 @@ public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
 
     /** page 为 0-based；status 传 ACTIVE 等，ALL 表示不限。 */
     default Page<SkuCatalog> search(String q, String status, String category, int page, int size) {
-        return search(q, status, category, null, page, size);
-    }
-
-    /** page 为 0-based；enrollmentStatus 传视觉入驻状态筛选。 */
-    default Page<SkuCatalog> search(String q, String status, String category, String enrollmentStatus, int page, int size) {
         var query = Wrappers.<SkuCatalog>lambdaQuery()
                 .orderByAsc(SkuCatalog::getSkuCode)
                 .orderByAsc(SkuCatalog::getSkuId);
@@ -78,9 +73,6 @@ public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
         }
         if (category != null && !category.isBlank()) {
             query.eq(SkuCatalog::getCategory, category.trim());
-        }
-        if (enrollmentStatus != null && !enrollmentStatus.isBlank()) {
-            query.eq(SkuCatalog::getVisionEnrollmentStatus, enrollmentStatus.trim().toUpperCase());
         }
         if (q != null && !q.isBlank()) {
             String kw = q.trim();
@@ -99,4 +91,5 @@ public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
         }
         return selectPage(new Page<>(page + 1L, size), query);
     }
+
 }

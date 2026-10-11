@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 
 /**
  * 结算路径决策（Pass 3A/3F）：把识别结果先归类，再进入 finalize / 争议。
@@ -23,7 +24,7 @@ public enum SettlementDecision {
     /**
      * 根据识别结果归类。不替代 staging/mock 重力静默结算旁路——那些仍由 SettlementRecognitionService 先尝试。
      */
-    public static SettlementDecision classify(VisionServiceClient.RecognitionResult recognition) {
+    public static SettlementDecision classify(RecognitionOutcome recognition) {
         if (recognition == null) {
             return HUMAN_REVIEW_GENERIC;
         }
@@ -52,7 +53,7 @@ public enum SettlementDecision {
     }
 
     /** 与 {@link SettlementService#reviewReasonFor} 对齐的文案。 */
-    public String reviewReason(VisionServiceClient.RecognitionResult recognition) {
+    public String reviewReason(RecognitionOutcome recognition) {
         if (this == FINALIZE) {
             return null;
         }

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
@@ -54,7 +55,7 @@ class InventoryServiceTest {
         when(inventoryRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         inventoryService.deductForOrder("CAB-001",
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 1f)), "S1");
+                List.of(new RecognizedItem("SKU-DEMO-001", 2, 1f)), "S1");
 
         verify(lockService).tryLock(InventoryService.deviceLockKey("CAB-001"), 30, 5);
         verify(lockService).unlock(InventoryService.deviceLockKey("CAB-001"));
@@ -66,7 +67,7 @@ class InventoryServiceTest {
         when(lockService.tryLock(eq(InventoryService.deviceLockKey("CAB-001")), anyLong(), anyLong())).thenReturn(false);
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> inventoryService.deductForOrder("CAB-001",
-                        List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 1f))));
+                        List.of(new RecognizedItem("SKU-DEMO-001", 1, 1f))));
         assertTrue(ex.getReason().contains("库存繁忙"));
         verify(lockService, never()).unlock(any());
     }
@@ -80,7 +81,7 @@ class InventoryServiceTest {
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> inventoryService.deductForOrder("CAB-001",
-                        List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 3, 1f)), "S1"));
+                        List.of(new RecognizedItem("SKU-DEMO-001", 3, 1f)), "S1"));
         assertTrue(ex.getReason().contains("库存不足"));
         verify(lockService).unlock(InventoryService.deviceLockKey("CAB-001"));
     }
@@ -93,8 +94,8 @@ class InventoryServiceTest {
 
         Map<String, String> batches = inventoryService.adjustForOrder(
                 "CAB-001",
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 1f)),
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 1f)),
+                List.of(new RecognizedItem("SKU-DEMO-001", 2, 1f)),
+                List.of(new RecognizedItem("SKU-DEMO-001", 1, 1f)),
                 Map.of("SKU-DEMO-001", "BATCH-A"));
 
         assertEquals("BATCH-A", batches.get("SKU-DEMO-001"));
@@ -107,8 +108,8 @@ class InventoryServiceTest {
     void adjust_unchangedQty_stillReturnsOriginalBatches() {
         Map<String, String> batches = inventoryService.adjustForOrder(
                 "CAB-001",
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 1f)),
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 1f)),
+                List.of(new RecognizedItem("SKU-DEMO-001", 1, 1f)),
+                List.of(new RecognizedItem("SKU-DEMO-001", 1, 1f)),
                 Map.of("SKU-DEMO-001", "BATCH-KEEP"));
 
         assertEquals(Map.of("SKU-DEMO-001", "BATCH-KEEP"), batches);
@@ -124,7 +125,7 @@ class InventoryServiceTest {
                 .thenReturn("A1");
 
         inventoryService.restoreForOrder("CAB-001",
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 1f)),
+                List.of(new RecognizedItem("SKU-DEMO-001", 2, 1f)),
                 Map.of("SKU-DEMO-001", "BATCH-A"), "O-777");
 
         verify(inventoryLotService).restoreToBatch(
@@ -142,7 +143,7 @@ class InventoryServiceTest {
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> inventoryService.deductForOrder("CAB-001",
-                        List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 1f)), "S-I1"));
+                        List.of(new RecognizedItem("SKU-DEMO-001", 2, 1f)), "S-I1"));
 
         assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
         assertTrue(ex.getReason().contains("sellable lot inventory insufficient"));

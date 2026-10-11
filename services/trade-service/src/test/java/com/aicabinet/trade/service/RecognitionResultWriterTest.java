@@ -16,7 +16,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.aicabinet.common.dto.VisionRecognitionResultDto;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.RecognitionResult;
 import com.aicabinet.trade.mapper.RecognitionResultMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
@@ -57,10 +58,10 @@ class RecognitionResultWriterTest {
         lenient().when(mapper.insertIgnoreConflict(any())).thenReturn(1);
     }
 
-    private static VisionServiceClient.RecognitionResult recognized(String taskId, String modelVersion) {
-        return new VisionServiceClient.RecognitionResult(
+    private static RecognitionOutcome recognized(String taskId, String modelVersion) {
+        return new RecognitionOutcome(
                 taskId,
-                List.of(new VisionServiceClient.RecognizedItem("SKU-1", 2, 0.93f)),
+                List.of(new RecognizedItem("SKU-1", 2, 0.93f)),
                 0.93f,
                 false,
                 modelVersion,
@@ -173,7 +174,7 @@ class RecognitionResultWriterTest {
 
     @Test
     void persist_emptyItems_writesEmptyJsonArray() {
-        VisionServiceClient.RecognitionResult empty = new VisionServiceClient.RecognitionResult(
+        RecognitionOutcome empty = new RecognitionOutcome(
                 "T-1", null, 0f, true, "edge-v1", List.of());
 
         assertEquals(RecognitionResultWriter.Outcome.WRITTEN, writer.persist("S-1", empty));

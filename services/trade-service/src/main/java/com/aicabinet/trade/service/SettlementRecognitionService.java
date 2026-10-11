@@ -1,7 +1,8 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderReadModel;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -33,7 +34,6 @@ public class SettlementRecognitionService {
     private final SecurityProperties securityProperties;
     private final StagingProperties stagingProperties;
     private final SystemConfigService systemConfigService;
-    private final SkuVisionEnrollmentService skuVisionEnrollmentService;
     private final DisputeService disputeService;
     private final ConsumerPreauthService consumerPreauthService;
     private final SettlementService settlement;
@@ -47,7 +47,6 @@ public class SettlementRecognitionService {
                                         SecurityProperties securityProperties,
                                         StagingProperties stagingProperties,
                                         SystemConfigService systemConfigService,
-                                        SkuVisionEnrollmentService skuVisionEnrollmentService,
                                         @Lazy DisputeService disputeService,
                                         ConsumerPreauthService consumerPreauthService,
                                         @Lazy SettlementService settlement,
@@ -60,7 +59,6 @@ public class SettlementRecognitionService {
         this.securityProperties = securityProperties;
         this.stagingProperties = stagingProperties;
         this.systemConfigService = systemConfigService;
-        this.skuVisionEnrollmentService = skuVisionEnrollmentService;
         this.disputeService = disputeService;
         this.consumerPreauthService = consumerPreauthService;
         this.settlement = settlement;
@@ -86,7 +84,7 @@ public class SettlementRecognitionService {
      * 异常不在此处吞掉，交由上层按结算失败统一处理（会话置 FAILED + 运维事件）。
      */
     private void recordRecognitionResult(ShoppingSession session,
-                                         VisionServiceClient.RecognitionResult recognition) {
+                                         RecognitionOutcome recognition) {
         RecognitionResultWriter.Outcome outcome =
                 recognitionResultWriter.persist(session.getSessionId(), recognition);
         if (outcome != RecognitionResultWriter.Outcome.WRITTEN) {
@@ -95,12 +93,12 @@ public class SettlementRecognitionService {
     }
 
     OrderReadModel processRecognitionResultUnlocked(ShoppingSession session,
-                                                    VisionServiceClient.RecognitionResult recognition) {
+                                                    RecognitionOutcome recognition) {
         return processRecognitionResultUnlocked(session, recognition, true);
     }
 
     OrderReadModel processRecognitionResultUnlocked(ShoppingSession session,
-                                                    VisionServiceClient.RecognitionResult recognition,
+                                                    RecognitionOutcome recognition,
                                                     boolean allowDevFallback) {
         var existingOrder = orderRepository.findBySessionId(session.getSessionId());
         if (existingOrder.isPresent()) {
@@ -144,12 +142,8 @@ public class SettlementRecognitionService {
             }
         }
 
-        var whitelistReason = skuVisionEnrollmentService.validateSettlementItems(
-                session.getDeviceId(), recognition.items());
-        if (whitelistReason.isPresent()) {
-            escalateToDispute(session, recognition, whitelistReason.get());
-        }
-
+        // 旧「识别入驻白名单」闸已随旧链退役（2026-10-11）：将邑链的准入=classId 映射激活
+        // （未命中在 gateway 即 fail-closed 转 DISPUTED），置信度闸在上方 confidenceService。
         return settlement.finalizeOrder(session, recognition.items());
     }
 
@@ -158,7 +152,7 @@ public class SettlementRecognitionService {
      * @return 已结算订单，或 null 表示未拦截（继续后续路径）
      */
     private OrderReadModel trySettleWhenReviewRequired(ShoppingSession session,
-                                                       VisionServiceClient.RecognitionResult recognition,
+                                                       RecognitionOutcome recognition,
                                                        boolean allowDevFallback) {
         if (!recognition.needReview()) {
             return null;
@@ -185,7 +179,7 @@ public class SettlementRecognitionService {
      * 本地 mock 自动结算路径：标称结果不可当作生产精度，有重力证据或沙箱 gravity-fill 除外。
      */
     private OrderReadModel trySettleDevMock(ShoppingSession session,
-                                            VisionServiceClient.RecognitionResult recognition,
+                                            RecognitionOutcome recognition,
                                             boolean allowDevFallback) {
         if (!allowDevFallback || !securityProperties.mockEnabled()) {
             return null;
@@ -204,7 +198,7 @@ public class SettlementRecognitionService {
             escalateToDispute(session, recognition, humanReviewReason(recognition));
             return null;
         }
-        List<VisionServiceClient.RecognizedItem> cartItems = List.of();
+        List<RecognizedItem> cartItems = List.of();
         if (allowsGravityEvidenceSettle()) {
             cartItems = gravityHelper.toRecognizedItems(session.getGravityDeltas());
         }
@@ -219,7 +213,7 @@ public class SettlementRecognitionService {
 
     /** 视觉空结果：重力零结 / mock 零结 / 进审单。 */
     private OrderReadModel trySettleEmptyRecognition(ShoppingSession session,
-                                                     VisionServiceClient.RecognitionResult recognition,
+                                                     RecognitionOutcome recognition,
                                                      boolean allowDevFallback) {
         if (!recognition.items().isEmpty()) {
             return null;
@@ -253,7 +247,7 @@ public class SettlementRecognitionService {
      */
     private boolean shouldAutoCompleteEmptyCart(ShoppingSession session) {
         if (systemConfigService.usesGravityFusion()) {
-            List<VisionServiceClient.RecognizedItem> gravityItems =
+            List<RecognizedItem> gravityItems =
                     gravityHelper.toRecognizedItems(session.getGravityDeltas());
             if (gravityItems != null && !gravityItems.isEmpty()) {
                 return false;
@@ -282,7 +276,7 @@ public class SettlementRecognitionService {
         if (!stagingProperties.stagingMode() && !stagingProperties.gravityFallbackSettle()) {
             return null;
         }
-        List<VisionServiceClient.RecognizedItem> gravityItems =
+        List<RecognizedItem> gravityItems =
                 gravityHelper.toRecognizedItems(session.getGravityDeltas());
         if (gravityItems.isEmpty()) {
             return null;
@@ -295,7 +289,7 @@ public class SettlementRecognitionService {
      * 沙箱重力兜底仅放行「视觉为空、重力补全」(gravity-fill)。
      * gravity-mismatch / 纯 mock 仍须人工审核。
      */
-    private boolean allowsSandboxGravityFillSettle(VisionServiceClient.RecognitionResult recognition) {
+    private boolean allowsSandboxGravityFillSettle(RecognitionOutcome recognition) {
         if (!systemConfigService.usesGravityFusion()) {
             return false;
         }
@@ -312,14 +306,14 @@ public class SettlementRecognitionService {
      * 生产（mock 关闭）不走此分支；无重力证据返回 null，由调用方进审单。
      */
     private OrderReadModel tryDevMockEvidenceSettle(ShoppingSession session,
-                                                    VisionServiceClient.RecognitionResult recognition) {
+                                                    RecognitionOutcome recognition) {
         if (!allowsGravityEvidenceSettle()) {
             return null;
         }
         if (!securityProperties.mockEnabled()) {
             return null;
         }
-        List<VisionServiceClient.RecognizedItem> cartItems =
+        List<RecognizedItem> cartItems =
                 gravityHelper.toRecognizedItems(session.getGravityDeltas());
         if (cartItems == null || cartItems.isEmpty()) {
             return null;
@@ -329,20 +323,20 @@ public class SettlementRecognitionService {
         return settlement.finalizeOrder(session, cartItems);
     }
 
-    VisionServiceClient.RecognitionResult withGravityFallback(ShoppingSession session,
-                                                              VisionServiceClient.RecognitionResult recognition) {
+    RecognitionOutcome withGravityFallback(ShoppingSession session,
+                                                              RecognitionOutcome recognition) {
         if (!systemConfigService.usesGravityFusion()) {
             return recognition;
         }
         return gravityHelper.reconcileWithGravity(session.getGravityDeltas(), recognition);
     }
 
-    private static VisionServiceClient.RecognitionResult forceReviewIfMockOrMismatch(
-            VisionServiceClient.RecognitionResult recognition) {
+    private static RecognitionOutcome forceReviewIfMockOrMismatch(
+            RecognitionOutcome recognition) {
         if (recognition == null || recognition.needReview() || !SettlementService.blocksSilentSettle(recognition)) {
             return recognition;
         }
-        return new VisionServiceClient.RecognitionResult(
+        return new RecognitionOutcome(
                 recognition.taskId(),
                 recognition.items(),
                 recognition.overallConfidence(),
@@ -353,7 +347,7 @@ public class SettlementRecognitionService {
     }
 
     /** 争议文案统一走 {@link SettlementDecision}，与矩阵单测同源。 */
-    private static String humanReviewReason(VisionServiceClient.RecognitionResult recognition) {
+    private static String humanReviewReason(RecognitionOutcome recognition) {
         SettlementDecision decision = SettlementDecision.classify(recognition);
         String reason = decision.reviewReason(recognition);
         if (reason != null) {
@@ -363,7 +357,7 @@ public class SettlementRecognitionService {
     }
 
     void escalateToDispute(ShoppingSession session,
-                           VisionServiceClient.RecognitionResult recognition,
+                           RecognitionOutcome recognition,
                            String reason) {
         // 转人工暂不扣款：释放开门预授权，避免多笔争议会话叠冻结导致可用余额为 0（BUG-001）
         consumerPreauthService.releaseIfFrozen(session);

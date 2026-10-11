@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,7 @@ public class SettlementConfidenceService {
      * 全局门槛读 {@link SystemConfigService#SETTLEMENT_MIN_CONFIDENCE}；
      * 单品门槛用 SKU {@code minChargeConfidence}。
      */
-    public String reviewReasonIfNeeded(VisionServiceClient.RecognitionResult recognition) {
+    public String reviewReasonIfNeeded(RecognitionOutcome recognition) {
         if (recognition.items().isEmpty()) {
             return null;
         }
@@ -45,14 +46,14 @@ public class SettlementConfidenceService {
         }
 
         List<String> skuIds = recognition.items().stream()
-                .map(VisionServiceClient.RecognizedItem::skuId)
+                .map(RecognizedItem::skuId)
                 .distinct()
                 .toList();
         Map<String, SkuCatalog> skus = skuCatalogRepository.findAllById(skuIds).stream()
                 .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s));
 
         boolean hasMediumBand = false;
-        for (VisionServiceClient.RecognizedItem item : recognition.items()) {
+        for (RecognizedItem item : recognition.items()) {
             SkuCatalog sku = skus.get(item.skuId());
             float minConf = sku != null ? sku.getMinChargeConfidence() : DEFAULT_SKU_MIN_CHARGE;
             if (item.confidence() < minConf) {

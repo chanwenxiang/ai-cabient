@@ -2,7 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.OrderReadModel;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
@@ -74,7 +75,7 @@ public class SettlementConfirmDisputeService {
      */
     public SettlementService.ConfirmDisputeResult confirmDisputedItems(
             ShoppingSession session,
-            List<VisionServiceClient.RecognizedItem> items) {
+            List<RecognizedItem> items) {
         return settlement.runWithSessionSettleLock(session.getSessionId(), () -> {
             ConfirmDisputePrep prep = self.prepareConfirmDispute(session.getSessionId(), items);
             if (prep.firstChargeDone()) {
@@ -124,8 +125,8 @@ public class SettlementConfirmDisputeService {
             int finalTotal,
             int paymentDelta,
             ShoppingSession session,
-            List<VisionServiceClient.RecognizedItem> oldItems,
-            List<VisionServiceClient.RecognizedItem> newItems,
+            List<RecognizedItem> oldItems,
+            List<RecognizedItem> newItems,
             java.util.Map<String, String> batchBySku) {
         static ConfirmDisputePrep firstCharge(SettlementService.ConfirmDisputeResult result) {
             return new ConfirmDisputePrep(true, result, null, 0, 0, 0,
@@ -134,8 +135,8 @@ public class SettlementConfirmDisputeService {
 
         static ConfirmDisputePrep adjust(CabinetOrder order, int originalPayable, int finalTotal, int paymentDelta,
                                          ShoppingSession session,
-                                         List<VisionServiceClient.RecognizedItem> oldItems,
-                                         List<VisionServiceClient.RecognizedItem> newItems,
+                                         List<RecognizedItem> oldItems,
+                                         List<RecognizedItem> newItems,
                                          java.util.Map<String, String> batchBySku) {
             return new ConfirmDisputePrep(false, null, order, originalPayable, finalTotal, paymentDelta,
                     session, oldItems, newItems, batchBySku);
@@ -144,7 +145,7 @@ public class SettlementConfirmDisputeService {
 
     @Transactional(noRollbackFor = {BalanceInsufficientException.class})
     public ConfirmDisputePrep prepareConfirmDispute(String sessionId,
-                                                    List<VisionServiceClient.RecognizedItem> items) {
+                                                    List<RecognizedItem> items) {
         if (items == null || items.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
         }
@@ -166,8 +167,8 @@ public class SettlementConfirmDisputeService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
         }
 
-        List<VisionServiceClient.RecognizedItem> oldItems = order.getLines().stream()
-                .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(),
+        List<RecognizedItem> oldItems = order.getLines().stream()
+                .map(l -> new RecognizedItem(l.getSkuId(), l.getQuantity(),
                         l.getConfidence() != null ? l.getConfidence() : 1f))
                 .toList();
         var batchBySku = order.getLines().stream()

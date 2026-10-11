@@ -1,7 +1,8 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -128,8 +129,8 @@ public class SettlementWaiveRefundService {
         if (!order.isInventoryDeducted()) {
             return false;
         }
-        List<VisionServiceClient.RecognizedItem> items = order.getLines().stream()
-                .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
+        List<RecognizedItem> items = order.getLines().stream()
+                .map(l -> new RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
                 .toList();
         var batchBySku = order.getLines().stream()
                 .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())

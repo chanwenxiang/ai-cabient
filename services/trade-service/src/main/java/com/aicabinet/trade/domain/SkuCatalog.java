@@ -50,14 +50,7 @@ public class SkuCatalog {
 
     private float minChargeConfidence = 0.92f;
 
-    private String yoloClassName;
-
-    private String visionEnrollmentStatus = "DRAFT";
-
     private float detectionMinConfidence = 0.5f;
-
-    @TableField("reference_image_urls")
-    private String referenceImageUrlsJson;
 
     private Integer shelfLifeDays;
 
@@ -113,10 +106,7 @@ public class SkuCatalog {
                 nearExpiryPriceCents,
                 maxPriceCents,
                 minChargeConfidence,
-                yoloClassName,
-                visionEnrollmentStatus,
                 detectionMinConfidence,
-                referenceImageUrlsJson,
                 createdAt,
                 updatedByUserId,
                 updatedByName

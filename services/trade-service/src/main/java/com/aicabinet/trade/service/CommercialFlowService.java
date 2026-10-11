@@ -16,7 +16,8 @@ import com.aicabinet.common.dto.ReplenishmentTaskDto;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.WarehouseOutboundDto;
 import com.aicabinet.common.dto.SupplierDto;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import org.springframework.stereotype.Service;
@@ -143,9 +144,9 @@ public class CommercialFlowService {
 
         SessionDto completed = sessionService.completeDevUploadRecognition(
                 session.sessionId(),
-                new VisionServiceClient.RecognitionResult(
+                new RecognitionOutcome(
                         "FLOW-" + session.sessionId(),
-                        List.of(new VisionServiceClient.RecognizedItem(skuId, 1, 0.99f)),
+                        List.of(new RecognizedItem(skuId, 1, 0.99f)),
                         0.99f,
                         false,
                         "flow-mock",

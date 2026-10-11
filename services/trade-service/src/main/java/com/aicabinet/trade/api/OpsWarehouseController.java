@@ -119,17 +119,6 @@ public class OpsWarehouseController {
         return ApiResponse.ok(warehouseStocktakeService.cancel(operatorId(request), stocktakeId));
     }
 
-    @RequiresPermissions("ops:warehouse:edit")
-    @PostMapping(value = "/warehouse/stocktakes/{stocktakeId}/scan-photo",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<StocktakeDto> scanStocktakePhoto(
-            HttpServletRequest request,
-            @PathVariable Long stocktakeId,
-            @RequestParam("file") MultipartFile file) throws IOException {
-        return ApiResponse.ok(warehouseStocktakeService.applyVisionCounts(
-                operatorId(request), stocktakeId, file.getBytes(), file.getOriginalFilename()));
-    }
-
     // --- 货位管理 ---
     @RequiresPermissions("ops:warehouse:list")
     @GetMapping("/warehouse/bins")

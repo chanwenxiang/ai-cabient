@@ -119,9 +119,6 @@
     <template #footer>
       <el-button @click="emit('update:stocktakeDetailDialog', false)">关闭</el-button>
       <template v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)">
-        <el-button type="primary" plain :loading="scanningPhoto" @click="triggerStocktakePhotoScan"
-          >拍照识别</el-button
-        >
         <el-button type="primary" :loading="saving" @click="emit('saveStocktakeLines')"
           >保存实盘</el-button
         >
@@ -150,25 +147,16 @@
         >复盘调整</el-button
       >
     </template>
-    <input
-      ref="stocktakePhotoInput"
-      type="file"
-      accept="image/*"
-      class="hidden-input"
-      @change="emit('stocktakePhoto', $event)"
-    />
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
 import type { WarehouseStocktakeRow } from '@/composables/warehouse/useWarehouseStocktakes';
 
 defineProps<{
   stocktakeDialog: boolean;
   stocktakeDetailDialog: boolean;
   saving: boolean;
-  scanningPhoto: boolean;
   stocktakeDetail: WarehouseStocktakeRow;
   activeWarehouses: WarehouseStocktakeRow[];
   stocktakeModeText: (mode: string) => string;
@@ -188,14 +176,7 @@ const emit = defineEmits<{
   completeAndAdjustStocktake: [];
   cancelStocktake: [];
   adjustStocktake: [];
-  stocktakePhoto: [event: Event];
 }>();
-
-const stocktakePhotoInput = ref<HTMLInputElement | null>(null);
-
-function triggerStocktakePhotoScan() {
-  stocktakePhotoInput.value?.click();
-}
 </script>
 
 <style scoped>

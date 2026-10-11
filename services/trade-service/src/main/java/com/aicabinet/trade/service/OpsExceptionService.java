@@ -10,7 +10,8 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.service.support.OpsExceptionServiceSupport;
 import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.enums.SessionState;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.context.annotation.Lazy;
@@ -478,7 +479,7 @@ public class OpsExceptionService {
         if ("CONFIRM".equals(type) || "ADJUST".equals(type)) {
             var recognized = (lines == null ? List.<ResolveDisputeRequest.ManualLineItem>of() : lines).stream()
                     .filter(line -> line.quantity() > 0)
-                    .map(line -> new VisionServiceClient.RecognizedItem(line.skuId(), line.quantity(), 1.0f))
+                    .map(line -> new RecognizedItem(line.skuId(), line.quantity(), 1.0f))
                     .toList();
             var settled = support.settlementService().confirmDisputedItems(session, recognized);
             session.setOrderId(settled.order().orderId());

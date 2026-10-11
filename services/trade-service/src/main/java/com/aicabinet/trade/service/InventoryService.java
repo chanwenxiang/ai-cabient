@@ -1,7 +1,8 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.GravityDeltaRequest;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
@@ -54,18 +55,18 @@ public class InventoryService {
 
     /** 扣减库存，有批次时 FEFO；返回 skuId -> 主批次号。 */
     @Transactional
-    public Map<String, String> deductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items) {
+    public Map<String, String> deductForOrder(String deviceId, List<RecognizedItem> items) {
         return self.deductForOrder(deviceId, items, null, null);
     }
 
     @Transactional
-    public Map<String, String> deductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+    public Map<String, String> deductForOrder(String deviceId, List<RecognizedItem> items,
                                               String refId) {
         return self.deductForOrder(deviceId, items, refId, null);
     }
 
     @Transactional
-    public Map<String, String> deductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+    public Map<String, String> deductForOrder(String deviceId, List<RecognizedItem> items,
                                               String refId, String gravityDeltasJson) {
         return runWithDeviceLock(deviceId, () -> doDeductForOrder(deviceId, items, refId, gravityDeltasJson));
     }
@@ -86,7 +87,7 @@ public class InventoryService {
         return "inv:" + deviceId;
     }
 
-    private Map<String, String> doDeductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+    private Map<String, String> doDeductForOrder(String deviceId, List<RecognizedItem> items,
                                                  String refId, String gravityDeltasJson) {
         deviceValidationService.ensureSettlementAllowed(deviceId);
         List<GravityDeltaRequest.GravityDeltaItem> gravityDeltas = gravityHelper.parse(gravityDeltasJson);
@@ -101,7 +102,7 @@ public class InventoryService {
             return batchBySku;
         }
         boolean lotLedger = inventoryLotService.deviceUsesLotLedger(deviceId);
-        for (VisionServiceClient.RecognizedItem item : items) {
+        for (RecognizedItem item : items) {
             if (item.quantity() <= 0) {
                 continue;
             }
@@ -149,7 +150,7 @@ public class InventoryService {
      *                退货回库缺它会让 CROSS_LINK B（退款缺库存审计）永久 FAIL（V271 钱货约束）。
      */
     @Transactional
-    public void restoreForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+    public void restoreForOrder(String deviceId, List<RecognizedItem> items,
                                 Map<String, String> batchBySku, String orderId) {
         runWithDeviceLock(deviceId, () -> {
             doRestoreForOrder(deviceId, items, batchBySku, orderId);
@@ -157,7 +158,7 @@ public class InventoryService {
         });
     }
 
-    private void doRestoreForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+    private void doRestoreForOrder(String deviceId, List<RecognizedItem> items,
                                    Map<String, String> batchBySku, String orderId) {
         if (items == null || items.isEmpty()) {
             return;
@@ -165,7 +166,7 @@ public class InventoryService {
         Map<String, Integer> slotQtyRestored = new HashMap<>();
         Map<String, Integer> skuQtyRestored = new HashMap<>();
         boolean lotLedger = inventoryLotService.deviceUsesLotLedger(deviceId);
-        for (VisionServiceClient.RecognizedItem item : items) {
+        for (RecognizedItem item : items) {
             if (item.quantity() <= 0) {
                 continue;
             }
@@ -178,7 +179,7 @@ public class InventoryService {
         applyPhysicalRestore(deviceId, slotQtyRestored, skuQtyRestored);
     }
 
-    private String restoreSingleItem(String deviceId, VisionServiceClient.RecognizedItem item,
+    private String restoreSingleItem(String deviceId, RecognizedItem item,
                                      Map<String, String> batchBySku, boolean lotLedger, String orderId) {
         String batch = batchBySku != null ? batchBySku.get(item.skuId()) : null;
         // 回库审计必须挂 order_id：写侧 CROSS_LINK B 要求 inventory_movement.ref_id = 退款单号
@@ -209,7 +210,7 @@ public class InventoryService {
      * 禁止再走报损扣库，避免账实与财务双重计损。
      */
     @Transactional
-    public void recordRefundKeptGoods(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+    public void recordRefundKeptGoods(String deviceId, List<RecognizedItem> items,
                                       Map<String, String> batchBySku, String orderId) {
         runWithDeviceLock(deviceId, () -> {
             doRecordRefundKeptGoods(deviceId, items, batchBySku, orderId);
@@ -217,12 +218,12 @@ public class InventoryService {
         });
     }
 
-    private void doRecordRefundKeptGoods(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+    private void doRecordRefundKeptGoods(String deviceId, List<RecognizedItem> items,
                                          Map<String, String> batchBySku, String orderId) {
         if (items == null || items.isEmpty() || orderId == null || orderId.isBlank()) {
             return;
         }
-        for (VisionServiceClient.RecognizedItem item : items) {
+        for (RecognizedItem item : items) {
             if (item == null || item.quantity() <= 0 || item.skuId() == null || item.skuId().isBlank()) {
                 continue;
             }
@@ -236,8 +237,8 @@ public class InventoryService {
 
     @Transactional
     public Map<String, String> adjustForOrder(String deviceId,
-                               List<VisionServiceClient.RecognizedItem> oldItems,
-                               List<VisionServiceClient.RecognizedItem> newItems) {
+                               List<RecognizedItem> oldItems,
+                               List<RecognizedItem> newItems) {
         return self.adjustForOrder(deviceId, oldItems, newItems, Map.of(), null);
     }
 
@@ -249,8 +250,8 @@ public class InventoryService {
      */
     @Transactional
     public Map<String, String> adjustForOrder(String deviceId,
-                               List<VisionServiceClient.RecognizedItem> oldItems,
-                               List<VisionServiceClient.RecognizedItem> newItems,
+                               List<RecognizedItem> oldItems,
+                               List<RecognizedItem> newItems,
                                Map<String, String> batchBySku) {
         return self.adjustForOrder(deviceId, oldItems, newItems, batchBySku, null);
     }
@@ -260,16 +261,16 @@ public class InventoryService {
      */
     @Transactional
     public Map<String, String> adjustForOrder(String deviceId,
-                               List<VisionServiceClient.RecognizedItem> oldItems,
-                               List<VisionServiceClient.RecognizedItem> newItems,
+                               List<RecognizedItem> oldItems,
+                               List<RecognizedItem> newItems,
                                Map<String, String> batchBySku,
                                String orderRefId) {
         return runWithDeviceLock(deviceId, () -> doAdjustForOrder(deviceId, oldItems, newItems, batchBySku, orderRefId));
     }
 
     private Map<String, String> doAdjustForOrder(String deviceId,
-                                                 List<VisionServiceClient.RecognizedItem> oldItems,
-                                                 List<VisionServiceClient.RecognizedItem> newItems,
+                                                 List<RecognizedItem> oldItems,
+                                                 List<RecognizedItem> newItems,
                                                  Map<String, String> batchBySku,
                                                  String orderRefId) {
         Map<String, String> resultBatches = new HashMap<>();
@@ -299,7 +300,7 @@ public class InventoryService {
         }
         if (delta > 0) {
             Map<String, String> deducted = doDeductForOrder(
-                    deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)), orderRefId, null);
+                    deviceId, List.of(new RecognizedItem(skuId, delta, 1f)), orderRefId, null);
             deducted.forEach(resultBatches::putIfAbsent);
             return;
         }
@@ -311,7 +312,7 @@ public class InventoryService {
             }
         }
         doRestoreForOrder(deviceId,
-                List.of(new VisionServiceClient.RecognizedItem(skuId, -delta, 1f)), restoreBatch, orderRefId);
+                List.of(new RecognizedItem(skuId, -delta, 1f)), restoreBatch, orderRefId);
     }
 
     private void applyDelta(String deviceId, String skuId, int delta) {
@@ -336,15 +337,15 @@ public class InventoryService {
         log.info("库存已更新 device={} sku={} qty={}", deviceId, skuId, next);
     }
 
-    private static Map<String, Integer> toQtyMap(List<VisionServiceClient.RecognizedItem> items) {
+    private static Map<String, Integer> toQtyMap(List<RecognizedItem> items) {
         if (items == null) {
             return Map.of();
         }
         return items.stream()
                 .filter(i -> i.quantity() > 0)
                 .collect(Collectors.toMap(
-                        VisionServiceClient.RecognizedItem::skuId,
-                        VisionServiceClient.RecognizedItem::quantity,
+                        RecognizedItem::skuId,
+                        RecognizedItem::quantity,
                         Integer::sum));
     }
 

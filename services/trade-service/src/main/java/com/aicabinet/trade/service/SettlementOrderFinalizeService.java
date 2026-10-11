@@ -1,7 +1,8 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderReadModel;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -80,7 +81,7 @@ public class SettlementOrderFinalizeService {
     }
 
     OrderReadModel finalizeOrder(ShoppingSession session,
-                                 List<VisionServiceClient.RecognizedItem> items) {
+                                 List<RecognizedItem> items) {
         deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
         CabinetOrder order = buildOrder(session, items);
         CouponService.BestCoupon appliedCoupon = selectBestCouponForOrder(order);
@@ -290,7 +291,7 @@ public class SettlementOrderFinalizeService {
     }
 
     private CabinetOrder buildOrder(ShoppingSession session,
-                                    List<VisionServiceClient.RecognizedItem> items) {
+                                    List<RecognizedItem> items) {
         CabinetOrder order = new CabinetOrder();
         order.setOrderId(BizIds.nextNumeric());
         order.setSessionId(session.getSessionId());

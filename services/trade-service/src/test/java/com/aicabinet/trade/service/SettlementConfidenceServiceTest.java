@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,8 +37,8 @@ class SettlementConfidenceServiceTest {
 
     @Test
     void overallBelowGlobalMin_triggersReview() {
-        var item = new VisionServiceClient.RecognizedItem("SKU-1", 1, 0.95f);
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var item = new RecognizedItem("SKU-1", 1, 0.95f);
+        var recognition = new RecognitionOutcome(
                 "T-1", List.of(item), 0.60f, false, "yolo", List.of());
 
         String reason = service.reviewReasonIfNeeded(recognition);
@@ -55,8 +56,8 @@ class SettlementConfidenceServiceTest {
         sku.setMinChargeConfidence(0.92f);
         when(skuCatalogRepository.findAllById(List.of("SKU-1"))).thenReturn(List.of(sku));
 
-        var item = new VisionServiceClient.RecognizedItem("SKU-1", 1, 0.85f);
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var item = new RecognizedItem("SKU-1", 1, 0.85f);
+        var recognition = new RecognitionOutcome(
                 "T-1", List.of(item), 0.90f, false, "yolo", List.of());
 
         String reason = service.reviewReasonIfNeeded(recognition);
@@ -74,8 +75,8 @@ class SettlementConfidenceServiceTest {
         sku.setMinChargeConfidence(0.92f);
         when(skuCatalogRepository.findAllById(List.of("SKU-1"))).thenReturn(List.of(sku));
 
-        var item = new VisionServiceClient.RecognizedItem("SKU-1", 1, 0.97f);
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var item = new RecognizedItem("SKU-1", 1, 0.97f);
+        var recognition = new RecognitionOutcome(
                 "T-1", List.of(item), 0.95f, false, "yolo", List.of());
 
         assertNull(service.reviewReasonIfNeeded(recognition));
@@ -83,7 +84,7 @@ class SettlementConfidenceServiceTest {
 
     @Test
     void emptyItems_skips() {
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "T-1", List.of(), 0.10f, false, "yolo", List.of());
         assertNull(service.reviewReasonIfNeeded(recognition));
     }

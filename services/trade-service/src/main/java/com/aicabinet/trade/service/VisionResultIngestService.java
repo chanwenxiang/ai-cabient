@@ -4,7 +4,8 @@ import com.aicabinet.common.dto.VisionRecognitionResultDto;
 import com.aicabinet.common.dto.VisionResultIngestResponseDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.common.enums.VisionIngestOutcome;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
@@ -90,7 +91,7 @@ public class VisionResultIngestService {
                     reasonFor(stateBefore), sessionId, request.taskId(), stateBefore.name());
         }
 
-        VisionServiceClient.RecognitionResult result = toResult(request);
+        RecognitionOutcome result = toResult(request);
         sessionService.completeAsyncRecognition(sessionId, result);
 
         String stateAfter = repository.findById(sessionId)
@@ -153,11 +154,11 @@ public class VisionResultIngestService {
         }
     }
 
-    private static VisionServiceClient.RecognitionResult toResult(VisionRecognitionResultDto request) {
-        List<VisionServiceClient.RecognizedItem> items = new ArrayList<>();
+    private static RecognitionOutcome toResult(VisionRecognitionResultDto request) {
+        List<RecognizedItem> items = new ArrayList<>();
         if (request.items() != null) {
             for (VisionRecognitionResultDto.Item item : request.items()) {
-                items.add(new VisionServiceClient.RecognizedItem(
+                items.add(new RecognizedItem(
                         item.skuId().trim(), item.quantity(), (float) item.confidence()));
             }
         }
@@ -167,7 +168,7 @@ public class VisionResultIngestService {
         String taskId = isBlank(request.taskId())
                 ? "T-" + request.sessionId().trim()
                 : request.taskId().trim();
-        return new VisionServiceClient.RecognitionResult(
+        return new RecognitionOutcome(
                 taskId,
                 items,
                 (float) request.overallConfidence(),

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,9 +21,9 @@ class GravitySettlementHelperTest {
 
     @Test
     void reconcile_usesVisionWhenPresent() {
-        var vision = new VisionServiceClient.RecognitionResult(
+        var vision = new RecognitionOutcome(
                 "T-1",
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.9f)),
+                List.of(new RecognizedItem("SKU-DEMO-001", 1, 0.9f)),
                 0.9f,
                 false,
                 "yolov8-delta",
@@ -39,9 +40,9 @@ class GravitySettlementHelperTest {
 
     @Test
     void reconcile_mismatchForcesReview() {
-        var vision = new VisionServiceClient.RecognitionResult(
+        var vision = new RecognitionOutcome(
                 "T-2",
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.9f)),
+                List.of(new RecognizedItem("SKU-DEMO-001", 2, 0.9f)),
                 0.9f,
                 false,
                 "yolov8-delta",
@@ -57,7 +58,7 @@ class GravitySettlementHelperTest {
 
     @Test
     void reconcile_fallsBackToGravityWhenVisionEmpty_forcesReview() {
-        var vision = new VisionServiceClient.RecognitionResult(
+        var vision = new RecognitionOutcome(
                 "T-3",
                 List.of(),
                 0f,

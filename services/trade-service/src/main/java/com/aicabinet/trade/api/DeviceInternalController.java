@@ -109,12 +109,6 @@ public class DeviceInternalController {
                 body.errorMessage()).orElse(null));
     }
 
-    /** 供 vision-service 补货库存快照模式拉取柜内 SKU 汇总数量。 */
-    @GetMapping("/{deviceId}/inventory-snapshot")
-    public ApiResponse<List<SkuQuantityDto>> inventorySnapshot(@PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(deviceSlotService.inventorySnapshot(deviceId));
-    }
-
     record HeartbeatRequest(String appVersion, String firmwareVersion, Integer currentTempC,
                             Double humidityPct, Double voltageV, Double powerW,
                             String imei, String boardSn) {}

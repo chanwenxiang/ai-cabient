@@ -14,7 +14,8 @@ import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.DeviceServiceClient;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
@@ -205,7 +206,7 @@ public class SessionService {
 
     /** 开发上传识别：用真实 vision 结果结算，不走 mock 兜底。见 {@link SessionSettleService}。 */
     public SessionDto completeDevUploadRecognition(String sessionId,
-                                                   VisionServiceClient.RecognitionResult recognition) {
+                                                   RecognitionOutcome recognition) {
         return sessionSettleService.completeDevUploadRecognition(sessionId, recognition);
     }
 
@@ -365,7 +366,7 @@ public class SessionService {
     /**
      * 异步识别结果回调。见 {@link SessionSettleService}。
      */
-    public void completeAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
+    public void completeAsyncRecognition(String sessionId, RecognitionOutcome recognition) {
         sessionSettleService.completeAsyncRecognition(sessionId, recognition);
     }
 

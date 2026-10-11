@@ -3,7 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
@@ -82,7 +83,7 @@ class BalanceInsufficientSettlementTest {
     void asyncRecognition_balanceInsufficient_transitionsToDisputedWithoutOrder() {
         ShoppingSession session = session("S-BAL-02", 13800138000L, "CAB-001", SessionState.RECOGNIZING);
         when(repository.findById("S-BAL-02")).thenReturn(Optional.of(session));
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "T-1", List.of(), 0.9f, false, "mock", List.of());
         when(settlementService.processRecognitionResult(session, recognition)).thenThrow(
                 new BalanceInsufficientException(ApiMessages.INSUFFICIENT_BALANCE));

@@ -2,7 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.OrderRefundRequest;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
@@ -71,12 +72,12 @@ public class SettlementService {
 
     /** 识别已完成：短事务内 forUpdate + 落单/扣款。 */
     public OrderReadModel processRecognitionAfterVision(ShoppingSession session,
-                                                        VisionServiceClient.RecognitionResult recognition) {
+                                                        RecognitionOutcome recognition) {
         return settleOrchestrator.processRecognitionAfterVision(session, recognition);
     }
 
     public OrderReadModel processRecognitionResult(ShoppingSession session,
-                                             VisionServiceClient.RecognitionResult recognition) {
+                                             RecognitionOutcome recognition) {
         return settleOrchestrator.processRecognitionResult(session, recognition);
     }
 
@@ -86,13 +87,13 @@ public class SettlementService {
      * @param allowDevFallback 为 false 时不注入 mock SKU（运营识别测试）
      */
     public OrderReadModel processRecognitionResult(ShoppingSession session,
-                                             VisionServiceClient.RecognitionResult recognition,
+                                             RecognitionOutcome recognition,
                                              boolean allowDevFallback) {
         return settleOrchestrator.processRecognitionResult(session, recognition, allowDevFallback);
     }
 
     /** mock / gravity-mismatch / gravity-fill 不得静默按「生产精度」扣款。 */
-    static boolean blocksSilentSettle(VisionServiceClient.RecognitionResult recognition) {
+    static boolean blocksSilentSettle(RecognitionOutcome recognition) {
         String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
         return version.contains("mock")
                 || version.contains("fallback")
@@ -100,7 +101,7 @@ public class SettlementService {
                 || version.contains(GRAVITY_FILL);
     }
 
-    static String reviewReasonFor(VisionServiceClient.RecognitionResult recognition) {
+    static String reviewReasonFor(RecognitionOutcome recognition) {
         String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
         if (version.contains(GRAVITY_MISMATCH)) {
             return "视觉与重力数量不一致，需人工审核";
@@ -125,7 +126,7 @@ public class SettlementService {
 
     @Transactional
     public OrderReadModel settleManual(ShoppingSession session,
-                                 List<VisionServiceClient.RecognizedItem> items) {
+                                 List<RecognizedItem> items) {
         return runWithSessionSettleLock(session.getSessionId(), () -> {
             sessionRepository.findByIdForUpdate(session.getSessionId());
             if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
@@ -140,7 +141,7 @@ public class SettlementService {
      * 首次落单仍同事务 {@code chargeOrder}；改单为库存短事务 → 支付差额 → 状态短事务。
      */
     public ConfirmDisputeResult confirmDisputedItems(ShoppingSession session,
-                                                   List<VisionServiceClient.RecognizedItem> items) {
+                                                   List<RecognizedItem> items) {
         return settlementConfirmDisputeService.confirmDisputedItems(session, items);
     }
 
@@ -197,7 +198,7 @@ public class SettlementService {
     }
 
     OrderReadModel finalizeOrder(ShoppingSession session,
-                                   List<VisionServiceClient.RecognizedItem> items) {
+                                   List<RecognizedItem> items) {
         return settlementOrderFinalizeService.finalizeOrder(session, items);
     }
 

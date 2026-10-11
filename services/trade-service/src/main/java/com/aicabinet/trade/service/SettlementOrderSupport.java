@@ -2,7 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.OrderReadModel;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.DeviceSlot;
@@ -72,11 +73,11 @@ public class SettlementOrderSupport {
         return systemConfigService.usesGravityFusion() ? session.getGravityDeltas() : null;
     }
 
-    void applyItemsToOrder(CabinetOrder order, List<VisionServiceClient.RecognizedItem> items) {
+    void applyItemsToOrder(CabinetOrder order, List<RecognizedItem> items) {
         order.getLines().clear();
         Map<String, String> slotBySku = inferSlotBySku(order.getDeviceId());
         int total = 0;
-        for (VisionServiceClient.RecognizedItem item : items) {
+        for (RecognizedItem item : items) {
             SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                             ApiMessages.SKU_NOT_FOUND + "：" + item.skuId()));

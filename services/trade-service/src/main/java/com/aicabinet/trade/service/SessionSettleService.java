@@ -3,7 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.enums.SessionState;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
@@ -154,14 +155,14 @@ public class SessionSettleService {
     /**
      * 异步识别结果回调：无外层长事务；会话态短事务与结算短事务分离（扣款已 NOT_SUPPORTED）。
      */
-    public void completeAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
+    public void completeAsyncRecognition(String sessionId, RecognitionOutcome recognition) {
         sessionService.runWithSessionLifeLock(sessionId, () -> {
             doCompleteAsyncRecognition(sessionId, recognition);
             return null;
         });
     }
 
-    private void doCompleteAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
+    private void doCompleteAsyncRecognition(String sessionId, RecognitionOutcome recognition) {
         ShoppingSession session = repository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() != SessionState.RECOGNIZING) {
@@ -220,13 +221,13 @@ public class SessionSettleService {
 
     /** 开发上传识别：用真实 vision 结果结算，不走 mock 兜底。无外层长事务。 */
     public SessionDto completeDevUploadRecognition(String sessionId,
-                                                   VisionServiceClient.RecognitionResult recognition) {
+                                                   RecognitionOutcome recognition) {
         return sessionService.runWithSessionLifeLock(sessionId,
                 () -> doCompleteDevUploadRecognition(sessionId, recognition));
     }
 
     private SessionDto doCompleteDevUploadRecognition(String sessionId,
-                                                      VisionServiceClient.RecognitionResult recognition) {
+                                                      RecognitionOutcome recognition) {
         ShoppingSession session = repository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() == SessionState.SHOPPING) {

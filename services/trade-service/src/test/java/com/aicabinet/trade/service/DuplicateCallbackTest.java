@@ -4,7 +4,8 @@ import com.aicabinet.common.dto.FileDisputeRequest;
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -102,7 +103,7 @@ class DuplicateCallbackTest {
         ShoppingSession recognizing = session("S-DUP-02", SessionState.RECOGNIZING);
         ShoppingSession settling = session("S-DUP-02", SessionState.SETTLING);
         stubFindById("S-DUP-02", recognizing, settling);
-        VisionServiceClient.RecognitionResult recognition = sampleRecognition();
+        RecognitionOutcome recognition = sampleRecognition();
         when(settlementService.processRecognitionResult(recognizing, recognition))
                 .thenReturn(sampleOrder("O-DUP-02", "S-DUP-02"));
 
@@ -154,8 +155,8 @@ class DuplicateCallbackTest {
         when(repository.findById(sessionId)).thenAnswer(answer);
     }
 
-    private static VisionServiceClient.RecognitionResult sampleRecognition() {
-        return new VisionServiceClient.RecognitionResult(
+    private static RecognitionOutcome sampleRecognition() {
+        return new RecognitionOutcome(
                 "T-1", List.of(), 0.9f, false, "mock", List.of());
     }
 

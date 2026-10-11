@@ -58,7 +58,6 @@ public class DemoDataService {
     private final WarehouseMapper warehouseRepository;
     private final WarehouseInventoryMapper warehouseInventoryRepository;
     private final WarehouseMovementMapper warehouseMovementRepository;
-    private final SkuVisionMappingMapper skuVisionMappingRepository;
     private final UserInfoMapper userInfoRepository;
     private final UserAccountMapper userAccountRepository;
     private final MerchantMapper merchantRepository;
@@ -84,7 +83,6 @@ public class DemoDataService {
                            WarehouseMapper warehouseRepository,
                            WarehouseInventoryMapper warehouseInventoryRepository,
                            WarehouseMovementMapper warehouseMovementRepository,
-                           SkuVisionMappingMapper skuVisionMappingRepository,
                            UserInfoMapper userInfoRepository,
                            UserAccountMapper userAccountRepository,
                            MerchantMapper merchantRepository,
@@ -108,7 +106,6 @@ public class DemoDataService {
         this.warehouseRepository = warehouseRepository;
         this.warehouseInventoryRepository = warehouseInventoryRepository;
         this.warehouseMovementRepository = warehouseMovementRepository;
-        this.skuVisionMappingRepository = skuVisionMappingRepository;
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.merchantRepository = merchantRepository;
@@ -141,7 +138,6 @@ public class DemoDataService {
         bindInventorySkuToSlots(deviceId);
         String warehouseId = ensureWarehouse();
         ensureSupplier();
-        ensureVisionMappings();
         ensureConsumerUser();
         ensureMarketingSeeds();
         ensureMerchantPortalBindings(ensureDemoMerchantId());
@@ -597,19 +593,6 @@ public class DemoDataService {
         }
     }
 
-    private void ensureVisionMappings() {
-        if (skuVisionMappingRepository.count() > 0) {
-            return;
-        }
-        for (DemoVisionSeed seed : DEMO_VISION_MAPPINGS) {
-            SkuVisionMapping mapping = new SkuVisionMapping();
-            mapping.setClassName(seed.className());
-            mapping.setSkuId(seed.skuId());
-            mapping.setMinConfidence(seed.minConfidence());
-            mapping.setMappingSource("YOLO_COCO");
-            skuVisionMappingRepository.save(mapping);
-        }
-    }
 
     private void ensureConsumerUser() {
         if (!userInfoRepository.existsById(DEMO_CONSUMER_USER_ID)) {

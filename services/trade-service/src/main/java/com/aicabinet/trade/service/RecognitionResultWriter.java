@@ -1,7 +1,8 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.VisionRecognitionResultDto;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.RecognitionResult;
 import com.aicabinet.trade.mapper.RecognitionResultMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
@@ -89,7 +90,7 @@ public class RecognitionResultWriter {
      * @param recognition 平台采纳的识别结果
      * @throws RuntimeException 仅当真实的基础设施错误发生——刻意不吞，让结算一同回滚
      */
-    public Outcome persist(String sessionId, VisionServiceClient.RecognitionResult recognition) {
+    public Outcome persist(String sessionId, RecognitionOutcome recognition) {
         if (sessionId == null || sessionId.isBlank() || recognition == null) {
             log.warn("识别结果落库跳过：会话号或结果为空 session={}", sessionId);
             return Outcome.INVALID;
@@ -148,7 +149,7 @@ public class RecognitionResultWriter {
         return Outcome.WRITTEN;
     }
 
-    private String writeItems(List<VisionServiceClient.RecognizedItem> items) throws JsonProcessingException {
+    private String writeItems(List<RecognizedItem> items) throws JsonProcessingException {
         if (items == null || items.isEmpty()) {
             return EMPTY_ITEMS_JSON;
         }

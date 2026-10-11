@@ -7,7 +7,8 @@ import com.aicabinet.trade.domain.Warehouse;
 import com.aicabinet.trade.domain.WarehouseInventory;
 import com.aicabinet.trade.domain.WarehouseStocktake;
 import com.aicabinet.trade.domain.WarehouseStocktakeLine;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.WarehouseInventoryMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
@@ -45,7 +46,6 @@ class WarehouseStocktakeServiceTest {
     @Mock private WarehouseInventoryMapper inventoryRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
-    @Mock private VisionServiceClient visionServiceClient;
     @Mock private DistributedLockService distributedLockService;
 
     private WarehouseStocktakeService service;
@@ -54,7 +54,7 @@ class WarehouseStocktakeServiceTest {
     void setUp() {
         service = new WarehouseStocktakeService(permissionService, stocktakeRepository,
                 lineRepository, warehouseRepository, inventoryRepository, skuCatalogRepository,
-                warehouseService, visionServiceClient, distributedLockService, null);
+                warehouseService, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         lenient().when(distributedLockService.tryLock(any(), eq(60L), eq(5L))).thenReturn(true);
     }
@@ -174,47 +174,6 @@ class WarehouseStocktakeServiceTest {
         when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
 
         assertThrows(ResponseStatusException.class, () -> service.cancel(1L, 1L));
-    }
-
-    @Test
-    void applyVisionCounts_shouldFillCountedFromRecognition() {
-        WarehouseStocktake st = stocktake("DRAFT");
-        WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 10, null, "PENDING");
-        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
-        when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
-        when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
-        when(visionServiceClient.recognizeUpload(
-                eq("STOCKTAKE-1"), any(byte[].class), eq("photo.jpg")))
-                .thenReturn(new VisionServiceClient.RecognitionResult(
-                        "T1",
-                        List.of(
-                                new VisionServiceClient.RecognizedItem("SKU-A", 7, 0.91f),
-                                new VisionServiceClient.RecognizedItem("SKU-UNKNOWN", 3, 0.88f),
-                                new VisionServiceClient.RecognizedItem("SKU-A", 9, 0.20f)),
-                        0.91f, false, "yolo", List.of()));
-
-        var dto = service.applyVisionCounts(1L, 1L, new byte[]{1}, "photo.jpg");
-
-        assertEquals(Integer.valueOf(7), line.getCountedQty());
-        assertEquals(-3, line.getDiffQty());
-        assertEquals("DIFF", line.getStatus());
-        assertEquals("IN_PROGRESS", st.getStatus());
-        assertEquals(-3, dto.diffQty());
-        assertEquals(1, dto.diffLineCount());
-        verify(permissionService).requirePermission(1L, "ops:warehouse:edit");
-    }
-
-    @Test
-    void applyVisionCounts_shouldFailGracefullyWhenVisionDown() {
-        WarehouseStocktake st = stocktake("DRAFT");
-        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
-        when(visionServiceClient.recognizeUpload(any(), any(), any()))
-                .thenThrow(new IllegalStateException("vision down"));
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.applyVisionCounts(1L, 1L, new byte[]{1}, "photo.jpg"));
-
-        assertEquals(502, ex.getStatusCode().value());
     }
 
     private static Warehouse warehouse() {

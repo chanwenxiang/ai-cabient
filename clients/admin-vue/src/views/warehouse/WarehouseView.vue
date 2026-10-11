@@ -617,7 +617,6 @@
         v-model:stocktake-dialog="stocktakeDialog"
         v-model:stocktake-detail-dialog="stocktakeDetailDialog"
         :saving="saving"
-        :scanning-photo="scanningPhoto"
         v-model:stocktake-form="stocktakeForm"
         :stocktake-detail="stocktakeDetail"
         :active-warehouses="activeWarehouses"
@@ -632,7 +631,6 @@
         @complete-and-adjust-stocktake="completeAndAdjustStocktakeAction"
         @cancel-stocktake="cancelStocktakeAction"
         @adjust-stocktake="adjustStocktakeAction"
-        @stocktake-photo="onStocktakePhoto"
       />
 
       <WarehouseBinDialogs
@@ -1588,13 +1586,11 @@ syncRouteQueryHolder.fn = syncRouteQuery;
 const {
   stocktakeDialog,
   stocktakeDetailDialog,
-  scanningPhoto,
   stocktakeForm,
   stocktakeDetail,
   openStocktakeCreate,
   saveStocktake,
   openStocktakeDetail,
-  onStocktakePhoto,
   saveStocktakeLines,
   completeStocktakeAction,
   completeAndAdjustStocktakeAction,

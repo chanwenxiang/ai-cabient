@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -53,7 +54,6 @@ class SettlementDisputeTest {
     @Mock MerchantSkuPricingService skuPricingService;
     @Mock UserValidationService userValidationService;
     @Mock VideoArchiveService videoArchiveService;
-    @Mock SkuVisionEnrollmentService skuVisionEnrollmentService;
     @Mock CouponService couponService;
     @Mock MemberService memberService;
     @Mock NotificationService notificationService;
@@ -84,7 +84,7 @@ class SettlementDisputeTest {
                 org.mockito.Mockito.mock(RiskControlService.class));
         SettlementRecognitionService recognitionSvc = new SettlementRecognitionService(
                 sessionRepository, orderRepository, confidenceService, gravityHelper,
-                securityProperties, stagingProperties, systemConfigService, skuVisionEnrollmentService,
+                securityProperties, stagingProperties, systemConfigService,
                 disputeService, consumerPreauthService, settlementService, orderSupport, recognitionResultWriter);
         SettlementSettleOrchestrator settleOrchestrator = new SettlementSettleOrchestrator(
                 sessionRepository, orderRepository, deviceValidationService,
@@ -122,7 +122,7 @@ class SettlementDisputeTest {
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(gravityHelper.toRecognizedItems(null)).thenReturn(List.of());
 
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "T-1", List.of(), 0f, false, "yolov8", List.of());
 
         assertThrows(DisputeRequiredException.class,
@@ -160,7 +160,7 @@ class SettlementDisputeTest {
         org.mockito.Mockito.doNothing().when(videoArchiveService).archiveAfterSettlement(any());
         when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "T-persist", List.of(), 0f, false, "yolov8", List.of());
 
         settlementService.processRecognitionResult(session, recognition, true);
@@ -191,7 +191,7 @@ class SettlementDisputeTest {
         org.mockito.Mockito.doNothing().when(videoArchiveService).archiveAfterSettlement(any());
         when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "T-empty", List.of(), 0f, false, "yolov8", List.of());
 
         var order = settlementService.processRecognitionResult(session, recognition, true);
@@ -200,31 +200,7 @@ class SettlementDisputeTest {
         verifyNoInteractions(disputeService);
     }
 
-    @Test
-    void nonProductionSku_escalatesToDispute() {
-        ShoppingSession session = new ShoppingSession();
-        session.setSessionId("S-WHITELIST");
-        session.setUserId(13800138000L);
-        session.setDeviceId("CAB-001");
-
-        when(orderRepository.findBySessionId("S-WHITELIST")).thenReturn(java.util.Optional.empty());
-        when(securityProperties.mockEnabled()).thenReturn(false);
-        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
-        when(confidenceService.reviewReasonIfNeeded(any())).thenReturn(null);
-        when(skuVisionEnrollmentService.validateSettlementItems(eq("CAB-001"), any()))
-                .thenReturn(java.util.Optional.of("SKU SKU-X 视觉状态为 MAPPING，不可自动扣款"));
-
-        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-X", 1, 0.95f));
-        var recognition = new VisionServiceClient.RecognitionResult(
-                "T-1", items, 0.95f, false, "cabinet-skus-v1", List.of());
-
-        assertThrows(DisputeRequiredException.class,
-                () -> settlementService.processRecognitionResult(session, recognition, true));
-
-        verify(disputeService).createTicket(session, recognition,
-                "SKU SKU-X 视觉状态为 MAPPING，不可自动扣款");
-    }
-
+    
     @Test
     void legacyClose_cloudVisionRetired_escalatesWithoutCharging() {
         // 旧云识别已退役（2026-10-11）：关门结算不再调用任何识别引擎，
@@ -239,8 +215,8 @@ class SettlementDisputeTest {
 
         assertThrows(DisputeRequiredException.class, () -> settlementService.settle(session));
 
-        org.mockito.ArgumentCaptor<VisionServiceClient.RecognitionResult> captor =
-                org.mockito.ArgumentCaptor.forClass(VisionServiceClient.RecognitionResult.class);
+        org.mockito.ArgumentCaptor<RecognitionOutcome> captor =
+                org.mockito.ArgumentCaptor.forClass(RecognitionOutcome.class);
         verify(disputeService).createTicket(eq(session), captor.capture(), anyString());
         assertEquals("cloud-vision-retired", captor.getValue().modelVersion());
         verifyNoInteractions(orderPaymentService, inventoryService, revenueSplitService);
@@ -262,7 +238,7 @@ class SettlementDisputeTest {
         when(securityProperties.mockEnabled()).thenReturn(true);
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(gravityHelper.toRecognizedItems(any())).thenReturn(
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.9f)));
+                List.of(new RecognizedItem("SKU-DEMO-001", 2, 0.9f)));
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(false);
@@ -274,7 +250,7 @@ class SettlementDisputeTest {
         when(revenueSplitService.findStatusByOrderId(anyString())).thenReturn(java.util.Optional.empty());
 
         var order = settlementService.processRecognitionResult(session,
-                new VisionServiceClient.RecognitionResult("T-1", List.of(), 0.9f, false, "yolov8", List.of()));
+                new RecognitionOutcome("T-1", List.of(), 0.9f, false, "yolov8", List.of()));
 
         org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
         // toDto 会读已完成扣款/退款分位，不等于发起扣款
@@ -302,7 +278,7 @@ class SettlementDisputeTest {
         when(securityProperties.mockEnabled()).thenReturn(true);
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(gravityHelper.toRecognizedItems(any())).thenReturn(
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.9f)));
+                List.of(new RecognizedItem("SKU-DEMO-001", 2, 0.9f)));
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(memberService.applyMemberPriceDiscount(any(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
@@ -319,7 +295,7 @@ class SettlementDisputeTest {
         when(revenueSplitService.findStatusByOrderId(anyString())).thenReturn(java.util.Optional.empty());
 
         var order = settlementService.processRecognitionResult(session,
-                new VisionServiceClient.RecognitionResult("T-m5", List.of(), 0.9f, false, "yolov8", List.of()));
+                new RecognitionOutcome("T-m5", List.of(), 0.9f, false, "yolov8", List.of()));
 
         org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
         org.junit.jupiter.api.Assertions.assertEquals(700, order.totalAmountCents());
@@ -355,7 +331,7 @@ class SettlementDisputeTest {
         when(securityProperties.mockEnabled()).thenReturn(true);
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(gravityHelper.toRecognizedItems(any())).thenReturn(
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.9f)));
+                List.of(new RecognizedItem("SKU-DEMO-001", 2, 0.9f)));
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(memberService.applyMemberPriceDiscount(any(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
@@ -375,7 +351,7 @@ class SettlementDisputeTest {
                 .when(orderPaymentService).chargeOrder(any());
 
         var order = settlementService.processRecognitionResult(session,
-                new VisionServiceClient.RecognitionResult("T-m6", List.of(), 0.9f, false, "yolov8", List.of()));
+                new RecognitionOutcome("T-m6", List.of(), 0.9f, false, "yolov8", List.of()));
 
         org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
         org.junit.jupiter.api.Assertions.assertEquals(700, order.totalAmountCents());
@@ -407,15 +383,15 @@ class SettlementDisputeTest {
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.5f));
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var items = List.of(new RecognizedItem("SKU-DEMO-001", 1, 0.5f));
+        var recognition = new RecognitionOutcome(
                 "T-m3", items, 0.5f, true, "cabinet-skus-v1", List.of());
 
         assertThrows(DisputeRequiredException.class,
                 () -> settlementService.processRecognitionResult(session, recognition, false));
 
         verify(consumerPreauthService).releaseIfFrozen(session);
-        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
+        verify(disputeService).createTicket(eq(session), any(RecognitionOutcome.class),
                 eq("识别结果需人工审核"));
         verifyNoInteractions(orderPaymentService, inventoryService, revenueSplitService);
         verify(couponService, never()).markUsed(any(), any(), any(), any(), anyInt());
@@ -443,8 +419,6 @@ class SettlementDisputeTest {
         when(orderRepository.findBySessionId("S-M4")).thenReturn(java.util.Optional.empty());
         when(sessionRepository.findById("S-M4")).thenReturn(java.util.Optional.of(session));
         when(confidenceService.reviewReasonIfNeeded(any())).thenReturn(null);
-        when(skuVisionEnrollmentService.validateSettlementItems(any(), any()))
-                .thenReturn(java.util.Optional.empty());
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(memberService.applyMemberPriceDiscount(any(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
@@ -463,8 +437,8 @@ class SettlementDisputeTest {
         org.mockito.Mockito.doNothing().when(couponService)
                 .markUsed(eq(10001L), eq(99L), anyString(), eq("CAB-001"), eq(100));
 
-        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.97f));
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var items = List.of(new RecognizedItem("SKU-DEMO-001", 2, 0.97f));
+        var recognition = new RecognitionOutcome(
                 "T-m4", items, 0.97f, false, "cabinet-skus-v1", List.of("bottle"));
 
         var order = settlementService.processRecognitionResult(session, recognition, false);
@@ -498,14 +472,14 @@ class SettlementDisputeTest {
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(gravityHelper.toRecognizedItems(any())).thenReturn(List.of());
 
-        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.92f));
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var items = List.of(new RecognizedItem("SKU-DEMO-001", 1, 0.92f));
+        var recognition = new RecognitionOutcome(
                 "T-mock", items, 0.92f, false, "mock-v1", List.of());
 
         assertThrows(DisputeRequiredException.class,
                 () -> settlementService.processRecognitionResult(session, recognition, true));
 
-        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
+        verify(disputeService).createTicket(eq(session), any(RecognitionOutcome.class),
                 eq("模拟/兜底识别结果，非生产精度，需人工审核"));
         verifyNoInteractions(orderPaymentService, inventoryService);
     }
@@ -527,7 +501,7 @@ class SettlementDisputeTest {
         when(securityProperties.mockEnabled()).thenReturn(true);
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(gravityHelper.toRecognizedItems(any())).thenReturn(
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.98f)));
+                List.of(new RecognizedItem("SKU-DEMO-001", 1, 0.98f)));
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(true);
@@ -535,8 +509,8 @@ class SettlementDisputeTest {
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.92f));
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var items = List.of(new RecognizedItem("SKU-DEMO-001", 1, 0.92f));
+        var recognition = new RecognitionOutcome(
                 "T-mock-cart", items, 0.92f, true, "mock-v1", List.of());
 
         var order = settlementService.processRecognitionResult(session, recognition, true);
@@ -556,20 +530,20 @@ class SettlementDisputeTest {
         when(orderRepository.findBySessionId("S-MISMATCH")).thenReturn(java.util.Optional.empty());
         when(securityProperties.mockEnabled()).thenReturn(false);
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> {
-            VisionServiceClient.RecognitionResult vision = inv.getArgument(1);
-            return new VisionServiceClient.RecognitionResult(
+            RecognitionOutcome vision = inv.getArgument(1);
+            return new RecognitionOutcome(
                     vision.taskId(), vision.items(), vision.overallConfidence(), true,
                     vision.modelVersion() + "+gravity-mismatch", vision.detectedClasses());
         });
 
-        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.95f));
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var items = List.of(new RecognizedItem("SKU-DEMO-001", 2, 0.95f));
+        var recognition = new RecognitionOutcome(
                 "T-2", items, 0.95f, false, "yolov8", List.of("bottle"));
 
         assertThrows(DisputeRequiredException.class,
                 () -> settlementService.processRecognitionResult(session, recognition, true));
 
-        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
+        verify(disputeService).createTicket(eq(session), any(RecognitionOutcome.class),
                 eq("视觉与重力数量不一致，需人工审核"));
         verifyNoInteractions(orderPaymentService);
     }
@@ -590,13 +564,13 @@ class SettlementDisputeTest {
         when(orderRepository.findBySessionId("S-MISMATCH-MOCK")).thenReturn(java.util.Optional.empty());
         when(securityProperties.mockEnabled()).thenReturn(true);
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> {
-            VisionServiceClient.RecognitionResult vision = inv.getArgument(1);
-            return new VisionServiceClient.RecognitionResult(
+            RecognitionOutcome vision = inv.getArgument(1);
+            return new RecognitionOutcome(
                     vision.taskId(), vision.items(), vision.overallConfidence(), true,
                     vision.modelVersion() + "+gravity-mismatch", vision.detectedClasses());
         });
         when(gravityHelper.toRecognizedItems(any())).thenReturn(
-                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.98f)));
+                List.of(new RecognizedItem("SKU-DEMO-001", 1, 0.98f)));
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(true);
@@ -604,8 +578,8 @@ class SettlementDisputeTest {
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-SPRITE", 1, 0.95f));
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var items = List.of(new RecognizedItem("SKU-SPRITE", 1, 0.95f));
+        var recognition = new RecognitionOutcome(
                 "T-mm", items, 0.95f, false, "mock-v1", List.of("bottle"));
 
         var order = settlementService.processRecognitionResult(session, recognition, true);
@@ -626,14 +600,14 @@ class SettlementDisputeTest {
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(gravityHelper.toRecognizedItems(any())).thenReturn(List.of());
 
-        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.9f));
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var items = List.of(new RecognizedItem("SKU-DEMO-001", 1, 0.9f));
+        var recognition = new RecognitionOutcome(
                 "T-gf", items, 0.9f, true, "gravity-fill", List.of());
 
         assertThrows(DisputeRequiredException.class,
                 () -> settlementService.processRecognitionResult(session, recognition, true));
 
-        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
+        verify(disputeService).createTicket(eq(session), any(RecognitionOutcome.class),
                 eq("视觉为空，仅有重力信号（非生产识别精度），需人工审核"));
         verifyNoInteractions(orderPaymentService, inventoryService);
     }
@@ -656,8 +630,6 @@ class SettlementDisputeTest {
         when(orderRepository.findBySessionId("S-VISION-ONLY")).thenReturn(java.util.Optional.empty());
         when(securityProperties.mockEnabled()).thenReturn(false);
         when(confidenceService.reviewReasonIfNeeded(any())).thenReturn(null);
-        when(skuVisionEnrollmentService.validateSettlementItems(any(), any()))
-                .thenReturn(java.util.Optional.empty());
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(true);
@@ -666,8 +638,8 @@ class SettlementDisputeTest {
         when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         org.mockito.Mockito.doNothing().when(deviceValidationService).ensureSettlementAllowed("CAB-001");
 
-        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.95f));
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var items = List.of(new RecognizedItem("SKU-DEMO-001", 2, 0.95f));
+        var recognition = new RecognitionOutcome(
                 "T-vision", items, 0.95f, false, "yolov8", List.of("bottle"));
 
         var order = settlementService.processRecognitionResult(session, recognition, true);
@@ -695,7 +667,7 @@ class SettlementDisputeTest {
         when(stagingProperties.stagingMode()).thenReturn(false);
         when(stagingProperties.gravityFallbackSettle()).thenReturn(false);
 
-        var recognition = new VisionServiceClient.RecognitionResult(
+        var recognition = new RecognitionOutcome(
                 "T-ve", List.of(), 0f, false, "yolov8", List.of());
 
         assertThrows(DisputeRequiredException.class,

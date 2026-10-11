@@ -23,7 +23,6 @@ export type UseWarehouseStocktakesDeps = {
 export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
   const stocktakeDialog = ref(false);
   const stocktakeDetailDialog = ref(false);
-  const scanningPhoto = ref(false);
   const stocktakeForm = reactive<WarehouseStocktakeRow>({
     warehouseId: '',
     mode: 'OPEN',
@@ -71,43 +70,6 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
       stocktakeDetailDialog.value = true;
     } catch (e) {
       ElMessage.error(errorMessage(e, '加载失败'));
-    }
-  }
-
-  async function onStocktakePhoto(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
-    if (file.size > 8 * 1024 * 1024) {
-      ElMessage.warning('图片不能超过 8MB');
-      return;
-    }
-    scanningPhoto.value = true;
-    try {
-      const base =
-        (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
-      const form = new FormData();
-      form.append('file', file);
-      const res = await authFetch(
-        `${base}${AdminEndpoints.warehouseStocktakeScanPhoto(stocktakeDetail.value.stocktakeId)}`,
-        {
-          method: 'POST',
-          body: form
-        }
-      );
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.code !== 0) {
-        throw new Error(json.message || `识别失败 (${res.status})`);
-      }
-      stocktakeDetail.value = json.data;
-      ElMessage.success('识别完成，已自动填入实盘数，请核对后保存');
-      deps.loadedTabs.value.delete('stocktakes');
-      await deps.loadTab('stocktakes', true);
-    } catch (e) {
-      ElMessage.error(errorMessage(e, '识别失败'));
-    } finally {
-      scanningPhoto.value = false;
     }
   }
 
@@ -206,13 +168,11 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
   return {
     stocktakeDialog,
     stocktakeDetailDialog,
-    scanningPhoto,
     stocktakeForm,
     stocktakeDetail,
     openStocktakeCreate,
     saveStocktake,
     openStocktakeDetail,
-    onStocktakePhoto,
     saveStocktakeLines,
     completeStocktakeAction,
     completeAndAdjustStocktakeAction,

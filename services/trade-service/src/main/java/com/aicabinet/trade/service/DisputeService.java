@@ -16,7 +16,8 @@ import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.dto.ResolveDisputeResultDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.util.BizIds;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DisputeMessage;
@@ -164,7 +165,7 @@ public class DisputeService {
 
     @Transactional
     public DisputeTicketDto createTicket(ShoppingSession session,
-                                         VisionServiceClient.RecognitionResult recognition,
+                                         RecognitionOutcome recognition,
                                          String reason) {
         var existing = disputeRepository.findBySessionId(session.getSessionId());
         if (existing.isPresent()) {
@@ -192,7 +193,7 @@ public class DisputeService {
                 ? reason
                 : "识别超时，已转人工审核，本次暂未扣款";
         return self.createTicket(session,
-                new VisionServiceClient.RecognitionResult(
+                new RecognitionOutcome(
                         session.getRecognitionTaskId(),
                         List.of(),
                         0f,
@@ -702,7 +703,7 @@ public class DisputeService {
             } else {
                 var manualItems = (lines == null ? List.<ResolveDisputeRequest.ManualLineItem>of() : lines).stream()
                         .filter(line -> line.quantity() > 0)
-                        .map(line -> new VisionServiceClient.RecognizedItem(line.skuId(), line.quantity(), 1.0f))
+                        .map(line -> new RecognizedItem(line.skuId(), line.quantity(), 1.0f))
                         .toList();
                 ticket.setResolutionItems(toJson(manualItems));
             }
@@ -853,7 +854,7 @@ public class DisputeService {
         var lines = request.items() == null ? List.<ResolveDisputeRequest.ManualLineItem>of() : request.items();
         var manualItems = lines.stream()
                 .filter(i -> i != null && i.quantity() > 0)
-                .map(i -> new VisionServiceClient.RecognizedItem(i.skuId(), i.quantity(), 1.0f))
+                .map(i -> new RecognizedItem(i.skuId(), i.quantity(), 1.0f))
                 .toList();
         if (manualItems.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
@@ -1310,7 +1311,7 @@ public class DisputeService {
     private List<OrderLineDto> parseItems(String json) {
         if (json == null || json.isBlank()) return List.of();
         try {
-            List<VisionServiceClient.RecognizedItem> items = objectMapper.readValue(json,
+            List<RecognizedItem> items = objectMapper.readValue(json,
                     new TypeReference<>() {});
             return items.stream()
                     .map(i -> new OrderLineDto(i.skuId(), i.skuId(), i.quantity(), 0, 0))
@@ -1387,7 +1388,7 @@ public class DisputeService {
         };
     }
 
-    private static String priorityForRecognition(VisionServiceClient.RecognitionResult recognition) {
+    private static String priorityForRecognition(RecognitionOutcome recognition) {
         if (recognition == null) {
             return "HIGH";
         }
@@ -1397,7 +1398,7 @@ public class DisputeService {
         return recognition.overallConfidence() < 0.6f ? "HIGH" : STATUS_NORMAL;
     }
 
-    static String reviewCodeFor(VisionServiceClient.RecognitionResult recognition, String reason) {
+    static String reviewCodeFor(RecognitionOutcome recognition, String reason) {
         List<String> detected = recognition != null && recognition.detectedClasses() != null
                 ? recognition.detectedClasses() : List.of();
         boolean emptyItems = recognition == null

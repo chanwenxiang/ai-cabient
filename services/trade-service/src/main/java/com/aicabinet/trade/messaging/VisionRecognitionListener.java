@@ -1,7 +1,8 @@
 package com.aicabinet.trade.messaging;
 
 import com.aicabinet.common.constants.KafkaTopics;
-import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.recognition.RecognizedItem;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.service.SessionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,10 +54,10 @@ public class VisionRecognitionListener {
             float overall = (float) node.path("overallConfidence").asDouble(0);
             boolean needReview = node.path("needReview").asBoolean(false);
 
-            List<VisionServiceClient.RecognizedItem> items = new ArrayList<>();
+            List<RecognizedItem> items = new ArrayList<>();
             if (node.has(ITEMS) && node.get(ITEMS).isArray()) {
                 for (JsonNode item : node.get(ITEMS)) {
-                    items.add(new VisionServiceClient.RecognizedItem(
+                    items.add(new RecognizedItem(
                             item.path("skuId").asText(),
                             item.path("quantity").asInt(1),
                             (float) item.path("confidence").asDouble(0)
@@ -64,8 +65,8 @@ public class VisionRecognitionListener {
                 }
             }
 
-            VisionServiceClient.RecognitionResult result =
-                    new VisionServiceClient.RecognitionResult(taskId, items, overall, needReview, null, List.of());
+            RecognitionOutcome result =
+                    new RecognitionOutcome(taskId, items, overall, needReview, null, List.of());
             sessionService.completeAsyncRecognition(sessionId, result);
             log.info("processed async vision result session={}", sessionId);
         } catch (Exception e) {

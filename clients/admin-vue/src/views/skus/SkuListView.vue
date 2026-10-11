@@ -593,12 +593,8 @@ const csvOptions: CrudCsvOptions = {
         purchaseCostCents,
         status,
         visionEnabled: existing?.visionEnabled ?? true,
-        yoloClassName: existing?.yoloClassName,
-        visionEnrollmentStatus:
-          existing?.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
         minChargeConfidence: existing?.minChargeConfidence,
-        detectionMinConfidence: existing?.detectionMinConfidence,
-        referenceImageUrlsJson: existing?.referenceImageUrlsJson
+        detectionMinConfidence: existing?.detectionMinConfidence
       };
       if (existing) {
         await api.request(AdminEndpoints.sku(existing.skuId), 'PUT', body);
@@ -651,10 +647,7 @@ const form = reactive({
   // preserve vision fields on update
   visionEnabled: true,
   minChargeConfidence: undefined as number | undefined,
-  yoloClassName: undefined as string | undefined,
-  visionEnrollmentStatus: undefined as string | undefined,
   detectionMinConfidence: undefined as number | undefined,
-  referenceImageUrlsJson: undefined as string | undefined,
   shelfLifeDays: undefined as number | undefined,
   nearExpiryDays: undefined as number | undefined,
   blockSaleDaysBeforeExpiry: undefined as number | undefined,
@@ -765,11 +758,7 @@ function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
     purchaseCostCents: row.purchaseCostCents,
     nearExpiryPriceCents: row.nearExpiryPriceCents,
     minChargeConfidence: row.minChargeConfidence,
-    yoloClassName: row.yoloClassName,
-    visionEnrollmentStatus:
-      row.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
-    detectionMinConfidence: row.detectionMinConfidence,
-    referenceImageUrlsJson: row.referenceImageUrlsJson
+    detectionMinConfidence: row.detectionMinConfidence
   };
 }
 
@@ -872,10 +861,7 @@ function openEdit(row?: SkuCatalog) {
     form.description = row.description || '';
     form.visionEnabled = row.visionEnabled ?? true;
     form.minChargeConfidence = row.minChargeConfidence;
-    form.yoloClassName = row.yoloClassName;
-    form.visionEnrollmentStatus = row.visionEnrollmentStatus;
     form.detectionMinConfidence = row.detectionMinConfidence;
-    form.referenceImageUrlsJson = row.referenceImageUrlsJson;
     form.shelfLifeDays = row.shelfLifeDays;
     form.nearExpiryDays = row.nearExpiryDays;
     form.blockSaleDaysBeforeExpiry = row.blockSaleDaysBeforeExpiry;
@@ -899,10 +885,7 @@ function openEdit(row?: SkuCatalog) {
     form.description = '';
     form.visionEnabled = true;
     form.minChargeConfidence = undefined;
-    form.yoloClassName = undefined;
-    form.visionEnrollmentStatus = 'DRAFT';
     form.detectionMinConfidence = undefined;
-    form.referenceImageUrlsJson = undefined;
     form.shelfLifeDays = undefined;
     form.nearExpiryDays = undefined;
     form.blockSaleDaysBeforeExpiry = undefined;
@@ -1025,11 +1008,7 @@ async function saveEdit() {
           : undefined,
       visionEnabled: form.visionEnabled,
       minChargeConfidence: form.minChargeConfidence,
-      yoloClassName: form.yoloClassName,
-      visionEnrollmentStatus:
-        form.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
       detectionMinConfidence: form.detectionMinConfidence,
-      referenceImageUrlsJson: form.referenceImageUrlsJson,
       shelfLifeDays: form.shelfLifeDays,
       nearExpiryDays: form.nearExpiryDays,
       blockSaleDaysBeforeExpiry: form.blockSaleDaysBeforeExpiry,
