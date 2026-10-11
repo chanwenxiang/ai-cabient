@@ -111,6 +111,11 @@ services:
       # 将邑回调公网基址（CB-023）：finishNotifyUrl = <base>/jiangyi/api/gather-finish-notify。
       # 无默认值语义由代码兜底为空串（startTraining 409 提示未配置），此处只透传宿主/infra/.env 值
       JIANGYI_PUBLIC_BASE_URL: ${JIANGYI_PUBLIC_BASE_URL:-}
+      JIANGYI_TENANT_ID: ${JIANGYI_TENANT_ID:-0}
+      JIANGYI_SECRET: ${JIANGYI_SECRET:-}
+      JIANGYI_MERCHANT_MOBILE: ${JIANGYI_MERCHANT_MOBILE:-}
+      JIANGYI_MERCHANT_PASSWORD: ${JIANGYI_MERCHANT_PASSWORD:-}
+      JIANGYI_API_BASE_URL: ${JIANGYI_API_BASE_URL:-https://lingshouapi.hunanjysmart.com}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}

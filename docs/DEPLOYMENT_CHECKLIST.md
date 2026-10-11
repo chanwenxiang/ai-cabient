@@ -23,7 +23,7 @@
 
 ```powershell
 copy infra\.env.staging.example infra\.env.staging
-# 编辑 JWT / INTERNAL / POSTGRES 等密钥
+# 编辑 JWT / INTERNAL / POSTGRES 等密钥，以及「将邑接入」段（见下 §2.1）
 
 .\scripts\deploy-staging.ps1
 ```
@@ -32,6 +32,28 @@ copy infra\.env.staging.example infra\.env.staging
 - `docker-compose.staging.yml`（`SPRING_PROFILES_ACTIVE=staging`，SMS mock，mock 支付关闭）
 - `verify-step5.ps1 -CheckEnv` 校验
 - 可选 E2E：inventory + warehouse
+
+### 2.1 将邑接入验证（识别=端侧单轨，2026-10-11）
+
+**env（`.env.staging` 的「将邑接入」段，模板已入 `.env.staging.example`）**：
+
+| 变量 | 来源 | 缺失后果 |
+|------|------|----------|
+| `JIANGYI_JWT_SECRET` | 自生成 ≥32 字节 | 设备 token 签发 503（fail-closed） |
+| `JIANGYI_TENANT_ID` / `JIANGYI_SECRET` | 将邑售后 | 入驻（setDomain）失败 |
+| `JIANGYI_MERCHANT_MOBILE` / `JIANGYI_MERCHANT_PASSWORD` | 商户后台账号 | 采集/模型/商品库 API 全部不可用 |
+| `JIANGYI_PUBLIC_BASE_URL` | 固定公网域名（勿用花生壳） | gather-finish-notify 回调不可达 |
+| `JIANGYI_OSS_*` 五项 | 阿里云 RAM（子账号只授 `AliyunSTSAssumeRoleAccess`；直传角色 `jiangyivideoupload`，权限=Put/Get/Delete 限 `ai-cabinet-by/jiangyi-video/*`） | STS 签发失败→视频上传不可用 |
+
+**验证顺序**（部署后逐条）：
+
+1. `docker compose ps` → `jiangyi-gateway` Up（apps 基座自带，nginx `/jiangyi/`、`/websocket/` 依赖它）。
+2. 未配 secret 冒烟（可选）：临时注释 `JIANGYI_JWT_SECRET` 重建后 `POST /jiangyi/api/token/openDoorDeviceStatus` 应 **503**；恢复后对未登记 SN 应 **404**、对已绑定设备 **200** 且拿到 token——fail-closed 三态即闭环。
+3. 运营后台「设备详情→将邑」：SN 登记 → setDomain（domain=`https://<域名>/jiangyi/api`，socketUrl=`wss://<域名>/websocket`）→ 设备通电后 WS 在线（`/internal/v1/jiangyi/devices/{id}/routable`）。
+4. 采集→学习→模型：识别入驻页发起采集 → 将邑 App 采样本 → commitTraining → 回调 `gather-finish-notify` 应 200/202 →「识别映射」页预生成映射→核对→激活→模型下发→设备回执 CONFIRMED。
+5. 全链购物： JiangyiDeviceSimulator（或真机）token→getDetail→WS→开门→上报→`COMPLETED`+扣款+扣库存；识别映射未命中的 classId 应转 DISPUTED（fail-closed）。
+6. 视频：触发异常单视频上传 → OSS `jiangyi-video/` 出对象 → 争议详情 `videoPreviewUrl` 可播（预签名读路径）。
+7. staging 特性：`AICABINET_MOCK_ENABLED=false` ⇒ **未登记将邑的柜机消费开门 409**「仅支持将邑柜机」（批1 生产门禁生效的实证）。
 
 **Staging 与 dev 差异：**
 
