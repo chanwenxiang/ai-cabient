@@ -688,7 +688,6 @@ import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useSessionVideo } from '@/composables/useSessionVideo';
 import { disputeAmountDiffNote } from '@/utils/dispute-amount-note';
 import { buildDisputeResolveBody, type DisputeResolutionType } from '@/utils/money-ui-contracts';
 import type { DisputeTicketDto, OrderLineDto, PageResult } from '@aicabinet/shared-types';
@@ -711,7 +710,6 @@ type SkuOption = { skuId: string; skuName: string; priceCents?: number };
 const route = useRoute();
 const router = useRouter();
 const { auth, canAccessPath, goPath } = useNavAccess();
-const { playSessionVideo, fetchSessionVideoBlob } = useSessionVideo();
 const videoLoading = ref(false);
 const videoAttempted = ref(false);
 const embedVideoUrl = ref('');
@@ -889,9 +887,7 @@ async function loadEmbedVideo(sessionId?: string, force = false, previewUrl?: st
       embedVideoUrl.value = direct;
       return;
     }
-    const { url, revoke } = await fetchSessionVideoBlob(sessionId);
-    embedVideoUrl.value = url;
-    embedVideoRevoke = revoke;
+    throw new Error('该会话没有可播录像地址');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '录像加载失败');
   } finally {
@@ -1067,20 +1063,15 @@ function goVisionMapping(row?: DisputeTicketDto | null) {
   goPath('/vision-mappings', query);
 }
 
-async function playVideo(sessionId?: string, previewUrl?: string | null) {
+function playVideo(sessionId?: string, previewUrl?: string | null) {
   // 服务端已下发可播地址（videoPreviewUrl：旧边缘 MinIO 预签名，或将邑柜机台账兜底，见 CB-030）
-  // 时直接开新窗口，跳过必失败的 blob 拉流。
+  // 时直接开新窗口。旧 blob 拉流端点已随旧视频链退役（2026-10-11 批6）。
   const direct = (previewUrl || '').trim();
   if (direct) {
     globalThis.open(direct, '_blank');
     return;
   }
-  videoLoading.value = true;
-  try {
-    await playSessionVideo(sessionId);
-  } finally {
-    videoLoading.value = false;
-  }
+  ElMessage.warning('该会话没有可播录像地址');
 }
 
 function goDevice(id: string) {

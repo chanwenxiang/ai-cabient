@@ -58,8 +58,7 @@ class TradeServiceClientRetryTest {
     void notifyDoorEvent_succeedsOnThirdAttempt() {
         TradeServiceClient client = new TradeServiceClient(baseUrl, new InternalApiProperties("test-key", null, null));
         DoorEventRequest req = new DoorEventRequest(
-                "S-RETRY", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(),
-                null, null, null, null, null);
+                "S-RETRY", "CAB-001", DoorState.CLOSED, System.currentTimeMillis());
 
         assertDoesNotThrow(() -> client.notifyDoorEvent(req));
         assertEquals(3, hits.get());
@@ -80,8 +79,7 @@ class TradeServiceClientRetryTest {
 
         TradeServiceClient client = new TradeServiceClient(baseUrl, new InternalApiProperties("test-key", null, null));
         DoorEventRequest req = new DoorEventRequest(
-                "S-FAIL", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(),
-                null, null, null, null, null);
+                "S-FAIL", "CAB-001", DoorState.CLOSED, System.currentTimeMillis());
 
         assertThrows(RuntimeException.class, () -> client.notifyDoorEvent(req));
         assertEquals(3, hits.get());

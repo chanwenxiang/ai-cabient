@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -91,10 +92,8 @@ class EdgeCloudMqttIntegrationIT {
             assertEquals("S-P07-IT", request.sessionId());
             assertEquals(DEVICE_ID, request.deviceId(), "deviceId 须由 topic 还原（模拟器不发该字段）");
             assertEquals(DoorState.CLOSED, request.doorState());
-            assertEquals("minio://bucket/it.mp4", request.videoUri());
-            assertEquals("UPLOADED", request.uploadStatus());
-            assertEquals("[{\"camera\":\"TOP\"}]", request.videoClipsJson());
-            assertEquals("SINGLE", request.cameraFusionMode());
+            // 旧视频链退役（批6）：视频键不再透传，DTO 无视频字段
+            assertNull(request.gravityDeltasJson());
 
             Map<String, Object> heartbeat = SimulatorSupport.heartbeatPayload(
                     DEVICE_ID, System.currentTimeMillis(), "0.9.0", "1.0.0", 12);

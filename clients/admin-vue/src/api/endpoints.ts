@@ -102,7 +102,6 @@ export const AdminEndpoints = {
     return qs ? `${ops}/sessions/export?${qs}` : `${ops}/sessions/export`;
   },
   sessionCancel: (sessionId: string) => `${ops}/sessions/${encodeURIComponent(sessionId)}/cancel`,
-  sessionVideo: (sessionId: string) => `${ops}/sessions/${encodeURIComponent(sessionId)}/video`,
 
   /** 柜机中心（list / detail / 生命周期 / 指令 / 货道 / 温控） */
   devices: `${ops}/devices`,

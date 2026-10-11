@@ -102,10 +102,8 @@ class EdgeCloudMqttContractTest {
         // ⚠️ 报文里的 timestamp 云端**不读**，DTO 取服务端接收时刻 —— 事实由
         // doorEvent_reportTimestampIsIgnored_serverClockIsUsed 用例单独固化
         assertTrue(request.timestamp() > 0, "timestamp 由服务端填充");
-        assertEquals("minio://bucket/top.mp4", request.videoUri());
-        assertEquals("UPLOADED", request.uploadStatus());
-        assertEquals("[{\"camera\":\"TOP\"},{\"camera\":\"SIDE\"}]", request.videoClipsJson());
-        assertEquals("MULTI", request.cameraFusionMode());
+        // 🔴 旧视频链已退役（2026-10-11 批6）：报文里的视频键被云端忽略，DTO 无视频字段；
+        // 只有 gravity 继续透传
         assertEquals("[{\"skuId\":\"SKU-1\",\"delta\":-1,\"slotId\":\"A1\"}]", request.gravityDeltasJson());
     }
 
@@ -123,10 +121,6 @@ class EdgeCloudMqttContractTest {
         assertEquals("S-CONTRACT-MIN", request.sessionId());
         assertEquals(DoorState.OPEN, request.doorState());
         assertEquals(DEVICE_ID, request.deviceId());
-        assertNull(request.videoUri());
-        assertNull(request.uploadStatus());
-        assertNull(request.videoClipsJson());
-        assertNull(request.cameraFusionMode());
         assertNull(request.gravityDeltasJson());
     }
 
@@ -148,8 +142,7 @@ class EdgeCloudMqttContractTest {
 
         DoorEventRequest request = capturedDoorEvent();
         assertEquals("S-ALIAS", request.sessionId());
-        assertEquals("[{\"camera\":\"TOP\"}]", request.videoClipsJson());
-        assertEquals("SINGLE", request.cameraFusionMode());
+        // 视频 snake_case 别名键同样被忽略（兼容层只服务 gravity）
         assertEquals("[{\"skuId\":\"S9\",\"delta\":-1}]", request.gravityDeltasJson());
     }
 

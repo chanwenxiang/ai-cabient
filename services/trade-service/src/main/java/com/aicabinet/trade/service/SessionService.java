@@ -9,7 +9,6 @@ import com.aicabinet.common.dto.LiveCartUpdateRequest;
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.SessionCartRequest;
 import com.aicabinet.common.dto.SessionDto;
-import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.util.BizIds;
@@ -240,15 +239,7 @@ public class SessionService {
             return sessionSettleService.completeDemoZeroSettle(userId, sessionId);
         }
         return sessionDoorService.handleDoorEvent(new DoorEventRequest(
-                session.getSessionId(),
-                session.getDeviceId(),
-                DoorState.CLOSED,
-                System.currentTimeMillis(),
-                null,
-                null,
-                null,
-                null,
-                null));
+                session.getSessionId(), session.getDeviceId(), DoorState.CLOSED, System.currentTimeMillis()));
     }
 
     /**
@@ -261,49 +252,6 @@ public class SessionService {
     /**
      * 先短事务落视频与会话态，再事务外结算（同步 vision 或异步 Kafka）。
      */
-    public SessionDto attachVideo(VideoAttachRequest request) {
-        return runWithSessionLifeLock(request.sessionId(), () -> {
-            SessionDto afterAttach = self.persistAttachedVideo(request);
-            ShoppingSession session = repository.findById(request.sessionId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-            if (session.getState() != SessionState.RECOGNIZING) {
-                return afterAttach;
-            }
-            if (isOpsRemoteSession(session)) {
-                return afterAttach;
-            }
-            if (isRestockSession(session)) {
-                return sessionRestockService.finishRestockSnapshot(session.getSessionId());
-            }
-            return sessionSettleService.settleSession(session);
-        });
-    }
-
-    @Transactional
-    public SessionDto persistAttachedVideo(VideoAttachRequest request) {
-        // H21: videoUri 必须是本平台 MinIO 对象路径（拒绝 file:// / http(s):// 等任意值）
-        if (minioVideoService == null || !minioVideoService.isPlatformObjectUri(request.videoUri())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "videoUri 必须为本平台对象存储路径（minio://）");
-        }
-        ShoppingSession session = repository.findByIdForUpdate(request.sessionId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        if (!session.getDeviceId().equals(request.deviceId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_MISMATCH);
-        }
-        session.setVideoUri(request.videoUri());
-        applyVideoMetadata(session, request.uploadStatus(), request.videoClipsJson(), request.cameraFusionMode());
-        repository.save(session);
-
-        if (session.getState() == SessionState.WAITING_UPLOAD) {
-            transition(session, SessionState.RECOGNIZING);
-        }
-        if (session.getState() == SessionState.RECOGNIZING && isOpsRemoteSession(session)) {
-            transition(session, SessionState.COMPLETED);
-        }
-        return toDto(session);
-    }
-
     /** 补货关门后：视觉/重力快照回写货道实测，不创建订单。无外层长事务包裹 vision HTTP。 */
     public SessionDto finishRestockSnapshot(String sessionId) {
         return sessionRestockService.finishRestockSnapshot(sessionId);

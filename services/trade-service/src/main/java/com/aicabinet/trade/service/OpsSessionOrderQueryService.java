@@ -232,21 +232,6 @@ public class OpsSessionOrderQueryService {
     }
 
     @Transactional(readOnly = true)
-    public void streamSessionVideo(Long operatorId, String sessionId,
-                                   jakarta.servlet.http.HttpServletRequest request,
-                                   HttpServletResponse response) {
-        permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:session:upload", "ops:dispute");
-        ShoppingSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
-        String videoUri = session.getVideoUri();
-        if (videoUri == null || videoUri.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该会话没有关联视频");
-        }
-        minioVideoService.streamTo(videoUri, request, response);
-    }
-
-    @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId) {
         return exportOrdersCsv(operatorId, new OrderExportQuery(
                 deviceId, null, "orders", null, null, null, null, null, null, null, null, false));
@@ -488,7 +473,6 @@ public class OpsSessionOrderQueryService {
     }
 
     private AdminSessionDto toSessionDto(ShoppingSession s) {
-        String previewUrl = minioVideoService.presignPlaybackUrl(s.getVideoUri()).orElse(null);
         Long shoppingMs = null;
         if (s.getOpenTime() != null && s.getCloseTime() != null) {
             shoppingMs = Math.max(0L, java.time.Duration.between(s.getOpenTime(), s.getCloseTime()).toMillis());
@@ -501,7 +485,7 @@ public class OpsSessionOrderQueryService {
         return new AdminSessionDto(
                 s.getSessionId(), s.getUserId(), s.getDeviceId(), s.getState(),
                 s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getVideoUri(),
-                s.getUploadStatus(), s.getCameraFusionMode(), previewUrl,
+                s.getUploadStatus(), s.getCameraFusionMode(),
                 s.getFailReason(),
                 s.getCreatedAt(), s.getUpdatedAt(),
                 DeviceValidationService.sessionKind(s),

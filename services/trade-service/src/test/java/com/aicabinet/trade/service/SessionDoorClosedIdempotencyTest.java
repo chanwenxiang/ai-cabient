@@ -92,13 +92,12 @@ class SessionDoorClosedIdempotencyTest {
         when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-Q3", "S-Q3"));
 
         DoorEventRequest first = new DoorEventRequest(
-                "S-Q3", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(), "s3://v1");
+                "S-Q3", "CAB-001", DoorState.CLOSED, System.currentTimeMillis());
         DoorEventRequest second = new DoorEventRequest(
-                "S-Q3", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(), "s3://v2");
+                "S-Q3", "CAB-001", DoorState.CLOSED, System.currentTimeMillis());
 
         assertEquals(SessionState.COMPLETED, service.handleDoorEvent(first).state());
         assertEquals(SessionState.COMPLETED, service.handleDoorEvent(second).state());
-        assertEquals("s3://v2", session.getVideoUri());
         verify(settlementService, times(1)).settle(session);
         // 顺手断言完整率计数：两次 CLOSED 只应记**一次** normal（第二次已非 SHOPPING ⇒ 不重复计数）
         verify(cabinetMetrics, times(1)).recordDoorClose(false);

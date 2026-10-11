@@ -9,7 +9,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import com.aicabinet.edge.R
-import com.aicabinet.edge.video.SessionVideoRecorder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,7 +17,6 @@ import kotlinx.coroutines.launch
 
 class CabinetService : LifecycleService() {
 
-    private lateinit var videoRecorder: SessionVideoRecorder
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
@@ -32,8 +30,7 @@ class CabinetService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        videoRecorder = SessionVideoRecorder(applicationContext, this)
-        CabinetForegroundService.init(applicationContext, serviceScope, videoRecorder)
+        CabinetForegroundService.init(applicationContext, serviceScope)
         createChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
         // P0-7：`start()` 里**全是阻塞调用**，onCreate 跑在主线程 ⇒ 必须整段移出去（Dispatchers.IO）：

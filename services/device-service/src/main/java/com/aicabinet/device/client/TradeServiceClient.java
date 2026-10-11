@@ -31,9 +31,9 @@ public class TradeServiceClient {
     }
 
     public void notifyDoorEvent(DoorEventRequest request) {
-        log.info("notify door event session={} device={} state={} video={} upload={} gravity={}",
-                request.sessionId(), request.deviceId(), request.doorState(), request.videoUri(),
-                request.uploadStatus(), request.gravityDeltasJson() != null ? "yes" : "no");
+        log.info("notify door event session={} device={} state={} gravity={}",
+                request.sessionId(), request.deviceId(), request.doorState(),
+                request.gravityDeltasJson() != null ? "yes" : "no");
 
         RuntimeException last = null;
         for (int attempt = 1; attempt <= 3; attempt++) {
@@ -62,12 +62,6 @@ public class TradeServiceClient {
         throw last != null ? last : new IllegalStateException("notify door event failed");
     }
 
-    public void notifyDoorEvent(String sessionId, String deviceId, DoorState doorState, String videoUri) {
-        notifyDoorEvent(new DoorEventRequest(
-                sessionId, deviceId, doorState, System.currentTimeMillis(),
-                videoUri, null, null, null, null));
-    }
-
     public void notifyHeartbeat(String deviceId, String appVersion, String firmwareVersion) {
         notifyHeartbeat(deviceId, appVersion, firmwareVersion, null);
     }
@@ -89,25 +83,6 @@ public class TradeServiceClient {
 
     public void notifyHeartbeat(String deviceId) {
         notifyHeartbeat(deviceId, null, null);
-    }
-
-    public void attachVideo(String sessionId,
-                            String deviceId,
-                            String videoUri,
-                            String uploadStatus,
-                            String videoClipsJson,
-                            String cameraFusionMode) {
-        restClient.post()
-                .uri("/internal/v1/sessions/video")
-                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
-                .body(new VideoAttachRequest(
-                        sessionId, deviceId, videoUri, uploadStatus, videoClipsJson, cameraFusionMode))
-                .retrieve()
-                .toBodilessEntity();
-    }
-
-    public void attachVideo(String sessionId, String deviceId, String videoUri) {
-        attachVideo(sessionId, deviceId, videoUri, "UPLOADED", null, null);
     }
 
     /** 柜机是否已在 trade 注册（B-22）。trade 不可达时返回 false，避免向未知设备发令。 */

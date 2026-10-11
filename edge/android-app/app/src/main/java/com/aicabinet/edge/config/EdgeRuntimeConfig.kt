@@ -112,23 +112,6 @@ object EdgeRuntimeConfig {
     fun mqttOutboundMaxAttempts(context: Context): Int =
         getInt(context, "mqtt_outbound_max_attempts", 200).coerceIn(3, 1_000)
 
-    /** 离线视频上传重试上限 */
-    fun offlineUploadMaxAttempts(context: Context): Int =
-        getInt(context, "offline_upload_max_attempts", 20).coerceIn(3, 200)
-
-    /**
-     * E-P2-6：MinIO/预签名上传断路器。
-     * 连续失败达到阈值后冷却 [minioCircuitOpenMs]，避免打满离线队列与线程。
-     */
-    fun minioCircuitFailureThreshold(context: Context): Int =
-        getInt(context, "minio_circuit_failure_threshold", 5).coerceIn(2, 50)
-
-    fun minioCircuitOpenMs(context: Context): Long =
-        getLong(context, "minio_circuit_open_ms", 60_000L).coerceIn(5_000L, 600_000L)
-
-    /** 单次会话录像软上限（超时仅打日志，不停录；便于现场调参） */
-    fun videoMaxRecordMs(context: Context): Long =
-        getLong(context, "video_max_record_ms", 600_000L)
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

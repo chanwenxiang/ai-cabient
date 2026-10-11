@@ -296,16 +296,8 @@ public class MqttEventListener implements MqttCallbackExtended {
             acknowledgeMessage(topic, message);
             return;
         }
-        String videoUri = textOrNull(node, "videoUri");
-        String uploadStatus = textOrNull(node, "uploadStatus");
-        String videoClipsJson = textOrNull(node, "videoClipsJson");
-        if (videoClipsJson == null) {
-            videoClipsJson = textOrNull(node, "video_clips");
-        }
-        String cameraFusionMode = textOrNull(node, "cameraFusionMode");
-        if (cameraFusionMode == null) {
-            cameraFusionMode = textOrNull(node, "camera_fusion_mode");
-        }
+        // 旧视频链已退役（2026-10-11 批6）：videoUri/uploadStatus/videoClips/cameraFusion
+        // 不再解析转发；设备侧遗留上报字段直接忽略
         String gravityDeltasJson = textOrNull(node, "gravityDeltasJson");
         if (gravityDeltasJson == null) {
             gravityDeltasJson = textOrNull(node, "gravity_deltas");
@@ -317,9 +309,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         }
         String fingerprint = eventSeq != null
                 ? "seq:" + eventSeq
-                : String.join("|",
-                nonNull(videoUri), nonNull(uploadStatus), nonNull(videoClipsJson),
-                nonNull(cameraFusionMode), nonNull(gravityDeltasJson));
+                : String.join("|", nonNull(gravityDeltasJson));
         if (deduplicator.seen(sessionId, doorStateStr, fingerprint)) {
             metrics.recordDoorDeduped();
             log.info("duplicate door event ignored session={} state={}", sessionId, doorStateStr);
@@ -337,8 +327,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         }
         try {
             tradeServiceClient.notifyDoorEvent(new com.aicabinet.common.dto.DoorEventRequest(
-                    sessionId, deviceId, doorState, System.currentTimeMillis(),
-                    videoUri, uploadStatus, videoClipsJson, cameraFusionMode, gravityDeltasJson));
+                    sessionId, deviceId, doorState, System.currentTimeMillis(), gravityDeltasJson));
             // M11：转发成功后才写幂等键；失败不 mark，重投后 seen=false 可再处理
             deduplicator.mark(sessionId, doorStateStr, fingerprint);
             metrics.recordDoorForwarded();

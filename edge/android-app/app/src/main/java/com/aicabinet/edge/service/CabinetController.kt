@@ -11,11 +11,6 @@ import com.aicabinet.edge.hal.mock.MockLockDriver
 import com.aicabinet.edge.mqtt.MqttDeviceClient
 import com.aicabinet.edge.ota.OtaChecker
 import com.aicabinet.edge.status.DeviceStatusHub
-import com.aicabinet.edge.upload.OfflineUploadQueue
-import com.aicabinet.edge.upload.MinioUploader
-import com.aicabinet.edge.video.RecordingResult
-import com.aicabinet.edge.video.SessionVideoRecorder
-import com.aicabinet.edge.video.VideoClipJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -26,8 +21,7 @@ import java.util.LinkedHashSet
 
 class CabinetController(
     private val context: Context,
-    private val scope: CoroutineScope,
-    private val videoRecorder: SessionVideoRecorder
+    private val scope: CoroutineScope
 ) {
     private val appContext = context.applicationContext
     private val useMockDriver = EdgeRuntimeConfig.useMockDriver(appContext)
@@ -36,13 +30,11 @@ class CabinetController(
     } else {
         ChzhLockDriver(EdgeRuntimeConfig.serialPortPath(appContext))
     }
-    private val minioUploader = MinioUploader(appContext)
-    private val offlineQueue = OfflineUploadQueue(appContext, minioUploader)
     private lateinit var mqtt: MqttDeviceClient
     /** 近期已处理的开门 commandId，防 MQTT 重投重复开锁 */
     private val recentCommandIds: MutableSet<String> =
         Collections.synchronizedSet(LinkedHashSet())
-    /** H70: 会话互斥锁，串行化触碰录像器/会话状态的流程，防并发开门互相覆盖录制文件 */
+    /** H70: 会话互斥锁，串行化触碰会话状态的流程，防并发开门互相踩踏 */
     private val sessionMutex = Mutex()
 
     fun start() {
@@ -61,21 +53,11 @@ class CabinetController(
             onOpenDoor = { cmd -> handleOpenDoor(cmd) },
             onOpsCommand = { ops -> opsExecutor.handle(ops) }
         )
-        // C22/H62a: 注入事件外发回调（离线上传成功补发关门事件 / 队列放弃告警），
-        // MQTT 未连接时经 MqttDeviceClient 内部 OutboundMqttQueue 持久化补投。
-        offlineQueue.closedEventPublisher = { sessionId, uploadStatus ->
-            mqtt.publishDoorEvent(sessionId, DoorState.CLOSED.name, uploadStatus = uploadStatus)
-        }
-        offlineQueue.alertPublisher = { alertType, message ->
-            mqtt.publishAlert(alertType, message)
-        }
-        offlineQueue.start()
         mqtt.connect()
         DeviceStatusHub.setDoorState(lockDriver.currentDoorState(), event = "服务已启动")
     }
 
     fun stop() {
-        offlineQueue.stop()
         if (::mqtt.isInitialized) {
             mqtt.disconnect()
         }
@@ -122,17 +104,8 @@ class CabinetController(
             Log.i(TAG, "OPEN_DOOR session=${cmd.sessionId} operator=${cmd.operatorMode}")
             DeviceStatusHub.setDoorState(DoorState.OPENING, cmd.sessionId, "收到开门指令")
 
-            var recordingStarted = false
-            if (!cmd.operatorMode) {
-                videoRecorder.start(cmd.sessionId)
-                recordingStarted = true
-            }
-
             lockDriver.unlock().onFailure {
                 Log.e(TAG, "unlock failed", it)
-                if (recordingStarted) {
-                    videoRecorder.stop() // H59: 解锁失败也要停录，避免录像无人关门仍持续进行
-                }
                 mqtt.publishAck(cmd.commandId, false)
                 DeviceStatusHub.setError("开锁失败: ${it.message}")
                 return
@@ -142,9 +115,6 @@ class CabinetController(
             // parseDoorFeedback 更新状态 / Mock 驱动模拟反馈）确认门开后再发 OPEN。
             if (!awaitDoorOpened()) {
                 Log.e(TAG, "door open not confirmed session=${cmd.sessionId}")
-                if (recordingStarted) {
-                    videoRecorder.stop()
-                }
                 mqtt.publishAck(cmd.commandId, false, "door open not confirmed")
                 mqtt.publishDoorEvent(cmd.sessionId, DoorState.CLOSED.name)
                 DeviceStatusHub.setError("开锁后门磁未确认打开")
@@ -164,11 +134,7 @@ class CabinetController(
             val closed = DoorCloseWatcher.waitUntilClosed(lockDriver, timeoutMs)
             if (!closed) {
                 DeviceStatusHub.setError("等待关门超时")
-                if (recordingStarted) {
-                    videoRecorder.stop() // C19a: 超时关门也要停录，录像已落盘待上传
-                }
-                // C19a: 录像已停止落盘、尚未上传，uploadStatus 用 UPLOADING（trade 侧按待上传处理，不立即结算）
-                mqtt.publishDoorEvent(cmd.sessionId, DoorState.CLOSED.name, uploadStatus = "UPLOADING")
+                mqtt.publishDoorEvent(cmd.sessionId, DoorState.CLOSED.name)
                 DeviceStatusHub.clearSession("关门超时")
                 return
             }
@@ -181,9 +147,9 @@ class CabinetController(
                 return
             }
 
-            val recording = videoRecorder.stop()
             lockDriver.lock()
-            finishShoppingClose(recording, cmd.userId)
+            // 旧录像上传链已退役（2026-10-11 批6）：关门即发 CLOSED，识别走将邑端侧
+            mqtt.publishDoorEvent(cmd.sessionId, DoorState.CLOSED.name)
             DeviceStatusHub.setDoorState(DoorState.CLOSED, event = "购物关门完成")
             DeviceStatusHub.clearSession("购物会话结束")
         }
@@ -204,38 +170,6 @@ class CabinetController(
         return lockDriver.currentDoorState() == DoorState.OPEN
     }
 
-    private fun finishShoppingClose(recording: RecordingResult, userId: Long) {
-        val sessionId = recording.sessionId
-        val deviceId = EdgeRuntimeConfig.ensureDeviceId(appContext)
-        val files = recording.clips.associate { it.camera to it.file }
-        if (files.values.none { it.exists() }) {
-            mqtt.publishDoorEvent(sessionId, DoorState.CLOSED.name, uploadStatus = "UPLOADED")
-            return
-        }
-        try {
-            val uriPairs = recording.clips.map { clip ->
-                clip.camera to minioUploader.uploadVideoStrict(
-                    sessionId, clip.file, clip.camera, deviceId, userId
-                )
-            }
-            val primaryUri = uriPairs.first { it.first == "TOP" }.second
-            val clipsJson = if (recording.fusionMode == "MULTI") VideoClipJson.build(uriPairs) else null
-            mqtt.publishDoorEvent(
-                sessionId,
-                DoorState.CLOSED.name,
-                primaryUri,
-                "UPLOADED",
-                clipsJson,
-                recording.fusionMode
-            )
-            files.values.forEach { it.delete() }
-        } catch (e: Exception) {
-            Log.w(TAG, "upload failed, offline queue session=$sessionId", e)
-            mqtt.publishDoorEvent(sessionId, DoorState.CLOSED.name, uploadStatus = "LOCAL_QUEUED")
-            offlineQueue.enqueue(sessionId, files, recording.fusionMode, deviceId, userId)
-        }
-    }
-
     companion object {
         private const val TAG = "CabinetController"
         private const val MAX_RECENT_COMMANDS = 64
@@ -245,9 +179,9 @@ class CabinetController(
 object CabinetForegroundService {
     private var controller: CabinetController? = null
 
-    fun init(context: Context, scope: CoroutineScope, videoRecorder: SessionVideoRecorder) {
+    fun init(context: Context, scope: CoroutineScope) {
         if (controller == null) {
-            controller = CabinetController(context.applicationContext, scope, videoRecorder)
+            controller = CabinetController(context.applicationContext, scope)
         }
     }
 

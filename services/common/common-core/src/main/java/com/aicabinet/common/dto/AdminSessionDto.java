@@ -15,7 +15,6 @@ public record AdminSessionDto(
         String videoUri,
         String uploadStatus,
         String cameraFusionMode,
-        String videoPreviewUrl,
         String failReason,
         Instant createdAt,
         Instant updatedAt,
@@ -46,15 +45,14 @@ public record AdminSessionDto(
             String videoUri,
             String uploadStatus,
             String cameraFusionMode,
-            String videoPreviewUrl,
-            String failReason,
+                String failReason,
             Instant createdAt,
             Instant updatedAt,
             String sessionKind,
             Long replenishmentTaskId
     ) {
         this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, videoUri,
-                uploadStatus, cameraFusionMode, videoPreviewUrl, failReason, createdAt, updatedAt,
+                uploadStatus, cameraFusionMode, failReason, createdAt, updatedAt,
                 sessionKind, replenishmentTaskId, null, null, null, null, null, null, null);
     }
 
@@ -69,8 +67,7 @@ public record AdminSessionDto(
             String videoUri,
             String uploadStatus,
             String cameraFusionMode,
-            String videoPreviewUrl,
-            String failReason,
+                String failReason,
             Instant createdAt,
             Instant updatedAt,
             String sessionKind,
@@ -79,7 +76,7 @@ public record AdminSessionDto(
             String payChannel
     ) {
         this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, videoUri,
-                uploadStatus, cameraFusionMode, videoPreviewUrl, failReason, createdAt, updatedAt,
+                uploadStatus, cameraFusionMode, failReason, createdAt, updatedAt,
                 sessionKind, replenishmentTaskId, entryChannel, payChannel, null, null, null, null, null);
     }
 
@@ -94,8 +91,7 @@ public record AdminSessionDto(
             String videoUri,
             String uploadStatus,
             String cameraFusionMode,
-            String videoPreviewUrl,
-            String failReason,
+                String failReason,
             Instant createdAt,
             Instant updatedAt,
             String sessionKind,
@@ -108,7 +104,7 @@ public record AdminSessionDto(
             Long recognitionDurationMs
     ) {
         this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, videoUri,
-                uploadStatus, cameraFusionMode, videoPreviewUrl, failReason, createdAt, updatedAt,
+                uploadStatus, cameraFusionMode, failReason, createdAt, updatedAt,
                 sessionKind, replenishmentTaskId, entryChannel, payChannel, preauthCents, preauthStatus,
                 shoppingDurationMs, recognitionDurationMs, null);
     }

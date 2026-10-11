@@ -121,7 +121,6 @@ class MerchantFinanceServiceTest {
     @Test
     void orderVideos_whenJiangyiLedgerHasClips_returnsPresignedListWithChannel() {
         when(orderRepository.findById("ORD-1")).thenReturn(java.util.Optional.of(paidOrder("SESS-1")));
-        when(sessionRepository.findById("SESS-1")).thenReturn(java.util.Optional.of(new ShoppingSession()));
         // 协议：上下摄像头同片上报 → 同一 serialNum 两个 channel，必须都带出来，否则前端两个同名「第 1 段」
         when(jiangyiOrderVideoService.playByOrderNo("SESS-1")).thenReturn(java.util.List.of(
                 new JiangyiOrderVideoService.PlayUrlView(7L, "SESS-1", "500909625160", 1, 1,
@@ -146,23 +145,8 @@ class MerchantFinanceServiceTest {
     }
 
     @Test
-    void orderVideos_whenSessionHasEdgeVideoUri_returnsEdgeWithoutLeakingJiangyiQuery() {
-        ShoppingSession session = new ShoppingSession();
-        session.setVideoUri("minio://bucket/session/SESS-2.mp4");
-        when(orderRepository.findById("ORD-1")).thenReturn(java.util.Optional.of(paidOrder("SESS-2")));
-        when(sessionRepository.findById("SESS-2")).thenReturn(java.util.Optional.of(session));
-
-        OrderVideoPlaylistDto playlist = service.orderVideos(9L, "ORD-1");
-
-        assertEquals(OrderVideoPlaylistDto.SOURCE_EDGE, playlist.source());
-        assertTrue(playlist.clips().isEmpty());
-        verify(jiangyiOrderVideoService, never()).playByOrderNo(org.mockito.ArgumentMatchers.anyString());
-    }
-
-    @Test
     void orderVideos_whenNoSourceAtAll_returnsNone() {
         when(orderRepository.findById("ORD-1")).thenReturn(java.util.Optional.of(paidOrder("SESS-3")));
-        when(sessionRepository.findById("SESS-3")).thenReturn(java.util.Optional.of(new ShoppingSession()));
         when(jiangyiOrderVideoService.playByOrderNo("SESS-3")).thenReturn(java.util.List.of());
 
         OrderVideoPlaylistDto playlist = service.orderVideos(9L, "ORD-1");

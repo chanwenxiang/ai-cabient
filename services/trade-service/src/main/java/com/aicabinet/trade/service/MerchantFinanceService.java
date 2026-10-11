@@ -135,35 +135,12 @@ public class MerchantFinanceService {
         return settlementService.getOrderBySession(order.getSessionId());
     }
 
-    /** 商户端播放本商户柜机订单购物录像（鉴权后流式输出）。 */
-    @Transactional(readOnly = true)
-    public void streamOrderVideo(Long userId, String orderId,
-                                 HttpServletRequest request,
-                                 HttpServletResponse response) {
-        permissionService.requirePermission(userId, "merchant:orders:list");
-        merchantPortalGuard.requireAccess(userId);
-        CabinetOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        assertOrderBelongsToMerchant(userId, order);
-        String sessionId = order.getSessionId();
-        if (sessionId == null || sessionId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该订单没有关联会话");
-        }
-        ShoppingSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        String videoUri = session.getVideoUri();
-        if (videoUri == null || videoUri.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该订单暂无购物视频");
-        }
-        minioVideoService.streamTo(videoUri, request, response);
-    }
-
     /**
      * 商户端取本商户订单的购物视频清单（CB-030）。
      *
-     * <p>两条来源：会话上有 {@code video_uri} 属旧边缘链路，返回 {@code EDGE} 让前端走既有
-     * 字节流端点；否则回落将邑视频台账 {@code jiangyi_order_video}，逐片签发短时效预签名
-     * 地址（{@code JIANGYI}）—— 桶私有、直传角色只有 PutObject，原始地址必然 403。</p>
+     * <p>来源=将邑视频台账 {@code jiangyi_order_video}，逐片签发短时效预签名地址
+     * （{@code JIANGYI}）—— 桶私有、直传角色只有 PutObject，原始地址必然 403。
+     * 旧边缘 {@code EDGE} 源已随旧视频链退役（2026-10-11 批6）；无台账行即 {@code NONE}。</p>
      */
     @Transactional(readOnly = true)
     public OrderVideoPlaylistDto orderVideos(Long userId, String orderId) {
@@ -175,11 +152,6 @@ public class MerchantFinanceService {
         String sessionId = order.getSessionId();
         if (sessionId == null || sessionId.isBlank()) {
             return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_NONE, List.of());
-        }
-        ShoppingSession session = sessionRepository.findById(sessionId).orElse(null);
-        String videoUri = session == null ? null : session.getVideoUri();
-        if (videoUri != null && !videoUri.isBlank()) {
-            return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_EDGE, List.of());
         }
         List<JiangyiOrderVideoService.PlayUrlView> rows = jiangyiOrderVideoService.playByOrderNo(sessionId);
         if (rows.isEmpty()) {

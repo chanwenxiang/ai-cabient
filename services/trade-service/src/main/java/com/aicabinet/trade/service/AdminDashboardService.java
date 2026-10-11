@@ -273,13 +273,6 @@ public class AdminDashboardService {
     }
 
     @Transactional(readOnly = true)
-    public void streamSessionVideo(Long operatorId, String sessionId,
-                                   jakarta.servlet.http.HttpServletRequest request,
-                                   HttpServletResponse response) {
-        sessionOrderQueryService.streamSessionVideo(operatorId, sessionId, request, response);
-    }
-
-    @Transactional(readOnly = true)
     public List<com.aicabinet.common.dto.DeviceMapPointDto> listDeviceMapPoints(
             Long operatorId, String lifecycleStatus, String routeCode, String online) {
         return deviceAdminService.listDeviceMapPoints(operatorId, lifecycleStatus, routeCode, online);

@@ -203,19 +203,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(support.merchantFinanceService().getOrder(userId(request), orderId));
     }
 
-    @RequiresPermissions("merchant:orders:list")
-    @GetMapping(value = "/orders/{orderId}/video", produces = {MediaType.APPLICATION_OCTET_STREAM_VALUE, "video/mp4", "video/webm"})
-    public void orderVideo(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            @PathVariable String orderId) {
-        support.merchantFinanceService().streamOrderVideo(userId(request), orderId, request, response);
-    }
-
-    /**
-     * CB-030：订单购物视频清单。{@code EDGE} 走既有字节流端点，{@code JIANGYI} 给可直接
-     * 播放的预签名分片地址，{@code NONE} 表示无可用视频。
-     */
+    /** CB-030：订单购物视频清单。{@code JIANGYI} 给可直接播放的预签名分片地址，{@code NONE} 表示无可用视频。 */
     @RequiresPermissions("merchant:orders:list")
     @GetMapping("/orders/{orderId}/videos")
     public ApiResponse<OrderVideoPlaylistDto> orderVideos(

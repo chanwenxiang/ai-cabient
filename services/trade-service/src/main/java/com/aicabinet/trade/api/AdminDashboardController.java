@@ -291,15 +291,6 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.cancelSession(operatorId(request), sessionId));
     }
 
-    @RequiresPermissions(value = {"ops:session:list", "ops:session:upload"}, logical = RequiresPermissions.Logical.OR)
-    @GetMapping(value = "/sessions/{sessionId}/video", produces = {MediaType.APPLICATION_OCTET_STREAM_VALUE, "video/mp4", "video/webm"})
-    public void sessionVideo(
-            HttpServletRequest request,
-            @PathVariable("sessionId") String sessionId,
-            jakarta.servlet.http.HttpServletResponse response) {
-        adminService.streamSessionVideo(operatorId(request), sessionId, request, response);
-    }
-
     @RequiresPermissions("ops:order:list")
     @JsonView(OrderViews.Admin.class)
     @GetMapping("/orders")

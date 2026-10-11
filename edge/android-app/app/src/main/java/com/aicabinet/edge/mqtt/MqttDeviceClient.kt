@@ -115,24 +115,14 @@ class MqttDeviceClient(
         DeviceStatusHub.setMqttConnected(false)
     }
 
-    fun publishDoorEvent(
-        sessionId: String,
-        doorState: String,
-        videoUri: String? = null,
-        uploadStatus: String? = null,
-        videoClipsJson: String? = null,
-        cameraFusionMode: String? = null
-    ) {
+    fun publishDoorEvent(sessionId: String, doorState: String) {
+        // 旧视频链已退役（2026-10-11 批6）：报文不再携带 videoUri/uploadStatus/videoClips/cameraFusion
         val data = mutableMapOf<String, Any>(
             "type" to "DOOR",
             "sessionId" to sessionId,
             "doorState" to doorState,
             "timestamp" to System.currentTimeMillis()
         )
-        if (videoUri != null) data["videoUri"] = videoUri
-        if (uploadStatus != null) data["uploadStatus"] = uploadStatus
-        if (videoClipsJson != null) data["videoClipsJson"] = videoClipsJson
-        if (cameraFusionMode != null) data["cameraFusionMode"] = cameraFusionMode
         publish("cabinet/$deviceId/evt", mapper.writeValueAsBytes(data))
     }
 

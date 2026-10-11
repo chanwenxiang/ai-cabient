@@ -590,7 +590,6 @@ import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useAuthStore } from '@/stores/auth';
 import {
   actorDisplayName,
@@ -610,7 +609,6 @@ import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 const route = useRoute();
 const router = useRouter();
 const { canAccessPath, goPath } = useNavAccess();
-const { playSessionVideo, fetchSessionVideoBlob } = useSessionVideo();
 const auth = useAuthStore();
 const canHandle = computed(() => auth.hasPerm('ops:exception:handle'));
 /** 与后端 manual-resolve 一致：需同时具备争议解决权限 */
@@ -946,19 +944,14 @@ async function unarchiveRow(row: OpsException) {
   }
 }
 
-async function playVideo(sessionId?: string, previewUrl?: string | null) {
-  // 服务端已下发可播地址时直接开新窗口，跳过必失败的 blob 拉流。
+function playVideo(sessionId?: string, previewUrl?: string | null) {
+  // 服务端已下发可播地址时直接开新窗口。旧 blob 拉流端点已随旧视频链退役（2026-10-11 批6）。
   const direct = (previewUrl || '').trim();
   if (direct) {
     globalThis.open(direct, '_blank');
     return;
   }
-  videoLoading.value = true;
-  try {
-    await playSessionVideo(sessionId);
-  } finally {
-    videoLoading.value = false;
-  }
+  ElMessage.warning('该会话没有可播录像地址');
 }
 
 function clearInlineVideo() {
@@ -1008,9 +1001,7 @@ async function loadInlineVideo(sessionId?: string, force = false, previewUrl?: s
       inlineVideoUrl.value = direct;
       return;
     }
-    const { url, revoke } = await fetchSessionVideoBlob(sessionId);
-    inlineVideoUrl.value = url;
-    inlineVideoRevoke = revoke;
+    throw new Error('该会话没有可播录像地址');
   } catch (e) {
     inlineVideoError.value = e instanceof Error ? e.message : '播放失败';
     ElMessage.error(inlineVideoError.value);

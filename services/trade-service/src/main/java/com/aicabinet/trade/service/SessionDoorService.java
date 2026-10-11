@@ -105,28 +105,16 @@ public class SessionDoorService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_MISMATCH);
         }
 
-        if (event.videoUri() != null && !event.videoUri().isBlank()) {
-            // 审计 P0-1：门事件携带的 videoUri 必须是本平台 minio:// 对象路径。此前无 scheme
-            // 校验，柜机可写 file:///proc/self/environ 等任意路径，经消费者订单视频端点
-            // （streamMyOrderVideo → streamTo）回显 trade 进程任意文件（含密钥环境变量）。
-            if (minioVideoService == null || !minioVideoService.isPlatformObjectUri(event.videoUri())) {
-                throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,
-                        "videoUri 必须为本平台对象存储路径（minio://）");
-            }
-            session.setVideoUri(event.videoUri());
-        }
-        applyVideoMetadata(session, event.uploadStatus(), event.videoClipsJson(), event.cameraFusionMode());
         if (event.gravityDeltasJson() != null && !event.gravityDeltasJson().isBlank()) {
             session.setGravityDeltas(gravityHelper.mergeGravityJson(session.getGravityDeltas(), event.gravityDeltasJson()));
         }
-        if (event.videoUri() != null || event.uploadStatus() != null || event.videoClipsJson() != null
-                || event.gravityDeltasJson() != null) {
+        if (event.gravityDeltasJson() != null && !event.gravityDeltasJson().isBlank()) {
             repository.save(session);
         }
 
         return switch (event.doorState()) {
             case OPEN -> onDoorOpened(session);
-            case CLOSED -> onDoorClosed(session, event.videoUri());
+            case CLOSED -> onDoorClosed(session);
             default -> sessionService.toDto(session);
         };
     }
@@ -143,7 +131,7 @@ public class SessionDoorService {
         return sessionService.toDto(session);
     }
 
-    private SessionDto onDoorClosed(ShoppingSession session, String videoUri) {
+    private SessionDto onDoorClosed(ShoppingSession session) {
         boolean orphanClose = false;
         if (session.getState() == SessionState.OPENING) {
             session.setOpenTime(Instant.now());
@@ -158,9 +146,6 @@ public class SessionDoorService {
         // （重复关门/非 SHOPPING 已在上方 return ⇒ 不重复计数）。
         cabinetMetrics.recordDoorClose(orphanClose);
         session.setCloseTime(Instant.now());
-        if (videoUri != null && !videoUri.isBlank()) {
-            session.setVideoUri(videoUri);
-        }
         repository.save(session);
 
         if (DeviceValidationService.isOpsRemoteSession(session)) {
@@ -171,55 +156,14 @@ public class SessionDoorService {
         }
 
         if (DeviceValidationService.isRestockSession(session)) {
-            if (isWaitingForUpload(session)) {
-                sessionService.transition(session, SessionState.WAITING_UPLOAD);
-                log.info("restock door closed, waiting upload {}", SessionLogContext.of(session));
-                return sessionService.toDto(session);
-            }
-            boolean hasVideo = session.getVideoUri() != null && !session.getVideoUri().isBlank();
-            boolean hasSlotGravity = gravityHelper.hasSlotSpecificDeltas(
-                    gravityHelper.parse(session.getGravityDeltas()));
-            if (hasVideo && !hasSlotGravity) {
-                sessionService.transition(session, SessionState.RECOGNIZING);
-                log.info("restock door closed, recognizing for snapshot {}", SessionLogContext.of(session));
-                return sessionService.toDto(session);
-            }
             restockSnapshotService.applySnapshot(session);
             sessionService.transition(session, SessionState.COMPLETED);
             log.info("restock door closed with gravity snapshot {}", SessionLogContext.of(session));
             return sessionService.toDto(session);
         }
 
-        if (isWaitingForUpload(session)) {
-            sessionService.transition(session, SessionState.WAITING_UPLOAD);
-            log.info("door closed, waiting upload {} uploadStatus={}",
-                    SessionLogContext.of(session), session.getUploadStatus());
-            return sessionService.toDto(session);
-        }
-
         sessionService.transition(session, SessionState.RECOGNIZING);
-        log.info("door closed, recognizing {} video={}", SessionLogContext.of(session), session.getVideoUri());
+        log.info("door closed, recognizing {}", SessionLogContext.of(session));
         return sessionService.toDto(session);
-    }
-
-    private static boolean isWaitingForUpload(ShoppingSession session) {
-        String status = session.getUploadStatus();
-        return "LOCAL_QUEUED".equalsIgnoreCase(status) || "UPLOADING".equalsIgnoreCase(status);
-    }
-
-    private static void applyVideoMetadata(ShoppingSession session, String uploadStatus,
-                                           String videoClipsJson, String cameraFusionMode) {
-        if (uploadStatus != null && !uploadStatus.isBlank()) {
-            session.setUploadStatus(uploadStatus);
-        }
-        if (videoClipsJson != null && !videoClipsJson.isBlank()) {
-            session.setVideoClips(videoClipsJson);
-            if (cameraFusionMode == null || cameraFusionMode.isBlank()) {
-                session.setCameraFusionMode("MULTI");
-            }
-        }
-        if (cameraFusionMode != null && !cameraFusionMode.isBlank()) {
-            session.setCameraFusionMode(cameraFusionMode);
-        }
     }
 }
