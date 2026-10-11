@@ -12459,7 +12459,7 @@ export interface components {
             brandName: string;
             purchasePrice: string;
             salePrice: string;
-            mainImg: string;
+            mainImg?: string;
             /** Format: int32 */
             color?: number;
             category: string;
