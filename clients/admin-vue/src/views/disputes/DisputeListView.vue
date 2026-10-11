@@ -691,11 +691,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { disputeAmountDiffNote } from '@/utils/dispute-amount-note';
 import { buildDisputeResolveBody, type DisputeResolutionType } from '@/utils/money-ui-contracts';
-import type {
-  DisputeTicketDto,
-  OrderLineDto,
-  PageResult
-} from '@aicabinet/shared-types';
+import type { DisputeTicketDto, OrderLineDto, PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { validateImageFile } from '@/utils/upload-validate';
