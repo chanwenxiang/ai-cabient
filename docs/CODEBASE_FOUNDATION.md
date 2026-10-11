@@ -46,7 +46,7 @@
      /internal/v1   │ RestClient + X-Internal-Api-Key
    ┌────────────────┼────────────────┐
    ▼                ▼                ▼
-device-service   vision-service    MinIO / 微信·支付宝
+device-service   jiangyi-gateway   MinIO / 微信·支付宝
 :8081 MQTT桥     :8082 FastAPI     视频 / 支付回调
    │                │
    ▼                ▼
@@ -63,7 +63,7 @@ edge: device-simulator | android-app
 | `services/trade-service` | 领域大脑：会话状态机、结算、支付、RBAC、仓储、钱包、争议 | 直接连 MQTT |
 | `services/device-service` | MQTT 指令下发 / 事件回传；命令跟踪与去重 | 持有业务库、扣款 |
 | `services/common/common-core` | 共享 DTO / 枚举 / 内部鉴权 / MQTT topic 常量 | 业务逻辑 |
-| `vision-service` | 开发 mock 识别 + 争议辅助；可选 Kafka worker | 生产端侧 YOLO（已废弃云端模型路径） |
+| `services/jiangyi-gateway` | 将邑柜接入网关（识别=端侧单轨） | 旧 vision-service 已于 2026-10-11 退役 |
 | `clients/admin-vue` | 运营控制台；构建产物进 trade `static/admin` | — |
 | `clients/consumer-mp` | 扫码开门、订单、充值、争议 | — |
 | `clients/merchant-mp` | 补货、柜机、钱包、分账、团队 | — |
@@ -75,7 +75,7 @@ edge: device-simulator | android-app
 
 | 模式 | 启动 | trade 端口 | 注意 |
 |------|------|------------|------|
-| **A. IDEA + 仅 infra**（日常开发推荐） | `docker compose -p ai-cabinet -f infra/docker-compose.yml up -d` + IDEA trade/device + uvicorn vision | **:8080** | 不要同时 `docker-up.ps1` |
+| **A. IDEA + 仅 infra**（日常开发推荐） | `docker compose -p ai-cabinet -f infra/docker-compose.yml up -d` + IDEA trade/device | **:8080** | 不要同时 `docker-up.ps1` |
 | **B. 全栈 Docker** | `.\docker-up.ps1`（`docker-compose.full.yml` + Win 端口 overlay） | **:18080** | 含 simulator / XXL-JOB；勿再起 IDEA trade |
 
 `scripts/e2e-lib.ps1` 会优先探测存活的 `:8080`，否则用 `:18080`。**所有测试计划必须写明模式与 BaseUrl。**
@@ -159,7 +159,6 @@ CREATED → OPENING → SHOPPING → WAITING_UPLOAD → RECOGNIZING → SETTLING
 | 运营写接口 | `@RequiresPermissions("ops:...")` + `PermissionAspect` |
 | 商户写接口 | `@RequiresPermissions("merchant:...")` + 商户数据范围 |
 | 内部 | `InternalApiAuthInterceptor`（可选 CIDR） |
-| 视觉 HTTP | 同样内部 Key（`/api/v2/vision/*`） |
 
 公开白名单（概念）：`/auth/**`、支付 **notify**、公告/媒体/部分营销等（以 `WebConfig` 为准）。
 
@@ -232,14 +231,6 @@ CREATED → OPENING → SHOPPING → WAITING_UPLOAD → RECOGNIZING → SETTLING
 
 ## 7. 视觉与边缘
 
-### 7.1 vision-service
-
-- FastAPI；默认 **mock**（`MOCK_ENABLED=true`）
-- 工厂：`mock` | `quectel`（占位未实现）| 多路融合 `fusion.py`
-- DeepSeek：争议/类名建议辅助
-- 生产方向：端侧识别上报 trade（见 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md)）；云端不做 YOLO
-- trade 侧：`VisionServiceClient` + Resilience4j 熔断；可选 Kafka 异步（默认关）
-
 ### 7.2 edge
 
 | 组件 | 作用 |
@@ -261,7 +252,6 @@ CREATED → OPENING → SHOPPING → WAITING_UPLOAD → RECOGNIZING → SETTLING
 | MinIO | 9000（Win 常 19000） | 同 |
 | trade | 8080 | **18080** |
 | device | 8081 | 18081 |
-| vision | 8082 | 18082 |
 | Gateway | 80 | 同 |
 | Grafana | 13000 | 同 |
 | XXL-JOB | — | 18090 |
@@ -269,7 +259,7 @@ CREATED → OPENING → SHOPPING → WAITING_UPLOAD → RECOGNIZING → SETTLING
 
 Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml` / `win-ports.yml` / `production.yml` 等。
 
-**健康依赖坑**：trade `/actuator/health` 含 Redis + vision 探针；vision 未起 → trade=DOWN（业务 HTTP 仍可能 200）。
+**健康依赖坑**：trade `/actuator/health` 含 Redis 探针；Redis 未起 → trade=DOWN（业务 HTTP 仍可能 200）。
 
 ---
 
@@ -292,7 +282,6 @@ Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml
 | `verify-full.ps1` | 编译 + admin 构建 + E2E |
 | `e2e-shopping.ps1` | 开门→关门→结算（`WECHAT\|ALIPAY\|BALANCE`） |
 | `e2e-dispute-recognition.ps1` | force need_review → 争议 |
-| `e2e-vision-gravity-shopping.ps1` | 视觉+重力 |
 | `e2e-replenishment.ps1` | 补货闭环 |
 | `e2e-three-end.ps1` | 三端 API 矩阵 |
 | `e2e-full-flow-milk.ps1` | 采购→仓→补货→购物→分账 |
@@ -327,7 +316,7 @@ Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml
 
 ### 9.5 CI
 
-- `.github/workflows/ci.yml`：密钥扫描、Maven verify、vision pytest、admin 静态 diff、pnpm lint/typecheck/H5
+- `.github/workflows/ci.yml`：密钥扫描、Maven verify、admin 静态 diff、pnpm lint/typecheck/H5
 - `sonar.yml`：自托管 Jacoco + Quality Gate
 
 ---
@@ -364,11 +353,10 @@ Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml
 2. `.\scripts\verify-local.ps1`（模式匹配的 BaseUrl）
 3. 触及金钱路径时加：`e2e-shopping` + `e2e-fund-safety` 或对应 refund 脚本
 
-### 11.2 触及购物 / 视觉 / 门
+### 11.2 触及购物 / 识别 / 门
 
-1. 上节 + `e2e-dispute-recognition` 或 `e2e-vision-gravity-shopping`
-2. 模拟器 `CAB-001` 心跳在线
-3. vision `:8082/health` UP
+1. 上节 + `e2e-three-end`
+2. 模拟器 `CAB-001` 心跳在线（将邑柜联调另起 jiangyi-gateway）
 
 ### 11.3 触及 Admin / H5 可见面
 
@@ -428,10 +416,9 @@ Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml
 16. `clients/merchant-mp/src/config/merchant-nav.ts` + `utils/merchant-api.ts`
 17. `packages/shared-{types,api,dict,rbac,uni}/`
 
-### 视觉 / 边缘 / 脚本
+### 边缘 / 脚本
 
-18. `vision-service/app/main.py` + `recognition/factory.py`
-19. `edge/android-app/README.md`
+18. `edge/android-app/README.md` + `services/jiangyi-gateway/`（将邑协议面）
 20. `scripts/e2e-lib.ps1` + `verify-local.ps1` + `build-admin.mjs`
 
 ---

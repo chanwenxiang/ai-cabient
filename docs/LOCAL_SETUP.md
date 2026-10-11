@@ -5,7 +5,7 @@
 > **关于 PowerShell**  
 > 文档中的 PowerShell 只是「命令行写法示例」，**不是必须用 PowerShell**。  
 > **Java 后端推荐直接在 IntelliJ IDEA 里打开项目、点 Run**，不必开多个终端敲 `mvn`。  
-> 仍需要单独启动的：Docker 基础设施、vision-service（Python）、微信开发者工具。
+> 仍需要单独启动的：Docker 基础设施、trade/device 等 Java 服务、微信开发者工具。识别=将邑端侧，云端无识别服务（将邑柜联调另起 `jiangyi-gateway`）。
 
 ## 开发原则（本地测试 + 生产标准代码）
 
@@ -14,7 +14,7 @@
 | **同一套代码** | 登录、支付、内部 API、权限校验等与生产共用，不做两套实现 |
 | **dev profile 联调** | 默认 `SPRING_PROFILES_ACTIVE=dev`，`mock-enabled=true` 走 mock 分支 |
 | **上生产只改配置** | 设 `SPRING_PROFILES_ACTIVE=prod` + 环境变量，无需改代码 |
-| **本地默认密钥** | 内部 API / vision 使用 `dev-internal-key-change-me`，各服务已对齐 |
+| **本地默认密钥** | 内部 API 使用 `dev-internal-key-change-me`，各服务已对齐 |
 
 本地 mock（`mock-enabled=true`）：验证码 `123456`、mock 支付、mock openId、视觉无模型自动结算。  
 上线清单见 [PRODUCTION.md](PRODUCTION.md)。**端口与账号速查**见 [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)。
@@ -30,10 +30,10 @@
 └─────────────┘     └──────┬───────┘     └───────┬───────┘
                            │                     │ MQTT
                            ▼                     ▼
-                    ┌──────────────┐      ┌─────────────┐
-                    │vision-service│      │ EMQX :11883 │
-                    │   :8082      │      └──────┬──────┘
-                    └──────────────┘             │
+                    ┌───────────────┐     ┌─────────────┐
+                    │jiangyi-gateway│     │ EMQX :11883 │
+                    │   :8083       │     └──────┬──────┘
+                    └───────────────┘             │
                            ▲                     ▼
                     PostgreSQL              设备模拟器 / Android
                     Redis / MinIO
@@ -43,9 +43,9 @@
 
 1. Docker 基础设施（数据库、MQTT、MinIO 等）
 2. 编译 Java 项目
-3. vision-service（Python）
-4. trade-service
-5. device-service
+3. trade-service
+4. device-service
+5. jiangyi-gateway（仅将邑柜联调时）
 6. 设备端（模拟器 **或** Android，二选一）
 7. 微信小程序 / 运营后台
 
@@ -58,7 +58,6 @@
 | **IntelliJ IDEA** | 最新 | **推荐**：打开 Maven 工程、运行 Java 服务 |
 | JDK | **17+** | 在 IDEA → Project Structure → SDK 中配置 |
 | Docker Desktop | 最新 | PostgreSQL、EMQX、MinIO 等 |
-| Python | 3.10+ | vision-service（IDEA 装 Python 插件也可） |
 | 微信开发者工具 | 最新 | 小程序调试 |
 | Android Studio | 可选 | 真机/模拟器端（替代桌面模拟器） |
 
@@ -69,34 +68,6 @@
 3. 右侧 **Maven** 面板 → **Reload All Maven Projects**  
 4. 等待依赖下载完成
 
-### Python 依赖（vision-service，首次）
-
-**务必使用项目虚拟环境**（系统 Python 可能缺少 `python-multipart` 等依赖）：
-
-```powershell
-cd vision-service
-python -m venv .venv
-.\.venv\Scripts\pip install -r requirements-base.txt
-# 开发联调默认 mock，无需 ML 依赖；端侧对接见 VISION_QUECTEL_INTEGRATION.md
-```
-
-启动：
-
-```powershell
-cd vision-service
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8082
-```
-
-<details>
-<summary>旧写法（不推荐，易与 Conda 冲突）</summary>
-
-```text
-cd vision-service
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8082
-```
-
-</details>
 
 <details>
 <summary>命令行设置 JDK 17（仅在不使用 IDEA 内置 JDK 时需要）</summary>
@@ -231,25 +202,7 @@ mvn install -pl services/common/common-core,services/trade-service,services/devi
 
 > 两个 Spring Boot 服务各用一个 Run Configuration，可同时运行（IDEA 允许多个进程）。
 
-### 4.4 启动 vision-service（:8082，Python）
-
-IDEA 已装 **Python** 插件时：
-
-1. **File → Project Structure → Modules** → `+` → 将 `vision-service` 加为 Python 模块（或单独用 PyCharm 打开该目录）  
-2. 新建 **Python** Run Configuration：  
-   - Script: `uvicorn` 或 Module name: `uvicorn`  
-   - Parameters: `app.main:app --reload --port 8082`  
-   - Working directory: `vision-service`  
-3. **Run** ▶，访问 http://localhost:8082/health  
-
-未配置 Python 插件时，在 IDEA 底部 **Terminal** 执行：
-
-```powershell
-cd vision-service
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8082
-```
-
-### 4.5 启动设备模拟器
+### 4.4 启动设备模拟器
 
 1. 打开 `edge/device-simulator/.../DeviceSimulator.java`  
 2. **Run → Edit Configurations** → 该 Main 的 **Program arguments** 填：`CAB-001`  
@@ -273,11 +226,11 @@ cd edge\device-simulator && mvn exec:java "-Dexec.args=CAB-001"
 
 ## 五、设备端（二选一）
 
-> 本地联调默认用 **4.5 设备模拟器**；有真实柜体再用 Android。
+> 本地联调默认用 **4.4 设备模拟器**；有真实柜体再用 Android。
 
 ### 方案 A：桌面模拟器
 
-见 **4.5**，IDEA 运行 `DeviceSimulator`，参数 `CAB-001`。
+见 **4.4**，IDEA 运行 `DeviceSimulator`，参数 `CAB-001`。
 
 ### 方案 B：Android 工控端
 
@@ -538,7 +491,6 @@ Invoke-RestMethod -Method POST -Uri "http://localhost:8080/internal/v1/sessions/
 |------|------|
 | trade-service | http://localhost:8080 |
 | device-service | http://localhost:8081 |
-| vision-service | http://localhost:8082 |
 | 运营后台 | http://localhost:8080/admin/index.html |
 | API Gateway | http://localhost/api/v2/ |
 | EMQX 控制台 | http://localhost:28083 |
@@ -623,9 +575,8 @@ Gateway 转发到 `host.docker.internal:8080`，需宿主机上 trade-service �
 | 2 | Maven：根项目 **install**（Skip Tests） |
 | 3 | Run `TradeServiceApplication` |
 | 4 | Run `DeviceServiceApplication` |
-| 5 | Run vision-service（`.venv\Scripts\python.exe -m uvicorn app.main:app --port 8082`） |
-| 6 | Run `DeviceSimulator`，Program args：`CAB-001` |
-| 7 | 微信小程序 | 分别启动 `clients/consumer-mp` 与 `clients/merchant-mp` |
+| 5 | Run `DeviceSimulator`，Program args：`CAB-001`（将邑柜联调另起 jiangyi-gateway） |
+| 6 | 微信小程序 | 分别启动 `clients/consumer-mp` 与 `clients/merchant-mp` |
 
 运营后台：http://localhost:8080/admin/index.html
 

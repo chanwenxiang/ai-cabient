@@ -26,7 +26,7 @@
 
 ## 1. 一句话定位
 
-**AI 开门柜**：消费者扫码开门取货 → 视觉/端侧识别 → 自动结算扣款；运营后台管设备/SKU/争议/财务；商户端管补货/定价/钱包。独立于旧仓 `ego-automat`（只读参考）。
+**AI 开门柜**：消费者扫码开门取货 → 将邑端侧识别（柜机 rknn 推理）→ 自动结算扣款；运营后台管设备/SKU/争议/财务；商户端管补货/定价/钱包。独立于旧仓 `ego-automat`（只读参考）。
 
 ---
 
@@ -63,7 +63,6 @@ services/trade-service     领域大脑（会话·结算·支付·RBAC·仓储�
 services/device-service    MQTT 桥（不下业务库）
 services/jiangyi-gateway   将邑外采柜接入层（设备 token/WS/上报归一，CB-022）
 services/common/common-core 共享 DTO / 枚举 / 内部鉴权
-vision-service             FastAPI mock 识别 + 争议辅助
 edge/*                     柜机端 / 模拟器
 infra/                     Compose、网关、监控
 ```
@@ -94,7 +93,7 @@ infra/                     Compose、网关、监控
 
 | 模式 | 启动 | trade 端口 |
 |------|------|------------|
-| **A. IDEA + 仅 infra**（日常推荐） | `docker compose -p ai-cabinet -f infra/docker-compose.yml up -d` + IDEA + vision | **:8080** |
+| **A. IDEA + 仅 infra**（日常推荐） | `docker compose -p ai-cabinet -f infra/docker-compose.yml up -d` + IDEA（trade/device；将邑柜联调另起 jiangyi-gateway） | **:8080** |
 | **B. 全栈 Docker** | `.\docker-up.ps1` | **:18080** |
 
 **禁止** A/B 混开双 trade。速查：[STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)。
@@ -575,7 +574,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | G4 | admin-vue 技术债 | D1–D25 **已清**（见 `admin-vue-debt-tracker`） |
 | G5 | consumer-mp 技术债 | C1–C12 **done**（C9 deferred）；余 **C10b** easycom→package（mp 风险知情延后） |
 | G6 | merchant-mp 技术债 | M1–M12 **done**（除 M9）；余 **M9** 与 C10b 对齐 |
-| G7 | 灰度真金 vision | mock 仍开；关 `VISION_MOCK_ENABLED` 须边侧识别就绪，禁止本机 UAT 假关 |
+| G7 | ~~灰度真金 vision~~ | **已关闭（2026-10-11）**：识别只认将邑端侧，vision-service 整体退役（判定文档 §3） |
 
 ---
 

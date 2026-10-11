@@ -22,7 +22,8 @@ import org.springframework.web.server.ResponseStatusException;
  *   <li>其余柜 → 既有 device-service 链路（编程式 Retry 保留，MQTT 语义幂等）；
  *       ⚠️ 不用 @Retry 注解：分支方法被入口自调用时 AOP 代理不生效（静默失效），
  *       编程式 RetryRegistry 与 yml instances.deviceService 同名等价；</li>
- *   <li>operatorMode（补货开门）对将邑柜 501：一期只开放购物开门（方案 §4A）。</li>
+ *   <li>operatorMode 分流：补货开门（stock）走将邑 sendOpenStockDoor（2026-10-11 收尾E，
+ *       协议 §4.3.2.4，msgContent=补货会话 id）；运维开门（ADM 会话）对将邑柜仍 501（协议无此概念）。</li>
  * </ul>
  */
 @Component
@@ -51,7 +52,7 @@ public class DeviceServiceClient {
     /** 入口分流。 */
     public void requestOpenDoor(String sessionId, String deviceId, Long userId, boolean operatorMode) {
         if (jiangyiDeviceDirectory.isJiangyi(deviceId)) {
-            requestJiangyiOpenDoor(sessionId, deviceId, userId, operatorMode);
+            requestJiangyiOpenDoor(sessionId, deviceId, userId, operatorMode, false);
         } else {
             requestDeviceServiceOpenDoor(sessionId, deviceId, userId, operatorMode);
         }
@@ -61,18 +62,32 @@ public class DeviceServiceClient {
         requestOpenDoor(sessionId, deviceId, userId, true);
     }
 
+    /**
+     * 补货开门（将邑柜真路由，收尾E）：WS 下发 {@code sendOpenStockDoor}，
+     * msgContent=补货会话 id（协议枢纽 orderNo≡sessionId 不变）；柜机生成补货视频后
+     * 经 §4.2.14 上报（orderNo 同值），落 {@code jiangyi_order_video} 台账。
+     */
+    public void requestOpenDoorStock(String sessionId, String deviceId, Long userId) {
+        if (jiangyiDeviceDirectory.isJiangyi(deviceId)) {
+            requestJiangyiOpenDoor(sessionId, deviceId, userId, false, true);
+        } else {
+            requestDeviceServiceOpenDoor(sessionId, deviceId, userId, true);
+        }
+    }
+
     /** 将邑柜开门：单次下发不重试（双开门风险 > 重试收益，CB-022 决策）。 */
-    private void requestJiangyiOpenDoor(String sessionId, String deviceId, Long userId, boolean operatorMode) {
-        log.info("request jiangyi open door: session={}, device={}, user={}, operator={}",
-                sessionId, deviceId, userId, operatorMode);
-        if (operatorMode) {
-            // 方案 §4A：一期只开放购物开门，补货开门二期真路由
-            throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "将邑柜补货开门二期开放");
+    private void requestJiangyiOpenDoor(String sessionId, String deviceId, Long userId,
+                                        boolean operatorMode, boolean stock) {
+        log.info("request jiangyi open door: session={}, device={}, user={}, operator={}, stock={}",
+                sessionId, deviceId, userId, operatorMode, stock);
+        if (operatorMode && !stock) {
+            // 运维开门（ADM 会话）协议无此概念：将邑柜仅支持 购物开门/补货开门 两种
+            throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "将邑柜不支持运维开门");
         }
         jiangyiGatewayClient.post()
                 .uri("/internal/v1/jiangyi/devices/{deviceId}/open-door", deviceId)
                 .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
-                .body(new OpenDoorRequest(sessionId, userId, operatorMode))
+                .body(new OpenDoorRequest(sessionId, userId, operatorMode, stock))
                 .retrieve()
                 .toBodilessEntity();
     }
@@ -84,7 +99,7 @@ public class DeviceServiceClient {
         retryRegistry.retry("deviceService").executeRunnable(() -> restClient.post()
                 .uri("/internal/v1/devices/{deviceId}/open-door", deviceId)
                 .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
-                .body(new OpenDoorRequest(sessionId, userId, operatorMode))
+                .body(new OpenDoorRequest(sessionId, userId, operatorMode, false))
                 .retrieve()
                 .toBodilessEntity());
     }
@@ -117,7 +132,10 @@ public class DeviceServiceClient {
         return body.commandId();
     }
 
-    record OpenDoorRequest(String sessionId, Long userId, boolean operatorMode) {}
+    /**
+     * @param stock true=补货开门（将邑 sendOpenStockDoor，msgContent=补货会话 id）
+     */
+    record OpenDoorRequest(String sessionId, Long userId, boolean operatorMode, boolean stock) {}
     record SetTargetTempRequest(int targetTempC) {}
     record SetTargetTempResponse(String commandId) {}
     record OpsCommandRequest(String command) {}

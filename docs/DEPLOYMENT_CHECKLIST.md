@@ -39,7 +39,7 @@ copy infra\.env.staging.example infra\.env.staging
 |----|-----|---------|
 | Mock 登录验证码 | 123456 | SMS mock 8099 |
 | AICABINET_MOCK_ENABLED | true | false |
-| Vision | mock | mock（可改 yolo） |
+| 识别 | 无云端识别（将邑端侧） | 无云端识别；jiangyi-gateway 必配 `JIANGYI_JWT_SECRET` |
 
 ---
 
@@ -55,11 +55,12 @@ copy infra\.env.production.example infra\.env.production
 ### 3.1 部署前必查
 
 - [ ] `SPRING_PROFILES_ACTIVE=prod`
-- [ ] `JWT_SECRET` / `INTERNAL_API_KEY` / `VISION_API_KEY` ≥ 32 字符，非默认值
+- [ ] `JWT_SECRET` / `INTERNAL_API_KEY` / `JIANGYI_JWT_SECRET` ≥ 32 字符，非默认值
 - [ ] `SMS_WEBHOOK_URL` 可达
 - [ ] 微信支付 API v3 证书与 notify URL HTTPS
 - [ ] 小程序 `WECHAT_MINIAPP_ID` / `SECRET`
-- [ ] PostgreSQL 备份；Flyway 迁移至 V26+
+- [ ] PostgreSQL 备份；Flyway 迁移至最新（V340+）
+- [ ] 将邑面：`JIANGYI_JWT_SECRET` 已配（≥32 字节）；`JIANGYI_OSS_ACCESS_KEY_ID/SECRET/ROLE_ARN/REGION/BUCKET` 已配；`JIANGYI_PUBLIC_BASE_URL` 指向固定公网域名（勿用花生壳穿透）；OSS `jiangyi-video/` 生命周期规则已建（§3.1.1）
 - [ ] MinIO/OSS 桶策略、CORS、视频生命周期（**OSS 侧见 §3.1.1，必配**）
 - [ ] EMQX TLS（设备 MQTT）
 - [ ] Gateway HTTPS、CORS 仅运营域名

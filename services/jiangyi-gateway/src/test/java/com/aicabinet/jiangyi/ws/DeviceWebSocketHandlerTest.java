@@ -59,6 +59,26 @@ class DeviceWebSocketHandlerTest {
     }
 
     @Test
+    void sendOpenStockDoor_offlineReturnsFalse() {
+        assertFalse(handler.sendOpenStockDoor(IDENTIFIER, "STK-1"));
+    }
+
+    /** 补货开门契约（V16 §4.3.2.4，收尾E）：msgType=sendOpenStockDoor，msgContent=补货单号。 */
+    @Test
+    void sendOpenStockDoor_payloadMatchesV16Contract() throws Exception {
+        WebSocketSession session = onlineSession();
+        handler.afterConnectionEstablished(session);
+
+        assertTrue(handler.sendOpenStockDoor(IDENTIFIER, "STK-123"));
+
+        ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+        verify(session, timeout(1000)).sendMessage(captor.capture());
+        JsonNode payload = new ObjectMapper().readTree(captor.getValue().getPayload());
+        assertEquals("sendOpenStockDoor", payload.path("msgType").asText());
+        assertEquals("STK-123", payload.path("msgContent").asText());
+    }
+
+    @Test
     void sendModelUpdate_offlineReturnsFalse() {
         assertFalse(handler.sendModelUpdate(IDENTIFIER, "m1", "http://m", "http://t", 2));
     }

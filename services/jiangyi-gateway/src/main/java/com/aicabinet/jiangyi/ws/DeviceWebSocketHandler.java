@@ -34,6 +34,8 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(DeviceWebSocketHandler.class);
 
     public static final String MSG_TYPE_OPEN_DOOR = "openDoor";
+    /** 补货开门（V16 §4.3.2.4，收尾E）：msgContent=补货单号（=trade 补货会话 id）。 */
+    public static final String MSG_TYPE_SEND_OPEN_STOCK_DOOR = "sendOpenStockDoor";
     public static final String MSG_TYPE_UPDATE_MODEL = "updateModel";
     /** 设备模型下发完成回执。V16 §4.2.5 PDF 原件核对：主通道是设备 HTTP POST
      * /deviceInfo/downloadModelNotify（DeviceInfoController）；本 WS 分支为宽容兜底。 */
@@ -157,6 +159,22 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
      *
      * @return true 已送达（发出≠设备已执行；执行回执走 HTTP lockStatus/doorStatus）
      */
+    /**
+     * 下发补货开门指令（msgContent=补货单号）。回执与购买开门同通道
+     * （uploadLockState/uploadDoorState，orderNo=补货单号）。
+     */
+    public boolean sendOpenStockDoor(String identifier, String stockNo) {
+        WebSocketSession session = sessions.get(identifier);
+        if (session == null || !session.isOpen()) {
+            log.warn("jiangyi ws stock-door skipped: device offline identifier={} stockNo={}",
+                    identifier, stockNo);
+            return false;
+        }
+        return send(session, identifier, Map.of(
+                "msgType", MSG_TYPE_SEND_OPEN_STOCK_DOOR,
+                "msgContent", stockNo));
+    }
+
     public boolean sendOpenDoor(String identifier, String sessionId) {
         WebSocketSession session = sessions.get(identifier);
         if (session == null || !session.isOpen()) {

@@ -1,4 +1,9 @@
-﻿# 上传演示购物录像到 MinIO，并在指定会话上挂载 video_uri（容器重建后恢复 demo 用）。
+﻿# ============================================================
+# ⛔ 已退役（2026-10-11）：旧云识别/录像链专用脚本。
+#    识别只认将邑端侧；vision-service 与 /internal/v1/sessions/video* 已删除，
+#    本脚本运行必失败。见 docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批6/收尾B。
+# ============================================================
+# 上传演示购物录像到 MinIO，并在指定会话上挂载 video_uri（容器重建后恢复 demo 用）。
 # 用法：
 #   .\scripts\seed-demo-shopping-video.ps1
 #   .\scripts\seed-demo-shopping-video.ps1 -SessionId 1788233611382431271

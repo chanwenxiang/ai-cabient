@@ -1,4 +1,9 @@
-﻿# One-click demo smoke: mock vision need_review → dispute settle (WAIVE) → mock recharge ¥20
+﻿# ============================================================
+# ⛔ 已退役（2026-10-11）：旧云识别/录像链专用脚本。
+#    识别只认将邑端侧；vision-service 与 /internal/v1/sessions/video* 已删除，
+#    本脚本运行必失败。见 docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批6/收尾B。
+# ============================================================
+# One-click demo smoke: mock vision need_review → dispute settle (WAIVE) → mock recharge ¥20
 # reviewCode: prefers MOCK list filter; VISION_FORCE_REAL + force-need-review often yields GRAVITY_FILL (accepted).
 # Layout/orderId follow-up (filters height + RESOLVED exception orderId): scripts/admin-layout-smoke.ps1
 # Usage:

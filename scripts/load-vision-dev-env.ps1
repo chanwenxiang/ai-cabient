@@ -1,4 +1,9 @@
-﻿# 加载 vision-service 真实识别环境变量（不影响 trade mock）
+﻿# ============================================================
+# ⛔ 已退役（2026-10-11）：旧云识别/录像链专用脚本。
+#    识别只认将邑端侧；vision-service 与 /internal/v1/sessions/video* 已删除，
+#    本脚本运行必失败。见 docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批6/收尾B。
+# ============================================================
+# 加载 vision-service 真实识别环境变量（不影响 trade mock）
 $Root = Split-Path $PSScriptRoot -Parent
 $EnvFile = Join-Path $Root "infra\.env.vision-dev"
 $Example = Join-Path $Root "infra\.env.vision-dev.example"

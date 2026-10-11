@@ -11,9 +11,9 @@
 | 顺序 | 组件 | 如何启动 |
 |------|------|----------|
 | 1 | Docker **基础设施** | 仓库根目录：`docker compose -p ai-cabinet -f infra/docker-compose.yml up -d`（postgres / redis / emqx / minio…）。**不要**默认 `.\docker-up.ps1`（那是 full 栈，会起 Docker 版 trade `:18080`） |
-| 2 | vision-service | `cd vision-service && .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8082`（**必启**：trade 的 `/actuator/health` 含 vision 探针，vision 挂则 trade=DOWN） |
-| 3 | trade-service | IDEA Run `trade-service`（:8080）；需能连 **Redis `:6379`** 与 Postgres `:15433` |
-| 4 | device-service | IDEA Run `device-service`（:8081）；MQTT 默认 `tcp://localhost:11883` |
+| 2 | trade-service | IDEA Run `trade-service`（:8080）；需能连 **Redis `:6379`** 与 Postgres `:15433` |
+| 3 | device-service | IDEA Run `device-service`（:8081）；MQTT 默认 `tcp://localhost:11883` |
+| 4 | jiangyi-gateway（将邑柜联调时） | IDEA Run `jiangyi-gateway`（:8083，需 `JIANGYI_JWT_SECRET`，未配则 token 端点 503 fail-closed）；模拟器联调见 `docs/JIANGYI_GATEWAY_DESIGN.md §6` |
 | 5 | 设备模拟器 | IDEA Run `DeviceSimulator`，参数 `330449777078`（**别用 `CAB-001`**，见「三、演示账号 › 设备」口径） |
 | 6 | 消费者小程序 | 微信：`pnpm --filter @aicabinet/consumer-mp dev:mp-weixin`；**浏览器 H5**：`pnpm --filter @aicabinet/consumer-mp dev:h5` → http://127.0.0.1:3002 |
 | 7 | 商户小程序 | 微信：`pnpm --filter @aicabinet/merchant-mp dev:mp-weixin`；**浏览器 H5**：`pnpm --filter @aicabinet/merchant-mp dev:h5` → http://127.0.0.1:3001 |
@@ -33,9 +33,9 @@
 | **Redis** | **6379** | trade/device 默认 `REDIS_PORT=6379`；**会进 health**，不是「未使用」 |
 | **EMQX MQTT** | 11883 | 设备通信（device-service） |
 | **MinIO API** | 9000（Windows 常需 **19000**） | 视频存储；若 `bind: access permissions` 见下方 Windows 说明 |
-| **trade-service** | **8080**（全栈 Docker 常为 **18080**） | http://localhost:8080/actuator/health 须为 **UP**（依赖 Redis + vision） |
+| **trade-service** | **8080**（全栈 Docker 常为 **18080**） | http://localhost:8080/actuator/health 须为 **UP**（依赖 Redis） |
 | **device-service** | **8081**（Docker 常为 **18081**） | http://localhost:8081/actuator/health |
-| **vision-service** | **8082**（Docker 常为 **18082**） | http://localhost:8082/health |
+| **jiangyi-gateway** | **8083**（Docker 常为 **18084**） | 将邑柜接入（识别=端侧；token 503 = 未配 `JIANGYI_JWT_SECRET`） |
 | **设备模拟器** | — | 程序参数 `330449777078`，每 30s 心跳 |
 
 ### 可选
@@ -51,7 +51,7 @@
 
 | 现象 | 原因 | 处理 |
 |------|------|------|
-| trade health=`DOWN`，但 `/v3/api-docs` 仍 200 | Redis 连不上，和/或 vision `:8082` 未起（`VisionServiceHealthIndicator`） | 先确认 `127.0.0.1:6379` 与 `:8082/health`，再看 trade health |
+| trade health=`DOWN`，但 `/v3/api-docs` 仍 200 | Redis 连不上 | 先确认 `127.0.0.1:6379`，再看 trade health |
 | Redis 在 **16379** 而应用默认 6379 | 旧容器端口与仓库 `docker-compose*.yml`（`6379:6379`）不一致 | 按仓库 compose **重建 redis**，或 IDEA 环境变量 `REDIS_PORT=16379`（勿长期分叉） |
 | 盲跑 `docker-up.ps1` + IDEA trade | 双 trade / 端口与心智模型混乱 | 选一种模式 |
 
@@ -153,7 +153,7 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 ✓ docker compose ps          → postgres / emqx / minio Running
 ✓ :8080/actuator/health      → trade-service UP
 ✓ :8081/actuator/health      → device-service UP
-✓ :8082/health               → vision-service UP
+✓ （将邑柜联调）:8083 token 端点 → 200/403/404（503=未配 JIANGYI_JWT_SECRET）
 ✓ DeviceSimulator 330449777078 → 控制台有心跳日志
 ✓ uni-app 13800138000/123456 → 开门 330449777078
 ✓ 运营控制台 13900000001     → 登录
@@ -232,20 +232,16 @@ $env:APIFOX_PROJECT_ID = '8780097'   # 可选
 
 ---
 
-## 四A、staging 视觉栈启动方式（审计 P2-13 定案 · fail-loud 语义）
+## 四A、将邑网关启动方式（识别=端侧单轨 · 2026-10-11）
 
-staging（secure-env）的 vision-service **按默认配置必然启动失败**——这是设计而非故障：
-
-- `MOCK_ENABLED=true` 被 secure-env 双查硬拒（`main.py:44`）；
-- 云端识别已整体退役：`RECOGNIZER_BACKEND` 任何非 `quectel` 值都落 Mock（不可用），quectel stub 的 `available` 硬编码 `False`（`quectel_recognizer.py:33`）⇒ `main.py:49` 抛 `Recognizer unavailable while mock is disabled`。
-
-**正确姿势（按场景）**：
+识别已只认将邑端侧（柜机 rknn 推理，云端无识别服务）；vision-service 已整体退役。
+将邑柜联调时需起 `jiangyi-gateway`（:8083，Docker 栈 18084）：
 
 | 场景 | 操作 |
 |------|------|
-| 非视觉 UAT（推荐） | `docker compose ... stop vision-service`——trade 对 vision 的依赖是健康探针与识别调用，视觉缺失走争议/人工路径 |
-| 视觉联调（dev 栈） | dev compose（非 secure-env）+ `MOCK_ENABLED=true`，或端侧直报 `/internal/v1/vision/edge-results` |
-| 生产 | 不部署云端识别；识别结果由柜机端直报（ deviceId 绑定强校验） |
+| 日常开发（非将邑柜） | 不需要 jiangyi-gateway；模拟器走旧 MQTT 模式（trade mock 环境 gravity 短路结算） |
+| 将邑柜/模拟器 jiangyi 模式联调 | 起 jiangyi-gateway（需 `JIANGYI_JWT_SECRET`）+ 设备登记（jiangyi_device）+ classId 映射；全链路见 `docs/JIANGYI_GATEWAY_DESIGN.md §4/§6` |
+| 生产 | jiangyi-gateway 已进 apps 基座栈；`/jiangyi/`、`/websocket/` 由 nginx 转发 |
 
 ---
 

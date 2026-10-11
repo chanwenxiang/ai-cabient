@@ -381,7 +381,7 @@
                 "
                 link
                 type="primary"
-                @click="playVideo(selected.sessionId, selected.videoPreviewUrl)"
+                @click="playVideo(selected.sessionId, selected.videoPreviewUrl, selected.ticketId)"
                 >新窗口打开</el-button
               >
               <el-checkbox v-model="videoReviewed" :disabled="!embedVideoUrl && !noVideoAck"
@@ -887,6 +887,18 @@ async function loadEmbedVideo(sessionId?: string, force = false, previewUrl?: st
       embedVideoUrl.value = direct;
       return;
     }
+    // 列表行无签发地址（收尾D）：按单拉详情拿现签地址
+    if (selected.value?.ticketId) {
+      const detail = await api.request<DisputeTicketDto>(
+        AdminEndpoints.dispute(selected.value.ticketId),
+        'GET'
+      );
+      const url = (detail.videoPreviewUrl || '').trim();
+      if (url) {
+        embedVideoUrl.value = url;
+        return;
+      }
+    }
     throw new Error('该会话没有可播录像地址');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '录像加载失败');
@@ -1010,7 +1022,7 @@ function rowActions(row: DisputeTicketDto): CrudRowAction[] {
 
 function onRowAction({ key, row }: { key: string; row: DisputeTicketDto }) {
   if (key === 'detail') openDetail(row);
-  if (key === 'video') playVideo(row.sessionId, row.videoPreviewUrl);
+  if (key === 'video') playVideo(row.sessionId, row.videoPreviewUrl, row.ticketId);
   if (key === 'exception') goExceptions(row.deviceId);
   if (key === 'order') goOrders(row.deviceId, row.orderId);
   if (key === 'mapping') goVisionMapping(row);
@@ -1063,15 +1075,32 @@ function goVisionMapping(row?: DisputeTicketDto | null) {
   goPath('/vision-mappings', query);
 }
 
-function playVideo(sessionId?: string, previewUrl?: string | null) {
-  // 服务端已下发可播地址（videoPreviewUrl：旧边缘 MinIO 预签名，或将邑柜机台账兜底，见 CB-030）
-  // 时直接开新窗口。旧 blob 拉流端点已随旧视频链退役（2026-10-11 批6）。
+/** 列表行不再携带签发地址（收尾D：列表零签发）——点播时按单取详情现签。 */
+async function playVideo(
+  sessionId: string | undefined,
+  previewUrl: string | null | undefined,
+  ticketId?: string
+) {
   const direct = (previewUrl || '').trim();
   if (direct) {
     globalThis.open(direct, '_blank');
     return;
   }
-  ElMessage.warning('该会话没有可播录像地址');
+  if (!ticketId) {
+    ElMessage.warning('该会话没有可播录像地址');
+    return;
+  }
+  try {
+    const detail = await api.request<DisputeTicketDto>(AdminEndpoints.dispute(ticketId), 'GET');
+    const url = (detail.videoPreviewUrl || '').trim();
+    if (!url) {
+      ElMessage.warning('该会话没有可播录像地址');
+      return;
+    }
+    globalThis.open(url, '_blank');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '录像地址获取失败');
+  }
 }
 
 function goDevice(id: string) {

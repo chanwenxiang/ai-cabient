@@ -11,8 +11,8 @@
   trade-service  ←→  device-service  ←→  EMQX (MQTT)
        │                    │
        ▼                    ▼
-  vision-service         edge/android-app
-```
+  jiangyi-gateway       edge/android-app
+``
 
 ## 模块一览
 
@@ -25,8 +25,8 @@
 | `services/trade-service` | 交易服务 | 会话、订单、结算、运营 API |
 | `services/device-service` | 设备服务 | MQTT、设备状态 |
 | `services/common/common-core` | 公共核心库 | DTO、枚举 |
-| `vision-service` | 视觉 mock / 争议辅助 | FastAPI（无端侧模型） |
-| `edge/device-simulator` | 设备模拟器 | 本地联调 |
+| `services/jiangyi-gateway` | 将邑柜接入网关 | 设备 token / WS / 上报归一（识别=将邑端侧） |
+| `edge/device-simulator` | 设备模拟器 | 本地联调（含 jiangyi 模式） |
 | `edge/android-app` | 柜机端 App | Android |
 | `infra/` | 基础设施 | Docker / 网关 |
 
@@ -59,7 +59,7 @@
 
 > **启动速查**（端口、账号）：[docs/STARTUP_REFERENCE.md](docs/STARTUP_REFERENCE.md)
 
-> **端侧识别对接**：[docs/VISION_QUECTEL_INTEGRATION.md](docs/VISION_QUECTEL_INTEGRATION.md)
+> **端侧识别对接**：[docs/JIANGYI_GATEWAY_DESIGN.md](docs/JIANGYI_GATEWAY_DESIGN.md)（识别=将邑端侧，柜机 rknn 推理）
 
 > **生产部署**：[docs/PRODUCTION.md](docs/PRODUCTION.md)
 
@@ -87,13 +87,13 @@ cd services/trade-service && mvn spring-boot:run
 cd services/device-service && mvn spring-boot:run
 ```
 
-### 3. 启动识别服务
+### 3. 启动将邑接入网关（将邑柜联调时）
 
 ```bash
-cd vision-service
-pip install -r requirements-base.txt
-uvicorn app.main:app --reload --port 8082
+cd services/jiangyi-gateway && mvn spring-boot:run
 ```
+
+> 识别为将邑端侧（柜机 rknn 推理），云端无识别服务；协议见 `docs/JIANGYI_GATEWAY_DESIGN.md`。
 
 ### 4. 运营控制台（可选本地开发）
 
@@ -123,7 +123,7 @@ curl -X POST http://localhost:8080/api/v2/sessions \
 |------|------|
 | trade-service | 8080 |
 | device-service | 8081 |
-| vision-service | 8082 |
+| jiangyi-gateway | 8083（Docker 常为 18084） |
 | EMQX MQTT | **11883**（默认 Hyper-V 安全端口；本机若冲突可在 `infra/.env` 设 `EMQX_MQTT_PORT=12883`） |
 | EMQX Dashboard | 28083 |
 | API Gateway | 80 |

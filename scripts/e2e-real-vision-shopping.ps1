@@ -1,4 +1,9 @@
-﻿# 真实 YOLO 购物 E2E — mock 关闭，simulator 上传图片/视频，vision 识别结算
+﻿# ============================================================
+# ⛔ 已退役（2026-10-11）：旧云识别/录像链专用脚本。
+#    识别只认将邑端侧；vision-service 与 /internal/v1/sessions/video* 已删除，
+#    本脚本运行必失败。见 docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批6/收尾B。
+# ============================================================
+# 真实 YOLO 购物 E2E — mock 关闭，simulator 上传图片/视频，vision 识别结算
 param(
     [string]$BaseUrl = "",
     [string]$Phone = "",

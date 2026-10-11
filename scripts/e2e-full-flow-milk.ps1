@@ -1,4 +1,9 @@
-﻿# Full business test plan: 采购 → 仓储收货 → 补货入柜 → 购物 → 结算 → 分账 (+ 层 A 脚本门禁)
+﻿# ============================================================
+# ⛔ 已退役（2026-10-11）：旧云识别/录像链专用脚本。
+#    识别只认将邑端侧；vision-service 与 /internal/v1/sessions/video* 已删除，
+#    本脚本运行必失败。见 docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批6/收尾B。
+# ============================================================
+# Full business test plan: 采购 → 仓储收货 → 补货入柜 → 购物 → 结算 → 分账 (+ 层 A 脚本门禁)
 # Usage: .\scripts\e2e-full-flow-milk.ps1
 #        .\scripts\e2e-full-flow-milk.ps1 -SkipLayerA   # skip long fund-safety / three-end
 

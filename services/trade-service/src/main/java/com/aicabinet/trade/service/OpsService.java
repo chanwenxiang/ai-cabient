@@ -75,7 +75,8 @@ public class OpsService {
             apiRateLimitService.assertOpenDoorAllowed(userId, deviceId);
             SessionDto dto = self.persistRestockOpeningSession(userId, deviceId, taskId);
             try {
-                deviceClient.requestOpenDoorOperator(dto.sessionId(), deviceId, userId);
+                // 补货开门（收尾E）：将邑柜 sendOpenStockDoor 真路由
+                deviceClient.requestOpenDoorStock(dto.sessionId(), deviceId, userId);
             } catch (ResponseStatusException e) {
                 self.markRestockOpenFailed(dto.sessionId(), "开门指令下发失败");
                 throw e;

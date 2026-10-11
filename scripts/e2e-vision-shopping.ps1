@@ -1,4 +1,9 @@
-﻿# Shopping E2E with real media in MinIO (Step 4)
+﻿# ============================================================
+# ⛔ 已退役（2026-10-11）：旧云识别/录像链专用脚本。
+#    识别只认将邑端侧；vision-service 与 /internal/v1/sessions/video* 已删除，
+#    本脚本运行必失败。见 docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批6/收尾B。
+# ============================================================
+# Shopping E2E with real media in MinIO (Step 4)
 # Requires trade + device + vision with YOLO loaded.
 # bus.jpg -> usually DISPUTED (no bottle SKU); bottle.jpg -> COMPLETED if MOCK_ENABLED=false.
 

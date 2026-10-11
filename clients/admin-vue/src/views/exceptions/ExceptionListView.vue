@@ -899,7 +899,7 @@ function onExceptionAction({ key, row }: { key: string; row: OpsException }) {
   else if (key === 'repair') resolveWithRepairRow(row);
   else if (key === 'archive') archiveRow(row);
   else if (key === 'unarchive') unarchiveRow(row);
-  else if (key === 'video') playVideo(row.sessionId, row.videoPreviewUrl);
+  else if (key === 'video') playVideo(row.sessionId, row.videoPreviewUrl, row.exceptionId);
 }
 
 async function archiveRow(row: OpsException) {
@@ -944,14 +944,35 @@ async function unarchiveRow(row: OpsException) {
   }
 }
 
-function playVideo(sessionId?: string, previewUrl?: string | null) {
-  // 服务端已下发可播地址时直接开新窗口。旧 blob 拉流端点已随旧视频链退役（2026-10-11 批6）。
+/** 列表行不再携带签发地址（收尾D）——点播时取异常详情现签。 */
+async function playVideo(
+  sessionId: string | undefined,
+  previewUrl: string | null | undefined,
+  exceptionId?: string
+) {
   const direct = (previewUrl || '').trim();
   if (direct) {
     globalThis.open(direct, '_blank');
     return;
   }
-  ElMessage.warning('该会话没有可播录像地址');
+  if (!exceptionId) {
+    ElMessage.warning('该会话没有可播录像地址');
+    return;
+  }
+  try {
+    const detail = await api.request<{ exception: { videoPreviewUrl?: string } }>(
+      AdminEndpoints.exception(exceptionId),
+      'GET'
+    );
+    const url = (detail.exception?.videoPreviewUrl || '').trim();
+    if (!url) {
+      ElMessage.warning('该会话没有可播录像地址');
+      return;
+    }
+    globalThis.open(url, '_blank');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '录像地址获取失败');
+  }
 }
 
 function clearInlineVideo() {

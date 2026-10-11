@@ -60,15 +60,19 @@ public class OpenDoorController {
                     deviceId, identifier, sessionId);
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "设备不在线");
         }
-        boolean sent = deviceWebSocketHandler.sendOpenDoor(identifier, sessionId);
+        // 收尾E：stock=true=补货开门（sendOpenStockDoor，msgContent=补货会话 id）；
+        // 回执走同一套 uploadLockState/uploadDoorState（orderNo=补货单号）。
+        boolean sent = request.stock()
+                ? deviceWebSocketHandler.sendOpenStockDoor(identifier, sessionId)
+                : deviceWebSocketHandler.sendOpenDoor(identifier, sessionId);
         if (!sent) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "开门指令下发失败");
         }
         commandTracker.register(CommandTracker.Kind.OPEN, sessionId, deviceId, identifier);
-        log.info("jiangyi open-door dispatched deviceId={} identifier={} sessionId={}",
-                deviceId, identifier, sessionId);
+        log.info("jiangyi open-door dispatched deviceId={} identifier={} sessionId={} stock={}",
+                deviceId, identifier, sessionId, request.stock());
     }
 
-    /** 与 trade DeviceServiceClient.OpenDoorRequest 字段对齐（operatorMode 在 trade 侧已 501，不会到达）。 */
-    public record OpenDoorRequest(String sessionId, Long userId, boolean operatorMode) {}
+    /** 与 trade DeviceServiceClient.OpenDoorRequest 字段对齐（operatorMode=true 且非 stock 的运维开门在 trade 侧已 501）。 */
+    public record OpenDoorRequest(String sessionId, Long userId, boolean operatorMode, boolean stock) {}
 }

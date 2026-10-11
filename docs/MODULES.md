@@ -21,7 +21,7 @@
 | `services/trade-service` | 交易服务 | 会话、订单、结算、运营 / 商户 API | IDEA Run `TradeServiceApplication` 或 `mvn spring-boot:run`（:8080） |
 | `services/device-service` | 设备服务 | MQTT、设备状态、指令下发 | `DeviceServiceApplication`（:8081） |
 | `services/common/common-core` | 公共核心库 | DTO、枚举、工具 | Maven 依赖，不单独启动 |
-| `vision-service` | 视觉 mock / 争议辅助 | FastAPI（无端侧模型） | `uvicorn app.main:app --port 8082` |
+| `services/jiangyi-gateway` | 将邑柜接入网关 | 设备 token / WS / 上报归一化 | `mvn spring-boot:run`（:8083） |
 
 ## 边缘与联调
 
@@ -35,7 +35,7 @@
 | 路径 | 中文名 | 说明 |
 |------|--------|------|
 | `infra/` | 基础设施 | Docker Compose、网关、环境变量模板 |
-| `infra/docker/` | 容器镜像 | `trade-service`、`device-service`、`vision-service` Dockerfile |
+| `infra/docker/` | 容器镜像 | `trade-service`、`device-service` Dockerfile |
 | `proto/` | 协议定义 | MQTT / 内部通信 Protobuf |
 
 ## 脚本（核心）

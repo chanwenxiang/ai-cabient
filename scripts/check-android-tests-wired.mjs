@@ -187,9 +187,9 @@ if (testFiles.length === 0) {
   }
   // 审计批次4：测试资产**数量基线**——删/挪走文件导致跌破基线即红（原规则只判「非零」，
   // 移走 14/15 个文件仍绿）。上调基线 = 有意增测；下调须改此处并留理由。
-  // 2026-10-11 批6：删 RecordingResultTest/VideoClipJsonTest（旧录像链退役，
-  // docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批6），16 → 15。
-  const ANDROID_TEST_FILE_BASELINE = 15;
+  // 2026-10-11 批6：删 RecordingResultTest/VideoClipJsonTest（旧录像链退役）16 → 15；
+  // 收尾C 再删 SkuDeltaCalculatorTest（旧识别差值计算器退役，判定文档收尾C），15 → 14。
+  const ANDROID_TEST_FILE_BASELINE = 14;
   if (filesWithRealTests.length < ANDROID_TEST_FILE_BASELINE) {
     problems.push(
       `测试文件 ${filesWithRealTests.length} 个，低于基线 ${ANDROID_TEST_FILE_BASELINE}（删/挪测试须在此更新基线并说明）`

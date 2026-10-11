@@ -18,7 +18,6 @@
 | trade domain 实体 | **147**（约 139 有 Mapper；76 有 XML） |
 | trade `*Test.java` | **201** |
 | device-service 主代码 | **15** 类 |
-| vision-service 路由 | **9** HTTP |
 | common-core DTO | **365**；枚举 **4** |
 | admin-vue 视图 | **72** views + layout |
 | consumer-mp / merchant-mp | **23** / **22** pages |
@@ -71,9 +70,8 @@ captcha、sms-code、login / admin-login / password-* / merchant-password-login�
 ### 3.3 内部 `/internal/v1`
 | 前缀 | 用途 |
 |------|------|
-| `/sessions/door-event|video|video-upload-url|gravity-deltas|{id}/live-cart` | 门事件与视频/重力 |
+| `/sessions/door-event|gravity-deltas|{id}/live-cart` | 门事件与重力 |
 | `/devices/{id}/exists|heartbeat|screen-content|ota/check|inventory-snapshot` | 设备存在性与运维 |
-| `/vision/anomaly-events` + `/vision/mappings|…` | 异常与映射 |
 | `/sms/latest-code` `/demo/*` | E2E/演示 |
 
 ### 3.4 运营 `/api/v2/ops…`
@@ -125,20 +123,6 @@ captcha、sms-code、login / admin-login / password-* / merchant-password-login�
 | ProductionStartupValidator | 生产密钥/MQTT SSL 门禁 |
 
 **测试**：`DeviceCommandTrackerTest`、`DoorEventDeduplicatorTest`、`MqttEventListenerDoorTest`、`EmqxSharedSubscriptionIT`（Q7 broker，`disabledWithoutDocker`）等；见 Pass 3C。
-
----
-
-## 7. vision-service（完整路由）
-
-| 路由 | 说明 |
-|------|------|
-| `GET /health` `/health/detail` | 探活 |
-| `POST …/recognize` `/recognize/upload` | 识别（默认 mock） |
-| `POST …/suggest-class` `/dispute-suggest` | DeepSeek 辅助 |
-| `POST …/debug/force-need-review` | E2E 强制争议 |
-| `POST …/recognize/async` + `GET …/tasks/{id}` | 异步桩 |
-
-Backend：`mock`（默认）| `quectel`（占位）| DeepSeek（建议路由）；`yolo*` 已弃用回落 mock。
 
 ---
 

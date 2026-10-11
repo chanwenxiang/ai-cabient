@@ -56,7 +56,14 @@
 
 ## 5. 已知边界与待办
 
-- 一期只开放购物开门；强制开门空 msgContent 结构性拒绝；operatorMode 501。
+- 一期只开放购物开门；强制开门空 msgContent 结构性拒绝。~~operatorMode 501~~ →
+  **2026-10-11 收尾E：补货开门真路由上线**——trade 补货开门走
+  `/internal/v1/jiangyi/devices/{id}/open-door`（stock=true）→ WS
+  `sendOpenStockDoor`（msgContent=补货会话 id ≡ 补货单号）；柜机回执
+  uploadLockState/uploadDoorState 与补货视频 §4.2.14（orderNo=补货单号）落
+  `jiangyi_order_video` 台账；关门回执缺失由 300s CLOSE watchdog → trade
+  recognizeTimeout（补货会话→COMPLETED 快照关闭）+ 补货任务完成清场双兜底。
+  运维开门（ADM 会话）仍 501（协议无此概念）。
 - specialId 不采信（V16 §4.2.10 唯一出口、来源未定义）。
 - 二期：视频（getTempUploadToken/uploadVideoUrl 逗号拼接容错）、模型同步预生成映射、补货开门真路由。
 - 待办：`pnpm gen:api-types` 重跑（无新增对外 API，暂无影响）、真机联调回填识别率、商户端月度结算单 UI（另任务）。

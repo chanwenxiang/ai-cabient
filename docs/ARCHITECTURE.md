@@ -37,7 +37,7 @@ D:\ai-generated code\ai-cabinet\       # 新系统（本项目）
 
 | 旧 (ego-automat) | 新 (ai-cabinet) |
 |------------------|-----------------|
-| 重力传感器识别 | AI 视觉识别 + 可选重力融合 |
+| 重力传感器识别 | **将邑端侧视觉识别**（柜机 rknn 推理，云端无识别服务） |
 | Socket.IO (M8) | MQTT 5.0 统一协议 |
 | m8_door_current_status | shopping_session 状态机 |
 | Spring Boot 1.2 / Java 8 | Spring Boot 3.2 / Java 17 |
@@ -48,34 +48,31 @@ D:\ai-generated code\ai-cabinet\       # 新系统（本项目）
 
 - **trade-service**：购物会话、订单、结算、运营 / 商户门户 API
 - **device-service**：设备指令、MQTT、状态、心跳
-- **vision-service**：AI 识别（Python FastAPI）
+- **jiangyi-gateway**：将邑柜接入网关（设备 token / WS / 上报归一化）
 - **edge/android-app**：柜机端 Android App
 - **clients/admin-vue**：运营控制台（静态资源挂载于 trade-service）
 - **clients/consumer-mp**：消费者扫码、开门购物、订单与售后
 - **clients/merchant-mp**：商户经营、柜机、定价与待办
 
-## 识别链路
+## 识别链路（将邑端侧单轨 · 2026-10-11）
 
-生产：**端侧识别提供方**（移远 OpenVending 等）在柜机完成推理，将 SKU 清单上报 trade-service 结算；平台维护「端侧类名 → 商品」映射表（`sku_vision_mapping`）。
+识别只在**柜机端**完成：将邑采集商品样本 → 将邑云端训练 → 模型（rknn）+ 类目文件下发柜机 → 开门购物时柜机本地推理 → `classId+quantity` 经 jiangyi-gateway 归一化上报 → 映射到 SKU（`jiangyi_class_mapping` / `sku_jiangyi_link`）→ trade-service 结算。**商品图片不经过我方服务器，云端无识别服务**（vision-service 已退役）。
 
-开发联调：关门视频 → MinIO → **vision-service**（mock 识别，默认 `MOCK_ENABLED=true`）→ SKU 映射 → trade-service 结算。
+| 环节 | 位置 | 说明 |
+|------|------|------|
+| 上报归一 | gateway `/jiangyi/api/orderProduct/addRecognitionGoodsToOrder` | classId 未命中映射 fail-closed 转 DISPUTED |
+| 结果受理 | trade `/internal/v1/vision/edge-results` | 复用既有结算管道（RECOGNIZING→SETTLING） |
+| 金额口径 | Σ(映射 SKU 现价 × qty) | 不采信设备侧金额 |
+| 低置信/未命中 | DISPUTED 争议单 | 先扣款冻结，人工审核 |
 
-| 模式 | 环境变量 | 行为 |
-|------|----------|------|
-| 开发 mock | `MOCK_ENABLED=true`（默认） | 返回 mock SKU，便于全栈联调 |
-| 端侧提供方 | 端侧 SDK 上报 `POST /internal/v1/vision/...` | 置信度达标直接结算，低置信进争议 |
-| 关闭 mock | `VISION_FORCE_REAL=true` 或 `MOCK_ENABLED=false` | 无端侧结果时进人工审核，不静默 mock |
-
-可选 **重力传感器融合**：视觉与重力 SKU 数量不一致时强制 `need_review`（`GravitySettlementHelper`）。
-
-端侧对接方案见 [`VISION_QUECTEL_INTEGRATION.md`](VISION_QUECTEL_INTEGRATION.md)。
+本地演示（mock 环境）：开门关门不带识别 → gravity/购物车证据短路结算，与识别引擎无关。全链路设计见 [`JIANGYI_GATEWAY_DESIGN.md`](JIANGYI_GATEWAY_DESIGN.md)。
 
 ## 商业落地要点
 
 | 能力 | 说明 |
 |------|------|
 | 对象存储 | MinIO（本地）/ OSS（生产）存关门视频 |
-| 识别链路 | 端侧识别提供方 + SKU 类名映射表；dev 用 vision-service mock |
+| 识别链路 | 将邑端侧识别 + classId 映射（`jiangyi_class_mapping`） |
 | 支付 | 微信 V3；dev mock 分支与 prod 共用代码 |
 | 短信 | Webhook 模式；预发可用 `sms-webhook-mock` |
 | 多租户 | 商户数据隔离 via `MerchantScopeService` |
@@ -90,7 +87,6 @@ D:\ai-generated code\ai-cabinet\       # 新系统（本项目）
 
 - JDK 17+
 - Docker（PostgreSQL、Redis、EMQX、MinIO）
-- Python 3.10+（vision-service）
 - Node 24.18+（admin-vue / uni-app 开发）
 
 ## 前端产品决策

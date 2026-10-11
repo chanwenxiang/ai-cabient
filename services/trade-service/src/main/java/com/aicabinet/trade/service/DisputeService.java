@@ -456,8 +456,9 @@ public class DisputeService {
 
     @Transactional(readOnly = true)
     public List<DisputeTicketDto> listMyTickets(Long userId) {
+        // 消费者列表不签发录像地址（CB-030 后消费端无视频面）
         return disputeRepository.findByUserIdOrderByCreatedAtDesc(userId)
-                .stream().map(this::toDto).toList();
+                .stream().map(t -> toDto(t, false)).toList();
     }
 
     /**
@@ -486,7 +487,7 @@ public class DisputeService {
     public List<DisputeTicketDto> listOpenTickets(Long operatorId) {
         permissionService.requirePermission(operatorId, PERM_OPS_DISPUTE);
         return disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN")
-                .stream().map(this::toDto).toList();
+                .stream().map(t -> toDto(t, false)).toList();
     }
 
     @Transactional(readOnly = true)
@@ -508,7 +509,7 @@ public class DisputeService {
                     blankToNull(query.category()), blankToNull(query.reviewCode()), pageable);
         }
         return new PageResult<>(
-                result.getContent().stream().map(this::toDto).toList(),
+                result.getContent().stream().map(t -> toDto(t, false)).toList(),
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements()
@@ -958,6 +959,15 @@ public class DisputeService {
     }
 
     private DisputeTicketDto toDto(DisputeTicket ticket) {
+        return toDto(ticket, true);
+    }
+
+    /**
+     * @param includeVideoPreview 录像地址是否现场签发。列表路径传 false：
+     *        presign 走 MinIO/将邑网关都是真实网络调用，逐行签发会把列表拖成 N+1
+     *        （2026-10-11 收尾D）。运营要看录像时经详情端点（getTicket）按单签发。
+     */
+    private DisputeTicketDto toDto(DisputeTicket ticket, boolean includeVideoPreview) {
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId()).orElse(null);
         String deviceId = session != null ? session.getDeviceId() : null;
         List<OrderLineDto> suggested = enrichLines(parseItems(ticket.getItems()), deviceId);
@@ -971,8 +981,10 @@ public class DisputeService {
         Integer claimedAmountCents = sumLineAmountCents(suggested);
         int memberDiscount = orderOpt.map(o -> o.getMemberDiscountCents()).orElse(0);
         int couponDiscount = orderOpt.map(o -> o.getCouponDiscountCents()).orElse(0);
-        String previewUrl = minioVideoService.presignPlaybackUrl(videoUri)
-                .orElseGet(() -> jiangyiVideoFallbackUrl(ticket.getSessionId()));
+        String previewUrl = includeVideoPreview
+                ? minioVideoService.presignPlaybackUrl(videoUri)
+                        .orElseGet(() -> jiangyiVideoFallbackUrl(ticket.getSessionId()))
+                : null;
         Instant now = Instant.now();
         boolean slaOverdue = DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
@@ -1113,6 +1125,11 @@ public class DisputeService {
     }
 
     private DisputeTicketDto toMerchantDto(DisputeTicket ticket) {
+        return toMerchantDto(ticket, true);
+    }
+
+    /** 同 toDto：列表路径传 false，避免逐行签发（收尾D）。 */
+    private DisputeTicketDto toMerchantDto(DisputeTicket ticket, boolean includeVideoPreview) {
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId()).orElse(null);
         String deviceId = session != null ? session.getDeviceId() : null;
         List<OrderLineDto> suggested = enrichLines(parseItems(ticket.getItems()), deviceId);
@@ -1120,8 +1137,10 @@ public class DisputeService {
         String sessionState = session != null ? session.getState().name() : null;
         String orderId = session != null ? session.getOrderId() : null;
         String videoUri = session != null ? session.getVideoUri() : null;
-        String previewUrl = minioVideoService.presignPlaybackUrl(videoUri)
-                .orElseGet(() -> jiangyiVideoFallbackUrl(ticket.getSessionId()));
+        String previewUrl = includeVideoPreview
+                ? minioVideoService.presignPlaybackUrl(videoUri)
+                        .orElseGet(() -> jiangyiVideoFallbackUrl(ticket.getSessionId()))
+                : null;
         var orderOpt = orderRepository.findBySessionId(ticket.getSessionId());
         Integer billedAmountCents = orderOpt.map(this::resolveBilledAmountCents).orElse(null);
         Integer refundedAmountCents = orderOpt.map(this::resolveRefundedAmountCents).orElse(null);

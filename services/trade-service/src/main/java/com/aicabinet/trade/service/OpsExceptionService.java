@@ -128,7 +128,7 @@ public class OpsExceptionService {
         }
         var result = repository.findFiltered(statusFilter, severityFilter, overdueOnly, archived,
                 scopedDevices, pageable);
-        return new PageResult<>(result.getContent().stream().map(this::toDto).toList(),
+        return new PageResult<>(result.getContent().stream().map(x -> toDto(x, false)).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements());
     }
 
@@ -156,7 +156,7 @@ public class OpsExceptionService {
         } else {
             result = repository.findByDeviceIdInAndStatusOrderByCreatedAtDesc(deviceIds, statusFilter, pageable);
         }
-        return new PageResult<>(result.getContent().stream().map(this::toDto).toList(),
+        return new PageResult<>(result.getContent().stream().map(x -> toDto(x, false)).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements());
     }
 
@@ -589,6 +589,14 @@ public class OpsExceptionService {
         }
     }
     private OpsExceptionDto toDto(OpsException i) {
+        return toDto(i, true);
+    }
+
+    /**
+     * @param includeVideoPreview 录像地址是否现场签发。列表路径传 false（真实网络调用，
+     *        逐行签发=N+1，2026-10-11 收尾D）；详情/单行操作才签发。
+     */
+    private OpsExceptionDto toDto(OpsException i, boolean includeVideoPreview) {
         Instant sla = i.getSlaDueAt();
         boolean open = "OPEN".equals(i.getStatus()) || PROCESSING.equals(i.getStatus());
         boolean overdue = open && sla != null && Instant.now().isAfter(sla);
