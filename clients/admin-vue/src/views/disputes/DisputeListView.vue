@@ -629,27 +629,6 @@
               </div>
             </div>
           </div>
-          <div class="ai-suggest-block">
-            <div class="items-title">智能识别建议</div>
-            <input
-              ref="disputeImageInput"
-              type="file"
-              accept="image/*"
-              class="hidden-input"
-              @change="onDisputeImagePick"
-            />
-            <el-button size="small" :loading="suggestingDispute" @click="triggerDisputeImage">
-              上传关键帧获取商品建议
-            </el-button>
-            <el-alert
-              v-if="disputeSuggestHint"
-              :title="disputeSuggestHint"
-              type="info"
-              show-icon
-              :closable="false"
-              class="suggest-alert"
-            />
-          </div>
           <div class="workbench-settle-actions">
             <el-button
               v-hasPermi="['ops:dispute:resolve']"
@@ -713,7 +692,6 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { disputeAmountDiffNote } from '@/utils/dispute-amount-note';
 import { buildDisputeResolveBody, type DisputeResolutionType } from '@/utils/money-ui-contracts';
 import type {
-  DevRecognitionPreviewDto,
   DisputeTicketDto,
   OrderLineDto,
   PageResult
@@ -751,9 +729,6 @@ const selected = ref<DisputeTicketDto | null>(null);
 const detailVisible = ref(false);
 const resolving = ref(false);
 const claiming = ref(false);
-const suggestingDispute = ref(false);
-const disputeSuggestHint = ref('');
-const disputeImageInput = ref<HTMLInputElement | null>(null);
 const resolveFeedback = ref<{ message: string } | null>(null);
 const videoReviewed = ref(false);
 const noVideoAck = ref(false);
@@ -1139,7 +1114,6 @@ function goExceptions(device?: string) {
 
 function openDetail(row: DisputeTicketDto) {
   resolveFeedback.value = null;
-  disputeSuggestHint.value = '';
   videoReviewed.value = false;
   noVideoAck.value = false;
   videoAttempted.value = false;
@@ -1150,65 +1124,6 @@ function openDetail(row: DisputeTicketDto) {
   void ensureSkusLoaded();
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
     void loadEmbedVideo(row.sessionId, false, row.videoPreviewUrl);
-  }
-}
-
-function triggerDisputeImage() {
-  disputeImageInput.value?.click();
-}
-
-function applyDisputeSuggestPreview(preview: DevRecognitionPreviewDto) {
-  disputeSuggestHint.value = preview.hint || '未返回建议';
-  if (!preview.items?.length || !selected.value) return;
-  selected.value = {
-    ...selected.value,
-    suggestedItems: preview.items.map((i) => ({
-      skuId: i.skuId,
-      skuName: i.skuName,
-      quantity: i.quantity,
-      unitPriceCents: 0,
-      lineAmountCents: 0
-    }))
-  };
-  resetDraftFromSuggested();
-}
-
-async function onDisputeImagePick(ev: Event) {
-  if (!selected.value?.deviceId) {
-    ElMessage.warning('工单缺少设备 ID');
-    return;
-  }
-  const input = ev.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-  const check = validateImageFile(file);
-  if (!check.ok) {
-    ElMessage.warning(check.message);
-    input.value = '';
-    return;
-  }
-  suggestingDispute.value = true;
-  disputeSuggestHint.value = '';
-  try {
-    const base =
-      (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
-    const form = new FormData();
-    form.append('deviceId', selected.value.deviceId);
-    form.append('image', file);
-    const res = await authFetch(`${base}${AdminEndpoints.disputeSuggest}`, {
-      method: 'POST',
-      body: form
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.code !== 0) {
-      throw new Error(json.message || `请求失败 (${res.status})`);
-    }
-    applyDisputeSuggestPreview(json.data as DevRecognitionPreviewDto);
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '智能识别建议失败');
-  } finally {
-    suggestingDispute.value = false;
-    input.value = '';
   }
 }
 

@@ -7,7 +7,7 @@
  * | 前缀 | 用途 |
  * |------|------|
  * | `/api/v2/ops/admin/*` | 运营后台主域（设备/订单/仓配/RBAC…） |
- * | `/api/v2/ops/disputes*`、`/ops/restock/*`、`/ops/dispute-suggest` | 争议/补货开门等非 admin 子路径 |
+ * | `/api/v2/ops/disputes*`、`/ops/restock/*` | 争议/补货开门等非 admin 子路径 |
  * | `/api/v2/coupons/*` | 优惠券定义与发放 |
  * | `/api/v2/ops/promotions|announcements|feedback` | 活动/公告/反馈 |
  * | `/api/v2/auth/*` | 登录登出（见 `AuthEndpoints`） |
@@ -852,7 +852,6 @@ export const AdminEndpoints = {
     `${API_PREFIX}/ops/disputes/${encodeURIComponent(ticketId)}/close`,
   disputeReopen: (ticketId: string) =>
     `${API_PREFIX}/ops/disputes/${encodeURIComponent(ticketId)}/reopen`,
-  disputeSuggest: `${API_PREFIX}/ops/dispute-suggest`,
   restockOpenDoor: `${API_PREFIX}/ops/restock/open-door`,
 
   /**
@@ -978,7 +977,6 @@ export const ADMIN_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/ops/admin/recharge',
   // 非 /ops/admin 前缀：争议与补货开门（debt-tracker D1 / lessons #115）
   '/api/v2/ops/disputes',
-  '/api/v2/ops/dispute-suggest',
   '/api/v2/ops/restock/open-door',
   // 券 / 活动 / 公告 / 反馈（debt-tracker D2）
   '/api/v2/coupons',
