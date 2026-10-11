@@ -52,7 +52,6 @@ import { downloadAuthedFile, request } from '@/utils/merchant-api';
 import { MerchantEndpoints } from '@/api/endpoints';
 import {
   clipLabel,
-  merchantOrderVideoUrl,
   merchantVideoErrorView,
   pickPlayableClips,
   type OrderVideoClip,
@@ -98,10 +97,6 @@ async function loadOrderVideo(oid: string) {
       }
       clips.value = playable;
       src.value = playable[0].url || '';
-      return;
-    }
-    if (playlist?.source === 'EDGE') {
-      src.value = await downloadAuthedFile(merchantOrderVideoUrl(oid), 120_000);
       return;
     }
     errorView.value = {
