@@ -1721,22 +1721,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/warehouse/stocktakes/{stocktakeId}/scan-photo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["scanStocktakePhoto"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/warehouse/stocktakes/{stocktakeId}/complete": {
         parameters: {
             query?: never;
@@ -1961,38 +1945,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/vision-mappings/yolo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listYolo"];
-        put?: never;
-        post: operations["upsertYolo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/vision-mappings/aliyun": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["upsertAliyun"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/users/{userId}/verify": {
         parameters: {
             query?: never;
@@ -2147,54 +2099,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["uploadSkuImage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/sku-vision/{skuId}/advance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["advance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/sku-vision/suggest-class": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["suggestClassFromImage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/sku-vision/enroll": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["enroll"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5177,22 +5081,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/sku-vision/{skuId}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["updateStatus"];
-        trace?: never;
-    };
     "/api/v2/ops/admin/repair-tickets/{ticketId}": {
         parameters: {
             query?: never;
@@ -5313,70 +5201,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["openLanding"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/vision/mappings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["mappings_1"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/vision/device/{deviceId}/context": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["deviceContext"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/vision/default-sku": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["defaultSku"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/vision/catalog-classes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["catalogClasses"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5521,22 +5345,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["checkOta"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/devices/{deviceId}/inventory-snapshot": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["inventorySnapshot"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6185,22 +5993,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/vision-mappings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list_15"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/users": {
         parameters: {
             query?: never;
@@ -6409,70 +6201,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/sku-vision": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list_16"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/sku-vision/suggest-class-name": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["suggestClass"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/sku-vision/rows": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listRows"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/sku-vision/pipeline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["pipeline"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/site-rent-bills": {
         parameters: {
             query?: never;
@@ -6480,7 +6208,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_17"];
+        get: operations["list_15"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7248,7 +6976,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_18"];
+        get: operations["list_16"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7296,7 +7024,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_19"];
+        get: operations["list_17"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7360,7 +7088,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_20"];
+        get: operations["list_18"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7536,7 +7264,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_21"];
+        get: operations["list_19"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7824,7 +7552,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_22"];
+        get: operations["list_20"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8096,7 +7824,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_23"];
+        get: operations["list_21"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8224,7 +7952,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_24"];
+        get: operations["list_22"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8896,7 +8624,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_25"];
+        get: operations["list_23"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8992,7 +8720,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_26"];
+        get: operations["list_24"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9136,7 +8864,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_27"];
+        get: operations["list_25"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9344,7 +9072,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_28"];
+        get: operations["list_26"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9680,7 +9408,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_29"];
+        get: operations["list_27"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9764,38 +9492,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["delete_1"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/vision-mappings/yolo/{className}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deleteYolo"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/vision-mappings/aliyun/{categoryId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deleteAliyun"];
         options?: never;
         head?: never;
         patch?: never;
@@ -10244,11 +9940,8 @@ export interface components {
             maxPriceCents?: number;
             /** Format: float */
             minChargeConfidence?: number;
-            yoloClassName?: string;
-            visionEnrollmentStatus?: string;
             /** Format: float */
             detectionMinConfidence?: number;
-            referenceImageUrlsJson?: string;
             /** Format: date-time */
             createdAt?: string;
             /** Format: int64 */
@@ -12213,50 +11906,6 @@ export interface components {
             /** Format: int32 */
             quantity: number;
         };
-        UpsertYoloMappingRequest: {
-            className: string;
-            skuId: string;
-            /** Format: float */
-            minConfidence: number;
-            mappingSource?: string;
-        };
-        ApiResponseYoloMappingDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["YoloMappingDto"];
-        };
-        YoloMappingDto: {
-            className?: string;
-            skuId?: string;
-            /** Format: float */
-            minConfidence?: number;
-            mappingSource?: string;
-            skuName?: string;
-            visionEnrollmentStatus?: string;
-            mappingEffective?: boolean;
-            modelPipelineStatus?: string;
-        };
-        UpsertAliyunMappingRequest: {
-            categoryId: string;
-            categoryName?: string;
-            skuId: string;
-            /** Format: float */
-            minConfidence: number;
-        };
-        AliyunMappingDto: {
-            categoryId?: string;
-            categoryName?: string;
-            skuId?: string;
-            /** Format: float */
-            minConfidence?: number;
-        };
-        ApiResponseAliyunMappingDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["AliyunMappingDto"];
-        };
         VerifyUserRequest: {
             verified?: boolean;
             realName?: string;
@@ -12376,36 +12025,6 @@ export interface components {
             color?: number;
             category: string;
             barCode?: string;
-        };
-        ApiResponseSkuVisionEnrollmentRowDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["SkuVisionEnrollmentRowDto"];
-        };
-        SkuVisionEnrollmentRowDto: {
-            sku?: components["schemas"]["SkuCatalogDto"];
-            mappingEffective?: boolean;
-            modelPipelineStatus?: string;
-            nextAction?: string;
-            nextStatus?: string;
-        };
-        ApiResponseMapStringObject: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: {
-                [key: string]: unknown;
-            };
-        };
-        UpsertSkuVisionEnrollmentRequest: {
-            sku: components["schemas"]["UpsertSkuRequest"];
-            yoloClassName?: string;
-            visionEnrollmentStatus?: string;
-            /** Format: float */
-            detectionMinConfidence?: number;
-            referenceImageUrlsJson?: string;
-            mappingSource?: string;
         };
         ApiResponseSiteRentBillDto: {
             /** Format: int32 */
@@ -13480,6 +13099,14 @@ export interface components {
             message?: string;
             data?: components["schemas"]["DeviceSlotDto"];
         };
+        ApiResponseMapStringObject: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: {
+                [key: string]: unknown;
+            };
+        };
         DeviceLifecycleRequest: {
             action?: string;
             merchantId?: string;
@@ -14041,61 +13668,6 @@ export interface components {
             longitude?: number;
             firmwareVersion?: string;
         };
-        ApiResponseVisionMappingsDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["VisionMappingsDto"];
-        };
-        VisionMappingsDto: {
-            yolo?: components["schemas"]["YoloMappingDto"][];
-            aliyun?: components["schemas"]["AliyunMappingDto"][];
-        };
-        ApiResponseDeviceVisionContextDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceVisionContextDto"];
-        };
-        DeviceVisionContextDto: {
-            deviceId?: string;
-            skus?: components["schemas"]["SkuVisionContextItemDto"][];
-        };
-        SkuVisionContextItemDto: {
-            skuId?: string;
-            skuName?: string;
-            /** Format: int32 */
-            priceCents?: number;
-            yoloClassName?: string;
-            imageUrl?: string;
-            referenceImageUrls?: string[];
-            /** Format: float */
-            detectionMinConfidence?: number;
-            visionEnrollmentStatus?: string;
-            /** Format: int32 */
-            quantityOnDevice?: number;
-        };
-        ApiResponseDefaultSkuDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DefaultSkuDto"];
-        };
-        DefaultSkuDto: {
-            skuId?: string;
-            deviceId?: string;
-        };
-        ApiResponseListCatalogClassRow: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["CatalogClassRow"][];
-        };
-        CatalogClassRow: {
-            skuId?: string;
-            className?: string;
-            skuName?: string;
-        };
         ApiResponseLatestSmsCodeDto: {
             /** Format: int32 */
             code?: number;
@@ -14167,17 +13739,6 @@ export interface components {
             checksumSha256?: string;
             mandatory?: boolean;
             releaseNotes?: string;
-        };
-        ApiResponseListSkuQuantityDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["SkuQuantityDto"][];
-        };
-        SkuQuantityDto: {
-            skuId?: string;
-            /** Format: int32 */
-            quantity?: number;
         };
         ApiResponseListConsumerPolicyDto: {
             /** Format: int32 */
@@ -14719,21 +14280,6 @@ export interface components {
             /** Format: int32 */
             quantity?: number;
         };
-        ApiResponsePageResultYoloMappingDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["PageResultYoloMappingDto"];
-        };
-        PageResultYoloMappingDto: {
-            items?: components["schemas"]["YoloMappingDto"][];
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            /** Format: int64 */
-            total?: number;
-        };
         ApiResponsePageResultAdminUserDto: {
             /** Format: int32 */
             code?: number;
@@ -15005,47 +14551,6 @@ export interface components {
             category?: string;
             imageUrl?: string;
             message?: string;
-        };
-        ApiResponseSuggestClassDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["SuggestClassDto"];
-        };
-        SuggestClassDto: {
-            yoloClassName?: string;
-        };
-        ApiResponsePageResultSkuVisionEnrollmentRowDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["PageResultSkuVisionEnrollmentRowDto"];
-        };
-        PageResultSkuVisionEnrollmentRowDto: {
-            items?: components["schemas"]["SkuVisionEnrollmentRowDto"][];
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            /** Format: int64 */
-            total?: number;
-        };
-        ApiResponseSkuVisionEnrollmentPipelineDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["SkuVisionEnrollmentPipelineDto"];
-        };
-        SkuVisionEnrollmentPipelineDto: {
-            modelPipelineStatus?: string;
-            modelPipelineHint?: string;
-            statusOrder?: string[];
-            steps?: components["schemas"]["StatusStepDto"][];
-        };
-        StatusStepDto: {
-            status?: string;
-            label?: string;
-            description?: string;
         };
         ApiResponsePageResultSiteRentBillDto: {
             /** Format: int32 */
@@ -21610,35 +21115,6 @@ export interface operations {
             };
         };
     };
-    scanStocktakePhoto: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                stocktakeId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    file: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseStocktakeDto"];
-                };
-            };
-        };
-    };
     completeStocktake: {
         parameters: {
             query?: never;
@@ -21962,78 +21438,6 @@ export interface operations {
             };
         };
     };
-    listYolo: {
-        parameters: {
-            query?: {
-                q?: string;
-                page?: number;
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponsePageResultYoloMappingDto"];
-                };
-            };
-        };
-    };
-    upsertYolo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpsertYoloMappingRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseYoloMappingDto"];
-                };
-            };
-        };
-    };
-    upsertAliyun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpsertAliyunMappingRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseAliyunMappingDto"];
-                };
-            };
-        };
-    };
     verifyUser: {
         parameters: {
             query?: never;
@@ -22306,81 +21710,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseFileAttachmentDto"];
-                };
-            };
-        };
-    };
-    advance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                skuId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseSkuVisionEnrollmentRowDto"];
-                };
-            };
-        };
-    };
-    suggestClassFromImage: {
-        parameters: {
-            query: {
-                skuName: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    image: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
-                };
-            };
-        };
-    };
-    enroll: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpsertSkuVisionEnrollmentRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseSkuCatalogDto"];
                 };
             };
         };
@@ -27637,30 +26966,6 @@ export interface operations {
             };
         };
     };
-    updateStatus: {
-        parameters: {
-            query: {
-                status: string;
-            };
-            header?: never;
-            path: {
-                skuId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseSkuCatalogDto"];
-                };
-            };
-        };
-    };
     detail: {
         parameters: {
             query?: never;
@@ -27955,90 +27260,6 @@ export interface operations {
             };
         };
     };
-    mappings_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVisionMappingsDto"];
-                };
-            };
-        };
-    };
-    deviceContext: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDeviceVisionContextDto"];
-                };
-            };
-        };
-    };
-    defaultSku: {
-        parameters: {
-            query?: {
-                deviceId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDefaultSkuDto"];
-                };
-            };
-        };
-    };
-    catalogClasses: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListCatalogClassRow"];
-                };
-            };
-        };
-    };
     latestCode: {
         parameters: {
             query: {
@@ -28238,28 +27459,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseOtaCheckResponse"];
-                };
-            };
-        };
-    };
-    inventorySnapshot: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListSkuQuantityDto"];
                 };
             };
         };
@@ -29149,26 +28348,6 @@ export interface operations {
             };
         };
     };
-    list_15: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVisionMappingsDto"];
-                };
-            };
-        };
-    };
     users: {
         parameters: {
             query?: {
@@ -29461,95 +28640,7 @@ export interface operations {
             };
         };
     };
-    list_16: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListSkuCatalogDto"];
-                };
-            };
-        };
-    };
-    suggestClass: {
-        parameters: {
-            query: {
-                skuName: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseSuggestClassDto"];
-                };
-            };
-        };
-    };
-    listRows: {
-        parameters: {
-            query?: {
-                q?: string;
-                status?: string;
-                enrollment?: string;
-                page?: number;
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponsePageResultSkuVisionEnrollmentRowDto"];
-                };
-            };
-        };
-    };
-    pipeline: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseSkuVisionEnrollmentPipelineDto"];
-                };
-            };
-        };
-    };
-    list_17: {
+    list_15: {
         parameters: {
             query?: {
                 billMonth?: string;
@@ -30675,7 +29766,7 @@ export interface operations {
             };
         };
     };
-    list_18: {
+    list_16: {
         parameters: {
             query?: {
                 status?: string;
@@ -30742,7 +29833,7 @@ export interface operations {
             };
         };
     };
-    list_19: {
+    list_17: {
         parameters: {
             query?: {
                 keyword?: string;
@@ -30830,7 +29921,7 @@ export interface operations {
             };
         };
     };
-    list_20: {
+    list_18: {
         parameters: {
             query?: {
                 status?: string;
@@ -31078,7 +30169,7 @@ export interface operations {
             };
         };
     };
-    list_21: {
+    list_19: {
         parameters: {
             query?: {
                 status?: string;
@@ -31494,7 +30585,7 @@ export interface operations {
             };
         };
     };
-    list_22: {
+    list_20: {
         parameters: {
             query?: {
                 status?: string;
@@ -31878,7 +30969,7 @@ export interface operations {
             };
         };
     };
-    list_23: {
+    list_21: {
         parameters: {
             query?: {
                 billMonth?: string;
@@ -32051,7 +31142,7 @@ export interface operations {
             };
         };
     };
-    list_24: {
+    list_22: {
         parameters: {
             query?: {
                 status?: string;
@@ -32982,7 +32073,7 @@ export interface operations {
             };
         };
     };
-    list_25: {
+    list_23: {
         parameters: {
             query?: {
                 limit?: number;
@@ -33107,7 +32198,7 @@ export interface operations {
             };
         };
     };
-    list_26: {
+    list_24: {
         parameters: {
             query?: {
                 status?: string;
@@ -33306,7 +32397,7 @@ export interface operations {
             };
         };
     };
-    list_27: {
+    list_25: {
         parameters: {
             query?: never;
             header?: never;
@@ -33590,7 +32681,7 @@ export interface operations {
             };
         };
     };
-    list_28: {
+    list_26: {
         parameters: {
             query?: {
                 limit?: number;
@@ -34030,7 +33121,7 @@ export interface operations {
             };
         };
     };
-    list_29: {
+    list_27: {
         parameters: {
             query?: never;
             header?: never;
@@ -34141,50 +33232,6 @@ export interface operations {
             header?: never;
             path: {
                 feedbackId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
-                };
-            };
-        };
-    };
-    deleteYolo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                className: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
-                };
-            };
-        };
-    };
-    deleteAliyun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                categoryId: string;
             };
             cookie?: never;
         };
