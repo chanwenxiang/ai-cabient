@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +39,10 @@ class DeviceValidationServiceTest {
     private MerchantMapper merchantRepository;
     @Mock
     private JiangyiGatherService jiangyiGatherService;
+    @Mock
+    private JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    @Mock
+    private com.aicabinet.trade.config.SecurityProperties securityProperties;
 
     private DeviceValidationService service;
 
@@ -44,7 +50,8 @@ class DeviceValidationServiceTest {
     void setUp() {
         service = new DeviceValidationService(
                 deviceInfoRepository, sessionRepository, replenishmentTaskRepository,
-                consumerPreauthService, merchantRepository, jiangyiGatherService);
+                consumerPreauthService, merchantRepository, jiangyiGatherService,
+                jiangyiDeviceDirectory, securityProperties);
     }
 
     @Test
@@ -110,5 +117,55 @@ class DeviceValidationServiceTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.ensureConsumerShoppingAllowed("CAB-001"));
         assertEquals(ApiMessages.MERCHANT_NOT_ACTIVE, ex.getReason());
+    }
+
+    @Test
+    void ensureConsumerShoppingAllowed_nonJiangyiBlockedWhenMockDisabled() {
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-001");
+        device.setOnlineStatus("ONLINE");
+        when(deviceInfoRepository.findById("CAB-001")).thenReturn(Optional.of(device));
+        when(securityProperties.mockEnabled()).thenReturn(false);
+        when(jiangyiDeviceDirectory.isJiangyi("CAB-001")).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.ensureConsumerShoppingAllowed("CAB-001"));
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason().contains("将邑柜机"));
+    }
+
+    @Test
+    void ensureConsumerShopping_allowedWhenMockEnabledEvenForNonJiangyi() {
+        // mock 环境（CI / 本地演示）豁免：演示购物走 dev-cart 短路结算，不依赖识别引擎
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-001");
+        device.setOnlineStatus("ONLINE");
+        when(deviceInfoRepository.findById("CAB-001")).thenReturn(Optional.of(device));
+        when(securityProperties.mockEnabled()).thenReturn(true);
+        when(jiangyiGatherService.isGatherLocked("CAB-001")).thenReturn(false);
+        when(sessionRepository.findByDeviceIdAndStateIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
+                .thenReturn(List.of());
+        when(replenishmentTaskRepository.findByDeviceIdAndStatusIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
+                .thenReturn(List.of());
+
+        assertDoesNotThrow(() -> service.ensureConsumerShoppingAllowed("CAB-001"));
+        verify(jiangyiDeviceDirectory, never()).isJiangyi(ArgumentMatchers.any());
+    }
+
+    @Test
+    void ensureConsumerShopping_allowedWhenJiangyiBoundAndMockDisabled() {
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-001");
+        device.setOnlineStatus("ONLINE");
+        when(deviceInfoRepository.findById("CAB-001")).thenReturn(Optional.of(device));
+        when(securityProperties.mockEnabled()).thenReturn(false);
+        when(jiangyiDeviceDirectory.isJiangyi("CAB-001")).thenReturn(true);
+        when(jiangyiGatherService.isGatherLocked("CAB-001")).thenReturn(false);
+        when(sessionRepository.findByDeviceIdAndStateIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
+                .thenReturn(List.of());
+        when(replenishmentTaskRepository.findByDeviceIdAndStatusIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
+                .thenReturn(List.of());
+
+        assertDoesNotThrow(() -> service.ensureConsumerShoppingAllowed("CAB-001"));
     }
 }

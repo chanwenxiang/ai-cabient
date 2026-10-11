@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.DeviceStatusDto;
 import com.aicabinet.common.enums.SessionState;
+import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.ReplenishmentTask;
@@ -38,19 +39,25 @@ public class DeviceValidationService {
     private final ConsumerPreauthService consumerPreauthService;
     private final MerchantMapper merchantRepository;
     private final JiangyiGatherService jiangyiGatherService;
+    private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    private final SecurityProperties securityProperties;
 
     public DeviceValidationService(DeviceInfoMapper deviceInfoRepository,
                                    ShoppingSessionMapper sessionRepository,
                                    ReplenishmentTaskMapper replenishmentTaskRepository,
                                    ConsumerPreauthService consumerPreauthService,
                                    MerchantMapper merchantRepository,
-                                   JiangyiGatherService jiangyiGatherService) {
+                                   JiangyiGatherService jiangyiGatherService,
+                                   JiangyiDeviceDirectory jiangyiDeviceDirectory,
+                                   SecurityProperties securityProperties) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.sessionRepository = sessionRepository;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.consumerPreauthService = consumerPreauthService;
         this.merchantRepository = merchantRepository;
         this.jiangyiGatherService = jiangyiGatherService;
+        this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
+        this.securityProperties = securityProperties;
     }
 
     public DeviceInfo requireDevice(String deviceId) {
@@ -100,6 +107,7 @@ public class DeviceValidationService {
     public void ensureConsumerShoppingAllowed(String deviceId) {
         DeviceInfo device = ensureDeviceOnline(deviceId);
         ensureMerchantActiveForShopping(device);
+        ensureJiangyiOnlyShopping(deviceId);
         if (device.salesLockedEnabled()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "设备已暂停营业，请稍后再试");
         }
@@ -111,6 +119,22 @@ public class DeviceValidationService {
         if (hasInProgressReplenishmentTask(deviceId)) {
             // 与结算冻结文案一致，避免消费者误以为柜机故障
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_IN_PROGRESS);
+        }
+    }
+
+    /**
+     * 🔴 识别只认将邑端侧（2026-10-11 拍板：旧云识别链已退役）：生产环境非将邑登记柜机
+     * 一律禁止消费开门——否则关门后无识别来源，只会批量产生「识别滞留」争议。
+     * mock 环境（AICABINET_MOCK_ENABLED=true，CI/本地演示）豁免：演示购物走
+     * dev-cart/gravity 短路结算，不依赖任何识别引擎。
+     */
+    private void ensureJiangyiOnlyShopping(String deviceId) {
+        if (securityProperties.mockEnabled()) {
+            return;
+        }
+        if (!jiangyiDeviceDirectory.isJiangyi(deviceId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该柜机不支持端侧识别，仅支持将邑柜机购物，请换一台柜机");
         }
     }
 
