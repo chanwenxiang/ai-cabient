@@ -30,6 +30,13 @@ import org.springframework.web.server.ResponseStatusException;
  *       与 {@code X-API-Key}（会员版 gs1）双头透传，两种上游都兼容。</li>
  * </ul></p>
  *
+ * <p>会员版「商品条码查询PRO」：{@code https://v1.apizero.cn/api/barcode-gs1?code={code}}
+ * （注意参数名是 {@code code} 不是 {@code barcode}；匿名 2 次/日、登录免费 5 次/日、
+ * 黄金 VIP 5000 次/日；文档 https://apizero.cn/aidocs/barcode-gs1）。相比免费版多
+ * 官方商品图 images[]/净含量/上市日期/包装尺寸等，<b>同样没有保质期字段</b>
+ * （2026-10-12 核对文档字段清单）。切换后 DTO.imageUrl 才有值——前端目前未消费该字段，
+ * 接入时须按铁律 63 核对前端读取点。</p>
+ *
  * <p>仅覆盖国内注册条码（69 前缀为主）；未登记条码返回 found=false 而非报错。
  * 响应 envelope：{@code {code:0, msg, data:{found, name, brand, spec|specification,
  * net_content, manufacturer, category, images[]?}}}（免费版无 images/registration_message，
