@@ -188,8 +188,8 @@
 
     <!--
       商品建档弹窗（CB-025 重设计）：基础信息 / 价格与效期 / 展示与备注 三组两列。
-      条码必填（国内包装商品均有 69 码）+「查官方资料」自动带出编码中心登记的名称/品牌/规格。
-      保质期/贮存方式/到期禁售是数据模型既有字段，此前漏了录入入口，一并补上。
+      条码必填（国内包装商品均有 69 码）+「查官方资料」自动带出编码中心登记的名称/品牌/规格/单位（2026-10-12：规格去包装英文前缀与「/罐」式尾缀单位、单位按规格尾缀命中字典带出）。
+      保质期/贮存方式/到期禁售是数据模型既有字段，此前漏了录入入口，一并补上；编码中心聚合接口不返回保质期与图片，均需手工上传/填写（实测 2026-10-12）。
     -->
     <el-dialog
       v-model="editDialog"
@@ -237,7 +237,7 @@
                 </el-button>
               </div>
               <div class="field-hint">
-                可接扫码枪直接扫包装；查询后自动填充名称 / 品牌 / 规格，已填过的内容不覆盖
+                可接扫码枪直接扫包装；查询后自动填充名称 / 品牌 / 规格 / 单位（单位按规格尾缀命中字典时），已填过的内容不覆盖
               </div>
             </el-form-item>
           </el-col>
@@ -450,6 +450,7 @@ import { useDictOptions } from '@/composables/useDictOptions';
 import { useAuthStore } from '@/stores/auth';
 import { findNavByPath } from '@/config/menu';
 import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
+import { cleanOfficialSpec, officialUnitTail } from '@/utils/barcode-spec-clean';
 import { yuanToCents } from '@/utils/display';
 import { validateImageFile } from '@/utils/upload-validate';
 import type {
@@ -923,8 +924,20 @@ async function lookupBarcode() {
       filled.push('品牌');
     }
     if (!form.spec.trim() && res.spec) {
-      form.spec = res.spec;
+      // 单位暗示取自官方原文（cleanOfficialSpec 会把「/罐」式尾缀也洗掉，须先提取）
+      const unitTail = officialUnitTail(res.spec);
+      // 轻度清洗：去包装英文前缀 + 尾缀单位（单位是独立字段）；只清洗自动填充值，手工输入不动
+      form.spec = cleanOfficialSpec(res.spec);
       filled.push('规格');
+      // 单位顺带带出：尾缀命中单位字典、且单位仍是默认「件」（视为未手工选过）才生效
+      if (
+        unitTail &&
+        form.unit === '件' &&
+        unitOptions.value.some((u) => u.value === unitTail || u.label === unitTail)
+      ) {
+        form.unit = unitTail;
+        filled.push('单位');
+      }
     }
     ElMessage.success(
       filled.length
