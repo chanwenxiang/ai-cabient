@@ -111,7 +111,11 @@ defineExpose({ open });
     />
 
     <div v-loading="loading" class="rv-body">
-      <el-table :data="rows" size="small" empty-text="该任务暂无补货视频（柜机上报后自动出现在这里）">
+      <el-table
+        :data="rows"
+        size="small"
+        empty-text="该任务暂无补货视频（柜机上报后自动出现在这里）"
+      >
         <el-table-column prop="orderNo" label="补货会话" min-width="150">
           <template #default="{ row }">
             <span class="rv-mono">{{ row.orderNo }}</span>
