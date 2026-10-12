@@ -637,7 +637,8 @@ const form = reactive({
   brand: '',
   spec: '',
   unit: '件',
-  priceYuan: 3.5,
+  // 新建不留默认价（2026-10-12 用户反馈：默认 3.5 看着像上次没清掉的数据）；保存校验会拦空值
+  priceYuan: undefined as number | undefined,
   costYuan: undefined as number | undefined,
   category: '',
   // CB-027：表单不再暴露「克重」，但保留状态随编辑加载/保存回传 —— 后端 applySkuRequest
@@ -878,7 +879,7 @@ function openEdit(row?: SkuCatalog) {
     form.brand = '';
     form.spec = '';
     form.unit = '件';
-    form.priceYuan = 3.5;
+    form.priceYuan = undefined;
     form.costYuan = undefined;
     form.category = '';
     form.weightGrams = undefined;
