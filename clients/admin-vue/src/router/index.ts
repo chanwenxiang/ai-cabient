@@ -65,6 +65,18 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '资金账单', group: '财务商户' }
   },
   {
+    path: 'platform-fund',
+    name: 'platform-fund',
+    component: () => import('@/views/finance/PlatformFundView.vue'),
+    meta: { title: '平台资金池', group: '财务商户' }
+  },
+  {
+    path: 'device-rental',
+    name: 'device-rental',
+    component: () => import('@/views/finance/DeviceRentalView.vue'),
+    meta: { title: '设备租赁', group: '财务商户' }
+  },
+  {
     path: 'sales-reports',
     name: 'sales-reports',
     component: () => import('@/views/reports/SalesReportsView.vue'),

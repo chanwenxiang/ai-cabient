@@ -442,6 +442,33 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/fund/ledger?${query}`
       : `${ops}/fund/ledger?${query.toString()}`,
+  /** 平台资金池台账（CB-033）：账户余额 + 流水 + 充值/归集/调整（ops:fund:list / ops:fund:manage） */
+  platformFundAccounts: `${ops}/platform-fund/accounts`,
+  platformFundFlows: (accountId: string | number, limit = 50) =>
+    `${ops}/platform-fund/accounts/${encodeURIComponent(String(accountId))}/flows?limit=${limit}`,
+  platformFundRecharge: (accountId: string | number) =>
+    `${ops}/platform-fund/accounts/${encodeURIComponent(String(accountId))}/recharge`,
+  platformFundSweep: (accountId: string | number) =>
+    `${ops}/platform-fund/accounts/${encodeURIComponent(String(accountId))}/sweep`,
+  platformFundAdjust: (accountId: string | number) =>
+    `${ops}/platform-fund/accounts/${encodeURIComponent(String(accountId))}/adjust`,
+  /** 设备租赁闭环（CB-034）：押金收据化 + 月租应收账单（ops:fund:list / ops:rental:manage） */
+  rentalDeposits: `${ops}/device-rental/deposits`,
+  rentalDepositEvents: (depositId: string | number) =>
+    `${ops}/device-rental/deposits/${encodeURIComponent(String(depositId))}/events`,
+  rentalDepositDeduct: (depositId: string | number) =>
+    `${ops}/device-rental/deposits/${encodeURIComponent(String(depositId))}/deduct`,
+  rentalDepositSettle: (depositId: string | number) =>
+    `${ops}/device-rental/deposits/${encodeURIComponent(String(depositId))}/settle`,
+  rentalBills: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/device-rental/bills?${query}`
+      : `${ops}/device-rental/bills?${query.toString()}`,
+  rentalBillsGenerate: `${ops}/device-rental/bills/generate`,
+  rentalBillMarkPaid: (billId: string | number) =>
+    `${ops}/device-rental/bills/${encodeURIComponent(String(billId))}/mark-paid`,
+  rentalBillVoid: (billId: string | number) =>
+    `${ops}/device-rental/bills/${encodeURIComponent(String(billId))}/void`,
   balanceRefundsList: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/balance-refunds?${query}`
