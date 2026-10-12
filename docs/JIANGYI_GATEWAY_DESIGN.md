@@ -68,7 +68,7 @@
   `jiangyi_order_video`（by-order=补货会话 id 可查），入口需要时另开。
 - specialId 不采信（V16 §4.2.10 唯一出口、来源未定义）。
 - 二期剩余：模型同步预生成映射（已上线，保留条目供核对）；补货开门真路由已上线（见上收尾E）。
-- 待办：真机联调回填识别率、商户端月度结算单 UI（另任务）。（~~`pnpm gen:api-types` 重跑~~ → **已完成** 2026-10-12 `f5c94d8e`，含收尾E by-task 新端点类型入库）
+- 待办：真机联调回填识别率。（~~`pnpm gen:api-types` 重跑~~ → **已完成** 2026-10-12 `f5c94d8e`，含收尾E by-task 新端点类型入库）（~~商户端月度结算单 UI~~ → **早已上线**：后端 V330 `a82fb0f9`（`GET /merchant/settlements/monthly-bills` + `MerchantSettlementBill` 调度/重建），端侧 `27dd0899`——`settlements.vue` 月度结算单 section + 「结算对账」导航入口，2026-10-12 代码核实）
 
 ## 6. 本地模拟器联调结果（2026-10-09）
 
