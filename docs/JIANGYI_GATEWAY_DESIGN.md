@@ -64,8 +64,10 @@
   `jiangyi_order_video` 台账；关门回执缺失由 300s CLOSE watchdog → trade
   recognizeTimeout（补货会话→COMPLETED 快照关闭）+ 补货任务完成清场双兜底。
   运维开门（ADM 会话）仍 501（协议无此概念）。
+  未接 UI：补货任务详情的「补货视频查看」入口——补货视频已按 §4.2.14 落
+  `jiangyi_order_video`（by-order=补货会话 id 可查），入口需要时另开。
 - specialId 不采信（V16 §4.2.10 唯一出口、来源未定义）。
-- 二期：视频（getTempUploadToken/uploadVideoUrl 逗号拼接容错）、模型同步预生成映射、补货开门真路由。
+- 二期剩余：模型同步预生成映射（已上线，保留条目供核对）；补货开门真路由已上线（见上收尾E）。
 - 待办：`pnpm gen:api-types` 重跑（无新增对外 API，暂无影响）、真机联调回填识别率、商户端月度结算单 UI（另任务）。
 
 ## 6. 本地模拟器联调结果（2026-10-09）
