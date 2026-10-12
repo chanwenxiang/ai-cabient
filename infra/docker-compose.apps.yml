@@ -77,6 +77,8 @@ services:
       AMAP_WEB_KEY: ${AMAP_WEB_KEY:-}
       AICABINET_DEVICE_SERVICE_URL: http://device-service:8081
       AICABINET_JIANGYI_GATEWAY_URL: http://jiangyi-gateway:8083
+      # B-6：trade 的内网接口同样必须限 CIDR（staging 校验器强制；缺省空=启动即红 fail-loud）
+      INTERNAL_API_ALLOWED_CIDRS: ${INTERNAL_API_ALLOWED_CIDRS:-}
       # 将邑商户云（入驻/采集/模型，收尾E 补透传）：密钥只从 env 文件注入
       JIANGYI_TENANT_ID: ${JIANGYI_TENANT_ID:-0}
       JIANGYI_SECRET: ${JIANGYI_SECRET:-}
