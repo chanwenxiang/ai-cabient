@@ -2,7 +2,9 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.client.JiangyiGatewayClient;
 import com.aicabinet.trade.domain.JiangyiOrderVideo;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.JiangyiOrderVideoMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -25,13 +27,15 @@ class JiangyiOrderVideoServiceTest {
 
     private JiangyiOrderVideoMapper mapper;
     private JiangyiGatewayClient gatewayClient;
+    private ShoppingSessionMapper sessionMapper;
     private JiangyiOrderVideoService service;
 
     @BeforeEach
     void setUp() {
         mapper = Mockito.mock(JiangyiOrderVideoMapper.class);
         gatewayClient = Mockito.mock(JiangyiGatewayClient.class);
-        service = new JiangyiOrderVideoService(mapper, gatewayClient);
+        sessionMapper = Mockito.mock(ShoppingSessionMapper.class);
+        service = new JiangyiOrderVideoService(mapper, gatewayClient, sessionMapper);
     }
 
     private JiangyiOrderVideo row(String videoUrls) {
@@ -175,5 +179,38 @@ class JiangyiOrderVideoServiceTest {
         assertTrue(service.playByOrderNo("  ").isEmpty());
         assertTrue(service.playByOrderNo(null).isEmpty());
         Mockito.verify(mapper, Mockito.never()).findByOrderNo(Mockito.anyString());
+    }
+
+    @Test
+    void findByTask_flattensSessionsAcrossRestockOpens() {
+        ShoppingSession s1 = new ShoppingSession();
+        s1.setSessionId("STK-A");
+        ShoppingSession s2 = new ShoppingSession();
+        s2.setSessionId("STK-B");
+        Mockito.when(sessionMapper.findByReplenishmentTaskId(9L))
+                .thenReturn(java.util.List.of(s1, s2));
+        JiangyiOrderVideo older = row("http://x/1.mp4");
+        older.setOrderNo("STK-A");
+        older.setReportedAt(Instant.parse("2026-10-11T08:00:00Z"));
+        JiangyiOrderVideo newer = row("http://x/2.mp4");
+        newer.setOrderNo("STK-B");
+        newer.setReportedAt(Instant.parse("2026-10-11T09:00:00Z"));
+        Mockito.when(mapper.findByOrderNo("STK-A")).thenReturn(List.of(older));
+        Mockito.when(mapper.findByOrderNo("STK-B")).thenReturn(List.of(newer));
+
+        List<JiangyiOrderVideo> rows = service.findByTask(9L);
+
+        assertEquals(2, rows.size());
+        // 最近上报在前
+        assertEquals("STK-B", rows.get(0).getOrderNo());
+        assertEquals("STK-A", rows.get(1).getOrderNo());
+    }
+
+    @Test
+    void findByTask_noSessions_returnsEmpty() {
+        Mockito.when(sessionMapper.findByReplenishmentTaskId(9L))
+                .thenReturn(java.util.List.of());
+
+        assertTrue(service.findByTask(9L).isEmpty());
     }
 }

@@ -111,6 +111,13 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
                 .in(ShoppingSession::getState, states));
     }
 
+    /** 补货任务关联的全部开门会话（任意状态；补货视频查看按 会话id=补货单号 查台账） */
+    default List<ShoppingSession> findByReplenishmentTaskId(Long taskId) {
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .eq(ShoppingSession::getReplenishmentTaskId, taskId)
+                .orderByDesc(ShoppingSession::getCreatedAt));
+    }
+
     /** 是否存在绑定该补货任务的开门会话（任意状态，用于「是否已下发开门」门禁） */
     default boolean existsByReplenishmentTaskId(Long taskId) {
         if (taskId == null) {

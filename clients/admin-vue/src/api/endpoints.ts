@@ -178,6 +178,8 @@ export const AdminEndpoints = {
   jiangyiOrderVideosByDevice: (deviceId: string, limit = 20) =>
     `${ops}/jiangyi/order-videos/by-device?deviceId=${encodeURIComponent(deviceId)}&limit=${limit}`,
   jiangyiOrderVideoPlayUrl: (id: number) => `${ops}/jiangyi/order-videos/${id}/play-url`,
+  jiangyiOrderVideosByTask: (taskId: number | string) =>
+    `${ops}/jiangyi/order-videos/by-task/${taskId}`,
 
   /** 将邑商品库挂接（CB-023 二期）：SKU ↔ 将邑商品关联 + 学习回填 */
   skuJiangyiLink: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link`,

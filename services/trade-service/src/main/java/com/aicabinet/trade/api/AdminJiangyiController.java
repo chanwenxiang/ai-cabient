@@ -75,6 +75,14 @@ public class AdminJiangyiController {
         return ApiResponse.ok(jiangyiOrderVideoService.findByOrderNo(orderNo));
     }
 
+    /** 视频复核：按补货任务查（收尾E 入口，补货视频 orderNo=补货会话 id）。 */
+    @RequiresPermissions("ops:device:video")
+    @GetMapping("/jiangyi/order-videos/by-task/{taskId}")
+    public ApiResponse<List<JiangyiOrderVideo>> orderVideosByTask(
+            @PathVariable("taskId") long taskId) {
+        return ApiResponse.ok(jiangyiOrderVideoService.findByTask(taskId));
+    }
+
     /** 视频复核：按设备查最近上报（设备详情「将邑接入」卡片入口）。 */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/jiangyi/order-videos/by-device")

@@ -266,6 +266,13 @@
                                 >明细</el-button
                               >
                               <el-button
+                                v-if="auth.hasPerm('ops:device:video')"
+                                link
+                                type="primary"
+                                @click.stop="openRestockVideos(scope.row)"
+                                >补货视频</el-button
+                              >
+                              <el-button
                                 v-if="canEdit && canCheckInTask(scope.row)"
                                 link
                                 type="warning"
@@ -1264,6 +1271,7 @@
       @go-shortage="goShortageFromPlan"
       @go-stock-health="goStockHealthFromPlan"
     />
+    <RestockVideoDialog ref="restockVideoDialog" />
   </el-card>
 </template>
 
@@ -1274,6 +1282,7 @@ import { Goods, Tickets } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import RestockVideoDialog from '@/components/replenishment/RestockVideoDialog.vue';
 import type { TableAction } from '@/components/TableActions.vue';
 import CrudTable from '@/components/CrudTable.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -2025,6 +2034,13 @@ const {
   deviceName,
   reloadCurrentTab
 });
+
+const restockVideoDialog = ref<InstanceType<typeof RestockVideoDialog> | null>(null);
+
+/** 补货视频查看（将邑收尾E）：按任务拉其全部开门会话的补货视频台账。 */
+function openRestockVideos(row: { taskId?: number | string }) {
+  restockVideoDialog.value?.open({ taskId: Number(row.taskId) });
+}
 
 const {
   planDialog,

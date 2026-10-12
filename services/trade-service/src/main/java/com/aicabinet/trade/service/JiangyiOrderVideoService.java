@@ -3,6 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.client.JiangyiGatewayClient;
 import com.aicabinet.trade.domain.JiangyiOrderVideo;
 import com.aicabinet.trade.mapper.JiangyiOrderVideoMapper;
+import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -31,11 +33,14 @@ public class JiangyiOrderVideoService {
 
     private final JiangyiOrderVideoMapper jiangyiOrderVideoMapper;
     private final JiangyiGatewayClient jiangyiGatewayClient;
+    private final ShoppingSessionMapper shoppingSessionMapper;
 
     public JiangyiOrderVideoService(JiangyiOrderVideoMapper jiangyiOrderVideoMapper,
-                                    JiangyiGatewayClient jiangyiGatewayClient) {
+                                    JiangyiGatewayClient jiangyiGatewayClient,
+                                    ShoppingSessionMapper shoppingSessionMapper) {
         this.jiangyiOrderVideoMapper = jiangyiOrderVideoMapper;
         this.jiangyiGatewayClient = jiangyiGatewayClient;
+        this.shoppingSessionMapper = shoppingSessionMapper;
     }
 
     /**
@@ -51,6 +56,22 @@ public class JiangyiOrderVideoService {
     /** 按订单查全部分片（serial 升序；video_urls 空串=该片生成/上传失败）。 */
     public List<JiangyiOrderVideo> findByOrderNo(String orderNo) {
         return jiangyiOrderVideoMapper.findByOrderNo(orderNo);
+    }
+
+    /**
+     * 补货任务详情「补货视频查看」（收尾E 入口）：按补货会话 id（=orderNo）汇总台账行。
+     * 将邑柜补货开门后柜机按 §4.2.14 上报补货视频，orderNo=补货会话 id（协议枢纽不变）。
+     */
+    public List<JiangyiOrderVideo> findByTask(Long taskId) {
+        if (taskId == null) {
+            return List.of();
+        }
+        List<JiangyiOrderVideo> rows = new ArrayList<>();
+        for (ShoppingSession session : shoppingSessionMapper.findByReplenishmentTaskId(taskId)) {
+            rows.addAll(jiangyiOrderVideoMapper.findByOrderNo(session.getSessionId()));
+        }
+        rows.sort((a, b) -> b.getReportedAt().compareTo(a.getReportedAt()));
+        return rows;
     }
 
     /** 按设备查最近上报（设备详情卡片复核入口）。 */
