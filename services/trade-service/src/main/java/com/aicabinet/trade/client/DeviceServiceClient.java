@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -84,12 +85,23 @@ public class DeviceServiceClient {
             // 运维开门（ADM 会话）协议无此概念：将邑柜仅支持 购物开门/补货开门 两种
             throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "将邑柜不支持运维开门");
         }
-        jiangyiGatewayClient.post()
-                .uri("/internal/v1/jiangyi/devices/{deviceId}/open-door", deviceId)
-                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
-                .body(new OpenDoorRequest(sessionId, userId, operatorMode, stock))
-                .retrieve()
-                .toBodilessEntity();
+        try {
+            jiangyiGatewayClient.post()
+                    .uri("/internal/v1/jiangyi/devices/{deviceId}/open-door", deviceId)
+                    .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                    .body(new OpenDoorRequest(sessionId, userId, operatorMode, stock))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            // P3 文案修复（2026-10-12）：网关失败语义直译，不再落「请确认 device-service 在线」
+            // 旧链兜底文案（将邑柜失败与 device-service 无关）。503=网关侧判定设备 WS 离线。
+            if (e.getStatusCode().value() == HttpStatus.SERVICE_UNAVAILABLE.value()) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "将邑柜机不在线，请稍后再试");
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "将邑柜开门指令下发失败，请稍后再试", e);
+        }
     }
 
     /** 既有 device-service 链路：编程式重试（与原 @Retry("deviceService") 同名等价）。 */
