@@ -113,6 +113,16 @@ public class ScheduledTaskXxlJobHandler {
         runKey("withdraw-paying-timeout");
     }
 
+    @XxlJob("platformFundDailyJob")
+    public void platformFundDailyJob() {
+        runKey("platform-fund-daily");
+    }
+
+    @XxlJob("deviceRentalDailyJob")
+    public void deviceRentalDailyJob() {
+        runKey("device-rental-daily");
+    }
+
     // ── 营销 ────────────────────────────────────────────────────────────────
 
     @XxlJob("couponExpireJob")

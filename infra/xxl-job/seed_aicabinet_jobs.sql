@@ -124,7 +124,15 @@ INSERT INTO `xxl_job_info`(
 -- 提现打款超时兜底（H38）：写型任务（置 FAILED + 解冻资金），故 fail_retry_count=1
 (132, 10, '提现打款超时兜底', now(), now(), 'aicabinet', '',
  'CRON', '0 0/10 * * * ?', 'DO_NOTHING', 'FAILOVER',
- 'withdrawPayingTimeoutJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0)
+ 'withdrawPayingTimeoutJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+-- CB-033 平台资金日检：备付金缺口推送 + 归集交叉核对
+(133, 10, '平台资金日检', now(), now(), 'aicabinet', '',
+ 'CRON', '0 10 8 * * ?', 'DO_NOTHING', 'FAILOVER',
+ 'platformFundDailyJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+-- CB-034 租赁账单日检：月租幂等出账 + 欠租逾期锁柜/结清解锁
+(134, 10, '租赁账单日检', now(), now(), 'aicabinet', '',
+ 'CRON', '0 20 8 * * ?', 'DO_NOTHING', 'FAILOVER',
+ 'deviceRentalDailyJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0)
 ON DUPLICATE KEY UPDATE
   `job_desc`=VALUES(`job_desc`),
   `schedule_conf`=VALUES(`schedule_conf`),

@@ -11,6 +11,10 @@ public record UpdateDeviceRequest(
         String coopMode,
         Long depositCents,
         Long dataFeeCents,
+        /** 租赁月租金（分/月），仅 coopMode=RENTAL 生效（CB-034） */
+        Long rentCents,
+        /** 租赁起租账期（YYYY-MM） */
+        String rentStartYm,
         String opsTags,
         String routeCode,
         String lifecycleRemark,
@@ -21,10 +25,10 @@ public record UpdateDeviceRequest(
         String homeWarehouseId
 ) {
     public UpdateDeviceRequest(String deviceName, String deviceType, String merchantId) {
-        this(deviceName, deviceType, merchantId, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(deviceName, deviceType, merchantId, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public UpdateDeviceRequest(String deviceName, String deviceType, String merchantId, String refundPolicy) {
-        this(deviceName, deviceType, merchantId, refundPolicy, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(deviceName, deviceType, merchantId, refundPolicy, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

@@ -190,6 +190,22 @@
       "description": "线长提现手续费单笔封顶（分），0=不封顶"
     },
     {
+      "key": "platform.fund.plan.buffer_yuan",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "500",
+      "description": "平台资金池日检：备付缓冲（元）；余额 < 在途待付 + 该缓冲即告警「备付金缺口」（CB-033）",
+      "unit": "元"
+    },
+    {
+      "key": "platform.fund.recon.tolerance_yuan",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "10",
+      "description": "平台资金池日检：归集核对容差（元）；本月平台分成 vs 归集登记差异超过该值即告警",
+      "unit": "元"
+    },
+    {
       "key": "checkout.preauth_cents",
       "group": "交易与资金",
       "type": "NUMBER",
@@ -254,6 +270,14 @@
       "default": "45",
       "description": "人工解锁后离线自动锁机宽限分钟数, 0=无宽限",
       "unit": "分钟"
+    },
+    {
+      "key": "device.rental.overdue_lock_days",
+      "group": "设备与柜机",
+      "type": "NUMBER",
+      "default": "15",
+      "description": "租赁日检：租金账期结束后宽限天数，超过即自动欠租锁柜（复用 DeviceSalesLockService，CB-034）；0=账期结束即锁",
+      "unit": "天"
     },
     {
       "key": "device.temp.alert_max_c",

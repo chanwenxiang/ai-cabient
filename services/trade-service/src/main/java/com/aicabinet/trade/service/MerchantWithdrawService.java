@@ -72,6 +72,8 @@ public class MerchantWithdrawService {
     private final OrderRevenueSplitMapper orderRevenueSplitMapper;
     /** V321 提现资质门禁（实名 + 商户主体资质）。 */
     private final WithdrawEligibilityService withdrawEligibilityService;
+    /** CB-033 平台资金池：打款前备付校验 + 打款成功登记流出（测试可传 null 跳过）。 */
+    private final PlatformFundService platformFundService;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
@@ -102,6 +104,7 @@ public class MerchantWithdrawService {
                                    PayoutChannelRegistry payoutChannelRegistry,
                                    OrderRevenueSplitMapper orderRevenueSplitMapper,
                                    WithdrawEligibilityService withdrawEligibilityService,
+                                   PlatformFundService platformFundService,
                                    @Lazy MerchantWithdrawService self) {
         this.withdrawMapper = withdrawMapper;
         this.merchantMapper = merchantMapper;
@@ -122,6 +125,7 @@ public class MerchantWithdrawService {
         this.payoutChannelRegistry = payoutChannelRegistry;
         this.orderRevenueSplitMapper = orderRevenueSplitMapper;
         this.withdrawEligibilityService = withdrawEligibilityService;
+        this.platformFundService = platformFundService;
         this.self = self;
     }
 
@@ -501,11 +505,34 @@ public class MerchantWithdrawService {
      * 若该账户已被物理删除（不应发生，仅数据损坏），回落查主体默认账户并留日志。
      */
     public MerchantWithdrawRequestDto executePayout(long requestId) {
+        MerchantWithdrawRequest pending = requireRequest(requestId);
+        // CB-033 备付校验：台账已登记该渠道且余额不足（含在途待付）⇒ 跳过打款但不置失败/不解冻，
+        // 单据保持 APPROVED（充值登记后可再次 payout 重试）；未登记账户为软启动只告警。
+        if (platformFundService != null) {
+            long fee = pending.getFeeCents() == null ? 0L : pending.getFeeCents();
+            long netCents = Math.max(0L, pending.getAmountCents() - fee);
+            Optional<String> blocked = platformFundService.gatePayout(
+                    pending.getPayChannel(), netCents, requestId);
+            if (blocked.isPresent()) {
+                auditService.appendLog(null, "MERCHANT_WITHDRAW_PAYOUT_BLOCKED", BIZ_MERCHANT_WITHDRAW,
+                        String.valueOf(requestId),
+                        "备付不足跳过打款（保持 APPROVED，充值后可重试）；金额(分)=" + netCents
+                                + "；原因=" + blocked.get());
+                return toDto(pending);
+            }
+        }
         MerchantWithdrawRequest paying = self.markPaying(requestId);
         Merchant merchant = requireMerchant(paying.getMerchantId());
         PayoutAccount account = resolveSnapshotAccount(paying);
         MerchantWithdrawPayoutService.PayoutResult result = payoutService.payout(paying, merchant, account);
-        return self.finalizePayout(requestId, result);
+        MerchantWithdrawRequestDto dto = self.finalizePayout(requestId, result);
+        // CB-033：打款成功后登记平台资金池流出（放在 finalize 事务提交后，台账坏了不影响打款事实）
+        if (result.success() && platformFundService != null) {
+            long fee = paying.getFeeCents() == null ? 0L : paying.getFeeCents();
+            platformFundService.recordPayoutQuietly(result.payChannel(),
+                    Math.max(0L, paying.getAmountCents() - fee), requestId);
+        }
+        return dto;
     }
 
     /**

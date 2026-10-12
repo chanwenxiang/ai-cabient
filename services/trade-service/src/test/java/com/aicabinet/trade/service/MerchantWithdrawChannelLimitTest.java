@@ -82,7 +82,7 @@ class MerchantWithdrawChannelLimitTest {
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, merchantScopeService, permissionService, auditService,
                 distributedLockService, null, WithdrawPolicyResolver.ymlOnly(properties),
-                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null);
+                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         wechatAccount = new PayoutAccount();

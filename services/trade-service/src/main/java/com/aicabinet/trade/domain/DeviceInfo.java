@@ -84,12 +84,18 @@ public class DeviceInfo {
 
     private String assetOwner;
 
-    /** SELF|FRANCHISE|CONSIGN */
+    /** SELF|FRANCHISE|CONSIGN|RENTAL（RENTAL=租赁给商户/运营商，CB-034） */
     private String coopMode;
 
     private Long depositCents;
 
     private Long dataFeeCents;
+
+    /** 租赁月租金（分/月），仅 coopMode=RENTAL 生效（CB-034） */
+    private Long rentCents;
+
+    /** 租赁起租账期（YYYY-MM），账单从此账期开始出 */
+    private String rentStartYm;
 
     private String opsTags;
 

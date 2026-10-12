@@ -74,6 +74,8 @@ public class ScheduledTaskRegistry {
                                  SkuReviewScheduler skuReviewScheduler,
                                  RiskAutoDispositionService riskAutoDispositionService,
                                  DeviceTempPlanService deviceTempPlanService,
+                                 PlatformFundService platformFundService,
+                                 DeviceRentalService deviceRentalService,
                                  ObjectProvider<OpsFeeBillJob> opsFeeBillJobProvider,
                                  ScheduledTaskStaleMonitor scheduledTaskStaleMonitor) {
         register("device-presence", "设备离线巡检", "DEVICE", V_60, 600,
@@ -118,6 +120,12 @@ public class ScheduledTaskRegistry {
         // finish() 静默丢弃，运营台看不见、不能启停、不能手动触发（门禁 Rule 4 已拦下）。
         register("withdraw-paying-timeout", "提现打款超时兜底", FINANCE, "每 10 分钟", 600,
                 reconciliationScheduler::failStalePayingWithdraws);
+        // CB-033 平台资金日检：备付金缺口推送 + 归集交叉核对（每渠道余额由人工登记/打款流水推进）
+        register("platform-fund-daily", "平台资金日检", FINANCE, ScheduleZones.desc("每日 08:10"), 1800,
+                platformFundService::runDailyCheck);
+        // CB-034 租赁日检：月租幂等出账 + 欠租逾期锁柜/结清解锁（锁柜复用 DeviceSalesLockService）
+        register("device-rental-daily", "租赁账单日检", FINANCE, ScheduleZones.desc("每日 08:20"), 1800,
+                deviceRentalService::runDailyCheck);
         register("line-commission", "线长佣金入账", FINANCE, ScheduleZones.desc("每日 00:20"), 1800,
                 lineCommissionJob::postDailyCommission);
         register("finance-margin", "财务保证金固化", FINANCE, ScheduleZones.desc("每日 00:05"), 1800,

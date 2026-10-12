@@ -3,10 +3,13 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.LineWithdrawRequestDto;
 import com.aicabinet.common.dto.PageResult;
+import com.aicabinet.common.dto.RemarkOnlyRequest;
+import com.aicabinet.common.dto.WithdrawReviewRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.LineWithdrawService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -43,11 +46,10 @@ public class LineWithdrawController {
     @RequiresPermissions("ops:line-withdraw:review")
     @PostMapping("/{requestId}/review")
     public ApiResponse<LineWithdrawRequestDto> review(
-            HttpServletRequest request, @PathVariable long requestId, @RequestBody Map<String, Object> body) {
-        boolean approve = Boolean.TRUE.equals(body.get("approve"))
-                || "true".equalsIgnoreCase(String.valueOf(body.get("approve")));
-        String remark = body.get("remark") == null ? null : String.valueOf(body.get("remark"));
-        return ApiResponse.ok(lineWithdrawService.review(operator(request), requestId, approve, remark));
+            HttpServletRequest request, @PathVariable long requestId,
+            @Valid @RequestBody WithdrawReviewRequest body) {
+        return ApiResponse.ok(lineWithdrawService.review(
+                operator(request), requestId, body.approve(), body.remark()));
     }
 
     @RequiresPermissions("ops:line-withdraw:review")
@@ -60,9 +62,8 @@ public class LineWithdrawController {
     @PostMapping("/{requestId}/cancel")
     public ApiResponse<LineWithdrawRequestDto> cancel(
             HttpServletRequest request, @PathVariable long requestId,
-            @RequestBody(required = false) Map<String, Object> body) {
-        String remark = body == null || body.get("remark") == null ? null : String.valueOf(body.get("remark"));
-        return ApiResponse.ok(lineWithdrawService.cancelFailed(operator(request), requestId, remark));
+            @RequestBody(required = false) @Valid RemarkOnlyRequest body) {
+        return ApiResponse.ok(lineWithdrawService.cancelFailed(operator(request), requestId, body == null ? null : body.remark()));
     }
 
     private Long operator(HttpServletRequest request) {

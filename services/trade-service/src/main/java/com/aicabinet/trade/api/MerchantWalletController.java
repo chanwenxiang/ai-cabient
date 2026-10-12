@@ -5,10 +5,13 @@ import com.aicabinet.common.dto.MerchantWalletAccountDto;
 import com.aicabinet.common.dto.MerchantWalletLedgerDto;
 import com.aicabinet.common.dto.MerchantWithdrawRequestDto;
 import com.aicabinet.common.dto.PageResult;
+import com.aicabinet.common.dto.WalletAdjustRequest;
+import com.aicabinet.common.dto.WithdrawApplyRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.MerchantWithdrawService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,8 +20,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v2/ops/admin/merchant-wallets")
 public class MerchantWalletController {
-    private static final String AMOUNTCENTS = "amountCents";
-
 
     private final MerchantWithdrawService merchantWithdrawService;
 
@@ -52,11 +53,9 @@ public class MerchantWalletController {
     public ApiResponse<MerchantWalletAccountDto> adjust(
             HttpServletRequest request,
             @PathVariable String merchantId,
-            @RequestBody Map<String, Object> body) {
-        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
-        String remark = body.get("remark") == null ? null : String.valueOf(body.get("remark"));
-        return ApiResponse.ok(merchantWithdrawService.adjust(operator(request), merchantId, amount, remark));
+            @Valid @RequestBody WalletAdjustRequest body) {
+        return ApiResponse.ok(merchantWithdrawService.adjust(
+                operator(request), merchantId, body.amountCents(), body.remark()));
     }
 
     @RequiresPermissions("ops:merchant-withdraw:adjust")
@@ -64,11 +63,9 @@ public class MerchantWalletController {
     public ApiResponse<MerchantWithdrawRequestDto> withdraw(
             HttpServletRequest request,
             @PathVariable String merchantId,
-            @RequestBody Map<String, Object> body) {
-        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
-        String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
-        return ApiResponse.ok(merchantWithdrawService.apply(operator(request), merchantId, amount, requestNo));
+            @Valid @RequestBody WithdrawApplyRequest body) {
+        return ApiResponse.ok(merchantWithdrawService.apply(
+                operator(request), merchantId, body.amountCents(), body.requestNo()));
     }
 
     private Long operator(HttpServletRequest request) {

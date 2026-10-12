@@ -2633,6 +2633,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/platform-fund/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["accounts"];
+        put?: never;
+        post: operations["create_7"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/platform-fund/accounts/{accountId}/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["sweep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/platform-fund/accounts/{accountId}/recharge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recharge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/platform-fund/accounts/{accountId}/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adjust"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/phone-verify/logs": {
         parameters: {
             query?: never;
@@ -2898,7 +2962,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["adjust"];
+        post: operations["adjust_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2914,7 +2978,7 @@ export interface paths {
         };
         get: operations["list_8"];
         put?: never;
-        post: operations["create_7"];
+        post: operations["create_8"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2994,7 +3058,7 @@ export interface paths {
         };
         get: operations["list_9"];
         put?: never;
-        post: operations["create_8"];
+        post: operations["create_9"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3010,7 +3074,7 @@ export interface paths {
         };
         get: operations["list_10"];
         put?: never;
-        post: operations["create_9"];
+        post: operations["create_10"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3058,7 +3122,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["adjust_1"];
+        post: operations["adjust_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3817,7 +3881,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/device-data-fee-bills/{billId}/void": {
+    "/api/v2/ops/admin/device-rental/deposits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deposits"];
+        put?: never;
+        post: operations["registerDeposit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/device-rental/deposits/{depositId}/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["settle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/device-rental/deposits/{depositId}/deduct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deduct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/device-rental/bills/{billId}/void": {
         parameters: {
             query?: never;
             header?: never;
@@ -3833,7 +3945,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/device-data-fee-bills/{billId}/pay": {
+    "/api/v2/ops/admin/device-rental/bills/{billId}/mark-paid": {
         parameters: {
             query?: never;
             header?: never;
@@ -3843,6 +3955,54 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["markPaid_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/device-rental/bills/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["generate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/device-data-fee-bills/{billId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["voidBill_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/device-data-fee-bills/{billId}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markPaid_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3874,7 +4034,7 @@ export interface paths {
         };
         get: operations["list_11"];
         put?: never;
-        post: operations["create_10"];
+        post: operations["create_11"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6793,6 +6953,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/platform-fund/accounts/{accountId}/flows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["flows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/ota/reports": {
         parameters: {
             query?: never;
@@ -7761,6 +7937,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["deviceMapPoints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/device-rental/deposits/{depositId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["depositEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/device-rental/bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["bills"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12429,6 +12637,26 @@ export interface components {
             notes?: string;
             receiveWarehouseId?: string;
         };
+        ApiResponsePlatformFundAccount: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PlatformFundAccount"];
+        };
+        PlatformFundAccount: {
+            /** Format: int64 */
+            accountId?: number;
+            channel?: string;
+            accountName?: string;
+            /** Format: int64 */
+            balanceCents?: number;
+            status?: string;
+            remark?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
         OtaReleaseDto: {
             /** Format: int64 */
             releaseId?: number;
@@ -12561,6 +12789,10 @@ export interface components {
         ConfirmLedgerSplitRequest: {
             reason: string;
         };
+        WithdrawReviewRequest: {
+            approve: boolean;
+            remark?: string;
+        };
         ApiResponseMerchantWithdrawRequestDto: {
             /** Format: int32 */
             code?: number;
@@ -12601,6 +12833,20 @@ export interface components {
             idemKey?: string;
             channelOrderNo?: string;
             channelBatchNo?: string;
+        };
+        RemarkOnlyRequest: {
+            remark?: string;
+        };
+        WithdrawApplyRequest: {
+            /** Format: int64 */
+            amountCents: number;
+            requestNo?: string;
+            merchantId?: string;
+        };
+        WalletAdjustRequest: {
+            /** Format: int64 */
+            amountCents: number;
+            remark?: string;
         };
         ApiResponseMerchantWalletAccountDto: {
             /** Format: int32 */
@@ -13115,6 +13361,62 @@ export interface components {
             message?: string;
             salesLocked?: boolean;
         };
+        ApiResponseDeviceRentalDeposit: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceRentalDeposit"];
+        };
+        DeviceRentalDeposit: {
+            /** Format: int64 */
+            depositId?: number;
+            deviceId?: string;
+            merchantId?: string;
+            /** Format: int64 */
+            amountCents?: number;
+            /** Format: int64 */
+            balanceCents?: number;
+            status?: string;
+            /** Format: date-time */
+            settledAt?: string;
+            remark?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        ApiResponseDeviceRentalBill: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceRentalBill"];
+        };
+        DeviceRentalBill: {
+            /** Format: int64 */
+            billId?: number;
+            deviceId?: string;
+            deviceName?: string;
+            merchantId?: string;
+            billMonth?: string;
+            /** Format: int64 */
+            amountCents?: number;
+            status?: string;
+            /** Format: date-time */
+            paidAt?: string;
+            /** Format: date-time */
+            lockAt?: string;
+            remark?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        ApiResponseObject: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: unknown;
+        };
         ApiResponseListDeviceDataFeeBillDto: {
             /** Format: int32 */
             code?: number;
@@ -13481,6 +13783,9 @@ export interface components {
             depositCents?: number;
             /** Format: int64 */
             dataFeeCents?: number;
+            /** Format: int64 */
+            rentCents?: number;
+            rentStartYm?: string;
             opsTags?: string;
             routeCode?: string;
             lifecycleRemark?: string;
@@ -15166,6 +15471,36 @@ export interface components {
             mainBalanceCents?: number;
             ledgerConsistent?: boolean;
         };
+        ApiResponseListPlatformFundAccount: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PlatformFundAccount"][];
+        };
+        ApiResponseListPlatformFundFlow: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PlatformFundFlow"][];
+        };
+        PlatformFundFlow: {
+            /** Format: int64 */
+            flowId?: number;
+            /** Format: int64 */
+            accountId?: number;
+            flowType?: string;
+            /** Format: int64 */
+            amountCents?: number;
+            /** Format: int64 */
+            balanceAfterCents?: number;
+            refType?: string;
+            refId?: string;
+            /** Format: int64 */
+            operatorId?: number;
+            remark?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
         ApiResponsePageResultPhoneVerifyLogDto: {
             /** Format: int32 */
             code?: number;
@@ -16143,6 +16478,47 @@ export interface components {
             longitude?: number;
             address?: string;
             coopMode?: string;
+        };
+        ApiResponseListDeviceRentalDeposit: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceRentalDeposit"][];
+        };
+        ApiResponseListDeviceRentalDepositEvent: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceRentalDepositEvent"][];
+        };
+        DeviceRentalDepositEvent: {
+            /** Format: int64 */
+            eventId?: number;
+            /** Format: int64 */
+            depositId?: number;
+            eventType?: string;
+            /** Format: int64 */
+            amountCents?: number;
+            reason?: string;
+            /** Format: int64 */
+            operatorId?: number;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        ApiResponsePageResultDeviceRentalBill: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PageResultDeviceRentalBill"];
+        };
+        PageResultDeviceRentalBill: {
+            items?: components["schemas"]["DeviceRentalBill"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
         };
         ApiResponsePageResultDeviceOpsEventDto: {
             /** Format: int32 */
@@ -22668,6 +23044,136 @@ export interface operations {
             };
         };
     };
+    accounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListPlatformFundAccount"];
+                };
+            };
+        };
+    };
+    create_7: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePlatformFundAccount"];
+                };
+            };
+        };
+    };
+    sweep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePlatformFundAccount"];
+                };
+            };
+        };
+    };
+    recharge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePlatformFundAccount"];
+                };
+            };
+        };
+    };
+    adjust: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePlatformFundAccount"];
+                };
+            };
+        };
+    };
     phoneVerifyLogs: {
         parameters: {
             query?: {
@@ -23036,9 +23542,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["WithdrawReviewRequest"];
             };
         };
         responses: {
@@ -23086,9 +23590,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["RemarkOnlyRequest"];
             };
         };
         responses: {
@@ -23114,9 +23616,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["WithdrawApplyRequest"];
             };
         };
         responses: {
@@ -23131,7 +23631,7 @@ export interface operations {
             };
         };
     };
-    adjust: {
+    adjust_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -23142,9 +23642,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["WalletAdjustRequest"];
             };
         };
         responses: {
@@ -23183,7 +23681,7 @@ export interface operations {
             };
         };
     };
-    create_7: {
+    create_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -23246,9 +23744,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["WithdrawReviewRequest"];
             };
         };
         responses: {
@@ -23296,9 +23792,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["RemarkOnlyRequest"];
             };
         };
         responses: {
@@ -23336,7 +23830,7 @@ export interface operations {
             };
         };
     };
-    create_8: {
+    create_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -23385,7 +23879,7 @@ export interface operations {
             };
         };
     };
-    create_9: {
+    create_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -23467,7 +23961,7 @@ export interface operations {
             };
         };
     };
-    adjust_1: {
+    adjust_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -24761,7 +25255,179 @@ export interface operations {
             };
         };
     };
+    deposits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListDeviceRentalDeposit"];
+                };
+            };
+        };
+    };
+    registerDeposit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceRentalDeposit"];
+                };
+            };
+        };
+    };
+    settle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                depositId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceRentalDeposit"];
+                };
+            };
+        };
+    };
+    deduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                depositId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceRentalDeposit"];
+                };
+            };
+        };
+    };
     voidBill_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                billId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceRentalBill"];
+                };
+            };
+        };
+    };
+    markPaid_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                billId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceRentalBill"];
+                };
+            };
+        };
+    };
+    generate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseObject"];
+                };
+            };
+        };
+    };
+    voidBill_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -24783,7 +25449,7 @@ export interface operations {
             };
         };
     };
-    markPaid_1: {
+    markPaid_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -24849,7 +25515,7 @@ export interface operations {
             };
         };
     };
-    create_10: {
+    create_11: {
         parameters: {
             query?: never;
             header?: never;
@@ -25235,9 +25901,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["WithdrawApplyRequest"];
             };
         };
         responses: {
@@ -25758,9 +26422,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["WithdrawApplyRequest"];
             };
         };
         responses: {
@@ -29415,6 +30077,30 @@ export interface operations {
             };
         };
     };
+    flows: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                accountId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListPlatformFundFlow"];
+                };
+            };
+        };
+    };
     listOtaReports: {
         parameters: {
             query?: {
@@ -30809,6 +31495,54 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListDeviceMapPointDto"];
+                };
+            };
+        };
+    };
+    depositEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                depositId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListDeviceRentalDepositEvent"];
+                };
+            };
+        };
+    };
+    bills: {
+        parameters: {
+            query?: {
+                billMonth?: string;
+                status?: string;
+                deviceId?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResultDeviceRentalBill"];
                 };
             };
         };

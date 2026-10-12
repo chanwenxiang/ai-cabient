@@ -163,6 +163,17 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
     }
 
     /**
+     * CB-033 归集核对：区间内平台分成合计（分），排除冲正行（VOIDED/REVERSED 不构成平台收入）。
+     * 与 {@code platform_fund_flow} 的 SWEEP 流水做「Σ平台分成 ≈ Σ归集」交叉核对。
+     */
+    @org.apache.ibatis.annotations.Select(
+            "SELECT COALESCE(SUM(platform_cents), 0) FROM order_revenue_split "
+            + "WHERE status NOT IN ('VOIDED', 'REVERSED') AND created_at >= #{from} AND created_at < #{to}")
+    long sumPlatformCentsBetween(@org.apache.ibatis.annotations.Param("from") Instant from,
+                                 @org.apache.ibatis.annotations.Param("to") Instant to);
+
+
+    /**
      * V308：某商户<b>已入钱包但尚未到可提现日</b>的金额合计（分）。
      *
      * <p>🔴 <b>为什么需要它</b>：T+1（{@code settleAfter}）此前只是个<b>展示字段</b>——

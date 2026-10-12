@@ -775,11 +775,9 @@ public class MerchantPortalController {
     @RequiresPermissions("merchant:line-wallet:withdraw")
     @PostMapping("/line-wallet/withdraw")
     public ApiResponse<LineWithdrawRequestDto> lineWalletWithdraw(
-            HttpServletRequest request, @RequestBody Map<String, Object> body) {
-        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
-        String requestNo = body.get(REQUESTNO) == null ? null : String.valueOf(body.get(REQUESTNO));
-        return ApiResponse.ok(support.lineWithdrawService().merchantApply(userId(request), amount, requestNo));
+            HttpServletRequest request, @Valid @RequestBody WithdrawApplyRequest body) {
+        return ApiResponse.ok(support.lineWithdrawService().merchantApply(
+                userId(request), body.amountCents(), body.requestNo()));
     }
 
     /** 商户主体钱包：分账账本入账后可自主提现（演示默认 Mock 打款）。 */
@@ -794,13 +792,9 @@ public class MerchantPortalController {
     @RequiresPermissions("merchant:wallet:apply")
     @PostMapping("/wallet/withdraw")
     public ApiResponse<MerchantWithdrawRequestDto> walletWithdraw(
-            HttpServletRequest request, @RequestBody Map<String, Object> body) {
-        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
-        String requestNo = body.get(REQUESTNO) == null ? null : String.valueOf(body.get(REQUESTNO));
-        String merchantId = body.get(MERCHANTID) == null ? null : String.valueOf(body.get(MERCHANTID));
-        return ApiResponse.ok(
-                support.merchantWithdrawService().merchantApply(userId(request), amount, requestNo, merchantId));
+            HttpServletRequest request, @Valid @RequestBody WithdrawApplyRequest body) {
+        return ApiResponse.ok(support.merchantWithdrawService().merchantApply(
+                userId(request), body.amountCents(), body.requestNo(), body.merchantId()));
     }
 
     private static ResponseEntity<byte[]> csvAttachment(String filename, byte[] csv) {

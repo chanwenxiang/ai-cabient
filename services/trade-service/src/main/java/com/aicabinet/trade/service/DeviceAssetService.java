@@ -49,7 +49,7 @@ public class DeviceAssetService {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final Set<String> LIFECYCLE = Set.of(INBOUND, "IDLE", DEPLOYED, RETURNING, RETIRED);
-    private static final Set<String> COOP = Set.of("SELF", "FRANCHISE", "CONSIGN");
+    private static final Set<String> COOP = Set.of("SELF", "FRANCHISE", "CONSIGN", "RENTAL");
 
     private final DeviceInfoMapper deviceInfoMapper;
     private final DeviceLifecycleEventMapper lifecycleEventMapper;

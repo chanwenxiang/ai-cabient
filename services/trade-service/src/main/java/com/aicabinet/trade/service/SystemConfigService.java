@@ -194,6 +194,12 @@ public class SystemConfigService {
     /** 纯视觉柜（会话无重力字段）空车是否自动零结；默认 false 进争议。 */
     public static final String SETTLEMENT_EMPTY_AUTO_NO_GRAVITY =
             "settlement.empty_auto_complete_no_gravity";
+    /** 平台资金池日检：备付缓冲（元），余额 < 在途待付 + 该缓冲即告警（CB-033）。 */
+    public static final String PLATFORM_FUND_PLAN_BUFFER_YUAN = "platform.fund.plan.buffer_yuan";
+    /** 平台资金池日检：归集核对容差（元），本月平台分成 vs 归集登记差异超该值告警。 */
+    public static final String PLATFORM_FUND_RECON_TOLERANCE_YUAN = "platform.fund.recon.tolerance_yuan";
+    /** 租赁账单日检：租金账期结束后宽限天数，超过即自动欠租锁柜（CB-034），0=账期结束即锁。 */
+    public static final String DEVICE_RENTAL_OVERDUE_LOCK_DAYS = "device.rental.overdue_lock_days";
     /** 结算识别方式: VISION=纯视觉；VISION_GRAVITY=视觉+重力融合。 */
     public static final String SETTLEMENT_RECOGNITION_MODE = "settlement.recognition_mode";
     public static final String RECOGNITION_MODE_VISION = "VISION";
@@ -756,6 +762,14 @@ public class SystemConfigService {
                 "线长提现手续费单笔封顶（分），0=不封顶。行业参照：支付宝余额提现封顶 ¥25、拉卡拉提现封顶 ¥50");
         upsertIfAbsent(RECHARGE_BONUS_PERCENT, "0",
                 "充值赠送比例（百分比，充 100 送 10 即填 10），0=关闭（不赠送）；赠送额按分向下取整");
+        // ── 平台资金池（CB-033）：日检备付缓冲与归集核对容差 ──
+        upsertIfAbsent(PLATFORM_FUND_PLAN_BUFFER_YUAN, "500",
+                "平台资金池日检：备付缓冲（元）；余额 < 在途待付 + 该缓冲即告警「备付金缺口」");
+        upsertIfAbsent(PLATFORM_FUND_RECON_TOLERANCE_YUAN, "10",
+                "平台资金池日检：归集核对容差（元）；本月平台分成 vs 归集登记差异超过该值即告警");
+        // ── 设备租赁（CB-034）：欠租锁柜宽限天数 ──
+        upsertIfAbsent(DEVICE_RENTAL_OVERDUE_LOCK_DAYS, "15",
+                "租赁日检：租金账期结束后宽限天数，超过即自动欠租锁柜；0=账期结束即锁");
         upsertIfAbsent(BALANCE_REFUND_MAX_CENTS, "500000", "单次余额退款申请上限（分），默认 ¥5000，0=不限制");
         upsertIfAbsent(REFUND_AUTO_APPROVE_MAX_CENTS, "0",
                 "余额退款自动审批上限（分），0=关闭（全部人工审核）；≤该上限的申请提交后由系统账号立即审批并原路退款，不进入审批流");

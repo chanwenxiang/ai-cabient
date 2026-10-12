@@ -559,6 +559,16 @@ public class OpsDeviceAdminService {
         if (request.dataFeeCents() != null) {
             device.setDataFeeCents(request.dataFeeCents() < 0 ? 0L : request.dataFeeCents());
         }
+        if (request.rentCents() != null) {
+            device.setRentCents(request.rentCents() < 0 ? 0L : request.rentCents());
+        }
+        if (request.rentStartYm() != null) {
+            String ym = trimToNull(request.rentStartYm());
+            if (ym != null && !ym.matches("\\d{4}-\\d{2}")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "rentStartYm 须为 YYYY-MM");
+            }
+            device.setRentStartYm(ym);
+        }
         if (request.opsTags() != null) {
             device.setOpsTags(trimToNull(request.opsTags()));
         }

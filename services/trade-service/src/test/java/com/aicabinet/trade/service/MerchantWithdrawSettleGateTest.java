@@ -80,7 +80,7 @@ class MerchantWithdrawSettleGateTest {
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, merchantScopeService, permissionService, auditService,
                 distributedLockService, approvalWorkflowService, WithdrawPolicyResolver.ymlOnly(properties),
-                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null);
+                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         PayoutAccount account = new PayoutAccount();

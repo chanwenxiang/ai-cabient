@@ -90,6 +90,32 @@ public interface MerchantWithdrawRequestMapper extends BaseTradeMapper<MerchantW
     }
 
     /**
+     * CB-033 备付校验：指定通道「已过审未付清」的在途净额合计（分）——
+     * 状态限 APPROVED（已审待打款）+ PAYING（打款中）；
+     * PAID 已由平台资金池 PAYOUT 流水扣减、PENDING_REVIEW 未过审不构成付款义务，均不计。
+     *
+     * @param excludeRequestId 排除的提现单（校验某单时排除它自身，避免双计）
+     */
+    default long sumNetPendingByChannel(String channel, Long excludeRequestId) {
+        if (channel == null) {
+            return 0L;
+        }
+        List<MerchantWithdrawRequest> rows = selectList(Wrappers.<MerchantWithdrawRequest>lambdaQuery()
+                .eq(MerchantWithdrawRequest::getPayChannel, channel)
+                .in(MerchantWithdrawRequest::getStatus, "APPROVED", "PAYING")
+                .ne(excludeRequestId != null, MerchantWithdrawRequest::getRequestId, excludeRequestId));
+        long sum = 0;
+        for (MerchantWithdrawRequest row : rows) {
+            if (row.getAmountCents() == null) {
+                continue;
+            }
+            long fee = row.getFeeCents() == null ? 0L : row.getFeeCents();
+            sum += Math.max(0L, row.getAmountCents() - fee);
+        }
+        return sum;
+    }
+
+    /**
      * V308：出款侧对账 —— 指定时间窗内某状态的提现单。
      *
      * <p>按 {@code paidAt}（出款时间）而非 {@code createdAt}（申请时间）过滤：

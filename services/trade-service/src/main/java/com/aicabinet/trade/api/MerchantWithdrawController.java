@@ -3,11 +3,14 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.MerchantWithdrawRequestDto;
 import com.aicabinet.common.dto.PageResult;
+import com.aicabinet.common.dto.RemarkOnlyRequest;
+import com.aicabinet.common.dto.WithdrawReviewRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.MerchantWithdrawService;
 import com.aicabinet.trade.service.PayoutReconciliationService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -81,11 +84,10 @@ public class MerchantWithdrawController {
     @RequiresPermissions("ops:merchant-withdraw:review")
     @PostMapping("/{requestId}/review")
     public ApiResponse<MerchantWithdrawRequestDto> review(
-            HttpServletRequest request, @PathVariable long requestId, @RequestBody Map<String, Object> body) {
-        boolean approve = Boolean.TRUE.equals(body.get("approve"))
-                || "true".equalsIgnoreCase(String.valueOf(body.get("approve")));
-        String remark = body.get("remark") == null ? null : String.valueOf(body.get("remark"));
-        return ApiResponse.ok(merchantWithdrawService.review(operator(request), requestId, approve, remark));
+            HttpServletRequest request, @PathVariable long requestId,
+            @Valid @RequestBody WithdrawReviewRequest body) {
+        return ApiResponse.ok(merchantWithdrawService.review(
+                operator(request), requestId, body.approve(), body.remark()));
     }
 
     @RequiresPermissions("ops:merchant-withdraw:review")
@@ -99,9 +101,8 @@ public class MerchantWithdrawController {
     @PostMapping("/{requestId}/cancel")
     public ApiResponse<MerchantWithdrawRequestDto> cancel(
             HttpServletRequest request, @PathVariable long requestId,
-            @RequestBody(required = false) Map<String, Object> body) {
-        String remark = body == null || body.get("remark") == null ? null : String.valueOf(body.get("remark"));
-        return ApiResponse.ok(merchantWithdrawService.cancelFailed(operator(request), requestId, remark));
+            @RequestBody(required = false) @Valid RemarkOnlyRequest body) {
+        return ApiResponse.ok(merchantWithdrawService.cancelFailed(operator(request), requestId, body == null ? null : body.remark()));
     }
 
     private Long operator(HttpServletRequest request) {
