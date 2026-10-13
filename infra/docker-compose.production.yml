@@ -99,6 +99,8 @@ services:
       # B-11：强制强密码，无弱默认
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
+      # 指标端点公开（与 full.yml 同款）：Prometheus 抓取桶容量/对象数；端口仅 127.0.0.1 映射
+      MINIO_PROMETHEUS_AUTH_TYPE: public
 
   # B-28：Grafana 禁止 admin/admin 弱默认
   grafana:
