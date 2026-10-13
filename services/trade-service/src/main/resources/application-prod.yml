@@ -6,6 +6,15 @@ app:
 aicabinet:
   security:
     mock-enabled: false
+  # 2026-10-13 生产首启实证修复：application.yml 基座 cors.allowed-origins 硬编码了
+  # http://localhost:5173 / http://127.0.0.1:5173 两个 dev 源且任何 profile 不覆盖，
+  # 而 ProductionStartupValidator#rejectLocalhostCorsInProd 在 prod profile 下只要
+  # 列表出现 localhost 即拒绝启动 ⇒ SPRING_PROFILES_ACTIVE=prod 永远无法启动
+  # （此前生产从未真正以 prod profile 起过栈，staging 不做该检查故未暴露）。
+  # prod 覆盖为纯环境变量注入：同源部署留空=不放宽跨域；跨域部署填运营域名。
+  cors:
+    allowed-origins:
+      - ${CORS_ORIGIN:}
   wechat-pay:
     enabled: true
   wechat-miniapp:
@@ -31,13 +40,3 @@ logging:
   level:
     root: INFO
     com.aicabinet: INFO
-
-# 2026-10-13 生产首启实证修复：application.yml 的 cors.allowed-origins 硬编码了
-# http://localhost:5173 / http://127.0.0.1:5173 两个 dev 源且任何 profile 不覆盖，
-# 而 ProductionStartupValidator#rejectLocalhostCorsInProd 在 prod profile 下只要
-# 列表出现 localhost 即拒绝启动 ⇒ SPRING_PROFILES_ACTIVE=prod 永远无法启动
-# （此前生产从未真正以 prod profile 起过栈，staging 不做该检查故未暴露）。
-# prod 覆盖为纯环境变量注入：同源部署留空=不放宽跨域；跨域部署填运营域名。
-cors:
-  allowed-origins:
-    - ${CORS_ORIGIN:}
