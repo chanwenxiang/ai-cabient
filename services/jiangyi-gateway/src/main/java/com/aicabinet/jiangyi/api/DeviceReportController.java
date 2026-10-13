@@ -61,7 +61,7 @@ public class DeviceReportController {
         String deviceId = device(request);
         boolean success = DoorStateNormalizer.isSuccess(body.lockStatus());
         if (success) {
-            commandTracker.complete(CommandTracker.Kind.OPEN, body.orderNo());
+            commandTracker.complete(CommandTracker.Kind.OPEN, body.orderNo(), deviceId);
             log.info("jiangyi lock OK deviceId={} orderNo={}", deviceId, body.orderNo());
             return ok();
         }
@@ -157,7 +157,7 @@ public class DeviceReportController {
             log.error("jiangyi edge-results forward failed deviceId={} sessionId={}", deviceId, sessionId, e);
         } finally {
             // 识别结果已到达（无论受理结论），关门兜底使命完成
-            commandTracker.complete(CommandTracker.Kind.CLOSE, sessionId);
+            commandTracker.complete(CommandTracker.Kind.CLOSE, sessionId, deviceId);
         }
         return ok();
     }

@@ -64,7 +64,7 @@
 | AU-087 | B-5 | **P1** | InvoiceService:202-209（入口 MerchantPortalController:424-438） | 税资料校验对「全局态」短路：未绑定商户却持 merchant:* 角色账号可读改**任意商户**公司名/税号/银行账号（BOLA） | 主会话亲验（!isGlobalScope 短路 + MerchantScopeService:76-89）；B5 报告 | 新增 | 待修(改 requireAccess+无条件 allowed.contains，修法不依赖 DC-14) | — | — |
 | AU-088 | B-5 | **P1** | MerchantOpsExceptionController:30 + OpsExceptionService:147-153 | 商户异常台账把 null 设备集当「全部」：全局态跨租户读 deviceId/库存异常；写侧已显式拒 null 而读侧没有 | 主会话亲验(listForDevices :152 null→findFiltered 全量) | 新增(同 AU-087 家族) | 待修(补 requireAccess；null/空=无范围) | — | — |
 | AU-089 | B-5 | **P1** | MerchantScopeService:76-89,202-226 + MerchantFeaturePackService:44-48 | **横切根因：「无商户绑定=全局数据范围」**——未绑定账号全通 merchant:* 权限码+全库商户/设备，凡漏 requireAccess 处即跨租户口子（AU-087/088 皆其产物） | 主会话亲验 | 新增 | 待拍板 DC-14 后修(建议门户域 deny-by-default「未绑定=零范围」) | — | — |
-| AU-090 | B-5 | **P1** | MerchantReplenishmentService:339-342,429-432 | 要货数量只判>0 无上界；聚合 Integer::sum 溢出为负直贯仓库出库行/seed 草稿行 | 主会话亲验 | 新增(同 AU-038 家族) | 待修(@Max+long 聚合；上限口径 DC-18) | — | — |
+| AU-090 | B-5 | **P1** | MerchantReplenishmentService:339-342,429-432 | 要货数量只判>0 无上界；聚合 Integer::sum 溢出为负直贯仓库出库行/seed 草稿行 | 主会话亲验 | 新增(同 AU-038 家族) | **已回归** | c4db7052 | 负向先红：QtyCapsTest 4 用例 Failures: 2（两拒例 nothing-was-thrown）；修复后定向 4/4 绿、trade 域全量 **1849/1849** 绿、preflight 绿（上限值 1000/单行、5000/同SKU 待 DC-18 拍板） |
 | AU-091~103 | B-5 | P2 ×13 | 门户面 | COGS 回显(AU-091)、结算内部态透商户(092)、operatorNote/videoUri(093)、锁 message 泄漏×6(094)、价格历史 200 截断(095)、通知只取 get(0)(096)、公告无权限码(097)、404 枚举 oracle(098)、@Valid 缺×11(099)、槽位行无上限(100)、采购/要货无幂等(101)、采购写端点用读码(102)、停用不吊销会话≤30min 窗(103) | B5 报告逐条 file:line | 新增(094 与 AU-113 同族合并修；092/093 关联 DC-15/17) | 登记(随批；102 建议接真前必修) | — | — |
 | AU-104~109 | B-5 | P3 ×6 | 门户面 | 日期 parse 500、英文裸文案、附件无 nosniff、工作台 N+1、maxPrice 溢出、PATCH profile 写穿全绑定商户 | B5 报告 | 新增 | 登记(延后) | — | — |
 | AU-110 | B-6/7 | **P1** | CouponService:237-265（POST /api/v2/coupons/use） | 手动核销券**不校验 DEVICE/MERCHANT 范围**（withinScope 仅自动选券 :479 一处调用，grep 实证）→定向券任意柜机套现=活动资损 | 主会话亲验 | 新增 | **已回归** | dc817225 | 负向先红：CouponServiceTest 23 用例 Failures: 2（DEVICE/MERCHANT 越界拒核断言 400 未成立）；修复后定向 23/23 绿、trade 域全量 **1845/1845 绿**（MVN_EXIT=0）、preflight 绿 |
@@ -125,6 +125,7 @@
 | 二 | AU-047 运营状态 INACTIVE 超管守卫；AU-060 将邑 open-failed/recognize-timeout 设备归属 | bbd5e272 | stub 无守卫 5 例红 2 | gateway 60 绿+trade 1834 绿+preflight |
 | 三 | AU-087/088 税资料 BOLA+异常台账跨租户（MerchantPortalGuard） | 705aa4a5 | 6 例红 3（unbound 三例） | 定向 4/4+2/2 绿、trade 1840/1840 绿、preflight 绿 |
 | 四 | AU-110 券手动核销范围旁路+AU-111 cancelEmptyTask 任务锁收口 | dc817225 | CouponTest 23 红 2 / EmptyTaskTest 6 红2误2 | 定向 23/23+6/6 绿、trade **1845/1845** 绿、preflight 绿 |
+| 五 | AU-090 要货单行上界+接单聚合 long 夹上限（上限待 DC-18） | c4db7052 | QtyCapsTest 4 红 2（nothing-was-thrown） | 定向 4/4 绿、trade **1849/1849** 绿、preflight 绿 |
 | — | merge origin/dev（10-13 午 9 提交：V344/345 种子守卫、监控接线四连修、lint 豁免 .qoder、admin keep-alive+产物重建） | 本次合并 | — | 合并后 preflight 绿；AU-004 对照更新+新立 DC-26 |
 
-下一步（串行队列）：批五 AU-090（qty 上界+聚合溢出，上限口径 DC-18）→ AU-061 tracker 面 → AU-048 → 配置门禁批（AU-074/075/076+AU-124）→ AU-038/039/040 接真前 → C-admin/C-mp 实测 → Track F 余项 → 收尾报告。
+下一步（串行队列）：AU-061 tracker 面（随下批，B-4）→ AU-048 → 配置门禁批（AU-074/075/076+AU-124）→ AU-038/039/040 接真前 → C-admin/C-mp 实测 → Track F 余项 → 收尾报告。
