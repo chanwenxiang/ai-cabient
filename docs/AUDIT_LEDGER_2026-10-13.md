@@ -47,8 +47,8 @@
 | AU-049~057 | B-8 | P2/P3 | 系统面 | S-01 明文透密钥(P2)、S-04 限流形态(P2)、S-12 忘设 profile 兜底(P2 部署门禁)、S-06~S-11（CSRF 单层、refresh 折叠 401、匿名侦察面、短信码竞态、GET 副作用、验证码无签发限流） | B8 报告 ② | 新增 | 登记(随批/延后；S-12 进 F-6 部署校验) | — | — |
 | AU-058 | B-8 | 存疑 | 消费者登录 | login/loginByPassword 不查 INACTIVE——status 语义是否仅运营侧待产品确认 | B8 报告 ③-1 | 新增 | 待拍板 DC-10 | — | — |
 | AU-059 | D | — | easygo diff | Track D 三项复验落盘：**上线阻塞 0**。D-2 九行偏差 6 有意设计+3 接真前复查（pending 等价性/开票分桶/软拦截升级）；D-3 判非阻塞（新链先不扣后争议，严格优于旧窄覆盖自动退款）；D-4 双层超时兜底为净增强、无偏差 | `docs/AUDIT_TRACK_D_EASYGO_DIFF_2026-10-13.md` 逐条 file:line | 复验存量+新增复查项 | 已回归(落盘)；D-2 三项并入接真前 checklist；DC-3 结论已出待用户确认 | — | — |
-| AU-060 | B-4 | **P1** | DeviceReportController:70,94,134,187 | 设备上报面 open-failed/recognize-timeout 支路**不带 deviceId 无归属校验**：合法设备 JWT 可用他人 orderNo 把其 OPENING 会话置 FAILED+释预授权（门实开后取货无结算）或转其 RECOGNIZING 为 DISPUTED；door-event/edge-results 有 DEVICE_MISMATCH 而此两支路 trade 端根本没有 deviceId 形参可比对 | 主会话复核实证（SessionInternalController:56-63、SessionOpenService:92-113 仅状态 CAS、JiangyiInternalController:228-231）；B4 报告 ② | 新增(同 P1-5 家族) | 待修(接真前必修)：trade 端点增 deviceId 归属比对或 gateway 反查会话归属；负向测试先行 | — | — |
-| AU-061 | B-4 | P2 | DeviceReportController:64,109 + CommandTracker:103-105 | 同根因 tracker 面：complete(OPEN)/register(CLOSE) 不校验 orderNo 归属+Redis key 由 body 直 format 无长度/字符集限制 | B4 报告 ② | 新增 | 待修(与 AU-060 同批) | — | — |
+| AU-060 | B-4 | **P1** | DeviceReportController:70,94,134,187 | 设备上报面 open-failed/recognize-timeout 支路**不带 deviceId 无归属校验**：合法设备 JWT 可用他人 orderNo 把其 OPENING 会话置 FAILED+释预授权（门实开后取货无结算）或转其 RECOGNIZING 为 DISPUTED；door-event/edge-results 有 DEVICE_MISMATCH 而此两支路 trade 端根本没有 deviceId 形参可比对 | 主会话复核实证（SessionInternalController:56-63、SessionOpenService:92-113 仅状态 CAS、JiangyiInternalController:228-231）；B4 报告 ② | 新增(同 P1-5 家族) | **已修(待 CI 口径)**：trade markOpenDoorFailed/markRecognitionTimeout 增 reportingDeviceId 归属守卫（null=内部调用方旧语义），gateway 7 处调用点透传 token deviceId | bbd5e272 | 负向先红(stub 无守卫 Tests run: 5, Failures: 2 foreign 用例)后绿(JiangyiSessionBindingGuardTest 5/5)；trade 域全量 1834 绿、gateway 模块 60 绿、preflight 通过 |
+| AU-061 | B-4 | P2 | DeviceReportController:64,109 + CommandTracker:103-105 | 同根因 tracker 面：complete(OPEN)/register(CLOSE) 不校验 orderNo 归属+Redis key 由 body 直 format 无长度/字符集限制 | B4 报告 ② | 新增 | 待修(AU-060 批仅落 trade 归属守卫，tracker 面未动，随下批) | — | — |
 | AU-062 | B-4 | P2 | AdminJiangyiController:71-75,86-93 | 视频台账列表回原始实体（含 videoUrls 对象键）给 ops:device:list，绕开 CB-029 分离的 ops:device:video；三处读权限口径不一 | V339 迁移+JiangyiOrderVideo:39 | 新增 | 待拍板 DC-11 后修 | — | — |
 | AU-063 | B-4 | P2 | DeviceReportController:152-161 | 识别转发 trade 失败被 catch 仍回 200+finally 无条件 complete(CLOSE)：设备不重发且兜底同清→结算降级人工 | B4 报告 ② | 新增 | 待修(随批) | — | — |
 | AU-064~073 | B-4 | P3 | 将邑面 ×10 | message 透 503 配置状态、envelope 契约不一、serialNum 无范围、upsert 竞态丢报、forms 无上限放大、内部映射无校验、watchdog 锁无 owner、gather 回调无限速可否决 ticket、token-revoke 无调用方、AU-040 补证据 | B4 报告 ②④ | 新增 | 登记(延后/随批) | — | — |
@@ -61,6 +61,21 @@
 | AU-080 | F-1 | P2 | production.yml:24,35,100-101 | REDIS_PASSWORD/GRAFANA_ADMIN_PASSWORD/XXL_JOB_ACCESS_TOKEN 仅查存在，弱值可过 | F1 报告 ② | 新增 | 待修(随 AU-074 批) | — | — |
 | AU-081~085 | F-1 | P3 | 配置面 ×5 | 过渡期告警无到期机制、模板 ID 硬编码默认、check-env 与 MQTT_ALLOW_TCP 相悖、system_config 0=不限制误填（关联 DC-6）、Redpanda 无 SASL(=AU-015 续) | F1 报告 ② | 新增/存量 | 登记(延后) | — | — |
 | AU-086 | F-1 | — | .env 入库专项 | **全历史无真实 .env 入 git**（仅 10 个 example 被追踪；HEAD 工作区 2 个 development env 被 gitignore 覆盖实证；密钥形态扫描零命中） | F1 报告 ③ | 澄清存量疑虑 | 判非缺陷 | — | — |
+| AU-087 | B-5 | **P1** | InvoiceService:202-209（入口 MerchantPortalController:424-438） | 税资料校验对「全局态」短路：未绑定商户却持 merchant:* 角色账号可读改**任意商户**公司名/税号/银行账号（BOLA） | 主会话亲验（!isGlobalScope 短路 + MerchantScopeService:76-89）；B5 报告 | 新增 | 待修(改 requireAccess+无条件 allowed.contains，修法不依赖 DC-14) | — | — |
+| AU-088 | B-5 | **P1** | MerchantOpsExceptionController:30 + OpsExceptionService:147-153 | 商户异常台账把 null 设备集当「全部」：全局态跨租户读 deviceId/库存异常；写侧已显式拒 null 而读侧没有 | 主会话亲验(listForDevices :152 null→findFiltered 全量) | 新增(同 AU-087 家族) | 待修(补 requireAccess；null/空=无范围) | — | — |
+| AU-089 | B-5 | **P1** | MerchantScopeService:76-89,202-226 + MerchantFeaturePackService:44-48 | **横切根因：「无商户绑定=全局数据范围」**——未绑定账号全通 merchant:* 权限码+全库商户/设备，凡漏 requireAccess 处即跨租户口子（AU-087/088 皆其产物） | 主会话亲验 | 新增 | 待拍板 DC-14 后修(建议门户域 deny-by-default「未绑定=零范围」) | — | — |
+| AU-090 | B-5 | **P1** | MerchantReplenishmentService:339-342,429-432 | 要货数量只判>0 无上界；聚合 Integer::sum 溢出为负直贯仓库出库行/seed 草稿行 | 主会话亲验 | 新增(同 AU-038 家族) | 待修(@Max+long 聚合；上限口径 DC-18) | — | — |
+| AU-091~103 | B-5 | P2 ×13 | 门户面 | COGS 回显(AU-091)、结算内部态透商户(092)、operatorNote/videoUri(093)、锁 message 泄漏×6(094)、价格历史 200 截断(095)、通知只取 get(0)(096)、公告无权限码(097)、404 枚举 oracle(098)、@Valid 缺×11(099)、槽位行无上限(100)、采购/要货无幂等(101)、采购写端点用读码(102)、停用不吊销会话≤30min 窗(103) | B5 报告逐条 file:line | 新增(094 与 AU-113 同族合并修；092/093 关联 DC-15/17) | 登记(随批；102 建议接真前必修) | — | — |
+| AU-104~109 | B-5 | P3 ×6 | 门户面 | 日期 parse 500、英文裸文案、附件无 nosniff、工作台 N+1、maxPrice 溢出、PATCH profile 写穿全绑定商户 | B5 报告 | 新增 | 登记(延后) | — | — |
+| AU-110 | B-6/7 | **P1** | CouponService:237-265（POST /api/v2/coupons/use） | 手动核销券**不校验 DEVICE/MERCHANT 范围**（withinScope 仅自动选券 :479 一处调用，grep 实证）→定向券任意柜机套现=活动资损 | 主会话亲验 | 新增 | 待修(必修，doUseCoupon 补 withinScope) | — | — |
+| AU-111 | B-6/7 | **P1** | ReplenishmentService:1094-1119 | cancelEmptyTask 裸 findById 无锁无行锁、Task 无 @Version→与 submit/complete 竞态致库存/在途双失真（兄弟写路径全持锁） | 主会话亲验 | 新增(模式=AU-007 同族) | 待修(必修，runWithTaskLock+FOR UPDATE 重查) | — | — |
+| AU-112 | B-6/7 | **P1*** | ReplenishmentService/InventoryOpsService/OpsReplenishmentAdminService 全域 | 补货/设备库存域 **0 处设备数据权限范围**（grep 实证三文件 0 命中，对照 DeviceSlotService 13 处）→挂 scope 的 replenisher 可读写任意商户设备库存 | 主会话 grep 复核 | 新增 | 等级随 DC-20 拍板：是→必修(requireDeviceAccess 统一入参)；否→降 P2 文档化豁免 | — | — |
+| AU-113~120 | B-6/7 | P2 ×8 | 仓储/营销面 | 锁包装 500 泄漏全域 70+ 处(集中修 handler)、两端点缺注解单层防线、PUT /inventory 零校验可负库存、负 pointsCost 反向加积分、等级规则无值域、索赔台账 size 未钳、write-off int 溢出、活动生命周期无守卫(**负预算=无限**) | B67 报告逐条 file:line | 新增(113 与 AU-094 同族) | 登记(随批；116/120 建议接真前必修) | — | — |
+| AU-121~123 | B-6/7 | P3 ×3 | 同上 | @Valid 空挂+batchIssue 无上限部分提交、GET 用 edit 写码、slotType 无枚举白名单 | B67 报告 | 新增 | 登记(延后) | — | — |
+| AU-124 | B-9 | P2 | OpsCommercialController:33 + CommercialFlowService:61-173 | commercial-flow 一键跑通 prod 可达（造演示供应商/路线+**真实订单并结算**+对账）。**定案降级**：子代理判 P1，主会话复核进入前提=已持 ops:admin（超管保留码），属生产脏数据风险而非越权 | 主会话亲验(仅 ops:admin 门，无 mock-enabled 条件装配) | 推翻子代理定级 | 待修(随配置门禁批：条件装配或运行期拒绝) | — | — |
+| AU-125 | B-9 | P2 | AnnouncementController:36-39 | /ops/announcements/published 无权限码（本文件其余 5 mapping 全有，grep 实证），任意登录主体读全部定向公告且回域实体；clients 无调用方疑死端点 | 主会话亲验 | 新增(同 AU-097 家族) | 待修(删除或补码+audience 过滤+DTO) | — | — |
+| AU-126~131 | B-9 | P3 ×6 | 运维边缘 | 任务失败异常回显、争议证据 pending 无数量上限、nearby 全表扫描、通知 limit 未钳、XXL token 不在 validator 清单、OTA 无代码签名(接真硬件前评估) | B9 报告 | 新增(PlatformFund 裸 Map/负充值与 AU-008 重叠不另立号) | 登记(延后/随批) | — | — |
+| AU-132 | B-9 | — | DevMock/Internal 暴露专项 | 两条上线关键疑虑证伪：DevMock prod **三层不可达**（bean 条件装配+validator 硬拒+路由白名单）；\*Internal **未公网暴露**（/internal/** 网关 403×3、CIDR/key 启动强校验、直连端口绑 127.0.0.1） | B9 报告专项结论一/二（逐行 file:line 证据链） | 复验存量 | 判非缺陷(残留=无 profile 部署纪律，归 AU-051/079) | — | — |
 
 ## 待用户拍板清单（执行中滚动）
 
@@ -79,11 +94,23 @@
 | DC-11 | 视频台账列表对 `ops:device:list` 是否需完全脱敏（CB-029 意图是「看视频须单独授权」，列表行含 orderNo+对象键算不算「视频信息」需安全/产品定性） | Track B-4 存疑③，决定 AU-062 修法 |
 | DC-12 | 将邑 STS 上传凭证作用域：现为全前缀共享（任一设备 15 分钟内可覆写他人待传视频路径），是否改设备级 `{dirName}/{deviceId}*`（协议是否允许需核 V16） | Track B-4 存疑① |
 | DC-13 | modelTextUrl 直连 GET（URL 由将邑侧数据决定）是否限定 `*.aliyuncs.com` 域（SSRF 面） | Track B-4 存疑② |
+| DC-14 | 「未绑定商户=全局数据范围」是否刻意设计（运营/演示账号后门形态）——若保留须区分「未绑定」与「admin」，否则 AU-087/088 类口子随新端点反复出现 | Track B-5 AU-089 根因，决定门户域 scope 修法 |
+| DC-15 | 争议工单 `operatorNote`（含「运营直接退款: …」内部话术）与原始 `videoUri` 对象键是否该给商户 | Track B-5 AU-093，技术侧建议拆 merchantVisibleNote |
+| DC-16 | 分仓采购暴露平台 COGS（catalogUnitCost）+ 全量供应商表——供应商名录属商业机密，展示范围需业务确认 | Track B-5 存疑（ProcurementService:216-242） |
+| DC-17 | 结算/分账内部态（enabled/apiReady/mock/retry）商户可见性：全隐藏 vs 只隐藏 mock/retry | Track B-5 AU-092 |
+| DC-18 | 采购/要货幂等键形态与要货数量上限取值（运营口径） | Track B-5 AU-090/101 |
+| DC-19 | 停用成员后 ≤30 分钟会话访问窗（仍可触钱包/提现端点）是否可接受 | Track B-5 AU-103，与 B-1 资金面合并拍板 |
+| DC-20 | 生产运营体系中 replenisher/线长是否会以 merchant/route 挂接（scope 受限）形态出现 | Track B-6/7 Q1，**决定 AU-112 等级与修法** |
+| DC-21 | 仓库面（warehouse/bins/close-sheets/transfers）不挂设备 scope——仓库实体是否不属商户资产 | Track B-6/7 Q2 |
+| DC-22 | 任何 edit 权限运营可代签到/代完成补货任务（operatorId 被丢弃/不校验 assignee）——绩效与视频证据归属链错位是否接受 | Track B-6/7 Q3 |
+| DC-23 | IN_PROGRESS 盘点单不可取消（仅 DRAFT 可），现场中断的处理路径是什么 | Track B-6/7 Q4 |
+| DC-24 | V118 授 replenisher `ops:warehouse:list`（可翻全仓库存）——最小权限口径是否接受 | Track B-6/7 Q5 |
+| DC-25 | OpsAnalytics footfall 无数据范围入参，线级管理员看全网聚合——有意 vs 缺口 | Track B-9 存疑④ |
 
 ## 轨道状态
 
 - Track A（存量复扫）：✅ A-1~A-5 全部落盘（`AUDIT_TRACK_A_FIXQUEUE_RESIDUAL` + `AUDIT_TRACK_A_THREE_END_GAP_SCAN`）
-- Track B（接口契约）：B-1/B-2/B-3/B-4/B-8 ✅ 落盘；B-5/B-6/B-7/B-9 子代理在跑
+- Track B（接口契约）：B-1~B-9 **全部 ✅ 落盘**（B-5/B-6/7/B-9 于本日完成子代理初审+主会话亲验复核登记，AU-087~132 已重映射入台账；C-admin RBAC 矩阵需补验前端菜单映射，B-6/7 Q6 遗留）
 - Track C（三端实测）：基础设施已探明（DevTools 可用+双产物指服务器）；C-admin/C-mp 待第 2 波
 - Track D（easygo diff）：✅ 落盘（`AUDIT_TRACK_D_EASYGO_DIFF`：上线阻塞 0；D-2 三项接真前复查并入最终 checklist）
 - Track E（将邑专项）：✅ 落盘（E-1~E-4，AU-003 判非缺陷、AU-009 confirmActivate 新立）
