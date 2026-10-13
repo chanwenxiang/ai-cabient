@@ -9,8 +9,9 @@ import java.util.List;
  * @param closeId           单据 ID
  * @param warehouseId       仓库 ID
  * @param warehouseName     仓库名
- * @param yearMonth         月结月份（yyyy-MM，Asia/Shanghai 口径——与既有 closeSheet 一致）
+ * @param yearMonth         账期标签 = 结束月（yyyy-MM；账期 = 上月26 00:00 ~ 本月25 24:00，V348）
  * @param status            DRAFT / APPROVED（APPROVED 后锁单不可改删）
+ * @param openingSource     期初来源（V348）：PERIOD_CLOSE=上期实盘结转 / BOOK=账面结转（需告警）
  * @param lossQty           盘亏件数合计（gap&lt;0 行）
  * @param surplusQty        盘盈件数合计（gap&gt;0 行）
  * @param lossAmountCents   盘亏金额合计（成本未配置的行不计入，行级留空提示）
@@ -28,6 +29,7 @@ public record WarehouseCloseSheetDto(
         String warehouseName,
         String yearMonth,
         String status,
+        String openingSource,
         int lossQty,
         int surplusQty,
         long lossAmountCents,

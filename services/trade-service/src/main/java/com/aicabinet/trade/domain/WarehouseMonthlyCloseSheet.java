@@ -25,12 +25,19 @@ public class WarehouseMonthlyCloseSheet {
     public static final String STATUS_DRAFT = "DRAFT";
     public static final String STATUS_APPROVED = "APPROVED";
 
+    /** V348 期初来源：上期单实盘结转（账实衔接的正规路径）。 */
+    public static final String OPENING_PERIOD_CLOSE = "PERIOD_CLOSE";
+    /** V348 期初来源：账面流水结转（无上期实盘，需告警「期初为账面值」）。 */
+    public static final String OPENING_BOOK = "BOOK";
+
     @TableId(type = IdType.AUTO)
     private Long closeId;
 
     private String warehouseId;
     private String yearMonth;
     private String status;
+    /** V348 期初来源：PERIOD_CLOSE（上期实盘结转）/ BOOK（账面结转，需告警）。 */
+    private String openingSource;
     private int lossQty;
     private int surplusQty;
     private long lossAmountCents;
@@ -53,6 +60,8 @@ public class WarehouseMonthlyCloseSheet {
     public void setYearMonth(String yearMonth) { this.yearMonth = yearMonth; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getOpeningSource() { return openingSource; }
+    public void setOpeningSource(String openingSource) { this.openingSource = openingSource; }
     public int getLossQty() { return lossQty; }
     public void setLossQty(int lossQty) { this.lossQty = lossQty; }
     public int getSurplusQty() { return surplusQty; }

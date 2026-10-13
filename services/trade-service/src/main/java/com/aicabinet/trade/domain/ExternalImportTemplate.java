@@ -27,9 +27,13 @@ public class ExternalImportTemplate {
     public static final String QTY_DIRECT = "DIRECT";
     public static final String QTY_BY_DIFF = "BY_DIFF";
     public static final String QTY_SALES = "SALES";
+    /** 实盘数（V348 10日盘点导入）：qty 列直接就是实盘件数，非差量非销量。 */
+    public static final String QTY_STOCKTAKE_COUNT = "STOCKTAKE_COUNT";
 
     public static final String KEY_PRODUCT_ID = "PRODUCT_ID";
     public static final String KEY_NAME = "NAME";
+    /** 本系统 SKU 直用（V348 盘点导入：Excel 内 SKU 已是本系统 skuId，无需映射治理）。 */
+    public static final String KEY_SKU_ID = "SKU_ID";
 
     public static final String PERSON_SHEET_NAME = "SHEET_NAME";
     public static final String PERSON_COLUMN = "COLUMN";

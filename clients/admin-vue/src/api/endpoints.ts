@@ -348,6 +348,12 @@ export const AdminEndpoints = {
     `${ops}/warehouse/close-sheets/${encodeURIComponent(String(closeId))}/approve`,
   warehouseCloseSheetDispose: (closeId: string | number, lineId: string | number) =>
     `${ops}/warehouse/close-sheets/${encodeURIComponent(String(closeId))}/lines/${encodeURIComponent(String(lineId))}/disposition`,
+  /** 草稿阶段行编辑（V348）：实盘修正/摇机·费用抵扣补录/备注。 */
+  warehouseCloseSheetLineUpdate: (closeId: string | number, lineId: string | number) =>
+    `${ops}/warehouse/close-sheets/${encodeURIComponent(String(closeId))}/lines/${encodeURIComponent(String(lineId))}`,
+  /** 财务 18 列导出（V348，xlsx）。 */
+  warehouseCloseSheetExport: (closeId: string | number) =>
+    `${ops}/warehouse/close-sheets/${encodeURIComponent(String(closeId))}/export`,
   warehouseCloseSheetDrift: (closeId: string | number) =>
     `${ops}/warehouse/close-sheets/${encodeURIComponent(String(closeId))}/drift`,
   warehouseStocktakes: (query: URLSearchParams | string) =>

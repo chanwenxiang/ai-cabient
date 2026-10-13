@@ -31,5 +31,9 @@ VALUES
 ('keqing_water', '客情用水', 'XLSX', 'FIRST', 'DIRECT', 'NAME', 'COLUMN', 'GUEST_WATER',
  '{"extName":"商品名称","spec":"规格","qty":"实发数","person":"领货人"}'::jsonb,
  TRUE,
- '线长手工单（自动不了，归本通道）；操作类型=客情用水，月结落客情列')
+ '线长手工单（自动不了，归本通道）；操作类型=客情用水，月结落客情列'),
+('stocktake_period', '期末盘点导入', 'XLSX', 'ALL', 'STOCKTAKE_COUNT', 'SKU_ID', 'SHEET_NAME', 'WAREHOUSE_STOCKTAKE',
+ '{"extId":"SKU","qty":"实盘数","person":"盘点人"}'::jsonb,
+ TRUE,
+ 'V348 10日盘点导入（每线长一个 sheet，SKU 已是本系统 skuId）：只取仓×SKU实盘数落月结；🔴所属月份一律填下一账期（N期末盘点=上期实盘+下期期初结转）；Excel 内人工流水列不导入（与系统流水交叉校验，不拦截）；列头不符时运营在 DB 调 column_map')
 ON CONFLICT (channel_code) DO NOTHING;

@@ -372,6 +372,33 @@ public class OpsWarehouseController {
                 body.responsibleParty(), body.claimNo()));
     }
 
+    /** 草稿阶段行编辑（V348）：实盘修正 / 摇机损耗·费用抵扣手工补录 / 行备注；null=不改。 */
+    @RequiresPermissions("ops:warehouse:edit")
+    @PatchMapping("/warehouse/close-sheets/{closeId}/lines/{lineId}")
+    public ApiResponse<com.aicabinet.common.dto.WarehouseCloseSheetDto> updateCloseLine(
+            HttpServletRequest request,
+            @PathVariable Long closeId,
+            @PathVariable Long lineId,
+            @RequestBody UpdateCloseLineRequest body) {
+        return ApiResponse.ok(monthlyCloseSheetService.updateLine(
+                operatorId(request), closeId, lineId,
+                body.countedQty(), body.rockLossQty(), body.feeDeductQty(), body.lineRemark()));
+    }
+
+    /** 财务 18 列导出（V348）：对齐财务现行 Excel（xlsx，金额=元）。 */
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/close-sheets/{closeId}/export")
+    public ResponseEntity<byte[]> exportCloseSheet(@PathVariable Long closeId) {
+        byte[] xlsx = monthlyCloseSheetService.exportXlsx(closeId);
+        String filename = "monthly-close-" + closeId + ".xlsx";
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(xlsx);
+    }
+
     /** 重算漂移核对：审批后底层数据是否又变动（不一致前端亮红）。 */
     @RequiresPermissions("ops:warehouse:list")
     @GetMapping("/warehouse/close-sheets/{closeId}/drift")
@@ -382,4 +409,7 @@ public class OpsWarehouseController {
     public record GenerateCloseSheetRequest(String warehouseId, String yearMonth) {}
 
     public record DisposeLineRequest(String disposition, String responsibleParty, String claimNo) {}
+
+    public record UpdateCloseLineRequest(Integer countedQty, Integer rockLossQty,
+                                         Integer feeDeductQty, String lineRemark) {}
 }

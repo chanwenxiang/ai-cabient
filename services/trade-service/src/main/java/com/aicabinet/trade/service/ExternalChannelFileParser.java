@@ -240,7 +240,13 @@ public class ExternalChannelFileParser {
                             String personOverride) {
         String name = extName == null ? "" : extName.trim();
         String key;
-        if (ExternalImportTemplate.KEY_PRODUCT_ID.equals(template.getKeyField())) {
+        if (ExternalImportTemplate.KEY_SKU_ID.equals(template.getKeyField())) {
+            // V348 盘点导入：extId 列=本系统 skuId，直用；商品名列可有无所谓
+            key = extId == null || extId.isBlank() ? "" : extId.trim();
+            if (key.isBlank()) {
+                throw new IllegalArgumentException("SKU 列为空（盘点导入按本系统 SKU 定位）");
+            }
+        } else if (ExternalImportTemplate.KEY_PRODUCT_ID.equals(template.getKeyField())) {
             key = extId == null || extId.isBlank() ? name : extId.trim();
             if (key.isBlank()) {
                 throw new IllegalArgumentException("商品ID与商品名称均为空");
@@ -283,6 +289,17 @@ public class ExternalChannelFileParser {
                     throw new IllegalArgumentException("销量列为空");
                 }
                 return (int) Math.abs(qty);
+            }
+            case ExternalImportTemplate.QTY_STOCKTAKE_COUNT -> {
+                // V348 盘点导入：qty 列 = 实盘数（非差量）；负数为脏行
+                Long qty = parseLong(value(cells, headerCols, "qty"));
+                if (qty == null) {
+                    throw new IllegalArgumentException("实盘数列为空");
+                }
+                if (qty < 0) {
+                    throw new IllegalArgumentException("实盘数为负（" + qty + "）");
+                }
+                return qty.intValue();
             }
             default -> {
                 String raw = value(cells, headerCols, "qty");

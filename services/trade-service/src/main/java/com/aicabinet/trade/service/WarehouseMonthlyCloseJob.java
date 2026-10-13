@@ -2,25 +2,27 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.WarehouseDto;
 import com.aicabinet.trade.support.ScheduleZones;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
- * 每月自动生成上月仓库月结草稿（用户拍板 2026-10-13）。
+ * 仓库月结草稿自动生成（V348 账期制，用户拍板 2026-10-13 节奏 A）。
  *
- * <p>口径：系统只负责算差异明细（应有 = 期初+采购入库+调入−调出−上柜−退货；实盘 = 本月最近完成盘点；
- * 差异金额 = |gap| × 目录采购成本），<b>不做任何扣款动作</b>——财务线下核对后进行实际扣钱；
- * 判责进索赔台账（CLAIM）也只是挂账。详见 {@link WarehouseMonthlyCloseSheetService}。</p>
+ * <p>🔴 <b>拍板 A = 每日 02:10 幂等检查</b>：目标账期 = 刚结束的账期（标签=结束月；
+ * 今天 ≥26 日 → 本月标签，否则上月标签——账期 26 日 00:00~25 日 24:00，26 日凌晨起
+ * 刚结束的账期标签是本月）。无草稿则生成；已有 DRAFT/APPROVED 跳过——
+ * <b>DRAFT 不重生成</b>，保护财务在草稿上的手工补录（摇机损耗/费用抵扣/实盘修正）；
+ * 人工「重新生成」按钮走 {@code generateSheet}（会删 DRAFT 重建，带确认）。
  *
- * <p>幂等：已审批（APPROVED）的仓/月跳过（generateSheet 对 APPROVED 抛 409）；
- * DRAFT 直接重生成（草稿随时重生成是既有语义）。无负责人的仓同样生成——月结是仓维度对账，
- * 不依赖负责人（负责人用于日常出库闸门，见 SATELLITE_WAREHOUSE.md）。</p>
+ * <p>口径：系统只负责算差异明细（应有 = 期初+采购入库+调入−调出−上柜−退货；四损耗列单独展示；
+ * 实盘 = 账期内最近盘点或期末盘点导入；差异金额 = |gap| × 单价快照），<b>不做任何扣款动作</b>——
+ * 财务线下核对后实际扣钱；判责进索赔台账（CLAIM）也只是挂账。
+ * 详见 {@link WarehouseMonthlyCloseSheetService}。
  */
 @Service
 public class WarehouseMonthlyCloseJob {
@@ -43,37 +45,36 @@ public class WarehouseMonthlyCloseJob {
         this.taskService = taskService;
     }
 
-    /** 每月 1 日 02:00（上海时区）生成上月各仓月结草稿；与 ops-fee-bill-monthly 错峰。 */
-    @Scheduled(cron = "0 0 2 1 * ?", zone = ScheduleZones.ZONE_PROP)
-    public void generateLastMonthSheets() {
+    /**
+     * 每日 02:10（上海时区）幂等检查：刚结束账期无草稿则生成。
+     * 与 ops-fee-bill-monthly（每月）错峰意义弱化（本任务每日跑但仅月末几天实际生成）。
+     */
+    @Scheduled(cron = "0 10 2 * * ?", zone = ScheduleZones.ZONE_PROP)
+    public void ensureLastClosedPeriodSheets() {
         long taskStart = System.nanoTime();
         if (!taskService.tryBegin(TASK_KEY, 1800)) {
             return;
         }
-        String month = YearMonth.now(ScheduleZones.ZONE).minusMonths(1).toString();
-        boolean failed = false;
+        // 今天 ≥26 日 → 刚结束账期标签=本月（本月 25 日刚过）；否则=上月
+        LocalDate today = LocalDate.now(ScheduleZones.ZONE);
+        YearMonth target = today.getDayOfMonth() >= 26
+                ? YearMonth.from(today)
+                : YearMonth.from(today).minusMonths(1);
+        String month = target.toString();
         try {
             List<WarehouseDto> warehouses = warehouseService.listWarehouses().stream()
                     .filter(w -> "ACTIVE".equalsIgnoreCase(w.status()))
                     .toList();
             int generated = 0;
-            int skippedApproved = 0;
+            int skippedExisting = 0;
             int failedCount = 0;
             StringBuilder failedWarehouses = new StringBuilder();
             for (WarehouseDto warehouse : warehouses) {
                 try {
-                    sheetService.generateSheet(SYSTEM_OPERATOR_ID, warehouse.warehouseId(), month);
-                    generated++;
-                } catch (ResponseStatusException e) {
-                    if (HttpStatus.CONFLICT.equals(e.getStatusCode())) {
-                        // 该仓该月已审批锁定：按月自动任务重跑属预期，跳过不告警
-                        skippedApproved++;
+                    if (sheetService.ensureDraft(SYSTEM_OPERATOR_ID, warehouse.warehouseId(), month)) {
+                        generated++;
                     } else {
-                        failedCount++;
-                        failedWarehouses.append(warehouse.warehouseId()).append('(')
-                                .append(e.getReason()).append(") ");
-                        log.warn("monthly close auto-generate failed warehouse={} month={}",
-                                warehouse.warehouseId(), month, e);
+                        skippedExisting++;
                     }
                 } catch (Exception e) {
                     failedCount++;
@@ -83,14 +84,13 @@ public class WarehouseMonthlyCloseJob {
                             warehouse.warehouseId(), month, e);
                 }
             }
-            String summary = "账期 " + month + "：生成 " + generated + " 仓，跳过已审批 "
-                    + skippedApproved + " 仓" + (failedCount > 0 ? "，失败 " + failedCount + " 仓："
+            String summary = "账期 " + month + "：生成 " + generated + " 仓，已有单跳过 "
+                    + skippedExisting + " 仓" + (failedCount > 0 ? "，失败 " + failedCount + " 仓："
                     + failedWarehouses : "");
             log.info("warehouse monthly close job done: {}", summary);
             // 仓级失败不抛出（其余仓已生成），但任务状态记 FAILED 让运营台看见 partial failure
             taskService.finish(TASK_KEY, failedCount > 0 ? "FAILED" : "SUCCESS", summary, taskStart);
         } catch (Exception e) {
-            failed = true;
             log.error("warehouse monthly close job failed month={}", month, e);
             taskService.finish(TASK_KEY, "FAILED", e.getMessage(), taskStart);
             throw e;

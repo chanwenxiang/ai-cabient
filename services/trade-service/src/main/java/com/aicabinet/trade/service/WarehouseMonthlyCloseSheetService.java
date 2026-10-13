@@ -6,19 +6,30 @@ import com.aicabinet.common.dto.WarehouseMonthlyCloseDto;
 import com.aicabinet.common.dto.WarehouseMonthlyCloseLineDto;
 import com.aicabinet.trade.domain.InventoryWriteOff;
 import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.domain.Warehouse;
 import com.aicabinet.trade.domain.WarehouseMonthlyCloseLine;
 import com.aicabinet.trade.domain.WarehouseMonthlyCloseSheet;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.mapper.WarehouseMonthlyCloseLineMapper;
 import com.aicabinet.trade.mapper.WarehouseMonthlyCloseSheetMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayOutputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -49,19 +60,22 @@ public class WarehouseMonthlyCloseSheetService {
     private final SkuCatalogMapper skuCatalogMapper;
     private final InventoryWriteOffMapper writeOffMapper;
     private final com.aicabinet.trade.mapper.UserInfoMapper userInfoMapper;
+    private final WarehouseMapper warehouseMapper;
 
     public WarehouseMonthlyCloseSheetService(WarehouseMonthlyCloseSheetMapper sheetMapper,
                                              WarehouseMonthlyCloseLineMapper lineMapper,
                                              WarehouseMonthlyCloseService closeCalculator,
                                              SkuCatalogMapper skuCatalogMapper,
                                              InventoryWriteOffMapper writeOffMapper,
-                                             com.aicabinet.trade.mapper.UserInfoMapper userInfoMapper) {
+                                             com.aicabinet.trade.mapper.UserInfoMapper userInfoMapper,
+                                             WarehouseMapper warehouseMapper) {
         this.sheetMapper = sheetMapper;
         this.lineMapper = lineMapper;
         this.closeCalculator = closeCalculator;
         this.skuCatalogMapper = skuCatalogMapper;
         this.writeOffMapper = writeOffMapper;
         this.userInfoMapper = userInfoMapper;
+        this.warehouseMapper = warehouseMapper;
     }
 
     /** 生成（或重新生成 DRAFT）月结单。APPROVED 已存在 → 409 拒绝（锁单不可重生成）。 */
@@ -84,6 +98,23 @@ public class WarehouseMonthlyCloseSheetService {
             sheetMapper.deleteById(existing.getCloseId());
         }
         return insertSheet(operatorId, computed);
+    }
+
+    /**
+     * 自动任务幂等入口（V348 拍板 A）：无单 → 生成；已有 DRAFT/APPROVED → 跳过。
+     * 🔴 与 {@link #generateSheet} 的区别：DRAFT <b>不重生成</b>——自动任务每日跑，
+     * 重生成会覆盖财务在草稿上的手工补录（摇机损耗/费用抵扣/实盘修正）。
+     *
+     * @return true = 本次新生成
+     */
+    @Transactional
+    public boolean ensureDraft(Long operatorId, String warehouseId, String yearMonth) {
+        String normalized = WarehouseMonthlyCloseService.parseYearMonth(yearMonth).toString();
+        if (findSheet(warehouseId, normalized) != null) {
+            return false;
+        }
+        generateSheet(operatorId, warehouseId, normalized);
+        return true;
     }
 
     /** 审批通过：DRAFT → APPROVED，锁单。审批人显示名服务端解析（照 OpsCatalogAdminService 模式）。 */
@@ -153,6 +184,160 @@ public class WarehouseMonthlyCloseSheetService {
         return toDto(sheet, true);
     }
 
+    /**
+     * 草稿阶段行编辑（V348）：仅 DRAFT 可改——实盘修正、摇机损耗/费用抵扣手工补录、行备注。
+     * 编辑后重算差异与金额、行级 editedFlag=true（漂移核对跳过），单级损耗/盘盈汇总重算。
+     * null 字段 = 不修改（部分更新）。
+     */
+    @Transactional
+    public WarehouseCloseSheetDto updateLine(Long operatorId, Long closeId, Long lineId,
+                                             Integer countedQty, Integer rockLossQty,
+                                             Integer feeDeductQty, String lineRemark) {
+        WarehouseMonthlyCloseSheet sheet = requireSheet(closeId);
+        if (!WarehouseMonthlyCloseSheet.STATUS_DRAFT.equals(sheet.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "月结单审批后不可编辑，请重新生成草稿");
+        }
+        WarehouseMonthlyCloseLine line = lineMapper.selectById(lineId);
+        if (line == null || !closeId.equals(line.getCloseId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "月结行不存在");
+        }
+        if (countedQty != null) {
+            if (countedQty < 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "实盘数不能为负");
+            }
+            line.setCountedQty(countedQty);
+            line.setGapQty(countedQty - line.getExpectedQty());
+        }
+        if (rockLossQty != null) {
+            if (rockLossQty < 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "摇机损耗不能为负");
+            }
+            line.setRockLossQty(rockLossQty);
+        }
+        if (feeDeductQty != null) {
+            if (feeDeductQty < 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "费用抵扣不能为负");
+            }
+            line.setFeeDeductQty(feeDeductQty);
+        }
+        if (lineRemark != null) {
+            line.setLineRemark(lineRemark.isBlank() ? null : lineRemark.trim());
+        }
+        line.setEditedFlag(true);
+        if (line.getGapQty() != null) {
+            // 金额重算优先行单价快照（生成时已落库）；无快照再退目录成本
+            Long amount = null;
+            if (line.getGapQty() != 0) {
+                if (line.getUnitPriceCents() != null) {
+                    amount = line.getUnitPriceCents() * Math.abs(line.getGapQty());
+                } else {
+                    amount = amountFor(line.getSkuId(), Math.abs(line.getGapQty()));
+                }
+            }
+            line.setGapAmountCents(amount);
+        }
+        lineMapper.updateById(line);
+        recalcSheetTotals(sheet);
+        return toDto(sheet, true);
+    }
+
+    /** 单级汇总重算（行编辑/生成后共用；gap 空的行不计）。 */
+    private void recalcSheetTotals(WarehouseMonthlyCloseSheet sheet) {
+        int lossQty = 0;
+        int surplusQty = 0;
+        long lossAmount = 0;
+        long surplusAmount = 0;
+        for (WarehouseMonthlyCloseLine r : lineMapper.selectList(Wrappers
+                .<WarehouseMonthlyCloseLine>lambdaQuery()
+                .eq(WarehouseMonthlyCloseLine::getCloseId, sheet.getCloseId()))) {
+            if (r.getGapQty() == null || r.getGapQty() == 0) {
+                continue;
+            }
+            long amount = r.getGapAmountCents() == null ? 0 : r.getGapAmountCents();
+            if (r.getGapQty() < 0) {
+                lossQty += -r.getGapQty();
+                lossAmount += amount;
+            } else {
+                surplusQty += r.getGapQty();
+                surplusAmount += amount;
+            }
+        }
+        sheet.setLossQty(lossQty);
+        sheet.setSurplusQty(surplusQty);
+        sheet.setLossAmountCents(lossAmount);
+        sheet.setSurplusAmountCents(surplusAmount);
+        sheetMapper.updateById(sheet);
+    }
+
+    /**
+     * 财务 18 列导出（V348，对齐财务现行 Excel）：库存月份/分仓名称/商品sku/商品全称/上期盘点/
+     * 采购入库/仓库调入/仓库外调/机器补货/摇机损耗/过期损耗/客情用水/费用抵扣/仓库应有/
+     * 实际盘点数/差异/单价/金额。
+     */
+    @Transactional(readOnly = true)
+    public byte[] exportXlsx(Long closeId) {
+        WarehouseCloseSheetDto sheet = getSheet(closeId);
+        String[] headers = {"库存月份", "分仓名称", "商品sku", "商品全称", "上期盘点", "采购入库",
+                "仓库调入", "仓库外调", "机器补货", "摇机损耗", "过期损耗", "客情用水", "费用抵扣",
+                "仓库应有", "实际盘点数", "差异", "单价", "金额"};
+        try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet xs = wb.createSheet("月结");
+            CellStyle headStyle = wb.createCellStyle();
+            headStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            Font bold = wb.createFont();
+            bold.setBold(true);
+            headStyle.setFont(bold);
+            Row head = xs.createRow(0);
+            for (int c = 0; c < headers.length; c++) {
+                Cell cell = head.createCell(c);
+                cell.setCellValue(headers[c]);
+                cell.setCellStyle(headStyle);
+                xs.setColumnWidth(c, 12 * 256);
+            }
+            int r = 1;
+            for (WarehouseCloseSheetLineDto l : sheet.lines()) {
+                Row row = xs.createRow(r++);
+                int c = 0;
+                row.createCell(c++).setCellValue(sheet.yearMonth());
+                row.createCell(c++).setCellValue(sheet.warehouseName());
+                row.createCell(c++).setCellValue(l.skuId());
+                row.createCell(c++).setCellValue(l.skuName());
+                row.createCell(c++).setCellValue(l.openingQty());
+                row.createCell(c++).setCellValue(l.purchaseInQty());
+                row.createCell(c++).setCellValue(l.transferInQty());
+                row.createCell(c++).setCellValue(l.transferOutQty());
+                row.createCell(c++).setCellValue(l.restockQty());
+                row.createCell(c++).setCellValue(l.rockLossQty());
+                row.createCell(c++).setCellValue(l.expiredLossQty());
+                row.createCell(c++).setCellValue(l.guestWaterQty());
+                row.createCell(c++).setCellValue(l.feeDeductQty());
+                row.createCell(c++).setCellValue(l.expectedQty());
+                if (l.countedQty() != null) {
+                    row.createCell(c).setCellValue(l.countedQty());
+                }
+                c++;
+                if (l.gapQty() != null) {
+                    row.createCell(c).setCellValue(l.gapQty());
+                }
+                c++;
+                if (l.unitPriceCents() != null) {
+                    row.createCell(c).setCellValue(l.unitPriceCents() / 100.0);
+                }
+                c++;
+                if (l.gapAmountCents() != null) {
+                    row.createCell(c).setCellValue(l.gapAmountCents() / 100.0);
+                }
+            }
+            wb.write(out);
+            return out.toByteArray();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("月结导出失败：" + e.getMessage(), e);
+        }
+    }
+
     /** CLAIM：写 {@code inventory_write_off}（责任方 + 索赔额）进 E4a 台账，回填关联 ID。 */
     private void doClaim(Long operatorId, WarehouseMonthlyCloseSheet sheet,
                          WarehouseMonthlyCloseLine line, String responsibleParty, String claimNo) {
@@ -218,12 +403,22 @@ public class WarehouseMonthlyCloseSheetService {
                 .<WarehouseMonthlyCloseLine>lambdaQuery()
                 .eq(WarehouseMonthlyCloseLine::getCloseId, closeId));
         Map<String, int[]> saved = new HashMap<>(); // skuId → [expected, counted]
+        List<String> editedSkuIds = new ArrayList<>();
         for (WarehouseMonthlyCloseLine r : rows) {
+            // V348：草稿阶段人工编辑过的行（实盘修正/手工补录）不参与漂移比对——
+            // 编辑值是财务的权威录入，与实时重算天然不一致
+            if (r.isEditedFlag()) {
+                editedSkuIds.add(r.getSkuId());
+                continue;
+            }
             saved.put(r.getSkuId(), new int[]{r.getExpectedQty(),
                     r.getCountedQty() == null ? Integer.MIN_VALUE : r.getCountedQty()});
         }
         List<String> driftedSkus = new ArrayList<>();
         for (WarehouseMonthlyCloseLineDto l : now.lines()) {
+            if (editedSkuIds.contains(l.skuId())) {
+                continue; // 编辑行不参与比对
+            }
             int[] old = saved.get(l.skuId());
             int countedNow = l.countedQty() == null ? Integer.MIN_VALUE : l.countedQty();
             if (old == null || old[0] != l.expectedQty() || old[1] != countedNow) {
@@ -236,6 +431,7 @@ public class WarehouseMonthlyCloseSheetService {
         out.put("consistent", consistent);
         out.put("driftedSkuCount", driftedSkus.size());
         out.put("driftedSkuIds", driftedSkus.stream().limit(50).toList());
+        out.put("editedSkuIds", editedSkuIds.stream().limit(50).toList());
         return out;
     }
 
@@ -246,6 +442,8 @@ public class WarehouseMonthlyCloseSheetService {
         sheet.setWarehouseId(computed.warehouseId());
         sheet.setYearMonth(computed.yearMonth());
         sheet.setStatus(WarehouseMonthlyCloseSheet.STATUS_DRAFT);
+        sheet.setOpeningSource(computed.openingSource() == null
+                ? WarehouseMonthlyCloseSheet.OPENING_BOOK : computed.openingSource());
         sheetMapper.insert(sheet);
 
         int lossQty = 0;
@@ -269,8 +467,20 @@ public class WarehouseMonthlyCloseSheetService {
             row.setCountedQty(l.countedQty());
             row.setGapQty(l.gapQty());
             row.setGapDisposition(WarehouseMonthlyCloseLine.DISP_PENDING);
+            row.setRockLossQty(l.rockLossQty());
+            row.setExpiredLossQty(l.expiredLossQty());
+            row.setGuestWaterQty(l.guestWaterQty());
+            row.setFeeDeductQty(l.feeDeductQty());
+            row.setUnitPriceCents(l.unitPriceCents());
             if (l.gapQty() != null && l.gapQty() != 0) {
-                Long amount = amountFor(l.skuId(), Math.abs(l.gapQty()));
+                // 🔴 不能写三元 `unitPrice!=null ? long : amountFor()`：数值提升会把 false 分支的
+                //   null Long 自动拆箱 NPE（JLS 条件表达式 numeric promotion）
+                Long amount;
+                if (l.unitPriceCents() != null) {
+                    amount = l.unitPriceCents() * Math.abs(l.gapQty());
+                } else {
+                    amount = amountFor(l.skuId(), Math.abs(l.gapQty()));
+                }
                 row.setGapAmountCents(amount);
                 if (l.gapQty() < 0) {
                     lossQty += -l.gapQty();
@@ -291,8 +501,8 @@ public class WarehouseMonthlyCloseSheetService {
         sheet.setLineCount(lineDtos.size());
         sheetMapper.updateById(sheet);
         return new WarehouseCloseSheetDto(sheet.getCloseId(), sheet.getWarehouseId(), computed.warehouseName(),
-                sheet.getYearMonth(), sheet.getStatus(), lossQty, surplusQty, lossAmount, surplusAmount,
-                lineDtos.size(), null, null, null, sheet.getCreatedAt(), lineDtos);
+                sheet.getYearMonth(), sheet.getStatus(), sheet.getOpeningSource(), lossQty, surplusQty,
+                lossAmount, surplusAmount, lineDtos.size(), null, null, null, sheet.getCreatedAt(), lineDtos);
     }
 
     /** 差异金额 = 数量 × 目录采购成本；成本未配置 → null（行级留空，合计不计入）。 */
@@ -313,8 +523,13 @@ public class WarehouseMonthlyCloseSheetService {
                         .orderByAsc(WarehouseMonthlyCloseLine::getSkuId))
                 .stream().map(this::toLineDto).toList()
                 : List.of();
-        return new WarehouseCloseSheetDto(sheet.getCloseId(), sheet.getWarehouseId(), sheet.getWarehouseId(),
-                sheet.getYearMonth(), sheet.getStatus(), sheet.getLossQty(), sheet.getSurplusQty(),
+        String warehouseName = warehouseMapper.findById(sheet.getWarehouseId())
+                .map(Warehouse::getWarehouseName)
+                .filter(n -> n != null && !n.isBlank())
+                .orElse(sheet.getWarehouseId());
+        return new WarehouseCloseSheetDto(sheet.getCloseId(), sheet.getWarehouseId(), warehouseName,
+                sheet.getYearMonth(), sheet.getStatus(), sheet.getOpeningSource(),
+                sheet.getLossQty(), sheet.getSurplusQty(),
                 sheet.getLossAmountCents(), sheet.getSurplusAmountCents(), sheet.getLineCount(),
                 sheet.getApprovedByName(), sheet.getApprovedAt(), sheet.getRemark(),
                 sheet.getCreatedAt(), lines);
@@ -325,7 +540,9 @@ public class WarehouseMonthlyCloseSheetService {
                 r.getOpeningQty(), r.getPurchaseInQty(), r.getTransferInQty(), r.getTransferOutQty(),
                 r.getRestockQty(), r.getReturnQty(), r.getLossQty(), r.getExpectedQty(),
                 r.getCountedQty(), r.getGapQty(), r.getGapAmountCents(),
-                r.getGapDisposition(), r.getClaimWriteOffId());
+                r.getGapDisposition(), r.getClaimWriteOffId(),
+                r.getRockLossQty(), r.getExpiredLossQty(), r.getGuestWaterQty(), r.getFeeDeductQty(),
+                r.getUnitPriceCents(), r.isEditedFlag(), r.getLineRemark());
     }
 
     private WarehouseMonthlyCloseSheet findSheet(String warehouseId, String yearMonth) {

@@ -78,9 +78,37 @@ defineProps<{
           label-class-name="col-num"
         />
         <el-table-column
+          prop="rockLossQty"
+          label="摇机损耗"
+          min-width="80"
+          class-name="col-num"
+          label-class-name="col-num"
+        />
+        <el-table-column
+          prop="expiredLossQty"
+          label="过期损耗"
+          min-width="80"
+          class-name="col-num"
+          label-class-name="col-num"
+        />
+        <el-table-column
+          prop="guestWaterQty"
+          label="客情用水"
+          min-width="80"
+          class-name="col-num"
+          label-class-name="col-num"
+        />
+        <el-table-column
+          prop="feeDeductQty"
+          label="费用抵扣"
+          min-width="80"
+          class-name="col-num"
+          label-class-name="col-num"
+        />
+        <el-table-column
           prop="lossQty"
-          label="损耗"
-          min-width="72"
+          label="其他损耗"
+          min-width="80"
           class-name="col-num"
           label-class-name="col-num"
         />
@@ -108,6 +136,16 @@ defineProps<{
           label-class-name="col-num"
         >
           <template #default="{ row }">{{ row.gapQty == null ? '—' : row.gapQty }}</template>
+        </el-table-column>
+        <el-table-column
+          label="单价"
+          min-width="76"
+          class-name="col-num"
+          label-class-name="col-num"
+        >
+          <template #default="{ row }">{{
+            row.unitPriceCents == null ? '—' : (row.unitPriceCents / 100).toFixed(2)
+          }}</template>
         </el-table-column>
       </el-table>
     </div>

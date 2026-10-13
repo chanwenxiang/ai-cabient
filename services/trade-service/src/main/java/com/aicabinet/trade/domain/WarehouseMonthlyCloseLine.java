@@ -7,7 +7,13 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 
 /**
- * 仓库月结行（V327）。数量列照 {@code WarehouseMonthlyCloseLineDto}（应有=上期+采购入库+调入−退货−调出−上柜）。
+ * 仓库月结行（V327；V348 账期制扩展）。数量列照 {@code WarehouseMonthlyCloseLineDto}
+ * （应有=上期+采购入库+调入−退货−调出−上柜；损耗四列单独展示不进应有）。
+ *
+ * <p>V348 新增：四损耗列（rock/expired/guestWater/feeDeduct，来源见
+ * {@code WarehouseMonthlyCloseService} 归集注释）、单价快照 {@code unitPriceCents}
+ * （= 目录采购成本，草稿生成时落库）、人工编辑标记 {@code editedFlag}（草稿行编辑后
+ * 漂移核对跳过）、行备注 {@code lineRemark}（补录说明）。
  *
  * <p>🔴 <b>差异处置状态机（CB-017 两步法）</b>：
  * <ul>
@@ -50,6 +56,14 @@ public class WarehouseMonthlyCloseLine {
     private String gapDisposition;
     private Long claimWriteOffId;
 
+    private int rockLossQty;
+    private int expiredLossQty;
+    private int guestWaterQty;
+    private int feeDeductQty;
+    private Long unitPriceCents;
+    private boolean editedFlag;
+    private String lineRemark;
+
     private Instant createdAt;
 
     public Long getLineId() { return lineId; }
@@ -86,6 +100,20 @@ public class WarehouseMonthlyCloseLine {
     public void setGapDisposition(String gapDisposition) { this.gapDisposition = gapDisposition; }
     public Long getClaimWriteOffId() { return claimWriteOffId; }
     public void setClaimWriteOffId(Long claimWriteOffId) { this.claimWriteOffId = claimWriteOffId; }
+    public int getRockLossQty() { return rockLossQty; }
+    public void setRockLossQty(int rockLossQty) { this.rockLossQty = rockLossQty; }
+    public int getExpiredLossQty() { return expiredLossQty; }
+    public void setExpiredLossQty(int expiredLossQty) { this.expiredLossQty = expiredLossQty; }
+    public int getGuestWaterQty() { return guestWaterQty; }
+    public void setGuestWaterQty(int guestWaterQty) { this.guestWaterQty = guestWaterQty; }
+    public int getFeeDeductQty() { return feeDeductQty; }
+    public void setFeeDeductQty(int feeDeductQty) { this.feeDeductQty = feeDeductQty; }
+    public Long getUnitPriceCents() { return unitPriceCents; }
+    public void setUnitPriceCents(Long unitPriceCents) { this.unitPriceCents = unitPriceCents; }
+    public boolean isEditedFlag() { return editedFlag; }
+    public void setEditedFlag(boolean editedFlag) { this.editedFlag = editedFlag; }
+    public String getLineRemark() { return lineRemark; }
+    public void setLineRemark(String lineRemark) { this.lineRemark = lineRemark; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

@@ -9,8 +9,10 @@ import com.aicabinet.trade.domain.WarehouseMonthlyCloseLine;
 import com.aicabinet.trade.domain.WarehouseMonthlyCloseSheet;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.mapper.WarehouseMonthlyCloseLineMapper;
 import com.aicabinet.trade.mapper.WarehouseMonthlyCloseSheetMapper;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,12 +33,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * V327 仓库月结单测试：两步法（CB-017）——生成金额化、审批锁单、处置状态机、索赔联动、漂移核对。
+ * V348：账期制（标签=结束月）、ensureDraft 幂等（DRAFT 不重生成）、草稿行编辑、财务 18 列导出。
  * closeSheet 的件数聚合正确性由既有 {@code WarehouseMonthlyCloseMathTest} 覆盖，这里 mock 计算结果。
  */
 @ExtendWith(MockitoExtension.class)
@@ -47,22 +52,32 @@ class WarehouseMonthlyCloseSheetServiceTest {
     @Mock private SkuCatalogMapper skuCatalogMapper;
     @Mock private InventoryWriteOffMapper writeOffMapper;
     @Mock private com.aicabinet.trade.mapper.UserInfoMapper userInfoMapper;
+    @Mock private WarehouseMapper warehouseMapper;
 
     private WarehouseMonthlyCloseSheetService service;
 
     @BeforeEach
     void setUp() {
         service = new WarehouseMonthlyCloseSheetService(
-                sheetMapper, lineMapper, closeCalculator, skuCatalogMapper, writeOffMapper, userInfoMapper);
+                sheetMapper, lineMapper, closeCalculator, skuCatalogMapper, writeOffMapper,
+                userInfoMapper, warehouseMapper);
+        // toDto 解析仓库名：mock 默认给空（具体测试再覆盖）
+        lenient().when(warehouseMapper.findById(any())).thenReturn(Optional.empty());
     }
 
     private WarehouseMonthlyCloseLineDto computedLine(String skuId, Integer gap) {
+        return computedLine(skuId, gap, 500L);
+    }
+
+    private WarehouseMonthlyCloseLineDto computedLine(String skuId, Integer gap, Long unitPrice) {
         return new WarehouseMonthlyCloseLineDto(skuId, "SKU-" + skuId,
-                10, 5, 2, 1, 3, 1, 0, 12, 12 + (gap == null ? 0 : gap), gap);
+                10, 5, 2, 1, 3, 1, 0, 12, 12 + (gap == null ? 0 : gap), gap,
+                0, 0, 0, 0, unitPrice);
     }
 
     private WarehouseMonthlyCloseDto computed(String yearMonth, WarehouseMonthlyCloseLineDto... lines) {
-        return new WarehouseMonthlyCloseDto("WH-1", "一号仓", yearMonth, "应有=上期+…", List.of(lines));
+        return new WarehouseMonthlyCloseDto("WH-1", "一号仓", yearMonth, "应有=上期+…",
+                WarehouseMonthlyCloseSheet.OPENING_PERIOD_CLOSE, List.of(lines));
     }
 
     private void stubSkuCost(String skuId, Integer cost) {
@@ -79,16 +94,15 @@ class WarehouseMonthlyCloseSheetServiceTest {
         void shouldMaterializeAmountsAndTotals() {
             when(closeCalculator.closeSheet("WH-1", "2026-10")).thenReturn(computed(
                     "2026-10",
-                    computedLine("SKU-A", -3),   // 盘亏 3：金额 3×500=1500
-                    computedLine("SKU-B", 2)));  // 盘盈 2：金额 2×800=1600
-            stubSkuCost("SKU-A", 500);
-            stubSkuCost("SKU-B", 800);
+                    computedLine("SKU-A", -3),   // 盘亏 3：金额 3×500=1500（单价快照 500）
+                    computedLine("SKU-B", 2, 800L))); // 盘盈 2：金额 2×800=1600
             when(sheetMapper.insert(any())).thenReturn(1);
             when(lineMapper.insert(any())).thenReturn(1);
 
             WarehouseCloseSheetDto dto = service.generateSheet(1L, "WH-1", "2026-10");
 
             assertEquals(WarehouseMonthlyCloseSheet.STATUS_DRAFT, dto.status());
+            assertEquals(WarehouseMonthlyCloseSheet.OPENING_PERIOD_CLOSE, dto.openingSource());
             assertEquals(3, dto.lossQty());
             assertEquals(2, dto.surplusQty());
             assertEquals(1500L, dto.lossAmountCents());
@@ -103,8 +117,8 @@ class WarehouseMonthlyCloseSheetServiceTest {
         @Test
         void shouldLeaveAmountNullWhenCostNotConfigured() {
             when(closeCalculator.closeSheet("WH-1", "2026-10"))
-                    .thenReturn(computed("2026-10", computedLine("SKU-C", -5)));
-            stubSkuCost("SKU-C", null); // 成本未配置
+                    .thenReturn(computed("2026-10", computedLine("SKU-C", -5, null)));
+            stubSkuCost("SKU-C", null); // 成本未配置（单价快照 null → amountFor 兜底也 null）
             when(sheetMapper.insert(any())).thenReturn(1);
             when(lineMapper.insert(any())).thenReturn(1);
 
@@ -281,9 +295,10 @@ class WarehouseMonthlyCloseSheetServiceTest {
             // 落库时实盘 9，现在重算实盘 7 ⇒ 漂移
             when(lineMapper.selectList(any())).thenReturn(List.of(sheetLine(21L, 11L, "SKU-A", -3, 1500L)));
             WarehouseMonthlyCloseLineDto nowLine = new WarehouseMonthlyCloseLineDto(
-                    "SKU-A", "SKU-SKU-A", 10, 5, 2, 1, 3, 1, 0, 12, 7, -3);
+                    "SKU-A", "SKU-SKU-A", 10, 5, 2, 1, 3, 1, 0, 12, 7, -3, 0, 0, 0, 0, 500L);
             when(closeCalculator.closeSheet("WH-1", "2026-10"))
-                    .thenReturn(new WarehouseMonthlyCloseDto("WH-1", "一号仓", "2026-10", "hint", List.of(nowLine)));
+                    .thenReturn(new WarehouseMonthlyCloseDto("WH-1", "一号仓", "2026-10", "hint",
+                            WarehouseMonthlyCloseSheet.OPENING_BOOK, List.of(nowLine)));
 
             var out = service.recalcDrift(11L);
 
@@ -301,13 +316,111 @@ class WarehouseMonthlyCloseSheetServiceTest {
             row.setCountedQty(9);
             when(lineMapper.selectList(any())).thenReturn(List.of(row));
             WarehouseMonthlyCloseLineDto nowLine = new WarehouseMonthlyCloseLineDto(
-                    "SKU-A", "SKU-SKU-A", 10, 5, 2, 1, 3, 1, 0, 12, 9, -3);
+                    "SKU-A", "SKU-SKU-A", 10, 5, 2, 1, 3, 1, 0, 12, 9, -3, 0, 0, 0, 0, 500L);
             when(closeCalculator.closeSheet("WH-1", "2026-10"))
-                    .thenReturn(new WarehouseMonthlyCloseDto("WH-1", "一号仓", "2026-10", "hint", List.of(nowLine)));
+                    .thenReturn(new WarehouseMonthlyCloseDto("WH-1", "一号仓", "2026-10", "hint",
+                            WarehouseMonthlyCloseSheet.OPENING_BOOK, List.of(nowLine)));
 
             var out = service.recalcDrift(11L);
 
             assertTrue((Boolean) out.get("consistent"));
+        }
+
+        @Test
+        void shouldSkipEditedRowsInDrift() {
+            WarehouseMonthlyCloseSheet approved = draftSheet(11L);
+            approved.setWarehouseId("WH-1");
+            approved.setYearMonth("2026-10");
+            when(sheetMapper.selectById(11L)).thenReturn(approved);
+            // 财务草稿阶段编辑过的行：权威录入，与实时重算不一致是预期 ⇒ 不亮红
+            WarehouseMonthlyCloseLine row = sheetLine(21L, 11L, "SKU-A", -3, 1500L);
+            row.setCountedQty(5);
+            row.setEditedFlag(true);
+            when(lineMapper.selectList(any())).thenReturn(List.of(row));
+            when(closeCalculator.closeSheet("WH-1", "2026-10"))
+                    .thenReturn(computed("2026-10", computedLine("SKU-A", 7)));
+
+            var out = service.recalcDrift(11L);
+
+            assertTrue((Boolean) out.get("consistent"), "编辑行不参与漂移比对");
+            assertEquals(List.of("SKU-A"), out.get("editedSkuIds"));
+        }
+    }
+
+    @Nested
+    class EnsureDraft {
+
+        @Test
+        void shouldSkipWhenSheetAlreadyExists() {
+            when(sheetMapper.selectOne(any())).thenReturn(draftSheet(11L));
+
+            assertFalse(service.ensureDraft(0L, "WH-1", "2026-10"),
+                    "已有 DRAFT/APPROVED 一律跳过（DRAFT 重生成会覆盖手工补录）");
+            verify(closeCalculator, never()).closeSheet(any(), any());
+        }
+
+        @Test
+        void shouldGenerateWhenMissing() {
+            when(sheetMapper.selectOne(any())).thenReturn(null);
+            when(closeCalculator.closeSheet("WH-1", "2026-10")).thenReturn(computed("2026-10"));
+            when(sheetMapper.insert(any())).thenReturn(1);
+
+            assertTrue(service.ensureDraft(0L, "WH-1", "2026-10"));
+            verify(sheetMapper).insert(any());
+        }
+    }
+
+    @Nested
+    class UpdateLine {
+
+        @Test
+        void shouldRecalcGapAndFlagEdited() {
+            WarehouseMonthlyCloseSheet draft = draftSheet(11L);
+            when(sheetMapper.selectById(11L)).thenReturn(draft);
+            WarehouseMonthlyCloseLine row = sheetLine(21L, 11L, "SKU-A", -3, 1500L);
+            row.setUnitPriceCents(500L);
+            when(lineMapper.selectById(21L)).thenReturn(row);
+            when(lineMapper.selectList(any())).thenReturn(List.of(row));
+
+            WarehouseCloseSheetDto dto = service.updateLine(1L, 11L, 21L, 9, 2, 1, "摇机 2 件、费用抵扣 1 件");
+
+            assertTrue(row.isEditedFlag(), "人工编辑过必须置位（漂移核对跳过）");
+            assertEquals(9, row.getCountedQty());
+            assertEquals(-3, row.getGapQty(), "实盘 9 vs 应有 12 ⇒ gap=-3");
+            assertEquals(1500L, row.getGapAmountCents(), "金额按行单价快照重算");
+            assertEquals(2, row.getRockLossQty());
+            assertEquals(1, row.getFeeDeductQty());
+            assertEquals("摇机 2 件、费用抵扣 1 件", dto.lines().get(0).lineRemark());
+        }
+
+        @Test
+        void shouldRejectWhenApproved() {
+            WarehouseMonthlyCloseSheet approved = draftSheet(11L);
+            approved.setStatus(WarehouseMonthlyCloseSheet.STATUS_APPROVED);
+            when(sheetMapper.selectById(11L)).thenReturn(approved);
+
+            ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                    () -> service.updateLine(1L, 11L, 21L, 9, null, null, null));
+            assertEquals(409, e.getStatusCode().value(), "审批后锁单，编辑只能走重新生成");
+        }
+    }
+
+    @Nested
+    class Export {
+
+        @Test
+        void shouldProduceXlsxWith18FinancialColumns() throws Exception {
+            WarehouseMonthlyCloseSheet sheet = draftSheet(11L);
+            when(sheetMapper.selectById(11L)).thenReturn(sheet);
+            WarehouseMonthlyCloseLine row = sheetLine(21L, 11L, "SKU-A", -3, 1500L);
+            when(lineMapper.selectList(any())).thenReturn(List.of(row));
+
+            byte[] bytes = service.exportXlsx(11L);
+
+            assertTrue(bytes.length > 0);
+            try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
+                assertEquals(18, wb.getSheetAt(0).getRow(0).getLastCellNum(), "财务 18 列对齐");
+            }
         }
     }
 

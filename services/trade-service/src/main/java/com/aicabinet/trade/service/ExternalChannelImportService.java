@@ -127,6 +127,10 @@ public class ExternalChannelImportService {
                     "解析到 0 条有效数据行；问题明细：" + String.join("；", firstN(parsed.errors(), 5)));
         }
 
+        // V348 盘点导入直通：SKU 已是本系统 skuId（KEY_SKU_ID），不建外部商品档案、不做映射统计；
+        // 人员仍须可归仓（sheet 名=线长 → 仓）
+        boolean stocktakePass = ExternalImportTemplate.OP_WAREHOUSE_STOCKTAKE.equals(template.getOpType());
+
         ExternalImportBatch batch = new ExternalImportBatch();
         batch.setChannelCode(template.getChannelCode());
         batch.setPeriodLabel(period);
@@ -138,11 +142,30 @@ public class ExternalChannelImportService {
         batch.setUploadedBy(operatorId);
         batch.setUploadedAt(Instant.now());
 
-        Map<String, ExternalUnmappedProductDto> unmapped = refreshExternalProducts(template, parsed.rows());
-        resolveMappingState(batch, template, parsed.rows(), unmapped, Map.of());
+        if (stocktakePass) {
+            batch.setRowsMapped(parsed.rows().size());
+            batch.setRowsUnmapped(0);
+            batch.setUnmappedProducts(toJson(List.of()));
+            batch.setUnresolvedPersons(toJson(unresolvedPersons(parsed.rows())));
+        } else {
+            Map<String, ExternalUnmappedProductDto> unmapped = refreshExternalProducts(template, parsed.rows());
+            resolveMappingState(batch, template, parsed.rows(), unmapped, Map.of());
+        }
 
         batchMapper.insert(batch);
         return toBatchDto(batch, template);
+    }
+
+    /** 盘点直通：仅收集无法归仓的人员名单（映射恒全通过）。 */
+    private List<String> unresolvedPersons(List<ExternalChannelFileParser.ParsedRow> rows) {
+        List<String> unresolved = new ArrayList<>();
+        for (var row : rows) {
+            if (row.person() != null && resolveWarehouse(row.person(), Map.of()).isEmpty()
+                    && !unresolved.contains(row.person())) {
+                unresolved.add(row.person());
+            }
+        }
+        return unresolved;
     }
 
     /** 外部商品首见建档 / 再见累计；返回本次出现的外部商品键 → 未映射概要（已映射的键不出现）。 */
@@ -283,22 +306,39 @@ public class ExternalChannelImportService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "批次解析行丢失，请重新上传");
         }
 
+        // V348 盘点导入直通：SKU=extKey（本系统 skuId）校验存在即可，不走映射治理
+        boolean stocktakePass = ExternalImportTemplate.OP_WAREHOUSE_STOCKTAKE.equals(template.getOpType());
+
         // 提交闸门：全部行商品已映射 + 人员可归仓（含覆盖）；顺带解析行→SKU
         List<String> blockers = new ArrayList<>();
         Map<String, String> skuIdByExtKey = new HashMap<>();
-        for (var row : rows) {
-            ExternalProduct product = productMapper.selectOne(Wrappers.<ExternalProduct>lambdaQuery()
-                    .eq(ExternalProduct::getChannelCode, batch.getChannelCode())
-                    .eq(ExternalProduct::getExternalKey, row.extKey()));
-            Optional<ExternalProductMapping> mapping = product == null
-                    ? Optional.empty() : findMapping(product.getExternalProductId());
-            if (mapping.isEmpty()) {
-                blockers.add("商品「" + row.extName() + "」未映射");
-                continue;
+        if (stocktakePass) {
+            for (var row : rows) {
+                String skuId = row.extKey().trim();
+                if (skuCatalogMapper.findById(skuId).isEmpty()) {
+                    blockers.add("SKU「" + skuId + "」在本系统商品目录不存在（盘点导入按本系统 SKU 定位）");
+                    continue;
+                }
+                skuIdByExtKey.put(row.extKey(), skuId);
+                if (resolveWarehouse(row.person(), overrides).isEmpty()) {
+                    blockers.add("人员「" + row.person() + "」无法归仓");
+                }
             }
-            skuIdByExtKey.put(row.extKey(), mapping.get().getSkuId());
-            if (resolveWarehouse(row.person(), overrides).isEmpty()) {
-                blockers.add("人员「" + row.person() + "」无法归仓");
+        } else {
+            for (var row : rows) {
+                ExternalProduct product = productMapper.selectOne(Wrappers.<ExternalProduct>lambdaQuery()
+                        .eq(ExternalProduct::getChannelCode, batch.getChannelCode())
+                        .eq(ExternalProduct::getExternalKey, row.extKey()));
+                Optional<ExternalProductMapping> mapping = product == null
+                        ? Optional.empty() : findMapping(product.getExternalProductId());
+                if (mapping.isEmpty()) {
+                    blockers.add("商品「" + row.extName() + "」未映射");
+                    continue;
+                }
+                skuIdByExtKey.put(row.extKey(), mapping.get().getSkuId());
+                if (resolveWarehouse(row.person(), overrides).isEmpty()) {
+                    blockers.add("人员「" + row.person() + "」无法归仓");
+                }
             }
         }
         if (!blockers.isEmpty()) {

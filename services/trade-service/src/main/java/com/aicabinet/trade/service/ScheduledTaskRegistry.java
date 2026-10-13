@@ -127,11 +127,11 @@ public class ScheduledTaskRegistry {
         // CB-034 租赁日检：月租幂等出账 + 欠租逾期锁柜/结清解锁（锁柜复用 DeviceSalesLockService）
         register("device-rental-daily", "租赁账单日检", FINANCE, ScheduleZones.desc("每日 08:20"), 1800,
                 deviceRentalService::runDailyCheck);
-        // 月结自动生成（用户拍板 2026-10-13）：系统只算差异明细不扣款，财务线下核对；
-        // 已审批(APPROVED)的仓/月跳过，DRAFT 重生成（幂等），详见 WarehouseMonthlyCloseJob。
+        // 月结自动生成（V348 账期制，拍板 A=每日 02:10 幂等）：刚结束账期(26~25)无草稿则生成，
+        // DRAFT 不重生成（保护手工补录）；系统只算差异明细不扣款，详见 WarehouseMonthlyCloseJob。
         register("warehouse-monthly-close", "仓库月结草稿生成", "WAREHOUSE",
-                ScheduleZones.desc("每月 1 日 02:00"), 1800,
-                warehouseMonthlyCloseJob::generateLastMonthSheets);
+                ScheduleZones.desc("每日 02:10"), 1800,
+                warehouseMonthlyCloseJob::ensureLastClosedPeriodSheets);
         register("line-commission", "线长佣金入账", FINANCE, ScheduleZones.desc("每日 00:20"), 1800,
                 lineCommissionJob::postDailyCommission);
         register("finance-margin", "财务保证金固化", FINANCE, ScheduleZones.desc("每日 00:05"), 1800,

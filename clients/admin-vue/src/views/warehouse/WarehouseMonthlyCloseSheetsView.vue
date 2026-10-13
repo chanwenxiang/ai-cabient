@@ -125,16 +125,24 @@
           <el-descriptions-item label="状态">
             {{ detail.status === 'APPROVED' ? '已审批（锁单）' : '未审批' }}
           </el-descriptions-item>
-          <el-descriptions-item label="盘亏合计">
-            {{ detail.lossQty }} 件 / {{ fmtCents(detail.lossAmountCents) }}
-          </el-descriptions-item>
-          <el-descriptions-item label="盘盈合计">
-            {{ detail.surplusQty }} 件 / {{ fmtCents(detail.surplusAmountCents) }}
+          <el-descriptions-item label="期初来源">
+            <el-tag v-if="detail.openingSource === 'PERIOD_CLOSE'" type="success" size="small"
+              >上期实盘结转</el-tag
+            >
+            <el-tag v-else type="warning" size="small">账面结转</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="审批人">{{
             detail.approvedByName || '—'
           }}</el-descriptions-item>
         </el-descriptions>
+
+        <el-alert
+          v-if="detail && detail.openingSource !== 'PERIOD_CLOSE'"
+          type="warning"
+          :closable="false"
+          class="block"
+          title="期初为账面值：上一账期无实盘可结转，期初列按账面流水结转（请核对）"
+        />
 
         <el-alert
           v-if="driftInfo && !driftInfo.consistent"
@@ -162,7 +170,7 @@
             重算漂移核对
           </el-button>
           <el-button size="small" data-testid="mcs-export-csv" @click="exportCsv"
-            >导出 CSV</el-button
+            >导出 XLSX（财务 18 列）</el-button
           >
         </div>
 
@@ -225,6 +233,38 @@
           <el-table-column
             class-name="col-text"
             label-class-name="col-text"
+            prop="rockLossQty"
+            label="摇机"
+            width="56"
+            align="center"
+          />
+          <el-table-column
+            class-name="col-text"
+            label-class-name="col-text"
+            prop="expiredLossQty"
+            label="过期"
+            width="56"
+            align="center"
+          />
+          <el-table-column
+            class-name="col-text"
+            label-class-name="col-text"
+            prop="guestWaterQty"
+            label="客情"
+            width="56"
+            align="center"
+          />
+          <el-table-column
+            class-name="col-text"
+            label-class-name="col-text"
+            prop="feeDeductQty"
+            label="费用"
+            width="56"
+            align="center"
+          />
+          <el-table-column
+            class-name="col-text"
+            label-class-name="col-text"
             prop="expectedQty"
             label="应有"
             width="60"
@@ -237,7 +277,9 @@
             width="60"
             align="center"
           >
-            <template #default="{ row }">{{ row.countedQty ?? '—' }}</template>
+            <template #default="{ row }">
+              <span :class="{ 'edited-flag': row.editedFlag }">{{ row.countedQty ?? '—' }}</span>
+            </template>
           </el-table-column>
           <el-table-column
             class-name="col-text"
@@ -274,7 +316,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="90">
+          <el-table-column label="操作" width="130">
             <template #default="{ row }">
               <el-button
                 v-if="
@@ -288,11 +330,78 @@
               >
                 处置
               </el-button>
+              <el-button
+                v-if="detail?.status === 'DRAFT'"
+                size="small"
+                data-testid="mcs-edit-line-btn"
+                @click="openEditLine(row)"
+              >
+                编辑
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
       </template>
     </el-drawer>
+
+    <!-- 草稿行编辑弹窗（V348）：实盘修正 + 摇机损耗/费用抵扣手工补录 + 备注 -->
+    <el-dialog
+      v-model="editLineOpen"
+      title="草稿行编辑（审批后不可改）"
+      width="460px"
+      data-testid="mcs-edit-line-dialog"
+    >
+      <el-form label-width="90px">
+        <el-form-item label="SKU">
+          <span>{{ editLine?.skuId }} {{ editLine?.skuName }}</span>
+        </el-form-item>
+        <el-form-item label="实盘数">
+          <el-input-number
+            v-model="editCounted"
+            :min="0"
+            :step="1"
+            step-strictly
+            data-testid="mcs-edit-counted"
+          />
+        </el-form-item>
+        <el-form-item label="摇机损耗">
+          <el-input-number
+            v-model="editRock"
+            :min="0"
+            :step="1"
+            step-strictly
+            data-testid="mcs-edit-rock"
+          />
+        </el-form-item>
+        <el-form-item label="费用抵扣">
+          <el-input-number
+            v-model="editFee"
+            :min="0"
+            :step="1"
+            step-strictly
+            data-testid="mcs-edit-fee"
+          />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input
+            v-model="editRemark"
+            placeholder="补录说明（如：X日摇机测试耗 2 件）"
+            data-testid="mcs-edit-remark"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editLineOpen = false">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="editLineSaving"
+          data-testid="mcs-edit-line-confirm"
+          @click="confirmEditLine"
+        >
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
 
     <!-- 处置弹窗 -->
     <el-dialog
@@ -347,7 +456,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 
 interface CloseSheetLine {
@@ -360,11 +469,21 @@ interface CloseSheetLine {
   transferOutQty: number;
   restockQty: number;
   returnQty: number;
+  /** V348 损耗四列：摇机 / 过期 / 客情 / 费用抵扣（原 lossQty 单列拆分）。 */
+  rockLossQty: number;
+  expiredLossQty: number;
+  guestWaterQty: number;
+  feeDeductQty: number;
   lossQty: number;
   expectedQty: number;
   countedQty: number | null;
   gapQty: number | null;
   gapAmountCents: number | null;
+  /** 单价快照（分）：行编辑重算金额时优先用它。 */
+  unitPriceCents: number | null;
+  lineRemark: string | null;
+  /** 人工编辑过（漂移核对跳过该行）。 */
+  editedFlag: boolean;
   gapDisposition: string;
   claimWriteOffId: number | null;
 }
@@ -375,6 +494,8 @@ interface CloseSheet {
   warehouseName: string;
   yearMonth: string;
   status: string;
+  /** 期初来源：PERIOD_CLOSE=上期实盘结转（可信）/ BOOK=账面结转（亮黄提示）。 */
+  openingSource: string;
   lossQty: number;
   surplusQty: number;
   lossAmountCents: number;
@@ -539,6 +660,48 @@ async function approve(row: CloseSheet) {
   }
 }
 
+// ── 草稿行编辑（V348）：实盘修正 + 摇机/费用补录 + 备注（审批后不可改） ──
+const editLineOpen = ref(false);
+const editLine = ref<CloseSheetLine | null>(null);
+const editCounted = ref(0);
+const editRock = ref(0);
+const editFee = ref(0);
+const editRemark = ref('');
+const editLineSaving = ref(false);
+
+function openEditLine(row: CloseSheetLine) {
+  editLine.value = row;
+  editCounted.value = row.countedQty ?? row.expectedQty;
+  editRock.value = row.rockLossQty ?? 0;
+  editFee.value = row.feeDeductQty ?? 0;
+  editRemark.value = row.lineRemark ?? '';
+  editLineOpen.value = true;
+}
+
+async function confirmEditLine() {
+  if (!detail.value || !editLine.value) return;
+  editLineSaving.value = true;
+  try {
+    const updated = await api.request<CloseSheet>(
+      AdminEndpoints.warehouseCloseSheetLineUpdate(detail.value.closeId, editLine.value.lineId),
+      'PATCH',
+      {
+        countedQty: editCounted.value,
+        rockLossQty: editRock.value,
+        feeDeductQty: editFee.value,
+        lineRemark: editRemark.value.trim() || null
+      }
+    );
+    detail.value = updated;
+    editLineOpen.value = false;
+    ElMessage.success('行已更新（已标记人工编辑，漂移核对跳过该行）');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '行更新失败');
+  } finally {
+    editLineSaving.value = false;
+  }
+}
+
 // ── 逐行处置 ──
 const disposeOpen = ref(false);
 const disposeLine = ref<CloseSheetLine | null>(null);
@@ -617,64 +780,17 @@ function dispositionTag(d: string): 'warning' | 'danger' | 'info' | 'success' {
   }
 }
 
-/** CSV 导出（BOM + 转义）：供财务线下对账（一期不接总账）。 */
-function exportCsv() {
+/** 财务 18 列导出（V348）：xlsx 由后端生成（含损耗四列/单价/金额），走鉴权下载。 */
+async function exportCsv() {
   if (!detail.value) return;
-  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const header = [
-    'SKU',
-    '名称',
-    '上期',
-    '采购入',
-    '调入',
-    '调出',
-    '上柜',
-    '退货',
-    '应有',
-    '实盘',
-    '差异',
-    '差异金额(元)',
-    '处置'
-  ];
-  const dispMap: Record<string, string> = {
-    PENDING: '待认定',
-    CLAIM: '已索赔',
-    NORMAL_LOSS: '正常损耗',
-    SURPLUS: '盘盈待查'
-  };
-  const rows = (detail.value.lines || []).map((r) => [
-    r.skuId,
-    r.skuName ?? '',
-    r.openingQty,
-    r.purchaseInQty,
-    r.transferInQty,
-    r.transferOutQty,
-    r.restockQty,
-    r.returnQty,
-    r.expectedQty,
-    r.countedQty ?? '',
-    r.gapQty ?? '',
-    r.gapAmountCents != null ? (r.gapAmountCents / 100).toFixed(2) : '',
-    dispMap[r.gapDisposition] ?? r.gapDisposition
-  ]);
-  const head = [
-    `月结单 #${detail.value.closeId}`,
-    `${detail.value.warehouseName} ${detail.value.yearMonth}`,
-    `状态:${detail.value.status === 'APPROVED' ? '已审批' : '未审批'}`
-  ];
-  const csv =
-    '\uFEFF' +
-    [
-      head.map(esc).join(','),
-      header.map(esc).join(','),
-      ...rows.map((r) => r.map(esc).join(','))
-    ].join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `monthly-close-${detail.value.warehouseId}-${detail.value.yearMonth}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  try {
+    await downloadAuthFile(
+      AdminEndpoints.warehouseCloseSheetExport(detail.value.closeId),
+      `monthly-close-${detail.value.warehouseId}-${detail.value.yearMonth}.xlsx`
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+  }
 }
 </script>
 
@@ -698,5 +814,9 @@ function exportCsv() {
 .muted {
   color: var(--el-text-color-placeholder);
   font-size: 12px;
+}
+.edited-flag {
+  color: var(--el-color-warning);
+  font-weight: 600;
 }
 </style>
