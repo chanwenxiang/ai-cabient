@@ -83,9 +83,8 @@ export const MerchantEndpoints = {
   replenishmentSuggestions: (deviceId: string) =>
     `${API_PREFIX}/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`,
   replenishmentEfficiency: `${API_PREFIX}/merchant/replenishment/my-efficiency`,
-  replenishmentRequests: `${API_PREFIX}/merchant/replenishment/requests`,
-  replenishmentRequestEvidenceList: (requestId: number | string) =>
-    `${API_PREFIX}/merchant/replenishment/requests/${encodeURIComponent(String(requestId))}/evidence`,
+  /** 自主补货：直接生成分仓出库 + 补货任务（无审批） */
+  replenishmentSelfInitiate: `${API_PREFIX}/merchant/replenishment/self-initiate`,
   replenishmentTasks: `${API_PREFIX}/merchant/replenishment/tasks`,
   replenishmentTasksByStatus: (status: string) =>
     `${API_PREFIX}/merchant/replenishment/tasks?status=${encodeURIComponent(status)}`,
@@ -106,9 +105,6 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence`,
   replenishmentTaskEvidenceFile: (taskId: number | string, fileId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence/${encodeURIComponent(String(fileId))}`,
-  replenishmentRequestEvidence: `${API_PREFIX}/merchant/replenishment/requests/evidence`,
-  replenishmentRequestEvidenceFile: (requestId: number | string, fileId: number | string) =>
-    `${API_PREFIX}/merchant/replenishment/requests/${encodeURIComponent(String(requestId))}/evidence/${encodeURIComponent(String(fileId))}`,
   /** 导出（绝对 URL 由 merchant-api 拼 base） */
   settlementsExport: (from: string, to: string) =>
     `${API_PREFIX}/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,

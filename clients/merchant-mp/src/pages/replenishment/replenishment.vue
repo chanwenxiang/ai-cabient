@@ -26,7 +26,7 @@
           <button class="scan-primary" :loading="scanning" @click="onScan">扫码找柜</button>
           <view class="hero-secondary">
             <view class="clear-pill" role="button" hover-class="clear-pill-hover" @click="goRequest"
-              >要货</view
+              >发起补货</view
             >
             <view
               v-if="preferredId && filterDeviceId !== preferredId"
@@ -64,10 +64,10 @@
 
       <view v-if="lowStockList.length" class="patrol-card">
         <view class="patrol-head">
-          <view>
+          <view class="patrol-copy">
             <text class="patrol-title">缺货巡柜</text>
             <text class="patrol-sub"
-              >查看缺口；日常补货等调度出库下发任务，不要用要货当日常入口</text
+              >查看缺口；可点「发起补货」按缺货建议一键下单，任务直接生效</text
             >
           </view>
           <text class="patrol-count">{{ lowStockList.length }} 台</text>

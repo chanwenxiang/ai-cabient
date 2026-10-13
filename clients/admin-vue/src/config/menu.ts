@@ -186,7 +186,7 @@ const BASE_NAV: NavItem[] = [
     title: '补货调度',
     group: '履约仓储',
     perm: 'ops:replenishment:list',
-    keywords: ['补货', '要货', '开门', '路线']
+    keywords: ['补货', '开门', '路线']
   },
   {
     path: '/warehouse/master',

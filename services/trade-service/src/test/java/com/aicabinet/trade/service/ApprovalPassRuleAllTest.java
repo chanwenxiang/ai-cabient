@@ -64,7 +64,7 @@ class ApprovalPassRuleAllTest {
     void setUp() {
         service = new ApprovalWorkflowService(definitionRepository, nodeRepository,
                 instanceRepository, taskRepository, permissionRepository, userDepartmentRepository,
-                notificationService, permissionService, auditService, null, null, null, null);
+                notificationService, permissionService, auditService, null);
     }
 
     private ApprovalInstance instance(long id) {

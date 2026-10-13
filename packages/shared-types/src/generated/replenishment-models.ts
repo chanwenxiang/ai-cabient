@@ -14,16 +14,10 @@ export type OpenApiMerchantReplenishmentEfficiencyDto = components['schemas']['M
 export type OpenApiDeviceInventoryDto = components['schemas']['DeviceInventoryDto'];
 /** 货道账实差异告警 */
 export type OpenApiSlotDiscrepancyAlertDto = components['schemas']['SlotDiscrepancyAlertDto'];
-/** 货道补货建议 */
-export type OpenApiSlotReplenishmentSuggestDto = components['schemas']['SlotReplenishmentSuggestDto'];
-/** 商户补货申请 */
-export type OpenApiMerchantReplenishmentRequestDto = components['schemas']['MerchantReplenishmentRequestDto'];
-/** 商户补货申请行 */
-export type OpenApiMerchantReplenishmentRequestLineDto = components['schemas']['MerchantReplenishmentRequestLineDto'];
-/** 创建商户补货申请 */
-export type OpenApiCreateMerchantReplenishmentRequest = components['schemas']['CreateMerchantReplenishmentRequest'];
-/** 创建商户补货申请行（独立 schema，避免与仓配 Line 冲突） */
-export type OpenApiCreateMerchantReplenishmentRequestLine = components['schemas']['CreateMerchantReplenishmentRequestLine'];
+/** 自主补货请求（无审批直接生效） */
+export type OpenApiMerchantSelfReplenishRequest = components['schemas']['MerchantSelfReplenishRequest'];
+/** 自主补货明细行 */
+export type OpenApiMerchantSelfReplenishLine = components['schemas']['MerchantSelfReplenishLine'];
 /** 补货任务 */
 export type OpenApiReplenishmentTaskDto = components['schemas']['ReplenishmentTaskDto'];
 /** 补货任务明细行 */

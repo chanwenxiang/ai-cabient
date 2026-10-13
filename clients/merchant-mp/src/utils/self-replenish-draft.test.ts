@@ -7,8 +7,8 @@ import {
   pickDefaultDeviceIndex,
   sortDraftLines,
   suggestReasonLabel,
-  type RequestDraftLine
-} from './request-draft';
+  type ReplenishDraftLine
+} from './self-replenish-draft';
 
 describe('suggestReasonLabel', () => {
   it('hides PAR and maps ROP', () => {
@@ -32,7 +32,7 @@ describe('buildSuggestMap', () => {
 
 describe('mergeSlotDraftLine + orphans', () => {
   it('builds draft from slots and orphan suggestions', () => {
-    const bySku = new Map<string, RequestDraftLine>();
+    const bySku = new Map<string, ReplenishDraftLine>();
     const slot = {
       assignedSkuId: 'SKU1',
       assignedSkuName: '可乐',

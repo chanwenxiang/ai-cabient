@@ -31,7 +31,7 @@ class ReplenishmentTaskConcurrencyTest {
     void setUp() {
         service = new ReplenishmentService(
                 null, routeRepository, taskRepository, taskLineRepository, null, null, null, null,
-                new ObjectMapper(), null, null, null, null, null, null, null, null,
+                new ObjectMapper(), null, null, null, null, null, null,
                 distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }

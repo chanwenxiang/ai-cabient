@@ -16,10 +16,6 @@ import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 
 import com.aicabinet.trade.domain.DeviceSkuLot;
 
-import com.aicabinet.trade.domain.MerchantReplenishmentRequestLine;
-
-import com.aicabinet.trade.domain.MerchantReplenishmentRequest;
-
 import com.aicabinet.trade.domain.PullOffTask;
 
 import com.aicabinet.trade.domain.ReplenishmentRoute;
@@ -35,10 +31,6 @@ import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 
 import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
-
-import com.aicabinet.trade.mapper.MerchantReplenishmentRequestLineMapper;
-
-import com.aicabinet.trade.mapper.MerchantReplenishmentRequestMapper;
 
 import com.aicabinet.trade.mapper.PullOffTaskMapper;
 
@@ -118,9 +110,6 @@ public class ReplenishmentService {
 
     private final SessionService sessionService;
 
-    private final MerchantReplenishmentRequestMapper merchantRequestRepository;
-
-    private final MerchantReplenishmentRequestLineMapper merchantRequestLineRepository;
     private final NotificationService notificationService;
     private final DistributedLockService distributedLockService;
     private final SystemConfigService systemConfigService;
@@ -151,8 +140,6 @@ public class ReplenishmentService {
                                 DeviceSlotService deviceSlotService,
                                 InTransitService inTransitService,
                                 @org.springframework.context.annotation.Lazy SessionService sessionService,
-                                MerchantReplenishmentRequestMapper merchantRequestRepository,
-                                MerchantReplenishmentRequestLineMapper merchantRequestLineRepository,
                                 NotificationService notificationService,
                                 DistributedLockService distributedLockService,
                                 SystemConfigService systemConfigService,
@@ -182,8 +169,6 @@ public class ReplenishmentService {
         this.deviceSlotService = deviceSlotService;
         this.inTransitService = inTransitService;
         this.sessionService = sessionService;
-        this.merchantRequestRepository = merchantRequestRepository;
-        this.merchantRequestLineRepository = merchantRequestLineRepository;
         this.notificationService = notificationService;
         this.distributedLockService = distributedLockService;
         this.systemConfigService = systemConfigService;
@@ -345,10 +330,8 @@ public class ReplenishmentService {
         Long planned = routeRepository.selectCount(Wrappers.<ReplenishmentRoute>lambdaQuery()
                 .in(ReplenishmentRoute::getStatus, PLANNED, STATUS_IN_PROGRESS));
         long plannedRoutes = planned == null ? 0 : planned;
-        Long pendingReq = merchantRequestRepository.selectCount(
-                Wrappers.<MerchantReplenishmentRequest>lambdaQuery()
-                        .eq(MerchantReplenishmentRequest::getStatus, "SUBMITTED"));
-        long pendingRequests = pendingReq == null ? 0 : pendingReq;
+        // 要货申请已下线（V346）：字段保留以稳定 API 形状，恒为 0
+        long pendingRequests = 0L;
         return new ReplenishmentOpsSummaryDto(pending, fulfilled, plannedRoutes, pendingRequests);
     }
 
@@ -452,29 +435,6 @@ public class ReplenishmentService {
     /**
      * 历史空任务回填：关联要货单且尚无任何任务行时，按要货数量 seed。
      */
-    @Transactional
-    public int ensureSeededFromLinkedRequest(Long taskId) {
-        if (taskId == null) {
-            return 0;
-        }
-        ReplenishmentTask task = taskRepository.findById(taskId).orElse(null);
-        if (task == null || task.getRequestId() == null) {
-            return 0;
-        }
-        if (!taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId).isEmpty()) {
-            return 0;
-        }
-        Map<String, Integer> skuQty = new LinkedHashMap<>();
-        for (MerchantReplenishmentRequestLine line : merchantRequestLineRepository
-                .findByRequestIdOrderByLineIdAsc(task.getRequestId())) {
-            if (line.getSkuId() == null || line.getSkuId().isBlank()) {
-                continue;
-            }
-            skuQty.merge(line.getSkuId(), Math.max(0, line.getRequestedQty()), Integer::sum);
-        }
-        return self.seedDraftRestockLines(taskId, task.getDeviceId(), skuQty);
-    }
-
     /**
      * 无仓配出库时：按要货 SKU 数量生成现场 RESTOCK 行（有货道容量则分配 slot，否则仍落无货道行便于商户执行）。
      * 已有任务行时跳过，避免覆盖人工录入。
@@ -919,22 +879,7 @@ public class ReplenishmentService {
         if (sessionService != null) {
             sessionService.closeRestockSessionsForTask(taskId, "补货任务已完成，自动关闭开门会话");
         }
-        markLinkedRequestCompleted(task);
         return toTaskDto(task);
-    }
-
-    /** 关联要货单：任务完成后置 COMPLETED（仅 ACCEPTED → COMPLETED）。 */
-    private void markLinkedRequestCompleted(ReplenishmentTask task) {
-        if (task == null || task.getRequestId() == null || merchantRequestRepository == null) {
-            return;
-        }
-        merchantRequestRepository.findById(task.getRequestId()).ifPresent(req -> {
-            if (!"ACCEPTED".equalsIgnoreCase(req.getStatus())) {
-                return;
-            }
-            req.setStatus(STATUS_COMPLETED);
-            merchantRequestRepository.save(req);
-        });
     }
 
     /** 出库行 → 货道分配：优先沿用出库明细货道，并按当前余量截断。 */
@@ -1585,6 +1530,14 @@ public class ReplenishmentService {
 
 
 
+    /** 按任务 ID 取任务 DTO（自主发起补货等外部流程复用）。 */
+    @Transactional(readOnly = true)
+    public ReplenishmentTaskDto getTaskDto(Long taskId) {
+        ReplenishmentTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
+        return toTaskDto(task);
+    }
+
     private ReplenishmentTaskDto toTaskDto(ReplenishmentTask t) {
         String deviceName = null;
         Boolean deviceHasCoords = null;
@@ -1605,7 +1558,7 @@ public class ReplenishmentService {
                 t.getStatus(), t.getNotes(), t.getCompletedAt(),
                 t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
                 resolveCheckInDistanceM(t),
-                t.getRequestId(), t.getOutboundId(), t.getCreatedAt(),
+                t.getOutboundId(), t.getCreatedAt(),
                 deviceName,
                 route != null ? route.getRouteName() : null,
                 route != null ? route.getPlannedDate() : null,
@@ -1640,7 +1593,6 @@ public class ReplenishmentService {
                 base.checkInLat(),
                 base.checkInLng(),
                 base.checkInDistanceM(),
-                base.requestId(),
                 base.outboundId(),
                 base.createdAt(),
                 base.deviceName()

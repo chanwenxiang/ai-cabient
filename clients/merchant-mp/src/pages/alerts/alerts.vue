@@ -269,7 +269,7 @@ function actionHint(item: { type: string; deviceId?: string; ticketId?: string }
     return item.deviceId ? '查看柜机' : '查看争议';
   }
   if (type === 'EXPIRY') return '去处理临期任务';
-  if (type === 'LOW_STOCK') return '去发起要货';
+  if (type === 'LOW_STOCK') return '去发起补货';
   if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '去补货任务';
   if (type === 'DEVICE_OFFLINE' || type === 'DEVICE_FAULT' || type === 'SALES_LOCKED')
     return '查看柜机';
@@ -407,7 +407,7 @@ function handleItem(item: {
   }
   if (type === 'LOW_STOCK') {
     const q = item.deviceId ? `?deviceId=${encodeURIComponent(item.deviceId)}` : '';
-    uni.navigateTo({ url: `/pages/request/request${q}` });
+    uni.navigateTo({ url: `/pages/self-replenish/self-replenish${q}` });
     return;
   }
   if (item.deviceId) {

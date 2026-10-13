@@ -246,24 +246,6 @@ public class OpsCommercialFacade {
         return replenishmentService.checkInTask(operatorId, taskId, body);
     }
 
-    public List<MerchantReplenishmentRequestDto> listMerchantReplenishmentRequests(Long operatorId, String status) {
-        return merchantReplenishmentService.listRequestsForOps(operatorId, status);
-    }
-
-    public PageResult<MerchantReplenishmentRequestDto> listMerchantReplenishmentRequestsPage(
-            Long operatorId, String status, int page, int size) {
-        return merchantReplenishmentService.listRequestsForOpsPage(operatorId, status, page, size);
-    }
-
-    public MerchantReplenishmentRequestDto acceptMerchantReplenishmentRequest(Long operatorId, Long requestId) {
-        return merchantReplenishmentService.acceptRequest(operatorId, requestId);
-    }
-
-    public MerchantReplenishmentRequestDto rejectMerchantReplenishmentRequest(Long operatorId, Long requestId,
-                                                                              RejectMerchantReplenishmentRequest body) {
-        return merchantReplenishmentService.rejectRequest(operatorId, requestId, body);
-    }
-
     public FinanceStatsDto financeStats(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:finance:view");
         return financeReportService.stats(operatorId);

@@ -242,7 +242,7 @@ public class MerchantInventoryPortalService {
                 t.getStatus(), t.getNotes(), t.getCompletedAt(),
                 t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
                 resolveCheckInDistanceM(t),
-                t.getRequestId(), t.getOutboundId(), t.getCreatedAt(),
+                t.getOutboundId(), t.getCreatedAt(),
                 deviceName,
                 route != null ? route.getRouteName() : null,
                 route != null ? route.getPlannedDate() : null,

@@ -569,54 +569,13 @@ public class MerchantPortalController {
         return ApiResponse.ok(support.merchantReplenishmentService().listSuggestions(userId(request), deviceId));
     }
 
+    /** 补货员自主发起补货：仅柜机所属分仓负责人可用，直接扣分仓生成出库+补货任务，无审批。 */
     @RequiresPermissions("merchant:replenishment:request")
-    @PostMapping(value = "/replenishment/requests/evidence", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<FileAttachmentDto> uploadPendingReplenishmentRequestEvidence(
+    @PostMapping("/replenishment/self-initiate")
+    public ApiResponse<ReplenishmentTaskDto> selfInitiateReplenishment(
             HttpServletRequest request,
-            @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
-        return ApiResponse.ok(support.merchantReplenishmentService().uploadPendingRequestEvidence(userId(request), file));
-    }
-
-    @RequiresPermissions("merchant:replenishment:view")
-    @GetMapping("/replenishment/requests/{requestId}/evidence")
-    public ApiResponse<List<FileAttachmentDto>> listReplenishmentRequestEvidence(
-            HttpServletRequest request, @PathVariable Long requestId) {
-        return ApiResponse.ok(support.merchantReplenishmentService().listRequestEvidence(userId(request), requestId));
-    }
-
-    @RequiresPermissions("merchant:replenishment:view")
-    @GetMapping("/replenishment/requests/{requestId}/evidence/{fileId}")
-    public void streamReplenishmentRequestEvidence(
-            HttpServletRequest request,
-            @PathVariable Long requestId,
-            @PathVariable Long fileId,
-            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
-        support.merchantReplenishmentService().streamRequestEvidence(userId(request), requestId, fileId, response);
-    }
-
-    @RequiresPermissions("merchant:replenishment:view")
-    @GetMapping("/replenishment/requests")
-    public ApiResponse<List<MerchantReplenishmentRequestDto>> replenishmentRequests(
-            HttpServletRequest request,
-            @RequestParam(name = "status", required = false) String status,
-            @RequestParam(name = "deviceId", required = false) String deviceId) {
-        return ApiResponse.ok(support.merchantReplenishmentService().listRequests(
-                userId(request), status, deviceId));
-    }
-
-    @RequiresPermissions("merchant:replenishment:view")
-    @GetMapping("/replenishment/requests/{requestId}")
-    public ApiResponse<MerchantReplenishmentRequestDto> replenishmentRequestDetail(
-            HttpServletRequest request, @PathVariable Long requestId) {
-        return ApiResponse.ok(support.merchantReplenishmentService().getRequest(userId(request), requestId));
-    }
-
-    @RequiresPermissions("merchant:replenishment:request")
-    @PostMapping("/replenishment/requests")
-    public ApiResponse<MerchantReplenishmentRequestDto> createReplenishmentRequest(
-            HttpServletRequest request,
-            @RequestBody CreateMerchantReplenishmentRequest body) {
-        return ApiResponse.ok(support.merchantReplenishmentService().submitRequest(userId(request), body));
+            @RequestBody MerchantSelfReplenishRequest body) {
+        return ApiResponse.ok(support.merchantReplenishmentService().selfInitiateTask(userId(request), body));
     }
 
     @RequiresPermissions("merchant:temp:history")

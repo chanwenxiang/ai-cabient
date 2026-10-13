@@ -377,28 +377,10 @@ export function uploadReplenishmentEvidenceFile(
   );
 }
 
-export function uploadReplenishmentRequestEvidenceFile(
-  filePath: string
-): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
-  return uploadMerchantAuthedFile(
-    merchantAbsUrl(MerchantEndpoints.replenishmentRequestEvidence),
-    filePath
-  );
-}
-
 /** Auth-aware download for evidence stream URLs (image tags cannot send Bearer). */
 export function downloadReplenishmentEvidenceFile(taskId: number, fileId: number): Promise<string> {
   return downloadAuthedFile(
     merchantAbsUrl(MerchantEndpoints.replenishmentTaskEvidenceFile(taskId, fileId))
-  );
-}
-
-export function downloadReplenishmentRequestEvidenceFile(
-  requestId: number,
-  fileId: number
-): Promise<string> {
-  return downloadAuthedFile(
-    merchantAbsUrl(MerchantEndpoints.replenishmentRequestEvidenceFile(requestId, fileId))
   );
 }
 
@@ -701,26 +683,15 @@ export const merchantApi = {
     request<OpenApiMerchantReplenishmentEfficiencyDto>(MerchantEndpoints.replenishmentEfficiency),
   /** 缺货巡柜：全部低库存 SKU 明细（按柜聚合由页面完成） */
   lowStockDevices: () => request<OpenApiDeviceInventoryDto[]>(MerchantEndpoints.inventoryLowStock),
-  replenishmentRequests: (status?: string, deviceId?: string) =>
-    request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentRequestDto[]>(
-      withQuery(MerchantEndpoints.replenishmentRequests, { status, deviceId })
-    ),
-  submitReplenishmentRequest: (
-    body: import('@aicabinet/shared-types').OpenApiCreateMerchantReplenishmentRequest
+  /** 自主补货：直接生成分仓出库 + 补货任务（无审批） */
+  selfInitiateReplenishment: (
+    body: import('@aicabinet/shared-types').OpenApiMerchantSelfReplenishRequest
   ) =>
-    request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentRequestDto>(
-      MerchantEndpoints.replenishmentRequests,
+    request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto>(
+      MerchantEndpoints.replenishmentSelfInitiate,
       'POST',
       body
     ),
-  listReplenishmentRequestEvidence: (requestId: number) =>
-    request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
-      MerchantEndpoints.replenishmentRequestEvidenceList(requestId)
-    ),
-  uploadReplenishmentRequestEvidence: (filePath: string) =>
-    uploadReplenishmentRequestEvidenceFile(filePath),
-  downloadReplenishmentRequestEvidence: (requestId: number, fileId: number) =>
-    downloadReplenishmentRequestEvidenceFile(requestId, fileId),
   replenishmentTasks: (status?: string) => {
     const path = status
       ? MerchantEndpoints.replenishmentTasksByStatus(status)

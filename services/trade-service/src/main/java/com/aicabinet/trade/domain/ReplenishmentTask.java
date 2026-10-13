@@ -27,8 +27,6 @@ public class ReplenishmentTask {
 
     private Long outboundId;
 
-    private Long requestId;
-
     private Instant checkInAt;
 
     private Double checkInLat;

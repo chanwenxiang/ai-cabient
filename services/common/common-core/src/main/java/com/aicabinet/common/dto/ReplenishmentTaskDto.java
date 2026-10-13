@@ -16,7 +16,6 @@ public record ReplenishmentTaskDto(
         Double checkInLng,
         /** Distance from check-in GPS to device coordinates, meters; null if either side missing. */
         Double checkInDistanceM,
-        Long requestId,
         Long outboundId,
         Instant createdAt,
         String deviceName,
@@ -47,12 +46,11 @@ public record ReplenishmentTaskDto(
             Double checkInLat,
             Double checkInLng,
             Double checkInDistanceM,
-            Long requestId,
             Long outboundId,
             Instant createdAt
     ) {
         this(taskId, routeId, deviceId, assigneeUserId, status, notes, completedAt, checkInAt,
-                checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt,
+                checkInLat, checkInLng, checkInDistanceM, outboundId, createdAt,
                 null, null, null, null, null, null);
     }
 
@@ -68,13 +66,12 @@ public record ReplenishmentTaskDto(
             Double checkInLat,
             Double checkInLng,
             Double checkInDistanceM,
-            Long requestId,
             Long outboundId,
             Instant createdAt,
             String deviceName
     ) {
         this(taskId, routeId, deviceId, assigneeUserId, status, notes, completedAt, checkInAt,
-                checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt,
+                checkInLat, checkInLng, checkInDistanceM, outboundId, createdAt,
                 deviceName, null, null, null, null, null);
     }
 
@@ -90,7 +87,6 @@ public record ReplenishmentTaskDto(
             Double checkInLat,
             Double checkInLng,
             Double checkInDistanceM,
-            Long requestId,
             Long outboundId,
             Instant createdAt,
             String deviceName,
@@ -98,7 +94,7 @@ public record ReplenishmentTaskDto(
             LocalDate plannedDate
     ) {
         this(taskId, routeId, deviceId, assigneeUserId, status, notes, completedAt, checkInAt,
-                checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt,
+                checkInLat, checkInLng, checkInDistanceM, outboundId, createdAt,
                 deviceName, routeName, plannedDate, null, null, null);
     }
 }

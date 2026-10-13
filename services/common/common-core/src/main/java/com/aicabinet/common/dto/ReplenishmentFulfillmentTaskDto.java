@@ -16,7 +16,6 @@ public record ReplenishmentFulfillmentTaskDto(
         Double checkInLat,
         Double checkInLng,
         Double checkInDistanceM,
-        Long requestId,
         Long outboundId,
         Instant createdAt,
         String deviceName
@@ -34,11 +33,10 @@ public record ReplenishmentFulfillmentTaskDto(
             Double checkInLat,
             Double checkInLng,
             Double checkInDistanceM,
-            Long requestId,
             Long outboundId,
             Instant createdAt
     ) {
         this(taskId, routeId, routeName, deviceId, assigneeUserId, status, notes, completedAt,
-                checkInAt, checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt, null);
+                checkInAt, checkInLat, checkInLng, checkInDistanceM, outboundId, createdAt, null);
     }
 }

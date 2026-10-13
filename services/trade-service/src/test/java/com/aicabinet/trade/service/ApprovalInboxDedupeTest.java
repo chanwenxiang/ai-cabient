@@ -47,7 +47,7 @@ class ApprovalInboxDedupeTest {
         service = new ApprovalWorkflowService(
                 definitionRepository, nodeRepository, instanceRepository, taskRepository,
                 permissionRepository, userDepartmentRepository, notificationService,
-                permissionService, auditService, null, null, null, null);
+                permissionService, auditService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

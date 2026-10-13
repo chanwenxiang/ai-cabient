@@ -65,6 +65,7 @@ public final class XxlJobManagedTasks {
             "withdraw-paying-timeout",
             "platform-fund-daily",
             "device-rental-daily",
+            "warehouse-monthly-close",
             // 营销
             "coupon-expire",
             "coupon-expiry-remind",

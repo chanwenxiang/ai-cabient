@@ -59,6 +59,7 @@ public final class ScheduleZones {
             Map.entry("withdraw-paying-timeout", "0 0/10 * * * ?"),
             Map.entry("platform-fund-daily", "0 10 8 * * ?"),
             Map.entry("device-rental-daily", "0 20 8 * * ?"),
+            Map.entry("warehouse-monthly-close", "0 0 2 1 * ?"),
             // 营销
             Map.entry("coupon-expire", "0 0 2 * * ?"),
             Map.entry("coupon-expiry-remind", "0 0 0/6 * * ?"),
@@ -106,6 +107,7 @@ public final class ScheduleZones {
             Map.entry("line-commission", Duration.ofHours(26)),                // 日 00:20 + 2h
             Map.entry("finance-margin", Duration.ofHours(26)),                 // 日 00:05 + 2h
             Map.entry("ops-fee-bill-monthly", Duration.ofDays(32)),            // 月 1 日 01:30 + 1 天
+            Map.entry("warehouse-monthly-close", Duration.ofDays(32)),         // 月 1 日 02:00 + 1 天（月任务必须按 32 天）
             Map.entry("withdraw-paying-timeout", Duration.ofMinutes(30)),      // 10min ×3
             Map.entry("platform-fund-daily", Duration.ofHours(26)),            // 日 08:10 + 2h
             Map.entry("device-rental-daily", Duration.ofHours(26)),            // 日 08:20 + 2h

@@ -156,7 +156,7 @@ export function useHomeWorkbench() {
   }
 
   function goRequest() {
-    uni.navigateTo({ url: '/pages/request/request' });
+    uni.navigateTo({ url: '/pages/self-replenish/self-replenish' });
   }
 
   function goPricing() {

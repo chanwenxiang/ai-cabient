@@ -159,24 +159,6 @@ public class OpsReplenishmentAdminService {
         return replenishmentService.checkInTask(operatorId, taskId, body);
     }
 
-    public List<MerchantReplenishmentRequestDto> listMerchantReplenishmentRequests(Long operatorId, String status) {
-        return merchantReplenishmentService.listRequestsForOps(operatorId, status);
-    }
-
-    public PageResult<MerchantReplenishmentRequestDto> listMerchantReplenishmentRequestsPage(
-            Long operatorId, String status, int page, int size) {
-        return merchantReplenishmentService.listRequestsForOpsPage(operatorId, status, page, size);
-    }
-
-    public MerchantReplenishmentRequestDto acceptMerchantReplenishmentRequest(Long operatorId, Long requestId) {
-        return merchantReplenishmentService.acceptRequest(operatorId, requestId);
-    }
-
-    public MerchantReplenishmentRequestDto rejectMerchantReplenishmentRequest(Long operatorId, Long requestId,
-                                                                              RejectMerchantReplenishmentRequest body) {
-        return merchantReplenishmentService.rejectRequest(operatorId, requestId, body);
-    }
-
     public int applyPlanogramTemplate(Long operatorId, String deviceId) {
         permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
         return deviceSlotService.applyPlanogramTemplate(operatorId, deviceId);

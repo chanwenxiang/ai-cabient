@@ -10,7 +10,7 @@
         <view v-else class="card">
           <text class="label">收货仓</text>
           <text class="warehouse">{{ warehouseName || '加载中…' }}</text>
-          <text class="hint">只进您负责的分仓，不要用要货当日常采购</text>
+          <text class="hint">只进您负责的分仓</text>
         </view>
 
         <view class="card">
@@ -81,7 +81,7 @@
               class="recv-line"
             >
               <view class="recv-line-head">
-                <text class="line-item">{{ line.skuId }} · 要货 {{ line.orderedQty }}</text>
+                <text class="line-item">{{ line.skuId }} · 采购 {{ line.orderedQty }}</text>
                 <view
                   v-if="canReceiveSatellitePurchase(order.status)"
                   role="button"
@@ -128,7 +128,7 @@ import { showError, showSuccess } from '@/utils/notify';
 import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
-import { requestActionErrorMessage } from '@/utils/request-submit';
+import { requestActionErrorMessage } from '@/utils/self-replenish-submit';
 import {
   canConfirmSatelliteReceive,
   canReceiveSatellitePurchase,
@@ -294,7 +294,7 @@ function supplierName(id: string) {
 }
 
 /**
- * 审计 P2-19 附加：实收数量可编辑（1..要货数，默认=要货数）。
+ * 审计 P2-19 附加：实收数量可编辑（1..采购数，默认=采购数）。
  * 竞品（easygo）入库一次性全额、实际到货数不入账——账实漂移根源，不可学；
  * 后端分仓收货复用 processReceiveLine，本就支持部分收货（PARTIAL_RECEIVED）。
  * 供应商少发/运输破损时按实收入账，剩余量可后续再收。

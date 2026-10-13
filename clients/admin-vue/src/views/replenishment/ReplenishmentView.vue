@@ -5,9 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">补货调度</span>
-            <span class="hint"
-              >路线 / 履约取证 / 要货 / 缺货；签到 GPS、用时与理货明细可核对现场履约</span
-            >
+            <span class="hint">路线 / 履约取证 / 缺货；签到 GPS、用时与理货明细可核对现场履约</span>
           </div>
           <div class="kpi-tags">
             <button
@@ -38,15 +36,6 @@
               <el-tag size="small" type="success"
                 >已履约 {{ listHydrated ? fulfilledCount : '…' }}</el-tag
               >
-            </button>
-            <button
-              type="button"
-              class="kpi-tag-btn"
-              :aria-label="
-                listHydrated ? `要货待审 ${pendingRequestCount}` : `要货待审 ${UI_COPY.loading}`
-              "
-            >
-              <el-tag size="small">要货待审 {{ listHydrated ? pendingRequestCount : '…' }}</el-tag>
             </button>
             <button
               type="button"
@@ -550,18 +539,6 @@
                 </template>
               </el-table-column>
               <el-table-column
-                label="要货单"
-                width="90"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <span v-if="row.requestId" class="cell-id">{{ row.requestId }}</span>
-                  <span v-else class="muted">暂无</span>
-                </template>
-              </el-table-column>
-              <el-table-column
                 label="出库单"
                 width="90"
                 class-name="col-text"
@@ -607,135 +584,6 @@
                 </template>
               </el-table-column>
             </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane label="商户要货" name="requests">
-        <div class="shortage-toolbar">
-          <el-radio-group v-model="requestStatusFilter" size="small" @change="page = 1">
-            <el-radio-button
-              v-for="item in dictOptions('replenishment_request_status')"
-              :key="item.value"
-              :value="item.value"
-            >
-              {{ item.label }}
-            </el-radio-button>
-            <el-radio-button value="ALL">全部</el-radio-button>
-          </el-radio-group>
-        </div>
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <CrudTable
-              :table="crudRequests"
-              row-key="requestId"
-              selectable
-              :actions="showRequestActionColumn ? requestActionsFor : undefined"
-              :action-width="200"
-              :empty-text="requestsEmptyText"
-              sort-field-label="要货单"
-              @action="onRequestRowAction"
-            >
-              <el-table-column
-                prop="requestId"
-                label="要货单"
-                min-width="120"
-                class-name="col-text"
-              >
-                <template #default="{ row }"
-                  ><span class="cell-id">{{ row.requestId }}</span></template
-                >
-              </el-table-column>
-              <el-table-column
-                prop="merchantName"
-                label="商户"
-                min-width="160"
-                class-name="col-text"
-              />
-              <el-table-column label="目标设备" min-width="120" class-name="col-text">
-                <template #default="{ row }">
-                  <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
-                    {{ deviceName(row.deviceId, row.deviceName) }}
-                  </button>
-                </template>
-              </el-table-column>
-              <el-table-column label="设备ID" min-width="120" class-name="col-text">
-                <template #default="{ row }">
-                  <span class="cell-id">{{ row.deviceId }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="明细" min-width="220" class-name="col-text">
-                <template #default="{ row }">
-                  <span>{{ formatRequestLines(row) }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                label="状态"
-                width="110"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <el-tag :type="dictTagType(row.status)" size="small">
-                    {{ dictLabel('replenishment_request_status', row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="审核人" min-width="120" class-name="col-text">
-                <template #default="{ row }">
-                  <span v-if="row.reviewerName || row.reviewerId">{{
-                    row.reviewerName || row.reviewerId
-                  }}</span>
-                  <span v-else class="muted">待审核</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                align="center"
-                label="审核时间"
-                width="168"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <span v-if="row.reviewedAt" class="cell-datetime">{{
-                    formatDateTime(row.reviewedAt)
-                  }}</span>
-                  <span v-else class="muted">—</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="驳回原因" min-width="160" class-name="col-text">
-                <template #default="{ row }">
-                  <span v-if="row.rejectReason" class="reject-reason">{{ row.rejectReason }}</span>
-                  <span v-else class="muted">无</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="补货任务" width="110" class-name="col-text">
-                <template #default="{ row }">
-                  <el-button
-                    v-if="row.replenishmentTaskId"
-                    link
-                    type="primary"
-                    @click="onRequestAction(row, 'view-task')"
-                    >{{ row.replenishmentTaskId }}</el-button
-                  >
-                  <span v-else class="muted">无</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                align="center"
-                label="提交时间"
-                width="168"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <span class="cell-datetime">{{
-                    formatDateTime(row.submittedAt || row.createdAt)
-                  }}</span>
-                </template>
-              </el-table-column>
-            </CrudTable>
           </div>
         </div>
       </el-tab-pane>
@@ -1181,80 +1029,6 @@
       </div>
     </ResizableDrawer>
 
-    <ResizableDrawer
-      v-model="requestFlowDrawer"
-      :title="requestFlowTitle"
-      storage-key="admin.drawer.replenishment.requestFlow"
-      :default-width="520"
-      :min-width="420"
-      :max-width="900"
-      destroy-on-close
-      append-to-body
-    >
-      <div v-if="requestFlowRow" class="request-flow">
-        <el-steps
-          :active="requestFlowActiveStep"
-          :process-status="requestFlowProcessStatus"
-          finish-status="success"
-          align-center
-        >
-          <el-step title="商户提交" :description="requestFlowSubmitDesc" />
-          <el-step title="运营审核" :description="requestFlowReviewDesc" />
-          <el-step title="履约补货" :description="requestFlowFulfillDesc" />
-        </el-steps>
-        <el-descriptions :column="1" border size="small" class="request-flow-meta">
-          <el-descriptions-item label="要货单">{{ requestFlowRow.requestId }}</el-descriptions-item>
-          <el-descriptions-item label="商户">{{
-            requestFlowRow.merchantName || requestFlowRow.merchantId || '—'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="设备"
-            >{{ deviceName(requestFlowRow.deviceId, requestFlowRow.deviceName) }}（{{
-              requestFlowRow.deviceId
-            }}）</el-descriptions-item
-          >
-          <el-descriptions-item label="明细">{{
-            formatRequestLines(requestFlowRow)
-          }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="dictTagType(requestFlowRow.status)" size="small">
-              {{ dictLabel('replenishment_request_status', requestFlowRow.status) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item v-if="requestFlowRow.rejectReason" label="驳回原因">
-            <span class="reject-reason">{{ requestFlowRow.rejectReason }}</span>
-          </el-descriptions-item>
-        </el-descriptions>
-        <div v-if="requestEvidence.length" class="request-evidence">
-          <div class="lines-photo-hint">要货附图 · {{ requestEvidence.length }} 张</div>
-          <div class="evidence-grid">
-            <div v-for="f in requestEvidence" :key="f.fileId" class="evidence-item">
-              <a
-                :href="f.previewUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="evidence-thumb"
-              >
-                <img :src="f.previewUrl" :alt="f.fileName || '要货附图'" loading="lazy" />
-              </a>
-            </div>
-          </div>
-        </div>
-        <div v-if="canEdit && requestFlowRow.status === 'SUBMITTED'" class="request-flow-actions">
-          <el-button type="primary" @click="onRequestAction(requestFlowRow, 'accept')"
-            >接单</el-button
-          >
-          <el-button type="danger" plain @click="onRequestAction(requestFlowRow, 'reject')"
-            >驳回</el-button
-          >
-        </div>
-        <div v-else-if="requestFlowRow.replenishmentTaskId" class="request-flow-actions">
-          <el-button type="primary" @click="onRequestAction(requestFlowRow, 'view-task')"
-            >查看补货任务</el-button
-          >
-        </div>
-      </div>
-    </ResizableDrawer>
-
     <ReplenishmentPlanRouteDialog
       :model-value="planDialog"
       v-model:plan-form="planForm"
@@ -1289,7 +1063,6 @@ import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
-import { useReplenishmentRequestFlow } from '@/composables/replenishment/useReplenishmentRequestFlow';
 import { useReplenishmentTaskActions } from '@/composables/replenishment/useReplenishmentTaskActions';
 import { useReplenishmentTaskLines } from '@/composables/replenishment/useReplenishmentTaskLines';
 import { useReplenishmentRoutePlanning } from '@/composables/replenishment/useReplenishmentRoutePlanning';
@@ -1351,27 +1124,23 @@ const tab = ref('routes');
 const TAB_DESC: Record<string, string> = {
   routes: '补货路线与任务：把缺货设备串成路线并生成补货任务，派给现场人员执行',
   fulfillment: '履约记录：签到 GPS、用时与现场照片，核对补货是否真实完成',
-  requests: '商户要货：商户/运营提交的要货需求，审核后并入补货计划',
   shortage: '缺货建议：各柜机低于安全库存的商品，可一键生成补货规划，或按设备直接生成补货任务',
   expiry: '临期下架：仓库里临近有效期的批次，建议优先下架或换新'
 };
 const tabDescription = computed(() => TAB_DESC[tab.value] || '');
-const SERVER_PAGINATED_TABS = new Set(['routes', 'fulfillment', 'requests', 'expiry', 'shortage']);
+const SERVER_PAGINATED_TABS = new Set(['routes', 'fulfillment', 'expiry', 'shortage']);
 const tabTotals = ref<Record<string, number>>({});
 const summary = ref({
   pendingTaskCount: 0,
   fulfilledTaskCount: 0,
-  plannedRouteCount: 0,
-  pendingRequestCount: 0
+  plannedRouteCount: 0
 });
 const page = ref(1);
 const size = ref(20);
 const focusDeviceId = ref('');
 const fulfillmentStatus = ref('');
 const fulfillmentUnassignedOnly = ref(false);
-const requestStatusFilter = ref('SUBMITTED');
 const routes = ref<Row[]>([]);
-const allRequests = ref<Row[]>([]);
 const fulfillmentTasksList = ref<Row[]>([]);
 const devices = ref<Row[]>([]);
 const shortages = ref<Row[]>([]);
@@ -1380,21 +1149,6 @@ const expiryAlerts = ref<Row[]>([]);
 
 const shortageDevices = computed(() => shortageDeviceIds.value);
 
-const pendingRequestCount = computed(() => summary.value.pendingRequestCount);
-const requestsEmptyText = computed(() => {
-  switch (requestStatusFilter.value) {
-    case 'ACCEPTED':
-      return '暂无已接单要货';
-    case 'COMPLETED':
-      return '暂无已完成要货';
-    case 'REJECTED':
-      return '暂无已驳回要货';
-    case 'ALL':
-      return '暂无要货申请';
-    default:
-      return '暂无待处理要货申请';
-  }
-});
 const plannedCount = computed(() => summary.value.plannedRouteCount);
 const pendingTaskCount = computed(() => summary.value.pendingTaskCount);
 const fulfillmentTasksBase = computed(() => fulfillmentTasksList.value);
@@ -1432,7 +1186,7 @@ const tabTotal = computed(() => {
 
 const pagedFulfillment = computed(() => sortTasksById(fulfillmentTasks.value));
 
-watch([focusDeviceId, fulfillmentStatus, requestStatusFilter], () => {
+watch([focusDeviceId, fulfillmentStatus], () => {
   page.value = 1;
   if (SERVER_PAGINATED_TABS.has(tab.value)) {
     void loadTab(tab.value, true);
@@ -1528,24 +1282,6 @@ const crudRoutes = useCrudTable<Row>({
   }
 });
 
-const crudRequests = useCrudTable<Row>({
-  rowKey: (r) => r.requestId,
-  errorMessage: '补货数据加载失败',
-  autoLoad: false,
-  sort: { prop: 'requestId', mode: 'local' },
-  fetchPage: async (params) => {
-    await loadSummary();
-    const status = requestStatusFilter.value || 'ALL';
-    const data = await api.request<{ items: Row[]; total: number }>(
-      AdminEndpoints.replenishmentRequests(replenishmentPageQuery(params, { status })),
-      'GET'
-    );
-    allRequests.value = data.items || [];
-    tabTotals.value = { ...tabTotals.value, requests: Number(data.total) || 0 };
-    return data;
-  }
-});
-
 const crudShortages = useCrudTable<Row>({
   rowKey: (r) => r.slotKey || `${r.deviceId}-${r.slotCode}`,
   errorMessage: '补货数据加载失败',
@@ -1590,7 +1326,6 @@ const crudExpiry = useCrudTable<Row>({
 });
 
 const exportButtonLabel = computed(() => {
-  if (tab.value === 'requests') return crudRequests.exportButtonLabel;
   if (tab.value === 'shortage') return crudShortages.exportButtonLabel;
   if (tab.value === 'expiry') return crudExpiry.exportButtonLabel;
   if (tab.value === 'fulfillment') return fulfillmentExportLabel.value;
@@ -1643,24 +1378,6 @@ const { onExport: exportFulfillment } = useListCsv({
     ])
 });
 
-const { onExport: exportRequests } = useListCsv({
-  filePrefix: '商户要货',
-  headers: ['要货单', '商户', '目标设备', '状态', '审核人', '审核时间', '驳回原因', '提交时间'],
-  toRows: () =>
-    crudRequests
-      .pickSelected(crudRequests.items)
-      .map((row) => [
-        row.requestId,
-        row.merchantName || '',
-        deviceName(row.deviceId, row.deviceName),
-        dictLabel('replenishment_request_status', row.status),
-        row.reviewerName || row.reviewerId || '',
-        row.reviewedAt ? formatDateTime(row.reviewedAt) : '',
-        row.rejectReason || '',
-        formatDateTime(row.submittedAt || row.createdAt)
-      ])
-});
-
 const { onExport: exportShortages } = useListCsv({
   filePrefix: '缺货建议',
   headers: ['设备', '货道', '商品', '账面', '最低', '目标', '状态'],
@@ -1697,15 +1414,6 @@ const { onExport: exportExpiry } = useListCsv({
       ])
 });
 
-async function exportRequestsFull() {
-  try {
-    await downloadAuthFile(AdminEndpoints.replenishmentRequestsExport, csvFileName('商户要货'));
-    ElMessage.success('已导出');
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '导出失败');
-  }
-}
-
 async function exportRoutesFull() {
   try {
     await downloadAuthFile(AdminEndpoints.replenishmentRoutesExport, csvFileName('补货路线'));
@@ -1713,15 +1421,6 @@ async function exportRoutesFull() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');
   }
-}
-
-async function exportRequestsTab() {
-  const selected = crudRequests.pickSelected(crudRequests.items);
-  if (selected.length && selected.length < crudRequests.items.length) {
-    exportRequests();
-    return;
-  }
-  await exportRequestsFull();
 }
 
 async function exportRoutesTab() {
@@ -1744,10 +1443,6 @@ async function onExport() {
   }
   if (tab.value === 'fulfillment') {
     exportFulfillment();
-    return;
-  }
-  if (tab.value === 'requests') {
-    await exportRequestsTab();
     return;
   }
   await exportRoutesTab();
@@ -1845,13 +1540,11 @@ async function loadSummary() {
       pendingTaskCount: number;
       fulfilledTaskCount: number;
       plannedRouteCount: number;
-      pendingRequestCount: number;
     }>(AdminEndpoints.replenishmentSummary, 'GET');
     summary.value = {
       pendingTaskCount: Number(data.pendingTaskCount) || 0,
       fulfilledTaskCount: Number(data.fulfilledTaskCount) || 0,
-      plannedRouteCount: Number(data.plannedRouteCount) || 0,
-      pendingRequestCount: Number(data.pendingRequestCount) || 0
+      plannedRouteCount: Number(data.plannedRouteCount) || 0
     };
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadSummary')) return;
@@ -1896,8 +1589,7 @@ async function loadTab(name: string, force = false) {
     else if (name === 'fulfillment') {
       await loadSummary();
       await loadFulfillment();
-    } else if (name === 'requests') await crudRequests.search();
-    else if (name === 'shortage') {
+    } else if (name === 'shortage') {
       await loadDeviceRefs();
       await crudShortages.search();
     } else if (name === 'expiry') await crudExpiry.search();
@@ -1985,30 +1677,6 @@ async function openLinkedTask(
   }
   await openTaskLines(task);
 }
-
-const {
-  requestFlowDrawer,
-  requestFlowRow,
-  requestEvidence,
-  requestActionsFor,
-  showRequestActionColumn,
-  requestFlowTitle,
-  requestFlowActiveStep,
-  requestFlowProcessStatus,
-  requestFlowSubmitDesc,
-  requestFlowReviewDesc,
-  requestFlowFulfillDesc,
-  formatRequestLines,
-  onRequestAction,
-  onRequestRowAction
-} = useReplenishmentRequestFlow({
-  canEdit,
-  allRequests,
-  deviceName,
-  reloadCurrentTab,
-  loadSeq,
-  openLinkedTask
-});
 
 const {
   openDoorLoading,
@@ -2124,7 +1792,7 @@ function clearDeviceFocus() {
 
 function applyRouteQuery() {
   let changed = false;
-  const allowed = ['routes', 'requests', 'shortage', 'fulfillment', 'expiry'] as const;
+  const allowed = ['routes', 'shortage', 'fulfillment', 'expiry'] as const;
   const qTab = typeof route.query.tab === 'string' ? route.query.tab : '';
   if (allowed.includes(qTab as (typeof allowed)[number])) {
     if (tab.value !== qTab) {
@@ -2556,24 +2224,6 @@ onActivated(() => {
 .lines-action-hint {
   font-size: var(--admin-font-size-sm);
   color: var(--el-color-warning);
-}
-.request-flow {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 4px 0 12px;
-}
-.request-flow :deep(.el-step__description) {
-  white-space: pre-line;
-  line-height: 1.4;
-}
-.request-flow-meta {
-  margin-top: 4px;
-}
-.request-flow-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 .lines-dot {
   margin-left: 4px;

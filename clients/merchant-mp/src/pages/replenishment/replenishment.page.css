@@ -185,6 +185,18 @@
   justify-content: space-between;
   gap: 18rpx;
 }
+/* 卡头左侧文案块：约束宽度防长文案把右侧徽标挤成竖排换行 */
+.patrol-head {
+  align-items: flex-start;
+}
+.patrol-copy {
+  flex: 1;
+  min-width: 0;
+}
+.patrol-count {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .patrol-title {
   display: block;
   font-size: var(--font-size-lg);

@@ -585,22 +585,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/devices/{deviceId}/slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["deviceSlots"];
-        put: operations["upsertDeviceSlots"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/devices/{deviceId}/policy": {
         parameters: {
             query?: never;
@@ -768,8 +752,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["deviceSlots_1"];
-        put: operations["upsertDeviceSlots_1"];
+        get: operations["deviceSlots"];
+        put: operations["upsertDeviceSlots"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2201,166 +2185,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/replenishment/tasks/{taskId}/lines": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listTaskLines"];
-        put?: never;
-        post: operations["submitTaskLines"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/tasks/{taskId}/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["completeTask"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/tasks/{taskId}/check-in": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["checkInTask"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/tasks/{taskId}/cancel-empty": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["cancelEmptyTask"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/suggest/create-task": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["createTaskFromSuggestion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/routes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["routes"];
-        put?: never;
-        post: operations["createRoute"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/routes/{routeId}/cancel-empty": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["cancelEmptyRoute"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/requests/{requestId}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["rejectMerchantReplenishmentRequest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/requests/{requestId}/accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["acceptMerchantReplenishmentRequest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/plan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["planRoute"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/repair-tickets": {
         parameters: {
             query?: never;
@@ -3321,38 +3145,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/expiry/alerts/{taskId}/create-replenishment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["createFromExpiry"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/expiry/alerts/ensure": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["ensureExpiryAlert"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/exceptions/{id}/unarchive": {
         parameters: {
             query?: never;
@@ -3587,22 +3379,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["applyTempPlan"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/slots/stocktake": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["stocktakeSlot"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4425,23 +4201,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/merchant/replenishment/requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["replenishmentRequests"];
-        put?: never;
-        post: operations["createReplenishmentRequest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/replenishment/requests/evidence": {
+    "/api/v2/merchant/replenishment/self-initiate": {
         parameters: {
             query?: never;
             header?: never;
@@ -4450,7 +4210,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["uploadPendingReplenishmentRequestEvidence"];
+        post: operations["selfInitiateReplenishment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6281,22 +6041,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/slots/discrepancies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["slotDiscrepancies"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/sla": {
         parameters: {
             query?: never;
@@ -6553,38 +6297,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/replenishment/tasks/{taskId}/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listTaskEvidence"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/tasks/{taskId}/evidence/{fileId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["streamTaskEvidence"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/replenishment/summary": {
         parameters: {
             query?: never;
@@ -6593,38 +6305,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["replenishmentSummary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/suggest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["replenishmentSuggest"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/suggest/slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["slotReplenishmentSuggest"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6649,6 +6329,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/replenishment/routes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["routes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/replenishment/routes/export": {
         parameters: {
             query?: never;
@@ -6657,70 +6353,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["exportReplenishmentRoutes"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["merchantReplenishmentRequests"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/requests/{requestId}/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listReplenishmentRequestEvidence"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/requests/{requestId}/evidence/{fileId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["streamReplenishmentRequestEvidence"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/replenishment/requests/export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["exportReplenishmentRequests"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7673,22 +7305,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/expiry/alerts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["expiryAlerts"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/exceptions": {
         parameters: {
             query?: never;
@@ -7801,22 +7417,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/devices/{deviceId}/lots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["deviceLots"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/devices/{deviceId}/lifecycle-events": {
         parameters: {
             query?: never;
@@ -7889,22 +7489,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["envReadings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/detail": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["deviceDetail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8336,7 +7920,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["slotDiscrepancies_1"];
+        get: operations["slotDiscrepancies"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8585,54 +8169,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/merchant/replenishment/requests/{requestId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["replenishmentRequestDetail"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/replenishment/requests/{requestId}/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listReplenishmentRequestEvidence_1"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/replenishment/requests/{requestId}/evidence/{fileId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["streamReplenishmentRequestEvidence_1"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/merchant/replenishment/my-efficiency": {
         parameters: {
             query?: never;
@@ -8864,7 +8400,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["expiryAlerts_1"];
+        get: operations["expiryAlerts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8944,7 +8480,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["deviceDetail_1"];
+        get: operations["deviceDetail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9780,22 +9316,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deleteItem"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/slots/{slotCode}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deleteDeviceSlot"];
         options?: never;
         head?: never;
         patch?: never;
@@ -10714,60 +10234,6 @@ export interface components {
             enabled?: boolean;
             entries?: components["schemas"]["DeviceTempPlanEntryDto"][];
         };
-        UpsertDeviceSlotRequest: {
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-        };
-        ApiResponseListDeviceSlotDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceSlotDto"][];
-        };
-        DeviceSlotDto: {
-            deviceId?: string;
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            lastPhysicalQty?: number;
-            /** Format: date-time */
-            lastPhysicalAt?: string;
-            /** Format: date-time */
-            lastRestockAt?: string;
-            /** Format: int32 */
-            fillRatePct?: number;
-            stockStatus?: string;
-            /** Format: int32 */
-            qtyDiff?: number;
-            hasDiscrepancy?: boolean;
-        };
         DevicePolicyDto: {
             deviceId?: string;
             salesLocked?: boolean;
@@ -10976,6 +10442,60 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["MerchantTaxProfileDto"];
+        };
+        UpsertDeviceSlotRequest: {
+            slotCode?: string;
+            /** Format: int32 */
+            rowNo?: number;
+            /** Format: int32 */
+            colNo?: number;
+            slotType?: string;
+            assignedSkuId?: string;
+            /** Format: int32 */
+            parLevel?: number;
+            /** Format: int32 */
+            minLevel?: number;
+            /** Format: int32 */
+            maxLevel?: number;
+            enabled?: boolean;
+        };
+        ApiResponseListDeviceSlotDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceSlotDto"][];
+        };
+        DeviceSlotDto: {
+            deviceId?: string;
+            slotCode?: string;
+            /** Format: int32 */
+            rowNo?: number;
+            /** Format: int32 */
+            colNo?: number;
+            slotType?: string;
+            assignedSkuId?: string;
+            assignedSkuName?: string;
+            /** Format: int32 */
+            parLevel?: number;
+            /** Format: int32 */
+            minLevel?: number;
+            /** Format: int32 */
+            maxLevel?: number;
+            enabled?: boolean;
+            /** Format: int32 */
+            bookQty?: number;
+            /** Format: int32 */
+            lastPhysicalQty?: number;
+            /** Format: date-time */
+            lastPhysicalAt?: string;
+            /** Format: date-time */
+            lastRestockAt?: string;
+            /** Format: int32 */
+            fillRatePct?: number;
+            stockStatus?: string;
+            /** Format: int32 */
+            qtyDiff?: number;
+            hasDiscrepancy?: boolean;
         };
         ApiResponseNotifyPrefDto: {
             /** Format: int32 */
@@ -12271,177 +11791,6 @@ export interface components {
             /** Format: date-time */
             expiresAt?: string;
         };
-        ReplenishmentTaskLineDto: {
-            /** Format: int64 */
-            lineId?: number;
-            lineType?: string;
-            skuId?: string;
-            skuName?: string;
-            batchNo?: string;
-            /** Format: date */
-            productionDate?: string;
-            /** Format: date */
-            expiryDate?: string;
-            /** Format: int32 */
-            quantity?: number;
-            slotId?: string;
-            applied?: boolean;
-        };
-        SubmitReplenishmentLinesRequest: {
-            lines: components["schemas"]["ReplenishmentTaskLineDto"][];
-        };
-        ApiResponseListReplenishmentTaskLineDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ReplenishmentTaskLineDto"][];
-        };
-        ApiResponseReplenishmentTaskDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ReplenishmentTaskDto"];
-        };
-        ReplenishmentTaskDto: {
-            /** Format: int64 */
-            taskId?: number;
-            /** Format: int64 */
-            routeId?: number;
-            deviceId?: string;
-            /** Format: int64 */
-            assigneeUserId?: number;
-            status?: string;
-            notes?: string;
-            /** Format: date-time */
-            completedAt?: string;
-            /** Format: date-time */
-            checkInAt?: string;
-            /** Format: double */
-            checkInLat?: number;
-            /** Format: double */
-            checkInLng?: number;
-            /** Format: double */
-            checkInDistanceM?: number;
-            /** Format: int64 */
-            requestId?: number;
-            /** Format: int64 */
-            outboundId?: number;
-            /** Format: date-time */
-            createdAt?: string;
-            deviceName?: string;
-            routeName?: string;
-            /** Format: date */
-            plannedDate?: string;
-            /** Format: int32 */
-            evidenceCount?: number;
-            lineSummary?: string;
-            deviceHasCoords?: boolean;
-        };
-        ReplenishmentCheckInRequest: {
-            /** Format: double */
-            latitude?: number;
-            /** Format: double */
-            longitude?: number;
-        };
-        CreateFromSuggestionRequest: {
-            deviceId?: string;
-            /** Format: int64 */
-            assigneeUserId?: number;
-        };
-        ApiResponseReplenishmentRouteDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ReplenishmentRouteDto"];
-        };
-        ReplenishmentRouteDto: {
-            /** Format: int64 */
-            routeId?: number;
-            routeName?: string;
-            /** Format: int64 */
-            assigneeUserId?: number;
-            /** Format: date */
-            plannedDate?: string;
-            status?: string;
-            tasks?: components["schemas"]["ReplenishmentTaskDto"][];
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: int32 */
-            totalDistanceM?: number;
-            waypoints?: components["schemas"]["RouteWaypointDto"][];
-        };
-        RouteWaypointDto: {
-            /** Format: int32 */
-            sequence?: number;
-            deviceId?: string;
-            /** Format: double */
-            latitude?: number;
-            /** Format: double */
-            longitude?: number;
-            address?: string;
-            /** Format: int32 */
-            distanceFromPrevM?: number;
-        };
-        RejectMerchantReplenishmentRequest: {
-            reason?: string;
-        };
-        ApiResponseMerchantReplenishmentRequestDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["MerchantReplenishmentRequestDto"];
-        };
-        MerchantReplenishmentRequestDto: {
-            /** Format: int64 */
-            requestId?: number;
-            merchantId?: string;
-            merchantName?: string;
-            deviceId?: string;
-            deviceName?: string;
-            status?: string;
-            notes?: string;
-            /** Format: int64 */
-            createdBy?: number;
-            createdByName?: string;
-            /** Format: date-time */
-            submittedAt?: string;
-            /** Format: date-time */
-            reviewedAt?: string;
-            /** Format: int64 */
-            reviewerId?: number;
-            reviewerName?: string;
-            rejectReason?: string;
-            /** Format: int64 */
-            replenishmentTaskId?: number;
-            /** Format: int64 */
-            outboundId?: number;
-            lines?: components["schemas"]["MerchantReplenishmentRequestLineDto"][];
-            /** Format: int32 */
-            evidenceCount?: number;
-        };
-        MerchantReplenishmentRequestLineDto: {
-            /** Format: int64 */
-            lineId?: number;
-            skuId?: string;
-            skuName?: string;
-            spec?: string;
-            /** Format: int32 */
-            suggestedQty?: number;
-            /** Format: int32 */
-            requestedQty?: number;
-        };
-        PlanRouteRequest: {
-            routeName?: string;
-            /** Format: int64 */
-            assigneeUserId?: number;
-            /** Format: date */
-            plannedDate?: string;
-            deviceIds?: string[];
-            /** Format: double */
-            startLatitude?: number;
-            /** Format: double */
-            startLongitude?: number;
-        };
         ApiResponseRepairTicketDto: {
             /** Format: int32 */
             code?: number;
@@ -13096,33 +12445,6 @@ export interface components {
             lockedBy?: number;
             locked?: boolean;
         };
-        CreateFromExpiryRequest: {
-            lineType?: string;
-            /** Format: int64 */
-            assigneeUserId?: number;
-        };
-        ApiResponsePullOffTaskDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["PullOffTaskDto"];
-        };
-        PullOffTaskDto: {
-            /** Format: int64 */
-            taskId?: number;
-            deviceId?: string;
-            skuId?: string;
-            lotId?: string;
-            batchNo?: string;
-            /** Format: int32 */
-            quantity?: number;
-            reason?: string;
-            status?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: int32 */
-            restockHeadroom?: number;
-        };
         ApiResponseOpsExceptionDto: {
             /** Format: int32 */
             code?: number;
@@ -13250,19 +12572,6 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["AdminDeviceDto"];
-        };
-        SlotStocktakeRequest: {
-            slotCode: string;
-            /** Format: int32 */
-            physicalQty?: number;
-            adjustBookQty?: boolean;
-            photoEvidenceUrl?: string;
-        };
-        ApiResponseDeviceSlotDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceSlotDto"];
         };
         ApiResponseMapStringObject: {
             /** Format: int32 */
@@ -13563,16 +12872,85 @@ export interface components {
         ResetMerchantUserPasswordRequest: {
             password?: string;
         };
-        CreateMerchantReplenishmentRequest: {
-            deviceId?: string;
-            notes?: string;
-            lines?: components["schemas"]["CreateMerchantReplenishmentRequestLine"][];
-            evidenceFileIds?: number[];
+        ReplenishmentTaskLineDto: {
+            /** Format: int64 */
+            lineId?: number;
+            lineType?: string;
+            skuId?: string;
+            skuName?: string;
+            batchNo?: string;
+            /** Format: date */
+            productionDate?: string;
+            /** Format: date */
+            expiryDate?: string;
+            /** Format: int32 */
+            quantity?: number;
+            slotId?: string;
+            applied?: boolean;
         };
-        CreateMerchantReplenishmentRequestLine: {
+        SubmitReplenishmentLinesRequest: {
+            lines: components["schemas"]["ReplenishmentTaskLineDto"][];
+        };
+        ApiResponseListReplenishmentTaskLineDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ReplenishmentTaskLineDto"][];
+        };
+        ApiResponseReplenishmentTaskDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ReplenishmentTaskDto"];
+        };
+        ReplenishmentTaskDto: {
+            /** Format: int64 */
+            taskId?: number;
+            /** Format: int64 */
+            routeId?: number;
+            deviceId?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+            status?: string;
+            notes?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            /** Format: date-time */
+            checkInAt?: string;
+            /** Format: double */
+            checkInLat?: number;
+            /** Format: double */
+            checkInLng?: number;
+            /** Format: double */
+            checkInDistanceM?: number;
+            /** Format: int64 */
+            outboundId?: number;
+            /** Format: date-time */
+            createdAt?: string;
+            deviceName?: string;
+            routeName?: string;
+            /** Format: date */
+            plannedDate?: string;
+            /** Format: int32 */
+            evidenceCount?: number;
+            lineSummary?: string;
+            deviceHasCoords?: boolean;
+        };
+        ReplenishmentCheckInRequest: {
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+        };
+        MerchantSelfReplenishLine: {
             skuId?: string;
             /** Format: int32 */
-            requestedQty?: number;
+            qty?: number;
+        };
+        MerchantSelfReplenishRequest: {
+            deviceId?: string;
+            notes?: string;
+            lines?: components["schemas"]["MerchantSelfReplenishLine"][];
         };
         MerchantWxBindRequest: {
             code?: string;
@@ -14676,27 +14054,6 @@ export interface components {
             message?: string;
             data?: components["schemas"]["AdminStatsDto"];
         };
-        ApiResponseListSlotDiscrepancyAlertDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["SlotDiscrepancyAlertDto"][];
-        };
-        SlotDiscrepancyAlertDto: {
-            deviceId?: string;
-            deviceName?: string;
-            slotCode?: string;
-            assignedSkuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            physicalQty?: number;
-            /** Format: int32 */
-            qtyDiff?: number;
-            /** Format: date-time */
-            lastPhysicalAt?: string;
-        };
         ApiResponseSlaMetricsDto: {
             /** Format: int32 */
             code?: number;
@@ -15040,12 +14397,6 @@ export interface components {
             message?: string;
             data?: components["schemas"]["AdminDeviceDailyRevenueDto"][];
         };
-        ApiResponseListFileAttachmentDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["FileAttachmentDto"][];
-        };
         ApiResponseReplenishmentOpsSummaryDto: {
             /** Format: int32 */
             code?: number;
@@ -15061,60 +14412,6 @@ export interface components {
             plannedRouteCount?: number;
             /** Format: int64 */
             pendingRequestCount?: number;
-        };
-        ApiResponseListReplenishmentSuggestDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ReplenishmentSuggestDto"][];
-        };
-        ReplenishmentSuggestDto: {
-            deviceId?: string;
-            skuId?: string;
-            /** Format: int32 */
-            currentQty?: number;
-            /** Format: int32 */
-            capacity?: number;
-            /** Format: int32 */
-            lowThreshold?: number;
-            /** Format: int32 */
-            suggestQty?: number;
-            /** Format: int32 */
-            inTransitQty?: number;
-            /** Format: int32 */
-            soldQty7d?: number;
-            /** Format: int32 */
-            soldQty14d?: number;
-            /** Format: int32 */
-            ropPoint?: number;
-            suggestReason?: string;
-        };
-        ApiResponseListSlotReplenishmentSuggestDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["SlotReplenishmentSuggestDto"][];
-        };
-        SlotReplenishmentSuggestDto: {
-            deviceId?: string;
-            slotCode?: string;
-            skuId?: string;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            /** Format: int32 */
-            suggestQty?: number;
-            stockStatus?: string;
-            /** Format: int32 */
-            soldQty7d?: number;
-            /** Format: int32 */
-            ropPoint?: number;
-            suggestReason?: string;
         };
         ApiResponseReplenishmentShortagePageDto: {
             /** Format: int32 */
@@ -15162,20 +14459,33 @@ export interface components {
             /** Format: int64 */
             total?: number;
         };
-        ApiResponsePageResultMerchantReplenishmentRequestDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["PageResultMerchantReplenishmentRequestDto"];
-        };
-        PageResultMerchantReplenishmentRequestDto: {
-            items?: components["schemas"]["MerchantReplenishmentRequestDto"][];
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
+        ReplenishmentRouteDto: {
             /** Format: int64 */
-            total?: number;
+            routeId?: number;
+            routeName?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+            /** Format: date */
+            plannedDate?: string;
+            status?: string;
+            tasks?: components["schemas"]["ReplenishmentTaskDto"][];
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int32 */
+            totalDistanceM?: number;
+            waypoints?: components["schemas"]["RouteWaypointDto"][];
+        };
+        RouteWaypointDto: {
+            /** Format: int32 */
+            sequence?: number;
+            deviceId?: string;
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+            address?: string;
+            /** Format: int32 */
+            distanceFromPrevM?: number;
         };
         ApiResponseListReplenishmentTaskDto: {
             /** Format: int32 */
@@ -15219,8 +14529,6 @@ export interface components {
             checkInLng?: number;
             /** Format: double */
             checkInDistanceM?: number;
-            /** Format: int64 */
-            requestId?: number;
             /** Format: int64 */
             outboundId?: number;
             /** Format: date-time */
@@ -16184,21 +15492,6 @@ export interface components {
             message?: string;
             data?: components["schemas"]["FinanceMarginLockDto"][];
         };
-        ApiResponsePageResultPullOffTaskDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["PageResultPullOffTaskDto"];
-        };
-        PageResultPullOffTaskDto: {
-            items?: components["schemas"]["PullOffTaskDto"][];
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            /** Format: int64 */
-            total?: number;
-        };
         ApiResponsePageResultOpsExceptionDto: {
             /** Format: int32 */
             code?: number;
@@ -16302,26 +15595,6 @@ export interface components {
             deviceId?: string;
             url?: string;
         };
-        ApiResponseListDeviceSkuLotDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceSkuLotDto"][];
-        };
-        DeviceSkuLotDto: {
-            lotId?: string;
-            deviceId?: string;
-            skuId?: string;
-            batchNo?: string;
-            /** Format: date */
-            productionDate?: string;
-            /** Format: date */
-            expiryDate?: string;
-            /** Format: int32 */
-            quantity?: number;
-            slotId?: string;
-            status?: string;
-        };
         ApiResponseListDeviceLifecycleEventDto: {
             /** Format: int32 */
             code?: number;
@@ -16397,57 +15670,6 @@ export interface components {
             value?: number;
             /** Format: date-time */
             reportedAt?: string;
-        };
-        ApiResponseDeviceDetailDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceDetailDto"];
-        };
-        DeviceDetailDto: {
-            device?: components["schemas"]["AdminDeviceDto"];
-            metrics?: components["schemas"]["DeviceOpsMetricsDto"];
-            slots?: components["schemas"]["DeviceSlotDto"][];
-            skuInventory?: components["schemas"]["DeviceInventoryDto"][];
-        };
-        DeviceOpsMetricsDto: {
-            deviceId?: string;
-            /** Format: int32 */
-            configuredSlotCount?: number;
-            /** Format: int32 */
-            activeSlotCount?: number;
-            /** Format: int32 */
-            fillRatePct?: number;
-            /** Format: int32 */
-            oosRatePct?: number;
-            /** Format: int32 */
-            oosSlotCount?: number;
-            /** Format: int32 */
-            lowStockSlotCount?: number;
-            /** Format: int32 */
-            totalBookQty?: number;
-            /** Format: int32 */
-            totalParLevel?: number;
-            /** Format: date-time */
-            lastRestockAt?: string;
-            /** Format: int32 */
-            inventoryAccuracyPct?: number;
-            address?: string;
-            /** Format: int32 */
-            currentTempC?: number;
-            /** Format: int32 */
-            targetTempC?: number;
-            /** Format: date-time */
-            tempReportedAt?: string;
-            salesLocked?: boolean;
-            appVersion?: string;
-            firmwareVersion?: string;
-            alertContactName?: string;
-            alertContactPhone?: string;
-            /** Format: int32 */
-            nearExpiryLotCount?: number;
-            merchantContactName?: string;
-            merchantContactPhone?: string;
         };
         ApiResponseListDeviceRefDto: {
             /** Format: int32 */
@@ -16965,6 +16187,27 @@ export interface components {
             /** Format: int64 */
             failedSplitCount?: number;
         };
+        ApiResponseListSlotDiscrepancyAlertDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["SlotDiscrepancyAlertDto"][];
+        };
+        SlotDiscrepancyAlertDto: {
+            deviceId?: string;
+            deviceName?: string;
+            slotCode?: string;
+            assignedSkuId?: string;
+            assignedSkuName?: string;
+            /** Format: int32 */
+            bookQty?: number;
+            /** Format: int32 */
+            physicalQty?: number;
+            /** Format: int32 */
+            qtyDiff?: number;
+            /** Format: date-time */
+            lastPhysicalAt?: string;
+        };
         ApiResponseMerchantSettlementOverviewDto: {
             /** Format: int32 */
             code?: number;
@@ -17098,6 +16341,12 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PurchaseOrderDto"][];
         };
+        ApiResponseListFileAttachmentDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["FileAttachmentDto"][];
+        };
         ApiResponseMerchantReplenishmentDoorSessionDto: {
             /** Format: int32 */
             code?: number;
@@ -17109,11 +16358,32 @@ export interface components {
             sessionId?: string;
             state?: string;
         };
-        ApiResponseListMerchantReplenishmentRequestDto: {
+        ApiResponseListReplenishmentSuggestDto: {
             /** Format: int32 */
             code?: number;
             message?: string;
-            data?: components["schemas"]["MerchantReplenishmentRequestDto"][];
+            data?: components["schemas"]["ReplenishmentSuggestDto"][];
+        };
+        ReplenishmentSuggestDto: {
+            deviceId?: string;
+            skuId?: string;
+            /** Format: int32 */
+            currentQty?: number;
+            /** Format: int32 */
+            capacity?: number;
+            /** Format: int32 */
+            lowThreshold?: number;
+            /** Format: int32 */
+            suggestQty?: number;
+            /** Format: int32 */
+            inTransitQty?: number;
+            /** Format: int32 */
+            soldQty7d?: number;
+            /** Format: int32 */
+            soldQty14d?: number;
+            /** Format: int32 */
+            ropPoint?: number;
+            suggestReason?: string;
         };
         ApiResponseMerchantReplenishmentEfficiencyDto: {
             /** Format: int32 */
@@ -17249,6 +16519,22 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PullOffTaskDto"][];
         };
+        PullOffTaskDto: {
+            /** Format: int64 */
+            taskId?: number;
+            deviceId?: string;
+            skuId?: string;
+            lotId?: string;
+            batchNo?: string;
+            /** Format: int32 */
+            quantity?: number;
+            reason?: string;
+            status?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int32 */
+            restockHeadroom?: number;
+        };
         ApiResponsePageResultMerchantDisputeSummaryDto: {
             /** Format: int32 */
             code?: number;
@@ -17326,6 +16612,57 @@ export interface components {
             /** Format: double */
             longitude?: number;
             firmwareVersion?: string;
+        };
+        ApiResponseDeviceDetailDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceDetailDto"];
+        };
+        DeviceDetailDto: {
+            device?: components["schemas"]["AdminDeviceDto"];
+            metrics?: components["schemas"]["DeviceOpsMetricsDto"];
+            slots?: components["schemas"]["DeviceSlotDto"][];
+            skuInventory?: components["schemas"]["DeviceInventoryDto"][];
+        };
+        DeviceOpsMetricsDto: {
+            deviceId?: string;
+            /** Format: int32 */
+            configuredSlotCount?: number;
+            /** Format: int32 */
+            activeSlotCount?: number;
+            /** Format: int32 */
+            fillRatePct?: number;
+            /** Format: int32 */
+            oosRatePct?: number;
+            /** Format: int32 */
+            oosSlotCount?: number;
+            /** Format: int32 */
+            lowStockSlotCount?: number;
+            /** Format: int32 */
+            totalBookQty?: number;
+            /** Format: int32 */
+            totalParLevel?: number;
+            /** Format: date-time */
+            lastRestockAt?: string;
+            /** Format: int32 */
+            inventoryAccuracyPct?: number;
+            address?: string;
+            /** Format: int32 */
+            currentTempC?: number;
+            /** Format: int32 */
+            targetTempC?: number;
+            /** Format: date-time */
+            tempReportedAt?: string;
+            salesLocked?: boolean;
+            appVersion?: string;
+            firmwareVersion?: string;
+            alertContactName?: string;
+            alertContactPhone?: string;
+            /** Format: int32 */
+            nearExpiryLotCount?: number;
+            merchantContactName?: string;
+            merchantContactPhone?: string;
         };
         ApiResponseListDeviceTemperatureReadingDto: {
             /** Format: int32 */
@@ -19288,54 +18625,6 @@ export interface operations {
             };
         };
     };
-    deviceSlots: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
-                };
-            };
-        };
-    };
-    upsertDeviceSlots: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpsertDeviceSlotRequest"][];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
-                };
-            };
-        };
-    };
     getPolicy: {
         parameters: {
             query?: never;
@@ -19797,7 +19086,7 @@ export interface operations {
             };
         };
     };
-    deviceSlots_1: {
+    deviceSlots: {
         parameters: {
             query?: never;
             header?: never;
@@ -19819,7 +19108,7 @@ export interface operations {
             };
         };
     };
-    upsertDeviceSlots_1: {
+    upsertDeviceSlots: {
         parameters: {
             query?: never;
             header?: never;
@@ -22194,290 +21483,6 @@ export interface operations {
             };
         };
     };
-    listTaskLines: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                taskId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListReplenishmentTaskLineDto"];
-                };
-            };
-        };
-    };
-    submitTaskLines: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                taskId: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SubmitReplenishmentLinesRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListReplenishmentTaskLineDto"];
-                };
-            };
-        };
-    };
-    completeTask: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                taskId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentTaskDto"];
-                };
-            };
-        };
-    };
-    checkInTask: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                taskId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["ReplenishmentCheckInRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentTaskDto"];
-                };
-            };
-        };
-    };
-    cancelEmptyTask: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                taskId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentTaskDto"];
-                };
-            };
-        };
-    };
-    createTaskFromSuggestion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["CreateFromSuggestionRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
-                };
-            };
-        };
-    };
-    routes: {
-        parameters: {
-            query?: {
-                deviceId?: string;
-                page?: number;
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponsePageResultReplenishmentRouteDto"];
-                };
-            };
-        };
-    };
-    createRoute: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReplenishmentRouteDto"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
-                };
-            };
-        };
-    };
-    cancelEmptyRoute: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                routeId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
-                };
-            };
-        };
-    };
-    rejectMerchantReplenishmentRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                requestId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["RejectMerchantReplenishmentRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseMerchantReplenishmentRequestDto"];
-                };
-            };
-        };
-    };
-    acceptMerchantReplenishmentRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                requestId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseMerchantReplenishmentRequestDto"];
-                };
-            };
-        };
-    };
-    planRoute: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PlanRouteRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
-                };
-            };
-        };
-    };
     list_6: {
         parameters: {
             query?: {
@@ -24296,58 +23301,6 @@ export interface operations {
             };
         };
     };
-    createFromExpiry: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                taskId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["CreateFromExpiryRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
-                };
-            };
-        };
-    };
-    ensureExpiryAlert: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponsePullOffTaskDto"];
-                };
-            };
-        };
-    };
     unarchive: {
         parameters: {
             query?: never;
@@ -24759,32 +23712,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseDeviceTempPlanDto"];
-                };
-            };
-        };
-    };
-    stocktakeSlot: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SlotStocktakeRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDeviceSlotDto"];
                 };
             };
         };
@@ -26274,30 +25201,7 @@ export interface operations {
             };
         };
     };
-    replenishmentRequests: {
-        parameters: {
-            query?: {
-                status?: string;
-                deviceId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListMerchantReplenishmentRequestDto"];
-                };
-            };
-        };
-    };
-    createReplenishmentRequest: {
+    selfInitiateReplenishment: {
         parameters: {
             query?: never;
             header?: never;
@@ -26306,7 +25210,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateMerchantReplenishmentRequest"];
+                "application/json": components["schemas"]["MerchantSelfReplenishRequest"];
             };
         };
         responses: {
@@ -26316,34 +25220,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseMerchantReplenishmentRequestDto"];
-                };
-            };
-        };
-    };
-    uploadPendingReplenishmentRequestEvidence: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    file: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseFileAttachmentDto"];
+                    "*/*": components["schemas"]["ApiResponseReplenishmentTaskDto"];
                 };
             };
         };
@@ -29112,28 +27989,6 @@ export interface operations {
             };
         };
     };
-    slotDiscrepancies: {
-        parameters: {
-            query?: {
-                deviceId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListSlotDiscrepancyAlertDto"];
-                };
-            };
-        };
-    };
     sla: {
         parameters: {
             query?: never;
@@ -29531,49 +28386,6 @@ export interface operations {
             };
         };
     };
-    listTaskEvidence: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                taskId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListFileAttachmentDto"];
-                };
-            };
-        };
-    };
-    streamTaskEvidence: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                taskId: number;
-                fileId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     replenishmentSummary: {
         parameters: {
             query?: never;
@@ -29590,50 +28402,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseReplenishmentOpsSummaryDto"];
-                };
-            };
-        };
-    };
-    replenishmentSuggest: {
-        parameters: {
-            query: {
-                deviceId: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListReplenishmentSuggestDto"];
-                };
-            };
-        };
-    };
-    slotReplenishmentSuggest: {
-        parameters: {
-            query: {
-                deviceId: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListSlotReplenishmentSuggestDto"];
                 };
             };
         };
@@ -29662,30 +28430,10 @@ export interface operations {
             };
         };
     };
-    exportReplenishmentRoutes: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/csv": string;
-                };
-            };
-        };
-    };
-    merchantReplenishmentRequests: {
+    routes: {
         parameters: {
             query?: {
-                status?: string;
+                deviceId?: string;
                 page?: number;
                 size?: number;
             };
@@ -29701,55 +28449,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponsePageResultMerchantReplenishmentRequestDto"];
+                    "*/*": components["schemas"]["ApiResponsePageResultReplenishmentRouteDto"];
                 };
             };
         };
     };
-    listReplenishmentRequestEvidence: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                requestId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListFileAttachmentDto"];
-                };
-            };
-        };
-    };
-    streamReplenishmentRequestEvidence: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                requestId: number;
-                fileId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    exportReplenishmentRequests: {
+    exportReplenishmentRoutes: {
         parameters: {
             query?: never;
             header?: never;
@@ -31124,29 +29829,6 @@ export interface operations {
             };
         };
     };
-    expiryAlerts: {
-        parameters: {
-            query?: {
-                page?: number;
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponsePageResultPullOffTaskDto"];
-                };
-            };
-        };
-    };
     list_20: {
         parameters: {
             query?: {
@@ -31300,28 +29982,6 @@ export interface operations {
             };
         };
     };
-    deviceLots: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListDeviceSkuLotDto"];
-                };
-            };
-        };
-    };
     deviceLifecycleEvents: {
         parameters: {
             query?: {
@@ -31434,28 +30094,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListDeviceEnvReadingDto"];
-                };
-            };
-        };
-    };
-    deviceDetail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDeviceDetailDto"];
                 };
             };
         };
@@ -32042,7 +30680,7 @@ export interface operations {
             };
         };
     };
-    slotDiscrepancies_1: {
+    slotDiscrepancies: {
         parameters: {
             query?: {
                 deviceId?: string;
@@ -32396,71 +31034,6 @@ export interface operations {
             };
         };
     };
-    replenishmentRequestDetail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                requestId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseMerchantReplenishmentRequestDto"];
-                };
-            };
-        };
-    };
-    listReplenishmentRequestEvidence_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                requestId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListFileAttachmentDto"];
-                };
-            };
-        };
-    };
-    streamReplenishmentRequestEvidence_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                requestId: number;
-                fileId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     myReplenishmentEfficiency: {
         parameters: {
             query?: never;
@@ -32768,7 +31341,7 @@ export interface operations {
             };
         };
     };
-    expiryAlerts_1: {
+    expiryAlerts: {
         parameters: {
             query?: never;
             header?: never;
@@ -32879,7 +31452,7 @@ export interface operations {
             };
         };
     };
-    deviceDetail_1: {
+    deviceDetail: {
         parameters: {
             query?: never;
             header?: never;
@@ -34000,29 +32573,6 @@ export interface operations {
             header?: never;
             path: {
                 dictDataId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
-                };
-            };
-        };
-    };
-    deleteDeviceSlot: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-                slotCode: string;
             };
             cookie?: never;
         };

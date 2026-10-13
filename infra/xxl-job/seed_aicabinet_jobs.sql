@@ -132,7 +132,11 @@ INSERT INTO `xxl_job_info`(
 -- CB-034 租赁账单日检：月租幂等出账 + 欠租逾期锁柜/结清解锁
 (134, 10, '租赁账单日检', now(), now(), 'aicabinet', '',
  'CRON', '0 20 8 * * ?', 'DO_NOTHING', 'FAILOVER',
- 'deviceRentalDailyJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0)
+ 'deviceRentalDailyJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+-- 仓库月结草稿自动生成（2026-10-13 用户拍板）：每月 1 日生成上月各仓草稿；只算差异不扣款，财务线下核对
+(135, 10, '仓库月结草稿生成', now(), now(), 'aicabinet', '',
+ 'CRON', '0 0 2 1 * ?', 'DO_NOTHING', 'FAILOVER',
+ 'warehouseMonthlyCloseJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0)
 ON DUPLICATE KEY UPDATE
   `job_desc`=VALUES(`job_desc`),
   `schedule_conf`=VALUES(`schedule_conf`),

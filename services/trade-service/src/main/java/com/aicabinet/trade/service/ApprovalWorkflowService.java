@@ -12,19 +12,10 @@ import com.aicabinet.trade.domain.ApprovalDefinition;
 import com.aicabinet.trade.domain.ApprovalInstance;
 import com.aicabinet.trade.domain.ApprovalNode;
 import com.aicabinet.trade.domain.ApprovalTask;
-import com.aicabinet.trade.domain.DeviceInfo;
-import com.aicabinet.trade.domain.Merchant;
-import com.aicabinet.trade.domain.MerchantReplenishmentRequest;
-import com.aicabinet.trade.domain.DeviceInfo;
-import com.aicabinet.trade.domain.Merchant;
-import com.aicabinet.trade.domain.MerchantReplenishmentRequest;
 import com.aicabinet.trade.mapper.ApprovalDefinitionMapper;
 import com.aicabinet.trade.mapper.ApprovalInstanceMapper;
 import com.aicabinet.trade.mapper.ApprovalNodeMapper;
 import com.aicabinet.trade.mapper.ApprovalTaskMapper;
-import com.aicabinet.trade.mapper.DeviceInfoMapper;
-import com.aicabinet.trade.mapper.MerchantMapper;
-import com.aicabinet.trade.mapper.MerchantReplenishmentRequestMapper;
 import com.aicabinet.trade.mapper.OpsPermissionMapper;
 import com.aicabinet.trade.mapper.OpsUserDepartmentMapper;
 import com.aicabinet.trade.support.DisplayIds;
@@ -71,9 +62,6 @@ public class ApprovalWorkflowService {
     private final NotificationService notificationService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
-    private final MerchantReplenishmentRequestMapper replenRequestRepository;
-    private final DeviceInfoMapper deviceRepository;
-    private final MerchantMapper merchantRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final ApprovalWorkflowService self;
 
@@ -86,9 +74,6 @@ public class ApprovalWorkflowService {
                                      NotificationService notificationService,
                                      PermissionService permissionService,
                                      AdminAuditService auditService,
-                                     MerchantReplenishmentRequestMapper replenRequestRepository,
-                                     DeviceInfoMapper deviceRepository,
-                                     MerchantMapper merchantRepository,
                                      @Lazy ApprovalWorkflowService self) {
         this.definitionRepository = definitionRepository;
         this.nodeRepository = nodeRepository;
@@ -99,9 +84,6 @@ public class ApprovalWorkflowService {
         this.notificationService = notificationService;
         this.permissionService = permissionService;
         this.auditService = auditService;
-        this.replenRequestRepository = replenRequestRepository;
-        this.deviceRepository = deviceRepository;
-        this.merchantRepository = merchantRepository;
         this.self = self;
     }
 
@@ -819,9 +801,7 @@ public class ApprovalWorkflowService {
         }
         String id = bizId == null ? "" : bizId.trim();
         return switch (bizType) {
-            case "MERCHANT_REPLEN_REQUEST" -> id.isEmpty()
-                    ? "/replenishment?tab=requests"
-                    : "/replenishment?tab=requests&requestId=" + id;
+            // 2026-10-13 要货下线：MERCHANT_REPLEN_REQUEST 审批不再产生；存量实例跳转落 default /approvals
             case "PURCHASE_ORDER" -> id.isEmpty()
                     ? "/warehouse?tab=purchase"
                     : "/warehouse?tab=purchase&orderId=" + id;
@@ -865,39 +845,7 @@ public class ApprovalWorkflowService {
     }
 
     private String displayApprovalTitle(String bizType, String bizId, String rawTitle) {
-        String stripped = DisplayIds.stripHashIdMarkers(rawTitle);
-        if (replenRequestRepository == null || bizType == null || bizId == null) {
-            return stripped;
-        }
-        if (!"MERCHANT_REPLEN_REQUEST".equals(bizType.trim())) {
-            return stripped;
-        }
-        try {
-            long requestId = Long.parseLong(bizId.trim());
-            return replenRequestRepository.findById(requestId)
-                    .map(this::titleForReplenRequest)
-                    .orElse(stripped);
-        } catch (NumberFormatException ignored) {
-            return stripped;
-        }
-    }
-
-    private String titleForReplenRequest(MerchantReplenishmentRequest request) {
-        String deviceName = request.getDeviceId();
-        if (deviceRepository != null && request.getDeviceId() != null) {
-            deviceName = deviceRepository.findById(request.getDeviceId())
-                    .map(DeviceInfo::getDeviceName)
-                    .filter(name -> name != null && !name.isBlank())
-                    .orElse(request.getDeviceId());
-        }
-        String merchantName = request.getMerchantId();
-        if (merchantRepository != null && request.getMerchantId() != null) {
-            merchantName = merchantRepository.findById(request.getMerchantId())
-                    .map(Merchant::getMerchantName)
-                    .filter(name -> name != null && !name.isBlank())
-                    .orElse(request.getMerchantId());
-        }
-        return DisplayIds.merchantReplenApprovalTitle(request.getRequestId(), deviceName, merchantName);
+        return DisplayIds.stripHashIdMarkers(rawTitle);
     }
 
     private static String trim(String s) {

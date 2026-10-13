@@ -152,7 +152,7 @@
   flex-direction: column;
   gap: 10rpx;
 }
-/* 审计 P2-19 附加：收货行头（品名+要货数 左，实收 stepper 右） */
+/* 审计 P2-19 附加：收货行头（品名+采购数 左，实收 stepper 右） */
 .recv-line-head {
   display: flex;
   align-items: center;

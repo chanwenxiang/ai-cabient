@@ -244,7 +244,6 @@ export const AdminEndpoints = {
   replenishmentPlan: `${ops}/replenishment/plan`,
   // CB-018①：按补货建议直接生成补货任务（不经路线规划）；body 可空 { deviceId, assigneeUserId? }
   replenishmentSuggestCreateTask: `${ops}/replenishment/suggest/create-task`,
-  replenishmentRequestsExport: `${ops}/replenishment/requests/export`,
   replenishmentRoutesExport: `${ops}/replenishment/routes/export`,
   replenishmentRoutes: (query: URLSearchParams | string) =>
     typeof query === 'string'
@@ -254,10 +253,6 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/replenishment/fulfillment-tasks?${query}`
       : `${ops}/replenishment/fulfillment-tasks?${query.toString()}`,
-  replenishmentRequests: (query: URLSearchParams | string) =>
-    typeof query === 'string'
-      ? `${ops}/replenishment/requests?${query}`
-      : `${ops}/replenishment/requests?${query.toString()}`,
   replenishmentShortage: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/replenishment/shortage?${query}`
@@ -274,14 +269,6 @@ export const AdminEndpoints = {
     `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/complete`,
   replenishmentRouteCancelEmpty: (routeId: string | number) =>
     `${ops}/replenishment/routes/${encodeURIComponent(String(routeId))}/cancel-empty`,
-  replenishmentRequestAccept: (requestId: string | number) =>
-    `${ops}/replenishment/requests/${encodeURIComponent(String(requestId))}/accept`,
-  replenishmentRequestReject: (requestId: string | number) =>
-    `${ops}/replenishment/requests/${encodeURIComponent(String(requestId))}/reject`,
-  replenishmentRequestEvidence: (requestId: string | number) =>
-    `${ops}/replenishment/requests/${encodeURIComponent(String(requestId))}/evidence`,
-  replenishmentRequestEvidenceFile: (requestId: string | number, fileId: string | number) =>
-    `${ops}/replenishment/requests/${encodeURIComponent(String(requestId))}/evidence/${encodeURIComponent(String(fileId))}`,
   replenishmentReportStaff: (days: number | string) =>
     `${ops}/replenishment-report/staff?days=${encodeURIComponent(String(days))}`,
   expiryAlerts: (query: URLSearchParams | string) =>

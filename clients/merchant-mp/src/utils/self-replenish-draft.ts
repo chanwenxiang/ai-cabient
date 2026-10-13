@@ -1,11 +1,11 @@
 /**
- * 要货申请草稿行合并（debt-tracker M10b）。
- * 提交/证据门闩见 `request-submit`（M10c）。
+ * 自主补货草稿行合并。
+ * 提交门闩见 `self-replenish-submit`。
  * 纯函数：货道 + 补货建议 → DraftLine；禁止依赖 uni / merchantApi。
  */
 import type { DeviceSlot, OpenApiReplenishmentSuggestDto } from '@aicabinet/shared-types';
 
-export type RequestDraftLine = {
+export type ReplenishDraftLine = {
   skuId: string;
   skuName: string;
   /** 规格（如 250ml）；后端已拼进 skuName 时可为空 */
@@ -41,7 +41,7 @@ export function buildSuggestMap(
 }
 
 export function mergeSlotDraftLine(
-  bySku: Map<string, RequestDraftLine>,
+  bySku: Map<string, ReplenishDraftLine>,
   slot: DeviceSlot,
   sug: OpenApiReplenishmentSuggestDto | undefined
 ): string | undefined {
@@ -77,7 +77,7 @@ export function mergeSlotDraftLine(
 }
 
 export function appendOrphanSuggestions(
-  bySku: Map<string, RequestDraftLine>,
+  bySku: Map<string, ReplenishDraftLine>,
   suggestMap: Map<string, OpenApiReplenishmentSuggestDto>
 ): void {
   for (const [skuId, sug] of suggestMap) {
@@ -99,7 +99,7 @@ export function appendOrphanSuggestions(
 }
 
 /** 选中优先，再按建议量降序 */
-export function sortDraftLines(lines: RequestDraftLine[]): RequestDraftLine[] {
+export function sortDraftLines(lines: ReplenishDraftLine[]): ReplenishDraftLine[] {
   return [...lines].sort((a, b) => {
     if (a.selected !== b.selected) return a.selected ? -1 : 1;
     return b.suggestQty - a.suggestQty;

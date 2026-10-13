@@ -534,6 +534,15 @@ public class WarehouseService {
     @Transactional
     public Long tryCreateOutboundFromLines(Long routeId, String deviceId, Long assigneeUserId,
                                            java.util.Map<String, Integer> skuQty, String warehouseId) {
+        return tryCreateOutboundFromLines(routeId, deviceId, assigneeUserId, skuQty, warehouseId,
+                "merchant replenishment request");
+    }
+
+    /** 同上，可指定出库单备注（补货员自主发起补货用，与要货接单区分来源）。 */
+    @Transactional
+    public Long tryCreateOutboundFromLines(Long routeId, String deviceId, Long assigneeUserId,
+                                           java.util.Map<String, Integer> skuQty, String warehouseId,
+                                           String notes) {
         if (skuQty == null || skuQty.isEmpty()) {
             return null;
         }
@@ -543,7 +552,7 @@ public class WarehouseService {
         outbound.setRouteId(routeId);
         outbound.setAssigneeUserId(assigneeUserId);
         outbound.setStatus(CabinetConstants.PROMOTION_STATUS_DRAFT);
-        outbound.setNotes("merchant replenishment request");
+        outbound.setNotes(notes != null && !notes.isBlank() ? notes : "merchant replenishment request");
         outbound = outboundRepository.save(outbound);
         int allocatedLines = 0;
         for (var entry : skuQty.entrySet()) {
@@ -1358,6 +1367,20 @@ public class WarehouseService {
             throw badRequest(ApiMessages.REPLENISHMENT_WAREHOUSE_UNMANAGED);
         }
         return warehouse.getWarehouseId();
+    }
+
+    /**
+     * 校验仓库存在且由指定用户负责（补货员自主发起补货的权限锚点：仓跟人走，V302 manager_user_id）。
+     * 返回仓库实体；不是负责人时 403。
+     */
+    public Warehouse requireWarehouseManagedBy(String warehouseId, Long userId) {
+        Warehouse warehouse = warehouseRepository.findById(warehouseId)
+                .orElseThrow(() -> badRequest("仓库不存在"));
+        if (userId == null || !userId.equals(warehouse.getManagerUserId())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN, "仅分仓负责人可对该仓发起补货");
+        }
+        return warehouse;
     }
 
     private String resolveWarehouseId(String warehouseId) {

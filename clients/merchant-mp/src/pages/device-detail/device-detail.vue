@@ -75,7 +75,7 @@
               class="app-btn-flex"
               :block="false"
               compact
-              label="发起要货"
+              label="发起补货"
               @click="goRequest"
             />
           </view>
@@ -151,13 +151,13 @@
               />
             </view>
           </view>
-          <app-button
-            v-if="canEditSlots"
-            style="margin-top: 12px"
-            :loading="savingSlots"
-            :label="savingSlots ? '保存中…' : '保存货道'"
-            @click="saveSlots"
-          />
+          <view v-if="canEditSlots" class="slot-save-row">
+            <app-button
+              :loading="savingSlots"
+              :label="savingSlots ? '保存中…' : '保存货道'"
+              @click="saveSlots"
+            />
+          </view>
         </view>
 
         <view v-if="canAnalytics && velocity.length" class="card">
@@ -510,7 +510,7 @@ function goReplenishment() {
 
 function goRequest() {
   uni.navigateTo({
-    url: `/pages/request/request?deviceId=${encodeURIComponent(deviceId.value)}`
+    url: `/pages/self-replenish/self-replenish?deviceId=${encodeURIComponent(deviceId.value)}`
   });
 }
 
@@ -814,5 +814,9 @@ async function saveSlots() {
 .page-body {
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+}
+/* 保存货道与货道网格的间距：margin 写在自定义组件标签上小程序端不生效，改用页面容器 */
+.slot-save-row {
+  padding-top: 24rpx;
 }
 </style>

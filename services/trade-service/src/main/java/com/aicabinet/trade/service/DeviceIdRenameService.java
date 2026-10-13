@@ -34,7 +34,6 @@ public class DeviceIdRenameService {
 
             "repair_ticket",
 
-            "merchant_replenishment_request",
 
             "inventory_movement",
 

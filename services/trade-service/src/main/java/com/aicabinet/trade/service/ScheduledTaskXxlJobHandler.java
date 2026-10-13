@@ -123,6 +123,11 @@ public class ScheduledTaskXxlJobHandler {
         runKey("device-rental-daily");
     }
 
+    @XxlJob("warehouseMonthlyCloseJob")
+    public void warehouseMonthlyCloseJob() {
+        runKey("warehouse-monthly-close");
+    }
+
     // ── 营销 ────────────────────────────────────────────────────────────────
 
     @XxlJob("couponExpireJob")

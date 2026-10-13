@@ -49,8 +49,6 @@ public class FileAttachmentService {
     public static final String REF_PENDING = "PENDING_DISPUTE";
     public static final String REF_DISPUTE = "DISPUTE";
     public static final String REF_REPLENISHMENT = "REPLENISHMENT_TASK";
-    public static final String REF_PENDING_REPLENISHMENT_REQUEST = "PENDING_REPLENISHMENT_REQUEST";
-    public static final String REF_REPLENISHMENT_REQUEST = "REPLENISHMENT_REQUEST";
     public static final String REF_SKU_IMAGE = "SKU_IMAGE";
     public static final String REF_OPS_AVATAR = "OPS_AVATAR";
     public static final String REF_OPS_BRAND_LOGO = "OPS_BRAND_LOGO";
@@ -274,127 +272,6 @@ public class FileAttachmentService {
         return fileAttachmentMapper.findByRef(REF_REPLENISHMENT, String.valueOf(taskId)).stream()
                 .map(this::toDto)
                 .toList();
-    }
-
-    @Transactional
-    public FileAttachmentDto uploadPendingReplenishmentRequestEvidence(Long userId, MultipartFile file) {
-        if (userId == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
-        }
-        long existing = fileAttachmentMapper.findByRef(REF_PENDING_REPLENISHMENT_REQUEST, String.valueOf(userId)).size();
-        if (existing >= MAX_EVIDENCE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最多上传 " + MAX_EVIDENCE + " 张附图");
-        }
-        if (file == null || file.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择图片");
-        }
-        if (file.getSize() > MAX_BYTES) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "单张图片不能超过 5MB");
-        }
-        String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
-        if (!ALLOWED_TYPES.contains(contentType)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
-        }
-        byte[] bytes = readAndStripImageBytes(file, contentType);
-        String sha = sha256Hex(bytes);
-        String ext = extensionFor(contentType, file.getOriginalFilename());
-        String token = UUID.randomUUID().toString().replace("-", "");
-        String objectKey = ObjectStorageKeys.replenishmentRequestPendingEvidenceKey(userId, token, ext);
-        String storagePath = storeOrReuse(sha, objectKey, bytes, contentType);
-        FileAttachment row = new FileAttachment();
-        row.setRefType(REF_PENDING_REPLENISHMENT_REQUEST);
-        row.setRefId(String.valueOf(userId));
-        row.setFileName(safeName(file.getOriginalFilename(), token + ext));
-        row.setFileSize((long) bytes.length);
-        row.setContentType(contentType);
-        row.setStoragePath(storagePath);
-        row.setStorageBucket(storagePath.startsWith(MINIO) ? minioProperties.bucket() : LOCAL);
-        row.setContentSha256(sha);
-        row.setUploadedBy(userId);
-        row.setCreatedAt(Instant.now());
-        fileAttachmentMapper.insert(row);
-        return FileAttachmentDto.of(row.getFileId(), row.getFileName(), row.getContentType(), row.getFileSize(), null);
-    }
-
-    @Transactional
-    public List<FileAttachmentDto> bindEvidenceToReplenishmentRequest(Long userId, Long requestId, List<Long> fileIds) {
-        if (fileIds == null || fileIds.isEmpty()) {
-            return List.of();
-        }
-        return runWithReplenishmentRequestLock(requestId,
-                () -> doBindEvidenceToReplenishmentRequest(userId, requestId, fileIds));
-    }
-
-    private List<FileAttachmentDto> doBindEvidenceToReplenishmentRequest(Long userId, Long requestId,
-                                                                         List<Long> fileIds) {
-        long bound = fileAttachmentMapper.findByRef(REF_REPLENISHMENT_REQUEST, String.valueOf(requestId)).size();
-        if (bound + fileIds.size() > MAX_EVIDENCE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最多上传 " + MAX_EVIDENCE + " 张附图");
-        }
-        List<FileAttachment> rows = fileAttachmentMapper.findByIds(fileIds);
-        if (rows.size() != fileIds.stream().distinct().count()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "部分附图不存在或已失效");
-        }
-        List<FileAttachmentDto> out = new ArrayList<>();
-        for (FileAttachment row : rows) {
-            if (!userId.equals(row.getUploadedBy())) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权使用该附图");
-            }
-            boolean pendingMine = REF_PENDING_REPLENISHMENT_REQUEST.equals(row.getRefType())
-                    && String.valueOf(userId).equals(row.getRefId());
-            boolean alreadyBound = REF_REPLENISHMENT_REQUEST.equals(row.getRefType())
-                    && String.valueOf(requestId).equals(row.getRefId());
-            if (!pendingMine && !alreadyBound) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "附图已被其它要货单使用");
-            }
-            if (pendingMine) {
-                row.setRefType(REF_REPLENISHMENT_REQUEST);
-                row.setRefId(String.valueOf(requestId));
-                fileAttachmentMapper.updateById(row);
-            }
-            out.add(toReplenishmentRequestDto(row));
-        }
-        return out;
-    }
-
-    @Transactional(readOnly = true)
-    public List<FileAttachmentDto> listReplenishmentRequestEvidence(Long requestId) {
-        return fileAttachmentMapper.findByRef(REF_REPLENISHMENT_REQUEST, String.valueOf(requestId)).stream()
-                .map(this::toReplenishmentRequestDto)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public int countReplenishmentRequestEvidence(Long requestId) {
-        return fileAttachmentMapper.findByRef(REF_REPLENISHMENT_REQUEST, String.valueOf(requestId)).size();
-    }
-
-    @Transactional(readOnly = true)
-    public FileAttachment requireReplenishmentRequestEvidence(Long requestId, Long fileId) {
-        FileAttachment row = fileAttachmentMapper.selectById(fileId);
-        if (row == null
-                || !REF_REPLENISHMENT_REQUEST.equals(row.getRefType())
-                || !String.valueOf(requestId).equals(row.getRefId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "附件不存在");
-        }
-        return row;
-    }
-
-    private FileAttachmentDto toReplenishmentRequestDto(FileAttachment row) {
-        String url = "/api/v2/merchant/replenishment/requests/" + row.getRefId() + "/evidence/" + row.getFileId();
-        return FileAttachmentDto.of(row.getFileId(), row.getFileName(), row.getContentType(), row.getFileSize(), url);
-    }
-
-    private <T> T runWithReplenishmentRequestLock(Long requestId, java.util.function.Supplier<T> action) {
-        String key = MerchantReplenishmentService.replenishmentRequestLockKey(requestId);
-        if (!distributedLockService.tryLock(key, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "要货单处理中，请稍后重试");
-        }
-        try {
-            return action.get();
-        } finally {
-            distributedLockService.unlock(key);
-        }
     }
 
     @Transactional
@@ -676,8 +553,7 @@ public class FileAttachmentService {
      * 宁窄勿宽：仓库出现新 refType 时默认不可读，需显式加入。
      */
     private static final Set<String> OPERATOR_READABLE_REF_TYPES = Set.of(
-            REF_PENDING, REF_DISPUTE, REF_REPLENISHMENT,
-            REF_PENDING_REPLENISHMENT_REQUEST, REF_REPLENISHMENT_REQUEST);
+            REF_PENDING, REF_DISPUTE, REF_REPLENISHMENT);
 
     @Transactional(readOnly = true)
     public FileAttachment requireReadable(Long requesterId, Long fileId, boolean operator) {

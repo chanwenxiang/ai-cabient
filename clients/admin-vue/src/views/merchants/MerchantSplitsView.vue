@@ -161,7 +161,7 @@
                     :model-value="row.packFieldEnabled !== false"
                     :disabled="!canEdit"
                     :aria-label="`${row.merchantName}功能包：现场作业`"
-                    title="功能包：柜机 / 补货任务 / 待办；采购入库与要货入口同补货任务权"
+                    title="功能包：柜机 / 补货任务 / 待办；采购入库入口同补货任务权"
                     @change="(v: boolean) => toggleFlag(row, 'packField', v)"
                   />
                 </template>

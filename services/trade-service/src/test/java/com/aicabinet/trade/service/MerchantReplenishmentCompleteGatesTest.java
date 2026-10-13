@@ -48,10 +48,9 @@ class MerchantReplenishmentCompleteGatesTest {
     void setUp() {
         service = new MerchantReplenishmentService(
                 permissionService, merchantFeaturePackService, merchantPortalGuard, replenishmentService,
-                null, null, auditService, deviceRepository, null, null, null,
-                null, null, null, taskRepository, fileAttachmentService,
-                null, null, shoppingSessionRepository, systemConfigService, null);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+                null, null, auditService, deviceRepository, null,
+                null, taskRepository, fileAttachmentService,
+                null, shoppingSessionRepository, systemConfigService);
         org.mockito.Mockito.lenient()
                 .when(systemConfigService.getBoolean(
                         SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_EVIDENCE, true))

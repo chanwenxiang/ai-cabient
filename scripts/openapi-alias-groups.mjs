@@ -44,30 +44,17 @@ export const OPENAPI_ALIAS_GROUPS = [
         schema: 'SlotDiscrepancyAlertDto',
         comment: '货道账实差异告警'
       },
+      // 2026-10-13 要货下线：MerchantReplenishmentRequest* / CreateMerchantReplenishmentRequest* 别名随 schema 删除；
+      // SlotReplenishmentSuggestDto 已无后端 schema，一并移除。
       {
-        name: 'OpenApiSlotReplenishmentSuggestDto',
-        schema: 'SlotReplenishmentSuggestDto',
-        comment: '货道补货建议'
+        name: 'OpenApiMerchantSelfReplenishRequest',
+        schema: 'MerchantSelfReplenishRequest',
+        comment: '自主补货请求（无审批直接生效）'
       },
       {
-        name: 'OpenApiMerchantReplenishmentRequestDto',
-        schema: 'MerchantReplenishmentRequestDto',
-        comment: '商户补货申请'
-      },
-      {
-        name: 'OpenApiMerchantReplenishmentRequestLineDto',
-        schema: 'MerchantReplenishmentRequestLineDto',
-        comment: '商户补货申请行'
-      },
-      {
-        name: 'OpenApiCreateMerchantReplenishmentRequest',
-        schema: 'CreateMerchantReplenishmentRequest',
-        comment: '创建商户补货申请'
-      },
-      {
-        name: 'OpenApiCreateMerchantReplenishmentRequestLine',
-        schema: 'CreateMerchantReplenishmentRequestLine',
-        comment: '创建商户补货申请行（独立 schema，避免与仓配 Line 冲突）'
+        name: 'OpenApiMerchantSelfReplenishLine',
+        schema: 'MerchantSelfReplenishLine',
+        comment: '自主补货明细行'
       },
       { name: 'OpenApiReplenishmentTaskDto', schema: 'ReplenishmentTaskDto', comment: '补货任务' },
       {
@@ -289,7 +276,8 @@ export const OPENAPI_INDEX_REEXPORTS = [
   'OpenApiMerchantWalletOverviewDto',
   'OpenApiMerchantDisputeSummaryDto',
   'OpenApiMerchantDeviceReportDto',
-  'OpenApiMerchantReplenishmentRequestDto',
+  // 2026-10-13 要货下线：抽检由 OpenApiMerchantReplenishmentRequestDto 换为自主补货别名
+  'OpenApiMerchantSelfReplenishRequest',
   'OpenApiAdminDeviceDto'
 ];
 

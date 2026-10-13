@@ -65,7 +65,7 @@ class ReplenishmentServiceSuggestTaskTest {
         service = new ReplenishmentService(
                 null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
                 new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService,
-                sessionService, null, null, notificationService, distributedLockService, null, null, null);
+                sessionService, notificationService, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }

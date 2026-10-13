@@ -17,14 +17,9 @@ public final class DisplayIds {
                 .trim();
     }
 
-    public static String merchantReplenApprovalTitle(long requestId, String deviceName, String merchantName) {
-        String cabinet = blankTo(deviceName, "未命名柜机");
-        String merchant = blankTo(merchantName, "未知商户");
-        return "商户要货 · " + cabinet + " · " + merchant + "（申请 " + requestId + "）";
-    }
-
-    public static String merchantReplenRouteName(long requestId, String deviceName) {
-        return "商户要货 · " + blankTo(deviceName, "未命名柜机") + "（申请 " + requestId + "）";
+    /** 补货员自主发起补货的任务路线名（无审批，直接从分仓出库）。 */
+    public static String selfReplenRouteName(java.time.LocalDate plannedDate, String deviceName) {
+        return "自主补货 · " + blankTo(deviceName, "未命名柜机") + "（" + plannedDate + "）";
     }
 
     private static String blankTo(String value, String fallback) {

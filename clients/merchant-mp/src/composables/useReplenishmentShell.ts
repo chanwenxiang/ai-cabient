@@ -87,12 +87,12 @@ export function useReplenishmentShell(opts: {
     const q = opts.filterDeviceId.value
       ? `?deviceId=${encodeURIComponent(opts.filterDeviceId.value)}`
       : '';
-    uni.navigateTo({ url: `/pages/request/request${q}` });
+    uni.navigateTo({ url: `/pages/self-replenish/self-replenish${q}` });
   }
 
   function goRequestForDevice(deviceId: string) {
     uni.navigateTo({
-      url: `/pages/request/request?deviceId=${encodeURIComponent(deviceId)}`
+      url: `/pages/self-replenish/self-replenish?deviceId=${encodeURIComponent(deviceId)}`
     });
   }
 

@@ -23,11 +23,8 @@ import java.util.stream.Collectors;
 public class MerchantReplenishmentService {
     private static final String MERCHANT_REPLENISHMENT_REQUEST = "merchant:replenishment:request";
     private static final String MERCHANT_REPLENISHMENT_VIEW = "merchant:replenishment:view";
-    private static final String MERCHANT_REPLEN_REQUEST = "MERCHANT_REPLEN_REQUEST";
     private static final String REPLENISHMENT_TASK = "REPLENISHMENT_TASK";
-    private static final String REPLEN_REQUEST = "REPLEN_REQUEST";
     private static final String DEVICEID = "deviceId=";
-    private static final String SUBMITTED = "SUBMITTED";
     private static final String LITERAL = "补货任务不存在";
 
 
@@ -39,19 +36,13 @@ public class MerchantReplenishmentService {
     private final WarehouseService warehouseService;
     private final AdminAuditService auditService;
     private final DeviceInfoMapper deviceRepository;
-    private final MerchantMapper merchantRepository;
     private final SkuCatalogMapper skuCatalogRepository;
-    private final UserInfoMapper userInfoRepository;
-    private final MerchantReplenishmentRequestMapper requestRepository;
-    private final MerchantReplenishmentRequestLineMapper requestLineRepository;
     private final ReplenishmentRouteMapper routeRepository;
     private final ReplenishmentTaskMapper taskRepository;
     private final FileAttachmentService fileAttachmentService;
     private final DistributedLockService distributedLockService;
-    private final ApprovalWorkflowService approvalWorkflowService;
     private final ShoppingSessionMapper shoppingSessionRepository;
     private final SystemConfigService systemConfigService;
-    private final MerchantReplenishmentService self;
 
     public MerchantReplenishmentService(PermissionService permissionService,
                                         MerchantFeaturePackService merchantFeaturePackService,
@@ -61,19 +52,13 @@ public class MerchantReplenishmentService {
                                         WarehouseService warehouseService,
                                         AdminAuditService auditService,
                                         DeviceInfoMapper deviceRepository,
-                                        MerchantMapper merchantRepository,
                                         SkuCatalogMapper skuCatalogRepository,
-                                        UserInfoMapper userInfoRepository,
-                                        MerchantReplenishmentRequestMapper requestRepository,
-                                        MerchantReplenishmentRequestLineMapper requestLineRepository,
                                         ReplenishmentRouteMapper routeRepository,
                                         ReplenishmentTaskMapper taskRepository,
                                         FileAttachmentService fileAttachmentService,
                                         DistributedLockService distributedLockService,
-                                        ApprovalWorkflowService approvalWorkflowService,
                                         ShoppingSessionMapper shoppingSessionRepository,
-                                        SystemConfigService systemConfigService,
-                                        @Lazy MerchantReplenishmentService self) {
+                                        SystemConfigService systemConfigService) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
@@ -82,19 +67,13 @@ public class MerchantReplenishmentService {
         this.warehouseService = warehouseService;
         this.auditService = auditService;
         this.deviceRepository = deviceRepository;
-        this.merchantRepository = merchantRepository;
         this.skuCatalogRepository = skuCatalogRepository;
-        this.userInfoRepository = userInfoRepository;
-        this.requestRepository = requestRepository;
-        this.requestLineRepository = requestLineRepository;
         this.routeRepository = routeRepository;
         this.taskRepository = taskRepository;
         this.fileAttachmentService = fileAttachmentService;
         this.distributedLockService = distributedLockService;
-        this.approvalWorkflowService = approvalWorkflowService;
         this.shoppingSessionRepository = shoppingSessionRepository;
         this.systemConfigService = systemConfigService;
-        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -149,7 +128,6 @@ public class MerchantReplenishmentService {
         ReplenishmentTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
-        replenishmentService.ensureSeededFromLinkedRequest(taskId);
         return replenishmentService.listTaskLines(taskId);
     }
 
@@ -259,44 +237,12 @@ public class MerchantReplenishmentService {
         return task;
     }
 
-    @Transactional(readOnly = true)
-    public List<MerchantReplenishmentRequestDto> listRequests(Long userId, String status, String deviceId) {
-        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> allowedDevices = merchantFeaturePackService.allowedDeviceIdsForPack(userId, MerchantFeaturePacks.FIELD);
-        if (allowedDevices != null && allowedDevices.isEmpty()) {
-            return List.of();
-        }
-        if (deviceId != null && !deviceId.isBlank()) {
-            merchantFeaturePackService.requireDevicePack(userId, deviceId.trim(), MerchantFeaturePacks.FIELD);
-        }
-        List<MerchantReplenishmentRequest> rows;
-        if (allowedDevices != null) {
-            rows = requestRepository.findByDeviceIdInOrderBySubmittedAtDesc(allowedDevices);
-        } else {
-            Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.FIELD);
-            rows = requestRepository.findByMerchantIdInOrderBySubmittedAtDesc(merchants);
-        }
-        String statusFilter = blankToNull(status);
-        return rows.stream()
-                .filter(r -> statusFilter == null || statusFilter.equalsIgnoreCase(r.getStatus()))
-                .filter(r -> deviceId == null || deviceId.isBlank() || deviceId.trim().equals(r.getDeviceId()))
-                .limit(100)
-                .map(this::toRequestDto)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public MerchantReplenishmentRequestDto getRequest(Long userId, Long requestId) {
-        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        MerchantReplenishmentRequest request = requireRequest(requestId);
-        merchantFeaturePackService.requireDevicePack(userId, request.getDeviceId(), MerchantFeaturePacks.FIELD);
-        return toRequestDto(request);
-    }
-
+    /**
+     * 补货员自主发起补货（无审批）：校验当前用户是柜机所属分仓（home_warehouse_id）负责人后，
+     * 直接从该分仓扣账生成出库 + 补货任务，直达补货员任务列表（SATELLITE_WAREHOUSE.md 口径：日常补柜不申请要货）。
+     */
     @Transactional
-    public MerchantReplenishmentRequestDto submitRequest(Long userId, CreateMerchantReplenishmentRequest body) {
+    public ReplenishmentTaskDto selfInitiateTask(Long userId, MerchantSelfReplenishRequest body) {
         permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_REQUEST);
         merchantPortalGuard.requireAccess(userId);
         if (body == null || body.deviceId() == null || body.deviceId().isBlank()) {
@@ -306,197 +252,66 @@ public class MerchantReplenishmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种商品");
         }
         String deviceId = body.deviceId().trim();
-        return runWithDeviceLock(deviceId, () -> doSubmitRequest(userId, body, deviceId));
+        return runWithDeviceLock(deviceId, () -> doSelfInitiateTask(userId, body, deviceId));
     }
 
-    private MerchantReplenishmentRequestDto doSubmitRequest(Long userId,
-                                                          CreateMerchantReplenishmentRequest body,
-                                                          String deviceId) {
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
+    private ReplenishmentTaskDto doSelfInitiateTask(Long userId, MerchantSelfReplenishRequest body, String deviceId) {
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
-        if (device.getMerchantId() == null || device.getMerchantId().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备未绑定商户");
+        String homeWarehouseId = device.getHomeWarehouseId();
+        if (homeWarehouseId == null || homeWarehouseId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "柜机未绑定所属仓库，无法自主发起补货");
         }
+        // 仓跟人走：仅分仓负责人可自主发起（历史任务/他人仓一律拒绝）
+        warehouseService.requireWarehouseManagedBy(homeWarehouseId.trim(), userId);
 
-        Map<String, Integer> suggestBySku = replenishmentService.suggestForDevice(deviceId).stream()
-                .collect(Collectors.toMap(ReplenishmentSuggestDto::skuId, ReplenishmentSuggestDto::suggestQty, Integer::sum));
-
-        MerchantReplenishmentRequest request = new MerchantReplenishmentRequest();
-        request.setMerchantId(device.getMerchantId());
-        request.setDeviceId(deviceId);
-        request.setStatus(SUBMITTED);
-        request.setNotes(trimToNull(body.notes()));
-        request.setCreatedBy(userId);
-        Instant now = Instant.now();
-        request.setSubmittedAt(now);
-        request = requestRepository.save(request);
-
-        for (CreateMerchantReplenishmentRequestLine line : body.lines()) {
+        Map<String, Integer> skuQty = new LinkedHashMap<>();
+        for (MerchantSelfReplenishLine line : body.lines()) {
             if (line == null || line.skuId() == null || line.skuId().isBlank()) {
                 continue;
             }
-            int qty = line.requestedQty() != null ? line.requestedQty() : 0;
+            int qty = line.qty() != null ? line.qty() : 0;
             if (qty <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "要货数量必须大于 0");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "补货数量必须大于 0");
             }
-            SkuCatalog sku = skuCatalogRepository.findById(line.skuId().trim())
+            skuCatalogRepository.findById(line.skuId().trim())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.SKU_NOT_FOUND));
-            MerchantReplenishmentRequestLine row = new MerchantReplenishmentRequestLine();
-            row.setRequestId(request.getRequestId());
-            row.setSkuId(sku.getSkuId());
-            row.setSkuName(SkuDisplayNames.of(sku));
-            row.setSuggestedQty(suggestBySku.getOrDefault(sku.getSkuId(), 0));
-            row.setRequestedQty(qty);
-            requestLineRepository.save(row);
+            skuQty.merge(line.skuId().trim(), qty, Integer::sum);
         }
-        if (requestLineRepository.findByRequestIdOrderByLineIdAsc(request.getRequestId()).isEmpty()) {
+        if (skuQty.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种有效商品");
         }
-        auditService.appendLog(userId, MERCHANT_REPLEN_REQUEST, REPLEN_REQUEST,
-                String.valueOf(request.getRequestId()), "device=" + deviceId);
-        Merchant merchant = merchantRepository.findById(device.getMerchantId()).orElse(null);
-        approvalWorkflowService.start(
-                MERCHANT_REPLEN_REQUEST,
-                String.valueOf(request.getRequestId()),
-                userId,
-                DisplayIds.merchantReplenApprovalTitle(
-                        request.getRequestId(),
-                        device.getDeviceName(),
-                        merchant != null ? merchant.getMerchantName() : device.getMerchantId()));
-        if (body.evidenceFileIds() != null && !body.evidenceFileIds().isEmpty()) {
-            fileAttachmentService.bindEvidenceToReplenishmentRequest(
-                    userId, request.getRequestId(), body.evidenceFileIds());
-        }
-        return toRequestDto(request);
-    }
 
-    @Transactional(readOnly = true)
-    public List<MerchantReplenishmentRequestDto> listRequestsForOps(Long operatorId, String status) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
-        return self.listRequestsForOpsPage(operatorId, status, 0, 200).items();
-    }
-
-    @Transactional(readOnly = true)
-    public PageResult<MerchantReplenishmentRequestDto> listRequestsForOpsPage(
-            Long operatorId, String status, int page, int size) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
-        String statusFilter = blankToNull(status);
-        if (statusFilter != null && "ALL".equalsIgnoreCase(statusFilter)) {
-            statusFilter = null;
-        }
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 100);
-        var result = requestRepository.searchPage(statusFilter != null ? statusFilter : "ALL", p, s);
-        List<MerchantReplenishmentRequestDto> items = result.getRecords().stream()
-                .map(this::toRequestDto)
-                .toList();
-        return new PageResult<>(items, p, s, result.getTotal());
-    }
-
-    @Transactional
-    public MerchantReplenishmentRequestDto acceptRequest(Long operatorId, Long requestId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
-        return runWithRequestLock(requestId, () -> doAcceptRequest(operatorId, requestId));
-    }
-
-    private MerchantReplenishmentRequestDto doAcceptRequest(Long operatorId, Long requestId) {
-        MerchantReplenishmentRequest request = requireRequestForUpdate(requestId);
-        if (!SUBMITTED.equals(request.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待审核要货单可接单");
-        }
-        List<MerchantReplenishmentRequestLine> lines = requestLineRepository.findByRequestIdOrderByLineIdAsc(requestId);
-        if (lines.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "要货单无商品行");
-        }
-
-        DeviceInfo device = deviceRepository.findById(request.getDeviceId()).orElse(null);
+        LocalDate planned = LocalDate.now(ZoneId.of("Asia/Shanghai"));
         ReplenishmentRoute route = new ReplenishmentRoute();
-        route.setRouteName(DisplayIds.merchantReplenRouteName(
-                requestId, device != null ? device.getDeviceName() : request.getDeviceId()));
-        route.setPlannedDate(LocalDate.now());
+        route.setRouteName(DisplayIds.selfReplenRouteName(planned, device.getDeviceName()));
+        route.setPlannedDate(planned);
         route.setStatus("PLANNED");
         route = routeRepository.save(route);
 
         ReplenishmentTask task = new ReplenishmentTask();
         task.setRouteId(route.getRouteId());
-        task.setDeviceId(request.getDeviceId());
+        task.setDeviceId(deviceId);
         task.setStatus("PENDING");
-        task.setRequestId(requestId);
-        task.setNotes("merchant request " + requestId);
+        task.setNotes("self-initiated by user " + userId);
         task = taskRepository.save(task);
 
-        Map<String, Integer> skuQty = new LinkedHashMap<>();
-        for (MerchantReplenishmentRequestLine line : lines) {
-            skuQty.merge(line.getSkuId(), line.getRequestedQty(), Integer::sum);
-        }
-        // 出库与接单解耦：仓库无可用库存时仍生成补货任务，避免同事务 rollback-only
+        // 出库与任务解耦：分仓无可用库存时仍生成补货任务（RESTORM 行兜底），避免同事务 rollback-only
         Long outboundId = warehouseService.tryCreateOutboundFromLines(
-                route.getRouteId(), request.getDeviceId(), operatorId, skuQty, null);
+                route.getRouteId(), deviceId, userId, skuQty, null, "merchant self replenish");
         if (outboundId != null) {
             task.setOutboundId(outboundId);
             taskRepository.save(task);
-            request.setOutboundId(outboundId);
             // 草稿出库行即可生成现场补货明细，无需等发运
             replenishmentService.generateLinesFromOutbound(outboundId);
         } else {
-            // 无仓配：按要货数量 seed RESTOCK 行，避免商户打开空任务
-            replenishmentService.seedDraftRestockLines(task.getTaskId(), request.getDeviceId(), skuQty);
+            replenishmentService.seedDraftRestockLines(task.getTaskId(), deviceId, skuQty);
         }
 
-        request.setStatus("ACCEPTED");
-        request.setReviewedAt(Instant.now());
-        request.setReviewerId(operatorId);
-        request.setReplenishmentTaskId(task.getTaskId());
-        requestRepository.save(request);
-        auditService.appendLog(operatorId, "MERCHANT_REPLEN_ACCEPT", REPLEN_REQUEST,
-                String.valueOf(requestId),
-                "task=" + task.getTaskId() + (outboundId != null ? ",outbound=" + outboundId : ",outbound=none"));
-        approvalWorkflowService.completeApproved(
-                operatorId, MERCHANT_REPLEN_REQUEST, String.valueOf(requestId), null);
-        return toRequestDto(request);
-    }
-
-    @Transactional
-    public MerchantReplenishmentRequestDto rejectRequest(Long operatorId, Long requestId,
-                                                         RejectMerchantReplenishmentRequest body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
-        return runWithRequestLock(requestId, () -> doRejectRequest(operatorId, requestId, body));
-    }
-
-    private MerchantReplenishmentRequestDto doRejectRequest(Long operatorId, Long requestId,
-                                                            RejectMerchantReplenishmentRequest body) {
-        MerchantReplenishmentRequest request = requireRequestForUpdate(requestId);
-        if (!SUBMITTED.equals(request.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待审核要货单可驳回");
-        }
-        request.setStatus("REJECTED");
-        request.setReviewedAt(Instant.now());
-        request.setReviewerId(operatorId);
-        request.setRejectReason(body != null ? trimToNull(body.reason()) : null);
-        requestRepository.save(request);
-        auditService.appendLog(operatorId, "MERCHANT_REPLEN_REJECT", REPLEN_REQUEST,
-                String.valueOf(requestId), request.getRejectReason());
-        approvalWorkflowService.completeRejected(
-                operatorId,
-                MERCHANT_REPLEN_REQUEST,
-                String.valueOf(requestId),
-                request.getRejectReason());
-        return toRequestDto(request);
-    }
-
-    private MerchantReplenishmentRequest requireRequest(Long requestId) {
-        return requestRepository.findById(requestId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "要货单不存在"));
-    }
-
-    private MerchantReplenishmentRequest requireRequestForUpdate(Long requestId) {
-        return requestRepository.findByIdForUpdate(requestId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "要货单不存在"));
-    }
-
-    static String replenishmentRequestLockKey(Long requestId) {
-        return "merchant:replen:request:" + requestId;
+        auditService.appendLog(userId, "MERCHANT_SELF_REPLENISH", REPLENISHMENT_TASK,
+                String.valueOf(task.getTaskId()),
+                "device=" + deviceId + (outboundId != null ? ",outbound=" + outboundId : ",outbound=none"));
+        return replenishmentService.getTaskDto(task.getTaskId());
     }
 
     static String replenishmentDeviceLockKey(String deviceId) {
@@ -505,7 +320,7 @@ public class MerchantReplenishmentService {
 
     private <T> T runWithDeviceLock(String deviceId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(replenishmentDeviceLockKey(deviceId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "该设备要货处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该设备补货处理中，请稍后重试");
         }
         try {
             return action.get();
@@ -518,113 +333,11 @@ public class MerchantReplenishmentService {
         }
     }
 
-    private <T> T runWithRequestLock(Long requestId, java.util.function.Supplier<T> action) {
-        if (!distributedLockService.tryLock(replenishmentRequestLockKey(requestId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "要货单处理中，请稍后重试");
-        }
-        try {
-            return action.get();
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
-        } finally {
-            distributedLockService.unlock(replenishmentRequestLockKey(requestId));
-        }
-    }
-
-    private MerchantReplenishmentRequestDto toRequestDto(MerchantReplenishmentRequest request) {
-        DeviceInfo device = deviceRepository.findById(request.getDeviceId()).orElse(null);
-        Merchant merchant = merchantRepository.findById(request.getMerchantId()).orElse(null);
-        UserInfo creator = userInfoRepository.findById(request.getCreatedBy()).orElse(null);
-        UserInfo reviewer = request.getReviewerId() != null
-                ? userInfoRepository.findById(request.getReviewerId()).orElse(null)
-                : null;
-        List<MerchantReplenishmentRequestLine> lineRows = requestLineRepository
-                .findByRequestIdOrderByLineIdAsc(request.getRequestId());
-        Set<String> skuIds = lineRows.stream()
-                .map(MerchantReplenishmentRequestLine::getSkuId)
-                .filter(id -> id != null && !id.isBlank())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        Map<String, SkuCatalog> catalogBySku = skuIds.isEmpty()
-                ? Map.of()
-                : skuCatalogRepository.findAllById(skuIds).stream()
-                        .filter(sku -> sku.getSkuId() != null)
-                        .collect(Collectors.toMap(SkuCatalog::getSkuId, sku -> sku, (a, b) -> a));
-        List<MerchantReplenishmentRequestLineDto> lines = lineRows.stream()
-                .map(l -> {
-                    SkuCatalog catalog = catalogBySku.get(l.getSkuId());
-                    String spec = catalog == null || catalog.getSpec() == null ? "" : catalog.getSpec().trim();
-                    String displayName = SkuDisplayNames.of(
-                            l.getSkuName(),
-                            spec,
-                            l.getSkuId());
-                    return new MerchantReplenishmentRequestLineDto(
-                            l.getLineId(),
-                            l.getSkuId(),
-                            displayName,
-                            spec,
-                            l.getSuggestedQty(),
-                            l.getRequestedQty());
-                })
-                .toList();
-        return new MerchantReplenishmentRequestDto(
-                request.getRequestId(),
-                request.getMerchantId(),
-                merchant != null ? merchant.getMerchantName() : request.getMerchantId(),
-                request.getDeviceId(),
-                device != null ? device.getDeviceName() : request.getDeviceId(),
-                request.getStatus(),
-                request.getNotes(),
-                request.getCreatedBy(),
-                displayUserName(creator),
-                request.getSubmittedAt() != null ? request.getSubmittedAt() : request.getCreatedAt(),
-                request.getReviewedAt(),
-                request.getReviewerId(),
-                displayUserName(reviewer),
-                request.getRejectReason(),
-                request.getReplenishmentTaskId(),
-                request.getOutboundId(),
-                lines,
-                fileAttachmentService.countReplenishmentRequestEvidence(request.getRequestId())
-        );
-    }
-
     private static String displayUserName(UserInfo user) {
         if (user == null) return null;
         if (user.getName() != null && !user.getName().isBlank()) return user.getName().trim();
         if (user.getPhoneNumber() != null && !user.getPhoneNumber().isBlank()) return user.getPhoneNumber().trim();
         return user.getUserId() != null ? String.valueOf(user.getUserId()) : null;
-    }
-
-    @Transactional
-    public FileAttachmentDto uploadPendingRequestEvidence(Long userId, org.springframework.web.multipart.MultipartFile file) {
-        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_REQUEST);
-        merchantPortalGuard.requireAccess(userId);
-        return fileAttachmentService.uploadPendingReplenishmentRequestEvidence(userId, file);
-    }
-
-    @Transactional(readOnly = true)
-    public List<FileAttachmentDto> listRequestEvidence(Long userId, Long requestId) {
-        MerchantReplenishmentRequest request = requireScopedRequest(userId, requestId);
-        return fileAttachmentService.listReplenishmentRequestEvidence(request.getRequestId());
-    }
-
-    @Transactional(readOnly = true)
-    public void streamRequestEvidence(Long userId, Long requestId, Long fileId,
-                                      jakarta.servlet.http.HttpServletResponse response)
-            throws java.io.IOException {
-        requireScopedRequest(userId, requestId);
-        FileAttachment row = fileAttachmentService.requireReplenishmentRequestEvidence(requestId, fileId);
-        fileAttachmentService.stream(row, response);
-    }
-
-    private MerchantReplenishmentRequest requireScopedRequest(Long userId, Long requestId) {
-        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        MerchantReplenishmentRequest request = requireRequest(requestId);
-        merchantFeaturePackService.requireDevicePack(userId, request.getDeviceId(), MerchantFeaturePacks.FIELD);
-        return request;
     }
 
     @Transactional

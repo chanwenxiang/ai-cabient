@@ -176,17 +176,17 @@ export const MERCHANT_MORE_NAV: MerchantNavItem[] = [
   {
     key: 'purchase',
     title: '采购入库',
-    desc: '货进本人负责的分仓，不是要货',
+    desc: '货进本人负责的分仓',
     url: '/pages/purchase/purchase',
     perm: 'merchant:replenishment:view',
     pack: 'field',
     icon: 'replenish'
   },
   {
-    key: 'request',
-    title: '要货申请',
-    desc: '柜缺货时向仓库喊一声，不是日常补货',
-    url: '/pages/request/request',
+    key: 'self-replenish',
+    title: '发起补货',
+    desc: '缺啥补啥，直接生成分仓出库与补货任务',
+    url: '/pages/self-replenish/self-replenish',
     perm: 'merchant:replenishment:view',
     pack: 'field',
     icon: 'replenish'

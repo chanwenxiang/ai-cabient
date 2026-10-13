@@ -94,12 +94,12 @@
       ]
     },
     {
-      "root": "pages/request",
+      "root": "pages/self-replenish",
       "pages": [
         {
-          "path": "request",
+          "path": "self-replenish",
           "style": {
-            "navigationBarTitleText": "要货申请",
+            "navigationBarTitleText": "发起补货",
             "enablePullDownRefresh": true,
             "navigationStyle": "custom"
           }
@@ -335,7 +335,12 @@
   "preloadRule": {
     "pages/home/home": {
       "network": "all",
-      "packages": ["pages/replenishment", "pages/request", "pages/purchase", "pages/business"]
+      "packages": [
+        "pages/replenishment",
+        "pages/self-replenish",
+        "pages/purchase",
+        "pages/business"
+      ]
     },
     "pages/devices/devices": {
       "network": "all",
@@ -343,7 +348,7 @@
     },
     "pages/alerts/alerts": {
       "network": "all",
-      "packages": ["pages/disputes", "pages/replenishment", "pages/request"]
+      "packages": ["pages/disputes", "pages/replenishment", "pages/self-replenish"]
     },
     "pages/mine/mine": {
       "network": "all",
