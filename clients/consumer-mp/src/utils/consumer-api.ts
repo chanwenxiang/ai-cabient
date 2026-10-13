@@ -613,11 +613,16 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').BalanceRefundRequestDto[]>(
       ConsumerEndpoints.balanceRefunds
     ),
-  applyBalanceRefund: (amountCents: number, reason?: string) =>
+  applyBalanceRefund: (amountCents: number, reason?: string, idemKey?: string) =>
     request<import('@aicabinet/shared-types').BalanceRefundRequestDto>(
       ConsumerEndpoints.balanceRefunds,
       'POST',
-      { amountCents, reason }
+      {
+        amountCents,
+        reason,
+        // V343：服务端幂等键——同一提交意图重试/重放返回原单，不重复冻结/退款
+        ...(idemKey ? { idemKey } : {})
+      }
     ),
   deviceStatus: (deviceId: string) =>
     request<import('@aicabinet/shared-types').DeviceStatusDto>(

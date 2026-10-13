@@ -32,6 +32,7 @@ public class ConsumerBalanceRefundController {
             HttpServletRequest request,
             @Valid @RequestBody ApplyBalanceRefundRequest body) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return ApiResponse.ok(balanceRefundService.apply(userId, body.amountCents(), body.reason()));
+        return ApiResponse.ok(
+                balanceRefundService.apply(userId, body.amountCents(), body.reason(), body.idemKey()));
     }
 }

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -62,6 +63,7 @@ public class SiteRentSplitService {
         contractMapper.findByIdForUpdate(contractId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "场地合同不存在"));
         int sumBps = 0;
+        List<String> auditParts = new ArrayList<>(request.rules().size());
         for (UpsertSiteRentSplitRulesRequest.Rule r : request.rules()) {
             String party = r.partyType().trim().toUpperCase();
             if (!PARTIES.contains(party)) {
@@ -72,10 +74,16 @@ public class SiteRentSplitService {
             }
             // H30(c)：仅 ACTIVE 规则计入 10000bps 校验——INACTIVE 规则不参与出账分摊，
             // 保留作历史口径时不应挤占新规则的份额
-            if (r.status() == null || r.status().isBlank()
-                    || CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(r.status().trim())) {
+            String status = r.status() == null || r.status().isBlank()
+                    ? "ACTIVE"
+                    : r.status().trim().toUpperCase();
+            if (CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(status)) {
                 sumBps += r.shareBps();
             }
+            if (r.fixedCents() < 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fixedCents 非法（须 ≥ 0）");
+            }
+            auditParts.add(party + ":" + r.shareBps() + "bps+" + r.fixedCents() + "分@" + status);
         }
         if (sumBps != CabinetConstants.SHARE_BPS_FULL) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -89,9 +97,6 @@ public class SiteRentSplitService {
             row.setPartyType(r.partyType().trim().toUpperCase());
             row.setPartyId(blankToNull(r.partyId()));
             row.setShareBps(r.shareBps());
-            if (r.fixedCents() < 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fixedCents 非法（须 ≥ 0）");
-            }
             row.setFixedCents(r.fixedCents());
             row.setStatus(r.status() == null || r.status().isBlank() ? "ACTIVE" : r.status().trim().toUpperCase());
             row.setEffectiveFrom(r.effectiveFrom());
@@ -100,8 +105,10 @@ public class SiteRentSplitService {
             row.setUpdatedAt(now);
             ruleMapper.insert(row);
         }
+        // 审计记规则明细（party:shareBps+fixedCents分@status）而非只记数量——
+        // 事后要能回答「当时谁分多少」，与 AdminDataManageService 的 before/after 审计同一原则
         auditService.appendLog(operatorId, "SITE_RENT_SPLIT", "CONTRACT", String.valueOf(contractId),
-                "rules=" + request.rules().size());
+                "rules=" + String.join(";", auditParts));
         return self.listByContract(operatorId, contractId);
     }
 

@@ -13770,6 +13770,7 @@ export interface components {
             /** Format: int32 */
             amountCents?: number;
             reason?: string;
+            idemKey?: string;
         };
         UpdateDeviceRequest: {
             deviceName?: string;

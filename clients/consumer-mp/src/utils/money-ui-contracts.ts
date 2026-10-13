@@ -121,13 +121,20 @@ export function resultRefundConfirmContent(restoreInventory: boolean | undefined
 
 export const DEFAULT_BALANCE_REFUND_REASON = '用户申请退可用余额';
 
-export function buildBalanceRefundBody(input: { amountCents: number; reason?: string }): {
+export function buildBalanceRefundBody(input: {
+  amountCents: number;
+  reason?: string;
+  /** 可选幂等键（V343）：同一提交意图保持不变，服务端按 (userId, idemKey) 重放去重 */
+  idemKey?: string;
+}): {
   amountCents: number;
   reason: string;
+  idemKey?: string;
 } {
   return {
     amountCents: input.amountCents,
-    reason: input.reason?.trim() || DEFAULT_BALANCE_REFUND_REASON
+    reason: input.reason?.trim() || DEFAULT_BALANCE_REFUND_REASON,
+    ...(input.idemKey ? { idemKey: input.idemKey } : {})
   };
 }
 

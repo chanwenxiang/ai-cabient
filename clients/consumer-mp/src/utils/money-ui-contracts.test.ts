@@ -143,6 +143,15 @@ describe('money-ui-contracts · 充值 / 余额退', () => {
     });
   });
 
+  it('余额退申请体带幂等键（V343）；空键不落字段', () => {
+    expect(buildBalanceRefundBody({ amountCents: 500, idemKey: 'k-1' })).toEqual({
+      amountCents: 500,
+      reason: DEFAULT_BALANCE_REFUND_REASON,
+      idemKey: 'k-1'
+    });
+    expect(buildBalanceRefundBody({ amountCents: 500, idemKey: '' })).not.toHaveProperty('idemKey');
+  });
+
   it('正数分校验与上限', () => {
     expect(validatePositiveCents({ amountCents: 0 })).toBe('INVALID_AMOUNT');
     expect(validatePositiveCents({ amountCents: 100, maxCents: 50 })).toBe('EXCEEDS_MAX');

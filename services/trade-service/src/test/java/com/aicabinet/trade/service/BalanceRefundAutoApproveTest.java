@@ -212,4 +212,37 @@ class BalanceRefundAutoApproveTest {
         verify(balanceLedgerService).change(eq(USER_ID), eq(600), eq("BALANCE_REFUND_REVERSAL"),
                 eq(String.valueOf(REQ_ID)), anyString(), contains("冲回"));
     }
+
+    /**
+     * V343 幂等重放：同 (userId, idemKey) 二次提交返回原单——不新建、不再冻结、不再建审批实例。
+     * 堵「自动审批通过后 PENDING 守卫释放，双击/网络重试多退一笔」的口子。
+     */
+    @Test
+    void apply_withSameIdemKey_replaysExistingRequestWithoutDoubleFreeze() {
+        when(systemConfigService.getInt(AUTO_KEY, 0)).thenReturn(0);
+        stubApplicantFunds();
+        BalanceRefundRequest existing = pending();
+        when(requestMapper.findByUserIdAndIdemKey(USER_ID, "intent-1")).thenReturn(existing);
+
+        BalanceRefundRequestDto dto = service.apply(USER_ID, 600, "重复提交", "intent-1");
+
+        assertEquals(Long.valueOf(REQ_ID), dto.requestId());
+        verify(requestMapper, never()).insert(any(BalanceRefundRequest.class));
+        verify(accountMapper, never()).save(any());
+        verify(balanceLedgerService, never()).recordFreezeOnly(anyLong(), any());
+        verify(approvalWorkflowService, never()).start(anyString(), anyString(), any(), anyString());
+    }
+
+    /** 无键（老客户端）行为不变：仍走新建 + 审批实例，不做幂等查询。 */
+    @Test
+    void apply_withoutIdemKey_keepsLegacyPath() {
+        when(systemConfigService.getInt(AUTO_KEY, 0)).thenReturn(0);
+        stubApplicantFunds();
+
+        BalanceRefundRequestDto dto = service.apply(USER_ID, 600, "不带键");
+
+        assertEquals("PENDING_REVIEW", dto.status());
+        verify(requestMapper, never()).findByUserIdAndIdemKey(anyLong(), anyString());
+        verify(requestMapper).insert(any(BalanceRefundRequest.class));
+    }
 }

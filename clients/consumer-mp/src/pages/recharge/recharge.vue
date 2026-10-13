@@ -217,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
@@ -268,6 +268,12 @@ const refundYuan = ref('');
 const refundAmountCents = ref(0);
 const refundError = ref('');
 const refundBusy = ref(false);
+// V343 幂等键：金额变化即视为新意图 ⇒ 重新生成；提交失败保留原键（重试=同一意图，服务端按
+// (userId, idemKey) 重放去重），提交成功后金额清零触发 watch 自然换新键
+const refundIdemKey = ref<string | null>(null);
+watch(refundAmountCents, () => {
+  refundIdemKey.value = secureRandomToken();
+});
 const refundRequests = ref<BalanceRefundRequestDto[]>([]);
 // 上限由后端下发（recharge.max_cents / balance.refund.max_cents，0=不限制）。
 // 默认值与后端 seed（500_000 分）一致：配置取不到时行为与硬编码时代相同（fail-closed）。
@@ -362,8 +368,12 @@ async function onApplyRefund() {
   refundBusy.value = true;
   refundError.value = '';
   try {
-    const body = buildBalanceRefundBody({ amountCents: refundAmountCents.value });
-    await consumerApi.applyBalanceRefund(body.amountCents, body.reason);
+    const body = buildBalanceRefundBody({
+      amountCents: refundAmountCents.value,
+      idemKey: refundIdemKey.value ?? secureRandomToken()
+    });
+    refundIdemKey.value = body.idemKey ?? null;
+    await consumerApi.applyBalanceRefund(body.amountCents, body.reason, body.idemKey);
     showSuccess('已提交审核');
     refundYuan.value = '';
     refundAmountCents.value = 0;

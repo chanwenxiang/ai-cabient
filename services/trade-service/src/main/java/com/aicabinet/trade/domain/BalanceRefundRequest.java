@@ -39,4 +39,7 @@ public class BalanceRefundRequest {
     private Instant updatedAt;
 
     private Instant refundedAt;
+
+    /** 客户端幂等键（可选，V343）：同 (user_id, idem_key) 重放返回原单。 */
+    private String idemKey;
 }

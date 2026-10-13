@@ -36,4 +36,11 @@ public interface BalanceRefundRequestMapper extends BaseTradeMapper<BalanceRefun
                 .eq(BalanceRefundRequest::getUserId, userId)
                 .eq(BalanceRefundRequest::getStatus, status));
     }
+
+    /** V343 幂等重放：同用户同客户端幂等键的既有申请单（无命中返回 null）。 */
+    default BalanceRefundRequest findByUserIdAndIdemKey(Long userId, String idemKey) {
+        return selectOne(Wrappers.<BalanceRefundRequest>lambdaQuery()
+                .eq(BalanceRefundRequest::getUserId, userId)
+                .eq(BalanceRefundRequest::getIdemKey, idemKey));
+    }
 }

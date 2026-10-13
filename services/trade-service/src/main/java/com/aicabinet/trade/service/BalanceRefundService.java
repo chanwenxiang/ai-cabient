@@ -107,6 +107,21 @@ public class BalanceRefundService {
      * 行为与接入前逐字节一致（fail-closed）。
      */
     public BalanceRefundRequestDto apply(Long userId, int amountCents, String reason) {
+        return apply(userId, amountCents, reason, null);
+    }
+
+    /**
+     * 提交余额退款申请（V343 幂等版）。
+     * <p>同 {@code (userId, idemKey)} 重放：直接返回原单，不再冻结/不再触发审批或渠道。
+     * 自动审批（O6）只对<b>新建</b>的申请执行——重放路径在 doApply 内即短路，守卫释放后的
+     * 双击/网络重试不会再多退一笔。
+     *
+     * <p>O6：当 {@code refund.auto_approve.max_cents > 0} 且申请金额不超过该阈值时，申请提交后立即由
+     * {@link #AUTO_REVIEWER_ID 系统账号}审批并执行原路退款。阈值内申请<b>不创建审批实例</b>——自动审批的
+     * 语义就是「按策略免审」，创建实例只会在人工审批台留下无人认领的待办。默认阈值为 0 ⇒ 不自动审批，
+     * 行为与接入前逐字节一致（fail-closed）。
+     */
+    public BalanceRefundRequestDto apply(Long userId, int amountCents, String reason, String idemKey) {
         if (amountCents < 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额至少 ¥1.00");
         }
@@ -116,13 +131,30 @@ public class BalanceRefundService {
                     "单次申请不超过 ¥" + String.format("%.2f", maxCents / 100.0));
         }
         boolean auto = withinAutoApproveThreshold(amountCents);
-        BalanceRefundRequestDto applied = runWithBalanceRefundLock(userId,
-                () -> self.doApply(userId, amountCents, reason, auto));
+        String key = normalizeIdemKey(idemKey);
+        ApplyOutcome outcome = runWithBalanceRefundLock(userId,
+                () -> self.doApply(userId, amountCents, reason, auto, key));
+        if (outcome.replayed()) {
+            // 幂等重放：返回既有单的真实状态，不再走自动审批（资金只动一次）
+            return outcome.dto();
+        }
         if (!auto) {
-            return applied;
+            return outcome.dto();
         }
         // 自动审批与申请必须分处两个事务：渠道 HTTP 只能在事务外（C05 三段式）
-        return runWithBalanceRefundLock(userId, () -> self.doAutoApprove(applied));
+        return runWithBalanceRefundLock(userId, () -> self.doAutoApprove(outcome.dto()));
+    }
+
+    /** 幂等键归一：空白 → null（老客户端不带键 = 行为与接入前一致）；超长 fail-closed。 */
+    private static String normalizeIdemKey(String idemKey) {
+        if (idemKey == null || idemKey.isBlank()) {
+            return null;
+        }
+        String key = idemKey.trim();
+        if (key.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "idemKey 过长（≤64 字符）");
+        }
+        return key;
     }
 
     /** O6：申请金额是否落在自动审批阈值内（阈值 ≤ 0 = 关闭，全部转人工）。 */
@@ -132,8 +164,21 @@ public class BalanceRefundService {
         return threshold > 0 && amountCents <= threshold;
     }
 
+    /** doApply 结果：replayed=true 表示幂等重放命中既有单，调用方不得再触发自动审批/审批实例。 */
+    public record ApplyOutcome(BalanceRefundRequestDto dto, boolean replayed) {}
+
     @Transactional
-    public BalanceRefundRequestDto doApply(Long userId, int amountCents, String reason, boolean auto) {
+    public ApplyOutcome doApply(Long userId, int amountCents, String reason, boolean auto, String idemKey) {
+        // 幂等重放必须在 PENDING 守卫**之前**：原单已 REFUNDED/REJECTED 时守卫已放行，
+        // 不先查键就会给同一意图再建一单
+        if (idemKey != null) {
+            BalanceRefundRequest existing = requestMapper.findByUserIdAndIdemKey(userId, idemKey);
+            if (existing != null) {
+                log.info("balance refund replay user={} idemKey={} request={}",
+                        userId, idemKey, existing.getRequestNo());
+                return new ApplyOutcome(toDto(existing), true);
+            }
+        }
         if (requestMapper.countByUserIdAndStatus(userId, STATUS_PENDING) > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已有待审核的退款申请，请等待处理完成");
         }
@@ -165,6 +210,7 @@ public class BalanceRefundService {
         req.setAmountCents(amountCents);
         req.setStatus(STATUS_PENDING);
         req.setReason(trim(reason));
+        req.setIdemKey(idemKey);
         req.setCreatedAt(now);
         req.setUpdatedAt(now);
         requestMapper.insert(req);
@@ -181,7 +227,7 @@ public class BalanceRefundService {
                             + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
             log.info("balance refund applied user={} amount={} request={}", userId, amountCents, req.getRequestNo());
         }
-        return toDto(req);
+        return new ApplyOutcome(toDto(req), false);
     }
 
     /**
