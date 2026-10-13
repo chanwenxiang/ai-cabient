@@ -74,6 +74,18 @@ const EXEMPT = new Map([
         '会**真的向已配置的告警渠道（飞书等）投递一条测试消息**（脚本 :186 的注释明说），' +
         '并需要真实 webhook 凭据 —— 外部副作用，不适合被 CI 的每个 PR 触发'
     }
+  ],
+  [
+    'audit-admin-flows-uat.mjs',
+    {
+      why:
+        '上线前审计 Track C-admin 的**业务流程**驱动（八条：购物结算/争议/退款/提现/资金池/租赁/补货/RBAC）。' +
+        '硬依赖 CI 的 e2e-h5 作业里没有的外部条件：jiangyi-gateway（设备 JWT 签发，`JIANGYI_JWT_SECRET` fail-closed）' +
+        '+ emqx/minio + 真实将邑设备模拟器 + 本地 docker 栈已播种的业务数据。' +
+        '复核：`.github/workflows/ci.yml` 的 e2e-h5 `services:` 只有 postgres/redis，' +
+        '「Start backend」步骤只起 trade-service ——没有 jiangyi-gateway，F1 连开门都发不出去。' +
+        '该套件的执行记录在 docs/AUDIT_TRACK_C_ADMIN_FLOWS_2026-10-13.md（人工在本地栈跑，附截图证据）。'
+    }
   ]
 ]);
 

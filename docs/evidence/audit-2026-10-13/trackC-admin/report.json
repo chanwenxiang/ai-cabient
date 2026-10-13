@@ -1,0 +1,61 @@
+{
+  "summary": {
+    "flows": [
+      "env-baseline"
+    ],
+    "pass": 5,
+    "fail": 0,
+    "skip": 1,
+    "at": "2026-10-13T08:27:10.994Z"
+  },
+  "results": [
+    {
+      "flow": "ENV",
+      "id": "E-01",
+      "status": "PASS",
+      "detail": "admin 入口产物=assets/index--YG4jrXZ.js,assets/ui-vendor-Bx2nlMIp.js（index.html 1213B）",
+      "evidence": "docs/evidence/audit-2026-10-13/c-admin/admin-build-fingerprint.json",
+      "at": "2026-10-13T08:27:04.687Z"
+    },
+    {
+      "flow": "ENV",
+      "id": "E-02",
+      "status": "SKIP",
+      "detail": "代码指纹：当前后端=dev 构建（不含审计分支入口校验）→ 本文件所有流程结论一律标注为 dev 版本行为；probe exit=0",
+      "evidence": "docs/evidence/audit-2026-10-13/c-admin/code-fingerprint.json",
+      "at": "2026-10-13T08:27:04.805Z"
+    },
+    {
+      "flow": "ENV",
+      "id": "E-03",
+      "status": "PASS",
+      "detail": "token len=0 url=http://localhost/admin/dashboard",
+      "evidence": "docs/evidence/audit-2026-10-13/c-admin/e03-admin-login.png",
+      "at": "2026-10-13T08:27:08.494Z"
+    },
+    {
+      "flow": "ENV",
+      "id": "E-04",
+      "status": "PASS",
+      "detail": "订单管理: title=\"订单管理\" table=true rows=0 hydratedEmpty=true loading=false",
+      "evidence": "docs/evidence/audit-2026-10-13/c-admin/e-04.png",
+      "at": "2026-10-13T08:27:09.236Z"
+    },
+    {
+      "flow": "ENV",
+      "id": "E-05",
+      "status": "PASS",
+      "detail": "争议审核: title=\"争议审核\" table=true rows=2 hydratedEmpty=false loading=false",
+      "evidence": "docs/evidence/audit-2026-10-13/c-admin/e-05.png",
+      "at": "2026-10-13T08:27:09.904Z"
+    },
+    {
+      "flow": "ENV",
+      "id": "E-06",
+      "status": "PASS",
+      "detail": "异常中心: title=\"异常中心\" table=true rows=2 hydratedEmpty=false loading=false",
+      "evidence": "docs/evidence/audit-2026-10-13/c-admin/e-06.png",
+      "at": "2026-10-13T08:27:10.599Z"
+    }
+  ]
+}

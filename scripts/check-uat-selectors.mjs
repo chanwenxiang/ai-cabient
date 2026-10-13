@@ -97,6 +97,11 @@ const SUITES = [
   {
     file: 'clients/admin-vue/tests/admin-alert-channel-uat.mjs',
     roots: ['clients/admin-vue/src', 'packages']
+  },
+  {
+    // 上线前审计 Track C-admin：八条后台业务流程实测驱动
+    file: 'clients/admin-vue/tests/audit-admin-flows-uat.mjs',
+    roots: ['clients/admin-vue/src', 'packages']
   }
 ];
 
