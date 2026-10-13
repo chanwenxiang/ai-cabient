@@ -14,7 +14,6 @@
           <el-button v-hasPermi="['ops:fund:manage']" type="primary" @click="openCreate"
             >新建账户</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
@@ -27,98 +26,60 @@
       title="商户提现打款前会校验对应渠道账户备付余额；未登记账户为软启动（只告警不拦截）。充值=公司入金，归集=商户销售额转入，调整为差错更正（可正可负）"
     />
 
-    <div class="table-scroll">
-      <div class="table-scroll-inner">
-        <el-table
-          v-loading="loading"
-          :data="accounts"
-          stripe
-          border
-          class="report-table"
-          row-key="accountId"
-          empty-text="暂无账户——提现软启动期间可直接使用，需要拦截时先建账"
-        >
-          <el-table-column
-            prop="accountId"
-            label="ID"
-            width="70"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column prop="channel" label="渠道" width="140">
-            <template #default="{ row }">
-              <el-tag size="small">{{ row.channel }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="accountName" label="账户名称" min-width="160" />
-          <el-table-column
-            label="备付余额"
-            width="140"
-            align="right"
-            class-name="col-money"
-            label-class-name="col-money"
-          >
-            <template #default="{ row }">¥{{ yuan(row.balanceCents) }}</template>
-          </el-table-column>
-          <el-table-column
-            label="状态"
-            width="90"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">
-              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                {{ row.status === 'ACTIVE' ? '启用' : row.status }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="更新时间"
-            width="170"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
-          </el-table-column>
-          <el-table-column
-            label="操作"
-            width="260"
-            align="center"
-            fixed="right"
-            class-name="col-action"
-            label-class-name="col-action"
-          >
-            <template #default="{ row }">
-              <el-button
-                v-hasPermi="['ops:fund:manage']"
-                link
-                type="primary"
-                @click="openAmount(row, 'recharge')"
-                >充值</el-button
-              >
-              <el-button
-                v-hasPermi="['ops:fund:manage']"
-                link
-                type="primary"
-                @click="openAmount(row, 'sweep')"
-                >归集</el-button
-              >
-              <el-button
-                v-hasPermi="['ops:fund:manage']"
-                link
-                type="warning"
-                @click="openAmount(row, 'adjust')"
-                >调整</el-button
-              >
-              <el-button link @click="openFlows(row)">流水</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-    </div>
+    <CrudTable
+      :table="accountCrud"
+      row-key="accountId"
+      :actions="accountActions"
+      :action-width="120"
+      empty-text="暂无账户——提现软启动期间可直接使用，需要拦截时先建账"
+      @action="onAccountAction"
+    >
+      <el-table-column
+        prop="accountId"
+        label="ID"
+        width="70"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column prop="channel" label="渠道" width="140">
+        <template #default="{ row }">
+          <el-tag size="small">{{ row.channel }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="accountName" label="账户名称" min-width="160" />
+      <el-table-column
+        label="备付余额"
+        width="140"
+        align="right"
+        class-name="col-money"
+        label-class-name="col-money"
+      >
+        <template #default="{ row }">¥{{ yuan(row.balanceCents) }}</template>
+      </el-table-column>
+      <el-table-column
+        label="状态"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
+        <template #default="{ row }">
+          <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+            {{ row.status === 'ACTIVE' ? '启用' : row.status }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column
+        label="更新时间"
+        width="170"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
+        <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
+      </el-table-column>
+    </CrudTable>
 
     <!-- 新建账户 -->
     <el-dialog v-model="createVisible" title="新建资金池账户" width="440px">
@@ -167,11 +128,10 @@
 
     <!-- 流水 -->
     <el-dialog v-model="flowsVisible" :title="`流水 — ${flowsAccountLabel}`" width="860px">
-      <el-table
-        v-loading="flowsLoading"
-        :data="flows"
-        stripe
-        border
+      <CrudTable
+        :table="flowsCrud"
+        row-key="flowId"
+        :show-refresh="false"
         max-height="480"
         empty-text="暂无流水"
       >
@@ -240,7 +200,7 @@
         >
           <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
-      </el-table>
+      </CrudTable>
     </el-dialog>
   </el-card>
 </template>
@@ -248,10 +208,12 @@
 <script setup lang="ts">
 import { yuanText } from '@/utils/display';
 import { computed, reactive, ref } from 'vue';
-import { Refresh } from '@element-plus/icons-vue';
+import { Download, EditPen, Plus, Tickets } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 
 interface FundAccount {
   accountId: number;
@@ -273,8 +235,6 @@ interface FundFlow {
   createdAt?: string;
 }
 
-const accounts = ref<FundAccount[]>([]);
-const loading = ref(false);
 const submitting = ref(false);
 
 function yuan(cents?: number | null) {
@@ -286,16 +246,29 @@ function formatTime(v?: string) {
   return String(v).replace('T', ' ').slice(0, 19);
 }
 
-async function load() {
-  loading.value = true;
-  try {
+// ── 账户列表（CrudTable 化：分页壳 / 空态 / 刷新 / 操作列统一收口） ────────
+const accountCrud = useCrudTable<FundAccount>({
+  rowKey: (r) => r.accountId,
+  fetchPage: async () => {
     const data = await api.request<FundAccount[]>(AdminEndpoints.platformFundAccounts, 'GET');
-    accounts.value = Array.isArray(data) ? data : [];
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '账户加载失败');
-  } finally {
-    loading.value = false;
-  }
+    // 全量接口（无分页参数）；useCrudTable 的 normalizeListPage 兼容纯数组
+    return Array.isArray(data) ? data : [];
+  },
+  errorMessage: '账户加载失败'
+});
+
+function accountActions(_row: FundAccount): CrudRowAction[] {
+  return [
+    { key: 'recharge', label: '充值', icon: Plus, type: 'primary', perm: 'ops:fund:manage' },
+    { key: 'sweep', label: '归集', icon: Download, type: 'primary', perm: 'ops:fund:manage' },
+    { key: 'adjust', label: '调整', icon: EditPen, type: 'warning', perm: 'ops:fund:manage' },
+    { key: 'flows', label: '流水', icon: Tickets, type: 'info' }
+  ];
+}
+
+function onAccountAction({ key, row }: { key: string; row: FundAccount }) {
+  if (key === 'flows') void openFlows(row);
+  else openAmount(row, key as AmountKind);
 }
 
 // ── 新建账户 ──────────────────────────────────────────────────────────
@@ -325,7 +298,7 @@ async function submitCreate() {
     });
     ElMessage.success('账户已创建');
     createVisible.value = false;
-    await load();
+    await accountCrud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '创建失败');
   } finally {
@@ -380,7 +353,7 @@ async function submitAmount() {
     });
     ElMessage.success('已登记');
     amountVisible.value = false;
-    await load();
+    await accountCrud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '登记失败');
   } finally {
@@ -388,11 +361,23 @@ async function submitAmount() {
   }
 }
 
-// ── 流水 ──────────────────────────────────────────────────────────────
+// ── 流水（弹窗表：CrudTable 壳 + el-table max-height 保持紧凑） ──────────
 const flowsVisible = ref(false);
-const flowsLoading = ref(false);
-const flows = ref<FundFlow[]>([]);
 const flowsAccountLabel = ref('');
+const flowsAccountId = ref(0);
+
+const flowsCrud = useCrudTable<FundFlow>({
+  rowKey: (r) => r.flowId,
+  autoLoad: false,
+  fetchPage: async () => {
+    const data = await api.request<FundFlow[]>(
+      AdminEndpoints.platformFundFlows(flowsAccountId.value),
+      'GET'
+    );
+    return Array.isArray(data) ? data : [];
+  },
+  errorMessage: '流水加载失败'
+});
 
 const FLOW_LABELS: Record<string, string> = {
   RECHARGE: '充值',
@@ -413,23 +398,10 @@ function flowTagType(t: string) {
 
 async function openFlows(row: FundAccount) {
   flowsAccountLabel.value = `${row.channel}（${row.accountName || row.accountId}）`;
-  flows.value = [];
+  flowsAccountId.value = row.accountId;
   flowsVisible.value = true;
-  flowsLoading.value = true;
-  try {
-    const data = await api.request<FundFlow[]>(
-      AdminEndpoints.platformFundFlows(row.accountId),
-      'GET'
-    );
-    flows.value = Array.isArray(data) ? data : [];
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '流水加载失败');
-  } finally {
-    flowsLoading.value = false;
-  }
+  await flowsCrud.load({ resetPage: true });
 }
-
-load();
 </script>
 
 <style scoped>

@@ -20,7 +20,7 @@
           <el-button v-hasPermi="['ops:rental:manage']" @click="openRegisterDeposit"
             >登记押金</el-button
           >
-          <el-button :icon="Refresh" :loading="loading" @click="reload">刷新</el-button>
+          <el-button :icon="Refresh" :loading="tabBusy" @click="reload">刷新</el-button>
         </div>
       </div>
     </template>
@@ -36,7 +36,7 @@
     <el-tabs v-model="tab">
       <!-- 月租账单 -->
       <el-tab-pane label="月租账单" name="bills">
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onBillSearch">
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="billsCrud.search()">
           <el-form-item label="账期月">
             <el-date-picker
               v-model="billMonth"
@@ -60,206 +60,131 @@
               clearable
               placeholder="设备编号"
               style="width: 160px"
-              @keyup.enter="onBillSearch"
-              @clear="onBillSearch"
+              @keyup.enter="billsCrud.search()"
+              @clear="billsCrud.search()"
             />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="onBillSearch">查询</el-button>
+            <el-button type="primary" @click="billsCrud.search()">查询</el-button>
           </el-form-item>
         </el-form>
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              v-loading="billLoading"
-              :data="bills"
-              stripe
-              border
-              class="report-table"
-              row-key="billId"
-              empty-text="暂无账单——点右上「生成月租账单」按设备月租出账"
-            >
-              <el-table-column
-                prop="billId"
-                label="ID"
-                width="70"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column prop="deviceId" label="设备" width="130" />
-              <el-table-column prop="deviceName" label="设备名称" min-width="130">
-                <template #default="{ row }">{{ row.deviceName || '无' }}</template>
-              </el-table-column>
-              <el-table-column prop="merchantId" label="商户" width="120" />
-              <el-table-column
-                prop="billMonth"
-                label="账期月"
-                width="100"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column label="月租" width="110" align="right">
-                <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
-              </el-table-column>
-              <el-table-column
-                label="状态"
-                width="100"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <el-tag :type="billTagType(row.status)" size="small">
-                    {{ billLabel(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column
-                label="锁柜"
-                width="90"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <el-tag v-if="row.lockAt" type="danger" size="small">已锁</el-tag>
-                  <span v-else>—</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                label="操作"
-                width="170"
-                align="center"
-                fixed="right"
-                class-name="col-action"
-                label-class-name="col-action"
-              >
-                <template #default="{ row }">
-                  <template v-if="row.status === 'UNPAID'">
-                    <el-button
-                      v-hasPermi="['ops:rental:manage']"
-                      link
-                      type="success"
-                      @click="markPaid(row)"
-                      >标记已付</el-button
-                    >
-                    <el-button
-                      v-hasPermi="['ops:rental:manage']"
-                      link
-                      type="danger"
-                      @click="voidBill(row)"
-                      >作废</el-button
-                    >
-                  </template>
-                  <span v-else>—</span>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-        <PagePager
-          :hydrated="billHydrated"
-          v-model:current-page="billPage"
-          v-model:page-size="billSize"
-          :total="billTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @current-change="loadBills"
-          @size-change="onBillSizeChange"
-        />
+        <CrudTable
+          :table="billsCrud"
+          row-key="billId"
+          :show-refresh="false"
+          :actions="billActions"
+          :action-width="110"
+          empty-text="暂无账单——点右上「生成月租账单」按设备月租出账"
+          @action="onBillAction"
+        >
+          <el-table-column
+            prop="billId"
+            label="ID"
+            width="70"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column prop="deviceId" label="设备" width="130" />
+          <el-table-column prop="deviceName" label="设备名称" min-width="130">
+            <template #default="{ row }">{{ row.deviceName || '无' }}</template>
+          </el-table-column>
+          <el-table-column prop="merchantId" label="商户" width="120" />
+          <el-table-column
+            prop="billMonth"
+            label="账期月"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column label="月租" width="110" align="right">
+            <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+          </el-table-column>
+          <el-table-column
+            label="状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-tag :type="billTagType(row.status)" size="small">
+                {{ billLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="锁柜"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-tag v-if="row.lockAt" type="danger" size="small">已锁</el-tag>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+        </CrudTable>
       </el-tab-pane>
 
       <!-- 押金台账 -->
       <el-tab-pane label="押金台账" name="deposits">
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              v-loading="depositLoading"
-              :data="deposits"
-              stripe
-              border
-              class="report-table"
-              row-key="depositId"
-              empty-text="暂无押金——设备置为 RENTAL 模式后线下收缴并在此登记"
-            >
-              <el-table-column
-                prop="depositId"
-                label="ID"
-                width="70"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column prop="deviceId" label="设备" width="130" />
-              <el-table-column prop="merchantId" label="商户" width="120" />
-              <el-table-column label="押金本金" width="120" align="right">
-                <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
-              </el-table-column>
-              <el-table-column
-                label="可用余额"
-                width="120"
-                align="right"
-                class-name="col-money"
-                label-class-name="col-money"
-              >
-                <template #default="{ row }">¥{{ yuan(row.balanceCents) }}</template>
-              </el-table-column>
-              <el-table-column
-                label="状态"
-                width="100"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <el-tag :type="depositTagType(row.status)" size="small">
-                    {{ depositLabel(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column
-                label="登记时间"
-                width="170"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-              </el-table-column>
-              <el-table-column
-                label="操作"
-                width="200"
-                align="center"
-                fixed="right"
-                class-name="col-action"
-                label-class-name="col-action"
-              >
-                <template #default="{ row }">
-                  <el-button link @click="openEvents(row)">流水</el-button>
-                  <template v-if="row.status === 'HELD'">
-                    <el-button
-                      v-hasPermi="['ops:rental:manage']"
-                      link
-                      type="warning"
-                      @click="openDeduct(row)"
-                      >扣款</el-button
-                    >
-                    <el-button
-                      v-hasPermi="['ops:rental:manage']"
-                      link
-                      type="success"
-                      @click="settle(row)"
-                      >结算返还</el-button
-                    >
-                  </template>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
+        <CrudTable
+          :table="depositsCrud"
+          row-key="depositId"
+          :show-refresh="false"
+          :actions="depositActions"
+          :action-width="110"
+          empty-text="暂无押金——设备置为 RENTAL 模式后线下收缴并在此登记"
+          @action="onDepositAction"
+        >
+          <el-table-column
+            prop="depositId"
+            label="ID"
+            width="70"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column prop="deviceId" label="设备" width="130" />
+          <el-table-column prop="merchantId" label="商户" width="120" />
+          <el-table-column label="押金本金" width="120" align="right">
+            <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+          </el-table-column>
+          <el-table-column
+            label="可用余额"
+            width="120"
+            align="right"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
+            <template #default="{ row }">¥{{ yuan(row.balanceCents) }}</template>
+          </el-table-column>
+          <el-table-column
+            label="状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-tag :type="depositTagType(row.status)" size="small">
+                {{ depositLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="登记时间"
+            width="170"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+          </el-table-column>
+        </CrudTable>
       </el-tab-pane>
     </el-tabs>
 
@@ -322,11 +247,10 @@
 
     <!-- 押金流水 -->
     <el-dialog v-model="eventsVisible" :title="`押金流水 — ${eventsDeviceLabel}`" width="760px">
-      <el-table
-        v-loading="eventsLoading"
-        :data="events"
-        stripe
-        border
+      <CrudTable
+        :table="eventsCrud"
+        row-key="eventId"
+        :show-refresh="false"
         max-height="440"
         empty-text="暂无流水"
       >
@@ -372,19 +296,20 @@
         >
           <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
-      </el-table>
+      </CrudTable>
     </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { yuanText } from '@/utils/display';
-import { reactive, ref, watch } from 'vue';
-import PagePager from '@/components/PagePager.vue';
-import { Refresh } from '@element-plus/icons-vue';
+import { computed, reactive, ref, watch } from 'vue';
+import { CircleCheck, CircleClose, Money, Refresh, Tickets } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 
 interface RentalBill {
   billId: number;
@@ -417,7 +342,6 @@ interface DepositEvent {
 }
 
 const tab = ref('bills');
-const loading = ref(false);
 const submitting = ref(false);
 
 function yuan(cents?: number | null) {
@@ -429,21 +353,34 @@ function formatTime(v?: string) {
   return String(v).replace('T', ' ').slice(0, 19);
 }
 
+const tabBusy = computed(() => (tab.value === 'bills' ? billsCrud.loading : depositsCrud.loading));
+
 function reload() {
-  if (tab.value === 'bills') void loadBills();
-  else void loadDeposits();
+  if (tab.value === 'bills') void billsCrud.refresh();
+  else void depositsCrud.load();
 }
 
-// ── 月租账单 ──────────────────────────────────────────────────────────
+// ── 月租账单（CrudTable 化：分页/空态/操作列统一收口） ───────────────────
 const billMonth = ref('');
 const billStatus = ref('');
 const billDeviceId = ref('');
-const bills = ref<RentalBill[]>([]);
-const billLoading = ref(false);
-const billHydrated = ref(false);
-const billTotal = ref(0);
-const billPage = ref(1);
-const billSize = ref(20);
+
+const billsCrud = useCrudTable<RentalBill>({
+  rowKey: (r) => r.billId,
+  fetchPage: async (p) => {
+    const q = new URLSearchParams();
+    if (billMonth.value) q.set('billMonth', billMonth.value);
+    if (billStatus.value) q.set('status', billStatus.value);
+    if (billDeviceId.value.trim()) q.set('deviceId', billDeviceId.value.trim());
+    q.set('page', String(p.page));
+    q.set('size', String(p.size));
+    return api.request<{ items: RentalBill[]; total: number }>(
+      AdminEndpoints.rentalBills(q),
+      'GET'
+    );
+  },
+  errorMessage: '账单加载失败'
+});
 
 const BILL_LABELS: Record<string, string> = {
   UNPAID: '未付',
@@ -461,41 +398,23 @@ function billTagType(s: string) {
   return 'danger';
 }
 
-function billQuery() {
-  const q = new URLSearchParams();
-  if (billMonth.value) q.set('billMonth', billMonth.value);
-  if (billStatus.value) q.set('status', billStatus.value);
-  if (billDeviceId.value.trim()) q.set('deviceId', billDeviceId.value.trim());
-  q.set('page', String(Math.max(0, billPage.value - 1)));
-  q.set('size', String(billSize.value));
-  return q;
+function billActions(row: RentalBill): CrudRowAction[] {
+  if (row.status !== 'UNPAID') return [];
+  return [
+    {
+      key: 'markPaid',
+      label: '标记已付',
+      icon: CircleCheck,
+      type: 'success',
+      perm: 'ops:rental:manage'
+    },
+    { key: 'void', label: '作废', icon: CircleClose, type: 'danger', perm: 'ops:rental:manage' }
+  ];
 }
 
-async function loadBills() {
-  billLoading.value = true;
-  try {
-    const data = await api.request<{ items: RentalBill[]; total: number }>(
-      AdminEndpoints.rentalBills(billQuery()),
-      'GET'
-    );
-    bills.value = data.items || [];
-    billTotal.value = Number(data.total) || 0;
-    billHydrated.value = true;
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '账单加载失败');
-  } finally {
-    billLoading.value = false;
-  }
-}
-
-function onBillSearch() {
-  billPage.value = 1;
-  void loadBills();
-}
-
-function onBillSizeChange() {
-  billPage.value = 1;
-  void loadBills();
+function onBillAction({ key, row }: { key: string; row: RentalBill }) {
+  if (key === 'markPaid') void markPaid(row);
+  else if (key === 'void') void voidBill(row);
 }
 
 async function markPaid(row: RentalBill) {
@@ -512,7 +431,7 @@ async function markPaid(row: RentalBill) {
   try {
     await api.request(AdminEndpoints.rentalBillMarkPaid(row.billId), 'POST', {});
     ElMessage.success('已标记已付');
-    await loadBills();
+    await billsCrud.refresh();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
   } finally {
@@ -534,7 +453,7 @@ async function voidBill(row: RentalBill) {
   try {
     await api.request(AdminEndpoints.rentalBillVoid(row.billId), 'POST', {});
     ElMessage.success('已作废');
-    await loadBills();
+    await billsCrud.refresh();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
   } finally {
@@ -543,9 +462,6 @@ async function voidBill(row: RentalBill) {
 }
 
 // ── 押金 ──────────────────────────────────────────────────────────────
-const deposits = ref<RentalDeposit[]>([]);
-const depositLoading = ref(false);
-
 const DEPOSIT_LABELS: Record<string, string> = {
   HELD: '冻结中',
   SETTLED: '已结算'
@@ -559,16 +475,37 @@ function depositTagType(s: string) {
   return s === 'SETTLED' ? 'info' : 'warning';
 }
 
-async function loadDeposits() {
-  depositLoading.value = true;
-  try {
+const depositsCrud = useCrudTable<RentalDeposit>({
+  rowKey: (r) => r.depositId,
+  autoLoad: false,
+  fetchPage: async () => {
     const data = await api.request<RentalDeposit[]>(AdminEndpoints.rentalDeposits, 'GET');
-    deposits.value = Array.isArray(data) ? data : [];
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '押金加载失败');
-  } finally {
-    depositLoading.value = false;
+    return Array.isArray(data) ? data : [];
+  },
+  errorMessage: '押金加载失败'
+});
+
+function depositActions(row: RentalDeposit): CrudRowAction[] {
+  const acts: CrudRowAction[] = [{ key: 'events', label: '流水', icon: Tickets, type: 'info' }];
+  if (row.status === 'HELD') {
+    acts.push(
+      { key: 'deduct', label: '扣款', icon: Money, type: 'warning', perm: 'ops:rental:manage' },
+      {
+        key: 'settle',
+        label: '结算返还',
+        icon: CircleCheck,
+        type: 'success',
+        perm: 'ops:rental:manage'
+      }
+    );
   }
+  return acts;
+}
+
+function onDepositAction({ key, row }: { key: string; row: RentalDeposit }) {
+  if (key === 'events') void openEvents(row);
+  else if (key === 'deduct') openDeduct(row);
+  else if (key === 'settle') void settle(row);
 }
 
 const registerVisible = ref(false);
@@ -596,7 +533,7 @@ async function submitRegister() {
     ElMessage.success('押金已登记');
     registerVisible.value = false;
     tab.value = 'deposits';
-    await loadDeposits();
+    await depositsCrud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '登记失败');
   } finally {
@@ -630,7 +567,7 @@ async function submitDeduct() {
     });
     ElMessage.success('扣款已登记');
     deductVisible.value = false;
-    await loadDeposits();
+    await depositsCrud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '扣款失败');
   } finally {
@@ -652,7 +589,7 @@ async function settle(row: RentalDeposit) {
   try {
     await api.request(AdminEndpoints.rentalDepositSettle(row.depositId), 'POST', {});
     ElMessage.success('押金已结算');
-    await loadDeposits();
+    await depositsCrud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '结算失败');
   } finally {
@@ -660,11 +597,23 @@ async function settle(row: RentalDeposit) {
   }
 }
 
-// ── 押金流水 ──────────────────────────────────────────────────────────
+// ── 押金流水（弹窗表） ─────────────────────────────────────────────────
 const eventsVisible = ref(false);
-const eventsLoading = ref(false);
-const events = ref<DepositEvent[]>([]);
 const eventsDeviceLabel = ref('');
+const eventsDepositId = ref(0);
+
+const eventsCrud = useCrudTable<DepositEvent>({
+  rowKey: (r) => r.eventId,
+  autoLoad: false,
+  fetchPage: async () => {
+    const data = await api.request<DepositEvent[]>(
+      AdminEndpoints.rentalDepositEvents(eventsDepositId.value),
+      'GET'
+    );
+    return Array.isArray(data) ? data : [];
+  },
+  errorMessage: '流水加载失败'
+});
 
 const EVENT_LABELS: Record<string, string> = {
   REGISTER: '登记',
@@ -678,20 +627,9 @@ function eventLabel(t: string) {
 
 async function openEvents(row: RentalDeposit) {
   eventsDeviceLabel.value = row.deviceId;
-  events.value = [];
+  eventsDepositId.value = row.depositId;
   eventsVisible.value = true;
-  eventsLoading.value = true;
-  try {
-    const data = await api.request<DepositEvent[]>(
-      AdminEndpoints.rentalDepositEvents(row.depositId),
-      'GET'
-    );
-    events.value = Array.isArray(data) ? data : [];
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '流水加载失败');
-  } finally {
-    eventsLoading.value = false;
-  }
+  await eventsCrud.load({ resetPage: true });
 }
 
 // ── 生成账单 ──────────────────────────────────────────────────────────
@@ -711,7 +649,7 @@ async function submitGenerate() {
     ElMessage.success('账单已生成');
     generateVisible.value = false;
     tab.value = 'bills';
-    await loadBills();
+    await billsCrud.refresh();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '生成失败');
   } finally {
@@ -720,10 +658,8 @@ async function submitGenerate() {
 }
 
 watch(tab, (v) => {
-  if (v === 'deposits' && !deposits.value.length) void loadDeposits();
+  if (v === 'deposits' && !depositsCrud.items.length) void depositsCrud.load();
 });
-
-loadBills();
 </script>
 
 <style scoped>
