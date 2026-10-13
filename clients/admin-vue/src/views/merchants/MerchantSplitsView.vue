@@ -1561,8 +1561,16 @@ onMounted(() => {
     loadStatus();
   }
 });
+// 首次 activated 紧随 onMounted（商户列表已拉过），跳过防双请求
+let activatedOnce = false;
 onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true;
+    return;
+  }
   void reloadFromRouteQuery();
+  // keep-alive 缓存页恢复时重拉商户列表（父商户下拉/运营配置选商户均取自它）：别处新增商户后切回不缺
+  void loadMerchants();
 });
 </script>
 

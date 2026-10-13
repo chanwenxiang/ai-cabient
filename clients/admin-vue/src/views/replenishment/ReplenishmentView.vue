@@ -2311,8 +2311,16 @@ onMounted(async () => {
   await maybeAutoPlanFromQuery();
   syncRouteQuery();
 });
+// 首次 activated 紧随 onMounted（指派人已拉过），跳过防双请求
+let activatedOnce = false;
 onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true;
+    return;
+  }
   void reloadFromRouteQuery();
+  // keep-alive 缓存页恢复时重拉指派人选项：运营账号页新建账号后切回本页，指派下拉不缺人
+  void loadAssignees();
 });
 </script>
 

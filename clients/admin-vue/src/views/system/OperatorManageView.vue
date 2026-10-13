@@ -1155,8 +1155,19 @@ onMounted(() => {
   applyRouteQuery();
   reload();
 });
+// 首次 activated 紧随 onMounted（reload 已拉过全部辅助数据），跳过防双请求
+let activatedOnce = false;
 onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true;
+    return;
+  }
   void reloadFromRouteQuery();
+  // keep-alive 缓存页恢复时角色/部门/商户只在 onMounted 拉过一次：先去别处新增/停用后再切回本页（未刷新）
+  // 时下拉仍是旧缓存 ⇒ 新增项选不到。恢复时无条件重拉（全量小接口，各自有 loadSeq 竞态防护）。
+  void loadRoles();
+  void loadDepartments();
+  void loadMerchants();
 });
 </script>
 

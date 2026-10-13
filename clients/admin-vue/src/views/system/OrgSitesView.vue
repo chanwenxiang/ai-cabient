@@ -696,7 +696,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { Delete, Edit, Refresh, Share, Tickets } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -941,6 +941,16 @@ onMounted(async () => {
   billMonthFilter.value = '';
   generateMonth.value = '';
   await Promise.all([loadAll(), loadDevices()]);
+});
+// 首次 activated 紧随 onMounted（设备选项已拉过），跳过防双请求
+let activatedOnce = false;
+onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true;
+    return;
+  }
+  // keep-alive 缓存页恢复时重拉设备选项（站点绑定设备的选择项）：设备页新建/停用设备后切回不缺
+  void loadDevices();
 });
 
 watch(tab, (name) => {

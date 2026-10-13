@@ -298,7 +298,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, EditPen } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
@@ -656,6 +656,17 @@ function formatInstant(v?: string | null) {
 }
 
 onMounted(() => {
+  void loadDevices();
+  void loadSkus();
+});
+// 首次 activated 紧随 onMounted（设备/SKU 选项已拉过），跳过防双请求
+let activatedOnce = false;
+onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true;
+    return;
+  }
+  // keep-alive 缓存页恢复时重拉设备/SKU 选项：设备页/商品页新增后切回本页，选择项不缺
   void loadDevices();
   void loadSkus();
 });
