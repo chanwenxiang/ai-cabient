@@ -53,7 +53,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{service=~\"$service\"} |~ \"level=(error|warn)|lvl=(eror|warn)|\\s(ERROR|WARN)\\s|\\[(error|warn)\\]\" |~ \"$keyword\"",
+          "expr": "{service=~\"$service\"} |~ \"level=(error|warn)|lvl=(eror|warn)| (ERROR|WARN) |\\\\[(error|warn)\\\\]\" |~ \"$keyword\"",
           "queryType": "range",
           "refId": "A"
         }

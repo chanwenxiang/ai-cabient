@@ -66,7 +66,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (service) (count_over_time({service=~\"$service\"} |~ \"level=error|lvl=eror|\\sERROR\\s|\\[error\\]\" [5m]))",
+          "expr": "sum by (service) (count_over_time({service=~\"$service\"} |~ \"level=error|lvl=eror| ERROR |\\\\[error\\\\]\" [5m]))",
           "legendFormat": "{{service}}",
           "queryType": "range",
           "refId": "A"
