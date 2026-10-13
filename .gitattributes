@@ -16,3 +16,7 @@ packages/** text=auto eol=lf
 # 产物目录同样是"字节即契约"：它被 nginx 直接 bind mount 对外服务，且由 CI job
 # `admin-artifacts` 用 `git status` 与重建结果逐字节比对。这里保持与构建输入一致。
 services/trade-service/src/main/resources/static/admin/** text=auto eol=lf
+
+# ── 脚本与 workflow 行尾钉 LF（Windows 下 CRLF 会让 bash 直接报错）──
+*.sh text eol=lf
+.github/** text=auto eol=lf
