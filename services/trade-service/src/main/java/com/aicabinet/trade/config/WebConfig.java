@@ -63,8 +63,16 @@ public class WebConfig implements WebMvcConfigurer {
         if (corsProperties.allowedOrigins() == null || corsProperties.allowedOrigins().isEmpty()) {
             return;
         }
+        // 2026-10-13 生产首启实证：application-prod.yml 以 ${CORS_ORIGIN:} 注入，留空时列表含
+        // 一个空串占位——空串不是合法 origin，过滤掉；过滤后为空则等价于「同源部署，不放宽跨域」。
+        String[] origins = corsProperties.allowedOrigins().stream()
+                .filter(o -> o != null && !o.isBlank())
+                .toArray(String[]::new);
+        if (origins.length == 0) {
+            return;
+        }
         registry.addMapping("/api/**")
-                .allowedOrigins(corsProperties.allowedOrigins().toArray(String[]::new))
+                .allowedOrigins(origins)
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true);
