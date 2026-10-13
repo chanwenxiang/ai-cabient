@@ -29,7 +29,8 @@ PROD_SSH_KEY="${PROD_SSH_KEY:-$HOME/.ssh/aicabinet-prod.pem}"
 PROD_SSH_KEY="${PROD_SSH_KEY/#\~/$HOME}"   # Actions 场景传 ~ 开头路径，变量内不会自动展开
 PROD_PORT="${PROD_PORT:-22}"
 
-SSH_OPTS=(-i "$PROD_SSH_KEY" -p "$PROD_PORT" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new -o BatchMode=yes)
+# 注意：ssh 端口是小写 -p，scp 是大写 -P（scp -p=保留时间戳，端口会被当成本地文件）
+SSH_OPTS=(-i "$PROD_SSH_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new -o BatchMode=yes)
 SSH_CMD=("$PROD_USER@$PROD_HOST")
 
 echo "── [0/6] 前置检查 ──"
@@ -52,12 +53,12 @@ git archive --format=tar.gz -o "$TARBALL" HEAD
 echo "✅ $(du -h "$TARBALL" | cut -f1) → $TARBALL"
 
 echo "── [2/6] 上传 ${PROD_HOST} ──"
-scp "${SSH_OPTS[@]}" "$TARBALL" "${SSH_CMD[0]}:/data/apps/prod-src-${SHA}.tar.gz"
+scp "${SSH_OPTS[@]}" -P "$PROD_PORT" "$TARBALL" "${SSH_CMD[0]}:/data/apps/prod-src-${SHA}.tar.gz"
 echo "✅ 上传完成"
 
 echo "── [3/6] 服务器解包 + 清理陈旧 admin 资产 ──"
 ADMIN_REL="services/trade-service/src/main/resources/static/admin"
-ssh "${SSH_OPTS[@]}" "${SSH_CMD[0]}" bash -s -- "$SHA" "$PROD_DIR" << 'REMOTE'
+ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$SHA" "$PROD_DIR" << 'REMOTE'
 set -euo pipefail
 SHA="$1"; DIR="$2"
 cd "$DIR"
@@ -78,7 +79,7 @@ REMOTE
 echo "✅ 服务器源码就绪"
 
 echo "── [4/6] 重建 trade-service 镜像 + 容器 ──"
-ssh "${SSH_OPTS[@]}" "${SSH_CMD[0]}" bash -s -- "$PROD_DIR" << 'REMOTE2'
+ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$PROD_DIR" << 'REMOTE2'
 set -euo pipefail
 DIR="$1"
 cd "$DIR"
@@ -102,7 +103,7 @@ exit 1
 REMOTE2
 
 echo "── [5/6] 部署后验证 ──"
-ssh "${SSH_OPTS[@]}" "${SSH_CMD[0]}" bash -s -- << 'REMOTE3'
+ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- << 'REMOTE3'
 set -euo pipefail
 IDX_JS=$(curl -s http://127.0.0.1/admin/ | grep -o 'index-[^"]*\.js' | head -1)
 [ -n "$IDX_JS" ] || { echo "❌ /admin/ 未返回 index.html"; exit 1; }
