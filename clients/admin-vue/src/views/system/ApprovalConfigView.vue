@@ -295,7 +295,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onActivated, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowDown, ArrowUp, Delete, EditPen, Share } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
@@ -598,6 +598,17 @@ async function save() {
     saving.value = false;
   }
 }
+
+// 首次 activated 紧随挂载（crud 自动首查已带上部门选项），跳过防双请求
+let activatedOnce = false;
+onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true;
+    return;
+  }
+  // keep-alive 缓存页恢复时重查：部门选项在 fetchPage 内一并拉取，部门管理页增删后切回本页不缺
+  void crud.load();
+});
 </script>
 
 <style scoped>

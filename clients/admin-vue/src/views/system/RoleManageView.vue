@@ -587,8 +587,17 @@ onMounted(async () => {
   await crud.load(); // 显式首查：autoLoad 已关闭，需先应用路由查询参数
   loadPermTree().catch(() => undefined);
 });
+// 首次 activated 紧随 onMounted（权限树已拉过），跳过防双请求
+let activatedOnce = false;
 onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true;
+    return;
+  }
   void reloadFromRouteQuery();
+  // keep-alive 缓存页恢复时重拉权限树：先去菜单管理新增权限再切回本页（未刷新）时，
+  // 「分配权限」树仍是旧缓存 ⇒ 新权限勾选不到（与运营账号页角色下拉同类问题）。
+  void loadPermTree().catch(() => undefined);
 });
 </script>
 

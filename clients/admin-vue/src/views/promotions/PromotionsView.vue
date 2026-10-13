@@ -668,8 +668,16 @@ onMounted(() => {
   void loadDevices();
   void crud.load();
 });
+// 首次 activated 紧随 onMounted（设备选项已拉过），跳过防双请求
+let activatedOnce = false;
 onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true;
+    return;
+  }
   void reloadFromRouteQuery();
+  // keep-alive 缓存页恢复时重拉设备选项：别处新建设备后切回本页，活动范围选择不缺新设备
+  void loadDevices();
 });
 </script>
 

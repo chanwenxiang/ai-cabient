@@ -900,8 +900,16 @@ onMounted(() => {
   void loadActiveCoupons();
   void crud.load();
 });
+// 首次 activated 紧随 onMounted（在售券已拉过），跳过防双请求
+let activatedOnce = false;
 onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true;
+    return;
+  }
   void reloadFromRouteQuery();
+  // keep-alive 缓存页恢复时重拉在售券定义：别处新建券种后切回本页，下拉不缺新券
+  void loadActiveCoupons();
 });
 </script>
 
