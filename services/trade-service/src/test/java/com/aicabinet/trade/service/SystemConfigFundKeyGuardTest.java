@@ -118,8 +118,7 @@ class SystemConfigFundKeyGuardTest {
 
     @Test
     void delete_fundKey_auditExplicitlyDisabled_stillLeavesHistory() {
-        // 注意不断言 repository.deleteById：mapper 的 deleteById 是接口 default 方法，
-        // mock 里 it=null 会先 NPE，验证交互必然失败（与 AU-111 同类教训）。
+        // 只钉「留痕不受开关节制」这一不变式；删除动作本身是既有行为，不在本例范围。
         auditSwitchRow("false");
         SystemConfig existing = new SystemConfig();
         existing.setConfigKey(SystemConfigService.MERCHANT_WITHDRAW_MAX_CENTS);
