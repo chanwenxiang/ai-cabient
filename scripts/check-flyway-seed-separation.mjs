@@ -122,6 +122,33 @@ const files = [
 
 const DATA_WRITE = /\b(INSERT\s+INTO|DELETE\s+FROM|TRUNCATE|UPDATE\s+[A-Za-z_][\w."]*\s+SET)\b/i;
 
+// ── 🔴 演示锚点不得再进 V 迁移的写语句（C-2026-10-13 生产实证的结构性缺陷）──────────
+// 历史迁移（V2…V302）在 seed_env 守卫（V202）出现前内嵌了演示数据 ⇒ 版本迁移全环境必跑，
+// 任何全新环境（含未来重建的生产）都会长出演示 SKU/商户/柜子（生产实证：商品管理/选品诊断
+// 出现 8 个演示 SKU）。V344 是一次性补偿清理。本规则防复发：
+// 新增 V 迁移的**写语句**里引用演示锚点 ⇒ 红。演示数据必须放 db/seed/R__seed_*
+// （application-prod.yml 的 seed_env:none 会跳过，生产天然干净）。
+// 判定口径（与写侧对称）：
+//   · 语句级：注释剥离后按分号切段，语句含 INSERT/UPDATE/MERGE 且命中演示锚点 ⇒ 红；
+//   · 纯 DELETE 清理（V344 形态）与 DDL 不拦；
+//   · 写目标全部是 `_` 前缀临时表（守卫迁移的内部夹具，如 V344 的 _demo_user）不拦。
+const DEMO_ANCHOR =
+  /MCH-(?:DEFAULT|OTHER)|SKU-(?:DEMO|SODA|WATER|SNACK|MILK|NOODLE|APPLE)-\d+|WH-DEMO-\d+|SUP-DEMO-\d+|(?:PO|BR)-DEMO-\d+|CAB-(?:001|OTHER)|demo-rec-|1380013800[01]/;
+
+function demoWriteViolation(raw) {
+  const body = stripSqlComments(raw);
+  for (const stmt of body.split(';')) {
+    if (!DEMO_ANCHOR.test(stmt)) continue;
+    const targets = [
+      ...stmt.matchAll(/\b(?:INSERT\s+INTO|UPDATE|(?:MERGE\s+INTO))\s+([A-Za-z_][\w."]*)/gi)
+    ].map((m) => m[1]);
+    if (!targets.length) continue; // 只有 SELECT/DELETE 命中锚点 ⇒ 清理语句，放行
+    if (targets.every((t) => t.startsWith('_'))) continue; // 临时表夹具，放行
+    return stmt.trim().slice(0, 120);
+  }
+  return null;
+}
+
 let vCount = 0;
 let rCount = 0;
 
@@ -176,6 +203,17 @@ for (const rel of files) {
       err(
         `${rel}: 声明 MIGRATION_KIND: schema 却含数据写语句 —— 二者矛盾，请改 backfill 或移入 db/seed`
       );
+    }
+    if (!kind || kind === 'backfill') {
+      const v = demoWriteViolation(raw);
+      if (v) {
+        err(
+          `${rel}: 写语句引用了演示锚点（…${v}…）—— 演示数据不得再进版本迁移` +
+            `（V2…V302 内嵌演示种子曾在生产长出可见演示数据，V344 已做一次性清理）。` +
+            `请把演示数据移到 db/seed/R__seed_*.sql（生产 seed_env:none 自动跳过）；` +
+            `若确属生产必需的数据修复，请改写为不依赖演示锚点`
+        );
+      }
     }
     continue;
   }
