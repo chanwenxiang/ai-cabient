@@ -364,6 +364,16 @@ public class SystemConfigService {
      * 远超业界封顶值，会被商户投诉「平台吃手续费」。**有 bps 时强烈建议同时配封顶。**</p>
      */
     public static final String MERCHANT_WITHDRAW_FEE_CAP_CENTS = "merchant.withdraw.fee_cap_cents";
+    /**
+     * 商户 T+1 可提现<b>解锁时刻</b>（小时，0–23）。默认 0 = 次日零点起可提。
+     *
+     * <p>只影响「什么时候<b>能提</b>」这一个闸门（CB-035），不影响日结/入账/账单展示——
+     * 销售款仍实时入钱包、账面实时可见，settleAfter 仍=T+1。公司要求「次日 8 点起可提」
+     * 时改配 8：0–8 点间前一天的销售款仍锁定，8 点后自动解冻。边界归属：恰在第 N 小时
+     * 起的整点（now.getHour() >= unlockHour）即视为已解锁。</p>
+     */
+    public static final String MERCHANT_WITHDRAW_SETTLE_UNLOCK_HOUR =
+            "merchant.withdraw.settle_unlock_hour";
     /** 线长提现单笔下限（分）。0=不限制。 */
     public static final String LINE_WITHDRAW_MIN_CENTS = "line.withdraw.min_cents";
     /** 线长提现免审自动通过阈值（分）；超过则进人工审核。0=全部人工审核。 */
@@ -747,6 +757,8 @@ public class SystemConfigService {
                 "商户提现手续费比例（万分比，如 50=0.5%），可与固定额叠加；0=免手续费");
         upsertIfAbsent(MERCHANT_WITHDRAW_FEE_CAP_CENTS, "0",
                 "商户提现手续费单笔封顶（分），0=不封顶。行业参照：支付宝余额提现封顶 ¥25、拉卡拉提现封顶 ¥50 —— 配了手续费比例强烈建议同时配封顶");
+        upsertIfAbsent(MERCHANT_WITHDRAW_SETTLE_UNLOCK_HOUR, "0",
+                "商户 T+1 可提现解锁时刻（小时 0-23），默认 0=次日零点起可提。只影响提现闸门，不影响入账与账单展示；配 8 即次日 8 点起才可提");
         upsertIfAbsent(LINE_WITHDRAW_MIN_CENTS, "1000",
                 "线长提现单笔下限（分），默认 ¥10；0=不限制");
         upsertIfAbsent(LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS, "50000",

@@ -12865,6 +12865,8 @@ export interface components {
             frozenCents?: number;
             /** Format: int64 */
             availableCents?: number;
+            /** Format: int64 */
+            pendingSettleCents?: number;
         };
         ApiResponseLineWithdrawRequestDto: {
             /** Format: int32 */
@@ -16893,6 +16895,8 @@ export interface components {
             frozenCents?: number;
             /** Format: int64 */
             availableCents?: number;
+            /** Format: int64 */
+            pendingSettleCents?: number;
             recentLedgers?: components["schemas"]["MerchantWalletLedgerDto"][];
             recentWithdraws?: components["schemas"]["MerchantWithdrawRequestDto"][];
         };

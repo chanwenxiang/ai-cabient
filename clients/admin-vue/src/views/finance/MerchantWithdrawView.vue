@@ -481,6 +481,10 @@
           <span
             >冻结 <b>¥{{ yuan(withdrawTarget.frozenCents) }}</b></span
           >
+          <!-- CB-035：T+1 待结算透出——解锁时刻可配（默认次日零点） -->
+          <span v-if="(withdrawTarget.pendingSettleCents ?? 0) > 0">
+            待结算（T+1 可提） <b>¥{{ yuan(withdrawTarget.pendingSettleCents) }}</b></span
+          >
         </div>
       </div>
       <el-form label-position="top" @submit.prevent="submitWithdraw">
@@ -549,6 +553,8 @@ interface WalletRow {
   balanceCents?: number;
   frozenCents?: number;
   availableCents?: number;
+  /** CB-035：已入账但未到 T+1 可提现日的金额（与提现闸门同口径） */
+  pendingSettleCents?: number;
 }
 
 interface LedgerRow {

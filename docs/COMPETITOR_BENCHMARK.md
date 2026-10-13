@@ -1239,6 +1239,36 @@
   5. **coopMode 增加 RENTAL 取值**：与 SELF（直营）并存互斥；RENTAL 柜才出租赁账单/可被欠租锁柜，直营柜不受影响。
   6. **退租验机扣款**：运营台人工登记扣款项（欠租/损坏/缺配件），Σ扣款 ≤ 押金余额，返还净额=押金−扣款，全程审计；不做自动验机判断（自己的设计判断，行业无自动化先例）。
 
+### CB-035 【新】商户结算 T+1 与「当天钱不可提」：行业统一 T+1 次日可提，我方「实时入账 + 查询式扣减」等价达成且无日切任务
+
+> 触发：2026-10-13 用户问「商户结算时 T+1 明白吗，当天的钱不能直接提，看看代码和竞品」。
+> 现状取证（代码）：`RevenueSplitService.java:113` 分账行写 `settleAfter=次日`；LEDGER_ONLY 单在结算事务内实时入商户钱包（`creditWalletIfLedgerOnly`）；提现校验 `MerchantWithdrawService.validateAmount:693` 走 V308 闸门——`sumWalletCreditedButNotYetWithdrawable` 把「已入钱包但 settleAfter>今日」的钱从可提余额扣掉，`MerchantWithdrawSettleGateTest` 6 用例钉住。**判定：当天钱确实不能直接提，闸门有效；但 `merchantOverview` 的 availableCents=balance−frozen 未扣 pendingSettle，商户端展示偏乐观（本次修复）**。
+
+- **竞品做法 / 官方口径**：
+  - **微信支付**（⭕ 官方客服知识库）：结算周期 T+1——「交易当天，次日结算」；新资金流「交易当天实时结算至基本账户，次日提现」；旧资金流 T+1 次日结算后 1-3 个工作日内到账。行业结算基准即 T+1，当天钱不可提。
+  - **友宝 UBOX**（⭕ 官方通稿）：餐饮自助饮品柜「商品完成交易后的次日结算，扣除饮料进货费，利润直接打到商家银行账户」——同行同样 T+1，不垫资。
+  - **哈哈零兽**（⭕ 官网科普）：行业到账方式 T+0/T+1/D+0/D+1 并存；其自身收款实时到账（D+0），但**银行卡提现走周结**——每周四 14:00 前申请周五到账，之后顺延一周。比 T+1 更慢，商户资金占用更重。
+  - **旧系统 ego-automat**（⭕ 源码）：订单实时只写 `OptRTMachineBillDaily` 统计表不动余额；每日 **02:01 crontab** 结算**昨日**账单才加进 `cash_available`；提现校验只看余额，无当日账单状态校验。T+1 但依赖定时任务——任务挂掉当天全体商户不可提，且有 02:00 前后账单日切窗的脆性。
+  - **行业惯例**（🟡 美团小白盒帮助页 + 52pay 汇编，不计入主体）：T+1 自动打款**仅工作日**（周五/六/日款项周一打）；微信新商户前 30 天观察期执行 T+7 甚至更长；风控异常单笔冻结 15-30 天。
+- **对照主体**（4 家不同主体，开门柜直接同行 2 家）：
+
+  微信支付 ｜ 友宝UBOX ｜ 哈哈零兽 ｜ 旧系统easygo
+- **证据**：
+  - <https://kf.qq.com/faq/161223N7fi2E161223EvY3Ir.html> （⭕ 微信支付官方 · 旧资金流 T+1：交易当天次日结算）
+  - <https://kf.qq.com/faq/161222JZzYfu161222FfyQbm.html> （⭕ 微信支付官方 · 新资金流：T+1 交易当天实时结算至基本账户，次日提现；T+3/T+7 解冻规则）
+  - <https://www.sohu.com/a/499880241_120951331> （🟡 搜狐 · 友宝饮品柜官方通稿：交易次日结算，利润打商家银行账户）
+  - <https://www.hahalingshou.com/news/560.html> （⭕ 哈哈零兽官网 · 行业到账方式科普 + 自身提现每周四申请周五到账）
+  - 旧系统 `ego-automat-bill-timer/Application.java`（02:01 `generateDailyBills`）+ `BillGenerationTask.java`（结算昨日入 cash_available）+ `WithdrawalController.java`（提现仅余额校验）（⭕ 源码）
+  - 新系统 `RevenueSplitService.java:113` + `MerchantWithdrawService.java:693/782` + `OrderRevenueSplitMapper.sumWalletCreditedButNotYetWithdrawable`（⭕ 源码）
+- **取证日期**：2026-10-13
+- **我们的结论**：
+  1. **确认 T+1 判据**：当天交易款次日才可提，判据=V308 查询式扣减（`settleAfter > 今日` 的 LEDGER_ONLY/SETTLED 金额从可提余额扣除，次日 0 点自动解冻）。本次复核闸门有效、测试钉住，无缺陷。
+  2. **采纳「实时入账 + 查询式解冻」，不采纳日切任务**（有意不同）：旧系统 02:01 日切任务挂掉即全体商户当天不可提；我方结算事务内入账 + 提现时点扣减，无解冻任务、无日切窗口。与 CB-020「T+1 不垫款」口径一致。
+  3. **不采纳「仅工作日结算」**：美团/微信的打款受银行工作日限制，我方自然日 T+1，周末节假日照常解冻——自己的设计判断，对商户更优。
+  4. **不采纳周结/月结**：哈哈零兽周结、旧系统运营商按月 26 日结——商户资金占用过重，与 T+1 承诺冲突。
+  5. **展示口径必须与闸门同口径**（本次落地）：`merchantOverview.availableCents` 改为 `balance − frozen − pendingSettle`（下限 0），新增 `pendingSettleCents` 字段透出；商户小程序钱包页与运营台提现弹窗展示「待结算（次日可提）」。避免「显示可提 100 元、申请时被拦」的口径劈叉。
+  6. **新商户观察期（微信 30 天 T+7）暂不采纳**：我方已有 V321 资质门禁 + 三层限额 + 免审阈值（≥500 元走 PENDING_REVIEW）代偿风控；后续若需收紧，可在免审阈值机制上加「新商户 N 天内一律人工审」，无需新表。
+
 ---
 
 ## 维护规则

@@ -25,6 +25,10 @@
           <view class="bal-sub">
             <text>账面 {{ fmtMoney(overview.balanceCents) }}</text>
             <text>冻结 {{ fmtMoney(overview.frozenCents) }}</text>
+            <!-- CB-035：T+1 待结算透出——与提现闸门同口径，当天销售款次日可提 -->
+            <text v-if="pendingSettle > 0" class="pending-settle"
+              >待结算 {{ fmtMoney(pendingSettle) }}</text
+            >
           </view>
         </view>
 
@@ -207,6 +211,11 @@ const submitting = ref(false);
 const loadError = ref('');
 const amountYuan = ref('');
 const overview = ref<Overview | null>(null);
+// CB-035：待结算 = 已入账但未到 T+1 可提现日的钱，与后端提现闸门同口径（仅商户钱包返回；线长佣金无此概念）
+const pendingSettle = computed(() => {
+  const o = overview.value;
+  return o && 'pendingSettleCents' in o ? Number(o.pendingSettleCents ?? 0) : 0;
+});
 const maxWithdrawHint = computed(() =>
   overview.value?.availableCents == null
     ? ''
