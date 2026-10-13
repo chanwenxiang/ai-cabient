@@ -153,6 +153,8 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # datasource provisioning 模板变量（prometheus.yml 的 url: $GRAFANA_PROMETHEUS_URL）
+      GRAFANA_PROMETHEUS_URL: http://prometheus:9090
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/provisioning/dashboards/json:/etc/grafana/provisioning/dashboards/json:ro

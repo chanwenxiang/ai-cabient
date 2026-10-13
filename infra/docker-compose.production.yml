@@ -115,6 +115,9 @@ services:
       GF_SERVER_ROOT_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env.production}/devops/grafana/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # 生产 prometheus 挂了 --web.route-prefix=/devops/prometheus/，数据源查询必须带前缀
+      #（裸 /api/v1/query 404，2026-10-13 生产实证「开门成功率」面板报错）
+      GRAFANA_PROMETHEUS_URL: http://prometheus:9090/devops/prometheus
 
   # M12 监控接线：Prometheus 挂到同源子路径 /devops/prometheus/（网关 Basic 防护），
   # 指标端点不直接暴露公网端口（base 层仅 127.0.0.1:9090）
