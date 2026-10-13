@@ -1,5 +1,5 @@
 -- MIGRATION_REVIEWED: yes
--- MIGRATION_KIND: alter（月结行加 7 列、月结单加 1 列、损耗字典种子；无数据回填）
+-- MIGRATION_KIND: backfill（月结行加 7 列、月结单加 1 列 + 损耗字典种子数据写；账期制月结返工）
 -- COMPETITOR_REF: CB-017
 -- LOCK_RISK: low（ALTER TABLE ADD COLUMN 带默认值，PG 11+ 不重写表；字典幂等 INSERT）
 -- TABLES: warehouse_monthly_close_line (+7) | warehouse_monthly_close (+1) | sys_dict_type (+0) | sys_dict_data (+0)
