@@ -14,7 +14,8 @@ services:
       AICABINET_MOCK_ENABLED: "false"
       AICABINET_SECURITY_MOCK_ENABLED: "false"
       # P2：生产 HTTPS 下会话 Cookie 必须 Secure（validator 亦有强校验）
-      AUTH_COOKIE_SECURE: "true"
+      # Cookie 会话安全属性生产必填显式声明（HTTPS 未就绪的过渡期可 false，见 DEPLOYMENT_CHECKLIST）
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:?set AUTH_COOKIE_SECURE (true after HTTPS / false interim) in .env.production}
       # V1：生产每日对账与退款 PROCESSING 推进必须启用（此前默认 false=永不执行）
       RECON_SCHEDULED_ENABLED: "true"
       # L2-4：生产 Redis 强口令必填
