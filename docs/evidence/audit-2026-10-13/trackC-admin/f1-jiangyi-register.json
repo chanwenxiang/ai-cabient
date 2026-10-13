@@ -1,0 +1,22 @@
+{
+  "response": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "deviceId": "500909625160",
+      "deviceSn": "AUDIT-F1-500909625160",
+      "identifier": "AUDIT500909625160",
+      "modelName": "AUDIT-SIM-MODEL",
+      "classesVersion": null,
+      "industrialControlModel": null,
+      "gatherLockedAt": null,
+      "status": "BOUND",
+      "tokenVersion": 0,
+      "tokenIssuedAt": "2026-10-13T12:48:46.841812Z",
+      "lastWsOnlineAt": "2026-10-13T12:48:47.065020Z",
+      "createdAt": "2026-10-13T12:33:40.745930Z",
+      "updatedAt": "2026-10-13T12:48:47.065732Z"
+    }
+  },
+  "tradeLogLine": ""
+}

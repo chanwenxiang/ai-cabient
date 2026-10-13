@@ -1,5 +1,5 @@
 {
-  "exit": 0,
-  "stdout": "line-confidence-99: HTTP=404 verdict=UNPATCHED message=购物会话不存在\noverall-confidence-99: HTTP=404 verdict=UNPATCHED message=购物会话不存在\nquantity-above-entry-cap: HTTP=404 verdict=UNPATCHED message=购物会话不存在\n\n结论：被测栈 不含批九入口校验 = dev 构建（实测结论须标注为 dev 版本行为）\n{\n  \"base\": \"http://127.0.0.1:18080\",\n  \"at\": \"2026-10-13T08:27:04.797Z\",\n  \"cases\": [\n    {\n      \"case\": \"line-confidence-99\",\n      \"status\": 404,\n      \"message\": \"购物会话不存在\",\n      \"verdict\": \"UNPATCHED\"\n    },\n    {\n      \"case\": \"overall-confidence-99\",\n      \"status\": 404,\n      \"message\": \"购物会话不存在\",\n      \"verdict\": \"UNPATCHED\"\n    },\n    {\n      \"case\": \"quantity-above-entry-cap\",\n      \"status\": 404,\n      \"message\": \"购物会话不存在\",\n      \"verdict\": \"UNPATCHED\"\n    }\n  ]\n}\n",
-  "stderr": ""
+  "exit": 1,
+  "stdout": "",
+  "stderr": "node:_http_client:617\r\n    emitErrorEvent(req, new ConnResetException('socket hang up'));\r\n                        ^\r\n\r\nError: socket hang up\r\n    at Socket.socketOnEnd (node:_http_client:617:25)\r\n    at Socket.emit (node:events:521:24)\r\n    at endReadableNT (node:internal/streams/readable:1729:12)\r\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\r\n  code: 'ECONNRESET'\r\n}\r\n\r\nNode.js v24.18.0\r\n"
 }
