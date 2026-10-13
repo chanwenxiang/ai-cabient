@@ -213,4 +213,53 @@ class JiangyiOrderVideoServiceTest {
 
         assertTrue(service.findByTask(9L).isEmpty());
     }
+
+    // ---------- 上报归属（审计 AU-040）----------
+
+    private ShoppingSession sessionOf(String sessionId, String deviceId) {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId(sessionId);
+        session.setDeviceId(deviceId);
+        return session;
+    }
+
+    @Test
+    void upsertReport_fromDeviceNotOwningOrder_isRejected() {
+        // 将邑转发链的 deviceId 来自上报设备自身 token：他人设备拿受害者 orderNo 上报
+        // 会命中 uk(order_no, serial_num) 整行覆盖 ⇒ 复核证据被偷换/抹除（AU-040）
+        Mockito.when(sessionMapper.findById("ORD1"))
+                .thenReturn(Optional.of(sessionOf("ORD1", "100000000001")));
+
+        org.springframework.web.server.ResponseStatusException ex = assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> service.upsertReport("ORD1", "999999999999", 1, 2, List.of("a.mp4", "")));
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        Mockito.verify(mapper, Mockito.never())
+                .upsertReport(Mockito.anyString(), Mockito.anyString(), Mockito.any(),
+                        Mockito.any(), Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void upsertReport_fromOwningDevice_isRecorded() {
+        Mockito.when(sessionMapper.findById("ORD1"))
+                .thenReturn(Optional.of(sessionOf("ORD1", "100000000001")));
+        Mockito.when(mapper.upsertReport(Mockito.eq("ORD1"), Mockito.eq("100000000001"),
+                Mockito.eq(1), Mockito.eq(2), Mockito.any(), Mockito.any()))
+                .thenReturn(true);
+
+        assertTrue(service.upsertReport("ORD1", "100000000001", 1, 2, List.of("a.mp4", "b.mp4")));
+    }
+
+    @Test
+    void upsertReport_unknownOrder_stillRecorded() {
+        // 会话不存在 ⇒ 无从证明归属冲突，且没有受害者行可被覆盖（脏行不会被按订单/按设备的复核命中）；
+        // 保持既有落库语义，不把「上报先到、会话查不到」变成录像丢失
+        Mockito.when(sessionMapper.findById("ORD-GONE")).thenReturn(Optional.empty());
+        Mockito.when(mapper.upsertReport(Mockito.eq("ORD-GONE"), Mockito.anyString(),
+                Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenReturn(true);
+
+        assertTrue(service.upsertReport("ORD-GONE", "100000000001", 1, 1, List.of("a.mp4")));
+    }
 }

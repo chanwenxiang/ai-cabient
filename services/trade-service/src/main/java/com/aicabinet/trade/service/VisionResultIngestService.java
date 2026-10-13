@@ -50,6 +50,9 @@ public class VisionResultIngestService {
 
     private static final Logger log = LoggerFactory.getLogger(VisionResultIngestService.class);
 
+    /** AU-038 入口数量上界（保守默认，取值口径待 DC-18 拍板；结算侧另有列域硬保证）。 */
+    static final int MAX_QUANTITY_PER_ITEM = 1000;
+
     private final ShoppingSessionMapper repository;
     private final SessionService sessionService;
     private final CabinetMetrics metrics;
@@ -142,6 +145,9 @@ public class VisionResultIngestService {
                     + VisionRecognitionResultDto.MODEL_VERSION_MAX_LENGTH
                     + " 字符，超长会被平台拒收，请上报真实且不超长的版本号");
         }
+        // AU-039：整体置信度同样必须在值域内——结算侧拿它比「全局自动结算门槛」，
+        // 百分数形态（如 99.0）恒高于门槛 ⇒ 低置信转人工的闸被整体绕过
+        checkConfidence(request.overallConfidence(), "overallConfidence");
         if (request.items() != null) {
             for (VisionRecognitionResultDto.Item item : request.items()) {
                 if (item == null || isBlank(item.skuId())) {
@@ -150,7 +156,28 @@ public class VisionResultIngestService {
                 if (item.quantity() <= 0) {
                     throw badRequest("items[].quantity 必须大于 0");
                 }
+                // AU-038 入口档：数量上界挡明显脏值（结算侧另有 long 夹列域的硬保证，
+                // 因为「单价×数量」的乘积溢出不是单靠数量上界能挡住的）。取值口径同 AU-090，待 DC-18 拍板。
+                if (item.quantity() > MAX_QUANTITY_PER_ITEM) {
+                    throw badRequest("items[].quantity 超过单次上报上限（最多 " + MAX_QUANTITY_PER_ITEM + "）");
+                }
+                checkConfidence(item.confidence(), "items[].confidence");
             }
+        }
+    }
+
+    /**
+     * 置信度值域校验（AU-039）。契约（{@link VisionRecognitionResultDto} javadoc）是 0~1 小数。
+     *
+     * <p>选择<b>拒绝</b>而非钳制：把 99.0 钳成 1.0 等于「越界上报一律按满置信自动扣款」，
+     * 恰好是本次要堵的绕过；拒收会让端侧固件的单位错误在联调期立刻暴露。</p>
+     */
+    private static void checkConfidence(double confidence, String field) {
+        // 写成「非区间内即拒」而非两段比较：NaN 与任何数比较都是 false，
+        // `confidence < 0 || confidence > 1` 会放它过去（JSON 允许 NaN/Infinity 形态入参）
+        if (!(confidence >= 0.0 && confidence <= 1.0)) {
+            throw badRequest(field + " 必须在 0~1 之间（小数，非百分数），当前=" + confidence
+                    + "；越界值会绕过「低置信转人工审核」判定");
         }
     }
 
