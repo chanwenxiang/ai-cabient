@@ -1,0 +1,37 @@
+# 生产手动部署（CD 半自动档）：点 Run workflow 触发，跑 scripts/deploy-prod.sh。
+#
+# 为什么不是 push 自动部署：
+#   - trade 启动时 Flyway 自动跑迁移，push 即部署 = 未审迁移直达生产库
+#   - dev 分支日常开发不应直连生产；部署必须是显式动作
+#
+# 首次使用：仓库 Settings → Secrets → Actions 添加 PROD_SSH_KEY（服务器私钥全文）。
+# 可选加强：Settings → Environments → production → Required reviewers 勾选自己，即得审批门禁。
+name: deploy-prod
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/prod_key.pem
+          chmod 600 ~/.ssh/prod_key.pem
+
+      - name: Deploy
+        env:
+          PROD_SSH_KEY: ~/.ssh/prod_key.pem
+        run: bash scripts/deploy-prod.sh
