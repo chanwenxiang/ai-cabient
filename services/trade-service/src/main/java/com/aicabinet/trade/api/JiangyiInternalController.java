@@ -226,8 +226,10 @@ public class JiangyiInternalController {
      * 返回 false 表示会话不在此状态（已结算/已取消等），幂等不重复处置。
      */
     @PostMapping("/sessions/{sessionId}/recognize-timeout")
-    public ApiResponse<Boolean> recognizeTimeout(@PathVariable("sessionId") String sessionId) {
-        return ApiResponse.ok(jiangyiRecognitionTimeoutService.markRecognitionTimeout(sessionId));
+    public ApiResponse<Boolean> recognizeTimeout(
+            @PathVariable("sessionId") String sessionId,
+            @RequestParam(value = "deviceId", required = false) String deviceId) {
+        return ApiResponse.ok(jiangyiRecognitionTimeoutService.markRecognitionTimeout(sessionId, deviceId));
     }
 
     // ---------- 入驻面 ----------

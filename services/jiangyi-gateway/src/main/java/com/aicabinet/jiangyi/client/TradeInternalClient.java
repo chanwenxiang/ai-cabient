@@ -104,16 +104,17 @@ public class TradeInternalClient {
     // ---------- 超时面 ----------
 
     /** 识别映射未命中 → 即时转人工审核；返回 false = 会话不在此状态（幂等）。 */
-    public boolean recognizeTimeout(String sessionId) {
-        ApiResponse<Boolean> resp = post("/internal/v1/jiangyi/sessions/{sessionId}/recognize-timeout",
-                null, Boolean.class, sessionId);
+    public boolean recognizeTimeout(String sessionId, String deviceId) {
+        ApiResponse<Boolean> resp = post(
+                "/internal/v1/jiangyi/sessions/{sessionId}/recognize-timeout?deviceId={deviceId}",
+                null, Boolean.class, sessionId, deviceId);
         return Boolean.TRUE.equals(resp == null ? null : resp.data());
     }
 
-    /** 开锁失败通知（trade markOpenDoorFailed 幂等：非 OPENING no-op）。 */
-    public void postOpenFailed(String sessionId, String reason) {
+    /** 开锁失败通知（trade markOpenDoorFailed 幂等：非 OPENING no-op；AU-060 带上报设备做归属校验）。 */
+    public void postOpenFailed(String sessionId, String reason, String deviceId) {
         post("/internal/v1/sessions/{sessionId}/open-failed",
-                new OpenDoorFailedRequest(reason), sessionId);
+                new OpenDoorFailedRequest(reason, deviceId), sessionId);
     }
 
     // ---------- 模型同步面（CB-023） ----------
@@ -156,8 +157,8 @@ public class TradeInternalClient {
     /** 与 trade JiangyiInternalController.GatherFinishNotifyRequest 对齐。 */
     record GatherFinishNotifyRequest(String finishNotifyId, String msg) {}
 
-    /** 与 trade SessionInternalController.OpenDoorFailedRequest 对齐。 */
-    record OpenDoorFailedRequest(String reason) {}
+    /** 与 trade SessionInternalController.OpenDoorFailedRequest 对齐（AU-060 增 deviceId）。 */
+    record OpenDoorFailedRequest(String reason, String deviceId) {}
 
     // ---------- 转发面（上报归一化用） ----------
 

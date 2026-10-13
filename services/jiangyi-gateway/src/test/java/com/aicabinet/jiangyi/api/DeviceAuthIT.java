@@ -178,7 +178,8 @@ class DeviceAuthIT {
 
         // 透传：开锁失败必须通知 trade open-failed（markOpenDoorFailed 幂等侧）
         verify(tradeInternalClient).postOpenFailed(
-                org.mockito.ArgumentMatchers.eq("S1"), anyString());
+                org.mockito.ArgumentMatchers.eq("S1"), anyString(),
+                org.mockito.ArgumentMatchers.eq("D1"));
     }
 
     @Test

@@ -54,6 +54,14 @@ public class JiangyiRecognitionTimeoutService {
      *         false = 会话不存在 / 不在 RECOGNIZING / 补货会话（无需或不应处置）。
      */
     public boolean markRecognitionTimeout(String sessionId) {
+        return markRecognitionTimeout(sessionId, null);
+    }
+
+    /**
+     * AU-060：reportingDeviceId 非空时须与会话绑定设备一致——将邑转发链透传 token deviceId，
+     * 他人设备不得把受害会话转 DISPUTED；null 保留内部扫描等旧调用方语义。
+     */
+    public boolean markRecognitionTimeout(String sessionId, String reportingDeviceId) {
         if (!distributedLockService.tryLock(SessionService.sessionLifeLockKey(sessionId), 30, 0)) {
             log.debug("jiangyi recognize-timeout skipped busy session={}", sessionId);
             return false;
@@ -61,6 +69,12 @@ public class JiangyiRecognitionTimeoutService {
         try {
             ShoppingSession locked = repository.findByIdForUpdate(sessionId).orElse(null);
             if (locked == null) {
+                return false;
+            }
+            // AU-060：非会话绑定设备的 recognize-timeout 一律拒绝（DEVICE_MISMATCH 口径）
+            if (reportingDeviceId != null && !reportingDeviceId.equals(locked.getDeviceId())) {
+                log.warn("jiangyi recognize-timeout DEVICE_MISMATCH session={} bound={} reported={}",
+                        sessionId, locked.getDeviceId(), reportingDeviceId);
                 return false;
             }
             if (locked.getState() != SessionState.RECOGNIZING) {

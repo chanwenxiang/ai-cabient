@@ -58,10 +58,11 @@ public class SessionInternalController {
                                             @RequestBody(required = false) OpenDoorFailedRequest body) {
         String reason = body != null && body.reason() != null && !body.reason().isBlank()
                 ? body.reason() : "开门指令失败";
-        sessionOpenService.markOpenDoorFailed(sessionId, reason);
+        sessionOpenService.markOpenDoorFailed(sessionId, reason,
+                body != null ? body.deviceId() : null);
         return ApiResponse.ok(null);
     }
 
-    /** H54 请求体：失败原因（可空）。 */
-    record OpenDoorFailedRequest(String reason) {}
+    /** H54 请求体：失败原因（可空）；AU-060 增报报设备（可空=非设备上报来源）。 */
+    public record OpenDoorFailedRequest(String reason, String deviceId) {}
 }
