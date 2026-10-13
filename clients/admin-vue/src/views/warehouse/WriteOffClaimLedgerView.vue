@@ -118,14 +118,23 @@ function locationLabel(r: ClaimRow) {
 </script>
 
 <template>
-  <div class="claim-ledger">
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="待索赔台账：只列「责任方已认定 且 索赔额 > 0」的记录。它不是「自动冲减供应商应付」—— 追偿实际发生再走支付流程。"
-      style="margin-bottom: 12px"
-    />
+  <!-- 🔴 标准页壳 page-card：全站 50+ 页的统一外层（标题/说明/表格规范样式全挂在它下面）。
+       本页此前用裸 div.claim-ledger（无任何样式定义）⇒ 内容直接铺在灰底上、
+       `.page-card .el-table` 一整套表格规范样式也接不上（外观「少一层样式」）。 -->
+  <el-card class="page-card report-page" shadow="never">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">待索赔台账</span>
+            <span class="hint">
+              只列「责任方已认定 且 索赔额 &gt; 0」的记录；它不是「自动冲减供应商应付」——
+              追偿实际发生再走支付流程。
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <el-card shadow="never" style="margin-bottom: 12px">
       <template #header>
@@ -164,7 +173,7 @@ function locationLabel(r: ClaimRow) {
       </el-descriptions>
     </el-card>
 
-    <el-form :inline="true" :model="{}" style="margin-bottom: 8px">
+    <el-form :inline="true" :model="{}" class="filter-bar filter-bar--compact" @submit.prevent>
       <el-form-item label="责任方">
         <el-select
           v-model="partyFilter"
@@ -248,7 +257,7 @@ function locationLabel(r: ClaimRow) {
       </el-table-column>
     </CrudTable>
     <el-empty v-else description="无「仓储补货查看」权限" />
-  </div>
+  </el-card>
 </template>
 
 <style scoped>
@@ -260,6 +269,9 @@ function locationLabel(r: ClaimRow) {
 .hint {
   margin-left: 4px;
   font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+}
+.muted {
   color: var(--el-text-color-secondary);
 }
 </style>
