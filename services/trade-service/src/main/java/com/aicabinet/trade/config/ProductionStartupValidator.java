@@ -18,6 +18,13 @@ public class ProductionStartupValidator {
     /** application.yml / docker-compose 本地默认库密码，prod/staging 必须覆盖。 */
     private static final String DEV_DATASOURCE_PASSWORD = "aicabinet";
 
+    // AU-074：示例模板的占位值（≠dev 默认且长度达标）曾能过全部密钥门禁——忘改=公开已知密钥上生产。
+    // 只按前缀判定（小写），不误杀恰含 "change"/"your" 子串的真实随机串。
+    private static final String[] PLACEHOLDER_PREFIXES = {
+            "change-me", "change_me", "changeme", "changeto", "change-to",
+            "replace-me", "replace_me", "placeholder", "your-", "your_", "wxyour", "xxx"
+    };
+
     private final Environment environment;
     private final SecurityProperties securityProperties;
     private final StagingProperties stagingProperties;
@@ -385,6 +392,13 @@ public class ProductionStartupValidator {
         }
         if (actual.length() < 32) {
             throw new IllegalStateException(name + " must be at least 32 characters");
+        }
+        String lowered = actual.toLowerCase(java.util.Locale.ROOT);
+        for (String prefix : PLACEHOLDER_PREFIXES) {
+            if (lowered.startsWith(prefix)) {
+                throw new IllegalStateException(name + " still uses the example-template placeholder (\""
+                        + prefix + "*\"); replace it with a generated secret before go-live");
+            }
         }
     }
 }

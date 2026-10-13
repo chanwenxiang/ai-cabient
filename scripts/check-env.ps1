@@ -20,6 +20,27 @@ $DevDefaults = @{
     VISION_API_KEY   = "dev-vision-key-change-me"
 }
 
+# AU-074：示例模板占位符（CHANGE-ME*/YOUR_*/wxYOUR*/XXX…）≠dev 默认且长度达标，
+# 曾能通过全部门禁——忘改=公开已知密钥上生产。与 trade ProductionStartupValidator 前缀黑名单同口径。
+$PlaceholderPrefixes = @(
+    "change-me", "change_me", "changeme", "changeto", "change-to",
+    "replace-me", "replace_me", "placeholder", "your-", "your_", "wxyour", "xxx"
+)
+
+# AU-080：compose `:?` 只查存在，这些已知弱值必须显式拒绝（prod）
+$KnownWeakValues = @(
+    "devredis", "dev-xxl-token", "aicabinet", "minioadmin", "admin",
+    "password", "123456", "changeme"
+)
+
+function Test-PlaceholderValue([string]$Value) {
+    $lower = $Value.ToLowerInvariant()
+    foreach ($p in $PlaceholderPrefixes) {
+        if ($lower.StartsWith($p)) { return $p }
+    }
+    return $null
+}
+
 function Read-DotEnv([string]$Path) {
     $map = @{}
     if (-not (Test-Path $Path)) { return $map }
@@ -36,14 +57,23 @@ function Read-DotEnv([string]$Path) {
     return $map
 }
 
-function Test-StrongSecret([string]$Name, [string]$Value, [string[]]$Forbidden) {
+function Test-StrongSecret([string]$Name, [string]$Value, [string[]]$Forbidden, [int]$MinLength = 32) {
     $issues = @()
     if (-not $Value -or $Value.Trim().Length -eq 0) {
         $issues += "$Name is empty"
-    } elseif ($Value.Length -lt 32) {
-        $issues += "$Name must be >= 32 characters"
+    } elseif ($Value.Length -lt $MinLength) {
+        $issues += "$Name must be >= $MinLength characters"
     } elseif ($Forbidden -contains $Value) {
         $issues += "$Name still uses dev default"
+    } else {
+        # AU-074：模板占位符既非 dev 默认也够长，旧逻辑判「强密钥」——忘改=公开已知密钥上生产
+        $ph = Test-PlaceholderValue $Value
+        if ($ph) {
+            $issues += "$Name still uses example-template placeholder (starts with '$ph') — generate a real secret"
+        } elseif ($KnownWeakValues -contains $Value.ToLowerInvariant()) {
+            # AU-080：compose `:?` 只查存在，弱值必须显式拒
+            $issues += "$Name is a known weak value ('$Value') — generate a strong random secret"
+        }
     }
     return ,$issues
 }
@@ -76,6 +106,12 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
 
     if ($Env["AICABINET_MOCK_ENABLED"] -eq "true" -and $Mode -ne "dev") {
         $errors += "AICABINET_MOCK_ENABLED must be false for prod/staging"
+    }
+
+    # AU-075 伴生：JIANGYI_JWT_SECRET 留空是合法 fail-closed（设备 token 503），
+    # 但「配了却仍是模板占位」是最坏形态——非空即按强密钥标准检查。
+    if ($Mode -ne "dev" -and $Env["JIANGYI_JWT_SECRET"]) {
+        $errors += Test-StrongSecret "JIANGYI_JWT_SECRET" $Env["JIANGYI_JWT_SECRET"] @() 32
     }
 
     if ($Mode -eq "staging") {
@@ -147,8 +183,11 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
         if ($Env["CORS_ORIGIN"] -match "localhost") {
             $warnings += "CORS_ORIGIN still localhost"
         }
-        if ($Env["POSTGRES_PASSWORD"] -in @("aicabinet", "", $null)) {
-            $errors += "POSTGRES_PASSWORD must be a strong password"
+        # AU-080 + AU-074：这些键 compose 只查「存在」——prod 下统一做强度检查
+        # （≥16 字符、拒占位符前缀、拒已知弱值；POSTGRES_PASSWORD 旧单点检查并入此处）
+        foreach ($key in @("POSTGRES_PASSWORD", "REDIS_PASSWORD", "GRAFANA_ADMIN_PASSWORD",
+                          "XXL_JOB_ACCESS_TOKEN", "MINIO_ROOT_PASSWORD", "MQTT_PASSWORD")) {
+            $errors += Test-StrongSecret $key $Env[$key] @() 16
         }
         # 审计 P0-6 附带（env 化绑定设计的兜底）：compose 里 EMQX_MQTT_BIND / EMQX_MQTT_TLS_BIND
         # 默认值是回环，但 env 一旦被设成 0.0.0.0，门禁的「默认值回环即合规」就会漏——在此显式拦截。
