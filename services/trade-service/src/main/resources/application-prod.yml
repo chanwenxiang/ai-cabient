@@ -15,10 +15,12 @@ aicabinet:
   cors:
     allowed-origins:
       - ${CORS_ORIGIN:}
+  # 2026-10-13 支付阶段模式：prod 不再字面钉死 true，改由环境显式声明（缺省即启动失败，
+  # 保持 fail-loud）；docker-compose.production.yml 对这两个变量做 :? 必填校验。
   wechat-pay:
-    enabled: true
+    enabled: ${WECHAT_PAY_ENABLED}
   wechat-miniapp:
-    enabled: true
+    enabled: ${WECHAT_MINIAPP_ENABLED}
   reconciliation:
     mock-enabled: false
     scheduled-enabled: true
