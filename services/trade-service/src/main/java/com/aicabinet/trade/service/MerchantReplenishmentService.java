@@ -28,6 +28,9 @@ public class MerchantReplenishmentService {
     private static final String REPLEN_REQUEST = "REPLEN_REQUEST";
     private static final String DEVICEID = "deviceId=";
     private static final String SUBMITTED = "SUBMITTED";
+    // AU-090 保守默认上限（取值口径待 DC-18 拍板；调整只动这两处，判定见 submit 行级/accept 聚合）
+    static final int MAX_REQUESTED_QTY_PER_LINE = 1000;
+    static final int MAX_REQUESTED_QTY_PER_SKU_PER_REQUEST = 5000;
     private static final String LITERAL = "补货任务不存在";
 
 
@@ -340,6 +343,11 @@ public class MerchantReplenishmentService {
             if (qty <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "要货数量必须大于 0");
             }
+            // AU-090：单行数量上界（此前仅判 >0，无上限）
+            if (qty > MAX_REQUESTED_QTY_PER_LINE) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "单品要货数量超过上限（最多 " + MAX_REQUESTED_QTY_PER_LINE + "）");
+            }
             SkuCatalog sku = skuCatalogRepository.findById(line.skuId().trim())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.SKU_NOT_FOUND));
             MerchantReplenishmentRequestLine row = new MerchantReplenishmentRequestLine();
@@ -409,6 +417,9 @@ public class MerchantReplenishmentService {
         if (lines.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "要货单无商品行");
         }
+        // AU-090：聚合必须在建路线/任务/出库之前完成——long 累加夹上限，
+        // 杜绝 Integer::sum 溢出为负的数量的（HEAD 形态负量直贯出库行/seed 行）。
+        Map<String, Integer> skuQty = aggregateRequestedQty(lines);
 
         DeviceInfo device = deviceRepository.findById(request.getDeviceId()).orElse(null);
         ReplenishmentRoute route = new ReplenishmentRoute();
@@ -426,10 +437,6 @@ public class MerchantReplenishmentService {
         task.setNotes("merchant request " + requestId);
         task = taskRepository.save(task);
 
-        Map<String, Integer> skuQty = new LinkedHashMap<>();
-        for (MerchantReplenishmentRequestLine line : lines) {
-            skuQty.merge(line.getSkuId(), line.getRequestedQty(), Integer::sum);
-        }
         // 出库与接单解耦：仓库无可用库存时仍生成补货任务，避免同事务 rollback-only
         Long outboundId = warehouseService.tryCreateOutboundFromLines(
                 route.getRouteId(), request.getDeviceId(), operatorId, skuQty, null);
@@ -488,6 +495,21 @@ public class MerchantReplenishmentService {
     private MerchantReplenishmentRequest requireRequest(Long requestId) {
         return requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "要货单不存在"));
+    }
+
+    private Map<String, Integer> aggregateRequestedQty(List<MerchantReplenishmentRequestLine> lines) {
+        Map<String, Long> totals = new LinkedHashMap<>();
+        for (MerchantReplenishmentRequestLine line : lines) {
+            long sum = totals.getOrDefault(line.getSkuId(), 0L) + line.getRequestedQty();
+            if (sum > MAX_REQUESTED_QTY_PER_SKU_PER_REQUEST) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "同一商品要货总量超过上限（最多 " + MAX_REQUESTED_QTY_PER_SKU_PER_REQUEST + "）");
+            }
+            totals.put(line.getSkuId(), sum);
+        }
+        Map<String, Integer> skuQty = new LinkedHashMap<>();
+        totals.forEach((skuId, total) -> skuQty.put(skuId, total.intValue()));
+        return skuQty;
     }
 
     private MerchantReplenishmentRequest requireRequestForUpdate(Long requestId) {
