@@ -323,8 +323,11 @@ public class SystemConfigService {
 
     // ── F1 动态定价 · 策略版本与审计 ─────────────────────────────────────────
     /**
-     * 系统配置变更审计开关；默认 false = 关闭 ⇒ 写路径**零留痕**，行为与接入前
-     * 逐字节一致（fail-closed）。
+     * 系统配置变更审计开关；<b>默认开启</b>（AU-048 由「默认关」翻转——单权限 ops:config:edit
+     * 即可改资金阈值且此前默认零留痕，事后无从追溯）。
+     *
+     * <p>显式置 false 只关闭<b>非资金键</b>的留痕；{@link #FUND_GUARDED_KEYS} 键族
+     * <b>无视开关强制留痕</b>（fail-open：要改资金阈值就必然留下版本+审计日志）。
      *
      * <p>开启后，每次配置写操作（upsert / delete）留**两份**记录：
      * <ol>
@@ -379,6 +382,37 @@ public class SystemConfigService {
     public static final String LINE_WITHDRAW_DAILY_LIMIT_CENTS = "line.withdraw.daily_limit_cents";
     /** 线长提现手续费单笔封顶（分）。0=不封顶。语义同 {@link #MERCHANT_WITHDRAW_FEE_CAP_CENTS}。 */
     public static final String LINE_WITHDRAW_FEE_CAP_CENTS = "line.withdraw.fee_cap_cents";
+
+    /**
+     * 资金阈值键族（AU-048）：写侧受两道守卫——
+     * ① 值必须是 [0, Integer.MAX_VALUE] 的整数（读取侧走 {@code getInt}，超范围或非数值会当场炸读取；
+     * 0=不限制，与全族语义一致）；
+     * ② <b>无视审计开关强制留痕</b>——改这些键必然落版本历史与审计日志。
+     */
+    static final java.util.Set<String> FUND_GUARDED_KEYS = java.util.Set.of(
+            REFUND_SELF_MAX_CENTS, RECHARGE_MAX_CENTS,
+            BALANCE_REFUND_MAX_CENTS, REFUND_AUTO_APPROVE_MAX_CENTS,
+            MERCHANT_WITHDRAW_MIN_CENTS, MERCHANT_WITHDRAW_MAX_CENTS,
+            MERCHANT_WITHDRAW_DAILY_LIMIT_CENTS, MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS,
+            MERCHANT_WITHDRAW_FEE_CENTS, MERCHANT_WITHDRAW_FEE_BPS, MERCHANT_WITHDRAW_FEE_CAP_CENTS,
+            LINE_WITHDRAW_MIN_CENTS, LINE_WITHDRAW_MAX_CENTS,
+            LINE_WITHDRAW_DAILY_LIMIT_CENTS, LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS,
+            LINE_WITHDRAW_FEE_CENTS, LINE_WITHDRAW_FEE_BPS, LINE_WITHDRAW_FEE_CAP_CENTS);
+
+    /** 资金键值校验：非负整数且不超 int（读取侧 getInt 的硬约束）。违规抛 400。 */
+    private static void validateFundKeyValue(String key, String value) {
+        long parsed;
+        try {
+            parsed = Long.parseLong(value == null ? "" : value.trim());
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "资金阈值配置 " + key + " 必须是整数（分），当前值非法：" + value);
+        }
+        if (parsed < 0 || parsed > Integer.MAX_VALUE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "资金阈值配置 " + key + " 超出允许范围（0~" + Integer.MAX_VALUE + "，0=不限制）");
+        }
+    }
 
     /** 配置审计的 {@code admin_audit_log.target_type} 取值（运营台审计页据此过滤）。 */
     public static final String CONFIG_AUDIT_TARGET_TYPE = "system_config";
@@ -618,6 +652,10 @@ public class SystemConfigService {
     }
 
     private SystemConfigDto doUpsert(String key, String value, String description, Long operatorId) {
+        // AU-048：资金阈值键写侧校验——放在任何写副作用之前，违规零落库。
+        if (FUND_GUARDED_KEYS.contains(key)) {
+            validateFundKeyValue(key, value);
+        }
         java.util.Optional<SystemConfig> existing = repository.findByIdForUpdate(key);
         // 覆盖前先留旧值：这才是「版本」的全部信息量（写入后旧值即不可追）。
         String oldValue = existing.map(SystemConfig::getConfigValue).orElse(null);
@@ -659,10 +697,11 @@ public class SystemConfigService {
     }
 
     /**
-     * 配置写操作的留痕（F1 策略版本与审计）：受 {@link #OPS_CONFIG_AUDIT_ENABLED} 控制。
+     * 配置写操作的留痕（F1 策略版本与审计）：受 {@link #OPS_CONFIG_AUDIT_ENABLED} 控制，
+     * <b>缺行视为开启</b>（AU-048 默认改开）。
      *
-     * <p><b>关时零写入</b>（默认）——不查表、不落行、不写审计，与接入前完全一致。
-     * 每次变更落两处：结构化的 {@code system_config_history}（版本）与
+     * <p>{@link #FUND_GUARDED_KEYS} 键族<b>无视开关强制留痕</b>；其余键显式置 false 才零写入。
+     * 留痕落两处：结构化的 {@code system_config_history}（版本）与
      * {@code admin_audit_log}（统一审计视图，运营台审计页按 target_type 可过滤）。
      *
      * <p>在分布式锁内执行（调用方持锁），故「读开关 → 写历史」与真正的配置写入同锁同事务，
@@ -670,7 +709,8 @@ public class SystemConfigService {
      */
     private void recordChangeIfEnabled(String key, String oldValue, String newValue,
                                       Long operatorId, String action) {
-        if (!self.getBoolean(OPS_CONFIG_AUDIT_ENABLED, false)) {
+        boolean on = self.getBoolean(OPS_CONFIG_AUDIT_ENABLED, true);
+        if (!on && !FUND_GUARDED_KEYS.contains(key)) {
             return;
         }
         long op = operatorId == null ? SYSTEM_OPERATOR_ID : operatorId;
@@ -799,8 +839,9 @@ public class SystemConfigService {
                 "自动解锁前需保持稳定在线分钟数（默认 5）, 0=关闭");
         upsertIfAbsent(OTA_PROGRESS_ENABLED, "false",
                 "OTA 升级进度上报（默认关闭）；开启后设备侧的下载/安装进度写入 ota_device_report");
-        upsertIfAbsent(OPS_CONFIG_AUDIT_ENABLED, "false",
-                "系统配置变更审计（默认关闭）；开启后每次改配置留版本历史与审计日志，可回滚");
+        upsertIfAbsent(OPS_CONFIG_AUDIT_ENABLED, "true",
+                "系统配置变更审计（默认开启）；每次改配置留版本历史与审计日志，可回滚。"
+                        + "置 false 只关非资金键，资金阈值键族无视开关强制留痕");
         upsertIfAbsent(DEVICE_TEMP_ALERT_MAX_C, "8",
                 "柜内温度高于该值(℃)时上报温度异常告警, 0=关闭");
         upsertIfAbsent(MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES, "30",
