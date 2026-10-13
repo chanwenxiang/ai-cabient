@@ -145,25 +145,44 @@ public class ProductionStartupValidator {
     }
 
     private void validateProductionProfile() {
-        if (!weChatPayProperties.isConfigured()) {
+        // 2026-10-13 生产首启调整：「暂不上支付」是合法的产品阶段（CHECKOUT_BALANCE_ONLY 余额-only
+        // 结算本就是一等公民模式）。改为按 enabled 分档：显式关闭（WECHAT_PAY_ENABLED=false）时
+        // 降级为醒目 WARN 放行；一旦 enabled=true 且凭据不全，仍硬拒绝——fail-loud 语义不变，
+        // 不存在「忘了配也悄悄起」的路径。
+        if (weChatPayProperties.enabled() && !weChatPayProperties.isConfigured()) {
             throw new IllegalStateException("Production requires WeChat Pay V3 configuration");
+        }
+        if (!weChatPayProperties.enabled()) {
+            log.warn("WECHAT_PAY_ENABLED=false —— 支付功能显式关闭（暂不上支付阶段），"
+                    + "结算走余额-only；上线支付前必须补齐微信支付 V3 全套凭据并置 true，届时恢复硬校验");
         }
         boolean hasStaticCert = weChatPayProperties.platformCert() != null
                 && !weChatPayProperties.platformCert().isBlank();
-        if (!hasStaticCert && !weChatPayProperties.platformCertAutoFetch()) {
+        if (weChatPayProperties.enabled() && !hasStaticCert && !weChatPayProperties.platformCertAutoFetch()) {
             throw new IllegalStateException(
                     "Production requires WECHAT_PLATFORM_CERT or WECHAT_PLATFORM_CERT_AUTO_FETCH=true");
         }
-        if (!weChatMiniAppProperties.isConfigured()) {
+        if (weChatMiniAppProperties.enabled() && !weChatMiniAppProperties.isConfigured()) {
             throw new IllegalStateException("Production requires WeChat MiniApp configuration");
+        }
+        if (!weChatMiniAppProperties.enabled()) {
+            log.warn("WECHAT_MINIAPP_ENABLED=false —— 小程序微信登录/订阅消息显式关闭；"
+                    + "消费者登录走手机号+短信验证码通道");
         }
         validatePayScoreConfig();
         validateProfitSharingConfig();
-        validateReconciliationConfig(true);
+        // 支付显式关闭时无通道账单可对（对账门禁随支付开关同档降级；启用支付后恢复硬校验）
+        validateReconciliationConfig(weChatPayProperties.enabled());
         if (!identityVerifyProperties.isConfigured()) {
-            throw new IllegalStateException(
-                    "Production requires IDENTITY_VERIFY_BASE_URL / aicabinet.identity-verify.base-url "
-                            + "(or keep AICABINET_MOCK_ENABLED=true only in non-prod)");
+            // 实名二要素唯一消费方是「免密支付」开通链路（IdentityVerifyClient 对未配置本就 fail-closed），
+            // 支付显式关闭的阶段允许暂缓；启用支付后此门禁恢复硬拒绝。
+            if (weChatPayProperties.enabled()) {
+                throw new IllegalStateException(
+                        "Production requires IDENTITY_VERIFY_BASE_URL / aicabinet.identity-verify.base-url "
+                                + "(or keep AICABINET_MOCK_ENABLED=true only in non-prod)");
+            }
+            log.warn("IDENTITY_VERIFY_BASE_URL 未配置 —— 实名二要素不可用（支付显式关闭阶段可暂缓；"
+                    + "开通支付/免密支付前必须配置，运行期 fail-closed 不变）");
         }
         requireInternalApiCidr("Production");
     }
