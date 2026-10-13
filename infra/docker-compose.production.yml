@@ -113,7 +113,10 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?set GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # 唯一管理员（用户实证 2026-10-13）：iframe 每隔几天要重登 Grafana 太烦 ⇒
+      # 匿名放行为 Viewer，过网关 Basic 即可直接看板；管理操作仍显式登 admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       # M12 监控接线（2026-10-13 生产实证：缺这三项 ⇒ 网关子路径 404/iframe 拒嵌）：
       # 同源子路径 /devops/grafana/（nginx-full.conf 反代 + Basic），允许后台 iframe 嵌入
       GF_SERVER_ROOT_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env.production}/devops/grafana/
