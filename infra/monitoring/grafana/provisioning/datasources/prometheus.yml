@@ -5,5 +5,7 @@ datasources:
     type: prometheus
     uid: prometheus
     access: proxy
-    url: http://prometheus:9090
+    # 由 compose 注入：本地=http://prometheus:9090；生产带子路径=/devops/prometheus
+    #（--web.route-prefix 生效后裸 /api/v1/query 404，2026-10-13 生产实证）
+    url: $GRAFANA_PROMETHEUS_URL
     isDefault: true

@@ -1,0 +1,40 @@
+# 生产手动部署（CD 半自动档）：两种触发——
+#   1. push deploy-* 标签：git tag deploy-<短SHA> && git push origin deploy-<短SHA>
+#      （主触发。GitHub 只注册默认分支 main 上的 workflow，本文件在 dev 上
+#       workflow_dispatch 不可用；tag 触发不依赖默认分支，且部署目标精确到 SHA）
+#   2. workflow_dispatch（Run workflow 按钮）：待本文件合入 main 后自动生效
+#
+# 为什么不是 push 自动部署：
+#   - trade 启动时 Flyway 自动跑迁移，push 即部署 = 未审迁移直达生产库
+#   - dev 分支日常开发不应直连生产；部署必须是显式动作
+name: deploy-prod
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['deploy-*']
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/prod_key.pem
+          chmod 600 ~/.ssh/prod_key.pem
+
+      - name: Deploy
+        env:
+          PROD_SSH_KEY: ~/.ssh/prod_key.pem
+        run: bash scripts/deploy-prod.sh

@@ -74,6 +74,9 @@ public class MerchantWithdrawService {
     private final WithdrawEligibilityService withdrawEligibilityService;
     /** CB-033 平台资金池：打款前备付校验 + 打款成功登记流出（测试可传 null 跳过）。 */
     private final PlatformFundService platformFundService;
+
+    /** CB-035：T+1 可提现解锁时刻（小时）读取；null 容忍（测试兜底默认 0 点解锁）。 */
+    private final SystemConfigService systemConfigService;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
@@ -105,6 +108,7 @@ public class MerchantWithdrawService {
                                    OrderRevenueSplitMapper orderRevenueSplitMapper,
                                    WithdrawEligibilityService withdrawEligibilityService,
                                    PlatformFundService platformFundService,
+                                   SystemConfigService systemConfigService,
                                    @Lazy MerchantWithdrawService self) {
         this.withdrawMapper = withdrawMapper;
         this.merchantMapper = merchantMapper;
@@ -126,6 +130,7 @@ public class MerchantWithdrawService {
         this.orderRevenueSplitMapper = orderRevenueSplitMapper;
         this.withdrawEligibilityService = withdrawEligibilityService;
         this.platformFundService = platformFundService;
+        this.systemConfigService = systemConfigService;
         this.self = self;
     }
 
@@ -270,7 +275,7 @@ public class MerchantWithdrawService {
                 userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
             return new MerchantWalletOverviewDto(
-                    false, null, null, null, null, null, List.of(), List.of());
+                    false, null, null, null, null, null, null, List.of(), List.of());
         }
         String merchantId;
         if (merchantIdParam != null && !merchantIdParam.isBlank()) {
@@ -285,18 +290,21 @@ public class MerchantWithdrawService {
         Merchant merchant = merchantMapper.findById(merchantId).orElse(null);
         if (merchant == null) {
             return new MerchantWalletOverviewDto(
-                    false, null, null, null, null, null, List.of(), List.of());
+                    false, null, null, null, null, null, null, List.of(), List.of());
         }
         MerchantWalletAccount account = merchantWalletService.ensureAccount(merchantId);
         long balance = value(account.getBalanceCents());
         long frozen = value(account.getFrozenCents());
+        // CB-035：展示口径与 V308 提现闸门同口径——可提 = 余额 − 冻结 − 待结算（T+1 未到期）
+        long pendingSettle = pendingSettleAmount(merchantId);
         return new MerchantWalletOverviewDto(
                 true,
                 merchant.getMerchantId(),
                 merchant.getMerchantName(),
                 balance,
                 frozen,
-                balance - frozen,
+                Math.max(0, balance - frozen - pendingSettle),
+                pendingSettle,
                 ledgerMapper.findByMerchantIdOrderByCreatedAtDesc(merchantId, 10).stream()
                         .map(this::toLedgerDto)
                         .toList(),
@@ -804,7 +812,24 @@ public class MerchantWithdrawService {
         if (orderRevenueSplitMapper == null) {
             return 0L;
         }
-        return orderRevenueSplitMapper.sumWalletCreditedButNotYetWithdrawable(merchantId, LocalDate.now(ZONE));
+        // CB-035：解锁时刻可配（0-23 点，默认 0=次日零点即解冻）。只挪「能提」的时刻，
+        // 不动日结/入账/账单展示——settleAfter 仍=T+1。
+        int unlockHour = systemConfigService == null
+                ? 0
+                : systemConfigService.getInt(SystemConfigService.MERCHANT_WITHDRAW_SETTLE_UNLOCK_HOUR, 0);
+        return orderRevenueSplitMapper.sumWalletCreditedButNotYetWithdrawable(
+                merchantId, unlockedThroughDate(LocalDate.now(ZONE), java.time.LocalTime.now(ZONE), unlockHour));
+    }
+
+    /**
+     * CB-035：settleAfter ≤ 该日期的分账已可提现（闸门 SQL 口径为 {@code gt(settleAfter, 该日期)}）。
+     *
+     * <p>unlockHour 点前，昨天的销售款（settleAfter=今天）尚未解锁 ⇒ 返回昨天；
+     * 到点后返回今天。unlockHour=0 时恒返回今天（次日零点即解冻）。</p>
+     */
+    static java.time.LocalDate unlockedThroughDate(java.time.LocalDate today, java.time.LocalTime now, int unlockHour) {
+        int hour = Math.min(Math.max(unlockHour, 0), 23);
+        return now.getHour() >= hour ? today : today.minusDays(1);
     }
 
     private String resolveMerchantId(Long userId, String merchantIdParam) {
@@ -847,6 +872,8 @@ public class MerchantWithdrawService {
         MerchantWalletAccount account = accountMapper.selectById(merchant.getMerchantId());
         long balance = account == null ? 0L : value(account.getBalanceCents());
         long frozen = account == null ? 0L : value(account.getFrozenCents());
+        // CB-035：availableCents 与 V308 提现闸门同口径（扣 T+1 待结算），并把待结算透出给运营台
+        long pendingSettle = account == null ? 0L : pendingSettleAmount(merchant.getMerchantId());
         return new MerchantWalletAccountDto(
                 merchant.getMerchantId(),
                 merchant.getMerchantName(),
@@ -854,7 +881,8 @@ public class MerchantWithdrawService {
                 merchant.getStatus(),
                 balance,
                 frozen,
-                balance - frozen
+                Math.max(0, balance - frozen - pendingSettle),
+                pendingSettle
         );
     }
 

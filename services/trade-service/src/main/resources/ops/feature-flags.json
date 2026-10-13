@@ -99,6 +99,13 @@
       "description": "商户提现单笔下限（分），默认 ¥10；0=不限制"
     },
     {
+      "key": "merchant.withdraw.settle_unlock_hour",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "0",
+      "description": "商户 T+1 可提现解锁时刻（小时 0-23），默认 0=次日零点起可提；只影响提现闸门，不影响入账与账单展示（CB-035）"
+    },
+    {
       "key": "merchant.withdraw.max_cents",
       "group": "交易与资金",
       "type": "NUMBER",

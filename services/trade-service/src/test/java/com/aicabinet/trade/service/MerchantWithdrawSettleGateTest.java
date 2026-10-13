@@ -80,7 +80,7 @@ class MerchantWithdrawSettleGateTest {
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, merchantScopeService, permissionService, auditService,
                 distributedLockService, approvalWorkflowService, WithdrawPolicyResolver.ymlOnly(properties),
-                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null);
+                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         PayoutAccount account = new PayoutAccount();
@@ -186,5 +186,40 @@ class MerchantWithdrawSettleGateTest {
 
         LocalDate expected = LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"));
         assertEquals(expected, captor.getValue());
+    }
+
+    @Test
+    @DisplayName("CB-035：解锁时刻默认 0 点——任意时刻 unlockedThrough 都=今天")
+    void unlockHourDefaultMidnight() {
+        LocalDate today = LocalDate.of(2026, 10, 13);
+        for (int h = 0; h < 24; h++) {
+            assertEquals(today,
+                    MerchantWithdrawService.unlockedThroughDate(today, java.time.LocalTime.of(h, 0), 0),
+                    "unlockHour=0 时 " + h + " 点应已解锁到今天");
+        }
+    }
+
+    @Test
+    @DisplayName("CB-035：解锁时刻 8 点——8 点前昨天的钱仍锁定，恰到 8 点即解锁")
+    void unlockHourEight() {
+        LocalDate today = LocalDate.of(2026, 10, 13);
+        LocalDate yesterday = today.minusDays(1);
+        assertEquals(yesterday,
+                MerchantWithdrawService.unlockedThroughDate(today, java.time.LocalTime.of(7, 59), 8));
+        assertEquals(today,
+                MerchantWithdrawService.unlockedThroughDate(today, java.time.LocalTime.of(8, 0), 8));
+        assertEquals(today,
+                MerchantWithdrawService.unlockedThroughDate(today, java.time.LocalTime.of(23, 0), 8));
+    }
+
+    @Test
+    @DisplayName("CB-035：unlockHour 越界钳制到 0-23（配 25 当 23 用、配 -1 当 0 用）")
+    void unlockHourClamped() {
+        LocalDate today = LocalDate.of(2026, 10, 13);
+        // 25 钳为 23 ⇒ 正午（12 点）未到 23 点，昨天的钱仍锁定
+        assertEquals(today.minusDays(1),
+                MerchantWithdrawService.unlockedThroughDate(today, java.time.LocalTime.NOON, 25));
+        // -1 钳为 0 ⇒ 任意时刻已解锁到今天
+        assertEquals(today, MerchantWithdrawService.unlockedThroughDate(today, java.time.LocalTime.of(0, 1), -1));
     }
 }

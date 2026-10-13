@@ -1,5 +1,7 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "description": "ERROR 行计数：5 分钟窗口内按服务的 ERROR 行数。⚠️ 这是日志计数，不是业务失败率。",
   "editable": true,
   "fiscalYearStartMonth": 0,
@@ -11,7 +13,9 @@
       "icon": "external link",
       "includeVars": true,
       "keepTime": true,
-      "tags": ["ai-cabinet-logs"],
+      "tags": [
+        "ai-cabinet-logs"
+      ],
       "targetBlank": false,
       "title": "日志中心",
       "tooltip": "在日志中心的各主题页之间跳转",
@@ -21,22 +25,48 @@
   ],
   "panels": [
     {
-      "datasource": { "type": "loki", "uid": "loki" },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "description": "5 分钟窗口内 ERROR 行计数（按服务）——看「错误是不是在变多」。⚠️ 这是日志计数，不是指标计数：同一异常被多次打印会重复计入；要看业务口径的失败率请用「运营概览」看板的 Prometheus 面板。",
       "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "lineWidth": 1, "fillOpacity": 10 } },
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10
+          }
+        },
         "overrides": []
       },
-      "gridPos": { "h": 26, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 26,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
       "options": {
-        "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] },
-        "tooltip": { "mode": "multi" }
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by (service) (count_over_time({service=~\"$service\"} |~ \"(?i)error\" [5m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (service) (count_over_time({service=~\"$service\"} |~ \"level=error|lvl=eror| ERROR |\\\\[error\\\\]\" [5m]))",
           "legendFormat": "{{service}}",
           "queryType": "range",
           "refId": "A"
@@ -48,12 +78,26 @@
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "tags": ["ai-cabinet", "ai-cabinet-logs"],
+  "tags": [
+    "ai-cabinet",
+    "ai-cabinet-logs"
+  ],
   "templating": {
     "list": [
       {
-        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
-        "datasource": { "type": "loki", "uid": "loki" },
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
         "definition": "label_values(service)",
         "includeAll": true,
         "label": "服务",
@@ -69,7 +113,10 @@
       }
     ]
   },
-  "time": { "from": "now-30m", "to": "now" },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "timezone": "browser",
   "title": "ERROR 行计数（按服务）",
   "uid": "ai-cabinet-logs-errorcount",

@@ -186,7 +186,7 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
      * 加上 {@code ACCRUED} 会把「走微信分账、钱直接到商户」的钱也算进冻结 ——
      * 那笔钱<b>根本不在我们钱包里</b>，扣它会导致商户可提现额被凭空减少。
      *
-     * @param settledBy 今日（含）为止的日期；{@code settleAfter > 该日期} 的才算未解冻
+     * @param settledBy 已解锁到的日期（CB-035：一般为今日；解锁时刻未到时为昨日）；{@code settleAfter > 该日期} 的才算未解冻
      */
     default long sumWalletCreditedButNotYetWithdrawable(String merchantId, java.time.LocalDate settledBy) {
         if (merchantId == null) {
