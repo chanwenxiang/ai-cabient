@@ -44,14 +44,14 @@ services:
       # health 探针基址也要带子路径：--web.route-prefix 生效后 /-/ready 挂在子路径下
       DEVOPS_PROMETHEUS_HEALTH_URL: http://prometheus:9090/devops/prometheus
       # 链路追踪出口（observability 栈的 tempo；留空=关闭，2026-10-13 起生产开启）
-      OTLP_ENDPOINT: http://tempo:4318
+      OTLP_ENDPOINT: http://tempo:4318/v1/traces
 
   device-service:
     stop_grace_period: 30s
     environment:
       SPRING_PROFILES_ACTIVE: prod
       # 链路追踪出口（observability 栈的 tempo，与 trade 同步开启）
-      OTLP_ENDPOINT: http://tempo:4318
+      OTLP_ENDPOINT: http://tempo:4318/v1/traces
       MQTT_BROKER: ${MQTT_BROKER:-ssl://emqx:8883}
       MQTT_USERNAME: ${MQTT_USERNAME:?set MQTT_USERNAME (aicabinet-backend) in .env.production}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set MQTT_PASSWORD in .env.production}
