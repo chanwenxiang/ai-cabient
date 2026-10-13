@@ -48,6 +48,8 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.production}
       # P2-10 过渡豁免（2026-10-13）：true=允许明文 tcp://（设备接入前必须落地 TLS 并删除）
       MQTT_ALLOW_TCP: ${MQTT_ALLOW_TCP:-}
+      # 生产要求每部署唯一 clientId（validator 硬校验，缺省 device-service 会被拒）
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:?set MQTT_CLIENT_ID (unique per deployment) in .env.production}
 
   emqx:
     stop_grace_period: 30s
