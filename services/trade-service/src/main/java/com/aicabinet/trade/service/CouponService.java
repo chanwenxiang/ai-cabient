@@ -243,6 +243,13 @@ public class CouponService {
         if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(def.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优惠券已停用");
         }
+        // AU-110：范围唯一生效点在 evaluateCoupon（自动选券），手动核销曾整体旁路它。
+        // 以订单设备为范围上下文：body deviceId 只是核销记录字段，不参与判定，
+        // 否则「传个范围内容设备号」即可绕过（与既有 useCoupon 订单无设备的语义兼容）。
+        String scopeDeviceId = order.getDeviceId();
+        if (!withinScope(def, scopeDeviceId, scopeDeviceId == null ? null : merchantIdOf(scopeDeviceId))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优惠券不适用于该订单设备/商户范围");
+        }
         int discount = requireApplicableDiscount(def, order);
         int subtotal = resolveOrderLineSubtotal(order);
 

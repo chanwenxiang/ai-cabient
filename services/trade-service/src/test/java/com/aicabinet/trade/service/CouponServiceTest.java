@@ -487,4 +487,75 @@ class CouponServiceTest {
         verify(promotionService).releaseBudget(99L, 400);
         verify(userCouponRepository).saveAll(anyList());
     }
+
+    // ── AU-110 负向验证：手动核销必须过 DEVICE/MERCHANT 范围 ──
+
+    /** UNUSED 券 + ACTIVE 定义 + PENDING 订单（orderDevice 指定）全套装配。 */
+    private void stubUsablePair(CouponDefinition def, String orderDeviceId) {
+        var uc = new UserCoupon();
+        uc.setCouponId(1L);
+        uc.setUserId(10001L);
+        uc.setCouponDefId(1L);
+        uc.setCouponCode("TEST1234ABCD");
+        uc.setStatus("UNUSED");
+        uc.setExpireAt(Instant.now().plus(30, ChronoUnit.DAYS));
+        var order = new CabinetOrder();
+        order.setOrderId("O-SCOPE-1");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setTotalAmountCents(2000);
+        order.setDeviceId(orderDeviceId);
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
+        when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
+        when(orderRepository.findByIdForUpdate("O-SCOPE-1")).thenReturn(Optional.of(order));
+        // 拒用用例在范围判定处即抛，触不到 save/明细查询 ⇒ 这三处用 lenient 供两用例族共用
+        lenient().when(orderRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        lenient().when(userCouponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(userCouponRepository.findByOrderIdAndStatus("O-SCOPE-1", "USED")).thenReturn(List.of());
+        lenient().when(orderLineRepository.findByOrderId("O-SCOPE-1")).thenReturn(List.of());
+    }
+
+    private static CouponDefinition amountOffDef(String scopeType, String[] deviceIds, String merchantId) {
+        var def = new CouponDefinition();
+        def.setCouponDefId(1L);
+        def.setCouponName("定向券");
+        def.setCouponType("AMOUNT_OFF");
+        def.setDenominationCents(500);
+        def.setStatus("ACTIVE");
+        def.setScopeType(scopeType);
+        def.setScopeDeviceIds(deviceIds);
+        def.setScopeMerchantId(merchantId);
+        return def;
+    }
+
+    @Test
+    void useCoupon_deviceScopedCoupon_rejectsOrderOnForeignDevice() {
+        stubUsablePair(amountOffDef("DEVICE", new String[]{"CAB-001"}, null), "CAB-999");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> couponService.useCoupon(10001L, 1L, "O-SCOPE-1", "CAB-999"));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    @Test
+    void useCoupon_merchantScopedCoupon_rejectsOrderOnForeignMerchantDevice() {
+        var device = new com.aicabinet.trade.domain.DeviceInfo();
+        device.setDeviceId("CAB-999");
+        device.setMerchantId("M2");
+        when(deviceInfoMapper.findByIdForUpdateRaw("CAB-999")).thenReturn(device);
+        stubUsablePair(amountOffDef("MERCHANT", null, "M1"), "CAB-999");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> couponService.useCoupon(10001L, 1L, "O-SCOPE-1", "CAB-999"));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    @Test
+    void useCoupon_deviceScopedCoupon_allowsOrderOnOwnDevice() {
+        stubUsablePair(amountOffDef("DEVICE", new String[]{"CAB-999"}, null), "CAB-999");
+
+        var result = couponService.useCoupon(10001L, 1L, "O-SCOPE-1", "CAB-999");
+
+        assertEquals("USED", result.status());
+    }
 }

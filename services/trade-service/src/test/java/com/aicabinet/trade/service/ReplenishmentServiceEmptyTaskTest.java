@@ -102,7 +102,7 @@ class ReplenishmentServiceEmptyTaskTest {
         ReplenishmentTask task = baseTask(9L);
         task.setStatus("IN_PROGRESS");
         task.setCheckInAt(Instant.now());
-        when(taskRepository.findById(9L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(task));
         when(taskLineRepository.findByTaskIdOrderByLineIdAsc(9L)).thenReturn(List.of());
         when(taskRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -119,13 +119,41 @@ class ReplenishmentServiceEmptyTaskTest {
         task.setCheckInAt(Instant.now());
         ReplenishmentTaskLine applied = new ReplenishmentTaskLine();
         applied.setApplied(true);
-        when(taskRepository.findById(10L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(task));
         when(taskLineRepository.findByTaskIdOrderByLineIdAsc(10L)).thenReturn(List.of(applied));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> replenishmentService.cancelEmptyTask(1L, 10L));
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
         assertEquals(ApiMessages.REPLENISHMENT_CANCEL_NOT_EMPTY, ex.getReason());
+        verify(taskRepository, never()).save(any());
+    }
+
+    /** AU-111：取消必须持任务锁 + 行锁重查（对齐 completeTask/checkIn 兄弟路径），禁裸 findById。 */
+    @Test
+    void cancelEmptyTask_usesTaskLockAndRereadsForUpdate() {
+        ReplenishmentTask task = baseTask(11L);
+        task.setStatus("PENDING");
+        when(taskRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(task));
+        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(11L)).thenReturn(List.of());
+        when(taskRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var dto = replenishmentService.cancelEmptyTask(1L, 11L);
+
+        assertEquals("CANCELLED", dto.status());
+        verify(distributedLockService).tryLock("replenishment:task:11", 60L, 5L);
+        verify(taskRepository).findByIdForUpdate(11L);
+        verify(taskRepository, never()).findById(any());
+    }
+
+    /** AU-111：任务锁被并发占用 → 409（与 submit/complete 互斥，不再改状态）。 */
+    @Test
+    void cancelEmptyTask_lockBusy_rejectsWithConflict() {
+        when(distributedLockService.tryLock("replenishment:task:12", 60L, 5L)).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.cancelEmptyTask(1L, 12L));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
         verify(taskRepository, never()).save(any());
     }
 
