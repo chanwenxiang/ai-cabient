@@ -45,7 +45,15 @@ public class ProductionStartupValidator {
             return;
         }
         if (mqttProperties.broker() != null && mqttProperties.broker().startsWith("tcp://")) {
-            throw new IllegalStateException("Production MQTT must use ssl:// broker URL");
+            // 2026-10-13 生产首启调整：P2-10 的 TLS truststore 供给链未落地，且当前无任何柜机
+            // 经 MQTT 接入（将邑柜走 WS 网关），设备接入前必须补齐 TLS 并删除本豁免。
+            // 显式豁免开关默认缺省=仍硬拒绝，fail-loud 不变。
+            if (!"true".equalsIgnoreCase(environment.getProperty("MQTT_ALLOW_TCP", ""))) {
+                throw new IllegalStateException("Production MQTT must use ssl:// broker URL "
+                        + "(or set MQTT_ALLOW_TCP=true explicitly for the pre-device TLS transition)");
+            }
+            log.warn("MQTT_ALLOW_TCP=true —— 生产 MQTT 暂走明文 tcp://（compose 内网、当前无柜机经 MQTT 接入）；"
+                    + "设备接入前必须落地 TLS truststore 供给链（审计 P2-10）并删除本豁免");
         }
         if (!mqttProperties.hasCredentials()) {
             throw new IllegalStateException("Production requires MQTT username/password");
