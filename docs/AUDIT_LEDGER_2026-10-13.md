@@ -23,7 +23,7 @@
 | AU-001 | A | — | FIX_QUEUE 批次1–4 | 复扫定案：原 P0 全部修复/消解；未修=P0-2 残余(P1)+P1-6 余项(P2×2)+P3×4 | `docs/AUDIT_TRACK_A_FIXQUEUE_RESIDUAL_2026-10-13.md` 逐条 file:line | 复验存量 | 已回归(复扫)；未修项另立 AU-010~016 | — | — |
 | AU-002 | A/D | P1 | trade 退款链 | G1 退款提交补偿 job 仍缺（Java 侧 refundRetry 零命中）；接支付腿前置，余额-only 档无资损路径 | grep 零命中 + TRACK_A 报告 §G1 最小 job 设计 | GAP_SCAN G1 确认 | 待修(接真前) | — | — |
 | AU-003 | E | — | 商户→将邑回调 | ~~P1候选~~ **更正：判非缺陷**——§5.4.2–5.4.7 未实现与 2026-10-09「模式一」拍板一致（只接第四章）；5.4.10 confirmActivate 另立 AU-009 | `docs/AUDIT_TRACK_E_JIANGYI_INTERFACE_GAP_2026-10-13.md` E-2 定案 | 推翻原候选 | 判非缺陷 | — | — |
-| AU-004 | F | P1 | Flyway 版本迁移 | V2/V11/V25/V54/V56/V62 内嵌演示种子：全新生产库重建即再长出演示数据 | .workbuddy/memory/2026-10-13.md | 新增(部署实证) | 待修(守卫迁移删 demo 或种子外提) | — | — |
+| AU-004 | F | P1 | Flyway 版本迁移 | V2/V11/V25/V54/V56/V62 内嵌演示种子：全新生产库重建即再长出演示数据 | .workbuddy/memory/2026-10-13.md | 新增(部署实证) | **dev 侧已补偿**（10-13 午 merge 带入）：V344 守卫迁移（seed_env=none 才清理，锚点全家族+fail-loud 断言）+V345（V163 积分券漏网）+check-flyway-seed-separation 新增「演示锚点不得进新 V 写语句」防复发。审计亲验：V344 正文逐锚点对上 V2/V25/V54/V56 实种 SKU 集；**V62 的 SKU-TEA-5839 不在锚点⇒挂 DC-26 拍板**；fresh 全新库重建实测进接真前 checklist（dev 自报三象限绿不采信） | 794828ef/4316bd73 | V344 SQL 亲读+V2/V11/V25/V54/V56/V62 grep 锚点比对 |
 | AU-005 | B | — | B-1/B-2/B-3 | 第 1 波三域接口契约审计完成并落盘 | TRACK_B1/B2/B3 三份报告 | 新增 | 已回归(报告落盘) | — | — |
 | AU-006 | B-1 | **P1** | MerchantWithdrawService:422-425 / LineWithdrawService:292-294 | 提现幂等仅按全局 requestNo，不校验归属/金额→跨租户返回他人提现 DTO+本方请求被静默吞 | 主会话读码复核属实；B1 报告 F-01 | 新增 | **已修(待 CI 口径)**：幂等命中加归属+金额比对，跨主体显式 409 | bc82afbc | 负向测试先红(persistApply_idempotentHitForeign* "nothing was thrown")后绿；MerchantWithdrawConcurrencyTest 11/11、LineWithdrawConcurrencyTest 4/4；域内全量 1810 绿 |
 | AU-007 | B-1 | **P1** | MerchantWithdrawService:380-399 / LineWithdrawService:225-244 | cancelFailed 锁内用锁前陈旧快照判 FAILED→与 payout 并发可对 PAID 单重复 releaseFrozen，余额虚增（可复现资损） | 主会话读码复核属实；B1 报告 F-02 | 新增 | **已修(待 CI 口径)**：拆先锁后事务两层+锁内重查（self.cancelFailedLocked） | bc82afbc | 负向测试先红(cancelFailed_rereadsStatusInsideLock_paidNotReleased)后绿；域内全量 1810 绿 |
@@ -67,8 +67,8 @@
 | AU-090 | B-5 | **P1** | MerchantReplenishmentService:339-342,429-432 | 要货数量只判>0 无上界；聚合 Integer::sum 溢出为负直贯仓库出库行/seed 草稿行 | 主会话亲验 | 新增(同 AU-038 家族) | 待修(@Max+long 聚合；上限口径 DC-18) | — | — |
 | AU-091~103 | B-5 | P2 ×13 | 门户面 | COGS 回显(AU-091)、结算内部态透商户(092)、operatorNote/videoUri(093)、锁 message 泄漏×6(094)、价格历史 200 截断(095)、通知只取 get(0)(096)、公告无权限码(097)、404 枚举 oracle(098)、@Valid 缺×11(099)、槽位行无上限(100)、采购/要货无幂等(101)、采购写端点用读码(102)、停用不吊销会话≤30min 窗(103) | B5 报告逐条 file:line | 新增(094 与 AU-113 同族合并修；092/093 关联 DC-15/17) | 登记(随批；102 建议接真前必修) | — | — |
 | AU-104~109 | B-5 | P3 ×6 | 门户面 | 日期 parse 500、英文裸文案、附件无 nosniff、工作台 N+1、maxPrice 溢出、PATCH profile 写穿全绑定商户 | B5 报告 | 新增 | 登记(延后) | — | — |
-| AU-110 | B-6/7 | **P1** | CouponService:237-265（POST /api/v2/coupons/use） | 手动核销券**不校验 DEVICE/MERCHANT 范围**（withinScope 仅自动选券 :479 一处调用，grep 实证）→定向券任意柜机套现=活动资损 | 主会话亲验 | 新增 | 待修(必修，doUseCoupon 补 withinScope) | — | — |
-| AU-111 | B-6/7 | **P1** | ReplenishmentService:1094-1119 | cancelEmptyTask 裸 findById 无锁无行锁、Task 无 @Version→与 submit/complete 竞态致库存/在途双失真（兄弟写路径全持锁） | 主会话亲验 | 新增(模式=AU-007 同族) | 待修(必修，runWithTaskLock+FOR UPDATE 重查) | — | — |
+| AU-110 | B-6/7 | **P1** | CouponService:237-265（POST /api/v2/coupons/use） | 手动核销券**不校验 DEVICE/MERCHANT 范围**（withinScope 仅自动选券 :479 一处调用，grep 实证）→定向券任意柜机套现=活动资损 | 主会话亲验 | 新增 | **已回归** | dc817225 | 负向先红：CouponServiceTest 23 用例 Failures: 2（DEVICE/MERCHANT 越界拒核断言 400 未成立）；修复后定向 23/23 绿、trade 域全量 **1845/1845 绿**（MVN_EXIT=0）、preflight 绿 |
+| AU-111 | B-6/7 | **P1** | ReplenishmentService:1094-1119 | cancelEmptyTask 裸 findById 无锁无行锁、Task 无 @Version→与 submit/complete 竞态致库存/在途双失真（兄弟写路径全持锁） | 主会话亲验 | 新增(模式=AU-007 同族) | **已回归** | dc817225 | 负向先红：EmptyTaskTest 6 用例 Failures: 2 Errors: 2（4 个 cancel 用例全红=锁/行锁缺失）；修复后 6/6 绿（含 lock-verify+lockBusy-409 新用例）、随 trade 全量 1845/1845 绿 |
 | AU-112 | B-6/7 | **P1*** | ReplenishmentService/InventoryOpsService/OpsReplenishmentAdminService 全域 | 补货/设备库存域 **0 处设备数据权限范围**（grep 实证三文件 0 命中，对照 DeviceSlotService 13 处）→挂 scope 的 replenisher 可读写任意商户设备库存 | 主会话 grep 复核 | 新增 | 等级随 DC-20 拍板：是→必修(requireDeviceAccess 统一入参)；否→降 P2 文档化豁免 | — | — |
 | AU-113~120 | B-6/7 | P2 ×8 | 仓储/营销面 | 锁包装 500 泄漏全域 70+ 处(集中修 handler)、两端点缺注解单层防线、PUT /inventory 零校验可负库存、负 pointsCost 反向加积分、等级规则无值域、索赔台账 size 未钳、write-off int 溢出、活动生命周期无守卫(**负预算=无限**) | B67 报告逐条 file:line | 新增(113 与 AU-094 同族) | 登记(随批；116/120 建议接真前必修) | — | — |
 | AU-121~123 | B-6/7 | P3 ×3 | 同上 | @Valid 空挂+batchIssue 无上限部分提交、GET 用 edit 写码、slotType 无枚举白名单 | B67 报告 | 新增 | 登记(延后) | — | — |
@@ -106,6 +106,7 @@
 | DC-23 | IN_PROGRESS 盘点单不可取消（仅 DRAFT 可），现场中断的处理路径是什么 | Track B-6/7 Q4 |
 | DC-24 | V118 授 replenisher `ops:warehouse:list`（可翻全仓库存）——最小权限口径是否接受 | Track B-6/7 Q5 |
 | DC-25 | OpsAnalytics footfall 无数据范围入参，线级管理员看全网聚合——有意 vs 缺口 | Track B-9 存疑④ |
+| DC-26 | V62 内嵌 SKU-TEA-5839（东方树叶茉莉花茶335ml，真实商品形态种子）不在 V344 清理锚点、全仓仅 V62 自身引用——fresh 生产库重建后会作为唯一内嵌商品长出来：属试点运营真实商品（保留并停止此类种子）还是漏网（补 V346 清理） | dev V344 覆盖亲验时发现（10-13 午 merge 对齐） |
 
 ## 轨道状态
 
@@ -114,4 +115,16 @@
 - Track C（三端实测）：基础设施已探明（DevTools 可用+双产物指服务器）；C-admin/C-mp 待第 2 波
 - Track D（easygo diff）：✅ 落盘（`AUDIT_TRACK_D_EASYGO_DIFF`：上线阻塞 0；D-2 三项接真前复查并入最终 checklist）
 - Track E（将邑专项）：✅ 落盘（E-1~E-4，AU-003 判非缺陷、AU-009 confirmActivate 新立）
-- Track F（补充项）：F-1/F-6 ✅ 落盘（`AUDIT_TRACK_F1_CONFIG_HYGIENE`：3×P1=占位符可过/jiangyi 生产脱管/模板漂移；.env 全历史无入库实证）；F-2~F-5/F-7/F-8 待跑
+- Track F（补充项）：F-1/F-6 ✅ 落盘（`AUDIT_TRACK_F1_CONFIG_HYGIENE`：3×P1=占位符可过/jiangyi 生产脱管/模板漂移；.env 全历史无入库实证）；F-2~F-5/F-7/F-8 待跑（F-2 主体已被 dev V344/345 补偿，见 AU-004 更新；F-8 待清账时对照 dev 今午监控四连修回仓项）
+
+## 修复批进度（全部本地提交于审计分支，推送与否待用户确认）
+
+| 批 | 内容 | 提交 | 负向先红证据 | 回归证据 |
+|----|------|------|--------------|----------|
+| 一 | AU-006/007 提现幂等归属+cancelFailed 锁内重查 | （见上表行） | 红→绿 | trade 域全量绿 |
+| 二 | AU-047 运营状态 INACTIVE 超管守卫；AU-060 将邑 open-failed/recognize-timeout 设备归属 | bbd5e272 | stub 无守卫 5 例红 2 | gateway 60 绿+trade 1834 绿+preflight |
+| 三 | AU-087/088 税资料 BOLA+异常台账跨租户（MerchantPortalGuard） | 705aa4a5 | 6 例红 3（unbound 三例） | 定向 4/4+2/2 绿、trade 1840/1840 绿、preflight 绿 |
+| 四 | AU-110 券手动核销范围旁路+AU-111 cancelEmptyTask 任务锁收口 | dc817225 | CouponTest 23 红 2 / EmptyTaskTest 6 红2误2 | 定向 23/23+6/6 绿、trade **1845/1845** 绿、preflight 绿 |
+| — | merge origin/dev（10-13 午 9 提交：V344/345 种子守卫、监控接线四连修、lint 豁免 .qoder、admin keep-alive+产物重建） | 本次合并 | — | 合并后 preflight 绿；AU-004 对照更新+新立 DC-26 |
+
+下一步（串行队列）：批五 AU-090（qty 上界+聚合溢出，上限口径 DC-18）→ AU-061 tracker 面 → AU-048 → 配置门禁批（AU-074/075/076+AU-124）→ AU-038/039/040 接真前 → C-admin/C-mp 实测 → Track F 余项 → 收尾报告。
