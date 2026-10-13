@@ -180,6 +180,29 @@ class OpsRbacServiceGuardTest {
                 eq("USER"), eq(String.valueOf(TARGET)), any());
     }
 
+    /**
+     * AU-047（审计 B-8 S-02）：PUT 编辑运营时把 status 传 INACTIVE 是禁用操作的旁路 ——
+     * DELETE 路径有 C16 超管守卫，PUT 必须同守卫，否则持 assign:edit 者可停用超管。
+     *（复核更正：禁自禁在 PUT 路径 :463 本已存在，S-02 的「无禁自身校验」表述偏宽，
+     * 唯缺的是 C16 超管守卫。）
+     */
+    @Test
+    void updateOperator_statusInactiveOnAdminTarget_rejected() {
+        allowLock(OpsRbacService.opsOperatorLockKey(TARGET));
+        UserInfo admin = operator(TARGET, "13900000002");
+        when(userInfoRepository.existsById(TARGET)).thenReturn(true);
+        when(userRoleRepository.findByIdUserId(TARGET)).thenReturn(List.of(new OpsUserRole(TARGET, 1L)));
+        when(roleRepository.findById(1L)).thenReturn(Optional.of(role(1L, "admin")));
+        when(userInfoRepository.findByIdForUpdate(TARGET)).thenReturn(Optional.of(admin));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.updateOperator(ACTOR, TARGET, new UpdateOpsOperatorRequest(
+                        null, "运营", "INACTIVE", null, null, null)));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(userInfoRepository, never()).save(any());
+    }
+
     // ── H65：运行时禁止创建通配 / 内置权限码 ─────────────────────────────
 
     @Test
