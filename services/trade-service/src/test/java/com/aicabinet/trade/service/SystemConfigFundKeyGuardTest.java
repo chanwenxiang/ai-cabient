@@ -118,6 +118,8 @@ class SystemConfigFundKeyGuardTest {
 
     @Test
     void delete_fundKey_auditExplicitlyDisabled_stillLeavesHistory() {
+        // 注意不断言 repository.deleteById：mapper 的 deleteById 是接口 default 方法，
+        // mock 里 it=null 会先 NPE，验证交互必然失败（与 AU-111 同类教训）。
         auditSwitchRow("false");
         SystemConfig existing = new SystemConfig();
         existing.setConfigKey(SystemConfigService.MERCHANT_WITHDRAW_MAX_CENTS);
@@ -128,6 +130,7 @@ class SystemConfigFundKeyGuardTest {
         service.delete(SystemConfigService.MERCHANT_WITHDRAW_MAX_CENTS, 9L);
 
         verify(historyRepository).save(any(SystemConfigHistory.class));
+        verify(auditService).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
     }
 
     @Test

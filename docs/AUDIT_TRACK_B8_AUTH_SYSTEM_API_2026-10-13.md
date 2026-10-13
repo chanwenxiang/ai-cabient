@@ -26,7 +26,7 @@
 | ID | file:line | 描述 | 攻击/复现路径 | 判级 | 台账 |
 |---|---|---|---|---|---|
 | S-02 | OpsRbacService.java:461-467 vs :489-500 | **超管保护不对称**：`disableOperator`（DELETE）有 C16 admin 角色守卫+禁自禁，`PUT /rbac/operators/{userId}` 传 `status=INACTIVE` **缺 C16 admin 守卫**（主会话复核更正：禁自禁在 :463 本已存在，原表述「无禁自身校验」偏宽） | 持 `ops:rbac:assign:edit` 的中权运营可把超管置 INACTIVE，绕过 C16 | **P1** | AU-047 |
-| S-03 | SystemConfigController.java:70-76；SystemConfigService.java:620-638,802 | 配置写**无键白名单、无值语义校验、无双人复核**；资金阈值键（`recharge.max_cents`、`refund.auto_approve.max_cents`、提现限额族）单权限 `ops:config:edit` 可改；审计开关**默认关** | 运营凭证泄露 → PUT 把充值/免审上限清零或拉满且**零留痕** | **P1**（至少审计开关默认改 true） | AU-048 |
+| S-03 | SystemConfigController.java:70-76；SystemConfigService.java:620-638,802 | 配置写**无键白名单、无值语义校验、无双人复核**；资金阈值键（`recharge.max_cents`、`refund.auto_approve.max_cents`、提现限额族）单权限 `ops:config:edit` 可改；审计开关**默认关** | 运营凭证泄露 → PUT 把充值/免审上限清零或拉满且**零留痕** | **P1**（至少审计开关默认改 true） | AU-048 ✅批七已修 83246a87（默认开+资金键18族强制留痕+值校验[0,INT_MAX]；白名单/双人复核仍挂 DC-9） |
 | S-01 | SystemConfigController.java:56-58 | listAll 明文返回全部 configValue，含 `ops.alert.feishu_sign_secret`/webhook URL | 只读角色 `ops:config:list` 可拖出签名密钥→伪造告警 | **P2** | AU-049 |
 | S-04 | LoginThrottleService.java:29-42；AuthService.java:316-326 | 限流仅手机号维度无 IP 维度；查无此号也计失败；admin 短信码登录无图形验证码 | 已知号 5 次错密锁 10 分钟（账户 DoS）；分布式撞库靠网关 IP 限流兜底（F 轨核对） | P2 | AU-050 |
 | S-12 | application.yml:82,107；ProductionStartupValidator.java:77-82 | prod/staging 硬拒默认 JWT secret ✔，但**忘设 profile 启动 = warn-only + mock 开启 + 万能短信码可用** | 误部署即「任意手机号+万能码登录」；compose 模板有 `:?`，属部署门禁 | P2(部署面) | AU-051 |

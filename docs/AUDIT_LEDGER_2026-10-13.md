@@ -43,7 +43,7 @@
 | AU-041~045 | B-3 | P3 | 上报/告警/争议面 | D/E（anomaly 条数无界+dedup 抢占+事务内发 webhook、ops-alert 无长度上界/CRLF）、F（/retry 幂等键格式永不命中）、G（事务内抢锁残留）、I（detail 透 previewUrl/裸 videoUri 口径不一） | B3 报告 ③ | 新增 | 登记(随批/延后) | — | — |
 | AU-046 | B/C | P3 | consumer-config | `supportEmail=ops@aicabinet.local` 占位透出 C 端 | 来源键 `ops.support_email`（SystemConfigService seed :714），运营台 SystemConfigView 可改 | B-8 S-08 确认 | 挂起(接真 checklist 运营动作：改邮箱) | — | — |
 | AU-047 | B-8 | **P1** | OpsRbacService:461-467 | PUT /rbac/operators 传 status=INACTIVE **缺 C16 超管守卫**（DELETE 路径有，PUT 旁路；复核更正：禁自禁 :463 本已存在）→ 持 assign:edit 者可停用超管 | B8 报告 S-02（已按复核更正表述） | 新增 | **已修(待 CI 口径)**：INACTIVE 分支补 userHasRoleKey(userId, ADMIN) 守卫 | bc82afbc | 负向测试先红(OpsRbacServiceGuardTest:198 "nothing was thrown"，HEAD 码)后绿(14/14，修复码)；域内全量 1810 绿 |
-| AU-048 | B-8 | **P1** | SystemConfigService:620-638,802 | 配置写无键白名单/无值校验/无双人复核；资金阈值键单权限可改且**审计开关默认关=零留痕** | B8 报告 S-03 | 新增 | 待修(至少审计默认开+资金键守卫，白名单范围待拍板 DC-9) | — | — |
+| AU-048 | B-8 | **P1** | SystemConfigService:620-638,802 | 配置写无键白名单/无值校验/无双人复核；资金阈值键单权限可改且**审计开关默认关=零留痕** | B8 报告 S-03 | 新增 | 已修(批七：审计默认开+资金键族18键无视开关强制留痕+写侧值校验[0,INT_MAX]；白名单/双人复核仍挂 DC-9) | 83246a87 | FundKeyGuardTest 先红6/8→8/8；AuditHistory 旧不变式两例重写 9/9；trade **1857/1857**；preflight 绿（R5 门禁实抓 seed/注册表不一致后修正） |
 | AU-049~057 | B-8 | P2/P3 | 系统面 | S-01 明文透密钥(P2)、S-04 限流形态(P2)、S-12 忘设 profile 兜底(P2 部署门禁)、S-06~S-11（CSRF 单层、refresh 折叠 401、匿名侦察面、短信码竞态、GET 副作用、验证码无签发限流） | B8 报告 ② | 新增 | 登记(随批/延后；S-12 进 F-6 部署校验) | — | — |
 | AU-058 | B-8 | 存疑 | 消费者登录 | login/loginByPassword 不查 INACTIVE——status 语义是否仅运营侧待产品确认 | B8 报告 ③-1 | 新增 | 待拍板 DC-10 | — | — |
 | AU-059 | D | — | easygo diff | Track D 三项复验落盘：**上线阻塞 0**。D-2 九行偏差 6 有意设计+3 接真前复查（pending 等价性/开票分桶/软拦截升级）；D-3 判非阻塞（新链先不扣后争议，严格优于旧窄覆盖自动退款）；D-4 双层超时兜底为净增强、无偏差 | `docs/AUDIT_TRACK_D_EASYGO_DIFF_2026-10-13.md` 逐条 file:line | 复验存量+新增复查项 | 已回归(落盘)；D-2 三项并入接真前 checklist；DC-3 结论已出待用户确认 | — | — |
@@ -127,6 +127,7 @@
 | 四 | AU-110 券手动核销范围旁路+AU-111 cancelEmptyTask 任务锁收口 | dc817225 | CouponTest 23 红 2 / EmptyTaskTest 6 红2误2 | 定向 23/23+6/6 绿、trade **1845/1845** 绿、preflight 绿 |
 | 五 | AU-090 要货单行上界+接单聚合 long 夹上限（上限待 DC-18） | c4db7052 | QtyCapsTest 4 红 2（nothing-was-thrown） | 定向 4/4 绿、trade **1849/1849** 绿、preflight 绿 |
 | 六 | AU-061 tracker 归属校验+Redis key 白名单（含 complete 无主建 hash 键泄漏顺带修复） | bd1396fb | stub 接线 CommandTrackerTest 7 红 5 | 守卫启用 7/7 绿、gateway **67/67** 绿、preflight 绿 |
+| 七 | AU-048 配置审计默认开 + 资金键 18 族强制留痕与值校验（feature-flags.json 注册表同步） | 83246a87 | FundKeyGuardTest 8 红 6 | 定向 8/8+9/9+11/11 绿、trade **1857/1857** 绿、preflight 绿 |
 | — | merge origin/dev（10-13 午 9 提交：V344/345 种子守卫、监控接线四连修、lint 豁免 .qoder、admin keep-alive+产物重建） | 本次合并 | — | 合并后 preflight 绿；AU-004 对照更新+新立 DC-26 |
 
-下一步（串行队列）：AU-048 → 配置门禁批（AU-074/075/076+AU-124）→ AU-038/039/040 接真前 → C-admin/C-mp 实测 → Track F 余项 → 收尾报告。
+下一步（串行队列）：配置门禁批（AU-074/075/076+AU-124）→ AU-038/039/040 接真前 → C-admin/C-mp 实测 → Track F 余项 → 收尾报告。
