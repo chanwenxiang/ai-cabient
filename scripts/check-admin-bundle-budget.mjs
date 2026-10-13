@@ -12,7 +12,7 @@
  *   ADMIN_BUDGET_LEAFLET_KB=220
  *   ADMIN_BUDGET_ECHARTS_KB=600
  *   ADMIN_BUDGET_ROUTE_KB=150
- *   ADMIN_BUDGET_TOTAL_JS_KB=3200
+ *   ADMIN_BUDGET_TOTAL_JS_KB=3300
  *
  * 分类按 chunk **名前缀**判定（`ui-vendor-` / `index-` / `leaflet-` / `echarts-vendor-`，
  * 其余全算 route）。⇒ 新增一类必须同时改这里与 vite.config.ts 的 manualChunks，
@@ -51,7 +51,9 @@ const BUDGET = {
   // 既能容忍 minor 升级，又能抓住「有人退回 import * as echarts from 'echarts'」这类回归。
   echartsVendorKb: envKb('ADMIN_BUDGET_ECHARTS_KB', 600),
   routeKb: envKb('ADMIN_BUDGET_ROUTE_KB', 150),
-  totalJsKb: envKb('ADMIN_BUDGET_TOTAL_JS_KB', 3200)
+  // 3200 定于 f030f09f（74 页时代）。2026-10-13 平台资金池/设备租赁两个新财务页
+  // （CB-033/034）落地后实测 3208.3KB ⇒ 3300，留 ~3% 余量给后续页面；单项预算不变。
+  totalJsKb: envKb('ADMIN_BUDGET_TOTAL_JS_KB', 3300)
 };
 
 function kb(bytes) {
