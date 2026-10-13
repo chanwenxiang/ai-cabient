@@ -15,6 +15,8 @@ export default tseslint.config(
   {
     ignores: [
       '**/.cursor/**',
+      // AI 工具本地 worktree（如 .qoder/worktrees/*，内含检出副本与构建产物，不入库）
+      '**/.qoder/**',
       '**/node_modules/**',
       '**/dist/**',
       '**/bin/**',
