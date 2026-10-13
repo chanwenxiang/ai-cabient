@@ -14,12 +14,20 @@ import org.springframework.web.bind.annotation.*;
 public class MerchantOpsExceptionController {
     private final OpsExceptionService service;
     private final MerchantScopeService scopeService;
+    private final com.aicabinet.trade.support.MerchantPortalGuard merchantPortalGuard;
 
-    public MerchantOpsExceptionController(OpsExceptionService service, MerchantScopeService scopeService) {
+    public MerchantOpsExceptionController(OpsExceptionService service, MerchantScopeService scopeService,
+            com.aicabinet.trade.support.MerchantPortalGuard merchantPortalGuard) {
         this.service = service;
         this.scopeService = scopeService;
+        this.merchantPortalGuard = merchantPortalGuard;
     }
 
+    /**
+     * AU-088：先过门户统一闸——「未绑定⇒全局」时 allowedDeviceIds=null，
+     * listForDevices 把 null 当全部设备造成跨租户读；requireAccess 拒绝全局态后
+     * 该通道不复存在（对照 resolveForMerchant 写侧本就拒 null）。
+     */
     @RequiresPermissions(value = {"merchant:alerts:view", "merchant:inventory:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping
     public ApiResponse<PageResult<OpsExceptionDto>> list(HttpServletRequest request,
@@ -27,6 +35,7 @@ public class MerchantOpsExceptionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        merchantPortalGuard.requireAccess(userId);
         var devices = scopeService.allowedDeviceIds(userId);
         return ApiResponse.ok(service.listForDevices(devices, status, page, size));
     }

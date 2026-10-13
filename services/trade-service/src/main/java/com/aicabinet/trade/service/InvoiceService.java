@@ -39,6 +39,7 @@ public class InvoiceService {
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
     private final DistributedLockService distributedLockService;
+    private final com.aicabinet.trade.support.MerchantPortalGuard merchantPortalGuard;
 
     public InvoiceService(InvoiceRequestMapper invoiceRepository,
                           MerchantTaxProfileMapper taxProfileRepository,
@@ -46,7 +47,8 @@ public class InvoiceService {
                           DeviceInfoMapper deviceRepository,
                           PermissionService permissionService,
                           MerchantScopeService merchantScopeService,
-                          DistributedLockService distributedLockService) {
+                          DistributedLockService distributedLockService,
+                          com.aicabinet.trade.support.MerchantPortalGuard merchantPortalGuard) {
         this.invoiceRepository = invoiceRepository;
         this.taxProfileRepository = taxProfileRepository;
         this.orderRepository = orderRepository;
@@ -54,6 +56,7 @@ public class InvoiceService {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.distributedLockService = distributedLockService;
+        this.merchantPortalGuard = merchantPortalGuard;
     }
 
     @Transactional
@@ -199,11 +202,14 @@ public class InvoiceService {
         return toTaxDto(p);
     }
 
+    /**
+     * AU-087：税资料读写走门户统一闸——旧实现「全局态短路」让未绑定账号可读写
+     * 任意商户（BOLA）。requireAccess 拒绝全局/未绑定态，再要求 merchantId
+     * 落在自身范围（绑定商户+下级），与门户其余 60+ 处守卫口径对齐。
+     */
     private void requireMerchantScope(Long userId, String merchantId) {
-        permissionService.requirePermission(userId, "merchant:portal:access");
-        Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
-        if (!merchantScopeService.isGlobalScope(userId)
-                && (allowed.isEmpty() || !allowed.contains(merchantId))) {
+        merchantPortalGuard.requireAccess(userId);
+        if (!merchantScopeService.allowedMerchantIds(userId).contains(merchantId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
         }
     }
