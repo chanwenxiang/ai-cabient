@@ -28,9 +28,9 @@
 
 | # | 级 | 位置与复现 | 台账 |
 |---|---|---|---|
-| A | P2→**建议接真前必修** | SettlementOrderSupport.java:89 `int lineAmount = unitPrice * quantity` —— **quantity 无上界→int 溢出造负金额单**。持内部 key 对自家绑定柜 RECOGNIZING 会话上报 quantity≈2^30（先补库存使扣减通过）→行金额负→chargeOrder:139 负额跳过扣款标 PAID。修法：入口 quantity/条数上限（≤999/行、≤50 行）+金额 long | AU-038 |
-| B | P2→建议接真前必修 | VisionResultIngestService.java:129-155 置信度未 clamp：`overallConfidence=99.0` 直过双门槛→绕过"低置信转人工" | AU-039 |
-| C | P2→建议接真前必修 | JiangyiInternalController.java:161 + JiangyiOrderVideoMapper:17-33 order-video-report **不校验 orderNo 归属上报 deviceId**：任一合法设备可覆写他人 orderNo 分片行，污染争议录像取证源。trade 侧一行 session↔deviceId 比对即可修 | AU-040 |
+| A | P2→**建议接真前必修** | SettlementOrderSupport.java:89 `int lineAmount = unitPrice * quantity` —— **quantity 无上界→int 溢出造负金额单**。持内部 key 对自家绑定柜 RECOGNIZING 会话上报 quantity≈2^30（先补库存使扣减通过）→行金额负→chargeOrder:139 负额跳过扣款标 PAID。修法：入口 quantity/条数上限（≤999/行、≤50 行）+金额 long。**✅批九已修**：applyItemsToOrder/recalculatePayableAfterLineChange 全程 long 累加并把行金额与合计夹进 [0, INT_MAX] 列域（越界 400，逐行即检、零写库），入口 ingest 另加 `MAX_QUANTITY_PER_ITEM=1000`（与批五同口径）；**条数上限未加**——列域硬保证已消除金额溢出，≤50 行属业务取值，并入 DC-18 拍板 | AU-038 |
+| B | P2→建议接真前必修 | VisionResultIngestService.java:129-155 置信度未 clamp：`overallConfidence=99.0` 直过双门槛→绕过"低置信转人工"。**✅批九已修（口径=拒而非钳）**：`checkConfidence` 对每行与整体做 0~1 值域校验（非区间即拒的写法顺带挡 NaN/Infinity）；不钳制的原因=把 99.0 钳成 1.0 等于「越界上报一律按满置信自动扣款」，正是本次要堵的绕过，拒收可让端侧单位错误在联调期立刻暴露。Kafka 通道按本类既有设计不加校验（字段来自 vision-service 代码常量，外部不可构造） | AU-039 |
+| C | P2→建议接真前必修 | JiangyiInternalController.java:161 + JiangyiOrderVideoMapper:17-33 order-video-report **不校验 orderNo 归属上报 deviceId**：任一合法设备可覆写他人 orderNo 分片行，污染争议录像取证源。trade 侧一行 session↔deviceId 比对即可修。**✅批九已修**：`JiangyiOrderVideoService.upsertReport` 落库前比对会话 deviceId（不一致 400 DEVICE_MISMATCH，先于 mapper 调用）；会话查不到时放行（无从证明冲突且无受害者行可覆盖，拒了会把「上报先到、会话后落」变成录像丢失） | AU-040 |
 | D | P3 | VisionAnomalyIngestService:34-72：批量无上限、deviceId 不校验存在性；dedupKey 可被伪造抢占压制真异常建单；webhook 在 @Transactional 内发（回滚后已发/重复触警无节流） | AU-041 |
 | E | P3 | OpsAlertInternalController:32-39 message 无长度上限→webhook 刷屏；alertType/deviceId 未消毒→CRLF 注入 | AU-042 |
 | F | P3 | OpsExceptionController:98-102 vs OpsExceptionService:410-411 —— /retry 幂等键**永不命中**（controller 查 `idempotencyKey=`，落库是 `幂等键：`）；实际双扣被 order 闸兜住，但幂等承诺为假 | AU-043 |

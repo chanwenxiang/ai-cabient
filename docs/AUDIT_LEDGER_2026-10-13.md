@@ -37,9 +37,9 @@
 | AU-028 | B-2 | P2 | 会话超时 | Q1 失败/取消后门的物理状态无人管=免单窗口（迟到事件静默 no-op 无告警） | B2 报告 ③ | 新增 | 待拍板(是否补锁门指令/告警) | — | — |
 | AU-029 | B-2 | P2 | legacy 开门链 | Q2 HTTP 重试→重复 MQTT OPEN（jiangyi 链已不重试，本链未对齐） | B2 报告 ③ | 新增 | 待修(随批) | — | — |
 | AU-030~037 | B-2 | P3 | 会话/设备面 | Q3~Q10（CAS 语义漂移、事务内锁族、WAITING_UPLOAD 死态、403/404 不一致、异常透传、@Valid 级联缺失、inflight 契约漂移、幂等竞态 500） | B2 报告 ③ | 新增 | 登记(延后) | — | — |
-| AU-038 | B-3 | P2 | SettlementOrderSupport:89 | quantity 无上界→int 溢出可造负金额单（chargeOrder 负额跳过扣款标 PAID）；**建议接真前必修** | B3 报告 A 行复现路径 | 新增 | 待修(入口上界+long) | — | — |
-| AU-039 | B-3 | P2 | VisionResultIngestService:129-155 | 置信度未 clamp，99.0 可绕过低置信转人工；建议接真前必修 | B3 报告 B 行 | 新增 | 待修(随批) | — | — |
-| AU-040 | B-3 | P2 | JiangyiInternalController:161 | order-video-report 不校验 orderNo 归属上报设备→可覆写他人录像行；建议接真前必修（一行比对） | B3 报告 C 行 | 新增 | 待修(随批) | — | — |
+| AU-038 | B-3 | P2 | SettlementOrderSupport:89 | quantity 无上界→int 溢出可造负金额单（chargeOrder 负额跳过扣款标 PAID）；**建议接真前必修** | B3 报告 A 行复现路径 | 新增 | **已修(批九)**：金额全程 long+行金额/合计逐个夹 [0,INT_MAX] 列域（越界 400 零写库），入口另加 MAX_QUANTITY_PER_ITEM=1000（同 AU-090 口径）；条数上限未加（列域已消除溢出，属业务取值→并入 DC-18） | 5134f238 | OverflowTest 3 例先红 2（nothing-was-thrown）→3/3；trade **1873/1873** |
+| AU-039 | B-3 | P2 | VisionResultIngestService:129-155 | 置信度未 clamp，99.0 可绕过低置信转人工；建议接真前必修 | B3 报告 B 行 | 新增 | **已修(批九，口径=拒非钳)**：checkConfidence 对每行+overallConfidence 做 0~1 值域（非区间即拒写法顺带挡 NaN/Infinity）；钳成 1.0=越界上报按满置信自动扣款，正是要堵的绕过。Kafka 通道按本类既有设计不重复校验 | 5134f238 | IngestTest 新增 4 例先红 3（404 而非 400）→22/22；边界 0.0/1.0 受理例防误伤 |
+| AU-040 | B-3 | P2 | JiangyiInternalController:161 | order-video-report 不校验 orderNo 归属上报设备→可覆写他人录像行；建议接真前必修（一行比对） | B3 报告 C 行 | 新增 | **已修(批九)**：upsertReport 落库前比对会话 deviceId，不一致 400 DEVICE_MISMATCH；会话查不到放行（无受害者行，拒会把「上报先到会话后落」变录像丢失） | 5134f238 | OrderVideoServiceTest 新增 3 例先红 1→14/14；trade 全量绿 |
 | AU-041~045 | B-3 | P3 | 上报/告警/争议面 | D/E（anomaly 条数无界+dedup 抢占+事务内发 webhook、ops-alert 无长度上界/CRLF）、F（/retry 幂等键格式永不命中）、G（事务内抢锁残留）、I（detail 透 previewUrl/裸 videoUri 口径不一） | B3 报告 ③ | 新增 | 登记(随批/延后) | — | — |
 | AU-046 | B/C | P3 | consumer-config | `supportEmail=ops@aicabinet.local` 占位透出 C 端 | 来源键 `ops.support_email`（SystemConfigService seed :714），运营台 SystemConfigView 可改 | B-8 S-08 确认 | 挂起(接真 checklist 运营动作：改邮箱) | — | — |
 | AU-047 | B-8 | **P1** | OpsRbacService:461-467 | PUT /rbac/operators 传 status=INACTIVE **缺 C16 超管守卫**（DELETE 路径有，PUT 旁路；复核更正：禁自禁 :463 本已存在）→ 持 assign:edit 者可停用超管 | B8 报告 S-02（已按复核更正表述） | 新增 | **已修(待 CI 口径)**：INACTIVE 分支补 userHasRoleKey(userId, ADMIN) 守卫 | bc82afbc | 负向测试先红(OpsRbacServiceGuardTest:198 "nothing was thrown"，HEAD 码)后绿(14/14，修复码)；域内全量 1810 绿 |
@@ -131,6 +131,7 @@
 | 八-a | AU-074/080 占位符/已知弱值三端黑名单（trade validator+check-env.ps1）+新门禁 check-env-placeholders | 76ae9cc4 | PlaceholderTest 签名在红→4/4；PowerShell 占位样本 8 键全拒 | trade **1861/1861** 绿、门禁 self-test 绿、preflight 绿 |
 | 八-b/c | AU-075/076 jiangyi 启动校验器+prod 叠加层段+模板补齐；门禁扩三端一致 | 2f17b14a | 骨架期定向 7 红 5 | 7/7 绿、jiangyi **74/74**、self-test 五形态绿、preflight 绿 |
 | 八-d | AU-124 commercial-flow 运行期拒绝非演示编排阶段（mock-enabled=false⇒403 先于造数） | 743787e0 | DemoStageGuardTest 2 红 1（nothing-was-thrown） | 2/2 绿、trade **1863/1863** 绿、preflight 绿 |
+| 九 | AU-038/039/040 结算金额 long+列域夹取、识别置信度 0~1 值域（拒不钳）、录像上报会话归属比对 | 5134f238 | 定向 39 例红 6（归属 1/溢出 2/值域 3） | 定向 39/39 绿、trade **1873/1873**（1863+10）绿、preflight 绿 |
 | — | merge origin/dev（10-13 午 9 提交：V344/345 种子守卫、监控接线四连修、lint 豁免 .qoder、admin keep-alive+产物重建） | 本次合并 | — | 合并后 preflight 绿；AU-004 对照更新+新立 DC-26 |
 
-下一步（串行队列）：**批八配置门禁 ✅（AU-074/075/076/080/124 全清，8a/8b/8c/8d）** → AU-038/039/040 接真前 → C-admin/C-mp 实测 → Track F 余项 → 收尾报告。F1 剩余 P2/P3（AU-077 护栏死代码 BEL 字符、AU-078 文档三处过时、AU-081~085）不在批八范围，登记随批/延后，收尾时进拍板清单。
+下一步（串行队列）：**批八配置门禁 ✅（AU-074/075/076/080/124 全清，8a/8b/8c/8d）** → **批九 ✅（AU-038/039/040 接真前三连，5134f238）** → C-admin/C-mp 实测 → Track F 余项 → 收尾报告。F1 剩余 P2/P3（AU-077 护栏死代码 BEL 字符、AU-078 文档三处过时、AU-081~085）不在批八范围，登记随批/延后，收尾时进拍板清单。
