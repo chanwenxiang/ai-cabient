@@ -117,6 +117,8 @@ services:
   # M12 监控接线：Prometheus 挂到同源子路径 /devops/prometheus/（网关 Basic 防护），
   # 指标端点不直接暴露公网端口（base 层仅 127.0.0.1:9090）
   prometheus:
+    # 常驻型 ≥30s（check:compose-stop-grace）：SIGTERM 后完成 TSDB 内存块落盘与 WAL 收尾
+    stop_grace_period: 30s
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
