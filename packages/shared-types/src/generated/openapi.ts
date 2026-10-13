@@ -5017,6 +5017,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/warehouse/close-sheets/{closeId}/lines/{lineId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateCloseLine"];
+        trace?: never;
+    };
     "/api/v2/ops/admin/repair-tickets/{ticketId}": {
         parameters: {
             query?: never;
@@ -5889,6 +5905,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["closeSheetDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/warehouse/close-sheets/{closeId}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["exportCloseSheet"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11605,6 +11637,7 @@ export interface components {
             warehouseName?: string;
             yearMonth?: string;
             status?: string;
+            openingSource?: string;
             /** Format: int32 */
             lossQty?: number;
             /** Format: int32 */
@@ -11653,6 +11686,18 @@ export interface components {
             gapDisposition?: string;
             /** Format: int64 */
             claimWriteOffId?: number;
+            /** Format: int32 */
+            rockLossQty?: number;
+            /** Format: int32 */
+            expiredLossQty?: number;
+            /** Format: int32 */
+            guestWaterQty?: number;
+            /** Format: int32 */
+            feeDeductQty?: number;
+            /** Format: int64 */
+            unitPriceCents?: number;
+            editedFlag?: boolean;
+            lineRemark?: string;
         };
         GenerateCloseSheetRequest: {
             warehouseId?: string;
@@ -13366,6 +13411,15 @@ export interface components {
             reason?: string;
             idemKey?: string;
         };
+        UpdateCloseLineRequest: {
+            /** Format: int32 */
+            countedQty?: number;
+            /** Format: int32 */
+            rockLossQty?: number;
+            /** Format: int32 */
+            feeDeductQty?: number;
+            lineRemark?: string;
+        };
         UpdateDeviceRequest: {
             deviceName?: string;
             deviceType?: string;
@@ -13913,6 +13967,7 @@ export interface components {
             warehouseName?: string;
             yearMonth?: string;
             formulaHint?: string;
+            openingSource?: string;
             lines?: components["schemas"]["WarehouseMonthlyCloseLineDto"][];
         };
         WarehouseMonthlyCloseLineDto: {
@@ -13938,6 +13993,16 @@ export interface components {
             countedQty?: number;
             /** Format: int32 */
             gapQty?: number;
+            /** Format: int32 */
+            rockLossQty?: number;
+            /** Format: int32 */
+            expiredLossQty?: number;
+            /** Format: int32 */
+            guestWaterQty?: number;
+            /** Format: int32 */
+            feeDeductQty?: number;
+            /** Format: int64 */
+            unitPriceCents?: number;
         };
         ApiResponsePageResultWarehouseDto: {
             /** Format: int32 */
@@ -26785,6 +26850,33 @@ export interface operations {
             };
         };
     };
+    updateCloseLine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                closeId: number;
+                lineId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCloseLineRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWarehouseCloseSheetDto"];
+                };
+            };
+        };
+    };
     detail: {
         parameters: {
             query?: never;
@@ -28116,6 +28208,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseWarehouseCloseSheetDto"];
+                };
+            };
+        };
+    };
+    exportCloseSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                closeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
                 };
             };
         };
