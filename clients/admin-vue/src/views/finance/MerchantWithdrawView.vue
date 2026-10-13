@@ -216,6 +216,27 @@
               label-class-name="col-text"
             />
             <el-table-column
+              label="收款方"
+              min-width="160"
+              class-name="col-text"
+              label-class-name="col-text"
+            >
+              <!-- V307 收款方快照（只读对账用）：户名 + 掩码账号 + 开户行 -->
+              <template #default="{ row }">
+                <template v-if="row.payeeAccountName || row.payeeAccountNoMask">
+                  <div class="payee-cell">
+                    <span class="payee-cell__name">{{ row.payeeAccountName || '—' }}</span>
+                    <span class="payee-cell__meta">
+                      {{ row.payeeAccountType === 'COMPANY' ? '对公' : '对私' }}
+                      {{ row.payeeAccountNoMask || '' }}
+                      {{ row.payeeBankName || '' }}
+                    </span>
+                  </div>
+                </template>
+                <template v-else>—</template>
+              </template>
+            </el-table-column>
+            <el-table-column
               label="金额(元)"
               width="100"
               align="center"
@@ -263,6 +284,27 @@
               label-class-name="col-status"
             >
               <template #default="{ row }">{{ displayBizNo(row.payoutRef, '无') }}</template>
+            </el-table-column>
+            <el-table-column
+              label="渠道对账"
+              min-width="150"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
+              <!-- V307 渠道对账字段：真实出款后的渠道单号/批次号 + 我方幂等键（渠道侧商户单号） -->
+              <template #default="{ row }">
+                <template v-if="row.channelOrderNo || row.channelBatchNo || row.idemKey">
+                  <div class="payee-cell">
+                    <span class="payee-cell__name">{{
+                      displayBizNo(row.channelOrderNo || row.channelBatchNo)
+                    }}</span>
+                    <span v-if="row.idemKey" class="payee-cell__meta">{{
+                      displayBizNo(row.idemKey)
+                    }}</span>
+                  </div>
+                </template>
+                <template v-else>—</template>
+              </template>
             </el-table-column>
             <el-table-column
               prop="payoutMessage"
@@ -901,6 +943,22 @@ onMounted(reload);
 <style scoped>
 .mb {
   margin-bottom: 12px;
+}
+/* V307 收款方/渠道对账列：主行关键值 + 副行补充信息 */
+.payee-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.35;
+}
+.payee-cell__name {
+  color: var(--layout-text);
+  font-variant-numeric: tabular-nums;
+}
+.payee-cell__meta {
+  color: var(--layout-muted);
+  font-size: var(--admin-font-size-sm);
+  font-variant-numeric: tabular-nums;
 }
 .dialog-merchant {
   padding: 12px 14px;
