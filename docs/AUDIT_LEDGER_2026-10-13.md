@@ -48,7 +48,7 @@
 | AU-058 | B-8 | 存疑 | 消费者登录 | login/loginByPassword 不查 INACTIVE——status 语义是否仅运营侧待产品确认 | B8 报告 ③-1 | 新增 | 待拍板 DC-10 | — | — |
 | AU-059 | D | — | easygo diff | Track D 三项复验落盘：**上线阻塞 0**。D-2 九行偏差 6 有意设计+3 接真前复查（pending 等价性/开票分桶/软拦截升级）；D-3 判非阻塞（新链先不扣后争议，严格优于旧窄覆盖自动退款）；D-4 双层超时兜底为净增强、无偏差 | `docs/AUDIT_TRACK_D_EASYGO_DIFF_2026-10-13.md` 逐条 file:line | 复验存量+新增复查项 | 已回归(落盘)；D-2 三项并入接真前 checklist；DC-3 结论已出待用户确认 | — | — |
 | AU-060 | B-4 | **P1** | DeviceReportController:70,94,134,187 | 设备上报面 open-failed/recognize-timeout 支路**不带 deviceId 无归属校验**：合法设备 JWT 可用他人 orderNo 把其 OPENING 会话置 FAILED+释预授权（门实开后取货无结算）或转其 RECOGNIZING 为 DISPUTED；door-event/edge-results 有 DEVICE_MISMATCH 而此两支路 trade 端根本没有 deviceId 形参可比对 | 主会话复核实证（SessionInternalController:56-63、SessionOpenService:92-113 仅状态 CAS、JiangyiInternalController:228-231）；B4 报告 ② | 新增(同 P1-5 家族) | **已修(待 CI 口径)**：trade markOpenDoorFailed/markRecognitionTimeout 增 reportingDeviceId 归属守卫（null=内部调用方旧语义），gateway 7 处调用点透传 token deviceId | bbd5e272 | 负向先红(stub 无守卫 Tests run: 5, Failures: 2 foreign 用例)后绿(JiangyiSessionBindingGuardTest 5/5)；trade 域全量 1834 绿、gateway 模块 60 绿、preflight 通过 |
-| AU-061 | B-4 | P2 | DeviceReportController:64,109 + CommandTracker:103-105 | 同根因 tracker 面：complete(OPEN)/register(CLOSE) 不校验 orderNo 归属+Redis key 由 body 直 format 无长度/字符集限制 | B4 报告 ② | 新增 | 待修(AU-060 批仅落 trade 归属守卫，tracker 面未动，随下批) | — | — |
+| AU-061 | B-4 | P2 | DeviceReportController:64,109 + CommandTracker:103-105 | 同根因 tracker 面：complete(OPEN)/register(CLOSE) 不校验 orderNo 归属+Redis key 由 body 直 format 无长度/字符集限制 | B4 报告 ② | 新增 | **已回归** | bd1396fb | stub 接线先红：CommandTrackerTest 7 例 Failures: 5（归属 3+键约束 3 面，钉例绿）；启用守卫 7/7 绿、gateway 全量 **67/67** 绿、preflight 绿。complete 无主 hash 拒绝顺带修复键泄漏 |
 | AU-062 | B-4 | P2 | AdminJiangyiController:71-75,86-93 | 视频台账列表回原始实体（含 videoUrls 对象键）给 ops:device:list，绕开 CB-029 分离的 ops:device:video；三处读权限口径不一 | V339 迁移+JiangyiOrderVideo:39 | 新增 | 待拍板 DC-11 后修 | — | — |
 | AU-063 | B-4 | P2 | DeviceReportController:152-161 | 识别转发 trade 失败被 catch 仍回 200+finally 无条件 complete(CLOSE)：设备不重发且兜底同清→结算降级人工 | B4 报告 ② | 新增 | 待修(随批) | — | — |
 | AU-064~073 | B-4 | P3 | 将邑面 ×10 | message 透 503 配置状态、envelope 契约不一、serialNum 无范围、upsert 竞态丢报、forms 无上限放大、内部映射无校验、watchdog 锁无 owner、gather 回调无限速可否决 ticket、token-revoke 无调用方、AU-040 补证据 | B4 报告 ②④ | 新增 | 登记(延后/随批) | — | — |
@@ -126,6 +126,7 @@
 | 三 | AU-087/088 税资料 BOLA+异常台账跨租户（MerchantPortalGuard） | 705aa4a5 | 6 例红 3（unbound 三例） | 定向 4/4+2/2 绿、trade 1840/1840 绿、preflight 绿 |
 | 四 | AU-110 券手动核销范围旁路+AU-111 cancelEmptyTask 任务锁收口 | dc817225 | CouponTest 23 红 2 / EmptyTaskTest 6 红2误2 | 定向 23/23+6/6 绿、trade **1845/1845** 绿、preflight 绿 |
 | 五 | AU-090 要货单行上界+接单聚合 long 夹上限（上限待 DC-18） | c4db7052 | QtyCapsTest 4 红 2（nothing-was-thrown） | 定向 4/4 绿、trade **1849/1849** 绿、preflight 绿 |
+| 六 | AU-061 tracker 归属校验+Redis key 白名单（含 complete 无主建 hash 键泄漏顺带修复） | bd1396fb | stub 接线 CommandTrackerTest 7 红 5 | 守卫启用 7/7 绿、gateway **67/67** 绿、preflight 绿 |
 | — | merge origin/dev（10-13 午 9 提交：V344/345 种子守卫、监控接线四连修、lint 豁免 .qoder、admin keep-alive+产物重建） | 本次合并 | — | 合并后 preflight 绿；AU-004 对照更新+新立 DC-26 |
 
-下一步（串行队列）：AU-061 tracker 面（随下批，B-4）→ AU-048 → 配置门禁批（AU-074/075/076+AU-124）→ AU-038/039/040 接真前 → C-admin/C-mp 实测 → Track F 余项 → 收尾报告。
+下一步（串行队列）：AU-048 → 配置门禁批（AU-074/075/076+AU-124）→ AU-038/039/040 接真前 → C-admin/C-mp 实测 → Track F 余项 → 收尾报告。
