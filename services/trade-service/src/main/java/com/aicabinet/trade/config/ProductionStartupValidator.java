@@ -247,9 +247,30 @@ public class ProductionStartupValidator {
         if (!authProperties.cookieEnabled()) {
             return;
         }
-        if (isProdProfile() && !authProperties.cookieSecure()) {
-            throw new IllegalStateException(
-                    "Production requires AUTH_COOKIE_SECURE=true (admin session cookie must be Secure over HTTPS)");
+        if (isProdProfile() && authProperties.cookieEnabled()) {
+            // 2026-10-13 生产首启实证：原版无条件硬要求 Secure=true，导致 HTTPS 就绪前的 HTTP 过渡期
+            // 浏览器拒存 Secure cookie ⇒ 登录成功但后台全 401（静默失败）。改为按 PUBLIC_BASE_URL
+            // 协议声明阶段：声明 https ⇒ 必须 Secure；声明 http/未声明 ⇒ 必须 false（错配即硬拒，
+            // http+Secure=true 正是「浏览器拒存⇒静默 401」的错误形态）。HTTPS 上线时两处一起改回。
+            String publicBaseUrl = environment.getProperty("PUBLIC_BASE_URL", "");
+            boolean httpsStage = publicBaseUrl.startsWith("https://");
+            if (httpsStage && !authProperties.cookieSecure()) {
+                throw new IllegalStateException(
+                        "PUBLIC_BASE_URL is https:// but AUTH_COOKIE_SECURE=false: admin session cookie must be "
+                                + "Secure over HTTPS; set AUTH_COOKIE_SECURE=true");
+            }
+            if (!httpsStage && authProperties.cookieSecure()) {
+                throw new IllegalStateException(
+                        "AUTH_COOKIE_SECURE=true with non-HTTPS PUBLIC_BASE_URL ("
+                                + (publicBaseUrl.isEmpty() ? "unset" : publicBaseUrl)
+                                + "): browsers will silently drop the session cookie and every admin API returns "
+                                + "401; set AUTH_COOKIE_SECURE=false until HTTPS is live (or PUBLIC_BASE_URL to https://)");
+            }
+            if (!httpsStage) {
+                log.warn("PROD pre-HTTPS stage (PUBLIC_BASE_URL={}): AUTH_COOKIE_SECURE=false is expected now; "
+                        + "flip PUBLIC_BASE_URL to https:// and AUTH_COOKIE_SECURE=true together after HTTPS is live",
+                        publicBaseUrl.isEmpty() ? "(unset)" : publicBaseUrl);
+            }
         }
         if (isStagingProfile() && !isProdProfile() && authProperties.cookieSecure()) {
             log.warn("AUTH_COOKIE_SECURE=true on staging/localhost HTTP will make browsers drop the session cookie; "

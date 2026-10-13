@@ -16,6 +16,8 @@ services:
       # P2：生产 HTTPS 下会话 Cookie 必须 Secure（validator 亦有强校验）
       # Cookie 会话安全属性生产必填显式声明（HTTPS 未就绪的过渡期可 false，见 DEPLOYMENT_CHECKLIST）
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:?set AUTH_COOKIE_SECURE (true after HTTPS / false interim) in .env.production}
+      # 入口协议声明（validator 以此判定 cookie 阶段：https⇒SECURE 必须 true；http⇒必须 false）
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL (https://domain after HTTPS / http://IP interim) in .env.production}
       # V1：生产每日对账与退款 PROCESSING 推进必须启用（此前默认 false=永不执行）
       RECON_SCHEDULED_ENABLED: "true"
       # L2-4：生产 Redis 强口令必填

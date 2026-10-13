@@ -65,6 +65,7 @@ class ProductionStartupValidatorPaymentModeTest {
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
         when(environment.getProperty("spring.datasource.password", "")).thenReturn("prod-db-password-not-default");
+        when(environment.getProperty("PUBLIC_BASE_URL", "")).thenReturn("https://admin.example.com");
 
         SecurityProperties securityProperties = mock(SecurityProperties.class);
         when(securityProperties.mockEnabled()).thenReturn(false);
