@@ -236,6 +236,19 @@ export const AdminEndpoints = {
   skusCatalogPage: `${ops}/skus?${adminCatalogQuery()}`,
   sku: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}`,
   skusImage: `${ops}/skus/image`,
+
+  /** 外部渠道对账导入（CB-036） */
+  externalImportTemplates: `${ops}/external-import/templates`,
+  externalImportPreview: `${ops}/external-import/preview`,
+  externalImportBatches: `${ops}/external-import/batches`,
+  externalImportBatch: (batchId: string | number) =>
+    `${ops}/external-import/batches/${encodeURIComponent(String(batchId))}`,
+  externalImportBatchCommit: (batchId: string | number) =>
+    `${ops}/external-import/batches/${encodeURIComponent(String(batchId))}/commit`,
+  externalImportFlows: `${ops}/external-import/flows`,
+  externalProducts: `${ops}/external-products`,
+  externalProductMapping: (externalProductId: string | number) =>
+    `${ops}/external-products/${encodeURIComponent(String(externalProductId))}/mapping`,
   /** CB-025：条码查编码中心官方资料（商品建档自动带出名称/品牌/规格） */
   skuBarcodeLookup: (code: string) => `${ops}/skus/barcode-lookup?code=${encodeURIComponent(code)}`,
 

@@ -3145,6 +3145,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/external-products/{externalProductId}/mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["bindMapping"];
+        delete: operations["unbindMapping"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/external-import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/external-import/batches/{batchId}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["commit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/exceptions/{id}/unarchive": {
         parameters: {
             query?: never;
@@ -7305,6 +7353,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/external-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/external-import/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["templates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/external-import/flows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["flows_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/external-import/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["batches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/external-import/batches/{batchId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["batch"];
+        put?: never;
+        post?: never;
+        delete: operations["deleteBatch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/exceptions": {
         parameters: {
             query?: never;
@@ -9008,7 +9136,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["products"];
+        get: operations["products_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12445,6 +12573,92 @@ export interface components {
             lockedBy?: number;
             locked?: boolean;
         };
+        ExternalMappingBindRequest: {
+            skuId?: string;
+            note?: string;
+        };
+        ApiResponseExternalProductDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ExternalProductDto"];
+        };
+        ExternalProductDto: {
+            /** Format: int64 */
+            externalProductId?: number;
+            channelCode?: string;
+            externalKey?: string;
+            externalName?: string;
+            brand?: string;
+            spec?: string;
+            /** Format: int64 */
+            unitPriceCents?: number;
+            /** Format: int32 */
+            timesSeen?: number;
+            /** Format: date-time */
+            lastSeenAt?: string;
+            mappedSkuId?: string;
+            mappedSkuName?: string;
+        };
+        ApiResponseExternalImportBatchDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ExternalImportBatchDto"];
+        };
+        ExternalImportBatchDto: {
+            /** Format: int64 */
+            batchId?: number;
+            channelCode?: string;
+            channelName?: string;
+            periodLabel?: string;
+            fileName?: string;
+            personOverride?: string;
+            status?: string;
+            /** Format: int32 */
+            rowsTotal?: number;
+            /** Format: int32 */
+            rowsMapped?: number;
+            /** Format: int32 */
+            rowsUnmapped?: number;
+            unmappedProducts?: components["schemas"]["ExternalUnmappedProductDto"][];
+            unresolvedPersons?: string[];
+            rows?: components["schemas"]["ExternalParsedRowDto"][];
+            commitSummary?: {
+                [key: string]: unknown;
+            };
+            uploadedByName?: string;
+            /** Format: date-time */
+            uploadedAt?: string;
+            /** Format: date-time */
+            committedAt?: string;
+        };
+        ExternalParsedRowDto: {
+            person?: string;
+            extKey?: string;
+            extName?: string;
+            /** Format: int32 */
+            qty?: number;
+            /** Format: int64 */
+            unitPriceCents?: number;
+            happenedAt?: string;
+            /** Format: int32 */
+            srcLine?: number;
+        };
+        ExternalUnmappedProductDto: {
+            /** Format: int64 */
+            externalProductId?: number;
+            externalKey?: string;
+            externalName?: string;
+            /** Format: int32 */
+            timesSeen?: number;
+            suggestedSkuId?: string;
+        };
+        ExternalImportCommitRequest: {
+            personWarehouseOverrides?: {
+                [key: string]: string;
+            };
+        };
         ApiResponseOpsExceptionDto: {
             /** Format: int32 */
             code?: number;
@@ -15491,6 +15705,93 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["FinanceMarginLockDto"][];
+        };
+        ApiResponsePageResultExternalProductDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PageResultExternalProductDto"];
+        };
+        PageResultExternalProductDto: {
+            items?: components["schemas"]["ExternalProductDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        ApiResponseListExternalImportTemplateDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ExternalImportTemplateDto"][];
+        };
+        ExternalImportTemplateDto: {
+            /** Format: int64 */
+            templateId?: number;
+            channelCode?: string;
+            channelName?: string;
+            fileType?: string;
+            sheetStrategy?: string;
+            qtySemantics?: string;
+            keyField?: string;
+            personSource?: string;
+            opType?: string;
+            columnMap?: {
+                [key: string]: string;
+            };
+            defaultWarehouseId?: string;
+            enabled?: boolean;
+            remark?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        ApiResponseListExternalChannelFlowDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ExternalChannelFlowDto"][];
+        };
+        ExternalChannelFlowDto: {
+            /** Format: int64 */
+            flowId?: number;
+            /** Format: int64 */
+            batchId?: number;
+            channelCode?: string;
+            periodLabel?: string;
+            warehouseId?: string;
+            personName?: string;
+            skuId?: string;
+            opType?: string;
+            /** Format: int32 */
+            qty?: number;
+            /** Format: int64 */
+            unitPriceCents?: number;
+            /** Format: date */
+            happenedMin?: string;
+            /** Format: date */
+            happenedMax?: string;
+            /** Format: int32 */
+            rowCount?: number;
+            remark?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        ApiResponsePageResultExternalImportBatchDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PageResultExternalImportBatchDto"];
+        };
+        PageResultExternalImportBatchDto: {
+            items?: components["schemas"]["ExternalImportBatchDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
         };
         ApiResponsePageResultOpsExceptionDto: {
             /** Format: int32 */
@@ -23301,6 +23602,111 @@ export interface operations {
             };
         };
     };
+    bindMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                externalProductId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalMappingBindRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseExternalProductDto"];
+                };
+            };
+        };
+    };
+    unbindMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                externalProductId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseExternalProductDto"];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query: {
+                channelCode: string;
+                periodLabel: string;
+                personOverride?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseExternalImportBatchDto"];
+                };
+            };
+        };
+    };
+    commit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batchId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExternalImportCommitRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseExternalImportBatchDto"];
+                };
+            };
+        };
+    };
     unarchive: {
         parameters: {
             query?: never;
@@ -29829,6 +30235,145 @@ export interface operations {
             };
         };
     };
+    products: {
+        parameters: {
+            query?: {
+                channelCode?: string;
+                mapped?: boolean;
+                keyword?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResultExternalProductDto"];
+                };
+            };
+        };
+    };
+    templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListExternalImportTemplateDto"];
+                };
+            };
+        };
+    };
+    flows_1: {
+        parameters: {
+            query?: {
+                periodLabel?: string;
+                warehouseId?: string;
+                opType?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListExternalChannelFlowDto"];
+                };
+            };
+        };
+    };
+    batches: {
+        parameters: {
+            query?: {
+                channelCode?: string;
+                periodLabel?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResultExternalImportBatchDto"];
+                };
+            };
+        };
+    };
+    batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batchId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseExternalImportBatchDto"];
+                };
+            };
+        };
+    };
+    deleteBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batchId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     list_20: {
         parameters: {
             query?: {
@@ -32155,7 +32700,7 @@ export interface operations {
             };
         };
     };
-    products: {
+    products_1: {
         parameters: {
             query?: never;
             header?: never;

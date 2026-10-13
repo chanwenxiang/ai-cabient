@@ -569,10 +569,17 @@
             :rows="monthlyCloseLines"
           />
         </el-tab-pane>
+        <el-tab-pane
+          v-if="isPaneVisible('channel-import') && canWarehouseList"
+          label="渠道对账导入"
+          name="channel-import"
+        >
+          <ExternalChannelImportTab />
+        </el-tab-pane>
       </el-tabs>
       <!-- 仓库主 tab 的分页已内建 CrudTable；共享分页器仅服务其余 tab -->
       <PagePager
-        v-if="tab !== 'warehouses' && tab !== 'monthly'"
+        v-if="tab !== 'warehouses' && tab !== 'monthly' && tab !== 'channel-import'"
         :hydrated="hydratedTabs.has(tab)"
         v-model:current-page="page"
         v-model:page-size="size"
@@ -736,6 +743,10 @@ const WarehouseMovementsTab = defineAsyncComponent(
 );
 const WarehouseMonthlyCloseTab = defineAsyncComponent(
   () => import('@/components/warehouse/WarehouseMonthlyCloseTab.vue')
+);
+/** CB-036 渠道对账导入：独立异步组件（wizard 自取数，不走 view 级 loader），守住 route chunk 门禁 */
+const ExternalChannelImportTab = defineAsyncComponent(
+  () => import('@/components/warehouse/ExternalChannelImportTab.vue')
 );
 /**
  * V314 调拨收货损耗登记：独立异步组件（理由同V313 —— route chunk 门禁 ≤150KB）。
@@ -1018,6 +1029,8 @@ const TAB_DESC: Record<string, string> = {
   inventory: '批次库存：按批次查看各仓现存量与有效期，先进先出发货',
   movements: '库存流水：每笔入库/出库/调拨/盘点的明细账，可对账追溯',
   monthly: '月结一张表：本仓应有、实盘、上柜件数，与结算金额无关',
+  'channel-import':
+    '渠道对账导入：大黄鹅/嗨便利等外部系统的补货与销售数据，解析→映射→提交为月结外调流水',
   transfers: '仓间调拨：库存在两个仓库间的调拨，生成调拨单与双向流水',
   outbounds: '出库单：补货发往柜机的发货单，补货任务关联的出库在这里'
   // transit 不设通用描述：该 tab 有专属说明条（transit-flow-hint，含签收/上架/不办回仓语义），避免同屏双提示
@@ -1060,6 +1073,7 @@ const TAB_GROUP_MAP: Record<string, WarehouseTabGroup> = {
   inventory: 'inventory',
   movements: 'inventory',
   monthly: 'inventory',
+  'channel-import': 'inventory',
   transfers: 'fulfillment',
   outbounds: 'fulfillment',
   transit: 'fulfillment'
@@ -1068,7 +1082,7 @@ const TAB_GROUP_MAP: Record<string, WarehouseTabGroup> = {
 const TAB_GROUP_ORDER: Record<WarehouseTabGroup, string[]> = {
   overview: ['warehouses'],
   procurement: ['suppliers', 'purchase', 'suggestions', 'returns', 'payables'],
-  inventory: ['stocktakes', 'bins', 'inventory', 'movements', 'monthly'],
+  inventory: ['stocktakes', 'bins', 'inventory', 'movements', 'monthly', 'channel-import'],
   fulfillment: ['transfers', 'outbounds', 'transit']
 };
 
@@ -1082,7 +1096,7 @@ function isWarehouseTabAllowed(name: string): boolean {
   if (['suppliers', 'purchase', 'suggestions', 'returns', 'payables'].includes(name)) {
     return canProcurementList.value;
   }
-  if (['transfers', 'stocktakes', 'bins'].includes(name)) {
+  if (['transfers', 'stocktakes', 'bins', 'channel-import'].includes(name)) {
     return canWarehouseList.value;
   }
   return true;

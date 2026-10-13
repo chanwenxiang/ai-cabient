@@ -78,7 +78,9 @@ export function useWarehouseRouteLifecycle(deps: UseWarehouseRouteLifecycleDeps)
       'outbounds',
       'transit',
       'inventory',
-      'movements'
+      'movements',
+      'monthly',
+      'channel-import'
     ];
     if (allowed.includes(qTab) && deps.tab.value !== qTab) {
       deps.tab.value = qTab;

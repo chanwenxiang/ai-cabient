@@ -20,6 +20,22 @@ export type OpenApiMerchantSelfReplenishRequest = components['schemas']['Merchan
 export type OpenApiMerchantSelfReplenishLine = components['schemas']['MerchantSelfReplenishLine'];
 /** 补货任务 */
 export type OpenApiReplenishmentTaskDto = components['schemas']['ReplenishmentTaskDto'];
+/** 外部渠道解析模板 */
+export type OpenApiExternalImportTemplateDto = components['schemas']['ExternalImportTemplateDto'];
+/** 外部导入统一行 */
+export type OpenApiExternalParsedRowDto = components['schemas']['ExternalParsedRowDto'];
+/** 未映射外部商品 */
+export type OpenApiExternalUnmappedProductDto = components['schemas']['ExternalUnmappedProductDto'];
+/** 外部导入批次 */
+export type OpenApiExternalImportBatchDto = components['schemas']['ExternalImportBatchDto'];
+/** 外部商品 */
+export type OpenApiExternalProductDto = components['schemas']['ExternalProductDto'];
+/** 外部渠道流水 */
+export type OpenApiExternalChannelFlowDto = components['schemas']['ExternalChannelFlowDto'];
+/** 绑定外部商品映射 */
+export type OpenApiExternalMappingBindRequest = components['schemas']['ExternalMappingBindRequest'];
+/** 外部导入批次提交 */
+export type OpenApiExternalImportCommitRequest = components['schemas']['ExternalImportCommitRequest'];
 /** 补货任务明细行 */
 export type OpenApiReplenishmentTaskLineDto = components['schemas']['ReplenishmentTaskLineDto'];
 /** 提交补货明细 */

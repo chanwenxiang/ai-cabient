@@ -178,6 +178,12 @@
             <groupId>org.springframework.data</groupId>
             <artifactId>spring-data-commons</artifactId>
         </dependency>
+        <!-- 外部渠道对账导入（CB-036）：xlsx(XSSF) 与老式 .xls(HSSF/OLE2，乐摇摇) 解析 -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
     </dependencies>
 
     <build>

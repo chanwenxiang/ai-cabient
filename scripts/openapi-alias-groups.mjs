@@ -58,6 +58,46 @@ export const OPENAPI_ALIAS_GROUPS = [
       },
       { name: 'OpenApiReplenishmentTaskDto', schema: 'ReplenishmentTaskDto', comment: '补货任务' },
       {
+        name: 'OpenApiExternalImportTemplateDto',
+        schema: 'ExternalImportTemplateDto',
+        comment: '外部渠道解析模板'
+      },
+      {
+        name: 'OpenApiExternalParsedRowDto',
+        schema: 'ExternalParsedRowDto',
+        comment: '外部导入统一行'
+      },
+      {
+        name: 'OpenApiExternalUnmappedProductDto',
+        schema: 'ExternalUnmappedProductDto',
+        comment: '未映射外部商品'
+      },
+      {
+        name: 'OpenApiExternalImportBatchDto',
+        schema: 'ExternalImportBatchDto',
+        comment: '外部导入批次'
+      },
+      {
+        name: 'OpenApiExternalProductDto',
+        schema: 'ExternalProductDto',
+        comment: '外部商品'
+      },
+      {
+        name: 'OpenApiExternalChannelFlowDto',
+        schema: 'ExternalChannelFlowDto',
+        comment: '外部渠道流水'
+      },
+      {
+        name: 'OpenApiExternalMappingBindRequest',
+        schema: 'ExternalMappingBindRequest',
+        comment: '绑定外部商品映射'
+      },
+      {
+        name: 'OpenApiExternalImportCommitRequest',
+        schema: 'ExternalImportCommitRequest',
+        comment: '外部导入批次提交'
+      },
+      {
         name: 'OpenApiReplenishmentTaskLineDto',
         schema: 'ReplenishmentTaskLineDto',
         comment: '补货任务明细行'
