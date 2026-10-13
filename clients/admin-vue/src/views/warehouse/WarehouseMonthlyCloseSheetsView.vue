@@ -1,11 +1,21 @@
 <template>
-  <div class="page" data-testid="monthly-close-sheets-page">
-    <h2 class="page-title">月结单台账（审批锁账 + 差异处置）</h2>
-    <p class="page-hint">
-      两步法：生成未审批（差异金额化）→ 审批锁单 → 逐行处置（进索赔台账 / 标记正常损耗）。
-      盘亏走索赔或损耗，<b>不生成应付</b>。金额 = 差异件数 × 目录采购成本（未配置成本的 SKU
-      行金额留空）。
-    </p>
+  <!-- 🔴 标准页壳 page-card：统一外层。本页此前用自带样式的 div.page（非全站规范壳，
+       标题/表格样式都接不上 `.page-card` 体系），与其余 50+ 页拉齐。 -->
+  <el-card class="page-card report-page" shadow="never" data-testid="monthly-close-sheets-page">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">月结单台账（审批锁账 + 差异处置）</span>
+            <span class="hint">
+              两步法：生成未审批（差异金额化）→ 审批锁单 → 逐行处置（进索赔台账 /
+              标记正常损耗）。盘亏走索赔或损耗，<b>不生成应付</b>。金额 = 差异件数 ×
+              目录采购成本（未配置成本的 SKU 行金额留空）。
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <!-- 生成区 -->
     <el-card class="block" shadow="never">
@@ -331,7 +341,7 @@
         </el-button>
       </template>
     </el-dialog>
-  </div>
+  </el-card>
 </template>
 
 <script setup lang="ts">
@@ -669,18 +679,6 @@ function exportCsv() {
 </script>
 
 <style scoped>
-.page {
-  padding: 0 4px;
-}
-.page-title {
-  margin: 0 0 4px;
-  font-size: 18px;
-}
-.page-hint {
-  margin: 0 0 12px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
 .block {
   margin-bottom: 12px;
 }

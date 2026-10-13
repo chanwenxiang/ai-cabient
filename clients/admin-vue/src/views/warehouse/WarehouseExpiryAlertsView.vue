@@ -12,7 +12,6 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import CrudTable from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
-import { errorMessage } from '@/utils/error-message';
 import { displayLabel } from '@aicabinet/shared-dict';
 
 interface ExpiryAlertRow {
@@ -93,111 +92,115 @@ function onDaysChange() {
 </script>
 
 <template>
-  <div class="page">
-    <el-card>
-      <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onFilterChange">
-        <el-form-item label="仓库">
-          <el-input
-            v-model="warehouseId"
-            placeholder="留空 = 全部仓库"
-            clearable
-            style="width: 180px"
-            @change="onFilterChange"
-          />
-        </el-form-item>
-        <el-form-item label="提前天数">
-          <!-- 🔴 上限 365：与后端夹取一致，避免界面显示 99999 但实际只查 365 天 -->
-          <el-input-number
-            v-model="daysAhead"
-            :min="1"
-            :max="365"
-            controls-position="right"
-            style="width: 140px"
-            @change="onDaysChange"
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="onFilterChange">查询</el-button>
-          <el-button @click="crud.load()">刷新</el-button>
-        </el-form-item>
-      </el-form>
+  <!-- 🔴 标准页壳 page-card：统一外层。本页此前用裸 div.page（该类无任何样式定义）⇒
+       内容铺灰底、`.page-card .el-table` 表格规范样式接不上，与待索赔台账同类问题。 -->
+  <el-card class="page-card report-page" shadow="never">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">仓库近效期预警</span>
+            <span class="hint">
+              这里只看仓库里的批次；柜机批次的到期预警在「补货预警」页（数据源不同）。本页含已过期批次——已过期的往往比临期更需要立刻处理。
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
 
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="这里只看仓库里的批次"
-        description="柜机批次的到期预警在「补货预警」页（数据源不同）。本页含已过期批次——已过期的往往比临期更需要立刻处理。"
-        style="margin-bottom: 12px"
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onFilterChange">
+      <el-form-item label="仓库">
+        <el-input
+          v-model="warehouseId"
+          placeholder="留空 = 全部仓库"
+          clearable
+          style="width: 180px"
+          @change="onFilterChange"
+        />
+      </el-form-item>
+      <el-form-item label="提前天数">
+        <!-- 🔴 上限 365：与后端夹取一致，避免界面显示 99999 但实际只查 365 天 -->
+        <el-input-number
+          v-model="daysAhead"
+          :min="1"
+          :max="365"
+          controls-position="right"
+          style="width: 140px"
+          @change="onDaysChange"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="onFilterChange">查询</el-button>
+        <el-button @click="crud.load()">刷新</el-button>
+      </el-form-item>
+    </el-form>
+
+    <CrudTable
+      v-if="canList"
+      :table="crud"
+      row-key="inventoryId"
+      :empty-text="`没有 ${daysAhead} 天内到期的批次`"
+      data-testid="warehouse-expiry-alerts"
+    >
+      <el-table-column prop="skuId" label="商品" min-width="160">
+        <template #default="{ row }">
+          <span>{{ row.skuId }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="batchNo" label="批次" min-width="140" />
+      <!-- 🔴 中心对齐必须配 `class-name`（门禁 check:admin-table-align 的「裸 center」规则） -->
+      <el-table-column
+        prop="expiryDate"
+        label="到期日"
+        width="120"
+        align="center"
+        class-name="col-text"
+        label-class-name="col-text"
       />
-
-      <CrudTable
-        v-if="canList"
-        :table="crud"
-        row-key="inventoryId"
-        :empty-text="`没有 ${daysAhead} 天内到期的批次`"
-        data-testid="warehouse-expiry-alerts"
+      <el-table-column
+        prop="daysRemaining"
+        label="剩余"
+        width="130"
+        align="center"
+        class-name="col-text"
+        label-class-name="col-text"
       >
-        <el-table-column prop="skuId" label="商品" min-width="160">
-          <template #default="{ row }">
-            <span>{{ row.skuId }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="batchNo" label="批次" min-width="140" />
-        <!-- 🔴 中心对齐必须配 `class-name`（门禁 check:admin-table-align 的「裸 center」规则） -->
-        <el-table-column
-          prop="expiryDate"
-          label="到期日"
-          width="120"
-          align="center"
-          class-name="col-text"
-          label-class-name="col-text"
-        />
-        <el-table-column
-          prop="daysRemaining"
-          label="剩余"
-          width="130"
-          align="center"
-          class-name="col-text"
-          label-class-name="col-text"
-        >
-          <template #default="{ row }">{{ daysText(row) }}</template>
-        </el-table-column>
-        <el-table-column
-          prop="urgency"
-          label="紧急度"
-          width="130"
-          align="center"
-          class-name="col-status"
-          label-class-name="col-status"
-        >
-          <template #default="{ row }">
-            <el-tag
-              :type="row.expired ? 'danger' : row.urgency === 'URGENT' ? 'warning' : 'info'"
-              size="small"
-            >
-              {{ URGENCY_LABEL[row.urgency] || row.urgency }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <!-- 数量用右对齐 + col-money（复用全局金额/数值列样式约定） -->
-        <el-table-column
-          prop="quantity"
-          label="数量"
-          width="100"
-          align="right"
-          class-name="col-money"
-          label-class-name="col-money"
-        />
-        <el-table-column
-          prop="warehouseId"
-          label="仓库"
-          min-width="130"
-          class-name="col-text"
-          label-class-name="col-text"
-        />
-      </CrudTable>
-      <el-alert v-else type="warning" :closable="false" show-icon title="没有仓库查看权限" />
-    </el-card>
-  </div>
+        <template #default="{ row }">{{ daysText(row) }}</template>
+      </el-table-column>
+      <el-table-column
+        prop="urgency"
+        label="紧急度"
+        width="130"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
+        <template #default="{ row }">
+          <el-tag
+            :type="row.expired ? 'danger' : row.urgency === 'URGENT' ? 'warning' : 'info'"
+            size="small"
+          >
+            {{ URGENCY_LABEL[row.urgency] || row.urgency }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <!-- 数量用右对齐 + col-money（复用全局金额/数值列样式约定） -->
+      <el-table-column
+        prop="quantity"
+        label="数量"
+        width="100"
+        align="right"
+        class-name="col-money"
+        label-class-name="col-money"
+      />
+      <el-table-column
+        prop="warehouseId"
+        label="仓库"
+        min-width="130"
+        class-name="col-text"
+        label-class-name="col-text"
+      />
+    </CrudTable>
+    <el-alert v-else type="warning" :closable="false" show-icon title="没有仓库查看权限" />
+  </el-card>
 </template>

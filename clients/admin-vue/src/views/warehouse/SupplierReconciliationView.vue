@@ -146,14 +146,21 @@ function exportCsv() {
 </script>
 
 <template>
-  <div class="reconciliation">
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="供应商月度对账单：期初 + 本期新增应付 − 本期退货冲减 − 本期付款 = 期末。只读聚合，不动任何资金。"
-      style="margin-bottom: 12px"
-    />
+  <!-- 🔴 标准页壳 page-card：统一外层。本页此前用裸 div.reconciliation（该类无任何样式定义），
+       与待索赔台账/近效期预警同类的「缺一层壳」问题。 -->
+  <el-card class="page-card report-page" shadow="never">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">供应商月度对账单</span>
+            <span class="hint">
+              期初 + 本期新增应付 − 本期退货冲减 − 本期付款 = 期末。只读聚合，不动任何资金。
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <el-card shadow="never" style="margin-bottom: 12px">
       <el-form :inline="true" :model="{}" data-testid="recon-filter">
@@ -262,7 +269,7 @@ function exportCsv() {
     </template>
     <el-empty v-else-if="canList" description="选择供应商与月份后生成对账单" />
     <el-empty v-else description="无「采购查看」权限" />
-  </div>
+  </el-card>
 </template>
 
 <style scoped>
