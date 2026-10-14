@@ -229,6 +229,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
@@ -249,18 +250,27 @@ onMounted(() => {
   load();
 });
 
+// 🔴 过期响应守卫（createLoadSeq）：天数/设备切换连发请求时，慢的旧响应不得覆盖新结果。
+// load 用默认通道，loadSlotHeat 用 'slot' 通道（与 load 并行触发，各自序号）。
+const loadSeq = createLoadSeq();
+
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
-    data.value = await api.request<FootfallAnalytics>(
+    const fresh = await api.request<FootfallAnalytics>(
       AdminEndpoints.analyticsFootfall(days.value),
       'GET'
     );
+    // 过时响应（更新的请求已在途）整体丢弃：不写数据、不联动货道热力
+    if (!loadSeq.isCurrent(seq)) return;
+    data.value = fresh;
     if (data.value?.devices?.length && !slotDeviceId.value) {
       slotDeviceId.value = data.value.devices[0].deviceId;
       await loadSlotHeat();
     }
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
@@ -269,13 +279,18 @@ async function load() {
 
 async function loadSlotHeat() {
   if (!slotDeviceId.value) return;
+  const seq = loadSeq.begin('slot');
   try {
-    slotHeat.value =
+    const heat =
       (await api.request<SlotHeat[]>(
         AdminEndpoints.analyticsFootfallSlots(slotDeviceId.value, days.value),
         'GET'
       )) || [];
+    // 设备/天数连切：过时热力图不覆盖
+    if (!loadSeq.isCurrent(seq, 'slot')) return;
+    slotHeat.value = heat;
   } catch {
+    if (!loadSeq.isCurrent(seq, 'slot')) return;
     slotHeat.value = [];
   }
 }

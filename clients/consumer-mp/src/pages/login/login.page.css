@@ -510,3 +510,19 @@
   line-height: 1.4;
   opacity: 0.85;
 }
+
+/* 微信一键登录（open-type=getPhoneNumber）原生 button：去默认边框/底色，完全复用 .btn-wx 视觉 */
+.btn-wx--native {
+  margin: 0;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  text-align: center;
+  line-height: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+.btn-wx--native::after {
+  border: none;
+}

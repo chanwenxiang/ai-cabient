@@ -141,7 +141,11 @@
             @click="onProductCellTap"
           >
             <view class="product-cell-inner">
-              <view class="product-thumb" :class="'cat-' + thumbTone(p)">
+              <view
+                class="product-thumb"
+                :class="'cat-' + thumbTone(p)"
+                @longpress="onCellLongPress(p)"
+              >
                 <image
                   v-if="showThumb(p)"
                   class="product-img"
@@ -321,7 +325,12 @@
         @click.stop="noop"
       >
         <text class="landing-sheet-title">{{ detailProduct.skuName }}</text>
-        <view class="detail-hero">
+        <view
+          class="detail-hero"
+          role="button"
+          aria-label="查看商品大图"
+          @click.stop="onDetailImageTap"
+        >
           <image
             v-if="showThumb(detailProduct)"
             class="detail-img"
@@ -348,6 +357,10 @@
           detailProduct.description
         }}</text>
         <view class="landing-sheet-actions">
+          <!-- 转发给好友（open-type=share 走 onShareAppMessage，带商品图卡片）；H5 隐藏 -->
+          <button v-if="isMpWeixin" class="detail-share-btn" open-type="share" :disabled="false">
+            转发给好友
+          </button>
           <text role="button" class="landing-sheet-btn" @click="closeProductDetail">关闭</text>
         </view>
       </view>
@@ -453,6 +466,8 @@ import {
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
+import { hapticLight } from '@/utils/haptic';
+import { refreshMineTabBadge } from '@/utils/tab-badge';
 import {
   delay,
   requestDisputeSubscribe,
@@ -672,8 +687,51 @@ const showLanding = computed(() => !scanned.value && !enteringFlow.value);
 const SHARE_TITLE = 'AI开门柜 · 扫码开门，拿了就走';
 const SHARE_PATH = '/pages/index/index';
 
-onShareAppMessage(() => ({ title: SHARE_TITLE, path: SHARE_PATH }));
+onShareAppMessage(() => {
+  // 商品详情弹层打开时分享该商品（带图卡片，获客直达）；否则默认首页入口
+  if (detailProduct.value) {
+    return {
+      title: `${detailProduct.value.skuName} · AI开门柜`,
+      path: SHARE_PATH,
+      imageUrl: productThumb(detailProduct.value) || undefined
+    };
+  }
+  return { title: SHARE_TITLE, path: SHARE_PATH };
+});
 onShareTimeline(() => ({ title: SHARE_TITLE }));
+
+/** 仅微信小程序：启用右上角菜单的「发送给朋友/分享到朋友圈」（需 onShareTimeline 已注册） */
+const isMpWeixin = (() => {
+  try {
+    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
+    return info.uniPlatform === 'mp-weixin';
+  } catch {
+    return false;
+  }
+})();
+
+/**
+ * 商品图大图预览（2026-10-14 审计补齐：争议/补货凭证早有 previewImage，卖的商品反而没有）。
+ * 入口：① 商品格**长按**缩略图（长按后 tap 不触发，不会误加购）；② 详情弹层点大图。
+ * 预览集=当前筛选下所有有图商品，定位到触发项。
+ */
+function previewProductImages(current?: DeviceProduct | null) {
+  const urls = filteredProducts.value
+    .filter((p) => showThumb(p))
+    .map((p) => String(productThumb(p) || ''))
+    .filter(Boolean);
+  if (!urls.length) return;
+  const cur = current ? String(productThumb(current) || '') : '';
+  uni.previewImage({ urls, current: cur && urls.includes(cur) ? cur : urls[0] });
+}
+
+function onCellLongPress(p: DeviceProduct) {
+  previewProductImages(p);
+}
+
+function onDetailImageTap() {
+  previewProductImages(detailProduct.value);
+}
 
 /** 对齐扫码开门竞品：落地页全屏沉浸隐藏底栏；进入柜机流程后再显示 */
 let hideTabBarTries = 0;
@@ -856,6 +914,10 @@ function payReady(acc: AccountDto) {
 onLoad(async (opts) => {
   // 断网监听：落地页提示 + 开门拦截都依赖 netOffline（onUnload 摘除）
   startNetworkWatch();
+  // 分享菜单：开启「发送给朋友/分享到朋友圈」原生入口（微信端；朋友圈分享已在 onShareTimeline 注册）
+  if (isMpWeixin && typeof uni.showShareMenu === 'function') {
+    uni.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'] });
+  }
   refreshLandingPad();
   let launch = parseLaunchOptions((opts || {}) as Record<string, string>);
   // H5：兼容 ?deviceId= / hash 查询（柜门二维码 deep link）
@@ -936,6 +998,8 @@ onShow(async () => {
   await ensureConsumerAuth();
   if (seq !== showSeq) return;
   if (isConsumerLoggedIn()) {
+    // tabBar「我的」未读角标：进首页即同步（mine 页 onShow 还会再刷）
+    void refreshMineTabBadge();
     await onAuthenticatedShow();
   }
   if (seq !== showSeq) return;
@@ -1097,6 +1161,8 @@ async function handleSessionOpenResult(
 ): Promise<boolean> {
   if (sessionOpenDecision(sessionResult.status) === 'adopt_fulfilled') {
     adoptSession((sessionResult as PromiseFulfilledResult<SessionDto>).value);
+    // 开门成功触感反馈（我的-偏好设置可关）；失败路径不震，避免负面联想
+    hapticLight();
     return true;
   }
   if (await adoptOrphanSession(cabinetId, { pendingCreate })) return true;
@@ -1712,6 +1778,8 @@ function addProduct(p: DeviceProduct) {
     return;
   }
   selected.value = { ...selected.value, [p.skuId]: cur + 1 };
+  // 加入购物车触感反馈（我的-偏好设置可关）；「暂无可选/无法再加」失败路径不震
+  hapticLight();
 }
 
 function removeProduct(p: DeviceProduct) {
@@ -2500,6 +2568,46 @@ function stopDevicePoll() {
 .detail-img {
   width: 100%;
   height: 100%;
+}
+/*
+ * 商品详情弹层操作行（2026-10-14 加「转发给好友」时补样式）：
+ * landing-sheet-* 此前只在 HomeLanding.vue（scoped）内定义，index 页详情弹层
+ * 的「关闭」按钮实际处于无样式状态；本条按 HomeLanding 授权弹层的设计语言补齐
+ * 横排布局 + 按钮化（scoped 只作用于本页，不影响 HomeLanding）。
+ */
+.landing-sheet-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+.landing-sheet-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 18rpx 16rpx;
+  border-radius: var(--radius-pill);
+  background: var(--brand-ink, #043f32);
+  color: var(--white, #ffffff);
+  font-size: var(--font-size-body);
+  line-height: 1.2;
+  text-align: center;
+}
+/* 转发给好友（open-type=share 原生 button）：去默认边框/底色，品牌色实底 */
+.detail-share-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 18rpx 16rpx;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--brand, #0d9488);
+  color: var(--white, #ffffff);
+  font-size: var(--font-size-body);
+  line-height: 1.2;
+  text-align: center;
+}
+.detail-share-btn::after {
+  border: none;
 }
 .detail-mark {
   font-size: 96rpx;

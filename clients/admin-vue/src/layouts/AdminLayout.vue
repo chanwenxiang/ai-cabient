@@ -238,14 +238,15 @@
         <router-view v-slot="{ Component, route: viewRoute }">
           <!-- 字典启停后 bump epoch，重建其他缓存页；字典管理页本身不重建以免丢选中 -->
           <keep-alive :max="12">
-            <component
-              :is="Component"
+            <PageErrorBoundary
               :key="
                 viewRoute.name === 'dicts'
                   ? String(viewRoute.path)
                   : `${String(viewRoute.name || viewRoute.path)}#${viewRoute.path}#d${dictRuntimeEpoch}`
               "
-            />
+            >
+              <component :is="Component" />
+            </PageErrorBoundary>
           </keep-alive>
         </router-view>
       </el-main>
@@ -277,6 +278,8 @@ import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
 import GlobalSearch from '@/components/GlobalSearch.vue';
 import OpsApprovalInbox from '@/components/OpsApprovalInbox.vue';
 import SidebarMenuTree from '@/components/SidebarMenuTree.vue';
+import PageErrorBoundary from '@/components/PageErrorBoundary.vue';
+import { startBuildVersionCheck } from '@/utils/build-version-check';
 
 // 断网横幅状态（三端统一 shared-uni 模块；纯 web 运行时走 navigator.onLine + 事件）
 const { offline: netOffline, startNetworkWatch, stopNetworkWatch } = useNetworkStatus();
@@ -775,6 +778,8 @@ function onWindowFocus() {
 onMounted(() => {
   // 断网横幅：布局级监听（navigator.onLine / online+offline 事件），随布局卸载摘除
   startNetworkWatch();
+  // 版本更新检测：发版后旧 bundle 标签页聚焦时提示刷新（dev 指纹不变不误报）
+  startBuildVersionCheck();
   settings.init();
   pinLayoutViewportHeight();
   syncSidebarWithViewport();

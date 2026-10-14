@@ -25,7 +25,27 @@
         <text class="title">登录后继续</text>
         <text class="subtitle">微信授权即可开门购物；手机号仅作备用验证</text>
 
+        <!--
+          微信一键登录（CB-040 待补编号；企业主体解锁能力前置就绪）：
+          原生 button open-type=getPhoneNumber —— 授权后 e.detail.code 即手机号授权码，
+          随 wx.login 的 code 一并 POST /auth/wx-login（phoneCode 字段，服务端
+          getuserphonenumber 服务端换取，C13 不信客户端明文），首次登录即绑手机号。
+          用户拒绝授权 → 回退纯微信登录（openId 通道）；非微信端/H5 走原 .btn-wx 视图。
+          🔴 仅企业主体小程序可用：小程序注册审核通过后无需改代码，直接生效。
+        -->
+        <button
+          v-if="isMpWeixin"
+          class="btn-wx btn-wx--native"
+          :class="{ disabled: loading }"
+          data-testid="login-wx"
+          open-type="getPhoneNumber"
+          :disabled="loading"
+          @getphonenumber="onWxPhoneLogin"
+        >
+          {{ loading && wxMode ? '授权中…' : wxBtnLabel }}
+        </button>
         <view
+          v-else
           class="btn-wx"
           role="button"
           data-testid="login-wx"
@@ -439,6 +459,52 @@ async function onWxLogin() {
   if (loading.value) return;
   if (await tryH5WechatOauth()) return;
   await runMiniProgramWxLogin();
+}
+
+/**
+ * 仅微信小程序展示原生 getPhoneNumber 按钮（企业主体能力，H5/支付宝端走 v-else 视图）。
+ * 与 messages.vue/help.vue 的 isMpWeixin 同口径：uniPlatform 运行时探测，失败按隐藏。
+ */
+const isMpWeixin = (() => {
+  try {
+    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
+    return info.uniPlatform === 'mp-weixin';
+  } catch {
+    return false;
+  }
+})();
+
+/**
+ * 一键登录：getPhoneNumber 授权码 + wx.login code 一起走 /auth/wx-login（phoneCode）。
+ * 🔴 用户拒绝手机号授权（detail.code 为空）⇒ 回退纯微信登录——登录本身不因拒绝绑号而失败；
+ * 手机号也可后续在「我的」里走短信绑定。
+ */
+async function onWxPhoneLogin(e: unknown) {
+  if (loading.value) return;
+  const detail = (e as { detail?: { code?: string; errMsg?: string } } | null)?.detail || {};
+  if (!detail.code) {
+    await onWxLogin();
+    return;
+  }
+  loading.value = true;
+  wxMode.value = true;
+  err.value = '';
+  try {
+    const wxCode = await new Promise<string>((resolve, reject) => {
+      uni.login({
+        provider: 'weixin',
+        success: (r) => (r.code ? resolve(r.code) : reject(new Error('微信登录失败'))),
+        fail: () => reject(new Error('微信登录失败'))
+      });
+    });
+    await consumerWxLogin(wxCode, undefined, detail.code);
+    finishLogin();
+  } catch (error_) {
+    err.value = caughtErrorMessage(error_, '微信一键登录失败');
+    showPhoneForm.value = true;
+  } finally {
+    loading.value = false;
+  }
 }
 
 function caughtErrorMessage(error: unknown, fallback: string) {

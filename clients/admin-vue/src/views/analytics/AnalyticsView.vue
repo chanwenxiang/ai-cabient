@@ -356,6 +356,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -548,7 +549,11 @@ const deviceOption = computed<EChartsOption | null>(() => {
   });
 });
 
+// 🔴 过期响应守卫（createLoadSeq）：天数（route.query.days）连切时，慢的旧响应不得覆盖新图表
+const loadSeq = createLoadSeq();
+
 async function load(opts?: { resetSeries?: boolean }) {
+  const seq = loadSeq.begin();
   loading.value = true;
   loadFailed.value = false;
   // 切天数时清空系列，避免旧区间叠新图；软刷新保留
@@ -567,6 +572,8 @@ async function load(opts?: { resetSeries?: boolean }) {
       api.request<FinanceStats>(AdminEndpoints.financeStats, 'GET').catch(() => null),
       api.request<ChannelBreakdown>(AdminEndpoints.trendChannels(d), 'GET').catch(() => ({}))
     ]);
+    // 过时响应整体丢弃：不写图表、不判失败（新请求自会给出结论）
+    if (!loadSeq.isCurrent(seq)) return;
     if (!s && !t && !o && !f) {
       loadFailed.value = true;
       ElMessage.error('经营分析数据加载失败');
@@ -578,6 +585,7 @@ async function load(opts?: { resetSeries?: boolean }) {
     finance.value = f;
     channels.value = c || {};
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     loadFailed.value = true;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {

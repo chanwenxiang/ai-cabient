@@ -78,8 +78,14 @@ export function smsLoginBody(phone: string, code: string) {
   return { phoneNumber: phone, code };
 }
 
-export function wxLoginBody(code: string, phoneNumber?: string) {
-  return { code, phoneNumber: phoneNumber || undefined };
+export function wxLoginBody(code: string, phoneNumber?: string, phoneCode?: string) {
+  return {
+    code,
+    phoneNumber: phoneNumber || undefined,
+    // 微信手机号快捷授权码（button open-type=getPhoneNumber 回传）：服务端经
+    // getuserphonenumber 换取手机号，不信任客户端明文（C13）；企业主体小程序可用
+    phoneCode: phoneCode || undefined
+  };
 }
 
 export function alipayLoginBody(authCode: string) {

@@ -10,6 +10,19 @@ import {
 // M-P2-5：尽早注册 session clear hook（登出/401 清 me 内存态）
 import '@/composables/useMerchantMe';
 import { useNetworkStatus } from '@aicabinet/shared-uni/use-network-status';
+// 全局兜底（三端统一 shared-uni 模块）：JS 异常落 console、坏码/失效链接回首页、新版本更新提示
+// 🔴 shared-uni 无 @dcloudio/uni-app 依赖，钩子在此导入后注入（见 app-guards.ts 注释）
+import { installAppGuards } from '@aicabinet/shared-uni/app-guards';
+import { installUpdatePrompt } from '@aicabinet/shared-uni/update-prompt';
+import { onError, onPageNotFound, onUnhandledRejection } from '@dcloudio/uni-app';
+
+installAppGuards(
+  { onError, onUnhandledRejection, onPageNotFound },
+  {
+    homePath: '/pages/home/home'
+  }
+);
+installUpdatePrompt();
 
 // 断网全局监听（三端统一实现）：断开/恢复时 toast 告知，请求层失败文案不变。
 // App 级启动、生命周期与小程序一致，无需摘除；首帧状态不播报（watch 非 immediate）。

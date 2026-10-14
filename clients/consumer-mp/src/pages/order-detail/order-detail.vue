@@ -167,6 +167,22 @@
         <view role="button" class="support app-link-chevron" @click="callSupport"
           >客服电话: {{ supportPhoneDisplay }}</view
         >
+        <!--
+          在线客服（CB-039）：放订单详情而非订单列表——账单异议天然绑定具体订单，
+          会话可附本单卡片（send-message-path 带 orderId），客服点击直达本单；
+          列表页不加，避免堆入口。H5 隐藏（同 help.vue 口径）。
+        -->
+        <button
+          v-if="isMpWeixin"
+          class="support support--contact"
+          open-type="contact"
+          session-from="mp_order"
+          send-message-title="AI开门柜 · 订单问题咨询"
+          :send-message-path="orderContactPath"
+          show-message-card
+        >
+          在线客服（可附本单卡片，微信内实时沟通）
+        </button>
       </view>
 
       <view
@@ -333,6 +349,21 @@ import {
 } from '@/utils/dispute-evidence';
 import OrderAppealSheet from '@/components/order-appeal-sheet.vue';
 const orderId = ref('');
+/**
+ * 在线客服（CB-039）开关与卡片路径：仅微信小程序展示；
+ * 消息卡片回跳本单，客服在会话里点卡片直达该订单详情。
+ */
+const isMpWeixin = (() => {
+  try {
+    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
+    return info.uniPlatform === 'mp-weixin';
+  } catch {
+    return false;
+  }
+})();
+const orderContactPath = computed(
+  () => `/pages/order-detail/order-detail?orderId=${encodeURIComponent(orderId.value || '')}`
+);
 const order = ref<OrderDetailDto | null>(null);
 const loading = ref(true);
 const error = ref('');
@@ -1141,6 +1172,19 @@ function callSupport() {
   padding: 30rpx;
   color: var(--brand);
   font-size: var(--font-size-caption);
+}
+/* 原生 button（open-type=contact）复用 .support 链接样式：去默认边框/底色 */
+.support--contact {
+  margin: 0 auto;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  line-height: inherit;
+  font-size: inherit;
+}
+.support--contact::after {
+  border: none;
 }
 .dispute-mask {
   position: fixed;

@@ -241,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Clock, Delete, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -255,6 +255,7 @@ import { useBrandStore } from '@/stores/brand';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { registerUnsavedGuard } from '@/utils/unsaved-guard';
 import { validateImageFile } from '@/utils/upload-validate';
 
 const BRAND_KEYS = {
@@ -315,6 +316,23 @@ const brandForm = reactive({
   sidebarTitle: 'AI开门柜运营',
   logoUrl: ''
 });
+
+/*
+ * 品牌表单未保存守卫（2026-10-14 审计补齐，utils/unsaved-guard）：
+ * 基线=最近一次「载入/保存成功」时的表单快照；脏=当前快照偏离基线。
+ * 守卫负责路由切换确认与关标签页 beforeunload（main.ts 已装路由级）。
+ */
+const brandFormSnapshot = () =>
+  JSON.stringify({
+    title: brandForm.title,
+    subtitle: brandForm.subtitle,
+    sidebarTitle: brandForm.sidebarTitle,
+    logoUrl: brandForm.logoUrl
+  });
+const brandBaseline = ref(brandFormSnapshot());
+const brandDirty = computed(() => brandFormSnapshot() !== brandBaseline.value);
+const destroyBrandUnsavedGuard = registerUnsavedGuard(() => brandDirty.value);
+onUnmounted(destroyBrandUnsavedGuard);
 
 const brandMarkPreview = computed(() => {
   const t = brandForm.title.trim();
@@ -566,6 +584,8 @@ function syncBrandFormFromItems() {
   brandForm.subtitle = valueOfKey(BRAND_KEYS.subtitle, '运营管理系统') || '运营管理系统';
   brandForm.sidebarTitle = valueOfKey(BRAND_KEYS.sidebarTitle, 'AI开门柜运营') || 'AI开门柜运营';
   brandForm.logoUrl = valueOfKey(BRAND_KEYS.logoUrl, '');
+  // 载入即基线：未编辑过不算脏
+  brandBaseline.value = brandFormSnapshot();
 }
 
 async function upsertBrandKey(configKey: string, configValue: string, description: string) {
@@ -607,6 +627,8 @@ async function saveBrand() {
       logoUrl: brandForm.logoUrl.trim()
     });
     ElMessage.success('品牌已保存');
+    // 保存成功即新基线：守卫不再拦
+    brandBaseline.value = brandFormSnapshot();
     await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');

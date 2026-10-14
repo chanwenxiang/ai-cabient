@@ -260,6 +260,35 @@
       </view>
     </view>
 
+    <!-- 偏好设置：本机自定义项（存本机 Storage，不上云；2026-10-14 用户新增诉求） -->
+    <view class="pref-section">
+      <text class="pref-label">偏好设置</text>
+      <view class="menu-list">
+        <view class="menu-cell">
+          <image class="menu-icon" :src="menuIcon('member')" mode="aspectFit" />
+          <view class="menu-text">
+            <text class="menu-title">震动反馈</text>
+            <text class="menu-desc">开门成功、加入购物车时轻微震动</text>
+          </view>
+          <switch
+            class="pref-switch"
+            :checked="hapticOn"
+            color="#0d9488"
+            aria-label="震动反馈开关"
+            @change="onHapticChange"
+          />
+        </view>
+        <!-- 版本信息（只读）：客服沟通时用户可直接报版本；更新本身由启动时自动提示 -->
+        <view class="menu-cell">
+          <image class="menu-icon" :src="menuIcon('repair')" mode="aspectFit" />
+          <view class="menu-text">
+            <text class="menu-title">当前版本</text>
+            <text class="menu-desc">{{ appVersionText }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <!-- 体验充值：仅 DEV 构建可见，生产包不打包展示 -->
     <view v-if="devTools && authed" class="dev-section">
       <text class="dev-label">体验充值</text>
@@ -351,6 +380,8 @@ import {
   resolveClientPreauthCents
 } from '@/utils/account';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
+import { isHapticEnabled, setHapticEnabled } from '@/utils/haptic';
+import { refreshMineTabBadge } from '@/utils/tab-badge';
 import {
   MINE_DEV_RECHARGE_CENTS,
   mineAlipayRechargeConfirm,
@@ -368,6 +399,38 @@ import {
 /** Tab「我的」：资料行点进去设昵称或登录 */
 
 const devTools = showDevTools();
+/** 震动反馈开关（我的-偏好设置；本机 Storage，默认开） */
+const hapticOn = ref(isHapticEnabled());
+function onHapticChange(e: unknown) {
+  const on = Boolean((e as { detail?: { value?: unknown } })?.detail?.value);
+  hapticOn.value = on;
+  setHapticEnabled(on);
+  showSuccess(on ? '已开启震动反馈' : '已关闭震动反馈');
+}
+
+/**
+ * 版本信息（只读，不做开关）：uni.getAccountInfoSync 仅微信端有，H5 探测失败回退文案。
+ * 更新本身由 update-prompt 在启动时自动提示，这里只是让用户/客服能对版本号。
+ */
+const appVersionText = (() => {
+  try {
+    const g = globalThis as Record<string, unknown>;
+    const getAccountInfoSync = g.uni as { getAccountInfoSync?: () => unknown } | undefined;
+    if (typeof getAccountInfoSync?.getAccountInfoSync !== 'function') {
+      return '新版本将在启动时自动提示更新';
+    }
+    const info = getAccountInfoSync.getAccountInfoSync() as {
+      miniProgram?: { version?: string; envVersion?: string };
+    };
+    const mp = info?.miniProgram || {};
+    const envLabel =
+      mp.envVersion === 'trial' ? '体验版' : mp.envVersion === 'develop' ? '开发版' : '正式版';
+    const ver = mp.version || envLabel;
+    return `${ver} · ${envLabel}，新版本启动时自动提示更新`;
+  } catch {
+    return '新版本将在启动时自动提示更新';
+  }
+})();
 const balanceYuan = ref('--');
 const authed = ref(false);
 const account = ref<AccountDto | null>(null);
@@ -544,6 +607,8 @@ onShow(async () => {
   uni.showTabBar({ animation: false });
   await ensureConsumerAuth();
   authed.value = isConsumerLoggedIn();
+  // tabBar「我的」未读角标：登录态下同步消息未读数（0/未登录清除）
+  void refreshMineTabBadge();
   try {
     const cfg = await consumerApi.consumerPublicConfig();
     mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);

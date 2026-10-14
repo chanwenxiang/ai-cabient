@@ -632,6 +632,7 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -950,8 +951,15 @@ async function loadLifecycleEvents() {
   }
 }
 
+// 🔴 过期响应守卫：生命周期/温度环境等操作完成后的 loadDetail 与在途 loadDetail 并发时，
+// 携带变更前数据的旧响应不得覆盖新详情（createLoadSeq 同款）。
+const loadSeq = createLoadSeq();
+
 async function loadDetail() {
+  const seq = loadSeq.begin();
   const detail = await api.request<DeviceDetail>(AdminEndpoints.deviceDetail(deviceId), 'GET');
+  // 过时响应丢弃：避免旧详情盖掉刚完成操作后的新状态
+  if (!loadSeq.isCurrent(seq)) return;
   device.value = detail.device;
   syncRefundDraftFromDevice(detail.device?.refundPolicy);
   metrics.value = detail.metrics;

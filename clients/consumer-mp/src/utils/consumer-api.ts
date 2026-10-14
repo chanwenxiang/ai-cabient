@@ -300,11 +300,11 @@ export function consumerSmsLogin(phone: string, code: string) {
   );
 }
 
-export function consumerWxLogin(code: string, phoneNumber?: string) {
+export function consumerWxLogin(code: string, phoneNumber?: string, phoneCode?: string) {
   return request<LoginResponse>(
     AuthEndpoints.wxLogin,
     'POST',
-    wxLoginBody(code, phoneNumber),
+    wxLoginBody(code, phoneNumber, phoneCode),
     false
   ).then((data) => {
     applyTokenSession(data);

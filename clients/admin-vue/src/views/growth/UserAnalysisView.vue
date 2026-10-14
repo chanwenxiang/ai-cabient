@@ -209,6 +209,7 @@
 <script setup lang="ts">
 import { yuanText } from '@/utils/display';
 import { computed, onMounted, ref } from 'vue';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
@@ -290,11 +291,18 @@ type CouponDef = {
   denominationCents: number;
 };
 
+// 🔴 过期响应守卫：天数切换连发请求时，慢的旧响应不得覆盖新结果（createLoadSeq 同款）
+const loadSeq = createLoadSeq();
+
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
-    s.value = await api.request<Summary>(AdminEndpoints.growthUserAnalysis(days.value));
+    const fresh = await api.request<Summary>(AdminEndpoints.growthUserAnalysis(days.value));
+    if (!loadSeq.isCurrent(seq)) return;
+    s.value = fresh;
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;

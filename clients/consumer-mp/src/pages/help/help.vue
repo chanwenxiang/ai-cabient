@@ -20,6 +20,30 @@
           </view>
           <view class="support-action">拨打</view>
         </view>
+        <!--
+          在线客服（微信原生客服会话，CB-039）：open-type=contact 唤起微信客服，
+          无需自建 IM。🔴 前置条件：小程序管理后台「功能-客服」已开通并绑定客服人员
+          （企业主体小程序；个人主体不支持）。session-from 标记来源；
+          send-message-* + show-message-card 让用户可把「帮助中心」卡片发给客服定位场景。
+          🔴 H5 无此能力 ⇒ isMpWeixin 隐藏（同 M-P2-14 口径）。
+        -->
+        <button
+          v-if="isMpWeixin"
+          class="support-row support-row--contact"
+          hover-class="support-row-hover"
+          open-type="contact"
+          session-from="mp_help"
+          send-message-title="AI开门柜 · 问题咨询"
+          send-message-path="/pages/help/help"
+          show-message-card
+        >
+          <view class="support-icon support-icon--chat" aria-hidden="true" />
+          <view class="support-main">
+            <text class="support-label">在线客服</text>
+            <text class="support-value">微信内实时沟通（推荐）</text>
+          </view>
+          <view class="support-action">进入会话</view>
+        </button>
         <view
           v-if="supportEmail"
           class="support-row"
@@ -140,6 +164,19 @@ const supportPhoneDisplay = ref('400-888-0018');
 const supportPhoneDial = ref('4008880018');
 const supportEmail = ref('');
 const openIdx = ref<number | null>(0);
+
+/**
+ * 仅微信小程序展示在线客服入口（open-type=contact 为微信特有）。
+ * 与 messages.vue 的 isMpWeixin 同口径：uniPlatform 运行时探测，探测失败按隐藏。
+ */
+const isMpWeixin = (() => {
+  try {
+    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
+    return info.uniPlatform === 'mp-weixin';
+  } catch {
+    return false;
+  }
+})();
 
 const faqs = [
   {
@@ -269,6 +306,21 @@ function goOrders() {
 }
 .support-row:last-child {
   border-bottom: none;
+}
+/* 原生 button（open-type=contact）复用行样式：去默认边框/底色，左对齐、行内布局一致 */
+.support-row--contact {
+  margin: 0;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  line-height: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+.support-row--contact::after {
+  border: none;
 }
 .support-row-hover {
   opacity: 0.85;

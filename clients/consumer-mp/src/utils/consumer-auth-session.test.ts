@@ -53,7 +53,12 @@ describe('consumer-auth-session · C12d', () => {
   it('登录 body', () => {
     expect(passwordLoginBody('138', 'p')).toEqual({ phoneNumber: '138', password: 'p' });
     expect(smsLoginBody('138', '1234')).toEqual({ phoneNumber: '138', code: '1234' });
-    expect(wxLoginBody('c')).toEqual({ code: 'c', phoneNumber: undefined });
+    expect(wxLoginBody('c')).toEqual({ code: 'c', phoneNumber: undefined, phoneCode: undefined });
+    expect(wxLoginBody('c', undefined, 'pc')).toEqual({
+      code: 'c',
+      phoneNumber: undefined,
+      phoneCode: 'pc'
+    });
     expect(alipayLoginBody('a')).toEqual({ authCode: 'a' });
     expect(wxH5LoginBody('h')).toEqual({ code: 'h' });
   });

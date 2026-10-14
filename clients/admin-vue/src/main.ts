@@ -16,10 +16,16 @@ import { installMessageBoxDefaults } from './plugins/message-box-defaults';
 import { installLogoutMessageGuard } from './plugins/logout-message-guard';
 import { setupHasPermi } from './directives/hasPermi';
 import { installTableCellNativeTitle } from './utils/table-cell-native-title';
+import { installAuthTabSync } from './utils/auth-tab-sync';
+import { installUnsavedRouteGuard } from './utils/unsaved-guard';
 
 normalizeAdminIndexHtmlHash();
 installMessageBoxDefaults();
 installLogoutMessageGuard();
+// 多标签页登出广播（JWT 在 sessionStorage，storage 事件跨页收不到，见 auth-tab-sync）
+installAuthTabSync();
+// 未保存离开守卫：路由级确认 + beforeunload（页面用 registerUnsavedGuard 自报脏状态）
+installUnsavedRouteGuard(router);
 
 const pinia = createPinia();
 const app = createApp(App).use(pinia).use(router);
@@ -28,5 +34,11 @@ setupHasPermi(app);
 installTableCellNativeTitle();
 
 useSettingsStore(pinia).init();
+
+// 全局兜底（2026-10-14 审计补齐）：错误边界（PageErrorBoundary）之外的异常
+// 在此落 console，不再无声消失；保持不弹窗——渲染期连续异常弹窗会成骚扰。
+app.config.errorHandler = (err, _instance, info) => {
+  console.error('[admin] 全局异常：', err, '·', info);
+};
 
 app.mount('#app');

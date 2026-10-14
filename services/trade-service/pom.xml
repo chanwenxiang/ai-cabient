@@ -178,11 +178,12 @@
             <groupId>org.springframework.data</groupId>
             <artifactId>spring-data-commons</artifactId>
         </dependency>
-        <!-- 外部渠道对账导入（CB-036）：xlsx(XSSF) 与老式 .xls(HSSF/OLE2，乐摇摇) 解析 -->
+        <!-- 外部渠道对账导入（CB-036）：xlsx(XSSF) 与老式 .xls(HSSF/OLE2，乐摇摇) 解析。
+             5.4.0：修复 GHSA-gmg8-593g-7mv3（OOXML 输入校验，MODERATE，CI OSV 审计强拦）。 -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.2.5</version>
+            <version>5.4.0</version>
         </dependency>
     </dependencies>
 

@@ -11,6 +11,7 @@ import {
 import { AdminEndpoints } from '@/api/endpoints';
 import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
 import { isNavMenuActiveFor, permissionsAfterSoftFail } from '@/utils/rbac-cache-policy';
+import { broadcastAuthLogout } from '@/utils/auth-tab-sync';
 
 const PERM_KEY = 'admin_permissions';
 const NAV_KEY = 'admin_active_nav';
@@ -256,6 +257,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
+    // 多标签页同步：先广播（本页会话随下清），其余标签页收到后清会话跳登录
+    broadcastAuthLogout();
     await logoutSession();
     resetRuntimeDict();
     userId.value = '';

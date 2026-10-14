@@ -3,6 +3,19 @@ import { onLaunch } from '@dcloudio/uni-app';
 import { ensureConsumerAuth, isConsumerLoggedIn } from '@/utils/consumer-api';
 import { loadRuntimeDict } from '@/utils/dict-runtime';
 import { redirectIfAlipayReturn } from '@/utils/recharge';
+// 全局兜底（三端统一 shared-uni 模块）：JS 异常落 console、坏码/失效链接回首页、新版本更新提示
+// 🔴 shared-uni 无 @dcloudio/uni-app 依赖，钩子在此导入后注入（见 app-guards.ts 注释）
+import { installAppGuards } from '@aicabinet/shared-uni/app-guards';
+import { installUpdatePrompt } from '@aicabinet/shared-uni/update-prompt';
+import { onError, onPageNotFound, onUnhandledRejection } from '@dcloudio/uni-app';
+
+installAppGuards(
+  { onError, onUnhandledRejection, onPageNotFound },
+  {
+    homePath: '/pages/index/index'
+  }
+);
+installUpdatePrompt();
 
 onLaunch(async () => {
   // 支付宝同步回跳常落在站点根路径（无 hash），先导回充值页再鉴权
