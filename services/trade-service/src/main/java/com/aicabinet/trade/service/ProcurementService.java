@@ -236,8 +236,15 @@ public class ProcurementService {
         requireOperatorManagedWarehouse(operatorId);
         return skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
                 .filter(s -> s.getStatus() != null && "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                // 2026-10-14 修复：此前直接对每个 SKU 调 catalogUnitCost，目录里只要有一条
+                // 未维护采购价的商品（种子/同步路径漏维护），整个「可采购商品」列表就 400，
+                // 小程序采购页 Promise.all 全挂整页「加载失败」。列表语义是「可采购」——
+                // 缺采购价的 SKU 本就无法下单（下单路径 catalogUnitCost 仍阻断并提示补录），
+                // 这里过滤而非报错，也不做售价兜底（沿用审计批次4 P2 结论）。
+                .filter(s -> s.getPurchaseCostCents() != null && s.getPurchaseCostCents() > 0)
                 .limit(80)
-                .map(s -> new SatelliteSkuOptionDto(s.getSkuId(), s.getSkuName(), catalogUnitCost(s)))
+                .map(s -> new SatelliteSkuOptionDto(s.getSkuId(), s.getSkuName(),
+                        s.getPurchaseCostCents()))
                 .toList();
     }
 

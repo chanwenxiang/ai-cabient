@@ -213,6 +213,43 @@ class ProcurementServiceTest {
     }
 
     @Test
+    void listSatelliteSkus_missingPurchaseCost_filteredNotThrown() {
+        // 2026-10-14 修复：目录里个别 SKU 缺采购价（种子/同步路径漏维护）不应让整个
+        // 「可采购商品」列表 400（小程序采购页曾因此整页加载失败）。列表过滤之，
+        // 下单路径仍由 catalogUnitCost 阻断并提示补录。
+        com.aicabinet.trade.domain.Warehouse mine = new com.aicabinet.trade.domain.Warehouse();
+        mine.setWarehouseId("WH-MINE");
+        mine.setManagerUserId(40L);
+        mine.setStatus("ACTIVE");
+        when(warehouseRepository.findFirstActiveByManagerUserId(40L))
+                .thenReturn(java.util.Optional.of(mine));
+
+        com.aicabinet.trade.domain.SkuCatalog ok = new com.aicabinet.trade.domain.SkuCatalog();
+        ok.setSkuId("SKU-OK");
+        ok.setSkuName("有采购价");
+        ok.setStatus("ACTIVE");
+        ok.setPurchaseCostCents(120);
+        com.aicabinet.trade.domain.SkuCatalog noCost = new com.aicabinet.trade.domain.SkuCatalog();
+        noCost.setSkuId("SKU-NOCOST");
+        noCost.setSkuName("缺采购价");
+        noCost.setStatus("ACTIVE");
+        noCost.setPurchaseCostCents(null);
+        com.aicabinet.trade.domain.SkuCatalog inactive = new com.aicabinet.trade.domain.SkuCatalog();
+        inactive.setSkuId("SKU-INACTIVE");
+        inactive.setSkuName("已下架但有价");
+        inactive.setStatus("INACTIVE");
+        inactive.setPurchaseCostCents(50);
+        when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
+                .thenReturn(java.util.List.of(ok, noCost, inactive));
+
+        var options = service.listSatelliteSkus(40L);
+
+        assertEquals(1, options.size());
+        assertEquals("SKU-OK", options.get(0).skuId());
+        assertEquals(120, options.get(0).unitCostCents());
+    }
+
+    @Test
     void createSatellitePurchaseOrder_rejectsOtherWarehouse() {
         com.aicabinet.trade.domain.Warehouse mine = new com.aicabinet.trade.domain.Warehouse();
         mine.setWarehouseId("WH-MINE");
