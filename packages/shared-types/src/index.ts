@@ -509,6 +509,8 @@ export interface SkuCatalog {
   createdAt?: string;
   updatedByUserId?: number;
   updatedByName?: string;
+  /** 经营归属（V349 字典 sku_operation_scope：DIRECT/NON_DIRECT；空=未分类，CB-036） */
+  operationScope?: string;
 }
 
 /** 商品条码官方资料查询结果（CB-025，编码中心注册库聚合接口） */
@@ -546,6 +548,8 @@ export interface UpsertSkuRequest {
   nearExpiryPriceCents?: number;
   minChargeConfidence?: number;
   detectionMinConfidence?: number;
+  /** 经营归属（V349 字典 sku_operation_scope）；空=未分类 */
+  operationScope?: string;
   /** 只读；写入时服务端忽略 */
   skuCode?: number;
 }

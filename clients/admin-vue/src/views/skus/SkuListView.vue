@@ -51,6 +51,23 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="归属">
+        <!-- CB-036：经营归属筛选；未分类单列一桶（宁可空着不可错标） -->
+        <el-select
+          v-model="scopeFilter"
+          clearable
+          placeholder="全部归属"
+          style="width: 140px"
+          @change="search"
+        >
+          <el-option
+            v-for="item in scopeFilterOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
@@ -142,6 +159,25 @@
             label-class-name="col-status"
           >
             <template #default="{ row }">{{ row.unit || '件' }}</template>
+          </el-table-column>
+          <el-table-column
+            prop="operationScope"
+            label="归属"
+            width="76"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-tag
+                v-if="row.operationScope"
+                size="small"
+                :type="row.operationScope === 'DIRECT' ? 'success' : 'warning'"
+              >
+                {{ operationScopeLabel(row.operationScope) }}
+              </el-tag>
+              <span v-else class="scope-unclassified">未分类</span>
+            </template>
           </el-table-column>
           <el-table-column label="售价" width="84" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ ((row.priceCents || 0) / 100).toFixed(2) }}</template>
@@ -287,6 +323,25 @@
             <el-form-item label="规格">
               <el-input v-model="form.spec" placeholder="如 550ml" maxlength="40" />
               <div class="field-hint">同一名称可以有多种规格；名称+规格合在一起不能重复</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="经营归属">
+              <!-- CB-036：字典 sku_operation_scope 维护取值；空=未分类 -->
+              <el-select
+                v-model="form.operationScope"
+                clearable
+                placeholder="未分类"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="s in scopeOptions"
+                  :key="s.value"
+                  :label="s.label"
+                  :value="s.value"
+                />
+              </el-select>
+              <div class="field-hint">月结/库存/对账报表按归属筛选；拿不准可留空为未分类</div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -472,6 +527,12 @@ const imageUploading = ref(false);
 const batchDelisting = ref(false);
 const keyword = ref('');
 const categoryFilter = ref('');
+const scopeFilter = ref('');
+// CB-036：字典两值 + 未分类桶（UNCLASSIFIED 由后端翻译成 IS NULL）
+const scopeFilterOptions = computed(() => [
+  ...scopeOptions.value,
+  { value: 'UNCLASSIFIED', label: '未分类' }
+]);
 const categoryOptions = useDictOptions('category_code');
 const saleTab = ref('ACTIVE');
 const editDialog = ref(false);
@@ -480,6 +541,7 @@ const barcodeLookingUp = ref(false);
 /** 单位/品牌走系统字典（CB-026，字典管理可维护；allow-create 兜底自定义输入） */
 const unitOptions = useDictOptions('sku_unit');
 const brandOptions = useDictOptions('sku_brand');
+const scopeOptions = useDictOptions('sku_operation_scope');
 const storageOptions = [
   { value: 'AMBIENT', label: '常温' },
   { value: 'CHILLED', label: '冷藏' },
@@ -523,6 +585,7 @@ const csvOptions: CrudCsvOptions = {
     '品牌',
     '规格',
     '单位',
+    '归属',
     '售价',
     '成本',
     '类目',
@@ -537,6 +600,7 @@ const csvOptions: CrudCsvOptions = {
     '可口可乐',
     '330ml',
     '瓶',
+    '直营',
     '3.50',
     '1.20',
     '饮料',
@@ -550,6 +614,7 @@ const csvOptions: CrudCsvOptions = {
       row.brand || '',
       row.spec || '',
       row.unit || '件',
+      row.operationScope ? operationScopeLabel(row.operationScope) : '未分类',
       ((row.priceCents || 0) / 100).toFixed(2),
       row.purchaseCostCents == null ? '' : (row.purchaseCostCents / 100).toFixed(2),
       categoryLabel(row.category) || '',
@@ -592,6 +657,7 @@ const csvOptions: CrudCsvOptions = {
         spec: (row['规格'] || row.spec || '').trim() || undefined,
         unit: (row['单位'] || row.unit || '').trim() || '件',
         category: normalizeCategoryToCode(row['类目'] || row.category) || undefined,
+        operationScope: normalizeScopeToCode(row['归属'] || row.operationScope) || undefined,
         purchaseCostCents,
         status,
         visionEnabled: existing?.visionEnabled ?? true,
@@ -628,6 +694,17 @@ function normalizeCategoryToCode(raw?: string | null): string {
   return text;
 }
 
+/** CSV 导入：归属标签→键值（直营→DIRECT；未分类/空→undefined 不覆盖） */
+function normalizeScopeToCode(raw?: string | null): string | undefined {
+  const text = String(raw || '').trim();
+  if (!text || text === '未分类') return undefined;
+  consumeDictRuntimeEpoch();
+  for (const o of dictOptions('sku_operation_scope')) {
+    if (o.value === text || o.label === text) return o.value;
+  }
+  return undefined;
+}
+
 const form = reactive({
   existing: false,
   skuId: '',
@@ -655,16 +732,18 @@ const form = reactive({
   nearExpiryDays: undefined as number | undefined,
   blockSaleDaysBeforeExpiry: undefined as number | undefined,
   storageType: undefined as string | undefined,
-  nearExpiryPriceCents: undefined as number | undefined
+  nearExpiryPriceCents: undefined as number | undefined,
+  // CB-036：新建默认直营（丰e足食锚点：直营为主的主数据以直营为默认口径）；编辑随行加载
+  operationScope: ''
 });
 
 const skuEmptyText = computed(() => {
+  const filtered = keyword.value.trim() || categoryFilter.value.trim() || scopeFilter.value.trim();
   if (saleTab.value === 'ACTIVE') {
-    if (keyword.value.trim() || categoryFilter.value.trim())
-      return '在售列表无匹配商品，可清空筛选或切换到「所有商品」';
+    if (filtered) return '在售列表无匹配商品，可清空筛选或切换到「所有商品」';
     return '暂无在售商品，可切换到「所有商品」查看已下架项';
   }
-  if (keyword.value.trim() || categoryFilter.value.trim()) return '无匹配商品';
+  if (filtered) return '无匹配商品';
   return '暂无商品';
 });
 
@@ -736,6 +815,13 @@ function skuStatusLabel(status?: string) {
   return displayLabel('sku_status', status, '未知状态');
 }
 
+/** 经营归属 label（CB-036 字典 sku_operation_scope）；空值由调用方自行处理 */
+function operationScopeLabel(scope?: string | null) {
+  if (!scope) return '未分类';
+  consumeDictRuntimeEpoch();
+  return displayLabel('sku_operation_scope', scope, scope);
+}
+
 function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
   const priceRaw = Number(row.priceCents);
   // 保留真实 0（免费/未填价由调用方校验）；勿用 || 1 静默改价
@@ -761,7 +847,8 @@ function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
     purchaseCostCents: row.purchaseCostCents,
     nearExpiryPriceCents: row.nearExpiryPriceCents,
     minChargeConfidence: row.minChargeConfidence,
-    detectionMinConfidence: row.detectionMinConfidence
+    detectionMinConfidence: row.detectionMinConfidence,
+    operationScope: row.operationScope || undefined
   };
 }
 
@@ -870,6 +957,7 @@ function openEdit(row?: SkuCatalog) {
     form.blockSaleDaysBeforeExpiry = row.blockSaleDaysBeforeExpiry;
     form.storageType = row.storageType || 'AMBIENT';
     form.nearExpiryPriceCents = row.nearExpiryPriceCents;
+    form.operationScope = row.operationScope || '';
   } else {
     form.existing = false;
     form.skuId = '';
@@ -894,6 +982,7 @@ function openEdit(row?: SkuCatalog) {
     form.blockSaleDaysBeforeExpiry = undefined;
     form.storageType = 'AMBIENT';
     form.nearExpiryPriceCents = undefined;
+    form.operationScope = 'DIRECT';
   }
   editDialog.value = true;
 }
@@ -1028,7 +1117,8 @@ async function saveEdit() {
       nearExpiryDays: form.nearExpiryDays,
       blockSaleDaysBeforeExpiry: form.blockSaleDaysBeforeExpiry,
       storageType: form.storageType,
-      nearExpiryPriceCents: form.nearExpiryPriceCents
+      nearExpiryPriceCents: form.nearExpiryPriceCents,
+      operationScope: form.operationScope || undefined
     };
     let updated: SkuCatalog;
     if (form.existing) {
@@ -1055,6 +1145,7 @@ function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (keyword.value.trim()) query.keyword = keyword.value.trim();
   if (categoryFilter.value.trim()) query.category = categoryFilter.value.trim();
+  if (scopeFilter.value.trim()) query.scope = scopeFilter.value.trim();
   if (saleTab.value && saleTab.value !== 'ACTIVE') query.sale = saleTab.value;
   router.replace({ query });
 }
@@ -1067,6 +1158,7 @@ function search() {
 function resetFilters() {
   keyword.value = '';
   categoryFilter.value = '';
+  scopeFilter.value = '';
   saleTab.value = 'ACTIVE';
   syncRouteQuery();
   void crud.search();
@@ -1080,6 +1172,7 @@ function skuQueryParams(page: number, size: number) {
   const kw = keyword.value.trim();
   if (kw) q.set('q', kw);
   if (categoryFilter.value.trim()) q.set('category', categoryFilter.value.trim());
+  if (scopeFilter.value.trim()) q.set('operationScope', scopeFilter.value.trim());
   if (saleTab.value === 'ACTIVE') q.set('status', 'ACTIVE');
   else q.set('status', 'ALL');
   return q;
@@ -1095,6 +1188,11 @@ function applyRouteQuery() {
   const qCat = typeof route.query.category === 'string' ? route.query.category : '';
   if (qCat !== categoryFilter.value) {
     categoryFilter.value = qCat;
+    changed = true;
+  }
+  const qScope = typeof route.query.scope === 'string' ? route.query.scope : '';
+  if (qScope !== scopeFilter.value) {
+    scopeFilter.value = qScope;
     changed = true;
   }
   const qSale =
@@ -1189,6 +1287,11 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: var(--admin-font-size-sm);
   line-height: 1.4;
+}
+/* 归属列「未分类」占位（CB-036：未分类单列一桶，视觉弱化但不藏） */
+.scope-unclassified {
+  color: var(--el-text-color-placeholder);
+  font-size: var(--admin-font-size-sm);
 }
 /* 弹窗分组标题（基础信息/价格与效期/展示与备注），组间距放在标题上 */
 .form-group-title {

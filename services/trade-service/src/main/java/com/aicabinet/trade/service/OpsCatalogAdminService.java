@@ -49,22 +49,35 @@ public class OpsCatalogAdminService {
     }
 
     public List<SkuCatalogDto> listSkus(Long operatorId) {
-        return listSkus(operatorId, null, null, null);
+        return listSkus(operatorId, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
     public List<SkuCatalogDto> listSkus(Long operatorId, String q, String status, String category) {
+        return listSkus(operatorId, q, status, category, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SkuCatalogDto> listSkus(
+            Long operatorId, String q, String status, String category, String operationScope) {
         permissionService.requireAnyPermission(operatorId, "ops:sku:list", "ops:replenishment:list", "ops:warehouse:list");
-        return listSkusPage(operatorId, q, status, category, 0, 500).items();
+        return listSkusPage(operatorId, q, status, category, operationScope, 0, 500).items();
     }
 
     @Transactional(readOnly = true)
     public PageResult<SkuCatalogDto> listSkusPage(
             Long operatorId, String q, String status, String category, int page, int size) {
+        return listSkusPage(operatorId, q, status, category, null, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<SkuCatalogDto> listSkusPage(
+            Long operatorId, String q, String status, String category,
+            String operationScope, int page, int size) {
         permissionService.requireAnyPermission(operatorId, "ops:sku:list", "ops:replenishment:list", "ops:warehouse:list");
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 500);
-        var result = skuCatalogRepository.search(q, status, category, p, s);
+        var result = skuCatalogRepository.search(q, status, category, operationScope, p, s);
         List<SkuCatalogDto> items = result.getRecords().stream().map(SkuCatalog::toDto).toList();
         return new PageResult<>(items, p, s, result.getTotal());
     }
@@ -170,6 +183,8 @@ public class OpsCatalogAdminService {
         if (request.detectionMinConfidence() != null) {
             sku.setDetectionMinConfidence(request.detectionMinConfidence());
         }
+        // 经营归属（V349）：空=未分类；取值合法性由 UpsertSkuRequest @Pattern 兜底
+        sku.setOperationScope(trimToNull(request.operationScope()));
     }
 
     private void touchSkuUpdater(SkuCatalog sku, Long operatorId) {

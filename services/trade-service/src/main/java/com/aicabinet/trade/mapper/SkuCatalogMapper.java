@@ -63,8 +63,13 @@ public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
         return selectCount(q) > 0;
     }
 
-    /** page 为 0-based；status 传 ACTIVE 等，ALL 表示不限。 */
-    default Page<SkuCatalog> search(String q, String status, String category, int page, int size) {
+    /**
+     * page 为 0-based；status 传 ACTIVE 等，ALL 表示不限；
+     * operationScope 传 DIRECT/NON_DIRECT（V349 字典 sku_operation_scope），
+     * UNCLASSIFIED=未分类（NULL 桶，CB-036），ALL/空表示不限。
+     */
+    default Page<SkuCatalog> search(String q, String status, String category,
+                                    String operationScope, int page, int size) {
         var query = Wrappers.<SkuCatalog>lambdaQuery()
                 .orderByAsc(SkuCatalog::getSkuCode)
                 .orderByAsc(SkuCatalog::getSkuId);
@@ -73,6 +78,14 @@ public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
         }
         if (category != null && !category.isBlank()) {
             query.eq(SkuCatalog::getCategory, category.trim());
+        }
+        if (operationScope != null && !operationScope.isBlank()
+                && !"ALL".equalsIgnoreCase(operationScope.trim())) {
+            if ("UNCLASSIFIED".equalsIgnoreCase(operationScope.trim())) {
+                query.isNull(SkuCatalog::getOperationScope);
+            } else {
+                query.eq(SkuCatalog::getOperationScope, operationScope.trim().toUpperCase());
+            }
         }
         if (q != null && !q.isBlank()) {
             String kw = q.trim();

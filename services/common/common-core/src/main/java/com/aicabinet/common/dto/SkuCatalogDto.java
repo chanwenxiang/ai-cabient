@@ -28,5 +28,7 @@ public record SkuCatalogDto(
         Float detectionMinConfidence,
         Instant createdAt,
         Long updatedByUserId,
-        String updatedByName
+        String updatedByName,
+        /** 经营归属（V349 字典 sku_operation_scope：DIRECT/NON_DIRECT；null=未分类） */
+        String operationScope
 ) {}

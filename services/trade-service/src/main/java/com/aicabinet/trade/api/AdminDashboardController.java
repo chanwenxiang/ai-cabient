@@ -448,9 +448,11 @@ public class AdminDashboardController {
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "category", required = false) String category,
+            @RequestParam(name = "operationScope", required = false) String operationScope,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(adminService.listSkusPage(operatorId(request), q, status, category, page, size));
+        return ApiResponse.ok(adminService.listSkusPage(
+                operatorId(request), q, status, category, operationScope, page, size));
     }
 
     /** 设备基础信息只读（履约角色设备下拉），按账号商户范围过滤。 */

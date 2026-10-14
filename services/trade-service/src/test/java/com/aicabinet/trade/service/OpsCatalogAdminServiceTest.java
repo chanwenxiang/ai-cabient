@@ -139,6 +139,60 @@ class OpsCatalogAdminServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null);
+    }
+
+    @Test
+    void createSku_persistsOperationScope() {
+        when(skuCatalogRepository.nextSkuCode()).thenReturn(43L);
+        when(skuCatalogRepository.existsById("43")).thenReturn(false);
+        when(skuCatalogRepository.existsBySkuCode(43L, null)).thenReturn(false);
+        when(skuCatalogRepository.existsByBarcode(null, null)).thenReturn(false);
+        when(skuCatalogRepository.existsByNameAndSpec("可乐", null, null)).thenReturn(false);
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        UpsertSkuRequest req = new UpsertSkuRequest(
+                null, "可乐", 350, 500, true,
+                null, null, null, null, "ACTIVE",
+                null, null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, "件", "NON_DIRECT");
+
+        var dto = service.createSku(10001L, req);
+
+        assertEquals("NON_DIRECT", dto.operationScope());
+        org.mockito.ArgumentCaptor<SkuCatalog> captor =
+                org.mockito.ArgumentCaptor.forClass(SkuCatalog.class);
+        verify(skuCatalogRepository).save(captor.capture());
+        assertEquals("NON_DIRECT", captor.getValue().getOperationScope());
+    }
+
+    @Test
+    void updateSku_blankOperationScopeClearsValue() {
+        SkuCatalog existing = new SkuCatalog();
+        existing.setSkuId("311");
+        existing.setSkuName("旧名");
+        existing.setOperationScope("DIRECT");
+        when(skuCatalogRepository.findById("311")).thenReturn(java.util.Optional.of(existing));
+        when(skuCatalogRepository.existsByBarcode(null, "311")).thenReturn(false);
+        when(skuCatalogRepository.existsByNameAndSpec("新名", null, "311")).thenReturn(false);
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(userInfoRepository.findById(10001L)).thenReturn(java.util.Optional.empty());
+
+        UpsertSkuRequest req = new UpsertSkuRequest(
+                "311", "新名", 350, 500, true,
+                null, null, null, null, "ACTIVE",
+                null, null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, "件", "  ");
+
+        service.updateSku(10001L, "311", req);
+
+        // 空白归属 = 清回未分类（NULL），不允许「空串」脏值入库
+        org.mockito.ArgumentCaptor<SkuCatalog> captor =
+                org.mockito.ArgumentCaptor.forClass(SkuCatalog.class);
+        verify(skuCatalogRepository).save(captor.capture());
+        assertEquals(null, captor.getValue().getOperationScope());
     }
 }

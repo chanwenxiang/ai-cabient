@@ -40,7 +40,10 @@ public record UpsertSkuRequest(
         Long skuCode,
         String brand,
         String spec,
-        String unit
+        String unit,
+        /** 经营归属（V349 字典 sku_operation_scope）；空=未分类，取值校验见 @Pattern */
+        @Pattern(regexp = "DIRECT|NON_DIRECT", message = "operationScope must be DIRECT or NON_DIRECT")
+        String operationScope
 ) {
     public UpsertSkuRequest {
         if (visionEnabled == null) {
@@ -60,6 +63,9 @@ public record UpsertSkuRequest(
         }
         if (unit == null || unit.isBlank()) {
             unit = "件";
+        }
+        if (operationScope != null && operationScope.isBlank()) {
+            operationScope = null;
         }
     }
 }

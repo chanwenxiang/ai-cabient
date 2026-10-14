@@ -82,6 +82,9 @@ public class SkuCatalog {
     @TableField("updated_by_name")
     private String updatedByName;
 
+    /** 经营归属（V349，字典 sku_operation_scope：DIRECT/NON_DIRECT；NULL=未分类，见 CB-036）。 */
+    private String operationScope;
+
     public SkuCatalogDto toDto() {
         return new SkuCatalogDto(
                 skuId,
@@ -109,7 +112,8 @@ public class SkuCatalog {
                 detectionMinConfidence,
                 createdAt,
                 updatedByUserId,
-                updatedByName
+                updatedByName,
+                operationScope
         );
     }
 
