@@ -34,6 +34,8 @@ public class LineCommissionJob {
     private final LineManagerMapper managerMapper;
     private final LineDeviceMapper deviceMapper;
     private final CabinetOrderMapper orderMapper;
+    private final com.aicabinet.trade.mapper.ReplenishmentTaskMapper replenishmentTaskMapper;
+    private final com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper replenishmentTaskLineMapper;
     private final LineCommissionDailyMapper commissionDailyMapper;
     private final LineWalletService lineWalletService;
     private final DistributedLockService distributedLockService;
@@ -47,13 +49,17 @@ public class LineCommissionJob {
                              LineWalletService lineWalletService,
                              DistributedLockService distributedLockService,
                              ScheduledTaskService taskService,
-                             org.springframework.transaction.support.TransactionTemplate transactionTemplate) {
+                             org.springframework.transaction.support.TransactionTemplate transactionTemplate,
+            com.aicabinet.trade.mapper.ReplenishmentTaskMapper replenishmentTaskMapper,
+            com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper replenishmentTaskLineMapper) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.orderMapper = orderMapper;
         this.commissionDailyMapper = commissionDailyMapper;
         this.lineWalletService = lineWalletService;
         this.distributedLockService = distributedLockService;
+        this.replenishmentTaskMapper = replenishmentTaskMapper;
+        this.replenishmentTaskLineMapper = replenishmentTaskLineMapper;
         this.taskService = taskService;
         this.transactionTemplate = transactionTemplate;
     }
@@ -146,6 +152,9 @@ public class LineCommissionJob {
                     manager.getManagerId(), bizDate, binding.getDeviceId()).isPresent()) {
                 return false;
             }
+            if ("RESTOCK_QTY".equalsIgnoreCase(manager.getCommissionBasis())) {
+                return doPostRestockCommissionTx(manager, binding, bizDate, start, end);
+            }
             List<CabinetOrder> orders = orderMapper
                     .findByDeviceIdAndCreatedAtBetween(binding.getDeviceId(), start, end)
                     .stream()
@@ -175,5 +184,53 @@ public class LineCommissionJob {
             lineWalletService.credit(manager.getManagerId(), commission, "COMMISSION",
                     "COMMISSION_DAILY", refId, "线长日佣金 " + bizDate + " " + binding.getDeviceId());
             return true;
+    }
+
+    /**
+     * 补货数量提成（V357，对齐老系统 MachineCommissionLink.type=1 按销量）：
+     * 该线长（assigneeUserId）昨日已完成补货任务中、落在该柜机上的补货件数 × 每件佣金
+     * （commissionPerUnitCents）。orderCount 存补货件数、gmvCents=0；入账同 GMV 模式。
+     */
+    private boolean doPostRestockCommissionTx(LineManager manager, LineDevice binding, LocalDate bizDate,
+                                              java.time.Instant start, java.time.Instant end) {
+        if (manager.getUserId() == null) {
+            return false;
+        }
+        List<com.aicabinet.trade.domain.ReplenishmentTask> tasks = replenishmentTaskMapper
+                .selectList(com.baomidou.mybatisplus.core.toolkit.Wrappers
+                        .<com.aicabinet.trade.domain.ReplenishmentTask>lambdaQuery()
+                        .eq(com.aicabinet.trade.domain.ReplenishmentTask::getAssigneeUserId, manager.getUserId())
+                        .eq(com.aicabinet.trade.domain.ReplenishmentTask::getDeviceId, binding.getDeviceId())
+                        .eq(com.aicabinet.trade.domain.ReplenishmentTask::getStatus, "COMPLETED")
+                        .ge(com.aicabinet.trade.domain.ReplenishmentTask::getCompletedAt, start)
+                        .lt(com.aicabinet.trade.domain.ReplenishmentTask::getCompletedAt, end));
+        if (tasks.isEmpty()) {
+            return false;
+        }
+        List<Long> taskIds = tasks.stream().map(com.aicabinet.trade.domain.ReplenishmentTask::getTaskId).toList();
+        int restockQty = replenishmentTaskLineMapper.selectList(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers
+                        .<com.aicabinet.trade.domain.ReplenishmentTaskLine>lambdaQuery()
+                        .in(com.aicabinet.trade.domain.ReplenishmentTaskLine::getTaskId, taskIds))
+                .stream().mapToInt(com.aicabinet.trade.domain.ReplenishmentTaskLine::getQuantity).sum();
+        long perUnit = manager.getCommissionPerUnitCents() == null ? 0L : manager.getCommissionPerUnitCents();
+        long commission = (long) restockQty * perUnit;
+        if (commission <= 0) {
+            return false;
+        }
+        LineCommissionDaily row = new LineCommissionDaily();
+        row.setManagerId(manager.getManagerId());
+        row.setBizDate(bizDate);
+        row.setDeviceId(binding.getDeviceId());
+        row.setOrderCount(restockQty);
+        row.setGmvCents(0L);
+        row.setCommissionCents(commission);
+        row.setStatus("POSTED");
+        row.setCreatedAt(java.time.Instant.now());
+        commissionDailyMapper.insert(row);
+        String refId = bizDate + "|" + binding.getDeviceId();
+        lineWalletService.credit(manager.getManagerId(), commission, "COMMISSION",
+                "COMMISSION_DAILY", refId, "线长补货提成 " + bizDate + " " + binding.getDeviceId());
+        return true;
     }
 }
