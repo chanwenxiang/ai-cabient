@@ -73,9 +73,11 @@ public class OpsLineRouteController {
     @Operation(summary = "添加/更新成员（同人同角色唯一，存在即更新提成配置）")
     @PutMapping("/{routeId}/members")
     @RequiresPermissions("ops:replenishment:edit")
-    public ApiResponse<LineRouteMember> upsertMember(@PathVariable Long routeId,
-                                                     @RequestBody LineRouteMember member) {
-        return ApiResponse.ok(lineRouteAdminService.upsertMember(routeId, member));
+    public ApiResponse<Void> upsertMember(@PathVariable Long routeId,
+                                          @RequestBody LineRouteMember member) {
+        // 返回形状保持 Void（与既有 openapi types 一致；前端不消费返回体）
+        lineRouteAdminService.upsertMember(routeId, member);
+        return ApiResponse.ok(null);
     }
 
     @Operation(summary = "移除成员")

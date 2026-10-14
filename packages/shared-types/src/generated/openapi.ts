@@ -515,9 +515,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 线路成员列表（线长+补货员，同一人可双角色） */
+        /** 线路成员列表（同人可双角色两行） */
         get: operations["members"];
-        /** 添加/更新成员（role=MANAGER 或 STAFF，含提成配置，可随时改） */
+        /** 添加/更新成员（同人同角色唯一，存在即更新提成配置） */
         put: operations["upsertMember"];
         post?: never;
         delete?: never;
@@ -7408,7 +7408,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 岗位月合计（线长销售提成 + 补货员佣金，供财务对账） */
+        /** 岗位月合计（线长销售提成 + 补货员佣金，供财务对账；佣金=已发-退款冲回） */
         get: operations["monthlySummary"];
         put?: never;
         post?: never;
