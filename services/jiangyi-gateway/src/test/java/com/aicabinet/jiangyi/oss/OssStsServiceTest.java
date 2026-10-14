@@ -68,10 +68,10 @@ class OssStsServiceTest {
         assertEquals("STS.ak", token.accessKeyId());
         assertEquals("STS.sk", token.accessKeySecret());
         assertEquals("STS.token", token.securityToken());
-        // endpoint/bucket/dirName 与 §4.2.6 data 字段对齐（表格 17）
+        // endpoint/bucket/dirName 与 §4.2.6 data 字段对齐（表格 17；dirName 按设备隔离）
         assertEquals("https://oss-cn-shenzhen.aliyuncs.com", token.endpoint());
         assertEquals("ai-cabinet-by", token.bucketName());
-        assertEquals("jiangyi-video/", token.dirName());
+        assertEquals("jiangyi-video/100000000001/", token.dirName());
         assertEquals("2026-10-10T09:00:00Z", token.expiration());
         // AssumeRole 参数
         assertEquals("acs:ram::123:role/jiangyi-upload", service.lastRoleArn);
@@ -79,14 +79,27 @@ class OssStsServiceTest {
     }
 
     @Test
-    void policyNarrowsToPutObjectOnDirPrefix() throws Exception {
+    void policyNarrowsToPutObjectOnDeviceScopedDirPrefix() throws Exception {
         StubStsService service = new StubStsService(props());
         service.issueUploadToken("100000000001");
         var policy = MAPPER.readTree(service.lastPolicy);
         assertEquals("1", policy.path("Version").asText());
         assertEquals("oss:PutObject", policy.path("Statement").get(0).path("Action").get(0).asText());
-        assertEquals("acs:oss:*:*:ai-cabinet-by/jiangyi-video/*",
+        // 收窄到本柜子子目录：机制上防串柜写入（其他柜子的目录不在 Resource 内）
+        assertEquals("acs:oss:*:*:ai-cabinet-by/jiangyi-video/100000000001/*",
                 policy.path("Statement").get(0).path("Resource").get(0).asText());
+    }
+
+    @Test
+    void uploadTokenFailsClosedOnInvalidDeviceId() {
+        StubStsService service = new StubStsService(props());
+        // 非纯数字 / 占位符 / 过短 / 过长 → 不出网、不发「未知目录」凭证
+        assertNull(service.issueUploadToken("unknown"));
+        assertNull(service.issueUploadToken("d1"));
+        assertNull(service.issueUploadToken("12345"));
+        assertNull(service.issueUploadToken("123456789012345678901"));
+        assertNull(service.issueUploadToken(null));
+        assertNull(service.lastPolicy, "callSts 不应被调用");
     }
 
     @Test
@@ -125,7 +138,7 @@ class OssStsServiceTest {
         service.responseBody = """
                 {"Credentials":{"AccessKeyId":"a","AccessKeySecret":"b","SecurityToken":"c"}}
                 """;
-        OssStsService.OssUploadToken token = service.issueUploadToken("d1");
+        OssStsService.OssUploadToken token = service.issueUploadToken("100000000002");
         Instant expiration = Instant.parse(token.expiration());
         assertTrue(expiration.isAfter(Instant.now()));
     }

@@ -34,8 +34,9 @@ import java.util.stream.Collectors;
  * 不为省 40 行配置引入需联网下载的新依赖（离线构建铁律）。</p>
  *
  * <p><b>安全设计</b>：AssumeRole 时附带 inline Policy，把会话权限从角色全量收窄到
- * 「仅 {@code oss:PutObject}、仅本桶 {@code dirName*} 前缀」——即使凭证在设备端泄露，
- * 15 分钟内也只能往视频前缀写对象，读不到、删不了、出不了桶。</p>
+ * 「仅 {@code oss:PutObject}、仅本桶 {@code dirName/{deviceId}/*} 设备级子目录」——
+ * 即使凭证在设备端泄露，15 分钟内也只能往<b>自己柜子</b>的视频目录写对象，
+ * 读不到、删不了、出不了桶、串不了柜。</p>
  *
  * <p><b>可测性</b>：真实的阿里云 HTTP 调用隔离在 {@link #callSts}（包级可见可覆写），
  * 单测覆写该发一个假响应即可，不出网。</p>
@@ -66,7 +67,11 @@ public class OssStsService {
             log.warn("jiangyi oss sts not configured (JIANGYI_OSS_* env missing), reject upload token");
             return null;
         }
-        String policy = uploadPolicyJson(properties.getBucket(), properties.getDirName());
+        String deviceDir = deviceDirName(deviceId);
+        if (deviceDir == null) {
+            return null;
+        }
+        String policy = uploadPolicyJson(properties.getBucket(), deviceDir);
         String sessionName = sessionName(deviceId);
         String body = callSts(properties.getRoleArn(), sessionName,
                 properties.getSessionSeconds(), policy);
@@ -86,11 +91,28 @@ public class OssStsService {
             }
             String expiration = parseExpiration(cred, sessionSeconds());
             return new OssUploadToken(ak, sk, token, expiration,
-                    properties.publicEndpoint(), properties.getBucket(), properties.getDirName());
+                    properties.publicEndpoint(), properties.getBucket(), deviceDir);
         } catch (Exception e) {
             log.error("jiangyi sts assume-role parse failed: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 设备级上传目录（{@code dirName + deviceId + "/"}）：上传凭证的 inline Policy 收窄到
+     * 自己柜子的子目录，从机制上强制 key 规范
+     * {@code jiangyi-video/{deviceId}/{yyyyMMdd}/{orderNo}_{serial}.mp4}
+     * 并杜绝跨柜写入（凭证泄露也污染不了别家柜子的视频目录）。
+     *
+     * <p>deviceId 必须是 6~20 位纯数字（与设备注册自动分配口径一致），否则 fail-closed——
+     * 决不发一个「未知目录」凭证出去。</p>
+     */
+    private String deviceDirName(String deviceId) {
+        if (deviceId == null || !deviceId.matches("\\d{6,20}")) {
+            log.warn("jiangyi oss upload token rejected: invalid deviceId={}", deviceId);
+            return null;
+        }
+        return properties.getDirName() + deviceId + "/";
     }
 
     /** 预签名 GET URL 结果（CB-029）；expiration 为 URL 失效时刻的 ISO8601 串。 */
