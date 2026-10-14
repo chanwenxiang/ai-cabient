@@ -102,6 +102,28 @@ public class WithdrawPolicyResolver {
                 merchantProperties.feeBps(), 0L);
     }
 
+    /**
+     * 商户级提现扣率覆盖（对齐老系统 OptMerchantBaseFee.deductionPermillage 按商户配 ‰）：
+     * sys_config key = merchant.withdraw.fee_bps.{merchantId}，未配置回退全局费率。
+     */
+    public long merchantFeeBpsFor(String merchantId) {
+        if (merchantId != null && !merchantId.isBlank() && systemConfigService != null) {
+            String raw = systemConfigService.getValue(
+                    "merchant.withdraw.fee_bps." + merchantId, null);
+            if (raw != null && !raw.isBlank()) {
+                try {
+                    long override = Long.parseLong(raw.trim());
+                    if (override >= 0) {
+                        return override;
+                    }
+                } catch (NumberFormatException ignored) {
+                    // 配置值非法时回退全局
+                }
+            }
+        }
+        return merchantFeeBps();
+    }
+
     /** 商户提现手续费单笔封顶（分）；0 = 不封顶。 */
     public long merchantFeeCapCents() {
         return pick(SystemConfigService.MERCHANT_WITHDRAW_FEE_CAP_CENTS, 0L, 0L);

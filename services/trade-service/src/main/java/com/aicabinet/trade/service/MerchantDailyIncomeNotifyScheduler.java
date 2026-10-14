@@ -3,6 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.NotificationLog;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
@@ -50,17 +52,23 @@ public class MerchantDailyIncomeNotifyScheduler {
     private final NotificationService notificationService;
     private final NotificationLogMapper notificationLogRepository;
     private final ScheduledTaskService taskService;
+    private final DeviceInfoMapper deviceRepository;
+    private final MerchantWalletService walletService;
 
     public MerchantDailyIncomeNotifyScheduler(MerchantMapper merchantRepository,
                                               OrderRevenueSplitMapper splitRepository,
                                               NotificationService notificationService,
                                               NotificationLogMapper notificationLogRepository,
-                                              ScheduledTaskService taskService) {
+                                              ScheduledTaskService taskService,
+                                              DeviceInfoMapper deviceRepository,
+                                              MerchantWalletService walletService) {
         this.merchantRepository = merchantRepository;
         this.splitRepository = splitRepository;
         this.notificationService = notificationService;
         this.notificationLogRepository = notificationLogRepository;
         this.taskService = taskService;
+        this.deviceRepository = deviceRepository;
+        this.walletService = walletService;
     }
 
     @Scheduled(
@@ -109,14 +117,54 @@ public class MerchantDailyIncomeNotifyScheduler {
             }
             String merchantName = merchantRepository.findById(merchantId)
                     .map(Merchant::getMerchantName).orElse(merchantId);
+            // 周期费用日摊（用户拍板「净额展示+每日扣余额」）：租金+流量费按月额/当月天数摊销，
+            // 每日从商户余额扣（幂等 refId=昨日日期）；余额可负（欠费自然累计，老系统同款直减）。
+            long feeCents = chargeDailyPeriodFees(merchantId, yesterday);
+            long incomeCents = entry.getValue();
+            long netCents = incomeCents - feeCents;
             notificationService.notifyMerchant(merchantId, TEMPLATE_CODE,
                     Map.of("merchantName", merchantName,
                             "period", yesterday.format(PERIOD_FMT),
-                            "amount", BigDecimal.valueOf(entry.getValue(), 2).toPlainString()),
+                            "amount", BigDecimal.valueOf(incomeCents, 2).toPlainString(),
+                            "fee", BigDecimal.valueOf(feeCents, 2).toPlainString(),
+                            "net", BigDecimal.valueOf(netCents, 2).toPlainString()),
                     BIZ_TYPE, bizId);
             sent++;
         }
         return sent;
+    }
+
+    /**
+     * 周期费用日摊扣款：该商户名下柜机的 (租金 rentCents + 流量费 dataFeeCents) 月额
+     * ÷ 当月天数 = 当日应摊，从商户钱包扣（entryType=DAILY_FEE，refType=SETTLEMENT_FEE，
+     * refId=昨日日期——幂等，重跑不重扣）。余额不足直减为负（欠费累计，老系统同款）。
+     * 返回当日实扣费用（分）。
+     */
+    long chargeDailyPeriodFees(String merchantId, LocalDate yesterday) {
+        List<DeviceInfo> devices = deviceRepository.selectList(
+                Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
+        if (devices.isEmpty()) {
+            return 0L;
+        }
+        int daysInMonth = yesterday.lengthOfMonth();
+        long monthlyTotal = 0L;
+        for (DeviceInfo d : devices) {
+            long rent = "RENTAL".equalsIgnoreCase(d.getCoopMode()) && d.getRentCents() != null
+                    ? d.getRentCents() : 0L;
+            long dataFee = d.getDataFeeCents() == null ? 0L : d.getDataFeeCents();
+            monthlyTotal += rent + dataFee;
+        }
+        if (monthlyTotal <= 0L) {
+            return 0L;
+        }
+        long dailyFee = monthlyTotal / daysInMonth;
+        if (dailyFee <= 0L) {
+            return 0L;
+        }
+        String bizId = yesterday.format(ISO_FMT);
+        walletService.debit(merchantId, dailyFee, "DAILY_FEE",
+                "SETTLEMENT_FEE", bizId, "周期费用日摊(租金+流量费/" + daysInMonth + "天)");
+        return dailyFee;
     }
 
     /**

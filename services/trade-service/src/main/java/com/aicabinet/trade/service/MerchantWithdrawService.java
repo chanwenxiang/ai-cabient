@@ -438,7 +438,8 @@ public class MerchantWithdrawService {
         request.setMerchantName(merchant.getMerchantName());
         request.setAmountCents(amountCents);
         request.setFeeCents(WithdrawFeeCalculator.computeFeeCents(
-                amountCents, policy.merchantFeeCents(), policy.merchantFeeBps(), policy.merchantFeeCapCents()));
+                amountCents, policy.merchantFeeCents(), policy.merchantFeeBpsFor(merchant.getMerchantId()),
+                policy.merchantFeeCapCents()));
         // 🔴 渠道取自「所选收款账户」，不再是 mock 开关的字面量：一个商户可按账户走不同通道
         request.setPayChannel(payeeAccount.getChannel());
         applyPayeeSnapshot(request, payeeAccount);
