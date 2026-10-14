@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.Merchant;
+import com.aicabinet.trade.domain.MerchantWalletAccount;
 import com.aicabinet.trade.domain.NotificationLog;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.domain.DeviceInfo;
@@ -44,6 +45,7 @@ public class MerchantDailyIncomeNotifyScheduler {
     private static final String PROCESS = "merchant-daily-income-notify";
     private static final String TEMPLATE_CODE = "merchant_settlement";
     private static final String BIZ_TYPE = "DAILY_INCOME";
+    static final String FEE_OVERDUE_LOCK_PREFIX = "费用欠缴锁柜";
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyy年M月d日");
     private static final DateTimeFormatter ISO_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -54,6 +56,8 @@ public class MerchantDailyIncomeNotifyScheduler {
     private final ScheduledTaskService taskService;
     private final DeviceInfoMapper deviceRepository;
     private final MerchantWalletService walletService;
+    private final SystemConfigService configService;
+    private final DeviceSalesLockService salesLockService;
 
     public MerchantDailyIncomeNotifyScheduler(MerchantMapper merchantRepository,
                                               OrderRevenueSplitMapper splitRepository,
@@ -61,7 +65,9 @@ public class MerchantDailyIncomeNotifyScheduler {
                                               NotificationLogMapper notificationLogRepository,
                                               ScheduledTaskService taskService,
                                               DeviceInfoMapper deviceRepository,
-                                              MerchantWalletService walletService) {
+                                              MerchantWalletService walletService,
+                                              SystemConfigService configService,
+                                              DeviceSalesLockService salesLockService) {
         this.merchantRepository = merchantRepository;
         this.splitRepository = splitRepository;
         this.notificationService = notificationService;
@@ -69,6 +75,8 @@ public class MerchantDailyIncomeNotifyScheduler {
         this.taskService = taskService;
         this.deviceRepository = deviceRepository;
         this.walletService = walletService;
+        this.configService = configService;
+        this.salesLockService = salesLockService;
     }
 
     @Scheduled(
@@ -131,7 +139,75 @@ public class MerchantDailyIncomeNotifyScheduler {
                     BIZ_TYPE, bizId);
             sent++;
         }
+        checkOverdueAndRemind(yesterday, incomeByMerchant);
         return sent;
+    }
+
+    /**
+     * 欠费处置（CB-004 追缴路径：先催 → 锁柜；2026-10-14 拍板）：
+     * ① 余额 &lt; 0（扣费后转欠）→ 当日发一条催缴信（bizId=日期 查重，每日最多一条）；
+     * ② 余额 ≤ -(月费用总额 × lockMonths，默认 1) → 名下未锁柜机按 FEE_OVERDUE 前缀锁柜；
+     * ③ 余额回正 → 名下因费用欠缴被锁的柜机自动解锁。
+     * 锁柜阈值倍数可配：sys_config merchant.overdue.lock_months（默认 1）。
+     */
+    void checkOverdueAndRemind(LocalDate yesterday, Map<String, Long> incomeByMerchant) {
+        String bizId = yesterday.format(ISO_FMT);
+        int lockMonths;
+        try {
+            lockMonths = Math.max(1, Integer.parseInt(
+                    configService.getValue("merchant.overdue.lock_months", "1").trim()));
+        } catch (NumberFormatException e) {
+            lockMonths = 1;
+        }
+        for (Map.Entry<String, Long> entry : incomeByMerchant.entrySet()) {
+            String merchantId = entry.getKey();
+            MerchantWalletAccount account = walletService.ensureAccount(merchantId);
+            long balance = account.getBalanceCents() == null ? 0L : account.getBalanceCents();
+            if (balance >= 0) {
+                unlockFeeOverdue(merchantId);
+                continue;
+            }
+            long debt = -balance;
+            if (alreadySentType(merchantId, "FEE_REMINDER", bizId)) {
+                // 当日已催缴
+            } else {
+                String merchantName = merchantRepository.findById(merchantId)
+                        .map(Merchant::getMerchantName).orElse(merchantId);
+                notificationService.notifyMerchant(merchantId, "merchant_fee_reminder",
+                        Map.of("merchantName", merchantName,
+                                "reminder", "您的平台费用已欠缴（余额为负），请及时充值",
+                                "debt", BigDecimal.valueOf(debt, 2).toPlainString()),
+                        "FEE_REMINDER", bizId);
+            }
+            long threshold = monthlyFeeTotal(merchantId) * lockMonths;
+            if (threshold > 0 && debt >= threshold) {
+                lockFeeOverdue(merchantId, debt);
+            }
+        }
+    }
+
+    private void lockFeeOverdue(String merchantId, long debt) {
+        List<DeviceInfo> devices = deviceRepository.selectList(
+                Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
+        for (DeviceInfo d : devices) {
+            if (!Boolean.TRUE.equals(d.getSalesLocked())) {
+                salesLockService.applySalesLock(null, d, true,
+                        FEE_OVERDUE_LOCK_PREFIX + "：欠费 " + BigDecimal.valueOf(debt, 2).toPlainString() + " 元",
+                        true);
+            }
+        }
+    }
+
+    private void unlockFeeOverdue(String merchantId) {
+        List<DeviceInfo> devices = deviceRepository.selectList(
+                Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
+        for (DeviceInfo d : devices) {
+            if (Boolean.TRUE.equals(d.getSalesLocked())
+                    && d.getSalesLockReason() != null
+                    && d.getSalesLockReason().startsWith(FEE_OVERDUE_LOCK_PREFIX)) {
+                salesLockService.applySalesLock(null, d, false, "欠费已结清", true);
+            }
+        }
     }
 
     /**
@@ -141,22 +217,11 @@ public class MerchantDailyIncomeNotifyScheduler {
      * 返回当日实扣费用（分）。
      */
     long chargeDailyPeriodFees(String merchantId, LocalDate yesterday) {
-        List<DeviceInfo> devices = deviceRepository.selectList(
-                Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
-        if (devices.isEmpty()) {
-            return 0L;
-        }
-        int daysInMonth = yesterday.lengthOfMonth();
-        long monthlyTotal = 0L;
-        for (DeviceInfo d : devices) {
-            long rent = "RENTAL".equalsIgnoreCase(d.getCoopMode()) && d.getRentCents() != null
-                    ? d.getRentCents() : 0L;
-            long dataFee = d.getDataFeeCents() == null ? 0L : d.getDataFeeCents();
-            monthlyTotal += rent + dataFee;
-        }
+        long monthlyTotal = monthlyFeeTotal(merchantId);
         if (monthlyTotal <= 0L) {
             return 0L;
         }
+        int daysInMonth = yesterday.lengthOfMonth();
         long dailyFee = monthlyTotal / daysInMonth;
         if (dailyFee <= 0L) {
             return 0L;
@@ -165,6 +230,20 @@ public class MerchantDailyIncomeNotifyScheduler {
         walletService.debit(merchantId, dailyFee, "DAILY_FEE",
                 "SETTLEMENT_FEE", bizId, "周期费用日摊(租金+流量费/" + daysInMonth + "天)");
         return dailyFee;
+    }
+
+    /** 该商户名下柜机的周期费用月额合计（租金仅 coopMode=RENTAL 计 + 流量费）。 */
+    long monthlyFeeTotal(String merchantId) {
+        List<DeviceInfo> devices = deviceRepository.selectList(
+                Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
+        long monthlyTotal = 0L;
+        for (DeviceInfo d : devices) {
+            long rent = "RENTAL".equalsIgnoreCase(d.getCoopMode()) && d.getRentCents() != null
+                    ? d.getRentCents() : 0L;
+            long dataFee = d.getDataFeeCents() == null ? 0L : d.getDataFeeCents();
+            monthlyTotal += rent + dataFee;
+        }
+        return monthlyTotal;
     }
 
     /**
@@ -183,6 +262,16 @@ public class MerchantDailyIncomeNotifyScheduler {
         }
         byMerchant.values().removeIf(v -> v <= 0);
         return byMerchant;
+    }
+
+    private boolean alreadySentType(String merchantId, String bizType, String bizId) {
+        Long c = notificationLogRepository.selectCount(Wrappers.<NotificationLog>lambdaQuery()
+                .eq(NotificationLog::getTemplateCode, TEMPLATE_CODE)
+                .eq(NotificationLog::getAudience, "MERCHANT")
+                .eq(NotificationLog::getMerchantId, merchantId)
+                .eq(NotificationLog::getBizType, bizType)
+                .eq(NotificationLog::getBizId, bizId));
+        return c != null && c > 0;
     }
 
     private boolean alreadySent(String merchantId, String bizId) {

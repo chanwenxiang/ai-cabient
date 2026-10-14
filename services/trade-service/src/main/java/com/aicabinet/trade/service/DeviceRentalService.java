@@ -322,13 +322,22 @@ public class DeviceRentalService {
         StringBuilder summary = new StringBuilder();
 
         // ① 出账（幂等；生成失败不阻断锁柜核对）
+        // 2026-10-14：费用改日扣模式（DAILY_FEE 每日摊销扣余额）后，月度应收出账默认停用，
+        // 否则同一租金既日扣又月出账会重复计费。开关 device.rental.monthly-bill.enabled 可回退。
+        boolean monthlyBillEnabled = systemConfigService
+                .getValue("device.rental.monthly-bill.enabled", "false")
+                .equalsIgnoreCase("true");
         int generated = 0;
-        try {
-            generated = generateAllInternal(null, currentMonth).size();
-        } catch (Exception e) {
-            log.error("rental bill generation failed on daily check", e);
+        if (monthlyBillEnabled) {
+            try {
+                generated = generateAllInternal(null, currentMonth).size();
+            } catch (Exception e) {
+                log.error("rental bill generation failed on daily check", e);
+            }
+            summary.append("出账 ").append(generated).append(" 笔；");
+        } else {
+            summary.append("月度出账已停用（日扣模式）；");
         }
-        summary.append("出账 ").append(generated).append(" 笔；");
 
         // ②+③ 欠租锁柜 / 结清解锁
         String overdueBeforeMonth = YearMonth.from(today.minusDays(graceDays + 1L)).toString();

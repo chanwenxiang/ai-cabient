@@ -21,20 +21,29 @@ public class OpsFeeBillJob {
     private final DeviceDataFeeBillService dataFeeBillService;
     private final FeeBillMonthResolver monthResolver;
     private final ScheduledTaskService taskService;
+    private final SystemConfigService systemConfigService;
 
     public OpsFeeBillJob(SiteRentBillService rentBillService,
                          DeviceDataFeeBillService dataFeeBillService,
                          FeeBillMonthResolver monthResolver,
-                         ScheduledTaskService taskService) {
+                         ScheduledTaskService taskService,
+                         SystemConfigService systemConfigService) {
         this.rentBillService = rentBillService;
         this.dataFeeBillService = dataFeeBillService;
         this.monthResolver = monthResolver;
         this.taskService = taskService;
+        this.systemConfigService = systemConfigService;
     }
 
     @Scheduled(cron = "${aicabinet.fee-bill.auto-generate-cron:0 30 1 1 * ?}",
             zone = "${aicabinet.fee-bill.zone:Asia/Shanghai}")
     public void generateMonthlyFees() {
+        // 2026-10-14：流量费改日扣模式（DAILY_FEE）后，月度自动出账默认停用（避免重复计费）。
+    // 开关 fee-bill.auto-generate.enabled=true 可回退人工月结模式。
+    if (!"true".equalsIgnoreCase(systemConfigService
+            .getValue("fee-bill.auto-generate.enabled", "false"))) {
+        return;
+    }
         long taskStart = System.nanoTime();
         if (!taskService.tryBegin(TASK_KEY, 1800)) {
             return;
