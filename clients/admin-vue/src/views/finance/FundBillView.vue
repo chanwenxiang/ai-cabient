@@ -345,6 +345,7 @@ import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { csvFileName } from '@/utils/csv';
+import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
 interface BillRow {
   bizDate: string;
@@ -513,8 +514,9 @@ function yuan(cents?: number | null) {
 }
 
 function formatTime(v?: string) {
+  // Instant(UTC) → 北京时间；此前截断把 UTC 当本地展示，慢 8 小时（2026-10-14 巡检）
   if (!v) return '无';
-  return String(v).replace('T', ' ').slice(0, 19);
+  return formatDateTimeMinute(v);
 }
 
 function queryDates() {

@@ -229,6 +229,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
+import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
 type AnnouncementForm = {
   title: string;
@@ -415,8 +416,8 @@ function statusType(s: string) {
 }
 
 function formatTime(t: string) {
-  if (!t) return '';
-  return t.substring(0, 16).replace('T', ' ');
+  // Instant(UTC) → 北京时间；此前 substring 截断把 UTC 当本地展示，慢 8 小时（2026-10-14 巡检）
+  return formatDateTimeMinute(t);
 }
 
 function rowActions(row: OpenApiAnnouncement): CrudRowAction[] {

@@ -292,6 +292,7 @@ import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
 import type { OpenApiPromotionActivityDto } from '@aicabinet/shared-types';
+import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
 const route = useRoute();
 const router = useRouter();
@@ -358,8 +359,8 @@ function yuan(cents?: number | null) {
   return yuanText(cents, '¥0.00');
 }
 function formatTime(t: string) {
-  if (!t) return '';
-  return t.substring(0, 16).replace('T', ' ');
+  // Instant(UTC) → 北京时间（此前截断慢 8 小时，且与编辑框 new Date() 回显不一致）
+  return formatDateTimeMinute(t);
 }
 function isEnabled(status?: string) {
   return status === 'ACTIVE';

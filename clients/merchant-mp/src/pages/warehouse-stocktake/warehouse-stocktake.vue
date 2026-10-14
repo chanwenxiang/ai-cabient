@@ -219,6 +219,7 @@ import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import {
   buildUpdateLineBody,
   diffDirectionLabel,
@@ -564,8 +565,7 @@ function doCancel() {
 }
 
 function fmtTime(v: string | undefined): string {
-  if (!v) return '';
-  return String(v).slice(0, 16).replace('T', ' ');
+  return formatDateTimeMinute(v);
 }
 
 function lineStateClass(status: string | null | undefined) {

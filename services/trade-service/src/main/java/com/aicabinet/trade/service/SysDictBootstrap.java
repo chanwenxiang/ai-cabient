@@ -152,7 +152,7 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("dispute_priority", t("争议优先级", m(
                 "LOW", "低", STATUS_NORMAL, "普通", "HIGH", "高", "URGENT", "紧急")));
         map.put("pay_channel", t("支付渠道", m(
-                "WECHAT", "微信", "ALIPAY", "支付宝", "MOCK", "其他", "BALANCE", "余额", "UNKNOWN", "未知")));
+                "WECHAT", "微信", "ALIPAY", "支付宝", "PAYSCORE", "微信支付分", "MOCK", "其他", "BALANCE", "余额", "UNKNOWN", "未知")));
         map.put("split_status", t("分账状态", m(
                 STATUS_PENDING, "待处理", "LEDGER_ONLY", "仅记账", "ACCRUED", "待分账",
                 "WECHAT_SUBMITTED", "已提交", "WECHAT_FAILED", "失败", "SUBMITTED", "已提交",

@@ -214,6 +214,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
+import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
 interface FundAccount {
   accountId: number;
@@ -242,8 +243,9 @@ function yuan(cents?: number | null) {
 }
 
 function formatTime(v?: string) {
+  // Instant(UTC) → 北京时间；此前截断把 UTC 当本地展示，慢 8 小时（2026-10-14 巡检）
   if (!v) return '无';
-  return String(v).replace('T', ' ').slice(0, 19);
+  return formatDateTimeMinute(v);
 }
 
 // ── 账户列表（CrudTable 化：分页壳 / 空态 / 刷新 / 操作列统一收口） ────────

@@ -306,6 +306,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
+import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 /**
  * 识别映射（CB-023 改造）：云端识别（YOLO/阿里云）方案已废弃，本页收编将邑
@@ -650,9 +651,8 @@ function ensureSelected() {
   return false;
 }
 
-function formatInstant(v?: string | null) {
-  if (!v) return '';
-  return String(v).replace('T', ' ').slice(0, 19);
+function formatInstant(t: string | null) {
+  return formatDateTime(t);
 }
 
 onMounted(() => {

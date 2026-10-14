@@ -470,17 +470,8 @@ function statusText(s?: string) {
 }
 
 function channelText(channel?: string) {
-  return (
-    (
-      {
-        WECHAT: '微信',
-        ALIPAY: '支付宝',
-        BALANCE: '余额',
-        PAYSCORE: '微信支付分',
-        UNKNOWN: '未知'
-      } as Record<string, string>
-    )[String(channel || '').toUpperCase()] || '其他渠道'
-  );
+  // 2026-10-14 巡检：改走 sys_dict（pay_channel），本地 map 已收编（含 PAYSCORE）
+  return displayLabel('pay_channel', channel);
 }
 
 function splitStatusText(status?: string) {

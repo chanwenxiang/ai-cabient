@@ -133,7 +133,14 @@ export const DICT = {
     HIGH: '高',
     URGENT: '紧急'
   },
-  pay_channel: { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '其他', BALANCE: '余额', UNKNOWN: '未知' },
+  pay_channel: {
+    WECHAT: '微信',
+    ALIPAY: '支付宝',
+    PAYSCORE: '微信支付分',
+    MOCK: '其他',
+    BALANCE: '余额',
+    UNKNOWN: '未知'
+  },
   /** 手机验证流水 · 验证渠道（与 pay_channel 不同，含 SMS 等） */
   verify_channel: {
     SMS: '短信验证码',

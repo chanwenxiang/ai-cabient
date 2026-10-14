@@ -141,6 +141,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
+import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
 interface PhoneVerifyRow {
   logId: number;
@@ -212,10 +213,8 @@ function merchantCell(row: PhoneVerifyRow) {
   return row.merchantName ? `${row.merchantName}（${row.merchantId}）` : row.merchantId;
 }
 
-function formatVerifiedAt(value?: string) {
-  return String(value || '')
-    .replace('T', ' ')
-    .slice(0, 19);
+function formatVerifiedAt(t: string) {
+  return formatDateTimeMinute(t);
 }
 
 function search() {
