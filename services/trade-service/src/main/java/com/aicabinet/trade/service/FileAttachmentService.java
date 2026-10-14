@@ -49,6 +49,7 @@ public class FileAttachmentService {
     public static final String REF_PENDING = "PENDING_DISPUTE";
     public static final String REF_DISPUTE = "DISPUTE";
     public static final String REF_REPLENISHMENT = "REPLENISHMENT_TASK";
+    public static final String REF_STOCKTAKE = "STOCKTAKE";
     public static final String REF_SKU_IMAGE = "SKU_IMAGE";
     public static final String REF_OPS_AVATAR = "OPS_AVATAR";
     public static final String REF_OPS_BRAND_LOGO = "OPS_BRAND_LOGO";
@@ -272,6 +273,84 @@ public class FileAttachmentService {
         return fileAttachmentMapper.findByRef(REF_REPLENISHMENT, String.valueOf(taskId)).stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    /**
+     * 仓库盘点现场取证图（V349 商户小程序）：与补货凭证同一套大小/类型/去重约束，
+     * refType=STOCKTAKE、refId=盘点单 ID。权限与归属由调用方（MerchantWarehouseStocktakeController）
+     * 校验——这里只管存储约束，与 uploadReplenishmentEvidence 分工一致。
+     */
+    @Transactional
+    public FileAttachmentDto uploadStocktakeEvidence(Long userId, Long stocktakeId, MultipartFile file) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
+        }
+        if (stocktakeId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "盘点单不存在");
+        }
+        if (!distributedLockService.tryLock("warehouse:stocktake:" + stocktakeId, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "盘点单处理中，请稍后重试");
+        }
+        try {
+            return doUploadStocktakeEvidence(userId, stocktakeId, file);
+        } finally {
+            distributedLockService.unlock("warehouse:stocktake:" + stocktakeId);
+        }
+    }
+
+    private FileAttachmentDto doUploadStocktakeEvidence(Long userId, Long stocktakeId, MultipartFile file) {
+        long existing = fileAttachmentMapper.findByRef(REF_STOCKTAKE, String.valueOf(stocktakeId)).size();
+        if (existing >= MAX_EVIDENCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最多上传 " + MAX_EVIDENCE + " 张盘点照片");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择图片");
+        }
+        if (file.getSize() > MAX_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "单张图片不能超过 5MB");
+        }
+        String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
+        if (!ALLOWED_TYPES.contains(contentType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
+        }
+        byte[] bytes = readAndStripImageBytes(file, contentType);
+        String sha = sha256Hex(bytes);
+        String ext = extensionFor(contentType, file.getOriginalFilename());
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String objectKey = ObjectStorageKeys.stocktakeEvidenceKey(stocktakeId, userId, token, ext);
+        String storagePath = storeOrReuse(sha, objectKey, bytes, contentType);
+        FileAttachment row = new FileAttachment();
+        row.setRefType(REF_STOCKTAKE);
+        row.setRefId(String.valueOf(stocktakeId));
+        row.setFileName(safeName(file.getOriginalFilename(), token + ext));
+        row.setFileSize((long) bytes.length);
+        row.setContentType(contentType);
+        row.setStoragePath(storagePath);
+        row.setStorageBucket(storagePath.startsWith(MINIO) ? minioProperties.bucket() : LOCAL);
+        row.setContentSha256(sha);
+        row.setUploadedBy(userId);
+        row.setCreatedAt(Instant.now());
+        fileAttachmentMapper.insert(row);
+        return toDto(row);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FileAttachmentDto> listStocktakeEvidence(Long stocktakeId) {
+        return fileAttachmentMapper.findByRef(REF_STOCKTAKE, String.valueOf(stocktakeId)).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    /** 校验附件确属该盘点单（refType+refId 双匹配），返回原始行供流式输出。 */
+    @Transactional(readOnly = true)
+    public FileAttachment requireStocktakeEvidence(Long stocktakeId, Long fileId) {
+        FileAttachment row = fileAttachmentMapper.selectById(fileId);
+        if (row == null
+                || !REF_STOCKTAKE.equals(row.getRefType())
+                || !String.valueOf(stocktakeId).equals(row.getRefId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "附件不存在");
+        }
+        return row;
     }
 
     @Transactional

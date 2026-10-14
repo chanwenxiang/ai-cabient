@@ -107,6 +107,19 @@
       ]
     },
     {
+      "root": "pages/warehouse-stocktake",
+      "pages": [
+        {
+          "path": "warehouse-stocktake",
+          "style": {
+            "navigationBarTitleText": "仓库盘点",
+            "enablePullDownRefresh": true,
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
       "root": "pages/purchase",
       "pages": [
         {
@@ -360,7 +373,8 @@
         "pages/tax",
         "pages/cabinet-reports",
         "pages/notify",
-        "pages/purchase"
+        "pages/purchase",
+        "pages/warehouse-stocktake"
       ]
     }
   },

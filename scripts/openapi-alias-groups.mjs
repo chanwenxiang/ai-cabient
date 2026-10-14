@@ -58,6 +58,21 @@ export const OPENAPI_ALIAS_GROUPS = [
       },
       { name: 'OpenApiReplenishmentTaskDto', schema: 'ReplenishmentTaskDto', comment: '补货任务' },
       {
+        name: 'OpenApiStocktakeDto',
+        schema: 'StocktakeDto',
+        comment: '整仓盘点单（ops 与商户小程序共用）'
+      },
+      {
+        name: 'OpenApiStocktakeLineDto',
+        schema: 'StocktakeLineDto',
+        comment: '盘点明细行'
+      },
+      {
+        name: 'OpenApiPageResultStocktakeDto',
+        schema: 'PageResultStocktakeDto',
+        comment: '盘点单分页'
+      },
+      {
         name: 'OpenApiExternalImportTemplateDto',
         schema: 'ExternalImportTemplateDto',
         comment: '外部渠道解析模板'

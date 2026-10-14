@@ -176,6 +176,57 @@ class WarehouseStocktakeServiceTest {
         assertThrows(ResponseStatusException.class, () -> service.cancel(1L, 1L));
     }
 
+    // ── V349 分仓负责人通道：商户小程序盘点复用整仓流程 ──
+
+    @Test
+    void create_shouldBypassOpsPermForWarehouseManager() {
+        Warehouse w = warehouse();
+        w.setManagerUserId(77L);
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(w));
+        when(inventoryRepository.findByWarehouseIdOrderByExpiryDateAsc("WH-001"))
+                .thenReturn(List.of(inventory("SKU-A", "B1", 12)));
+        when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
+        stubInMemoryLines();
+
+        var dto = service.create(77L, new CreateStocktakeRequest("WH-001", "OPEN", null));
+
+        assertEquals("OPEN", dto.mode());
+        verify(permissionService, org.mockito.Mockito.never())
+                .requirePermission(any(), any());
+    }
+
+    @Test
+    void create_shouldRejectNonManagerWithoutOpsPerm() {
+        Warehouse w = warehouse();
+        w.setManagerUserId(77L);
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(w));
+        org.mockito.Mockito.doThrow(new ResponseStatusException(
+                org.springframework.http.HttpStatus.FORBIDDEN, "denied"))
+                .when(permissionService).requirePermission(88L, "ops:warehouse:edit");
+
+        assertThrows(ResponseStatusException.class,
+                () -> service.create(88L, new CreateStocktakeRequest("WH-001", "OPEN", null)));
+    }
+
+    @Test
+    void updateLine_shouldBypassOpsPermForWarehouseManager() {
+        Warehouse w = warehouse();
+        w.setManagerUserId(77L);
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(w));
+        WarehouseStocktake st = stocktake("DRAFT");
+        WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 10, null, "PENDING");
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
+        when(lineRepository.findById(1L)).thenReturn(Optional.of(line));
+        when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
+        when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
+
+        var dto = service.updateLine(77L, 1L, 1L, new UpdateStocktakeLineRequest(7, null, null));
+
+        assertEquals("DIFF", dto.status());
+        verify(permissionService, org.mockito.Mockito.never())
+                .requirePermission(any(), any());
+    }
+
     private static Warehouse warehouse() {
         Warehouse w = new Warehouse();
         w.setWarehouseId("WH-001");

@@ -377,10 +377,31 @@ export function uploadReplenishmentEvidenceFile(
   );
 }
 
+/** 盘点现场照片上传（V349，refType=STOCKTAKE）。 */
+export function uploadStocktakeEvidenceFile(
+  stocktakeId: number,
+  filePath: string
+): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
+  return uploadMerchantAuthedFile(
+    merchantAbsUrl(MerchantEndpoints.warehouseStocktakeEvidence(stocktakeId)),
+    filePath
+  );
+}
+
 /** Auth-aware download for evidence stream URLs (image tags cannot send Bearer). */
 export function downloadReplenishmentEvidenceFile(taskId: number, fileId: number): Promise<string> {
   return downloadAuthedFile(
     merchantAbsUrl(MerchantEndpoints.replenishmentTaskEvidenceFile(taskId, fileId))
+  );
+}
+
+/** 盘点照片鉴权下载（image 标签无法携带 Bearer）。 */
+export function downloadStocktakeEvidenceFile(
+  stocktakeId: number,
+  fileId: number
+): Promise<string> {
+  return downloadAuthedFile(
+    merchantAbsUrl(MerchantEndpoints.warehouseStocktakeEvidenceFile(stocktakeId, fileId))
   );
 }
 
@@ -749,6 +770,54 @@ export const merchantApi = {
     uploadReplenishmentEvidenceFile(taskId, filePath),
   downloadReplenishmentEvidence: (taskId: number, fileId: number) =>
     downloadReplenishmentEvidenceFile(taskId, fileId),
+  // ── 仓库盘点（V349：仅本人负责的分仓，服务端二次校验） ──
+  warehouseStocktakes: (query?: URLSearchParams | string) =>
+    request<import('@aicabinet/shared-types').OpenApiPageResultStocktakeDto>(
+      MerchantEndpoints.warehouseStocktakes(query)
+    ),
+  warehouseStocktakeCreate: (body: { mode: string; notes?: string }) =>
+    request<import('@aicabinet/shared-types').OpenApiStocktakeDto>(
+      MerchantEndpoints.warehouseStocktakeCreate,
+      'POST',
+      body
+    ),
+  warehouseStocktake: (stocktakeId: number) =>
+    request<import('@aicabinet/shared-types').OpenApiStocktakeDto>(
+      MerchantEndpoints.warehouseStocktake(stocktakeId)
+    ),
+  warehouseStocktakeUpdateLine: (
+    stocktakeId: number,
+    lineId: number,
+    body: { countedQty: number; notes?: string; diffReason?: string }
+  ) =>
+    request<import('@aicabinet/shared-types').OpenApiStocktakeLineDto>(
+      MerchantEndpoints.warehouseStocktakeLine(stocktakeId, lineId),
+      'PUT',
+      body
+    ),
+  warehouseStocktakeComplete: (stocktakeId: number) =>
+    request<import('@aicabinet/shared-types').OpenApiStocktakeDto>(
+      MerchantEndpoints.warehouseStocktakeComplete(stocktakeId),
+      'POST'
+    ),
+  warehouseStocktakeCompleteAndAdjust: (stocktakeId: number) =>
+    request<import('@aicabinet/shared-types').OpenApiStocktakeDto>(
+      MerchantEndpoints.warehouseStocktakeCompleteAndAdjust(stocktakeId),
+      'POST'
+    ),
+  warehouseStocktakeCancel: (stocktakeId: number) =>
+    request<import('@aicabinet/shared-types').OpenApiStocktakeDto>(
+      MerchantEndpoints.warehouseStocktakeCancel(stocktakeId),
+      'POST'
+    ),
+  warehouseStocktakeEvidenceList: (stocktakeId: number) =>
+    request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
+      MerchantEndpoints.warehouseStocktakeEvidence(stocktakeId)
+    ),
+  uploadStocktakeEvidence: (stocktakeId: number, filePath: string) =>
+    uploadStocktakeEvidenceFile(stocktakeId, filePath),
+  downloadStocktakeEvidence: (stocktakeId: number, fileId: number) =>
+    downloadStocktakeEvidenceFile(stocktakeId, fileId),
   expiryAlerts: () =>
     request<import('@aicabinet/shared-types').OpenApiPullOffTaskDto[]>(
       MerchantEndpoints.expiryAlerts

@@ -90,6 +90,17 @@ public final class ObjectStorageKeys {
                 Locale.ROOT, "replenishment-request/%s/request-%d/user-%d/%s%s", date, requestId, userId, token, ext);
     }
 
+    /** 仓库盘点现场取证图（商户小程序 V349）。 */
+    public static String stocktakeEvidenceKey(long stocktakeId, long userId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(
+                Locale.ROOT, "stocktake-evidence/%s/stocktake-%d/user-%d/%s%s", date, stocktakeId, userId, token, ext);
+    }
+
     /** 商品主图（运营后台上传）。 */
     public static String skuImageKey(long operatorId, String fileToken, String extension) {
         ZonedDateTime zdt = Instant.now().atZone(ZONE);

@@ -191,6 +191,15 @@ export const MERCHANT_MORE_NAV: MerchantNavItem[] = [
     pack: 'field',
     icon: 'replenish'
   },
+  {
+    key: 'warehouse-stocktake',
+    title: '仓库盘点',
+    desc: '对本人负责的分仓盘点实盘，拍照留证，差异过账',
+    url: '/pages/warehouse-stocktake/warehouse-stocktake',
+    perm: 'merchant:replenishment:view',
+    pack: 'field',
+    icon: 'replenish'
+  },
   ...MORE_FROM_BIZ_KEYS.map((key) => MERCHANT_BIZ_NAV.find((i) => i.key === key)).filter(
     (item): item is MerchantNavItem => Boolean(item)
   )

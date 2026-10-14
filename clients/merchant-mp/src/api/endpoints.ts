@@ -105,6 +105,24 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence`,
   replenishmentTaskEvidenceFile: (taskId: number | string, fileId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence/${encodeURIComponent(String(fileId))}`,
+  /** 仓库盘点（V349，服务端锁定本人负责的分仓） */
+  warehouseStocktakes: (query?: URLSearchParams | string) =>
+    `${API_PREFIX}/merchant/warehouse/stocktakes${query ? `?${String(query)}` : ''}`,
+  warehouseStocktakeCreate: `${API_PREFIX}/merchant/warehouse/stocktakes`,
+  warehouseStocktake: (stocktakeId: number | string) =>
+    `${API_PREFIX}/merchant/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}`,
+  warehouseStocktakeLine: (stocktakeId: number | string, lineId: number | string) =>
+    `${API_PREFIX}/merchant/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/lines/${encodeURIComponent(String(lineId))}`,
+  warehouseStocktakeComplete: (stocktakeId: number | string) =>
+    `${API_PREFIX}/merchant/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/complete`,
+  warehouseStocktakeCompleteAndAdjust: (stocktakeId: number | string) =>
+    `${API_PREFIX}/merchant/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/complete-and-adjust`,
+  warehouseStocktakeCancel: (stocktakeId: number | string) =>
+    `${API_PREFIX}/merchant/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/cancel`,
+  warehouseStocktakeEvidence: (stocktakeId: number | string) =>
+    `${API_PREFIX}/merchant/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/evidence`,
+  warehouseStocktakeEvidenceFile: (stocktakeId: number | string, fileId: number | string) =>
+    `${API_PREFIX}/merchant/warehouse/stocktakes/${encodeURIComponent(String(stocktakeId))}/evidence/${encodeURIComponent(String(fileId))}`,
   /** 导出（绝对 URL 由 merchant-api 拼 base） */
   settlementsExport: (from: string, to: string) =>
     `${API_PREFIX}/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,

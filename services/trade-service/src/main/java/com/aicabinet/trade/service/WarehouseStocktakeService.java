@@ -76,8 +76,8 @@ public class WarehouseStocktakeService {
 
     @Transactional
     public StocktakeDto create(Long operatorId, CreateStocktakeRequest request) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         String wh = required(request.warehouseId(), "warehouseId").trim();
+        authorize(operatorId, PERM_OPS_WAREHOUSE_EDIT, wh);
         warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
 
         boolean blind = request.mode() != null && "BLIND".equalsIgnoreCase(request.mode().trim());
@@ -128,7 +128,8 @@ public class WarehouseStocktakeService {
     @Transactional(readOnly = true)
     public PageResult<StocktakeDto> listPage(
             Long operatorId, String status, String warehouseId, int page, int size) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_LIST);
+        authorize(operatorId, PERM_OPS_WAREHOUSE_LIST,
+                warehouseId == null || warehouseId.isBlank() ? null : warehouseId.trim());
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         var result = stocktakeRepository.searchPage(status, warehouseId, p, s);
@@ -138,20 +139,29 @@ public class WarehouseStocktakeService {
 
     @Transactional(readOnly = true)
     public StocktakeDto get(Long operatorId, Long stocktakeId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_LIST);
-        return toDto(requireStocktake(stocktakeId));
+        WarehouseStocktake st = requireStocktake(stocktakeId);
+        authorize(operatorId, PERM_OPS_WAREHOUSE_LIST, st.getWarehouseId());
+        return toDto(st);
+    }
+
+    /** 商户侧归属校验：非本人负责分仓的盘点单一律 404/403（V349 商户小程序入口）。 */
+    @Transactional(readOnly = true)
+    public String requireManagedWarehouseId(Long operatorId, Long stocktakeId) {
+        WarehouseStocktake st = requireStocktake(stocktakeId);
+        warehouseService.requireWarehouseManagedBy(st.getWarehouseId(), operatorId);
+        return st.getWarehouseId();
     }
 
     @Transactional
     public StocktakeLineDto updateLine(Long operatorId, Long stocktakeId, Long lineId,
                                        UpdateStocktakeLineRequest request) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithStocktakeLock(stocktakeId,
-                () -> doUpdateLine(stocktakeId, lineId, request));
+                () -> doUpdateLine(operatorId, stocktakeId, lineId, request));
     }
 
-    private StocktakeLineDto doUpdateLine(Long stocktakeId, Long lineId, UpdateStocktakeLineRequest request) {
+    private StocktakeLineDto doUpdateLine(Long operatorId, Long stocktakeId, Long lineId, UpdateStocktakeLineRequest request) {
         WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
+        authorize(operatorId, PERM_OPS_WAREHOUSE_EDIT, st.getWarehouseId());
         if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus()) && !STATUS_IN_PROGRESS.equals(st.getStatus())) {
             throw conflict("stocktake not editable");
         }
@@ -192,12 +202,12 @@ public class WarehouseStocktakeService {
 
     @Transactional
     public StocktakeDto complete(Long operatorId, Long stocktakeId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
-        return runWithStocktakeLock(stocktakeId, () -> doComplete(stocktakeId));
+        return runWithStocktakeLock(stocktakeId, () -> doComplete(operatorId, stocktakeId));
     }
 
-    private StocktakeDto doComplete(Long stocktakeId) {
+    private StocktakeDto doComplete(Long operatorId, Long stocktakeId) {
         WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
+        authorize(operatorId, PERM_OPS_WAREHOUSE_EDIT, st.getWarehouseId());
         if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus()) && !STATUS_IN_PROGRESS.equals(st.getStatus())) {
             throw conflict("stocktake cannot be completed");
         }
@@ -223,21 +233,20 @@ public class WarehouseStocktakeService {
      */
     @Transactional
     public StocktakeDto completeAndAdjust(Long operatorId, Long stocktakeId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithStocktakeLock(stocktakeId, () -> {
-            StocktakeDto completed = doComplete(stocktakeId);
+            StocktakeDto completed = doComplete(operatorId, stocktakeId);
             return doAdjust(operatorId, stocktakeId, null);
         });
     }
 
     @Transactional
     public StocktakeDto adjust(Long operatorId, Long stocktakeId, AdjustStocktakeRequest request) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithStocktakeLock(stocktakeId, () -> doAdjust(operatorId, stocktakeId, request));
     }
 
     private StocktakeDto doAdjust(Long operatorId, Long stocktakeId, AdjustStocktakeRequest request) {
         WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
+        authorize(operatorId, PERM_OPS_WAREHOUSE_EDIT, st.getWarehouseId());
         if (!"COMPLETED".equals(st.getStatus())) {
             throw conflict("stocktake must be completed before adjusting");
         }
@@ -286,12 +295,12 @@ public class WarehouseStocktakeService {
 
     @Transactional
     public StocktakeDto cancel(Long operatorId, Long stocktakeId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
-        return runWithStocktakeLock(stocktakeId, () -> doCancel(stocktakeId));
+        return runWithStocktakeLock(stocktakeId, () -> doCancel(operatorId, stocktakeId));
     }
 
-    private StocktakeDto doCancel(Long stocktakeId) {
+    private StocktakeDto doCancel(Long operatorId, Long stocktakeId) {
         WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
+        authorize(operatorId, PERM_OPS_WAREHOUSE_EDIT, st.getWarehouseId());
         if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus())) {
             throw conflict("only draft stocktake can be cancelled");
         }
@@ -305,6 +314,24 @@ public class WarehouseStocktakeService {
             st.setStatus(STATUS_IN_PROGRESS);
             st.setStartedAt(Instant.now());
         }
+    }
+
+    /**
+     * 授权：持有 ops 权限放行；否则若为该分仓负责人（managerUserId 匹配）同样放行——
+     * 商户小程序盘点（V349）复用整仓盘点流程的入口。两条路都不通 ⇒ 走标准 403。
+     * <p>🔴 仓负责人只对该仓放行：warehouseId 为 null（跨仓列表）时仅 ops 权限可过。
+     */
+    private void authorize(Long operatorId, String permission, String warehouseId) {
+        if (operatorId != null && warehouseId != null && isManagedBy(operatorId, warehouseId)) {
+            return;
+        }
+        permissionService.requirePermission(operatorId, permission);
+    }
+
+    private boolean isManagedBy(Long operatorId, String warehouseId) {
+        return warehouseRepository.findById(warehouseId)
+                .map(w -> operatorId != null && operatorId.equals(w.getManagerUserId()))
+                .orElse(false);
     }
 
     private void refreshTotals(WarehouseStocktake st) {

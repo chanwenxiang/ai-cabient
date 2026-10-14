@@ -409,7 +409,10 @@ export type {
   OpenApiReplenishmentCheckInRequest,
   OpenApiMerchantReplenishmentDeviceAccessDto,
   OpenApiMerchantReplenishmentDoorSessionDto,
-  OpenApiSessionDto
+  OpenApiSessionDto,
+  OpenApiStocktakeDto,
+  OpenApiStocktakeLineDto,
+  OpenApiPageResultStocktakeDto
 } from './generated/replenishment-models';
 
 export type {
@@ -1009,8 +1012,6 @@ export type OpenApiWarehouseTransferDto =
   import('./generated/openapi').components['schemas']['WarehouseTransferDto'];
 export type OpenApiWarehouseBinDto =
   import('./generated/openapi').components['schemas']['WarehouseBinDto'];
-export type OpenApiStocktakeDto =
-  import('./generated/openapi').components['schemas']['StocktakeDto'];
 export type OpenApiPurchaseOrderDto =
   import('./generated/openapi').components['schemas']['PurchaseOrderDto'];
 
