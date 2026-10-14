@@ -9,6 +9,7 @@
         :landing-head-style="landingHeadStyle"
         :landing-error-kind="landingErrorKind"
         :landing-error-title="landingErrorTitle"
+        :offline="netOffline"
         :last-failed-device-id="lastFailedDeviceId"
         :coupon-entry-visible="couponEntryVisible"
         :show-manual-entry="showManualEntry"
@@ -440,6 +441,7 @@ import {
 } from '@/utils/landing-session';
 import { parseQuery } from '@aicabinet/shared-uni/query';
 import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
+import { useNetworkStatus } from '@aicabinet/shared-uni/use-network-status';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { resolveMockEnabled } from '@/utils/runtime-flags';
 import {
@@ -571,6 +573,12 @@ const cancelling = ref(false);
 const openCreateInFlight = ref(false);
 const landingError = ref('');
 const landingErrorKind = ref<OpenErrorKind>('other');
+/**
+ * 手机断网状态（shared-uni 三端统一监听，uni.onNetworkStatusChange 实时下发）。
+ * 断网时落地页显示常驻提示，且开门入口直接拦截——与其让用户等开门请求
+ * 90s 超时，不如第一句话告诉他「没网」。恢复联网由监听自动更新，无需刷新。
+ */
+const { offline: netOffline, startNetworkWatch, stopNetworkWatch } = useNetworkStatus();
 const lastFailedDeviceId = ref('');
 const lastFailedChannel = ref<string | null>(null);
 const reviewSessionId = ref(String(uni.getStorageSync(REVIEW_SESSION_KEY) || ''));
@@ -846,6 +854,8 @@ function payReady(acc: AccountDto) {
 }
 
 onLoad(async (opts) => {
+  // 断网监听：落地页提示 + 开门拦截都依赖 netOffline（onUnload 摘除）
+  startNetworkWatch();
   refreshLandingPad();
   let launch = parseLaunchOptions((opts || {}) as Record<string, string>);
   // H5：兼容 ?deviceId= / hash 查询（柜门二维码 deep link）
@@ -944,6 +954,7 @@ onHide(() => {
   showTabBarSafe();
 });
 onUnload(() => {
+  stopNetworkWatch();
   stopPoll();
   stopDevicePoll();
   stopOpeningCountdown();
@@ -1204,6 +1215,13 @@ async function openDeviceSession(cabinetId: string) {
 }
 
 async function startShoppingFlow(id: string, scanChannel?: string | null) {
+  // 断网拦截：开门/商品接口全部不可用，直接给可读文案，不等请求超时。
+  // 放在 beginCabinetEntry 之前，避免污染「已进入流程」的页面状态。
+  if (netOffline.value) {
+    setLandingError('当前手机没有网络，请检查 Wi-Fi 或移动数据后重试。', 'other');
+    showError('网络未连接，请检查网络后重试');
+    return;
+  }
   const cabinetId = normalizeCabinetId(id);
   if (!beginCabinetEntry(cabinetId, scanChannel)) return;
 

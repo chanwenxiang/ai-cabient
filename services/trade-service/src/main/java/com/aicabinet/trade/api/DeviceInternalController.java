@@ -46,6 +46,10 @@ public class DeviceInternalController {
     }
 
     /** 消费者小程序推广位：拉取当前投放内容（自有素材/多媒体轮播）。 */
+    /**
+     * ⚠️ 冻结能力（2026-10-14）：本项目没有柜机屏硬件（将邑柜无屏），广告/推广展示在小程序内。
+     * 消费方仅 edge/device-simulator 模拟器；与 DeviceController 同款标注，勿做屏显类产品假设。
+     */
     @GetMapping("/{deviceId}/screen-content")
     public ApiResponse<ScreenContentDto> screenContent(@PathVariable("deviceId") String deviceId) {
         return ApiResponse.ok(adCampaignService.screenContent(deviceId));

@@ -416,7 +416,8 @@ function goMessages() {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12rpx;
-  margin-top: 22rpx;
+  /* 2026-10-14 用户反馈「左右边距太挤」：宫格此前贴屏，与 hero 卡 24rpx 对齐 */
+  margin: 22rpx 24rpx 0;
 }
 .quick {
   padding: 22rpx 10rpx;
@@ -453,7 +454,8 @@ function goMessages() {
 }
 
 .section {
-  margin-top: 24rpx;
+  /* 2026-10-14 用户反馈「左右边距太挤」：权益/等级区块此前全幅贴屏，统一 24rpx */
+  margin: 24rpx 24rpx 0;
   padding: 28rpx 24rpx;
   border-radius: var(--radius-card);
   background: var(--card-bg, #fff);

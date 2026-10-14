@@ -214,6 +214,18 @@
       </Teleport>
 
       <el-main id="main-content" class="layout-main-scroll" tabindex="-1">
+        <!--
+          断网横幅（三端统一 use-network-status，纯 web 走 navigator.onLine + online/offline 事件）。
+          只做「先知」告知：请求层超时/失败文案仍由 client.ts 兜底；恢复联网自动消失。
+        -->
+        <el-alert
+          v-if="netOffline"
+          class="net-offline-hint"
+          type="error"
+          show-icon
+          :closable="false"
+          title="网络已断开，操作可能失败。请检查网络连接，恢复后本提示自动消失。"
+        />
         <el-alert
           v-if="showNarrowViewportHint"
           class="narrow-viewport-hint"
@@ -260,10 +272,14 @@ import {
 } from '@/utils/table-scroll-fit';
 import { dismissPageOverlays } from '@/utils/dismiss-page-overlays';
 import { adminDevWarn } from '@/utils/admin-dev-log';
+import { useNetworkStatus } from '@aicabinet/shared-uni/use-network-status';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
 import GlobalSearch from '@/components/GlobalSearch.vue';
 import OpsApprovalInbox from '@/components/OpsApprovalInbox.vue';
 import SidebarMenuTree from '@/components/SidebarMenuTree.vue';
+
+// 断网横幅状态（三端统一 shared-uni 模块；纯 web 运行时走 navigator.onLine + 事件）
+const { offline: netOffline, startNetworkWatch, stopNetworkWatch } = useNetworkStatus();
 
 const route = useRoute();
 const router = useRouter();
@@ -757,6 +773,8 @@ function onWindowFocus() {
 }
 
 onMounted(() => {
+  // 断网横幅：布局级监听（navigator.onLine / online+offline 事件），随布局卸载摘除
+  startNetworkWatch();
   settings.init();
   pinLayoutViewportHeight();
   syncSidebarWithViewport();
@@ -780,6 +798,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  stopNetworkWatch();
   stopTableScrollFit();
   globalThis.removeEventListener('click', hideTagMenu);
   globalThis.removeEventListener('scroll', hideTagMenu, true);
@@ -1162,6 +1181,11 @@ onUnmounted(() => {
 .narrow-viewport-hint {
   flex-shrink: 0;
   margin: 0;
+}
+.net-offline-hint {
+  flex-shrink: 0;
+  margin: 0;
+  border-radius: 0;
 }
 
 /* 页面根节点横向铺满主区；允许超宽内容撑开触发页面级横向滚动 */

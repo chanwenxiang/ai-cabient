@@ -171,84 +171,105 @@
       class="dialog-wide promo-dialog"
     >
       <el-form :model="form" label-width="auto">
-        <el-form-item label="活动名称" required
-          ><el-input v-model="form.activityName" maxlength="80"
-        /></el-form-item>
-        <el-form-item label="活动类型">
-          <el-select v-model="form.activityType" style="width: 100%" teleported>
-            <el-option
-              v-for="item in dictOptions('promotion_type')"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="开始时间"
-          ><el-date-picker
-            v-model="form.startTime"
-            type="datetime"
-            teleported
-            placement="bottom-start"
-            :z-index="5000"
-            :popper-options="{ strategy: 'fixed' }"
-            style="width: 100%"
-        /></el-form-item>
-        <el-form-item label="结束时间"
-          ><el-date-picker
-            v-model="form.endTime"
-            type="datetime"
-            teleported
-            placement="bottom-start"
-            :z-index="5000"
-            :popper-options="{ strategy: 'fixed' }"
-            style="width: 100%"
-        /></el-form-item>
-        <el-form-item label="预算(元)">
-          <el-input-number
-            v-model="form.budgetYuan"
-            :min="0"
-            :step="1"
-            :precision="2"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="每人限制"
-          ><el-input-number
-            v-model="form.userLimit"
-            :min="1"
-            :max="100"
-            controls-position="right"
-            style="width: 100%"
-        /></el-form-item>
-        <el-form-item label="适用柜">
-          <el-radio-group v-model="form.deviceScope">
-            <el-radio value="ALL">全部设备</el-radio>
-            <el-radio value="SPECIFIC">指定设备</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="form.deviceScope === 'SPECIFIC'" label="选择设备">
-          <el-select
-            v-model="form.deviceIds"
-            multiple
-            filterable
-            collapse-tags
-            collapse-tags-tooltip
-            placeholder="选择柜机"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="d in deviceOptions"
-              :key="d.deviceId"
-              :label="d.deviceName || d.deviceId"
-              :value="d.deviceId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="描述"
-          ><el-input v-model="form.description" type="textarea"
-        /></el-form-item>
+        <!-- CB-028 弹窗规范：dialog-wide + 字段两列（长文本/长下拉独占整行） -->
+        <el-row :gutter="16">
+          <el-col :span="24">
+            <el-form-item label="活动名称" required
+              ><el-input v-model="form.activityName" maxlength="80"
+            /></el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="活动类型">
+              <el-select v-model="form.activityType" style="width: 100%" teleported>
+                <el-option
+                  v-for="item in dictOptions('promotion_type')"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="每人限制">
+              <el-input-number
+                v-model="form.userLimit"
+                :min="1"
+                :max="100"
+                controls-position="right"
+                style="width: 100%"
+            /></el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="开始时间"
+              ><el-date-picker
+                v-model="form.startTime"
+                type="datetime"
+                teleported
+                placement="bottom-start"
+                :z-index="5000"
+                :popper-options="{ strategy: 'fixed' }"
+                style="width: 100%"
+            /></el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="结束时间"
+              ><el-date-picker
+                v-model="form.endTime"
+                type="datetime"
+                teleported
+                placement="bottom-start"
+                :z-index="5000"
+                :popper-options="{ strategy: 'fixed' }"
+                style="width: 100%"
+            /></el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="预算(元)">
+              <el-input-number
+                v-model="form.budgetYuan"
+                :min="0"
+                :step="1"
+                :precision="2"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="适用柜">
+              <el-radio-group v-model="form.deviceScope">
+                <el-radio value="ALL">全部设备</el-radio>
+                <el-radio value="SPECIFIC">指定设备</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col v-if="form.deviceScope === 'SPECIFIC'" :span="24">
+            <el-form-item label="选择设备">
+              <el-select
+                v-model="form.deviceIds"
+                multiple
+                filterable
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="选择柜机"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in deviceOptions"
+                  :key="d.deviceId"
+                  :label="d.deviceName || d.deviceId"
+                  :value="d.deviceId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="描述"
+              ><el-input v-model="form.description" type="textarea"
+            /></el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="showDialog = false">取消</el-button>

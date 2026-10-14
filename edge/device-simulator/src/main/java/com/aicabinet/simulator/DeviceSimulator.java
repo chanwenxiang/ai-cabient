@@ -167,6 +167,8 @@ public class DeviceSimulator implements MqttCallbackExtended {
 
     /**
      * 推广位播放器模拟：轮询 screen-content，对当前素材回写 IMPRESSION/COMPLETE。
+     * ⚠️ 2026-10-14 澄清：本项目没有柜机屏硬件（将邑柜无屏），广告/推广展示在小程序内——
+     * 本播放器仅为联调 screen-content 接口的模拟件，真实柜机不消费该接口。
      *
      * <p>⚠️ 命名说明：本项目**没有柜机屏** —— 位置真实落在**消费者小程序首页**
      * （见 {@code docs/AD_MONETIZATION_DESIGN.md} §2）。本模拟器只是替代「真人在小程序里看广告」

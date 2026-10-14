@@ -75,6 +75,23 @@ if [ "$STALE" -gt 0 ]; then
 fi
 rm -f /tmp/admin-keep.txt /tmp/admin-have.txt
 echo "✅ 解包完成，admin 资产 $(find . -type f | wc -l) 个文件"
+# 2026-10-14 教训：解包只叠加，上一版部署遗留的旧 .java/.sql 会进服务器编译
+# （本次：要货下线删掉的旧测试文件让现场 mvn 编译挂）。按 tar 清单清理源码树残留。
+tar -tzf "/data/apps/prod-src-${SHA}.tar.gz" | grep -v '^$' | sort > /tmp/src-keep.txt
+SRC_STALE=0
+for top in services clients packages scripts edge proto; do
+  [ -d "$top" ] || continue
+  find "$top" -type f \( -name '*.java' -o -name '*.sql' -o -name '*.xml' -o -name '*.ts' -o -name '*.vue' -o -name '*.mjs' -o -name '*.py' \) \
+    | sed 's#^\./##' | sort > /tmp/src-have.txt
+  N=$(comm -23 /tmp/src-have.txt /tmp/src-keep.txt | wc -l)
+  if [ "$N" -gt 0 ]; then
+    comm -23 /tmp/src-have.txt /tmp/src-keep.txt | xargs -d '\n' rm -f
+    SRC_STALE=$((SRC_STALE + N))
+  fi
+done
+rm -f /tmp/src-keep.txt /tmp/src-have.txt
+[ "$SRC_STALE" -gt 0 ] && echo "已清理 ${SRC_STALE} 个陈旧源码文件"
+echo "✅ 服务器源码就绪"
 REMOTE
 echo "✅ 服务器源码就绪"
 

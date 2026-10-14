@@ -18,7 +18,16 @@
             <text class="pay-badge-text">关门自动结算</text>
           </view>
         </view>
+      </view>
 
+      <view class="landing-action">
+        <!--
+          开门错误卡 v2（2026-10-14 用户反馈「提示位置太高、不好看」）：
+          ① 位置从头部标题正下方移到扫码按钮正上方——错误与「重试/换一台」动作同区，
+             视线不用上下跳；
+          ② 样式从深绿块改为白卡：深绿卡与 .landing-overlay / 头部徽章同色系糊在照片上，
+             白卡对比强、与白卡家族同源。
+        -->
         <view v-if="landingError" class="landing-error" :class="'kind-' + landingErrorKind">
           <view class="error-icon">!</view>
           <view class="error-copy">
@@ -65,9 +74,11 @@
             >×</text
           >
         </view>
-      </view>
-
-      <view class="landing-action">
+        <!-- 断网常驻提示（offline 由页面三端统一监听下发）；与错误卡互斥避免同屏双条 -->
+        <view v-if="offline && !landingError" class="offline-pill" role="alert">
+          <view class="offline-dot" />
+          <text class="offline-text">网络已断开，请检查 Wi-Fi 或流量后重试</text>
+        </view>
         <!--
           扫码 CTA v6（2026-10-08 定稿）：**玻璃透圆 + 取景框图标 + 会动的扫描线 +
           圆内白字**。用户先发参考图（橙圆+图标）要「动态的」，再从四个候选
@@ -187,6 +198,8 @@ const props = defineProps<{
   landingHeadStyle: Record<string, string>;
   landingErrorKind: string;
   landingErrorTitle: string;
+  /** 手机断网（页面三端统一监听下发）；true 时落地页显示离线提示条 */
+  offline: boolean;
   lastFailedDeviceId: string;
   couponEntryVisible: boolean;
   showManualEntry: boolean;
@@ -574,42 +587,31 @@ export default {
 }
 
 /* visual overrides (merged) */
+/*
+ * 开门错误卡 v2（2026-10-14）：白底卡片 + 深色文字 + 品牌色动作按钮。
+ * 旧版是深绿块（--brand-deep），与 .landing-overlay 同色系、浮在照片上像糊住的一块，
+ * 且 absolute 挂在头部正下方——用户判「位置太高、不好看」。现改为白卡随流布局，
+ * 落在扫码按钮上方（.landing-action 内），与重试动作同区。
+ */
 .landing-error {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  z-index: 6;
   display: flex;
   align-items: flex-start;
   gap: 14rpx;
-  margin-top: 14rpx;
   width: 100%;
   max-width: 620rpx;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 16rpx 20rpx;
-  border-radius: var(--radius-panel);
-  background: var(--brand-deep, #115e59);
-  border: 1rpx solid rgba(255, 255, 255, 0.16);
+  margin: 0 auto 36rpx;
+  padding: 22rpx 22rpx 20rpx;
+  border-radius: var(--radius-card);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12rpx 32rpx rgba(4, 47, 36, 0.28);
   box-sizing: border-box;
 }
-.landing-error.kind-balance,
-.landing-error.kind-device_not_found {
-  background: var(--brand-deep, #115e59);
-  border-color: rgba(255, 255, 255, 0.16);
-}
+/* 图标按错误类别区分色相：余额=警示橙；找不到柜机=中性灰；其余=危险红（默认） */
 .landing-error.kind-balance .error-icon {
   background: var(--warning, #f59e0b);
 }
-.landing-error.kind-balance .error-title,
-.landing-error.kind-balance .error-detail,
-.landing-error.kind-device_not_found .error-title,
-.landing-error.kind-device_not_found .error-detail {
-  color: rgba(255, 255, 255, var(--on-deep-opacity-92));
-}
 .landing-error.kind-device_not_found .error-icon {
-  background: rgba(255, 255, 255, 0.28);
+  background: var(--text-muted, #64748b);
 }
 .error-icon {
   display: flex;
@@ -632,13 +634,13 @@ export default {
   display: block;
 }
 .error-title {
-  color: var(--white);
-  font-size: var(--font-size-caption);
+  color: var(--text-primary, #14201b);
+  font-size: var(--font-size-md);
   font-weight: 700;
 }
 .error-detail {
   margin-top: 4rpx;
-  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
+  color: var(--text-muted, #5f6f65);
   font-size: var(--font-size-sm);
   line-height: 1.45;
 }
@@ -646,27 +648,46 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
-  margin-top: 10rpx;
+  margin-top: 12rpx;
 }
 .error-action {
-  padding: 6rpx 14rpx;
+  padding: 8rpx 20rpx;
   border-radius: var(--radius-pill);
-  border: 1rpx solid rgba(255, 255, 255, 0.32);
-  color: var(--white);
+  color: var(--text-primary, #14201b);
   font-size: var(--font-size-sm);
-  background: rgba(17, 94, 89, 0.55);
+  background: rgba(17, 94, 89, 0.08);
 }
 .error-action.primary {
-  border-color: rgba(255, 255, 255, 0.4);
   color: var(--white);
-  /* 原为 rgba(13,148,136) #047857（H≈164，偏黄），统一到品牌青绿 --brand */
-  background: rgba(13, 148, 136, 0.65);
+  background: var(--brand, #0d9488);
 }
 .error-close {
   padding: 0 4rpx;
-  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
+  color: var(--text-muted, #5f6f65);
   font-size: var(--font-size-lg);
   line-height: 1;
+}
+/* 断网常驻提示条：深色玻璃 pill + 橙点，弱于错误卡的重量级（只是告知，无动作） */
+.offline-pill {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  margin: 0 auto 24rpx;
+  padding: 12rpx 24rpx;
+  border-radius: var(--radius-pill);
+  background: rgba(4, 31, 26, 0.62);
+  border: 1rpx solid rgba(255, 255, 255, 0.22);
+}
+.offline-dot {
+  flex-shrink: 0;
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: var(--warning, #f59e0b);
+}
+.offline-text {
+  color: var(--white, #ffffff);
+  font-size: var(--font-size-sm);
 }
 .landing-mask {
   position: absolute;

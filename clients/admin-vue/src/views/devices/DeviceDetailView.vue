@@ -526,51 +526,78 @@
       </el-tabs>
     </el-card>
 
-    <el-dialog v-model="editorVisible" :title="`编辑货道 ${editForm.slotCode}`">
+    <!-- CB-028 弹窗规范：dialog-wide + 字段分组两列（与商品建档弹窗同款 form-group-title） -->
+    <el-dialog
+      v-model="editorVisible"
+      :title="`编辑货道 ${editForm.slotCode}`"
+      class="dialog-wide"
+      :close-on-click-modal="false"
+    >
       <el-form label-width="auto">
-        <el-form-item label="商品">
-          <el-select
-            v-model="editForm.assignedSkuId"
-            filterable
-            clearable
-            placeholder="选择商品"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="s in skus"
-              :key="s.skuId"
-              :label="`${s.skuName} (${s.skuId})`"
-              :value="s.skuId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="目标陈列"
-          ><el-input-number v-model="editForm.parLevel" :min="0"
-        /></el-form-item>
-        <el-form-item label="最低库存"
-          ><el-input-number v-model="editForm.minLevel" :min="0"
-        /></el-form-item>
-        <el-form-item label="最大容量"
-          ><el-input-number v-model="editForm.maxLevel" :min="0"
-        /></el-form-item>
-        <el-form-item :label="displayLabel('enable_status', 'ACTIVE')"
-          ><el-switch v-model="editForm.enabled"
-        /></el-form-item>
+        <div class="form-group-title">陈列配置</div>
+        <el-row :gutter="16">
+          <el-col :span="24">
+            <el-form-item label="商品">
+              <el-select
+                v-model="editForm.assignedSkuId"
+                filterable
+                clearable
+                placeholder="选择商品"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="s in skus"
+                  :key="s.skuId"
+                  :label="`${s.skuName} (${s.skuId})`"
+                  :value="s.skuId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="目标陈列">
+              <el-input-number v-model="editForm.parLevel" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="最低库存">
+              <el-input-number v-model="editForm.minLevel" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="最大容量">
+              <el-input-number v-model="editForm.maxLevel" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="displayLabel('enable_status', 'ACTIVE')">
+              <el-switch v-model="editForm.enabled" />
+            </el-form-item>
+          </el-col>
+        </el-row>
         <!-- 🔴 2026-09-24：整块按 canStocktake 隐藏。无 `ops:replenishment:edit` 时
              这三个字段点下去只会 403（后端 stocktake 要该权限），且「保存配置」也提交不了它们
-             ⇒ 与其给一个改不生效的输入框，不如根本不渲染（连分割线一起）。
+             ⇒ 与其给一个改不生效的输入框，不如根本不渲染（连分组标题一起）。
              判据：后端 OpsReplenishmentController#stocktakeSlot 的 @RequiresPermissions。 -->
         <template v-if="canStocktake">
-          <el-divider content-position="left">现场盘点</el-divider>
-          <el-form-item label="账面库存">
-            <span>{{ editForm.bookQty }}</span>
-            <span v-if="editForm.hasDiscrepancy" class="slot-diff warn">
-              · 账实差异 {{ editForm.qtyDiff }}</span
-            >
-          </el-form-item>
-          <el-form-item label="实盘数量">
-            <el-input-number v-model="editForm.physicalQty" :min="0" />
-          </el-form-item>
+          <div class="form-group-title">现场盘点</div>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="账面库存">
+                <span>{{ editForm.bookQty }}</span>
+                <span v-if="editForm.hasDiscrepancy" class="slot-diff warn">
+                  · 账实差异 {{ editForm.qtyDiff }}</span
+                >
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="实盘数量">
+                <el-input-number v-model="editForm.physicalQty" :min="0" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
           <el-form-item label="调账面">
             <el-checkbox v-model="editForm.adjustBookQty">按实盘回写该货道批次库存</el-checkbox>
           </el-form-item>
@@ -1369,5 +1396,17 @@ onActivated(() => {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
+}
+/* 弹窗分组标题（陈列配置/现场盘点），与商品建档弹窗同款（CB-028） */
+.form-group-title {
+  margin: 4px 0 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-sm);
+}
+.form-group-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>

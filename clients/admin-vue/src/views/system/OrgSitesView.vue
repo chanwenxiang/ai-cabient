@@ -492,7 +492,11 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="contractVisible" :title="contractForm.contractId ? '编辑合同' : '新增合同'">
+    <el-dialog
+      v-model="contractVisible"
+      :title="contractForm.contractId ? '编辑合同' : '新增合同'"
+      class="dialog-wide"
+    >
       <el-form label-position="top">
         <el-form-item label="柜机">
           <el-select

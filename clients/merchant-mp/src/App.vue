@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch } from 'vue';
 import { onLaunch } from '@dcloudio/uni-app';
 import { loadRuntimeDict } from '@/utils/dict-runtime';
 import {
@@ -8,6 +9,19 @@ import {
 } from '@/utils/merchant-api';
 // M-P2-5：尽早注册 session clear hook（登出/401 清 me 内存态）
 import '@/composables/useMerchantMe';
+import { useNetworkStatus } from '@aicabinet/shared-uni/use-network-status';
+
+// 断网全局监听（三端统一实现）：断开/恢复时 toast 告知，请求层失败文案不变。
+// App 级启动、生命周期与小程序一致，无需摘除；首帧状态不播报（watch 非 immediate）。
+const { offline: netOffline, startNetworkWatch } = useNetworkStatus();
+startNetworkWatch();
+watch(netOffline, (down) => {
+  uni.showToast({
+    title: down ? '网络已断开，请检查手机网络' : '网络已恢复',
+    icon: 'none',
+    duration: 2400
+  });
+});
 
 /** H5 / 微信小程序通用：当前是否登录页（避免无 token 深链先闪业务页）。 */
 function isLoginLaunch(options?: { path?: string }): boolean {
