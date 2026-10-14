@@ -36,6 +36,9 @@ public class LineCommissionJob {
     private final CabinetOrderMapper orderMapper;
     private final com.aicabinet.trade.mapper.ReplenishmentTaskMapper replenishmentTaskMapper;
     private final com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper replenishmentTaskLineMapper;
+    private final com.aicabinet.trade.mapper.LineRouteMapper lineRouteMapper;
+    private final com.aicabinet.trade.mapper.LineRouteMemberMapper lineRouteMemberMapper;
+    private final com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper;
     private final LineCommissionDailyMapper commissionDailyMapper;
     private final LineWalletService lineWalletService;
     private final DistributedLockService distributedLockService;
@@ -51,7 +54,10 @@ public class LineCommissionJob {
                              ScheduledTaskService taskService,
                              org.springframework.transaction.support.TransactionTemplate transactionTemplate,
             com.aicabinet.trade.mapper.ReplenishmentTaskMapper replenishmentTaskMapper,
-            com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper replenishmentTaskLineMapper) {
+            com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper replenishmentTaskLineMapper,
+            com.aicabinet.trade.mapper.LineRouteMapper lineRouteMapper,
+            com.aicabinet.trade.mapper.LineRouteMemberMapper lineRouteMemberMapper,
+            com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.orderMapper = orderMapper;
@@ -60,6 +66,9 @@ public class LineCommissionJob {
         this.distributedLockService = distributedLockService;
         this.replenishmentTaskMapper = replenishmentTaskMapper;
         this.replenishmentTaskLineMapper = replenishmentTaskLineMapper;
+        this.lineRouteMapper = lineRouteMapper;
+        this.lineRouteMemberMapper = lineRouteMemberMapper;
+        this.staffCommissionDailyMapper = staffCommissionDailyMapper;
         this.taskService = taskService;
         this.transactionTemplate = transactionTemplate;
     }
@@ -97,6 +106,7 @@ public class LineCommissionJob {
                     }
                 }
             }
+            int staffPosted = postStaffRestockCommissions(bizDates);
             summary = posted <= 0
                     ? "本次无线长佣金入账（含回扫 " + BACKFILL_DAYS + " 天）"
                     : "入账线长佣金 " + posted + " 条（含回扫 " + BACKFILL_DAYS + " 天）";
@@ -152,9 +162,6 @@ public class LineCommissionJob {
                     manager.getManagerId(), bizDate, binding.getDeviceId()).isPresent()) {
                 return false;
             }
-            if ("RESTOCK_QTY".equalsIgnoreCase(manager.getCommissionBasis())) {
-                return doPostRestockCommissionTx(manager, binding, bizDate, start, end);
-            }
             List<CabinetOrder> orders = orderMapper
                     .findByDeviceIdAndCreatedAtBetween(binding.getDeviceId(), start, end)
                     .stream()
@@ -186,51 +193,80 @@ public class LineCommissionJob {
             return true;
     }
 
+
     /**
-     * 补货数量提成（V357，对齐老系统 MachineCommissionLink.type=1 按销量）：
-     * 该线长（assigneeUserId）昨日已完成补货任务中、落在该柜机上的补货件数 × 每件佣金
-     * （commissionPerUnitCents）。orderCount 存补货件数、gmvCents=0；入账同 GMV 模式。
+     * 补货员日佣金台账（V358，线下结算口径：只记台账不结钱）：
+     * 按线路成员（role=STAFF）的提成配置，统计其各回扫日实际补货留痕（补货任务
+     * assignee=本人、COMPLETED）件数 → staff_commission_daily（唯一键幂等）。
+     * 一台柜多人补货天然支持（按 assignee 归属到当天实际补货人）；线长与补货员同一人时
+     * 两条账并行不叠加：线长销售提成走 line_commission_daily（钱包），补货佣金走本表（台账）。
      */
-    private boolean doPostRestockCommissionTx(LineManager manager, LineDevice binding, LocalDate bizDate,
-                                              java.time.Instant start, java.time.Instant end) {
-        if (manager.getUserId() == null) {
-            return false;
-        }
-        List<com.aicabinet.trade.domain.ReplenishmentTask> tasks = replenishmentTaskMapper
-                .selectList(com.baomidou.mybatisplus.core.toolkit.Wrappers
-                        .<com.aicabinet.trade.domain.ReplenishmentTask>lambdaQuery()
-                        .eq(com.aicabinet.trade.domain.ReplenishmentTask::getAssigneeUserId, manager.getUserId())
-                        .eq(com.aicabinet.trade.domain.ReplenishmentTask::getDeviceId, binding.getDeviceId())
-                        .eq(com.aicabinet.trade.domain.ReplenishmentTask::getStatus, "COMPLETED")
-                        .ge(com.aicabinet.trade.domain.ReplenishmentTask::getCompletedAt, start)
-                        .lt(com.aicabinet.trade.domain.ReplenishmentTask::getCompletedAt, end));
-        if (tasks.isEmpty()) {
-            return false;
-        }
-        List<Long> taskIds = tasks.stream().map(com.aicabinet.trade.domain.ReplenishmentTask::getTaskId).toList();
-        int restockQty = replenishmentTaskLineMapper.selectList(
+    int postStaffRestockCommissions(LinkedHashSet<LocalDate> bizDates) {
+        List<com.aicabinet.trade.domain.LineRouteMember> staffs = lineRouteMemberMapper.selectList(
                 com.baomidou.mybatisplus.core.toolkit.Wrappers
-                        .<com.aicabinet.trade.domain.ReplenishmentTaskLine>lambdaQuery()
-                        .in(com.aicabinet.trade.domain.ReplenishmentTaskLine::getTaskId, taskIds))
-                .stream().mapToInt(com.aicabinet.trade.domain.ReplenishmentTaskLine::getQuantity).sum();
-        long perUnit = manager.getCommissionPerUnitCents() == null ? 0L : manager.getCommissionPerUnitCents();
-        long commission = (long) restockQty * perUnit;
-        if (commission <= 0) {
-            return false;
+                        .<com.aicabinet.trade.domain.LineRouteMember>lambdaQuery()
+                        .eq(com.aicabinet.trade.domain.LineRouteMember::getRole, "STAFF")
+                        .eq(com.aicabinet.trade.domain.LineRouteMember::getStatus, "ACTIVE"));
+        int posted = 0;
+        for (com.aicabinet.trade.domain.LineRouteMember staff : staffs) {
+            for (LocalDate bizDate : bizDates) {
+                Long exists = staffCommissionDailyMapper.selectCount(
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                .<com.aicabinet.trade.domain.StaffCommissionDaily>lambdaQuery()
+                                .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getStaffUserId, staff.getUserId())
+                                .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getBizDate, bizDate));
+                if (exists != null && exists > 0) {
+                    continue;
+                }
+                List<com.aicabinet.trade.domain.ReplenishmentTask> tasks = replenishmentTaskMapper.selectList(
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                .<com.aicabinet.trade.domain.ReplenishmentTask>lambdaQuery()
+                                .eq(com.aicabinet.trade.domain.ReplenishmentTask::getAssigneeUserId, staff.getUserId())
+                                .eq(com.aicabinet.trade.domain.ReplenishmentTask::getStatus, "COMPLETED")
+                                .ge(com.aicabinet.trade.domain.ReplenishmentTask::getCompletedAt,
+                                        bizDate.atStartOfDay(ScheduleZones.ZONE).toInstant())
+                                .lt(com.aicabinet.trade.domain.ReplenishmentTask::getCompletedAt,
+                                        bizDate.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant()));
+                if (tasks.isEmpty()) {
+                    continue;
+                }
+                List<Long> taskIds = tasks.stream().map(com.aicabinet.trade.domain.ReplenishmentTask::getTaskId).toList();
+                var lines = replenishmentTaskLineMapper.selectList(
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                .<com.aicabinet.trade.domain.ReplenishmentTaskLine>lambdaQuery()
+                                .in(com.aicabinet.trade.domain.ReplenishmentTaskLine::getTaskId, taskIds));
+                java.util.Map<String, Integer> qtyByDevice = new java.util.LinkedHashMap<>();
+                for (var ln : lines) {
+                    var task = tasks.stream().filter(t -> t.getTaskId().equals(ln.getTaskId())).findFirst().orElse(null);
+                    if (task == null || task.getDeviceId() == null) {
+                        continue;
+                    }
+                    qtyByDevice.merge(task.getDeviceId(), ln.getQuantity(), Integer::sum);
+                }
+                for (var e : qtyByDevice.entrySet()) {
+                    long commission = 0L;
+                    if ("RESTOCK_QTY".equalsIgnoreCase(staff.getCommissionBasis())) {
+                        long perUnit = staff.getCommissionPerUnitCents() == null ? 0L : staff.getCommissionPerUnitCents();
+                        commission = (long) e.getValue() * perUnit;
+                    }
+                    // GMV 模式的补货员：本批暂按 0（补货员销售额按人拆分数据接入后扩展）
+                    if (commission <= 0) {
+                        continue;
+                    }
+                    com.aicabinet.trade.domain.StaffCommissionDaily row = new com.aicabinet.trade.domain.StaffCommissionDaily();
+                    row.setStaffUserId(staff.getUserId());
+                    row.setRouteId(staff.getRouteId());
+                    row.setBizDate(bizDate);
+                    row.setDeviceId(e.getKey());
+                    row.setRestockQty(e.getValue());
+                    row.setCommissionCents(commission);
+                    row.setStatus("POSTED");
+                    row.setCreatedAt(java.time.Instant.now());
+                    staffCommissionDailyMapper.insert(row);
+                    posted++;
+                }
+            }
         }
-        LineCommissionDaily row = new LineCommissionDaily();
-        row.setManagerId(manager.getManagerId());
-        row.setBizDate(bizDate);
-        row.setDeviceId(binding.getDeviceId());
-        row.setOrderCount(restockQty);
-        row.setGmvCents(0L);
-        row.setCommissionCents(commission);
-        row.setStatus("POSTED");
-        row.setCreatedAt(java.time.Instant.now());
-        commissionDailyMapper.insert(row);
-        String refId = bizDate + "|" + binding.getDeviceId();
-        lineWalletService.credit(manager.getManagerId(), commission, "COMMISSION",
-                "COMMISSION_DAILY", refId, "线长补货提成 " + bizDate + " " + binding.getDeviceId());
-        return true;
+        return posted;
     }
 }
