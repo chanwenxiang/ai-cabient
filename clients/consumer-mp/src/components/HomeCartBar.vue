@@ -230,8 +230,8 @@ export default {
 .cart-cta {
   margin: 0;
   padding: 0 48rpx;
-  min-height: 80rpx;
-  height: 80rpx;
+  min-height: 88rpx;
+  height: 88rpx;
   line-height: 1.2;
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: var(--white);
@@ -252,7 +252,11 @@ export default {
 .cart-clear-btn {
   flex-shrink: 0;
   margin-right: 16rpx;
-  padding: 10rpx 22rpx;
+  /* 2026-10-14 热区规范：可点元素 ≥88rpx（微信设计指引） */
+  min-height: 88rpx;
+  padding: 0 22rpx;
+  display: flex;
+  align-items: center;
   font-size: var(--font-size-sm);
   color: var(--brand-deep, #134e4a);
   background: rgba(19, 78, 74, 0.08);
@@ -261,8 +265,8 @@ export default {
 .cart-close-btn {
   margin: 0;
   padding: 0 36rpx;
-  min-height: 80rpx;
-  height: 80rpx;
+  min-height: 88rpx;
+  height: 88rpx;
   line-height: 1.2;
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: var(--white);
@@ -297,8 +301,8 @@ export default {
 .cart-help-btn {
   margin: 0;
   padding: 0 22rpx;
-  min-height: 64rpx;
-  height: 64rpx;
+  min-height: 88rpx;
+  height: 88rpx;
   line-height: 1.2;
   background: var(--brand, #0f766e);
   color: var(--white);
