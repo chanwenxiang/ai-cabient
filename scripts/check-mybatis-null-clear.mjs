@@ -23,6 +23,10 @@ const MODULES = [
 /** 豁免清单：键 = 模块相对路径（/ 分隔），值 = 为什么这不是清列意图 */
 const ALLOWLIST = new Map([
   [
+    'services/trade-service/src/main/java/com/aicabinet/trade/api/OpsLineRouteController.java',
+    '成员 upsert：member.setId(null) 是 IdType.AUTO 自增主键 insert 前置空（非清列意图）；更新分支走 updateById(existing) 不含 null 清列'
+  ],
+  [
     'services/trade-service/src/main/java/com/aicabinet/trade/service/CouponService.java',
     'order.setCouponId(null) 为内存投影；DB 清列由 SettlementOrderFinalizeService.clearCouponSelection 调用链负责（跨实体窗口误联）'
   ],

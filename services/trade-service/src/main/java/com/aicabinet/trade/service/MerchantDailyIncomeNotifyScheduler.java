@@ -58,6 +58,7 @@ public class MerchantDailyIncomeNotifyScheduler {
     private final ScheduledTaskService taskService;
     private final DeviceInfoMapper deviceRepository;
     private final MerchantFeeLedgerMapper feeLedgerRepository;
+    private final MerchantWalletService walletService;
     private final SystemConfigService configService;
     private final DeviceSalesLockService salesLockService;
 
@@ -68,6 +69,7 @@ public class MerchantDailyIncomeNotifyScheduler {
                                               ScheduledTaskService taskService,
                                               DeviceInfoMapper deviceRepository,
                                               MerchantFeeLedgerMapper feeLedgerRepository,
+                                              MerchantWalletService walletService,
                                               SystemConfigService configService,
                                               DeviceSalesLockService salesLockService) {
         this.merchantRepository = merchantRepository;
@@ -77,6 +79,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         this.taskService = taskService;
         this.deviceRepository = deviceRepository;
         this.feeLedgerRepository = feeLedgerRepository;
+        this.walletService = walletService;
         this.configService = configService;
         this.salesLockService = salesLockService;
     }
@@ -164,12 +167,13 @@ public class MerchantDailyIncomeNotifyScheduler {
         }
         for (Map.Entry<String, Long> entry : incomeByMerchant.entrySet()) {
             String merchantId = entry.getKey();
-            long pending = pendingFeeTotal(merchantId);
-            if (pending <= 0) {
+            MerchantWalletAccount account = walletService.ensureAccount(merchantId);
+            long balance = account.getBalanceCents() == null ? 0L : account.getBalanceCents();
+            if (balance >= 0) {
                 unlockFeeOverdue(merchantId);
                 continue;
             }
-            long debt = pending;
+            long debt = -balance;
             if (alreadySentType(merchantId, "FEE_REMINDER", bizId)) {
                 // 当日已催缴
             } else {
@@ -224,12 +228,6 @@ public class MerchantDailyIncomeNotifyScheduler {
             return 0L;
         }
         int daysInMonth = yesterday.lengthOfMonth();
-        long dailyFee = monthlyTotal / daysInMonth;
-        if (dailyFee <= 0L) {
-            return 0L;
-        }
-        // 🔴 2026-10-14 口径修正：平台一律不自动扣款（所有结算线下），系统只做台账——
-        // 日结批生成 PENDING 费用记录（唯一键 merchant+date+type 幂等），线下收款后标记 SETTLED。
         List<DeviceInfo> devices = deviceRepository.selectList(
                 Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
         long rentDaily = 0L, dataDaily = 0L;
@@ -244,7 +242,15 @@ public class MerchantDailyIncomeNotifyScheduler {
         }
         upsertFeeLedger(merchantId, yesterday, "REN", rentDaily);
         upsertFeeLedger(merchantId, yesterday, "DATA", dataDaily);
-        return rentDaily + dataDaily;
+        long dailyFee = rentDaily + dataDaily;
+        // 🔴 最终口径（2026-10-14 用户拍板对齐老系统）：余额**真扣**费用——「不从他们卡里扣，
+        // 但余额肯定是减掉费用后的」，否则商户每天提现提走的是没扣费用的钱。余额可负=欠费。
+        if (dailyFee > 0) {
+            walletService.debit(merchantId, dailyFee, "DAILY_FEE",
+                    "SETTLEMENT_FEE", yesterday.format(ISO_FMT),
+                    "周期费用日摊(租金+流量费/" + daysInMonth + "天)");
+        }
+        return dailyFee;
     }
 
     private void upsertFeeLedger(String merchantId, LocalDate feeDate, String feeType, long amountCents) {
