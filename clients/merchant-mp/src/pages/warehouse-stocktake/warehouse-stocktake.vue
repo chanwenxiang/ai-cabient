@@ -174,15 +174,14 @@
             </view>
           </view>
           <view class="card">
-            <view class="row-between">
-              <text class="label">现场照片（{{ photos.length }}/5）</text>
-              <text
-                v-if="!isDone && photos.length < 5"
-                role="button"
-                class="hint"
-                @click="choosePhoto"
-                >+ 拍照/选图</text
-              >
+            <text class="label">现场照片（{{ photos.length }}/5）</text>
+            <view
+              v-if="!isDone && photos.length < 5"
+              role="button"
+              class="photo-add-btn"
+              @click="choosePhoto"
+            >
+              ＋ 拍照 / 从相册选图
             </view>
             <view v-if="!photos.length" class="empty-inline">暂无照片</view>
             <view v-else class="photo-grid">
