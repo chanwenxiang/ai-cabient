@@ -810,20 +810,6 @@
       "type": "TEXT",
       "default": "0",
       "description": "总线路负责人（userId，多个用英文逗号分隔）；0=未指定，可随时改指"
-    },
-    {
-      "key": "bonus.position_development.enabled",
-      "group": "补货与签到",
-      "type": "BOOLEAN",
-      "default": "false",
-      "description": "点位开发奖金开关（默认关闭=已取消；发放触发逻辑待接）"
-    },
-    {
-      "key": "bonus.position_development.amount_cents",
-      "group": "补货与签到",
-      "type": "NUMBER",
-      "default": "0",
-      "description": "点位开发奖金金额（分/柜）；0=不发"
     }
   ]
 }

@@ -763,10 +763,6 @@ public class SystemConfigService {
                 "商户费用欠缴锁柜阈值（月）：未结清费用累计 ≥ 月费用总额×该倍数时锁柜，结清自动解锁");
         upsertIfAbsent("line_route.chief_manager_ids", "0",
                 "总线路负责人（user_info.userId，多个用英文逗号分隔，如 1001,1002）；0=未指定，可随时改指");
-        upsertIfAbsent("bonus.position_development.enabled", "false",
-                "点位开发奖金开关（默认关闭=已取消；开启后开发新柜机点位时按固定额发奖金——发放触发逻辑待接）");
-        upsertIfAbsent("bonus.position_development.amount_cents", "0",
-                "点位开发奖金金额（分/柜）；0=不发");
         upsertIfAbsent(MERCHANT_WITHDRAW_FEE_CAP_CENTS, "0",
                 "商户提现手续费单笔封顶（分），0=不封顶。行业参照：支付宝余额提现封顶 ¥25、拉卡拉提现封顶 ¥50 —— 配了手续费比例强烈建议同时配封顶");
         upsertIfAbsent(MERCHANT_WITHDRAW_SETTLE_UNLOCK_HOUR, "0",
