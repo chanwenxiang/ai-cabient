@@ -34,7 +34,15 @@ COPY services/trade-service/src services/trade-service/src
 RUN --mount=type=cache,target=/root/.m2,sharing=locked \
     mvn package -DskipTests -pl services/trade-service -am -B -Pskip-admin-ui
 
+# 日期/时区统一（2026-10-14）：JVM 默认时区统一为北京时间——此前容器默认 UTC，
+# 日志时间戳慢 8 小时、裸 LocalDate.now() 凌晨 0-8 点算错日期（用户要求项目日期统一）。
+# 定时任务 cron 仍显式 zone=Asia/Shanghai（aicabinet.schedule.zone），语义一致。
 FROM eclipse-temurin:17-jre-alpine
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && apk del tzdata
+ENV TZ=Asia/Shanghai
 WORKDIR /app
 
 RUN apk add --no-cache wget \

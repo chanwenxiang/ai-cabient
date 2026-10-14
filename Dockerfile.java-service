@@ -6,6 +6,11 @@ RUN mvn -pl ${MODULE} -am package -DskipTests -Dskip.admin.build=true
 
 FROM eclipse-temurin:17-jre-jammy
 ARG MODULE
+# 日期/时区统一（2026-10-14）：JVM 默认时区统一为北京时间——此前容器默认 UTC，
+# 导致日志时间戳慢 8 小时、裸 LocalDate.now() 在凌晨 0-8 点算错日期（用户要求项目日期统一）。
+# 代码侧定时任务 cron 仍显式 zone=Asia/Shanghai（aicabinet.schedule.zone），二者语义一致。
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo "$TZ" > /etc/timezone
 WORKDIR /app
 # 审计 P3：非 root 运行（对齐 infra/docker/*.Dockerfile 的 USER app 约定）
 RUN useradd --system --create-home --shell /usr/sbin/nologin app \

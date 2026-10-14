@@ -22,6 +22,11 @@ RUN --mount=type=cache,target=/root/.m2,sharing=locked \
     mvn package -DskipTests -pl services/device-service -am -B
 
 FROM eclipse-temurin:17-jre-alpine
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && apk del tzdata
+ENV TZ=Asia/Shanghai
 WORKDIR /app
 
 RUN apk add --no-cache wget
