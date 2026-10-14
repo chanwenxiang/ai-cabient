@@ -248,8 +248,23 @@ public class LineCommissionJob {
                     if ("RESTOCK_QTY".equalsIgnoreCase(staff.getCommissionBasis())) {
                         long perUnit = staff.getCommissionPerUnitCents() == null ? 0L : staff.getCommissionPerUnitCents();
                         commission = (long) e.getValue() * perUnit;
+                    } else {
+                        // GMV 模式（对齐老系统 MachineCommissionLink.type=0 按销售额）：
+                        // 补货员负责的柜机昨日已支付销售额 × rateBps（万分比）
+                        int bps = staff.getCommissionRateBps() == null ? 0 : staff.getCommissionRateBps();
+                        if (bps > 0) {
+                            long gmv = orderMapper
+                                    .findByDeviceIdAndCreatedAtBetween(e.getKey(),
+                                            bizDate.atStartOfDay(ScheduleZones.ZONE).toInstant(),
+                                            bizDate.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant())
+                                    .stream()
+                                    .filter(o -> o.getStatus() != null
+                                            && PAID_STATUSES.contains(o.getStatus().toUpperCase()))
+                                    .mapToLong(CabinetOrder::getTotalAmountCents)
+                                    .sum();
+                            commission = gmv * bps / 10_000L;
+                        }
                     }
-                    // GMV 模式的补货员：本批暂按 0（补货员销售额按人拆分数据接入后扩展）
                     if (commission <= 0) {
                         continue;
                     }
