@@ -9,6 +9,7 @@
       <view v-else-if="errorView" class="state">
         <text class="state-title">{{ errorView.title }}</text>
         <text class="state-desc">{{ errorView.desc }}</text>
+        <view v-if="orderId" role="button" class="retry-link" @click="retryLoad">重新加载</view>
       </view>
       <view v-else-if="!src" class="state">
         <text class="state-title">缺少视频地址</text>
@@ -22,6 +23,7 @@
           object-fit="contain"
           :show-center-play-btn="true"
           :enable-progress-gesture="true"
+          @error="onVideoError"
         />
         <view v-if="clips.length > 1" class="clip-bar">
           <view
@@ -118,6 +120,25 @@ function selectClip(index: number) {
   src.value = clip.url;
 }
 
+/**
+ * 修复 2026-10-14：预签名 URL 短时效，过期/对象被清理时 video 直接黑屏无提示。
+ * 播放错误 → 给出可重试的失败态（重新拉清单换新预签名地址）。
+ */
+function onVideoError() {
+  if (errorView.value) return;
+  errorView.value = {
+    title: '视频播放失败',
+    desc: '视频地址可能已过期，请重新加载后再试；多次失败请联系运营核对。',
+    showCopy: false
+  };
+  src.value = '';
+}
+
+function retryLoad() {
+  if (!orderId.value || loading.value) return;
+  void loadOrderVideo(orderId.value);
+}
+
 onLoad(async (opts) => {
   orderId.value = String(opts?.orderId || '').trim();
   deviceId.value = String(opts?.deviceId || '').trim();
@@ -181,6 +202,17 @@ function goOrder() {
   font-size: var(--font-size-body);
   padding: 0 32rpx;
   line-height: 1.5;
+}
+.retry-link {
+  margin-top: 24rpx;
+  min-height: 88rpx;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 48rpx;
+  border-radius: var(--radius-control);
+  border: 1rpx solid var(--text-subtle);
+  color: var(--white);
+  font-size: var(--font-size-body);
 }
 .meta {
   color: var(--text-subtle);

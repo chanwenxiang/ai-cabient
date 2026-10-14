@@ -261,11 +261,11 @@ function actionHint(item: { type: string; deviceId?: string; ticketId?: string }
   const type = String(item.type || '').toUpperCase();
   // 「无权限=看不见」：无争议查看权限时入口不出现争议字样（点击走柜机详情）
   if (type === 'DISPUTE') {
-    if (!hasPerm(me.value, 'merchant:disputes:view')) return item.deviceId ? '查看柜机' : '';
+    if (!hasPerm(me.value, 'merchant:disputes:list')) return item.deviceId ? '查看柜机' : '';
     return item.ticketId ? '去处理争议' : '查看争议';
   }
   if (type.startsWith('RECOGNITION')) {
-    if (!hasPerm(me.value, 'merchant:disputes:view')) return item.deviceId ? '查看柜机' : '';
+    if (!hasPerm(me.value, 'merchant:disputes:list')) return item.deviceId ? '查看柜机' : '';
     return item.deviceId ? '查看柜机' : '查看争议';
   }
   if (type === 'EXPIRY') return '去处理临期任务';
@@ -373,7 +373,7 @@ function handleItem(item: {
   exceptionId?: string;
 }) {
   const type = String(item.type || '').toUpperCase();
-  const canDisputes = hasPerm(me.value, 'merchant:disputes:view');
+  const canDisputes = hasPerm(me.value, 'merchant:disputes:list');
   if (type === 'DISPUTE') {
     // 「无权限=看不见」：无争议权限时改走柜机详情（补货员可处理柜端）
     if (!canDisputes) {

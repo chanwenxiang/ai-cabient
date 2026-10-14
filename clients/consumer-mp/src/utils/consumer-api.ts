@@ -1,7 +1,7 @@
 import type { LoginResponse } from '@aicabinet/shared-types';
 import { clearDictOverrides } from '@aicabinet/shared-dict';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
-import { parseQuery, queryGet } from '@aicabinet/shared-uni/query';
+import { parseQuery, queryGet, toQuery } from '@aicabinet/shared-uni/query';
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import {
   createMpApiError,
@@ -510,12 +510,9 @@ export function fetchCaptcha() {
 }
 
 export function sendSmsCode(phone: string, captchaId: string, captchaCode: string) {
-  const q = new URLSearchParams({
-    phoneNumber: phone,
-    captchaId,
-    captchaCode
-  });
-  return request<void>(AuthEndpoints.smsCode(q.toString()), 'POST', null, false);
+  // 铁律 40 家族：mp 运行时无 URLSearchParams（修复 2026-10-14 短信登录真机 ReferenceError）。
+  const q = toQuery({ phoneNumber: phone, captchaId, captchaCode });
+  return request<void>(AuthEndpoints.smsCode(q), 'POST', null, false);
 }
 
 /** 登出：服务端吊销 JWT（失败也清本地会话）。 */

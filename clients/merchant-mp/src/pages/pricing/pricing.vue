@@ -314,11 +314,15 @@ async function savePrice(p: MerchantSkuPricing) {
   const key = draftKey(p);
   if (savingKey.value === key) return;
   const raw = (draft.value[key] || '').trim();
+  const prev = draftValueFor(p);
+  // 值未变化先早退（修复 2026-10-14：否则残留非法草稿时每次失焦都重复弹错）。
+  if (raw === prev) return;
   const priceCents = raw === '' ? null : yuanToCents(raw);
   if (raw !== '' && (priceCents == null || priceCents < 0)) {
     showError('价格无效');
     return;
   }
+  // 后端 SkuPriceBounds 恒回解析后的界（运行时不会为 null；类型可空仅为兼容旧 DTO）。
   if (p.minPriceCents != null && priceCents != null && priceCents < p.minPriceCents) {
     showError(`不低于 ${fmtMoney(p.minPriceCents)}`);
     return;
@@ -327,8 +331,6 @@ async function savePrice(p: MerchantSkuPricing) {
     showError(`不高于 ${fmtMoney(p.maxPriceCents)}`);
     return;
   }
-  const prev = draftValueFor(p);
-  if (raw === prev) return;
 
   savingKey.value = key;
   try {

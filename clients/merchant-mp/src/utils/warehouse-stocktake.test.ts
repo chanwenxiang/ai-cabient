@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  blindReasonOptions,
   buildUpdateLineBody,
   diffDirectionLabel,
   diffReasonLabel,
@@ -98,5 +99,27 @@ describe('isLineEditable', () => {
     expect(isLineEditable('ADJUSTED', 'MATCHED')).toBe(false);
     expect(isLineEditable('CANCELLED', 'PENDING')).toBe(false);
     expect(isLineEditable('IN_PROGRESS', 'ADJUSTED')).toBe(false);
+  });
+});
+
+describe('blindReasonOptions', () => {
+  it('盲盘给全量选项（盘亏类+盘盈类+其他），不按账面方向泄露', () => {
+    const options = blindReasonOptions();
+    expect(options.map((o) => o.value)).toEqual([
+      'NORMAL_SHRINKAGE',
+      'MISENTRY',
+      'HANDLING_DAMAGE',
+      'SUSPECTED_THEFT',
+      'MISENTRY_GAIN',
+      'UNRECORDED_RETURN',
+      'SKU_MIXUP',
+      'OTHER'
+    ]);
+  });
+
+  it('与方向集互斥性成立：盲盘全集 ⊇ 任一方向集', () => {
+    const blind = new Set(blindReasonOptions().map((o) => o.value));
+    for (const o of diffReasonOptionsFor(-1)) expect(blind.has(o.value)).toBe(true);
+    for (const o of diffReasonOptionsFor(1)) expect(blind.has(o.value)).toBe(true);
   });
 });

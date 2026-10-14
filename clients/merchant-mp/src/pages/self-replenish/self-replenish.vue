@@ -249,6 +249,8 @@ async function submit() {
     );
     showSuccess(`已生成补货任务 ${task.taskId}`);
     notes.value = '';
+    // 修复 2026-10-14：清空勾选与数量，防止从任务页返回后一键重复下单（该接口直接生效）。
+    draftLines.value = draftLines.value.map((line) => ({ ...line, selected: false, qty: 0 }));
     uni.navigateTo({ url: `/pages/replenishment/replenishment?taskId=${task.taskId}` });
   } catch (e) {
     showError(requestActionErrorMessage(e, '提交失败'));

@@ -5,6 +5,7 @@ import { matchPermission } from '@aicabinet/shared-rbac';
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 import { withQuery } from '@aicabinet/shared-uni/query';
+import { clearPreferredDeviceId } from '@/utils/preferred-device';
 import {
   mpRequest,
   createMpApiError,
@@ -101,6 +102,22 @@ export function clearSession() {
   uni.removeStorageSync(COOKIE_AUTH_KEY);
   uni.removeStorageSync('merchant_me');
   clearDictOverrides();
+  // 修复 2026-10-14：换账号/登出清掉上一账号的客户端偏好与本地缓存
+  // （补货员共用手机场景：常驻柜筛选、任务门态、争议证据下载缓存）。
+  try {
+    clearPreferredDeviceId();
+  } catch {
+    /* ignore */
+  }
+  try {
+    const info = uni.getStorageInfoSync();
+    for (const key of info.keys || []) {
+      if (key.startsWith('replenish_door_')) uni.removeStorageSync(key);
+    }
+  } catch {
+    /* ignore */
+  }
+  disputeEvidenceLocalCache.clear();
   // M-P2-5：运行时挂钩清 useMerchantMe 内存（避免与 composable 循环依赖）
   sessionClearHooks.forEach((fn) => {
     try {

@@ -37,6 +37,16 @@ export function diffReasonOptionsFor(diffQty: number): DiffReasonOption[] {
   return diffQty < 0 ? [...LOSS_REASONS, OTHER_REASON] : [...GAIN_REASONS, OTHER_REASON];
 }
 
+/**
+ * 盲盘进行中的原因选项：全量（盘亏类+盘盈类+其他）。
+ * 修复 2026-10-14：此前盲盘复用 diffReasonOptionsFor(rowDiff(row))，选项集
+ * 按账面方向出 ⇒ 把「多了还是少了」泄露给盘点员，违背盲盘语义。方向选反
+ * 时由服务端 400 拦截（方向锁定兜底仍在）。
+ */
+export function blindReasonOptions(): DiffReasonOption[] {
+  return [...LOSS_REASONS, ...GAIN_REASONS, OTHER_REASON];
+}
+
 export function diffReasonLabel(reason: string | null | undefined): string {
   if (!reason) return '未分类';
   return ALL_REASON_LABELS[reason] ?? reason;

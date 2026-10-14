@@ -81,7 +81,10 @@
               class="recv-line"
             >
               <view class="recv-line-head">
-                <text class="line-item">{{ line.skuId }} · 采购 {{ line.orderedQty }}</text>
+                <text class="line-item"
+                  >{{ line.skuId }} · 采购 {{ line.orderedQty
+                  }}{{ line.alreadyReceived ? ` · 已收 ${line.alreadyReceived}` : '' }}</text
+                >
                 <view
                   v-if="canReceiveSatellitePurchase(order.status)"
                   role="button"
@@ -171,6 +174,8 @@ type OrderLine = {
   skuId: string;
   orderedQty: number;
   receivedQty?: number;
+  /** 服务端累计已收数（hydrate 时快照；后端对 ≤该值的目标静默无操作）。 */
+  alreadyReceived?: number;
   batchNo?: string;
   expiryDate?: string;
 };
@@ -238,7 +243,10 @@ function hydrateReceiveLines(rows: OrderLine[] | undefined): OrderLine[] {
     ...line,
     batchNo: line.batchNo || batch,
     expiryDate: line.expiryDate || expiry,
-    receivedQty: line.orderedQty
+    // 修复 2026-10-14：后端把提交值当「累计已收目标」（≤已收静默无操作）。
+    // 保留服务端已收数供展示与下限约束，目标默认=采购数（补齐剩余）。
+    alreadyReceived: Math.max(0, Number(line.receivedQty) || 0),
+    receivedQty: Math.max(line.orderedQty, Number(line.receivedQty) || 0)
   }));
 }
 
@@ -300,13 +308,23 @@ function supplierName(id: string) {
  * 供应商少发/运输破损时按实收入账，剩余量可后续再收。
  */
 function adjustReceivedQty(line: OrderLine, delta: number) {
-  const max = Math.max(1, line.orderedQty);
-  const current = Math.max(1, Number(line.receivedQty) || line.orderedQty);
-  line.receivedQty = Math.min(max, Math.max(1, current + delta));
+  // 下限=已收数（后端对 ≤已收 的目标静默无操作，UI 直接不允许调低到已收以下）。
+  const max = Math.max(1, line.orderedQty, line.alreadyReceived ?? 0);
+  const floor = Math.max(1, line.alreadyReceived ?? 0);
+  const current = Math.max(floor, Number(line.receivedQty) || line.orderedQty);
+  line.receivedQty = Math.min(max, Math.max(floor, current + delta));
 }
 
 async function receive(order: { purchaseOrderId: number; lines?: OrderLine[] }) {
   if (receivingId.value || !canConfirmSatelliteReceive(order.lines || [])) return;
+  // 修复 2026-10-14：目标 ≤ 已收 时后端静默 return 0（无入库），此前却 toast 成功。
+  const hasDelta = (order.lines || []).some(
+    (line) => (Number(line.receivedQty) || 0) > (line.alreadyReceived ?? 0)
+  );
+  if (!hasDelta) {
+    showError('收货数量未变化：没有可入库的增量，请先调整实收数');
+    return;
+  }
   receivingId.value = order.purchaseOrderId;
   try {
     await merchantApi.receiveSatellitePurchaseOrder(order.purchaseOrderId, {

@@ -140,7 +140,7 @@
                   </text>
                 </view>
                 <text class="st-status" :class="lineStateClass(row.status)">{{
-                  diffDirectionLabel(rowDiff(row))
+                  isBlindActive ? '' : diffDirectionLabel(rowDiff(row))
                 }}</text>
               </view>
               <view class="entry-row">
@@ -220,7 +220,11 @@ import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+// 铁律 40 家族：mp 运行时无 URLSearchParams（shared-uni/query.ts 注释自证），
+// 修复 2026-10-14 盘点列表在真机恒「加载失败」的 ReferenceError。
+import { toQuery } from '@aicabinet/shared-uni/query';
 import {
+  blindReasonOptions,
   buildUpdateLineBody,
   diffDirectionLabel,
   diffReasonLabel,
@@ -278,11 +282,16 @@ const detailError = ref('');
 const editRows = ref<EditRow[]>([]);
 const photos = ref<PhotoView[]>([]);
 const acting = ref(false);
+/** 详情请求序号守卫：快速切换盘点单时丢弃过期响应（修复 2026-10-14 竞态：A 单数据配 B 单照片）。 */
+let detailSeq = 0;
 
 const isDone = computed(() => {
   const s = detail.value?.status;
   return s === 'COMPLETED' || s === 'ADJUSTED' || s === 'CANCELLED';
 });
+
+/** 盲盘录入中：不显示盘盈/盘亏方向、原因选项给全量（不泄露账面方向）。 */
+const isBlindActive = computed(() => detail.value?.mode === 'BLIND' && !isDone.value);
 
 onLoad((opts) => {
   if (!isMerchantLoggedIn()) {
@@ -332,9 +341,12 @@ async function loadList() {
   listLoading.value = true;
   listError.value = '';
   try {
-    const q = new URLSearchParams({ page: '0', size: '20' });
-    if (statusTab.value !== 'ALL') q.set('status', statusTab.value);
-    const page = await merchantApi.warehouseStocktakes(q.toString());
+    const q = toQuery({
+      page: 0,
+      size: 20,
+      status: statusTab.value === 'ALL' ? null : statusTab.value
+    });
+    const page = await merchantApi.warehouseStocktakes(q);
     stocktakes.value = page?.items || [];
   } catch (e) {
     listError.value = e instanceof Error ? e.message : '盘点单加载失败';
@@ -375,9 +387,11 @@ function backToList() {
 }
 
 async function loadDetail() {
+  const seq = ++detailSeq;
   detailError.value = '';
   try {
     const st = await merchantApi.warehouseStocktake(detailId.value);
+    if (seq !== detailSeq) return;
     detail.value = st;
     editRows.value = (st.lines || []).map((l: StocktakeLine) => ({
       lineId: Number(l.lineId),
@@ -391,8 +405,9 @@ async function loadDetail() {
       diffReason: l.diffReason || '',
       saving: false
     }));
-    await loadPhotos();
+    await loadPhotos(seq);
   } catch (e) {
+    if (seq !== detailSeq) return;
     detailError.value = e instanceof Error ? e.message : '盘点单加载失败';
   }
 }
@@ -409,6 +424,8 @@ function rowDiff(row: EditRow): number | null {
 }
 
 function reasonOptions(row: EditRow) {
+  // 盲盘进行中给全量选项（不按账面方向泄露）；方向选反由服务端 400 兜底。
+  if (isBlindActive.value) return blindReasonOptions();
   return diffReasonOptionsFor(rowDiff(row) ?? row.bookQty * -1);
 }
 
@@ -445,8 +462,9 @@ async function saveLine(row: EditRow) {
       built.body
     );
     row.status = updated.status || 'PENDING';
+    // 修复 2026-10-14：不再 loadDetail 重建整表——那会把其它行未保存的
+    // 实盘数/备注/原因冲掉（现场盘点数据丢失）。就地只更新本行状态。
     showSuccess('已保存');
-    await loadDetail();
   } catch (e) {
     showError(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -455,19 +473,23 @@ async function saveLine(row: EditRow) {
 }
 
 // ── 照片 ──
-async function loadPhotos() {
+async function loadPhotos(seq = detailSeq) {
   try {
     const list = await merchantApi.warehouseStocktakeEvidenceList(detailId.value);
+    if (seq !== detailSeq) return;
     const views: PhotoView[] = [];
     for (const att of list || []) {
       const localPath = await merchantApi.downloadStocktakeEvidence(
         detailId.value,
         Number(att.fileId)
       );
+      if (seq !== detailSeq) return;
       if (localPath) views.push({ fileId: Number(att.fileId), localPath });
     }
+    if (seq !== detailSeq) return;
     photos.value = views;
   } catch {
+    if (seq !== detailSeq) return;
     photos.value = [];
   }
 }
