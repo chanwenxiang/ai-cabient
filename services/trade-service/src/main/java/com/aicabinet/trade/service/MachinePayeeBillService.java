@@ -9,7 +9,9 @@ import com.aicabinet.trade.mapper.MachinePositionConfigMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.YearMonth;
@@ -111,6 +113,43 @@ public class MachinePayeeBillService {
         b.setPayeePhone(cfg.getPayeePhone());
         b.setStatus("PENDING");
         return b;
+    }
+
+    // ==== 运营端查询/处置（2026-10-14 自 controller 下沉：架构门禁禁 Controller 直调 Mapper）====
+
+    /** 账单列表（按账期/状态）。 */
+    public java.util.List<MachinePayeeBill> listBills(String billMonth, String status) {
+        return billMapper.selectList(Wrappers.<MachinePayeeBill>lambdaQuery()
+                .eq(billMonth != null && !billMonth.isBlank(), MachinePayeeBill::getBillMonth, billMonth)
+                .eq(status != null && !status.isBlank(), MachinePayeeBill::getStatus, status)
+                .orderByDesc(MachinePayeeBill::getBillId));
+    }
+
+    /** 标记结清（线下收款后）。 */
+    public void settle(Long billId) {
+        MachinePayeeBill bill = billMapper.selectById(billId);
+        if (bill == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "账单不存在");
+        }
+        bill.setStatus("SETTLED");
+        bill.setSettledAt(Instant.now());
+        billMapper.updateById(bill);
+    }
+
+    /** 点位费用配置（按柜）。 */
+    public MachinePositionConfig config(String deviceId) {
+        return configMapper.selectById(deviceId);
+    }
+
+    /** 保存点位费用配置（费用项随时可改，只影响后续账期）。 */
+    public void saveConfig(String deviceId, MachinePositionConfig cfg) {
+        cfg.setDeviceId(deviceId);
+        cfg.setUpdatedAt(Instant.now());
+        if (configMapper.selectById(deviceId) == null) {
+            configMapper.insert(cfg);
+        } else {
+            configMapper.updateById(cfg);
+        }
     }
 
     private long nvl(Long v) {

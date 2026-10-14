@@ -4,10 +4,7 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.StaffWalletAccount;
 import com.aicabinet.trade.domain.StaffWalletLedger;
-import com.aicabinet.trade.mapper.StaffWalletAccountMapper;
-import com.aicabinet.trade.mapper.StaffWalletLedgerMapper;
 import com.aicabinet.trade.service.StaffWalletService;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -25,15 +22,9 @@ import java.util.Map;
 @RequestMapping("/api/v2/ops/admin/staff-wallets")
 public class OpsStaffWalletController {
 
-    private final StaffWalletAccountMapper accountMapper;
-    private final StaffWalletLedgerMapper ledgerMapper;
     private final StaffWalletService staffWalletService;
 
-    public OpsStaffWalletController(StaffWalletAccountMapper accountMapper,
-                                    StaffWalletLedgerMapper ledgerMapper,
-                                    StaffWalletService staffWalletService) {
-        this.accountMapper = accountMapper;
-        this.ledgerMapper = ledgerMapper;
+    public OpsStaffWalletController(StaffWalletService staffWalletService) {
         this.staffWalletService = staffWalletService;
     }
 
@@ -41,17 +32,14 @@ public class OpsStaffWalletController {
     @GetMapping
     @RequiresPermissions("ops:line-manager:list")
     public ApiResponse<List<StaffWalletAccount>> list() {
-        return ApiResponse.ok(accountMapper.selectList(
-                Wrappers.<StaffWalletAccount>lambdaQuery().orderByDesc(StaffWalletAccount::getBalanceCents)));
+        return ApiResponse.ok(staffWalletService.listWallets());
     }
 
     @Operation(summary = "某补货员钱包流水")
     @GetMapping("/{staffUserId}/ledger")
     @RequiresPermissions("ops:line-manager:list")
     public ApiResponse<List<StaffWalletLedger>> ledger(@PathVariable long staffUserId) {
-        return ApiResponse.ok(ledgerMapper.selectList(Wrappers.<StaffWalletLedger>lambdaQuery()
-                .eq(StaffWalletLedger::getStaffUserId, staffUserId)
-                .orderByDesc(StaffWalletLedger::getLedgerId)));
+        return ApiResponse.ok(staffWalletService.listLedger(staffUserId));
     }
 
     @Operation(summary = "标记线下打款出账（余额不足即失败；每次标记=一笔独立出账流水）")

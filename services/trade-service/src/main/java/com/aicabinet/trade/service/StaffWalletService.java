@@ -4,6 +4,7 @@ import com.aicabinet.trade.domain.StaffWalletAccount;
 import com.aicabinet.trade.domain.StaffWalletLedger;
 import com.aicabinet.trade.mapper.StaffWalletAccountMapper;
 import com.aicabinet.trade.mapper.StaffWalletLedgerMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -125,6 +126,23 @@ public class StaffWalletService {
                     value(account.getFrozenCents()), refType, refId, remark);
             return true;
         });
+    }
+
+    // ==== 运营端查询（2026-10-14 自 controller 下沉：架构门禁禁 Controller 直调 Mapper）====
+
+    /** 补货员钱包余额列表（余额降序）。 */
+    @Transactional(readOnly = true)
+    public java.util.List<StaffWalletAccount> listWallets() {
+        return accountMapper.selectList(Wrappers.<StaffWalletAccount>lambdaQuery()
+                .orderByDesc(StaffWalletAccount::getBalanceCents));
+    }
+
+    /** 某补货员钱包流水（新在前）。 */
+    @Transactional(readOnly = true)
+    public java.util.List<StaffWalletLedger> listLedger(long staffUserId) {
+        return ledgerMapper.selectList(Wrappers.<StaffWalletLedger>lambdaQuery()
+                .eq(StaffWalletLedger::getStaffUserId, staffUserId)
+                .orderByDesc(StaffWalletLedger::getLedgerId));
     }
 
     private void doCredit(long staffUserId, long amountCents, String entryType,
