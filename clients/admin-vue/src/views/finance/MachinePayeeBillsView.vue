@@ -1,30 +1,35 @@
 <template>
   <div class="machine-bills-page">
     <el-tabs v-model="activeTab">
-      <!-- 月度账单 -->
+      <!-- 月度账单（CrudTable 统一壳：分页/排序/刷新/空态内建） -->
       <el-tab-pane label="月度账单" name="bills">
-        <div class="toolbar">
-          <el-date-picker
-            v-model="filterMonth"
-            type="month"
-            value-format="YYYY-MM"
-            placeholder="账期（空=全部）"
-            clearable
-          />
-          <el-select
-            v-model="filterStatus"
-            placeholder="状态（空=全部）"
-            clearable
-            style="width: 140px"
-          >
-            <el-option label="未结清" value="PENDING" />
-            <el-option label="已结清" value="SETTLED" />
-          </el-select>
-          <el-button type="primary" @click="loadBills">查询</el-button>
-          <el-button type="warning" @click="openGenerate">手动出账</el-button>
-          <el-button @click="loadBills">刷新</el-button>
-        </div>
-        <el-table :data="bills" border size="small" v-loading="loadingBills">
+        <CrudTable
+          :table="crud"
+          row-key="billId"
+          :actions="rowActions"
+          actions-test-id="machine-bill"
+          @action="onRowAction"
+        >
+          <template #toolbar>
+            <el-date-picker
+              v-model="filterMonth"
+              type="month"
+              value-format="YYYY-MM"
+              placeholder="账期（空=全部）"
+              clearable
+            />
+            <el-select
+              v-model="filterStatus"
+              placeholder="状态（空=全部）"
+              clearable
+              style="width: 140px"
+            >
+              <el-option label="未结清" value="PENDING" />
+              <el-option label="已结清" value="SETTLED" />
+            </el-select>
+            <el-button type="primary" @click="applyFilters">查询</el-button>
+            <el-button type="warning" @click="openGenerate">手动出账</el-button>
+          </template>
           <el-table-column prop="billId" label="ID" width="80" />
           <el-table-column prop="billMonth" label="账期" width="100" />
           <el-table-column prop="deviceId" label="柜机" width="140" />
@@ -49,19 +54,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="remark" label="备注" min-width="120" />
-          <el-table-column label="操作" width="140" fixed="right">
-            <template #default="{ row }">
-              <el-button
-                v-if="row.status !== 'SETTLED'"
-                size="small"
-                type="primary"
-                @click="settle(row)"
-              >
-                标记结清
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </el-tab-pane>
 
       <!-- 点位费用配置 -->
@@ -150,10 +143,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { Check } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 
 interface MachinePayeeBill {
   billId: number;
@@ -179,25 +175,8 @@ interface MachinePositionConfig {
 }
 
 const activeTab = ref('bills');
-const bills = ref<MachinePayeeBill[]>([]);
-const loadingBills = ref(false);
 const filterMonth = ref<string | null>(null);
 const filterStatus = ref<string | null>(null);
-
-const generateDialogVisible = ref(false);
-// 出账=出「上月」账：默认上个月（与每月 1 日自动任务同口径）
-const generateMonth = ref(upperMonth());
-
-const configDeviceId = ref('');
-const configLoaded = ref(false);
-const configForm = ref<MachinePositionConfig>(emptyConfig(''));
-const configEnabled = ref(true);
-const configElectricYuan = computed({
-  get: () => (configForm.value.electricAmountCents ?? 0) / 100,
-  set: (v: number) => {
-    configForm.value.electricAmountCents = Math.round((v ?? 0) * 100);
-  }
-});
 
 function yuan(cents?: number | null): string {
   return ((cents ?? 0) / 100).toFixed(2);
@@ -205,39 +184,50 @@ function yuan(cents?: number | null): string {
 function feeTypeText(t: string): string {
   return t === 'ELECTRIC' ? '电费' : t === 'SHARE' ? '销售分成' : t;
 }
+
+// 列表状态机统一交给 CrudTable（防回潮门禁：新页面禁裸 el-table）。
+// 后端 list 无分页参数 ⇒ fetchPage 拉全量后按页切片，排序/分页在本页收敛。
+const crud = useCrudTable<MachinePayeeBill>({
+  rowKey: (r) => r.billId,
+  sort: { prop: 'billId', mode: 'local', defaultDir: 'desc' },
+  fetchPage: async (params) => {
+    const q = new URLSearchParams();
+    if (filterMonth.value) q.set('billMonth', filterMonth.value);
+    if (filterStatus.value) q.set('status', filterStatus.value);
+    const all = await api.request<MachinePayeeBill[]>(
+      `${AdminEndpoints.machinePayeeBills}?${q.toString()}`,
+      'GET'
+    );
+    const start = params.page * params.size;
+    return { items: all.slice(start, start + params.size), total: all.length };
+  }
+});
+
+function applyFilters(): void {
+  void crud.load({ resetPage: true });
+}
+
+function rowActions(row: MachinePayeeBill): CrudRowAction[] {
+  if (row.status === 'SETTLED') return [];
+  return [{ key: 'settle', label: '标记结清', icon: Check, perm: 'ops:device:edit' }];
+}
+
+async function onRowAction(payload: { key: string; row: MachinePayeeBill }): Promise<void> {
+  if (payload.key !== 'settle') return;
+  await api.request(AdminEndpoints.machinePayeeBillSettle(payload.row.billId), 'POST');
+  ElMessage.success('已标记结清（线下收款后）');
+  await crud.load();
+}
+
+const generateDialogVisible = ref(false);
+// 出账=出「上月」账：默认上个月（与每月 1 日自动任务同口径）
+const generateMonth = ref(upperMonth());
+
 function upperMonth(): string {
   const d = new Date();
   d.setDate(1);
   d.setMonth(d.getMonth() - 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-function emptyConfig(deviceId: string): MachinePositionConfig {
-  return {
-    deviceId,
-    electricType: 'NONE',
-    electricAmountCents: 0,
-    welfareInfo: '',
-    shareBps: 0,
-    payeeName: '',
-    payeePhone: '',
-    enabled: 1
-  };
-}
-
-async function loadBills(): Promise<void> {
-  loadingBills.value = true;
-  try {
-    const params = new URLSearchParams();
-    if (filterMonth.value) params.set('billMonth', filterMonth.value);
-    if (filterStatus.value) params.set('status', filterStatus.value);
-    const qs = params.toString();
-    bills.value = await api.request<MachinePayeeBill[]>(
-      qs ? `${AdminEndpoints.machinePayeeBills}?${qs}` : AdminEndpoints.machinePayeeBills,
-      'GET'
-    );
-  } finally {
-    loadingBills.value = false;
-  }
 }
 
 function openGenerate(): void {
@@ -253,13 +243,31 @@ async function submitGenerate(): Promise<void> {
   ElMessage.success(`出账完成，共 ${n} 条（幂等，重跑不重复）`);
   generateDialogVisible.value = false;
   filterMonth.value = generateMonth.value;
-  await loadBills();
+  await applyFilters();
 }
 
-async function settle(row: MachinePayeeBill): Promise<void> {
-  await api.request(AdminEndpoints.machinePayeeBillSettle(row.billId), 'POST');
-  ElMessage.success('已标记结清（线下收款后）');
-  await loadBills();
+const configDeviceId = ref('');
+const configLoaded = ref(false);
+const configForm = ref<MachinePositionConfig>(emptyConfig(''));
+const configEnabled = ref(true);
+const configElectricYuan = computed({
+  get: () => (configForm.value.electricAmountCents ?? 0) / 100,
+  set: (v: number) => {
+    configForm.value.electricAmountCents = Math.round((v ?? 0) * 100);
+  }
+});
+
+function emptyConfig(deviceId: string): MachinePositionConfig {
+  return {
+    deviceId,
+    electricType: 'NONE',
+    electricAmountCents: 0,
+    welfareInfo: '',
+    shareBps: 0,
+    payeeName: '',
+    payeePhone: '',
+    enabled: 1
+  };
 }
 
 async function loadConfig(): Promise<void> {
@@ -287,10 +295,6 @@ async function saveConfig(): Promise<void> {
   await api.request(AdminEndpoints.machinePayeeBillConfig(configForm.value.deviceId), 'PUT', body);
   ElMessage.success('配置已保存（只影响后续账期）');
 }
-
-onMounted(() => {
-  void loadBills();
-});
 </script>
 
 <style scoped>

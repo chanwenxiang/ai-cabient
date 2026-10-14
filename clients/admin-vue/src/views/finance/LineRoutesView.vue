@@ -3,16 +3,23 @@
     <el-tabs v-model="activeTab">
       <!-- 线路管理 -->
       <el-tab-pane label="线路管理" name="routes">
-        <div class="toolbar">
-          <span v-if="chiefRaw !== null" class="chief-line">
-            总线路负责人（多个，可随时改指）：
-            <el-tag v-for="c in chiefList" :key="c" size="small" class="chief-tag">{{ c }}</el-tag>
-          </span>
-          <el-button type="primary" @click="openChiefEditor">编辑总负责人</el-button>
-          <el-button type="primary" @click="openCreate">新建线路</el-button>
-          <el-button @click="loadRoutes">刷新</el-button>
-        </div>
-        <el-table :data="routes" border size="small" v-loading="loadingRoutes">
+        <CrudTable
+          :table="routesCrud"
+          row-key="id"
+          :actions="routeActions"
+          actions-test-id="line-route"
+          @action="onRouteAction"
+        >
+          <template #toolbar>
+            <span v-if="chiefRaw !== null" class="chief-line">
+              总线路负责人（多个，可随时改指）：
+              <el-tag v-for="c in chiefList" :key="c" size="small" class="chief-tag">{{
+                c
+              }}</el-tag>
+            </span>
+            <el-button type="primary" @click="openChiefEditor">编辑总负责人</el-button>
+            <el-button type="primary" @click="openCreate">新建线路</el-button>
+          </template>
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column prop="routeName" label="线路名称" min-width="140" />
           <el-table-column prop="managerId" label="线长（负责人 userId）" width="180" />
@@ -24,37 +31,23 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="220" fixed="right">
-            <template #default="{ row }">
-              <el-button size="small" @click="openEdit(row)">编辑</el-button>
-              <el-button size="small" @click="openMembers(row)">成员</el-button>
-              <el-button
-                v-if="row.status === 'ACTIVE'"
-                size="small"
-                type="warning"
-                @click="archiveRoute(row)"
-              >
-                归档
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </el-tab-pane>
 
       <!-- 岗位月合计 -->
       <el-tab-pane label="月合计（财务对账）" name="monthly">
-        <div class="toolbar">
-          <el-date-picker
-            v-model="summaryMonth"
-            type="month"
-            value-format="YYYY-MM"
-            placeholder="选择账期"
-            :clearable="false"
-          />
-          <el-button type="primary" @click="loadSummary">查询</el-button>
-        </div>
         <h4>线长销售提成（线路柜销售额合计）</h4>
-        <el-table :data="summaryManagers" border size="small" v-loading="loadingSummary">
+        <CrudTable :table="summaryManagersCrud" row-key="managerId" :show-refresh="false">
+          <template #toolbar>
+            <el-date-picker
+              v-model="summaryMonth"
+              type="month"
+              value-format="YYYY-MM"
+              placeholder="选择账期"
+              :clearable="false"
+            />
+            <el-button type="primary" @click="loadSummary">查询</el-button>
+          </template>
           <el-table-column prop="managerId" label="线长 userId" width="140" />
           <el-table-column prop="orderCount" label="订单数" width="100" />
           <el-table-column label="销售额（元）" width="140">
@@ -66,9 +59,9 @@
           <el-table-column label="其中退款冲回（元）" width="150">
             <template #default="{ row }">{{ yuan(row.clawbackCents) }}</template>
           </el-table-column>
-        </el-table>
+        </CrudTable>
         <h4>补货员佣金（按实际补货留痕）</h4>
-        <el-table :data="summaryStaffs" border size="small">
+        <CrudTable :table="summaryStaffsCrud" row-key="staffUserId" :show-refresh="false">
           <el-table-column prop="staffUserId" label="补货员 userId" width="140" />
           <el-table-column prop="restockQty" label="补货件数" width="120" />
           <el-table-column label="佣金（元）">
@@ -77,26 +70,23 @@
           <el-table-column label="其中退款冲回（元）" width="150">
             <template #default="{ row }">{{ yuan(row.clawbackCents) }}</template>
           </el-table-column>
-        </el-table>
+        </CrudTable>
       </el-tab-pane>
 
       <!-- 补货员钱包 -->
       <el-tab-pane label="补货员钱包" name="wallets">
-        <div class="toolbar">
-          <el-button @click="loadWallets">刷新</el-button>
-        </div>
-        <el-table :data="wallets" border size="small" v-loading="loadingWallets">
+        <CrudTable
+          :table="walletsCrud"
+          row-key="staffUserId"
+          :actions="walletActions"
+          actions-test-id="staff-wallet"
+          @action="onWalletAction"
+        >
           <el-table-column prop="staffUserId" label="补货员 userId" width="140" />
           <el-table-column label="余额（元）" width="140">
             <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="220">
-            <template #default="{ row }">
-              <el-button size="small" type="primary" @click="openPayout(row)">标记打款</el-button>
-              <el-button size="small" @click="openLedger(row)">流水</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        </CrudTable>
       </el-tab-pane>
     </el-tabs>
 
@@ -129,7 +119,14 @@
       :title="`线路成员（${activeRoute?.routeName || ''}）`"
       width="720px"
     >
-      <el-table :data="members" border size="small" v-loading="loadingMembers">
+      <CrudTable
+        :table="membersCrud"
+        row-key="id"
+        :actions="memberActions"
+        actions-test-id="route-member"
+        :show-refresh="false"
+        @action="onMemberAction"
+      >
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="userId" label="userId" width="110" />
         <el-table-column label="角色" width="100">
@@ -146,12 +143,7 @@
         <el-table-column label="每件佣金(元)" width="110">
           <template #default="{ row }">{{ yuan(row.commissionPerUnitCents) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="80">
-          <template #default="{ row }">
-            <el-button size="small" type="danger" @click="removeMember(row)">移除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      </CrudTable>
       <el-divider>添加/更新成员（同一人可既是线长又是补货员，两行并行）</el-divider>
       <el-form inline>
         <el-form-item label="userId">
@@ -221,8 +213,8 @@
 
     <!-- 钱包流水 -->
     <el-dialog v-model="ledgerDialogVisible" title="钱包流水" width="640px">
-      <el-table :data="ledger" border size="small" v-loading="loadingLedger">
-        <el-table-column prop="createdAt" label="时间" width="170">
+      <CrudTable :table="ledgerCrud" row-key="ledgerId" :show-refresh="false">
+        <el-table-column label="时间" width="170">
           <template #default="{ row }">{{ formatDateTimeMinute(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column prop="entryType" label="类型" width="150" />
@@ -233,7 +225,7 @@
           <template #default="{ row }">{{ yuan(row.balanceAfter) }}</template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="140" />
-      </el-table>
+      </CrudTable>
     </el-dialog>
   </div>
 </template>
@@ -241,9 +233,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { Box, Edit, Money, Tickets, User } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
 
 interface LineRoute {
   id: number;
@@ -265,16 +260,28 @@ interface Wallet {
   balanceCents: number;
 }
 interface LedgerRow {
+  ledgerId: number;
   createdAt: string;
   entryType: string;
   amountCents: number;
   balanceAfter: number;
   remark: string | null;
 }
+interface ManagerSummary {
+  managerId: number;
+  orderCount: number;
+  gmvCents: number;
+  commissionCents: number;
+  clawbackCents?: number;
+}
+interface StaffSummary {
+  staffUserId: number;
+  restockQty: number;
+  commissionCents: number;
+  clawbackCents?: number;
+}
 
 const activeTab = ref('routes');
-const routes = ref<LineRoute[]>([]);
-const loadingRoutes = ref(false);
 const chiefRaw = ref<string | null>(null);
 const chiefList = ref<string[]>([]);
 
@@ -283,8 +290,6 @@ const routeForm = ref({ id: 0, routeName: '', managerId: 1, remark: '' });
 
 const membersDialogVisible = ref(false);
 const activeRoute = ref<LineRoute | null>(null);
-const members = ref<RouteMember[]>([]);
-const loadingMembers = ref(false);
 const memberForm = ref({
   userId: 1,
   role: 'STAFF',
@@ -297,22 +302,7 @@ const chiefDialogVisible = ref(false);
 const chiefDraft = ref('0');
 
 const summaryMonth = ref(new Date().toISOString().slice(0, 7));
-const loadingSummary = ref(false);
-const summaryManagers = ref<
-  {
-    managerId: number;
-    orderCount: number;
-    gmvCents: number;
-    commissionCents: number;
-    clawbackCents?: number;
-  }[]
->([]);
-const summaryStaffs = ref<
-  { staffUserId: number; restockQty: number; commissionCents: number; clawbackCents?: number }[]
->([]);
 
-const wallets = ref<Wallet[]>([]);
-const loadingWallets = ref(false);
 const payoutDialogVisible = ref(false);
 const activeWallet = ref<Wallet | null>(null);
 const payoutYuan = ref(0);
@@ -320,8 +310,6 @@ const payoutYuan = ref(0);
 const payoutRequestNo = ref('');
 const payoutRemark = ref('');
 const ledgerDialogVisible = ref(false);
-const ledger = ref<LedgerRow[]>([]);
-const loadingLedger = ref(false);
 
 function yuan(cents?: number | null): string {
   return ((cents ?? 0) / 100).toFixed(2);
@@ -330,19 +318,91 @@ function basisText(basis: string): string {
   return basis === 'RESTOCK_QTY' ? '按补货数量' : '按销售额';
 }
 
-async function loadRoutes(): Promise<void> {
-  loadingRoutes.value = true;
-  try {
-    routes.value = await api.request<LineRoute[]>(AdminEndpoints.lineRoutes, 'GET');
-  } finally {
-    loadingRoutes.value = false;
+// 列表状态机统一交给 CrudTable（防回潮门禁：views 禁裸 el-table）。
+// 后端均为全量 list 接口 ⇒ fetchPage 拉全量后按页切片。
+const routesCrud = useCrudTable<LineRoute>({
+  rowKey: (r) => r.id,
+  sort: { prop: 'id', mode: 'local', defaultDir: 'desc' },
+  fetchPage: async (p) => {
+    const all = await api.request<LineRoute[]>(AdminEndpoints.lineRoutes, 'GET');
+    const start = p.page * p.size;
+    return { items: all.slice(start, start + p.size), total: all.length };
   }
-}
+});
+
+const summaryManagersCrud = useCrudTable<ManagerSummary>({
+  rowKey: (r) => r.managerId,
+  fetchPage: async (p) => {
+    const res = await api.request<{ managers: ManagerSummary[]; staffs: StaffSummary[] }>(
+      AdminEndpoints.lineCommissionMonthlySummary(summaryMonth.value),
+      'GET'
+    );
+    const all = res.managers ?? [];
+    const start = p.page * p.size;
+    return { items: all.slice(start, start + p.size), total: all.length };
+  }
+});
+
+const summaryStaffsCrud = useCrudTable<StaffSummary>({
+  rowKey: (r) => r.staffUserId,
+  fetchPage: async (p) => {
+    const res = await api.request<{ managers: ManagerSummary[]; staffs: StaffSummary[] }>(
+      AdminEndpoints.lineCommissionMonthlySummary(summaryMonth.value),
+      'GET'
+    );
+    const all = res.staffs ?? [];
+    const start = p.page * p.size;
+    return { items: all.slice(start, start + p.size), total: all.length };
+  }
+});
+
+const walletsCrud = useCrudTable<Wallet>({
+  rowKey: (r) => r.staffUserId,
+  sort: { prop: 'staffUserId', mode: 'local', defaultDir: 'asc' },
+  fetchPage: async (p) => {
+    const all = await api.request<Wallet[]>(AdminEndpoints.staffWallets, 'GET');
+    const start = p.page * p.size;
+    return { items: all.slice(start, start + p.size), total: all.length };
+  }
+});
+
+const membersCrud = useCrudTable<RouteMember>({
+  rowKey: (r) => r.id,
+  autoLoad: false,
+  fetchPage: async (p) => {
+    if (!activeRoute.value) return { items: [], total: 0 };
+    const all = await api.request<RouteMember[]>(
+      AdminEndpoints.lineRouteMembers(activeRoute.value.id),
+      'GET'
+    );
+    const start = p.page * p.size;
+    return { items: all.slice(start, start + p.size), total: all.length };
+  }
+});
+
+const ledgerCrud = useCrudTable<LedgerRow>({
+  rowKey: (r) => r.ledgerId,
+  autoLoad: false,
+  fetchPage: async (p) => {
+    if (!activeWallet.value) return { items: [], total: 0 };
+    const all = await api.request<LedgerRow[]>(
+      AdminEndpoints.staffWalletLedger(activeWallet.value.staffUserId),
+      'GET'
+    );
+    const start = p.page * p.size;
+    return { items: all.slice(start, start + p.size), total: all.length };
+  }
+});
 
 async function loadChief(): Promise<void> {
   const res = await api.request<{ raw: string }>(AdminEndpoints.lineRouteChiefManagers, 'GET');
   chiefRaw.value = res.raw;
   chiefList.value = res.raw && res.raw !== '0' ? res.raw.split(',').filter(Boolean) : [];
+}
+
+function loadSummary(): void {
+  void summaryManagersCrud.load({ resetPage: true });
+  void summaryStaffsCrud.load({ resetPage: true });
 }
 
 function openCreate(): void {
@@ -373,27 +433,42 @@ async function saveRoute(): Promise<void> {
   }
   ElMessage.success('已保存');
   routeDialogVisible.value = false;
-  await loadRoutes();
+  await routesCrud.load();
 }
 
 async function archiveRoute(row: LineRoute): Promise<void> {
   await api.request(AdminEndpoints.lineRouteArchive(row.id), 'POST');
   ElMessage.success('已归档（可增减，不物理删除）');
-  await loadRoutes();
+  await routesCrud.load();
+}
+
+function routeActions(row: LineRoute): CrudRowAction[] {
+  const actions: CrudRowAction[] = [
+    { key: 'edit', label: '编辑', icon: Edit, perm: 'ops:replenishment:edit' },
+    { key: 'members', label: '成员', icon: User, perm: 'ops:replenishment:list' }
+  ];
+  if (row.status === 'ACTIVE') {
+    actions.push({
+      key: 'archive',
+      label: '归档',
+      icon: Box,
+      type: 'warning',
+      perm: 'ops:replenishment:edit'
+    });
+  }
+  return actions;
+}
+
+async function onRouteAction(payload: { key: string; row: LineRoute }): Promise<void> {
+  if (payload.key === 'edit') openEdit(payload.row);
+  else if (payload.key === 'members') await openMembers(payload.row);
+  else if (payload.key === 'archive') await archiveRoute(payload.row);
 }
 
 async function openMembers(row: LineRoute): Promise<void> {
   activeRoute.value = row;
   membersDialogVisible.value = true;
-  loadingMembers.value = true;
-  try {
-    members.value = await api.request<RouteMember[]>(
-      AdminEndpoints.lineRouteMembers(row.id),
-      'GET'
-    );
-  } finally {
-    loadingMembers.value = false;
-  }
+  await membersCrud.load({ resetPage: true });
 }
 
 async function saveMember(): Promise<void> {
@@ -406,14 +481,23 @@ async function saveMember(): Promise<void> {
     commissionPerUnitCents: memberForm.value.commissionPerUnitCents
   });
   ElMessage.success('成员已保存（费用项/比例随时可改）');
-  await openMembers(activeRoute.value);
+  await membersCrud.load();
 }
 
-async function removeMember(row: RouteMember): Promise<void> {
-  if (!activeRoute.value) return;
-  await api.request(AdminEndpoints.lineRouteMemberRemove(activeRoute.value.id, row.id), 'DELETE');
+function memberActions(): CrudRowAction[] {
+  return [
+    { key: 'remove', label: '移除', icon: Box, type: 'danger', perm: 'ops:replenishment:edit' }
+  ];
+}
+
+async function onMemberAction(payload: { key: string; row: RouteMember }): Promise<void> {
+  if (payload.key !== 'remove' || !activeRoute.value) return;
+  await api.request(
+    AdminEndpoints.lineRouteMemberRemove(activeRoute.value.id, payload.row.id),
+    'DELETE'
+  );
   ElMessage.success('已移除');
-  await openMembers(activeRoute.value);
+  await membersCrud.load();
 }
 
 function openChiefEditor(): void {
@@ -428,27 +512,22 @@ async function saveChief(): Promise<void> {
   chiefDialogVisible.value = false;
 }
 
-async function loadSummary(): Promise<void> {
-  loadingSummary.value = true;
-  try {
-    const res = await api.request<{
-      managers: typeof summaryManagers.value;
-      staffs: typeof summaryStaffs.value;
-    }>(AdminEndpoints.lineCommissionMonthlySummary(summaryMonth.value), 'GET');
-    summaryManagers.value = res.managers ?? [];
-    summaryStaffs.value = res.staffs ?? [];
-  } finally {
-    loadingSummary.value = false;
-  }
+function walletActions(): CrudRowAction[] {
+  return [
+    {
+      key: 'payout',
+      label: '标记打款',
+      icon: Money,
+      type: 'primary',
+      perm: 'ops:replenishment:edit'
+    },
+    { key: 'ledger', label: '流水', icon: Tickets, perm: 'ops:replenishment:list' }
+  ];
 }
 
-async function loadWallets(): Promise<void> {
-  loadingWallets.value = true;
-  try {
-    wallets.value = await api.request<Wallet[]>(AdminEndpoints.staffWallets, 'GET');
-  } finally {
-    loadingWallets.value = false;
-  }
+async function onWalletAction(payload: { key: string; row: Wallet }): Promise<void> {
+  if (payload.key === 'payout') openPayout(payload.row);
+  else if (payload.key === 'ledger') await openLedger(payload.row);
 }
 
 function openPayout(row: Wallet): void {
@@ -472,7 +551,7 @@ async function submitPayout(): Promise<void> {
     });
     ElMessage.success('已标记出账');
     payoutDialogVisible.value = false;
-    await loadWallets();
+    await walletsCrud.load();
   } catch {
     // 余额不足等错误由后端返回「余额不足，提现失败」，全局拦截器已提示
   }
@@ -481,34 +560,17 @@ async function submitPayout(): Promise<void> {
 async function openLedger(row: Wallet): Promise<void> {
   activeWallet.value = row;
   ledgerDialogVisible.value = true;
-  loadingLedger.value = true;
-  try {
-    ledger.value = await api.request<LedgerRow[]>(
-      AdminEndpoints.staffWalletLedger(row.staffUserId),
-      'GET'
-    );
-  } finally {
-    loadingLedger.value = false;
-  }
+  await ledgerCrud.load({ resetPage: true });
 }
 
 onMounted(() => {
-  void loadRoutes();
   void loadChief();
-  void loadSummary();
-  void loadWallets();
 });
 </script>
 
 <style scoped>
 .line-routes-page {
   padding: 8px 4px;
-}
-.toolbar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 10px;
 }
 .chief-line {
   margin-right: 8px;
