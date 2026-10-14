@@ -79,7 +79,7 @@
           · 文案保留「扫码开门」不用参考图的「扫码购物」：动作导向有同行 3 家支撑，
             且与首页 tagline「扫码开门 · 拿了就走」一致（用户未对文案提异议）。
           · 配色：不照抄参考图的实色圆 —— 品牌绿实底会与 .landing-overlay
-            （rgba(19,78,74,·)）同色糊底（v3 教训）；玻璃白既轻盈又与白卡家族同源。
+            （rgba(17,94,89,·)）同色糊底（v3 教训）；玻璃白既轻盈又与白卡家族同源。
 
           动效：图标内扫描线上下往复（1.6s，主动效）+ 阴影呼吸（2.8s，环境动效）。
           仍用原生 button：自带按压态与无障碍语义。图标纯装饰 aria-hidden，
@@ -247,7 +247,7 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--brand-deep, #134e4a);
+  background: var(--brand-deep, #115e59);
 }
 .landing-bg {
   position: absolute;
@@ -265,7 +265,7 @@ export default {
   bottom: 0;
   z-index: 1;
   /*
-   * 蒙层用品牌青绿 --brand-deep #134e4a 的 rgb(19,78,74)（H≈176）。
+   * 蒙层用品牌青绿 --brand-deep #115e59 的 rgb(19,78,74)（H≈176）。
    *
    * 色相为什么要压：原值 rgba(6,78,59) 即 #064e3b，H≈164 偏黄，再叠暖调实景照片，
    * 真机实测背景落到 H≈147~154；而扫码盘用品牌色 --brand H≈175 —— 相差 21~28°，
@@ -280,9 +280,9 @@ export default {
    */
   background: linear-gradient(
     180deg,
-    rgba(19, 78, 74, 0.58) 0%,
-    rgba(19, 78, 74, 0.44) 45%,
-    rgba(19, 78, 74, 0.66) 100%
+    rgba(17, 94, 89, 0.58) 0%,
+    rgba(17, 94, 89, 0.44) 45%,
+    rgba(17, 94, 89, 0.66) 100%
   );
 }
 .landing-content {
@@ -371,8 +371,8 @@ export default {
  * 扫码 CTA 演进史（决策依据都留档，防止后续轮次重复踩）：
  *
  * 🔴 v3（品牌绿实心 pill）被判「更丑了」，根因是**我算漏了背景色**：
- *   `.landing-overlay` 的渐变三档全是 `rgba(19,78,74,·)`，而 `--brand-deep` 就是
- *   `#134e4a = rgb(19,78,74)` —— **按钮底色与整页蒙层色完全相同**。
+ *   `.landing-overlay` 的渐变三档全是 `rgba(17,94,89,·)`，而 `--brand-deep` 就是
+ *   `#115e59 = rgb(19,78,74)` —— **按钮底色与整页蒙层色完全相同**。
  *   等于把同色块叠在同色背景上：白底时它是全页最亮块、天然焦点（v2 的判断正确），
  *   换成品牌绿后焦点消失、按钮与背景糊在一起。
  *   ⇒ v3 注释里写的「绿底与 .landing-head 品牌身份同源」并没错，
@@ -553,7 +553,7 @@ export default {
   color: var(--white);
   padding: 8rpx 20rpx;
   border-radius: var(--radius-pill);
-  background: rgba(19, 78, 74, 0.55);
+  background: rgba(17, 94, 89, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 /* 扩展功能：首页券包入口（consumer.coupon_entry.enabled；默认关闭 ⇒ 不渲染） */
@@ -564,7 +564,7 @@ export default {
   margin: 12rpx auto 0;
   padding: 8rpx 24rpx;
   border-radius: var(--radius-pill);
-  background: rgba(19, 78, 74, 0.55);
+  background: rgba(17, 94, 89, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
   font-size: var(--font-size-sm);
   color: var(--white);
@@ -590,13 +590,13 @@ export default {
   margin-right: auto;
   padding: 16rpx 20rpx;
   border-radius: var(--radius-panel);
-  background: var(--brand-deep, #134e4a);
+  background: var(--brand-deep, #115e59);
   border: 1rpx solid rgba(255, 255, 255, 0.16);
   box-sizing: border-box;
 }
 .landing-error.kind-balance,
 .landing-error.kind-device_not_found {
-  background: var(--brand-deep, #134e4a);
+  background: var(--brand-deep, #115e59);
   border-color: rgba(255, 255, 255, 0.16);
 }
 .landing-error.kind-balance .error-icon {
@@ -654,13 +654,13 @@ export default {
   border: 1rpx solid rgba(255, 255, 255, 0.32);
   color: var(--white);
   font-size: var(--font-size-sm);
-  background: rgba(19, 78, 74, 0.55);
+  background: rgba(17, 94, 89, 0.55);
 }
 .error-action.primary {
   border-color: rgba(255, 255, 255, 0.4);
   color: var(--white);
-  /* 原为 rgba(4,120,87) #047857（H≈164，偏黄），统一到品牌青绿 --brand */
-  background: rgba(15, 118, 110, 0.65);
+  /* 原为 rgba(13,148,136) #047857（H≈164，偏黄），统一到品牌青绿 --brand */
+  background: rgba(13, 148, 136, 0.65);
 }
 .error-close {
   padding: 0 4rpx;
@@ -695,7 +695,7 @@ export default {
   margin-right: auto;
   padding: 28rpx 24rpx 24rpx;
   border-radius: var(--radius-card);
-  background: var(--brand-deep, #134e4a);
+  background: var(--brand-deep, #115e59);
   border: 1rpx solid rgba(255, 255, 255, 0.16);
   box-sizing: border-box;
   display: flex;
@@ -773,7 +773,7 @@ export default {
 }
 .landing-sheet-btn.primary {
   border-color: transparent;
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
   font-weight: 600;
 }
 .landing-sheet-cancel-wrap {

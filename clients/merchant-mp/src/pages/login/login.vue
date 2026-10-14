@@ -537,8 +537,8 @@ async function onLogin() {
   transition: transform 0.12s ease-in;
 }
 .remember-box.on {
-  border-color: var(--brand, #0f766e);
-  background: var(--brand, #0f766e);
+  border-color: var(--brand, #0d9488);
+  background: var(--brand, #0d9488);
 }
 .remember-box.on::after {
   border-color: #fff;

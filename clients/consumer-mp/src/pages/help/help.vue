@@ -278,8 +278,8 @@ function goOrders() {
   width: 64rpx;
   height: 64rpx;
   border-radius: 50%;
-  background: var(--brand-soft, #ecfdf5);
-  color: var(--brand, #0f766e);
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
   position: relative;
   box-sizing: border-box;
 }
@@ -346,7 +346,7 @@ function goOrders() {
 }
 .support-action {
   flex: 0 0 auto;
-  color: var(--color-link, var(--brand, #0f766e));
+  color: var(--color-link, var(--brand, #0d9488));
   font-size: var(--font-size-body);
   font-weight: 600;
   text-align: right;
@@ -385,7 +385,7 @@ function goOrders() {
   flex: 0 0 28rpx;
   width: 28rpx;
   height: 28rpx;
-  background-color: var(--color-link, var(--brand, #0f766e));
+  background-color: var(--color-link, var(--brand, #0d9488));
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   -webkit-mask-repeat: no-repeat;

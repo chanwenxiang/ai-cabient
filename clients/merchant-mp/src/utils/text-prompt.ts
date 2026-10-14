@@ -99,7 +99,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
           line-height: 1.4; outline: none; box-sizing: border-box; resize: none;
         }
         #${HOST_ID} .mtp-field:focus-visible, #${HOST_ID} .mtp-field:focus {
-          border-color: #0f766e; background: #fff; box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+          border-color: #0d9488; background: #fff; box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
         }
         #${HOST_ID} textarea.mtp-field { min-height: 88px; }
         #${HOST_ID} .mtp-field::placeholder { color: #94a3b8; font-family: inherit; }
@@ -109,7 +109,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
           font-weight: 600; font-family: inherit; cursor: pointer; line-height: 1.2;
         }
         #${HOST_ID} .mtp-btn.cancel { color: #334155; background: #f1f5f9; }
-        #${HOST_ID} .mtp-btn.ok { color: #fff; background: linear-gradient(135deg, #0f766e, #14b8a6); }
+        #${HOST_ID} .mtp-btn.ok { color: #fff; background: linear-gradient(135deg, #0d9488, #14b8a6); }
         #${HOST_ID} .mtp-btn:active { opacity: 0.88; }
     `;
     const card = document.createElement('div');

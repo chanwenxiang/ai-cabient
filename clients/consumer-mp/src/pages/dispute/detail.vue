@@ -596,7 +596,7 @@ function previewEvidence(img: FileAttachmentDto) {
 }
 .tl-dot.current {
   background: var(--brand);
-  box-shadow: 0 0 0 6rpx rgba(15, 118, 110, 0.15);
+  box-shadow: 0 0 0 6rpx rgba(13, 148, 136, 0.15);
 }
 .tl-copy {
   flex: 1;

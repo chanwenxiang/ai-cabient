@@ -6,7 +6,7 @@
         "navigationBarTitleText": "开门购物",
         "navigationStyle": "custom",
         "backgroundColor": "#0d9488",
-        "backgroundColorBottom": "#134e4a",
+        "backgroundColorBottom": "#115e59",
         "backgroundTextStyle": "light",
         "disableScroll": true
       }
@@ -251,7 +251,7 @@
   },
   "tabBar": {
     "color": "#86a89a",
-    "selectedColor": "#0f766e",
+    "selectedColor": "#0d9488",
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [
@@ -276,10 +276,10 @@
     ]
   },
   "globalStyle": {
-    "navigationBarTextStyle": "white",
-    "navigationBarBackgroundColor": "#0f766e",
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#ffffff",
     "backgroundColor": "#ededed",
-    "backgroundColorTop": "#0f766e",
+    "backgroundColorTop": "#ffffff",
     "backgroundColorBottom": "#ededed",
     "backgroundTextStyle": "dark"
   },

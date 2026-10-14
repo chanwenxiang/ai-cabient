@@ -95,8 +95,8 @@ function stepClass(step: number) {
   background: var(--brand);
 }
 .step.done .step-num {
-  color: var(--brand-deep, #134e4a);
-  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand-deep, #115e59);
+  background: var(--brand-soft, #f0fdfa);
 }
 .step-label {
   font-size: var(--font-size-sm);

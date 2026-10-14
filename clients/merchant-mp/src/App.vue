@@ -53,9 +53,9 @@ body,
 
 page,
 uni-page-body {
-  --brand: #0f766e;
-  --brand-deep: #134e4a;
-  --brand-soft: #ecfdf5;
+  --brand: #0d9488;
+  --brand-deep: #115e59;
+  --brand-soft: #f0fdfa;
   --brand-tint: #ccfbf1;
   --brand-mist: #ccfbf1;
   --color-primary: var(--brand);
@@ -70,7 +70,7 @@ uni-page-body {
   --color-bg-page: var(--page-bg);
   --page-tint: #ededed;
   --page-bg: #ededed;
-  --nav-bar-bg: #134e4a;
+  --nav-bar-bg: #ffffff;
   --page-gutter: 24rpx;
   --spacing-sm: 12rpx;
   --spacing-md: 16rpx;

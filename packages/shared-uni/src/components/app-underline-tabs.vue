@@ -137,7 +137,7 @@ function onPick(key: string) {
   white-space: nowrap;
 }
 .wx-tab.active .wx-tab-label {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 600;
 }
 .wx-tab-badge {
@@ -164,6 +164,6 @@ function onPick(key: string) {
   background: transparent;
 }
 .wx-tab.active .wx-tab-ink {
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
 }
 </style>

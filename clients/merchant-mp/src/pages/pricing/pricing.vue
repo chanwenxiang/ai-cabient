@@ -447,7 +447,7 @@ async function savePrice(p: MerchantSkuPricing) {
   margin-top: 8rpx;
 }
 .tip {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   display: block;
   margin-top: 8rpx;
 }

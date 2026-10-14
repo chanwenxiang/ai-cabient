@@ -239,7 +239,7 @@ function pickForNextOpen(c: CouponDto) {
   box-shadow: none;
 }
 .coupon-card.preferred {
-  box-shadow: inset 0 0 0 2rpx var(--brand, #0f766e);
+  box-shadow: inset 0 0 0 2rpx var(--brand, #0d9488);
 }
 .coupon-card.expired,
 .coupon-card.used {

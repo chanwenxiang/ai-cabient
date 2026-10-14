@@ -410,7 +410,7 @@ function remainText(end?: string) {
   width: 96rpx;
   height: 96rpx;
   border-radius: var(--radius-card);
-  background: rgba(19, 78, 74, 0.55);
+  background: rgba(17, 94, 89, 0.55);
   border: 2rpx solid rgba(255, 255, 255, 0.28);
   display: flex;
   align-items: center;

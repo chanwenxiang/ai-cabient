@@ -125,19 +125,19 @@ export default { name: 'AppButton' };
   padding: 0 28rpx;
 }
 .app-btn--primary {
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
   color: var(--white);
   box-shadow: none;
 }
 .app-btn--ghost {
-  background: var(--brand-soft, #ecfdf5);
-  color: var(--brand, #0f766e);
-  border-color: rgba(15, 118, 110, 0.18);
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
+  border-color: rgba(13, 148, 136, 0.18);
 }
 .app-btn--outline {
   background: var(--card-bg, #fff);
-  color: var(--brand, #0f766e);
-  border-color: var(--color-border, rgba(15, 118, 110, 0.35));
+  color: var(--brand, #0d9488);
+  border-color: var(--color-border, rgba(13, 148, 136, 0.35));
 }
 .app-btn--danger {
   background: var(--danger, #b91c1c);
@@ -145,7 +145,7 @@ export default { name: 'AppButton' };
 }
 .app-btn--text {
   background: transparent;
-  color: var(--color-link, var(--brand, #0f766e));
+  color: var(--color-link, var(--brand, #0d9488));
   min-height: 64rpx;
   height: auto;
   padding: 8rpx 12rpx;
@@ -163,9 +163,9 @@ export default { name: 'AppButton' };
   box-shadow: 0 8rpx 20rpx rgba(7, 193, 96, 0.28);
 }
 .app-btn--soft {
-  background: var(--brand-soft, #ecfdf5);
-  color: var(--brand-deep, #134e4a);
-  border-color: rgba(15, 118, 110, 0.16);
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand-deep, #115e59);
+  border-color: rgba(13, 148, 136, 0.16);
 }
 .app-btn.is-disabled {
   opacity: 0.55;

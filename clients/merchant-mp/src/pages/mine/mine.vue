@@ -362,7 +362,7 @@ async function onLogout() {
   display: block;
   font-size: var(--font-size-xl);
   font-weight: 700;
-  color: var(--brand-deep, #134e4a);
+  color: var(--brand-deep, #115e59);
 }
 .hint {
   display: block;
@@ -392,7 +392,7 @@ async function onLogout() {
 }
 .btn {
   flex: 1;
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
   color: var(--white);
   border: none;
   border-radius: 16rpx;
@@ -428,7 +428,7 @@ async function onLogout() {
   width: 128rpx;
   height: 128rpx;
   border-radius: 50%;
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -103,8 +103,8 @@ export default { name: 'EmptyState' };
   height: 88rpx;
   margin: 0 auto 16rpx;
   border-radius: 50%;
-  background: var(--brand-soft, #ecfdf5);
-  color: var(--brand, #0f766e);
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-display-sm);
   font-weight: 700;
   line-height: 88rpx;
@@ -122,7 +122,7 @@ export default { name: 'EmptyState' };
   box-sizing: border-box;
   border: 4rpx solid currentColor;
   /*
-   * 原为 0.7：叠在 --brand-soft/#ecfdf5 圆底上仅 ≈2.98:1，低于非文本图形 3:1 下限；
+   * 原为 0.7：叠在 --brand-soft/#f0fdfa 圆底上仅 ≈2.98:1，低于非文本图形 3:1 下限；
    * 真机空态截图放大后确认字形发虚到几乎不可见（圆底本身对白底也只有 1.05:1）。
    * 取 1 ⇒ 5.21:1。圆底保持浅色调（软底是刻意选择），由字形承担可辨识度。
    */
@@ -170,8 +170,8 @@ export default { name: 'EmptyState' };
   color: var(--info);
 }
 .kind-devices .empty-icon {
-  background: var(--brand-soft, #ecfdf5);
-  color: var(--brand, #0f766e);
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
 }
 .kind-wallet .empty-icon {
   background: var(--accent-rose-soft);

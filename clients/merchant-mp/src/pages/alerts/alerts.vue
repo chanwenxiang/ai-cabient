@@ -497,7 +497,7 @@ useAutoRefresh({
   display: block;
   font-size: var(--font-size-md);
   font-weight: 700;
-  color: var(--brand-deep, #134e4a);
+  color: var(--brand-deep, #115e59);
   margin-bottom: 12rpx;
 }
 .slot-row {
@@ -554,19 +554,19 @@ useAutoRefresh({
   text-align: center;
   background: var(--card-bg, #fff);
   border: 1rpx solid var(--color-border);
-  box-shadow: 0 4rpx 14rpx rgba(15, 118, 110, 0.04);
+  box-shadow: 0 4rpx 14rpx rgba(13, 148, 136, 0.04);
 }
 .kpi-card-hover {
   opacity: 0.88;
   background: var(--page-bg, #f8fafc) !important;
 }
 .kpi-card.active {
-  border-color: var(--brand, #0f766e);
+  border-color: var(--brand, #0d9488);
   box-shadow: 0 0 0 2rpx var(--brand-mist, #99f6e4);
-  background: var(--brand-soft, #ecfdf5);
+  background: var(--brand-soft, #f0fdfa);
 }
 .kpi-card .n {
-  color: var(--brand-deep, #134e4a);
+  color: var(--brand-deep, #115e59);
 }
 .kpi-card.dispute .n {
   color: var(--color-danger);
@@ -578,7 +578,7 @@ useAutoRefresh({
   color: var(--warning, #d97706);
 }
 .kpi-card.expiry .n {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
 }
 .n {
   font-size: var(--font-size-h2);
@@ -633,7 +633,7 @@ useAutoRefresh({
 }
 .tag.expiry {
   background: var(--brand-mist, #a7f3d0);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
 }
 .tag.default {
   background: var(--color-border);
@@ -663,7 +663,7 @@ useAutoRefresh({
   color: var(--warning, #b45309);
 }
 .action {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-caption);
   display: block;
   margin-top: 12rpx;
@@ -684,7 +684,7 @@ useAutoRefresh({
   min-height: 72rpx;
   line-height: 1.2;
   border-radius: var(--radius-card);
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
   color: var(--white);
   border: 0;
   font-size: var(--font-size-body);

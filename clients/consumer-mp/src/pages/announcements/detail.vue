@@ -77,7 +77,7 @@ onLoad((query) => {
   text-align: center;
 }
 .retry {
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
   color: var(--white);
   border: none;
 }

@@ -754,7 +754,7 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 .load-more {
   display: block;
   text-align: center;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-caption);
   font-weight: 600;
   padding: 20rpx 0 8rpx;

@@ -358,7 +358,7 @@ async function loadMore() {
   border-radius: var(--radius-card);
   padding: 28rpx;
   margin-bottom: 16rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
+  box-shadow: 0 8rpx 24rpx rgba(13, 148, 136, 0.06);
   border: 2rpx solid transparent;
 }
 .card.item.focus {

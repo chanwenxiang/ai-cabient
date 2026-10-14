@@ -224,7 +224,7 @@ export default {
 .cart-shop-amt {
   font-size: var(--font-size-h3);
   font-weight: 800;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   line-height: 1.15;
 }
 .cart-cta {
@@ -233,7 +233,7 @@ export default {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
+  background: linear-gradient(135deg, var(--brand, #0d9488), var(--brand, #0d9488));
   color: var(--white);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-lg);
@@ -243,7 +243,7 @@ export default {
   justify-content: center;
   text-align: center;
   box-sizing: border-box;
-  box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.22);
+  box-shadow: 0 8rpx 22rpx rgba(13, 148, 136, 0.22);
   flex-shrink: 0;
 }
 .cart-cta::after {
@@ -258,8 +258,8 @@ export default {
   display: flex;
   align-items: center;
   font-size: var(--font-size-sm);
-  color: var(--brand-deep, #134e4a);
-  background: rgba(19, 78, 74, 0.08);
+  color: var(--brand-deep, #115e59);
+  background: rgba(17, 94, 89, 0.08);
   border-radius: var(--radius-pill);
 }
 .cart-close-btn {
@@ -268,12 +268,12 @@ export default {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
+  background: linear-gradient(135deg, var(--brand, #0d9488), var(--brand, #0d9488));
   color: var(--white);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-md);
   font-weight: 700;
-  box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.25);
+  box-shadow: 0 8rpx 22rpx rgba(13, 148, 136, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -304,7 +304,7 @@ export default {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
   color: var(--white);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-sm);
@@ -316,7 +316,7 @@ export default {
 }
 .cart-help-btn.ghost {
   background: transparent;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   border: 1rpx solid var(--brand-mist, #a7f3d0);
 }
 .cart-help-btn::after {

@@ -435,7 +435,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   line-height: 1.2;
 }
 .tool-item.is-primary .tool-label {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 700;
 }
 .tool-item.is-primary::after {
@@ -447,7 +447,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   height: 6rpx;
   margin-left: -32rpx;
   border-radius: 6rpx;
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
 }
 .tool-item.is-busy {
   opacity: 0.55;
@@ -518,8 +518,8 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   background: var(--warning-soft, #fff7ed);
 }
 .tag-on {
-  color: var(--brand, #0f766e);
-  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand, #0d9488);
+  background: var(--brand-soft, #f0fdfa);
 }
 .tag-off {
   color: var(--text-muted, #64748b);
@@ -562,7 +562,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   padding: 0;
   font-size: 26rpx;
   font-weight: 600;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   line-height: 1.2;
 }
 .nav-link-hover {
@@ -610,7 +610,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   display: flex;
   justify-content: space-between;
   font-size: var(--font-size-sm);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
 }
 .pref-clear {
   color: var(--text-muted);

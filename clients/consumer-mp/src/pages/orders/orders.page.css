@@ -131,8 +131,8 @@
   width: 56rpx;
   height: 56rpx;
   border-radius: var(--radius-panel);
-  background: var(--brand-soft, #ecfdf5);
-  color: var(--brand, #0f766e);
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -178,15 +178,15 @@
 }
 .review-link {
   font-size: var(--font-size-caption);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 600;
 }
 .review-more {
   margin-top: 8rpx;
   padding: 16rpx 20rpx;
   border-radius: var(--radius-panel);
-  background: rgba(4, 120, 87, 0.06);
-  color: var(--brand, #0f766e);
+  background: rgba(13, 148, 136, 0.06);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-caption);
   font-weight: 600;
   text-align: center;
@@ -212,7 +212,7 @@
   line-height: 1.4;
 }
 .aux-link.active {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 600;
 }
 
@@ -291,7 +291,7 @@
   width: 96rpx;
   height: 96rpx;
   border-radius: 18rpx;
-  background: var(--brand-soft, #ecfdf5);
+  background: var(--brand-soft, #f0fdfa);
   flex-shrink: 0;
 }
 .order-copy {
@@ -357,7 +357,7 @@
   text-decoration: line-through;
 }
 .amt {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 800;
   font-size: var(--font-size-h2);
   letter-spacing: -1rpx;
@@ -388,7 +388,7 @@
 }
 .order-hint {
   font-size: var(--font-size-caption);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 600;
 }
 .order-hint.refund {
@@ -425,7 +425,7 @@
   background: var(--color-border-subtle);
 }
 .foot-btn.primary {
-  color: var(--brand, #0f766e);
-  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand, #0d9488);
+  background: var(--brand-soft, #f0fdfa);
   font-weight: 600;
 }

@@ -51,7 +51,7 @@ onLoad((query) => {
   background: var(--card-bg, #fff);
   border-radius: var(--radius-card);
   padding: 32rpx 28rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
+  box-shadow: 0 8rpx 24rpx rgba(13, 148, 136, 0.06);
 }
 .state {
   display: flex;

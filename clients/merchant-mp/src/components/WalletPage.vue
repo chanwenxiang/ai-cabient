@@ -406,7 +406,7 @@ useAutoRefresh({
 }
 .role-tag {
   font-size: var(--font-size-sm);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 600;
 }
 .name {
@@ -526,7 +526,7 @@ useAutoRefresh({
   color: var(--color-danger);
 }
 .status {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 500;
 }
 .credit {

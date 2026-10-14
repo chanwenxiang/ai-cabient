@@ -179,7 +179,7 @@ const totalAmountCents = computed(() =>
   height: 88rpx;
   flex-shrink: 0;
   border-radius: var(--radius-control, 12rpx);
-  background: var(--brand-soft, #ecfdf5);
+  background: var(--brand-soft, #f0fdfa);
   overflow: hidden;
   display: flex;
   align-items: center;

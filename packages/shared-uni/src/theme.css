@@ -23,10 +23,10 @@
   --app-font-size-root: 14px;
 
   /* —— 色板 —— */
-  --brand: #0f766e;
-  --brand-2: #0f766e;
-  --brand-deep: #134e4a;
-  --brand-soft: #ecfdf5;
+  --brand: #0d9488;
+  --brand-2: #0d9488;
+  --brand-deep: #115e59;
+  --brand-soft: #f0fdfa;
   --brand-mist: #ccfbf1;
   --brand-wx: #07c160;
   --brand-alipay: #1677ff;
@@ -68,7 +68,7 @@
   --card-border: #e2e8f0;
   --section-gap: 20rpx;
   --mask-bg: rgba(15, 23, 42, 0.62);
-  --shadow-card: 0 8px 28px rgba(15, 118, 110, 0.08);
+  --shadow-card: 0 8px 28px rgba(13, 148, 136, 0.08);
   --page-gutter: 24px;
   --spacing-sm: 12px;
   --spacing-md: 16px;
@@ -172,8 +172,8 @@ uni-button {
   width: 2.5em;
   height: 2.5em;
   border-radius: 50%;
-  background: var(--color-primary-soft, var(--brand-soft, #ecfdf5));
-  color: var(--color-primary, var(--brand, #0f766e));
+  background: var(--color-primary-soft, var(--brand-soft, #f0fdfa));
+  color: var(--color-primary, var(--brand, #0d9488));
 }
 .app-icon--chevron {
   width: 0.55em;

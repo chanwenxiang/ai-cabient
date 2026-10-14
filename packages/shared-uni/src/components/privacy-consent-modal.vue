@@ -103,7 +103,7 @@ function onDecline() {
 .privacy-link {
   display: inline-block;
   margin-top: 20rpx;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-body, 26rpx);
   font-weight: 600;
   text-decoration: underline;
@@ -127,7 +127,7 @@ function onDecline() {
   color: var(--text-muted, #64748b);
 }
 .privacy-btn.primary {
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
   color: #fff;
   font-weight: 600;
 }

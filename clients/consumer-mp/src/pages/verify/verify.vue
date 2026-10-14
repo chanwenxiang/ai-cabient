@@ -363,13 +363,13 @@ function goShop() {
 }
 @keyframes sign-pulse-ring {
   0% {
-    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.45);
+    box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.45);
   }
   70% {
-    box-shadow: 0 0 0 16rpx rgba(15, 118, 110, 0);
+    box-shadow: 0 0 0 16rpx rgba(13, 148, 136, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0);
+    box-shadow: 0 0 0 0 rgba(13, 148, 136, 0);
   }
 }
 .sign-pulse-hint {
@@ -378,7 +378,7 @@ function goShop() {
   text-align: center;
   font-size: var(--font-size-caption);
   font-weight: 600;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
 }
 .card-title {
   font-size: var(--font-size-xl);

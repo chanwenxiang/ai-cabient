@@ -906,7 +906,7 @@ function goHelp() {
   border-radius: var(--radius-pill);
   font-size: var(--font-size-xl);
   font-weight: 700;
-  box-shadow: 0 10rpx 26rpx rgba(5, 150, 105, 0.22);
+  box-shadow: 0 10rpx 26rpx rgba(13, 148, 136, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1000,7 +1000,7 @@ function goHelp() {
   display: block;
   font-size: 56rpx;
   line-height: 1;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   opacity: 0.55;
 }
 .pending-title {

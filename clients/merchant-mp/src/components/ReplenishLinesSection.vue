@@ -338,8 +338,8 @@ function isCapacityWarn(line: Line) {
   line-height: 52rpx;
   border: none;
   border-radius: var(--radius-pill);
-  background: var(--brand-soft, #ecfdf5);
-  color: var(--brand, #0f766e);
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-caption);
   font-weight: 600;
 }
@@ -359,7 +359,7 @@ function isCapacityWarn(line: Line) {
   color: var(--brand);
   font-size: var(--font-size-lg);
   font-weight: 700;
-  box-shadow: 0 2rpx 8rpx rgba(15, 118, 110, 0.12);
+  box-shadow: 0 2rpx 8rpx rgba(13, 148, 136, 0.12);
 }
 .fact {
   padding: 6rpx 12rpx;
@@ -371,8 +371,8 @@ function isCapacityWarn(line: Line) {
   line-height: 1.3;
 }
 .fact.accent {
-  color: var(--brand, #0f766e);
-  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand, #0d9488);
+  background: var(--brand-soft, #f0fdfa);
 }
 .fact.muted {
   color: var(--text-subtle, #94a3b8);

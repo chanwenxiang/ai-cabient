@@ -12,7 +12,7 @@
       "style": {
         "navigationBarTitleText": "工作台",
         "navigationStyle": "custom",
-        "backgroundColor": "#134e4a",
+        "backgroundColor": "#ededed",
         "enablePullDownRefresh": true
       }
     },
@@ -21,7 +21,7 @@
       "style": {
         "navigationBarTitleText": "柜机",
         "navigationStyle": "custom",
-        "backgroundColor": "#134e4a",
+        "backgroundColor": "#ededed",
         "enablePullDownRefresh": true
       }
     },
@@ -30,7 +30,7 @@
       "style": {
         "navigationBarTitleText": "待办",
         "navigationStyle": "custom",
-        "backgroundColor": "#134e4a",
+        "backgroundColor": "#ededed",
         "enablePullDownRefresh": true
       }
     },
@@ -380,8 +380,8 @@
   },
   "tabBar": {
     "color": "#64748b",
-    "selectedColor": "#0f766e",
-    "backgroundColor": "#f4faf7",
+    "selectedColor": "#0d9488",
+    "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [
       {
@@ -421,9 +421,9 @@
     }
   },
   "globalStyle": {
-    "navigationBarTextStyle": "white",
-    "navigationBarBackgroundColor": "#134e4a",
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#ffffff",
     "backgroundColor": "#ffffff",
-    "backgroundColorTop": "#134e4a"
+    "backgroundColorTop": "#ffffff"
   }
 }

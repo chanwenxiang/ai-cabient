@@ -374,9 +374,9 @@ useAutoRefresh({
 .dash-header {
   background: linear-gradient(
     165deg,
-    var(--brand-deep, #134e4a) 0%,
-    var(--brand, #0f766e) 55%,
-    var(--brand, #0f766e) 100%
+    var(--brand-deep, #115e59) 0%,
+    var(--brand, #0d9488) 55%,
+    var(--brand, #0d9488) 100%
   );
   padding: 12rpx 24rpx 28rpx;
   color: #ffffff;
@@ -413,7 +413,7 @@ useAutoRefresh({
   display: flex;
   align-items: center;
   gap: 12rpx;
-  box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.08);
+  box-shadow: 0 6rpx 16rpx rgba(13, 148, 136, 0.08);
   border: 1rpx solid var(--brand-tint, var(--brand-mist));
 }
 .scan-copy {
@@ -424,7 +424,7 @@ useAutoRefresh({
   display: block;
   font-size: var(--font-size-md);
   font-weight: 700;
-  color: var(--brand-deep, #134e4a);
+  color: var(--brand-deep, #115e59);
 }
 .scan-desc {
   display: block;
@@ -443,8 +443,8 @@ useAutoRefresh({
   padding: 0 28rpx;
   border: none;
   border-radius: var(--radius-card);
-  background: var(--brand-soft, #ecfdf5);
-  color: var(--brand, #0f766e);
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-caption);
   font-weight: 600;
   box-shadow: none;
@@ -480,7 +480,7 @@ useAutoRefresh({
   margin: 0 auto;
   border-radius: var(--radius-card);
   background: var(--brand-soft);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-h3);
   font-weight: 700;
   line-height: 76rpx;
@@ -569,7 +569,7 @@ useAutoRefresh({
 .section-more {
   /* 必须用 view 而不是 text：mp-weixin 的 text 不吃 inline-flex，::after 会被卡片圆角裁成另一种箭头 */
   flex-shrink: 0;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-body);
   font-weight: 600;
   white-space: nowrap;
@@ -582,7 +582,7 @@ useAutoRefresh({
   display: block;
   margin: 0 0 12rpx;
   font-size: var(--font-size-sm);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
 }
 .empty-inline {
   padding: 16rpx 0 4rpx;
@@ -644,7 +644,7 @@ useAutoRefresh({
   padding: 2rpx 10rpx;
   border-radius: var(--radius-tag);
   background: var(--brand-tint, var(--brand-mist));
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-xs);
   font-weight: 700;
 }
@@ -657,7 +657,7 @@ useAutoRefresh({
 .task-go {
   flex: 0 0 120rpx;
   width: 120rpx;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-body);
   font-weight: 600;
   text-align: right;
@@ -690,7 +690,7 @@ useAutoRefresh({
   flex: 0 0 120rpx;
   width: 120rpx;
   margin-top: 4rpx;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-body);
   font-weight: 600;
   text-align: right;
@@ -763,7 +763,7 @@ useAutoRefresh({
   margin-top: 6rpx;
   font-size: var(--font-size-md);
   font-weight: 700;
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   text-align: center;
 }
 .err {
@@ -782,7 +782,7 @@ useAutoRefresh({
   gap: 16rpx;
 }
 .banner-retry {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 600;
   flex-shrink: 0;
 }

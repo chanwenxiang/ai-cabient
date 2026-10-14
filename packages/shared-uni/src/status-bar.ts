@@ -67,7 +67,7 @@ export function getCustomNavPlaceStyle(): {
 } {
   return {
     minHeight: `${getBelowCapsulePadPx(0)}px`,
-    background: '#134e4a',
+    background: '#115e59',
     width: '100%',
     boxSizing: 'border-box',
     flexShrink: 0

@@ -130,7 +130,7 @@ function confirmH5(
         #${HOST_ID} .mnc-btn.cancel { color: #334155; background: #f1f5f9; }
         #${HOST_ID} .mnc-btn.ok {
           color: #fff;
-          background: linear-gradient(135deg, #0f766e, #14b8a6);
+          background: linear-gradient(135deg, #0d9488, #14b8a6);
         }
         #${HOST_ID} .mnc-btn:active { opacity: 0.88; }
     `;

@@ -99,7 +99,7 @@
 }
 .st-status.matched {
   color: var(--color-success, #16a34a);
-  background: var(--brand-soft, #ecfdf5);
+  background: var(--brand-soft, #f0fdfa);
 }
 .st-status.diff {
   color: var(--color-danger);
@@ -195,7 +195,7 @@
   margin-top: 4rpx;
   border-radius: var(--radius-control);
   border: 2rpx dashed var(--brand);
-  background: var(--brand-soft, #ecfdf5);
+  background: var(--brand-soft, #f0fdfa);
   color: var(--brand);
   font-size: var(--font-size-body);
   box-sizing: border-box;

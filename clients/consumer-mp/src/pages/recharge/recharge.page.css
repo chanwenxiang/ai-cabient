@@ -185,7 +185,7 @@
    * 故改用 --surface-muted 作填充，描边取品牌色低透明度（与 App.vue 的 .filter-chip 同一口径）。
    */
   background: var(--surface-muted, #f4f7f5);
-  border: 1rpx solid rgba(15, 118, 110, 0.18);
+  border: 1rpx solid rgba(13, 148, 136, 0.18);
   border-radius: var(--radius-control);
   padding: 16rpx 20rpx;
   font-size: var(--font-size-md);

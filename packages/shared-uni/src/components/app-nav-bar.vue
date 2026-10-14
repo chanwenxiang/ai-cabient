@@ -49,9 +49,9 @@ const props = withDefaults(
   }>(),
   {
     title: '',
-    bg: 'var(--nav-bar-bg, var(--brand-deep, #134e4a))',
-    // 小程序内联 style 对 CSS 变量偶发解析失败，标题会掉成正文深色；默认用实色白
-    color: '#ffffff',
+    bg: 'var(--nav-bar-bg, #ffffff)',
+    // 小程序内联 style 对 CSS 变量偶发解析失败，标题会掉成正文色；默认用实色深字（白导航）
+    color: '#0f172a',
     homeUrl: '/pages/index/index',
     hideBack: false
   }
@@ -141,9 +141,9 @@ export default {
   margin: 0;
   /* 胶囊几何失败时也不能塌成 0 高，否则搜索会顶进微信胶囊 */
   min-height: 76px;
-  background: #134e4a;
-  color: #ffffff;
-  border-bottom: 1rpx solid rgba(255, 255, 255, 0.12);
+  background: #ffffff;
+  color: #0f172a;
+  border-bottom: 1rpx solid rgba(0, 0, 0, 0.08);
 }
 .app-nav-row {
   position: relative;
@@ -183,7 +183,7 @@ export default {
   margin-left: 4px;
   border-left-width: 2.5px;
   border-bottom-width: 2.5px;
-  color: #ffffff;
+  color: #0f172a;
 }
 .app-nav-back-hover {
   opacity: 0.6;
@@ -195,7 +195,7 @@ export default {
   text-align: center;
   font-size: 17px;
   font-weight: 600;
-  color: #ffffff;
+  color: #0f172a;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

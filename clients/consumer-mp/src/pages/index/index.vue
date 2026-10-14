@@ -702,9 +702,9 @@ function syncLandingTabBar() {
     // backgroundColorBottom 兜底（动态 API 部分 ROM 不生效，2026-09-30 实测）。
     if (typeof uni.setBackgroundColor === 'function') {
       uni.setBackgroundColor({
-        backgroundColor: '#134e4a',
-        backgroundColorTop: '#134e4a',
-        backgroundColorBottom: '#134e4a'
+        backgroundColor: '#115e59',
+        backgroundColorTop: '#115e59',
+        backgroundColorBottom: '#115e59'
       });
     }
   } else {
@@ -2099,7 +2099,7 @@ function stopDevicePoll() {
   position: relative;
 }
 .page-root.is-landing {
-  background: var(--brand-deep, #134e4a);
+  background: var(--brand-deep, #115e59);
 }
 .landing-host {
   flex: 1;
@@ -2128,7 +2128,7 @@ function stopDevicePoll() {
 }
 .shop-nav {
   flex-shrink: 0;
-  background: var(--nav-bar-bg, var(--brand, #0f766e));
+  background: var(--nav-bar-bg, var(--brand, #0d9488));
 }
 .shop-nav-row {
   position: relative;
@@ -2176,7 +2176,7 @@ function stopDevicePoll() {
   margin: 12rpx 24rpx 0;
   padding: 22rpx 24rpx;
   border-radius: var(--radius-card, 24rpx);
-  background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
+  background: linear-gradient(135deg, var(--brand-soft, #f0fdfa), var(--brand-soft, #f0fdfa));
   border: 1rpx solid var(--brand-mist, #ccfbf1);
 }
 .shopping-banner.wait {
@@ -2187,7 +2187,7 @@ function stopDevicePoll() {
   display: block;
   font-size: var(--font-size-lg);
   font-weight: 700;
-  color: var(--brand-deep, #134e4a);
+  color: var(--brand-deep, #115e59);
 }
 .shopping-banner.wait .shopping-banner-title {
   color: var(--warning, #b45309);
@@ -2196,7 +2196,7 @@ function stopDevicePoll() {
   display: block;
   margin-top: 6rpx;
   font-size: var(--font-size-caption);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   line-height: 1.4;
 }
 .shopping-banner.wait .shopping-banner-sub {
@@ -2225,7 +2225,7 @@ function stopDevicePoll() {
   border-radius: var(--radius-card);
   background: var(--card-bg, #fff);
   border: 1rpx solid var(--color-border);
-  box-shadow: 0 4rpx 16rpx rgba(15, 118, 110, 0.06);
+  box-shadow: 0 4rpx 16rpx rgba(13, 148, 136, 0.06);
 }
 .search-input {
   flex: 1;
@@ -2306,7 +2306,7 @@ function stopDevicePoll() {
 }
 .catalog-empty .empty-link {
   font-size: var(--font-size-body);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 650;
 }
 
@@ -2418,7 +2418,7 @@ function stopDevicePoll() {
   height: 64rpx;
   border-radius: var(--radius-panel);
   background: rgba(255, 255, 255, 0.72);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-size: var(--font-size-md);
   font-weight: 800;
   line-height: 64rpx;
@@ -2455,7 +2455,7 @@ function stopDevicePoll() {
 }
 .product-price {
   font-size: var(--font-size-body);
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
   font-weight: 700;
   margin-top: 6rpx;
   text-align: center;
@@ -2530,9 +2530,9 @@ function stopDevicePoll() {
   border: 1rpx solid var(--color-border, #ddd);
 }
 .stepper-btn.plus {
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
   color: var(--white);
-  border: 1rpx solid var(--brand, #0f766e);
+  border: 1rpx solid var(--brand, #0d9488);
 }
 .stepper-btn.plus.disabled {
   opacity: 0.35;
@@ -2560,7 +2560,7 @@ function stopDevicePoll() {
 }
 .settlement-review-card.tone-success {
   border-color: var(--brand-mist);
-  background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
+  background: linear-gradient(135deg, var(--brand-soft, #f0fdfa), var(--brand-soft, #f0fdfa));
 }
 .settlement-review-card.tone-wait {
   border-color: #eacfba;
@@ -2583,10 +2583,10 @@ function stopDevicePoll() {
   font-size: var(--font-size-caption);
 }
 .review-icon.tone-wait {
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
 }
 .review-icon.tone-success {
-  background: var(--brand, #0f766e);
+  background: var(--brand, #0d9488);
 }
 .review-icon.tone-warn {
   background: var(--color-danger);
@@ -2624,7 +2624,7 @@ function stopDevicePoll() {
   line-height: 1.3;
 }
 .review-link.primary {
-  color: var(--brand, #0f766e);
+  color: var(--brand, #0d9488);
 }
 .review-link.subtle {
   color: var(--text-subtle);
@@ -2634,7 +2634,7 @@ function stopDevicePoll() {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: radial-gradient(circle at 50% 35%, var(--brand-soft, #ecfdf5), var(--white) 55%);
+  background: radial-gradient(circle at 50% 35%, var(--brand-soft, #f0fdfa), var(--white) 55%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2646,7 +2646,7 @@ function stopDevicePoll() {
   background: var(--warning-soft);
 }
 .flow-overlay.active {
-  background: var(--brand-soft, #ecfdf5);
+  background: var(--brand-soft, #f0fdfa);
 }
 .flow-overlay.error {
   background: var(--danger-soft);
@@ -2658,7 +2658,7 @@ function stopDevicePoll() {
   border: 10rpx solid var(--brand-soft, #e8f8ef);
   border-top-color: var(--brand-wx, #07c160);
   margin-bottom: 40rpx;
-  box-shadow: 0 16rpx 44rpx rgba(5, 150, 105, 0.13);
+  box-shadow: 0 16rpx 44rpx rgba(13, 148, 136, 0.13);
 }
 .flow-spinner.pulse {
   animation: spin 1.2s linear infinite;
@@ -2695,7 +2695,7 @@ function stopDevicePoll() {
   margin-top: 24rpx;
   padding: 10rpx 18rpx;
   border-radius: var(--radius-pill);
-  background: var(--brand-soft, #ecfdf5);
+  background: var(--brand-soft, #f0fdfa);
   font-weight: 600;
 }
 .flow-err {
@@ -2738,7 +2738,7 @@ function stopDevicePoll() {
    json 的 backgroundColor/backgroundColorBottom 管不到 page 元素（2026-09-30 真机复验仍白）。
    page 级背景与落地页同色兜底；购物态由 .page-root 白底、底栏区域由原生 tabBar 覆盖，不受影响。 */
 page {
-  background: #134e4a;
+  background: #115e59;
 }
 .landing-host,
 .landing-host home-landing {

@@ -29,12 +29,12 @@ body,
 page,
 uni-page-body {
   /* 与 shared-uni / merchant / admin 统一主色 var(--brand) */
-  --brand: #0f766e;
-  --brand-2: #0f766e;
-  --brand-deep: #134e4a;
+  --brand: #0d9488;
+  --brand-2: #0d9488;
+  --brand-deep: #115e59;
   --brand-ink: #0f3f3c;
   --brand-wx: #07c160;
-  --brand-soft: #ecfdf5;
+  --brand-soft: #f0fdfa;
   --brand-mist: #ccfbf1;
   /*
    * 令牌兜底：theme.css 把令牌声明在 :root 上。
@@ -59,7 +59,7 @@ uni-page-body {
   --on-deep-opacity-92: 0.92;
   --on-deep-opacity-95: 0.95;
   /* 自定义导航栏（AppNavBar）在消费端的提亮底色 */
-  --nav-bar-bg: var(--brand);
+  --nav-bar-bg: #ffffff;
   --color-primary: var(--brand);
   --color-primary-deep: var(--brand-deep);
   --color-primary-soft: var(--brand-soft);
@@ -175,7 +175,7 @@ uni-page-body::-webkit-scrollbar {
   font-size: var(--font-size-caption);
   color: var(--text-muted);
   background: var(--white);
-  border: 1rpx solid rgba(15, 118, 110, 0.12);
+  border: 1rpx solid rgba(13, 148, 136, 0.12);
   white-space: nowrap;
 }
 .filter-chip.active {
