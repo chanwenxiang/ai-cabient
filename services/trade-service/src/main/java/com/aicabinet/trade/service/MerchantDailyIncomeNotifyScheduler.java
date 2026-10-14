@@ -132,7 +132,14 @@ public class MerchantDailyIncomeNotifyScheduler {
                     .map(Merchant::getMerchantName).orElse(merchantId);
             // 周期费用日摊（用户拍板「净额展示+每日扣余额」）：租金+流量费按月额/当月天数摊销，
             // 每日从商户余额扣（幂等 refId=昨日日期）；余额可负（欠费自然累计，老系统同款直减）。
-            long feeCents = chargeDailyPeriodFees(merchantId, yesterday);
+            long feeCents;
+            try {
+                feeCents = chargeDailyPeriodFees(merchantId, yesterday);
+            } catch (Exception e) {
+                // 🔴 单商户扣费失败不阻断全量（其余商户照常通知），失败商户次日重跑补扣
+                log.warn("daily fee charge failed for {}: {}", merchantId, e.getMessage());
+                feeCents = 0L;
+            }
             long incomeCents = entry.getValue();
             long netCents = incomeCents - feeCents;
             notificationService.notifyMerchant(merchantId, TEMPLATE_CODE,
@@ -245,8 +252,9 @@ public class MerchantDailyIncomeNotifyScheduler {
         long dailyFee = rentDaily + dataDaily;
         // 🔴 最终口径（2026-10-14 用户拍板对齐老系统）：余额**真扣**费用——「不从他们卡里扣，
         // 但余额肯定是减掉费用后的」，否则商户每天提现提走的是没扣费用的钱。余额可负=欠费。
+        // 幂等扣款（refId=昨日日期，任务重跑不重扣；余额不足直减为负=欠费挂账）。
         if (dailyFee > 0) {
-            walletService.debit(merchantId, dailyFee, "DAILY_FEE",
+            walletService.debitIfAbsentAllowNegative(merchantId, dailyFee, "DAILY_FEE",
                     "SETTLEMENT_FEE", yesterday.format(ISO_FMT),
                     "周期费用日摊(租金+流量费/" + daysInMonth + "天)");
         }
@@ -315,8 +323,11 @@ public class MerchantDailyIncomeNotifyScheduler {
     }
 
     private boolean alreadySentType(String merchantId, String bizType, String bizId) {
+        // 催缴信模板是 merchant_fee_reminder，与日结通知（merchant_settlement）不同——
+        // 此前错用 TEMPLATE_CODE 查重永不命中（2026-10-14 审计 🟡4 修复）
+        String templateCode = "FEE_REMINDER".equals(bizType) ? "merchant_fee_reminder" : TEMPLATE_CODE;
         Long c = notificationLogRepository.selectCount(Wrappers.<NotificationLog>lambdaQuery()
-                .eq(NotificationLog::getTemplateCode, TEMPLATE_CODE)
+                .eq(NotificationLog::getTemplateCode, templateCode)
                 .eq(NotificationLog::getAudience, "MERCHANT")
                 .eq(NotificationLog::getMerchantId, merchantId)
                 .eq(NotificationLog::getBizType, bizType)

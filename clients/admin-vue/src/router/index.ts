@@ -179,6 +179,12 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '线长钱包', group: '财务商户' }
   },
   {
+    path: 'line-routes',
+    name: 'line-routes',
+    component: () => import('@/views/finance/LineRoutesView.vue'),
+    meta: { title: '线路与提成', group: '财务商户' }
+  },
+  {
     path: 'merchant-withdraw',
     name: 'merchant-withdraw',
     component: () => import('@/views/finance/MerchantWithdrawView.vue'),

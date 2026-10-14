@@ -66,6 +66,10 @@ public final class XxlJobManagedTasks {
             "platform-fund-daily",
             "device-rental-daily",
             "warehouse-monthly-close",
+            // 2026-10-14 日结/月度三任务（V352/V356/V360）
+            "merchant-daily-income-notify",
+            "machine-payee-bill",
+            "deposit-monthly-refund",
             // 营销
             "coupon-expire",
             "coupon-expiry-remind",

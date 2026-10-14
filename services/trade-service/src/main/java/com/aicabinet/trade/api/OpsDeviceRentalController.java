@@ -49,7 +49,9 @@ public class OpsDeviceRentalController {
     public ApiResponse<DeviceRentalDeposit> registerDeposit(@RequestBody Map<String, Object> body,
                                                             HttpServletRequest request) {
         return ApiResponse.ok(rentalService.registerDeposit(operatorId(request), str(body.get("deviceId")),
-                amount(body), str(body.get("remark"))));
+                amount(body), str(body.get("remark")),
+                longOrNull(body.get("monthlyRefundCents")), intOrNull(body.get("refundStartMonth")),
+                longOrNull(body.get("expireRewardCents"))));
     }
 
     @RequiresPermissions("ops:rental:manage")
@@ -111,6 +113,17 @@ public class OpsDeviceRentalController {
         Number n = (Number) body.get("amountCents");
         return n == null ? 0L : n.longValue();
     }
+
+    private static Long longOrNull(Object v) {
+        if (v == null) return null;
+        try { return Long.parseLong(String.valueOf(v).trim()); } catch (NumberFormatException e) { return null; }
+    }
+
+    private static Integer intOrNull(Object v) {
+        if (v == null) return null;
+        try { return Integer.parseInt(String.valueOf(v).trim()); } catch (NumberFormatException e) { return null; }
+    }
+
 
     private static String str(Object o) {
         return o == null ? null : String.valueOf(o);

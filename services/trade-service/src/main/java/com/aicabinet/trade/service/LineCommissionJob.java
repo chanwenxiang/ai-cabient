@@ -39,6 +39,7 @@ public class LineCommissionJob {
     private final com.aicabinet.trade.mapper.LineRouteMapper lineRouteMapper;
     private final com.aicabinet.trade.mapper.LineRouteMemberMapper lineRouteMemberMapper;
     private final com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper;
+    private final StaffWalletService staffWalletService;
     private final LineCommissionDailyMapper commissionDailyMapper;
     private final LineWalletService lineWalletService;
     private final DistributedLockService distributedLockService;
@@ -57,7 +58,8 @@ public class LineCommissionJob {
             com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper replenishmentTaskLineMapper,
             com.aicabinet.trade.mapper.LineRouteMapper lineRouteMapper,
             com.aicabinet.trade.mapper.LineRouteMemberMapper lineRouteMemberMapper,
-            com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper) {
+            com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper,
+            StaffWalletService staffWalletService) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.orderMapper = orderMapper;
@@ -69,6 +71,7 @@ public class LineCommissionJob {
         this.lineRouteMapper = lineRouteMapper;
         this.lineRouteMemberMapper = lineRouteMemberMapper;
         this.staffCommissionDailyMapper = staffCommissionDailyMapper;
+        this.staffWalletService = staffWalletService;
         this.taskService = taskService;
         this.transactionTemplate = transactionTemplate;
     }
@@ -210,14 +213,6 @@ public class LineCommissionJob {
         int posted = 0;
         for (com.aicabinet.trade.domain.LineRouteMember staff : staffs) {
             for (LocalDate bizDate : bizDates) {
-                Long exists = staffCommissionDailyMapper.selectCount(
-                        com.baomidou.mybatisplus.core.toolkit.Wrappers
-                                .<com.aicabinet.trade.domain.StaffCommissionDaily>lambdaQuery()
-                                .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getStaffUserId, staff.getUserId())
-                                .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getBizDate, bizDate));
-                if (exists != null && exists > 0) {
-                    continue;
-                }
                 List<com.aicabinet.trade.domain.ReplenishmentTask> tasks = replenishmentTaskMapper.selectList(
                         com.baomidou.mybatisplus.core.toolkit.Wrappers
                                 .<com.aicabinet.trade.domain.ReplenishmentTask>lambdaQuery()
@@ -244,6 +239,17 @@ public class LineCommissionJob {
                     qtyByDevice.merge(task.getDeviceId(), ln.getQuantity(), Integer::sum);
                 }
                 for (var e : qtyByDevice.entrySet()) {
+                    // 🔴 三元组查重（审计 🔴6）：唯一键 (staff,date,device)——二元组预查重会让
+                    // 「部分设备已插入」的日期整段跳过，剩余设备佣金永久补不上
+                    Long rowExists = staffCommissionDailyMapper.selectCount(
+                            com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                    .<com.aicabinet.trade.domain.StaffCommissionDaily>lambdaQuery()
+                                    .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getStaffUserId, staff.getUserId())
+                                    .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getBizDate, bizDate)
+                                    .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getDeviceId, e.getKey()));
+                    if (rowExists != null && rowExists > 0) {
+                        continue;
+                    }
                     long commission = 0L;
                     if ("RESTOCK_QTY".equalsIgnoreCase(staff.getCommissionBasis())) {
                         long perUnit = staff.getCommissionPerUnitCents() == null ? 0L : staff.getCommissionPerUnitCents();
@@ -268,17 +274,29 @@ public class LineCommissionJob {
                     if (commission <= 0) {
                         continue;
                     }
-                    com.aicabinet.trade.domain.StaffCommissionDaily row = new com.aicabinet.trade.domain.StaffCommissionDaily();
-                    row.setStaffUserId(staff.getUserId());
-                    row.setRouteId(staff.getRouteId());
-                    row.setBizDate(bizDate);
-                    row.setDeviceId(e.getKey());
-                    row.setRestockQty(e.getValue());
-                    row.setCommissionCents(commission);
-                    row.setStatus("POSTED");
-                    row.setCreatedAt(java.time.Instant.now());
-                    staffCommissionDailyMapper.insert(row);
-                    posted++;
+                    // lambda 捕获要求 effectively final（commission 在 GMV 分支被再赋值）
+                    final long commissionCents = commission;
+                    // 🔴 事务化（审计 🔴6）：台账 insert 与钱包 credit 同事务——崩溃不会出现
+                    // 「台账已落、钱包没进钱」的半状态（与线长侧 doPostCommissionTx 同款模式）
+                    Boolean ok = transactionTemplate.execute(tx -> {
+                        com.aicabinet.trade.domain.StaffCommissionDaily row = new com.aicabinet.trade.domain.StaffCommissionDaily();
+                        row.setStaffUserId(staff.getUserId());
+                        row.setRouteId(staff.getRouteId());
+                        row.setBizDate(bizDate);
+                        row.setDeviceId(e.getKey());
+                        row.setRestockQty(e.getValue());
+                        row.setCommissionCents(commissionCents);
+                        row.setStatus("POSTED");
+                        row.setCreatedAt(java.time.Instant.now());
+                        staffCommissionDailyMapper.insert(row);
+                        // 资金视角：佣金入补货员钱包（V359，对齐老系统 CommissionAccount 可提现）
+                        return staffWalletService.creditIfAbsent(staff.getUserId(), commissionCents, "COMMISSION",
+                                "STAFF_COMMISSION_DAILY", bizDate + "|" + e.getKey(),
+                                "补货员佣金 " + bizDate + " " + e.getKey());
+                    });
+                    if (Boolean.TRUE.equals(ok)) {
+                        posted++;
+                    }
                 }
             }
         }

@@ -78,6 +78,9 @@ public class ScheduledTaskRegistry {
                                  DeviceRentalService deviceRentalService,
                                  WarehouseMonthlyCloseJob warehouseMonthlyCloseJob,
                                  ObjectProvider<OpsFeeBillJob> opsFeeBillJobProvider,
+                                 MerchantDailyIncomeNotifyScheduler merchantDailyIncomeNotifyScheduler,
+                                 MachinePayeeBillJob machinePayeeBillJob,
+                                 DepositMonthlyRefundJob depositMonthlyRefundJob,
                                  ScheduledTaskStaleMonitor scheduledTaskStaleMonitor) {
         register("device-presence", "设备离线巡检", "DEVICE", V_60, 600,
                 devicePresenceService::markStaleDevicesOffline);
@@ -143,6 +146,16 @@ public class ScheduledTaskRegistry {
         // 「有意关闭」与「漏注册」必须分开记账：前者要豁免看护超期告警（否则关一个开关换来
         // XXL 每月 handleFail + 看护 32 天后误报 OVERDUE 两处噪音）；后者是真缺陷，必须照报。
         // 故这里显式登记到 {@link #conditionallyAbsent}，看护只豁免这一份名单。
+        // 2026-10-14 日结/月度三任务（V352/V356/V360，七处同步补齐）
+        register("merchant-daily-income-notify", "商户日结通知（T+1）", FINANCE,
+                ScheduleZones.desc("每日 00:20"), 1800,
+                merchantDailyIncomeNotifyScheduler::notifyYesterdayIncome);
+        register("machine-payee-bill", "机器账单出账（付场地方）", FINANCE,
+                ScheduleZones.desc("每月 1 日 01:10"), 1800,
+                machinePayeeBillJob::generateMonthlyBills);
+        register("deposit-monthly-refund", "押金按月退还（对齐老系统）", FINANCE,
+                ScheduleZones.desc("每月 1 日 01:30"), 1800,
+                depositMonthlyRefundJob::refundMonthly);
         OpsFeeBillJob feeBillJob = opsFeeBillJobProvider.getIfAvailable();
         if (feeBillJob != null) {
             register("ops-fee-bill-monthly", "周期费用月结出账", FINANCE,

@@ -1,9 +1,8 @@
 -- MIGRATION_KIND: backfill
--- 线长提成双基数（对齐老系统 MachineCommissionLink.type：0=按销售额 / 1=按销量即补货数量；
--- 2026-10-14 拍板对齐老系统）。粒度：按线长（老系统按人×机器，新系统线长比例本就人粒度，
--- 人×机器差异化待补货单数据完善后扩展——设计判断，无公开规格）。
+-- 线长提成双基数（对齐老系统 MachineCommissionLink.type：0=按销售额 / 1=按销量即补货数量）。
+-- 2026-10-14 二次修正：双基数最终落在 line_route_member（V358，补货员侧）+ line_manager
+-- 保留 GMV 比例（线长只有销售提成，对齐老系统）；本迁移保留兼容列（已随 0e6f5808 提交，
+-- 未在任何库应用过，语法原位改写为 PostgreSQL）。
 ALTER TABLE line_manager
-    ADD COLUMN commission_basis VARCHAR(16) NOT NULL DEFAULT 'GMV'
-        COMMENT '提成基数：GMV=销售额(默认) / RESTOCK_QTY=补货数量',
-    ADD COLUMN commission_per_unit_cents BIGINT NOT NULL DEFAULT 0
-        COMMENT 'RESTOCK_QTY 模式：每件补货佣金（分/件）；GMV 模式忽略';
+    ADD COLUMN IF NOT EXISTS commission_basis VARCHAR(16) NOT NULL DEFAULT 'GMV',
+    ADD COLUMN IF NOT EXISTS commission_per_unit_cents BIGINT NOT NULL DEFAULT 0;

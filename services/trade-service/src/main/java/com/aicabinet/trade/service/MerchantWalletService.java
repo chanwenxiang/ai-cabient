@@ -160,10 +160,33 @@ public class MerchantWalletService {
 
 
 
-    /** 幂等扣款：同一 ref 仅记一次账。 */
+    /**
+     * 幂等扣款且允许扣成负数（押金收取对齐老系统：直减可负——押金是负债，
+     * 余额不足也应收取成功、欠款挂余额）。refType+refId 查重防重复扣。
+     */
+    @Transactional
+    public boolean debitIfAbsentAllowNegative(String merchantId, long amountCents, String entryType,
+                                              String refType, String refId, String remark) {
+        return runWithWalletLock(merchantId, () -> {
+            requireMerchantId(merchantId);
+            requirePositive(amountCents);
+            if (refType != null && refId != null
+                    && ledgerMapper.findByRef(merchantId, refType, refId).isPresent()) {
+                return false;
+            }
+            MerchantWalletAccount account = reload(merchantId);
+            long balance = value(account.getBalanceCents()) - amountCents;
+            account.setBalanceCents(balance);
+            account.setUpdatedAt(Instant.now());
+            accountMapper.updateById(account);
+            appendLedger(new LedgerLine(merchantId, entryType, -amountCents,
+                    new LedgerLine.BalanceSnapshot(balance, value(account.getFrozenCents())),
+                    refType, refId, remark));
+            return true;
+        });
+    }
 
     @Transactional
-
     public boolean debitIfAbsent(String merchantId, long amountCents, String entryType,
 
                                  String refType, String refId, String remark) {

@@ -60,6 +60,10 @@ public final class ScheduleZones {
             Map.entry("platform-fund-daily", "0 10 8 * * ?"),
             Map.entry("device-rental-daily", "0 20 8 * * ?"),
             Map.entry("warehouse-monthly-close", "0 10 2 * * ?"),
+            // 2026-10-14 日结/月度三任务（V352/V356/V360）
+            Map.entry("merchant-daily-income-notify", "0 20 0 * * ?"),
+            Map.entry("machine-payee-bill", "0 10 1 1 * ?"),
+            Map.entry("deposit-monthly-refund", "0 30 1 1 * ?"),
             // 营销
             Map.entry("coupon-expire", "0 0 2 * * ?"),
             Map.entry("coupon-expiry-remind", "0 0 0/6 * * ?"),
@@ -111,6 +115,10 @@ public final class ScheduleZones {
             Map.entry("withdraw-paying-timeout", Duration.ofMinutes(30)),      // 10min ×3
             Map.entry("platform-fund-daily", Duration.ofHours(26)),            // 日 08:10 + 2h
             Map.entry("device-rental-daily", Duration.ofHours(26)),            // 日 08:20 + 2h
+            // 2026-10-14 日结/月度三任务（V352/V356/V360）
+            Map.entry("merchant-daily-income-notify", Duration.ofHours(26)),   // 日 00:20 + 2h
+            Map.entry("machine-payee-bill", Duration.ofDays(32)),              // 月 1 日 01:10 + 1 天
+            Map.entry("deposit-monthly-refund", Duration.ofDays(32)),          // 月 1 日 01:30 + 1 天
             // 营销
             Map.entry("coupon-expire", Duration.ofHours(26)),                  // 日 02:00 + 2h
             Map.entry("coupon-expiry-remind", Duration.ofHours(8)),            // 6h + 2h

@@ -36,15 +36,26 @@ class LineCommissionConcurrencyTest {
     @Mock private DistributedLockService distributedLockService;
     @Mock private ScheduledTaskService taskService;
 
+    private com.aicabinet.trade.mapper.LineRouteMemberMapper lineRouteMemberMapper;
     private LineCommissionJob job;
 
     @BeforeEach
     void setUp() {
         org.springframework.transaction.PlatformTransactionManager txManager =
                 org.mockito.Mockito.mock(org.springframework.transaction.PlatformTransactionManager.class);
+        lineRouteMemberMapper = org.mockito.Mockito.mock(com.aicabinet.trade.mapper.LineRouteMemberMapper.class);
+        org.mockito.Mockito.lenient()
+                .when(lineRouteMemberMapper.selectList(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
         job = new LineCommissionJob(managerMapper, deviceMapper, orderMapper,
                 commissionDailyMapper, lineWalletService, distributedLockService, taskService,
-                new org.springframework.transaction.support.TransactionTemplate(txManager));
+                new org.springframework.transaction.support.TransactionTemplate(txManager),
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.ReplenishmentTaskMapper.class),
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper.class),
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.LineRouteMapper.class),
+                lineRouteMemberMapper,
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.StaffCommissionDailyMapper.class),
+                org.mockito.Mockito.mock(StaffWalletService.class));
         when(taskService.tryBegin("line-commission", 1800L)).thenReturn(true);
     }
 

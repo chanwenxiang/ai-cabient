@@ -481,6 +481,23 @@ export const AdminEndpoints = {
     `${ops}/invoices/${encodeURIComponent(String(invoiceId))}/issue`,
   invoiceReject: (invoiceId: string | number) =>
     `${ops}/invoices/${encodeURIComponent(String(invoiceId))}/reject`,
+  lineRoutes: `${ops}/line-routes`,
+  lineRouteUpdate: (routeId: string | number) =>
+    `${ops}/line-routes/${encodeURIComponent(String(routeId))}`,
+  lineRouteArchive: (routeId: string | number) =>
+    `${ops}/line-routes/${encodeURIComponent(String(routeId))}/archive`,
+  lineRouteMembers: (routeId: string | number) =>
+    `${ops}/line-routes/${encodeURIComponent(String(routeId))}/members`,
+  lineRouteMemberRemove: (routeId: string | number, memberId: string | number) =>
+    `${ops}/line-routes/${encodeURIComponent(String(routeId))}/members/${encodeURIComponent(String(memberId))}`,
+  lineRouteChiefManagers: `${ops}/line-routes/chief-managers`,
+  lineCommissionMonthlySummary: (month: string) =>
+    `${ops}/line-routes/monthly-summary?month=${encodeURIComponent(month)}`,
+  staffWallets: `${ops}/staff-wallets`,
+  staffWalletLedger: (staffUserId: string | number) =>
+    `${ops}/staff-wallets/${encodeURIComponent(String(staffUserId))}/ledger`,
+  staffWalletPayout: (staffUserId: string | number) =>
+    `${ops}/staff-wallets/${encodeURIComponent(String(staffUserId))}/payout`,
   lineManagers: `${ops}/line-managers`,
   lineManagersList: (query: URLSearchParams | string) =>
     typeof query === 'string'

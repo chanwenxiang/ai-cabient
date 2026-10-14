@@ -62,6 +62,7 @@ public class DeviceRentalService {
     private final DeviceSalesLockService salesLockService;
     private final FeeBillMonthResolver monthResolver;
     private final DistributedLockService distributedLockService;
+    private final MerchantWalletService merchantWalletService;
     private final Clock clock;
 
     public DeviceRentalService(DeviceRentalDepositMapper depositMapper,
@@ -76,7 +77,7 @@ public class DeviceRentalService {
                                DistributedLockService distributedLockService) {
         this(depositMapper, depositEventMapper, billMapper, deviceMapper, permissionService,
                 auditService, systemConfigService, salesLockService, monthResolver, distributedLockService,
-                Clock.systemDefaultZone());
+                null, Clock.systemDefaultZone());
     }
 
     @Autowired // 双构造器（10 参便捷版供测试）必须显式指定 Spring 注入点，否则启动报 Clock bean 缺失
@@ -90,6 +91,7 @@ public class DeviceRentalService {
                                DeviceSalesLockService salesLockService,
                                FeeBillMonthResolver monthResolver,
                                DistributedLockService distributedLockService,
+                               MerchantWalletService merchantWalletService,
                                Clock clock) {
         this.depositMapper = depositMapper;
         this.depositEventMapper = depositEventMapper;
@@ -101,14 +103,28 @@ public class DeviceRentalService {
         this.salesLockService = salesLockService;
         this.monthResolver = monthResolver;
         this.distributedLockService = distributedLockService;
+        this.merchantWalletService = merchantWalletService;
         this.clock = clock;
     }
 
     // ── 押金台账 ──────────────────────────────────────────────────────────
 
-    /** 押金登记（线下收款后收据化；每台柜至多一条未结算押金）。 */
+    /**
+     * 押金登记（2026-10-14 对齐老系统）：charge_mode=ONLINE 时**从商户余额真扣押金**
+     * （老系统 OptUserAccount.amountCashAvailable 直减可负——押金是负债，余额不足也收取成功、
+     * 欠款挂余额）；金额/月退额/起始月/期满奖励全部登记时按柜填写（不写死）。
+     * 存量 OFFLINE 行（线下收缴收据化）不参与线上自动退还，避免双退。
+     */
     @Transactional
     public DeviceRentalDeposit registerDeposit(Long operatorId, String deviceId, long amountCents, String remark) {
+        return registerDeposit(operatorId, deviceId, amountCents, remark,
+                null, null, null);
+    }
+
+    @Transactional
+    public DeviceRentalDeposit registerDeposit(Long operatorId, String deviceId, long amountCents, String remark,
+                                               Long monthlyRefundCents, Integer refundStartMonth,
+                                               Long expireRewardCents) {
         permissionService.requirePermission(operatorId, "ops:rental:manage");
         DeviceInfo device = requireRentalDevice(deviceId);
         if (amountCents <= 0) {
@@ -122,10 +138,25 @@ public class DeviceRentalService {
         deposit.setMerchantId(device.getMerchantId());
         deposit.setAmountCents(amountCents);
         deposit.setBalanceCents(amountCents);
+        deposit.setChargeMode("ONLINE");
+        if (monthlyRefundCents != null && monthlyRefundCents > 0) {
+            deposit.setMonthlyRefundCents(monthlyRefundCents);
+            deposit.setRefundStartMonth(refundStartMonth == null || refundStartMonth < 1
+                    ? 3 : refundStartMonth);
+        }
+        deposit.setExpireRewardCents(expireRewardCents == null ? 0L : Math.max(0L, expireRewardCents));
         deposit.setRemark(trim(remark));
         depositMapper.insert(deposit);
+        // 线上收取：从商户余额真扣（幂等 refType+refId；可负=欠款挂余额，老系统同款）
+        merchantWalletService.debitIfAbsentAllowNegative(deposit.getMerchantId(), amountCents,
+                "DEPOSIT_CHARGE", "RENTAL_DEPOSIT", String.valueOf(deposit.getDepositId()),
+                "押金收取（柜机 " + deviceId + "）");
+        insertEvent(deposit.getDepositId(), DeviceRentalDeposit.EVENT_CHARGE, amountCents,
+                "押金收取（从商户余额扣，线上）", operatorId);
         auditService.appendLog(operatorId, "DEVICE_RENTAL_DEPOSIT_REGISTER", "DEVICE", deviceId,
-                "amount=" + amountCents);
+                "amount=" + amountCents + " monthlyRefund=" + deposit.getMonthlyRefundCents()
+                        + " startMonth=" + deposit.getRefundStartMonth()
+                        + " reward=" + deposit.getExpireRewardCents());
         return deposit;
     }
 
@@ -153,7 +184,7 @@ public class DeviceRentalService {
         return depositMapper.selectById(depositId);
     }
 
-    /** 结算返还（线下把剩余押金退给承租方后登记收据；余额即返还净额）。 */
+    /** 结算返还：ONLINE 押金剩余额退入商户余额（对齐老系统）；OFFLINE 押金维持线下返还登记。 */
     @Transactional
     public DeviceRentalDeposit settle(Long operatorId, Long depositId, String remark) {
         permissionService.requirePermission(operatorId, "ops:rental:manage");
@@ -166,6 +197,12 @@ public class DeviceRentalService {
             if (depositMapper.adjustBalance(depositId, -refund) == 0) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "押金余额推进失败，请重试");
             }
+            if ("ONLINE".equals(deposit.getChargeMode())) {
+                // 线上押金：剩余额退入商户余额（幂等），对齐老系统一次性结清分支
+                merchantWalletService.creditIfAbsent(deposit.getMerchantId(), refund,
+                        "DEPOSIT_RETURN", "RENTAL_DEPOSIT_SETTLE", String.valueOf(depositId),
+                        "退租结算返还（柜机 " + deposit.getDeviceId() + "）");
+            }
             insertEvent(depositId, DeviceRentalDeposit.EVENT_RETURN, -refund,
                     remark == null || remark.isBlank() ? "退租结算返还" : remark.trim(), operatorId);
         }
@@ -177,6 +214,89 @@ public class DeviceRentalService {
         auditService.appendLog(operatorId, "DEVICE_RENTAL_DEPOSIT_SETTLE", "DEVICE", deposit.getDeviceId(),
                 "refund=" + refund);
         return deposit;
+    }
+
+    // ── 押金按月退还（对齐老系统 MachineGuaranteeCashTask，2026-10-14 拍板） ──
+
+    /** 事件类型：线上收取（对齐老系统 GUARANTEE_CASH_SAVE）。 */
+    public static final String DEPOSIT_REFUND_TASK_KEY = "deposit-monthly-refund";
+
+    /**
+     * 每月退还（由 DepositMonthlyRefundJob 每月 1 日驱动）：遍历未结清押金
+     * （charge_mode=ONLINE 且月退额>0），自登记月起第 refundStartMonth 个月开始每月退
+     * monthlyRefundCents 入商户余额（幂等 refId=押金+月序）；第 threshold 月（=总额/月退额
+     * +起始月-1，老系统同款公式）退完置结清，同 run 按 expireRewardCents 发期满奖励。
+     * @return 已处理退还笔数
+     */
+    @Transactional
+    public int runMonthlyRefunds() {
+        java.time.LocalDate today = java.time.LocalDate.now(clock);
+        int monthIndex = today.getYear() * 12 + today.getMonthValue();
+        List<DeviceRentalDeposit> held = depositMapper.selectList(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<DeviceRentalDeposit>lambdaQuery()
+                        .eq(DeviceRentalDeposit::getStatus, DeviceRentalDeposit.STATUS_HELD)
+                        .eq(DeviceRentalDeposit::getChargeMode, "ONLINE")
+                        .isNotNull(DeviceRentalDeposit::getMonthlyRefundCents)
+                        .gt(DeviceRentalDeposit::getMonthlyRefundCents, 0L));
+        int processed = 0;
+        for (DeviceRentalDeposit deposit : held) {
+            java.time.LocalDate start = deposit.getCreatedAt() == null
+                    ? null : java.time.LocalDate.ofInstant(deposit.getCreatedAt(), java.time.ZoneId.systemDefault())
+                    .withDayOfMonth(1);
+            if (start == null) {
+                continue;
+            }
+            int monthFromStart = (today.getYear() * 12 + today.getMonthValue())
+                    - (start.getYear() * 12 + start.getMonthValue()) + 1;
+            int startMonth = deposit.getRefundStartMonth() == null ? 3 : deposit.getRefundStartMonth();
+            long unit = deposit.getMonthlyRefundCents();
+            long threshold = (deposit.getAmountCents() + unit - 1) / unit + startMonth - 1;
+            if (monthFromStart < startMonth || monthFromStart > threshold) {
+                continue;
+            }
+            // 🔴 末月退余额（amount − 已退累计）而非固定 unit，防 ceil 超退（审计 🔴3）：
+            // 月退额不能整除总额时，最后一个月退剩余部分，正好归零 → 结清+期满奖励可达。
+            long unitThisMonth = monthFromStart == threshold
+                    ? deposit.getBalanceCents() : Math.min(unit, deposit.getBalanceCents());
+            if (unitThisMonth <= 0) {
+                continue;
+            }
+            // 🔴 顺序修正（审计 🔴3）：先扣押金台账余额（守卫失败=本事务回滚，不会出现
+            // 「钱包已入账、押金未减」的超额退还），再入商户钱包（幂等 refId=押金+月序）。
+            if (depositMapper.adjustBalance(deposit.getDepositId(), -unitThisMonth) == 0) {
+                continue;
+            }
+            String refId = deposit.getDepositId() + "|" + monthFromStart;
+            boolean charged = merchantWalletService.creditIfAbsent(deposit.getMerchantId(), unitThisMonth,
+                    "DEPOSIT_RETURN", "RENTAL_DEPOSIT_REFUND", refId,
+                    "押金按月退还（第 " + monthFromStart + " 个月，柜机 " + deposit.getDeviceId() + "）");
+            if (!charged) {
+                // 钱包流水已存在（重跑）：台账余额已扣 → 回补台账余额，保持两账一致
+                depositMapper.adjustBalance(deposit.getDepositId(), unitThisMonth);
+                continue;
+            }
+            insertEvent(deposit.getDepositId(), DeviceRentalDeposit.EVENT_RETURN, -unitThisMonth,
+                    "按月退还（第 " + monthFromStart + "/" + threshold + " 个月）", null);
+            processed++;
+            boolean last = monthFromStart == threshold;
+            if (last) {
+                DeviceRentalDeposit fresh = depositMapper.selectById(deposit.getDepositId());
+                fresh.setStatus(DeviceRentalDeposit.STATUS_SETTLED);
+                fresh.setSettledAt(Instant.now(clock));
+                fresh.setUpdatedAt(Instant.now(clock));
+                depositMapper.updateById(fresh);
+                long reward = deposit.getExpireRewardCents() == null ? 0L : deposit.getExpireRewardCents();
+                if (reward > 0) {
+                    merchantWalletService.creditIfAbsent(deposit.getMerchantId(), reward,
+                            "DEPOSIT_EXPIRE_REWARD", "RENTAL_DEPOSIT_REFUND",
+                            deposit.getDepositId() + "|REWARD",
+                            "押金期满奖励（柜机 " + deposit.getDeviceId() + "）");
+                    insertEvent(deposit.getDepositId(), DeviceRentalDeposit.EVENT_RETURN, reward,
+                            "期满奖励", null);
+                }
+            }
+        }
+        return processed;
     }
 
     public List<DeviceRentalDepositEvent> listDepositEvents(Long depositId) {
@@ -324,9 +444,9 @@ public class DeviceRentalService {
         // ① 出账（幂等；生成失败不阻断锁柜核对）
         // 2026-10-14：费用改日扣模式（DAILY_FEE 每日摊销扣余额）后，月度应收出账默认停用，
         // 否则同一租金既日扣又月出账会重复计费。开关 device.rental.monthly_bill.enabled 可回退。
-        boolean monthlyBillEnabled = systemConfigService
-                .getValue("device.rental.monthly_bill.enabled", "false")
-                .equalsIgnoreCase("true");
+        // getValue 桩/缺配置可能返回 null——常量在前防 NPE
+        boolean monthlyBillEnabled = "true".equalsIgnoreCase(systemConfigService
+                .getValue("device.rental.monthly_bill.enabled", "false"));
         int generated = 0;
         if (monthlyBillEnabled) {
             try {

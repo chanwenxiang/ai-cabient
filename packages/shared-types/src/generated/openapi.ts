@@ -473,6 +473,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/machine-payee-bills/config/{deviceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 点位费用配置（按柜） */
+        get: operations["config"];
+        /** 保存点位费用配置（费用项随时可改，只影响后续账期） */
+        put: operations["saveConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/line-routes/{routeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改线路（名称/线长/备注） */
+        put: operations["update_3"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/line-routes/{routeId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 线路成员列表（线长+补货员，同一人可双角色） */
+        get: operations["members"];
+        /** 添加/更新成员（role=MANAGER 或 STAFF，含提成配置，可随时改） */
+        put: operations["upsertMember"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/line-promo-tasks/{taskId}": {
         parameters: {
             query?: never;
@@ -481,7 +534,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: operations["update_3"];
+        put: operations["update_4"];
         post?: never;
         delete?: never;
         options?: never;
@@ -657,7 +710,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: operations["update_4"];
+        put: operations["update_5"];
         post?: never;
         delete?: never;
         options?: never;
@@ -672,7 +725,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["members"];
+        get: operations["members_1"];
         put: operations["assignMembers"];
         post?: never;
         delete?: never;
@@ -2041,6 +2094,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/staff-wallets/{staffUserId}/payout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 标记线下打款出账（余额不足即失败；每次标记=一笔独立出账流水） */
+        post: operations["payout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/skus": {
         parameters: {
             query?: never;
@@ -2834,7 +2904,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["payout"];
+        post: operations["payout_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2921,6 +2991,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/merchant-fee-ledgers/{ledgerId}/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 标记结清（线下收款后；幂等：已结清直接返回） */
+        post: operations["settle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/machine-payee-bills/{billId}/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 标记结清（线下收款后） */
+        post: operations["settle_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/machine-payee-bills/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 手动出账（指定账期，幂等） */
+        post: operations["generate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/line-withdraws/{requestId}/review": {
         parameters: {
             query?: never;
@@ -2946,7 +3067,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["payout_1"];
+        post: operations["payout_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2969,6 +3090,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/line-routes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 线路列表（含归档） */
+        get: operations["list_9"];
+        put?: never;
+        /** 新建线路 */
+        post: operations["create_9"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/line-routes/{routeId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 归档线路（可增减，不物理删） */
+        post: operations["archive_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/line-promo-tasks": {
         parameters: {
             query?: never;
@@ -2976,9 +3132,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_9"];
+        get: operations["list_10"];
         put?: never;
-        post: operations["create_9"];
+        post: operations["create_10"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2992,9 +3148,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_10"];
+        get: operations["list_11"];
         put?: never;
-        post: operations["create_10"];
+        post: operations["create_11"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3474,7 +3630,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["archive_1"];
+        post: operations["archive_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3874,7 +4030,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["settle"];
+        post: operations["settle_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3938,7 +4094,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["generate"];
+        post: operations["generate_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4000,9 +4156,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_11"];
+        get: operations["list_12"];
         put?: never;
-        post: operations["create_11"];
+        post: operations["create_12"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4208,9 +4364,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_12"];
+        get: operations["list_13"];
         put?: never;
-        post: operations["create_12"];
+        post: operations["create_13"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5270,7 +5426,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch: operations["update_5"];
+        patch: operations["update_6"];
         trace?: never;
     };
     "/api/v2/ops/admin/line-managers/{managerId}": {
@@ -5286,7 +5442,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch: operations["update_6"];
+        patch: operations["update_7"];
         trace?: never;
     };
     "/api/v2/ops/admin/devices/{deviceId}": {
@@ -5744,7 +5900,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_13"];
+        get: operations["list_14"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5840,7 +5996,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_14"];
+        get: operations["list_15"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5856,7 +6012,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_15"];
+        get: operations["list_16"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6345,6 +6501,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/staff-wallets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 补货员钱包余额列表 */
+        get: operations["list_17"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/staff-wallets/{staffUserId}/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 某补货员钱包流水 */
+        get: operations["ledger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/sla": {
         parameters: {
             query?: never;
@@ -6384,7 +6574,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_16"];
+        get: operations["list_18"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7040,7 +7230,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_17"];
+        get: operations["list_19"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7088,7 +7278,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_18"];
+        get: operations["list_20"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7145,6 +7335,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/merchant-fee-ledgers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 台账列表（按商户/状态/费用类型过滤） */
+        get: operations["list_21"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/machine-payee-bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 账单列表（按账期/状态） */
+        get: operations["list_22"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/line-withdraws": {
         parameters: {
             query?: never;
@@ -7152,7 +7376,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_19"];
+        get: operations["list_23"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7169,6 +7393,40 @@ export interface paths {
             cookie?: never;
         };
         get: operations["payoutMode_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/line-routes/monthly-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 岗位月合计（线长销售提成 + 补货员佣金，供财务对账） */
+        get: operations["monthlySummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/line-routes/chief-managers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 总线路负责人（多人，可随时改指） */
+        get: operations["chiefManagers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7344,7 +7602,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_20"];
+        get: operations["list_24"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7520,7 +7778,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ledger"];
+        get: operations["ledger_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7712,7 +7970,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_21"];
+        get: operations["list_25"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8016,7 +8274,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_22"];
+        get: operations["list_26"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8144,7 +8402,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_23"];
+        get: operations["list_27"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8784,7 +9042,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_24"];
+        get: operations["list_28"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8880,7 +9138,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_25"];
+        get: operations["list_29"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9024,7 +9282,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_26"];
+        get: operations["list_30"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9232,7 +9490,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_27"];
+        get: operations["list_31"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9568,7 +9826,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_28"];
+        get: operations["list_32"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9732,6 +9990,23 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deleteOrgNode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/line-routes/{routeId}/members/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 移除成员 */
+        delete: operations["removeMember"];
         options?: never;
         head?: never;
         patch?: never;
@@ -10512,6 +10787,49 @@ export interface components {
             updatedAt?: string;
             payLiveHint?: boolean;
             approvalStatus?: string;
+        };
+        MachinePositionConfig: {
+            deviceId?: string;
+            electricType?: string;
+            /** Format: int64 */
+            electricAmountCents?: number;
+            welfareInfo?: string;
+            /** Format: int32 */
+            shareBps?: number;
+            payeeName?: string;
+            payeePhone?: string;
+            /** Format: int32 */
+            enabled?: number;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        LineRoute: {
+            /** Format: int64 */
+            id?: number;
+            routeName?: string;
+            /** Format: int64 */
+            managerId?: number;
+            remark?: string;
+            status?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        LineRouteMember: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: int64 */
+            routeId?: number;
+            /** Format: int64 */
+            userId?: number;
+            role?: string;
+            commissionBasis?: string;
+            /** Format: int32 */
+            commissionRateBps?: number;
+            /** Format: int64 */
+            commissionPerUnitCents?: number;
+            status?: string;
+            /** Format: date-time */
+            createdAt?: string;
         };
         UpsertLinePromoTaskRequest: {
             /** Format: int64 */
@@ -12825,6 +13143,26 @@ export interface components {
             /** Format: int64 */
             pendingSettleCents?: number;
         };
+        ApiResponseMerchantFeeLedger: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantFeeLedger"];
+        };
+        MerchantFeeLedger: {
+            /** Format: int64 */
+            ledgerId?: number;
+            merchantId?: string;
+            /** Format: date */
+            feeDate?: string;
+            feeType?: string;
+            /** Format: int64 */
+            amountCents?: number;
+            status?: string;
+            /** Format: date-time */
+            settledAt?: string;
+            remark?: string;
+        };
         ApiResponseLineWithdrawRequestDto: {
             /** Format: int32 */
             code?: number;
@@ -12866,6 +13204,12 @@ export interface components {
             payeeBankName?: string;
             idemKey?: string;
             channelOrderNo?: string;
+        };
+        ApiResponseLineRoute: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["LineRoute"];
         };
         ApiResponseLineManagerDto: {
             /** Format: int32 */
@@ -13429,6 +13773,13 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+            chargeMode?: string;
+            /** Format: int64 */
+            monthlyRefundCents?: number;
+            /** Format: int32 */
+            refundStartMonth?: number;
+            /** Format: int64 */
+            expireRewardCents?: number;
         };
         ApiResponseDeviceRentalBill: {
             /** Format: int32 */
@@ -14775,6 +15126,46 @@ export interface components {
             message?: string;
             data?: components["schemas"]["AdminStatsDto"];
         };
+        ApiResponseListStaffWalletAccount: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["StaffWalletAccount"][];
+        };
+        StaffWalletAccount: {
+            /** Format: int64 */
+            staffUserId?: number;
+            /** Format: int64 */
+            balanceCents?: number;
+            /** Format: int64 */
+            frozenCents?: number;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        ApiResponseListStaffWalletLedger: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["StaffWalletLedger"][];
+        };
+        StaffWalletLedger: {
+            /** Format: int64 */
+            ledgerId?: number;
+            /** Format: int64 */
+            staffUserId?: number;
+            entryType?: string;
+            /** Format: int64 */
+            amountCents?: number;
+            /** Format: int64 */
+            balanceAfter?: number;
+            /** Format: int64 */
+            frozenAfter?: number;
+            refType?: string;
+            refId?: string;
+            remark?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
         ApiResponseSlaMetricsDto: {
             /** Format: int32 */
             code?: number;
@@ -15665,6 +16056,43 @@ export interface components {
             message?: string;
             data?: components["schemas"]["MerchantPaymentOnboardingDto"][];
         };
+        ApiResponseListMerchantFeeLedger: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantFeeLedger"][];
+        };
+        ApiResponseListMachinePayeeBill: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MachinePayeeBill"][];
+        };
+        MachinePayeeBill: {
+            /** Format: int64 */
+            billId?: number;
+            deviceId?: string;
+            billMonth?: string;
+            feeType?: string;
+            /** Format: int64 */
+            amountCents?: number;
+            /** Format: int64 */
+            gmvCents?: number;
+            payeeName?: string;
+            payeePhone?: string;
+            status?: string;
+            /** Format: date-time */
+            settledAt?: string;
+            remark?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        ApiResponseMachinePositionConfig: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MachinePositionConfig"];
+        };
         ApiResponsePageResultLineWithdrawRequestDto: {
             /** Format: int32 */
             code?: number;
@@ -15679,6 +16107,18 @@ export interface components {
             size?: number;
             /** Format: int64 */
             total?: number;
+        };
+        ApiResponseListLineRoute: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["LineRoute"][];
+        };
+        ApiResponseListLineRouteMember: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["LineRouteMember"][];
         };
         ApiResponseListLinePromoTaskDto: {
             /** Format: int32 */
@@ -19104,7 +19544,129 @@ export interface operations {
             };
         };
     };
+    config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMachinePositionConfig"];
+                };
+            };
+        };
+    };
+    saveConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachinePositionConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     update_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                routeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineRoute"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    members: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                routeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListLineRouteMember"];
+                };
+            };
+        };
+    };
+    upsertMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                routeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineRouteMember"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    update_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -19562,7 +20124,7 @@ export interface operations {
             };
         };
     };
-    update_4: {
+    update_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -19588,7 +20150,7 @@ export interface operations {
             };
         };
     };
-    members: {
+    members_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -22017,6 +22579,34 @@ export interface operations {
             };
         };
     };
+    payout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staffUserId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseBoolean"];
+                };
+            };
+        };
+    };
     skus: {
         parameters: {
             query?: {
@@ -23527,7 +24117,7 @@ export interface operations {
             };
         };
     };
-    payout: {
+    payout_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -23703,6 +24293,74 @@ export interface operations {
             };
         };
     };
+    settle: {
+        parameters: {
+            query?: {
+                remark?: string;
+            };
+            header?: never;
+            path: {
+                ledgerId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMerchantFeeLedger"];
+                };
+            };
+        };
+    };
+    settle_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                billId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    generate: {
+        parameters: {
+            query: {
+                billMonth: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseInteger"];
+                };
+            };
+        };
+    };
     review_2: {
         parameters: {
             query?: never;
@@ -23729,7 +24387,7 @@ export interface operations {
             };
         };
     };
-    payout_1: {
+    payout_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -23779,6 +24437,72 @@ export interface operations {
     };
     list_9: {
         parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListLineRoute"];
+                };
+            };
+        };
+    };
+    create_9: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineRoute"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseLineRoute"];
+                };
+            };
+        };
+    };
+    archive_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                routeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    list_10: {
+        parameters: {
             query?: {
                 managerId?: number;
                 status?: string;
@@ -23800,7 +24524,7 @@ export interface operations {
             };
         };
     };
-    create_9: {
+    create_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -23824,7 +24548,7 @@ export interface operations {
             };
         };
     };
-    list_10: {
+    list_11: {
         parameters: {
             query?: {
                 status?: string;
@@ -23849,7 +24573,7 @@ export interface operations {
             };
         };
     };
-    create_10: {
+    create_11: {
         parameters: {
             query?: never;
             header?: never;
@@ -24644,7 +25368,7 @@ export interface operations {
             };
         };
     };
-    archive_1: {
+    archive_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -25376,7 +26100,7 @@ export interface operations {
             };
         };
     };
-    settle: {
+    settle_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -25476,7 +26200,7 @@ export interface operations {
             };
         };
     };
-    generate: {
+    generate_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -25570,7 +26294,7 @@ export interface operations {
             };
         };
     };
-    list_11: {
+    list_12: {
         parameters: {
             query?: never;
             header?: never;
@@ -25590,7 +26314,7 @@ export interface operations {
             };
         };
     };
-    create_11: {
+    create_12: {
         parameters: {
             query?: never;
             header?: never;
@@ -25967,7 +26691,7 @@ export interface operations {
             };
         };
     };
-    list_12: {
+    list_13: {
         parameters: {
             query?: {
                 status?: string;
@@ -25991,7 +26715,7 @@ export interface operations {
             };
         };
     };
-    create_12: {
+    create_13: {
         parameters: {
             query?: never;
             header?: never;
@@ -27736,7 +28460,7 @@ export interface operations {
             };
         };
     };
-    update_5: {
+    update_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -27786,7 +28510,7 @@ export interface operations {
             };
         };
     };
-    update_6: {
+    update_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -28484,7 +29208,7 @@ export interface operations {
             };
         };
     };
-    list_13: {
+    list_14: {
         parameters: {
             query?: {
                 page?: number;
@@ -28609,7 +29333,7 @@ export interface operations {
             };
         };
     };
-    list_14: {
+    list_15: {
         parameters: {
             query?: {
                 status?: string;
@@ -28633,7 +29357,7 @@ export interface operations {
             };
         };
     };
-    list_15: {
+    list_16: {
         parameters: {
             query?: {
                 page?: number;
@@ -29346,6 +30070,48 @@ export interface operations {
             };
         };
     };
+    list_17: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListStaffWalletAccount"];
+                };
+            };
+        };
+    };
+    ledger: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staffUserId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListStaffWalletLedger"];
+                };
+            };
+        };
+    };
     sla: {
         parameters: {
             query?: never;
@@ -29388,7 +30154,7 @@ export interface operations {
             };
         };
     };
-    list_16: {
+    list_18: {
         parameters: {
             query?: {
                 billMonth?: string;
@@ -30368,7 +31134,7 @@ export interface operations {
             };
         };
     };
-    list_17: {
+    list_19: {
         parameters: {
             query?: {
                 status?: string;
@@ -30435,7 +31201,7 @@ export interface operations {
             };
         };
     };
-    list_18: {
+    list_20: {
         parameters: {
             query?: {
                 keyword?: string;
@@ -30523,7 +31289,54 @@ export interface operations {
             };
         };
     };
-    list_19: {
+    list_21: {
+        parameters: {
+            query?: {
+                merchantId?: string;
+                status?: string;
+                feeType?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMerchantFeeLedger"];
+                };
+            };
+        };
+    };
+    list_22: {
+        parameters: {
+            query?: {
+                billMonth?: string;
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMachinePayeeBill"];
+                };
+            };
+        };
+    };
+    list_23: {
         parameters: {
             query?: {
                 status?: string;
@@ -30549,6 +31362,48 @@ export interface operations {
         };
     };
     payoutMode_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
+                };
+            };
+        };
+    };
+    monthlySummary: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
+                };
+            };
+        };
+    };
+    chiefManagers: {
         parameters: {
             query?: never;
             header?: never;
@@ -30793,7 +31648,7 @@ export interface operations {
             };
         };
     };
-    list_20: {
+    list_24: {
         parameters: {
             query?: {
                 status?: string;
@@ -31044,7 +31899,7 @@ export interface operations {
             };
         };
     };
-    ledger: {
+    ledger_1: {
         parameters: {
             query?: {
                 fromDate?: string;
@@ -31348,7 +32203,7 @@ export interface operations {
             };
         };
     };
-    list_21: {
+    list_25: {
         parameters: {
             query?: {
                 status?: string;
@@ -31780,7 +32635,7 @@ export interface operations {
             };
         };
     };
-    list_22: {
+    list_26: {
         parameters: {
             query?: {
                 billMonth?: string;
@@ -31953,7 +32808,7 @@ export interface operations {
             };
         };
     };
-    list_23: {
+    list_27: {
         parameters: {
             query?: {
                 status?: string;
@@ -32842,7 +33697,7 @@ export interface operations {
             };
         };
     };
-    list_24: {
+    list_28: {
         parameters: {
             query?: {
                 limit?: number;
@@ -32967,7 +33822,7 @@ export interface operations {
             };
         };
     };
-    list_25: {
+    list_29: {
         parameters: {
             query?: {
                 status?: string;
@@ -33166,7 +34021,7 @@ export interface operations {
             };
         };
     };
-    list_26: {
+    list_30: {
         parameters: {
             query?: never;
             header?: never;
@@ -33450,7 +34305,7 @@ export interface operations {
             };
         };
     };
-    list_27: {
+    list_31: {
         parameters: {
             query?: {
                 limit?: number;
@@ -33890,7 +34745,7 @@ export interface operations {
             };
         };
     };
-    list_28: {
+    list_32: {
         parameters: {
             query?: never;
             header?: never;
@@ -34112,6 +34967,29 @@ export interface operations {
             header?: never;
             path: {
                 nodeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    removeMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                routeId: number;
+                memberId: number;
             };
             cookie?: never;
         };

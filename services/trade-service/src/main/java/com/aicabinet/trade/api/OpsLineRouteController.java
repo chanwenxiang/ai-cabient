@@ -31,13 +31,19 @@ public class OpsLineRouteController {
     private final LineRouteMapper routeMapper;
     private final LineRouteMemberMapper memberMapper;
     private final SystemConfigService systemConfigService;
+    private final com.aicabinet.trade.mapper.LineCommissionDailyMapper lineCommissionDailyMapper;
+    private final com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper;
 
     public OpsLineRouteController(LineRouteMapper routeMapper,
                                   LineRouteMemberMapper memberMapper,
-                                  SystemConfigService systemConfigService) {
+                                  SystemConfigService systemConfigService,
+                                  com.aicabinet.trade.mapper.LineCommissionDailyMapper lineCommissionDailyMapper,
+                                  com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper) {
         this.routeMapper = routeMapper;
         this.memberMapper = memberMapper;
         this.systemConfigService = systemConfigService;
+        this.lineCommissionDailyMapper = lineCommissionDailyMapper;
+        this.staffCommissionDailyMapper = staffCommissionDailyMapper;
     }
 
     @Operation(summary = "线路列表（含归档）")
@@ -130,6 +136,47 @@ public class OpsLineRouteController {
         }
         memberMapper.deleteById(memberId);
         return ApiResponse.ok(null);
+    }
+
+    @Operation(summary = "岗位月合计（线长销售提成 + 补货员佣金，供财务对账）")
+    @GetMapping("/monthly-summary")
+    @RequiresPermissions("ops:replenishment:list")
+    public ApiResponse<Map<String, Object>> monthlySummary(@RequestParam("month") String month) {
+        java.time.YearMonth ym = java.time.YearMonth.parse(month);
+        java.time.LocalDate from = ym.atDay(1);
+        java.time.LocalDate to = ym.plusMonths(1).atDay(1);
+        // 线长：按人聚合（line_commission_daily：orderCount=订单数、gmvCents=销售额、commissionCents=佣金）
+        Map<Long, long[]> managers = new java.util.LinkedHashMap<>();
+        for (var row : lineCommissionDailyMapper.selectList(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<com.aicabinet.trade.domain.LineCommissionDaily>lambdaQuery()
+                        .ge(com.aicabinet.trade.domain.LineCommissionDaily::getBizDate, from)
+                        .lt(com.aicabinet.trade.domain.LineCommissionDaily::getBizDate, to))) {
+            long[] agg = managers.computeIfAbsent(row.getManagerId(), k -> new long[3]);
+            agg[0] += row.getOrderCount() == null ? 0 : row.getOrderCount();
+            agg[1] += row.getGmvCents() == null ? 0 : row.getGmvCents();
+            agg[2] += row.getCommissionCents() == null ? 0 : row.getCommissionCents();
+        }
+        // 补货员：按人聚合（staff_commission_daily：restockQty=补货件数、commissionCents=佣金）
+        Map<Long, long[]> staffs = new java.util.LinkedHashMap<>();
+        for (var row : staffCommissionDailyMapper.selectList(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<com.aicabinet.trade.domain.StaffCommissionDaily>lambdaQuery()
+                        .ge(com.aicabinet.trade.domain.StaffCommissionDaily::getBizDate, from)
+                        .lt(com.aicabinet.trade.domain.StaffCommissionDaily::getBizDate, to))) {
+            long[] agg = staffs.computeIfAbsent(row.getStaffUserId(), k -> new long[2]);
+            agg[0] += row.getRestockQty() == null ? 0 : row.getRestockQty();
+            agg[1] += row.getCommissionCents() == null ? 0 : row.getCommissionCents();
+        }
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("month", month);
+        result.put("managers", managers.entrySet().stream()
+                .map(e -> Map.of("managerId", e.getKey(), "orderCount", e.getValue()[0],
+                        "gmvCents", e.getValue()[1], "commissionCents", e.getValue()[2]))
+                .toList());
+        result.put("staffs", staffs.entrySet().stream()
+                .map(e -> Map.of("staffUserId", e.getKey(), "restockQty", e.getValue()[0],
+                        "commissionCents", e.getValue()[1]))
+                .toList());
+        return ApiResponse.ok(result);
     }
 
     @Operation(summary = "总线路负责人（多人，可随时改指）")

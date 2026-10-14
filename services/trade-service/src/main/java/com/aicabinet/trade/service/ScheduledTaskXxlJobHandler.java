@@ -44,6 +44,23 @@ public class ScheduledTaskXxlJobHandler {
         runKey("recharge-cancel");
     }
 
+    // ── 2026-10-14 日结/月度三任务（V352/V356/V360） ─────────────────────
+
+    @XxlJob("merchantDailyIncomeNotifyJob")
+    public void merchantDailyIncomeNotifyJob() {
+        runKey("merchant-daily-income-notify");
+    }
+
+    @XxlJob("machinePayeeBillJob")
+    public void machinePayeeBillJob() {
+        runKey("machine-payee-bill");
+    }
+
+    @XxlJob("depositMonthlyRefundJob")
+    public void depositMonthlyRefundJob() {
+        runKey("deposit-monthly-refund");
+    }
+
     @XxlJob("sessionOpeningExpireJob")
     public void sessionOpeningExpireJob() {
         runKey("session-opening-expire");

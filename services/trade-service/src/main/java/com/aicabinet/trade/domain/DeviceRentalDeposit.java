@@ -16,6 +16,7 @@ public class DeviceRentalDeposit {
 
     public static final String STATUS_HELD = "HELD";
     public static final String STATUS_SETTLED = "SETTLED";
+    public static final String EVENT_CHARGE = "CHARGE";
     public static final String EVENT_DEDUCT = "DEDUCT";
     public static final String EVENT_RETURN = "RETURN";
 
@@ -32,4 +33,22 @@ public class DeviceRentalDeposit {
     private String remark;
     private Instant createdAt = Instant.now();
     private Instant updatedAt = Instant.now();
+
+    /** 收取方式：ONLINE=线上（从商户余额真扣，参与自动按月退还）/ OFFLINE=线下收缴登记（存量，不自动退还） */
+    private String chargeMode = "ONLINE";
+    /** 每月退还额（分）：登记时按柜填写，null/<=0 = 不自动退还（不写死） */
+    private Long monthlyRefundCents;
+    /** 开始退还月序：自登记月起的第 N 个月开始退（老系统默认 3，登记时可改） */
+    private Integer refundStartMonth;
+    /** 期满奖励（分）：退完当月一次性发入商户余额（老系统仅高档有，登记时可填，默认 0） */
+    private Long expireRewardCents;
+
+    public String getChargeMode() { return chargeMode; }
+    public void setChargeMode(String v) { this.chargeMode = v; }
+    public Long getMonthlyRefundCents() { return monthlyRefundCents; }
+    public void setMonthlyRefundCents(Long v) { this.monthlyRefundCents = v; }
+    public Integer getRefundStartMonth() { return refundStartMonth; }
+    public void setRefundStartMonth(Integer v) { this.refundStartMonth = v; }
+    public Long getExpireRewardCents() { return expireRewardCents; }
+    public void setExpireRewardCents(Long v) { this.expireRewardCents = v; }
 }
