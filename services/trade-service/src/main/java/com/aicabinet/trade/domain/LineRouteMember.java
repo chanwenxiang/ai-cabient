@@ -10,7 +10,8 @@ import java.time.LocalDate;
 /** line_route_member（V358 线路组织）。 */
 @TableName("line_route_member")
 public class LineRouteMember {
-    @TableId(type = IdType.AUTO)
+    // 🔴 库列名是 member_id（V358），Java 字段名保持 id
+    @TableId(value = "member_id", type = IdType.AUTO)
     private Long id;
     private Long routeId;
     private Long userId;
