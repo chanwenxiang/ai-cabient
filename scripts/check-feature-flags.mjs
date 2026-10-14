@@ -439,8 +439,8 @@ const EXPECTED_DYNAMIC_SITES = new Map([
   [
     'services/trade-service/src/main/java/com/aicabinet/trade/service/WithdrawPolicyResolver.java',
     {
-      exprs: ['key'],
-      why: '提现限额/费率解析：pick(key, ymlValue, codeDefault) 的key 全部是 SystemConfigService 里的 MERCHANT_WITHDRAW_* / LINE_WITHDRAW_* 常量，14 个已全部登记在册（V308 补齐）'
+      exprs: ['key', '"merchant.withdraw.fee_bps." + merchantId'],
+      why: '提现限额/费率解析：pick(key, ymlValue, codeDefault) 的key 全部是 SystemConfigService 里的 MERCHANT_WITHDRAW_* / LINE_WITHDRAW_* 常量，14 个已全部登记在册（V308 补齐）；2026-10-14 新增商户级提现费率覆盖（对齐老系统 OptMerchantBaseFee.deductionPermillage 按商户配 ‰）：getValue("merchant.withdraw.fee_bps." + merchantId, null)，未配置回退全局费率'
     }
   ]
 ]);

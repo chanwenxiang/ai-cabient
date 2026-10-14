@@ -755,6 +755,12 @@ public class SystemConfigService {
                 "商户提现手续费固定额（分），可与手续费比例叠加；0=免手续费");
         upsertIfAbsent(MERCHANT_WITHDRAW_FEE_BPS, "0",
                 "商户提现手续费比例（万分比，如 50=0.5%），可与固定额叠加；0=免手续费");
+        upsertIfAbsent("feebill.auto_generate.enabled", "false",
+                "流量费月度自动出账开关：日扣模式下默认停用（避免重复计费）；true=回退人工月结模式");
+        upsertIfAbsent("device.rental.monthly_bill.enabled", "false",
+                "租金月度应收出账开关：日扣模式下默认停用（避免重复计费）；true=回退月结出账");
+        upsertIfAbsent("merchant.overdue.lock_months", "1",
+                "商户费用欠缴锁柜阈值（月）：未结清费用累计 ≥ 月费用总额×该倍数时锁柜，结清自动解锁");
         upsertIfAbsent(MERCHANT_WITHDRAW_FEE_CAP_CENTS, "0",
                 "商户提现手续费单笔封顶（分），0=不封顶。行业参照：支付宝余额提现封顶 ¥25、拉卡拉提现封顶 ¥50 —— 配了手续费比例强烈建议同时配封顶");
         upsertIfAbsent(MERCHANT_WITHDRAW_SETTLE_UNLOCK_HOUR, "0",

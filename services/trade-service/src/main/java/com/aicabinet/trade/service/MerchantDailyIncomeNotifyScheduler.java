@@ -1,11 +1,13 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.Merchant;
+import com.aicabinet.trade.domain.MerchantFeeLedger;
 import com.aicabinet.trade.domain.MerchantWalletAccount;
 import com.aicabinet.trade.domain.NotificationLog;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.MerchantFeeLedgerMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
@@ -55,7 +57,7 @@ public class MerchantDailyIncomeNotifyScheduler {
     private final NotificationLogMapper notificationLogRepository;
     private final ScheduledTaskService taskService;
     private final DeviceInfoMapper deviceRepository;
-    private final MerchantWalletService walletService;
+    private final MerchantFeeLedgerMapper feeLedgerRepository;
     private final SystemConfigService configService;
     private final DeviceSalesLockService salesLockService;
 
@@ -65,7 +67,7 @@ public class MerchantDailyIncomeNotifyScheduler {
                                               NotificationLogMapper notificationLogRepository,
                                               ScheduledTaskService taskService,
                                               DeviceInfoMapper deviceRepository,
-                                              MerchantWalletService walletService,
+                                              MerchantFeeLedgerMapper feeLedgerRepository,
                                               SystemConfigService configService,
                                               DeviceSalesLockService salesLockService) {
         this.merchantRepository = merchantRepository;
@@ -74,7 +76,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         this.notificationLogRepository = notificationLogRepository;
         this.taskService = taskService;
         this.deviceRepository = deviceRepository;
-        this.walletService = walletService;
+        this.feeLedgerRepository = feeLedgerRepository;
         this.configService = configService;
         this.salesLockService = salesLockService;
     }
@@ -143,11 +145,12 @@ public class MerchantDailyIncomeNotifyScheduler {
         return sent;
     }
 
+
     /**
-     * 欠费处置（CB-004 追缴路径：先催 → 锁柜；2026-10-14 拍板）：
-     * ① 余额 &lt; 0（扣费后转欠）→ 当日发一条催缴信（bizId=日期 查重，每日最多一条）；
-     * ② 余额 ≤ -(月费用总额 × lockMonths，默认 1) → 名下未锁柜机按 FEE_OVERDUE 前缀锁柜；
-     * ③ 余额回正 → 名下因费用欠缴被锁的柜机自动解锁。
+     * 欠费处置（CB-004 追缴路径：先催 → 锁柜；2026-10-14 拍板，线下结算口径）：
+     * ① 有未结清费用（PENDING 累计 &gt; 0）→ 当日发一条催缴信（bizId=日期 查重，每日最多一条）；
+     * ② 未结清累计 ≥ 月费用总额 × lockMonths（默认 1）→ 名下未锁柜机按 FEE_OVERDUE 前缀锁柜；
+     * ③ 全部结清（PENDING 归零，线下收款后标记）→ 名下因费用欠缴被锁的柜机自动解锁。
      * 锁柜阈值倍数可配：sys_config merchant.overdue.lock_months（默认 1）。
      */
     void checkOverdueAndRemind(LocalDate yesterday, Map<String, Long> incomeByMerchant) {
@@ -161,13 +164,12 @@ public class MerchantDailyIncomeNotifyScheduler {
         }
         for (Map.Entry<String, Long> entry : incomeByMerchant.entrySet()) {
             String merchantId = entry.getKey();
-            MerchantWalletAccount account = walletService.ensureAccount(merchantId);
-            long balance = account.getBalanceCents() == null ? 0L : account.getBalanceCents();
-            if (balance >= 0) {
+            long pending = pendingFeeTotal(merchantId);
+            if (pending <= 0) {
                 unlockFeeOverdue(merchantId);
                 continue;
             }
-            long debt = -balance;
+            long debt = pending;
             if (alreadySentType(merchantId, "FEE_REMINDER", bizId)) {
                 // 当日已催缴
             } else {
@@ -226,10 +228,52 @@ public class MerchantDailyIncomeNotifyScheduler {
         if (dailyFee <= 0L) {
             return 0L;
         }
-        String bizId = yesterday.format(ISO_FMT);
-        walletService.debit(merchantId, dailyFee, "DAILY_FEE",
-                "SETTLEMENT_FEE", bizId, "周期费用日摊(租金+流量费/" + daysInMonth + "天)");
-        return dailyFee;
+        // 🔴 2026-10-14 口径修正：平台一律不自动扣款（所有结算线下），系统只做台账——
+        // 日结批生成 PENDING 费用记录（唯一键 merchant+date+type 幂等），线下收款后标记 SETTLED。
+        List<DeviceInfo> devices = deviceRepository.selectList(
+                Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
+        long rentDaily = 0L, dataDaily = 0L;
+        for (DeviceInfo d : devices) {
+            if (!"RENTAL".equalsIgnoreCase(d.getCoopMode()) || d.getRentCents() == null) {
+                continue;
+            }
+            rentDaily += d.getRentCents() / daysInMonth;
+            if (d.getDataFeeCents() != null) {
+                dataDaily += d.getDataFeeCents() / daysInMonth;
+            }
+        }
+        upsertFeeLedger(merchantId, yesterday, "REN", rentDaily);
+        upsertFeeLedger(merchantId, yesterday, "DATA", dataDaily);
+        return rentDaily + dataDaily;
+    }
+
+    private void upsertFeeLedger(String merchantId, LocalDate feeDate, String feeType, long amountCents) {
+        Long exists = feeLedgerRepository.selectCount(Wrappers.<MerchantFeeLedger>lambdaQuery()
+                .eq(MerchantFeeLedger::getMerchantId, merchantId)
+                .eq(MerchantFeeLedger::getFeeDate, feeDate)
+                .eq(MerchantFeeLedger::getFeeType, feeType));
+        if (exists != null && exists > 0) {
+            return;
+        }
+        if (amountCents <= 0L) {
+            return;
+        }
+        MerchantFeeLedger row = new MerchantFeeLedger();
+        row.setMerchantId(merchantId);
+        row.setFeeDate(feeDate);
+        row.setFeeType(feeType);
+        row.setAmountCents(amountCents);
+        row.setStatus("PENDING");
+        feeLedgerRepository.insert(row);
+    }
+
+    /** 该商户未结清费用累计（分）：催缴与锁柜阈值口径。 */
+    long pendingFeeTotal(String merchantId) {
+        List<MerchantFeeLedger> rows = feeLedgerRepository.selectList(
+                Wrappers.<MerchantFeeLedger>lambdaQuery()
+                        .eq(MerchantFeeLedger::getMerchantId, merchantId)
+                        .eq(MerchantFeeLedger::getStatus, "PENDING"));
+        return rows.stream().mapToLong(r -> r.getAmountCents() == null ? 0L : r.getAmountCents()).sum();
     }
 
     /** 该商户名下柜机的周期费用月额合计（租金仅 coopMode=RENTAL 计 + 流量费）。 */

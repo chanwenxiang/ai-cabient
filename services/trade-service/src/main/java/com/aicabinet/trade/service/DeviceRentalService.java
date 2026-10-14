@@ -323,9 +323,9 @@ public class DeviceRentalService {
 
         // ① 出账（幂等；生成失败不阻断锁柜核对）
         // 2026-10-14：费用改日扣模式（DAILY_FEE 每日摊销扣余额）后，月度应收出账默认停用，
-        // 否则同一租金既日扣又月出账会重复计费。开关 device.rental.monthly-bill.enabled 可回退。
+        // 否则同一租金既日扣又月出账会重复计费。开关 device.rental.monthly_bill.enabled 可回退。
         boolean monthlyBillEnabled = systemConfigService
-                .getValue("device.rental.monthly-bill.enabled", "false")
+                .getValue("device.rental.monthly_bill.enabled", "false")
                 .equalsIgnoreCase("true");
         int generated = 0;
         if (monthlyBillEnabled) {

@@ -782,6 +782,27 @@
           "label": "视觉 + 重力融合"
         }
       ]
+    },
+    {
+      "key": "feebill.auto_generate.enabled",
+      "group": "商户",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "流量费月度自动出账开关：费用改日扣模式后默认停用（避免重复计费）；true=回退人工月结模式"
+    },
+    {
+      "key": "device.rental.monthly_bill.enabled",
+      "group": "设备与柜机",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "租金月度应收出账开关：费用改日扣模式后默认停用（避免重复计费）；true=回退月结出账"
+    },
+    {
+      "key": "merchant.overdue.lock_months",
+      "group": "风控自动处置",
+      "type": "NUMBER",
+      "default": "1",
+      "description": "商户费用欠缴锁柜阈值（月）：未结清费用累计 ≥ 月费用总额×该倍数时锁柜，结清自动解锁"
     }
   ]
 }

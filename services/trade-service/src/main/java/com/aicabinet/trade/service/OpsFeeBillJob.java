@@ -39,9 +39,9 @@ public class OpsFeeBillJob {
             zone = "${aicabinet.fee-bill.zone:Asia/Shanghai}")
     public void generateMonthlyFees() {
         // 2026-10-14：流量费改日扣模式（DAILY_FEE）后，月度自动出账默认停用（避免重复计费）。
-    // 开关 fee-bill.auto-generate.enabled=true 可回退人工月结模式。
+    // 开关 feebill.auto_generate.enabled=true 可回退人工月结模式。
     if (!"true".equalsIgnoreCase(systemConfigService
-            .getValue("fee-bill.auto-generate.enabled", "false"))) {
+            .getValue("feebill.auto_generate.enabled", "false"))) {
         return;
     }
         long taskStart = System.nanoTime();
