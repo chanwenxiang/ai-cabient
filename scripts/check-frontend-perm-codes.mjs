@@ -153,4 +153,28 @@ try {
   fail(`merchant 菜单 URL 校验失败：${e.message}`);
 }
 
+// ── admin 菜单完整性：每个叶子菜单项必须挂 perm（防新增菜单漏配权限） ──────
+try {
+  const menuSrc = readFileSync(join(ROOT, 'clients/admin-vue/src/config/menu.ts'), 'utf8');
+  const MENU_PERM_EXEMPT = new Set(['/profile']); // 个人中心=登录即可的自助页（/rbac/me/* 本人资源）
+  const noPerm = [];
+  for (const m of menuSrc.matchAll(/\{[^{}]*path:\s*'([^']+)'[^{}]*\}/g)) {
+    const path = m[1];
+    const block = m[0];
+    if (/title:/.test(block) && !/perm:/.test(block) && !MENU_PERM_EXEMPT.has(path)) {
+      noPerm.push(path);
+    }
+  }
+  if (noPerm.length) {
+    console.error(
+      `\n${TAG} admin 菜单叶子项缺 perm（路由守卫 fail-closed 下不可达）：${noPerm.join(', ')}` +
+        `\n${TAG} 修法：补 perm 码（须有后端出处），或确认属登录即可的自助页后加入本门禁 MENU_PERM_EXEMPT 并注明依据。`
+    );
+    process.exit(1);
+  }
+  console.log(`${TAG} OK：admin 菜单叶子项 perm 配置完整（豁免 ${MENU_PERM_EXEMPT.size} 条）`);
+} catch (e) {
+  fail(`admin 菜单完整性校验失败：${e.message}`);
+}
+
 console.log(`${TAG} OK：三端权限码全部有后端出处（豁免 ${ALLOWLIST.size} 条）`);
