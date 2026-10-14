@@ -498,6 +498,13 @@ export const AdminEndpoints = {
     `${ops}/staff-wallets/${encodeURIComponent(String(staffUserId))}/ledger`,
   staffWalletPayout: (staffUserId: string | number) =>
     `${ops}/staff-wallets/${encodeURIComponent(String(staffUserId))}/payout`,
+  machinePayeeBills: `${ops}/machine-payee-bills`,
+  machinePayeeBillGenerate: (billMonth: string) =>
+    `${ops}/machine-payee-bills/generate?billMonth=${encodeURIComponent(billMonth)}`,
+  machinePayeeBillSettle: (billId: string | number) =>
+    `${ops}/machine-payee-bills/${encodeURIComponent(String(billId))}/settle`,
+  machinePayeeBillConfig: (deviceId: string) =>
+    `${ops}/machine-payee-bills/config/${encodeURIComponent(deviceId)}`,
   lineManagers: `${ops}/line-managers`,
   lineManagersList: (query: URLSearchParams | string) =>
     typeof query === 'string'

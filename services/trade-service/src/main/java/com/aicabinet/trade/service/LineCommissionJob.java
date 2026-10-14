@@ -40,6 +40,7 @@ public class LineCommissionJob {
     private final com.aicabinet.trade.mapper.LineRouteMemberMapper lineRouteMemberMapper;
     private final com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper;
     private final StaffWalletService staffWalletService;
+    private final CommissionClawbackService clawbackService;
     private final LineCommissionDailyMapper commissionDailyMapper;
     private final LineWalletService lineWalletService;
     private final DistributedLockService distributedLockService;
@@ -59,7 +60,8 @@ public class LineCommissionJob {
             com.aicabinet.trade.mapper.LineRouteMapper lineRouteMapper,
             com.aicabinet.trade.mapper.LineRouteMemberMapper lineRouteMemberMapper,
             com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper,
-            StaffWalletService staffWalletService) {
+            StaffWalletService staffWalletService,
+            CommissionClawbackService clawbackService) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.orderMapper = orderMapper;
@@ -72,6 +74,7 @@ public class LineCommissionJob {
         this.lineRouteMemberMapper = lineRouteMemberMapper;
         this.staffCommissionDailyMapper = staffCommissionDailyMapper;
         this.staffWalletService = staffWalletService;
+        this.clawbackService = clawbackService;
         this.taskService = taskService;
         this.transactionTemplate = transactionTemplate;
     }
@@ -110,9 +113,15 @@ public class LineCommissionJob {
                 }
             }
             int staffPosted = postStaffRestockCommissions(bizDates);
+            // CB-040 佣金随退款冲正：发佣后重算 90 天窗内已发佣行的退款差额（复用本任务锁，
+            // 免新增调度任务；单行失败不阻断，次日重算自愈）
+            int clawbacks = clawbackService.reverseRecentRefunds();
             summary = posted <= 0
                     ? "本次无线长佣金入账（含回扫 " + BACKFILL_DAYS + " 天）"
                     : "入账线长佣金 " + posted + " 条（含回扫 " + BACKFILL_DAYS + " 天）";
+            if (clawbacks > 0) {
+                summary += "，冲回退款佣金 " + clawbacks + " 笔";
+            }
             if (posted > 0) {
                 log.info("Line commission posted for {} device-day rows (backfill window={}d)",
                         posted, BACKFILL_DAYS);
@@ -251,6 +260,7 @@ public class LineCommissionJob {
                         continue;
                     }
                     long commission = 0L;
+                    long gmvBase = 0L;
                     if ("RESTOCK_QTY".equalsIgnoreCase(staff.getCommissionBasis())) {
                         long perUnit = staff.getCommissionPerUnitCents() == null ? 0L : staff.getCommissionPerUnitCents();
                         commission = (long) e.getValue() * perUnit;
@@ -268,6 +278,7 @@ public class LineCommissionJob {
                                             && PAID_STATUSES.contains(o.getStatus().toUpperCase()))
                                     .mapToLong(CabinetOrder::getTotalAmountCents)
                                     .sum();
+                            gmvBase = gmv;
                             commission = gmv * bps / 10_000L;
                         }
                     }
@@ -276,6 +287,10 @@ public class LineCommissionJob {
                     }
                     // lambda 捕获要求 effectively final（commission 在 GMV 分支被再赋值）
                     final long commissionCents = commission;
+                    final long gmvBaseCents = gmvBase;
+                    // V361：记录发佣模式与 GMV 基数（佣金随退款冲正 CB-040 的重算依据）
+                    final String basisUsed = "RESTOCK_QTY".equalsIgnoreCase(staff.getCommissionBasis())
+                            ? "RESTOCK_QTY" : "GMV";
                     // 🔴 事务化（审计 🔴6）：台账 insert 与钱包 credit 同事务——崩溃不会出现
                     // 「台账已落、钱包没进钱」的半状态（与线长侧 doPostCommissionTx 同款模式）
                     Boolean ok = transactionTemplate.execute(tx -> {
@@ -286,6 +301,8 @@ public class LineCommissionJob {
                         row.setDeviceId(e.getKey());
                         row.setRestockQty(e.getValue());
                         row.setCommissionCents(commissionCents);
+                        row.setGmvCents(gmvBaseCents);
+                        row.setCommissionBasis(basisUsed);
                         row.setStatus("POSTED");
                         row.setCreatedAt(java.time.Instant.now());
                         staffCommissionDailyMapper.insert(row);

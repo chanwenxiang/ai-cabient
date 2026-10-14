@@ -63,6 +63,9 @@
           <el-table-column label="提成（元）">
             <template #default="{ row }">{{ yuan(row.commissionCents) }}</template>
           </el-table-column>
+          <el-table-column label="其中退款冲回（元）" width="150">
+            <template #default="{ row }">{{ yuan(row.clawbackCents) }}</template>
+          </el-table-column>
         </el-table>
         <h4>补货员佣金（按实际补货留痕）</h4>
         <el-table :data="summaryStaffs" border size="small">
@@ -70,6 +73,9 @@
           <el-table-column prop="restockQty" label="补货件数" width="120" />
           <el-table-column label="佣金（元）">
             <template #default="{ row }">{{ yuan(row.commissionCents) }}</template>
+          </el-table-column>
+          <el-table-column label="其中退款冲回（元）" width="150">
+            <template #default="{ row }">{{ yuan(row.clawbackCents) }}</template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
@@ -293,11 +299,17 @@ const chiefDraft = ref('0');
 const summaryMonth = ref(new Date().toISOString().slice(0, 7));
 const loadingSummary = ref(false);
 const summaryManagers = ref<
-  { managerId: number; orderCount: number; gmvCents: number; commissionCents: number }[]
+  {
+    managerId: number;
+    orderCount: number;
+    gmvCents: number;
+    commissionCents: number;
+    clawbackCents?: number;
+  }[]
 >([]);
-const summaryStaffs = ref<{ staffUserId: number; restockQty: number; commissionCents: number }[]>(
-  []
-);
+const summaryStaffs = ref<
+  { staffUserId: number; restockQty: number; commissionCents: number; clawbackCents?: number }[]
+>([]);
 
 const wallets = ref<Wallet[]>([]);
 const loadingWallets = ref(false);

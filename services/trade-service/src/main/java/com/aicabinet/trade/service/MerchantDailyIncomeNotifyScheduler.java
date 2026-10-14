@@ -40,6 +40,9 @@ import java.util.Map;
  * <p>幂等：{@code biz_id=昨日日期}，发送前按 template_code+merchant_id+biz_type+biz_id
  * 查重，调度重跑不重发。本项目收益是「下单即入钱包、商户自行提现」——本通知只是
  * 昨日入账汇总的告知，不涉及任何打款动作。
+ *
+ * <p>费用日摊与欠费检查覆盖全部有柜商户（CB-041：费用摊销与销售脱钩，零销售照摊），
+ * 不限于昨日有收入商户；0.00 仍不发日结通知（用户拍板）。
  */
 @Component
 public class MerchantDailyIncomeNotifyScheduler {
@@ -151,8 +154,35 @@ public class MerchantDailyIncomeNotifyScheduler {
                     BIZ_TYPE, bizId);
             sent++;
         }
-        checkOverdueAndRemind(yesterday, incomeByMerchant);
+        // CB-041（2026-10-14 拍板：费用摊销与销售脱钩——固定租金是合同义务，零销售照摊；
+        // 免费投放本来费用为 0 不受影响）：日摊与欠费检查覆盖**全部有柜商户**，
+        // 不再只扫昨日有收入商户（否则零销售商户费用永远不出账、欠费永远不催缴）。
+        chargeAndCheckAllMerchants(yesterday, incomeByMerchant.keySet());
         return sent;
+    }
+
+    /**
+     * 全商户费用日摊 + 欠费检查（CB-041）。商户集合 = 昨日有收入商户 ∪ 名下有柜机的商户
+     * （欠费源于柜机费用，故按设备表枚举；费用为 0 的商户 chargeDailyPeriodFees 快速返回，
+     * 余额为负仍会走催缴）。income 商户在上面循环里已扣过费——幂等（refId=日期）重复调用跳过。
+     */
+    void chargeAndCheckAllMerchants(LocalDate yesterday, java.util.Set<String> incomeMerchantIds) {
+        java.util.Set<String> merchantIds = new java.util.LinkedHashSet<>(incomeMerchantIds);
+        for (DeviceInfo d : deviceRepository.selectList(Wrappers.<DeviceInfo>lambdaQuery())) {
+            String mid = d.getMerchantId();
+            if (mid != null && !mid.isBlank()) {
+                merchantIds.add(mid);
+            }
+        }
+        for (String merchantId : merchantIds) {
+            try {
+                chargeDailyPeriodFees(merchantId, yesterday);
+            } catch (Exception e) {
+                // 🔴 单商户失败不阻断全量（其余商户照常出账），失败商户次日重跑补扣
+                log.warn("daily fee charge failed for {}: {}", merchantId, e.getMessage());
+            }
+        }
+        checkOverdueAndRemind(yesterday, merchantIds);
     }
 
 
@@ -163,7 +193,7 @@ public class MerchantDailyIncomeNotifyScheduler {
      * ③ 全部结清（PENDING 归零，线下收款后标记）→ 名下因费用欠缴被锁的柜机自动解锁。
      * 锁柜阈值倍数可配：sys_config merchant.overdue.lock_months（默认 1）。
      */
-    void checkOverdueAndRemind(LocalDate yesterday, Map<String, Long> incomeByMerchant) {
+    void checkOverdueAndRemind(LocalDate yesterday, java.util.Set<String> merchantIds) {
         String bizId = yesterday.format(ISO_FMT);
         int lockMonths;
         try {
@@ -172,8 +202,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         } catch (NumberFormatException e) {
             lockMonths = 1;
         }
-        for (Map.Entry<String, Long> entry : incomeByMerchant.entrySet()) {
-            String merchantId = entry.getKey();
+        for (String merchantId : merchantIds) {
             MerchantWalletAccount account = walletService.ensureAccount(merchantId);
             long balance = account.getBalanceCents() == null ? 0L : account.getBalanceCents();
             if (balance >= 0) {

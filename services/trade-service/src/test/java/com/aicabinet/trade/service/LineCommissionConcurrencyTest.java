@@ -55,7 +55,8 @@ class LineCommissionConcurrencyTest {
                 org.mockito.Mockito.mock(com.aicabinet.trade.mapper.LineRouteMapper.class),
                 lineRouteMemberMapper,
                 org.mockito.Mockito.mock(com.aicabinet.trade.mapper.StaffCommissionDailyMapper.class),
-                org.mockito.Mockito.mock(StaffWalletService.class));
+                org.mockito.Mockito.mock(StaffWalletService.class),
+                org.mockito.Mockito.mock(CommissionClawbackService.class));
         when(taskService.tryBegin("line-commission", 1800L)).thenReturn(true);
     }
 

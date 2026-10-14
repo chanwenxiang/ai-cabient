@@ -102,6 +102,31 @@ public class StaffWalletService {
         });
     }
 
+    /**
+     * 幂等扣款且允许扣成负数（CB-040 佣金随退款冲正：GMV 佣金随退款按比例冲回，
+     * 余额不足挂负——已提走的佣金无法收回，负数即欠款）。refType+refId 查重防重复扣。
+     * @return true 表示本次新扣款，false 表示已存在跳过
+     */
+    @Transactional
+    public boolean debitIfAbsentAllowNegative(long staffUserId, long amountCents, String entryType,
+                                              String refType, String refId, String remark) {
+        return runWithWalletLock(staffUserId, () -> {
+            requirePositive(amountCents);
+            if (refType != null && refId != null
+                    && ledgerMapper.findByRef(staffUserId, refType, refId).isPresent()) {
+                return false;
+            }
+            StaffWalletAccount account = reload(staffUserId);
+            long balance = value(account.getBalanceCents()) - amountCents;
+            account.setBalanceCents(balance);
+            account.setUpdatedAt(Instant.now());
+            accountMapper.updateById(account);
+            appendLedger(staffUserId, entryType, -amountCents, balance,
+                    value(account.getFrozenCents()), refType, refId, remark);
+            return true;
+        });
+    }
+
     private void doCredit(long staffUserId, long amountCents, String entryType,
                           String refType, String refId, String remark) {
         StaffWalletAccount account = reload(staffUserId);

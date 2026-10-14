@@ -69,7 +69,8 @@ class LineCommissionBackfillTest {
                 org.mockito.Mockito.mock(com.aicabinet.trade.mapper.LineRouteMapper.class),
                 lineRouteMemberMapper,
                 org.mockito.Mockito.mock(com.aicabinet.trade.mapper.StaffCommissionDailyMapper.class),
-                org.mockito.Mockito.mock(StaffWalletService.class));
+                org.mockito.Mockito.mock(StaffWalletService.class),
+                org.mockito.Mockito.mock(CommissionClawbackService.class));
         lenient().when(taskService.tryBegin(eq("line-commission"), anyLong())).thenReturn(true);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
         LineDevice binding = new LineDevice();

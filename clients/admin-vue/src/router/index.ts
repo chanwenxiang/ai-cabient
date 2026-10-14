@@ -185,6 +185,12 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '线路与提成', group: '财务商户' }
   },
   {
+    path: 'machine-payee-bills',
+    name: 'machine-payee-bills',
+    component: () => import('@/views/finance/MachinePayeeBillsView.vue'),
+    meta: { title: '机器账单（场地方）', group: '财务商户' }
+  },
+  {
     path: 'merchant-withdraw',
     name: 'merchant-withdraw',
     component: () => import('@/views/finance/MerchantWithdrawView.vue'),

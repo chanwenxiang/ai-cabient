@@ -136,6 +136,31 @@ public class LineWalletService {
 
 
 
+    /**
+     * 幂等扣款且允许扣成负数（CB-040 佣金随退款冲正：余额不足挂负——已提走的佣金
+     * 无法收回，负数即欠款，与商户费用欠费同口径）。refType+refId 查重防重复扣。
+     * @return true 表示本次新扣款，false 表示已存在跳过
+     */
+    @Transactional
+    public boolean debitIfAbsentAllowNegative(long managerId, long amountCents, String entryType,
+                                              String refType, String refId, String remark) {
+        return runWithWalletLock(managerId, () -> {
+            requirePositive(amountCents);
+            if (refType != null && refId != null
+                    && ledgerMapper.findByRef(managerId, refType, refId).isPresent()) {
+                return false;
+            }
+            LineWalletAccount account = reload(managerId);
+            long balance = value(account.getBalanceCents()) - amountCents;
+            account.setBalanceCents(balance);
+            account.setUpdatedAt(Instant.now());
+            accountMapper.updateById(account);
+            appendLedger(new LedgerLine(managerId, entryType, -amountCents,
+                    new LedgerLine.BalanceSnapshot(balance, value(account.getFrozenCents())), refType, refId, remark));
+            return true;
+        });
+    }
+
     private void doCredit(long managerId, long amountCents, String entryType,
 
                           String refType, String refId, String remark) {

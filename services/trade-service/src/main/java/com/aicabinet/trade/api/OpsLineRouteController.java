@@ -33,17 +33,20 @@ public class OpsLineRouteController {
     private final SystemConfigService systemConfigService;
     private final com.aicabinet.trade.mapper.LineCommissionDailyMapper lineCommissionDailyMapper;
     private final com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper;
+    private final com.aicabinet.trade.mapper.CommissionClawbackMapper clawbackMapper;
 
     public OpsLineRouteController(LineRouteMapper routeMapper,
                                   LineRouteMemberMapper memberMapper,
                                   SystemConfigService systemConfigService,
                                   com.aicabinet.trade.mapper.LineCommissionDailyMapper lineCommissionDailyMapper,
-                                  com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper) {
+                                  com.aicabinet.trade.mapper.StaffCommissionDailyMapper staffCommissionDailyMapper,
+                                  com.aicabinet.trade.mapper.CommissionClawbackMapper clawbackMapper) {
         this.routeMapper = routeMapper;
         this.memberMapper = memberMapper;
         this.systemConfigService = systemConfigService;
         this.lineCommissionDailyMapper = lineCommissionDailyMapper;
         this.staffCommissionDailyMapper = staffCommissionDailyMapper;
+        this.clawbackMapper = clawbackMapper;
     }
 
     @Operation(summary = "线路列表（含归档）")
@@ -166,17 +169,40 @@ public class OpsLineRouteController {
             agg[0] += row.getRestockQty() == null ? 0 : row.getRestockQty();
             agg[1] += row.getCommissionCents() == null ? 0 : row.getCommissionCents();
         }
+        // 佣金随退款冲正（CB-040，V361）：月合计按原归属日净额化——佣金列=已发-已冲回，
+        // 另列 clawbackCents 保留冲回留痕供财务核对
+        Map<Long, Long> managerClawback = clawbackSum(from, to, com.aicabinet.trade.domain.CommissionClawback.OWNER_MANAGER,
+                com.aicabinet.trade.domain.CommissionClawback::getOwnerId);
+        Map<Long, Long> staffClawback = clawbackSum(from, to, com.aicabinet.trade.domain.CommissionClawback.OWNER_STAFF,
+                com.aicabinet.trade.domain.CommissionClawback::getOwnerId);
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("month", month);
         result.put("managers", managers.entrySet().stream()
                 .map(e -> Map.of("managerId", e.getKey(), "orderCount", e.getValue()[0],
-                        "gmvCents", e.getValue()[1], "commissionCents", e.getValue()[2]))
+                        "gmvCents", e.getValue()[1],
+                        "commissionCents", e.getValue()[2] - managerClawback.getOrDefault(e.getKey(), 0L),
+                        "clawbackCents", managerClawback.getOrDefault(e.getKey(), 0L)))
                 .toList());
         result.put("staffs", staffs.entrySet().stream()
                 .map(e -> Map.of("staffUserId", e.getKey(), "restockQty", e.getValue()[0],
-                        "commissionCents", e.getValue()[1]))
+                        "commissionCents", e.getValue()[1] - staffClawback.getOrDefault(e.getKey(), 0L),
+                        "clawbackCents", staffClawback.getOrDefault(e.getKey(), 0L)))
                 .toList());
         return ApiResponse.ok(result);
+    }
+
+    /** 按人聚合月份窗内的累计佣金冲回额（CB-040）。 */
+    private Map<Long, Long> clawbackSum(java.time.LocalDate from, java.time.LocalDate to, String ownerType,
+                                        java.util.function.Function<com.aicabinet.trade.domain.CommissionClawback, Long> key) {
+        Map<Long, Long> sum = new java.util.HashMap<>();
+        for (var row : clawbackMapper.selectList(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<com.aicabinet.trade.domain.CommissionClawback>lambdaQuery()
+                        .eq(com.aicabinet.trade.domain.CommissionClawback::getOwnerType, ownerType)
+                        .ge(com.aicabinet.trade.domain.CommissionClawback::getBizDate, from)
+                        .lt(com.aicabinet.trade.domain.CommissionClawback::getBizDate, to))) {
+            sum.merge(key.apply(row), row.getClawbackCents() == null ? 0L : row.getClawbackCents(), Long::sum);
+        }
+        return sum;
     }
 
     @Operation(summary = "总线路负责人（多人，可随时改指）")
