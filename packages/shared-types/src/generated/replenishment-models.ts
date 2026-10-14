@@ -20,6 +20,12 @@ export type OpenApiMerchantSelfReplenishRequest = components['schemas']['Merchan
 export type OpenApiMerchantSelfReplenishLine = components['schemas']['MerchantSelfReplenishLine'];
 /** 补货任务 */
 export type OpenApiReplenishmentTaskDto = components['schemas']['ReplenishmentTaskDto'];
+/** 整仓盘点单（ops 与商户小程序共用） */
+export type OpenApiStocktakeDto = components['schemas']['StocktakeDto'];
+/** 盘点明细行 */
+export type OpenApiStocktakeLineDto = components['schemas']['StocktakeLineDto'];
+/** 盘点单分页 */
+export type OpenApiPageResultStocktakeDto = components['schemas']['PageResultStocktakeDto'];
 /** 外部渠道解析模板 */
 export type OpenApiExternalImportTemplateDto = components['schemas']['ExternalImportTemplateDto'];
 /** 外部导入统一行 */

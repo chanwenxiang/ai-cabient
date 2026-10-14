@@ -189,7 +189,8 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.MISSING_TOKEN);
         }
         try {
-            JwtService.SessionPrincipal principal = jwtService.validateAndGetPrincipal(token);
+            // refresh 走宽限期校验：过期但在宽限期内的 token 可换新（业务接口仍拒绝过期 token）
+            JwtService.SessionPrincipal principal = jwtService.validateForRefresh(token);
             jwtService.revokeTokenQuietly(token);
             LoginResponse refreshed = authService.refreshSession(principal.userId());
             SessionCookieService.Realm writeRealm = cookieRealm != null

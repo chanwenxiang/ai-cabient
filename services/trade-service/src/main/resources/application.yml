@@ -106,6 +106,8 @@ aicabinet:
   auth:
     jwt-secret: ${JWT_SECRET:ai-cabinet-dev-secret-key-32bytes!!}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:1800}
+    # 过期 token 仅允许 refresh 的宽限期（秒）：闲置后回来可静默续期；登出/吊销/重启语义不受影响
+    refresh-grace-seconds: ${JWT_REFRESH_GRACE_SECONDS:86400}
     cookie-enabled: ${AUTH_COOKIE_ENABLED:true}
     cookie-secure: ${AUTH_COOKIE_SECURE:false}
     login-max-failures: ${LOGIN_MAX_FAILURES:5}

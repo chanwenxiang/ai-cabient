@@ -43,7 +43,11 @@ public record UpsertSkuRequest(
         String unit,
         /** 经营归属（V349 字典 sku_operation_scope）；空=未分类，取值校验见 @Pattern */
         @Pattern(regexp = "DIRECT|NON_DIRECT", message = "operationScope must be DIRECT or NON_DIRECT")
-        String operationScope
+        String operationScope,
+        /** 最高限价（V350，CB-037）：null=默认基准价 2 倍 */
+        Integer maxPriceCents,
+        /** 最低限价（V350，CB-037）：null=不限（仅要求 >0）；用户否决"不低于成本"硬线，支持打折/清仓 */
+        Integer minPriceCents
 ) {
     public UpsertSkuRequest {
         if (visionEnabled == null) {

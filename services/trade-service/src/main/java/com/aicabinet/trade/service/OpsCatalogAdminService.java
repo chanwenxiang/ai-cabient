@@ -11,6 +11,7 @@ import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.SkuIds;
+import com.aicabinet.trade.support.SkuPriceBounds;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -185,6 +186,12 @@ public class OpsCatalogAdminService {
         }
         // 经营归属（V349）：空=未分类；取值合法性由 UpsertSkuRequest @Pattern 兜底
         sku.setOperationScope(trimToNull(request.operationScope()));
+        // 限价设置（V350，CB-037）：admin 侧首次获得 max/min 限价入口；自洽性 fail-closed
+        SkuPriceBounds.validateBounds(request.minPriceCents(), request.maxPriceCents());
+        sku.setMaxPriceCents(request.maxPriceCents());
+        sku.setMinPriceCents(request.minPriceCents());
+        // 全局基准价同样受限价约束（历史缺陷：admin 改基准价无任何校验，手抖全局生效）
+        SkuPriceBounds.validatePrice(sku, request.priceCents());
     }
 
     private void touchSkuUpdater(SkuCatalog sku, Long operatorId) {

@@ -119,6 +119,105 @@ public class OpsReplenishmentController {
         return ApiResponse.ok(replenishmentAdminService.applyPlanogramTemplate(operatorId(request), deviceId));
     }
 
+    // --- 柜机详情 / 货道（2026-10-14 恢复）---
+    // 成因：b96a74d4（要货申请全链下线）删整块补货端点时，把下面 4 个**设备详情页在用**的
+    // 设备级端点一并带走（权限是 ops:device:list / ops:device:edit，与要货流无关，属误伤）。
+    // 前端 admin 设备详情页首屏 loadDetail、货道刷新/保存、现场盘点仍调这些路径，
+    // 失联后表现为：详情页数据全空 + 每次操作成功后回刷弹「资源不存在」（NoResourceFoundException
+    // 统一 404 文案）。service 方法（OpsReplenishmentAdminService#deviceDetail 等）一直健在，
+    // 此处按原路径/权限原样挂回；前端 AdminEndpoints.* 无需任何改动。
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/detail")
+    public ApiResponse<DeviceDetailDto> deviceDetail(
+            HttpServletRequest request,
+            @PathVariable String deviceId) {
+        return ApiResponse.ok(replenishmentAdminService.deviceDetail(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/slots")
+    public ApiResponse<List<DeviceSlotDto>> deviceSlots(
+            HttpServletRequest request,
+            @PathVariable String deviceId) {
+        return ApiResponse.ok(replenishmentAdminService.listDeviceSlots(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/devices/{deviceId}/slots")
+    public ApiResponse<List<DeviceSlotDto>> upsertDeviceSlots(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @RequestBody List<UpsertDeviceSlotRequest> body) {
+        return ApiResponse.ok(replenishmentAdminService.upsertDeviceSlots(operatorId(request), deviceId, body));
+    }
+
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/devices/{deviceId}/slots/stocktake")
+    public ApiResponse<DeviceSlotDto> stocktakeSlot(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @Valid @RequestBody SlotStocktakeRequest body) {
+        return ApiResponse.ok(replenishmentAdminService.stocktakeSlot(operatorId(request), deviceId, body));
+    }
+
+    // --- 补货计划/建议/效期（2026-10-14 第二批恢复，CB-037/CB-038）---
+    // 成因：与上面 4 个设备级端点同批（b96a74d4）被整块删除，但均不在「要货下线」拍板范围内。
+    // 竞品佐证（CB-038）：丰e足食模式=系统自动生成补货计划/线路/效期处置任务、补货员只执行——
+    // planRoute（自动规划建线）、createTaskFromSuggestion（建议一键生成任务）、
+    // ensureExpiryAlert/createTaskFromExpiry（效期→拉下架→补货任务）正是该模式的本系统实现，
+    // service 方法全存活，此处按原路径/权限挂回；商户端执行链不在此列（admin 执行面已删，见前端）。
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/replenishment/plan")
+    public ApiResponse<ReplenishmentRouteDto> planRoute(HttpServletRequest request, @RequestBody PlanRouteRequest body) {
+        return ApiResponse.ok(replenishmentAdminService.planRoute(operatorId(request), body));
+    }
+
+    /** CB-018 ①：补货建议一键生成补货任务（路线 + PENDING 任务 + RESTOCK 行）。 */
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/replenishment/suggest/create-task")
+    public ApiResponse<ReplenishmentRouteDto> createTaskFromSuggestion(
+            HttpServletRequest request,
+            @RequestBody(required = false) CreateFromSuggestionRequest body) {
+        CreateFromSuggestionRequest req = body != null ? body : new CreateFromSuggestionRequest(null, null);
+        return ApiResponse.ok(replenishmentAdminService.createTaskFromSuggestion(
+                operatorId(request), req.deviceId(), req.assigneeUserId()));
+    }
+
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/replenishment/routes/{routeId}/cancel-empty")
+    public ApiResponse<ReplenishmentRouteDto> cancelEmptyRoute(
+            HttpServletRequest request,
+            @PathVariable Long routeId) {
+        return ApiResponse.ok(replenishmentAdminService.cancelEmptyRoute(operatorId(request), routeId));
+    }
+
+    /** 设备侧效期告警（PullOffTask 拉下架任务）；与分仓维度的 /warehouse/expiry-alerts 不是同一份数据。 */
+    @RequiresPermissions("ops:replenishment:list")
+    @GetMapping("/expiry/alerts")
+    public ApiResponse<PageResult<PullOffTaskDto>> expiryAlerts(
+            HttpServletRequest request,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(replenishmentAdminService.listExpiryAlertsPage(operatorId(request), page, size));
+    }
+
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/expiry/alerts/ensure")
+    public ApiResponse<PullOffTaskDto> ensureExpiryAlert(
+            HttpServletRequest request, @RequestBody Map<String, String> body) {
+        String lotId = body == null ? null : body.get("lotId");
+        return ApiResponse.ok(replenishmentAdminService.ensureExpiryAlert(operatorId(request), lotId));
+    }
+
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/expiry/alerts/{taskId}/create-replenishment")
+    public ApiResponse<ReplenishmentRouteDto> createFromExpiry(
+            HttpServletRequest request,
+            @PathVariable Long taskId,
+            @RequestBody(required = false) CreateFromExpiryRequest body) {
+        return ApiResponse.ok(replenishmentAdminService.createTaskFromExpiry(operatorId(request), taskId, body));
+    }
+
     /**
      * V311 配套（缺口 #4 方案 C）：**待索赔台账**。
      * <p>只列「责任方非空**且**索赔额 > 0」的记录 —— 只有两项都填了才算可追偿的主张。

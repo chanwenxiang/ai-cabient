@@ -24,6 +24,8 @@ public record SkuCatalogDto(
         Integer purchaseCostCents,
         Integer nearExpiryPriceCents,
         Integer maxPriceCents,
+        /** 显式最低限价（V350，CB-037）：null=不限，仅要求 >0；支持打折/清仓，低于成本前端提醒 */
+        Integer minPriceCents,
         float minChargeConfidence,
         Float detectionMinConfidence,
         Instant createdAt,

@@ -24,7 +24,8 @@ class SessionCookieServiceTest {
                 5,
                 15,
                 new AuthProperties.SmsProperties("123456", 300, null, "webhook",
-                        null, null, null, null, null));
+                        null, null, null, null, null),
+                AuthProperties.DEFAULT_REFRESH_GRACE_SECONDS);
         service = new SessionCookieService(props);
     }
 

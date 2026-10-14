@@ -50,6 +50,6 @@ class AliyunSmsSenderTest {
     private static AuthProperties authProperties() {
         AuthProperties.SmsProperties sms = new AuthProperties.SmsProperties(
                 "123456", 300, null, "aliyun", "ak", "sk", "sign", "SMS_1", "cn-hangzhou");
-        return new AuthProperties("jwt-secret", 1800, true, false, 5, 5, sms);
+        return new AuthProperties("jwt-secret", 1800, true, false, 5, 5, sms, AuthProperties.DEFAULT_REFRESH_GRACE_SECONDS);
     }
 }

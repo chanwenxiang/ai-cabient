@@ -66,6 +66,9 @@ public class SkuCatalog {
 
     private Integer maxPriceCents;
 
+    /** 显式最低限价（V350，CB-037）：null=不限（仅要求 >0），支持清仓/引流打折；低于成本由前端提醒。 */
+    private Integer minPriceCents;
+
     @TableField(fill = FieldFill.INSERT)
     private Instant createdAt;
 
@@ -108,6 +111,7 @@ public class SkuCatalog {
                 purchaseCostCents,
                 nearExpiryPriceCents,
                 maxPriceCents,
+                minPriceCents,
                 minChargeConfidence,
                 detectionMinConfidence,
                 createdAt,

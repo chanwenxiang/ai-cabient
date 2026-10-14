@@ -239,3 +239,6 @@ services/trade-service/src/main/resources/static/admin/runtime-config.json
 
 # 仓库根的小程序预览二维码（临时产物，不入库）
 /_preview-qr.jpg
+
+# qoder 工具工作树（不入库）
+.qoder/

@@ -1,3 +1,6 @@
+> ⚠️ **过期快照（2026-09-15 三端全量审计快照）**：内容已被 `docs/PROJECT_KNOWLEDGE.md` Changelog 与活文档取代，仅作历史留档。
+> 被 evidence/设计文档引用故不物理删除；以活文档口径为准。
+
 # 三端全量代码审查报告
 
 > 审查对象：`clients/admin-vue`、`clients/consumer-mp`、`clients/merchant-mp` 及共享层 `packages/*`

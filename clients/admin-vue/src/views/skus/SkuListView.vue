@@ -371,6 +371,28 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="最低限价(元)">
+              <el-input-number
+                v-model="form.minPriceYuan"
+                :min="0"
+                :step="0.1"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="最高限价(元)">
+              <el-input-number
+                v-model="form.maxPriceYuan"
+                :min="0"
+                :step="0.1"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="保质期(天)">
               <el-input-number
                 v-model="form.shelfLifeDays"
@@ -717,6 +739,9 @@ const form = reactive({
   // 新建不留默认价（2026-10-12 用户反馈：默认 3.5 看着像上次没清掉的数据）；保存校验会拦空值
   priceYuan: undefined as number | undefined,
   costYuan: undefined as number | undefined,
+  // V350（CB-037）：限价（元）；最低留空=不限（支持打折/清仓），最高留空=默认售价 2 倍
+  minPriceYuan: undefined as number | undefined,
+  maxPriceYuan: undefined as number | undefined,
   category: '',
   // CB-027：表单不再暴露「克重」，但保留状态随编辑加载/保存回传 —— 后端 applySkuRequest
   // 会无条件写入 weightGrams，不回传会把存量值置空；本项目无称重/运费链路，该字段无消费方。
@@ -944,6 +969,8 @@ function openEdit(row?: SkuCatalog) {
     form.unit = row.unit || '件';
     form.priceYuan = (row.priceCents || 0) / 100;
     form.costYuan = row.purchaseCostCents == null ? undefined : row.purchaseCostCents / 100;
+    form.minPriceYuan = row.minPriceCents == null ? undefined : row.minPriceCents / 100;
+    form.maxPriceYuan = row.maxPriceCents == null ? undefined : row.maxPriceCents / 100;
     form.category = normalizeCategoryToCode(row.category);
     form.weightGrams = row.weightGrams;
     form.status = row.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
@@ -968,7 +995,8 @@ function openEdit(row?: SkuCatalog) {
     form.spec = '';
     form.unit = '件';
     form.priceYuan = undefined;
-    form.costYuan = undefined;
+    form.minPriceYuan = undefined;
+    form.maxPriceYuan = undefined;
     form.category = '';
     form.weightGrams = undefined;
     form.status = 'ACTIVE';
@@ -1109,6 +1137,14 @@ async function saveEdit() {
       purchaseCostCents:
         form.costYuan != null && !Number.isNaN(form.costYuan)
           ? (yuanToCents(form.costYuan) ?? undefined)
+          : undefined,
+      maxPriceCents:
+        form.maxPriceYuan != null && !Number.isNaN(form.maxPriceYuan)
+          ? (yuanToCents(form.maxPriceYuan) ?? undefined)
+          : undefined,
+      minPriceCents:
+        form.minPriceYuan != null && !Number.isNaN(form.minPriceYuan)
+          ? (yuanToCents(form.minPriceYuan) ?? undefined)
           : undefined,
       visionEnabled: form.visionEnabled,
       minChargeConfidence: form.minChargeConfidence,

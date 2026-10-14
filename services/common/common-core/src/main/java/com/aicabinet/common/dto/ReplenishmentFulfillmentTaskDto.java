@@ -18,7 +18,9 @@ public record ReplenishmentFulfillmentTaskDto(
         Double checkInDistanceM,
         Long outboundId,
         Instant createdAt,
-        String deviceName
+        String deviceName,
+        /** 未分配货道的 RESTOCK 行数（applied=false 且 slot_id 空；0=全部就绪，CB-038 2026-10-14 重建）。 */
+        int unassignedRestockLines
 ) {
     public ReplenishmentFulfillmentTaskDto(
             Long taskId,
@@ -37,6 +39,6 @@ public record ReplenishmentFulfillmentTaskDto(
             Instant createdAt
     ) {
         this(taskId, routeId, routeName, deviceId, assigneeUserId, status, notes, completedAt,
-                checkInAt, checkInLat, checkInLng, checkInDistanceM, outboundId, createdAt, null);
+                checkInAt, checkInLat, checkInLng, checkInDistanceM, outboundId, createdAt, null, 0);
     }
 }

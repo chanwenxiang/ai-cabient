@@ -318,9 +318,44 @@ public class ReplenishmentService {
             }
         }
         List<ReplenishmentFulfillmentTaskDto> items = result.getRecords().stream()
-                .map(task -> toFulfillmentTaskDto(task, routeById.get(task.getRouteId())))
+                .map(task -> toFulfillmentTaskDto(task, routeById.get(task.getRouteId()),
+                        unassignedRestockByTask(result.getRecords())))
                 .toList();
         return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    /**
+     * 批量聚合各任务「未分配货道的 RESTOCK 行数」（applied=false 且 slot_id 空）。
+     * CB-038（2026-10-14）重建「待分配」能力：替代已删的 admin 端逐任务拉明细（N 次请求），
+     * 改为列表一次聚合；一台任务 0 = 货道全就绪。
+     */
+    private Map<Long, Integer> unassignedRestockByTask(List<ReplenishmentTask> tasks) {
+        if (tasks.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> taskIds = tasks.stream()
+                .map(ReplenishmentTask::getTaskId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (taskIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Map<String, Object>> rows = taskLineRepository.selectMaps(Wrappers.<ReplenishmentTaskLine>query()
+                .select("task_id", "COUNT(*) AS cnt")
+                .in("task_id", taskIds)
+                .eq("applied", false)
+                .eq("line_type", "RESTOCK")
+                .and(w -> w.isNull("slot_id").or().eq("slot_id", ""))
+                .groupBy("task_id"));
+        Map<Long, Integer> byTask = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Object tid = row.get("task_id");
+            Object cnt = row.get("cnt");
+            if (tid instanceof Number idNum && cnt instanceof Number cntNum) {
+                byTask.put(idNum.longValue(), cntNum.intValue());
+            }
+        }
+        return byTask;
     }
 
     @Transactional(readOnly = true)
@@ -1569,7 +1604,7 @@ public class ReplenishmentService {
     }
 
     private ReplenishmentFulfillmentTaskDto toFulfillmentTaskDto(
-            ReplenishmentTask task, ReplenishmentRoute route) {
+            ReplenishmentTask task, ReplenishmentRoute route, Map<Long, Integer> unassignedByTask) {
         ReplenishmentTaskDto base = toTaskDto(task);
         String routeName = route != null ? route.getRouteName() : null;
         Long assignee;
@@ -1595,7 +1630,8 @@ public class ReplenishmentService {
                 base.checkInDistanceM(),
                 base.outboundId(),
                 base.createdAt(),
-                base.deviceName()
+                base.deviceName(),
+                unassignedByTask.getOrDefault(task.getTaskId(), 0)
         );
     }
 

@@ -31,6 +31,12 @@ public class DeviceSkuPrice {
     /** 乐观锁版本；与改价分布式锁并存。 */
     private long version;
 
+    /**
+     * 覆盖价是否启用（V350，CB-037 用户拍板语义 C：预设价可不立即生效）。
+     * false=仅保存不参与取价，resolveUnitPriceCents 回落基准价；商户端写侧恒 true（行为不变）。
+     */
+    private boolean enabled = true;
+
     public DeviceSkuPriceId getId() {
         if (id == null && deviceId != null && skuId != null) {
             id = new DeviceSkuPriceId(deviceId, skuId);

@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.support.OptimisticLocking;
+import com.aicabinet.trade.support.SkuPriceBounds;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
@@ -23,7 +24,6 @@ import java.util.stream.Collectors;
 @Service
 public class MerchantSkuPricingService {
     private static final String MERCHANT_SKU_PRICE = "MERCHANT_SKU_PRICE";
-    private static final int DEFAULT_MAX_MULTIPLIER = 2;
     private static final Pattern OVERRIDE_AUDIT =
             Pattern.compile("^base=(\\d+)\\s+override\\s+(null|-?\\d+)\\s*->\\s*(-?\\d+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern RESET_AUDIT =
@@ -124,7 +124,9 @@ public class MerchantSkuPricingService {
             // 无设备上下文 ⇒ 既无批次（不可能命中清仓）也无覆盖价，只可能命中时段折扣。
             return applyTimeWindowDiscount(sku.getPriceCents(), discountFor(policy, hour));
         }
+        // enabled=false 的覆盖价仅保存不参与取价（V350，CB-037 语义 C：预设价择机生效）。
         int base = priceRepository.findByDeviceIdAndSkuId(deviceId, sku.getSkuId())
+                .filter(DeviceSkuPrice::isEnabled)
                 .map(DeviceSkuPrice::getPriceCents)
                 .orElse(sku.getPriceCents());
         boolean nearExpiry = inventoryLotService.peekFefoPrimarySellableLot(deviceId, sku.getSkuId())
@@ -263,8 +265,8 @@ public class MerchantSkuPricingService {
                     sku.getPriceCents(),
                     override != null ? override.getPriceCents() : null,
                     effective,
-                    minAllowedPrice(sku),
-                    maxAllowedPrice(sku),
+                    SkuPriceBounds.minAllowedPrice(sku),
+                    SkuPriceBounds.maxAllowedPrice(sku),
                     qtyBySku.getOrDefault(skuId, 0),
                     override != null ? override.getUpdatedAt() : null,
                     sku.getImageUrl(),
@@ -324,7 +326,7 @@ public class MerchantSkuPricingService {
             auditService.appendLog(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
                     formatPriceChangeAuditDetail(sku.getPriceCents(), oldOverride, null));
         } else {
-            validatePrice(sku, newPrice);
+            SkuPriceBounds.validatePrice(sku, newPrice);
             DeviceSkuPrice row = existing.orElseGet(DeviceSkuPrice::new);
             row.setId(priceId);
             if (existing.isEmpty()) {
@@ -333,6 +335,8 @@ public class MerchantSkuPricingService {
                 row.setVersion(request.expectedVersion());
             }
             row.setPriceCents(newPrice);
+            // 商户端改价即启用（行为不变）；「预设价暂不生效」是 admin 侧能力（CB-037 语义 C）
+            row.setEnabled(true);
             row.setUpdatedByUserId(userId);
             priceRepository.save(row);
             auditService.appendLog(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
@@ -354,8 +358,8 @@ public class MerchantSkuPricingService {
                 sku.getPriceCents(),
                 saved.map(DeviceSkuPrice::getPriceCents).orElse(null),
                 self.resolveUnitPriceCents(deviceId, sku),
-                minAllowedPrice(sku),
-                maxAllowedPrice(sku),
+                SkuPriceBounds.minAllowedPrice(sku),
+                SkuPriceBounds.maxAllowedPrice(sku),
                 qty,
                 saved.map(DeviceSkuPrice::getUpdatedAt).orElse(null),
                 sku.getImageUrl(),
@@ -477,35 +481,8 @@ public class MerchantSkuPricingService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private void validatePrice(SkuCatalog sku, int priceCents) {
-        if (priceCents <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "价格必须大于 0");
-        }
-        int min = minAllowedPrice(sku);
-        int max = maxAllowedPrice(sku);
-        if (priceCents < min) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "价格不能低于最低限价 ¥" + (min / 100.0));
-        }
-        if (priceCents > max) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "价格不能高于最高限价 ¥" + (max / 100.0));
-        }
-    }
-
-    private static int minAllowedPrice(SkuCatalog sku) {
-        if (sku.getPurchaseCostCents() != null && sku.getPurchaseCostCents() > 0) {
-            return sku.getPurchaseCostCents();
-        }
-        return 1;
-    }
-
-    private static int maxAllowedPrice(SkuCatalog sku) {
-        if (sku.getMaxPriceCents() != null && sku.getMaxPriceCents() > 0) {
-            return sku.getMaxPriceCents();
-        }
-        return Math.max(sku.getPriceCents() * DEFAULT_MAX_MULTIPLIER, sku.getPriceCents());
-    }
+    // 限价规则已上移至 SkuPriceBounds（V350，CB-037）：商户端与 admin 共用同一套
+    // min/max/validate，防止两处漂移（历史落差：商户端有校验、admin 无校验）。
 
     static String skuPriceLockKey(String deviceId, String skuId) {
         return "merchant:sku-price:" + deviceId + ":" + skuId;

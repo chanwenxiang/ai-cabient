@@ -36,7 +36,7 @@ class OpsTwoFactorConcurrencyTest {
     void setUp() {
         service = new OpsTwoFactorService(userInfoRepository, recoveryRepository,
                 totpService, jwtService, authService, distributedLockService,
-                new AuthProperties("ai-cabinet-test-secret-key-32bytes!!", 3600L, false, false, 5, 15, null));
+                new AuthProperties("ai-cabinet-test-secret-key-32bytes!!", 3600L, false, false, 5, 15, null, AuthProperties.DEFAULT_REFRESH_GRACE_SECONDS));
     }
 
     @Test

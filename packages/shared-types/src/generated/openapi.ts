@@ -585,6 +585,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deviceSlots"];
+        put: operations["upsertDeviceSlots"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/pricing/{skuId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateDeviceSkuPrice"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/policy": {
         parameters: {
             query?: never;
@@ -768,8 +800,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["deviceSlots"];
-        put: operations["upsertDeviceSlots"];
+        get: operations["deviceSlots_1"];
+        put: operations["upsertDeviceSlots_1"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2201,6 +2233,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/replenishment/suggest/create-task": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createTaskFromSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/replenishment/routes/{routeId}/cancel-empty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelEmptyRoute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/replenishment/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["planRoute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/repair-tickets": {
         parameters: {
             query?: never;
@@ -3209,6 +3289,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/expiry/alerts/{taskId}/create-replenishment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createFromExpiry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/expiry/alerts/ensure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ensureExpiryAlert"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/exceptions/{id}/unarchive": {
         parameters: {
             query?: never;
@@ -3443,6 +3555,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["applyTempPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/slots/stocktake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stocktakeSlot"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7561,6 +7689,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/expiry/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["expiryAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/exceptions": {
         parameters: {
             query?: never;
@@ -7673,6 +7817,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["devicePricing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/lifecycle-events": {
         parameters: {
             query?: never;
@@ -7745,6 +7905,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["envReadings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deviceDetail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8688,7 +8864,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["expiryAlerts"];
+        get: operations["expiryAlerts_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8768,7 +8944,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["deviceDetail"];
+        get: operations["deviceDetail_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9868,6 +10044,11 @@ export interface components {
             brand?: string;
             spec?: string;
             unit?: string;
+            operationScope?: string;
+            /** Format: int32 */
+            maxPriceCents?: number;
+            /** Format: int32 */
+            minPriceCents?: number;
         };
         ApiResponseSkuCatalogDto: {
             /** Format: int32 */
@@ -9906,6 +10087,8 @@ export interface components {
             nearExpiryPriceCents?: number;
             /** Format: int32 */
             maxPriceCents?: number;
+            /** Format: int32 */
+            minPriceCents?: number;
             /** Format: float */
             minChargeConfidence?: number;
             /** Format: float */
@@ -9915,6 +10098,7 @@ export interface components {
             /** Format: int64 */
             updatedByUserId?: number;
             updatedByName?: string;
+            operationScope?: string;
         };
         BindRequest: {
             /** Format: int64 */
@@ -10522,6 +10706,99 @@ export interface components {
             enabled?: boolean;
             entries?: components["schemas"]["DeviceTempPlanEntryDto"][];
         };
+        UpsertDeviceSlotRequest: {
+            slotCode?: string;
+            /** Format: int32 */
+            rowNo?: number;
+            /** Format: int32 */
+            colNo?: number;
+            slotType?: string;
+            assignedSkuId?: string;
+            /** Format: int32 */
+            parLevel?: number;
+            /** Format: int32 */
+            minLevel?: number;
+            /** Format: int32 */
+            maxLevel?: number;
+            enabled?: boolean;
+        };
+        ApiResponseListDeviceSlotDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceSlotDto"][];
+        };
+        DeviceSlotDto: {
+            deviceId?: string;
+            slotCode?: string;
+            /** Format: int32 */
+            rowNo?: number;
+            /** Format: int32 */
+            colNo?: number;
+            slotType?: string;
+            assignedSkuId?: string;
+            assignedSkuName?: string;
+            /** Format: int32 */
+            parLevel?: number;
+            /** Format: int32 */
+            minLevel?: number;
+            /** Format: int32 */
+            maxLevel?: number;
+            enabled?: boolean;
+            /** Format: int32 */
+            bookQty?: number;
+            /** Format: int32 */
+            lastPhysicalQty?: number;
+            /** Format: date-time */
+            lastPhysicalAt?: string;
+            /** Format: date-time */
+            lastRestockAt?: string;
+            /** Format: int32 */
+            fillRatePct?: number;
+            stockStatus?: string;
+            /** Format: int32 */
+            qtyDiff?: number;
+            hasDiscrepancy?: boolean;
+        };
+        UpdateDeviceSkuPriceRequest: {
+            /** Format: int32 */
+            priceCents?: number;
+            enabled?: boolean;
+            /** Format: int64 */
+            expectedVersion?: number;
+        };
+        ApiResponseDeviceSkuPricingRowDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceSkuPricingRowDto"];
+        };
+        DeviceSkuPricingRowDto: {
+            deviceId?: string;
+            deviceName?: string;
+            skuId?: string;
+            skuName?: string;
+            /** Format: int32 */
+            basePriceCents?: number;
+            /** Format: int32 */
+            overridePriceCents?: number;
+            overrideEnabled?: boolean;
+            /** Format: int32 */
+            effectivePriceCents?: number;
+            /** Format: int32 */
+            minPriceCents?: number;
+            /** Format: int32 */
+            maxPriceCents?: number;
+            /** Format: int32 */
+            sellableQty?: number;
+            imageUrl?: string;
+            /** Format: int32 */
+            purchaseCostCents?: number;
+            /** Format: int64 */
+            version?: number;
+            /** Format: date-time */
+            overrideUpdatedAt?: string;
+        };
         DevicePolicyDto: {
             deviceId?: string;
             salesLocked?: boolean;
@@ -10730,60 +11007,6 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["MerchantTaxProfileDto"];
-        };
-        UpsertDeviceSlotRequest: {
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-        };
-        ApiResponseListDeviceSlotDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceSlotDto"][];
-        };
-        DeviceSlotDto: {
-            deviceId?: string;
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            lastPhysicalQty?: number;
-            /** Format: date-time */
-            lastPhysicalAt?: string;
-            /** Format: date-time */
-            lastRestockAt?: string;
-            /** Format: int32 */
-            fillRatePct?: number;
-            stockStatus?: string;
-            /** Format: int32 */
-            qtyDiff?: number;
-            hasDiscrepancy?: boolean;
         };
         ApiResponseNotifyPrefDto: {
             /** Format: int32 */
@@ -12092,6 +12315,90 @@ export interface components {
             /** Format: date-time */
             expiresAt?: string;
         };
+        CreateFromSuggestionRequest: {
+            deviceId?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+        };
+        ApiResponseReplenishmentRouteDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ReplenishmentRouteDto"];
+        };
+        ReplenishmentRouteDto: {
+            /** Format: int64 */
+            routeId?: number;
+            routeName?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+            /** Format: date */
+            plannedDate?: string;
+            status?: string;
+            tasks?: components["schemas"]["ReplenishmentTaskDto"][];
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int32 */
+            totalDistanceM?: number;
+            waypoints?: components["schemas"]["RouteWaypointDto"][];
+        };
+        ReplenishmentTaskDto: {
+            /** Format: int64 */
+            taskId?: number;
+            /** Format: int64 */
+            routeId?: number;
+            deviceId?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+            status?: string;
+            notes?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            /** Format: date-time */
+            checkInAt?: string;
+            /** Format: double */
+            checkInLat?: number;
+            /** Format: double */
+            checkInLng?: number;
+            /** Format: double */
+            checkInDistanceM?: number;
+            /** Format: int64 */
+            outboundId?: number;
+            /** Format: date-time */
+            createdAt?: string;
+            deviceName?: string;
+            routeName?: string;
+            /** Format: date */
+            plannedDate?: string;
+            /** Format: int32 */
+            evidenceCount?: number;
+            lineSummary?: string;
+            deviceHasCoords?: boolean;
+        };
+        RouteWaypointDto: {
+            /** Format: int32 */
+            sequence?: number;
+            deviceId?: string;
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+            address?: string;
+            /** Format: int32 */
+            distanceFromPrevM?: number;
+        };
+        PlanRouteRequest: {
+            routeName?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+            /** Format: date */
+            plannedDate?: string;
+            deviceIds?: string[];
+            /** Format: double */
+            startLatitude?: number;
+            /** Format: double */
+            startLongitude?: number;
+        };
         ApiResponseRepairTicketDto: {
             /** Format: int32 */
             code?: number;
@@ -12832,6 +13139,33 @@ export interface components {
                 [key: string]: string;
             };
         };
+        CreateFromExpiryRequest: {
+            lineType?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+        };
+        ApiResponsePullOffTaskDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PullOffTaskDto"];
+        };
+        PullOffTaskDto: {
+            /** Format: int64 */
+            taskId?: number;
+            deviceId?: string;
+            skuId?: string;
+            lotId?: string;
+            batchNo?: string;
+            /** Format: int32 */
+            quantity?: number;
+            reason?: string;
+            status?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int32 */
+            restockHeadroom?: number;
+        };
         ApiResponseOpsExceptionDto: {
             /** Format: int32 */
             code?: number;
@@ -12959,6 +13293,19 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["AdminDeviceDto"];
+        };
+        SlotStocktakeRequest: {
+            slotCode: string;
+            /** Format: int32 */
+            physicalQty?: number;
+            adjustBookQty?: boolean;
+            photoEvidenceUrl?: string;
+        };
+        ApiResponseDeviceSlotDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceSlotDto"];
         };
         ApiResponseMapStringObject: {
             /** Format: int32 */
@@ -13289,39 +13636,6 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["ReplenishmentTaskDto"];
-        };
-        ReplenishmentTaskDto: {
-            /** Format: int64 */
-            taskId?: number;
-            /** Format: int64 */
-            routeId?: number;
-            deviceId?: string;
-            /** Format: int64 */
-            assigneeUserId?: number;
-            status?: string;
-            notes?: string;
-            /** Format: date-time */
-            completedAt?: string;
-            /** Format: date-time */
-            checkInAt?: string;
-            /** Format: double */
-            checkInLat?: number;
-            /** Format: double */
-            checkInLng?: number;
-            /** Format: double */
-            checkInDistanceM?: number;
-            /** Format: int64 */
-            outboundId?: number;
-            /** Format: date-time */
-            createdAt?: string;
-            deviceName?: string;
-            routeName?: string;
-            /** Format: date */
-            plannedDate?: string;
-            /** Format: int32 */
-            evidenceCount?: number;
-            lineSummary?: string;
-            deviceHasCoords?: boolean;
         };
         ReplenishmentCheckInRequest: {
             /** Format: double */
@@ -14866,34 +15180,6 @@ export interface components {
             /** Format: int64 */
             total?: number;
         };
-        ReplenishmentRouteDto: {
-            /** Format: int64 */
-            routeId?: number;
-            routeName?: string;
-            /** Format: int64 */
-            assigneeUserId?: number;
-            /** Format: date */
-            plannedDate?: string;
-            status?: string;
-            tasks?: components["schemas"]["ReplenishmentTaskDto"][];
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: int32 */
-            totalDistanceM?: number;
-            waypoints?: components["schemas"]["RouteWaypointDto"][];
-        };
-        RouteWaypointDto: {
-            /** Format: int32 */
-            sequence?: number;
-            deviceId?: string;
-            /** Format: double */
-            latitude?: number;
-            /** Format: double */
-            longitude?: number;
-            address?: string;
-            /** Format: int32 */
-            distanceFromPrevM?: number;
-        };
         ApiResponseListReplenishmentTaskDto: {
             /** Format: int32 */
             code?: number;
@@ -14941,6 +15227,8 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
             deviceName?: string;
+            /** Format: int32 */
+            unassignedRestockLines?: number;
         };
         ApiResponseListReplenishmentStaffRowDto: {
             /** Format: int32 */
@@ -15986,6 +16274,21 @@ export interface components {
             /** Format: int64 */
             total?: number;
         };
+        ApiResponsePageResultPullOffTaskDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PageResultPullOffTaskDto"];
+        };
+        PageResultPullOffTaskDto: {
+            items?: components["schemas"]["PullOffTaskDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
         ApiResponsePageResultOpsExceptionDto: {
             /** Format: int32 */
             code?: number;
@@ -16089,6 +16392,12 @@ export interface components {
             deviceId?: string;
             url?: string;
         };
+        ApiResponseListDeviceSkuPricingRowDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceSkuPricingRowDto"][];
+        };
         ApiResponseListDeviceLifecycleEventDto: {
             /** Format: int32 */
             code?: number;
@@ -16164,6 +16473,57 @@ export interface components {
             value?: number;
             /** Format: date-time */
             reportedAt?: string;
+        };
+        ApiResponseDeviceDetailDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceDetailDto"];
+        };
+        DeviceDetailDto: {
+            device?: components["schemas"]["AdminDeviceDto"];
+            metrics?: components["schemas"]["DeviceOpsMetricsDto"];
+            slots?: components["schemas"]["DeviceSlotDto"][];
+            skuInventory?: components["schemas"]["DeviceInventoryDto"][];
+        };
+        DeviceOpsMetricsDto: {
+            deviceId?: string;
+            /** Format: int32 */
+            configuredSlotCount?: number;
+            /** Format: int32 */
+            activeSlotCount?: number;
+            /** Format: int32 */
+            fillRatePct?: number;
+            /** Format: int32 */
+            oosRatePct?: number;
+            /** Format: int32 */
+            oosSlotCount?: number;
+            /** Format: int32 */
+            lowStockSlotCount?: number;
+            /** Format: int32 */
+            totalBookQty?: number;
+            /** Format: int32 */
+            totalParLevel?: number;
+            /** Format: date-time */
+            lastRestockAt?: string;
+            /** Format: int32 */
+            inventoryAccuracyPct?: number;
+            address?: string;
+            /** Format: int32 */
+            currentTempC?: number;
+            /** Format: int32 */
+            targetTempC?: number;
+            /** Format: date-time */
+            tempReportedAt?: string;
+            salesLocked?: boolean;
+            appVersion?: string;
+            firmwareVersion?: string;
+            alertContactName?: string;
+            alertContactPhone?: string;
+            /** Format: int32 */
+            nearExpiryLotCount?: number;
+            merchantContactName?: string;
+            merchantContactPhone?: string;
         };
         ApiResponseListDeviceRefDto: {
             /** Format: int32 */
@@ -17013,22 +17373,6 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PullOffTaskDto"][];
         };
-        PullOffTaskDto: {
-            /** Format: int64 */
-            taskId?: number;
-            deviceId?: string;
-            skuId?: string;
-            lotId?: string;
-            batchNo?: string;
-            /** Format: int32 */
-            quantity?: number;
-            reason?: string;
-            status?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: int32 */
-            restockHeadroom?: number;
-        };
         ApiResponsePageResultMerchantDisputeSummaryDto: {
             /** Format: int32 */
             code?: number;
@@ -17106,57 +17450,6 @@ export interface components {
             /** Format: double */
             longitude?: number;
             firmwareVersion?: string;
-        };
-        ApiResponseDeviceDetailDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceDetailDto"];
-        };
-        DeviceDetailDto: {
-            device?: components["schemas"]["AdminDeviceDto"];
-            metrics?: components["schemas"]["DeviceOpsMetricsDto"];
-            slots?: components["schemas"]["DeviceSlotDto"][];
-            skuInventory?: components["schemas"]["DeviceInventoryDto"][];
-        };
-        DeviceOpsMetricsDto: {
-            deviceId?: string;
-            /** Format: int32 */
-            configuredSlotCount?: number;
-            /** Format: int32 */
-            activeSlotCount?: number;
-            /** Format: int32 */
-            fillRatePct?: number;
-            /** Format: int32 */
-            oosRatePct?: number;
-            /** Format: int32 */
-            oosSlotCount?: number;
-            /** Format: int32 */
-            lowStockSlotCount?: number;
-            /** Format: int32 */
-            totalBookQty?: number;
-            /** Format: int32 */
-            totalParLevel?: number;
-            /** Format: date-time */
-            lastRestockAt?: string;
-            /** Format: int32 */
-            inventoryAccuracyPct?: number;
-            address?: string;
-            /** Format: int32 */
-            currentTempC?: number;
-            /** Format: int32 */
-            targetTempC?: number;
-            /** Format: date-time */
-            tempReportedAt?: string;
-            salesLocked?: boolean;
-            appVersion?: string;
-            firmwareVersion?: string;
-            alertContactName?: string;
-            alertContactPhone?: string;
-            /** Format: int32 */
-            nearExpiryLotCount?: number;
-            merchantContactName?: string;
-            merchantContactPhone?: string;
         };
         ApiResponseListDeviceTemperatureReadingDto: {
             /** Format: int32 */
@@ -19119,6 +19412,81 @@ export interface operations {
             };
         };
     };
+    deviceSlots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
+                };
+            };
+        };
+    };
+    upsertDeviceSlots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertDeviceSlotRequest"][];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
+                };
+            };
+        };
+    };
+    updateDeviceSkuPrice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+                skuId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeviceSkuPriceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceSkuPricingRowDto"];
+                };
+            };
+        };
+    };
     getPolicy: {
         parameters: {
             query?: never;
@@ -19607,7 +19975,7 @@ export interface operations {
             };
         };
     };
-    deviceSlots: {
+    deviceSlots_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -19629,7 +19997,7 @@ export interface operations {
             };
         };
     };
-    upsertDeviceSlots: {
+    upsertDeviceSlots_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -21655,6 +22023,7 @@ export interface operations {
                 q?: string;
                 status?: string;
                 category?: string;
+                operationScope?: string;
                 page?: number;
                 size?: number;
             };
@@ -22000,6 +22369,76 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    createTaskFromSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateFromSuggestionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
+                };
+            };
+        };
+    };
+    cancelEmptyRoute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                routeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
+                };
+            };
+        };
+    };
+    planRoute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanRouteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
                 };
             };
         };
@@ -23927,6 +24366,58 @@ export interface operations {
             };
         };
     };
+    createFromExpiry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateFromExpiryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseReplenishmentRouteDto"];
+                };
+            };
+        };
+    };
+    ensureExpiryAlert: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePullOffTaskDto"];
+                };
+            };
+        };
+    };
     unarchive: {
         parameters: {
             query?: never;
@@ -24338,6 +24829,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseDeviceTempPlanDto"];
+                };
+            };
+        };
+    };
+    stocktakeSlot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotStocktakeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceSlotDto"];
                 };
             };
         };
@@ -30808,6 +31325,29 @@ export interface operations {
             };
         };
     };
+    expiryAlerts: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResultPullOffTaskDto"];
+                };
+            };
+        };
+    };
     list_21: {
         parameters: {
             query?: {
@@ -30961,6 +31501,28 @@ export interface operations {
             };
         };
     };
+    devicePricing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListDeviceSkuPricingRowDto"];
+                };
+            };
+        };
+    };
     deviceLifecycleEvents: {
         parameters: {
             query?: {
@@ -31073,6 +31635,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListDeviceEnvReadingDto"];
+                };
+            };
+        };
+    };
+    deviceDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceDetailDto"];
                 };
             };
         };
@@ -32363,7 +32947,7 @@ export interface operations {
             };
         };
     };
-    expiryAlerts: {
+    expiryAlerts_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -32474,7 +33058,7 @@ export interface operations {
             };
         };
     };
-    deviceDetail: {
+    deviceDetail_1: {
         parameters: {
             query?: never;
             header?: never;

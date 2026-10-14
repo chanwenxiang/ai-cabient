@@ -1307,3 +1307,57 @@
 3. 结论若因新证据而**改变**，**追加新条目**并写「修正 CB-xxx」，不要就地改旧条目 —— 保留判断演进的轨迹。
 4. **不得删除**被判为「不采纳」的条目；反过来判断的演进比结论本身更有价值。
 5. 门禁：`node scripts/check-competitor-benchmark.mjs`（校验条目结构、**对照主体数**、字段完整性、URL 可解析、迁移头引用有效性，并做防恒真锚点下限）。
+
+### CB-037 【新】单柜（点位）差异化定价：admin 补「设备级商品覆盖价」入口——复用既有 `device_sku_price`，行内编辑 + 最低/最高限价
+
+> 触发：2026-10-14 用户指出「admin 一改商品库价格，所有柜子都变了，那不是有问题吗」，并要求 ①单柜差异化调价 ②「是否同步货柜」开关 ③最低价限制（"老代码好像有"）。
+> 现状取证（代码）：新系统**已有**设备级覆盖价机制 `device_sku_price`（V41，主键 device_id+sku_id），下单取价 `MerchantSkuPricingService.resolveUnitPriceCents(deviceId, sku)` 优先覆盖价、回落 `sku_catalog.price_cents`；商户小程序「定价」页已带限价（min=进货成本、max=maxPriceCents 或基准 2 倍）、改价历史、乐观锁。**缺口**：①admin 无设备级定价入口（只能改全局基准价）；②admin `OpsCatalogAdminService.updateSku` 改基准价**无限价校验**（仅 @Min(1)）。
+
+- **竞品做法 / 官方口径**：
+  - **丰e足食**（⭕ 招股书口径，凤凰网财经/中国新闻周刊引，2026-10-14 检索）：**分场景/分点位定价**是其公开商业模式——办公场景对标便利店平价（500ml 可乐 3.99 元），酒店/棋牌室等点位溢价 30%+（330ml 可乐 7.19 元），溢价点位给渠道方最高 30% 流水分成；招股书并明示「对零售商品采用动态定价，根据需求水平、库存状况、竞争对手定价及其他市场信号适时调整」——**同商品不同柜不同价是行业头部明说的能力**。
+  - **友宝 UBOX**（🟡 中信调研纪要 2017 + 日经中文网报道，2026-10-14 检索）：「点位租金费用跟场景相关……机场点位费高，商品售价高（机场饮料毛利率 60% 左右）」——按点位定价；且「总部可以随时变更自动售货机液晶面板上显示的价格，通过降价灵活促销」——**按台改价/促销是其系统能力**。
+  - **行业普遍性旁证**（⚪ 中国新闻网报道）：同一地铁站厅内不同经营单位的售货机「同物不同价」普遍存在，因进场费/进货渠道差异——点位级价差是行业常态而非异端。
+  - **旧系统 ego-automat**（⭕ 源码）：`ego_machine_aisle_info` 表 `aisle_goods_price`（**价格直接挂在货道上**，天然每机每货道独立）+ `aisle_original_price`（划线原价）+ `is_sale_enabled`（货道上下架），并有 `setPriceForSameGoods(machineId, skuId, price, originalPrice)` 按机器批量改价——旧系统价格模型就是**设备/货道级**，admin 后台改价本来就不动全局。
+- **对照主体**（3 家不同主体，开门柜直接同行 2 家）：
+
+  丰e足食 ｜ 友宝UBOX ｜ 旧系统easygo
+- **证据**：
+  - <https://finance.ifeng.com/c/8u4EL9EWAU3> （⭕ 凤凰网财经引丰宜科技招股书：动态定价表述；2026-10-14）
+  - <https://finance.sina.cn/2026-07-03/detail-inifpusq5660123.d.html> （🟡 新浪引中国新闻周刊：丰e足食分场景定价、办公平价/酒店棋牌室溢价 30%+；2026-10-14）
+  - <https://news.jstv.com/a/20170804/1501847979793.shtml> （🟡 中信证券友宝调研纪要：点位费与售价联动、机场毛利率 60%；2026-10-14）
+  - <https://m.chinanews.com/wap/detail/cht/zw/10654885.shtml> （⚪ 中国新闻网：售货机同物不同价普遍；2026-10-14）
+  - 旧系统 `ego_machine_aisle_info` 表结构与 `MachineAisleInfoRepository`（⭕ 源码：货道级价格+划线价+上下架）
+  - 新系统 `device_sku_price`（V41）+ `MerchantSkuPricingService.resolveUnitPriceCents`（⭕ 源码：覆盖价机制与限价规则已存在）
+- **取证日期**：2026-10-14
+- **我们的结论**：
+  1. **采纳「admin 设备详情页补设备级定价入口」**：复用既有 `device_sku_price` 与取价链路（零迁移成本——表和下单逻辑都在，缺的只是 admin 界面与端点），限价规则与商户端**同源**（min=进货成本、max=maxPriceCents 或基准 2 倍，规则函数抽公共防两处漂移）。丰e足食/友宝佐证点位级定价是头部标配，旧系统亦然。
+  2. **采纳「admin 改全局基准价补限价校验」**：与商户端同规则（不低于成本），堵住「手抖改错全局生效」的口子。
+  3. **交互采纳「行内编辑」**：设备详情页定价卡表格行内输入+失焦保存+「恢复基准价」行内操作，不走弹窗（Element Plus 原生支持；用户明确要求页面直接改）。
+  4. **「是否同步货柜」语义已拍板（2026-10-14 用户选 C）**：覆盖价「启用/停用」行内开关——预设价可暂不生效（device_sku_price.enabled，取价链路过滤 disabled 行回落基准价）。
+     <!-- 2026-10-14 二次澄清（用户）：柜机屏候选 A 作废——本项目中不存在「柜机屏」硬件（将邑柜无屏），广告与推广展示在**小程序**内；
+          代码中的 /screen-content 广告播放链路无真实消费方（仅 edge/device-simulator 模拟器联调用），相关能力已标注冻结，勿再提「屏显价格」。 -->同批用户否决「不低于进货成本」硬下限（时段/清仓折扣本可打穿成本，成本线只挡手设价不自洽）→ 改为 sku_catalog.min_price_cents 显式限价（NULL=不限仅>0），低于成本前端提醒不阻断。
+
+### CB-038 【新】补货计划/建议/效期处置：系统生成任务下发是头部标配——b96a74d4 误删的 6 个运营编排端点恢复（而 admin 执行链死 UI 删除）
+
+> 触发：2026-10-14 用户要求「③ 补货计划/建议先做竞品分析再定处置」。对象：`POST /replenishment/plan`、`POST /replenishment/suggest/create-task`、`POST /replenishment/routes/{id}/cancel-empty`、`GET/POST /expiry/alerts(+/ensure+/create-replenishment)`——b96a74d4 整块删除时波及（不在「要货下线」拍板范围），service 方法全存活。
+> 另：admin 侧「代签到/完成上架/任务明细」5 端点执行链**不恢复**（商户端小程序 `/merchant/replenishment/tasks/*` 已完整替代，admin 执行 UI 已删，铁律 62）。
+
+- **竞品做法 / 官方口径**：
+  - **丰e足食**（⭕ 新华网 2026-03 央视报道转引 + 中国质量新闻网 + 中国经济新闻网，2026-10-14 检索）：**补货计划/线路/效期处置全部由系统自动生成任务下发**——「补货员每天该补哪个点位、补哪些商品、补多少，都是由系统直接下达任务」「系统结合销售数据、库存余量、天气、实时路况，生成最优补货线路和分拣任务」「系统已经自动生成了补货计划……哪些临期要捡走、哪些滞销品要顺路调柜」，补货员只需按单执行+拍照由 AI 核验；AI 统筹后单人管理点位 300→500。**结论锚点：本系统 `planAndCreateRoute`（自动规划建线）、`createTaskFromSuggestion`（建议一键生成任务）、`ensureExpiryAlert/createTaskFromExpiry`（效期→拉下架→补货）正是同一模式的服务层实现，方向与头部一致。**
+  - **友宝 UBOX**（🟡 中信调研纪要，台账 CB-035 已引）：后台统计销量/库存驱动补货排程，「水机 2 天补一次、高销量点位每天补」——同样以系统建议+任务制执行。
+  - **旧系统 ego-automat**（⭕ 源码，台账 CB-037 已引）：`ego_machine_aisle_info` 补货走人工「要货」+ 手动排线（补货员自述「光要货就得三四十分钟」）——正是被头部淘汰的旧模式，佐证我方不应退回人工编排。
+- **对照主体**（3 家不同主体，开门柜直接同行 2 家）：
+
+  丰e足食 ｜ 友宝UBOX ｜ 旧系统easygo
+- **证据**：
+  - <https://app.xinhuanet.com/news/article.html?articleId=bc6e6dba35afec34443ce214703c9ccb> （⭕ 新华网：丰e智能体——补货任务由系统直接下达、自动生成最优补货线路；2026-10-14）
+  - <https://www.cet.com.cn/wzsy/kjzx/10570500.shtml> （🟡 中国经济新闻网：系统自动生成补货计划/临期捡走/滞销调柜，AI 核验排面；2026-10-14）
+  - <https://m.cqn.com.cn/cj/content/2026-03/18/content_9148971.htm> （🟡 中国质量新闻网：丰行智航统筹补货/盘点/调货任务聚合下发与路径规划；2026-10-14）
+  - <https://news.jstv.com/a/20170804/1501847979793.shtml> （🟡 中信友宝调研纪要：销量/库存驱动的补货排程，台账 CB-037 复引）
+  - 旧系统 `ego_machine_aisle_info` 人工要货模式（⭕ 源码）
+  - 新系统 `OpsReplenishmentAdminService.planRoute/createTaskFromSuggestion/ensureExpiryAlert/createTaskFromExpiry`（⭕ 源码：服务层全存活）
+- **取证日期**：2026-10-14
+- **我们的结论**：
+  1. **采纳「恢复 6 个运营编排端点」**（原路径/权限挂回 `OpsReplenishmentController`）：`POST /replenishment/plan`、`POST /replenishment/suggest/create-task`、`POST /replenishment/routes/{id}/cancel-empty`、`GET /expiry/alerts`、`POST /expiry/alerts/ensure`、`POST /expiry/alerts/{taskId}/create-replenishment`。竞品证明「系统生成补货计划/建议任务/效期处置」是头部标配且是效率来源，我方服务层已实现，误删即倒退。
+  2. **采纳「admin 任务执行链 5 端点不恢复 + 死 UI 删除」**：代签到/完成上架/任务明细编辑/证据上传属于**执行面**，已由商户端小程序承接（补货员 APP 收任务→签到→开门→上传→完成，丰e 模式同构）；admin 保留补货开门（应急，活端点 `/ops/restock/open-door`）与路线收口。执行链 UI（打卡/完成/明细抽屉/证据/「仅待分配」筛选）与 5 个端点 builder 已删，钉死于 check-admin-endpoint-paths（EXEMPT 清零）。
+  3. **有意不同**：效期告警存在**两份数据**——设备侧 PullOffTask（/expiry/alerts，恢复）与分仓维度（/warehouse/expiry-alerts，未删过），前端 endpoints 注释已声明二者不可混用。

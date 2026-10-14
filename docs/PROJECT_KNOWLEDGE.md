@@ -592,3 +592,17 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 冲突时：**安全/资金/门禁铁律 > 用户知情后的明确覆盖 > 用户一般偏好 > 本活文档最新 Changelog > WorkBuddy > 旧专题数字**。  
 用户要求若不合理：按 `critical-judgment` 先谏言，勿盲目执行。
+
+---
+
+## 12. Changelog（按日追加，新条目在上）
+
+### 2026-10-14（WorkBuddy 会话：定价功能 + 端点误删修复 + 死路由清零）
+- 🔴 **设备详情「资源不存在」根因修复**：b96a74d4 误删 4 个设备级端点（`GET /devices/{id}/detail`、`GET/PUT /slots`、`POST /slots/stocktake`），原样挂回 `OpsReplenishmentController`（service 方法一直存活，属误伤非有意下线）。
+- **新功能：单柜差异化定价**（V350，台账 CB-037）：`device_sku_price.enabled` 覆盖价启停开关 + `sku_catalog.min_price_cents` 显式最低限价 + `ops:pricing:view/edit` 权限 + admin 设备详情「单柜定价」tab（行内编辑：改覆盖价/启停/恢复基准，不走弹窗）。限价规则抽 `SkuPriceBounds` 与商户端同源；**用户否决「不低于进货成本」硬线**（时段/清仓折扣本可打穿成本，不自洽）——min 留空=不限仅>0，低于成本前端提醒不阻断；admin 改全局基准价首次补限价校验。
+- 🔴 **11 条死路由清零**（台账 CB-038）：6 条补货编排/效期端点**恢复**（`/replenishment/plan`、`suggest/create-task`、`routes/{id}/cancel-empty`、`/expiry/alerts`×3）——竞品实证（丰e/友宝「系统生成任务下发」是头部标配）且 service 全存活；5 条 admin **执行链**（代签到/完成上架/明细/证据）**不恢复**——执行面归商户端小程序（`/merchant/replenishment/tasks/*`），死 UI 全删（打卡/完成按钮、明细抽屉、taskLines composable、「仅待分配」筛选），admin 保留补货开门（活端点）与路线收口。
+- **「待分配货道」能力以列表聚合重建**：`ReplenishmentFulfillmentTaskDto.unassignedRestockLines`（一次 SQL 聚合 applied=false & line_type=RESTOCK & slot_id 空的行数），徽标/「仅待分配」筛选恢复，替代旧的逐任务 N 次请求。
+- **新门禁 `check-admin-endpoint-paths`**：前端端点引用 ⊆ openapi paths（EXEMPT 已清零）——任何死引用直接 FAIL，堵死本类回归。
+- ⚠️ **澄清钉死**：本项目**没有柜机屏硬件**（将邑柜无屏），广告/推广展示在**小程序**内；`/screen-content` 链路无真实消费方（仅 edge/device-simulator 模拟器联调），DeviceController 已标注冻结——勿再做屏显类产品假设。
+- 商品表单（SkuListView）补「最低/最高限价」字段（min 留空=不限、max 留空=售价×2）。
+- 相关文件：V350 迁移、`SkuPriceBounds`/`OpsDevicePricingService`/`AdminDevicePricingController` 新类、`OpsReplenishmentController` 两批恢复、前端 `DevicePricingCard.vue`/`useDevicePricing.ts`。

@@ -138,6 +138,10 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/slots/apply-template`,
   deviceSlotsStocktake: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/slots/stocktake`,
+  /** 单柜定价（V350，CB-037）：行内改覆盖价/启停/恢复基准；查看 ops:device:list、改价 ops:pricing:edit */
+  devicePricing: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/pricing`,
+  devicePricingUpdate: (deviceId: string, skuId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/pricing/${encodeURIComponent(skuId)}`,
 
   /** 将邑接入（CB-022 收尾）：SN 登记 / setDomain 绑定 / 退役 / class 映射；库存走货道管理 */
   deviceJiangyi: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi`,
@@ -270,16 +274,6 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/replenishment/shortage?${query}`
       : `${ops}/replenishment/shortage?${query.toString()}`,
-  replenishmentTaskLines: (taskId: string | number) =>
-    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/lines`,
-  replenishmentTaskEvidence: (taskId: string | number) =>
-    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence`,
-  replenishmentTaskEvidenceFile: (taskId: string | number, fileId: string | number) =>
-    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence/${encodeURIComponent(String(fileId))}`,
-  replenishmentTaskCheckIn: (taskId: string | number) =>
-    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/check-in`,
-  replenishmentTaskComplete: (taskId: string | number) =>
-    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/complete`,
   replenishmentRouteCancelEmpty: (routeId: string | number) =>
     `${ops}/replenishment/routes/${encodeURIComponent(String(routeId))}/cancel-empty`,
   replenishmentReportStaff: (days: number | string) =>

@@ -74,6 +74,11 @@ public class DeviceController {
      * <p>⚠️ 位置在**用户自己的手机屏**（小程序），本项目没有柜机屏 —— 见
      * {@code docs/AD_MONETIZATION_DESIGN.md} §2。此注释旧写作「柜机屏」，属命名债，已更正。
      */
+    /**
+     * ⚠️ 冻结能力（2026-10-14 用户澄清）：本项目**没有柜机屏硬件**（将邑柜无屏），广告/推广展示在小程序内。
+     * 本端点当前唯一消费方是 edge/device-simulator（推广位播放器模拟，联调用），真实柜机不消费。
+     * 保留代码仅作模拟器链路；勿基于「柜机会显示这些内容」做产品假设（如屏显价格）。
+     */
     @GetMapping("/{deviceId}/screen-content")
     public ApiResponse<ScreenContentDto> screenContent(@PathVariable String deviceId) {
         return ApiResponse.ok(adCampaignService.screenContent(deviceId));

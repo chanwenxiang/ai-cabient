@@ -504,6 +504,8 @@ export interface SkuCatalog {
   purchaseCostCents?: number;
   nearExpiryPriceCents?: number;
   maxPriceCents?: number;
+  /** 显式最低限价（V350，CB-037）：空=不限，仅要求 >0；支持打折/清仓 */
+  minPriceCents?: number;
   minChargeConfidence?: number;
   detectionMinConfidence?: number;
   createdAt?: string;
@@ -546,6 +548,10 @@ export interface UpsertSkuRequest {
   storageType?: string;
   purchaseCostCents?: number;
   nearExpiryPriceCents?: number;
+  /** 最高限价（V350，CB-037）：空=默认售价 2 倍 */
+  maxPriceCents?: number;
+  /** 最低限价（V350，CB-037）：空=不限（仅要求 >0）；用户否决"不低于成本"硬线 */
+  minPriceCents?: number;
   minChargeConfidence?: number;
   detectionMinConfidence?: number;
   /** 经营归属（V349 字典 sku_operation_scope）；空=未分类 */

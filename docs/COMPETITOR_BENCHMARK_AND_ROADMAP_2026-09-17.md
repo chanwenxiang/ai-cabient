@@ -1,3 +1,6 @@
+> ⚠️ **过期快照（2026-09-17 竞品与路线图快照（已由活文档 docs/COMPETITOR_BENCHMARK.md 取代））**：内容已被 `docs/PROJECT_KNOWLEDGE.md` Changelog 与活文档取代，仅作历史留档。
+> 被 evidence/设计文档引用故不物理删除；以活文档口径为准。
+
 # 竞品对标审计与功能升级路线图（2026-09-17）
 
 > 审计方式：只读代码盘点（后端 83 个 Controller / 276 个 Flyway 迁移、admin-vue 约 60 页面 318 端点、双小程序、edge/android-app、vision-service、infra），结合既有审计文档（`three-end-full-audit-2026-09-15.md`、`production-launch-checklist.md`、`CODEBASE_FOUNDATION.md`、`GO_LIVE_EXECUTION_PLAN.md`），对标市面主流竞品后输出。**本文档只出计划，不动代码。**

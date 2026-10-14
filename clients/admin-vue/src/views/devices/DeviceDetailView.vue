@@ -472,6 +472,15 @@
           <div v-else class="muted">货道{{ UI_COPY.loading }}</div>
         </el-tab-pane>
 
+        <el-tab-pane label="单柜定价" name="pricing" lazy>
+          <DevicePricingCard
+            ref="pricingCardRef"
+            :device-id="deviceId"
+            :can-edit="canEditPricing"
+            :active="tab === 'pricing'"
+          />
+        </el-tab-pane>
+
         <el-tab-pane label="投放流水" name="lifecycle">
           <div v-loading="!lifecycleHydrated" class="lifecycle-pane">
             <el-timeline v-if="lifecycleEvents.length">
@@ -607,6 +616,8 @@ import { AdminEndpoints } from '@/api/endpoints';
 import SlotGrid from '@/components/SlotGrid.vue';
 import DeviceAssetDeploymentCard from '@/components/device/DeviceAssetDeploymentCard.vue';
 import DeviceJiangyiCard from '@/components/device/DeviceJiangyiCard.vue';
+// V350（CB-037）：单柜定价——行内编辑覆盖价/启停/恢复基准，不走弹窗
+import DevicePricingCard from '@/components/device/DevicePricingCard.vue';
 import DeviceRelatedRecordsTab from '@/components/device/DeviceRelatedRecordsTab.vue';
 import DeviceRemoteOpsCard from '@/components/device/DeviceRemoteOpsCard.vue';
 import DeviceTempEnvTab from '@/components/device/DeviceTempEnvTab.vue';
@@ -680,6 +691,9 @@ const { canAccessPath, goPath, router } = useNavAccess();
 const deviceId = route.params.id as string;
 
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
+// 单柜定价（V350，CB-037）：改价走独立权限点 ops:pricing:edit（资金敏感，与商户端对称）；
+// 查看沿用面板口径 ops:device:list（能进详情页即可看，铁律 66）
+const canEditPricing = computed(() => auth.hasPerm('ops:pricing:edit'));
 const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
 const canEditTempPlan = computed(() => auth.hasPerm('ops:device:edit'));
 /**
@@ -730,7 +744,11 @@ watch(tab, (v) => {
   if (v === 'temp-env') {
     ensureTempEnvLoaded();
   }
+  if (v === 'pricing') {
+    pricingCardRef.value?.onActive(true);
+  }
 });
+const pricingCardRef = ref<InstanceType<typeof DevicePricingCard> | null>(null);
 const device = ref<DeviceRow | null>(null);
 const metrics = ref<Metrics | null>(null);
 const {

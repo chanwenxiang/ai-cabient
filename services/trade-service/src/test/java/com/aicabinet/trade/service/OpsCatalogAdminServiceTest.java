@@ -140,6 +140,9 @@ class OpsCatalogAdminServiceTest {
                 null,
                 null,
                 null,
+                null,
+                // V350（CB-037）：maxPriceCents / minPriceCents
+                null,
                 null);
     }
 
@@ -157,7 +160,7 @@ class OpsCatalogAdminServiceTest {
                 null, null, null, null, "ACTIVE",
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, "件", "NON_DIRECT");
+                null, null, null, "件", "NON_DIRECT", null, null);
 
         var dto = service.createSku(10001L, req);
 
@@ -185,7 +188,7 @@ class OpsCatalogAdminServiceTest {
                 null, null, null, null, "ACTIVE",
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, "件", "  ");
+                null, null, null, "件", "  ", null, null);
 
         service.updateSku(10001L, "311", req);
 
