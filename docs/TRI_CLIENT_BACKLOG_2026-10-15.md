@@ -37,7 +37,7 @@
 | # | 端 | 项 | 状态 |
 |---|---|---|---|
 | A1 | edge+后端 | ~~P0-2/P0-3（同根）~~ ✅ 主体落地（2026-10-15 拍板 A+B 全做） | P0-2：HTTP 设备凭据一机一密（V367+拦截器+APK 装机页，fleet key 退出设备面）；P0-3：将邑激活制（V366 auth_enabled+未激活告警+突发检测）。二期待真机：控件固件 per-device secret（JIANGYI_GATEWAY_DESIGN.md 7.6） |
-| A2 | 基建 | P1-8 Kafka PLAINTEXT 0.0.0.0:9092 无 SASL + modelVersion 丢弃 | 未修（靠 vision-async=false 挡住） |
+| A2 | 基建 | ~~P1-8 Kafka PLAINTEXT 无 SASL + modelVersion 丢弃~~ ✅ 已完成 | 2026-10-15：监听器并轨 HTTP ingest 口径（modelVersion 必填+deviceId 绑定，9.4-1 一并收口）+ Redpanda SASL/SCRAM（三态实测） |
 | A3 | edge | P1-6 残留：OTA checksum 与下载同通道；P1-7 残留：`usesCleartextTraffic` 未关 | 部分修复 |
 | A4 | 基建 | P1-14 残留：postgres/redis/mysql 等有状态镜像仍浮动 tag | 部分修复 |
 | A5 | 后端 | P1-17 补货实收 qty≤0 静默丢行（应拒绝） | 未修，小改动 |
@@ -50,7 +50,7 @@
 |---|---|---|
 | B1 | ~~退款重试 Job（G1）~~ ✅ **已完成（2026-10-15，00abda8c）** | REFUND_INITIATED 痕迹 + RefundRetryScheduler 分钟级闭环 + Registry/V364 登记；12 钉住用例，容器/CI 验证通过 |
 | B2 | ~~渠道费实结化~~ ✅ **已完成（2026-10-09，a82fb0f9 V331）** | 微信账单手续费列解析 + 实结分摊尾差归集 + ACTUAL/ESTIMATED 标注 + 费率差异告警。**有意留尾**：①支付宝账单手续费列待渠道接入时补列位（AlipayBillCsvParser）；②逐单明细行实结（FundBillChannelFeeRateTest 钉住估算契约，日账单已实结优先） |
-| B3 | 审计 backlog（CB-021） | 审计日志补前后值；角色/权限点变更纳入审计；敏感操作报表化（低优） |
+| B3 | 审计 backlog（CB-021） | ~~前后值/RBAC 留痕/权限点/报表化~~ ✅ 全部完成（前三项早前已落码，2026-10-15 核实；第 4 项敏感操作汇总报表本日补齐） |
 | B4 | ~~客服触点~~ ✅ **已完成（2026-10-09，a82fb0f9）** | merchant.service_phone 配置键 +「我的」页帮助与客服（fail-closed）；商户端实机验收通过 |
 | B5 | ~~押金撤机规则~~ ✅ 已完成 | 2026-10-15 拍板选项 1 并落地：撤机清算三件套参数化（V365 + registerDeposit 可配 + settle 三分支），CB-044 |
 | B6 | ~~点位多收款人~~ ✅ **已拍板：维持单组（2026-10-15 方案 A，CB-043）** | 老存量 1027 点位实盘：93% ≤1 组收款人、99.6% ≤2 组、合作2/租金收款人均 <2% 死字段；新单组+电费独立行+线长独立佣金覆盖 99.6%，4 个 3 组点位迁移时线下合并；不为 0.4% 存量上子表工程 |
@@ -63,8 +63,8 @@
 | # | 端 | 项 | 说明 |
 |---|---|---|---|
 | C1 | ~~admin~~（**端口纠偏 2026-10-15**：原写 merchant-mp，10-14 拍板即「管理界面并入外部导入模块映射页」） | ~~外部商品库页面~~ ✅ **已完成** | admin `ExternalChannelImportTab.vue`「外部商品映射」tab（绑定/改绑/解绑+未映射预览）已上产（static/admin/assets chunk 已核） |
-| C2 | admin | 理货记录台账 | 老系统有（stock_operator_record），新系统无 |
-| C3 | admin | 商品模板 | 老系统有，新系统无（低优） |
+| C2 | admin | ~~理货记录台账~~ ✅ 已完成 | 2026-10-15：replenishment_task×line 行粒度只读聚合（不建新表），补货员效率页新增 tab |
+| C3 | admin | ~~商品模板~~ ✅ 已完成 | 2026-10-15：V368 铺货模板（存当前设备陈列为模板/一键套用），CB-047 |
 | C4 | 商业 | 支付宝准入门槛 | 外部资源/商务决策，非代码 |
 
 已做（本轮确认关闭）：单柜 SKU 上限、商品排序/批量重置价、本月销售额、信号强度、SELF_TEST 入口、音量下发、商户账单页、缺货口径统一、结算单实体化、平台资金池+租赁押金、大屏下钻、品牌/单位字典化、admin 三层权限清零。
