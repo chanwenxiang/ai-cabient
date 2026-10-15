@@ -14,6 +14,37 @@
       </div>
     </template>
 
+    <!-- CB-021④ 敏感操作汇总：对齐思迅「异常操作」报表形态，只记录不处理 -->
+    <el-collapse class="sensitive-summary">
+      <el-collapse-item name="summary">
+        <template #title>
+          <span class="sensitive-summary__title">
+            敏感操作汇总（近 {{ sensitiveDays }} 天）
+            <span class="sensitive-summary__hint">资金 / 权限 / 凭据 / 数据直改，只记录不处理</span>
+          </span>
+        </template>
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table :data="sensitiveSummary" size="small" empty-text="时间窗内无敏感操作">
+              <el-table-column label="动作" min-width="180" class-name="col-text">
+                <template #default="{ row }">
+                  <el-tag size="small" effect="plain">{{ auditActionLabel(row.action) }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="次数" width="100" align="center" class-name="col-status">
+                <template #default="{ row }">{{ row.total }}</template>
+              </el-table-column>
+              <el-table-column label="最近一次" width="168" align="center" class-name="col-status">
+                <template #default="{ row }">
+                  <span class="cell-datetime">{{ formatDateTime(row.lastAt) }}</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+      </el-collapse-item>
+    </el-collapse>
+
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="动作">
         <el-select
@@ -147,6 +178,20 @@ interface AuditRow {
 
 const route = useRoute();
 const router = useRouter();
+const sensitiveDays = ref(7);
+const sensitiveSummary = ref<{ action: string; total: number; lastAt: string }[]>([]);
+
+async function loadSensitiveSummary() {
+  try {
+    sensitiveSummary.value = await api.request<{ action: string; total: number; lastAt: string }[]>(
+      AdminEndpoints.auditSensitiveSummary(sensitiveDays.value),
+      'GET'
+    );
+  } catch {
+    // 汇总失败不打断明细页主功能（无 ops:audit:list 权限的账号本就到不了此页）
+    sensitiveSummary.value = [];
+  }
+}
 const mineOnly = ref(false);
 const actionFilter = ref('');
 const targetFilter = ref('');
@@ -257,13 +302,27 @@ watch(
 onMounted(() => {
   applyRouteQuery();
   void crud.load();
+  void loadSensitiveSummary();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
+  void loadSensitiveSummary();
 });
 </script>
 
 <style scoped>
+.sensitive-summary {
+  margin-bottom: 12px;
+}
+.sensitive-summary__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sensitive-summary__hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
 .page-card-head {
   display: flex;
   justify-content: space-between;

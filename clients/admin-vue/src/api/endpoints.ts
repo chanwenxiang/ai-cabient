@@ -293,8 +293,19 @@ export const AdminEndpoints = {
       : `${ops}/replenishment/shortage?${query.toString()}`,
   replenishmentRouteCancelEmpty: (routeId: string | number) =>
     `${ops}/replenishment/routes/${encodeURIComponent(String(routeId))}/cancel-empty`,
+  /** C3 商品模板（铺货模板）：设备货道陈列存为模板 / 套用（V368） */
+  slotTemplates: () => `${ops}/slot-templates`,
+  slotTemplateSaveFromDevice: () => `${ops}/slot-templates`,
+  slotTemplateApply: (templateId: number | string, deviceId: string) =>
+    `${ops}/slot-templates/${encodeURIComponent(String(templateId))}/apply/${encodeURIComponent(deviceId)}`,
+  slotTemplateDelete: (templateId: number | string) =>
+    `${ops}/slot-templates/${encodeURIComponent(String(templateId))}`,
+
   replenishmentReportStaff: (days: number | string) =>
     `${ops}/replenishment-report/staff?days=${encodeURIComponent(String(days))}`,
+  /** C2 理货记录台账（老系统 stock_operator_record 对位）：补货任务行粒度只读流水 */
+  replenishmentTallyRecords: (query: URLSearchParams) =>
+    `${ops}/replenishment-report/tally-records?${query.toString()}`,
   expiryAlerts: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/expiry/alerts?${query}`
@@ -661,6 +672,8 @@ export const AdminEndpoints = {
     `${ops}/org/nodes/${encodeURIComponent(String(nodeId))}/devices`,
   devopsHub: `${ops}/devops/hub`,
   devopsSonarScan: `${ops}/devops/sonar/scan`,
+  /** CB-021④ 敏感操作汇总报表（近 N 天按 action 聚合，只记录不处理） */
+  auditSensitiveSummary: (days: number) => `${ops}/audit-logs/sensitive-summary?days=${days}`,
   auditLogsList: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/audit-logs?${query}`

@@ -553,6 +553,15 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.listRecentAuditLogs(operatorId(request), size, mine));
     }
 
+    /** CB-021④ 敏感操作汇总报表：近 N 天按 action 聚合（只记录不处理，对齐思迅异常操作报表形态）。 */
+    @RequiresPermissions("ops:audit:list")
+    @GetMapping("/audit-logs/sensitive-summary")
+    public ApiResponse<List<AdminAuditSensitiveSummaryDto>> sensitiveAuditSummary(
+            HttpServletRequest request,
+            @RequestParam(name = "days", defaultValue = "7") int days) {
+        return ApiResponse.ok(adminService.sensitiveAuditSummary(operatorId(request), days));
+    }
+
     private static Long operatorId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.AdminAuditLogDto;
+import com.aicabinet.common.dto.AdminAuditSensitiveSummaryDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.util.PhoneMask;
 import com.aicabinet.trade.domain.AdminAuditLog;
@@ -10,8 +11,10 @@ import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,13 +29,16 @@ public class OpsAuditQueryService {
     private final PermissionService permissionService;
     private final AdminAuditLogMapper auditLogRepository;
     private final UserInfoMapper userInfoRepository;
+    private final JdbcTemplate jdbc;
 
     public OpsAuditQueryService(PermissionService permissionService,
                                 AdminAuditLogMapper auditLogRepository,
-                                UserInfoMapper userInfoRepository) {
+                                UserInfoMapper userInfoRepository,
+                                JdbcTemplate jdbc) {
         this.permissionService = permissionService;
         this.auditLogRepository = auditLogRepository;
         this.userInfoRepository = userInfoRepository;
+        this.jdbc = jdbc;
     }
 
     public PageResult<AdminAuditLogDto> listAuditLogs(Long operatorId, int page, int size, boolean logIdAsc) {
@@ -111,5 +117,44 @@ public class OpsAuditQueryService {
             return null;
         }
         return value.trim();
+    }
+
+    // ═══ CB-021④ 敏感操作汇总报表（对齐思迅「收银员异常操作」形态：只记录不处理）═══
+
+    /**
+     * 敏感操作 action 前缀白名单（资金/权限/凭据/数据直改族）。
+     * 枚举式清单会漂移（见 {@link AdminDataManageService} 前缀教训），故本表只用
+     * 「族前缀」表达；新增敏感 action 命中任一前缀即自动纳入报表，无需改这里。
+     */
+    static final List<String> SENSITIVE_ACTION_PREFIXES = List.of(
+            "BALANCE_ADJUST", "BALANCE_REFUND", "RECHARGE_REFUND",        // 余额/充值退款
+            "SPLIT_LEDGER", "PROFIT_SHARING",                              // 分账
+            "SITE_RENT", "DEVICE_RENTAL", "DEVICE_DATA_FEE",               // 租金/押金/数据费
+            "DEVICE_MQTT_CREDENTIAL", "DEVICE_HTTP_CREDENTIAL",            // 凭据签发/吊销
+            "DEVICE_REMOTE_OPEN", "DEVICE_RESET_HARDWARE", "DEVICE_REGENERATE_ID",
+            "OPS_ROLE", "OPS_PERM", "OPS_USER_ROLE", "ORG_NODE_ASSIGN",    // 角色/权限/组织
+            "APPROVAL_DEF", "CONFIG_",                                     // 审批流/系统配置
+            "DATA_UPDATE", "DATA_DELETE", "DATA_INSERT");                  // 数据直改
+
+    /**
+     * 近 N 天敏感操作按 action 聚合（计数 + 最近一次时间），供运营日常巡视。
+     * 与明细页同权限点 {@code ops:audit:list}（CB-021③：日志可见性本身是权限点）。
+     */
+    public List<AdminAuditSensitiveSummaryDto> sensitiveSummary(Long operatorId, int days) {
+        permissionService.requirePermission(operatorId, "ops:audit:list");
+        int safeDays = Math.min(Math.max(days, 1), 90);
+        StringBuilder where = new StringBuilder();
+        for (int i = 0; i < SENSITIVE_ACTION_PREFIXES.size(); i++) {
+            where.append(i == 0 ? " WHERE (" : " OR ").append("action LIKE ?").append(i + 1).append(" ");
+        }
+        where.append(") AND created_at >= NOW() - (").append(safeDays).append(" || ' days')::interval");
+        String sql = "SELECT action, COUNT(*) AS total, MAX(created_at) AS last_at"
+                + " FROM admin_audit_log" + where
+                + " GROUP BY action ORDER BY total DESC, action ASC";
+        Object[] patterns = SENSITIVE_ACTION_PREFIXES.stream().map(p -> p + "%").toArray();
+        return jdbc.query(sql, (rs, i) -> new AdminAuditSensitiveSummaryDto(
+                rs.getString("action"),
+                rs.getLong("total"),
+                rs.getObject("last_at", Instant.class)), patterns);
     }
 }

@@ -320,6 +320,11 @@ public class AdminDashboardService {
         return auditQueryService.listRecentAuditLogs(operatorId, size, mineOnly);
     }
 
+    /** CB-021④ 敏感操作汇总报表（近 N 天按 action 聚合）。 */
+    public List<AdminAuditSensitiveSummaryDto> sensitiveAuditSummary(Long operatorId, int days) {
+        return auditQueryService.sensitiveSummary(operatorId, days);
+    }
+
     public PageResult<AdminUserDto> listUsers(Long operatorId, int page, int size, Long userId,
                                               String phone, String name, String role, Boolean verified) {
         return memberFinanceAdminService.listUsers(operatorId, page, size, userId, phone, name, role, verified);

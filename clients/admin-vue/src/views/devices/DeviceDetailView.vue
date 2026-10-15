@@ -452,11 +452,25 @@
           <div class="slot-toolbar">
             <el-button
               v-hasPermi="['ops:device:edit']"
-              type="primary"
               size="small"
               :loading="applying"
               @click="applyTemplate"
-              >套用模板</el-button
+              >初始化货道骨架</el-button
+            >
+            <!-- C3 商品模板：设备间复制陈列（存当前为模板 / 套用命名模板） -->
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              size="small"
+              :disabled="!slots.some((sl) => sl.assignedSkuId)"
+              @click="openSaveTemplateDialog"
+              >存为陈列模板</el-button
+            >
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              size="small"
+              :loading="templateApplying"
+              @click="openApplyTemplateDialog"
+              >套用陈列模板</el-button
             >
             <el-button size="small" :icon="Refresh" :loading="slotsRefreshing" @click="refreshSlots"
               >刷新货道</el-button
@@ -753,6 +767,53 @@
         <el-button type="primary" :loading="thresholdSaving" @click="saveThreshold">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- C3 商品模板：存当前陈列 -->
+    <el-dialog v-model="saveTemplateVisible" title="存为陈列模板" width="420px">
+      <el-form label-width="90px">
+        <el-form-item label="模板名称">
+          <el-input v-model="saveTemplateName" maxlength="64" placeholder="如：标准饮料柜-春" />
+        </el-form-item>
+        <el-alert
+          type="info"
+          :closable="false"
+          title="将保存当前所有已绑定商品的货道（货道×SKU×售价×目层库存）"
+        />
+      </el-form>
+      <template #footer>
+        <el-button @click="saveTemplateVisible = false">取消</el-button>
+        <el-button type="primary" :loading="templateSaving" @click="doSaveTemplate"
+          >保存模板</el-button
+        >
+      </template>
+    </el-dialog>
+
+    <!-- C3 商品模板：套用命名模板 -->
+    <el-dialog v-model="applyTemplateVisible" title="套用陈列模板" width="480px">
+      <el-form label-width="90px">
+        <el-form-item label="选择模板">
+          <el-select v-model="applyTemplateId" placeholder="选择模板" style="width: 100%">
+            <el-option
+              v-for="t in templateList"
+              :key="t.templateId"
+              :label="`${t.templateName}（${t.lineCount} 货道）`"
+              :value="t.templateId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-alert
+          type="warning"
+          :closable="false"
+          title="将覆盖本设备同名货道的商品绑定与价格；缺失货道自动补骨架。请确认后继续。"
+        />
+      </el-form>
+      <template #footer>
+        <el-button @click="applyTemplateVisible = false">取消</el-button>
+        <el-button type="primary" :loading="templateApplying" @click="doApplyTemplate"
+          >套用</el-button
+        >
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -994,6 +1055,87 @@ const {
   canStocktake,
   loadDetail: () => loadDetail()
 });
+
+// ── C3 商品模板（铺货模板）：存当前陈列 / 套用命名模板 ──────────────
+type SlotTemplateView = {
+  templateId: number;
+  templateName: string;
+  createdAt?: string;
+  lineCount: number;
+};
+const saveTemplateVisible = ref(false);
+const saveTemplateName = ref('');
+const templateSaving = ref(false);
+const applyTemplateVisible = ref(false);
+const applyTemplateId = ref<number | null>(null);
+const templateList = ref<SlotTemplateView[]>([]);
+const templateApplying = ref(false);
+
+async function openSaveTemplateDialog() {
+  saveTemplateName.value = '';
+  saveTemplateVisible.value = true;
+}
+
+async function doSaveTemplate() {
+  if (!saveTemplateName.value.trim()) {
+    ElMessage.warning('请填写模板名称');
+    return;
+  }
+  templateSaving.value = true;
+  try {
+    await api.request(AdminEndpoints.slotTemplateSaveFromDevice(), 'POST', {
+      templateName: saveTemplateName.value.trim(),
+      sourceDeviceId: deviceId
+    });
+    ElMessage.success('模板已保存');
+    saveTemplateVisible.value = false;
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '保存模板失败'));
+  } finally {
+    templateSaving.value = false;
+  }
+}
+
+async function openApplyTemplateDialog() {
+  templateApplying.value = true;
+  try {
+    templateList.value = await api.request<SlotTemplateView[]>(
+      AdminEndpoints.slotTemplates(),
+      'GET'
+    );
+    if (!templateList.value.length) {
+      ElMessage.info('暂无模板：先在配置好的设备上「存为陈列模板」');
+      return;
+    }
+    applyTemplateId.value = templateList.value[0]?.templateId ?? null;
+    applyTemplateVisible.value = true;
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '模板列表加载失败'));
+  } finally {
+    templateApplying.value = false;
+  }
+}
+
+async function doApplyTemplate() {
+  if (!applyTemplateId.value) {
+    ElMessage.warning('请选择模板');
+    return;
+  }
+  templateApplying.value = true;
+  try {
+    const res = await api.request<{ applied: number }>(
+      AdminEndpoints.slotTemplateApply(applyTemplateId.value, deviceId),
+      'POST'
+    );
+    ElMessage.success(`已套用模板，生效 ${res.applied} 个货道`);
+    applyTemplateVisible.value = false;
+    await loadDetail();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '套用失败'));
+  } finally {
+    templateApplying.value = false;
+  }
+}
 const skus = ref<SkuCatalog[]>([]);
 const qrUrl = ref('');
 const qrPreviewUrl = ref('');
