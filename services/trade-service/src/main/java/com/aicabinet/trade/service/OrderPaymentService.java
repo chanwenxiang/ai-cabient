@@ -296,6 +296,47 @@ public class OrderPaymentService {
         paymentOperationRepository.save(op);
     }
 
+    static String refundInitiatedIdempotencyKey(String refundIdemKey) {
+        return "REFUND:INIT:" + refundIdemKey;
+    }
+
+    /**
+     * B1/G1（2026-10-15）：渠道退款提交前落「已发起」痕迹（REQUIRES_NEW 立即提交，外层回滚不影响）。
+     * 对齐 recordChargePending 范式；REFUND_INITIATED 行不计入 netCompletedCents（审计行），
+     * 由 RefundRetryScheduler 查单/幂等重发闭环；deterministicRefundNo 同号重发渠道侧幂等不双退。
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordRefundInitiated(OrderRefundPrep prep) {
+        String key = refundInitiatedIdempotencyKey(prep.idemKey());
+        if (paymentOperationRepository.findByIdempotencyKey(key).isPresent()) {
+            return;
+        }
+        PaymentOperation op = new PaymentOperation();
+        op.setOperationId(BizIds.nextNumeric());
+        op.setOrderId(prep.orderId());
+        op.setOperationType(REFUND);
+        op.setAmountCents(prep.refundCents());
+        op.setChannel(prep.channel());
+        op.setStatus("REFUND_INITIATED");
+        op.setIdempotencyKey(key);
+        op.setGatewayTradeNo(deterministicRefundNo(prep.idemKey()));
+        op.setReason("渠道退款进行中（REFUND_INITIATED，事务外痕迹）");
+        paymentOperationRepository.save(op);
+    }
+
+    /** 退款闭环（COMPLETED 流水已落）后把痕迹行推进 FINALIZED；无痕迹行时静默（旧数据）。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void finalizeRefundInitiated(String refundIdemKey) {
+        paymentOperationRepository.findByIdempotencyKey(refundInitiatedIdempotencyKey(refundIdemKey))
+                .ifPresent(op -> {
+                    if ("REFUND_INITIATED".equals(op.getStatus())) {
+                        op.setStatus("FINALIZED");
+                        op.setUpdatedAt(Instant.now());
+                        paymentOperationRepository.updateById(op);
+                    }
+                });
+    }
+
     /** H41: 渠道成功后把 CHARGE_PENDING 标记为 FINALIZED（仅审计；不计入 netCompletedCents）。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void finalizeChargePending(String orderId, String tradeNo) {
@@ -483,8 +524,13 @@ public class OrderPaymentService {
                 return;
             }
             if (prep.needsLiveChannel()) {
+                // B1/G1（2026-10-15）：HTTP 前以独立事务落 REFUND_INITIATED 痕迹（H41/M27 同构）——
+                // 此前渠道提交失败/进程中断本地零痕迹，「钱已退、账未记」只能靠 T+1 对账金额级兜底；
+                // 痕迹行由 RefundRetryScheduler 分钟级查单/幂等重发闭环。
+                self.recordRefundInitiated(prep);
                 String refundStatus = executeLiveChannelRefund(prep);
                 self.finalizeLiveOrderRefund(prep, refundStatus);
+                self.finalizeRefundInitiated(prep.idemKey());
             }
             refreshCallerOrder(order);
             clawbackPointsQuietly(prep.userId(), prep.refundCents(), prep.orderId());
@@ -744,6 +790,112 @@ public class OrderPaymentService {
         order.setRefundedAt(Instant.now());
         order.setRefundedCents(Math.max(0, order.getRefundedCents()) + amountCents);
         cabinetOrderRepository.updateById(order);
+    }
+
+    /**
+     * B1/G1（2026-10-15）：从 REFUND_INITIATED 痕迹行闭环一笔退款（RefundRetryScheduler 调用）。
+     * 先查单（微信）确认结果——渠道可能已退成功只是本地未达；确认无结果才重发（同 out_refund_no 幂等）。
+     * @return true=已闭环（finalize 完成）；false=仍无终态（留待下轮）
+     */
+    public boolean retryFromInitiatedTrace(PaymentOperation trace) {
+        String refundIdemKey = trace.getIdempotencyKey() != null
+                && trace.getIdempotencyKey().startsWith("REFUND:INIT:")
+                ? trace.getIdempotencyKey().substring("REFUND:INIT:".length()) : null;
+        if (refundIdemKey == null || isCompleted(refundIdemKey)) {
+            // COMPLETED 流水已在（并发闭环/旧数据残留痕迹）→ 只清痕迹
+            finalizeRefundInitiated(refundIdemKey == null ? "" : refundIdemKey);
+            return true;
+        }
+        // 对齐 refundOrder 范式（无外层长事务包裹渠道，分布式锁防并发）：
+        // 锁被占 = 主链/上一轮正在处理同一订单 ⇒ 本轮跳过，痕迹留给下轮。
+        if (!distributedLockService.tryLock(orderPaymentLockKey(trace.getOrderId()), 60, 5)) {
+            return false;
+        }
+        try {
+            CabinetOrder order = cabinetOrderRepository.selectById(trace.getOrderId());
+            if (order == null) {
+                return false;
+            }
+            return retryFromInitiatedTraceUnderLock(trace, refundIdemKey, order);
+        } finally {
+            distributedLockService.unlock(orderPaymentLockKey(trace.getOrderId()));
+        }
+    }
+
+    private boolean retryFromInitiatedTraceUnderLock(PaymentOperation trace, String refundIdemKey, CabinetOrder locked) {
+        // 锁内复查：首次检查在锁外，主链可能在窗口内已完成同一笔退款
+        if (isCompleted(refundIdemKey)) {
+            finalizeRefundInitiated(refundIdemKey);
+            return true;
+        }
+        int refundCents = Math.max(0, trace.getAmountCents());
+        OrderRefundPrep prep = new OrderRefundPrep(
+                trace.getOrderId(), locked.getUserId() == null ? 0 : locked.getUserId(),
+                refundCents, "渠道退款重试闭环（原提交结果未达）", refundIdemKey,
+                trace.getChannel(), locked.getPayTradeNo(),
+                PayChannels.WECHAT.equalsIgnoreCase(trace.getChannel())
+                        ? resolveOriginalChargeTotalCents(locked, refundCents) : 0,
+                false, true);
+        if (PayChannels.WECHAT.equalsIgnoreCase(trace.getChannel())) {
+            String outRefundNo = deterministicRefundNo(refundIdemKey);
+            com.fasterxml.jackson.databind.JsonNode resp;
+            try {
+                resp = weChatPayClient.v3().queryRefund(trace.getOrderId(), outRefundNo);
+            } catch (Exception e) {
+                log.warn("refund retry query failed order={}: {}", trace.getOrderId(), e.getMessage());
+                return false;
+            }
+            String status = resp == null ? "" : resp.path("status").asText("");
+            if ("SUCCESS".equalsIgnoreCase(status)) {
+                self.finalizeLiveOrderRefund(prep, "SUCCESS");
+                self.finalizeRefundInitiated(refundIdemKey);
+                log.info("refund retry closed via query order={} outRefundNo={}",
+                        trace.getOrderId(), outRefundNo);
+                return true;
+            }
+            if ("ABNORMAL".equalsIgnoreCase(status)) {
+                // ABNORMAL 需渠道侧人工，不自动重发（双退风险）——交由调度器置 FAILED+告警
+                return false;
+            }
+            // PROCESSING/无结果：重发（同号幂等）；渠道最终一致后由查单或下轮闭环
+            String refundStatus = executeLiveChannelRefund(prep);
+            if ("ABNORMAL".equalsIgnoreCase(refundStatus)) {
+                return false;
+            }
+            self.finalizeLiveOrderRefund(prep, refundStatus);
+            self.finalizeRefundInitiated(refundIdemKey);
+            log.info("refund retry re-submitted and finalized order={} status={}",
+                    trace.getOrderId(), refundStatus);
+            return true;
+        }
+        if (PayChannels.ALIPAY.equalsIgnoreCase(trace.getChannel())) {
+            // 支付宝同步接口无中间态：直接按同一 out_request_no 重发（渠道幂等）
+            executeLiveChannelRefund(prep);
+            self.finalizeLiveOrderRefund(prep, "SUCCESS");
+            self.finalizeRefundInitiated(refundIdemKey);
+            log.info("refund retry alipay closed order={}", trace.getOrderId());
+            return true;
+        }
+        return false;
+    }
+
+    /** 痕迹行耗尽处置：置 REFUND_FAILED + HIGH 告警转人工（不自动冲账，金额方向敏感）。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markRefundFailed(PaymentOperation trace, String cause) {
+        PaymentOperation op = paymentOperationRepository.findById(trace.getOperationId()).orElse(null);
+        if (op == null || !"REFUND_INITIATED".equals(op.getStatus())) {
+            return;
+        }
+        op.setStatus("REFUND_FAILED");
+        op.setUpdatedAt(Instant.now());
+        paymentOperationRepository.updateById(op);
+        try {
+            opsAlertDispatcher.send("REFUND_RETRY_EXHAUSTED", "渠道退款重试耗尽",
+                    "orderId=" + trace.getOrderId() + " amount=" + trace.getAmountCents()
+                            + " outRefundNo=" + trace.getGatewayTradeNo() + " " + cause + " 需人工核对");
+        } catch (Exception e) {
+            log.warn("ops alert failed refund retry exhausted order={}", trace.getOrderId(), e);
+        }
     }
 
     /** @return 渠道退款状态（微信 PROCESSING/SUCCESS/ABNORMAL；支付宝同步退款视为 SUCCESS）。 */
