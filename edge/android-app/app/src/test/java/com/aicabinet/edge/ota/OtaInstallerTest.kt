@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import androidx.test.core.app.ApplicationProvider
+import com.aicabinet.edge.config.EdgeRuntimeConfig
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -80,6 +81,8 @@ class OtaInstallerTest {
             posted += json
             200
         }
+        // 审计 A1/P0-2：report 对未注入凭据的设备静默跳过，先装机再触发上报
+        EdgeRuntimeConfig.saveSecret(ctx, "http_device_secret", "test-secret")
         OtaUpgradeLedger.markPending(ctx, "0.6.1", 1L)
 
         OtaInstallResultReceiver().onReceive(
@@ -104,6 +107,7 @@ class OtaInstallerTest {
             posted += json
             200
         }
+        EdgeRuntimeConfig.saveSecret(ctx, "http_device_secret", "test-secret")
         OtaUpgradeLedger.markPending(ctx, "0.6.1", 1L)
 
         OtaInstallResultReceiver().onReceive(

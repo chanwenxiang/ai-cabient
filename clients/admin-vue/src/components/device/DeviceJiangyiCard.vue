@@ -23,6 +23,7 @@ interface JiangyiDeviceBinding {
   lastWsOnlineAt: string | null;
   createdAt: string;
   updatedAt: string;
+  authEnabled?: boolean;
 }
 
 interface JiangyiClassMappingRow {
@@ -149,6 +150,26 @@ async function doRetire() {
     ElMessage.error(errorMessage(e, '退役失败'));
   } finally {
     retireSaving.value = false;
+  }
+}
+
+// ---------- 审计 A1/P0-3 激活制：SN 可枚举，绑定≠在场；激活后方可领 token ----------
+const authSaving = ref(false);
+
+async function toggleAuth() {
+  const activated = binding.value?.authEnabled === true;
+  authSaving.value = true;
+  try {
+    const url = activated
+      ? AdminEndpoints.deviceJiangyiDeactivate(props.deviceId)
+      : AdminEndpoints.deviceJiangyiActivate(props.deviceId);
+    await api.request(url, 'POST');
+    ElMessage.success(activated ? '已停用，存量 token 已吊销' : '已激活，设备可凭 SN 领取 token');
+    await load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, activated ? '停用失败' : '激活失败'));
+  } finally {
+    authSaving.value = false;
   }
 }
 
@@ -659,6 +680,26 @@ watch(
       </div>
 
       <div v-if="binding.status === 'BOUND' && canEdit" class="jy-actions">
+        <el-popconfirm
+          :title="
+            binding.authEnabled
+              ? '停用后设备无法领取 token、存量 token 即刻吊销，确认停用？'
+              : '激活后该设备可凭 SN 领取 token（请确认设备已在现场），确认激活？'
+          "
+          confirm-button-text="确认"
+          cancel-button-text="取消"
+          @confirm="toggleAuth"
+        >
+          <template #reference>
+            <el-button
+              :type="binding.authEnabled ? 'warning' : 'success'"
+              plain
+              :loading="authSaving"
+            >
+              {{ binding.authEnabled ? '停用 token 签发' : '激活 token 签发' }}
+            </el-button>
+          </template>
+        </el-popconfirm>
         <el-popconfirm
           title="退役后该柜机停止识别开门与上报，确认退役？"
           confirm-button-text="退役"

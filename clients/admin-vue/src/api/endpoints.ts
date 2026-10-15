@@ -154,6 +154,11 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/bind`,
   deviceJiangyiRetire: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/retire`,
+  /** 审计 A1/P0-3 激活制：SN 可枚举，激活后方可凭 SN 领 token；停用同步吊销存量 token */
+  deviceJiangyiActivate: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/activate`,
+  deviceJiangyiDeactivate: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/deactivate`,
   deviceJiangyiMapping: (deviceId: string, classId: number) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-mappings/${classId}`,
   deviceJiangyiMappingStatus: (deviceId: string, classId: number) =>
