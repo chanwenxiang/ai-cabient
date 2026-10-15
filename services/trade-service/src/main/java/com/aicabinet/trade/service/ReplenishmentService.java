@@ -1035,8 +1035,11 @@ public class ReplenishmentService {
     /** RESTOCK：无货道时按可补容量自动拆分/截断并分配货道，减少手填。 */
     private void persistRestockLines(ReplenishmentTask task, Long taskId, ReplenishmentTaskLineDto dto) {
         int qty = dto.quantity();
+        // 审计 P1-17（2026-10-15）：qty≤0 明确拒绝而非静默丢弃——静默丢行会让商户以为
+        // 提交成功但补货清单缺行（对不上的账）。前端已有数量钳制，此为后端兜底防线。
         if (qty <= 0) {
-            return;
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "补货数量必须大于 0（sku=" + dto.skuId() + "）");
         }
         String slotId = dto.slotId() != null && !dto.slotId().isBlank()
                 ? dto.slotId().trim().toUpperCase() : null;
