@@ -76,7 +76,8 @@ class ReplenishmentCheckInStatusGatesTest {
         replenishmentService = new ReplenishmentService(
                 null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
                 new ObjectMapper(), warehouseService, deviceRepository, deviceSlotService, inTransitService,
-                sessionService, notificationService, distributedLockService, systemConfigService, null, null);
+                sessionService, notificationService, distributedLockService, systemConfigService,
+                null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(replenishmentService, "self", replenishmentService);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
         lenient().when(systemConfigService.getBoolean(

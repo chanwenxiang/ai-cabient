@@ -105,6 +105,7 @@ public class ReplenishmentService {
     private final DeviceInfoMapper deviceRepository;
 
     private final DeviceSlotService deviceSlotService;
+    private final RestockSnapshotService restockSnapshotService;
 
     private final InTransitService inTransitService;
 
@@ -144,6 +145,7 @@ public class ReplenishmentService {
                                 DistributedLockService distributedLockService,
                                 SystemConfigService systemConfigService,
             SkuCatalogMapper skuCatalogMapper,
+                                RestockSnapshotService restockSnapshotService,
                                 @Lazy ReplenishmentService self) {
 
         this.inventoryRepository = inventoryRepository;
@@ -173,6 +175,7 @@ public class ReplenishmentService {
         this.distributedLockService = distributedLockService;
         this.systemConfigService = systemConfigService;
         this.skuCatalogMapper = skuCatalogMapper;
+        this.restockSnapshotService = restockSnapshotService;
 
         this.self = self;
     }
@@ -795,6 +798,12 @@ public class ReplenishmentService {
 
     }
 
+    /** P0-2（2026-10-15）：本次补货会话是否留下真实重力实测（真实测 ⇒ 完成时不覆盖实盘）。 */
+    private boolean hasRealRestockGravitySnapshot(ReplenishmentTask task) {
+        return restockSnapshotService != null
+                && restockSnapshotService.hasRealGravitySnapshot(task.getTaskId());
+    }
+
     private ReplenishmentTaskDto doCompleteTask(Long operatorId, Long taskId) {
         ReplenishmentTask task = requireTaskForUpdate(taskId);
         // 未完成任务必须先签到，避免远程误点完成导致库存虚增
@@ -807,12 +816,15 @@ public class ReplenishmentService {
         }
         List<ReplenishmentTaskLine> pending = taskLineRepository.findByTaskIdAndAppliedFalse(taskId);
         boolean expectReceive = validateOutboundBeforeComplete(task, pending);
-        int appliedRestockQty = applyPendingReplenishmentLines(task, pending, operatorId, String.valueOf(taskId));
+        // P0-2（2026-10-15）：有真实重力实测 ⇒ 保留关门快照实盘，不用回写后账面覆盖
+        boolean preservePhysical = hasRealRestockGravitySnapshot(task);
+        int appliedRestockQty = applyPendingReplenishmentLines(task, pending, operatorId,
+                String.valueOf(taskId), preservePhysical);
         deviceSlotService.clampDeviceOverCapacity(task.getDeviceId());
         task.setStatus(STATUS_COMPLETED);
         task.setCompletedAt(Instant.now());
         if (expectReceive) {
-            receiveOutboundHandover(task, operatorId, appliedRestockQty, pending.isEmpty());
+            receiveOutboundHandover(task, operatorId, appliedRestockQty, pending.isEmpty(), preservePhysical);
         }
         task = taskRepository.save(task);
         return finishCompletedTaskSideEffects(task, taskId);
@@ -825,18 +837,19 @@ public class ReplenishmentService {
         // 仅当任务本身无明细时按出库行回写，避免与已上架任务行重复加库存
         if (task.getOutboundId() != null
                 && inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
-            int appliedQty = resolveAppliedQtyForCatchUpReceive(task, operatorId, taskId);
+            int appliedQty = resolveAppliedQtyForCatchUpReceive(task, operatorId, taskId,
+                    hasRealRestockGravitySnapshot(task));
             receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), appliedQty);
         }
         return finishCompletedTaskSideEffects(task, taskId);
     }
 
     private int resolveAppliedQtyForCatchUpReceive(
-            ReplenishmentTask task, Long operatorId, Long taskId) {
+            ReplenishmentTask task, Long operatorId, Long taskId, boolean preservePhysical) {
         List<ReplenishmentTaskLine> existingLines =
                 taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId);
         if (existingLines.isEmpty()) {
-            return restockFromOutboundLines(task, operatorId, "OB-" + task.getOutboundId());
+            return restockFromOutboundLines(task, operatorId, "OB-" + task.getOutboundId(), preservePhysical);
         }
         return existingLines.stream()
                 .filter(l -> RESTOCK.equalsIgnoreCase(l.getLineType()))
@@ -865,12 +878,13 @@ public class ReplenishmentService {
     }
 
     private int applyPendingReplenishmentLines(
-            ReplenishmentTask task, List<ReplenishmentTaskLine> pending, Long operatorId, String refId) {
+            ReplenishmentTask task, List<ReplenishmentTaskLine> pending, Long operatorId, String refId,
+            boolean preservePhysical) {
         int appliedRestockQty = 0;
         for (ReplenishmentTaskLine line : pending) {
             inventoryLotService.applyReplenishmentLine(task.getDeviceId(), line, operatorId, refId);
             if (RESTOCK.equalsIgnoreCase(line.getLineType())) {
-                deviceSlotService.recordRestock(task.getDeviceId(), line.getSlotId());
+                deviceSlotService.recordRestock(task.getDeviceId(), line.getSlotId(), preservePhysical);
                 appliedRestockQty += line.getQuantity();
             }
             line.setApplied(true);
@@ -893,7 +907,8 @@ public class ReplenishmentService {
      * 仓配在途签收：按出库行上架；若已有现场 RESTOCK 行，则只补 SKU 差额。
      */
     private int receiveOutboundHandover(
-            ReplenishmentTask task, Long operatorId, int appliedRestockQty, boolean pendingWasEmpty) {
+            ReplenishmentTask task, Long operatorId, int appliedRestockQty, boolean pendingWasEmpty,
+            boolean preservePhysical) {
         Map<String, Integer> appliedBySku = new HashMap<>();
         for (ReplenishmentTaskLine line : taskLineRepository.findByTaskIdOrderByLineIdAsc(task.getTaskId())) {
             if (!RESTOCK.equalsIgnoreCase(line.getLineType()) || !line.isApplied()) {
@@ -902,7 +917,7 @@ public class ReplenishmentService {
             appliedBySku.merge(line.getSkuId(), line.getQuantity(), Integer::sum);
         }
         int fromOutbound = restockFromOutboundLines(
-                task, operatorId, "OB-" + task.getOutboundId(), appliedBySku);
+                task, operatorId, "OB-" + task.getOutboundId(), appliedBySku, preservePhysical);
         int totalRestock = pendingWasEmpty ? fromOutbound : appliedRestockQty + fromOutbound;
         receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), totalRestock);
         return totalRestock;
@@ -941,15 +956,16 @@ public class ReplenishmentService {
     }
 
     /** 无任务明细时按出库行（含货道/容量）回写柜机，返回实际上架件数。 */
-    private int restockFromOutboundLines(ReplenishmentTask task, Long operatorId, String refId) {
-        return restockFromOutboundLines(task, operatorId, refId, Map.of());
+    private int restockFromOutboundLines(ReplenishmentTask task, Long operatorId, String refId,
+                                         boolean preservePhysical) {
+        return restockFromOutboundLines(task, operatorId, refId, Map.of(), preservePhysical);
     }
 
     /**
      * 按出库行上架；{@code alreadyAppliedBySku} 表示同任务已通过现场行上架的数量，按 SKU 扣减后只补差额。
      */
     private int restockFromOutboundLines(ReplenishmentTask task, Long operatorId, String refId,
-                                         Map<String, Integer> alreadyAppliedBySku) {
+                                         Map<String, Integer> alreadyAppliedBySku, boolean preservePhysical) {
         Map<String, Integer> remainingCredit = new HashMap<>();
         if (alreadyAppliedBySku != null) {
             remainingCredit.putAll(alreadyAppliedBySku);
@@ -961,7 +977,7 @@ public class ReplenishmentService {
             }
             int need = computeOutboundRestockNeed(ol, remainingCredit);
             if (need > 0) {
-                received += applyOutboundLineRestock(task, ol, need, operatorId, refId);
+                received += applyOutboundLineRestock(task, ol, need, operatorId, refId, preservePhysical);
             }
         }
         return received;
@@ -977,13 +993,13 @@ public class ReplenishmentService {
     }
 
     private int applyOutboundLineRestock(ReplenishmentTask task, WarehouseOutboundLine ol, int need,
-                                         Long operatorId, String refId) {
+                                         Long operatorId, String refId, boolean preservePhysical) {
         List<DeviceSlotService.SlotRestockAllocation> allocations =
                 resolveOutboundSlotAllocations(task.getDeviceId(), ol, need);
         if (allocations.isEmpty()) {
             return restockOutboundLineWithoutSlots(task, ol, need, operatorId, refId);
         }
-        return restockOutboundLineWithAllocations(task, ol, allocations, operatorId, refId);
+        return restockOutboundLineWithAllocations(task, ol, allocations, operatorId, refId, preservePhysical);
     }
 
     private int restockOutboundLineWithoutSlots(ReplenishmentTask task, WarehouseOutboundLine ol, int need,
@@ -1001,7 +1017,7 @@ public class ReplenishmentService {
 
     private int restockOutboundLineWithAllocations(ReplenishmentTask task, WarehouseOutboundLine ol,
                                                    List<DeviceSlotService.SlotRestockAllocation> allocations,
-                                                   Long operatorId, String refId) {
+                                                   Long operatorId, String refId, boolean preservePhysical) {
         int received = 0;
         for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
             inventoryLotService.addRestock(
@@ -1010,7 +1026,7 @@ public class ReplenishmentService {
                             ol.getBatchNo(), null, ol.getExpiryDate(), alloc.quantity(),
                             alloc.slotCode(),
                             new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
-            deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode());
+            deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode(), preservePhysical);
             received += alloc.quantity();
         }
         return received;
@@ -1360,8 +1376,22 @@ public class ReplenishmentService {
         task.setNotes("from-suggest:" + dev);
         task = taskRepository.save(task);
         notifyTaskAssigned(task);
-        self.seedDraftRestockLines(task.getTaskId(), dev, skuQty);
+        // P0-1 修复（2026-10-15）：设备有主仓 ⇒ 同事务生成出库单（与 plan 路径同源，
+        // 发运时 generateLinesFromOutbound 回填批次行，完成时仓扣减/在途签收闭环）；
+        // 无主仓（未启用仓配的商户）⇒ 保持直加模式（草稿行，完成时直接加柜机账面）。
+        // 注意：有出库单时不可再种草稿行——generateLinesForTask 会因未应用行存在而跳过回填。
+        if (hasHomeWarehouse(dev)) {
+            warehouseService.createOutboundForRoute(route.getRouteId(), null, route.getAssigneeUserId());
+        } else {
+            self.seedDraftRestockLines(task.getTaskId(), dev, skuQty);
+        }
         return toRouteDto(route);
+    }
+
+    private boolean hasHomeWarehouse(String deviceId) {
+        return deviceRepository.findById(deviceId)
+                .map(d -> d.getHomeWarehouseId() != null && !d.getHomeWarehouseId().isBlank())
+                .orElse(false);
     }
 
     private static String normalizePullOffLineType(CreateFromExpiryRequest request) {

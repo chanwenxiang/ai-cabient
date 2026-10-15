@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +25,8 @@ class RestockSnapshotConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new RestockSnapshotService(gravityHelper, deviceSlotService, distributedLockService);
+        service = new RestockSnapshotService(gravityHelper, deviceSlotService, distributedLockService,
+                org.mockito.Mockito.mock(ShoppingSessionMapper.class));
     }
 
     @Test

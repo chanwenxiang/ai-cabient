@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.GravityDeltaRequest;
 import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,7 +44,8 @@ class RestockSnapshotServiceTest {
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);
         restockSnapshotService = new RestockSnapshotService(
-                gravityHelper, deviceSlotService, distributedLockService);
+                gravityHelper, deviceSlotService, distributedLockService,
+                org.mockito.Mockito.mock(ShoppingSessionMapper.class));
     }
 
     @Test

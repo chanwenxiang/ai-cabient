@@ -293,22 +293,23 @@ public class MerchantWorkbenchQueryService {
     }
 
     private long appendLowStockItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        long lowStock;
-        if (deviceIds == null) {
-            lowStock = inventoryRepository.countLowStock();
-        } else if (deviceIds.isEmpty()) {
-            lowStock = 0;
-        } else {
-            lowStock = inventoryRepository.countLowStockByDeviceIds(deviceIds);
+        // P1-3 统一口径（2026-10-15）：货道级缺货（minLevel 或 容量×商户阈值%），与看板/建议同源
+        long lowStock = 0;
+        Iterable<String> scopeIds = deviceIds != null ? deviceIds
+                : deviceRepository.findAllOrderByDeviceIdAsc().stream()
+                        .map(DeviceInfo::getDeviceId).toList();
+        for (String deviceId : scopeIds) {
+            for (DeviceSlotService.SlotShortageItem s : deviceSlotService.listShortageSlots(deviceId)) {
+                lowStock++;
+                if (items.size() < WORKBENCH_ITEM_CAP) {
+                    items.add(new OpsActionItemDto(
+                            "LOW_STOCK", MEDIUM, "库存偏低",
+                            "货道 " + s.slotCode() + " 当前 " + s.bookQty() + " / 容量 " + s.capacity()
+                                    + "（阈值 " + s.thresholdPct() + "%）",
+                            s.deviceId(), null, null, s.skuId(), null, null, null));
+                }
+            }
         }
-        inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
-                .filter(inv -> inDeviceScope(deviceIds, inv.getId().getDeviceId()))
-                .forEach(inv -> items.add(new OpsActionItemDto(
-                        "LOW_STOCK", MEDIUM, "库存偏低",
-                        "SKU " + inv.getId().getSkuId() + " 当前 " + inv.getQuantity()
-                                + " / 阈值 " + inv.getLowThreshold(),
-                        inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
-                        null, inv.getUpdatedAt(), null)));
         return lowStock;
     }
 

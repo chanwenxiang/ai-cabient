@@ -48,6 +48,8 @@ class ReplenishmentServiceSuggestTaskTest {
     @Mock
     private WarehouseService warehouseService;
     @Mock
+    private com.aicabinet.trade.mapper.DeviceInfoMapper deviceRepository;
+    @Mock
     private DeviceSlotService deviceSlotService;
     @Mock
     private InTransitService inTransitService;
@@ -64,8 +66,8 @@ class ReplenishmentServiceSuggestTaskTest {
     void setUp() {
         service = new ReplenishmentService(
                 null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
-                new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService,
-                sessionService, notificationService, distributedLockService, null, null, null);
+                new ObjectMapper(), warehouseService, deviceRepository, deviceSlotService, inTransitService,
+                sessionService, notificationService, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
@@ -120,6 +122,31 @@ class ReplenishmentServiceSuggestTaskTest {
         assertEquals(3, lines.get(0).getQuantity());
         assertEquals("A2", lines.get(1).getSlotId());
         assertEquals(2, lines.get(1).getQuantity());
+    }
+
+    @Test
+    void createTaskFromSuggestion_withHomeWarehouse_createsOutboundInsteadOfDraftLines() {
+        // P0-1（2026-10-15）：设备有主仓 ⇒ 同事务生成出库单，不再种无批次草稿行
+        when(warehouseService.suggestForDevice(DEVICE)).thenReturn(List.of(suggest("SKU-A", 5)));
+        com.aicabinet.trade.domain.DeviceInfo device = new com.aicabinet.trade.domain.DeviceInfo();
+        device.setDeviceId(DEVICE);
+        device.setHomeWarehouseId("WH-1");
+        when(deviceRepository.findById(DEVICE)).thenReturn(java.util.Optional.of(device));
+        when(routeRepository.save(any())).thenAnswer(inv -> {
+            ReplenishmentRoute r = inv.getArgument(0);
+            r.setRouteId(7L);
+            return r;
+        });
+        when(taskRepository.save(any())).thenAnswer(inv -> {
+            ReplenishmentTask t = inv.getArgument(0);
+            t.setTaskId(10L);
+            return t;
+        });
+
+        service.createTaskFromSuggestion(ACTOR, DEVICE, null);
+
+        verify(warehouseService).createOutboundForRoute(7L, null, ACTOR);
+        verify(taskLineRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test

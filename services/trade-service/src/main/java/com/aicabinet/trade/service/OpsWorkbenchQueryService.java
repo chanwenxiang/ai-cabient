@@ -270,21 +270,39 @@ public class OpsWorkbenchQueryService {
     }
 
     private void collectLowStockItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
-                .filter(i -> inDeviceScope(scopedDevices, i.getId().getDeviceId()))
-                .forEach(i -> items.add(new OpsActionItemDto(
+        // P1-3 统一口径（2026-10-15）：改用货道级缺货判定（minLevel 或 容量×商户阈值%），
+        // 与缺货看板/补货建议/stockoutWarn 同源——预警说缺的，建议页一定有。
+        for (String deviceId : resolveShortageDeviceIds(scopedDevices)) {
+            for (DeviceSlotService.SlotShortageItem s : deviceSlotService.listShortageSlots(deviceId)) {
+                if (items.size() >= WORKBENCH_ITEM_CAP) {
+                    return;
+                }
+                items.add(new OpsActionItemDto(
                         "LOW_STOCK",
                         MEDIUM,
                         "库存偏低",
-                        "当前库存 " + i.getQuantity() + "，预警阈值 " + i.getLowThreshold(),
-                        i.getId().getDeviceId(),
+                        "货道 " + s.slotCode() + " 当前 " + s.bookQty() + " / 容量 " + s.capacity()
+                                + "（阈值 " + s.thresholdPct() + "%）",
+                        s.deviceId(),
                         null,
                         null,
-                        i.getId().getSkuId(),
+                        s.skuId(),
                         null,
-                        i.getUpdatedAt(),
+                        null,
                         null
-                )));
+                ));
+            }
+        }
+    }
+
+    /** 缺货巡检的设备范围：scoped=null（超管全量）时退化为全设备遍历（现有库规模可接受）。 */
+    private Iterable<String> resolveShortageDeviceIds(Set<String> scopedDevices) {
+        if (scopedDevices != null) {
+            return scopedDevices;
+        }
+        return deviceRepository.findAllOrderByDeviceIdAsc().stream()
+                .map(DeviceInfo::getDeviceId)
+                .toList();
     }
 
     private void collectReplenishmentActionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {

@@ -51,6 +51,7 @@ class MerchantFinanceServiceTest {
     @Mock MinioVideoService minioVideoService;
     @Mock JiangyiOrderVideoService jiangyiOrderVideoService;
     @Mock MerchantSettlementBillMapper settlementBillRepository;
+    @Mock com.aicabinet.trade.mapper.DeviceDataFeeBillMapper dataFeeBillRepository;
 
     private MerchantFinanceService service;
 
@@ -61,7 +62,8 @@ class MerchantFinanceServiceTest {
                 orderRepository, orderLineRepository, splitRepository, merchantRepository,
                 settlementService, profitSharingService, profitSharingProperties, weChatPayProperties,
                 sessionRepository, minioVideoService, jiangyiOrderVideoService,
-                new com.aicabinet.trade.service.view.OrderViewAssembler(), settlementBillRepository, null);
+                new com.aicabinet.trade.service.view.OrderViewAssembler(), settlementBillRepository,
+                dataFeeBillRepository, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

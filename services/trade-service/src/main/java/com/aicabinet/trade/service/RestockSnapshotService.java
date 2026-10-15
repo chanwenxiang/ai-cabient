@@ -2,10 +2,12 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.GravityDeltaRequest;
 import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
@@ -27,13 +29,36 @@ public class RestockSnapshotService {
     private final GravitySettlementHelper gravityHelper;
     private final DeviceSlotService deviceSlotService;
     private final DistributedLockService distributedLockService;
+    private final ShoppingSessionMapper sessionRepository;
 
     public RestockSnapshotService(GravitySettlementHelper gravityHelper,
                                   DeviceSlotService deviceSlotService,
-                                  DistributedLockService distributedLockService) {
+                                  DistributedLockService distributedLockService,
+                                  ShoppingSessionMapper sessionRepository) {
         this.gravityHelper = gravityHelper;
         this.deviceSlotService = deviceSlotService;
         this.distributedLockService = distributedLockService;
+        this.sessionRepository = sessionRepository;
+    }
+
+    /**
+     * 该补货任务的关门会话是否产生过**真实重力实测**（P0-2，2026-10-15）：
+     * 有真实实测 ⇒ 补货完成时保留快照值，不用回写后账面覆盖（差异留给 SLOT_DISCREPANCY 闭环）。
+     * 会话 gravityDeltas 解析出任一非空增量即认定真实实测；无会话/无增量返回 false。
+     */
+    @Transactional(readOnly = true)
+    public boolean hasRealGravitySnapshot(Long taskId) {
+        if (taskId == null) {
+            return false;
+        }
+        for (ShoppingSession session : sessionRepository.findByReplenishmentTaskId(taskId)) {
+            List<GravityDeltaRequest.GravityDeltaItem> deltas =
+                    gravityHelper.parse(session.getGravityDeltas());
+            if (!deltas.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public int applySnapshot(ShoppingSession session) {
