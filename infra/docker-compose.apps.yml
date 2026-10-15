@@ -70,6 +70,10 @@ services:
       # L2-4：Redis 密码（与 base redis --requirepass 对齐）
       REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
       KAFKA_BOOTSTRAP: redpanda:9092
+      # 审计 A2/P1-8：broker 已启用 SASL/SCRAM-SHA-256（infra/docker-compose.yml redpanda-init 建用户）
+      KAFKA_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      KAFKA_USER: trade
+      KAFKA_PASSWORD: ${KAFKA_TRADE_PASSWORD:-dev-kafka-trade}
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       # M08：经网关转发时信任代理头的网段（默认空=不信任 X-Forwarded-For，保持直连语义）
@@ -226,18 +230,9 @@ services:
 
   redpanda:
     stop_grace_period: 60s
-    command:
-      - redpanda
-      - start
-      - --smp
-      - "1"
-      - --memory
-      - 512M
-      - --overprovisioned
-      - --kafka-addr
-      - PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr
-      - PLAINTEXT://redpanda:9092
+    # 审计 A2/P1-8：叠加栈内宣告地址为容器名（base 模板默认 localhost 仅宿主可连）
+    environment:
+      REDPANDA_ADVERTISE: redpanda
     profiles: ["apps"]
 
   gateway:

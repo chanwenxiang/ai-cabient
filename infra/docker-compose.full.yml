@@ -81,9 +81,57 @@ services:
   redpanda:
     stop_grace_period: 60s
     image: redpandadata/redpanda:v24.1.1
-    command: ["redpanda", "start", "--smp", "1", "--memory", "512M", "--overprovisioned", "--kafka-addr", "PLAINTEXT://0.0.0.0:9092", "--advertise-kafka-addr", "PLAINTEXT://redpanda:9092"]
+    # 审计 A2/P1-8：SASL/SCRAM 基线——配置文件挂载渲染（authentication_method 必须显式写在
+    # 监听器上，--set kafka_api 数组写法会被 --kafka-addr 整段覆盖而静默丢失，2026-10-15 实证）。
+    # REDPANDA_ADVERTISE=对内宣告地址（本栈恒为 redpanda）。
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        sed "s/__ADVERTISE__/$${REDPANDA_ADVERTISE:-redpanda}/g" /redpanda-tmpl/redpanda.sasl.yaml > /etc/redpanda/redpanda.yaml
+        exec /usr/bin/rpk redpanda start --smp 1 --memory 512M --overprovisioned
+    environment:
+      REDPANDA_ADVERTISE: redpanda
+    volumes:
+      - ./redpanda/redpanda.sasl.yaml:/redpanda-tmpl/redpanda.sasl.yaml:ro
     # Host 9092 often in Windows Hyper-V excluded ranges (e.g. 9083–9182); default 19092.
     ports: ["127.0.0.1:${REDPANDA_PORT:-19092}:9092"]
+
+  # 一次性 SCRAM 用户引导（幂等）：trade 消费/生产 + vision（将邑识别结果生产方，预留）+ admin。
+  # 失败不阻断栈启动（trade 对 broker 有重试；vision-async 默认关），但会让 Kafka 面不可用
+  # ⇒ 起栈后用 `docker compose logs redpanda-init` 核对三行 create/exists 输出。
+  redpanda-init:
+    stop_grace_period: 30s
+    image: redpandadata/redpanda:v24.1.1
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set +e
+        for i in $$(seq 1 30); do
+          rpk cluster health --api-urls redpanda:9644 >/dev/null 2>&1 && break
+          sleep 2
+        done
+        # v24：SASL 与 Kafka 授权均为【集群配置】属性，必须运行时设置（broker 启动后动态生效）
+        rpk cluster config set enable_sasl true --api-urls redpanda:9644 \
+          || echo "[init] enable_sasl already set or failed"
+        rpk cluster config set superusers '["admin","trade","vision"]' --api-urls redpanda:9644 \
+          || echo "[init] superusers already set or failed"
+        rpk cluster config set kafka_enable_authorization true --api-urls redpanda:9644 \
+          || echo "[init] kafka_enable_authorization already set or failed"
+        rpk acl user create trade -p "$$KAFKA_TRADE_PASSWORD" --api-urls redpanda:9644 \
+          || echo "[init] trade user exists or create failed"
+        rpk acl user create vision -p "$$KAFKA_VISION_PASSWORD" --api-urls redpanda:9644 \
+          || echo "[init] vision user exists or create failed"
+        rpk acl user create admin -p "$$KAFKA_ADMIN_PASSWORD" --api-urls redpanda:9644 \
+          || echo "[init] admin user exists or create failed"
+        # 授权说明：authentication_method=sasl 强制 SCRAM 握手；superusers（模板文件）授予
+        # trade/vision/admin 全量权限，按 topic 细粒度 ACL 为二期（redpanda.sasl.yaml 头注释）。
+        echo "[init] done"
+    environment:
+      KAFKA_TRADE_PASSWORD: ${KAFKA_TRADE_PASSWORD:-dev-kafka-trade}
+      KAFKA_VISION_PASSWORD: ${KAFKA_VISION_PASSWORD:-dev-kafka-vision}
+      KAFKA_ADMIN_PASSWORD: ${KAFKA_ADMIN_PASSWORD:-dev-kafka-admin}
+    depends_on:
+      - redpanda
 
   trade-service:
     stop_grace_period: 30s
@@ -105,6 +153,10 @@ services:
       # L2-4：Redis 密码（与 base redis --requirepass 对齐）
       REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
       KAFKA_BOOTSTRAP: redpanda:9092
+      # 审计 A2/P1-8：broker 已启用 SASL/SCRAM-SHA-256（infra/docker-compose.yml redpanda-init 建用户）
+      KAFKA_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      KAFKA_USER: trade
+      KAFKA_PASSWORD: ${KAFKA_TRADE_PASSWORD:-dev-kafka-trade}
       AICABINET_DEVICE_SERVICE_URL: http://device-service:8081
       # 将邑开门柜网关（CB-022）：将邑柜开门指令路由目标
       AICABINET_JIANGYI_GATEWAY_URL: http://jiangyi-gateway:8083

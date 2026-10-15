@@ -54,6 +54,15 @@ spring:
       properties:
         max.poll.interval.ms: ${KAFKA_MAX_POLL_INTERVAL_MS:300000}
         session.timeout.ms: ${KAFKA_SESSION_TIMEOUT_MS:45000}
+        # 审计 A2/P1-8：compose 栈内 broker 强制 SASL/SCRAM-SHA-256（SASL_PLAINTEXT=TLS 外的
+        # SCRAM 握手，容器网络内可接受；公网 broker 需换 SSL+SCRAM）。
+        # 非 compose 本地默认 PLAINTEXT + 空密码，行为与历史一致。
+        security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+        sasl.mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-256}
+        sasl.jaas.config: >-
+          org.apache.kafka.common.security.scram.ScramLoginModule required
+          username="${KAFKA_USER:trade}"
+          password="${KAFKA_PASSWORD:}";
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer

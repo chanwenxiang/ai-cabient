@@ -132,7 +132,7 @@ class RecognitionResultWriterTest {
         assertEquals(RecognitionResultWriter.Outcome.DUPLICATE_TASK, outcome);
     }
 
-    /** Kafka 通道的 modelVersion 永远为 null（见 {@code VisionRecognitionListener}），必须允许落库。 */
+    /** 防御纵深：写入器自身对 null modelVersion 容忍（Kafka/HTTP 两入口已各自拒绝空版本）。 */
     @Test
     void persist_nullModelVersion_stillWrites() {
         RecognitionResultWriter.Outcome outcome = writer.persist("S-1", recognized("T-1", null));
