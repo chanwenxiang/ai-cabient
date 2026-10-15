@@ -1504,3 +1504,25 @@
   - 老 `d:/ideaCode/easygo` dvm NOT_FALL 自动退款转人工逻辑（⭕ 源码）
 - **取证日期**：2026-10-15
 - **我们的结论**：**采纳选项 2（2026-10-15 用户拍板）：政府消费券式 + 比例摊**——①部分退：退款额=退商品原价合计×(实付/原价总额)，券抵扣按 oldSubtotal→newSubtotal 比例缩减（`CouponService.proportionalCouponDiscount`，每元固定摊销、**券不返还、不重算门槛、不追回**，会员折扣同比例缩）；②全额退：券经 restoreUsedToUnused（CAS）返还会员账户、预算释放；③老「禁自动退」不迁移维持原判；争议免单不受影响。**合规前提**：券规则文案须写明本口径（《七日无理由退货办法》第十五条「有约定从其约定」）。实现注意：预估与写侧同口径（铁律 51），oldSubtotal 必须在 setLines(remaining) 之前取（比例失真=资损，测试拦下过）。
+
+### CB-046 【新】设备接入云端鉴权范式：硬件指纹预共享+请求签名（防重放），fleet 共享密钥无先例
+
+> 触发：2026-10-15 审计 A1/P0-2/P0-3 落地（设备面 HTTP 一机一密 + 将邑 token 激活制）。**先列名单再检索**：设备类业务平台如何给「设备」发凭据（非商户/非用户）。
+
+- **竞品做法 / 官方口径**：
+  - **腾讯微卡 智能硬件**（⭕ 官方 wiki）：机具**出厂前**提供机具编号 → 平台录入并返回**硬件指纹** → 写入机具内或维护在机具网关 → 每次请求按指纹 AES 加密签名（`nonce:timestamp:version`，**后台按时间+随机串检测重放**）。⇒ 设备级预共享凭据 + 运营预登记 + 防重放，与我们「运营台签发→现场注入→每设备独立 secret」同构。
+  - **微信支付 APIv3**（⭕ 官方）：商户**私钥签名 + 证书序列号**（serial 随密钥轮换），平台侧验签；无任何「全商户共享一把 key」形态。⇒ 每主体独立非对称凭据+可轮换序列号是平台 API 鉴权事实标准。
+  - **简单购 开放平台**（⭕ 官方文档，开门柜同行 CB-038 家族）：合作方线下获取 `merchant_code + secret_key` 用于请求认证——开门柜平台 API 鉴权同样是「逐主体预共享 secret」，无共享密钥形态。
+  - **乐摇摇 开放平台**（⭕ 官方文档，售货机主板同行）：售货机 Android 主板 SDK 登录=`appId + Key + uuid 设备唯一码`（厂家自定义全局唯一，唯一码错即登录失败）——设备身份+密钥双要素登录。
+  - **酷点网络**（⭕ 官方文档）：设备首次使用经**授权码激活**换取 `sign_secret + AES 密钥 + 密钥序列号`，签名失效=-10007 须重新激活——「运营预授权→一次性发凭据→失效即重换」与我们 http-credential 签发/吊销链完全同构。
+  - **将邑 V16**（🟡 供应链协议，CB-022 已引）：设备仅凭出厂 `deviceSn` 换 token（无逐设备 secret、无防重放）——**反例**：SN 可枚举/可读，仿冒即领 token（正是本条要修的 P0-3 面；激活制+签发突发检测为协议受限下的运营面补丁）。
+- **对照主体**：腾讯微卡 ｜ 微信支付 APIv3 ｜ 简单购 ｜ 乐摇摇 ｜ 酷点网络 ｜ 将邑 V16
+- **证据**：
+  - <https://wiki.weixiao.qq.com/api/hardware/payment/zhiyin.html> （⭕ 腾讯微卡硬件指纹签名鉴权，nonce+timestamp 防重放同页；2026-10-15）
+  - <https://pay.weixin.qq.com/doc/global/v3/zh/4012353190> （⭕ 微信支付 APIv3 商户私钥+证书序列号签名；2026-10-15）
+  - <https://www.ainfinit.com/open/api/prepare.html> （⭕ 简单购开放平台 merchant_code+secret_key；2026-10-15）
+  - <https://open.leyaoyao.com/article/120> （⭕ 乐摇摇售货机主板 SDK appId+Key+uuid 登录；2026-10-15）
+  - <https://docs.ikudot.com/docs/reference/cashier/api/auth/activate> （⭕ 酷点设备激活授权码换签名密钥；2026-10-15）
+  - 将邑 V16.0.0 协议（110 页扫描件，2026-10-10 视觉比对，见 JIANGYI_GATEWAY_DESIGN.md §7）+ 本仓 `DeviceTokenController` 现状（🟡 源码亲验）
+- **取证日期**：2026-10-15
+- **我们的结论**：**采纳「设备级预共享凭据 + 运营预登记/签发 + deviceId 绑定」**（对齐微卡硬件指纹范式）：①设备面 HTTP 端点一机一密（V367 `device_http_credential`，sha256 恒定比对+路径绑定，fleet key 退出设备面/APK）；②将邑 token 激活制（V366，SN 可枚举的运营面防线，deactivate 即刻吊销）；③APK 不再内嵌任何密钥（装机页注入，AndroidKeyStore 落盘）；④**有意不同**：微卡用 AES 加密签名带 nonce 防重放，我们一期用静态 secret 的 TLS 通道传输（内网/HTTPS），防重放签名列为二期（依赖真机批次的通道形态定稿）；⑤二期：若将邑固件支持 per-device secret 则升级「SN+secret 双因素」。

@@ -48,6 +48,12 @@ public class JiangyiDevice {
 
     private String status;
 
+    /**
+     * token 签发激活开关（审计 A1/P0-3）：SN 为出厂可枚举标识，仅凭「已登记+BOUND」
+     * 无法防仿冒——运营台逐台激活后方可领 token；关闭时须同步 bump token_version。
+     */
+    private Boolean authEnabled = Boolean.FALSE;
+
     /** 每次经我方 /jiangyi/api/token 签发 token 时 +1，旧 token 随版本失效。 */
     private Long tokenVersion;
 

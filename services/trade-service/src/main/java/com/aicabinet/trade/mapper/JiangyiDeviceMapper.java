@@ -40,6 +40,14 @@ public interface JiangyiDeviceMapper extends BaseTradeMapper<JiangyiDevice> {
                 .eq(JiangyiDevice::getDeviceId, deviceId));
     }
 
+    /** 激活开关（审计 A1/P0-3）：enabled=false 时调用方须随后 bumpTokenVersion 吊销存量 token。 */
+    default int setAuthEnabled(String deviceId, boolean enabled, Instant at) {
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getAuthEnabled, enabled)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId));
+    }
+
     /** WS 在线心跳回执（gateway 维护）。 */
     default int markWsOnline(String deviceId, Instant onlineAt) {
         return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()

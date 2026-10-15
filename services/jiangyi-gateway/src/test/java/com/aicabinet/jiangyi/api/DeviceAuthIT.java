@@ -62,7 +62,7 @@ class DeviceAuthIT {
 
     private static JiangyiDeviceView boundDevice() {
         return new JiangyiDeviceView("D1", "sn-abc", "CQYB11253", "model76", null,
-                "BOUND", 1L, Instant.now(), null);
+                "BOUND", 1L, Instant.now(), null, true);
     }
 
     // ---------- token 签发（免鉴权入口） ----------
@@ -95,12 +95,46 @@ class DeviceAuthIT {
     @Test
     void tokenIssueRejectsUnboundDeviceAs403() throws Exception {
         JiangyiDeviceView unbound = new JiangyiDeviceView("D1", "sn-abc", "CQYB11253", null, null,
-                "UNBOUND", 0L, null, null);
+                "UNBOUND", 0L, null, null, false);
         when(tradeInternalClient.deviceBySn("sn-abc")).thenReturn(Optional.of(unbound));
         mockMvc.perform(post("/jiangyi/api/token/openDoorDeviceStatus")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"deviceSn\":\"sn-abc\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void tokenIssueRejectsUnactivatedDeviceAs403AndAlerts() throws Exception {
+        // 审计 A1/P0-3 激活制：BOUND 但未激活（auth_enabled=false）→ 拒发 + HIGH 告警
+        JiangyiDeviceView cold = new JiangyiDeviceView("D2", "sn-cold", "CQYB20001", null, null,
+                "BOUND", 0L, null, null, false);
+        when(tradeInternalClient.deviceBySn("sn-cold")).thenReturn(Optional.of(cold));
+
+        mockMvc.perform(post("/jiangyi/api/token/openDoorDeviceStatus")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"deviceSn\":\"sn-cold\"}"))
+                .andExpect(status().isForbidden());
+
+        verify(tradeInternalClient).postOpsAlert(
+                org.mockito.ArgumentMatchers.eq("JIANGYI_TOKEN_UNACTIVATED"),
+                org.mockito.ArgumentMatchers.eq("D2"), anyString());
+    }
+
+    @Test
+    void tokenIssueBurstTriggersAlertButStillIssues() throws Exception {
+        // 审计 A1/P0-3 突发检测：同 SN 10 分钟窗口 ≥3 次签发 → 告警（不拒发，防误伤营业）
+        when(tradeInternalClient.deviceBySn("sn-burst")).thenReturn(Optional.of(boundDevice()));
+
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/jiangyi/api/token/openDoorDeviceStatus")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"deviceSn\":\"sn-burst\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value(200));
+        }
+        verify(tradeInternalClient).postOpsAlert(
+                org.mockito.ArgumentMatchers.eq("JIANGYI_TOKEN_ISSUE_BURST"),
+                org.mockito.ArgumentMatchers.eq("D1"), anyString());
     }
 
     // ---------- 设备面 401 负向 ----------
@@ -139,7 +173,7 @@ class DeviceAuthIT {
     void reportWithRevokedTokenIs401() throws Exception {
         // claims.ver=0 < 表 ver=1 → 已吊销（方案 §3 吊销语义）
         JiangyiDeviceView revoked = new JiangyiDeviceView("D1", "sn-abc", "CQYB11253", null, null,
-                "BOUND", 2L, Instant.now(), null);
+                "BOUND", 2L, Instant.now(), null, true);
         String token = deviceTokenService.issue(boundDevice());
         when(tradeInternalClient.device("D1")).thenReturn(Optional.of(revoked));
         mockMvc.perform(post("/jiangyi/api/device/uploadLockState")
@@ -153,7 +187,7 @@ class DeviceAuthIT {
     void reportWithRetiredDeviceIs401() throws Exception {
         String token = deviceTokenService.issue(boundDevice());
         JiangyiDeviceView retired = new JiangyiDeviceView("D1", "sn-abc", "CQYB11253", null, null,
-                "RETIRED", 1L, Instant.now(), null);
+                "RETIRED", 1L, Instant.now(), null, true);
         when(tradeInternalClient.device("D1")).thenReturn(Optional.of(retired));
         mockMvc.perform(post("/jiangyi/api/device/uploadLockState")
                         .header("Authorization", "Bearer " + token)

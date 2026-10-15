@@ -150,6 +150,23 @@ public class AdminJiangyiController {
         return ApiResponse.ok(toDto(jiangyiOnboardingService.retire(deviceId)));
     }
 
+    /**
+     * 激活：允许该设备凭 SN 领取 token（审计 A1/P0-3 激活制，2026-10-15 拍板）。
+     * SN 为出厂可枚举标识，绑定≠在场——设备到场通电前由运营逐台激活（预授权）。
+     */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/activate")
+    public ApiResponse<JiangyiDeviceDto> activate(@PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(toDto(jiangyiOnboardingService.setDeviceAuthEnabled(deviceId, true)));
+    }
+
+    /** 停用：关闭开关并同步吊销存量 token（token_version+1，已发 token 即刻失效）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/deactivate")
+    public ApiResponse<JiangyiDeviceDto> deactivate(@PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(toDto(jiangyiOnboardingService.setDeviceAuthEnabled(deviceId, false)));
+    }
+
     /** 幂等 upsert 映射（识别换算 SKU 的唯一依据；未命中即结算 fail-closed 转 DISPUTED）。 */
     @RequiresPermissions("ops:device:edit")
     @PutMapping("/devices/{deviceId}/jiangyi/class-mappings/{classId}")
@@ -344,7 +361,8 @@ public class AdminJiangyiController {
     private static JiangyiDeviceDto toDto(JiangyiDevice d) {
         return new JiangyiDeviceDto(d.getDeviceId(), d.getDeviceSn(), d.getIdentifier(),
                 d.getModelName(), d.getClassesVersion(), d.getStatus(), d.getTokenVersion(),
-                d.getTokenIssuedAt(), d.getLastWsOnlineAt(), d.getCreatedAt(), d.getUpdatedAt());
+                d.getTokenIssuedAt(), d.getLastWsOnlineAt(), d.getCreatedAt(), d.getUpdatedAt(),
+                Boolean.TRUE.equals(d.getAuthEnabled()));
     }
 
     private static JiangyiClassMappingDto toDto(JiangyiClassMapping m) {

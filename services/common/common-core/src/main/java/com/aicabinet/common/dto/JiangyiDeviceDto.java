@@ -20,5 +20,6 @@ public record JiangyiDeviceDto(
         Instant tokenIssuedAt,
         Instant lastWsOnlineAt,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        boolean authEnabled
 ) {}

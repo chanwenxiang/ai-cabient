@@ -130,6 +130,30 @@ public class JiangyiOnboardingService {
         return device;
     }
 
+    /**
+     * token 签发激活开关（审计 A1/P0-3，2026-10-15 拍板块 B）：SN 为出厂可枚举标识，
+     * 仅凭「已登记+BOUND」无法防仿冒——运营台逐台激活后方可领 token。
+     * 关闭时同步 bump token_version：已发 token（exp 7 天）即刻失效，不能只关开关。
+     */
+    public JiangyiDevice setDeviceAuthEnabled(String deviceId, boolean enabled) {
+        JiangyiDevice device = jiangyiDeviceMapper.selectById(deviceId);
+        if (device == null) {
+            throw new IllegalStateException("将邑设备不存在：deviceId=" + deviceId);
+        }
+        if ("RETIRED".equals(device.getStatus())) {
+            throw new IllegalStateException("已退役设备不能变更激活状态：deviceId=" + deviceId);
+        }
+        Instant now = Instant.now();
+        jiangyiDeviceMapper.setAuthEnabled(deviceId, enabled, now);
+        if (!enabled) {
+            jiangyiDeviceMapper.bumpTokenVersion(deviceId, now);
+        }
+        jiangyiDeviceDirectory.evict(deviceId);
+        log.info("jiangyi device auth {} deviceId={} tokenVersion={}",
+                enabled ? "ACTIVATED" : "DEACTIVATED+REVOKED", deviceId, device.getTokenVersion());
+        return jiangyiDeviceMapper.selectById(deviceId);
+    }
+
     // ---------- 运营后台入口（CB-022 收尾：登记/绑定从手工 SQL 升级为后台 UI） ----------
 
     /** 按我方柜机 ID 查绑定档案；null = 未登记（后台展示「未接入」态）。 */

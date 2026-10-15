@@ -22,7 +22,7 @@ class DeviceTokenServiceTest {
     private static final String SECRET_32 = "jiangyi-test-secret-0123456789abcdef!"; // 33 bytes
     private static JiangyiDeviceView device() {
         return new JiangyiDeviceView("D1", "sn-abc", "CQYB11253", "model76", null,
-                "BOUND", 3L, Instant.now(), null);
+                "BOUND", 3L, Instant.now(), null, true);
     }
 
     @Test
@@ -79,7 +79,7 @@ class DeviceTokenServiceTest {
     void nullTokenVersionDefaultsZero() {
         DeviceTokenService service = new DeviceTokenService(SECRET_32, 3600);
         JiangyiDeviceView noVer = new JiangyiDeviceView("D1", "sn-abc", "CQYB11253", null, null,
-                "BOUND", null, null, null);
+                "BOUND", null, null, null, true);
         String token = service.issue(noVer);
         Claims claims = assertDoesNotThrow(() -> service.verify(token));
         assertEquals(0L, claims.get(DeviceTokenService.CLAIM_VER, Long.class));

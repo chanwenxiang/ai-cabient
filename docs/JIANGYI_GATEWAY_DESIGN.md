@@ -47,6 +47,7 @@
 - `JIANGYI_TENANT_ID` / `JIANGYI_SECRET`：仅 setDomain（入驻）。
 - `JIANGYI_MERCHANT_MOBILE` / `JIANGYI_MERCHANT_PASSWORD`：商户云 login2 → Bearer（缓存 25min，401 重登一次）。
 - `JIANGYI_JWT_SECRET`（≥32 字节，无默认值→503 fail-closed）：设备 token；claims sn/deviceId/identifier/ver/exp(7d)；吊销=表 token_version+1（`/token-revoke`），签发只记 `token_issued_at` 不 bump。
+- **激活制**（审计 A1/P0-3，2026-10-15 拍板）：SN 为出厂可枚举标识，仅凭「已登记+BOUND」无法防仿冒——`jiangyi_device.auth_enabled`（V366，默认 FALSE）经运营台 `POST /api/v2/ops/admin/devices/{id}/jiangyi/activate|deactivate` 逐台激活后方可领 token；**deactivate 同步 bump token_version**（存量 token 即刻失效）；未激活请求 403 + HIGH 告警（10 分钟/SN 限频）；同 SN 10 分钟 ≥3 次签发 → JIANGYI_TOKEN_ISSUE_BURST 告警（不拒发，防误伤营业）。
 
 ## 4. 部署要点
 
@@ -164,6 +165,8 @@ V16.0.0（110 页纯扫描件 0 文字层，PyMuPDF 渲染 + 视觉阅读）对�
 6. §4.2.11（进入大模型）与 §4.2.12（订单异常）**同一路径** `/device/pokerOrder/uploadOrderError`，靠 bigModel=doing 区分——gateway OrderErrorRequest 双字段归一实现正确。
 
 ### 7.6 待真机实锤清单
+
+- **（审计 A1 顺带）控件固件是否支持配置设备级 secret**：现激活制=SN 仿冒的运营面防线；若将邑 V16 协议外固件可注入 per-device secret，token 端点升级「SN+secret 双因素」即真一机一密（二期，依赖厂商确认）。
 
 - classId 行号方向（0/1-based）→ **已实锤 0 起**（V16 第 98 页 §5.5.3 响应示例首商品 classId=0；1 起体系不会出现 0）。classIdBase 默认 0 与代码一致（AdminJiangyiController defaultValue="0"），预览人工确认兜底保留。
 - "76"/"88" 与主板对应关系 → **用户拍板默认登记 "88"**（2026-10-10：采集文档第 44 页 §4.4.4.5 示例 rk3588/rk3576 两型号均为 "88"，是当前证据下最合理取值）。校验机制不变：设备登记值与模型值字符串相等，不解释语义；若真机首推校验失败，改登记值即可，无需改代码。

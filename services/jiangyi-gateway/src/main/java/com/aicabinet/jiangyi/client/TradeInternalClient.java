@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClient;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -228,7 +229,22 @@ public class TradeInternalClient {
     public record JiangyiDeviceView(String deviceId, String deviceSn, String identifier,
                                     String modelName, String classesVersion, String status,
                                     Long tokenVersion, Instant tokenIssuedAt,
-                                    Instant lastWsOnlineAt) {}
+                                    Instant lastWsOnlineAt, Boolean authEnabled) {}
+
+    /**
+     * 运营告警上报（fire-and-forget，审计 A1/P0-3）：走 trade 边缘告警端点，
+     * alertType 自定义、deviceId 可空。失败只记日志不影响主流程。
+     */
+    public void postOpsAlert(String alertType, String deviceId, String message) {
+        try {
+            post("/internal/v1/ops-alerts", Map.of(
+                    "alertType", alertType,
+                    "deviceId", deviceId == null ? "" : deviceId,
+                    "message", message == null ? "" : message));
+        } catch (Exception e) {
+            log.warn("ops alert post failed type={} deviceId={}", alertType, deviceId, e);
+        }
+    }
 
     /** jiangyi_class_mapping 行视图（只暴露解析所需字段）。 */
     public record MappingView(Integer classId, String textName, String skuId,

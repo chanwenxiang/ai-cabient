@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -126,6 +127,31 @@ class AdminJiangyiControllerTest {
 
         verify(onboardingService).retire(DEVICE_ID);
         assertEquals("BOUND", dto.status());
+    }
+
+    @Test
+    void activateDelegatesAndExposesAuthEnabled() {
+        // 审计 A1/P0-3 激活制：激活后 DTO.authEnabled=true（前端据此渲染开关态）
+        JiangyiDevice activated = boundDevice();
+        activated.setAuthEnabled(true);
+        when(onboardingService.setDeviceAuthEnabled(DEVICE_ID, true)).thenReturn(activated);
+
+        JiangyiDeviceDto dto = controller().activate(DEVICE_ID).data();
+
+        verify(onboardingService).setDeviceAuthEnabled(DEVICE_ID, true);
+        assertTrue(dto.authEnabled());
+    }
+
+    @Test
+    void deactivateDelegatesWithFalse() {
+        JiangyiDevice deactivated = boundDevice();
+        deactivated.setAuthEnabled(false);
+        when(onboardingService.setDeviceAuthEnabled(DEVICE_ID, false)).thenReturn(deactivated);
+
+        JiangyiDeviceDto dto = controller().deactivate(DEVICE_ID).data();
+
+        verify(onboardingService).setDeviceAuthEnabled(DEVICE_ID, false);
+        assertFalse(dto.authEnabled());
     }
 
     @Test

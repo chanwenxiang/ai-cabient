@@ -106,6 +106,12 @@ const SUBJECT_ALIASES = [
   { re: /jinyu2|金宇/i, id: '旧系统jinyu2', kind: 'peer' },
   { re: /yichu2|亿厨/i, id: '旧系统yichu2', kind: 'peer' },
   { re: /旧系统/i, id: '旧系统easygo', kind: 'peer' },
+  // 设备接入/鉴权同行（CB-046）：简单购=开门柜开放平台（merchant_code+secret_key）；
+  // 乐摇摇=售货机主板平台（appId+Key+设备唯一码登录）；酷点=设备激活授权码换签名密钥
+  { re: /简单购|ainfinit/i, id: '简单购', kind: 'peer' },
+  { re: /乐摇摇|leyaoyao/i, id: '乐摇摇', kind: 'peer' },
+  { re: /酷点|ikudot/i, id: '酷点网络', kind: 'official' },
+  { re: /腾讯微卡|weixiao\.qq\.com/i, id: '腾讯微卡', kind: 'official' },
   // 支付/信用通道官方（official）
   { re: /微信支付分|weixin.?pay.?score/i, id: '微信支付分', kind: 'official' },
   { re: /芝麻先享|芝麻信用|zhima/i, id: '支付宝芝麻先享', kind: 'official' },
