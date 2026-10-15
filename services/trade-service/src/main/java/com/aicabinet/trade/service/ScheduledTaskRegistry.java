@@ -53,6 +53,7 @@ public class ScheduledTaskRegistry {
                                  RechargeOrderScheduler rechargeOrderScheduler,
                                  ProfitSharingRetryScheduler profitSharingRetryScheduler,
                                  ReconciliationScheduler reconciliationScheduler,
+                                 RefundRetryScheduler refundRetryScheduler,
                                  LineCommissionJob lineCommissionJob,
                                  FinanceMarginLockScheduler financeMarginLockScheduler,
                                  CouponService couponService,
@@ -120,6 +121,10 @@ public class ScheduledTaskRegistry {
                 expiryAlertScheduler::scanExpiry);
         register("reconciliation", "每日对账", FINANCE, ScheduleZones.desc("每日 01:30"), 1800,
                 reconciliationScheduler::runDailyReconciliation);
+        // B1/G1（2026-10-15）：渠道退款重试闭环（分钟级，Spring 常驻不进 XXL 托管——
+        // 分钟级轻任务，托管后调度中心排期反而放大延迟）
+        register("refund-retry", "渠道退款重试闭环", FINANCE, V_60, 600,
+                refundRetryScheduler::run);
         // H38 提现打款超时兜底：原先只有 @Scheduled(fixedDelay) 且**未登记** —— 执行记录被
         // finish() 静默丢弃，运营台看不见、不能启停、不能手动触发（门禁 Rule 4 已拦下）。
         register("withdraw-paying-timeout", "提现打款超时兜底", FINANCE, "每 10 分钟", 600,
