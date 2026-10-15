@@ -71,23 +71,23 @@ class SecretStorageFallbackTest {
     @Test
     fun `不同密钥字段互不串值`() {
         EdgeRuntimeConfig.saveSecret(ctx, "mqtt_password", "pw-for-mqtt")
-        EdgeRuntimeConfig.saveSecret(ctx, "internal_api_key", "key-for-internal")
+        EdgeRuntimeConfig.saveSecret(ctx, "http_device_secret", "key-for-internal")
         assertEquals("pw-for-mqtt", EdgeRuntimeConfig.mqttPassword(ctx))
-        assertEquals("key-for-internal", EdgeRuntimeConfig.internalApiKey(ctx))
+        assertEquals("key-for-internal", EdgeRuntimeConfig.httpDeviceSecret(ctx))
     }
 
     // ---------- 读取分流 ----------
 
     @Test
     fun `存量明文原样返回`() {
-        prefs.edit().putString("internal_api_key", "legacy-plain-key").commit()
-        assertEquals("legacy-plain-key", EdgeRuntimeConfig.internalApiKey(ctx))
+        prefs.edit().putString("http_device_secret", "legacy-plain-key").commit()
+        assertEquals("legacy-plain-key", EdgeRuntimeConfig.httpDeviceSecret(ctx))
     }
 
     @Test
     fun `明文读取会 trim`() {
-        prefs.edit().putString("internal_api_key", "  legacy-plain-key  ").commit()
-        assertEquals("legacy-plain-key", EdgeRuntimeConfig.internalApiKey(ctx))
+        prefs.edit().putString("http_device_secret", "  legacy-plain-key  ").commit()
+        assertEquals("legacy-plain-key", EdgeRuntimeConfig.httpDeviceSecret(ctx))
     }
 
     @Test
@@ -96,22 +96,22 @@ class SecretStorageFallbackTest {
         // 真正卡住它的是 KeystoreCipher.getOrCreateKey() 的 KeyStoreException。
         val payload = ByteArray(40) { 7 }
         prefs.edit()
-            .putString("internal_api_key", "enc:v1:" + Base64.encodeToString(payload, Base64.NO_WRAP))
+            .putString("http_device_secret", "enc:v1:" + Base64.encodeToString(payload, Base64.NO_WRAP))
             .commit()
         // fail-closed 口径：解密失败 ⇒ 回退默认（而不是把整串密文当口令用）。
-        assertEquals("dev-internal-key-change-me", EdgeRuntimeConfig.internalApiKey(ctx))
+        assertEquals("", EdgeRuntimeConfig.httpDeviceSecret(ctx))
     }
 
     @Test
     fun `密文前缀但负载过短时同样回退默认值且不崩溃`() {
-        prefs.edit().putString("internal_api_key", "enc:v1:" + Base64.encodeToString(ByteArray(4), Base64.NO_WRAP)).commit()
-        assertEquals("dev-internal-key-change-me", EdgeRuntimeConfig.internalApiKey(ctx))
+        prefs.edit().putString("http_device_secret", "enc:v1:" + Base64.encodeToString(ByteArray(4), Base64.NO_WRAP)).commit()
+        assertEquals("", EdgeRuntimeConfig.httpDeviceSecret(ctx))
     }
 
     @Test
     fun `空值等同未配置_回退默认`() {
-        prefs.edit().putString("internal_api_key", "").commit()
-        assertEquals("dev-internal-key-change-me", EdgeRuntimeConfig.internalApiKey(ctx))
+        prefs.edit().putString("http_device_secret", "").commit()
+        assertEquals("", EdgeRuntimeConfig.httpDeviceSecret(ctx))
     }
 
     // ---------- decrypt 的入参校验（先于任何密钥操作） ----------

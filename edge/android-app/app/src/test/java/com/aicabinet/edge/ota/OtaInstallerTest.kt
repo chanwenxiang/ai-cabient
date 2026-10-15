@@ -76,7 +76,7 @@ class OtaInstallerTest {
     @Test
     fun `安装失败回调清掉台账并上报 FAILED 原因`() {
         val posted = mutableListOf<String>()
-        OtaProgressReporter.transportForTest = OtaProgressTransport { _, _, json ->
+        OtaProgressReporter.transportForTest = OtaProgressTransport { _, _, _, json ->
             posted += json
             200
         }
@@ -100,7 +100,7 @@ class OtaInstallerTest {
     @Test
     fun `系统要求用户确认时报成失败而非静默丢弃`() {
         val posted = mutableListOf<String>()
-        OtaProgressReporter.transportForTest = OtaProgressTransport { _, _, json ->
+        OtaProgressReporter.transportForTest = OtaProgressTransport { _, _, _, json ->
             posted += json
             200
         }
@@ -121,7 +121,7 @@ class OtaInstallerTest {
     @Test
     fun `系统回报成功时不报 SUCCESS 也不清台账`() {
         var posts = 0
-        OtaProgressReporter.transportForTest = OtaProgressTransport { _, _, _ ->
+        OtaProgressReporter.transportForTest = OtaProgressTransport { _, _, _, _ ->
             posts++
             200
         }
@@ -143,7 +143,7 @@ class OtaInstallerTest {
     @Test
     fun `非本接收器的广播被忽略`() {
         var posts = 0
-        OtaProgressReporter.transportForTest = OtaProgressTransport { _, _, _ ->
+        OtaProgressReporter.transportForTest = OtaProgressTransport { _, _, _, _ ->
             posts++
             200
         }

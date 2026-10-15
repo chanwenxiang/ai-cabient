@@ -29,7 +29,10 @@ android {
         buildConfigField("String", "MQTT_KEY_STORE_PASSWORD", "\"\"")
         buildConfigField("String", "MQTT_KEY_STORE_TYPE", "\"PKCS12\"")
         buildConfigField("String", "TRADE_SERVICE_URL", "\"http://10.0.2.2:8080\"")
-        buildConfigField("String", "INTERNAL_API_KEY", "\"dev-internal-key-change-me\"")
+        // 审计 A1/P0-2：设备 HTTP 凭据（X-Device-Id + X-Device-Secret）由运营签发、
+        // 现场装机经 MainActivity 装机页注入（AndroidKeyStore 加密落盘），绝不硬编进 APK——
+        // fleet 共享 INTERNAL_API_KEY 已从设备面移除（OTA/素材端点不再接受该头）。
+        buildConfigField("String", "HTTP_DEVICE_SECRET", "\"\"")
         buildConfigField("String", "SERIAL_PORT_PATH", "\"/dev/ttyS2\"")
         buildConfigField("boolean", "USE_MOCK_DRIVER", "true")
         buildConfigField("boolean", "MULTI_CAMERA_ENABLED", "false")

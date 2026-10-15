@@ -11,7 +11,7 @@ import javax.crypto.spec.GCMParameterSpec
 
 /**
  * L06: 基于 AndroidKeyStore 的 AES/GCM 加解密工具（不引第三方依赖）。
- * 用于 SharedPreferences 中敏感字段（mqtt_password / internal_api_key / keystore 密码等）的加密落盘。
+ * 用于 SharedPreferences 中敏感字段（mqtt_password / http_device_secret / keystore 密码等）的加密落盘。
  *
  * - 密钥别名 [KEY_ALIAS]，首次使用时生成 256bit AES 密钥并常驻 AndroidKeyStore（不可导出）。
  *   需要 minSdk >= 23（本项目 minSdk=24，满足）。

@@ -2,6 +2,8 @@ package com.aicabinet.trade.config;
 
 import com.aicabinet.common.security.InternalApiAuthInterceptor;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.DeviceHttpCredentialInterceptor;
+import com.aicabinet.trade.service.DeviceHttpCredentialService;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -14,15 +16,18 @@ public class WebConfig implements WebMvcConfigurer {
     private final InternalApiAuthInterceptor internalApiAuthInterceptor;
     private final ApiVersionInterceptor apiVersionInterceptor;
     private final CorsProperties corsProperties;
+    private final DeviceHttpCredentialService deviceHttpCredentialService;
 
     public WebConfig(AuthInterceptor authInterceptor,
                      InternalApiAuthInterceptor internalApiAuthInterceptor,
                      ApiVersionInterceptor apiVersionInterceptor,
-                     CorsProperties corsProperties) {
+                     CorsProperties corsProperties,
+                     DeviceHttpCredentialService deviceHttpCredentialService) {
         this.authInterceptor = authInterceptor;
         this.internalApiAuthInterceptor = internalApiAuthInterceptor;
         this.apiVersionInterceptor = apiVersionInterceptor;
         this.corsProperties = corsProperties;
+        this.deviceHttpCredentialService = deviceHttpCredentialService;
     }
 
     @Override
@@ -30,8 +35,22 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(apiVersionInterceptor)
                 .addPathPatterns("/api/**");
 
+        // 设备面一机一密（审计 A1/P0-2）：先于 fleet-key 拦截器命中专属路径。
+        // 覆盖：OTA check/progress（edge APK+模拟器）、screen-content/ad-play（模拟器联调件）。
+        // 其余 /internal/** 仍为服务间 fleet key（不在 APK、生产有 CIDR）。
+        registry.addInterceptor(new DeviceHttpCredentialInterceptor(deviceHttpCredentialService))
+                .addPathPatterns(
+                        "/internal/v1/devices/*/ota/*",
+                        "/internal/v1/devices/*/screen-content",
+                        "/internal/v1/devices/*/ad-play")
+                .order(0);
+
         registry.addInterceptor(internalApiAuthInterceptor)
-                .addPathPatterns("/internal/**");
+                .addPathPatterns("/internal/**")
+                .excludePathPatterns(
+                        "/internal/v1/devices/*/ota/*",
+                        "/internal/v1/devices/*/screen-content",
+                        "/internal/v1/devices/*/ad-play");
 
         // 默认拒绝：/api/v2/** 一律要求登录，仅显式放行公开/回调端点。
         // 新增控制器无需改这里即可获得鉴权；若确属公开接口，才追加到 excludePathPatterns。

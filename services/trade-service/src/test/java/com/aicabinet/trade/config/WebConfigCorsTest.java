@@ -27,7 +27,8 @@ class WebConfigCorsTest {
                 mock(com.aicabinet.trade.auth.AuthInterceptor.class),
                 mock(com.aicabinet.common.security.InternalApiAuthInterceptor.class),
                 mock(ApiVersionInterceptor.class),
-                corsProperties);
+                corsProperties,
+                mock(com.aicabinet.trade.service.DeviceHttpCredentialService.class));
     }
 
     /** CorsRegistration 链式 API：RETURNS_SELF 自返，避免 varargs stub 匹配问题。 */

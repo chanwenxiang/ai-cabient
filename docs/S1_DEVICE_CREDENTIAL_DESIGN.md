@@ -98,3 +98,26 @@
 - EMQX 内库 REST 同步（运行时签发免重建 emqx）——硬化路径，非必需。
 - APK「装机配置页」UI——需真机。
 - 生产部署时 `.env.production` 增加 `MQTT_DEVICE_PASSWORD` 的历史行可移除（共享账号已不进生产 bootstrap）。
+
+## 8. HTTP 设备凭据（审计 A1/P0-2，2026-10-15 落地）
+
+**背景**：S1 只收口了 MQTT 面；HTTP 面（OTA check/progress、screen-content、ad-play）
+仍用 fleet 共享 `INTERNAL_API_KEY`——硬编进每个 release APK（审计 P0-2），配合 fleet key
+可调 device-service `open-door` 等服务间端点 = 远程开任意柜门。
+
+**方案**：仿 V290 建 `device_http_credential`（V367，只存 sha256 无明文列）：
+
+- 签发/轮换/吊销：`POST|DELETE|GET /api/v2/ops/admin/devices/{deviceId}/http-credential`
+  （perm 与 MQTT 凭据同口径 `ops:device:edit`/`ops:device:list`），明文一次性返回；
+- 校验：`DeviceHttpCredentialInterceptor`（trade），头 `X-Device-Id` + `X-Device-Secret`，
+  sha256 恒定时间比对 + **路径 deviceId 绑定**（P1-5 同语义）；覆盖
+  `/internal/v1/devices/{id}/ota/*`、`/internal/v1/devices/{id}/screen-content`、
+  `/internal/v1/devices/{id}/ad-play`，这些路径从 InternalApiAuthInterceptor 排除；
+- **服务间调用不变**：trade↔device↔jiangyi-gateway 仍走 fleet key（不在 APK、生产有 CIDR）；
+  APK 不再持有 fleet key 后，「APK 泄露 ⇒ 调服务间端点」路径闭合；
+- **APK**：`HTTP_DEVICE_SECRET` BuildConfig 默认空（不内嵌任何密钥）；MainActivity 装机页
+  注入 deviceId+secret（AndroidKeyStore 加密落盘）；未注入时 OTA 静默跳过；
+- **模拟器**：env `DEVICE_HTTP_SECRET`（compose 透传 `SIM_DEVICE_HTTP_SECRET`）。
+
+**SOP**：运营台签发（对目标 deviceId）→ 现场装机页注入 → OTA/素材链路即刻生效；
+轮换=重新签发（旧 secret 即刻失效）→ 现场重新注入。

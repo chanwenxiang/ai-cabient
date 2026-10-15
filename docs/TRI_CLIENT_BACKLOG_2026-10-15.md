@@ -36,7 +36,7 @@
 
 | # | 端 | 项 | 状态 |
 |---|---|---|---|
-| A1 | edge+后端 | **P0-2/P0-3（同根）**：fleet 共享 INTERNAL_API_KEY 硬编 APK + 识别结果 deviceId 自称可伪造扣款 | 未动，已排期「接真硬件批次 2」——接真硬件前必须完成 |
+| A1 | edge+后端 | ~~P0-2/P0-3（同根）~~ ✅ 主体落地（2026-10-15 拍板 A+B 全做） | P0-2：HTTP 设备凭据一机一密（V367+拦截器+APK 装机页，fleet key 退出设备面）；P0-3：将邑激活制（V366 auth_enabled+未激活告警+突发检测）。二期待真机：控件固件 per-device secret（JIANGYI_GATEWAY_DESIGN.md 7.6） |
 | A2 | 基建 | P1-8 Kafka PLAINTEXT 0.0.0.0:9092 无 SASL + modelVersion 丢弃 | 未修（靠 vision-async=false 挡住） |
 | A3 | edge | P1-6 残留：OTA checksum 与下载同通道；P1-7 残留：`usesCleartextTraffic` 未关 | 部分修复 |
 | A4 | 基建 | P1-14 残留：postgres/redis/mysql 等有状态镜像仍浮动 tag | 部分修复 |

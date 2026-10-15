@@ -74,6 +74,47 @@
             android:layout_marginTop="8dp"
             android:text="保存 Broker 并提示重启 App" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="设备凭据装机（运营台签发后现场注入）"
+            android:textStyle="bold"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="设备编号（12 位数字，须与运营台登记一致）">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etProvisionDeviceId"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:maxLength="12" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="设备凭据 Secret（签发响应一次性展示，password 态）">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etProvisionSecret"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <Button
+            android:id="@+id/btnSaveCredential"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="保存设备凭据（AndroidKeyStore 加密落盘）" />
+
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switchMultiCamera"
             android:layout_width="match_parent"

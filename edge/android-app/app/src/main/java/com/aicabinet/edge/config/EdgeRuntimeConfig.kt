@@ -52,8 +52,12 @@ object EdgeRuntimeConfig {
     fun tradeServiceUrl(context: Context): String =
         getString(context, "trade_service_url", BuildConfig.TRADE_SERVICE_URL)
 
-    fun internalApiKey(context: Context): String =
-        getSecret(context, "internal_api_key", BuildConfig.INTERNAL_API_KEY)
+    /**
+     * 审计 A1/P0-2：设备 HTTP 凭据 secret（与 X-Device-Id 配对，OTA/素材端点一机一密）。
+     * 由运营台签发（明文一次性返回）、现场装机注入；未注入时 OTA/进度上报静默跳过。
+     */
+    fun httpDeviceSecret(context: Context): String =
+        getSecret(context, "http_device_secret", BuildConfig.HTTP_DEVICE_SECRET)
 
     fun useMockDriver(context: Context): Boolean =
         getBoolean(context, "use_mock_driver", BuildConfig.USE_MOCK_DRIVER)
@@ -133,7 +137,7 @@ object EdgeRuntimeConfig {
     }
 
     /**
-     * L06: 敏感字段（mqtt_password / internal_api_key / truststore/keystore 密码）统一经
+     * L06: 敏感字段（mqtt_password / http_device_secret / truststore/keystore 密码）统一经
      * [KeystoreCipher]（AndroidKeyStore AES/GCM）加密落盘，不再明文存储。
      * 读取兼容存量明文（原样返回），首次覆盖保存后升级为密文。
      */

@@ -33,7 +33,7 @@ enum class OtaUpgradeStatus(val wire: String) {
  */
 fun interface OtaProgressTransport {
     /** @return HTTP 状态码；网络故障可抛异常（调用方负责吞掉）。 */
-    fun post(url: String, apiKey: String, json: String): Int
+    fun post(url: String, deviceId: String, deviceSecret: String, json: String): Int
 }
 
 /**
@@ -66,11 +66,12 @@ object OtaProgressReporter {
         .readTimeout(3, TimeUnit.SECONDS)
         .build()
 
-    private val httpTransport = OtaProgressTransport { url, apiKey, json ->
+    private val httpTransport = OtaProgressTransport { url, deviceId, deviceSecret, json ->
         val request = Request.Builder()
             .url(url)
             .header("Content-Type", "application/json")
-            .header("X-Internal-Api-Key", apiKey)
+            .header("X-Device-Id", deviceId)
+            .header("X-Device-Secret", deviceSecret)
             .post(json.toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(request).execute().use { it.code }
@@ -136,7 +137,13 @@ object OtaProgressReporter {
             val deviceId = EdgeRuntimeConfig.ensureDeviceId(context)
             val url = progressUrl(base, deviceId)
             val payload = buildPayload(status, targetVersion, progressPercent, errorMessage)
-            val code = transport.post(url, EdgeRuntimeConfig.internalApiKey(context), payload)
+            // 审计 A1/P0-2：设备面 HTTP 一机一密；凭据未注入时静默跳过（上报失败不是升级失败）
+            val deviceSecret = EdgeRuntimeConfig.httpDeviceSecret(context)
+            if (deviceSecret.isBlank()) {
+                Log.i(TAG, "OTA progress skipped: device http credential not provisioned")
+                return false
+            }
+            val code = transport.post(url, deviceId, deviceSecret, payload)
             if (code !in 200..299) {
                 Log.w(TAG, "OTA progress not accepted HTTP $code status=${status.wire} body=$payload")
             }

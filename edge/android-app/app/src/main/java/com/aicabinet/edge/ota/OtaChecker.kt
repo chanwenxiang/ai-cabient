@@ -37,14 +37,21 @@ object OtaChecker {
     fun checkOnStartup(context: Context) {
         settlePreviousAttempt(context)
         val tradeUrl = EdgeRuntimeConfig.tradeServiceUrl(context).trimEnd('/')
-        val apiKey = EdgeRuntimeConfig.internalApiKey(context)
         val deviceId = EdgeRuntimeConfig.ensureDeviceId(context)
+        // 审计 A1/P0-2：设备面 HTTP 走一机一密（X-Device-Id + X-Device-Secret）。
+        // 凭据未注入（出厂/未装机）时跳过 OTA——不再持有 fleet key，无凭据即无权限。
+        val deviceSecret = EdgeRuntimeConfig.httpDeviceSecret(context)
+        if (deviceSecret.isBlank()) {
+            Log.i(TAG, "OTA check skipped: device http credential not provisioned")
+            return
+        }
         val url = "$tradeUrl/internal/v1/devices/$deviceId/ota/check" +
                 "?currentVersion=${BuildConfig.VERSION_NAME}&channel=stable"
         try {
             val request = Request.Builder()
                 .url(url)
-                .header("X-Internal-Api-Key", apiKey)
+                .header("X-Device-Id", deviceId)
+                .header("X-Device-Secret", deviceSecret)
                 .get()
                 .build()
             client.newCall(request).execute().use { response ->

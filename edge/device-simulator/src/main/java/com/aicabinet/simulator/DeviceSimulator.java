@@ -118,15 +118,29 @@ public class DeviceSimulator implements MqttCallbackExtended {
                 + " appVersion=" + appVersion());
     }
 
+    /**
+     * 审计 A1/P0-2：设备面 HTTP 端点（OTA check/progress、screen-content、ad-play）已切
+     * 一机一密（X-Device-Id + X-Device-Secret），fleet 共享 INTERNAL_API_KEY 不再被接受。
+     * 模拟器经 env DEVICE_HTTP_SECRET 注入签发的设备凭据；未注入时设备面调用静默跳过。
+     */
+    private String deviceHttpSecret() {
+        return env("DEVICE_HTTP_SECRET", "");
+    }
+
     private void checkOta() {
+        String secret = deviceHttpSecret();
+        if (secret.isBlank()) {
+            System.out.println("[simulator] OTA check skipped: DEVICE_HTTP_SECRET not set");
+            return;
+        }
         String tradeUrl = env("TRADE_SERVICE_URL", "http://localhost:8080");
-        String apiKey = env("INTERNAL_API_KEY", "dev-internal-key-change-me");
         String url = tradeUrl + "/internal/v1/devices/" + deviceId
                 + "/ota/check?currentVersion=" + appVersion() + "&channel=stable";
         try {
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .header("X-Internal-Api-Key", apiKey)
+                    .header("X-Device-Id", deviceId)
+                    .header("X-Device-Secret", secret)
                     .GET()
                     .timeout(Duration.ofSeconds(10))
                     .build();
@@ -205,13 +219,17 @@ public class DeviceSimulator implements MqttCallbackExtended {
     }
 
     private void pollAndReportAdPlay() throws Exception {
+        String secret = deviceHttpSecret();
+        if (secret.isBlank()) {
+            throw new IOException("screen-content skipped: DEVICE_HTTP_SECRET not set");
+        }
         String tradeUrl = env("TRADE_SERVICE_URL", "http://localhost:8080");
-        String apiKey = env("INTERNAL_API_KEY", "dev-internal-key-change-me");
         String contentUrl = tradeUrl + "/internal/v1/devices/" + deviceId + "/screen-content";
         HttpRequest get = HttpRequest.newBuilder()
                 .uri(URI.create(contentUrl))
                 .timeout(Duration.ofSeconds(8))
-                .header("X-Internal-Api-Key", apiKey)
+                .header("X-Device-Id", deviceId)
+                .header("X-Device-Secret", secret)
                 .GET()
                 .build();
         HttpResponse<String> resp = http.send(get, HttpResponse.BodyHandlers.ofString());
@@ -230,13 +248,13 @@ public class DeviceSimulator implements MqttCallbackExtended {
         if (assetId <= 0) {
             return;
         }
-        postAdPlay(tradeUrl, apiKey, campaignId, assetId, "IMPRESSION");
-        postAdPlay(tradeUrl, apiKey, campaignId, assetId, "COMPLETE");
+        postAdPlay(tradeUrl, secret, campaignId, assetId, "IMPRESSION");
+        postAdPlay(tradeUrl, secret, campaignId, assetId, "COMPLETE");
         System.out.println("[simulator] ad-play campaign=" + campaignId + " asset=" + assetId
                 + " items=" + items.size());
     }
 
-    private void postAdPlay(String tradeUrl, String apiKey, long campaignId, long assetId, String eventType)
+    private void postAdPlay(String tradeUrl, String deviceSecret, long campaignId, long assetId, String eventType)
             throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("campaignId", campaignId);
@@ -247,7 +265,8 @@ public class DeviceSimulator implements MqttCallbackExtended {
                 .uri(URI.create(tradeUrl + "/internal/v1/devices/" + deviceId + "/ad-play"))
                 .timeout(Duration.ofSeconds(8))
                 .header("Content-Type", "application/json")
-                .header("X-Internal-Api-Key", apiKey)
+                .header("X-Device-Id", deviceId)
+                .header("X-Device-Secret", deviceSecret)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(payload))
                 .build();
         HttpResponse<String> resp = http.send(post, HttpResponse.BodyHandlers.ofString());
@@ -559,8 +578,10 @@ public class DeviceSimulator implements MqttCallbackExtended {
     }
 
     private void postAttachVideo(String sessionId, VideoPayload payload) throws Exception {
+        // 注意：/internal/v1/sessions/video 在 trade 已不存在（历史路由移除，调用 404 兜底）；
+        // 保留调用仅为对齐历史报文，头已随设备面一并切到一机一密。
         String tradeUrl = env("TRADE_SERVICE_URL", "http://localhost:8080");
-        String apiKey = env("INTERNAL_API_KEY", "dev-internal-key-change-me");
+        String apiKey = deviceHttpSecret();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("sessionId", sessionId);
         body.put("deviceId", deviceId);
@@ -574,7 +595,7 @@ public class DeviceSimulator implements MqttCallbackExtended {
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(tradeUrl + "/internal/v1/sessions/video"))
                 .header("Content-Type", "application/json")
-                .header("X-Internal-Api-Key", apiKey)
+                .header("X-Device-Id", deviceId).header("X-Device-Secret", apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                 .timeout(Duration.ofSeconds(30))
                 .build();
@@ -661,7 +682,7 @@ public class DeviceSimulator implements MqttCallbackExtended {
             throw new IllegalArgumentException("empty upload payload");
         }
         String tradeUrl = env("TRADE_SERVICE_URL", "http://localhost:8080");
-        String apiKey = env("INTERNAL_API_KEY", "dev-internal-key-change-me");
+        String apiKey = deviceHttpSecret();
         String normalizedExt = ext == null || ext.isBlank() ? ".bin" : (ext.startsWith(".") ? ext : "." + ext);
 
         Map<String, Object> body = new LinkedHashMap<>();
@@ -674,7 +695,7 @@ public class DeviceSimulator implements MqttCallbackExtended {
 
         HttpRequest presignReq = HttpRequest.newBuilder()
                 .uri(URI.create(tradeUrl + "/internal/v1/sessions/video-upload-url"))
-                .header("X-Internal-Api-Key", apiKey)
+                .header("X-Device-Id", deviceId).header("X-Device-Secret", apiKey)
                 .header("Content-Type", "application/json")
                 .timeout(Duration.ofSeconds(15))
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))

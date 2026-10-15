@@ -297,6 +297,8 @@ services:
       MQTT_PASSWORD: ${MQTT_DEVICE_PASSWORD:-dev-mqtt-device-pass}
       TRADE_SERVICE_URL: http://trade-service:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
+      # 审计 A1/P0-2：设备面 HTTP 端点（OTA/素材）一机一密；模拟器按需签发后注入
+      DEVICE_HTTP_SECRET: ${SIM_DEVICE_HTTP_SECRET:-}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}

@@ -40,6 +40,25 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "已保存，请完全退出 App 后重新打开以重连 MQTT", Toast.LENGTH_LONG).show()
         }
 
+        // 审计 A1/P0-2：设备 HTTP 凭据装机注入（签发响应一次性明文，此后仅 KeyStore 密文落盘）
+        binding.btnSaveCredential.setOnClickListener {
+            val deviceId = binding.etProvisionDeviceId.text?.toString()?.trim().orEmpty()
+            val secret = binding.etProvisionSecret.text?.toString()?.trim().orEmpty()
+            if (!deviceId.matches(Regex("\\d{12}"))) {
+                Toast.makeText(this, "设备编号须为 12 位数字（与运营台登记一致）", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            if (secret.isBlank()) {
+                Toast.makeText(this, "请先在运营台签发凭据并粘贴 Secret", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            EdgeRuntimeConfig.saveDeviceId(this, deviceId)
+            EdgeRuntimeConfig.saveSecret(this, "http_device_secret", secret)
+            binding.etProvisionSecret.setText("")
+            renderConfig()
+            Toast.makeText(this, "设备凭据已保存并加密，OTA/素材链路即刻生效", Toast.LENGTH_LONG).show()
+        }
+
         binding.btnSimulateClose.setOnClickListener {
             runCatching {
                 CabinetForegroundService.getController(this).simulateDoorCloseForMock()
@@ -77,6 +96,8 @@ class MainActivity : AppCompatActivity() {
             appendLine("设备 ID: ${EdgeRuntimeConfig.ensureDeviceId(this@MainActivity)}")
             appendLine("Trade: ${EdgeRuntimeConfig.tradeServiceUrl(this@MainActivity)}")
             appendLine("录像上传: 预签名 (trade-service)")
+            // 只显示「是否已装机」，绝不回显 secret 本体
+            appendLine("设备凭据: ${if (EdgeRuntimeConfig.httpDeviceSecret(this@MainActivity).isNotBlank()) "已注入" else "未注入（OTA/素材链路停用）"}")
             appendLine("驱动: ${if (EdgeRuntimeConfig.useMockDriver(this@MainActivity)) "Mock" else "串口"}")
             append("双摄: ${if (EdgeRuntimeConfig.multiCameraEnabled(this@MainActivity)) "MULTI" else "SINGLE"}")
         }
