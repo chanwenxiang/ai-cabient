@@ -13908,6 +13908,11 @@ export interface components {
             refundStartMonth?: number;
             /** Format: int64 */
             expireRewardCents?: number;
+            /** Format: int64 */
+            installFeeDeductCents?: number;
+            installFeeClawbackEnabled?: boolean;
+            /** Format: int32 */
+            contractYears?: number;
         };
         ApiResponseDeviceRentalBill: {
             /** Format: int32 */
