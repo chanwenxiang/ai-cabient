@@ -14,6 +14,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,6 +38,7 @@ public class DeviceSlotService {
     private final MerchantOpsPolicyService opsPolicyService;
     private final DistributedLockService distributedLockService;
     private final ShoppingSessionMapper shoppingSessionMapper;
+    private final CabinetOrderLineMapper orderLineRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DeviceSlotService self;
 
@@ -53,6 +56,7 @@ public class DeviceSlotService {
                              MerchantOpsPolicyService opsPolicyService,
                              DistributedLockService distributedLockService,
                              ShoppingSessionMapper shoppingSessionMapper,
+                             CabinetOrderLineMapper orderLineRepository,
                              @Lazy DeviceSlotService self) {
         this.slotRepository = slotRepository;
         this.lotRepository = lotRepository;
@@ -68,6 +72,7 @@ public class DeviceSlotService {
         this.opsPolicyService = opsPolicyService;
         this.distributedLockService = distributedLockService;
         this.shoppingSessionMapper = shoppingSessionMapper;
+        this.orderLineRepository = orderLineRepository;
         this.self = self;
     }
 
@@ -76,9 +81,10 @@ public class DeviceSlotService {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireDevice(deviceId);
         Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
+        int stockoutThresholdPct = resolveStockoutThresholdPct(deviceId);
         List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId);
         List<DeviceSlotDto> slotDtos = slots.stream()
-                .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0)))
+                .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0), stockoutThresholdPct))
                 .toList();
         DeviceOpsMetricsDto metrics = computeMetrics(device, slots, bookBySlot);
         Map<String, Integer> sellableBySku = inventoryLotService.deviceUsesLotLedger(deviceId)
@@ -99,8 +105,9 @@ public class DeviceSlotService {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireDevice(deviceId);
         Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
+        int stockoutThresholdPct = resolveStockoutThresholdPct(deviceId);
         return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0)))
+                .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0), stockoutThresholdPct))
                 .toList();
     }
 
@@ -238,7 +245,8 @@ public class DeviceSlotService {
         }
         int bookQty = bookBySlot.getOrDefault(slotCode, 0);
         String status = resolveStockStatus(slot, bookQty);
-        if (bookQty > slot.getMinLevel() && !"OOS".equals(status) && !"LOW".equals(status)) {
+        int thresholdPct = resolveStockoutThresholdPct(device.getDeviceId());
+        if (!isSlotShortage(slot, bookQty, thresholdPct)) {
             return;
         }
         String skuName = skuCatalogRepository.findById(skuId)
@@ -261,6 +269,50 @@ public class DeviceSlotService {
     private static String shortageRowKey(String deviceId, String slotCode) {
         return deviceId + ":" + slotCode;
     }
+
+    /**
+     * 统一缺货口径（P1-3，2026-10-15）：启用且绑定了 SKU 的货道，
+     * 账面 ≤ minLevel（含 OOS）**或** 账面 < 容量×商户阈值%（默认 50，对齐叮当小柜
+     * 「剩余库存低于货柜容量的 X% 即缺货」）。缺货看板/工作台/推送/补货建议共用此判定，
+     * 预警说缺的货建议页一定有。
+     */
+    public static boolean isSlotShortage(DeviceSlot slot, int bookQty, int thresholdPct) {
+        if (!slot.isEnabled() || slot.getAssignedSkuId() == null || slot.getAssignedSkuId().isBlank()) {
+            return false;
+        }
+        if (bookQty <= slot.getMinLevel()) {
+            return true;
+        }
+        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel();
+        return cap > 0 && bookQty * 100L < cap * (long) thresholdPct;
+    }
+
+    /** 设备维度缺货货道清单（统一口径），供工作台/推送消费。 */
+    @Transactional(readOnly = true)
+    public List<SlotShortageItem> listShortageSlots(String deviceId) {
+        String dev = deviceId == null ? "" : deviceId.trim();
+        if (dev.isEmpty()) {
+            return List.of();
+        }
+        int thresholdPct = resolveStockoutThresholdPct(dev);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(dev);
+        List<SlotShortageItem> out = new ArrayList<>();
+        for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(dev)) {
+            int book = bookBySlot.getOrDefault(slot.getId().getSlotCode(), 0);
+            if (isSlotShortage(slot, book, thresholdPct)) {
+                out.add(new SlotShortageItem(dev, slot.getId().getSlotCode(), slot.getAssignedSkuId(),
+                        book, slot.getMinLevel(),
+                        slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel(),
+                        slot.getParLevel(), thresholdPct));
+            }
+        }
+        return out;
+    }
+
+    /** 统一缺货口径条目（device_sku_lot 账面维度；库存数=货道账面，非 SKU 冗余列）。 */
+    public record SlotShortageItem(String deviceId, String slotCode, String skuId,
+                                   int bookQty, int minLevel, int capacity, int parLevel,
+                                   int thresholdPct) {}
 
     private List<SlotDiscrepancyAlertDto> buildDiscrepanciesForDevice(String deviceId) {
         requireDevice(deviceId);
@@ -689,7 +741,9 @@ public class DeviceSlotService {
         int headroom = Math.max(0, Math.min(target, cap) - bookQty);
         int suggestQty = 0;
         String reason = "PAR";
-        boolean parLow = bookQty <= s.getMinLevel();
+        // P1-3 统一口径：阈值% 触发并入补货建议（预警了建议页一定有）；reason 仍按 PAR/ROP 标注
+        boolean parLow = bookQty <= s.getMinLevel()
+                || (cap > 0 && bookQty * 100L < cap * (long) resolveStockoutThresholdPct(deviceId));
         boolean ropLow = velocity.ropPoint() > 0 && bookQty <= velocity.ropPoint();
         if (fillToPar) {
             suggestQty = headroom;
@@ -740,14 +794,14 @@ public class DeviceSlotService {
             created.setId(id);
             return created;
         });
-        applyUpsertFields(slot, req);
+        applyUpsertFields(deviceId, slot, req);
         if (slot.getMaxLevel() <= 0 && slot.getParLevel() > 0) {
             slot.setMaxLevel(slot.getParLevel());
         }
         slotRepository.save(slot);
     }
 
-    private void applyUpsertFields(DeviceSlot slot, UpsertDeviceSlotRequest req) {
+    private void applyUpsertFields(String deviceId, DeviceSlot slot, UpsertDeviceSlotRequest req) {
         if (req.rowNo() != null) {
             slot.setRowNo(req.rowNo());
         }
@@ -762,6 +816,11 @@ public class DeviceSlotService {
             if (sku != null) {
                 skuCatalogRepository.findById(sku)
                         .orElseThrow(() -> badRequest("sku not found: " + sku));
+            }
+            // 换绑到不同 SKU 才刷新上架时间与上限校验（清空绑定也重置时间为 null）
+            if (!java.util.Objects.equals(sku, slot.getAssignedSkuId())) {
+                assertSkuLimit(deviceId, sku);
+                slot.setAssignedAt(sku == null ? null : Instant.now());
             }
             slot.setAssignedSkuId(sku);
         }
@@ -809,17 +868,30 @@ public class DeviceSlotService {
         }
 
         int bookQty = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-        return toSlotDto(slot, bookQty);
+        return toSlotDto(slot, bookQty, resolveStockoutThresholdPct(deviceId));
     }
 
     /** 补货完成时刷新通道快照。 */
     @Transactional
     public void recordRestock(String deviceId, String slotCode) {
+        recordRestock(deviceId, slotCode, false);
+    }
+
+    /**
+     * 补货完成刷新通道快照。
+     *
+     * <p>P0-2 修复（2026-10-15）：{@code preservePhysical=true}（本次补货会话有真实重力实测）
+     * 时只刷新 {@code lastRestockAt}，**不覆盖关门快照写入的实测**——少上架/错上架的
+     * 账实差异必须留在 qtyDiff/hasDiscrepancy 里走 SLOT_DISCREPANCY 闭环。
+     * 无重力数据的柜机保持原行为（实盘=回写后账面）。</p>
+     */
+    @Transactional
+    public void recordRestock(String deviceId, String slotCode, boolean preservePhysical) {
         if (slotCode == null || slotCode.isBlank()) {
             return;
         }
         runWithDeviceSlotLock(deviceId, () -> {
-            doRecordRestock(deviceId, slotCode);
+            doRecordRestock(deviceId, slotCode, preservePhysical);
             return null;
         });
     }
@@ -836,13 +908,22 @@ public class DeviceSlotService {
         requireDevice(deviceId);
         int slotsFixed = 0;
         String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
+        List<String> clampedSlots = new ArrayList<>();
         for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
             if (clampSingleSlotIfOverCapacity(deviceId, slot, refId)) {
                 slotsFixed++;
+                clampedSlots.add(slot.getId().getSlotCode());
             }
         }
-        if (slotsFixed > 0) {
-            self.syncPhysicalFromBook(deviceId, refId);
+        if (!clampedSlots.isEmpty()) {
+            // P0-2（2026-10-15）：只同步被钳制货道的实盘（钳制后账面=物理事实），
+            // 其余货道的关门实测保留，不再全柜 BOOK_SYNC 抹平差异。
+            Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
+            Map<String, Integer> clampedPhysical = new LinkedHashMap<>();
+            for (String slotCode : clampedSlots) {
+                clampedPhysical.put(slotCode, bookBySlot.getOrDefault(slotCode, 0));
+            }
+            self.applyPhysicalSnapshot(deviceId, clampedPhysical, "BOOK_SYNC", refId);
         }
         return slotsFixed;
     }
@@ -895,13 +976,15 @@ public class DeviceSlotService {
         }
     }
 
-    private void doRecordRestock(String deviceId, String slotCode) {
+    private void doRecordRestock(String deviceId, String slotCode, boolean preservePhysical) {
         String normalized = slotCode.trim().toUpperCase();
         slotRepository.findById(new DeviceSlotId(deviceId, normalized)).ifPresent(slot -> {
             int bookQty = self.loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
             slot.setLastRestockAt(Instant.now());
-            slot.setLastPhysicalQty(bookQty);
-            slot.setLastPhysicalAt(Instant.now());
+            if (!preservePhysical) {
+                slot.setLastPhysicalQty(bookQty);
+                slot.setLastPhysicalAt(Instant.now());
+            }
             slotRepository.save(slot);
         });
     }
@@ -968,6 +1051,12 @@ public class DeviceSlotService {
         requireDevice(deviceId);
         int created = 0;
         int skippedMissingSku = 0;
+        int skippedSkuLimit = 0;
+        // 单柜 SKU 上限（图1 对照）：模板路径超限不抛错（建柜事务不允许炸），跳过绑定并计数
+        Set<String> boundSkus = new LinkedHashSet<>(slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
+                .map(DeviceSlot::getAssignedSkuId)
+                .filter(s -> s != null && !s.isBlank())
+                .toList());
         for (UpsertDeviceSlotRequest req : PlanogramTemplateService.templateFor(deviceType)) {
             DeviceSlotId id = new DeviceSlotId(deviceId, req.slotCode());
             if (slotRepository.existsById(id)) {
@@ -977,11 +1066,22 @@ public class DeviceSlotService {
             if (req.assignedSkuId() != null && !req.assignedSkuId().isBlank() && assignedSkuId == null) {
                 skippedMissingSku++;
             }
+            if (assignedSkuId != null && !boundSkus.contains(assignedSkuId)
+                    && boundSkus.size() >= MAX_SKUS_PER_DEVICE) {
+                log.warn("planogram template sku skipped by device sku limit device={} slot={} sku={}",
+                        deviceId, req.slotCode(), assignedSkuId);
+                assignedSkuId = null;
+                skippedSkuLimit++;
+            }
+            if (assignedSkuId != null) {
+                boundSkus.add(assignedSkuId);
+            }
             DeviceSlot slot = new DeviceSlot();
             slot.setId(id);
             slot.setRowNo(req.rowNo());
             slot.setColNo(req.colNo());
             slot.setAssignedSkuId(assignedSkuId);
+            slot.setAssignedAt(assignedSkuId == null ? null : Instant.now());
             slot.setParLevel(req.parLevel());
             slot.setMinLevel(req.minLevel());
             slot.setMaxLevel(req.maxLevel() != null && req.maxLevel() > 0 ? req.maxLevel() : req.parLevel());
@@ -990,8 +1090,8 @@ public class DeviceSlotService {
             created++;
         }
         if (created > 0) {
-            log.info("planogram template applied device={} type={} slots={} skippedMissingSku={}",
-                    deviceId, deviceType, created, skippedMissingSku);
+            log.info("planogram template applied device={} type={} slots={} skippedMissingSku={} skippedSkuLimit={}",
+                    deviceId, deviceType, created, skippedMissingSku, skippedSkuLimit);
         }
         return created;
     }
@@ -1068,8 +1168,20 @@ public class DeviceSlotService {
                 device.getAlertContactPhone(),
                 countNearExpiryLots(deviceId),
                 merchantContactName,
-                merchantContactPhone
+                merchantContactPhone,
+                monthRevenueCents(deviceId)
         );
+    }
+
+    /**
+     * 本月销售额（图2 对照「本月销售额」，2026-10-15）：设备维度当月成交行金额合计。
+     * 状态≠FAILED 全算（与账单/销售报表口径一致）；退款不在此扣减（毛成交口径）。
+     */
+    private long monthRevenueCents(String deviceId) {
+        YearMonth ym = YearMonth.now(ZoneId.systemDefault());
+        Instant start = ym.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant end = ym.plusMonths(1).atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        return orderLineRepository.sumRevenueByDeviceIdsBetween(java.util.List.of(deviceId), start, end);
     }
 
     private record SlotFillStats(int totalPar, int totalBook, int oosCount, int lowCount,
@@ -1124,24 +1236,65 @@ public class DeviceSlotService {
                 .count();
     }
 
-    private DeviceSlotDto toSlotDto(DeviceSlot slot, int bookQty) {
+    /** 单柜在售 SKU 数上限（图1 对照，叮当小柜「已上架商品数 x/50」，2026-10-15）。 */
+    public static final int MAX_SKUS_PER_DEVICE = 50;
+
+    /** 商户级缺货阈值（merchant_ops_config.stockout_threshold_pct，默认 50）；配置缺失时回落默认。 */
+    private int resolveStockoutThresholdPct(String deviceId) {
+        try {
+            int pct = opsPolicyService.loadConfig(deviceId).getStockoutThresholdPct();
+            return pct > 0 ? Math.min(100, pct) : 50;
+        } catch (Exception e) {
+            log.warn("resolve stockout threshold fallback device={} err={}", deviceId, e.getMessage());
+            return 50;
+        }
+    }
+
+    /**
+     * 单柜 SKU 数上限校验（人工操作路径，超限抛 400）。
+     * 模板路径不走此方法：建柜事务不允许因上限炸掉，模板侧用跳过+计数（见 doApplyPlanogramTemplate）。
+     */
+    private void assertSkuLimit(String deviceId, String addingSkuId) {
+        if (addingSkuId == null) {
+            return;
+        }
+        long distinct = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
+                .map(DeviceSlot::getAssignedSkuId)
+                .filter(s -> s != null && !s.isBlank() && !s.equals(addingSkuId))
+                .distinct()
+                .count();
+        if (distinct >= MAX_SKUS_PER_DEVICE) {
+            throw badRequest("该货柜已上架 " + distinct + " 个商品，达到单柜上限 " + MAX_SKUS_PER_DEVICE);
+        }
+    }
+
+    private DeviceSlotDto toSlotDto(DeviceSlot slot, int bookQty, int stockoutThresholdPct) {
         String deviceId = slot.getId().getDeviceId();
         String slotCode = slot.getId().getSlotCode();
         String skuId = slot.getAssignedSkuId();
-        String skuName = skuId == null ? null : skuCatalogRepository.findById(skuId)
-                .map(SkuDisplayNames::of)
-                .orElse(null);
+        SkuCatalog sku = skuId == null ? null : skuCatalogRepository.findById(skuId).orElse(null);
+        String skuName = sku == null ? null : SkuDisplayNames.of(sku);
         int par = slot.getParLevel();
         int fillRate = par > 0 ? (Math.min(bookQty, par) * 100 / par) : 0;
         String stockStatus = resolveStockStatus(slot, bookQty);
         Integer physical = slot.getLastPhysicalQty();
         int qtyDiff = physical != null ? bookQty - physical : 0;
         boolean hasDiscrepancy = physical != null && physical != bookQty;
+        // 图1 对照（叮当小柜，2026-10-15）：剩余库存 < 货柜容量的阈值% ⇒ 缺货预警（阈值=商户级配置，默认 50）
+        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel();
+        boolean stockoutWarn = slot.isEnabled() && cap > 0
+                && bookQty * 100L < cap * (long) stockoutThresholdPct;
         return new DeviceSlotDto(
                 deviceId, slotCode, slot.getRowNo(), slot.getColNo(), slot.getSlotType(),
                 skuId, skuName, par, slot.getMinLevel(), slot.getMaxLevel(), slot.isEnabled(),
                 bookQty, physical, slot.getLastPhysicalAt(), slot.getLastRestockAt(),
-                fillRate, stockStatus, qtyDiff, hasDiscrepancy
+                fillRate, stockStatus, qtyDiff, hasDiscrepancy,
+                sku == null ? null : sku.getImageUrl(),
+                sku == null ? null : sku.getBrand(),
+                sku == null ? null : sku.getSpec(),
+                sku == null ? null : sku.getBarcode(),
+                slot.getAssignedAt(),
+                stockoutWarn
         );
     }
 

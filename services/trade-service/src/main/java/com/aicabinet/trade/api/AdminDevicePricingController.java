@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,6 +52,15 @@ public class AdminDevicePricingController {
             @Valid @RequestBody UpdateDeviceSkuPriceRequest body) {
         return ApiResponse.ok(
                 devicePricingService.updatePricing(operatorId(request), deviceId, skuId, body));
+    }
+
+    /** 批量重置价格：清除该柜全部覆盖价，恢复商品库默认价（图1 对照，2026-10-15）。 */
+    @RequiresPermissions("ops:pricing:edit")
+    @PostMapping("/devices/{deviceId}/pricing/reset")
+    public ApiResponse<Integer> resetDevicePricing(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(devicePricingService.resetPricing(operatorId(request), deviceId));
     }
 
     private static Long operatorId(HttpServletRequest request) {

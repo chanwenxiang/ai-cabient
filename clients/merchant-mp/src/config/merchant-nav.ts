@@ -83,6 +83,15 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     icon: 'settlements'
   },
   {
+    key: 'bills',
+    title: '账单',
+    desc: '月度销售报表·按日明细',
+    url: '/pages/bills/bills',
+    perm: 'merchant:settlements:view',
+    pack: 'biz',
+    icon: 'settlements'
+  },
+  {
     key: 'wallet',
     title: '商户钱包',
     desc: '可提现余额与自主提现',

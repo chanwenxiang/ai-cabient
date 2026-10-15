@@ -370,6 +370,17 @@ public class MerchantPortalController {
                 .listMonthlySettlementBills(userId(request), fromMonth, toMonth));
     }
 
+    /** 商户账单（图4 对照，2026-10-15）：销售报表口径，月×设备（deviceId 空=全部设备）+ 按日明细。 */
+    @RequiresPermissions("merchant:settlements:view")
+    @GetMapping("/settlements/monthly-bill")
+    public ApiResponse<MerchantMonthlyBillDto> monthlyBill(
+            HttpServletRequest request,
+            @RequestParam(name = "month", required = false) String month,
+            @RequestParam(name = "deviceId", required = false) String deviceId) {
+        return ApiResponse.ok(support.merchantFinanceService()
+                .getMonthlyBill(userId(request), month, deviceId));
+    }
+
     @RequiresPermissions("merchant:settlements:view")
     @GetMapping("/settlements/batches/{batchNo}")
     public ApiResponse<List<RevenueSplitDto>> settlementBatchDetail(
@@ -462,6 +473,14 @@ public class MerchantPortalController {
     public ResponseEntity<byte[]> exportDeviceReports(HttpServletRequest request) {
         byte[] csv = merchantPortalService.exportDeviceReportsCsv(userId(request));
         return csvAttachment("merchant-device-reports.csv", csv);
+    }
+
+    /** 商户「缺货巡柜」聚合（P2 口径统一，2026-10-15）：货道级 isSlotShortage 单源，缺口=建议 headroom。 */
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/shortage-summary")
+    public ApiResponse<List<com.aicabinet.common.dto.MerchantShortageSummaryDto>> shortageSummary(
+            HttpServletRequest request) {
+        return ApiResponse.ok(merchantPortalService.listShortageSummary(userId(request)));
     }
 
     @RequiresPermissions("merchant:replenishment:view")

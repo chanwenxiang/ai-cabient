@@ -691,6 +691,11 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantSettlementBillDto[]>(
       withQuery(MerchantEndpoints.settlementsMonthlyBills, { from, to })
     ),
+  /** 商户账单（图4 对照，2026-10-15）：销售报表口径，month=yyyy-MM，deviceId 空=全部设备 */
+  monthlyBill: (month: string, deviceId?: string) =>
+    request<import('@aicabinet/shared-types').MerchantMonthlyBill>(
+      MerchantEndpoints.settlementsMonthlyBill(month, deviceId)
+    ),
   revenueSplits: (page = 0, size = 50, status?: string, from?: string, to?: string) =>
     request<
       import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').RevenueSplit>
@@ -719,8 +724,11 @@ export const merchantApi = {
     ),
   myReplenishmentEfficiency: () =>
     request<OpenApiMerchantReplenishmentEfficiencyDto>(MerchantEndpoints.replenishmentEfficiency),
-  /** 缺货巡柜：全部低库存 SKU 明细（按柜聚合由页面完成） */
-  lowStockDevices: () => request<OpenApiDeviceInventoryDto[]>(MerchantEndpoints.inventoryLowStock),
+  /** 缺货巡柜聚合：货道级统一口径（与 admin 缺货看板同源），后端已按缺口排序取前 5 */
+  shortageSummary: () =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantShortageSummaryDto[]>(
+      MerchantEndpoints.replenishmentShortageSummary
+    ),
   /** 自主补货：直接生成分仓出库 + 补货任务（无审批） */
   selfInitiateReplenishment: (
     body: import('@aicabinet/shared-types').OpenApiMerchantSelfReplenishRequest

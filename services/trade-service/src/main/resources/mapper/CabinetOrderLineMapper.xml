@@ -228,4 +228,46 @@
     <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
     AND o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
   </select>
+
+  <!-- 商户账单（图4 对照，2026-10-15）：按日聚合销售额/销售量/成本；merchantIds 由功能包范围解析 -->
+  <select id="selectMerchantBillSalesByDay" resultType="java.util.LinkedHashMap">
+    SELECT to_char(o.created_at, 'YYYY-MM-DD') AS c0,
+           COALESCE(SUM(l.quantity), 0) AS c1,
+           COALESCE(SUM(l.line_amount_cents), 0) AS c2,
+           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c3,
+           COUNT(DISTINCT o.order_id) AS c4
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    WHERE o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
+      AND o.status &lt;&gt; 'FAILED'
+      AND o.merchant_id IN
+      <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    <if test="deviceIds != null and deviceIds.size() &gt; 0">
+      AND o.device_id IN
+      <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    </if>
+    GROUP BY to_char(o.created_at, 'YYYY-MM-DD')
+    ORDER BY c0
+  </select>
+
+  <!-- 商户账单：按日聚合退款，按订单 pay_channel 归桶（退款原路=订单渠道，见 OrderPaymentService.finalizeLiveOrderRefund）。
+       口径与既有报表一致：退款取 cabinet_order.refunded_cents（订单级快照），不做行级分摊。 -->
+  <select id="selectMerchantBillRefundsByDay" resultType="java.util.LinkedHashMap">
+    SELECT to_char(created_at, 'YYYY-MM-DD') AS c0,
+           COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN')) &lt;&gt; 'BALANCE'
+                             THEN COALESCE(refunded_cents, 0) ELSE 0 END), 0) AS c1,
+           COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN')) = 'BALANCE'
+                             THEN COALESCE(refunded_cents, 0) ELSE 0 END), 0) AS c2,
+           COUNT(*) FILTER (WHERE COALESCE(refunded_cents, 0) &gt; 0) AS c3
+    FROM cabinet_order
+    WHERE created_at &gt;= #{start} AND created_at &lt; #{end}
+      AND status &lt;&gt; 'FAILED'
+      AND merchant_id IN
+      <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    <if test="deviceIds != null and deviceIds.size() &gt; 0">
+      AND device_id IN
+      <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    </if>
+    GROUP BY to_char(created_at, 'YYYY-MM-DD')
+    ORDER BY c0
+  </select>
 </mapper>

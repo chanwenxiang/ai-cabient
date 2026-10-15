@@ -54,6 +54,7 @@ public class MerchantFinanceService {
     private final JiangyiOrderVideoService jiangyiOrderVideoService;
     private final OrderViewAssembler orderViewAssembler;
     private final MerchantSettlementBillMapper settlementBillRepository;
+    private final DeviceDataFeeBillMapper dataFeeBillRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantFinanceService self;
 
@@ -73,6 +74,7 @@ public class MerchantFinanceService {
                                   JiangyiOrderVideoService jiangyiOrderVideoService,
                                   OrderViewAssembler orderViewAssembler,
                                   MerchantSettlementBillMapper settlementBillRepository,
+                                  DeviceDataFeeBillMapper dataFeeBillRepository,
                                   @Lazy MerchantFinanceService self) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -90,6 +92,7 @@ public class MerchantFinanceService {
         this.jiangyiOrderVideoService = jiangyiOrderVideoService;
         this.orderViewAssembler = orderViewAssembler;
         this.settlementBillRepository = settlementBillRepository;
+        this.dataFeeBillRepository = dataFeeBillRepository;
         this.self = self;
     }
 
@@ -233,6 +236,138 @@ public class MerchantFinanceService {
         return splitRepository.aggregateDailyByMerchants(merchantIds, from, to).stream()
                 .map(this::toDailySettlement)
                 .toList();
+    }
+
+    /**
+     * 商户账单（图4 对照，叮当小柜商户版账单页，2026-10-15 用户拍板新页实现）。
+     * 月×设备（deviceId 空=全部设备）聚合，销售报表口径：
+     * 利润额 = 销售额 − 即时退款 − 余额退款 − 商品成本 − 流量费。
+     * 与月度结算单（分账口径 CB-020）并存，口径不同不互相替代。
+     *
+     * @param month    yyyy-MM；空=当月
+     * @param deviceId 设备筛选；空=该商户范围全部设备
+     */
+    @Transactional(readOnly = true)
+    public MerchantMonthlyBillDto getMonthlyBill(Long userId, String month, String deviceId) {
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
+        merchantPortalGuard.requireAccess(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
+        if (merchantIds == null || merchantIds.isEmpty()) {
+            return emptyBill(month, deviceId);
+        }
+        String normalizedDeviceId = (deviceId == null || deviceId.isBlank()) ? null : deviceId.trim();
+        if (normalizedDeviceId != null) {
+            merchantFeaturePackService.requireDevicePack(userId, normalizedDeviceId, MerchantFeaturePacks.BIZ);
+        }
+        Collection<String> deviceScope = merchantFeaturePackService.intersectDeviceFilterForPack(
+                userId, normalizedDeviceId, MerchantFeaturePacks.BIZ);
+        if (deviceScope != null && deviceScope.isEmpty()) {
+            return emptyBill(month, deviceId);
+        }
+        // 设备过滤口径：指定设备⇒单元素集合；未指定但功能包限定设备⇒集合过滤；否则 null=全部
+        Collection<String> deviceFilter = normalizedDeviceId != null
+                ? List.of(normalizedDeviceId)
+                : (deviceScope != null ? deviceScope : null);
+
+        YearMonth ym = parseBillMonth(month);
+        Instant start = ym.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant end = ym.plusMonths(1).atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+        Map<String, Object[]> salesByDay = new LinkedHashMap<>();
+        for (Object[] row : orderLineRepository.merchantBillSalesByDay(merchantIds, start, end, deviceFilter)) {
+            salesByDay.put(String.valueOf(row[0]), row);
+        }
+        Map<String, Object[]> refundsByDay = new LinkedHashMap<>();
+        for (Object[] row : orderLineRepository.merchantBillRefundsByDay(merchantIds, start, end, deviceFilter)) {
+            refundsByDay.put(String.valueOf(row[0]), row);
+        }
+
+        // 流量费：device_data_fee_bill 月度出账（无日粒度 ⇒ 日行流量费为 0，月合计=当月出账）
+        long dataFeeCents = dataFeeBillRepository.selectList(
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers.<DeviceDataFeeBill>lambdaQuery()
+                                .in(DeviceDataFeeBill::getMerchantId, merchantIds)
+                                .eq(DeviceDataFeeBill::getBillMonth, ym.toString())
+                                .ne(DeviceDataFeeBill::getStatus,
+                                        com.aicabinet.common.constants.CabinetConstants.FEE_BILL_STATUS_VOID))
+                .stream()
+                .filter(b -> normalizedDeviceId == null || normalizedDeviceId.equals(b.getDeviceId()))
+                .mapToLong(DeviceDataFeeBill::getAmountCents)
+                .sum();
+
+        List<MerchantBillDayDto> days = new ArrayList<>();
+        int orderCount = 0;
+        long salesCents = 0;
+        int salesQty = 0;
+        long instantRefundCents = 0;
+        long balanceRefundCents = 0;
+        long cogsCents = 0;
+        LocalDate d = ym.atDay(1);
+        while (!d.isAfter(ym.atEndOfMonth())) {
+            String key = d.toString();
+            Object[] s = salesByDay.get(key);
+            Object[] r = refundsByDay.get(key);
+            int dayOrders = s == null ? 0 : asInt(row(s, 4));
+            long daySales = s == null ? 0L : asLong(row(s, 2));
+            int dayQty = s == null ? 0 : asInt(row(s, 1));
+            long dayCogs = s == null ? 0L : asLong(row(s, 3));
+            long dayInstant = r == null ? 0L : asLong(row(r, 1));
+            long dayBalance = r == null ? 0L : asLong(row(r, 2));
+            if (dayOrders > 0 || dayInstant > 0 || dayBalance > 0) {
+                // 老系统账单按日展示（日粒度无流量费出账，计 0；月合计单列）
+                days.add(new MerchantBillDayDto(key, dayOrders, daySales, dayQty,
+                        dayInstant, dayBalance, daySales - dayInstant - dayBalance - dayCogs));
+            }
+            orderCount += dayOrders;
+            salesCents += daySales;
+            salesQty += dayQty;
+            cogsCents += dayCogs;
+            instantRefundCents += dayInstant;
+            balanceRefundCents += dayBalance;
+            d = d.plusDays(1);
+        }
+
+        // deviceName 不在此解析：设备清单由前端从 /merchant/devices 带名称下拉，避免跨域查设备表
+        long refundedTotal = instantRefundCents + balanceRefundCents;
+        return new MerchantMonthlyBillDto(ym.toString(), normalizedDeviceId, null,
+                orderCount, salesCents, salesQty, instantRefundCents, balanceRefundCents,
+                refundedTotal, cogsCents, dataFeeCents,
+                salesCents - refundedTotal - cogsCents - dataFeeCents, days);
+    }
+
+    private static Object row(Object[] arr, int idx) {
+        return idx < arr.length ? arr[idx] : null;
+    }
+
+    private static int asInt(Object v) {
+        return v instanceof Number n ? n.intValue() : 0;
+    }
+
+    private static long asLong(Object v) {
+        return v instanceof Number n ? n.longValue() : 0L;
+    }
+
+    private static YearMonth parseBillMonth(String month) {
+        if (month == null || month.isBlank()) {
+            return YearMonth.now(ZoneId.systemDefault());
+        }
+        try {
+            return YearMonth.parse(month.trim());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "月份格式应为 yyyy-MM");
+        }
+    }
+
+    private static MerchantMonthlyBillDto emptyBill(String month, String deviceId) {
+        YearMonth ym = YearMonth.now(ZoneId.systemDefault());
+        try {
+            ym = parseBillMonth(month);
+        } catch (ResponseStatusException ignored) {
+            // 无数据范围时格式异常同样回落当月，避免空态接口报错
+        }
+        return new MerchantMonthlyBillDto(ym.toString(),
+                deviceId == null || deviceId.isBlank() ? null : deviceId.trim(),
+                null, 0, 0, 0, 0, 0, 0, 0, 0, 0, List.of());
     }
 
     @Transactional(readOnly = true)

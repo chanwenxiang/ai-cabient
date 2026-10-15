@@ -196,6 +196,19 @@
       ]
     },
     {
+      "root": "pages/bills",
+      "pages": [
+        {
+          "path": "bills",
+          "style": {
+            "enablePullDownRefresh": true,
+            "navigationBarTitleText": "账单",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
       "root": "pages/disputes",
       "pages": [
         {

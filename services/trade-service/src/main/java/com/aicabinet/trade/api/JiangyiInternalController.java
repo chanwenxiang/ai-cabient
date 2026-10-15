@@ -116,6 +116,17 @@ public class JiangyiInternalController {
         return ApiResponse.ok(1);
     }
 
+    /**
+     * 将邑信号强度上报转发（V363，图2 对照）：gateway 收到 §4.2.15
+     * deviceInfo/getDeviceSimInfo（signalStrength 0-4）后转至此落 device_info。
+     */
+    @PostMapping("/devices/{deviceId}/signal")
+    public ApiResponse<Integer> signal(@PathVariable("deviceId") String deviceId,
+                                       @RequestBody SignalRequest body) {
+        devicePresenceService.updateSignal(deviceId, body.signalStrength());
+        return ApiResponse.ok(1);
+    }
+
     /** 路由判定（供诊断/联调核查，DeviceServiceClient 侧走本地 Directory）。 */
     @GetMapping("/devices/{deviceId}/routable")
     public ApiResponse<Boolean> routable(@PathVariable("deviceId") String deviceId) {
@@ -262,4 +273,6 @@ public class JiangyiInternalController {
     /** 与 gateway TradeInternalClient.OrderVideoReportRequest 对齐（videoUrls 可空=该片失败留痕）。 */
     record OrderVideoReportRequest(String deviceId, String orderNo, Integer serialNum,
                                    Integer videoQuantity, List<String> videoUrls) {}
+    /** 与 gateway TradeInternalClient.DeviceSignalRequest 对齐（§4.2.15 signalStrength 0-4）。 */
+    record SignalRequest(Integer signalStrength) {}
 }

@@ -143,9 +143,21 @@ public class TradeInternalClient {
                 new OrderVideoReportRequest(deviceId, orderNo, serialNum, videoQuantity, videoUrls));
     }
 
+    /**
+     * 信号强度转发（V363，图2 对照）：§4.2.15 getDeviceSimInfo 的 signalStrength 0-4
+     * → trade device_info.signal_strength 落库。转发失败仅影响展示，调用方记 warn 不重试。
+     */
+    public void deviceSignal(String deviceId, Integer signalStrength) {
+        post("/internal/v1/jiangyi/devices/{deviceId}/signal",
+                new DeviceSignalRequest(signalStrength), deviceId);
+    }
+
     /** 与 trade JiangyiInternalController.OrderVideoReportRequest 对齐。 */
     record OrderVideoReportRequest(String deviceId, String orderNo, Integer serialNum,
                                    Integer videoQuantity, java.util.List<String> videoUrls) {}
+
+    /** 与 trade JiangyiInternalController.SignalRequest 对齐。 */
+    record DeviceSignalRequest(Integer signalStrength) {}
 
     /** 与 trade JiangyiInternalController.ModelConfirmedRequest 对齐。 */
     record ModelConfirmedRequest(String modelName) {}

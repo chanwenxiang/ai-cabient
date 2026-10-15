@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -465,7 +465,73 @@ async function doStartTraining() {
 
 defineExpose({ reload: load });
 
+// ===== 设备控制（V363，图2 对照）：信号强度 + 音量设置 =====
+interface SignalView {
+  signalStrength?: number | null;
+  reportedAt?: string | null;
+}
+const signal = ref<SignalView | null>(null);
+const signalLoading = ref(false);
+const pullLoading = ref(false);
+const soundOn = ref(true);
+const soundLevel = ref(1);
+const soundSaving = ref(false);
+
+async function loadSignal() {
+  signalLoading.value = true;
+  try {
+    signal.value = await api.request<SignalView>(
+      AdminEndpoints.deviceJiangyiSignal(props.deviceId)
+    );
+  } catch {
+    signal.value = null;
+  } finally {
+    signalLoading.value = false;
+  }
+}
+
+/** 下发 getDeviceInfo（§4.3.2.13）：设备回执后信号强度异步落库，稍后点「刷新」可读。 */
+async function pullDeviceInfo() {
+  pullLoading.value = true;
+  try {
+    await api.request(AdminEndpoints.deviceJiangyiDeviceInfo(props.deviceId), 'POST');
+    ElMessage.success('已下发实时拉取，设备回执后点「刷新」查看最新信号');
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '拉取失败（设备可能离线）'));
+  } finally {
+    pullLoading.value = false;
+  }
+}
+
+async function saveSound() {
+  soundSaving.value = true;
+  try {
+    await api.request(AdminEndpoints.deviceJiangyiSound(props.deviceId), 'PUT', {
+      switchOn: soundOn.value,
+      volume: soundLevel.value
+    });
+    ElMessage.success('音量设置已下发');
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '音量下发失败'));
+  } finally {
+    soundSaving.value = false;
+  }
+}
+
 onMounted(load);
+// 绑定成功（BOUND）后补充拉一次信号强度（未绑定设备该接口 400，静默忽略）
+watch(
+  () => props.deviceId,
+  () => {
+    if (binding.value?.status === 'BOUND') void loadSignal();
+  }
+);
+watch(
+  () => binding.value?.status,
+  (status) => {
+    if (status === 'BOUND') void loadSignal();
+  }
+);
 </script>
 
 <template>
@@ -549,6 +615,36 @@ onMounted(load);
             clearable
           />
           <el-button type="primary" :loading="bindSaving" @click="doBind">确认接入</el-button>
+        </div>
+      </div>
+
+      <!-- 设备控制（V363，图2 对照）：信号强度 + 音量设置；网络延迟/拍照/断电协议无接口不做 -->
+      <div v-if="binding.status === 'BOUND'" class="jy-bind-block">
+        <div class="jy-section-label">设备控制（信号 / 音量）</div>
+        <div class="jy-signal-row">
+          <span>
+            信号强度：
+            <strong>{{ signal ? `${signal.signalStrength}/4` : '未上报' }}</strong>
+            <span v-if="signal?.reportedAt" class="jy-signal-at">
+              （{{ formatDateTime(signal.reportedAt) }}）
+            </span>
+          </span>
+          <el-button size="small" :loading="signalLoading" @click="loadSignal">刷新</el-button>
+          <el-button size="small" :loading="pullLoading" @click="pullDeviceInfo"
+            >实时拉取</el-button
+          >
+        </div>
+        <div v-if="canEdit" class="jy-sound-row">
+          <span class="jy-sound-label">音量设置：</span>
+          <el-switch v-model="soundOn" active-text="开" inactive-text="关" />
+          <el-radio-group v-model="soundLevel" size="small">
+            <el-radio-button :value="0">大</el-radio-button>
+            <el-radio-button :value="1">中</el-radio-button>
+            <el-radio-button :value="2">小</el-radio-button>
+          </el-radio-group>
+          <el-button type="primary" size="small" :loading="soundSaving" @click="saveSound"
+            >下发</el-button
+          >
         </div>
       </div>
 
@@ -890,6 +986,24 @@ onMounted(load);
 }
 .jy-bind-block {
   margin-top: 12px;
+}
+.jy-signal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.jy-signal-at {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.jy-sound-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.jy-sound-label {
+  color: var(--color-text-secondary);
 }
 .jy-section-label {
   font-size: 13px;

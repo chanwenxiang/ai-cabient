@@ -13,6 +13,39 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine> {
 
+    /**
+     * 商户账单（图4 对照，2026-10-15）：按日聚合 销售额/销售量/成本。
+     * c0=day(yyyy-MM-DD)，c1=qty，c2=salesCents，c3=cogsCents，c4=orderCount。
+     * deviceIds：null=不过滤；空集合=无可见设备（上层短路）；单元素=指定设备。
+     */
+    List<LinkedHashMap<String, Object>> selectMerchantBillSalesByDay(
+            @Param("merchantIds") Collection<String> merchantIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end,
+            @Param("deviceIds") Collection<String> deviceIds);
+
+    default List<Object[]> merchantBillSalesByDay(
+            Collection<String> merchantIds, Instant start, Instant end, Collection<String> deviceIds) {
+        return ColumnMapRows.toObjectRows(
+                selectMerchantBillSalesByDay(merchantIds, start, end, deviceIds), 5);
+    }
+
+    /**
+     * 商户账单：按日聚合退款（按订单 pay_channel 归桶）。
+     * c0=day，c1=instantRefundCents（非余额渠道），c2=balanceRefundCents，c3=refundOrderCount。
+     */
+    List<LinkedHashMap<String, Object>> selectMerchantBillRefundsByDay(
+            @Param("merchantIds") Collection<String> merchantIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end,
+            @Param("deviceIds") Collection<String> deviceIds);
+
+    default List<Object[]> merchantBillRefundsByDay(
+            Collection<String> merchantIds, Instant start, Instant end, Collection<String> deviceIds) {
+        return ColumnMapRows.toObjectRows(
+                selectMerchantBillRefundsByDay(merchantIds, start, end, deviceIds), 4);
+    }
+
     default List<CabinetOrderLine> findByOrderId(String orderId) {
         return selectList(Wrappers.<CabinetOrderLine>lambdaQuery()
                 .eq(CabinetOrderLine::getOrderId, orderId)

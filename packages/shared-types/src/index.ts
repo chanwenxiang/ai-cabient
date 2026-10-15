@@ -239,6 +239,10 @@ export type OpenApiUpdateMerchantDeviceSettingsRequest =
 export type OpenApiMerchantGatherStatusDto =
   import('./generated/openapi').components['schemas']['MerchantGatherStatusDto'];
 
+/** 商户「缺货巡柜」聚合行（货道级统一口径，缺口=建议 headroom，2026-10-15） */
+export type OpenApiMerchantShortageSummaryDto =
+  import('./generated/openapi').components['schemas']['MerchantShortageSummaryDto'];
+
 export interface DeviceSlot {
   deviceId: string;
   slotCode: string;
@@ -259,6 +263,13 @@ export interface DeviceSlot {
   stockStatus?: string;
   qtyDiff?: number;
   hasDiscrepancy?: boolean;
+  /** V362 起图1 对照新增：SKU 图片/品牌/规格/条码、上架时间、阈值口径缺货预警 */
+  skuImageUrl?: string | null;
+  skuBrand?: string | null;
+  skuSpec?: string | null;
+  skuBarcode?: string | null;
+  assignedAt?: string | null;
+  stockoutWarn?: boolean;
 }
 
 export interface UpsertDeviceSlotRequest {
@@ -738,6 +749,34 @@ export interface MerchantDailySettlement {
   settledCents: number;
   pendingCents: number;
   failedCount: number;
+}
+
+/** 商户账单按日明细（图4 对照，2026-10-15；日粒度无流量费出账） */
+export interface MerchantBillDay {
+  day: string;
+  orderCount: number;
+  salesCents: number;
+  salesQty: number;
+  instantRefundCents: number;
+  balanceRefundCents: number;
+  profitCents: number;
+}
+
+/** 商户账单（月×设备，销售报表口径：利润=销售额−退款−成本−流量费） */
+export interface MerchantMonthlyBill {
+  month: string;
+  deviceId?: string | null;
+  deviceName?: string | null;
+  orderCount: number;
+  salesCents: number;
+  salesQty: number;
+  instantRefundCents: number;
+  balanceRefundCents: number;
+  refundedCents: number;
+  cogsCents: number;
+  dataFeeCents: number;
+  profitCents: number;
+  days: MerchantBillDay[];
 }
 
 export interface MerchantSettlementBatch {

@@ -152,6 +152,43 @@ public class MerchantInventoryPortalService {
                 .toList();
     }
 
+    /**
+     * 商户「缺货巡柜」聚合（P2 口径统一，2026-10-15）：货道级 isSlotShortage 单源判定，
+     * 缺口件数与补货建议 headroom 同口径（补到 par、受 maxLevel 限幅）。按缺口货道数降序取前 5。
+     */
+    @Transactional(readOnly = true)
+    public List<MerchantShortageSummaryDto> listShortageSummary(Long userId) {
+        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        merchantPortalGuard.requireAccess(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.FIELD);
+        if (allowed != null && allowed.isEmpty()) {
+            return List.of();
+        }
+        List<DeviceInfo> devices = deviceRepository.findAll().stream()
+                .filter(d -> inDeviceScope(allowed, d.getDeviceId()))
+                .toList();
+        return devices.stream()
+                .map(dev -> {
+                    List<DeviceSlotService.SlotShortageItem> slots =
+                            deviceSlotService.listShortageSlots(dev.getDeviceId());
+                    int shortageQty = slots.stream()
+                            .mapToInt(s -> {
+                                int target = s.parLevel() > 0 ? s.parLevel() : s.capacity();
+                                int cap = s.capacity() > 0 ? s.capacity() : target;
+                                return Math.max(0, Math.min(target, cap) - s.bookQty());
+                            })
+                            .sum();
+                    return new MerchantShortageSummaryDto(
+                            dev.getDeviceId(), dev.getDeviceName(), slots.size(), shortageQty);
+                })
+                .filter(r -> r.shortageSlots() > 0)
+                .sorted(Comparator.comparingInt(MerchantShortageSummaryDto::shortageSlots).reversed()
+                        .thenComparing(Comparator.comparingInt(MerchantShortageSummaryDto::shortageQty).reversed()))
+                .limit(5)
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public List<SlotDiscrepancyAlertDto> listSlotDiscrepancies(Long userId, String deviceId) {
         permissionService.requirePermission(userId, MERCHANT_INVENTORY_VIEW);

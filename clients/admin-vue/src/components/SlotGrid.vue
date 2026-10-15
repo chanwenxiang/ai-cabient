@@ -7,13 +7,23 @@
       :class="cellClass(slot)"
       @click="editable && emit('edit', slot)"
     >
-      <div class="slot-code">{{ slot.slotCode }}</div>
+      <div class="slot-head">
+        <span class="slot-code">{{ slot.slotCode }}</span>
+        <img
+          v-if="slot.skuImageUrl"
+          :src="slot.skuImageUrl"
+          class="slot-img"
+          loading="lazy"
+          @error="hideImg"
+        />
+      </div>
       <div class="slot-sku">{{ slot.assignedSkuName || slot.assignedSkuId || '未配置' }}</div>
       <div class="slot-qty">账面 {{ slot.bookQty }} / {{ slot.maxLevel || slot.parLevel }}</div>
       <div v-if="slot.lastPhysicalQty != null" class="slot-physical">
         实盘 {{ slot.lastPhysicalQty }}
         <span v-if="slot.hasDiscrepancy" class="diff">差 {{ slot.qtyDiff }}</span>
       </div>
+      <div v-if="slot.stockoutWarn" class="slot-warn">缺货预警</div>
     </div>
   </div>
 </template>
@@ -34,8 +44,13 @@ function cellClass(slot: DeviceSlot) {
     [`status-${st}`]: !!st,
     over,
     mismatch: slot.hasDiscrepancy,
+    'stockout-warn': !!slot.stockoutWarn,
     clickable: !!props.editable
   };
+}
+
+function hideImg(e: Event) {
+  (e.target as HTMLImageElement).style.display = 'none';
 }
 </script>
 
@@ -51,6 +66,7 @@ function cellClass(slot: DeviceSlot) {
   padding: 8px;
   font-size: 0.78rem;
   background: var(--el-fill-color-blank);
+  position: relative;
 }
 .slot-cell.clickable {
   cursor: pointer;
@@ -58,8 +74,20 @@ function cellClass(slot: DeviceSlot) {
 .slot-cell.clickable:hover {
   border-color: var(--el-color-primary);
 }
+.slot-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
 .slot-code {
   font-weight: 600;
+}
+.slot-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
 }
 .slot-sku {
   color: var(--layout-muted);
@@ -77,6 +105,12 @@ function cellClass(slot: DeviceSlot) {
   color: #c2410c;
   margin-left: 4px;
 }
+.slot-warn {
+  margin-top: 4px;
+  font-size: 0.68rem;
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
 .slot-cell.status-oos {
   border-color: #f87171;
   background: color-mix(in srgb, #ef4444 12%, var(--layout-card));
@@ -92,5 +126,8 @@ function cellClass(slot: DeviceSlot) {
 }
 .slot-cell.mismatch {
   box-shadow: inset 0 0 0 2px #f97316;
+}
+.slot-cell.stockout-warn:not(.status-oos) {
+  border-color: var(--el-color-danger);
 }
 </style>

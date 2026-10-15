@@ -65,6 +65,12 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/settlements/batches?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
   /** 商户月度结算单（V330，CB-020）：from/to 为 yyyy-MM 可省略，后端默认近 12 个月 */
   settlementsMonthlyBills: `${API_PREFIX}/merchant/settlements/monthly-bills`,
+  /** 商户账单（图4 对照，2026-10-15）：销售报表口径，月×设备（deviceId 空=全部设备）+ 按日明细 */
+  settlementsMonthlyBill: (month: string, deviceId?: string) => {
+    const q = new URLSearchParams({ month });
+    if (deviceId) q.set('deviceId', deviceId);
+    return `${API_PREFIX}/merchant/settlements/monthly-bill?${q.toString()}`;
+  },
   /** 经营分析 */
   analyticsOverview: `${API_PREFIX}/merchant/analytics/overview`,
   analyticsSalesReports: `${API_PREFIX}/merchant/analytics/sales-reports`,
@@ -78,11 +84,12 @@ export const MerchantEndpoints = {
   taxProfile: `${API_PREFIX}/merchant/tax-profile`,
   taxProfileByMerchant: (merchantId: string) =>
     `${API_PREFIX}/merchant/tax-profile?merchantId=${encodeURIComponent(merchantId)}`,
-  inventoryLowStock: `${API_PREFIX}/merchant/inventory?lowStockOnly=true`,
   /** 补货 JSON */
   replenishmentSuggestions: (deviceId: string) =>
     `${API_PREFIX}/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`,
   replenishmentEfficiency: `${API_PREFIX}/merchant/replenishment/my-efficiency`,
+  /** 缺货巡柜聚合（货道级统一口径，缺口=建议 headroom） */
+  replenishmentShortageSummary: `${API_PREFIX}/merchant/replenishment/shortage-summary`,
   /** 自主补货：直接生成分仓出库 + 补货任务（无审批） */
   replenishmentSelfInitiate: `${API_PREFIX}/merchant/replenishment/self-initiate`,
   replenishmentTasks: `${API_PREFIX}/merchant/replenishment/tasks`,

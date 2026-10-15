@@ -10,10 +10,12 @@ import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.domain.JiangyiOrderVideo;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
+import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,17 +50,20 @@ public class AdminJiangyiController {
     private final JiangyiModelSyncService jiangyiModelSyncService;
     private final JiangyiGatherService jiangyiGatherService;
     private final JiangyiOrderVideoService jiangyiOrderVideoService;
+    private final JiangyiDeviceOpsService jiangyiDeviceOpsService;
 
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
                                   JiangyiClassMappingService jiangyiClassMappingService,
                                   JiangyiModelSyncService jiangyiModelSyncService,
                                   JiangyiGatherService jiangyiGatherService,
-                                  JiangyiOrderVideoService jiangyiOrderVideoService) {
+                                  JiangyiOrderVideoService jiangyiOrderVideoService,
+                                  JiangyiDeviceOpsService jiangyiDeviceOpsService) {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
         this.jiangyiGatherService = jiangyiGatherService;
         this.jiangyiOrderVideoService = jiangyiOrderVideoService;
+        this.jiangyiDeviceOpsService = jiangyiDeviceOpsService;
     }
 
     /**
@@ -171,6 +176,35 @@ public class AdminJiangyiController {
                                                  @Valid @RequestBody MappingStatusRequest body) {
         return ApiResponse.ok(jiangyiClassMappingService.setStatus(
                 deviceId, classId, Boolean.TRUE.equals(body.active())));
+    }
+
+    // ---------- 设备控制面（V363，图2 对照，2026-10-15） ----------
+
+    /** 音量设置（§4.3.2.16/17）：switchOn/volume 至少一项，volume 0=大/1=中/2=小。 */
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/devices/{deviceId}/jiangyi/sound")
+    public ApiResponse<Void> setSound(HttpServletRequest request,
+                                      @PathVariable("deviceId") String deviceId,
+                                      @Valid @RequestBody SoundRequest body) {
+        jiangyiDeviceOpsService.setSound(operatorId(request), deviceId, body.switchOn(), body.volume());
+        return ApiResponse.ok(null);
+    }
+
+    /** 实时拉取设备信息（§4.3.2.13）：回执异步落库，随后 GET signal 可读。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/device-info")
+    public ApiResponse<Void> requestDeviceInfo(HttpServletRequest request,
+                                               @PathVariable("deviceId") String deviceId) {
+        jiangyiDeviceOpsService.requestDeviceInfo(operatorId(request), deviceId);
+        return ApiResponse.ok(null);
+    }
+
+    /** 信号强度视图（0-4 档；非将邑柜/未上报 signalStrength=null）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/signal")
+    public ApiResponse<JiangyiDeviceOpsService.SignalView> signal(
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiDeviceOpsService.signal(deviceId));
     }
 
     // ---------- 模型同步面（CB-023 二期） ----------
@@ -299,6 +333,13 @@ public class AdminJiangyiController {
     private static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s.trim();
     }
+
+    private static Long operatorId(HttpServletRequest request) {
+        return (Long) request.getAttribute(com.aicabinet.trade.auth.AuthInterceptor.ATTR_USER_ID);
+    }
+
+    /** 音量设置请求体：switchOn/volume 至少一项（service 校验）。 */
+    record SoundRequest(Boolean switchOn, Integer volume) {}
 
     private static JiangyiDeviceDto toDto(JiangyiDevice d) {
         return new JiangyiDeviceDto(d.getDeviceId(), d.getDeviceSn(), d.getIdentifier(),

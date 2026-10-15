@@ -34,6 +34,12 @@ public class DeviceInfo {
 
     private String firmwareVersion;
 
+    /** 将邑信号强度 0-4（V363，图2 对照：getDeviceSimInfo 上报；非将邑柜恒 null）。 */
+    private Integer signalStrength;
+
+    /** 信号强度最近上报时间（V363）。 */
+    private Instant signalReportedAt;
+
     private Double latitude;
     private Double longitude;
 

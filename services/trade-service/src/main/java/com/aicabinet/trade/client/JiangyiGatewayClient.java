@@ -41,6 +41,28 @@ public class JiangyiGatewayClient {
                 .toBodilessEntity();
     }
 
+    /** 音量设置（V363，图2 对照；§4.3.2.16/17）：switchOn/volume 至少一项，volume 0=大/1=中/2=小。 */
+    public void soundSet(String deviceId, Boolean switchOn, Integer volume) {
+        gatewayClient.post()
+                .uri("/internal/v1/jiangyi/devices/{deviceId}/sound", deviceId)
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .body(new SoundRequest(switchOn, volume))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    /** 实时拉取设备信息（§4.3.2.13 getDeviceInfo）：回执走 HTTP §4.2.15 → signal 落库。 */
+    public void requestDeviceInfo(String deviceId) {
+        gatewayClient.post()
+                .uri("/internal/v1/jiangyi/devices/{deviceId}/device-info", deviceId)
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    /** 与 gateway DeviceCommandController.SoundRequest 对齐。 */
+    public record SoundRequest(Boolean switchOn, Integer volume) {}
+
     /** 与 gateway ModelPushController.ModelPushRequest 对齐。 */
     public record ModelPushRequest(Long deploymentId, String modelName, String modelUrl,
                                    String textUrl, Integer quantity) {}

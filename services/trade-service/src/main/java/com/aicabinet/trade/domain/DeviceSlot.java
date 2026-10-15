@@ -26,6 +26,9 @@ public class DeviceSlot {
 
     private String assignedSkuId;
 
+    /** SKU 绑定到该货道的时间（V362，图1「上架时间」；换绑刷新，清空绑定置 null）。 */
+    private Instant assignedAt;
+
     private int parLevel;
 
     private int minLevel;

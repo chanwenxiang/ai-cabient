@@ -25,7 +25,8 @@ public record DeviceOpsMetricsDto(
         String alertContactPhone,
         int nearExpiryLotCount,
         String merchantContactName,
-        String merchantContactPhone
+        String merchantContactPhone,
+        long monthRevenueCents
 ) {
     /** 兼容旧 12 字段构造 */
     public DeviceOpsMetricsDto(
@@ -44,7 +45,7 @@ public record DeviceOpsMetricsDto(
         this(deviceId, configuredSlotCount, activeSlotCount, fillRatePct, oosRatePct,
                 oosSlotCount, lowStockSlotCount, totalBookQty, totalParLevel, lastRestockAt,
                 inventoryAccuracyPct, null, null, null, null, false, null, null, null, null, 0,
-                null, null);
+                null, null, 0L);
     }
 
     /** 兼容旧 20 字段构造（无临期） */
@@ -74,6 +75,6 @@ public record DeviceOpsMetricsDto(
                 oosSlotCount, lowStockSlotCount, totalBookQty, totalParLevel, lastRestockAt,
                 inventoryAccuracyPct, address, currentTempC, targetTempC, tempReportedAt,
                 salesLocked, appVersion, firmwareVersion, alertContactName, alertContactPhone, 0,
-                null, null);
+                null, null, 0L);
     }
 }

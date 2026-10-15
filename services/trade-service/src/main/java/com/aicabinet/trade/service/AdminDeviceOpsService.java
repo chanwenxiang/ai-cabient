@@ -74,6 +74,8 @@ public class AdminDeviceOpsService {
             case "UNLOCK" -> lock(operatorId, device, reason, false);
             case "REBOOT" -> reboot(operatorId, device, reason);
             case "SET_TEMP" -> setTemp(operatorId, device, reason, request.targetTempC());
+            // V308 端侧自检早已实现，此前缺云端触发入口（图2 对照「货柜检测」，2026-10-15 补）
+            case "SELF_TEST" -> selfTest(operatorId, device, reason);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的指令: " + cmd);
         };
     }
@@ -152,6 +154,20 @@ public class AdminDeviceOpsService {
         // applySalesLock 内部 reload 写库，勿用调用方持有的旧实体判断结果
         return new DeviceOpsCommandResultDto(device.getDeviceId(), locked ? "LOCK" : "UNLOCK", commandId,
                 locked ? "已锁机，消费者无法开门" : "已解锁，恢复营业", locked);
+    }
+
+    private DeviceOpsCommandResultDto selfTest(Long operatorId, DeviceInfo device, String reason) {
+        String commandId;
+        try {
+            commandId = deviceClient.requestOpsCommand(device.getDeviceId(), CabinetConstants.MQTT_CMD_SELF_TEST);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "自检指令下发失败（请确认 device-service 在线）");
+        }
+        auditService.appendLog(operatorId, "DEVICE_SELF_TEST", "DEVICE", device.getDeviceId(),
+                reason + "；指令编号=" + commandId);
+        return new DeviceOpsCommandResultDto(device.getDeviceId(), "SELF_TEST", commandId,
+                "自检指令已下发，结果见设备自检记录", device.salesLockedEnabled());
     }
 
     private DeviceOpsCommandResultDto reboot(Long operatorId, DeviceInfo device, String reason) {

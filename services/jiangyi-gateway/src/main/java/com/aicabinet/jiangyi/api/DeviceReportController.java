@@ -209,6 +209,46 @@ public class DeviceReportController {
         return ok();
     }
 
+    // ---------- §4.2.15 上报设备信息 ----------
+
+    /**
+     * 设备信息上报（V16 §4.2.15 devicelnfo/getDeviceSimlnfo，可选接口）：
+     * 机器启动默认上报一次；可下发 getDeviceInfo（§4.3.2.13）实时拉取。
+     * 当前只取 signalStrength 0-4（M 必报；simNum/temperature/location 文档标注"暂无法获取"），
+     * 转发 trade device_info.signal_strength（V363，图2 对照信号强度展示）。
+     */
+    @PostMapping("/jiangyi/api/deviceInfo/getDeviceSimInfo")
+    public Map<String, Object> getDeviceSimInfo(HttpServletRequest request,
+                                                @RequestBody DeviceSimInfoRequest body) {
+        String deviceId = device(request);
+        Integer signal = parseSignalStrength(body.signalStrength());
+        if (signal == null) {
+            log.debug("jiangyi sim-info without signal deviceId={} body={}", deviceId, body);
+            return ok();
+        }
+        try {
+            tradeInternalClient.deviceSignal(deviceId, signal);
+            log.info("jiangyi signal reported deviceId={} signal={}", deviceId, signal);
+        } catch (Exception e) {
+            log.warn("jiangyi signal forward failed deviceId={} signal={}: {}",
+                    deviceId, signal, e.getMessage());
+        }
+        return ok();
+    }
+
+    /** 文档 signalStrength 为 String 型 0-4；宽容解析（固件口径不可信，铁律）。 */
+    private static Integer parseSignalStrength(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            int v = Integer.parseInt(raw.trim());
+            return v >= 0 && v <= 4 ? v : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     // ---------- 内部 ----------
 
     /** 合成关门事件转发（模式一：识别/关门上报前统一推进 SHOPPING→RECOGNIZING）。 */
@@ -242,4 +282,7 @@ public class DeviceReportController {
     record OrderErrorRequest(String orderNo, String errorMsg, String bigModel, String BigModel) {}
     record DoubleDoorRequest(String orderNo, String doorPosition) {}
     record FaultOrderRequest(String orderNo, String errorCode, String errorMsg) {}
+    /** §4.2.15 字段照抄文档（signalStrength M 必报 0-4，String 型）。 */
+    record DeviceSimInfoRequest(String simNum, String temperature, String signalStrength,
+                                String location, String isMove) {}
 }

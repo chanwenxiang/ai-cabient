@@ -140,6 +140,9 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/slots/stocktake`,
   /** 单柜定价（V350，CB-037）：行内改覆盖价/启停/恢复基准；查看 ops:device:list、改价 ops:pricing:edit */
   devicePricing: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/pricing`,
+  /** 批量重置价格：清除该柜全部覆盖价恢复商品库默认价（图1 对照，2026-10-15） */
+  devicePricingReset: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/pricing/reset`,
   devicePricingUpdate: (deviceId: string, skuId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/pricing/${encodeURIComponent(skuId)}`,
 
@@ -174,6 +177,15 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/progress`,
   deviceJiangyiGatherTraining: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/training`,
+  /** 音量设置（V363，图2 对照；§4.3.2.16/17） */
+  deviceJiangyiSound: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/sound`,
+  /** 实时拉取设备信息（§4.3.2.13 getDeviceInfo，回执落信号强度） */
+  deviceJiangyiDeviceInfo: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/device-info`,
+  /** 信号强度视图（0-4 档） */
+  deviceJiangyiSignal: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/signal`,
   jiangyiGatherCheck: `${ops}/jiangyi/gather-check`,
 
   /** 将邑订单视频复核（CB-029）：按订单/设备查上报 → 取短时效播放地址（独立权限点 ops:device:video） */

@@ -686,6 +686,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/sound": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setSound"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/class-mappings/{classId}": {
         parameters: {
             query?: never;
@@ -1224,6 +1240,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["tokenIssued"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/jiangyi/devices/{deviceId}/signal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["signal"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3781,6 +3813,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/pricing/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resetDevicePricing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/mqtt-credential": {
         parameters: {
             query?: never;
@@ -3919,6 +3967,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["exitGather"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/device-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestDeviceInfo"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8123,6 +8187,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/signal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["signal_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/model-deployments": {
         parameters: {
             query?: never;
@@ -8683,6 +8763,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/settlements/monthly-bill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["monthlyBill"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/settlements/export": {
         parameters: {
             query?: never;
@@ -8883,6 +8979,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["replenishmentSuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/replenishment/shortage-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["shortageSummary"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11077,6 +11189,13 @@ export interface components {
             /** Format: int32 */
             qtyDiff?: number;
             hasDiscrepancy?: boolean;
+            skuImageUrl?: string;
+            skuBrand?: string;
+            skuSpec?: string;
+            skuBarcode?: string;
+            /** Format: date-time */
+            assignedAt?: string;
+            stockoutWarn?: boolean;
         };
         UpdateDeviceSkuPriceRequest: {
             /** Format: int32 */
@@ -11129,6 +11248,11 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["DevicePolicyDto"];
+        };
+        SoundRequest: {
+            switchOn?: boolean;
+            /** Format: int32 */
+            volume?: number;
         };
         MappingUpsertRequest: {
             skuId: string;
@@ -11622,6 +11746,10 @@ export interface components {
         GatherFinishNotifyRequest: {
             finishNotifyId?: string;
             msg?: string;
+        };
+        SignalRequest: {
+            /** Format: int32 */
+            signalStrength?: number;
         };
         ModelConfirmedRequest: {
             modelName?: string;
@@ -16867,6 +16995,18 @@ export interface components {
             binding?: components["schemas"]["JiangyiDeviceDto"];
             mappings?: components["schemas"]["JiangyiClassMappingDto"][];
         };
+        ApiResponseSignalView: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["SignalView"];
+        };
+        SignalView: {
+            /** Format: int32 */
+            signalStrength?: number;
+            /** Format: date-time */
+            reportedAt?: string;
+        };
         ApiResponseListDeploymentDto: {
             /** Format: int32 */
             code?: number;
@@ -16964,6 +17104,8 @@ export interface components {
             nearExpiryLotCount?: number;
             merchantContactName?: string;
             merchantContactPhone?: string;
+            /** Format: int64 */
+            monthRevenueCents?: number;
         };
         ApiResponseListDeviceRefDto: {
             /** Format: int32 */
@@ -17558,6 +17700,51 @@ export interface components {
             /** Format: date-time */
             confirmedAt?: string;
         };
+        ApiResponseMerchantMonthlyBillDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantMonthlyBillDto"];
+        };
+        MerchantBillDayDto: {
+            day?: string;
+            /** Format: int32 */
+            orderCount?: number;
+            /** Format: int64 */
+            salesCents?: number;
+            /** Format: int32 */
+            salesQty?: number;
+            /** Format: int64 */
+            instantRefundCents?: number;
+            /** Format: int64 */
+            balanceRefundCents?: number;
+            /** Format: int64 */
+            profitCents?: number;
+        };
+        MerchantMonthlyBillDto: {
+            month?: string;
+            deviceId?: string;
+            deviceName?: string;
+            /** Format: int32 */
+            orderCount?: number;
+            /** Format: int64 */
+            salesCents?: number;
+            /** Format: int32 */
+            salesQty?: number;
+            /** Format: int64 */
+            instantRefundCents?: number;
+            /** Format: int64 */
+            balanceRefundCents?: number;
+            /** Format: int64 */
+            refundedCents?: number;
+            /** Format: int64 */
+            cogsCents?: number;
+            /** Format: int64 */
+            dataFeeCents?: number;
+            /** Format: int64 */
+            profitCents?: number;
+            days?: components["schemas"]["MerchantBillDayDto"][];
+        };
         ApiResponseListMerchantDailySettlementDto: {
             /** Format: int32 */
             code?: number;
@@ -17678,6 +17865,20 @@ export interface components {
             /** Format: int32 */
             ropPoint?: number;
             suggestReason?: string;
+        };
+        ApiResponseListMerchantShortageSummaryDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantShortageSummaryDto"][];
+        };
+        MerchantShortageSummaryDto: {
+            deviceId?: string;
+            deviceName?: string;
+            /** Format: int32 */
+            shortageSlots?: number;
+            /** Format: int32 */
+            shortageQty?: number;
         };
         ApiResponseMerchantReplenishmentEfficiencyDto: {
             /** Format: int32 */
@@ -20097,6 +20298,32 @@ export interface operations {
             };
         };
     };
+    setSound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SoundRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     upsertMapping: {
         parameters: {
             query?: never;
@@ -21145,6 +21372,32 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseInteger"];
+                };
+            };
+        };
+    };
+    signal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignalRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -25649,6 +25902,28 @@ export interface operations {
             };
         };
     };
+    resetDevicePricing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseInteger"];
+                };
+            };
+        };
+    };
     status: {
         parameters: {
             query?: never;
@@ -25902,6 +26177,28 @@ export interface operations {
         };
     };
     exitGather: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    requestDeviceInfo: {
         parameters: {
             query?: never;
             header?: never;
@@ -32424,6 +32721,28 @@ export interface operations {
             };
         };
     };
+    signal_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSignalView"];
+                };
+            };
+        };
+    };
     modelDeployments: {
         parameters: {
             query?: never;
@@ -33206,6 +33525,29 @@ export interface operations {
             };
         };
     };
+    monthlyBill: {
+        parameters: {
+            query?: {
+                month?: string;
+                deviceId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMerchantMonthlyBillDto"];
+                };
+            };
+        };
+    };
     exportSettlements: {
         parameters: {
             query?: {
@@ -33491,6 +33833,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListReplenishmentSuggestDto"];
+                };
+            };
+        };
+    };
+    shortageSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMerchantShortageSummaryDto"];
                 };
             };
         };

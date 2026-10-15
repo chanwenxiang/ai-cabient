@@ -200,6 +200,23 @@ public class DevicePresenceService {
         });
     }
 
+    /**
+     * 将邑信号强度落库（V363，图2 对照）：getDeviceSimInfo 上报 signalStrength 0-4。
+     * 越界值静默丢弃（设备固件口径异常不该污染档案），设备不存在 no-op。
+     */
+    @Transactional
+    public void updateSignal(String deviceId, Integer signalStrength) {
+        if (signalStrength == null || signalStrength < 0 || signalStrength > 4) {
+            return;
+        }
+        deviceRepository.findByIdForUpdate(deviceId).ifPresent(d -> {
+            d.setSignalStrength(signalStrength);
+            d.setSignalReportedAt(Instant.now());
+            d.setUpdatedAt(Instant.now());
+            deviceRepository.save(d);
+        });
+    }
+
     private void markDeviceOffline(String deviceId) {
         DeviceInfo d = deviceRepository.findByIdForUpdate(deviceId).orElse(null);
         if (d == null || !CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus())) {

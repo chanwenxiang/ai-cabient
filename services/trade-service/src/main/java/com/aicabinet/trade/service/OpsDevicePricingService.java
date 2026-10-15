@@ -183,6 +183,28 @@ public class OpsDevicePricingService {
         );
     }
 
+    /**
+     * 批量重置价格（图1 对照，叮当小柜「重置价格」按钮，2026-10-15 用户拍板：恢复商品库默认价）。
+     * 实现=清除该柜全部覆盖价行（device_sku_price 删行即跟随基准价）。
+     * 并发说明：未逐 SKU 加锁，与单 SKU 改价并发时以先落库者为准（运营低频操作，可接受）。
+     */
+    @Transactional
+    public int resetPricing(Long operatorId, String deviceId) {
+        permissionService.requirePermission(operatorId, "ops:pricing:edit");
+        DeviceInfo device = requireDevice(deviceId);
+        List<DeviceSkuPrice> overrides = priceRepository.findByIdDeviceId(deviceId);
+        if (overrides.isEmpty()) {
+            return 0;
+        }
+        String detail = overrides.stream()
+                .map(o -> o.getId().getSkuId() + ":" + o.getPriceCents() + "→基准价")
+                .collect(Collectors.joining("，"));
+        overrides.forEach(priceRepository::delete);
+        auditService.appendLog(operatorId, OPS_SKU_PRICE, "SKU_PRICE", device.getDeviceId(),
+                "批量重置价格（恢复商品库默认价），清除 " + overrides.size() + " 个覆盖价[" + detail + "]");
+        return overrides.size();
+    }
+
     private DeviceInfo requireDevice(String deviceId) {
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));

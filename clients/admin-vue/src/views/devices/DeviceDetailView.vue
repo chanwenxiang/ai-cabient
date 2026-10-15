@@ -461,13 +461,86 @@
             <el-button size="small" :icon="Refresh" :loading="slotsRefreshing" @click="refreshSlots"
               >刷新货道</el-button
             >
+            <el-radio-group v-model="slotViewMode" size="small" style="margin-left: 8px">
+              <el-radio-button value="grid">陈列网格</el-radio-button>
+              <el-radio-button value="cards">商品卡片</el-radio-button>
+            </el-radio-group>
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              size="small"
+              :disabled="!slots.length"
+              @click="openSortDialog"
+              >商品排序</el-button
+            >
+            <el-button
+              v-if="canEditPricing"
+              size="small"
+              :loading="resettingPrice"
+              :disabled="!slots.length"
+              @click="onResetPricing"
+              >重置价格</el-button
+            >
+          </div>
+          <div class="slot-meta-bar">
+            <span>
+              已上架商品数：<strong>{{ listedSkuCount }}</strong
+              >/{{ MAX_SKUS_PER_DEVICE }}
+            </span>
+            <span class="stockout-tip">
+              缺货设置：当剩余库存 &lt; 货柜容量的 {{ stockoutThresholdPct }}%
+              时，库存状态为缺货，同时推送商户缺货通知。
+              <el-link
+                v-if="canEditMerchantConfig && device?.merchantId"
+                type="primary"
+                :underline="false"
+                @click="openThresholdDialog"
+                >修改阈值</el-link
+              >
+            </span>
           </div>
           <SlotGrid
-            v-if="slotsHydrated && slots.length"
+            v-if="slotViewMode === 'grid' && slotsHydrated && slots.length"
             :slots="slots"
             :editable="canEditSlots"
             @edit="openEditor"
           />
+          <div
+            v-else-if="slotViewMode === 'cards' && slotsHydrated && skuCards.length"
+            class="sku-cards"
+          >
+            <div
+              v-for="card in skuCards"
+              :key="card.skuId"
+              class="sku-card"
+              :class="{ warn: card.stockoutWarn }"
+            >
+              <div class="sku-card-head">
+                <span class="sku-card-brand">{{ card.brand || '未分类品牌' }}</span>
+                <span v-if="card.stockoutWarn" class="sku-card-badge">缺货</span>
+              </div>
+              <img v-if="card.imageUrl" :src="card.imageUrl" class="sku-card-img" loading="lazy" />
+              <div v-else class="sku-card-img sku-card-img-empty">无图</div>
+              <div class="sku-card-name">{{ card.skuName }}</div>
+              <div v-if="card.priceCents != null" class="sku-card-price">
+                ¥ {{ (card.priceCents / 100).toFixed(2) }} 元
+              </div>
+              <div class="sku-card-fields">
+                <div>
+                  <label>当前库存:</label><strong>{{ card.bookQty }}</strong>
+                </div>
+                <div><label>上次配送后库存:</label>{{ card.lastPhysicalQty ?? '--' }}</div>
+                <div><label>商品容量:</label>{{ card.maxLevel }}</div>
+                <div><label>规格:</label>{{ card.spec || '--' }}</div>
+                <div><label>商品品牌:</label>{{ card.brand || '--' }}</div>
+                <div><label>商品ID:</label>{{ card.skuId }}</div>
+                <div><label>条形码:</label>{{ card.barcode || '--' }}</div>
+                <div>
+                  <label>上架时间:</label
+                  >{{ card.assignedAt ? formatDateTime(card.assignedAt) : '--' }}
+                </div>
+              </div>
+            </div>
+          </div>
           <el-empty v-else-if="slotsHydrated" description="暂无货道配置" :image-size="64" />
           <div v-else class="muted">货道{{ UI_COPY.loading }}</div>
         </el-tab-pane>
@@ -627,6 +700,59 @@
         >
       </template>
     </el-dialog>
+
+    <!-- 图1 对照（叮当小柜，2026-10-15）：商品排序——交换货道展示坐标，不改 SKU 绑定 -->
+    <el-dialog v-model="sortDialogVisible" title="商品排序" width="520px">
+      <div class="muted" style="margin-bottom: 8px">
+        调整商品在货柜中的展示顺序（按陈列网格 行×列
+        排布），保存时会交换货道的展示坐标，不改动商品绑定。
+      </div>
+      <div v-loading="sortSaving" class="sort-list">
+        <div v-for="(row, idx) in sortRows" :key="row.slotCode" class="sort-row">
+          <span class="sort-idx">{{ idx + 1 }}</span>
+          <span class="sort-code">{{ row.slotCode }}</span>
+          <span class="sort-name">{{ row.skuName || row.assignedSkuId || '未配置' }}</span>
+          <span class="sort-actions">
+            <el-button size="small" :disabled="idx === 0" @click="moveSortRow(idx, -1)"
+              >上移</el-button
+            >
+            <el-button
+              size="small"
+              :disabled="idx === sortRows.length - 1"
+              @click="moveSortRow(idx, 1)"
+              >下移</el-button
+            >
+          </span>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="sortDialogVisible = false">取消</el-button>
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="primary"
+          :loading="sortSaving"
+          @click="saveSort"
+          >保存排序</el-button
+        >
+      </template>
+    </el-dialog>
+
+    <!-- 图1 对照：修改缺货阈值（商户级配置 merchant_ops_config.stockout_threshold_pct） -->
+    <el-dialog v-model="thresholdDialogVisible" title="修改缺货阈值" width="440px">
+      <el-form label-width="auto">
+        <el-form-item label="缺货阈值（%）">
+          <el-input-number v-model="thresholdDraft" :min="1" :max="100" />
+        </el-form-item>
+      </el-form>
+      <div class="muted">
+        当剩余库存 &lt;
+        货柜容量的该比例时，库存状态标记为缺货并推送商户。该配置为商户级，影响该商户名下全部柜机。
+      </div>
+      <template #footer>
+        <el-button @click="thresholdDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="thresholdSaving" @click="saveThreshold">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -635,7 +761,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { errorMessage } from '@/utils/error-message';
 import { softFallback } from '@/utils/soft-fallback';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
@@ -876,6 +1002,228 @@ const qrHydrated = ref(false);
 const qrDownloading = ref(false);
 let qrObjectUrl: string | null = null;
 
+// ===== 图1 对照（叮当小柜，2026-10-15）：卡片墙 / 单柜上限 / 缺货阈值 / 排序 / 重置价格 =====
+const MAX_SKUS_PER_DEVICE = 50; // 与后端 DeviceSlotService.MAX_SKUS_PER_DEVICE 对齐
+const slotViewMode = ref<'grid' | 'cards'>('grid');
+const listedSkuCount = computed(
+  () => new Set(slots.value.map((s) => s.assignedSkuId).filter((v): v is string => !!v)).size
+);
+const stockoutThresholdPct = ref(50);
+const canEditMerchantConfig = computed(() => auth.hasPerm('ops:merchant:edit'));
+
+/** 单价展示：货道 DTO 不带价格，进入卡片视图时拉一次单柜定价（查看口径 ops:device:list）。 */
+const pricingBySku = ref<Record<string, number>>({});
+const pricingLoaded = ref(false);
+async function ensurePricingLoaded() {
+  if (pricingLoaded.value) return;
+  pricingLoaded.value = true;
+  try {
+    const rows = await api.request<Array<{ skuId: string; effectivePriceCents: number }>>(
+      AdminEndpoints.devicePricing(deviceId)
+    );
+    const map: Record<string, number> = {};
+    for (const r of rows || []) {
+      map[r.skuId] = r.effectivePriceCents;
+    }
+    pricingBySku.value = map;
+  } catch {
+    pricingBySku.value = {};
+  }
+}
+watch(slotViewMode, (mode) => {
+  if (mode === 'cards') void ensurePricingLoaded();
+});
+
+interface SkuCard {
+  skuId: string;
+  skuName: string;
+  imageUrl: string;
+  brand: string;
+  spec: string;
+  barcode: string;
+  bookQty: number;
+  lastPhysicalQty: number | null;
+  maxLevel: number;
+  assignedAt?: string;
+  stockoutWarn: boolean;
+  priceCents: number | null;
+}
+const skuCards = computed<SkuCard[]>(() => {
+  const bySku = new Map<
+    string,
+    Omit<SkuCard, 'priceCents' | 'lastPhysicalQty'> & { physicalSum: number; hasPhysical: boolean }
+  >();
+  for (const s of slots.value) {
+    if (!s.assignedSkuId) continue;
+    let cur = bySku.get(s.assignedSkuId);
+    if (!cur) {
+      cur = {
+        skuId: s.assignedSkuId,
+        skuName: s.assignedSkuName || s.assignedSkuId,
+        imageUrl: '',
+        brand: '',
+        spec: '',
+        barcode: '',
+        bookQty: 0,
+        physicalSum: 0,
+        hasPhysical: false,
+        maxLevel: 0,
+        assignedAt: undefined,
+        stockoutWarn: false
+      };
+      bySku.set(s.assignedSkuId, cur);
+    }
+    cur.bookQty += s.bookQty || 0;
+    cur.maxLevel += s.maxLevel || s.parLevel || 0;
+    if (s.lastPhysicalQty != null) {
+      cur.physicalSum += s.lastPhysicalQty;
+      cur.hasPhysical = true;
+    }
+    if (!cur.imageUrl && s.skuImageUrl) cur.imageUrl = s.skuImageUrl;
+    cur.brand = cur.brand || s.skuBrand || '';
+    cur.spec = cur.spec || s.skuSpec || '';
+    cur.barcode = cur.barcode || s.skuBarcode || '';
+    if (s.assignedAt && (!cur.assignedAt || s.assignedAt < cur.assignedAt)) {
+      cur.assignedAt = s.assignedAt;
+    }
+    cur.stockoutWarn = cur.stockoutWarn || !!s.stockoutWarn;
+  }
+  return [...bySku.values()]
+    .map((c) => ({
+      skuId: c.skuId,
+      skuName: c.skuName,
+      imageUrl: c.imageUrl,
+      brand: c.brand,
+      spec: c.spec,
+      barcode: c.barcode,
+      bookQty: c.bookQty,
+      lastPhysicalQty: c.hasPhysical ? c.physicalSum : null,
+      maxLevel: c.maxLevel,
+      assignedAt: c.assignedAt,
+      stockoutWarn: c.stockoutWarn,
+      priceCents: pricingBySku.value[c.skuId] ?? null
+    }))
+    .sort((a, b) => (a.assignedAt || '').localeCompare(b.assignedAt || ''));
+});
+
+async function loadStockoutThreshold() {
+  const mid = device.value?.merchantId;
+  if (!mid) return;
+  try {
+    const cfg = await api.request<{ stockoutThresholdPct?: number }>(
+      AdminEndpoints.merchantOpsConfig(mid)
+    );
+    if (cfg?.stockoutThresholdPct && cfg.stockoutThresholdPct > 0) {
+      stockoutThresholdPct.value = Math.min(100, cfg.stockoutThresholdPct);
+    }
+  } catch {
+    // 无配置记录走默认 50（与后端回落口径一致）
+  }
+}
+
+const thresholdDialogVisible = ref(false);
+const thresholdDraft = ref(50);
+const thresholdSaving = ref(false);
+function openThresholdDialog() {
+  thresholdDraft.value = stockoutThresholdPct.value;
+  thresholdDialogVisible.value = true;
+}
+async function saveThreshold() {
+  const mid = device.value?.merchantId;
+  if (!mid) return;
+  thresholdSaving.value = true;
+  try {
+    // PUT 语义=整单保存：先取当前配置快照，仅改阈值字段回传
+    const cfg = await api.request<Record<string, unknown>>(AdminEndpoints.merchantOpsConfig(mid));
+    await api.request<Record<string, unknown>>(
+      AdminEndpoints.merchantOpsConfig(mid),
+      'PUT',
+      Object.assign({}, cfg, { stockoutThresholdPct: thresholdDraft.value })
+    );
+    stockoutThresholdPct.value = thresholdDraft.value;
+    thresholdDialogVisible.value = false;
+    ElMessage.success('缺货阈值已更新');
+    await refreshSlots();
+  } finally {
+    thresholdSaving.value = false;
+  }
+}
+
+const resettingPrice = ref(false);
+async function onResetPricing() {
+  const n = listedSkuCount.value;
+  try {
+    await ElMessageBox.confirm(
+      `将清除该柜全部 ${n} 个商品的覆盖价，恢复为商品库默认价。是否继续？`,
+      '重置价格',
+      { type: 'warning', confirmButtonText: '重置', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  resettingPrice.value = true;
+  try {
+    const count = await api.request<number>(AdminEndpoints.devicePricingReset(deviceId), 'POST');
+    ElMessage.success(count > 0 ? `已重置 ${count} 个覆盖价` : '该柜没有覆盖价，无需重置');
+    pricingLoaded.value = false;
+    pricingBySku.value = {};
+    await refreshSlots();
+    pricingCardRef.value?.onActive(true);
+  } finally {
+    resettingPrice.value = false;
+  }
+}
+
+const sortDialogVisible = ref(false);
+const sortSaving = ref(false);
+interface SortRow {
+  slotCode: string;
+  skuName?: string;
+  assignedSkuId?: string;
+  rowNo: number;
+  colNo: number;
+}
+const sortRows = ref<SortRow[]>([]);
+function openSortDialog() {
+  sortRows.value = [...slots.value]
+    .sort((a, b) => a.rowNo - b.rowNo || a.colNo - b.colNo || a.slotCode.localeCompare(b.slotCode))
+    .map((s) => ({
+      slotCode: s.slotCode,
+      skuName: s.assignedSkuName || undefined,
+      assignedSkuId: s.assignedSkuId || undefined,
+      rowNo: s.rowNo,
+      colNo: s.colNo
+    }));
+  sortDialogVisible.value = true;
+}
+function moveSortRow(idx: number, dir: -1 | 1) {
+  const target = idx + dir;
+  if (target < 0 || target >= sortRows.value.length) return;
+  const rows = [...sortRows.value];
+  [rows[idx], rows[target]] = [rows[target], rows[idx]];
+  sortRows.value = rows;
+}
+async function saveSort() {
+  sortSaving.value = true;
+  try {
+    // 坐标池：保持原网格形状（行×列集合不变），仅按新顺序重新分配坐标
+    const pool = [...slots.value]
+      .sort((a, b) => a.rowNo - b.rowNo || a.colNo - b.colNo)
+      .map((s) => ({ rowNo: s.rowNo, colNo: s.colNo }));
+    const body = sortRows.value.map((r, i) => ({
+      slotCode: r.slotCode,
+      rowNo: pool[i].rowNo,
+      colNo: pool[i].colNo
+    }));
+    await api.request<DeviceSlot[]>(AdminEndpoints.deviceSlots(deviceId), 'PUT', body);
+    sortDialogVisible.value = false;
+    ElMessage.success('商品排序已保存');
+    await refreshSlots();
+  } finally {
+    sortSaving.value = false;
+  }
+}
+
 function lifecycleLabel(status?: string | null) {
   return displayLabel('device_lifecycle', status || 'DEPLOYED', '未知状态');
 }
@@ -966,6 +1314,7 @@ async function loadDetail() {
   slots.value = detail.slots || [];
   slotsHydrated.value = true;
   syncTempDraftFromMetrics(detail.metrics?.targetTempC);
+  void loadStockoutThreshold();
   await Promise.all([
     loadAsset(),
     loadLifecycleEvents(),
@@ -1416,5 +1765,119 @@ onActivated(() => {
   margin-top: 8px;
   padding-top: 12px;
   border-top: 1px solid var(--el-border-color-lighter);
+}
+/* ===== 图1 对照（叮当小柜，2026-10-15）：上限/阈值提示条 + 商品卡片墙 + 排序列表 ===== */
+.slot-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  font-size: var(--admin-font-size-sm);
+}
+.slot-meta-bar .stockout-tip {
+  color: var(--el-text-color-regular);
+}
+.sku-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+.sku-card {
+  position: relative;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--el-fill-color-blank);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.sku-card.warn {
+  border-color: var(--el-color-danger);
+}
+.sku-card-head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sku-card-brand {
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.sku-card-badge {
+  font-size: var(--admin-font-size-sm);
+  font-weight: 600;
+  color: var(--el-color-danger);
+}
+.sku-card-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+}
+.sku-card-img-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-placeholder);
+  font-size: var(--admin-font-size-sm);
+}
+.sku-card-name {
+  font-weight: 600;
+  text-align: center;
+}
+.sku-card-price {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+.sku-card-fields {
+  width: 100%;
+  font-size: var(--admin-font-size-sm);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+.sku-card-fields label {
+  color: var(--el-text-color-secondary);
+  margin-right: 6px;
+}
+.sort-list {
+  max-height: 420px;
+  overflow: auto;
+}
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.sort-idx {
+  width: 24px;
+  color: var(--el-text-color-secondary);
+  text-align: right;
+}
+.sort-code {
+  width: 56px;
+  font-weight: 600;
+}
+.sort-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sort-actions {
+  flex-shrink: 0;
 }
 </style>

@@ -426,6 +426,12 @@ public class MerchantPortalService {
         return inventoryPortalService.listReplenishmentTasks(userId, status, deviceId);
     }
 
+    /** 商户「缺货巡柜」聚合（货道级统一口径，2026-10-15）。 */
+    @Transactional(readOnly = true)
+    public List<com.aicabinet.common.dto.MerchantShortageSummaryDto> listShortageSummary(Long userId) {
+        return inventoryPortalService.listShortageSummary(userId);
+    }
+
     @Transactional(readOnly = true)
     public List<ReplenishmentTaskLineDto> getReplenishmentTaskLines(Long userId, Long taskId) {
         return inventoryPortalService.getReplenishmentTaskLines(userId, taskId);
