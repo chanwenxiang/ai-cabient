@@ -24,6 +24,12 @@ import java.util.Set;
  * 每月出上月账：电费（点位配置固定额）+ 销售分成（share_bps × 上月该柜已支付 GMV）。
  * 线下结算：生成 PENDING，线下付款后运营标记 SETTLED；费用项（电费额/分成比例/收款人）
  * 随时可改（machine_position_config），改动只影响后续账期。
+ *
+ * <p>CB-043（2026-10-15 拍板方案 A）：<b>点位收款人刻意维持单组，不扩多收款人子表</b>——
+ * 老系统 5 组收款人存量实盘 1027 点位：93% ≤1 组、99.6% ≤2 组，合作2（1%）/租金收款人（1.6%）
+ * 为死字段；线长佣金走独立链路（LineCommissionJob，退款冲正 CB-040）。若未来签多方分成合同，
+ * machine_payee_bill 天然多行（device×month×fee_type），届时按需加 fee_type 变体或再评估，
+ * 不要「好心」预扩表。
  */
 @Service
 public class MachinePayeeBillService {
