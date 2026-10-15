@@ -5,8 +5,8 @@ import { isMerchantLoggedIn, merchantApi, softFallback } from '@/utils/merchant-
 import type {
   MerchantDeviceInfo,
   MerchantSkuPricing,
-  OpenApiDeviceInventoryDto,
-  OpenApiMerchantReplenishmentEfficiencyDto
+  OpenApiMerchantReplenishmentEfficiencyDto,
+  OpenApiMerchantShortageSummaryDto
 } from '@aicabinet/shared-types';
 
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
@@ -29,25 +29,6 @@ function sortTasksByPreferred(rows: Task[], preferred: string) {
   });
 }
 
-/** 按柜聚合低库存明细：缺货 SKU 数 + 缺口件数，按严重度排序取前 5。 */
-export function aggregateLowStock(items: OpenApiDeviceInventoryDto[]) {
-  const map = new Map<string, { skuCount: number; shortageQty: number }>();
-  for (const row of items || []) {
-    const key = String(row.deviceId || '')
-      .trim()
-      .toUpperCase();
-    if (!key) continue;
-    const cur = map.get(key) || { skuCount: 0, shortageQty: 0 };
-    cur.skuCount += 1;
-    cur.shortageQty += Math.max(0, (Number(row.lowThreshold) || 0) - (Number(row.quantity) || 0));
-    map.set(key, cur);
-  }
-  return [...map.entries()]
-    .map(([deviceId, v]) => ({ deviceId, ...v }))
-    .sort((a, b) => b.skuCount - a.skuCount || b.shortageQty - a.shortageQty)
-    .slice(0, 5);
-}
-
 /**
  * 补货列表：任务/设备/SKU/效率/低库存 + 筛选与聚合徽标。
  * 深链打开详情由页面回调处理。
@@ -64,7 +45,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
   let skuCatalogPromise: Promise<void> | null = null;
   let skuCatalogLoaded = false;
   const efficiency = ref<OpenApiMerchantReplenishmentEfficiencyDto | null>(null);
-  const lowStockList = ref<{ deviceId: string; skuCount: number; shortageQty: number }[]>([]);
+  const lowStockList = ref<OpenApiMerchantShortageSummaryDto[]>([]);
   const status = ref('');
   const filterDeviceId = ref('');
 
@@ -130,12 +111,12 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     taskRows: Task[],
     deviceRows: MerchantDeviceInfo[],
     eff: OpenApiMerchantReplenishmentEfficiencyDto | null,
-    lowStockRows: OpenApiDeviceInventoryDto[]
+    lowStockRows: OpenApiMerchantShortageSummaryDto[]
   ) {
     allTasks.value = taskRows || [];
     devices.value = deviceRows;
     efficiency.value = eff;
-    lowStockList.value = aggregateLowStock(lowStockRows || []);
+    lowStockList.value = (lowStockRows || []).slice(0, 5);
     seedListAggregates(allTasks.value);
   }
 
@@ -221,7 +202,11 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
       const [deviceRows, eff, lowStockRows] = await Promise.all([
         softFallback(merchantApi.devices(), [] as MerchantDeviceInfo[], '柜机列表'),
         softFallback(merchantApi.myReplenishmentEfficiency(), null, '补货效率'),
-        softFallback(merchantApi.lowStockDevices(), [] as OpenApiDeviceInventoryDto[], '缺货柜机')
+        softFallback(
+          merchantApi.shortageSummary(),
+          [] as OpenApiMerchantShortageSummaryDto[],
+          '缺货柜机'
+        )
       ]);
       if (seq !== loadSeq) return { seq, aborted: true };
       applyReplenishmentListData(taskRows, deviceRows, eff, lowStockRows);

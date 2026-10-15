@@ -85,7 +85,7 @@
             <text class="device-code">{{ d.deviceId }}</text>
           </view>
           <view class="patrol-meta">
-            <text class="patrol-badge">{{ d.skuCount }} 个 SKU 缺货</text>
+            <text class="patrol-badge">{{ d.shortageSlots }} 个货道缺货</text>
             <text class="patrol-shortage">缺口 {{ d.shortageQty }} 件</text>
           </view>
         </view>
