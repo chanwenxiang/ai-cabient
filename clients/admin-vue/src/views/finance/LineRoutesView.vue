@@ -519,9 +519,10 @@ function walletActions(): CrudRowAction[] {
       label: '标记打款',
       icon: Money,
       type: 'primary',
-      perm: 'ops:replenishment:edit'
+      // 审计 T6（2026-10-15）：对齐后端 OpsStaffWalletController（payout=ops:line-manager:edit）
+      perm: 'ops:line-manager:edit'
     },
-    { key: 'ledger', label: '流水', icon: Tickets, perm: 'ops:replenishment:list' }
+    { key: 'ledger', label: '流水', icon: Tickets, perm: 'ops:line-manager:list' }
   ];
 }
 

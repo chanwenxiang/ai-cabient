@@ -122,6 +122,10 @@ public class MerchantDailyIncomeNotifyScheduler {
                 .lt(OrderRevenueSplit::getCreatedAt, to));
         Map<String, Long> incomeByMerchant = aggregateIncome(splits);
         if (incomeByMerchant.isEmpty()) {
+            // 审计 T4（2026-10-15）：early-return 只对「通知发送」生效——费用日摊与欠费检查
+            // （chargeAndCheckAllMerchants，CB-041）必须照跑，否则全员零销售的日子整批
+            // 费用不出账、欠费不催缴、误锁不解锁（固定租金是合同义务，与销售脱钩）。
+            chargeAndCheckAllMerchants(yesterday, java.util.Set.of());
             return 0;
         }
         String bizId = yesterday.format(ISO_FMT);
@@ -203,13 +207,15 @@ public class MerchantDailyIncomeNotifyScheduler {
             lockMonths = 1;
         }
         for (String merchantId : merchantIds) {
-            MerchantWalletAccount account = walletService.ensureAccount(merchantId);
-            long balance = account.getBalanceCents() == null ? 0L : account.getBalanceCents();
-            if (balance >= 0) {
+            // 审计 T3（2026-10-15）：欠费判据从「钱包余额为负」改到「费用口径债」——
+            // 余额负数还可能来自押金负扣/佣金冲正挂负（debitIfAbsentAllowNegative），
+            // 那些不是费用欠缴，按余额判会把商户全部柜机误锁（pendingFeeTotal 原本写好未接线）。
+            // 判据与 MerchantFeeLedger 设计注释一致：PENDING 未结清累计；结清动作由运营标 SETTLED。
+            long debt = pendingFeeTotal(merchantId);
+            if (debt <= 0) {
                 unlockFeeOverdue(merchantId);
                 continue;
             }
-            long debt = -balance;
             if (alreadySentType(merchantId, "FEE_REMINDER", bizId)) {
                 // 当日已催缴
             } else {
@@ -217,7 +223,7 @@ public class MerchantDailyIncomeNotifyScheduler {
                         .map(Merchant::getMerchantName).orElse(merchantId);
                 notificationService.notifyMerchant(merchantId, "merchant_fee_reminder",
                         Map.of("merchantName", merchantName,
-                                "reminder", "您的平台费用已欠缴（余额为负），请及时充值",
+                                "reminder", "您的平台费用已欠缴（未结清），请及时充值结清",
                                 "debt", BigDecimal.valueOf(debt, 2).toPlainString()),
                         "FEE_REMINDER", bizId);
             }
@@ -237,6 +243,17 @@ public class MerchantDailyIncomeNotifyScheduler {
                         FEE_OVERDUE_LOCK_PREFIX + "：欠费 " + BigDecimal.valueOf(debt, 2).toPlainString() + " 元",
                         true);
             }
+        }
+    }
+
+    /**
+     * 审计 T4（2026-10-15）：费用结清后的解锁联动——台账 SETTLED 后若未结清累计归零，
+     * 立即解锁「费用欠缴锁」柜机（原先只能等次日 00:20 调度自愈，结清当日记「已结清却还锁着」）。
+     * 由 MerchantFeeLedgerService.settle 在实际置 SETTLED 时调用。
+     */
+    public void unlockFeeOverdueIfCleared(String merchantId) {
+        if (pendingFeeTotal(merchantId) <= 0) {
+            unlockFeeOverdue(merchantId);
         }
     }
 

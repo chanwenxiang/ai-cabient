@@ -29,7 +29,6 @@ public class LineCommissionJob {
 
 
     private static final Logger log = LoggerFactory.getLogger(LineCommissionJob.class);
-    private static final Set<String> PAID_STATUSES = Set.of("PAID", "COMPLETED");
 
     private final LineManagerMapper managerMapper;
     private final LineDeviceMapper deviceMapper;
@@ -170,22 +169,23 @@ public class LineCommissionJob {
     /** 单设备-日佣金入账（在 transactionTemplate 的独立事务内执行）。 */
     private boolean doPostCommissionTx(LineManager manager, LineDevice binding, LocalDate bizDate,
                                        java.time.Instant start, java.time.Instant end) {
-        if (commissionDailyMapper.findByManagerIdAndBizDateAndDeviceId(
-                    manager.getManagerId(), bizDate, binding.getDeviceId()).isPresent()) {
+        // 审计 T4（2026-10-15）：查重升到 device-day 维度（不论 manager）——换绑线长后
+        // 回扫窗口若仍按 (manager,date,device) 查重，新任 manager 会对同一 device-day 再发一份
+        // （两任各得一份=双付）。现口径：同一柜机同一天只付一次，付给先入账的绑定人。
+        if (commissionDailyMapper.existsByBizDateAndDeviceId(bizDate, binding.getDeviceId())) {
                 return false;
             }
-            List<CabinetOrder> orders = orderMapper
-                    .findByDeviceIdAndCreatedAtBetween(binding.getDeviceId(), start, end)
-                    .stream()
-                    .filter(o -> o.getStatus() != null && PAID_STATUSES.contains(o.getStatus().toUpperCase()))
-                    .toList();
-            if (orders.isEmpty()) {
+            List<CabinetOrder> orders =
+                    orderMapper.findByDeviceIdAndCreatedAtBetween(binding.getDeviceId(), start, end);
+            // 审计 T2（2026-10-15）：净额口径（total−refunded，含 PARTIAL_REFUNDED），与冲正重算同源
+            long gmv = CommissionBaseCalc.netGmv(orders);
+            int count = CommissionBaseCalc.countableCount(orders);
+            if (count == 0) {
                 return false;
             }
-            long gmv = orders.stream().mapToLong(CabinetOrder::getTotalAmountCents).sum();
             int rateBps = manager.getCommissionRateBps() == null ? 0 : manager.getCommissionRateBps();
             int fixed = manager.getCommissionFixedCents() == null ? 0 : manager.getCommissionFixedCents();
-            long commission = gmv * rateBps / 10_000L + (long) fixed * orders.size();
+            long commission = gmv * rateBps / 10_000L + (long) fixed * count;
             if (commission <= 0) {
                 return false;
             }
@@ -265,19 +265,27 @@ public class LineCommissionJob {
                         long perUnit = staff.getCommissionPerUnitCents() == null ? 0L : staff.getCommissionPerUnitCents();
                         commission = (long) e.getValue() * perUnit;
                     } else {
+                        // 审计 T4（2026-10-15）：GMV 模式同 device-day 只付一次（不论 assignee）——
+                        // 同日换补货员时两任务分属两人，三元组查重会让同柜机同日发两份全额 GMV 佣金。
+                        // RESTOCK_QTY 分支不受影响（按件计酬，各得其所）。
+                        Long gmvRowExists = staffCommissionDailyMapper.selectCount(
+                                com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                        .<com.aicabinet.trade.domain.StaffCommissionDaily>lambdaQuery()
+                                        .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getBizDate, bizDate)
+                                        .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getDeviceId, e.getKey())
+                                        .eq(com.aicabinet.trade.domain.StaffCommissionDaily::getCommissionBasis, "GMV"));
+                        if (gmvRowExists != null && gmvRowExists > 0) {
+                            continue;
+                        }
                         // GMV 模式（对齐老系统 MachineCommissionLink.type=0 按销售额）：
                         // 补货员负责的柜机昨日已支付销售额 × rateBps（万分比）
                         int bps = staff.getCommissionRateBps() == null ? 0 : staff.getCommissionRateBps();
                         if (bps > 0) {
-                            long gmv = orderMapper
+                            // 审计 T2（2026-10-15）：净额口径，与冲正重算同源
+                            long gmv = CommissionBaseCalc.netGmv(orderMapper
                                     .findByDeviceIdAndCreatedAtBetween(e.getKey(),
                                             bizDate.atStartOfDay(ScheduleZones.ZONE).toInstant(),
-                                            bizDate.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant())
-                                    .stream()
-                                    .filter(o -> o.getStatus() != null
-                                            && PAID_STATUSES.contains(o.getStatus().toUpperCase()))
-                                    .mapToLong(CabinetOrder::getTotalAmountCents)
-                                    .sum();
+                                            bizDate.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant()));
                             gmvBase = gmv;
                             commission = gmv * bps / 10_000L;
                         }

@@ -109,6 +109,52 @@ class CommissionClawbackServiceTest {
     }
 
     @Test
+    void partialRefundedOrderCountsByNetAmount_notExcluded() {
+        // 审计 T2（2026-10-15）：部分退款单不整单排除——按净额（total−refunded）计基数。
+        // 发佣行 gmv=10000；当前仅一张 PARTIAL_REFUNDED 单 total=8000/refunded=2000（净 6000）
+        // ⇒ 差额 4000（而非旧口径的整单 10000），费率 500bps ⇒ 冲回 200。
+        when(lineCommissionDailyMapper.selectList(any()))
+                .thenReturn(List.of(managerRow(10_000L, 2, 500L)));
+        CabinetOrder partial = new CabinetOrder();
+        partial.setStatus("PARTIAL_REFUNDED");
+        partial.setTotalAmountCents(8_000);
+        partial.setRefundedCents(2_000);
+        when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(List.of(partial));
+        LineManager manager = new LineManager();
+        manager.setManagerId(1L);
+        manager.setCommissionRateBps(500);
+        manager.setCommissionFixedCents(0);
+        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager));
+
+        int events = service.reverseRecentRefunds();
+
+        assertEquals(1, events);
+        ArgumentCaptor<CommissionClawback> captor = ArgumentCaptor.forClass(CommissionClawback.class);
+        verify(clawbackMapper).insert(captor.capture());
+        assertEquals(200L, captor.getValue().getClawbackCents());
+        assertEquals(4_000L, captor.getValue().getRefundGmvCents());
+    }
+
+    @Test
+    void fullyRefundedOrderStaysOutOfBase() {
+        // 全额退款单（REFUNDED）不计基数：发佣行 gmv=6000、当前全为 REFUNDED ⇒ 全额冲回。
+        when(lineCommissionDailyMapper.selectList(any()))
+                .thenReturn(List.of(managerRow(6_000L, 1, 300L)));
+        CabinetOrder refunded = new CabinetOrder();
+        refunded.setStatus("REFUNDED");
+        refunded.setTotalAmountCents(6_000);
+        refunded.setRefundedCents(6_000);
+        when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(List.of(refunded));
+        when(managerMapper.findById(1L)).thenReturn(Optional.empty());
+
+        assertEquals(0, service.reverseRecentRefunds()); // fixed=0 ⇒ gross=0 不冲（差额有但费率空）
+        verify(lineWalletService, never()).debitIfAbsentAllowNegative(anyLong(), anyLong(),
+                anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
     void noClawbackWhenGmvUnchanged() {
         when(lineCommissionDailyMapper.selectList(any()))
                 .thenReturn(List.of(managerRow(6_000L, 1, 300L)));

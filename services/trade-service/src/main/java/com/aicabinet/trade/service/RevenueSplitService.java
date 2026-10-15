@@ -201,7 +201,10 @@ public class RevenueSplitService {
             return;
         }
         String refId = split.getSplitId() + ":g" + newMerchantCents;
-        boolean debited = merchantWalletService.debitIfAbsent(
+        // 审计 T4（2026-10-15）：退款冲正是对账动作而非消费扣款——费用日摊允许余额为负，
+        // 旧 debitIfAbsent 的余额闸（412）会让负余额商户的退款冲正永远失败（钱多留、上游事务中断）。
+        // 改 AllowNegative：冲正可把余额扣成负（挂账），与费用欠缴同口径；幂等键不变。
+        boolean debited = merchantWalletService.debitIfAbsentAllowNegative(
                 split.getMerchantId(),
                 delta,
                 "SPLIT_PARTIAL_REVERSE",

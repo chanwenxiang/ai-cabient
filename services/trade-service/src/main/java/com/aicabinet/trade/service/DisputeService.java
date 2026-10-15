@@ -92,6 +92,10 @@ public class DisputeService {
     private final SkuCatalogMapper skuCatalogRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DisputeService self;
+
+    /** 审计 T5（2026-10-15）：争议结果消费者触达（dispute_resolved 模板 V163 已种，此前零调用）。 */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private NotificationService notificationService;
     private final DisputeSlaProperties disputeSlaProperties;
     private final SystemConfigService systemConfigService;
     private final UserInfoMapper userInfoRepository;
@@ -613,6 +617,7 @@ public class DisputeService {
             sessionService.transition(session, SessionState.COMPLETED);
             orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
                     alignOrderStatusAfterDisputeResolve(order, WAIVE));
+            notifyConsumerResolved(session, ticket.getTicketId(), WAIVE);
             return result;
         });
     }
@@ -655,7 +660,34 @@ public class DisputeService {
         final String resolvedType = resolutionType;
         orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
                 alignOrderStatusAfterDisputeResolve(order, resolvedType));
+        notifyConsumerResolved(session, ticket.getTicketId(), resolutionType);
         return result;
+    }
+
+    /** 消费者触达：结案/自动免单发 dispute_resolved 站内信（模板缺字段或未启用由 NotificationService 兜底）。 */
+    private void notifyConsumerResolved(ShoppingSession session, String ticketId, String resolutionType) {
+        // @Autowired(required=false)：测试直构造无通知依赖时静默跳过（不阻断结案主链）
+        if (notificationService == null || session.getUserId() == null) {
+            return;
+        }
+        try {
+            notificationService.notifyConsumer(session.getUserId(), "dispute_resolved",
+                    java.util.Map.of("disputeNo", String.valueOf(ticketId),
+                            "result", resolutionNotice(resolutionType)),
+                    "DISPUTE", String.valueOf(ticketId));
+        } catch (Exception e) {
+            log.warn("dispute resolved notify failed ticket={}", ticketId, e);
+        }
+    }
+
+    private String resolutionNotice(String resolutionType) {
+        return switch (resolutionType) {
+            case WAIVE -> "经核实免单，本单不收费";
+            case "KEEP" -> "维持原判定，订单费用保持";
+            case "ADJUST" -> "已按实际商品调整订单费用";
+            case "CONFIRM" -> "已确认消费，订单费用结清";
+            default -> "已处理完成";
+        };
     }
 
     /** 结案后订单状态与真实入账对齐，避免未支付却被标 PAID。 */

@@ -18,9 +18,12 @@ import java.util.List;
 public class MerchantFeeLedgerService {
 
     private final MerchantFeeLedgerMapper feeLedgerMapper;
+    private final MerchantDailyIncomeNotifyScheduler dailyIncomeScheduler;
 
-    public MerchantFeeLedgerService(MerchantFeeLedgerMapper feeLedgerMapper) {
+    public MerchantFeeLedgerService(MerchantFeeLedgerMapper feeLedgerMapper,
+                                    MerchantDailyIncomeNotifyScheduler dailyIncomeScheduler) {
         this.feeLedgerMapper = feeLedgerMapper;
+        this.dailyIncomeScheduler = dailyIncomeScheduler;
     }
 
     /** 台账列表（按商户/状态/费用类型过滤）。 */
@@ -47,6 +50,9 @@ public class MerchantFeeLedgerService {
             row.setRemark(remark.trim());
         }
         feeLedgerMapper.updateById(row);
+        // 审计 T4（2026-10-15）：结清与锁柜联动——未结清累计归零即解锁费用欠缴锁
+        //（原先只能等次日调度；幂等：无锁可解时无副作用）
+        dailyIncomeScheduler.unlockFeeOverdueIfCleared(row.getMerchantId());
         return row;
     }
 }

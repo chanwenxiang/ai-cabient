@@ -282,6 +282,20 @@ const BASE_NAV: NavItem[] = [
     keywords: ['线长', '提现', '佣金', '钱包']
   },
   {
+    path: '/line-routes',
+    title: '线路与提成',
+    group: '财务商户',
+    perm: 'ops:replenishment:list',
+    keywords: ['线路', '提成', '路线', 'route']
+  },
+  {
+    path: '/machine-payee-bills',
+    title: '机器账单（场地方）',
+    group: '财务商户',
+    perm: 'ops:device:list',
+    keywords: ['机器账单', '场地', '电费', '返点', '收款人']
+  },
+  {
     path: '/merchant-withdraw',
     title: '商户提现',
     group: '财务商户',

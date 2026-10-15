@@ -156,8 +156,9 @@ public class StaffWalletService {
                 value(account.getFrozenCents()), refType, refId, remark);
     }
 
+    /** 写路径余额读取：DB 行锁（FOR UPDATE）+ 分布式锁双层，对齐 LineWalletService（审计 T4）。 */
     private StaffWalletAccount reload(long staffUserId) {
-        StaffWalletAccount account = accountMapper.selectById(staffUserId);
+        StaffWalletAccount account = accountMapper.findByIdForUpdateRaw(staffUserId);
         if (account == null) {
             account = doEnsureAccount(staffUserId);
         }

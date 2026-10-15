@@ -75,12 +75,13 @@ class RevenueSplitServiceTest {
         when(splitRepository.findByOrderIdForUpdate("O-1")).thenReturn(Optional.of(split));
         when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
         when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(merchantWalletService.debitIfAbsent(eq("M-1"), eq(540L), anyString(), anyString(), anyString(), anyString()))
+        // 审计 T4（2026-10-15）：冲正改 AllowNegative（对账动作可挂负，不受余额闸 412 拦截）
+        when(merchantWalletService.debitIfAbsentAllowNegative(eq("M-1"), eq(540L), anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(true);
 
         service.resyncSplitForOrder(order);
 
-        verify(merchantWalletService).debitIfAbsent(
+        verify(merchantWalletService).debitIfAbsentAllowNegative(
                 eq("M-1"), eq(540L), eq("SPLIT_PARTIAL_REVERSE"),
                 eq("SPLIT_PARTIAL_REV"), eq("SPLIT-1:g360"), contains("O-1"));
         verify(splitRepository).save(argThat(s -> s.getMerchantCents() == 360L && s.getGrossCents() == 400L));

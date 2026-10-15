@@ -51,7 +51,6 @@ public class CommissionClawbackService {
     private static final Logger log = LoggerFactory.getLogger(CommissionClawbackService.class);
     /** 追溯窗（天）：CB-040 拍板口径。 */
     static final int CLAWBACK_WINDOW_DAYS = 90;
-    private static final Set<String> PAID_STATUSES = Set.of("PAID", "COMPLETED");
     private static final String ENTRY_TYPE = "COMMISSION_CLAWBACK";
 
     private final LineCommissionDailyMapper lineCommissionDailyMapper;
@@ -258,21 +257,22 @@ public class CommissionClawbackService {
         return row.getClawbackCents();
     }
 
-    /** 柜机当日（按订单创建日）仍 PAID/COMPLETED 的 GMV（分），口径同发佣。 */
+    /**
+     * 柜机当日（按订单创建日）佣金基数（审计 T2，2026-10-15）：净额口径
+     * （total−refunded，含 PARTIAL_REFUNDED），与发佣 {@link LineCommissionJob} 同源。
+     */
     private long paidGmv(String deviceId, LocalDate bizDate) {
-        return paidOrders(deviceId, bizDate).stream().mapToLong(CabinetOrder::getTotalAmountCents).sum();
+        return CommissionBaseCalc.netGmv(ordersOfDay(deviceId, bizDate));
     }
 
     private int paidOrderCount(String deviceId, LocalDate bizDate) {
-        return paidOrders(deviceId, bizDate).size();
+        return CommissionBaseCalc.countableCount(ordersOfDay(deviceId, bizDate));
     }
 
-    private List<CabinetOrder> paidOrders(String deviceId, LocalDate bizDate) {
+    private List<CabinetOrder> ordersOfDay(String deviceId, LocalDate bizDate) {
         Instant start = bizDate.atStartOfDay(ScheduleZones.ZONE).toInstant();
         Instant end = bizDate.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
-        return orderMapper.findByDeviceIdAndCreatedAtBetween(deviceId, start, end).stream()
-                .filter(o -> o.getStatus() != null && PAID_STATUSES.contains(o.getStatus().toUpperCase()))
-                .toList();
+        return orderMapper.findByDeviceIdAndCreatedAtBetween(deviceId, start, end);
     }
 
     private static long nvl(Long v) {

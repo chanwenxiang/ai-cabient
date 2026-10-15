@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.StaffWalletAccountMapper">
+
+  <!-- 审计 T4（2026-10-15）：写路径行锁读，对齐 LineWalletAccountMapper.xml 同款 -->
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.StaffWalletAccount">
+    <![CDATA[
+    SELECT a.* FROM staff_wallet_account a WHERE a.staff_user_id = #{staffUserId} FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

@@ -17,4 +17,11 @@ public interface LineCommissionDailyMapper extends BaseTradeMapper<LineCommissio
                 .eq(LineCommissionDaily::getBizDate, bizDate)
                 .eq(LineCommissionDaily::getDeviceId, deviceId)));
     }
+
+    /** 审计 T4（2026-10-15）：device-day 维度查重（不论 manager）——换绑线长防同日双付。 */
+    default boolean existsByBizDateAndDeviceId(LocalDate bizDate, String deviceId) {
+        return selectCount(Wrappers.<LineCommissionDaily>lambdaQuery()
+                .eq(LineCommissionDaily::getBizDate, bizDate)
+                .eq(LineCommissionDaily::getDeviceId, deviceId)) > 0;
+    }
 }

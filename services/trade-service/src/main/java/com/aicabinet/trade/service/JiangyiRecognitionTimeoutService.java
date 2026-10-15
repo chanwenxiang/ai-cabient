@@ -72,7 +72,11 @@ public class JiangyiRecognitionTimeoutService {
                         SessionLogContext.of(locked));
                 return false;
             }
-            String failReason = "识别结果无法匹配商品（class 映射未命中），已转人工审核，本次暂未扣款";
+            // 审计 T7（2026-10-15）：本清扫场景=将邑端识别超时未回结果（并无 class 映射动作），
+            // 文案必须以「识别超时」开头——自动免单门控按 reason 前缀 findOpenTimeoutUnclaimedCreatedBefore
+            // （DisputeTicketMapper.likeRight）筛超时单，旧文案「识别结果无法匹配商品…」会让
+            // 将邑超时单永远进不了 P3-4 自动免单兜底。
+            String failReason = "识别超时（将邑端识别结果超时未回传），已转人工审核，本次暂未扣款";
             // C09：升级前释放预授权冻结；失败只记 error 并告警，不阻断状态迁移
             try {
                 consumerPreauthService.releaseIfFrozen(locked);
@@ -91,7 +95,7 @@ public class JiangyiRecognitionTimeoutService {
                     log.warn("将邑超时争议单创建失败 {}", SessionLogContext.of(locked), ticketEx);
                 }
             } else {
-                locked.setFailReason("识别结果无法匹配商品（class 映射未命中）");
+                locked.setFailReason("识别超时（将邑端识别结果超时未回传）");
                 sessionService.transition(locked, SessionState.FAILED);
             }
             opsExceptionService.report(
