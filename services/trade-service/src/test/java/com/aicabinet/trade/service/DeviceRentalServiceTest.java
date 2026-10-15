@@ -93,6 +93,7 @@ class DeviceRentalServiceTest {
         DeviceRentalDeposit deposit = new DeviceRentalDeposit();
         deposit.setDepositId(depositId);
         deposit.setDeviceId("D1");
+        deposit.setMerchantId("10001");
         deposit.setAmountCents(amount);
         deposit.setBalanceCents(amount);
         deposit.setStatus(DeviceRentalDeposit.STATUS_HELD);
@@ -118,6 +119,36 @@ class DeviceRentalServiceTest {
 
         assertThatThrownBy(() -> service.registerDeposit(9L, "D1", 50_000L, null))
                 .hasMessageContaining("已登记");
+    }
+
+    @Test
+    void registerDeposit_removalSettlementParams_configurable() {
+        // CB-044 拍板：撤机清算三件套登记可配、不写死
+        when(deviceMapper.findById("D1")).thenReturn(Optional.of(rentalDevice("D1", 0)));
+        when(depositMapper.findByDevice("D1")).thenReturn(Optional.empty());
+
+        service.registerDeposit(9L, "D1", 50_000L, null, null, null, null, 5_000L, false, 3);
+
+        ArgumentCaptor<DeviceRentalDeposit> captor = ArgumentCaptor.forClass(DeviceRentalDeposit.class);
+        verify(depositMapper).insert(captor.capture());
+        assertThat(captor.getValue().getInstallFeeDeductCents()).isEqualTo(5_000L);
+        assertThat(captor.getValue().getInstallFeeClawbackEnabled()).isFalse();
+        assertThat(captor.getValue().getContractYears()).isEqualTo(3);
+    }
+
+    @Test
+    void registerDeposit_removalSettlementParams_defaultToLegacy() {
+        // 空值=老系统口径默认（安装费 100 元 / 追回开 / 5 年）
+        when(deviceMapper.findById("D1")).thenReturn(Optional.of(rentalDevice("D1", 0)));
+        when(depositMapper.findByDevice("D1")).thenReturn(Optional.empty());
+
+        service.registerDeposit(9L, "D1", 50_000L, null);
+
+        ArgumentCaptor<DeviceRentalDeposit> captor = ArgumentCaptor.forClass(DeviceRentalDeposit.class);
+        verify(depositMapper).insert(captor.capture());
+        assertThat(captor.getValue().getInstallFeeDeductCents()).isEqualTo(10_000L);
+        assertThat(captor.getValue().getInstallFeeClawbackEnabled()).isTrue();
+        assertThat(captor.getValue().getContractYears()).isEqualTo(5);
     }
 
     @Test
@@ -154,7 +185,11 @@ class DeviceRentalServiceTest {
 
     @Test
     void settle_writesReturnEventAndMarksSettled() {
-        when(depositMapper.selectById(1L)).thenReturn(heldDeposit(1L, 50_000L));
+        // CB-044：撤机清算含安装费扣减（默认 100 元）——事件与返还断言移至
+        // settle_beforeContractExpiry_deductsInstallFeeAndReturnsRest（比例拆分钉住）
+        DeviceRentalDeposit deposit = heldDeposit(1L, 50_000L);
+        deposit.setInstallFeeDeductCents(0L);
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
         when(depositMapper.adjustBalance(1L, -50_000L)).thenReturn(1);
 
         DeviceRentalDeposit settled = service.settle(9L, 1L, null);
@@ -165,6 +200,76 @@ class DeviceRentalServiceTest {
         verify(depositEventMapper).insert(captor.capture());
         assertThat(captor.getValue().getEventType()).isEqualTo(DeviceRentalDeposit.EVENT_RETURN);
         assertThat(captor.getValue().getAmountCents()).isEqualTo(-50_000L);
+    }
+
+    @Test
+    void settle_beforeContractExpiry_deductsInstallFeeAndReturnsRest() {
+        // CB-044 拍板选项 1（复刻老三件套）：未退完撤机 → 退剩余 − 安装费（默认 100 元）
+        DeviceRentalDeposit deposit = heldDeposit(1L, 50_000L);
+        deposit.setChargeMode("ONLINE");
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
+        when(depositMapper.adjustBalance(1L, -50_000L)).thenReturn(1);
+
+        service.settle(9L, 1L, null);
+
+        ArgumentCaptor<DeviceRentalDepositEvent> captor = ArgumentCaptor.forClass(DeviceRentalDepositEvent.class);
+        verify(depositEventMapper, org.mockito.Mockito.times(2)).insert(captor.capture());
+        assertThat(captor.getAllValues().get(0).getEventType()).isEqualTo(DeviceRentalDeposit.EVENT_RETURN);
+        assertThat(captor.getAllValues().get(0).getAmountCents()).isEqualTo(-40_000L);
+        assertThat(captor.getAllValues().get(1).getEventType()).isEqualTo(DeviceRentalDeposit.EVENT_DEDUCT);
+        assertThat(captor.getAllValues().get(1).getAmountCents()).isEqualTo(-10_000L);
+        verify(merchantWalletService).creditIfAbsent(eq("10001"), eq(40_000L), eq("DEPOSIT_RETURN"),
+                eq("RENTAL_DEPOSIT_SETTLE"), eq("1"), contains("安装费"));
+    }
+
+    @Test
+    void settle_depositExhaustedAndContractExpired_grantsRewardWithoutFee() {
+        // 押金已按月退完 + 满 5 年 → 发期满奖励（不扣安装费）；refId 与月度链同款 ⇒ 幂等不双发
+        DeviceRentalDeposit deposit = heldDeposit(1L, 0L);
+        deposit.setChargeMode("ONLINE");
+        deposit.setCreatedAt(Instant.parse("2020-10-12T00:00:00Z"));
+        deposit.setExpireRewardCents(20_000L);
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
+
+        service.settle(9L, 1L, null);
+
+        verify(merchantWalletService).creditIfAbsent(eq("10001"), eq(20_000L), eq("DEPOSIT_EXPIRE_REWARD"),
+                eq("RENTAL_DEPOSIT_REFUND"), eq("1|REWARD"), anyString());
+        verify(merchantWalletService, never()).debitIfAbsentAllowNegative(anyString(), anyLong(),
+                anyString(), anyString(), anyString(), anyString());
+        assertThat(deposit.getStatus()).isEqualTo(DeviceRentalDeposit.STATUS_SETTLED);
+    }
+
+    @Test
+    void settle_depositExhaustedBeforeExpiry_clawsBackInstallFee() {
+        // 押金已按月退完 + 未满 5 年 → 向商户余额倒扣安装费（AllowNegative，对齐老系统追回）
+        DeviceRentalDeposit deposit = heldDeposit(1L, 0L);
+        deposit.setChargeMode("ONLINE");
+        deposit.setCreatedAt(Instant.parse("2025-10-12T00:00:00Z"));
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
+
+        service.settle(9L, 1L, null);
+
+        verify(merchantWalletService).debitIfAbsentAllowNegative(eq("10001"), eq(10_000L),
+                eq("DEPOSIT_INSTALL_FEE_CLAWBACK"), eq("RENTAL_DEPOSIT_SETTLE"), eq("1|CLAWBACK"),
+                anyString());
+        verify(merchantWalletService, never()).creditIfAbsent(anyString(), anyLong(),
+                anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void settle_clawbackDisabled_noClawback() {
+        DeviceRentalDeposit deposit = heldDeposit(1L, 0L);
+        deposit.setChargeMode("ONLINE");
+        deposit.setCreatedAt(Instant.parse("2025-10-12T00:00:00Z"));
+        deposit.setInstallFeeClawbackEnabled(false);
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
+
+        service.settle(9L, 1L, null);
+
+        verify(merchantWalletService, never()).debitIfAbsentAllowNegative(anyString(), anyLong(),
+                anyString(), anyString(), anyString(), anyString());
+        assertThat(deposit.getStatus()).isEqualTo(DeviceRentalDeposit.STATUS_SETTLED);
     }
 
     // ── 出账 ──────────────────────────────────────────────────────────────

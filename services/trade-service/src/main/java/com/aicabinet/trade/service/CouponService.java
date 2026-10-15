@@ -517,52 +517,63 @@ public class CouponService {
     }
 
     /**
-     * 部分退后：若剩余金额不满足券门槛则退还券；否则按剩余金额重算抵扣。
+     * CB-045 比例摊纯计算（不写库）：部分退后的新券抵扣。
+     * 每元原价固定摊销（拍板「总额不变」）：新抵扣 = 原抵扣 × (剩余原价/原价总额)，
+     * 不重算门槛、不追回——多次部分退递推等价于一次性比例摊。
+     */
+    static int proportionalCouponDiscount(int priorDiscount, int oldSubtotal, int newSubtotal) {
+        if (priorDiscount <= 0 || newSubtotal <= 0 || oldSubtotal <= 0) {
+            return 0;
+        }
+        return (int) Math.min(priorDiscount, Math.round((double) priorDiscount * newSubtotal / oldSubtotal));
+    }
+
+    /**
+     * CB-045 拍板（2026-10-15，政府消费券式 + 比例摊）：
+     * <ul>
+     *   <li><b>部分退</b>（newSubtotal &gt; 0）：券<b>不返还</b>、不重算门槛；抵扣按
+     *       oldSubtotal→newSubtotal 比例缩减（{@link #proportionalCouponDiscount}），
+     *       预算不回补（优惠在下单时已真实发生，券也不回收）。</li>
+     *   <li><b>全额退</b>（newSubtotal ≤ 0）：券返还会员账户（CAS：USED→UNUSED，有效期字段不动），
+     *       活动预算释放。</li>
+     * </ul>
+     * 老系统「用券单禁自动退」不迁移（新系统无 NOT_FALL 场景，见台账 CB-045）；
+     * 合规前提：券规则文案须写明本口径（《七日无理由退货办法》第十五条「有约定从其约定」）。
+     *
+     * @return 部分退后的新券抵扣（全额退返回 0；订单无券返回 0 并清字段）
      */
     @Transactional
-    public void recalcOrRestoreAfterPartialRefund(CabinetOrder order, int remainingSubtotalCents) {
+    public int settleAfterPartialRefund(CabinetOrder order, int oldSubtotal, int newSubtotal) {
         if (order == null || order.getCouponId() == null) {
-            return;
+            if (order != null) {
+                order.setCouponDiscountCents(0);
+            }
+            return 0;
         }
         Long couponId = order.getCouponId();
-        UserCoupon uc = userCouponRepository.findById(couponId).orElse(null);
-        if (uc == null) {
-            order.setCouponId(null);
-            order.setCouponDiscountCents(0);
-            order.setOriginalAmountCents(Math.max(0, remainingSubtotalCents));
-            order.setTotalAmountCents(Math.max(0, remainingSubtotalCents));
-            return;
-        }
-        CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
-        boolean keep = remainingSubtotalCents > 0
-                && def != null
-                && remainingSubtotalCents >= def.getMinSpendCents();
-        if (!keep) {
-            if ("USED".equalsIgnoreCase(uc.getStatus())) {
-                if (userCouponRepository.restoreUsedToUnused(couponId) > 0) {
-                    releasePromotionBudgetIfAny(def);
-                    log.info("coupon restored after partial refund order={} couponId={}",
-                            order.getOrderId(), couponId);
-                }
+        if (newSubtotal <= 0) {
+            UserCoupon uc = userCouponRepository.findById(couponId).orElse(null);
+            CouponDefinition def = uc == null ? null
+                    : definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+            if (uc != null && "USED".equalsIgnoreCase(uc.getStatus())
+                    && userCouponRepository.restoreUsedToUnused(couponId) > 0) {
+                releasePromotionBudgetIfAny(def);
+                log.info("coupon restored after full refund order={} couponId={}",
+                        order.getOrderId(), couponId);
             }
             order.setCouponId(null);
             order.setCouponDiscountCents(0);
-            order.setOriginalAmountCents(Math.max(0, remainingSubtotalCents));
-            order.setTotalAmountCents(Math.max(0, remainingSubtotalCents));
-            return;
+            return 0;
         }
-        int discount = Math.min(resolveDiscount(def, remainingSubtotalCents), remainingSubtotalCents);
         int priorDiscount = Math.max(0, order.getCouponDiscountCents());
-        order.setOriginalAmountCents(remainingSubtotalCents);
-        order.setCouponDiscountCents(discount);
-        order.setTotalAmountCents(Math.max(0, remainingSubtotalCents - discount));
-        uc.setDiscountCents(discount);
-        userCouponRepository.save(uc);
-        if (discount < priorDiscount) {
-            reconcilePromotionBudgetDelta(def, priorDiscount - discount);
+        int newDiscount = proportionalCouponDiscount(priorDiscount, oldSubtotal, newSubtotal);
+        UserCoupon uc = userCouponRepository.findById(couponId).orElse(null);
+        if (uc != null) {
+            uc.setDiscountCents(newDiscount);
+            userCouponRepository.save(uc);
         }
-        log.info("coupon recalculated after partial refund order={} couponId={} discount={}",
-                order.getOrderId(), couponId, discount);
+        order.setCouponDiscountCents(newDiscount);
+        return newDiscount;
     }
 
     private void releasePromotionBudgetIfAny(CouponDefinition def) {

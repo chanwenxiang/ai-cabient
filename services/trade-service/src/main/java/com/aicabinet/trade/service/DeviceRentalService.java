@@ -125,6 +125,20 @@ public class DeviceRentalService {
     public DeviceRentalDeposit registerDeposit(Long operatorId, String deviceId, long amountCents, String remark,
                                                Long monthlyRefundCents, Integer refundStartMonth,
                                                Long expireRewardCents) {
+        return registerDeposit(operatorId, deviceId, amountCents, remark,
+                monthlyRefundCents, refundStartMonth, expireRewardCents, null, null, null);
+    }
+
+    /** 撤机清算三件套默认值（老系统口径，登记可显式覆盖——CB-044 拍板「费用不写死」）。 */
+    static final long DEFAULT_INSTALL_FEE_DEDUCT_CENTS = 10_000L;
+    static final int DEFAULT_CONTRACT_YEARS = 5;
+
+    @Transactional
+    public DeviceRentalDeposit registerDeposit(Long operatorId, String deviceId, long amountCents, String remark,
+                                               Long monthlyRefundCents, Integer refundStartMonth,
+                                               Long expireRewardCents,
+                                               Long installFeeDeductCents, Boolean installFeeClawbackEnabled,
+                                               Integer contractYears) {
         permissionService.requirePermission(operatorId, "ops:rental:manage");
         DeviceInfo device = requireRentalDevice(deviceId);
         if (amountCents <= 0) {
@@ -145,6 +159,14 @@ public class DeviceRentalService {
                     ? 3 : refundStartMonth);
         }
         deposit.setExpireRewardCents(expireRewardCents == null ? 0L : Math.max(0L, expireRewardCents));
+        // CB-044 拍板：撤机清算三件套登记可配（空值=老系统口径默认）
+        deposit.setInstallFeeDeductCents(installFeeDeductCents == null
+                ? DEFAULT_INSTALL_FEE_DEDUCT_CENTS : Math.max(0L, installFeeDeductCents));
+        deposit.setInstallFeeClawbackEnabled(installFeeClawbackEnabled == null || installFeeClawbackEnabled);
+        if (contractYears != null && contractYears < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "合同年数必须 ≥ 1");
+        }
+        deposit.setContractYears(contractYears == null ? DEFAULT_CONTRACT_YEARS : contractYears);
         deposit.setRemark(trim(remark));
         depositMapper.insert(deposit);
         // 线上收取：从商户余额真扣（幂等 refType+refId；可负=欠款挂余额，老系统同款）
@@ -184,7 +206,17 @@ public class DeviceRentalService {
         return depositMapper.selectById(depositId);
     }
 
-    /** 结算返还：ONLINE 押金剩余额退入商户余额（对齐老系统）；OFFLINE 押金维持线下返还登记。 */
+    /**
+     * 结算返还（撤机清算，CB-044 拍板 2026-10-15 选项 1：复刻老三件套，费用参数登记可配不写死）：
+     * <ul>
+     *   <li><b>未满合同年数撤机</b>：退剩余押金 − 撤机安装费（installFeeDeductCents，默认 100 元，
+     *       从押金内扣，最多扣到 0）；押金已按月退完且 installFeeClawbackEnabled（默认开）⇒
+     *       向商户余额<b>倒扣</b>安装费（AllowNegative，可挂负，对齐老系统追回）。</li>
+     *   <li><b>满 contractYears（默认 5）年撤机</b>：免扣安装费，发期满奖励 expireRewardCents
+     *       （refId 与月度退还链同款 {@code depositId|REWARD}——幂等，月度链已发过则不双发）。</li>
+     * </ul>
+     * OFFLINE（线下收缴存量行）不向商户余额进钱/倒扣，只做台账事件留痕（同 V360 防双退纪律）。
+     */
     @Transactional
     public DeviceRentalDeposit settle(Long operatorId, Long depositId, String remark) {
         permissionService.requirePermission(operatorId, "ops:rental:manage");
@@ -192,19 +224,65 @@ public class DeviceRentalService {
         if (DeviceRentalDeposit.STATUS_SETTLED.equals(deposit.getStatus())) {
             return deposit;
         }
+        long installFee = deposit.getInstallFeeDeductCents() == null
+                ? 10_000L : deposit.getInstallFeeDeductCents();
+        boolean clawback = deposit.getInstallFeeClawbackEnabled() == null
+                || deposit.getInstallFeeClawbackEnabled();
+        int contractYears = deposit.getContractYears() == null ? 5 : deposit.getContractYears();
+        boolean contractExpired = contractExpired(deposit, contractYears);
+
         long refund = deposit.getBalanceCents();
         if (refund > 0) {
+            // 老口径：押金未退完撤机 → 一律退剩余 − 安装费（满期豁免只作用于「已退完」分支）
+            long fee = Math.min(Math.max(0L, installFee), refund);
+            long net = refund - fee;
             if (depositMapper.adjustBalance(depositId, -refund) == 0) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "押金余额推进失败，请重试");
             }
             if ("ONLINE".equals(deposit.getChargeMode())) {
-                // 线上押金：剩余额退入商户余额（幂等），对齐老系统一次性结清分支
-                merchantWalletService.creditIfAbsent(deposit.getMerchantId(), refund,
-                        "DEPOSIT_RETURN", "RENTAL_DEPOSIT_SETTLE", String.valueOf(depositId),
-                        "退租结算返还（柜机 " + deposit.getDeviceId() + "）");
+                if (net > 0) {
+                    // 线上押金：扣完安装费的剩余额退入商户余额（幂等），对齐老系统一次性结清分支
+                    merchantWalletService.creditIfAbsent(deposit.getMerchantId(), net,
+                            "DEPOSIT_RETURN", "RENTAL_DEPOSIT_SETTLE", String.valueOf(depositId),
+                            fee > 0 ? "退租结算返还（已扣撤机安装费 " + fee + " 分，柜机 "
+                                    + deposit.getDeviceId() + "）"
+                                    : "退租结算返还（柜机 " + deposit.getDeviceId() + "）");
+                    insertEvent(depositId, DeviceRentalDeposit.EVENT_RETURN, -net,
+                            remark == null || remark.isBlank() ? "退租结算返还" : remark.trim(), operatorId);
+                }
+                if (fee > 0) {
+                    // 安装费=平台收入：从押金扣下不入商户余额（对齐老系统 INSTALL_FEE_DEDUCT）
+                    insertEvent(depositId, DeviceRentalDeposit.EVENT_DEDUCT, -fee,
+                            "撤机安装费扣减（未满 " + contractYears + " 年）", operatorId);
+                }
+            } else {
+                insertEvent(depositId, DeviceRentalDeposit.EVENT_RETURN, -refund,
+                        remark == null || remark.isBlank() ? "退租结算返还（线下）" : remark.trim(),
+                        operatorId);
             }
-            insertEvent(depositId, DeviceRentalDeposit.EVENT_RETURN, -refund,
-                    remark == null || remark.isBlank() ? "退租结算返还" : remark.trim(), operatorId);
+        } else if (contractExpired) {
+            // 押金已按月退完 + 满 contractYears：发期满奖励（refId 与月度退还链一致 ⇒ 幂等不双发）
+            long reward = deposit.getExpireRewardCents() == null ? 0L : deposit.getExpireRewardCents();
+            if (reward > 0 && "ONLINE".equals(deposit.getChargeMode())) {
+                boolean credited = merchantWalletService.creditIfAbsent(deposit.getMerchantId(), reward,
+                        "DEPOSIT_EXPIRE_REWARD", "RENTAL_DEPOSIT_REFUND",
+                        depositId + "|REWARD",
+                        "押金撤机期满奖励（柜机 " + deposit.getDeviceId() + "）");
+                if (credited) {
+                    insertEvent(depositId, DeviceRentalDeposit.EVENT_RETURN, reward,
+                            "撤机期满奖励（满 " + contractYears + " 年）", operatorId);
+                }
+            }
+        } else if (clawback && installFee > 0 && "ONLINE".equals(deposit.getChargeMode())) {
+            // 押金已退完但未满年数：向商户余额倒扣安装费（可挂负，对齐老系统追回；refId 幂等）
+            boolean deducted = merchantWalletService.debitIfAbsentAllowNegative(deposit.getMerchantId(),
+                    installFee, "DEPOSIT_INSTALL_FEE_CLAWBACK", "RENTAL_DEPOSIT_SETTLE",
+                    depositId + "|CLAWBACK",
+                    "撤机安装费追回（未满 " + contractYears + " 年，柜机 " + deposit.getDeviceId() + "）");
+            if (deducted) {
+                insertEvent(depositId, DeviceRentalDeposit.EVENT_DEDUCT, -installFee,
+                        "撤机安装费追回（已按月退完，未满 " + contractYears + " 年）", operatorId);
+            }
         }
         deposit = depositMapper.selectById(depositId);
         deposit.setStatus(DeviceRentalDeposit.STATUS_SETTLED);
@@ -212,8 +290,18 @@ public class DeviceRentalService {
         deposit.setUpdatedAt(Instant.now(clock));
         depositMapper.updateById(deposit);
         auditService.appendLog(operatorId, "DEVICE_RENTAL_DEPOSIT_SETTLE", "DEVICE", deposit.getDeviceId(),
-                "refund=" + refund);
+                "refund=" + refund + " installFee=" + installFee + " expired=" + contractExpired);
         return deposit;
+    }
+
+    /** 登记是否满 contractYears（老系统 gmtCreated+5 年口径）；createdAt 缺失按未满期保守处理。 */
+    private boolean contractExpired(DeviceRentalDeposit deposit, int contractYears) {
+        if (deposit.getCreatedAt() == null || contractYears <= 0) {
+            return false;
+        }
+        java.time.LocalDate created =
+                java.time.LocalDate.ofInstant(deposit.getCreatedAt(), java.time.ZoneId.systemDefault());
+        return !created.plusYears(contractYears).isAfter(java.time.LocalDate.now(clock));
     }
 
     // ── 押金按月退还（对齐老系统 MachineGuaranteeCashTask，2026-10-14 拍板） ──

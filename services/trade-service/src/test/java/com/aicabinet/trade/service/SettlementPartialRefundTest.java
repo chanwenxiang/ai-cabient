@@ -26,7 +26,6 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -64,11 +63,11 @@ class SettlementPartialRefundTest {
         org.springframework.test.util.ReflectionTestUtils.setField(partialRefundService, "self", partialRefundService);
         org.springframework.test.util.ReflectionTestUtils.setField(
                 settlementService, "settlementPartialRefundService", partialRefundService);
-        lenient().doNothing().when(couponService).recalcOrRestoreAfterPartialRefund(any(), anyInt());
+        lenient().when(couponService.settleAfterPartialRefund(any(), anyInt(), anyInt())).thenReturn(0);
     }
 
     @Test
-    void partialRefund_withCoupon_refundsPayableDeltaNotGross() {
+    void partialRefund_withCoupon_proratesDiscountBySubtotalRatio() {
         CabinetOrder order = new CabinetOrder();
         order.setOrderId("O-C");
         order.setSessionId("S-C");
@@ -90,15 +89,9 @@ class SettlementPartialRefundTest {
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
-        doAnswer(inv -> {
-            CabinetOrder o = inv.getArgument(0);
-            int sub = inv.getArgument(1);
-            o.setOriginalAmountCents(sub);
-            o.setCouponDiscountCents(200);
-            o.setTotalAmountCents(Math.max(0, sub - 200));
-            return null;
-        }).when(couponService).recalcOrRestoreAfterPartialRefund(any(), eq(600));
-        when(couponService.discountForOrderCoupon(99L, 600)).thenReturn(200);
+        // CB-045 拍板（政府消费券式+比例摊）：oldSubtotal=1000 → newSubtotal=600（退 SKU-A 400），
+        // 券抵扣按比例 200×0.6=120（不返券、不重算门槛），退款=800−(600−120)=320
+        when(couponService.settleAfterPartialRefund(any(), eq(1000), eq(600))).thenReturn(120);
 
         var result = settlementService.partialRefund(
                 order,
@@ -106,10 +99,12 @@ class SettlementPartialRefundTest {
                 false,
                 "coupon partial");
 
-        assertEquals(400, result.refundedCents());
+        assertEquals(320, result.refundedCents());
         assertEquals("PARTIAL_REFUNDED", result.status());
-        assertEquals(400, order.getTotalAmountCents());
-        verify(orderPaymentService).refundOrder(order, 400, "coupon partial");
+        assertEquals(480, order.getTotalAmountCents());
+        assertEquals(120, order.getCouponDiscountCents());
+        verify(couponService).settleAfterPartialRefund(order, 1000, 600);
+        verify(orderPaymentService).refundOrder(order, 320, "coupon partial");
     }
 
     @Test
@@ -161,7 +156,7 @@ class SettlementPartialRefundTest {
     }
 
     @Test
-    void estimatePartialRefund_withCoupon_matchesPayableDelta() {
+    void estimatePartialRefund_withCoupon_proratesByRatio_matchingWriteSide() {
         CabinetOrder order = new CabinetOrder();
         order.setOrderId("O-E");
         order.setOriginalAmountCents(1000);
@@ -172,13 +167,12 @@ class SettlementPartialRefundTest {
                 line("SKU-A", "A", 1, 400, "B1"),
                 line("SKU-B", "B", 2, 300, "B2"))));
 
-        when(couponService.discountForOrderCoupon(99L, 600)).thenReturn(200);
-
+        // CB-045 比例摊预估（纯函数，不读 couponService）：与写侧同口径（铁律 51）
         int estimate = settlementService.estimatePartialRefundCents(
                 order,
                 List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false)));
 
-        assertEquals(400, estimate);
+        assertEquals(320, estimate);
         assertEquals(800, order.getTotalAmountCents(), "estimate must not mutate source order");
     }
 
@@ -248,6 +242,22 @@ class SettlementPartialRefundTest {
         verify(orderLineRepository, never()).deleteByOrderId(anyString());
         verify(inventoryService, never()).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
         verify(revenueSplitService, never()).adjustSplitAfterPartialRefund(any(), anyBoolean());
+    }
+
+    /** CB-045：比例摊纯函数钉住——递推多次部分退等价于一次性比例摊（每元摊销恒定）。 */
+    @Test
+    void proportionalProrationMath_recursiveEqualsOneShot() {
+        // 1000 元、券 200：先退一半（500）再退一半（250 之外的 250）——递推 200×0.5=100 → 100×0.5=50
+        int step1 = SettlementOrderSupport.scaleDiscountForPartialRefund(200, 1000, 500);
+        int step2 = SettlementOrderSupport.scaleDiscountForPartialRefund(step1, 500, 250);
+        assertEquals(50, step2);
+        // 一次性等价：200×0.25=50
+        assertEquals(50, SettlementOrderSupport.scaleDiscountForPartialRefund(200, 1000, 250));
+        // 只减不增 + 边界
+        assertEquals(0, SettlementOrderSupport.scaleDiscountForPartialRefund(200, 1000, 0));
+        assertEquals(0, SettlementOrderSupport.scaleDiscountForPartialRefund(0, 1000, 500));
+        assertEquals(200, SettlementOrderSupport.scaleDiscountForPartialRefund(200, 500, 1000));
+        assertEquals(50, CouponService.proportionalCouponDiscount(200, 1000, 250));
     }
 
     private static CabinetOrderLine line(String sku, String name, int qty, int unit, String batch) {

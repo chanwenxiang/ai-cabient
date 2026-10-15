@@ -51,7 +51,9 @@ public class OpsDeviceRentalController {
         return ApiResponse.ok(rentalService.registerDeposit(operatorId(request), str(body.get("deviceId")),
                 amount(body), str(body.get("remark")),
                 longOrNull(body.get("monthlyRefundCents")), intOrNull(body.get("refundStartMonth")),
-                longOrNull(body.get("expireRewardCents"))));
+                longOrNull(body.get("expireRewardCents")),
+                longOrNull(body.get("installFeeDeductCents")), boolOrNull(body.get("installFeeClawbackEnabled")),
+                intOrNull(body.get("contractYears"))));
     }
 
     @RequiresPermissions("ops:rental:manage")
@@ -122,6 +124,11 @@ public class OpsDeviceRentalController {
     private static Integer intOrNull(Object v) {
         if (v == null) return null;
         try { return Integer.parseInt(String.valueOf(v).trim()); } catch (NumberFormatException e) { return null; }
+    }
+
+    private static Boolean boolOrNull(Object v) {
+        if (v == null) return null;
+        return Boolean.parseBoolean(String.valueOf(v).trim());
     }
 
 

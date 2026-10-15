@@ -42,6 +42,12 @@ public class DeviceRentalDeposit {
     private Integer refundStartMonth;
     /** 期满奖励（分）：退完当月一次性发入商户余额（老系统仅高档有，登记时可填，默认 0） */
     private Long expireRewardCents;
+    /** 撤机安装费扣额（分）：结算（撤机）时从押金/商户余额扣（CB-044 拍板选项 1，默认 100 元对齐老系统） */
+    private Long installFeeDeductCents;
+    /** 已退完且未满合同年数时撤机，是否向商户余额倒扣安装费（老系统行为；CB-044 拍板默认开） */
+    private Boolean installFeeClawbackEnabled;
+    /** 合同年数：撤机时登记满 N 年则发期满奖励、免扣安装费（老系统 5 年，登记可改） */
+    private Integer contractYears;
 
     public String getChargeMode() { return chargeMode; }
     public void setChargeMode(String v) { this.chargeMode = v; }
@@ -51,4 +57,10 @@ public class DeviceRentalDeposit {
     public void setRefundStartMonth(Integer v) { this.refundStartMonth = v; }
     public Long getExpireRewardCents() { return expireRewardCents; }
     public void setExpireRewardCents(Long v) { this.expireRewardCents = v; }
+    public Long getInstallFeeDeductCents() { return installFeeDeductCents; }
+    public void setInstallFeeDeductCents(Long v) { this.installFeeDeductCents = v; }
+    public Boolean getInstallFeeClawbackEnabled() { return installFeeClawbackEnabled; }
+    public void setInstallFeeClawbackEnabled(Boolean v) { this.installFeeClawbackEnabled = v; }
+    public Integer getContractYears() { return contractYears; }
+    public void setContractYears(Integer v) { this.contractYears = v; }
 }

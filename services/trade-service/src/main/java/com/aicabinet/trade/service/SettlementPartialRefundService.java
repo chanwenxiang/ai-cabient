@@ -111,12 +111,14 @@ public class SettlementPartialRefundService {
         int priorPayable = Math.max(0, order.getTotalAmountCents());
         PartialRefundPartition partition = validateAndPartitionRefundLines(order, refundLines, defaultRestore);
 
+        // CB-045 拍板：比例摊口径——oldSubtotal=当次退款前商品原价合计（递推式比例摊下
+        // originalAmountCents 已是上次剩余值，直接取行合计自洽，不依赖该字段历史正确性）
+        int oldSubtotal = order.getLines().stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
         List<CabinetOrderLine> remaining = SettlementPartialRefundMath.buildRemainingLines(
                 SettlementPartialRefundMath.mergeLinesBySku(order.getLines()), partition.refundQtyBySku());
         order.setLines(remaining);
         int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
-        couponService.recalcOrRestoreAfterPartialRefund(order, newSubtotal);
-        orderSupport.recalculatePayableAfterLineChange(order);
+        orderSupport.applyProportionalRefundPayable(order, oldSubtotal, newSubtotal);
         int refundCents = Math.max(0, priorPayable - order.getTotalAmountCents());
         if (refundCents <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额为 0");
@@ -243,31 +245,32 @@ public class SettlementPartialRefundService {
         Map<String, Integer> refundQtyBySku =
                 SettlementPartialRefundMath.validatePartialRefundQuantities(bySku, refundLines);
         int priorPayable = Math.max(0, scratch.getTotalAmountCents());
+        // 🔴 oldSubtotal 必须在 setLines(remaining) 之前取（=退款前商品原价合计），
+        // 否则比例失真 → 预估 ≠ 写侧（2026-10-15 测试拦下的资损点）
+        int oldSubtotal = bySku.values().stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
         List<CabinetOrderLine> remaining =
                 SettlementPartialRefundMath.buildRemainingLines(bySku, refundQtyBySku);
         scratch.setLines(remaining);
         int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
-        applyPartialRefundPayablePreview(scratch, newSubtotal);
-        orderSupport.recalculatePayableAfterLineChange(scratch);
+        applyPartialRefundPayablePreview(scratch, oldSubtotal, newSubtotal);
         return Math.max(0, priorPayable - scratch.getTotalAmountCents());
     }
 
-    /** 只读预估：按剩余明细重算应付，不写券状态。 */
-    private void applyPartialRefundPayablePreview(CabinetOrder order, int remainingSubtotalCents) {
-        order.setOriginalAmountCents(Math.max(0, remainingSubtotalCents));
-        if (order.getCouponId() == null) {
-            order.setCouponDiscountCents(0);
-            order.setTotalAmountCents(Math.max(0, remainingSubtotalCents));
-            return;
-        }
-        int discount = couponService.discountForOrderCoupon(order.getCouponId(), remainingSubtotalCents);
-        if (discount <= 0) {
-            order.setCouponId(null);
-            order.setCouponDiscountCents(0);
-            order.setTotalAmountCents(Math.max(0, remainingSubtotalCents));
-            return;
-        }
-        order.setCouponDiscountCents(discount);
-        order.setTotalAmountCents(Math.max(0, remainingSubtotalCents - discount));
+    /**
+     * 只读预估：与写侧 {@code applyProportionalRefundPayable} 同一比例摊口径（铁律 51：预估与写侧一致），
+     * 但不写券状态——纯计算版（{@code CouponService.proportionalCouponDiscount}）。
+     */
+    private void applyPartialRefundPayablePreview(CabinetOrder order, int oldSubtotal, int newSubtotal) {
+        int safeOld = Math.max(0, oldSubtotal);
+        int safeNew = Math.max(0, newSubtotal);
+        order.setOriginalAmountCents(safeNew);
+        int couponDisc = order.getCouponId() == null ? 0
+                : CouponService.proportionalCouponDiscount(
+                        Math.max(0, order.getCouponDiscountCents()), safeOld, safeNew);
+        order.setCouponDiscountCents(couponDisc);
+        int memberDisc = SettlementOrderSupport.scaleDiscountForPartialRefund(
+                Math.max(0, order.getMemberDiscountCents()), safeOld, safeNew);
+        order.setMemberDiscountCents(memberDisc);
+        order.setTotalAmountCents(Math.max(0, safeNew - couponDisc - memberDisc));
     }
 }

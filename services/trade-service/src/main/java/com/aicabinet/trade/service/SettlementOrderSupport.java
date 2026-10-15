@@ -119,6 +119,34 @@ public class SettlementOrderSupport {
         order.setTotalAmountCents(Math.max(0, subtotal - couponDisc - memberDisc));
     }
 
+    /**
+     * CB-045 拍板（2026-10-15 政府消费券式 + 比例摊）：部分退应付 = 比例摊。
+     * 券抵扣与会员折扣都按 oldSubtotal→newSubtotal 比例缩减（每元固定摊销、不重算门槛），
+     * 券是否返还由 {@link CouponService#settleAfterPartialRefund} 按全额/部分分流处理。
+     * 与争议改单的 {@link #recalculatePayableAfterLineChange}（门槛重算式）刻意分开——两链路口径不同。
+     */
+    void applyProportionalRefundPayable(CabinetOrder order, int oldSubtotal, int newSubtotal) {
+        int safeOld = Math.max(0, oldSubtotal);
+        int safeNew = Math.max(0, newSubtotal);
+        order.setOriginalAmountCents(safeNew);
+        int couponDisc = couponService.settleAfterPartialRefund(order, safeOld, safeNew);
+        // 券抵扣字段由本方法自持写入（与 settle 返回值恒等，settle 内部写同值冗余但无害）；
+        // 不依赖 settle 的隐藏写侧契约（mock 掉 settle 时字段也必须正确）
+        order.setCouponDiscountCents(couponDisc);
+        int memberDisc = scaleDiscountForPartialRefund(Math.max(0, order.getMemberDiscountCents()),
+                safeOld, safeNew);
+        order.setMemberDiscountCents(memberDisc);
+        order.setTotalAmountCents(Math.max(0, safeNew - couponDisc - memberDisc));
+    }
+
+    /** 比例摊缩放（纯数学）：优惠 × (剩余原价/原价总额)，只减不增。 */
+    static int scaleDiscountForPartialRefund(int priorDiscount, int oldSubtotal, int newSubtotal) {
+        if (priorDiscount <= 0 || oldSubtotal <= 0 || newSubtotal <= 0) {
+            return 0;
+        }
+        return (int) Math.min(priorDiscount, Math.round((double) priorDiscount * newSubtotal / oldSubtotal));
+    }
+
     /** SKU 唯一绑定某货道时回填货道；同一 SKU 出现在多个货道则不推断。 */
     private Map<String, String> inferSlotBySku(String deviceId) {
         Map<String, String> map = new java.util.HashMap<>();
