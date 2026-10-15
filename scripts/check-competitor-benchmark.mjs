@@ -96,6 +96,9 @@ const SUBJECT_ALIASES = [
   { re: /创弗/i, id: '创弗', kind: 'peer' },
   { re: /dozzon/i, id: 'DOZZON', kind: 'peer' },
   { re: /缤果|小麦铺|小麦便利|盒子便利店/i, id: '盒子便利店系', kind: 'peer' },
+  // CB-045：美团（含无人零售/智能柜业务）+ 政府消费券官方活动规则——券退款口径对照
+  { re: /美团|meituan/i, id: '美团', kind: 'peer' },
+  { re: /消费券|上海静安/i, id: '政府消费券', kind: 'official' },
   { re: /丰e管家/i, id: '丰e足食', kind: 'peer' },
   // 旧系统三套柜机厂商（chzh8 / jinyu2 / yichu2）—— 不是本项目竞品，
   // 但「我们支持哪些柜型」必须对照它们，故作为独立主体计数（CB-015）。
