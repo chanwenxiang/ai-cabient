@@ -100,4 +100,61 @@ class ReplenishmentSubmitLinesQuantityGateTest {
 
         verify(taskLineRepository).save(any());
     }
+
+    @Test
+    void submitTaskLines_shouldRejectZeroQuantityPullOffLine() {
+        // CB-042（2026-10-15）：0 件行不进任务清单——下架行与 RESTOCK 行同口径
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(13L);
+        task.setDeviceId("CAB-1");
+        task.setStatus("IN_PROGRESS");
+        when(taskRepository.findByIdForUpdate(13L)).thenReturn(Optional.of(task));
+
+        ReplenishmentTaskLineDto dto = new ReplenishmentTaskLineDto(
+                null, "PULL_OFF", "SKU-COLA", "可乐", "B-01", null, null, 0, "A1", false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.submitTaskLines(1L, 13L, new SubmitReplenishmentLinesRequest(List.of(dto))));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(taskLineRepository, never()).save(any());
+    }
+
+    @Test
+    void submitTaskLines_shouldRejectUnknownLineTypeAtSubmitTime() {
+        // CB-042：未知 lineType 提交时拒绝——此前落库成功、到任务完成时才炸 unknown lineType
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(14L);
+        task.setDeviceId("CAB-1");
+        task.setStatus("IN_PROGRESS");
+        when(taskRepository.findByIdForUpdate(14L)).thenReturn(Optional.of(task));
+
+        ReplenishmentTaskLineDto dto = new ReplenishmentTaskLineDto(
+                null, "INVENTORY", "SKU-COLA", "可乐", "B-01", null, null, 3, "A1", false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.submitTaskLines(1L, 14L, new SubmitReplenishmentLinesRequest(List.of(dto))));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(taskLineRepository, never()).save(any());
+    }
+
+    @Test
+    void submitTaskLines_shouldAllowPositiveQuantityPullOffLine() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(15L);
+        task.setDeviceId("CAB-1");
+        task.setRouteId(1L);
+        task.setStatus("IN_PROGRESS");
+        when(taskRepository.findByIdForUpdate(15L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByRouteId(1L)).thenReturn(List.of(task));
+        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(15L)).thenReturn(List.of());
+
+        ReplenishmentTaskLineDto dto = new ReplenishmentTaskLineDto(
+                null, "PULL_OFF", "SKU-COLA", "可乐", "B-01", null, null, 2, "A1", false);
+
+        replenishmentService.submitTaskLines(1L, 15L, new SubmitReplenishmentLinesRequest(List.of(dto)));
+
+        verify(taskLineRepository).save(any());
+    }
 }

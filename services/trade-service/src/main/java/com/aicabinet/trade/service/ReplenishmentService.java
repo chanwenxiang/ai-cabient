@@ -74,6 +74,8 @@ public class ReplenishmentService {
     private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String STATUS_CANCELLED = "CANCELLED";
     private static final String RESTOCK = "RESTOCK";
+    /** 下架行类型（唯一另一合法值；与 InventoryLotService.applyReplenishmentLine 的 apply 白名单同口径）。 */
+    private static final String PULL_OFF = "PULL_OFF";
     private static final String STATUS_PENDING = "PENDING";
     private static final String PLANNED = "PLANNED";
 
@@ -750,9 +752,21 @@ public class ReplenishmentService {
     private void persistSubmittedTaskLine(ReplenishmentTask task, Long taskId, ReplenishmentTaskLineDto dto) {
         // 小程序/联调常省略 lineType，默认按上架（RESTOCK）处理
         String lineType = normalizeTaskLineType(dto.lineType());
+        // CB-042（2026-10-15）：①行类型白名单提前到提交时——此前未知类型会落库成功、
+        // 到任务完成时才在 applyReplenishmentLine 炸 unknown lineType（提交了注定完不成的任务）；
+        // ②0 件行不进任务清单（下架行与 RESTOCK 行同口径，见 persistRestockLines 的 P1-17 门禁）——
+        // 行业拣货单按「补货标准-现库存」差值生成，0 差值不产生行；下架以实取数为准。
+        if (!RESTOCK.equals(lineType) && !PULL_OFF.equals(lineType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "lineType 仅支持 RESTOCK 或 PULL_OFF（sku=" + dto.skuId() + "）");
+        }
         if (RESTOCK.equals(lineType)) {
             persistRestockLines(task, taskId, dto);
             return;
+        }
+        if (dto.quantity() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "下架数量必须大于 0（sku=" + dto.skuId() + "）");
         }
         ReplenishmentTaskLine line = new ReplenishmentTaskLine();
         line.setTaskId(taskId);
