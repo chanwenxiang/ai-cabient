@@ -1,3 +1,4 @@
+-- MIGRATION_KIND: backfill
 -- 图1 对照（叮当小柜，2026-10-15）：货柜商品卡片「上架时间」。
 -- device_slot 缺少「SKU 绑定到该货道」的时间戳；新增 assigned_at：
 --   写侧：upsert 换绑 SKU 时刷新（DeviceSlotService.applyUpsertFields / doApplyPlanogramTemplate）

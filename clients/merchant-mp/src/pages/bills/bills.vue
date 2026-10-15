@@ -153,7 +153,9 @@ function onDeviceChange(e: { detail: { value: number } }) {
 
 async function loadDevices() {
   try {
-    devices.value = (await merchantApi.devices()) || [];
+    devices.value = ((await merchantApi.devices()) || []).filter(
+      (d): d is typeof d & { deviceId: string } => !!d.deviceId
+    );
   } catch {
     devices.value = [];
   }

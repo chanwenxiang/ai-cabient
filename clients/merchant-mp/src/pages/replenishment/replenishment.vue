@@ -78,7 +78,7 @@
           class="patrol-row"
           hover-class="patrol-row-hover"
           role="button"
-          @click="goDeviceShortage(d.deviceId)"
+          @click="goDeviceShortage(d.deviceId || '')"
         >
           <view class="patrol-name">
             <text class="device-name">{{ deviceName(d.deviceId) }}</text>
