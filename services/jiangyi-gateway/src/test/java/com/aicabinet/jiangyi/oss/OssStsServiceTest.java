@@ -93,8 +93,9 @@ class OssStsServiceTest {
     @Test
     void uploadTokenFailsClosedOnInvalidDeviceId() {
         StubStsService service = new StubStsService(props());
-        // 非纯数字 / 占位符 / 过短 / 过长 → 不出网、不发「未知目录」凭证
-        assertNull(service.issueUploadToken("unknown"));
+        // 2026-10-16 白名单放宽为大写字母数字 [A-Z0-9]{6,20}（EG 编号可发凭证）后，
+        // 负向夹具改用仍被拒的形态：含连字符 / 过短 / 过长 / null → 不出网、不发「未知目录」凭证
+        assertNull(service.issueUploadToken("dev-999"));
         assertNull(service.issueUploadToken("d1"));
         assertNull(service.issueUploadToken("12345"));
         assertNull(service.issueUploadToken("123456789012345678901"));
