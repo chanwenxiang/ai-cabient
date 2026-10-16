@@ -85,20 +85,6 @@
           </view>
         </view>
 
-        <view class="remember-row" data-testid="login-remember">
-          <view
-            class="remember-box"
-            :class="{ on: rememberCredentials }"
-            role="checkbox"
-            :aria-checked="rememberCredentials"
-            aria-label="记住账号"
-            @tap="rememberCredentials = !rememberCredentials"
-          />
-          <text class="remember-label" @tap="rememberCredentials = !rememberCredentials"
-            >记住账号</text
-          >
-        </view>
-
         <app-button
           class="login-submit"
           data-testid="login-submit"
@@ -137,9 +123,7 @@ const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } 
 
 onShow(refreshPrivacyGate);
 
-const PHONE_KEY = 'merchant_login_phone';
 const PW_STORE_KEY = 'merchant_login_password';
-const REMEMBER_KEY = 'merchant_remember_credentials';
 
 // L2-2：连续登录失败后后端要求图形验证码
 const captchaRequired = ref(false);
@@ -163,19 +147,13 @@ async function loadCaptcha() {
   }
 }
 
-function readStorage(key: string): string {
-  try {
-    const v = uni.getStorageSync(key);
-    return typeof v === 'string' ? v : '';
-  } catch {
-    return '';
-  }
-}
-
-/** 历史版本曾可逆混淆存密码；启动时一律清除，只允许记住手机号 */
+/** 历史版本曾可逆混淆存密码；启动时一律清除（A6⑥：手机号明文存储已随「记住账号」一并撤销）。 */
 function clearStoredPassword() {
   try {
     uni.removeStorageSync(PW_STORE_KEY);
+    // 清理老版本「记住账号」残留的手机号与开关标记（PII 最小化）
+    uni.removeStorageSync('merchant_login_phone');
+    uni.removeStorageSync('merchant_remember_credentials');
   } catch {
     /* ignore */
   }
@@ -188,27 +166,15 @@ const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || '').trim();
 const demoHint =
   isDev && demoPhone && demoPassword ? `体验账号：${demoPhone} / ${demoPassword}` : '';
 
-const rememberCredentials = ref(readStorage(REMEMBER_KEY) !== '0');
-const savedPhone = rememberCredentials.value ? readStorage(PHONE_KEY) : '';
-const phone = ref(savedPhone || (isDev && demoPhone ? demoPhone : ''));
+const phone = ref(isDev && demoPhone ? demoPhone : '');
 const password = ref(isDev && demoPassword ? demoPassword : '');
 const loading = ref(false);
 const err = ref('');
 
-function persistCredentials(phoneNumber: string, _pwd: string) {
-  if (rememberCredentials.value) {
-    uni.setStorageSync(REMEMBER_KEY, '1');
-    uni.setStorageSync(PHONE_KEY, phoneNumber);
-    clearStoredPassword();
-    return;
-  }
-  uni.setStorageSync(REMEMBER_KEY, '0');
-  try {
-    uni.removeStorageSync(PHONE_KEY);
-    clearStoredPassword();
-  } catch {
-    /* ignore */
-  }
+function persistCredentials() {
+  // A6⑥：不再持久化任何登录凭据（手机号/密码均属 PII，明文落 storage 无安全边界）。
+  // 会话保持由 token+24h 静默续期承担，见 merchant-api refreshTokenSilently。
+  clearStoredPassword();
 }
 
 async function onLogin() {
@@ -234,7 +200,7 @@ async function onLogin() {
         : undefined
     );
     captchaRequired.value = false;
-    persistCredentials(phoneNumber, pwd);
+    persistCredentials();
     try {
       const me = await merchantApi.me();
       uni.setStorageSync('merchant_me', me);
@@ -501,53 +467,6 @@ async function onLogin() {
 }
 .ph {
   color: rgba(204, 251, 241, 0.4);
-}
-.remember-row {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  margin: 4rpx 0;
-  padding: 4rpx 0;
-  align-self: flex-start;
-}
-/* 对齐管理后台 LoginView el-checkbox（size=small ≈12px）：方框 + CSS 勾，禁文字 ✓ */
-.remember-box {
-  position: relative;
-  width: 24rpx;
-  height: 24rpx;
-  border-radius: 4rpx;
-  border: 2rpx solid rgba(148, 210, 198, 0.55);
-  background: rgba(8, 24, 30, 0.35);
-  box-sizing: border-box;
-  flex-shrink: 0;
-}
-.remember-box::after {
-  content: '';
-  position: absolute;
-  box-sizing: content-box;
-  border: 2rpx solid transparent;
-  border-left: 0;
-  border-top: 0;
-  height: 12rpx;
-  width: 5rpx;
-  left: 7rpx;
-  top: 1rpx;
-  transform: rotate(45deg) scaleY(0);
-  transform-origin: center;
-  transition: transform 0.12s ease-in;
-}
-.remember-box.on {
-  border-color: var(--brand, #0d9488);
-  background: var(--brand, #0d9488);
-}
-.remember-box.on::after {
-  border-color: #fff;
-  transform: rotate(45deg) scaleY(1);
-}
-.remember-label {
-  color: rgba(204, 251, 241, 0.82);
-  font-size: var(--font-size-caption);
-  line-height: 1.2;
 }
 /* 🔴 不要用 `:deep(.app-btn…)` 改按钮外观 —— 小程序端自定义组件样式隔离使它**永不命中**
  * （实测编译产物为 `.data-v-页面 .app-btn`，而按钮带组件自己的 `data-v-ca006858`）。
