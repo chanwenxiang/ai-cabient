@@ -416,8 +416,7 @@ const signalText = computed(() => {
   return SIGNAL_LABELS[v];
 });
 /** 列头已写「(元)」，所以这里要的是无符号数字位，不是 fmtMoney */
-const fenToYuanText = (cents?: number | null) =>
-  cents == null ? '--' : centsToYuanDigits(cents);
+const fenToYuanText = (cents?: number | null) => (cents == null ? '--' : centsToYuanDigits(cents));
 const todaySalesYuan = computed(() => fenToYuanText(summary.value?.todaySalesCents));
 const todayOrdersText = computed(() => (summary.value ? String(summary.value.todayOrders) : '--'));
 const monthSalesYuan = computed(() => fenToYuanText(summary.value?.monthSalesCents));

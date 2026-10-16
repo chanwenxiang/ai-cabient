@@ -15,20 +15,26 @@
           style="width: 190px"
           @keyup.enter="applyFilters"
         />
-        <el-select v-model="filterStatus" placeholder="状态（空=全部）" clearable style="width: 150px">
+        <el-select
+          v-model="filterStatus"
+          placeholder="状态（空=全部）"
+          clearable
+          style="width: 150px"
+        >
           <el-option label="未结清 PENDING" value="PENDING" />
           <el-option label="已结清 SETTLED" value="SETTLED" />
         </el-select>
-        <el-select v-model="filterFeeType" placeholder="费用类型（空=全部）" clearable style="width: 150px">
+        <el-select
+          v-model="filterFeeType"
+          placeholder="费用类型（空=全部）"
+          clearable
+          style="width: 150px"
+        >
           <el-option label="租金 REN" value="REN" />
           <el-option label="流量费 DATA" value="DATA" />
         </el-select>
         <el-button type="primary" @click="applyFilters">查询</el-button>
-        <el-button
-          v-hasPermi="['ops:merchant-withdraw:adjust']"
-          type="warning"
-          @click="openRerun"
-        >
+        <el-button v-hasPermi="['ops:merchant-withdraw:adjust']" type="warning" @click="openRerun">
           按日期重跑日扣
         </el-button>
       </template>
@@ -49,7 +55,9 @@
         </template>
       </el-table-column>
       <el-table-column label="结清时间" width="160">
-        <template #default="{ row }">{{ row.settledAt ? formatDateTime(row.settledAt) : '—' }}</template>
+        <template #default="{ row }">{{
+          row.settledAt ? formatDateTime(row.settledAt) : '—'
+        }}</template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="180" />
     </CrudTable>
@@ -191,7 +199,9 @@ async function submitRerun(): Promise<void> {
       AdminEndpoints.merchantFeeLedgerRerun(rerunDate.value),
       'POST'
     );
-    ElMessage.success(`${rerunDate.value} 重跑完成，本轮实扣 ${yuan(res?.chargedCents ?? 0)}（幂等，已扣过的不重扣）`);
+    ElMessage.success(
+      `${rerunDate.value} 重跑完成，本轮实扣 ${yuan(res?.chargedCents ?? 0)}（幂等，已扣过的不重扣）`
+    );
     rerunVisible.value = false;
     await crud.load();
   } catch (e) {
