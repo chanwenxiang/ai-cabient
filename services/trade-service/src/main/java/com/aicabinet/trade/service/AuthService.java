@@ -228,6 +228,51 @@ public class AuthService {
         return self.loginOrCreateByOpenId(session.openId(), phoneNumber);
     }
 
+    /**
+     * CB-048：商户端绑定微信——**必须在已验证的商户会话内调用**（C13 同源纪律：
+     * 绑定是显式授权动作，不是登录手段；防「知 openid 即接管」）。
+     * 覆盖语义=换绑（商户换微信号时密码登录后绑新微信即可）；openid 全局唯一归属：
+     * 已绑到其它账号（含 C 端游客）则 409，不得抢占。
+     */
+    @Transactional
+    public void bindMerchantWeChat(long userId, String code) {
+        var session = weChatMiniAppClient.code2Session(code);
+        String openId = session.openId();
+        var byOpenId = userInfoRepository.findByWxOpenId(openId);
+        if (byOpenId.isPresent() && byOpenId.get().getUserId() != userId) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该微信已绑定其它账号");
+        }
+        UserInfo me = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        requireOperator(me);
+        if (openId.equals(me.getWxOpenId())) {
+            return; // 幂等：重复绑定同一微信无操作
+        }
+        me.setWxOpenId(openId);
+        userInfoRepository.save(me);
+    }
+
+    /**
+     * CB-048：商户端微信免密登录——openid 必须已绑定到商户/运营账号。
+     * 与 C 端 wxLogin 有意不同：**不做自动建档**（B 端账号须显式创建/邀请）；
+     * openid 命中 C 端游客账号（CONSUMER）同样拒绝（403），要求走密码登录绑定。
+     */
+    @Transactional
+    public LoginResponse merchantWxLogin(WxLoginRequest request) {
+        var session = weChatMiniAppClient.code2Session(request.code());
+        UserInfo user = userInfoRepository.findByWxOpenId(session.openId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "该微信未绑定商户账号，请使用密码登录"));
+        requireOperator(user);
+        requireActiveAccount(user.getUserId());
+        if (user.isTotpEnabled()) {
+            String challenge = jwtService.createTwoFactorChallengeToken(user.getUserId());
+            return new LoginResponse(challenge, user.getUserId(), 300L,
+                    serverBootMarker.epochMillis(), authProperties.cookieEnabled(), true);
+        }
+        return tokenFor(user);
+    }
+
     /** 支付宝授权换 userId 在事务外；建档/登录走短事务。 */
     public LoginResponse alipayLogin(AlipayLoginRequest request) {
         String alipayUserId = alipayOauthClient.resolveUserId(request.authCode());

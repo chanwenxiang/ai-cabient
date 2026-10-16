@@ -21,6 +21,9 @@ export const API_PREFIX = '/api/v2' as const;
 /** 鉴权相关（与 MerchantEndpoints 并列）。 */
 export const AuthEndpoints = {
   merchantPasswordLogin: `${API_PREFIX}/auth/merchant-password-login`,
+  /** CB-048：商户微信绑定免密登录（绑定须密码登录后的已验证会话） */
+  merchantWxLogin: `${API_PREFIX}/auth/merchant-wx-login`,
+  merchantWxBind: `${API_PREFIX}/auth/merchant-wx-bind`,
   /** L2-2：图形验证码（连续登录失败后强制校验） */
   captcha: `${API_PREFIX}/auth/captcha`
 } as const;
