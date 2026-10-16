@@ -230,7 +230,7 @@ if (-not $SkipRuntime) {
 # 事前（check-env.ps1）只验 CSV 存在与 backend 行；这里部署后比对「库内 ACTIVE 设备行」
 # 与「CSV 设备行」逐行一致——不一致即"运营台吊销/签发后忘重跑生成器"，而 EMQX 旧口令
 # 因 restart 不重导 bootstrap 仍有效（原始 P1-6 后果）。
-$credCsv = Join-Path $Root "infra\docker\emqxuth-bootstrap.production.csv"
+$credCsv = Join-Path $Root "infra\docker\emqx\auth-bootstrap.production.csv"
 if (Test-Path $credCsv) {
     Write-Host "==> P1-6b: device credential CSV vs DB consistency"
     $csvDeviceIds = @{}
