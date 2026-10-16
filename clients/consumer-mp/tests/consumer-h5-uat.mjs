@@ -1133,13 +1133,13 @@ async function main() {
 
     // —— TC-DEEP-001 深链启动：柜机号参数直达 ——
     await ensureLoggedIn(page);
-    await gotoPath(page, '/pages/index/index?deviceId=CAB-999', 2500);
+    await gotoPath(page, '/pages/index/index?deviceId=EG900000000001', 2500);
     text = await bodyText(page);
     const deepLinkOk = /柜机不存在|编号无效|不存在/.test(text);
     const e10d = await shot(page, '10d-deep-link');
     record(
       'TC-DEEP-001',
-      '深链启动 deviceId=CAB-999',
+      '深链启动 deviceId=EG900000000001',
       '功能',
       deepLinkOk ? 'PASS' : 'FAIL',
       text.split('\n').slice(0, 10).join(' | '),

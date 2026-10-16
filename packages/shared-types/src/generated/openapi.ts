@@ -11978,6 +11978,7 @@ export interface components {
         };
         OpenDoorFailedRequest: {
             reason?: string;
+            deviceId?: string;
         };
         LiveCartItem: {
             skuId: string;
@@ -21636,7 +21637,9 @@ export interface operations {
     };
     recognizeTimeout: {
         parameters: {
-            query?: never;
+            query?: {
+                deviceId?: string;
+            };
             header?: never;
             path: {
                 sessionId: string;
