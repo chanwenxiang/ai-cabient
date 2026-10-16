@@ -47,7 +47,12 @@ public record UpsertSkuRequest(
         /** 最高限价（V350，CB-037）：null=默认基准价 2 倍 */
         Integer maxPriceCents,
         /** 最低限价（V350，CB-037）：null=不限（仅要求 >0）；用户否决"不低于成本"硬线，支持打折/清仓 */
-        Integer minPriceCents
+        Integer minPriceCents,
+        /**
+         * 商品×场景上架限额（CB-049 扩展）：整单替换；商品必须至少配一个场景。
+         * 同一场景重复出现判 400；上限 1..9999。
+         */
+        java.util.List<SkuSceneLimitItem> sceneLimits
 ) {
     public UpsertSkuRequest {
         if (visionEnabled == null) {

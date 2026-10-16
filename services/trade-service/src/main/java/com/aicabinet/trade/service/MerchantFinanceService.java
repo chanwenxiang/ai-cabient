@@ -102,7 +102,8 @@ public class MerchantFinanceService {
         merchantPortalGuard.requireAccess(userId);
         Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
         Page<CabinetOrder> result = queryOrders(userId, query.deviceId(), query.status(),
-                query.fromDate(), query.toDate(), query.keyword(), query.excludeZeroAmount(), pageable);
+                query.fromDate(), query.toDate(), query.keyword(), query.excludeZeroAmount(),
+                query.restrictDeviceIds(), pageable);
         List<String> orderIds = result.getContent().stream().map(CabinetOrder::getOrderId).toList();
         Map<String, List<CabinetOrderLine>> linesByOrder = orderLineRepository.findByOrderIds(orderIds)
                 .stream()
@@ -126,7 +127,15 @@ public class MerchantFinanceService {
 
     public record MerchantOrderListQuery(
             int page, int size, String deviceId, String status, String fromDate, String toDate, String keyword,
-            boolean excludeZeroAmount) {}
+            boolean excludeZeroAmount, java.util.Collection<String> restrictDeviceIds) {
+
+        /** 兼容旧 8 参调用（无组织收窄）。 */
+        public MerchantOrderListQuery(int page, int size, String deviceId, String status,
+                                      String fromDate, String toDate, String keyword,
+                                      boolean excludeZeroAmount) {
+            this(page, size, deviceId, status, fromDate, toDate, keyword, excludeZeroAmount, null);
+        }
+    }
 
     @Transactional(readOnly = true)
     public OrderReadModel getOrder(Long userId, String orderId) {
@@ -558,15 +567,38 @@ public class MerchantFinanceService {
                 userId, order.getDeviceId(), MerchantFeaturePacks.BIZ);
     }
 
+    private static java.util.Set<String> intersectSafe(Collection<String> a, java.util.Set<String> b) {
+        java.util.Set<String> out = new java.util.HashSet<>(a);
+        out.retainAll(b);
+        return out;
+    }
+
     private Page<CabinetOrder> queryOrders(Long userId, String deviceId, String status,
                                            String fromDate, String toDate, String keyword,
                                            boolean excludeZeroAmount, Pageable pageable) {
+        return queryOrders(userId, deviceId, status, fromDate, toDate, keyword, excludeZeroAmount,
+                null, pageable);
+    }
+
+    private Page<CabinetOrder> queryOrders(Long userId, String deviceId, String status,
+                                           String fromDate, String toDate, String keyword,
+                                           boolean excludeZeroAmount,
+                                           java.util.Collection<String> restrictDeviceIds,
+                                           Pageable pageable) {
         String normalizedDeviceId = (deviceId == null || deviceId.isBlank()) ? null : deviceId.trim();
         if (normalizedDeviceId != null) {
             merchantFeaturePackService.requireDevicePack(userId, normalizedDeviceId, MerchantFeaturePacks.BIZ);
         }
         Collection<String> deviceScope = merchantFeaturePackService.intersectDeviceFilterForPack(
                 userId, normalizedDeviceId, MerchantFeaturePacks.BIZ);
+        // CB-050 收尾：切换组织上下文——按所选商户的设备集合收窄（与 FIELD/BIZ 包范围取交集）
+        if (restrictDeviceIds != null) {
+            java.util.Set<String> restrict = new java.util.HashSet<>(restrictDeviceIds);
+            deviceScope = deviceScope == null ? restrict : intersectSafe(deviceScope, restrict);
+            if (deviceScope.isEmpty()) {
+                return Page.empty(pageable);
+            }
+        }
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
         }

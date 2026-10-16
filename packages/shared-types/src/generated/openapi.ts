@@ -654,6 +654,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/sku-inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["upsertDeviceSkuInventory"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/pricing/{skuId}": {
         parameters: {
             query?: never;
@@ -4789,6 +4805,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/password-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["passwordChange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/notify/wx-bind": {
         parameters: {
             query?: never;
@@ -4917,6 +4949,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/devices/{deviceId}/stocktake-evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["uploadStocktakeEvidence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/slots/stocktake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stocktakeSlot_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/devices/{deviceId}/jiangyi/gather/start": {
         parameters: {
             query?: never;
@@ -4943,6 +5007,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["jiangyiGatherExit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deviceCommand_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9211,6 +9291,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/orgs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orgs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/orders": {
         parameters: {
             query?: never;
@@ -9475,6 +9571,70 @@ export interface paths {
             cookie?: never;
         };
         get: operations["temperatureHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/tally-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["tallyRecords_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/stocktake-evidence/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["streamStocktakeEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/stocktake-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["stocktakeEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/sales-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deviceSalesSummary"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10332,6 +10492,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/sku-inventory/{skuId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["removeDeviceSkuInventory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -10555,6 +10731,11 @@ export interface components {
             message?: string;
             data?: components["schemas"]["SupplierDto"];
         };
+        SkuSceneLimitItem: {
+            sceneType?: string;
+            /** Format: int32 */
+            maxQty?: number;
+        };
         UpsertSkuRequest: {
             skuId?: string;
             skuName: string;
@@ -10596,6 +10777,7 @@ export interface components {
             maxPriceCents?: number;
             /** Format: int32 */
             minPriceCents?: number;
+            sceneLimits?: components["schemas"]["SkuSceneLimitItem"][];
         };
         ApiResponseSkuCatalogDto: {
             /** Format: int32 */
@@ -10646,6 +10828,7 @@ export interface components {
             updatedByUserId?: number;
             updatedByName?: string;
             operationScope?: string;
+            sceneLimits?: components["schemas"]["SkuSceneLimitItem"][];
         };
         BindRequest: {
             /** Format: int64 */
@@ -11356,6 +11539,15 @@ export interface components {
             /** Format: date-time */
             assignedAt?: string;
             stockoutWarn?: boolean;
+        };
+        UpsertDeviceSkuInventoryRequest: {
+            skuId?: string;
+            /** Format: int32 */
+            quantity?: number;
+            /** Format: int32 */
+            capacity?: number;
+            /** Format: int32 */
+            lowThreshold?: number;
         };
         UpdateDeviceSkuPriceRequest: {
             /** Format: int32 */
@@ -13905,6 +14097,7 @@ export interface components {
             deviceId?: string;
             deviceName?: string;
             deviceType?: string;
+            sceneType?: string;
             onlineStatus?: string;
             merchantId?: string;
             merchantName?: string;
@@ -13912,6 +14105,10 @@ export interface components {
             activeSessionState?: string;
             /** Format: date-time */
             updatedAt?: string;
+            /** Format: date-time */
+            lastOnlineAt?: string;
+            /** Format: date-time */
+            lastOfflineAt?: string;
             replenishmentInProgress?: boolean;
             refundPolicy?: string;
             effectiveRefundPolicy?: string;
@@ -13942,6 +14139,8 @@ export interface components {
             targetTempC?: number;
             firmwareVersion?: string;
             salesLockReason?: string;
+            /** Format: int32 */
+            signalStrength?: number;
             homeWarehouseId?: string;
         };
         ApiResponseAdminDeviceDto: {
@@ -13956,6 +14155,10 @@ export interface components {
             physicalQty?: number;
             adjustBookQty?: boolean;
             photoEvidenceUrl?: string;
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
         };
         ApiResponseDeviceSlotDto: {
             /** Format: int32 */
@@ -14292,6 +14495,12 @@ export interface components {
             message?: string;
             data?: components["schemas"]["ReplenishmentTaskLineDto"][];
         };
+        MerchantReplenishmentCompleteRequest: {
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+        };
         ApiResponseReplenishmentTaskDto: {
             /** Format: int32 */
             code?: number;
@@ -14313,6 +14522,10 @@ export interface components {
             deviceId?: string;
             notes?: string;
             lines?: components["schemas"]["MerchantSelfReplenishLine"][];
+        };
+        MerchantPasswordChangeRequest: {
+            oldPassword: string;
+            newPassword: string;
         };
         MerchantWxBindRequest: {
             code?: string;
@@ -14526,6 +14739,7 @@ export interface components {
         UpdateDeviceRequest: {
             deviceName?: string;
             deviceType?: string;
+            sceneType?: string;
             merchantId?: string;
             refundPolicy?: string;
             imei?: string;
@@ -18161,6 +18375,16 @@ export interface components {
             /** Format: date-time */
             changedAt?: string;
         };
+        ApiResponseListMerchantOrgDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantOrgDto"][];
+        };
+        MerchantOrgDto: {
+            merchantId?: string;
+            merchantName?: string;
+        };
         ApiResponsePageResultOrderReadModel_Merchant: {
             /** Format: int32 */
             code?: number;
@@ -18325,6 +18549,12 @@ export interface components {
             /** Format: double */
             longitude?: number;
             firmwareVersion?: string;
+            /** Format: int32 */
+            fillRatePct?: number;
+            /** Format: date-time */
+            lastCheckAt?: string;
+            /** Format: date-time */
+            lastRestockAt?: string;
         };
         ApiResponseListDeviceTemperatureReadingDto: {
             /** Format: int32 */
@@ -18338,6 +18568,20 @@ export interface components {
             tempC?: number;
             /** Format: date-time */
             reportedAt?: string;
+        };
+        ApiResponseMerchantDeviceSalesSummaryDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantDeviceSalesSummaryDto"];
+        };
+        MerchantDeviceSalesSummaryDto: {
+            /** Format: int64 */
+            todaySalesCents?: number;
+            /** Format: int64 */
+            todayOrders?: number;
+            /** Format: int64 */
+            monthSalesCents?: number;
         };
         ApiResponseMerchantGatherStatusDto: {
             /** Format: int32 */
@@ -20453,6 +20697,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
+                };
+            };
+        };
+    };
+    upsertDeviceSkuInventory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertDeviceSkuInventoryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceInventoryDto"];
                 };
             };
         };
@@ -27912,7 +28182,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MerchantReplenishmentCompleteRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -27971,6 +28245,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseReplenishmentTaskDto"];
+                };
+            };
+        };
+    };
+    passwordChange: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MerchantPasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
                 };
             };
         };
@@ -28169,6 +28467,61 @@ export interface operations {
             };
         };
     };
+    uploadStocktakeEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseFileAttachmentDto"];
+                };
+            };
+        };
+    };
+    stocktakeSlot_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotStocktakeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceSlotDto"];
+                };
+            };
+        };
+    };
     jiangyiGatherStart: {
         parameters: {
             query?: never;
@@ -28213,6 +28566,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    deviceCommand_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceOpsCommandRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceOpsCommandResultDto"];
                 };
             };
         };
@@ -34463,6 +34842,26 @@ export interface operations {
             };
         };
     };
+    orgs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMerchantOrgDto"];
+                };
+            };
+        };
+    };
     orders_1: {
         parameters: {
             query?: {
@@ -34474,6 +34873,7 @@ export interface operations {
                 to?: string;
                 keyword?: string;
                 excludeZero?: string;
+                merchantId?: string;
             };
             header?: never;
             path?: never;
@@ -34836,6 +35236,100 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListDeviceTemperatureReadingDto"];
+                };
+            };
+        };
+    };
+    tallyRecords_1: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                days?: number;
+            };
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResultTallyRecordRowDto"];
+                };
+            };
+        };
+    };
+    streamStocktakeEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    stocktakeEvents: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResultDeviceOpsEventDto"];
+                };
+            };
+        };
+    };
+    deviceSalesSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMerchantDeviceSalesSummaryDto"];
                 };
             };
         };
@@ -35960,6 +36454,29 @@ export interface operations {
             header?: never;
             path: {
                 dictDataId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    removeDeviceSkuInventory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+                skuId: string;
             };
             cookie?: never;
         };

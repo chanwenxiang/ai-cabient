@@ -159,6 +159,17 @@ public class MerchantDevicePortalService {
         return runWithDeviceSettingsLock(deviceId, () -> doUpdateDeviceSettings(userId, deviceId, request));
     }
 
+    /**
+     * CB-050 扩展：柜机扫码盘点（单货道实盘）。复用 admin 同一链路：
+     * opsPolicy 照片凭证强制 / 场景限额无关 / 账实差闭环不变；归属校验见 requireDeviceAccess。
+     */
+    public DeviceSlotDto stocktakeSlot(Long userId, String deviceId, SlotStocktakeRequest request) {
+        permissionService.requirePermission(userId, "merchant:slots:edit");
+        merchantPortalGuard.requireAccess(userId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
+        return deviceSlotService.stocktakeSlot(userId, deviceId, request);
+    }
+
     private MerchantDeviceSettingsDto doUpdateDeviceSettings(Long userId, String deviceId,
                                                            UpdateMerchantDeviceSettingsRequest request) {
         DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId)
@@ -365,7 +376,10 @@ public class MerchantDevicePortalService {
                 d.getSalesLockReason(),
                 d.getLatitude(),
                 d.getLongitude(),
-                d.getFirmwareVersion()
+                d.getFirmwareVersion(),
+                counts.fillRatePct(),
+                counts.lastCheckAt(),
+                counts.lastRestockAt()
         );
     }
 

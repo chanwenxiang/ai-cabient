@@ -146,11 +146,22 @@ public class MerchantReplenishmentService {
 
     @Transactional
     public ReplenishmentTaskDto completeTask(Long userId, Long taskId) {
+        return completeTask(userId, taskId, null);
+    }
+
+    /** CB-050 收尾：可选定位写入完成审计（证明到场，与盘点凭证定位同语义）。 */
+    @Transactional
+    public ReplenishmentTaskDto completeTask(Long userId, Long taskId,
+                                             com.aicabinet.common.dto.MerchantReplenishmentCompleteRequest location) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
         assertMerchantFieldCompletionGates(taskId);
         ReplenishmentTaskDto result = replenishmentService.completeTask(userId, taskId);
+        String locationDetail =
+                location != null && location.latitude() != null && location.longitude() != null
+                        ? String.format("；定位 %.6f,%.6f", location.latitude(), location.longitude())
+                        : "";
         auditService.appendLog(userId, "MERCHANT_REPLENISHMENT_COMPLETE", REPLENISHMENT_TASK,
-                String.valueOf(taskId), DEVICEID + task.getDeviceId());
+                String.valueOf(taskId), DEVICEID + task.getDeviceId() + locationDetail);
         return result;
     }
 

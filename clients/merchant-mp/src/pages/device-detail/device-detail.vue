@@ -37,6 +37,14 @@
               <template v-if="lifecycleLabel">{{ lifecycleLabel }}</template>
             </text>
             <text class="meta-line">当前 {{ currentTemp }} · 目标 {{ targetTemp }}</text>
+            <!-- CB-050：信息区扩展（场景/分配时间/最近上下线/信号强度），数据来自 deviceDetail 的 AdminDeviceDto -->
+            <text class="meta-line">设备编号 {{ deviceId }}</text>
+            <text v-if="sceneText" class="meta-line">投放场景 {{ sceneText }}</text>
+            <text v-if="assignedAtText" class="meta-line">分配时间 {{ assignedAtText }}</text>
+            <text class="meta-line"
+              >最近上线 {{ lastOnlineText }} · 最近离线 {{ lastOfflineText }}</text
+            >
+            <text v-if="signalText" class="meta-line">信号强度 {{ signalText }}</text>
             <text v-if="slotStockHint" class="meta-line stock-warn">{{ slotStockHint }}</text>
           </view>
           <text v-if="salesLocked" class="locked-banner"
@@ -62,21 +70,104 @@
               label="导航到柜"
               @click="openNav"
             />
-            <app-button
+          </view>
+        </view>
+
+        <!-- CB-050：KPI 条（今日销售额/今日订单量/本月销售额），无 analytics 权限整卡隐藏 -->
+        <view v-if="canAnalytics" class="card kpi-card">
+          <view class="kpi-item">
+            <text class="kpi-num">{{ todaySalesYuan }}</text>
+            <text class="kpi-label">今日销售额(元)</text>
+          </view>
+          <view class="kpi-item">
+            <text class="kpi-num">{{ todayOrdersText }}</text>
+            <text class="kpi-label">今日订单量</text>
+          </view>
+          <view class="kpi-item">
+            <text class="kpi-num">{{ monthSalesYuan }}</text>
+            <text class="kpi-label">本月销售额(元)</text>
+          </view>
+        </view>
+
+        <!-- CB-050：快捷操作宫格（收拢散落入口） -->
+        <view class="card">
+          <text class="section">快捷操作</text>
+          <view class="action-grid">
+            <view
+              class="action-cell"
+              role="button"
+              aria-label="查看在售商品"
+              @click="scrollToSlots"
+            >
+              <text>在售商品</text>
+            </view>
+            <view class="action-cell" role="button" aria-label="查看货柜订单" @click="goOrders">
+              <text>货柜订单</text>
+            </view>
+            <view
               v-if="canReplenishView"
+              class="action-cell"
+              role="button"
+              aria-label="查看补货任务"
+              @click="goReplenishment"
+            >
+              <text>补货任务</text>
+            </view>
+            <view
+              v-if="canRequest"
+              class="action-cell"
+              role="button"
+              aria-label="发起补货"
+              @click="goRequest"
+            >
+              <text>发起补货</text>
+            </view>
+            <view
+              v-if="canStocktake"
+              class="action-cell"
+              role="button"
+              aria-label="柜机盘点"
+              @click="goDeviceStocktake"
+            >
+              <text>柜机盘点</text>
+            </view>
+            <view class="action-cell" role="button" aria-label="理货记录" @click="goTallyRecords">
+              <text>理货记录</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- CB-050：设备控制（merchant:device:control；白名单 停售/恢复售卖/重启，指令留平台审计） -->
+        <view v-if="canControl" class="card">
+          <text class="section">设备控制</text>
+          <text class="meta">远程开门请走补货任务；指令将记入平台审计日志</text>
+          <view class="action-row">
+            <app-button
+              v-if="!salesLocked"
               class="app-btn-flex"
               :block="false"
               compact
-              label="补货任务"
-              @click="goReplenishment"
+              variant="danger"
+              :loading="cmdBusy"
+              label="停售"
+              @click="sendCmd('LOCK')"
             />
             <app-button
-              v-if="canRequest"
+              v-else
               class="app-btn-flex"
               :block="false"
               compact
-              label="发起补货"
-              @click="goRequest"
+              :loading="cmdBusy"
+              label="恢复售卖"
+              @click="sendCmd('UNLOCK')"
+            />
+            <app-button
+              class="app-btn-flex"
+              :block="false"
+              compact
+              :loading="cmdBusy"
+              label="重启柜机"
+              @click="sendCmd('REBOOT')"
             />
           </view>
         </view>
@@ -130,7 +221,7 @@
           />
         </view>
 
-        <view class="card">
+        <view id="slotCard" class="card">
           <view class="row">
             <text class="section">货道</text>
             <text v-if="!canEditSlots" class="meta">暂无货道编辑权限</text>
@@ -213,6 +304,7 @@ import {
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import { resolveMerchantIdForDevice } from '@/utils/device-settings';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
+import { formatDateTime } from '@aicabinet/shared-uni/format';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import type {
@@ -251,6 +343,17 @@ const slotPar = ref<Record<string, string>>({});
 const velocity = ref<MerchantSkuVelocity[]>([]);
 const isPreferred = ref(false);
 
+// CB-050：信息区扩展字段（来自 deviceDetail.device=AdminDeviceDto）+ KPI 汇总 + 设备控制
+const sceneType = ref('');
+const deployedAt = ref('');
+const lastOnlineAt = ref('');
+const lastOfflineAt = ref('');
+const signalStrength = ref<number | null>(null);
+const summary = ref<import('@aicabinet/shared-types').OpenApiMerchantDeviceSalesSummaryDto | null>(
+  null
+);
+const cmdBusy = ref(false);
+
 // 将邑采集模式（CB-023 商户端补充）：非将邑绑定柜机 bound=false → 卡片整体隐藏
 const jiangyiGather = ref({ bound: false, gatherLocked: false });
 const gatherDoorPosition = ref('');
@@ -281,6 +384,41 @@ const canEditSlots = computed(() => canEditPlanogramForMerchant(me.value, mercha
 const canReplenishView = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
 const canAnalytics = computed(() => hasPerm(me.value, 'merchant:analytics:view'));
+const canControl = computed(() => hasPerm(me.value, 'merchant:device:control'));
+const canStocktake = computed(() => hasPerm(me.value, 'merchant:slots:edit'));
+
+/** CB-050 扩展：快捷操作入口 */
+function goDeviceStocktake() {
+  uni.navigateTo({
+    url: `/pages/device-stocktake/device-stocktake?deviceId=${encodeURIComponent(deviceId.value)}`
+  });
+}
+function goTallyRecords() {
+  uni.navigateTo({
+    url: `/pages/tally-records/tally-records?deviceId=${encodeURIComponent(deviceId.value)}&name=${encodeURIComponent(deviceName.value)}`
+  });
+}
+
+const sceneText = computed(() =>
+  sceneType.value ? dictLabel('device_scene_type', sceneType.value) || sceneType.value : ''
+);
+const assignedAtText = computed(() => (deployedAt.value ? formatDateTime(deployedAt.value) : ''));
+const lastOnlineText = computed(() =>
+  lastOnlineAt.value ? formatDateTime(lastOnlineAt.value) : '无'
+);
+const lastOfflineText = computed(() =>
+  lastOfflineAt.value ? formatDateTime(lastOfflineAt.value) : '无'
+);
+const SIGNAL_LABELS = ['无信号', '很弱', '一般', '好', '很好'];
+const signalText = computed(() => {
+  const v = signalStrength.value;
+  if (v == null || v < 0 || v > 4) return '';
+  return SIGNAL_LABELS[v];
+});
+const fenToYuanText = (cents?: number | null) => (cents == null ? '--' : (cents / 100).toFixed(2));
+const todaySalesYuan = computed(() => fenToYuanText(summary.value?.todaySalesCents));
+const todayOrdersText = computed(() => (summary.value ? String(summary.value.todayOrders) : '--'));
+const monthSalesYuan = computed(() => fenToYuanText(summary.value?.monthSalesCents));
 
 /**
  * deviceId 缺失属于「入口参数问题」，不是网络故障：
@@ -376,7 +514,7 @@ async function loadDeviceExtras(seq: number) {
   // 「无权限=不展示」：无 analytics:view 时不发 velocity 请求（避免控制台 403 噪音）
   const allowVelocity = hasPerm(me.value, 'merchant:analytics:view');
   // 采集状态只读权限 = 柜机详情权限（canView 已在此处为真）；非将邑柜机接口回 404 → 软兜底隐藏
-  const [list, vel, gather] = await Promise.all([
+  const [list, vel, gather, detail, kpi] = await Promise.all([
     softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[], '货道'),
     allowVelocity
       ? softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
@@ -388,14 +526,85 @@ async function loadDeviceExtras(seq: number) {
         gatherLocked: false
       } as import('@aicabinet/shared-types').OpenApiMerchantGatherStatusDto,
       '采集状态'
-    )
+    ),
+    // CB-050：详情 device（AdminDeviceDto）带场景/分配时间/最近上下线/信号强度
+    softFallback(
+      merchantApi.deviceDetail(deviceId.value),
+      null as import('@aicabinet/shared-types').OpenApiDeviceDetailDto | null,
+      '详情'
+    ),
+    allowVelocity
+      ? softFallback(
+          merchantApi.deviceSalesSummary(deviceId.value),
+          null as import('@aicabinet/shared-types').OpenApiMerchantDeviceSalesSummaryDto | null,
+          '销售汇总'
+        )
+      : Promise.resolve(
+          null as import('@aicabinet/shared-types').OpenApiMerchantDeviceSalesSummaryDto | null
+        )
   ]);
   if (seq !== loadSeq) return;
   slots.value = list;
   velocity.value = vel;
   jiangyiGather.value = { bound: !!gather.bound, gatherLocked: !!gather.gatherLocked };
+  const deviceFields = (detail as { device?: { [k: string]: unknown } } | null)?.device;
+  if (deviceFields) {
+    sceneType.value = String(deviceFields.sceneType || '');
+    deployedAt.value = String(deviceFields.deployedAt || '');
+    lastOnlineAt.value = String(deviceFields.lastOnlineAt || '');
+    lastOfflineAt.value = String(deviceFields.lastOfflineAt || '');
+    signalStrength.value =
+      deviceFields.signalStrength == null ? null : Number(deviceFields.signalStrength);
+  }
+  if (kpi) summary.value = kpi;
   applySlotParLevels(list);
   syncPreferredFlag();
+}
+
+/** CB-050：设备控制指令（停售/恢复售卖/重启）。二次确认后下发，成功后整页刷新以服务端为准。 */
+async function sendCmd(command: 'LOCK' | 'UNLOCK' | 'REBOOT') {
+  if (cmdBusy.value) return;
+  const copy: Record<string, { title: string; content: string }> = {
+    LOCK: { title: '停售锁机', content: '停售后消费者无法开门购物；补货不受影响。确认执行？' },
+    UNLOCK: { title: '恢复售卖', content: '恢复后消费者可正常开门购物。确认执行？' },
+    REBOOT: { title: '重启柜机', content: '重启期间柜机短暂离线，确认下发？' }
+  };
+  const c = copy[command];
+  const ok = await askConfirm({ title: c.title, content: c.content, confirmText: '确认下发' });
+  if (!ok) return;
+  cmdBusy.value = true;
+  try {
+    const res = await merchantApi.deviceCommand(deviceId.value, {
+      command,
+      reason: 'merchant-portal'
+    });
+    showSuccess(res.message || '指令已下发');
+    await loadDetail();
+  } catch (e) {
+    showError(e instanceof Error ? e.message : '指令下发失败');
+  } finally {
+    cmdBusy.value = false;
+  }
+}
+
+/** 快捷操作：滚到货道（在售商品）卡 */
+function scrollToSlots() {
+  uni
+    .createSelectorQuery()
+    .select('#slotCard')
+    .boundingClientRect((rect) => {
+      const top = (rect as { top?: number } | null)?.top;
+      if (top == null) return;
+      uni.pageScrollTo({ scrollTop: top + 2, duration: 200 });
+    })
+    .exec();
+}
+
+/** 快捷操作：跳货柜订单（订单页支持 deviceId 预置筛选） */
+function goOrders() {
+  uni.navigateTo({
+    url: `/pages/orders/orders?deviceId=${encodeURIComponent(deviceId.value)}`
+  });
 }
 
 /**
@@ -818,5 +1027,43 @@ async function saveSlots() {
 /* 保存货道与货道网格的间距：margin 写在自定义组件标签上小程序端不生效，改用页面容器 */
 .slot-save-row {
   padding-top: 24rpx;
+}
+/* CB-050：KPI 条与快捷操作宫格 */
+.kpi-card {
+  display: flex;
+  align-items: stretch;
+}
+.kpi-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4rpx;
+}
+.kpi-num {
+  font-size: 36rpx;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-label {
+  font-size: 22rpx;
+  color: var(--color-text-secondary, #909399);
+}
+.action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 12rpx;
+}
+.action-cell {
+  flex: 1 1 40%;
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid var(--color-border, #ebeef5);
+  border-radius: 12rpx;
+  background: var(--color-fill, #f7f8fa);
+  font-size: 28rpx;
 }
 </style>

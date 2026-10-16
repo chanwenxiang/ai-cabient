@@ -34,19 +34,22 @@ public class OpsCatalogAdminService {
     private final UserInfoMapper userInfoRepository;
     private final AdminAuditService auditService;
     private final FileAttachmentService fileAttachmentService;
+    private final SkuSceneLimitService skuSceneLimitService;
 
     public OpsCatalogAdminService(PermissionService permissionService,
                                   SkuCatalogMapper skuCatalogRepository,
                                   AliyunCategoryMappingMapper aliyunCategoryMappingRepository,
                                   UserInfoMapper userInfoRepository,
                                   AdminAuditService auditService,
-                                  FileAttachmentService fileAttachmentService) {
+                                  FileAttachmentService fileAttachmentService,
+                                  SkuSceneLimitService skuSceneLimitService) {
         this.permissionService = permissionService;
         this.skuCatalogRepository = skuCatalogRepository;
         this.aliyunCategoryMappingRepository = aliyunCategoryMappingRepository;
         this.userInfoRepository = userInfoRepository;
         this.auditService = auditService;
         this.fileAttachmentService = fileAttachmentService;
+        this.skuSceneLimitService = skuSceneLimitService;
     }
 
     public List<SkuCatalogDto> listSkus(Long operatorId) {
@@ -79,7 +82,12 @@ public class OpsCatalogAdminService {
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 500);
         var result = skuCatalogRepository.search(q, status, category, operationScope, p, s);
-        List<SkuCatalogDto> items = result.getRecords().stream().map(SkuCatalog::toDto).toList();
+        // 商品×场景限额批量回填（CB-049 扩展）：一查全量，避免 N+1
+        var limits = skuSceneLimitService.limitsBySku(
+                result.getRecords().stream().map(SkuCatalog::getSkuId).toList());
+        List<SkuCatalogDto> items = result.getRecords().stream()
+                .map(sku -> sku.toDto(limits.get(sku.getSkuId())))
+                .toList();
         return new PageResult<>(items, p, s, result.getTotal());
     }
 
@@ -100,9 +108,12 @@ public class OpsCatalogAdminService {
             sku.setCreatedAt(Instant.now());
         }
         skuCatalogRepository.save(sku);
+        // 商品×场景限额（CB-049 扩展）：新建必须至少配一个场景；整单替换
+        skuSceneLimitService.validateRequestItems(request.sceneLimits());
+        skuSceneLimitService.replaceLimits(sku.getSkuId(), request.sceneLimits());
         auditService.appendLog(operatorId, "SKU_CREATE", "SKU", sku.getSkuId(),
                 "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
-        return sku.toDto();
+        return sku.toDto(request.sceneLimits());
     }
 
     @Transactional
@@ -118,13 +129,18 @@ public class OpsCatalogAdminService {
         syncSkuCategoryId(sku);
         touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
+        // 编辑路径：sceneLimits=null = 未提供（CSV 导入等局部更新）→ 保留既有限额；
+        // 非 null（含空数组）= 整单替换（空数组被 validateRequestItems 拒绝，场景不可清空）
+        if (request.sceneLimits() != null) {
+            skuSceneLimitService.replaceLimits(sku.getSkuId(), request.sceneLimits());
+        }
         String newImageUrl = trimToNull(request.imageUrl());
         if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
             fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl);
         }
         auditService.appendLog(operatorId, "SKU_UPDATE", "SKU", sku.getSkuId(),
                 "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
-        return sku.toDto();
+        return sku.toDto(request.sceneLimits());
     }
 
     private void assertBarcodeUnique(String barcode, String excludeSkuId) {

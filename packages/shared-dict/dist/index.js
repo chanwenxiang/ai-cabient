@@ -109,7 +109,14 @@ export const DICT = {
         HIGH: '高',
         URGENT: '紧急'
     },
-    pay_channel: { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '其他', BALANCE: '余额', UNKNOWN: '未知' },
+    pay_channel: {
+        WECHAT: '微信',
+        ALIPAY: '支付宝',
+        PAYSCORE: '微信支付分',
+        MOCK: '其他',
+        BALANCE: '余额',
+        UNKNOWN: '未知'
+    },
     /** 手机验证流水 · 验证渠道（与 pay_channel 不同，含 SMS 等） */
     verify_channel: {
         SMS: '短信验证码',
@@ -209,6 +216,18 @@ export const DICT = {
         SELF: '自营',
         FRANCHISE: '加盟',
         CONSIGN: '联营'
+    },
+    // 投放场景（CB-049）：设备档案打标，同行把场景当运营第一分类维度；空=未分类
+    device_scene_type: {
+        OFFICE: '写字楼/办公室',
+        CAMPUS: '校园',
+        FACTORY: '工厂',
+        HOSPITAL: '医院',
+        TRANSIT: '交通枢纽',
+        MALL: '商场',
+        RESIDENCE: '社区/公寓',
+        HOTEL: '酒店',
+        GYM: '健身房'
     },
     repair_ticket_status: {
         OPEN: '待处理',

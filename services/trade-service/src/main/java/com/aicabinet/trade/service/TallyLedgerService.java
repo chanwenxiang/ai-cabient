@@ -39,11 +39,13 @@ public class TallyLedgerService {
         int safeSize = Math.min(Math.max(size, 1), 100);
         int window = Math.min(Math.max(days, 1), 365);
         Instant since = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
+        // JDBC 驱动无法推断 Instant 类型（Can't infer the SQL type），统一转 Timestamp
+        java.sql.Timestamp sinceTs = java.sql.Timestamp.from(since);
 
         StringBuilder where = new StringBuilder(
                 " WHERE t.created_at >= ? AND COALESCE(t.assignee_user_id, 0) > 0");
         List<Object> args = new ArrayList<>();
-        args.add(since);
+        args.add(sinceTs);
         if (deviceId != null && !deviceId.isBlank()) {
             where.append(" AND t.device_id = ?");
             args.add(deviceId.trim());
@@ -80,7 +82,9 @@ public class TallyLedgerService {
                 (Integer) rs.getObject("quantity"),
                 rs.getString("slot_id"),
                 (Boolean) rs.getObject("applied"),
-                rs.getObject("completed_at", Instant.class)
+                rs.getTimestamp("completed_at") == null
+                        ? null
+                        : rs.getTimestamp("completed_at").toInstant()
         ), args.toArray());
         return new PageResult<>(rows, safePage, safeSize, total == null ? 0 : total);
     }

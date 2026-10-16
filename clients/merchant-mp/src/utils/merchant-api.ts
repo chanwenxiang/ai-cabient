@@ -480,6 +480,11 @@ export const merchantApi = {
     ),
   devices: () =>
     request<import('@aicabinet/shared-types').MerchantDeviceInfo[]>(MerchantEndpoints.devices),
+  /** CB-050：柜机完整详情（DeviceDetailDto=device+metrics+slots+inventory） */
+  deviceDetail: (id: string) =>
+    request<import('@aicabinet/shared-types').OpenApiDeviceDetailDto>(
+      MerchantEndpoints.deviceDetail(id)
+    ),
   deviceSettings: (id: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDeviceSettingsDto>(
       MerchantEndpoints.deviceSettings(id)
@@ -497,6 +502,46 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').DeviceSlot[]>(MerchantEndpoints.deviceSlots(id)),
   upsertSlots: (id: string, body: import('@aicabinet/shared-types').UpsertDeviceSlotRequest[]) =>
     request(MerchantEndpoints.deviceSlots(id), 'PUT', body),
+  /** CB-050 扩展：柜机扫码盘点（单货道实盘；凭证 URL 可选，按商户 ops-policy 强制） */
+  deviceSlotStocktake: (id: string, body: import('@aicabinet/shared-types').SlotStocktakeRequest) =>
+    request<import('@aicabinet/shared-types').DeviceSlot>(
+      MerchantEndpoints.deviceSlotStocktake(id),
+      'POST',
+      body
+    ),
+  /** CB-050 扩展：柜机盘点凭证上传（返回附件含 url，回填盘点请求 photoEvidenceUrl） */
+  uploadDeviceStocktakeEvidenceFile: (deviceId: string, filePath: string) =>
+    uploadMerchantAuthedFile(
+      merchantAbsUrl(MerchantEndpoints.deviceStocktakeEvidence(deviceId)),
+      filePath
+    ),
+  /** CB-050 扩展：理货记录-配货（补货任务行粒度） */
+  deviceTallyRecords: (id: string, page = 0, size = 20, days = 30) =>
+    request<import('@aicabinet/shared-types').OpenApiPageResultTallyRecordRowDto>(
+      MerchantEndpoints.deviceTallyRecords(id, page, size, days)
+    ),
+  /** CB-050 扩展：理货记录-盘点（AISLE_AUDIT 事件流） */
+  deviceStocktakeEvents: (id: string, page = 0, size = 20) =>
+    request<import('@aicabinet/shared-types').OpenApiPageResultDeviceOpsEventDto>(
+      MerchantEndpoints.deviceStocktakeEvents(id, page, size)
+    ),
+  /** CB-050 扩展：可切换组织列表（绑定商户 + 下级树） */
+  orgs: () => request<import('@aicabinet/shared-types').MerchantOrgDto[]>(MerchantEndpoints.orgs),
+  /** CB-050 扩展：自助改密（携带当前密码） */
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request(MerchantEndpoints.merchantPasswordChange, 'POST', { oldPassword, newPassword }),
+  /** CB-050：柜机详情 KPI 汇总（今日销售额/今日订单量/本月销售额） */
+  deviceSalesSummary: (id: string) =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantDeviceSalesSummaryDto>(
+      MerchantEndpoints.deviceSalesSummary(id)
+    ),
+  /** CB-050：设备控制指令（merchant:device:control，白名单 LOCK/UNLOCK/REBOOT） */
+  deviceCommand: (id: string, body: { command: string; reason?: string }) =>
+    request<import('@aicabinet/shared-types').OpenApiDeviceOpsCommandResultDto>(
+      MerchantEndpoints.deviceCommand(id),
+      'POST',
+      body
+    ),
   jiangyiGatherStatus: (id: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantGatherStatusDto>(
       MerchantEndpoints.jiangyiGatherStatus(id)
@@ -804,10 +849,15 @@ export const merchantApi = {
       'POST',
       { lines } satisfies import('@aicabinet/shared-types').OpenApiSubmitReplenishmentLinesRequest
     ),
-  completeReplenishmentTask: (taskId: number) =>
+  completeReplenishmentTask: (
+    taskId: number,
+    /** CB-050 收尾：可选定位（证明到场，与盘点凭证定位同语义；后端写入完成审计） */
+    location?: { latitude?: number; longitude?: number }
+  ) =>
     request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto>(
       MerchantEndpoints.replenishmentTaskComplete(taskId),
-      'POST'
+      'POST',
+      location && (location.latitude != null || location.longitude != null) ? location : undefined
     ),
   listReplenishmentEvidence: (taskId: number) =>
     request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
@@ -902,9 +952,21 @@ export const merchantApi = {
       excludeZero?: boolean | number | string;
       page?: number;
       size?: number;
+      /** CB-050 收尾：切换组织上下文——按所选商户收窄订单（后端按其设备集过滤） */
+      merchantId?: string;
     } = {}
   ) => {
-    const { deviceId, status, from, to, keyword, excludeZero, page = 0, size = 50 } = opts;
+    const {
+      deviceId,
+      status,
+      from,
+      to,
+      keyword,
+      excludeZero,
+      page = 0,
+      size = 50,
+      merchantId
+    } = opts;
     return request<
       import('@aicabinet/shared-types').PageResult<
         import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant
@@ -918,7 +980,8 @@ export const merchantApi = {
         from,
         to,
         keyword,
-        excludeZero: excludeZero ? 1 : undefined
+        excludeZero: excludeZero ? 1 : undefined,
+        merchantId: merchantId || undefined
       })
     );
   },

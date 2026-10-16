@@ -234,6 +234,33 @@ export type OpenApiMerchantDeviceSettingsDto =
 export type OpenApiUpdateMerchantDeviceSettingsRequest =
   import('./generated/openapi').components['schemas']['UpdateMerchantDeviceSettingsRequest'];
 
+/** 柜机详情 KPI 汇总（`GET .../devices/{id}/sales-summary`，CB-050） */
+export type OpenApiMerchantDeviceSalesSummaryDto =
+  import('./generated/openapi').components['schemas']['MerchantDeviceSalesSummaryDto'];
+
+/** 柜机完整详情（`GET .../devices/{id}`，device=AdminDeviceDto 含场景/上下线时间/信号强度） */
+export type OpenApiDeviceDetailDto =
+  import('./generated/openapi').components['schemas']['DeviceDetailDto'];
+
+/** 设备控制指令结果（`POST .../devices/{id}/commands`，CB-050 商户端白名单 LOCK/UNLOCK/REBOOT） */
+export type OpenApiDeviceOpsCommandResultDto =
+  import('./generated/openapi').components['schemas']['DeviceOpsCommandResultDto'];
+
+/** 柜机扫码盘点请求（`POST .../devices/{id}/slots/stocktake`，CB-050 扩展） */
+export type SlotStocktakeRequest =
+  import('./generated/openapi').components['schemas']['SlotStocktakeRequest'];
+
+/** 理货记录-配货分页（CB-050 扩展） */
+export type OpenApiPageResultTallyRecordRowDto =
+  import('./generated/openapi').components['schemas']['PageResultTallyRecordRowDto'];
+
+/** 理货记录-盘点分页（AISLE_AUDIT 事件，CB-050 扩展） */
+export type OpenApiPageResultDeviceOpsEventDto =
+  import('./generated/openapi').components['schemas']['PageResultDeviceOpsEventDto'];
+
+/** 可切换组织（绑定商户 + 下级树，CB-050 扩展） */
+export type MerchantOrgDto = import('./generated/openapi').components['schemas']['MerchantOrgDto'];
+
 /** 将邑采集模式状态（`GET .../devices/{id}/jiangyi/gather/status`，CB-023 商户端补充）：
  * bound=false 表示非将邑绑定柜机（前端隐藏入口），gatherLocked=true 表示营业开门已被 409 闸断 */
 export type OpenApiMerchantGatherStatusDto =
@@ -524,6 +551,14 @@ export interface SkuCatalog {
   updatedByName?: string;
   /** 经营归属（V349 字典 sku_operation_scope：DIRECT/NON_DIRECT；空=未分类，CB-036） */
   operationScope?: string;
+  /** 商品×场景上架限额（CB-049 扩展）：admin 读路径回填；其他消费方缺省 */
+  sceneLimits?: SkuSceneLimitItem[];
+}
+
+/** 商品×场景上架限额条目（CB-049 扩展） */
+export interface SkuSceneLimitItem {
+  sceneType: string;
+  maxQty: number;
 }
 
 /** 商品条码官方资料查询结果（CB-025，编码中心注册库聚合接口） */
@@ -567,6 +602,8 @@ export interface UpsertSkuRequest {
   detectionMinConfidence?: number;
   /** 经营归属（V349 字典 sku_operation_scope）；空=未分类 */
   operationScope?: string;
+  /** 商品×场景上架限额（CB-049 扩展）：整单替换；新建必须非空，编辑 null=保留原限额 */
+  sceneLimits?: SkuSceneLimitItem[];
   /** 只读；写入时服务端忽略 */
   skuCode?: number;
 }

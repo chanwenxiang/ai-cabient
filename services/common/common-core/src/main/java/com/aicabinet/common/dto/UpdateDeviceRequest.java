@@ -3,6 +3,8 @@ package com.aicabinet.common.dto;
 public record UpdateDeviceRequest(
         String deviceName,
         String deviceType,
+        /** 投放场景（CB-049）：OFFICE/CAMPUS/...；null=不改，空串=清除 */
+        String sceneType,
         String merchantId,
         /** AUTO_REFUND | DISPUTE_ONLY | INHERIT(清空覆盖，跟随全局) */
         String refundPolicy,
@@ -25,10 +27,13 @@ public record UpdateDeviceRequest(
         String homeWarehouseId
 ) {
     public UpdateDeviceRequest(String deviceName, String deviceType, String merchantId) {
-        this(deviceName, deviceType, merchantId, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        // 19 参：deviceName, deviceType, sceneType=null, merchantId, refundPolicy, imei, assetOwner,
+        // coopMode, depositCents, dataFeeCents, rentCents, rentStartYm, opsTags, routeCode,
+        // lifecycleRemark, latitude, longitude, address, homeWarehouseId
+        this(deviceName, deviceType, null, merchantId, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public UpdateDeviceRequest(String deviceName, String deviceType, String merchantId, String refundPolicy) {
-        this(deviceName, deviceType, merchantId, refundPolicy, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(deviceName, deviceType, null, merchantId, refundPolicy, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

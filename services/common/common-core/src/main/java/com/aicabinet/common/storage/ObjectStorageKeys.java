@@ -101,6 +101,18 @@ public final class ObjectStorageKeys {
                 Locale.ROOT, "stocktake-evidence/%s/stocktake-%d/user-%d/%s%s", date, stocktakeId, userId, token, ext);
     }
 
+    /** 柜机扫码盘点凭证（CB-050 扩展）：按柜机归档，url 回填 photoEvidenceUrl。 */
+    public static String deviceStocktakeEvidenceKey(String deviceId, long userId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(
+                Locale.ROOT, "device-stocktake-evidence/%s/%s/user-%d/%s%s",
+                date, sanitize(deviceId, "device"), userId, token, ext);
+    }
+
     /** 商品主图（运营后台上传）。 */
     public static String skuImageKey(long operatorId, String fileToken, String extension) {
         ZonedDateTime zdt = Instant.now().atZone(ZONE);

@@ -30,14 +30,15 @@ class DeviceIdServiceTest {
     }
 
     @Test
-    void allocateRandomDeviceId_returnsTwelveDigits() {
+    void allocateRandomDeviceId_returnsEgPrefixedStandardId() {
         when(distributedLockService.tryLock("device:id:allocate", 30L, 5L)).thenReturn(true);
         when(deviceRepository.selectById(anyString())).thenReturn(null);
 
         DeviceIdService service = new DeviceIdService(deviceRepository, distributedLockService);
         String id = service.resolveForCreate(null);
 
-        assertTrue(DeviceIdService.isStandardDeviceId(id));
+        assertTrue(DeviceIdService.isStandardDeviceId(id), "generated id should be standard: " + id);
+        assertTrue(id.startsWith("EG") && id.length() == 14, "id should be EG+12 digits: " + id);
         verify(distributedLockService).unlock("device:id:allocate");
     }
 }

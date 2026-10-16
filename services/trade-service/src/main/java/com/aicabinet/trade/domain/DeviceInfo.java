@@ -25,10 +25,16 @@ public class DeviceInfo {
 
     private String deviceType;
 
+    /** 投放场景（CB-049）：OFFICE/CAMPUS/... 取值见 shared-dict device_scene_type；空=未分类 */
+    private String sceneType;
+
     private String onlineStatus;
 
     /** 最近一次恢复在线的时间（离线时置空），用于稳定在线自动解锁 */
     private Instant onlineSince;
+
+    /** 最近离线时间（CB-049 扩展：离线巡检/WS 断开写入；展示用） */
+    private Instant lastOfflineAt;
 
     private String appVersion;
 

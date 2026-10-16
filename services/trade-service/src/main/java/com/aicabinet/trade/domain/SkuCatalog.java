@@ -89,6 +89,11 @@ public class SkuCatalog {
     private String operationScope;
 
     public SkuCatalogDto toDto() {
+        return toDto(null);
+    }
+
+    /** admin 读路径用：带商品×场景上架限额（CB-049 扩展）；其他消费方传 null。 */
+    public SkuCatalogDto toDto(java.util.List<com.aicabinet.common.dto.SkuSceneLimitItem> sceneLimits) {
         return new SkuCatalogDto(
                 skuId,
                 skuCode,
@@ -117,7 +122,8 @@ public class SkuCatalog {
                 createdAt,
                 updatedByUserId,
                 updatedByName,
-                operationScope
+                operationScope,
+                sceneLimits
         );
     }
 

@@ -50,6 +50,8 @@ public class FileAttachmentService {
     public static final String REF_DISPUTE = "DISPUTE";
     public static final String REF_REPLENISHMENT = "REPLENISHMENT_TASK";
     public static final String REF_STOCKTAKE = "STOCKTAKE";
+    /** CB-050 扩展：柜机扫码盘点凭证（refId=deviceId，url 回填 photoEvidenceUrl） */
+    public static final String REF_DEVICE_STOCKTAKE = "DEVICE_STOCKTAKE";
     public static final String REF_SKU_IMAGE = "SKU_IMAGE";
     public static final String REF_OPS_AVATAR = "OPS_AVATAR";
     public static final String REF_OPS_BRAND_LOGO = "OPS_BRAND_LOGO";
@@ -351,6 +353,66 @@ public class FileAttachmentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "附件不存在");
         }
         return row;
+    }
+
+    /** CB-050 扩展：校验附件确属该柜机的盘点凭证（refType+refId 双匹配）。 */
+    @Transactional(readOnly = true)
+    public FileAttachment requireDeviceStocktakeEvidence(String deviceId, Long fileId) {
+        FileAttachment row = fileAttachmentMapper.selectById(fileId);
+        if (row == null
+                || !REF_DEVICE_STOCKTAKE.equals(row.getRefType())
+                || !deviceId.equals(row.getRefId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "附件不存在");
+        }
+        return row;
+    }
+
+    /**
+     * CB-050 扩展：柜机扫码盘点凭证（refType=DEVICE_STOCKTAKE，refId=deviceId）。
+     * 返回带 url 的附件（运营台可回看）；url 由商户端填入盘点请求 photoEvidenceUrl。
+     */
+    @Transactional
+    public FileAttachmentDto uploadDeviceStocktakeEvidence(Long userId, String deviceId, MultipartFile file) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
+        }
+        if (deviceId == null || deviceId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "柜机不存在");
+        }
+        long existing = fileAttachmentMapper.findByRef(REF_DEVICE_STOCKTAKE, deviceId).size();
+        if (existing >= MAX_EVIDENCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最多上传 " + MAX_EVIDENCE + " 张盘点照片");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择图片");
+        }
+        if (file.getSize() > MAX_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "单张图片不能超过 5MB");
+        }
+        String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
+        if (!ALLOWED_TYPES.contains(contentType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
+        }
+        byte[] bytes = readAndStripImageBytes(file, contentType);
+        String sha = sha256Hex(bytes);
+        String ext = extensionFor(contentType, file.getOriginalFilename());
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String objectKey = com.aicabinet.common.storage.ObjectStorageKeys.deviceStocktakeEvidenceKey(
+                deviceId, userId, token, ext);
+        String storagePath = storeOrReuse(sha, objectKey, bytes, contentType);
+        FileAttachment row = new FileAttachment();
+        row.setRefType(REF_DEVICE_STOCKTAKE);
+        row.setRefId(deviceId);
+        row.setFileName(safeName(file.getOriginalFilename(), token + ext));
+        row.setFileSize((long) bytes.length);
+        row.setContentType(contentType);
+        row.setStoragePath(storagePath);
+        row.setStorageBucket(storagePath.startsWith(MINIO) ? minioProperties.bucket() : LOCAL);
+        row.setContentSha256(sha);
+        row.setUploadedBy(userId);
+        row.setCreatedAt(Instant.now());
+        fileAttachmentMapper.insert(row);
+        return toDto(row);
     }
 
     @Transactional
@@ -688,6 +750,8 @@ public class FileAttachmentService {
         String url;
         if (REF_REPLENISHMENT.equals(row.getRefType())) {
             url = "/api/v2/merchant/replenishment/tasks/" + row.getRefId() + "/evidence/" + row.getFileId();
+        } else if (REF_DEVICE_STOCKTAKE.equals(row.getRefType())) {
+            url = "/api/v2/merchant/devices/" + row.getRefId() + "/stocktake-evidence/" + row.getFileId();
         } else if (REF_SKU_IMAGE.equals(row.getRefType())) {
             url = "/api/v2/media/sku-images/" + row.getFileId();
         } else if (REF_OPS_AVATAR.equals(row.getRefType())) {

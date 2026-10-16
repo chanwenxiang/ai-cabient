@@ -70,6 +70,10 @@ public class MerchantPortalService {
     private final DisputeService disputeService;
     private final MerchantWorkbenchQueryService workbenchQueryService;
     private final MerchantDevicePortalService devicePortalService;
+    /** CB-050 扩展：理货记录（补货/配货明细只读聚合） */
+    private final TallyLedgerService tallyLedgerService;
+    /** CB-050 扩展：柜机盘点凭证上传/回看 */
+    private final FileAttachmentService fileAttachmentService;
     private final MerchantInventoryPortalService inventoryPortalService;
     private final MerchantTeamAdminService teamAdminService;
     private final SystemConfigService systemConfigService;
@@ -113,6 +117,8 @@ public class MerchantPortalService {
                                  @Lazy DisputeService disputeService,
                                  MerchantWorkbenchQueryService workbenchQueryService,
                                  MerchantDevicePortalService devicePortalService,
+                                 TallyLedgerService tallyLedgerService,
+                                 FileAttachmentService fileAttachmentService,
                                  MerchantInventoryPortalService inventoryPortalService,
                                  MerchantTeamAdminService teamAdminService,
                                  SystemConfigService systemConfigService,
@@ -154,6 +160,8 @@ public class MerchantPortalService {
         this.disputeService = disputeService;
         this.workbenchQueryService = workbenchQueryService;
         this.devicePortalService = devicePortalService;
+        this.tallyLedgerService = tallyLedgerService;
+        this.fileAttachmentService = fileAttachmentService;
         this.inventoryPortalService = inventoryPortalService;
         this.teamAdminService = teamAdminService;
         this.systemConfigService = systemConfigService;
@@ -242,7 +250,73 @@ public class MerchantPortalService {
         return workbenchQueryService.getWorkbench(userId);
     }
 
+    /**
+     * CB-050 扩展：可切换组织列表（绑定商户 + 下级商户树）。
+     * 后端数据本就按 allowedMerchantIds 全树放行，切换为前端上下文过滤（存储所选 merchantId）。
+     */
     @Transactional(readOnly = true)
+    public List<MerchantOrgDto> orgs(Long userId) {
+        merchantPortalGuard.requireAccess(userId);
+        Set<String> ids = merchantScopeService.allowedMerchantIds(userId);
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        Map<String, String> names = merchantRepository.findAll().stream()
+                .collect(Collectors.toMap(
+                        Merchant::getMerchantId,
+                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
+                                m.getMerchantId(), m.getMerchantName()),
+                        (a, b) -> a));
+        return ids.stream()
+                .map(id -> new MerchantOrgDto(id, names.getOrDefault(id, id)))
+                .sorted(java.util.Comparator.comparing(MerchantOrgDto::merchantName))
+                .toList();
+    }
+
+    /** CB-050 扩展：柜机盘点凭证上传（refType=DEVICE_STOCKTAKE，返回 url 回填 photoEvidenceUrl）。 */
+    public FileAttachmentDto uploadStocktakeEvidence(Long userId, String deviceId,
+                                                     org.springframework.web.multipart.MultipartFile file) {
+        permissionService.requirePermission(userId, "merchant:slots:edit");
+        merchantPortalGuard.requireAccess(userId);
+        return fileAttachmentService.uploadDeviceStocktakeEvidence(userId, deviceId, file);
+    }
+
+    /** CB-050 扩展：柜机盘点凭证回看（流式）。 */
+    public void streamStocktakeEvidence(Long userId, String deviceId, Long fileId,
+                                        jakarta.servlet.http.HttpServletResponse response)
+            throws java.io.IOException {
+        permissionService.requirePermission(userId, "merchant:devices:detail");
+        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        fileAttachmentService.stream(
+                fileAttachmentService.requireDeviceStocktakeEvidence(deviceId, fileId), response);
+    }
+
+    /** CB-050 扩展：柜机扫码盘点（单货道实盘，复用 admin 链路：照片凭证强制/账实差闭环不变）。 */
+    public DeviceSlotDto stocktakeSlot(Long userId, String deviceId, SlotStocktakeRequest request) {
+        return devicePortalService.stocktakeSlot(userId, deviceId, request);
+    }
+
+    /** CB-050 扩展：理货记录-配货（补货任务行粒度只读聚合，TallyLedgerService）。 */
+    @Transactional(readOnly = true)
+    public PageResult<TallyRecordRowDto> tallyRecords(Long userId, String deviceId,
+                                                      int page, int size, int days) {
+        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        return tallyLedgerService.ledger(page, size, deviceId, null, days);
+    }
+
+    /**
+     * CB-050 扩展：理货记录-盘点（AISLE_AUDIT 运维事件，盘点时写入）。
+     * 不加 readOnly：dev mock 允许列表为空时补演示事件（写库），readOnly 事务会炸 INSERT。
+     */
+    @Transactional
+    public PageResult<DeviceOpsEventDto> stocktakeEvents(Long userId, String deviceId,
+                                                         int page, int size) {
+        permissionService.requirePermission(userId, "merchant:devices:detail");
+        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        return competitiveGapService.listDeviceOpsEvents(userId, "AISLE_AUDIT", null, deviceId, page, size, false);
+    }
+
     public List<MerchantDeviceDto> listDevices(Long userId) {
         return devicePortalService.listDevices(userId);
     }
@@ -290,8 +364,22 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public PageResult<OrderReadModel> listOrders(Long userId, int page, int size, String deviceId) {
+        return listOrders(userId, page, size, deviceId, null);
+    }
+
+    /** CB-050 收尾：切换组织上下文——merchantId 非空时按该商户设备集收窄订单。 */
+    @Transactional(readOnly = true)
+    public PageResult<OrderReadModel> listOrders(Long userId, int page, int size, String deviceId,
+                                                 String merchantId) {
+        java.util.Collection<String> restrictDeviceIds = null;
+        if (merchantId != null && !merchantId.isBlank()) {
+            restrictDeviceIds = deviceRepository.findByMerchantIdIn(java.util.List.of(merchantId.trim()))
+                    .stream()
+                    .map(DeviceInfo::getDeviceId)
+                    .collect(Collectors.toSet());
+        }
         return merchantFinanceService.listOrders(userId, new MerchantFinanceService.MerchantOrderListQuery(
-                page, size, deviceId, null, null, null, null, false));
+                page, size, deviceId, null, null, null, null, false, restrictDeviceIds));
     }
 
     @Transactional(readOnly = true)

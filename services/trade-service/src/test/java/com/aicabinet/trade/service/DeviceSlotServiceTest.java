@@ -43,6 +43,8 @@ class DeviceSlotServiceTest {
     private SalesVelocityService salesVelocityService;
     @Mock
     private DistributedLockService distributedLockService;
+    @Mock
+    private SkuSceneLimitMapper skuSceneLimitRepository;
 
     private DeviceSlotService deviceSlotService;
 
@@ -50,7 +52,8 @@ class DeviceSlotServiceTest {
     void setUp() {
         deviceSlotService = new DeviceSlotService(
                 slotRepository, lotRepository, deviceRepository, null, skuCatalogRepository, null, null, null,
-                salesVelocityService, null, null, null, distributedLockService, null, null, null);
+                salesVelocityService, null, null, null, distributedLockService, null, null,
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository), null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(deviceSlotService, "self", deviceSlotService);
     }
 

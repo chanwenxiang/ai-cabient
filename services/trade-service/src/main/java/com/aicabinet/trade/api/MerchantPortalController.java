@@ -7,6 +7,8 @@ import com.aicabinet.trade.api.support.MerchantPortalControllerSupport;
 import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
+import com.aicabinet.trade.service.AdminDeviceOpsService;
+import com.aicabinet.trade.service.AuthService;
 import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
 import com.aicabinet.trade.service.ProcurementService;
@@ -15,13 +17,16 @@ import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v2/merchant")
@@ -34,13 +39,21 @@ public class MerchantPortalController {
     private final MerchantPortalService merchantPortalService;
     private final MerchantPortalControllerSupport support;
     private final ProcurementService procurementService;
+    /** CB-050：设备控制指令下放商户端（权限 merchant:device:control，白名单见 deviceCommand） */
+    private final AdminDeviceOpsService deviceOpsService;
+    /** CB-050 扩展：商户端自助改密 */
+    private final AuthService authService;
 
     public MerchantPortalController(MerchantPortalService merchantPortalService,
                                     MerchantPortalControllerSupport support,
-                                    ProcurementService procurementService) {
+                                    ProcurementService procurementService,
+                                    AdminDeviceOpsService deviceOpsService,
+                                    AuthService authService) {
         this.merchantPortalService = merchantPortalService;
         this.support = support;
         this.procurementService = procurementService;
+        this.deviceOpsService = deviceOpsService;
+        this.authService = authService;
     }
 
     @GetMapping("/me")
@@ -97,6 +110,106 @@ public class MerchantPortalController {
     public ApiResponse<DeviceDetailDto> deviceDetail(
             HttpServletRequest request, @PathVariable String deviceId) {
         return ApiResponse.ok(merchantPortalService.getDeviceDetail(userId(request), deviceId));
+    }
+
+    /** CB-050：柜机详情 KPI 条（今日销售额/今日订单量/本月销售额） */
+    @RequiresPermissions("merchant:analytics:view")
+    @GetMapping("/devices/{deviceId}/sales-summary")
+    public ApiResponse<MerchantDeviceSalesSummaryDto> deviceSalesSummary(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(
+                support.merchantAnalyticsService().deviceSalesSummary(userId(request), deviceId));
+    }
+
+    /**
+     * CB-050：设备控制指令下放商户端（权限化）。白名单 LOCK/UNLOCK/REBOOT；
+     * OPEN_DOOR 不下放（运维免结算开门=资金敏感，补货走补货任务链路）；SET_TEMP 属平台运营参数。
+     */
+    @RequiresPermissions("merchant:device:control")
+    @PostMapping("/devices/{deviceId}/commands")
+    public ApiResponse<DeviceOpsCommandResultDto> deviceCommand(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @Valid @RequestBody DeviceOpsCommandRequest body) {
+        String command = body.command() == null ? "" : body.command().trim().toUpperCase();
+        if (!Set.of("LOCK", "UNLOCK", "REBOOT").contains(command)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "商户端仅支持 停售/恢复售卖/重启 指令；远程开门请走补货任务，温控请联系平台");
+        }
+        return ApiResponse.ok(deviceOpsService.executeForMerchant(userId(request), deviceId, body));
+    }
+
+    /** CB-050 扩展：柜机扫码盘点（单货道实盘；照片凭证按商户 ops-policy 强制）。 */
+    @RequiresPermissions("merchant:slots:edit")
+    @PostMapping("/devices/{deviceId}/slots/stocktake")
+    public ApiResponse<DeviceSlotDto> stocktakeSlot(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @Valid @RequestBody SlotStocktakeRequest body) {
+        return ApiResponse.ok(merchantPortalService.stocktakeSlot(userId(request), deviceId, body));
+    }
+
+    /** CB-050 扩展：理货记录-配货（补货任务行粒度只读聚合）。 */
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/devices/{deviceId}/tally-records")
+    public ApiResponse<PageResult<TallyRecordRowDto>> tallyRecords(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "30") int days) {
+        return ApiResponse.ok(
+                merchantPortalService.tallyRecords(userId(request), deviceId, page, size, days));
+    }
+
+    /** CB-050 扩展：理货记录-盘点（AISLE_AUDIT 事件流）。 */
+    @RequiresPermissions("merchant:devices:detail")
+    @GetMapping("/devices/{deviceId}/stocktake-events")
+    public ApiResponse<PageResult<DeviceOpsEventDto>> stocktakeEvents(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(
+                merchantPortalService.stocktakeEvents(userId(request), deviceId, page, size));
+    }
+
+    /** CB-050 扩展：柜机盘点凭证上传（返回 url 回填盘点请求 photoEvidenceUrl）。 */
+    @RequiresPermissions("merchant:slots:edit")
+    @PostMapping(value = "/devices/{deviceId}/stocktake-evidence", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<FileAttachmentDto> uploadStocktakeEvidence(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+        return ApiResponse.ok(
+                merchantPortalService.uploadStocktakeEvidence(userId(request), deviceId, file));
+    }
+
+    /** CB-050 扩展：柜机盘点凭证回看（流式）。 */
+    @RequiresPermissions("merchant:devices:detail")
+    @GetMapping("/devices/{deviceId}/stocktake-evidence/{fileId}")
+    public void streamStocktakeEvidence(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @PathVariable Long fileId,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        merchantPortalService.streamStocktakeEvidence(userId(request), deviceId, fileId, response);
+    }
+
+    /** CB-050 扩展：可切换组织列表（绑定商户 + 下级树；切换为前端上下文过滤）。 */
+    @RequiresPermissions("merchant:portal:access")
+    @GetMapping("/orgs")
+    public ApiResponse<List<MerchantOrgDto>> orgs(HttpServletRequest request) {
+        return ApiResponse.ok(merchantPortalService.orgs(userId(request)));
+    }
+
+    /** CB-050 扩展：商户端自助改密（须携带当前密码；新密码 6-64 位且不得与旧密码相同）。 */
+    @PostMapping("/password-change")
+    public ApiResponse<Void> passwordChange(
+            HttpServletRequest request,
+            @Valid @RequestBody MerchantPasswordChangeRequest body) {
+        authService.changeOwnPassword(userId(request), body.oldPassword(), body.newPassword());
+        return ApiResponse.ok(null);
     }
 
     @RequiresPermissions("merchant:devices:detail")
@@ -188,11 +301,10 @@ public class MerchantPortalController {
             @RequestParam(name = "from", required = false) String from,
             @RequestParam(name = "to", required = false) String to,
             @RequestParam(name = "keyword", required = false) String keyword,
-            @RequestParam(name = "excludeZero", required = false) String excludeZero) {
-        return ApiResponse.ok(support.merchantFinanceService().listOrders(
-                userId(request), new MerchantFinanceService.MerchantOrderListQuery(
-                        page, size, deviceId, status, from, to, keyword,
-                        isExcludeZeroParam(excludeZero))));
+            @RequestParam(name = "excludeZero", required = false) String excludeZero,
+            @RequestParam(name = "merchantId", required = false) String merchantId) {
+        return ApiResponse.ok(merchantPortalService.listOrders(
+                userId(request), page, size, deviceId, merchantId));
     }
 
     @RequiresPermissions("merchant:orders:list")
@@ -550,8 +662,11 @@ public class MerchantPortalController {
     @RequiresPermissions("merchant:replenishment:request")
     @PostMapping("/replenishment/tasks/{taskId}/complete")
     public ApiResponse<ReplenishmentTaskDto> completeReplenishmentTask(
-            HttpServletRequest request, @PathVariable Long taskId) {
-        return ApiResponse.ok(support.merchantReplenishmentService().completeTask(userId(request), taskId));
+            HttpServletRequest request,
+            @PathVariable Long taskId,
+            @RequestBody(required = false) MerchantReplenishmentCompleteRequest location) {
+        return ApiResponse.ok(support.merchantReplenishmentService()
+                .completeTask(userId(request), taskId, location));
     }
 
     @RequiresPermissions("merchant:replenishment:request")

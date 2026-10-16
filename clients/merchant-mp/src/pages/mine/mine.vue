@@ -57,6 +57,29 @@
       </view>
     </AppSheet>
 
+    <!-- CB-050 扩展：切换组织面板（选择后存本地，设备/柜机列表按组织过滤） -->
+    <AppSheet :visible="orgSheetVisible" aria-label="切换组织" @close="orgSheetVisible = false">
+      <text class="dialog-title">切换组织</text>
+      <text class="hint">切换后柜机列表与工作台按所选组织过滤；不影响账号权限</text>
+      <view class="org-list">
+        <view
+          v-for="org in orgs"
+          :key="org.merchantId"
+          role="button"
+          class="org-cell"
+          :class="{ current: org.merchantId === currentOrgId }"
+          @click="pickOrg(org.merchantId)"
+        >
+          <text class="org-name">{{ org.merchantName }}</text>
+          <text v-if="org.merchantId === currentOrgId" class="org-current">当前</text>
+        </view>
+      </view>
+      <view class="dialog-actions">
+        <button class="btn ghost" @click="orgSheetVisible = false">取消</button>
+        <button class="btn" @click="pickOrg('')">显示全部组织</button>
+      </view>
+    </AppSheet>
+
     <view v-if="fieldNav.length" class="section-label">现场作业</view>
     <view v-if="fieldNav.length" class="menu-list">
       <view
@@ -160,6 +183,38 @@
       </view>
     </view>
 
+    <!-- CB-050 扩展：切换组织（绑定商户+下级树，前端上下文过滤；补货人员/管理员跨组织查看） -->
+    <view class="section-label">当前组织</view>
+    <view class="menu-list">
+      <view role="button" class="menu-cell" aria-label="切换组织" @click="onSwitchOrg">
+        <image class="menu-icon" :src="menuIcon('team')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">{{ currentOrgName }}</text>
+          <text class="menu-desc">{{ orgSwitchDesc }}</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
+    </view>
+
+    <view class="menu-list">
+      <view role="button" class="menu-cell" @click="goPasswordChange">
+        <image class="menu-icon" :src="menuIcon('member')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">修改密码</text>
+          <text class="menu-desc">使用当前密码验证后设置新密码</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
+      <view role="button" class="menu-cell" @click="onAbout">
+        <image class="menu-icon" :src="menuIcon('help')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">关于</text>
+          <text class="menu-desc">商户端 {{ APP_VERSION }}</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
+    </view>
+
     <!-- CB-018④：在线客服触点（热线来自 merchant.service_phone，未配置时整组不渲染） -->
     <view v-if="supportPhone || supportEmail" class="section-label">帮助与客服</view>
     <view v-if="supportPhone || supportEmail" class="menu-list">
@@ -195,7 +250,7 @@
 
     <view class="menu-list">
       <view role="button" class="menu-cell danger-cell" @click="onLogout">
-        <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
+        <image class="menu-icon" :src="menuIcon('member')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title danger">退出登录</text>
         </view>
@@ -234,6 +289,7 @@ import {
 } from '@/utils/merchant-config';
 import { safeMakePhoneCall } from '@aicabinet/shared-uni/safe-uni-call';
 import { menuIcon } from '@/utils/menu-icon';
+import { getOrgFilter, setOrgFilter } from '@/utils/org-filter';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const meName = ref('');
@@ -301,6 +357,69 @@ function goAnnouncements() {
   uni.navigateTo({ url: '/pages/announcements/announcements' });
 }
 
+// ===== CB-050 扩展：切换组织 / 修改密码 / 关于 =====
+const APP_VERSION = 'v1.0.0';
+const orgSheetVisible = ref(false);
+const orgs = ref<Array<{ merchantId: string; merchantName: string }>>([]);
+const currentOrgId = ref('');
+const meOrgName = ref('');
+
+const currentOrgName = computed(() => {
+  if (!currentOrgId.value) return meOrgName.value || '全部组织';
+  const hit = orgs.value.find((o) => o.merchantId === currentOrgId.value);
+  return hit ? hit.merchantName : currentOrgId.value;
+});
+const orgSwitchDesc = computed(() =>
+  orgs.value.length > 1 ? '点击切换可见组织' : '仅可见当前组织'
+);
+
+function goPasswordChange() {
+  uni.navigateTo({ url: '/pages/password-change/password-change' });
+}
+
+function onAbout() {
+  uni.showModal({
+    title: '关于',
+    content: `AI Cabinet 商户端 ${APP_VERSION}\n自助开门柜运营平台`,
+    showCancel: false
+  });
+}
+
+function onSwitchOrg() {
+  const list = (me.value?.merchants || []).map((m) => ({
+    merchantId: m.merchantId,
+    merchantName: m.merchantName
+  }));
+  if (list.length <= 1) {
+    showSuccess('当前账号仅归属一个组织');
+    return;
+  }
+  orgs.value = list;
+  orgSheetVisible.value = true;
+}
+
+function pickOrg(merchantId: string) {
+  currentOrgId.value = merchantId;
+  setOrgFilter(merchantId);
+  orgSheetVisible.value = false;
+  showSuccess(merchantId ? '已切换组织' : '已切换为全部组织');
+}
+
+function loadOrgContext() {
+  currentOrgId.value = getOrgFilter();
+  const list = (me.value?.merchants || []).map((m) => ({
+    merchantId: m.merchantId,
+    merchantName: m.merchantName
+  }));
+  orgs.value = list;
+  meOrgName.value = list[0]?.merchantName || '';
+  // 所选组织不在可见树里（权限变化/换号）→ 自动清空，避免「切到看不见的组织」
+  if (currentOrgId.value && !list.some((o) => o.merchantId === currentOrgId.value)) {
+    currentOrgId.value = '';
+    setOrgFilter('');
+  }
+}
+
 // ===== CB-018④：在线客服触点 =====
 const supportPhone = ref('');
 const supportEmail = ref('');
@@ -343,6 +462,7 @@ onShow(async () => {
   merchantNames.value = formatMerchantNames(profile.merchants, '未绑定');
   phone.value = profile.phoneNumber || '';
   loadSupportContacts();
+  loadOrgContext();
 });
 
 async function onLogout() {
@@ -550,5 +670,32 @@ async function onLogout() {
 }
 .danger-cell .menu-icon {
   background: #f9eded;
+}
+/* CB-050 扩展：切换组织面板 */
+.org-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin: 16rpx 0;
+}
+.org-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 24rpx;
+  border: 1rpx solid var(--color-border, #ebeef5);
+  border-radius: 12rpx;
+}
+.org-cell.current {
+  border-color: var(--color-primary, #0f766e);
+  background: rgba(15, 118, 110, 0.06);
+}
+.org-name {
+  font-size: 28rpx;
+}
+.org-current {
+  font-size: 24rpx;
+  color: var(--color-primary, #0f766e);
+  font-weight: 600;
 }
 </style>

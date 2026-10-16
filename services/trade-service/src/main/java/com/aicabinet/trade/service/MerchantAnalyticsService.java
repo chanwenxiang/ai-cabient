@@ -77,6 +77,27 @@ public class MerchantAnalyticsService {
         return overview(userId, days, null);
     }
 
+    /**
+     * 柜机详情 KPI 汇总（CB-050，2026-10-16）：今日销售额/今日订单量/本月销售额。
+     * 销售额=成交行收入口径（与 overview 同源）；自然日/自然月按 Asia/Shanghai。
+     */
+    @Transactional(readOnly = true)
+    public MerchantDeviceSalesSummaryDto deviceSalesSummary(Long userId, String deviceId) {
+        requireAnalytics(userId);
+        Set<String> deviceIds = resolveDeviceFilter(userId, deviceId);
+        if (deviceIds.isEmpty()) {
+            return new MerchantDeviceSalesSummaryDto(0, 0, 0);
+        }
+        LocalDate today = LocalDate.now(ZONE);
+        Instant todayStart = today.atStartOfDay(ZONE).toInstant();
+        Instant monthStart = today.withDayOfMonth(1).atStartOfDay(ZONE).toInstant();
+        Instant now = Instant.now().plusSeconds(1);
+        long todaySales = lineRepository.sumRevenueByDeviceIdsSince(deviceIds, todayStart);
+        long todayOrders = orderRepository.countBillableByDeviceIdInAndCreatedAtBetween(deviceIds, todayStart, now);
+        long monthSales = lineRepository.sumRevenueByDeviceIdsSince(deviceIds, monthStart);
+        return new MerchantDeviceSalesSummaryDto(todaySales, todayOrders, monthSales);
+    }
+
     @Transactional(readOnly = true)
     public MerchantAnalyticsOverviewDto overview(Long userId, int days, String deviceId) {
         requireAnalytics(userId);

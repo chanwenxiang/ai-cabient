@@ -51,12 +51,19 @@ class SlotTemplateServiceTest {
     @Mock DeviceSlotMapper slotMapper;
     @Mock DeviceSkuPriceMapper priceMapper;
     @Mock SkuCatalogMapper skuCatalogMapper;
+    @Mock com.aicabinet.trade.mapper.DeviceInfoMapper deviceMapper;
+    @Mock com.aicabinet.trade.mapper.SkuSceneLimitMapper skuSceneLimitMapper;
 
     private SlotTemplateService service;
 
     @BeforeEach
     void setUp() {
-        service = new SlotTemplateService(templateMapper, lineMapper, slotMapper, priceMapper, skuCatalogMapper);
+        service = new SlotTemplateService(templateMapper, lineMapper, slotMapper, priceMapper,
+                skuCatalogMapper, deviceMapper,
+                new SkuSceneLimitService(skuSceneLimitMapper, skuCatalogMapper));
+        // 场景限额（CB-049 扩展）：测试柜无场景 → limitQtyBySku 返回空 Map（不限制）
+        lenient().when(deviceMapper.findById(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(Optional.empty());
         lenient().when(templateMapper.selectCount(any())).thenReturn(0L);
         lenient().when(templateMapper.insert(any(SlotTemplate.class))).thenAnswer(inv -> {
             inv.getArgument(0, SlotTemplate.class).setTemplateId(9L);

@@ -241,6 +241,18 @@ export const DICT = {
     FRANCHISE: '加盟',
     CONSIGN: '联营'
   },
+  // 投放场景（CB-049）：设备档案打标，同行把场景当运营第一分类维度；空=未分类
+  device_scene_type: {
+    OFFICE: '写字楼/办公室',
+    CAMPUS: '校园',
+    FACTORY: '工厂',
+    HOSPITAL: '医院',
+    TRANSIT: '交通枢纽',
+    MALL: '商场',
+    RESIDENCE: '社区/公寓',
+    HOTEL: '酒店',
+    GYM: '健身房'
+  },
   repair_ticket_status: {
     OPEN: '待处理',
     IN_PROGRESS: '处理中',

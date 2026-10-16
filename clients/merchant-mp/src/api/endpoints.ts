@@ -144,6 +144,7 @@ export const MerchantEndpoints = {
   trend: (days: number) => `${API_PREFIX}/merchant/trend?days=${days}`,
   deviceSettings: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/settings`,
+  deviceDetail: (id: string) => `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}`,
   /** 将邑采集模式（CB-023 商户端补充）：状态 / 进入 / 退出 */
   jiangyiGatherStatus: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/status`,
@@ -152,6 +153,28 @@ export const MerchantEndpoints = {
   jiangyiGatherExit: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/exit`,
   deviceSlots: (id: string) => `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/slots`,
+  /** CB-050 扩展：商户自助改密（须已登录，携带当前密码） */
+  merchantPasswordChange: `${API_PREFIX}/merchant/password-change`,
+  /** CB-050 扩展：柜机扫码盘点（单货道实盘） */
+  deviceSlotStocktake: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/slots/stocktake`,
+  /** CB-050 扩展：柜机盘点凭证上传/回看 */
+  deviceStocktakeEvidence: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/stocktake-evidence`,
+  deviceStocktakeEvidenceFile: (id: string, fileId: number) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/stocktake-evidence/${fileId}`,
+  /** CB-050 扩展：理货记录（配货=补货行聚合 / 盘点=AISLE_AUDIT 事件） */
+  deviceTallyRecords: (id: string, page: number, size: number, days: number) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/tally-records?page=${page}&size=${size}&days=${days}`,
+  deviceStocktakeEvents: (id: string, page: number, size: number) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/stocktake-events?page=${page}&size=${size}`,
+  /** CB-050 扩展：可切换组织列表（绑定商户 + 下级树） */
+  orgs: `${API_PREFIX}/merchant/orgs`,
+  /** CB-050：柜机详情 KPI 汇总 / 设备控制指令（权限化下放，白名单 LOCK/UNLOCK/REBOOT） */
+  deviceSalesSummary: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/sales-summary`,
+  deviceCommand: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/commands`,
   deviceTemperatureHistory: (deviceId: string, hours: number) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(deviceId)}/temperature-history?hours=${hours}`,
   pricingSkus: `${API_PREFIX}/merchant/pricing/skus`,

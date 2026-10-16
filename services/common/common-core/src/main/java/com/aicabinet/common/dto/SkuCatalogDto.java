@@ -1,6 +1,7 @@
 package com.aicabinet.common.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 public record SkuCatalogDto(
         String skuId,
@@ -32,5 +33,7 @@ public record SkuCatalogDto(
         Long updatedByUserId,
         String updatedByName,
         /** 经营归属（V349 字典 sku_operation_scope：DIRECT/NON_DIRECT；null=未分类） */
-        String operationScope
+        String operationScope,
+        /** 商品×场景上架限额（CB-049 扩展）：admin 读路径回填；其他消费方为 null */
+        List<SkuSceneLimitItem> sceneLimits
 ) {}

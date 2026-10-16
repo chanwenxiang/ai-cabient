@@ -193,6 +193,30 @@ public class AuthService {
         });
     }
 
+    /**
+     * 商户端自助改密（CB-050 扩展，2026-10-16）：须携带当前密码；新密码 6-64 位且不得与旧密码相同。
+     * 与登录同界（realm=ADMIN），复用登录节流锁防爆破。
+     */
+    public void changeOwnPassword(Long userId, String oldPassword, String newPassword) {
+        UserInfo user = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        verifyPassword(user, oldPassword);
+        if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度须为 6-64 位");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码不能与当前密码相同");
+        }
+        runWithUserAccountLock(userId, () -> {
+            UserInfo locked = userInfoRepository.findByIdForUpdate(userId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+            locked.setPasswordHash(passwordEncoder.encode(newPassword));
+            userInfoRepository.save(locked);
+            auditPhoneVerify(userId, locked.getPhoneNumber(), "PASSWORD_CHANGE");
+            return null;
+        });
+    }
+
     /** 微信小程序 wx.login：code2Session / 手机号解密在事务外；建档/登录走短事务。 */
     public LoginResponse wxLogin(WxLoginRequest request) {
         var session = weChatMiniAppClient.code2Session(request.code());

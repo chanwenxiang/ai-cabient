@@ -29,7 +29,13 @@ public record MerchantDeviceDto(
         Double latitude,
         Double longitude,
         /** 固件版本 */
-        String firmwareVersion
+        String firmwareVersion,
+        /** 陈列填充率 %（CB-050 柜机卡片指标；无目标库存货道时为 null） */
+        Integer fillRatePct,
+        /** 最近核对库存（最近一次实盘时间） */
+        Instant lastCheckAt,
+        /** 最近补货时间 */
+        Instant lastRestockAt
 ) {
 
     /** 兼容旧 11 字段构造。 */
@@ -48,7 +54,7 @@ public record MerchantDeviceDto(
     ) {
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress, salesLocked,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public MerchantDeviceDto(
@@ -74,7 +80,7 @@ public record MerchantDeviceDto(
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress, salesLocked,
                 address, routeCode, currentTempC, targetTempC, lifecycleStatus,
-                lowStockSlotCount, oosSlotCount, null, null, null, null);
+                lowStockSlotCount, oosSlotCount, null, null, null, null, null, null, null);
     }
 
     public MerchantDeviceDto(
@@ -101,6 +107,6 @@ public record MerchantDeviceDto(
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress, salesLocked,
                 address, routeCode, currentTempC, targetTempC, lifecycleStatus,
-                lowStockSlotCount, oosSlotCount, salesLockReason, null, null, null);
+                lowStockSlotCount, oosSlotCount, salesLockReason, null, null, null, null, null, null);
     }
 }

@@ -97,6 +97,8 @@
                 <template v-if="d.currentTempC != null">{{ d.currentTempC }}°C</template>
               </text>
               <text v-if="stockSummary(d)" class="meta stock-warn">{{ stockSummary(d) }}</text>
+              <!-- CB-050 扩展：柜机卡片经营指标（填充率/最近核对库存/最近补货） -->
+              <text v-if="cardMetrics(d)" class="meta">{{ cardMetrics(d) }}</text>
               <text v-if="canSeeRevenue" class="meta revenue"
                 >今日收入 ¥{{ ((revenueByDevice[d.deviceId ?? ''] || 0) / 100).toFixed(2) }}</text
               >
@@ -160,11 +162,13 @@ import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { softFallback } from '@/utils/soft-fallback';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
+import { getOrgFilter } from '@/utils/org-filter';
 import {
   clearPreferredDeviceId,
   getPreferredDeviceId,
   setPreferredDeviceId
 } from '@/utils/preferred-device';
+import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import type { MerchantDeviceInfo, MerchantMe } from '@aicabinet/shared-types';
@@ -206,6 +210,8 @@ const preferredLabel = computed(() => {
 
 const visibleDevices = computed(() => {
   const q = keyword.value.trim().toLowerCase();
+  // CB-050 扩展：组织切换上下文——选定组织后只看该组织的柜机（后端本就全树放行）
+  const org = getOrgFilter();
   const list = devices.value.filter((d) => {
     let statusMatch = true;
     if (filter.value === 'online') statusMatch = !!d.online;
@@ -213,7 +219,8 @@ const visibleDevices = computed(() => {
     else if (filter.value === 'locked') statusMatch = !!d.salesLocked;
     const keywordMatch = !q || `${d.deviceName || ''} ${d.deviceId}`.toLowerCase().includes(q);
     const preferredMatch = !onlyPreferred.value || d.deviceId === preferredId.value;
-    return statusMatch && keywordMatch && preferredMatch;
+    const orgMatch = !org || d.merchantId === org;
+    return statusMatch && keywordMatch && preferredMatch && orgMatch;
   });
   if (!preferredId.value) return list;
   return [...list].sort((a, b) => {
@@ -381,6 +388,19 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 function lifecycleText(status?: string) {
   if (!status) return '';
   return dictLabel('device_lifecycle', status) || '';
+}
+
+/** CB-050 扩展：柜机卡片指标行（填充率/最近核对库存/最近补货，字段来自 MerchantDeviceDto）。 */
+function cardMetrics(d: {
+  fillRatePct?: number | null;
+  lastCheckAt?: string | null;
+  lastRestockAt?: string | null;
+}): string {
+  const parts: string[] = [];
+  if (d.fillRatePct != null) parts.push(`填充率 ${d.fillRatePct}%`);
+  if (d.lastCheckAt) parts.push(`最近核对 ${formatDateTimeShort(d.lastCheckAt)}`);
+  if (d.lastRestockAt) parts.push(`最近补货 ${formatDateTimeShort(d.lastRestockAt)}`);
+  return parts.join(' · ');
 }
 
 function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: number | null }) {

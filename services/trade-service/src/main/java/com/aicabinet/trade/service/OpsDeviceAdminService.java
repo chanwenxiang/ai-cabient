@@ -487,6 +487,8 @@ public class OpsDeviceAdminService {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         RefundPolicyPatch refundPatch = applyUpdateDeviceFields(operatorId, device, request);
         boolean clearHomeWarehouse = applyHomeWarehouse(device, request.homeWarehouseId(), true);
+        // 投放场景清除需 wrapper 显式写 null：MP 默认字段策略不把 null 上库（同 homeWarehouseId 坑）
+        boolean clearSceneType = request.sceneType() != null && request.sceneType().isBlank();
         Instant now = Instant.now();
         device.setUpdatedAt(now);
         deviceRepository.save(device);
@@ -506,6 +508,14 @@ public class OpsDeviceAdminService {
             device.setHomeWarehouseId(null);
             device.setUpdatedAt(now);
         }
+        if (clearSceneType) {
+            deviceRepository.update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                    .eq(DeviceInfo::getDeviceId, deviceId)
+                    .set(DeviceInfo::getSceneType, null)
+                    .set(DeviceInfo::getUpdatedAt, now));
+            device.setSceneType(null);
+            device.setUpdatedAt(now);
+        }
         auditService.appendLog(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId,
                 device.getDeviceName() + "; refundPolicy=" + device.getRefundPolicy());
         DeviceInfo fresh = deviceRepository.findById(deviceId).orElse(device);
@@ -521,6 +531,10 @@ public class OpsDeviceAdminService {
         }
         if (request.deviceType() != null && !request.deviceType().isBlank()) {
             device.setDeviceType(request.deviceType().trim());
+        }
+        // 投放场景（CB-049）：null=不改；非空=更新；空串=清除（清除走 updateDevice 里 wrapper 写 null）
+        if (request.sceneType() != null && !request.sceneType().isBlank()) {
+            device.setSceneType(request.sceneType().trim());
         }
         applyUpdateDeviceMerchant(operatorId, device, request.merchantId());
         boolean touchRefundPolicy = request.refundPolicy() != null;
@@ -653,12 +667,15 @@ public class OpsDeviceAdminService {
                 d.getDeviceId(),
                 d.getDeviceName(),
                 d.getDeviceType(),
+                d.getSceneType(),
                 d.getOnlineStatus(),
                 d.getMerchantId(),
                 merchantName,
                 active != null ? active.getSessionId() : null,
                 active != null ? active.getState().name() : null,
                 d.getUpdatedAt(),
+                d.getOnlineSince(),
+                d.getLastOfflineAt(),
                 replenishmentInProgress,
                 d.getRefundPolicy(),
                 refundPolicyService.resolveForDevice(d.getDeviceId()).name(),
@@ -681,6 +698,7 @@ public class OpsDeviceAdminService {
                 d.getTargetTempC(),
                 d.getFirmwareVersion(),
                 d.getSalesLockReason(),
+                d.getSignalStrength(),
                 d.getHomeWarehouseId()
         );
     }

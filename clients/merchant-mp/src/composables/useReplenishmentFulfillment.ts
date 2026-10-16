@@ -461,7 +461,16 @@ export function useReplenishmentFulfillment(opts: {
   }
 
   async function finalizeCompletedTask(taskId: number) {
-    opts.selected.value = (await merchantApi.completeReplenishmentTask(taskId)) as Task;
+    // CB-050 收尾：完成时尽力附带定位（证明到场，与盘点凭证定位同语义）；
+    // 超时/用户拒绝授权时静默降级为无定位完成，不阻断补货主流程。
+    let location: { latitude?: number; longitude?: number } | undefined;
+    try {
+      const loc = await getLocationWithTimeout();
+      location = { latitude: loc.latitude, longitude: loc.longitude };
+    } catch {
+      /* 定位不可用即不带 */
+    }
+    opts.selected.value = (await merchantApi.completeReplenishmentTask(taskId, location)) as Task;
     opts.lines.value = opts.lines.value.map((line) => ({ ...line, applied: true }));
     opts.clearDoorState(taskId);
     showSuccess(opts.detailIsPullOff.value ? '下架完成' : '补货完成');

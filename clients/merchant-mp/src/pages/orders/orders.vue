@@ -156,7 +156,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { showError } from '@/utils/notify';
-import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { getOrgFilter } from '@/utils/org-filter';
 import {
   emptyDisplay,
   formatDateTimeShort,
@@ -279,6 +280,9 @@ const visibleList = computed(() =>
 
 function orderParams(page = 0, size = PAGE_SIZE) {
   const params: Record<string, string | number> = { page, size };
+  // CB-050 收尾：「我的-切换组织」上下文——默认按所选商户收窄订单（与柜机列表同语义）
+  const org = getOrgFilter();
+  if (org) params.merchantId = org;
   if (filterDeviceId.value) params.deviceId = filterDeviceId.value;
   if (status.value) params.status = status.value;
   if (timeRange.value === 'today') params.from = dateStr(0);
@@ -292,12 +296,16 @@ function orderParams(page = 0, size = PAGE_SIZE) {
 
 async function loadDevices() {
   try {
+    // 与订单同一组织口径：所选商户下才有资格进筛选下拉
+    const orgScope = getOrgFilter() || '';
     const devices = await merchantApi.devices();
     deviceOptions.value = [
       { label: '全部柜机', value: '' },
       // 生成类型里 deviceId 可选；缺 id 的柜机无法作为筛选项，直接丢弃（否则会与「全部柜机」撞空值）
       ...devices.flatMap((d) =>
-        d.deviceId ? [{ label: d.deviceName || d.deviceId, value: d.deviceId }] : []
+        d.deviceId && (!orgScope || d.merchantId === orgScope)
+          ? [{ label: d.deviceName || d.deviceId, value: d.deviceId }]
+          : []
       )
     ];
   } catch {
@@ -347,6 +355,12 @@ function lineSummaryText(item: OpenApiOrderReadModelMerchant) {
   if (n <= 0) return '无商品明细';
   return `${n} 件商品`;
 }
+
+// CB-050：柜机详情「货柜订单」入口带 deviceId 预置筛选
+onLoad((opts) => {
+  const id = opts?.deviceId ? String(opts.deviceId) : '';
+  if (id) filterDeviceId.value = decodeURIComponent(id);
+});
 
 onShow(() => {
   void loadDevices();

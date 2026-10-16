@@ -92,6 +92,7 @@ export declare const DICT: {
     readonly pay_channel: {
         readonly WECHAT: "微信";
         readonly ALIPAY: "支付宝";
+        readonly PAYSCORE: "微信支付分";
         readonly MOCK: "其他";
         readonly BALANCE: "余额";
         readonly UNKNOWN: "未知";
@@ -203,6 +204,17 @@ export declare const DICT: {
         readonly SELF: "自营";
         readonly FRANCHISE: "加盟";
         readonly CONSIGN: "联营";
+    };
+    readonly device_scene_type: {
+        readonly OFFICE: "写字楼/办公室";
+        readonly CAMPUS: "校园";
+        readonly FACTORY: "工厂";
+        readonly HOSPITAL: "医院";
+        readonly TRANSIT: "交通枢纽";
+        readonly MALL: "商场";
+        readonly RESIDENCE: "社区/公寓";
+        readonly HOTEL: "酒店";
+        readonly GYM: "健身房";
     };
     readonly repair_ticket_status: {
         readonly OPEN: "待处理";

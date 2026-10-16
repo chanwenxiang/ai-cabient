@@ -31,6 +31,7 @@ class OpsCatalogAdminServiceTest {
     @Mock UserInfoMapper userInfoRepository;
     @Mock AdminAuditService auditService;
     @Mock FileAttachmentService fileAttachmentService;
+    @Mock com.aicabinet.trade.mapper.SkuSceneLimitMapper skuSceneLimitRepository;
 
     private OpsCatalogAdminService service;
 
@@ -38,7 +39,8 @@ class OpsCatalogAdminServiceTest {
     void setUp() {
         service = new OpsCatalogAdminService(
                 permissionService, skuCatalogRepository, aliyunCategoryMappingRepository,
-                userInfoRepository, auditService, fileAttachmentService);
+                userInfoRepository, auditService, fileAttachmentService,
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository));
     }
 
     @Test
@@ -143,7 +145,9 @@ class OpsCatalogAdminServiceTest {
                 null,
                 // V350（CB-037）：maxPriceCents / minPriceCents
                 null,
-                null);
+                null,
+                // CB-049 扩展：商品必须至少配一个场景限额
+                java.util.List.of(new com.aicabinet.common.dto.SkuSceneLimitItem("OFFICE", 5)));
     }
 
     @Test
@@ -160,7 +164,8 @@ class OpsCatalogAdminServiceTest {
                 null, null, null, null, "ACTIVE",
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, "件", "NON_DIRECT", null, null);
+                null, null, null, "件", "NON_DIRECT", null, null,
+                java.util.List.of(new com.aicabinet.common.dto.SkuSceneLimitItem("OFFICE", 5)));
 
         var dto = service.createSku(10001L, req);
 
@@ -188,7 +193,8 @@ class OpsCatalogAdminServiceTest {
                 null, null, null, null, "ACTIVE",
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, "件", "  ", null, null);
+                null, null, null, "件", "  ", null, null,
+                java.util.List.of(new com.aicabinet.common.dto.SkuSceneLimitItem("OFFICE", 5)));
 
         service.updateSku(10001L, "311", req);
 

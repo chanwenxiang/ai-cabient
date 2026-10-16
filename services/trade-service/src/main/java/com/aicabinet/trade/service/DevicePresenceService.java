@@ -194,6 +194,7 @@ public class DevicePresenceService {
             } else {
                 d.setOnlineStatus("OFFLINE");
                 d.setOnlineSince(null);
+                d.setLastOfflineAt(Instant.now());
             }
             d.setUpdatedAt(Instant.now());
             deviceRepository.save(d);
@@ -224,6 +225,7 @@ public class DevicePresenceService {
         }
         d.setOnlineStatus("OFFLINE");
         d.setOnlineSince(null);
+        d.setLastOfflineAt(Instant.now());
         deviceRepository.save(d);
         deviceRepository.clearOnlineSince(deviceId);
         opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null), "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");

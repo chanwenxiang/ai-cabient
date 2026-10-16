@@ -9,6 +9,7 @@ import com.aicabinet.trade.domain.SlotTemplate;
 import com.aicabinet.trade.domain.SlotTemplateLine;
 import com.aicabinet.trade.mapper.DeviceSkuPriceMapper;
 import com.aicabinet.trade.mapper.DeviceSlotMapper;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.SlotTemplateLineMapper;
 import com.aicabinet.trade.mapper.SlotTemplateMapper;
@@ -22,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -43,17 +45,23 @@ public class SlotTemplateService {
     private final DeviceSlotMapper slotRepository;
     private final DeviceSkuPriceMapper priceRepository;
     private final SkuCatalogMapper skuCatalogRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final SkuSceneLimitService skuSceneLimitService;
 
     public SlotTemplateService(SlotTemplateMapper templateRepository,
                                SlotTemplateLineMapper lineRepository,
                                DeviceSlotMapper slotRepository,
                                DeviceSkuPriceMapper priceRepository,
-                               SkuCatalogMapper skuCatalogRepository) {
+                               SkuCatalogMapper skuCatalogRepository,
+                               DeviceInfoMapper deviceRepository,
+                               SkuSceneLimitService skuSceneLimitService) {
         this.templateRepository = templateRepository;
         this.lineRepository = lineRepository;
         this.slotRepository = slotRepository;
         this.priceRepository = priceRepository;
         this.skuCatalogRepository = skuCatalogRepository;
+        this.deviceRepository = deviceRepository;
+        this.skuSceneLimitService = skuSceneLimitService;
     }
 
     /** 模板 + 行全量（运营台列表用）。 */
@@ -127,6 +135,20 @@ public class SlotTemplateService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "模板不存在：" + templateId);
         }
         List<SlotTemplateLine> lines = lineRepository.findByTemplateId(templateId);
+        // 场景上架限额（CB-049 扩展）：套用路径超限跳过该行（不炸事务，与机型模板同语义）；
+        // 柜子无场景 / 商品无该场景条目 = 不限制
+        var targetDevice = deviceRepository.findById(targetDeviceId).orElse(null);
+        Map<String, Integer> sceneLimits = targetDevice == null ? Map.of()
+                : skuSceneLimitService.limitQtyBySku(targetDevice.getSceneType(),
+                        lines.stream().map(SlotTemplateLine::getSkuId).toList());
+        Map<String, Integer> sceneTotals = new java.util.HashMap<>();
+        for (DeviceSlot s : slotRepository.selectList(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<DeviceSlot>lambdaQuery()
+                        .eq(DeviceSlot::getDeviceId, targetDeviceId))) {
+            if (s.getAssignedSkuId() != null && !s.getAssignedSkuId().isBlank()) {
+                sceneTotals.merge(s.getAssignedSkuId(), Math.max(s.getMaxLevel(), 0), Integer::sum);
+            }
+        }
         int applied = 0;
         for (SlotTemplateLine line : lines) {
             DeviceSlotId id = new DeviceSlotId(targetDeviceId, line.getSlotCode());
@@ -139,6 +161,21 @@ public class SlotTemplateService {
                 log.warn("slot template apply skipped missing sku device={} slot={} sku={}",
                         targetDeviceId, line.getSlotCode(), line.getSkuId());
                 continue;
+            }
+            // 该货道旧绑定先出合计，再按模板行入合计（覆盖绑定不算两次）
+            if (slot.getAssignedSkuId() != null && !slot.getAssignedSkuId().isBlank()) {
+                sceneTotals.merge(slot.getAssignedSkuId(), -Math.max(slot.getMaxLevel(), 0), Integer::sum);
+            }
+            Integer cap = sceneLimits.get(line.getSkuId());
+            if (cap != null) {
+                int addMax = Math.max(line.getParLevel(), 0);
+                int projected = sceneTotals.getOrDefault(line.getSkuId(), 0) + addMax;
+                if (projected > cap) {
+                    log.warn("slot template apply skipped by scene limit device={} slot={} sku={} projected={} cap={}",
+                            targetDeviceId, line.getSlotCode(), line.getSkuId(), projected, cap);
+                    continue;
+                }
+                sceneTotals.merge(line.getSkuId(), addMax, Integer::sum);
             }
             slot.setRowNo(line.getRowNo());
             slot.setColNo(line.getColNo());

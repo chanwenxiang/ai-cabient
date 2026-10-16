@@ -81,6 +81,28 @@ public class AdminDeviceOpsService {
     }
 
     /**
+     * 商户端设备控制（CB-050，2026-10-16 权限化下放）：白名单 LOCK/UNLOCK/REBOOT。
+     * OPEN_DOOR 不开放（运维免结算开门=资金敏感通道，补货走补货任务链路）；SET_TEMP 属平台运营参数。
+     * 审计与 admin 同路（appendLog operatorId=商户侧用户 ID）。
+     */
+    public DeviceOpsCommandResultDto executeForMerchant(Long userId, String deviceId, DeviceOpsCommandRequest request) {
+        permissionService.requirePermission(userId, "merchant:device:control");
+        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        DeviceInfo device = deviceRepository.findById(deviceId.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
+        String cmd = request.command() == null ? "" : request.command().trim().toUpperCase();
+        String reason = request.reason() == null || request.reason().isBlank()
+                ? "merchant-portal" : request.reason().trim();
+        return switch (cmd) {
+            case "LOCK" -> lock(userId, device, reason, true);
+            case "UNLOCK" -> lock(userId, device, reason, false);
+            case "REBOOT" -> reboot(userId, device, reason);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "商户端仅支持 停售/恢复售卖/重启 指令；远程开门请走补货任务，温控请联系平台");
+        };
+    }
+
+    /**
      * 运维远程开门：落真实 ShoppingSession（OPS_REMOTE），占柜、接门事件、可留录像；
      * 不结算、不出消费订单。与补货开门（RESTOCK）分离。
      */

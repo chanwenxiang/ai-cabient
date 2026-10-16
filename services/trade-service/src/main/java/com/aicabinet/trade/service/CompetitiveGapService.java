@@ -257,7 +257,10 @@ public class CompetitiveGapService {
             int page,
             int size,
             boolean eventIdAsc) {
-        permissionService.requireAnyPermission(operatorId, "ops:device-ops:list", "ops:device:list", "ops:sla");
+        // CB-050：商户端理货记录-盘点复用本查询——商户用户凭 merchant:devices:detail 也可读
+        // （范围仍被 allowedDeviceIds 收敛到本人可见设备，无越权面）
+        permissionService.requireAnyPermission(operatorId, "ops:device-ops:list", "ops:device:list",
+                "ops:sla", "merchant:devices:detail");
         Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
         if (allowed != null && allowed.isEmpty()) {
             return new PageResult<>(List.of(), page, size, 0);
