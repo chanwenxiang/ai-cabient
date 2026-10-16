@@ -34,6 +34,8 @@ public class CommandTracker {
     private static final String KEY_DOING = "jiangyi:cmd:doing:pending";
     private static final String KEY_MODEL = "jiangyi:cmd:model:pending";
     private static final String HASH_FMT = "jiangyi:cmd:%s:%s";
+    private static final java.util.regex.Pattern SAFE_SESSION_KEY =
+            java.util.regex.Pattern.compile("[A-Za-z0-9_\\-]{1,64}");
 
     public enum Kind { OPEN, CLOSE, DOING, MODEL }
 
@@ -45,6 +47,13 @@ public class CommandTracker {
 
     /** 登记待回执阶段（幂等：重复登记以最新时间戳为准）。 */
     public void register(Kind kind, String sessionId, String deviceId, String identifier) {
+        if (!isSafeSessionKey(sessionId)) {
+            // AU-061：body.orderNo 固件不可信——直接 format 进 Redis key 会被注入
+            // 空白/冒号/超长串污染键空间；非法字符集或超 64 字符一律不登记（trade 侧自会拒绝该订单）。
+            log.warn("jiangyi tracker register SKIPPED (unsafe key) kind={} len={}",
+                    kind, sessionId == null ? -1 : sessionId.length());
+            return;
+        }
         String zkey = zsetKey(kind);
         String hkey = hashKey(kind, sessionId);
         long now = System.currentTimeMillis();
@@ -58,12 +67,28 @@ public class CommandTracker {
         log.info("jiangyi tracker registered kind={} sessionId={} deviceId={}", kind, sessionId, deviceId);
     }
 
-    /** 阶段完成（回执到达）：hash 置 ACKED 并出队。 */
-    public void complete(Kind kind, String sessionId) {
-        redis.opsForZSet().remove(zsetKey(kind), sessionId);
+    /**
+     * 阶段完成（回执到达）：hash 置 ACKED 并出队。
+     * AU-061：仅登记时的目标设备可撤销——伪造他人 orderNo 的回执不得腰斩其兜底登记；
+     * 无主 hash 一律拒绝（顺带修复 complete 在无登记时凭空建无 TTL hash 的键泄漏）。
+     */
+    public boolean complete(Kind kind, String sessionId, String deviceId) {
+        if (!isSafeSessionKey(sessionId)) {
+            log.warn("jiangyi tracker complete SKIPPED (unsafe key) kind={} len={}",
+                    kind, sessionId == null ? -1 : sessionId.length());
+            return false;
+        }
         String hkey = hashKey(kind, sessionId);
+        Object owner = redis.opsForHash().get(hkey, "deviceId");
+        if (owner == null || !owner.toString().equals(deviceId)) {
+            log.warn("jiangyi tracker complete REJECTED kind={} sessionId={} caller={} owner={}",
+                    kind, sessionId, deviceId, owner);
+            return false;
+        }
+        redis.opsForZSet().remove(zsetKey(kind), sessionId);
         redis.opsForHash().put(hkey, "status", "ACKED");
         log.info("jiangyi tracker completed kind={} sessionId={}", kind, sessionId);
+        return true;
     }
 
     /** 取登记早于 cutoff 的超时会话（watchdog 扫描用）。 */
@@ -102,6 +127,11 @@ public class CommandTracker {
 
     private static String hashKey(Kind kind, String sessionId) {
         return (HASH_FMT.formatted(kind.name().toLowerCase(), sessionId));
+    }
+
+    /** AU-061：sessionId 进 Redis key 前的字符集/长度约束（我方 sessionId=BizIds 纯数字，留余量兼容）。 */
+    private static boolean isSafeSessionKey(String sessionId) {
+        return sessionId != null && SAFE_SESSION_KEY.matcher(sessionId).matches();
     }
 
     /** 超时会话条目。 */
