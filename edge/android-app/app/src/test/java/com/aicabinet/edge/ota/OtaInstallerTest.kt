@@ -82,7 +82,10 @@ class OtaInstallerTest {
             200
         }
         // 审计 A1/P0-2：report 对未注入凭据的设备静默跳过，先装机再触发上报
-        EdgeRuntimeConfig.saveSecret(ctx, "http_device_secret", "test-secret")
+        // A6 fail-closed：saveSecret 在 Robolectric（无 AndroidKeyStore）下抛异常，
+        // 测试只需「storage 里有凭据」这一事实，直接预置存量明文（读取路径兼容）
+        ctx.getSharedPreferences("edge_runtime_config", Context.MODE_PRIVATE)
+            .edit().putString("http_device_secret", "test-secret").commit()
         OtaUpgradeLedger.markPending(ctx, "0.6.1", 1L)
 
         OtaInstallResultReceiver().onReceive(
@@ -107,7 +110,10 @@ class OtaInstallerTest {
             posted += json
             200
         }
-        EdgeRuntimeConfig.saveSecret(ctx, "http_device_secret", "test-secret")
+        // A6 fail-closed：saveSecret 在 Robolectric（无 AndroidKeyStore）下抛异常，
+        // 测试只需「storage 里有凭据」这一事实，直接预置存量明文（读取路径兼容）
+        ctx.getSharedPreferences("edge_runtime_config", Context.MODE_PRIVATE)
+            .edit().putString("http_device_secret", "test-secret").commit()
         OtaUpgradeLedger.markPending(ctx, "0.6.1", 1L)
 
         OtaInstallResultReceiver().onReceive(

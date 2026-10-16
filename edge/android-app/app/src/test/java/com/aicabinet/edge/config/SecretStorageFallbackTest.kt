@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Base64
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -12,20 +12,20 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 敏感字段落盘/读取的**失败路径**单测（L06）。
+ * 敏感字段落盘/读取的**失败路径**单测（L06 + A6 整改）。
  *
  * 背景：Robolectric **不实现 AndroidKeyStore** —— 探针实测
  * `KeystoreCipher.encrypt` 抛 `KeyStoreException: AndroidKeyStore not found`。
  * 所以本类**测不了**加解密往返（那需要真机/仪器化），但恰好能测一件更重要的事：
  * **keystore 不可用时这一层的真实行为**。
  *
- * `EdgeRuntimeConfig.putSecret` 的写法是
- *   `runCatching { KeystoreCipher.encrypt(value) }.onFailure { Log.w(...) }.getOrDefault(value)`
- * 即「加密失败 ⇒ 原样明文落盘，只留一行 warn 日志」。这不是猜测，是代码读出来的；
- * 本类把它**钉成可执行断言**，免得将来有人以为「敏感字段一律密文落盘」。
- *
- * ⚠️ 如果哪天 Robolectric 支持了 AndroidKeyStore，`keystore_不可用时密文前缀不出现` 会**变红**。
- * 那是**有意的绊线**：环境变了，这段关于「失败路径」的结论必须重新取证，而不是继续绿着骗人。
+ * 行为沿革（绊线要求的「重新取证」，2026-10-16）：
+ *  - 旧行为：`putSecret` 加密失败 ⇒ 原样明文落盘（曾以本类钉住防误判）；
+ *    被 2026-10-05 审计列为 P2（明文 + allowBackup=adb 可导出）。
+ *  - 新行为（A6 fail-closed）：加密失败 ⇒ 抛 IllegalStateException **拒绝保存**——
+ *    宁可装机注入失败重试，也不落明文；allowBackup 同步改 false。
+ *    本类用例已随之重写为钉住新口径；若 `KeystoreCipher` 环境再变（如 Robolectric
+ *    支持了 AndroidKeyStore），`keystore_不可用时保存被拒绝` 会变红 ⇒ 重新取证。
  */
 @RunWith(RobolectricTestRunner::class)
 class SecretStorageFallbackTest {
@@ -54,24 +54,28 @@ class SecretStorageFallbackTest {
     }
 
     @Test
-    fun `keystore_不可用时密文前缀不出现`() {
-        EdgeRuntimeConfig.saveSecret(ctx, "mqtt_password", "dev-mqtt-device-pass")
-        val raw = prefs.getString("mqtt_password", null)
-        assertEquals("dev-mqtt-device-pass", raw)
-        // 字面量前缀而非 KeystoreCipher.PREFIX：用常量写断言会跟着实现漂，是恒真式。
-        assertFalse("若这里变红 ⇒ 加密真的生效了，本文「明文回退」的结论作废", raw!!.startsWith("enc:v1:"))
+    fun `keystore_不可用时保存被拒绝且不落任何明文`() {
+        val r = runCatching { EdgeRuntimeConfig.saveSecret(ctx, "mqtt_password", "dev-mqtt-device-pass") }
+        assertTrue("keystore 不可用时 saveSecret 应抛异常（A6 fail-closed），实际成功", r.isFailure)
+        assertTrue(
+            "异常类型应为 IllegalStateException（Keystore 不可用语义）",
+            r.exceptionOrNull() is IllegalStateException
+        )
+        // 关键断言：storage 里**不存在**该键——明文与密文都不落
+        assertNull("拒绝保存后不得有任何落盘残留", prefs.getString("mqtt_password", null))
     }
 
     @Test
-    fun `明文回退后仍能读回原值`() {
-        EdgeRuntimeConfig.saveSecret(ctx, "mqtt_password", "prod-pass-abc")
-        assertEquals("prod-pass-abc", EdgeRuntimeConfig.mqttPassword(ctx))
+    fun `保存被拒后读取回退默认值`() {
+        runCatching { EdgeRuntimeConfig.saveSecret(ctx, "mqtt_password", "prod-pass-abc") }
+        assertEquals("", EdgeRuntimeConfig.mqttPassword(ctx))
     }
 
     @Test
-    fun `不同密钥字段互不串值`() {
-        EdgeRuntimeConfig.saveSecret(ctx, "mqtt_password", "pw-for-mqtt")
-        EdgeRuntimeConfig.saveSecret(ctx, "http_device_secret", "key-for-internal")
+    fun `不同密钥字段读取互不串值`() {
+        // 不经 saveSecret（keystore 不可用会被拒），直接预置存量明文验证读取分流
+        prefs.edit().putString("mqtt_password", "pw-for-mqtt").commit()
+        prefs.edit().putString("http_device_secret", "key-for-internal").commit()
         assertEquals("pw-for-mqtt", EdgeRuntimeConfig.mqttPassword(ctx))
         assertEquals("key-for-internal", EdgeRuntimeConfig.httpDeviceSecret(ctx))
     }
