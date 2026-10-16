@@ -383,28 +383,39 @@ public class MerchantWithdrawService {
 
     /**
      * 打款失败后取消：解冻资金并标记 CANCELLED，不可再重试打款。
+     *
+     * <p>AU-007（审计 B-1 F-02）两层修正：
+     * ① 改「先锁后事务」—— 原方法级 {@code @Transactional} 在事务内取分布式锁，
+     *    锁在提交前释放，并发方能拿到锁读到未提交的旧状态；
+     * ② 状态守卫在<b>锁内重查</b>单据 —— 原先用加锁前快照判 FAILED，
+     *    与 payout 并发时可对已 PAID 单重复 releaseFrozen（出款后又放钱，资损可复现）。</p>
      */
-    @Transactional
     public MerchantWithdrawRequestDto cancelFailed(Long operatorId, long requestId, String remark) {
         permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_WITHDRAW_REVIEW);
+        MerchantWithdrawRequest pre = requireRequest(requestId);
+        merchantScopeService.requireMerchantAccess(operatorId, pre.getMerchantId());
+        return runWithMerchantWalletLock(pre.getMerchantId(),
+                () -> self.cancelFailedLocked(requestId, operatorId, remark));
+    }
+
+    /** {@link #cancelFailed} 的事务体：只在持有钱包锁后进入，行状态以锁内重查为准。 */
+    @Transactional
+    public MerchantWithdrawRequestDto cancelFailedLocked(long requestId, Long operatorId, String remark) {
         MerchantWithdrawRequest request = requireRequest(requestId);
-        merchantScopeService.requireMerchantAccess(operatorId, request.getMerchantId());
-        return runWithMerchantWalletLock(request.getMerchantId(), () -> {
-            if (!"FAILED".equals(request.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "仅打款失败的提现单可取消解冻");
-            }
-            Instant now = Instant.now();
-            String note = trim(remark);
-            request.setStatus("CANCELLED");
-            request.setReviewRemark(note == null || note.isBlank() ? "打款失败取消解冻" : note);
-            request.setUpdatedAt(now);
-            withdrawMapper.updateById(request);
-            merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
-                    WITHDRAW, String.valueOf(request.getRequestId()), "提现失败取消解冻");
-            auditService.appendLog(operatorId, "MERCHANT_WITHDRAW_CANCEL", BIZ_MERCHANT_WITHDRAW,
-                    String.valueOf(requestId), "取消解冻；金额(分)=" + request.getAmountCents());
-            return toDto(request);
-        });
+        if (!"FAILED".equals(request.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅打款失败的提现单可取消解冻");
+        }
+        Instant now = Instant.now();
+        String note = trim(remark);
+        request.setStatus("CANCELLED");
+        request.setReviewRemark(note == null || note.isBlank() ? "打款失败取消解冻" : note);
+        request.setUpdatedAt(now);
+        withdrawMapper.updateById(request);
+        merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
+                WITHDRAW, String.valueOf(request.getRequestId()), "提现失败取消解冻");
+        auditService.appendLog(operatorId, "MERCHANT_WITHDRAW_CANCEL", BIZ_MERCHANT_WITHDRAW,
+                String.valueOf(requestId), "取消解冻；金额(分)=" + request.getAmountCents());
+        return toDto(request);
     }
 
     private MerchantWithdrawRequestDto createWithdraw(Merchant merchant, long amountCents, String requestNo,
@@ -429,7 +440,17 @@ public class MerchantWithdrawService {
         String no = normalizeRequestNo(requestNo);
         var existing = withdrawMapper.findByRequestNo(no);
         if (existing.isPresent()) {
-            return PayoutGate.done(toDto(existing.get()));
+            MerchantWithdrawRequest hit = existing.get();
+            // AU-006（审计 B-1 F-01）：requestNo 全局唯一 ⇒ 命中必须校验「归属+金额」。
+            // 原先直接返回命中单：他人 requestNo 泄露后，B 商户提交同号会拿到 A 的
+            // 提现 DTO（金额/收款方/打款流水号跨租户泄露），且 B 自己的请求被静默吞。
+            // 同商户同金额才算真重放，其余一律显式 409（让调用方换单号，不吞不泄）。
+            if (!merchant.getMerchantId().equals(hit.getMerchantId())
+                    || value(hit.getAmountCents()) != amountCents) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "提现单号已被其它请求占用，请更换 requestNo 后重新提交");
+            }
+            return PayoutGate.done(toDto(hit));
         }
         Instant now = Instant.now();
         MerchantWithdrawRequest request = new MerchantWithdrawRequest();

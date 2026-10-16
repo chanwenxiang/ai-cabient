@@ -220,27 +220,37 @@ public class LineWithdrawService {
         });
     }
 
-    /** 打款失败后取消：解冻资金并标记 CANCELLED。 */
-    @Transactional
+    /**
+     * 打款失败后取消：解冻资金并标记 CANCELLED。
+     *
+     * <p>AU-007（审计 B-1 F-02，与商户链同构修正）：先锁后事务 + 锁内重查行状态。
+     * 原先用加锁前快照判 FAILED，与 payout 并发时可对已 PAID 单重复 releaseFrozen。</p>
+     */
     public LineWithdrawRequestDto cancelFailed(Long operatorId, long requestId, String remark) {
         permissionService.requirePermission(operatorId, PERM_OPS_LINE_WITHDRAW_REVIEW);
+        LineWithdrawRequest pre = requireRequest(requestId);
+        return runWithLineWalletLock(pre.getManagerId(),
+                () -> self.cancelFailedLocked(requestId, operatorId, remark));
+    }
+
+    /** {@link #cancelFailed} 的事务体：只在持有钱包锁后进入，行状态以锁内重查为准。 */
+    @Transactional
+    public LineWithdrawRequestDto cancelFailedLocked(long requestId, Long operatorId, String remark) {
         LineWithdrawRequest request = requireRequest(requestId);
-        return runWithLineWalletLock(request.getManagerId(), () -> {
-            if (!"FAILED".equals(request.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "仅打款失败的提现单可取消解冻");
-            }
-            Instant now = Instant.now();
-            String note = trim(remark);
-            request.setStatus("CANCELLED");
-            request.setReviewRemark(note == null || note.isBlank() ? "打款失败取消解冻" : note);
-            request.setUpdatedAt(now);
-            withdrawMapper.updateById(request);
-            lineWalletService.releaseFrozen(request.getManagerId(), request.getAmountCents(),
-                    WITHDRAW, String.valueOf(request.getRequestId()), "提现失败取消解冻");
-            auditService.appendLog(operatorId, "LINE_WITHDRAW_CANCEL", BIZ_LINE_WITHDRAW,
-                    String.valueOf(requestId), "取消解冻；金额(分)=" + request.getAmountCents());
-            return toDto(request);
-        });
+        if (!"FAILED".equals(request.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅打款失败的提现单可取消解冻");
+        }
+        Instant now = Instant.now();
+        String note = trim(remark);
+        request.setStatus("CANCELLED");
+        request.setReviewRemark(note == null || note.isBlank() ? "打款失败取消解冻" : note);
+        request.setUpdatedAt(now);
+        withdrawMapper.updateById(request);
+        lineWalletService.releaseFrozen(request.getManagerId(), request.getAmountCents(),
+                WITHDRAW, String.valueOf(request.getRequestId()), "提现失败取消解冻");
+        auditService.appendLog(operatorId, "LINE_WITHDRAW_CANCEL", BIZ_LINE_WITHDRAW,
+                String.valueOf(requestId), "取消解冻；金额(分)=" + request.getAmountCents());
+        return toDto(request);
     }
 
     @Transactional(readOnly = true)
@@ -291,7 +301,15 @@ public class LineWithdrawService {
         String no = normalizeRequestNo(requestNo);
         var existing = withdrawMapper.findByRequestNo(no);
         if (existing.isPresent()) {
-            return PayoutGate.done(toDto(existing.get()));
+            LineWithdrawRequest hit = existing.get();
+            // AU-006（审计 B-1 F-01，与商户链同构修正）：命中必须校验「归属+金额」。
+            // 他人 requestNo 命中时既不能回其 DTO（跨主体泄露），也不能静默吞本请求。
+            if (!java.util.Objects.equals(manager.getManagerId(), hit.getManagerId())
+                    || value(hit.getAmountCents()) != amountCents) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "提现单号已被其它请求占用，请更换 requestNo 后重新提交");
+            }
+            return PayoutGate.done(toDto(hit));
         }
         Instant now = Instant.now();
         LineWithdrawRequest request = new LineWithdrawRequest();
