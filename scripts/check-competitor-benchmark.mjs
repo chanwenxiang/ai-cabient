@@ -83,10 +83,15 @@ const SUBJECT_ALIASES = [
   // 开门柜直接同行（peer）
   { re: /友宝|ubox|友客云/i, id: '友宝UBOX', kind: 'peer' },
   { re: /丰e|丰宜/i, id: '丰e足食', kind: 'peer' },
+  // 嗨便利：开门 AI 视觉柜 + SaaS 运营平台同行（CB-050/051 的首要对照，官网 hibianli.cn）
+  { re: /嗨便利|hibianli/i, id: '嗨便利', kind: 'peer' },
   { re: /哈哈零兽|武汉哈哈/i, id: '哈哈零兽', kind: 'peer' },
   { re: /美智微/i, id: '美智微', kind: 'peer' },
   { re: /宇脉/i, id: '宇脉电子', kind: 'peer' },
   { re: /合豚/i, id: '合豚', kind: 'peer' },
+  // 广州富宏智能/点为科技：开门柜/售货机运营商同行（CB-049 场景分层对照）
+  { re: /富宏/i, id: '广州富宏智能', kind: 'peer' },
+  { re: /点为/i, id: '点为科技', kind: 'peer' },
   // CB-048：微信官方平台规则（登录/手机号组件口径）+ 同行 SaaS 功能清单（peer）
   { re: /微信官方|developers\.weixin\.qq\.com/i, id: '微信官方', kind: 'official' },
   { re: /西陆科技|xilukeji/i, id: '西陆科技', kind: 'peer' },
