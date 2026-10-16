@@ -158,12 +158,7 @@
         </el-form-item>
       </el-form>
 
-      <el-table
-        :data="tallyRows"
-        v-loading="tallyLoading"
-        size="default"
-        empty-text="时间窗内无理货记录"
-      >
+      <CrudTable :table="tallyCrud" :row-key="tallyRowKey" empty-text="时间窗内无理货记录">
         <el-table-column label="时间" width="168" align="center" class-name="col-status">
           <template #default="{ row }">
             <span class="cell-datetime">{{ formatTallyTime(row.completedAt) }}</span>
@@ -213,15 +208,7 @@
             ><span class="cell-id">#{{ row.taskId }}</span></template
           >
         </el-table-column>
-      </el-table>
-      <el-pagination
-        class="tally-pagination"
-        layout="prev, pager, next, total"
-        :total="tallyTotal"
-        :page-size="tallySize"
-        :current-page="tallyPage"
-        @current-change="onTallyPageChange"
-      />
+      </CrudTable>
     </template>
   </el-card>
 </template>
@@ -264,39 +251,35 @@ type TallyRow = {
   applied: boolean;
   completedAt?: string;
 };
-const tallyRows = ref<TallyRow[]>([]);
-const tallyTotal = ref(0);
-const tallyPage = ref(1);
-const tallySize = 20;
 const tallyDays = ref(30);
 const tallyDeviceId = ref('');
 const tallyOperator = ref('');
-const tallyLoading = ref(false);
 
-async function loadTally() {
-  tallyLoading.value = true;
-  try {
+const tallyCrud = useCrudTable<TallyRow>({
+  // 行主键：台账行=任务×货道行，任务+SKU+货道即唯一（无独立行 ID）
+  rowKey: tallyRowKey,
+  autoLoad: false, // 首次切到台账 tab 时再拉（避免进页即多一次查询）
+  fetchPage: (params) => {
     const q = new URLSearchParams({
-      page: String(tallyPage.value - 1),
-      size: String(tallySize),
+      page: String(params.page),
+      size: String(params.size),
       days: String(tallyDays.value)
     });
     if (tallyDeviceId.value.trim()) q.set('deviceId', tallyDeviceId.value.trim());
     if (tallyOperator.value.trim()) q.set('operatorUserId', tallyOperator.value.trim());
-    const res = await api.request<{ items: TallyRow[]; total: number }>(
+    return api.request<{ items: TallyRow[]; total: number }>(
       AdminEndpoints.replenishmentTallyRecords(q),
       'GET'
     );
-    tallyRows.value = res.items;
-    tallyTotal.value = res.total;
-  } finally {
-    tallyLoading.value = false;
   }
+});
+
+function tallyRowKey(row: TallyRow) {
+  return `${row.taskId}:${row.skuId}:${row.slotId ?? ''}`;
 }
 
 function searchTally() {
-  tallyPage.value = 1;
-  void loadTally();
+  void tallyCrud.search();
 }
 
 function resetTally() {
@@ -306,11 +289,6 @@ function resetTally() {
   searchTally();
 }
 
-function onTallyPageChange(page: number) {
-  tallyPage.value = page;
-  void loadTally();
-}
-
 function formatTallyTime(v?: string) {
   if (!v) return '未完成';
   return v.replace('T', ' ').slice(0, 16);
@@ -318,7 +296,7 @@ function formatTallyTime(v?: string) {
 
 // 首次切到台账 tab 时拉取（避免进页即多一次查询）
 watch(activeTab, (tab) => {
-  if (tab === 'tally' && tallyRows.value.length === 0) void loadTally();
+  if (tab === 'tally' && !tallyCrud.hydrated) void tallyCrud.load();
 });
 
 /** 关键词为纯前端过滤（接口无该参数）：原 displayList 计算属性前移到取数处，切片前先过滤保证分页计数一致 */

@@ -23,25 +23,27 @@
             <span class="sensitive-summary__hint">资金 / 权限 / 凭据 / 数据直改，只记录不处理</span>
           </span>
         </template>
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table :data="sensitiveSummary" size="small" empty-text="时间窗内无敏感操作">
-              <el-table-column label="动作" min-width="180" class-name="col-text">
-                <template #default="{ row }">
-                  <el-tag size="small" effect="plain">{{ auditActionLabel(row.action) }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="次数" width="100" align="center" class-name="col-status">
-                <template #default="{ row }">{{ row.total }}</template>
-              </el-table-column>
-              <el-table-column label="最近一次" width="168" align="center" class-name="col-status">
-                <template #default="{ row }">
-                  <span class="cell-datetime">{{ formatDateTime(row.lastAt) }}</span>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
+        <CrudTable
+          :table="summaryCrud"
+          row-key="action"
+          empty-text="时间窗内无敏感操作"
+          :show-refresh="false"
+          class="sensitive-summary__table"
+        >
+          <el-table-column label="动作" min-width="180" class-name="col-text">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{ auditActionLabel(row.action) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="次数" width="100" align="center" class-name="col-status">
+            <template #default="{ row }">{{ row.total }}</template>
+          </el-table-column>
+          <el-table-column label="最近一次" width="168" align="center" class-name="col-status">
+            <template #default="{ row }">
+              <span class="cell-datetime">{{ formatDateTime(row.lastAt) }}</span>
+            </template>
+          </el-table-column>
+        </CrudTable>
       </el-collapse-item>
     </el-collapse>
 
@@ -179,19 +181,21 @@ interface AuditRow {
 const route = useRoute();
 const router = useRouter();
 const sensitiveDays = ref(7);
-const sensitiveSummary = ref<{ action: string; total: number; lastAt: string }[]>([]);
 
-async function loadSensitiveSummary() {
-  try {
-    sensitiveSummary.value = await api.request<{ action: string; total: number; lastAt: string }[]>(
+// CB-021④ 敏感操作汇总（折叠卡内的小只读表）：同样走 CrudTable 体系收口
+// （admin-table-gate 门禁禁止 views 里裸写原生表格标签）；pageSize 50 一次装下全部动作族。
+const summaryCrud = useCrudTable<{ action: string; total: number; lastAt: string }>({
+  rowKey: (r) => r.action,
+  pageSize: 50,
+  autoLoad: false,
+  fetchPage: () =>
+    api.request<{ action: string; total: number; lastAt: string }[]>(
       AdminEndpoints.auditSensitiveSummary(sensitiveDays.value),
       'GET'
-    );
-  } catch {
-    // 汇总失败不打断明细页主功能（无 ops:audit:list 权限的账号本就到不了此页）
-    sensitiveSummary.value = [];
-  }
-}
+    ),
+  // 汇总失败不打断明细页主功能（无 ops:audit:list 权限的账号本就到不了此页）
+  errorMessage: '敏感操作汇总加载失败'
+});
 const mineOnly = ref(false);
 const actionFilter = ref('');
 const targetFilter = ref('');
@@ -302,11 +306,11 @@ watch(
 onMounted(() => {
   applyRouteQuery();
   void crud.load();
-  void loadSensitiveSummary();
+  void summaryCrud.load();
 });
 onActivated(() => {
   void reloadFromRouteQuery();
-  void loadSensitiveSummary();
+  void summaryCrud.load();
 });
 </script>
 
@@ -322,6 +326,9 @@ onActivated(() => {
 .sensitive-summary__hint {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+.sensitive-summary__table {
+  margin-top: 4px;
 }
 .page-card-head {
   display: flex;
