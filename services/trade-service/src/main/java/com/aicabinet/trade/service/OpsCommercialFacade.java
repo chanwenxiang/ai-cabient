@@ -275,7 +275,9 @@ public class OpsCommercialFacade {
                 inv.getQuantity(),
                 inv.getCapacity(),
                 inv.getLowThreshold(),
-                inv.getUpdatedAt()
+                inv.getUpdatedAt(),
+                inv.getVersion(),
+                inv.getLastRestockQty()
         );
     }
 

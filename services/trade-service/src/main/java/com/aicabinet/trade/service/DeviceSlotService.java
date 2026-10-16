@@ -1459,7 +1459,8 @@ public class DeviceSlotService {
                 inv.getCapacity(),
                 inv.getLowThreshold(),
                 inv.getUpdatedAt(),
-                inv.getVersion()
+                inv.getVersion(),
+                inv.getLastRestockQty()
         );
     }
 

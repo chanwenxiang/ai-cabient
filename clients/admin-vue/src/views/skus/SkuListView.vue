@@ -373,7 +373,7 @@
         <el-button size="small" @click="addSceneLimitRow">添加场景</el-button>
         <div class="field-hint">
           例：东鹏在「校园」限 1 件、「工厂」限 5 件。柜机绑定商品时按柜子所属场景校验：
-          该商品在柜内各货道的容量合计不得超过此处上限。
+          该商品在此柜的上架数量不得超过此处上限。
         </div>
 
         <div class="form-group-title">价格与效期</div>

@@ -499,7 +499,7 @@ public class AdminDashboardService {
                 "DEVICE", deviceId, "skuId=" + body.skuId() + ",qty=" + inv.getQuantity()
                         + ",cap=" + inv.getCapacity() + ",low=" + inv.getLowThreshold());
         return new DeviceInventoryDto(deviceId, body.skuId(), inv.getQuantity(), inv.getCapacity(),
-                inv.getLowThreshold(), inv.getUpdatedAt(), inv.getVersion());
+                inv.getLowThreshold(), inv.getUpdatedAt(), inv.getVersion(), inv.getLastRestockQty());
     }
 
     /** CB-051：下架=删除柜×商品库存行（补货/盘点历史不受影响）。 */

@@ -834,6 +834,8 @@ public class ReplenishmentService {
         boolean preservePhysical = hasRealRestockGravitySnapshot(task);
         int appliedRestockQty = applyPendingReplenishmentLines(task, pending, operatorId,
                 String.valueOf(taskId), preservePhysical);
+        // CB-051 收尾：RESTOCK 行应用后按柜×商品写「上次配送后库存」快照
+        snapshotLastRestockQty(task.getDeviceId(), pending);
         deviceSlotService.clampDeviceOverCapacity(task.getDeviceId());
         task.setStatus(STATUS_COMPLETED);
         task.setCompletedAt(Instant.now());
@@ -856,6 +858,32 @@ public class ReplenishmentService {
             receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), appliedQty);
         }
         return finishCompletedTaskSideEffects(task, taskId);
+    }
+
+    /**
+     * CB-051：补货完成后写「上次配送后库存」快照（device_sku_inventory.last_restock_qty）。
+     * 只覆盖本次 RESTOCK 行涉及的柜×商品；快照值=应用后现行 quantity（与批次账本口径一致）。
+     */
+    private void snapshotLastRestockQty(String deviceId, List<ReplenishmentTaskLine> appliedLines) {
+        List<String> skuIds = appliedLines.stream()
+                .filter(l -> RESTOCK.equalsIgnoreCase(l.getLineType()))
+                .map(ReplenishmentTaskLine::getSkuId)
+                .filter(skuId -> skuId != null && !skuId.isBlank())
+                .distinct()
+                .toList();
+        if (skuIds.isEmpty()) {
+            return;
+        }
+        for (DeviceSkuInventory inv : inventoryRepository.findByIdDeviceId(deviceId)) {
+            if (skuIds.contains(inv.getSkuId())) {
+                inv.setLastRestockQty(inv.getQuantity());
+                // 复合主键实体禁 updateById（Invalid bound statement）——wrapper 更新
+                inventoryRepository.update(inv, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                        .<DeviceSkuInventory>lambdaUpdate()
+                        .eq(DeviceSkuInventory::getDeviceId, deviceId)
+                        .eq(DeviceSkuInventory::getSkuId, inv.getSkuId()));
+            }
+        }
     }
 
     private int resolveAppliedQtyForCatchUpReceive(
@@ -1530,7 +1558,7 @@ public class ReplenishmentService {
         return new DeviceInventoryDto(
                 deviceId, skuId,
                 qty, inv.getCapacity(), inv.getLowThreshold(), inv.getUpdatedAt(),
-                inv.getVersion()
+                inv.getVersion(), inv.getLastRestockQty()
         );
     }
 

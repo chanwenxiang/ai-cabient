@@ -123,7 +123,7 @@ public class MerchantInventoryPortalService {
                     }
                     return new DeviceInventoryDto(
                             dev, skuId, qty, i.getCapacity(), i.getLowThreshold(), i.getUpdatedAt(),
-                            i.getVersion());
+                            i.getVersion(), i.getLastRestockQty());
                 })
                 .filter(d -> !lowStockOnly || d.quantity() <= d.lowThreshold())
                 .toList();

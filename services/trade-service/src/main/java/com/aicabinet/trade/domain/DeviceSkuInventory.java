@@ -29,6 +29,9 @@ public class DeviceSkuInventory {
 
     private Instant updatedAt;
 
+    /** CB-051：上次配送后库存快照（补货完成后写入；NULL=无补货记录）。 */
+    private Integer lastRestockQty;
+
 
     public DeviceSkuInventoryId getId() {
         if (id == null && deviceId != null && skuId != null) {

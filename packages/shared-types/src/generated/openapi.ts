@@ -11339,6 +11339,8 @@ export interface components {
             updatedAt?: string;
             /** Format: int64 */
             inventoryVersion?: number;
+            /** Format: int32 */
+            lastRestockQty?: number;
         };
         ApiResponseDeviceInventoryDto: {
             /** Format: int32 */

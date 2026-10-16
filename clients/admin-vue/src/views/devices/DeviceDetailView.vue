@@ -67,11 +67,11 @@
             :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
             :aria-label="
               metricsHydrated
-                ? `缺货货道 ${metrics?.oosSlotCount ?? 0}`
-                : `缺货货道 ${UI_COPY.loading}`
+                ? `缺货商品 ${metrics?.oosSlotCount ?? 0}`
+                : `缺货商品 ${UI_COPY.loading}`
             "
           >
-            <div class="stat-label">缺货货道</div>
+            <div class="stat-label">缺货商品</div>
             <div class="stat-value">
               {{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}
             </div>
@@ -83,11 +83,11 @@
             :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
             :aria-label="
               metricsHydrated
-                ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
-                : `低库存货道 ${UI_COPY.loading}`
+                ? `低库存商品 ${metrics?.lowStockSlotCount ?? 0}`
+                : `低库存商品 ${UI_COPY.loading}`
             "
           >
-            <div class="stat-label">低库存货道</div>
+            <div class="stat-label">低库存商品</div>
             <div class="stat-value">
               {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '暂无' }}
             </div>
@@ -484,6 +484,7 @@
                 <div>
                   <label>当前库存:</label><strong>{{ card.quantity }}</strong>
                 </div>
+                <div><label>上次配送后库存:</label>{{ card.lastRestockQty ?? '--' }}</div>
                 <div><label>商品容量:</label>{{ card.capacity }}</div>
                 <div><label>规格:</label>{{ card.spec || '--' }}</div>
                 <div><label>品牌:</label>{{ card.brand || '--' }}</div>
@@ -993,6 +994,8 @@ interface DeviceInventoryRow {
   capacity: number;
   lowThreshold: number;
   updatedAt?: string;
+  /** 上次配送后库存快照（补货完成后写入；null/缺省=无补货记录） */
+  lastRestockQty?: number | null;
 }
 
 interface DeviceDetail {
@@ -1311,6 +1314,8 @@ interface SkuCard {
   quantity: number;
   capacity: number;
   lowThreshold: number;
+  /** CB-051 收尾：上次配送后库存快照（补货完成后写入；null=无补货记录） */
+  lastRestockQty: number | null;
   /** 上架时间：暂用商品建档时间（柜×SKU 绑定时戳后续随补货快照一并补） */
   shelvedAt?: string;
   stockoutWarn: boolean;
@@ -1332,6 +1337,7 @@ const skuCards = computed<SkuCard[]>(() =>
         quantity: inv.quantity,
         capacity: inv.capacity,
         lowThreshold: inv.lowThreshold,
+        lastRestockQty: inv.lastRestockQty ?? null,
         shelvedAt: sku?.createdAt,
         stockoutWarn: inv.quantity <= inv.lowThreshold,
         priceCents: pricingRowFor(inv.skuId)?.effectivePriceCents ?? null
