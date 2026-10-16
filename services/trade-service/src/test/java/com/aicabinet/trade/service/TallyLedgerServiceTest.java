@@ -73,10 +73,12 @@ class TallyLedgerServiceTest {
         verify(jdbc).queryForObject(org.mockito.ArgumentMatchers.anyString(), eq(Long.class),
                 argsCaptor.capture());
         Object sinceRaw = argsCaptor.getValue()[0];
-        assertTrue(sinceRaw instanceof Instant since
-                && !since.isAfter(Instant.now().minus(java.time.Duration.ofDays(360)))
-                && !since.isBefore(Instant.now().minus(java.time.Duration.ofDays(366))),
-                "窗口 clamp 到 365 天（since ≈ 今天-364 天）");
+        // 2026-10-16 起 since 以 java.sql.Timestamp 传入（PG 驱动对 Instant 直传不可推断类型），
+        // 断言改为 Timestamp 形态 + toInstant() 后验窗口
+        assertTrue(sinceRaw instanceof java.sql.Timestamp ts
+                && !ts.toInstant().isAfter(Instant.now().minus(java.time.Duration.ofDays(360)))
+                && !ts.toInstant().isBefore(Instant.now().minus(java.time.Duration.ofDays(366))),
+                "窗口 clamp 到 365 天（since ≈ 今天-364 天，Timestamp 形态）");
     }
 
     // PageResult 是 record，直接取 items 断言非空即可（避免引入额外断言依赖）
