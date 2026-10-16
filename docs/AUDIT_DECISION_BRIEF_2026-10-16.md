@@ -107,7 +107,7 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 2. ~~V376：`deposit-monthly-refund` 与 `refund-retry` 种子行 `enabled=FALSE`、`install_fee_clawback_enabled` 默认改 FALSE~~ ✅ 已写并验证（见 §8；仍是「已提交未跑」，等 peer 改号）；
 3. ~~DC-26：V375 清 `SKU-TEA-5839`（`sku_catalog` + `aliyun_category_mapping` 两行），照 V344 的 `${seed_env}='none'` 守卫 + fail-loud 断言~~ ✅ 已写并在 dev 库事务内实测（见 §8；实删三行：映射 + 下架评审 + 本体）；
 4. B-1 扩展审：V355 / V359 / V361（负向测试先行，不采信 `93bf2697` 内联自评）；
-5. V357 死列清理；
+5. ~~V357 死列清理~~ ✅ 已落 V377（见 §9）；
 6. 台账欠账：V347/V357/V359/V364/V365 补 CB 条目、CB-034↔CB-044 矛盾回写。
 
 ## 7. 本轮已落 / 唯一待问
@@ -156,4 +156,22 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 **编号前置仍未解**：V375/V376 排在 peer 的 CB-049/050 三连之后（他们把 untracked 的 V369/370/371 改号为 V372/373/374 才成立）。
 `check-migration-safety` 现在不报同号（它只扫磁盘目录，磁盘上还没有 origin/dev 那条 V369）⇒ **真正的撞车在 rebase 之后才会显形**，
 所以这两个文件是「已提交但未跑」状态：迁移号若被 peer 的改号占用，改号方向是**我方后移**（V375→V377…），因为 peer 的三条已进共享库、我方两条还没跑。
+
+## 9. V377 · DC-29 执行清单第 5 项：V357 死列清理
+
+[V377__drop_dead_line_manager_commission_columns.sql](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/resources/db/migration/V377__drop_dead_line_manager_commission_columns.sql) `DROP COLUMN line_manager.commission_basis / commission_per_unit_cents`。
+
+死列取证（不是「看着没人用」而是逐条对照）：
+
+| 检查 | 结果 |
+|---|---|
+| domain | `LineManager.java` 只有 `commissionRateBps` / `commissionFixedCents`，无对应字段 |
+| 全仓 grep 两个列名 | 命中**全部属于别的表**：V358 `line_route_member`（真正在用的双基数，`LineRouteMember.java` 有字段 + `LineRoutesView.vue` 有编辑面）、V361 `staff_commission_daily` |
+| raw SQL / mapper XML / 脚本按这两个列名读 line_manager | 零命中 |
+| 成因 | V357 自己注释写明「双基数 2026-10-14 二次修正后落到 V358，本迁移保留兼容列」⇒ 兼容面为零，按 V346 死表先例清理 |
+
+- 不带 `IF EXISTS`：列由 V357 无条件添加，缺失即库状态异常 ⇒ 宁可迁移当场红。
+- 门禁：DROP COLUMN 必带 `MIGRATION_REVIEWED: yes` + `LOCK_RISK/NOTES/TABLES`（[check-migration-safety.mjs](file:///D:/ai-generated%20code/ai-cabinet/scripts/check-migration-safety.mjs) 的硬要求），已配齐；`line_manager` 非热表。
+- 实测：dev 库事务内 `BEGIN;`+正文 ⇒ `cols left=0`，`ROLLBACK;` 后仍是 2 列（共享库无副作用）。
+- **Java 侧无需改动**（零引用实证），所以本项不牵动任何测试；V357 本体按铁律 50 不动。
 
