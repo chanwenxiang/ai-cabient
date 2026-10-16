@@ -61,13 +61,13 @@ public class DeviceReportController {
         String deviceId = device(request);
         boolean success = DoorStateNormalizer.isSuccess(body.lockStatus());
         if (success) {
-            commandTracker.complete(CommandTracker.Kind.OPEN, body.orderNo());
+            commandTracker.complete(CommandTracker.Kind.OPEN, body.orderNo(), deviceId);
             log.info("jiangyi lock OK deviceId={} orderNo={}", deviceId, body.orderNo());
             return ok();
         }
         log.warn("jiangyi lock FAIL deviceId={} orderNo={} — notify open-failed", deviceId, body.orderNo());
         try {
-            tradeInternalClient.postOpenFailed(body.orderNo(), "将邑设备上报开锁失败");
+            tradeInternalClient.postOpenFailed(body.orderNo(), "将邑设备上报开锁失败", deviceId);
         } catch (Exception e) {
             log.error("jiangyi open-failed notify failed orderNo={}", body.orderNo(), e);
         }
@@ -91,7 +91,7 @@ public class DeviceReportController {
             // 识别上报，等 300s CLOSE 兜底纯属浪费：立即走 open-failed 转 FAILED（幂等）。
             log.warn("jiangyi door FAIL deviceId={} orderNo={} — notify open-failed", deviceId, body.orderNo());
             try {
-                tradeInternalClient.postOpenFailed(body.orderNo(), "将邑设备上报拉门失败");
+                tradeInternalClient.postOpenFailed(body.orderNo(), "将邑设备上报拉门失败", deviceId);
             } catch (Exception e) {
                 log.error("jiangyi open-failed notify failed orderNo={}", body.orderNo(), e);
             }
@@ -131,7 +131,7 @@ public class DeviceReportController {
             // forms 空 = 没识别到商品（合法）；映射未命中 = fail-closed。
             // 两者对 trade 的处置相同：立即转人工审核，不等 10 分钟扫描。
             boolean isMiss = body.forms() != null && !body.forms().isEmpty();
-            boolean handled = tradeInternalClient.recognizeTimeout(sessionId);
+            boolean handled = tradeInternalClient.recognizeTimeout(sessionId, deviceId);
             log.warn("jiangyi recognition {} deviceId={} sessionId={} handled={}",
                     isMiss ? "MAPPING-MISS" : "EMPTY", deviceId, sessionId, handled);
             return ok();
@@ -157,7 +157,7 @@ public class DeviceReportController {
             log.error("jiangyi edge-results forward failed deviceId={} sessionId={}", deviceId, sessionId, e);
         } finally {
             // 识别结果已到达（无论受理结论），关门兜底使命完成
-            commandTracker.complete(CommandTracker.Kind.CLOSE, sessionId);
+            commandTracker.complete(CommandTracker.Kind.CLOSE, sessionId, deviceId);
         }
         return ok();
     }
@@ -184,7 +184,7 @@ public class DeviceReportController {
         log.warn("jiangyi order error deviceId={} orderNo={} errorMsg={} — fail-closed",
                 deviceId, body.orderNo(), body.errorMsg());
         try {
-            tradeInternalClient.recognizeTimeout(body.orderNo());
+            tradeInternalClient.recognizeTimeout(body.orderNo(), deviceId);
         } catch (Exception e) {
             log.error("jiangyi recognize-timeout notify failed orderNo={}", body.orderNo(), e);
         }

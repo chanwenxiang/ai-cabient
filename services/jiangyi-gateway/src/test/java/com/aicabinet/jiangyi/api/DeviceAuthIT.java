@@ -31,8 +31,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * 将邑鉴权与透传 IT（CB-022，方案 §12：401 负向 + 回执透传）。
- * <p>Spring 上下文 + MockMvc；trade 依赖以 {@code @MockBean} 短路（不依赖容器/Redis——
- * CommandTracker 为懒连接，本 IT 不触 tracker 路径）。</p>
+ * <p>Spring 上下文 + MockMvc；trade 与 tracker 依赖均以 {@code @MockBean} 短路。
+ * tracker 必须短路而非连真 Redis：lock-state success 会走
+ * {@code CommandTracker.complete}（AU-060/061 面），而 dev 栈 Redis 带 requirepass、
+ * IT 侧 {@code REDIS_PASSWORD} 为空 ⇒ 依赖真连接会让本类随环境凭据漂移（假红）。
+ * tracker 自身的键安全由 {@code CommandTrackerTest} 覆盖。</p>
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -54,6 +57,9 @@ class DeviceAuthIT {
 
     @MockBean
     private TradeInternalClient tradeInternalClient;
+
+    @MockBean
+    private com.aicabinet.jiangyi.tracker.CommandTracker commandTracker;
 
     @BeforeEach
     void resetMocks() {
@@ -212,7 +218,8 @@ class DeviceAuthIT {
 
         // 透传：开锁失败必须通知 trade open-failed（markOpenDoorFailed 幂等侧）
         verify(tradeInternalClient).postOpenFailed(
-                org.mockito.ArgumentMatchers.eq("S1"), anyString());
+                org.mockito.ArgumentMatchers.eq("S1"), anyString(),
+                org.mockito.ArgumentMatchers.eq("D1"));
     }
 
     @Test

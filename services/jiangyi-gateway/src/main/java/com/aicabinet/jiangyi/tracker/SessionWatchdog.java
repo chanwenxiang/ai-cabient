@@ -76,7 +76,7 @@ public class SessionWatchdog {
             log.warn("jiangyi watchdog OPEN timeout sessionId={} deviceId={} — open-failed",
                     p.sessionId(), p.deviceId());
             try {
-                tradeInternalClient.postOpenFailed(p.sessionId(), "将邑柜开门指令15秒无设备回执");
+                tradeInternalClient.postOpenFailed(p.sessionId(), "将邑柜开门指令15秒无设备回执", p.deviceId());
             } catch (Exception e) {
                 log.error("jiangyi watchdog open-failed notify failed sessionId={}", p.sessionId(), e);
                 continue; // 下一趟再试（不出队）
@@ -91,7 +91,7 @@ public class SessionWatchdog {
         for (CommandTracker.Pending p : due) {
             log.warn("jiangyi watchdog CLOSE timeout sessionId={} — recognize-timeout", p.sessionId());
             try {
-                tradeInternalClient.recognizeTimeout(p.sessionId());
+                tradeInternalClient.recognizeTimeout(p.sessionId(), p.deviceId());
             } catch (Exception e) {
                 log.error("jiangyi watchdog recognize-timeout notify failed sessionId={}", p.sessionId(), e);
                 continue;
@@ -106,7 +106,7 @@ public class SessionWatchdog {
         for (CommandTracker.Pending p : due) {
             log.warn("jiangyi watchdog DOING timeout sessionId={} — recognize-timeout", p.sessionId());
             try {
-                tradeInternalClient.recognizeTimeout(p.sessionId());
+                tradeInternalClient.recognizeTimeout(p.sessionId(), p.deviceId());
             } catch (Exception e) {
                 log.error("jiangyi watchdog doing-timeout notify failed sessionId={}", p.sessionId(), e);
                 continue;
