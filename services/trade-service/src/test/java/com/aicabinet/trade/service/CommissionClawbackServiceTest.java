@@ -42,6 +42,7 @@ class CommissionClawbackServiceTest {
     private LineManagerMapper managerMapper;
     private LineWalletService lineWalletService;
     private StaffWalletService staffWalletService;
+    private org.springframework.transaction.PlatformTransactionManager txManager;
     private CommissionClawbackService service;
 
     @BeforeEach
@@ -58,7 +59,7 @@ class CommissionClawbackServiceTest {
                 anyString(), anyString(), anyString())).thenReturn(true);
         lenient().when(staffWalletService.debitIfAbsentAllowNegative(anyLong(), anyLong(), anyString(),
                 anyString(), anyString(), anyString())).thenReturn(true);
-        var txManager = mock(org.springframework.transaction.PlatformTransactionManager.class);
+        this.txManager = mock(org.springframework.transaction.PlatformTransactionManager.class);
         lenient().when(txManager.getTransaction(any())).thenReturn(null);
         service = new CommissionClawbackService(lineCommissionDailyMapper, staffCommissionDailyMapper,
                 clawbackMapper, orderMapper, managerMapper, lineWalletService, staffWalletService,
@@ -106,6 +107,27 @@ class CommissionClawbackServiceTest {
         assertEquals(4_000L, captor.getValue().getRefundGmvCents());
         verify(lineWalletService).debitIfAbsentAllowNegative(eq(1L), eq(200L),
                 eq("COMMISSION_CLAWBACK"), eq("COMMISSION_CLAWBACK"), anyString(), anyString());
+    }
+
+    @Test
+    void debitSkippedRollsBackClawbackIncrement() {
+        // B-1 F-7：钱包把本次负扣判为「已存在同 ref 流水」而跳过时，累计冲回行必须一起回滚，
+        // 否则「已冲回额」虚增而钱没扣 ⇒ 差额从此不再被重算（永久少冲）。
+        when(lineCommissionDailyMapper.selectList(any()))
+                .thenReturn(List.of(managerRow(10_000L, 2, 500L)));
+        when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(List.of(paidOrder(3_000), paidOrder(3_000)));
+        LineManager manager = new LineManager();
+        manager.setManagerId(1L);
+        manager.setCommissionRateBps(500);
+        manager.setCommissionFixedCents(0);
+        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager));
+        when(lineWalletService.debitIfAbsentAllowNegative(anyLong(), anyLong(), anyString(),
+                anyString(), anyString(), anyString())).thenReturn(false);
+
+        assertEquals(0, service.reverseRecentRefunds(), "跳过负扣却算成一次冲回事件 ⇒ 台账与钱包口径分叉");
+        verify(clawbackMapper).insert(any());
+        verify(txManager).rollback(any());
     }
 
     @Test

@@ -145,9 +145,15 @@ public class CommissionClawbackService {
         Boolean ok = transactionTemplate.execute(tx -> {
             long after = upsertClawback(CommissionClawback.OWNER_MANAGER, ownerId, deviceId, bizDate,
                     net, gmvDelta, Math.max(0, countDelta));
-            return lineWalletService.debitIfAbsentAllowNegative(ownerId, net, ENTRY_TYPE,
+            if (!lineWalletService.debitIfAbsentAllowNegative(ownerId, net, ENTRY_TYPE,
                     ENTRY_TYPE, deviceId + "|" + bizDate + "|" + after,
-                    "佣金随退款冲回 " + bizDate + " " + deviceId);
+                    "佣金随退款冲回 " + bizDate + " " + deviceId)) {
+                // B-1 F-7：负扣被判定「已存在同 ref 流水」而跳过时，累计冲回行必须一起回滚——
+                // 否则「已冲回额」虚增而钱没扣，差额永远不会再被重算补回（永久少冲）。
+                throw new IllegalStateException("佣金冲回钱包负扣被跳过，累计行回滚待次日重算 manager="
+                        + ownerId + " device=" + deviceId + " date=" + bizDate + " net=" + net);
+            }
+            return true;
         });
         if (Boolean.TRUE.equals(ok)) {
             log.info("commission clawback posted manager={} device={} date={} net={}",
@@ -205,9 +211,14 @@ public class CommissionClawbackService {
         Boolean ok = transactionTemplate.execute(tx -> {
             long after = upsertClawback(CommissionClawback.OWNER_STAFF, ownerId, deviceId, bizDate,
                     net, gmvDelta, 0);
-            return staffWalletService.debitIfAbsentAllowNegative(ownerId, net, ENTRY_TYPE,
+            if (!staffWalletService.debitIfAbsentAllowNegative(ownerId, net, ENTRY_TYPE,
                     ENTRY_TYPE, deviceId + "|" + bizDate + "|" + after,
-                    "佣金随退款冲回 " + bizDate + " " + deviceId);
+                    "佣金随退款冲回 " + bizDate + " " + deviceId)) {
+                // B-1 F-7：同 reverseManagerRow——跳过负扣却提交累计行 = 永久少冲
+                throw new IllegalStateException("佣金冲回钱包负扣被跳过，累计行回滚待次日重算 staff="
+                        + ownerId + " device=" + deviceId + " date=" + bizDate + " net=" + net);
+            }
+            return true;
         });
         if (Boolean.TRUE.equals(ok)) {
             log.info("staff commission clawback posted staff={} device={} date={} net={}",
