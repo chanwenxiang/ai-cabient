@@ -137,8 +137,9 @@ class DeviceRentalServiceTest {
     }
 
     @Test
-    void registerDeposit_removalSettlementParams_defaultToLegacy() {
-        // 空值=老系统口径默认（安装费 100 元 / 追回开 / 5 年）
+    void registerDeposit_removalSettlementParams_defaultsAreFeeLegacyButClawbackOff() {
+        // 空值默认：安装费 100 元 / 合同 5 年 = 老系统口径；
+        // 但「倒扣商户余额」的追回开关 DC-29（2026-10-16）改为**默认关** —— 资损面必须显式传 true 才开
         when(deviceMapper.findById("D1")).thenReturn(Optional.of(rentalDevice("D1", 0)));
         when(depositMapper.findByDevice("D1")).thenReturn(Optional.empty());
 
@@ -147,8 +148,21 @@ class DeviceRentalServiceTest {
         ArgumentCaptor<DeviceRentalDeposit> captor = ArgumentCaptor.forClass(DeviceRentalDeposit.class);
         verify(depositMapper).insert(captor.capture());
         assertThat(captor.getValue().getInstallFeeDeductCents()).isEqualTo(10_000L);
-        assertThat(captor.getValue().getInstallFeeClawbackEnabled()).isTrue();
+        assertThat(captor.getValue().getInstallFeeClawbackEnabled()).isFalse();
         assertThat(captor.getValue().getContractYears()).isEqualTo(5);
+    }
+
+    @Test
+    void registerDeposit_clawbackNull_notEnabledByDefault() {
+        // 钉住 DC-29 语义反转：null ≠ 老系统的「开」，只有显式 true 才启用
+        when(deviceMapper.findById("D1")).thenReturn(Optional.of(rentalDevice("D1", 0)));
+        when(depositMapper.findByDevice("D1")).thenReturn(Optional.empty());
+
+        service.registerDeposit(9L, "D1", 50_000L, null, null, null, null, null, null, null);
+
+        ArgumentCaptor<DeviceRentalDeposit> captor = ArgumentCaptor.forClass(DeviceRentalDeposit.class);
+        verify(depositMapper).insert(captor.capture());
+        assertThat(captor.getValue().getInstallFeeClawbackEnabled()).isFalse();
     }
 
     @Test
@@ -242,10 +256,11 @@ class DeviceRentalServiceTest {
 
     @Test
     void settle_depositExhaustedBeforeExpiry_clawsBackInstallFee() {
-        // 押金已按月退完 + 未满 5 年 → 向商户余额倒扣安装费（AllowNegative，对齐老系统追回）
+        // 押金已按月退完 + 未满 5 年 + **登记时显式开了追回** → 向商户余额倒扣安装费（AllowNegative）
         DeviceRentalDeposit deposit = heldDeposit(1L, 0L);
         deposit.setChargeMode("ONLINE");
         deposit.setCreatedAt(Instant.parse("2025-10-12T00:00:00Z"));
+        deposit.setInstallFeeClawbackEnabled(true);
         when(depositMapper.selectById(1L)).thenReturn(deposit);
 
         service.settle(9L, 1L, null);
@@ -263,6 +278,22 @@ class DeviceRentalServiceTest {
         deposit.setChargeMode("ONLINE");
         deposit.setCreatedAt(Instant.parse("2025-10-12T00:00:00Z"));
         deposit.setInstallFeeClawbackEnabled(false);
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
+
+        service.settle(9L, 1L, null);
+
+        verify(merchantWalletService, never()).debitIfAbsentAllowNegative(anyString(), anyLong(),
+                anyString(), anyString(), anyString(), anyString());
+        assertThat(deposit.getStatus()).isEqualTo(DeviceRentalDeposit.STATUS_SETTLED);
+    }
+
+    @Test
+    void settle_clawbackNull_treatedAsDisabled() {
+        // DC-29 语义：字段缺失（历史行/直连 SQL 写入）一律按「未开启」处理，不自动倒扣商户余额
+        DeviceRentalDeposit deposit = heldDeposit(1L, 0L);
+        deposit.setChargeMode("ONLINE");
+        deposit.setCreatedAt(Instant.parse("2025-10-12T00:00:00Z"));
+        deposit.setInstallFeeClawbackEnabled(null);
         when(depositMapper.selectById(1L)).thenReturn(deposit);
 
         service.settle(9L, 1L, null);

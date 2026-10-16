@@ -104,8 +104,8 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 
 **执行清单（不分一期二期，按此顺序做）**：
 1. ~~DC-27(a) 后端值域闸门~~ ✅ 已落（见 §7）；
-2. V376：`deposit-monthly-refund` 与 `refund-retry` 种子行 `enabled=FALSE`、`install_fee_clawback_enabled` 默认改 FALSE —— **等改号后**；
-3. DC-26：V375 清 `SKU-TEA-5839`（`sku_catalog` + `aliyun_category_mapping` 两行），照 V344 的 `${seed_env}='none'` 守卫 + fail-loud 断言 —— **等改号后**；
+2. ~~V376：`deposit-monthly-refund` 与 `refund-retry` 种子行 `enabled=FALSE`、`install_fee_clawback_enabled` 默认改 FALSE~~ ✅ 已写并验证（见 §8；仍是「已提交未跑」，等 peer 改号）；
+3. ~~DC-26：V375 清 `SKU-TEA-5839`（`sku_catalog` + `aliyun_category_mapping` 两行），照 V344 的 `${seed_env}='none'` 守卫 + fail-loud 断言~~ ✅ 已写并在 dev 库事务内实测（见 §8；实删三行：映射 + 下架评审 + 本体）；
 4. B-1 扩展审：V355 / V359 / V361（负向测试先行，不采信 `93bf2697` 内联自评）；
 5. V357 死列清理；
 6. 台账欠账：V347/V357/V359/V364/V365 补 CB 条目、CB-034↔CB-044 矛盾回写。
@@ -122,4 +122,38 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 - **(i) 种子行默认 FALSE**（运营台手动启）：生产上线必须记得开，忘了=退款失败无人闭环；
 - **(ii) 代码级 `@Value("${trade.refund.retry.enabled:false}")`**：非生产默认不跑，生产靠 env 打开，与 (i) 等价但多一道「env 没配就不跑」的保险；
 - **(iii) 判据换成「渠道凭据非沙盒才跑」**：最贴风险本身，但要先确认 dev 现在配的商户凭据是不是真的（若是真的，(iii) 等于没关）。
+
+## 8. 拍板落地（2026-10-16 晚）：V375 + V376 = 选项 (i) 的「靠运营台手动开」
+
+**你选的 (i) 有真实落点**（先取证再写）：`ScheduledTaskService#tryBegin` 在
+`row != null && !TRUE.equals(row.getEnabled())` 时 `recordSkip("task disabled")` 返回 false ⇒
+调度入口当场退出；运营台 `PUT /api/v2/ops/admin/scheduled-tasks/{taskKey}/enabled`
+（[ScheduledTaskController.java:89](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/api/ScheduledTaskController.java#L89) + `ScheduledTaskView.vue`）可一键启停。
+⇒ **关的是数据行，不用加代码开关**（(ii) 的代码级 flag 因此没必要）。
+
+- [V376__fund_jobs_and_clawback_default_off.sql](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/resources/db/migration/V376__fund_jobs_and_clawback_default_off.sql)：`refund-retry` + `deposit-monthly-refund` 种子行 `enabled=FALSE`（V152 起 `DEFAULT TRUE`，V364/V360 的 INSERT 没写 enabled ⇒ 只能追加 UPDATE，铁律 50 不改已应用迁移）；`install_fee_clawback_enabled` 列默认改 FALSE + 存量行翻转；末尾**零残留断言**（没关上就 fail 迁移）。**全环境生效**（不加 `${seed_env}` 守卫）：dev 的渠道凭据可能是真的，「测试环境就该自动跑」不成立。
+- [V375__production_seed_sku_tea5839_guard.sql](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/resources/db/migration/V375__production_seed_sku_tea5839_guard.sql)：DC-26 按「没在售」处置（你的口径=全测试环境未上真机）。照 V344 的 `${seed_env}='none'` 生产守卫，但**不做级联清理**——先全库普查 27 个 `sku_id/assigned_sku_id` 列，任何真实引用 ⇒ `RAISE EXCEPTION` 交人工；无引用才删 映射 + 下架评审 + 本体三行。
+- 代码侧配套：[DeviceRentalService.java:167](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java#L167) `registerDeposit` 与 `:232` `settle` 的「空值=开」改成「空值=关」。只改列默认是**假修复**：`installFeeClawbackEnabled == null || …` 会让运营台（表单没暴露该参数，实证 `DeviceRentalView.vue` 零命中）写入的行全部默认开。
+- 钉住旧行为的两个用例按铁律 62 同步改（`defaultToLegacy` → 改名并断言 `isFalse`；`settle_..._clawsBackInstallFee` 显式 `setInstallFeeClawbackEnabled(true)`），并新增两例 `registerDeposit_clawbackNull_notEnabledByDefault` / `settle_clawbackNull_treatedAsDisabled`。
+- 运营台欠的一块：押金登记表单没有三件套参数位 ⇒ 「逐柜手动开追回」目前只能走登记接口传 `installFeeClawbackEnabled=true`。**没顺手加 UI**（属 CB-044 参数面补全，未点单）。
+
+**验证（负向验证按铁律 4 走完三段：绿 → 注入红 → 还原绿）**
+
+| 项 | 结果 |
+|---|---|
+| V375 生产路径 | dev 库事务内试跑（占位符手填 `none`）⇒ NOTICE `零引用普查列数=27`、三表 in-tx 计数 0、`ROLLBACK` 后夹具仍在 ⇒ 无副作用 |
+| V375 能红 | 首版普查未白名单 `sku_delist_review` ⇒ 当场 `RAISE EXCEPTION`（dev 里 2026-10-07 选品诊断生成的 1 行）——**断言真的会拦**，随后按 V344 口径把它列入「目录附属同删」 |
+| V376 路径 | 事务内 `UPDATE 2 / ALTER TABLE / UPDATE 1 / DO` 全过，三处状态 0/0/false |
+| V376 能红 | 单独跑断言块 + 重新启用一条任务 ⇒ `仍有 1 条…enabled=TRUE` |
+| 单测 | `DeviceRentalServiceTest` 21 例全绿；把 `clawback` 改回旧表达式 ⇒ **恰好 `settle_clawbackNull_treatedAsDisabled` 变红**（证明不是恒真断言），还原后 21 例复绿 |
+| 迁移门禁 | `check-migration-safety` / `check-flyway-seed-separation` 对 V375/V376 **零判红**（余下 6 红全在 peer 未跟踪的 V369/V370/V371 上，非我方线，按铁律 61 不接盘） |
+
+🔴 **事故与恢复（如实记录）**：做 V376「能红」第二段时，psql 命令**漏了 `BEGIN;…ROLLBACK;` 包裹**，
+把 V376 正文真的应用到了共享 dev 库（两条任务被停、押金行翻转、列默认变 false）。
+已用一条事务恢复原状并实测：`enabled tasks=2 / clawback true=1 / col default=true / flyway_schema_history max=371`（**没写历史行** ⇒ V376 仍会由 Flyway 正常应用）。
+教训：**任何对共享库的写测试，模板必须是 `BEGIN;` + 正文 + 断言 + `ROLLBACK;` + `-v ON_ERROR_STOP=1`**；负向注入要放在同一个包裹里，不能另起一条无包裹会话（铁律 55 家族）。
+
+**编号前置仍未解**：V375/V376 排在 peer 的 CB-049/050 三连之后（他们把 untracked 的 V369/370/371 改号为 V372/373/374 才成立）。
+`check-migration-safety` 现在不报同号（它只扫磁盘目录，磁盘上还没有 origin/dev 那条 V369）⇒ **真正的撞车在 rebase 之后才会显形**，
+所以这两个文件是「已提交但未跑」状态：迁移号若被 peer 的改号占用，改号方向是**我方后移**（V375→V377…），因为 peer 的三条已进共享库、我方两条还没跑。
 

@@ -162,7 +162,9 @@ public class DeviceRentalService {
         // CB-044 拍板：撤机清算三件套登记可配（空值=老系统口径默认）
         deposit.setInstallFeeDeductCents(installFeeDeductCents == null
                 ? DEFAULT_INSTALL_FEE_DEDUCT_CENTS : Math.max(0L, installFeeDeductCents));
-        deposit.setInstallFeeClawbackEnabled(installFeeClawbackEnabled == null || installFeeClawbackEnabled);
+        // DC-29（2026-10-16 拍板「靠运营台手动开」）：倒扣商户余额属资损面 ⇒ 空值不再等于老系统的「开」，
+        // 必须显式传 true 才启用（与 V376 的列默认 FALSE 同向；运营台登记表单暂未暴露该参数）。
+        deposit.setInstallFeeClawbackEnabled(Boolean.TRUE.equals(installFeeClawbackEnabled));
         if (contractYears != null && contractYears < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "合同年数必须 ≥ 1");
         }
@@ -210,7 +212,8 @@ public class DeviceRentalService {
      * 结算返还（撤机清算，CB-044 拍板 2026-10-15 选项 1：复刻老三件套，费用参数登记可配不写死）：
      * <ul>
      *   <li><b>未满合同年数撤机</b>：退剩余押金 − 撤机安装费（installFeeDeductCents，默认 100 元，
-     *       从押金内扣，最多扣到 0）；押金已按月退完且 installFeeClawbackEnabled（默认开）⇒
+     *       从押金内扣，最多扣到 0）；押金已按月退完且 installFeeClawbackEnabled（<b>默认关</b>，
+     *       DC-29 拍板；登记时显式传 true 才启用）⇒
      *       向商户余额<b>倒扣</b>安装费（AllowNegative，可挂负，对齐老系统追回）。</li>
      *   <li><b>满 contractYears（默认 5）年撤机</b>：免扣安装费，发期满奖励 expireRewardCents
      *       （refId 与月度退还链同款 {@code depositId|REWARD}——幂等，月度链已发过则不双发）。</li>
@@ -226,8 +229,7 @@ public class DeviceRentalService {
         }
         long installFee = deposit.getInstallFeeDeductCents() == null
                 ? 10_000L : deposit.getInstallFeeDeductCents();
-        boolean clawback = deposit.getInstallFeeClawbackEnabled() == null
-                || deposit.getInstallFeeClawbackEnabled();
+        boolean clawback = Boolean.TRUE.equals(deposit.getInstallFeeClawbackEnabled());
         int contractYears = deposit.getContractYears() == null ? 5 : deposit.getContractYears();
         boolean contractExpired = contractExpired(deposit, contractYears);
 

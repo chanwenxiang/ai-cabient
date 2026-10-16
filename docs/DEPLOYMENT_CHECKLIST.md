@@ -84,6 +84,7 @@ copy infra\.env.production.example infra\.env.production
 - [ ] PostgreSQL 备份；Flyway 迁移至最新（V340+）
 - [ ] 将邑面：`JIANGYI_JWT_SECRET` 已配（≥32 字节）；`JIANGYI_OSS_ACCESS_KEY_ID/SECRET/ROLE_ARN/REGION/BUCKET` 已配；`JIANGYI_PUBLIC_BASE_URL` 指向固定公网域名（勿用花生壳穿透）；OSS `jiangyi-video/` 生命周期规则已建（§3.1.1）
 - [ ] MinIO/OSS 桶策略、CORS、视频生命周期（**OSS 侧见 §3.1.1，必配**）
+- [ ] **资金类定时任务已按需手动开启**（V376 起默认关，见 §3.1.2）
 - [ ] EMQX TLS（设备 MQTT）
 - [ ] Gateway HTTPS、CORS 仅运营域名
 
@@ -106,6 +107,21 @@ copy infra\.env.production.example infra\.env.production
 **N 定稿 = 90 天**（2026-10-12）：设备端视频保留策略已实锤——**视频保留 1 个月 / 设备本地存储 64GB**（`JIANGYI_GATEWAY_DESIGN.md §7.6`）。OSS 与设备保留期**解耦**：OSS 只存已上传的**异常单**视频（正常单只留柜机本地，超 1 个月随设备清理消失且不可回拉）。90 天是**自己的设计判断**：覆盖常见资金争议/审计 90 天追溯窗口；桶内仅异常单录像，存储成本可忽略，取值可随业务窗口调整。若抽检要求 >1 个月且需覆盖正常单 ⇒ 先改 §4.2.13 为**全量上传**，再相应调大本值。
 
 > 角色 `jiangyivideoupload` 的 `oss:DeleteObject` 权限（2026-10-11 已开通）**只**服务于「运营手动删单条」这类**服务端**调用——该能力**当前未开放**（无对应业务需求；且删对象会让 `jiangyi_order_video` 台账地址变死链，须同步处置台账）。保留期清理**一律走本生命周期规则**。
+
+### 3.1.2 资金类定时任务默认关闭（V376，上线须手动开启）
+
+> DC-29（2026-10-16 用户拍板「靠运营台手动开」）：三条「无人开启就会自己动钱」的路径改成了显式启用。
+> 机制：`ScheduledTaskService#tryBegin` 见到 `scheduled_task.enabled=FALSE` 直接跳过（跳过原因 `task disabled`
+> 在运营台执行记录可见），所以**关的是数据行，不是代码**；运营台「定时任务」页可一键启停。
+
+| 任务 key | 干什么 | 不开的后果 | 何时该开 |
+|---|---|---|---|
+| `refund-retry` | 每 60 秒扫 `REFUND_INITIATED` 痕迹：查单优先、同号重发（渠道幂等）、超 30 分钟置 `REFUND_FAILED` + HIGH 告警 | 🔴 **渠道退款失败/进程中断后无人闭环**——本地痕迹永挂，只剩 T+1 金额对账兜底 | 生产一上线就该开（这是退款闭环的正解）；只在「渠道凭据尚未就绪」的窗口保持关闭 |
+| `deposit-monthly-refund` | 每月 1 日 01:30 按柜把押金分期退回商户余额 | 押金不自动退还，须运营手动退（对齐老系统「人工点退押金」形态） | 确定要跑「按月自动退还」商业模式时再开（V360/CB-044 拍板项） |
+| `device_rental_deposit.install_fee_clawback_enabled` | 押金已按月退完且未满合同年数时**倒扣商户余额**安装费（可挂负） | 撤机时不追回安装费（少收钱，不会多扣商户） | 逐柜显式开：当前**运营台登记表单未暴露该参数**，只能由登记接口显式传 `installFeeClawbackEnabled=true` |
+
+- 验证：`GET /api/v2/ops/admin/scheduled-tasks` 或运营台页面看 `enabled`；迁移侧 V376 末尾有零残留断言（没关上就 fail 迁移）。
+- dev/staging 同状态（迁移不分环境，凭据可能是真的就不该自动跑）；要测退款闭环 ⇒ 运营台打开该任务再测，测完按需关闭。
 
 ### 3.2 部署命令
 
