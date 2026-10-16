@@ -360,7 +360,7 @@ function onStatusChange() {
             class-name="col-money"
             label-class-name="col-money"
           >
-            <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+            <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
           </el-table-column>
           <el-table-column
             label="状态"

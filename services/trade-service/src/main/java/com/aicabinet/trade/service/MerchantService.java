@@ -144,7 +144,9 @@ public class MerchantService {
         merchant.setMerchantId(merchantId);
         merchant.setMerchantName(request.merchantName().trim());
         merchant.setContactPhone(blankToNull(request.contactPhone()));
-        merchant.setPlatformRateBps(request.platformRateBps() != null ? request.platformRateBps() : 1000);
+        // 未显式传费率 ⇒ 0（2026-10-17 拍板「平台分账先不收」，与 V382/Merchant 实体默认同口径）；
+        // 要抽成由运营在「平台抽成（%）」里显式填。
+        merchant.setPlatformRateBps(request.platformRateBps() != null ? request.platformRateBps() : 0);
         merchant.setWechatReceiverId(blankToNull(request.wechatReceiverId()));
         merchant.setStatus(request.status() != null && !request.status().isBlank()
                 ? request.status().trim() : "ACTIVE");

@@ -99,7 +99,7 @@
             label-class-name="col-status"
           />
           <el-table-column label="月租" width="110" align="right">
-            <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+            <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
           </el-table-column>
           <el-table-column
             label="状态"
@@ -151,7 +151,7 @@
           <el-table-column prop="deviceId" label="设备" width="130" />
           <el-table-column prop="merchantId" label="商户" width="120" />
           <el-table-column label="押金本金" width="120" align="right">
-            <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+            <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
           </el-table-column>
           <el-table-column
             label="可用余额"
@@ -160,7 +160,7 @@
             class-name="col-money"
             label-class-name="col-money"
           >
-            <template #default="{ row }">¥{{ yuan(row.balanceCents) }}</template>
+            <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
           </el-table-column>
           <el-table-column
             label="状态"
@@ -230,7 +230,7 @@
           <span>{{ deductTarget?.deviceId }}</span>
         </el-form-item>
         <el-form-item label="可用余额">
-          <span>¥{{ yuan(deductTarget?.balanceCents) }}</span>
+          <span>{{ yuan(deductTarget?.balanceCents) }}</span>
         </el-form-item>
         <el-form-item label="扣款(元)" required>
           <el-input-number v-model="deductForm.yuan" :min="0.01" :precision="2" :step="100" />
@@ -282,7 +282,7 @@
           class-name="col-money"
           label-class-name="col-money"
         >
-          <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+          <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
         </el-table-column>
         <el-table-column prop="reason" label="依据" min-width="150">
           <template #default="{ row }">{{ row.reason || '—' }}</template>

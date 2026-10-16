@@ -86,6 +86,11 @@ export function startOfTodayShanghaiMs(now: Date = new Date()): number {
   return new Date(`${p.year}-${p.month}-${p.day}T00:00:00+08:00`).getTime();
 }
 
+/**
+ * 金额分 → 展示文本，**返回值自带 `¥`**（`-¥5.00` 表示负额）。
+ * 🔴 因此模板里不要再写 `¥{{ fmtMoney(x) }}` —— 那会渲染成 `¥¥5.00`，
+ * 负数更会变 `¥-¥5.00`。要「纯数字元」（输入框预填、列头已带「(元)」）用 {@link centsToYuanDigits}。
+ */
 export function fmtMoney(cents?: number | null, empty: string = EMPTY.money) {
   if (cents == null || !Number.isFinite(Number(cents))) return empty;
   const n = Math.trunc(Number(cents));
@@ -94,6 +99,18 @@ export function fmtMoney(cents?: number | null, empty: string = EMPTY.money) {
   const whole = Math.floor(abs / 100);
   const frac = String(abs % 100).padStart(2, '0');
   return `${sign}¥${whole}.${frac}`;
+}
+
+/**
+ * 金额分 → **不带货币符号**的元文本（`19.99`），整数拆分不做浮点除法。
+ * 用于 `<input>` 预填与「列头已写 (元)」的数字位；其余展示一律用 {@link fmtMoney}。
+ */
+export function centsToYuanDigits(cents?: number | null, empty = '0.00'): string {
+  if (cents == null || !Number.isFinite(Number(cents))) return empty;
+  const n = Math.trunc(Number(cents));
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 }
 
 /**

@@ -51,25 +51,25 @@
       <view class="summary-card">
         <view class="hero">
           <text class="hero-kicker">所选区间 · 商户所得</text>
-          <text class="hero-amount">¥{{ summary.merchantIncome }}</text>
+          <text class="hero-amount">{{ summary.merchantIncome }}</text>
           <view class="hero-eq">
-            <text>区间营收 ¥{{ summary.gross }}</text>
+            <text>区间营收 {{ summary.gross }}</text>
             <text class="hero-eq-op">−</text>
-            <text>平台抽成 ¥{{ summary.platformFee }}</text>
+            <text>平台抽成 {{ summary.platformFee }}</text>
           </view>
         </view>
         <view class="kpi-grid">
           <view class="kpi-cell">
             <text class="kpi-label">待分账</text>
-            <text class="kpi-value">¥{{ summary.pending }}</text>
+            <text class="kpi-value">{{ summary.pending }}</text>
           </view>
           <view class="kpi-cell">
             <text class="kpi-label">已结算</text>
-            <text class="kpi-value">¥{{ summary.settled }}</text>
+            <text class="kpi-value">{{ summary.settled }}</text>
           </view>
           <view class="kpi-cell">
             <text class="kpi-label">客单价</text>
-            <text class="kpi-value">¥{{ summary.avgOrder }}</text>
+            <text class="kpi-value">{{ summary.avgOrder }}</text>
           </view>
         </view>
         <view v-if="Number(summary.failedOrders) > 0" class="fail-strip">
@@ -326,12 +326,12 @@ function summarizeDays(days: MerchantDailySettlement[]) {
   const orders = days.reduce((s, d) => s + (d.orderCount || 0), 0);
   const failed = days.reduce((s, d) => s + (d.failedCount || 0), 0);
   return {
-    gross: money(gross).replace(/^¥/, ''),
-    platformFee: money(platform).replace(/^¥/, ''),
-    merchantIncome: money(merchant).replace(/^¥/, ''),
-    pending: money(pending).replace(/^¥/, ''),
-    settled: money(settled).replace(/^¥/, ''),
-    avgOrder: orders > 0 ? money(Math.round(gross / orders)).replace(/^¥/, '') : '0.00',
+    gross: money(gross),
+    platformFee: money(platform),
+    merchantIncome: money(merchant),
+    pending: money(pending),
+    settled: money(settled),
+    avgOrder: orders > 0 ? money(Math.round(gross / orders)) : money(0),
     failedOrders: String(failed)
   };
 }

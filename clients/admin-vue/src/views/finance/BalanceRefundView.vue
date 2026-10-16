@@ -303,7 +303,7 @@ async function batchReviewAll(approve: boolean) {
             </template>
           </el-table-column>
           <el-table-column label="金额" width="110" align="center" class-name="col-money">
-            <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+            <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
           </el-table-column>
           <el-table-column
             label="状态"

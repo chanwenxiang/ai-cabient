@@ -154,6 +154,17 @@ const GUARDED = new Map([
         '钉将邑一期入驻第 1 步能落库（AU-133：identifier NOT NULL 使 register 恒 500，' +
         '两台 UNBOUND 并存用例同时钉死「列可空」而非「占位串」的修法）'
     }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/WalletRefIdempotencySqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '钉 V379 的钱包流水**库级**幂等兜底：三张 *_wallet_ledger 的 ref 部分唯一索引拦下' +
+        '「分布式锁早于事务提交释放 ⇒ 同 ref 双扣双入账」，同时钉住提现生命周期 ' +
+        "ref_type='WITHDRAW' 一 ref 多行（FREEZE/PAID/FEE/RELEASE）必须继续放行"
+    }
   ]
 ]);
 

@@ -100,7 +100,7 @@
               <!-- CB-050 扩展：柜机卡片经营指标（填充率/最近核对库存/最近补货） -->
               <text v-if="cardMetrics(d)" class="meta">{{ cardMetrics(d) }}</text>
               <text v-if="canSeeRevenue" class="meta revenue"
-                >今日收入 ¥{{ ((revenueByDevice[d.deviceId ?? ''] || 0) / 100).toFixed(2) }}</text
+                >今日收入 {{ fmtMoney(revenueCentsByDevice[d.deviceId ?? ''] || 0) }}</text
               >
               <text v-else-if="d.firmwareVersion" class="meta">固件 {{ d.firmwareVersion }}</text>
             </view>
@@ -168,7 +168,7 @@ import {
   getPreferredDeviceId,
   setPreferredDeviceId
 } from '@/utils/preferred-device';
-import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { fmtMoney, formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import type { MerchantDeviceInfo, MerchantMe } from '@aicabinet/shared-types';
@@ -181,7 +181,7 @@ const { me, refresh: refreshMe } = useMerchantMe();
 const canSeeRevenue = computed(() =>
   (me.value?.permissions || []).includes('merchant:reports:view')
 );
-const revenueByDevice = ref<Record<string, number>>({});
+const revenueCentsByDevice = ref<Record<string, number>>({});
 const canListDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
 const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 
@@ -321,7 +321,7 @@ async function load() {
           for (const r of rows as { deviceId?: string; revenueTodayCents?: number }[]) {
             if (r.deviceId) map[r.deviceId] = Number(r.revenueTodayCents || 0);
           }
-          revenueByDevice.value = map;
+          revenueCentsByDevice.value = map;
         })
         .catch(() => {});
     }

@@ -84,6 +84,7 @@ infra/                     Compose、网关、监控
 | 文案 | 用户可见须中文（`ui-copy-zh`） |
 | 验收口径 | **mp-weixin 是双小程序唯一验收权威**（2026-09-26 定）；2026-10-05 收紧：**小程序 H5 不作验收面、不再为它投入修复**（dev:h5 起不来/双 vue 错配均不修）。注意：CI `e2e-h5` job 混装——consumer/merchant H5 两步可按冒烟看待，但同 job 内 three-end business / admin console / role-regression UAT 跑在**运营后台**，不受此口径影响、仍必须绿 |
 | UI Token | 禁裸业务 hex；`z-index` 用 `--z-*`；表格列语义 class |
+| 金额单位 | **存储 + 接口 JSON 一律「分」（整数、字段名必带 `Cents`）；展示一律走各端唯一认可的「分→元」函数；表单输入按元、写回前 `yuanToCents` 转分**。两处「元」例外见 §6.1 |
 | 改 API | common-core DTO + 调用方 + `shared-types` 同步 |
 | 密钥 | 环境变量；禁止提交 |
 
@@ -122,6 +123,34 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 会话状态机：`CREATED → OPENING → SHOPPING → WAITING_UPLOAD → RECOGNIZING → SETTLING → COMPLETED`（旁路禁 `setState`，走 `SessionService.transition`）。
 
 分布式锁前缀 `aicabinet:lock:`（开门 / 会话 / 结算 / 支付等），详见 [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) §3。
+
+### 6.1 金额单位口径：全链路「分」+ 两处「元」例外（2026-10-16 三端审计）
+
+**不变式**：DB 列、Java/DTO 字段、HTTP JSON 载荷 = **分（整数）**，字段名必带 `Cents`；前端展示 = 元，且只能经各端**唯一认可**的格式化函数；表单/输入框按元收，写回前 `yuanToCents()` 转分。三端逐条扫过（含后端 DTO 全量核对），**未发现错误单位载荷、也未发现双重换算**——残余风险只在「重复实现 / 命名不带单位」，不在钱算错。
+
+| 端 | 认可的展示函数 | 说明 |
+|----|----------------|------|
+| admin-vue | `yuanText` / `yuanTextZero` / `yuanTextNone`（[utils/display.ts](../clients/admin-vue/src/utils/display.ts)） | 输出**自带 `¥`**，负数 `-¥5.00`；空态分别 `未统计 / ¥0.00 / 暂无`。bps 用同文件 `bpsText`（60 ⇒ `0.60%`） |
+| 双小程序 | `fmtMoney`（[packages/shared-uni/src/format.ts](../packages/shared-uni/src/format.ts)） | 同样**自带 `¥`** |
+| 需要不带符号的元数字 | `centsToYuanDigits()`（同上文件，2026-10-16 补） | 用于 `<input>` 预填、「列头已写 (元)」的数字位。此前缺这个函数是各页自己写 `/100).toFixed(2)` 绕过格式化的根因 |
+
+**两处「元」例外（有意保留，不是漏网）**：
+
+1. **会员域**：`member.total_spent`、`member_level_rule.min_spent / max_spent / min_recharge` 是 `DECIMAL(12,2)` **元**，由 `BigDecimal.valueOf(cents, 2)` 从分换算写入。所以 [MemberLevelsView.vue](../clients/admin-vue/src/views/growth/MemberLevelsView.vue) 里的 `yuanOfYuan()` **入参已经是元，只加符号、绝不能再 ÷100**——名字刻意与全站「入参分」的 `yuan()`／`yuanText()` 区分。
+2. **平台资金两个配置**：`platform.fund.plan.buffer_yuan`、`platform.fund.recon.tolerance_yuan` 按元存、读取用 `getDouble` 后立即 `yuanToCents()`。键名带 `_yuan` 即声明单位。
+
+**同名不同物的两个「押金」**（问一次答一次，别再现场推断）：`device_info.deposit_cents` = 消费者**开门押金/预授权冻结额**（分，>0 时覆盖 `checkout.preauth_cents` 默认 2000 分 = ¥20）；`device_rental_deposit.amount_cents` = CB-034 **租赁押金本金**（分，另有 monthly_refund / expire_reward / install_fee_deduct 三列，装机抵扣默认 10000 分）。
+
+### 6.2 分账状态机 + `platform_rate_bps=0` 的确切含义（2026-10-17 拍板）
+
+`order_revenue_split.status`：`ACCRUED`（待提交微信分账，**钱包未入账**）→ `WECHAT_SUBMITTED`/`SUCCESS`；`LEDGER_ONLY`（不发分账，商户份额已按 `SPLIT`/`splitId` 幂等入**可提现钱包**）→ `SETTLED`（`confirmLedgerOnly`）；`WECHAT_FAILED`（可重试）；`VOIDED`/`REVERSED`（全额退款冲正）。
+
+- **默认档位是 0=平台不抽成**（V382；实体 `Merchant.platformRateBps`、`doUpsertMerchant` 缺省、运营台表单四处同口径）。要抽成由运营按商户显式填，历史 `order_revenue_split` 行**永不回改**。
+- **0 不只是「算出来 platform=0」，而是「不发分账请求」**：rate=0 ⇒ `receivers[0].amount == 订单毛额`，微信服务商是否允许全额分账**未实证**（CB-032 的 30% 上限仅 ⚪ 旁证）。三道闸：`doRecordSplit` 落 `LEDGER_ONLY`、`doResyncSplitForOrder` 把未提交的 ACCRUED **翻态并按全额入钱包**（补差额会少付商户 `oldMerchantCents`，lesson #313）、`prepareSubmit` 终态不发 HTTP（兜运营手工提交 + 失败重试两个入口）。
+- 商户无 `wechat_receiver_id` 时同样走 `LEDGER_ONLY`——**与费率无关**，这是「账本型分账」的原有语义。
+- 门禁/用例：`RevenueSplitServiceTest`（rate=0 两例）、`WeChatProfitSharingServiceZeroRateTest`（三例，含 rate>0 对照组钉 `amount==merchantCents`）。
+
+**门禁**：`pnpm check:money-yuan-prefix`（已入 `check:audit-gates`）钉两件事——① 模板写字面 `¥` 又调用「自带 `¥`」的函数（渲染成 `¥¥12.34`、负额 `¥-¥5.00`；2026-10-16 清掉商户端 16 处 + 运营台 25 处）；② `.replace(/^¥/, '')` 剥符号手术（锚 `^` 对 `-¥5.00` 不匹配 ⇒ 只剥了正数）。它**先解析每个文件里标识符的绑定来源**再判，不做全局字符串匹配（第一版全局匹配误报 27 处）。
 
 ---
 
@@ -577,6 +606,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | G5 | consumer-mp 技术债 | C1–C12 **done**（C9 deferred）；余 **C10b** easycom→package（mp 风险知情延后） |
 | G6 | merchant-mp 技术债 | M1–M12 **done**（除 M9）；余 **M9** 与 C10b 对齐 |
 | G7 | ~~灰度真金 vision~~ | **已关闭（2026-10-11）**：识别只认将邑端侧，vision-service 整体退役（判定文档 §3） |
+| G8 | 运营台仍有 **98 处**（32 个文件）`(cents / 100).toFixed(2)` 内联换算绕过 `yuanText`；双小程序已清零 | 渲染目前是对的（字面 `¥` + 纯数字），但负额会成 `¥-5.00`、且负数/空态口径与 `yuanText` 不一致。**只在该值可能为负时才算真缺陷**——2026-10-16 已把 5 处调账/提现确认串（输入框 `:min="-1000000"` 可为负）与 25 处重复 `¥` 收口；余量留作增量，动哪页顺手换成 `yuanText` 系 |
 
 ---
 
@@ -598,6 +628,38 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-10-17（提现费率注册表对齐 + 锁柜阈值登记 + 平台分账「先不收」落地）
+- **6‰ 提现费保留为默认档**（用户确认「不归零、随时可改」）：`merchant.withdraw.fee_bps` 在 [feature-flags.json](../services/trade-service/src/main/resources/ops/feature-flags.json) 的注册表默认从 `0` 对齐成 `60`，此前 V381 只翻了 sys_config 种子、注册表仍写 0 ⇒ `check:feature-flags` R5 红「注册表与 seed 不一致」。运营侧改档/按商户覆盖/填 0 免收三条路都不受影响（[SystemConfigService.java:834](../services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java#L834) `upsertIfAbsent` 只在无值时写）。
+- **锁柜阈值换键收尾**（V380 遗留）：注册表里 `merchant.overdue.lock_months` 换成 `merchant.overdue.lock_days`（默认 7，与 Java 种子一致）。旧键在代码里只剩一句「刷成【已废弃】描述」（[SystemConfigService.java:1046](../services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java#L1046)），既不 seed 也无判据读取 ⇒ 留在注册表就是「能关却关了个空气」的死开关，从清单里摘掉而不是给它 deprecated 豁免（豁免要求 seed 存在，R5 不认 deprecated）。
+- **到账金额算例（提现 ¥1000，费率同 6‰、固定额 0、不封顶）**：老系统 ¥994.00；我们 `platform_rate_bps=0` 时同样 **¥994.00**；`rate=1000`（现行默认 10%）时每卖 ¥1000 只入账 ¥900 ⇒ 最多提 ¥900、手续费 ¥5.40、到手 **¥894.60**（平台合计 ¥105.40=¥100 分账+¥5.40 费）。差别始终在**入账基数**，不在提现扣法。
+- ✅ **平台分账按 0 收（任务 #15，同日落地）**：用户拍板「不确定有没有这笔费用，先配置为 0、先不收」。原「必须实证的点」——[WeChatProfitSharingService.java:148](../services/trade-service/src/main/java/com/aicabinet/trade/payment/WeChatProfitSharingService.java#L148) 的 `amount` 取 `split.getMerchantCents()`，rate=0 ⇒ **amount==订单毛额**（比 CB-032 记的「90% ≫ 默认 30% 上限」更极端，提额真实性仍未与微信确认）——按「**0 抽成不发分账请求**」绕开，不再依赖未实证能力：见下方落地条目。
+- 门禁：`check:feature-flags` 由红转绿（103 键全登记），`check:flyway-seed-separation`、`check-migration-safety`（V380/V381）绿。
+- **F-2/F-4 收尾（任务 #9）**：运营台「商户费用台账」页已可达（路由 `merchant-fee-ledgers` + menu.ts:299 + sidebar 图标 + `v-hasPermi` 双码），F-4 手动重跑端点 `POST /api/v2/ops/admin/merchant-fee-ledgers/rerun-daily-fees?feeDate=YYYY-MM-DD` 补两道闸（**只允许不晚于昨天**、**回溯 ≤92 天**）。此前 `check:admin-endpoint-paths` 判它「死路由」——不是端点不存在，而是该门禁的后端路由表**只认生成的 `openapi.ts`**（CI 用刚构建的 jar 拉 `/v3/api-docs` 重生成后 `git diff` 钉住）；已用重建 jar 现抓 spec 重生成，diff 恰为该端点（paths 618 条）。
+- **离线重生成 openapi 的安全姿势**（不动共享栈）：`mvn -pl services/trade-service -am package -DskipTests` → 临时 `postgres:16-alpine`（:15499）+ `redis:7-alpine`（:15599）两个一次性容器 → `java -jar … --server.port=18123` 带 `FEE_BILL_AUTO_GENERATE_ENABLED=false RECON_SCHEDULED_ENABLED=false DISPUTE_SLA_SCHEDULER=false RISK_CONTROL_ENABLED=false XXL_JOB_ENABLED=false` 起 → `curl /v3/api-docs` → `OPENAPI_FILE=… pnpm gen:api-types`。**不碰共享 Postgres（避免 V380/V381 被顺手施到 peer 的 dev 库），也不碰共享 Redis（避免空库实例把缓存写成空值）**。跑完删容器。
+- **F-2/F-3/F-4 负向用例与守卫全部落地（任务 #10）**：[MerchantDailyIncomeNotifySchedulerTest](../services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifySchedulerTest.java) 13 用例覆盖 7 条拍板判据（分/天不摊销、买断同收、0/NULL 不写行、扣款成功即 SETTLED、异常当日不留行、第 6 天只催不锁/满 7 天锁、结清只解「费用欠缴锁柜」前缀）；新增 [OpsMerchantFeeLedgerControllerRerunGuardTest](../services/trade-service/src/test/java/com/aicabinet/trade/api/OpsMerchantFeeLedgerControllerRerunGuardTest.java) 5 用例钉重跑闸（今天/未来/超 92 天/不可解析=400 且**不落到扣款**，昨天与第 92 天=放行）；`WalletRefIdempotencySqlIT` 补登记进 `check-docker-tests-guarded` 的 GUARDED（integration/failsafe，实测 5 用例真跑）。全量：trade-service 2017 单测 + IT、jiangyi-gateway 75+12 全绿；`node scripts/run-audit-gates.mjs` **49 门禁 0 失败**。
+- **竞品台账勘误（任务 #11）**：CB-034 标题与 CB-041 结论里「欠费停机是行业主流」**删掉**——该两条检到的柜机主体从未公开「欠费即停机」条款，老系统更是扣费失败只 `continue`（`MachineListController.java:143,149` 手点停售、`EgoIotCardInfoServiceImpl.java:359` ISP 侧停机，均与平台费用无关）⇒「欠费自动锁柜」是我方新增设计。判据的真实参照另立新条 **CB-052**（阿里云/腾讯云/华为云三段式「催缴→停服保留期→补足自动复机」，纯时间判据、无金额档；公开规格跨 5/7/15 日，我方默认 7 天取**下沿且可配**）。`check-competitor-benchmark` 新增 3 个 `cross` 主体别名。
+- **V382 + 三道 0 抽成闸落地（任务 #15）**：`platform_rate_bps` 归 0 **不是只改列默认值**——真正写库的默认在 Java 实体，故同时翻 [Merchant.java:25](../services/trade-service/src/main/java/com/aicabinet/trade/domain/Merchant.java#L25)、[MerchantService.java:147](../services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantService.java#L147) 缺省、运营台新建/编辑表单 3 处（[MerchantSplitsView.vue](../clients/admin-vue/src/views/merchants/MerchantSplitsView.vue)，标签改「平台抽成（%，0=不抽成）」），`V382` 再把存量 2 家（实测 1000/1500）一并置 0；`DemoDataService` 演示商户与 `rebuild-demo-rbac-accounts.mjs` 是**显式 fixture**，保留原档位（无微信接收方 ⇒ 本来就走 LEDGER_ONLY，不发分账）。**历史 `order_revenue_split` 行不回改**（三列记的是当时口径、且已跟过资金动作）。0 的下游语义按「不发分账」实现，闸放在三处：`doRecordSplit`（`platform<=0` ⇒ LEDGER_ONLY，份额整笔入钱包）、`doResyncSplitForOrder`（重算后 0 ⇒ 未提交的 ACCRUED 翻 LEDGER_ONLY 并**按全额入账**，ACCRUED 期间钱包从未入账、补差额会少付商户 `oldMerchantCents`）、`WeChatProfitSharingService.prepareSubmit`（`platformCents<=0` ⇒ 终态不发 HTTP、状态不动——改状态会在这层把钱留在无人入账的中间态；此闸兜住运营手工「提交分账」与失败重试两个入口）。负向用例先行：`RevenueSplitServiceTest` +2、新建 `WeChatProfitSharingServiceZeroRateTest` 3 例（含 rate>0 对照组，钉 `receivers[0].amount==merchantCents` 与 out_order_no 先落库）。**实证**：共享 dev 库 `BEGIN;…ROLLBACK;` 跑 V382 文本 ⇒ 2 行归 0、列默认 0、注释到位、回滚后仍 1000/1500；一次性空库（临时 pg :15499 + redis :15599 + 新构建 jar）Flyway 从零跑 378 迁移到 v382 ⇒ 种子商户 `MCH-DEFAULT/MCH-OTHER` 落地即 0。跑完删容器，共享栈未动。
+
+### 2026-10-16（三端金额单位审计：口径收口 + 双重 ¥ 清零 + 一处「分」输入框真缺陷）
+- **口径钉死**：存储/接口一律分（字段带 `Cents`），展示一律走各端唯一函数，表单按元进、`yuanToCents` 出 → 写入 §4 约定表 + 新增 §6.1。三端逐页 + 后端 DTO 全量扫过，**未发现单位错传（该传分传了元）与双重换算**；残余风险是重复实现与不带单位的命名。
+- 🔴 **真缺陷 1（会写错钱）**：[DevicePricingCard.vue](../clients/admin-vue/src/components/device/DevicePricingCard.vue) 覆盖价输入框直接绑 `overridePriceCents` + `:precision="0"` ⇒ 运营想填 ¥3.50 只能填 3.5，被截成 **3 分（¥0.03）**。改为按元输入、`@change` 走 `yuanToCents` 写回，`:min/:max` 同步换成元口径。
+- 🔴 **真缺陷 2（渲染错，41 处）**：格式化函数分「自带 `¥`」(`fmtMoney` / `yuanText*`) 与「只出数字」(各页本地 `money()`) 两类，模板里再补字面 `¥` 就渲染成 `¥¥12.34`、负额 `¥-¥5.00`。商户端账单 10 + 结算 6、运营台财务/促销 25 全部去掉字面 `¥`；5 处调账/提现确认串（输入框 `:min="-1000000"` 允许负额）把 `¥${(cents/100).toFixed(2)}` 换成 `yuanTextZero`（负数正确出 `-¥50.00`）。
+- **绕过格式化**：`centsToYuanDigits()`（[shared-uni/format.ts](../packages/shared-uni/src/format.ts)）与 `bpsText()`（[admin display.ts](../clients/admin-vue/src/utils/display.ts)）此前**不存在**，是各页自写 `/100).toFixed(2)`、`(bps/100).toFixed(1|2)` 的根因；补上后 device-detail/pricing 列头 (元) 数字位、5 个页面的费率百分比统一。运营台仍余 98 处内联换算（登记为 G8，非缺陷、增量清）。
+- **两处「元」例外显式命名**：会员域 `DECIMAL(12,2)` 元 ⇒ MemberLevelsView 的 `yuan()` 改名 `yuanOfYuan()`（入参已是元，再 ÷100 就是 1/100 价格）；`platform.fund.*._yuan` 键名自带单位。DTO 侧 [MerchantWalletLedgerDto](../../services/common/common-core/src/main/java/com/aicabinet/common/dto/MerchantWalletLedgerDto.java) 用 javadoc 钉 `balanceAfter/frozenAfter` 单位（改名会破 openapi 契约，故只补注释）。
+- **同名不同物的两个押金**入 §6.1：`device_info.deposit_cents`=开门押金/预授权冻结（>0 覆盖 `checkout.preauth_cents` 默认 2000 分），`device_rental_deposit.amount_cents`=CB-034 租赁押金本金。
+- **勘误**：上一轮「我们系统提现双重收费」的表述**不成立**——两端扣法相同（60bps=6‰，都是从打款额里出），差异在入账基数：老系统入账毛额、我们 `merchant_cents` 已是分账后净额（[RevenueSplitService:114](../../services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java#L114)）。¥10000 一笔平台收入 ¥60 vs ¥1054 是商业模式差，不是重复扣费。
+- **新门禁** `check:money-yuan-prefix`（已入 `check:audit-gates`，接线门禁同步通过）：①「字面 ¥ + 自带 ¥ 的调用」按**每文件绑定来源**判定，②禁 `.replace(/^¥/,'')`（锚 `^` 对 `-¥5.00` 不匹配 ⇒ 只剥正数）。第一版全局字符串匹配误报 27 处，故改为解析 import/本地函数体；判定**按整文件扫**而非逐行（prettier 会把 `¥{{` 与调用折成两行，逐行版实测漏掉 PromotionsView 剩余预算那一处）。自检覆盖 A/B 类绑定、折行命中与行号定位。
+- 验证：三端 `vue-tsc` 全绿，vitest admin 99 / consumer 138 / merchant 176 全绿；`check-audit-gates-wiring`、`check-mp-template-comments`、`check-line-endings`、`sync-shared-uni-components --check`、`style-full-audit --check`、`check-admin-table-align`、`check-admin-page-size`、`check-uat-selectors` 绿。**零迁移、零数据变更**。
+
+### 2026-10-15（老系统 easygo 全域规则卡对照 + 三处旧结论勘误 + dev 全面审计）
+- **老系统结构钉死**：ego-automat=柜机/运营商域；**mis-server（RuoYi）内含补货员佣金与点位账单的 quartz 跑批**；**dinngdang-wx 消费者小程序的真实后端是 dvm**（wapp.easygovm.com），不在 ego-automat。两代交易链：dvm 弹簧柜先付后货（NOT_FALL 自动退款、用券单禁自动退）；m8/m9 开门柜**先取后付**（识别由设备端做，服务端直扣余额**无下限校验=可扣负挂账**；开门门槛=实名+余额≥5 元）。
+- 🔴 **勘误 E1**：「补货员佣金计算在仓库外（黑盒）」不实——就在 `mis-quartz RyTask.generateComminssionMachineDailyBill`(:151-187 亲验)：按 `ego_opt_commission_machine_link` 配置算 type0=销售额(分)/10000×ratio、type1=件数×ratio，**T+10 日结**入 CommissionAccount+支付宝代发。「对齐老系统」对新系统 staff 佣金只对**公式**成立，归属人（老=配置「佣金所属人」，新=实际补货任务人）与节奏（T+10 vs 日结）均不同。
+- 🔴 **勘误 E2**：`add_goods_user_id` 注释=「佣金所属人」（按机器配置，与谁补货无关），实际补货留痕在 `ego_opt_stock_operator_record`——10-14 拍板依据需修正。
+- 🔴 **勘误 E3**：「点位电费/客情/返点=纯台账无自动扣款」不全——`RyTask.positionMachineBillMonthly` 月出账且**支付宝自动打款**（电费按量硬编码 240 元/月、梯级返点硬编码 ≤2000→10%/>2000→15%，EgoOptPositionBillMachineMonthlyServiceImpl:247-284 亲验）。新系统「线下标记 payout」是用户拍板口径非老复刻；老点位有 **5 组收款人**（线长/电费/合作1/合作2/租金），新 machine_position_config 单组=表达缺口。
+- 其他高价值事实：老系统**无任何欠费锁售/催缴代码**（余额可负仅禁提现，停售靠物联卡+人工）——新 FEE_OVERDUE_LOCK 是纯新能力，判据必须费用口径（关联 P0-3 押金误锁）；老线长基数=**已扣退款净额**（26 号月结三池+人工审核闸）——佐证 P0-2 冲正应按 `total−refunded` 净额；老**不存在部分金额退款**（按件整退），PARTIAL_REFUNDED 是新能力、下游基数三处未跟上；老押金档位制含**撤机扣 100 安装费/满 5 年反发 200/500 档不退**——新 V360 自由配置未覆盖撤机场景；老无渠道对账代码（新 ReconciliationService=超越）。
+- **同日 dev 全面审计**（6 路+主审回读实证）：P0×3——①LineRoutes/MachinePayeeBills 未登记 menu.ts+meta 无 perm→fail-closed 守卫 403 **全员不可达**；②佣金冲正基数=状态过滤+全额→部分退款整单冲回（多扣钱）+发佣前退款永久漏发；③押金 debitIfAbsentAllowNegative 负余额被 checkOverdueAndRemind 当费用欠缴（pendingFeeTotal 零调用）→误锁全部柜。P1 要点：台账 SETTLED 与钱包不联动（线下结清不解锁）、负余额 doDebit 412 阻断消费者退款冲正、零销售日 early-return 跳过全批扣费催缴、staff 钱包 selectById 无行锁（线长侧有 findByIdForUpdate）、换绑线长同 device-day 双付、实时购物车透传推送价（第五价点非同源）、争议结果零触达（模板已种无调用）、admin 打款按钮 ops:replenishment:* vs 后端 ops:line-manager:* 错配+catch 空吞。将邑争议 reason 不匹配 likeRight("识别超时")→自动免单永不命中。
+- 详见 `docs/OLD_EASYGO_VS_AICABINET_DIFF_2026-10-15.md`（含 6 节差异卡+修复启示）；竞品台账「老系统无自动打款/佣金黑盒」两处表述待按 E1/E3 修订。
 
 ### 2026-10-14（WorkBuddy 会话：定价功能 + 端点误删修复 + 死路由清零）
 - 🔴 **设备详情「资源不存在」根因修复**：b96a74d4 误删 4 个设备级端点（`GET /devices/{id}/detail`、`GET/PUT /slots`、`POST /slots/stocktake`），原样挂回 `OpsReplenishmentController`（service 方法一直存活，属误伤非有意下线）。

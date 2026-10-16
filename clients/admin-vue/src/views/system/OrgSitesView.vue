@@ -217,7 +217,7 @@
           type="info"
           :closable="false"
           show-icon
-          title="租金按合同月费×分账出账；流量费按柜机「流量费(分/月)」出账。标记已付仅改台账，不自动打款/扣款。账期留空时按系统配置偏移推算。"
+          title="租金按合同月费×分账出账；流量费按柜机「流量费(分/天) × 当月天数」出账。本页面是人工回退台账（常规由每日自动扣钱包，日扣成功后费用行直接记结清），标记已付仅改台账、不自动打款/扣款。账期留空时按系统配置偏移推算。"
           style="margin-bottom: 12px"
         />
         <div class="org-toolbar">
@@ -880,7 +880,7 @@ const generateDialogTitle = computed(() => {
 });
 const generateDialogHint = computed(() =>
   feeBillKind.value === FEE_KIND_DATA
-    ? '将对已配置流量费(>0)的柜机生成应付台账。同柜机同账期不可重复。不会自动扣款。'
+    ? '将对已配置流量费(分/天 >0)的柜机按「日额 × 当月天数」生成应付台账。同柜机同账期不可重复。不会自动扣款（常规路径是每日自动扣钱包）。'
     : '将按月费 × 分账规则生成应付台账。同一合同同一账期不可重复出账。不会自动打款。'
 );
 type RentRuleForm = {

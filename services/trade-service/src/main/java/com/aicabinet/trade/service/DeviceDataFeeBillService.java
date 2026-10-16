@@ -16,11 +16,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 柜机流量费月结：按 device.dataFeeCents 出账；人工标记已付，不自动扣款。
+ * 柜机流量费月结账单（人工/回退通道）：{@code device.dataFeeCents} 语义=<b>分/天</b>
+ *（2026-10-16 F-3 拍板，对齐老系统逐台每日扣），出账金额=日额 × 当月天数。
+ * 0 / NULL = 这台柜不收或没配卡，属于合法状态：不出账、不报错。
+ * 常规路径是每日从商户钱包直扣（{@code MerchantDailyIncomeNotifyScheduler}），
+ * 本账单只做人工留痕——标记已付不触发自动扣款，避免与日扣重复计费。
  */
 @Service
 public class DeviceDataFeeBillService {
@@ -80,8 +85,9 @@ public class DeviceDataFeeBillService {
     private List<DeviceDataFeeBillDto> generateAllInternal(Long operatorId, String month) {
         List<DeviceDataFeeBillDto> created = new ArrayList<>();
         for (DeviceInfo device : deviceMapper.findAllOrderByDeviceIdAsc()) {
-            long fee = device.getDataFeeCents() == null ? 0L : device.getDataFeeCents();
-            if (fee <= 0) {
+            long perDay = device.getDataFeeCents() == null ? 0L : device.getDataFeeCents();
+            if (perDay <= 0) {
+                // 0/NULL=不收或没配卡：合法状态，直接跳过（不出 0 元账单、不报错）
                 continue;
             }
             if (billMapper.countNonVoidByDeviceAndMonth(device.getDeviceId(), month) > 0) {
@@ -141,10 +147,12 @@ public class DeviceDataFeeBillService {
         if (billMapper.countNonVoidByDeviceAndMonth(deviceId, month) > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该柜机 " + month + " 流量费已出账");
         }
-        long fee = device.getDataFeeCents() == null ? 0L : device.getDataFeeCents();
-        if (fee <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "该柜机未配置流量费或为 0，无法出账");
+        long perDay = device.getDataFeeCents() == null ? 0L : device.getDataFeeCents();
+        if (perDay <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "该柜机未配置流量费或为 0（不收），无法出账");
         }
+        // 快照口径为分/天（2026-10-16 F-3 拍板）：月账单=日额 × 当月天数
+        long fee = perDay * YearMonth.parse(month).lengthOfMonth();
         if (fee > Integer.MAX_VALUE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "流量费金额过大");
         }
@@ -156,7 +164,8 @@ public class DeviceDataFeeBillService {
         bill.setBillMonth(month);
         bill.setAmountCents((int) fee);
         bill.setStatus(CabinetConstants.FEE_BILL_STATUS_UNPAID);
-        bill.setRemark("由柜机流量费(分/月)快照生成；标记已付不触发自动扣款");
+        bill.setRemark("由柜机流量费(分/天)×" + YearMonth.parse(month).lengthOfMonth()
+                + "天快照生成；标记已付不触发自动扣款");
         bill.setCreatedAt(now);
         bill.setUpdatedAt(now);
         billMapper.insert(bill);

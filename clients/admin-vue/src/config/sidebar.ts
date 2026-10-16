@@ -73,6 +73,7 @@ const PATH_ICONS: Record<string, Component> = {
   '/merchants': OfficeBuilding,
   '/merchant-onboarding': Wallet,
   '/line-managers': UserFilled,
+  '/merchant-fee-ledgers': Document,
   '/merchant-withdraw': Wallet,
   '/reconciliation': Coin,
   '/consistency': Document,

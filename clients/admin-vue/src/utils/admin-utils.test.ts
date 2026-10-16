@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { comparePrimaryKey, sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { csvFileName, escapeCsvCell, parseCsv, csvRowsToObjects, toCsv } from '@/utils/csv';
-import { numOrZero, rateText, textOrNone, yuanText, yuanToCents } from '@/utils/display';
+import { bpsText, numOrZero, rateText, textOrNone, yuanText, yuanToCents } from '@/utils/display';
 import { buildPermTree, flattenForParentSelect, permTypeLabel } from '@/utils/rbac-tree';
 
 describe('sortByPrimaryKey', () => {
@@ -80,6 +80,15 @@ describe('display helpers', () => {
     expect(yuanText(-250)).toBe('-¥2.50');
     expect(yuanText(0)).toBe('¥0.00');
     expect(yuanText('')).toBe('未统计');
+  });
+
+  it('bpsText 万分比 → 百分比（不再各页自算小数位）', () => {
+    expect(bpsText(60)).toBe('0.60%');
+    expect(bpsText(1000)).toBe('10.00%');
+    expect(bpsText(0)).toBe('0.00%');
+    expect(bpsText(60, 1)).toBe('0.6%');
+    expect(bpsText(null)).toBe('未统计');
+    expect(bpsText('abc')).toBe('未统计');
   });
 
   it('yuanToCents avoids float drift', () => {

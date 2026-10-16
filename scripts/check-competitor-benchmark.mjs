@@ -141,6 +141,10 @@ const SUBJECT_ALIASES = [
   // 跨行业财务/进销存（cross）—— CB-017 盘点差异金额化的会计口径来源
   { re: /管家婆/i, id: '管家婆', kind: 'cross' },
   { re: /金蝶|kis/i, id: '金蝶', kind: 'cross' },
+  // CB-052 欠费处置判据：公有云厂商是「欠费停服」唯一写成公开规格的群体（跨行业借用，不可顶替同行）
+  { re: /阿里云|aliyun/i, id: '阿里云', kind: 'cross' },
+  { re: /腾讯云|tencent\s?cloud/i, id: '腾讯云', kind: 'cross' },
+  { re: /华为云|huaweicloud/i, id: '华为云', kind: 'cross' },
   // 行业研究机构（research）：给统计口径，不是自述主体
   { re: /中研普华|chinairn/i, id: '中研普华', kind: 'research' },
   { re: /沙利文|frost\s*sullivan|弗若斯特/i, id: '弗若斯特沙利文', kind: 'research' },

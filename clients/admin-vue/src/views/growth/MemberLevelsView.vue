@@ -63,8 +63,8 @@
             label-class-name="col-money"
           >
             <template #default="{ row }"
-              >{{ yuan(row.minSpent) }} ~
-              {{ row.maxSpent != null ? yuan(row.maxSpent) : '+' }}</template
+              >{{ yuanOfYuan(row.minSpent) }} ~
+              {{ row.maxSpent != null ? yuanOfYuan(row.maxSpent) : '+' }}</template
             >
           </el-table-column>
           <el-table-column
@@ -437,7 +437,13 @@ async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
   }
 }
 
-function yuan(v?: number) {
+/**
+ * 🔴 入参<b>已经是元</b>（会员域 `min_spent`/`max_spent` 是 DECIMAL(12,2) 元，不是分），
+ * 所以这里只加 ¥ 符号，**绝对不要再 ÷100**。
+ * 名字刻意区别于全站那批「入参分」的 `yuan()`／`yuanText()`：
+ * 那些换成这里、或这里被"统一"过去，都会静默 100 倍阈值。
+ */
+function yuanOfYuan(v?: number) {
   return v == null ? '暂无' : `¥${Number(v).toFixed(2)}`;
 }
 </script>

@@ -212,7 +212,7 @@ import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { textOrNone, yuanToCents } from '@/utils/display';
+import { textOrNone, yuanTextZero as yuan, yuanToCents } from '@/utils/display';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface UserRow {
@@ -418,7 +418,7 @@ async function submitAdjust() {
   }
   try {
     await ElMessageBox.confirm(
-      `确认对用户 ${adjustRow.value.userId} 调整余额 ¥${(deltaCents / 100).toFixed(2)}？该操作将写入审计日志。`,
+      `确认对用户 ${adjustRow.value.userId} 调整余额 ${yuan(deltaCents)}？该操作将写入审计日志。`,
       '余额调整二次确认',
       { type: 'warning', confirmButtonText: '确认调整', cancelButtonText: '取消' }
     );

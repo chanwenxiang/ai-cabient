@@ -706,7 +706,7 @@
       :min-width="420"
     >
       <div v-loading="!kpiHydrated" class="kpi-box">
-        <p>成交总额 ¥{{ yuan(kpi?.gmvCents) }} · 佣金 ¥{{ yuan(kpi?.commissionCents) }}</p>
+        <p>成交总额 {{ yuan(kpi?.gmvCents) }} · 佣金 {{ yuan(kpi?.commissionCents) }}</p>
         <p>绑柜 {{ kpi?.deviceCount ?? 0 }} · 有数天数 {{ kpi?.activeDays ?? 0 }}</p>
         <el-table :data="kpi?.dailies || []" size="small" stripe max-height="360">
           <el-table-column prop="bizDate" label="日期" width="120" />
@@ -1198,7 +1198,7 @@ async function adjust(row: Manager) {
       return;
     }
     await ElMessageBox.confirm(
-      `确认对线长 ${row.managerName || row.managerId} 调账 ¥${(amountCents / 100).toFixed(2)}？该操作将写入审计日志。`,
+      `确认对线长 ${row.managerName || row.managerId} 调账 ${yuan(amountCents)}？该操作将写入审计日志。`,
       '调账二次确认',
       { type: 'warning', confirmButtonText: '确认调账', cancelButtonText: '取消' }
     );
@@ -1304,7 +1304,7 @@ async function proxyWithdraw(row: Manager) {
       return;
     }
     await ElMessageBox.confirm(
-      `确认代线长 ${row.managerName || row.managerId} 发起提现 ¥${(amountCents / 100).toFixed(2)}？`,
+      `确认代线长 ${row.managerName || row.managerId} 发起提现 ${yuan(amountCents)}？`,
       '代提现二次确认',
       { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
     );

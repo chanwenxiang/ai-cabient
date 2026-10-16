@@ -104,19 +104,17 @@
             </template>
           </el-table-column>
           <el-table-column label="预算" width="110" align="center" class-name="col-money">
-            <template #default="{ row }">¥{{ yuan(row.budgetCents) }}</template>
+            <template #default="{ row }">{{ yuan(row.budgetCents) }}</template>
           </el-table-column>
           <el-table-column label="已使用" width="110" align="center" class-name="col-money">
-            <template #default="{ row }">¥{{ yuan(row.usedCents) }}</template>
+            <template #default="{ row }">{{ yuan(row.usedCents) }}</template>
           </el-table-column>
           <el-table-column label="剩余预算" width="120" align="center" class-name="col-money">
             <template #default="{ row }">
               <div class="budget-remain">
-                <span
-                  >¥{{
-                    yuan(Math.max(0, Number(row.budgetCents || 0) - Number(row.usedCents || 0)))
-                  }}</span
-                >
+                <span>{{
+                  yuan(Math.max(0, Number(row.budgetCents || 0) - Number(row.usedCents || 0)))
+                }}</span>
                 <el-tag
                   v-if="isBudgetExhausted(row)"
                   type="warning"

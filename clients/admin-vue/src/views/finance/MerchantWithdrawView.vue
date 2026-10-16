@@ -332,6 +332,86 @@
           </CrudTable>
         </div>
       </el-tab-pane>
+
+      <!-- 按商户提现费率覆盖（2026-10-16 拍板：默认 6‰、不写死、可按商户配）：
+           写入 sys_config key merchant.withdraw.fee_bps.{商户号}，后端读路径 merchantFeeBpsFor 已支持 -->
+      <el-tab-pane v-if="auth.hasPerm('ops:config:edit')" label="提现费率" name="fee">
+        <el-alert
+          class="mb"
+          type="info"
+          :closable="false"
+          show-icon
+          title="手续费在提现申请时快照：到账 = 申请额 − 固定费 − 申请额 × 万分比。全局默认 60 万分比（6‰，对齐老系统标准档）；此处只配单个商户的降档或免收。单笔上限 ¥10000 内 6‰ 最多 ¥60，封顶留 0=不封顶（配 ¥25/¥50 几乎永不触发）。"
+        />
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="loadFeePolicy">
+          <el-form-item label="商户编号">
+            <el-input
+              v-model="feeMerchantId"
+              clearable
+              placeholder="商户号（如 100000000001）"
+              style="width: 220px"
+              @keyup.enter="loadFeePolicy"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="feeLoading" @click="loadFeePolicy">查询</el-button>
+          </el-form-item>
+        </el-form>
+
+        <template v-if="feeLoaded">
+          <el-descriptions :column="1" border class="mb">
+            <el-descriptions-item label="全局费率">
+              {{ feeGlobalBps }} 万分比（{{ bpsText(feeGlobalBps) }}）
+              <span class="muted">
+                + 固定 {{ yuan(feeFlatCents) }} · 单笔封顶
+                {{ feeCapCents > 0 ? yuan(feeCapCents) : '不封顶' }}
+              </span>
+            </el-descriptions-item>
+            <el-descriptions-item label="本商户覆盖">
+              <span v-if="feeOverrideBps == null" class="muted">未配置（走全局）</span>
+              <span v-else>{{ feeOverrideBps }} 万分比（{{ bpsText(feeOverrideBps) }}）</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="生效费率">
+              {{ feeEffectiveBps }} 万分比 · 提现 {{ yuan(SAMPLE_WITHDRAW_CENTS) }} 示例：手续费
+              {{ yuan(feeExampleCents) }}，到账
+              {{ yuan(SAMPLE_WITHDRAW_CENTS - feeExampleCents) }}
+            </el-descriptions-item>
+          </el-descriptions>
+
+          <el-form label-width="150px" style="max-width: 560px">
+            <el-form-item label="覆盖费率（万分比）">
+              <el-input-number
+                v-model="feeDraftBps"
+                :min="0"
+                :max="1000"
+                :step="10"
+                controls-position="right"
+                style="width: 200px"
+              />
+              <span class="muted" style="margin-left: 8px">0 = 该商户免收；40 = 4‰</span>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="feeSaving" @click="saveFeeOverride">
+                保存覆盖
+              </el-button>
+              <el-button
+                v-if="feeOverrideBps != null"
+                type="danger"
+                plain
+                :loading="feeSaving"
+                @click="clearFeeOverride"
+              >
+                清除覆盖（回到全局）
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </template>
+        <el-empty
+          v-else-if="!feeLoading"
+          description="输入商户编号后查询当前费率"
+          :image-size="72"
+        />
+      </el-tab-pane>
     </el-tabs>
 
     <ResizableDrawer
@@ -433,10 +513,10 @@
         <div class="dialog-merchant__id">商户 {{ adjustTarget.merchantId }}</div>
         <div class="dialog-balance">
           <span
-            >当前余额 <b>¥{{ yuan(adjustTarget.balanceCents) }}</b></span
+            >当前余额 <b>{{ yuan(adjustTarget.balanceCents) }}</b></span
           >
           <span
-            >可用 <b>¥{{ yuan(adjustTarget.availableCents) }}</b></span
+            >可用 <b>{{ yuan(adjustTarget.availableCents) }}</b></span
           >
         </div>
       </div>
@@ -476,14 +556,14 @@
         <div class="dialog-merchant__id">商户 {{ withdrawTarget.merchantId }}</div>
         <div class="dialog-balance">
           <span
-            >可用余额 <b>¥{{ yuan(withdrawTarget.availableCents) }}</b></span
+            >可用余额 <b>{{ yuan(withdrawTarget.availableCents) }}</b></span
           >
           <span
-            >冻结 <b>¥{{ yuan(withdrawTarget.frozenCents) }}</b></span
+            >冻结 <b>{{ yuan(withdrawTarget.frozenCents) }}</b></span
           >
           <!-- CB-035：T+1 待结算透出——解锁时刻可配（默认次日零点） -->
           <span v-if="(withdrawTarget.pendingSettleCents ?? 0) > 0">
-            待结算（T+1 可提） <b>¥{{ yuan(withdrawTarget.pendingSettleCents) }}</b></span
+            待结算（T+1 可提） <b>{{ yuan(withdrawTarget.pendingSettleCents) }}</b></span
           >
         </div>
       </div>
@@ -534,7 +614,7 @@ import { createLoadSeq } from '@/composables/createLoadSeq';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
-import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
+import { yuanTextZero as yuan, yuanToCents, bpsText } from '@/utils/display';
 import {
   buildMerchantWithdrawReviewBody,
   canCancelFailedMerchantWithdraw,
@@ -544,6 +624,13 @@ import {
 
 // loadSeq 仅剩打款模式提示在用；两个列表的分页/多选/竞态已由 useCrudTable 收口
 const loadSeq = createLoadSeq();
+
+interface SystemConfigRow {
+  configKey: string;
+  configValue: string;
+  description?: string | null;
+  updatedAt?: string | null;
+}
 
 interface WalletRow {
   merchantId: string;
@@ -588,6 +675,32 @@ interface Withdraw {
 const auth = useAuthStore();
 const tab = ref('wallets');
 const payoutMode = ref<{ mockEnabled?: boolean; note?: string } | null>(null);
+// —— 按商户提现费率覆盖（写 sys_config key merchant.withdraw.fee_bps.{商户号}）——
+// 命名带单位：BPS = 万分比，CENTS = 分，避免读代码时猜单位
+const FEE_GLOBAL_BPS_KEY = 'merchant.withdraw.fee_bps';
+const FEE_FLAT_CENTS_KEY = 'merchant.withdraw.fee_cents';
+const FEE_CAP_CENTS_KEY = 'merchant.withdraw.fee_cap_cents';
+const FEE_BPS_OVERRIDE_PREFIX = 'merchant.withdraw.fee_bps.';
+const FEE_OVERRIDE_DESC =
+  '按商户覆盖的提现手续费万分比（40=4‰，0=该商户免收）；未配置则走全局 merchant.withdraw.fee_bps';
+const SAMPLE_WITHDRAW_CENTS = 100000; // 示例提现额 ¥1000
+const feeMerchantId = ref('');
+const feeLoading = ref(false);
+const feeLoaded = ref(false);
+const feeSaving = ref(false);
+const feeGlobalBps = ref(0);
+const feeFlatCents = ref(0);
+const feeCapCents = ref(0);
+const feeOverrideBps = ref<number | null>(null);
+const feeDraftBps = ref(0);
+const feeEffectiveBps = computed(() => feeOverrideBps.value ?? feeGlobalBps.value);
+// 与后端 WithdrawFeeCalculator 同式：固定 + 金额×bps/10000，再按封顶取小（0=不封顶）。
+// 🔴 封顶必须参与示例，否则运营配了封顶后这里的到账额会比真实到账额高，等于给商户报错数。
+const feeExampleCents = computed(() => {
+  const raw =
+    feeFlatCents.value + Math.floor((SAMPLE_WITHDRAW_CENTS * feeEffectiveBps.value) / 10000);
+  return feeCapCents.value > 0 ? Math.min(raw, feeCapCents.value) : raw;
+});
 const keyword = ref('');
 const wdStatus = ref('');
 const ledgerVisible = ref(false);
@@ -719,7 +832,90 @@ function onTab() {
 function reload() {
   void loadPayoutMode();
   if (tab.value === 'withdraws') void wdCrud.load();
+  else if (tab.value === 'fee' && feeMerchantId.value.trim()) void loadFeePolicy();
   else void walletsCrud.load();
+}
+
+async function loadFeePolicy() {
+  const merchantId = feeMerchantId.value.trim();
+  if (!merchantId) {
+    ElMessage.warning('请输入商户编号');
+    return;
+  }
+  const seq = loadSeq.begin('loadFeePolicy');
+  feeLoading.value = true;
+  try {
+    const rows = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');
+    if (!loadSeq.isCurrent(seq, 'loadFeePolicy')) return;
+    const readConfigNumber = (key: string): number | null => {
+      const raw = rows.find((r) => r.configKey === key)?.configValue;
+      if (raw == null || raw.trim() === '') return null;
+      const n = Number(raw.trim());
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
+    feeGlobalBps.value = readConfigNumber(FEE_GLOBAL_BPS_KEY) ?? 0;
+    feeFlatCents.value = readConfigNumber(FEE_FLAT_CENTS_KEY) ?? 0;
+    feeCapCents.value = readConfigNumber(FEE_CAP_CENTS_KEY) ?? 0;
+    feeOverrideBps.value = readConfigNumber(FEE_BPS_OVERRIDE_PREFIX + merchantId);
+    feeDraftBps.value = feeOverrideBps.value ?? feeGlobalBps.value;
+    feeLoaded.value = true;
+  } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadFeePolicy')) return;
+    feeLoaded.value = false;
+    ElMessage.error(errorMessage(e, '读取费率配置失败'));
+  } finally {
+    feeLoading.value = false;
+  }
+}
+
+async function saveFeeOverride() {
+  const merchantId = feeMerchantId.value.trim();
+  if (!merchantId) {
+    ElMessage.warning('请输入商户编号');
+    return;
+  }
+  feeSaving.value = true;
+  try {
+    await api.request(AdminEndpoints.systemConfigs, 'PUT', {
+      configKey: FEE_BPS_OVERRIDE_PREFIX + merchantId,
+      configValue: String(feeDraftBps.value ?? 0),
+      description: FEE_OVERRIDE_DESC
+    });
+    ElMessage.success(
+      `已保存：${merchantId} 提现费率 ${feeDraftBps.value} 万分比（下一笔申请起生效）`
+    );
+    await loadFeePolicy();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '保存失败'));
+  } finally {
+    feeSaving.value = false;
+  }
+}
+
+async function clearFeeOverride() {
+  const merchantId = feeMerchantId.value.trim();
+  if (!merchantId) return;
+  try {
+    await ElMessageBox.confirm(
+      `确认清除 ${merchantId} 的费率覆盖？清除后该商户回到全局费率。`,
+      '清除覆盖',
+      { type: 'warning' }
+    );
+  } catch (e) {
+    if (isUserDismiss(e)) return;
+    ElMessage.error(errorMessage(e, '操作中断'));
+    return;
+  }
+  feeSaving.value = true;
+  try {
+    await api.request(AdminEndpoints.systemConfig(FEE_BPS_OVERRIDE_PREFIX + merchantId), 'DELETE');
+    ElMessage.success('已清除覆盖（该商户走全局费率）');
+    await loadFeePolicy();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '清除失败'));
+  } finally {
+    feeSaving.value = false;
+  }
 }
 
 async function loadPayoutMode() {
@@ -750,7 +946,7 @@ async function submitAdjust() {
   }
   try {
     await ElMessageBox.confirm(
-      `确认对商户 ${adjustTarget.value.merchantId} 调账 ¥${(amountCents / 100).toFixed(2)}？该操作将写入审计日志。`,
+      `确认对商户 ${adjustTarget.value.merchantId} 调账 ${yuan(amountCents)}？该操作将写入审计日志。`,
       '商户调账二次确认',
       { type: 'warning', confirmButtonText: '确认调账', cancelButtonText: '取消' }
     );
@@ -804,7 +1000,7 @@ async function submitWithdraw() {
   }
   try {
     await ElMessageBox.confirm(
-      `确认代商户 ${withdrawTarget.value.merchantId} 发起提现 ¥${(amountCents / 100).toFixed(2)}？`,
+      `确认代商户 ${withdrawTarget.value.merchantId} 发起提现 ${yuan(amountCents)}？`,
       '代提现二次确认',
       { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
     );

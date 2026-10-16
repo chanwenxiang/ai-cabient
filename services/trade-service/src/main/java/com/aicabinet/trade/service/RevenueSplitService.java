@@ -114,7 +114,10 @@ public class RevenueSplitService {
         split.setMerchantCents(merchantShare);
         split.setSettleAfter(LocalDate.now().plusDays(1));
         split.setSettlementBatchNo(BizIds.nextNumeric());
-        if (merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
+        if (platform <= 0 || merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
+            // 拍板 2026-10-17「平台分账先不收」：rate=0 ⇒ merchantCents==订单毛额，
+            // 微信服务商**全额分账是否允许未实证**（CB-032 的 30% 单订单上限仅 ⚪ 旁证）
+            // ⇒ 0 抽成直接落仅记账，商户份额整笔入钱包，不发分账请求。
             split.setStatus(LEDGER_ONLY);
         } else if (!profitSharingService.isApiReady()) {
             split.setStatus(ACCRUED);
@@ -499,15 +502,27 @@ public class RevenueSplitService {
         long gross = Math.max(0, order.getTotalAmountCents());
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
-        clawbackWalletDelta(split, oldMerchantCents, merchantShare);
-        creditWalletDelta(split, oldMerchantCents, merchantShare);
+        // 拍板 2026-10-17「平台分账先不收」：重算后平台份额为 0 ⇒ 这单不再走微信分账
+        // （receiver.amount 会等于订单毛额，全额分账是否被服务商允许**未实证**）。
+        // ACCRUED 行既没提交微信也没入过钱包，所以翻成 LEDGER_ONLY 后按**全额**入账，
+        // 不能走下面的差额补入（差额口径只认 new−old，会把 oldMerchantCents 少付给商户）。
+        boolean convertedToLedgerOnly = platform <= 0 && ACCRUED.equals(status);
+        if (!convertedToLedgerOnly) {
+            clawbackWalletDelta(split, oldMerchantCents, merchantShare);
+            creditWalletDelta(split, oldMerchantCents, merchantShare);
+        }
         split.setGrossCents(gross);
         split.setPlatformCents(platform);
         split.setMerchantCents(merchantShare);
         if (gross <= 0) {
             split.setStatus(VOIDED);
+        } else if (convertedToLedgerOnly) {
+            split.setStatus(LEDGER_ONLY);
         }
         splitRepository.save(split);
+        if (convertedToLedgerOnly && gross > 0) {
+            creditWalletIfLedgerOnly(split);
+        }
         maybeAutoSubmitAccruedSplit(order, split, merchant, oldMerchantCents);
         log.info("分账已按改单重算 order={} gross={} platform={} merchantShare={}",
                 order.getOrderId(), gross, platform, merchantShare);

@@ -104,6 +104,18 @@ export function yuanTextNone(cents: unknown): string {
 }
 
 /**
+ * 万分比 bps → 百分比文本（60 ⇒ `0.60%`）。
+ * 存在理由：bps 是后端契约单位，运营语言只有 %；此前 5 个页面各写
+ * `(x / 100).toFixed(1|2)`，小数位不一致，读起来像两个口径。
+ */
+export function bpsText(v: unknown, digits = 2, empty = EMPTY_STAT): string {
+  if (v == null || v === '') return empty;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return empty;
+  return `${(n / 100).toFixed(digits)}%`;
+}
+
+/**
  * 元（表单输入）→ 分。经 toFixed(2) 再拆整/小位，避免 `0.29*100` 浮点误差。
  * @returns 非法输入返回 null
  */

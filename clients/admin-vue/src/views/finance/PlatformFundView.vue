@@ -55,7 +55,7 @@
         class-name="col-money"
         label-class-name="col-money"
       >
-        <template #default="{ row }">¥{{ yuan(row.balanceCents) }}</template>
+        <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
       </el-table-column>
       <el-table-column
         label="状态"
@@ -165,7 +165,7 @@
         >
           <template #default="{ row }">
             <span :class="row.amountCents >= 0 ? 'money-in' : 'money-out'">
-              {{ row.amountCents >= 0 ? '+' : '' }}¥{{ yuan(row.amountCents) }}
+              {{ row.amountCents >= 0 ? '+' : '' }}{{ yuan(row.amountCents) }}
             </span>
           </template>
         </el-table-column>
@@ -176,7 +176,7 @@
           class-name="col-money"
           label-class-name="col-money"
         >
-          <template #default="{ row }">¥{{ yuan(row.balanceAfterCents) }}</template>
+          <template #default="{ row }">{{ yuan(row.balanceAfterCents) }}</template>
         </el-table-column>
         <el-table-column
           prop="refType"

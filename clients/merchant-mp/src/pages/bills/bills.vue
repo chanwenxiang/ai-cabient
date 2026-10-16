@@ -29,13 +29,13 @@
           <text class="hero-kicker"
             >{{ month }} · {{ deviceLabels[deviceIndex] || '全部设备' }}</text
           >
-          <text class="hero-amount">¥{{ money(bill.salesCents) }}</text>
+          <text class="hero-amount">{{ money(bill.salesCents) }}</text>
           <text class="hero-sub">销售额 {{ bill.salesQty }} 件 · {{ bill.orderCount }} 单</text>
         </view>
         <view class="kpi-grid">
           <view class="kpi-cell">
             <text class="kpi-label">销售额</text>
-            <text class="kpi-value">¥{{ money(bill.salesCents) }}</text>
+            <text class="kpi-value">{{ money(bill.salesCents) }}</text>
           </view>
           <view class="kpi-cell">
             <text class="kpi-label">销售量</text>
@@ -43,19 +43,19 @@
           </view>
           <view class="kpi-cell">
             <text class="kpi-label">即时退款</text>
-            <text class="kpi-value">¥{{ money(bill.instantRefundCents) }}</text>
+            <text class="kpi-value">{{ money(bill.instantRefundCents) }}</text>
           </view>
           <view class="kpi-cell">
             <text class="kpi-label">余额退款</text>
-            <text class="kpi-value">¥{{ money(bill.balanceRefundCents) }}</text>
+            <text class="kpi-value">{{ money(bill.balanceRefundCents) }}</text>
           </view>
           <view class="kpi-cell">
             <text class="kpi-label">流量费</text>
-            <text class="kpi-value">¥{{ money(bill.dataFeeCents) }}</text>
+            <text class="kpi-value">{{ money(bill.dataFeeCents) }}</text>
           </view>
           <view class="kpi-cell kpi-profit">
             <text class="kpi-label">利润额</text>
-            <text class="kpi-value">¥{{ money(bill.profitCents) }}</text>
+            <text class="kpi-value">{{ money(bill.profitCents) }}</text>
           </view>
         </view>
         <view class="bill-note">
@@ -75,13 +75,13 @@
           <view class="day-head">
             <text class="day-date">{{ day.day }}</text>
             <text class="day-profit" :class="{ neg: day.profitCents < 0 }">
-              利润 ¥{{ money(day.profitCents) }}
+              利润 {{ money(day.profitCents) }}
             </text>
           </view>
           <view class="day-grid">
             <view class="day-cell">
               <text class="day-label">销售额</text>
-              <text class="day-value">¥{{ money(day.salesCents) }}</text>
+              <text class="day-value">{{ money(day.salesCents) }}</text>
             </view>
             <view class="day-cell">
               <text class="day-label">销售量</text>
@@ -93,11 +93,11 @@
             </view>
             <view class="day-cell">
               <text class="day-label">即时退款</text>
-              <text class="day-value">¥{{ money(day.instantRefundCents) }}</text>
+              <text class="day-value">{{ money(day.instantRefundCents) }}</text>
             </view>
             <view class="day-cell">
               <text class="day-label">余额退款</text>
-              <text class="day-value">¥{{ money(day.balanceRefundCents) }}</text>
+              <text class="day-value">{{ money(day.balanceRefundCents) }}</text>
             </view>
           </view>
         </view>

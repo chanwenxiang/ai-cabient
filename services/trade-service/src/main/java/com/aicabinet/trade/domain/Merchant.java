@@ -22,7 +22,12 @@ public class Merchant {
 
     private String contactPhone;
 
-    private int platformRateBps = 1000;
+    /**
+     * 平台分账费率（万分比）。2026-10-17 拍板「这笔费用是否存在还没定，先不收」⇒ 默认 0；
+     * 0 = 平台不抽成，此时分账**不发微信请求**，商户份额整笔走钱包入账
+     * （见 RevenueSplitService 与 WeChatProfitSharingService 的 0 抽成闸）。
+     */
+    private int platformRateBps = 0;
 
     private String wechatReceiverId;
 

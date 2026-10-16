@@ -191,6 +191,12 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '机器账单（场地方）', group: '财务商户', perm: 'ops:device:list' }
   },
   {
+    path: 'merchant-fee-ledgers',
+    name: 'merchant-fee-ledgers',
+    component: () => import('@/views/finance/MerchantFeeLedgerView.vue'),
+    meta: { title: '商户费用台账', group: '财务商户', perm: 'ops:merchant-withdraw:list' }
+  },
+  {
     path: 'merchant-withdraw',
     name: 'merchant-withdraw',
     component: () => import('@/views/finance/MerchantWithdrawView.vue'),

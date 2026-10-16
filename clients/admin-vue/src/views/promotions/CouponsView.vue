@@ -96,11 +96,11 @@
               <template v-if="row.couponType === 'PERCENT_OFF'">
                 {{ row.discountPercent || 0 }}%
               </template>
-              <template v-else>¥{{ yuan(row.denominationCents) }}</template>
+              <template v-else>{{ yuan(row.denominationCents) }}</template>
             </template>
           </el-table-column>
           <el-table-column label="最低消费" width="100" align="center" class-name="col-money">
-            <template #default="{ row }">¥{{ yuan(row.minSpendCents) }}</template>
+            <template #default="{ row }">{{ yuan(row.minSpendCents) }}</template>
           </el-table-column>
           <el-table-column
             label="有效期"

@@ -355,18 +355,35 @@ public class SystemConfigService {
     /** 商户提现免审自动通过阈值（分）；超过则进人工审核。0=全部人工审核。 */
     public static final String MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS =
             "merchant.withdraw.review_threshold_cents";
-    /** 商户提现手续费固定额（分），可与 fee_bps 叠加。0=免手续费。 */
+    /** 商户提现手续费固定额（分），可与 fee_bps 叠加。0=免收固定费（2026-10-16 拍板：只按比例收）。 */
     public static final String MERCHANT_WITHDRAW_FEE_CENTS = "merchant.withdraw.fee_cents";
-    /** 商户提现手续费万分比（如 50=0.5%），可与固定额叠加。0=免手续费。 */
+    /**
+     * 商户提现手续费万分比（60 = 6‰）。0=免收。
+     *
+     * <p>🔴 2026-10-16 用户拍板：默认按<b>老系统标准档 6‰</b> 收取
+     *（{@code ConstantUtils.DEDUCTION_PER_MILLAGE_RATE=6}）。扣法本就与老系统同形：
+     * 申请额全额出账（{@code consumeFrozenSplit} 一次扣 net+fee），到账=申请额−手续费，
+     * 差额留平台侧记 {@code WITHDRAW_FEE} 收入。与老系统的差异只在<b>入账口径</b>
+     *（我们 {@code order_revenue_split.merchant_cents} 是分账后净额，老系统入账毛额），
+     * 不是「分账 + 提现费」对同一笔钱重复收费。</p>
+     *
+     * <p>个别商户降档/免收：sys_config key {@code merchant.withdraw.fee_bps.{merchantId}}
+     *（读路径 {@code WithdrawPolicyResolver#merchantFeeBpsFor}），运营台提现页可直接配。</p>
+     */
     public static final String MERCHANT_WITHDRAW_FEE_BPS = "merchant.withdraw.fee_bps";
     /**
      * 商户提现手续费<b>单笔封顶</b>（分）。0=不封顶。
      *
-     * <p>🔴 业界通行做法：支付宝余额提现 0.1%、<b>最高 ¥25</b>；拉卡拉提现 0.1%、<b>最高 ¥50</b>。
-     * 若不封顶，配 {@code fee_bps=50}（0.5%）提现 ¥10000 将扣 ¥50、提现 ¥100000 扣 ¥500 ——
-     * 远超业界封顶值，会被商户投诉「平台吃手续费」。**有 bps 时强烈建议同时配封顶。**</p>
+     * <p>🔴 2026-10-16 拍板留 0=不封顶：本仓已有<b>单笔下限 ¥10 / 单笔上限 ¥10000 / 单日 ¥40000</b>
+     * 三重天花板，6‰ 在 ¥10000 上最多 ¥60 —— 配 ¥25/¥50 封顶几乎永不触发，是死参数。
+     * 封顶能力保留（若日后抬上限或改高费率，这里立刻可用）。</p>
+     *
+     * <p>业界参照：支付宝余额提现 0.1%、最低 ¥1、最高 ¥25；拉卡拉提现 0.1%、最高 ¥50 ——
+     * 它们没有单笔上限，所以才必须封顶；我们有。</p>
      */
     public static final String MERCHANT_WITHDRAW_FEE_CAP_CENTS = "merchant.withdraw.fee_cap_cents";
+    /** 按商户覆盖提现费率的 key 前缀（完整 key = 前缀 + merchantId）。 */
+    public static final String MERCHANT_WITHDRAW_FEE_BPS_PREFIX = "merchant.withdraw.fee_bps.";
     /**
      * 商户 T+1 可提现<b>解锁时刻</b>（小时，0–23）。默认 0 = 次日零点起可提。
      *
@@ -813,19 +830,22 @@ public class SystemConfigService {
         upsertIfAbsent(MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS, "50000",
                 "商户提现免审自动通过阈值（分），默认 ¥500；0=全部转人工审核");
         upsertIfAbsent(MERCHANT_WITHDRAW_FEE_CENTS, "0",
-                "商户提现手续费固定额（分），可与手续费比例叠加；0=免手续费");
-        upsertIfAbsent(MERCHANT_WITHDRAW_FEE_BPS, "0",
-                "商户提现手续费比例（万分比，如 50=0.5%），可与固定额叠加；0=免手续费");
+                "商户提现手续费固定额（分），与比例叠加；0=不收固定费（2026-10-16 拍板：只按比例收）");
+        upsertIfAbsent(MERCHANT_WITHDRAW_FEE_BPS, "60",
+                "商户提现手续费比例（万分比，60=6‰，2026-10-16 拍板对齐老系统标准档）；"
+                        + "个别商户可用 merchant.withdraw.fee_bps.{商户号} 覆盖；0=免收");
         upsertIfAbsent("feebill.auto_generate.enabled", "false",
                 "流量费月度自动出账开关：日扣模式下默认停用（避免重复计费）；true=回退人工月结模式");
         upsertIfAbsent("device.rental.monthly_bill.enabled", "false",
                 "租金月度应收出账开关：日扣模式下默认停用（避免重复计费）；true=回退月结出账");
-        upsertIfAbsent("merchant.overdue.lock_months", "1",
-                "商户费用欠缴锁柜阈值（月）：未结清费用累计 ≥ 月费用总额×该倍数时锁柜，结清自动解锁");
+        upsertIfAbsent("merchant.overdue.lock_days", "7",
+                "商户费用欠缴锁柜账龄阈值（天）：未结清费用里最老一行满该天数即锁柜，结清自动复机"
+                        + "（2026-10-16 拍板：替代旧的金额阈值 lock_months；对标阿里云「欠费满 7 个自然日停服」）");
         upsertIfAbsent("line_route.chief_manager_ids", "0",
                 "总线路负责人（user_info.userId，多个用英文逗号分隔，如 1001,1002）；0=未指定，可随时改指");
         upsertIfAbsent(MERCHANT_WITHDRAW_FEE_CAP_CENTS, "0",
-                "商户提现手续费单笔封顶（分），0=不封顶。行业参照：支付宝余额提现封顶 ¥25、拉卡拉提现封顶 ¥50 —— 配了手续费比例强烈建议同时配封顶");
+                "商户提现手续费单笔封顶（分），0=不封顶（2026-10-16 拍板留 0：单笔上限 ¥10000/单日 ¥40000 "
+                        + "已是天花板，6‰ 最多 ¥60，配 ¥25/¥50 封顶几乎永不触发=死参数；日后抬上限再配）");
         upsertIfAbsent(MERCHANT_WITHDRAW_SETTLE_UNLOCK_HOUR, "0",
                 "商户 T+1 可提现解锁时刻（小时 0-23），默认 0=次日零点起可提。只影响提现闸门，不影响入账与账单展示；配 8 即次日 8 点起才可提");
         upsertIfAbsent(LINE_WITHDRAW_MIN_CENTS, "1000",
@@ -1021,6 +1041,10 @@ public class SystemConfigService {
         // 与 GrowthLogArchiveScheduler「积分流水禁止 DELETE」的账本约束冲突。
         refreshDescriptionIfPresent("ops.log_retention.points_months",
                 "【已废弃·请勿使用】积分流水是账本组成部分，禁止删除（见 GrowthLogArchiveScheduler）");
+        // 2026-10-16 F-2 拍板：欠费锁柜判据从「金额阈值（月费×倍数）」改为「账龄天数」，
+        // 旧 key 不再被读取（判据见 MerchantDailyIncomeNotifyScheduler#lockDaysThreshold）。
+        refreshDescriptionIfPresent("merchant.overdue.lock_months",
+                "【已废弃·请勿使用】欠费锁柜判据已改为账龄天数 merchant.overdue.lock_days（默认 7 天）");
     }
 
     private void refreshDescriptionIfPresent(String key, String description) {

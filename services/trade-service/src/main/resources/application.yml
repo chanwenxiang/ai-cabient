@@ -223,7 +223,10 @@ aicabinet:
     daily-limit-cents: ${MERCHANT_WITHDRAW_DAILY_LIMIT_CENTS:500000}
     review-threshold-cents: ${MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS:50000}
     fee-cents: ${MERCHANT_WITHDRAW_FEE_CENTS:0}
-    fee-bps: ${MERCHANT_WITHDRAW_FEE_BPS:0}
+    # 2026-10-16 拍板：默认按老系统标准档 6‰ 收商户提现手续费（60 万分比）。
+    # 运行期真值仍以运营台 system_config 为准（WithdrawPolicyResolver 优先），这里只是部署期初值。
+    # 封顶保持 0=不封顶：单笔/单日上限已是天花板，6‰ 在 ¥10000 上最多 ¥60。
+    fee-bps: ${MERCHANT_WITHDRAW_FEE_BPS:60}
   # V307：收款账号加密。密钥为 Base64 的 32 字节 AES 密钥（openssl rand -base64 32）。
   # 🔴 无默认值：缺失时打款链路 fail-closed 拒收（绝不降级为明文落库/出款）。
   # 生成后写入 infra/.env 与 CI secret，**禁止提交进 git**。

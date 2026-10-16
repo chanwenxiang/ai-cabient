@@ -12,6 +12,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
+import { yuanTextZero as yuan } from '@/utils/display';
 
 export type DevicePricingRow = {
   deviceId: string;
@@ -176,8 +177,4 @@ function warnIfBelowCost(row: DevicePricingRow, priceCents: number) {
     // 非阻断提醒（CB-037：清仓/引流打折放行，低于成本知情即可）
     ElMessage.warning(`低于进货成本 ${yuan(cost)}，请确认是清仓/引流定价`);
   }
-}
-
-function yuan(cents: number): string {
-  return `¥${(cents / 100).toFixed(2)}`;
 }

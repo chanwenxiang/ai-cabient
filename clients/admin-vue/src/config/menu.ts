@@ -296,6 +296,13 @@ const BASE_NAV: NavItem[] = [
     keywords: ['机器账单', '场地', '电费', '返点', '收款人']
   },
   {
+    path: '/merchant-fee-ledgers',
+    title: '商户费用台账',
+    group: '财务商户',
+    perm: 'ops:merchant-withdraw:list',
+    keywords: ['费用台账', '租金', '流量费', '欠费', '重跑日扣', '结清']
+  },
+  {
     path: '/merchant-withdraw',
     title: '商户提现',
     group: '财务商户',

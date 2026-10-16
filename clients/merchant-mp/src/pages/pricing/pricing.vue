@@ -111,6 +111,7 @@ import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import AppSheet from '@/components/AppSheet.vue';
 import {
+  centsToYuanDigits,
   yuanToCents,
   fmtMoney,
   formatSkuNameWithSpec,
@@ -170,7 +171,7 @@ function money(cents?: number | null) {
 function pricePlaceholder(p: MerchantSkuPricing) {
   const cents = p.effectivePriceCents ?? p.basePriceCents;
   if (cents == null || !Number.isFinite(Number(cents))) return '0.00';
-  return (Number(cents) / 100).toFixed(2);
+  return centsToYuanDigits(cents);
 }
 
 function formatTime(iso?: string) {
@@ -208,7 +209,7 @@ async function openHistory() {
 }
 
 function draftValueFor(p: MerchantSkuPricing) {
-  return p.overridePriceCents == null ? '' : (p.overridePriceCents / 100).toFixed(2);
+  return p.overridePriceCents == null ? '' : centsToYuanDigits(p.overridePriceCents);
 }
 
 onShow(() => {

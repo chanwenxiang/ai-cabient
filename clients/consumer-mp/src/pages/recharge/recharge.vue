@@ -61,7 +61,7 @@
           role="button"
           :key="item.value"
           class="amount-card"
-          :class="{ selected: selectedAmount === item.value }"
+          :class="{ selected: selectedAmountCents === item.value }"
           @click="selectAmount(item.value)"
         >
           <text class="amount-value">{{ fmtMoney(item.value) }}</text>
@@ -101,13 +101,13 @@
       <view v-if="wechatPayLive || wechatRechargeEnabled" class="btn-slot">
         <app-button
           variant="wechat"
-          :disabled="!selectedAmount || loading"
+          :disabled="!selectedAmountCents || loading"
           :loading="loading"
           :label="
             loading
               ? '处理中…'
-              : selectedAmount
-                ? `${wechatPayLive ? '微信支付' : '微信充值'} ${fmtMoney(selectedAmount)}`
+              : selectedAmountCents
+                ? `${wechatPayLive ? '微信支付' : '微信充值'} ${fmtMoney(selectedAmountCents)}`
                 : '微信充值'
           "
           @click="onWeChatRecharge"
@@ -126,13 +126,13 @@
       <view v-if="devTools && mockEnabled" class="btn-slot">
         <app-button
           class="mock-recharge"
-          :disabled="!selectedAmount || loading"
+          :disabled="!selectedAmountCents || loading"
           :loading="loading"
           :label="
             loading
               ? '体验充值中…'
-              : selectedAmount
-                ? `体验充值 ${fmtMoney(selectedAmount)}`
+              : selectedAmountCents
+                ? `体验充值 ${fmtMoney(selectedAmountCents)}`
                 : '请选择金额'
           "
           @click="onRecharge"
@@ -141,13 +141,13 @@
       <view v-if="devTools && alipayRechargeEnabled" class="btn-slot">
         <app-button
           variant="alipay"
-          :disabled="!selectedAmount || loading"
+          :disabled="!selectedAmountCents || loading"
           :loading="loading"
           :label="
             loading
               ? '处理中…'
-              : selectedAmount
-                ? `支付宝充值 ${fmtMoney(selectedAmount)}`
+              : selectedAmountCents
+                ? `支付宝充值 ${fmtMoney(selectedAmountCents)}`
                 : '支付宝充值'
           "
           @click="onAlipayRecharge"
@@ -251,7 +251,7 @@ const amounts = [
 ];
 
 const balanceYuan = ref('0.00');
-const selectedAmount = ref(2000);
+const selectedAmountCents = ref(2000);
 const customAmountYuan = ref('');
 const customAmountError = ref('');
 const loading = ref(false);
@@ -400,7 +400,7 @@ function goBack() {
 function selectAmount(value: number) {
   customAmountYuan.value = '';
   customAmountError.value = '';
-  selectedAmount.value = value;
+  selectedAmountCents.value = value;
 }
 
 function onCustomAmount(e: unknown) {
@@ -412,12 +412,12 @@ function onCustomAmount(e: unknown) {
   customAmountYuan.value = raw;
   customAmountError.value = '';
   if (!raw) {
-    selectedAmount.value = 0;
+    selectedAmountCents.value = 0;
     return;
   }
   const yuan = Number(raw);
   if (!Number.isFinite(yuan) || yuan <= 0) {
-    selectedAmount.value = 0;
+    selectedAmountCents.value = 0;
     customAmountError.value = '请输入大于 0 的金额';
     return;
   }
@@ -425,17 +425,17 @@ function onCustomAmount(e: unknown) {
     rechargeMaxCents.value !== Number.POSITIVE_INFINITY &&
     Math.round(yuan * 100) > rechargeMaxCents.value
   ) {
-    selectedAmount.value = 0;
+    selectedAmountCents.value = 0;
     customAmountError.value = `单次充值不超过 ¥${rechargeMaxCents.value / 100}`;
     return;
   }
   const cents = yuanToCents(raw);
   if (cents == null || cents <= 0) {
-    selectedAmount.value = 0;
+    selectedAmountCents.value = 0;
     customAmountError.value = '请输入有效金额';
     return;
   }
-  selectedAmount.value = cents;
+  selectedAmountCents.value = cents;
 }
 
 /** 解析后端下发的上限（分）。0=不限制 → Infinity；非法/负数 → 回退默认。 */
@@ -550,7 +550,7 @@ async function cancelPendings() {
 }
 
 async function onRecharge() {
-  if (!selectedAmount.value || loading.value) return;
+  if (!selectedAmountCents.value || loading.value) return;
   if (!mockEnabled.value) {
     showError('模拟充值未开启');
     return;
@@ -558,7 +558,7 @@ async function onRecharge() {
   loading.value = true;
   try {
     const key = `recharge-${Date.now()}-${secureRandomToken(6)}`;
-    const prepay = await consumerApi.createMockRecharge(selectedAmount.value, key);
+    const prepay = await consumerApi.createMockRecharge(selectedAmountCents.value, key);
     await consumerApi.confirmMockRecharge(prepay.orderId);
     showSuccess('充值成功');
     await loadBalance();
@@ -571,11 +571,11 @@ async function onRecharge() {
 }
 
 async function onWeChatRecharge() {
-  if (!selectedAmount.value || loading.value) return;
+  if (!selectedAmountCents.value || loading.value) return;
   loading.value = true;
   try {
     const key = `wechat-recharge-${Date.now()}-${secureRandomToken(6)}`;
-    const { mode } = await runWeChatRecharge(selectedAmount.value, key);
+    const { mode } = await runWeChatRecharge(selectedAmountCents.value, key);
     showSuccess(mode === 'live' ? '充值已到账' : '充值成功');
     await loadBalance();
     await loadRecords();
@@ -587,11 +587,11 @@ async function onWeChatRecharge() {
 }
 
 async function onAlipayRecharge() {
-  if (!selectedAmount.value || loading.value) return;
+  if (!selectedAmountCents.value || loading.value) return;
   loading.value = true;
   try {
     const key = `alipay-recharge-${Date.now()}-${secureRandomToken(6)}`;
-    const { mode } = await runAlipayRecharge(selectedAmount.value, key);
+    const { mode } = await runAlipayRecharge(selectedAmountCents.value, key);
     if (mode === 'live') {
       showError('请在支付宝完成支付');
       return;

@@ -159,7 +159,9 @@ public class MerchantWithdrawPayoutService {
         long effectiveCap = policy.merchantFeeCapCents();
         String feeNote = "；手续费=固定 " + effectiveFlat + " 分 + " + effectiveBps
                 + " bps，单笔封顶 " + (effectiveCap > 0 ? effectiveCap + " 分" : "不封顶")
-                + "（仅新申请写入 feeCents；已成立的提现单按快照费率不变）";
+                + "（仅新申请写入 feeCents；已成立的提现单按快照费率不变。"
+                + "本面板是<b>全局档</b>，单个商户可用 sys_config merchant.withdraw.fee_bps.{商户号} 覆盖，"
+                + "覆盖值在提现页「提现费率」标签查改）";
         String note;
         if (mock) {
             note = "当前为记账打款（未接入真实转账）：审核通过后标记为成功，不向任何渠道发起转账" + feeNote;

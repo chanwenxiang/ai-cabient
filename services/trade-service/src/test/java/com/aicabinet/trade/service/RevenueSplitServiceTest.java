@@ -495,4 +495,87 @@ class RevenueSplitServiceTest {
         verify(merchantWalletService, times(1)).reverseCreditIfPresent(anyString(), anyLong(), anyString(), any());
         verify(splitRepository, times(1)).save(any());
     }
+
+    /**
+     * 拍板 2026-10-17「平台分账先不收」：rate=0 时**不得**向微信发分账请求
+     * （receiver.amount 会等于订单毛额，全额分账是否被服务商允许未实证），
+     * 商户份额整笔走钱包入账（LEDGER_ONLY）。
+     */
+    @Test
+    void recordSplit_platformRateZero_ledgerOnlyCreditsGrossAndNeverSubmitsSharing() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-RATE0");
+        order.setDeviceId("CAB-1");
+        order.setPayTradeNo("WX-TXN-RATE0");
+        order.setTotalAmountCents(1000);
+
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-1");
+        device.setMerchantId("M-1");
+
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setStatus("ACTIVE");
+        merchant.setPlatformRateBps(0);
+        merchant.setWechatReceiverId("1900000109");
+
+        when(splitRepository.findByOrderIdForUpdate("O-RATE0")).thenReturn(Optional.empty());
+        when(deviceRepository.findById("CAB-1")).thenReturn(Optional.of(device));
+        when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
+        when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(merchantWalletService.creditIfAbsent(
+                eq("M-1"), eq(1000L), eq("SPLIT_CREDIT"), eq("SPLIT"), anyString(), anyString()))
+                .thenReturn(true);
+
+        Optional<OrderRevenueSplit> result = service.recordSplit(order);
+
+        assertEquals("LEDGER_ONLY", result.map(OrderRevenueSplit::getStatus).orElse(null));
+        verify(splitRepository).save(argThat(s ->
+                s.getPlatformCents() == 0L && s.getMerchantCents() == 1000L));
+        verify(profitSharingService, never()).submitSplit(any(), any(), anyString());
+    }
+
+    /**
+     * 改单重算时费率已被调到 0（V382 存量归 0 / 运营手工改）：
+     * 未提交微信的 ACCRUED 行翻成 LEDGER_ONLY 并**按全额**入钱包
+     * （ACCRUED 期间钱包从未入账，补差额会少付商户 oldMerchantCents）。
+     */
+    @Test
+    void resyncSplitForOrder_platformRateZero_flipsAccruedToLedgerAndCreditsFullGross() {
+        OrderRevenueSplit split = new OrderRevenueSplit();
+        split.setSplitId("SPLIT-R0");
+        split.setOrderId("O-R0");
+        split.setMerchantId("M-1");
+        split.setStatus("ACCRUED");
+        split.setGrossCents(1000);
+        split.setPlatformCents(100);
+        split.setMerchantCents(900);
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-R0");
+        order.setPayTradeNo("WX-TXN-R0");
+        order.setTotalAmountCents(1000);
+
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setStatus("ACTIVE");
+        merchant.setPlatformRateBps(0);
+        merchant.setWechatReceiverId("1900000109");
+
+        when(splitRepository.findByOrderIdForUpdate("O-R0")).thenReturn(Optional.of(split));
+        when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
+        when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(merchantWalletService.creditIfAbsent(
+                eq("M-1"), eq(1000L), eq("SPLIT_CREDIT"), eq("SPLIT"), eq("SPLIT-R0"), anyString()))
+                .thenReturn(true);
+
+        service.resyncSplitForOrder(order);
+
+        verify(splitRepository).save(argThat(s -> "LEDGER_ONLY".equals(s.getStatus())
+                && s.getPlatformCents() == 0L && s.getMerchantCents() == 1000L));
+        // 入账是全额 1000（SPLIT_CREDIT），不是差额 100（SPLIT_PARTIAL_CREDIT）
+        verify(merchantWalletService, never()).creditIfAbsent(
+                anyString(), anyLong(), eq("SPLIT_PARTIAL_CREDIT"), anyString(), anyString(), anyString());
+        verify(profitSharingService, never()).submitSplit(any(), any(), anyString());
+    }
 }

@@ -3088,6 +3088,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/merchant-fee-ledgers/rerun-daily-fees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按日期重跑周期费用日扣（F-4 拍板：漏扣不自动补，人工带日期补跑） */
+        post: operations["rerunDailyFees"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/machine-payee-bills/{billId}/settle": {
         parameters: {
             query?: never;
@@ -25144,6 +25161,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantFeeLedger"];
+                };
+            };
+        };
+    };
+    rerunDailyFees: {
+        parameters: {
+            query: {
+                feeDate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
                 };
             };
         };

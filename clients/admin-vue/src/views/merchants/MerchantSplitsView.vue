@@ -635,8 +635,8 @@
       destroy-on-close
     >
       <p class="dialog-hint">
-        上级商户可见全部下级货柜。平台抽成按百分比填写（如 10 表示
-        10%）。非营业状态会拦截消费者开门购物（运维/补货开门不受影响）。
+        上级商户可见全部下级货柜。平台抽成按百分比填写（如 10 表示 10%，填 0
+        表示平台不抽成、不向微信发分账请求，商户份额整笔入可提现钱包）。非营业状态会拦截消费者开门购物（运维/补货开门不受影响）。
       </p>
       <el-form label-position="top">
         <el-form-item v-if="orgForm.editing" label="商户编号">
@@ -678,7 +678,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="平台抽成（%）">
+        <el-form-item label="平台抽成（%，0=不抽成）">
           <el-input-number
             :model-value="(orgForm.platformRateBps || 0) / 100"
             :min="0"
@@ -868,7 +868,8 @@ const orgForm = ref({
   merchantName: '',
   contactPhone: '',
   parentMerchantId: '' as string | null,
-  platformRateBps: 1000,
+  // 2026-10-17 拍板「平台分账先不收」：新建商户默认 0=平台不抽成，要抽成由运营显式填
+  platformRateBps: 0,
   status: 'ACTIVE'
 });
 const assignDialog = ref(false);
@@ -1368,7 +1369,7 @@ function openOrgEdit(row?: MerchantDto) {
       merchantName: row.merchantName || '',
       contactPhone: row.contactPhone || '',
       parentMerchantId: row.parentMerchantId || '',
-      platformRateBps: row.platformRateBps ?? 1000,
+      platformRateBps: row.platformRateBps ?? 0,
       status: row.status || 'ACTIVE'
     };
   } else {
@@ -1378,7 +1379,7 @@ function openOrgEdit(row?: MerchantDto) {
       merchantName: '',
       contactPhone: '',
       parentMerchantId: '',
-      platformRateBps: 1000,
+      platformRateBps: 0,
       status: 'ACTIVE'
     };
   }

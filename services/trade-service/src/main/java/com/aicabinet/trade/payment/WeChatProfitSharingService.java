@@ -114,6 +114,16 @@ public class WeChatProfitSharingService {
         if (WECHAT_SUBMITTED.equals(split.getStatus())) {
             return PreparedSubmission.terminal(split);
         }
+        if (split.getPlatformCents() <= 0) {
+            // 拍板 2026-10-17「平台分账先不收」：0 抽成的单 merchantCents 就是订单毛额，
+            // 全额分账是否被微信服务商允许**未实证**（CB-032 的 30% 单订单上限仅 ⚪ 旁证），
+            // 而且这笔钱已由 RevenueSplitService 入商户钱包 ⇒ 再发分账就是双付。
+            // 三个入口（改单自动提交 / 运营手工提交 / 失败重试）都汇到这里，闸放在唯一出口上。
+            // 状态**不动**：这里没有钱包服务，翻了状态反而把钱留在无人入账的中间态。
+            log.warn("profit sharing skipped: platform share is zero (rate 0) splitId={} orderId={} gross={}",
+                    split.getSplitId(), split.getOrderId(), split.getGrossCents());
+            return PreparedSubmission.terminal(split);
+        }
 
         String outOrderNo = split.getWechatOutOrderNo();
         if (outOrderNo == null || outOrderNo.isBlank()) {

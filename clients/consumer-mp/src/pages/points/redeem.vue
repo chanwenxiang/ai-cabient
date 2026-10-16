@@ -23,10 +23,10 @@
               <text class="item-title">{{ item.title }}</text>
               <text class="item-subtitle">{{ item.subtitle || '兑换优惠券，结算自动使用' }}</text>
               <text v-if="item.denominationCents != null" class="item-coupon"
-                >券面 {{ fmtMoney(item.denominationCents).replace('¥', '') }} 元 ·
+                >券面 {{ centsToYuanDigits(item.denominationCents) }} 元 ·
                 {{
                   item.minSpendCents && item.minSpendCents > 0
-                    ? `满 ${fmtMoney(item.minSpendCents).replace('¥', '')} 可用`
+                    ? `满 ${centsToYuanDigits(item.minSpendCents)} 可用`
                     : '无门槛'
                 }}</text
               >
@@ -64,7 +64,7 @@
 import { ref } from 'vue';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
-import { fmtMoney } from '@aicabinet/shared-uni/format';
+import { centsToYuanDigits } from '@aicabinet/shared-uni/format';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   consumerApi,

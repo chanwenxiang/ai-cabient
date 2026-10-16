@@ -106,7 +106,7 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }">¥{{ yuan(row.orderPaidCents) }}</template>
+                <template #default="{ row }">{{ yuan(row.orderPaidCents) }}</template>
               </el-table-column>
               <el-table-column
                 label="平台抽成"
@@ -115,7 +115,7 @@
                 class-name="col-money"
                 label-class-name="col-money"
               >
-                <template #default="{ row }">¥{{ yuan(row.platformFeeCents) }}</template>
+                <template #default="{ row }">{{ yuan(row.platformFeeCents) }}</template>
               </el-table-column>
               <el-table-column
                 label="通道费"
@@ -125,7 +125,7 @@
                 label-class-name="col-status"
               >
                 <template #default="{ row }">
-                  ¥{{ yuan(row.channelFeeCents)
+                  {{ yuan(row.channelFeeCents)
                   }}{{ row.channelFeeSource === 'ACTUAL' ? '（实结）' : '（估）' }}
                 </template>
               </el-table-column>
@@ -136,7 +136,7 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }">¥{{ yuan(row.creditedCents) }}</template>
+                <template #default="{ row }">{{ yuan(row.creditedCents) }}</template>
               </el-table-column>
               <el-table-column
                 label="待入账"
@@ -145,7 +145,7 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }">¥{{ yuan(row.pendingCents) }}</template>
+                <template #default="{ row }">{{ yuan(row.pendingCents) }}</template>
               </el-table-column>
               <el-table-column
                 prop="orderCount"
@@ -276,7 +276,7 @@
                 class-name="col-money"
                 label-class-name="col-money"
               >
-                <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+                <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
               </el-table-column>
               <el-table-column
                 prop="orderId"

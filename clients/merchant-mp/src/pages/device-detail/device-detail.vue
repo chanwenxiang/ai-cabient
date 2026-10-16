@@ -304,7 +304,7 @@ import {
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import { resolveMerchantIdForDevice } from '@/utils/device-settings';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { centsToYuanDigits, formatDateTime } from '@aicabinet/shared-uni/format';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import type {
@@ -415,7 +415,9 @@ const signalText = computed(() => {
   if (v == null || v < 0 || v > 4) return '';
   return SIGNAL_LABELS[v];
 });
-const fenToYuanText = (cents?: number | null) => (cents == null ? '--' : (cents / 100).toFixed(2));
+/** 列头已写「(元)」，所以这里要的是无符号数字位，不是 fmtMoney */
+const fenToYuanText = (cents?: number | null) =>
+  cents == null ? '--' : centsToYuanDigits(cents);
 const todaySalesYuan = computed(() => fenToYuanText(summary.value?.todaySalesCents));
 const todayOrdersText = computed(() => (summary.value ? String(summary.value.todayOrders) : '--'));
 const monthSalesYuan = computed(() => fenToYuanText(summary.value?.monthSalesCents));

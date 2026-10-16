@@ -137,8 +137,8 @@
       "key": "merchant.withdraw.fee_bps",
       "group": "交易与资金",
       "type": "NUMBER",
-      "default": "0",
-      "description": "商户提现手续费比例（万分比，如 50=0.5%），可与固定额叠加；0=免手续费"
+      "default": "60",
+      "description": "商户提现手续费比例（万分比，60=6‰，2026-10-17 确认保留为默认档、运营可随时改或按商户覆盖）；0=免手续费"
     },
     {
       "key": "merchant.withdraw.fee_cap_cents",
@@ -798,11 +798,11 @@
       "description": "租金月度应收出账开关：费用改日扣模式后默认停用（避免重复计费）；true=回退月结出账"
     },
     {
-      "key": "merchant.overdue.lock_months",
+      "key": "merchant.overdue.lock_days",
       "group": "风控自动处置",
       "type": "NUMBER",
-      "default": "1",
-      "description": "商户费用欠缴锁柜阈值（月）：未结清费用累计 ≥ 月费用总额×该倍数时锁柜，结清自动解锁"
+      "default": "7",
+      "description": "商户费用欠缴锁柜账龄阈值（天）：未结清费用里最老一行满该天数即锁柜，结清自动复机（2026-10-16 拍板替代旧的金额阈值 merchant.overdue.lock_months，后者已废弃、不再被读取）"
     },
     {
       "key": "line_route.chief_manager_ids",

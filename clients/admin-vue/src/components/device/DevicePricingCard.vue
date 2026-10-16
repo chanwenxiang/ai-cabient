@@ -29,21 +29,24 @@
       <el-table-column label="基准价" width="90" align="right" class-name="col-money">
         <template #default="{ row }">{{ yuan(row.basePriceCents) }}</template>
       </el-table-column>
-      <el-table-column label="覆盖价" width="150" class-name="col-money">
+      <el-table-column label="覆盖价（元）" width="150" class-name="col-money">
         <template #default="{ row }">
+          <!-- 🔴 输入按元（运营语言），写回走 yuanToCents 转分。
+               此前直接绑 overridePriceCents + precision=0，运营输 3.5 会被截成 3 分（¥0.03）。 -->
           <el-input-number
             v-if="canEdit"
-            :model-value="row.overridePriceCents ?? undefined"
-            :min="row.minPriceCents"
-            :max="row.maxPriceCents"
-            :precision="0"
+            :model-value="row.overridePriceCents == null ? undefined : row.overridePriceCents / 100"
+            :min="row.minPriceCents / 100"
+            :max="row.maxPriceCents / 100"
+            :precision="2"
+            :step="0.5"
             :controls="false"
             size="small"
             class="price-input"
             :class="{ 'below-cost': isBelowCost(row) }"
             placeholder="跟随基准"
             :disabled="saving[row.skuId] === 'price'"
-            @change="(v: number | null) => savePrice(row, v ?? null)"
+            @change="(v: number | null) => savePrice(row, v == null ? null : yuanToCents(v))"
           />
           <span v-else>{{
             row.overridePriceCents != null ? yuan(row.overridePriceCents) : '—'
@@ -113,6 +116,7 @@
  * 低于进货成本仅黄色提示不阻断（拍板：清仓/引流打折放行，知情即可）。
  */
 import { toRef } from 'vue';
+import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
 import { useDevicePricing, type DevicePricingRow } from '@/composables/device/useDevicePricing';
 
 const props = defineProps<{
@@ -145,10 +149,6 @@ function onActive(active: boolean) {
 }
 
 defineExpose({ onActive, reload: load });
-
-function yuan(cents: number): string {
-  return `¥${(cents / 100).toFixed(2)}`;
-}
 
 function isBelowCost(row: DevicePricingRow): boolean {
   return (

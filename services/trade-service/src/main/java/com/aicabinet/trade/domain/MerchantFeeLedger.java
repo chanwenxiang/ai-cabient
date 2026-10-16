@@ -8,8 +8,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 /**
- * 商户费用台账（V355，2026-10-14）：平台不自动扣款，所有结算线下进行——
- * 日结批只生成 PENDING 记录，线下收款后运营标记 SETTLED；催缴/锁柜基于未结清累计。
+ * 商户费用台账（V355，2026-10-14；2026-10-16 F-2 拍板改口径）：
+ * 日结批<b>先从商户钱包扣款成功、再写行</b>（行即收据，对齐老系统「没扣到钱就不留费用行」），
+ * 写入即为 SETTLED；PENDING 只用于人工补录的历史/例外行。
+ * 费用为 0 或未配置的柜机不进扣款路径、也不写行。催缴/锁柜只看未结清（PENDING）累计与其账龄。
  */
 @TableName("merchant_fee_ledger")
 public class MerchantFeeLedger {

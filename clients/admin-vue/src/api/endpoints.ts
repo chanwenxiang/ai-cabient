@@ -539,6 +539,13 @@ export const AdminEndpoints = {
     `${ops}/machine-payee-bills/${encodeURIComponent(String(billId))}/settle`,
   machinePayeeBillConfig: (deviceId: string) =>
     `${ops}/machine-payee-bills/config/${encodeURIComponent(deviceId)}`,
+  /** 商户费用台账（V355/V380）：日扣留痕（扣款成功即 SETTLED）+ 人工结清 + 按日期重跑 */
+  merchantFeeLedgers: `${ops}/merchant-fee-ledgers`,
+  merchantFeeLedgerSettle: (ledgerId: string | number, remark?: string) =>
+    `${ops}/merchant-fee-ledgers/${encodeURIComponent(String(ledgerId))}/settle` +
+    (remark ? `?remark=${encodeURIComponent(remark)}` : ''),
+  merchantFeeLedgerRerun: (feeDate: string) =>
+    `${ops}/merchant-fee-ledgers/rerun-daily-fees?feeDate=${encodeURIComponent(feeDate)}`,
   lineManagers: `${ops}/line-managers`,
   lineManagersList: (query: URLSearchParams | string) =>
     typeof query === 'string'
