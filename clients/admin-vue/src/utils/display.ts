@@ -91,6 +91,19 @@ export function yuanText(cents: unknown, empty = EMPTY_STAT): string {
 }
 
 /**
+ * 金额分 → 元，空/非法值显示 ¥0.00。
+ * 列表列空数据语义=「明确为 0 元」而非「未统计」；A6 整改：收敛 14 处自建 yuan()（审计批次 6）。
+ */
+export function yuanTextZero(cents: unknown): string {
+  return yuanText(cents, '¥0.00');
+}
+
+/** 金额分 → 元，空/非法值显示「暂无」（大屏/报表类空态文案）。 */
+export function yuanTextNone(cents: unknown): string {
+  return yuanText(cents, '暂无');
+}
+
+/**
  * 元（表单输入）→ 分。经 toFixed(2) 再拆整/小位，避免 `0.29*100` 浮点误差。
  * @returns 非法输入返回 null
  */

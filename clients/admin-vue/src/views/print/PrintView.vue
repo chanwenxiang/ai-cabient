@@ -160,10 +160,15 @@ const pageTitle = computed(() => {
   return '打印单据';
 });
 /** 打印时刻（非模块加载时刻） */
-const printTime = ref(new Date().toLocaleString('zh-CN', { hour12: false }));
+const printTime = ref(
+  new Date().toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' })
+);
 
 function stampPrintTime() {
-  printTime.value = new Date().toLocaleString('zh-CN', { hour12: false });
+  printTime.value = new Date().toLocaleString('zh-CN', {
+    hour12: false,
+    timeZone: 'Asia/Shanghai'
+  });
 }
 
 function nameOf(rows: Row[], keyField: string, nameField: string, id?: string) {

@@ -807,7 +807,7 @@ import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
-import { yuanText, yuanToCents } from '@/utils/display';
+import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import {
   buildLineWithdrawReviewBody,
@@ -1000,10 +1000,6 @@ const {
 
 const withdrawStatusOptions = useDictOptions('line_withdraw_status');
 
-function yuan(cents?: number | null) {
-  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
-  return yuanText(cents, '¥0.00');
-}
 function withdrawStatusLabel(s?: string) {
   return displayLabel('line_withdraw_status', s, '未知状态');
 }

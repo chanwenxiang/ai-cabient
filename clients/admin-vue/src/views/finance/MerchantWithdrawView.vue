@@ -534,7 +534,7 @@ import { createLoadSeq } from '@/composables/createLoadSeq';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
-import { yuanText, yuanToCents } from '@/utils/display';
+import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
 import {
   buildMerchantWithdrawReviewBody,
   canCancelFailedMerchantWithdraw,
@@ -706,11 +706,6 @@ function onWdAction({ key, row }: { key: string; row: Withdraw }) {
   else if (key === 'reject') void review(row, false);
   else if (key === 'payout') void payout(row);
   else if (key === 'cancel') void cancelFailed(row);
-}
-
-function yuan(cents?: number | null) {
-  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
-  return yuanText(cents, '¥0.00');
 }
 
 function withdrawStatusLabel(status?: string) {

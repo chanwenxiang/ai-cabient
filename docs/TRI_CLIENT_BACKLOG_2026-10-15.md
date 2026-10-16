@@ -40,8 +40,8 @@
 | A2 | 基建 | ~~P1-8 Kafka PLAINTEXT 无 SASL + modelVersion 丢弃~~ ✅ 已完成 | 2026-10-15：监听器并轨 HTTP ingest 口径（modelVersion 必填+deviceId 绑定，9.4-1 一并收口）+ Redpanda SASL/SCRAM（三态实测） |
 | A3 | edge | P1-6 残留：OTA checksum 与下载同通道；P1-7 残留：`usesCleartextTraffic` 未关 | 部分修复 |
 | A4 | 基建 | P1-14 残留：postgres/redis/mysql 等有状态镜像仍浮动 tag | 部分修复 |
-| A5 | 后端 | P1-17 补货实收 qty≤0 静默丢行（应拒绝） | 未修，小改动 |
-| A6 | P2×9 | 设备 eventSeq 去重键可控、EdgeRuntimeConfig 回落明文+allowBackup、VISION XFF/CIDRS、admin `yuan()` 未收敛（15 处）、toLocaleString 无 timeZone、商户登录明文存手机号、privacy-consent 不拦请求、ALLOWLIST 滥加、e2e 锁无 finally | 未修 |
+| A5 | 后端 | ~~P1-17 补货实收 qty≤0 静默丢行（应拒绝）~~ ✅ 已修（2026-10-15 实证：ReplenishmentService:1054 qty≤0 已 400 拒绝，注释带审计编号——backlog 行状态未同步而已） | 无剩余 |
+| A6 | P2×9 | ✅ **8/9 已修（2026-10-16）**：①eventSeq 去重键可控→DoorEventDeduplicator 加同 session+state 60s×30 次滑动窗口限流（rate_limited 指标+2 例单测）；②EdgeRuntimeConfig 加密失败不再回落明文（抛异常拒绝保存）+allowBackup=false；③VISION CIDRS 全非法 fail-fast（parse_cidrs_strict）+VISION_TRUSTED_PROXY_CIDRS 网段化信任代理（废弃布尔 VISION_TRUST_PROXY，与 Java 侧对称，5 例新测试）；④admin 自建 yuan() 15 处收敛 display.ts（yuanTextZero/yuanTextNone 显式命名，MemberLevels 元口径保留）；⑤toLocaleString 4 处补 Asia/Shanghai；⑦privacy-consent 未同意拦全部 H5 请求（shared request 单点，同意后整页重载）；⑧check-compose-ports ALLOWLIST 须 compose 侧行尾 EXPOSE-ALLOW 双处留痕（负向自测 2 例）；⑨e2e 锁 finally/TOCTOU 批次4 已修无需动。**⑥商户登录明文存手机号待拍板**：与 login.vue:175 既有决策「只允许记住手机号」冲突（存储加密在小程序沙盒内无实质增益），删除记住功能 or 保留现状须用户定 | ⑥待拍板 |
 | A7 | P3×5 | surrogate 截断、reasonKey 死代码、vision async stub、MQTT clientId 随机、OutboundMqttQueue 丢第 0 条 | 未修（低危） |
 
 ## 三、业务缺口（已采纳未实施 / 待拍板）
@@ -82,4 +82,4 @@
 2. ~~B1 退款重试 Job~~ ✅ 完成（00abda8c）。
 3. **A1（P0-2/P0-3 fleet 密钥）**——接真硬件前的硬门槛，**当前唯一高优工程项**，建议提前立项（安全工程问题，不依赖竞品对照；参考微信/支付宝 IoT 官方设备鉴权范式：一机一密/动态凭证）。
 4. ~~B5/B6/B7/B8 产品拍板~~ 全部已拍板并落地（B5=CB-044 选项1、B6=CB-043 方案A、B7 不延续、B8=CB-045 选项2）。
-5. A2（P1-8 Kafka SASL）基建加固、A6/C2/C3/B3/B9 低优排期。
+5. A2（P1-8 Kafka SASL）基建加固✅、A6（P2×9）8/9 已修（⑥手机号存储待拍板）、B3/C2/C3/B9 ✅；剩余 A7（P3×5 低危）未排期。

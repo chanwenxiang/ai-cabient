@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { yuanText } from '@/utils/display';
+import { yuanTextZero as yuan } from '@/utils/display';
 import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
@@ -77,11 +77,6 @@ const statusOptions = [
   { value: 'ISSUED', label: '已开具' },
   { value: 'REJECTED', label: '已驳回' }
 ];
-
-function yuan(cents?: number | null) {
-  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
-  return yuanText(cents, '¥0.00');
-}
 
 function statusLabel(s?: string) {
   switch (String(s || '').toUpperCase()) {

@@ -219,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanText } from '@/utils/display';
+import { yuanTextNone as yuan } from '@/utils/display';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -719,10 +719,6 @@ function goAction(item: OpsActionItem) {
 }
 
 /* ---------- 格式化 ---------- */
-function yuan(cents?: number | null) {
-  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
-  return yuanText(cents, '暂无');
-}
 function yuanShort(cents: number) {
   const v = cents / 100;
   if (v >= 10000) return `¥${(v / 10000).toFixed(1)}w`;

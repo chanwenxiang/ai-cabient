@@ -10,6 +10,9 @@
  *   ④ host 侧 `${VAR:-127.0.0.1}` 变量默认值——取默认值判定；无默认值或默认非回环 → 违规
  *
  * 豁免（ALLOWLIST）：面向外部的业务入口。新增暴露端口：要么绑回环，要么带书面理由加入豁免。
+ *   A6 防无声滥加：ALLOWLIST 命中只是半个条件——compose 里对应端口行**必须**带
+ *   `# EXPOSE-ALLOW: <理由>` 行尾注释（双处留痕：脚本侧登记 + compose 侧 diff 可见），
+ *   缺标记即 FAIL。只改脚本一行无法再无声放行新暴露端口。
  *
  * 用法：
  *   node scripts/check-compose-ports.mjs             # 检查真实 compose 文件
@@ -28,7 +31,7 @@ const ALLOWLIST = new Map([
   ['docker-compose.yml:80', 'gateway 业务入口（base 栈）']
 ]);
 
-/** 解析单文件 → [{file, line, spec}]，覆盖四形态。注释/空行对块形态透明。 */
+/** 解析单文件 → [{file, line, spec, comment}]，覆盖四形态。注释/空行对块形态透明。 */
 export function parsePortEntries(src) {
   const lines = src.split(/\r?\n/);
   const entries = [];
@@ -44,7 +47,7 @@ export function parsePortEntries(src) {
     if (inline) {
       // 形态③：内联数组
       for (const spec of inline[1].matchAll(/"([^"]+)"/g)) {
-        entries.push({ line: i + 1, spec: spec[1] });
+        entries.push({ line: i + 1, spec: spec[1], comment: '' });
       }
       inBlock = false;
       continue;
@@ -52,8 +55,10 @@ export function parsePortEntries(src) {
     if (inBlock) {
       const s = lines[i].trim();
       if (s.startsWith('- ')) {
-        const entry = s.match(/^-\s+"?([^"]+?)"?\s*(?:#.*)?$/);
-        if (entry) entries.push({ line: i + 1, spec: entry[1] });
+        const entry = s.match(/^-\s+"?([^"]+?)"?\s*(?:#\s*(.*))?\s*$/);
+        if (entry) {
+          entries.push({ line: i + 1, spec: entry[1], comment: (entry[2] || '').trim() });
+        }
         continue;
       }
       if (!s || s.startsWith('#')) continue; // 审计 P0-6：注释/空行不再截断块
@@ -107,7 +112,7 @@ function checkSources(sources) {
   let checked = 0;
   for (const { file, src } of sources) {
     const rel = file;
-    for (const { line, spec } of parsePortEntries(src)) {
+    for (const { line, spec, comment } of parsePortEntries(src)) {
       const split = splitSpec(spec);
       if (!split) {
         violations.push(`${INFRA}/${rel}:${line}  "${spec}"  （无法解析为 host:container 形态）`);
@@ -120,6 +125,13 @@ function checkSources(sources) {
       }
       const key = `${rel}:${hostPort}`;
       if (ALLOWLIST.has(key)) {
+        // A6 防无声滥加：豁免必须双处留痕——compose 行内注释 EXPOSE-ALLOW: 理由
+        if (!/EXPOSE-ALLOW\s*:/.test(comment || '')) {
+          violations.push(
+            `${INFRA}/${rel}:${line}  "${spec}"  （在豁免清单 ${key}，但缺 compose 侧 "# EXPOSE-ALLOW: 理由" 行尾标记——防无声滥加）`
+          );
+          continue;
+        }
         checked++;
         continue;
       }
@@ -187,6 +199,30 @@ function runSelfTest() {
     console.error('✗ 自测失败：合规对照被误报');
     failed++;
   }
+  // A6 防滥加负向自测：ALLOWLIST 命中但无 compose 侧 EXPOSE-ALLOW 标记 → 必须红
+  ALLOWLIST.set('case-allow.yml:7007', '自测豁免');
+  const allowCases = [
+    { name: '⑤豁免无标记（必须红）', src: 'services:\n  a:\n    ports: ["0.0.0.0:7007:80"]\n' },
+    {
+      name: '⑥豁免带标记（必须绿）',
+      src: 'services:\n  a:\n    ports: ["0.0.0.0:7008:80"] # EXPOSE-ALLOW: 自测理由\n'
+    }
+  ];
+  ALLOWLIST.set('case-allow.yml:7008', '自测豁免');
+  const allowSources = allowCases.map((c) => ({ file: `case-allow.yml`, src: c.src }));
+  const allowResult = checkSources(allowSources);
+  const noMarkHit = allowResult.violations.some((v) => v.includes(':7007'));
+  const markedHit = allowResult.violations.some((v) => v.includes(':7008'));
+  if (!noMarkHit) {
+    console.error('✗ 自测失败：豁免缺 EXPOSE-ALLOW 标记未被识别');
+    failed++;
+  }
+  if (markedHit) {
+    console.error('✗ 自测失败：带 EXPOSE-ALLOW 标记的豁免被误报');
+    failed++;
+  }
+  ALLOWLIST.delete('case-allow.yml:7007');
+  ALLOWLIST.delete('case-allow.yml:7008');
   if (failed) {
     console.error(`check-compose-ports --self-test: ${failed} 项失败`);
     process.exit(1);

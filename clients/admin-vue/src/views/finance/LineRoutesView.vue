@@ -231,6 +231,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanTextZero as yuan } from '@/utils/display';
 import { onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Box, Edit, Money, Tickets, User } from '@element-plus/icons-vue';
@@ -311,9 +312,6 @@ const payoutRequestNo = ref('');
 const payoutRemark = ref('');
 const ledgerDialogVisible = ref(false);
 
-function yuan(cents?: number | null): string {
-  return ((cents ?? 0) / 100).toFixed(2);
-}
 function basisText(basis: string): string {
   return basis === 'RESTOCK_QTY' ? '按补货数量' : '按销售额';
 }

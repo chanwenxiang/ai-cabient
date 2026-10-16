@@ -302,7 +302,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanText } from '@/utils/display';
+import { yuanTextZero as yuan } from '@/utils/display';
 import { computed, reactive, ref, watch } from 'vue';
 import { CircleCheck, CircleClose, Money, Refresh, Tickets } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -344,10 +344,6 @@ interface DepositEvent {
 
 const tab = ref('bills');
 const submitting = ref(false);
-
-function yuan(cents?: number | null) {
-  return yuanText(cents, '¥0.00');
-}
 
 function formatTime(v?: string) {
   // Instant(UTC) → 北京时间；此前截断把 UTC 当本地展示，慢 8 小时（2026-10-14 巡检）

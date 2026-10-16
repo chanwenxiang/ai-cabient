@@ -268,7 +268,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanText } from '@/utils/display';
+import { yuanTextZero as yuan } from '@/utils/display';
 import { computed, onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { TableColumnCtx } from 'element-plus';
@@ -389,11 +389,6 @@ const tableDefaultSort = computed(() => {
   }
   return undefined;
 });
-
-function yuan(cents?: number | null) {
-  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
-  return yuanText(cents, '¥0.00');
-}
 
 /** 净营收：优先用后端字段，否则营收 - 退款。 */
 function netRevenue(row: SalesRow) {

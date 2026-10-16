@@ -143,6 +143,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanTextZero as yuan } from '@/utils/display';
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Check } from '@element-plus/icons-vue';
@@ -178,9 +179,6 @@ const activeTab = ref('bills');
 const filterMonth = ref<string | null>(null);
 const filterStatus = ref<string | null>(null);
 
-function yuan(cents?: number | null): string {
-  return ((cents ?? 0) / 100).toFixed(2);
-}
 function feeTypeText(t: string): string {
   return t === 'ELECTRIC' ? '电费' : t === 'SHARE' ? '销售分成' : t;
 }

@@ -154,7 +154,7 @@ services:
     stop_grace_period: 30s
     image: nginx:alpine
     ports:
-      - "80:80"
+      - "80:80" # EXPOSE-ALLOW: gateway 业务入口（base 栈对外唯一 HTTP）
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     extra_hosts:

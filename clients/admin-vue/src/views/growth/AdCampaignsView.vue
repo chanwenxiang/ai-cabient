@@ -593,7 +593,9 @@ function typeLabel(t: string) {
 function formatRange(row: AdCampaignDto) {
   if (!row.startAt && !row.endAt) return '不限';
   const f = (iso?: string) =>
-    iso ? new Date(iso).toLocaleString('zh-CN', { hour12: false }) : '暂无';
+    iso
+      ? new Date(iso).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' })
+      : '暂无';
   return `${f(row.startAt)} ~ ${f(row.endAt)}`;
 }
 </script>

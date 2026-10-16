@@ -13,6 +13,10 @@ export function usePrivacyConsentModal() {
 
   function onPrivacyAccepted() {
     showPrivacy.value = false;
+    // 同意前所有请求被 request 层拦下（合规收口），同意后整页重载让入口页的数据拉取自然发生。
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
   }
 
   function onPrivacyDeclined() {

@@ -437,7 +437,7 @@ function typeLabel(type: string) {
 
 function formatDateTime(iso?: string) {
   if (!iso) return '暂无';
-  return new Date(iso).toLocaleString('zh-CN', { hour12: false });
+  return new Date(iso).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' });
 }
 </script>
 

@@ -287,7 +287,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { yuanText, yuanToCents } from '@/utils/display';
+import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
@@ -354,10 +354,6 @@ const typeCodeByLabel: Record<string, string> = Object.fromEntries(
   )
 );
 
-function yuan(cents?: number | null) {
-  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
-  return yuanText(cents, '¥0.00');
-}
 function formatTime(t: string) {
   // Instant(UTC) → 北京时间（此前截断慢 8 小时，且与编辑框 new Date() 回显不一致）
   return formatDateTimeMinute(t);

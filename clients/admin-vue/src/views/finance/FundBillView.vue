@@ -329,7 +329,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanText } from '@/utils/display';
+import { yuanTextZero as yuan } from '@/utils/display';
 import { computed, ref, watch } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import CrudTable from '@/components/CrudTable.vue';
@@ -507,11 +507,6 @@ const { onExport: exportLedgerCsv } = useListCsv({
       formatTime(row.createdAt)
     ])
 });
-
-function yuan(cents?: number | null) {
-  // 审计批次4：金额展示收敛 display.ts.yuanText（单一格式：¥ 前缀 + 空值文案）
-  return yuanText(cents, '¥0.00');
-}
 
 function formatTime(v?: string) {
   // Instant(UTC) → 北京时间；此前截断把 UTC 当本地展示，慢 8 小时（2026-10-14 巡检）

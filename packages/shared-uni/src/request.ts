@@ -1,4 +1,5 @@
 import { localizeApiMessage } from './format';
+import { hasPrivacyConsent, isH5PrivacyRuntime } from './privacy-consent';
 
 /** 刷新接口返回的会话数据（服务端 /api/v2/auth/refresh 的 data 字段）。 */
 export interface MpRefreshData {
@@ -218,6 +219,12 @@ function mpRequestOnce<T>(
   retried = false
 ): Promise<T> {
   return new Promise((resolve, reject) => {
+    // P2 合规收口：H5 首屏隐私弹窗未同意前不发任何网络请求（政策详情页为纯静态，无死锁风险）。
+    // 小程序端由微信平台 requirePrivacyAuthorize 机制管控，不走此分支。
+    if (isH5PrivacyRuntime() && !hasPrivacyConsent()) {
+      reject(createMpApiError('请先阅读并同意隐私政策', 403, 'PRIVACY_CONSENT_REQUIRED'));
+      return;
+    }
     // X-Requested-With：H5 Cookie 会话的写请求需同源标记（后端 AuthInterceptor CSRF 双保险）
     const header: Record<string, string> = {
       'Content-Type': 'application/json',
