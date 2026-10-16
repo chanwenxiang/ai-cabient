@@ -76,7 +76,7 @@ public class SettlementOrderSupport {
     void applyItemsToOrder(CabinetOrder order, List<RecognizedItem> items) {
         order.getLines().clear();
         Map<String, String> slotBySku = inferSlotBySku(order.getDeviceId());
-        int total = 0;
+        long total = 0;
         for (RecognizedItem item : items) {
             SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
@@ -86,27 +86,45 @@ public class SettlementOrderSupport {
             // 而少一次重载改动能把改动面收敛在定价服务内部，不动结算链的既有测试桩。
             int unitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
             unitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), unitPrice);
-            int lineAmount = unitPrice * item.quantity();
+            // AU-038：金额一律按 long 算再夹进列域（int 分）。此前 unitPrice * quantity 是
+            // int 乘法，上报侧 quantity 无上界 ⇒ 溢出为负的行金额/合计，而 chargeOrder 见负额
+            // 直接跳过扣款并标 PAID（等于零元白拿），故必须在写入前拒绝。
+            long lineAmount = (long) unitPrice * item.quantity();
+            requireCentsInColumnRange("订单行金额（SKU " + item.skuId() + "）", lineAmount);
             total += lineAmount;
+            requireCentsInColumnRange("订单合计", total);
 
             CabinetOrderLine line = new CabinetOrderLine();
             line.setSkuId(sku.getSkuId());
             line.setSkuName(sku.getSkuName());
             line.setQuantity(item.quantity());
             line.setUnitPriceCents(unitPrice);
-            line.setLineAmountCents(lineAmount);
+            line.setLineAmountCents((int) lineAmount);
             line.setUnitCostCents(sku.getPurchaseCostCents());
             line.setConfidence(item.confidence());
             line.setSlotId(slotBySku.get(sku.getSkuId()));
             order.addLine(line);
         }
-        order.setOriginalAmountCents(total);
-        order.setTotalAmountCents(total);
+        order.setOriginalAmountCents((int) total);
+        order.setTotalAmountCents((int) total);
+    }
+
+    /** 金额列域是 int（分）：越界即已溢出风险，显式 400 拒绝而不是写负额落库（AU-038）。 */
+    private static void requireCentsInColumnRange(String what, long cents) {
+        if (cents < 0 || cents > Integer.MAX_VALUE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    what + "超出可记账金额范围（0~" + Integer.MAX_VALUE + " 分），识别结果被拒：" + cents);
+        }
     }
 
     /** 争议改单后按新明细重算折后应付（保留已绑券/会员折扣字段）。 */
     void recalculatePayableAfterLineChange(CabinetOrder order) {
-        int subtotal = order.getLines().stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
+        // AU-038 同族：行数多时 mapToInt().sum() 同样会溢出为负，改用 long 累加后夹列域
+        long subtotalLong = order.getLines().stream()
+                .mapToLong(CabinetOrderLine::getLineAmountCents)
+                .sum();
+        requireCentsInColumnRange("订单小计", subtotalLong);
+        int subtotal = (int) subtotalLong;
         order.setOriginalAmountCents(subtotal);
         int couponDisc = 0;
         if (order.getCouponId() != null && subtotal > 0) {
