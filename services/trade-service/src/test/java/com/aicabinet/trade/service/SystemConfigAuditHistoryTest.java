@@ -40,8 +40,9 @@ import static org.mockito.Mockito.when;
  *
  * <p>守住三条不变式：</p>
  * <ol>
- *   <li><b>默认零留痕</b>：{@code ops.config.audit.enabled} 为 false（或库里没这一行）时，
- *       upsert / delete <b>既不写 version 表也不写审计日志</b> ⇒ 行为与接入前逐字节一致（fail-closed）；</li>
+ *   <li><b>默认开、显式关</b>（AU-048 翻转旧「默认零留痕」）：库里没有开关行=视为开启，
+ *       upsert / delete 都留痕；只有<b>显式写 false</b> 且键族非资金键时才零写入
+ *       （资金键强制留痕见 {@link SystemConfigFundKeyGuardTest}）；</li>
  *   <li><b>开了就真留</b>：oldValue 是变更<b>前</b>的值、newValue 是变更后的值，
  *       而非两次都记成新值（那等于没有版本信息）；</li>
  *   <li><b>无鉴权上下文记系统账号</b>：operatorId 为 null 时落 {@code 0}，不落 null
@@ -94,7 +95,7 @@ class SystemConfigAuditHistoryTest {
         lenient().when(repository.findByIdForUpdate(key)).thenReturn(Optional.of(config));
     }
 
-    /** 审计开关的库中状态：{@code on=false} 时模拟「库里没有这一行」（默认关闭的真实形态）。 */
+    /** 审计开关的库中状态：{@code on=false} 时模拟「库里没有这一行」（AU-048 后=默认开启）。 */
     private void auditSwitch(boolean on) {
         if (!on) {
             lenient().when(repository.findById(SystemConfigService.OPS_CONFIG_AUDIT_ENABLED))
@@ -108,28 +109,37 @@ class SystemConfigAuditHistoryTest {
                 .thenReturn(Optional.of(flag));
     }
 
+    /** 运营显式关审计（库里写死 false 行）——非资金键零留痕的唯一途径。 */
+    private void auditSwitchExplicitlyFalse() {
+        SystemConfig flag = new SystemConfig();
+        flag.setConfigKey(SystemConfigService.OPS_CONFIG_AUDIT_ENABLED);
+        flag.setConfigValue("false");
+        lenient().when(repository.findById(SystemConfigService.OPS_CONFIG_AUDIT_ENABLED))
+                .thenReturn(Optional.of(flag));
+    }
+
     private SystemConfigHistory capturedHistory() {
         ArgumentCaptor<SystemConfigHistory> captor = ArgumentCaptor.forClass(SystemConfigHistory.class);
         verify(historyRepository).save(captor.capture());
         return captor.getValue();
     }
 
-    // ── 不变式 1：默认（关闭）零留痕 ─────────────────────────────────────────
+    // ── 不变式 1：缺行=默认开；显式 false 才零留痕（AU-048）─────────────────
 
     @Test
-    void auditDisabledByDefault_writesNeitherHistoryNorAuditLog() {
-        auditSwitch(false);
+    void auditRowAbsent_isDefaultOn_writesHistoryAndAuditLog() {
+        auditSwitch(false); // 库里没有开关行 ⇒ 默认开启
         existing(KEY, "10");
 
         service.upsert(KEY, "20", "desc", 9L);
 
-        verify(historyRepository, never()).save(any(SystemConfigHistory.class));
-        verify(auditService, never()).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
+        verify(historyRepository).save(any(SystemConfigHistory.class));
+        verify(auditService).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
-    void auditDisabled_deleteAlsoWritesNothing() {
-        auditSwitch(false);
+    void auditExplicitlyFalse_nonFundKey_deleteWritesNothing() {
+        auditSwitchExplicitlyFalse();
         existing(KEY, "10");
 
         service.delete(KEY, 9L);
