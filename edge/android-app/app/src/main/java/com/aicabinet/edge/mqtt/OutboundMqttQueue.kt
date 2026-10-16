@@ -29,6 +29,9 @@ class OutboundMqttQueue(context: Context) {
         store.mutate { pending ->
             val maxItems = EdgeRuntimeConfig.mqttOutboundMaxItems(appContext)
             if (pending.size >= maxItems) {
+                // A7/P3（钉住刻意取舍）：优先丢非关键信令；**全 critical 时丢最旧（index 0）**——
+                // FIFO 淘汰保最新（门磁/状态类信令的最新值通常覆盖旧值），且 Log.w 有告警兜底。
+                // 不改为「拒绝入队」：新事件比旧事件更值得保留。
                 val dropIndex = pending.indexOfFirst { !isCriticalMessage(it.topic, it.payload) }
                     .takeIf { it >= 0 } ?: 0
                 val dropped = pending.removeAt(dropIndex)

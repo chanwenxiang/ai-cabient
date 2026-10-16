@@ -8,6 +8,7 @@ import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.TextTruncate;
 import com.aicabinet.trade.util.BizIds;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -244,6 +245,7 @@ public class BalanceLedgerService {
     private static String trim(String value) {
         if (value == null) return null;
         String trimmed = value.trim();
-        return trimmed.length() > 128 ? trimmed.substring(0, 128) : trimmed;
+        // A7/P3：按 code point 边界截断，不切碎代理对（emoji）
+        return TextTruncate.safeTruncate(trimmed, 128);
     }
 }

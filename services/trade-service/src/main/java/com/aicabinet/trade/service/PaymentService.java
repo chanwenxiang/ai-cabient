@@ -23,6 +23,7 @@ import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.TextTruncate;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -809,7 +810,8 @@ public class PaymentService {
         op.setGatewayTradeNo(gatewayTradeNo);
         String base = reasonOrDefault(reason);
         String withRechargeId = base.contains(order.getOrderId()) ? base : (base + " " + order.getOrderId());
-        op.setReason(withRechargeId.length() > 128 ? withRechargeId.substring(0, 128) : withRechargeId);
+        // A7/P3：按 code point 边界截断，不切碎代理对（emoji）
+        op.setReason(TextTruncate.safeTruncate(withRechargeId, 128));
         paymentOperationRepository.save(op);
     }
 

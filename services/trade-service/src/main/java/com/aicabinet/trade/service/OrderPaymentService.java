@@ -21,6 +21,7 @@ import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.TextTruncate;
 import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
@@ -1003,7 +1004,8 @@ public class OrderPaymentService {
         op.setStatus(STATUS_COMPLETED);
         op.setIdempotencyKey(idempotencyKey);
         op.setGatewayTradeNo(gatewayTradeNo);
-        op.setReason(reason != null && reason.length() > 128 ? reason.substring(0, 128) : reason);
+        // A7/P3：按 code point 边界截断，不切碎代理对（emoji）
+        op.setReason(TextTruncate.safeTruncate(reason, 128));
         paymentOperationRepository.save(op);
     }
 
@@ -1012,13 +1014,6 @@ public class OrderPaymentService {
         long h1 = Integer.toUnsignedLong(idempotencyKey.hashCode());
         long h2 = Integer.toUnsignedLong(java.util.Objects.hash(idempotencyKey, "outRefund"));
         return String.format("%010d%010d", h1 % 10_000_000_000L, h2 % 10_000_000_000L);
-    }
-
-    private static String reasonKey(String reason) {
-        if (reason == null || reason.isBlank()) {
-            return "DEFAULT";
-        }
-        return Integer.toUnsignedString(reason.hashCode(), 36).toUpperCase();
     }
 
     private static String resolveOperationId(String type, String channel) {

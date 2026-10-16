@@ -363,15 +363,6 @@ async def dispute_suggest(
     return _to_response("dispute-suggest", f"upload://{file.filename}", out)
 
 
-@app.post("/api/v2/vision/recognize/async")
-def recognize_async(req: RecognizeRequest):
-    return {"task_id": f"T-{req.session_id}", "status": "PENDING", "video_uri": req.video_uri}
-
-
-@app.get("/api/v2/vision/tasks/{task_id}")
-def get_task(task_id: str):
-    return {"task_id": task_id, "status": "COMPLETED", "items": []}
-
 
 if __name__ == "__main__":
     import uvicorn

@@ -68,7 +68,14 @@ public class MqttEventListener implements MqttCallbackExtended {
         this.metrics = metrics;
         this.deduplicator = deduplicator;
         this.commandTracker = commandTracker;
-        this.clientId = mqttProperties.clientId() + "-evt-" + UUID.randomUUID().toString().substring(0, 8);
+        // A7/P3：原随机 8 位后缀 + cleanSession=false ⇒ broker 侧每次重启遗留一个死会话无限堆积。
+        // 改稳定后缀（容器 HOSTNAME；非容器环境退回随机）：同容器重启复用会话不再堆积，
+        // 多实例部署（共享订阅）各实例 hostname 不同亦不互踢。
+        String host = System.getenv("HOSTNAME");
+        String clientIdSuffix = (host != null && !host.isBlank())
+                ? host
+                : UUID.randomUUID().toString().substring(0, 8);
+        this.clientId = mqttProperties.clientId() + "-evt-" + clientIdSuffix;
     }
 
     @PostConstruct
