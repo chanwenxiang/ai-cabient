@@ -115,6 +115,12 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml \
   --env-file .env.production --profile apps up -d --build
 ```
 
+> **`infra/docker-compose.prod-server.yml` 是服务器侧维护的覆盖文件（审计 A3，2026-10-16 定性）**：
+> 它**不在 git 里**（`git log --all` 证实从未入库），只存在于生产服务器部署目录，
+> 由 `scripts/deploy-prod.sh:103` 在服务器现场引用（2026-10-13 实战部署已验证可用）。
+> 服务器特定配置（如 bind mount 路径）改它须 **ssh 到服务器直接编辑**；本地没有、也不该有副本。
+> 排查「compose 文件缺失」类报错时先分辨：仓库内文件 vs 服务器侧文件。
+
 ### 3.3 部署后冒烟
 
 1. `GET /actuator/health` → UP  

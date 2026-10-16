@@ -151,6 +151,9 @@ public class SessionLiveCartService {
             bySku.remove(sku);
             return;
         }
+        // 设计意图（2026-10-16 用户确认，审计 C1）：实时购物车价格**仅用于消费者端展示**，
+        // 客户端/设备端推送价刻意透传（设备端是展示真相源）。订单结算走订单流价格，
+        // 不消费本购物车金额——若未来有任何资金路径读取 LiveCart 金额，此透传必须改为服务端定价。
         int unit;
         if (item.unitPriceCents() != null && item.unitPriceCents() > 0) {
             unit = item.unitPriceCents();
