@@ -53,7 +53,13 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             EdgeRuntimeConfig.saveDeviceId(this, deviceId)
-            EdgeRuntimeConfig.saveSecret(this, "http_device_secret", secret)
+            // A6：Keystore 不可用时 saveSecret 抛异常（拒绝明文回落），装机注入失败须重试
+            try {
+                EdgeRuntimeConfig.saveSecret(this, "http_device_secret", secret)
+            } catch (e: IllegalStateException) {
+                Toast.makeText(this, "保存失败：${e.message}", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
             binding.etProvisionSecret.setText("")
             renderConfig()
             Toast.makeText(this, "设备凭据已保存并加密，OTA/素材链路即刻生效", Toast.LENGTH_LONG).show()

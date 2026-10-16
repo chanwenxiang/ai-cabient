@@ -144,9 +144,15 @@ object EdgeRuntimeConfig {
     fun saveSecret(context: Context, key: String, value: String) = putSecret(context, key, value)
 
     private fun putSecret(context: Context, key: String, value: String) {
+        // A6 整改：加密失败**不得**静默回落明文落盘（明文密钥 + allowBackup/adbd 可导出=裸奔）。
+        // Keystore 不可用属设备级故障，宁可让装机注入失败重试，也不落明文。
         val stored = runCatching { KeystoreCipher.encrypt(value) }
-            .onFailure { Log.w(TAG, "secret encrypt failed for $key, fallback plaintext: ${it.message}") }
-            .getOrDefault(value)
+            .getOrElse {
+                throw IllegalStateException(
+                    "AndroidKeyStore 不可用，拒绝以明文保存敏感字段 $key: ${it.message}",
+                    it
+                )
+            }
         prefs(context).edit().putString(key, stored).apply()
     }
 
