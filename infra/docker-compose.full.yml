@@ -26,6 +26,9 @@ services:
     ports: ["127.0.0.1:6379:6379"]
     # L2-4：Redis 密码（dev 默认 devredis；与 trade/device 的 SPRING_DATA_REDIS_PASSWORD 对齐）
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-devredis}"]
+    # AOF 持久化必须落卷：否则容器重建即丢 captcha/幂等键等状态（2026-10-16 审计 A5）
+    volumes:
+      - redisdata:/data
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
     healthcheck:
@@ -453,3 +456,4 @@ volumes:
   pgdata:
   miniodata:
   xxljob-mysql-data:
+  redisdata:

@@ -16,6 +16,8 @@
  * 门禁：`scripts/check-merchant-endpoints.mjs` 扫 pages/composables + `MERCHANT_ENDPOINT_PILOT_LITERALS`。
  * `utils/merchant-api.ts`：M3b–M3d；M3e 扫完 devices/pricing/team/notify/exceptions/通知；merchant-api 字面量应收口。
  */
+// 铁律 40 家族：mp 运行时无 URLSearchParams（修复 2026-10-16 商户本月账单页真机 ReferenceError）。
+import { withQuery } from '@aicabinet/shared-uni/query';
 export const API_PREFIX = '/api/v2' as const;
 
 /** 鉴权相关（与 MerchantEndpoints 并列）。 */
@@ -69,11 +71,8 @@ export const MerchantEndpoints = {
   /** 商户月度结算单（V330，CB-020）：from/to 为 yyyy-MM 可省略，后端默认近 12 个月 */
   settlementsMonthlyBills: `${API_PREFIX}/merchant/settlements/monthly-bills`,
   /** 商户账单（图4 对照，2026-10-15）：销售报表口径，月×设备（deviceId 空=全部设备）+ 按日明细 */
-  settlementsMonthlyBill: (month: string, deviceId?: string) => {
-    const q = new URLSearchParams({ month });
-    if (deviceId) q.set('deviceId', deviceId);
-    return `${API_PREFIX}/merchant/settlements/monthly-bill?${q.toString()}`;
-  },
+  settlementsMonthlyBill: (month: string, deviceId?: string) =>
+    withQuery(`${API_PREFIX}/merchant/settlements/monthly-bill`, { month, deviceId }),
   /** 经营分析 */
   analyticsOverview: `${API_PREFIX}/merchant/analytics/overview`,
   analyticsSalesReports: `${API_PREFIX}/merchant/analytics/sales-reports`,

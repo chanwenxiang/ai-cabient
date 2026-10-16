@@ -30,6 +30,9 @@ services:
     # L2-4：Redis 启用密码（dev 默认 devredis，production overlay 强制 :? 强口令）；
     # 使用方经 SPRING_DATA_REDIS_PASSWORD / REDIS_PASSWORD 对齐，忘记配会让依赖服务启动即报错（fail-loud）。
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-devredis}"]
+    # AOF 持久化必须落卷：否则容器重建即丢 captcha/幂等键等状态（2026-10-16 审计 A5）
+    volumes:
+      - redisdata:/data
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
     healthcheck:
@@ -195,3 +198,4 @@ services:
 volumes:
   pgdata:
   miniodata:
+  redisdata:

@@ -67,4 +67,26 @@ class NotificationDispatchListenerIdempotencyTest {
 
         verify(redisson).getBucket(contains("aicabinet:notify:dispatch:"), eq(StringCodec.INSTANCE));
     }
+
+    /** B3（2026-10-16 审计）：dispatch 失败必须释放幂等键，否则重投被「已处理」挡掉，通知静默丢失。 */
+    @Test
+    void onMessage_dispatchFails_releasesDedupeKey() {
+        when(dedupeBucket.setIfAbsent(eq("1"), any(java.time.Duration.class))).thenReturn(true);
+        org.mockito.Mockito.doThrow(new RuntimeException("sms gateway down"))
+                .when(dispatcher).dispatch(any(com.aicabinet.common.dto.NotificationDispatchMessage.class));
+
+        listener.onMessage(PAYLOAD);
+
+        verify(dedupeBucket).delete();
+    }
+
+    /** 抢占失败（重复消息）路径不得触碰 delete——键属于上次成功处理者。 */
+    @Test
+    void onMessage_duplicatePayload_neverReleasesKey() {
+        when(dedupeBucket.setIfAbsent(eq("1"), any(java.time.Duration.class))).thenReturn(false);
+
+        listener.onMessage(PAYLOAD);
+
+        verify(dedupeBucket, never()).delete();
+    }
 }
