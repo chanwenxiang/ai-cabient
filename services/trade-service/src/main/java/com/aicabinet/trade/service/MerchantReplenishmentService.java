@@ -25,6 +25,9 @@ public class MerchantReplenishmentService {
     private static final String MERCHANT_REPLENISHMENT_VIEW = "merchant:replenishment:view";
     private static final String REPLENISHMENT_TASK = "REPLENISHMENT_TASK";
     private static final String DEVICEID = "deviceId=";
+    // AU-090 保守默认上限（取值口径待 DC-18 拍板；调整只动这两处，判定见自发起的行级/聚合）
+    static final int MAX_REQUESTED_QTY_PER_LINE = 1000;
+    static final int MAX_REQUESTED_QTY_PER_SKU = 5000;
     private static final String LITERAL = "补货任务不存在";
 
 
@@ -265,7 +268,7 @@ public class MerchantReplenishmentService {
         // 仓跟人走：仅分仓负责人可自主发起（历史任务/他人仓一律拒绝）
         warehouseService.requireWarehouseManagedBy(homeWarehouseId.trim(), userId);
 
-        Map<String, Integer> skuQty = new LinkedHashMap<>();
+        Map<String, Long> totals = new LinkedHashMap<>();
         for (MerchantSelfReplenishLine line : body.lines()) {
             if (line == null || line.skuId() == null || line.skuId().isBlank()) {
                 continue;
@@ -274,13 +277,27 @@ public class MerchantReplenishmentService {
             if (qty <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "补货数量必须大于 0");
             }
+            // AU-090：单行数量上界（此前仅判 >0，无上限）
+            if (qty > MAX_REQUESTED_QTY_PER_LINE) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "单品要货数量超过上限（最多 " + MAX_REQUESTED_QTY_PER_LINE + "）");
+            }
             skuCatalogRepository.findById(line.skuId().trim())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.SKU_NOT_FOUND));
-            skuQty.merge(line.skuId().trim(), qty, Integer::sum);
+            // AU-090：同 SKU 聚合用 long 累加并夹上限——Integer::sum 溢出为负量会直贯出库行/seed 行
+            String skuId = line.skuId().trim();
+            long sum = totals.getOrDefault(skuId, 0L) + qty;
+            if (sum > MAX_REQUESTED_QTY_PER_SKU) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "同一商品补货总量超过上限（最多 " + MAX_REQUESTED_QTY_PER_SKU + "）");
+            }
+            totals.put(skuId, sum);
         }
-        if (skuQty.isEmpty()) {
+        if (totals.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种有效商品");
         }
+        Map<String, Integer> skuQty = new LinkedHashMap<>();
+        totals.forEach((skuId, total) -> skuQty.put(skuId, total.intValue()));
 
         LocalDate planned = LocalDate.now(ZoneId.of("Asia/Shanghai"));
         ReplenishmentRoute route = new ReplenishmentRoute();

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,6 +66,14 @@ class MerchantSelfReplenishTest {
 
     private MerchantSelfReplenishRequest body() {
         return new MerchantSelfReplenishRequest("CAB-001", null, List.of(new MerchantSelfReplenishLine("4709", 10)));
+    }
+
+    private MerchantSelfReplenishRequest bodyWithQty(int... qtys) {
+        List<MerchantSelfReplenishLine> lines = new java.util.ArrayList<>();
+        for (int qty : qtys) {
+            lines.add(new MerchantSelfReplenishLine("4709", qty));
+        }
+        return new MerchantSelfReplenishRequest("CAB-001", null, lines);
     }
 
     private DeviceInfo deviceWithHomeWarehouse(String warehouseId) {
@@ -122,5 +131,60 @@ class MerchantSelfReplenishTest {
         verify(taskRepository).save(Mockito.argThat(t -> t.getOutboundId() != null && t.getOutboundId() == 501L));
         verify(replenishmentService).generateLinesFromOutbound(501L);
         verify(replenishmentService, never()).seedDraftRestockLines(anyLong(), anyString(), any());
+    }
+
+    /** AU-090：单行数量上界（修复前仅判 qty>0，无上限）。 */
+    @Test
+    void selfInitiate_rejectsLineAbovePerLineCap() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.selfInitiateTask(9L, bodyWithQty(1001)));
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(routeRepository, never()).save(any());
+        verify(taskRepository, never()).save(any());
+    }
+
+    /** AU-090：同 SKU 聚合越界必须在建路线/任务/出库之前拦截（修复前 Integer::sum 可溢出为负量直贯仓库）。 */
+    @Test
+    void selfInitiate_rejectsSameSkuAggregateAboveCap() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        when(skuCatalogRepository.findById("4709"))
+                .thenReturn(Optional.of(new com.aicabinet.trade.domain.SkuCatalog()));
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.selfInitiateTask(9L, bodyWithQty(900, 900, 900, 900, 900, 900)));
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(routeRepository, never()).save(any());
+        verify(warehouseService, never())
+                .tryCreateOutboundFromLines(any(), anyString(), any(), any(), any(), anyString());
+    }
+
+    /** AU-090：上限内的同 SKU 多行正常聚合（边界 4×1000=4000 ≤ 5000）。 */
+    @Test
+    void selfInitiate_aggregatesSameSkuWithinCap() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        when(skuCatalogRepository.findById("4709"))
+                .thenReturn(Optional.of(new com.aicabinet.trade.domain.SkuCatalog()));
+
+        ReplenishmentRoute route = new ReplenishmentRoute();
+        route.setRouteId(77L);
+        when(routeRepository.save(any(ReplenishmentRoute.class))).thenReturn(route);
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(88L);
+        when(taskRepository.save(any(ReplenishmentTask.class))).thenReturn(task);
+        when(warehouseService.tryCreateOutboundFromLines(any(), anyString(), any(), any(), any(), anyString()))
+                .thenReturn(null);
+
+        service.selfInitiateTask(9L, bodyWithQty(1000, 1000, 1000, 1000));
+
+        verify(replenishmentService).seedDraftRestockLines(88L, "CAB-001", Map.of("4709", 4000));
     }
 }
