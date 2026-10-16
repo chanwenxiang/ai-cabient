@@ -93,4 +93,27 @@ class DoorEventDeduplicatorTest {
         deduplicator.mark("S-R", "OPEN", "seq:1");
         assertTrue(deduplicator.seen("S-R", "OPEN", "seq:1"));
     }
+
+    /** A6：同 session+state 60s 转发超 30 次 → 第 31 次被限流拒绝（防 eventSeq 换值刷量）。 */
+    @Test
+    void forwardSlot_rateLimited_after30PerWindow() {
+        DoorEventDeduplicator deduplicator = new DoorEventDeduplicator();
+        for (int i = 1; i <= 30; i++) {
+            assertTrue(deduplicator.tryAcquireForwardSlot("S-RL", "OPEN"),
+                    "第 " + i + " 次不应被限流");
+        }
+        // 换 eventSeq 指纹也绕不过窗口限流（键只含 session+state）
+        assertFalse(deduplicator.tryAcquireForwardSlot("S-RL", "OPEN"));
+        // 不同 session/state 互不影响
+        assertTrue(deduplicator.tryAcquireForwardSlot("S-RL", "CLOSED"));
+        assertTrue(deduplicator.tryAcquireForwardSlot("S-OTHER", "OPEN"));
+    }
+
+    /** A6：null 参数不参与限流（防御式直通，与 seen/mark 行为一致）。 */
+    @Test
+    void forwardSlot_nullArgsAlwaysAllowed() {
+        DoorEventDeduplicator deduplicator = new DoorEventDeduplicator();
+        assertTrue(deduplicator.tryAcquireForwardSlot(null, "OPEN"));
+        assertTrue(deduplicator.tryAcquireForwardSlot("S", null));
+    }
 }

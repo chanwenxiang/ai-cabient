@@ -22,6 +22,17 @@ def parse_cidrs(raw: str | None) -> list:
     return networks
 
 
+def parse_cidrs_strict(raw: str | None) -> list:
+    """A6 fail-fast：配置文本非空但一条都解析不了 → raise（鉴权网段配置错误不得静默放行）。
+
+    部分非法部分合法 → 跳过非法项（与 parse_cidrs 一致），由调用方按需告警。
+    """
+    networks = parse_cidrs(raw)
+    if (raw or "").strip() and not networks:
+        raise ValueError(f"no valid CIDR in config: {raw!r}")
+    return networks
+
+
 def parse_ip(value: str | None) -> Optional[IPAddress]:
     """解析单个 IP 文本；非法格式返回 None（不盲信代理头里的任意字符串）。"""
     if not value:

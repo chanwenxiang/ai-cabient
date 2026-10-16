@@ -316,6 +316,15 @@ public class MqttEventListener implements MqttCallbackExtended {
             acknowledgeMessage(topic, message);
             return;
         }
+        // A6：去重键含设备可控 eventSeq（重投幂等所必需），改值可绕过去重——
+        // 第二层同 session+state 滑动窗口限流截断刷量（超限丢弃+ACK+rate_limited 指标）
+        if (!deduplicator.tryAcquireForwardSlot(sessionId, doorStateStr)) {
+            metrics.recordDoorRateLimited();
+            log.warn("door event rate limited session={} state={} topic={} (eventSeq churn?)",
+                    sessionId, doorStateStr, topic);
+            acknowledgeMessage(topic, message);
+            return;
+        }
         DoorState doorState;
         try {
             doorState = DoorState.valueOf(doorStateStr);

@@ -13,6 +13,7 @@ public class DeviceMqttMetrics {
     private final Counter mqttMessagesIn;
     private final Counter doorEventsForwarded;
     private final Counter doorEventsDeduped;
+    private final Counter doorEventsRateLimited;
     private final Counter heartbeatsForwarded;
     private final Counter heartbeatsDropped;
     private final Counter acksReceived;
@@ -27,6 +28,7 @@ public class DeviceMqttMetrics {
         this.mqttMessagesIn = registry.counter("device.mqtt.messages.in");
         this.doorEventsForwarded = registry.counter("device.mqtt.door", RESULT, "forwarded");
         this.doorEventsDeduped = registry.counter("device.mqtt.door", RESULT, "deduped");
+        this.doorEventsRateLimited = registry.counter("device.mqtt.door", RESULT, "rate_limited");
         this.heartbeatsForwarded = registry.counter("device.mqtt.heartbeat", RESULT, "forwarded");
         this.heartbeatsDropped = registry.counter("device.mqtt.heartbeat", RESULT, "dropped");
         this.acksReceived = registry.counter("device.mqtt.ack");
@@ -41,6 +43,7 @@ public class DeviceMqttMetrics {
     public void recordMessageIn() { mqttMessagesIn.increment(); }
     public void recordDoorForwarded() { doorEventsForwarded.increment(); }
     public void recordDoorDeduped() { doorEventsDeduped.increment(); }
+    public void recordDoorRateLimited() { doorEventsRateLimited.increment(); }
     public void recordHeartbeatForwarded() { heartbeatsForwarded.increment(); }
     public void recordHeartbeatDropped() { heartbeatsDropped.increment(); }
     public void recordAck() { acksReceived.increment(); }

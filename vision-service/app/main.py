@@ -73,18 +73,26 @@ def _api_key_ok(provided: str | None) -> bool:
 
 # ---- H52：来源 CIDR 校验（与 API Key 同时生效，AND） -------------------------------
 # VISION_ALLOWED_CIDRS：逗号分隔 CIDR；空=不限制（保持旧行为兼容）
-# VISION_TRUST_PROXY：仅当确有可信反代时置 true，才读取 X-Forwarded-For / X-Real-IP
-from app.ip_guard import addr_in_networks, parse_cidrs, parse_ip
+# VISION_TRUSTED_PROXY_CIDRS：可信反代网段（逗号分隔）。仅当直连地址落在这些网段内
+#   才解析 X-Forwarded-For / X-Real-IP（与 Java 侧 InternalApiAuthInterceptor 对称）；
+#   空=不信任任何代理，一律用直连地址。旧布尔 VISION_TRUST_PROXY（无条件信 XFF 最左值，
+#   任何客户端可伪造头冒充 IP）已废弃——A6 整改与 Java 侧口径对齐。
+from app.ip_guard import addr_in_networks, parse_cidrs, parse_cidrs_strict, parse_ip
 
 VISION_ALLOWED_CIDRS_RAW = os.getenv("VISION_ALLOWED_CIDRS", "")
-VISION_ALLOWED_NETWORKS = parse_cidrs(VISION_ALLOWED_CIDRS_RAW)
-VISION_TRUST_PROXY = os.getenv("VISION_TRUST_PROXY", "false").lower() == "true"
-if VISION_ALLOWED_CIDRS_RAW.strip() and not VISION_ALLOWED_NETWORKS:
-    log.warning("VISION_ALLOWED_CIDRS set but no valid entry parsed; CIDR check disabled")
+# A6 fail-fast：配置了 CIDRS 但全部非法 = 配置错误，静默降级为「不限制」会敞开鉴权
+VISION_ALLOWED_NETWORKS = parse_cidrs_strict(VISION_ALLOWED_CIDRS_RAW)
+VISION_TRUSTED_PROXY_CIDRS_RAW = os.getenv("VISION_TRUSTED_PROXY_CIDRS", "")
+VISION_TRUSTED_PROXY_NETWORKS = parse_cidrs_strict(VISION_TRUSTED_PROXY_CIDRS_RAW)
+if os.getenv("VISION_TRUST_PROXY") is not None:
+    log.warning("VISION_TRUST_PROXY 已废弃：请改用 VISION_TRUSTED_PROXY_CIDRS（网段化信任代理）")
 
 
 def _client_addr(request: Request):
-    if VISION_TRUST_PROXY:
+    host = request.client.host if request.client else ""
+    remote = parse_ip(host or "")
+    # 只有直连地址确属可信反代网段，才采信转接头里的客户端 IP
+    if VISION_TRUSTED_PROXY_NETWORKS and addr_in_networks(remote, VISION_TRUSTED_PROXY_NETWORKS):
         xff = request.headers.get("X-Forwarded-For", "")
         first = xff.split(",")[0].strip() if xff else ""
         addr = parse_ip(first) if first else None
@@ -92,8 +100,7 @@ def _client_addr(request: Request):
             addr = parse_ip(request.headers.get("X-Real-IP", ""))
         if addr is not None:
             return addr
-    host = request.client.host if request.client else ""
-    return parse_ip(host or "")
+    return remote
 
 
 def _cidr_ok(request: Request) -> bool:
