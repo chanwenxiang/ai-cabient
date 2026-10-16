@@ -1,0 +1,6 @@
+{
+  "sn": "AUDIT-F1-500909625160",
+  "identifier": "AUDIT500909625160",
+  "gatewayLog": "2026-10-13T12:50:07.372Z  INFO [jiangyi-gateway,,] c.a.j.ws.DeviceWebSocketHandler - jiangyi ws online reported deviceId=500909625160 identifier=AUDIT500909625160",
+  "simulatorLog": "[jiangyi-sim] ������base=http://127.0.0.1:18094 sn=AUDIT-F1-500909625160\r\n[jiangyi-sim] POST /jiangyi/api/token/openDoorDeviceStatus �� 200 {\"msg\":\"success\",\"data\":{\"token\":\"[REDACTED-JWT]\",\"identifier\":\"AUDIT500909625160\"},\"status\":200}\r\n[jiangyi-sim] token �ѻ�ȡ identifier=AUDIT500909625160\r\n[jiangyi-sim] POST /jiangyi/api/deviceInfo/getDetail �� 200 {\"msg\":\"success\",\"data\":{\"identifier\":\"AUDIT500909625160\"},\"status\":200}\r\n[jiangyi-sim] WS ������ ws://127.0.0.1:18094/websocket/device/AUDIT500909625160?token=[REDACTED] ���ߵȴ� openDoor ָ���Ctrl+C �˳���\r"
+}

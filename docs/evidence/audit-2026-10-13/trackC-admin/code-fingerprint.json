@@ -1,0 +1,5 @@
+{
+  "exit": 1,
+  "stdout": "",
+  "stderr": "node:_http_client:617\r\n    emitErrorEvent(req, new ConnResetException('socket hang up'));\r\n                        ^\r\n\r\nError: socket hang up\r\n    at Socket.socketOnEnd (node:_http_client:617:25)\r\n    at Socket.emit (node:events:521:24)\r\n    at endReadableNT (node:internal/streams/readable:1729:12)\r\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\r\n  code: 'ECONNRESET'\r\n}\r\n\r\nNode.js v24.18.0\r\n"
+}
