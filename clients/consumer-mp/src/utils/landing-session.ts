@@ -51,8 +51,12 @@ export function normalizeCabinetId(id: string): string {
   return id.trim().toUpperCase();
 }
 
+/**
+ * 2026-10-16 编号规则定稿 EG+12 位后收紧：只认 EG 标准形态与改规则前的纯数字 legacy。
+ * CAB-* 等字母夹具（V44 演示数据）不再被手输/扫码认可。
+ */
 export function isCabinetIdInvalid(cabinetId: string): boolean {
-  return !/^[A-Z0-9][A-Z0-9_-]{1,63}$/.test(cabinetId);
+  return !/^(?:EG[0-9]{12}|[0-9]{6,12})$/.test(cabinetId);
 }
 
 /** 该会话能否被本次开门接管：同柜机且处于非终态。 */

@@ -223,6 +223,27 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.updateDevice(operatorId(request), deviceId, body));
     }
 
+    /** CB-051：开门柜按商品管理库存——SKU 级 upsert（无则建、有则只改传入字段）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/devices/{deviceId}/sku-inventory")
+    public ApiResponse<DeviceInventoryDto> upsertDeviceSkuInventory(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @RequestBody UpsertDeviceSkuInventoryRequest body) {
+        return ApiResponse.ok(adminService.upsertDeviceSkuInventory(operatorId(request), deviceId, body));
+    }
+
+    /** CB-051：下架=删除柜×商品库存行（补货/盘点历史不受影响）。 */
+    @RequiresPermissions("ops:device:edit")
+    @DeleteMapping("/devices/{deviceId}/sku-inventory/{skuId}")
+    public ApiResponse<Void> removeDeviceSkuInventory(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @PathVariable("skuId") String skuId) {
+        adminService.removeDeviceSkuInventory(operatorId(request), deviceId, skuId);
+        return ApiResponse.ok(null);
+    }
+
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/lifecycle")
     public ApiResponse<AdminDeviceDto> deviceLifecycle(

@@ -8,8 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * 柜机业务编号：系统随机分配 12 位纯数字（无序、不可手填）。
- * 历史 CAB-* 或旧版 6–10 位递增编号仍保留。
+ * 柜机业务编号：系统随机分配 EG + 12 位数字（无序、不可手填）。
+ * 2026-10-16 用户拍板：编号本体直接带 EG 前缀（此前为展示层拼接，存量测试设备不改号，
+ * 其 6–12 位纯数字与 CAB-* 转为 legacy 形态，展示即原样）。
  */
 @Service
 public class DeviceIdService {
@@ -18,8 +19,9 @@ public class DeviceIdService {
     /** 新编号首位 1–9，避免全零与过短展示歧义。 */
     private static final int FIRST_DIGIT_MIN = 1;
     private static final int FIRST_DIGIT_MAX = 9;
-    private static final Pattern STANDARD_DEVICE_ID = Pattern.compile("^[0-9]{12}$");
-    private static final Pattern LEGACY_NUMERIC_DEVICE_ID = Pattern.compile("^[0-9]{6,10}$");
+    private static final Pattern STANDARD_DEVICE_ID = Pattern.compile("^EG[0-9]{12}$");
+    /** legacy：改规则前的存量编号（纯数字 6–12 位；CAB-* 等字母形态不在本判定内）。 */
+    private static final Pattern LEGACY_NUMERIC_DEVICE_ID = Pattern.compile("^[0-9]{6,12}$");
     private static final String ALLOC_LOCK = "device:id:allocate";
     private static final int MAX_ALLOC_ATTEMPTS = 48;
 
@@ -67,10 +69,11 @@ public class DeviceIdService {
 
     private String randomDeviceId() {
         char[] digits = new char[DEVICE_ID_DIGITS];
+        // 首位 1–9（沿用旧约定：避免全零与过短展示歧义），前缀 EG 在此拼上
         digits[0] = (char) ('0' + FIRST_DIGIT_MIN + secureRandom.nextInt(FIRST_DIGIT_MAX - FIRST_DIGIT_MIN + 1));
         for (int i = 1; i < DEVICE_ID_DIGITS; i++) {
             digits[i] = (char) ('0' + secureRandom.nextInt(10));
         }
-        return new String(digits);
+        return "EG" + new String(digits);
     }
 }

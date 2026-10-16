@@ -30,9 +30,14 @@ describe('landing-session · C5/C5b/C5c', () => {
     expect(normalizeCabinetId('  cab-01 ')).toBe('CAB-01');
   });
 
-  it('isCabinetIdInvalid 拒绝空/非法字符', () => {
-    expect(isCabinetIdInvalid('AB')).toBe(false);
+  it('isCabinetIdInvalid 只认 EG 标准形态与纯数字 legacy（2026-10-16 收紧）', () => {
+    expect(isCabinetIdInvalid('EG123456789012')).toBe(false);
+    expect(isCabinetIdInvalid('123456')).toBe(false);
+    expect(isCabinetIdInvalid('719325384517')).toBe(false);
+    expect(isCabinetIdInvalid('AB')).toBe(true);
+    expect(isCabinetIdInvalid('CAB-01')).toBe(true);
     expect(isCabinetIdInvalid('A')).toBe(true);
+    expect(isCabinetIdInvalid('12345')).toBe(true);
   });
 
   it('isAdoptableSession：同柜 + 进行中态', () => {
@@ -122,7 +127,7 @@ describe('landing-session · C5/C5b/C5c', () => {
     expect(abortSessionFallbackHint('FAILED')).toBe('购物未完成');
     expect(
       beginCabinetEntryGate({
-        cabinetId: 'CAB-01',
+        cabinetId: 'EG123456789012',
         opening: false,
         enteringFlow: false,
         concurrent: 'allow'
@@ -130,7 +135,7 @@ describe('landing-session · C5/C5b/C5c', () => {
     ).toBe('ok');
     expect(
       beginCabinetEntryGate({
-        cabinetId: 'CAB-01',
+        cabinetId: 'EG123456789012',
         opening: true,
         enteringFlow: false,
         concurrent: 'allow'
@@ -138,7 +143,7 @@ describe('landing-session · C5/C5b/C5c', () => {
     ).toBe('busy');
     expect(
       beginCabinetEntryGate({
-        cabinetId: 'CAB-01',
+        cabinetId: 'EG123456789012',
         opening: false,
         enteringFlow: false,
         concurrent: 'other_cabinet'

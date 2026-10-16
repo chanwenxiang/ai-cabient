@@ -8,6 +8,9 @@ import type { DeviceLifecycleAsset } from '@/composables/device/useDeviceLifecyc
 
 /** 设备详情页资产表单（含生命周期摘要字段，供投放态机复用） */
 export type DeviceAssetForm = DeviceLifecycleAsset & {
+  deviceName: string;
+  /** 投放场景（CB-049）：OFFICE/CAMPUS/...；空=未分类 */
+  sceneType: string;
   imei: string;
   assetOwner: string;
   coopMode: string;
@@ -36,6 +39,8 @@ export type UseDeviceAssetDeps = {
 export function useDeviceAsset(deps: UseDeviceAssetDeps) {
   const asset = reactive<DeviceAssetForm>({
     lifecycleStatus: '',
+    deviceName: '',
+    sceneType: '',
     imei: '',
     assetOwner: '',
     coopMode: '',
@@ -58,6 +63,8 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
 
   function fillAsset(row: OpenApiAdminDeviceDto) {
     asset.lifecycleStatus = row.lifecycleStatus || '';
+    asset.deviceName = row.deviceName || '';
+    asset.sceneType = row.sceneType || '';
     asset.imei = row.imei || '';
     asset.assetOwner = row.assetOwner || '';
     asset.coopMode = row.coopMode || '';
@@ -98,12 +105,20 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
 
   async function saveAsset() {
     if (!deps.canEditDevice.value) return;
+    // 投放场景必填（CB-049 扩展，2026-10-16 用户拍板）：没有场景就无法按商品×场景限额校验上架
+    if (!asset.sceneType) {
+      ElMessage.warning('请选择投放场景（必选）：商品上架限额按柜子所属场景校验');
+      return;
+    }
     assetSaving.value = true;
     try {
       const row = await api.request<OpenApiAdminDeviceDto>(
         AdminEndpoints.device(deps.deviceId),
         'PATCH',
         {
+          deviceName: asset.deviceName || null,
+          // CB-049：空串=清除场景，null=不改；表单恒回传当前值
+          sceneType: asset.sceneType || '',
           assetOwner: asset.assetOwner || null,
           coopMode: asset.coopMode || null,
           depositCents: asset.depositCents ?? null,

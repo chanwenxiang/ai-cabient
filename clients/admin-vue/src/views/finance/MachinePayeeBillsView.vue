@@ -62,7 +62,7 @@
         <div class="toolbar">
           <el-input
             v-model="configDeviceId"
-            placeholder="柜机 deviceId（12 位）"
+            placeholder="柜机编号（EG+12 位数字）"
             style="width: 220px"
             @keyup.enter="loadConfig"
           />

@@ -188,6 +188,7 @@
         >
           <el-table-column prop="deviceId" label="设备编号" min-width="140" class-name="col-text">
             <template #default="{ row }">
+              <!-- 2026-10-16 编号规则：编号本体即 EG+12 位（EG 由系统生成，非展示层拼接） -->
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
           </el-table-column>
@@ -395,8 +396,8 @@
       <el-form label-width="auto">
         <el-form-item label="设备编号">
           <p class="form-hint muted">
-            创建后由系统自动分配 12 位数字编号（无序、不可修改）；柜机首次联网时将自动绑定 IMEI /
-            主板 SN
+            创建后由系统自动分配 EG 编号（EG+12 位数字，无序、不可修改）；柜机首次联网时将自动绑定
+            IMEI / 主板 SN
           </p>
         </el-form-item>
         <el-form-item label="设备名称">
@@ -1140,7 +1141,7 @@ async function saveCreate() {
   if (!createForm.deviceName.trim()) {
     try {
       await ElMessageBox.confirm(
-        '未填写设备名称，将使用系统自动分配的 12 位编号作为设备名称。是否继续创建？',
+        '未填写设备名称，将使用系统自动分配的 EG 编号作为设备名称。是否继续创建？',
         '确认新建设备',
         {
           type: 'warning',

@@ -13,6 +13,8 @@ import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.domain.DeviceSkuInventory;
+import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 import com.aicabinet.trade.domain.AliyunCategoryMapping;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
@@ -443,5 +445,76 @@ public class AdminDashboardService {
     @Transactional
     public RechargeOrderDto refundRecharge(Long operatorId, String orderId, String reason) {
         return memberFinanceAdminService.refundRecharge(operatorId, orderId, reason);
+    }
+
+    /**
+     * CB-051：开门柜按商品管理库存——SKU 级 upsert（柜×商品行，无则建、有则只改传入字段）。
+     * 开门视觉柜无实体货道，运营侧库存口径以 device_sku_inventory 为准；
+     * slot 记账仅保留给补货分配/盘点的后端语义。
+     */
+    @Transactional
+    public DeviceInventoryDto upsertDeviceSkuInventory(Long operatorId, String deviceId,
+                                                       UpsertDeviceSkuInventoryRequest body) {
+        body.validate();
+        if (deviceRepository.selectById(deviceId) == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "柜机不存在");
+        }
+        if (skuCatalogRepository.selectById(body.skuId()) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商品不存在：" + body.skuId());
+        }
+        // 复合主键实体无 @TableId，selectById/updateById 不可用（Invalid bound statement）——走 wrapper
+        DeviceSkuInventory inv = inventoryRepository.selectOne(
+                Wrappers.<DeviceSkuInventory>lambdaQuery()
+                        .eq(DeviceSkuInventory::getDeviceId, deviceId)
+                        .eq(DeviceSkuInventory::getSkuId, body.skuId()));
+        boolean isNew = inv == null;
+        if (isNew) {
+            inv = new DeviceSkuInventory();
+            inv.setDeviceId(deviceId);
+            inv.setSkuId(body.skuId());
+            inv.setQuantity(0);
+            inv.setCapacity(0);
+            inv.setLowThreshold(2);
+        }
+        if (body.quantity() != null) {
+            inv.setQuantity(body.quantity());
+        }
+        if (body.capacity() != null) {
+            inv.setCapacity(body.capacity());
+        }
+        if (body.lowThreshold() != null) {
+            inv.setLowThreshold(body.lowThreshold());
+        }
+        inv.setUpdatedAt(Instant.now());
+        if (isNew) {
+            inventoryRepository.insert(inv);
+        } else {
+            inventoryRepository.update(
+                    inv,
+                    Wrappers.<DeviceSkuInventory>lambdaUpdate()
+                            .eq(DeviceSkuInventory::getDeviceId, deviceId)
+                            .eq(DeviceSkuInventory::getSkuId, body.skuId()));
+        }
+        auditService.appendLog(operatorId, isNew ? "DEVICE_SKU_INVENTORY_CREATE" : "DEVICE_SKU_INVENTORY_UPDATE",
+                "DEVICE", deviceId, "skuId=" + body.skuId() + ",qty=" + inv.getQuantity()
+                        + ",cap=" + inv.getCapacity() + ",low=" + inv.getLowThreshold());
+        return new DeviceInventoryDto(deviceId, body.skuId(), inv.getQuantity(), inv.getCapacity(),
+                inv.getLowThreshold(), inv.getUpdatedAt(), inv.getVersion());
+    }
+
+    /** CB-051：下架=删除柜×商品库存行（补货/盘点历史不受影响）。 */
+    @Transactional
+    public void removeDeviceSkuInventory(Long operatorId, String deviceId, String skuId) {
+        if (deviceRepository.selectById(deviceId) == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "柜机不存在");
+        }
+        int removed = inventoryRepository.delete(
+                Wrappers.<DeviceSkuInventory>lambdaQuery()
+                        .eq(DeviceSkuInventory::getDeviceId, deviceId)
+                        .eq(DeviceSkuInventory::getSkuId, skuId));
+        if (removed > 0) {
+            auditService.appendLog(operatorId, "DEVICE_SKU_INVENTORY_REMOVE", "DEVICE", deviceId,
+                    "skuId=" + skuId);
+        }
     }
 }

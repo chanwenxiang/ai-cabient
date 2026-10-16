@@ -117,6 +117,12 @@ export const AdminEndpoints = {
   deviceDetail: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/detail`,
   devicePolicy: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/policy`,
   deviceLifecycle: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/lifecycle`,
+  /** CB-051：开门柜 SKU 级库存 upsert（柜×商品行） */
+  deviceSkuInventoryPut: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/sku-inventory`,
+  /** CB-051：下架=删除柜×商品库存行 */
+  deviceSkuInventoryDelete: (deviceId: string, skuId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/sku-inventory/${encodeURIComponent(skuId)}`,
   deviceLifecycleEvents: (deviceId: string, limit = 40) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/lifecycle-events?limit=${limit}`,
   deviceCommands: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/commands`,

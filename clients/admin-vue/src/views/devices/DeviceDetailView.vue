@@ -26,9 +26,9 @@
     </el-page-header>
 
     <!--
-      首屏：左侧「设备概览」（关键信息 + 健康指标），右侧「柜机二维码」。
-      二维码原先是首屏的整张卡片（200×200 + 提示撑满一屏），把商户/地址/版本全挤到折叠线以下；
-      改为并排后首屏即可读完设备身份与健康度，二维码仍可预览/复制/下载。
+      2026-10-16 改版（用户需求 + 图1 对照 2026-10-16 截图）：货柜基本信息 + 二维码
+      常驻首屏（不进页签），其余区块收进下方页签，默认选中「在售商品」；
+      重页签（将邑/温控/定价/流水/关联）lazy，切入才挂载。
     -->
     <div class="device-hero">
       <el-card class="page-card hero-info" shadow="never">
@@ -171,7 +171,14 @@
             <div class="info-grid">
               <div class="info-item">
                 <span class="info-label">设备编号</span>
+                <!-- 2026-10-16 编号规则：编号本体即 EG+12 位（EG 由系统生成，非展示层拼接） -->
                 <span class="info-value cell-id">{{ device?.deviceId || deviceId }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">投放场景</span>
+                <span class="info-value">{{
+                  device?.sceneType ? dictLabel('device_scene_type', device.sceneType) : '未分类'
+                }}</span>
               </div>
               <div class="info-item">
                 <span class="info-label">所属仓库</span>
@@ -255,6 +262,25 @@
                 <span class="info-label">最近补货</span>
                 <span class="info-value cell-datetime">{{
                   metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : UI_COPY.loading
+                }}</span>
+              </div>
+              <!-- CB-049 扩展（2026-10-16 用户需求）：最近上线/离线时间、分配（绑定商户）时间 -->
+              <div class="info-item">
+                <span class="info-label">最近上线</span>
+                <span class="info-value cell-datetime">{{
+                  metricsHydrated ? formatDateTime(device?.lastOnlineAt) || '无' : UI_COPY.loading
+                }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">最近离线</span>
+                <span class="info-value cell-datetime">{{
+                  metricsHydrated ? formatDateTime(device?.lastOfflineAt) || '无' : UI_COPY.loading
+                }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">分配时间</span>
+                <span class="info-value cell-datetime">{{
+                  metricsHydrated ? formatDateTime(asset.deployedAt) || '未分配' : UI_COPY.loading
                 }}</span>
               </div>
               <div class="info-item">
@@ -363,255 +389,304 @@
       </el-card>
     </div>
 
-    <DeviceAssetDeploymentCard
-      v-model:asset="asset"
-      :can-edit-device="canEditDevice"
-      :can-regenerate-device-id="canRegenerateDeviceId"
-      :asset-saving="assetSaving"
-      :geo-configured="geoConfigured"
-      :hardware-reset-loading="hardwareResetLoading"
-      :regenerate-id-loading="regenerateIdLoading"
-      :life-loading="lifeLoading"
-      :bind-dialog-visible="bindDialogVisible"
-      :bind-merchant-id="bindMerchantId"
-      :bind-merchants-loading="bindMerchantsLoading"
-      :bind-merchant-options="bindMerchantOptions"
-      :warehouse-options="warehouseOptions"
-      :lifecycle-label="lifecycleLabel"
-      :can-lifecycle="canLifecycle"
-      :lifecycle-disabled-reason="lifecycleDisabledReason"
-      @save="saveAsset"
-      @reset-hardware="resetHardwareBinding"
-      @regenerate-id="regenerateDeviceId"
-      @open-bind="openBindDialog"
-      @run-lifecycle="runLifecycle"
-      @confirm-bind="confirmBindMerchant"
-      @update:bind-dialog-visible="bindDialogVisible = $event"
-      @update:bind-merchant-id="bindMerchantId = $event"
-    />
-
-    <DeviceRemoteOpsCard
-      :can-edit-device="canEditDevice"
-      :can-access-replenishment="canAccessPath('/replenishment')"
-      :can-access-repair-tickets="canAccessPath('/repair-tickets')"
-      :cmd-loading="cmdLoading"
-      :sales-locked="!!metrics?.salesLocked"
-      :oos-slot-count="metrics?.oosSlotCount || 0"
-      :refund-policy-draft="refundPolicyDraft"
-      :refund-policy-saving="refundPolicySaving"
-      :global-refund-policy="globalRefundPolicy"
-      :effective-refund-policy="effectiveRefundPolicy"
-      :refund-draft-hint="refundDraftHint"
-      :refund-priority-hint="refundPriorityHint"
-      :device-refund-policy="device?.refundPolicy"
-      v-model:policy="policy"
-      :repair-tickets="repairTickets"
-      :repair-hydrated="repairHydrated"
-      :policy-label="policyLabel"
-      :repair-status-label="repairStatusLabel"
-      :priority-label="priorityLabel"
-      @send-command="sendCommand"
-      @go-replenish="goReplenish"
-      @go-plan-replenish="goPlanReplenish"
-      @go-restock-tasks="goRestockTasks"
-      @go-repair-list="goPath('/repair-tickets', { deviceId })"
-      @create-repair="createRepair"
-      @save-refund-policy="saveRefundPolicy"
-      @save-policy="savePolicy"
-      @update:refund-policy-draft="refundPolicyDraft = $event"
-    />
-
-    <!-- 将邑接入（CB-022 收尾）：未接入的普通柜机整卡展示「未接入」说明，可忽略 -->
-    <DeviceJiangyiCard :device-id="deviceId" :can-edit="canEditDevice" />
-
-    <el-card class="page-card report-page" shadow="never">
-      <el-tabs v-model="tab">
-        <!--
-          「概览」页签已并入首屏「设备概览」卡片：同一批字段原先在两处各写一遍，
-          既重复又占一个页签位置。本区保留的四个页签都是「数据量大、需要时才展开」的内容。
-        -->
-        <el-tab-pane label="温控与环境" name="temp-env">
-          <DeviceTempEnvTab
-            :can-edit-temp-plan="canEditTempPlan"
-            :temp-plan-enabled="tempPlanEnabled"
-            :temp-plan-entries="tempPlanEntries"
-            :temp-plan-saving="tempPlanSaving"
-            :env-rows="envRows"
-            :env-type-label="envTypeLabel"
-            :env-unit="envUnit"
-            @update:temp-plan-enabled="tempPlanEnabled = $event"
-            @add-entry="addTempPlanEntry"
-            @remove-entry="(i) => tempPlanEntries.splice(i, 1)"
-            @save="saveTempPlan"
-            @apply="applyTempPlanNow"
-            @refresh-env="loadEnvReadings"
-          />
-        </el-tab-pane>
-
-        <el-tab-pane label="货道陈列" name="slots">
-          <div class="slot-toolbar">
-            <el-button
-              v-hasPermi="['ops:device:edit']"
-              size="small"
-              :loading="applying"
-              @click="applyTemplate"
-              >初始化货道骨架</el-button
-            >
-            <!-- C3 商品模板：设备间复制陈列（存当前为模板 / 套用命名模板） -->
-            <el-button
-              v-hasPermi="['ops:device:edit']"
-              size="small"
-              :disabled="!slots.some((sl) => sl.assignedSkuId)"
-              @click="openSaveTemplateDialog"
-              >存为陈列模板</el-button
-            >
-            <el-button
-              v-hasPermi="['ops:device:edit']"
-              size="small"
-              :loading="templateApplying"
-              @click="openApplyTemplateDialog"
-              >套用陈列模板</el-button
-            >
-            <el-button size="small" :icon="Refresh" :loading="slotsRefreshing" @click="refreshSlots"
-              >刷新货道</el-button
-            >
-            <el-radio-group v-model="slotViewMode" size="small" style="margin-left: 8px">
-              <el-radio-button value="grid">陈列网格</el-radio-button>
-              <el-radio-button value="cards">商品卡片</el-radio-button>
-            </el-radio-group>
-            <el-button
-              v-hasPermi="['ops:device:edit']"
-              size="small"
-              :disabled="!slots.length"
-              @click="openSortDialog"
-              >商品排序</el-button
-            >
-            <el-button
-              v-if="canEditPricing"
-              size="small"
-              :loading="resettingPrice"
-              :disabled="!slots.length"
-              @click="onResetPricing"
-              >重置价格</el-button
-            >
-          </div>
-          <div class="slot-meta-bar">
-            <span>
-              已上架商品数：<strong>{{ listedSkuCount }}</strong
-              >/{{ MAX_SKUS_PER_DEVICE }}
-            </span>
-            <span class="stockout-tip">
-              缺货设置：当剩余库存 &lt; 货柜容量的 {{ stockoutThresholdPct }}%
-              时，库存状态为缺货，同时推送商户缺货通知。
-              <el-link
-                v-if="canEditMerchantConfig && device?.merchantId"
-                type="primary"
-                :underline="false"
-                @click="openThresholdDialog"
-                >修改阈值</el-link
-              >
-            </span>
-          </div>
-          <SlotGrid
-            v-if="slotViewMode === 'grid' && slotsHydrated && slots.length"
-            :slots="slots"
-            :editable="canEditSlots"
-            @edit="openEditor"
-          />
-          <div
-            v-else-if="slotViewMode === 'cards' && slotsHydrated && skuCards.length"
-            class="sku-cards"
+    <el-tabs v-model="tab" class="detail-tabs">
+      <el-tab-pane label="在售商品" name="slots">
+        <div class="slot-toolbar">
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            size="small"
+            type="primary"
+            @click="openInvCreate"
+            >上架商品</el-button
           >
-            <div
-              v-for="card in skuCards"
-              :key="card.skuId"
-              class="sku-card"
-              :class="{ warn: card.stockoutWarn }"
-            >
-              <div class="sku-card-head">
-                <span class="sku-card-brand">{{ card.brand || '未分类品牌' }}</span>
-                <span v-if="card.stockoutWarn" class="sku-card-badge">缺货</span>
-              </div>
+          <el-button size="small" :icon="Refresh" @click="loadDetail">刷新</el-button>
+          <el-button
+            v-if="canEditPricing"
+            size="small"
+            :loading="resettingPrice"
+            :disabled="!skuCards.length"
+            @click="onResetPricing"
+            >重置价格</el-button
+          >
+        </div>
+        <div class="slot-meta-bar">
+          <span>
+            已上架商品数：<strong>{{ listedSkuCount }}</strong
+            >/{{ MAX_SKUS_PER_DEVICE }}
+          </span>
+          <span class="stockout-tip">
+            缺货口径：当前库存 ≤ 低库存阈值（逐商品可在「编辑库存」调整），推送商户缺货通知。
+          </span>
+        </div>
+        <!--
+            CB-051（2026-10-16 用户拍板）：开门柜无「货道」概念——在售商品=商品卡片，
+            数据源 device_sku_inventory（柜×商品库存），卡片上改价（ops:pricing:edit）、
+            编辑库存/下架（ops:device:edit，SKU 级端点）；补货/盘点的 slot 记账仅保留在后端语义。
+          -->
+        <div v-if="slotsHydrated && skuCards.length" class="sku-cards">
+          <div
+            v-for="card in skuCards"
+            :key="card.skuId"
+            class="sku-card"
+            :class="{ warn: card.stockoutWarn }"
+          >
+            <div class="sku-card-head">
+              <span class="sku-card-brand">{{ card.brand || '未分类品牌' }}</span>
+              <span v-if="card.stockoutWarn" class="sku-card-badge">缺货</span>
+            </div>
+            <div class="sku-card-top">
               <img v-if="card.imageUrl" :src="card.imageUrl" class="sku-card-img" loading="lazy" />
               <div v-else class="sku-card-img sku-card-img-empty">无图</div>
-              <div class="sku-card-name">{{ card.skuName }}</div>
-              <div v-if="card.priceCents != null" class="sku-card-price">
-                ¥ {{ (card.priceCents / 100).toFixed(2) }} 元
-              </div>
-              <div class="sku-card-fields">
-                <div>
-                  <label>当前库存:</label><strong>{{ card.bookQty }}</strong>
-                </div>
-                <div><label>上次配送后库存:</label>{{ card.lastPhysicalQty ?? '--' }}</div>
-                <div><label>商品容量:</label>{{ card.maxLevel }}</div>
-                <div><label>规格:</label>{{ card.spec || '--' }}</div>
-                <div><label>商品品牌:</label>{{ card.brand || '--' }}</div>
-                <div><label>商品ID:</label>{{ card.skuId }}</div>
-                <div><label>条形码:</label>{{ card.barcode || '--' }}</div>
-                <div>
-                  <label>上架时间:</label
-                  >{{ card.assignedAt ? formatDateTime(card.assignedAt) : '--' }}
+              <div class="sku-card-main">
+                <div class="sku-card-name">{{ card.skuName }}</div>
+                <div class="sku-card-price-row">
+                  <template v-if="pricingRowFor(card.skuId)">
+                    <template v-if="canEditPricing">
+                      <el-input-number
+                        :model-value="pricingRowFor(card.skuId)?.overridePriceCents ?? undefined"
+                        :min="pricingRowFor(card.skuId)?.minPriceCents"
+                        :max="pricingRowFor(card.skuId)?.maxPriceCents"
+                        :precision="0"
+                        :controls="false"
+                        size="small"
+                        class="sku-price-input"
+                        placeholder="跟随基准"
+                        :disabled="pricingSaving[card.skuId] === 'price'"
+                        @change="(v: number | undefined) => onCardPriceChange(card.skuId, v)"
+                      />
+                      <span class="sku-price-base">
+                        基准 {{ yuan(pricingRowFor(card.skuId)?.basePriceCents ?? 0) }}
+                      </span>
+                      <el-button
+                        v-if="pricingRowFor(card.skuId)?.overridePriceCents != null"
+                        link
+                        size="small"
+                        :loading="pricingSaving[card.skuId] === 'reset'"
+                        @click="onCardPriceReset(card.skuId)"
+                        >恢复基准</el-button
+                      >
+                    </template>
+                    <span v-else class="sku-card-price">
+                      {{ yuan(pricingRowFor(card.skuId)?.effectivePriceCents ?? 0) }}
+                    </span>
+                  </template>
+                  <span v-else class="muted">价格加载中</span>
                 </div>
               </div>
             </div>
-          </div>
-          <el-empty v-else-if="slotsHydrated" description="暂无货道配置" :image-size="64" />
-          <div v-else class="muted">货道{{ UI_COPY.loading }}</div>
-        </el-tab-pane>
-
-        <el-tab-pane label="单柜定价" name="pricing" lazy>
-          <DevicePricingCard
-            ref="pricingCardRef"
-            :device-id="deviceId"
-            :can-edit="canEditPricing"
-            :active="tab === 'pricing'"
-          />
-        </el-tab-pane>
-
-        <el-tab-pane label="投放流水" name="lifecycle">
-          <div v-loading="!lifecycleHydrated" class="lifecycle-pane">
-            <el-timeline v-if="lifecycleEvents.length">
-              <el-timeline-item
-                v-for="ev in lifecycleEvents"
-                :key="ev.eventId"
-                :timestamp="formatDateTime(ev.createdAt)"
-                placement="top"
+            <div class="sku-card-fields">
+              <div>
+                <label>当前库存:</label><strong>{{ card.quantity }}</strong>
+              </div>
+              <div><label>商品容量:</label>{{ card.capacity }}</div>
+              <div><label>规格:</label>{{ card.spec || '--' }}</div>
+              <div><label>品牌:</label>{{ card.brand || '--' }}</div>
+              <div><label>商品ID:</label>{{ card.skuId }}</div>
+              <div><label>条形码:</label>{{ card.barcode || '--' }}</div>
+              <div>
+                <label>上架时间:</label>{{ card.shelvedAt ? formatDateTime(card.shelvedAt) : '--' }}
+              </div>
+            </div>
+            <div class="sku-card-actions">
+              <el-button v-hasPermi="['ops:device:edit']" size="small" @click="openInvEdit(card)"
+                >编辑库存</el-button
               >
-                <div class="life-event">
-                  <strong>{{ lifecycleActionLabel(ev.action) }}</strong>
-                  <span class="muted"
-                    >{{ lifecycleLabel(ev.fromStatus) }} → {{ lifecycleLabel(ev.toStatus) }}</span
-                  >
-                  <div v-if="ev.remark" class="life-remark">{{ ev.remark }}</div>
-                </div>
-              </el-timeline-item>
-            </el-timeline>
-            <el-empty v-else-if="lifecycleHydrated" description="暂无生命周期流水" />
+              <el-button
+                v-hasPermi="['ops:device:edit']"
+                size="small"
+                type="danger"
+                plain
+                @click="onRemoveInventory(card)"
+                >下架</el-button
+              >
+            </div>
           </div>
-        </el-tab-pane>
+        </div>
 
-        <el-tab-pane label="关联单据" name="related">
-          <DeviceRelatedRecordsTab
-            :device-id="deviceId"
-            :hydrated="relatedHydrated"
-            :sessions="sessions"
-            :orders="orders"
-            :can-access-sessions="canAccessPath('/sessions')"
-            :can-access-orders="canAccessPath('/orders')"
-            @open-sessions="
-              (p) =>
-                goPath(
-                  '/sessions',
-                  p.sessionId
-                    ? { deviceId: p.deviceId, sessionId: p.sessionId }
-                    : { deviceId: p.deviceId }
-                )
-            "
-            @open-orders="(p) => goPath('/orders', { deviceId: p.deviceId })"
-          />
-        </el-tab-pane>
-      </el-tabs>
-    </el-card>
+        <el-empty
+          v-if="slotsHydrated && !skuCards.length"
+          description="暂无在售商品，点上方「上架商品」选品上架"
+          :image-size="64"
+        />
+
+        <!-- CB-051：上架/编辑库存弹窗（SKU 级） -->
+        <el-dialog
+          v-model="invDialogVisible"
+          :title="invMode === 'create' ? '上架商品' : '编辑库存'"
+          width="440px"
+        >
+          <el-form label-width="90px">
+            <el-form-item v-if="invMode === 'create'" label="商品">
+              <el-select
+                v-model="invForm.skuId"
+                filterable
+                placeholder="选择要上架的商品"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="sku in availableSkus"
+                  :key="sku.skuId"
+                  :label="`${sku.skuName} (${sku.skuId})`"
+                  :value="sku.skuId"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="当前库存">
+              <el-input-number v-model="invForm.quantity" :min="0" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="商品容量">
+              <el-input-number v-model="invForm.capacity" :min="0" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="低库存阈值">
+              <el-input-number v-model="invForm.lowThreshold" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="invDialogVisible = false">取消</el-button>
+            <el-button type="primary" :loading="invSaving" @click="submitInventory">保存</el-button>
+          </template>
+        </el-dialog>
+
+        <div v-if="!slotsHydrated" class="muted">在售商品{{ UI_COPY.loading }}</div>
+      </el-tab-pane>
+
+      <el-tab-pane label="资产与投放" name="asset">
+        <DeviceAssetDeploymentCard
+          v-model:asset="asset"
+          :can-edit-device="canEditDevice"
+          :can-regenerate-device-id="canRegenerateDeviceId"
+          :asset-saving="assetSaving"
+          :geo-configured="geoConfigured"
+          :hardware-reset-loading="hardwareResetLoading"
+          :regenerate-id-loading="regenerateIdLoading"
+          :life-loading="lifeLoading"
+          :bind-dialog-visible="bindDialogVisible"
+          :bind-merchant-id="bindMerchantId"
+          :bind-merchants-loading="bindMerchantsLoading"
+          :bind-merchant-options="bindMerchantOptions"
+          :warehouse-options="warehouseOptions"
+          :lifecycle-label="lifecycleLabel"
+          :can-lifecycle="canLifecycle"
+          :lifecycle-disabled-reason="lifecycleDisabledReason"
+          @save="saveAsset"
+          @reset-hardware="resetHardwareBinding"
+          @regenerate-id="regenerateDeviceId"
+          @open-bind="openBindDialog"
+          @run-lifecycle="runLifecycle"
+          @confirm-bind="confirmBindMerchant"
+          @update:bind-dialog-visible="bindDialogVisible = $event"
+          @update:bind-merchant-id="bindMerchantId = $event"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="远程运维" name="ops">
+        <DeviceRemoteOpsCard
+          :can-edit-device="canEditDevice"
+          :can-access-replenishment="canAccessPath('/replenishment')"
+          :can-access-repair-tickets="canAccessPath('/repair-tickets')"
+          :cmd-loading="cmdLoading"
+          :sales-locked="!!metrics?.salesLocked"
+          :oos-slot-count="metrics?.oosSlotCount || 0"
+          :refund-policy-draft="refundPolicyDraft"
+          :refund-policy-saving="refundPolicySaving"
+          :global-refund-policy="globalRefundPolicy"
+          :effective-refund-policy="effectiveRefundPolicy"
+          :refund-draft-hint="refundDraftHint"
+          :refund-priority-hint="refundPriorityHint"
+          :device-refund-policy="device?.refundPolicy"
+          v-model:policy="policy"
+          :repair-tickets="repairTickets"
+          :repair-hydrated="repairHydrated"
+          :policy-label="policyLabel"
+          :repair-status-label="repairStatusLabel"
+          :priority-label="priorityLabel"
+          @send-command="sendCommand"
+          @go-replenish="goReplenish"
+          @go-plan-replenish="goPlanReplenish"
+          @go-restock-tasks="goRestockTasks"
+          @go-repair-list="goPath('/repair-tickets', { deviceId })"
+          @create-repair="createRepair"
+          @save-refund-policy="saveRefundPolicy"
+          @save-policy="savePolicy"
+          @update:refund-policy-draft="refundPolicyDraft = $event"
+        />
+      </el-tab-pane>
+
+      <!-- 将邑接入（CB-022 收尾）：未接入的普通柜机整页展示「未接入」说明，可忽略 -->
+      <el-tab-pane label="将邑对接" name="jiangyi" lazy>
+        <DeviceJiangyiCard :device-id="deviceId" :can-edit="canEditDevice" />
+      </el-tab-pane>
+
+      <el-tab-pane label="温控与环境" name="temp-env" lazy>
+        <DeviceTempEnvTab
+          :can-edit-temp-plan="canEditTempPlan"
+          :temp-plan-enabled="tempPlanEnabled"
+          :temp-plan-entries="tempPlanEntries"
+          :temp-plan-saving="tempPlanSaving"
+          :env-rows="envRows"
+          :env-type-label="envTypeLabel"
+          :env-unit="envUnit"
+          @update:temp-plan-enabled="tempPlanEnabled = $event"
+          @add-entry="addTempPlanEntry"
+          @remove-entry="(i) => tempPlanEntries.splice(i, 1)"
+          @save="saveTempPlan"
+          @apply="applyTempPlanNow"
+          @refresh-env="loadEnvReadings"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="单柜定价" name="pricing" lazy>
+        <DevicePricingCard
+          ref="pricingCardRef"
+          :device-id="deviceId"
+          :can-edit="canEditPricing"
+          :active="tab === 'pricing'"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="投放流水" name="lifecycle" lazy>
+        <div v-loading="!lifecycleHydrated" class="lifecycle-pane">
+          <el-timeline v-if="lifecycleEvents.length">
+            <el-timeline-item
+              v-for="ev in lifecycleEvents"
+              :key="ev.eventId"
+              :timestamp="formatDateTime(ev.createdAt)"
+              placement="top"
+            >
+              <div class="life-event">
+                <strong>{{ lifecycleActionLabel(ev.action) }}</strong>
+                <span class="muted"
+                  >{{ lifecycleLabel(ev.fromStatus) }} → {{ lifecycleLabel(ev.toStatus) }}</span
+                >
+                <div v-if="ev.remark" class="life-remark">{{ ev.remark }}</div>
+              </div>
+            </el-timeline-item>
+          </el-timeline>
+          <el-empty v-else-if="lifecycleHydrated" description="暂无生命周期流水" />
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="关联单据" name="related" lazy>
+        <DeviceRelatedRecordsTab
+          :device-id="deviceId"
+          :hydrated="relatedHydrated"
+          :sessions="sessions"
+          :orders="orders"
+          :can-access-sessions="canAccessPath('/sessions')"
+          :can-access-orders="canAccessPath('/orders')"
+          @open-sessions="
+            (p) =>
+              goPath(
+                '/sessions',
+                p.sessionId
+                  ? { deviceId: p.deviceId, sessionId: p.sessionId }
+                  : { deviceId: p.deviceId }
+              )
+          "
+          @open-orders="(p) => goPath('/orders', { deviceId: p.deviceId })"
+        />
+      </el-tab-pane>
+    </el-tabs>
 
     <!-- CB-028 弹窗规范：dialog-wide + 字段分组两列（与商品建档弹窗同款 form-group-title） -->
     <el-dialog
@@ -818,7 +893,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
@@ -828,7 +903,6 @@ import { softFallback } from '@/utils/soft-fallback';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import SlotGrid from '@/components/SlotGrid.vue';
 import DeviceAssetDeploymentCard from '@/components/device/DeviceAssetDeploymentCard.vue';
 import DeviceJiangyiCard from '@/components/device/DeviceJiangyiCard.vue';
 // V350（CB-037）：单柜定价——行内编辑覆盖价/启停/恢复基准，不走弹窗
@@ -838,6 +912,7 @@ import DeviceRemoteOpsCard from '@/components/device/DeviceRemoteOpsCard.vue';
 import DeviceTempEnvTab from '@/components/device/DeviceTempEnvTab.vue';
 import { useDeviceAsset } from '@/composables/device/useDeviceAsset';
 import { useDeviceLifecycleActions } from '@/composables/device/useDeviceLifecycleActions';
+import { useDevicePricing } from '@/composables/device/useDevicePricing';
 import { useDeviceRelatedRecords } from '@/composables/device/useDeviceRelatedRecords';
 import { useDeviceRemoteOps } from '@/composables/device/useDeviceRemoteOps';
 import { useDeviceSlotActions } from '@/composables/device/useDeviceSlotActions';
@@ -851,7 +926,14 @@ import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 interface DeviceRow {
   deviceId: string;
   deviceName?: string;
+  deviceType?: string;
+  /** 投放场景（CB-049）：OFFICE/CAMPUS/...；空=未分类 */
+  sceneType?: string;
   onlineStatus?: string;
+  /** 最近上线时间（在线起点；CB-049 扩展展示字段） */
+  lastOnlineAt?: string;
+  /** 最近离线时间（CB-049 扩展展示字段） */
+  lastOfflineAt?: string;
   merchantId?: string;
   merchantName?: string;
   activeSessionId?: string;
@@ -894,10 +976,20 @@ interface Metrics {
   inventoryAccuracyPct?: number;
 }
 
+/** CB-051：柜×商品库存行（device_sku_inventory，开门柜库存口径） */
+interface DeviceInventoryRow {
+  skuId: string;
+  quantity: number;
+  capacity: number;
+  lowThreshold: number;
+  updatedAt?: string;
+}
+
 interface DeviceDetail {
   device: DeviceRow;
   metrics: Metrics;
   slots: DeviceSlot[];
+  skuInventory?: DeviceInventoryRow[];
 }
 
 const route = useRoute();
@@ -952,17 +1044,11 @@ const {
   loadDetail: () => loadDetail(),
   canEditTempPlan
 });
-// 默认停在「货道陈列」：概览信息已提到首屏，这里先给运营最常查的陈列与库存
+// 默认停在「在售商品」：概览信息在第一个页签，这里先给运营最常改的陈列与库存
 const tab = ref('slots');
-
-watch(tab, (v) => {
-  if (v === 'temp-env') {
-    ensureTempEnvLoaded();
-  }
-  if (v === 'pricing') {
-    pricingCardRef.value?.onActive(true);
-  }
-});
+// 🔴 页签懒加载 watch 不能放这里：immediate 回调引用的 pricingCardRef /
+//    ensurePricingLoaded 都在其后声明（TDZ），immediate 立即执行必炸渲染。
+//    整块移到 useDevicePricing 解构之后（见 ensurePricingLoaded 定义处）。
 const pricingCardRef = ref<InstanceType<typeof DevicePricingCard> | null>(null);
 const device = ref<DeviceRow | null>(null);
 const metrics = ref<Metrics | null>(null);
@@ -1035,6 +1121,7 @@ const canRegenerateDeviceId = computed(
 );
 const lifecycleEvents = ref<LifecycleEventRow[]>([]);
 const slots = ref<DeviceSlot[]>([]);
+const skuInventory = ref<DeviceInventoryRow[]>([]);
 const {
   applying,
   slotsRefreshing,
@@ -1145,36 +1232,64 @@ const qrDownloading = ref(false);
 let qrObjectUrl: string | null = null;
 
 // ===== 图1 对照（叮当小柜，2026-10-15）：卡片墙 / 单柜上限 / 缺货阈值 / 排序 / 重置价格 =====
+// 2026-10-16 改版：陈列网格下线（用户需求），卡片即编辑入口——卡上改覆盖价 + 货道行内编辑。
 const MAX_SKUS_PER_DEVICE = 50; // 与后端 DeviceSlotService.MAX_SKUS_PER_DEVICE 对齐
-const slotViewMode = ref<'grid' | 'cards'>('grid');
-const listedSkuCount = computed(
-  () => new Set(slots.value.map((s) => s.assignedSkuId).filter((v): v is string => !!v)).size
-);
+const listedSkuCount = computed(() => skuInventory.value.length);
 const stockoutThresholdPct = ref(50);
 const canEditMerchantConfig = computed(() => auth.hasPerm('ops:merchant:edit'));
 
-/** 单价展示：货道 DTO 不带价格，进入卡片视图时拉一次单柜定价（查看口径 ops:device:list）。 */
-const pricingBySku = ref<Record<string, number>>({});
-const pricingLoaded = ref(false);
-async function ensurePricingLoaded() {
-  if (pricingLoaded.value) return;
-  pricingLoaded.value = true;
-  try {
-    const rows = await api.request<Array<{ skuId: string; effectivePriceCents: number }>>(
-      AdminEndpoints.devicePricing(deviceId)
-    );
-    const map: Record<string, number> = {};
-    for (const r of rows || []) {
-      map[r.skuId] = r.effectivePriceCents;
+/**
+ * 卡片价格：复用单柜定价 composable（CB-037 覆盖价体系 + min/max 限价 + 乐观锁），
+ * 与「单柜定价」页签同一数据源、同一保存路径，避免两套改价逻辑漂移。
+ */
+const {
+  rows: pricingRows,
+  saving: pricingSaving,
+  load: loadPricingRows,
+  ensureLoaded: ensurePricingLoaded,
+  savePrice: savePricingRow,
+  resetToBase: resetPricingRow
+} = useDevicePricing({ deviceId, canEdit: canEditPricing });
+
+// 页签懒加载（须在 pricingCardRef / ensurePricingLoaded 声明之后：
+// immediate 回调 setup 期即执行，放前面会踩 TDZ —— 2026-10-16 设备详情白屏实锤）
+watch(
+  tab,
+  (v) => {
+    if (v === 'temp-env') {
+      ensureTempEnvLoaded();
     }
-    pricingBySku.value = map;
-  } catch {
-    pricingBySku.value = {};
-  }
+    if (v === 'pricing') {
+      pricingCardRef.value?.onActive(true);
+    }
+    // 卡片价格复用单柜定价数据（覆盖价/基准价/乐观锁同一口径）
+    if (v === 'slots') {
+      ensurePricingLoaded();
+    }
+  },
+  { immediate: true }
+);
+
+function pricingRowFor(skuId: string) {
+  return pricingRows.value.find((r) => r.skuId === skuId);
 }
-watch(slotViewMode, (mode) => {
-  if (mode === 'cards') void ensurePricingLoaded();
-});
+
+function yuan(cents: number): string {
+  return `¥${(cents / 100).toFixed(2)}`;
+}
+
+async function onCardPriceChange(skuId: string, v: number | undefined) {
+  const row = pricingRowFor(skuId);
+  // 清空输入不等于恢复基准——恢复走显式「恢复基准」按钮（语义见 CB-037）
+  if (!row || v == null) return;
+  await savePricingRow(row, v);
+}
+
+async function onCardPriceReset(skuId: string) {
+  const row = pricingRowFor(skuId);
+  if (!row) return;
+  await resetPricingRow(row);
+}
 
 interface SkuCard {
   skuId: string;
@@ -1183,70 +1298,111 @@ interface SkuCard {
   brand: string;
   spec: string;
   barcode: string;
-  bookQty: number;
-  lastPhysicalQty: number | null;
-  maxLevel: number;
-  assignedAt?: string;
+  quantity: number;
+  capacity: number;
+  lowThreshold: number;
+  /** 上架时间：暂用商品建档时间（柜×SKU 绑定时戳后续随补货快照一并补） */
+  shelvedAt?: string;
   stockoutWarn: boolean;
   priceCents: number | null;
 }
-const skuCards = computed<SkuCard[]>(() => {
-  const bySku = new Map<
-    string,
-    Omit<SkuCard, 'priceCents' | 'lastPhysicalQty'> & { physicalSum: number; hasPhysical: boolean }
-  >();
-  for (const s of slots.value) {
-    if (!s.assignedSkuId) continue;
-    let cur = bySku.get(s.assignedSkuId);
-    if (!cur) {
-      cur = {
-        skuId: s.assignedSkuId,
-        skuName: s.assignedSkuName || s.assignedSkuId,
-        imageUrl: '',
-        brand: '',
-        spec: '',
-        barcode: '',
-        bookQty: 0,
-        physicalSum: 0,
-        hasPhysical: false,
-        maxLevel: 0,
-        assignedAt: undefined,
-        stockoutWarn: false
+
+/** CB-051：卡片=柜×商品库存行（device_sku_inventory），不再经货道聚合 */
+const skuCards = computed<SkuCard[]>(() =>
+  skuInventory.value
+    .map((inv) => {
+      const sku = skus.value.find((k) => k.skuId === inv.skuId);
+      return {
+        skuId: inv.skuId,
+        skuName: sku?.skuName || inv.skuId,
+        imageUrl: sku?.imageUrl || '',
+        brand: sku?.brand || '',
+        spec: sku?.spec || '',
+        barcode: sku?.barcode || '',
+        quantity: inv.quantity,
+        capacity: inv.capacity,
+        lowThreshold: inv.lowThreshold,
+        shelvedAt: sku?.createdAt,
+        stockoutWarn: inv.quantity <= inv.lowThreshold,
+        priceCents: pricingRowFor(inv.skuId)?.effectivePriceCents ?? null
       };
-      bySku.set(s.assignedSkuId, cur);
-    }
-    cur.bookQty += s.bookQty || 0;
-    cur.maxLevel += s.maxLevel || s.parLevel || 0;
-    if (s.lastPhysicalQty != null) {
-      cur.physicalSum += s.lastPhysicalQty;
-      cur.hasPhysical = true;
-    }
-    if (!cur.imageUrl && s.skuImageUrl) cur.imageUrl = s.skuImageUrl;
-    cur.brand = cur.brand || s.skuBrand || '';
-    cur.spec = cur.spec || s.skuSpec || '';
-    cur.barcode = cur.barcode || s.skuBarcode || '';
-    if (s.assignedAt && (!cur.assignedAt || s.assignedAt < cur.assignedAt)) {
-      cur.assignedAt = s.assignedAt;
-    }
-    cur.stockoutWarn = cur.stockoutWarn || !!s.stockoutWarn;
+    })
+    .sort((a, b) => (a.shelvedAt || '').localeCompare(b.shelvedAt || ''))
+);
+
+// ── 上架 / 编辑库存 / 下架（SKU 级，ops:device:edit） ──────────────────
+const invDialogVisible = ref(false);
+const invMode = ref<'create' | 'edit'>('create');
+const invSaving = ref(false);
+const invForm = reactive({ skuId: '', quantity: 0, capacity: 0, lowThreshold: 2 });
+
+const availableSkus = computed(() =>
+  skus.value.filter((k) => !skuInventory.value.some((i) => i.skuId === k.skuId))
+);
+
+function openInvCreate() {
+  invMode.value = 'create';
+  invForm.skuId = '';
+  invForm.quantity = 0;
+  invForm.capacity = 0;
+  invForm.lowThreshold = 2;
+  invDialogVisible.value = true;
+}
+
+function openInvEdit(card: SkuCard) {
+  invMode.value = 'edit';
+  invForm.skuId = card.skuId;
+  invForm.quantity = card.quantity;
+  invForm.capacity = card.capacity;
+  invForm.lowThreshold = card.lowThreshold;
+  invDialogVisible.value = true;
+}
+
+async function submitInventory() {
+  if (invMode.value === 'create' && !invForm.skuId) {
+    ElMessage.warning('请选择要上架的商品');
+    return;
   }
-  return [...bySku.values()]
-    .map((c) => ({
-      skuId: c.skuId,
-      skuName: c.skuName,
-      imageUrl: c.imageUrl,
-      brand: c.brand,
-      spec: c.spec,
-      barcode: c.barcode,
-      bookQty: c.bookQty,
-      lastPhysicalQty: c.hasPhysical ? c.physicalSum : null,
-      maxLevel: c.maxLevel,
-      assignedAt: c.assignedAt,
-      stockoutWarn: c.stockoutWarn,
-      priceCents: pricingBySku.value[c.skuId] ?? null
-    }))
-    .sort((a, b) => (a.assignedAt || '').localeCompare(b.assignedAt || ''));
-});
+  invSaving.value = true;
+  try {
+    await api.request(AdminEndpoints.deviceSkuInventoryPut(deviceId), 'PUT', {
+      skuId: invForm.skuId,
+      quantity: invForm.quantity,
+      capacity: invForm.capacity,
+      lowThreshold: invForm.lowThreshold
+    });
+    ElMessage.success('已保存');
+    invDialogVisible.value = false;
+    await loadDetail();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '保存失败'));
+  } finally {
+    invSaving.value = false;
+  }
+}
+
+async function onRemoveInventory(card: SkuCard) {
+  try {
+    await ElMessageBox.confirm(
+      `确认下架「${card.skuName}」？下架后本柜不再售卖该商品。`,
+      '下架确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确认下架',
+        cancelButtonText: '取消'
+      }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(AdminEndpoints.deviceSkuInventoryDelete(deviceId, card.skuId), 'DELETE');
+    ElMessage.success('已下架');
+    await loadDetail();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '下架失败'));
+  }
+}
 
 async function loadStockoutThreshold() {
   const mid = device.value?.merchantId;
@@ -1307,8 +1463,7 @@ async function onResetPricing() {
   try {
     const count = await api.request<number>(AdminEndpoints.devicePricingReset(deviceId), 'POST');
     ElMessage.success(count > 0 ? `已重置 ${count} 个覆盖价` : '该柜没有覆盖价，无需重置');
-    pricingLoaded.value = false;
-    pricingBySku.value = {};
+    await loadPricingRows();
     await refreshSlots();
     pricingCardRef.value?.onActive(true);
   } finally {
@@ -1454,6 +1609,7 @@ async function loadDetail() {
   syncRefundDraftFromDevice(detail.device?.refundPolicy);
   metrics.value = detail.metrics;
   slots.value = detail.slots || [];
+  skuInventory.value = detail.skuInventory || [];
   slotsHydrated.value = true;
   syncTempDraftFromMetrics(detail.metrics?.targetTempC);
   void loadStockoutThreshold();
@@ -1575,24 +1731,24 @@ onActivated(() => {
   padding-bottom: 4px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
-.report-page {
+.detail-tabs {
   margin-top: 4px;
 }
-.report-page :deep(.el-tabs__header) {
+.detail-tabs :deep(.el-tabs__header) {
   margin: 4px 0 20px;
 }
-.report-page :deep(.el-tabs__nav-wrap::after) {
+.detail-tabs :deep(.el-tabs__nav-wrap::after) {
   height: 1px;
 }
-.report-page :deep(.el-tabs__item) {
+.detail-tabs :deep(.el-tabs__item) {
   font-size: var(--admin-font-size-title, 15px);
   color: var(--el-text-color-secondary);
 }
-.report-page :deep(.el-tabs__item.is-active) {
+.detail-tabs :deep(.el-tabs__item.is-active) {
   font-weight: 600;
   color: var(--app-primary, #0f766e);
 }
-.report-page :deep(.el-tabs__active-bar) {
+.detail-tabs :deep(.el-tabs__active-bar) {
   height: 3px;
   border-radius: 2px;
   background-color: var(--app-primary, #0f766e);
@@ -1936,7 +2092,6 @@ onActivated(() => {
   background: var(--el-fill-color-blank);
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 6px;
 }
 .sku-card.warn {
@@ -1947,6 +2102,20 @@ onActivated(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+/* 卡片顶部：图 + 名称/价格 横排（2026-10-16 改版，卡片即编辑入口） */
+.sku-card-top {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.sku-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .sku-card-brand {
   font-size: var(--admin-font-size-sm);
@@ -1976,11 +2145,56 @@ onActivated(() => {
 }
 .sku-card-name {
   font-weight: 600;
-  text-align: center;
+  overflow-wrap: anywhere;
 }
 .sku-card-price {
   color: var(--el-color-danger);
   font-weight: 600;
+}
+.sku-card-price-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: var(--admin-font-size-sm);
+}
+.sku-price-input {
+  width: 96px;
+}
+.sku-price-base {
+  color: var(--el-text-color-secondary);
+}
+.sku-card-slots {
+  width: 100%;
+  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sku-card-slots-title {
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+.empty-slots {
+  margin-top: 16px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-lighter);
+}
+.empty-slots-title {
+  font-size: var(--admin-font-size-sm);
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 6px;
+}
+/* SlotInlineRow 展开态在卡片内/空货道区都要有呼吸感（scoped 深度选择器） */
+.sku-cards :deep(.slot-line-editor),
+.empty-slots :deep(.slot-line-editor) {
+  background: var(--el-fill-color-blank);
 }
 .sku-card-fields {
   width: 100%;

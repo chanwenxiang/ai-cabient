@@ -96,6 +96,36 @@ const dataFeeYuan = computed({
       <div class="asset-group-title">设备档案</div>
       <el-row :gutter="12">
         <el-col :xs="24" :sm="12" :md="8">
+          <el-form-item label="设备名称">
+            <el-input
+              v-model="asset.deviceName"
+              :disabled="!canEditDevice"
+              clearable
+              maxlength="64"
+              placeholder="柜机名称（列表与页头显示）"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="12" :md="8">
+          <el-form-item label="投放场景" required>
+            <el-select
+              v-model="asset.sceneType"
+              :disabled="!canEditDevice"
+              clearable
+              placeholder="未分类"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in dictOptions('device_scene_type')"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+            <div class="field-hint">按投放场景打标（办公/校园/工厂等），便于按场景做选品与运营</div>
+          </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="12" :md="8">
           <el-form-item label="设备序列号">
             <div class="imei-field">
               <el-tag v-if="!asset.imei" type="info" effect="plain">未绑定</el-tag>

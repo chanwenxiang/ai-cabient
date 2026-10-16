@@ -108,11 +108,14 @@ public class OssStsService {
      * 决不发一个「未知目录」凭证出去。</p>
      */
     private String deviceDirName(String deviceId) {
-        if (deviceId == null || !deviceId.matches("\\d{6,20}")) {
+        // 2026-10-16 编号规则改 EG+12 位后放宽为大写字母数字白名单（长度不变）；
+        // 字符集仍拒绝 / . .. 空格等一切路径字符，防 key 注入语义不变，fail-closed 不变。
+        String id = deviceId == null ? null : deviceId.trim().toUpperCase();
+        if (id == null || !id.matches("[A-Z0-9]{6,20}")) {
             log.warn("jiangyi oss upload token rejected: invalid deviceId={}", deviceId);
             return null;
         }
-        return properties.getDirName() + deviceId + "/";
+        return properties.getDirName() + id + "/";
     }
 
     /** 预签名 GET URL 结果（CB-029）；expiration 为 URL 失效时刻的 ISO8601 串。 */

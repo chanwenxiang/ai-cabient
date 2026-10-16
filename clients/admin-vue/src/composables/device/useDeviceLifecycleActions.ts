@@ -176,7 +176,7 @@ export function useDeviceLifecycleActions(deps: UseDeviceLifecycleActionsDeps) {
     if (!deps.canRegenerateDeviceId.value) return;
     try {
       await ElMessageBox.confirm(
-        '将废弃当前编号并分配新的 12 位数字编号，仅适用于入库且无业务记录的设备。是否继续？',
+        '将废弃当前编号并分配新的 EG 编号（EG+12 位数字），仅适用于入库且无业务记录的设备。是否继续？',
         '重新生成编号',
         { type: 'warning', confirmButtonText: '重新生成', cancelButtonText: '取消' }
       );

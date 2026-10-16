@@ -2,7 +2,9 @@
  * 开门柜二维码解析 — 移植自旧原生小程序实现
  */
 
-const DEVICE_ID_RE = /^[A-Z0-9][A-Z0-9_-]{1,63}$/;
+// 2026-10-16 编号规则定稿 EG+12 位后收紧：只认 EG 标准形态与改规则前的纯数字 legacy。
+// CAB-* 等字母夹具（V44 演示数据）从此不被扫码/手输认可——新编号永不产生该形态。
+const DEVICE_ID_RE = /^(?:EG[0-9]{12}|[0-9]{6,12})$/;
 
 export function normalizeDeviceId(raw?: string | null): string {
   if (!raw) return '';

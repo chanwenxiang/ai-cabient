@@ -346,6 +346,36 @@
           </el-col>
         </el-row>
 
+        <!-- CB-049 扩展：商品×场景上架限额——柜内该场景下此商品的上架合计（各货道最大容量之和）不得超过上限 -->
+        <div class="form-group-title">投放场景与上架限额</div>
+        <el-row v-for="(lim, i) in form.sceneLimits" :key="`scene-${i}`" :gutter="12">
+          <el-col :span="11">
+            <el-form-item label="场景">
+              <el-select v-model="lim.sceneType" placeholder="选择场景" style="width: 100%">
+                <el-option
+                  v-for="o in dictOptions('device_scene_type')"
+                  :key="o.value"
+                  :label="o.label"
+                  :value="o.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="9">
+            <el-form-item label="上限(件)">
+              <el-input-number v-model="lim.maxQty" :min="1" :max="9999" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="4">
+            <el-button link type="danger" @click="form.sceneLimits.splice(i, 1)">删除</el-button>
+          </el-col>
+        </el-row>
+        <el-button size="small" @click="addSceneLimitRow">添加场景</el-button>
+        <div class="field-hint">
+          例：东鹏在「校园」限 1 件、「工厂」限 5 件。柜机绑定商品时按柜子所属场景校验：
+          该商品在柜内各货道的容量合计不得超过此处上限。
+        </div>
+
         <div class="form-group-title">价格与效期</div>
         <el-row :gutter="16">
           <el-col :span="12">
@@ -535,6 +565,7 @@ import type {
   BarcodeLookupDto,
   FileAttachmentDto,
   SkuCatalog,
+  SkuSceneLimitItem,
   UpsertSkuRequest
 } from '@aicabinet/shared-types';
 
@@ -608,6 +639,7 @@ const csvOptions: CrudCsvOptions = {
     '规格',
     '单位',
     '归属',
+    '场景限额',
     '售价',
     '成本',
     '类目',
@@ -623,6 +655,7 @@ const csvOptions: CrudCsvOptions = {
     '330ml',
     '瓶',
     '直营',
+    '办公室:10',
     '3.50',
     '1.20',
     '饮料',
@@ -637,6 +670,7 @@ const csvOptions: CrudCsvOptions = {
       row.spec || '',
       row.unit || '件',
       row.operationScope ? operationScopeLabel(row.operationScope) : '未分类',
+      sceneLimitsToCsv(row.sceneLimits),
       ((row.priceCents || 0) / 100).toFixed(2),
       row.purchaseCostCents == null ? '' : (row.purchaseCostCents / 100).toFixed(2),
       categoryLabel(row.category) || '',
@@ -684,7 +718,9 @@ const csvOptions: CrudCsvOptions = {
         status,
         visionEnabled: existing?.visionEnabled ?? true,
         minChargeConfidence: existing?.minChargeConfidence,
-        detectionMinConfidence: existing?.detectionMinConfidence
+        detectionMinConfidence: existing?.detectionMinConfidence,
+        // CB-049 收尾：CSV 新建 SKU 必配场景——「场景:上限」列（编辑导入不带，保留原限额）
+        sceneLimits: existing ? undefined : parseSceneLimitsFromCsv(row['场景限额'])
       };
       if (existing) {
         await api.request(AdminEndpoints.sku(existing.skuId), 'PUT', body);
@@ -714,6 +750,42 @@ function normalizeCategoryToCode(raw?: string | null): string {
     if (o.value === text || o.label === text) return o.value;
   }
   return text;
+}
+
+/** CSV 导出：sceneLimits →「标签:上限;标签2:上限2」；无限额给空串 */
+function sceneLimitsToCsv(limits?: SkuSceneLimitItem[] | null): string {
+  if (!limits?.length) return '';
+  return limits
+    .map((l) => {
+      consumeDictRuntimeEpoch();
+      const opt = dictOptions('device_scene_type').find((o) => o.value === l.sceneType);
+      return `${opt?.label || l.sceneType}:${l.maxQty}`;
+    })
+    .join(';');
+}
+
+/**
+ * CSV 导入：「办公室:10;高铁站:5」→ sceneLimits。
+ * 标签或键值均可；场景名不识别时原样保留交后端白名单校验（400 文案可引导），
+ * 上限非正整数/缺失的条目丢弃；整列为空 → undefined（后端新建必配场景的 400 兜底）。
+ */
+function parseSceneLimitsFromCsv(raw?: string | null): SkuSceneLimitItem[] | undefined {
+  const text = String(raw || '').trim();
+  if (!text) return undefined;
+  const out: SkuSceneLimitItem[] = [];
+  for (const part of text.split(/[;；]/)) {
+    const seg = part.trim();
+    if (!seg) continue;
+    const m = seg.match(/^(.+?)[:：](\d+)$/);
+    if (!m) continue;
+    const qty = Number(m[2]);
+    if (!Number.isInteger(qty) || qty <= 0) continue;
+    consumeDictRuntimeEpoch();
+    const name = m[1].trim();
+    const opt = dictOptions('device_scene_type').find((o) => o.value === name || o.label === name);
+    out.push({ sceneType: opt?.value || name, maxQty: qty });
+  }
+  return out.length ? out : undefined;
 }
 
 /** CSV 导入：归属标签→键值（直营→DIRECT；未分类/空→undefined 不覆盖） */
@@ -759,8 +831,14 @@ const form = reactive({
   storageType: undefined as string | undefined,
   nearExpiryPriceCents: undefined as number | undefined,
   // CB-036：新建默认直营（丰e足食锚点：直营为主的主数据以直营为默认口径）；编辑随行加载
-  operationScope: ''
+  operationScope: '',
+  // CB-049 扩展：商品×场景上架限额（商品必须至少配一个场景）
+  sceneLimits: [] as Array<{ sceneType: string; maxQty: number | undefined }>
 });
+
+function addSceneLimitRow() {
+  form.sceneLimits.push({ sceneType: '', maxQty: undefined });
+}
 
 const skuEmptyText = computed(() => {
   const filtered = keyword.value.trim() || categoryFilter.value.trim() || scopeFilter.value.trim();
@@ -985,6 +1063,10 @@ function openEdit(row?: SkuCatalog) {
     form.storageType = row.storageType || 'AMBIENT';
     form.nearExpiryPriceCents = row.nearExpiryPriceCents;
     form.operationScope = row.operationScope || '';
+    form.sceneLimits = (row.sceneLimits || []).map((l) => ({
+      sceneType: l.sceneType,
+      maxQty: l.maxQty
+    }));
   } else {
     form.existing = false;
     form.skuId = '';
@@ -1011,6 +1093,7 @@ function openEdit(row?: SkuCatalog) {
     form.storageType = 'AMBIENT';
     form.nearExpiryPriceCents = undefined;
     form.operationScope = 'DIRECT';
+    form.sceneLimits = [{ sceneType: '', maxQty: undefined }];
   }
   editDialog.value = true;
 }
@@ -1114,6 +1197,19 @@ async function saveEdit() {
     ElMessage.warning('请填写有效售价');
     return;
   }
+  // CB-049 扩展：商品必须至少配一个投放场景与上架上限；同场景不得重复
+  if (form.sceneLimits.some((r) => !r.sceneType || !r.maxQty)) {
+    ElMessage.warning('场景限额有未填完整的行：请选择场景并填写上限');
+    return;
+  }
+  if (!form.sceneLimits.length) {
+    ElMessage.warning('请至少配置一个投放场景与上架上限');
+    return;
+  }
+  if (new Set(form.sceneLimits.map((r) => r.sceneType)).size !== form.sceneLimits.length) {
+    ElMessage.warning('场景限额重复：同一场景只保留一条');
+    return;
+  }
   const priceCents = yuanToCents(form.priceYuan);
   if (priceCents == null || priceCents <= 0) {
     ElMessage.warning('请填写有效售价');
@@ -1154,7 +1250,8 @@ async function saveEdit() {
       blockSaleDaysBeforeExpiry: form.blockSaleDaysBeforeExpiry,
       storageType: form.storageType,
       nearExpiryPriceCents: form.nearExpiryPriceCents,
-      operationScope: form.operationScope || undefined
+      operationScope: form.operationScope || undefined,
+      sceneLimits: form.sceneLimits.map((r) => ({ sceneType: r.sceneType, maxQty: r.maxQty! }))
     };
     let updated: SkuCatalog;
     if (form.existing) {
