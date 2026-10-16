@@ -2,7 +2,8 @@
 
 > **唯一事实源**。开审计基线 `9911a2ee`；经 `597e9a06` 并入 origin/dev 后，当前代码基线 = commit `3d627ec1`（= 本分支与 dev 的 merge-base，2026-10-13 时 dev tip；工作分支 `worktree-audit-pre-launch`）。
 > 纪律：不采信自报绿——每条"已修"必须 file:line + 实跑证据；"判非缺陷"同样必须给证据。
-> 🔴 **2026-10-16 漂移对账**：dev 已前进至 `d397b410`（+82 提交），本台账的 file:line 锚点有 61 条行号漂移、8 条需重判，且 15 条"已修"在 dev 上**尚未合入**（dev 无任何 `AU-` 标记）。逐条结论与 dev 侧问题（含 Flyway V346 号段撞车）见 `docs/AUDIT_DEV_DRIFT_RECONCILIATION_2026-10-16.md`。引用本台账前先看该报告。
+> 🔴 **2026-10-16 漂移对账**：dev 已前进至 `d397b410`（+82 提交），本台账的 file:line 锚点有 61 条行号漂移、8 条需重判，且 20 条"已修"在 dev 上**尚未合入**（dev 无任何 `AU-` 标记；原记 15 条系按台账散文统计，已改以 git 流水为准——见对账报告 DEV-03 教训）。逐条结论与 dev 侧问题（含 Flyway V346 号段撞车）见 `docs/AUDIT_DEV_DRIFT_RECONCILIATION_2026-10-16.md`。引用本台账前先看该报告。
+> ✅ **2026-10-16 修复已移植落主干（DC-28 选 (a)）**：20 条按 dev 新版语义重做后合入——AU-133 = `6d30fe83`（迁移改号 V369，避开 DEV-01 撞号），其余 19 条 = `43ba1aee`…`d6137af8` 共 11 个批次提交。合入前证据：`mvn -pl services/trade-service,services/jiangyi-gateway -am verify` 全绿 + `node scripts/pre-push-ci-preflight.mjs` 全绿。逐条对照见文末「2026-10-16 移植落 dev 销账」。
 > 等级：P0=当前即资损/安全事件 ｜ P1=接真前必修或现存实质功能缺陷 ｜ P2=质量 ｜ P3=债务。
 > 处置：待修 / 修复中 / 已回归 / 判非缺陷 / 挂起(阻塞原因) / 待拍板。
 
@@ -112,7 +113,7 @@
 | DC-25    | OpsAnalytics footfall 无数据范围入参，线级管理员看全网聚合——有意 vs 缺口                                                                                                                                                                                                                                                                                      | Track B-9 存疑④                                                                                                                                                                                            |
 | DC-26    | V62 内嵌 SKU-TEA-5839（东方树叶茉莉花茶335ml，真实商品形态种子）不在 V344 清理锚点、全仓仅 V62 自身引用——fresh 生产库重建后会作为唯一内嵌商品长出来：属试点运营真实商品（保留并停止此类种子）还是漏网（补清理迁移；**⚠️2026-10-16 更新：dev 已占 V346–V368，V346 号段与本审计 AU-133 修复撞号——下一空号 V369**）                                                                                               | dev V344 覆盖亲验时发现（10-13 午 merge 对齐）                                                                                                                                                             |
 | DC-27    | 重力/云端识别残留（AU-134）处置二选一：**(a) 立即收口**=给 `settlement.recognition_mode` 加值域白名单（只允许 VISION）+ 把该键纳入 `FUND_GUARDED_KEYS`，残留代码留待分批删；**(b) 按拍板整体删**=批 2（重力兜底+同步识别分支）+批 3（vision-service 整目录+compose/env/告警）+批 6（旧视频链透传字段）一次动工，改动面大且要同步删钉住旧路径的用例（铁律 62） | 本审计实测退役进度与 2026-10-11 拍板不一致时发现；上线前必须定性（残留属技术债还是活风险面）                                                                                                               |
-| **DC-28** | **20 条已落修复的落地去向**（12 个 fix 提交：AU-006/007/038/039/040/047/048/060/061/074/075/076/080/087/088/090/110/111/124/133；⚠️AU-077 不在其中——它是「推翻存量已修自报」的待修项）：dev 上 `git grep AU-` = 0 命中，即这 20 条修复只活在 `worktree-audit-pre-launch`。选项 **(a)** 分批合入 dev（其中 AU-090/110/111/060/061 因 dev 重写了 `ReplenishmentService`(+116/−81)/`MerchantReplenishmentService`(+33/−320)/`CouponService`(+46/−35)/`DeviceReportController`(+43/−0)，**必须在 dev 新版重做而非机械 merge**）；**(b)** 整体废弃、dev 冻结后重审重修（成本=20 条重做 + 6 条安全类裸奔窗口） | 2026-10-16 漂移对账（`docs/AUDIT_DEV_DRIFT_RECONCILIATION_2026-10-16.md` §2 DEV-03/§4）。**注**：AU-133 无论选哪条都要立刻单独合 dev——它既不解会让真机联调第一天卡死，且与本分支 V346 撞号（DEV-01） |
+| **DC-28** | **20 条已落修复的落地去向**（12 个 fix 提交：AU-006/007/038/039/040/047/048/060/061/074/075/076/080/087/088/090/110/111/124/133；⚠️AU-077 不在其中——它是「推翻存量已修自报」的待修项）：dev 上 `git grep AU-` = 0 命中，即这 20 条修复只活在 `worktree-audit-pre-launch`。选项 **(a)** 分批合入 dev（其中 AU-090/110/111/060/061 因 dev 重写了 `ReplenishmentService`(+116/−81)/`MerchantReplenishmentService`(+33/−320)/`CouponService`(+46/−35)/`DeviceReportController`(+43/−0)，**必须在 dev 新版重做而非机械 merge**）；**(b)** 整体废弃、dev 冻结后重审重修（成本=20 条重做 + 6 条安全类裸奔窗口） | 2026-10-16 漂移对账（`docs/AUDIT_DEV_DRIFT_RECONCILIATION_2026-10-16.md` §2 DEV-03/§4）。**注**：AU-133 无论选哪条都要立刻单独合 dev——它既不解会让真机联调第一天卡死，且与本分支 V346 撞号（DEV-01） **⇒ 2026-10-16 已选 (a) 完成**：19 条移植 + AU-133 单独合入，AU-090/060/061/087/088/110/111 按 dev 新版重做（非机械 merge），详见文末销账表。 |
 | **DC-29** | **dev 82 提交的新增资金域是否在上线范围内**：V346–V368 共 23 条迁移，含补货员钱包（V359）、押金月度自动退还（V360/V365）、佣金随退款冲正（V361）、渠道退款重试（V364）、商户费用台账/机器账单（V355/V356）、外部渠道对账导入（V347）。dev 侧 `93bf2697` 自报"上线前审计 🔴 修复（6 项阻断）"属**内联自评**，无负向测试先行留痕 ⇒ 未达本审计"不采信自报绿"纪律 | 面积大于原 Track B-1。若这些能力在上线范围，须补 B-1 扩展审计（DEV-04）；若不在，须确认默认关闭且迁移不激活资损路径 |
 
 ## 轨道状态
@@ -143,3 +144,27 @@
 | —      | merge origin/dev（10-13 午 9 提交：V344/345 种子守卫、监控接线四连修、lint 豁免 .qoder、admin keep-alive+产物重建） | 本次合并     | —                                                                                                                      | 合并后 preflight 绿；AU-004 对照更新+新立 DC-26                                                                                                                                                                                                                                                    |
 
 下一步 🔴 **立即项（2026-10-16 漂移对账新增，详见 `docs/AUDIT_DEV_DRIFT_RECONCILIATION_2026-10-16.md`）**：**DEV-01** 本分支 `V346__jiangyi_device_identifier_nullable.sql` 与 dev `V346__drop_replenishment_request_and_monthly_close_task.sql` **同号撞车**（合并即 Flyway "more than one migration with version 346"，后端启动失败）⇒ AU-133 修复改号 **V369** 单独合 dev；**DEV-02** dev 上 `V332__jiangyi_device.sql:22` 的 `identifier NOT NULL` 仍未修，真机联调第一步仍 500；**DEV-03/DC-28** 20 条已落修复（12 个 fix 提交）在 dev 上 0 命中；**DEV-04/DC-29** dev +82 提交新增 23 条迁移的整套资金域（补货员钱包/押金月度退还/佣金冲正/渠道退款重试/机器账单/外部渠道对账导入）未经本六轨道审计。原队列（2026-10-13 口径）：**批八配置门禁 ✅（AU-074/075/076/080/124 全清，8a/8b/8c/8d）** → **批九 ✅（AU-038/039/040 接真前三连，5134f238）** → **批十 ✅（AU-133，d7a676ae，运行期亦已复验）** → C-admin 实测（**当前阻断**：本机另一会话在共享 compose project `ai-cabinet` 上反复重建 trade-service，被测版本无法稳定持有；需用户处置后继续 F1 后半→F2–F8）→ C-mp 两端 → Track F 余项 → 收尾报告。F1 剩余 P2/P3（AU-077 护栏死代码 BEL 字符、AU-078 文档三处过时、AU-081~085）不在批八范围，登记随批/延后，收尾时进拍板清单。新增待拍板：**DC-27**（重力/云端识别残留处置二选一，AU-134）、**AU-135**（测试栈持真将邑凭据 ⇒ 绑定点击产生外部副作用，建议加环境闸门）。
+
+
+## 2026-10-16 移植落 dev 销账（DC-28 收口）
+
+基线 = `origin/dev` `d397b410`。移植方式：在独立 worktree 把 12 个 fix 提交的 `services scripts infra` 子集 `git apply --3way` 到 dev 基线，冲突与语义漂移逐条按 dev 新版重做，再按原批次分提交（消息内注明源提交哈希）。
+
+| 源提交（审计分支） | dev 新提交 | AU | dev 侧适配 |
+| --- | --- | --- | --- |
+| `d7a676ae` | `6d30fe83` | AU-133 | 迁移改号 V346→**V369**（DEV-01）；IT + `check-docker-tests-guarded` 登记随分支进主干 |
+| `bc82afbc` | `43ba1aee` | AU-006/007 | 干净套用 |
+| `bbd5e272` | `f0d3c444` | AU-060 | `DeviceReportController` 与 AU-061 同文件取并集；`DeviceAuthIT` 改为 `@MockBean CommandTracker`——原用例隐式依赖宿主 Redis 且 dev 栈 Redis 带 `requirepass`，会随环境凭据假红 |
+| `705aa4a5` | `74b3d771` | AU-087/088 | 干净套用 |
+| `dc817225` | `8d1a3b58` | AU-110/111 | dev 重写过的 `CouponService`/`ReplenishmentService` 上下文匹配，无冲突 |
+| `c4db7052` | `ccae336b` | AU-090 | **按 dev 新版重做**：dev 已整链删除 merchant 要货单（`MerchantReplenishmentRequest`/`acceptRequest` 家族，见 V346 迁移），故只保留行级上界 `MAX_REQUESTED_QTY_PER_LINE=1000`，并把「同 SKU 聚合 long 累加 + 夹上限」挂到 dev 现存的 `doSelfInitiateTask`（`MAX_REQUESTED_QTY_PER_SKU=5000`，校验先于建路线/任务/出库）；测试并入 dev 的 `MerchantSelfReplenishTest`（新增 3 例） |
+| `bd1396fb` | `8325f10f` | AU-061 | `CommandTracker` + `CommandTrackerTest` 干净套用；`DeviceReportController` 部分随 AU-060 批 |
+| `83246a87` | `d2957a96` | AU-048 | 含 `feature-flags.json` 资金键注册表同步 |
+| `76ae9cc4` | `daddf0b4` | AU-074/080 | 补搬 `package.json` 门禁登记（新脚本必须同时进 `check:audit-gates`，否则 `check-audit-gates-wiring` 红）——原移植白名单漏了它 |
+| `2f17b14a` | `e678deb7` | AU-075/076 | `.env.production.example` 与 dev 新增 Kafka/Redpanda SASL 段手工合并（dev 此前完全没有 `JIANGYI_*` 与 `AICABINET_PAYOUT_ENCRYPTION_KEY`）；`check-env-placeholders.mjs` 与 AU-074 同文件取并集 |
+| `743787e0` | `51444fb8` | AU-124 | 干净套用 |
+| `5134f238` | `d6137af8` | AU-038/039/040 | 干净套用 |
+
+**未随本批动的项**：AU-077（护栏死代码 BEL 字符，本就登记为待修，非"已修未落地"）；`clients/admin-vue/tests/audit-admin-flows-uat.mjs`（C-admin 运行期驱动器，随任务 #25 在 dev 冻结后另行合入）；DC-27（重力/云端识别残留处置）与 DC-29（dev 新增资金域是否补审）仍待拍板。
+
+**审计分支退场留底**：全过程 26 提交在 `origin/worktree-audit-pre-launch`（含运行期实测驱动器与本轮对账报告），本文档与 15 份分报告 + 证据在 `fd91893a`，代码修复在 `origin/fix/audit-port-guards`；三者均已离机留底，本地审计 worktree 可删。
