@@ -391,163 +391,173 @@
 
     <el-tabs v-model="tab" class="detail-tabs">
       <el-tab-pane label="在售商品" name="slots">
-        <div class="slot-toolbar">
-          <el-button
-            v-hasPermi="['ops:device:edit']"
-            size="small"
-            type="primary"
-            @click="openInvCreate"
-            >上架商品</el-button
-          >
-          <el-button size="small" :icon="Refresh" @click="loadDetail">刷新</el-button>
-          <el-button
-            v-if="canEditPricing"
-            size="small"
-            :loading="resettingPrice"
-            :disabled="!skuCards.length"
-            @click="onResetPricing"
-            >重置价格</el-button
-          >
-        </div>
-        <div class="slot-meta-bar">
-          <span>
-            已上架商品数：<strong>{{ listedSkuCount }}</strong
-            >/{{ MAX_SKUS_PER_DEVICE }}
-          </span>
-          <span class="stockout-tip">
-            缺货口径：当前库存 ≤ 低库存阈值（逐商品可在「编辑库存」调整），推送商户缺货通知。
-          </span>
-        </div>
-        <!--
+        <el-card class="page-card slots-pane-card" shadow="never">
+          <div class="slot-toolbar">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              size="small"
+              type="primary"
+              @click="openInvCreate"
+              >上架商品</el-button
+            >
+            <el-button size="small" :icon="Refresh" @click="loadDetail">刷新</el-button>
+            <el-button
+              v-if="canEditPricing"
+              size="small"
+              :loading="resettingPrice"
+              :disabled="!skuCards.length"
+              @click="onResetPricing"
+              >重置价格</el-button
+            >
+          </div>
+          <div class="slot-meta-bar">
+            <span>
+              已上架商品数：<strong>{{ listedSkuCount }}</strong
+              >/{{ MAX_SKUS_PER_DEVICE }}
+            </span>
+            <span class="stockout-tip">
+              缺货口径：当前库存 ≤ 低库存阈值（逐商品可在「编辑库存」调整），推送商户缺货通知。
+            </span>
+          </div>
+          <!--
             CB-051（2026-10-16 用户拍板）：开门柜无「货道」概念——在售商品=商品卡片，
             数据源 device_sku_inventory（柜×商品库存），卡片上改价（ops:pricing:edit）、
             编辑库存/下架（ops:device:edit，SKU 级端点）；补货/盘点的 slot 记账仅保留在后端语义。
           -->
-        <div v-if="slotsHydrated && skuCards.length" class="sku-cards">
-          <div
-            v-for="card in skuCards"
-            :key="card.skuId"
-            class="sku-card"
-            :class="{ warn: card.stockoutWarn }"
-          >
-            <div class="sku-card-head">
-              <span class="sku-card-brand">{{ card.brand || '未分类品牌' }}</span>
-              <span v-if="card.stockoutWarn" class="sku-card-badge">缺货</span>
-            </div>
-            <div class="sku-card-top">
-              <img v-if="card.imageUrl" :src="card.imageUrl" class="sku-card-img" loading="lazy" />
-              <div v-else class="sku-card-img sku-card-img-empty">无图</div>
-              <div class="sku-card-main">
-                <div class="sku-card-name">{{ card.skuName }}</div>
-                <div class="sku-card-price-row">
-                  <template v-if="pricingRowFor(card.skuId)">
-                    <template v-if="canEditPricing">
-                      <el-input-number
-                        :model-value="pricingRowFor(card.skuId)?.overridePriceCents ?? undefined"
-                        :min="pricingRowFor(card.skuId)?.minPriceCents"
-                        :max="pricingRowFor(card.skuId)?.maxPriceCents"
-                        :precision="0"
-                        :controls="false"
-                        size="small"
-                        class="sku-price-input"
-                        placeholder="跟随基准"
-                        :disabled="pricingSaving[card.skuId] === 'price'"
-                        @change="(v: number | undefined) => onCardPriceChange(card.skuId, v)"
-                      />
-                      <span class="sku-price-base">
-                        基准 {{ yuan(pricingRowFor(card.skuId)?.basePriceCents ?? 0) }}
+          <div v-if="slotsHydrated && skuCards.length" class="sku-cards">
+            <div
+              v-for="card in skuCards"
+              :key="card.skuId"
+              class="sku-card"
+              :class="{ warn: card.stockoutWarn }"
+            >
+              <div class="sku-card-head">
+                <span class="sku-card-brand">{{ card.brand || '未分类品牌' }}</span>
+                <span v-if="card.stockoutWarn" class="sku-card-badge">缺货</span>
+              </div>
+              <div class="sku-card-top">
+                <img
+                  v-if="card.imageUrl"
+                  :src="card.imageUrl"
+                  class="sku-card-img"
+                  loading="lazy"
+                />
+                <div v-else class="sku-card-img sku-card-img-empty">无图</div>
+                <div class="sku-card-main">
+                  <div class="sku-card-name">{{ card.skuName }}</div>
+                  <div class="sku-card-price-row">
+                    <template v-if="pricingRowFor(card.skuId)">
+                      <template v-if="canEditPricing">
+                        <el-input-number
+                          :model-value="pricingRowFor(card.skuId)?.overridePriceCents ?? undefined"
+                          :min="pricingRowFor(card.skuId)?.minPriceCents"
+                          :max="pricingRowFor(card.skuId)?.maxPriceCents"
+                          :precision="0"
+                          :controls="false"
+                          size="small"
+                          class="sku-price-input"
+                          placeholder="跟随基准"
+                          :disabled="pricingSaving[card.skuId] === 'price'"
+                          @change="(v: number | undefined) => onCardPriceChange(card.skuId, v)"
+                        />
+                        <span class="sku-price-base">
+                          基准 {{ yuan(pricingRowFor(card.skuId)?.basePriceCents ?? 0) }}
+                        </span>
+                        <el-button
+                          v-if="pricingRowFor(card.skuId)?.overridePriceCents != null"
+                          link
+                          size="small"
+                          :loading="pricingSaving[card.skuId] === 'reset'"
+                          @click="onCardPriceReset(card.skuId)"
+                          >恢复基准</el-button
+                        >
+                      </template>
+                      <span v-else class="sku-card-price">
+                        {{ yuan(pricingRowFor(card.skuId)?.effectivePriceCents ?? 0) }}
                       </span>
-                      <el-button
-                        v-if="pricingRowFor(card.skuId)?.overridePriceCents != null"
-                        link
-                        size="small"
-                        :loading="pricingSaving[card.skuId] === 'reset'"
-                        @click="onCardPriceReset(card.skuId)"
-                        >恢复基准</el-button
-                      >
                     </template>
-                    <span v-else class="sku-card-price">
-                      {{ yuan(pricingRowFor(card.skuId)?.effectivePriceCents ?? 0) }}
-                    </span>
-                  </template>
-                  <span v-else class="muted">价格加载中</span>
+                    <span v-else class="muted">价格加载中</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="sku-card-fields">
-              <div>
-                <label>当前库存:</label><strong>{{ card.quantity }}</strong>
+              <div class="sku-card-fields">
+                <div>
+                  <label>当前库存:</label><strong>{{ card.quantity }}</strong>
+                </div>
+                <div><label>商品容量:</label>{{ card.capacity }}</div>
+                <div><label>规格:</label>{{ card.spec || '--' }}</div>
+                <div><label>品牌:</label>{{ card.brand || '--' }}</div>
+                <div><label>商品ID:</label>{{ card.skuId }}</div>
+                <div><label>条形码:</label>{{ card.barcode || '--' }}</div>
+                <div>
+                  <label>上架时间:</label
+                  >{{ card.shelvedAt ? formatDateTime(card.shelvedAt) : '--' }}
+                </div>
               </div>
-              <div><label>商品容量:</label>{{ card.capacity }}</div>
-              <div><label>规格:</label>{{ card.spec || '--' }}</div>
-              <div><label>品牌:</label>{{ card.brand || '--' }}</div>
-              <div><label>商品ID:</label>{{ card.skuId }}</div>
-              <div><label>条形码:</label>{{ card.barcode || '--' }}</div>
-              <div>
-                <label>上架时间:</label>{{ card.shelvedAt ? formatDateTime(card.shelvedAt) : '--' }}
+              <div class="sku-card-actions">
+                <el-button v-hasPermi="['ops:device:edit']" size="small" @click="openInvEdit(card)"
+                  >编辑库存</el-button
+                >
+                <el-button
+                  v-hasPermi="['ops:device:edit']"
+                  size="small"
+                  type="danger"
+                  plain
+                  @click="onRemoveInventory(card)"
+                  >下架</el-button
+                >
               </div>
-            </div>
-            <div class="sku-card-actions">
-              <el-button v-hasPermi="['ops:device:edit']" size="small" @click="openInvEdit(card)"
-                >编辑库存</el-button
-              >
-              <el-button
-                v-hasPermi="['ops:device:edit']"
-                size="small"
-                type="danger"
-                plain
-                @click="onRemoveInventory(card)"
-                >下架</el-button
-              >
             </div>
           </div>
-        </div>
 
-        <el-empty
-          v-if="slotsHydrated && !skuCards.length"
-          description="暂无在售商品，点上方「上架商品」选品上架"
-          :image-size="64"
-        />
+          <el-empty
+            v-if="slotsHydrated && !skuCards.length"
+            description="暂无在售商品，点上方「上架商品」选品上架"
+            :image-size="64"
+          />
 
-        <!-- CB-051：上架/编辑库存弹窗（SKU 级） -->
-        <el-dialog
-          v-model="invDialogVisible"
-          :title="invMode === 'create' ? '上架商品' : '编辑库存'"
-          width="440px"
-        >
-          <el-form label-width="90px">
-            <el-form-item v-if="invMode === 'create'" label="商品">
-              <el-select
-                v-model="invForm.skuId"
-                filterable
-                placeholder="选择要上架的商品"
-                style="width: 100%"
+          <!-- CB-051：上架/编辑库存弹窗（SKU 级） -->
+          <el-dialog
+            v-model="invDialogVisible"
+            :title="invMode === 'create' ? '上架商品' : '编辑库存'"
+            width="440px"
+          >
+            <el-form label-width="90px">
+              <el-form-item v-if="invMode === 'create'" label="商品">
+                <el-select
+                  v-model="invForm.skuId"
+                  filterable
+                  placeholder="选择要上架的商品"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="sku in availableSkus"
+                    :key="sku.skuId"
+                    :label="`${sku.skuName} (${sku.skuId})`"
+                    :value="sku.skuId"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="当前库存">
+                <el-input-number v-model="invForm.quantity" :min="0" style="width: 100%" />
+              </el-form-item>
+              <el-form-item label="商品容量">
+                <el-input-number v-model="invForm.capacity" :min="0" style="width: 100%" />
+              </el-form-item>
+              <el-form-item label="低库存阈值">
+                <el-input-number v-model="invForm.lowThreshold" :min="0" style="width: 100%" />
+              </el-form-item>
+            </el-form>
+            <template #footer>
+              <el-button @click="invDialogVisible = false">取消</el-button>
+              <el-button type="primary" :loading="invSaving" @click="submitInventory"
+                >保存</el-button
               >
-                <el-option
-                  v-for="sku in availableSkus"
-                  :key="sku.skuId"
-                  :label="`${sku.skuName} (${sku.skuId})`"
-                  :value="sku.skuId"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="当前库存">
-              <el-input-number v-model="invForm.quantity" :min="0" style="width: 100%" />
-            </el-form-item>
-            <el-form-item label="商品容量">
-              <el-input-number v-model="invForm.capacity" :min="0" style="width: 100%" />
-            </el-form-item>
-            <el-form-item label="低库存阈值">
-              <el-input-number v-model="invForm.lowThreshold" :min="0" style="width: 100%" />
-            </el-form-item>
-          </el-form>
-          <template #footer>
-            <el-button @click="invDialogVisible = false">取消</el-button>
-            <el-button type="primary" :loading="invSaving" @click="submitInventory">保存</el-button>
-          </template>
-        </el-dialog>
+            </template>
+          </el-dialog>
 
-        <div v-if="!slotsHydrated" class="muted">在售商品{{ UI_COPY.loading }}</div>
+          <div v-if="!slotsHydrated" class="muted">在售商品{{ UI_COPY.loading }}</div>
+        </el-card>
       </el-tab-pane>
 
       <el-tab-pane label="资产与投放" name="asset">
