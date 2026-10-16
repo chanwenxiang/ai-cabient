@@ -16,6 +16,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -564,9 +566,26 @@ public class RevenueSplitService {
         if (wxTxn == null) {
             return;
         }
-        profitSharingService.submitSplit(split, merchant, wxTxn);
-        log.info("auto submit profit sharing after order increase order={} splitId={} wxTxn={}",
-                order.getOrderId(), split.getSplitId(), wxTxn);
+        // 审计 B2（2026-10-16）：分账 HTTP 不得在本事务（争议改单）内执行——
+        // 事务提交后再提交分账；失败不回滚改单，submitSplit 自身会落 WECHAT_FAILED 供重试。
+        final OrderRevenueSplit splitRef = split;
+        final Merchant merchantRef = merchant;
+        final String wxTxnRef = wxTxn;
+        final String orderIdRef = order.getOrderId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    profitSharingService.submitSplit(splitRef, merchantRef, wxTxnRef);
+                    log.info("auto submit profit sharing after order increase order={} splitId={} wxTxn={}",
+                            orderIdRef, splitRef.getSplitId(), wxTxnRef);
+                }
+            });
+        } else {
+            profitSharingService.submitSplit(splitRef, merchantRef, wxTxnRef);
+            log.info("auto submit profit sharing after order increase order={} splitId={} wxTxn={}",
+                    orderIdRef, splitRef.getSplitId(), wxTxnRef);
+        }
     }
 
     private static String resolveWxTransactionId(CabinetOrder order, OrderRevenueSplit split) {

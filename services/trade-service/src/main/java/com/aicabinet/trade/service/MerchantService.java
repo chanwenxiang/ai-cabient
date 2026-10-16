@@ -245,7 +245,11 @@ public class MerchantService {
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    @Transactional
+    /**
+     * 审计 B2（2026-10-16）：本方法**不再开整体事务**——旧实现把微信分账 HTTP 包在
+     * 事务里（DB 连接被网络 I/O 拖住）。跨阶段串行化由订单分账分布式锁承担
+     * （runWithOrderSplitLock，Redisson 60s）；submitSplit 内部自管三段式短事务。
+     */
     public RevenueSplitDto submitWeChatProfitSharing(Long operatorId, String splitId,
                                                      SubmitProfitSharingRequest request) {
         permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_SPLIT);

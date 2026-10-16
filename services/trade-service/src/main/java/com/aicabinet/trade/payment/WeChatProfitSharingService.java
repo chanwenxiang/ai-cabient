@@ -63,8 +63,35 @@ public class WeChatProfitSharingService {
         return profitSharingProperties.enabled() && profitSharingProperties.mockEnabled();
     }
 
-    @Transactional
+    /**
+     * 提交分账（审计 B2，2026-10-16）：三段式编排，HTTP 调用**不在任何 DB 事务内**执行。
+     * <ul>
+     *   <li>tx1 {@link #prepareSubmit}：校验 + 短路（LEDGER_ONLY / 已提交 / mock）+ 持久化 out_order_no
+     *       （先落库再打微信，崩溃后重试仍复用同一 out_order_no，微信侧按其幂等）；</li>
+     *   <li>无事务：HTTP POST /v3/profitsharing/orders；</li>
+     *   <li>tx2 {@link #finalizeSubmitted} / {@link #finalizeFailed}：落 WECHAT_SUBMITTED / WECHAT_FAILED。</li>
+     * </ul>
+     * 对外契约不变（调用方与测试均钉此签名）。跨阶段串行化依赖调用方的订单分账分布式锁
+     * （MerchantService.runWithOrderSplitLock）；finalize 以 splitId 重读最新行落状态，
+     * 避免跨事务持有过期实体。若 tx2 前进程崩溃：微信已受理但本地仍为旧状态，
+     * 重试走同一 out_order_no，微信按其去重——与旧实现（事务提交失败）风险面相同。
+     */
     public OrderRevenueSplit submitSplit(OrderRevenueSplit split, Merchant merchant, String wxTransactionId) {
+        PreparedSubmission prep = self.prepareSubmit(split, merchant, wxTransactionId);
+        if (prep.terminal()) {
+            return prep.split();
+        }
+        try {
+            JsonNode resp = weChatPayV3Client.post("/v3/profitsharing/orders", prep.body());
+            return self.finalizeSubmitted(prep.split(), prep.wxTransactionId(), resp.path("order_id").asText());
+        } catch (Exception e) {
+            return self.finalizeFailed(prep.split(), prep.wxTransactionId(), e);
+        }
+    }
+
+    /** tx1：校验、短路、持久化 out_order_no、组装请求体。 */
+    @Transactional
+    public PreparedSubmission prepareSubmit(OrderRevenueSplit split, Merchant merchant, String wxTransactionId) {
         if (merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
             throw new IllegalStateException("merchant has no wechatReceiverId");
         }
@@ -82,16 +109,21 @@ public class WeChatProfitSharingService {
             splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
                     .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
                     .set(OrderRevenueSplit::getFailureReason, null));
-            return split;
+            return PreparedSubmission.terminal(split);
         }
         if (WECHAT_SUBMITTED.equals(split.getStatus())) {
-            return split;
+            return PreparedSubmission.terminal(split);
         }
 
         String outOrderNo = split.getWechatOutOrderNo();
         if (outOrderNo == null || outOrderNo.isBlank()) {
             outOrderNo = split.getSplitId();
             split.setWechatOutOrderNo(outOrderNo);
+            // B2：out_order_no 先落库再打微信——重试/崩溃恢复时幂等键不丢
+            splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                    .<OrderRevenueSplit>lambdaUpdate()
+                    .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                    .set(OrderRevenueSplit::getWechatOutOrderNo, outOrderNo));
         }
 
         String trimmedWxTxn = wxTransactionId.trim();
@@ -107,7 +139,7 @@ public class WeChatProfitSharingService {
             splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
                     .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
                     .set(OrderRevenueSplit::getFailureReason, null));
-            return split;
+            return PreparedSubmission.terminal(split);
         }
 
         Map<String, Object> receiver = new LinkedHashMap<>();
@@ -122,29 +154,46 @@ public class WeChatProfitSharingService {
         body.put("out_order_no", outOrderNo);
         body.put("receivers", List.of(receiver));
         body.put("unfreeze_unsplit", true);
+        return new PreparedSubmission(split, body, trimmedWxTxn, false);
+    }
 
-        try {
-            JsonNode resp = weChatPayV3Client.post("/v3/profitsharing/orders", body);
-            split.setWechatTransactionId(trimmedWxTxn);
-            split.setStatus(WECHAT_SUBMITTED);
-            split.setFailureReason(null);
-            String wxOrderId = resp.path("order_id").asText();
-            log.info("wechat profit sharing submitted splitId={} orderId={} wxOrderId={}",
-                    split.getSplitId(), split.getOrderId(), wxOrderId);
-        } catch (Exception e) {
-            split.setStatus("WECHAT_FAILED");
-            split.setWechatTransactionId(trimmedWxTxn);
-            split.setFailureReason(truncate(e.getMessage()));
-            log.warn("wechat profit sharing failed splitId={}", split.getSplitId(), e);
-        }
-        splitRepository.save(split);
+    /** tx2：微信受理成功，落 WECHAT_SUBMITTED（以 splitId 重读最新行，不携带跨事务旧实体）。 */
+    @Transactional
+    public OrderRevenueSplit finalizeSubmitted(OrderRevenueSplit prep, String wxTransactionId, String wxOrderId) {
+        OrderRevenueSplit fresh = splitRepository.findById(prep.getSplitId()).orElse(prep);
+        fresh.setWechatTransactionId(wxTransactionId);
+        fresh.setStatus(WECHAT_SUBMITTED);
+        fresh.setFailureReason(null);
+        log.info("wechat profit sharing submitted splitId={} orderId={} wxOrderId={}",
+                fresh.getSplitId(), fresh.getOrderId(), wxOrderId);
+        splitRepository.save(fresh);
         // 审计批次4（M01）：重提成功后 failure_reason 须真清列——updateById 忽略 null，
         // 不补 wrapper 则上次失败文案残留在库。
         splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
                 .<OrderRevenueSplit>lambdaUpdate()
-                .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                .eq(OrderRevenueSplit::getSplitId, fresh.getSplitId())
                 .set(OrderRevenueSplit::getFailureReason, null));
-        return split;
+        return fresh;
+    }
+
+    /** tx2'：微信受理失败，落 WECHAT_FAILED（异常在此消化，不回滚调用方业务）。 */
+    @Transactional
+    public OrderRevenueSplit finalizeFailed(OrderRevenueSplit prep, String wxTransactionId, Exception cause) {
+        OrderRevenueSplit fresh = splitRepository.findById(prep.getSplitId()).orElse(prep);
+        fresh.setStatus("WECHAT_FAILED");
+        fresh.setWechatTransactionId(wxTransactionId);
+        fresh.setFailureReason(truncate(cause.getMessage()));
+        log.warn("wechat profit sharing failed splitId={}", fresh.getSplitId(), cause);
+        splitRepository.save(fresh);
+        return fresh;
+    }
+
+    /** prepareSubmit 的产出：terminal=true 表示无需 HTTP（短路/mock 已在 tx1 落库）。 */
+    public record PreparedSubmission(OrderRevenueSplit split, Map<String, Object> body,
+                                     String wxTransactionId, boolean terminal) {
+        static PreparedSubmission terminal(OrderRevenueSplit split) {
+            return new PreparedSubmission(split, null, null, true);
+        }
     }
 
     /**
@@ -380,7 +429,10 @@ public class WeChatProfitSharingService {
         }
     }
 
-    @Transactional
+    /**
+     * 重试失败分账。B2：不再包整体事务——旧实现把所有重试连在一个事务里，
+     * HTTP 也在其中；现在每次 submitSplit 自管三段式事务，单条失败不牵连其它。
+     */
     public int retryFailedSplits(List<OrderRevenueSplit> splits, Map<String, Merchant> merchantsById) {
         if (!isApiReady() || splits.isEmpty()) {
             return 0;
