@@ -175,3 +175,41 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 - 实测：dev 库事务内 `BEGIN;`+正文 ⇒ `cols left=0`，`ROLLBACK;` 后仍是 2 列（共享库无副作用）。
 - **Java 侧无需改动**（零引用实证），所以本项不牵动任何测试；V357 本体按铁律 50 不动。
 
+
+## 10. dev 库 flyway history 越序残留 · 定性为「观感」，不单独修（2026-10-16 收尾）
+
+改号后 `flyway_schema_history` 里 `installed_rank` 与 `version` 不再单调。全 378 行实测仅 **3 处越序**：
+
+| installed_rank | version | 上一行 version |
+|---|---|---|
+| 331 | 329 | 333 |
+| 371 | 370 | 372 |
+| 376 | 369 | 377 |
+
+**判「观感」而非「故障」的三条实证**
+1. rank 331 那处**早于本次改号**（V329/V333 属历史越序）⇒ 越序不是这次引入的新病，dev 一直容忍。
+2. 全仓 grep `installed_rank` / `flyway_schema_history`：唯一消费方是 [AdminDataManageService.java:66](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDataManageService.java#L66) 的**禁改表黑名单**，没有任何代码按 rank 顺序判读版本。
+3. trade-service 20:57 启动实测：`Successfully validated 375 migrations` → 应用 V378 → `Started TradeServiceApplication`，零 validate 异常 ⇒ rank 乱序不影响 Flyway 判定（它按 version+checksum 匹配）。
+
+**为什么不「顺手排好」**：`installed_rank` 由 Flyway 在插入时取 max+1，手工重排等于第三次改写共享 dev 库的迁移史，且下次 boot 插新行仍会撞号；更关键的是这会让「dev 库到底跑过什么」这条取证链不可信 —— 本审计纪律的前提就是 history 行是原始证据。
+
+**真正的消法** = 台账已欠的那笔「fresh 全新库重建实测」：空库按 369→370→371→372→…→378 顺序重跑，既验证「git 里那套迁移能从零跑起来」（本轮已静态确认 V370 不依赖 V372 的列，无反向依赖），又顺带产出一份单调干净的 history。重建须在**隔离 compose 项目/独立端口**做（铁律 69：`ai-cabinet-postgres-1` 是跨会话共享库）。
+
+## 11. fresh 全新库重建实测（台账欠账已兑现，2026-10-16 晚）
+
+**做法**：隔离 docker 网络 `aicab-fresh-net` + 两套空 `postgres:16-alpine`（与 compose 同镜像、同 16.15）+ 现网镜像 `ai-cabinet/trade-service:local`（jar 内 `classpath:db/migration` 即 HEAD 交付物）。**不发布主机端口、不接 `ai-cabinet_default`** ⇒ 物理上碰不到共享 dev 库；跑完即整套拆除（`docker ps -a` 零残留，共享栈未动）。
+
+**两轮对照（同一套迁移，只换 `SEED_ENV`）**
+
+| 断言 | `SEED_ENV=none`（生产语义） | `SEED_ENV=local`（dev/uat 语义） |
+|---|---|---|
+| 空库跑到哪 | `Successfully applied 374 migrations, now at version v378`，零 Flyway 报错 | 同 |
+| 版本号唯一 | 除 2 行 R__（version NULL，正常）外无重号 | 同 |
+| `installed_rank` 越序 | **0 处** ⇒ §10 的乱序纯属 dev 手改痕迹，重建即消，不必再去动 history | 0 处 |
+| `sku_catalog` 总数 | **0**（生产空库无任何内嵌商品） | 8（演示夹具按守卫长出） |
+| `SKU-TEA-5839` | 目录 + `aliyun_category_mapping` 均 0 行 ⇒ **V375 生产守卫真清** | 各 1 行 ⇒ **V375 正确跳过** |
+| `refund-retry` / `deposit-monthly-refund` | 均 `enabled=false` | 均 false（V376 **不带** seed_env 守卫，有意：dev 渠道凭据可能是真的） |
+| `install_fee_clawback_enabled` 默认 | `false` | `false` |
+| `line_manager` 两枚死列 | 0 | 0 |
+
+**结论**：「git 里那套迁移能从零起来」这条判据由实跑取得，非文档自报；DC-26（V375）与 DC-29（V376/V377）在两种 seed_env 下均拿到正向+负向实证。附带确认一个上线口径：**生产空库 `sku_catalog=0`**，商品全靠运营/商户登记，没有内嵌在售商品。
