@@ -91,6 +91,12 @@ public class SessionOpenService {
      */
     @Transactional
     public void markOpenDoorFailed(String sessionId, String failReason) {
+        markOpenDoorFailed(sessionId, failReason, null);
+    }
+
+    /** AU-060：reportingDeviceId 非空时须与会话绑定设备一致（将邑转发链透传 token deviceId）。 */
+    @Transactional
+    public void markOpenDoorFailed(String sessionId, String failReason, String reportingDeviceId) {
         if (!distributedLockService.tryLock(SessionService.sessionLifeLockKey(sessionId), 30, 0)) {
             log.warn("mark open door failed skipped busy session={}", sessionId);
             return;
@@ -98,6 +104,13 @@ public class SessionOpenService {
         try {
             ShoppingSession session = repository.findByIdForUpdate(sessionId).orElse(null);
             if (session == null) {
+                return;
+            }
+            // AU-060：设备上报面归属校验——转发链带 deviceId 时，非会话绑定设备的
+            // open-failed 一律拒绝（对齐 door-event 的 DEVICE_MISMATCH 口径）。
+            if (reportingDeviceId != null && !reportingDeviceId.equals(session.getDeviceId())) {
+                log.warn("mark open door failed DEVICE_MISMATCH session={} bound={} reported={}",
+                        sessionId, session.getDeviceId(), reportingDeviceId);
                 return;
             }
             // 状态 CAS：只有「门还没确认打开」的早期态允许标开门失败。SHOPPING 及之后
