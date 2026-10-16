@@ -114,6 +114,10 @@ const SUBJECT_ALIASES = [
   { re: /腾讯微卡|weixiao\.qq\.com/i, id: '腾讯微卡', kind: 'official' },
   // 支付/信用通道官方（official）
   { re: /微信支付分|weixin.?pay.?score/i, id: '微信支付分', kind: 'official' },
+  // CB-047 铺货/陈列模板：开门柜 SaaS 同行 + 设备/软件商（peer）
+  { re: /MySmallShop|mysmallshop/i, id: 'MySmallShop', kind: 'peer' },
+  { re: /ShiMeta|视美泰/i, id: '视美泰ShiMeta', kind: 'peer' },
+  { re: /秒物智能|秒物/i, id: '秒物智能', kind: 'peer' },
   { re: /芝麻先享|芝麻信用|zhima/i, id: '支付宝芝麻先享', kind: 'official' },
   { re: /通联|allinpay/i, id: '通联支付', kind: 'official' },
   { re: /支付宝/i, id: '支付宝', kind: 'official' },
