@@ -5,7 +5,10 @@ import com.aicabinet.trade.domain.JiangyiOrderVideo;
 import com.aicabinet.trade.mapper.JiangyiOrderVideoMapper;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.support.ApiMessages;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -22,7 +25,7 @@ import java.util.Optional;
  * 2026-10-10 CB-024 落库时曾让两个 controller 直调 {@link JiangyiOrderVideoMapper}，
  * 触发该 ArchUnit 规则（会挡住推送），故在此收口。</p>
  *
- * <p>本类只做薄转发，不改语义：幂等 upsert（uk(order_no, serial_num) 冲突整行覆盖）
+ * <p>除归属比对（AU-040）外只做薄转发，不改语义：幂等 upsert（uk(order_no, serial_num) 冲突整行覆盖）
  * 与查询排序规则仍在 Mapper 的 default 方法里，避免口径两处维护。</p>
  *
  * <p>CB-029 追加：{@link #playUrls(long)} 把设备上报的原始地址换成短时效可播放地址
@@ -46,9 +49,21 @@ public class JiangyiOrderVideoService {
     /**
      * §4.2.14 幂等落库：uk(order_no, serial_num) 冲突即整行覆盖（设备重试重报以最后一次为准）。
      * 返回是否新插入（false=更新已有行）。上报时间取服务端当前时刻。
+     *
+     * <p>AU-040：将邑转发链的 {@code deviceId} 取自上报设备自身 token，而 {@code orderNo}
+     * 就是我方 sessionId（免映射枢纽约定）——不比对归属时，任一已激活设备拿他人 orderNo
+     * 上报即可整行覆盖受害者录像（复核证据被偷换/抹除）。会话查不到时不拒：无从证明冲突，
+     * 且不存在受害者行被覆盖，拒了反而把「上报先到、会话后落」变成录像丢失。</p>
      */
     public boolean upsertReport(String orderNo, String deviceId, Integer serialNum,
                                 Integer videoQuantity, List<String> videoUrls) {
+        ShoppingSession session = orderNo == null ? null
+                : shoppingSessionMapper.findById(orderNo.trim()).orElse(null);
+        if (session != null && deviceId != null && !deviceId.isBlank()
+                && !deviceId.equals(session.getDeviceId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    ApiMessages.DEVICE_MISMATCH + "：录像上报设备与会话归属不一致，已拒绝覆盖");
+        }
         return jiangyiOrderVideoMapper.upsertReport(
                 orderNo, deviceId, serialNum, videoQuantity, videoUrls, Instant.now());
     }

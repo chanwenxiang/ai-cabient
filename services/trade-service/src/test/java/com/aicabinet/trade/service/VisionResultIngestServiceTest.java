@@ -320,6 +320,69 @@ class VisionResultIngestServiceTest {
         verify(sessionService, never()).completeAsyncRecognition(any(), any());
     }
 
+    // ---------- 入参值域（审计 AU-038/AU-039）----------
+
+    @Test
+    void ingest_percentFormConfidence_rejected() {
+        // 99.0（百分数当小数上报）在结算侧恒高于所有阈值 ⇒ 低置信转人工的闸被整体绕过；
+        // 契约（VisionRecognitionResultDto javadoc）写明 0~1，越界必须入口拒，不能静默钳成 1.0
+        for (double confidence : new double[]{99.0, 1.0001, -0.5, Double.NaN, Double.POSITIVE_INFINITY}) {
+            VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                    "S-1", DEVICE_ID, "T-1", null,
+                    List.of(new VisionRecognitionResultDto.Item("SKU-A", 1, confidence)),
+                    0.9, false, "QUECTEL-EDGE-1.2", List.of(), "QUECTEL", null);
+
+            ResponseStatusException thrown =
+                    assertThrows(ResponseStatusException.class, () -> service.ingest(request));
+
+            assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+            assertTrue(thrown.getReason().contains("confidence"));
+        }
+    }
+
+    @Test
+    void ingest_overallConfidenceOutOfRange_rejected() {
+        VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                "S-1", DEVICE_ID, "T-1", null,
+                List.of(new VisionRecognitionResultDto.Item("SKU-A", 1, 0.9)),
+                100.0, false, "QUECTEL-EDGE-1.2", List.of(), "QUECTEL", null);
+
+        ResponseStatusException thrown =
+                assertThrows(ResponseStatusException.class, () -> service.ingest(request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+    }
+
+    @Test
+    void ingest_boundaryConfidenceValues_accepted() {
+        // 值域判定不能误伤 0.0/1.0 两个合法端点（0.0 会转人工，1.0 是满置信）
+        for (double confidence : new double[]{0.0, 1.0}) {
+            stubFindById("S-OK", SessionState.RECOGNIZING, SessionState.COMPLETED);
+            VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                    "S-OK", DEVICE_ID, "T-1", null,
+                    List.of(new VisionRecognitionResultDto.Item("SKU-A", 1, confidence)),
+                    confidence, false, "QUECTEL-EDGE-1.2", List.of(), "QUECTEL", null);
+
+            assertTrue(service.ingest(request).accepted(), "confidence=" + confidence + " 应被受理");
+        }
+    }
+
+    @Test
+    void ingest_quantityAboveEntryCap_rejected() {
+        for (int quantity : new int[]{1001, Integer.MAX_VALUE}) {
+            VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                    "S-1", DEVICE_ID, "T-1", null,
+                    List.of(new VisionRecognitionResultDto.Item("SKU-A", quantity, 0.9)),
+                    0.9, false, "QUECTEL-EDGE-1.2", List.of(), "QUECTEL", null);
+
+            ResponseStatusException thrown =
+                    assertThrows(ResponseStatusException.class, () -> service.ingest(request));
+
+            assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+            assertTrue(thrown.getReason().contains("quantity"));
+        }
+    }
+
     // ---------- 辅助 ----------
 
     private RecognitionOutcome capturedResult() {
