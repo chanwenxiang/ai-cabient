@@ -36,7 +36,7 @@
 
 | # | 端 | 项 | 状态 |
 |---|---|---|---|
-| A1 | edge+后端 | ~~P0-2/P0-3（同根）~~ ✅ 主体落地（2026-10-15 拍板 A+B 全做） | P0-2：HTTP 设备凭据一机一密（V367+拦截器+APK 装机页，fleet key 退出设备面）；P0-3：将邑激活制（V366 auth_enabled+未激活告警+突发检测）。二期待真机：控件固件 per-device secret（JIANGYI_GATEWAY_DESIGN.md 7.6） |
+| A1 | edge+后端 | ~~P0-2/P0-3（同根）~~ ✅ 主体落地（2026-10-15 拍板 A+B 全做） | P0-2：HTTP 设备凭据一机一密（V367+拦截器+APK 装机页，fleet key 退出设备面）；P0-3：将邑激活制（V366 auth_enabled+未激活告警+突发检测）。二期待真机：控件固件 per-device secret（JIANGYI_GATEWAY_DESIGN.md 7.6）。**二期开工首个 commit = MQTT 凭据收口**：device flavor 置空默认 MQTT 用户名/密码（现编进 APK，反编译可提取共享凭据）+ 装机页补 MQTT 凭据注入（走 saveSecret 加密通道）+ broker per-device 账号；**触发提前做**：若门店量产部署先于二期开工，先做装机注入短期包垫底（2026-10-16 评估：未量产+分发面小+EMQX 回环绑定，暂不做，成本>敞口） |
 | A2 | 基建 | ~~P1-8 Kafka PLAINTEXT 无 SASL + modelVersion 丢弃~~ ✅ 已完成 | 2026-10-15：监听器并轨 HTTP ingest 口径（modelVersion 必填+deviceId 绑定，9.4-1 一并收口）+ Redpanda SASL/SCRAM（三态实测） |
 | A3 | edge | P1-6 残留：OTA checksum 与下载同通道；P1-7 残留：`usesCleartextTraffic` 未关 | 部分修复 |
 | A4 | 基建 | P1-14 残留：postgres/redis/mysql 等有状态镜像仍浮动 tag | 部分修复 |
