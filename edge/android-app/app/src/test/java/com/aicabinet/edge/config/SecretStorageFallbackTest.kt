@@ -66,9 +66,10 @@ class SecretStorageFallbackTest {
     }
 
     @Test
-    fun `保存被拒后读取回退默认值`() {
+    fun `保存被拒后读取回退构建期默认值`() {
         runCatching { EdgeRuntimeConfig.saveSecret(ctx, "mqtt_password", "prod-pass-abc") }
-        assertEquals("", EdgeRuntimeConfig.mqttPassword(ctx))
+        // 字面量断言（仓纪律：不引 BuildConfig 防恒真式）——mock 构建默认见 build.gradle.kts
+        assertEquals("dev-mqtt-device-pass", EdgeRuntimeConfig.mqttPassword(ctx))
     }
 
     @Test
