@@ -28,13 +28,15 @@ class InvoiceConcurrencyTest {
     @Mock private PermissionService permissionService;
     @Mock private MerchantScopeService merchantScopeService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private com.aicabinet.trade.support.MerchantPortalGuard merchantPortalGuard;
 
     private InvoiceService service;
 
     @BeforeEach
     void setUp() {
         service = new InvoiceService(invoiceRepository, taxProfileRepository, orderRepository,
-                deviceRepository, permissionService, merchantScopeService, distributedLockService);
+                deviceRepository, permissionService, merchantScopeService, distributedLockService,
+                merchantPortalGuard);
     }
 
     @Test
