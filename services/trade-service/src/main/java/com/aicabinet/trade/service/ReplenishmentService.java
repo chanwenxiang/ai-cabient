@@ -1106,8 +1106,13 @@ public class ReplenishmentService {
      */
     @Transactional
     public ReplenishmentTaskDto cancelEmptyTask(Long operatorId, Long taskId) {
-        ReplenishmentTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
+        // AU-111：与 completeTask/checkIn 同款收口——任务锁 + 锁内行锁重查，
+        // 杜绝「并发签到/提交与取消交错读到旧空明细」竞态。
+        return runWithTaskLock(taskId, () -> doCancelEmptyTask(operatorId, taskId));
+    }
+
+    private ReplenishmentTaskDto doCancelEmptyTask(Long operatorId, Long taskId) {
+        ReplenishmentTask task = requireTaskForUpdate(taskId);
         boolean alreadyCancelled = STATUS_CANCELLED.equals(task.getStatus());
         if (STATUS_COMPLETED.equals(task.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_ALREADY_COMPLETED);
