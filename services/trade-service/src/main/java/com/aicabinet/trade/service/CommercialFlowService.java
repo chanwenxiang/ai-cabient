@@ -39,6 +39,7 @@ public class CommercialFlowService {
     private final SessionService sessionService;
     private final ReconciliationService reconciliationService;
     private final DeviceInfoMapper deviceRepository;
+    private final com.aicabinet.trade.config.SecurityProperties securityProperties;
 
     public CommercialFlowService(PermissionService permissionService,
                                  DemoDataService demoDataService,
@@ -47,7 +48,8 @@ public class CommercialFlowService {
                                  ReplenishmentService replenishmentService,
                                  SessionService sessionService,
                                  ReconciliationService reconciliationService,
-                                 DeviceInfoMapper deviceRepository) {
+                                 DeviceInfoMapper deviceRepository,
+                                 com.aicabinet.trade.config.SecurityProperties securityProperties) {
         this.permissionService = permissionService;
         this.demoDataService = demoDataService;
         this.warehouseService = warehouseService;
@@ -56,9 +58,19 @@ public class CommercialFlowService {
         this.sessionService = sessionService;
         this.reconciliationService = reconciliationService;
         this.deviceRepository = deviceRepository;
+        this.securityProperties = securityProperties;
     }
 
     public CommercialFlowRunResult runFullFlow(Long operatorId, CommercialFlowRunRequest request) {
+        // AU-124：一键跑通会造演示供应商/路线并写真实订单结算+对账——只允许在
+        // 演示编排模式（mock-enabled=true，dev）运行；prod/staging 该开关恒 false
+        // （compose 环境层钉死 + ProductionStartupValidator 双保险），误触即生产脏数据。
+        if (!securityProperties.mockEnabled()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "commercial-flow 一键跑通仅限演示编排（aicabinet.security.mock-enabled=true）；"
+                            + "prod/staging 会写入真实订单/对账数据，已运行期拒绝");
+        }
         permissionService.requirePermission(operatorId, "ops:admin");
         List<CommercialFlowStepDto> steps = new ArrayList<>();
         DemoDataService.DemoContext demo = demoDataService.ensureDemoData();
