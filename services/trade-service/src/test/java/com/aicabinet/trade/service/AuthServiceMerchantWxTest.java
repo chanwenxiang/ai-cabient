@@ -178,6 +178,7 @@ class AuthServiceMerchantWxTest {
         UserInfo me = merchant();
         me.setWxOpenId(OPEN_ID);
         when(userInfoRepository.findByWxOpenId(OPEN_ID)).thenReturn(Optional.of(me));
+        when(userInfoRepository.findById(MERCHANT_ID)).thenReturn(Optional.of(me)); // requireActiveAccount
         when(jwtService.createToken(eq(MERCHANT_ID), anyString())).thenReturn("jwt-token");
 
         LoginResponse resp = service.merchantWxLogin(new WxLoginRequest("code", null, null));
@@ -194,6 +195,7 @@ class AuthServiceMerchantWxTest {
         me.setWxOpenId(OPEN_ID);
         me.setTotpEnabled(true);
         when(userInfoRepository.findByWxOpenId(OPEN_ID)).thenReturn(Optional.of(me));
+        when(userInfoRepository.findById(MERCHANT_ID)).thenReturn(Optional.of(me)); // requireActiveAccount
         when(jwtService.createTwoFactorChallengeToken(MERCHANT_ID)).thenReturn("challenge");
 
         LoginResponse resp = service.merchantWxLogin(new WxLoginRequest("code", null, null));

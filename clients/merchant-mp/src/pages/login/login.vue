@@ -224,13 +224,17 @@ async function onLogin() {
     persistCredentials();
     await finishLoginFlow();
     // CB-048：密码登录成功后静默绑定当前微信（幂等；换微信号重登即换绑）。
-    // 失败不阻断登录（如该微信已绑其它账号 → 409，下次密码登录再试）。
-    try {
-      const bindCode = await wxLoginCode();
-      await merchantWxBind(bindCode);
-    } catch {
-      /* 绑定失败静默：下次密码登录再试 */
-    }
+    // 失败不阻断登录（如该微信已绑其它账号 → 409，下次密码登录再试）；
+    // fire-and-forget：绑定不阻塞进工作台（页面卸载后 uni.request 照常完成）。
+    void (async () => {
+      try {
+        const bindCode = await wxLoginCode();
+        await merchantWxBind(bindCode);
+      } catch {
+        /* 绑定失败静默：下次密码登录再试 */
+      }
+    })();
+    uni.switchTab({ url: '/pages/home/home' });
   } catch (e) {
     // L2-2：连续失败后需图形验证码；验证码一次性消费，失败后必须刷新
     captchaRequired.value = true;
