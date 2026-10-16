@@ -666,6 +666,8 @@ public class SystemConfigService {
         if (FUND_GUARDED_KEYS.contains(key)) {
             validateFundKeyValue(key, value);
         }
+        // AU-134：结算识别方式值域闸门（只收 VISION），与资金闸并列、同样零落库。
+        assertConfigValueAllowed(key, value);
         java.util.Optional<SystemConfig> existing = repository.findByIdForUpdate(key);
         // 覆盖前先留旧值：这才是「版本」的全部信息量（写入后旧值即不可追）。
         String oldValue = existing.map(SystemConfig::getConfigValue).orElse(null);
@@ -683,6 +685,25 @@ public class SystemConfigService {
         recordChangeIfEnabled(key, created ? null : oldValue, saved.configValue(),
                 operatorId, CONFIG_ACTION_UPSERT);
         return saved;
+    }
+
+    /**
+     * 写侧值域闸门（AU-134/DC-27 收口）。
+     *
+     * <p>识别口径 2026-10-11 已拍板为「柜机端侧识别」一种，重力融合属已退役链的残留代码。
+     * 残留本身不动生产（非端侧柜买不了），但**能被配活**：一旦把本键写成 {@code VISION_GRAVITY}，
+     * 测试就能在端侧识别链根本没跑通的情况下拿到「结算成功」的绿——F1 实测阶段已实证过一次
+     * （拿 VISION_GRAVITY + gravityDeltasJson 凑出结算，后从驱动脚本删除）。故在唯一的写入口拦死。
+     */
+    private static void assertConfigValueAllowed(String key, String value) {
+        if (!SETTLEMENT_RECOGNITION_MODE.equals(key)) {
+            return;
+        }
+        String normalized = value == null ? "" : value.trim();
+        if (!RECOGNITION_MODE_VISION.equalsIgnoreCase(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "结算识别方式只支持 VISION（柜机端侧识别）：重力/云端识别链已退役，不可配活");
+        }
     }
 
     @Transactional
