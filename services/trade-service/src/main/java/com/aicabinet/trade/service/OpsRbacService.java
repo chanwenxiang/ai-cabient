@@ -460,8 +460,14 @@ public class OpsRbacService {
         user.setName(request.name().trim());
         if (request.status() != null && !request.status().isBlank()) {
             String status = normalizeAccountStatus(request.status());
-            if (INACTIVE.equals(status) && userId.equals(operatorId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_DISABLE_SELF);
+            if (INACTIVE.equals(status)) {
+                if (userId.equals(operatorId)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_DISABLE_SELF);
+                }
+                // C16（AU-047）：与 disableOperator 对齐——PUT 旁路不得禁用超级管理员账号
+                if (userHasRoleKey(userId, ADMIN)) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "不允许禁用/重置超级管理员账号");
+                }
             }
             user.setStatus(status);
         }

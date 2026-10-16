@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -351,5 +352,107 @@ class MerchantWithdrawConcurrencyTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.merchantApply(9L, 10_000L, "REQ-X", "M-9"));
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
+    /**
+     * AU-006（审计 B-1 F-01）：requestNo 幂等命中必须校验归属+金额。
+     * 命中「他人商户的单」时既不能返回其 DTO（跨租户泄露金额/收款方/打款流水号），
+     * 也不能把本方请求静默吞掉 —— 只能显式 409 让调用方换单号。
+     */
+    @Test
+    void persistApply_idempotentHitForeignMerchant_rejectedAndNotRevealed() {
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setMerchantName("商户1");
+        MerchantWalletAccount account = new MerchantWalletAccount();
+        account.setMerchantId("M-1");
+        account.setBalanceCents(100_000L);
+        account.setFrozenCents(0L);
+
+        MerchantWithdrawRequest foreign = new MerchantWithdrawRequest();
+        foreign.setRequestId(555L);
+        foreign.setRequestNo("REQ-TAKEN");
+        foreign.setMerchantId("M-2");
+        foreign.setMerchantName("商户2");
+        foreign.setAmountCents(20_000L);
+        foreign.setFeeCents(0L);
+        foreign.setStatus("PAID");
+        foreign.setPayChannel("MOCK");
+
+        when(merchantWalletService.ensureAccount("M-1")).thenReturn(account);
+        when(withdrawMapper.sumAmountByMerchantSince(eq("M-1"), any())).thenReturn(0L);
+        when(withdrawMapper.findByRequestNo("REQ-TAKEN")).thenReturn(Optional.of(foreign));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.persistWithdrawApplication(merchant, 10_000L, "REQ-TAKEN", 1L));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(withdrawMapper, never()).insert(any());
+    }
+
+    /** AU-006 正向面：同商户同金额的重放仍是幂等返回自身单（既有语义不得被归属校验误伤）。 */
+    @Test
+    void persistApply_idempotentHitSameMerchantSameAmount_replaysOwnDto() {
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setMerchantName("商户1");
+        MerchantWalletAccount account = new MerchantWalletAccount();
+        account.setMerchantId("M-1");
+        account.setBalanceCents(100_000L);
+        account.setFrozenCents(0L);
+
+        MerchantWithdrawRequest own = new MerchantWithdrawRequest();
+        own.setRequestId(555L);
+        own.setRequestNo("REQ-SAME");
+        own.setMerchantId("M-1");
+        own.setMerchantName("商户1");
+        own.setAmountCents(10_000L);
+        own.setFeeCents(0L);
+        own.setStatus("PAID");
+        own.setPayChannel("MOCK");
+
+        when(merchantWalletService.ensureAccount("M-1")).thenReturn(account);
+        when(withdrawMapper.sumAmountByMerchantSince(eq("M-1"), any())).thenReturn(0L);
+        when(withdrawMapper.findByRequestNo("REQ-SAME")).thenReturn(Optional.of(own));
+
+        MerchantWithdrawService.PayoutGate gate =
+                service.persistWithdrawApplication(merchant, 10_000L, "REQ-SAME", 1L);
+
+        assertFalse(gate.shouldPayout());
+        assertEquals(555L, gate.dto().requestId());
+        assertEquals("M-1", gate.dto().merchantId());
+        verify(withdrawMapper, never()).insert(any());
+    }
+
+    /**
+     * AU-007（审计 B-1 F-02）：cancelFailed 的状态守卫必须在<b>锁内重查</b>。
+     * 场景：锁前快照是 FAILED，持锁等待窗口内并发 payout 已完成（库内 PAID）——
+     * 若按陈旧快照放行，会对 PAID 单重复 releaseFrozen，商户可提现余额虚增（资损）。
+     */
+    @Test
+    void cancelFailed_rereadsStatusInsideLock_paidNotReleased() {
+        MerchantWithdrawRequest stale = new MerchantWithdrawRequest();
+        stale.setRequestId(88L);
+        stale.setMerchantId("M-1");
+        stale.setAmountCents(10_000L);
+        stale.setStatus("FAILED");
+
+        MerchantWithdrawRequest fresh = new MerchantWithdrawRequest();
+        fresh.setRequestId(88L);
+        fresh.setMerchantId("M-1");
+        fresh.setAmountCents(10_000L);
+        fresh.setStatus("PAID");
+
+        when(withdrawMapper.findById(88L)).thenReturn(Optional.of(stale), Optional.of(fresh));
+        when(distributedLockService.tryLock(
+                MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
+                .thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.cancelFailed(1L, 88L, "放弃打款"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(merchantWalletService, never()).releaseFrozen(
+                anyString(), anyLong(), anyString(), anyString(), anyString());
     }
 }

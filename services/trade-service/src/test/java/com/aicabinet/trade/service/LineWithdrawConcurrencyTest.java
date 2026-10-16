@@ -145,4 +145,70 @@ class LineWithdrawConcurrencyTest {
         account.setIsDefault(true);
         return account;
     }
+
+    /**
+     * AU-006（审计 B-1 F-01，线长同构面）：requestNo 幂等命中他人单必须显式 409，
+     * 不得返回他人 DTO，也不得静默吞掉本线长的提现请求。
+     */
+    @Test
+    void persistApply_idempotentHitForeignManager_rejectedAndNotRevealed() {
+        LineManager manager = new LineManager();
+        manager.setManagerId(8L);
+        manager.setManagerName("线长8");
+        LineWalletAccount account = new LineWalletAccount();
+        account.setManagerId(8L);
+        account.setBalanceCents(100_000L);
+        account.setFrozenCents(0L);
+
+        LineWithdrawRequest foreign = new LineWithdrawRequest();
+        foreign.setRequestId(666L);
+        foreign.setRequestNo("REQ-TAKEN");
+        foreign.setManagerId(9L);
+        foreign.setAmountCents(20_000L);
+        foreign.setFeeCents(0L);
+        foreign.setStatus("PAID");
+        foreign.setPayChannel("MOCK");
+
+        when(deviceMapper.selectCount(any())).thenReturn(1L);
+        when(lineWalletService.ensureAccount(8L)).thenReturn(account);
+        when(withdrawMapper.sumAmountByManagerSince(eq(8L), any())).thenReturn(0L);
+        when(withdrawMapper.findByRequestNo("REQ-TAKEN")).thenReturn(Optional.of(foreign));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.persistWithdrawApplication(manager, 10_000L, "REQ-TAKEN", 1L));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(withdrawMapper, org.mockito.Mockito.never()).insert(any());
+    }
+
+    /**
+     * AU-007（审计 B-1 F-02，线长同构面）：cancelFailed 状态守卫必须锁内重查——
+     * 锁前快照 FAILED、锁等待窗口内并发 payout 已置 PAID 时不得再解冻。
+     */
+    @Test
+    void cancelFailed_rereadsStatusInsideLock_paidNotReleased() {
+        LineWithdrawRequest stale = new LineWithdrawRequest();
+        stale.setRequestId(88L);
+        stale.setManagerId(8L);
+        stale.setAmountCents(10_000L);
+        stale.setStatus("FAILED");
+
+        LineWithdrawRequest fresh = new LineWithdrawRequest();
+        fresh.setRequestId(88L);
+        fresh.setManagerId(8L);
+        fresh.setAmountCents(10_000L);
+        fresh.setStatus("PAID");
+
+        when(withdrawMapper.findById(88L)).thenReturn(Optional.of(stale), Optional.of(fresh));
+        when(distributedLockService.tryLock(
+                LineWithdrawService.lineWalletLockKey(8L), 60L, 5L))
+                .thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.cancelFailed(1L, 88L, "放弃打款"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(lineWalletService, org.mockito.Mockito.never()).releaseFrozen(
+                anyLong(), anyLong(), anyString(), anyString(), anyString());
+    }
 }
