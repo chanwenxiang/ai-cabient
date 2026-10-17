@@ -40,11 +40,11 @@
 
 ```powershell
 cd ai-cabinet
-.\scripts\phase-f-gray-launch.ps1 -CheckOnly          # 期望 17/17
+.\scripts\phase-f-gray-launch.ps1 -CheckOnly          # 期望 0 FAIL（项数随灰度柜数浮动；旧「17/17」含 3 项 vision 探测，已随云识别链退役）
 .\scripts\cleanup-test-data.ps1                        # 联调轮次间清零争议/异常
 ```
 
-- Vision：`http://127.0.0.1:8082/health` → `recognizer_available=true`, `mock_enabled=false`
+- 识别：云端 `:8082` 引擎已退役，不再探测；端侧受理链用 `python scripts/devops/verify-vision-result-ingest.py` 验证（需 `-Daicabinet.vision-async.enabled=true`）
 - 三端 dev server 已启动，API 代理指向 `localhost:8080`
 
 ### 1.3 已知坑

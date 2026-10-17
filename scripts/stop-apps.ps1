@@ -1,4 +1,4 @@
-# Stop Step 1 app containers so ports 8080/8081/8082 are free for IDEA local run.
+# Stop Step 1 app containers so ports 8080/8081 are free for IDEA local run.
 # Infra (postgres, emqx, minio, ...) keeps running.
 
 $ErrorActionPreference = "Stop"
@@ -10,9 +10,9 @@ $compose = @(
     "--profile", "apps"
 )
 
-Write-Host "==> Stopping app containers (trade / device / vision)..."
+Write-Host "==> Stopping app containers (trade / device)..."
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-docker @compose stop trade-service device-service vision-service 2>&1 | Out-Null
+docker @compose stop trade-service device-service 2>&1 | Out-Null
 $ErrorActionPreference = $prevEap
-Write-Host "    done (ports 8080/8081/8082 free for IDEA)"
+Write-Host "    done (ports 8080/8081 free for IDEA)"

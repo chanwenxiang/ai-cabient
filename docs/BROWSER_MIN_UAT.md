@@ -77,10 +77,10 @@ cd ai-cabinet
 
 | ID | 命令 / 检查 | 通过标准 |
 |----|-------------|----------|
-| S-01 | `.\scripts\phase-f-gray-launch.ps1 -CheckOnly` | 17/17 PASS |
+| S-01 | `.\scripts\phase-f-gray-launch.ps1 -CheckOnly` | 0 FAIL（项数随灰度柜数浮动；旧「17/17」含 3 项 vision 探测，已随云识别链退役） |
 | S-02 | `.\scripts\e2e-fund-safety.ps1` | 全部 TC PASS |
 | S-03 | `.\scripts\e2e-shopping.ps1` | 购物闭环 PASS |
-| S-04 | `GET http://127.0.0.1:8082/health` | `recognizer_available=true`（或记录 BLOCK 原因） |
+| S-04 | `python scripts/devops/verify-vision-result-ingest.py`（端侧结果受理契约；旧 `GET :8082/health` 随 vision-service 退役删除） | 断言链全 PASS（需 `-Daicabinet.vision-async.enabled=true` + 真实栈，否则记 BLOCK 原因） |
 | S-05 | `.\scripts\run-api-tests.ps1` | 核心接口 PASS（已知 409 记 SKIP+原因） |
 | S-06 | 联调轮次间 `.\scripts\cleanup-test-data.ps1` | 无残留争议阻塞下一轮 |
 

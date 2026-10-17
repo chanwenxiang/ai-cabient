@@ -278,16 +278,19 @@ Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml
 
 | 脚本 | 覆盖 |
 |------|------|
-| `verify-local.ps1` | 健康 + 购物；可选 Vision/补货/争议等开关 |
+| `verify-local.ps1` | 健康 + 购物；可选补货/争议/支付宝/支付分等开关 |
 | `verify-full.ps1` | 编译 + admin 构建 + E2E |
 | `e2e-shopping.ps1` | 开门→关门→结算（`WECHAT\|ALIPAY\|BALANCE`） |
-| `e2e-dispute-recognition.ps1` | force need_review → 争议 |
+| `e2e-mqtt-shopping.ps1` | MQTT 真设备链购物 |
+| `create-open-dispute.ps1` | 造一条 OPEN 识别争议工单（争议 UI UAT 的种子，幂等） |
 | `e2e-replenishment.ps1` | 补货闭环 |
 | `e2e-three-end.ps1` | 三端 API 矩阵 |
-| `e2e-full-flow-milk.ps1` | 采购→仓→补货→购物→分账 |
 | `e2e-fund-safety.ps1` | 资金安全/幂等 |
 | `e2e-*-refund*.ps1` | 退款与库存回滚 |
-| `e2e-demo-smoke.ps1` | 演示烟雾 |
+
+> 旧云识别/录像链专用脚本（`e2e-full-flow-milk.ps1` / `e2e-demo-smoke.ps1` / `e2e-dispute-recognition.ps1` /
+> `e2e-vision-*.ps1` / `seed-demo-shopping-video.ps1`）已随 vision-service 退役删除（DC-27 批 3），
+> 争议种子改用 `create-open-dispute.ps1`。
 
 ### 9.3 UI（必须真实浏览器；优先 Playwright）
 

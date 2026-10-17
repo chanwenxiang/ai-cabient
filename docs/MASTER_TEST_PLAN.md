@@ -41,7 +41,9 @@
 
 ### 0.4 环境标签（结果必须带）
 
-`env:docker-full | env:local` × `pay:mock | pay:live` × `vision:mock | vision:端侧` × `door:sim | door:mqtt-real` × `client:h5 | client:mp-weixin`
+`env:docker-full | env:local` × `pay:mock | pay:live` × `vision:sim（模拟器出结果）| vision:端侧（将邑/第三方直报）` × `door:sim | door:mqtt-real` × `client:h5 | client:mp-weixin`
+
+> 云端识别引擎（`vision-service`）已于 2026-10-11 退役，`vision:mock` 这一取值随之作废；历史轮次里已写下的 `vision:mock` 标签保留不改（证据不涂改）。
 
 ---
 
@@ -51,17 +53,17 @@
 
 | 模式 | 命令 | trade 端口 |
 |------|------|-----------|
-| IDEA 本地 + Docker 基础设施（推荐） | `docker compose -p ai-cabinet -f infra/docker-compose.yml up -d`，再 IDEA 起 trade/device/vision/simulator | 8080 |
+| IDEA 本地 + Docker 基础设施（推荐） | `docker compose -p ai-cabinet -f infra/docker-compose.yml up -d`，再 IDEA 起 trade/device/simulator（识别无云端服务） | 8080 |
 | 全栈 Docker | `.\docker-up.ps1` | 18080 |
 
-必启：Postgres **15433** · Redis **6379**（进 health）· EMQX **11883** · MinIO **9000/19000** · trade **8080**（`/actuator/health` 须 UP，依赖 Redis+vision）· device **8081** · vision **8082**（`/health` 含 `recognizer_available`）· 模拟器参数 `CAB-001`。
+必启：Postgres **15433** · Redis **6379**（进 health）· EMQX **11883** · MinIO **9000/19000** · trade **8080**（`/actuator/health` 须 UP，依赖 DB+Redis）· device **8081** · 模拟器参数 `CAB-001`；识别走端侧上报 `/internal/v1/vision/edge-results`（本地由模拟器或脚本直报，云端识别引擎 8082 已退役）。
 三端入口：consumer H5 `:3002` · merchant H5 `:3001` · admin 走 Gateway `http://localhost/admin/index.html`（或直连 `:8080/admin/index.html`）。
-已知坑：trade health DOWN 先查 Redis 6379 与 vision 8082；勿 Docker 全栈与 IDEA trade 双跑。
+已知坑：trade health DOWN 先查 Redis 6379 与 Postgres 15433；勿 Docker 全栈与 IDEA trade 双跑。
 
 ### 1.2 预检（每轮开始前）
 
 ```powershell
-.\scripts\phase-f-gray-launch.ps1 -CheckOnly   # 期望 17/17
+.\scripts\phase-f-gray-launch.ps1 -CheckOnly   # 期望 0 FAIL（项数随灰度柜数浮动；旧「17/17」含 3 项 vision 探测，已随云识别链退役）
 .\scripts\cleanup-test-data.ps1                # 轮次间清争议/异常残留
 ```
 
@@ -276,15 +278,15 @@ S-01 配置生效（新单按新比例，旧单不静默改写）/ S-02 支付�
 
 ### 3.6 设备 / 视觉 / 边缘专项（mock/sim 可测部分）
 
-> 真实硬件 🔒 项仍归 §10 上线门槛；本节是**开发阶段在 `door:sim` / `vision:mock` 下就能跑完**的系统性用例。后端真源：`services/device-service`（现有 5 个测试类：`DoorEventDeduplicatorTest` / `MqttEventListenerDoorTest` / `DeviceCommandServiceTest` / `DeviceCommandTrackerTest` / `TradeServiceClientRetryTest`）；视觉：`vision-service`（CI 已跑 `test_mock_recognizer.py`）；端侧：`edge/device-simulator`（Go/Kotlin 模拟器，DV-03 依赖）与 `edge/android-app`（柜机安卓端，🔒 真柜联调阶段验收，开发阶段不阻塞）。
+> 真实硬件 🔒 项仍归 §10 上线门槛；本节是**开发阶段在 `door:sim` / `vision:sim` 下就能跑完**的系统性用例。后端真源：`services/device-service`（现有 5 个测试类：`DoorEventDeduplicatorTest` / `MqttEventListenerDoorTest` / `DeviceCommandServiceTest` / `DeviceCommandTrackerTest` / `TradeServiceClientRetryTest`）；识别：云端引擎已退役（`vision-service` 整目录删除，见 [JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md](JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md)），开发阶段由 `edge/device-simulator` 出结果、真源面是 trade 侧受理链 `VisionResultIngestService` + `scripts/devops/verify-vision-result-ingest.py`；端侧：`edge/device-simulator`（Go/Kotlin 模拟器，DV-03 依赖）与 `edge/android-app`（柜机安卓端，🔒 真柜联调阶段验收，开发阶段不阻塞）。
 
 | ID | 项 | 验法 / 期望 | 现状 |
 |----|-----|------------|------|
 | DV-01 | 门事件乱序/去重 | 模拟器发重复+乱序 door 事件 → `DoorEventDeduplicator` 去重；`DoorEventDeduplicatorTest`/`MqttEventListenerDoorTest` 绿 | 后端单测绿；**端到端乱序注入用例缺** |
 | DV-02 | 开门 ACK 链路 | 下发→tracker 超时/成功双分支（`DeviceCommandTrackerTest`）；trade 下游调用失败重试（`TradeServiceClientRetryTest`） | 单测绿；模拟器多柜并发注入待补 |
 | DV-03 | 模拟器多柜 | `edge/device-simulator` 起 ≥2 柜（CAB-001/002），心跳/开关门互不串话；`MqttEventListenerDoorTest` 契约对齐 | 手工可跑 |
-| DV-04 | vision health | `:8082/health` UP 且 `recognizer_available` 字段符合 mock/端侧模式预期 | 手工可跑 |
-| DV-05 | 识别失败→争议 | mock 识别低置信度/映射失败 → 订单进入争议路径，与 `e2e-dispute-recognition.ps1` 场景一致 | 脚本已有 |
+| DV-04 | 端侧结果受理契约 | `POST /internal/v1/vision/edge-results`：无密钥→401、会话不存在→404、缺 `modelVersion`/`quantity<=0`/`modelVersion` 超列宽→400、重复上报幂等（不重复扣款/建单/落库）；置信度 0~1 值域由 `VisionResultIngestService.checkConfidence` 拒收（AU-039）。脚本 `scripts/devops/verify-vision-result-ingest.py` 全链断言（需 `-Daicabinet.vision-async.enabled=true`） | 脚本可跑（需真实栈 + 异步通道） |
+| DV-05 | 识别失败→争议 | 关门无端侧结果 → `SettlementSettleOrchestrator` 构造「待人工审核」占位结果 → 会话 DISPUTED + `RECOGNITION_FAILED` 异常；种子脚本 `create-open-dispute.ps1` | 脚本已有（旧 `e2e-dispute-recognition.ps1` 随云识别链删除） |
 | DV-06 | 已知缺口标注 | device-service 集成测试薄（仅 5 类）：MQTT 桥与模拟器契约、多柜并发属**已知缺口**，补测优先级高于新功能用例 | 登记于 §9 |
 
 ---
@@ -340,7 +342,7 @@ S-01 配置生效（新单按新比例，旧单不静默改写）/ S-02 支付�
 |--------|----------|--------|-----------|
 | 资金（支付/分账/提现/钱包/退款） | `pnpm check` | `e2e-fund-safety.ps1` + `e2e-shopping.ps1`；退款类加 `e2e-partial-refund-line` / `e2e-refund-restore-compare` | §3.2 S 系列抽 2 条 + 证据 ID |
 | 开门/门事件/MQTT | — | device-service `*Test`（5 类）+ `e2e-shopping` | §3.6 DV-01~03；PASS 按 §0.3 保鲜 |
-| 争议/识别 | — | `e2e-dispute-recognition.ps1` | §3.6 DV-05 + 三端争议 UI |
+| 争议/识别 | — | `create-open-dispute.ps1` + `e2e-three-end.ps1`（争议 UI 种子见 §7.2） | §3.6 DV-04~05 + 三端争议 UI |
 | 库存/货道/补货 | — | `e2e-replenishment.ps1` / `e2e-inventory-inout-refund.ps1` | §3.3 库存域抽 1 |
 | 权限/RBAC/菜单 | `check:nav-perms` + `check:merchant-nav-guard` | 三端 `*E2ETest`（CI 强制）+ `role-regression-uat.mjs` | §3.5 变更 perm 三测 |
 | UI token/样式/表格/文案/布局 | `check:admin-table-align` + `check:mp-a11y`（+ 按需 `check:admin-bundle`） | `smoke:admin-a11y`；列表改动加 `smoke:admin-list-race`；小程序逻辑加 `test:mp` | **§2.7 最短验收**；同迭代累计 ≥3 个 UI PR 再加 §2.4 对应端各 ≥3 条 |
@@ -364,22 +366,28 @@ pnpm test:mp                                 # 两端小程序 vitest（本地�
 
 ### 7.2 全景资产表（分域脚本，按 §7.0 加跑）
 
-**E2E（PowerShell，`scripts/e2e-*.ps1`：磁盘 17 个 = **16 个可执行场景 + 1 个公共库 `e2e-lib.ps1`**）**：
+**E2E（PowerShell，`scripts/e2e-*.ps1`：磁盘 21 个 = **19 个可执行场景 + 2 个公共库（`e2e-lib.ps1` 调用/断言、`e2e-sms-auth.ps1` 短信登录 helper）****：
 
 | 脚本 | 覆盖 |
 |------|------|
-| `e2e-full-flow-milk.ps1` | 采购→仓→补货→购物→分账全链 |
-| `e2e-shopping.ps1` / `e2e-demo-smoke.ps1` | 购物闭环 / 演示冒烟 |
+| `e2e-shopping.ps1` / `e2e-mqtt-shopping.ps1` | 购物闭环（REST / MQTT 设备链） |
 | `e2e-fund-safety.ps1` | 资金安全与幂等 |
 | `e2e-replenishment.ps1` | 补货闭环 |
 | `e2e-partial-refund-line.ps1` / `e2e-consumer-partial-refund.ps1` / `e2e-refund-restore-compare.ps1` | 部分退三视角 / 退款恢复对比 |
-| `e2e-inventory-inout-refund.ps1` | 库存进出+退款 |
-| `e2e-dispute-recognition.ps1` | 争议识别 |
-| `e2e-vision-gravity-shopping.ps1` | 视觉重力购物 |
+| `e2e-inventory-inout-refund.ps1` / `e2e-inventory-phase-a.ps1` / `e2e-warehouse-phase-b.ps1` | 库存进出+退款 / 阶段 A（补货行·FEFO 批次·效期统计·MQTT 购物）/ 阶段 B（入库→规划出库→上架→柜内商品 API） |
+| `e2e-phase-c.ps1` | 阶段 C（成本 COGS·核销·盘点·GPS 签到） |
+| `e2e-checkin-contract.ps1` | 补货签到 fail-closed 实跑契约 |
+| `create-open-dispute.ps1` | 识别争议工单种子（供三端争议 UI；旧 `e2e-dispute-recognition.ps1` 随云识别链删除） |
 | `e2e-three-end.ps1` | 三端 API 面 |
 | `e2e-nearby.ps1` | 附近柜 |
 | `e2e-live-cart.ps1` / `e2e-consumer-mp-flow.ps1` / `e2e-consumer-marketing-recharge.ps1` | 实时购物车 / 消费者小程序流 / 营销+充值 |
-| 聚合入口 | `verify-local.ps1`（= shopping+replenishment+marketing-recharge+dispute-recognition）/ `verify-full.ps1` / `verify-production-readiness.ps1` |
+| `e2e-staging.ps1` / `e2e-cleanup-device.ps1` | staging 冒烟 / 测试柜清理 |
+| 聚合入口 | `verify-local.ps1`（= shopping+replenishment+marketing-recharge+create-open-dispute，可选 `-WithAlipay/-WithPayscore`）/ `verify-full.ps1` / `verify-production-readiness.ps1` |
+
+> 旧云识别/录像链专用脚本（`e2e-full-flow-milk.ps1` / `e2e-demo-smoke.ps1` / `e2e-dispute-recognition.ps1` /
+> `e2e-vision-shopping.ps1` / `e2e-real-vision-shopping.ps1` / `e2e-vision-gravity-shopping.ps1`）已随
+> `vision-service` 退役整体删除（DC-27 批 3，拍板见 [JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md](JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md)）。
+> 全链回归改用「`verify-local.ps1` + §7.1 每轮必跑 + 三端 UAT」组合覆盖。
 
 **UAT（Playwright，`clients/*/tests/*.mjs`，9 个）**：
 
@@ -405,7 +413,7 @@ pnpm test:mp                                 # 两端小程序 vitest（本地�
 | `create-open-dispute.ps1` | 造争议测试数据（三端争议 UI 用例前置） |
 | `apifox-smoke-scenario.ps1` / `admin-layout-smoke.ps1` | API 场景冒烟 / admin 布局冒烟 |
 | `check-env.ps1`（`-Prod`） / `validate-miniapp-env.mjs` | 环境变量 / 小程序生产包联调残留检查（§10 第 4/6 条的前置工具） |
-| `testdata/`（8 jpg · 5 png · 5 mp4） | 识别/视频类用例的标准素材，禁止用随手拍图跑识别断言 |
+| `testdata/`（8 jpg · 5 png · 2 mp4） | 识别/视频类用例的标准素材，禁止用随手拍图跑识别断言 |
 
 > 纪律：自动化绿 ≠ PASS。资金项仍需按 §0.3 补一次带证据 ID 的联调。
 

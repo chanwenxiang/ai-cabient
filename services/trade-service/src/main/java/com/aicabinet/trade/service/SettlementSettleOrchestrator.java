@@ -54,8 +54,8 @@ public class SettlementSettleOrchestrator {
      *       真识别经 edge-results → completeAsyncRecognition 带结果结算）；</li>
      *   <li>生产非将邑会话已被 {@code DeviceValidationService.ensureJiangyiOnlyShopping}
      *       挡在开门（批1），本方法在生产无新增流量；</li>
-     *   <li>mock 环境（CI/本地演示）由既有 dev-cart/gravity 证据短路成单（与此前
-     *       vision-service 不可达时的熔断回退完全同形，ConsumerE2E 即在该形态下常绿）。</li>
+     *   <li>mock 环境（CI/本地演示）由既有 dev-cart/gravity 证据短路成单（与此前云端识别
+     *       不可达时的熔断回退完全同形，ConsumerE2E 即在该形态下常绿）。</li>
      * </ul>
      * 失败语义保持 fail-closed：无占位之外的识别，一律转人工审核，不扣款。
      */

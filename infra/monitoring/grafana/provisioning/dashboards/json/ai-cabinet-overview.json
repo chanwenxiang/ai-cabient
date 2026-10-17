@@ -83,7 +83,7 @@
       "targets": [
         { "expr": "rate(cabinet_recognize_duration_seconds_sum[5m]) / rate(cabinet_recognize_duration_seconds_count[5m])", "legendFormat": "平均识别耗时" }
       ],
-      "title": "视觉识别平均耗时",
+      "title": "识别平均耗时（关门→结算，端侧上报链路）",
       "type": "timeseries"
     },
     {

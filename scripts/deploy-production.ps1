@@ -25,8 +25,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
 Write-Host "Manual steps (see docs/VISION_QUECTEL_INTEGRATION.md + docs/PRODUCTION.md):"
-Write-Host "  [ ] 端侧识别提供方（移远等）联调完成，或明确仅 mock/争议路径上线"
-Write-Host "  [ ] 运营后台维护端侧类名 → SKU 映射（sku_vision_mapping）"
+Write-Host "  [ ] 端侧识别（将邑）联调完成，或明确仅 mock/争议路径上线"
+Write-Host "  [ ] 运营后台维护端侧 class_id → SKU 映射（jiangyi_class_mapping，须 ACTIVE）"
 Write-Host "  [ ] TLS / 域名 / 微信小程序 downloadFile & request 合法域名"
 Write-Host "  [ ] PostgreSQL 备份与 Flyway 迁移（大表 DDL 见 docs/MIGRATION_SAFETY.md）"
 Write-Host "  [ ] trade 多副本：docs/HIGH_AVAILABILITY.md + docker-compose.ha.yml"

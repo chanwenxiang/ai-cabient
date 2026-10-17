@@ -42,10 +42,6 @@ if (-not $TradeOnly) {
         "mvn.cmd --% -f services/device-service/pom.xml spring-boot:run -DskipTests" `
         8081
 
-    Start-LocalService "vision-service :8082" `
-        "cd vision-service; if (Test-Path .venv\Scripts\python.exe) { .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8082 } else { python -m uvicorn app.main:app --reload --port 8082 }" `
-        8082
-
     if (-not $NoSimulator) {
         . (Join-Path $PSScriptRoot "e2e-lib.ps1")
         $tradeBase = "http://127.0.0.1:8080"

@@ -273,7 +273,6 @@ DELETE FROM warehouse;
 
 UPDATE sku_catalog SET supplier_id = NULL WHERE supplier_id IS NOT NULL;
 DELETE FROM aliyun_category_mapping;
-DELETE FROM sku_vision_mapping;
 DELETE FROM sku_delist_review;
 DELETE FROM sku_catalog;
 

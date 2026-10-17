@@ -107,8 +107,6 @@ aicabinet:
     api-key: ${IDENTITY_VERIFY_API_KEY:}
   device-service:
     url: ${AICABINET_DEVICE_SERVICE_URL:http://localhost:8081}
-  vision-service:
-    url: ${AICABINET_VISION_SERVICE_URL:http://localhost:8082}
   # 将邑开门柜网关（CB-022）：将邑柜开门指令路由目标（将邑柜单次下发不重试）
   jiangyi-gateway:
     url: ${AICABINET_JIANGYI_GATEWAY_URL:http://localhost:8083}
@@ -175,8 +173,6 @@ aicabinet:
     presign-expiry-seconds: 3600
   vision-async:
     enabled: false
-  vision-api:
-    key: ${VISION_API_KEY:dev-vision-key-change-me}
   # 边缘盒期望固件版本（P0-1 阶段 B · 边缘盒监控）。
   # 留空 ⇒ `cabinet.edge.firmware.outdated.count` 置 -1（并据此不触发 EdgeFirmwareOutdated 告警）——
   # 刻意不用 0 表示「未配置」，否则会被读成「全部合规」。
@@ -332,9 +328,6 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
-    instances:
-      visionService:
-        base-config: default
   retry:
     configs:
       default:

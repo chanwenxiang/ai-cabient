@@ -31,9 +31,6 @@ public final class CabinetConstants {
     public static final String SKU_STATUS_ACTIVE = "ACTIVE";
     public static final String SKU_STATUS_DISABLED = "DISABLED";
 
-    public static final String VISION_MODE_DELTA = "delta";
-    public static final String VISION_MODE_SINGLE_FRAME = "single_frame";
-
     public static final String PAY_CHANNEL_BALANCE = "BALANCE";
     public static final String PAY_CHANNEL_WECHAT = "WECHAT";
     public static final String PAY_CHANNEL_ALIPAY = "ALIPAY";

@@ -573,11 +573,11 @@ P0 本轮：**10/10 PASS**（环境曾缺演示账号/商户，已临时补种�
 | 开门/购物 API | `ConsumerE2ETest`；`scripts/e2e-shopping.ps1` | MockMvc/脚本；UI 仍要 P0-01 |
 | 商户权限/隔离 | `MerchantE2ETest` | 店长/补货员 + 越权 403 |
 | 运营跨域 | `AdminE2ETest` | 超管正向 + 403 |
-| 采购→仓→补货→购物→分账 | `scripts/e2e-full-flow-milk.ps1` | **强相关 P0-02**；核对脚本断言含钱包/split |
+| 采购→仓→补货→购物→分账 | `e2e-warehouse-phase-b.ps1` + `e2e-replenishment.ps1` + `e2e-shopping.ps1` + `e2e-fund-safety.ps1` | **强相关 P0-02**；旧全链单脚本 `e2e-full-flow-milk.ps1` 已随云识别链删除 ⇒ 现在**只有分段覆盖**（按上述顺序跑），钱包/split 断言在 `e2e-fund-safety.ps1` |
 | 三端 API | `scripts/e2e-three-end.ps1` | 接口面；非按钮 UI |
 | 资金安全/退款 | `e2e-fund-safety.ps1`；`e2e-partial-refund-*.ps1`；`e2e-inventory-inout-refund.ps1` | 对齐 §10 / PASS_3A–3D |
 | 补货 | `scripts/e2e-replenishment.ps1` | P0-08 |
-| 争议识别 | `e2e-dispute-recognition.ps1` | 争议链路辅助 |
+| 争议识别 | `scripts/create-open-dispute.ps1`（造 OPEN 工单）+ `three-end-dispute-ui-uat.mjs` | 争议链路辅助；旧 `e2e-dispute-recognition.ps1` 依赖云端 force need_review，已随云识别链删除（现由关门无端侧结果的 fail-closed 占位结果天然产争议） |
 | 运营角色 UI | `clients/admin-vue/tests/role-regression-uat.mjs` | P0-06 |
 | 三端业务/争议 UI | `three-end-business-uat.mjs`；`three-end-dispute-ui-uat.mjs` | P0-01/05 抽样 |
 | 消费者/商户 H5 | `consumer-h5-uat.mjs`；`merchant-h5-uat.mjs` | 入口冒烟 |

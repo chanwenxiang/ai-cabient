@@ -7,6 +7,5 @@ cd "$ROOT"
 
 docker build -f infra/docker/trade-service.Dockerfile -t "ai-cabinet/trade-service:${TAG}" .
 docker build -f infra/docker/device-service.Dockerfile -t "ai-cabinet/device-service:${TAG}" .
-docker build -f infra/docker/vision-service.Dockerfile -t "ai-cabinet/vision-service:${TAG}" .
 
 echo "Built ai-cabinet/*:${TAG}"

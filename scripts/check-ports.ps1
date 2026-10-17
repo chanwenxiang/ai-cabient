@@ -10,8 +10,6 @@ $ports = @(
     @{ Port = 8080; Name = "trade-service (local JVM)" },
     @{ Port = 18081; Name = "device-service (compose host)" },
     @{ Port = 8081; Name = "device-service (local JVM)" },
-    @{ Port = 18082; Name = "vision-service (compose host)" },
-    @{ Port = 8082; Name = "vision-service (local JVM)" },
     @{ Port = 15433; Name = "postgres" },
     @{ Port = 19000; Name = "minio API (win-ports)" },
     @{ Port = 9000; Name = "minio API (default)" },

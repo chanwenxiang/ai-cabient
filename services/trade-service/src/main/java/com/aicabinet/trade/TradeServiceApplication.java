@@ -14,7 +14,6 @@ import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.RiskControlProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
-import com.aicabinet.trade.config.VisionApiProperties;
 import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
@@ -33,7 +32,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         CheckoutProperties.class,
         OpsMonitoringProperties.class,
         com.aicabinet.trade.config.SessionExpireProperties.class,
-        InternalApiProperties.class, AuthProperties.class, CorsProperties.class, VisionApiProperties.class,
+        InternalApiProperties.class, AuthProperties.class, CorsProperties.class,
         com.aicabinet.trade.config.ReconciliationProperties.class,
         com.aicabinet.trade.config.AlipayProperties.class,
         com.aicabinet.trade.config.QrProperties.class,

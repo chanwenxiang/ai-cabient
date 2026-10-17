@@ -6,8 +6,11 @@
 
 前置（脚本会自检并在不满足时明确报错，而不是给你一个「绿」）：
   1. trade-service 健康；
-  2. **异步识别开启**（`-Daicabinet.vision-async.enabled=true`）——
-     同步模式下关门即调 vision-service 并立刻结算，会话不会停在 RECOGNIZING，
+  2. **异步识别通道开启**（`-Daicabinet.vision-async.enabled=true`）——
+     这是关门后停在 RECOGNIZING 的唯一条件（`SessionSettleService.settleSession`：enabled 时
+     只投递异步识别并留在 RECOGNIZING 等结果）。关闭时关门直接走
+     `SettlementSettleOrchestrator` 的「cloud-vision-retired」占位结果转人工审核（云端识别引擎
+     已于 2026-10-11 拍板退役，同步路径不再调用任何引擎），会话不会停在 RECOGNIZING，
      端侧直报就没有受理窗口。脚本会先关门看是否停在 RECOGNIZING，不满足即中止。
 
 断言链（每条都打印实测值，不打印「应为」）：

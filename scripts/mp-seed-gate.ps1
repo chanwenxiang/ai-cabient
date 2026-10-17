@@ -323,7 +323,7 @@ if ($SeedMinimal -and $report.checks.Contains("seed_shopping") -and -not $report
 }
 # Soft signal: orders empty without seed
 if (-not $SeedMinimal -and $report.checks.Contains("consumer_orders") -and -not $report.checks["consumer_orders"].ok) {
-    $report.hints += "no consumer orders yet: use -SeedMinimal or e2e-full-flow-milk.ps1 before UI L3"
+    $report.hints += "no consumer orders yet: use -SeedMinimal or e2e-shopping.ps1 before UI L3"
 }
 $report.pass = ($fail.Count -eq 0)
 $report.failed = $fail

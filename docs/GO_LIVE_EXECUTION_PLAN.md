@@ -1,6 +1,6 @@
 # AI开门柜项目上线执行文档
 
-> **注意（2026-09）**：下文部分「云端 YOLO / 专用 SKU 模型训练」表述已过时。现行识别策略为 **端侧提供方 + 云端 mock/争议辅助**，见 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) 与 [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)。本文保留作 2026-07 上线规划历史参考，执行前请以现行文档为准。
+> **注意（2026-09 / 2026-10-17 修订）**：下文部分「云端 YOLO / 专用 SKU 模型训练」表述已过时。现行识别策略为 **只认端侧上报**（将邑 `jiangyi-gateway` → `/internal/v1/vision/edge-results`）；云端识别引擎 `vision-service`（8082）已于 2026-10-11 整体退役（[JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md](JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md) §3 批 3），本文所有 `vision-service` / 8082 / 云端 YOLO 段落**仅作历史留存，不可按此部署**。见 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) 与 [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)。本文保留作 2026-07 上线规划历史参考，执行前请以现行文档为准。
 
 ## 文档概述
 

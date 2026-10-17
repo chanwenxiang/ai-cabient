@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 后端依赖 CVE 扫描（OSV 全树 + 钉扎包 + pip-audit）。
+ * 后端依赖 CVE 扫描（OSV 全树 + 钉扎包）。
  * 用法：node scripts/audit-backend-deps.mjs
  * 可选：SKIP_MVN=1 仅扫 pom 钉扎；FULL=0 跳过 dependency:list
  *
@@ -274,33 +274,7 @@ else {
   console.log(`\nWrote target/osv-findings.json (${findings.length} packages)`);
 }
 
-console.log('\n=== pip-audit (vision-service, prefer Python 3.12) ===');
-const req = join(root, 'vision-service', 'requirements-base.txt');
-const pyCandidates = process.platform === 'win32' ? ['py', 'python'] : ['python3', 'python'];
-let pipOk = false;
-for (const py of pyCandidates) {
-  const args =
-    py === 'py'
-      ? ['-3.12', '-m', 'pip_audit', '-r', req, '--desc', 'on']
-      : ['-m', 'pip_audit', '-r', req, '--desc', 'on'];
-  const r = spawnSync(py, args, { encoding: 'utf8', cwd: root });
-  if (r.error && r.error.code === 'ENOENT') continue;
-  process.stdout.write(r.stdout || '');
-  process.stderr.write(r.stderr || '');
-  if (r.status === 0 || (r.stdout || '').includes('No known vulnerabilities')) {
-    pipOk = true;
-    break;
-  }
-  if ((r.stderr || '').includes('rapidocr') || (r.stderr || '').includes('Requires-Python')) {
-    console.log('(hint: use Python 3.12 matching vision Dockerfile)');
-    continue;
-  }
-}
-if (!pipOk) {
-  console.log(
-    'pip-audit skipped/failed — py -3.12 -m pip_audit -r vision-service/requirements-base.txt'
-  );
-}
+console.log('\n=== pip-audit 段随 vision-service 退役删除（它是栈内唯一带 requirements 的 Python 服务；sms-webhook-mock 是 stdlib 单文件，无依赖可扫） ===');
 
 console.log('\nDone. Full NVD: set NVD_API_KEY then mvn -Powasp-depcheck -DskipTests verify');
 process.exit(hit > 0 ? 1 : 0);

@@ -301,25 +301,7 @@ if (consumer) {
 }
 
 // ========== §3.6 DV ==========
-{
-  const v = await fetch('http://127.0.0.1:18082/health')
-    .then((r) => r.json())
-    .catch((e) => ({ error: String(e) }));
-  // try richer endpoints
-  const modes = [];
-  for (const p of ['/health', '/api/health', '/v1/health', '/ready']) {
-    try {
-      const r = await fetch(`http://127.0.0.1:18082${p}`);
-      modes.push({ p, status: r.status, body: (await r.text()).slice(0, 120) });
-    } catch (e) {
-      modes.push({ p, error: String(e.message || e) });
-    }
-  }
-  push('T4-DV04-vision', v.status === 'ok' || v.status === 'UP' ? 'PASS' : 'FAIL', {
-    health: v,
-    probes: modes
-  });
-}
+// T4-DV04-vision 随云端识别引擎退役删除（8082 不再存在，探测恒 FAIL）。
 
 {
   // DV-05: OPEN recognition disputes exist from prior round OR create flag

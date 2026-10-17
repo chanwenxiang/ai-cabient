@@ -95,8 +95,6 @@ class ProductionStartupValidatorCookieStageTest {
         when(weChatMiniAppProperties.enabled()).thenReturn(false);
         when(weChatMiniAppProperties.isConfigured()).thenReturn(false);
 
-        VisionApiProperties visionApiProperties = mock(VisionApiProperties.class);
-        when(visionApiProperties.key()).thenReturn("prod-vision-key-32bytes-at-least!!");
 
         MinioProperties minioProperties = mock(MinioProperties.class);
         when(minioProperties.accessKey()).thenReturn("prod-minio-user");
@@ -134,7 +132,6 @@ class ProductionStartupValidatorCookieStageTest {
                 authProperties,
                 weChatPayProperties,
                 weChatMiniAppProperties,
-                visionApiProperties,
                 minioProperties,
                 corsProperties,
                 profitSharingProperties,

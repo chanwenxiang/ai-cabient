@@ -31,8 +31,8 @@ import java.util.List;
  * <ol>
  *   <li><b>入口 fail-closed 校验</b>：{@code modelVersion} 必填。结算管线以
  *       「modelVersion 是否含 mock/fallback」判定「非生产精度不得静默扣款」
- *       （{@code SettlementService#blocksSilentSettle}）；Kafka 通道的该字段来自
- *       vision-service 代码常量、外部无法构造，而 HTTP 入站可被外部构造
+ *       （{@code SettlementService#blocksSilentSettle}）；Kafka 通道由平台自身投递，该字段来自
+ *       平台代码常量、外部无法构造，而 HTTP 入站可被外部构造
  *       ⇒ 若允许留空即可绕过该闸，故在入口直接拒绝。同处一并拦截
  *       {@code modelVersion} 超列宽（{@link VisionRecognitionResultDto#MODEL_VERSION_MAX_LENGTH}），
  *       避免「入口放行 → 写库报错 → 被 best-effort 吞掉」造成识别结果静默缺失。</li>

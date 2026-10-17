@@ -1,7 +1,6 @@
 ﻿# Phase F gray launch checklist runner (§12 / §14 / §10)
 param(
     [string]$BaseUrl = "http://127.0.0.1:8080",
-    [string]$VisionHealthUrl = "http://127.0.0.1:8082/health",
     [string]$ConsumerPhone = "13800138000",
     [string]$OperatorPhone = "13900000001",
     [string]$PostgresContainer = "ai-cabinet-postgres-1",
@@ -51,19 +50,10 @@ function Invoke-GrayApi {
     return $resp.data
 }
 
-# Vision production readiness (§10) — required for real-funds gray
-try {
-    $vision = Invoke-RestMethod -Uri $VisionHealthUrl -TimeoutSec 5
-    $recognizerOk = $vision.recognizer_available -eq $true
-    $mockOff = $vision.mock_enabled -eq $false
-    Add-Check "vision.recognizer_available" $recognizerOk "recognizer_available=$($vision.recognizer_available) load_error=$($vision.load_error)"
-    Add-Check "vision.mock_enabled=false" $mockOff "mock_enabled=$($vision.mock_enabled)"
-    $modelVer = [string]$vision.model_version
-    $isGeneric = $modelVer -match 'yolov8n' -or ([string]$vision.model_path -match 'yolov8n')
-    Add-Check "vision.sku_model" (-not $isGeneric) "model_version=$modelVer (generic COCO blocks real-funds gray)"
-} catch {
-    Add-Check "vision.health" $false $_.Exception.Message
-}
+# 旧「vision 生产就绪」闸（§10）随云端识别引擎退役删除：识别在端侧完成，
+# 我方不再有 recognizer/model_version 可探。真金放量的识别质量改由
+# `RecognitionNeedReviewRateHigh` / `RecognitionHumanVerdictWrongRateHigh` 两条告警盯（infra/prometheus/alert_rules.yml），
+# 映射就绪度看将邑 class 映射 ACTIVE 行数（admin 后台 SKU 入库页）。
 
 # Infrastructure smoke
 $infraUrls = @{
@@ -175,8 +165,8 @@ if ($devGrayFailed.Count -gt 0) {
 
 Write-Host ""
 Write-Host "Gray launch pre-check complete. Manual steps remaining:"
-Write-Host "  1. Complete edge vision provider integration (docs/VISION_QUECTEL_INTEGRATION.md) or keep mock+dispute only for gray"
-Write-Host "  2. Set VISION_MOCK_ENABLED=false (only after edge results path is live), AICABINET_MOCK_ENABLED=false in production .env"
+Write-Host "  1. Complete edge recognition integration (docs/VISION_QUECTEL_INTEGRATION.md) or keep mock+dispute only for gray"
+Write-Host "  2. Set AICABINET_MOCK_ENABLED=false in production .env（云端识别引擎已退役，识别只认端侧上报 /internal/v1/vision/edge-results）"
 Write-Host "  3. Configure HTTPS domain + mini-program legal domains"
 Write-Host "  4. Deploy 1-3 cabinets with gray whitelist; run daily reconciliation for $ObservationDays days"
 

@@ -60,17 +60,12 @@ const CONTRACTS = [
   {
     file: 'testdata/sample-shopping.mp4',
     minBytes: 1024 * 1024,
-    why: 'H5 UAT 的「购物录像能播」用例靠它；scripts/seed-demo-shopping-video.ps1 把它传成 MinIO 对象 cabinet-videos/demo/sample-shopping.mp4',
+    why: 'H5 UAT 的「购物录像能播」用例靠它；由人工上传成 MinIO 对象 cabinet-videos/demo/sample-shopping.mp4',
     declaredBy: [
       {
         file: 'scripts/generate-demo-shopping-video.mjs',
         mustMention: 'sample-shopping.mp4',
         role: '产出方（默认 --out）'
-      },
-      {
-        file: 'scripts/seed-demo-shopping-video.ps1',
-        mustMention: 'sample-shopping.mp4',
-        role: '消费方（上传到 MinIO）'
       }
     ]
   }
@@ -85,18 +80,6 @@ const EXEMPT = new Map([
     'testdata/out.mp4',
     '全仓零引用的历史遗留小样（3 KB）；不承担播放契约，如需可播请改走 CONTRACTS'
   ],
-  [
-    'testdata/static-bottle.mp4',
-    '识别流水线输入：vision-service/scripts/generate_test_videos.py 产出，全程有瓶'
-  ],
-  [
-    'testdata/take-one-bottle.mp4',
-    '识别流水线输入：vision-service/scripts/generate_test_videos.py 产出，末帧空白'
-  ],
-  [
-    'testdata/take-one-shelf.mp4',
-    '识别流水线输入：scripts/fetch-shelf-testdata.ps1 产出，供 e2e-vision-gravity-shopping.ps1'
-  ]
 ]);
 
 function fail(msg) {

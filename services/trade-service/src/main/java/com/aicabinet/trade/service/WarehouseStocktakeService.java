@@ -41,9 +41,6 @@ public class WarehouseStocktakeService {
     private static final String ADJUSTED = "ADJUSTED";
     private static final String MATCHED = "MATCHED";
 
-
-    private static final float MIN_VISION_CONFIDENCE = 0.50f;
-
     private final PermissionService permissionService;
     private final WarehouseStocktakeMapper stocktakeRepository;
     private final WarehouseStocktakeLineMapper lineRepository;

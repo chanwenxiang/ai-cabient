@@ -134,8 +134,6 @@ class ProductionStartupValidatorTest {
         when(weChatPayProperties.platformCert()).thenReturn(null);
         WeChatMiniAppProperties weChatMiniAppProperties = mock(WeChatMiniAppProperties.class);
         when(weChatMiniAppProperties.isConfigured()).thenReturn(true);
-        VisionApiProperties visionApiProperties = mock(VisionApiProperties.class);
-        when(visionApiProperties.key()).thenReturn("prod-vision-key-32bytes-at-least!!");
         CorsProperties corsProperties = mock(CorsProperties.class);
         when(corsProperties.allowedOrigins()).thenReturn(corsOrigins);
         ProfitSharingProperties profitSharingProperties = mock(ProfitSharingProperties.class);
@@ -154,7 +152,7 @@ class ProductionStartupValidatorTest {
         when(identityVerifyProperties.isConfigured()).thenReturn(true);
         return new ProductionStartupValidator(
                 environment, securityProperties, stagingProperties, internalApiProperties, authProperties,
-                weChatPayProperties, weChatMiniAppProperties, visionApiProperties, minioProperties, corsProperties,
+                weChatPayProperties, weChatMiniAppProperties, minioProperties, corsProperties,
                 profitSharingProperties, payScoreProperties, reconciliationProperties, checkoutProperties,
                 lineWithdrawProperties, merchantWithdrawProperties, identityVerifyProperties);
     }
@@ -192,8 +190,6 @@ class ProductionStartupValidatorTest {
         WeChatMiniAppProperties weChatMiniAppProperties = mock(WeChatMiniAppProperties.class);
         when(weChatMiniAppProperties.isConfigured()).thenReturn(true);
 
-        VisionApiProperties visionApiProperties = mock(VisionApiProperties.class);
-        when(visionApiProperties.key()).thenReturn("prod-vision-key-32bytes-at-least!!");
 
         MinioProperties minioProperties = mock(MinioProperties.class);
         when(minioProperties.accessKey()).thenReturn("prod-minio-user");
@@ -231,7 +227,6 @@ class ProductionStartupValidatorTest {
                 authProperties,
                 weChatPayProperties,
                 weChatMiniAppProperties,
-                visionApiProperties,
                 minioProperties,
                 corsProperties,
                 profitSharingProperties,
@@ -281,7 +276,6 @@ class ProductionStartupValidatorTest {
                 authProperties,
                 mock(WeChatPayProperties.class),
                 mock(WeChatMiniAppProperties.class),
-                mock(VisionApiProperties.class),
                 mock(MinioProperties.class),
                 mock(CorsProperties.class),
                 mock(ProfitSharingProperties.class),

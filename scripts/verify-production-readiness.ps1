@@ -204,24 +204,8 @@ if (-not $SkipRuntime) {
         Add-Result "WARN" "Device runtime health" "$DeviceUrl not reachable"
     }
 
-    $visionUrl = if ($BaseUrl -match ":(\d+)") {
-        $BaseUrl -replace ":\d+", ":8082"
-    } else { "http://127.0.0.1:8082" }
-    if (Test-HttpOk "$visionUrl/health") {
-        try {
-            $vh = Invoke-RestMethod -Uri "$visionUrl/health" -TimeoutSec 5
-            $detail = "version=$($vh.model_version) mock=$($vh.mock_enabled) available=$($vh.recognizer_available)"
-            if ($vh.recognizer_available -eq $true -and $vh.mock_enabled -eq $false) {
-                Add-Result "PASS" "Vision runtime health" $detail
-            } else {
-                Add-Result "WARN" "Vision runtime health" $detail
-            }
-        } catch {
-            Add-Result "WARN" "Vision runtime health" $_.Exception.Message
-        }
-    } else {
-        Add-Result "WARN" "Vision runtime health" "$visionUrl/health not reachable"
-    }
+    # 云端识别引擎已退役（2026-10-11），8082 健康探测随之删除；
+    # 端侧识别接入就绪见 docs/VISION_QUECTEL_INTEGRATION.md + 将邑 class 映射 ACTIVE 行数。
 } else {
     Add-Result "WARN" "Runtime smoke" "skipped"
 }

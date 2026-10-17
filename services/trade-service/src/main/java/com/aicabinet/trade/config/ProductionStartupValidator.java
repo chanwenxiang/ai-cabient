@@ -14,7 +14,6 @@ public class ProductionStartupValidator {
     private static final Logger log = LoggerFactory.getLogger(ProductionStartupValidator.class);
     private static final String DEV_JWT_SECRET = "ai-cabinet-dev-secret-key-32bytes!!";
     private static final String DEV_INTERNAL_KEY = "dev-internal-key-change-me";
-    private static final String DEV_VISION_KEY = "dev-vision-key-change-me";
     /** application.yml / docker-compose 本地默认库密码，prod/staging 必须覆盖。 */
     private static final String DEV_DATASOURCE_PASSWORD = "aicabinet";
 
@@ -32,7 +31,6 @@ public class ProductionStartupValidator {
     private final AuthProperties authProperties;
     private final WeChatPayProperties weChatPayProperties;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
-    private final VisionApiProperties visionApiProperties;
     private final MinioProperties minioProperties;
     private final CorsProperties corsProperties;
     private final ProfitSharingProperties profitSharingProperties;
@@ -50,7 +48,6 @@ public class ProductionStartupValidator {
                                       AuthProperties authProperties,
                                       WeChatPayProperties weChatPayProperties,
                                       WeChatMiniAppProperties weChatMiniAppProperties,
-                                      VisionApiProperties visionApiProperties,
                                       MinioProperties minioProperties,
                                       CorsProperties corsProperties,
                                       ProfitSharingProperties profitSharingProperties,
@@ -67,7 +64,6 @@ public class ProductionStartupValidator {
         this.authProperties = authProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.weChatMiniAppProperties = weChatMiniAppProperties;
-        this.visionApiProperties = visionApiProperties;
         this.minioProperties = minioProperties;
         this.corsProperties = corsProperties;
         this.profitSharingProperties = profitSharingProperties;
@@ -109,12 +105,6 @@ public class ProductionStartupValidator {
         if (securityProperties.mockEnabled()) {
             log.warn("Running with mock-enabled=true (dev/demo). Settlement mock is NOT production accuracy; "
                     + "mock/low-conf/gravity-mismatch routes to need_review.");
-        }
-        String visionMock = environment.getProperty("VISION_MOCK_ENABLED",
-                environment.getProperty("MOCK_ENABLED", ""));
-        if ("true".equalsIgnoreCase(visionMock) || visionMock.isBlank() && securityProperties.mockEnabled()) {
-            log.warn("Vision mock likely enabled (VISION_MOCK_ENABLED/MOCK_ENABLED). "
-                    + "Demo recognition must not be treated as production accuracy; use docker-compose.production.yml for go-live.");
         }
         if (checkoutProperties.balanceOnly()) {
             log.info("CHECKOUT_BALANCE_ONLY=true — settlement uses wallet balance only (no live WeChat charge required).");
@@ -368,10 +358,6 @@ public class ProductionStartupValidator {
         String jwtSecret = authProperties.jwtSecret();
         if (jwtSecret == null || jwtSecret.isBlank() || DEV_JWT_SECRET.equals(jwtSecret)) {
             log.warn("JWT secret is unset or still the dev default. Replace JWT_SECRET before any production/staging deploy.");
-        }
-        String visionKey = visionApiProperties.key();
-        if (visionKey == null || visionKey.isBlank() || DEV_VISION_KEY.equals(visionKey)) {
-            log.warn("VISION_API_KEY is unset or still the dev default. Replace before production vision traffic.");
         }
         String mockCode = authProperties.sms().mockCode();
         if (mockCode != null && ("123456".equals(mockCode) || "000000".equals(mockCode))) {

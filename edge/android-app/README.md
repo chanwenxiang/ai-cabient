@@ -51,7 +51,7 @@ Android Studio 中选择 **mockDebug** 或 **deviceDebug** 后 Run。
 |------|------|
 | MQTT 开门 / 心跳 / 关门事件 | 与 device-service、trade-service 契约一致 |
 | 购物录像 + MinIO 上传 | CameraX；TOP/SIDE 仅为逻辑通道名 |
-| MULTI 融合元数据 | `videoClipsJson` + `cameraFusionMode`，vision-service 可联调 |
+| MULTI 融合元数据 | `videoClipsJson` + `cameraFusionMode`，属旧云融合识别链字段，现仅透传存档 |
 | 断网续传 | `OfflineUploadQueue` |
 | Mock 门锁 | 无硬件即可完成小程序 → 识别 → 扣款闭环 |
 | 运行时配置 | Broker、设备 ID、双摄开关等，免重编译 |
@@ -135,7 +135,7 @@ App 内打开 **「双摄融合」** 开关（或 BuildConfig `MULTI_CAMERA_ENAB
 - **TOP**：后置摄像头
 - **SIDE**：前置摄像头（不可用时复制 TOP 文件）
 - 关门 MQTT 事件携带 `videoClipsJson` + `cameraFusionMode=MULTI`
-- 与 `device-simulator` 的 `AICABINET_SIM_MULTI_CAMERA=true` 及 vision-service 融合识别对齐
+- 与 `device-simulator` 的 `AICABINET_SIM_MULTI_CAMERA=true` 对齐（云端融合识别引擎已退役，元数据只透传存档）
 
 ## 切换真机串口
 

@@ -39,7 +39,6 @@ chmod +x infra/docker/build.sh
 ```bash
 docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-service:latest .
 docker build -f infra/docker/device-service.Dockerfile -t ai-cabinet/device-service:latest .
-docker build -f infra/docker/vision-service.Dockerfile -t ai-cabinet/vision-service:latest .
 ```
 
 ## 部署（Docker Compose）
@@ -58,4 +57,3 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 |------------|------|
 | `trade-service.Dockerfile` | `ai-cabinet/trade-service` |
 | `device-service.Dockerfile` | `ai-cabinet/device-service` |
-| `vision-service.Dockerfile` | `ai-cabinet/vision-service` |

@@ -48,5 +48,3 @@ docs/archive/
 *.jtl
 *.lck
 *.pt
-vision-service/runs/
-vision-service/cache/

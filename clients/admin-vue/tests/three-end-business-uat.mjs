@@ -236,7 +236,8 @@ async function probeOrderWithVideo(page, hint, kind = 'consumer') {
 
 /** 无可用录像种子时的统一说明（与 merchant 侧 M-10v 的口径一致）。 */
 const NO_VIDEO_SEED_HINT =
-  '未找到含「浏览器可解编码」录像的订单（先用 node scripts/generate-demo-shopping-video.mjs 生成样例，再执行 scripts/seed-demo-shopping-video.ps1 -SessionId <id>）';
+  '未找到含可播录像的订单：将邑柜走 JIANGYI 台账分片（CB-030），EDGE 单文件录像需 shopping_session.video_uri；' +
+  '旧的 scripts/seed-demo-shopping-video.ps1 已随云识别链退役删除，如需 EDGE 样本请手工上传 MinIO 后写 video_uri';
 
 async function merchantLogin(page) {
   await page.goto(`${MERCHANT}/pages/login/login`, { waitUntil: 'domcontentloaded' });

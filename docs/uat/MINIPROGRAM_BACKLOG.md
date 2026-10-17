@@ -95,7 +95,7 @@
 | 场景真源（价值链 A + 页矩阵 B） | [`MP_THREE_END_SCENARIOS.md`](./MP_THREE_END_SCENARIOS.md)：**S0 清数 → S1 台子 → S2 主链 → S3 旁路** |
 | 测前清数 | `cleanup-test-data.ps1` **默认 FullBusiness**（可清订单/分账/采购等；`-Light` 旧行为）；柜机动态解析 |
 | 造数闸门 | `mp-seed-gate.ps1 -CleanupFirst`（`-SeedMinimal` 造单；`-DeviceId`/`E2E_DEVICE_ID` 可选，**不写死柜**） |
-| 主链脊骨 | `powershell -File scripts/e2e-full-flow-milk.ps1`（内含 cleanup） |
+| 主链脊骨 | `cleanup-test-data.ps1` → `e2e-warehouse-phase-b.ps1` → `e2e-replenishment.ps1` → `e2e-shopping.ps1`（旧单条 `e2e-full-flow-milk.ps1` 已随云识别链退役删除，2026-10-17） |
 | 闸门产物 | `.tmp/mp-seed-gate.json` |
 
 自动化须 **S0+S1 绿** 再进 S2；**禁止**带着脏会话/争议宣称主链 PASS；**禁止**未列场景就扩「全业务大套」。

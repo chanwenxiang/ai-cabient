@@ -367,7 +367,7 @@ onOrderSettled(deviceId, skuId, qty):
                                     │
                           device-service / MQTT / 柜机 Android
                                     │
-                          vision-service / 识别 + 映射
+                          端侧识别上报 /internal/v1/vision/edge-results
 ```
 
 **落地建议：** 首期不拆微服务，在 **trade-service** 内增加 `warehouse_*`、`device_sku_lot`、`inventory_movement` 表与 API，与现有 `ReplenishmentService`、`InventoryService` 合并演进。
@@ -607,7 +607,7 @@ A：`openDoorForRestock` 须传 `taskId`，校验任务负责人与设备匹配�
 | FEFO / 流水 | `InventoryLotService`, `InventoryService` |
 | COGS 报表 | `FinanceReportService`, `GET .../finance/stats`, `GET .../finance/report` |
 | **微信分账** | `WeChatProfitSharingService`, `ProfitSharingRetryScheduler`；`POST .../revenue-splits/{id}/wechat-submit`、`.../wechat-refresh` |
-| 视觉补货快照 | `vision-service/.../yolo_recognizer.py`（`INVENTORY_SNAPSHOT`） |
+| 补货库存快照 | `RestockSnapshotService`（`MODE_INVENTORY_SNAPSHOT`；旧 `vision-service` 快照实现已随云识别链退役） |
 | 临期 Job | `ExpiryAlertScheduler` |
 | 小程序 batch | `clients/miniapp/utils/common.js`（`formatLineItem`）、`dispute-mine`、`result`、`OrderService.buildLineSummary` |
 | 小程序补货签到 | `clients/miniapp/pages/ops/ops.js`（任务卡签到/禁开门）、`replenish-task` |

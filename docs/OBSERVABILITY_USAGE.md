@@ -79,7 +79,7 @@ cd infra
 .\observability.ps1 logs trade-service
 ```
 
-常用容器名：`ai-cabinet-trade-service-1`、`ai-cabinet-device-service-1`、`ai-cabinet-vision-service-1`、`ai-cabinet-gateway-1`。
+常用容器名：`ai-cabinet-trade-service-1`、`ai-cabinet-device-service-1`、`ai-cabinet-jiangyi-gateway-1`、`ai-cabinet-gateway-1`。
 
 ### 1.4 Loki HTTP API（脚本 / 自动化）
 
@@ -182,7 +182,7 @@ Grafana Explore → 数据源选 Tempo → 输入 traceId
 5. **保留期**：Loki **7 天**（`retention_period: 168h`）、Tempo **1 天**（`block_retention: 24h`）。
    要更长改 `infra/monitoring/loki-config.yml` / `tempo-config.yml` 并重建容器。
    ⚠️ 别和运营台里的 `ops.log_retention.*` 混淆 —— 那个管的是**业务日志表**归档，与此无关。
-6. **「没日志」≠「服务挂了」**：空闲服务（device-service、vision-service、minio…）不产生日志是正常的。
+6. **「没日志」≠「服务挂了」**：空闲服务（device-service、jiangyi-gateway、minio…）不产生日志是正常的。
    判存活请看容器状态或 Prometheus 的 `up` 指标，别用「Loki 里搜不到」下结论。
 
 ---

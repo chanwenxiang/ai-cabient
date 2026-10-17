@@ -17,10 +17,10 @@ $ComposeFile = Join-Path $Root "infra\docker-compose.full.yml"
 Push-Location (Join-Path $Root "infra")
 try {
     if ($Build) {
-        docker compose --env-file $EnvFile -f docker-compose.full.yml build vision-service trade-service
+        docker compose --env-file $EnvFile -f docker-compose.full.yml build trade-service
     }
     docker compose --env-file $EnvFile -f docker-compose.full.yml up -d
-    Write-Host "Sandbox stack started. Vision: http://localhost:18082/health  Trade: http://localhost:18080"
+    Write-Host "Sandbox stack started. Trade: http://localhost:18080"
 } finally {
     Pop-Location
 }

@@ -89,7 +89,6 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 ```bash
 docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-service:latest .
 docker build -f infra/docker/device-service.Dockerfile -t ai-cabinet/device-service:latest .
-docker build -f infra/docker/vision-service.Dockerfile -t ai-cabinet/vision-service:latest .
 ```
 
 建议开启 BuildKit（Dockerfile 使用 `.m2` / Node 缓存）：
@@ -116,7 +115,6 @@ docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-servic
 |------------|------|------|
 | `docker/trade-service.Dockerfile` | `ai-cabinet/trade-service:${IMAGE_TAG:-local}` | 含运营后台 + Flyway |
 | `docker/device-service.Dockerfile` | `ai-cabinet/device-service:${IMAGE_TAG:-local}` | MQTT 设备服务 |
-| `docker/vision-service.Dockerfile` | `ai-cabinet/vision-service:${IMAGE_TAG:-local}` | Python 识别服务 |
 
 在 `infra/.env` 可设置 `IMAGE_TAG=v0.6.0` 固定版本；`docker-up.ps1` 未设置时默认写入当前 git short SHA（避免 `latest` 漂移）。
 本地 compose 默认单副本：trade 含 Flyway/定时任务，扩副本需 Swarm/K8s + 任务选举，勿在未改造时 `scale=2`。
@@ -133,7 +131,7 @@ docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-servic
 
 ## Healthcheck 与启动顺序
 
-全栈模式（`docker-compose.apps.yml`）通过 **healthcheck + depends_on** 控制启动顺序，避免 trade 未完成 Flyway 迁移时 device/vision/gateway 已接入。
+全栈模式（`docker-compose.apps.yml`）通过 **healthcheck + depends_on** 控制启动顺序，避免 trade 未完成 Flyway 迁移时 device / jiangyi-gateway / gateway 已接入。
 
 ### 健康检查一览
 
@@ -142,8 +140,8 @@ docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-servic
 | **postgres** | `pg_isready -U aicabinet -d aicabinet` | 每 5s，最多 10 次 |
 | **trade-service** | `GET /actuator/health` 含 `"status":"UP"` | `start_period: 90s`（留足 Flyway + 首次 npm 构建后的 JVM 启动） |
 | **device-service** | `GET /actuator/health` 含 `"status":"UP"` | `start_period: 45s` |
-| **vision-service** | `GET /health` | `start_period: 60s`（模型加载可能较慢） |
-| gateway | 无 HTTP healthcheck | 等待 trade + device + vision **healthy** 后启动 |
+| jiangyi-gateway | 无 HTTP healthcheck | 等待 trade **healthy** 后启动（`service_started`） |
+| gateway | 无 HTTP healthcheck | 等待 trade + device **healthy** 后启动 |
 
 ### 依赖链（简化）
 
@@ -155,7 +153,7 @@ redpanda (started)
 trade-service (healthy)  ← 核心：DB 迁移 + Actuator UP
         ↓
 ├── device-service (healthy)
-├── vision-service (healthy)
+├── jiangyi-gateway (:8083，将邑端侧识别 / 设备直连)
 └── gateway (:80 → trade-service:8080)
 ```
 
@@ -166,16 +164,13 @@ cd infra
 docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps ps
 ```
 
-`STATUS` 列应出现 `(healthy)`（postgres、trade-service、device-service、vision-service）。
+`STATUS` 列应出现 `(healthy)`（postgres、trade-service、device-service）。
 
 手动探测：
 
 ```powershell
 # trade（容器内 Actuator）
 curl http://localhost:8080/actuator/health
-
-# vision
-curl http://localhost:8082/health
 
 # 经 Gateway 访问运营后台
 curl -I http://localhost/admin/index.html
@@ -203,7 +198,7 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps l
 1. 复制 `infra/.env.example` → `infra/.env`
 2. 设置 `SPRING_PROFILES_ACTIVE=prod`
 3. 填写强密钥、微信 V3、SMS Webhook 等（见 [docs/PRODUCTION.md](../docs/PRODUCTION.md)）
-4. 设置 `AICABINET_MOCK_ENABLED=false`、`VISION_MOCK_ENABLED=false`
+4. 设置 `AICABINET_MOCK_ENABLED=false`（识别只认端侧上报，云端识别引擎已退役；端侧对接见 [docs/VISION_QUECTEL_INTEGRATION.md](../docs/VISION_QUECTEL_INTEGRATION.md)）
 5. 启动全栈：
 
 ```powershell
@@ -228,7 +223,7 @@ cd infra
 docker compose up -d
 ```
 
-然后在 IDEA 启动 trade (8080)、device (8081)、vision (8082)。Gateway 通过 `host.docker.internal:8080` 转发（`gateway/nginx.conf`）。
+然后在 IDEA 启动 trade (8080)、device (8081)。Gateway 通过 `host.docker.internal:8080` 转发（`gateway/nginx.conf`）。
 
 此模式下 **不构建** 应用镜像，运营控制台使用 IDEA 内 `trade-service` 静态资源或 `clients/admin-vue` 本地 `npm run dev`。
 
@@ -239,12 +234,11 @@ docker compose up -d
 全栈或本地服务启动后，且 trade healthcheck 已通过：
 
 ```powershell
-# 充值链路
+# 购物链路（登录 → 开门 → 关门 → 端侧识别上报 → 扣款）
 .\scripts\e2e-shopping.ps1
-.\scripts\verify-local.ps1 -WithVision
 
-# 购物链路（登录 → 开门 → 关门 → 识别 → 扣款）
-.\scripts\e2e-shopping.ps1
+# 一次性全流程校验（服务健康 + 购物 E2E + 清理）
+.\scripts\verify-local.ps1
 ```
 
 ---
@@ -276,10 +270,6 @@ Hyper-V 常保留 **`5433–5532`**，导致 PostgreSQL 默认宿主机端口无
 
 IDEA 本地连库时使用 `jdbc:postgresql://localhost:15433/aicabinet`。
 
---- `pip install` / 视觉镜像
-
-Compose 默认 **`VISION_INSTALL_ML=false`**，镜像只装 `requirements-base.txt`（`MOCK_ENABLED=true` 足够本地 E2E）。云端自研 YOLO / Retail-OS 本地叠加已废弃；生产识别见 [docs/VISION_QUECTEL_INTEGRATION.md](../docs/VISION_QUECTEL_INTEGRATION.md)。
-
 ---
 
 ## 文件说明
@@ -287,7 +277,7 @@ Compose 默认 **`VISION_INSTALL_ML=false`**，镜像只装 `requirements-base.t
 | 文件 | 说明 |
 |------|------|
 | `docker-compose.yml` | PostgreSQL、Redis、EMQX、MinIO、Redpanda、Gateway、监控 |
-| `docker-compose.apps.yml` | trade / device / vision 应用服务（profile: `apps`）、healthcheck、depends_on |
+| `docker-compose.apps.yml` | trade / device / jiangyi-gateway 应用服务（profile: `apps`）、healthcheck、depends_on |
 | `docker-compose.devops.yml` | SonarQube、GHA Runner（profile: `devops`，默认不启动），详见 [docs/DEVOPS.md](../docs/DEVOPS.md) |
 | `docker-compose.observability.yml` | Loki / promtail / Tempo（profile: `observability`，默认不启动） |
 | `observability.ps1` | 可观测性一键启停：`on` / `off` / `status` / `logs` |
@@ -369,7 +359,7 @@ From `infra/`:
 .\up.ps1 -Build -Smoke
 ```
 
-This command starts the full Docker stack, waits for `trade-service`, `device-service`, and `vision-service` healthchecks, then runs:
+This command starts the full Docker stack, waits for `trade-service` and `device-service` healthchecks, then runs:
 
 - `scripts/verify-production-readiness.ps1 -SkipBuild -SkipTests -SkipAdminBuild`
 - `scripts/run-api-tests.ps1`

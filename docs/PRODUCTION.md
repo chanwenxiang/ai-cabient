@@ -33,7 +33,8 @@ SPRING_DATASOURCE_PASSWORD=<强密码>
 # 安全（至少 32 字符，勿用默认值）
 JWT_SECRET=<随机32+字符>
 INTERNAL_API_KEY=<随机32+字符>
-VISION_API_KEY=<随机32+字符>
+# 将邑柜机设备 JWT：缺失或仍是占位 ⇒ 生产启动硬拒（fail-closed）
+JIANGYI_JWT_SECRET=<随机32+字节>
 
 # SMS：POST JSON {"phoneNumber":"138...","code":"123456"}
 SMS_WEBHOOK_URL=https://your-sms-gateway/send
@@ -60,7 +61,6 @@ OBJECT_STORAGE_SCHEME=oss
 
 # 服务地址（Docker Compose 内网）
 AICABINET_DEVICE_SERVICE_URL=http://device-service:8081
-AICABINET_VISION_SERVICE_URL=http://vision-service:8082
 
 # CORS（运营后台域名）
 CORS_ORIGIN=https://ops.your-domain.com
@@ -93,27 +93,35 @@ MQTT_PASSWORD=<随机16+字符>
 MQTT_PERSISTENCE_DIR=/data/aicabinet/mqtt-paho
 ```
 
-### vision-service
+### jiangyi-gateway（识别入口；取代已退役的 vision-service）
 
 ```bash
-VISION_API_KEY=<与 trade-service aicabinet.vision-api.key 相同>
-MOCK_ENABLED=true
-# 开发默认 mock；生产关闭 mock 前须端侧识别上报可用（见 VISION_QUECTEL_INTEGRATION.md）
-RECOGNIZER_BACKEND=mock
+SPRING_PROFILES_ACTIVE=prod
+AICABINET_TRADE_SERVICE_URL=http://trade-service:8080
+INTERNAL_API_KEY=<与 trade-service 相同>
+REDIS_HOST=redis
+REDIS_PASSWORD=<随机16+字符>
 
-# 对象存储（生产 OSS）
-MINIO_ENDPOINT=https://oss-cn-shanghai.aliyuncs.com
-MINIO_ACCESS_KEY=<OSS AccessKeyId>
-MINIO_SECRET_KEY=<OSS AccessKeySecret>
-OSS_REGION=cn-shanghai
+# 柜机设备 JWT：缺失或仍是占位 ⇒ 生产启动硬拒、柜机无法激活（fail-closed）
+JIANGYI_JWT_SECRET=<随机32+字节>
+JIANGYI_TOKEN_TTL_SECONDS=604800
 
-TRADE_SERVICE_URL=http://trade-service:8080
-INTERNAL_API_KEY=<与 trade 相同>
+# 将邑商户云（建档/采集），tenantId + secret 找将邑售后取
+JIANGYI_TENANT_ID=<将邑租户号>
+JIANGYI_SECRET=<将邑租户密钥>
+JIANGYI_API_BASE_URL=https://lingshouapi.hunanjysmart.com
+# 回调公网基址（finishNotifyUrl=<base>/jiangyi/api/gather-finish-notify，须公网可达）
+JIANGYI_PUBLIC_BASE_URL=https://ops.your-domain.com
 
-KAFKA_ENABLED=true
-KAFKA_BOOTSTRAP=redpanda:9092
+# 购物视频 OSS STS 直传（CB-024；AK / RoleArn 只从宿主注入，留空=fail-closed）
+JIANGYI_OSS_ACCESS_KEY_ID=<RAM 子账号 AccessKeyId>
+JIANGYI_OSS_ACCESS_KEY_SECRET=<RAM 子账号 AccessKeySecret>
+JIANGYI_OSS_ROLE_ARN=acs:ram::<ACCOUNT>:role/jiangyivideoupload
+JIANGYI_OSS_REGION=cn-shenzhen
+JIANGYI_OSS_BUCKET=ai-cabinet-by
 ```
 
+识别只认端侧上报 `POST /internal/v1/vision/edge-results`（携带 `X-Internal-Api-Key`），云端不再部署任何识别引擎；
 详见 [ARCHITECTURE.md](ARCHITECTURE.md) 商业落地一节与 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md)。
 
 ---
@@ -125,14 +133,14 @@ KAFKA_BOOTSTRAP=redpanda:9092
 export SPRING_PROFILES_ACTIVE=prod
 export JWT_SECRET=$(openssl rand -base64 48)
 export INTERNAL_API_KEY=$(openssl rand -base64 48)
-export VISION_API_KEY=$(openssl rand -base64 48)
 # ... 其余变量
 java -jar trade-service.jar
 
-# vision-service
-export MOCK_ENABLED=false
-export VISION_API_KEY=$VISION_API_KEY
-uvicorn app.main:app --host 0.0.0.0 --port 8082
+# jiangyi-gateway（识别入口，替代已退役的 vision-service）
+export SPRING_PROFILES_ACTIVE=prod
+export INTERNAL_API_KEY=$INTERNAL_API_KEY
+export JIANGYI_JWT_SECRET=$(openssl rand -base64 48)
+java -jar jiangyi-gateway.jar
 ```
 
 生产启动时 `ProductionStartupValidator` 会校验：JWT/内部密钥非默认值、SMS Webhook 已配置、微信支付与小程序均已启用。
@@ -149,9 +157,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8082
    - 禁用 `EMQX_ALLOW_ANONYMOUS`  
    - 每台柜机独立用户名/证书
 
-3. **vision-service 仅内网**  
-   - `/api/v2/vision/*` 需 API Key  
-   - `/health` 可给探针用
+3. **识别入口仅内网**  
+   - 端侧上报走 `POST /internal/v1/vision/edge-results` 与 `/anomaly-events`（`X-Internal-Api-Key` + 设备归属校验，审计 P1-5）  
+   - 旧 `vision-service`（8082、`/api/v2/vision/*`、`VISION_API_KEY`）已整体退役，生产不再部署
 
 4. **运营后台**  
    - 建议独立域名 + HTTPS + IP 白名单/VPN  
@@ -235,14 +243,13 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 | `INTERNAL_API_ALLOWED_CIDRS` | 可选，逗号分隔 CIDR；限制 `/internal/**` 来源（空=仅密钥）。生产建议私有网段 |
 | `IDENTITY_VERIFY_BASE_URL` | 实名二要素上游（`AICABINET_MOCK_ENABLED=false` 时生产必填） |
 | `IDENTITY_VERIFY_API_KEY` | 实名上游 API Key（可选） |
-| `VISION_API_KEY` | vision 识别 |
+| `JIANGYI_JWT_SECRET` | 将邑柜机设备 JWT（≥32 字节）；缺失/占位时 token 签发 503、prod 启动硬拒 |
 | `AUTH_COOKIE_ENABLED` | admin 浏览器会话 Cookie（默认 `true`；**prod/staging 启动校验强制 true**；小程序仍可用 Bearer） |
 | `AUTH_COOKIE_SECURE` | 生产 HTTPS 下必须设为 `true`，否则浏览器拒绝携带 Cookie |
 | `POSTGRES_PASSWORD` | 数据库密码 |
 | `WECHAT_*` | 微信支付 V3 + 小程序 |
 | `SMS_WEBHOOK_URL` | 短信网关 |
 | `AICABINET_MOCK_ENABLED` | 生产设为 `false` |
-| `VISION_MOCK_ENABLED` | 生产关闭前须端侧识别上报可用；云端不再挂载自研 YOLO |
 | `RECON_MOCK_ENABLED` | 生产设为 `false` 且须配齐 `WECHAT_*`；无渠道凭证时保持 `true`，勿空跑对账 |
 | `CHECKOUT_BALANCE_ONLY` | 无支付分/微信密钥的预发可设 `true`，强制余额结算 |
 | `PAYSCORE_LIVE_CHARGE_ENABLED` | 真支付分扣款前须 `true` 并配置 charge gateway；mock 关闭后禁止静默回落余额 |
@@ -280,9 +287,9 @@ copy infra\.env.staging.example infra\.env.staging
 | `sms-webhook-mock.py` | 本地/容器 SMS 接收器，供 webhook 联调 |
 | ~~`VISION_SKU_MODEL.md` / `verify-vision-model.ps1`~~ | **已移除**（云端 YOLO 废弃）；改见 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) |
 
-正式上线：将 `SPRING_PROFILES_ACTIVE=prod`，填写全部 `WECHAT_*`，`MQTT_BROKER=ssl://...`，生产识别走 **端侧提供方**（移远等），见 [`VISION_QUECTEL_INTEGRATION.md`](VISION_QUECTEL_INTEGRATION.md)。云端 vision-service 默认 mock + DeepSeek 争议辅助，**不再维护自研 YOLO 权重**。
+正式上线：将 `SPRING_PROFILES_ACTIVE=prod`，填写全部 `WECHAT_*`，`MQTT_BROKER=ssl://...`，生产识别走 **将邑端侧**（`POST /internal/v1/vision/edge-results`，第三方端侧盒子可按同一契约接入），见 [`VISION_QUECTEL_INTEGRATION.md`](VISION_QUECTEL_INTEGRATION.md)。云端识别引擎（`vision-service` + DeepSeek + 自研 YOLO 权重）已于 2026-10-11 整体退役，生产不再部署。
 
-`VISION_MOCK_ENABLED=false` 时须已有端侧结果上报路径，否则低置信/无结果进争议，不静默零结算。重力融合见 `GravitySettlementHelper`（staging / `AICABINET_GRAVITY_FALLBACK_SETTLE`）。运营后台维护端侧类名 → SKU 映射。
+`AICABINET_MOCK_ENABLED=false` 时须已有端侧结果上报路径，否则低置信/无结果进争议，不静默零结算。运营后台维护端侧 `class_id → SKU` 映射（`jiangyi_class_mapping`，须 `ACTIVE`）。重力融合见 `GravitySettlementHelper`（staging / `AICABINET_GRAVITY_FALLBACK_SETTLE`）。
 
 生产 Compose：
 
@@ -310,13 +317,13 @@ docker compose -p ai-cabinet -f docker-compose.yml -f docker-compose.apps.yml -f
 ## 8. 上线前检查表
 
 - [ ] `SPRING_PROFILES_ACTIVE=prod`，服务能正常启动
-- [ ] 更换所有默认密钥（JWT、INTERNAL_API_KEY、VISION_API_KEY）
+- [ ] 更换所有默认密钥（JWT、INTERNAL_API_KEY、JIANGYI_JWT_SECRET）
 - [ ] `AUTH_COOKIE_ENABLED=true`（prod/staging 启动校验强制）
 - [ ] `AUTH_COOKIE_SECURE=true`（admin 会话 Cookie 走 HTTPS）
 - [ ] 微信商户号、小程序、支付回调 URL 已配置并验签通过
 - [ ] SMS Webhook 实测能收到验证码
 - [ ] 验证码不使用内置 mock 码（123456 / 000000）
-- [ ] 端侧识别联调完成或明确仅 mock+争议灰度；`MOCK_ENABLED` / 映射表与 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) 一致
+- [ ] 端侧识别（将邑）联调完成或明确仅 mock+争议灰度；`AICABINET_MOCK_ENABLED` / `jiangyi_class_mapping`（ACTIVE）与 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) 一致
 - [ ] MinIO bucket 已创建，生命周期策略已设
 - [ ] EMQX TLS + 设备 ACL 已配置
 - [ ] Ingress 不暴露 `/internal/**`

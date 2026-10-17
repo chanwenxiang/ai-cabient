@@ -179,11 +179,18 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 
 ### MinIO 演示录像（容器重建后）
 
-订单购物视频依赖 `shopping_session.video_uri`（MinIO 对象）。MinIO 数据卷清空后需重新上传：
+订单购物视频依赖 `shopping_session.video_uri`（MinIO 对象）。MinIO 数据卷清空后需重新上传。
+旧 `scripts/seed-demo-shopping-video.ps1` 已随云识别/录像链退役删除（DC-27 批 3），现场两条命令即可等价完成：
 
 ```powershell
-.\scripts\seed-demo-shopping-video.ps1
-# 指定会话：.\scripts\seed-demo-shopping-video.ps1 -SessionId 1788233611382431271
+# 1) 上传样例录像（testdata\sample-shopping.mp4，仓库根执行）
+docker run --rm --network (docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' ai-cabinet-minio-1).Trim() `
+  -v "${PWD}\testdata\sample-shopping.mp4:/upload.mp4:ro" --entrypoint sh minio/mc:latest `
+  -c "mc alias set local http://minio:9000 minioadmin minioadmin && mc mb --ignore-existing local/cabinet-videos && mc cp /upload.mp4 local/cabinet-videos/demo/sample-shopping.mp4"
+
+# 2) 绑定到某条会话（session_id 用下方查询现场取，勿抄历史值）
+docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -c `
+  "UPDATE shopping_session SET video_uri='minio://cabinet-videos/demo/sample-shopping.mp4' WHERE session_id='<session_id>';"
 ```
 
 | 项 | 值 |
@@ -201,14 +208,15 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 > ⇒ 探测"通过"、用例却在 `<video>` 的 `readyState` 处变红，把**环境问题误报成产品缺陷**。
 > 需要真能播的样例录像时，用 `node scripts/generate-demo-shopping-video.mjs`（Chromium + MediaRecorder 直接产 H.264/avc1）。
 
-需要一条「真能播录像」的演示订单时，现场两步生成：
+需要一条「真能播录像」的演示订单时，现场三步生成：
 
 ```powershell
 # 1) 挑一条带 order_id 的会话（值每次都会变，别抄）
 docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -tAc `
   "select session_id, order_id from shopping_session where order_id is not null and order_id<>'' order by created_at desc limit 3;"
-# 2) 上传样例录像并把 video_uri 绑到该会话
-.\scripts\seed-demo-shopping-video.ps1 -SessionId <上一步的 session_id>
+# 2) 产一条浏览器可解（avc1）的样例录像
+node scripts/generate-demo-shopping-video.mjs --out testdata/sample-shopping.mp4
+# 3) 上传 + 把 video_uri 绑到该会话（命令见上节「MinIO 演示录像」）
 ```
 
 消费者 / 商户 H5 订单详情 →「查看购物视频」；API：`GET /api/v2/orders/{id}/video`、`GET /api/v2/merchant/orders/{id}/video`。

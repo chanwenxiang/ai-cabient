@@ -75,18 +75,6 @@ function Get-E2eBaseUrl {
     return $Fallback.TrimEnd('/')
 }
 
-function Get-E2eVisionUrl {
-    param([string]$Fallback = "http://localhost:8082")
-    if (-not [string]::IsNullOrWhiteSpace($env:E2E_VISION_URL)) {
-        return $env:E2E_VISION_URL.Trim().TrimEnd('/')
-    }
-    foreach ($candidate in @("http://localhost:8082", "http://127.0.0.1:8082", "http://localhost:18082")) {
-        if (Test-E2eHttpOk -Url "$candidate/health") {
-            return $candidate
-        }
-    }
-    return $Fallback.TrimEnd('/')
-}
 
 function Get-E2eDeviceUrl {
     param([string]$Fallback = "http://localhost:8081")
@@ -107,40 +95,7 @@ function Resolve-E2eBaseUrl {
     return $BaseUrl.TrimEnd('/')
 }
 
-function Get-E2eVisionApiKey {
-    param([string]$Fallback = "dev-vision-key-change-me")
-    if (-not [string]::IsNullOrWhiteSpace($env:VISION_API_KEY)) {
-        return $env:VISION_API_KEY.Trim()
-    }
-    $envFile = Join-Path (Split-Path -Parent $PSScriptRoot) "infra\.env"
-    if (Test-Path $envFile) {
-        $line = Get-Content $envFile | Where-Object { $_ -match '^\s*VISION_API_KEY\s*=' } | Select-Object -First 1
-        if ($line -match '^\s*VISION_API_KEY\s*=\s*(.+)\s*$') {
-            $val = $Matches[1].Trim().Trim('"').Trim("'")
-            if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
-        }
-    }
-    return $Fallback
-}
 
-function Set-E2eVisionForceNeedReview {
-    param(
-        [bool]$Enabled,
-        [string]$VisionUrl = "",
-        [string]$VisionApiKey = ""
-    )
-    if ([string]::IsNullOrWhiteSpace($VisionUrl)) { $VisionUrl = Get-E2eVisionUrl }
-    if ([string]::IsNullOrWhiteSpace($VisionApiKey)) { $VisionApiKey = Get-E2eVisionApiKey }
-    $uri = "$VisionUrl/api/v2/vision/debug/force-need-review"
-    $params = @{
-        Method      = "POST"
-        Uri         = $uri
-        ContentType = "application/json"
-        Headers     = @{ "X-Internal-Api-Key" = $VisionApiKey }
-        Body        = (@{ enabled = $Enabled } | ConvertTo-Json -Compress)
-    }
-    return Invoke-RestMethod @params
-}
 
 function Set-E2eConsumerPayChannel {
     param(

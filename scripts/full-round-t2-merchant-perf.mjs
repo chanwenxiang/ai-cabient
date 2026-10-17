@@ -342,34 +342,8 @@ await browser.close();
   push('PERF3-light-minio', report.perf.perf3Light.pass ? 'PASS' : 'FAIL', report.perf.perf3Light);
 }
 
-// ---- PERF-4 light: vision health concurrent ----
-{
-  const times = [];
-  let errors = 0;
-  const N = 40;
-  await Promise.all(
-    Array.from({ length: N }, async () => {
-      const s = Date.now();
-      try {
-        const r = await fetch('http://127.0.0.1:18082/health');
-        const j = await r.json();
-        if (!(j.status === 'ok' || j.status === 'UP')) errors++;
-      } catch {
-        errors++;
-      }
-      times.push(Date.now() - s);
-    })
-  );
-  times.sort((a, b) => a - b);
-  report.perf.perf4Light = {
-    n: N,
-    p50: times[Math.floor(N * 0.5)],
-    p95: times[Math.floor(N * 0.95) - 1],
-    errors,
-    pass: errors === 0 && times[Math.floor(N * 0.95) - 1] < 800
-  };
-  push('PERF4-light-vision', report.perf.perf4Light.pass ? 'PASS' : 'FAIL', report.perf.perf4Light);
-}
+// PERF-4 light（云端识别服务 8082 并发健康）随 vision-service 退役删除：
+// 识别在端侧完成，我方栈里没有该服务可压。
 
 const pass = report.cases.filter((c) => c.status === 'PASS').length;
 const fail = report.cases.filter((c) => c.status === 'FAIL').length;

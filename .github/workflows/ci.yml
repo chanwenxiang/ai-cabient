@@ -71,8 +71,6 @@ jobs:
           test -f "$env_file" || { echo "missing $env_file"; exit 1; }
           grep -q '^AICABINET_MOCK_ENABLED=false$' "$env_file" \
             || { echo "AICABINET_MOCK_ENABLED must be false in production template"; exit 1; }
-          grep -q '^VISION_MOCK_ENABLED=false$' "$env_file" \
-            || { echo "VISION_MOCK_ENABLED must be false in production template"; exit 1; }
           grep -q '^RECON_MOCK_ENABLED=false$' "$env_file" \
             || { echo "RECON_MOCK_ENABLED must be false in production template"; exit 1; }
           grep -q '^AUTH_COOKIE_SECURE=true$' "$env_file" \
@@ -856,7 +854,7 @@ jobs:
         working-directory: clients/consumer-mp
 
       # 前置：scripts/create-open-dispute.ps1 生成种子 —— 它必须走 MQTT 模拟购物链路
-      # （模拟器 + EMQX + vision-service）造出一条 DISPUTED 会话，争议单才有处可挂。
+      # （模拟器 + EMQX + 端侧识别上报/低置信度）造出一条 DISPUTED 会话，争议单才有处可挂。
       # 🔴 本行此前写「Linux 下等价地由后端接口建单」，**那是假的**（2026-09-20 取证）：
       #    不存在能造 shopping_session 的产品接口 —— /internal/v1/demo/ensure 只补主数据
       #    （SKU/设备/槽位/仓库/用户），而消费者建争议单 POST /api/v2/disputes 要求会话已处于
@@ -895,7 +893,7 @@ jobs:
             sleep 15
           done
           if [ "$final" -eq 2 ]; then
-            echo '::warning::dispute UAT 本次 0 条断言（种子缺失 → exit 2 早退，一条用例都没跑）：CI 缺 .tmp/open-dispute.json 种子链路（模拟器+MQTT+vision，仓内无等价 REST 路径，见本步骤注释）。「步骤绿」≠「争议 UI 被验证过」。真实回归请本地跑 create-open-dispute.ps1 + 本 UAT。'
+            echo '::warning::dispute UAT 本次 0 条断言（种子缺失 → exit 2 早退，一条用例都没跑）：CI 缺 .tmp/open-dispute.json 种子链路（模拟器+MQTT 关门后无端侧识别结果 → fail-closed 占位转人工；云端识别引擎已退役，仓内无等价 REST 路径，见本步骤注释）。「步骤绿」≠「争议 UI 被验证过」。真实回归请本地跑 create-open-dispute.ps1 + 本 UAT。'
             exit 0
           fi
           exit 1

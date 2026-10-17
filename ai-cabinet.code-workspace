@@ -39,8 +39,7 @@
       "**/docs/**",
       "**/.playwright-mcp/**",
       "**/scripts/**",
-      "**/services/*/src/main/resources/static/**",
-      "**/vision-service/**"
+      "**/services/*/src/main/resources/static/**"
     ]
   }
 }

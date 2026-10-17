@@ -94,7 +94,6 @@ $PROTECTED_VOLUMES = @(
 )
 $PROTECTED_IMAGES = @(
     "ai-cabinet/trade-service:local",
-    "ai-cabinet/vision-service:local",
     "ai-cabinet/device-service:local",
     "ai-cabinet/github-runner:2.321.0"
 )

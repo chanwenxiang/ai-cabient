@@ -1,45 +1,22 @@
-# 视觉识别测试素材
+# 测试素材（图片 / 录像）
 
 | 文件 | 用途 |
 |------|------|
-| `bottle.jpg` | 静态图，供 mock / 上传接口联调 |
-| `cola.png` | 备用静态图 |
-| `take-one-bottle.mp4` | 合成视频：前几帧有瓶、末帧空白 |
-| `static-bottle.mp4` | 合成视频：全程有瓶 |
+| `bottle.jpg` | 模拟器默认素材（`AICABINET_SIM_VIDEO_FILE`，见 `infra/docker-compose.full.yml`） |
+| `soda.jpg` / `cola.png` / `apple.jpg` / `zidane.jpg` / `bus.jpg` | 模拟器换图、识别建档与映射回归的备用图 |
+| `shelf-full.jpg` / `shelf-sparse.jpg` | 满柜 / 空柜对照图 |
+| `vending-interior-clear.png` / `vending-interior-frost.png` | 柜内清晰 / 起雾对照图（低置信度场景） |
+| `marketside-coconut-water-1l.png` / `oriental-leaf-jasmine-335ml.png` | 真实商品图（SKU 建档演示） |
+| `retail-ref.jpg` | 商品参照图 |
+| `sample-shopping.mp4` | **有产物契约**：浏览器可解码的演示录像，由 `node scripts/generate-demo-shopping-video.mjs` 生成 |
+| `out.mp4` | 临时产物，不对外承诺可播（`check-demo-video-format.mjs` EXEMPT 列表内） |
 
-> 云端自研 YOLO 已废弃。开发联调默认 `MOCK_ENABLED=true`；生产识别见 [VISION_QUECTEL_INTEGRATION.md](../docs/VISION_QUECTEL_INTEGRATION.md)。
+归类纪律：`testdata/**/*.mp4` 每个文件都必须在 `scripts/check-demo-video-format.mjs` 里显式归类（契约或 EXEMPT），
+未归类直接红。新增/删除素材须同批改该门禁，否则 `pnpm check:audit-gates` 失败。
 
-## 生成测试视频
+## 识别口径
 
-```powershell
-cd ai-cabinet/vision-service
-pip install opencv-python-headless numpy
-python scripts/generate_test_videos.py
-```
-
-## mock 识别联调（vision-service）
-
-```powershell
-cd ai-cabinet/vision-service
-.\.venv\Scripts\pip install -r requirements-base.txt
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8082
-```
-
-上传测试：
-
-```powershell
-curl.exe -X POST "http://localhost:8082/api/v2/vision/recognize/upload" `
-  -H "X-Internal-Api-Key: dev-vision-key-change-me" `
-  -F "session_id=TEST-VIDEO" `
-  -F "file=@testdata\take-one-bottle.mp4"
-```
-
-期望：`model_version` 为 mock 系列；可用 `POST /api/v2/vision/debug/force-need-review` 强制进争议路径。
-
-## 端到端
-
-```powershell
-.\scripts\verify-local.ps1 -WithVision
-.\scripts\e2e-shopping.ps1
-.\scripts\e2e-dispute-recognition.ps1
-```
+云端识别引擎（`vision-service/`）已于 2026-10-11 退役，本目录不再提供「上传给云识别」的联调流程：
+识别结果只认端侧上报 `POST /internal/v1/vision/edge-results`，端侧对接见
+[VISION_QUECTEL_INTEGRATION.md](../docs/VISION_QUECTEL_INTEGRATION.md)；本地跑购物链路用
+`.\scripts\verify-local.ps1` 或 `.\scripts\e2e-shopping.ps1`（模拟器出图 + 端侧结果上报）。

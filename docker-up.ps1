@@ -64,7 +64,7 @@ if ($DevOps) {
 
 $appServices = @(
   "postgres", "redis", "emqx", "minio", "minio-init", "redpanda",
-  "vision-service", "xxl-job-mysql", "xxl-job-admin",
+  "xxl-job-mysql", "xxl-job-admin",
   "trade-service", "device-service", "device-simulator", "gateway"
 )
 if ($WithMonitoring -or $DevOps) {

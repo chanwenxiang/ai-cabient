@@ -634,8 +634,6 @@ public class DemoDataService {
 
     private record DemoWhSeed(String skuId, String batchNo, int productionDaysAgo, int expiryDaysAhead, int quantity) {}
 
-    private record DemoVisionSeed(String className, String skuId, float minConfidence) {}
-
     private static final List<DemoSkuSeed> DEMO_SKUS = List.of(
             new DemoSkuSeed(SKU_DEMO_001, "可口可乐 330ml", 350, 330, 190,
                     "/admin/sku-demo/cola.jpg", "经典可乐", "饮料", "6901028300018", 270, 7, 0, 0.92f),
@@ -667,12 +665,5 @@ public class DemoDataService {
             new DemoWhSeed(SKU_SNACK_001, "B-WH-CHIPS-01", 15, 165, 40),
             new DemoWhSeed(SKU_MILK_001, "B-WH-MILK-01", 3, 177, 30),
             new DemoWhSeed(SKU_NOODLE_001, "B-WH-NOODLE-01", 20, 250, 50)
-    );
-
-    private static final List<DemoVisionSeed> DEMO_VISION_MAPPINGS = List.of(
-            new DemoVisionSeed("bottle", SKU_DEMO_001, 0.5f),
-            new DemoVisionSeed("cup", SKU_DEMO_001, 0.5f),
-            new DemoVisionSeed("can", SKU_SODA_001, 0.5f),
-            new DemoVisionSeed("bowl", SKU_NOODLE_001, 0.5f)
     );
 }

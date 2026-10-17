@@ -795,7 +795,7 @@ async function main() {
         '订单购物视频',
         '功能',
         'SKIP',
-        '未找到含录像的订单（可先执行 scripts/seed-demo-shopping-video.ps1）',
+        '未找到含录像的订单（将邑柜走 JIANGYI 台账分片 CB-030；EDGE 会话需手工写 shopping_session.video_uri，旧 seed 脚本已随云识别链退役删除）',
         null
       );
     } else {

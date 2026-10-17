@@ -24,8 +24,6 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
-$VisionUrl = Get-E2eVisionUrl
-$VisionApiKey = Get-E2eVisionApiKey
 $outFile = Join-Path $RepoRoot ".tmp\open-dispute.json"
 New-Item -ItemType Directory -Force -Path (Split-Path $outFile) | Out-Null
 
@@ -82,24 +80,20 @@ try {
         docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -c `
             "UPDATE device_info SET sales_locked=false WHERE device_id='$DeviceId';" | Out-Null
 
-        Set-E2eVisionForceNeedReview -Enabled $true -VisionUrl $VisionUrl -VisionApiKey $VisionApiKey | Out-Null
-        try {
-            & (Join-Path $PSScriptRoot "set-simulator-cart.ps1") -Items @("${E2eSku}:1") -ShoppingSeconds 8 -NoRecreate | Out-Null
-            $login = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/password-login" -Body @{
-                phoneNumber = $ConsumerPhone; password = $ConsumerPassword
-            }
-            $auth = @{ Authorization = "Bearer $($login.token)" }
-            $mqtt = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `
-                -RepoRoot $RepoRoot -KeepSimulator
-            if ($mqtt.FinalState -ne "DISPUTED") {
-                throw "expected DISPUTED, got $($mqtt.FinalState)"
-            }
-            $sessionId = $mqtt.SessionId
-        } finally {
-            try {
-                Set-E2eVisionForceNeedReview -Enabled $false -VisionUrl $VisionUrl -VisionApiKey $VisionApiKey | Out-Null
-            } catch { }
+        # 旧云识别的 force-need-review 开关随 vision-service 退役删除：
+        # 关门结算现在构造「cloud-vision-retired」占位结果（needReview=true），
+        # 无重力证据时天然 fail-closed 进 DISPUTED，正是本脚本要的争议种子。
+        & (Join-Path $PSScriptRoot "set-simulator-cart.ps1") -Items @("${E2eSku}:1") -ShoppingSeconds 8 -NoRecreate | Out-Null
+        $login = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/password-login" -Body @{
+            phoneNumber = $ConsumerPhone; password = $ConsumerPassword
         }
+        $auth = @{ Authorization = "Bearer $($login.token)" }
+        $mqtt = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `
+            -RepoRoot $RepoRoot -KeepSimulator
+        if ($mqtt.FinalState -ne "DISPUTED") {
+            throw "expected DISPUTED, got $($mqtt.FinalState)"
+        }
+        $sessionId = $mqtt.SessionId
 
         $disp = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
             -Path "/api/v2/ops/disputes?status=OPEN&sessionId=$sessionId&page=0&size=5" -Headers $ops

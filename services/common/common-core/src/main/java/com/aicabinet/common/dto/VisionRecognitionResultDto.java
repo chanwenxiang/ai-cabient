@@ -6,8 +6,8 @@ import java.util.List;
 /**
  * 端侧识别结果直报（第三方端侧盒子完成识别后上报，复用既有结算链路）。
  *
- * <p>字段命名与 vision-service 回写 Kafka 的识别结果 payload 完全一致，
- * 使端侧既可直接投递 {@code aicabinet.vision.recognize.result}，也可走 HTTP 直报，
+ * <p>字段命名与 {@code aicabinet.vision.recognize.result} 的识别结果 payload 完全一致，
+ * 使端侧既可直接投递该 Kafka topic，也可走 HTTP 直报，
  * 两种入口对同一份结果语义相同。
  *
  * @param sessionId        开门会话号（必填，结算主体）

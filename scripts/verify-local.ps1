@@ -1,8 +1,7 @@
-# One-shot local flow verification (services + shopping E2E + optional suites)
+﻿# One-shot local flow verification (services + shopping E2E + optional suites)
 # Usage:
 #   .\scripts\verify-local.ps1
 #   .\scripts\verify-local.ps1 -StartInfra
-#   .\scripts\verify-local.ps1 -WithVision
 #   .\scripts\verify-local.ps1 -WithReplenishment
 #   .\scripts\verify-local.ps1 -WithAlipay -WithDispute -WithPayscore
 #   .\scripts\verify-local.ps1 -SkipCleanup
@@ -10,7 +9,6 @@
 
 param(
     [switch]$StartInfra,
-    [switch]$WithVision,
     [switch]$WithReplenishment,
     [switch]$WithAlipay,
     [switch]$WithDispute,
@@ -18,8 +16,7 @@ param(
     [switch]$SkipCleanup,
     [ValidateSet("", "WECHAT", "ALIPAY", "BALANCE")]
     [string]$ShoppingChannel = "",
-    [string]$BaseUrl = "",
-    [string]$VisionUrl = ""
+    [string]$BaseUrl = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,10 +24,8 @@ $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
-if ([string]::IsNullOrWhiteSpace($VisionUrl)) { $VisionUrl = Get-E2eVisionUrl }
 $DeviceUrl = Get-E2eDeviceUrl
 $env:E2E_BASE_URL = $BaseUrl
-$env:E2E_VISION_URL = $VisionUrl
 $env:E2E_DEVICE_URL = $DeviceUrl
 
 Write-Host "========================================"
@@ -50,7 +45,6 @@ if ($WithReplenishment) { $steps++ }
 if ($WithAlipay) { $steps++ }
 if ($WithPayscore) { $steps++ }
 if ($WithDispute) { $steps++ }
-if ($WithVision) { $steps++ }
 
 $step = 1
 Write-Host "==> $step/$steps Service health"
@@ -131,25 +125,10 @@ if ($WithPayscore) {
 
 if ($WithDispute) {
     Write-Host ""
-    Write-Host "==> $step/$steps Recognition dispute E2E"
-    & (Join-Path $Root "scripts\e2e-dispute-recognition.ps1") -BaseUrl $BaseUrl -VisionUrl $VisionUrl
+    Write-Host "==> $step/$steps Recognition dispute seed (MQTT 模拟购物 → DISPUTED + OPEN 工单)"
+    & (Join-Path $Root "scripts\create-open-dispute.ps1") -BaseUrl $BaseUrl -Force
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $step++
-}
-
-if ($WithVision) {
-    Write-Host ""
-    Write-Host "==> $step/$steps Vision service"
-    if (Test-ServiceHealth "$VisionUrl/health") {
-        $vh = Invoke-RestMethod -Uri "$VisionUrl/health" -TimeoutSec 10
-        Write-Host "  PASS: vision mock_enabled=$($vh.mock_enabled) force_need_review=$($vh.mock_force_need_review) recognizer=$($vh.recognizer_available)" -ForegroundColor Green
-    } else {
-        Write-Host "  FAIL: $VisionUrl/health not reachable" -ForegroundColor Red
-        exit 1
-    }
-} elseif (-not ($WithReplenishment -or $WithAlipay -or $WithPayscore -or $WithDispute)) {
-    Write-Host ""
-    Write-Host "==> $step/$steps Vision (skipped, use -WithVision)"
 }
 
 Write-Host ""

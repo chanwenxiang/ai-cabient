@@ -2,7 +2,8 @@
 
 > **叙事主轴（A）**：测前清数 → **台子（必要条件）** → **主价值链** → **旁路业务链**。  
 > **附录（B）**：页/API 覆盖矩阵 + 原 P0/P1/P2 ID，供自动化扫页与对账。  
-> **脊骨脚本**：[`scripts/e2e-full-flow-milk.ps1`](../../scripts/e2e-full-flow-milk.ps1)（采购→入库→补货→购物→结算→分账）。  
+> **脊骨脚本**：**分段脊骨** `e2e-warehouse-phase-b.ps1`（入库/出库/上架）→ `e2e-replenishment.ps1`（补货）→ `e2e-shopping.ps1`（购物/结算）→ `e2e-fund-safety.ps1`（钱包/资金安全断言）。  
+> ⚠️ **2026-10-17 勘误**：本文件原写的单条全链脚本 `e2e-full-flow-milk.ps1`，以及 `e2e-demo-smoke.ps1` / `e2e-dispute-recognition.ps1`，已随云端识别/录像链退役**整体删除**（DC-27 批 3）。下文表格中残留的 `milk` / `demo-smoke` / `dispute-recognition` 字样一律按上面的分段脊骨与 [`scripts/create-open-dispute.ps1`](../../scripts/create-open-dispute.ps1)（争议种子）理解，历史轮次记录不改。  
 > **清数**：[`scripts/cleanup-test-data.ps1`](../../scripts/cleanup-test-data.ps1)（**测前必跑**，防脏会话/争议干扰）。  
 > **闸门**：`scripts/mp-seed-gate.ps1`（`-CleanupFirst` / `-SeedMinimal`）。  
 > **权威**：mp-weixin；禁 H5 冒充 PASS。软写默认；硬写须显式开关。  
@@ -102,7 +103,7 @@ powershell -File scripts/cleanup-test-data.ps1 -Light
 | S1-01 | 组织与点位可读 | A | 演示点位存在 | — | Admin 组织/点位 |
 | S1-02 | 商户主数据 + 可分账 | A·M | 默认演示商户；分账规则生效 | P0-M-06/07 | Admin 商户；M 钱包 |
 | S1-03 | 线长/路线（若产品启用） | A | 有则可见；无则 SKIP | P1-M-05 | Admin 线长；M 线长钱包 |
-| S1-04 | 仓库 + 供应商 | A | 运行时解析/系统发号（勿写死 WH/SUP-DEMO） | — | `e2e-full-flow-milk` 前置 |
+| S1-04 | 仓库 + 供应商 | A | 运行时解析/系统发号（勿写死 WH/SUP-DEMO） | — | `e2e-warehouse-phase-b` 前置 |
 | S1-05 | 柜机投放 + 测时非销售锁死 | A·M | **本轮解析出的 deviceId** 在库/列表；可开门 | P0-M-03/04 | `Resolve-E2eTestDevice`；解锁 `sales_locked` |
 | S1-06 | 货道绑定 SKU + 可售库存 | A·M | 至少 1 货道有演示 SKU | P0-M-04 | 库存健康 / slots |
 | S1-07 | 点位价格可读 | M·A | 单价与货道一致 | P1-M-03 | M 定价（软写） |
@@ -115,7 +116,7 @@ powershell -File scripts/cleanup-test-data.ps1 -Light
 
 ## S2 · 主价值链（采购入库 → 分账结算）【P0 全覆盖】
 
-> 对齐 `e2e-full-flow-milk.ps1` 步骤顺序。每节点：**造数/动作 → 三端可见 → 金额差 ≤1 分（L3）**。
+> 对齐分段脊骨（warehouse-phase-b → replenishment → shopping）的步骤顺序。每节点：**造数/动作 → 三端可见 → 金额差 ≤1 分（L3）**。
 
 ```text
 采购审批收货 → 仓内库存 → 出库/补货计划 → 商户补货入柜
@@ -141,15 +142,17 @@ powershell -File scripts/cleanup-test-data.ps1 -Light
 | ID | 节点 | 挂载 | 脚本 |
 |----|------|------|------|
 | S2-R1 | 按行部分退款 + 库存回补 | P0-C-10 | `e2e-partial-refund-line` |
-| S2-R2 | 争议 KEEP/WAIVE/CONFIRM 三端 | P0-C-11 · P0-M-09 · P0-X-01 | `e2e-three-end` · `e2e-demo-smoke` |
+| S2-R2 | 争议 KEEP/WAIVE/CONFIRM 三端 | P0-C-11 · P0-M-09 · P0-X-01 | `create-open-dispute` 种子 · `e2e-three-end` |
 | S2-R3 | 资金安全（余额不足/幂等） | P0-X-02 | `e2e-fund-safety` |
 
-**推荐一键（API 主链，含清数）**
+**推荐一键（API 主链，分段按序跑；旧 `e2e-full-flow-milk.ps1` 已随云识别链删除）**
 
 ```powershell
-powershell -File scripts/e2e-full-flow-milk.ps1
-# 从补货续跑： -FromStep replenishment
-# 跳过清数（不推荐）： -SkipCleanup
+powershell -File scripts/cleanup-test-data.ps1        # 测前清数（milk 的 -SkipCleanup 语义已不需要）
+powershell -File scripts/e2e-warehouse-phase-b.ps1    # 入库 → 规划出库 → 上架 → 柜内商品
+powershell -File scripts/e2e-replenishment.ps1        # 补货闭环
+powershell -File scripts/e2e-shopping.ps1             # 开门 → 关门 → 结算
+powershell -File scripts/e2e-fund-safety.ps1          # 资金安全 / 幂等 / 钱包断言
 ```
 
 **UI 自动化顺序（在 API 主链绿之后）**  
@@ -207,7 +210,7 @@ S0 → S1 闸门 → 抽 S2-05/06/07/08 三端截图对数 → 再补 S2-03/04 �
 |------|--------|-------------|
 | 1 | **清数** | `mp-seed-gate.ps1 -CleanupFirst` 或 `cleanup-test-data.ps1` |
 | 2 | 台子检查 | 闸门 `pass=true` 且含 device/账号 |
-| 3 | API 主链 | `e2e-full-flow-milk.ps1` |
+| 3 | API 主链 | 分段脊骨：`e2e-warehouse-phase-b` → `e2e-replenishment` → `e2e-shopping` → `e2e-fund-safety` |
 | 4 | UI 主链抽样 | mp automator + Admin Playwright：订单/钱包/分账/补货 |
 | 5 | 旁路抽样 | S3-A/B/C 按需 |
 | 6 | 页矩阵扫漏 | 附录 A，L1 |
@@ -307,13 +310,13 @@ S0 → S1 闸门 → 抽 S2-05/06/07/08 三端截图对数 → 再补 S2-03/04 �
 | 脚本 | 链节点 |
 |------|--------|
 | `cleanup-test-data.ps1` | **S0** |
-| `e2e-full-flow-milk.ps1` | S0→S2 脊骨 |
+| `e2e-warehouse-phase-b.ps1` → `e2e-replenishment.ps1` → `e2e-shopping.ps1` | S0→S2 分段脊骨（旧 `e2e-full-flow-milk.ps1` 已删） |
 | `e2e-replenishment.ps1` · `e2e-checkin-contract.ps1` | S2-02/03 |
 | `e2e-shopping.ps1` | S2-04/05 |
-| `e2e-three-end.ps1` · `e2e-demo-smoke.ps1` | S2-05 · S2-R2 |
+| `e2e-three-end.ps1` | S2-05 · S2-R2（旧 `e2e-demo-smoke.ps1` 已删） |
 | `e2e-partial-refund*.ps1` · `e2e-refund-restore-compare.ps1` | S2-R1 |
 | `e2e-fund-safety.ps1` | S2-R3 |
-| `e2e-dispute-recognition.ps1` | S2-R2 |
+| `create-open-dispute.ps1` | S2-R2（旧 `e2e-dispute-recognition.ps1` 已删） |
 | `e2e-consumer-marketing-recharge.ps1` | S3-A1 · S3-B1 |
 | `e2e-live-cart.ps1` | S3-D2 |
 | `e2e-inventory-inout-refund.ps1` | S2-01 外围 |
@@ -360,4 +363,4 @@ powershell -File scripts/mp-seed-gate.ps1 -CleanupFirst -DeviceId <id>
 | S3 旁路 | 约 20 |
 | 附录原 P0/P1/P2 | 46（兼容） |
 
-下一会话：先 `-CleanupFirst` 闸门绿 → `e2e-full-flow-milk` → 再按 S2 节点写 UI 自动化。
+下一会话：先 `-CleanupFirst` 闸门绿 → 分段脊骨（warehouse-phase-b → replenishment → shopping → fund-safety）→ 再按 S2 节点写 UI 自动化。

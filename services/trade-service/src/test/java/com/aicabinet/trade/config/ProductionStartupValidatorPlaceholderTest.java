@@ -54,8 +54,6 @@ class ProductionStartupValidatorPlaceholderTest {
         WeChatMiniAppProperties weChatMiniAppProperties = mock(WeChatMiniAppProperties.class);
         when(weChatMiniAppProperties.enabled()).thenReturn(false);
         when(weChatMiniAppProperties.isConfigured()).thenReturn(true);
-        VisionApiProperties visionApiProperties = mock(VisionApiProperties.class);
-        when(visionApiProperties.key()).thenReturn("prod-vision-key-32bytes-at-least!!");
         MinioProperties minioProperties = mock(MinioProperties.class);
         when(minioProperties.accessKey()).thenReturn("prod-minio-user");
         when(minioProperties.secretKey()).thenReturn("prod-minio-secret-32bytes-at-least");
@@ -78,7 +76,7 @@ class ProductionStartupValidatorPlaceholderTest {
 
         return new ProductionStartupValidator(
                 environment, securityProperties, stagingProperties, internalApiProperties, authProperties,
-                weChatPayProperties, weChatMiniAppProperties, visionApiProperties, minioProperties, corsProperties,
+                weChatPayProperties, weChatMiniAppProperties, minioProperties, corsProperties,
                 profitSharingProperties, payScoreProperties, reconciliationProperties, checkoutProperties,
                 lineWithdrawProperties, merchantWithdrawProperties, identityVerifyProperties);
     }

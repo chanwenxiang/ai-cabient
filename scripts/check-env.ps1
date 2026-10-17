@@ -17,7 +17,6 @@ $Infra = Join-Path $Root "infra"
 $DevDefaults = @{
     JWT_SECRET       = "ai-cabinet-dev-secret-key-32bytes!!"
     INTERNAL_API_KEY = "dev-internal-key-change-me"
-    VISION_API_KEY   = "dev-vision-key-change-me"
 }
 
 # AU-074：示例模板占位符（CHANGE-ME*/YOUR_*/wxYOUR*/XXX…）≠dev 默认且长度达标，
@@ -82,7 +81,7 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
     $errors = @()
     $warnings = @()
 
-    foreach ($key in @("JWT_SECRET", "INTERNAL_API_KEY", "VISION_API_KEY")) {
+    foreach ($key in @("JWT_SECRET", "INTERNAL_API_KEY")) {
         if ($Mode -eq "dev") {
             $val = $Env[$key]
             if (-not $val -or $DevDefaults[$key] -eq $val) {
@@ -115,9 +114,6 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
     }
 
     if ($Mode -eq "staging") {
-        if ($Env["VISION_MOCK_ENABLED"] -eq "true") {
-            $warnings += "VISION_MOCK_ENABLED=true — staging should use edge recognition or mock=false with need_review path"
-        }
         if (-not $Env["SMS_WEBHOOK_URL"]) {
             $errors += "SMS_WEBHOOK_URL is required for staging (compose provides sms-webhook-mock)"
         }
@@ -137,9 +133,6 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
                 }
             }
         }
-        if ($Env["VISION_MOCK_ENABLED"] -ne "false" -and -not $Env["VISION_MOCK_ENABLED"]) {
-            $warnings += "VISION_MOCK_ENABLED unset — staging compose defaults to false"
-        }
     }
 
     if ($Mode -eq "prod") {
@@ -149,9 +142,6 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
         foreach ($key in @("WECHAT_APP_ID", "WECHAT_MCH_ID", "WECHAT_API_V3_KEY", "WECHAT_MCH_SERIAL",
                            "WECHAT_PRIVATE_KEY", "WECHAT_MINIAPP_ID", "WECHAT_MINIAPP_SECRET", "WECHAT_NOTIFY_URL")) {
             if (-not $Env[$key]) { $errors += "$key is required for prod" }
-        }
-        if ($Env["VISION_MOCK_ENABLED"] -eq "true") {
-            $warnings += "VISION_MOCK_ENABLED=true — production should use edge provider recognition"
         }
         if ($Env["MQTT_BROKER"] -match "^tcp://") {
             $errors += "MQTT_BROKER must use ssl:// in prod"
