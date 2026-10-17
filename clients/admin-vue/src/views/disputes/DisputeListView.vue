@@ -364,10 +364,7 @@
             />
             <div class="workbench-media-actions">
               <el-button
-                v-if="
-                  selected.sessionId &&
-                  auth.hasPerm('ops:session:list')
-                "
+                v-if="selected.sessionId && auth.hasPerm('ops:session:list')"
                 type="warning"
                 size="small"
                 :loading="videoLoading"
@@ -375,10 +372,7 @@
                 >重新加载录像</el-button
               >
               <el-button
-                v-if="
-                  selected.sessionId &&
-                  auth.hasPerm('ops:session:list')
-                "
+                v-if="selected.sessionId && auth.hasPerm('ops:session:list')"
                 link
                 type="primary"
                 @click="playVideo(selected.sessionId, selected.videoPreviewUrl, selected.ticketId)"
