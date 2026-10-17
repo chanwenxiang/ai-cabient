@@ -122,7 +122,7 @@ services:
     ports:
       - "127.0.0.1:9092:9092"
 
-  # 一次性 SCRAM 用户引导（幂等）：trade 消费/生产 + vision（将邑识别结果生产方，预留）+ admin。
+  # 一次性 SCRAM 用户引导（幂等）：trade 消费/生产 + admin。
   # enable_sasl 为集群配置属性（v24 --set 静态写法无效），运行时设置；不阻断栈启动。
   redpanda-init:
     stop_grace_period: 30s
@@ -137,18 +137,15 @@ services:
         done
         rpk cluster config set enable_sasl true --api-urls redpanda:9644 \
           || echo "[init] enable_sasl already set or failed"
-        rpk cluster config set superusers '["admin","trade","vision"]' --api-urls redpanda:9644 \
+        rpk cluster config set superusers '["admin","trade"]' --api-urls redpanda:9644 \
           || echo "[init] superusers already set or failed"
         rpk acl user create trade -p "$$KAFKA_TRADE_PASSWORD" --api-urls redpanda:9644 \
           || echo "[init] trade user exists or create failed"
-        rpk acl user create vision -p "$$KAFKA_VISION_PASSWORD" --api-urls redpanda:9644 \
-          || echo "[init] vision user exists or create failed"
         rpk acl user create admin -p "$$KAFKA_ADMIN_PASSWORD" --api-urls redpanda:9644 \
           || echo "[init] admin user exists or create failed"
         echo "[init] done"
     environment:
       KAFKA_TRADE_PASSWORD: ${KAFKA_TRADE_PASSWORD:-dev-kafka-trade}
-      KAFKA_VISION_PASSWORD: ${KAFKA_VISION_PASSWORD:-dev-kafka-vision}
       KAFKA_ADMIN_PASSWORD: ${KAFKA_ADMIN_PASSWORD:-dev-kafka-admin}
     depends_on:
       - redpanda

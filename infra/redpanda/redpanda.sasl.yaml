@@ -1,7 +1,7 @@
 # 审计 A2/P1-8：Redpanda SASL 基线配置（挂载进容器后由 entrypoint sed 渲染 __ADVERTISE__）。
 # 关键点：authentication_method 必须显式写在 kafka_api 监听器上——监听器【名字】带 SASL 前缀
 # 只起装饰作用（2026-10-15 实证：仅改名字匿名连接照样成功）。
-# superusers 授予 trade/vision/admin（授权阶段跳过 ACL 逐条授予）；按 topic 的细粒度 ACL 为二期。
+# superusers 授予 trade/admin（授权阶段跳过 ACL 逐条授予）；按 topic 的细粒度 ACL 为二期。
 redpanda:
   data_directory: /var/lib/redpanda/data
   node_id: 0
@@ -30,7 +30,6 @@ redpanda:
   superusers:
     - admin
     - trade
-    - vision
 rpk:
   overprovisioned: true
   coredump_dir: /var/lib/redpanda/coredump
