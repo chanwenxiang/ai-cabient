@@ -178,7 +178,6 @@ public class SystemConfigService {
     /** 升级链二级：电话外呼网关 Webhook（留空则跳过该级）。 */
     public static final String OPS_ALERT_ESCALATION_PHONE_WEBHOOK = "ops.alert.escalation_phone_webhook";
     public static final String OPS_SCAN_DOOR_OPEN_MINUTES = "ops.scan.door_open_minutes";
-    public static final String OPS_SCAN_UPLOAD_STUCK_MINUTES = "ops.scan.upload_stuck_minutes";
     public static final String OPS_SCAN_RECOGNITION_STUCK_MINUTES = "ops.scan.recognition_stuck_minutes";
     public static final String OPS_SCAN_SETTLEMENT_STUCK_MINUTES = "ops.scan.settlement_stuck_minutes";
     /** 运营后台品牌标题（登录页主标题 / 浏览器标题前缀）。 */
@@ -939,7 +938,6 @@ public class SystemConfigService {
         upsertIfAbsent(CONSUMER_PAY_CHANNEL_SELECT_ENABLED, "false",
                 "消费端：结算页主动选择支付方式（默认关闭；关闭时「去支付」直接补缴，渠道由服务端自动决策）");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
-        upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_SETTLEMENT_STUCK_MINUTES, "3", "结算卡点告警分钟数");
         upsertIfAbsent(OPS_BRAND_TITLE, "AI开门柜", "运营后台品牌标题（登录页主标题）");

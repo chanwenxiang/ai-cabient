@@ -327,7 +327,7 @@
                 <div v-else class="video-loading muted">尚未加载录像</div>
                 <div v-if="detail.exception.sessionId" class="workbench-media-actions">
                   <el-button
-                    v-if="auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload')"
+                    v-if="auth.hasPerm('ops:session:list')"
                     type="warning"
                     size="small"
                     :loading="videoLoading"
@@ -885,7 +885,7 @@ function rowActions(row: OpsException): CrudRowAction[] {
   pushOpenExceptionActions(acts, row);
   pushResolveExceptionAction(acts, row);
   pushArchiveExceptionAction(acts, row);
-  if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
+  if (row.sessionId && auth.hasPerm('ops:session:list')) {
     acts.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
   }
   return acts;
@@ -1173,7 +1173,7 @@ async function openDetail(row: OpsException) {
         (await api.request<{ items: Sku[] }>(AdminEndpoints.skusCatalogPage, 'GET')).items || [];
     }
     const sid = detail.value?.exception?.sessionId;
-    if (sid && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
+    if (sid && auth.hasPerm('ops:session:list')) {
       void loadInlineVideo(sid, false, detail.value?.exception?.videoPreviewUrl);
     }
   } catch (e) {

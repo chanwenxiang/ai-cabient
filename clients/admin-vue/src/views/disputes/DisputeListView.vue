@@ -366,7 +366,7 @@
               <el-button
                 v-if="
                   selected.sessionId &&
-                  (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
+                  auth.hasPerm('ops:session:list')
                 "
                 type="warning"
                 size="small"
@@ -377,7 +377,7 @@
               <el-button
                 v-if="
                   selected.sessionId &&
-                  (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
+                  auth.hasPerm('ops:session:list')
                 "
                 link
                 type="primary"
@@ -982,7 +982,7 @@ function reviewChipType(row?: DisputeTicketDto | null) {
 
 function appendDisputeVideoAction(actions: CrudRowAction[], row: DisputeTicketDto) {
   if (!row.sessionId) return;
-  if (!(auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) return;
+  if (!auth.hasPerm('ops:session:list')) return;
   actions.push({
     key: 'video',
     label: '录像',
@@ -1138,7 +1138,7 @@ function openDetail(row: DisputeTicketDto) {
   detailVisible.value = true;
   resetDraftFromSuggested();
   void ensureSkusLoaded();
-  if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
+  if (row.sessionId && auth.hasPerm('ops:session:list')) {
     void loadEmbedVideo(row.sessionId, false, row.videoPreviewUrl);
   }
 }

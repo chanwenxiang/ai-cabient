@@ -260,7 +260,6 @@ aicabinet:
     enabled: ${OPS_MONITORING_ENABLED:true}
     scan-interval-ms: ${OPS_MONITORING_INTERVAL_MS:30000}
     door-open-minutes: ${OPS_DOOR_OPEN_MINUTES:10}
-    upload-stuck-minutes: ${OPS_UPLOAD_STUCK_MINUTES:5}
     recognition-stuck-minutes: ${OPS_RECOGNITION_STUCK_MINUTES:3}
     settlement-stuck-minutes: ${OPS_SETTLEMENT_STUCK_MINUTES:3}
   session-expire:

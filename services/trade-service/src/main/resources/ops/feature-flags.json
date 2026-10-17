@@ -599,14 +599,6 @@
       "unit": "分钟"
     },
     {
-      "key": "ops.scan.upload_stuck_minutes",
-      "group": "卡点监控",
-      "type": "NUMBER",
-      "default": "5",
-      "description": "视频上传卡点告警分钟数",
-      "unit": "分钟"
-    },
-    {
       "key": "ops.support_email",
       "group": "客户端展示",
       "type": "TEXT",

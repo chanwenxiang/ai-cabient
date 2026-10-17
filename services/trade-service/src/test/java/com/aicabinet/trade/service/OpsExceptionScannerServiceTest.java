@@ -29,7 +29,7 @@ class OpsExceptionScannerServiceTest {
         SystemConfigService cfg = mock(SystemConfigService.class);
         when(cfg.getInt(anyString(), anyInt())).thenAnswer(i -> i.getArgument(1));
         var scanner = new OpsExceptionScannerService(sessions, exceptions,
-                new OpsMonitoringProperties(true, 10, 5, 3, 3), tasks, cfg);
+                new OpsMonitoringProperties(true, 10, 3, 3), tasks, cfg);
 
         scanner.scan();
 

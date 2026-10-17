@@ -251,7 +251,6 @@ const BUILTIN_GROUPS: Record<string, string[]> = {
   ],
   卡点扫描: [
     'ops.scan.door_open_minutes',
-    'ops.scan.upload_stuck_minutes',
     'ops.scan.recognition_stuck_minutes',
     'ops.scan.settlement_stuck_minutes'
   ],
@@ -282,7 +281,6 @@ const ALERT_KEY_LABELS: Record<string, string> = {
   'ops.alert.escalation_sms_webhook': '短信升级通道地址',
   'ops.alert.escalation_phone_webhook': '电话升级通道地址',
   'ops.scan.door_open_minutes': '开门超时阈值',
-  'ops.scan.upload_stuck_minutes': '上传卡住阈值',
   'ops.scan.recognition_stuck_minutes': '识别卡住阈值',
   'ops.scan.settlement_stuck_minutes': '结算卡住阈值',
   'order.unpaid.auto_cancel_hours': '未支付订单自动取消时长',

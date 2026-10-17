@@ -263,7 +263,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(support.deviceAssetService().listLifecycleEvents(operatorId(request), deviceId, limit));
     }
 
-    @RequiresPermissions(value = {"ops:session:list", "ops:session:upload"}, logical = RequiresPermissions.Logical.OR)
+    @RequiresPermissions("ops:session:list")
     @GetMapping("/sessions")
     public ApiResponse<PageResult<AdminSessionDto>> sessions(
             HttpServletRequest request,

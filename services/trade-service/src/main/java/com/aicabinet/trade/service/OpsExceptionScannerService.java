@@ -48,20 +48,18 @@ public class OpsExceptionScannerService {
             summary = "运维监控未启用";
             return;
         }
+        // WAITING_UPLOAD → UPLOAD_STUCK 那一路扫描已删（2026-10-17 拍板「A 全撤」）：该状态在全代码
+        // 无任何写入者，扫描恒为 0 条。状态枚举与字典标签刻意保留，历史 UPLOAD_STUCK 异常行仍要渲染中文。
         int door = scanDoorOpen();
-            int upload = scanUpdatedState(SessionState.WAITING_UPLOAD,
-                    systemConfigService.getInt(SystemConfigService.OPS_SCAN_UPLOAD_STUCK_MINUTES,
-                            properties.uploadStuckMinutes()),
-                    "UPLOAD_STUCK", "HIGH", "视频上传滞留");
-            int recognizing = scanUpdatedState(SessionState.RECOGNIZING,
-                    systemConfigService.getInt(SystemConfigService.OPS_SCAN_RECOGNITION_STUCK_MINUTES,
-                            properties.recognitionStuckMinutes()),
-                    "RECOGNITION_STUCK", "HIGH", "商品识别滞留");
-            int settling = scanUpdatedState(SessionState.SETTLING,
-                    systemConfigService.getInt(SystemConfigService.OPS_SCAN_SETTLEMENT_STUCK_MINUTES,
-                            properties.settlementStuckMinutes()),
-                    "SETTLEMENT_STUCK", "CRITICAL", "订单结算滞留");
-            summary = "开门滞留 " + door + "，上传 " + upload + "，识别 " + recognizing + "，结算 " + settling;
+        int recognizing = scanUpdatedState(SessionState.RECOGNIZING,
+                systemConfigService.getInt(SystemConfigService.OPS_SCAN_RECOGNITION_STUCK_MINUTES,
+                        properties.recognitionStuckMinutes()),
+                "RECOGNITION_STUCK", "HIGH", "商品识别滞留");
+        int settling = scanUpdatedState(SessionState.SETTLING,
+                systemConfigService.getInt(SystemConfigService.OPS_SCAN_SETTLEMENT_STUCK_MINUTES,
+                        properties.settlementStuckMinutes()),
+                "SETTLEMENT_STUCK", "CRITICAL", "订单结算滞留");
+        summary = "开门滞留 " + door + "，识别 " + recognizing + "，结算 " + settling;
     } catch (Exception e) {
         failed = true;
         taskService.finish(OPS_EXCEPTION_SCANNER, "FAILED", e.getMessage(), start);

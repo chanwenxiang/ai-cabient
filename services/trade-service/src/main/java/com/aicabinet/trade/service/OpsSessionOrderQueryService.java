@@ -100,7 +100,7 @@ public class OpsSessionOrderQueryService {
     }
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, SessionListQuery query) {
-        permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:session:upload");
+        permissionService.requirePermission(operatorId, "ops:session:list");
         Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
         Instant updatedBefore = query.stuckOnly()
                 ? Instant.now().minus(Math.max(query.stuckMinutes(), 1), ChronoUnit.MINUTES)
