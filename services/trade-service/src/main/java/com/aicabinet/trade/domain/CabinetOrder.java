@@ -34,6 +34,12 @@ public class CabinetOrder {
 
     private int totalAmountCents;
 
+    /**
+     * 收款时点冻结的订单毛额（分，CB-057/F-9）：扣款成功时写入，退款与改单**永不改写**。
+     * 0 = 从未扣到过款（欠款单 / 历史无流水），读侧回落 {@code totalAmountCents}。
+     */
+    private int paidAmountCents;
+
     private String status;
 
     private String payChannel = "BALANCE";

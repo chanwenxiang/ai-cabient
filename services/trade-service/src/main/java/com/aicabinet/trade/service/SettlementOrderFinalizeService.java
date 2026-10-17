@@ -108,6 +108,9 @@ public class SettlementOrderFinalizeService {
         if (!tryChargeSettledOrder(session, order)) {
             return orderSupport.toDto(order);
         }
+        // F-9（CB-057）：钱已收到 ⇒ 立刻冻结毛额。此后 total 会被部分退款摊薄、
+        // 被争议改单回写，佣金基数只认这一列，不再跟着 total 漂。
+        orderPaymentService.freezePaidAmount(order);
         orderRepository.save(order);
         if (appliedCoupon != null) {
             // 审计批次4（P0-5 降级后的健壮性建议）：券核销失败不回滚已成功扣款——

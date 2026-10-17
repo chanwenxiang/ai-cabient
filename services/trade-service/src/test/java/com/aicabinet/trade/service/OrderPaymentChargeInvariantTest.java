@@ -141,6 +141,8 @@ class OrderPaymentChargeInvariantTest {
                 .thenCallRealMethod();
         lenient().when(paymentOperationRepository.netCompletedCents(anyString()))
                 .thenCallRealMethod();
+        lenient().when(paymentOperationRepository.chargedCompletedCents(anyString()))
+                .thenCallRealMethod();
 
         // 锁与订单/会话/用户
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
@@ -245,5 +247,46 @@ class OrderPaymentChargeInvariantTest {
 
         assertEquals(TOTAL, netProduced(),
                 "无预授权：余额 CHARGE 100 单行（修前 CHARGE:PREAUTH 与余额行双记凑成 200）");
+    }
+
+    /**
+     * F-9（CB-057）：收款成功后冻结的毛额 = **收入流水之和**（CHARGE+ADJUST_CHARGE+PREAUTH_CAPTURE，
+     * 与 V384 回填同定义），且之后的部分退款（摊薄 total + 记 REFUND 行）不得改写它。
+     */
+    @Test
+    void freezePaidAmount_snapshotsIncomeAndSurvivesPartialRefund() {
+        stubCapture(60); // 冲抵 60 + 余额 40
+        CabinetOrder order = order();
+
+        service.chargeOrder(order);
+        service.freezePaidAmount(order);
+
+        assertEquals(TOTAL, order.getPaidAmountCents(),
+                "冻结毛额必须等于实收 100（60 冲抵 + 40 余额），与 netCompletedCents 同值");
+
+        // 按行部分退（SettlementPartialRefundService 的写法）：total 被摊薄成 30、refunded 记 70
+        order.setTotalAmountCents(30);
+        order.setRefundedCents(70);
+        store.put("RF-PARTIAL", refundRow(70));
+
+        service.freezePaidAmount(order); // 争议结案等路径重放
+
+        assertEquals(TOTAL, order.getPaidAmountCents(),
+                "退款只追加 REFUND 行，冻结毛额只增不减（改小就会把退款扣两遍）");
+        assertEquals(30, CommissionBaseCalc.netCents(order),
+                "净额 = 冻结毛额 100 − 已退 70 = 30；用被摊薄的 total(30)−70 会算成 0");
+    }
+
+    private PaymentOperation refundRow(int cents) {
+        PaymentOperation op = new PaymentOperation();
+        op.setOperationId("OP-RF-PARTIAL");
+        op.setOrderId(ORDER_ID);
+        op.setOperationType("REFUND");
+        op.setAmountCents(cents);
+        op.setChannel("BALANCE");
+        op.setStatus("COMPLETED");
+        op.setIdempotencyKey("RF-PARTIAL");
+        op.setUserId(USER_ID);
+        return op;
     }
 }

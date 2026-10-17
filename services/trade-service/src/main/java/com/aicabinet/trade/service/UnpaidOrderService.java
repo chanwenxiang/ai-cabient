@@ -383,6 +383,8 @@ public class UnpaidOrderService {
         if (alreadyPaidCents >= order.getTotalAmountCents()) {
             // 冲抵已覆盖全额：直接收口，不再扣款、不再占券
             order.setStatus("PAID");
+            // F-9（CB-057）：这一支没有新扣款，但冲抵流水就是实收 ⇒ 同样要冻结毛额
+            orderPaymentService.freezePaidAmount(order);
             orderRepository.save(order);
             revenueSplitService.recordSplit(order);
             auditService.appendLog(0L, "ORDER_COLLECT_NET_COVERED", ORDER, order.getOrderId(),
@@ -393,6 +395,8 @@ public class UnpaidOrderService {
         CouponService.BestCoupon applied = applyBestCouponForCollect(order);
         orderPaymentService.chargeOrder(order, requestedChannel);
         order.setStatus("PAID");
+        // F-9（CB-057）：补扣成功 ⇒ 冻结实收毛额（含此前的开门冲抵行）
+        orderPaymentService.freezePaidAmount(order);
         orderRepository.save(order);
         if (applied != null) {
             // 核销失败必须回滚整笔补扣（含扣款/置 PAID），避免「已付但券仍 UNUSED」可被重复用

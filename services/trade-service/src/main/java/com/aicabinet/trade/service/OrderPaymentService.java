@@ -455,6 +455,21 @@ public class OrderPaymentService {
         return paymentOperationRepository.chargedCompletedCents(orderId);
     }
 
+    /**
+     * F-9（CB-057）：把「这张单当初实际收到多少」冻结进 {@code paidAmountCents}。
+     * 必须在**扣款成功之后**调用；退款、按行部分退、争议改单都不得再改写它，
+     * 否则佣金基数会把同一笔退款扣两遍（{@link CommissionBaseCalc#netCents}）。
+     * 冻结值定义与 V384 回填逐字同构（COMPLETED 的 CHARGE/ADJUST_CHARGE/PREAUTH_CAPTURE 之和），
+     * 因此迁移与运行期算的是同一个数。
+     * 只增不减：收入行只会被追加，重放本方法不会把已冻结的值改小。调用方负责 save。
+     */
+    public void freezePaidAmount(CabinetOrder order) {
+        int gross = chargedCompletedCents(order.getOrderId());
+        if (gross > order.getPaidAmountCents()) {
+            order.setPaidAmountCents(gross);
+        }
+    }
+
     /** 已完成退款合计（分）。 */
     public int refundedCompletedCents(String orderId) {
         return paymentOperationRepository.refundedCompletedCents(orderId);

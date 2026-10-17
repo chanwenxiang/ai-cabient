@@ -265,11 +265,11 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 | 3 | 🔴3/🔴4「补审」 | **已补审完**：🔴3 `runMonthlyRefunds` 由零用例补到 6 个回归用例（`DeviceRentalServiceTest` 28/28）；🔴4 三任务七处逐处亲验齐全、共享库实读 `enabled` 现状、两道门禁 EXIT=0；本表第 3 行的「无门禁」说法**已就地勘误** | [AUDIT_B1_EXTENDED_FUND §5.3/§5.4](AUDIT_B1_EXTENDED_FUND_2026-10-16.md) |
 | 4 | 安装费「默认为 0」+ 按柜子/商家配置（选定：默认 0 + 柜级登记参数） | **已落**：V383 把 `install_fee_deduct_cents` 默认改 0（含 `DO $install_fee_zero_default$` 失败即停断言、全新库 dry-run 过）+ 代码常量 `DEFAULT_INSTALL_FEE_DEDUCT_CENTS=0L` + 4 处文案去「必扣」口径 + `settle_defaultZeroFee_returnsBalanceInFull` 钉住「不登记安装费 ⇒ 全额返还」；**粒度按你的选择保持在登记接口参数**，运营台不加位 | V383、`DeviceRentalService`、CB-044 补记；⚠️ 同一处 `DeviceRentalService:165` 把 `chargeMode` 写死 `"ONLINE"`（离线柜只能走线上扣款）——这条你没定，我不动 |
 | 5 | Track C-admin「运行期实测现在跑」 | **未跑**（待办 #24：驱动器 `audit-admin-flows-uat.mjs` 仍只在 `origin/worktree-audit-pre-launch`，要先取回 + 登记进 `check-audit-gates-wiring` 再跑，否则跑无痕） | 待办 #24 |
-| 6 | 共享库写入痕迹「不要清」 | **已遵守**：本轮对 `ai-cabinet-postgres-1`(:15433) 只做只读 `SELECT`/`\d` 类查询，未发任何写事务、未清点痕迹 | — |
+| 6 | 共享库写入痕迹「不要清」 | **已遵守**：早轮只做只读 `SELECT`/`\d`；F-9 回填必须写数据才能证明，故按纪律改为**在 `BEGIN; … ROLLBACK;` + `ON_ERROR_STOP=1` 的事务里试跑 V384 与插流水**（`ON_ERROR_STOP` 保证断言失败即中止并回滚），共享库既有痕迹未清、未留下本轮测试数据 | — |
 | 7 | 「平台分账日 分的是什么，看老系统和竞品」 | **已答复**，见下面的 §14；「日后要不要真收 + 6 项前置实证由谁发起」仍等你排期 | §14、CB-032 |
 | 8 | 上线当天 `refund-retry` 与 `deposit-monthly-refund` **都默认关闭** | **已定为口径**：两条种子行保持 `enabled=false`（V376 现状即符合，无需迁移）；⚠️ 需要有人把「上线当天保持关 = 退款失败无人闭环 / 押金永不自动退（走人工）」写进上线手册勾选项，别靠记忆 | 待写入上线手册（属 `docs/PRODUCTION_TOPOLOGY.md`，peer 正改，我不碰） |
 | 9 | 「`frozen_cents` 是什么东西？做」 | **已答复**：`staff_wallet_account.frozen_cents` 是建账写 0 后再无人改的**恒 0 死列**（对比线长钱包真在用：`LineWalletService:272,:319` 提现前置冻结/解冻）。删列 or 启用冻结是**语义选择**（等于改变发佣可提时点），不能算「能自行推进」，故未动；抽泛型账本原语按建议留二期 | CB-054、§12 第 9 行 |
-| 10/11 | —（**不是你的拍板，是我复核时新抓的两条 🔴**） | 待办 #25「净额基数复核」的产物：F-9 佣金基数把退款扣两遍、F-10 净额护栏查不到预授权冲抵行。两条都改「发出去/补扣出去的钱」⇒ **本轮一行代码都没动**，等你按上面两行的选项定 | §12 第 10/11 行、[AUDIT_B1_EXTENDED_FUND §6/§7](file:///D:/ai-generated%20code/ai-cabinet/docs/AUDIT_B1_EXTENDED_FUND_2026-10-16.md) |
+| 10/11 | ⇒ 2026-10-17 你定了：F-9「收款时冻结毛额（新列）」、F-10「修：一行过滤 + 真调 mapper 的用例」 | **两条都已修完**：F-10 `5ec4020f`（`.in(...)` 补 `PREAUTH_CAPTURE` + 新建 `PaymentOperationNetCompletedFilterTest` 捕获生产 wrapper + 删掉测试里手抄的 `net()` 改真调 default 方法）；F-9 本轮（V384 新增 `cabinet_order.paid_amount_cents`、`OrderPaymentService.freezePaidAmount` 在结算扣款成功后与 `markPaid` 两支冻结、`CommissionBaseCalc` 改读冻结毛额并回落 total）。负向轮实测 4 红→修后绿；V384 在共享库 `BEGIN…ROLLBACK` 内真跑过（回填/断言/拦截三条都验过） | F-10 明细与 §7 修法更正、F-9 落地表、判定依据 [CB-057](COMPETITOR_BENCHMARK.md) ⇒ [AUDIT_B1_EXTENDED_FUND §8](AUDIT_B1_EXTENDED_FUND_2026-10-16.md) |
 
 ## 14. 「平台分账」分的到底是什么（2026-10-17 代码 + 老系统 + 竞品三线实证）
 

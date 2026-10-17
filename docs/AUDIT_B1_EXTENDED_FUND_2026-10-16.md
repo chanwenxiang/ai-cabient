@@ -179,7 +179,7 @@
 覆盖本轮三处语义变更（`chargeDailyPeriodFees` 返回值、`sendDailyIncomeNotify` 返回 `NotifyOutcome`、线长冲回基数）。
 ⚠️ 过程留痕：同一命令的前一次后台跑曾报「6 failures」，核对 surefire XML 发现那份报告 mtime 早于改动（`SystemConfigRecognitionModeTest`，属 vision/DC-27 面且非本次编辑）⇒ 陈旧报告（教训「surefire 报告可能是旧的」），以本次 2042/0 为准。
 
-## 6. 2026-10-17 追加：F-9 🔴 佣金基数对「按行部分退」的单**把退款扣了两遍**（未拍板，未动代码）
+## 6. 2026-10-17 追加：F-9 🔴 佣金基数对「按行部分退」的单**把退款扣了两遍**（⇒ 2026-10-17 已拍板「收款时冻结毛额」并修完，见 §8.2）
 
 **结论**：`CabinetOrder.totalAmountCents` 在本仓有**两套约定**，而 `CommissionBaseCalc.netCents` 只认其中一套 ⇒
 凡是走过「按行部分退」的订单，佣金 GMV 被少计（极端情形整单归 0），**少发线长佣金**。
@@ -215,7 +215,9 @@
 **我的建议**：(b)（收款冻结毛额），(a) 的前置取数问题正好是 (b) 的回填难点，两者要么一起做、要么先都不动而在上线手册里写明「部分退款单的佣金会少计」。
 **本轮不动代码**：等口径拍板（简报 §12 第 10 项）。
 
-## 7. 2026-10-17 追加：F-10 🔴 净额护栏的 SQL 过滤器把 `PREAUTH_CAPTURE` 挡在门外（死代码 + 护栏失明）
+**⇒ 2026-10-17 拍板并落地 (b)**（用户原话见 §8）。回填的取数难点是这样解掉的：**冻结值定义 = 流水毛额**（COMPLETED 的 CHARGE/ADJUST_CHARGE/PREAUTH_CAPTURE 之和），迁移与运行期用同一个定义，所以不存在「回填算一套、代码算一套」；没有流水的欠款单留 0，由读侧回落 `total`。前提条件 F-10 已先行修复（`5ec4020f`），否则只被开门预授权冲抵的单会回填偏少。详见 §8.2。
+
+## 7. 2026-10-17 追加：F-10 🔴 净额护栏的 SQL 过滤器把 `PREAUTH_CAPTURE` 挡在门外（死代码 + 护栏失明）（⇒ 已修 `5ec4020f`，见 §8.1）
 
 这条是复核 F-9 修法 (a) 时撞出来的，**独立成立**，且会放大 F-9 的任何「按实收净额」修法。
 
@@ -237,3 +239,30 @@
 ② 把不变量测试的 `net()` **删掉、改成调用生产函数**，否则同类「测试自建真相」还会再犯（教训候选：展示/口径类断言禁止手抄被测实现）。
 **与 F-9 的关系**：若 F-9 选 (a)「佣金基数=实收净额」，**F-10 必须先修**，否则只被预授权冲抵的订单佣金恒为 0。
 
+
+## 8. 2026-10-17 落地：F-9 收款时冻结毛额（V384）+ F-10 净额过滤器补 `PREAUTH_CAPTURE`
+
+> 用户拍板原话：F-9 选「**收款时冻结毛额（新列）**」——「订单新增 paid_amount_cents，支付成功时冻结毛额、退款不再改它；净额=paid−refunded，两条退款链路都对」；F-10 选「**修：一行过滤 + 真调 mapper 的用例**」。
+> 判定依据入台账 [CB-057](COMPETITOR_BENCHMARK.md)（订单毛额在收款时点冻结成独立列、退款只写退款列：微信支付账单分列 / 支付宝「成交订单未扣除退款」/ 有赞「实付不剔除退款」/ 老系统 `orderTotalAmount` 声明 `updatable=false`）。
+
+### 8.1 F-10（已修 `5ec4020f`，§7 的修法里有一条我写错了）
+
+| 项 | 落地 |
+|---|---|
+| 生产 | [`PaymentOperationMapper.java:120-124`](../services/trade-service/src/main/java/com/aicabinet/trade/mapper/PaymentOperationMapper.java#L120-L124) 的 `.in(...)` 补 `"PREAUTH_CAPTURE"`——两个 switch 里原本就认这个类型（代码追上文档），修复前那些分支是死代码 |
+| 用例 | 新建 [`PaymentOperationNetCompletedFilterTest`](../services/trade-service/src/test/java/com/aicabinet/trade/mapper/PaymentOperationNetCompletedFilterTest.java)：用 `ArgumentCaptor` 捕获**生产 wrapper**，断言参数值集合里真的有 `PREAUTH_CAPTURE`；配 `netCompletedCents_countsPreauthCaptureAsIncome` 钉 switch。首跑**恰好 1 红**（目标断言），修后绿 |
+| 测试真相 | `OrderPaymentChargeInvariantTest` 删掉手抄的 `net()`，改为 `thenCallRealMethod()` 走生产 default 方法，并按生产 wrapper 声明的参数值过滤内存表 ⇒ SQL 少一个类型，用例就查不到对应行 |
+| ⚠️ 更正 §7「配套 ①」 | 原提议「stub `selectList` 返回一条 PREAUTH_CAPTURE 行、断 `netCompletedCents>0`」**是错的**：`netCompletedCents` 的 switch 早就认该类型，那样写在**修前也会绿**，测不到 `.in(...)` 这一层。缺陷在 SQL 过滤、不在聚合，所以判据必须打在 wrapper 的参数上 |
+
+### 8.2 F-9（本轮，V384 + 冻结 + 读侧改基数）
+
+| 面 | 改法 |
+|---|---|
+| 列 | `cabinet_order.paid_amount_cents INT NOT NULL DEFAULT 0`（[`V384__order_paid_amount_snapshot.sql`](../services/trade-service/src/main/resources/db/migration/V384__order_paid_amount_snapshot.sql)）：收款时点冻结的毛额，退款/改单永不改写 |
+| 冻结值定义 | `payment_operation` 中 `status=COMPLETED` 且类型 ∈ {CHARGE, ADJUST_CHARGE, PREAUTH_CAPTURE} 之和——**与 Java 侧 `chargedCompletedCents` 逐字同构**，迁移与运行期算的是同一个数，不会「SQL 一套、代码一套」 |
+| 写入点 | [`OrderPaymentService.freezePaidAmount`](../services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java)（只增不减，调用方负责 save），在**扣款成功之后**调：`SettlementOrderFinalizeService.finalizeOrder`（主结算）、`UnpaidOrderService.markPaid` 两支（净额已覆盖 / 补扣成功）。争议结案等 `DISPUTED→PAID` 的状态重放**不加**：那一支的单早就冻结过了，重复调只是多一次查询 |
+| 读侧 | [`CommissionBaseCalc.grossCents`](../services/trade-service/src/main/java/com/aicabinet/trade/service/CommissionBaseCalc.java)：`冻结值>0 ? 冻结值 : total`（0=从未扣到过款，回落保住历史单）；`netCents = max(0, gross − refunded)` |
+| 回填 | 优先取流水毛额（已被摊薄的 total 不可信）；无收入流水的欠款单留 0 由读侧回落。三道断言：列默认值必须真是 0、`冻结毛额 > total + refunded` 即**整个迁移失败**（示例单号进异常文案）、`RAISE NOTICE` 报回填计数（不静默） |
+| 实测 | ① 在共享 dev 库 `BEGIN; … ROLLBACK;` 里真跑 V384：6 行订单、0 行有流水 ⇒ 全部走回落，NOTICE 计数如实打印；② 同法插 5 条流水（CHARGE 200 + PREAUTH_CAPTURE 100 + ADJUST_CHARGE 50 + REFUND 100 + PENDING 态 REFUND_INITIATED 70）并把该单摊薄成 `total=250 / refunded=100` ⇒ 回填得 `paid=350`（**不含退款、不含未完成行**）、净额 250（旧口径会算成 150）；③ 把流水改成 999 ⇒ 断言如期 `ERROR: V384 回填被拦：1 行…` 并回滚 |
+| 用例 | 新建 [`CommissionBaseCalcFrozenGrossTest`](../services/trade-service/src/test/java/com/aicabinet/trade/service/CommissionBaseCalcFrozenGrossTest.java) 5 例（摊薄/改单降价/改单涨价后再退/无冻结值回落/全额退款不计）+ `OrderPaymentChargeInvariantTest.freezePaidAmount_snapshotsIncomeAndSurvivesPartialRefund`。负向轮实测：把 `netCents` 换回旧公式后 **4 红**（3 例读侧 + 冻结例的净额断言），恢复修复后全绿 |
+| 门禁 | `check-migration-safety` OK（2 个新脚本，V384 reviewed=true）、`check-competitor-benchmark` OK（57 条 / 297 URL / CB-057 4 家含 2 家同行） |
