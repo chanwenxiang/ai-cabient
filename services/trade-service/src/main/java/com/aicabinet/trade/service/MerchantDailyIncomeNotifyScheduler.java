@@ -55,6 +55,8 @@ public class MerchantDailyIncomeNotifyScheduler {
     static final String FEE_OVERDUE_LOCK_PREFIX = "费用欠缴锁柜";
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyy年M月d日");
     private static final DateTimeFormatter ISO_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    /** 日扣的钱包流水 refType（refId=费用日期）：{@link #chargeDailyPeriodFees} 与通知取数共用同一把钥匙。 */
+    static final String FEE_REF_TYPE = "SETTLEMENT_FEE";
 
     private final MerchantMapper merchantRepository;
     private final OrderRevenueSplitMapper splitRepository;
@@ -101,8 +103,14 @@ public class MerchantDailyIncomeNotifyScheduler {
         String summary = "日结通知未执行";
         try {
             LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
-            int sent = sendDailyIncomeNotify(yesterday);
-            summary = "昨日(" + yesterday + ")日结通知发送 " + sent + " 商户";
+            NotifyOutcome outcome = sendDailyIncomeNotify(yesterday);
+            summary = "昨日(" + yesterday + ")日结通知发送 " + outcome.sent() + " 商户"
+                    // F-5（2026-10-17）：扣费失败不再只在日志里静默——写进运营台执行记录，
+                    // 否则商户收到的通知里 fee=0.00 没人知道那是「没扣成」而不是「免费」
+                    + (outcome.feeChargeFailed() > 0
+                        ? "；另有 " + outcome.feeChargeFailed() + " 商户日扣失败（当日未扣到费，"
+                            + "通知里费用按实扣显示为 0，需运营台「按日期重跑日扣」补）"
+                        : "");
             log.info("scheduled daily income notify completed: {}", summary);
         } catch (Exception e) {
             failed = true;
@@ -115,8 +123,15 @@ public class MerchantDailyIncomeNotifyScheduler {
         }
     }
 
-    /** 发送昨日日结通知，返回实际发送数。包级可见供单测钉住口径。 */
-    int sendDailyIncomeNotify(LocalDate yesterday) {
+    /**
+     * 日结通知结果：{@code sent}=实际发送数，{@code feeChargeFailed}=昨日日扣失败商户数
+     * （F-5：失败数必须冒泡到运营台执行记录，不许只在日志里静默）。
+     */
+    record NotifyOutcome(int sent, int feeChargeFailed) {
+    }
+
+    /** 发送昨日日结通知。包级可见供单测钉住口径。 */
+    NotifyOutcome sendDailyIncomeNotify(LocalDate yesterday) {
         Instant from = yesterday.atStartOfDay(ScheduleZones.ZONE).toInstant();
         Instant to = yesterday.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
         List<OrderRevenueSplit> splits = splitRepository.selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
@@ -128,10 +143,11 @@ public class MerchantDailyIncomeNotifyScheduler {
             // （chargeAndCheckAllMerchants，CB-041）必须照跑，否则全员零销售的日子整批
             // 费用不出账、欠费不催缴、误锁不解锁（固定租金是合同义务，与销售脱钩）。
             chargeAndCheckAllMerchants(yesterday, java.util.Set.of());
-            return 0;
+            return new NotifyOutcome(0, 0);
         }
         String bizId = yesterday.format(ISO_FMT);
         int sent = 0;
+        int feeChargeFailed = 0;
         for (Map.Entry<String, Long> entry : incomeByMerchant.entrySet()) {
             String merchantId = entry.getKey();
             if (alreadySent(merchantId, bizId)) {
@@ -141,15 +157,19 @@ public class MerchantDailyIncomeNotifyScheduler {
                     .map(Merchant::getMerchantName).orElse(merchantId);
             // 周期费用日扣（2026-10-16 拍板 F-2=A/F-3=A）：租金按月额/当月天数、流量费按分/天，
             // 每日从商户余额扣（幂等 refId=昨日日期）；余额可负（欠费自然累计，老系统同款直减）。
-            long feeCents;
             try {
-                feeCents = chargeDailyPeriodFees(merchantId, yesterday);
+                chargeDailyPeriodFees(merchantId, yesterday);
             } catch (Exception e) {
                 // 🔴 单商户扣费失败不阻断全量（其余商户照常通知）。失败=当日既没扣钱也没写费用行
                 //（老系统 L5「先扣到钱才写行」），**不会自动补扣**，需运营台按日期手动重跑。
                 log.warn("daily fee charge failed for {}: {}", merchantId, e.getMessage());
-                feeCents = 0L;
+                feeChargeFailed++;
             }
+            // F-5（2026-10-17）：通知里的费用取**钱包当日实扣流水**，不再用重算值——
+            // 「重算值」在两种情况下与商户余额不符：① 扣款成功但随后写台账抛异常（钱已扣、通知说 0）；
+            // ② 当天已由运营重跑扣过（幂等跳过，重算值再展示一遍=同一笔费用展示两次）。
+            // 流水是唯一真相：扣到多少展示多少，没扣到就是 0（配合 summary 里的失败数不静默）。
+            long feeCents = walletService.debitedCentsByRef(merchantId, FEE_REF_TYPE, bizId);
             long incomeCents = entry.getValue();
             long netCents = incomeCents - feeCents;
             notificationService.notifyMerchant(merchantId, TEMPLATE_CODE,
@@ -165,7 +185,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         // 免费投放本来费用为 0 不受影响）：日扣与欠费检查覆盖**全部有柜商户**，
         // 不再只扫昨日有收入商户（否则零销售商户费用永远不出账、欠费永远不催缴）。
         chargeAndCheckAllMerchants(yesterday, incomeByMerchant.keySet());
-        return sent;
+        return new NotifyOutcome(sent, feeChargeFailed);
     }
 
     /**
@@ -317,7 +337,8 @@ public class MerchantDailyIncomeNotifyScheduler {
      *       扣款成功（或幂等命中已扣）⇒ 台账行直接 {@code SETTLED}（行即收据，不再挂永久 PENDING
      *       让同一笔费用「收一次、又按欠费锁一次柜」）。</li>
      * </ul>
-     * 余额不足直减为负（欠费累计，老系统 L7 无下限同款）。返回当日实扣费用（分）。
+     * 余额不足直减为负（欠费累计，老系统 L7 无下限同款）。返回<b>本次</b>实扣费用（分）——
+     * 该日钱包流水已存在（幂等跳过，含同一次任务里循环两遍的商户）时返回 0，不重复计数。
      */
     long chargeDailyPeriodFees(String merchantId, LocalDate yesterday) {
         int daysInMonth = yesterday.lengthOfMonth();
@@ -342,12 +363,15 @@ public class MerchantDailyIncomeNotifyScheduler {
         // 但余额肯定是减掉费用后的」，否则商户每天提现提走的是没扣费用的钱。余额可负=欠费。
         // 幂等扣款（refId=昨日日期，任务重跑不重扣；余额不足直减为负=欠费挂账）。
         // 扣款异常会直接抛出：调用方捕获后**不留行**（老系统 L5），当日漏扣不自动补，见 rerunDailyFees。
-        walletService.debitIfAbsentAllowNegative(merchantId, dailyFee, "DAILY_FEE",
-                "SETTLEMENT_FEE", yesterday.format(ISO_FMT),
+        boolean debited = walletService.debitIfAbsentAllowNegative(merchantId, dailyFee, "DAILY_FEE",
+                FEE_REF_TYPE, yesterday.format(ISO_FMT),
                 "周期费用日扣(租金月额/" + daysInMonth + "天 + 流量费分/天)");
         upsertFeeLedger(merchantId, yesterday, "REN", rentDaily, "日扣租金，扣款成功自动结清");
         upsertFeeLedger(merchantId, yesterday, "DATA", dataDaily, "日扣流量费，扣款成功自动结清");
-        return dailyFee;
+        // F-5（2026-10-17）：false=该日钱包流水已存在（幂等跳过，本调用没再扣钱）。
+        // 返回值只用于「本次实扣合计」（运营台重跑、任务汇总），跳过时必须报 0，
+        // 否则同一天的费用会在合计里数两遍（收入商户循环 + 全量循环各算一次）。
+        return debited ? dailyFee : 0L;
     }
 
     private void upsertFeeLedger(String merchantId, LocalDate feeDate, String feeType,

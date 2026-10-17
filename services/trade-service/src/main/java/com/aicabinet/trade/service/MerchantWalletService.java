@@ -186,6 +186,25 @@ public class MerchantWalletService {
         });
     }
 
+    /**
+     * 某笔业务动作为商户钱包<b>实际扣减</b>的金额（分，正数）；没有流水就返回 0。
+     *
+     * <p>给「告知商户扣了多少」的展示口径用（日结通知 F-5，2026-10-17）：业务侧重算出来的
+     * 应扣额与钱包里真正扣到的额是两件事——扣款成功后续步骤抛异常、或该日已被运营重跑扣过，
+     * 重算值都会与余额不符。流水是唯一真相。</p>
+     */
+    public long debitedCentsByRef(String merchantId, String refType, String refId) {
+        if (merchantId == null || refType == null || refId == null) {
+            return 0L;
+        }
+        return ledgerMapper.findByRef(merchantId, refType, refId)
+                .map(ledger -> {
+                    long amount = value(ledger.getAmountCents());
+                    return amount < 0L ? -amount : 0L;
+                })
+                .orElse(0L);
+    }
+
     @Transactional
     public boolean debitIfAbsent(String merchantId, long amountCents, String entryType,
 

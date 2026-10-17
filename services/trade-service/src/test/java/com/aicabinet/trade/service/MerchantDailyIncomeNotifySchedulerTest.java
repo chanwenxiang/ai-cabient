@@ -28,6 +28,10 @@ import static org.mockito.Mockito.when;
  */
 class MerchantDailyIncomeNotifySchedulerTest {
 
+    /** F-5 用例：捕获发给商户的模板参数（amount/fee/net）。 */
+    private final java.util.concurrent.atomic.AtomicReference<Map<String, String>> lastParams =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
     private OrderRevenueSplit split(String merchantId, String status, long merchantCents) {
         OrderRevenueSplit s = new OrderRevenueSplit();
         s.setMerchantId(merchantId);
@@ -356,5 +360,102 @@ class MerchantDailyIncomeNotifySchedulerTest {
 
         verify(wallet).debitIfAbsentAllowNegative(eq("M1"), eq(100L), eq("DAILY_FEE"),
                 eq("SETTLEMENT_FEE"), eq("2026-10-10"), anyString());
+    }
+
+    // ---------- F-5（2026-10-17）：通知费用取钱包实扣流水 + 扣费失败在结果里显形 ----------
+
+    private com.aicabinet.trade.service.NotificationService capturedNotify() {
+        var notify = mock(com.aicabinet.trade.service.NotificationService.class);
+        org.mockito.Mockito.doAnswer(inv -> {
+            lastParams.set(inv.getArgument(2));
+            return null;
+        }).when(notify).notifyMerchant(anyString(), anyString(), any(), anyString(), anyString());
+        return notify;
+    }
+
+    private MerchantDailyIncomeNotifyScheduler newNotifyScheduler(
+            com.aicabinet.trade.mapper.OrderRevenueSplitMapper splitRepo,
+            com.aicabinet.trade.mapper.MerchantFeeLedgerMapper feeLedger,
+            com.aicabinet.trade.mapper.DeviceInfoMapper deviceRepo,
+            com.aicabinet.trade.service.MerchantWalletService wallet,
+            com.aicabinet.trade.service.NotificationService notify,
+            com.aicabinet.trade.mapper.NotificationLogMapper notifyLog) {
+        return new MerchantDailyIncomeNotifyScheduler(
+                mock(com.aicabinet.trade.mapper.MerchantMapper.class), splitRepo, notify, notifyLog,
+                mock(com.aicabinet.trade.service.ScheduledTaskService.class), deviceRepo, feeLedger,
+                wallet, configWithLockDays("7"),
+                mock(com.aicabinet.trade.service.DeviceSalesLockService.class));
+    }
+
+    @Test
+    void notifyShowsWalletDebitedAmountNotRecomputedFee() {
+        // 名下柜机今日重算出来该扣 100 分，但钱包当日流水实扣 250 分（例如运营先按旧配置重跑过）。
+        // 通知必须显示 250 —— 商户余额是被 250 减掉的，展示重算值 100 就是「通知与账不一致」。
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of(split("M1", "ACCRUED", 10_000L)));
+        var feeLedger = mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class);
+        when(feeLedger.selectList(any())).thenReturn(List.of());
+        var wallet = walletThatCharges();
+        when(wallet.debitedCentsByRef("M1", "SETTLEMENT_FEE", "2026-10-15")).thenReturn(250L);
+        var notify = capturedNotify();
+        var notifyLog = mock(com.aicabinet.trade.mapper.NotificationLogMapper.class);
+        when(notifyLog.selectCount(any())).thenReturn(0L);
+        var svc = newNotifyScheduler(splitRepo, feeLedger, deviceRepoWith(device("PURCHASE", null, 100L)),
+                wallet, notify, notifyLog);
+
+        var outcome = svc.sendDailyIncomeNotify(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(1, outcome.sent());
+        assertEquals(0, outcome.feeChargeFailed());
+        assertEquals("2.50", lastParams.get().get("fee"), "费用栏必须取钱包实扣流水");
+        assertEquals("97.50", lastParams.get().get("net"));
+        assertEquals("100.00", lastParams.get().get("amount"));
+    }
+
+    @Test
+    void feeChargeFailureIsCountedAndFeeShowsActualZero() {
+        // 扣款抛异常（钱没扣、行没写）：通知仍照发，但 fee 取流水=0，且失败数冒泡给运营台执行记录——
+        // 不许再出现「商户看到 0.00 费用、没人知道那是漏扣」的静默态。
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of(split("M1", "ACCRUED", 10_000L)));
+        var feeLedger = mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class);
+        when(feeLedger.selectList(any())).thenReturn(List.of());
+        var wallet = mock(com.aicabinet.trade.service.MerchantWalletService.class);
+        when(wallet.debitIfAbsentAllowNegative(anyString(), anyLong(), anyString(), anyString(),
+                anyString(), anyString())).thenThrow(new IllegalStateException("钱包锁获取失败"));
+        when(wallet.debitedCentsByRef(anyString(), anyString(), anyString())).thenReturn(0L);
+        var notify = capturedNotify();
+        var notifyLog = mock(com.aicabinet.trade.mapper.NotificationLogMapper.class);
+        when(notifyLog.selectCount(any())).thenReturn(0L);
+        var svc = newNotifyScheduler(splitRepo, feeLedger, deviceRepoWith(device("PURCHASE", null, 100L)),
+                wallet, notify, notifyLog);
+
+        var outcome = svc.sendDailyIncomeNotify(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(1, outcome.sent(), "单商户扣费失败不得阻断通知");
+        assertEquals(1, outcome.feeChargeFailed(), "漏扣必须显形（任务汇总里带失败家数）");
+        assertEquals("0.00", lastParams.get().get("fee"), "钱没扣到就如实显示 0");
+        assertEquals("100.00", lastParams.get().get("net"));
+    }
+
+    @Test
+    void alreadyDebitedDayReportsZeroNewChargeButLedgerRowStillWritten() {
+        // 幂等跳过（debitIfAbsent 返回 false=该日流水已存在，例如运营先重跑过）
+        // ⇒ 「本次实扣」必须 0，否则收入商户在全量循环里会被数两遍；费用行照写（行是收据）。
+        var wallet = mock(com.aicabinet.trade.service.MerchantWalletService.class);
+        when(wallet.debitIfAbsentAllowNegative(anyString(), anyLong(), anyString(), anyString(),
+                anyString(), anyString())).thenReturn(false);
+        var feeLedger = mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class);
+        var rows = captureInserts(feeLedger);
+        var svc = newScheduler(feeLedger, deviceRepoWith(device("PURCHASE", null, 100L)), wallet,
+                mock(com.aicabinet.trade.service.DeviceSalesLockService.class),
+                mock(com.aicabinet.trade.service.NotificationService.class),
+                mock(com.aicabinet.trade.mapper.NotificationLogMapper.class),
+                mock(com.aicabinet.trade.mapper.MerchantMapper.class), configWithLockDays("7"));
+
+        assertEquals(0L, svc.chargeDailyPeriodFees("M1", java.time.LocalDate.of(2026, 10, 15)),
+                "幂等跳过不该再算一次「本次实扣」");
+        assertEquals(1, rows.size(), "跳过扣款仍要留当日费用行，台账才与钱包流水对上");
+        assertEquals("DATA", rows.get(0).getFeeType());
     }
 }
