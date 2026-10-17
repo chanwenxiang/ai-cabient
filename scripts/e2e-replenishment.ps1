@@ -76,8 +76,6 @@ function Invoke-E2eRestockDoorCycle {
         deviceId     = $DeviceId
         doorState    = "CLOSED"
         timestamp    = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-        uploadStatus = "UPLOADED"
-        videoUri     = "minio://cabinet-videos/$(Get-E2eSimVideoKey -SessionId $SessionId -DeviceId $DeviceId)"
     } | Out-Null
 }
 

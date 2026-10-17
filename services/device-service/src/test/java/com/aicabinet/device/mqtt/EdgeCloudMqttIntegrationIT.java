@@ -82,8 +82,7 @@ class EdgeCloudMqttIntegrationIT {
         MqttEventListener listener = connectedListener(trade);
         try {
             Map<String, Object> door = SimulatorSupport.doorEventPayload(
-                    "S-P07-IT", DoorState.CLOSED.name(), System.currentTimeMillis(),
-                    "minio://bucket/it.mp4", "UPLOADED", "[{\"camera\":\"TOP\"}]", "SINGLE", null);
+                    "S-P07-IT", DoorState.CLOSED.name(), System.currentTimeMillis(), null);
             publishLikeSimulator(door);
 
             ArgumentCaptor<DoorEventRequest> captor = ArgumentCaptor.forClass(DoorEventRequest.class);

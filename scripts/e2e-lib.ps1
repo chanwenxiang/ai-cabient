@@ -128,22 +128,6 @@ WHERE phone_number = '$Phone';
     }
 }
 
-function Get-E2eSimVideoKey {
-    param(
-        [string]$DeviceId = "",
-        [long]$UserId = 0,
-        [string]$SessionId,
-        [string]$Camera = "top"
-    )
-    if ([string]::IsNullOrWhiteSpace($DeviceId)) {
-        $DeviceId = Resolve-E2eTestDevice
-    }
-    $tz = [TimeZoneInfo]::FindSystemTimeZoneById("China Standard Time")
-    $now = [TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $tz)
-    $date = $now.ToString("yyyy/MM/dd")
-    return "sim/$date/$DeviceId/user-$UserId/$SessionId-$Camera.mp4"
-}
-
 function Invoke-E2eApi {
     param(
         [string]$BaseUrl,
@@ -1151,7 +1135,7 @@ function Invoke-E2eMqttShopping {
         if ($progress -in @("CREATED", "OPENING")) {
             Write-Warning "MQTT unlock stalled at $progress; injecting internal door close fallback"
             Invoke-E2eInternalDoorClose -BaseUrl $BaseUrl -SessionId $sessionId -DeviceId $DeviceId `
-                -UserId $userId -InternalApiKey $InternalApiKey | Out-Null
+                -InternalApiKey $InternalApiKey
             $usedFallback = $true
         }
 
@@ -1163,7 +1147,7 @@ function Invoke-E2eMqttShopping {
                 if ($cur -in @("CREATED", "OPENING", "SHOPPING", "RECOGNIZING", "WAITING_UPLOAD", "SETTLING")) {
                     Write-Warning "session still $cur after wait; retrying internal door close"
                     Invoke-E2eInternalDoorClose -BaseUrl $BaseUrl -SessionId $sessionId -DeviceId $DeviceId `
-                        -UserId $userId -InternalApiKey $InternalApiKey | Out-Null
+                        -InternalApiKey $InternalApiKey
                     $usedFallback = $true
                     $final = Wait-E2eSessionTerminal -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth -MaxPolls 20
                 }
@@ -1263,11 +1247,8 @@ function Invoke-E2eInternalDoorClose {
         [string]$BaseUrl,
         [string]$SessionId,
         [string]$DeviceId = "",
-        [long]$UserId = 0,
         [string]$SkuId = "",
         [int]$Quantity = 1,
-        [string]$UploadStatus = "UPLOADED",
-        [string]$VideoUri = "",
         [string]$InternalApiKey = "dev-internal-key-change-me"
     )
     if ([string]::IsNullOrWhiteSpace($DeviceId)) {
@@ -1280,19 +1261,13 @@ function Invoke-E2eInternalDoorClose {
     $internalBase = Resolve-E2eBaseUrl $BaseUrl
     $headers = @{ "X-Internal-Api-Key" = $InternalApiKey }
     $gravity = ConvertTo-Json @(@{ skuId = $SkuId; delta = -$Quantity; slotId = "SIM-1" }) -Compress
-    if ([string]::IsNullOrWhiteSpace($VideoUri)) {
-        $VideoUri = "minio://cabinet-videos/$(Get-E2eSimVideoKey -SessionId $SessionId -DeviceId $DeviceId -UserId $UserId)"
-    }
     Invoke-E2eApi -BaseUrl $internalBase -Method POST -Path "/internal/v1/sessions/door-event" -Headers $headers -Body @{
         sessionId         = $SessionId
         deviceId          = $DeviceId
         doorState         = "CLOSED"
         timestamp         = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-        videoUri          = $VideoUri
-        uploadStatus      = $UploadStatus
-        gravityDeltasJson = if ($UploadStatus -eq "UPLOADED") { $gravity } else { $null }
+        gravityDeltasJson = $gravity
     } | Out-Null
-    return $VideoUri
 }
 
 function Restart-E2eDeviceSimulator {

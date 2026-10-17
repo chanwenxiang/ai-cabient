@@ -66,7 +66,7 @@ class PrefsJsonQueueMainThreadTest {
         val hits = mutableListOf<String>()
         val queue = newQueue { hits.add(it) }
 
-        queue.replaceAll(listOf("a")) // 写路径①（OfflineUploadQueue 走这条）
+        queue.replaceAll(listOf("a")) // 写路径①（旧 OfflineUploadQueue 用它，现留作 API 护栏）
         queue.mutate { pending -> pending.add("b") } // 写路径②（OutboundMqttQueue 走这条）
 
         assertEquals("两条写路径各应上报一次", 2, hits.size)

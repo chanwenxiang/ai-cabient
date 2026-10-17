@@ -272,18 +272,21 @@ Base：`http://localhost:5173`（或 5174）
 
 - 清除 `consumer_token` 后刷新需重新登录或提示失效
 
-#### CON-S01~S03 购物子场景（浏览器 + 模拟器）
+#### CON-S01~S03 购物子场景（浏览器 + 模拟器 + 端侧直报）
 
-| ID | 媒体 | 期望 |
+| ID | 场景 | 期望 |
 |----|------|------|
-| CON-S01 | soda.jpg | COMPLETED，余额扣减 |
-| CON-S02 | bus.jpg | DISPUTED，不扣款 |
+| CON-S01 | 端侧直报命中商品 | COMPLETED，余额扣减 |
+| CON-S02 | 端侧无结果（超时进人工审核） | DISPUTED，不扣款 |
 | CON-S03 | 余额 600¢ + 2 件 | DISPUTED，余额不变 |
 
 ```powershell
-$env:AICABINET_SIM_VIDEO_FILE = "/testdata/soda.jpg"  # 或 bus.jpg
 .\scripts\set-simulator-cart.ps1 -Items @("SKU-DEMO-001:1") -ShoppingSeconds 10
+python scripts/devops/verify-vision-result-ingest.py   # 端侧直报链的端到端断言
 ```
+
+> 旧 `AICABINET_SIM_VIDEO_FILE`（模拟器上传测试图/录像）随 DC-27(b) 批6 删除；
+> 结算结果不再由「换哪张图」决定，只认 `POST /internal/v1/vision/edge-results` 的端侧上报。
 
 ---
 

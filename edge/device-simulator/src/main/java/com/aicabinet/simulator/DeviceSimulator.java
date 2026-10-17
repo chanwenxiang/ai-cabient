@@ -19,10 +19,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,14 +27,11 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 
 /**
- * 桌面设备模拟器：订阅 OPEN_DOOR，模拟开门→购物→关门；支持断网续传、多摄、OTA 心跳。
+ * 桌面设备模拟器：订阅 OPEN_DOOR，模拟开门→购物→关门；支持 OTA 心跳、广告轮播、温控回显。
  *
  * <p>环境变量：
  * <ul>
- *   <li>{@code AICABINET_SIM_VIDEO_FILE} — 顶摄测试图，上传 MinIO/OSS</li>
- *   <li>{@code AICABINET_SIM_SIDE_VIDEO_FILE} — 侧摄（多摄模式）</li>
- *   <li>{@code AICABINET_SIM_OFFLINE_UPLOAD=true} — 关门先 LOCAL_QUEUED，延迟后再上传</li>
- *   <li>{@code AICABINET_SIM_MULTI_CAMERA=true} — 顶摄+侧摄融合</li>
+ *   <li>{@code AICABINET_SIM_GRAVITY_JSON} — 关门时附带的重力取证 JSON（仅取证，不参与结算）</li>
  *   <li>{@code AICABINET_SIM_APP_VERSION=0.9.0} — OTA 检查用版本号</li>
  *   <li>{@code AICABINET_SIM_SHOPPING_MS} — 开门后自动关门等待；{@code 0} 表示保持开门，需点 HTTP「关门」或走小程序结算</li>
  *   <li>{@code AICABINET_SIM_HTTP_PORT} — 测试用关门页端口，默认 {@code 18089}；{@code 0} 关闭</li>
@@ -47,23 +41,6 @@ import java.util.concurrent.Executors;
  * </ul>
  */
 public class DeviceSimulator implements MqttCallbackExtended {
-
-    /** 1x1 JPEG；无素材或上传失败回退时写入桶内，避免会话挂空 minio:// URI。 */
-    private static final byte[] PLACEHOLDER_JPEG = new byte[]{
-            (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
-            0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, (byte) 0xFF, (byte) 0xDB, 0x00, 0x43, 0x00, 0x08,
-            0x06, 0x06, 0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D,
-            0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12, 0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C,
-            0x1C, 0x20, 0x24, 0x2E, 0x27, 0x20, 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29, 0x2C, 0x30,
-            0x31, 0x34, 0x34, 0x34, 0x1F, 0x27, 0x39, 0x3D, 0x38, 0x32, 0x3C, 0x2E, 0x33, 0x34, 0x32,
-            (byte) 0xFF, (byte) 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00,
-            (byte) 0xFF, (byte) 0xC4, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08,
-            (byte) 0xFF, (byte) 0xC4, 0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            (byte) 0xFF, (byte) 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00, 0x7F,
-            (byte) 0xFF, (byte) 0xD9
-    };
 
     private final String deviceId;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -98,7 +75,6 @@ public class DeviceSimulator implements MqttCallbackExtended {
         client.setCallback(this);
         client.connect(options);
         subscribeCommands();
-        logVideoConfig();
         checkOta();
         publishHeartbeat();
         startHeartbeatLoop();
@@ -110,12 +86,6 @@ public class DeviceSimulator implements MqttCallbackExtended {
         String topic = MqttTopics.command(deviceId);
         client.subscribe(topic, 1);
         System.out.println("[simulator] subscribed " + topic);
-    }
-
-    private void logVideoConfig() {
-        System.out.println("[simulator] offline=" + offlineUploadEnabled()
-                + " multiCamera=" + multiCameraEnabled()
-                + " appVersion=" + appVersion());
     }
 
     /**
@@ -364,7 +334,7 @@ public class DeviceSimulator implements MqttCallbackExtended {
                 lastUserId = userId;
                 lastOperatorMode = operatorMode;
                 Thread.sleep(500);
-                publishDoorEvent(sessionId, DoorState.OPEN, null, null, null, null, null);
+                publishDoorEvent(sessionId, DoorState.OPEN, null);
                 long shoppingMs = shoppingDelayMs();
                 if (shoppingMs <= 0) {
                     openSessionId = sessionId;
@@ -383,26 +353,18 @@ public class DeviceSimulator implements MqttCallbackExtended {
         t.start();
     }
 
+    /**
+     * 关门上报：只发 doorState + 重力取证 JSON。
+     *
+     * <p>旧链在这里上传购物录像（顶摄/侧摄/离线续传）并带 videoUri/uploadStatus/
+     * videoClipsJson/cameraFusionMode —— 随 DC-27(b) 批6 整体删除：trade 侧
+     * {@code /internal/v1/sessions/video*} 端点与 DoorEventRequest 的视频字段早已不存在，
+     * 这些上传只会打出 404。将邑柜录像由平台侧 OSS 台账（jiangyi_order_video）承载，模拟器不参与。
+     */
     private void completeDoorClose(String sessionId) throws Exception {
         try {
-            if (offlineUploadEnabled()) {
-                publishDoorEvent(sessionId, DoorState.CLOSED, null, "LOCAL_QUEUED", null, null, resolveGravityJson());
-                System.out.println("[simulator] door CLOSED offline, queued local upload");
-                scheduleDeferredUpload(sessionId);
-                return;
-            }
-
-            if (multiCameraEnabled()) {
-                VideoPayload payload = resolveMultiCameraPayload(sessionId);
-                publishDoorEvent(sessionId, DoorState.CLOSED, payload.primaryUri(), "UPLOADED",
-                        payload.clipsJson(), "MULTI", resolveGravityJson());
-                System.out.println("[simulator] door CLOSED multi-camera primary=" + payload.primaryUri());
-                return;
-            }
-
-            String videoUri = resolveVideoUri(sessionId, "top");
-            publishDoorEvent(sessionId, DoorState.CLOSED, videoUri, "UPLOADED", null, "SINGLE", resolveGravityJson());
-            System.out.println("[simulator] door CLOSED video=" + videoUri);
+            publishDoorEvent(sessionId, DoorState.CLOSED, resolveGravityJson());
+            System.out.println("[simulator] door CLOSED session=" + sessionId);
         } finally {
             if (sessionId != null && sessionId.equals(openSessionId)) {
                 openSessionId = null;
@@ -559,177 +521,6 @@ public class DeviceSimulator implements MqttCallbackExtended {
         }
     }
 
-    private void scheduleDeferredUpload(String sessionId) {
-        long delay = Long.parseLong(env("AICABINET_SIM_OFFLINE_DELAY_MS", "5000"));
-        Thread t = new Thread(() -> {
-            try {
-                Thread.sleep(delay);
-                VideoPayload payload = multiCameraEnabled()
-                        ? resolveMultiCameraPayload(sessionId)
-                        : new VideoPayload(resolveVideoUri(sessionId, "top"), null, "SINGLE");
-                postAttachVideo(sessionId, payload);
-                System.out.println("[simulator] offline upload completed session=" + sessionId);
-            } catch (Exception e) {
-                System.err.println("[simulator] deferred upload failed: " + e.getMessage());
-            }
-        }, "sim-upload-" + sessionId);
-        t.setDaemon(true);
-        t.start();
-    }
-
-    private void postAttachVideo(String sessionId, VideoPayload payload) throws Exception {
-        // 注意：/internal/v1/sessions/video 在 trade 已不存在（历史路由移除，调用 404 兜底）；
-        // 保留调用仅为对齐历史报文，头已随设备面一并切到一机一密。
-        String tradeUrl = env("TRADE_SERVICE_URL", "http://localhost:8080");
-        String apiKey = deviceHttpSecret();
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("sessionId", sessionId);
-        body.put("deviceId", deviceId);
-        body.put("videoUri", payload.primaryUri());
-        body.put("uploadStatus", "UPLOADED");
-        if (payload.clipsJson() != null) {
-            body.put("videoClipsJson", payload.clipsJson());
-            body.put("cameraFusionMode", payload.fusionMode());
-        }
-
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(tradeUrl + "/internal/v1/sessions/video"))
-                .header("Content-Type", "application/json")
-                .header("X-Device-Id", deviceId).header("X-Device-Secret", apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
-                .timeout(Duration.ofSeconds(30))
-                .build();
-        HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (res.statusCode() >= 300) {
-            throw new IllegalStateException("attach video HTTP " + res.statusCode() + " " + res.body());
-        }
-    }
-
-    private VideoPayload resolveMultiCameraPayload(String sessionId) throws Exception {
-        String topFile = env("AICABINET_SIM_VIDEO_FILE", null);
-        String sideFile = env("AICABINET_SIM_SIDE_VIDEO_FILE", topFile);
-        if (topFile == null || topFile.isBlank()) {
-            String topUri = resolveVideoUri(sessionId, "top");
-            String sideUri = resolveVideoUri(sessionId, "side");
-            return new VideoPayload(topUri, clipsJson(topUri, sideUri), "MULTI");
-        }
-        String topUri = uploadViaPresign(Path.of(topFile.trim()), sessionId, lastUserId, "top");
-        String sideUri = sideFile != null && !sideFile.isBlank()
-                ? uploadViaPresign(Path.of(sideFile.trim()), sessionId, lastUserId, "side")
-                : topUri;
-        return new VideoPayload(topUri, clipsJson(topUri, sideUri), "MULTI");
-    }
-
-    private String clipsJson(String topUri, String sideUri) throws Exception {
-        long now = System.currentTimeMillis();
-        List<Map<String, Object>> clips = new ArrayList<>();
-        clips.add(Map.of("camera", "TOP", "videoUri", topUri, "capturedAt", now));
-        clips.add(Map.of("camera", "SIDE", "videoUri", sideUri, "capturedAt", now));
-        return mapper.writeValueAsString(clips);
-    }
-
-    private String resolveVideoUri(String sessionId, String camera) {
-        String configured = System.getenv("AICABINET_SIM_VIDEO_URI");
-        if (configured != null && !configured.isBlank()) {
-            return configured.trim();
-        }
-
-        String localFile = System.getenv("AICABINET_SIM_VIDEO_FILE");
-        if (localFile != null && !localFile.isBlank()) {
-            try {
-                return uploadViaPresign(Path.of(localFile.trim()), sessionId, lastUserId, camera);
-            } catch (Exception e) {
-                // 补货/运营开门以关门事件为主；上传失败时改传占位图，避免空 minio:// 与会话卡死
-                if (lastOperatorMode) {
-                    System.err.println("[simulator] upload failed (operatorMode), uploading placeholder: " + e.getMessage());
-                    try {
-                        return uploadPlaceholder(sessionId, camera);
-                    } catch (Exception placeholderEx) {
-                        throw new RuntimeException("failed to upload sim placeholder after media failure", placeholderEx);
-                    }
-                }
-                throw new RuntimeException("failed to upload sim video", e);
-            }
-        }
-
-        try {
-            System.out.println("[simulator] AICABINET_SIM_VIDEO_FILE unset, uploading placeholder for " + camera);
-            return uploadPlaceholder(sessionId, camera);
-        } catch (Exception e) {
-            throw new RuntimeException("failed to upload sim placeholder", e);
-        }
-    }
-
-    private String uploadPlaceholder(String sessionId, String camera) throws Exception {
-        String uri = uploadBytesViaPresign(PLACEHOLDER_JPEG, ".jpg", "image/jpeg", sessionId, lastUserId, camera);
-        System.out.println("[simulator] uploaded placeholder -> " + uri);
-        return uri;
-    }
-
-    private String uploadViaPresign(Path localPath, String sessionId, long userId, String camera) throws Exception {
-        if (!Files.isRegularFile(localPath)) {
-            throw new IllegalArgumentException("video file not found: " + localPath.toAbsolutePath());
-        }
-        String ext = SimulatorSupport.extension(localPath);
-        String uri = uploadBytesViaPresign(Files.readAllBytes(localPath), ext, SimulatorSupport.contentType(ext), sessionId, userId, camera);
-        System.out.println("[simulator] uploaded " + localPath + " -> " + uri);
-        return uri;
-    }
-
-    private String uploadBytesViaPresign(byte[] bytes, String ext, String contentType,
-                                         String sessionId, long userId, String camera) throws Exception {
-        if (bytes == null || bytes.length == 0) {
-            throw new IllegalArgumentException("empty upload payload");
-        }
-        String tradeUrl = env("TRADE_SERVICE_URL", "http://localhost:8080");
-        String apiKey = deviceHttpSecret();
-        String normalizedExt = ext == null || ext.isBlank() ? ".bin" : (ext.startsWith(".") ? ext : "." + ext);
-
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("sessionId", sessionId);
-        body.put("deviceId", deviceId);
-        body.put("userId", userId);
-        body.put("camera", camera);
-        body.put("extension", normalizedExt);
-        body.put("sim", true);
-
-        HttpRequest presignReq = HttpRequest.newBuilder()
-                .uri(URI.create(tradeUrl + "/internal/v1/sessions/video-upload-url"))
-                .header("X-Device-Id", deviceId).header("X-Device-Secret", apiKey)
-                .header("Content-Type", "application/json")
-                .timeout(Duration.ofSeconds(15))
-                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
-                .build();
-        HttpResponse<String> presignRes = http.send(presignReq, HttpResponse.BodyHandlers.ofString());
-        if (presignRes.statusCode() != 200) {
-            throw new IllegalStateException("presign HTTP " + presignRes.statusCode() + " " + presignRes.body());
-        }
-        JsonNode data = mapper.readTree(presignRes.body()).path("data");
-        String uploadUrl = resolveUploadUrl(data.path("uploadUrl").asText());
-        String videoUri = data.path("videoUri").asText();
-        if (uploadUrl.isBlank() || videoUri.isBlank()) {
-            throw new IllegalStateException("presign response missing uploadUrl/videoUri");
-        }
-
-        HttpRequest putReq = HttpRequest.newBuilder()
-                .uri(URI.create(uploadUrl))
-                .header("Content-Type", contentType)
-                .timeout(Duration.ofSeconds(120))
-                .PUT(HttpRequest.BodyPublishers.ofByteArray(bytes))
-                .build();
-        HttpResponse<Void> putRes = http.send(putReq, HttpResponse.BodyHandlers.discarding());
-        if (putRes.statusCode() < 200 || putRes.statusCode() >= 300) {
-            throw new IllegalStateException(
-                    "presign upload HTTP " + putRes.statusCode() + " urlHost=" + URI.create(uploadUrl).getHost());
-        }
-        return videoUri;
-    }
-
-    /** 容器内上传走 MINIO_ENDPOINT，避免 presign 公网 URL（localhost）不可达。逻辑见 {@link SimulatorSupport#rewriteUploadUrl}。 */
-    private String resolveUploadUrl(String presignedUrl) {
-        return SimulatorSupport.rewriteUploadUrl(presignedUrl, env("MINIO_ENDPOINT", null));
-    }
-
     private void publishAck(String commandId) throws Exception {
         // 报文构造见 SimulatorSupport.ackPayload（P0-7）
         byte[] payload = mapper.writeValueAsBytes(
@@ -737,17 +528,10 @@ public class DeviceSimulator implements MqttCallbackExtended {
         client.publish(MqttTopics.event(deviceId), new MqttMessage(payload));
     }
 
-    private void publishDoorEvent(String sessionId,
-                                  DoorState state,
-                                  String videoUri,
-                                  String uploadStatus,
-                                  String videoClipsJson,
-                                  String cameraFusionMode,
-                                  String gravityDeltasJson) throws Exception {
+    private void publishDoorEvent(String sessionId, DoorState state, String gravityDeltasJson) throws Exception {
         // 报文构造见 SimulatorSupport.doorEventPayload（P0-7）
         Map<String, Object> data = SimulatorSupport.doorEventPayload(
-                sessionId, state.name(), System.currentTimeMillis(),
-                videoUri, uploadStatus, videoClipsJson, cameraFusionMode, gravityDeltasJson);
+                sessionId, state.name(), System.currentTimeMillis(), gravityDeltasJson);
 
         MqttMessage msg = new MqttMessage(mapper.writeValueAsBytes(data));
         msg.setQos(1);
@@ -779,14 +563,6 @@ public class DeviceSimulator implements MqttCallbackExtended {
 
     private static long shoppingDelayMs() {
         return Long.parseLong(env("AICABINET_SIM_SHOPPING_MS", "0"));
-    }
-
-    private static boolean offlineUploadEnabled() {
-        return "true".equalsIgnoreCase(env("AICABINET_SIM_OFFLINE_UPLOAD", "false"));
-    }
-
-    private static boolean multiCameraEnabled() {
-        return "true".equalsIgnoreCase(env("AICABINET_SIM_MULTI_CAMERA", "false"));
     }
 
     private static String appVersion() {
@@ -837,5 +613,4 @@ public class DeviceSimulator implements MqttCallbackExtended {
         return null;
     }
 
-    private record VideoPayload(String primaryUri, String clipsJson, String fusionMode) {}
 }

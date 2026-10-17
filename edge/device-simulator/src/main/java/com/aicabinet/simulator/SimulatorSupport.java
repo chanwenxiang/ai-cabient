@@ -2,10 +2,7 @@ package com.aicabinet.simulator;
 
 import com.aicabinet.common.constants.CabinetConstants;
 
-import java.net.URI;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -53,71 +50,6 @@ public final class SimulatorSupport {
         }
     }
 
-    /**
-     * 取文件名扩展名（**含点**）；无点回落 {@code ".bin"}。
-     *
-     * <p>⚠️ 既有边界行为：{@code ".gitignore"} 这类**点开头**的文件名会返回整个名字
-     * （因为 {@code lastIndexOf('.') == 0}）—— 不是 bug，是提取前就有的事实，测试里固化它以防误改。
-     */
-    public static String extension(Path path) {
-        String name = path.getFileName().toString();
-        int dot = name.lastIndexOf('.');
-        return dot < 0 ? ".bin" : name.substring(dot);
-    }
-
-    /** 扩展名 → MIME（**大小写不敏感**）；未知类型回落 {@code application/octet-stream}。 */
-    public static String contentType(String ext) {
-        return switch (ext.toLowerCase(Locale.ROOT)) {
-            case ".jpg", ".jpeg" -> "image/jpeg";
-            case ".png" -> "image/png";
-            case ".webp" -> "image/webp";
-            case ".mp4" -> "video/mp4";
-            default -> "application/octet-stream";
-        };
-    }
-
-    /**
-     * 把 presign 出来的**公网** URL 重写成**容器内可达**的地址（{@code MINIO_ENDPOINT}），
-     * 保留签名 query / userInfo / fragment。
-     *
-     * <p>为什么需要：MinIO 的 presign URL 里 host 是给浏览器用的公网地址（如 {@code localhost:19000}），
-     * 而模拟器跑在容器里时那个地址**不可达** ⇒ 上传必然失败。
-     *
-     * <p>两条「宁可退化也不中断」的路径：
-     * <ul>
-     *   <li>未注入 {@code internalEndpoint}（null / 空白）⇒ **原样返回**（宿主直跑场景，公网 URL 本来就可达）；</li>
-     *   <li>URL 解析失败 ⇒ **原样返回**。传一个可能不可达的地址，也好过因重写抛错直接中断上传。</li>
-     * </ul>
-     */
-    public static String rewriteUploadUrl(String presignedUrl, String internalEndpoint) {
-        if (internalEndpoint == null || internalEndpoint.isBlank()) {
-            return presignedUrl;
-        }
-        try {
-            String base = internalEndpoint.endsWith("/")
-                    ? internalEndpoint.substring(0, internalEndpoint.length() - 1)
-                    : internalEndpoint;
-            URI internal = URI.create(base);
-            URI signed = URI.create(presignedUrl);
-            int port = internal.getPort();
-            if (port < 0) {
-                port = "https".equalsIgnoreCase(internal.getScheme()) ? 443 : 80;
-            }
-            return new URI(
-                    internal.getScheme(),
-                    signed.getUserInfo(),
-                    internal.getHost(),
-                    port,
-                    signed.getPath(),
-                    signed.getQuery(),
-                    signed.getFragment()
-            ).toString();
-        } catch (Exception e) {
-            System.err.println("[simulator] rewrite upload url failed: " + e.getMessage());
-            return presignedUrl;
-        }
-    }
-
     // ---------------------------------------------------------------------
     // 上行报文构造（P0-7：抽成纯函数，使「模拟器 ↔ 云端」契约可被自动化断言）
     //
@@ -143,28 +75,12 @@ public final class SimulatorSupport {
             String sessionId,
             String doorStateName,
             long timestamp,
-            String videoUri,
-            String uploadStatus,
-            String videoClipsJson,
-            String cameraFusionMode,
             String gravityDeltasJson) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("type", CabinetConstants.MQTT_EVENT_TYPE_DOOR);
         data.put("sessionId", sessionId);
         data.put("doorState", doorStateName);
         data.put("timestamp", timestamp);
-        if (videoUri != null) {
-            data.put("videoUri", videoUri);
-        }
-        if (uploadStatus != null) {
-            data.put("uploadStatus", uploadStatus);
-        }
-        if (videoClipsJson != null) {
-            data.put("videoClipsJson", videoClipsJson);
-        }
-        if (cameraFusionMode != null) {
-            data.put("cameraFusionMode", cameraFusionMode);
-        }
         if (gravityDeltasJson != null) {
             data.put("gravityDeltasJson", gravityDeltasJson);
         }

@@ -54,8 +54,7 @@ object OtaProgressReporter {
     private const val TAG = "OtaProgress"
 
     /** 用 Jackson 而非 `org.json`：`isReturnDefaultValues=true` 会让 android.jar 里的
-     *  `JSONObject` 在 JVM 单测中退化成默认值（`put` 不生效），报文就**测不了**。
-     *  同仓 `VideoClipJson` 也正因此改用 Jackson。 */
+     *  `JSONObject` 在 JVM 单测中退化成默认值（`put` 不生效），报文就**测不了**。 */
     private val mapper = jacksonObjectMapper()
 
     /** 上报用**独立** client（不复用 OtaChecker 那个 readTimeout=120s 的下载 client）：

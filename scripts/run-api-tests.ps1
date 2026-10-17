@@ -112,7 +112,6 @@ try {
     Invoke-Api POST "/internal/v1/sessions/door-event" $headers @{
         sessionId = $sid; deviceId = $DeviceId; doorState = "CLOSED"
         timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-        uploadStatus = "LOCAL_QUEUED"
     } | Out-Null
 } catch {
     Record "TC-PFREE-003" "Password-free open door" $false $_.Exception.Message

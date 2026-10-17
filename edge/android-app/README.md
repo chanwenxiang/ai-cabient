@@ -7,11 +7,9 @@ Kotlin 工程，替代 `device-simulator` 用于真实柜体部署。
 ```
 MQTT OPEN_DOOR
     → CabinetController
-        → CameraX 录像（购物模式）
         → ILockDriver 开锁
         → 等待关门（DoorCloseWatcher 轮询）
-        → 停录 → MinIO 上传 → MQTT DOOR CLOSED
-        → 失败时 OfflineUploadQueue 断网续传
+        → MQTT DOOR CLOSED（type/sessionId/doorState/timestamp，不带视频字段）
 ```
 
 | 包 | 说明 |
@@ -24,13 +22,12 @@ MQTT OPEN_DOOR
 | `hal/DoorCloseWatcher` | 轮询等待真实关门（替代固定 3 秒延时） |
 | `mqtt/MqttDeviceClient` | MQTT 指令收发 + 心跳 |
 | `mqtt/OutboundMqttQueue` | MQTT 出站持久化队列 |
-| `queue/PrefsJsonQueue` | E-P1-2：MQTT/离线上传共用 Prefs JSON 存储 |
-| `video/SessionVideoRecorder` | 单摄/双摄 CameraX 录像 |
-| `video/VideoClipJson` | MULTI 模式 clips JSON |
+| `queue/PrefsJsonQueue` | E-P1-2：MQTT 出站队列 Prefs JSON 存储 |
 | `hal/serial/ChzhSerialPort` | 串口 19200（licheedev） |
-| `upload/MinioUploader` | MinIO/S3 上传 |
-| `upload/OfflineUploadQueue` | 断网续传 + trade attach video |
 | `service/CabinetController` | 开门→购物→关门主流程 |
+
+> 旧视频链（`video/SessionVideoRecorder`、`video/VideoClipJson`、`upload/MinioUploader`、`upload/OfflineUploadQueue`）
+> 已随 DC-27 批6 删除：柜机不再自行录像上传，购物录像只认将邑柜 OSS 台账（`jiangyi_order_video`）。
 
 ## 构建变体（Product Flavors）
 
@@ -50,18 +47,19 @@ Android Studio 中选择 **mockDebug** 或 **deviceDebug** 后 Run。
 | 能力 | 说明 |
 |------|------|
 | MQTT 开门 / 心跳 / 关门事件 | 与 device-service、trade-service 契约一致 |
-| 购物录像 + MinIO 上传 | CameraX；TOP/SIDE 仅为逻辑通道名 |
-| MULTI 融合元数据 | `videoClipsJson` + `cameraFusionMode`，属旧云融合识别链字段，现仅透传存档 |
-| 断网续传 | `OfflineUploadQueue` |
 | Mock 门锁 | 无硬件即可完成小程序 → 识别 → 扣款闭环 |
-| 运行时配置 | Broker、设备 ID、双摄开关等，免重编译 |
+| 运行时配置 | Broker、设备 ID 等，免重编译 |
 | 状态页 | MQTT、门状态、会话、错误 |
+
+> 录像/上传能力已整体撤下（DC-27 批6）：柜机端不再自行录像上传，购物录像只认将邑柜 OSS 台账（`jiangyi_order_video`）；
+> 识别结果由将邑端侧经 `POST /internal/v1/vision/edge-results` 上报。
+> 关门事件报文里旧的 `videoUri/uploadStatus/videoClipsJson/cameraFusionMode` 四字段已从云端 DTO（`DoorEventRequest`）删除。
 
 ### 暂缓（等硬件规格再定）
 
 | 项 | 为何暂缓 | 硬件确定后怎么做 |
 |----|----------|------------------|
-| **USB 外接双摄** | UVC / MIPI / 厂商 SDK 差异大，现在写易作废 | 在 `SessionVideoRecorder` 内把 TOP/SIDE 绑到实际物理摄像头 |
+| **USB 外接双摄** | UVC / MIPI / 厂商 SDK 差异大，现在写易作废 | 录像链已随 DC-27 批6 删除；若本机仍需录像，需重新引入 CameraX 录制 + 上传实现，并先确认云端契约（当前关门事件不带视频字段） |
 | **OTA 全自动安装** | 涉及 ROM 权限、静默安装、重启策略 | 首批试点可 **adb / U 盘 / 人工点安装**；量产前再做「下载 APK → 系统安装界面」 |
 | **串口门磁细节** | 创智辉协议字段待现场确认 | 扩展 `ChzhLockDriver.parseDoorFeedback()` 关键字 |
 
@@ -75,11 +73,11 @@ Android Studio 中选择 **mockDebug** 或 **deviceDebug** 后 Run。
 ### 硬件规格书到位时需确认
 
 1. **门锁**：串口路径（`/dev/ttyS2`?）、波特率、开锁/门磁报文格式  
-2. **摄像头**：内置双摄 / USB UVC / 第三方 SDK；TOP、SIDE 各对应哪一路  
+2. **摄像头**：识别由将邑端侧完成，本机摄像头仅用于运营自检（`cameraUsable`）；如需本机录像另需重建上传链
 3. **网络**：工控机访问 EMQX、MinIO、trade 的内网 IP 或域名  
 4. **部署**：是否 system 签名、是否 root、App 是否开机自启  
 
-确认后优先改 **`ChzhLockDriver`** 与 **`SessionVideoRecorder`** 的实现，**不必改** MQTT 事件结构与上传 URI 格式。
+确认后优先改 **`ChzhLockDriver`** 的实现，**不必改** MQTT 事件结构。
 
 ## 配置
 
@@ -90,7 +88,6 @@ Android Studio 中选择 **mockDebug** 或 **deviceDebug** 后 Run。
 ```kotlin
 buildConfigField("String", "MQTT_BROKER", "\"tcp://10.0.2.2:11883\"")
 buildConfigField("String", "TRADE_SERVICE_URL", "\"http://10.0.2.2:8080\"")
-buildConfigField("String", "MINIO_ENDPOINT", "\"http://10.0.2.2:9000\"")
 ```
 
 真机部署改为电脑局域网 IP，例如 `192.168.1.100`。
@@ -128,14 +125,13 @@ MainActivity 可修改 **MQTT Broker** 并保存到 SharedPreferences，**无需
 
 生产环境建议根据现场协议扩展 `ChzhLockDriver.parseDoorFeedback()` 中的门磁关键字。
 
-### 双摄融合（MULTI）
+### 双摄开关（仅状态页显示，已不影响报文）
 
-App 内打开 **「双摄融合」** 开关（或 BuildConfig `MULTI_CAMERA_ENABLED=true`）：
+App 内 **「双摄融合」** 开关（或 BuildConfig `MULTI_CAMERA_ENABLED`、Prefs `multi_camera_enabled`）现在只决定状态页显示 `MULTI/SINGLE`：
 
-- **TOP**：后置摄像头
-- **SIDE**：前置摄像头（不可用时复制 TOP 文件）
-- 关门 MQTT 事件携带 `videoClipsJson` + `cameraFusionMode=MULTI`
-- 与 `device-simulator` 的 `AICABINET_SIM_MULTI_CAMERA=true` 对齐（云端融合识别引擎已退役，元数据只透传存档）
+- 关门 MQTT 事件不再携带 `videoClipsJson` / `cameraFusionMode`（随 DC-27 批6 从云端 DTO 删除）
+- `device-simulator` 侧同名旋钮 `AICABINET_SIM_MULTI_CAMERA` 亦已删除
+- 待办：硬件方案定了之后，要么重建本机录像+上传链，要么把这个开关一并撤下
 
 ## 切换真机串口
 
@@ -150,7 +146,6 @@ App 内打开 **「双摄融合」** 开关（或 BuildConfig `MULTI_CAMERA_ENAB
 
 `operatorMode=true` 的 OPEN_DOOR 指令：
 
-- 不录像
 - 开锁后等待关门（最长 10 分钟）
 - 上报 `DOOR CLOSED`（**已修复**：此前补货模式不会上报关门）
 
@@ -159,7 +154,7 @@ App 内打开 **「双摄融合」** 开关（或 BuildConfig `MULTI_CAMERA_ENAB
 | | device-simulator | android-app |
 |--|----------------|-------------|
 | 场景 | IDEA 桌面联调 | 工控机/模拟器真机部署 |
-| 视频 | 环境变量指定测试图 | CameraX 录像 |
+| 视频 | 不上传（批6 后仅发关门事件） | 不录像（旧 CameraX/MinIO 链已删除） |
 | 门锁 | 固定 sleep 3s | 等待关门 / Mock 自动关门 |
 
 **同一 deviceId 只能有一个在线**（MQTT client + 心跳）。
@@ -172,4 +167,4 @@ App 内打开 **「双摄融合」** 开关（或 BuildConfig `MULTI_CAMERA_ENAB
 
 ## 版本
 
-当前 `0.6.0`：双摄 MULTI 上传、串口 JNI（licheedev）、关门检测、补货流程、状态 UI。
+当前 `0.6.0`：串口 JNI（licheedev）、关门检测、补货流程、状态 UI；录像/上传链已随 DC-27 批6 撤下。

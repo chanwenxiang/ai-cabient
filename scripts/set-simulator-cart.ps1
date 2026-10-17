@@ -3,7 +3,6 @@ param(
     [string[]]$Items,
     [int]$ShoppingSeconds = 20,
     [string]$EnvFile = "",
-    [string]$VideoFile = "",
     [switch]$NoRecreate,
     # IDEA / local DeviceSimulator mode: only export env vars; do not touch docker simulator
     [switch]$SkipDocker
@@ -44,9 +43,6 @@ $deltas = foreach ($item in $Items) {
 
 $env:AICABINET_SIM_GRAVITY_JSON = ConvertTo-Json @($deltas) -Compress
 $env:AICABINET_SIM_SHOPPING_MS = [string]($ShoppingSeconds * 1000)
-if ($VideoFile) {
-    $env:AICABINET_SIM_VIDEO_FILE = $VideoFile
-}
 
 Write-Host 'Simulator cart:'
 $deltas | ForEach-Object {

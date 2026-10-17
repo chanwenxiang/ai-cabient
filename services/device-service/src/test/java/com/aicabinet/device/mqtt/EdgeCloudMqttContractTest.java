@@ -88,9 +88,12 @@ class EdgeCloudMqttContractTest {
     void doorEvent_fullPayloadFromSimulator_allFieldsReachTradeDto() throws Exception {
         Map<String, Object> payload = SimulatorSupport.doorEventPayload(
                 "S-CONTRACT-FULL", DoorState.CLOSED.name(), 1_700_000_000_000L,
-                "minio://bucket/top.mp4", "UPLOADED",
-                "[{\"camera\":\"TOP\"},{\"camera\":\"SIDE\"}]", "MULTI",
                 "[{\"skuId\":\"SKU-1\",\"delta\":-1,\"slotId\":\"A1\"}]");
+        // 旧视频链的四枚键仍可能在**在网老固件**报文里出现，这里手工补上以钉住「云端一律忽略」。
+        payload.put("videoUri", "minio://bucket/top.mp4");
+        payload.put("uploadStatus", "UPLOADED");
+        payload.put("videoClipsJson", "[{\"camera\":\"TOP\"},{\"camera\":\"SIDE\"}]");
+        payload.put("cameraFusionMode", "MULTI");
 
         listener.messageArrived(MqttTopics.event(DEVICE_ID), mqtt(payload));
 
@@ -111,8 +114,7 @@ class EdgeCloudMqttContractTest {
     @Test
     void doorEvent_minimalPayloadFromSimulator_optionalFieldsNull() throws Exception {
         Map<String, Object> payload = SimulatorSupport.doorEventPayload(
-                "S-CONTRACT-MIN", DoorState.OPEN.name(), 1_700_000_000_001L,
-                null, null, null, null, null);
+                "S-CONTRACT-MIN", DoorState.OPEN.name(), 1_700_000_000_001L, null);
 
         assertEquals(4, payload.size(), "开门报文应只有 type/sessionId/doorState/timestamp 四个键");
         listener.messageArrived(MqttTopics.event(DEVICE_ID), mqtt(payload));
@@ -160,7 +162,7 @@ class EdgeCloudMqttContractTest {
     void doorEvent_reportTimestampIsIgnored_serverClockIsUsed() throws Exception {
         long reported = 1_700_000_000_000L;   // 与「现在」必然不同，用来证明该字段未被采用
         Map<String, Object> payload = SimulatorSupport.doorEventPayload(
-                "S-TS-SNAPSHOT", DoorState.CLOSED.name(), reported, null, null, null, null, null);
+                "S-TS-SNAPSHOT", DoorState.CLOSED.name(), reported, null);
 
         listener.messageArrived(MqttTopics.event(DEVICE_ID), mqtt(payload));
 

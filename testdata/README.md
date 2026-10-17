@@ -2,8 +2,7 @@
 
 | 文件 | 用途 |
 |------|------|
-| `bottle.jpg` | 模拟器默认素材（`AICABINET_SIM_VIDEO_FILE`，见 `infra/docker-compose.full.yml`） |
-| `soda.jpg` / `cola.png` / `apple.jpg` / `zidane.jpg` / `bus.jpg` | 模拟器换图、识别建档与映射回归的备用图 |
+| `bottle.jpg` / `soda.jpg` / `cola.png` / `apple.jpg` / `zidane.jpg` / `bus.jpg` | 商品建档、识别映射回归的备用图（模拟器已不再读取本目录：旧 `AICABINET_SIM_VIDEO_FILE` 上传链随 DC-27(b) 批6 删除） |
 | `shelf-full.jpg` / `shelf-sparse.jpg` | 满柜 / 空柜对照图 |
 | `vending-interior-clear.png` / `vending-interior-frost.png` | 柜内清晰 / 起雾对照图（低置信度场景） |
 | `marketside-coconut-water-1l.png` / `oriental-leaf-jasmine-335ml.png` | 真实商品图（SKU 建档演示） |

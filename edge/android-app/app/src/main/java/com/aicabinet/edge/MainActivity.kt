@@ -101,7 +101,6 @@ class MainActivity : AppCompatActivity() {
         binding.tvConfig.text = buildString {
             appendLine("设备 ID: ${EdgeRuntimeConfig.ensureDeviceId(this@MainActivity)}")
             appendLine("Trade: ${EdgeRuntimeConfig.tradeServiceUrl(this@MainActivity)}")
-            appendLine("录像上传: 预签名 (trade-service)")
             // 只显示「是否已装机」，绝不回显 secret 本体
             appendLine("设备凭据: ${if (EdgeRuntimeConfig.httpDeviceSecret(this@MainActivity).isNotBlank()) "已注入" else "未注入（OTA/素材链路停用）"}")
             appendLine("驱动: ${if (EdgeRuntimeConfig.useMockDriver(this@MainActivity)) "Mock" else "串口"}")

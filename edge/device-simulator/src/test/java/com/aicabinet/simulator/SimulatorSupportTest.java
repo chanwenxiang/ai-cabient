@@ -98,151 +98,6 @@ class SimulatorSupportTest {
     }
 
     @Nested
-    @DisplayName("extension：取文件扩展名")
-    class ExtensionTest {
-
-        @Test
-        @DisplayName("普通文件名取扩展名（含点）")
-        void takesExtensionWithDot() {
-            assertEquals(".jpg", SimulatorSupport.extension(Path.of("shot.jpg")));
-            assertEquals(".mp4", SimulatorSupport.extension(Path.of("/data/clips/top.mp4")));
-        }
-
-        @Test
-        @DisplayName("多段点号只取最后一段")
-        void takesLastSegment() {
-            assertEquals(".png", SimulatorSupport.extension(Path.of("a.b.c.png")));
-        }
-
-        @Test
-        @DisplayName("无点号回落 .bin")
-        void fallsBackToBinWhenNoDot() {
-            assertEquals(".bin", SimulatorSupport.extension(Path.of("README")));
-        }
-
-        @Test
-        @DisplayName("固化既有行为：点开头的文件名返回整个名字")
-        void dotFileReturnsWholeName() {
-            // lastIndexOf('.') == 0 ⇒ substring(0) == 整个名字。看起来像 bug，但这是抽取前就有的行为。
-            assertEquals(".gitignore", SimulatorSupport.extension(Path.of(".gitignore")));
-        }
-    }
-
-    @Nested
-    @DisplayName("contentType：扩展名转 MIME")
-    class ContentTypeTest {
-
-        @Test
-        @DisplayName("常见媒体类型映射正确")
-        void mapsCommonTypes() {
-            assertEquals("image/jpeg", SimulatorSupport.contentType(".jpg"));
-            assertEquals("image/png", SimulatorSupport.contentType(".png"));
-            assertEquals("image/webp", SimulatorSupport.contentType(".webp"));
-            assertEquals("video/mp4", SimulatorSupport.contentType(".mp4"));
-        }
-
-        @Test
-        @DisplayName("jpeg 与 jpg 等价")
-        void jpegEqualsJpg() {
-            assertEquals(SimulatorSupport.contentType(".jpg"), SimulatorSupport.contentType(".jpeg"));
-        }
-
-        @Test
-        @DisplayName("大小写不敏感")
-        void isCaseInsensitive() {
-            assertEquals("image/jpeg", SimulatorSupport.contentType(".JPG"));
-            assertEquals("image/jpeg", SimulatorSupport.contentType(".JpEg"));
-            assertEquals("video/mp4", SimulatorSupport.contentType(".MP4"));
-        }
-
-        @Test
-        @DisplayName("未知扩展名回落 octet-stream")
-        void unknownFallsBack() {
-            assertEquals("application/octet-stream", SimulatorSupport.contentType(".bin"));
-            assertEquals("application/octet-stream", SimulatorSupport.contentType(".exe"));
-            assertEquals("application/octet-stream", SimulatorSupport.contentType(""));
-        }
-    }
-
-    @Nested
-    @DisplayName("rewriteUploadUrl：presign URL 重写为容器内地址")
-    class RewriteUploadUrlTest {
-
-        private static final String SIGNED =
-                "http://localhost:19000/cabinet-videos/sess-1/top.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123";
-
-        @Test
-        @DisplayName("未注入内部端点时原样返回（宿主直跑，公网 URL 本来就可达）")
-        void passthroughWhenEndpointMissing() {
-            assertEquals(SIGNED, SimulatorSupport.rewriteUploadUrl(SIGNED, null));
-            assertEquals(SIGNED, SimulatorSupport.rewriteUploadUrl(SIGNED, ""));
-            assertEquals(SIGNED, SimulatorSupport.rewriteUploadUrl(SIGNED, "   "));
-        }
-
-        @Test
-        @DisplayName("重写 host 与 port，且签名 query 与 path 一字不动")
-        void rewritesHostAndPortKeepingSignature() {
-            String out = SimulatorSupport.rewriteUploadUrl(SIGNED, "http://minio:9000");
-            assertEquals(
-                    "http://minio:9000/cabinet-videos/sess-1/top.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123",
-                    out);
-        }
-
-        @Test
-        @DisplayName("内部端点带尾随斜杠也能正确拼接（不会出现双斜杠）")
-        void toleratesTrailingSlash() {
-            String out = SimulatorSupport.rewriteUploadUrl(SIGNED, "http://minio:9000/");
-            assertEquals(
-                    "http://minio:9000/cabinet-videos/sess-1/top.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123",
-                    out);
-        }
-
-        @Test
-        @DisplayName("固化既有行为：内部端点未写端口时会补默认端口，并把它**显式写进 URL**（http→:80 / https→:443）")
-        void fillsDefaultPort() {
-            // 注意 URL 里带 :80 / :443 —— 这是既有行为（构造 URI 时 port 已被解析成具体值），
-            // 不是「多余端口」。抽取重构刻意保留原语义，故断言如此。
-            assertEquals(
-                    "http://minio:80/cabinet-videos/sess-1/top.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123",
-                    SimulatorSupport.rewriteUploadUrl(SIGNED, "http://minio"));
-            assertEquals(
-                    "https://minio:443/cabinet-videos/sess-1/top.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123",
-                    SimulatorSupport.rewriteUploadUrl(SIGNED, "https://minio"));
-        }
-
-        @Test
-        @DisplayName("保留 presign URL 里的 userInfo")
-        void keepsUserInfo() {
-            String withUser = "http://user:pass@localhost:19000/bucket/k.jpg?X-Amz-Signature=s";
-            assertEquals("http://user:pass@minio:9000/bucket/k.jpg?X-Amz-Signature=s",
-                    SimulatorSupport.rewriteUploadUrl(withUser, "http://minio:9000"));
-        }
-
-        @Test
-        @DisplayName("固化既有行为：presign URL 不可解析时原样返回，不抛异常中断上传")
-        void passthroughOnUnparsableUrl() {
-            String broken = "not a url at all";
-            assertEquals(broken, SimulatorSupport.rewriteUploadUrl(broken, "http://minio:9000"));
-        }
-
-        @Test
-        @DisplayName("固化既有行为：内部端点不可解析时也原样返回")
-        void passthroughOnUnparsableEndpoint() {
-            assertEquals(SIGNED, SimulatorSupport.rewriteUploadUrl(SIGNED, "::::not-an-endpoint"));
-        }
-    }
-
-    /**
-     * 上行报文构造（P0-7 抽取出来的三个纯函数）。
-     *
-     * <p>本组断言的是**线上报文的真实形态**，故 {@code type} 一律断字面量而非
-     * {@code CabinetConstants.MQTT_EVENT_TYPE_*} —— 这些字符串是**跨进程/跨语言**契约
-     * （真机端是 Kotlin 独立实现、不共享该常量类），用共享常量自证等于没证。
-     *
-     * <p>与 device-service 的 {@code EdgeCloudMqttContractTest} 互补：那边验「云端能不能吃」
-     * （真解析器消费真报文），这边验「模拟器发的是什么」。
-     */
-    @Nested
     @DisplayName("上行报文构造：字段名/值与抽取前逐字一致")
     class PayloadConstructionTest {
 
@@ -268,20 +123,14 @@ class SimulatorSupportTest {
         }
 
         @Test
-        @DisplayName("door：必填 4 键；可选字段为 null 时**整个键不写入**（云端 node.path 取到空）")
+        @DisplayName("door：必填 4 键；重力取证键可选，null 时**整个键不写入**")
         void doorEventOmitsNullOptionalKeys() {
-            Map<String, Object> min = SimulatorSupport.doorEventPayload(
-                    "S-MIN", "OPEN", 1L, null, null, null, null, null);
+            Map<String, Object> min = SimulatorSupport.doorEventPayload("S-MIN", "OPEN", 1L, null);
             assertEquals(4, min.size());
-            assertFalse(min.containsKey("videoUri"));
-            assertFalse(min.containsKey("uploadStatus"));
-            assertFalse(min.containsKey("videoClipsJson"));
-            assertFalse(min.containsKey("cameraFusionMode"));
             assertFalse(min.containsKey("gravityDeltasJson"));
 
-            Map<String, Object> full = SimulatorSupport.doorEventPayload(
-                    "S-FULL", "CLOSED", 1L, "u", "UPLOADED", "[]", "MULTI", "[]");
-            assertEquals(9, full.size());
+            Map<String, Object> full = SimulatorSupport.doorEventPayload("S-FULL", "CLOSED", 1L, "[]");
+            assertEquals(5, full.size());
             assertEquals("DOOR", full.get("type"));
             assertEquals("S-FULL", full.get("sessionId"));
             assertEquals("CLOSED", full.get("doorState"));
@@ -290,8 +139,7 @@ class SimulatorSupportTest {
         @Test
         @DisplayName("door：刻意**不含 deviceId**（设备身份由 topic 承载，body 里出现即违约）")
         void doorEventNeverCarriesDeviceId() {
-            Map<String, Object> p = SimulatorSupport.doorEventPayload(
-                    "S-1", "CLOSED", 1L, "u", "UPLOADED", "[]", "MULTI", "[]");
+            Map<String, Object> p = SimulatorSupport.doorEventPayload("S-1", "CLOSED", 1L, "[]");
             assertFalse(p.containsKey("deviceId"),
                     "deviceId 走 topic（cabinet/{deviceId}/evt），报文体里不得重复 —— 云端以 topic 为准");
         }
