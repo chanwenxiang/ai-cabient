@@ -12,7 +12,6 @@ import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.service.view.OrderViewAssembler;
-import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import jakarta.servlet.http.HttpServletResponse;
@@ -63,7 +62,6 @@ public class OpsSessionOrderQueryService {
     private final OrderRevenueSplitMapper splitRepository;
     private final SettlementService settlementService;
     private final AdminAuditService auditService;
-    private final MinioVideoService minioVideoService;
     private final PaymentService paymentService;
     private final RefundPolicyService refundPolicyService;
     private final OrderViewAssembler orderViewAssembler;
@@ -77,7 +75,6 @@ public class OpsSessionOrderQueryService {
                                        OrderRevenueSplitMapper splitRepository,
                                        SettlementService settlementService,
                                        AdminAuditService auditService,
-                                       MinioVideoService minioVideoService,
                                        PaymentService paymentService,
                                        RefundPolicyService refundPolicyService,
                                        OrderViewAssembler orderViewAssembler,
@@ -90,7 +87,6 @@ public class OpsSessionOrderQueryService {
         this.splitRepository = splitRepository;
         this.settlementService = settlementService;
         this.auditService = auditService;
-        this.minioVideoService = minioVideoService;
         this.paymentService = paymentService;
         this.refundPolicyService = refundPolicyService;
         this.orderViewAssembler = orderViewAssembler;

@@ -7,7 +7,6 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
 import com.aicabinet.trade.mapper.*;
-import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.service.view.OrderViewAssembler;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
@@ -50,7 +49,6 @@ public class MerchantFinanceService {
     private final ProfitSharingProperties profitSharingProperties;
     private final WeChatPayProperties weChatPayProperties;
     private final ShoppingSessionMapper sessionRepository;
-    private final MinioVideoService minioVideoService;
     private final JiangyiOrderVideoService jiangyiOrderVideoService;
     private final OrderViewAssembler orderViewAssembler;
     private final MerchantSettlementBillMapper settlementBillRepository;
@@ -70,7 +68,6 @@ public class MerchantFinanceService {
                                   ProfitSharingProperties profitSharingProperties,
                                   WeChatPayProperties weChatPayProperties,
                                   ShoppingSessionMapper sessionRepository,
-                                  MinioVideoService minioVideoService,
                                   JiangyiOrderVideoService jiangyiOrderVideoService,
                                   OrderViewAssembler orderViewAssembler,
                                   MerchantSettlementBillMapper settlementBillRepository,
@@ -88,7 +85,6 @@ public class MerchantFinanceService {
         this.profitSharingProperties = profitSharingProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.sessionRepository = sessionRepository;
-        this.minioVideoService = minioVideoService;
         this.jiangyiOrderVideoService = jiangyiOrderVideoService;
         this.orderViewAssembler = orderViewAssembler;
         this.settlementBillRepository = settlementBillRepository;

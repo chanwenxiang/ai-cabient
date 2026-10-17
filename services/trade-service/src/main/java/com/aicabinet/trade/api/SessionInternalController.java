@@ -8,7 +8,6 @@ import com.aicabinet.common.dto.LiveCartUpdateRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.trade.service.SessionOpenService;
 import com.aicabinet.trade.service.SessionService;
-import com.aicabinet.trade.storage.MinioVideoService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -20,14 +19,11 @@ public class SessionInternalController {
 
     private final SessionService sessionService;
     private final SessionOpenService sessionOpenService;
-    private final MinioVideoService minioVideoService;
 
     public SessionInternalController(SessionService sessionService,
-                                     SessionOpenService sessionOpenService,
-                                     MinioVideoService minioVideoService) {
+                                     SessionOpenService sessionOpenService) {
         this.sessionService = sessionService;
         this.sessionOpenService = sessionOpenService;
-        this.minioVideoService = minioVideoService;
     }
 
     @PostMapping("/door-event")

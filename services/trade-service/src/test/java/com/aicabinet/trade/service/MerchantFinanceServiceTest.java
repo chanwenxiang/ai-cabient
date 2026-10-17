@@ -16,7 +16,6 @@ import com.aicabinet.trade.mapper.MerchantSettlementBillMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
-import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +47,6 @@ class MerchantFinanceServiceTest {
     @Mock ProfitSharingProperties profitSharingProperties;
     @Mock WeChatPayProperties weChatPayProperties;
     @Mock ShoppingSessionMapper sessionRepository;
-    @Mock MinioVideoService minioVideoService;
     @Mock JiangyiOrderVideoService jiangyiOrderVideoService;
     @Mock MerchantSettlementBillMapper settlementBillRepository;
     @Mock com.aicabinet.trade.mapper.DeviceDataFeeBillMapper dataFeeBillRepository;
@@ -61,7 +59,7 @@ class MerchantFinanceServiceTest {
                 permissionService, merchantFeaturePackService, merchantPortalGuard,
                 orderRepository, orderLineRepository, splitRepository, merchantRepository,
                 settlementService, profitSharingService, profitSharingProperties, weChatPayProperties,
-                sessionRepository, minioVideoService, jiangyiOrderVideoService,
+                sessionRepository, jiangyiOrderVideoService,
                 new com.aicabinet.trade.service.view.OrderViewAssembler(), settlementBillRepository,
                 dataFeeBillRepository, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);

@@ -23,7 +23,6 @@ import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.PayScoreOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
-import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,7 +67,6 @@ public class SessionService {
     private final DistributedLockService distributedLockService;
     private final DisplaySnapshotHelper displaySnapshotHelper;
     private final ApiRateLimitService apiRateLimitService;
-    private final MinioVideoService minioVideoService;
     private final PayScoreOrderMapper payScoreOrderMapper;
 
     public SessionService(ShoppingSessionMapper repository,
@@ -91,7 +89,6 @@ public class SessionService {
                           DistributedLockService distributedLockService,
                           DisplaySnapshotHelper displaySnapshotHelper,
                           ApiRateLimitService apiRateLimitService,
-                          MinioVideoService minioVideoService,
                           PayScoreOrderMapper payScoreOrderMapper) {
         this.repository = repository;
         this.deviceClient = deviceClient;
@@ -113,7 +110,6 @@ public class SessionService {
         this.distributedLockService = distributedLockService;
         this.displaySnapshotHelper = displaySnapshotHelper;
         this.apiRateLimitService = apiRateLimitService;
-        this.minioVideoService = minioVideoService;
         this.payScoreOrderMapper = payScoreOrderMapper;
     }
 

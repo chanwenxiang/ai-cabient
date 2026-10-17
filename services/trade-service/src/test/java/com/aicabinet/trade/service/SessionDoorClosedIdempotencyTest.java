@@ -32,8 +32,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class SessionDoorClosedIdempotencyTest {
 
-        @Mock com.aicabinet.trade.storage.MinioVideoService minioVideoService;
-@Mock ShoppingSessionMapper repository;
+    @Mock ShoppingSessionMapper repository;
     @Mock DeviceServiceClient deviceClient;
     @Mock UserValidationService userValidationService;
     @Mock DeviceValidationService deviceValidationService;
@@ -57,14 +56,13 @@ class SessionDoorClosedIdempotencyTest {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, cabinetMetrics, domainEventPublisher,
                 gravityHelper, null, null, null, null, null, null, userInfoRepository, orderRepository,
-                consumerPreauthService, distributedLockService, null, null, null, null);
+                consumerPreauthService, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, cabinetMetrics, opsExceptionService, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
-        minioVideoService = org.mockito.Mockito.mock(com.aicabinet.trade.storage.MinioVideoService.class);
         doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
-                cabinetMetrics, domainEventPublisher, minioVideoService, service, null, jiangyiDeviceDirectory);
+                cabinetMetrics, domainEventPublisher, service, null, jiangyiDeviceDirectory);
         org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionDoorService", doorService);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);

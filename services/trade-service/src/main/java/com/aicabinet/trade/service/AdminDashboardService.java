@@ -20,7 +20,6 @@ import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.aicabinet.trade.mapper.*;
-import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import jakarta.servlet.http.HttpServletResponse;
@@ -68,7 +67,6 @@ public class AdminDashboardService {
     private final PaymentService paymentService;
     private final RechargeOrderMapper rechargeOrderRepository;
     private final SlaMetricsService slaMetricsService;
-    private final MinioVideoService minioVideoService;
     private final MerchantMapper merchantRepository;
     private final MerchantScopeService merchantScopeService;
     private final DeviceSkuInventoryMapper inventoryRepository;
@@ -112,7 +110,6 @@ public class AdminDashboardService {
                                  PaymentService paymentService,
                                  RechargeOrderMapper rechargeOrderRepository,
                                  SlaMetricsService slaMetricsService,
-                                 MinioVideoService minioVideoService,
                                  MerchantMapper merchantRepository,
                                  MerchantScopeService merchantScopeService,
                                  DeviceSkuInventoryMapper inventoryRepository,
@@ -155,7 +152,6 @@ public class AdminDashboardService {
         this.paymentService = paymentService;
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.slaMetricsService = slaMetricsService;
-        this.minioVideoService = minioVideoService;
         this.merchantRepository = merchantRepository;
         this.merchantScopeService = merchantScopeService;
         this.inventoryRepository = inventoryRepository;

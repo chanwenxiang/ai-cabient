@@ -36,7 +36,6 @@ public class SessionDoorService {
     private final SessionRestockService sessionRestockService;
     private final CabinetMetrics cabinetMetrics;
     private final DomainEventPublisher domainEventPublisher;
-    private final com.aicabinet.trade.storage.MinioVideoService minioVideoService;
     private final SessionService sessionService;
     private final SessionDoorService self;
     private final com.aicabinet.trade.service.JiangyiDeviceDirectory jiangyiDeviceDirectory;
@@ -47,7 +46,6 @@ public class SessionDoorService {
                               SessionRestockService sessionRestockService,
                               CabinetMetrics cabinetMetrics,
                               DomainEventPublisher domainEventPublisher,
-                              com.aicabinet.trade.storage.MinioVideoService minioVideoService,
                               @Lazy SessionService sessionService,
                               @Lazy SessionDoorService self,
                               com.aicabinet.trade.service.JiangyiDeviceDirectory jiangyiDeviceDirectory) {
@@ -57,7 +55,6 @@ public class SessionDoorService {
         this.sessionRestockService = sessionRestockService;
         this.cabinetMetrics = cabinetMetrics;
         this.domainEventPublisher = domainEventPublisher;
-        this.minioVideoService = minioVideoService;
         this.sessionService = sessionService;
         this.self = self;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;

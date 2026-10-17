@@ -8,7 +8,6 @@ import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.service.view.OrderViewAssembler;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
-import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +38,6 @@ class OpsSessionOrderQueryServiceTest {
     @Mock OrderRevenueSplitMapper splitRepository;
     @Mock SettlementService settlementService;
     @Mock AdminAuditService auditService;
-    @Mock MinioVideoService minioVideoService;
     @Mock PaymentService paymentService;
     @Mock RefundPolicyService refundPolicyService;
 
@@ -50,7 +48,7 @@ class OpsSessionOrderQueryServiceTest {
         service = new OpsSessionOrderQueryService(
                 permissionService, merchantScopeService, sessionRepository, orderRepository,
                 orderLineRepository, splitRepository, settlementService, auditService,
-                minioVideoService, paymentService, refundPolicyService, new OrderViewAssembler(), null);
+                paymentService, refundPolicyService, new OrderViewAssembler(), null);
     }
 
     @Test
