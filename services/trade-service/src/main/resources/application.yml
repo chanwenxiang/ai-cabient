@@ -170,8 +170,6 @@ aicabinet:
     secret-key: ${MINIO_SECRET_KEY:minioadmin}
     bucket: ${MINIO_BUCKET:cabinet-videos}
     presign-expiry-seconds: 3600
-  vision-async:
-    enabled: false
   # 边缘盒期望固件版本（P0-1 阶段 B · 边缘盒监控）。
   # 留空 ⇒ `cabinet.edge.firmware.outdated.count` 置 -1（并据此不触发 EdgeFirmwareOutdated 告警）——
   # 刻意不用 0 表示「未配置」，否则会被读成「全部合规」。

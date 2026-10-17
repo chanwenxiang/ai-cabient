@@ -3,7 +3,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.CreateSessionRequest;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
-import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
@@ -33,7 +32,6 @@ class SessionServiceRecoveryTest {
     @Mock UserValidationService userValidationService;
     @Mock DeviceValidationService deviceValidationService;
     @Mock SettlementService settlementService;
-    @Mock VisionAsyncProperties visionAsyncProperties;
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
@@ -57,7 +55,7 @@ class SessionServiceRecoveryTest {
                 consumerPreauthService, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         SessionSettleService settleService = new SessionSettleService(
-                repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, service);
+                repository, settlementService, cabinetMetrics, opsExceptionService, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
         expireService = new SessionExpireService(
                 repository,
@@ -120,7 +118,6 @@ class SessionServiceRecoveryTest {
     void recognitionDispute_createsHighPriorityOpsException() {
         ShoppingSession existing = session("S-DISPUTED", 7L, "CAB-001", SessionState.RECOGNIZING);
         when(repository.findById("S-DISPUTED")).thenReturn(Optional.of(existing));
-        when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(existing))
                 .thenThrow(new DisputeRequiredException("识别服务暂时不可用，已转人工审核，本次暂未扣款"));
 

@@ -6,9 +6,10 @@ import java.util.List;
 /**
  * 端侧识别结果直报（第三方端侧盒子完成识别后上报，复用既有结算链路）。
  *
- * <p>字段命名与 {@code aicabinet.vision.recognize.result} 的识别结果 payload 完全一致，
- * 使端侧既可直接投递该 Kafka topic，也可走 HTTP 直报，
- * 两种入口对同一份结果语义相同。
+ * <p>唯一入口是 HTTP 直报 {@code POST /internal/v1/vision/edge-results}
+ * （{@code VisionInternalController}）；曾并存的 Kafka 异步通道 {@code aicabinet.vision.recognize.*}
+ * 已随云端识别链于 2026-10-17 退役，两个入口口径一致的约束改由
+ * {@code VisionResultIngestServiceTest} 单入口钉住。
  *
  * @param sessionId        开门会话号（必填，结算主体）
  * @param deviceId         上报端所属柜机号（**必填**，必须与 sessionId 会话的柜机一致；

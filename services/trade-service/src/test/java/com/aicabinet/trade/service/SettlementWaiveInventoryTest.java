@@ -53,7 +53,7 @@ class SettlementWaiveInventoryTest {
         org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "self", waiveRefundService);
         settlementService = new SettlementService(
                 sessionRepository, orderRepository,
-                null, waiveRefundService, null, null, null, null,
+                waiveRefundService, null, null, null, null,
                 null, distributedLockService);
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
         lenient().when(sessionRepository.findByIdForUpdate(anyString())).thenAnswer(inv -> {

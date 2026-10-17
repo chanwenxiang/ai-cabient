@@ -7,7 +7,6 @@ import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.recognition.RecognizedItem;
 import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.DisputeSlaProperties;
-import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
@@ -42,7 +41,6 @@ class DuplicateCallbackTest {
     @Mock UserValidationService userValidationService;
     @Mock DeviceValidationService deviceValidationService;
     @Mock SettlementService settlementService;
-    @Mock VisionAsyncProperties visionAsyncProperties;
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
@@ -66,7 +64,7 @@ class DuplicateCallbackTest {
                 null, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(sessionService, "self", sessionService);
         SessionSettleService settleService = new SessionSettleService(
-                repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, sessionService);
+                repository, settlementService, cabinetMetrics, opsExceptionService, sessionService);
         org.springframework.test.util.ReflectionTestUtils.setField(sessionService, "sessionSettleService", settleService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
@@ -86,7 +84,6 @@ class DuplicateCallbackTest {
         ShoppingSession completed = session("S-DUP-01", SessionState.COMPLETED);
         completed.setOrderId("O-DUP-01");
         stubFindById("S-DUP-01", recognizing, completed);
-        when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(recognizing)).thenReturn(sampleOrder("O-DUP-01", "S-DUP-01"));
         when(orderRepository.findById("O-DUP-01")).thenReturn(Optional.empty());
 

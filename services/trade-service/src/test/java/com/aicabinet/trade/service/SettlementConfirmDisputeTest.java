@@ -63,7 +63,7 @@ class SettlementConfirmDisputeTest {
                 revenueSplitService, orderPaymentService, null, orderViewAssembler);
         settlementService = new SettlementService(
                 sessionRepository, orderRepository,
-                null, null, null, null, null, null,
+                null, null, null, null, null,
                 orderSupport, distributedLockService);
         SettlementConfirmDisputeService confirmSvc = new SettlementConfirmDisputeService(
                 sessionRepository, orderRepository, orderPaymentService, inventoryService,

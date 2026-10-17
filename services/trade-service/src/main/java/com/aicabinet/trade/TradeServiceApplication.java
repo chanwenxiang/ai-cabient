@@ -14,7 +14,6 @@ import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.RiskControlProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
-import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.config.WeChatWebProperties;
@@ -28,7 +27,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @Import(InternalApiAuthInterceptor.class)
 @EnableConfigurationProperties({WeChatPayProperties.class, WeChatMiniAppProperties.class, WeChatWebProperties.class,
-        MinioProperties.class, VisionAsyncProperties.class, SecurityProperties.class, StagingProperties.class,
+        MinioProperties.class, SecurityProperties.class, StagingProperties.class,
         CheckoutProperties.class,
         OpsMonitoringProperties.class,
         com.aicabinet.trade.config.SessionExpireProperties.class,

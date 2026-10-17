@@ -5,7 +5,6 @@ import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.recognition.RecognizedItem;
 import com.aicabinet.trade.recognition.RecognitionOutcome;
-import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
@@ -23,7 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 /**
- * 会话结算编排：关门后 settle、异步识别回调、演示零元结案、开发上传识别。
+ * 会话结算编排：关门后 settle、端侧识别结果回调、演示零元结案、开发上传识别。
  * <p>锁与状态迁移委托 {@link SessionService}；订单/扣款仍由 {@link SettlementService} 幂等保护。</p>
  */
 @Service
@@ -34,20 +33,17 @@ public class SessionSettleService {
 
     private final ShoppingSessionMapper repository;
     private final SettlementService settlementService;
-    private final VisionAsyncProperties visionAsyncProperties;
     private final CabinetMetrics cabinetMetrics;
     private final OpsExceptionService opsExceptionService;
     private final SessionService sessionService;
 
     public SessionSettleService(ShoppingSessionMapper repository,
                                 SettlementService settlementService,
-                                VisionAsyncProperties visionAsyncProperties,
                                 CabinetMetrics cabinetMetrics,
                                 OpsExceptionService opsExceptionService,
                                 @Lazy SessionService sessionService) {
         this.repository = repository;
         this.settlementService = settlementService;
-        this.visionAsyncProperties = visionAsyncProperties;
         this.cabinetMetrics = cabinetMetrics;
         this.opsExceptionService = opsExceptionService;
         this.sessionService = sessionService;
@@ -73,10 +69,6 @@ public class SessionSettleService {
             return sessionService.toDto(session);
         }
         if (session.getState() == SessionState.RECOGNIZING) {
-            if (visionAsyncProperties.enabled()) {
-                settlementService.submitAsyncRecognition(session);
-                return sessionService.toDto(session);
-            }
             sessionService.transition(session, SessionState.SETTLING);
         }
         try {
@@ -153,7 +145,7 @@ public class SessionSettleService {
     }
 
     /**
-     * 异步识别结果回调：无外层长事务；会话态短事务与结算短事务分离（扣款已 NOT_SUPPORTED）。
+     * 端侧识别结果回调（HTTP edge-results 到达时）：无外层长事务；会话态短事务与结算短事务分离（扣款已 NOT_SUPPORTED）。
      */
     public void completeAsyncRecognition(String sessionId, RecognitionOutcome recognition) {
         sessionService.runWithSessionLifeLock(sessionId, () -> {

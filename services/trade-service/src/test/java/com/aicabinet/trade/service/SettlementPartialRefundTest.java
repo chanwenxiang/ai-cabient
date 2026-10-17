@@ -55,7 +55,7 @@ class SettlementPartialRefundTest {
                 revenueSplitService, orderPaymentService, null, orderViewAssembler);
         settlementService = new SettlementService(
                 null, orderRepository,
-                null, null, null, null, null, null,
+                null, null, null, null, null,
                 orderSupport, null);
         SettlementPartialRefundService partialRefundService = new SettlementPartialRefundService(
                 orderRepository, orderPaymentService, inventoryService, revenueSplitService,

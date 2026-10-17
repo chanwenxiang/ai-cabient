@@ -6,12 +6,16 @@
 
 前置（脚本会自检并在不满足时明确报错，而不是给你一个「绿」）：
   1. trade-service 健康；
-  2. **异步识别通道开启**（`-Daicabinet.vision-async.enabled=true`）——
-     这是关门后停在 RECOGNIZING 的唯一条件（`SessionSettleService.settleSession`：enabled 时
-     只投递异步识别并留在 RECOGNIZING 等结果）。关闭时关门直接走
+  2. **DEVICE_ID 这台柜机登记为将邑端侧识别柜**——
+     这是关门后停在 RECOGNIZING 的唯一条件（`SessionDoorService`：将邑柜机关门只推进到
+     RECOGNIZING、不触发结算，等识别结果到达）。非将邑柜机关门直接走
      `SettlementSettleOrchestrator` 的「cloud-vision-retired」占位结果转人工审核（云端识别引擎
      已于 2026-10-11 拍板退役，同步路径不再调用任何引擎），会话不会停在 RECOGNIZING，
      端侧直报就没有受理窗口。脚本会先关门看是否停在 RECOGNIZING，不满足即中止。
+     判定读的是库表 `jiangyi_device`（status=BOUND），不是配置项；2026-10-17 核对共享 dev 库时
+     本脚本的 DEVICE_ID=330449777078 **未**登记为将邑（当时唯一 BOUND 的是审计夹具柜
+     500909625160）⇒ 直接跑会在 B 步中止，需先按 CB-022 登记绑定该柜机，或把 DEVICE_ID 换成
+     已绑定的将邑柜。
 
 断言链（每条都打印实测值，不打印「应为」）：
   A 开门 → SHOPPING
@@ -161,10 +165,10 @@ def main() -> int:
     state = wait_state(token, sid, "RECOGNIZING", seconds=10)
     if state != "RECOGNIZING":
         print(f"\n!! 关门后状态 = {state}，未停在 RECOGNIZING。")
-        print("   多半是「异步识别」没开：本端点需要会话停在识别态才有受理窗口。")
-        print("   用 -Daicabinet.vision-async.enabled=true 重启 trade-service 后重跑。")
+        print("   多半是柜机没登记为将邑端侧识别柜：本端点需要会话停在识别态才有受理窗口。")
+        print(f"   核对 {DEVICE_ID} 的柜机厂商登记后重跑。")
         return 2
-    check(True, "B 关门后停在 RECOGNIZING（异步识别已生效，等待端侧结果）")
+    check(True, "B 关门后停在 RECOGNIZING（将邑端侧豁免已生效，等待端侧结果）")
 
     # ---- C/D 端侧直报 -> 结算 ----
     print("\n== C/D 端侧直报识别结果 ==")

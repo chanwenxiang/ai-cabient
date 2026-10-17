@@ -67,9 +67,10 @@ public class SettlementRecognitionService {
      *
      * <p>位置选在这里的理由：{@code processRecognitionResultUnlocked} 是三条路径的公共下游——
      * 同步关门（{@code SettlementSettleOrchestrator#processRecognitionAfterVision}）、
-     * 异步识别回调（{@code SettlementService#processRecognitionResult}）、开发上传识别；
-     * 一处即可全覆盖。若挂在上游各个入口，三份代码会各自漂移，且默认配置（
-     * {@code aicabinet.vision-async.enabled=false}）下异步通道根本不启用，只挂它等于没落库。
+     * 端侧识别结果回调（{@code SettlementService#processRecognitionResult}）、开发上传识别；
+     * 一处即可全覆盖。若挂在上游各个入口，三份代码会各自漂移，
+     * 且历史上默认配置下异步投递通道（vision-async，2026-10-17 已整体退役）根本不启用，
+     * 只挂那条入口等于没落库。
      *
      * <p>记录的是<b>归一之后</b>的识别结果（已含强制复核标记），即平台据此决策的那一份；
      * 端侧原始报文的逐字对账不在本表职责内。

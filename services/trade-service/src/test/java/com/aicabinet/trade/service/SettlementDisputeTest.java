@@ -48,7 +48,7 @@ class SettlementDisputeTest {
     @Mock com.aicabinet.trade.mapper.CabinetOrderLineMapper orderLineRepository;
     @Mock com.aicabinet.trade.mapper.DeviceSlotMapper slotRepository;
     @Mock DisputeService disputeService;
-    @Mock SettlementVisionAsyncService settlementVisionAsyncService;
+
     @Mock RevenueSplitService revenueSplitService;
     @Mock SecurityProperties securityProperties;
     @Mock StagingProperties stagingProperties;
@@ -78,7 +78,7 @@ class SettlementDisputeTest {
                 revenueSplitService, orderPaymentService, systemConfigService, orderViewAssembler);
         settlementService = new SettlementService(
                 sessionRepository, orderRepository,
-                settlementVisionAsyncService, null, null, null, null, null,
+                null, null, null, null, null,
                 orderSupport, distributedLockService);
         SettlementOrderFinalizeService finalizeSvc = new SettlementOrderFinalizeService(
                 sessionRepository, orderRepository, orderLineRepository, deviceValidationService,

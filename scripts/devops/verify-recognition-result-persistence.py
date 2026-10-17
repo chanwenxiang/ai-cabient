@@ -6,9 +6,10 @@
 补上唯一写入点，一处覆盖同步关门 / 异步回调 / 开发上传三条路径。
 
 为什么本脚本必须跑「默认栈」而**不注入任何 -D 覆盖**：
-`aicabinet.vision-async.enabled` 在 `application.yml` 里硬编码 false，且 dev/staging/prod 三个 profile
-均无覆盖 ⇒ 实际发布口径走的就是**同步关门**路径。只在异步下验证落库，等于验证了一个发布配置里
-根本不会启用的通道（异步通道另见 `verify-vision-result-ingest.py`，它需要显式开 -D）。
+关门后是否停在识别态由**柜机登记**决定，不是 JVM 开关——只有 `jiangyi_device.status=BOUND`
+的将邑柜才豁免关门结算、停在 RECOGNIZING 等端侧结果（`SessionDoorService`）；其余柜机关门即走
+**同步结算**路径，也就是实际发布口径。将邑端侧直报通道的落库另见 `verify-vision-result-ingest.py`
+（它要求 DEVICE_ID 是已绑定的将邑柜；本脚本的 DEVICE_ID 故意不是，两者互斥，只能各跑各的环境）。
 
 断言链（每条都打印实测值）：
   A 门外：会话尚在 SHOPPING 时不落库（不该写的不会被写）
@@ -139,9 +140,9 @@ def main() -> int:
         {"X-Internal-Api-Key": INTERNAL_KEY})
     final = wait_left_recognizing(token, sid)
     if final == "RECOGNIZING":
-        print(f"\n!! 关门后停在 RECOGNIZING：当前栈处于异步识别模式。")
-        print("   本脚本针对**默认同步栈**（aicabinet.vision-async.enabled=false）。")
-        print("   异步通道请用 verify-vision-result-ingest.py（它需要显式 -D 开启）。")
+        print(f"\n!! 关门后停在 RECOGNIZING：该柜机被登记为将邑端侧识别柜（jiangyi_device.status=BOUND）。")
+        print("   本脚本针对**非将邑柜机的同步结算栈**，换一台未登记将邑的柜机再跑。")
+        print("   将邑通道请用 verify-vision-result-ingest.py（端侧结果直报后落库）。")
         psql(f"UPDATE shopping_session SET state='CANCELLED' WHERE session_id='{sid}';")
         return 2
     check(final in TERMINAL, f"B1 关门后无需外部输入即离开识别态，终态={final}（同步模式成立）")

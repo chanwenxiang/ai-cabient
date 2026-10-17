@@ -5,7 +5,6 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.recognition.RecognizedItem;
 import com.aicabinet.trade.recognition.RecognitionOutcome;
-import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
@@ -34,7 +33,6 @@ class BalanceInsufficientSettlementTest {
     @Mock UserValidationService userValidationService;
     @Mock DeviceValidationService deviceValidationService;
     @Mock SettlementService settlementService;
-    @Mock VisionAsyncProperties visionAsyncProperties;
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
@@ -53,7 +51,7 @@ class BalanceInsufficientSettlementTest {
                 null, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         SessionSettleService settleService = new SessionSettleService(
-                repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, service);
+                repository, settlementService, cabinetMetrics, opsExceptionService, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
@@ -65,7 +63,6 @@ class BalanceInsufficientSettlementTest {
     void syncSettlement_balanceInsufficient_transitionsToDisputedWithoutOrder() {
         ShoppingSession session = session("S-BAL-01", 13800138000L, "CAB-001", SessionState.RECOGNIZING);
         when(repository.findById("S-BAL-01")).thenReturn(Optional.of(session));
-        when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenThrow(
                 new BalanceInsufficientException(ApiMessages.INSUFFICIENT_BALANCE));
 
@@ -102,7 +99,6 @@ class BalanceInsufficientSettlementTest {
     void syncSettlement_exactBalance_completesNormally() {
         ShoppingSession session = session("S-BAL-03", 13800138000L, "CAB-001", SessionState.RECOGNIZING);
         when(repository.findById("S-BAL-03")).thenReturn(Optional.of(session));
-        when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-EXACT", "S-BAL-03"));
         when(orderRepository.findById("O-EXACT")).thenReturn(Optional.empty());
 

@@ -33,7 +33,7 @@ class SessionLifeConcurrencyTest {
                 null, null, null, null, null, null, null, null, null, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         SessionSettleService settleService = new SessionSettleService(
-                repository, null, null, null, null, service);
+                repository, null, null, null, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
     }
 

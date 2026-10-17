@@ -100,7 +100,7 @@ services:
     ports: ["127.0.0.1:${REDPANDA_PORT:-19092}:9092"]
 
   # 一次性 SCRAM 用户引导（幂等）：trade 消费/生产 + vision（将邑识别结果生产方，预留）+ admin。
-  # 失败不阻断栈启动（trade 对 broker 有重试；vision-async 默认关），但会让 Kafka 面不可用
+  # 失败不阻断栈启动（trade 对 broker 有重试；唯一在用的通知异步分发 NOTIFY_ASYNC_ENABLED 默认关），但会让 Kafka 面不可用
   # ⇒ 起栈后用 `docker compose logs redpanda-init` 核对三行 create/exists 输出。
   redpanda-init:
     stop_grace_period: 30s

@@ -5,7 +5,6 @@ import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
-import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
@@ -39,7 +38,6 @@ class SessionDoorClosedIdempotencyTest {
     @Mock UserValidationService userValidationService;
     @Mock DeviceValidationService deviceValidationService;
     @Mock SettlementService settlementService;
-    @Mock VisionAsyncProperties visionAsyncProperties;
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
@@ -62,7 +60,7 @@ class SessionDoorClosedIdempotencyTest {
                 consumerPreauthService, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         SessionSettleService settleService = new SessionSettleService(
-                repository, settlementService, visionAsyncProperties, cabinetMetrics, opsExceptionService, service);
+                repository, settlementService, cabinetMetrics, opsExceptionService, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
         minioVideoService = org.mockito.Mockito.mock(com.aicabinet.trade.storage.MinioVideoService.class);
         doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
@@ -86,7 +84,6 @@ class SessionDoorClosedIdempotencyTest {
 
         when(repository.findByIdForUpdate("S-Q3")).thenReturn(Optional.of(session));
         when(repository.findById("S-Q3")).thenReturn(Optional.of(session));
-        when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-Q3", "S-Q3"));
 
         DoorEventRequest first = new DoorEventRequest(
@@ -117,7 +114,6 @@ class SessionDoorClosedIdempotencyTest {
 
         when(repository.findByIdForUpdate("S-CLOSE-1")).thenReturn(Optional.of(session));
         when(repository.findById("S-CLOSE-1")).thenReturn(Optional.of(session));
-        when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-C1", "S-CLOSE-1"));
 
         service.handleDoorEvent(new DoorEventRequest(
@@ -145,7 +141,6 @@ class SessionDoorClosedIdempotencyTest {
 
         when(repository.findByIdForUpdate("S-ORPHAN")).thenReturn(Optional.of(session));
         when(repository.findById("S-ORPHAN")).thenReturn(Optional.of(session));
-        when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-OR", "S-ORPHAN"));
 
         service.handleDoorEvent(new DoorEventRequest(

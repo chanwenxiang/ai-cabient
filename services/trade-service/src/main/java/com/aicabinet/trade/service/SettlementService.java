@@ -24,7 +24,6 @@ public class SettlementService {
 
     private final ShoppingSessionMapper sessionRepository;
     private final CabinetOrderMapper orderRepository;
-    private final SettlementVisionAsyncService settlementVisionAsyncService;
     private final SettlementWaiveRefundService settlementWaiveRefundService;
     private final SettlementConfirmDisputeService settlementConfirmDisputeService;
     private final SettlementOrderFinalizeService settlementOrderFinalizeService;
@@ -35,7 +34,6 @@ public class SettlementService {
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              CabinetOrderMapper orderRepository,
-                             SettlementVisionAsyncService settlementVisionAsyncService,
                              SettlementWaiveRefundService settlementWaiveRefundService,
                              SettlementConfirmDisputeService settlementConfirmDisputeService,
                              SettlementOrderFinalizeService settlementOrderFinalizeService,
@@ -45,7 +43,6 @@ public class SettlementService {
                              DistributedLockService distributedLockService) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
-        this.settlementVisionAsyncService = settlementVisionAsyncService;
         this.settlementWaiveRefundService = settlementWaiveRefundService;
         this.settlementConfirmDisputeService = settlementConfirmDisputeService;
         this.settlementOrderFinalizeService = settlementOrderFinalizeService;
@@ -113,15 +110,6 @@ public class SettlementService {
             return "模拟/兜底识别结果，非生产精度，需人工审核";
         }
         return "识别结果需人工审核";
-    }
-
-    public void submitAsyncRecognition(ShoppingSession session) {
-        settlementVisionAsyncService.submitAsyncRecognition(session);
-    }
-
-    @Transactional
-    public void persistRecognitionTaskId(String sessionId, String taskId) {
-        settlementVisionAsyncService.persistRecognitionTaskId(sessionId, taskId);
     }
 
     @Transactional

@@ -20,7 +20,7 @@ import lombok.Setter;
  * <ul>
  *   <li>{@code task_id}：主键，{@code VARCHAR(64)}，由调用方给定（端侧任务号；缺省为 {@code T-<sessionId>}）。</li>
  *   <li>{@code items}：{@code JSONB NOT NULL}，键为 {@code skuId/quantity/confidence}
- *       （与 Kafka 报文 {@code VisionRecognitionListener} 解析的键一致）。</li>
+ *       （与端侧直报 DTO {@code VisionRecognitionResultDto} 的字段名一致）。</li>
  *   <li>{@code model_version}：{@code VARCHAR(32)}，超长会被 PostgreSQL 拒收。</li>
  * </ul>
  */

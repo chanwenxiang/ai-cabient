@@ -87,8 +87,8 @@ class RecognitionResultWriterTest {
     }
 
     /**
-     * items 的 JSON 键必须是 {@code quantity}——与 Kafka 报文解析（{@code VisionRecognitionListener}）
-     * 和端侧直报 DTO 一致。V222 demo seed 用的是 {@code qty}+{@code skuName}，若跟着它写，
+     * items 的 JSON 键必须是 {@code quantity}——与端侧直报 DTO（{@code VisionRecognitionResultDto}）
+     * 一致。V222 demo seed 用的是 {@code qty}+{@code skuName}，若跟着它写，
      * 读这份数据的消费者会取不到数量。此断言即为防这种漂移。
      */
     @Test
