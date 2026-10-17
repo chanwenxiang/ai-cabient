@@ -30,8 +30,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 佣金随退款冲正口径（CB-040，2026-10-14 拍板）：日批重算差额、比例/公式冲回、
- * RESTOCK_QTY 不冲、余额不足挂负（钱包方法允许负数由钱包侧语义保证）。
+ * 佣金随退款冲正口径（CB-040，2026-10-14 拍板；CB-056 F-8 2026-10-17 判定费率不追溯）：
+ * 日批重算差额、线长/补货员两侧一律按**发佣行快照**比例冲回、RESTOCK_QTY 不冲、
+ * 余额不足挂负（钱包方法允许负数由钱包侧语义保证）。
  */
 class CommissionClawbackServiceTest {
 
@@ -85,18 +86,25 @@ class CommissionClawbackServiceTest {
         return row;
     }
 
-    @Test
-    void managerRowClawsBackGmvDeltaByCurrentBps() {
-        when(lineCommissionDailyMapper.selectList(any()))
-                .thenReturn(List.of(managerRow(10_000L, 2, 500L)));
-        // 退款后剩余 PAID 订单 GMV 6000：差额 4000，费率 500bps → 冲回 200
-        when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
-                .thenReturn(List.of(paidOrder(3_000), paidOrder(3_000)));
+    private LineManager manager(int rateBps, int fixedCents) {
         LineManager manager = new LineManager();
         manager.setManagerId(1L);
-        manager.setCommissionRateBps(500);
-        manager.setCommissionFixedCents(0);
-        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager));
+        manager.setCommissionRateBps(rateBps);
+        manager.setCommissionFixedCents(fixedCents);
+        return manager;
+    }
+
+    @Test
+    void managerRowClawsBackByPostedCommissionSnapshot() {
+        // F-8（CB-056）：冲回额按**发佣行快照**比例折算 = 500 × 4000/10000 = 200。
+        // 行上 gmv=10000 时按 500bps 发的 500 佣金，退款后剩余 PAID GMV 6000 ⇒ 差额 4000。
+        // 线长档案里此刻的费率故意填 800bps（发佣后被调高）：若还读实时费率就会冲 320（多扣 120），
+        // 现在必须是 200 —— 费率变更不得追溯已经发掉的佣金。
+        when(lineCommissionDailyMapper.selectList(any()))
+                .thenReturn(List.of(managerRow(10_000L, 2, 500L)));
+        when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(List.of(paidOrder(3_000), paidOrder(3_000)));
+        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager(800, 50)));
 
         int events = service.reverseRecentRefunds();
 
@@ -110,6 +118,50 @@ class CommissionClawbackServiceTest {
     }
 
     @Test
+    void managerRowClawbackCappedByPostedCommission() {
+        // 全额退款 ⇒ 冲回额恰好等于该行已发佣金（200），不会超过；每单固定成分按 GMV 比例追回，
+        // 宁可少扣也绝不向线长扣超过他拿到的钱
+        when(lineCommissionDailyMapper.selectList(any()))
+                .thenReturn(List.of(managerRow(10_000L, 2, 200L)));
+        when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(List.of());
+        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager(5_000, 500)));
+
+        assertEquals(1, service.reverseRecentRefunds());
+        verify(lineWalletService).debitIfAbsentAllowNegative(eq(1L), eq(200L),
+                eq("COMMISSION_CLAWBACK"), eq("COMMISSION_CLAWBACK"), anyString(), anyString());
+    }
+
+    @Test
+    void managerRowWithoutGmvBaseIsNotClawedBack() {
+        // V361 之前的存量行没有 GMV 基数 ⇒ 无法比例折算 ⇒ 保守不冲（与补货员侧同判据）
+        LineCommissionDaily row = managerRow(0L, 2, 500L);
+        row.setGmvCents(null);
+        when(lineCommissionDailyMapper.selectList(any())).thenReturn(List.of(row));
+        when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(List.of());
+        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager(500, 0)));
+
+        assertEquals(0, service.reverseRecentRefunds());
+        verify(lineWalletService, never()).debitIfAbsentAllowNegative(anyLong(), anyLong(),
+                anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void deletedManagerRowIsNotClawedBack() {
+        // 线长档案已删除 ⇒ 不冲（老口径读不到费率即 gross=0；不新增向已删除人员钱包追扣的路径）
+        when(lineCommissionDailyMapper.selectList(any()))
+                .thenReturn(List.of(managerRow(10_000L, 2, 500L)));
+        when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(List.of(paidOrder(3_000), paidOrder(3_000)));
+        when(managerMapper.findById(1L)).thenReturn(Optional.empty());
+
+        assertEquals(0, service.reverseRecentRefunds());
+        verify(lineWalletService, never()).debitIfAbsentAllowNegative(anyLong(), anyLong(),
+                anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
     void debitSkippedRollsBackClawbackIncrement() {
         // B-1 F-7：钱包把本次负扣判为「已存在同 ref 流水」而跳过时，累计冲回行必须一起回滚，
         // 否则「已冲回额」虚增而钱没扣 ⇒ 差额从此不再被重算（永久少冲）。
@@ -117,11 +169,7 @@ class CommissionClawbackServiceTest {
                 .thenReturn(List.of(managerRow(10_000L, 2, 500L)));
         when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
                 .thenReturn(List.of(paidOrder(3_000), paidOrder(3_000)));
-        LineManager manager = new LineManager();
-        manager.setManagerId(1L);
-        manager.setCommissionRateBps(500);
-        manager.setCommissionFixedCents(0);
-        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager));
+        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager(500, 0)));
         when(lineWalletService.debitIfAbsentAllowNegative(anyLong(), anyLong(), anyString(),
                 anyString(), anyString(), anyString())).thenReturn(false);
 
@@ -134,7 +182,7 @@ class CommissionClawbackServiceTest {
     void partialRefundedOrderCountsByNetAmount_notExcluded() {
         // 审计 T2（2026-10-15）：部分退款单不整单排除——按净额（total−refunded）计基数。
         // 发佣行 gmv=10000；当前仅一张 PARTIAL_REFUNDED 单 total=8000/refunded=2000（净 6000）
-        // ⇒ 差额 4000（而非旧口径的整单 10000），费率 500bps ⇒ 冲回 200。
+        // ⇒ GMV 差额 4000，按行快照 500 佣金比例折算 ⇒ 冲回 200。
         when(lineCommissionDailyMapper.selectList(any()))
                 .thenReturn(List.of(managerRow(10_000L, 2, 500L)));
         CabinetOrder partial = new CabinetOrder();
@@ -143,11 +191,7 @@ class CommissionClawbackServiceTest {
         partial.setRefundedCents(2_000);
         when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
                 .thenReturn(List.of(partial));
-        LineManager manager = new LineManager();
-        manager.setManagerId(1L);
-        manager.setCommissionRateBps(500);
-        manager.setCommissionFixedCents(0);
-        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager));
+        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager(500, 0)));
 
         int events = service.reverseRecentRefunds();
 
@@ -160,7 +204,7 @@ class CommissionClawbackServiceTest {
 
     @Test
     void fullyRefundedOrderStaysOutOfBase() {
-        // 全额退款单（REFUNDED）不计基数：发佣行 gmv=6000、当前全为 REFUNDED ⇒ 全额冲回。
+        // 全额退款单（REFUNDED）不计基数：发佣行 gmv=6000、当前全为 REFUNDED ⇒ 基数 0 ⇒ 全额冲回 300。
         when(lineCommissionDailyMapper.selectList(any()))
                 .thenReturn(List.of(managerRow(6_000L, 1, 300L)));
         CabinetOrder refunded = new CabinetOrder();
@@ -169,11 +213,13 @@ class CommissionClawbackServiceTest {
         refunded.setRefundedCents(6_000);
         when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
                 .thenReturn(List.of(refunded));
-        when(managerMapper.findById(1L)).thenReturn(Optional.empty());
+        when(managerMapper.findById(1L)).thenReturn(Optional.of(manager(500, 0)));
 
-        assertEquals(0, service.reverseRecentRefunds()); // fixed=0 ⇒ gross=0 不冲（差额有但费率空）
-        verify(lineWalletService, never()).debitIfAbsentAllowNegative(anyLong(), anyLong(),
-                anyString(), anyString(), anyString(), anyString());
+        assertEquals(1, service.reverseRecentRefunds());
+        ArgumentCaptor<CommissionClawback> captor = ArgumentCaptor.forClass(CommissionClawback.class);
+        verify(clawbackMapper).insert(captor.capture());
+        assertEquals(300L, captor.getValue().getClawbackCents());
+        assertEquals(6_000L, captor.getValue().getRefundGmvCents());
     }
 
     @Test
@@ -182,7 +228,6 @@ class CommissionClawbackServiceTest {
                 .thenReturn(List.of(managerRow(6_000L, 1, 300L)));
         when(orderMapper.findByDeviceIdAndCreatedAtBetween(any(), any(), any()))
                 .thenReturn(List.of(paidOrder(6_000)));
-        when(managerMapper.findById(1L)).thenReturn(Optional.empty());
 
         assertEquals(0, service.reverseRecentRefunds());
         verify(clawbackMapper, never()).insert(any(CommissionClawback.class));

@@ -325,6 +325,121 @@ class DeviceRentalServiceTest {
         assertThat(deposit.getStatus()).isEqualTo(DeviceRentalDeposit.STATUS_SETTLED);
     }
 
+    // ── 押金按月退还（deposit-monthly-refund，审计 🔴3 超退/幂等回归）─────────
+
+    private DeviceRentalDeposit monthlyRefundDeposit(long amount, long unit, int startMonth, String createdAt) {
+        DeviceRentalDeposit deposit = heldDeposit(1L, amount);
+        deposit.setChargeMode("ONLINE");
+        deposit.setMonthlyRefundCents(unit);
+        deposit.setRefundStartMonth(startMonth);
+        deposit.setCreatedAt(Instant.parse(createdAt));
+        return deposit;
+    }
+
+    @Test
+    void runMonthlyRefunds_lastMonthRefundsRemainingBalance_notFixedUnit() {
+        // 50000 / 月退 30000 → threshold=ceil(50000/30000)+1-1=2，末月（第 2 期）余额只剩 20000。
+        // 回归钉桩：末月必须退**余额**而非固定 unit，否则退 30000 就是超退 10000（资损）。
+        DeviceRentalDeposit deposit = monthlyRefundDeposit(50_000L, 30_000L, 1, "2026-09-01T00:00:00Z");
+        deposit.setBalanceCents(20_000L);
+        when(depositMapper.selectList(any())).thenReturn(List.of(deposit));
+        when(depositMapper.adjustBalance(1L, -20_000L)).thenReturn(1);
+        when(merchantWalletService.creditIfAbsent(anyString(), anyLong(), anyString(), anyString(),
+                anyString(), anyString())).thenReturn(true);
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
+
+        assertThat(service.runMonthlyRefunds()).isEqualTo(1);
+
+        verify(depositMapper).adjustBalance(1L, -20_000L);
+        verify(merchantWalletService).creditIfAbsent(eq("10001"), eq(20_000L), eq("DEPOSIT_RETURN"),
+                eq("RENTAL_DEPOSIT_REFUND"), eq("1|2"), anyString());
+        ArgumentCaptor<DeviceRentalDepositEvent> captor =
+                ArgumentCaptor.forClass(DeviceRentalDepositEvent.class);
+        verify(depositEventMapper).insert(captor.capture());
+        assertThat(captor.getValue().getAmountCents()).isEqualTo(-20_000L);
+        assertThat(deposit.getStatus()).isEqualTo(DeviceRentalDeposit.STATUS_SETTLED);
+    }
+
+    @Test
+    void runMonthlyRefunds_lastMonthWithReward_creditsRewardOnce() {
+        // 末月结清 + 期满奖励（老系统口径：奖励 refId=押金|REWARD，与 settle 的同 refId 互斥不双发）
+        DeviceRentalDeposit deposit = monthlyRefundDeposit(50_000L, 50_000L, 1, "2026-10-01T00:00:00Z");
+        deposit.setExpireRewardCents(20_000L);
+        when(depositMapper.selectList(any())).thenReturn(List.of(deposit));
+        when(depositMapper.adjustBalance(1L, -50_000L)).thenReturn(1);
+        when(merchantWalletService.creditIfAbsent(anyString(), anyLong(), anyString(), anyString(),
+                anyString(), anyString())).thenReturn(true);
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
+
+        assertThat(service.runMonthlyRefunds()).isEqualTo(1);
+
+        verify(merchantWalletService).creditIfAbsent(eq("10001"), eq(50_000L), eq("DEPOSIT_RETURN"),
+                eq("RENTAL_DEPOSIT_REFUND"), eq("1|1"), anyString());
+        verify(merchantWalletService).creditIfAbsent(eq("10001"), eq(20_000L), eq("DEPOSIT_EXPIRE_REWARD"),
+                eq("RENTAL_DEPOSIT_REFUND"), eq("1|REWARD"), anyString());
+    }
+
+    @Test
+    void runMonthlyRefunds_middleMonthRefundsUnitAndKeepsHeld() {
+        // 50000 / 月退 10000 → threshold=5；当前第 3 期只退 unit，且不置结清
+        DeviceRentalDeposit deposit = monthlyRefundDeposit(50_000L, 10_000L, 1, "2026-08-01T00:00:00Z");
+        when(depositMapper.selectList(any())).thenReturn(List.of(deposit));
+        when(depositMapper.adjustBalance(1L, -10_000L)).thenReturn(1);
+        when(merchantWalletService.creditIfAbsent(anyString(), anyLong(), anyString(), anyString(),
+                anyString(), anyString())).thenReturn(true);
+
+        assertThat(service.runMonthlyRefunds()).isEqualTo(1);
+
+        verify(merchantWalletService).creditIfAbsent(eq("10001"), eq(10_000L), eq("DEPOSIT_RETURN"),
+                eq("RENTAL_DEPOSIT_REFUND"), eq("1|3"), anyString());
+        verify(depositMapper, never()).updateById(any());
+        assertThat(deposit.getStatus()).isEqualTo(DeviceRentalDeposit.STATUS_HELD);
+    }
+
+    @Test
+    void runMonthlyRefunds_beforeStartMonth_nothingMoves() {
+        // 起始月 3（老系统默认）：登记后第 2 个月还没到退押窗口，一分都不能动
+        DeviceRentalDeposit deposit = monthlyRefundDeposit(50_000L, 10_000L, 3, "2026-09-01T00:00:00Z");
+        when(depositMapper.selectList(any())).thenReturn(List.of(deposit));
+
+        assertThat(service.runMonthlyRefunds()).isZero();
+
+        verify(depositMapper, never()).adjustBalance(anyLong(), anyLong());
+        verify(merchantWalletService, never()).creditIfAbsent(anyString(), anyLong(), anyString(),
+                anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void runMonthlyRefunds_walletAlreadyCredited_restoresLedgerAndCountsNothing() {
+        // 重跑幂等：creditIfAbsent=false 表示该期钱包流水已存在 ⇒ 台账刚扣的余额要回补，
+        // 且不计入处理笔数、不写事件（否则「已退额」虚增而钱没再退）
+        DeviceRentalDeposit deposit = monthlyRefundDeposit(50_000L, 10_000L, 1, "2026-08-01T00:00:00Z");
+        when(depositMapper.selectList(any())).thenReturn(List.of(deposit));
+        when(depositMapper.adjustBalance(1L, -10_000L)).thenReturn(1);
+        when(merchantWalletService.creditIfAbsent(anyString(), anyLong(), anyString(), anyString(),
+                anyString(), anyString())).thenReturn(false);
+
+        assertThat(service.runMonthlyRefunds()).isZero();
+
+        verify(depositMapper).adjustBalance(1L, -10_000L);
+        verify(depositMapper).adjustBalance(1L, 10_000L);
+        verify(depositEventMapper, never()).insert(any());
+    }
+
+    @Test
+    void runMonthlyRefunds_ledgerGuardFails_doesNotCreditWallet() {
+        // 顺序铁律（审计 🔴3）：adjustBalance 守卫返回 0（余额已被并发推进）⇒ 本轮跳过，
+        // 绝不出现「钱包已入账、押金台账未减」的超额退还
+        DeviceRentalDeposit deposit = monthlyRefundDeposit(50_000L, 10_000L, 1, "2026-08-01T00:00:00Z");
+        when(depositMapper.selectList(any())).thenReturn(List.of(deposit));
+        when(depositMapper.adjustBalance(1L, -10_000L)).thenReturn(0);
+
+        assertThat(service.runMonthlyRefunds()).isZero();
+
+        verify(merchantWalletService, never()).creditIfAbsent(anyString(), anyLong(), anyString(),
+                anyString(), anyString(), anyString());
+    }
+
     // ── 出账 ──────────────────────────────────────────────────────────────
 
     @Test

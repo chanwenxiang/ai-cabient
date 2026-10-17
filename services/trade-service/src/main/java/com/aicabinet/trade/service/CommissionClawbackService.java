@@ -3,7 +3,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CommissionClawback;
 import com.aicabinet.trade.domain.LineCommissionDaily;
-import com.aicabinet.trade.domain.LineManager;
 import com.aicabinet.trade.domain.StaffCommissionDaily;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.CommissionClawbackMapper;
@@ -42,9 +41,11 @@ import java.util.Set;
  *       发佣时的模式记在 staff_commission_daily.commission_basis（V361）。</li>
  * </ul>
  *
- * <p>线长冲回额 = 当前费率 × GMV 差额 + 每单固定 × 单数差额（与发佣公式一致；费率事后
- * 变更是已接受的近似，届时差额按新费率计算）。补货员(GMV)冲回额 = 已发佣金 × GMV 差额
- * ÷ 发佣时 GMV 基数（比例冲回，不依赖当前费率，费率变更不产生假冲回）。
+ * <p>冲回额一律以<b>已入账行的佣金快照</b>为基数（CB-056；2026-10-17 F-8 判定「费率不追溯」）：
+ * 线长行 = {@code commission_cents × GMV 差额 ÷ 该行 gmv_cents}，补货员(GMV) 行同口径。
+ * 事后调整 {@code line_manager.commission_rate_bps} 既不改变已经发掉的佣金，也不会把配置变更
+ * 追溯成假冲回（调高费率曾会向线长多扣超过其已得佣金的钱）。代价：每单固定成分不按单数精确
+ * 追回，改按 GMV 比例追回——偏保守（少扣，绝不超扣）。
  */
 @Service
 public class CommissionClawbackService {
@@ -116,19 +117,30 @@ public class CommissionClawbackService {
     }
 
     private boolean reverseManagerRow(LineCommissionDaily row) {
+        long gmvBase = nvl(row.getGmvCents());
         long gmvNow = paidGmv(row.getDeviceId(), row.getBizDate());
         int countNow = paidOrderCount(row.getDeviceId(), row.getBizDate());
-        long gmvDelta = nvl(row.getGmvCents()) - gmvNow;
+        long gmvDelta = gmvBase - gmvNow;
         int countDelta = nvl(row.getOrderCount()) - countNow;
         if (gmvDelta <= 0 && countDelta <= 0) {
             return false;
         }
-        LineManager manager = managerMapper.findById(row.getManagerId()).orElse(null);
-        int bps = manager != null && manager.getCommissionRateBps() != null
-                ? manager.getCommissionRateBps() : 0;
-        int fixed = manager != null && manager.getCommissionFixedCents() != null
-                ? manager.getCommissionFixedCents() : 0;
-        long gross = gmvDelta * bps / 10_000L + (long) fixed * Math.max(0, countDelta);
+        // F-8（2026-10-17 判定）：线长冲回额改按**入账行的佣金快照**比例折算，不再读 LineManager 实时费率。
+        // 实时费率会把「发佣之后才改的配置」追溯进已经发掉的佣金：调高费率⇒向线长多扣（资损面，
+        // 且扣的超过当初发给他的钱），调低/删号⇒少扣甚至不扣。竞品/官方口径一致不支持追溯
+        // （CB-056：微信分账回退「以原分账单为依据」、Stripe application_fee 随原退款比例回退），
+        // 且本服务补货员侧 reverseStaffRow 早已是比例口径——两侧对齐后冲回额天然 ≤ 该行已发佣金。
+        // 代价：每单固定成分不再按单数精确追回（按 GMV 比例追回，偏保守=少扣不多扣）。
+        long credited = nvl(row.getCommissionCents());
+        if (gmvBase <= 0 || credited <= 0) {
+            // V361 前的存量行无 GMV 基数/佣金快照，无法比例折算 ⇒ 保守不冲（与补货员侧同判据）
+            return false;
+        }
+        // 线长档案已删除时不冲（老口径读不到费率即 0 额=不冲；不新增向已删除人员钱包追扣的路径）
+        if (managerMapper.findById(row.getManagerId()).isEmpty()) {
+            return false;
+        }
+        long gross = credited * gmvDelta / gmvBase;
         if (gross <= 0) {
             return false;
         }
