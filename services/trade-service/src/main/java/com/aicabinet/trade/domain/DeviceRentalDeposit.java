@@ -42,9 +42,9 @@ public class DeviceRentalDeposit {
     private Integer refundStartMonth;
     /** 期满奖励（分）：退完当月一次性发入商户余额（老系统仅高档有，登记时可填，默认 0） */
     private Long expireRewardCents;
-    /** 撤机安装费扣额（分）：结算（撤机）时从押金/商户余额扣（CB-044 拍板选项 1，默认 100 元对齐老系统） */
+    /** 撤机安装费扣额（分）：结算（撤机）时从押金扣。<b>默认 0=不收</b>（用户 2026-10-17 拍板 + V383；老系统硬编码 100 元、不分柜不分商户） */
     private Long installFeeDeductCents;
-    /** 已退完且未满合同年数时撤机，是否向商户余额倒扣安装费（老系统行为；CB-044 拍板默认开） */
+    /** 已退完且未满合同年数时撤机，是否向商户余额倒扣安装费（老系统行为）。<b>V376 起默认关</b>：资损面须显式传 true 才开 */
     private Boolean installFeeClawbackEnabled;
     /** 合同年数：撤机时登记满 N 年则发期满奖励、免扣安装费（老系统 5 年，登记可改） */
     private Integer contractYears;

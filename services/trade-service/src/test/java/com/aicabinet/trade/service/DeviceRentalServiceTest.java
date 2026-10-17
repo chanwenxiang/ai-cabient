@@ -137,9 +137,9 @@ class DeviceRentalServiceTest {
     }
 
     @Test
-    void registerDeposit_removalSettlementParams_defaultsAreFeeLegacyButClawbackOff() {
-        // 空值默认：安装费 100 元 / 合同 5 年 = 老系统口径；
-        // 但「倒扣商户余额」的追回开关 DC-29（2026-10-16）改为**默认关** —— 资损面必须显式传 true 才开
+    void registerDeposit_removalSettlementParams_defaultFeeZeroAndClawbackOff() {
+        // 用户 2026-10-17 拍板：安装费**默认为 0=不收**、要收按柜登记时填（V383）；
+        // 「倒扣商户余额」的追回开关自 DC-29（2026-10-16）改默认关 —— 资损面必须显式传 true 才开
         when(deviceMapper.findById("D1")).thenReturn(Optional.of(rentalDevice("D1", 0)));
         when(depositMapper.findByDevice("D1")).thenReturn(Optional.empty());
 
@@ -147,7 +147,7 @@ class DeviceRentalServiceTest {
 
         ArgumentCaptor<DeviceRentalDeposit> captor = ArgumentCaptor.forClass(DeviceRentalDeposit.class);
         verify(depositMapper).insert(captor.capture());
-        assertThat(captor.getValue().getInstallFeeDeductCents()).isEqualTo(10_000L);
+        assertThat(captor.getValue().getInstallFeeDeductCents()).isZero();
         assertThat(captor.getValue().getInstallFeeClawbackEnabled()).isFalse();
         assertThat(captor.getValue().getContractYears()).isEqualTo(5);
     }
@@ -217,10 +217,31 @@ class DeviceRentalServiceTest {
     }
 
     @Test
-    void settle_beforeContractExpiry_deductsInstallFeeAndReturnsRest() {
-        // CB-044 拍板选项 1（复刻老三件套）：未退完撤机 → 退剩余 − 安装费（默认 100 元）
+    void settle_defaultZeroFee_returnsBalanceInFull() {
+        // 2026-10-17 拍板「安装费默认为 0」的正面钉桩：默认登记行（fee 未填/为 0）撤机时
+        // 必须**全额返还**且**不写 DEPOSIT 事件** —— 运营台弹窗「返还剩余押金 ¥X」才与实扣一致（前后一致）。
         DeviceRentalDeposit deposit = heldDeposit(1L, 50_000L);
         deposit.setChargeMode("ONLINE");
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
+        when(depositMapper.adjustBalance(1L, -50_000L)).thenReturn(1);
+
+        service.settle(9L, 1L, null);
+
+        verify(merchantWalletService).creditIfAbsent(eq("10001"), eq(50_000L), eq("DEPOSIT_RETURN"),
+                eq("RENTAL_DEPOSIT_SETTLE"), eq("1"), eq("退租结算返还（柜机 D1）"));
+        ArgumentCaptor<DeviceRentalDepositEvent> captor = ArgumentCaptor.forClass(DeviceRentalDepositEvent.class);
+        verify(depositEventMapper).insert(captor.capture());
+        assertThat(captor.getValue().getEventType()).isEqualTo(DeviceRentalDeposit.EVENT_RETURN);
+        assertThat(captor.getValue().getAmountCents()).isEqualTo(-50_000L);
+    }
+
+    @Test
+    void settle_beforeContractExpiry_deductsInstallFeeAndReturnsRest() {
+        // CB-044 三件套：未退完撤机 → 退剩余 − 安装费。V383 后安装费**默认 0**，
+        // 所以这条钉的是「登记时按柜填了 100 元就真的扣 100 元」——费用必须由行上显式带值挣得。
+        DeviceRentalDeposit deposit = heldDeposit(1L, 50_000L);
+        deposit.setChargeMode("ONLINE");
+        deposit.setInstallFeeDeductCents(10_000L);
         when(depositMapper.selectById(1L)).thenReturn(deposit);
         when(depositMapper.adjustBalance(1L, -50_000L)).thenReturn(1);
 
@@ -260,6 +281,7 @@ class DeviceRentalServiceTest {
         DeviceRentalDeposit deposit = heldDeposit(1L, 0L);
         deposit.setChargeMode("ONLINE");
         deposit.setCreatedAt(Instant.parse("2025-10-12T00:00:00Z"));
+        deposit.setInstallFeeDeductCents(10_000L);
         deposit.setInstallFeeClawbackEnabled(true);
         when(depositMapper.selectById(1L)).thenReturn(deposit);
 

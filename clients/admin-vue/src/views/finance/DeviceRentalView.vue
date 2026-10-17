@@ -6,7 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">设备租赁</span>
             <span class="hint"
-              >押金收据化 + 月租应收账单（CB-034）；收款线下人工登记，系统不做自动扣款</span
+              >押金收据化 + 月租应收账单（CB-034）；登记即按收取方式处置：ONLINE
+              从商户余额真扣、OFFLINE 只做收据化登记</span
             >
           </div>
         </div>
@@ -137,7 +138,7 @@
           :show-refresh="false"
           :actions="depositActions"
           :action-width="110"
-          empty-text="暂无押金——设备置为 RENTAL 模式后线下收缴并在此登记"
+          empty-text="暂无押金——设备置为 RENTAL 模式后在此登记（线上=从商户余额扣，线下=收据化）"
           @action="onDepositAction"
         >
           <el-table-column
@@ -161,6 +162,28 @@
             label-class-name="col-money"
           >
             <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
+          </el-table-column>
+          <el-table-column
+            label="撤机安装费"
+            width="110"
+            align="right"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
+            <template #default="{ row }">{{ yuan(row.installFeeDeductCents ?? 0) }}</template>
+          </el-table-column>
+          <el-table-column
+            label="收取方式"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-tag :type="row.chargeMode === 'OFFLINE' ? 'info' : 'success'" size="small">
+                {{ row.chargeMode === 'OFFLINE' ? '线下' : '线上' }}
+              </el-tag>
+            </template>
           </el-table-column>
           <el-table-column
             label="状态"
@@ -212,6 +235,27 @@
         </el-form-item>
         <el-form-item label="押金(元)" required>
           <el-input-number v-model="registerForm.yuan" :min="0.01" :precision="2" :step="100" />
+        </el-form-item>
+        <!-- CB-044 三件套按柜配置（2026-10-17 用户拍板「费用默认为 0、做成按柜子配置」）：
+             老系统是全局硬编码 100 元，我方开箱不收、要收就逐柜填 -->
+        <el-form-item label="撤机安装费">
+          <el-input-number
+            v-model="registerForm.installFeeYuan"
+            :min="0"
+            :precision="2"
+            :step="50"
+          />
+          <span class="hint">0 = 不收（默认）；撤机结算时从押金扣</span>
+        </el-form-item>
+        <el-form-item label="合同年数">
+          <el-input-number v-model="registerForm.contractYears" :min="1" :max="20" :step="1" />
+          <span class="hint">
+            用于期满判定：押金已按月退完且满期才发期满奖励；余额未退完时结算仍扣安装费
+          </span>
+        </el-form-item>
+        <el-form-item label="未满期倒扣">
+          <el-switch v-model="registerForm.installFeeClawbackEnabled" />
+          <span class="hint">押金已退完且未满期时向商户余额追扣（资损面，默认关）</span>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="registerForm.remark" placeholder="收据号 / 收款方式" />
@@ -302,7 +346,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextZero as yuan } from '@/utils/display';
+import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
 import { computed, reactive, ref, watch } from 'vue';
 import { CircleCheck, CircleClose, Money, Refresh, Tickets } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -332,6 +376,11 @@ interface RentalDeposit {
   balanceCents: number;
   status: string;
   createdAt?: string;
+  /** 撤机安装费（分）：登记时逐柜填，0=不收（V383 默认） */
+  installFeeDeductCents?: number;
+  /** ONLINE=线上（押金已在商户余额里扣过）/ OFFLINE=线下收缴登记 */
+  chargeMode?: string;
+  contractYears?: number;
 }
 
 interface DepositEvent {
@@ -418,7 +467,7 @@ function onBillAction({ key, row }: { key: string; row: RentalBill }) {
 async function markPaid(row: RentalBill) {
   try {
     await ElMessageBox.confirm(
-      `确认设备 ${row.deviceId} ${row.billMonth} 月租 ¥${yuan(row.amountCents)} 已线下收款？`,
+      `确认设备 ${row.deviceId} ${row.billMonth} 月租 ${yuan(row.amountCents)} 已线下收款？`,
       '标记已付',
       { type: 'warning' }
     );
@@ -507,12 +556,23 @@ function onDepositAction({ key, row }: { key: string; row: RentalDeposit }) {
 }
 
 const registerVisible = ref(false);
-const registerForm = reactive({ deviceId: '', yuan: 0, remark: '' });
+const registerForm = reactive({
+  deviceId: '',
+  yuan: 0,
+  remark: '',
+  installFeeYuan: 0,
+  contractYears: 5,
+  installFeeClawbackEnabled: false
+});
 
 function openRegisterDeposit() {
   registerForm.deviceId = '';
   registerForm.yuan = 0;
   registerForm.remark = '';
+  // 三件套默认：安装费 0=不收、合同 5 年、倒扣关（2026-10-17 拍板，对齐 V383/V376 列默认）
+  registerForm.installFeeYuan = 0;
+  registerForm.contractYears = 5;
+  registerForm.installFeeClawbackEnabled = false;
   registerVisible.value = true;
 }
 
@@ -525,8 +585,11 @@ async function submitRegister() {
   try {
     await api.request(AdminEndpoints.rentalDeposits, 'POST', {
       deviceId: registerForm.deviceId.trim(),
-      amountCents: Math.round(registerForm.yuan * 100),
-      remark: registerForm.remark.trim() || null
+      amountCents: yuanToCents(registerForm.yuan),
+      remark: registerForm.remark.trim() || null,
+      installFeeDeductCents: yuanToCents(registerForm.installFeeYuan),
+      contractYears: registerForm.contractYears,
+      installFeeClawbackEnabled: registerForm.installFeeClawbackEnabled
     });
     ElMessage.success('押金已登记');
     registerVisible.value = false;
@@ -574,12 +637,17 @@ async function submitDeduct() {
 }
 
 async function settle(row: RentalDeposit) {
+  const refund = Math.max(0, Number(row.balanceCents ?? 0));
+  const online = (row.chargeMode ?? 'ONLINE') === 'ONLINE';
+  // 与 DeviceRentalService#settle 同口径：只有线上押金扣撤机安装费，且扣额不超过余额
+  const fee = online ? Math.min(Math.max(0, Number(row.installFeeDeductCents ?? 0)), refund) : 0;
+  const detail = online
+    ? `押金余额 ${yuan(refund)}，${fee > 0 ? `扣撤机安装费 ${yuan(fee)}，` : '不收撤机安装费，'}实退 ${yuan(refund - fee)} 退入商户余额`
+    : `线下收缴押金：台账记全额退还 ${yuan(refund)}，系统不动钱——须确认已线下退还（撤机安装费线下另收）`;
   try {
-    await ElMessageBox.confirm(
-      `结算将返还剩余押金 ¥${yuan(row.balanceCents)}（设备 ${row.deviceId}），确认已线下退还？`,
-      '结算返还',
-      { type: 'warning' }
-    );
+    await ElMessageBox.confirm(`设备 ${row.deviceId} ${detail}。确认结算？`, '结算返还', {
+      type: 'warning'
+    });
   } catch {
     return;
   }

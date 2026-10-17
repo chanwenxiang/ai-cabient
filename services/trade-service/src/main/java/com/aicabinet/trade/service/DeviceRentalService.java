@@ -31,16 +31,21 @@ import java.util.List;
  *
  * <p><b>边界（读 CB-034 结论 1/2/3/4/6）</b>：</p>
  * <ol>
- *   <li><b>押金是负债不是收入</b>：不走平台资金池台账；收缴/返还均为线下动作，本服务只做收据化登记
- *       （登记→扣款抵扣→结算返还），每笔扣款必须填依据并留审计。</li>
+ *   <li><b>押金是负债不是收入</b>：不走平台资金池台账。收取方式按 {@code charge_mode} 分两条：
+ *       <b>ONLINE</b>=登记即从商户余额真扣、结算时净额回入商户余额（走钱包幂等，可负=欠款，见
+ *       {@code registerDeposit} 的 DEPOSIT_CHARGE 与 {@code settle} 的 DEPOSIT_RETURN）；
+ *       <b>OFFLINE</b>=线下收缴只做收据化登记、系统不动钱（存量行为主）。
+ *       两种模式都：登记→扣款抵扣→结算返还，每笔扣款必须填依据并留审计。</li>
  *   <li><b>租金是应收不是应付</b>：与 DeviceDataFeeBill 同为<b>商户应付</b>（柜机流量费由商户承担，
  *       快照口径分/天，2026-10-16 F-3 拍板；日扣模式下常规走钱包自动扣，账单页仅人工留痕）。
  *       本服务的租金收款仍由人工标记，不自动扣款（不碰资金动作）。</li>
  *   <li><b>欠租锁柜复用 DeviceSalesLockService</b>：逾期 UNPAID 账单 → 锁机；结清 → 解锁。
  *       解锁只针对「因欠租而锁」的柜机（salesLockReason 以 RENTAL_LOCK_PREFIX 开头），
  *       不碰其它原因的锁（维修/风控等各有自己的解锁路径）。</li>
- *   <li><b>不采纳旧系统</b>「押金按月自动返还 + 到期硬编码奖励 200 元」——返还由退租结算动作驱动
- *       （友宝也是期满返还），奖励属营销层不入账务。</li>
+ *   <li><b>押金返还是负债清偿不是收入</b>：主路径由退租结算动作驱动（友宝也是期满返还）。
+ *       「按月自动返还 + 期满奖励」在 V360 采纳为<b>登记可配</b>参数（CB-034 口径往返见该条 ⚠️ 补记），
+ *       但 V376（2026-10-16 DC-29）把 {@code deposit-monthly-refund} 种子行默认改 FALSE
+ *       ⇒ <b>现行默认口径仍是人工退押</b>，自动返还需运营台显式打开该任务；奖励额不入账务、登记可填。</li>
  * </ol>
  */
 @Service
@@ -130,8 +135,12 @@ public class DeviceRentalService {
                 monthlyRefundCents, refundStartMonth, expireRewardCents, null, null, null);
     }
 
-    /** 撤机清算三件套默认值（老系统口径，登记可显式覆盖——CB-044 拍板「费用不写死」）。 */
-    static final long DEFAULT_INSTALL_FEE_DEDUCT_CENTS = 10_000L;
+    /**
+     * 撤机清算三件套默认值。安装费默认 <b>0=不收</b>（用户 2026-10-17 拍板「这个费用默认为 0，
+     * 做成按柜子配置」；V383 同步列默认）——老系统是全局硬编码 100 元、不分柜不分商户，
+     * 行业撤机用「违约金/损失抵偿」名目（CB-044），故开箱不扣、要收就登记时逐柜填。
+     */
+    static final long DEFAULT_INSTALL_FEE_DEDUCT_CENTS = 0L;
     static final int DEFAULT_CONTRACT_YEARS = 5;
 
     @Transactional
@@ -229,7 +238,7 @@ public class DeviceRentalService {
             return deposit;
         }
         long installFee = deposit.getInstallFeeDeductCents() == null
-                ? 10_000L : deposit.getInstallFeeDeductCents();
+                ? DEFAULT_INSTALL_FEE_DEDUCT_CENTS : deposit.getInstallFeeDeductCents();
         boolean clawback = Boolean.TRUE.equals(deposit.getInstallFeeClawbackEnabled());
         int contractYears = deposit.getContractYears() == null ? 5 : deposit.getContractYears();
         boolean contractExpired = contractExpired(deposit, contractYears);
