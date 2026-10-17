@@ -35,7 +35,6 @@ android {
         buildConfigField("String", "HTTP_DEVICE_SECRET", "\"\"")
         buildConfigField("String", "SERIAL_PORT_PATH", "\"/dev/ttyS2\"")
         buildConfigField("boolean", "USE_MOCK_DRIVER", "true")
-        buildConfigField("boolean", "MULTI_CAMERA_ENABLED", "false")
     }
 
     flavorDimensions += "target"

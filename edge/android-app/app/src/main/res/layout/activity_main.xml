@@ -115,13 +115,6 @@
             android:layout_marginTop="8dp"
             android:text="保存设备凭据（AndroidKeyStore 加密落盘）" />
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switchMultiCamera"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="双摄融合（TOP 后置 + SIDE 前置）" />
-
         <Button
             android:id="@+id/btnSimulateClose"
             android:layout_width="match_parent"

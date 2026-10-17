@@ -151,13 +151,6 @@ class EdgeRuntimeConfigPrefsTest {
         assertEquals("tcp://172.16.0.7:1883", prefs.getString("mqtt_broker", null))
     }
 
-    @Test
-    fun `saveMultiCamera 落盘`() {
-        assertFalse(EdgeRuntimeConfig.multiCameraEnabled(ctx))
-        EdgeRuntimeConfig.saveMultiCamera(ctx, true)
-        assertTrue(EdgeRuntimeConfig.multiCameraEnabled(ctx))
-    }
-
     // ---------- ensureDeviceId ----------
 
     @Test

@@ -77,12 +77,6 @@ object EdgeRuntimeConfig {
     fun serialPortPath(context: Context): String =
         getString(context, "serial_port_path", BuildConfig.SERIAL_PORT_PATH)
 
-    fun multiCameraEnabled(context: Context): Boolean =
-        getBoolean(context, "multi_camera_enabled", BuildConfig.MULTI_CAMERA_ENABLED)
-
-    fun saveMultiCamera(context: Context, enabled: Boolean) =
-        prefs(context).edit().putBoolean("multi_camera_enabled", enabled).apply()
-
     fun saveBroker(context: Context, broker: String) =
         putString(context, "mqtt_broker", broker.trim())
 

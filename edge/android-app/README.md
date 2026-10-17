@@ -125,14 +125,6 @@ MainActivity 可修改 **MQTT Broker** 并保存到 SharedPreferences，**无需
 
 生产环境建议根据现场协议扩展 `ChzhLockDriver.parseDoorFeedback()` 中的门磁关键字。
 
-### 双摄开关（仅状态页显示，已不影响报文）
-
-App 内 **「双摄融合」** 开关（或 BuildConfig `MULTI_CAMERA_ENABLED`、Prefs `multi_camera_enabled`）现在只决定状态页显示 `MULTI/SINGLE`：
-
-- 关门 MQTT 事件不再携带 `videoClipsJson` / `cameraFusionMode`（随 DC-27 批6 从云端 DTO 删除）
-- `device-simulator` 侧同名旋钮 `AICABINET_SIM_MULTI_CAMERA` 亦已删除
-- 待办：硬件方案定了之后，要么重建本机录像+上传链，要么把这个开关一并撤下
-
 ## 切换真机串口
 
 1. 构建变体选 **deviceDebug**

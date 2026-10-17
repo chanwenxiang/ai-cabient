@@ -27,13 +27,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         binding.etBroker.setText(EdgeRuntimeConfig.mqttBroker(this))
-        binding.switchMultiCamera.isChecked = EdgeRuntimeConfig.multiCameraEnabled(this)
         renderConfig()
-
-        binding.switchMultiCamera.setOnCheckedChangeListener { _, checked ->
-            EdgeRuntimeConfig.saveMultiCamera(this, checked)
-            Toast.makeText(this, "双摄已${if (checked) "开启" else "关闭"}，下次开门生效", Toast.LENGTH_SHORT).show()
-        }
 
         binding.btnSaveBroker.setOnClickListener {
             EdgeRuntimeConfig.saveBroker(this, binding.etBroker.text?.toString().orEmpty())
@@ -103,8 +97,7 @@ class MainActivity : AppCompatActivity() {
             appendLine("Trade: ${EdgeRuntimeConfig.tradeServiceUrl(this@MainActivity)}")
             // 只显示「是否已装机」，绝不回显 secret 本体
             appendLine("设备凭据: ${if (EdgeRuntimeConfig.httpDeviceSecret(this@MainActivity).isNotBlank()) "已注入" else "未注入（OTA/素材链路停用）"}")
-            appendLine("驱动: ${if (EdgeRuntimeConfig.useMockDriver(this@MainActivity)) "Mock" else "串口"}")
-            append("双摄: ${if (EdgeRuntimeConfig.multiCameraEnabled(this@MainActivity)) "MULTI" else "SINGLE"}")
+            append("驱动: ${if (EdgeRuntimeConfig.useMockDriver(this@MainActivity)) "Mock" else "串口"}")
         }
     }
 
