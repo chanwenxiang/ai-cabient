@@ -285,7 +285,7 @@ S-01 配置生效（新单按新比例，旧单不静默改写）/ S-02 支付�
 | DV-01 | 门事件乱序/去重 | 模拟器发重复+乱序 door 事件 → `DoorEventDeduplicator` 去重；`DoorEventDeduplicatorTest`/`MqttEventListenerDoorTest` 绿 | 后端单测绿；**端到端乱序注入用例缺** |
 | DV-02 | 开门 ACK 链路 | 下发→tracker 超时/成功双分支（`DeviceCommandTrackerTest`）；trade 下游调用失败重试（`TradeServiceClientRetryTest`） | 单测绿；模拟器多柜并发注入待补 |
 | DV-03 | 模拟器多柜 | `edge/device-simulator` 起 ≥2 柜（CAB-001/002），心跳/开关门互不串话；`MqttEventListenerDoorTest` 契约对齐 | 手工可跑 |
-| DV-04 | 端侧结果受理契约 | `POST /internal/v1/vision/edge-results`：无密钥→401、会话不存在→404、缺 `modelVersion`/`quantity<=0`/`modelVersion` 超列宽→400、重复上报幂等（不重复扣款/建单/落库）；置信度 0~1 值域由 `VisionResultIngestService.checkConfidence` 拒收（AU-039）。脚本 `scripts/devops/verify-vision-result-ingest.py` 全链断言（需 `-Daicabinet.vision-async.enabled=true`） | 脚本可跑（需真实栈 + 异步通道） |
+| DV-04 | 端侧结果受理契约 | `POST /internal/v1/vision/edge-results`：无密钥→401、会话不存在→404、缺 `modelVersion`/`quantity<=0`/`modelVersion` 超列宽→400、重复上报幂等（不重复扣款/建单/落库）；置信度 0~1 值域由 `VisionResultIngestService.checkConfidence` 拒收（AU-039）。脚本 `scripts/devops/verify-vision-result-ingest.py` 全链断言（前置＝`DEVICE_ID` 在 `jiangyi_device` 登记为 `BOUND`，关门才停在 `RECOGNIZING`；旧 `-Daicabinet.vision-async.enabled` 开关已于 2026-10-17 `f30635ba` 随 Kafka 链退役） | 脚本可跑（需真实栈 + 将邑柜登记） |
 | DV-05 | 识别失败→争议 | 关门无端侧结果 → `SettlementSettleOrchestrator` 构造「待人工审核」占位结果 → 会话 DISPUTED + `RECOGNITION_FAILED` 异常；种子脚本 `create-open-dispute.ps1` | 脚本已有（旧 `e2e-dispute-recognition.ps1` 随云识别链删除） |
 | DV-06 | 已知缺口标注 | device-service 集成测试薄（仅 5 类）：MQTT 桥与模拟器契约、多柜并发属**已知缺口**，补测优先级高于新功能用例 | 登记于 §9 |
 

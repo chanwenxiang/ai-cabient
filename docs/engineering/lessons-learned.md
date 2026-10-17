@@ -24,7 +24,7 @@
 | 16 | consumer live | 真机关门后用户只能干等「请关门」 | live 刻意不暴露 demo-close，但缺刷新/客服兜底 | SHOPPING+!mock 必须提供「刷新状态」「未出账单？」；禁止把 demo-close 接到生产 | `index.vue` |
 | 17 | 资金限额 | 前端 ¥5000 可被改包绕过 | 充值/余额退款后端无同款上限 | `recharge.max_cents` / `balance.refund.max_cents` 服务端强制；单测覆盖超额拒绝 | `PaymentService`、`BalanceRefundService` |
 | 18 | merchant 补货 | 列表进场卡顿/弱网炸请求 | 每任务并发拉 evidence+lines，最多 80 请求 | 列表 DTO 聚合 `evidenceCount`/`lineSummary`；禁列表页 N+1 | `MerchantInventoryPortalService`、`replenishment.vue` |
-| 19 | Kafka 视觉 | 识别失败消息静默丢 | auto-commit + catch 吞异常 | vision `enable_auto_commit=false` 成功/入 DLT 后 commit；trade 失败发 result.DLT 再抛 | `kafka_worker.py`、`VisionRecognitionListener` |
+| 19 | Kafka 视觉 | 识别失败消息静默丢 | auto-commit + catch 吞异常 | vision `enable_auto_commit=false` 成功/入 DLT 后 commit；trade 失败发 result.DLT 再抛 | `kafka_worker.py`、`VisionRecognitionListener`（**该 Kafka 识别链已于 2026-10-17 `f30635ba` 整体退役、文件已删**；教训现由唯一在用的 `NotificationDispatchListener` 继承） |
 | 20 | toast | 成功操作弹出「错误」无图标 toast | 误用 `showError`（icon:none） | 成功/中性文案必须 `showSuccess` | consumer/merchant 多页 |
 | 21 | session 超时 | 开门/补货/识别过期只能改代码常量 | 魔法值散落 SessionService | 收归 `aicabinet.session-expire` + `SessionExpireProperties` | `application.yml`、`SessionExpireProperties` |
 | 22 | vision 超时 | 云端识别挂起无结果 | 无 wall-clock timeout / 失败只进 DLT | HTTP+Kafka 超时回退 `need_review=true` 仍发 result | `main.py`、`kafka_worker.py` |
@@ -80,7 +80,7 @@
 | 72 | admin 端点 | 异常页散落 `/exceptions` 字面量 | 仅试点 KPI 进 AdminEndpoints | 异常列表/动作一并迁入；门禁加 `/exceptions` 基路径 | `endpoints.ts`、`ExceptionListView.vue` |
 | 73 | admin 端点 | 订单页散落 `/orders` 字面量 | 同域多文件拷贝易漂移 | 订单 CRUD/动作迁入 AdminEndpoints；搜索/设备详情同步 | `OrderListView.vue`、`GlobalSearch.vue` |
 | 74 | admin 端点 | 会话/录像/上传队列散落 `/sessions` | 列表导出取消与视频路径各写一份 | 会话域迁入 AdminEndpoints；composable 也走同一 helper | `SessionListView.vue`、`useSessionVideo.ts` |
-| 75 | Kafka 视觉 | 消费失败无限重试或 DLT topic 不存在 | 仅应用内 catch，未建 topic Bean | 失败入 DLT 后 ack；`KafkaTopicConfig` 必须注册 request/result DLT | `VisionRecognitionListener`、`KafkaTopicConfig` |
+| 75 | Kafka 视觉 | 消费失败无限重试或 DLT topic 不存在 | 仅应用内 catch，未建 topic Bean | 失败入 DLT 后 ack；`KafkaTopicConfig` 必须注册 request/result DLT | `VisionRecognitionListener`、`KafkaTopicConfig`（**两者已于 2026-10-17 `f30635ba` 随 Kafka 识别链退役删除**；DLT 口径对现存 `NotificationDispatchListener` 仍适用） |
 | 76 | admin 端点 | 柜机详情/列表散落 `/devices` 字面量 | 详情页 20+ 动作路径易漂移 | 柜机域迁入 AdminEndpoints；门禁加 `/devices`（含 ref） | `DeviceDetailView.vue`、`DeviceListView.vue` |
 | 77 | admin 端点 | 商户/分账散落 `/merchants` 字面量 | 分账动作路径多处拷贝 | 商户与分账动作迁入 AdminEndpoints；门禁加 `/merchants` | `MerchantSplitsView.vue` |
 | 78 | admin 端点 | 入驻页散落 `/merchant-onboarding` | 列表/审批与 Dashboard 计数各写一份 | 入驻域迁入 AdminEndpoints；门禁加基路径 | `MerchantOnboardingView.vue` |

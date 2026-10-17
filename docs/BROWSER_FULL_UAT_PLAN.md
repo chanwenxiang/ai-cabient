@@ -44,7 +44,7 @@ cd ai-cabinet
 .\scripts\cleanup-test-data.ps1                        # 联调轮次间清零争议/异常
 ```
 
-- 识别：云端 `:8082` 引擎已退役，不再探测；端侧受理链用 `python scripts/devops/verify-vision-result-ingest.py` 验证（需 `-Daicabinet.vision-async.enabled=true`）
+- 识别：云端 `:8082` 引擎已退役，不再探测；端侧受理链用 `python scripts/devops/verify-vision-result-ingest.py` 验证（前置＝脚本内 `DEVICE_ID` 那台柜机在 `jiangyi_device` 登记为 `BOUND`，关门才会停在 `RECOGNIZING` 留出受理窗口；旧 `-Daicabinet.vision-async.enabled` 开关已随 Kafka 链于 2026-10-17 `f30635ba` 退役，不再存在）
 - 三端 dev server 已启动，API 代理指向 `localhost:8080`
 
 ### 1.3 已知坑
