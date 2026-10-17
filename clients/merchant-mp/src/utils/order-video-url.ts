@@ -1,13 +1,7 @@
 /**
- * 商户订单购物视频绝对 URL（M12）。
- * 页内禁止再拼 API_BASE + path；小程序 downloadFile 走本函数。
+ * 商户订单购物视频（M12）：清单类型与播放/失败态工具。
+ * 页内禁止再拼 API_BASE + path；地址一律取后端下发的短时效预签名直链。
  */
-import { API_BASE_URL } from '@/config/api';
-import { MerchantEndpoints } from '@/api/endpoints';
-
-export function merchantOrderVideoUrl(orderId: string): string {
-  return `${API_BASE_URL.replace(/\/$/, '')}${MerchantEndpoints.orderVideo(orderId)}`;
-}
 
 export type MerchantVideoErrorView = {
   title: string;
@@ -35,8 +29,8 @@ export function merchantVideoErrorView(err: unknown): MerchantVideoErrorView {
   };
 }
 
-/** CB-030：视频来源。EDGE=旧边缘链路（走字节流端点）；JIANGYI=将邑台账（预签名直链）；NONE=无视频。 */
-export type OrderVideoSource = 'EDGE' | 'JIANGYI' | 'NONE';
+/** CB-030：视频来源。JIANGYI=将邑台账（预签名直链）；NONE=无视频。 */
+export type OrderVideoSource = 'JIANGYI' | 'NONE';
 
 /** CB-030：单个可播放分片（对应后端 OrderVideoPlaylistDto.Clip）。 */
 export type OrderVideoClip = {

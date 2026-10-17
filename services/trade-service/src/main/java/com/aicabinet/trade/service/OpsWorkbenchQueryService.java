@@ -177,7 +177,6 @@ public class OpsWorkbenchQueryService {
                 disputeRepository.countOpenByDeviceIds(scopedDevices),
                 disputeSlaService.countOverdue(),
                 disputeSlaService.countNearSla(),
-                sessionRepository.countByDeviceIdInAndState(scopedDevices, SessionState.WAITING_UPLOAD),
                 slaRealtime.doorSuccessRate24h(),
                 disputeRate,
                 recognitionAutoRate,
@@ -196,7 +195,6 @@ public class OpsWorkbenchQueryService {
         Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
         List<OpsActionItemDto> items = new java.util.ArrayList<>();
         collectDisputeActionItems(scopedDevices, items);
-        collectUploadStuckItems(scopedDevices, items);
         collectOfflineDeviceItems(scopedDevices, items);
         collectLowStockItems(scopedDevices, items);
         collectReplenishmentActionItems(scopedDevices, items);
@@ -227,24 +225,6 @@ public class OpsWorkbenchQueryService {
                         null,
                         d.getCreatedAt(),
                         d.getSlaDueAt()
-                )));
-    }
-
-    private void collectUploadStuckItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        sessionRepository.findTop10ByStateOrderByUpdatedAtAsc(SessionState.WAITING_UPLOAD).stream()
-                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
-                .forEach(s -> items.add(new OpsActionItemDto(
-                        "UPLOAD_STUCK",
-                        uploadSeverity(s),
-                        "视频待上传",
-                        "上传状态：" + uploadStatusLabel(s.getUploadStatus()),
-                        s.getDeviceId(),
-                        s.getSessionId(),
-                        null,
-                        null,
-                        null,
-                        s.getCreatedAt(),
-                        s.getUpdatedAt().plus(30, ChronoUnit.MINUTES)
                 )));
     }
 
@@ -329,7 +309,7 @@ public class OpsWorkbenchQueryService {
                 "SESSION_STALE",
                 staleSessionSeverity(s),
                 "购物会话可能超时",
-                "状态 " + s.getState() + "，上传 " + uploadStatusLabel(s.getUploadStatus()),
+                "状态 " + s.getState(),
                 s.getDeviceId(),
                 s.getSessionId(),
                 null,
@@ -494,7 +474,6 @@ public class OpsWorkbenchQueryService {
                 countOpenDisputes(scopedDevices),
                 disputeSlaService.countOverdue(),
                 countOfflineDevices(scopedDevices),
-                countWaitingUploads(scopedDevices),
                 countLowStock(scopedDevices),
                 countPendingReplenishments(scopedDevices),
                 countStaleSessions(scopedDevices),
@@ -542,7 +521,6 @@ public class OpsWorkbenchQueryService {
                 disputeRepository.countByStatus("OPEN"),
                 disputeSlaService.countOverdue(),
                 disputeSlaService.countNearSla(),
-                sessionRepository.countByState(SessionState.WAITING_UPLOAD),
                 slaRealtime.doorSuccessRate24h(),
                 disputeRate,
                 recognitionAutoRate,
@@ -556,7 +534,7 @@ public class OpsWorkbenchQueryService {
     }
 
     private static AdminStatsDto emptyStats() {
-        return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0);
+        return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0);
     }
 
     private long countOccupiedDevices(Set<String> scopedDevices) {
@@ -601,13 +579,6 @@ public class OpsWorkbenchQueryService {
     static boolean isDeployedDevice(DeviceInfo device) {
         return "DEPLOYED".equals(DeviceAssetService.normalizeLifecycle(
                 device == null ? null : device.getLifecycleStatus()));
-    }
-
-    private long countWaitingUploads(Set<String> scopedDevices) {
-        if (scopedDevices == null) {
-            return sessionRepository.countByState(SessionState.WAITING_UPLOAD);
-        }
-        return sessionRepository.countByDeviceIdInAndState(scopedDevices, SessionState.WAITING_UPLOAD);
     }
 
     private long countLowStock(Set<String> scopedDevices) {
@@ -679,11 +650,6 @@ public class OpsWorkbenchQueryService {
         return MEDIUM;
     }
 
-    private static String uploadSeverity(ShoppingSession session) {
-        return session.getUpdatedAt().isBefore(Instant.now().minus(30, ChronoUnit.MINUTES))
-                ? "HIGH" : MEDIUM;
-    }
-
     private static String offlineSeverity(DeviceInfo device) {
         Instant updated = device.getUpdatedAt();
         return updated != null && updated.isBefore(Instant.now().minus(2, ChronoUnit.HOURS))
@@ -715,19 +681,6 @@ public class OpsWorkbenchQueryService {
             return "未识别到商品，需人工审核";
         }
         return trimmed;
-    }
-
-    private static String uploadStatusLabel(String status) {
-        if (status == null || status.isBlank()) {
-            return "未上传";
-        }
-        return switch (status.toUpperCase()) {
-            case "LOCAL_QUEUED" -> "本地排队";
-            case "UPLOADING" -> "上传中";
-            case "UPLOADED" -> "已上传";
-            case CabinetConstants.ORDER_STATUS_FAILED -> "上传失败";
-            default -> status;
-        };
     }
 
     private static String replenishStatusLabel(String status) {

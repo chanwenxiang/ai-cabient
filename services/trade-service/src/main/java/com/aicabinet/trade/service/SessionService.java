@@ -321,22 +321,6 @@ public class SessionService {
         sessionSettleService.completeAsyncRecognition(sessionId, recognition);
     }
 
-    private void applyVideoMetadata(ShoppingSession session, String uploadStatus,
-                                    String videoClipsJson, String cameraFusionMode) {
-        if (uploadStatus != null && !uploadStatus.isBlank()) {
-            session.setUploadStatus(uploadStatus);
-        }
-        if (videoClipsJson != null && !videoClipsJson.isBlank()) {
-            session.setVideoClips(videoClipsJson);
-            if (cameraFusionMode == null || cameraFusionMode.isBlank()) {
-                session.setCameraFusionMode("MULTI");
-            }
-        }
-        if (cameraFusionMode != null && !cameraFusionMode.isBlank()) {
-            session.setCameraFusionMode(cameraFusionMode);
-        }
-    }
-
     /** 仅运营补货（Ops 页开门）跳过识别结算；消费者账号走正常结算。 */
     private boolean isRestockSession(ShoppingSession session) {
         return DeviceValidationService.isRestockSession(session);

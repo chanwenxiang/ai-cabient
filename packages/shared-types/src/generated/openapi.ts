@@ -13100,9 +13100,6 @@ export interface components {
             /** Format: date-time */
             closeTime?: string;
             orderId?: string;
-            videoUri?: string;
-            uploadStatus?: string;
-            cameraFusionMode?: string;
             failReason?: string;
             /** Format: date-time */
             createdAt?: string;
@@ -15138,8 +15135,6 @@ export interface components {
             /** Format: int64 */
             offlineDevices?: number;
             /** Format: int64 */
-            waitingUploads?: number;
-            /** Format: int64 */
             lowStockItems?: number;
             /** Format: int64 */
             pendingReplenishments?: number;
@@ -15184,8 +15179,6 @@ export interface components {
             disputeOverdue?: number;
             /** Format: int64 */
             disputeNearSla?: number;
-            /** Format: int64 */
-            sessionWaitingUpload?: number;
             /** Format: double */
             doorSuccessRate24h?: number;
             /** Format: double */
@@ -31430,7 +31423,6 @@ export interface operations {
                 from?: string;
                 to?: string;
                 q?: string;
-                uploadStatus?: string;
                 stuckOnly?: boolean;
                 stuckMinutes?: number;
             };

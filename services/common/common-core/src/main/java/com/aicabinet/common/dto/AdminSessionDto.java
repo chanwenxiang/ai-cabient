@@ -12,9 +12,6 @@ public record AdminSessionDto(
         Instant openTime,
         Instant closeTime,
         String orderId,
-        String videoUri,
-        String uploadStatus,
-        String cameraFusionMode,
         String failReason,
         Instant createdAt,
         Instant updatedAt,
@@ -33,79 +30,4 @@ public record AdminSessionDto(
         /** 关门→会话更新（识别/结算）时长（毫秒） */
         Long recognitionDurationMs,
         String deviceName
-) {
-    public AdminSessionDto(
-            String sessionId,
-            Long userId,
-            String deviceId,
-            SessionState state,
-            Instant openTime,
-            Instant closeTime,
-            String orderId,
-            String videoUri,
-            String uploadStatus,
-            String cameraFusionMode,
-                String failReason,
-            Instant createdAt,
-            Instant updatedAt,
-            String sessionKind,
-            Long replenishmentTaskId
-    ) {
-        this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, videoUri,
-                uploadStatus, cameraFusionMode, failReason, createdAt, updatedAt,
-                sessionKind, replenishmentTaskId, null, null, null, null, null, null, null);
-    }
-
-    public AdminSessionDto(
-            String sessionId,
-            Long userId,
-            String deviceId,
-            SessionState state,
-            Instant openTime,
-            Instant closeTime,
-            String orderId,
-            String videoUri,
-            String uploadStatus,
-            String cameraFusionMode,
-                String failReason,
-            Instant createdAt,
-            Instant updatedAt,
-            String sessionKind,
-            Long replenishmentTaskId,
-            String entryChannel,
-            String payChannel
-    ) {
-        this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, videoUri,
-                uploadStatus, cameraFusionMode, failReason, createdAt, updatedAt,
-                sessionKind, replenishmentTaskId, entryChannel, payChannel, null, null, null, null, null);
-    }
-
-    public AdminSessionDto(
-            String sessionId,
-            Long userId,
-            String deviceId,
-            SessionState state,
-            Instant openTime,
-            Instant closeTime,
-            String orderId,
-            String videoUri,
-            String uploadStatus,
-            String cameraFusionMode,
-                String failReason,
-            Instant createdAt,
-            Instant updatedAt,
-            String sessionKind,
-            Long replenishmentTaskId,
-            String entryChannel,
-            String payChannel,
-            Integer preauthCents,
-            String preauthStatus,
-            Long shoppingDurationMs,
-            Long recognitionDurationMs
-    ) {
-        this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, videoUri,
-                uploadStatus, cameraFusionMode, failReason, createdAt, updatedAt,
-                sessionKind, replenishmentTaskId, entryChannel, payChannel, preauthCents, preauthStatus,
-                shoppingDurationMs, recognitionDurationMs, null);
-    }
-}
+) {}

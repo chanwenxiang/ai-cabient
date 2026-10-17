@@ -276,13 +276,12 @@ public class AdminDashboardController {
             @RequestParam(name = "from", required = false) Instant from,
             @RequestParam(name = "to", required = false) Instant to,
             @RequestParam(name = "q", required = false) String q,
-            @RequestParam(name = "uploadStatus", required = false) String uploadStatus,
             @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
             @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
         return ApiResponse.ok(adminService.listSessions(
                 operatorId(request), new OpsSessionOrderQueryService.SessionListQuery(
                         page, size, deviceId, state, sessionId, userId, from, to, q,
-                        uploadStatus, stuckOnly, stuckMinutes)));
+                        stuckOnly, stuckMinutes)));
     }
 
     @RequiresPermissions("ops:session:export")

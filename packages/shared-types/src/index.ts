@@ -417,7 +417,6 @@ export interface OrderReadModel {
   items?: OrderLineDto[];
   balanceBeforeCents?: number;
   balanceAfterCents?: number;
-  videoUri?: string;
   payTime?: string;
 }
 
@@ -970,7 +969,6 @@ export interface OpsWorkbench {
   openDisputes?: number;
   overdueDisputes?: number;
   offlineDevices?: number;
-  waitingUploads?: number;
   lowStockItems?: number;
   pendingReplenishments?: number;
   staleSessions?: number;
@@ -1201,9 +1199,6 @@ export interface SessionDto {
   /** 关门时间（识别计时起点） */
   closeTime?: string;
   openTime?: string;
-  videoUri?: string;
-  uploadStatus?: string;
-  videoPreviewUrl?: string;
   sessionKind?: string;
   entryChannel?: string;
   payChannel?: string;
@@ -1235,8 +1230,6 @@ export interface OrderDetailDto {
   payTime?: string;
   /** 支付完成时间（与 payTime 同义，后端 OrderDto.paidAt） */
   paidAt?: string;
-  /** 柜机购物视频地址（可空） */
-  videoUri?: string;
   paymentOperationId?: string;
   payTradeNo?: string;
   balanceBeforeCents?: number;

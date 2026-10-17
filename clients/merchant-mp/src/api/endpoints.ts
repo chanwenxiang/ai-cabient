@@ -31,9 +31,6 @@ export const AuthEndpoints = {
 } as const;
 
 export const MerchantEndpoints = {
-  /** 订单购物视频（旁路 fetch / download，禁止页内裸拼） */
-  orderVideo: (orderId: string) =>
-    `${API_PREFIX}/merchant/orders/${encodeURIComponent(orderId)}/video`,
   /** CB-030：订单购物视频清单（含将邑台账预签名分片） */
   orderVideos: (orderId: string) =>
     `${API_PREFIX}/merchant/orders/${encodeURIComponent(orderId)}/videos`,

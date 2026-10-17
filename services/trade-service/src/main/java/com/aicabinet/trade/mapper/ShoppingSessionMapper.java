@@ -342,7 +342,6 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             java.time.Instant createdFrom,
             java.time.Instant createdTo,
             String keyword,
-            String uploadStatus,
             java.time.Instant updatedBefore) {}
 
     default Page<ShoppingSession> findByFiltersOrderByCreatedAtDesc(
@@ -396,9 +395,6 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         }
         if (criteria.createdTo() != null) {
             q.le(ShoppingSession::getCreatedAt, criteria.createdTo());
-        }
-        if (criteria.uploadStatus() != null && !criteria.uploadStatus().isBlank()) {
-            q.eq(ShoppingSession::getUploadStatus, criteria.uploadStatus().trim());
         }
         if (criteria.updatedBefore() != null) {
             q.le(ShoppingSession::getUpdatedAt, criteria.updatedBefore());

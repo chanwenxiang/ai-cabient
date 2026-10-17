@@ -302,7 +302,6 @@ interface OpsStats {
   deviceOnline?: number;
   revenueTodayCents?: number;
   sessionActive?: number;
-  sessionWaitingUpload?: number;
   lowStockSkuCount?: number;
   nearExpiryLotCount?: number;
 }
@@ -431,14 +430,7 @@ function filterZone(labels: string[]) {
 
 const workZones = computed(() => {
   const fund = filterZone(['超时待支付', '对账差异', '分账异常']);
-  const fulfill = filterZone([
-    '待审争议',
-    '异常中心',
-    '待上传',
-    '异常会话',
-    '补货任务',
-    '签收超时'
-  ]);
+  const fulfill = filterZone(['待审争议', '异常中心', '异常会话', '补货任务', '签收超时']);
   const device = filterZone(['停售货柜', '离线设备', '缺货柜/SKU', '临期批次']);
   const onboard: QuickLink[] = canAccessPath('/merchant-onboarding')
     ? [
@@ -464,7 +456,7 @@ const workZones = computed(() => {
     {
       key: 'fulfill',
       title: '履约异常',
-      hint: '争议 · 上传 · 补货 · 在途',
+      hint: '争议 · 异常会话 · 补货 · 在途',
       items: fulfill,
       // 异常中心 count 已含 openExceptionCount，勿再加一次（否则角标双计）
       total: fulfill.reduce((s, i) => s + i.count, 0),
@@ -499,11 +491,6 @@ function actionTargetPath(row: OpsActionItem) {
   switch (row.type) {
     case 'DISPUTE':
       return '/disputes';
-    case 'UPLOAD_STUCK':
-      // 录像上传队列页已随旧边缘链路（chzh8 + MinIO 会话录像）下线：将邑柜机的视频走
-      // OSS 直传 + jiangyi_order_video 台账，WAITING_UPLOAD 状态对其不可达，该告警实际
-      // 不再产生。若命中历史数据，落到「开门记录」按会话排查，不要再指向已删除的队列页。
-      return '/sessions';
     case 'SESSION_STALE':
       return '/sessions';
     case 'LOW_STOCK':
@@ -669,10 +656,6 @@ function goAction(row: OpsActionItem) {
   switch (row.type) {
     case 'DISPUTE':
       router.push({ path: '/disputes', query: { status: 'OPEN', ...q } });
-      return;
-    case 'UPLOAD_STUCK':
-      // 同 actionTargetPath：队列页已下线，改由「开门记录」按会话排查
-      router.push({ path: '/sessions', query: { stuck: '1', ...q } });
       return;
     case 'SESSION_STALE':
       // Do not force SHOPPING — stale scan covers WAITING_UPLOAD / RECOGNIZING / SETTLING.

@@ -5,23 +5,19 @@ import java.util.List;
 /**
  * 订单购物视频回放清单（CB-030）。
  *
- * <p>面向商户端回放：把「旧边缘链路（会话单文件录像）」与「将邑视频台账（订单多片）」
- * 两条来源收敛成一个清单，前端一次取回后自行播放。消费者端不开放（见台账 CB-030）。</p>
+ * <p>面向商户端回放：来源为将邑视频台账（订单多片），前端一次取回后自行播放。
+ * 消费者端不开放（见台账 CB-030）。</p>
  *
  * <ul>
- *   <li>{@code EDGE}：会话存在 {@code shopping_session.video_uri}，走既有字节流端点，
- *       {@code clips} 为空（保持旧链路零改动）；</li>
  *   <li>{@code JIANGYI}：命中将邑视频台账，{@code clips} 为该订单的可播放分片，
  *       {@code url} 为短时效预签名地址，可直接播放（桶私有，原始地址必然 403）；</li>
- *   <li>{@code NONE}：两条来源都没有可用视频。</li>
+ *   <li>{@code NONE}：无可用视频。</li>
  * </ul>
  */
 public record OrderVideoPlaylistDto(String source, List<Clip> clips) {
 
     /** 无来源标记。 */
     public static final String SOURCE_NONE = "NONE";
-    /** 旧边缘链路（会话单文件录像）。 */
-    public static final String SOURCE_EDGE = "EDGE";
     /** 将邑视频台账（订单多片）。 */
     public static final String SOURCE_JIANGYI = "JIANGYI";
 

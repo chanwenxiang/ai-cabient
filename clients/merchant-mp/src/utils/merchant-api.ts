@@ -28,10 +28,7 @@ import {
   mergeExceptionRowsById,
   OPEN_EXCEPTIONS_DEFAULT_MAX_PAGES
 } from '@/utils/exception-pages';
-import { merchantOrderVideoUrl } from '@/utils/order-video-url';
 import { AuthEndpoints, MerchantEndpoints } from '@/api/endpoints';
-
-export { merchantOrderVideoUrl } from '@/utils/order-video-url';
 
 /** 相对 MerchantEndpoints 路径 → 绝对 URL（上传/下载/导出）。 */
 function merchantAbsUrl(path: string): string {
@@ -775,8 +772,6 @@ export const merchantApi = {
     merchantAbsUrl(
       withQuery(MerchantEndpoints.analyticsSalesReportsExport, { dim, fromDate, toDate })
     ),
-  /** 订单购物视频绝对 URL（页内禁止再拼 API_BASE + path） */
-  orderVideoUrl: merchantOrderVideoUrl,
   replenishmentSuggestions: (deviceId: string) =>
     request<OpenApiReplenishmentSuggestDto[]>(MerchantEndpoints.replenishmentSuggestions(deviceId)),
   getTaxProfile: (merchantId: string) =>

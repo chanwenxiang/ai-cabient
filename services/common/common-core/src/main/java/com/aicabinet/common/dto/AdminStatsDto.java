@@ -13,7 +13,6 @@ public record AdminStatsDto(
         long disputeOpen,
         long disputeOverdue,
         long disputeNearSla,
-        long sessionWaitingUpload,
         double doorSuccessRate24h,
         double disputeRate24h,
         double recognitionAutoRate24h,

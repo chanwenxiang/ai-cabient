@@ -100,7 +100,7 @@ public class OpsSessionOrderQueryService {
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
                                                       String deviceId, SessionState state) {
         return listSessions(operatorId, new SessionListQuery(
-                page, size, deviceId, state, null, null, null, null, null, null, false, 30));
+                page, size, deviceId, state, null, null, null, null, null, false, 30));
     }
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, SessionListQuery query) {
@@ -117,7 +117,7 @@ public class OpsSessionOrderQueryService {
                 operatorId,
                 new SessionQueryCriteria(
                         query.deviceId(), query.state(), stuckStates, query.sessionId(), query.userId(),
-                        query.from(), query.to(), query.keyword(), blankToNull(query.uploadStatus()), updatedBefore),
+                        query.from(), query.to(), query.keyword(), updatedBefore),
                 pageable);
         return new PageResult<>(
                 result.getContent().stream().map(this::toSessionDto).toList(),
@@ -130,7 +130,7 @@ public class OpsSessionOrderQueryService {
     public record SessionListQuery(
             int page, int size, String deviceId, SessionState state,
             String sessionId, Long userId, Instant from, Instant to, String keyword,
-            String uploadStatus, boolean stuckOnly, int stuckMinutes) {}
+            boolean stuckOnly, int stuckMinutes) {}
 
     @Transactional(readOnly = true)
     public PageResult<OrderReadModel> listOrders(Long operatorId, int page, int size, String deviceId) {
@@ -351,10 +351,10 @@ public class OpsSessionOrderQueryService {
                 operatorId,
                 new SessionQueryCriteria(
                         query.deviceId(), query.state(), stuckStates, query.sessionId(), query.userId(),
-                        query.from(), query.to(), query.keyword(), null, updatedBefore),
+                        query.from(), query.to(), query.keyword(), updatedBefore),
                 pageable);
         StringBuilder sb = new StringBuilder(
-                "sessionId,userId,deviceId,state,sessionKind,entryChannel,orderId,uploadStatus,failReason,"
+                "sessionId,userId,deviceId,state,sessionKind,entryChannel,orderId,failReason,"
                         + "openTime,closeTime,createdAt,updatedAt\n");
         for (ShoppingSession s : page.getContent()) {
             sb.append(csv(s.getSessionId())).append(',')
@@ -364,7 +364,6 @@ public class OpsSessionOrderQueryService {
                     .append(csv(DeviceValidationService.sessionKind(s))).append(',')
                     .append(csv(s.getEntryChannel())).append(',')
                     .append(csv(s.getOrderId())).append(',')
-                    .append(csv(s.getUploadStatus())).append(',')
                     .append(csv(s.getFailReason())).append(',')
                     .append(csv(String.valueOf(s.getOpenTime()))).append(',')
                     .append(csv(String.valueOf(s.getCloseTime()))).append(',')
@@ -382,7 +381,7 @@ public class OpsSessionOrderQueryService {
     private record SessionQueryCriteria(
             String deviceId, SessionState state, Collection<SessionState> states,
             String sessionId, Long userId,
-            Instant from, Instant to, String keyword, String uploadStatus, Instant updatedBefore) {}
+            Instant from, Instant to, String keyword, Instant updatedBefore) {}
 
     private record OrderQueryCriteria(
             String deviceId, String status, Instant createdBefore, Instant createdFrom, Instant createdTo,
@@ -409,7 +408,6 @@ public class OpsSessionOrderQueryService {
                         criteria.from(),
                         criteria.to(),
                         blankToNull(criteria.keyword()),
-                        criteria.uploadStatus(),
                         criteria.updatedBefore()),
                 pageable);
     }
@@ -484,8 +482,7 @@ public class OpsSessionOrderQueryService {
         }
         return new AdminSessionDto(
                 s.getSessionId(), s.getUserId(), s.getDeviceId(), s.getState(),
-                s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getVideoUri(),
-                s.getUploadStatus(), s.getCameraFusionMode(),
+                s.getOpenTime(), s.getCloseTime(), s.getOrderId(),
                 s.getFailReason(),
                 s.getCreatedAt(), s.getUpdatedAt(),
                 DeviceValidationService.sessionKind(s),
