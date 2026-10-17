@@ -296,7 +296,11 @@ jobs:
           check services/device-service/$R/TEST-com.aicabinet.device.mqtt.MqttEventListenerDoorTest.xml 14 MqttEventListenerDoorTest
           check services/device-service/$R/TEST-com.aicabinet.device.service.DeviceCommandServiceTest.xml 2  DeviceCommandServiceTest
           check services/device-service/$R/TEST-com.aicabinet.device.service.DeviceCommandTrackerTest.xml 7  DeviceCommandTrackerTest
-          check edge/device-simulator/$R/TEST-com.aicabinet.simulator.SimulatorSupportTest.xml 23 SimulatorSupportTest
+          # 基线 23→13（2026-10-17，DC-27(b) 批 6-B `5c80a4c9`）：模拟器录像上传链
+          # （scheduleDeferredUpload/postAttachVideo/预签名上传/多摄 clips）整体删除，其用例随之撤除；
+          # 本地实跑 `mvn -o -B -pl edge/device-simulator -am test` 报告恰 13 个 <testcase>、
+          # 0 failure/error/skipped ⇒ 13 是新的真实下限，不是为掩盖跳过而下调。
+          check edge/device-simulator/$R/TEST-com.aicabinet.simulator.SimulatorSupportTest.xml 13 SimulatorSupportTest
 
       # jiangyi-gateway 防静默跳过（审计 A2，2026-10-16）：与上方同款判据——只看 <testcase>
       # 元素个数。用 find 动态扫源码而不是硬编码名单：新增测试类自动被覆盖。
