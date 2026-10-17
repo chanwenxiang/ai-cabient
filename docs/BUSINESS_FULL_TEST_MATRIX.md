@@ -126,8 +126,8 @@
 | 7 | 选品诊断 | `/sku-review` | `ops:sku-review:list` | `growth/SkuReviewView.vue` | 批量下架、批量保留、运行诊断、建议下架、保留、确认下架 | 打开「选品诊断」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 8 | 识别入驻 | `/sku-vision` | `ops:sku:list` | `skus/SkuVisionEnrollView.vue` | 导入模板、导入、商品管理、入驻配置、保存入驻、关闭 | 打开「识别入驻」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：`POST /sku-vision/enroll` 保存 `SKU-100056` DRAFT conf=0.55；Playwright「入驻配置」；截图 `l3-sku-vision*.png`） |
 | 9 | 识别映射 | `/vision-mappings` | `ops:vision:list` | `vision/VisionMappingView.vue` | 商品管理、新增映射、编辑、删除、取消、保存 | 打开「识别映射」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：YOLO 映射 CRUD `uat_l3_cls_*`→SKU-100056→DELETE code=0；Playwright「新增映射」弹窗；截图 `l3-vision*.png`） |
-| 10 | 录像上传 | `/upload-queue` | `ops:session:upload` | `upload/UploadQueueView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「录像上传」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 11 | 识别演示 | `/recognition-demo` | `ops:recognition-demo:view` | `vision/RecognitionDemoView.vue` | 识别映射、商品管理、清空 | 打开「识别演示」；列表或表单可用；关键写操作有中文反馈 | PASS（`VITE_ENABLE_TEST_TOOLS`+vite DEV：侧栏可见；上传 shelf-sample→识别 雪碧/`SKU-SODA-001` 75%；生产包无该路由仍门控） |
+| 10 | ~~录像上传~~ | `/upload-queue` | `ops:session:upload` | `upload/UploadQueueView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | **⛔ 已退役，勿再执行**：页面在 `c498c653` 删除、权限码 `ops:session:upload` 于 2026-10-17 随 `UPLOAD_STUCK` 扫描族全撤（V386 把 `ops_permission` 160 改 `RETIRED`，`fd583f18`）⇒ 侧栏无此项、该码不再签给任何人。原「打开录像上传；列表或表单可用」验收点作废 | ~~PASS（L1 Playwright 可达冒烟 2026-09-08）~~ 历史结果原样留痕，退役后不再复跑 |
+| 11 | ~~识别演示~~ | `/recognition-demo` | `ops:recognition-demo:view` | `vision/RecognitionDemoView.vue` | 识别映射、商品管理、清空 | **⛔ 已退役，勿再执行**：`vision/RecognitionDemoView.vue` 已在 `c498c653`（与「录像上传」同一支下线提交）删除 ⇒ 路由与侧栏项均不存在。原验收点（上传 shelf-sample→识别）依赖已退役的云端识别链，作废 | ~~PASS（`VITE_ENABLE_TEST_TOOLS`+vite DEV：侧栏可见；上传 shelf-sample→识别 雪碧/`SKU-SODA-001` 75%；生产包无该路由仍门控）~~ 历史结果原样留痕，退役后不再复跑 |
 
 ### 1.4 履约仓储
 
