@@ -106,6 +106,13 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
                 .filter(s -> s != null && !s.isBlank());
     }
 
+    /**
+     * 净额口径的已完成流水行（审计 F-10，2026-10-17）：清单必须与下面三个 switch 一致——
+     * 漏 {@code PREAUTH_CAPTURE} 会让开门预授权冲抵行查不出来，于是
+     * {@code OrderPaymentService#applyBalanceCharge} 的补扣净额与
+     * {@code UnpaidOrderService#markPaid} 的「已付护栏」对冲抵部分失明（按全额重复扣）。
+     * 由 {@code PaymentOperationNetCompletedFilterTest} 捕获本 wrapper 钉住。
+     */
     default java.util.List<PaymentOperation> findCompletedPaymentOpsByOrderId(String orderId) {
         if (orderId == null || orderId.isBlank()) {
             return java.util.List.of();
@@ -113,10 +120,11 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
         return selectList(Wrappers.<PaymentOperation>lambdaQuery()
                 .eq(PaymentOperation::getOrderId, orderId)
                 .eq(PaymentOperation::getStatus, "COMPLETED")
-                .in(PaymentOperation::getOperationType, "CHARGE", "ADJUST_CHARGE", "REFUND"));
+                .in(PaymentOperation::getOperationType,
+                        "CHARGE", "ADJUST_CHARGE", "REFUND", "PREAUTH_CAPTURE"));
     }
 
-    /** 已完成 CHARGE/ADJUST_CHARGE 减 REFUND 的净入账（分）。 */
+    /** 已完成 CHARGE/ADJUST_CHARGE/PREAUTH_CAPTURE 减 REFUND 的净入账（分）。 */
     default int netCompletedCents(String orderId) {
         int net = 0;
         for (PaymentOperation op : findCompletedPaymentOpsByOrderId(orderId)) {

@@ -13,6 +13,10 @@ import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +36,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 
+
 /**
  * 审计 P0-4 不变量测试：{@code applyBalanceCharge} 无论冲抵比例如何，落账必须满足
  * <pre>netCompletedCents(orderId) == order.getTotalAmountCents()</pre>
@@ -43,10 +48,18 @@ import static org.mockito.Mockito.lenient;
  * stub 按真实语义**同步写入 PREAUTH_CAPTURE 行**（orderId 挂单，F1-A），{@code
  * balanceLedgerService.change} 的 stub 同步写入 CHARGE 行——两个真实副作用都在测内可见，
  * 不变量才测得住（此前 {@code CHARGE:PREAUTH} 路径零覆盖正是因 mock 吞掉了副作用）。
+ * 净额一律经生产 {@code PaymentOperationMapper.netCompletedCents}（F-10 整改：测试不再手抄口径）。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class OrderPaymentChargeInvariantTest {
+
+    static {
+        // 真调生产 wrapper 需要列名解析 ⇒ 纯 Mockito 环境手动初始化 TableInfo 缓存
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                PaymentOperation.class);
+    }
 
     @Mock UserInfoMapper userInfoRepository;
     @Mock BalanceLedgerService balanceLedgerService;
@@ -94,7 +107,7 @@ class OrderPaymentChargeInvariantTest {
                 null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
 
-        // 内存表：幂等键读写 + 净额计算（与 PaymentOperationMapper.netCompletedCents 同口径）
+        // 内存表：幂等键读写
         lenient().when(paymentOperationRepository.findByIdempotencyKey(anyString()))
                 .thenAnswer(inv -> Optional.ofNullable(store.get(inv.getArgument(0, String.class))));
         lenient().when(paymentOperationRepository.save(any(PaymentOperation.class)))
@@ -109,8 +122,25 @@ class OrderPaymentChargeInvariantTest {
                     store.put(op.getIdempotencyKey(), op);
                     return op;
                 });
+        // F-10 整改（2026-10-17）：净额改**真调生产 default 方法**（原手抄 net() 属「测试自建真相」，
+        // 教训 lessons-learned 315——正因抄漏了 .in(...) 过滤，F-10 才没被这批用例测出）。
+        // selectList 按生产 wrapper 声明的参数值真过滤 ⇒ SQL 少一个类型，这里就查不到对应行。
+        lenient().when(paymentOperationRepository.selectList(any()))
+                .thenAnswer(inv -> {
+                    @SuppressWarnings("rawtypes")
+                    AbstractWrapper w = inv.getArgument(0);
+                    w.getSqlSegment();
+                    var params = w.getParamNameValuePairs().values();
+                    return store.values().stream()
+                            .filter(op -> params.contains(op.getOrderId())
+                                    && params.contains(op.getStatus())
+                                    && params.contains(op.getOperationType()))
+                            .toList();
+                });
+        lenient().when(paymentOperationRepository.findCompletedPaymentOpsByOrderId(anyString()))
+                .thenCallRealMethod();
         lenient().when(paymentOperationRepository.netCompletedCents(anyString()))
-                .thenAnswer(inv -> net(inv.getArgument(0, String.class)));
+                .thenCallRealMethod();
 
         // 锁与订单/会话/用户
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
@@ -163,20 +193,9 @@ class OrderPaymentChargeInvariantTest {
                 });
     }
 
-    /** 与 PaymentOperationMapper.netCompletedCents 同口径的净额计算。 */
-    private int net(String orderId) {
-        int net = 0;
-        for (PaymentOperation op : store.values()) {
-            if (!orderId.equals(op.getOrderId()) || !"COMPLETED".equals(op.getStatus())) {
-                continue;
-            }
-            net += switch (op.getOperationType()) {
-                case "CHARGE", "ADJUST_CHARGE", "PREAUTH_CAPTURE" -> op.getAmountCents();
-                case "REFUND" -> -op.getAmountCents();
-                default -> 0;
-            };
-        }
-        return net;
+    /** 净额走生产查询原语（SQL 过滤 + switch 口径都由 PaymentOperationMapper 决定）。 */
+    private int netProduced() {
+        return paymentOperationRepository.netCompletedCents(ORDER_ID);
     }
 
     private ShoppingSession session() {
@@ -204,7 +223,7 @@ class OrderPaymentChargeInvariantTest {
 
         service.chargeOrder(order());
 
-        assertEquals(TOTAL, net(ORDER_ID),
+        assertEquals(TOTAL, netProduced(),
                 "混合冲抵：PREAUTH_CAPTURE 60 + CHARGE 40 必须恰为应付 100（修前 140）");
     }
 
@@ -214,7 +233,7 @@ class OrderPaymentChargeInvariantTest {
 
         service.chargeOrder(order());
 
-        assertEquals(TOTAL, net(ORDER_ID),
+        assertEquals(TOTAL, netProduced(),
                 "全额冲抵：PREAUTH_CAPTURE 100 即实收（修前另记全额 CHARGE 凑成 200）");
     }
 
@@ -224,7 +243,7 @@ class OrderPaymentChargeInvariantTest {
 
         service.chargeOrder(order());
 
-        assertEquals(TOTAL, net(ORDER_ID),
+        assertEquals(TOTAL, netProduced(),
                 "无预授权：余额 CHARGE 100 单行（修前 CHARGE:PREAUTH 与余额行双记凑成 200）");
     }
 }
