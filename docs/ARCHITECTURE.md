@@ -48,8 +48,9 @@ D:\ai-generated code\ai-cabinet\       # 新系统（本项目）
 
 - **trade-service**：购物会话、订单、结算、运营 / 商户门户 API
 - **device-service**：设备指令、MQTT、状态、心跳
-- **jiangyi-gateway**：将邑柜接入网关（设备 token / WS / 上报归一化）
-- **edge/android-app**：柜机端 Android App
+- **jiangyi-gateway**：将邑柜接入网关（设备 token / WS / 上报归一化）——生产柜机即经此接入
+- **edge/device-simulator**：MQTT 边缘侧的联调 / CI 替身（旧模式 + `JiangyiDeviceSimulator`）
+- 自研柜体固件 `edge/android-app`（Android App）已于 2026-10-18 随「生产仅将邑套件」退役，可从 git history 恢复
 - **clients/admin-vue**：运营控制台（静态资源挂载于 trade-service）
 - **clients/consumer-mp**：消费者扫码、开门购物、订单与售后
 - **clients/merchant-mp**：商户经营、柜机、定价与待办

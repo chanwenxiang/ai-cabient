@@ -24,9 +24,5 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Android (large, build separately)
-edge/android-app/.gradle/
-edge/android-app/app/build/
-
 # Docs / local
 *.log

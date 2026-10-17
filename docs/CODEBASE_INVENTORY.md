@@ -159,8 +159,9 @@ types(~81 导出) / api(ApiClient) / dict(DICT+runtime) / rbac(matchPermission) 
 
 | 组件 | 要点 |
 |------|------|
-| android-app | OPEN_DOOR → 锁 + CameraX → MinIO → DOOR 事件；mockDebug/deviceDebug |
-| device-simulator | 全指令集 + 视频/重力/心跳；联调主替身 |
+| device-simulator | 全指令集联调主替身；旧 MQTT 模式 + `JiangyiDeviceSimulator` |
+
+> 自研柜体固件 `android-app` 已于 2026-10-18 退役（生产仅将邑套件），git history 可恢复。
 
 ---
 

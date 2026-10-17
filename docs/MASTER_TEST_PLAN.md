@@ -278,7 +278,7 @@ S-01 配置生效（新单按新比例，旧单不静默改写）/ S-02 支付�
 
 ### 3.6 设备 / 视觉 / 边缘专项（mock/sim 可测部分）
 
-> 真实硬件 🔒 项仍归 §10 上线门槛；本节是**开发阶段在 `door:sim` / `vision:sim` 下就能跑完**的系统性用例。后端真源：`services/device-service`（现有 5 个测试类：`DoorEventDeduplicatorTest` / `MqttEventListenerDoorTest` / `DeviceCommandServiceTest` / `DeviceCommandTrackerTest` / `TradeServiceClientRetryTest`）；识别：云端引擎已退役（`vision-service` 整目录删除，见 [JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md](JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md)），开发阶段由 `edge/device-simulator` 出结果、真源面是 trade 侧受理链 `VisionResultIngestService` + `scripts/devops/verify-vision-result-ingest.py`；端侧：`edge/device-simulator`（Go/Kotlin 模拟器，DV-03 依赖）与 `edge/android-app`（柜机安卓端，🔒 真柜联调阶段验收，开发阶段不阻塞）。
+> 真实硬件 🔒 项仍归 §10 上线门槛；本节是**开发阶段在 `door:sim` / `vision:sim` 下就能跑完**的系统性用例。后端真源：`services/device-service`（现有 5 个测试类：`DoorEventDeduplicatorTest` / `MqttEventListenerDoorTest` / `DeviceCommandServiceTest` / `DeviceCommandTrackerTest` / `TradeServiceClientRetryTest`）；识别：云端引擎已退役（`vision-service` 整目录删除，见 [JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md](JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md)），开发阶段由 `edge/device-simulator` 出结果、真源面是 trade 侧受理链 `VisionResultIngestService` + `scripts/devops/verify-vision-result-ingest.py`；端侧：`edge/device-simulator`（模拟器，DV-03 依赖）；自研柜机安卓端 `edge/android-app` 已退役（2026-10-18，生产仅将邑套件），真柜验收改由将邑柜经 jiangyi-gateway 联调。
 
 | ID | 项 | 验法 / 期望 | 现状 |
 |----|-----|------------|------|
