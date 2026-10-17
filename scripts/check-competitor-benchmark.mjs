@@ -118,6 +118,10 @@ const SUBJECT_ALIASES = [
   // 乐摇摇=售货机主板平台（appId+Key+设备唯一码登录）；酷点=设备激活授权码换签名密钥
   { re: /简单购|ainfinit/i, id: '简单购', kind: 'peer' },
   { re: /乐摇摇|leyaoyao/i, id: '乐摇摇', kind: 'peer' },
+  // CB-053/CB-055：渠道侧支付服务商（哆啦宝=自助设备支付服务商，与乐摇摇同档 ⇒ peer；
+  // 易宝支付=第三方支付通道 ⇒ official，与微信支付/支付宝/通联同档）
+  { re: /哆啦宝|duolabao/i, id: '哆啦宝', kind: 'peer' },
+  { re: /易宝|yeepay/i, id: '易宝支付', kind: 'official' },
   { re: /酷点|ikudot/i, id: '酷点网络', kind: 'official' },
   { re: /腾讯微卡|weixiao\.qq\.com/i, id: '腾讯微卡', kind: 'official' },
   // 支付/信用通道官方（official）
