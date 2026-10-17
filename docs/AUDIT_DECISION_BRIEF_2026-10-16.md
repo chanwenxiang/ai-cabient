@@ -289,3 +289,25 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 
 **竞品/官方口径**（详见 [CB-032](COMPETITOR_BENCHMARK.md) 的四条资金流路径与二清定性边界）：微信服务商「分账」= 从已支付交易中把部分资金划给接收方，冻结期与比例受服务商协议约束；支付宝直付通/收付通是另一条路（持牌方清分）。**恢复真收之前的前置仍是 CB-032 里那 6 问**（比例上限/提额真实性、行业受理、二级商户进件形态等），未拿到微信侧书面确认前不要把 `platform_rate_bps` 调回非 0——线上一开就是批量分账失败。
 
+## 15. `UPLOAD_STUCK` 异常扫描族 + `ops:session:upload` 权限码 · 拍板简报（2026-10-17，你点的下一项）
+
+一句话：**这条扫描在发布口径下永不触发**（它盯的 `WAITING_UPLOAD` 状态全仓已无写入者），但它的阈值旋钮还挂在后台「告警规则」页上可调、它的权限行还 `ACTIVE` 且指向一个已删除的页面路由。
+
+**实证现状（逐条可核）**
+- 扫描本体：[OpsExceptionScannerService.java:52-55](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/OpsExceptionScannerService.java#L52-L55) `scanUpdatedState(SessionState.WAITING_UPLOAD, 阈值, "UPLOAD_STUCK", "HIGH", "视频上传滞留")`。
+- **触发条件已不存在**：`WAITING_UPLOAD` 在 main 代码里只有**读**（busy 状态集合、过期扫描、标签），`setState(...WAITING_UPLOAD)` / `transition(...WAITING_UPLOAD)` **零命中**；共享 dev 库 `shopping_session` 按状态分组只有 `COMPLETED 6 / DISPUTED 4`，`ops_exception` 里 `exception_type='UPLOAD_STUCK'` **0 行**。⇒ 除非某个环境的历史库还留着旧行，这条扫描永远返回 0。
+- 阈值旋钮四处（删扫描就全成死旋钮，撞「no dead knobs」）：[SystemConfigService.java:181](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java#L181) 常量 + `:942` 种子默认 5、`OpsMonitoringProperties.uploadStuckMinutes` + [application.yml:263](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/resources/application.yml#L263) `OPS_UPLOAD_STUCK_MINUTES`、[ops/feature-flags.json:602](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/resources/ops/feature-flags.json#L602)、后台可调项 [AlertRuleView.vue:254,285](file:///D:/ai-generated%20code/ai-cabinet/clients/admin-vue/src/views/system/AlertRuleView.vue#L254)。
+- 标签七处：[SysDictBootstrap.java:205](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java#L205)（`exception_type`）与 `:328`（`merchant_alert_type`）；库里现存三行 `sys_dict_data`（`exception_type`/`merchant_alert_type`/`ops_alert_type` = `UPLOAD_STUCK`，由 V171:116、V298:11 落）；[shared-dict/src/index.ts:480,611,739](file:///D:/ai-generated%20code/ai-cabinet/packages/shared-dict/src/index.ts#L480)。
+- 渲染/过滤四处：[BigScreenView.vue:650,683](file:///D:/ai-generated%20code/ai-cabinet/clients/admin-vue/src/views/dashboard/BigScreenView.vue#L650)、merchant-mp [alerts.vue:251](file:///D:/ai-generated%20code/ai-cabinet/clients/merchant-mp/src/pages/alerts/alerts.vue#L251)、[todo-list.ts:211](file:///D:/ai-generated%20code/ai-cabinet/clients/merchant-mp/src/utils/todo-list.ts#L211)。
+- 权限码 `ops:session:upload`：`ops_permission` 行 **160「录像上传」C 级 `path=/upload-queue` status=ACTIVE**，而页面 `UploadQueueView.vue` 已在 `c498c653` 删除、[config/menu.ts](file:///D:/ai-generated%20code/ai-cabinet/clients/admin-vue/src/config/menu.ts) 也不再列它 ⇒ **侧栏不会渲染死链**（后台菜单是代码驱动，DB 行只管授权与「权限管理」列表）。它现在的唯一作用是**会话详情/订单查询的 OR 备用权限**：[AdminDashboardController.java:266](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/api/AdminDashboardController.java#L266)、[OpsSessionOrderQueryService.java:103](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/OpsSessionOrderQueryService.java#L103)、`DisputeListView.vue:369/380/985/1141`、`ExceptionListView.vue:330/888/1176`。**角色实况**：`admin`/`operator` 同时持有 `list`+`upload`，`viewer` 只有 `list` ⇒ 撤掉 OR 分支不会让任何现有角色失去访问。撤它也**不需要改历史迁移**（V14/V118/V126/V138/V144 原样留），只要一支新迁移。
+
+**四个选项**
+| 选项 | 做什么 | 代价 / 风险 |
+|---|---|---|
+| **A 全撤（我推荐）** | 删扫描分支 + 四处阈值旋钮 + 大屏两处 + 商户端两处 + `shared-dict` 三处标签 + `SysDictBootstrap` 两处种子；新迁移把 `ops_permission` 160 改 `status='RETIRED'`（`OpsPermissionMapper.xml:17,29` 一律 `p.status='ACTIVE'` 过滤 ⇒ 改状态即全域失效，`ops_role_permission` 与审计留痕不动）；后端两处 OR 与前端 6 处 `hasPerm` 收敛为只认 `ops:session:list` | **保留** `SessionState.WAITING_UPLOAD` 枚举与读侧（`SessionExpireService`/`DeviceValidationService`/三端标签）⇒ openapi 生成物不变、历史行仍可读可过期。需要重跑 admin 产物同源重建 |
+| B 只撤运营可见面 | 删大屏/商户端/字典标签，后端扫描与阈值留着 | 留下一个「永不触发但后台仍可调」的旋钮 + 真触发时无中文标签（列表显示原始码）——两头不讨好 |
+| C 全留 | 什么都不动 | 零风险零收益；代价是死旋钮 + 一条 `ACTIVE` 且指向已删路由的菜单权限行（权限管理页仍可授） |
+| D 连 `WAITING_UPLOAD` 枚举一起删 | A + 删枚举值与三端标签 | 会改 `openapi.ts` 生成物与三端状态标签；若任何环境历史库还有该状态行，反序列化直接失败 ⇒ 前置是先证明**所有**环境库零行。不建议现在做 |
+
+**要你定的三点**：① 选 A / B / C / D；② 若 A，权限行 160 是「改 `RETIRED` 留痕」（我推荐，`ops_role_permission` 与审计不动）还是硬删行；③ 若 A，`sys_dict_data` 那三行标签是删还是留（留 = 万一历史库有旧 `UPLOAD_STUCK` 告警仍能显示中文；删 = 口径更干净）。
+
