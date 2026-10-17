@@ -76,10 +76,7 @@ const CONTRACTS = [
  * 由设备模拟器风格录制产生（`mp4v` 合法）。豁免必须写清理由，否则会退化成「什么都放行」。
  */
 const EXEMPT = new Map([
-  [
-    'testdata/out.mp4',
-    '全仓零引用的历史遗留小样（3 KB）；不承担播放契约，如需可播请改走 CONTRACTS'
-  ],
+  ['testdata/out.mp4', '全仓零引用的历史遗留小样（3 KB）；不承担播放契约，如需可播请改走 CONTRACTS']
 ]);
 
 function fail(msg) {

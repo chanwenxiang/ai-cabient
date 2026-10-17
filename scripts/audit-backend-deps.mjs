@@ -274,7 +274,9 @@ else {
   console.log(`\nWrote target/osv-findings.json (${findings.length} packages)`);
 }
 
-console.log('\n=== pip-audit 段随 vision-service 退役删除（它是栈内唯一带 requirements 的 Python 服务；sms-webhook-mock 是 stdlib 单文件，无依赖可扫） ===');
+console.log(
+  '\n=== pip-audit 段随 vision-service 退役删除（它是栈内唯一带 requirements 的 Python 服务；sms-webhook-mock 是 stdlib 单文件，无依赖可扫） ==='
+);
 
 console.log('\nDone. Full NVD: set NVD_API_KEY then mvn -Powasp-depcheck -DskipTests verify');
 process.exit(hit > 0 ? 1 : 0);
