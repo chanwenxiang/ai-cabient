@@ -35,7 +35,7 @@
                     │   :8083       │     └──────┬──────┘
                     └───────────────┘             │
                            ▲                     ▼
-                    PostgreSQL              设备模拟器 / Android
+                    PostgreSQL              设备模拟器
                     Redis / MinIO
 ```
 
@@ -46,7 +46,7 @@
 3. trade-service
 4. device-service
 5. jiangyi-gateway（仅将邑柜联调时）
-6. 设备端（模拟器 **或** Android，二选一）
+6. 设备端（本仓桌面模拟器 `edge/device-simulator`）
 7. 微信小程序 / 运营后台
 
 ---
@@ -59,7 +59,6 @@
 | JDK | **17+** | 在 IDEA → Project Structure → SDK 中配置 |
 | Docker Desktop | 最新 | PostgreSQL、EMQX、MinIO 等 |
 | 微信开发者工具 | 最新 | 小程序调试 |
-| Android Studio | 可选 | 真机/模拟器端（替代桌面模拟器） |
 
 ### 在 IDEA 中打开项目
 
@@ -224,35 +223,11 @@ cd edge\device-simulator && mvn exec:java "-Dexec.args=CAB-001"
 
 ---
 
-## 五、设备端（二选一）
-
-> 本地联调默认用 **4.4 设备模拟器**；有真实柜体再用 Android。
-
-### 方案 A：桌面模拟器
+## 五、设备端（本地用桌面模拟器）
 
 见 **4.4**，IDEA 运行 `DeviceSimulator`，参数 `CAB-001`。
 
-### 方案 B：Android 工控端
-
-1. Android Studio 打开 `ai-cabinet/edge/android-app`
-2. 构建变体选 **mockDebug**（模拟器）或 **deviceDebug**（真机串口）
-3. 默认 `build.gradle.kts` 已配置 Android 模拟器访问本机：
-
-```kotlin
-buildConfigField("String", "MQTT_BROKER", "\"tcp://10.0.2.2:11883\"")
-buildConfigField("String", "TRADE_SERVICE_URL", "\"http://10.0.2.2:8080\"")
-buildConfigField("String", "MINIO_ENDPOINT", "\"http://10.0.2.2:9000\"")
-```
-
-真机部署改为电脑局域网 IP；也可在 App 界面修改 MQTT Broker 后重启 App。
-
-4. 安装到设备/模拟器并启动 App（前台服务自动连接 MQTT）
-5. **不要**与桌面模拟器同时运行（同一 `CAB-001` 会冲突）
-6. Mock 模式：App 可点 **「模拟用户关门」**，或约 5 秒自动关门
-
-> 默认 **mock** flavor，`useMockDriver=true`，无真实门锁也会完整走通开门→关门→上传流程。
-
-详见 [`edge/android-app/README.md`](../edge/android-app/README.md)。
+> 自研 Android 工控端 `edge/android-app` 已于 2026-10-18 退役：生产柜体走**将邑套件**（经 `jiangyi-gateway` 驱动开门/上报、端侧识别产生结算证据），本地联调用本仓 `edge/device-simulator`。原模块可从 git 历史恢复。
 
 ---
 
@@ -544,7 +519,7 @@ psql -h 127.0.0.1 -p 15433 -U aicabinet -d aicabinet
 ### 开门后会话一直 OPENING / SHOPPING
 
 - 确认 **device-service** 已启动
-- 确认 **设备模拟器或 Android** 已连接 MQTT（模拟器日志有 `listening on`）
+- 确认 **设备模拟器** 已连接 MQTT（模拟器日志有 `listening on`）
 - EMQX 是否运行：`docker compose ps emqx`
 
 ### 会话 FAILED
