@@ -8,6 +8,7 @@ import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.config.WeChatWebProperties;
 import com.aicabinet.trade.domain.SystemConfig;
+import com.aicabinet.trade.domain.SystemConfigHistory;
 import com.aicabinet.trade.mapper.SystemConfigHistoryMapper;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -138,5 +139,30 @@ class SystemConfigRecognitionModeTest {
 
         stubStored(SystemConfigService.SETTLEMENT_RECOGNITION_MODE, "VISION");
         assertFalse(service.usesGravityFusion());
+    }
+
+    /**
+     * DC-27(a) 收尾：本键属「不可静默修改」族——运营把审计开关显式写成 false，
+     * 改识别方式仍必须落版本历史 + 审计日志（曾发生过用它凑出结算绿的事故）。
+     */
+    @Test
+    void recognitionMode_forcedAuditEvenWhenAuditSwitchIsOff() {
+        stubStored(SystemConfigService.OPS_CONFIG_AUDIT_ENABLED, "false");
+
+        service.upsert(SystemConfigService.SETTLEMENT_RECOGNITION_MODE, "VISION", null, 9L);
+
+        verify(historyRepository).save(any(SystemConfigHistory.class));
+        verify(auditService).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    /** 对照组：开关关掉后普通键仍零留痕，证明上一条不是恒真断言。 */
+    @Test
+    void ordinaryKey_staysSilentWhenAuditSwitchIsOff() {
+        stubStored(SystemConfigService.OPS_CONFIG_AUDIT_ENABLED, "false");
+
+        service.upsert(SystemConfigService.CONSUMER_SERVICE_PHONE, "4000000000", null, 9L);
+
+        verify(historyRepository, never()).save(any(SystemConfigHistory.class));
+        verify(auditService, never()).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
     }
 }

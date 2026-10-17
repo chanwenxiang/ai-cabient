@@ -426,6 +426,21 @@ public class SystemConfigService {
             LINE_WITHDRAW_DAILY_LIMIT_CENTS, LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS,
             LINE_WITHDRAW_FEE_CENTS, LINE_WITHDRAW_FEE_BPS, LINE_WITHDRAW_FEE_CAP_CENTS);
 
+    /**
+     * 非资金键、但同样<b>无视审计开关强制留痕</b>的键（AU-134/DC-27 收尾）。
+     *
+     * <p>{@link #SETTLEMENT_RECOGNITION_MODE} 是「把已退役的重力/云识别链配活」的唯一旋钮，
+     * 本仓确实发生过用它凑出结算绿的事故，所以改它必须可追。它不进
+     * {@link #FUND_GUARDED_KEYS}：那族还附带「值必须是非负整数」的写侧校验，而本键是枚举串。
+     */
+    static final java.util.Set<String> ALWAYS_AUDITED_KEYS =
+            java.util.Set.of(SETTLEMENT_RECOGNITION_MODE);
+
+    /** 强制留痕判据：资金键族 + 非资金但不可静默修改的键。 */
+    private static boolean isForcedAuditKey(String key) {
+        return FUND_GUARDED_KEYS.contains(key) || ALWAYS_AUDITED_KEYS.contains(key);
+    }
+
     /** 资金键值校验：非负整数且不超 int（读取侧 getInt 的硬约束）。违规抛 400。 */
     private static void validateFundKeyValue(String key, String value) {
         long parsed;
@@ -748,7 +763,8 @@ public class SystemConfigService {
      * 配置写操作的留痕（F1 策略版本与审计）：受 {@link #OPS_CONFIG_AUDIT_ENABLED} 控制，
      * <b>缺行视为开启</b>（AU-048 默认改开）。
      *
-     * <p>{@link #FUND_GUARDED_KEYS} 键族<b>无视开关强制留痕</b>；其余键显式置 false 才零写入。
+     * <p>{@link #FUND_GUARDED_KEYS} 与 {@link #ALWAYS_AUDITED_KEYS} <b>无视开关强制留痕</b>；
+     * 其余键显式置 false 才零写入。
      * 留痕落两处：结构化的 {@code system_config_history}（版本）与
      * {@code admin_audit_log}（统一审计视图，运营台审计页按 target_type 可过滤）。
      *
@@ -758,7 +774,7 @@ public class SystemConfigService {
     private void recordChangeIfEnabled(String key, String oldValue, String newValue,
                                       Long operatorId, String action) {
         boolean on = self.getBoolean(OPS_CONFIG_AUDIT_ENABLED, true);
-        if (!on && !FUND_GUARDED_KEYS.contains(key)) {
+        if (!on && !isForcedAuditKey(key)) {
             return;
         }
         long op = operatorId == null ? SYSTEM_OPERATOR_ID : operatorId;

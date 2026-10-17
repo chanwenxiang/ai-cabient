@@ -173,6 +173,10 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | [CODE_FIX_CHECKLIST.md](CODE_FIX_CHECKLIST.md) | 改完自检 |
 | [TROUBLESHOOTING_GUIDE.md](TROUBLESHOOTING_GUIDE.md) | 联调排障 |
 | [SATELLITE_WAREHOUSE.md](SATELLITE_WAREHOUSE.md) | 分仓四步（人绑仓 → 采购进分仓 → 仓到柜 → 月结）；不要抄 easygo 批发、不要把要货当天入口 |
+| [AUDIT_LEDGER_2026-10-13.md](AUDIT_LEDGER_2026-10-13.md) | 上线前审计台账（AU-xxx 发现 / DC-xx 拍板项的**唯一编号源**）；有人说「AU-134 是什么」时来这查 |
+| [AUDIT_B1_EXTENDED_FUND_2026-10-16.md](AUDIT_B1_EXTENDED_FUND_2026-10-16.md) | 资金域扩展审 F-1…F-8（V355/V359/V361 三链，幂等根因）；动钱包/佣金/费用扣款前读 |
+| [AUDIT_DECISION_BRIEF_2026-10-16.md](AUDIT_DECISION_BRIEF_2026-10-16.md) | **待拍板简报**：DC-26/27/29 落地实证 + §12「还剩什么要你定」；想知道项目卡在哪些决策上读这一份 |
+| [AUDIT_F2_F3_F4_DECISION_BRIEF_2026-10-16.md](AUDIT_F2_F3_F4_DECISION_BRIEF_2026-10-16.md) | 费用口径（分/天、扣款即结清、账龄锁柜、按日期重跑）拍板与落地状态表 |
 
 ### 7.2 Cursor 规则（`.cursor/rules/`）
 

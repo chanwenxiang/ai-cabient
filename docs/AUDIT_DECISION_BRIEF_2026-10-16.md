@@ -114,9 +114,19 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 
 **已落**：DC-27(a) 后端闸门 —— [SystemConfigService.java](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java) 唯一写入口 `doUpsert` 加 `assertConfigValueAllowed`，`settlement.recognition_mode` 只收 `VISION`（大小写/首尾空格放行，其余 400 且**零残留**）。新测 `SystemConfigRecognitionModeTest` 6 例 + SystemConfig 全家族 36 例全绿。
 
-**同一闸门的两块未落，都不是「忘了」而是被前置卡住**：
-- 前端 `SystemConfigView.vue:345` 下拉里那个 `VISION_GRAVITY` 选项还在 —— 改 .vue 必须随 admin 产物重建一起提交，否则 CI 产物保真 job 红；peer 正在热编辑同树，不抢。
-- 「纳入 `FUND_GUARDED_KEYS`」该常量只在 origin/dev，**rebase 之后**才能加。
+**同一闸门的两块前置阻塞已在 2026-10-17 解除并落地 ⇒ DC-27(a) 完整闭环**：
+- 前端 [SystemConfigView.vue:342](file:///D:/ai-generated%20code/ai-cabinet/clients/admin-vue/src/views/system/SystemConfigView.vue#L342)
+  的 `VISION_GRAVITY` 选项**已删**（下拉只剩 `VISION`）。此前不能改是因为改 .vue 必须随 admin 产物
+  重建一起提交，否则 CI `admin-artifacts` 字节比对必红；本轮与产物同批提交。
+- 「强制留痕」没有把该键塞进 `FUND_GUARDED_KEYS`——那族同时附带「值必须是非负整数」的写侧校验
+  （`validateFundKeyValue`），枚举串塞进去会把合法的 `VISION` 判成 400。改为并列的
+  `ALWAYS_AUDITED_KEYS`，`recordChangeIfEnabled` 走 `isForcedAuditKey()`：审计开关被运营显式
+  写成 `false` 时，改这个键**仍然**落 `system_config_history` + `admin_audit_log`。
+  负向实证：把判据退回只认资金键族 ⇒ 恰好 `recognitionMode_forcedAuditEvenWhenAuditSwitchIsOff`
+  变红（对照组 `ordinaryKey_staysSilentWhenAuditSwitchIsOff` 保持绿，证明不是恒真断言）；
+  `SystemConfigRecognitionModeTest` 8 例 + `SystemConfigAuditHistoryTest` 9 例 + `SystemConfigFundKeyGuardTest` 8 例全绿。
+- 仍未做的只剩 **DC-27(b) 整体删除**（批 2 重力兜底 + 批 3 `vision-service/` 整目录 + 批 6 旧视频字段透传），
+  属排期决策，见 §12 第 1 项。
 
 **唯一待问（资金语义，我不替你定）**：V364 退款重试的环境闸门要哪种？
 - **(i) 种子行默认 FALSE**（运营台手动启）：生产上线必须记得开，忘了=退款失败无人闭环；
@@ -213,3 +223,19 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 | `line_manager` 两枚死列 | 0 | 0 |
 
 **结论**：「git 里那套迁移能从零起来」这条判据由实跑取得，非文档自报；DC-26（V375）与 DC-29（V376/V377）在两种 seed_env 下均拿到正向+负向实证。附带确认一个上线口径：**生产空库 `sku_catalog=0`**，商品全靠运营/商户登记，没有内嵌在售商品。
+
+## 12. 待拍板清单（2026-10-17 汇总，DC-26/27/29 之后的真实剩余面）
+
+> 本表只列**我不能替你定**的项。每条的「今天重验到的事实」都是本盘实测（grep/ls/迁移号），
+> 不是转述；能自行推进的（DC-27(a) 收尾、台账欠账补条目）已直接做完并从本表剔除。
+
+| # | 项 | 要你回答的那一句话 | 今天重验到的事实 | 我的建议 |
+|---|----|--------------------|------------------|----------|
+| 1 | **DC-27(b) 识别残留整体删除** | 排二期（上线后）还是上线前动工？ | 批 2 仍在：`SettlementRecognitionService` 的 `tryStagingGravitySettle` 三处调用（:133/:162/:189）+ `allowsGravityEvidenceSettle`（:202）；批 3 仍在：`git ls-files vision-service` = **51 个跟踪文件**、[docker-up.ps1:67](file:///D:/ai-generated%20code/ai-cabinet/docker-up.ps1#L67) 的 `$appServices` 仍列 `vision-service`、`infra/.env.example` 仍留 `VISION_API_KEY`(:21)/`RECOGNIZER_BACKEND=mock`(:151)；批 6 仍在：`videoUri`/`videoClipsJson` 在 common-core 多个 DTO 里透传 | 上线后二期。(a) 的两道闸（值域 + 强制留痕）已把「配活造绿」这条路封死，剩余是体积问题不是资损问题；删除面横跨 trade/device/infra/仓库根，且要按铁律 62 同步删钉住旧路径的用例 |
+| 2 | **B-1 扩展审剩余三条 🟡** | F-5 / F-6 / F-8 修不修？（F-1/F-2/F-3/F-4/F-7 已落） | F-5 扣费失败时日结通知仍显示 `fee 0.00 / net=收入全额`（[AUDIT_B1_EXTENDED_FUND_2026-10-16.md:77](file:///D:/ai-generated%20code/ai-cabinet/docs/AUDIT_B1_EXTENDED_FUND_2026-10-16.md#L77)）；F-6 逐设备整数除法分摊不闭合、无月末清算行；F-8 线长侧冲回取**实时** `bps/fixed`，费率上调后的窗内退款会按新费率多冲、员工侧多扣（代码注释自标「已接受的近似」） | F-5 值得修（纯展示口径，改文案不动资金）；F-6/F-8 是**口径选择**不是 bug：要不要「月末清算行」和「计提时冻结费率」都得改账务算法，建议二期与 DC-27(b) 一起排 |
+| 3 | **dev 自报 6 项里两条本轮未审** | 🔴3 押金月退超退、🔴4 三任务七处同步要不要补审？ | 复核表原文标「本轮未审」；🔴3 的能力已被 V376 关到默认关（`deposit-monthly-refund enabled=false`），🔴4 属调度注册面（`check-scheduled-task-seed` 只校种子齐，不校七处同步） | 🔴3 可判「不审了——默认关，开的人负责」；🔴4 建议补审，它是 `tryBegin` 那类「注册了但没接线」的静默失效面 |
+| 4 | **CB-044 押金登记 UI 参数位** | 「逐柜开安装费扣回」要不要给运营界面？ | 押金登记表单没有三件套参数位（`DeviceRentalView.vue` 零命中 `installFeeClawbackEnabled`），V376 把默认改成关之后，**目前唯一开法是直接调登记接口传 true** | 要么点单加三个输入位（小改，属参数面补全），要么明确「这条路径只给技术运维用」并写进上线手册；现在是「能力存在但运营看不见」 |
+| 5 | **Track C-admin 运行期实测** | 现在跑还是上线前跑？ | 驱动器 `clients/admin-vue/tests/audit-admin-flows-uat.mjs` 仍**只在** `origin/worktree-audit-pre-launch`，dev 上没有；F1 后半 + F2–F8 无运行留痕 | 先取回并登记进 `check-audit-gates-wiring`（不登记=跑无痕，等于没测），跑不跑你点头 |
+| 6 | **共享 Postgres 的 F1 写入痕迹** | 要不要我清？ | `ai-cabinet-postgres-1`(:15433) 是跨会话共享库，F1 那轮写入的将邑登记/会话痕迹未清点；本仓纪律是「动共享库前先问」 | 若 peer 还在用同库测 WIP，建议不清（清点=写操作），改成「上线前换新库」自然带走 |
+| 7 | **平台分账日后要不要真收** | 恢复抽成的前置实证由谁发起、什么时候？ | 本轮按你拍板把 `platform_rate_bps` 归 0（V382），且 0 抽成**不发微信分账**——因为 rate=0 时 `receiver.amount` 就是订单毛额，而 CB-032 记的「服务商默认单订单分账上限 30%」只有 ⚪ 旁证、提额真实性未确认 | 收之前必须先与微信侧书面确认比例上限/提额，或改走持牌分账（CB-032 结论③）；否则线上一开就是批量分账失败 |
+| 8 | **上线口径确认：V376 关掉的两条任务** | 试点上线当天要不要开？ | `refund-retry`、`deposit-monthly-refund` 种子行 `enabled=false` 且在两种 `seed_env` 下都实测为 false（§11）。退款重试关=退款失败无人闭环；月退关=押金永不自动退（回到人工，对齐老系统形态） | 押金月退**保持关**（这是拍板方向）；`refund-retry` 要不要开必须写进上线手册的勾选项，别靠记忆 |
