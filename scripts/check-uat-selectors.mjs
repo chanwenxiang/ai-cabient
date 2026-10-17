@@ -97,6 +97,11 @@ const SUITES = [
   {
     file: 'clients/admin-vue/tests/admin-alert-channel-uat.mjs',
     roots: ['clients/admin-vue/src', 'packages']
+  },
+  {
+    // Track C-admin 业务流程实测：驱动运营后台登录/订单/争议/异常等页（选择器口径同 admin-uat）
+    file: 'clients/admin-vue/tests/audit-admin-flows-uat.mjs',
+    roots: ['clients/admin-vue/src', 'packages']
   }
 ];
 
