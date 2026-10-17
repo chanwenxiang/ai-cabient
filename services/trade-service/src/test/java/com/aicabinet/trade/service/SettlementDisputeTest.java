@@ -58,7 +58,6 @@ class SettlementDisputeTest {
     @Mock DeviceValidationService deviceValidationService;
     @Mock MerchantSkuPricingService skuPricingService;
     @Mock UserValidationService userValidationService;
-    @Mock VideoArchiveService videoArchiveService;
     @Mock CouponService couponService;
     @Mock MemberService memberService;
     @Mock NotificationService notificationService;
@@ -84,7 +83,7 @@ class SettlementDisputeTest {
         SettlementOrderFinalizeService finalizeSvc = new SettlementOrderFinalizeService(
                 sessionRepository, orderRepository, orderLineRepository, deviceValidationService,
                 inventoryService, orderPaymentService, userValidationService, couponService, memberService,
-                revenueSplitService, notificationService, videoArchiveService, displaySnapshotHelper,
+                revenueSplitService, notificationService, displaySnapshotHelper,
                 orderSupport, org.mockito.Mockito.mock(OpsExceptionService.class),
                 org.mockito.Mockito.mock(RiskControlService.class));
         SettlementRecognitionService recognitionSvc = new SettlementRecognitionService(

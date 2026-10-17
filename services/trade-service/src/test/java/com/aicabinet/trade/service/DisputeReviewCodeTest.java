@@ -56,7 +56,6 @@ class DisputeReviewCodeTest {
     @Mock OpsExceptionService opsExceptionService;
     @Mock FileAttachmentService fileAttachmentService;
     @Mock SystemConfigService systemConfigService;
-    @Mock VideoArchiveService videoArchiveService;
     @Mock OrderPaymentService orderPaymentService;
     @Mock DistributedLockService distributedLockService;
     @Mock CabinetMetrics metrics;
@@ -70,7 +69,7 @@ class DisputeReviewCodeTest {
                 riskControlService,
                 permissionService, merchantScopeService, null, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
-                fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService,
+                fileAttachmentService, null, orderPaymentService, distributedLockService,
                 systemConfigService, null, null, metrics, null);
         lenient().when(systemConfigService.getInt(anyString(), anyInt())).thenAnswer(i -> i.getArgument(1));
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);

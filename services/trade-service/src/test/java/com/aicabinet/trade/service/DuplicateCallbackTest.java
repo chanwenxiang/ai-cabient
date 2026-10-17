@@ -52,7 +52,6 @@ class DuplicateCallbackTest {
     @Mock PermissionService permissionService;
     @Mock RiskControlService riskControlService;
     @Mock CabinetOrderMapper orderRepository;
-    @Mock VideoArchiveService videoArchiveService;
     @Mock OrderPaymentService orderPaymentService;
     @Mock DistributedLockService distributedLockService;
 
@@ -77,7 +76,7 @@ class DuplicateCallbackTest {
                 disputeRepository, null, repository, null, null, null, null, null, null,
                 riskControlService, permissionService, null, null, null, null,
                 new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService, null, null,
-                videoArchiveService, orderPaymentService, null, null, null, null, cabinetMetrics, null);
+                orderPaymentService, null, null, null, null, cabinetMetrics, null);
         org.springframework.test.util.ReflectionTestUtils.setField(disputeService, "self", disputeService);
     }
 

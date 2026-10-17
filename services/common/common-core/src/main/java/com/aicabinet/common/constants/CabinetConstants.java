@@ -15,11 +15,6 @@ public final class CabinetConstants {
     public static final String DEVICE_ONLINE = "ONLINE";
     public static final String DEVICE_OFFLINE = "OFFLINE";
 
-    public static final String UPLOAD_STATUS_UPLOADED = "UPLOADED";
-    public static final String UPLOAD_STATUS_LOCAL_QUEUED = "LOCAL_QUEUED";
-    public static final String UPLOAD_STATUS_UPLOADING = "UPLOADING";
-    public static final String UPLOAD_STATUS_FAILED = "UPLOAD_FAILED";
-
     public static final String COUPON_STATUS_UNUSED = "UNUSED";
     public static final String COUPON_STATUS_USED = "USED";
     public static final String COUPON_STATUS_EXPIRED = "EXPIRED";

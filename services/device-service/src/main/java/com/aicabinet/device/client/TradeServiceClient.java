@@ -4,7 +4,6 @@ import com.aicabinet.common.constants.InternalApiConstants;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.SessionDto;
-import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.security.InternalApiProperties;
 import org.slf4j.Logger;

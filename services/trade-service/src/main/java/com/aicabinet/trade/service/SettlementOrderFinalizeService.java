@@ -39,7 +39,6 @@ public class SettlementOrderFinalizeService {
     private final MemberService memberService;
     private final RevenueSplitService revenueSplitService;
     private final NotificationService notificationService;
-    private final VideoArchiveService videoArchiveService;
     private final DisplaySnapshotHelper displaySnapshotHelper;
     private final OpsExceptionService opsExceptionService;
     /** 记欠款风控事件（让逃单在运营台可见）。 */
@@ -57,7 +56,6 @@ public class SettlementOrderFinalizeService {
                                           MemberService memberService,
                                           RevenueSplitService revenueSplitService,
                                           NotificationService notificationService,
-                                          VideoArchiveService videoArchiveService,
                                           DisplaySnapshotHelper displaySnapshotHelper,
                                           SettlementOrderSupport orderSupport,
                                           OpsExceptionService opsExceptionService,
@@ -73,7 +71,6 @@ public class SettlementOrderFinalizeService {
         this.memberService = memberService;
         this.revenueSplitService = revenueSplitService;
         this.notificationService = notificationService;
-        this.videoArchiveService = videoArchiveService;
         this.displaySnapshotHelper = displaySnapshotHelper;
         this.orderSupport = orderSupport;
         this.opsExceptionService = opsExceptionService;
@@ -154,7 +151,6 @@ public class SettlementOrderFinalizeService {
         } catch (Exception e) {
             log.warn("order paid notification failed order={}", order.getOrderId(), e);
         }
-        videoArchiveService.archiveAfterSettlement(session);
         log.info("settled session={} order={} amount={} couponDiscount={} channel={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
                 order.getCouponDiscountCents(), order.getPayChannel());
@@ -185,7 +181,6 @@ public class SettlementOrderFinalizeService {
     private OrderReadModel finishUnpaidOrder(ShoppingSession session, CabinetOrder order) {
         session.setOrderId(order.getOrderId());
         sessionRepository.save(session);
-        videoArchiveService.archiveAfterSettlement(session);
         log.info("unpaid order created session={} order={} amount={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
         return orderSupport.toDto(order);
@@ -216,7 +211,6 @@ public class SettlementOrderFinalizeService {
                     order.getOrderId(), "CHARGE_FAILED", order.getTotalAmountCents());
             session.setOrderId(order.getOrderId());
             sessionRepository.save(session);
-            videoArchiveService.archiveAfterSettlement(session);
             log.info("unpaid order after charge fail session={} order={} amount={}",
                     session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
             return false;
@@ -233,7 +227,6 @@ public class SettlementOrderFinalizeService {
                 order.getOrderId(), "CHARGE_UNCONFIRMED", order.getTotalAmountCents());
         session.setOrderId(order.getOrderId());
         sessionRepository.save(session);
-        videoArchiveService.archiveAfterSettlement(session);
         log.info("unpaid order after charge fail session={} order={} amount={} reason={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(), reason);
         return false;

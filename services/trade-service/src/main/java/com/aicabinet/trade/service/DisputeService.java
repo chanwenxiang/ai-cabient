@@ -102,7 +102,6 @@ public class DisputeService {
     private final OpsExceptionService opsExceptionService;
     private final FileAttachmentService fileAttachmentService;
     private final RefundPolicyService refundPolicyService;
-    private final VideoArchiveService videoArchiveService;
     private final OrderPaymentService orderPaymentService;
     private final DistributedLockService distributedLockService;
     private final SessionService sessionService;
@@ -129,7 +128,6 @@ public class DisputeService {
                           @Lazy OpsExceptionService opsExceptionService,
                           FileAttachmentService fileAttachmentService,
                           RefundPolicyService refundPolicyService,
-                          VideoArchiveService videoArchiveService,
                           OrderPaymentService orderPaymentService,
                           DistributedLockService distributedLockService,
                           SystemConfigService systemConfigService,
@@ -157,7 +155,6 @@ public class DisputeService {
         this.opsExceptionService = opsExceptionService;
         this.fileAttachmentService = fileAttachmentService;
         this.refundPolicyService = refundPolicyService;
-        this.videoArchiveService = videoArchiveService;
         this.orderPaymentService = orderPaymentService;
         this.distributedLockService = distributedLockService;
         this.systemConfigService = systemConfigService;
@@ -185,8 +182,6 @@ public class DisputeService {
                 recognition != null ? reviewCodeFor(recognition, reason) : "TIMEOUT",
                 toJson(recognition != null && recognition.detectedClasses() != null
                         ? recognition.detectedClasses() : List.of())));
-        // 争议/回查会话立即归档录像副本（原始录像会在保留期后过期）
-        videoArchiveService.archiveSession(session);
         return dto;
     }
 
@@ -238,8 +233,6 @@ public class DisputeService {
         DisputeTicketDto dto = saveOpenTicket(new OpenTicketDraft(
                 userId, session.getSessionId(), request.reason().trim(), "[]",
                 normalizeCategory(request.category()), normalizePriority(request.priority()), null, null));
-        // 用户事后申诉：在原始录像仍保留期间立即归档，避免过期后无法回放
-        videoArchiveService.archiveSession(session);
         fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
         return toDto(disputeRepository.findById(dto.ticketId()).orElseThrow());
     }

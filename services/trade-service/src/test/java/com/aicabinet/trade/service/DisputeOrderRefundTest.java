@@ -67,7 +67,6 @@ class DisputeOrderRefundTest {
     @Mock UserInfoMapper userInfoRepository;
     @Mock OpsExceptionService opsExceptionService;
     @Mock FileAttachmentService fileAttachmentService;
-    @Mock VideoArchiveService videoArchiveService;
     @Mock OrderPaymentService orderPaymentService;
     @Mock DistributedLockService distributedLockService;
     @Mock SessionService sessionService;
@@ -88,7 +87,7 @@ class DisputeOrderRefundTest {
                 riskControlService,
                 permissionService, merchantScopeService, merchantFeaturePackService, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
-                fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService, null, null,
+                fileAttachmentService, null, orderPaymentService, distributedLockService, null, null,
                 sessionService, metrics, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
