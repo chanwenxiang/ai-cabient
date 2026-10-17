@@ -1502,6 +1502,12 @@
   2. **与 CB-034 的矛盾已回写**：本条 10-14 的拍板（「按月自动退还 + 期满奖励」对齐老系统）与 CB-034 结论 1（**不采纳**按月自动返还）互相冲突，台账挂了两天没人管；已在 CB-034 结论 1 补注说明「10-14 反转、10-16 收回」的完整往返，两条现在指向同一现行口径。
   3. **默认已关（V376）**：`deposit-monthly-refund` 任务种子行 `enabled=FALSE`（靠运营台手动开），`install_fee_clawback_enabled` 默认 `FALSE` ⇒ **「已退完未满 5 年倒扣 100」这条最重的分支现在默认永不触发**，且其前置依赖（月退链跑完）默认也不跑。验收/答疑一律按「能力保留、默认关、需人工开启」口径，不得按「10-14 拍板即生效」口径。相关拍板记录见 `docs/AUDIT_DECISION_BRIEF_2026-10-16.md` §8。
 
+- **⚠️ 补记（2026-10-17，用户拍板「这个费用默认为 0…做成按照柜子或者商家配置的」+「押金 这个前后得一致吧」）**：本条结论 1 的「复刻老三件套」**只剩能力层面成立，默认口径不再照抄老系统**。
+  1. **默认值反转（V383）**：`device_rental_deposit.install_fee_deduct_cents` 列默认由 10000 分（100 元）改为 **0**（`ALTER COLUMN … SET DEFAULT 0` + `DO $install_fee_zero_default$` fail-loud 断言），Java 侧常量同步 `DeviceRentalService.DEFAULT_INSTALL_FEE_DEDUCT_CENTS = 0L` ⇒ **「不登记就不扣」**，与项目「0/NULL=不收」铁律一致；老系统的全局硬编码 100 元只在「运营显式填 100」时才复现。共享库回滚式干跑实证（`BEGIN; … ROLLBACK;`）确认 `column_default = 0`。
+  2. **粒度=柜级登记参数**（三选一里用户选「默认 0 + 柜级登记参数（推荐）」）：登记弹窗新增 **撤机安装费（元）/ 合同年数 / 安装费扣回开关** 三项、列表新增两列展示；**未**新增 `device_info` 或 `merchant` 级列——`device_rental_deposit` 本就每柜一行，柜级参数已能表达「按柜子配」，商家级默认留作后续需要时再加（避免两处真值来源）。
+  3. **「前后一致」落实到文案**：结算确认串按 `charge_mode` 分支明说——ONLINE：「押金余额 X，扣/不收撤机安装费 Y，实退 Z 退入商户余额」；OFFLINE：「线下收缴押金：台账记全额退还 X，系统不动钱——须确认已线下退还（撤机安装费线下另收）」。列表表头/空态去掉「默认扣 100」暗示。回归钉死：`DeviceRentalServiceTest.settle_defaultZeroFee_returnsBalanceInFull`（不配置即全额返还）。
+  4. **仍未拍板（本次没动，别当成已修）**：`DeviceRentalService.java:165` 把 `chargeMode` 写死 `"ONLINE"` ⇒ **真·线下现金收缴目前也会走「登记即扣商户钱包」**，与本条结论 1 的 OFFLINE 收据化语义不符；收取方式只能事后改行或人工退。落点见拍板简报待拍板项。
+
 ### CB-045 【新】券订单退款口径：行业两模式并存——商家券「退款券不退、只退实付」vs 政府消费券「全额退返券、部分退不返」；新系统现状=退款一律返券，存在薅券回补风险
 
 > 触发：2026-10-15 B8 拍板前取证。老规则「用券单禁自动退」（dvm 弹簧柜 NOT_FALL 场景，防券+钱双给）；新系统无 NOT_FALL 场景，退款路径已有券处理（CouponService.recalcOrRestoreAfterPartialRefund：部分退剩余不满足门槛→**券恢复 UNUSED+预算释放**，满足→重算抵扣；全额退同理恢复券）。
@@ -1785,4 +1791,45 @@
   4. **采纳（保留）外部渠道进销存的人工上传形态**（V347）：大黄鹅/嗨便利/健怡/民盛/乐摇摇等渠道**没有公开 API 可依赖**（本轮检索无任何一家给出进销存接口文档），人工上传 + 模板列映射 + 批次留痕 + 确认后聚合是唯一可落地形态；这与 CB-016/CB-017 的结论一致，本条只补「形态」的正当性来源。
   5. **设计判断**：mock 账单通道（`RECON_MOCK_ENABLED`）仅非生产可用、生产启动即拒绝——该约束是我方自己的护栏，渠道文档里没有对应物，改动须回写本条。
   6. **勘误回写**：`docs/AUDIT_DECISION_BRIEF_2026-10-16.md` §6 表 V347 行原写「渠道对账导入…同行是 API 自动下载」「三通道 `isReady()` 恒 false 拉不到流水」把**进销存导入**与**出款通道**混为一谈，已在该行补注更正。
+
+### CB-056 【新】回溯类金额口径：冲回/回退一律以「已入账行」为基数（费率不追溯），对外通知金额取账户实际发生额——禁止用当期配置重算历史
+
+> 触发：2026-10-17 用户对 B-1 扩展审 **F-8**（线长佣金冲回读**实时**档案费率）与 **F-5**（日结通知费用栏用**重算值**而非钱包实扣）拍板「你看竞品和老代码看修不修…能推进的按照你的推荐」⇒ 两条均判「修」并已落码，本条存证判定依据。
+> 用户顺带问的「F-5 扣的是流量费吗？老系统好像可以为负数」当场核清：日结通知扣的**不是**单项流量费，而是「租金月额 ÷ 当月天数 + 流量费（分/天）」合计日费（V380 口径，`chargeDailyPeriodFees:341-374`）；余额不足**直减为负**＝欠费挂账，与老系统 L7 无下限同款（`debitIfAbsentAllowNegative`，用户 2026-10-16 拍板 F-2/F-3 时已确认）。
+> 现状取证（改前代码）：F-8 原式 `冲回 = 当前 line_manager.commission_rate_bps × GMV 减少额 + 固定额 × 减少件数` ⇒ 档案改过费率的线长，冲回额与当初入账额脱钩，**可能超扣**；staff 侧早就是按行快照比例。F-5 原式把 `chargeDailyPeriodFees` 的重算返回值直接当通知费用，且幂等跳过时仍报全额 ⇒ 同一天费用在「收入商户循环 + 全量循环」里**数两遍**；扣款成功但随后写台账抛异常时通知显示 `0.00`（钱真被扣了）。
+
+- **竞品做法 / 官方口径**：
+  - **微信官方**（⭕ 云调用「分账回退」接口文档逐字，2026-10-17 检索）：「回退以原分账请求为依据，可以对分给分账接收方的金额进行多次回退，只要满足**累计回退不超过该请求中分给接收方的金额**」「回退金额…单位为分…**不能超过原始分账单分出给该接收方的金额**」⇒ 回退的**基数与上限都是原单已发生额**，按当期规则多回退会被系统直接拒绝。
+  - **微信支付**（⭕ 服务商文档「分账·业务示例代码」）：「若已分账的订单需要退款，对于商户类型的分账接收方，平台可发起分账回退，将**已分账**资金回退回分账方账户」——对象只限定在「已经分出去的钱」。
+  - **微信官方**（⭕ 视频号机构分成模式规则页，逐字示例）：分成比例 12% 改成 0% 且对方同意后，「针对合作用户于 6 月 1 日-6 月 30 日期间获得的直播打赏收入，腾讯将按照你的分成比例为 **12%** 向你结算，合作用户自 7 月 1 日起获得的直播打赏收入，腾讯将不再结算给你」⇒ **比例变更只对变更后的收益期间生效，历史期间按当时确定的比例结算**（官方给出的不追溯样例）。
+  - **旧系统 easygo**（⭕ 源码亲验，2026-10-17 逐行）：`mis-server/mis-quartz/.../RyTask.java:151-187` 每日生成账单行时读**当时**的 `EgoOptCommissionMachineLink.commissionRatio` 算出分成并**把金额写进日行** `commissionDaily`（按销售额 `amount*ratio/10000`、按销量 `quantity*ratio`）；`:192-227`（月结）与 `:232-271`（T+10 日结）只做 `sumCommissionDataByDate` **汇总已生成的日行**，合计写进 `ego_opt_commission.commissionAmount`（注释「系统结算」），提现按该行推进 ⇒ 老系统「比例只在生成时点用一次，**入账之后以行为准**，改配置绝不回算历史行」；同时老系统**完全没有**佣金冲回（CB-040 已判定为缺陷，本条不翻案）。
+  - **友宝 UBOX**（🟡 新浪财经引其招股书，CB-034 复引）：点位合伙人「通常可获得**交易商品总额**介乎 20% 至 30% 的分成（扣除成本及开支后）」——分成基数是**已发生的成交额**、比例属点位合同层。
+  - **丰e足食**（🟡 中国新闻周刊/凤凰引丰宜科技招股书，CB-037 复引）：分场景/分点位定价 + 溢价点位给渠道方最高 30% 流水分成，并明示「对零售商品采用**动态定价**，根据需求水平、库存状况…适时调整」——调整的是**后续**售价与分成，公开材料未见「改价/改比例后回算历史成交」。
+  - **阿里云**（🟡 跨行业主体，IoT LinkBusiness「配置分润规则」开发指南）：「分润规则一旦设置或者修改完成后将立即生效。例如，商家在 17 号 23:00 创建了分润比例…则**在 17 号 23:00 之后创建的订单**都将按照设置好的分润比例执行…18 号 09:00 修改了分润比例…则 18 号 09:00 **之后创建的订单**都将按照修改后的分润比例执行」⇒ 生效锚点是**订单创建时点**，已成交订单不回改。同家账单文档另给出口径「详细费用最终以 CDN **账单**为准」「应付金额：指参与了各种优惠…之后，用户**实际需要支付的金额**」⇒ 对外金额取**账务实际发生额**，预估/重算只作参考。
+  - **抖音精选联盟**（🟡 官方规则「推广费及服务费结算」；媒体类域名不计入主体）：「售后期内的订单…发生退款时，推广费或团长服务费不再进行结算，**已经结算的**将从账户预留金中扣回…超过售后期的订单发生退款时…**已经结算的部分不再追回**」⇒ 冲回基数=「已经结算的」金额，且冲回有窗口、出窗不追溯。
+  - **星图 / Ping++**（🟡 官方帮助与文档，域名不计入主体）：星图「在新比例未生效前（达人未同意前），若达人接单，任务将按照**达人接单时生效的分账比例**向机构&达人进行结算」；Ping++「清分完成后，会在分润发起方所在的应用生成应付明细（**分润对象**）」「退款时，支持传入退分润数据，将分润金额退还」⇒ 先有明细行、退/冲都按行。
+- **对照主体**（6 家不同主体，开门柜直接同行 3 家）：
+
+  旧系统easygo ｜ 友宝UBOX ｜ 丰e足食 ｜ 微信官方 ｜ 微信支付 ｜ 阿里云
+- **证据**：
+  - <https://developers.weixin.qq.com/minigame/dev/wxcloudrun/src/development/pay/account/refundshare.html> （⭕ 微信官方 · 分账回退：回退以原分账请求为依据、累计不超过原分给该接收方的金额；2026-10-17）
+  - <https://pay.wechatpay.cn/doc/v3/partner/4015870957> （⭕ 微信支付服务商 · 分账业务示例：已分账订单退款前先回退「已分账资金」；2026-10-17）
+  - <https://m.weixin.qq.com/cgi-bin/readtemplate?t=finder_mcn_commission_rule_org> （⭕ 微信官方 · 视频号机构分成规则：比例改 0% 后当月仍按 12% 结算、次月起停止；2026-10-17）
+  - <https://help.aliyun.com/document_detail/73877.html> （🟡 阿里云 · 「详细费用最终以 CDN 账单为准」；2026-10-17）
+  - <https://helpcdn.aliyun.com/document_detail/2859346.html> （🟡 阿里云 · 应付金额=用户实际需要支付的金额；2026-10-17）
+  - <https://g.alicdn.com/linkbusiness-fe/iotx-linkbusiness-common/1.0.5/sitedocs/iqt4z9.html> （🟡 阿里云 IoT LinkBusiness · 分润规则修改只对其后创建的订单生效；2026-10-17）
+  - <https://school.jinritemai.com/doudian/web/articlev0/112620> （🟡 抖音精选联盟 · 已结算金额才扣回、超售后期不追回；2026-10-17）
+  - <https://www.xingtu.cn/help-center/mcn/145269> （🟡 星图 · 按接单时生效的分账比例结算；2026-10-17）
+  - <https://www.pingxx.com/docs/overview/platform/royalties/royalty.html> （🟡 Ping++ · 清分生成分润对象明细行，退款按行退还；2026-10-17）
+  - <https://finance.sina.com.cn/chanjing/gsnews/2022-06-09/doc-imizmscu5937314.shtml> （🟡 新浪财经引友宝招股书：点位合伙人按交易商品总额 20%–30% 分成；2026-10-17 复引）
+  - <https://finance.ifeng.com/c/8u4EL9EWAU3> （🟡 凤凰引丰宜科技招股书：动态定价「适时调整」；CB-037 复引）
+  - 老 `d:/ideaCode/easygo` `mis-server/mis-quartz/src/main/java/com/easygo/mis/quartz/task/RyTask.java:151-187,192-227,232-271`、`ego-automat-domain/.../OptRTMachineBillDaily.java:51-53`（`commissionDaily` 行内金额）、`.../commission/domain/model/Commission.java`（`ego_opt_commission.commissionAmount`）（⭕ 源码亲验）
+  - 本仓 `CommissionClawbackService.java:120-143`（线长行改后口径）、`:200-210`（staff 侧原已按行）、`MerchantDailyIncomeNotifyScheduler.java:59,106-130,172,367-374`、`MerchantWalletService.java:196`（⭕ 源码）
+- **取证日期**：2026-10-17
+- **我们的结论**：
+  1. **采纳并落码 F-8**：线长佣金冲回基数改为**该行已入账佣金快照**——`冲回 = 已入账 commissionCents × 该日 GMV 减少额 / 该行 GMV 基数`（`CommissionClawbackService:135-143`），不再读 `line_manager` 当前费率与固定额。数学上冲回额 ≤ 已入账额（只少扣不超扣），与微信「累计回退不超过原分给该接收方的金额」、星图「按接单时生效比例」、阿里云「只对之后创建的订单生效」同向；`gmvBase<=0`（V361 前存量行无快照）与档案已删除两种情况**保守不冲**，不为「补齐」而新造扣钱路径。用例：`CommissionClawbackServiceTest.managerRowClawsBackByPostedCommissionSnapshot`（档案费率故意设 800bps 也不得参与计算）、`_ClawbackCappedByPostedCommission`、`_WithoutGmvBaseIsNotClawedBack`、`deletedManagerRowIsNotClawedBack`。
+  2. **采纳并落码 F-5**：通知费用栏取**钱包实扣流水**（`MerchantWalletService.debitedCentsByRef:196`，refType `SETTLEMENT_FEE` + refId=费用日期，与扣款同一把钥匙），`chargeDailyPeriodFees` 返回值语义收紧为「**本次**实扣」（幂等跳过报 0，`MerchantDailyIncomeNotifyScheduler:367-374`）——消除「收入循环 + 全量循环」把同一天费用数两遍；扣费失败数经 `NotifyOutcome.feeChargeFailed` 冒泡进定时任务执行记录（`:106-130`），商户看到 `0.00` 时运营台同时知道那是**漏扣**而不是免费。依据：阿里云账单口径「实际价格以…实际账单为准」「应付金额=用户实际需要支付的金额」⇒ 对外金额只能取账务实际发生额。用例：`MerchantDailyIncomeNotifySchedulerTest.notifyShowsWalletDebitedAmountNotRecomputedFee`（名下柜机按当前配置重算应扣 100 分、钱包流水实扣 250 分 ⇒ 通知 fee 必须显示 2.50）、`_feeChargeFailureIsCountedAndFeeShowsActualZero`、`_alreadyDebitedDayReportsZeroNewChargeButLedgerRowStillWritten`。`_feeChargeFailureIsCountedAndFeeShowsActualZero`、`_alreadyDebitedDayReportsZeroNewChargeButLedgerRowStillWritten`。
+  3. **有意不同（相对老系统）**：老系统佣金**从不**随退款冲正（CB-040 判定为缺陷，本条不翻案），我方保留冲正；但冲正的**基数**遵循与老系统同一条纪律——入账后以行为准、改配置不回算历史。这样线长侧与已上线的 staff 侧（本就按行快照）口径统一，不再出现「同一笔退款，两套主体两种算法」。
+  4. **失败处置边界（设计判断，渠道文档无对应物）**：F-5 只加**计数与文案**，不自动补扣——补扣走运营台「按日期重跑日扣」（F-4 入口，幂等 refId 保证不重扣）。定时任务不自作主张动钱这条纪律须随本条一起验收。
+  5. **不采纳**「为对齐微信 180 天/支付宝 12 个月那种**渠道回退时限**而给佣金冲回加时限」：我方冲回是**内部账**（钱包挂负待扣），窗口已由 CB-040 拍为 90 天重算窗；渠道时限讲的是资金还在渠道侧的可回退性，不能拿来当我们内部冲正的边界。
 

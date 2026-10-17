@@ -243,10 +243,42 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 |---|----|--------------------|------------------|----------|
 | 1 | **DC-27(b) 识别残留整体删除** | 排二期（上线后）还是上线前动工？ | 批 2 仍在：`SettlementRecognitionService` 的 `tryStagingGravitySettle` 三处调用（:133/:162/:189）+ `allowsGravityEvidenceSettle`（:202）；批 3 仍在：`git ls-files vision-service` = **51 个跟踪文件**、[docker-up.ps1:67](file:///D:/ai-generated%20code/ai-cabinet/docker-up.ps1#L67) 的 `$appServices` 仍列 `vision-service`、`infra/.env.example` 仍留 `VISION_API_KEY`(:21)/`RECOGNIZER_BACKEND=mock`(:151)；批 6 仍在：`videoUri`/`videoClipsJson` 在 common-core 多个 DTO 里透传 | 上线后二期。(a) 的两道闸（值域 + 强制留痕）已把「配活造绿」这条路封死，剩余是体积问题不是资损问题；删除面横跨 trade/device/infra/仓库根，且要按铁律 62 同步删钉住旧路径的用例 |
 | 2 | **B-1 扩展审剩余三条 🟡** | F-5 / F-6 / F-8 修不修？（F-1/F-2/F-3/F-4/F-7 已落） | F-5 扣费失败时日结通知仍显示 `fee 0.00 / net=收入全额`（[AUDIT_B1_EXTENDED_FUND_2026-10-16.md:77](file:///D:/ai-generated%20code/ai-cabinet/docs/AUDIT_B1_EXTENDED_FUND_2026-10-16.md#L77)）；F-6 逐设备整数除法分摊不闭合、无月末清算行；F-8 线长侧冲回取**实时** `bps/fixed`，费率上调后的窗内退款会按新费率多冲、员工侧多扣（代码注释自标「已接受的近似」） | F-5 值得修（纯展示口径，改文案不动资金）；F-6/F-8 是**口径选择**不是 bug：要不要「月末清算行」和「计提时冻结费率」都得改账务算法，建议二期与 DC-27(b) 一起排 |
-| 3 | **dev 自报 6 项里两条本轮未审** | 🔴3 押金月退超退、🔴4 三任务七处同步要不要补审？ | 复核表原文标「本轮未审」；🔴3 的能力已被 V376 关到默认关（`deposit-monthly-refund enabled=false`），🔴4 属调度注册面（`check-scheduled-task-seed` 只校种子齐，不校七处同步） | 🔴3 可判「不审了——默认关，开的人负责」；🔴4 建议补审，它是 `tryBegin` 那类「注册了但没接线」的静默失效面 |
+| 3 | **dev 自报 6 项里两条本轮未审** | 🔴3 押金月退超退、🔴4 三任务七处同步要不要补审？ | 复核表原文标「本轮未审」；🔴3 的能力已被 V376 关到默认关（`deposit-monthly-refund enabled=false`），~~🔴4 属调度注册面（`check-scheduled-task-seed` 只校种子齐，不校七处同步）~~ **勘误（2026-10-17）**：七处的分工写在 [XxlJobManagedTasks.java:44-45](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/XxlJobManagedTasks.java#L44-L45)——①~④⑦ 归 `check-xxl-job-wiring`、⑤⑥ 归 `check-scheduled-task-seed`，两条门禁**都有**且本轮实跑 EXIT=0 | ~~🔴3 可判「不审了——默认关，开的人负责」；🔴4 建议补审~~ ⇒ **2026-10-17 已按拍板补审完成**：🔴3 `runMonthlyRefunds` 零用例补到 6 个回归用例（含「不重复退」「余额守卫」）；🔴4 三任务七处逐处亲验齐全 + 共享库实读 `enabled` 现状 + 两道门禁绿。剩余真实风险：门禁只保证**已登记任务之间**一致，key 一开始就四处皆漏时检不出——由「`tryBegin` 调用点必须已登记」这条规则兜住（本轮实测生效、无豁免）。详见 [AUDIT_B1_EXTENDED_FUND_2026-10-16.md §5.3/§5.4](file:///D:/ai-generated%20code/ai-cabinet/docs/AUDIT_B1_EXTENDED_FUND_2026-10-16.md) |
 | 4 | **CB-044 押金登记 UI 参数位** | 「逐柜开安装费扣回」要不要给运营界面？ | 押金登记表单没有三件套参数位（`DeviceRentalView.vue` 零命中 `installFeeClawbackEnabled`），V376 把默认改成关之后，**目前唯一开法是直接调登记接口传 true** | 要么点单加三个输入位（小改，属参数面补全），要么明确「这条路径只给技术运维用」并写进上线手册；现在是「能力存在但运营看不见」 |
 | 5 | **Track C-admin 运行期实测** | 现在跑还是上线前跑？ | 驱动器 `clients/admin-vue/tests/audit-admin-flows-uat.mjs` 仍**只在** `origin/worktree-audit-pre-launch`，dev 上没有；F1 后半 + F2–F8 无运行留痕 | 先取回并登记进 `check-audit-gates-wiring`（不登记=跑无痕，等于没测），跑不跑你点头 |
 | 6 | **共享 Postgres 的 F1 写入痕迹** | 要不要我清？ | `ai-cabinet-postgres-1`(:15433) 是跨会话共享库，F1 那轮写入的将邑登记/会话痕迹未清点；本仓纪律是「动共享库前先问」 | 若 peer 还在用同库测 WIP，建议不清（清点=写操作），改成「上线前换新库」自然带走 |
 | 7 | **平台分账日后要不要真收** | 恢复抽成的前置实证由谁发起、什么时候？ | 本轮按你拍板把 `platform_rate_bps` 归 0（V382），且 0 抽成**不发微信分账**——因为 rate=0 时 `receiver.amount` 就是订单毛额，而 CB-032 记的「服务商默认单订单分账上限 30%」只有 ⚪ 旁证、提额真实性未确认 | 收之前必须先与微信侧书面确认比例上限/提额，或改走持牌分账（CB-032 结论③）；否则线上一开就是批量分账失败 |
 | 8 | **上线口径确认：V376 关掉的两条任务** | 试点上线当天要不要开？ | `refund-retry`、`deposit-monthly-refund` 种子行 `enabled=false` 且在两种 `seed_env` 下都实测为 false（§11）。退款重试关=退款失败无人闭环；月退关=押金永不自动退（回到人工，对齐老系统形态） | 押金月退**保持关**（这是拍板方向）；`refund-retry` 要不要开必须写进上线手册的勾选项，别靠记忆 |
 | 9 | **第三钱包域要不要收敛 + 冻结位要不要启用**（2026-10-17 由 CB-054 新增） | 商户/线长/补货员三套钱包要不要抽泛型账本原语？补货员钱包的 `frozen_cents` 要不要用起来？ | P3 当初写「出现第三钱包域再评估」，V359 正是第三域；实测三域差异在**权限与出账通道**（线长走 `LineWithdrawPayoutService` 但三出款通道 `isReady()` 恒 false、补货员只能运营台标记出账），记账原语本身已高度同形（`creditIfAbsent`/`payoutIfAbsent`/`debitIfAbsentAllowNegative` 三份雷同）；`frozen_cents` 在补货员钱包只于建账写 0（`StaffWalletService:55`），三条写路径都不再改它 ⇒ **恒 0 的死列**，而线长钱包真在用（`LineWalletService:272,:319`） | 两问都不在本轮资金修复范围内：抽原语=架构级重构（要动三域全部幂等 ref 与测试），启用冻结=新能力（涉及「佣金待结算」语义，等同改变发佣可提时点）。建议：冻结位二选一——要么明确「补货员不设冻结」并在 V3xx 迁移删列（不留死列，铁律「不留假旋钮」），要么给出发佣 T+N 冻结的具体业务规则后再接；抽原语留二期 |
+
+## 13. §12 拍板落地状态（2026-10-17 本轮收尾）
+
+> 你 2026-10-17 那句话把 9 项逐条定了方向。本表只记**已落/未落**，未落的保持原样等你排期。
+> 提交号都是本地 `dev` 上的（**四个提交均未推送**：`7e181fbd` `e1059628` `da72804a` `4bfc0de6`）。
+
+| §12# | 你的拍板 | 本轮状态 | 落点 |
+|------|----------|----------|------|
+| 1 | DC-27(b)「现在删了」，在隔离 worktree 分支跑完再合 dev | **未动工**（本轮先做 2/3/4/6/8 + 文档回写）；删除面已实测清点，仍是 51 个 vision-service 跟踪文件 + `SettlementRecognitionService:133/162/189/202` + `docker-up.ps1:67` + `infra/.env.example:21,151` + `videoUri/videoClipsJson` DTO 透传 | 待办 #23（下一条就做） |
+| 2 | F-5/F-6/F-8「看竞品和老代码决定修不修」 | **F-5 已修** `4bfc0de6`：通知费用栏改读钱包实扣流水（`MerchantWalletService:196 debitedCentsByRef`），`chargeDailyPeriodFees` 只报「本次实扣」消除重复计数，扣费失败计入任务汇总；**F-8 已修** `da72804a`：线长冲回基数改为**已入账佣金行**（费率不追溯）+ 两道 no-claw 守卫；**F-6 判定暂不修**：全量只有一处整数 floor（`MerchantDailyIncomeNotifyScheduler:350`），单柜 ≤(当月天数−1) 分 ⇒ ≤0.30 元/柜/月，两种修法各引入更坏的新风险 | 判定与取证 [CB-056](COMPETITOR_BENCHMARK.md)、明细 [AUDIT_B1_EXTENDED_FUND_2026-10-16.md §5.1–5.2](AUDIT_B1_EXTENDED_FUND_2026-10-16.md) |
+| 3 | 🔴3/🔴4「补审」 | **已补审完**：🔴3 `runMonthlyRefunds` 由零用例补到 6 个回归用例（`DeviceRentalServiceTest` 28/28）；🔴4 三任务七处逐处亲验齐全、共享库实读 `enabled` 现状、两道门禁 EXIT=0；本表第 3 行的「无门禁」说法**已就地勘误** | [AUDIT_B1_EXTENDED_FUND §5.3/§5.4](AUDIT_B1_EXTENDED_FUND_2026-10-16.md) |
+| 4 | 安装费「默认为 0」+ 按柜子/商家配置（选定：默认 0 + 柜级登记参数） | **已落**：V383 把 `install_fee_deduct_cents` 默认改 0（含 `DO $install_fee_zero_default$` 失败即停断言、全新库 dry-run 过）+ 代码常量 `DEFAULT_INSTALL_FEE_DEDUCT_CENTS=0L` + 4 处文案去「必扣」口径 + `settle_defaultZeroFee_returnsBalanceInFull` 钉住「不登记安装费 ⇒ 全额返还」；**粒度按你的选择保持在登记接口参数**，运营台不加位 | V383、`DeviceRentalService`、CB-044 补记；⚠️ 同一处 `DeviceRentalService:165` 把 `chargeMode` 写死 `"ONLINE"`（离线柜只能走线上扣款）——这条你没定，我不动 |
+| 5 | Track C-admin「运行期实测现在跑」 | **未跑**（待办 #24：驱动器 `audit-admin-flows-uat.mjs` 仍只在 `origin/worktree-audit-pre-launch`，要先取回 + 登记进 `check-audit-gates-wiring` 再跑，否则跑无痕） | 待办 #24 |
+| 6 | 共享库写入痕迹「不要清」 | **已遵守**：本轮对 `ai-cabinet-postgres-1`(:15433) 只做只读 `SELECT`/`\d` 类查询，未发任何写事务、未清点痕迹 | — |
+| 7 | 「平台分账日 分的是什么，看老系统和竞品」 | **已答复**，见下面的 §14；「日后要不要真收 + 6 项前置实证由谁发起」仍等你排期 | §14、CB-032 |
+| 8 | 上线当天 `refund-retry` 与 `deposit-monthly-refund` **都默认关闭** | **已定为口径**：两条种子行保持 `enabled=false`（V376 现状即符合，无需迁移）；⚠️ 需要有人把「上线当天保持关 = 退款失败无人闭环 / 押金永不自动退（走人工）」写进上线手册勾选项，别靠记忆 | 待写入上线手册（属 `docs/PRODUCTION_TOPOLOGY.md`，peer 正改，我不碰） |
+| 9 | 「`frozen_cents` 是什么东西？做」 | **已答复**：`staff_wallet_account.frozen_cents` 是建账写 0 后再无人改的**恒 0 死列**（对比线长钱包真在用：`LineWalletService:272,:319` 提现前置冻结/解冻）。删列 or 启用冻结是**语义选择**（等于改变发佣可提时点），不能算「能自行推进」，故未动；抽泛型账本原语按建议留二期 | CB-054、§12 第 9 行 |
+
+## 14. 「平台分账」分的到底是什么（2026-10-17 代码 + 老系统 + 竞品三线实证）
+
+一句话：**分的不是「利润」，是每笔已支付订单的毛额里属于平台的那一刀佣金**——切法是先从交易里冻结、再把商户份额用官方分账 API 转给商户的收款账号，剩下的留在服务商账户里就是平台收入。
+
+**我们现在的实现（逐行实证）**：
+- 算账：[RevenueSplitService.java:503-504](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java#L503-L504) `platform = gross * rateBps / 10_000`、`merchantShare = gross - platform`；费率字段 `merchant.platform_rate_bps`（万分比，V382 已按你拍板默认归 0，`MerchantService:149` 未传时亦落 0）。
+- 出门：[WeChatProfitSharingService.java:155-166](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/payment/WeChatProfitSharingService.java#L155-L166) 只有**一个接收方**：`type=MERCHANT_ID`、`account=merchant.wechatReceiverId`、`amount=merchantCents`，并带 `unfreeze_unsplit=true`（未分出去的余款解冻 ⇒ 归服务商，即平台自己）。**没有**给员工/线长做渠道分账——他们走内部钱包记账。
+- 记账：同一张 `order_revenue_split` 行同时存 `grossCents/platformCents/merchantCents`；商户份额入钱包（`RevenueSplitService:430` `creditIfAbsent("SPLIT_CREDIT"…)`），退款时按行回退/冲正（`reverseCreditIfPresent`、`returnMerchantShare` 走 `/v3/profitsharing/return-orders`）。
+- 归 0 的后果：`platformCents<=0` ⇒ 闸在唯一出口 `WeChatProfitSharingService:117-124`（三个入口都汇到这里）**不发微信分账**，改由钱包全额入账；因为 0 抽成时 `receiver.amount` = 订单毛额 = 全额分账，是否被服务商允许**未实证**（CB-032 的 30% 单订单上限只有 ⚪ 旁证），而且已经入过钱包再发分账就是双付。
+
+**老系统（easygo）根本不做渠道级分账**：「分账」一词语义是**账单**——`mis-server/mis-quartz/.../RyTask.java:443-447`「机器销售及费用账单-每日（机器分账账单）」调 `saveMachineMonthly(...)` 生成逐柜月账单；钱始终在平台账户里，出款靠**支付宝单笔转账到银行卡**（`ego-automat-operation/.../WithdrawalController.java:693,710-718` `AlipayFundTransUniTransferRequest` + `bizScene=DIRECT_TRANSFER`、`productCode=TRANS_BANKCARD_NO_PWD`，备注字面写「易购自动售卖机分账-测试」）。⇒ 我们是**形态不同**（先分后结 vs 先结后转），不是照抄老系统。
+
+**竞品/官方口径**（详见 [CB-032](COMPETITOR_BENCHMARK.md) 的四条资金流路径与二清定性边界）：微信服务商「分账」= 从已支付交易中把部分资金划给接收方，冻结期与比例受服务商协议约束；支付宝直付通/收付通是另一条路（持牌方清分）。**恢复真收之前的前置仍是 CB-032 里那 6 问**（比例上限/提额真实性、行业受理、二级商户进件形态等），未拿到微信侧书面确认前不要把 `platform_rate_bps` 调回非 0——线上一开就是批量分账失败。
+

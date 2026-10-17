@@ -76,9 +76,11 @@
 
 ### F-5 🟡 扣费失败时日结通知虚高
 `catch` 后 `feeCents=0` ⇒ 通知给商户显示 `fee 0.00 / net=收入全额`。
+⇒ **2026-10-17 已修**（§5.1 / 台账 CB-056）。补一句：本条原描述只抓到「显示 0」这一条路径，实际还有两条更隐蔽的——**扣款成功但随后写台账抛异常 ⇒ 钱真被扣了、通知说 0**，以及**该日已被运营重跑扣过 ⇒ 幂等跳过仍按重算值展示，同一天费用数两遍**。修法把口径整体换成「读钱包流水实扣额」，三条路径一并归一。
 
 ### F-6 🟡 整数除法分摊不闭合
 `rent/days + data/days` 逐设备整除，每设备每月最多少摊 `days-1` 分，无月末清算行。
+⇒ **2026-10-17 判定「暂不修」**（量级上界、两种修法各自的新风险见 §5.2；属口径选择，非资金正确性缺陷）。
 
 ### F-7 🟠 冲回「递增已提交、钱没扣」的半状态（V361 独有）
 `CommissionClawbackService:145/:205` 事务内先 `upsertClawback` 递增累计，再 `debitIfAbsentAllowNegative`。
@@ -90,6 +92,7 @@
 
 ### F-8 🟡 线长侧按「当前费率」重算历史差额
 `bps`/`fixed` 取实时配置（代码注释自标「费率事后变更是已接受的近似」）⇒ 费率上调后的窗内退款会按新费率多冲回，员工侧多扣。量化：`Δbps × 窗内 GMV 差额`。
+⇒ **2026-10-17 已修**（§5.1 / 台账 CB-056）：冲回基数改为**发佣行自身的已入账佣金快照**，线长侧与原本就按行的补货员侧口径归一。
 
 ## 3. 对 `93bf2697` 自报 6 项的复核
 
@@ -97,8 +100,8 @@
 |---|---|
 | 🔴1 台账死路 → 新增 Controller | **未解**：补了后端，三端零入口（F-2） |
 | 🔴2 DAILY_FEE 真幂等 | 语义成立（`debitIfAbsentAllowNegative` + 可负），但**库级兜底缺失**（F-1） |
-| 🔴3 押金月退超退 | 本轮未审（属 V360，已由 V376 关到默认关） |
-| 🔴4 三任务七处同步 | 本轮未审（调度注册面，另列） |
+| 🔴3 押金月退超退 | 本轮未审（属 V360，已由 V376 关到默认关）→ **2026-10-17 补审完成**：`runMonthlyRefunds` 由零用例补到 6 个回归用例（§5.3），`DeviceRentalServiceTest` 28/28 绿 |
+| 🔴4 三任务七处同步 | 本轮未审（调度注册面，另列）→ **2026-10-17 补审完成**：三任务七处齐全、两道门禁绿；并勘误——「七处同步无门禁」的说法不成立（§5.4） |
 | 🔴5 提现 requestNo 幂等 | 成立但纯应用层（F-1）；`body` 未传时退化为 `System.nanoTime()`，**跨请求不幂等** |
 | 🔴6 台账/钱包同事务 | 成立（`LineCommissionJob:304` `transactionTemplate`） |
 | 🟡4 催缴模板码 | 已修（`alreadySentType:374` 实证走 `merchant_fee_reminder`） |
@@ -120,3 +123,59 @@
     #303（提现生命周期 ref 天然多行 ⇒ 唯一索引必须豁免）。
 - 待拍板：F-2 口径二选一（(a)/(b) + 是否补 UI）、F-3 流量费到底对谁收、F-4 漏扣要不要补偿任务。
 - 未审（下一轮）：🔴4 七处同步一致性、V347 对账导入、V356 机器账单、押金 V360/V365 链的负向测试。
+  （⇒ 2026-10-17 更新：🔴4 与押金 V360/V365 链已补审，见 §5.3/§5.4；V347 对账导入的**形态**已由台账
+  CB-055 取证并给出结论，V356 机器账单仍无人审。）
+
+## 5. 2026-10-17 复审判定与落地（F-5/F-8 已修、F-6 暂不修、🔴3/🔴4 补审）
+
+> 用户 2026-10-17 对「B-1 剩余三条 🟡」的授权原话：「F-5…F-6 分摊不闭合 / F-8 冲回取实时费率 这个你看竞品和老代码看修不修」「三任务七处同步 → 补审」。
+> ⇒ F-5/F-8 **修**（竞品+老代码都支持），F-6 **暂不修**（修法各自引入更坏的新风险，见 §5.2），🔴3/🔴4 **补审**（§5.3/§5.4）。判定依据入台账 [CB-056](COMPETITOR_BENCHMARK.md)。
+
+### 5.1 已修：F-8（`da72804a`）+ F-5（`4bfc0de6`）
+
+| 面 | 改法 | 钉死的用例 |
+|---|---|---|
+| F-8 线长佣金冲回 | 冲回基数由「实时 `line_manager.commission_rate_bps` + `commission_fixed_cents`」改为**该行已入账佣金快照**：`冲回 = commissionCents × GMV减少额 / gmvCents`（[CommissionClawbackService.java:120-143](../services/trade-service/src/main/java/com/aicabinet/trade/service/CommissionClawbackService.java)），类头注同步改写。数学上冲回额 ≤ 已入账额 ⇒ 只少扣不超扣。两条**保守不冲**边界：`gmvBase<=0`（V361 前存量行无快照）、档案已删除（保持老边界，不为「补齐」新造扣钱路径） | `managerRowClawsBackByPostedCommissionSnapshot`（档案费率故意设 800bps 也不参与）、`managerRowClawbackCappedByPostedCommission`、`managerRowWithoutGmvBaseIsNotClawedBack`、`deletedManagerRowIsNotClawedBack`；另把原本自相矛盾的 `fullyRefundedOrderStaysOutOfBase`（断言 0 却写全额退）改成真实全额冲回断言。`CommissionClawbackServiceTest` 10/10 绿 |
+| F-5 日结通知费用栏 | 费用取**钱包流水实扣额** `MerchantWalletService.debitedCentsByRef(merchantId,"SETTLEMENT_FEE",日期)`（[MerchantWalletService.java:196](../services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWalletService.java)，只读、无锁）；`chargeDailyPeriodFees` 返回值语义收紧为「**本次**实扣」⇒ 幂等跳过报 0（`:366-374`），消除「收入商户循环 + 全量循环」同日双计；失败数经 `NotifyOutcome.feeChargeFailed` 冒泡进定时任务执行记录（`:106-130`），不再只 `log.warn` | `notifyShowsWalletDebitedAmountNotRecomputedFee`（重算 100 分 / 流水 250 分 ⇒ 显示 2.50）、`feeChargeFailureIsCountedAndFeeShowsActualZero`（sent=1、feeChargeFailed=1、fee="0.00"）、`alreadyDebitedDayReportsZeroNewChargeButLedgerRowStillWritten`。`MerchantDailyIncomeNotifySchedulerTest` 16/16 绿 |
+
+顺带核清用户 10-17 的两个疑问：①日结通知扣的**不是**流量费单项，而是「租金月额÷当月天数 + 流量费(分/天)」合计；②余额**可以为负**（`debitIfAbsentAllowNegative`，老系统 L7 无下限同款，2026-10-16 F-2/F-3 拍板时已确认）。
+
+### 5.2 暂不修：F-6 整数除法分摊不闭合
+
+**事实（亲验）**：唯一的取整点在 [`MerchantDailyIncomeNotifyScheduler.java:350`](../services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifyScheduler.java) `rentDaily += d.getRentCents() / daysInMonth;`（流量费自 V380 起本来就是**分/天**，不参与除法）。
+**量级上界**：单柜每月少摊 `rentCents mod daysInMonth ≤ daysInMonth-1` 分 ⇒ 31 天月 **≤ 0.30 元/柜/月**；商户级上界 = 计费柜数 × 0.30 元（10 台 ⇒ ≤ 3.00 元/月）。方向是**少收**（我方不利、商户有利），不是多收。
+**为什么不修**：两种正确修法都比现状差。
+- (a) **月末清算行**（把余数在月末一次补上，可复用 CB-020「尾差归最大行」）：清算额按「当月已过天数」算，而 F-4 的运营台「按日期重跑日扣」是 **exists-then-skip** 语义 ⇒ 次月初补跑某漏扣日时，当月实扣会**超过**合同月额（超收），清算行不会回溯收缩。要修得对，必须把「整月」当成一次可重算的事务 ⇒ 与现行「逐日幂等、漏扣不自动补、失败靠人工重跑」的运维模型正面冲突。
+- (b) **逐日轮存余数**（把 `rentCents mod days` 分摊到前 k 天）：账面闭合，但每天扣款额不再等于「月额/天数」⇒ 商户端看到的「今天扣多少」与台账 `remark` 文案「周期费用日扣(租金月额/N天 + 流量费分/天)」自相矛盾，且历史行不可按配置重算（重跑要先还原 k）。
+**接受的偏差（写清楚，别当已解决）**：日台账逐日累加 **< 合同月额**（差额=余数）。财务对账若按「柜数 × 月额」核必然对不平 ⇒ **对账口径以台账/流水实际发生额为准**（与 §5.1 F-5 同一条纪律、CB-041 结论一致）。若将来把租金改成「按日精确计费」或引入月账单出账，这条一并处理，届时须回来改本行。
+
+### 5.3 补审：🔴3 押金 `runMonthlyRefunds`（V360/V365 链）负向测试
+
+原状：该链**零用例**（自报「先扣台账再入钱包 + 末月退余额」无测可验）。本轮补 6 个回归用例（clock 固定 today=2026-10-12），`DeviceRentalServiceTest` 28/28 绿：
+`runMonthlyRefunds_lastMonthRefundsRemainingBalance_notFixedUnit`（50000/30000 档、余额 20000 ⇒ 退**余额**、refId `1|2`、不再写 DEDUCT、状态 SETTLED）、
+`_lastMonthWithReward_creditsRewardOnce`（`createdAt=2026-10-01` 使 monthFromStart==threshold==1 ⇒ 发期满奖励且 refId `1|REWARD` 幂等）、
+`_middleMonthRefundsUnitAndKeepsHeld`（refId `1|3`、`never()).updateById` ⇒ 月中不置终态）、
+`_beforeStartMonth_nothingMoves`（起始月前不动账）、
+`_walletAlreadyCredited_restoresLedgerAndCountsNothing`（钱包已被入账 ⇒ 只回补台账、计数 0）、
+`_ledgerGuardFails_doesNotCreditWallet`（台账守卫失败 ⇒ **不注入钱包**，即「钱与账必须同向」）。
+另补 `settle_defaultZeroFee_returnsBalanceInFull` 钉住 V383 后的默认口径（不登记安装费 ⇒ 全额返还）。
+
+### 5.4 补审：🔴4 三任务七处同步 + 一处勘误
+
+**逐处亲验**（key → 七处）：`merchant-daily-income-notify` / `machine-payee-bill` / `deposit-monthly-refund` 在
+①[XxlJobManagedTasks.java:70-72](../services/trade-service/src/main/java/com/aicabinet/trade/service/XxlJobManagedTasks.java) `KEYS`、
+②[ScheduledTaskXxlJobHandler.java:49-61](../services/trade-service/src/main/java/com/aicabinet/trade/service/ScheduledTaskXxlJobHandler.java) 具名 `@XxlJob` handler、
+③④ [ScheduleZones.java:64-66](../services/trade-service/src/main/java/com/aicabinet/trade/support/ScheduleZones.java) `XXL_CRON_BY_TASK` 与 `:119-121` `MAX_SILENCE_BY_TASK`、
+⑤[ScheduledTaskRegistry.java:155,158,161](../services/trade-service/src/main/java/com/aicabinet/trade/service/ScheduledTaskRegistry.java) `register(...)`、
+⑥迁移登记行 V352（每日 00:20）/V356（每月 1 日 01:10）/V360（每月 1 日 01:30，V376 改 `enabled=FALSE`）、
+⑦[seed_aicabinet_jobs.sql:75,78,81](../infra/xxl-job/seed_aicabinet_jobs.sql) `merchantDailyIncomeNotifyJob`/`machinePayeeBillJob`/`depositMonthlyRefundJob`
+⇒ **七处齐全**。共享库实读现状：`merchant-daily-income-notify enabled=t`、`machine-payee-bill enabled=t`、`deposit-monthly-refund enabled=f`（与 V376 拍板一致，`last_run_at` 全空=dev 库未跑过，正常）。
+**门禁实测**：`check-xxl-job-wiring` OK（托管 37 ↔ handler 37 ↔ 种子 37 ↔ cron 逐条一致 ↔ 阈值 37）、`check-scheduled-task-seed` OK（注册表 39 ↔ 种子行 41 对齐、`tryBegin` 调用点 39 全部已登记、无豁免）⇒ 两条 EXIT=0。
+**🔴 勘误（拍板简报 §12 第 3 行）**：`AUDIT_DECISION_BRIEF_2026-10-16.md` §12 第 3 行原写「🔴4 属调度注册面（`check-scheduled-task-seed` **只校种子齐，不校七处同步**）」——**不准确**：七处的分工明明白白写在 [`XxlJobManagedTasks.java:44-45`](../services/trade-service/src/main/java/com/aicabinet/trade/service/XxlJobManagedTasks.java)（①~④⑦ 由 `check-xxl-job-wiring` 校验，⑤⑥ 由 `check-scheduled-task-seed` 校验），本轮两条门禁实跑亦为绿。⇒ 「七处同步」**是有门禁的**，简报该行已补注更正（2026-10-17）；🔴4 的真实剩余风险不在门禁缺失，而在「门禁只保证**已登记任务之间**一致，某个 key 若一开始就漏登记（四处皆无）它检不出」——那由 `tryBegin` 调用点必须已登记这条规则兜住（本轮实测该规则生效、无豁免）。
+
+### 5.5 全量回归（2026-10-17 实跑）
+
+`mvn -B -pl services/trade-service -am -DskipITs test` ⇒ **Tests run: 2042, Failures: 0, Errors: 0, Skipped: 0 / BUILD SUCCESS**。
+覆盖本轮三处语义变更（`chargeDailyPeriodFees` 返回值、`sendDailyIncomeNotify` 返回 `NotifyOutcome`、线长冲回基数）。
+⚠️ 过程留痕：同一命令的前一次后台跑曾报「6 failures」，核对 surefire XML 发现那份报告 mtime 早于改动（`SystemConfigRecognitionModeTest`，属 vision/DC-27 面且非本次编辑）⇒ 陈旧报告（教训「surefire 报告可能是旧的」），以本次 2042/0 为准。
+
