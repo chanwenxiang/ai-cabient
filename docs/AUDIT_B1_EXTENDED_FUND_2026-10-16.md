@@ -179,3 +179,61 @@
 覆盖本轮三处语义变更（`chargeDailyPeriodFees` 返回值、`sendDailyIncomeNotify` 返回 `NotifyOutcome`、线长冲回基数）。
 ⚠️ 过程留痕：同一命令的前一次后台跑曾报「6 failures」，核对 surefire XML 发现那份报告 mtime 早于改动（`SystemConfigRecognitionModeTest`，属 vision/DC-27 面且非本次编辑）⇒ 陈旧报告（教训「surefire 报告可能是旧的」），以本次 2042/0 为准。
 
+## 6. 2026-10-17 追加：F-9 🔴 佣金基数对「按行部分退」的单**把退款扣了两遍**（未拍板，未动代码）
+
+**结论**：`CabinetOrder.totalAmountCents` 在本仓有**两套约定**，而 `CommissionBaseCalc.netCents` 只认其中一套 ⇒
+凡是走过「按行部分退」的订单，佣金 GMV 被少计（极端情形整单归 0），**少发线长佣金**。
+分账侧反而自洽（它把 total 当剩余额用），所以这不是分账缺陷，是**佣金侧读到旧约定**。
+
+### 6.1 事实链（每条都亲读源码/测试，不是转述）
+
+| 环节 | 证据 | 干了什么 |
+|------|------|----------|
+| 链路 A：**按行部分退**（争议/消费者自助退的主路径） | [SettlementOrderSupport.java:157](../services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementOrderSupport.java#L157) `order.setTotalAmountCents(Math.max(0, safeNew - couponDisc - memberDisc))`（由 `SettlementPartialRefundService:121` 调） | 把 `total` **改写成剩余应付**（毛额消失） |
+| 同链路退款累加 | [SettlementPartialRefundService.java:140-147](../services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementPartialRefundService.java#L140-L147)；渠道/余额侧已在 [OrderPaymentService.java:792](../services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java#L792)（BALANCE）与 `:634`（线上渠道）累加 `refundedCents` | `refunded` 记**累计已退**（`:146` 的 `<` 守卫保证不重复加 ⇒ 子代理「加两遍」的说法**不成立**，已排除） |
+| 生产形态自证（同一单两条断言） | `SettlementPartialRefundTest.java:142-149`：原 1000 的单退 700 ⇒ `assertEquals(700, order.getRefundedCents())` **且** `assertEquals(300, order.getTotalAmountCents())` | total=300、refunded=700，两者之和=原毛额 |
+| 链路 B：**金额退**（一致性修复退多收 `DataConsistencyService:1489`、免单退 `SettlementWaiveRefundService:73`） | 只走 `refundOrder` ⇒ 只加 `refunded`，`total` 不动 | total=毛额、refunded=已退（`total − refunded` 在这里**才是**净额） |
+| 出问题的读法 | [CommissionBaseCalc.java:33-35](../services/trade-service/src/main/java/com/aicabinet/trade/service/CommissionBaseCalc.java#L33-L35) `Math.max(0L, total − max(0, refunded))` | 链路 A：`max(0, 300−700)=0` ⇒ **把 300 的真实留存收入计成 0**；链路 B 正确 |
+
+### 6.2 影响面
+
+- 发佣：[LineCommissionJob.java:181-188](../services/trade-service/src/main/java/com/aicabinet/trade/service/LineCommissionJob.java#L181-L188) `commission = gmv * rateBps / 10_000 + fixed * count` ⇒ GMV 少计＝比例佣金少发；而 `countableCount`（`:21` 含 `PARTIAL_REFUNDED`）**照计单数** ⇒ 出现「按单固定佣金付了、按 GMV 的那部分归 0」的自相矛盾行。
+- 冲回：[CommissionClawbackService.java:287-288](../services/trade-service/src/main/java/com/aicabinet/trade/service/CommissionClawbackService.java#L287-L288) `paidGmv` 与发佣同源（同一个错函数），所以 F-8 改成「按已入账行快照比例」并不救这个——比例的分母分子都被同一偏差污染。
+- 未被测出的原因：**没有任何用例**把「部分退之后」与 `netGmv/netCents` 串起来；
+  `CommissionClawbackServiceTest.java:182-191` 直接 seed `total=8000 / refunded=2000`，
+  **假设 total 仍是毛额** ⇒ 与生产写路径产出的 `(300, 700)` 形态正好相反，单测全绿而真实形态零覆盖。
+- 共享 dev 库实测：`cabinet_order` 里 6 单全 `PAID`、`refunded_cents>0` 的 0 行 ⇒ 该形态尚未在库内出现（纯代码路径结论，不是「库里没有就等于没事」）。
+
+### 6.3 三个修法与各自的硬前置（要你定，因为改的是**发出去的钱**）
+
+| 方案 | 做法 | 硬前置 / 风险 |
+|------|------|----------------|
+| (a) 基数改「实收净额」 | 净额 = 实收 − 已退，两条链路都对，方向与 CB-056「以账户实际发生额为准」一致 | 原语**基本已有**：`netCompletedCents(orderId)`（`PaymentOperationMapper:120-132`）就是 CHARGE+ADJUST−REFUND，且**余额单也看得见**——`BalanceLedgerService.change` 写的就是同一张 `payment_operation`（`:81-93`，`status=COMPLETED`、`orderId` 由 `resolveCabinetOrderId:154-159` 对 CHARGE/REFUND/ADJUST 挂单）。⚠️ 两个真实前置：① **必须先修 F-10**，否则「只被预授权冲抵、没有 CHARGE 行」的单净额恒为 0；② 逐单查是 N+1（`LineCommissionJob` 按 device-day 捞单，需要一条 `group by order_id` 的批量版），且 `PREAUTH_CAPTURE` 类行是否该进佣金基数要一并定 |
+| (b) 收款时冻结毛额，退款不改 | 新增列（如 `paid_amount_cents`）在支付成功时写死，净额 = 该列 − `refunded`；概念最干净，`total` 继续当「剩余应付」给分账/退款用 | 要迁移 + 存量回填（历史单没有该列值，可用「渠道+余额流水合计」或「total+refunded」回填，但回填本身就要先解决 (a) 的取数问题）；改动面比 (a) 大但一次性 |
+| (c) 只对 `PARTIAL_REFUNDED` 特判取 `total` | 一行改动 | ❌ **不成立**：链路 B 的部分退仍然需要减 `refunded`，而两链路在数据上**不可区分**（两条链路都保持 `total == original − 券 − 会员折` 恒等式，见 `SettlementOrderSupport:149-157`），特判会把链路 B 从「对」改成「错」 |
+
+**我的建议**：(b)（收款冻结毛额），(a) 的前置取数问题正好是 (b) 的回填难点，两者要么一起做、要么先都不动而在上线手册里写明「部分退款单的佣金会少计」。
+**本轮不动代码**：等口径拍板（简报 §12 第 10 项）。
+
+## 7. 2026-10-17 追加：F-10 🔴 净额护栏的 SQL 过滤器把 `PREAUTH_CAPTURE` 挡在门外（死代码 + 护栏失明）
+
+这条是复核 F-9 修法 (a) 时撞出来的，**独立成立**，且会放大 F-9 的任何「按实收净额」修法。
+
+**事实链（逐行亲读）**：
+- [PaymentOperationMapper.java:113-116](../services/trade-service/src/main/java/com/aicabinet/trade/mapper/PaymentOperationMapper.java#L113-L116) `findCompletedPaymentOpsByOrderId(...)` 的 `.in(PaymentOperation::getOperationType, "CHARGE", "ADJUST_CHARGE", "REFUND")` ——**没有 `PREAUTH_CAPTURE`**；
+- 而 `:120-132 netCompletedCents` 与 `:135-146 chargedCompletedCents` 的 switch/判断里都写了 `case "CHARGE", "ADJUST_CHARGE", "PREAUTH_CAPTURE"` ⇒ 这两个函数的 PREAUTH_CAPTURE 分支**永远收不到行**（死代码）；
+- 行本身是有的：[BalanceLedgerService.java:119-121](../services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceLedgerService.java#L119-L121) `operation.setOrderId(command.orderId())` 由 `ConsumerPreauthService:272-275` 传入（注释「F1-A：冲抵行挂订单 → netCompletedCents 可见，补扣按净额不再多付」），`status="COMPLETED"`（`:125`）⇒ **挂单成功，只是查不到**；
+- 全额冲抵时**不会另写 CHARGE 行**：[OrderPaymentService.java:436-441](../services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java#L436-L441)「此处不再另记任何 CHARGE」+ `if (remainDebit > 0)` ⇒ 这类单只有一条 PREAUTH_CAPTURE。
+
+**失真的调用点**（都读 `netCompletedCents`，实际经 `paymentOperationRepository`=`PaymentOperationMapper`，见 `OrderPaymentService:62`）：
+- `OrderPaymentService:418` `chargeAmount = order.getTotalAmountCents() − netCompletedCents(...)` ⇒ 补扣按**全额**，冲抵那部分被扣第二遍（F1-A 当初正是为堵这个才挂单）；
+- `UnpaidOrderService:383` `alreadyPaidCents = netCompletedCents(...)`，`if (alreadyPaidCents >= total) 直接结单` ⇒ 全额冲抵单走不到这个分支，继续占券再扣款；
+- `OrderPaymentService:577` 与 `DisputeService:706` 的净额上限/状态判定同源失真。
+
+**为什么 2042 个用例全绿**：`OrderPaymentChargeInvariantTest:166-179` 的 `net()` 是**手抄的一份 mapper 逻辑**（注释自称「与 PaymentOperationMapper.netCompletedCents 同口径」），但抄的时候**漏抄了 `.in(...)` 过滤**，把 PREAUTH_CAPTURE 算进去了 ⇒ 测的是模型，不是生产查询。
+
+**修法（等你点头，因为它改「补扣多少钱」）**：一行——`:116` 的 `.in(...)` 加 `"PREAUTH_CAPTURE"`，与三处注释/两个 switch 的既有意图对齐（属「代码追上文档」，不是新政策）。
+配套必须先做两件事：① **负向用例先行**且要**真调** mapper（stub `selectList` 返回一条 PREAUTH_CAPTURE 行，断 `netCompletedCents>0`）——现写会红、修后转绿，才算钉住；
+② 把不变量测试的 `net()` **删掉、改成调用生产函数**，否则同类「测试自建真相」还会再犯（教训候选：展示/口径类断言禁止手抄被测实现）。
+**与 F-9 的关系**：若 F-9 选 (a)「佣金基数=实收净额」，**F-10 必须先修**，否则只被预授权冲抵的订单佣金恒为 0。
+
