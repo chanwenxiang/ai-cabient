@@ -1,4 +1,4 @@
--- MIGRATION_KIND: data
+-- MIGRATION_KIND: backfill
 -- DC-27 批2（2026-10-17 用户拍板「现在删了」，源 docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md §3 批2）：
 -- 重力/云端识别链的运行期代码已整体删除，配置面不留死旋钮。
 --
