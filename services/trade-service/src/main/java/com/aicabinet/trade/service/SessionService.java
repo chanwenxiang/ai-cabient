@@ -222,7 +222,10 @@ public class SessionService {
     /**
      * 演示/联调用关门结算：无柜机硬件时由用户端主动触发关门。
      * 仅允许本人正在 SHOPPING 的会话，且由 Controller 按 mockEnabled 开关放行。
-     * 扣款以会话购物车（点选同步的重力证据）为准；未选商品则零元结案，不走视觉 mock（避免「未选却出牛奶审单」）。
+     *
+     * <p>DC-27 批2 后的口径：未点选（购物车空）零元结案；点选了商品则等价真机关门，
+     * 结算仍只认端侧识别上报——<b>不再拿购物车/重力信号凑成成单</b>。要演示「买了并扣款」，
+     * 柜机须登记为端侧识别柜并由 {@code JiangyiDeviceSimulator} 上报 edge-results。
      */
     @Transactional
     public SessionDto demoCloseSession(Long userId, String sessionId) {

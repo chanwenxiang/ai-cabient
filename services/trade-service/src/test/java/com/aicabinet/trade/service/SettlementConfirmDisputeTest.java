@@ -363,7 +363,7 @@ class SettlementConfirmDisputeTest {
         verify(inventoryService, org.mockito.Mockito.never())
                 .adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any());
         verify(inventoryService, org.mockito.Mockito.never())
-                .deductForOrder(anyString(), anyList(), anyString(), any());
+                .deductForOrder(anyString(), anyList(), anyString());
         verify(orderRepository, org.mockito.Mockito.never()).save(any());
         verify(revenueSplitService, org.mockito.Mockito.never()).adjustSplitAfterOrderChange(any(), anyInt());
     }

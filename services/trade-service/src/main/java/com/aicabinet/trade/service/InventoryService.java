@@ -1,6 +1,5 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.common.dto.GravityDeltaRequest;
 import com.aicabinet.trade.recognition.RecognizedItem;
 import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
@@ -32,7 +31,6 @@ public class InventoryService {
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final InventoryLotService inventoryLotService;
     private final DeviceSlotService deviceSlotService;
-    private final GravitySettlementHelper gravityHelper;
     private final DeviceValidationService deviceValidationService;
     private final DistributedLockService lockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
@@ -41,13 +39,11 @@ public class InventoryService {
     public InventoryService(DeviceSkuInventoryMapper inventoryRepository,
                             InventoryLotService inventoryLotService,
                             DeviceSlotService deviceSlotService,
-                            GravitySettlementHelper gravityHelper,
                             DeviceValidationService deviceValidationService,
                             DistributedLockService lockService, @Lazy InventoryService self) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryLotService = inventoryLotService;
         this.deviceSlotService = deviceSlotService;
-        this.gravityHelper = gravityHelper;
         this.deviceValidationService = deviceValidationService;
         this.lockService = lockService;
         this.self = self;
@@ -56,19 +52,13 @@ public class InventoryService {
     /** 扣减库存，有批次时 FEFO；返回 skuId -> 主批次号。 */
     @Transactional
     public Map<String, String> deductForOrder(String deviceId, List<RecognizedItem> items) {
-        return self.deductForOrder(deviceId, items, null, null);
+        return self.deductForOrder(deviceId, items, null);
     }
 
     @Transactional
     public Map<String, String> deductForOrder(String deviceId, List<RecognizedItem> items,
                                               String refId) {
-        return self.deductForOrder(deviceId, items, refId, null);
-    }
-
-    @Transactional
-    public Map<String, String> deductForOrder(String deviceId, List<RecognizedItem> items,
-                                              String refId, String gravityDeltasJson) {
-        return runWithDeviceLock(deviceId, () -> doDeductForOrder(deviceId, items, refId, gravityDeltasJson));
+        return runWithDeviceLock(deviceId, () -> doDeductForOrder(deviceId, items, refId));
     }
 
     private Map<String, String> runWithDeviceLock(String deviceId, java.util.function.Supplier<Map<String, String>> action) {
@@ -88,13 +78,8 @@ public class InventoryService {
     }
 
     private Map<String, String> doDeductForOrder(String deviceId, List<RecognizedItem> items,
-                                                 String refId, String gravityDeltasJson) {
+                                                 String refId) {
         deviceValidationService.ensureSettlementAllowed(deviceId);
-        List<GravityDeltaRequest.GravityDeltaItem> gravityDeltas = gravityHelper.parse(gravityDeltasJson);
-        if ((items == null || items.isEmpty())
-                && gravityHelper.hasSlotSpecificDeltas(gravityDeltas)) {
-            return deductFromSlotGravity(deviceId, gravityDeltas, refId);
-        }
         Map<String, String> batchBySku = new HashMap<>();
         Map<String, Integer> slotQtySold = new HashMap<>();
         Map<String, Integer> skuQtySold = new HashMap<>();
@@ -122,26 +107,6 @@ public class InventoryService {
         } else {
             deviceSlotService.applyPhysicalAfterSkuSale(deviceId, skuQtySold, refId);
         }
-        return batchBySku;
-    }
-
-    private Map<String, String> deductFromSlotGravity(String deviceId,
-                                                      List<GravityDeltaRequest.GravityDeltaItem> deltas,
-                                                      String refId) {
-        Map<String, String> batchBySku = new HashMap<>();
-        Map<String, Integer> slotQtySold = new HashMap<>();
-        for (GravityDeltaRequest.GravityDeltaItem delta : deltas) {
-            if (delta.delta() >= 0 || delta.slotId() == null || delta.slotId().isBlank()) {
-                continue;
-            }
-            int qty = -delta.delta();
-            String slot = delta.slotId().trim().toUpperCase();
-            InventoryLotService.FefoDeductResult result = inventoryLotService.deductFefo(
-                    deviceId, delta.skuId(), qty, ORDER, refId, slot);
-            batchBySku.putIfAbsent(delta.skuId(), result.primaryBatch());
-            slotQtySold.merge(slot, qty, Integer::sum);
-        }
-        deviceSlotService.applyPhysicalAfterSale(deviceId, slotQtySold, refId);
         return batchBySku;
     }
 
@@ -300,7 +265,7 @@ public class InventoryService {
         }
         if (delta > 0) {
             Map<String, String> deducted = doDeductForOrder(
-                    deviceId, List.of(new RecognizedItem(skuId, delta, 1f)), orderRefId, null);
+                    deviceId, List.of(new RecognizedItem(skuId, delta, 1f)), orderRefId);
             deducted.forEach(resultBatches::putIfAbsent);
             return;
         }

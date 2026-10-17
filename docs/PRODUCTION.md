@@ -289,7 +289,9 @@ copy infra\.env.staging.example infra\.env.staging
 
 正式上线：将 `SPRING_PROFILES_ACTIVE=prod`，填写全部 `WECHAT_*`，`MQTT_BROKER=ssl://...`，生产识别走 **将邑端侧**（`POST /internal/v1/vision/edge-results`，第三方端侧盒子可按同一契约接入），见 [`VISION_QUECTEL_INTEGRATION.md`](VISION_QUECTEL_INTEGRATION.md)。云端识别引擎（`vision-service` + DeepSeek + 自研 YOLO 权重）已于 2026-10-11 整体退役，生产不再部署。
 
-`AICABINET_MOCK_ENABLED=false` 时须已有端侧结果上报路径，否则低置信/无结果进争议，不静默零结算。运营后台维护端侧 `class_id → SKU` 映射（`jiangyi_class_mapping`，须 `ACTIVE`）。重力融合见 `GravitySettlementHelper`（staging / `AICABINET_GRAVITY_FALLBACK_SETTLE`）。
+`AICABINET_MOCK_ENABLED=false` 时须已有端侧结果上报路径，否则低置信/无结果进争议，不静默零结算。运营后台维护端侧 `class_id → SKU` 映射（`jiangyi_class_mapping`，须 `ACTIVE`）。
+
+重力信号**不再参与结算**（DC-27 批2，2026-10-17）：`AICABINET_GRAVITY_FALLBACK_SETTLE` / `aicabinet.gravity-fallback-settle` 与 `settlement.recognition_mode` 已删除，`GravitySettlementHelper` 只剩取证与展示用途（门事件合并 `shopping_session.gravity_deltas`、实时购物车、补货货道快照）。任何「视觉需复核 / 无结果」一律转人工争议，不存在用重力凑成成单的旁路。
 
 生产 Compose：
 

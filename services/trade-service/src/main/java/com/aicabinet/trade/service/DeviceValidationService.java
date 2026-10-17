@@ -125,8 +125,8 @@ public class DeviceValidationService {
     /**
      * 🔴 识别只认将邑端侧（2026-10-11 拍板：旧云识别链已退役）：生产环境非将邑登记柜机
      * 一律禁止消费开门——否则关门后无识别来源，只会批量产生「识别滞留」争议。
-     * mock 环境（AICABINET_MOCK_ENABLED=true，CI/本地演示）豁免：演示购物走
-     * dev-cart/gravity 短路结算，不依赖任何识别引擎。
+     * mock 环境（AICABINET_MOCK_ENABLED=true，CI/本地演示）豁免闸口本身，但结算绿仍须由
+     * 「柜机登记为端侧识别柜 + edge-results 上报」挣得——重力/dev-cart 凑绿通路已随 DC-27 批2 删除。
      */
     private void ensureJiangyiOnlyShopping(String deviceId) {
         if (securityProperties.mockEnabled()) {

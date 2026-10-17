@@ -28,6 +28,8 @@ vision-service 退役真正的条目是 **AU-134 / DC-27**（对应 `docs/JIANGY
 
 ## 2. DC-27 · 重力/云端识别残留（AU-134）
 
+> ⚠️ **2026-10-17 已定案，本节仅作拍板前取证留档**：用户选了 **(b) 现在删**（在隔离 worktree 分支跑完再合 dev），本节下方「建议：上线前做 (a)、(b) 排二期」与「⚠️ 新查到的落地前置」**不再适用**。落地实况见 §13 第 1 行与 [AUDIT_LEDGER_2026-10-13.md](AUDIT_LEDGER_2026-10-13.md) 文末。
+
 **今天重验到的事实**（全部在本地 dev 盘上，非转述）
 
 | 残留面 | 实测位置 |
@@ -121,6 +123,8 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
    - V357（线长佣金基数）：死列已由 V377 清理，**不再需要新条目**；DIFF 文档 §L29/§L67 判的「新基数违背老口径」对线长佣金这条**已过时**——`LineCommissionJob:181-182` 实测走 `CommissionBaseCalc.netGmv`（`total−refunded`、含 `PARTIAL_REFUNDED`、全额退款与未支付不计，审计 T2 2026-10-15）。DIFF §L51 另两提（**分账侧 / GMV 统计侧**是否同用净额）本轮**未复核**，`RevenueSplitService` 内 grep 无 refunded 关键字（它按单结算，退款侧处理在别处），列为待办，不在本轮下结论。
 
 ## 7. 本轮已落 / 唯一待问
+
+> ⚠️ **2026-10-17 就地更正**：本节描述的 **DC-27(a) 整套闸门已随 (b) 落地而被取代**——用户随后拍板「现在删了」，`settlement.recognition_mode` 整键删除（V385），`assertConfigValueAllowed`/`ALWAYS_AUDITED_KEYS`/`isForcedAuditKey` 与 `SystemConfigRecognitionModeTest` 一并移除（键不存在，闸门没有对象；`SystemConfigView.vue` 也不再渲染该键）。本节文字按当时状态保留，不涂改；落地实况见 [AUDIT_LEDGER_2026-10-13.md](AUDIT_LEDGER_2026-10-13.md) 文末「2026-10-17 DC-27(b) 批 2/批 3 落地」与本文 §13。
 
 **已落**：DC-27(a) 后端闸门 —— [SystemConfigService.java](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java) 唯一写入口 `doUpsert` 加 `assertConfigValueAllowed`，`settlement.recognition_mode` 只收 `VISION`（大小写/首尾空格放行，其余 400 且**零残留**）。新测 `SystemConfigRecognitionModeTest` 6 例 + SystemConfig 全家族 36 例全绿。
 
@@ -260,7 +264,7 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 
 | §12# | 你的拍板 | 本轮状态 | 落点 |
 |------|----------|----------|------|
-| 1 | DC-27(b)「现在删了」，在隔离 worktree 分支跑完再合 dev | **未动工**（本轮先做 2/3/4/6/8 + 文档回写）；删除面已实测清点，仍是 51 个 vision-service 跟踪文件 + `SettlementRecognitionService:133/162/189/202` + `docker-up.ps1:67` + `infra/.env.example:21,151` + `videoUri/videoClipsJson` DTO 透传 | 待办 #23（下一条就做） |
+| 1 | DC-27(b)「现在删了」，在隔离 worktree 分支跑完再合 dev | **批 3 ✅ `d83a9380`（151 文件 +242/−8003）、批 2 ✅ 本分支后续提交**；批 6 ⏳ 仍待办（`DoorEventRequest.videoUri/videoClipsJson/cameraFusionMode` 透传、`MqttEventListener:308-346`、`SessionDoorService` 写 `video_uri`、`SessionService.attachVideo`；`shopping_session.video_uri` 历史列按拍板不清）。批 2 落地实况与「结算绿改由将邑端侧链挣得」的验收面见 [AUDIT_LEDGER_2026-10-13.md](AUDIT_LEDGER_2026-10-13.md) 文末；⚠️ 副作用：**mock 环境「演示关门」在购物车非空时不再成单，而是转 DISPUTED（不扣款）**，`consumer-h5-uat.mjs` / H5 演示按钮切 `JiangyiDeviceSimulator` 尚未做（并入待办 #24），三批跑绿后合 dev | 待办 #23（进行中）→ #31 批 6、#24 演示脚本 |
 | 2 | F-5/F-6/F-8「看竞品和老代码决定修不修」 | **F-5 已修** `4bfc0de6`：通知费用栏改读钱包实扣流水（`MerchantWalletService:196 debitedCentsByRef`），`chargeDailyPeriodFees` 只报「本次实扣」消除重复计数，扣费失败计入任务汇总；**F-8 已修** `da72804a`：线长冲回基数改为**已入账佣金行**（费率不追溯）+ 两道 no-claw 守卫；**F-6 判定暂不修**：全量只有一处整数 floor（`MerchantDailyIncomeNotifyScheduler:350`），单柜 ≤(当月天数−1) 分 ⇒ ≤0.30 元/柜/月，两种修法各引入更坏的新风险 | 判定与取证 [CB-056](COMPETITOR_BENCHMARK.md)、明细 [AUDIT_B1_EXTENDED_FUND_2026-10-16.md §5.1–5.2](AUDIT_B1_EXTENDED_FUND_2026-10-16.md) |
 | 3 | 🔴3/🔴4「补审」 | **已补审完**：🔴3 `runMonthlyRefunds` 由零用例补到 6 个回归用例（`DeviceRentalServiceTest` 28/28）；🔴4 三任务七处逐处亲验齐全、共享库实读 `enabled` 现状、两道门禁 EXIT=0；本表第 3 行的「无门禁」说法**已就地勘误** | [AUDIT_B1_EXTENDED_FUND §5.3/§5.4](AUDIT_B1_EXTENDED_FUND_2026-10-16.md) |
 | 4 | 安装费「默认为 0」+ 按柜子/商家配置（选定：默认 0 + 柜级登记参数） | **已落**：V383 把 `install_fee_deduct_cents` 默认改 0（含 `DO $install_fee_zero_default$` 失败即停断言、全新库 dry-run 过）+ 代码常量 `DEFAULT_INSTALL_FEE_DEDUCT_CENTS=0L` + 4 处文案去「必扣」口径 + `settle_defaultZeroFee_returnsBalanceInFull` 钉住「不登记安装费 ⇒ 全额返还」；**粒度按你的选择保持在登记接口参数**，运营台不加位 | V383、`DeviceRentalService`、CB-044 补记；⚠️ 同一处 `DeviceRentalService:165` 把 `chargeMode` 写死 `"ONLINE"`（离线柜只能走线上扣款）——这条你没定，我不动 |

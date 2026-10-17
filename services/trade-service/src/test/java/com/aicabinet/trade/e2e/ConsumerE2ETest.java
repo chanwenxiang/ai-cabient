@@ -25,10 +25,13 @@ import org.testcontainers.utility.DockerImageName;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.service.DemoDataService;
+import com.aicabinet.trade.service.JiangyiDeviceDirectory;
 import com.aicabinet.trade.support.DemoFixture;
 
 import java.time.Instant;
@@ -53,6 +56,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * 微信小程序未配置时（测试 profile）登录走 mock openId（dev-only）；
  * 断言消费者可浏览柜机/商品/会员/订单，且消费者账号访问商家门户被 403 拒绝。
+ *
+ * <p>购买链路的结算绿<b>由将邑端侧链挣得</b>（DC-27 批2 后重力/dev-cart 凑绿通路已删）：
+ * 演示柜登记为 {@code jiangyi_device} BOUND → 关门停在 RECOGNIZING →
+ * {@code POST /internal/v1/vision/edge-results} 带识别明细才结案。
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
@@ -79,8 +86,6 @@ class ConsumerE2ETest {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> String.valueOf(redis.getMappedPort(6379)));
-        // 沙箱重力兜底：视觉服务不可用时按购物车/重力信号结算（见 SettlementService.tryStagingGravitySettle）
-        registry.add("aicabinet.gravity-fallback-settle", () -> "true");
     }
 
     @Autowired
@@ -104,6 +109,12 @@ class ConsumerE2ETest {
 
     @Autowired
     private DemoDataService demoDataService;
+
+    @Autowired
+    private JiangyiDeviceMapper jiangyiDeviceMapper;
+
+    @Autowired
+    private JiangyiDeviceDirectory jiangyiDeviceDirectory;
 
     /** 本用例**直插**的订单号（见 {@link #insertNeverChargedPendingOrder}），用于用例结束后的清理。 */
     private final List<String> f6InsertedOrderIds = new ArrayList<>();
@@ -260,7 +271,10 @@ class ConsumerE2ETest {
         String sessionId = objectMapper.readTree(sessionResult.getResponse().getContentAsString())
                 .path("data").path("sessionId").asText();
 
-        // 5) 购物车（mock 结算按购物车扣款；SKU 取柜上可售兜底，禁写死 SKU-WATER-001）
+        // 5) 把演示柜登记为将邑 BOUND 柜：这是关门后「不本地结案、等端侧上报」的判定依据
+        registerDemoAsJiangyiBound(deviceId);
+
+        // 6) 购物车（实时购物车展示面；SKU 取柜上可售兜底，禁写死 SKU-WATER-001）
         mockMvc.perform(put("/api/v2/sessions/" + sessionId + "/cart")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -269,8 +283,8 @@ class ConsumerE2ETest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        // 6) 关门事件（设备侧内部接口）→ 触发结算生成订单
-        mockMvc.perform(post("/internal/v1/sessions/door-event")
+        // 7) 关门事件（设备侧内部接口）→ 将邑柜停在 RECOGNIZING，**不得**本地结案
+        MvcResult doorResult = mockMvc.perform(post("/internal/v1/sessions/door-event")
                         .header("X-Internal-Api-Key", internalApiKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -278,9 +292,35 @@ class ConsumerE2ETest {
                                 "deviceId", deviceId,
                                 "doorState", "CLOSED"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn();
+        assertEquals("RECOGNIZING",
+                objectMapper.readTree(doorResult.getResponse().getContentAsString())
+                        .path("data").path("state").asText(),
+                "将邑柜关门必须停在 RECOGNIZING 等端侧上报（重力/dev-cart 凑绿通路已随 DC-27 批2 删除）");
 
-        // 7) 取订单：余额充足应直接 PAID；若为 PENDING 则补一次支付
+        // 8) 端侧识别上报（edge-results，与将邑 gateway 同一入口）→ 采纳即结算
+        MvcResult ingestResult = mockMvc.perform(post("/internal/v1/vision/edge-results")
+                        .header("X-Internal-Api-Key", internalApiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "sessionId", sessionId,
+                                "deviceId", deviceId,
+                                "taskId", "e2e-edge-" + System.currentTimeMillis(),
+                                "items", List.of(Map.of(
+                                        "skuId", cartSkuId, "quantity", 1, "confidence", 0.98)),
+                                "overallConfidence", 0.98,
+                                "needReview", false,
+                                "modelVersion", "cabinet-skus-v1",
+                                "provider", "E2E"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn();
+        String ingestBody = ingestResult.getResponse().getContentAsString();
+        assertTrue(objectMapper.readTree(ingestBody).path("data").path("accepted").asBoolean(),
+                "端侧上报必须被采纳（PROCESSED），实际回执=" + ingestBody);
+
+        // 9) 取订单：余额充足应直接 PAID；若为 PENDING 则补一次支付
         MvcResult orderResult = mockMvc.perform(get("/api/v2/sessions/" + sessionId + "/order")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -296,12 +336,27 @@ class ConsumerE2ETest {
                     .andExpect(status().isOk());
         }
 
-        // 8) 最终断言订单已支付
+        // 10) 最终断言订单已支付
         mockMvc.perform(get("/api/v2/orders/" + orderId)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.status").value("PAID"));
+    }
+
+    /**
+     * 演示柜登记为将邑 BOUND（幂等）。判定见 {@link JiangyiDeviceDirectory#isJiangyi}：
+     * 行存在且 status=BOUND 才算将邑柜；登记后必须 {@code evict}，否则 10s 负缓存会让本次关门走本地结案。
+     */
+    private void registerDemoAsJiangyiBound(String deviceId) {
+        if (jiangyiDeviceMapper.selectById(deviceId) == null) {
+            JiangyiDevice device = new JiangyiDevice();
+            device.setDeviceId(deviceId);
+            device.setDeviceSn("e2e" + Math.abs(deviceId.hashCode()));
+            device.setStatus("BOUND");
+            jiangyiDeviceMapper.insert(device);
+        }
+        jiangyiDeviceDirectory.evict(deviceId);
     }
 
     // ---------- F6：结算页「显式选择支付方式」在真实 HTTP 层的语义 ----------

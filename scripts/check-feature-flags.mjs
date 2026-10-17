@@ -348,7 +348,7 @@ const scsRel = SCS_REL;
 const otherJava = mainJava.filter((p) => p.rel !== scsRel).map((p) => readFileSync(p.abs, 'utf8'));
 if (otherJava.length === 0) fail('除 SystemConfigService.java 外没有其它 main java，R2 无法判定');
 
-// SystemConfigService 自身也是合法消费者（如 consumerPublicConfig() / usesGravityFusion()）。
+// SystemConfigService 自身也是合法消费者（如 consumerPublicConfig() / getBoolean()）。
 // 但必须先把「常量声明」和「seed 的 upsert/refresh 调用」剥掉 —— 否则「定义了自己」会被误读成「有人用它」，
 // 那正是本门禁要抓的恒真形态。
 const scsConsumerText = scs

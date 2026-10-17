@@ -5,7 +5,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.GravityDeltaRequest;
 
 import com.aicabinet.trade.recognition.RecognizedItem;
-import com.aicabinet.trade.recognition.RecognitionOutcome;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 
@@ -123,107 +122,6 @@ public class GravitySettlementHelper {
 
 
 
-    public List<RecognizedItem> mergeWithVision(String gravityDeltasJson,
-
-                                                                    List<RecognizedItem> visionItems) {
-
-        if (visionItems != null && !visionItems.isEmpty()) {
-
-            return visionItems;
-
-        }
-
-        List<RecognizedItem> gravityItems = toRecognizedItems(gravityDeltasJson);
-
-        if (!gravityItems.isEmpty()) {
-
-            log.info("using gravity fallback items={}", gravityItems.size());
-
-        }
-
-        return gravityItems;
-
-    }
-
-
-
-    /**
-
-     * 视觉为主；若重力与视觉 SKU 数量不一致，强制人工审核。
-
-     */
-
-    public RecognitionOutcome reconcileWithGravity(
-
-            String gravityDeltasJson,
-
-            RecognitionOutcome vision) {
-
-        List<RecognizedItem> gravityItems = toRecognizedItems(gravityDeltasJson);
-
-        List<RecognizedItem> visionItems =
-
-                vision.items() != null ? vision.items() : List.of();
-
-
-
-        if (visionItems.isEmpty()) {
-
-            if (gravityItems.isEmpty()) {
-
-                return vision;
-
-            }
-
-            // 重力可填明细，但视觉为空不等于生产级识别：强制人工审核，禁止静默高置信扣款。
-            float gravityConf = gravityItems.stream()
-                    .map(RecognizedItem::confidence)
-                    .max(Float::compare)
-                    .orElse(0.98f);
-            log.info("vision empty; gravity fill items={} → need_review", gravityItems.size());
-            return new RecognitionOutcome(
-                    vision.taskId(),
-                    gravityItems,
-                    gravityConf,
-                    true,
-                    vision.modelVersion() + "+gravity-fill",
-                    vision.detectedClasses()
-            );
-
-        }
-
-
-
-        if (!gravityItems.isEmpty() && !quantitiesMatch(visionItems, gravityItems)) {
-
-            log.warn("vision-gravity mismatch vision={} gravity={}", visionItems, gravityItems);
-
-            return new RecognitionOutcome(
-
-                    vision.taskId(),
-
-                    visionItems,
-
-                    vision.overallConfidence(),
-
-                    true,
-
-                    vision.modelVersion() + "+gravity-mismatch",
-
-                    vision.detectedClasses()
-
-            );
-
-        }
-
-
-
-        return vision;
-
-    }
-
-
-
     public List<GravityDeltaRequest.GravityDeltaItem> parse(String json) {
 
         if (json == null || json.isBlank()) {
@@ -291,36 +189,6 @@ public class GravitySettlementHelper {
     public boolean hasSlotSpecificDeltas(List<GravityDeltaRequest.GravityDeltaItem> deltas) {
 
         return deltas.stream().anyMatch(d -> d.slotId() != null && !d.slotId().isBlank());
-
-    }
-
-
-
-    private static boolean quantitiesMatch(List<RecognizedItem> visionItems,
-
-                                           List<RecognizedItem> gravityItems) {
-
-        Map<String, Integer> visionQty = aggregateBySku(visionItems);
-
-        Map<String, Integer> gravityQty = aggregateBySku(gravityItems);
-
-        return visionQty.equals(gravityQty);
-
-    }
-
-
-
-    private static Map<String, Integer> aggregateBySku(List<RecognizedItem> items) {
-
-        Map<String, Integer> qty = new LinkedHashMap<>();
-
-        for (RecognizedItem item : items) {
-
-            qty.merge(item.skuId(), item.quantity(), Integer::sum);
-
-        }
-
-        return qty;
 
     }
 

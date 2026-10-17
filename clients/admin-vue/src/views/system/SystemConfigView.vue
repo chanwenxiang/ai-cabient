@@ -340,9 +340,6 @@ const brandMarkPreview = computed(() => {
 });
 
 const ENUM_VALUE_OPTIONS: Record<string, { value: string; label: string }[]> = {
-  // 重力/云端识别链已退役（AU-134/DC-27）：后端 doUpsert 只收 VISION，
-  // 这里若还列 VISION_GRAVITY 就是给运营一个必被 400 的选项。
-  'settlement.recognition_mode': [{ value: 'VISION', label: 'VISION — 柜机端侧识别（唯一支持）' }],
   'refund.default_policy': [
     { value: 'AUTO_REFUND', label: 'AUTO_REFUND — 自助退款' },
     { value: 'DISPUTE_ONLY', label: 'DISPUTE_ONLY — 仅申诉' }

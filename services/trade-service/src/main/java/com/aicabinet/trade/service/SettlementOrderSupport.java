@@ -69,10 +69,6 @@ public class SettlementOrderSupport {
         this.orderViewAssembler = orderViewAssembler;
     }
 
-    String gravityDeltasForInventory(ShoppingSession session) {
-        return systemConfigService.usesGravityFusion() ? session.getGravityDeltas() : null;
-    }
-
     void applyItemsToOrder(CabinetOrder order, List<RecognizedItem> items) {
         order.getLines().clear();
         Map<String, String> slotBySku = inferSlotBySku(order.getDeviceId());

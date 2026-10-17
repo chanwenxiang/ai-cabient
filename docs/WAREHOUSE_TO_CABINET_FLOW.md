@@ -433,7 +433,7 @@ onOrderSettled(deviceId, skuId, qty):
 | 临期/下架/报损 | `pull_off_task`, `inventory_write_off` | `ExpiryAlertScheduler`, admin 报损 UI |
 | 补货建议 | 货道 par/min + **动销 ROP**（7/14 日） | `SalesVelocityService`, `GET .../replenishment/suggest`, `.../suggest/slots` |
 | 订单/争议/支付 | 既有模块；订单行含 `batchNo` | `SettlementService`, `DisputeService`, admin 订单/争议 UI |
-| 重力兜底 | `shopping_session.gravity_deltas` | `GravitySettlementHelper`, device-service MQTT |
+| 重力取证（不再结算） | `shopping_session.gravity_deltas` | `GravitySettlementHelper`（合并/解析/展示）、device-service MQTT；DC-27 批2 后仅实时购物车与补货货道快照在用 |
 | 成本价/COGS | `sku_catalog.purchase_cost_cents` → 订单行 `unit_cost_cents` | `FinanceReportService`, `GET .../finance/report`, admin「财务 COGS」 |
 | planogram 模板 | 新设备自动套用；`AI_CABINET_V1` / `AI_CABINET_COMPACT` | `PlanogramTemplateService`, `POST .../slots/apply-template` |
 | 点位差价 | — | **待建**（价在 `sku_catalog` 全局） |

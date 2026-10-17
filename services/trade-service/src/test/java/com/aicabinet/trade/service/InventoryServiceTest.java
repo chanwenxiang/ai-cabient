@@ -27,7 +27,6 @@ class InventoryServiceTest {
     @Mock DeviceSkuInventoryMapper inventoryRepository;
     @Mock InventoryLotService inventoryLotService;
     @Mock DeviceSlotService deviceSlotService;
-    @Mock GravitySettlementHelper gravityHelper;
     @Mock DeviceValidationService deviceValidationService;
     @Mock DistributedLockService lockService;
 
@@ -37,11 +36,9 @@ class InventoryServiceTest {
     void setUp() {
         inventoryService = new InventoryService(
                 inventoryRepository, inventoryLotService, deviceSlotService,
-                gravityHelper, deviceValidationService, lockService, null);
+                deviceValidationService, lockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(inventoryService, "self", inventoryService);
         lenient().when(lockService.tryLock(eq(InventoryService.deviceLockKey("CAB-001")), anyLong(), anyLong())).thenReturn(true);
-        lenient().when(gravityHelper.parse(any())).thenReturn(List.of());
-        lenient().when(gravityHelper.hasSlotSpecificDeltas(any())).thenReturn(false);
         lenient().when(inventoryLotService.hasSellableLots(any(), any())).thenReturn(false);
         lenient().when(inventoryLotService.deviceUsesLotLedger(any())).thenReturn(false);
     }

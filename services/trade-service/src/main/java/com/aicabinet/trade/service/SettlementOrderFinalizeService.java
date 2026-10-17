@@ -91,7 +91,7 @@ public class SettlementOrderFinalizeService {
             clearCouponSelection(order);
         }
         var batchBySku = inventoryService.deductForOrder(
-                session.getDeviceId(), items, order.getOrderId(), orderSupport.gravityDeltasForInventory(session));
+                session.getDeviceId(), items, order.getOrderId());
         SettlementOrderSupport.applyBatchNos(order, batchBySku);
         order.setInventoryDeducted(true);
         order.setStatus(unpaid ? "PENDING" : "PAID");

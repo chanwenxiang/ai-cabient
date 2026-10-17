@@ -79,6 +79,8 @@
 | **批5 旧映射/入驻** | `VisionMappingAdminController`（yolo/aliyun CRUD）+ `sku_vision_mapping` 表 + `SkuVisionEnrollmentService/Controller` + `VisionMappingService` + `VisionMappingInternalController` + `SkuCatalog.yoloClassName/visionEnrollmentStatus/referenceImageUrlsJson` 列 + 拍照盘点 `applyVisionCounts`（OpsWarehouseController:129 + WarehouseStocktakeService + admin WarehouseStocktakeDialogs `@stocktake-photo`）+ admin `endpoints.ts` skuVision*/visionMappings 死常量与路径清单条目 | VisionMappingView 已纯将邑化（亲验 grep 只调 deviceJiangyi*）；skuVision*.vue 零调用（亲验）；**DemoDataService 也种 vision 映射需同步摘除**（2026-10-11 深挖补充） | V339 迁移：先 `CREATE TABLE *_bak AS SELECT` 备份再 DROP 表/列；`check-edge-vision-wired` 门禁随 SkuDeltaCalculator 决策一并处置；删除 VisionServiceClient 时 records（RecognitionResult/RecognizedItem）迁 `trade/recognition` 新家并全仓 sed |
 | **批6 旧视频链** | android-app 录像上传（CabinetController 录像段/MinioUploader/OfflineUploadQueue/TradeVideoClient/VideoClipJson）+ device-service 门事件 `videoUri/uploadStatus/videoClipsJson/cameraFusionMode` 透传 + `SessionDoorService` 写 `video_uri` + `SessionService.attachVideo` + `SessionInternalController /internal/v1/sessions/video*` + `/ops/sessions/{sessionId}/video`（AdminDashboardController:295）+ admin `useSessionVideo` blob 回退 + merchant `video.vue` EDGE 源 + `AdminSessionDto.videoPreviewUrl` 死字段 | 全部亲验（grep 定位到文件行号） | 若 EDGE 柜确认已无在册，可一次性删；`shopping_session.video_uri` 历史行**保留只读**（DisputeService 将邑台账优先已在前，不影响将邑单），不做清列迁移 |
 
+**落地进度（2026-10-17 更新，就地追加）**：批 1 ✅（`ensureJiangyiOnlyShopping`，mock 环境豁免闸口本身）·批 2 ✅ `chore/dc27-remove-vision`（分支）批 2 提交 ·批 3 ✅ `d83a9380`（151 文件 +242/−8003）·批 4 ✅ ·批 5 ✅（V339/V344 已落）·**批 6 ⏳ 待办**。批 2 的实测口径与批 3 的清单见 [AUDIT_LEDGER_2026-10-13.md](AUDIT_LEDGER_2026-10-13.md) 文末「2026-10-17 DC-27(b) 批 2/批 3 落地」。批 2 落地内容比原表多两件事：`settlement.recognition_mode` 与 `aicabinet.gravity-fallback-settle` 两个开关整键删除（V385 + application.yml/4 份 env/compose/`ops/feature-flags.json`），以及 `GravitySettlementHelper` 只保留取证/展示 API（`mergeGravityJson`/`parse`/`fromRequestItems`/`toRecognizedItems`/`hasSlotSpecificDeltas`——门事件、实时购物车、补货货道快照在用），删掉 `mergeWithVision`/`reconcileWithGravity`。
+
 ### C. 历史数据（默认建议，可单独拍板）
 - `shopping_session.video_uri` 历史行：保留只读（删链不删数据，争议回看旧单仍可用；将邑单走台账不受影响）。
 - `sku_vision_mapping` 表与 sku_catalog 三列：随批 5 drop（先 `CREATE TABLE xx_bak AS SELECT` 备份）。
@@ -95,4 +97,4 @@
 
 **旧链与将邑唯一能"关联"的，是已经共用的下半段（edge-results 受理→状态机→结算→争议→三端展示）——将邑今天就跑在上面；旧链的上半段（云端识别引擎、DeepSeek、旧映射、旧视频、重力兜底）与将邑协议互斥（图片不经过我方服务器、识别在柜机端 rknn 推理），无任何接入点，按你"只要将邑一种"的拍板应整体退役，共 6 个批次，入口封死先行，Kafka/MinIO 因另有用途保留。**
 
-执行令一到即按 §3 批次动工（每批独立提交+门禁+CI 绿）。
+执行令已于 2026-10-17 下达并按 §3 批次动工（隔离分支 `chore/dc27-remove-vision`，每批独立提交+门禁+CI 绿，跑完再合 dev）；进度见上方「落地进度」。

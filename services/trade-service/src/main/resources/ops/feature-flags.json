@@ -753,11 +753,11 @@
       "unit": "小时"
     },
     {
-      "key": "settlement.empty_auto_complete_no_gravity",
+      "key": "settlement.empty_auto_complete",
       "group": "结算与识别",
       "type": "TEXT",
       "default": "FALSE",
-      "description": "纯视觉柜空车是否自动零结（无重力字段时）；默认 false 进争议"
+      "description": "识别为空是否自动零结（未取货/拿了又放回）；默认 false 进争议"
     },
     {
       "key": "settlement.min_confidence",
@@ -765,23 +765,6 @@
       "type": "TEXT",
       "default": "0.72",
       "description": "自动结算最低整体识别置信度（低于则触发人工审；单品另看 SKU 扣款阈值）"
-    },
-    {
-      "key": "settlement.recognition_mode",
-      "group": "结算与识别",
-      "type": "SELECT",
-      "default": "VISION",
-      "description": "结算识别方式: VISION=纯视觉(忽略重力), VISION_GRAVITY=视觉+重力融合",
-      "options": [
-        {
-          "value": "VISION",
-          "label": "纯视觉（忽略重力）"
-        },
-        {
-          "value": "VISION_GRAVITY",
-          "label": "视觉 + 重力融合"
-        }
-      ]
     },
     {
       "key": "feebill.auto_generate.enabled",

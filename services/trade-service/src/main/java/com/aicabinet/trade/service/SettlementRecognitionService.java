@@ -1,7 +1,6 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderReadModel;
-import com.aicabinet.trade.recognition.RecognizedItem;
 import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
@@ -16,21 +15,20 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * 识别结果决策管线（从 {@link SettlementService} 拆出）：重力兜底、审单旁路、空购零结、争议升级。
+ * 识别结果决策管线（从 {@link SettlementService} 拆出）：审单旁路、空购零结、争议升级。
  * 落单委托 {@link SettlementService}；DTO 委托 {@link SettlementOrderSupport}。
+ *
+ * <p>重力兜底已随 DC-27 批2 删除：识别只认端侧上报（edge-results / Kafka 回调同一份 DTO 管道），
+ * 没有「拿重力信号凑出结算成功」的通路。
  */
 @Service
 public class SettlementRecognitionService {
-
-    private static final String GRAVITY_MISMATCH = "gravity-mismatch";
-    private static final String GRAVITY_FILL = "gravity-fill";
 
     private static final Logger log = LoggerFactory.getLogger(SettlementRecognitionService.class);
 
     private final ShoppingSessionMapper sessionRepository;
     private final CabinetOrderMapper orderRepository;
     private final SettlementConfidenceService confidenceService;
-    private final GravitySettlementHelper gravityHelper;
     private final SecurityProperties securityProperties;
     private final StagingProperties stagingProperties;
     private final SystemConfigService systemConfigService;
@@ -43,7 +41,6 @@ public class SettlementRecognitionService {
     public SettlementRecognitionService(ShoppingSessionMapper sessionRepository,
                                         CabinetOrderMapper orderRepository,
                                         SettlementConfidenceService confidenceService,
-                                        GravitySettlementHelper gravityHelper,
                                         SecurityProperties securityProperties,
                                         StagingProperties stagingProperties,
                                         SystemConfigService systemConfigService,
@@ -55,7 +52,6 @@ public class SettlementRecognitionService {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
         this.confidenceService = confidenceService;
-        this.gravityHelper = gravityHelper;
         this.securityProperties = securityProperties;
         this.stagingProperties = stagingProperties;
         this.systemConfigService = systemConfigService;
@@ -75,7 +71,7 @@ public class SettlementRecognitionService {
      * 一处即可全覆盖。若挂在上游各个入口，三份代码会各自漂移，且默认配置（
      * {@code aicabinet.vision-async.enabled=false}）下异步通道根本不启用，只挂它等于没落库。
      *
-     * <p>记录的是<b>归一之后</b>的识别结果（已含重力兜底 / 强制复核），即平台据此决策的那一份；
+     * <p>记录的是<b>归一之后</b>的识别结果（已含强制复核标记），即平台据此决策的那一份；
      * 端侧原始报文的逐字对账不在本表职责内。
      *
      * <p><b>失败语义</b>：与结算<b>共用同一个事务</b>（理由见 {@link RecognitionResultWriter} 类注释——
@@ -108,38 +104,31 @@ public class SettlementRecognitionService {
         session.setRecognitionTaskId(recognition.taskId());
         sessionRepository.save(session);
 
-        recognition = withGravityFallback(session, recognition);
         recognition = forceReviewIfMockOrMismatch(recognition);
         if (recognition == null) {
-            throw new IllegalStateException("recognition result is null after gravity/review normalize");
+            throw new IllegalStateException("recognition result is null after review normalize");
         }
         recordRecognitionResult(session, recognition);
 
-        OrderReadModel early = trySettleWhenReviewRequired(session, recognition, allowDevFallback);
-        if (early != null) {
-            return early;
-        }
-        early = trySettleDevMock(session, recognition, allowDevFallback);
-        if (early != null) {
-            return early;
-        }
-        early = trySettleEmptyRecognition(session, recognition, allowDevFallback);
+        escalateIfHumanReviewRequired(session, recognition);
+        OrderReadModel early = trySettleEmptyRecognition(session, recognition);
         if (early != null) {
             return early;
         }
 
+        if (skipConfidenceGate(allowDevFallback)) {
+            log.info("dev mock settle session={} cartItems={}",
+                    session.getSessionId(), recognition.items().size());
+            return settlement.finalizeOrder(session, recognition.items());
+        }
+
         String confidenceReason = confidenceService.reviewReasonIfNeeded(recognition);
-        if (confidenceReason != null) {
-            OrderReadModel stagingOrder = tryStagingGravitySettle(session);
-            if (stagingOrder != null) {
-                return stagingOrder;
-            }
-            if (systemConfigService.getBoolean(SystemConfigService.DISPUTE_AUTO_OPEN, true)) {
-                escalateToDispute(session, recognition, confidenceReason);
-            } else {
-                log.info("dispute.auto_open=false, settle despite low confidence session={} reason={}",
-                        session.getSessionId(), confidenceReason);
-            }
+        if (confidenceReason != null
+                && systemConfigService.getBoolean(SystemConfigService.DISPUTE_AUTO_OPEN, true)) {
+            escalateToDispute(session, recognition, confidenceReason);
+        } else if (confidenceReason != null) {
+            log.info("dispute.auto_open=false, settle despite low confidence session={} reason={}",
+                    session.getSessionId(), confidenceReason);
         }
 
         // 旧「识别入驻白名单」闸已随旧链退役（2026-10-11）：将邑链的准入=classId 映射激活
@@ -148,90 +137,35 @@ public class SettlementRecognitionService {
     }
 
     /**
-     * 视觉显式 need_review：沙箱 gravity-fill / 本地 mock 重力证据可静默结算，否则进审单。
-     * @return 已结算订单，或 null 表示未拦截（继续后续路径）
+     * 端侧显式 need_review（含 {@link #forceReviewIfMockOrMismatch} 强制标记）：一律进人工审核，
+     * 不静默扣款——没有任何「拿重力/购物车证据凑成结算成功」的旁路。
      */
-    private OrderReadModel trySettleWhenReviewRequired(ShoppingSession session,
-                                                       RecognitionOutcome recognition,
-                                                       boolean allowDevFallback) {
-        if (!recognition.needReview()) {
-            return null;
+    private void escalateIfHumanReviewRequired(ShoppingSession session,
+                                               RecognitionOutcome recognition) {
+        if (recognition.needReview()) {
+            escalateToDispute(session, recognition, humanReviewReason(recognition));
         }
-        // 沙箱：gravity-fill（视觉空+重力有货）允许按重力结算；错配仍禁止静默扣款
-        if (!SettlementService.blocksSilentSettle(recognition) || allowsSandboxGravityFillSettle(recognition)) {
-            OrderReadModel stagingOrder = tryStagingGravitySettle(session);
-            if (stagingOrder != null) {
-                return stagingOrder;
-            }
-        }
-        // 本地 mock：有重力扣减证据时按购物车结算（OBS-012）；纯 mock 无证据仍进审单
-        if (allowDevFallback) {
-            OrderReadModel cartOrder = tryDevMockEvidenceSettle(session, recognition);
-            if (cartOrder != null) {
-                return cartOrder;
-            }
-        }
-        escalateToDispute(session, recognition, humanReviewReason(recognition));
-        return null;
     }
 
     /**
-     * 本地 mock 自动结算路径：标称结果不可当作生产精度，有重力证据或沙箱 gravity-fill 除外。
+     * 本地 mock 环境不卡置信度闸（标称精度在 {@code forceReviewIfMockOrMismatch} 已被拦在静默结算之前，
+     * 能走到这里的都是端侧/开发上报的明细）；生产的置信度闸始终生效。
      */
-    private OrderReadModel trySettleDevMock(ShoppingSession session,
-                                            RecognitionOutcome recognition,
-                                            boolean allowDevFallback) {
-        if (!allowDevFallback || !securityProperties.mockEnabled()) {
-            return null;
-        }
-        if (SettlementService.blocksSilentSettle(recognition)) {
-            if (allowsSandboxGravityFillSettle(recognition)) {
-                OrderReadModel stagingOrder = tryStagingGravitySettle(session);
-                if (stagingOrder != null) {
-                    return stagingOrder;
-                }
-            }
-            OrderReadModel cartOrder = tryDevMockEvidenceSettle(session, recognition);
-            if (cartOrder != null) {
-                return cartOrder;
-            }
-            escalateToDispute(session, recognition, humanReviewReason(recognition));
-            return null;
-        }
-        List<RecognizedItem> cartItems = List.of();
-        if (allowsGravityEvidenceSettle()) {
-            cartItems = gravityHelper.toRecognizedItems(session.getGravityDeltas());
-        }
-        if (cartItems.isEmpty() && recognition.items() != null && !recognition.items().isEmpty()) {
-            cartItems = recognition.items();
-            log.info("dev mock settle session={} using vision items={}", session.getSessionId(), cartItems.size());
-        } else {
-            log.info("dev mock settle session={} cartItems={}", session.getSessionId(), cartItems.size());
-        }
-        return settlement.finalizeOrder(session, cartItems);
+    private boolean skipConfidenceGate(boolean allowDevFallback) {
+        return allowDevFallback && securityProperties.mockEnabled();
     }
 
-    /** 视觉空结果：重力零结 / mock 零结 / 进审单。 */
+    /** 识别无商品：自动零结 / 进审单。 */
     private OrderReadModel trySettleEmptyRecognition(ShoppingSession session,
-                                                     RecognitionOutcome recognition,
-                                                     boolean allowDevFallback) {
+                                                     RecognitionOutcome recognition) {
         if (!recognition.items().isEmpty()) {
             return null;
         }
-        OrderReadModel stagingOrder = tryStagingGravitySettle(session);
-        if (stagingOrder != null) {
-            return stagingOrder;
-        }
-        // 竞品口径：视觉空 + 重力净零（含显式 []）→ 未取货/拿了又放回，自动零结；
-        // 无重力证据时生产仍进争议（防摄像头静默失败）。
-        if (shouldAutoCompleteEmptyCart(session)) {
-            log.info("empty cart auto-complete session={} device={} gravityPresent={}",
-                    session.getSessionId(), session.getDeviceId(),
-                    session.getGravityDeltas() != null);
-            return settlement.finalizeOrder(session, List.of());
-        }
-        if (allowDevFallback && securityProperties.mockEnabled()) {
-            log.warn("dev mock: empty recognition, zero-settle session={}", session.getSessionId());
+        // 竞品口径：识别为空且政策允许自动零结 → 未取货/拿了又放回，自动零结；
+        // 政策关闭时生产仍进争议（防摄像头静默失败）。
+        if (shouldAutoCompleteEmptyCart()) {
+            log.info("empty cart auto-complete session={} device={}",
+                    session.getSessionId(), session.getDeviceId());
             return settlement.finalizeOrder(session, List.of());
         }
         escalateToDispute(session, recognition, "未识别到商品，需人工审核");
@@ -239,96 +173,14 @@ public class SettlementRecognitionService {
     }
 
     /**
-     * 视觉无商品时是否自动零结。
-     * <ul>
-     *   <li>VISION_GRAVITY：重力净扣减为空且会话带重力字段（含 {@code []}）→ 传感器佐证未取货</li>
-     *   <li>VISION / 无重力字段 → 看 empty_auto_complete_no_gravity 或 mock/staging，否则进审单</li>
-     * </ul>
+     * 识别无商品时是否自动零结（{@code settlement.empty_auto_complete}，默认 false 进争议）。
+     * 沙箱/staging 与 mock 环境豁免：演示与预发不产生真实争议工单。
      */
-    private boolean shouldAutoCompleteEmptyCart(ShoppingSession session) {
-        if (systemConfigService.usesGravityFusion()) {
-            List<RecognizedItem> gravityItems =
-                    gravityHelper.toRecognizedItems(session.getGravityDeltas());
-            if (gravityItems != null && !gravityItems.isEmpty()) {
-                return false;
-            }
-            if (session.getGravityDeltas() != null) {
-                return true;
-            }
-        }
-        if (systemConfigService.getBoolean(SystemConfigService.SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, false)) {
+    private boolean shouldAutoCompleteEmptyCart() {
+        if (systemConfigService.getBoolean(SystemConfigService.SETTLEMENT_EMPTY_AUTO_COMPLETE, false)) {
             return true;
         }
-        return securityProperties.mockEnabled()
-                || stagingProperties.stagingMode()
-                || stagingProperties.gravityFallbackSettle();
-    }
-
-    private boolean allowsGravityEvidenceSettle() {
-        return systemConfigService.usesGravityFusion() || stagingProperties.gravityFallbackSettle();
-    }
-
-    /** 预发/沙箱 E2E：有重力扣减信号时优先按重力结算，避免无真实购物视频时误入争议。 */
-    private OrderReadModel tryStagingGravitySettle(ShoppingSession session) {
-        if (!allowsGravityEvidenceSettle()) {
-            return null;
-        }
-        if (!stagingProperties.stagingMode() && !stagingProperties.gravityFallbackSettle()) {
-            return null;
-        }
-        List<RecognizedItem> gravityItems =
-                gravityHelper.toRecognizedItems(session.getGravityDeltas());
-        if (gravityItems.isEmpty()) {
-            return null;
-        }
-        log.info("staging gravity settle session={} items={}", session.getSessionId(), gravityItems.size());
-        return settlement.finalizeOrder(session, gravityItems);
-    }
-
-    /**
-     * 沙箱重力兜底仅放行「视觉为空、重力补全」(gravity-fill)。
-     * gravity-mismatch / 纯 mock 仍须人工审核。
-     */
-    private boolean allowsSandboxGravityFillSettle(RecognitionOutcome recognition) {
-        if (!systemConfigService.usesGravityFusion()) {
-            return false;
-        }
-        if (!stagingProperties.stagingMode() && !stagingProperties.gravityFallbackSettle()) {
-            return false;
-        }
-        String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
-        return version.contains(GRAVITY_FILL) && !version.contains(GRAVITY_MISMATCH);
-    }
-
-    /**
-     * 本地演示：{@code AICABINET_MOCK_ENABLED} 下，只要会话有重力扣减证据，即按重力 finalize → PAID。
-     * 覆盖 mock-v1 / gravity-fill / gravity-mismatch（演示柜模拟器常带重力，视觉 mock 易错配）。
-     * 生产（mock 关闭）不走此分支；无重力证据返回 null，由调用方进审单。
-     */
-    private OrderReadModel tryDevMockEvidenceSettle(ShoppingSession session,
-                                                    RecognitionOutcome recognition) {
-        if (!allowsGravityEvidenceSettle()) {
-            return null;
-        }
-        if (!securityProperties.mockEnabled()) {
-            return null;
-        }
-        List<RecognizedItem> cartItems =
-                gravityHelper.toRecognizedItems(session.getGravityDeltas());
-        if (cartItems == null || cartItems.isEmpty()) {
-            return null;
-        }
-        log.info("dev mock settle with gravity evidence session={} cartItems={} version={}",
-                session.getSessionId(), cartItems.size(), recognition.modelVersion());
-        return settlement.finalizeOrder(session, cartItems);
-    }
-
-    RecognitionOutcome withGravityFallback(ShoppingSession session,
-                                                              RecognitionOutcome recognition) {
-        if (!systemConfigService.usesGravityFusion()) {
-            return recognition;
-        }
-        return gravityHelper.reconcileWithGravity(session.getGravityDeltas(), recognition);
+        return securityProperties.mockEnabled() || stagingProperties.stagingMode();
     }
 
     private static RecognitionOutcome forceReviewIfMockOrMismatch(

@@ -34,18 +34,18 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **326** 个脚本，最新 **V332/V333（将邑，CB-022）**；dev 分支另有 V329–V331（CB-018~021），合并后台账 329 个 | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
-| trade Controllers | **85** | `*Controller.java` |
-| trade 单测 | **333** `*Test.java` | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
-| admin-vue 业务视图 | **77** `.vue` | `src/views` |
+| Flyway 迁移 | **379** 个脚本（仅 `services/trade-service`），最新 **V385** | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
+| trade Controllers | **93** | `*Controller.java` |
+| trade 单测 | **380** `*Test.java` | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
+| admin-vue 业务视图 | **83** `.vue` | `src/views` |
 | consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
 | shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
-| 踩坑总册条目 | **≥223** | `docs/engineering/lessons-learned.md`（末条编号 L-223） |
+| 踩坑总册条目 | **319 号 / 310 行**（编号不连续） | `docs/engineering/lessons-learned.md` |
 | 竞品对照台账 | **18 条 / 96 行含 URL** | `docs/COMPETITOR_BENCHMARK.md`；门禁 `check:competitor-benchmark` |
 | 审计门禁 | `pnpm check:audit-gates` | 新建脚本须进 `ci.yml` |
 | 将邑开门柜接入 | `services/jiangyi-gateway` **:8083**（全栈 Docker `127.0.0.1:18084`） | 模式一外采套件，CB-022；方案+现状速查 `docs/JIANGYI_GATEWAY_DESIGN.md`；`JIANGYI_JWT_SECRET` 未配置则 fail-closed 503 |
 
-> **最后校准**：2026-10-09（本节数字为**当日实测**，非估算）。
+> **最后校准**：2026-10-17（Flyway/Controllers/单测/视图/总册 五行为**当日实测**，其余行沿用上次校准）。
 > ⚠️ **规模数字会漂移** —— 读到过期的数字时，先按上面的命令实测再下结论，不要引用历史值。
 
 更细文件级清单：[CODEBASE_INVENTORY.md](CODEBASE_INVENTORY.md)；测试底稿：[CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)。
@@ -114,11 +114,14 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 ## 6. 核心业务链路（金钱正确性最高优先级）
 
 ```
-扫码/登录 → POST /api/v2/sessions → 预授权 → MQTT 开门
-  → SHOPPING → 关门 + 视频 → Settlement → Vision/端侧识别
+扫码/登录 → POST /api/v2/sessions → 预授权 → 开门（生产仅端侧识别柜可购物，mock 豁免）
+  → SHOPPING → 关门 → RECOGNIZING（端侧识别柜停在此等上报，不本地结案）
+  → POST /internal/v1/vision/edge-results（jiangyi-gateway 归一 + 合成 CLOSED 后转发）→ Settlement
   → 高置信：出单 + 扣库存 + 扣款
-  → 低置信/失败：DISPUTED（通常先不扣款）
+  → need_review / 低置信 / 无结果：DISPUTED（先不扣款）
 ```
+
+> 识别**只有端侧上报一种来源**（2026-10-11 拍板、2026-10-17 实删）：云端 `vision-service` 与重力兜底/dev-cart 结算短路已整体退役（`settlement.recognition_mode`、`aicabinet.gravity-fallback-settle` 两开关不存在）。重力信号只作取证与展示（`shopping_session.gravity_deltas` → 实时购物车、补货货道快照、争议分类）。CI 与本地演示的「结算绿」同样必须由「柜机登记 `jiangyi_device` BOUND + edge-results 上报」挣得，见 `ConsumerE2ETest` 步骤 5–10。
 
 会话状态机：`CREATED → OPENING → SHOPPING → WAITING_UPLOAD → RECOGNIZING → SETTLING → COMPLETED`（旁路禁 `setState`，走 `SessionService.transition`）。
 
@@ -609,7 +612,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | G4 | admin-vue 技术债 | D1–D25 **已清**（见 `admin-vue-debt-tracker`） |
 | G5 | consumer-mp 技术债 | C1–C12 **done**（C9 deferred）；余 **C10b** easycom→package（mp 风险知情延后） |
 | G6 | merchant-mp 技术债 | M1–M12 **done**（除 M9）；余 **M9** 与 C10b 对齐 |
-| G7 | ~~灰度真金 vision~~ | **已关闭（2026-10-11）**：识别只认将邑端侧，vision-service 整体退役（判定文档 §3） |
+| G7 | ~~灰度真金 vision~~ | **拍板 2026-10-11、实删 2026-10-17**：批 3 `vision-service/` 整目录 ✅ `d83a9380`、批 2 重力兜底/dev-cart 结算短路 + `settlement.recognition_mode` + `aicabinet.gravity-fallback-settle` ✅（分支 `chore/dc27-remove-vision`，待合 dev）；**批 6 旧视频字段透传仍待办**。识别现役唯一入口 `POST /internal/v1/vision/edge-results` |
 | G8 | 运营台仍有 **98 处**（32 个文件）`(cents / 100).toFixed(2)` 内联换算绕过 `yuanText`；双小程序已清零 | 渲染目前是对的（字面 `¥` + 纯数字），但负额会成 `¥-5.00`、且负数/空态口径与 `yuanText` 不一致。**只在该值可能为负时才算真缺陷**——2026-10-16 已把 5 处调账/提现确认串（输入框 `:min="-1000000"` 可为负）与 25 处重复 `¥` 收口；余量留作增量，动哪页顺手换成 `yuanText` 系 |
 
 ---
@@ -633,7 +636,12 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
-### 2026-10-17（提现费率注册表对齐 + 锁柜阈值登记 + 平台分账「先不收」落地）
+### 2026-10-17（DC-27(b) 批 2/批 3 实删 + 提现费率注册表对齐 + 锁柜阈值登记 + 平台分账「先不收」落地）
+- **DC-27(b) 拍板「现在删了」→ 隔离分支 `chore/dc27-remove-vision`（跑完再合 dev）**，落实 2026-10-11 判定文档 §3 的批 2 + 批 3（批 6 仍待办）：
+  - **批 3** `d83a9380`（151 文件 +242/−8003）：仓库根 `vision-service/` 整目录（FastAPI 引擎 + 训练装置 + datasets/models + Python 测试）、`pyrightconfig.json` / `.run/vision-service.run.xml` / `.cursor/rules/vision-service.mdc` / `infra/.env.vision-dev.example` / `infra/models/production/`、14 个旧识别 e2e/训练脚本、`VisionApiProperties` + `VISION_API_KEY` 启动校验、`VISION_MODE_*`/`DemoVisionSeed`/`MIN_VISION_CONFIDENCE` 死常量，env/compose/告警/Grafana/`docker-up.ps1` 同步。**Kafka/MinIO 按拍板保留**（通知分发 + 争议证据/OTA 在用）。
+  - **批 2**（本分支后续提交，29 文件 +348/−875）：`SettlementRecognitionService` 的 `withGravityFallback`/`trySettleWhenReviewRequired`/`trySettleDevMock`/`tryStagingGravitySettle`/`allowsGravityEvidenceSettle`/`allowsSandboxGravityFillSettle`、`GravitySettlementHelper` 的 `mergeWithVision`/`reconcileWithGravity`（净 −132 行）、`SettlementOrderSupport.gravityDeltasForInventory`、`InventoryService.deductForOrder` 的重力融合重载全部删除；两个开关整键删除——`aicabinet.gravity-fallback-settle`（+ `StagingProperties.gravityFallbackSettle`）与 `settlement.recognition_mode`（连带 DC-27(a) 那道 `assertConfigValueAllowed`/`ALWAYS_AUDITED_KEYS`/`isForcedAuditKey` 闸门与 `SystemConfigRecognitionModeTest` 168 行，铁律 62），`settlement.empty_auto_complete_no_gravity` 改名 `settlement.empty_auto_complete`（V385 纯 DML，**历史留痕不清**）。**保留**的重力 API 只服务取证/展示且逐个验过有消费者：`mergeGravityJson`（门事件）、`parse`/`hasSlotSpecificDeltas`（补货货道快照）、`fromRequestItems`（实时购物车）、`toRecognizedItems`（演示关门判空 + 争议分类）。
+  - **挣绿来源改造（这批改动的真正验收）**：`ConsumerE2ETest` 不再靠 gravity fallback，而是把演示柜登记进 `jiangyi_device`（BOUND）+ `evict` 进程内负缓存 ⇒ 断言关门停在 `RECOGNIZING` ⇒ 走生产同一入口 `POST /internal/v1/vision/edge-results` ⇒ 断言 `PAID`；`SettlementDisputeTest` 重写 12 例（正向钉「重力列存在也按上报明细扣库」、负向钉四种非生产 modelVersion 一律转争议且零资金移动），`GravitySettlementHelperTest.settlementFusionApisStaysRemoved` 防融合 API 复活。**实测**：`mvn -B -pl services/trade-service -am -DskipITs test` → **2041 tests / 0 failure**；`node scripts/run-audit-gates.mjs` 49 门禁 0 失败。
+  - ⚠️ **行为后果（用户需知情，H5/脚本改造另列待办 #24）**：mock 环境的「演示关门」`POST /api/v2/sessions/{id}/demo-close`（Controller 按 `mockEnabled` 放行，生产 403）在**购物车非空**时不再成单，而是转 `DISPUTED` 且不扣款；要演示「买了并扣款」须柜机登记端侧识别柜 + `edge/device-simulator` 的 `JiangyiDeviceSimulator` 上报。教训见总册 **#318**（删兜底必须同批改挣绿方式）与 **#319**（删配置键要连闸门/留痕/前端/注册表/测试一起清）。
 - **F-9 佣金基数改「收款时冻结毛额」（V384）+ F-10 净额过滤器补 `PREAUTH_CAPTURE`（`5ec4020f`）**（用户 2026-10-17 拍板：F-9「订单新增 paid_amount_cents，支付成功时冻结毛额、退款不再改它；净额=paid−refunded」、F-10「修：一行过滤 + 真调 mapper 的用例」）：
   - **F-9** 新增列 `cabinet_order.paid_amount_cents INT NOT NULL DEFAULT 0`（[V384__order_paid_amount_snapshot.sql](../services/trade-service/src/main/resources/db/migration/V384__order_paid_amount_snapshot.sql)），值定义 = 该单 `payment_operation` 中 COMPLETED 的 `CHARGE + ADJUST_CHARGE + PREAUTH_CAPTURE` 之和，**与 `PaymentOperationMapper.chargedCompletedCents` 逐字同构** ⇒ 迁移回填与运行期冻结算的是同一个数。写入点 [`OrderPaymentService.freezePaidAmount`](../services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java)（只增不减，调用方 save）：`SettlementOrderFinalizeService.finalizeOrder` 扣款成功后、`UnpaidOrderService.markPaid` 两支（净额已覆盖 / 补扣成功）；争议结案的 `DISPUTED→PAID` 重放**不加**（那单早已冻结，多调只是多一次查询）。读侧 [`CommissionBaseCalc`](../services/trade-service/src/main/java/com/aicabinet/trade/service/CommissionBaseCalc.java) 新增 `grossCents`：`冻结值>0 ? 冻结值 : total`（0=从未扣到过款 ⇒ 回落保住历史单），`netCents = max(0, gross − refunded)`。`total_amount_cents` 继续当「剩余应付」给分账/退款用，三条回写路径不再污染佣金基数。
   - **取证（CB-057，4 家主体含 2 家同行）**：微信支付交易账单「退款/撤销行的订单金额填 0.00」（订单额与退款额分列）、支付宝「成交订单=已付款成功的订单金额汇总（**未扣除退款订单金额**）+ 发生支付、退款时会产生新的记录」、有赞「订单实付金额不剔除退款金额」、**老系统 easygo 直接 `@Column(updatable=false)` 从 ORM 层面禁止回写成交额**，退款另立 `StatFinRefundDetail` 两列，日账单 GMV=`Σ order_total_amount − 退款行`（`BillService:424`）。不采纳「基数直接取 `netCompletedCents` 流水净额」：无流水的路径会恒 0、逐单查 N+1，且事后答不出「这单当初成交多少」。

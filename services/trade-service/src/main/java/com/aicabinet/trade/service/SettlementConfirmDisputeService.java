@@ -216,8 +216,7 @@ public class SettlementConfirmDisputeService {
             SettlementOrderSupport.applyBatchNos(order, adjustedBatches);
         } else {
             var deductedBatches = inventoryService.deductForOrder(
-                    prep.session().getDeviceId(), prep.newItems(), order.getOrderId(),
-                    orderSupport.gravityDeltasForInventory(prep.session()));
+                    prep.session().getDeviceId(), prep.newItems(), order.getOrderId());
             SettlementOrderSupport.applyBatchNos(order, deductedBatches);
             order.setInventoryDeducted(true);
         }

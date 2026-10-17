@@ -54,8 +54,8 @@ public class SettlementSettleOrchestrator {
      *       真识别经 edge-results → completeAsyncRecognition 带结果结算）；</li>
      *   <li>生产非将邑会话已被 {@code DeviceValidationService.ensureJiangyiOnlyShopping}
      *       挡在开门（批1），本方法在生产无新增流量；</li>
-     *   <li>mock 环境（CI/本地演示）由既有 dev-cart/gravity 证据短路成单（与此前云端识别
-     *       不可达时的熔断回退完全同形，ConsumerE2E 即在该形态下常绿）。</li>
+     *   <li>重力/dev-cart 短路成单通路已随 DC-27 批2 删除：CI 与本地演示的结算绿
+     *       必须由「柜机注册为将邑 + 端侧 edge-results 上报」挣得。</li>
      * </ul>
      * 失败语义保持 fail-closed：无占位之外的识别，一律转人工审核，不扣款。
      */
@@ -90,7 +90,7 @@ public class SettlementSettleOrchestrator {
     /**
      * 主流开门柜：高置信度自动扣款；存疑或未识别到 SKU 一律进人工申诉，先不扣款。
      *
-     * @param allowDevFallback 为 false 时不注入 mock SKU（运营识别测试）
+     * @param allowDevFallback 为 false 时不豁免 mock 环境的置信度闸（运营识别测试用）
      */
     public OrderReadModel processRecognitionResult(ShoppingSession session,
                                                    RecognitionOutcome recognition,

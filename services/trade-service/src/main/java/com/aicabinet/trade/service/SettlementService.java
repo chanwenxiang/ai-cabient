@@ -84,7 +84,7 @@ public class SettlementService {
     /**
      * 主流开门柜：高置信度自动扣款；存疑或未识别到 SKU 一律进人工申诉，先不扣款。
      *
-     * @param allowDevFallback 为 false 时不注入 mock SKU（运营识别测试）
+     * @param allowDevFallback 为 false 时不豁免 mock 环境的置信度闸（运营识别测试用）
      */
     public OrderReadModel processRecognitionResult(ShoppingSession session,
                                              RecognitionOutcome recognition,

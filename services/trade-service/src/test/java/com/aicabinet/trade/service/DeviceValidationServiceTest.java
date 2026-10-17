@@ -136,7 +136,7 @@ class DeviceValidationServiceTest {
 
     @Test
     void ensureConsumerShopping_allowedWhenMockEnabledEvenForNonJiangyi() {
-        // mock 环境（CI / 本地演示）豁免：演示购物走 dev-cart 短路结算，不依赖识别引擎
+        // mock 环境豁免的是「只认端侧识别柜」这道闸；结算绿仍须由 edge-results 挣（DC-27 批2）
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId("CAB-001");
         device.setOnlineStatus("ONLINE");

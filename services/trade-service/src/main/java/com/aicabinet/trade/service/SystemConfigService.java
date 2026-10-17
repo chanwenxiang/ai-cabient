@@ -191,19 +191,16 @@ public class SystemConfigService {
     public static final String OPS_BRAND_LOGO_URL = "ops.brand.logo_url";
     /** 消费者开门预授权冻结金额(分), 优先于配置文件, 柜机押金可覆盖. */
     public static final String CHECKOUT_PREAUTH_CENTS = "checkout.preauth_cents";
-    /** 纯视觉柜（会话无重力字段）空车是否自动零结；默认 false 进争议。 */
-    public static final String SETTLEMENT_EMPTY_AUTO_NO_GRAVITY =
-            "settlement.empty_auto_complete_no_gravity";
+    /** 识别为空时是否自动零结（未取货/拿了又放回）；默认 false 进争议。键名随 V385 去重力化。 */
+    public static final String SETTLEMENT_EMPTY_AUTO_COMPLETE =
+            "settlement.empty_auto_complete";
     /** 平台资金池日检：备付缓冲（元），余额 < 在途待付 + 该缓冲即告警（CB-033）。 */
     public static final String PLATFORM_FUND_PLAN_BUFFER_YUAN = "platform.fund.plan.buffer_yuan";
     /** 平台资金池日检：归集核对容差（元），本月平台分成 vs 归集登记差异超该值告警。 */
     public static final String PLATFORM_FUND_RECON_TOLERANCE_YUAN = "platform.fund.recon.tolerance_yuan";
     /** 租赁账单日检：租金账期结束后宽限天数，超过即自动欠租锁柜（CB-034），0=账期结束即锁。 */
     public static final String DEVICE_RENTAL_OVERDUE_LOCK_DAYS = "device.rental.overdue_lock_days";
-    /** 结算识别方式: VISION=纯视觉；VISION_GRAVITY=视觉+重力融合。 */
-    public static final String SETTLEMENT_RECOGNITION_MODE = "settlement.recognition_mode";
-    public static final String RECOGNITION_MODE_VISION = "VISION";
-    public static final String RECOGNITION_MODE_VISION_GRAVITY = "VISION_GRAVITY";
+    // 结算识别方式键（settlement.recognition_mode）已随重力/云识别链退役删除：DC-27 批2，识别只认端侧上报。
     /**
      * 商户端完成补货任务是否必须上传现场凭证照片。
      * true=至少 1 张；false=可跳过（仍允许上传，便于抽检）。
@@ -426,21 +423,6 @@ public class SystemConfigService {
             LINE_WITHDRAW_DAILY_LIMIT_CENTS, LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS,
             LINE_WITHDRAW_FEE_CENTS, LINE_WITHDRAW_FEE_BPS, LINE_WITHDRAW_FEE_CAP_CENTS);
 
-    /**
-     * 非资金键、但同样<b>无视审计开关强制留痕</b>的键（AU-134/DC-27 收尾）。
-     *
-     * <p>{@link #SETTLEMENT_RECOGNITION_MODE} 是「把已退役的重力/云识别链配活」的唯一旋钮，
-     * 本仓确实发生过用它凑出结算绿的事故，所以改它必须可追。它不进
-     * {@link #FUND_GUARDED_KEYS}：那族还附带「值必须是非负整数」的写侧校验，而本键是枚举串。
-     */
-    static final java.util.Set<String> ALWAYS_AUDITED_KEYS =
-            java.util.Set.of(SETTLEMENT_RECOGNITION_MODE);
-
-    /** 强制留痕判据：资金键族 + 非资金但不可静默修改的键。 */
-    private static boolean isForcedAuditKey(String key) {
-        return FUND_GUARDED_KEYS.contains(key) || ALWAYS_AUDITED_KEYS.contains(key);
-    }
-
     /** 资金键值校验：非负整数且不超 int（读取侧 getInt 的硬约束）。违规抛 400。 */
     private static void validateFundKeyValue(String key, String value) {
         long parsed;
@@ -511,13 +493,6 @@ public class SystemConfigService {
                 .map(SystemConfig::getConfigValue)
                 .filter(v -> !v.isBlank())
                 .orElse(defaultValue);
-    }
-
-    /** 是否在结算中融合重力（仅 VISION_GRAVITY）。默认 VISION=否。 */
-    @Transactional(readOnly = true)
-    public boolean usesGravityFusion() {
-        String mode = self.getValue(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION);
-        return RECOGNITION_MODE_VISION_GRAVITY.equalsIgnoreCase(mode.trim());
     }
 
     @Transactional(readOnly = true)
@@ -698,8 +673,6 @@ public class SystemConfigService {
         if (FUND_GUARDED_KEYS.contains(key)) {
             validateFundKeyValue(key, value);
         }
-        // AU-134：结算识别方式值域闸门（只收 VISION），与资金闸并列、同样零落库。
-        assertConfigValueAllowed(key, value);
         java.util.Optional<SystemConfig> existing = repository.findByIdForUpdate(key);
         // 覆盖前先留旧值：这才是「版本」的全部信息量（写入后旧值即不可追）。
         String oldValue = existing.map(SystemConfig::getConfigValue).orElse(null);
@@ -717,25 +690,6 @@ public class SystemConfigService {
         recordChangeIfEnabled(key, created ? null : oldValue, saved.configValue(),
                 operatorId, CONFIG_ACTION_UPSERT);
         return saved;
-    }
-
-    /**
-     * 写侧值域闸门（AU-134/DC-27 收口）。
-     *
-     * <p>识别口径 2026-10-11 已拍板为「柜机端侧识别」一种，重力融合属已退役链的残留代码。
-     * 残留本身不动生产（非端侧柜买不了），但**能被配活**：一旦把本键写成 {@code VISION_GRAVITY}，
-     * 测试就能在端侧识别链根本没跑通的情况下拿到「结算成功」的绿——F1 实测阶段已实证过一次
-     * （拿 VISION_GRAVITY + gravityDeltasJson 凑出结算，后从驱动脚本删除）。故在唯一的写入口拦死。
-     */
-    private static void assertConfigValueAllowed(String key, String value) {
-        if (!SETTLEMENT_RECOGNITION_MODE.equals(key)) {
-            return;
-        }
-        String normalized = value == null ? "" : value.trim();
-        if (!RECOGNITION_MODE_VISION.equalsIgnoreCase(normalized)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "结算识别方式只支持 VISION（柜机端侧识别）：重力/云端识别链已退役，不可配活");
-        }
     }
 
     @Transactional
@@ -763,7 +717,7 @@ public class SystemConfigService {
      * 配置写操作的留痕（F1 策略版本与审计）：受 {@link #OPS_CONFIG_AUDIT_ENABLED} 控制，
      * <b>缺行视为开启</b>（AU-048 默认改开）。
      *
-     * <p>{@link #FUND_GUARDED_KEYS} 与 {@link #ALWAYS_AUDITED_KEYS} <b>无视开关强制留痕</b>；
+     * <p>{@link #FUND_GUARDED_KEYS} <b>无视开关强制留痕</b>；
      * 其余键显式置 false 才零写入。
      * 留痕落两处：结构化的 {@code system_config_history}（版本）与
      * {@code admin_audit_log}（统一审计视图，运营台审计页按 target_type 可过滤）。
@@ -774,7 +728,7 @@ public class SystemConfigService {
     private void recordChangeIfEnabled(String key, String oldValue, String newValue,
                                       Long operatorId, String action) {
         boolean on = self.getBoolean(OPS_CONFIG_AUDIT_ENABLED, true);
-        if (!on && !isForcedAuditKey(key)) {
+        if (!on && !FUND_GUARDED_KEYS.contains(key)) {
             return;
         }
         long op = operatorId == null ? SYSTEM_OPERATOR_ID : operatorId;
@@ -819,10 +773,8 @@ public class SystemConfigService {
                 "运营支持邮箱（下发 C 端公开配置 supportEmail）");
         upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72",
                 "自动结算最低整体识别置信度（低于则触发人工审；单品另看 SKU 扣款阈值）");
-        upsertIfAbsent(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION,
-                "结算识别方式: VISION=纯视觉(忽略重力), VISION_GRAVITY=视觉+重力融合");
-        upsertIfAbsent(SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, FALSE,
-                "纯视觉柜空车是否自动零结（无重力字段时）；默认 false 进争议");
+        upsertIfAbsent(SETTLEMENT_EMPTY_AUTO_COMPLETE, FALSE,
+                "识别为空是否自动零结（未取货/拿了又放回）；默认 false 进争议");
         upsertIfAbsent(DISPUTE_AUTO_OPEN, "true",
                 "识别低置信是否自动开争议工单；false 时仍结算但记日志（空车/超时等安全路径不受影响）");
         upsertIfAbsent(REFUND_DEFAULT_POLICY, "AUTO_REFUND",

@@ -7,6 +7,8 @@
 
 本文回答「精确测试该断言什么」：每条分支对应期望状态、金额与锁行为。
 
+> ⚠️ **2026-10-17 作废声明（DC-27 批2，就地追加，原文不改）**：§4.1/§4.2 里所有「mock+重力证据 settle」「gravity-fill 沙箱可 settle」「gravityFallbackSettle 零元」的短路行**已随重力兜底结算路径删除而失效**。现口径：`SettlementRecognitionService` 只吃端侧上报（edge-results / Kafka 回调同一份管道）——`need_review` 一律转人工争议，识别为空按 `settlement.empty_auto_complete`（原 `…_no_gravity`，V385 改名）决定零结或争议，`aicabinet.gravity-fallback-settle` / `settlement.recognition_mode` 两个开关已不存在。重力只保留取证/展示（`shopping_session.gravity_deltas`、实时购物车、补货货道快照）。见 [../JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md](../JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md)。
+
 ---
 
 ## 1. 端到端资金状态机（摘要）

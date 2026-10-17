@@ -140,3 +140,24 @@ cd clients/consumer-mp && FLOWS=env-baseline,F1 JIANGYI_GATEWAY_BASE=http://127.
    与 `recognize-timeout` 转 DISPUTED 需真机各演一次。
 4. **审计分支修复项的运行期复验**：AU-133 已复验（§2）；批 2–9 各入口校验/归属比对的运行期复验
    仍只有单测+CI 证据，需在被测环境独占后按批补跑。
+
+## 6. 2026-10-17 后续（就地追加；上文 §0–§5 是 2026-10-13 快照，不涂改）
+
+- **§0「关键配置现值」两键已不存在**：DC-27(b) 批 2 在分支 `chore/dc27-remove-vision` 整键删除
+  `settlement.recognition_mode`（连带值域白名单——DC-27(a) 那道闸门随之作废，键没了、闸门没有对象），
+  并把 `settlement.empty_auto_complete_no_gravity` 改名 `settlement.empty_auto_complete`
+  （V385 纯 DML：DELETE 旧键行 + UPDATE 键名，历史留痕不清）。**重跑 §4 命令时别再 PUT 这两个键。**
+- **§3 AU-134 行的进度**：批 3 ✅ `d83a9380`（`vision-service/` 整目录 + `VisionApiProperties` /
+  `VISION_API_KEY` 启动校验 + `docker-up.ps1` 的 `$appServices` 已摘除）；批 2 ✅ 本批（重力兜底与
+  dev-cart 结算短路 + `aicabinet.gravity-fallback-settle` + `StagingProperties.gravityFallbackSettle`）；
+  批 6 ⏳（`DoorEventRequest.videoUri/videoClipsJson/cameraFusionMode` 透传仍未删）。
+- **§3「审计自纠」那条造绿路径现在结构性不可达**：`mergeWithVision`/`reconcileWithGravity` 已从
+  `GravitySettlementHelper` 删除，`SettlementRecognitionService` 不再接受任何重力/购物车证据成单，
+  重力只剩取证与展示。钉住用例：`GravitySettlementHelperTest.settlementFusionApisStaysRemoved`（负向，
+  防 API 被加回）+ `SettlementDisputeTest.nonProductionModelVersion_alwaysEscalates`（mock-v1 /
+  staging-fallback / +gravity-mismatch / gravity-fill 四形态一律转争议且零资金移动）。
+- **F1 重跑的挣绿方式变了**：结算绿必须由「`jiangyi_device` 登记 BOUND + `POST /internal/v1/vision/edge-results`」
+  挣得，形态见 `services/trade-service/src/test/java/com/aicabinet/trade/e2e/ConsumerE2ETest.java` 步骤 5–10
+  ——其中 `jiangyiDeviceDirectory.evict(deviceId)` 不能省（进程内未命中缓存 10s，不失效会让本次关门走本地结案）。
+  ⚠️ 副作用：mock 环境的「演示关门」`POST /api/v2/sessions/{id}/demo-close` 在购物车非空时不再成单，
+  而是转 `DISPUTED`（不扣款）；`consumer-h5-uat.mjs` / H5 演示按钮切 `JiangyiDeviceSimulator` 仍是待办（任务 #24）。
