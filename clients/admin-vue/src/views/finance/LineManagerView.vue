@@ -1323,7 +1323,7 @@ async function proxyWithdraw(row: Manager) {
 async function review(row: Withdraw, approve: boolean) {
   try {
     await ElMessageBox.confirm(
-      approve ? `确认通过该提现申请并打款 ¥${yuan(row.amountCents)}？` : `确认驳回该提现申请？`,
+      approve ? `确认通过该提现申请并打款 ${yuan(row.amountCents)}？` : `确认驳回该提现申请？`,
       approve ? '通过并打款' : '驳回申请',
       { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
     );
@@ -1383,7 +1383,7 @@ async function batchReviewWithdraws(approve: boolean) {
 async function payout(row: Withdraw) {
   try {
     await ElMessageBox.confirm(
-      `确认对该提现申请（¥${yuan(row.amountCents)}）重新打款？`,
+      `确认对该提现申请（${yuan(row.amountCents)}）重新打款？`,
       '重试打款',
       { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
     );
@@ -1400,7 +1400,7 @@ async function payout(row: Withdraw) {
 async function cancelFailed(row: Withdraw) {
   try {
     await ElMessageBox.confirm(
-      `确认取消该失败提现（¥${yuan(row.amountCents)}）并解冻资金？取消后不可再打款。`,
+      `确认取消该失败提现（${yuan(row.amountCents)}）并解冻资金？取消后不可再打款。`,
       '取消解冻',
       { type: 'warning', confirmButtonText: '确定解冻', cancelButtonText: '返回' }
     );

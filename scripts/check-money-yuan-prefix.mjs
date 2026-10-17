@@ -45,6 +45,15 @@ const YEN_THEN_INTERP = new RegExp(`¥\\s*\\{\\{(${INTERP_BODY})\\}\\}`, 'g');
 /** 整段插值（用于识别体内再拼 ¥ 的写法）。 */
 const ANY_INTERP = new RegExp(`\\{\\{(${INTERP_BODY})\\}\\}`, 'g');
 const INTERP_CALL = /([A-Za-z_$][\w$]*)\s*\(/g;
+/**
+ * 🔴 脚本侧（`<script setup>` 里的 JS 模板串 / 字符串相加）：这两类**不在 `{{ }}` 里**，
+ * 上面两条永远看不到（2026-10-17 实测漏掉 3 个提现/退款确认弹窗共 7 处 `¥${yuan(x)}`，
+ * 页面渲染成 `¥¥100.00` 而门禁全绿）。
+ * 只认「紧跟 `${` 的调用」或「`'¥' +` 后的调用」，`¥${v.toFixed(2)}`、`¥${Number(x)}` 这类
+ * 手写元换算仍是正确写法，由绑定集合（A 类才报）放行。
+ */
+const YEN_THEN_JS_TEMPLATE = /¥\s*\$\{\s*([A-Za-z_$][\w$]*)\s*\(/g;
+const YEN_PLUS_JS_CALL = /['"]¥['"]\s*\+\s*([A-Za-z_$][\w$]*)\s*\(/g;
 
 /**
  * 全文判定：返回 `[{ line, name }]` —— 「字面 ¥ 被加到 A 类（自带 ¥ 的）调用上」的每一处。
@@ -78,6 +87,13 @@ function findDuplicateYen(src, emitting) {
         push(interp.index, call[1]);
       }
     }
+  }
+  // 脚本侧：`` `…¥${yuan(x)}…` `` 与 `'¥' + yuan(x)`（ElMessageBox / ElMessage 文案最常踩）
+  for (const js of src.matchAll(YEN_THEN_JS_TEMPLATE)) {
+    if (emitting.has(js[1])) push(js.index, js[1]);
+  }
+  for (const js of src.matchAll(YEN_PLUS_JS_CALL)) {
+    if (emitting.has(js[1])) push(js.index, js[1]);
   }
   return out;
 }
@@ -178,7 +194,14 @@ function selfCheck() {
     ['<text>{{ money(x) }}</text>', ['fmtMoney'], null],
     ['<text>¥{{ centsToYuanDigits(x) }}</text>', ['fmtMoney'], null], // B 类，靠绑定集合放行
     // 折行：`¥{{` 与调用分在两行（prettier 会这么排），逐行版漏报过
-    ['<span>¥{{\n  yuan(Math.max(0, row.budgetCents))\n}}</span>', ['yuan'], 'yuan']
+    ['<span>¥{{\n  yuan(Math.max(0, row.budgetCents))\n}}</span>', ['yuan'], 'yuan'],
+    // 脚本侧（无 {{ }}）：这两类是 2026-10-17 实测的漏报形态
+    ['const t = `确认打款 ¥${yuan(row.amountCents)}？`', ['yuan'], 'yuan'],
+    ["const t = '打款 ' + '¥' + yuan(row.amountCents)", ['yuan'], 'yuan'],
+    // 手写元换算（B 类不在绑定集合里）必须放行，否则真实代码里 15 处全炸
+    ['const t = `¥${v.toFixed(2)}`', ['yuan'], null],
+    ['const t = `合计 ¥${money(total)}`', ['yuan'], null],
+    ['const t = `¥${Number(v).toFixed(2)}`', ['yuan'], null]
   ];
   for (const [src, emitting, expected] of yenCallCases) {
     const got = findDuplicateYen(src, new Set(emitting)).map((d) => d.name);
