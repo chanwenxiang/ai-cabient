@@ -201,6 +201,9 @@ public class AuthService {
         UserInfo user = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         verifyPassword(user, oldPassword);
+        // AU-142（批次 10）：自助改密此前漏走 PasswordPolicy——管理员重置路径（:177）有校验，
+        // 自助路径没有 ⇒ 商户可把密码改成纯数字弱密（CB-050 新路径绕开 CB-021 收口）。
+        PasswordPolicy.validate(newPassword);
         if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 64) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度须为 6-64 位");
         }

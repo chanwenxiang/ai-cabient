@@ -590,7 +590,10 @@ async function bindWeixinIfPossible(phoneNum: string) {
         fail: reject
       });
     });
-    await consumerWxLogin(wxCode, phoneNum);
+    // AU-145（批次 10）：只传 code 走 openid 绑定——旧形态把明文手机号放请求体，
+    // 生产必被后端拒绝（批次 2 AU-136 同源收口）且被 catch 吞 ⇒ 微信绑定永远静默缺失。
+    // 手机号绑定后续走 one-click phoneCode 服务端换取（consumerWxLogin 第三参）。
+    await consumerWxLogin(wxCode);
   } catch {
     /* 非微信环境或绑定失败时仍可用手机号会话 */
   }

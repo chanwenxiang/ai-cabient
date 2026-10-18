@@ -51,6 +51,38 @@ class ProductionStartupValidatorTest {
     }
 
     @Test
+    void prodAcceptsWithSeedEnvNoneExplicit() {
+        // AU-177：seed_env 显式 none（application-prod.yml 硬编码形态）⇒ 正常通过
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
+        MinioProperties minio = mock(MinioProperties.class);
+        when(minio.accessKey()).thenReturn("prod-minio-user");
+        when(minio.secretKey()).thenReturn("prod-minio-secret-32bytes-at-least");
+        ProductionStartupValidator v = buildValidatorWithMinioCorsCidr(
+                environment, minio, List.of("https://ops.example.com"), true);
+        when(environment.getProperty("spring.datasource.password", "")).thenReturn("prod-db-password-not-default");
+        when(environment.getProperty("aicabinet.seed_env")).thenReturn("none");
+        v.validateProductionConfig();
+    }
+
+    @Test
+    void prodRejectsSeedEnvNotNone() {
+        // AU-177：seed_env 被改动/env 覆盖为非 none ⇒ 演示超管会带全家上生产，fail-fast
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
+        MinioProperties minio = mock(MinioProperties.class);
+        when(minio.accessKey()).thenReturn("prod-minio-user");
+        when(minio.secretKey()).thenReturn("prod-minio-secret-32bytes-at-least");
+        ProductionStartupValidator v = buildValidatorWithMinioCorsCidr(
+                environment, minio, List.of("https://ops.example.com"), true);
+        when(environment.getProperty("spring.datasource.password", "")).thenReturn("prod-db-password-not-default");
+        when(environment.getProperty("aicabinet.seed_env")).thenReturn("local");
+        assertThatThrownBy(v::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SEED_ENV=none");
+    }
+
+    @Test
     void prodRejectsDefaultDatasourcePassword() {
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});

@@ -358,21 +358,24 @@ class RevenueSplitServiceTest {
 
         when(splitRepository.findByOrderIdForUpdate("O-3")).thenReturn(Optional.of(split));
         when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
-        when(profitSharingService.returnMerchantShare(any(), any(), anyLong(), anyString(), anyString()))
-                .thenReturn(ReturnSubmitOutcome.SUCCESS);
         when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         service.adjustSplitAfterPartialRefund(order, false);
 
-        verify(profitSharingService).returnMerchantShare(
-                eq(split), eq(merchant), eq(540L), eq("PSR" + split.getSplitId() + ":g360"), anyString());
+        // AU-141：finalize 事务内不再同步提交微信回退——落 PENDING + 30s 补偿任务异步提交
+        verify(profitSharingService, never()).returnMerchantShare(any(), any(), anyLong(), anyString(), anyString());
+        assertEquals("PSR" + split.getSplitId() + ":g360", split.getWechatPendingReturnNo());
+        assertEquals(540L, split.getWechatPendingReturnCents());
         verify(splitRepository).save(argThat(s ->
                 s.getMerchantCents() == 360L
                         && s.getFailureReason() == null));
+        verify(returnCompensationService).scheduleReturnRetry(eq(split), eq(30));
     }
 
     @Test
-    void adjustSplitAfterPartialRefund_failedReturn_schedulesCompensation() {
+    void adjustSplitAfterPartialRefund_pendingSubmission_schedulesCompensationImmediately() {
+        // AU-141：部分退路径不再同步提交渠道——无条件落 PENDING + 30s 补偿任务
+        //（提交与查单确认由 CompensationTaskScheduler 的独立短事务完成）
         OrderRevenueSplit split = new OrderRevenueSplit();
         split.setSplitId("SPLIT-F");
         split.setOrderId("O-F");
@@ -390,16 +393,14 @@ class RevenueSplitServiceTest {
 
         when(splitRepository.findByOrderIdForUpdate("O-F")).thenReturn(Optional.of(split));
         when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
-        when(profitSharingService.returnMerchantShare(any(), any(), anyLong(), anyString(), anyString()))
-                .thenReturn(ReturnSubmitOutcome.FAILED);
         when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         service.adjustSplitAfterPartialRefund(order, false);
 
-        verify(profitSharingAlertService).sendReturnSubmitFailed(eq(split), anyString(), eq(540L), anyString());
-        verify(returnCompensationService).scheduleReturnRetry(eq(split), eq(60));
-        verify(splitRepository).save(argThat(s ->
-                s.getFailureReason() != null && s.getWechatPendingReturnNo() != null));
+        verify(profitSharingService, never()).returnMerchantShare(any(), any(), anyLong(), anyString(), anyString());
+        verify(profitSharingAlertService, never()).sendReturnSubmitFailed(any(), anyString(), anyLong(), anyString());
+        assertEquals(540L, split.getWechatPendingReturnCents());
+        verify(returnCompensationService).scheduleReturnRetry(eq(split), eq(30));
     }
 
     @Test

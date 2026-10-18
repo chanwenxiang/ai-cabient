@@ -86,6 +86,21 @@ public class ProductionStartupValidator {
         requireSecret(internalApiProperties.key(), DEV_INTERNAL_KEY, "INTERNAL_API_KEY / aicabinet.internal-api.key");
         // VISION_API_KEY 强密钥检查已随旧云识别链退役删除（2026-10-11 批5/收尾）——消费方 VisionServiceClient 已不存在
         rejectDefaultDatasourcePassword();
+        // AU-177（批次 10，纵深加固）：演示号段清除依赖 seed_env='none'（V344）。正常由
+        // application-prod.yml 硬编码保证；此处校验防有人改动 profile 文件或以 env 覆盖
+        // 把 seed_env 拉回 local/demo 而演示超管（13900000001/123456）带全家当上生产。
+        // 键序：yml 嵌套键 aicabinet.seed_env（application-prod.yml 硬编码 none）→ SEED_ENV env 覆盖 → 缺省按 none
+        String seedEnv = environment.getProperty("aicabinet.seed_env");
+        if (seedEnv == null) {
+            seedEnv = environment.getProperty("SEED_ENV");
+        }
+        if (seedEnv == null) {
+            seedEnv = "none";
+        }
+        if (!"none".equalsIgnoreCase(seedEnv)) {
+            throw new IllegalStateException(
+                    "Production/staging requires SEED_ENV=none (got '" + seedEnv + "'): demo accounts would remain active");
+        }
         if (!authProperties.sms().hasWebhook()) {
             throw new IllegalStateException("Production/staging requires SMS webhook: aicabinet.auth.sms.webhook-url");
         }

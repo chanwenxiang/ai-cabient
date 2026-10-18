@@ -97,6 +97,9 @@
         />
         <!-- CB-048：微信绑定免密登录——已绑定商户账号的微信可一键登录；
              未绑定走密码登录，登录成功后自动静默绑定当前微信 -->
+        <!-- AU-192：微信一键登录依赖 uni.login(provider=weixin)，H5 端无此能力必失败；
+             消费端同按钮有 #ifdef H5 分支，商户端此前无条件渲染 ⇒ H5 用户点必报错。 -->
+        <!-- #ifdef MP-WEIXIN -->
         <view class="wx-divider"><text class="wx-divider__text">或</text></view>
         <app-button
           class="wx-login-btn"
@@ -109,6 +112,7 @@
           :label="wxLoading ? '微信登录中…' : '微信一键登录'"
           @click="onWxLogin"
         />
+        <!-- #endif -->
         <text v-if="err" class="err" data-testid="login-error">{{ err }}</text>
         <text v-if="isDev && demoHint" class="hint">{{ demoHint }}</text>
       </view>

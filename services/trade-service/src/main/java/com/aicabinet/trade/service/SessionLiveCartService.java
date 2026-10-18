@@ -100,6 +100,15 @@ public class SessionLiveCartService {
         if (!EnumSet.of(SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING).contains(session.getState())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
         }
+        // AU-192（批次 9）：internal live-cart 与门事件/识别上报同源强校验——请求 deviceId
+        // 必须等于会话归属柜机（SessionDoorService.doApplyDoorEvent 同款 DEVICE_MISMATCH）。
+        // 该端点当前无生产方（jiangyi-gateway 未接），强制必填：未来接入方一上线即带绑定，
+        // 不留无绑定窗口；识别侧被攻陷也无法向任意会话注入展示项。
+        String reportedDeviceId = request == null ? null : request.deviceId();
+        if (reportedDeviceId == null || reportedDeviceId.isBlank()
+                || !session.getDeviceId().equals(reportedDeviceId.trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_MISMATCH);
+        }
         String mode = request == null ? "REPLACE" : request.resolvedMode();
         Map<String, LiveCartDto.LiveCartLine> bySku = seedCartFromExisting(session, mode);
         List<LiveCartUpdateRequest.LiveCartItem> incoming =

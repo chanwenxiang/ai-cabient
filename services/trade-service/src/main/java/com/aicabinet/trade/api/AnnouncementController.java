@@ -33,11 +33,10 @@ public class AnnouncementController {
         return ApiResponse.ok(announcementService.listPage(q, status, priority, page, size));
     }
 
-    @GetMapping("/published")
-    public ApiResponse<List<Announcement>> published() {
-        return ApiResponse.ok(announcementService.listPublished());
-    }
-
+    // AU-125（批次 11）：原 /published 孤儿端点已删——无权限码（任意登录者可拉全量公告含
+    // 未按 audience 过滤的 DTO），admin 前端 endpoints 零引用，三端消费各自走
+    // Consumer/Merchant/（运营台走带码的 list）。listPublished() service 方法保留
+    // （内部/未来带 audience 的面可用）。
     @RequiresPermissions(value = {"ops:announcement:create", "ops:announcement:import"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping
     public ApiResponse<Announcement> create(
