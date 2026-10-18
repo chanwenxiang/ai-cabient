@@ -39,7 +39,7 @@
 | A1 | edge+后端 | ~~P0-2/P0-3（同根）~~ ✅ 主体落地（2026-10-15 拍板 A+B 全做） | P0-2：HTTP 设备凭据一机一密（V367+拦截器+APK 装机页，fleet key 退出设备面）；P0-3：将邑激活制（V366 auth_enabled+未激活告警+突发检测）。二期待真机：控件固件 per-device secret（JIANGYI_GATEWAY_DESIGN.md 7.6）。**二期开工首个 commit = MQTT 凭据收口**：device flavor 置空默认 MQTT 用户名/密码（现编进 APK，反编译可提取共享凭据）+ 装机页补 MQTT 凭据注入（走 saveSecret 加密通道）+ broker per-device 账号；**触发提前做**：若门店量产部署先于二期开工，先做装机注入短期包垫底（2026-10-16 评估：未量产+分发面小+EMQX 回环绑定，暂不做，成本>敞口） |
 | A2 | 基建 | ~~P1-8 Kafka PLAINTEXT 无 SASL + modelVersion 丢弃~~ ✅ 已完成 | 2026-10-15：监听器并轨 HTTP ingest 口径（modelVersion 必填+deviceId 绑定，9.4-1 一并收口）+ Redpanda SASL/SCRAM（三态实测） |
 | A3 | edge | P1-6 残留：OTA checksum 与下载同通道；P1-7 残留：`usesCleartextTraffic` 未关 | 部分修复 |
-| A4 | 基建 | P1-14 残留：postgres/redis/mysql 等有状态镜像仍浮动 tag | 部分修复 |
+| A4 | 基建 | ~~P1-14 镜像浮动 tag~~ ✅ **已修（2026-10-18 批次 11）**：base 9 镜像+full postgres/mysql 全部钉 tag@sha256 digest（本地实测版）；minio 此前已钉 | 无剩余 |
 | A5 | 后端 | ~~P1-17 补货实收 qty≤0 静默丢行（应拒绝）~~ ✅ 已修（2026-10-15 实证：ReplenishmentService:1054 qty≤0 已 400 拒绝，注释带审计编号——backlog 行状态未同步而已） | 无剩余 |
 | A6 | P2×9 | ✅ **8/9 已修（2026-10-16）**：①eventSeq 去重键可控→DoorEventDeduplicator 加同 session+state 60s×30 次滑动窗口限流（rate_limited 指标+2 例单测）；②EdgeRuntimeConfig 加密失败不再回落明文（抛异常拒绝保存）+allowBackup=false；③VISION CIDRS 全非法 fail-fast（parse_cidrs_strict）+VISION_TRUSTED_PROXY_CIDRS 网段化信任代理（废弃布尔 VISION_TRUST_PROXY，与 Java 侧对称，5 例新测试）；④admin 自建 yuan() 15 处收敛 display.ts（yuanTextZero/yuanTextNone 显式命名，MemberLevels 元口径保留）；⑤toLocaleString 4 处补 Asia/Shanghai；⑦privacy-consent 未同意拦全部 H5 请求（shared request 单点，同意后整页重载）；⑧check-compose-ports ALLOWLIST 须 compose 侧行尾 EXPOSE-ALLOW 双处留痕（负向自测 2 例）；⑨e2e 锁 finally/TOCTOU 批次4 已修无需动。**⑥商户登录明文存手机号 ✅ 已修（2026-10-16 用户拍板「删明文存储」）**：删「记住账号」开关与手机号持久化（登录体验由 30min token+24h 静默续期承担）；老版本 storage 残留键启动即清。配套调研 CB-048：C 端已对齐微信官方推荐形态不动；**B 端「微信绑定免密登录」✅ 已实施（2026-10-16 二期，e2bce1a5+7f449489）**：`/auth/merchant-wx-bind`（已验证会话内绑定，openid 唯一归属 409、幂等、覆盖=换绑）+ `/auth/merchant-wx-login`（未绑定 404/游客 403/2FA challenge）；登录页「微信一键登录」+ 密码登录后静默绑定。C 端已对齐微信官方推荐形态不动；**B 端「微信绑定免密登录」（密码登录后显式绑定 openid，绑定后静默免密；对齐西陆运维端形态）列为二期建议**。 | A6 全闭环 |
 | A7 | P3×5 | ✅ **全部处置（2026-10-16）**：①surrogate 截断（3 处 substring(0,128)）→ `support/TextTruncate.safeTruncate` 按 code point 边界截断不碎 emoji（6 例单测）；②reasonKey 死代码→删除（全仓零引用实证）；③vision `/recognize/async`+`/tasks/{id}` stub→删除（全仓零调用方实证，审计两选项取「删」）；④MQTT clientId 随机→稳定后缀（容器 HOSTNAME，同容器重启复用 cleanSession=false 会话不再堆积；多实例共享订阅不互踢；非容器退回随机）；⑤OutboundMqttQueue 全 critical 丢第 0 条→**钉住刻意取舍**（FIFO 淘汰保最新+Log.w 告警兜底，注释锚定不改行为） | 全闭环 |
@@ -76,6 +76,29 @@
 - Observability 页 6 个 Grafana iframe 401/404——待用户浏览器内确认 Basic 认证（10-12 遗留）。
 - 将邑模拟器不响应补货开门指令——本地无法闭环补货完成段，如需要扩模拟器。
 
+## 六、集群就绪（起第 2 副本的前置）——2026-10-16 立项，本轮只登记不改码
+
+> 来源：`docs/CLUSTER_READINESS.md` §二（同日按源码复核重写）+ `docs/PRODUCTION_TOPOLOGY.md` §3。
+> 用户 2026-10-16 拍板目标形态「2 台 + 云托管」，但**现在工作区 300+ 脏文件、Flyway 已到 V371**，
+> 资金/库存类迁移不能在这种树下抢版本号 ⇒ 全部**立项不实施**，实施须在干净树或独立 worktree。
+> 每条都带**负验证**：改之前必须能造出一个现在会红的用例，否则等于没验证。
+
+| # | 优先级 | 项 | 证据（实跑核过） | 改法 | 负验证（改前红 → 改后绿） |
+|---|---|---|---|---|---|
+| P-1 | **多副本硬门槛** | 库存扣减原子化 | `InventoryService.java:318-337`、`InventoryLotService.java:145-200` 读→算→写，实体无 `@Version`，DB 无 `CHECK (quantity>=0)` | 改 `UPDATE … SET qty = qty-? WHERE id=? AND qty >= ?` 单语句 + 迁移补 `CHECK` 约束；影响行数 0 视为抢锁失败走既有重试 | 并发两条同槽位扣减的集成测试（同一 `CompletableFuture` 双打），**改前**能出现负库存或双成功，**改后**必须一条成功一条失败 |
+| P-2 | **多副本硬门槛** | 钱包流水业务键唯一索引 | `line_wallet_ledger`（V133:101）/`merchant_wallet_ledger`（V139:69-72）/`staff_wallet_ledger`（V359:27）**只有普通索引**；对照 `merchant_fee_ledger`（V355:18）、`commission_clawback`（V361:21）**已有**唯一索引 ⇒ 同仓做法不一致 | 照 V355/V361 写法补 `(业务键, 类型)` 唯一索引；**先跑存量重复检测 SQL**，有脏数据先出清理迁移再建索引（否则迁移直接失败） | 重复流水插入测试（同业务键连插两次），改前双成功、改后第二次抛约束冲突；并把「存量重复检测」脚本一次实跑结果登记在迁移头注释 |
+| P-3 | 高 | 锁租约与长临界区 | `ScheduledTaskService` 拿 `job:<taskKey>` 租约锁**无续期**；`ProfitSharingRetryScheduler.java:45` 把将邑 HTTP 包在 `@Transactional` 内 | 外部 HTTP 移出事务与锁临界区（先算后写、单条小事务）；或按任务上限对齐租约并加续期 | 一个「任务体耗时 > 租约」的用例：改前第二实例能进临界区（双跑计数=2），改后必须=1 |
+| P-4 | 中 | 缓存失效广播 | `CacheService.java:149-164` evict 只清本进程 L1 + 删 Redis 键，无 pub/sub ⇒ 其他实例 L1 到期前供旧值 | Redis 失效频道（按 prefix）或把 L1 TTL 压到业务可接受窗口并在文档写死窗口值 | 双实例模拟（两个 `CacheService` 共享同一 Redis）：A evict 后 B 读，改前 B 拿到旧值，改后拿到新值 |
+| P-5 | 中（待用户确认口径） | `SCHEDULED_TASK_MANAGEMENT.md` 落地验收判据过期 | 文档 `:102,110,112` 仍写「新代码认 30 个 key / `id BETWEEN 101 AND 131` = 30 条」；实际注册表 **39** key、种子 **37** 行（id 101-135 缺 117，+140/141/142） | 把判据改成 37 与真实 id 集合，并说明差的 2 个（`refund-retry`、`scheduled-task-stale-monitor`）是有意 Spring-only | 属文档订正：以 `pnpm check:xxl-job-wiring` / `check:scheduled-task-seed` 实跑输出为准，判据数字须与门禁输出一致 |
+
+**为什么不能只靠现有锁就放心开第 2 副本**：`tryBegin` 只保证「同一时刻一个实例跑定时任务」，
+它**不管**用户请求线程里的库存读改写，也不管资金流水的业务键重复——P-1/P-2 红的是**下单/结算主链**，
+不是定时任务。开 `--scale trade-service=2` 之前 P-1、P-2 必须绿。
+
+> **实施时点（2026-10-16 用户：「等上线再说」）**：首次上线按**单机**跑 ⇒ P-1…P-4 当前**不排期**，
+> 只在真要开第 2 副本 / 迁云托管前必须完成（见 `docs/PRODUCTION_TOPOLOGY.md` §4 第 3 步）。
+> 下次被催办时先问「要不要开多副本」，不要答「上线前必须做」——单机上线不受这四项阻塞。
+
 ## 建议动手顺序（2026-10-15 17:40 复核更新）
 
 1. ~~今天审计的 T1-T5~~ ✅ 全部完成（T1-T7，含 T4 五子项）。
@@ -83,3 +106,4 @@
 3. **A1（P0-2/P0-3 fleet 密钥）**——接真硬件前的硬门槛，**当前唯一高优工程项**，建议提前立项（安全工程问题，不依赖竞品对照；参考微信/支付宝 IoT 官方设备鉴权范式：一机一密/动态凭证）。
 4. ~~B5/B6/B7/B8 产品拍板~~ 全部已拍板并落地（B5=CB-044 选项1、B6=CB-043 方案A、B7 不延续、B8=CB-045 选项2）。
 5. A2（P1-8 Kafka SASL）基建加固✅、A6（P2×9）8/9 已修（⑥手机号存储待拍板）、B3/C2/C3/B9 ✅；剩余 A7（P3×5 低危）未排期。
+6. **§六 P-1/P-2 = 起 `--scale trade-service=2` 的前置**（库存原子化 + 钱包流水唯一索引）。单机部署期间不阻塞上线；一旦要多副本，先做这两条并补迁移（Flyway 已到 V392（2026-10-18），新迁移号从 V393 起抢号须先 `git pull` 核对——P-1/P-2 两前置中钱包流水唯一索引已由 V388 uk_wallet_ledger_ref 落地）。
