@@ -4,6 +4,7 @@
 > 审计在独立只读检出上执行：`git worktree add --detach <wt> d5dee737`（本仓 cadmin-uat 与 audit 两个 worktree 并存，主工作树未被读写）；结论分支 `audit/full-sweep-2026-10-18`。
 > CI 实证：run **39107673166** @ d5dee737 = `completed / success`（本仓 5 作业）。
 > **本轮所有 P0 都在 CI 绿的前提下存在** —— 见 §6「CI 为什么看不见」。
+> **同日增补**：§10（FS-04 自我订正为 P3 + 新增资损 P0 **FS-20**，真库实证）、§11（与另一份 AI 报告 AU-136~173 逐条对账）、§12（FS-20 复现命令）。
 
 ## 0. 执行口径
 
@@ -30,6 +31,8 @@
 | — | 未做：依赖 CVE、SAST、压测、微信合规书面实证、真机/运行时、`prod-server.yml` 内容 | ❌ | 见 §7 |
 
 ## 2. P0 —— 上线阻塞（4 条，全部 [已亲验]）
+
+> 增补后本节口径：FS-04 依 §10.1 **降为 P3**（判据有误）；新增资损 P0 **FS-20**（§10.2，真库实证）；并入对方报告复核为真的 P0 **AU-136 / AU-172**（§11.1）。最终上线阻塞序见 §11.4。
 
 ### FS-01 按行部分退款把 `refunded_cents` 记两倍 ⇒ 佣金基数、分账、对账系统性错账
 
@@ -88,7 +91,7 @@ if (isCompleted(idemKey)) { return new OrderRefundPrep(..., true, false); }   //
 （`NAV_ITEMS` 是编译期常量，`findNavByPath` 不读 DB）。这与 2026-10-15 那轮 P0 是**同一个模式第 N 次复发**（见 FS-P1-ADMIN-1）。
 **最小修法**：`menu.ts` BASE_NAV 补 3 条（perm 取后端读权限 `ops:fund:list` / `ops:fund:list` / `ops:warehouse:list`）+ `sidebar.ts` 图标。
 
-### FS-04 演示超级管理员 `13900000001 / 123456` 的清除只靠一个**仓内没有任何地方设置**的环境变量
+### FS-04 演示超级管理员 `13900000001 / 123456` 的清除只靠一个**仓内没有任何地方设置**的环境变量　⚠️ **本节判据有误，已在 §10.1 订正为 P3，请以 §10.1 为准**
 
 - 弱口令无条件写入：`services/trade-service/src/main/resources/db/migration/V20__user_password.sql:5-9`
   ```sql
@@ -181,7 +184,7 @@ SCRAM 四处一致、redis AOF+卷、actuator 白名单、端口 loopback 门禁
 1. **支付层被整段 mock**：FS-01/FS-02 的错账只出现在「真实累加 + 真实幂等键」的组合里，单测把 `refundOrder` 桩成 `doNothing`。
 2. **IT 不在 job 的 `-pl` 范围内**：守卫「跳过未构建模块」= 资金级 DB 防线（`WalletRefIdempotencySqlIT`、`DeviceAuthIT`）恒不跑而 job 仍绿（FS-10，`ci.yml:432` 注释自认）。
 3. **只数文件不数断言/用例**：`check-mp-unit-tests-wired.mjs:173-177`（数文件）、`admin-artifacts`（只比字节，不比路由↔菜单语义）⇒ FS-03 这类「登记缺失」没有任何机器判据。
-4. **默认值放行 + 口头配置**：FS-04 的防线是一个仓内从没被设置的 `SEED_ENV`，FS-09 的编排是服务器上那份没入库的文件。
+4. **默认值放行 + 口头配置**：FS-04 的防线键在 `SPRING_PROFILES_ACTIVE` 的**字面量**上（profile 漏钉 ⇒ 种子清理与 fail-loud 两道防线同时失效，见 §10.1），FS-09 的编排是服务器上那份没入库的文件。
 
 ## 7. 未覆盖 / 无法判定（诚实清单）
 
@@ -197,7 +200,7 @@ SCRAM 四处一致、redis AOF+卷、actuator 白名单、端口 loopback 门禁
 **批次 1 快赢（当天可完成，不动架构）**
 1. FS-03：`menu.ts`/`sidebar.ts` 补 3 条登记 + 新增「路由↔菜单一致性」单测与门禁。
 2. FS-15：`cleanup-test-data.ps1` 改指 `wallet_account/wallet_ledger`（顺带补齐缺的新表清理面）。
-3. FS-04③：`docker-compose.production.yml` 写 `SEED_ENV: none` + compose 门禁；FS-04①②另排资金批。
+3. FS-04（订正后为 P3，见 §10.1）：新迁移收口 V20 演示口令 + `-f` 栈 profile 门禁 / validator 增检「prod 库内仍存在演示号段 ⇒ 启动失败」。
 4. FS-08：控制器把 `status/from/to/keyword/excludeZero` 透传（`isExcludeZeroParam` 已存在）。
 5. 提现费率默认值 50/60 对齐为单一来源（拍板 6‰）。
 
@@ -218,4 +221,88 @@ SCRAM 四处一致、redis AOF+卷、actuator 白名单、端口 loopback 门禁
 
 本文是 2026-10-16 closeout 之后的**第四轮全角度体检**，与 `docs/AUDIT_LEDGER_2026-10-13.md`（AU 系列）、
 `docs/TRI_CLIENT_BACKLOG_2026-10-15.md`（T/A/B 系列）并行编号 **FS 系列**；§5 已把可关闭的旧结论标出、把两条自报 CLOSED 证伪（A6④、DEV-03）。
-建议把 FS-01~FS-19 收进主台账并同步 `docs/PROJECT_KNOWLEDGE.md §10/§12`。
+建议把 **FS-01~FS-20**（FS-04 以 §10.1 订正后的 P3 口径入库）与 §11.1 并入的 AU 条目一并收进主台账 `docs/AUDIT_LEDGER_2026-10-13.md`，并同步 `docs/PROJECT_KNOWLEDGE.md §10/§12`。
+
+---
+
+## 10. 增补 A（同日晚）：FS-04 自我订正 + 新增 FS-20（真库实证资损 P0）
+
+### 10.1 ⚠️ FS-04 原判据有误，降级为 P3（机制订正 + 一条门禁建议）
+
+原报告称「演示超管 `13900000001 / 123456` 的清除只靠一个仓内没有任何地方设置的环境变量 `SEED_ENV`」。**这是漏读了一处硬编码**：
+
+- `services/trade-service/src/main/resources/application-prod.yml:31-32` 把 Flyway placeholder `seed_env` **写死为 `none`**（不依赖环境变量）；
+- `V344__production_demo_seed_guard.sql:42-44` 的 `_demo_user` 覆盖 `generate_series(100000001, 100000011)` 与 `10001/10002/13800138000` ⇒ profile=prod 时演示号段连同 `user_account`/`ops_user_role` 一并删除；
+- `infra/docker-compose.production.yml:12` 钉 `SPRING_PROFILES_ACTIVE: prod`；另一会话未提交的 `infra/docker-compose.prod-managed.yml` 是**叠加层**（其文件头用法把 production.yml 一同列在 `-f` 栈里），不绕过该 profile。
+
+**订正后仍成立的风险（P3，但要一条门禁钉住）**：整套生产防线键在 **profile 字面量** 上——`V20__user_password.sql:5-9` 无条件给 `10001/100000001` 写 `123456` 的 BCrypt 哈希；`ProductionStartupValidator.java:301` 的强校验是 `"prod".equalsIgnoreCase(profile)`；`docker-compose.apps.yml:62,168` 默认 `${SPRING_PROFILES_ACTIVE:-dev}`。⇒ 任何**漏钉 profile** 的叠加层会同时失去「种子清理」与「fail-loud」两道防线，且失败方式是静默用 dev 配置跑生产。
+建议（批次 3）：① 新迁移把 V20 的演示口令写入改为 seed 守卫（或对这两个 user_id 置空 hash）；② 门禁校验「`-f` 栈里出现 apps.yml 就必须显式 `SPRING_PROFILES_ACTIVE=prod`」，或在 validator 加一条「prod 库内仍存在演示号段 ⇒ 启动失败」。
+
+### 10.2 🔴 FS-20（P0，资损，真库实证）余额退款「续退补扣」单轮双扣余额
+
+- 复现物证（Testcontainers + 空库 Flyway 迁到 V389，`profile=test`）：
+  `[FS-20] 补扣后余额=9200 流水行=[{operation_type=BALANCE_REFUND, amount_cents=400, balance_before_cents=9600, balance_after_cents=9200}] 申请状态=PROCESSING`
+  ⇒ 应扣 400（10000→9600），实扣 800（10000→**9200**），流水只留一条 400。
+- 根因（源码级）：`BalanceRefundService.debitRemainingBalance:477-488` 先 `account.setBalanceCents(before - cents)` + `accountMapper.save(...)`（`BaseTradeMapper.save:60-73` ⇒ 立即 `updateById`），**再**调 `balanceLedgerService.change(userId, -cents, ...)`；而 `BalanceLedgerService.doChange:60-79` 是**会自行改余额**的原语（`findByIdForUpdate` 读到的正是刚被手动扣过的行，`next = before + delta` 再扣一次）。
+  对照：首轮扣款 `debitAccountForApprovedRefund:621-637` 配套的是 `recordFreezeOnly`（`doRecordFreezeOnly:110-133` **只写流水、不动余额**）。⇒ 姊妹路径用审计型原语、续退路径误用变更型原语，这是它一直没被发现的原因。
+- 对账发现不了：用户侧资金巡检判据是 `DataConsistencyService:487-501`「余额 vs 最近一条 BALANCE 流水的 `balance_after`」，双扣发生在 `doChange` 内部 ⇒ 流水尾值恰等于最终余额 ⇒ **巡检恒绿**。「Σ流水 = 余额」的全史公式只做在商户/线长钱包（`:673+/:712+`），用户余额没有。
+- 触发面：`PARTIAL` 续退且两轮之间新出现可退充值单（争议期用户再充值，或上一轮额度不足只规划了部分）。
+- 测试面：`grep -rn "resumePartialRefund|BALANCE_REFUND_RESUME" services/trade-service/src/test` **零命中** ⇒ 该链完全无测试。
+- 修法：删掉手动扣减，补扣只走 `change(-cents)` 单一原语；幂等键加轮次维度（`RESUME:{requestNo}:{attempt}`）或改用本次失败切片的 `outRefundNo`。复现钉已落 `services/trade-service/src/test/java/com/aicabinet/trade/integration/BalanceRefundResumeDebitSqlIT.java`（带 `@Disabled`，修复后去掉注解即转回归测试）。复跑命令见 §12。
+
+## 11. 增补 B：与另一份 AI 审计报告（AU-136~AU-173）的逐条对账
+
+> 对方基线 = 本地 dev `28c9f99a`；本报告基线 = `origin/dev d5dee737`（+15 提交）。下表所有条目我都在 d5dee737 **逐行读过源码**；FS-01/02/03/20 亦在 `28c9f99a` 复核存在 ⇒ 分歧属覆盖差，不是基线差。
+
+### 11.1 对方独有、我复核为真 ⇒ 并入本轮清单（沿用其 AU 号）
+
+| AU | 我的复核结论（d5dee737 锚点） |
+|----|------|
+| AU-136 **P0** | 成立。`AuthController.java:151-156` 原样传 `request.phoneNumber()` → `AuthService.wxH5Login:250-252` 直接进 `loginOrCreateByOpenId(openId, phoneNumber)`；对照 C 端 `resolveWxPhoneNumber:231-247` 有 C13 门（无 phoneCode 的明文手机号只在 mock 下放行，否则 400）——H5 整条绕开：已知手机号 ⇒ 绑 openid ⇒ 发正式 token。 |
+| AU-172 **P0** | 成立。`SlotTemplate.java:13-14` 的 `@TableId(type=IdType.AUTO) Long templateId` 推得列名 `template_id`，而 `V368__slot_template.sql:18` 主键叫 `id` ⇒ 模板 CRUD 500。纯 Mockito 单测拦不住。 |
+| AU-173 **P1** | 成立。`ScheduledTaskXxlJobHandler.runKey:250` 只 `descriptor.action().run()` 自身不加锁；`ScheduledTaskRegistry:133-137` 这两个任务的 action 直挂 `runDailyCheck`，而 `PlatformFundService:256` / `DeviceRentalService:536` 内部无 `tryBegin`（全仓 37 处 `tryBegin`，这两条链 0 处）⇒ `scheduled_task.enabled=false` 与 `job:*` 锁双双被旁路，上线手册 `d8563c6b`「资金定时任务当天保持关」的依赖不成立。`DeviceRentalService.runDailyCheck` 确为 `@Transactional`。 |
+| AU-138/139 **P1/P2** | 成立。`clients/merchant-mp/src/pages/device-stocktake/device-stocktake.vue:44` 用 `raw.match(/(\d{6,})/)` 剥掉 EG，而 `DeviceIdService.java:22,77` 新编号**本体**就是 `EG+12位` 入库；权威解析器 `packages/shared-uni/src/qrcode.ts:7` 保留 EG。同文件 `:161` 又硬拼「柜机 EG + deviceId」⇒ 新旧两种形态都显示错。 |
+| AU-142 **P2** | 成立。`AuthService.changeOwnPassword:200-218` 只校验 6-64 位；同文件 `:179` 与 `MerchantTeamAdminService:208/231`、`OpsRbacService:408/530/548` 都调 `PasswordPolicy.validate` ⇒ 自助改密是唯一漏口。 |
+| AU-144 **P2** | 结论成立、**锚点文件名有误**：两个基线都不存在 `utils/auth-storage.ts`。实际在 `clients/admin-vue/src/stores/auth.ts:206,254`（`/me` 无条件写 `admin_phone`，击穿 `views/LoginView.vue:432-434` 的 opt-out），且 `logout():259-274` 只清内存态、全仓仅 `LoginView.vue:434` 会删除该键 ⇒ 登出确实不清。 |
+| AU-145 **P2** | 成立。`clients/consumer-mp/src/pages/login/login.vue:584-597 bindWeixinIfPossible` → `consumerWxLogin(wxCode, phoneNum)`，`utils/consumer-auth-session.ts:81-89 wxLoginBody` 把明文手机号放进 body 且 `phoneCode` 缺省 ⇒ 生产被 `resolveWxPhoneNumber:240-244` 拒 400，异常被空 `catch` 吞掉 ⇒ 微信绑定永远静默缺失。 |
+| AU-146 **P2** | 成立。`git ls-files` 证实 `infra/gateway/grafana.htpasswd` 入库，内为**真实** bcrypt 哈希且 **cost=05**；`infra/docker-compose.apps.yml:243` 注释仍称「替换占位口令」⇒ 注释失真。用户名是个人账号名，属仓库内真实凭据面。 |
+| AU-149 合规 | 成立。全仓 Java 源码检索「注销」零命中，无删除/注销端点；隐私政策承诺走人工客服。 |
+| AU-125 | 成立并补一条：`AnnouncementController.java:36-39` 的 `/published` 无 `@RequiresPermissions`，`WebConfig.java:57-77` 只保证「登录」不保证「运营」；更关键它调 `AnnouncementService.listPublished:57-59` = **全量 PUBLISHED、不过滤 targetScope、返回裸实体**，而受众专用 `listPublishedForAudience:65-72` 才做 scope 过滤 ⇒ 任意登录态（含消费者 token）可读运营/内部定向公告全文。 |
+| AU-063 | = 本报告 FS-14，同一处（`DeviceReportController.java:152-163`）。 |
+
+### 11.2 对方结论方向对、机制需订正
+
+- **AU-137（其 P1）**：后果判断（多轮复审吞用户资金、幂等键不含轮次）与我一致，但根因不是「跨轮撞键」。
+  `balance_refund_allocation` **没有状态列**（`V185__balance_refund_request.sql:29-37`、实体仅 6 字段），失败切片行既不删也不标（`markRefundFailedAndReverse:535-557` 只写流水与状态），而事务① `debitAndMarkProcessing:500-502` 在**调渠道之前**就把全部切片落库 ⇒ 续退里 `done` 恒含失败片，`:453` 的 `succeededCents = Σ全部已计划` 把「已计划」当「已成功」。
+  于是两条分支：(a) 首轮规划满额 ⇒ `remainCents=0` ⇒ `allocations.isEmpty()` ⇒ **`resumePartialRefund:400-402` 直接 `markRefundSuccess`，把 PARTIAL 翻成 REFUNDED 且失败切片永不重试**（状态谎报渠道已退，运营点「续退」等于确认书）；(b) 两轮之间新出现可退充值单 ⇒ 才进 `debitRemainingBalance`，此时真正的资损是**单轮双扣**（FS-20，已真库实证），跨轮 `RESUME`/`REVERSAL` 撞键只是叠加放大。
+  ⇒ 并案处置：FS-20 补扣单一原语化 + 键加轮次；同时给 allocation 补 `status` 列，让续退只重划 FAILED 切片。
+- **AU-148（其 P2「gateway 是全栈唯一无 restart 的常驻服务」）**：`gateway` 无 restart 成立（`docker-compose.yml`/`apps.yml`/`full.yml` 三处定义都没带），但「唯一」不成立。逐 service 实测：`docker-compose.yml` 还漏 `redpanda`；`full.yml` 漏 `postgres/redis/emqx/minio/redpanda/gateway/prometheus/grafana`；**`docker-compose.production.yml` 整份 9 个服务 0 个 restart**。真实结论比对方更重：**生产编排层没有任何重启自愈策略**，不止 gateway。
+- **AU-141** = 本报告 FS-11（分账 return/refresh 族 `@Transactional` 包 HTTP），同一条，无分歧。
+
+### 11.3 冲突项与未复核项（诚实清单）
+
+- 对方总评称「**无资损级 P0**」。这与 FS-01（`refunded_cents` 记两倍）、FS-02（同额二次退款静默 skip：渠道没退、账已退、分账已冲正）、FS-20（真库实证双扣）**直接冲突**；三条在其基线 `28c9f99a` 复核存在（`SettlementPartialRefundService:128/140`、`OrderPaymentService:599`）。
+- 对方附录 D 称 admin「路由守卫 fail-closed、端点纪律全绿（390 条前端引用全命中后端 618 路由）」。FS-03 恰是 fail-closed 的**反噬**：`platform-fund` / `device-rental` / `warehouse/monthly-close-sheets` 三条路由有 `meta` 无 `perm` 且不在编译期 `NAV_ITEMS`，于是 `router/index.ts:584` 的「无 nav 且无 metaPerm ⇒ forbidden」把**包括超管在内的所有人**挡在门外。API 端点命中率与路由可达性是两回事，可同时为真。
+- 对方的实跑数字（`mvn test 2030/0`、`WalletRefIdempotencySqlIT 5/5`、AU-125 运行时 200 探测、dev 库停 V378）**我未复核**，按其自报登记。我方本轮新增实跑：FS-20 IT（Testcontainers 真库，上下文启动 75s，断言 expected 9600 but was 9200）。
+- 对方「约 150 条历史声明逐条核验：失实 17 条、虚报已修 0 条」「抽验 16 条台账已回归全实在位」——方向与我 §5 一致（我方 §5 亦证实「文档落后于代码」是主要债务，并证伪 A6④/DEV-03 两条自报 CLOSED），但其全量核验我未复算。
+- 对方的台账回写（AU-136~173 已写入 `docs/AUDIT_LEDGER_2026-10-13.md`）**仍是主工作树未提交改动**（主树 HEAD 仍 `28c9f99a`）；本报告只在审计分支，未替它提交。
+- 对方引用「A 案钱包统一 V387–V390」：`origin/dev d5dee737` 实际最高 **V389**，无 V390（`ls db/migration` 无 `V39*`）；其 §5.4 对 `TRI_CLIENT_BACKLOG`「V371→实际 V386」的订正在其基线成立，但相对 `origin/dev` 已再次过时。
+
+### 11.4 合并后的上线阻塞序（本轮最终口径）
+
+1. **资金 P0**：FS-20（单轮双扣，已有复现钉）→ FS-01（两倍记账）→ FS-02（幂等键静默 skip）→ AU-137(a)（PARTIAL→REFUNDED 谎报，与 FS-20 同批修）。
+2. **认证/结构 P0**：AU-136（H5 明文手机号接管）、AU-172（陈列模板主键错位）。
+3. **可达性 P0/P1**：FS-03（三页全员 403）、AU-138/139（新版编号设备盘点必失败）、AU-173（定时任务启停开关失效，动摇上线手册勾选）。
+4. 其余 P2/P3 按 §8 批次同奏；FS-04 依 §10.1 订正后并入批次 3 门禁项；AU-148 依 §11.2 订正为「生产编排整体缺重启自愈策略」。
+
+## 12. FS-20 复现命令
+
+```bash
+mvn -o -B -pl services/trade-service -am verify \
+  -Dtest=ZzNoUnitTestMatch -DfailIfNoTests=false \
+  -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dit.test=BalanceRefundResumeDebitSqlIT \
+  -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+去掉测试类上的 `@Disabled` 即可复现 `expected: <9600> but was: <9200>`。
