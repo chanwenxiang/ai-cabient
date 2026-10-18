@@ -7,7 +7,7 @@ name: ai-cabinet
 services:
   postgres:
     stop_grace_period: 60s
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea # 钉 digest
     environment:
       POSTGRES_DB: aicabinet
       POSTGRES_USER: aicabinet
@@ -256,7 +256,7 @@ services:
   # XXL-JOB（随根目录 docker-up.ps1 / full 栈启动；控制台 :18090）
   xxl-job-mysql:
     stop_grace_period: 60s
-    image: mysql:8.0
+    image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b # 钉 digest
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${XXL_JOB_MYSQL_PASSWORD:-xxljob}
