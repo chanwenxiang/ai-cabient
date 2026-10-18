@@ -180,8 +180,12 @@ public class StaffWalletService {
         ledgerMapper.insert(ledger);
     }
 
+    static String walletLockKey(long staffUserId) {
+        return "staff-wallet:" + staffUserId;
+    }
+
     private <T> T runWithWalletLock(long staffUserId, Supplier<T> action) {
-        String key = "staff-wallet:" + staffUserId;
+        String key = walletLockKey(staffUserId);
         if (!distributedLockService.tryLock(key, 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重试");
         }
