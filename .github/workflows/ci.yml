@@ -601,6 +601,20 @@ jobs:
       - name: Merchant MP H5 build
         run: pnpm --filter @aicabinet/merchant-mp run build:h5
 
+      # AU-179（2026-10-18 审计）：上线真实产物是 mp-weixin，此前 CI 只有 H5 build ⇒
+      # 真实产物编译覆盖为零（#ifdef MP-WEIXIN 块 / 组件拍平 / appid 注入 / urlCheck 校验
+      # 的回归全部静默）。appid 是账号资产不入库，走 repo secrets；未配置时本步红 =
+      # 提醒补配（fail-closed，绝不静默跳过）。urlCheck 由 inject-miniapp-env 按 release 权威判定。
+      - name: Consumer MP weixin build (release gate)
+        run: pnpm --filter @aicabinet/consumer-mp run build:mp-weixin
+        env:
+          MP_WEIXIN_APPID_CONSUMER: ${{ secrets.MP_WEIXIN_APPID_CONSUMER }}
+
+      - name: Merchant MP weixin build (release gate)
+        run: pnpm --filter @aicabinet/merchant-mp run build:mp-weixin
+        env:
+          MP_WEIXIN_APPID_MERCHANT: ${{ secrets.MP_WEIXIN_APPID_MERCHANT }}
+
   # 行为级端到端：真实浏览器跑三端 H5 UAT。
   #
   # 背景（详见 docs/three-end-full-audit-2026-09-15.md 第 11/12 章）：
