@@ -65,7 +65,11 @@ function runCheck(registrySrc, beanSources) {
     );
   }
   for (const t of tasks) {
-    const src = beanSources.get(t.bean);
+    // 🔴 大小写不敏感兜底（2026-10-18 CI 实证）：registry 绑定串是 bean 名（如
+    // opsExceptionScannerService），而源文件是类名（OpsExceptionScannerService.java）——
+    // Linux 大小写敏感文件系统上 existsSync 找不到小写名，walk 兜底又按类名收 ⇒ 双双落空。
+    // 本地 Windows NTFS 不分大小写所以测不出（静默≠有效，教训 #325 家族）。
+    const src = beanSources.get(t.bean) ?? beanSources.get(t.bean.toLowerCase());
     if (src === undefined) {
       problems.push(
         `${t.key}：action 绑定 ${t.bean}::${t.method}，但找不到 ${t.bean}.java（bean 命名或包位置漂移，请同步本脚本的 beanSources 收集）`
@@ -94,21 +98,36 @@ if (process.argv.includes('--self-test')) {
   const registrySample = `
     register("with-guard", "有守卫", "T", "d", 600, beanA::guarded);
     register("no-guard", "无守卫", "T", "d", 600, beanB::unguarded);
+    register("case-mismatch", "大小写错位", "T", "d", 600, beanC::guarded);
+    register("bean-missing", "bean缺失", "T", "d", 600, beanMissing::guarded);
   `;
+  // 与真实收集侧同构：putBean 会为每个原名补一个小写别名（runCheck 的小写兜底查的就是它）
   const beans = new Map([
     [
       'beanA',
       'public String guarded() { if (!taskService.tryBegin("with-guard", 600)) return "skipped"; return "ok"; }'
     ],
-    ['beanB', 'public String unguarded() { return "do work without guard"; }']
+    ['beanB', 'public String unguarded() { return "do work without guard"; }'],
+    // 大小写错位：绑定串是小写驼峰 bean 名，源码 map 按类名登记（Linux CI 实际形态）
+    [
+      'BeanC',
+      'public String guarded() { if (!taskService.tryBegin("case-mismatch", 600)) return "skipped"; return "ok"; }'
+    ]
   ]);
+  for (const [k, v] of [...beans]) {
+    if (!beans.has(k.toLowerCase())) beans.set(k.toLowerCase(), v);
+  }
   const problems = runCheck(registrySample, beans);
   const noGuard = problems.find((p) => p.startsWith('no-guard'));
   const withGuardClean = !problems.some((p) => p.startsWith('with-guard'));
-  if (!noGuard || !withGuardClean) {
+  const caseMismatchClean = !problems.some((p) => p.startsWith('case-mismatch'));
+  const missingFlagged = problems.some((p) => p.startsWith('bean-missing'));
+  if (!noGuard || !withGuardClean || !caseMismatchClean || !missingFlagged) {
     fail(`--self-test 判别力失效：problems=${JSON.stringify(problems)}`);
   }
-  console.log('[check-scheduled-task-trybegin] self-test OK（无守卫 ⇒ 红 / 有守卫 ⇒ 绿）');
+  console.log(
+    '[check-scheduled-task-trybegin] self-test OK（无守卫 ⇒ 红 / 有守卫 ⇒ 绿 / 大小写错位 ⇒ 绿 / bean 缺失 ⇒ 红）'
+  );
   process.exit(0);
 }
 
@@ -143,9 +162,14 @@ const serviceDir = join(
   'service'
 );
 const beanSources = new Map();
+/** 双键登记：原名 + 小写名（Linux CI 上按小写 bean 名查找类名文件时的兜底，见 runCheck 注释）。 */
+const putBean = (k, v) => {
+  beanSources.set(k, v);
+  if (!beanSources.has(k.toLowerCase())) beanSources.set(k.toLowerCase(), v);
+};
 for (const t of extractTasks(registrySrc)) {
   const p = join(serviceDir, `${t.bean}.java`);
-  if (existsSync(p)) beanSources.set(t.bean, readFileSync(p, 'utf8'));
+  if (existsSync(p)) putBean(t.bean, readFileSync(p, 'utf8'));
 }
 // 局部变量名反查类型：registry 里可能 `Type varName = provider.getIfAvailable()`
 //（如 OpsFeeBillJob feeBillJob），method 引用用变量名 ⇒ 建立 变量名→类型名 映射后再查源码
@@ -154,9 +178,13 @@ for (const t of extractTasks(registrySrc)) {
   const varToType = new Map();
   for (const m of registrySrc.matchAll(varDecl)) varToType.set(m[2], m[1]);
   for (const t of extractTasks(registrySrc)) {
-    if (!beanSources.has(t.bean) && varToType.has(t.bean)) {
+    if (
+      !beanSources.has(t.bean) &&
+      !beanSources.has(t.bean.toLowerCase()) &&
+      varToType.has(t.bean)
+    ) {
       const typeSrc = join(serviceDir, `${varToType.get(t.bean)}.java`);
-      if (existsSync(typeSrc)) beanSources.set(t.bean, readFileSync(typeSrc, 'utf8'));
+      if (existsSync(typeSrc)) putBean(t.bean, readFileSync(typeSrc, 'utf8'));
     }
   }
 }
@@ -169,7 +197,7 @@ if ([...beanSources.values()].some((x) => !x)) {
       if (statSync(fp).isDirectory()) walk(fp);
       else if (f.endsWith('.java')) {
         const name = f.replace(/\.java$/, '');
-        if (!beanSources.has(name)) beanSources.set(name, readFileSync(fp, 'utf8'));
+        putBean(name, readFileSync(fp, 'utf8'));
       }
     }
   };
