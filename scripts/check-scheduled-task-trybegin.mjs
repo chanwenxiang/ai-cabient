@@ -188,20 +188,30 @@ for (const t of extractTasks(registrySrc)) {
     }
   }
 }
-// 跨包兜底：用 registry import 区推断（registry 同包 import 有限，直接全 service 包扫一次）
-if ([...beanSources.values()].some((x) => !x)) {
-  const { readdirSync, statSync } = await import('node:fs');
-  const walk = (dir) => {
-    for (const f of readdirSync(dir)) {
-      const fp = join(dir, f);
-      if (statSync(fp).isDirectory()) walk(fp);
-      else if (f.endsWith('.java')) {
-        const name = f.replace(/\.java$/, '');
-        putBean(name, readFileSync(fp, 'utf8'));
+// 跨包兜底：registry 的 action 绑定串是构造参数的 bean 变量名（小写驼峰，如
+// devicePresenceService），源文件是类名（DevicePresenceService.java）——Linux 大小写敏感
+// 直查全落空。🔴 触发条件必须是「存在未解析的 bean」：原写法 `some((x) => !x)` 对
+// 非空真值 map 恒为假 ⇒ walk 在任何平台都没跑过，Windows 靠 NTFS 大小写不敏感掩盖
+//（2026-10-18 CI 实证，教训 #325 家族：本地绿≠CI 能跑通同一条路）。
+{
+  const tasksAll = extractTasks(registrySrc);
+  const unresolved = tasksAll.some(
+    (t) => !beanSources.has(t.bean) && !beanSources.has(t.bean.toLowerCase())
+  );
+  if (unresolved) {
+    const { readdirSync, statSync } = await import('node:fs');
+    const walk = (dir) => {
+      for (const f of readdirSync(dir)) {
+        const fp = join(dir, f);
+        if (statSync(fp).isDirectory()) walk(fp);
+        else if (f.endsWith('.java')) {
+          const name = f.replace(/\.java$/, '');
+          if (!beanSources.has(name)) putBean(name, readFileSync(fp, 'utf8'));
+        }
       }
-    }
-  };
-  walk(serviceDir);
+    };
+    walk(serviceDir);
+  }
 }
 
 const problems = runCheck(registrySrc, beanSources);
