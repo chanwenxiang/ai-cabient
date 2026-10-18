@@ -55,4 +55,4 @@ COPY --chown=app:app --from=build /build/services/trade-service/target/trade-ser
 USER app
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70", "-XX:+UseContainerSupport", "-jar", "app.jar"]

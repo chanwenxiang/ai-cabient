@@ -26,3 +26,10 @@ Thumbs.db
 
 # Docs / local
 *.log
+
+# AU-192：构建上下文隔离——服务器目录即 context，防 .env/密钥/临时件进层
+.env*
+!.env.example
+.tmp/
+*.pem
+*.lck

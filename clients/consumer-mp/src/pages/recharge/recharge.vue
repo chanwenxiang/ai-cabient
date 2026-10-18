@@ -337,7 +337,7 @@ function onRefundYuan(e: unknown) {
     Math.round(yuan * 100) > refundMaxCents.value
   ) {
     refundAmountCents.value = 0;
-    refundError.value = `单次申请不超过 ¥${refundMaxCents.value / 100}`;
+    refundError.value = `单次申请不超过 ${fmtMoney(refundMaxCents.value)}`;
     return;
   }
   const cents = yuanToCents(raw);
@@ -426,7 +426,7 @@ function onCustomAmount(e: unknown) {
     Math.round(yuan * 100) > rechargeMaxCents.value
   ) {
     selectedAmountCents.value = 0;
-    customAmountError.value = `单次充值不超过 ¥${rechargeMaxCents.value / 100}`;
+    customAmountError.value = `单次充值不超过 ${fmtMoney(rechargeMaxCents.value)}`;
     return;
   }
   const cents = yuanToCents(raw);

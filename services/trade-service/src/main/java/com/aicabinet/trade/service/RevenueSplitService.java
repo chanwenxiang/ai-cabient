@@ -268,10 +268,10 @@ public class RevenueSplitService {
         if (returnCents > 0 && merchant != null) {
             // 微信分账回退 out_return_no：协议幂等键，勿改成纯数字业务单号（lesson #223）
             String outReturnNo = "PSR" + split.getSplitId() + ":g" + merchantShare;
+            // AU-141：同全额路径——finalize 事务内不提交 HTTP，落 PENDING + 补偿任务异步提交
             applyWeChatReturnOutcome(split, outReturnNo, returnCents,
-                    profitSharingService.returnMerchantShare(
-                            split, merchant, returnCents, outReturnNo, "部分退款分账回退 " + order.getOrderId()),
-                    "部分退款后分账金额已重算，分账回退未成功需人工处理");
+                    ReturnSubmitOutcome.PROCESSING, "部分退款分账回退 " + order.getOrderId());
+            returnCompensationService.scheduleReturnRetry(split, 30);
         }
         split.setGrossCents(gross);
         split.setPlatformCents(platform);
@@ -339,10 +339,12 @@ public class RevenueSplitService {
             return;
         }
         String outReturnNo = "PSR-FULL-" + split.getSplitId();
+        // AU-141（批次 8）：退款 finalize 事务内不再同步提交微信回退 HTTP——直接落 PENDING
+        // 状态 + 排补偿任务（≤30s 异步提交，refreshPendingReturn 查单确认 / retryFailedReturns
+        // 提交均在补偿调度器的独立短事务）。本地商户钱包 clawback 已先行，渠道回退滞后无资损。
         applyWeChatReturnOutcome(split, outReturnNo, amount,
-                profitSharingService.returnMerchantShare(
-                        split, merchant, amount, outReturnNo, "全额退款分账回退 " + split.getOrderId()),
-                "全额退款分账回退未成功，需人工处理");
+                ReturnSubmitOutcome.PROCESSING, "全额退款分账回退 " + split.getOrderId());
+        returnCompensationService.scheduleReturnRetry(split, 30);
         if (split.getFailureReason() != null) {
             log.warn("wechat profit sharing full return failed splitId={} order={}", split.getSplitId(), split.getOrderId());
         }

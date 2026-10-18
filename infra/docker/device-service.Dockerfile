@@ -39,4 +39,4 @@ COPY --from=build --chown=app:app /build/services/device-service/target/device-s
 USER app
 
 EXPOSE 8081
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70", "-XX:+UseContainerSupport", "-jar", "app.jar"]
