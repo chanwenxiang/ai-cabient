@@ -600,8 +600,9 @@ class DataConsistencyServiceTest {
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate).queryForList(sqlCaptor.capture());
         String sql = sqlCaptor.getValue();
-        assertTrue(sql.contains("merchant_wallet_account"));
-        assertTrue(sql.contains("merchant_wallet_ledger"));
+        assertTrue(sql.contains("wallet_account"));
+        assertTrue(sql.contains("wallet_ledger"));
+        assertTrue(sql.contains("'MERCHANT'"));
         assertTrue(sql.contains("balance_after"));
     }
 
@@ -647,7 +648,8 @@ class DataConsistencyServiceTest {
         assertTrue(sqls.get(2).contains("last_physical_qty"));
         assertTrue(sqls.get(3).contains("warehouse_inventory"));
         assertTrue(sqls.get(4).contains("max_issue_count"));
-        assertTrue(sqls.get(5).contains("line_wallet_account"));
+        assertTrue(sqls.get(5).contains("wallet_account"));
+        assertTrue(sqls.get(5).contains("'LINE'"));
     }
 
     @Test
@@ -804,10 +806,10 @@ class DataConsistencyServiceTest {
 
     @Test
     void checkWalletLedgerSumConsistency_recordsBothWalletsMismatch() {
-        // 两个检查按各自 SQL 关键字分开打桩（共享 anyString 桩会让每个检查都读到对方行）
-        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("merchant_wallet_account")))
+        // V388 后两域共用 wallet_account/ledger，按 WHERE domain='X' 关键字分开打桩
+        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("'MERCHANT'")))
                 .thenReturn(List.of(Map.of("merchant_id", "M-1", "expected", 700, "actual", 800)));
-        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("line_wallet_account")))
+        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("'LINE'")))
                 .thenReturn(List.of(Map.of("manager_id", 9L, "expected", 300, "actual", 250)));
         when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
                 anyString(), anyString(), anyString())).thenReturn(List.of());

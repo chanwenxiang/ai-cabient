@@ -1,7 +1,10 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.mapper.StaffWalletAccountMapper;
-import com.aicabinet.trade.mapper.StaffWalletLedgerMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
+import com.aicabinet.trade.mapper.WalletAccountMapper;
+import com.aicabinet.trade.mapper.WalletLedgerMapper;
+import com.aicabinet.trade.service.wallet.WalletDomain;
+import com.aicabinet.trade.service.wallet.WalletEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,31 +18,31 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 补货员钱包并发基线（对齐 Merchant/Line 两份 concurrency 测试，A 案统一前 pin 住锁语义）。 */
 @ExtendWith(MockitoExtension.class)
 class StaffWalletConcurrencyTest {
 
-    @Mock private StaffWalletAccountMapper accountMapper;
-    @Mock private StaffWalletLedgerMapper ledgerMapper;
+    @Mock private WalletAccountMapper accountMapper;
+    @Mock private WalletLedgerMapper ledgerMapper;
+    @Mock private MerchantMapper merchantMapper;
     @Mock private DistributedLockService distributedLockService;
 
-    private StaffWalletService service;
+    private WalletEngine engine;
 
     @BeforeEach
     void setUp() {
-        service = new StaffWalletService(accountMapper, ledgerMapper, distributedLockService);
+        engine = new WalletEngine(accountMapper, ledgerMapper, merchantMapper, distributedLockService);
     }
 
     @Test
-    void payoutIfAbsent_whenWalletLockBusy_rejectsWithConflictAndTouchesNoLedger() {
+    void payoutIfAbsent_whenWalletLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                StaffWalletService.walletLockKey(99L), 60L, 5L))
+                WalletDomain.STAFF.lockKey("99"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.payoutIfAbsent(99L, 50L, "WITHDRAW_PAYOUT", "STAFF_WITHDRAW", "req-1", "note"));
+                () -> engine.payoutIfAbsent(WalletDomain.STAFF, "99", 100L, "PAYOUT", "STAFF_WITHDRAW", "R-1", "note"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        verifyNoInteractions(accountMapper, ledgerMapper);
+        verifyNoInteractions(accountMapper, ledgerMapper, merchantMapper);
     }
 }

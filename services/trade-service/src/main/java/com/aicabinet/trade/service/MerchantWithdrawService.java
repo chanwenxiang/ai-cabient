@@ -12,8 +12,6 @@ import com.aicabinet.trade.domain.MerchantWalletLedger;
 import com.aicabinet.trade.domain.MerchantWithdrawRequest;
 import com.aicabinet.trade.domain.PayoutAccount;
 import com.aicabinet.trade.mapper.MerchantMapper;
-import com.aicabinet.trade.mapper.MerchantWalletAccountMapper;
-import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.PayoutAccountMapper;
@@ -57,8 +55,6 @@ public class MerchantWithdrawService {
 
     private final MerchantWithdrawRequestMapper withdrawMapper;
     private final MerchantMapper merchantMapper;
-    private final MerchantWalletAccountMapper accountMapper;
-    private final MerchantWalletLedgerMapper ledgerMapper;
     private final MerchantWalletService merchantWalletService;
     private final MerchantWithdrawPayoutService payoutService;
     private final MerchantWithdrawProperties properties;
@@ -90,8 +86,6 @@ public class MerchantWithdrawService {
     private static final String BIZ_WALLET_ADJUST = "MERCHANT_WALLET_ADJUST";
     public MerchantWithdrawService(MerchantWithdrawRequestMapper withdrawMapper,
                                    MerchantMapper merchantMapper,
-                                   MerchantWalletAccountMapper accountMapper,
-                                   MerchantWalletLedgerMapper ledgerMapper,
                                    MerchantWalletService merchantWalletService,
                                    MerchantWithdrawPayoutService payoutService,
                                    MerchantWithdrawProperties properties,
@@ -112,8 +106,6 @@ public class MerchantWithdrawService {
                                    @Lazy MerchantWithdrawService self) {
         this.withdrawMapper = withdrawMapper;
         this.merchantMapper = merchantMapper;
-        this.accountMapper = accountMapper;
-        this.ledgerMapper = ledgerMapper;
         this.merchantWalletService = merchantWalletService;
         this.payoutService = payoutService;
         this.properties = properties;
@@ -164,7 +156,7 @@ public class MerchantWithdrawService {
                 PERM_OPS_MERCHANT_WITHDRAW_LIST, PERM_OPS_FINANCE_VIEW, "ops:merchant:list");
         merchantScopeService.requireMerchantAccess(operatorId, merchantId);
         requireMerchant(merchantId);
-        return ledgerMapper.findByMerchantIdOrderByCreatedAtDesc(merchantId, limit).stream()
+        return merchantWalletService.listRecentLedger(merchantId, limit).stream()
                 .map(this::toLedgerDto)
                 .toList();
     }
@@ -305,7 +297,7 @@ public class MerchantWithdrawService {
                 frozen,
                 Math.max(0, balance - frozen - pendingSettle),
                 pendingSettle,
-                ledgerMapper.findByMerchantIdOrderByCreatedAtDesc(merchantId, 10).stream()
+                merchantWalletService.listRecentLedger(merchantId, 10).stream()
                         .map(this::toLedgerDto)
                         .toList(),
                 withdrawMapper.findByMerchantIdOrderByCreatedAtDesc(merchantId, 10).stream()
@@ -870,7 +862,7 @@ public class MerchantWithdrawService {
     }
 
     private MerchantWalletAccountDto toAccountDto(Merchant merchant) {
-        MerchantWalletAccount account = accountMapper.selectById(merchant.getMerchantId());
+        MerchantWalletAccount account = merchantWalletService.findAccount(merchant.getMerchantId());
         long balance = account == null ? 0L : value(account.getBalanceCents());
         long frozen = account == null ? 0L : value(account.getFrozenCents());
         // CB-035：availableCents 与 V308 提现闸门同口径（扣 T+1 待结算），并把待结算透出给运营台

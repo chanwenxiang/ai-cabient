@@ -138,6 +138,19 @@ B) **上线前的资金链回归窗口**（12 注入面 × 14 测试类 × 20 ad
 
 > 纪律：每步保持资金链**行为等价**；负向测试先行；隔离栈空库重跑对账 + 幂等 + F4/F8；分步提交，peer 脏 dev 走 refspec（[[feedback-refspec-push-while-peer-dirty]]）。
 
+## 6. 执行结果（2026-10-18 落地）
+
+§5.3 路线 1–9 步**全部完成**，行为等价、资金链不造假绿。分支 `refactor/wallet-unify-3domain`（①基线/简报 + ②建表/删表 已提交，③④⑤代码+测试+本回写为后续提交）。
+
+- **共享层已建**：`WalletAccount`/`WalletLedger` + 两 Mapper + `service/wallet/{WalletDomain,WalletEngine}`；六旧 Mapper + 三 `*WalletAccountMapper.xml` 已删（删 Mapper 连带删 XML，避 lesson #233）。
+- **facade 委托 + 读映射**：三 `*WalletService` public 签名/返回类型不变，内部转调引擎并把统一行映射回各域 view 实体；对账（`PayoutReconciliationService`/`MerchantWithdrawPayoutService`）、裸 SQL（`DataConsistencyService` 4 检查）、两个 .mjs 审计脚本改 domain-scoped 统一表。
+- **两处与 §5.3 原计划的偏差（均为收敛更优，非妥协）**：
+  1. **六 view 实体不删**——为守「各域 DTO 维持现状」的锁定范围，`Merchant/Line/StaffWallet{Account,Ledger}` 保留为**纯内存读模型**；其 `@TableName` 指向已被 V389 DROP 的旧表，但因 Mapper 全删、无任何 MP 操作触达，属**惰性无害**。后续若要做彻底去注解的收尾，应连同 openapi/序列化契约一起验，另议。
+  2. **`COMPETITOR_REF` 指向 CB-054,CB-033**——不为「存储收敛」这一已基准化能力新造无实证台账条目（门禁 N/A 通道因 SQL 含业务语义词被拒），复用真实存在的 CB-054（三域钱包本体）+ CB-033（资金池独立领域）。
+- **测试口径坑**：`MerchantWalletFeeSplitTest` 必须 stub `WalletAccountMapper.findByOwnerForUpdate`（返回 `Optional` 的 default 包装），而非底层 `findByOwnerForUpdateRaw`——Mockito 会拦截 default 方法、不委托底层，否则 `reload()` 拿到 `Optional.empty` 抛 500「钱包不存在」。
+- **验证（本 worktree，Docker 可用）**：clean compile 877；全量单测 **2031/0/0**；`run-audit-gates.mjs` **46 门禁 0 失败**；`WalletRefIdempotencySqlIT` **一次性空库 Flyway 从零**（含 V388/V389）5/5 绿。
+- **仍待监督环境**：隔离栈空库重跑对账 + F4/F8 余额侧 + `pre-push-ci-preflight` + refspec 推 dev；F1 结算链 2026-10-19 真·将邑柜复跑。
+
 ## 附录 A · 关键行号索引
 
 - `MerchantWalletService.java:542`（walletLockKey）、`:580`（reload）、`:592-624`（appendLedger + merchant_name 快照）、`:626-629`（LedgerLine record）

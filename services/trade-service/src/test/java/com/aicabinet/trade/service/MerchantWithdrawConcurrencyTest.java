@@ -6,8 +6,6 @@ import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.MerchantWalletAccount;
 import com.aicabinet.trade.domain.MerchantWithdrawRequest;
 import com.aicabinet.trade.mapper.MerchantMapper;
-import com.aicabinet.trade.mapper.MerchantWalletAccountMapper;
-import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
 import com.aicabinet.trade.domain.PayoutAccount;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
@@ -45,8 +43,6 @@ class MerchantWithdrawConcurrencyTest {
 
     @Mock private MerchantWithdrawRequestMapper withdrawMapper;
     @Mock private MerchantMapper merchantMapper;
-    @Mock private MerchantWalletAccountMapper accountMapper;
-    @Mock private MerchantWalletLedgerMapper ledgerMapper;
     @Mock private MerchantWalletService merchantWalletService;
     @Mock private MerchantWithdrawPayoutService payoutService;
     @Mock private MerchantFeaturePackService merchantFeaturePackService;
@@ -87,7 +83,7 @@ class MerchantWithdrawConcurrencyTest {
         MerchantWithdrawProperties properties =
                 new MerchantWithdrawProperties(true, 100, 0L, 500_000, 50_000, 0, 0);
         service = new MerchantWithdrawService(
-                withdrawMapper, merchantMapper, accountMapper, ledgerMapper,
+                withdrawMapper, merchantMapper,
                 merchantWalletService, payoutService, properties,
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, merchantScopeService, permissionService, auditService,

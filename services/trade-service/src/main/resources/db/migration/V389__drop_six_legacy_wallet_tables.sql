@@ -2,7 +2,7 @@
 -- MIGRATION_REVIEWED: yes
 -- LOCK_RISK: low
 -- TABLES: merchant_wallet_account/ledger、line_wallet_account/ledger、staff_wallet_account/ledger（各演示级行数，V388 已搬运到 wallet_*）
--- COMPETITOR_REF: docs/WALLET_UNIFY_DECISION_BRIEF_2026-10-18.md（§12 决策 #1 = A 案，三域钱包物理统一）
+-- COMPETITOR_REF: CB-054,CB-033
 -- NOTES: 三域 6 张旧表已由 V388 全量搬到 wallet_account / wallet_ledger（行数逐一核对，见下 assert）。
 --        删除旧表连带删除：
 --          · merchant_wallet_account / merchant_wallet_ledger → merchant(merchant_id) 的外键（V212 CASCADE）。

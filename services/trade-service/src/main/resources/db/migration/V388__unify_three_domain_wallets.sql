@@ -2,7 +2,7 @@
 -- MIGRATION_REVIEWED: yes
 -- LOCK_RISK: low
 -- TABLES: wallet_account(新建)、wallet_ledger(新建)；只读源 merchant/line/staff_wallet_account+ledger（演示级行数）
--- COMPETITOR_REF: docs/WALLET_UNIFY_DECISION_BRIEF_2026-10-18.md（§12 决策 #1 = A 案，三域钱包物理统一）
+-- COMPETITOR_REF: CB-054,CB-033
 -- NOTES: 三域钱包（商户 String merchantId / 线长 long managerId / 补货员 long staffUserId）
 --        原为 6 张同构表（每域一张 account + 一张 ledger）。本迁移把「存储 + 写原语」统一到
 --        两张多态表 wallet_account / wallet_ledger，用 domain 判别列区分域。

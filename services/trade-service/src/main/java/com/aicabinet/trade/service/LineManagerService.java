@@ -10,7 +10,6 @@ import com.aicabinet.trade.domain.LineWalletLedger;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
-import com.aicabinet.trade.mapper.LineWalletLedgerMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
@@ -43,7 +42,6 @@ public class LineManagerService {
 
     private final LineManagerMapper managerMapper;
     private final LineDeviceMapper deviceMapper;
-    private final LineWalletLedgerMapper ledgerMapper;
     private final DeviceInfoMapper deviceInfoMapper;
     private final LineWalletService lineWalletService;
     private final PermissionService permissionService;
@@ -54,7 +52,6 @@ public class LineManagerService {
 
     public LineManagerService(LineManagerMapper managerMapper,
                               LineDeviceMapper deviceMapper,
-                              LineWalletLedgerMapper ledgerMapper,
                               DeviceInfoMapper deviceInfoMapper,
                               LineWalletService lineWalletService,
                               PermissionService permissionService,
@@ -62,7 +59,6 @@ public class LineManagerService {
                               DistributedLockService distributedLockService, @Lazy LineManagerService self) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
-        this.ledgerMapper = ledgerMapper;
         this.deviceInfoMapper = deviceInfoMapper;
         this.lineWalletService = lineWalletService;
         this.permissionService = permissionService;
@@ -257,7 +253,7 @@ public class LineManagerService {
     public List<LineWalletLedgerDto> ledgersForManager(long managerId, int limit) {
         requireManager(managerId);
         int lim = Math.min(Math.max(limit, 1), 200);
-        return ledgerMapper.findByManagerIdOrderByCreatedAtDesc(managerId, lim).stream()
+        return lineWalletService.listRecentLedger(managerId, lim).stream()
                 .map(this::toLedgerDto)
                 .toList();
     }

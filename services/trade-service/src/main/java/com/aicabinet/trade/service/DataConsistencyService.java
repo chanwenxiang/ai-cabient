@@ -687,10 +687,11 @@ public class DataConsistencyService {
     void checkMerchantWalletLedgerSumConsistency() {
         String sum = "COALESCE(SUM(CASE WHEN l.entry_type NOT IN (" + LEDGER_MEMO_ENTRY_TYPES + ") "
                 + "THEN l.amount_cents ELSE 0 END), 0)";
-        String sql = "SELECT a.merchant_id, a.balance_cents AS expected, " + sum + " AS actual "
-                + "FROM merchant_wallet_account a "
-                + "LEFT JOIN merchant_wallet_ledger l ON l.merchant_id = a.merchant_id "
-                + "GROUP BY a.merchant_id, a.balance_cents "
+        String sql = "SELECT a.owner_id AS merchant_id, a.balance_cents AS expected, " + sum + " AS actual "
+                + "FROM wallet_account a "
+                + "LEFT JOIN wallet_ledger l ON l.domain = a.domain AND l.owner_id = a.owner_id "
+                + "WHERE a.domain = 'MERCHANT' "
+                + "GROUP BY a.owner_id, a.balance_cents "
                 + "HAVING a.balance_cents <> " + sum + " "
                 + "LIMIT " + CHECK_BATCH;
 
@@ -699,7 +700,7 @@ public class DataConsistencyService {
         for (Map<String, Object> row : rows) {
             String merchantId = String.valueOf(row.get("merchant_id"));
             failing.add(merchantId);
-            recordInconsistency(MERCHANT_WALLET_LEDGER_SUM, "merchant_wallet_account",
+            recordInconsistency(MERCHANT_WALLET_LEDGER_SUM, "wallet_account",
                     merchantId,
                     String.valueOf(row.get(EXPECTED)),
                     String.valueOf(row.get(ACTUAL)),
@@ -712,10 +713,11 @@ public class DataConsistencyService {
     void checkLineWalletLedgerSumConsistency() {
         String sum = "COALESCE(SUM(CASE WHEN l.entry_type NOT IN (" + LEDGER_MEMO_ENTRY_TYPES + ") "
                 + "THEN l.amount_cents ELSE 0 END), 0)";
-        String sql = "SELECT a.manager_id, a.balance_cents AS expected, " + sum + " AS actual "
-                + "FROM line_wallet_account a "
-                + "LEFT JOIN line_wallet_ledger l ON l.manager_id = a.manager_id "
-                + "GROUP BY a.manager_id, a.balance_cents "
+        String sql = "SELECT a.owner_id AS manager_id, a.balance_cents AS expected, " + sum + " AS actual "
+                + "FROM wallet_account a "
+                + "LEFT JOIN wallet_ledger l ON l.domain = a.domain AND l.owner_id = a.owner_id "
+                + "WHERE a.domain = 'LINE' "
+                + "GROUP BY a.owner_id, a.balance_cents "
                 + "HAVING a.balance_cents <> " + sum + " "
                 + "LIMIT " + CHECK_BATCH;
 
@@ -724,7 +726,7 @@ public class DataConsistencyService {
         for (Map<String, Object> row : rows) {
             String managerId = String.valueOf(row.get("manager_id"));
             failing.add(managerId);
-            recordInconsistency(LINE_WALLET_LEDGER_SUM, "line_wallet_account",
+            recordInconsistency(LINE_WALLET_LEDGER_SUM, "wallet_account",
                     managerId,
                     String.valueOf(row.get(EXPECTED)),
                     String.valueOf(row.get(ACTUAL)),
@@ -735,17 +737,17 @@ public class DataConsistencyService {
 
     /** 商户钱包余额 vs 最近一条流水 balance_after。 */
     void checkMerchantWalletConsistency() {
-        String sql = "SELECT a.merchant_id, a.balance_cents AS expected, "
+        String sql = "SELECT a.owner_id AS merchant_id, a.balance_cents AS expected, "
                 + "latest.balance_after AS actual "
-                + "FROM merchant_wallet_account a "
+                + "FROM wallet_account a "
                 + "JOIN LATERAL ( "
                 + "  SELECT l.balance_after "
-                + "  FROM merchant_wallet_ledger l "
-                + "  WHERE l.merchant_id = a.merchant_id "
+                + "  FROM wallet_ledger l "
+                + "  WHERE l.domain = a.domain AND l.owner_id = a.owner_id "
                 + "  ORDER BY l.created_at DESC, l.ledger_id DESC "
                 + "  LIMIT 1 "
                 + ") latest ON true "
-                + "WHERE a.balance_cents IS DISTINCT FROM latest.balance_after "
+                + "WHERE a.domain = 'MERCHANT' AND a.balance_cents IS DISTINCT FROM latest.balance_after "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
@@ -753,7 +755,7 @@ public class DataConsistencyService {
         for (Map<String, Object> row : rows) {
             String merchantId = String.valueOf(row.get("merchant_id"));
             failing.add(merchantId);
-            recordInconsistency(MERCHANT_WALLET, "merchant_wallet_account",
+            recordInconsistency(MERCHANT_WALLET, "wallet_account",
                     merchantId,
                     String.valueOf(row.get(EXPECTED)),
                     String.valueOf(row.get(ACTUAL)),
@@ -764,17 +766,17 @@ public class DataConsistencyService {
 
     /** 线路钱包余额 vs 最近一条流水 balance_after。 */
     void checkLineWalletConsistency() {
-        String sql = "SELECT a.manager_id, a.balance_cents AS expected, "
+        String sql = "SELECT a.owner_id AS manager_id, a.balance_cents AS expected, "
                 + "latest.balance_after AS actual "
-                + "FROM line_wallet_account a "
+                + "FROM wallet_account a "
                 + "JOIN LATERAL ( "
                 + "  SELECT l.balance_after "
-                + "  FROM line_wallet_ledger l "
-                + "  WHERE l.manager_id = a.manager_id "
+                + "  FROM wallet_ledger l "
+                + "  WHERE l.domain = a.domain AND l.owner_id = a.owner_id "
                 + "  ORDER BY l.created_at DESC, l.ledger_id DESC "
                 + "  LIMIT 1 "
                 + ") latest ON true "
-                + "WHERE a.balance_cents IS DISTINCT FROM latest.balance_after "
+                + "WHERE a.domain = 'LINE' AND a.balance_cents IS DISTINCT FROM latest.balance_after "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
@@ -782,7 +784,7 @@ public class DataConsistencyService {
         for (Map<String, Object> row : rows) {
             String managerId = String.valueOf(row.get("manager_id"));
             failing.add(managerId);
-            recordInconsistency(LINE_WALLET, "line_wallet_account",
+            recordInconsistency(LINE_WALLET, "wallet_account",
                     managerId,
                     String.valueOf(row.get(EXPECTED)),
                     String.valueOf(row.get(ACTUAL)),

@@ -1622,7 +1622,7 @@ const FLOWS_IMPL = {
    *                 isInstanceApproved 为真才落 APPROVED，随后 executePayout）
    *   列表        GET  /api/v2/ops/admin/merchant-withdraws?...   MerchantWithdrawController:70-82
    *   落库表      merchant_withdraw_request(V139+V195/V241/V307)：status
-   *               PENDING_REVIEW|APPROVED|PAYING|PAID|REJECTED|FAILED|CANCELLED；钱包台账 merchant_wallet_ledger
+   *               PENDING_REVIEW|APPROVED|PAYING|PAID|REJECTED|FAILED|CANCELLED；钱包台账 wallet_ledger（domain='MERCHANT'）
    *               entry_type WITHDRAW_FREEZE/WITHDRAW_RELEASE/WITHDRAW_PAID/WITHDRAW_FEE（ref_type=WITHDRAW，ref_id=requestId）
    *
    * CB-035 T+1：解锁时刻 system_config key `merchant.withdraw.settle_unlock_hour`（隔离栈**未种** ⇒ 走 yml/硬默认 0=次日零点）；
@@ -1691,8 +1691,9 @@ const FLOWS_IMPL = {
     );
     const balNow = Number(
       (
-        psqlSafe(`select balance_cents from merchant_wallet_account where merchant_id='${M}'`)
-          .val || '0'
+        psqlSafe(
+          `select balance_cents from wallet_account where domain='MERCHANT' and owner_id='${M}'`
+        ).val || '0'
       ).trim()
     );
     if (balNow < 150000) {
@@ -1705,9 +1706,9 @@ const FLOWS_IMPL = {
     // F4-03 CB-035 T+1 实证：提额=available+1 ⇒ 412「可用余额不足」（未解锁分账把可提现额度压到 available）。
     //   已补资质⇒越过 403；amount=avail+1 远小于日限⇒命中 available 网关（当日首笔 T+1 探针，重跑多次可能改判日限则如实 SKIP）。
     let f4Boundary = 'SKIP';
-    let f4BoundaryDetail = 'merchant_wallet_account 读取失败';
+    let f4BoundaryDetail = 'wallet_account 读取失败';
     const acct0 = psqlSafe(
-      `select balance_cents||'|'||frozen_cents from merchant_wallet_account where merchant_id='${M}'`
+      `select balance_cents||'|'||frozen_cents from wallet_account where domain='MERCHANT' and owner_id='${M}'`
     );
     const pending0 = psqlSafe(
       `select coalesce(sum(merchant_cents),0) from order_revenue_split where merchant_id='${M}' and status in ('LEDGER_ONLY','SETTLED') and settle_after > current_date`
@@ -1761,7 +1762,7 @@ const FLOWS_IMPL = {
 
     // F4-05 冻结台账（ref_type=WITHDRAW, ref_id=requestId, entry_type=WITHDRAW_FREEZE）。
     const frz = psqlSafe(
-      `select coalesce(string_agg(entry_type,','),'(无)') from merchant_wallet_ledger where ref_type='WITHDRAW' and ref_id='${requestId}'`
+      `select coalesce(string_agg(entry_type,','),'(无)') from wallet_ledger where domain='MERCHANT' and ref_type='WITHDRAW' and ref_id='${requestId}'`
     );
     record(
       'F4',
@@ -1795,7 +1796,7 @@ const FLOWS_IMPL = {
 
     // F4-07 打款台账 + 净额守恒（WITHDRAW_PAID；有手续费则 WITHDRAW_FEE；net+fee=毛额）。
     const led = psqlSafe(
-      `select coalesce(string_agg(entry_type,','),'') from merchant_wallet_ledger where ref_type='WITHDRAW' and ref_id='${requestId}'`
+      `select coalesce(string_agg(entry_type,','),'') from wallet_ledger where domain='MERCHANT' and ref_type='WITHDRAW' and ref_id='${requestId}'`
     );
     const fee = Number(finA[1] || 0);
     const hasPaid = /WITHDRAW_PAID/.test(led.val || '');
@@ -1827,7 +1828,7 @@ const FLOWS_IMPL = {
       rid2 == null
         ? { val: '', err: '无 requestId' }
         : psqlSafe(
-            `select coalesce(string_agg(entry_type,','),'') from merchant_wallet_ledger where ref_type='WITHDRAW' and ref_id='${rid2}'`
+            `select coalesce(string_agg(entry_type,','),'') from wallet_ledger where domain='MERCHANT' and ref_type='WITHDRAW' and ref_id='${rid2}'`
           );
     record(
       'F4',
@@ -2065,8 +2066,9 @@ const FLOWS_IMPL = {
     const bal = () =>
       Number(
         (
-          psqlSafe(`select balance_cents from merchant_wallet_account where merchant_id='${M}'`)
-            .val || '0'
+          psqlSafe(
+            `select balance_cents from wallet_account where domain='MERCHANT' and owner_id='${M}'`
+          ).val || '0'
         ).trim()
       );
 
