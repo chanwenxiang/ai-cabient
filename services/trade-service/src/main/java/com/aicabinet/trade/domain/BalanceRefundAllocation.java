@@ -26,7 +26,7 @@ public class BalanceRefundAllocation {
 
     private String outRefundNo;
 
-    /** AU-137（V392）：切片渠道状态——PROCESSING / SUCCEEDED / FAILED；存量行 SUCCEEDED。 */
+    /** AU-137（V393）：切片渠道状态——PROCESSING / SUCCEEDED / FAILED；存量行 SUCCEEDED。 */
     private String status;
 
     private Instant createdAt;
